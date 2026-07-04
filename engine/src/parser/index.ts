@@ -14,7 +14,7 @@
  */
 import type {
   MotrScene, SceneSettings, Layer, Curve, Keyframe, RationalTime,
-  Parameter, Transform, Filter, ImageSource, BlendMode
+  Parameter, Transform, Filter, ImageSource, BlendMode, RigWidget, RigBehavior
 } from '../types.js';
 
 // ============================================================================
@@ -139,10 +139,10 @@ function parseCurve(el: Element): Curve {
     keyframes: [],
   };
 
-  // Also capture the current value if present
+  // Capture the current value separately (used for Retime-driven interpolation from default→value)
   const valueAttr = el.getAttribute('value');
   if (valueAttr !== null) {
-    curve.default = parseFloat(valueAttr);
+    curve.value = parseFloat(valueAttr);
   }
 
   for (const kpEl of directChildren(el, 'keypoint')) {
@@ -512,6 +512,78 @@ function parseLayerElement(el: Element, factories: Map<number, string>): Layer {
 // Main Parser
 // ============================================================================
 
+
+// ============================================================================
+// Rig Parsing
+// ============================================================================
+
+/**
+ * Parse rig widgets (popup menus/checkboxes controlling transition direction/variants).
+ * Widgets live inside a <scenenode name="Rig"> and have a current "value".
+ */
+function parseRigWidgets(sceneEl: Element, factories: Map<number, string>): RigWidget[] {
+  const widgets: RigWidget[] = [];
+  for (const sn of Array.from(sceneEl.getElementsByTagName('scenenode'))) {
+    const fid = parseInt(sn.getAttribute('factoryID') || '0', 10);
+    if (factories.get(fid) === 'Widget') {
+      const id = parseInt(sn.getAttribute('id') || '0', 10);
+      const name = sn.getAttribute('name') || '';
+      // The widget's current value is stored in a parameter matching the widget name
+      // (e.g., "Direction" widget has a "Direction" parameter with value=2)
+      let value = 0;
+      for (const p of Array.from(sn.getElementsByTagName('parameter'))) {
+        if (p.getAttribute('name') === name) {
+          const v = p.getAttribute('value');
+          if (v !== null) { value = parseInt(v, 10) || 0; break; }
+        }
+      }
+      widgets.push({ id, name, value });
+    }
+  }
+  return widgets;
+}
+
+/**
+ * Parse rig behaviors. Each maps (affectedObject, widget) → parameter snapshots.
+ * The active snapshot is selected by the widget's current value.
+ */
+function parseRigBehaviors(sceneEl: Element): RigBehavior[] {
+  const behaviors: RigBehavior[] = [];
+  for (const b of Array.from(sceneEl.getElementsByTagName('behavior'))) {
+    const name = b.getAttribute('name') || '';
+    if (!name.startsWith('Rig Behavior')) continue;
+
+    let affectedObjectId = 0;
+    let widgetId = 0;
+    let snapshotsParam: Element | null = null;
+
+    for (const p of directChildren(b, 'parameter')) {
+      const pname = p.getAttribute('name');
+      if (pname === 'Affecting Object (Hidden)') {
+        affectedObjectId = parseInt(p.getAttribute('value') || '0', 10);
+      } else if (pname === 'Widget') {
+        widgetId = parseInt(p.getAttribute('value') || '0', 10);
+      } else if (pname === 'Snapshots') {
+        snapshotsParam = p;
+      }
+    }
+
+    if (!snapshotsParam) continue;
+
+    // Parse the snapshot parameters (one per widget value)
+    const snapshots: Parameter[] = [];
+    let paramType = '';
+    for (const snapEl of directChildren(snapshotsParam, 'parameter')) {
+      const snap = parseParameter(snapEl);
+      if (!paramType) paramType = snap.name;
+      snapshots.push(snap);
+    }
+
+    behaviors.push({ affectedObjectId, widgetId, paramType, snapshots });
+  }
+  return behaviors;
+}
+
 export function parseMotr(xmlText: string): MotrScene {
   const doc = parseXML(xmlText);
   const root = doc.documentElement; // <ozml>
@@ -527,7 +599,7 @@ export function parseMotr(xmlText: string): MotrScene {
   // 2. Find the <scene> element
   const sceneEl = firstChild(root, 'scene');
   if (!sceneEl) {
-    return { settings: { width: 1920, height: 1080, duration: { value: 200200, timescale: 120000 }, frameRate: 24 }, layers: [], factories };
+    return { settings: { width: 1920, height: 1080, duration: { value: 200200, timescale: 120000 }, frameRate: 24 }, layers: [], factories, rigWidgets: [], rigBehaviors: [] };
   }
 
   // 3. Parse scene settings from <sceneSettings>
@@ -546,6 +618,10 @@ export function parseMotr(xmlText: string): MotrScene {
 
   const settings: SceneSettings = { width, height, duration, frameRate };
 
+  // Parse rig widgets and behaviors
+  const rigWidgets = parseRigWidgets(sceneEl, factories);
+  const rigBehaviors = parseRigBehaviors(sceneEl);
+
   // 4. Parse the scene graph (layers + scenenodes under <scene>)
   const layers: Layer[] = [];
   for (const el of allDirectChildren(sceneEl)) {
@@ -561,5 +637,5 @@ export function parseMotr(xmlText: string): MotrScene {
     }
   }
 
-  return { settings, layers, factories };
+  return { settings, layers, factories, rigWidgets, rigBehaviors };
 }

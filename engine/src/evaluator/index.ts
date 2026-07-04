@@ -18,7 +18,7 @@
  *   - Y-up (positive Y = up)
  *   - Angles in degrees, clockwise positive
  */
-import type { MotrScene, Layer, Curve, Transform } from '../types.js';
+import type { MotrScene, Layer, Curve, Transform, RigWidget, RigBehavior, Parameter } from '../types.js';
 import { evaluateCurve, resolveValue, timeToSeconds } from './curves.js';
 
 export { evaluateCurve, resolveValue, timeToSeconds } from './curves.js';
@@ -131,6 +131,97 @@ export interface EvaluatedScene {
  * Retime Value curve maps host time → template frame number.
  * Progress = (currentFrame - firstFrame) / (lastFrame - firstFrame).
  */
+
+/**
+ * Build a map of widget ID → current value for fast lookup.
+ */
+function buildWidgetValueMap(widgets: RigWidget[]): Map<number, number> {
+  const map = new Map<number, number>();
+  for (const w of widgets) map.set(w.id, w.value);
+  return map;
+}
+
+/**
+ * Extract a Curve or static value from a snapshot parameter's named sub-parameter.
+ */
+function getSnapshotValue(snapshot: Parameter, coordName: string): Curve | number | undefined {
+  if (!snapshot.children) {
+    // The snapshot itself might be the value (for scalar params like Opacity)
+    if (snapshot.name === coordName || coordName === '') {
+      if (snapshot.curve) return snapshot.curve;
+      if (typeof snapshot.value === 'number') return snapshot.value;
+    }
+    return undefined;
+  }
+  for (const child of snapshot.children) {
+    if (child.name === coordName) {
+      if (child.curve) return child.curve;
+      if (typeof child.value === 'number') return child.value;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Apply rig behaviors to a layer's transform.
+ * For each behavior affecting this layer, select the snapshot matching the widget's
+ * current value and override the corresponding transform parameters.
+ */
+function applyRigBehaviors(
+  layer: Layer,
+  transform: Transform,
+  behaviors: RigBehavior[],
+  widgetValues: Map<number, number>
+): Transform {
+  const result = { ...transform };
+
+  for (const behavior of behaviors) {
+    if (behavior.affectedObjectId !== layer.id) continue;
+
+    const widgetValue = widgetValues.get(behavior.widgetId) ?? 0;
+    const snapshot = behavior.snapshots[widgetValue];
+    if (!snapshot) continue;
+
+    // Apply the snapshot's parameters based on the controlled param type
+    switch (behavior.paramType) {
+      case 'Position': {
+        const x = getSnapshotValue(snapshot, 'X');
+        const y = getSnapshotValue(snapshot, 'Y');
+        const z = getSnapshotValue(snapshot, 'Z');
+        if (x !== undefined) result.positionX = x;
+        if (y !== undefined) result.positionY = y;
+        if (z !== undefined) result.positionZ = z;
+        break;
+      }
+      case 'Scale': {
+        const x = getSnapshotValue(snapshot, 'X');
+        const y = getSnapshotValue(snapshot, 'Y');
+        const z = getSnapshotValue(snapshot, 'Z');
+        if (x !== undefined) result.scaleX = x;
+        if (y !== undefined) result.scaleY = y;
+        if (z !== undefined) result.scaleZ = z;
+        break;
+      }
+      case 'Rotation': {
+        const x = getSnapshotValue(snapshot, 'X');
+        const y = getSnapshotValue(snapshot, 'Y');
+        const z = getSnapshotValue(snapshot, 'Z');
+        if (x !== undefined) result.rotationX = x;
+        if (y !== undefined) result.rotationY = y;
+        if (z !== undefined) result.rotationZ = z;
+        break;
+      }
+      case 'Opacity': {
+        const op = getSnapshotValue(snapshot, 'Opacity') ?? getSnapshotValue(snapshot, '');
+        if (op !== undefined) result.opacity = op;
+        break;
+      }
+    }
+  }
+
+  return result;
+}
+
 function getRetimeProgress(layer: Layer, timeSec: number): number {
   if (!layer.retimeValue || layer.retimeValue.keyframes.length < 2) return 0;
   const curve = layer.retimeValue;
@@ -149,8 +240,20 @@ function getRetimeProgress(layer: Layer, timeSec: number): number {
  */
 function resolveWithRetime(value: number | Curve | undefined, timeSec: number, defaultVal: number, retimeProgress: number): number {
   if (value === undefined) return defaultVal;
-  if (typeof value === 'object') return evaluateCurve(value, timeSec); // has curve → evaluate normally
-  // Static value with retime: interpolate default → value
+  if (typeof value === 'object') {
+    // Curve
+    if (value.keyframes.length > 0) {
+      return evaluateCurve(value, timeSec); // real keyframes → evaluate normally
+    }
+    // Empty curve with default→value: Retime-interpolate
+    const from = value.default;
+    const to = value.value !== undefined ? value.value : value.default;
+    if (retimeProgress > 0 && to !== from) {
+      return from + (to - from) * retimeProgress;
+    }
+    return from;
+  }
+  // Static number with retime: interpolate default → value
   if (retimeProgress > 0 && value !== defaultVal) {
     return defaultVal + (value - defaultVal) * retimeProgress;
   }
@@ -201,14 +304,15 @@ function isLayerVisible(layer: Layer, timeSec: number): boolean {
   return timeSec >= inTime && timeSec <= outTime;
 }
 
-function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Array): EvaluatedLayer {
+function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Array, behaviors: RigBehavior[], widgetValues: Map<number, number>): EvaluatedLayer {
   const visible = isLayerVisible(layer, timeSec);
   const retimeProgress = getRetimeProgress(layer, timeSec);
-  const localTransform = buildTransformMatrix(layer.transform, timeSec, retimeProgress);
+  const riggedTransform = applyRigBehaviors(layer, layer.transform, behaviors, widgetValues);
+  const localTransform = buildTransformMatrix(riggedTransform, timeSec, retimeProgress);
   const worldTransform = mat4Multiply(parentTransform, localTransform);
 
   // Opacity: Motion stores 0-1 (some legacy use 0-100 but all current transitions use 0-1)
-  const rawOpacity = resolveValue(layer.transform.opacity, timeSec, 1);
+  const rawOpacity = resolveValue(riggedTransform.opacity, timeSec, 1);
   const opacity = Math.max(0, Math.min(1, rawOpacity > 1 ? rawOpacity / 100 : rawOpacity));
 
   // Crop
@@ -220,7 +324,7 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   };
 
   // Evaluate children
-  const children = layer.children.map(child => evaluateLayer(child, timeSec, worldTransform));
+  const children = layer.children.map(child => evaluateLayer(child, timeSec, worldTransform, behaviors, widgetValues));
 
   return {
     layer,
@@ -239,7 +343,9 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
 
 export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
   const parentTransform = mat4Identity();
-  const layers = scene.layers.map(layer => evaluateLayer(layer, timeSec, parentTransform));
+  const widgetValues = buildWidgetValueMap(scene.rigWidgets);
+  const behaviors = scene.rigBehaviors;
+  const layers = scene.layers.map(layer => evaluateLayer(layer, timeSec, parentTransform, behaviors, widgetValues));
 
   return {
     layers,

@@ -23,6 +23,8 @@ export interface Keyframe {
 export interface Curve {
   type: number;
   default: number;
+  /** Current/target value (for Retime-driven default→value interpolation on curves with no keyframes). */
+  value?: number;
   keyframes: Keyframe[];
 }
 
@@ -100,8 +102,31 @@ export interface SceneSettings {
 }
 
 /** The complete parsed transition scene. */
+
+/** A rig widget (popup/checkbox/slider that controls transition variants). */
+export interface RigWidget {
+  id: number;
+  name: string;
+  /** Current selected value (which snapshot to use). */
+  value: number;
+}
+
+/** A rig behavior: maps a widget value to a set of parameter snapshots for a target object. */
+export interface RigBehavior {
+  /** ID of the object this behavior affects. */
+  affectedObjectId: number;
+  /** ID of the controlling widget. */
+  widgetId: number;
+  /** The parameter type this controls (e.g., "Position", "Scale", "Opacity"). */
+  paramType: string;
+  /** Snapshots: one parameter set per widget value. snapshots[widgetValue] is active. */
+  snapshots: Parameter[];
+}
+
 export interface MotrScene {
   settings: SceneSettings;
   layers: Layer[];
   factories: Map<number, string>;
+  rigWidgets: RigWidget[];
+  rigBehaviors: RigBehavior[];
 }
