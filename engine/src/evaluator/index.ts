@@ -125,16 +125,47 @@ export interface EvaluatedScene {
 // Build Transform Matrix from evaluated params
 // ============================================================================
 
-function buildTransformMatrix(tx: Transform, timeSec: number): Float64Array {
-  const posX = resolveValue(tx.positionX, timeSec, 0);
-  const posY = resolveValue(tx.positionY, timeSec, 0);
-  const posZ = resolveValue(tx.positionZ, timeSec, 0);
-  const rotX = resolveValue(tx.rotationX, timeSec, 0);
-  const rotY = resolveValue(tx.rotationY, timeSec, 0);
-  const rotZ = resolveValue(tx.rotationZ, timeSec, 0);
-  const scX = resolveValue(tx.scaleX, timeSec, 100) / 100; // Motion uses percent
-  const scY = resolveValue(tx.scaleY, timeSec, 100) / 100;
-  const scZ = resolveValue(tx.scaleZ, timeSec, 100) / 100;
+
+/**
+ * Compute the Retime progress (0-1) for a layer at a given time.
+ * Retime Value curve maps host time → template frame number.
+ * Progress = (currentFrame - firstFrame) / (lastFrame - firstFrame).
+ */
+function getRetimeProgress(layer: Layer, timeSec: number): number {
+  if (!layer.retimeValue || layer.retimeValue.keyframes.length < 2) return 0;
+  const curve = layer.retimeValue;
+  const currentFrame = evaluateCurve(curve, timeSec);
+  const firstFrame = curve.keyframes[0].value;
+  const lastFrame = curve.keyframes[curve.keyframes.length - 1].value;
+  if (lastFrame === firstFrame) return 0;
+  return Math.max(0, Math.min(1, (currentFrame - firstFrame) / (lastFrame - firstFrame)));
+}
+
+
+/**
+ * Resolve a parameter value with Retime interpolation.
+ * If the value is a curve, evaluate it normally.
+ * If it's a static number and retimeProgress > 0, interpolate from defaultVal toward the value.
+ */
+function resolveWithRetime(value: number | Curve | undefined, timeSec: number, defaultVal: number, retimeProgress: number): number {
+  if (value === undefined) return defaultVal;
+  if (typeof value === 'object') return evaluateCurve(value, timeSec); // has curve → evaluate normally
+  // Static value with retime: interpolate default → value
+  if (retimeProgress > 0 && value !== defaultVal) {
+    return defaultVal + (value - defaultVal) * retimeProgress;
+  }
+  return value;
+}
+function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: number = 0): Float64Array {
+  const posX = resolveWithRetime(tx.positionX, timeSec, 0, retimeProgress);
+  const posY = resolveWithRetime(tx.positionY, timeSec, 0, retimeProgress);
+  const posZ = resolveWithRetime(tx.positionZ, timeSec, 0, retimeProgress);
+  const rotX = resolveWithRetime(tx.rotationX, timeSec, 0, retimeProgress);
+  const rotY = resolveWithRetime(tx.rotationY, timeSec, 0, retimeProgress);
+  const rotZ = resolveWithRetime(tx.rotationZ, timeSec, 0, retimeProgress);
+  const scX = resolveWithRetime(tx.scaleX, timeSec, 100, retimeProgress) / 100; // Motion uses percent
+  const scY = resolveWithRetime(tx.scaleY, timeSec, 100, retimeProgress) / 100;
+  const scZ = resolveWithRetime(tx.scaleZ, timeSec, 100, retimeProgress) / 100;
   const ancX = resolveValue(tx.anchorX, timeSec, 0);
   const ancY = resolveValue(tx.anchorY, timeSec, 0);
 
@@ -172,7 +203,8 @@ function isLayerVisible(layer: Layer, timeSec: number): boolean {
 
 function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Array): EvaluatedLayer {
   const visible = isLayerVisible(layer, timeSec);
-  const localTransform = buildTransformMatrix(layer.transform, timeSec);
+  const retimeProgress = getRetimeProgress(layer, timeSec);
+  const localTransform = buildTransformMatrix(layer.transform, timeSec, retimeProgress);
   const worldTransform = mat4Multiply(parentTransform, localTransform);
 
   // Opacity: Motion stores 0-100, we normalize to 0-1

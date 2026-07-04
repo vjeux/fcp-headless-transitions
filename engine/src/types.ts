@@ -31,6 +31,7 @@ export interface Parameter {
   name: string;
   id: number;
   value?: number | string;
+  default?: number | string;
   curve?: Curve;
   children?: Parameter[];
 }
@@ -86,6 +87,8 @@ export interface Layer {
   children: Layer[];
   timing?: { in: RationalTime; out: RationalTime; offset: RationalTime };
   masks?: Layer[];
+  /** Retime Value curve — maps host time to template frame progress. */
+  retimeValue?: Curve;
 }
 
 /** Scene-level settings (resolution, duration, frame rate). */

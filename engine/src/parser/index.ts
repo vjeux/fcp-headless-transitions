@@ -175,6 +175,13 @@ function parseParameter(el: Element): Parameter {
     param.value = isNaN(numVal) ? valueAttr : numVal;
   }
 
+  // Default value (used for Retime-driven interpolation)
+  const defaultAttr = el.getAttribute('default');
+  if (defaultAttr !== null) {
+    const numDef = parseFloat(defaultAttr);
+    param.default = isNaN(numDef) ? defaultAttr : numDef;
+  }
+
   // If there's a default but no curve and no value, use default from the curve element
   if (param.curve && param.value === undefined) {
     param.value = param.curve.default;
@@ -211,6 +218,21 @@ function parseParameter(el: Element): Parameter {
  *     Crop (id=500)
  *       Left(1), Right(2), Top(3), Bottom(4)
  */
+function extractRetimeValue(params: Parameter[]): Curve | undefined {
+  // Retime Value is at params > Properties > Retime Value (id=304 typically)
+  function findCurve(ps: Parameter[], name: string): Curve | undefined {
+    for (const p of ps) {
+      if (p.name === name && p.curve) return p.curve;
+      if (p.children) {
+        const found = findCurve(p.children, name);
+        if (found) return found;
+      }
+    }
+    return undefined;
+  }
+  return findCurve(params, 'Retime Value');
+}
+
 function extractTransform(params: Parameter[]): Transform {
   const tx: Transform = {};
 
@@ -398,6 +420,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>): Layer {
     filters,
     children,
     timing: parseTiming(el),
+    retimeValue: extractRetimeValue(params),
     source: type === 'image' ? determineImageSource(el.getAttribute('name') || '', params) : undefined,
   };
 
