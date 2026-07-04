@@ -10,5 +10,6 @@ clang++ -std=c++17 -ObjC++ -dynamiclib -o oz_render.dylib oz_render.mm \
   "$FW/ProGraphics.framework/Versions/A/ProGraphics" \
   "$FW/ProCore.framework/Versions/A/ProCore" \
   "$FW/Helium.framework/Versions/A/Helium" \
+  "$FW/ProAppsFxSupport.framework/Versions/A/ProAppsFxSupport" \
   -Wl,-rpath,"$FW" -Wno-deprecated-declarations
 echo "built oz_render.dylib"

@@ -67,7 +67,7 @@ renders each one (in an isolated subprocess, so one bad template can't abort the
 ./venv/bin/python run_all.py images/start.jpg images/end.jpg all_out --frames 24
 ```
 
-**61 of the 65 built-in transitions render successfully.** See the full
+**All 65 built-in transitions render successfully.** See the full
 **[transition gallery](docs/GALLERY.md)** for animated previews of every one.
 
 

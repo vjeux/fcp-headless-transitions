@@ -61,6 +61,10 @@ extern GRRet OZXGetRenderGraph(void* scene, void* params, void* svctx, void* glr
 extern "C" void ozimg_getHeliumGraphFromMediaRef()
     asm("__ZN14OZImageElement26getHeliumGraphFromMediaRefERK14OZRenderParamsR18FxColorDescription");
 
+// FxApplyColorConform(const HGRef<HGNode>&, const FxColorDescription&, FxColorDescription*) -> HGRef<HGNode> (x8 sret)
+extern NodeRet FxApplyColorConform(const HGRefNode& node, const void* targetDesc, void* ioDesc)
+    asm("__Z19FxApplyColorConformRK5HGRefI6HGNodeERK18FxColorDescriptionPS4_");
+
 // ============================================================================
 // Runtime hook: make the two transition drop-zones return our image nodes.
 //
@@ -68,6 +72,11 @@ extern "C" void ozimg_getHeliumGraphFromMediaRef()
 // we assign images by the element pointer's discovery order: the first distinct
 // OZImageElement that asks for its media ref gets source A, the second gets B.
 // This is transition-agnostic.
+//
+// We also color-conform each returned node to the drop-zone's color description
+// (the caller pre-fills arg2 with the working color space). Without this, the
+// injected node lacks the intrinsic color metadata that advanced compositor
+// paths (replicators, reflections, 360°) require, and they crash.
 // ============================================================================
 static void* g_nodeA=nullptr;
 static void* g_nodeB=nullptr;
@@ -76,29 +85,40 @@ static void* g_seenB=nullptr;   // second distinct element pointer
 
 extern "C" void oz_reset_hook(){ g_seenA=nullptr; g_seenB=nullptr; }
 
-// C picker: hand out node A to the first drop-zone element, node B to the second.
-extern "C" void* oz_mediaref_pick(void* self){
-    if(self==g_seenA) return g_nodeA;
-    if(self==g_seenB) return g_nodeB;
-    if(!g_seenA){ g_seenA=self; return g_nodeA; }
-    if(!g_seenB){ g_seenB=self; return g_nodeB; }
-    return nullptr;
+// C picker: hand out node A to the first drop-zone element, node B to the second,
+// color-conformed to the drop-zone's color description (colorDesc = arg2 of the
+// hooked function). Writes the resulting HGRef<HGNode> into *sret.
+extern "C" void oz_mediaref_pick(void* self, void* colorDesc, void* sret){
+    void* raw=nullptr;
+    if(self==g_seenA) raw=g_nodeA;
+    else if(self==g_seenB) raw=g_nodeB;
+    else if(!g_seenA){ g_seenA=self; raw=g_nodeA; }
+    else if(!g_seenB){ g_seenB=self; raw=g_nodeB; }
+    if(!raw){ *(void**)sret=nullptr; return; }
+    if(colorDesc){
+        // Conform the node to the drop-zone's color space, giving it valid color metadata.
+        HGRefNode in; in.p=raw;
+        NodeRet r = FxApplyColorConform(in, colorDesc, colorDesc);
+        *(void**)sret = r.p ? r.p : raw;
+    } else {
+        *(void**)sret = raw;
+    }
 }
-// asm trampoline: preserve x8 (sret), call oz_mediaref_pick(this=x0), store *x8 = node.
+// asm trampoline: pass self(x0), colorDesc(x2), sret(x8) to oz_mediaref_pick(self,colorDesc,sret).
 __asm__(
 ".globl _oz_mediaref_trampoline\n"
 ".p2align 2\n"
 "_oz_mediaref_trampoline:\n"
-"    stp x29, x30, [sp, #-32]!\n"
+"    stp x29, x30, [sp, #-16]!\n"
 "    mov x29, sp\n"
-"    str x8, [sp, #16]\n"
+"    mov x1, x2\n"
+"    mov x2, x8\n"
 "    bl  _oz_mediaref_pick\n"
-"    ldr x8, [sp, #16]\n"
-"    str x0, [x8]\n"
-"    ldp x29, x30, [sp], #32\n"
+"    ldp x29, x30, [sp], #16\n"
 "    ret\n"
 );
 extern "C" void oz_mediaref_trampoline();
+
 
 static int oz_install_hook(void* target){
     task_t task=mach_task_self();
