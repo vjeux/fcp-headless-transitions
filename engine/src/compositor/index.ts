@@ -5,6 +5,7 @@ import { channelMixerFilter, colorizeFilter } from './filters/channel-mixer.js';
 import { hueSaturationFilter } from './filters/hue-saturation.js';
 import { directionalBlur, radialBlur, zoomBlur } from './filters/directional-blur.js';
 import { evaluateCurve } from '../evaluator/curves.js';
+import { rasterizeShape, applyMask, unionMasks } from './shapes.js';
 /**
  * Compositor: EvaluatedScene + source images → output ImageData
  *
@@ -173,22 +174,49 @@ function renderLayer(
 
   // Render children (back to front = array order)
   if (evalLayer.children.length > 0) {
-    // For groups with filters: render children to a temp buffer, apply filters, then composite
-    if (layer.filters.length > 0) {
+    // Separate mask shapes from visible children
+    const maskShapes: EvaluatedLayer[] = [];
+    const visibleChildren: EvaluatedLayer[] = [];
+    for (const child of evalLayer.children) {
+      if (child.layer.type === 'shape' && child.layer.shape?.isMask) {
+        maskShapes.push(child);
+      } else {
+        visibleChildren.push(child);
+      }
+    }
+
+    const hasFilters = layer.filters.length > 0;
+    const hasMasks = maskShapes.length > 0;
+
+    if (hasFilters || hasMasks) {
+      // Render visible children to a temp buffer
       const groupBuffer = createBuffer(output.width, output.height);
-      for (let i = evalLayer.children.length - 1; i >= 0; i--) {
-        renderLayer(groupBuffer, evalLayer.children[i], imageA, imageB, time);
+      for (let i = visibleChildren.length - 1; i >= 0; i--) {
+        renderLayer(groupBuffer, visibleChildren[i], imageA, imageB, time);
       }
+
+      // Apply masks (rasterize shapes, union them, apply to group content)
+      if (hasMasks) {
+        const masks = maskShapes
+          .filter(m => m.visible && m.layer.shape)
+          .map(m => rasterizeShape(m.layer.shape!, output.width, output.height, m.worldTransform));
+        if (masks.length > 0) {
+          const combined = masks.length === 1 ? masks[0] : unionMasks(masks, output.width, output.height);
+          applyMask(groupBuffer, combined);
+        }
+      }
+
       // Apply filters
-      let filtered = groupBuffer;
+      let processed = groupBuffer;
       for (const filter of layer.filters) {
-        filtered = applyFilter(filtered, filter, evalLayer, time);
+        processed = applyFilter(processed, filter, evalLayer, time);
       }
-      // Composite filtered group onto output
-      blitDirect(output, filtered, opacity);
+
+      // Composite onto output
+      blitDirect(output, processed, opacity);
     } else {
-      for (let i = evalLayer.children.length - 1; i >= 0; i--) {
-        renderLayer(output, evalLayer.children[i], imageA, imageB, time);
+      for (let i = visibleChildren.length - 1; i >= 0; i--) {
+        renderLayer(output, visibleChildren[i], imageA, imageB, time);
       }
     }
   }
