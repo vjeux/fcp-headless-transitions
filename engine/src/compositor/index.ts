@@ -6,6 +6,7 @@ import { hueSaturationFilter } from './filters/hue-saturation.js';
 import { directionalBlur, radialBlur, zoomBlur } from './filters/directional-blur.js';
 import { evaluateCurve } from '../evaluator/curves.js';
 import { rasterizeShape, applyMask, unionMasks } from './shapes.js';
+import { needsPerspective, projectQuad, renderPerspectiveQuad } from './perspective.js';
 /**
  * Compositor: EvaluatedScene + source images → output ImageData
  *
@@ -176,6 +177,10 @@ function renderLayer(
           filtered = applyFilter(filtered, filter, evalLayer, time);
         }
         blitDirect(output, filtered, opacity);
+      } else if (needsPerspective(worldTransform)) {
+        // 3D perspective: project the source quad and rasterize
+        const corners = projectQuad(worldTransform, src.width, src.height);
+        renderPerspectiveQuad(output, src, corners, opacity);
       } else {
         blitTransformed(output, src, worldTransform, opacity, crop);
       }
