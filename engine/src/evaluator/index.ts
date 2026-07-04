@@ -18,7 +18,7 @@
  *   - Y-up (positive Y = up)
  *   - Angles in degrees, clockwise positive
  */
-import type { MotrScene, Layer, Curve, Transform, RigWidget, RigBehavior, Parameter } from '../types.js';
+import type { MotrScene, Layer, Curve, Transform, RigWidget, RigBehavior, Parameter, SceneBehavior } from '../types.js';
 import { evaluateCurve, resolveValue, timeToSeconds } from './curves.js';
 import { evaluateFade, evaluateRamp, evaluateOscillate, evaluateSpin } from './behaviors/index.js';
 
@@ -228,6 +228,39 @@ function applyRigBehaviors(
  * Compute the combined opacity multiplier from Fade behaviors on a layer.
  * Fade times are in frames; we convert the current time to frames via the scene fps.
  */
+
+/**
+ * Compute additive Ramp contributions for a layer from scene behaviors.
+ * Ramp behaviors that affect this layer's object ID contribute a ramped value
+ * (Start Value → End Value over the transition) to the target parameter.
+ * Returns a map of contributions (currently: opacity multiplier).
+ */
+function applyRampBehaviors(
+  layer: Layer,
+  sceneBehaviors: SceneBehavior[],
+  frame: number,
+  totalFrames: number
+): number {
+  let opacityMult = 1;
+  for (const b of sceneBehaviors) {
+    if (b.affectedObjectId !== layer.id) continue;
+    if (b.type === 'ramp') {
+      const startValue = b.params['Start Value'] ?? 0;
+      const endValue = b.params['End Value'] ?? 0;
+      const curvature = b.params['Curvature'] ?? 0;
+      const startOffset = b.params['Start Offset'] ?? 0;
+      const endOffset = b.params['End Offset'] ?? 0;
+      const rampVal = evaluateRamp({ startValue, endValue, curvature, startOffset, endOffset }, frame, totalFrames);
+      // Ramps that go 0→1 or 1→0 typically drive opacity; clamp as a multiplier
+      // Only apply as opacity if the range is within [0, 1] (heuristic for opacity ramps)
+      if (Math.abs(startValue) <= 1.01 && Math.abs(endValue) <= 1.01) {
+        opacityMult *= Math.max(0, Math.min(1, rampVal));
+      }
+    }
+  }
+  return opacityMult;
+}
+
 function applyFadeBehaviors(layer: Layer, frame: number, totalFrames: number): number {
   if (!layer.behaviors) return 1;
   let mult = 1;
@@ -325,7 +358,7 @@ function isLayerVisible(layer: Layer, timeSec: number): boolean {
   return timeSec >= inTime && timeSec <= outTime;
 }
 
-function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Array, behaviors: RigBehavior[], widgetValues: Map<number, number>): EvaluatedLayer {
+function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Array, behaviors: RigBehavior[], widgetValues: Map<number, number>, sceneBehaviors: SceneBehavior[]): EvaluatedLayer {
   const visible = isLayerVisible(layer, timeSec);
   const retimeProgress = getRetimeProgress(layer, timeSec);
   const riggedTransform = applyRigBehaviors(layer, layer.transform, behaviors, widgetValues);
@@ -336,10 +369,15 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   let rawOpacity = resolveValue(riggedTransform.opacity, timeSec, 1);
   rawOpacity = rawOpacity > 1 ? rawOpacity / 100 : rawOpacity;
   // Apply Fade behaviors (frame-based). Derive frame from the Retime curve if present.
-  if (layer.behaviors && layer.behaviors.some(b => b.type === 'fade') && layer.retimeValue && layer.retimeValue.keyframes.length >= 2) {
+  if (layer.retimeValue && layer.retimeValue.keyframes.length >= 2) {
     const curFrame = evaluateCurve(layer.retimeValue, timeSec);
     const totalFrames = layer.retimeValue.keyframes[layer.retimeValue.keyframes.length - 1].value;
-    rawOpacity *= applyFadeBehaviors(layer, curFrame, totalFrames);
+    if (layer.behaviors && layer.behaviors.some(b => b.type === 'fade')) {
+      rawOpacity *= applyFadeBehaviors(layer, curFrame, totalFrames);
+    }
+    if (sceneBehaviors.length > 0) {
+      rawOpacity *= applyRampBehaviors(layer, sceneBehaviors, curFrame, totalFrames);
+    }
   }
   const opacity = Math.max(0, Math.min(1, rawOpacity));
 
@@ -352,7 +390,7 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   };
 
   // Evaluate children
-  const children = layer.children.map(child => evaluateLayer(child, timeSec, worldTransform, behaviors, widgetValues));
+  const children = layer.children.map(child => evaluateLayer(child, timeSec, worldTransform, behaviors, widgetValues, sceneBehaviors));
 
   return {
     layer,
@@ -373,7 +411,8 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
   const parentTransform = mat4Identity();
   const widgetValues = buildWidgetValueMap(scene.rigWidgets);
   const behaviors = scene.rigBehaviors;
-  const layers = scene.layers.map(layer => evaluateLayer(layer, timeSec, parentTransform, behaviors, widgetValues));
+  const sceneBehaviors = scene.sceneBehaviors;
+  const layers = scene.layers.map(layer => evaluateLayer(layer, timeSec, parentTransform, behaviors, widgetValues, sceneBehaviors));
 
   return {
     layers,
