@@ -88,19 +88,29 @@ function blitTransformed(
       // Bounds check (with crop)
       if (sx < srcLeft || sx >= srcRight || sy < srcTop || sy >= srcBottom) continue;
 
-      // Nearest-neighbor sampling (bilinear can be added later)
-      const isx = Math.floor(sx);
-      const isy = Math.floor(sy);
-      if (isx < 0 || isx >= sw || isy < 0 || isy >= sh) continue;
+      // Bilinear sampling for smooth scaling/rotation
+      const fx = sx - Math.floor(sx);
+      const fy = sy - Math.floor(sy);
+      const x0 = Math.floor(sx), y0 = Math.floor(sy);
+      const x1 = Math.min(x0 + 1, sw - 1), y1 = Math.min(y0 + 1, sh - 1);
+      if (x0 < 0 || x0 >= sw || y0 < 0 || y0 >= sh) continue;
+      const cx0 = Math.max(0, x0), cy0 = Math.max(0, y0);
 
-      const srcIdx = (isy * sw + isx) * 4;
+      const i00 = (cy0 * sw + cx0) * 4;
+      const i10 = (cy0 * sw + x1) * 4;
+      const i01 = (y1 * sw + cx0) * 4;
+      const i11 = (y1 * sw + x1) * 4;
+
+      const lerp2 = (a: number, b: number, c: number, d: number) =>
+        (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy;
+
+      const sr = lerp2(src.data[i00], src.data[i10], src.data[i01], src.data[i11]);
+      const sg = lerp2(src.data[i00+1], src.data[i10+1], src.data[i01+1], src.data[i11+1]);
+      const sb = lerp2(src.data[i00+2], src.data[i10+2], src.data[i01+2], src.data[i11+2]);
+      const srcAlpha = lerp2(src.data[i00+3], src.data[i10+3], src.data[i01+3], src.data[i11+3]);
+      const sa = srcAlpha / 255 * opacity;
+
       const dstIdx = (dy * dw + dx) * 4;
-
-      // Source RGBA
-      const sr = src.data[srcIdx];
-      const sg = src.data[srcIdx + 1];
-      const sb = src.data[srcIdx + 2];
-      const sa = src.data[srcIdx + 3] / 255 * opacity;
 
       if (sa <= 0) continue;
 
