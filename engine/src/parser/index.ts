@@ -312,67 +312,89 @@ function extractTransform(params: Parameter[]): Transform {
 // ============================================================================
 
 /**
- * Determine the image source for an image-type scenenode.
- * Checks the Source Media parameter to identify Transition A/B footage.
+ * Parse the scene's <footage> block into a map of clip-id → 'A' | 'B'.
+ *
+ * Transition templates declare two drop-zone clips inside <footage>:
+ *   <clip name="Transition A" id="..."><pathURL>Drop Zone Transition A.tiff</pathURL>
+ *   <clip name="Transition B" id="..."><pathURL>Drop Zone Transition B.tiff</pathURL>
+ * Image nodes reference these by clip id via their "Source Media" (id 300) param.
+ *
+ * Classification is by pathURL (…Transition A… / …Transition B…), which is stable
+ * and not localized. As a last resort the two clips are ordered A, B by document
+ * order (the format always lists A before B).
  */
+function parseFootageClipAB(sceneEl: Element): Map<number, 'A' | 'B'> {
+  const map = new Map<number, 'A' | 'B'>();
+  const clips: { id: number; path: string; name: string }[] = [];
+  for (const footage of Array.from(sceneEl.getElementsByTagName('footage'))) {
+    for (const clip of directChildren(footage, 'clip')) {
+      const id = parseInt(clip.getAttribute('id') || '0', 10);
+      if (!id) continue;
+      const path = (getTextContent(clip, 'pathURL') || '').toLowerCase();
+      const name = (clip.getAttribute('name') || '').toLowerCase();
+      clips.push({ id, path, name });
+    }
+  }
+  let sawA = false, sawB = false;
+  for (const c of clips) {
+    if (/transition\s*a\b|drop zone transition a| a\.tiff|\ba\.|source a/.test(c.path) || /transition\s*a\b|\ba\b/.test(c.name)) {
+      map.set(c.id, 'A'); sawA = true;
+    } else if (/transition\s*b\b|drop zone transition b| b\.tiff|\bb\.|source b/.test(c.path) || /transition\s*b\b|\bb\b/.test(c.name)) {
+      map.set(c.id, 'B'); sawB = true;
+    }
+  }
+  // Fallback: if pathURL/name matching failed, order the two clips A then B.
+  if ((!sawA || !sawB) && clips.length >= 2) {
+    map.set(clips[0].id, 'A');
+    map.set(clips[1].id, 'B');
+  } else if (clips.length === 1 && !sawA && !sawB) {
+    map.set(clips[0].id, 'A');
+  }
+  return map;
+}
+
+/** Find an image node's referenced clip id via its "Source Media" (id 300) param. */
+function findSourceMediaId(params: Parameter[]): number | undefined {
+  for (const p of params) {
+    if (p.name === 'Source Media' && p.id === 300 && typeof p.value === 'number') return p.value;
+    if (p.children) { const r = findSourceMediaId(p.children); if (r !== undefined) return r; }
+  }
+  return undefined;
+}
+
+
 /**
- * Determine image source based on scenenode name and parameters.
- * Transition templates use "Transition A" / "Transition B" as drop-zone names.
+ * Determine the image source for an image-type scenenode.
+ *
+ * Resolves the node's "Source Media" (id 300) clip reference against the footage
+ * clip→A/B map. This is the authoritative, localization-proof signal. A node with
+ * a Color Solid plugin is a solid fill, not a drop zone. Anything else is not an
+ * image source (returns undefined so the caller treats it as a plain group/leaf).
  */
-function determineImageSource(name: string, params: Parameter[], el?: Element): ImageSource {
-  if (name === 'Transition A' || name.includes('Transition A')) return { type: 'transitionA' };
-  if (name === 'Transition B' || name.includes('Transition B')) return { type: 'transitionB' };
-  // Color Solid generator
+function determineImageSource(params: Parameter[], el: Element | undefined, clipAB: Map<number, 'A' | 'B'>): ImageSource | undefined {
+  // Color Solid generator (a plugin fill, not a drop zone).
   if (el && (el.getAttribute('pluginName')?.includes('Color Solid') || el.getAttribute('pluginName')?.includes('PAEColorSolid'))) {
-    // Extract RGB from params (default white)
     let r = 1, g = 1, b = 1;
-    function findColor(ps: Parameter[]) {
+    (function findColor(ps: Parameter[]) {
       for (const p of ps) {
         if (p.name === 'Red' && typeof p.value === 'number') r = p.value;
         if (p.name === 'Green' && typeof p.value === 'number') g = p.value;
         if (p.name === 'Blue' && typeof p.value === 'number') b = p.value;
         if (p.children) findColor(p.children);
       }
-    }
-    findColor(params);
+    })(params);
     return { type: 'color', r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255), a: 1 };
   }
-  // Clone layers that reference Transition B (by name in the layer hierarchy)
-  if (name === 'Bottom' || name === 'Left' || name === 'Top' || name === 'Right') {
-    return { type: 'transitionB' }; // Push uses these as B clones
-  }
-  return { type: 'transitionA' }; // default to A
-}
 
-function determineSource(params: Parameter[], factories: Map<number, string>, factoryID: number): ImageSource | undefined {
-  // Find Source Media reference
-  function findSourceMedia(ps: Parameter[]): number | undefined {
-    for (const p of ps) {
-      if (p.name === 'Source Media' && p.id === 300 && typeof p.value === 'number') {
-        return p.value;
-      }
-      if (p.children) {
-        const found = findSourceMedia(p.children);
-        if (found !== undefined) return found;
-      }
-    }
-    return undefined;
-  }
-
-  const sourceMediaId = findSourceMedia(params);
-  // We'll resolve A vs B in a post-processing step based on clip IDs and footage pathURLs
-  // For now, store the raw reference
-  if (sourceMediaId !== undefined) {
-    return { type: 'transitionA' }; // placeholder — resolved later
-  }
-
-  // Generators
-  if (factories.get(factoryID) === 'Generator') {
-    return { type: 'generator', name: 'unknown', parameters: [] };
+  // Resolve by footage clip reference (the authoritative signal).
+  const clipId = findSourceMediaId(params);
+  if (clipId !== undefined && clipAB.has(clipId)) {
+    return clipAB.get(clipId) === 'A' ? { type: 'transitionA' } : { type: 'transitionB' };
   }
 
   return undefined;
 }
+
 
 /**
  * Parse a scenenode element into a Layer.
@@ -601,7 +623,7 @@ function findDescendant(el: Element, tag: string): Element | null {
   return null;
 }
 
-function parseSceneNode(el: Element, factories: Map<number, string>): Layer {
+function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map<number, 'A' | 'B'>): Layer {
   const factoryID = parseInt(el.getAttribute('factoryID') || '0', 10);
   const factoryType = factories.get(factoryID) || '';
 
@@ -659,7 +681,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>): Layer {
     if (childType !== 'ProPlugin Filter' && childType !== 'Fade In/Fade Out'
         && childType !== 'Oscillate' && childType !== 'Spin' && childType !== 'Throw'
         && childType !== 'Motion Path' && childType !== 'Align To') {
-      children.push(parseSceneNode(childNode, factories));
+      children.push(parseSceneNode(childNode, factories, clipAB));
     }
   }
 
@@ -693,7 +715,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>): Layer {
     shape: type === 'shape' ? parseShape(el) : undefined,
     replicator: type === 'replicator' ? parseReplicator(params) : undefined,
     behaviors: parseLayerBehaviors(el, factories),
-    source: (type === 'image' || type === 'generator') ? determineImageSource(el.getAttribute('name') || '', params, el) : undefined,
+    source: (type === 'image' || type === 'generator') ? determineImageSource(params, el, clipAB) : undefined,
     enabled,
     cloneSourceId,
     links: parseLinkBehaviors(el, factories),
@@ -705,7 +727,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>): Layer {
 /**
  * Parse a <layer> element (a group that contains scenenodes).
  */
-function parseLayerElement(el: Element, factories: Map<number, string>): Layer {
+function parseLayerElement(el: Element, factories: Map<number, string>, clipAB: Map<number, 'A' | 'B'>): Layer {
   // Parse the layer's own parameters
   const params: Parameter[] = [];
   for (const paramEl of directChildren(el, 'parameter')) {
@@ -730,10 +752,10 @@ function parseLayerElement(el: Element, factories: Map<number, string>): Layer {
         }
         filters.push({ id: filterId, pluginName, pluginUUID, parameters: filterParams });
       } else {
-        children.push(parseSceneNode(childEl, factories));
+        children.push(parseSceneNode(childEl, factories, clipAB));
       }
     } else if (childEl.tagName === 'layer' || childEl.tagName === 'group') {
-      children.push(parseLayerElement(childEl, factories));
+      children.push(parseLayerElement(childEl, factories, clipAB));
     } else if (childEl.tagName === 'filter') {
       // Filter elements (blur, color, etc.)
       const filterId = parseInt(childEl.getAttribute('id') || '0', 10);
@@ -915,17 +937,20 @@ export function parseMotr(xmlText: string): MotrScene {
   const rigBehaviors = parseRigBehaviors(sceneEl);
   const sceneBehaviors = parseSceneBehaviors(sceneEl, factories);
 
+  // Resolve the footage drop-zone clips → A/B for authoritative source resolution.
+  const clipAB = parseFootageClipAB(sceneEl);
+
   // 4. Parse the scene graph (layers + scenenodes under <scene>)
   const layers: Layer[] = [];
   for (const el of allDirectChildren(sceneEl)) {
     if (el.tagName === 'layer' || el.tagName === 'group') {
-      layers.push(parseLayerElement(el, factories));
+      layers.push(parseLayerElement(el, factories, clipAB));
     } else if (el.tagName === 'scenenode') {
       const fid = parseInt(el.getAttribute('factoryID') || '0', 10);
       const ftype = factories.get(fid) || '';
       // Skip Project, Rig, Widget — they're metadata/control, not visual layers
       if (ftype !== 'Project' && ftype !== 'Rig' && ftype !== 'Widget') {
-        layers.push(parseSceneNode(el, factories));
+        layers.push(parseSceneNode(el, factories, clipAB));
       }
     }
   }
