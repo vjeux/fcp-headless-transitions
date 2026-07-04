@@ -58,6 +58,19 @@ Options: `--frames N`, `--duration SECS`, `--fps N`, `--motr PATH`, `--mp4 PATH`
 > `DYLD_FRAMEWORK_PATH` must point at FCP's `Frameworks` dir so the engine's sibling
 > frameworks resolve at load time.
 
+## Render *every* built-in transition
+
+`run_all.py` discovers all `.motr` transition templates bundled with Final Cut Pro and
+renders each one (in an isolated subprocess, so one bad template can't abort the batch):
+
+```bash
+./venv/bin/python run_all.py images/start.jpg images/end.jpg all_out --frames 24
+```
+
+**61 of the 65 built-in transitions render successfully.** See the full
+**[transition gallery](docs/GALLERY.md)** for animated previews of every one.
+
+
 ## How it works
 
 1. **Boot the engine headless.** Load `Ozone.framework` in-process and initialize its
@@ -88,13 +101,16 @@ by-pointer passing of `shared_ptr`/`CMTime`/matrices).
 | `oz_render.mm`  | The renderer: engine bootstrap, GPU setup, image nodes, media-ref hook, rasterize→PNG. |
 | `build.sh`      | Compiles `oz_render.mm` → `oz_render.dylib`. |
 | `render.py`     | Driver: boots the engine, loads the `.motr`, renders frames, assembles mp4. |
+| `run_all.py`    | Discovers and renders every built-in FCP transition (subprocess-isolated). |
 | `images/`       | Example source images. |
+| `docs/GALLERY.md` | Animated previews of all supported transitions. |
 
 ## Using a different transition
 
-Point `MOTR` in `render.py` at another `.motr`. If the new template's two drop-zone
-`OZImageElement` scene IDs differ from the Push template's, update `DROPZONE_A_ID` /
-`DROPZONE_B_ID`. Everything else is transition-agnostic.
+Point `MOTR` in `render.py` at another `.motr`. The two source drop-zones are matched
+by discovery order at render time (via the media-ref hook), so no per-template IDs are
+needed — the renderer is transition-agnostic. `run_all.py` uses exactly this to sweep
+the whole library.
 
 ## Caveats
 

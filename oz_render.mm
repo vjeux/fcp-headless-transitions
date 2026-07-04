@@ -55,7 +55,6 @@ extern BmpRet  PGHelium_renderNodeToBitmap(void* hgr, const HGRefNode& node,
     const PCRectT<int>& roi, int channelOrder, CGColorSpace* cs, const void* liTech)
     asm("__ZN8PGHelium18renderNodeToBitmapEP10HGRendererRK5HGRefI6HGNodeERK6PCRectIiEN13PCPixelFormat12ChannelOrderEP12CGColorSpaceRK21LiRenderingTechnology");
 extern void  PCBitmap_vimage(void*, void*) asm("__ZNK8PCBitmap15getVImageBufferEP13vImage_Buffer");
-extern void* OZScene_getObject(void* scene, unsigned int id) asm("__ZN7OZScene9getObjectEj");
 extern GRRet OZXGetRenderGraph(void* scene, void* params, void* svctx, void* glr, bool b, void* hgr)
     asm("__Z17OZXGetRenderGraphP7OZScene14OZRenderParamsP11FFSVContextR10GLRendererbP10HGRenderer");
 // The transition's media-ref resolver we hook (its address is patched at runtime):
@@ -64,13 +63,26 @@ extern "C" void ozimg_getHeliumGraphFromMediaRef()
 
 // ============================================================================
 // Runtime hook: make the two transition drop-zones return our image nodes.
+//
+// Rather than pre-identify each drop-zone element (which varies per template),
+// we assign images by the element pointer's discovery order: the first distinct
+// OZImageElement that asks for its media ref gets source A, the second gets B.
+// This is transition-agnostic.
 // ============================================================================
-static void* g_elemA=nullptr; static void* g_nodeA=nullptr;
-static void* g_elemB=nullptr; static void* g_nodeB=nullptr;
+static void* g_nodeA=nullptr;
+static void* g_nodeB=nullptr;
+static void* g_seenA=nullptr;   // first distinct element pointer
+static void* g_seenB=nullptr;   // second distinct element pointer
 
-// C picker: maps the OZImageElement `this` to our decoded image node.
+extern "C" void oz_reset_hook(){ g_seenA=nullptr; g_seenB=nullptr; }
+
+// C picker: hand out node A to the first drop-zone element, node B to the second.
 extern "C" void* oz_mediaref_pick(void* self){
-    return (self==g_elemA)?g_nodeA : (self==g_elemB)?g_nodeB : nullptr;
+    if(self==g_seenA) return g_nodeA;
+    if(self==g_seenB) return g_nodeB;
+    if(!g_seenA){ g_seenA=self; return g_nodeA; }
+    if(!g_seenB){ g_seenB=self; return g_nodeB; }
+    return nullptr;
 }
 // asm trampoline: preserve x8 (sret), call oz_mediaref_pick(this=x0), store *x8 = node.
 __asm__(
@@ -165,12 +177,12 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
     HGRefNode nA=makeImageNode(ra,wa,ha), nB=makeImageNode(rb,wb,hb);
 
     void* scene=*(void**)((char*)cppDoc+8);
-    void* elA=OZScene_getObject(scene,idA);
-    void* elB=OZScene_getObject(scene,idB);
-    // The `this` passed to getHeliumGraphFromMediaRef is getObject(id) - 0x10 (base subobject).
-    g_elemA=(char*)elA-0x10; g_nodeA=nA.p;
-    g_elemB=(char*)elB-0x10; g_nodeB=nB.p;
+    // Register images by drop-zone discovery order (idA/idB unused; kept for API stability).
+    (void)idA; (void)idB;
+    g_nodeA=nA.p; g_nodeB=nB.p;
+    oz_reset_hook();
     oz_install_hook((void*)&ozimg_getHeliumGraphFromMediaRef);
+
 
     GRRet gr=OZXGetRenderGraph(scene, params, NULL, h.glr, false, hgr);
     HGRefNode out; out.p=gr.p;
