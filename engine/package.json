@@ -12,13 +12,13 @@
     "test:visual": "node --loader ts-node/esm test/visual.ts",
     "ground-truth": "cd .. && python3 run_all.py images/start.jpg images/end.jpg engine/test/ground-truth --frames 12"
   },
-  "dependencies": {},
   "devDependencies": {
-    "typescript": "^5.5.0",
-    "ts-node": "^10.9.0",
     "@types/node": "^22.0.0",
     "canvas": "^3.1.0",
     "pixelmatch": "^6.0.0",
-    "pngjs": "^7.0.0"
+    "pngjs": "^7.0.0",
+    "ts-node": "^10.9.0",
+    "tsx": "^4.23.0",
+    "typescript": "^5.5.0"
   }
 }
