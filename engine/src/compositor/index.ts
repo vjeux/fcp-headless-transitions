@@ -1,4 +1,5 @@
 import { gaussianBlur } from './filters/gaussian-blur.js';
+import { glowFilter } from './filters/glow.js';
 import { evaluateCurve } from '../evaluator/curves.js';
 /**
  * Compositor: EvaluatedScene + source images → output ImageData
@@ -217,6 +218,22 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
     }
     if (amount > 0) {
       return gaussianBlur(input, amount);
+    }
+  }
+  // Glow / Bloom filter
+  if (name.includes('glow') || name.includes('bloom')) {
+    let radius = 0, threshold = 0, amount = 1;
+    for (const p of filter.parameters) {
+      if (p.name === 'Radius') {
+        amount = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : 0);
+        radius = amount; // Radius IS the blur size for glow
+      }
+      if (p.name === 'Threshold') {
+        threshold = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : 0);
+      }
+    }
+    if (radius > 0) {
+      return glowFilter(input, { radius, threshold, amount: 1 });
     }
   }
   return input;
