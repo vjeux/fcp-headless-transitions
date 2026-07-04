@@ -297,6 +297,11 @@ export function composite(
 function applyFilter(input: ImageData, filter: import('../types.js').Filter, evalLayer: EvaluatedLayer, time: number, overrides?: Map<string, number>): ImageData {
   const name = filter.pluginName.toLowerCase();
 
+  // Skip on-screen-control (OSC) preview filters — they're editor UI, not rendered output.
+  if (name.includes('for osc') || name.includes('(osc)') || name.endsWith(' osc')) {
+    return input;
+  }
+
   // Resolve a filter parameter, preferring a rig override if present.
   const resolveParam = (paramName: string, fallback: number): number => {
     if (overrides && overrides.has(paramName)) return overrides.get(paramName)!;
