@@ -1,0 +1,13 @@
+# Build artifacts
+oz_render.dylib
+*.o
+
+# Python venv (machine-specific; recreate via setup — see README)
+venv/
+
+# Render outputs
+out/
+*.mp4
+
+# macOS
+.DS_Store
