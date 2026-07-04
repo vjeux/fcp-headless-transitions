@@ -54,17 +54,27 @@ export function glowFilter(input: ImageData, params: GlowParams): ImageData {
   const brightImg = new ImageData(brightData, width, height);
   const blurred = gaussianBlur(brightImg, radius);
 
-  // Step 3: Screen-blend the blurred glow back onto the original
+  // Step 3: Blend the blurred glow back onto the original.
+  // For amount <= 1: screen blend (gentle). For amount > 1: additive accumulation
+  // (matches FCP's bloom overexposure that blows highlights toward white).
   const out = new Uint8ClampedArray(width * height * 4);
+  const additive = amount > 1;
   for (let i = 0; i < src.length; i += 4) {
-    // Screen blend: result = 1 - (1 - base) * (1 - glow*amount)
-    // Simplified for bytes: R = base + glow*amount - base*glow*amount/255
     for (let c = 0; c < 3; c++) {
       const base = src[i + c];
-      const glow = blurred.data[i + c] * amount;
-      out[i + c] = Math.min(255, Math.round(base + glow - (base * glow) / 255));
+      const glowPix = blurred.data[i + c];
+      let result: number;
+      if (additive) {
+        // Additive: base + glow*amount, saturating to white
+        result = base + glowPix * amount;
+      } else {
+        // Screen blend: base + glow*amount - base*glow*amount/255
+        const glow = glowPix * amount;
+        result = base + glow - (base * glow) / 255;
+      }
+      out[i + c] = Math.min(255, Math.round(result));
     }
-    out[i + 3] = src[i + 3]; // preserve alpha
+    out[i + 3] = src[i + 3];
   }
 
   return new ImageData(out, width, height);
