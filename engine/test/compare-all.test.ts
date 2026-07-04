@@ -22,6 +22,7 @@ const MOTR_ROOT = '/Users/vjeux/random/motion-renderer/examples/PETemplates.loca
 const MOTR_PATHS: Record<string, string> = {
   'Blurs__Gaussian': `${MOTR_ROOT}/Blurs.localized/Gaussian.localized/Gaussian.motr`,
   'Lights__Bloom': `${MOTR_ROOT}/Lights.localized/Bloom.localized/Bloom.motr`,
+  'Blurs__Zoom': `${MOTR_ROOT}/Blurs.localized/Zoom.localized/Zoom.motr`,
 };
 
 function loadPNG(filepath: string): ImageData {
