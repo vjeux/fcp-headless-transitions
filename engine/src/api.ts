@@ -50,9 +50,12 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
     width: outW ?? width,
     height: outH ?? height,
     render(imageA: ImageData, imageB: ImageData, progress: number): ImageData {
-      // Map progress (0-1) to scene time
+      // Map progress (0-1) to scene time. progress=1 maps to the animation end
+      // (the last keyframe), NOT the full scene/playRange duration — the extra
+      // frame past the last keyframe wraps back to the start in Motion.
       const duration = scene.settings.duration;
-      const timeSec = progress * (duration.value / duration.timescale);
+      const endSec = scene.settings.animationEndSec ?? (duration.value / duration.timescale);
+      const timeSec = progress * endSec;
 
       // Evaluate all layers at this time
       const evaluated = evaluate(scene, timeSec);

@@ -930,5 +930,29 @@ export function parseMotr(xmlText: string): MotrScene {
     }
   }
 
+  // Compute the animation end = max keyframe time across ALL curves in the scene.
+  // progress=1 maps here, not to the full scene/playRange duration (which can run a
+  // frame past the last keyframe and wrap back to the start). We scan the raw XML
+  // <time> nodes inside <keypoint> to catch every curve (including rig snapshots,
+  // which drive most transitions and don't live in the layer transform tree).
+  let animationEndSec = duration.value / duration.timescale;
+  {
+    let maxT = 0;
+    const keypoints = Array.from(sceneEl.getElementsByTagName('keypoint'));
+    for (const kp of keypoints) {
+      const timeEl = firstChild(kp, 'time');
+      if (!timeEl || !timeEl.textContent) continue;
+      const parts = timeEl.textContent.trim().split(/\s+/);
+      const val = parseFloat(parts[0]);
+      const scale = parts.length > 1 ? parseFloat(parts[1]) : 1;
+      if (scale > 0 && isFinite(val)) {
+        const sec = val / scale;
+        if (sec > maxT) maxT = sec;
+      }
+    }
+    if (maxT > 0) animationEndSec = maxT;
+  }
+  settings.animationEndSec = animationEndSec;
+
   return { settings, layers, factories, rigWidgets, rigBehaviors, sceneBehaviors };
 }

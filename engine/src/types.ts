@@ -153,6 +153,13 @@ export interface SceneSettings {
   height: number;
   duration: RationalTime;
   frameRate: number;
+  /**
+   * The transition's animation end time in seconds — the maximum keyframe time
+   * across all curves. progress=1 maps here (NOT to the full scene/playRange
+   * duration, which can extend a frame past the last keyframe and wrap). If no
+   * keyframes exist, falls back to the scene duration.
+   */
+  animationEndSec?: number;
 }
 
 /** The complete parsed transition scene. */
