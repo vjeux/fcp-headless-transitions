@@ -98,6 +98,53 @@ export interface Layer {
   replicator?: Replicator;
   /** Animation behaviors attached to this layer. */
   behaviors?: LayerBehavior[];
+  /**
+   * Whether the node is enabled/visible. Motion stores `<enabled>0</enabled>` on
+   * nodes that exist only to drive other objects (e.g. Push's Color Solid, which
+   * is a hidden position driver linked to the visible group). Default: true.
+   */
+  enabled?: boolean;
+  /**
+   * Object ID whose Position channel this clone/image mirrors, if any.
+   * Clone Layers reference their source object by ID via `Source id="300"`.
+   */
+  cloneSourceId?: number;
+  /**
+   * Link behaviors attached to this layer. A Link makes one of this layer's
+   * transform channels track a source object's channel (× scale, gated by a
+   * rig-driven Custom Mix, clamped to [min,max]).
+   */
+  links?: LinkBehavior[];
+}
+
+/**
+ * A Link behavior: drives one transform channel of the host layer from a source
+ * object's channel. Motion uses these to make a group follow a hidden driver
+ * (e.g. the Push "Color Solid" position drives the transition group's position).
+ *
+ * Effective value = clamp(sourceChannelValue, min, max) * scale, applied only when
+ * the (rig-selected) Custom Mix is non-zero.
+ */
+export interface LinkBehavior {
+  /** Object ID this link is attached to (the driven layer). */
+  affectedObjectId: number;
+  /** Object ID whose channel supplies the value (the driver). */
+  sourceObjectId: number;
+  /** Which transform channel is driven: 'X' | 'Y' | 'Z'. */
+  targetChannel: 'X' | 'Y' | 'Z';
+  /** Which source channel is read: 'X' | 'Y' | 'Z'. */
+  sourceChannel: 'X' | 'Y' | 'Z';
+  /** Multiplier applied to the source value. */
+  scale: number;
+  /** Static Custom Mix (0/1 gate). Overridden by a rig snapshot when present. */
+  customMix: number;
+  /** Clamp range for the source value. */
+  min: number;
+  max: number;
+  /** Rig widget id controlling Custom Mix (if rig-gated). */
+  rigWidgetId?: number;
+  /** Per-widget-value Custom Mix snapshots (index = widget value). */
+  rigCustomMix?: number[];
 }
 
 /** Scene-level settings (resolution, duration, frame rate). */

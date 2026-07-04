@@ -14,7 +14,7 @@
  */
 import type {
   MotrScene, SceneSettings, Layer, Curve, Keyframe, RationalTime,
-  Parameter, Transform, Filter, ImageSource, BlendMode, RigWidget, RigBehavior, Shape, Replicator, LayerBehavior, SceneBehavior
+  Parameter, Transform, Filter, ImageSource, BlendMode, RigWidget, RigBehavior, Shape, Replicator, LayerBehavior, SceneBehavior, LinkBehavior
 } from '../types.js';
 
 // ============================================================================
@@ -426,6 +426,111 @@ function parseLayerBehaviors(el: Element, factories: Map<number, string>): Layer
   return behaviors;
 }
 
+/**
+ * Parse Link behaviors (factory "Link", id 7) attached to a layer.
+ *
+ * A Link drives one of the host layer's Position channels from a source object's
+ * Position channel. Motion uses these for pushes/slides: a hidden driver node
+ * (e.g. Push's "Color Solid") animates its position, and Links copy that motion
+ * onto the visible transition group — one Link per axis, gated by the Direction rig.
+ *
+ * Channel refs like "./1/100/101/1" mean Properties(1)/Transform(100)/Position(101)/X(1);
+ * the trailing 1/2/3 = X/Y/Z.
+ */
+function parseLinkBehaviors(el: Element, factories: Map<number, string>): LinkBehavior[] {
+  const links: LinkBehavior[] = [];
+  const affectedId = parseInt(el.getAttribute('id') || '0', 10);
+
+  for (const b of directChildren(el, 'behavior')) {
+    const fid = parseInt(b.getAttribute('factoryID') || '0', 10);
+    if (factories.get(fid) !== 'Link') continue;
+
+    let sourceObjectId = 0, scale = 1, customMix = 1, min = -Infinity, max = Infinity;
+    for (const p of directChildren(b, 'parameter')) {
+      const pname = p.getAttribute('name') || '';
+      const v = p.getAttribute('value');
+      const num = v !== null ? parseFloat(v) : NaN;
+      if (pname === 'Source Object') sourceObjectId = parseInt(v || '0', 10);
+      else if (pname === 'Scale' && !isNaN(num)) scale = num;
+      else if (pname === 'Custom Mix' && !isNaN(num)) customMix = num;
+      else if ((pname === 'X min' || pname === 'Y min' || pname === 'Z min') && !isNaN(num)) min = num;
+      else if ((pname === 'X max' || pname === 'Y max' || pname === 'Z max') && !isNaN(num)) max = num;
+    }
+
+    // Determine which channels are driven from expressionChannels.
+    const chanName = (ref: string | null): 'X' | 'Y' | 'Z' | undefined => {
+      if (!ref) return undefined;
+      const last = ref.trim().split('/').pop();
+      return last === '1' ? 'X' : last === '2' ? 'Y' : last === '3' ? 'Z' : undefined;
+    };
+    let targetChannel: 'X' | 'Y' | 'Z' | undefined;
+    let sourceChannel: 'X' | 'Y' | 'Z' | undefined;
+    const expr = firstChild(b, 'expressionChannels');
+    if (expr) {
+      const srcRef = getTextContent(expr, 'sourceChannelRef');
+      const tgtId = getTextContent(expr, 'targetChannelID');
+      sourceChannel = chanName(srcRef);
+      targetChannel = tgtId === '1' ? 'X' : tgtId === '2' ? 'Y' : tgtId === '3' ? 'Z' : undefined;
+    }
+    // Fallback from the channelBehavior affectingChannel (the driven channel).
+    if (!targetChannel) {
+      const cb = firstChild(b, 'channelBehavior');
+      targetChannel = chanName(cb?.getAttribute('affectingChannel') ?? null);
+    }
+    if (!sourceChannel) sourceChannel = targetChannel;
+    if (!targetChannel || !sourceChannel || sourceObjectId === 0) continue;
+
+    // A sibling "Rig Behavior" targeting this Link's Custom Mix (channel "./207")
+    // supplies per-direction Custom Mix snapshots. Find it.
+    let rigWidgetId: number | undefined;
+    let rigCustomMix: number[] | undefined;
+    const linkId = parseInt(b.getAttribute('id') || '0', 10);
+    // Rig behaviors that affect this link are nested in the SAME parent as the link's
+    // owning layer (the Group). Search siblings of the layer.
+    const parent = (el as any).parentNode as Element | null;
+    const searchScope = parent ? Array.from(parent.getElementsByTagName('behavior')) : [];
+    for (const rb of searchScope) {
+      if ((rb.getAttribute('name') || '') !== 'Rig Behavior' && !(rb.getAttribute('name') || '').startsWith('Rig Behavior')) continue;
+      const cb = firstChild(rb, 'channelBehavior');
+      const affCh = cb?.getAttribute('affectingChannel') || '';
+      // Must affect Custom Mix ("./207") AND target this link object.
+      let affObj = 0, widgetId = 0;
+      for (const p of directChildren(rb, 'parameter')) {
+        if (p.getAttribute('name') === 'Affecting Object (Hidden)') affObj = parseInt(p.getAttribute('value') || '0', 10);
+        if (p.getAttribute('name') === 'Widget') widgetId = parseInt(p.getAttribute('value') || '0', 10);
+      }
+      if (affObj !== linkId || !affCh.endsWith('/207')) continue;
+      // Extract the per-value Custom Mix snapshots.
+      const snapsParam = directChildren(rb, 'parameter').find(p => p.getAttribute('name') === 'Snapshots');
+      if (!snapsParam) continue;
+      const mixes: number[] = [];
+      for (const snap of directChildren(snapsParam, 'parameter')) {
+        const curveEl = firstChild(snap, 'curve');
+        const val = curveEl?.getAttribute('value');
+        mixes.push(val !== null && val !== undefined ? parseFloat(val) : 0);
+      }
+      rigWidgetId = widgetId;
+      rigCustomMix = mixes;
+      break;
+    }
+
+    links.push({
+      affectedObjectId: affectedId,
+      sourceObjectId,
+      targetChannel,
+      sourceChannel,
+      scale,
+      customMix,
+      min,
+      max,
+      rigWidgetId,
+      rigCustomMix,
+    });
+  }
+  return links;
+}
+
+
 function parseReplicator(params: Parameter[]): Replicator | undefined {
   function findVal(ps: Parameter[], name: string): number | undefined {
     for (const p of ps) {
@@ -558,6 +663,23 @@ function parseSceneNode(el: Element, factories: Map<number, string>): Layer {
     }
   }
 
+  // <enabled>0</enabled> marks a node that drives others but is not itself drawn.
+  const enabledText = getTextContent(el, 'enabled');
+  const enabled = enabledText === null ? true : enabledText.trim() !== '0';
+
+  // Clone Layers reference their source object by ID via the "Source" id=300 parameter.
+  let cloneSourceId: number | undefined;
+  if (type === 'clone') {
+    const findSource = (ps: Parameter[]): number | undefined => {
+      for (const p of ps) {
+        if (p.name === 'Source' && p.id === 300 && typeof p.value === 'number') return p.value;
+        if (p.children) { const r = findSource(p.children); if (r !== undefined) return r; }
+      }
+      return undefined;
+    };
+    cloneSourceId = findSource(params);
+  }
+
   const layer: Layer = {
     name: el.getAttribute('name') || '',
     id: parseInt(el.getAttribute('id') || '0', 10),
@@ -572,6 +694,9 @@ function parseSceneNode(el: Element, factories: Map<number, string>): Layer {
     replicator: type === 'replicator' ? parseReplicator(params) : undefined,
     behaviors: parseLayerBehaviors(el, factories),
     source: (type === 'image' || type === 'generator') ? determineImageSource(el.getAttribute('name') || '', params, el) : undefined,
+    enabled,
+    cloneSourceId,
+    links: parseLinkBehaviors(el, factories),
   };
 
   return layer;
@@ -631,6 +756,8 @@ function parseLayerElement(el: Element, factories: Map<number, string>): Layer {
     filters,
     children,
     timing: parseTiming(el),
+    enabled: (() => { const t = getTextContent(el, 'enabled'); return t === null ? true : t.trim() !== '0'; })(),
+    links: parseLinkBehaviors(el, factories),
   };
 }
 

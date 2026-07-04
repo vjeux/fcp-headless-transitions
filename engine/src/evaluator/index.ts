@@ -18,7 +18,7 @@
  *   - Y-up (positive Y = up)
  *   - Angles in degrees, clockwise positive
  */
-import type { MotrScene, Layer, Curve, Transform, RigWidget, RigBehavior, Parameter, SceneBehavior } from '../types.js';
+import type { MotrScene, Layer, Curve, Transform, RigWidget, RigBehavior, Parameter, SceneBehavior, LinkBehavior } from '../types.js';
 import { evaluateCurve, resolveValue, timeToSeconds } from './curves.js';
 import { evaluateFade, evaluateRamp, evaluateOscillate, evaluateSpin } from './behaviors/index.js';
 
@@ -122,6 +122,8 @@ export interface EvaluatedScene {
   height: number;
   /** Rig-resolved filter parameter overrides: filterId → (paramName → value). */
   filterOverrides: Map<number, Map<string, number>>;
+  /** Object ID → source Layer (for clone-source resolution in the compositor). */
+  layerById: Map<number, Layer>;
 }
 
 // ============================================================================
@@ -142,6 +144,71 @@ function buildWidgetValueMap(widgets: RigWidget[]): Map<number, number> {
   const map = new Map<number, number>();
   for (const w of widgets) map.set(w.id, w.value);
   return map;
+}
+
+/**
+ * Build a map of object ID → Layer for driver lookups (Link behaviors, clones).
+ */
+function buildLayerById(layers: Layer[], map: Map<number, Layer>): Map<number, Layer> {
+  for (const l of layers) {
+    map.set(l.id, l);
+    buildLayerById(l.children, map);
+  }
+  return map;
+}
+
+/** Read a driver layer's animated Position channel (X/Y/Z) at a given time. */
+function driverChannelValue(driver: Layer, channel: 'X' | 'Y' | 'Z', timeSec: number): number {
+  const t = driver.transform;
+  const c = channel === 'X' ? t.positionX : channel === 'Y' ? t.positionY : t.positionZ;
+  return resolveValue(c, timeSec, 0);
+}
+
+/**
+ * Apply Link behaviors to a layer's transform. Each Link drives one Position
+ * channel from a source object's channel: value = clamp(src, min, max) * scale,
+ * gated by the (rig-selected) Custom Mix. When Custom Mix is 0 the link is off
+ * and the channel keeps its own value.
+ */
+function applyLinks(
+  layer: Layer,
+  transform: Transform,
+  layerById: Map<number, Layer>,
+  widgetValues: Map<number, number>,
+  timeSec: number
+): Transform {
+  if (!layer.links || layer.links.length === 0) return transform;
+  const result = { ...transform };
+  for (const link of layer.links) {
+    const driver = layerById.get(link.sourceObjectId);
+    if (!driver) continue;
+
+    // Resolve the Custom Mix (rig-gated if a rig snapshot is present).
+    let mix = link.customMix;
+    if (link.rigCustomMix && link.rigWidgetId !== undefined) {
+      const wv = widgetValues.get(link.rigWidgetId) ?? 0;
+      const idx = Math.max(0, Math.min(link.rigCustomMix.length - 1, Math.round(wv)));
+      mix = link.rigCustomMix[idx];
+    }
+    if (mix === 0) continue; // link inactive for this direction
+
+    let v = driverChannelValue(driver, link.sourceChannel, timeSec);
+    // Motion's "Clamp Source Value Within Range" uses min/max = ±100 as the
+    // default (unset) UI sentinel; real transitions drive far past ±100 (e.g. a
+    // full 1080px push). Only clamp when a non-default range is present.
+    const defaultRange = link.min === -100 && link.max === 100;
+    if (!defaultRange) {
+      if (v < link.min) v = link.min;
+      if (v > link.max) v = link.max;
+    }
+    v *= link.scale;
+    const contribution = v * mix;
+
+    if (link.targetChannel === 'X') result.positionX = (resolveValue(result.positionX, timeSec, 0)) + contribution;
+    else if (link.targetChannel === 'Y') result.positionY = (resolveValue(result.positionY, timeSec, 0)) + contribution;
+    else result.positionZ = (resolveValue(result.positionZ, timeSec, 0)) + contribution;
+  }
+  return result;
 }
 
 /**
@@ -371,10 +438,12 @@ function isLayerVisible(layer: Layer, timeSec: number): boolean {
   return timeSec >= inTime && timeSec <= outTime;
 }
 
-function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Array, behaviors: RigBehavior[], widgetValues: Map<number, number>, sceneBehaviors: SceneBehavior[]): EvaluatedLayer {
+function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Array, behaviors: RigBehavior[], widgetValues: Map<number, number>, sceneBehaviors: SceneBehavior[], layerById: Map<number, Layer>): EvaluatedLayer {
   const visible = isLayerVisible(layer, timeSec);
   const retimeProgress = getRetimeProgress(layer, timeSec);
-  const riggedTransform = applyRigBehaviors(layer, layer.transform, behaviors, widgetValues);
+  let riggedTransform = applyRigBehaviors(layer, layer.transform, behaviors, widgetValues);
+  // Links drive channels from a source object; apply after rig snapshots.
+  riggedTransform = applyLinks(layer, riggedTransform, layerById, widgetValues, timeSec);
   const localTransform = buildTransformMatrix(riggedTransform, timeSec, retimeProgress);
   const worldTransform = mat4Multiply(parentTransform, localTransform);
 
@@ -403,15 +472,18 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   };
 
   // Evaluate children
-  const children = layer.children.map(child => evaluateLayer(child, timeSec, worldTransform, behaviors, widgetValues, sceneBehaviors));
+  const children = layer.children.map(child => evaluateLayer(child, timeSec, worldTransform, behaviors, widgetValues, sceneBehaviors, layerById));
+
+  // Disabled nodes (<enabled>0</enabled>) drive other objects but are never drawn.
+  const drawn = layer.enabled !== false;
 
   return {
     layer,
     localTransform,
     worldTransform,
-    opacity: visible ? opacity : 0,
+    opacity: (visible && drawn) ? opacity : 0,
     crop,
-    visible: visible && opacity > 0,
+    visible: visible && drawn && opacity > 0,
     children,
   };
 }
@@ -477,7 +549,8 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
   const widgetValues = buildWidgetValueMap(scene.rigWidgets);
   const behaviors = scene.rigBehaviors;
   const sceneBehaviors = scene.sceneBehaviors;
-  const layers = scene.layers.map(layer => evaluateLayer(layer, timeSec, parentTransform, behaviors, widgetValues, sceneBehaviors));
+  const layerById = buildLayerById(scene.layers, new Map());
+  const layers = scene.layers.map(layer => evaluateLayer(layer, timeSec, parentTransform, behaviors, widgetValues, sceneBehaviors, layerById));
   const filterOverrides = computeFilterOverrides(scene, timeSec, widgetValues);
 
   return {
@@ -486,5 +559,6 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
     width: scene.settings.width,
     height: scene.settings.height,
     filterOverrides,
+    layerById,
   };
 }

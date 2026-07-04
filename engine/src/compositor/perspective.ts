@@ -18,8 +18,10 @@ const DEFAULT_CAMERA_Z = 2000;
  * @returns [screenX, screenY, perspectiveScale]
  */
 export function projectPoint(x: number, y: number, z: number, cameraZ: number = DEFAULT_CAMERA_Z): [number, number, number] {
-  // Perspective divide: points closer to camera (higher z) appear larger
-  const denom = cameraZ - z;
+  // Perspective divide. Motion's convention (verified against headless GT): a point with
+  // positive world-z has been rotated AWAY from the viewer and recedes (appears smaller);
+  // negative z comes toward the viewer (appears larger).
+  const denom = cameraZ + z;
   const scale = denom !== 0 ? cameraZ / denom : 1;
   return [x * scale, y * scale, scale];
 }

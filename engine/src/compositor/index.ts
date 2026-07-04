@@ -33,7 +33,36 @@ function mat4MultiplyOffset(m: Float64Array, dx: number, dy: number): Float64Arr
  * can be added later for performance.
  */
 import type { EvaluatedScene, EvaluatedLayer } from '../evaluator/index.js';
-import type { ImageSource } from '../types.js';
+import type { ImageSource, Layer } from '../types.js';
+
+/**
+ * Render context set per composite() call. Holds the object-ID map so clone
+ * layers can resolve the image of the object they mirror.
+ */
+interface RenderContext {
+  layerById: Map<number, Layer>;
+  imageA: ImageData;
+  imageB: ImageData;
+}
+let ctx: RenderContext | null = null;
+
+/**
+ * Resolve the source image a Clone Layer mirrors. Follows cloneSourceId to the
+ * referenced Layer; if that layer is itself a clone/image of Transition A or B,
+ * resolves transitively to the underlying source pixels.
+ */
+function resolveCloneImage(cloneSourceId: number | undefined, depth = 0): ImageData | null {
+  if (cloneSourceId === undefined || !ctx || depth > 8) return null;
+  const src = ctx.layerById.get(cloneSourceId);
+  if (!src) return null;
+  if (src.source?.type === 'transitionA') return ctx.imageA;
+  if (src.source?.type === 'transitionB') return ctx.imageB;
+  if (src.type === 'clone') return resolveCloneImage(src.cloneSourceId, depth + 1);
+  // Image/generator source without an explicit A/B tag: fall back to its source.
+  if (src.source) return getSourceImage(src.source, ctx.imageA, ctx.imageB);
+  return null;
+}
+
 
 // ============================================================================
 // Image buffer operations
@@ -83,8 +112,11 @@ function blitTransformed(
 
   // For each destination pixel
   for (let dy = 0; dy < dh; dy++) {
-    // Destination pixel in centered coords (Motion: origin=center, Y-up)
-    const dyc = -(dy - dh / 2); // flip Y: screen Y-down to Motion Y-up
+    // Ozone/.motr internal space is Y-DOWN (screen_y = center + motionY): a clone
+    // at Motion Y=-1080 renders at the TOP edge, and a +Y position translates
+    // content downward. This was verified against the real engine's Push render
+    // (B enters from top, A exits the bottom). So dest-centered Y matches screen Y.
+    const dyc = dy - dh / 2;
 
     for (let dx = 0; dx < dw; dx++) {
       const dxc = dx - dw / 2;
@@ -93,9 +125,9 @@ function blitTransformed(
       const sxc = ia * dxc + ib * dyc + itx;
       const syc = ic * dxc + id * dyc + ity;
 
-      // Convert from centered to pixel coords (source)
+      // Convert from centered to pixel coords (source), Y-down.
       const sx = sxc + sw / 2;
-      const sy = sh / 2 - syc; // flip Y back
+      const sy = syc + sh / 2;
 
       // Bounds check (with crop)
       if (sx < srcLeft || sx >= srcRight || sy < srcTop || sy >= srcBottom) continue;
@@ -198,6 +230,20 @@ function renderLayer(
     return;
   }
 
+  if (layer.type === 'clone') {
+    // Clone Layer: draw the image of the object it mirrors, at this layer's transform.
+    const src = resolveCloneImage(layer.cloneSourceId);
+    if (src) {
+      if (needsPerspective(worldTransform)) {
+        const corners = projectQuad(worldTransform, src.width, src.height);
+        renderPerspectiveQuad(output, src, corners, opacity);
+      } else {
+        blitTransformed(output, src, worldTransform, opacity, crop);
+      }
+    }
+    // A clone may also have children (rare); fall through to render them.
+  }
+
   if (layer.type === 'image' || layer.type === 'generator') {
     // Leaf layer: render source image with transform
     const src = getSourceImage(layer.source, imageA, imageB);
@@ -284,11 +330,15 @@ export function composite(
 ): ImageData {
   const output = createBuffer(width, height);
 
+  // Set the render context so clone layers can resolve their mirrored image.
+  ctx = { layerById: scene.layerById, imageA, imageB };
+
   // Render layers back-to-front (Motion: first in list = top/foreground, last = bottom/background)
   for (let i = scene.layers.length - 1; i >= 0; i--) {
     renderLayer(output, scene.layers[i], imageA, imageB, scene.time, scene.filterOverrides);
   }
 
+  ctx = null;
   return output;
 }
 

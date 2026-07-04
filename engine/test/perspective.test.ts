@@ -31,16 +31,16 @@ function runTests() {
     assertClose(x, 100, 0.01, 'x'); assertClose(y, 50, 0.01, 'y'); assertClose(s, 1, 0.01, 'scale');
   });
 
-  test('projectPoint: positive z (toward camera) → magnified', () => {
+  test('projectPoint: positive z (away from camera) → recedes/shrinks', () => {
     const [x, y, s] = projectPoint(100, 0, 500);
-    assert(s > 1, `scale should be >1 for z>0, got ${s}`);
-    assert(x > 100, `x should magnify, got ${x}`);
+    assert(s < 1, `scale should be <1 for z>0 (recedes), got ${s}`);
+    assert(x < 100, `x should shrink, got ${x}`);
   });
 
-  test('projectPoint: negative z (away) → shrunk', () => {
+  test('projectPoint: negative z (toward camera) → magnified', () => {
     const [x, y, s] = projectPoint(100, 0, -500);
-    assert(s < 1, `scale should be <1 for z<0, got ${s}`);
-    assert(x < 100, `x should shrink, got ${x}`);
+    assert(s > 1, `scale should be >1 for z<0 (toward), got ${s}`);
+    assert(x > 100, `x should magnify, got ${x}`);
   });
 
   test('needsPerspective: identity → false', () => {
