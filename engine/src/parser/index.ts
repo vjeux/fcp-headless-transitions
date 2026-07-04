@@ -21,26 +21,17 @@ import type {
 // XML Parsing Helpers
 // ============================================================================
 
-// Node.js polyfill: import xmldom at module load if no native DOMParser
-let _DOMParserImpl: typeof DOMParser;
-if (typeof globalThis.DOMParser !== 'undefined') {
-  _DOMParserImpl = globalThis.DOMParser;
-} else {
-  // @ts-ignore - dynamic import for Node.js
-  const { DOMParser: XmlDomParser } = await import('@xmldom/xmldom');
-  _DOMParserImpl = XmlDomParser as unknown as typeof DOMParser;
+// DOMParser: use native in browser, @xmldom/xmldom in Node.js
+import { DOMParser as XmlDomParser } from '@xmldom/xmldom';
+const _DOMParser = typeof globalThis.DOMParser !== 'undefined' ? globalThis.DOMParser : XmlDomParser as unknown as typeof DOMParser;
+
+function parseXML(xmlText: string): Document {
+  const Parser = _DOMParser;
+  return new Parser().parseFromString(xmlText, 'text/xml');
 }
 
-/** Get direct child elements with a given tag name (xmldom doesn't support querySelectorAll). */
-function allDirectChildren(el: Element | Document): Element[] {
-  const result: Element[] = [];
-  for (let i = 0; i < el.childNodes.length; i++) {
-    const child = el.childNodes[i];
-    if (child.nodeType === 1) result.push(child as Element);
-  }
-  return result;
-}
 
+/** Get direct child elements with a given tag name (xmldom compat). */
 function directChildren(el: Element | Document, tag: string): Element[] {
   const result: Element[] = [];
   for (let i = 0; i < el.childNodes.length; i++) {
@@ -48,6 +39,16 @@ function directChildren(el: Element | Document, tag: string): Element[] {
     if (child.nodeType === 1 && (child as Element).tagName === tag) {
       result.push(child as Element);
     }
+  }
+  return result;
+}
+
+/** Get all direct child elements. */
+function allDirectChildren(el: Element | Document): Element[] {
+  const result: Element[] = [];
+  for (let i = 0; i < el.childNodes.length; i++) {
+    const child = el.childNodes[i];
+    if (child.nodeType === 1) result.push(child as Element);
   }
   return result;
 }
@@ -61,11 +62,6 @@ function firstChild(el: Element, tag: string): Element | null {
     }
   }
   return null;
-}
-
-
-function parseXML(xmlText: string): Document {
-  return new _DOMParserImpl().parseFromString(xmlText, 'text/xml');
 }
 
 function getTextContent(el: Element, tag: string): string | null {
@@ -297,6 +293,20 @@ function extractTransform(params: Parameter[]): Transform {
  * Determine the image source for an image-type scenenode.
  * Checks the Source Media parameter to identify Transition A/B footage.
  */
+/**
+ * Determine image source based on scenenode name and parameters.
+ * Transition templates use "Transition A" / "Transition B" as drop-zone names.
+ */
+function determineImageSource(name: string, params: Parameter[]): ImageSource {
+  if (name === 'Transition A' || name.includes('Transition A')) return { type: 'transitionA' };
+  if (name === 'Transition B' || name.includes('Transition B')) return { type: 'transitionB' };
+  // Clone layers that reference Transition B (by name in the layer hierarchy)
+  if (name === 'Bottom' || name === 'Left' || name === 'Top' || name === 'Right') {
+    return { type: 'transitionB' }; // Push uses these as B clones
+  }
+  return { type: 'transitionA' }; // default to A
+}
+
 function determineSource(params: Parameter[], factories: Map<number, string>, factoryID: number): ImageSource | undefined {
   // Find Source Media reference
   function findSourceMedia(ps: Parameter[]): number | undefined {
@@ -388,7 +398,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>): Layer {
     filters,
     children,
     timing: parseTiming(el),
-    source: type === 'image' ? determineSource(params, factories, factoryID) : undefined,
+    source: type === 'image' ? determineImageSource(el.getAttribute('name') || '', params) : undefined,
   };
 
   return layer;
@@ -454,30 +464,13 @@ export function parseMotr(xmlText: string): MotrScene {
   const height = ssEl ? getIntContent(ssEl, 'height', 1080) : 1080;
   const frameRate = ssEl ? getFloatContent(ssEl, 'frameRate', 30) : 30;
 
-  // Duration comes from the timeRange or the project scenenode's timing
-  let duration: RationalTime = { value: 200200, timescale: 120000 };
-  const timeRangeEl = firstChild(sceneEl, 'timeRange');
-  if (timeRangeEl) {
-    const trText = timeRangeEl.textContent?.trim();
-    if (trText) {
-      // timeRange format: "START_VALUE START_TS FLAGS EPOCH END_VALUE END_TS ..."
-      // Actually it may be just a timing-like string. Check by parsing.
-      const parts = trText.split(/\s+/);
-      if (parts.length >= 4) {
-        // Interpret as "out" time (total duration)
-        duration = { value: parseInt(parts[0], 10), timescale: parseInt(parts[1], 10) || 1 };
-      }
-    }
-  }
-  // Fallback: get duration from the first scenenode with Project factory
-  for (const sn of directChildren(sceneEl, 'scenenode')) {
-    const fid = parseInt(sn.getAttribute('factoryID') || '0', 10);
-    if (factories.get(fid) === 'Project') {
-      const timing = parseTiming(sn);
-      if (timing) duration = timing.out;
-      break;
-    }
-  }
+  // Duration: compute from sceneSettings frames + frameRate.
+  // sceneSettings.duration is in FRAMES. Convert to a rational time.
+  const durationFrames = ssEl ? getIntContent(ssEl, 'duration', 51) : 51;
+  // Use standard timescale 120000 (allows frame-accurate times at 23.976/24/25/30fps)
+  const timescale = 120000;
+  const durationValue = Math.round((durationFrames / frameRate) * timescale);
+  let duration: RationalTime = { value: durationValue, timescale };
 
   const settings: SceneSettings = { width, height, duration, frameRate };
 
