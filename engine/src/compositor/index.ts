@@ -1,4 +1,5 @@
 import { gaussianBlur } from './filters/gaussian-blur.js';
+import { evaluateCurve } from '../evaluator/curves.js';
 /**
  * Compositor: EvaluatedScene + source images → output ImageData
  *
@@ -137,7 +138,8 @@ function renderLayer(
   output: ImageData,
   evalLayer: EvaluatedLayer,
   imageA: ImageData,
-  imageB: ImageData
+  imageB: ImageData,
+  time: number
 ): void {
   if (!evalLayer.visible) return;
 
@@ -157,18 +159,18 @@ function renderLayer(
     if (layer.filters.length > 0) {
       const groupBuffer = createBuffer(output.width, output.height);
       for (const child of evalLayer.children) {
-        renderLayer(groupBuffer, child, imageA, imageB);
+        renderLayer(groupBuffer, child, imageA, imageB, time);
       }
       // Apply filters
       let filtered = groupBuffer;
       for (const filter of layer.filters) {
-        filtered = applyFilter(filtered, filter, evalLayer);
+        filtered = applyFilter(filtered, filter, evalLayer, time);
       }
       // Composite filtered group onto output
       blitDirect(output, filtered, opacity);
     } else {
       for (const child of evalLayer.children) {
-        renderLayer(output, child, imageA, imageB);
+        renderLayer(output, child, imageA, imageB, time);
       }
     }
   }
@@ -179,7 +181,7 @@ function renderLayer(
 // ============================================================================
 
 export function composite(
-  scene: EvaluatedScene,
+  scene: EvaluatedScene,  // includes scene.time
   imageA: ImageData,
   imageB: ImageData,
   width: number,
@@ -189,7 +191,7 @@ export function composite(
 
   // Render layers back-to-front
   for (const evalLayer of scene.layers) {
-    renderLayer(output, evalLayer, imageA, imageB);
+    renderLayer(output, evalLayer, imageA, imageB, scene.time);
   }
 
   return output;
@@ -197,7 +199,7 @@ export function composite(
 
 
 /** Apply a filter to an image buffer. */
-function applyFilter(input: ImageData, filter: import('../types.js').Filter, evalLayer: EvaluatedLayer): ImageData {
+function applyFilter(input: ImageData, filter: import('../types.js').Filter, evalLayer: EvaluatedLayer, time: number): ImageData {
   const name = filter.pluginName.toLowerCase();
   if (name.includes('gaussian') || name.includes('blur')) {
     // Find the Amount parameter
@@ -205,10 +207,8 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
     for (const p of filter.parameters) {
       if (p.name === 'Amount') {
         if (p.curve) {
-          // Evaluate at current time (approximate from evalLayer context)
-          // For now, use the curve's last keyframe value as the max blur
-          const kfs = p.curve.keyframes;
-          amount = kfs.length > 0 ? kfs[kfs.length - 1].value : 0;
+          // Evaluate the blur amount at the current time
+          amount = evaluateCurve(p.curve, time);
         } else if (typeof p.value === 'number') {
           amount = p.value;
         }
