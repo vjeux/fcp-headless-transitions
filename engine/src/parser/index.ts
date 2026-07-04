@@ -319,9 +319,24 @@ function extractTransform(params: Parameter[]): Transform {
  * Determine image source based on scenenode name and parameters.
  * Transition templates use "Transition A" / "Transition B" as drop-zone names.
  */
-function determineImageSource(name: string, params: Parameter[]): ImageSource {
+function determineImageSource(name: string, params: Parameter[], el?: Element): ImageSource {
   if (name === 'Transition A' || name.includes('Transition A')) return { type: 'transitionA' };
   if (name === 'Transition B' || name.includes('Transition B')) return { type: 'transitionB' };
+  // Color Solid generator
+  if (el && (el.getAttribute('pluginName')?.includes('Color Solid') || el.getAttribute('pluginName')?.includes('PAEColorSolid'))) {
+    // Extract RGB from params (default white)
+    let r = 1, g = 1, b = 1;
+    function findColor(ps: Parameter[]) {
+      for (const p of ps) {
+        if (p.name === 'Red' && typeof p.value === 'number') r = p.value;
+        if (p.name === 'Green' && typeof p.value === 'number') g = p.value;
+        if (p.name === 'Blue' && typeof p.value === 'number') b = p.value;
+        if (p.children) findColor(p.children);
+      }
+    }
+    findColor(params);
+    return { type: 'color', r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255), a: 1 };
+  }
   // Clone layers that reference Transition B (by name in the layer hierarchy)
   if (name === 'Bottom' || name === 'Left' || name === 'Top' || name === 'Right') {
     return { type: 'transitionB' }; // Push uses these as B clones
@@ -432,7 +447,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>): Layer {
     children,
     timing: parseTiming(el),
     retimeValue: extractRetimeValue(params),
-    source: type === 'image' ? determineImageSource(el.getAttribute('name') || '', params) : undefined,
+    source: (type === 'image' || type === 'generator') ? determineImageSource(el.getAttribute('name') || '', params, el) : undefined,
   };
 
   return layer;
