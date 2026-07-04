@@ -1,7 +1,7 @@
 /**
  * Tests for replicator instance generation.
  */
-import { generateInstances } from '../src/compositor/replicator.js';
+import { generateInstances, sequenceProgress } from '../src/compositor/replicator.js';
 
 function assert(cond: boolean, msg: string) { if (!cond) throw new Error(`FAIL: ${msg}`); }
 function assertClose(a: number, b: number, tol: number, msg: string) {
@@ -64,6 +64,35 @@ function runTests() {
     assert(inst.length === 4, `expected 4, got ${inst.length}`);
     // Y positions should span the height, top to bottom
     assert(inst[0].y > inst[3].y, 'first row should be above last row (Y-up)');
+  });
+
+
+  // Sequence Replicator
+  const inst3 = generateInstances({ arrangement: 1, columns: 3, rows: 1, sizeWidth: 200, sizeHeight: 0 });
+
+  test('sequence: spread=0 → all instances same progress', () => {
+    const p0 = sequenceProgress(inst3[0], 0.5, 0);
+    const p2 = sequenceProgress(inst3[2], 0.5, 0);
+    assertClose(p0, p2, 0.01, 'spread=0 should be uniform');
+    assertClose(p0, 0.5, 0.01, 'should equal global progress');
+  });
+
+  test('sequence: spread>0 → first instance ahead of last', () => {
+    const p0 = sequenceProgress(inst3[0], 0.5, 0.8);
+    const p2 = sequenceProgress(inst3[2], 0.5, 0.8);
+    assert(p0 > p2, `first instance (${p0}) should lead last (${p2})`);
+  });
+
+  test('sequence: reverse traversal flips order', () => {
+    const pFwd0 = sequenceProgress(inst3[0], 0.5, 0.8, 0);
+    const pRev0 = sequenceProgress(inst3[0], 0.5, 0.8, 1);
+    const pRev2 = sequenceProgress(inst3[2], 0.5, 0.8, 1);
+    assert(pRev2 > pRev0, `reverse: last instance (${pRev2}) should lead first (${pRev0})`);
+  });
+
+  test('sequence: clamped 0-1', () => {
+    const p = sequenceProgress(inst3[2], 0.1, 0.8);
+    assert(p >= 0 && p <= 1, `progress should be clamped, got ${p}`);
   });
 
   console.log(`\n${pass} passed, ${fail} failed`);

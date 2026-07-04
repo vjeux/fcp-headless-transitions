@@ -98,3 +98,40 @@ export function generateInstances(config: ReplicatorConfig): ReplicatorInstance[
 
   return instances;
 }
+
+
+/**
+ * Sequence Replicator: compute a per-instance time offset (0-1) for staggered animation.
+ *
+ * Cells animate in sequence based on their position, creating a wave/cascade effect.
+ * The `spread` controls how much the animation is staggered across instances.
+ *
+ * @param instance - the instance (has normalizedIndex 0-1)
+ * @param globalProgress - overall transition progress (0-1)
+ * @param spread - how spread out the sequence is (0 = all together, 1 = fully staggered)
+ * @param traversal - direction/order: 0 = forward by index, 1 = reverse, 2 = from center
+ * @returns per-instance progress (0-1), clamped
+ */
+export function sequenceProgress(
+  instance: ReplicatorInstance,
+  globalProgress: number,
+  spread: number,
+  traversal: number = 0
+): number {
+  let idx = instance.normalizedIndex;
+
+  // Traversal order
+  switch (traversal) {
+    case 1: idx = 1 - idx; break;             // reverse
+    case 2: idx = Math.abs(idx - 0.5) * 2; break; // from center outward
+  }
+
+  // With spread, each instance's animation window is offset.
+  // At spread=0, all instances share globalProgress.
+  // At spread=1, instance i starts at time idx and finishes at idx + (1-spread window).
+  const window = 1 - spread * 0.8; // animation window per instance (never 0)
+  const startTime = idx * spread * 0.8;
+  const localProgress = (globalProgress - startTime) / window;
+
+  return Math.max(0, Math.min(1, localProgress));
+}
