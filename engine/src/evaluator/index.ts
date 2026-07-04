@@ -319,26 +319,25 @@ function resolveWithRetime(value: number | Curve | undefined, timeSec: number, d
   }
   return value;
 }
-/** Normalize a scale value: fractional (1.0=100%) is native; percent (>10) is divided by 100. */
-function normalizeScale(v: number): number {
-  return Math.abs(v) > 10 ? v / 100 : v;
-}
-
 function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: number = 0): Float64Array {
   const posX = resolveWithRetime(tx.positionX, timeSec, 0, retimeProgress);
   const posY = resolveWithRetime(tx.positionY, timeSec, 0, retimeProgress);
   const posZ = resolveWithRetime(tx.positionZ, timeSec, 0, retimeProgress);
-  const rotX = resolveWithRetime(tx.rotationX, timeSec, 0, retimeProgress);
-  const rotY = resolveWithRetime(tx.rotationY, timeSec, 0, retimeProgress);
-  const rotZ = resolveWithRetime(tx.rotationZ, timeSec, 0, retimeProgress);
-  // Scale convention: Motion .motr stores scale as FRACTIONAL (1.0 = 100%), confirmed by the
-  // parameter's default="1". A few legacy templates use percent (default="100", value ~100).
-  // Normalize: values > 10 are treated as percent (÷100); otherwise fractional (used as-is).
-  const scX = normalizeScale(resolveWithRetime(tx.scaleX, timeSec, 1, retimeProgress));
-  const scY = normalizeScale(resolveWithRetime(tx.scaleY, timeSec, 1, retimeProgress));
-  const scZ = normalizeScale(resolveWithRetime(tx.scaleZ, timeSec, 1, retimeProgress));
-  const ancX = resolveValue(tx.anchorX, timeSec, 0);
-  const ancY = resolveValue(tx.anchorY, timeSec, 0);
+  // Motion .motr stores rotation in RADIANS (e.g. Rotate uses π/2 for 90°). Convert to degrees
+  // for the matrix helpers (which take degrees).
+  const RAD2DEG = 180 / Math.PI;
+  const rotX = resolveWithRetime(tx.rotationX, timeSec, 0, retimeProgress) * RAD2DEG;
+  const rotY = resolveWithRetime(tx.rotationY, timeSec, 0, retimeProgress) * RAD2DEG;
+  const rotZ = resolveWithRetime(tx.rotationZ, timeSec, 0, retimeProgress) * RAD2DEG;
+  // Scale is FRACTIONAL (1.0 = 100%) in every .motr template (all 108 Scale curves have
+  // default="1"). Used as-is — never divided by 100.
+  const scX = resolveWithRetime(tx.scaleX, timeSec, 1, retimeProgress);
+  const scY = resolveWithRetime(tx.scaleY, timeSec, 1, retimeProgress);
+  const scZ = resolveWithRetime(tx.scaleZ, timeSec, 1, retimeProgress);
+  // Anchor is retime-interpolated like position (both have default=0, value=X); they must
+  // track together so a static offset (e.g. Fall's -540) cancels, leaving only the rotation pivot.
+  const ancX = resolveWithRetime(tx.anchorX, timeSec, 0, retimeProgress);
+  const ancY = resolveWithRetime(tx.anchorY, timeSec, 0, retimeProgress);
 
   // Transform order (Motion's documented order):
   // 1. Translate to -anchor
