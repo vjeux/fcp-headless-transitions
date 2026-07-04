@@ -345,34 +345,22 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
   }
   // Directional Blur
   if (name.includes('directional')) {
-    let amount = 0, angle = 0;
-    for (const p of filter.parameters) {
-      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
-      if (val === undefined) continue;
-      if (p.name === 'Amount' || p.name === 'Distance') amount = val;
-      if (p.name === 'Angle') angle = val;
-    }
+    const amount = resolveParam('Amount', resolveParam('Distance', 0));
+    const angle = resolveParam('Angle', 0);
     if (amount > 0) return directionalBlur(input, amount, angle);
+    return input;
   }
   // Radial Blur
   if (name.includes('radial')) {
-    let amount = 0, cx = 0.5, cy = 0.5;
-    for (const p of filter.parameters) {
-      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
-      if (val === undefined) continue;
-      if (p.name === 'Amount' || p.name === 'Angle') amount = val;
-    }
-    if (amount > 0) return radialBlur(input, amount, cx, cy, 'spin');
+    const amount = resolveParam('Amount', resolveParam('Angle', 0));
+    if (amount > 0) return radialBlur(input, amount, 0.5, 0.5, 'spin');
+    return input;
   }
   // Zoom Blur
   if (name.includes('zoom')) {
-    let amount = 0, cx = 0.5, cy = 0.5;
-    for (const p of filter.parameters) {
-      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
-      if (val === undefined) continue;
-      if (p.name === 'Amount') amount = val;
-    }
-    if (amount > 0) return zoomBlur(input, amount, cx, cy);
+    const amount = resolveParam('Amount', 0);
+    if (amount > 0) return zoomBlur(input, amount, 0.5, 0.5);
+    return input;
   }
   // Hue/Saturation
   if (name.includes('hsv') || name.includes('hue') || name.includes('saturation')) {
