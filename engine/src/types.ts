@@ -148,6 +148,14 @@ export interface Shape {
   isMask: boolean;
 }
 
+
+/** A scene-level behavior that affects an object by ID (Ramp, Oscillate with target). */
+export interface SceneBehavior {
+  type: 'ramp' | 'oscillate' | 'spin' | 'other';
+  affectedObjectId: number;
+  params: Record<string, number>;
+}
+
 /** A rig widget (popup/checkbox/slider that controls transition variants). */
 export interface RigWidget {
   id: number;
@@ -174,4 +182,5 @@ export interface MotrScene {
   factories: Map<number, string>;
   rigWidgets: RigWidget[];
   rigBehaviors: RigBehavior[];
+  sceneBehaviors: SceneBehavior[];
 }

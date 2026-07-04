@@ -14,7 +14,7 @@
  */
 import type {
   MotrScene, SceneSettings, Layer, Curve, Keyframe, RationalTime,
-  Parameter, Transform, Filter, ImageSource, BlendMode, RigWidget, RigBehavior, Shape, Replicator, LayerBehavior
+  Parameter, Transform, Filter, ImageSource, BlendMode, RigWidget, RigBehavior, Shape, Replicator, LayerBehavior, SceneBehavior
 } from '../types.js';
 
 // ============================================================================
@@ -706,6 +706,45 @@ function parseRigBehaviors(sceneEl: Element): RigBehavior[] {
   return behaviors;
 }
 
+
+/**
+ * Parse scene-level behaviors that affect objects by ID (Ramp, Oscillate).
+ * These are distinct from rig behaviors (which use snapshots) and layer behaviors
+ * (like Fade, which attach directly to their parent).
+ */
+function parseSceneBehaviors(sceneEl: Element, factories: Map<number, string>): SceneBehavior[] {
+  const result: SceneBehavior[] = [];
+  for (const b of Array.from(sceneEl.getElementsByTagName('behavior'))) {
+    const name = b.getAttribute('name') || '';
+    if (name.startsWith('Rig Behavior')) continue;
+
+    const fid = parseInt(b.getAttribute('factoryID') || '0', 10);
+    const ftype = factories.get(fid) || '';
+    let type: SceneBehavior['type'] = 'other';
+    if (ftype === 'Ramp') type = 'ramp';
+    else if (ftype === 'Oscillate') type = 'oscillate';
+    else if (ftype === 'Spin') type = 'spin';
+    else continue; // only track behaviors that affect objects by ID
+
+    let affectedObjectId = 0;
+    const params: Record<string, number> = {};
+    for (const p of directChildren(b, 'parameter')) {
+      const pname = p.getAttribute('name') || '';
+      const pval = p.getAttribute('value');
+      if (pname === 'Affecting Object (Hidden)') {
+        affectedObjectId = parseInt(pval || '0', 10);
+      } else if (pval !== null) {
+        const num = parseFloat(pval);
+        if (!isNaN(num)) params[pname] = num;
+      }
+    }
+    if (affectedObjectId !== 0) {
+      result.push({ type, affectedObjectId, params });
+    }
+  }
+  return result;
+}
+
 export function parseMotr(xmlText: string): MotrScene {
   const doc = parseXML(xmlText);
   const root = doc.documentElement; // <ozml>
@@ -721,7 +760,7 @@ export function parseMotr(xmlText: string): MotrScene {
   // 2. Find the <scene> element
   const sceneEl = firstChild(root, 'scene');
   if (!sceneEl) {
-    return { settings: { width: 1920, height: 1080, duration: { value: 200200, timescale: 120000 }, frameRate: 24 }, layers: [], factories, rigWidgets: [], rigBehaviors: [] };
+    return { settings: { width: 1920, height: 1080, duration: { value: 200200, timescale: 120000 }, frameRate: 24 }, layers: [], factories, rigWidgets: [], rigBehaviors: [], sceneBehaviors: [] };
   }
 
   // 3. Parse scene settings from <sceneSettings>
@@ -743,6 +782,7 @@ export function parseMotr(xmlText: string): MotrScene {
   // Parse rig widgets and behaviors
   const rigWidgets = parseRigWidgets(sceneEl, factories);
   const rigBehaviors = parseRigBehaviors(sceneEl);
+  const sceneBehaviors = parseSceneBehaviors(sceneEl, factories);
 
   // 4. Parse the scene graph (layers + scenenodes under <scene>)
   const layers: Layer[] = [];
@@ -759,5 +799,5 @@ export function parseMotr(xmlText: string): MotrScene {
     }
   }
 
-  return { settings, layers, factories, rigWidgets, rigBehaviors };
+  return { settings, layers, factories, rigWidgets, rigBehaviors, sceneBehaviors };
 }
