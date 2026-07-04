@@ -1,5 +1,21 @@
 # Motion .motr Engine — Implementation Plan
 
+## Implementation Status (updated)
+
+- **Phase 1 (Core)**: ✅ COMPLETE — parser, bezier evaluator, transforms, compositor, retime model
+- **Phase 2 (Filters)**: ✅ SUBSTANTIAL — 10 filters (Gaussian/Directional/Radial/Zoom blur, Glow/Bloom, Levels, Brightness, Channel Mixer, Colorize, Hue/Saturation)
+- **Phase 3 (Shapes/Masks)**: ✅ CORE — parsing, rasterization, mask compositing
+- **Phase 4 (Replicators)**: ⏳ TODO
+- **Phase 5 (3D/Camera)**: ✅ CORE — perspective projection, textured quad rendering
+- **Phase 6 (Rigs/Behaviors)**: ✅ RIGS DONE — widgets/behaviors/snapshots; behaviors (Oscillate/Spin/Throw) TODO
+- **Phase 7 (Particles/360°)**: ⏳ TODO
+- **Phase 8 (WebGL backend)**: ⏳ TODO
+
+59 tests passing. Ground-truth PSNR validation in place (~50dB at frame 0). See README.md.
+
+---
+
+
 A comprehensive plan for building a browser-based Motion transition renderer that
 faithfully reproduces FCP's output for all 65 built-in transitions.
 
