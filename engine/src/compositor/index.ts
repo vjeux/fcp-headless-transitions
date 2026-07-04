@@ -3,6 +3,7 @@ import { glowFilter } from './filters/glow.js';
 import { levelsFilter, brightnessFilter } from './filters/levels.js';
 import { channelMixerFilter, colorizeFilter } from './filters/channel-mixer.js';
 import { hueSaturationFilter } from './filters/hue-saturation.js';
+import { directionalBlur, radialBlur, zoomBlur } from './filters/directional-blur.js';
 import { evaluateCurve } from '../evaluator/curves.js';
 /**
  * Compositor: EvaluatedScene + source images → output ImageData
@@ -233,6 +234,37 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
     if (amount > 0) {
       return gaussianBlur(input, amount);
     }
+  }
+  // Directional Blur
+  if (name.includes('directional')) {
+    let amount = 0, angle = 0;
+    for (const p of filter.parameters) {
+      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
+      if (val === undefined) continue;
+      if (p.name === 'Amount' || p.name === 'Distance') amount = val;
+      if (p.name === 'Angle') angle = val;
+    }
+    if (amount > 0) return directionalBlur(input, amount, angle);
+  }
+  // Radial Blur
+  if (name.includes('radial')) {
+    let amount = 0, cx = 0.5, cy = 0.5;
+    for (const p of filter.parameters) {
+      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
+      if (val === undefined) continue;
+      if (p.name === 'Amount' || p.name === 'Angle') amount = val;
+    }
+    if (amount > 0) return radialBlur(input, amount, cx, cy, 'spin');
+  }
+  // Zoom Blur
+  if (name.includes('zoom')) {
+    let amount = 0, cx = 0.5, cy = 0.5;
+    for (const p of filter.parameters) {
+      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
+      if (val === undefined) continue;
+      if (p.name === 'Amount') amount = val;
+    }
+    if (amount > 0) return zoomBlur(input, amount, cx, cy);
   }
   // Hue/Saturation
   if (name.includes('hsv') || name.includes('hue') || name.includes('saturation')) {
