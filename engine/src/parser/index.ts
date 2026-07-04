@@ -14,7 +14,7 @@
  */
 import type {
   MotrScene, SceneSettings, Layer, Curve, Keyframe, RationalTime,
-  Parameter, Transform, Filter, ImageSource, BlendMode, RigWidget, RigBehavior, Shape, Replicator
+  Parameter, Transform, Filter, ImageSource, BlendMode, RigWidget, RigBehavior, Shape, Replicator, LayerBehavior
 } from '../types.js';
 
 // ============================================================================
@@ -388,6 +388,44 @@ function determineSource(params: Parameter[], factories: Map<number, string>, fa
  * Parse replicator configuration from a Replicator scenenode.
  * Extracts grid arrangement, rows/columns, and sizing.
  */
+
+/**
+ * Parse animation behaviors (Fade, Ramp, etc.) attached as children of a layer.
+ * Excludes Rig Behaviors (handled separately via the rig system).
+ */
+function parseLayerBehaviors(el: Element, factories: Map<number, string>): LayerBehavior[] {
+  const behaviors: LayerBehavior[] = [];
+  for (const b of directChildren(el, 'behavior')) {
+    const name = b.getAttribute('name') || '';
+    if (name.startsWith('Rig Behavior')) continue; // handled by rig system
+
+    const fid = parseInt(b.getAttribute('factoryID') || '0', 10);
+    const ftype = factories.get(fid) || '';
+
+    let type: LayerBehavior['type'] = 'other';
+    if (ftype === 'Fade In/Fade Out') type = 'fade';
+    else if (ftype === 'Ramp') type = 'ramp';
+    else if (ftype === 'Oscillate') type = 'oscillate';
+    else if (ftype === 'Spin') type = 'spin';
+
+    // Collect params
+    const params: Record<string, number> = {};
+    let targetParam: string | undefined;
+    for (const p of directChildren(b, 'parameter')) {
+      const pname = p.getAttribute('name') || '';
+      const pval = p.getAttribute('value');
+      if (pval !== null) {
+        const num = parseFloat(pval);
+        if (!isNaN(num)) params[pname] = num;
+      }
+      if (pname === 'Apply To' || pname === 'Target') targetParam = p.getAttribute('value') || undefined;
+    }
+
+    behaviors.push({ type, params, targetParam });
+  }
+  return behaviors;
+}
+
 function parseReplicator(params: Parameter[]): Replicator | undefined {
   function findVal(ps: Parameter[], name: string): number | undefined {
     for (const p of ps) {
@@ -530,6 +568,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>): Layer {
     retimeValue: extractRetimeValue(params),
     shape: type === 'shape' ? parseShape(el) : undefined,
     replicator: type === 'replicator' ? parseReplicator(params) : undefined,
+    behaviors: parseLayerBehaviors(el, factories),
     source: (type === 'image' || type === 'generator') ? determineImageSource(el.getAttribute('name') || '', params, el) : undefined,
   };
 

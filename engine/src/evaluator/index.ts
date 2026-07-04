@@ -20,6 +20,7 @@
  */
 import type { MotrScene, Layer, Curve, Transform, RigWidget, RigBehavior, Parameter } from '../types.js';
 import { evaluateCurve, resolveValue, timeToSeconds } from './curves.js';
+import { evaluateFade, evaluateRamp, evaluateOscillate, evaluateSpin } from './behaviors/index.js';
 
 export { evaluateCurve, resolveValue, timeToSeconds } from './curves.js';
 
@@ -222,6 +223,26 @@ function applyRigBehaviors(
   return result;
 }
 
+
+/**
+ * Compute the combined opacity multiplier from Fade behaviors on a layer.
+ * Fade times are in frames; we convert the current time to frames via the scene fps.
+ */
+function applyFadeBehaviors(layer: Layer, frame: number, totalFrames: number): number {
+  if (!layer.behaviors) return 1;
+  let mult = 1;
+  for (const b of layer.behaviors) {
+    if (b.type === 'fade') {
+      const fadeInTime = b.params['Fade In Time'] ?? 0;
+      const fadeOutTime = b.params['Fade Out Time'] ?? 0;
+      const startOffset = b.params['Start Offset'] ?? 0;
+      const endOffset = b.params['End Offset'] ?? 0;
+      mult *= evaluateFade({ fadeInTime, fadeOutTime, startOffset, endOffset }, frame, totalFrames);
+    }
+  }
+  return mult;
+}
+
 function getRetimeProgress(layer: Layer, timeSec: number): number {
   if (!layer.retimeValue || layer.retimeValue.keyframes.length < 2) return 0;
   const curve = layer.retimeValue;
@@ -312,8 +333,15 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   const worldTransform = mat4Multiply(parentTransform, localTransform);
 
   // Opacity: Motion stores 0-1 (some legacy use 0-100 but all current transitions use 0-1)
-  const rawOpacity = resolveValue(riggedTransform.opacity, timeSec, 1);
-  const opacity = Math.max(0, Math.min(1, rawOpacity > 1 ? rawOpacity / 100 : rawOpacity));
+  let rawOpacity = resolveValue(riggedTransform.opacity, timeSec, 1);
+  rawOpacity = rawOpacity > 1 ? rawOpacity / 100 : rawOpacity;
+  // Apply Fade behaviors (frame-based). Derive frame from the Retime curve if present.
+  if (layer.behaviors && layer.behaviors.some(b => b.type === 'fade') && layer.retimeValue && layer.retimeValue.keyframes.length >= 2) {
+    const curFrame = evaluateCurve(layer.retimeValue, timeSec);
+    const totalFrames = layer.retimeValue.keyframes[layer.retimeValue.keyframes.length - 1].value;
+    rawOpacity *= applyFadeBehaviors(layer, curFrame, totalFrames);
+  }
+  const opacity = Math.max(0, Math.min(1, rawOpacity));
 
   // Crop
   const crop = {

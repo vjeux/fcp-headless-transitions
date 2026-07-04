@@ -95,6 +95,8 @@ export interface Layer {
   shape?: Shape;
   /** Replicator configuration (for replicator layers). */
   replicator?: Replicator;
+  /** Animation behaviors attached to this layer. */
+  behaviors?: LayerBehavior[];
 }
 
 /** Scene-level settings (resolution, duration, frame rate). */
@@ -122,6 +124,16 @@ export interface Replicator {
   sizeHeight: number;
   /** Origin/pattern offset. */
   origin: number;
+}
+
+
+/** An animation behavior attached to a layer (Fade, Ramp, Oscillate, Spin). */
+export interface LayerBehavior {
+  type: 'fade' | 'ramp' | 'oscillate' | 'spin' | 'other';
+  /** Behavior parameters (name → value). */
+  params: Record<string, number>;
+  /** For Ramp: the target parameter name it animates. */
+  targetParam?: string;
 }
 
 /** A vector shape (polygon mask or filled shape). */
