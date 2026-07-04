@@ -437,13 +437,36 @@ function parseLayerElement(el: Element, factories: Map<number, string>): Layer {
     params.push(parseParameter(paramEl));
   }
 
-  // Parse child scenenodes and nested layers
+  // Parse child scenenodes and nested layers, separating filters
   const children: Layer[] = [];
+  const filters: Filter[] = [];
   for (const childEl of allDirectChildren(el)) {
     if (childEl.tagName === 'scenenode') {
-      children.push(parseSceneNode(childEl, factories));
+      const fid = parseInt(childEl.getAttribute('factoryID') || '0', 10);
+      const ftype = factories.get(fid) || '';
+      if (ftype === 'ProPlugin Filter') {
+        // Extract as a filter on this layer
+        const pluginName = childEl.getAttribute('pluginName') || '';
+        const pluginUUID = childEl.getAttribute('pluginUUID') || '';
+        const filterParams: Parameter[] = [];
+        for (const fp of directChildren(childEl, 'parameter')) {
+          filterParams.push(parseParameter(fp));
+        }
+        filters.push({ pluginName, pluginUUID, parameters: filterParams });
+      } else {
+        children.push(parseSceneNode(childEl, factories));
+      }
     } else if (childEl.tagName === 'layer') {
       children.push(parseLayerElement(childEl, factories));
+    } else if (childEl.tagName === 'filter') {
+      // Filter elements (blur, color, etc.)
+      const pluginName = childEl.getAttribute('pluginName') || childEl.getAttribute('name') || '';
+      const pluginUUID = childEl.getAttribute('pluginUUID') || '';
+      const filterParams: Parameter[] = [];
+      for (const fp of directChildren(childEl, 'parameter')) {
+        filterParams.push(parseParameter(fp));
+      }
+      filters.push({ pluginName, pluginUUID, parameters: filterParams });
     }
   }
 
@@ -453,7 +476,7 @@ function parseLayerElement(el: Element, factories: Map<number, string>): Layer {
     type: 'group',
     transform: extractTransform(params),
     blendMode: 'normal',
-    filters: [],
+    filters,
     children,
     timing: parseTiming(el),
   };
