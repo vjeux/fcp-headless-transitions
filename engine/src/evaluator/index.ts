@@ -207,9 +207,9 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   const localTransform = buildTransformMatrix(layer.transform, timeSec, retimeProgress);
   const worldTransform = mat4Multiply(parentTransform, localTransform);
 
-  // Opacity: Motion stores 0-100, we normalize to 0-1
-  const rawOpacity = resolveValue(layer.transform.opacity, timeSec, 100);
-  const opacity = Math.max(0, Math.min(1, rawOpacity / 100));
+  // Opacity: Motion stores 0-1 (some legacy use 0-100 but all current transitions use 0-1)
+  const rawOpacity = resolveValue(layer.transform.opacity, timeSec, 1);
+  const opacity = Math.max(0, Math.min(1, rawOpacity > 1 ? rawOpacity / 100 : rawOpacity));
 
   // Crop
   const crop = {
