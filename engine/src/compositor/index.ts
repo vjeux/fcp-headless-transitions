@@ -419,21 +419,37 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
     }
     return brightnessFilter(input, amount);
   }
-  // Glow / Bloom filter
-  if (name.includes('glow') || name.includes('bloom')) {
-    let radius = 0, threshold = 0, amount = 1;
+  // Glow filter (PAEGlow): Radius (blur), Threshold, Opacity (intensity, can be >1)
+  if (name.includes('glow')) {
+    let radius = 0, threshold = 0, intensity = 1;
     for (const p of filter.parameters) {
-      if (p.name === 'Radius') {
-        amount = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : 0);
-        radius = amount; // Radius IS the blur size for glow
-      }
-      if (p.name === 'Threshold') {
-        threshold = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : 0);
-      }
+      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
+      if (val === undefined) continue;
+      if (p.name === 'Radius') radius = val;
+      if (p.name === 'Threshold') threshold = val;
+      if (p.name === 'Opacity' || p.name === 'Intensity') intensity = val;
     }
-    if (radius > 0) {
-      return glowFilter(input, { radius, threshold, amount: 1 });
+    if (radius > 0 && intensity > 0) {
+      return glowFilter(input, { radius, threshold, amount: intensity });
     }
+    return input;
+  }
+  // Bloom filter (PAEBloom): Amount (blur spread), Brightness (intensity boost), Threshold
+  if (name.includes('bloom')) {
+    let amount = 0, brightness = 1, threshold = 0;
+    for (const p of filter.parameters) {
+      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
+      if (val === undefined) continue;
+      if (p.name === 'Amount') amount = val;
+      if (p.name === 'Brightness') brightness = val;
+      if (p.name === 'Threshold') threshold = val;
+    }
+    if (amount > 0 && brightness > 0) {
+      // Bloom: brighten above threshold, blur, screen-add. Brightness is 0-100 (÷ scale).
+      // Threshold here is 0-100 (÷100 to normalize).
+      return glowFilter(input, { radius: amount, threshold: threshold / 100, amount: brightness / 100 });
+    }
+    return input;
   }
   return input;
 }
