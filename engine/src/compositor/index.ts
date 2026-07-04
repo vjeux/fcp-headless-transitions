@@ -4,6 +4,7 @@ import { levelsFilter, brightnessFilter } from './filters/levels.js';
 import { channelMixerFilter, colorizeFilter, tintFilter } from './filters/channel-mixer.js';
 import { hueSaturationFilter } from './filters/hue-saturation.js';
 import { directionalBlur, radialBlur, zoomBlur } from './filters/directional-blur.js';
+import { lumaKeyerFilter } from './filters/luma-keyer.js';
 import { evaluateCurve } from '../evaluator/curves.js';
 import { rasterizeShape, applyMask, unionMasks } from './shapes.js';
 import { needsPerspective, projectQuad, renderPerspectiveQuad } from './perspective.js';
@@ -310,6 +311,20 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
     if (amount > 0) {
       return gaussianBlur(input, amount);
     }
+  }
+  // Luma Keyer
+  if (name.includes('luma') && name.includes('key')) {
+    let luma = 0.5, rolloff = 0.1, strength = 1;
+    let invert = false;
+    for (const p of filter.parameters) {
+      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
+      if (val === undefined) continue;
+      if (p.name === 'Luma') luma = val;
+      if (p.name === 'Luma Rolloff' || p.name === 'DefaultSoftness') rolloff = val;
+      if (p.name === 'Strength') strength = val;
+      if (p.name === 'Invert') invert = val > 0;
+    }
+    return lumaKeyerFilter(input, { luma, rolloff, strength, invert });
   }
   // Directional Blur
   if (name.includes('directional')) {
