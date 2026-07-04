@@ -1,6 +1,7 @@
 import { gaussianBlur } from './filters/gaussian-blur.js';
 import { glowFilter } from './filters/glow.js';
 import { levelsFilter, brightnessFilter } from './filters/levels.js';
+import { channelMixerFilter, colorizeFilter } from './filters/channel-mixer.js';
 import { evaluateCurve } from '../evaluator/curves.js';
 /**
  * Compositor: EvaluatedScene + source images → output ImageData
@@ -231,6 +232,44 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
     if (amount > 0) {
       return gaussianBlur(input, amount);
     }
+  }
+  // Channel Mixer
+  if (name.includes('channel') && name.includes('mixer')) {
+    const matrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]; // identity
+    const offsets = [0,0,0,0];
+    let mix = 1, monochrome = false;
+    for (const p of filter.parameters) {
+      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
+      if (val === undefined) continue;
+      // Map param names to matrix positions
+      if (p.name === 'Red - Red') matrix[0] = val;
+      if (p.name === 'Red - Green') matrix[1] = val;
+      if (p.name === 'Red - Blue') matrix[2] = val;
+      if (p.name === 'Green - Red') matrix[4] = val;
+      if (p.name === 'Green - Green') matrix[5] = val;
+      if (p.name === 'Green - Blue') matrix[6] = val;
+      if (p.name === 'Blue - Red') matrix[8] = val;
+      if (p.name === 'Blue - Green') matrix[9] = val;
+      if (p.name === 'Blue - Blue') matrix[10] = val;
+      if (p.name === 'Red Output') offsets[0] = val;
+      if (p.name === 'Green Output') offsets[1] = val;
+      if (p.name === 'Blue Output') offsets[2] = val;
+      if (p.name === 'Mix') mix = val;
+      if (p.name === 'Monochrome') monochrome = val > 0;
+    }
+    return channelMixerFilter(input, { matrix, offsets, mix, monochrome });
+  }
+  // Colorize
+  if (name.includes('colorize') || name.includes('tint')) {
+    let hue = 0, saturation = 1, mix = 1;
+    for (const p of filter.parameters) {
+      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
+      if (val === undefined) continue;
+      if (p.name === 'Remap Black To' || p.name === 'Hue') hue = val;
+      if (p.name === 'Saturation' || p.name === 'Intensity') saturation = val;
+      if (p.name === 'Mix') mix = val;
+    }
+    return colorizeFilter(input, hue, saturation, mix);
   }
   // Levels filter
   if (name.includes('level') || name === 'paelevels') {
