@@ -7,6 +7,15 @@ import { directionalBlur, radialBlur, zoomBlur } from './filters/directional-blu
 import { evaluateCurve } from '../evaluator/curves.js';
 import { rasterizeShape, applyMask, unionMasks } from './shapes.js';
 import { needsPerspective, projectQuad, renderPerspectiveQuad } from './perspective.js';
+import { generateInstances } from './replicator.js';
+
+/** Offset a transform matrix's translation by (dx, dy). */
+function mat4MultiplyOffset(m: Float64Array, dx: number, dy: number): Float64Array {
+  const r = new Float64Array(m);
+  r[12] += dx;
+  r[13] += dy;
+  return r;
+}
 /**
  * Compositor: EvaluatedScene + source images → output ImageData
  *
@@ -163,6 +172,28 @@ function renderLayer(
   if (!evalLayer.visible) return;
 
   const { layer, worldTransform, opacity, crop } = evalLayer;
+
+  // Replicator: render the cell content at each grid instance
+  if (layer.type === 'replicator' && layer.replicator) {
+    const instances = generateInstances(layer.replicator);
+    for (const inst of instances) {
+      // Offset the world transform by the instance position
+      const instTransform = new Float64Array(worldTransform);
+      instTransform[12] += inst.x;
+      instTransform[13] += inst.y;
+      // Render each child (cell) at this instance
+      for (let i = evalLayer.children.length - 1; i >= 0; i--) {
+        const cell = evalLayer.children[i];
+        // Build a temp evaluated layer with the instance-offset transform
+        const instCell: EvaluatedLayer = {
+          ...cell,
+          worldTransform: mat4MultiplyOffset(cell.worldTransform, inst.x, inst.y),
+        };
+        renderLayer(output, instCell, imageA, imageB, time);
+      }
+    }
+    return;
+  }
 
   if (layer.type === 'image' || layer.type === 'generator') {
     // Leaf layer: render source image with transform
