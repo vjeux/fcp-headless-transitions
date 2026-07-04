@@ -1,3 +1,4 @@
+import { gaussianBlur } from './filters/gaussian-blur.js';
 /**
  * Compositor: EvaluatedScene + source images → output ImageData
  *
@@ -151,8 +152,25 @@ function renderLayer(
   }
 
   // Render children (back to front = array order)
-  for (const child of evalLayer.children) {
-    renderLayer(output, child, imageA, imageB);
+  if (evalLayer.children.length > 0) {
+    // For groups with filters: render children to a temp buffer, apply filters, then composite
+    if (layer.filters.length > 0) {
+      const groupBuffer = createBuffer(output.width, output.height);
+      for (const child of evalLayer.children) {
+        renderLayer(groupBuffer, child, imageA, imageB);
+      }
+      // Apply filters
+      let filtered = groupBuffer;
+      for (const filter of layer.filters) {
+        filtered = applyFilter(filtered, filter, evalLayer);
+      }
+      // Composite filtered group onto output
+      blitDirect(output, filtered, opacity);
+    } else {
+      for (const child of evalLayer.children) {
+        renderLayer(output, child, imageA, imageB);
+      }
+    }
   }
 }
 
@@ -175,4 +193,47 @@ export function composite(
   }
 
   return output;
+}
+
+
+/** Apply a filter to an image buffer. */
+function applyFilter(input: ImageData, filter: import('../types.js').Filter, evalLayer: EvaluatedLayer): ImageData {
+  const name = filter.pluginName.toLowerCase();
+  if (name.includes('gaussian') || name.includes('blur')) {
+    // Find the Amount parameter
+    let amount = 0;
+    for (const p of filter.parameters) {
+      if (p.name === 'Amount') {
+        if (p.curve) {
+          // Evaluate at current time (approximate from evalLayer context)
+          // For now, use the curve's last keyframe value as the max blur
+          const kfs = p.curve.keyframes;
+          amount = kfs.length > 0 ? kfs[kfs.length - 1].value : 0;
+        } else if (typeof p.value === 'number') {
+          amount = p.value;
+        }
+        break;
+      }
+    }
+    if (amount > 0) {
+      return gaussianBlur(input, amount);
+    }
+  }
+  return input;
+}
+
+/** Blit source directly onto destination with opacity (no transform, 1:1 pixel copy). */
+function blitDirect(dst: ImageData, src: ImageData, opacity: number): void {
+  for (let i = 0; i < dst.data.length; i += 4) {
+    const sa = src.data[i + 3] / 255 * opacity;
+    if (sa <= 0) continue;
+    const da = dst.data[i + 3] / 255;
+    const outA = sa + da * (1 - sa);
+    if (outA > 0) {
+      dst.data[i]     = Math.round((src.data[i]     * sa + dst.data[i]     * da * (1 - sa)) / outA);
+      dst.data[i + 1] = Math.round((src.data[i + 1] * sa + dst.data[i + 1] * da * (1 - sa)) / outA);
+      dst.data[i + 2] = Math.round((src.data[i + 2] * sa + dst.data[i + 2] * da * (1 - sa)) / outA);
+      dst.data[i + 3] = Math.round(outA * 255);
+    }
+  }
 }
