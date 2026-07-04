@@ -1,5 +1,6 @@
 import { gaussianBlur } from './filters/gaussian-blur.js';
 import { glowFilter } from './filters/glow.js';
+import { levelsFilter, brightnessFilter } from './filters/levels.js';
 import { evaluateCurve } from '../evaluator/curves.js';
 /**
  * Compositor: EvaluatedScene + source images → output ImageData
@@ -230,6 +231,32 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
     if (amount > 0) {
       return gaussianBlur(input, amount);
     }
+  }
+  // Levels filter
+  if (name.includes('level') || name === 'paelevels') {
+    let blackIn = 0, whiteIn = 1, gamma = 1, whiteOut = 1, mix = 1;
+    for (const p of filter.parameters) {
+      const pn = p.name;
+      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
+      if (val === undefined) continue;
+      if (pn === 'Black In') blackIn = val;
+      if (pn === 'White In') whiteIn = val;
+      if (pn === 'Gamma') gamma = val;
+      if (pn === 'White Out') whiteOut = val;
+      if (pn === 'Mix') mix = val;
+    }
+    return levelsFilter(input, { blackIn, whiteIn, gamma, whiteOut, mix });
+  }
+  // Brightness filter
+  if (name.includes('brightness')) {
+    let amount = 0;
+    for (const p of filter.parameters) {
+      if (p.name === 'Brightness' || p.name === 'Amount') {
+        amount = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : 0);
+        break;
+      }
+    }
+    return brightnessFilter(input, amount);
   }
   // Glow / Bloom filter
   if (name.includes('glow') || name.includes('bloom')) {
