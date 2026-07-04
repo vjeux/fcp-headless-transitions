@@ -45,9 +45,11 @@ const frame: ImageData = transition.render(imageA, imageB, progress); // progres
 - **Retime model**: host-transition parameter interpolation (default→value driven by
   the Retime Value curve).
 
-### Phase 2 — Filters ✅ (10 types)
-Gaussian blur, Directional blur, Radial blur, Zoom blur, Glow/Bloom, Levels, Brightness,
-Channel Mixer, Colorize, Hue/Saturation. Each reads animated parameters via the curve evaluator.
+### Phase 2 — Filters ✅ (13 filters + 2 generators)
+Gaussian/Directional/Radial/Zoom blur, Glow/Bloom (additive overexposure), Levels,
+Brightness, Channel Mixer, Colorize, Hue/Saturation, Tint, Luma Keyer, Bevel.
+Generators: Gradient (linear/radial), Color Solid. Each reads animated parameters
+via the curve evaluator.
 
 ### Phase 3 — Shapes/Masks ✅ (core)
 - Shape geometry parsing (`<curve_X>`/`<curve_Y>` vertex lists, `<group>` containers)
@@ -74,9 +76,15 @@ Ground-truth comparison (`test/compare.test.ts`) renders transitions and measure
 against the headless FCP renderer output. Frame 0 (t=0) achieves ~50 dB PSNR
 (near pixel-perfect) for the Gaussian Blur transition.
 
+## Status
+
+**All 65 built-in FCP transitions parse and render without crashing (65/65, 0 failures).**
+The engine is structurally complete for the entire transition library. Ongoing work
+is per-transition accuracy refinement against ground-truth renders.
+
 ## Tests
 
-59 tests across 7 files:
+100 tests across 14 files:
 - `curves.test.ts` (15) — bezier/linear/constant interpolation, real Push keyframe data
 - `parser.test.ts` (12) — scene structure, factories, layer hierarchy
 - `evaluator.test.ts` (9) — matrix math, layer evaluation

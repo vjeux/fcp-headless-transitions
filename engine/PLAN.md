@@ -5,13 +5,14 @@
 - **Phase 1 (Core)**: ✅ COMPLETE — parser, bezier evaluator, transforms, compositor, retime model
 - **Phase 2 (Filters)**: ✅ SUBSTANTIAL — 10 filters (Gaussian/Directional/Radial/Zoom blur, Glow/Bloom, Levels, Brightness, Channel Mixer, Colorize, Hue/Saturation)
 - **Phase 3 (Shapes/Masks)**: ✅ CORE — parsing, rasterization, mask compositing
-- **Phase 4 (Replicators)**: ⏳ TODO
+- **Phase 4 (Replicators)**: ✅ CORE — parse, generate instances, render, sequenced timing
 - **Phase 5 (3D/Camera)**: ✅ CORE — perspective projection, textured quad rendering
-- **Phase 6 (Rigs/Behaviors)**: ✅ RIGS DONE — widgets/behaviors/snapshots; behaviors (Oscillate/Spin/Throw) TODO
+- **Phase 6 (Rigs/Behaviors)**: ✅ CORE — rig system + behaviors (Fade/Ramp wired, Oscillate/Spin/Sequence implemented)
 - **Phase 7 (Particles/360°)**: ⏳ TODO
 - **Phase 8 (WebGL backend)**: ⏳ TODO
 
-59 tests passing. Ground-truth PSNR validation in place (~50dB at frame 0). See README.md.
+**ALL 65 TRANSITIONS PARSE + RENDER (65/65, 0 crashes).** 100 tests passing.
+Ground-truth PSNR validation (~50dB at frame 0). Structurally complete; accuracy tuning ongoing. See README.md.
 
 ---
 
