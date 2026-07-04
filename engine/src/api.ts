@@ -1,11 +1,15 @@
 import { parseMotr } from './parser/index.js';
 import { evaluate } from './evaluator/index.js';
 import { composite } from './compositor/index.js';
+import { resample } from './compositor/resample.js';
 import type { MotrScene } from './types.js';
 
 export interface TransitionOptions {
   width?: number;
   height?: number;
+  /** Conform output to this resolution (renders native then resamples). */
+  outputWidth?: number;
+  outputHeight?: number;
 }
 
 /**
@@ -38,11 +42,13 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
   const scene = parseMotr(motrXML);
   const width = opts?.width ?? scene.settings.width;
   const height = opts?.height ?? scene.settings.height;
+  const outW = opts?.outputWidth;
+  const outH = opts?.outputHeight;
 
   return {
     scene,
-    width,
-    height,
+    width: outW ?? width,
+    height: outH ?? height,
     render(imageA: ImageData, imageB: ImageData, progress: number): ImageData {
       // Map progress (0-1) to scene time
       const duration = scene.settings.duration;
@@ -51,8 +57,13 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
       // Evaluate all layers at this time
       const evaluated = evaluate(scene, timeSec);
 
-      // Composite into a frame
-      return composite(evaluated, imageA, imageB, width, height);
+      // Composite into a frame at native scene resolution
+      const frame = composite(evaluated, imageA, imageB, width, height);
+      // Conform to output resolution if requested
+      if (outW && outH && (outW !== width || outH !== height)) {
+        return resample(frame, outW, outH);
+      }
+      return frame;
     }
   };
 }
