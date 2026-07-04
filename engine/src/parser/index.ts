@@ -398,6 +398,17 @@ function parseSceneNode(el: Element, factories: Map<number, string>): Layer {
     }
   }
 
+  // Also extract <filter> elements (direct children of scenenode)
+  for (const filterEl of directChildren(el, 'filter')) {
+    const pluginName = filterEl.getAttribute('pluginName') || filterEl.getAttribute('name') || '';
+    const pluginUUID = filterEl.getAttribute('pluginUUID') || '';
+    const filterParams: Parameter[] = [];
+    for (const fp of directChildren(filterEl, 'parameter')) {
+      filterParams.push(parseParameter(fp));
+    }
+    filters.push({ pluginName, pluginUUID, parameters: filterParams });
+  }
+
   // Parse children (nested scenenodes)
   const children: Layer[] = [];
   for (const childNode of directChildren(el, 'scenenode')) {

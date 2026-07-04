@@ -150,7 +150,18 @@ function renderLayer(
     // Leaf layer: render source image with transform
     const src = getSourceImage(layer.source, imageA, imageB);
     if (src) {
-      blitTransformed(output, src, worldTransform, opacity, crop);
+      if (layer.filters.length > 0) {
+        // Render to temp buffer, apply filters, then composite onto output
+        const temp = createBuffer(output.width, output.height);
+        blitTransformed(temp, src, worldTransform, 1.0, crop); // full opacity to temp
+        let filtered = temp;
+        for (const filter of layer.filters) {
+          filtered = applyFilter(filtered, filter, evalLayer, time);
+        }
+        blitDirect(output, filtered, opacity);
+      } else {
+        blitTransformed(output, src, worldTransform, opacity, crop);
+      }
     }
   }
 
