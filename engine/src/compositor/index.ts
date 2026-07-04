@@ -121,6 +121,8 @@ function blitTransformed(
 // Layer rendering
 // ============================================================================
 
+
+
 function getSourceImage(source: ImageSource | undefined, imageA: ImageData, imageB: ImageData): ImageData | null {
   if (!source) return null;
   switch (source.type) {
