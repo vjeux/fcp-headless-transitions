@@ -1,7 +1,7 @@
 import { gaussianBlur } from './filters/gaussian-blur.js';
 import { glowFilter } from './filters/glow.js';
 import { levelsFilter, brightnessFilter } from './filters/levels.js';
-import { channelMixerFilter, colorizeFilter } from './filters/channel-mixer.js';
+import { channelMixerFilter, colorizeFilter, tintFilter } from './filters/channel-mixer.js';
 import { hueSaturationFilter } from './filters/hue-saturation.js';
 import { directionalBlur, radialBlur, zoomBlur } from './filters/directional-blur.js';
 import { evaluateCurve } from '../evaluator/curves.js';
@@ -381,8 +381,22 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
     }
     return channelMixerFilter(input, { matrix, offsets, mix, monochrome });
   }
+  // Tint (PAETint / TintFx)
+  if (name.includes('tint')) {
+    let r = 1, g = 1, b = 1, intensity = 1, mix = 1;
+    for (const p of filter.parameters) {
+      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
+      if (val === undefined) continue;
+      if (p.name === 'Red') r = val;
+      if (p.name === 'Green') g = val;
+      if (p.name === 'Blue') b = val;
+      if (p.name === 'Intensity') intensity = val;
+      if (p.name === 'Mix') mix = val;
+    }
+    return tintFilter(input, r, g, b, intensity, mix);
+  }
   // Colorize
-  if (name.includes('colorize') || name.includes('tint')) {
+  if (name.includes('colorize')) {
     let hue = 0, saturation = 1, mix = 1;
     for (const p of filter.parameters) {
       const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);

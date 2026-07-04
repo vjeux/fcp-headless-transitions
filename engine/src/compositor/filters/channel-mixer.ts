@@ -106,3 +106,40 @@ export function colorizeFilter(input: ImageData, hue: number, saturation: number
 
   return new ImageData(out, width, height);
 }
+
+/**
+ * Tint filter (PAETint / TintFx).
+ * Tints the image toward a target color, scaled by luminance and intensity.
+ * @param r, g, b - target tint color (0-1)
+ * @param intensity - tint strength (0-1)
+ * @param mix - blend with original
+ */
+export function tintFilter(input: ImageData, r: number, g: number, b: number, intensity: number, mix: number = 1): ImageData {
+  const width = input.width;
+  const height = input.height;
+  const src = input.data;
+  const out = new Uint8ClampedArray(src.length);
+
+  for (let i = 0; i < src.length; i += 4) {
+    const lum = (0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2]) / 255;
+    // Tinted color = luminance × target color
+    const tR = lum * r * 255;
+    const tG = lum * g * 255;
+    const tB = lum * b * 255;
+    // Apply intensity (blend between original and tinted)
+    const iR = src[i] * (1 - intensity) + tR * intensity;
+    const iG = src[i + 1] * (1 - intensity) + tG * intensity;
+    const iB = src[i + 2] * (1 - intensity) + tB * intensity;
+    // Apply mix (blend with original)
+    if (mix >= 1) {
+      out[i] = Math.round(iR); out[i + 1] = Math.round(iG); out[i + 2] = Math.round(iB);
+    } else {
+      out[i] = Math.round(src[i] * (1 - mix) + iR * mix);
+      out[i + 1] = Math.round(src[i + 1] * (1 - mix) + iG * mix);
+      out[i + 2] = Math.round(src[i + 2] * (1 - mix) + iB * mix);
+    }
+    out[i + 3] = src[i + 3];
+  }
+
+  return new ImageData(out, width, height);
+}
