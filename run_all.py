@@ -68,7 +68,7 @@ def worker(motr, img_a, img_b, out_dir, frames):
     doc = OZDoc.alloc().init()
     loaded, _ = doc.readFromURL_ofType_error_(NSURL.fileURLWithPath_(motr), DOC_TYPE, None)
     if not loaded:
-        sys.exit(3)
+        os._exit(3)
     cpp_doc = ms(ctypes.c_void_p(objc.pyobjc_id(doc)), libobjc.sel_registerName(b"getDocument"))
     a, b = img_a.encode(), img_b.encode()
     n = int(frames)
@@ -76,7 +76,7 @@ def worker(motr, img_a, img_b, out_dir, frames):
         tsec = (f / (n - 1)) * SCENE_DURATION if n > 1 else 0.0
         out = os.path.join(out_dir, f"frame_{f:04d}.png").encode()
         shim.oz_render_frame(ctypes.c_void_p(cpp_doc), 0, 0, a, b, tsec, TIMESCALE, out)
-    sys.exit(0)
+    os._exit(0)
 
 
 def supervise(img_a, img_b, out_dir, frames, fps, make_mp4):
