@@ -158,8 +158,8 @@ function renderLayer(
     // For groups with filters: render children to a temp buffer, apply filters, then composite
     if (layer.filters.length > 0) {
       const groupBuffer = createBuffer(output.width, output.height);
-      for (const child of evalLayer.children) {
-        renderLayer(groupBuffer, child, imageA, imageB, time);
+      for (let i = evalLayer.children.length - 1; i >= 0; i--) {
+        renderLayer(groupBuffer, evalLayer.children[i], imageA, imageB, time);
       }
       // Apply filters
       let filtered = groupBuffer;
@@ -169,8 +169,8 @@ function renderLayer(
       // Composite filtered group onto output
       blitDirect(output, filtered, opacity);
     } else {
-      for (const child of evalLayer.children) {
-        renderLayer(output, child, imageA, imageB, time);
+      for (let i = evalLayer.children.length - 1; i >= 0; i--) {
+        renderLayer(output, evalLayer.children[i], imageA, imageB, time);
       }
     }
   }
@@ -189,9 +189,9 @@ export function composite(
 ): ImageData {
   const output = createBuffer(width, height);
 
-  // Render layers back-to-front
-  for (const evalLayer of scene.layers) {
-    renderLayer(output, evalLayer, imageA, imageB, scene.time);
+  // Render layers back-to-front (Motion: first in list = top/foreground, last = bottom/background)
+  for (let i = scene.layers.length - 1; i >= 0; i--) {
+    renderLayer(output, scene.layers[i], imageA, imageB, scene.time);
   }
 
   return output;
