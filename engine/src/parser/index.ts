@@ -14,7 +14,7 @@
  */
 import type {
   MotrScene, SceneSettings, Layer, Curve, Keyframe, RationalTime,
-  Parameter, Transform, Filter, ImageSource, BlendMode, RigWidget, RigBehavior
+  Parameter, Transform, Filter, ImageSource, BlendMode, RigWidget, RigBehavior, Shape
 } from '../types.js';
 
 // ============================================================================
@@ -377,6 +377,60 @@ function determineSource(params: Parameter[], factories: Map<number, string>, fa
 /**
  * Parse a scenenode element into a Layer.
  */
+
+/**
+ * Parse shape geometry from a Shape scenenode.
+ * Shapes store vertex coordinates in <curve_X> and <curve_Y> elements,
+ * each containing <vertex> → <vertex_folder> → <parameter name="Value">.
+ */
+function parseShape(el: Element): Shape | undefined {
+  const curveX = findDescendant(el, 'curve_X');
+  const curveY = findDescendant(el, 'curve_Y');
+  if (!curveX || !curveY) return undefined;
+
+  const verticesX = extractVertexValues(curveX);
+  const verticesY = extractVertexValues(curveY);
+  if (verticesX.length === 0) return undefined;
+
+  const closedEl = findDescendant(el, 'closed');
+  const closed = closedEl ? closedEl.textContent?.trim() === '1' : true;
+
+  const name = el.getAttribute('name') || '';
+  const isMask = name.toLowerCase().includes('mask');
+
+  return { verticesX, verticesY, closed, isMask };
+}
+
+/** Extract vertex Value coordinates from a curve_X/curve_Y element. */
+function extractVertexValues(curveEl: Element): number[] {
+  const values: number[] = [];
+  for (const vertex of directChildren(curveEl, 'vertex')) {
+    const folder = firstChild(vertex, 'vertex_folder');
+    if (folder) {
+      const param = firstChild(folder, 'parameter');
+      if (param) {
+        const v = param.getAttribute('value');
+        if (v !== null) values.push(parseFloat(v));
+      }
+    }
+  }
+  return values;
+}
+
+/** Find first descendant element with a given tag (recursive). */
+function findDescendant(el: Element, tag: string): Element | null {
+  for (let i = 0; i < el.childNodes.length; i++) {
+    const child = el.childNodes[i];
+    if (child.nodeType === 1) {
+      const elem = child as Element;
+      if (elem.tagName === tag) return elem;
+      const found = findDescendant(elem, tag);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 function parseSceneNode(el: Element, factories: Map<number, string>): Layer {
   const factoryID = parseInt(el.getAttribute('factoryID') || '0', 10);
   const factoryType = factories.get(factoryID) || '';
@@ -447,6 +501,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>): Layer {
     children,
     timing: parseTiming(el),
     retimeValue: extractRetimeValue(params),
+    shape: type === 'shape' ? parseShape(el) : undefined,
     source: (type === 'image' || type === 'generator') ? determineImageSource(el.getAttribute('name') || '', params, el) : undefined,
   };
 
@@ -482,7 +537,7 @@ function parseLayerElement(el: Element, factories: Map<number, string>): Layer {
       } else {
         children.push(parseSceneNode(childEl, factories));
       }
-    } else if (childEl.tagName === 'layer') {
+    } else if (childEl.tagName === 'layer' || childEl.tagName === 'group') {
       children.push(parseLayerElement(childEl, factories));
     } else if (childEl.tagName === 'filter') {
       // Filter elements (blur, color, etc.)
@@ -625,7 +680,7 @@ export function parseMotr(xmlText: string): MotrScene {
   // 4. Parse the scene graph (layers + scenenodes under <scene>)
   const layers: Layer[] = [];
   for (const el of allDirectChildren(sceneEl)) {
-    if (el.tagName === 'layer') {
+    if (el.tagName === 'layer' || el.tagName === 'group') {
       layers.push(parseLayerElement(el, factories));
     } else if (el.tagName === 'scenenode') {
       const fid = parseInt(el.getAttribute('factoryID') || '0', 10);

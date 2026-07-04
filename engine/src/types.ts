@@ -91,6 +91,8 @@ export interface Layer {
   masks?: Layer[];
   /** Retime Value curve — maps host time to template frame progress. */
   retimeValue?: Curve;
+  /** Shape geometry (for shape/mask layers). */
+  shape?: Shape;
 }
 
 /** Scene-level settings (resolution, duration, frame rate). */
@@ -102,6 +104,19 @@ export interface SceneSettings {
 }
 
 /** The complete parsed transition scene. */
+
+
+/** A vector shape (polygon mask or filled shape). */
+export interface Shape {
+  /** Vertex X coordinates (centered coordinate space). */
+  verticesX: number[];
+  /** Vertex Y coordinates (centered coordinate space). */
+  verticesY: number[];
+  /** Whether the path is closed. */
+  closed: boolean;
+  /** Whether this shape is used as a mask (vs a filled shape). */
+  isMask: boolean;
+}
 
 /** A rig widget (popup/checkbox/slider that controls transition variants). */
 export interface RigWidget {
