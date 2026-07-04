@@ -93,6 +93,8 @@ export interface Layer {
   retimeValue?: Curve;
   /** Shape geometry (for shape/mask layers). */
   shape?: Shape;
+  /** Replicator configuration (for replicator layers). */
+  replicator?: Replicator;
 }
 
 /** Scene-level settings (resolution, duration, frame rate). */
@@ -105,6 +107,22 @@ export interface SceneSettings {
 
 /** The complete parsed transition scene. */
 
+
+
+/** Replicator configuration — tiles a cell across a grid/pattern. */
+export interface Replicator {
+  /** Arrangement type: 0=rectangle grid, 1=line, 2=circle, etc. */
+  arrangement: number;
+  /** Number of columns in the grid. */
+  columns: number;
+  /** Number of rows in the grid. */
+  rows: number;
+  /** Grid size (width, height in pixels). */
+  sizeWidth: number;
+  sizeHeight: number;
+  /** Origin/pattern offset. */
+  origin: number;
+}
 
 /** A vector shape (polygon mask or filled shape). */
 export interface Shape {

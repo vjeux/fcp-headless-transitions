@@ -14,7 +14,7 @@
  */
 import type {
   MotrScene, SceneSettings, Layer, Curve, Keyframe, RationalTime,
-  Parameter, Transform, Filter, ImageSource, BlendMode, RigWidget, RigBehavior, Shape
+  Parameter, Transform, Filter, ImageSource, BlendMode, RigWidget, RigBehavior, Shape, Replicator
 } from '../types.js';
 
 // ============================================================================
@@ -383,6 +383,33 @@ function determineSource(params: Parameter[], factories: Map<number, string>, fa
  * Shapes store vertex coordinates in <curve_X> and <curve_Y> elements,
  * each containing <vertex> → <vertex_folder> → <parameter name="Value">.
  */
+
+/**
+ * Parse replicator configuration from a Replicator scenenode.
+ * Extracts grid arrangement, rows/columns, and sizing.
+ */
+function parseReplicator(params: Parameter[]): Replicator | undefined {
+  function findVal(ps: Parameter[], name: string): number | undefined {
+    for (const p of ps) {
+      if (p.name === name && typeof p.value === 'number') return p.value;
+      if (p.children) {
+        const found = findVal(p.children, name);
+        if (found !== undefined) return found;
+      }
+    }
+    return undefined;
+  }
+
+  const arrangement = findVal(params, 'Arrangement') ?? 0;
+  const columns = findVal(params, 'Columns') ?? 1;
+  const rows = findVal(params, 'Rows') ?? 1;
+  const sizeWidth = findVal(params, 'Width') ?? 0;
+  const sizeHeight = findVal(params, 'Height') ?? 0;
+  const origin = findVal(params, 'Origin') ?? 0;
+
+  return { arrangement, columns, rows, sizeWidth, sizeHeight, origin };
+}
+
 function parseShape(el: Element): Shape | undefined {
   const curveX = findDescendant(el, 'curve_X');
   const curveY = findDescendant(el, 'curve_Y');
@@ -502,6 +529,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>): Layer {
     timing: parseTiming(el),
     retimeValue: extractRetimeValue(params),
     shape: type === 'shape' ? parseShape(el) : undefined,
+    replicator: type === 'replicator' ? parseReplicator(params) : undefined,
     source: (type === 'image' || type === 'generator') ? determineImageSource(el.getAttribute('name') || '', params, el) : undefined,
   };
 
