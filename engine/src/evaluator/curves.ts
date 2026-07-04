@@ -139,11 +139,22 @@ export function evaluateCurve(curve: Curve, timeSec: number): number {
 
   // Bezier (all variants: 6,7,8,15,16,17)
   if (isBezier(interp)) {
-    // Build the cubic bezier control points in (time, value) space
+    // Build the cubic bezier control points in (time, value) space.
+    //
+    // Motion stores each keyframe's tangent as a FULL-SPAN handle vector
+    // (inputTangent*, outputTangent*). The actual cubic-Bézier control point sits
+    // at the MIDPOINT of that handle — i.e. the VALUE offset is half the stored
+    // tangent value. Verified to sub-pixel accuracy against the real Ozone engine:
+    // the realized velocity at every interior keyframe is exactly 0.5× the stored
+    // tangent slope, which turns Motion's constant-velocity ramps (ease-in →
+    // constant → ease-out over the whole animation) into the correct single sweep
+    // instead of one accelerate/decelerate hump per segment. Time handles are used
+    // as-is (they already sit at ≈dt/3, defining the time reparameterization).
+    const TANGENT_VALUE_SCALE = 0.5;
     const outTTime = keyA.outTangentTime ?? 0;
-    const outTValue = keyA.outTangentValue ?? 0;
+    const outTValue = (keyA.outTangentValue ?? 0) * TANGENT_VALUE_SCALE;
     const inTTime = keyB.inTangentTime ?? 0;
-    const inTValue = keyB.inTangentValue ?? 0;
+    const inTValue = (keyB.inTangentValue ?? 0) * TANGENT_VALUE_SCALE;
 
     // Time control points (in seconds)
     const timeP0 = tA;
@@ -153,8 +164,8 @@ export function evaluateCurve(curve: Curve, timeSec: number): number {
 
     // Value control points
     const valP0 = keyA.value;
-    const valP1 = keyA.value + outTValue;   // outgoing tangent value offset
-    const valP2 = keyB.value + inTValue;    // incoming tangent value offset
+    const valP1 = keyA.value + outTValue;   // outgoing tangent value offset (half handle)
+    const valP2 = keyB.value + inTValue;    // incoming tangent value offset (half handle)
     const valP3 = keyB.value;
 
     // Find parameter t that gives us the desired time
