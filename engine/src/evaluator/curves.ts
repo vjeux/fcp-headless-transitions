@@ -81,7 +81,13 @@ export function evaluateCurve(curve: Curve, timeSec: number): number {
   const { keyframes } = curve;
 
   if (keyframes.length === 0) {
-    return curve.default;
+    // A curve with no keyframes holds a constant. Motion stores the current
+    // constant in `value` (the `value=` attribute); `default` is only the
+    // factory default and is used when no explicit value was authored. Rig
+    // snapshot curves (e.g. Opacity 0/1 selectors) rely on this: their curve is
+    // keyframeless with value=0 or 1 but default=1, so returning `default` here
+    // would make every "hidden" snapshot visible.
+    return curve.value !== undefined ? curve.value : curve.default;
   }
 
   if (keyframes.length === 1) {
