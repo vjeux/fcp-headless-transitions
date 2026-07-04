@@ -932,22 +932,39 @@ export function parseMotr(xmlText: string): MotrScene {
 
   // Compute the animation end = max keyframe time across ALL curves in the scene.
   // progress=1 maps here, not to the full scene/playRange duration (which can run a
-  // frame past the last keyframe and wrap back to the start). We scan the raw XML
-  // <time> nodes inside <keypoint> to catch every curve (including rig snapshots,
-  // which drive most transitions and don't live in the layer transform tree).
+  // Compute the animation end = the time at which the transition's visible motion
+  // finishes. This is the max keyframe time across ANIMATION curves — but we must
+  // EXCLUDE retiming/cache curves ("Retime Value", "Retime Value Cache", "Duration
+  // Cache"), whose keyframes extend one frame past the spatial animation (e.g.
+  // 204204/120000) and, if used, sample past the drop-zones' timing-out and render
+  // a black frame. progress=1 maps here, not to the padded scene/playRange duration.
   let animationEndSec = duration.value / duration.timescale;
   {
+    const EXCLUDE_PARAMS = new Set(['Retime Value', 'Retime Value Cache', 'Duration Cache']);
+    // Walk curves, tracking the nearest enclosing <parameter name=...> so we can skip
+    // retiming curves. getElementsByTagName gives document order; we resolve each
+    // curve's owning parameter by climbing parentNode.
     let maxT = 0;
-    const keypoints = Array.from(sceneEl.getElementsByTagName('keypoint'));
-    for (const kp of keypoints) {
-      const timeEl = firstChild(kp, 'time');
-      if (!timeEl || !timeEl.textContent) continue;
-      const parts = timeEl.textContent.trim().split(/\s+/);
-      const val = parseFloat(parts[0]);
-      const scale = parts.length > 1 ? parseFloat(parts[1]) : 1;
-      if (scale > 0 && isFinite(val)) {
-        const sec = val / scale;
-        if (sec > maxT) maxT = sec;
+    const curves = Array.from(sceneEl.getElementsByTagName('curve'));
+    for (const curve of curves) {
+      // Find the enclosing parameter's name.
+      let node: any = (curve as any).parentNode;
+      let ownerName = '';
+      while (node && node.nodeType === 1) {
+        if (node.tagName === 'parameter') { ownerName = node.getAttribute('name') || ''; break; }
+        node = node.parentNode;
+      }
+      if (EXCLUDE_PARAMS.has(ownerName)) continue;
+      for (const kp of directChildren(curve as Element, 'keypoint')) {
+        const timeEl = firstChild(kp, 'time');
+        if (!timeEl || !timeEl.textContent) continue;
+        const parts = timeEl.textContent.trim().split(/\s+/);
+        const val = parseFloat(parts[0]);
+        const scale = parts.length > 1 ? parseFloat(parts[1]) : 1;
+        if (scale > 0 && isFinite(val)) {
+          const sec = val / scale;
+          if (sec > maxT) maxT = sec;
+        }
       }
     }
     if (maxT > 0) animationEndSec = maxT;
