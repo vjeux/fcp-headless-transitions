@@ -120,6 +120,8 @@ export interface EvaluatedScene {
   time: number;
   width: number;
   height: number;
+  /** Rig-resolved filter parameter overrides: filterId → (paramName → value). */
+  filterOverrides: Map<number, Map<string, number>>;
 }
 
 // ============================================================================
@@ -411,17 +413,71 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
 // Main evaluate entry point
 // ============================================================================
 
+
+/**
+ * Compute rig-resolved filter parameter overrides.
+ * Rig behaviors can target filter objects (by id) to set params like Amount/Mix/Angle
+ * based on the widget's snapshot. Returns filterId → (paramName → resolved value).
+ */
+function computeFilterOverrides(scene: MotrScene, timeSec: number, widgetValues: Map<number, number>): Map<number, Map<string, number>> {
+  const overrides = new Map<number, Map<string, number>>();
+
+  // Collect all filter IDs in the scene
+  const filterIds = new Set<number>();
+  function collectFilters(layers: Layer[]) {
+    for (const l of layers) {
+      for (const f of l.filters) filterIds.add(f.id);
+      collectFilters(l.children);
+    }
+  }
+  collectFilters(scene.layers);
+
+  // Find the max retime frame span for time→frame conversion (use scene duration)
+  for (const behavior of scene.rigBehaviors) {
+    if (!filterIds.has(behavior.affectedObjectId)) continue;
+    // This rig behavior targets a filter
+    const rawValue = widgetValues.get(behavior.widgetId) ?? 0;
+    let snapIndex = Math.round(rawValue);
+    snapIndex = Math.max(0, Math.min(behavior.snapshots.length - 1, snapIndex));
+    const snapshot = behavior.snapshots[snapIndex];
+    if (!snapshot) continue;
+
+    // The snapshot's value is the resolved parameter (may be a curve or default→value)
+    let value: number;
+    if (snapshot.curve) {
+      if (snapshot.curve.keyframes.length > 0) {
+        value = evaluateCurve(snapshot.curve, timeSec);
+      } else {
+        value = snapshot.curve.value !== undefined ? snapshot.curve.value : snapshot.curve.default;
+      }
+    } else if (typeof snapshot.value === 'number') {
+      value = snapshot.value;
+    } else {
+      continue;
+    }
+
+    if (!overrides.has(behavior.affectedObjectId)) {
+      overrides.set(behavior.affectedObjectId, new Map());
+    }
+    overrides.get(behavior.affectedObjectId)!.set(behavior.paramType, value);
+  }
+
+  return overrides;
+}
+
 export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
   const parentTransform = mat4Identity();
   const widgetValues = buildWidgetValueMap(scene.rigWidgets);
   const behaviors = scene.rigBehaviors;
   const sceneBehaviors = scene.sceneBehaviors;
   const layers = scene.layers.map(layer => evaluateLayer(layer, timeSec, parentTransform, behaviors, widgetValues, sceneBehaviors));
+  const filterOverrides = computeFilterOverrides(scene, timeSec, widgetValues);
 
   return {
     layers,
     time: timeSec,
     width: scene.settings.width,
     height: scene.settings.height,
+    filterOverrides,
   };
 }

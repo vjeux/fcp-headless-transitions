@@ -522,25 +522,27 @@ function parseSceneNode(el: Element, factories: Map<number, string>): Layer {
   for (const filterNode of directChildren(el, 'scenenode')) {
     const filterFactoryID = parseInt(filterNode.getAttribute('factoryID') || '0', 10);
     if (factories.get(filterFactoryID) === 'ProPlugin Filter') {
+      const filterId = parseInt(filterNode.getAttribute('id') || '0', 10);
       const pluginName = filterNode.getAttribute('pluginName') || '';
       const pluginUUID = filterNode.getAttribute('pluginUUID') || '';
       const filterParams: Parameter[] = [];
       for (const fp of directChildren(filterNode, 'parameter')) {
         filterParams.push(parseParameter(fp));
       }
-      filters.push({ pluginName, pluginUUID, parameters: filterParams });
+      filters.push({ id: filterId, pluginName, pluginUUID, parameters: filterParams });
     }
   }
 
   // Also extract <filter> elements (direct children of scenenode)
   for (const filterEl of directChildren(el, 'filter')) {
+    const filterId = parseInt(filterEl.getAttribute('id') || '0', 10);
     const pluginName = filterEl.getAttribute('pluginName') || filterEl.getAttribute('name') || '';
     const pluginUUID = filterEl.getAttribute('pluginUUID') || '';
     const filterParams: Parameter[] = [];
     for (const fp of directChildren(filterEl, 'parameter')) {
       filterParams.push(parseParameter(fp));
     }
-    filters.push({ pluginName, pluginUUID, parameters: filterParams });
+    filters.push({ id: filterId, pluginName, pluginUUID, parameters: filterParams });
   }
 
   // Parse children (nested scenenodes)
@@ -594,13 +596,14 @@ function parseLayerElement(el: Element, factories: Map<number, string>): Layer {
       const ftype = factories.get(fid) || '';
       if (ftype === 'ProPlugin Filter') {
         // Extract as a filter on this layer
+        const filterId = parseInt(childEl.getAttribute('id') || '0', 10);
         const pluginName = childEl.getAttribute('pluginName') || '';
         const pluginUUID = childEl.getAttribute('pluginUUID') || '';
         const filterParams: Parameter[] = [];
         for (const fp of directChildren(childEl, 'parameter')) {
           filterParams.push(parseParameter(fp));
         }
-        filters.push({ pluginName, pluginUUID, parameters: filterParams });
+        filters.push({ id: filterId, pluginName, pluginUUID, parameters: filterParams });
       } else {
         children.push(parseSceneNode(childEl, factories));
       }
@@ -608,13 +611,14 @@ function parseLayerElement(el: Element, factories: Map<number, string>): Layer {
       children.push(parseLayerElement(childEl, factories));
     } else if (childEl.tagName === 'filter') {
       // Filter elements (blur, color, etc.)
+      const filterId = parseInt(childEl.getAttribute('id') || '0', 10);
       const pluginName = childEl.getAttribute('pluginName') || childEl.getAttribute('name') || '';
       const pluginUUID = childEl.getAttribute('pluginUUID') || '';
       const filterParams: Parameter[] = [];
       for (const fp of directChildren(childEl, 'parameter')) {
         filterParams.push(parseParameter(fp));
       }
-      filters.push({ pluginName, pluginUUID, parameters: filterParams });
+      filters.push({ id: filterId, pluginName, pluginUUID, parameters: filterParams });
     }
   }
 

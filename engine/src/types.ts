@@ -64,6 +64,7 @@ export type BlendMode = 'normal' | 'add' | 'multiply' | 'screen' | 'overlay'
 
 /** A filter/effect applied to a layer. */
 export interface Filter {
+  id: number;
   pluginName: string;
   pluginUUID: string;
   parameters: Parameter[];

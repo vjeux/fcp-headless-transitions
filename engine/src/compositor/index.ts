@@ -169,7 +169,8 @@ function renderLayer(
   evalLayer: EvaluatedLayer,
   imageA: ImageData,
   imageB: ImageData,
-  time: number
+  time: number,
+  filterOverrides: Map<number, Map<string, number>>
 ): void {
   if (!evalLayer.visible) return;
 
@@ -191,7 +192,7 @@ function renderLayer(
           ...cell,
           worldTransform: mat4MultiplyOffset(cell.worldTransform, inst.x, inst.y),
         };
-        renderLayer(output, instCell, imageA, imageB, time);
+        renderLayer(output, instCell, imageA, imageB, time, filterOverrides);
       }
     }
     return;
@@ -207,7 +208,7 @@ function renderLayer(
         blitTransformed(temp, src, worldTransform, 1.0, crop); // full opacity to temp
         let filtered = temp;
         for (const filter of layer.filters) {
-          filtered = applyFilter(filtered, filter, evalLayer, time);
+          filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id));
         }
         blitDirect(output, filtered, opacity);
       } else if (needsPerspective(worldTransform)) {
@@ -240,7 +241,7 @@ function renderLayer(
       // Render visible children to a temp buffer
       const groupBuffer = createBuffer(output.width, output.height);
       for (let i = visibleChildren.length - 1; i >= 0; i--) {
-        renderLayer(groupBuffer, visibleChildren[i], imageA, imageB, time);
+        renderLayer(groupBuffer, visibleChildren[i], imageA, imageB, time, filterOverrides);
       }
 
       // Apply masks (rasterize shapes, union them, apply to group content)
@@ -257,14 +258,14 @@ function renderLayer(
       // Apply filters
       let processed = groupBuffer;
       for (const filter of layer.filters) {
-        processed = applyFilter(processed, filter, evalLayer, time);
+        processed = applyFilter(processed, filter, evalLayer, time, filterOverrides.get(filter.id));
       }
 
       // Composite onto output
       blitDirect(output, processed, opacity);
     } else {
       for (let i = visibleChildren.length - 1; i >= 0; i--) {
-        renderLayer(output, visibleChildren[i], imageA, imageB, time);
+        renderLayer(output, visibleChildren[i], imageA, imageB, time, filterOverrides);
       }
     }
   }
@@ -285,7 +286,7 @@ export function composite(
 
   // Render layers back-to-front (Motion: first in list = top/foreground, last = bottom/background)
   for (let i = scene.layers.length - 1; i >= 0; i--) {
-    renderLayer(output, scene.layers[i], imageA, imageB, scene.time);
+    renderLayer(output, scene.layers[i], imageA, imageB, scene.time, scene.filterOverrides);
   }
 
   return output;
@@ -293,25 +294,26 @@ export function composite(
 
 
 /** Apply a filter to an image buffer. */
-function applyFilter(input: ImageData, filter: import('../types.js').Filter, evalLayer: EvaluatedLayer, time: number): ImageData {
+function applyFilter(input: ImageData, filter: import('../types.js').Filter, evalLayer: EvaluatedLayer, time: number, overrides?: Map<string, number>): ImageData {
   const name = filter.pluginName.toLowerCase();
-  if (name.includes('gaussian') || name.includes('blur')) {
-    // Find the Amount parameter
-    let amount = 0;
+
+  // Resolve a filter parameter, preferring a rig override if present.
+  const resolveParam = (paramName: string, fallback: number): number => {
+    if (overrides && overrides.has(paramName)) return overrides.get(paramName)!;
     for (const p of filter.parameters) {
-      if (p.name === 'Amount') {
-        if (p.curve) {
-          // Evaluate the blur amount at the current time
-          amount = evaluateCurve(p.curve, time);
-        } else if (typeof p.value === 'number') {
-          amount = p.value;
-        }
-        break;
+      if (p.name === paramName) {
+        if (p.curve) return evaluateCurve(p.curve, time);
+        if (typeof p.value === 'number') return p.value;
       }
     }
+    return fallback;
+  };
+  if (name.includes('gaussian') || (name.includes('blur') && !name.includes('directional') && !name.includes('radial') && !name.includes('zoom'))) {
+    const amount = resolveParam('Amount', 0);
     if (amount > 0) {
       return gaussianBlur(input, amount);
     }
+    return input;
   }
   // Bevel
   if (name.includes('bevel')) {
