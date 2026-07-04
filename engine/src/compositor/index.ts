@@ -2,6 +2,7 @@ import { gaussianBlur } from './filters/gaussian-blur.js';
 import { glowFilter } from './filters/glow.js';
 import { levelsFilter, brightnessFilter } from './filters/levels.js';
 import { channelMixerFilter, colorizeFilter } from './filters/channel-mixer.js';
+import { hueSaturationFilter } from './filters/hue-saturation.js';
 import { evaluateCurve } from '../evaluator/curves.js';
 /**
  * Compositor: EvaluatedScene + source images → output ImageData
@@ -232,6 +233,19 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
     if (amount > 0) {
       return gaussianBlur(input, amount);
     }
+  }
+  // Hue/Saturation
+  if (name.includes('hsv') || name.includes('hue') || name.includes('saturation')) {
+    let hue = 0, saturation = 1, brightness = 0, mix = 1;
+    for (const p of filter.parameters) {
+      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
+      if (val === undefined) continue;
+      if (p.name === 'Hue' || p.name === 'Hue Rotation') hue = val;
+      if (p.name === 'Saturation') saturation = val;
+      if (p.name === 'Brightness' || p.name === 'Value') brightness = val;
+      if (p.name === 'Mix') mix = val;
+    }
+    return hueSaturationFilter(input, { hue, saturation, brightness, mix });
   }
   // Channel Mixer
   if (name.includes('channel') && name.includes('mixer')) {
