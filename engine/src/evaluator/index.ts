@@ -319,6 +319,11 @@ function resolveWithRetime(value: number | Curve | undefined, timeSec: number, d
   }
   return value;
 }
+/** Normalize a scale value: fractional (1.0=100%) is native; percent (>10) is divided by 100. */
+function normalizeScale(v: number): number {
+  return Math.abs(v) > 10 ? v / 100 : v;
+}
+
 function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: number = 0): Float64Array {
   const posX = resolveWithRetime(tx.positionX, timeSec, 0, retimeProgress);
   const posY = resolveWithRetime(tx.positionY, timeSec, 0, retimeProgress);
@@ -326,9 +331,12 @@ function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: nu
   const rotX = resolveWithRetime(tx.rotationX, timeSec, 0, retimeProgress);
   const rotY = resolveWithRetime(tx.rotationY, timeSec, 0, retimeProgress);
   const rotZ = resolveWithRetime(tx.rotationZ, timeSec, 0, retimeProgress);
-  const scX = resolveWithRetime(tx.scaleX, timeSec, 100, retimeProgress) / 100; // Motion uses percent
-  const scY = resolveWithRetime(tx.scaleY, timeSec, 100, retimeProgress) / 100;
-  const scZ = resolveWithRetime(tx.scaleZ, timeSec, 100, retimeProgress) / 100;
+  // Scale convention: Motion .motr stores scale as FRACTIONAL (1.0 = 100%), confirmed by the
+  // parameter's default="1". A few legacy templates use percent (default="100", value ~100).
+  // Normalize: values > 10 are treated as percent (÷100); otherwise fractional (used as-is).
+  const scX = normalizeScale(resolveWithRetime(tx.scaleX, timeSec, 1, retimeProgress));
+  const scY = normalizeScale(resolveWithRetime(tx.scaleY, timeSec, 1, retimeProgress));
+  const scZ = normalizeScale(resolveWithRetime(tx.scaleZ, timeSec, 1, retimeProgress));
   const ancX = resolveValue(tx.anchorX, timeSec, 0);
   const ancY = resolveValue(tx.anchorY, timeSec, 0);
 
