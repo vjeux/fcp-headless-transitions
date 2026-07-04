@@ -179,8 +179,12 @@ function applyRigBehaviors(
   for (const behavior of behaviors) {
     if (behavior.affectedObjectId !== layer.id) continue;
 
-    const widgetValue = widgetValues.get(behavior.widgetId) ?? 0;
-    const snapshot = behavior.snapshots[widgetValue];
+    const rawValue = widgetValues.get(behavior.widgetId) ?? 0;
+    // Widget values may be fractional (e.g. aspect ratios) or discrete indices.
+    // Round to nearest integer and clamp to the valid snapshot range.
+    let snapIndex = Math.round(rawValue);
+    snapIndex = Math.max(0, Math.min(behavior.snapshots.length - 1, snapIndex));
+    const snapshot = behavior.snapshots[snapIndex];
     if (!snapshot) continue;
 
     // Apply the snapshot's parameters based on the controlled param type
