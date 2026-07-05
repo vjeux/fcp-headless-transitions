@@ -192,6 +192,55 @@ def _validate_frames(outdir, nframes):
     return True, "ok"
 
 
+def _visible_end_seconds(doc, img_a, img_b, end):
+    """Trim `end` down to the true VISUAL end so the final sampled frame is never a
+    black-wrap frame. GENERIC and measurement-driven — the render is the ground truth.
+
+    For the retime-wrap class of transitions the FCP engine plays PAST the last
+    drop-zone frame into a pure-black loop-point. `animation_end_seconds` (the max
+    spatial keyframe) can land there. We detect this by rendering the last-frame time
+    and, if it is black (mean < BLACK), binary-search the largest t < end whose render
+    is non-black — content is valid for t < B and black for t >= B (a single onset),
+    so this converges to just below B. Returns the trimmed end (or the original when
+    the final frame is already valid — Push/Gaussian/etc. are untouched).
+
+    A tmp scratch frame is used so we never clobber the real frame_*.png outputs."""
+    import tempfile
+    BLACK = 5.0
+    def _mean_at(t):
+        fd, tmp = tempfile.mkstemp(suffix=".png")
+        os.close(fd)
+        try:
+            ozengine.render_frame(doc, img_a, img_b, t, tmp)
+            return _frame_mean(tmp)
+        finally:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+    last_t = end - 1e-4
+    if _mean_at(last_t) >= BLACK:
+        return end  # already valid — do not touch (no regression)
+    # The final frame is black: the true visual end is below `end`. Binary-search
+    # for the largest non-black time in (0, end). lo is known non-black (frame 0
+    # region), hi is known black (`end`).
+    lo, hi = 0.0, end
+    lo_ok = _mean_at(lo) >= BLACK
+    if not lo_ok:
+        # Even t=0 is black (should not happen for a real A/B transition) — bail out
+        # and let the validator flag it rather than fabricate an end.
+        return end
+    for _ in range(24):  # ~1/16.7M of `end` — far finer than a frame
+        mid = (lo + hi) / 2.0
+        if _mean_at(mid) >= BLACK:
+            lo = mid
+        else:
+            hi = mid
+    # `lo` is the largest time we confirmed non-black. The new end must map the last
+    # frame (end - 1e-4) at or below `lo`, so set end = lo + 1e-4 (last frame -> lo).
+    return lo + 1e-4
+
+
 def _render_one(motr, img_a, img_b, outdir, nframes):
     """Render one transition's frames into outdir. Assumes engine is initialized."""
     os.makedirs(outdir, exist_ok=True)
@@ -199,6 +248,16 @@ def _render_one(motr, img_a, img_b, outdir, nframes):
     if end <= 0:
         end = 1.6683333333333332  # last-resort Push default (no keyframes, no scene duration)
     doc = ozengine.load_doc(motr)
+    # True-visual-end correction (retime-wrap class): the FCP engine plays PAST the
+    # last drop-zone frame into a pure-black loop-point, and the max-keyframe `end`
+    # can land there. Trim `end` down (measurement-driven) so the final sampled frame
+    # is never a black-wrap frame. This is fully generic: it only trims transitions
+    # whose final frame is actually black, converging to the true black onset (so it
+    # handles the replicator case where clones time out before the source drop zone
+    # does, and NEVER over-trims transitions whose content legitimately outlives any
+    # drop-zone `out`, e.g. Stylized/Close & Open). Push/Gaussian/etc. — whose final
+    # frame is already valid source B — are returned untouched.
+    end = _visible_end_seconds(doc, img_a, img_b, end)
     for i in range(nframes):
         p = i / (nframes - 1) if nframes > 1 else 0.0
         t = p * end
