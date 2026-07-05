@@ -4,9 +4,13 @@ Shared Ozone (FCP Motion engine) headless-boot boilerplate.
 Every ground-truth / probe script needs the same ~15 lines to bring up the real
 FCP render engine in-process. This module centralizes that so callers just do:
 
-    from ozengine import boot, render_frame
-    doc = boot("/path/to/Foo.motr")
+    from ozengine import init_engine, load_doc, render_frame
+    init_engine()                     # one-time ~1.3s engine boot (idempotent)
+    doc = load_doc("/path/to/Foo.motr")
     render_frame(doc, "imgA.png", "imgB.png", tsec=0.5, out="frame.png")
+
+Render many transitions in ONE process by calling init_engine() once, then
+load_doc() per transition — this amortizes the boot instead of re-paying it.
 
 IMPORTANT ENV: DYLD_FRAMEWORK_PATH must point at FCP's Frameworks dir so the
 engine's sibling frameworks resolve at dlopen time. `timeout`, `nohup`, and
@@ -117,16 +121,6 @@ def load_doc(motr_path):
     if not ok:
         raise RuntimeError("failed to load .motr: " + motr_path)
     return _ms(ctypes.c_void_p(_objc.pyobjc_id(doc)), _sel(b"getDocument"))
-
-
-def boot(motr_path):
-    """Boot the engine and load a .motr document. Returns the C++ OZScene doc ptr.
-
-    Backward-compatible: equivalent to init_engine() + load_doc(motr_path). For
-    rendering multiple transitions in one process, call init_engine() once then
-    load_doc() per transition to avoid re-paying the ~1.3s engine init."""
-    init_engine()
-    return load_doc(motr_path)
 
 
 def render_frame(doc, img_a, img_b, tsec, out, a_id=DROPZONE_A, b_id=DROPZONE_B):

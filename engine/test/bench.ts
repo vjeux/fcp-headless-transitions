@@ -15,7 +15,12 @@ import { PNG } from 'pngjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const GT_ROOT = '/tmp/gt_all';
+// Canonical ground-truth cache. GT is deterministic (fixed engine + .motr +
+// images), so it is generated ONCE into a stable shared location (~/fct-gt-cache)
+// that survives worktree resets and is shared across all agents — never
+// regenerated per run. Override with FCT_GT_CACHE if needed.
+const GT_ROOT = process.env.FCT_GT_CACHE
+  || path.join(process.env.HOME || '', 'fct-gt-cache');
 const TRANS_DIR = '/Users/vjeux/random/motion-renderer/examples/PETemplates.localized/Transitions.localized';
 
 // Build slug → motr path map by scanning the transitions dir the same way run_all.py does.

@@ -15,7 +15,14 @@ import { PNG } from 'pngjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const GT_ROOT = path.resolve(import.meta.dirname, 'ground-truth');
+// Canonical ground-truth cache (deterministic; generated once into a stable
+// shared location, never regenerated per run). Falls back to the local
+// test/ground-truth dir if the cache is absent. Override with FCT_GT_CACHE.
+const GT_CACHE = process.env.FCT_GT_CACHE
+  || path.join(process.env.HOME || '', 'fct-gt-cache');
+const GT_ROOT = fs.existsSync(GT_CACHE)
+  ? GT_CACHE
+  : path.resolve(import.meta.dirname, 'ground-truth');
 const MOTR_ROOT = '/Users/vjeux/random/motion-renderer/examples/PETemplates.localized/Transitions.localized';
 
 // Map ground-truth dir name → .motr path

@@ -15,7 +15,7 @@ MOTR = os.environ.get("PROBE_MOTR", os.path.expanduser(
     "Movements.localized/Push.localized/Push.motr"))
 TIMES = [float(x) for x in os.environ.get("PROBE_TIMES", "0.15,0.55,1.05,1.50").split(",")]
 
-doc = ozengine.boot(MOTR)
+doc = ozengine.load_doc(MOTR)
 for tsec in TIMES:
     ozengine.render_frame(doc, "/tmp/rulerA.png", "/tmp/rulerB.png", tsec, "/tmp/probe_frame.png")
 os._exit(0)
