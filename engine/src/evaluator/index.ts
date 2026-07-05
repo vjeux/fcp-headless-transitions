@@ -41,6 +41,16 @@ let CURRENT_FPS = 30;
  * frame. Undefined for ordinary transitions (drop zones time out normally).
  */
 let DROPZONE_WRAP_TO_A = false;
+/**
+ * When set, the incoming (Type=2) Transition-B drop zone HOLDS its last frame
+ * (source B) past its timing `out`, staying visible as the settled base. Set for
+ * a scene whose drop-zone A→B crossfade is over-run by an independent blended
+ * VIDEO overlay (Lights/Light Noise): the crossfade completes on B, the B drop
+ * zone times out, but the overlay keeps the scene alive — so FCP holds B behind
+ * the overlay instead of the drop zone vanishing to black. Without this the tail
+ * frames render an empty (black) base once B times out.
+ */
+let HOLD_INCOMING_B = false;
 
 
 // ============================================================================
@@ -785,6 +795,15 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
     }
   }
   const retimeProgress = getRetimeProgress(layer, timeSec);
+  // Hold the incoming (Type=2) B drop zone past its timeout when a blended overlay
+  // keeps the scene alive (Lights/Light Noise): the crossfade has settled on B, so
+  // B persists as the base behind the fading overlay instead of vanishing to black.
+  if (HOLD_INCOMING_B && !visible && layer.type === 'image'
+    && layer.source?.type === 'transitionB' && layer.dropZone?.type === 2 && layer.timing) {
+    const out = layer.timing.out.timescale > 0 ? layer.timing.out.value / layer.timing.out.timescale : 0;
+    const inn = layer.timing.in.timescale > 0 ? layer.timing.in.value / layer.timing.in.timescale : 0;
+    if (timeSec > out && timeSec >= inn) visible = true;
+  }
   let riggedTransform = applyRigBehaviors(layer, layer.transform, behaviors, widgetValues);
   // A drop-zone-FRAMED grid panel (declares a SQUARE Width×Height frame, e.g. the
   // Replicator/Multi 1920×1920 panels) carries an authoritative STATIC Scale (e.g.
@@ -830,6 +849,20 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
     const inn = layer.timing.in && layer.timing.in.timescale > 0
       ? layer.timing.in.value / layer.timing.in.timescale : 0;
     if (off - inn > 1e-3) curveTime = timeSec - off;
+    // A blended (screen/add) VIDEO overlay whose media timeline offset is NEGATIVE
+    // (its local frame starts BEFORE scene-zero) also anchors its Opacity/transform
+    // curves in the layer-local frame: curveTime = timeSec - offset. Lights/Light
+    // Noise's light-noise .mov has offset≈-0.734s and its Opacity fade keyframes
+    // (2.269→2.469 local) must land ~0.73s EARLIER in scene time (≈1.53→1.74s) so
+    // the noise burst has faded out by the time the crossfade settles on B —
+    // matching GT (the overlay is gone by frame ~18). Scoped to a media leaf with
+    // a frame-numbered Retime curve so scene-time-authored panels are untouched.
+    else if (off < -1e-3 && layer.source.type === 'media'
+      && (layer.blendMode === 'screen' || layer.blendMode === 'add'
+        || layer.blendMode === 'overlay' || layer.blendMode === 'lighten')
+      && layer.retimeValue && layer.retimeValue.keyframes.length >= 2) {
+      curveTime = timeSec - off;
+    }
   }
   // Filled-shape overlays (e.g. Lights/Flash's white flash rectangles) carry
   // their opacity/transform curves in the layer's OWN local time frame, anchored
@@ -1108,6 +1141,23 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
       }
     })(scene.layers);
     DROPZONE_WRAP_TO_A = hasFilledShapeOverlay && minWrap !== Infinity && end > minWrap + frameSec;
+    // Detect a blended (screen/add) VIDEO overlay that outlives the drop-zone
+    // crossfade: it keeps the scene alive past the B drop zone's timeout, so the
+    // incoming B must be held (not vanish to black) behind the overlay.
+    let hasBlendedMediaOverlay = false;
+    (function scan2(ls: Layer[]) {
+      for (const l of ls) {
+        if (l.type === 'image' && l.source?.type === 'media'
+          && (l.blendMode === 'screen' || l.blendMode === 'add'
+            || l.blendMode === 'overlay' || l.blendMode === 'lighten')
+          && l.timing) {
+          const out = l.timing.out.timescale > 0 ? l.timing.out.value / l.timing.out.timescale : 0;
+          if (out > minWrap + frameSec) hasBlendedMediaOverlay = true;
+        }
+        scan2(l.children);
+      }
+    })(scene.layers);
+    HOLD_INCOMING_B = hasBlendedMediaOverlay;
   }
   const parentTransform = mat4Identity();
   const widgetValues = buildWidgetValueMap(scene.rigWidgets);

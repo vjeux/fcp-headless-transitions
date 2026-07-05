@@ -127,10 +127,10 @@ const stillCache = new Map<string, ImageData | null>();
 export function makeMediaResolver(
   motrPath: string,
   opts: { reverseVideo?: boolean } = {}
-): (url: string, timeSec?: number) => ImageData | null {
+): (url: string, timeSec?: number, absolute?: boolean) => ImageData | null {
   const reverse = opts.reverseVideo !== false; // default true
   const motrDir = path.dirname(motrPath);
-  return (url: string, timeSec?: number): ImageData | null => {
+  return (url: string, timeSec?: number, absolute?: boolean): ImageData | null => {
     if (!url) return null;
     // The parser already URL-decodes relativeURL; decode again defensively (no-op
     // if already decoded) so a raw %20 path still resolves.
@@ -141,7 +141,9 @@ export function makeMediaResolver(
     const ext = path.extname(abs).toLowerCase();
     if (ext === '.mov' || ext === '.mp4' || ext === '.m4v' || ext === '.qt') {
       let t = timeSec ?? 0;
-      if (reverse) {
+      // `absolute` = the compositor computed a forward clip time from the layer's
+      // Retime Value curve (clip-frame numbers); seek there directly, no reverse.
+      if (reverse && !absolute) {
         const dur = probeDuration(abs);
         if (dur > 0) t = Math.max(0, dur - t);
       }

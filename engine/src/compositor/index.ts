@@ -93,7 +93,7 @@ interface RenderContext {
    * `Media/Veil.mov` overlay + wipe-matte) uses `timeSec` (current scene time)
    * to pick the correct mov frame. The resolver owns its own decode cache.
    */
-  mediaResolver?: (url: string, timeSec?: number) => ImageData | null;
+  mediaResolver?: (url: string, timeSec?: number, absolute?: boolean) => ImageData | null;
   /** Per-frame cache of resolved media (avoids re-decoding a tile per layer/frame). */
   mediaCache: Map<string, ImageData | null>;
   /** Animation end (seconds) so replicator sequencing can normalize global time. */
@@ -557,7 +557,7 @@ export function compositePixel(
 
 
 
-function getSourceImage(source: ImageSource | undefined, imageA: ImageData, imageB: ImageData): ImageData | null {
+function getSourceImage(source: ImageSource | undefined, imageA: ImageData, imageB: ImageData, clipTimeOverride?: number): ImageData | null {
   if (!source) return null;
   switch (source.type) {
     case 'transitionA': return imageA;
@@ -568,11 +568,18 @@ function getSourceImage(source: ImageSource | undefined, imageA: ImageData, imag
       // scene time, so it is keyed by url@time and never cached across frames —
       // the host resolver owns the mov decode cache.
       if (!ctx?.mediaResolver) return null;
-      const t = ctx.mediaTime;
-      const key = `${source.url}@${t.toFixed(4)}`;
+      // A media layer with a Retime Value curve of clip FRAME numbers supplies an
+      // absolute forward clip time (clipTimeOverride). This is the authoritative
+      // per-clip playhead (Lights/Light Noise: the screen-blend light-noise .mov
+      // plays FORWARD through the transition per its Retime curve). When present,
+      // resolve at that absolute clip time (no reverse). Otherwise fall back to the
+      // global mediaTime + resolver's reverse heuristic (Veil/Leaves default).
+      const absolute = clipTimeOverride !== undefined;
+      const t = absolute ? clipTimeOverride! : ctx.mediaTime;
+      const key = `${source.url}@${t.toFixed(4)}${absolute ? '#abs' : ''}`;
       const cache = ctx.mediaCache;
       if (cache.has(key)) return cache.get(key)!;
-      const img = ctx.mediaResolver(source.url, t);
+      const img = ctx.mediaResolver(source.url, t, absolute);
       cache.set(key, img);
       return img;
     }
@@ -738,6 +745,42 @@ function resolveImageMaskAlpha(sourceId: number, W: number, H: number, invert = 
   return applyInvert(merged);
 }
 
+/**
+ * Absolute forward clip time (seconds) for a VIDEO media leaf whose Retime Value
+ * curve stores clip FRAME numbers. Motion plays such a clip along its own
+ * timeline: the Retime curve maps the layer-LOCAL time (scene mediaTime minus the
+ * layer offset) to a clip frame; dividing by the clip's frame rate yields the
+ * clip second to seek. This is the authoritative per-clip playhead for
+ * screen-blend overlays like Lights/Light Noise (the light-noise .mov plays
+ * FORWARD through the transition — NOT the reverse heuristic used for the
+ * un-falling Veil/Leaves overlays, which lack a frame-numbered Retime curve on
+ * their base clip). Returns undefined when there is no usable frame-numbered
+ * retime curve, so the caller falls back to the global mediaTime + reverse.
+ */
+function retimedClipTime(evalLayer: EvaluatedLayer): number | undefined {
+  const layer = evalLayer.layer;
+  if (!layer.source || layer.source.type !== 'media') return undefined;
+  const rv = layer.retimeValue;
+  if (!rv || rv.keyframes.length < 2) return undefined;
+  const fps = layer.source.frameRate;
+  if (!fps || fps <= 0) return undefined;
+  // Frame-numbered retime curves span a wide frame range (Light Noise 24→119).
+  // A curve whose values are ~[0,1] is a normalized progress retime, not a clip
+  // frame index — leave those to the fallback path.
+  const first = rv.keyframes[0].value;
+  const last = rv.keyframes[rv.keyframes.length - 1].value;
+  if (Math.max(first, last) <= 2) return undefined;
+  // Layer-local time = scene media time minus the layer's timeline offset.
+  const off = layer.timing ? (layer.timing.offset.timescale > 0
+    ? layer.timing.offset.value / layer.timing.offset.timescale : 0) : 0;
+  const localTime = (ctx?.mediaTime ?? 0) - off;
+  const frame = evaluateCurve(rv, localTime);
+  // Motion's Retime Value / Page Number is a 1-BASED frame index: frame 1 is the
+  // clip's FIRST frame (presentation time 0). Convert to the 0-based presentation
+  // time the host resolver seeks with: clipTime = (frame - 1) / fps.
+  return Math.max(0, (frame - 1) / fps);
+}
+
 function renderLayer(
   output: ImageData,
   evalLayer: EvaluatedLayer,
@@ -745,8 +788,7 @@ function renderLayer(
   imageB: ImageData,
   time: number,
   filterOverrides: Map<number, Map<string, number>>
-): void {
-  if (!evalLayer.visible) return;
+): void {  if (!evalLayer.visible) return;
 
   const { layer, worldTransform, opacity, crop } = evalLayer;
 
@@ -993,7 +1035,11 @@ function renderLayer(
     // A forced-A persistent base (wrapping drop zone past its lifetime) renders
     // source A regardless of its declared transitionA/B source — see evaluator's
     // DROPZONE_WRAP_TO_A (Lights/Flash's flash rides over a persistent A base).
-    const src = evalLayer.forceSourceA ? imageA : getSourceImage(layer.source, imageA, imageB);
+    // A frame-numbered Retime curve (Lights/Light Noise's screen .mov) supplies an
+    // absolute forward clip time so the light-noise overlay plays along its own
+    // timeline instead of the reverse-video default.
+    const clipT = retimedClipTime(evalLayer);
+    const src = evalLayer.forceSourceA ? imageA : getSourceImage(layer.source, imageA, imageB, clipT);
     if (src) {
       // An Image Mask clips ONLY this layer by a rig-selected wipe shape (e.g.
       // Wipes/Mask masks Transition B over an unmasked Transition A). Render to a
@@ -1125,7 +1171,7 @@ export function composite(
   imageB: ImageData,
   width: number,
   height: number,
-  mediaResolver?: (url: string, timeSec?: number) => ImageData | null
+  mediaResolver?: (url: string, timeSec?: number, absolute?: boolean) => ImageData | null
 ): ImageData {
   const output = createBuffer(width, height);
 

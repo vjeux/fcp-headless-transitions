@@ -19,7 +19,7 @@ export interface TransitionOptions {
    * The core engine does no file IO; the host injects a resolver (e.g. reading
    * from the .motr's directory). Returns null when the asset can't be resolved.
    */
-  mediaResolver?: (url: string, timeSec?: number) => ImageData | null;
+  mediaResolver?: (url: string, timeSec?: number, absolute?: boolean) => ImageData | null;
 }
 
 /**
@@ -126,21 +126,34 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
   // (Lights/Flash's white flash rectangles) keeps that overlay animating past the
   // drop-zone wrap — freezing would kill the flash. Disable the wrap ONLY when
   // such a filled-shape overlay exists AND the true animation end extends past the
-  // wrap. Gating on a filled shape (not just "end > wrap") avoids breaking
-  // media-overlay Lights transitions (Bloom, Light Noise) whose correct tail IS
-  // the frozen-A wrap.
+  // wrap. The same applies to a SCREEN/ADD-blend VIDEO overlay that plays along
+  // its own frame-numbered Retime timeline (Lights/Light Noise's light-noise .mov):
+  // its second light burst fires PAST the drop-zone wrap, so freezing the scene to
+  // time 0 (before the overlay's `in`) would drop that whole burst. Gating on a
+  // filled shape OR a blended media overlay (not just "end > wrap") avoids breaking
+  // plain media-crossfade Lights transitions (Bloom) whose correct tail IS the
+  // frozen-A wrap.
   {
     const endSec = scene.settings.animationEndSec
       ?? (scene.settings.duration.value / scene.settings.duration.timescale);
     const frameSec = scene.settings.frameRate > 0 ? 1 / scene.settings.frameRate : 1 / 30;
     let hasFilledShapeOverlay = false;
+    let hasBlendedMediaOverlay = false;
     (function scan2(layers: readonly import('./types.js').Layer[]) {
       for (const l of layers) {
         if (l.type === 'shape' && l.shape && !l.shape.isMask && (l.shape.fillColor || l.shape.isSolidPanel)) hasFilledShapeOverlay = true;
+        // A blended (screen/add) VIDEO media leaf that outlives the wrap: its own
+        // Retime curve (clip-frame numbers) drives an independent playhead.
+        if (l.type === 'image' && l.source?.type === 'media'
+          && (l.blendMode === 'screen' || l.blendMode === 'add' || l.blendMode === 'overlay' || l.blendMode === 'lighten')
+          && l.timing) {
+          const outSec = l.timing.out.timescale > 0 ? l.timing.out.value / l.timing.out.timescale : 0;
+          if (outSec > (retimeWrapSec ?? 0) + frameSec) hasBlendedMediaOverlay = true;
+        }
         scan2(l.children);
       }
     })(scene.layers);
-    if (retimeWrapSec !== undefined && hasFilledShapeOverlay && endSec > retimeWrapSec + frameSec) {
+    if (retimeWrapSec !== undefined && (hasFilledShapeOverlay || hasBlendedMediaOverlay) && endSec > retimeWrapSec + frameSec) {
       retimeWrapSec = undefined;
     }
   }
