@@ -9,5 +9,6 @@
  * here.
  */
 import './fill.js';
+import './reorient360.js';
 
 export {};
