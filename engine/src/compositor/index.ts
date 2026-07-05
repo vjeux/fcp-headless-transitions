@@ -814,6 +814,87 @@ function collectImageMaskSourceIds(evalLayerById: Map<number, EvaluatedLayer>): 
 }
 
 /**
+ * Rasterize a Replicator (used as an Image Mask source) into a reveal-matte alpha.
+ *
+ * The replicator tiles a cell SHAPE across a grid; its Sequence Replicator
+ * behavior grows each instance's Scale/Opacity 0→1 in a staggered order (the
+ * corner-to-corner dot wave). We resolve the cell's shape geometry once, then for
+ * each instance apply the sequenced per-instance scale, rasterize the shape at the
+ * instance's world transform, and union all instances into a single alpha mask.
+ * Returns null when the cell isn't a resolvable shape.
+ */
+function replicatorMaskAlpha(replEval: EvaluatedLayer, W: number, H: number): Uint8Array | null {
+  const layer = replEval.layer;
+  if (!layer.replicator || layer.cellSourceId === undefined || !ctx) return null;
+
+  // Resolve the cell's shape geometry (the dot). The cell source is usually a
+  // Group whose Rig selects one visible shape child (Circle); fall back to the
+  // node itself if it is directly a shape.
+  const cellEval = ctx.evalLayerById.get(layer.cellSourceId);
+  let shapeLayer: EvaluatedLayer | undefined;
+  if (cellEval) {
+    if (cellEval.layer.type === 'shape' && cellEval.layer.shape) shapeLayer = cellEval;
+    else shapeLayer = findVisibleShape(cellEval) ?? undefined;
+  }
+  if (!shapeLayer || shapeLayer.layer.type !== 'shape' || !shapeLayer.layer.shape) return null;
+  const shape = shapeLayer.layer.shape;
+
+  const instances = generateInstances(layer.replicator);
+  const seq = layer.replicator.sequence;
+  const cols = Math.max(1, Math.round(layer.replicator.columns));
+  const rows = Math.max(1, Math.round(layer.replicator.rows));
+  const globalProgress = seq ? (ctx.time ?? 0) / (ctx.animationEndSec || 1) : 0;
+
+  // Base per-instance transform: the CELL SHAPE's evaluated basis (its authored
+  // dot size/rotation), with translation supplied per-instance below. The dot's
+  // size comes from the shape's own world scale (matches shapeMaskCell); the grid
+  // placement comes from the replicator group translation + the instance offset.
+  const base = shapeLayer.worldTransform;
+  const rx = replEval.worldTransform[12];
+  const ry = replEval.worldTransform[13];
+
+  const masks: Uint8Array[] = [];
+  for (const inst of instances) {
+    let instScale = 1;
+    let instOpacity = 1;
+    if (seq) {
+      const order = sequenceOrder(inst, cols, rows);
+      const p = sequenceProgress(order, globalProgress, seq.end, seq.spread, instances.length);
+      instScale = seq.scaleEnd !== undefined ? p * seq.scaleEnd : p;
+      instOpacity = seq.opacityEnd !== undefined ? p * seq.opacityEnd : p;
+    }
+    if (instScale <= 0 || instOpacity <= 0) continue;
+    const m = new Float64Array(base);
+    if (instScale !== 1) {
+      m[0] *= instScale; m[1] *= instScale;
+      m[4] *= instScale; m[5] *= instScale;
+    }
+    // Grid placement: replicator group translation + instance grid offset.
+    m[12] = rx + inst.x;
+    m[13] = ry + inst.y;
+    const cellMask = rasterizeShape(shape, W, H, m);
+    // Fold the sequenced opacity into the cell's alpha so a mid-ramp dot reveals B
+    // partially (matches Motion's cell opacity fade-in).
+    if (instOpacity < 1) {
+      for (let i = 0; i < cellMask.length; i++) cellMask[i] = Math.round(cellMask[i] * instOpacity);
+    }
+    masks.push(cellMask);
+  }
+  if (masks.length === 0) return new Uint8Array(W * H);
+  return masks.length === 1 ? masks[0] : unionMasks(masks, W, H);
+}
+
+/** First visible shape descendant in an evaluated subtree (rig-selected cell). */
+function findVisibleShape(el: EvaluatedLayer): EvaluatedLayer | null {
+  if (el.layer.type === 'shape' && el.layer.shape && el.visible && !el.layer.shape.isMask) return el;
+  for (const c of el.children) {
+    const r = findVisibleShape(c);
+    if (r) return r;
+  }
+  return null;
+}
+
+/**
  * Rasterize an Image Mask's alpha from its `Mask Source` object.
  *
  * The referenced object is usually a "Masks" GROUP holding one or more shapes,
@@ -833,6 +914,20 @@ function resolveImageMaskAlpha(sourceId: number, W: number, H: number, invert = 
     for (let i = 0; i < m.length; i++) m[i] = 255 - m[i];
     return m;
   };
+
+  // REPLICATOR mask source (Replicator-Clones/Duplicate): the Image Mask's source
+  // is a grid Replicator of cell shapes (dots) whose Sequence Replicator behavior
+  // grows each cell's Scale/Opacity 0→1 in a staggered corner-to-corner wave. The
+  // union of the sequenced cells is the reveal matte that clips the masked layer
+  // (Transition B) over the unmasked base (Transition A). This is the generic
+  // replicator-as-matte semantic — the same primitive as a shape mask source, just
+  // tiled + sequenced across instances. Fully param-driven (grid layout, sequence
+  // End/Spread, per-cell Scale) — no per-transition constant.
+  if (src.layer.type === 'replicator' && src.layer.replicator) {
+    const alpha = replicatorMaskAlpha(src, W, H);
+    if (alpha) return applyInvert(alpha);
+    return null;
+  }
   // Video/image media mask source (e.g. Objects/Veil's "Veil - Wipe Matte" mov):
   // the layer is a media clip (often disabled — it exists only to supply matte
   // luma). Its LUMA drives the reveal. Rasterize the media (via the time-aware
@@ -1020,6 +1115,12 @@ function renderLayer(
 
   // Replicator: render the cell content at each grid instance
   if (layer.type === 'replicator' && layer.replicator) {
+    // A replicator that is an Image Mask `Mask Source` is HIDDEN geometry — it
+    // provides the reveal matte to the layer that references it (Transition B),
+    // rasterized there via resolveImageMaskAlpha → replicatorMaskAlpha. It must
+    // never draw its cells directly (that would paint the dots as visible content
+    // over the frame). Same semantic as the group-mask-source skip above.
+    if (ctx?.imageMaskSourceIds.has(layer.id)) return;
     const instances = generateInstances(layer.replicator);
 
     // Framing-camera look-at basis (built once per replicator; present only when the
