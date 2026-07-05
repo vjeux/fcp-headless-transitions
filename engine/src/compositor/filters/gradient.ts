@@ -52,8 +52,7 @@ function sampleGradient(stops: GradientStop[], t: number): [number, number, numb
 /**
  * Render a gradient into an ImageData.
  */
-export function renderGradient(config: GradientConfig, width: number, height: number): ImageData {
-  const out = new ImageData(new Uint8ClampedArray(width * height * 4), width, height);
+export function renderGradient(config: GradientConfig, width: number, height: number): ImageData {  const out = new ImageData(new Uint8ClampedArray(width * height * 4), width, height);
   const { type, stops } = config;
 
   if (type === 'linear') {
@@ -94,5 +93,64 @@ export function renderGradient(config: GradientConfig, width: number, height: nu
     }
   }
 
+  return out;
+}
+
+// ============================================================================
+// Motion "Gaussian Gradient" generator
+// (pluginUUID 96A13FF0-1BBF-11D9-94CD-000A95DF1816)
+// ============================================================================
+
+import type { GaussianGradientConfig } from '../../types.js';
+
+/**
+ * Gaussian falloff constant. The Motion generator draws a radial glow whose
+ * weight follows a Gaussian bell centred on Center: weight = exp(-K·(d/r)²).
+ * At d = radius the weight is exp(-K); K≈4.5 puts the Color-2 mix at ~0.99 by
+ * the radius, matching the observed near-full falloff at the ring in FCP GT.
+ */
+const GG_FALLOFF_K = 4.5;
+
+/**
+ * Render the Motion Gaussian Gradient generator to an ImageData at the
+ * generator's own canvas resolution (config.width × config.height).
+ *
+ * Color 1 sits at the Center; the pixel colour is
+ *   mix(Color1, Color2, 1 - exp(-K·(d/radius)²))
+ * where d is the distance from Center in canvas pixels. Alpha is interpolated
+ * the same way so a transparent Color 2 yields a soft glow that fades out.
+ */
+export function renderGaussianGradient(config: GaussianGradientConfig): ImageData {
+  const { width, height, radius, color1, color2, flip } = config;
+  const c1 = flip ? color2 : color1;
+  const c2 = flip ? color1 : color2;
+
+  // Resolve the centre in canvas pixels. Normalized (absolutePoints=false):
+  // (0,0)=top-left, (1,1)=bottom-right. Absolute: pixels from canvas centre,
+  // +Y up (Motion convention) → convert to top-left image space.
+  let cx: number, cy: number;
+  if (config.absolutePoints) {
+    cx = width / 2 + config.centerX;
+    cy = height / 2 - config.centerY;
+  } else {
+    cx = config.centerX * width;
+    cy = config.centerY * height;
+  }
+
+  const r = radius > 0 ? radius : 1;
+  const out = new ImageData(new Uint8ClampedArray(width * height * 4), width, height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const dx = x - cx, dy = y - cy;
+      const nd = Math.sqrt(dx * dx + dy * dy) / r;
+      // t=0 at centre (Color 1), →1 at/past the radius (Color 2).
+      const t = 1 - Math.exp(-GG_FALLOFF_K * nd * nd);
+      const idx = (y * width + x) * 4;
+      out.data[idx]     = Math.round(c1.r + (c2.r - c1.r) * t);
+      out.data[idx + 1] = Math.round(c1.g + (c2.g - c1.g) * t);
+      out.data[idx + 2] = Math.round(c1.b + (c2.b - c1.b) * t);
+      out.data[idx + 3] = Math.round((c1.a + (c2.a - c1.a) * t) * 255);
+    }
+  }
   return out;
 }

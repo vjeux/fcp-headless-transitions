@@ -36,6 +36,7 @@ function mat4MultiplyOffset(m: Float64Array, dx: number, dy: number): Float64Arr
  */
 import type { EvaluatedScene, EvaluatedLayer } from '../evaluator/index.js';
 import type { ImageSource, Layer } from '../types.js';
+import { renderGaussianGradient } from './filters/gradient.js';
 
 /**
  * Render context set per composite() call. Holds the object-ID map so clone
@@ -194,6 +195,8 @@ function getSourceImage(source: ImageSource | undefined, imageA: ImageData, imag
       }
       return img;
     }
+    case 'gaussianGradient':
+      return renderGaussianGradient(source.gradient);
     default: return null;
   }
 }

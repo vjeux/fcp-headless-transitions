@@ -84,7 +84,37 @@ export type ImageSource =
   | { type: 'transitionA' }
   | { type: 'transitionB' }
   | { type: 'generator'; name: string; parameters: Parameter[] }
+  | { type: 'gaussianGradient'; gradient: GaussianGradientConfig }
   | { type: 'color'; r: number; g: number; b: number; a: number };
+
+/**
+ * Parsed parameters of the Motion "Gaussian Gradient" generator
+ * (pluginUUID 96A13FF0-1BBF-11D9-94CD-000A95DF1816).
+ *
+ * A radial gradient: Color 1 at the Center, falling off with a Gaussian
+ * profile toward Color 2 at (and beyond) Radius.
+ */
+export interface GaussianGradientConfig {
+  /** Generator canvas size (Width/Height params, in px). */
+  width: number;
+  height: number;
+  /**
+   * Center of the gradient. When `absolutePoints` is false (default) the
+   * values are normalized 0-1 across the canvas; when true they are pixels
+   * with origin at the canvas centre (Motion convention).
+   */
+  centerX: number;
+  centerY: number;
+  absolutePoints: boolean;
+  /** Radius in canvas pixels (Color 1 → Color 2 falloff distance). */
+  radius: number;
+  /** Center colour (0-255 rgb, 0-1 alpha). */
+  color1: { r: number; g: number; b: number; a: number };
+  /** Edge colour (0-255 rgb, 0-1 alpha). */
+  color2: { r: number; g: number; b: number; a: number };
+  /** Flip param (invert Color 1/Color 2). */
+  flip: boolean;
+}
 
 /** A scene-graph layer (may be a group with children). */
 export interface Layer {
