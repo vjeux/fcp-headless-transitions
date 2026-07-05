@@ -20,7 +20,7 @@
  */
 import type { MotrScene, Layer, Curve, Transform, RigWidget, RigBehavior, Parameter, SceneBehavior, LinkBehavior } from '../types.js';
 import { evaluateCurve, resolveValue, timeToSeconds } from './curves.js';
-import { evaluateFade, evaluateRamp, evaluateOscillate, evaluateSpin } from './behaviors/index.js';
+import { evaluateFade, evaluateRampAtProgress, evaluateOscillate, evaluateSpin } from './behaviors/index.js';
 
 export { evaluateCurve, resolveValue, timeToSeconds } from './curves.js';
 
@@ -346,33 +346,85 @@ function applyRigBehaviors(
  */
 
 /**
- * Compute additive Ramp contributions for a layer from scene behaviors.
- * Ramp behaviors that affect this layer's object ID contribute a ramped value
- * (Start Value → End Value over the transition) to the target parameter.
- * Returns a map of contributions (currently: opacity multiplier).
+ * Compute a Ramp behavior's normalized progress `t` (0..1) at `timeSec`, using
+ * the behavior's own `<timing in out offset>` window (scene seconds) plus the
+ * Start/End Frame Offset channels (in frames). Matches OZRampBehavior::solveNode,
+ * which anchors the ramp to [sceneStart + startFrameOffset, sceneEnd + endFrameOffset]
+ * where sceneStart/End come from the behavior timing.
  */
-function applyRampBehaviors(
+function rampProgress(b: SceneBehavior, timeSec: number): number {
+  const startFrameOffset = b.params['Start Frame Offset'] ?? b.params['Start Offset'] ?? 0;
+  const endFrameOffset = b.params['End Frame Offset'] ?? b.params['End Offset'] ?? 0;
+  const startSec = (b.timing ? timeToSeconds(b.timing.in) : 0) + startFrameOffset / CURRENT_FPS;
+  const endSec = (b.timing ? timeToSeconds(b.timing.out) : 0) + endFrameOffset / CURRENT_FPS;
+  const dur = endSec - startSec;
+  if (dur <= 0) return timeSec >= endSec ? 1 : 0;
+  return (timeSec - startSec) / dur;
+}
+
+/**
+ * Apply scene Ramp behaviors that drive TRANSFORM channels (rotation/position/
+ * scale) of this layer. The ramped value overwrites the corresponding channel.
+ * Returns the (possibly modified) transform. Rig-driven transforms already ran.
+ */
+function applyRampTransforms(
+  layer: Layer,
+  transform: Transform,
+  sceneBehaviors: SceneBehavior[],
+  timeSec: number
+): Transform {
+  let result = transform;
+  for (const b of sceneBehaviors) {
+    if (b.type !== 'ramp') continue;
+    if (b.affectedObjectId !== layer.id) continue;
+    if (!b.targetChannel || b.targetChannel === 'opacity') continue;
+    const startValue = b.params['Start Value'] ?? 0;
+    const endValue = b.params['End Value'] ?? 0;
+    const curvature = b.params['Curvature'] ?? 0;
+    // A ramp with no motion (start==end) contributes nothing.
+    if (startValue === endValue) continue;
+    const t = rampProgress(b, timeSec);
+    const value = evaluateRampAtProgress({ startValue, endValue, curvature }, t);
+    if (result === transform) result = { ...transform };
+    switch (b.targetChannel) {
+      case 'rotationX': result.rotationX = value; break;
+      case 'rotationY': result.rotationY = value; break;
+      case 'rotationZ': result.rotationZ = value; break;
+      case 'positionX': result.positionX = value; break;
+      case 'positionY': result.positionY = value; break;
+      case 'positionZ': result.positionZ = value; break;
+      case 'scaleX': // uniform scale channel → all axes
+        result.scaleX = value; result.scaleY = value; result.scaleZ = value; break;
+    }
+  }
+  return result;
+}
+
+/**
+ * Compute the combined opacity MULTIPLIER from scene Ramp behaviors on a layer
+ * that drive opacity (either an explicit opacity channel or a legacy 0..1 range
+ * heuristic). Transform-channel ramps are handled by applyRampTransforms.
+ */
+function applyRampOpacity(
   layer: Layer,
   sceneBehaviors: SceneBehavior[],
-  frame: number,
-  totalFrames: number
+  timeSec: number
 ): number {
   let opacityMult = 1;
   for (const b of sceneBehaviors) {
+    if (b.type !== 'ramp') continue;
     if (b.affectedObjectId !== layer.id) continue;
-    if (b.type === 'ramp') {
-      const startValue = b.params['Start Value'] ?? 0;
-      const endValue = b.params['End Value'] ?? 0;
-      const curvature = b.params['Curvature'] ?? 0;
-      const startOffset = b.params['Start Offset'] ?? 0;
-      const endOffset = b.params['End Offset'] ?? 0;
-      const rampVal = evaluateRamp({ startValue, endValue, curvature, startOffset, endOffset }, frame, totalFrames);
-      // Ramps that go 0→1 or 1→0 typically drive opacity; clamp as a multiplier
-      // Only apply as opacity if the range is within [0, 1] (heuristic for opacity ramps)
-      if (Math.abs(startValue) <= 1.01 && Math.abs(endValue) <= 1.01) {
-        opacityMult *= Math.max(0, Math.min(1, rampVal));
-      }
-    }
+    const startValue = b.params['Start Value'] ?? 0;
+    const endValue = b.params['End Value'] ?? 0;
+    const curvature = b.params['Curvature'] ?? 0;
+    const isOpacity = b.targetChannel === 'opacity';
+    // Legacy heuristic: an unresolved ramp whose range is within [0,1] is treated
+    // as an opacity ramp. Resolved transform-channel ramps are NOT opacity.
+    const heuristicOpacity = !b.targetChannel && Math.abs(startValue) <= 1.01 && Math.abs(endValue) <= 1.01;
+    if (!isOpacity && !heuristicOpacity) continue;
+    const t = rampProgress(b, timeSec);
+    const rampVal = evaluateRampAtProgress({ startValue, endValue, curvature }, t);
+    opacityMult *= Math.max(0, Math.min(1, rampVal));
   }
   return opacityMult;
 }
@@ -511,6 +563,13 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   let riggedTransform = applyRigBehaviors(layer, layer.transform, behaviors, widgetValues);
   // Links drive channels from a source object; apply after rig snapshots.
   riggedTransform = applyLinks(layer, riggedTransform, linksByTarget, layerById, widgetValues, timeSec);
+  // Scene Ramp behaviors that drive transform channels (rotation/position/scale)
+  // — e.g. Flip's Ramp Y drives the Group's Rotation Y from 0→π over the
+  // behavior's own timing window. Applied after rigs/links (rigs configure the
+  // ramp's End Value; the resolved static End Value is already in params).
+  if (sceneBehaviors.length > 0) {
+    riggedTransform = applyRampTransforms(layer, riggedTransform, sceneBehaviors, timeSec);
+  }
   const localTransform = buildTransformMatrix(riggedTransform, timeSec, retimeProgress);
   const worldTransform = mat4Multiply(parentTransform, localTransform);
 
@@ -523,13 +582,10 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   if (layer.behaviors && layer.behaviors.some(b => b.type === 'fade')) {
     rawOpacity *= applyFadeBehaviors(layer, timeSec);
   }
-  // Ramp behaviors are still driven off the retimed template frame.
-  if (layer.retimeValue && layer.retimeValue.keyframes.length >= 2) {
-    const curFrame = evaluateCurve(layer.retimeValue, timeSec);
-    const totalFrames = layer.retimeValue.keyframes[layer.retimeValue.keyframes.length - 1].value;
-    if (sceneBehaviors.length > 0) {
-      rawOpacity *= applyRampBehaviors(layer, sceneBehaviors, curFrame, totalFrames);
-    }
+  // Opacity-driving Ramp behaviors run over the behavior's own timing window
+  // (scene time), like Fade — NOT the retimed template frame.
+  if (sceneBehaviors.length > 0) {
+    rawOpacity *= applyRampOpacity(layer, sceneBehaviors, timeSec);
   }
   const opacity = Math.max(0, Math.min(1, rawOpacity));
 
@@ -696,8 +752,8 @@ function evaluateOscillateChannel(b: SceneBehavior, timeSec: number, scene: Motr
   const sliderRange = b.params['sliderRange'] ?? 1;
 
   // Active window (seconds) from the behavior's <timing>. Outside it, no drive.
-  const winIn = b.timing ? b.timing.in : 0;
-  const winOut = b.timing ? b.timing.out
+  const winIn = b.timing ? timeToSeconds(b.timing.in) : 0;
+  const winOut = b.timing ? timeToSeconds(b.timing.out)
     : (scene.settings.animationEndSec ?? (scene.settings.duration.value / scene.settings.duration.timescale));
   const dur = winOut - winIn;
   if (dur <= 0) return 0;

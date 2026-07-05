@@ -318,19 +318,31 @@ export interface SceneBehavior {
   affectedObjectId: number;
   params: Record<string, number>;
   /**
-   * The channel this behavior drives on the target object, from
-   * `<channelBehavior affectingChannel="./N">`. For a filter target, "./1" maps
-   * to the filter parameter with id=1 (e.g. Zoom Blur's "Amount"). Undefined when
-   * the behavior drives a transform channel (handled elsewhere).
+   * The `<channelBehavior affectingChannel="...">` path this behavior drives,
+   * e.g. "./1/100/109/2" (Transform → Rotation → Y), "./203" (a rig End Value),
+   * or "./1" (a filter parameter id, e.g. Zoom Blur's "Amount"). Undefined when
+   * the behavior has no channelBehavior child.
    */
   affectingChannel?: string;
+  /** Resolved transform channel this behavior targets, if the path maps to one. */
+  targetChannel?: RampTargetChannel;
   /**
-   * The behavior's active time window (`<timing in=... out=... offset=...>`), in
-   * seconds. Oscillate/Ramp only animate within [in, out]; the transition's blur
-   * peaks over this window. Undefined ⇒ always active.
+   * The behavior's own `<timing in out offset>` window (scene time, RationalTime).
+   * Oscillate/Ramp only animate within [in, out]. For Ramp, progress `t` runs over
+   * [in, out] of THIS window, independent of the layer's Retime curve;
+   * `startFrameOffset`/`endFrameOffset` (Start/End Frame Offset channels, default 0)
+   * nudge the window in frames. Convert with `timeToSeconds()` before use.
+   * Undefined ⇒ always active.
    */
-  timing?: { in: number; out: number; offset: number };
+  timing?: { in: RationalTime; out: RationalTime; offset: RationalTime };
 }
+
+/** Which transform channel a Ramp behavior drives (resolved from affectingChannel). */
+export type RampTargetChannel =
+  | 'rotationX' | 'rotationY' | 'rotationZ'
+  | 'positionX' | 'positionY' | 'positionZ'
+  | 'scaleX' | 'scaleY' | 'scaleZ'
+  | 'opacity';
 
 /** A rig widget (popup/checkbox/slider that controls transition variants). */
 export interface RigWidget {
