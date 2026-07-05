@@ -530,6 +530,11 @@ function parseFootageClipAB(sceneEl: Element): Map<number, 'A' | 'B'> {
   // order is retained as the safe, validated behavior.
   if (clips.length === 2) {
     const referenced: number[] = []; // clip ids in document order of their image elements
+    // Net fade direction of each referencing node, keyed by clip id:
+    //   >0 → fades IN  (incoming clip → B), <0 → fades OUT (outgoing clip → A).
+    // Read from the node's own "Fade In/Fade Out" behavior (factoryID 17):
+    // Fade In Time (id 200) vs Fade Out Time (id 201) in frames.
+    const fadeDir = new Map<number, number>();
     const seen = new Set<number>();
     for (const node of Array.from(sceneEl.getElementsByTagName('scenenode'))) {
       // Only real drawable image elements carry a Source Media clip reference.
@@ -539,11 +544,44 @@ function parseFootageClipAB(sceneEl: Element): Map<number, 'A' | 'B'> {
       if (cid !== undefined && map.has(cid) && !seen.has(cid)) {
         seen.add(cid);
         referenced.push(cid);
+        // Detect a direct-child "Fade In/Fade Out" behavior on this node.
+        for (const b of directChildren(node, 'behavior')) {
+          if (b.getAttribute('name')?.startsWith('Fade In/Fade Out')) {
+            let fin = 0, fout = 0;
+            for (const p of Array.from(b.getElementsByTagName('parameter'))) {
+              const id = p.getAttribute('id');
+              const v = parseFloat(p.getAttribute('value') || '');
+              if (!isFinite(v)) continue;
+              if (id === '200') fin = v;      // Fade In Time (frames)
+              else if (id === '201') fout = v; // Fade Out Time (frames)
+            }
+            if (fin > 0 || fout > 0) fadeDir.set(cid, fin - fout);
+          }
+        }
       }
     }
     if (referenced.length === 2) {
-      map.set(referenced[0], 'A');
-      map.set(referenced[1], 'B');
+      // FADE-DIRECTION OVERRIDE: a plain crossfade whose two full-frame drop zones
+      // each carry a Fade In/Fade Out behavior identifies A/B by the fade, NOT by
+      // document order. The clip that fades OUT is the outgoing image (A); the clip
+      // that fades IN is the incoming image (B). The headless FCP renderer binds A
+      // to the outgoing drop zone regardless of authoring order. This fixes the
+      // templates whose "Transition B" scenenode is authored BEFORE "Transition A"
+      // (Dissolves/Divide, Lights/Lens Flare): document order would swap them,
+      // showing image B at t=0. Applied ONLY when both nodes have an unambiguous
+      // (opposite-signed) fade direction — mask-driven reveals with no fades
+      // (Stylized/Center Reveal) and single-fade templates keep pure document order.
+      const [c0, c1] = referenced;
+      const d0 = fadeDir.get(c0), d1 = fadeDir.get(c1);
+      if (d0 !== undefined && d1 !== undefined && Math.sign(d0) !== Math.sign(d1)
+          && d0 !== 0 && d1 !== 0) {
+        // Assign by fade: negative (fade-out) → A, positive (fade-in) → B.
+        map.set(d0 < 0 ? c0 : c1, 'A');
+        map.set(d0 < 0 ? c1 : c0, 'B');
+      } else {
+        map.set(referenced[0], 'A');
+        map.set(referenced[1], 'B');
+      }
     }
   }
 
