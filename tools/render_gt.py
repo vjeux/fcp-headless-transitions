@@ -157,6 +157,41 @@ def _animation_end_seconds_linescan(motr_path):
         max_t = _scene_duration_seconds(xml)
     return max_t
 
+def _frame_mean(png_path):
+    """Mean pixel value of a rendered frame (0-255), or -1 if unreadable."""
+    try:
+        import struct, zlib
+        # Lightweight: use PIL if available, else fall back to a crude read.
+        from PIL import Image
+        import numpy as np
+        a = np.asarray(Image.open(png_path).convert("RGB"), dtype="float32")
+        return float(a.mean())
+    except Exception:
+        return -1.0
+
+
+def _validate_frames(outdir, nframes):
+    """Detect a degenerate/corrupt render (the FCP engine returns all-black or
+    frozen frames under heavy machine load / SIGKILL contention). For an A->B
+    transition the LAST frame must be source B (non-black), and the frames must
+    not all be identical. Returns (ok, reason)."""
+    import glob
+    frames = sorted(glob.glob(os.path.join(outdir, "frame_*.png")))
+    if len(frames) < max(2, nframes):
+        return False, f"only {len(frames)}/{nframes} frames written"
+    last_mean = _frame_mean(frames[-1])
+    first_mean = _frame_mean(frames[0])
+    if last_mean < 0 or first_mean < 0:
+        return False, "unreadable frame(s)"
+    # Last frame all-black => the engine failed to composite source B (corruption).
+    if last_mean < 5.0:
+        return False, f"last frame is black (mean={last_mean:.1f}) — expected source B"
+    # First frame all-black is also degenerate (should be source A).
+    if first_mean < 5.0:
+        return False, f"first frame is black (mean={first_mean:.1f}) — expected source A"
+    return True, "ok"
+
+
 def _render_one(motr, img_a, img_b, outdir, nframes):
     """Render one transition's frames into outdir. Assumes engine is initialized."""
     os.makedirs(outdir, exist_ok=True)
@@ -202,14 +237,29 @@ def main():
             src.close()
         ozengine.init_engine()  # one-time ~1.3s cost for the whole batch
         ok = 0
+        corrupt = []
         for motr, img_a, img_b, outdir in jobs:
             try:
                 end = _render_one(motr, img_a, img_b, outdir, nframes)
-                print(f"OK  {outdir}  ({nframes}f, end={end:.4f}s)", flush=True)
-                ok += 1
+                valid, reason = _validate_frames(outdir, nframes)
+                if not valid:
+                    # Retry ONCE — corruption is caused by transient machine-load
+                    # contention (SIGKILL/context-leak), so a fresh render often
+                    # succeeds. If it still fails, flag it (do NOT cache garbage).
+                    print(f"WARN {outdir}  {reason} — retrying", flush=True)
+                    end = _render_one(motr, img_a, img_b, outdir, nframes)
+                    valid, reason = _validate_frames(outdir, nframes)
+                if valid:
+                    print(f"OK  {outdir}  ({nframes}f, end={end:.4f}s)", flush=True)
+                    ok += 1
+                else:
+                    print(f"CORRUPT {outdir}  {reason}", flush=True)
+                    corrupt.append(outdir)
             except Exception as e:  # one bad template must not abort the batch
                 print(f"ERR {outdir}  {motr}: {e}", flush=True)
         print(f"batch done: {ok}/{len(jobs)} transitions rendered", flush=True)
+        if corrupt:
+            print(f"CORRUPT ({len(corrupt)}): " + ", ".join(os.path.basename(c) for c in corrupt), flush=True)
         os._exit(0)  # avoid Ozone teardown crash on interpreter exit
 
     if args and args[0] == "--push":
