@@ -115,6 +115,73 @@ export function projectQuad(
 }
 
 /**
+ * PAEFlop page-flip geometry (Movements/Flip).
+ *
+ * DECOMPILED from `PAEFlop` in Final Cut Pro's InternalFiltersXPC Filters.bundle
+ * (arm64 `-[PAEFlop canThrowRenderOutput:withInput:withInfo:]` @ 0x2d6e0). The
+ * filter itself is only a MIRROR: it builds a diagonal 4x4 from the "Flop" menu
+ * param (parmId 1) via `mask = 6 >> Flop`:
+ *   Flop=0 → diag(-1, 1,1,1)  (mirror X)
+ *   Flop=1 → diag( 1,-1,1,1)  (mirror Y)
+ *   Flop=2 → diag(-1,-1,1,1)  (180°)
+ * and composes it centered in pixel space:
+ *   heliumXForm( pixelXform · FlipMatrix · invPixelXform )
+ * (verified: the two 16-byte __const vectors at 0x2697e0=(-1,-0) and
+ * 0x2697f0=(-0,-1) select which diagonal entry becomes negative). The Flip.motr
+ * uses Flop=0 → a horizontal mirror of the BACK page so it reads correctly once
+ * the group has rotated 180°.
+ *
+ * The actual *page-flip* motion is produced by the template rig, not the filter:
+ * the Group (parent of Transition A + Transition B) has a Ramp driving Rotation Y
+ * 0→π (linear, curvature 0 — confirmed: 45°@p=.25, 90°@.5, 180°@1). To reproduce
+ * FCP's book-page look each page must hinge on its OUTER vertical edge (A on the
+ * LEFT edge, B on the RIGHT edge) rather than sharing the group's centre axis —
+ * verified against the headless GT (A's left edge stays pinned at the left border
+ * while its right edge recedes; B's right edge stays pinned at the right border
+ * while its left edge swings forward).
+ *
+ * Renders a source quad rotated about its CENTRE vertical (Y) axis by `angle`
+ * radians through the shared perspective camera (verified against the headless GT
+ * column-height profiles: at θ=31° the near edge enlarges past the border while
+ * the far edge recedes inward to screen x≈0.84; at θ≈90° the page collapses to a
+ * sliver at screen centre). Optionally mirrored horizontally — the page's reverse
+ * side, which PAEFlop (Flop=0) flips so it reads correctly past edge-on. Uses the
+ * same centered, Y-down local-corner convention as projectQuad.
+ */
+export function renderPageFlip(
+  dst: ImageData,
+  src: ImageData,
+  angle: number,
+  opacity: number,
+  cameraZ: number = DEFAULT_CAMERA_Z,
+  mirrorUV: boolean = false,
+): void {
+  const hw = src.width / 2;
+  const hh = src.height / 2;
+  const c = Math.cos(angle), s = Math.sin(angle);
+  // Centered, Y-down corners (matching projectQuad): TL, TR, BR, BL.
+  const local: Array<[number, number]> = [
+    [-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh],
+  ];
+  // Rotate each corner about the centre vertical axis. z' = x·sinθ: the LEFT edge
+  // (x<0) goes −Z (toward the viewer, enlarged) and the RIGHT edge (x>0) recedes
+  // (+Z) — this sign matches the headless GT (eng-vs-GT PSNR beats eng-vs-mirror).
+  // For θ>90° the page has flipped past edge-on (x·cosθ < 0) so its reverse side
+  // faces the camera; PAEFlop (Flop=0) horizontally mirrors that reverse so the
+  // content still reads correctly — reproduced by reversing the UV left↔right.
+  const corners: Array<[number, number, number]> = local.map(([x, y]) =>
+    projectPoint(x * c, y, x * s, cameraZ),
+  );
+  if (mirrorUV) {
+    const [TL, TR, BR, BL] = corners;
+    renderPerspectiveQuad(dst, src, [TR, TL, BL, BR], opacity);
+  } else {
+    renderPerspectiveQuad(dst, src, corners, opacity);
+  }
+}
+
+
+/**
  * Check if a transform requires 3D perspective rendering (has Z components).
  */
 export function needsPerspective(worldTransform: Float64Array): boolean {
