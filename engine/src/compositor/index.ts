@@ -811,9 +811,38 @@ function renderLayer(
     // A clone may also have children (rare); fall through to render them.
   }
 
+  // Non-mask filled shape: a solid-color vector shape drawn as visible content
+  // (NOT a mask). Motion uses these for color/flash overlays — e.g. Lights/Flash's
+  // two full-frame white rectangles that peak at opacity ~1 mid-transition (one
+  // Normal, one Overlay blend) to fade the cut through white. Rasterize the shape
+  // at its world transform, fill with its Fill Color, and composite with the
+  // layer's opacity + blend mode. Filters (if any) apply to the filled buffer.
+  if (layer.type === 'shape' && layer.shape && !layer.shape.isMask && layer.shape.fillColor && opacity > 0) {
+    const alpha = rasterizeShape(layer.shape, output.width, output.height, worldTransform);
+    const { r, g, b, a } = layer.shape.fillColor;
+    const fillBuf = createBuffer(output.width, output.height);
+    const fd = fillBuf.data;
+    for (let p = 0, di = 0; p < alpha.length; p++, di += 4) {
+      const av = alpha[p];
+      if (av === 0) continue;
+      fd[di] = r; fd[di + 1] = g; fd[di + 2] = b;
+      fd[di + 3] = Math.round(av * a);
+    }
+    let filtered = fillBuf;
+    for (const filter of layer.filters) {
+      filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id));
+    }
+    blitDirect(output, filtered, opacity, layer.blendMode);
+    // A filled shape may still have children (e.g. a replicator emitter); fall
+    // through so they render on top.
+  }
+
   if (layer.type === 'image' || layer.type === 'generator') {
     // Leaf layer: render source image with transform
-    const src = getSourceImage(layer.source, imageA, imageB);
+    // A forced-A persistent base (wrapping drop zone past its lifetime) renders
+    // source A regardless of its declared transitionA/B source — see evaluator's
+    // DROPZONE_WRAP_TO_A (Lights/Flash's flash rides over a persistent A base).
+    const src = evalLayer.forceSourceA ? imageA : getSourceImage(layer.source, imageA, imageB);
     if (src) {
       // An Image Mask clips ONLY this layer by a rig-selected wipe shape (e.g.
       // Wipes/Mask masks Transition B over an unmasked Transition A). Render to a

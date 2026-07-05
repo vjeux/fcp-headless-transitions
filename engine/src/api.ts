@@ -101,6 +101,32 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
     }
   })(scene.layers);
 
+  // The wrap freezes the WHOLE scene back to frame 0 (drop zones re-show A). That
+  // is correct when the drop-zone crossfade IS the entire visible transition (e.g.
+  // Blurs/Zoom and Lights/Bloom, whose GT past the drop-zone timeout is
+  // byte-identical to frame 0). But a transition with a SOLID-FILL SHAPE overlay
+  // (Lights/Flash's white flash rectangles) keeps that overlay animating past the
+  // drop-zone wrap — freezing would kill the flash. Disable the wrap ONLY when
+  // such a filled-shape overlay exists AND the true animation end extends past the
+  // wrap. Gating on a filled shape (not just "end > wrap") avoids breaking
+  // media-overlay Lights transitions (Bloom, Light Noise) whose correct tail IS
+  // the frozen-A wrap.
+  {
+    const endSec = scene.settings.animationEndSec
+      ?? (scene.settings.duration.value / scene.settings.duration.timescale);
+    const frameSec = scene.settings.frameRate > 0 ? 1 / scene.settings.frameRate : 1 / 30;
+    let hasFilledShapeOverlay = false;
+    (function scan2(layers: readonly import('./types.js').Layer[]) {
+      for (const l of layers) {
+        if (l.type === 'shape' && l.shape && !l.shape.isMask && l.shape.fillColor) hasFilledShapeOverlay = true;
+        scan2(l.children);
+      }
+    })(scene.layers);
+    if (retimeWrapSec !== undefined && hasFilledShapeOverlay && endSec > retimeWrapSec + frameSec) {
+      retimeWrapSec = undefined;
+    }
+  }
+
   return {
     scene,
     width: outW ?? width,

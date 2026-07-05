@@ -1083,6 +1083,17 @@ function parseShape(el: Element): Shape | undefined {
 
   const isMask = detectMask(el);
 
+  // Solid fill color for a non-mask filled shape. Motion stores it as a
+  // "Fill Color" (id=111) parameter with Red/Green/Blue (ids 1/2/3, 0-1 float)
+  // children under the shape's Style → Fill. Used by Lights/Flash's white flash
+  // rectangles (which additively/overlay-blend a full-frame white peak). Only
+  // read for non-mask shapes; masks provide alpha, not color.
+  let fillColor: { r: number; g: number; b: number; a: number } | undefined;
+  if (!isMask) {
+    const fc = findFillColor(el);
+    if (fc) fillColor = fc;
+  }
+
   return {
     verticesX,
     verticesY,
@@ -1093,7 +1104,49 @@ function parseShape(el: Element): Shape | undefined {
     hasTangents,
     closed,
     isMask,
+    fillColor,
   };
+}
+
+/**
+ * Read a Shape node's solid "Fill Color" (id=111) → Red/Green/Blue (0-1) as
+ * 0-255 RGB. Returns undefined when no Fill Color param is present. Prefers the
+ * animated `value` over `default`. Only the FIRST Fill Color found (the shape's
+ * own fill) is used.
+ */
+function findFillColor(shapeEl: Element): { r: number; g: number; b: number; a: number } | undefined {
+  const params = Array.from(shapeEl.getElementsByTagName('parameter'));
+  for (const p of params) {
+    if (p.getAttribute('name') !== 'Fill Color' || p.getAttribute('id') !== '111') continue;
+    // Distinguish a SOLID-fill shape (whose Fill Color is the rendered fill —
+    // e.g. Lights/Flash's white flash rectangles) from a GRADIENT-fill shape
+    // (whose Fill Color is only a swatch; the shape actually renders its Gradient
+    // — e.g. Stylized/Heart's reveal shapes). Motion sets bit 0x100000000 in the
+    // "Fill Color" (id=111) flags when solid color is the ACTIVE fill mode; a
+    // gradient-mode shape leaves it clear. Only treat the shape as solid-filled
+    // when that bit is set — otherwise we'd wrongly paint gradient shapes as flat
+    // color and destroy those transitions (Heart, Center Reveal, Wipes/Diagonal).
+    // NB: JS bitwise ops are 32-bit; bit 32 (0x100000000) must be tested via
+    // floating-point division, not `&`.
+    const flags = Number(p.getAttribute('flags') || '0');
+    const solidFillActive = Math.floor(flags / 0x100000000) % 2 === 1;
+    if (!solidFillActive) return undefined;
+    let r: number | undefined, g: number | undefined, b: number | undefined;
+    for (const ch of directChildren(p, 'parameter')) {
+      const nm = ch.getAttribute('name');
+      const vAttr = ch.getAttribute('value');
+      const dAttr = ch.getAttribute('default');
+      const v = vAttr !== null ? parseFloat(vAttr) : (dAttr !== null ? parseFloat(dAttr) : NaN);
+      if (isNaN(v)) continue;
+      if (nm === 'Red') r = v;
+      else if (nm === 'Green') g = v;
+      else if (nm === 'Blue') b = v;
+    }
+    if (r !== undefined && g !== undefined && b !== undefined) {
+      return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255), a: 1 };
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -1786,15 +1839,47 @@ export function parseMotr(xmlText: string): MotrScene {
     let maxT = 0;
     const curves = Array.from(sceneEl.getElementsByTagName('curve'));
     for (const curve of curves) {
-      // Collect the full chain of enclosing <parameter> names.
+      // Collect the full chain of enclosing <parameter> names, and the nearest
+      // enclosing <scenenode> so we can offset-adjust layer-local keyframe times.
       let node: any = (curve as any).parentNode;
       let ownerName = '';
       let skip = false;
+      let nodeOffsetSec = 0;
       while (node && node.nodeType === 1) {
         if (node.tagName === 'parameter') {
           const nm = node.getAttribute('name') || '';
           if (!ownerName) ownerName = nm; // nearest enclosing parameter
           if (EXCLUDE_ANCESTORS.has(nm)) { skip = true; break; }
+          // Any "* Over Stroke" ANCESTOR parametrises along the shape's STROKE
+          // LENGTH (normalized 0..1), NOT along scene time — keypoints live at
+          // time 0 and 1 and would wrongly inflate the animation end to 1.0s. This
+          // catches both the curve directly (Hidden Opacity/Angle/Spacing Over
+          // Stroke) and X/Y sub-curves under a "Jitter Over Stroke" group. Present
+          // on Lights/Flash's flash rectangles. Skip the whole family.
+          if (nm.endsWith('Over Stroke')) { skip = true; break; }
+        } else if (node.tagName === 'scenenode' && nodeOffsetSec === 0) {
+          // The nearest enclosing scenenode's timeline offset. Motion authors a
+          // layer's animation curves in the layer's OWN local time frame, placed at
+          // `offset` on the parent timeline (e.g. Lights/Flash's flash rectangle at
+          // offset=0.133s, opacity keyed to local 0.167s → scene time 0.3s). To get
+          // the true SCENE-time animation end, add the offset to the keyframe time.
+          // SCOPED to filled-shape (Shape factory) nodes only — Motion drop-zone
+          // IMAGE panels also carry an `offset` but their curves are already in
+          // scene time (adding the offset would over-extend animationEndSec and
+          // shift the mid/last-frame sampling, regressing many transitions). The
+          // local-frame convention that needs this shift is the flash-overlay
+          // filled shape.
+          const fid = parseInt((node as Element).getAttribute('factoryID') || '0', 10);
+          if (factories.get(fid) === 'Shape') {
+            const tEl = firstChild(node as Element, 'timing');
+            const offAttr = tEl?.getAttribute('offset');
+            if (offAttr) {
+              const op = offAttr.trim().split(/\s+/);
+              const ov = parseFloat(op[0]);
+              const os = op.length > 1 ? parseFloat(op[1]) : 1;
+              if (os > 0 && isFinite(ov)) nodeOffsetSec = ov / os;
+            }
+          }
         }
         node = node.parentNode;
       }
@@ -1807,7 +1892,7 @@ export function parseMotr(xmlText: string): MotrScene {
         const val = parseFloat(parts[0]);
         const scale = parts.length > 1 ? parseFloat(parts[1]) : 1;
         if (scale > 0 && isFinite(val)) {
-          const sec = val / scale;
+          const sec = val / scale + nodeOffsetSec;
           if (sec > maxT) maxT = sec;
         }
       }
