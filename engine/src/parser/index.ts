@@ -584,38 +584,119 @@ function parseReplicator(params: Parameter[]): Replicator | undefined {
   return { arrangement, columns, rows, sizeWidth, sizeHeight, origin };
 }
 
+/** One vertex extracted from a curve_X or curve_Y element (single axis). */
+interface AxisVertex {
+  index: number;
+  value: number;
+  inTangent?: number;  // Input Tangent (id=4): relative offset toward previous vertex
+  outTangent?: number; // Output Tangent (id=5): relative offset toward next vertex
+}
+
 function parseShape(el: Element): Shape | undefined {
   const curveX = findDescendant(el, 'curve_X');
   const curveY = findDescendant(el, 'curve_Y');
   if (!curveX || !curveY) return undefined;
 
-  const verticesX = extractVertexValues(curveX);
-  const verticesY = extractVertexValues(curveY);
-  if (verticesX.length === 0) return undefined;
+  const axisX = extractAxisVertices(curveX);
+  const axisY = extractAxisVertices(curveY);
+  if (axisX.length === 0) return undefined;
 
+  const n = Math.min(axisX.length, axisY.length);
+  const verticesX: number[] = [];
+  const verticesY: number[] = [];
+  const inTangentX: (number | undefined)[] = [];
+  const inTangentY: (number | undefined)[] = [];
+  const outTangentX: (number | undefined)[] = [];
+  const outTangentY: (number | undefined)[] = [];
+  let hasTangents = false;
+  for (let i = 0; i < n; i++) {
+    verticesX.push(axisX[i].value);
+    verticesY.push(axisY[i].value);
+    inTangentX.push(axisX[i].inTangent);
+    inTangentY.push(axisY[i].inTangent);
+    outTangentX.push(axisX[i].outTangent);
+    outTangentY.push(axisY[i].outTangent);
+    if (axisX[i].inTangent !== undefined || axisX[i].outTangent !== undefined
+      || axisY[i].inTangent !== undefined || axisY[i].outTangent !== undefined) {
+      hasTangents = true;
+    }
+  }
+
+  // "closed" appears both as a <closed> element and as a "Closed" (id=116) param.
   const closedEl = findDescendant(el, 'closed');
   const closed = closedEl ? closedEl.textContent?.trim() === '1' : true;
 
-  const name = el.getAttribute('name') || '';
-  const isMask = name.toLowerCase().includes('mask');
+  const isMask = detectMask(el);
 
-  return { verticesX, verticesY, closed, isMask };
+  return {
+    verticesX,
+    verticesY,
+    inTangentX: hasTangents ? inTangentX : undefined,
+    inTangentY: hasTangents ? inTangentY : undefined,
+    outTangentX: hasTangents ? outTangentX : undefined,
+    outTangentY: hasTangents ? outTangentY : undefined,
+    hasTangents,
+    closed,
+    isMask,
+  };
 }
 
-/** Extract vertex Value coordinates from a curve_X/curve_Y element. */
-function extractVertexValues(curveEl: Element): number[] {
-  const values: number[] = [];
+/**
+ * Decide whether a Shape scenenode is acting as a mask.
+ *
+ * Motion never tags the shape node itself as a mask — the intent is expressed by
+ * containment. We therefore walk UP the DOM: a shape is a mask if it (or any
+ * ancestor layer) is named "Mask"/"Masks", OR it is an explicit "Image Mask"
+ * scenenode. This catches masks nested inside a "Masks" sub-group (e.g.
+ * Wipes/Diagonal's "Bezier Top"/"Bezier Bot" under <layer name="Masks">), which
+ * the old direct-name check missed.
+ */
+function detectMask(el: Element): boolean {
+  // Explicit Image Mask scenenode.
+  if ((el.getAttribute('factoryDescription') || '').toLowerCase().includes('mask')) return true;
+
+  let cur: Element | null = el;
+  let depth = 0;
+  while (cur && depth < 32) {
+    const name = (cur.getAttribute('name') || '').toLowerCase();
+    // Match "mask" / "masks" but not incidental substrings like "unmasked task".
+    if (name === 'mask' || name === 'masks' || /\bmasks?\b/.test(name)) return true;
+    cur = (cur as any).parentNode as Element | null;
+    // Guard against reaching non-element nodes (e.g. Document).
+    if (cur && cur.nodeType !== 1) cur = null;
+    depth++;
+  }
+  return false;
+}
+
+/**
+ * Extract vertices (Value + optional tangents) from a curve_X/curve_Y element,
+ * sorted by the vertex "index" attribute so path order matches Motion's.
+ */
+function extractAxisVertices(curveEl: Element): AxisVertex[] {
+  const verts: AxisVertex[] = [];
   for (const vertex of directChildren(curveEl, 'vertex')) {
     const folder = firstChild(vertex, 'vertex_folder');
-    if (folder) {
-      const param = firstChild(folder, 'parameter');
-      if (param) {
-        const v = param.getAttribute('value');
-        if (v !== null) values.push(parseFloat(v));
-      }
+    if (!folder) continue;
+    const idx = parseInt(vertex.getAttribute('index') || '0', 10);
+    let value: number | undefined;
+    let inTangent: number | undefined;
+    let outTangent: number | undefined;
+    for (const param of directChildren(folder, 'parameter')) {
+      const id = param.getAttribute('id');
+      const vAttr = param.getAttribute('value');
+      const v = vAttr !== null ? parseFloat(vAttr) : NaN;
+      if (isNaN(v)) continue;
+      // id=2 → Value, id=4 → Input Tangent, id=5 → Output Tangent.
+      if (id === '2') value = v;
+      else if (id === '4') inTangent = v;
+      else if (id === '5') outTangent = v;
     }
+    if (value === undefined) continue;
+    verts.push({ index: idx, value, inTangent, outTangent });
   }
-  return values;
+  verts.sort((a, b) => a.index - b.index);
+  return verts;
 }
 
 /** Find first descendant element with a given tag (recursive). */
@@ -974,7 +1055,15 @@ export function parseMotr(xmlText: string): MotrScene {
   // a black frame. progress=1 maps here, not to the padded scene/playRange duration.
   let animationEndSec = duration.value / duration.timescale;
   {
-    const EXCLUDE_PARAMS = new Set(['Retime Value', 'Retime Value Cache', 'Duration Cache']);
+    const EXCLUDE_PARAMS = new Set([
+      'Retime Value', 'Retime Value Cache', 'Duration Cache',
+      // Shape stroke-profile curves parametrise along the STROKE LENGTH (normalized
+      // 0..1), not along scene time. Their keypoints live at time=0 and time=1 and
+      // would wrongly inflate the animation end to 1.0s for shape transitions
+      // (e.g. Wipes/Diagonal, whose real spatial animation ends at ~0.267s).
+      'Pressure Over Stroke', 'Pen Speed Over Stroke', 'Opacity Over Stroke',
+      'Width Over Stroke', 'Color Over Stroke',
+    ]);
     // Walk curves, tracking the nearest enclosing <parameter name=...> so we can skip
     // retiming curves. getElementsByTagName gives document order; we resolve each
     // curve's owning parameter by climbing parentNode.

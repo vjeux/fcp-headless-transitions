@@ -196,10 +196,23 @@ export interface LayerBehavior {
 
 /** A vector shape (polygon mask or filled shape). */
 export interface Shape {
-  /** Vertex X coordinates (centered coordinate space). */
+  /** Vertex X coordinates (centered coordinate space), ordered by vertex index. */
   verticesX: number[];
-  /** Vertex Y coordinates (centered coordinate space). */
+  /** Vertex Y coordinates (centered coordinate space), ordered by vertex index. */
   verticesY: number[];
+  /**
+   * Bezier control-handle tangents, one entry per vertex (relative offsets from
+   * the vertex position, in the same centered coordinate space). Undefined when a
+   * vertex is a plain corner point (no handle). Motion stores the outgoing handle
+   * (toward the next vertex) as "Output Tangent" (id=5) and the incoming handle
+   * (from the previous vertex) as "Input Tangent" (id=4).
+   */
+  inTangentX?: (number | undefined)[];
+  inTangentY?: (number | undefined)[];
+  outTangentX?: (number | undefined)[];
+  outTangentY?: (number | undefined)[];
+  /** True if any vertex carries a bezier control handle (curved path). */
+  hasTangents?: boolean;
   /** Whether the path is closed. */
   closed: boolean;
   /** Whether this shape is used as a mask (vs a filled shape). */

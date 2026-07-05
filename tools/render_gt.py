@@ -27,7 +27,14 @@ import os, sys, re
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ozengine
 
-RETIME_PARAMS = {"Retime Value", "Retime Value Cache", "Duration Cache"}
+RETIME_PARAMS = {
+    "Retime Value", "Retime Value Cache", "Duration Cache",
+    # Shape stroke-profile curves are parametrised along stroke LENGTH (normalized
+    # 0..1), not scene time; their time=1 keypoint wrongly inflates the animation
+    # end to 1.0s for shape transitions (e.g. Wipes/Diagonal ends at ~0.267s).
+    "Pressure Over Stroke", "Pen Speed Over Stroke", "Opacity Over Stroke",
+    "Width Over Stroke", "Color Over Stroke",
+}
 
 def animation_end_seconds(motr_path):
     """Max keyframe time (seconds) across all NON-retime curves."""

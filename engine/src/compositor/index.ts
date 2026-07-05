@@ -198,6 +198,38 @@ function getSourceImage(source: ImageSource | undefined, imageA: ImageData, imag
   }
 }
 
+/**
+ * True if `child` is a group layer whose descendant shapes are ALL masks (and it
+ * contains at least one mask shape). Such a group exists only to hold masks —
+ * its masks should clip the sibling content layers, not render on their own.
+ */
+function isMaskGroup(child: EvaluatedLayer): boolean {
+  if (child.layer.type !== 'group') return false;
+  if (child.layer.children.length === 0) return false;
+  let maskCount = 0;
+  let ok = true;
+  const walk = (l: EvaluatedLayer): void => {
+    if (l.layer.type === 'shape') {
+      if (l.layer.shape?.isMask) maskCount++;
+      else ok = false;
+    } else if (l.layer.type === 'group') {
+      for (const c of l.children) walk(c);
+    } else {
+      ok = false; // any non-shape, non-group content means it is not a pure mask group
+    }
+  };
+  for (const c of child.children) walk(c);
+  return ok && maskCount > 0;
+}
+
+/** Collect all mask shapes (recursively) from a mask group into `out`. */
+function collectMaskShapes(group: EvaluatedLayer, out: EvaluatedLayer[]): void {
+  for (const c of group.children) {
+    if (c.layer.type === 'shape' && c.layer.shape?.isMask) out.push(c);
+    else if (c.layer.type === 'group') collectMaskShapes(c, out);
+  }
+}
+
 function renderLayer(
   output: ImageData,
   evalLayer: EvaluatedLayer,
@@ -271,12 +303,18 @@ function renderLayer(
 
   // Render children (back to front = array order)
   if (evalLayer.children.length > 0) {
-    // Separate mask shapes from visible children
+    // Separate mask shapes from visible children. Masks can be either direct
+    // shape children OR nested inside a sub-group whose children are ALL masks
+    // (e.g. a "Masks" layer holding several Bezier shapes). In the latter case
+    // we "lift" the masks up so they clip the sibling content layers.
     const maskShapes: EvaluatedLayer[] = [];
     const visibleChildren: EvaluatedLayer[] = [];
     for (const child of evalLayer.children) {
       if (child.layer.type === 'shape' && child.layer.shape?.isMask) {
         maskShapes.push(child);
+      } else if (isMaskGroup(child)) {
+        // A group that contains only mask shapes → lift its masks.
+        collectMaskShapes(child, maskShapes);
       } else {
         visibleChildren.push(child);
       }

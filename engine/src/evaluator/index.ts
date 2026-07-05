@@ -418,23 +418,25 @@ function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: nu
   const ancX = resolveWithRetime(tx.anchorX, timeSec, 0, retimeProgress);
   const ancY = resolveWithRetime(tx.anchorY, timeSec, 0, retimeProgress);
 
-  // Transform order (Motion's documented order):
-  // 1. Translate to -anchor
-  // 2. Scale
-  // 3. Rotate Z, Y, X
-  // 4. Translate to position
-
+  // Transform order (Motion's documented order), producing the matrix
+  //   M = T(position) · R · S · T(-anchor)
+  // so a shape/point v maps to  position + R·S·(v - anchor).
+  // Because mat4Multiply(a,b) = a·b and we left-multiply into `m`, we must build
+  // from the INNERMOST (rightmost) operation outward: -anchor, then scale, then
+  // rotate, then position. (The previous build order applied position FIRST,
+  // which incorrectly scaled/rotated the translation — only visible when a layer
+  // combines a non-origin position with scale AND rotation, e.g. the Wipes masks.)
   let m = mat4Identity();
-  // Translate to position
-  m = mat4Multiply(mat4Translate(posX, posY, posZ), m);
-  // Rotate
-  if (rotZ !== 0) m = mat4Multiply(mat4RotateZ(rotZ), m);
-  if (rotY !== 0) m = mat4Multiply(mat4RotateY(rotY), m);
-  if (rotX !== 0) m = mat4Multiply(mat4RotateX(rotX), m);
+  // Innermost: translate by -anchor
+  if (ancX !== 0 || ancY !== 0) m = mat4Multiply(mat4Translate(-ancX, -ancY, 0), m);
   // Scale
   if (scX !== 1 || scY !== 1 || scZ !== 1) m = mat4Multiply(mat4Scale(scX, scY, scZ), m);
-  // Translate by -anchor (applied first = rightmost in column-major multiply)
-  if (ancX !== 0 || ancY !== 0) m = mat4Multiply(mat4Translate(-ancX, -ancY, 0), m);
+  // Rotate (X, Y, Z applied so Z is outermost of the three, matching prior code)
+  if (rotX !== 0) m = mat4Multiply(mat4RotateX(rotX), m);
+  if (rotY !== 0) m = mat4Multiply(mat4RotateY(rotY), m);
+  if (rotZ !== 0) m = mat4Multiply(mat4RotateZ(rotZ), m);
+  // Outermost: translate to position
+  m = mat4Multiply(mat4Translate(posX, posY, posZ), m);
 
   return m;
 }
