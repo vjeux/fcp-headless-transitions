@@ -214,14 +214,31 @@ function applyLinks(
       if (v > link.max) v = link.max;
     }
     v *= scale;
-    const contribution = v * mix;
 
-    if (link.targetChannel === 'X') result.positionX = (resolveValue(result.positionX, timeSec, 0)) + contribution;
-    else if (link.targetChannel === 'Y') result.positionY = (resolveValue(result.positionY, timeSec, 0)) + contribution;
-    else result.positionZ = (resolveValue(result.positionZ, timeSec, 0)) + contribution;
+    // Motion's Link REPLACES the channel via a mix blend, it does NOT add to the
+    // base value: result = base*(1-mix) + linkedValue*mix. When mix=1 the channel
+    // becomes the linked value outright. Adding (the old behavior) double-counts
+    // the clone's static base offset (e.g. Right's base X=+1920 plus a -1*Left
+    // link) and shifts the clone mid-transition. The linked channel is marked as
+    // an override so buildTransformMatrix skips the Retime static-position ramp.
+    const overrides = result.__overrideChannels ?? (result.__overrideChannels = new Set<string>());
+    if (link.targetChannel === 'X') {
+      const base = resolveValue(result.positionX, timeSec, 0);
+      result.positionX = base * (1 - mix) + v * mix;
+      overrides.add('posX');
+    } else if (link.targetChannel === 'Y') {
+      const base = resolveValue(result.positionY, timeSec, 0);
+      result.positionY = base * (1 - mix) + v * mix;
+      overrides.add('posY');
+    } else {
+      const base = resolveValue(result.positionZ, timeSec, 0);
+      result.positionZ = base * (1 - mix) + v * mix;
+      overrides.add('posZ');
+    }
   }
   return result;
 }
+
 
 /**
  * Extract a Curve or static value from a snapshot parameter's named sub-parameter.
@@ -274,9 +291,13 @@ function applyRigBehaviors(
         const x = getSnapshotValue(snapshot, 'X');
         const y = getSnapshotValue(snapshot, 'Y');
         const z = getSnapshotValue(snapshot, 'Z');
-        if (x !== undefined) result.positionX = x;
-        if (y !== undefined) result.positionY = y;
-        if (z !== undefined) result.positionZ = z;
+        // A rig Position snapshot sets the channel outright (e.g. the Left clone's
+        // -1920). Mark it as an override so the Retime static-position heuristic
+        // does not ramp it from 0 (which would leave it at e.g. -280 mid-transition).
+        const overrides = result.__overrideChannels ?? (result.__overrideChannels = new Set<string>());
+        if (x !== undefined) { result.positionX = x; overrides.add('posX'); }
+        if (y !== undefined) { result.positionY = y; overrides.add('posY'); }
+        if (z !== undefined) { result.positionZ = z; overrides.add('posZ'); }
         break;
       }
       case 'Scale': {
@@ -377,21 +398,24 @@ function getRetimeProgress(layer: Layer, timeSec: number): number {
  * If the value is a curve, evaluate it normally.
  * If it's a static number and retimeProgress > 0, interpolate from defaultVal toward the value.
  */
-function resolveWithRetime(value: number | Curve | undefined, timeSec: number, defaultVal: number, retimeProgress: number): number {
+function resolveWithRetime(value: number | Curve | undefined, timeSec: number, defaultVal: number, retimeProgress: number, bypassRetime: boolean = false): number {
   if (value === undefined) return defaultVal;
   if (typeof value === 'object') {
     // Curve
     if (value.keyframes.length > 0) {
       return evaluateCurve(value, timeSec); // real keyframes → evaluate normally
     }
-    // Empty curve with default→value: Retime-interpolate
+    // Empty curve with default→value: Retime-interpolate (unless overridden).
     const from = value.default;
     const to = value.value !== undefined ? value.value : value.default;
+    if (bypassRetime) return to; // Link/rig override: use the full value directly.
     if (retimeProgress > 0 && to !== from) {
       return from + (to - from) * retimeProgress;
     }
     return from;
   }
+  // Static number: Link/rig override uses it directly (no ramp from default).
+  if (bypassRetime) return value;
   // Static number with retime: interpolate default → value
   if (retimeProgress > 0 && value !== defaultVal) {
     return defaultVal + (value - defaultVal) * retimeProgress;
@@ -399,9 +423,11 @@ function resolveWithRetime(value: number | Curve | undefined, timeSec: number, d
   return value;
 }
 function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: number = 0): Float64Array {
-  const posX = resolveWithRetime(tx.positionX, timeSec, 0, retimeProgress);
-  const posY = resolveWithRetime(tx.positionY, timeSec, 0, retimeProgress);
-  const posZ = resolveWithRetime(tx.positionZ, timeSec, 0, retimeProgress);
+  const ov = tx.__overrideChannels;
+  const posX = resolveWithRetime(tx.positionX, timeSec, 0, retimeProgress, ov?.has('posX'));
+  const posY = resolveWithRetime(tx.positionY, timeSec, 0, retimeProgress, ov?.has('posY'));
+  const posZ = resolveWithRetime(tx.positionZ, timeSec, 0, retimeProgress, ov?.has('posZ'));
+
   // Motion .motr stores rotation in RADIANS (e.g. Rotate uses π/2 for 90°). Convert to degrees
   // for the matrix helpers (which take degrees).
   const RAD2DEG = 180 / Math.PI;
