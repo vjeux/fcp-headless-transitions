@@ -66,9 +66,44 @@ export interface Transform {
   __overrideChannels?: Set<string>;
 }
 
-/** Blend mode for layer compositing. */
-export type BlendMode = 'normal' | 'add' | 'multiply' | 'screen' | 'overlay'
-  | 'darken' | 'lighten' | 'difference' | 'exclusion';
+/**
+ * Blend mode for layer compositing.
+ *
+ * Names correspond to the ProCore.framework PC_BLEND_* enum. The integer value
+ * of the .motr "Blend Mode" parameter (id=203/227) maps to these names via the
+ * ordered PC_BLEND string table in ProCore's __cstring section (SEPARATOR
+ * entries occupy indices too). See parser/index.ts BLEND_MODE_ENUM.
+ */
+export type BlendMode =
+  | 'normal'
+  | 'subtract'
+  | 'darken'
+  | 'multiply'
+  | 'colorBurn'
+  | 'linearBurn'
+  | 'add'
+  | 'lighten'
+  | 'screen'
+  | 'colorDodge'
+  | 'linearDodge'
+  | 'overlay'
+  | 'softLight'
+  | 'hardLight'
+  | 'vividLight'
+  | 'linearLight'
+  | 'pinLight'
+  | 'hardMix'
+  | 'difference'
+  | 'exclusion'
+  | 'stencilAlpha'
+  | 'stencilLuma'
+  | 'silhouetteAlpha'
+  | 'silhouetteLuma'
+  | 'behind'
+  | 'alphaAdd'
+  | 'luminescentPremul'
+  | 'combine'
+  | 'lightWrap';
 
 /** A filter/effect applied to a layer. */
 export interface Filter {

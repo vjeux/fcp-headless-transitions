@@ -17,6 +17,86 @@ import type {
   Parameter, Transform, Filter, ImageSource, BlendMode, RigWidget, RigBehavior, Shape, Replicator, LayerBehavior, SceneBehavior, LinkBehavior
 } from '../types.js';
 
+/**
+ * PC_BLEND_* enum → BlendMode name.
+ *
+ * Reverse-engineered from ProCore.framework's ordered PC_BLEND string table
+ * (__TEXT,__cstring). The integer values of the .motr "Blend Mode" parameter
+ * (id=203 or 227) index directly into this table — SEPARATOR entries occupy
+ * indices too (that's why Add=8 not 5, Overlay=14 not 11, etc.).
+ *
+ * Ordered table (index : PC_BLEND name):
+ *   0 NORMAL, 1 SEPARATOR0, 2 SUBTRACT, 3 DARKEN, 4 MULTIPLY, 5 COLOR_BURN,
+ *   6 LINEAR_BURN, 7 SEPARATOR1, 8 ADD, 9 LIGHTEN, 10 SCREEN, 11 COLOR_DODGE,
+ *   12 LINEAR_DODGE, 13 SEPARATOR2, 14 OVERLAY, 15 SOFT_LIGHT, 16 HARD_LIGHT,
+ *   17 VIVID_LIGHT, 18 LINEAR_LIGHT, 19 PIN_LIGHT, 20 HARD_MIX, 21 SEPARATOR3,
+ *   22 DIFFERENCE, 23 EXCLUSION, 24 SEPARATOR4, 25 STENCIL_ALPHA,
+ *   26 STENCIL_LUMA, 27 SILHOUETTE_ALPHA, 28 SILHOUETTE_LUMA, 29 BEHIND,
+ *   30 SEPARATOR5, 31 ALPHA_ADD, 32 LUMINESCENT_PREMUL, 33 SEPARATOR6,
+ *   34 COMBINE, 35 LIGHT_WRAP
+ *
+ * Confirmed: value 28 (Silhouette Luma) on 360° Push measurably improves PSNR.
+ * Every blend value observed across the built-in transitions (0,4,5,8,10,14,
+ * 15,16,17,25,27,28,34) lands on a real (non-separator) mode.
+ */
+const BLEND_MODE_ENUM: Record<number, BlendMode> = {
+  0: 'normal',
+  2: 'subtract',
+  3: 'darken',
+  4: 'multiply',
+  5: 'colorBurn',
+  6: 'linearBurn',
+  8: 'add',
+  9: 'lighten',
+  10: 'screen',
+  11: 'colorDodge',
+  12: 'linearDodge',
+  14: 'overlay',
+  15: 'softLight',
+  16: 'hardLight',
+  17: 'vividLight',
+  18: 'linearLight',
+  19: 'pinLight',
+  20: 'hardMix',
+  22: 'difference',
+  23: 'exclusion',
+  25: 'stencilAlpha',
+  26: 'stencilLuma',
+  27: 'silhouetteAlpha',
+  28: 'silhouetteLuma',
+  29: 'behind',
+  31: 'alphaAdd',
+  32: 'luminescentPremul',
+  34: 'combine',
+  35: 'lightWrap',
+};
+
+/**
+ * Extract the layer Blend Mode from its parameter tree.
+ * Lives at Properties(id=1) > Blending(id=200) > Blend Mode(id=203 or 227).
+ * Returns 'normal' when absent or when the value maps to an unknown/separator index.
+ */
+function extractBlendMode(params: Parameter[]): BlendMode {
+  function find(ps: Parameter[]): number | undefined {
+    for (const p of ps) {
+      if (p.name === 'Blend Mode' && (p.id === 203 || p.id === 227) && typeof p.value === 'number') {
+        return p.value;
+      }
+      if (p.children) {
+        const r = find(p.children);
+        if (r !== undefined) return r;
+      }
+    }
+    return undefined;
+  }
+  const v = find(params);
+  if (v === undefined) return 'normal';
+  // Test/ablation hook: FCT_DISABLE_BLEND forces source-over to measure the
+  // blend-mode delta. Never set in normal operation.
+  if (typeof process !== 'undefined' && process.env?.FCT_DISABLE_BLEND) return 'normal';
+  return BLEND_MODE_ENUM[v] ?? 'normal';
+}
+
 // ============================================================================
 // XML Parsing Helpers
 // ============================================================================
@@ -716,7 +796,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
     id: parseInt(el.getAttribute('id') || '0', 10),
     type,
     transform: extractTransform(params),
-    blendMode: 'normal', // TODO: extract from Blend Mode parameter
+    blendMode: extractBlendMode(params),
     filters,
     children,
     timing: parseTiming(el),
@@ -783,7 +863,7 @@ function parseLayerElement(el: Element, factories: Map<number, string>, clipAB: 
     id: parseInt(el.getAttribute('id') || '0', 10),
     type: 'group',
     transform: extractTransform(params),
-    blendMode: 'normal',
+    blendMode: extractBlendMode(params),
     filters,
     children,
     timing: parseTiming(el),

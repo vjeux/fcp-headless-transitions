@@ -9,6 +9,8 @@ import { bevelFilter } from './filters/bevel.js';
 import { evaluateCurve } from '../evaluator/curves.js';
 import { rasterizeShape, applyMask, unionMasks } from './shapes.js';
 import { needsPerspective, projectQuad, renderPerspectiveQuad } from './perspective.js';
+import { blendChannel, isSeparable, luma } from './blend.js';
+import type { BlendMode } from '../types.js';
 import { generateInstances } from './replicator.js';
 import { lookupFilter, makeContext } from './filters/registry.js';
 import './filters/index.js'; // side-effect: registers all UUID-keyed filter modules
@@ -87,7 +89,8 @@ function blitTransformed(
   src: ImageData,
   worldTransform: Float64Array,
   opacity: number,
-  crop: { left: number; right: number; top: number; bottom: number }
+  crop: { left: number; right: number; top: number; bottom: number },
+  blendMode: BlendMode = 'normal'
 ): void {
   const dw = dst.width, dh = dst.height;
   const sw = src.width, sh = src.height;
@@ -160,18 +163,71 @@ function blitTransformed(
 
       if (sa <= 0) continue;
 
-      // Source-over compositing (premultiplied)
-      const da = dst.data[dstIdx + 3] / 255;
-      const outA = sa + da * (1 - sa);
-
-      if (outA > 0) {
-        dst.data[dstIdx]     = Math.round((sr * sa + dst.data[dstIdx]     * da * (1 - sa)) / outA);
-        dst.data[dstIdx + 1] = Math.round((sg * sa + dst.data[dstIdx + 1] * da * (1 - sa)) / outA);
-        dst.data[dstIdx + 2] = Math.round((sb * sa + dst.data[dstIdx + 2] * da * (1 - sa)) / outA);
-        dst.data[dstIdx + 3] = Math.round(outA * 255);
-      }
+      compositePixel(dst.data, dstIdx, sr, sg, sb, sa, blendMode);
     }
   }
+}
+
+/**
+ * Composite one source pixel (straight color sr/sg/sb in [0..255], premultiplied
+ * coverage `sa` in [0..1]) onto the destination buffer at byte offset `di`,
+ * honoring the given blend mode. Destination is straight color with alpha.
+ *
+ *   Separable modes use the W3C blending equation:
+ *     Co = αs·(1−αb)·Cs + αs·αb·B(Cb,Cs) + (1−αs)·αb·Cb
+ *   Stencil/Silhouette modes MODULATE the destination's alpha by the source's
+ *   coverage/luma (they do not add color); Combine falls back to source-over.
+ */
+function compositePixel(
+  data: Uint8ClampedArray | Uint8Array,
+  di: number,
+  sr: number, sg: number, sb: number,
+  sa: number,
+  mode: BlendMode
+): void {
+  const db = data[di + 3] / 255;
+
+  // --- Stencil / Silhouette: modulate destination alpha, no color contribution.
+  //   Stencil  = keep dst where source is present   (dstA *= sourceCoverage)
+  //   Silhouette = cut dst where source is present   (dstA *= 1 - sourceCoverage)
+  //   *_ALPHA uses the source alpha; *_LUMA uses the source luma.
+  if (mode === 'stencilAlpha' || mode === 'stencilLuma' ||
+      mode === 'silhouetteAlpha' || mode === 'silhouetteLuma') {
+    let key: number;
+    if (mode === 'stencilAlpha' || mode === 'silhouetteAlpha') {
+      key = sa; // premultiplied coverage already folds in opacity
+    } else {
+      // luma of the straight source color, scaled by coverage
+      key = (luma(sr, sg, sb) / 255) * sa;
+    }
+    const isSilhouette = mode === 'silhouetteAlpha' || mode === 'silhouetteLuma';
+    const factor = isSilhouette ? (1 - key) : key;
+    const outA = db * factor;
+    data[di + 3] = Math.round(outA * 255);
+    return;
+  }
+
+  if (mode !== 'normal' && isSeparable(mode)) {
+    const outA = sa + db * (1 - sa);
+    if (outA <= 0) return;
+    for (let c = 0; c < 3; c++) {
+      const cb = data[di + c];
+      const cs = c === 0 ? sr : c === 1 ? sg : sb;
+      const blended = blendChannel(mode, cb, cs);
+      const co = sa * (1 - db) * cs + sa * db * blended + (1 - sa) * db * cb;
+      data[di + c] = Math.round(co / outA);
+    }
+    data[di + 3] = Math.round(outA * 255);
+    return;
+  }
+
+  // Normal (and 'combine'/unimplemented non-separable) → source-over.
+  const outA = sa + db * (1 - sa);
+  if (outA <= 0) return;
+  data[di]     = Math.round((sr * sa + data[di]     * db * (1 - sa)) / outA);
+  data[di + 1] = Math.round((sg * sa + data[di + 1] * db * (1 - sa)) / outA);
+  data[di + 2] = Math.round((sb * sa + data[di + 2] * db * (1 - sa)) / outA);
+  data[di + 3] = Math.round(outA * 255);
 }
 
 // ============================================================================
@@ -240,7 +296,7 @@ function renderLayer(
         const corners = projectQuad(worldTransform, src.width, src.height);
         renderPerspectiveQuad(output, src, corners, opacity);
       } else {
-        blitTransformed(output, src, worldTransform, opacity, crop);
+        blitTransformed(output, src, worldTransform, opacity, crop, layer.blendMode);
       }
     }
     // A clone may also have children (rare); fall through to render them.
@@ -258,13 +314,13 @@ function renderLayer(
         for (const filter of layer.filters) {
           filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id));
         }
-        blitDirect(output, filtered, opacity);
+        blitDirect(output, filtered, opacity, layer.blendMode);
       } else if (needsPerspective(worldTransform)) {
         // 3D perspective: project the source quad and rasterize
         const corners = projectQuad(worldTransform, src.width, src.height);
         renderPerspectiveQuad(output, src, corners, opacity);
       } else {
-        blitTransformed(output, src, worldTransform, opacity, crop);
+        blitTransformed(output, src, worldTransform, opacity, crop, layer.blendMode);
       }
     }
   }
@@ -284,8 +340,9 @@ function renderLayer(
 
     const hasFilters = layer.filters.length > 0;
     const hasMasks = maskShapes.length > 0;
+    const hasBlend = layer.blendMode !== 'normal';
 
-    if (hasFilters || hasMasks) {
+    if (hasFilters || hasMasks || hasBlend) {
       // Render visible children to a temp buffer
       const groupBuffer = createBuffer(output.width, output.height);
       for (let i = visibleChildren.length - 1; i >= 0; i--) {
@@ -310,7 +367,7 @@ function renderLayer(
       }
 
       // Composite onto output
-      blitDirect(output, processed, opacity);
+      blitDirect(output, processed, opacity, layer.blendMode);
     } else {
       for (let i = visibleChildren.length - 1; i >= 0; i--) {
         renderLayer(output, visibleChildren[i], imageA, imageB, time, filterOverrides);
@@ -557,17 +614,18 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
 }
 
 /** Blit source directly onto destination with opacity (no transform, 1:1 pixel copy). */
-function blitDirect(dst: ImageData, src: ImageData, opacity: number): void {
+function blitDirect(dst: ImageData, src: ImageData, opacity: number, blendMode: BlendMode = 'normal'): void {
   for (let i = 0; i < dst.data.length; i += 4) {
     const sa = src.data[i + 3] / 255 * opacity;
-    if (sa <= 0) continue;
-    const da = dst.data[i + 3] / 255;
-    const outA = sa + da * (1 - sa);
-    if (outA > 0) {
-      dst.data[i]     = Math.round((src.data[i]     * sa + dst.data[i]     * da * (1 - sa)) / outA);
-      dst.data[i + 1] = Math.round((src.data[i + 1] * sa + dst.data[i + 1] * da * (1 - sa)) / outA);
-      dst.data[i + 2] = Math.round((src.data[i + 2] * sa + dst.data[i + 2] * da * (1 - sa)) / outA);
-      dst.data[i + 3] = Math.round(outA * 255);
+    if (sa <= 0) {
+      // Silhouette/Stencil with no source coverage still affect dst alpha
+      // (stencil with 0 coverage erases dst); handle via compositePixel only
+      // when a masking mode is active and there IS backdrop to modify.
+      if ((blendMode === 'stencilAlpha' || blendMode === 'stencilLuma') && dst.data[i + 3] > 0) {
+        dst.data[i + 3] = 0; // stencil: no source → erase backdrop
+      }
+      continue;
     }
+    compositePixel(dst.data, i, src.data[i], src.data[i + 1], src.data[i + 2], sa, blendMode);
   }
 }
