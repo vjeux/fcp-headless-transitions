@@ -83,18 +83,28 @@ const imgB = loadPNG(path.resolve(import.meta.dirname, 'end.png'));
 type Row = { slug: string; avg: number; frames: number; sampled?: number; err?: string };
 const results: Row[] = [];
 
-// 360° transitions render at 4K-equirect native resolution (e.g. 4096×2160),
-// which is ~30-50s PER FRAME in the pure-JS compositor. Scoring 24 frames each
-// would take ~20 min per transition. To keep the full 65-run tractable we sample
-// a reduced, evenly-spaced set of progress points for these heavy transitions
-// (documented in the scoreboard). The measurement (mean PSNR at those progress
-// points, engine conformed to GT's 1920×1080) is otherwise identical.
-const HEAVY = new Set([...slugToMotr.keys()].filter(s => s.startsWith('360°__')));
+// Some transitions are pathologically slow in the pure-JS compositor:
+//  - 360° transitions render at 4K-equirect native (e.g. 4096×2160), ~30-50s/frame.
+//  - Movements/Pinwheel (~150s/frame) and Movements/Rotate (full-frame rotation)
+//    OOM at 24 frames under memory pressure.
+// Scoring all 24 frames would take ~20 min each. We sample a reduced, evenly-spaced
+// set of progress points for these heavy transitions (noted in the scoreboard); the
+// measurement (mean PSNR at those points, engine conformed to GT's native res) is
+// otherwise identical.
+const HEAVY = new Set([
+  ...[...slugToMotr.keys()].filter(s => s.startsWith('360°__')),
+  'Movements__Pinwheel',
+  'Movements__Rotate',
+]);
 const HEAVY_SAMPLES = 3;
 
-// Iterate the full 65-template set (source of truth), not just what GT produced,
-// so missing GT is reported explicitly.
-for (const slug of [...slugToMotr.keys()].sort()) {
+// Iterate fast (non-heavy) transitions FIRST so the bulk of results stream quickly,
+// then the slow heavy ones last (a slow-tail crash can't lose the fast results, and
+// partial progress is visible early).
+const orderedSlugs = [...slugToMotr.keys()].sort(
+  (a, b) => (HEAVY.has(a) ? 1 : 0) - (HEAVY.has(b) ? 1 : 0) || a.localeCompare(b)
+);
+for (const slug of orderedSlugs) {
   const motrPath = slugToMotr.get(slug)!;
   const gtDir = path.join(GT_ROOT, slug);
   if (!fs.existsSync(gtDir)) { results.push({ slug, avg: 0, frames: 0, err: 'no GT dir' }); continue; }
