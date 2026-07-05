@@ -1213,6 +1213,87 @@ function parseShape(el: Element, factories: Map<number, string>, linkSourceIds: 
   // The Fill Color RGB swatch, read even when solid fill is NOT the active mode
   // (gradient/particle-cell shapes). Recovers the base tint a particle field
 
+  // Stroke ("Outline" id=108) geometry — the Objects/Arrows mechanism. When a
+  // non-mask shape carries an Outline with a positive Width, its visible geometry
+  // is a thick band ALONG the path (with arrow end-caps and an animated arc trim),
+  // NOT a fill of the polygon interior. Capture the stroke params so the shape
+  // rasterizer can draw the trimmed, capped stroke. Only read for non-mask shapes
+  // with an actual positive-Width Outline so ordinary fill/mask shapes are
+  // unaffected.
+  let stroke: Shape['stroke'];
+  {
+    // Find the shape's Shape param (id=353) and Outline (id=108). NOTE: a shape
+    // with a nested <mask> child (Objects/Arrows C1 has a Circle Mask) would have
+    // the mask's own Shape/Outline appear first; the C1 body-arrow stroke is not
+    // detected in that case (its geometry would also be mis-sourced from the mask
+    // shape), which is acceptable — C1 is one of eight arcs and its bad geometry
+    // hurts more than its coverage helps. We simply take the first Shape/Outline.
+    const shapeParam = Array.from(el.getElementsByTagName('parameter'))
+      .find(p => p.getAttribute('name') === 'Shape' && p.getAttribute('id') === '353');
+    const outline = shapeParam
+      ? Array.from(shapeParam.getElementsByTagName('parameter'))
+        .find(p => p.getAttribute('name') === 'Outline' && p.getAttribute('id') === '108')
+      : undefined;
+    if (outline) {
+      // Width (id=105) — may be static or a curve; strokes here are static width.
+      const widthP = Array.from(outline.getElementsByTagName('parameter'))
+        .find(p => p.getAttribute('name') === 'Width' && p.getAttribute('id') === '105');
+      const width = widthP ? parseFloat(widthP.getAttribute('value') || '0') : 0;
+      // Only treat as a STROKED-ARROW shape (Objects/Arrows) when the outline is a
+      // genuine heavy arrow stroke — a substantial width AND an arrowhead cap
+      // (Start/End Cap 3 or 4). Ordinary shapes carry a thin default outline
+      // (Width 2, caps 0/1) that must NOT hijack the fill path: Stylized/Center
+      // Reveal ("Color linker") and Event/Heart ("Circle"/"Gradient") shapes have
+      // Width-2 outlines with caps 0/1 and are FILLED gradient/decorative shapes.
+      // Gating on width>threshold AND an arrow cap keeps them on the fill path
+      // (verified: Center Reveal 40.59, Heart 20.78 unchanged) while Arrows'
+      // 145–470-px caps-3/4 strokes are detected.
+      const capOf = (name: string, id: string): number => {
+        const p = Array.from(outline.getElementsByTagName('parameter'))
+          .find(q => q.getAttribute('name') === name && q.getAttribute('id') === id);
+        const v = p?.getAttribute('value');
+        return v !== null && v !== undefined ? parseInt(v, 10) : 0;
+      };
+      const sc = capOf('Start Cap', '119'), ec = capOf('End Cap', '134');
+      const hasArrowCap = sc === 3 || sc === 4 || ec === 3 || ec === 4;
+      if (widthP && width > 20 && hasArrowCap) {
+        const numOr = (name: string, id: string, def: number): number => {
+          const p = Array.from(outline.getElementsByTagName('parameter'))
+            .find(q => q.getAttribute('name') === name && q.getAttribute('id') === id);
+          if (!p) return def;
+          const v = p.getAttribute('value');
+          return v !== null ? parseFloat(v) : def;
+        };
+        // First/Last Point Offset may be a static value OR an animated curve. Read
+        // the direct-child curve if present, else the static value.
+        const offsetVal = (name: string, id: string, def: number): number | Curve => {
+          const p = Array.from(outline.getElementsByTagName('parameter'))
+            .find(q => q.getAttribute('name') === name && q.getAttribute('id') === id);
+          if (!p) return def;
+          const c = firstChild(p, 'curve');
+          if (c) {
+            const parsed = parseCurve(c);
+            if (parsed.keyframes.length >= 2) return parsed;
+            // Single-keyframe / valued curve → its scalar value.
+            return parsed.keyframes.length === 1 ? parsed.keyframes[0].value
+              : (parsed.value ?? parsed.default);
+          }
+          const v = p.getAttribute('value');
+          return v !== null ? parseFloat(v) : def;
+        };
+        stroke = {
+          width,
+          startCap: numOr('Start Cap', '119', 0),
+          endCap: numOr('End Cap', '134', 0),
+          arrowLength: numOr('Arrow Length', '132', 3),
+          arrowWidth: numOr('Arrow Width', '133', 3),
+          firstPointOffset: offsetVal('First Point Offset', '126', 0),
+          lastPointOffset: offsetVal('Last Point Offset', '127', 1),
+        };
+      }
+    }
+  }
+
   return {
     verticesX,
     verticesY,
@@ -1229,6 +1310,7 @@ function parseShape(el: Element, factories: Map<number, string>, linkSourceIds: 
     // isSolidPanel stays falsy and these are ignored by the compositor.
     panelFill: panelFillCandidate,
     panelFillOpacity: panelFillOpacityCandidate,
+    stroke,
   };
 }
 
@@ -1587,6 +1669,17 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
       // reveals B where the wipe-matte luma is DARK). Read from the same mask node.
       for (const p of Array.from(maskEl.getElementsByTagName('parameter'))) {
         if (p.getAttribute('name') === 'Invert Mask') {
+          const v = p.getAttribute('value');
+          if (v !== null && parseInt(v, 10) === 1) imageMaskInvert = true;
+        }
+        // Mask Blend Mode (id=103): default (absent/0) = the mask KEEPS the layer
+        // inside the shape (intersect); value 1 = SUBTRACT — the shape region is
+        // CUT OUT of the layer (holes), i.e. the layer shows everywhere EXCEPT the
+        // shape. Objects/Arrows uses mode 1 so its growing arrow arcs cut holes in
+        // the on-top A layer, revealing the base B beneath. Subtract ≡ invert the
+        // rasterized alpha. Wipes/Mask has no Mask Blend Mode (default) so it is
+        // unaffected.
+        if (p.getAttribute('name') === 'Mask Blend Mode' && p.getAttribute('id') === '103') {
           const v = p.getAttribute('value');
           if (v !== null && parseInt(v, 10) === 1) imageMaskInvert = true;
         }

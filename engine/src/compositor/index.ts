@@ -780,17 +780,51 @@ function resolveImageMaskAlpha(sourceId: number, W: number, H: number, invert = 
   // descend into a group whose opacity is 0 (else all snapshot variants union and
   // the mask over-covers the frame). The Mask Source group itself is always
   // traversed (it is the hidden geometry provider — its own opacity is irrelevant).
-  const shapes: EvaluatedLayer[] = [];
+  // A mask-source group may hold plain shapes AND Clone Layers that reference
+  // another shape (Objects/Arrows: C6/C7/C8 are clones of C3/C5 placed at their own
+  // rotation/scale — extra arrow instances). Collect each as {shape geometry,
+  // world transform to rasterize it at}. Clones borrow the referenced shape's
+  // geometry (incl. its stroke) but use the CLONE's own transform.
+  const entries: { shape: import('../types.js').Shape; xform: Float64Array }[] = [];
+  const findShapeLayer = (id: number): EvaluatedLayer | undefined => ctx!.evalLayerById.get(id);
   const walk = (el: EvaluatedLayer, isRoot: boolean): void => {
     if (!isRoot && el.layer.type === 'group' && el.opacity <= 0) return;
-    if (el.layer.type === 'shape' && el.layer.shape) {
-      if (el.visible) shapes.push(el);
+    if (el.layer.type === 'shape' && el.layer.shape && el.visible) {
+      entries.push({ shape: el.layer.shape, xform: el.worldTransform });
+    } else if (el.layer.type === 'clone' && el.visible && el.layer.cloneSourceId !== undefined) {
+      // Resolve the clone's source shape (may itself chain through clones).
+      let srcId: number | undefined = el.layer.cloneSourceId; let hop = 0;
+      let srcLayer: EvaluatedLayer | undefined;
+      while (srcId !== undefined && hop++ < 8) {
+        srcLayer = findShapeLayer(srcId);
+        if (!srcLayer) break;
+        if (srcLayer.layer.type === 'shape' && srcLayer.layer.shape) break;
+        srcId = srcLayer.layer.cloneSourceId;
+      }
+      if (srcLayer && srcLayer.layer.type === 'shape' && srcLayer.layer.shape) {
+        entries.push({ shape: srcLayer.layer.shape, xform: el.worldTransform });
+      }
     }
     for (const c of el.children) walk(c, false);
   };
   walk(src, true);
-  if (shapes.length === 0) return null;
-  const masks = shapes.map(s => rasterizeShape(s.layer.shape!, W, H, s.worldTransform));
+  if (entries.length === 0) return null;
+  const t = ctx.time ?? 0;
+  const resolveOffset = (v: number | { keyframes: { value: number }[]; value?: number; default: number } | undefined, def: number): number => {
+    if (v === undefined) return def;
+    if (typeof v === 'number') return v;
+    // A Curve — evaluate at the current scene time.
+    return evaluateCurve(v as any, t);
+  };
+  const masks = entries.map(e => {
+    const stroke = e.shape.stroke;
+    if (stroke) {
+      const firstOffset = resolveOffset(stroke.firstPointOffset, 0);
+      const lastOffset = resolveOffset(stroke.lastPointOffset, 1);
+      return rasterizeShape(e.shape, W, H, e.xform, ctx?.cameraZ, ctx?.cameraPosZ, { firstOffset, lastOffset });
+    }
+    return rasterizeShape(e.shape, W, H, e.xform);
+  });
   const merged = masks.length === 1 ? masks[0] : unionMasks(masks, W, H);
   return applyInvert(merged);
 }
