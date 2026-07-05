@@ -31,6 +31,37 @@ _shim = None
 _ms = None
 _sel = None
 
+
+def _enable_embedded_plugins(Foundation):
+    """Let PlugInKit load FCP's embedded FxPlug filter appex (InternalFiltersXPC).
+
+    FCP's PAE* filters (PAENoise, PAECloudsV2, PAEBlackHole, 360° Reorient, ...)
+    live in InternalFiltersXPC.pluginkit, whose Info.plist declares
+    `PlugInKit.EmbeddedCode = Filters.bundle`. PlugInKit refuses to discover such
+    embedded plug-ins unless the *host process's* main-bundle Info.plist opts in
+    via `PlugInKitHost.UsesEmbeddedCode = true` (the exact key FCP.app itself
+    sets). Headless we run as `python`, whose bundle lacks that key, so discovery
+    aborts with:
+        PlugInKit discovery failed - error #3, cannot request embedded plug-ins
+        without using the "UsesEmbeddedCode" key
+    and every filtered node renders black.
+
+    The main bundle's infoDictionary is a *mutable* __NSDictionaryM, so we inject
+    the opt-in in place before the engine boots. Must run before the first
+    PlugInKit discovery (i.e. before the render graph is built).
+    """
+    mb = Foundation.NSBundle.mainBundle()
+    info = mb.infoDictionary()
+    host = info.objectForKey_("PlugInKitHost")
+    if host is None:
+        host = Foundation.NSMutableDictionary.dictionary()
+        info.setObject_forKey_(host, "PlugInKitHost")
+    # host may be an immutable NSDictionary if FCP ever ships one; make it mutable.
+    if not host.respondsToSelector_(b"setObject:forKey:"):
+        host = Foundation.NSMutableDictionary.dictionaryWithDictionary_(host)
+        info.setObject_forKey_(host, "PlugInKitHost")
+    host.setObject_forKey_(True, "UsesEmbeddedCode")
+
 def boot(motr_path):
     """Boot the engine and load a .motr document. Returns the C++ OZScene doc ptr."""
     global _shim, _ms, _sel
@@ -38,9 +69,10 @@ def boot(motr_path):
     oz = ctypes.CDLL(FW + "/Ozone.framework/Versions/A/Ozone")
     progl = ctypes.CDLL(FW + "/ProGL.framework/Versions/A/ProGL")
     cgl = ctypes.CDLL("/System/Library/Frameworks/OpenGL.framework/OpenGL")
-    import objc, AppKit
+    import objc, AppKit, Foundation
     from Foundation import NSURL
     AppKit.NSApplication.sharedApplication().setActivationPolicy_(1)
+    _enable_embedded_plugins(Foundation)
     oz["_Z34OZSharedApplicationForAllUnitTestsv"].restype = ctypes.c_void_p
     oz["_Z34OZSharedApplicationForAllUnitTestsv"]()
     progl["PGLMasterCGLContext"].restype = ctypes.c_void_p
