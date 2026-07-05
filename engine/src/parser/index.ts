@@ -455,6 +455,17 @@ function parseFootageClipAB(sceneEl: Element): Map<number, 'A' | 'B'> {
       map.set(c.id, 'B'); sawB = true;
     }
   }
+  // Generic "Drop Zone" clips (name/path "Drop Zone" WITHOUT an A/B designation)
+  // carry the transition's primary (outgoing) media. Multi-drop-zone templates
+  // such as Replicator/Video Wall reference these plain drop zones as the replicator
+  // cell content (the tiled media), alongside the designated Transition A/B clips.
+  // Map any still-unclassified generic drop zone to source A so its cell renders.
+  for (const c of clips) {
+    if (map.has(c.id)) continue;
+    if (/drop\s*zone/.test(c.name) || /drop\s*zone/.test(c.path)) {
+      map.set(c.id, 'A'); sawA = true;
+    }
+  }
   // Fallback: if pathURL/name matching failed, order the two clips A then B.
   if ((!sawA || !sawB) && clips.length >= 2) {
     map.set(clips[0].id, 'A');
