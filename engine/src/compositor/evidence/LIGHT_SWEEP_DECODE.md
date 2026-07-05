@@ -66,3 +66,5 @@ Remaining weak frames are the 5 bloom frames (f1–5): the lens-flare .mov Scree
 lifts f1–3 (A-only would be ~5–9 dB) but the clip has no bright content matching the
 GT peak at f4–5, so those stay ≈ A-on-navy. Net gain from the flare is small; the
 dominant win is the navy tail + A placement.
+
+NOTE (2026-07-05): the detectLightSweep/renderLightSweep path this doc describes was REMOVED as a per-transition hardcode. This decode remains as REFERENCE for building the GENERIC primitives (particle fill-color swatch generator + generator sRGB gamma + screen-blend overlay). It is NOT wired into the engine.
