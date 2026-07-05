@@ -11,6 +11,55 @@
 /** Default perspective distance (Motion's reference camera). */
 const DEFAULT_CAMERA_Z = 2000;
 
+import { isSeparable, blendChannel, luma } from './blend.js';
+import type { BlendMode } from '../types.js';
+
+/**
+ * Composite a single premultiplied-coverage source pixel onto a straight-alpha
+ * destination buffer honoring a blend mode. Mirrors index.ts::compositePixel but
+ * lives here to avoid a circular import (index → perspective). Used by the
+ * perspective rasterizer so Z-projected layers (e.g. Color Planes' additively
+ * blended RGB channel clones) blend correctly, not just source-over.
+ */
+function blendPixel(
+  data: Uint8ClampedArray,
+  di: number,
+  sr: number, sg: number, sb: number,
+  sa: number,
+  mode: BlendMode
+): void {
+  const db = data[di + 3] / 255;
+  if (mode === 'stencilAlpha' || mode === 'stencilLuma' ||
+      mode === 'silhouetteAlpha' || mode === 'silhouetteLuma') {
+    let key: number;
+    if (mode === 'stencilAlpha' || mode === 'silhouetteAlpha') key = sa;
+    else key = (luma(sr, sg, sb) / 255) * sa;
+    const isSil = mode === 'silhouetteAlpha' || mode === 'silhouetteLuma';
+    const factor = isSil ? (1 - key) : key;
+    data[di + 3] = Math.round(db * factor * 255);
+    return;
+  }
+  if (isSeparable(mode)) {
+    const outA = sa + db * (1 - sa);
+    if (outA <= 0) return;
+    for (let c = 0; c < 3; c++) {
+      const cb = data[di + c];
+      const cs = c === 0 ? sr : c === 1 ? sg : sb;
+      const blended = blendChannel(mode, cb, cs);
+      const co = sa * (1 - db) * cs + sa * db * blended + (1 - sa) * db * cb;
+      data[di + c] = Math.round(co / outA);
+    }
+    data[di + 3] = Math.round(outA * 255);
+    return;
+  }
+  const outA = sa + db * (1 - sa);
+  if (outA <= 0) return;
+  data[di]     = Math.round((sr * sa + data[di]     * db * (1 - sa)) / outA);
+  data[di + 1] = Math.round((sg * sa + data[di + 1] * db * (1 - sa)) / outA);
+  data[di + 2] = Math.round((sb * sa + data[di + 2] * db * (1 - sa)) / outA);
+  data[di + 3] = Math.round(outA * 255);
+}
+
 /**
  * Project a 3D point (in Motion centered coords) to 2D screen coords with perspective.
  * @param x, y, z - 3D point (centered, Y-up, Z toward viewer)
@@ -90,7 +139,8 @@ export function renderPerspectiveQuad(
   dst: ImageData,
   src: ImageData,
   corners: Array<[number, number, number]>,
-  opacity: number
+  opacity: number,
+  blendMode: BlendMode = 'normal'
 ): void {
   const dw = dst.width, dh = dst.height;
   const sw = src.width, sh = src.height;
@@ -120,7 +170,7 @@ export function renderPerspectiveQuad(
   ];
 
   for (const [ia, ib, ic] of tris) {
-    rasterizeTriangle(dst, src, pts[ia], pts[ib], pts[ic], uvs[ia], uvs[ib], uvs[ic], opacity, x0, x1, y0, y1);
+    rasterizeTriangle(dst, src, pts[ia], pts[ib], pts[ic], uvs[ia], uvs[ib], uvs[ic], opacity, x0, x1, y0, y1, blendMode);
   }
 }
 
@@ -129,7 +179,8 @@ function rasterizeTriangle(
   dst: ImageData, src: ImageData,
   pa: [number, number, number], pb: [number, number, number], pc: [number, number, number],
   uva: [number, number], uvb: [number, number], uvc: [number, number],
-  opacity: number, bx0: number, bx1: number, by0: number, by1: number
+  opacity: number, bx0: number, bx1: number, by0: number, by1: number,
+  blendMode: BlendMode = 'normal'
 ): void {
   const dw = dst.width;
   const sw = src.width, sh = src.height;
@@ -187,6 +238,11 @@ function rasterizeTriangle(
 
       const dIdx = (y * dw + x) * 4;
       const da = dst.data[dIdx + 3] / 255;
+      if (blendMode !== 'normal') {
+        // Separable blend (e.g. additive for Color Planes' RGB channel stack).
+        blendPixel(dst.data, dIdx, sr, sg, sb, sa, blendMode);
+        continue;
+      }
       const outA = sa + da * (1 - sa);
       if (outA > 0) {
         dst.data[dIdx]     = Math.round((sr * sa + dst.data[dIdx]     * da * (1 - sa)) / outA);

@@ -49,6 +49,13 @@ interface RenderContext {
   evalLayerById: Map<number, EvaluatedLayer>;
   imageA: ImageData;
   imageB: ImageData;
+  /**
+   * Camera framing distance for 3D perspective projection. When the scene has a
+   * Camera node, this is (frameHeight/2)/tan(AOV/2) so content at Z=0 renders 1:1
+   * and layers with world-Z get perspective foreshortening. Falls back to the
+   * legacy default (2000) when no camera is present.
+   */
+  cameraZ: number;
 }
 let ctx: RenderContext | null = null;
 
@@ -413,7 +420,7 @@ function blitTransformed(
  *   Stencil/Silhouette modes MODULATE the destination's alpha by the source's
  *   coverage/luma (they do not add color); Combine falls back to source-over.
  */
-function compositePixel(
+export function compositePixel(
   data: Uint8ClampedArray | Uint8Array,
   di: number,
   sr: number, sg: number, sb: number,
@@ -579,11 +586,22 @@ function renderLayer(
 
   if (layer.type === 'clone') {
     // Clone Layer: draw the image of the object it mirrors, at this layer's transform.
-    const src = resolveCloneImage(layer.cloneSourceId);
+    let src = resolveCloneImage(layer.cloneSourceId);
     if (src) {
+      // A clone may carry its OWN filters (e.g. Color Planes stacks 6 clones of the
+      // same source, each with a Channel Mixer isolating one R/G/B channel, then
+      // additively blends them at different Z depths for the chromatic-split look).
+      // These per-pixel color filters must be applied to the cloned image BEFORE it
+      // is projected/blitted — otherwise every clone renders the full-color source
+      // and the additive stack blows out (too bright) or collapses (too dark).
+      if (layer.filters.length > 0) {
+        for (const filter of layer.filters) {
+          src = applyFilter(src, filter, evalLayer, time, filterOverrides.get(filter.id));
+        }
+      }
       if (needsPerspective(worldTransform)) {
-        const corners = projectQuad(worldTransform, src.width, src.height);
-        renderPerspectiveQuad(output, src, corners, opacity);
+        const corners = projectQuad(worldTransform, src.width, src.height, ctx?.cameraZ ?? 2000);
+        renderPerspectiveQuad(output, src, corners, opacity, layer.blendMode);
       } else {
         blitTransformed(output, src, worldTransform, opacity, crop, layer.blendMode);
       }
@@ -606,7 +624,7 @@ function renderLayer(
         blitDirect(output, filtered, opacity, layer.blendMode);
       } else if (needsPerspective(worldTransform)) {
         // 3D perspective: project the source quad and rasterize
-        const corners = projectQuad(worldTransform, src.width, src.height);
+        const corners = projectQuad(worldTransform, src.width, src.height, ctx?.cameraZ ?? 2000);
         renderPerspectiveQuad(output, src, corners, opacity);
       } else {
         blitTransformed(output, src, worldTransform, opacity, crop, layer.blendMode);
@@ -684,8 +702,17 @@ export function composite(
 ): ImageData {
   const output = createBuffer(width, height);
 
-  // Set the render context so clone layers can resolve their mirrored image.
-  ctx = { layerById: scene.layerById, evalLayerById: scene.evalLayerById, imageA, imageB };
+  // Set the render context so clone layers can resolve their mirrored image,
+  // replicator cells can resolve their Object Source (evalLayerById), and 3D
+  // perspective uses the scene's resolved camera framing distance (Camera node's
+  // Angle Of View) — otherwise the legacy default.
+  ctx = {
+    layerById: scene.layerById,
+    evalLayerById: scene.evalLayerById,
+    imageA,
+    imageB,
+    cameraZ: scene.camera?.distance ?? 2000,
+  };
 
   // Render layers back-to-front (Motion: first in list = top/foreground, last = bottom/background)
   for (let i = scene.layers.length - 1; i >= 0; i--) {

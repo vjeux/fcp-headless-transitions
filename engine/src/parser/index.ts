@@ -1026,9 +1026,77 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
     cloneSourceId,
     cellSourceId,
     links: parseLinkBehaviors(el, factories),
+    camera: type === 'camera' ? parseCameraParams(el, params, factories) : undefined,
   };
 
   return layer;
+}
+
+/**
+ * Extract the Camera node's projection parameters. Motion's Camera stores
+ * "Angle Of View" (param id 201) in degrees inside its Object param (id 2).
+ * The vertical field of view feeds gluPerspective (verified by decompiling
+ * Lithium's PCMatrix44Tmpl<double>::setGLPerspective — fovy in degrees).
+ *
+ * Some transitions rig-drive the AOV via a "Rig Behavior" whose Snapshots hold
+ * per-widget AOV values (channelBehavior affectingChannel=".../201"). We capture
+ * both the static default and the snapshot list so the evaluator can resolve the
+ * active value from the selected widget index.
+ */
+function parseCameraParams(
+  el: Element,
+  params: Parameter[],
+  factories: Map<number, string>
+): { angleOfView: number; aovSnapshots?: number[]; aovWidgetId?: number; aovDefault?: number } {
+  // Find "Angle Of View" (id 201) in the param tree.
+  let aov = 45; // Motion default
+  const findAOV = (ps: Parameter[]): number | undefined => {
+    for (const p of ps) {
+      if (p.name === 'Angle Of View' && p.id === 201) {
+        if (typeof p.value === 'number') return p.value;
+        if (p.curve && typeof p.curve.value === 'number') return p.curve.value;
+      }
+      if (p.children) { const r = findAOV(p.children); if (r !== undefined) return r; }
+    }
+    return undefined;
+  };
+  const found = findAOV(params);
+  if (found !== undefined) aov = found;
+
+  // Look for a Rig Behavior on the camera driving the AOV via snapshots.
+  let aovSnapshots: number[] | undefined;
+  let aovWidgetId: number | undefined;
+  for (const behEl of directChildren(el, 'behavior')) {
+    const cb = findDescendant(behEl, 'channelBehavior');
+    const ch = cb?.getAttribute('affectingChannel') || '';
+    if (!ch.endsWith('/201')) continue; // this rig drives the AOV channel
+    // Widget the behavior reads from (param id 200 "Widget")
+    for (const p of Array.from(behEl.getElementsByTagName('parameter'))) {
+      if (p.getAttribute('name') === 'Widget' && p.getAttribute('id') === '200') {
+        const v = p.getAttribute('value'); if (v) aovWidgetId = parseFloat(v);
+      }
+    }
+    // Snapshots: each holds an "Angle Of View" curve/value.
+    const snaps: Array<{ idx: number; val: number }> = [];
+    const snapContainer = Array.from(behEl.getElementsByTagName('parameter'))
+      .find(p => p.getAttribute('name') === 'Snapshots' && p.getAttribute('id') === '202');
+    if (snapContainer) {
+      for (const sp of directChildren(snapContainer, 'parameter')) {
+        if (sp.getAttribute('name') !== 'Angle Of View') continue;
+        const idx = parseInt(sp.getAttribute('id') || '0', 10);
+        const curve = findDescendant(sp, 'curve');
+        const val = curve ? parseFloat(curve.getAttribute('value') || 'NaN') : NaN;
+        if (!isNaN(val)) snaps.push({ idx, val });
+      }
+    }
+    if (snaps.length > 0) {
+      // Snapshot ids are 1-based; order them by id so index N-1 → snapshot N.
+      snaps.sort((a, b) => a.idx - b.idx);
+      aovSnapshots = snaps.map(s => s.val);
+    }
+  }
+
+  return { angleOfView: aov, aovSnapshots, aovWidgetId, aovDefault: aov };
 }
 
 /**
