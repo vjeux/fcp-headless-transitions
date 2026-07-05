@@ -2310,6 +2310,11 @@ export function parseMotr(xmlText: string): MotrScene {
   let duration: RationalTime = { value: durationValue, timescale };
 
   const settings: SceneSettings = { width, height, duration, frameRate };
+  if (ssEl) {
+    const mbs = getFloatContent(ssEl, 'motionBlurSamples', 1);
+    const mbd = getFloatContent(ssEl, 'motionBlurDuration', 1);
+    if (mbs > 1) { settings.motionBlurSamples = Math.round(mbs); settings.motionBlurDuration = mbd; }
+  }
 
   // Parse rig widgets and behaviors
   const rigWidgets = parseRigWidgets(sceneEl, factories);

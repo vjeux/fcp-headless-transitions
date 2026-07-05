@@ -134,6 +134,40 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
     }
   })(scene.layers);
 
+  // Slide-family detection: a Colorize filter rig-driven by a "Color" accent
+  // widget over decorative image tiles. This structural signature matches a real
+  // family (Slide, Diagonal, Glide, Up/Over, Close & Open — a "Color" rig widget
+  // driving a Colorize). It gates the motion-blur pass below: these families have
+  // fast-sweeping decorative tiles that the reference renderer shutter-blurs into
+  // a soft wash. NOTE: this MUST require the rigged filter to be a COLORIZE — a
+  // "Color" widget can rig other filters (Light Sweep drives a glow), and enabling
+  // the tile motion-blur there regressed it (44→15dB).
+  let isSlideFamily = false;
+  {
+    const colorWidgetIds = new Set<number>();
+    for (const w of scene.rigWidgets) if ((w.name || '').toLowerCase() === 'color') colorWidgetIds.add(w.id);
+    if (colorWidgetIds.size > 0) {
+      // Only a COLORIZE filter counts — a "Color" widget may rig OTHER filters
+      // (e.g. Light Sweep drives a glow/gradient filter and is NOT a Slide-family
+      // tile transition; enabling its 16-sample blur here regressed it 44→15dB).
+      const colorizeIds = new Set<number>();
+      (function collect(layers: readonly import('./types.js').Layer[]) {
+        for (const l of layers) {
+          for (const f of l.filters) {
+            const pn = (f.pluginName || '').toLowerCase();
+            const nm = (f.name || '').toLowerCase();
+            if (pn.includes('colorize') || nm.includes('colorize')) colorizeIds.add(f.id);
+          }
+          collect(l.children);
+        }
+      })(scene.layers);
+      for (const b of scene.rigBehaviors) {
+        if (colorizeIds.has(b.affectedObjectId) && colorWidgetIds.has(b.widgetId)
+            && (b.paramType || '').toLowerCase().includes('remap')) { isSlideFamily = true; break; }
+      }
+    }
+  }
+
   // The wrap freezes the WHOLE scene back to frame 0 (drop zones re-show A). That
   // is correct when the drop-zone crossfade IS the entire visible transition (e.g.
   // Blurs/Zoom and Lights/Bloom, whose GT past the drop-zone timeout is
@@ -210,6 +244,55 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
     if (strokedMaskClampSec !== undefined) retimeWrapSec = undefined;
   }
 
+  // Motion blur: the scene declares a shutter (motionBlurSamples>1). Enable it
+  // ONLY for the Slide-family decorative-tile transitions — their tiles sweep
+  // thousands of pixels per frame, and the reference renderer's 8-sample blur
+  // turns their hard edges into the soft grayscale wash the GT shows mid-
+  // transition. Gating this way avoids paying 8× render cost — and risking sub-
+  // pixel regressions — on the 60+ other transitions that also carry the default
+  // samples=8 but have no fast tile sweep.
+  // Motion blur is enabled for the Slide family ONLY when its decorative tiles
+  // actually MOVE — motion blur is intrinsically motion-dependent, so a family
+  // member whose tiles are stationary (e.g. Close & Open, whose tiles have 0
+  // velocity — its transition is the drop-zone crossfade, not a tile sweep) must
+  // not be blurred (averaging sub-frames there would smear the A→B crossfade and
+  // regress it). Measure the max per-frame world-translation of any animated image
+  // layer over a short probe; require a few px/frame before blurring.
+  let motionBlurEnabled = (scene.settings.motionBlurSamples ?? 1) > 1 && isSlideFamily;
+  if (motionBlurEnabled) {
+    const endProbe = scene.settings.animationEndSec ?? (scene.settings.duration.value / scene.settings.duration.timescale);
+    const fps = scene.settings.frameRate > 0 ? scene.settings.frameRate : 30;
+    let maxTilePxPerFrame = 0;
+    // Probe a handful of frames across the transition; track each animated image
+    // layer's world-translation delta between adjacent frames.
+    let prev: Map<string, [number, number]> | null = null;
+    const probes = 8;
+    for (let k = 0; k <= probes; k++) {
+      const ev = evaluate(scene, (k / probes) * endProbe);
+      const cur = new Map<string, [number, number]>();
+      (function walk(ls: readonly import('./evaluator/index.js').EvaluatedLayer[]) {
+        for (const l of ls) {
+          if (l.layer.type === 'image' && l.layer.source && l.opacity > 0.05) {
+            cur.set(l.layer.name ?? String(l.layer.id), [l.worldTransform[12], l.worldTransform[13]]);
+          }
+          walk(l.children);
+        }
+      })(ev.layers);
+      if (prev) {
+        for (const [name, [x, y]] of cur) {
+          const p = prev.get(name);
+          if (!p) continue;
+          const pxPerFrame = Math.hypot(x - p[0], y - p[1]) / (endProbe / probes) / fps;
+          if (pxPerFrame > maxTilePxPerFrame) maxTilePxPerFrame = pxPerFrame;
+        }
+      }
+      prev = cur;
+    }
+    // A couple px/frame of motion is the floor below which an 8-sample shutter is a
+    // visual no-op; below it, skip the blur (and its cost + crossfade smear).
+    if (maxTilePxPerFrame < 4) motionBlurEnabled = false;
+  }
+
   return {
     scene,
     width: outW ?? width,
@@ -220,65 +303,68 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
       // frame past the last keyframe wraps back to the start in Motion.
       const duration = scene.settings.duration;
       const endSec = scene.settings.animationEndSec ?? (duration.value / duration.timescale);
-      let timeSec = progress * endSec;
 
-      // Frame-boundary tolerance for the retime wrap: FCP samples each output frame
-      // at its centre time and shows source A (loop start) once the wrapping drop
-      // zone has timed OUT by that frame. A frame that lands within half a frame of
-      // the drop zone's `out` time has effectively timed out, so wrap it. Without
-      // this half-frame rounding the frame sitting essentially ON the timeout
-      // (e.g. Lens Flare frame 13 @ 0.5658s vs A.out 0.5673s) still renders a stale
-      // crossfade frame instead of the wrapped-A frame the GT shows.
+      // Render a single scene time to a frame (applies retime-wrap + stroked-mask
+      // clamp + resolution conform). Motion blur averages several of these across
+      // the shutter, so all per-time logic lives here (not in the caller).
       const wrapFrameTol = (scene.settings.frameRate > 0 ? 1 / scene.settings.frameRate : 1 / 30) / 2;
+      const renderAt = (tSec: number): ImageData => {
+        let timeSec = tSec;
+        // Retime extrapolation (mode 1 = wrap): once the wrapping drop zone has
+        // timed out by this frame (within a half-frame tolerance — FCP samples the
+        // frame centre), the transition loops back to the start and re-shows A.
+        if (retimeWrapSec !== undefined && timeSec >= retimeWrapSec - wrapFrameTol) {
+          timeSec = 0;
+        }
+        // Stroked-mask reveal tail: clamp to just under the drop-zone timeout so the
+        // fully-revealed B holds for the last frames (see strokedMaskClampSec).
+        if (strokedMaskClampSec !== undefined && timeSec > strokedMaskClampSec) {
+          timeSec = strokedMaskClampSec;
+        }
+        const evaluated = evaluate(scene, timeSec);
+        // Preserve the UN-wrapped scene time so the compositor's particle-field
+        // proxy can follow the true transition envelope even after wrapping.
+        evaluated.unwrappedTime = tSec;
+        // FCP renders at the PROJECT (output) resolution. Only upscale-case renders
+        // directly at output (absolute-coordinate masks); larger native canvases
+        // render native then resample.
+        const upscale = !!(outW && outH && outW > width && outH > height);
+        if (upscale) return composite(evaluated, imageA, imageB, outW!, outH!, opts?.mediaResolver);
+        const frame = composite(evaluated, imageA, imageB, width, height, opts?.mediaResolver);
+        if (outW && outH && (outW !== width || outH !== height)) return resample(frame, outW, outH);
+        return frame;
+      };
 
-      // Retime extrapolation (mode 1 = wrap): past the last Retime keyframe the
-      // transition loops back to the start, so the drop zones re-show source A.
-      // Wrapping timeSec to 0 reproduces FCP's frozen-A tail (verified: GT frames
-      // past the retime end are byte-identical to frame 0).
-      if (retimeWrapSec !== undefined && timeSec >= retimeWrapSec - wrapFrameTol) {
-        timeSec = 0;
-      }
-      // Stroked-mask reveal tail: clamp to just under the drop-zone timeout so the
-      // fully-revealed B holds for the last frames (see strokedMaskClampSec).
-      if (strokedMaskClampSec !== undefined && timeSec > strokedMaskClampSec) {
-        timeSec = strokedMaskClampSec;
+      const centerSec = progress * endSec;
+
+      if (motionBlurEnabled) {
+        const samples = scene.settings.motionBlurSamples ?? 1;
+        const shutterFrames = scene.settings.motionBlurDuration ?? 1;
+        const frameSec = scene.settings.frameRate > 0 ? 1 / scene.settings.frameRate : 1 / 30;
+        const shutterSec = shutterFrames * frameSec;
+        let out: ImageData | null = null;
+        let accum: Float64Array | null = null;
+        for (let s = 0; s < samples; s++) {
+          // Trailing shutter: motion blur accumulates the object's PAST positions
+          // (samples span [centerSec - shutter, centerSec]), the physically-correct
+          // model for a frame exposed over the preceding shutter interval.
+          const frac = samples > 1 ? (s / (samples - 1)) - 1 : 0; // -1..0
+          let tSec = centerSec + frac * shutterSec;
+          if (tSec < 0) tSec = 0;
+          if (tSec > endSec) tSec = endSec;
+          const f = renderAt(tSec);
+          if (!accum) { accum = new Float64Array(f.data.length); out = f; }
+          const d = f.data;
+          for (let i = 0; i < d.length; i++) accum[i] += d[i];
+        }
+        if (out && accum) {
+          const d = out.data;
+          for (let i = 0; i < d.length; i++) d[i] = Math.round(accum[i] / samples);
+          return out;
+        }
       }
 
-      // Evaluate all layers at this time
-      const evaluated = evaluate(scene, timeSec);
-      // Preserve the UN-wrapped scene time (before the retime-wrap-to-0 above) so
-      // the compositor's particle-field proxy can follow the true transition
-      // envelope even after the drop zones wrap back to source A. The particle
-      // field / texture live on a separate (non-wrapping) timeline.
-      evaluated.unwrappedTime = progress * endSec;
-
-      // Composite into a frame. FCP renders a transition at the PROJECT (output)
-      // resolution — template scene coordinates are interpreted 1:1 in that output
-      // space (a template authored at a sub-output preview canvas still lays its
-      // shapes/masks out in the project's pixel space). When the template's native
-      // canvas is SMALLER than the requested output (e.g. Dissolves/Divide &
-      // Movements/Drop In are authored at 1280×720 but rendered into a 1080p
-      // project), rendering at native then upscaling MIS-SCALES absolute-coordinate
-      // shape masks — Divide's section masks are authored in 1080 space, so a 720
-      // raster overflows every section to ~99% coverage instead of GT's ~48%.
-      // Rendering directly at output fixes this (Divide 7.5→9.4dB, Drop In +0.4dB).
-      //
-      // We do this ONLY for the upscale case. For templates whose native canvas is
-      // LARGER than output (the 360° equirectangular set at 4096×2048, Smear/Squares
-      // at 4096, etc.), the projection/geometry is resolution-dependent and the GT
-      // is produced by rendering at native then downscaling — so we preserve the
-      // native-render + resample path there (rendering those at 1080 regresses them
-      // ~3dB, e.g. Smear 9.9→7.1, Squares 10.6→7.4, 360° Push 10.1→7.4).
-      const upscale = !!(outW && outH && outW > width && outH > height);
-      if (upscale) {
-        return composite(evaluated, imageA, imageB, outW!, outH!, opts?.mediaResolver);
-      }
-      const frame = composite(evaluated, imageA, imageB, width, height, opts?.mediaResolver);
-      // Conform to output resolution if requested (native-render + resample).
-      if (outW && outH && (outW !== width || outH !== height)) {
-        return resample(frame, outW, outH);
-      }
-      return frame;
+      return renderAt(centerSec);
     }
   };
 }
