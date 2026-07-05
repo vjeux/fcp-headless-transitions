@@ -918,6 +918,25 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
     const ov = riggedTransform.__overrideChannels ?? (riggedTransform.__overrideChannels = new Set<string>());
     ov.add('scaleX'); ov.add('scaleY'); ov.add('scaleZ');
   }
+  // A Clone Layer's STATIC 3D pre-rotation is a fixed structural fold, not a
+  // media-retimed channel — it must apply at its full authored value, NOT ramp
+  // from 0 by the Retime static-position heuristic. Movements/Swing's "Clone B"
+  // carries a fixed Rotation X = -π/2 back-face fold that hinges in as the parent
+  // layer swings; retime-ramping it from 0 left B ~face-on mid-transition (m5≈1)
+  // instead of edge-on, so the back face showed through full-frame far too early.
+  // Scoped to CLONE layers with a static (number) X/Y rotation so drop-zone images
+  // and hidden Color-Solid drivers (Reflection's Transition B rotY, its driver's
+  // rotX) — which are NOT clones — keep their existing behavior.
+  if (layer.type === 'clone') {
+    if (typeof layer.transform.rotationX === 'number' && layer.transform.rotationX !== 0) {
+      const ov = riggedTransform.__overrideChannels ?? (riggedTransform.__overrideChannels = new Set<string>());
+      ov.add('rotX');
+    }
+    if (typeof layer.transform.rotationY === 'number' && layer.transform.rotationY !== 0) {
+      const ov = riggedTransform.__overrideChannels ?? (riggedTransform.__overrideChannels = new Set<string>());
+      ov.add('rotY');
+    }
+  }
   // Links drive channels from a source object; apply after rig snapshots.
   riggedTransform = applyLinks(layer, riggedTransform, linksByTarget, layerById, widgetValues, timeSec, behaviors);
   // Scene Ramp behaviors that drive transform channels (rotation/position/scale)
