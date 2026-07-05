@@ -447,8 +447,17 @@ export function composite(
 function applyFilter(input: ImageData, filter: import('../types.js').Filter, evalLayer: EvaluatedLayer, time: number, overrides?: Map<string, number>): ImageData {
   const name = filter.pluginName.toLowerCase();
 
-  // Skip on-screen-control (OSC) preview filters — they're editor UI, not rendered output.
-  if (name.includes('for osc') || name.includes('(osc)') || name.endsWith(' osc')) {
+  // Skip on-screen-control (OSC) preview filters — they're editor UI, not rendered
+  // output. These share the SAME pluginName as the real filter (e.g. "PAEZoomBlur"),
+  // so pluginName alone can't distinguish them. The scenenode `name` attribute
+  // carries the "(for OSC)" marker, and OSC filters set `Publish OSC` = 1. Check
+  // both: the display name for the marker, and the Publish OSC parameter as a
+  // structural fallback.
+  const nodeName = (filter.name || '').toLowerCase();
+  const isOscByName = (s: string) => s.includes('for osc') || s.includes('(osc)') || s.endsWith(' osc');
+  const publishOsc = filter.parameters.find(p => p.name === 'Publish OSC');
+  const publishOscOn = publishOsc && typeof publishOsc.value === 'number' && publishOsc.value >= 1;
+  if (isOscByName(name) || isOscByName(nodeName) || publishOscOn) {
     return input;
   }
 

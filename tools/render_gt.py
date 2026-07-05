@@ -36,8 +36,33 @@ RETIME_PARAMS = {
     "Width Over Stroke", "Color Over Stroke",
 }
 
+def _scene_duration_seconds(xml):
+    """Fallback animation end for keyframe-less transitions (e.g. Blurs/Zoom).
+
+    Their motion is driven entirely by Retime + procedural behaviors
+    (Oscillate/Link), so max-keyframe is 0. The animation window is bounded by
+    the transition's own layer timing: the max <timing out=...> across all nodes.
+    Past that, the drop-zone layers time out and the frame goes empty. This is
+    tighter than the padded scene duration (durationFrames/frameRate) and matches
+    what FCP renders. MUST stay in sync with the TS parser's fallback
+    (src/parser/index.ts) so GT and engine share the same time domain."""
+    max_out = 0.0
+    for m in re.finditer(r'\bout="(\d+)\s+(\d+)', xml):
+        val, scale = int(m.group(1)), int(m.group(2))
+        if scale > 0:
+            sec = val / scale
+            if sec > max_out:
+                max_out = sec
+    return max_out
+
+
 def animation_end_seconds(motr_path):
-    """Max keyframe time (seconds) across all NON-retime curves."""
+    """Max keyframe time (seconds) across all NON-retime curves.
+
+    Falls back to the scene duration (durationFrames / frameRate) when there are
+    no non-retime keyframes — matching the TS parser. NEVER falls back to a
+    hardcoded per-template default (that silently mis-timed every keyframe-less
+    transition, e.g. Zoom, to Push's 1.6683s window and produced empty frames)."""
     xml = open(motr_path, "r", encoding="utf-8", errors="ignore").read()
     max_t = 0.0
     # Walk <curve>...</curve> blocks, skipping ones whose enclosing <parameter name>
@@ -59,6 +84,8 @@ def animation_end_seconds(motr_path):
                 sec = val / scale
                 if sec > max_t:
                     max_t = sec
+    if max_t <= 0:
+        max_t = _scene_duration_seconds(xml)
     return max_t
 
 def main():
@@ -77,7 +104,7 @@ def main():
     os.makedirs(outdir, exist_ok=True)
     end = animation_end_seconds(motr)
     if end <= 0:
-        end = 1.6683333333333332  # Push default
+        end = 1.6683333333333332  # last-resort Push default (no keyframes, no scene duration)
     doc = ozengine.boot(motr)
     for i in range(nframes):
         p = i / (nframes - 1) if nframes > 1 else 0.0

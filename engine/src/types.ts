@@ -108,6 +108,10 @@ export type BlendMode =
 /** A filter/effect applied to a layer. */
 export interface Filter {
   id: number;
+  /** The scenenode `name` attribute (e.g. "Zoom Blur (for OSC)"). Distinct from
+   *  pluginName (e.g. "PAEZoomBlur"). Used to detect on-screen-control preview
+   *  filters, whose pluginName is identical to the real filter's. */
+  name?: string;
   pluginName: string;
   pluginUUID: string;
   parameters: Parameter[];
@@ -305,6 +309,19 @@ export interface SceneBehavior {
   type: 'ramp' | 'oscillate' | 'spin' | 'other';
   affectedObjectId: number;
   params: Record<string, number>;
+  /**
+   * The channel this behavior drives on the target object, from
+   * `<channelBehavior affectingChannel="./N">`. For a filter target, "./1" maps
+   * to the filter parameter with id=1 (e.g. Zoom Blur's "Amount"). Undefined when
+   * the behavior drives a transform channel (handled elsewhere).
+   */
+  affectingChannel?: string;
+  /**
+   * The behavior's active time window (`<timing in=... out=... offset=...>`), in
+   * seconds. Oscillate/Ramp only animate within [in, out]; the transition's blur
+   * peaks over this window. Undefined ⇒ always active.
+   */
+  timing?: { in: number; out: number; offset: number };
 }
 
 /** A rig widget (popup/checkbox/slider that controls transition variants). */
