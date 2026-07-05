@@ -226,6 +226,14 @@ export interface Layer {
     aovSnapshots?: number[];
     aovWidgetId?: number;
     aovDefault?: number;
+    /**
+     * Framing behaviors (factory 3, "Framing") attached to the camera. Each
+     * targets an object by ID and drives the camera to frame that object's world
+     * bbox (OZScene::computeFraming). The replicator "wall" transitions use two:
+     * "Frame framer" (frames an invisible proxy → near-full-frame source A at the
+     * start) cross-blending into "Frame B" (frames Transition B). See framing.ts.
+     */
+    framing?: FramingBehavior[];
   };
   /**
    * Image Mask source object ID. Motion attaches an `<mask name="Image Mask">`
@@ -310,6 +318,33 @@ export interface LinkBehavior {
   /** Per-widget-value Scale snapshots (index = widget value). Carries the
    *  per-direction sign; overrides the static `scale` when present. */
   rigScale?: number[];
+}
+
+/**
+ * A Framing behavior (factory 3). Attached to the camera; drives the camera to
+ * frame `targetId`'s world bbox over its timing window. Transcribed from
+ * OZScene::computeFraming. `framingOffset` shifts the framing point in the
+ * target's local frame; `pathOffset`/`apex` add a curved path offset; the
+ * transition-time params control the position/rotation cross-blend easing.
+ */
+export interface FramingBehavior {
+  /** Object ID this behavior frames (param Target id 200). */
+  targetId: number;
+  /** Framing Offset (id 204) X/Y/Z — offset of the framing point (target-local). */
+  framingOffset: { x: number; y: number; z: number };
+  /** Path Offset (id 207) X/Y/Z — additive curved-path offset. */
+  pathOffset: { x: number; y: number; z: number };
+  /** Offset Path Apex (id 206) — 0..1 apex position along the offset path. */
+  apex: number;
+  /** Position/Rotation Transition Time (ids 209/210) — 0..1 blend fraction. */
+  positionTransitionTime: number;
+  rotationTransitionTime: number;
+  /** Ease Out Curve (id 213) — easing exponent/type. */
+  easeOutCurve: number;
+  /** Transition mode (id 211; =3 for these). */
+  transition: number;
+  /** Behavior timing window (scene time). */
+  timing?: { in: RationalTime; out: RationalTime; offset: RationalTime };
 }
 
 /** Scene-level settings (resolution, duration, frame rate). */

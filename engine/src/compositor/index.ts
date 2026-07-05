@@ -15,6 +15,21 @@ import { generateInstances, sequenceProgress, sequenceOrder } from './replicator
 import { lookupFilter, makeContext } from './filters/registry.js';
 import './filters/index.js'; // side-effect: registers all UUID-keyed filter modules
 
+/**
+ * Framing-camera view-transform gate. The Framing behaviors (factory 3) and their
+ * pose are fully parsed/resolved (see evaluator/framing.ts), and routing the tile
+ * wall through a moving camera is confirmed to be the correct MECHANISM — a
+ * first-order "shift world XY by −viewXY + uniform perspective" reproduces the GT
+ * tile-GRID STRUCTURE (a 3×3 wall of shrunken photos with gaps, matching the
+ * headless GT) rather than the engine's current single full-frame photo. BUT the
+ * first-order pose has the wrong center/scale (it omits calcFramingRotation's
+ * oblique orientation and the exact coordinate space computeFraming uses), so it
+ * REGRESSES the targets (Video Wall 10.23→9.16dB; frame 0 dropped 23.5→9.2). Left
+ * OFF until the accurate look-at pose is transcribed. Flip to true only alongside
+ * a validated pose that clears the frame-0 full-frame-A gate.
+ */
+const FRAMING_VIEW_ENABLED = false;
+
 /** Offset a transform matrix's translation by (dx, dy). */
 function mat4MultiplyOffset(m: Float64Array, dx: number, dy: number): Float64Array {
   const r = new Float64Array(m);
@@ -56,6 +71,15 @@ interface RenderContext {
    * legacy default (2000) when no camera is present.
    */
   cameraZ: number;
+  /**
+   * Framing camera pose (OZScene::computeFraming), present only when the camera
+   * carries Framing behaviors (factory 3, "Framing"). When present the tile wall
+   * (replicator instances / clones) is routed through this moving camera: world
+   * coords are shifted by −(viewX,viewY) so the framed region is centered, and
+   * perspective uses `framingDistance`. Gated so origin-camera transitions are
+   * untouched (see renderLayer's replicator branch).
+   */
+  framed?: { viewX: number; viewY: number; viewZ: number; framingDistance: number };
   /**
    * Set of object IDs referenced as an Image Mask `Mask Source` by some layer.
    * A group in this set is a hidden geometry provider (it clips its owning layer
@@ -762,6 +786,28 @@ function renderLayer(
         }
         instTransform[12] += inst.x;
         instTransform[13] += inst.y;
+        // Framing camera (factory 3): route the tile wall through the moving
+        // camera. NOTE: the accurate pose requires calcFramingRotation's oblique
+        // orientation (the framer is authored with a non-trivial rotation that
+        // redirects the view toward source A) plus a proper look-at view matrix.
+        // A first-order "shift world XY by −viewXY + uniform perspective" produced
+        // the correct tile-GRID STRUCTURE but the wrong center/scale, regressing
+        // Video Wall 10.23→9.16dB (frame 0 dropped 23.5→9.2 because framing the
+        // framer no longer reproduced full-frame A). Kept gated OFF until the
+        // rotation + look-at is transcribed (see engine/src/evaluator/framing.ts
+        // and the evidence/ decompiles). Origin-camera transitions are untouched.
+        const framed = FRAMING_VIEW_ENABLED ? ctx?.framed : undefined;
+        if (framed) {
+          const wz = instTransform[14];
+          const denom = framed.framingDistance + wz;
+          const ps = denom > 1e-6 ? framed.framingDistance / denom : 1;
+          const cx = (instTransform[12] - framed.viewX) * ps;
+          const cy = (instTransform[13] - framed.viewY) * ps;
+          instTransform[0] *= ps; instTransform[1] *= ps;
+          instTransform[4] *= ps; instTransform[5] *= ps;
+          instTransform[12] = cx;
+          instTransform[13] = cy;
+        }
         const dstBBox = transformBBoxToOutput(stampImg, cellBBox, instTransform);
         const instOpacity = opacity * instOpacityMul;
         if (cell.kind === 'window') {
@@ -988,6 +1034,7 @@ export function composite(
     imageA,
     imageB,
     cameraZ: scene.camera?.distance ?? 2000,
+    framed: scene.camera?.framed,
     imageMaskSourceIds: collectImageMaskSourceIds(scene.evalLayerById),
     mediaResolver,
     mediaCache: new Map<string, ImageData | null>(),
