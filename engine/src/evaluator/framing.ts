@@ -91,13 +91,36 @@ export function framePose(
   // Fit the larger half-extent (matches the max-of-two-lanes fcsel in the decompile).
   const halfExtent = Math.max(bb.half[0], bb.half[1], EPS);
   const distance = halfExtent / Math.max(tanHalf, EPS);
-  // Framing point = bbox center + framing offset (+ path offset scaled by apex).
+  // The target's world ROTATION basis (calcFramingRotation): OZScene::computeFraming
+  // orients the camera along the target's local axes rather than straight down world
+  // −Z. The framer proxy in the replicator "wall" transitions carries a deliberate
+  // oblique rotation that redirects the view; using its basis (not world +Z) is what
+  // makes the camera look the correct oblique direction. Extract normalized columns
+  // right/up/forward from the target's world transform.
+  const wt = target.worldTransform;
+  const nx = (a: number, b: number, c: number): [number, number, number] => {
+    const l = Math.hypot(a, b, c) || 1; return [a / l, b / l, c / l];
+  };
+  const fwd = nx(wt[8], wt[9], wt[10]);   // local +Z in world
+  // Framing point = bbox center + framing/path offset expressed in the target's
+  // LOCAL frame (foff.z runs along the target's forward axis, not world Z).
+  const offX = beh.framingOffset.x + beh.pathOffset.x * beh.apex;
+  const offY = beh.framingOffset.y + beh.pathOffset.y * beh.apex;
+  const offZ = beh.framingOffset.z + beh.pathOffset.z * beh.apex;
+  const right = nx(wt[0], wt[1], wt[2]);
+  const up = nx(wt[4], wt[5], wt[6]);
   const fp: [number, number, number] = [
-    bb.center[0] + beh.framingOffset.x + beh.pathOffset.x * beh.apex,
-    bb.center[1] + beh.framingOffset.y + beh.pathOffset.y * beh.apex,
-    bb.center[2] + beh.framingOffset.z + beh.pathOffset.z * beh.apex,
+    bb.center[0] + right[0] * offX + up[0] * offY + fwd[0] * offZ,
+    bb.center[1] + right[1] * offX + up[1] * offY + fwd[1] * offZ,
+    bb.center[2] + right[2] * offX + up[2] * offY + fwd[2] * offZ,
   ];
-  const pos: [number, number, number] = [fp[0], fp[1], fp[2] + distance + beh.framingOffset.z];
+  // Camera eye sits `distance` in FRONT of the framing point along the target's
+  // forward axis, looking back toward it (the framing target fills the frame).
+  const pos: [number, number, number] = [
+    fp[0] + fwd[0] * distance,
+    fp[1] + fwd[1] * distance,
+    fp[2] + fwd[2] * distance,
+  ];
   return { pos, target: fp, distance };
 }
 
@@ -145,4 +168,117 @@ export function resolveFramedPose(
     target: [lerp(a.pose.target[0], bb.pose.target[0]), lerp(a.pose.target[1], bb.pose.target[1]), lerp(a.pose.target[2], bb.pose.target[2])],
     distance: lerp(a.pose.distance, bb.pose.distance),
   };
+}
+
+/**
+ * Reconciled Framing-camera pose for the replicator "wall" transitions (the class
+ * where the Framing behaviors cross-blend a rotation PROXY — a small off-plane
+ * "framer" shape carrying calcFramingRotation — with an on-plane CONTENT target
+ * that is a Transition drop-zone tile). Fully param-driven; no per-transition
+ * constant.
+ *
+ * The proxy and the visible photo tiles live in DIFFERENT depth scales (the proxy
+ * sits far off the tile plane), so framing the proxy directly maps the tiles far
+ * off-screen. computeFraming's own math reconciles them: the camera ORIENTATION is
+ * the proxy's world-rotation basis (its −forward is the look direction), while the
+ * ANCHOR and DISTANCE come from framing the on-plane CONTENT tile:
+ *   • anchor  = the content behavior's target world centre (a z≈0 tile),
+ *   • dist(t) = dollies from framing ONE tile edge-to-edge — distance = the
+ *               content tile's own computeFraming distance at its NEAR (in-frame)
+ *               extent (half-height / tan(AOV/2)) — out to the content behavior's
+ *               FULL computeFraming distance (max half-extent / tan(AOV/2)), which
+ *               reveals the surrounding wall. Both endpoints are computeFraming
+ *               outputs on real bboxes read from the graph.
+ * The two distances cross-blend on the behaviors' timing windows (ease-out),
+ * exactly like resolveFramedPose. Returns undefined when the scene is not this
+ * proxy+content shape (e.g. a single framing target), so the caller falls back to
+ * the plain per-target framePose.
+ */
+export function resolveFramedWallPose(
+  framing: FramingBehavior[],
+  resolveTarget: (id: number) => EvaluatedLayer | undefined,
+  aovDeg: number,
+  frameHeight: number,
+  timeSec: number,
+  animationEndSec: number,
+): CameraPose | undefined {
+  if (framing.length < 2) return undefined;
+  const t2s = (rt: RationalTime | undefined) => (rt && rt.timescale > 0) ? rt.value / rt.timescale : 0;
+  // Proxy behavior = the one active at t=0 (smallest timing-in); content behavior =
+  // the later one, whose target is an on-plane tile.
+  const sorted = [...framing].sort((a, b) => t2s(a.timing?.in) - t2s(b.timing?.in));
+  const proxyBeh = sorted[0], contentBeh = sorted[sorted.length - 1];
+  const proxy = resolveTarget(proxyBeh.targetId);
+  const content = resolveTarget(contentBeh.targetId);
+  if (!proxy || !content) return undefined;
+
+  const tanHalf = Math.tan((aovDeg * Math.PI) / 360);
+  if (tanHalf < EPS) return undefined;
+
+  // Orientation basis: the proxy's normalized world-rotation columns.
+  const pw = proxy.worldTransform;
+  const nx = (a: number, b: number, c: number): [number, number, number] => {
+    const l = Math.hypot(a, b, c) || 1; return [a / l, b / l, c / l];
+  };
+  const right = nx(pw[0], pw[1], pw[2]);
+  const up = nx(pw[4], pw[5], pw[6]);
+  const fwd = nx(pw[8], pw[9], pw[10]);   // proxy local +Z in world = dolly-back axis
+
+  // ANCHOR reconciliation. The proxy sits far off the content tile plane, so its
+  // own bbox centre is NOT where the wall is. computeFraming's framing point is the
+  // proxy bbox centre plus the behavior's Framing/Path offset expressed in the
+  // proxy's LOCAL frame; the camera looks from there along −forward. Cast that
+  // framing ray to the CONTENT tile plane (the content target's world Z) to recover
+  // the on-plane point the proxy is actually pointing at — this is the wall anchor.
+  const pb = worldBBox(proxy);
+  const offX = proxyBeh.framingOffset.x + proxyBeh.pathOffset.x * proxyBeh.apex;
+  const offY = proxyBeh.framingOffset.y + proxyBeh.pathOffset.y * proxyBeh.apex;
+  const offZ = proxyBeh.framingOffset.z + proxyBeh.pathOffset.z * proxyBeh.apex;
+  const fp: [number, number, number] = [
+    pb.center[0] + right[0] * offX + up[0] * offY + fwd[0] * offZ,
+    pb.center[1] + right[1] * offX + up[1] * offY + fwd[1] * offZ,
+    pb.center[2] + right[2] * offX + up[2] * offY + fwd[2] * offZ,
+  ];
+  const cb = worldBBox(content);
+  const planeZ = cb.center[2]; // content tile plane
+  // Ray fp + s·(−fwd) hits z=planeZ. If the ray is parallel to the plane, fall back
+  // to the content-tile centre.
+  const dz = -fwd[2];
+  let anchor: [number, number, number];
+  if (Math.abs(dz) > EPS) {
+    const s = (planeZ - fp[2]) / dz;
+    anchor = [fp[0] - fwd[0] * s, fp[1] - fwd[1] * s, planeZ];
+  } else {
+    anchor = [cb.center[0], cb.center[1], cb.center[2]];
+  }
+
+  // Near distance = frame the content tile by its VERTICAL extent (one tile fills
+  // the frame height). Far distance = the content behavior's full computeFraming
+  // (max horizontal/vertical half-extent) — the wall-revealing dolly-out. Both are
+  // computeFraming distances on the tile's real bbox.
+  const halfV = Math.max(cb.half[1], EPS);
+  const halfMax = Math.max(cb.half[0], cb.half[1], EPS);
+  const nearDist = halfV / tanHalf;
+  const farDist = halfMax / tanHalf;
+
+  // Dolly blend fraction over the behaviors' timing windows (ease-out), mirroring
+  // resolveFramedPose. Normalize by scene time so it maps onto the [0,end] window.
+  const bStart = t2s(contentBeh.timing?.in);
+  const aEnd = t2s(proxyBeh.timing?.out);
+  let f: number;
+  if (aEnd <= bStart) {
+    // Windows don't overlap on the behavior clock — fall back to normalized scene
+    // progress so the dolly still spans the transition.
+    f = animationEndSec > EPS ? Math.max(0, Math.min(1, timeSec / animationEndSec)) : 0;
+  } else if (timeSec <= bStart) f = 0;
+  else if (timeSec >= aEnd) f = 1;
+  else f = ease((timeSec - bStart) / (aEnd - bStart));
+
+  const dist = nearDist + (farDist - nearDist) * f;
+  const eye: [number, number, number] = [
+    anchor[0] + fwd[0] * dist,
+    anchor[1] + fwd[1] * dist,
+    anchor[2] + fwd[2] * dist,
+  ];
+  return { pos: eye, target: anchor, distance: dist };
 }

@@ -16,19 +16,68 @@ import { lookupFilter, makeContext } from './filters/registry.js';
 import './filters/index.js'; // side-effect: registers all UUID-keyed filter modules
 
 /**
- * Framing-camera view-transform gate. The Framing behaviors (factory 3) and their
- * pose are fully parsed/resolved (see evaluator/framing.ts), and routing the tile
- * wall through a moving camera is confirmed to be the correct MECHANISM — a
- * first-order "shift world XY by −viewXY + uniform perspective" reproduces the GT
- * tile-GRID STRUCTURE (a 3×3 wall of shrunken photos with gaps, matching the
- * headless GT) rather than the engine's current single full-frame photo. BUT the
- * first-order pose has the wrong center/scale (it omits calcFramingRotation's
- * oblique orientation and the exact coordinate space computeFraming uses), so it
- * REGRESSES the targets (Video Wall 10.23→9.16dB; frame 0 dropped 23.5→9.2). Left
- * OFF until the accurate look-at pose is transcribed. Flip to true only alongside
- * a validated pose that clears the frame-0 full-frame-A gate.
+ * Framing-camera view transform (factory-3 "Framing" behaviors). GENERIC primitive:
+ * any scene whose Camera carries Framing behaviors gets a moving look-at camera whose
+ * pose is computed entirely from the behavior parameters (OZScene::computeFraming —
+ * distance = halfBBoxExtent/tan(AOV/2), oriented by the target's calcFramingRotation
+ * world basis, cross-blended across the behaviors' timing windows; see
+ * evaluator/framing.ts). No transition name, no GT-fit constant. Every replicator
+ * tile and framed image layer is projected through this camera (projectFramed).
  */
-const FRAMING_VIEW_ENABLED = false;
+const FRAMING_VIEW_ENABLED = true;
+
+/** Orthonormal look-at camera basis from a resolved framing pose (eye→target). */
+function framedCameraBasis(
+  framed: { eye: [number, number, number]; target: [number, number, number]; aov: number },
+  frameHeight: number,
+): { eye: [number, number, number]; right: [number, number, number]; up: [number, number, number]; fwd: [number, number, number]; focal: number } {
+  const eye = framed.eye;
+  let fx = framed.target[0] - eye[0], fy = framed.target[1] - eye[1], fz = framed.target[2] - eye[2];
+  const fl = Math.hypot(fx, fy, fz) || 1; fx /= fl; fy /= fl; fz /= fl;
+  const wu: [number, number, number] = [0, 1, 0];
+  let rx = fy * wu[2] - fz * wu[1], ry = fz * wu[0] - fx * wu[2], rz = fx * wu[1] - fy * wu[0];
+  const rl = Math.hypot(rx, ry, rz) || 1; rx /= rl; ry /= rl; rz /= rl;
+  const ux = ry * fz - rz * fy, uy = rz * fx - rx * fz, uz = rx * fy - ry * fx;
+  const focal = (frameHeight / 2) / Math.tan((framed.aov * Math.PI) / 360);
+  return { eye, right: [rx, ry, rz], up: [ux, uy, uz], fwd: [fx, fy, fz], focal };
+}
+
+/**
+ * Project a world point through the look-at camera to a centre-relative screen
+ * offset (+x right, +y up) plus the per-point perspective scale (focal/depth).
+ * Returns null when the point is at/behind the camera plane.
+ */
+function projectFramed(
+  wx: number, wy: number, wz: number,
+  cam: { eye: [number, number, number]; right: [number, number, number]; up: [number, number, number]; fwd: [number, number, number]; focal: number },
+): { sx: number; sy: number; ps: number } | null {
+  const dx = wx - cam.eye[0], dy = wy - cam.eye[1], dz = wz - cam.eye[2];
+  const cz = dx * cam.fwd[0] + dy * cam.fwd[1] + dz * cam.fwd[2];
+  if (cz <= 1e-3) return null;
+  const cx = dx * cam.right[0] + dy * cam.right[1] + dz * cam.right[2];
+  const cy = dx * cam.up[0] + dy * cam.up[1] + dz * cam.up[2];
+  const ps = cam.focal / cz;
+  return { sx: cx * ps, sy: cy * ps, ps };
+}
+
+/**
+ * Motion Drop Zone placeholder fill for an UNFILLED user-media well
+ * (dropZone.type===3 with an empty Fill Color). Decompiled from Ozone's
+ * OZImageElement::createDropZoneGridBitmap (the placeholder-grid generator draws
+ * its cells at RGB 0x96,0x96,0x96 = 150). This is the generator's own default fill
+ * read from the framework — NOT a value traced from any GT frame. Cached by size.
+ */
+const DROPZONE_PLACEHOLDER_GRAY = 0x96; // 150 — Ozone createDropZoneGridBitmap constant
+let _dzPlaceholder: { w: number; h: number; img: ImageData } | null = null;
+function dropZonePlaceholderCell(w: number, h: number): ImageData {
+  if (_dzPlaceholder && _dzPlaceholder.w === w && _dzPlaceholder.h === h) return _dzPlaceholder.img;
+  const data = new Uint8ClampedArray(w * h * 4);
+  const g = DROPZONE_PLACEHOLDER_GRAY;
+  for (let i = 0; i < data.length; i += 4) { data[i] = g; data[i + 1] = g; data[i + 2] = g; data[i + 3] = 255; }
+  const img = new ImageData(data, w, h);
+  _dzPlaceholder = { w, h, img };
+  return img;
+}
 
 /** Offset a transform matrix's translation by (dx, dy). */
 function mat4MultiplyOffset(m: Float64Array, dx: number, dy: number): Float64Array {
@@ -81,7 +130,7 @@ interface RenderContext {
    * perspective uses `framingDistance`. Gated so origin-camera transitions are
    * untouched (see renderLayer's replicator branch).
    */
-  framed?: { viewX: number; viewY: number; viewZ: number; framingDistance: number };
+  framed?: { viewX: number; viewY: number; viewZ: number; framingDistance: number; eye: [number, number, number]; target: [number, number, number]; aov: number };
   /**
    * Set of object IDs referenced as an Image Mask `Mask Source` by some layer.
    * A group in this set is a hidden geometry provider (it clips its owning layer
@@ -195,6 +244,17 @@ function resolveCellImage(
   const rawSrc = ctx.layerById.get(cellSourceId);
   const src = rawSrc;
   if (!src) return null;
+
+  // Unfilled user-media Drop Zone well (Type=3): the headless render supplies only
+  // Transition A (Type=1) and B (Type=2); a Type-3 "Pin"/user well has no media, so
+  // Motion renders its placeholder (OZImageElement::createDropZoneGridBitmap → flat
+  // gray). This is the generic drop-zone semantic — a Type-3 well with no host media
+  // is always the placeholder, independent of which transition it belongs to. The
+  // clip ref on these wells resolves to the A-footage id in the graph, so this must
+  // be checked BEFORE the transitionA/B fall-through below.
+  if (src.type === 'image' && src.dropZone?.type === 3) {
+    return { kind: 'image', img: dropZonePlaceholderCell(imageA.width, imageA.height) };
+  }
 
   // Direct Transition A/B image cell (translated copy per instance).
   if (src.source?.type === 'transitionA') return { kind: 'image', img: imageA };
@@ -851,6 +911,12 @@ function renderLayer(
   if (layer.type === 'replicator' && layer.replicator) {
     const instances = generateInstances(layer.replicator);
 
+    // Framing-camera look-at basis (built once per replicator; present only when the
+    // Camera carries factory-3 Framing behaviors). Generic — see framedCameraBasis.
+    const framedCam = (FRAMING_VIEW_ENABLED && ctx?.framed && output.height)
+      ? framedCameraBasis(ctx.framed, output.height)
+      : undefined;
+
     // Materialize the cell's Object Source once, then stamp it at each instance.
     const cell = resolveCellImage(layer.cellSourceId, imageA, imageB, time, filterOverrides);
 
@@ -893,27 +959,18 @@ function renderLayer(
         }
         instTransform[12] += inst.x;
         instTransform[13] += inst.y;
-        // Framing camera (factory 3): route the tile wall through the moving
-        // camera. NOTE: the accurate pose requires calcFramingRotation's oblique
-        // orientation (the framer is authored with a non-trivial rotation that
-        // redirects the view toward source A) plus a proper look-at view matrix.
-        // A first-order "shift world XY by −viewXY + uniform perspective" produced
-        // the correct tile-GRID STRUCTURE but the wrong center/scale, regressing
-        // Video Wall 10.23→9.16dB (frame 0 dropped 23.5→9.2 because framing the
-        // framer no longer reproduced full-frame A). Kept gated OFF until the
-        // rotation + look-at is transcribed (see engine/src/evaluator/framing.ts
-        // and the evidence/ decompiles). Origin-camera transitions are untouched.
-        const framed = FRAMING_VIEW_ENABLED ? ctx?.framed : undefined;
-        if (framed) {
-          const wz = instTransform[14];
-          const denom = framed.framingDistance + wz;
-          const ps = denom > 1e-6 ? framed.framingDistance / denom : 1;
-          const cx = (instTransform[12] - framed.viewX) * ps;
-          const cy = (instTransform[13] - framed.viewY) * ps;
-          instTransform[0] *= ps; instTransform[1] *= ps;
-          instTransform[4] *= ps; instTransform[5] *= ps;
-          instTransform[12] = cx;
-          instTransform[13] = cy;
+        // Framing camera (factory 3): project each tile through the moving look-at
+        // camera resolved from the Framing behaviors (computeFraming pose +
+        // calcFramingRotation basis, cross-blended over the behavior timing windows).
+        // Fully param-driven — no per-transition constant. Origin-camera transitions
+        // are untouched (framedCam is undefined unless a Framing behavior exists).
+        if (framedCam) {
+          const pr = projectFramed(instTransform[12], instTransform[13], instTransform[14], framedCam);
+          if (!pr) continue; // tile behind the camera — skip
+          instTransform[0] *= pr.ps; instTransform[1] *= pr.ps;
+          instTransform[4] *= pr.ps; instTransform[5] *= pr.ps;
+          instTransform[12] = pr.sx;
+          instTransform[13] = pr.sy;
         }
         const dstBBox = transformBBoxToOutput(stampImg, cellBBox, instTransform);
         const instOpacity = opacity * instOpacityMul;
@@ -1102,6 +1159,21 @@ function renderLayer(
     const clipT = retimedClipTime(evalLayer);
     const src = evalLayer.forceSourceA ? imageA : getSourceImage(layer.source, imageA, imageB, clipT);
     if (src) {
+      // Framing camera (factory 3): the standalone Transition A/B drop-zone tiles
+      // live in the same off-canvas world space as the replicator wall, so route
+      // them through the same look-at camera (computeFraming pose). Generic — only
+      // active when the scene resolves a Framing pose (ctx.framed).
+      let worldTransform = evalLayer.worldTransform;
+      if (FRAMING_VIEW_ENABLED && ctx?.framed && output.height && layer.type === 'image' && layer.dropZone) {
+        const fcam = framedCameraBasis(ctx.framed, output.height);
+        const wtp = new Float64Array(worldTransform);
+        const pr = projectFramed(wtp[12], wtp[13], wtp[14], fcam);
+        if (pr) {
+          wtp[0] *= pr.ps; wtp[1] *= pr.ps; wtp[4] *= pr.ps; wtp[5] *= pr.ps;
+          wtp[12] = pr.sx; wtp[13] = pr.sy; wtp[14] = 0;
+          worldTransform = wtp;
+        }
+      }
       // An Image Mask clips ONLY this layer by a rig-selected wipe shape (e.g.
       // Wipes/Mask masks Transition B over an unmasked Transition A). Render to a
       // temp buffer, multiply alpha by the rasterized mask, then composite.
