@@ -8,4 +8,6 @@
  * fallback chain in compositor/index.ts). New filters should be added as modules
  * here.
  */
+import './fill.js';
+
 export {};
