@@ -30,7 +30,8 @@ export function rasterizeShape(
   height: number,
   transform?: Float64Array,
   cameraZ?: number,
-  cameraPosZ?: number
+  cameraPosZ?: number,
+  strokeOverride?: { firstOffset: number; lastOffset: number }
 ): Uint8Array {
   const mask = new Uint8Array(width * height);
   const { verticesX, verticesY } = shape;
@@ -136,8 +137,166 @@ export function rasterizeShape(
     }
   }
 
+  // STROKED shape (Objects/Arrows): draw a thick trimmed band ALONG the path with
+  // arrow caps, instead of filling the interior. The stroke width is in shape-local
+  // units — scale it by the transform's average linear magnification so the band
+  // matches the transformed geometry.
+  if (shape.stroke && strokeOverride) {
+    let scale = 1;
+    if (transform) {
+      const sx = Math.hypot(transform[0], transform[1]);
+      const sy = Math.hypot(transform[4], transform[5]);
+      scale = (sx + sy) / 2;
+    }
+    return rasterizeStrokedArc(
+      poly, closed, shape.stroke, strokeOverride, scale, width, height,
+    );
+  }
+
   return fillPolygonAA(poly, width, height);
 }
+
+/**
+ * Rasterize a STROKED, arc-trimmed, arrow-capped path into an alpha mask.
+ *
+ * The Objects/Arrows C-shapes are closed circle beziers whose visible geometry is
+ * a heavy stroke drawn along a TRIMMED sub-arc (First/Last Point Offset select the
+ * fraction of the path length that is visible; animating Last Point Offset from
+ * ~0.38→1 grows the arrow around the circle). The stroke has arrow end-caps.
+ *
+ * Method: resample the flattened polyline to uniform arc-length samples, select
+ * the [firstOffset, lastOffset] sub-range, then paint a band of half-width
+ * `width*scale/2` around every sample point (a dense disc stamp — robust for the
+ * high-curvature circular arcs here). A triangular arrowhead is stamped at the
+ * capped end(s). Returns the union alpha.
+ */
+function rasterizeStrokedArc(
+  poly: number[][],
+  closed: boolean,
+  stroke: NonNullable<Shape['stroke']>,
+  ov: { firstOffset: number; lastOffset: number },
+  scale: number,
+  width: number,
+  height: number,
+): Uint8Array {
+  const mask = new Uint8Array(width * height);
+  if (poly.length < 2) return mask;
+
+  // Build cumulative arc-length along the (optionally closed) polyline.
+  const pts = closed ? [...poly, poly[0]] : poly;
+  const cum: number[] = [0];
+  for (let i = 1; i < pts.length; i++) {
+    cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  }
+  const total = cum[cum.length - 1];
+  if (total < 1) return mask;
+
+  const halfW = Math.max(0.5, (stroke.width * scale) / 2);
+  let f0 = Math.min(ov.firstOffset, ov.lastOffset);
+  let f1 = Math.max(ov.firstOffset, ov.lastOffset);
+  f0 = Math.max(0, Math.min(1, f0));
+  f1 = Math.max(0, Math.min(1, f1));
+  const startLen = f0 * total;
+  const endLen = f1 * total;
+  if (endLen - startLen < 0.5) return mask;
+
+  // Sample the sub-arc at ~1px spacing along its length and stamp a disc of radius
+  // halfW at each sample. Point-at-length via linear interp on the cum table.
+  const pointAt = (len: number): [number, number] => {
+    if (len <= 0) return [pts[0][0], pts[0][1]];
+    if (len >= total) return [pts[pts.length - 1][0], pts[pts.length - 1][1]];
+    // binary search segment
+    let lo = 0, hi = cum.length - 1;
+    while (lo + 1 < hi) {
+      const mid = (lo + hi) >> 1;
+      if (cum[mid] <= len) lo = mid; else hi = mid;
+    }
+    const segLen = cum[hi] - cum[lo] || 1;
+    const t = (len - cum[lo]) / segLen;
+    return [pts[lo][0] + t * (pts[hi][0] - pts[lo][0]), pts[lo][1] + t * (pts[hi][1] - pts[lo][1])];
+  };
+
+  const stampDisc = (cx: number, cy: number, r: number): void => {
+    const x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(width - 1, Math.ceil(cx + r));
+    const y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(height - 1, Math.ceil(cy + r));
+    const r2 = r * r;
+    for (let y = y0; y <= y1; y++) {
+      const dy = y + 0.5 - cy;
+      for (let x = x0; x <= x1; x++) {
+        const dx = x + 0.5 - cx;
+        const d2 = dx * dx + dy * dy;
+        if (d2 <= r2) {
+          // 1px feathered edge for anti-aliasing.
+          const d = Math.sqrt(d2);
+          const a = d <= r - 1 ? 255 : Math.round((r - d) * 255);
+          const idx = y * width + x;
+          if (a > mask[idx]) mask[idx] = a;
+        }
+      }
+    }
+  };
+
+  const step = Math.max(0.75, halfW * 0.5);
+  for (let len = startLen; len <= endLen; len += step) {
+    const [cx, cy] = pointAt(len);
+    stampDisc(cx, cy, halfW);
+  }
+  // ensure exact endpoints stamped
+  { const [cx, cy] = pointAt(endLen); stampDisc(cx, cy, halfW); }
+
+  // Arrow caps: Motion cap styles 3/4 are arrowhead variants. Stamp a filled
+  // triangle pointing along the local tangent at the capped end, sized by
+  // Arrow Length/Width (multiples of stroke width). End Cap → arc END; Start Cap
+  // → arc START (tangent reversed).
+  const arrowHalfW = halfW * Math.max(0.6, stroke.arrowWidth);
+  const arrowLen = stroke.width * scale * Math.max(0.6, stroke.arrowLength);
+  const isArrow = (cap: number) => cap === 3 || cap === 4;
+
+  const stampArrow = (tipLen: number, dir: 1 | -1): void => {
+    // Tangent at the tip (direction the stroke travels toward the tip).
+    const behind = pointAt(Math.max(0, Math.min(total, tipLen - dir * Math.max(2, halfW * 0.5))));
+    const tip = pointAt(Math.max(0, Math.min(total, tipLen)));
+    let tx = (tip[0] - behind[0]), ty = (tip[1] - behind[1]);
+    const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+    // The arrowhead extends BEYOND the tip in the travel direction; base sits
+    // behind the tip.
+    const apex: [number, number] = [tip[0] + tx * arrowLen * 0.5, tip[1] + ty * arrowLen * 0.5];
+    const baseC: [number, number] = [tip[0] - tx * arrowLen * 0.5, tip[1] - ty * arrowLen * 0.5];
+    const nx = -ty, ny = tx;
+    const bl: [number, number] = [baseC[0] + nx * arrowHalfW, baseC[1] + ny * arrowHalfW];
+    const br: [number, number] = [baseC[0] - nx * arrowHalfW, baseC[1] - ny * arrowHalfW];
+    fillTriangle(mask, width, height, apex, bl, br);
+  };
+
+  if (isArrow(stroke.endCap)) stampArrow(endLen, 1);
+  if (isArrow(stroke.startCap)) stampArrow(startLen, -1);
+
+  return mask;
+}
+
+/** Fill a triangle into a mask (max-blend, solid). */
+function fillTriangle(
+  mask: Uint8Array, width: number, height: number,
+  a: [number, number], b: [number, number], c: [number, number],
+): void {
+  const minX = Math.max(0, Math.floor(Math.min(a[0], b[0], c[0])));
+  const maxX = Math.min(width - 1, Math.ceil(Math.max(a[0], b[0], c[0])));
+  const minY = Math.max(0, Math.floor(Math.min(a[1], b[1], c[1])));
+  const maxY = Math.min(height - 1, Math.ceil(Math.max(a[1], b[1], c[1])));
+  const area = (a[0] - c[0]) * (b[1] - c[1]) - (b[0] - c[0]) * (a[1] - c[1]);
+  if (Math.abs(area) < 1e-6) return;
+  const inv = 1 / area;
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      const pxc = x + 0.5, pyc = y + 0.5;
+      const w0 = ((b[0] - pxc) * (c[1] - pyc) - (c[0] - pxc) * (b[1] - pyc)) * inv;
+      const w1 = ((c[0] - pxc) * (a[1] - pyc) - (a[0] - pxc) * (c[1] - pyc)) * inv;
+      const w2 = 1 - w0 - w1;
+      if (w0 >= -0.001 && w1 >= -0.001 && w2 >= -0.001) mask[y * width + x] = 255;
+    }
+  }
+}
+
 
 /**
  * Fill a closed polygon (array of [x,y] pixel points) into an alpha mask using

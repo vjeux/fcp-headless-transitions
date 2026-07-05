@@ -502,6 +502,42 @@ export interface Shape {
   /** Fill opacity (0-1) for an `isSolidPanel` shape. Defaults to 1. */
   panelFillOpacity?: number;
 
+  /**
+   * Stroke ("Outline") geometry for a STROKED shape — a thick band drawn ALONG
+   * the path rather than filling its interior. This is the Objects/Arrows
+   * mechanism: each C-shape is a CLOSED circle bezier whose visible geometry is a
+   * heavy stroke (Width 145–470 px in shape-local units) with arrow end-caps and
+   * an animated arc TRIM (First/Last Point Offset). When `stroke` is present the
+   * shape rasterizer draws the trimmed, capped stroke band instead of filling the
+   * polygon. Populated only for non-mask shapes that carry an Outline (id=108)
+   * with a positive Width; undefined for ordinary fill/mask shapes so every other
+   * transition keeps the existing fill-polygon path.
+   */
+  stroke?: {
+    /** Outline Width (id=105) in shape-local units (before the layer transform). */
+    width: number;
+    /** Start Cap style (id=119): 3/4 = arrowhead variants, other = flat/round. */
+    startCap: number;
+    /** End Cap style (id=134): 3/4 = arrowhead variants. */
+    endCap: number;
+    /** Arrow Length (id=132) — arrowhead length as a multiple of the stroke width. */
+    arrowLength: number;
+    /** Arrow Width (id=133) — arrowhead half-width as a multiple of the stroke width. */
+    arrowWidth: number;
+    /**
+     * First Point Offset (id=126): fraction [0..1] along the path where the
+     * visible stroke STARTS. Static number or an animated curve (evaluated at the
+     * scene time in the compositor).
+     */
+    firstPointOffset: number | Curve;
+    /**
+     * Last Point Offset (id=127): fraction [0..1] along the path where the visible
+     * stroke ENDS. Animating this from ~0.38→1.0 grows the arrow arc around the
+     * circle — the Arrows sweep. Static number or an animated curve.
+     */
+    lastPointOffset: number | Curve;
+  };
+
 }
 
 

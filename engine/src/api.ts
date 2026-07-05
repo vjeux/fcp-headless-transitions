@@ -90,6 +90,10 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
   // over-shoots this, so we use the layer lifetime, not the keyframe time.
   // undefined when no wrapping drop zone exists (the common case → no wrap).
   let retimeWrapSec: number | undefined;
+  // Ceiling on scene time for a stroked-mask reveal (Objects/Arrows): the tail
+  // frames clamp here (just under the drop-zone timeout) so the fully-revealed B
+  // persists instead of wrapping to A or vanishing past the drop-zone lifetime.
+  let strokedMaskClampSec: number | undefined;
   const t2s = (rt: import('./types.js').RationalTime): number =>
     rt.timescale > 0 ? rt.value / rt.timescale : 0;
   // Object IDs cloned by a Clone Layer whose lifetime extends past the source's own
@@ -150,9 +154,17 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
     const frameSec = scene.settings.frameRate > 0 ? 1 / scene.settings.frameRate : 1 / 30;
     let hasFilledShapeOverlay = false;
     let hasBlendedMediaOverlay = false;
+    // A STROKED-shape image mask (Objects/Arrows): the drop zone carries an Image
+    // Mask whose source group holds stroked arc shapes (arrow arcs) whose trim
+    // GROWS to full coverage. That reveal IS the entire transition and its END
+    // state (full B) must persist — freezing the scene back to frame 0 would snap
+    // the arrows back to a sliver and re-show A on the last frames. Detect a
+    // stroked shape anywhere in the scene and disable the wrap for it.
+    let hasStrokedMaskShape = false;
     (function scan2(layers: readonly import('./types.js').Layer[]) {
       for (const l of layers) {
         if (l.type === 'shape' && l.shape && !l.shape.isMask && (l.shape.fillColor || l.shape.isSolidPanel)) hasFilledShapeOverlay = true;
+        if (l.type === 'shape' && l.shape && l.shape.stroke) hasStrokedMaskShape = true;
         // A blended (screen/add) VIDEO media leaf that outlives the wrap: its own
         // Retime curve (clip-frame numbers) drives an independent playhead.
         if (l.type === 'image' && l.source?.type === 'media'
@@ -167,6 +179,17 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
     if (retimeWrapSec !== undefined && (hasFilledShapeOverlay || hasBlendedMediaOverlay) && endSec > retimeWrapSec + frameSec) {
       retimeWrapSec = undefined;
     }
+    // Stroked-mask reveal (Objects/Arrows): the growing arrow arcs cut A away to
+    // full B by the drop-zone `out`. Past `out` the drop zones would vanish
+    // (blank frame) and the retime-wrap would snap back to A — both wrong (GT
+    // holds full B). Instead of wrapping, CLAMP the scene time to just under the
+    // drop-zone timeout for the tail frames so the fully-revealed B (mask at full
+    // coverage, both drop zones alive) persists to progress=1. Recorded here;
+    // applied in render().
+    strokedMaskClampSec = (hasStrokedMaskShape && retimeWrapSec !== undefined)
+      ? Math.max(0, retimeWrapSec - frameSec * 0.25)
+      : undefined;
+    if (strokedMaskClampSec !== undefined) retimeWrapSec = undefined;
   }
 
   return {
@@ -196,6 +219,11 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
       // past the retime end are byte-identical to frame 0).
       if (retimeWrapSec !== undefined && timeSec >= retimeWrapSec - wrapFrameTol) {
         timeSec = 0;
+      }
+      // Stroked-mask reveal tail: clamp to just under the drop-zone timeout so the
+      // fully-revealed B holds for the last frames (see strokedMaskClampSec).
+      if (strokedMaskClampSec !== undefined && timeSec > strokedMaskClampSec) {
+        timeSec = strokedMaskClampSec;
       }
 
       // Evaluate all layers at this time
