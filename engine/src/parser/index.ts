@@ -461,13 +461,18 @@ function parseLayerBehaviors(el: Element, factories: Map<number, string>): Layer
  */
 function parseLinkBehaviors(el: Element, factories: Map<number, string>): LinkBehavior[] {
   const links: LinkBehavior[] = [];
-  const affectedId = parseInt(el.getAttribute('id') || '0', 10);
 
   for (const b of directChildren(el, 'behavior')) {
     const fid = parseInt(b.getAttribute('factoryID') || '0', 10);
     if (factories.get(fid) !== 'Link') continue;
 
     let sourceObjectId = 0, scale = 1, customMix = 1, min = -Infinity, max = Infinity;
+    // Motion nests LinkX/LinkY on the "Group" layer; their "Affecting Object" names
+    // Transition A, but the observed effect is that the whole group (A + the B
+    // clones) is driven together (so B enters as A leaves). We therefore apply the
+    // link to the ENCLOSING layer, which carries both. (Applying it to A alone
+    // leaves the clones static and B never enters — verified against ground truth.)
+    const affectedId = parseInt(el.getAttribute('id') || '0', 10);
     for (const p of directChildren(b, 'parameter')) {
       const pname = p.getAttribute('name') || '';
       const v = p.getAttribute('value');

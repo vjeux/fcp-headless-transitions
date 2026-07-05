@@ -173,13 +173,15 @@ function driverChannelValue(driver: Layer, channel: 'X' | 'Y' | 'Z', timeSec: nu
 function applyLinks(
   layer: Layer,
   transform: Transform,
+  linksByTarget: Map<number, import('../types.js').LinkBehavior[]>,
   layerById: Map<number, Layer>,
   widgetValues: Map<number, number>,
   timeSec: number
 ): Transform {
-  if (!layer.links || layer.links.length === 0) return transform;
+  const links = linksByTarget.get(layer.id);
+  if (!links || links.length === 0) return transform;
   const result = { ...transform };
-  for (const link of layer.links) {
+  for (const link of links) {
     const driver = layerById.get(link.sourceObjectId);
     if (!driver) continue;
 
@@ -438,12 +440,12 @@ function isLayerVisible(layer: Layer, timeSec: number): boolean {
   return timeSec >= inTime && timeSec <= outTime;
 }
 
-function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Array, behaviors: RigBehavior[], widgetValues: Map<number, number>, sceneBehaviors: SceneBehavior[], layerById: Map<number, Layer>): EvaluatedLayer {
+function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Array, behaviors: RigBehavior[], widgetValues: Map<number, number>, sceneBehaviors: SceneBehavior[], layerById: Map<number, Layer>, linksByTarget: Map<number, import('../types.js').LinkBehavior[]>): EvaluatedLayer {
   const visible = isLayerVisible(layer, timeSec);
   const retimeProgress = getRetimeProgress(layer, timeSec);
   let riggedTransform = applyRigBehaviors(layer, layer.transform, behaviors, widgetValues);
   // Links drive channels from a source object; apply after rig snapshots.
-  riggedTransform = applyLinks(layer, riggedTransform, layerById, widgetValues, timeSec);
+  riggedTransform = applyLinks(layer, riggedTransform, linksByTarget, layerById, widgetValues, timeSec);
   const localTransform = buildTransformMatrix(riggedTransform, timeSec, retimeProgress);
   const worldTransform = mat4Multiply(parentTransform, localTransform);
 
@@ -472,7 +474,7 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   };
 
   // Evaluate children
-  const children = layer.children.map(child => evaluateLayer(child, timeSec, worldTransform, behaviors, widgetValues, sceneBehaviors, layerById));
+  const children = layer.children.map(child => evaluateLayer(child, timeSec, worldTransform, behaviors, widgetValues, sceneBehaviors, layerById, linksByTarget));
 
   // Disabled nodes (<enabled>0</enabled>) drive other objects but are never drawn.
   const drawn = layer.enabled !== false;
@@ -550,7 +552,17 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
   const behaviors = scene.rigBehaviors;
   const sceneBehaviors = scene.sceneBehaviors;
   const layerById = buildLayerById(scene.layers, new Map());
-  const layers = scene.layers.map(layer => evaluateLayer(layer, timeSec, parentTransform, behaviors, widgetValues, sceneBehaviors, layerById));
+  const linksByTarget = new Map<number, import('../types.js').LinkBehavior[]>();
+  (function collectLinks(ls: Layer[]) {
+    for (const l of ls) {
+      if (l.links) for (const lk of l.links) {
+        const arr = linksByTarget.get(lk.affectedObjectId) || [];
+        arr.push(lk); linksByTarget.set(lk.affectedObjectId, arr);
+      }
+      collectLinks(l.children);
+    }
+  })(scene.layers);
+  const layers = scene.layers.map(layer => evaluateLayer(layer, timeSec, parentTransform, behaviors, widgetValues, sceneBehaviors, layerById, linksByTarget));
   const filterOverrides = computeFilterOverrides(scene, timeSec, widgetValues);
 
   return {
