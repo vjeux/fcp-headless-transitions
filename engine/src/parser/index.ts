@@ -1094,6 +1094,20 @@ function parseShape(el: Element): Shape | undefined {
     if (fc) fillColor = fc;
   }
 
+  // Candidate solid-panel fill: read the "Fill Color" PERMISSIVELY (any solid
+  // Fill Mode 0, ignoring the solid-fill flag bit that `findFillColor` requires).
+  // This is ONLY a candidate — it is promoted to `isSolidPanel`/`panelFill` at the
+  // layer level (parseSceneNode) after the negative-time-Position + offset>in gate
+  // confirms the shape is an OFFSET-AUTHORED sweeping panel. Never used to paint a
+  // gradient shape (those fail the position/offset gate). Kept off `fillColor` so
+  // main's strict solid-fill path (Lights/Flash) and the gradient path are intact.
+  let panelFillCandidate: { r: number; g: number; b: number; a: number } | undefined;
+  let panelFillOpacityCandidate: number | undefined;
+  if (!isMask) {
+    const pf = findPanelFillColor(el);
+    if (pf) { panelFillCandidate = pf.color; panelFillOpacityCandidate = pf.opacity; }
+  }
+
   return {
     verticesX,
     verticesY,
@@ -1105,7 +1119,68 @@ function parseShape(el: Element): Shape | undefined {
     closed,
     isMask,
     fillColor,
+    // Candidates carried on panelFill/panelFillOpacity; isSolidPanel is set later
+    // (parseSceneNode) only if the layer passes the panel gate. If it never passes,
+    // isSolidPanel stays falsy and these are ignored by the compositor.
+    panelFill: panelFillCandidate,
+    panelFillOpacity: panelFillOpacityCandidate,
   };
+}
+
+/**
+ * Permissive "Fill Color" (id=111) reader for candidate solid-panel shapes.
+ *
+ * Unlike `findFillColor` (which REQUIRES the solid-fill flag bit 0x100000000 and
+ * powers Lights/Flash), this reads the Fill Color regardless of that flag, but
+ * ONLY when the shape's Fill Mode (id=114) is 0 (solid color). The Stylized/Panels
+ * sweeping rectangles are Fill Mode 0 with the flag CLEAR, so `findFillColor`
+ * skips them. This candidate is gated at the layer level by the negative-time
+ * Position + offset>in test before it is ever painted, so gradient-rendered
+ * Fill-Mode-0 shapes (Heart, Center Reveal) never reach the panel-paint path.
+ */
+function findPanelFillColor(shapeEl: Element): { color: { r: number; g: number; b: number; a: number }; opacity: number } | undefined {
+  const params = Array.from(shapeEl.getElementsByTagName('parameter'));
+  // Require Fill Mode 0 (solid). If a Fill Mode param exists and is non-zero, the
+  // shape renders a gradient/texture, not a flat color.
+  for (const p of params) {
+    if (p.getAttribute('name') === 'Fill Mode' && p.getAttribute('id') === '114') {
+      const v = p.getAttribute('value');
+      if (v !== null && parseFloat(v) !== 0) return undefined;
+      break;
+    }
+  }
+  for (const p of params) {
+    if (p.getAttribute('name') !== 'Fill Color' || p.getAttribute('id') !== '111') continue;
+    let r: number | undefined, g: number | undefined, b: number | undefined;
+    for (const ch of directChildren(p, 'parameter')) {
+      const nm = ch.getAttribute('name');
+      const vAttr = ch.getAttribute('value');
+      const dAttr = ch.getAttribute('default');
+      const v = vAttr !== null ? parseFloat(vAttr) : (dAttr !== null ? parseFloat(dAttr) : NaN);
+      if (isNaN(v)) continue;
+      if (nm === 'Red') r = v;
+      else if (nm === 'Green') g = v;
+      else if (nm === 'Blue') b = v;
+    }
+    if (r === undefined || g === undefined || b === undefined) continue;
+    // Fill Opacity (id=141) is a SIBLING of Fill Color inside the Fill group.
+    // Find the closest Fill Opacity param following this Fill Color, if any.
+    let opacity = 1;
+    const parent = (p as any).parentNode as Element | null;
+    if (parent) {
+      for (const sib of directChildren(parent, 'parameter')) {
+        if (sib.getAttribute('name') === 'Fill Opacity' && sib.getAttribute('id') === '141') {
+          const vAttr = sib.getAttribute('value');
+          const dAttr = sib.getAttribute('default');
+          const ov = vAttr !== null ? parseFloat(vAttr) : (dAttr !== null ? parseFloat(dAttr) : NaN);
+          if (!isNaN(ov)) opacity = ov;
+          break;
+        }
+      }
+    }
+    return { color: { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255), a: 1 }, opacity };
+  }
+  return undefined;
 }
 
 /**
@@ -1309,7 +1384,34 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
     }
   }
 
-  // <enabled>0</enabled> marks a node that drives others but is not itself drawn.
+  // <mask> children on a CLONE layer: a mask element (e.g. "Rectangle Mask")
+  // clips its OWNING clone to a shape. It is authored as a <mask> sibling of the
+  // node's parameters (not a <scenenode>), so the directChildren('scenenode')
+  // loop above misses it. Parse it as a mask shape child so the compositor clips
+  // the clone (used by Stylized/Color Panels: hue-shifted clone strips masked
+  // into sliding vertical panels). SCOPED to CLONE layers only — other node types
+  // handle their masks through the existing rig / Image-Mask / Masks-group paths,
+  // and lifting every <mask> to a clip child regressed transitions whose masks are
+  // rig-selected (e.g. Boxes/Center Reveal's 18 masks). A clone's self-mask has no
+  // other path.
+  if (type === 'clone') for (const maskNode of directChildren(el, 'mask')) {
+    const shape = parseShape(maskNode);
+    if (!shape) continue;
+    const maskParams: Parameter[] = [];
+    for (const mp of directChildren(maskNode, 'parameter')) maskParams.push(parseParameter(mp));
+    children.push({
+      id: parseInt(maskNode.getAttribute('id') || '0', 10),
+      name: maskNode.getAttribute('name') || 'Mask',
+      type: 'shape',
+      transform: extractTransform(maskParams),
+      blendMode: 'normal',
+      filters: [],
+      children: [],
+      shape: { ...shape, isMask: true },
+      timing: parseTiming(maskNode),
+      behaviors: [],
+    });
+  }
   const enabledText = getTextContent(el, 'enabled');
   const enabled = enabledText === null ? true : enabledText.trim() !== '0';
 
@@ -1396,6 +1498,37 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
     links: parseLinkBehaviors(el, factories),
     camera: type === 'camera' ? parseCameraParams(el, params, factories) : undefined,
   };
+
+  // Promote a candidate solid-fill shape to an OFFSET-AUTHORED sweeping panel
+  // (isSolidPanel) iff BOTH hold:
+  //   (a) timing.offset is re-anchored well past timing.in (off - in > 1e-3), and
+  //   (b) the Position curve is keyed at a NEGATIVE (local-frame) time.
+  // This is the Stylized/Panels signature (white/colored rectangles sweeping via a
+  // local-time Position curve, re-anchored by a large positive offset ≈3.67s). The
+  // combined gate uniquely selects the sweeping panels and EXCLUDES every gradient-
+  // rendered Fill-Mode-0 shape (Heart's "Gradient", Center Reveal's shapes — all
+  // negPX=false) as well as scene-time decorative shapes and pure-fade flash
+  // rectangles. Verified: Panels_Across Rectangle 1-7 pass; Heart/Center/Diagonal
+  // shapes fail.
+  if (type === 'shape' && layer.shape && !layer.shape.isMask && layer.shape.panelFill) {
+    const tim = layer.timing;
+    const off = tim?.offset && tim.offset.timescale > 0 ? tim.offset.value / tim.offset.timescale : 0;
+    const inn = tim?.in && tim.in.timescale > 0 ? tim.in.value / tim.in.timescale : 0;
+    const negKey = (c: Curve | number | undefined): boolean => {
+      if (!c || typeof c === 'number' || !c.keyframes || c.keyframes.length === 0) return false;
+      const k = c.keyframes[0];
+      return k.time.timescale > 0 && k.time.value / k.time.timescale < -1e-3;
+    };
+    if (off - inn > 1e-3 && (negKey(layer.transform.positionX) || negKey(layer.transform.positionY))) {
+      layer.shape.isSolidPanel = true;
+    }
+  }
+  // Clear the panel-fill candidate when the shape did NOT qualify, so nothing but
+  // a confirmed panel ever carries panelFill.
+  if (layer.shape && !layer.shape.isSolidPanel) {
+    layer.shape.panelFill = undefined;
+    layer.shape.panelFillOpacity = undefined;
+  }
 
   return layer;
 }
@@ -1943,7 +2076,21 @@ export function parseMotr(xmlText: string): MotrScene {
         const val = parseFloat(parts[0]);
         const scale = parts.length > 1 ? parseFloat(parts[1]) : 1;
         if (scale > 0 && isFinite(val)) {
-          const sec = val / scale + nodeOffsetSec;
+          const rawSec = val / scale;
+          // Offset-shift (local-frame → scene time) applies ONLY to keyframes whose
+          // RAW local time is ≥ 0 — the shape's forward animation. A NEGATIVE local
+          // keyframe is pre-roll authored BEFORE the shape's local zero (e.g. a
+          // Stylized/Panels panel sweeping in from off-screen: Rectangle 7 Opacity
+          // key at local −2.069s, re-anchored by offset +3.670s). Adding the large
+          // offset to that pre-roll key (−2.069 + 3.670 = 1.6016s) would inflate the
+          // animation end far past the true visual end (the shape's positive-time
+          // Opacity key at 0.8008s), mis-sampling the whole progress→time mapping and
+          // destroying the score (Panels_Across 9.45dB). Flash (positive key 0.167 +
+          // 0.133 = 0.3003s) and Panels_Random's driver (White line 1, positive key
+          // 0.100 + 1.268 = 1.368s) both have POSITIVE raw keys, so they keep the
+          // shift and are unaffected. A negative raw key is counted UNSHIFTED (it can
+          // never extend maxT).
+          const sec = rawSec >= 0 ? rawSec + nodeOffsetSec : rawSec;
           if (sec > maxT) maxT = sec;
         }
       }

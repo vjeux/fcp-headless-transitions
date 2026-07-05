@@ -862,14 +862,38 @@ function renderLayer(
           src = applyFilter(src, filter, evalLayer, time, filterOverrides.get(filter.id));
         }
       }
-      if (needsPerspective(worldTransform)) {
+      // A clone may carry its OWN mask shapes (e.g. Stylized/Color Panels clones a
+      // hue/sat-shifted copy of a drop zone and clips it to a vertical "Rectangle
+      // Mask" strip that slides off-frame). Rasterize the clone's mask children,
+      // clip the clone's pixels to their union, then composite — so the tinted
+      // clone shows only inside its panel, not across the whole frame. SCOPED to
+      // clone layers (the parser only lifts <mask> siblings to clip children for
+      // clones), so rig-selected masks on other node types are untouched.
+      const cloneMasks = evalLayer.children
+        .filter(c => c.layer.type === 'shape' && c.layer.shape?.isMask && c.visible)
+        .map(c => rasterizeShape(c.layer.shape!, output.width, output.height, c.worldTransform));
+      if (cloneMasks.length > 0) {
+        const temp = createBuffer(output.width, output.height);
+        if (needsPerspective(worldTransform)) {
+          const corners = projectQuad(worldTransform, src.width, src.height, ctx?.cameraZ ?? 2000);
+          renderPerspectiveQuad(temp, src, corners, 1.0, 'normal');
+        } else {
+          blitTransformed(temp, src, worldTransform, 1.0, crop, 'normal');
+        }
+        const combined = cloneMasks.length === 1 ? cloneMasks[0] : unionMasks(cloneMasks, output.width, output.height);
+        applyMask(temp, combined);
+        blitDirect(output, temp, opacity, layer.blendMode);
+      } else if (needsPerspective(worldTransform)) {
         const corners = projectQuad(worldTransform, src.width, src.height, ctx?.cameraZ ?? 2000);
         renderPerspectiveQuad(output, src, corners, opacity, layer.blendMode);
       } else {
         blitTransformed(output, src, worldTransform, opacity, crop, layer.blendMode);
       }
     }
-    // A clone may also have children (rare); fall through to render them.
+    // A clone's mask children are consumed above; skip the generic child-render
+    // (which would otherwise draw the mask shapes as visible content) when the
+    // clone had mask children. Clones without masks fall through (rare).
+    if (evalLayer.children.some(c => c.layer.type === 'shape' && c.layer.shape?.isMask)) return;
   }
 
   // Non-mask filled shape: a solid-color vector shape drawn as visible content
@@ -896,6 +920,34 @@ function renderLayer(
     blitDirect(output, filtered, opacity, layer.blendMode);
     // A filled shape may still have children (e.g. a replicator emitter); fall
     // through so they render on top.
+  }
+
+  // Offset-authored sweeping PANEL shape (Stylized/Panels): a non-mask solid-fill
+  // rectangle the parser marked `isSolidPanel` (offset re-anchored past `in` AND a
+  // negative-time Position sweep). Paint it with its permissive Fill Color/Opacity
+  // (`panelFill`/`panelFillOpacity`) and the layer's evaluated opacity + blend
+  // mode. This is a SEPARATE path from the strict-`fillColor` block above — it only
+  // fires for confirmed panels, so gradient-rendered Fill-Mode-0 shapes (Heart,
+  // Center Reveal, Wipes/Diagonal) are never painted flat. Source-over composite.
+  if (layer.type === 'shape' && layer.shape && layer.shape.isSolidPanel && layer.shape.panelFill && opacity > 0) {
+    const shp = layer.shape;
+    const { r, g, b } = shp.panelFill!;
+    const mask = rasterizeShape(shp, output.width, output.height, worldTransform);
+    const fillBuf = createBuffer(output.width, output.height);
+    const fd = fillBuf.data;
+    const fillA = shp.panelFillOpacity ?? 1;
+    for (let p = 0, di = 0; p < mask.length; p++, di += 4) {
+      const av = mask[p];
+      if (av === 0) continue;
+      fd[di] = r; fd[di + 1] = g; fd[di + 2] = b;
+      fd[di + 3] = Math.round(av * fillA);
+    }
+    let filtered = fillBuf;
+    for (const filter of layer.filters) {
+      filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id));
+    }
+    blitDirect(output, filtered, opacity, layer.blendMode);
+    // Panels can still have children; fall through.
   }
 
   if (layer.type === 'image' || layer.type === 'generator') {

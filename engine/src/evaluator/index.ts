@@ -762,6 +762,19 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
       ? layer.timing.offset.value / layer.timing.offset.timescale : 0;
     if (off > 1e-3) curveTime = timeSec - off;
   }
+  // Offset-authored sweeping PANEL shapes (Stylized/Panels white/colored
+  // rectangles): their Position/Opacity curves live in the shape's LOCAL negative-
+  // time frame, re-anchored by a large positive `offset` (≈3.67s). The parser has
+  // already confirmed the panel signature (isSolidPanel = offset>in AND negative-
+  // time Position key), so shift curveTime by the offset to move the sweep into
+  // the visible window. This is the SAME local-time re-anchor drop-zone images use,
+  // extended to the panel shapes. Kept off the strict-`fillColor` path so gradient
+  // shapes are never re-anchored (they aren't panels).
+  if (layer.type === 'shape' && layer.shape && layer.shape.isSolidPanel && layer.timing) {
+    const off = layer.timing.offset && layer.timing.offset.timescale > 0
+      ? layer.timing.offset.value / layer.timing.offset.timescale : 0;
+    if (off > 1e-3) curveTime = timeSec - off;
+  }
   const localTransform = buildTransformMatrix(riggedTransform, curveTime, retimeProgress);
   const worldTransform = mat4Multiply(parentTransform, localTransform);
 
@@ -1006,7 +1019,7 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
           const out = l.timing.out.timescale > 0 ? l.timing.out.value / l.timing.out.timescale : 0;
           if (out > 0 && out < minWrap) minWrap = out;
         }
-        if (l.type === 'shape' && l.shape && !l.shape.isMask && l.shape.fillColor) hasFilledShapeOverlay = true;
+        if (l.type === 'shape' && l.shape && !l.shape.isMask && (l.shape.fillColor || l.shape.isSolidPanel)) hasFilledShapeOverlay = true;
         scan(l.children);
       }
     })(scene.layers);
