@@ -42,12 +42,13 @@ export function projectQuad(
   const hw = srcWidth / 2;
   const hh = srcHeight / 2;
 
-  // Source corners in centered local coords (Y-up)
+  // Source corners in centered local coords (Y-DOWN, matching blitTransformed:
+  // the world transform is authored so +Y moves content down / Motion Y=-540 → top).
   const corners: Array<[number, number, number]> = [
-    [-hw, hh, 0],   // top-left
-    [hw, hh, 0],    // top-right
-    [hw, -hh, 0],   // bottom-right
-    [-hw, -hh, 0],  // bottom-left
+    [-hw, -hh, 0],  // top-left
+    [hw, -hh, 0],   // top-right
+    [hw, hh, 0],    // bottom-right
+    [-hw, hh, 0],   // bottom-left
   ];
 
   const projected: Array<[number, number, number]> = [];
@@ -95,7 +96,8 @@ export function renderPerspectiveQuad(
   const sw = src.width, sh = src.height;
 
   // Convert projected corners from centered coords to pixel coords
-  const pts = corners.map(([x, y, w]) => [x + dw / 2, dh / 2 - y, w] as [number, number, number]);
+  // Y-DOWN screen convention, consistent with blitTransformed (Motion Y=-540 → top edge).
+  const pts = corners.map(([x, y, w]) => [x + dw / 2, dh / 2 + y, w] as [number, number, number]);
 
   // Bounding box of the quad
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
