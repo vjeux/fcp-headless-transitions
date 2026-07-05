@@ -85,16 +85,15 @@ const results: Row[] = [];
 
 // Some transitions are pathologically slow in the pure-JS compositor:
 //  - 360° transitions render at 4K-equirect native (e.g. 4096×2160), ~30-50s/frame.
-//  - Movements/Pinwheel (~150s/frame) and Movements/Rotate (full-frame rotation)
-//    OOM at 24 frames under memory pressure.
-// Scoring all 24 frames would take ~20 min each. We sample a reduced, evenly-spaced
-// set of progress points for these heavy transitions (noted in the scoreboard); the
-// measurement (mean PSNR at those points, engine conformed to GT's native res) is
-// otherwise identical.
+//  - Movements/Pinwheel is ~5s/frame at 1080p (full-frame rotational resampling).
+// Scoring all 24 frames would take many minutes each. We sample a reduced, evenly-
+// spaced set of progress points for these heavy transitions (noted in the scoreboard);
+// the measurement (mean PSNR at those points, engine conformed to GT native res) is
+// otherwise identical. NOTE: Movements/Rotate is NOT heavy (~275ms/frame after the
+// n3b offset-reanchor fix) — it is scored on all 24 frames (3-sample undersold it).
 const HEAVY = new Set([
   ...[...slugToMotr.keys()].filter(s => s.startsWith('360°__')),
   'Movements__Pinwheel',
-  'Movements__Rotate',
 ]);
 const HEAVY_SAMPLES = 3;
 
