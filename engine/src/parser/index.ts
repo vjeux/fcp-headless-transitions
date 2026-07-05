@@ -225,6 +225,14 @@ function parseCurve(el: Element): Curve {
     curve.value = parseFloat(valueAttr);
   }
 
+  // Retiming extrapolation mode (how the media playhead behaves past the last
+  // keyframe). Mode 1 = wrap/loop back to the transition start (see types.ts).
+  const reAttr = el.getAttribute('retimingExtrapolation');
+  if (reAttr !== null) {
+    const re = parseInt(reAttr, 10);
+    if (isFinite(re)) curve.retimingExtrapolation = re;
+  }
+
   for (const kpEl of directChildren(el, 'keypoint')) {
     curve.keyframes.push(parseKeyframe(kpEl));
   }
@@ -632,6 +640,7 @@ function parseLinkBehaviors(el: Element, factories: Map<number, string>): LinkBe
     if (factories.get(fid) !== 'Link') continue;
 
     let sourceObjectId = 0, scale = 1, customMix = 1, min = -Infinity, max = Infinity;
+    let offsetX = 0, offsetY = 0, offsetZ = 0;
     // Motion nests LinkX/LinkY on the "Group" layer; their "Affecting Object" names
     // Transition A, but the observed effect is that the whole group (A + the B
     // clones) is driven together (so B enters as A leaves). We therefore apply the
@@ -647,6 +656,11 @@ function parseLinkBehaviors(el: Element, factories: Map<number, string>): LinkBe
       else if (pname === 'Custom Mix' && !isNaN(num)) customMix = num;
       else if ((pname === 'X min' || pname === 'Y min' || pname === 'Z min') && !isNaN(num)) min = num;
       else if ((pname === 'X max' || pname === 'Y max' || pname === 'Z max') && !isNaN(num)) max = num;
+      // Additive per-clone offset (linked = source*scale + offset). Only set when
+      // present (default 0). Clothesline's Transition B carries "X offset"≈+2072.
+      else if (pname === 'X offset' && !isNaN(num)) offsetX = num;
+      else if (pname === 'Y offset' && !isNaN(num)) offsetY = num;
+      else if (pname === 'Z offset' && !isNaN(num)) offsetZ = num;
     }
 
     // Determine which channels are driven from expressionChannels.
@@ -658,16 +672,30 @@ function parseLinkBehaviors(el: Element, factories: Map<number, string>): LinkBe
     let targetChannel: 'X' | 'Y' | 'Z' | undefined;
     let sourceChannel: 'X' | 'Y' | 'Z' | undefined;
     const expr = firstChild(b, 'expressionChannels');
+    let srcRefPath = '';
     if (expr) {
       const srcRef = getTextContent(expr, 'sourceChannelRef');
       const tgtId = getTextContent(expr, 'targetChannelID');
       sourceChannel = chanName(srcRef);
       targetChannel = tgtId === '1' ? 'X' : tgtId === '2' ? 'Y' : tgtId === '3' ? 'Z' : undefined;
+      srcRefPath = srcRef || '';
     }
+    const propFromPath = (path: string): 'position' | 'rotation' | 'scale' => {
+      const p = path.replace(/^\.\//, '').split('/').map(s => s.trim()).filter(Boolean);
+      if (p[0] === '1' && p[1] === '100') {
+        if (p[2] === '109') return 'rotation';
+        if (p[2] === '105') return 'scale';
+      }
+      return 'position';
+    };
+    const cbEl = firstChild(b, 'channelBehavior');
+    const affPath = cbEl?.getAttribute('affectingChannel') || '';
+    const targetProp = propFromPath(affPath);
+    // Source property from sourceChannelRef (falls back to target path if absent).
+    const sourceProp = propFromPath(srcRefPath || affPath);
     // Fallback from the channelBehavior affectingChannel (the driven channel).
     if (!targetChannel) {
-      const cb = firstChild(b, 'channelBehavior');
-      targetChannel = chanName(cb?.getAttribute('affectingChannel') ?? null);
+      targetChannel = chanName(affPath || null);
     }
     if (!sourceChannel) sourceChannel = targetChannel;
     if (!targetChannel || !sourceChannel || sourceObjectId === 0) continue;
@@ -713,8 +741,11 @@ function parseLinkBehaviors(el: Element, factories: Map<number, string>): LinkBe
       affectedObjectId: affectedId,
       sourceObjectId,
       targetChannel,
+      targetProp,
+      sourceProp,
       sourceChannel,
       scale,
+      offset: targetChannel === 'X' ? offsetX : targetChannel === 'Y' ? offsetY : offsetZ,
       customMix,
       min,
       max,
