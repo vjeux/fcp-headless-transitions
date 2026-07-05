@@ -14,7 +14,7 @@
  */
 import type {
   MotrScene, SceneSettings, Layer, Curve, Keyframe, RationalTime,
-  Parameter, Transform, Filter, ImageSource, BlendMode, RigWidget, RigBehavior, Shape, Replicator, LayerBehavior, SceneBehavior, LinkBehavior
+  Parameter, Transform, Filter, ImageSource, BlendMode, RigWidget, RigBehavior, Shape, Replicator, LayerBehavior, SceneBehavior, LinkBehavior, GaussianGradientConfig
 } from '../types.js';
 
 /**
@@ -451,7 +451,89 @@ function findSourceMediaId(params: Parameter[]): number | undefined {
  * a Color Solid plugin is a solid fill, not a drop zone. Anything else is not an
  * image source (returns undefined so the caller treats it as a plain group/leaf).
  */
+/** Recursively find the first parameter matching id (and optionally name). */
+function findParamByIdName(ps: Parameter[], id: number, name?: string): Parameter | undefined {
+  for (const p of ps) {
+    if (p.id === id && (name === undefined || p.name === name)) return p;
+    if (p.children) { const r = findParamByIdName(p.children, id, name); if (r) return r; }
+  }
+  return undefined;
+}
+
+/**
+ * Parse the Motion "Gaussian Gradient" generator's Object parameter block.
+ *
+ * Layout (see .motr):
+ *   <parameter name="Object"> <parameter name="Gaussian Gradient" id=1>
+ *      Width(300) Height(301) PixelAspectRatio(302)
+ *      Center(1) { X(1) Y(2) }             — empty ⇒ default centre
+ *      Color 1(2) { Red Green Blue Opacity }  — empty ⇒ white opaque
+ *      Color 2(3) { Red Green Blue Opacity }  — empty ⇒ black transparent
+ *      Radius(4)  Flip(10002)  Absolute Points(10004)
+ */
+function parseGaussianGradient(params: Parameter[]): GaussianGradientConfig {
+  // Locate the inner "Gaussian Gradient" object folder (child of "Object" id=2).
+  let obj: Parameter[] | undefined;
+  const objectFolder = findParamByIdName(params, 2, 'Object');
+  if (objectFolder?.children) {
+    const gg = objectFolder.children.find(p => p.name.trim() === 'Gaussian Gradient');
+    obj = gg?.children ?? objectFolder.children;
+  }
+  const src = obj ?? params;
+
+  const num = (p: Parameter | undefined, dflt: number): number => {
+    if (!p) return dflt;
+    const v = p.curve ?? p.value;
+    return typeof v === 'number' ? v : dflt;
+  };
+
+  const width = num(src.find(p => p.id === 300), 1920);
+  const height = num(src.find(p => p.id === 301), 1080);
+  const radius = num(src.find(p => p.id === 4 && p.name.trim() === 'Radius'), 300);
+  const flip = num(src.find(p => p.id === 10002), 0) !== 0;
+  // Absolute Points default is 1 in the schema but transitions set 0 (normalized).
+  const absolutePoints = num(src.find(p => p.id === 10004), 0) !== 0;
+
+  // Center folder (id=1). Empty ⇒ default centre. Motion's default-value attr on
+  // X/Y is 150 (a legacy pixel default) but a normalized centre is 0.5,0.5.
+  const centerFolder = src.find(p => p.id === 1 && p.name.trim() === 'Center');
+  let centerX = 0.5, centerY = 0.5;
+  if (centerFolder?.children && centerFolder.children.length > 0) {
+    const cx = centerFolder.children.find(p => p.id === 1);
+    const cy = centerFolder.children.find(p => p.id === 2);
+    if (cx) centerX = num(cx, 0.5);
+    if (cy) centerY = num(cy, 0.5);
+  }
+
+  // Colour folders. Color 1 (id=2) default white opaque; Color 2 (id=3) default
+  // black transparent (the classic Motion "glow" gradient).
+  const readColor = (id: number, dfltR: number, dfltG: number, dfltB: number, dfltA: number) => {
+    const folder = src.find(p => p.id === id);
+    let r = dfltR, g = dfltG, b = dfltB, a = dfltA;
+    if (folder?.children && folder.children.length > 0) {
+      const rp = folder.children.find(p => p.name === 'Red');
+      const gp = folder.children.find(p => p.name === 'Green');
+      const bp = folder.children.find(p => p.name === 'Blue');
+      const ap = folder.children.find(p => p.name === 'Opacity');
+      if (rp) r = num(rp, dfltR); if (gp) g = num(gp, dfltG);
+      if (bp) b = num(bp, dfltB); if (ap) a = num(ap, dfltA);
+    }
+    return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255), a };
+  };
+  const color1 = readColor(2, 1, 1, 1, 1);   // white, opaque
+  const color2 = readColor(3, 0, 0, 0, 0);   // black, transparent
+
+  return { width, height, centerX, centerY, absolutePoints, radius, color1, color2, flip };
+}
+
 function determineImageSource(params: Parameter[], el: Element | undefined, clipAB: Map<number, 'A' | 'B'>): ImageSource | undefined {
+  // Gaussian Gradient generator (radial glow used by Nature/Diagonal & Nature/Glide).
+  const pluginUUID = el?.getAttribute('pluginUUID') || '';
+  const pluginName = el?.getAttribute('pluginName') || '';
+  if (pluginUUID.toUpperCase().startsWith('96A13FF0') || pluginName.trim() === 'Gaussian Gradient') {
+    return { type: 'gaussianGradient', gradient: parseGaussianGradient(params) };
+  }
+
   // Color Solid generator (a plugin fill, not a drop zone).
   if (el && (el.getAttribute('pluginName')?.includes('Color Solid') || el.getAttribute('pluginName')?.includes('PAEColorSolid'))) {
     let r = 1, g = 1, b = 1;
