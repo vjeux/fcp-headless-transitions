@@ -760,25 +760,26 @@ function parseLinkBehaviors(el: Element, factories: Map<number, string>): LinkBe
       if (p[0] === '1' && p[1] === '100') {
         if (p[2] === '109') return 'rotation';
         if (p[2] === '105') return 'scale';
-        // 107 = Anchor Point. Only the Z channel is routed to the layer's anchor:
-        // Movements/Reflection's LinkAnchor copies the hidden driver's anchor Z
-        // (=960) so the card group hinges on the shared "spine" plane (its anchor-Z
-        // then cancels the position-Z base, keeping the fold pinned to the screen
-        // plane). Anchor X/Y links (e.g. Movements/Switch's anchorX≈737) historically
-        // behaved as position translations and score better that way, so they fall
-        // through to 'position'. The caller decides per-channel (see anchorProp).
+        // 107 = Anchor Point. LinkAnchor drives the layer's anchor on ALL axes.
+        // Movements/Reflection copies the driver's anchor Z (=960) so the card
+        // hinges on the shared "spine" plane; Movements/Switch copies the driver's
+        // anchor X (the driver's self-linked positionX ≈2363) so the card pivots
+        // about that far vertical hinge. Both are the anchor, not a position.
         if (p[2] === '107') return 'anchor';
       }
       // Blending > Opacity: "./1/200/202" (LinkAO/LinkBO/LinkBOF drive opacity).
       if (p[0] === '1' && p[1] === '200' && p[2] === '202') return 'opacity';
       return 'position';
     };
-    // Per-channel anchor routing: anchor-Z → 'anchor' (fold spine), anchor-X/Y →
-    // 'position' (legacy behavior, preserves Switch/etc.). Opacity passes through.
-    const anchorProp = (affPath: string, ch: 'X' | 'Y' | 'Z'): 'position' | 'rotation' | 'scale' | 'opacity' | 'anchor' => {
-      const base = propFromPath(affPath);
-      if (base === 'anchor' && ch !== 'Z') return 'position';
-      return base;
+    // Per-channel anchor routing: LinkAnchor (./1/100/107/*) drives the anchor on
+    // ALL axes (X/Y/Z). Only Reflection & Switch use LinkAnchor.
+    const anchorProp = (affPath: string, _ch: 'X' | 'Y' | 'Z'): 'position' | 'rotation' | 'scale' | 'opacity' | 'anchor' => {
+      // LinkAnchor drives the anchor point on ALL axes (X/Y/Z). Only Reflection
+      // and Switch use LinkAnchor: Reflection's driver anchor X/Y are 0 (so anchor
+      // vs position routing is a no-op there — its hinge is the Z=960 spine),
+      // while Switch's driver anchor X=737 is the vertical hinge pivot and MUST
+      // land on the anchor (not position, which would translate the card off-frame).
+      return propFromPath(affPath);
     };
     const cbEl = firstChild(b, 'channelBehavior');
     const affPath = cbEl?.getAttribute('affectingChannel') || '';

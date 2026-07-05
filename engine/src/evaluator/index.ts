@@ -245,6 +245,67 @@ function driverChannelValue(driver: Layer, channel: 'X' | 'Y' | 'Z', timeSec: nu
 }
 
 /**
+ * Resolve a DRIVER layer's effective channel value as a Link source — i.e. after
+ * the driver's OWN rig behaviors and its own (non-relative) self-links have been
+ * applied. Plain `driverChannelValue` reads the driver's RAW authored transform,
+ * which is correct for Push (its slide is baked into the driver's position curve)
+ * but WRONG for a pivot rig whose driver is itself rigged/self-linked.
+ *
+ * Movements/Switch's driver (the hidden Color Solid) sets its own anchor via a
+ * self-LinkPos (anchorX ← its own positionX) and its position via an aspect-ratio
+ * rig snapshot. Reading its raw anchor (737) instead of the self-linked value
+ * (≈ its rigged position) collapses the off-screen pivot the swinging fold needs.
+ * Resolving the driver's rig + self-links gives anchor ≈ position ≈ 2363, so the
+ * images (which copy both) stay centred at t=0 and swing about that far-right
+ * pivot exactly as FCP renders.
+ *
+ * Self-links only (sourceObjectId === driver.id) are applied here, and they read
+ * the driver's rigged base directly (no recursion) — enough for the shipped
+ * pivot rigs and loop-safe. The driver's rig behaviors are applied first.
+ */
+function resolveDriverChannel(
+  driver: Layer,
+  channel: 'X' | 'Y' | 'Z',
+  timeSec: number,
+  prop: 'position' | 'rotation' | 'scale' | 'opacity' | 'anchor',
+  behaviors: RigBehavior[],
+  widgetValues: Map<number, number>
+): number {
+  // The base (raw authored) channel value.
+  const baseVal = driverChannelValue(driver, channel, timeSec, prop);
+  // Fast path: a driver with NO self-links behaves exactly as its raw channel
+  // (this preserves Push et al. — their driver's position is read directly and
+  // its rig behaviors are applied by the normal per-layer evaluation pass; we
+  // must NOT re-apply them here or Push's Direction snapshots double-count and
+  // the slide axis breaks). Only the pivot-rig self-link pattern needs more.
+  const selfLinks = (driver.links || []).filter(l => l.sourceObjectId === driver.id);
+  if (selfLinks.length === 0) return baseVal;
+
+  // Pivot rig (Movements/Switch): the driver copies one of its own channels onto
+  // another via a self-link (anchorX ← positionX). Resolve that so a downstream
+  // Link reading the driver's anchor gets the self-linked value, not the stale
+  // authored anchor. The self-link's SOURCE channel is read after the driver's
+  // own rig behaviors (its position comes from an aspect-ratio Position snapshot),
+  // matching how the driver itself is evaluated.
+  const rigged = applyRigBehaviors(driver, driver.transform, behaviors, widgetValues);
+  const readRigged = (p: typeof prop, ch: typeof channel): number => {
+    if (p === 'opacity') { const vv = resolveValue(rigged.opacity, timeSec, 1); return vv > 1 ? vv / 100 : vv; }
+    if (p === 'rotation') return resolveValue(ch === 'X' ? rigged.rotationX : ch === 'Y' ? rigged.rotationY : rigged.rotationZ, timeSec, 0);
+    if (p === 'scale') return resolveValue(ch === 'X' ? rigged.scaleX : ch === 'Y' ? rigged.scaleY : rigged.scaleZ, timeSec, 1);
+    if (p === 'anchor') return resolveValue(ch === 'X' ? rigged.anchorX : ch === 'Y' ? rigged.anchorY : rigged.anchorZ, timeSec, 0);
+    return resolveValue(ch === 'X' ? rigged.positionX : ch === 'Y' ? rigged.positionY : rigged.positionZ, timeSec, 0);
+  };
+  let value = readRigged(prop, channel);
+  for (const sl of selfLinks) {
+    if (sl.targetProp !== prop || sl.targetChannel !== channel) continue;
+    if (sl.customMix === 0) continue;
+    const sv = readRigged(sl.sourceProp, sl.sourceChannel) * sl.scale + sl.offset;
+    value = value * (1 - sl.customMix) + sv * sl.customMix;
+  }
+  return value;
+}
+
+/**
  * Apply Link behaviors to a layer's transform. Each Link drives one Position
  * channel from a source object's channel: value = clamp(src, min, max) * scale,
  * gated by the (rig-selected) Custom Mix. When Custom Mix is 0 the link is off
@@ -256,7 +317,8 @@ function applyLinks(
   linksByTarget: Map<number, import('../types.js').LinkBehavior[]>,
   layerById: Map<number, Layer>,
   widgetValues: Map<number, number>,
-  timeSec: number
+  timeSec: number,
+  behaviors: RigBehavior[]
 ): Transform {
   const rawLinks = linksByTarget.get(layer.id);
   if (!rawLinks || rawLinks.length === 0) return transform;
@@ -299,7 +361,7 @@ function applyLinks(
       scale = link.rigScale[idx];
     }
 
-    let v = driverChannelValue(driver, link.sourceChannel, timeSec, link.sourceProp);
+    let v = resolveDriverChannel(driver, link.sourceChannel, timeSec, link.sourceProp, behaviors, widgetValues);
     // Motion's "Clamp Source Value Within Range" uses min/max = ±100 as the
     // default (unset) UI sentinel; real transitions drive far past ±100 (e.g. a
     // full 1080px push). Only clamp when a non-default range is present.
@@ -717,7 +779,7 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   const retimeProgress = getRetimeProgress(layer, timeSec);
   let riggedTransform = applyRigBehaviors(layer, layer.transform, behaviors, widgetValues);
   // Links drive channels from a source object; apply after rig snapshots.
-  riggedTransform = applyLinks(layer, riggedTransform, linksByTarget, layerById, widgetValues, timeSec);
+  riggedTransform = applyLinks(layer, riggedTransform, linksByTarget, layerById, widgetValues, timeSec, behaviors);
   // Scene Ramp behaviors that drive transform channels (rotation/position/scale)
   // — e.g. Flip's Ramp Y drives the Group's Rotation Y from 0→π over the
   // behavior's own timing window. Applied after rigs/links (rigs configure the
