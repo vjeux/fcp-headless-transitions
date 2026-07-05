@@ -1093,6 +1093,30 @@ function findDescendant(el: Element, tag: string): Element | null {
   return null;
 }
 
+/**
+ * Parse the drop-zone Object parameters of a Transition A/B image layer.
+ *
+ * Motion stores these under Object(id=2):
+ *   - `Type` (id 321): drop-zone fit mode. `1` = the 360°/equirectangular fit
+ *     used by the 360° transition family.
+ *   - `Width` (id 313) / `Height` (id 314): the Fixed drop-zone canvas size.
+ *     360° drop zones are 4096×2048 (a 2:1 equirect canvas).
+ * Returns undefined when the layer has no drop-zone Object block (the common
+ * non-drop-zone image case).
+ */
+function parseDropZone(params: Parameter[]): { type: number; width: number; height: number } | undefined {
+  const obj = params.find(p => p.name === 'Object' && p.id === 2);
+  if (!obj || !obj.children) return undefined;
+  let type: number | undefined, width: number | undefined, height: number | undefined;
+  for (const c of obj.children) {
+    if (c.name === 'Type' && c.id === 321 && typeof c.value === 'number') type = c.value;
+    else if (c.name === 'Width' && c.id === 313 && typeof c.value === 'number') width = c.value;
+    else if (c.name === 'Height' && c.id === 314 && typeof c.value === 'number') height = c.value;
+  }
+  if (type === undefined || width === undefined || height === undefined) return undefined;
+  return { type, width, height };
+}
+
 function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map<number, 'A' | 'B'>): Layer {
   const factoryID = parseInt(el.getAttribute('factoryID') || '0', 10);
   const factoryType = factories.get(factoryID) || '';
@@ -1222,6 +1246,11 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
     cloneSourceId,
     cellSourceId,
     imageMaskSourceId,
+    dropZone: type === 'image' ? parseDropZone(params) : undefined,
+    hasAlignTo: directChildren(el, 'behavior').some(
+      b => parseInt(b.getAttribute('factoryID') || '0', 10) === 22
+        || factories.get(parseInt(b.getAttribute('factoryID') || '0', 10)) === 'Align To'
+    ),
     links: parseLinkBehaviors(el, factories),
     camera: type === 'camera' ? parseCameraParams(el, params, factories) : undefined,
   };

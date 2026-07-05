@@ -236,6 +236,20 @@ export interface Layer {
    * transforms and multiplies this layer's alpha by the result.
    */
   imageMaskSourceId?: number;
+  /**
+   * Drop-zone Object parameters for a Transition A/B image. Motion's drop zone
+   * stores a `Type` (id 321) and a Fixed canvas `Width`/`Height` (Object ids
+   * 313/314). The 360° transition family uses `Type=1` with a `4096×2048` fixed
+   * canvas — a 2:1 equirectangular drop zone that cover-fits the 16:9 source into
+   * a horizontal band. Present only on drop-zone image layers that declare these.
+   */
+  dropZone?: { type: number; width: number; height: number };
+  /**
+   * True when this layer carries an "Align To" behavior (factoryID 22). The 360°
+   * transition family uses Align To (plus Rig Behaviors) to drive the horizontal
+   * band push; its presence on a 4096×2048 Type=1 drop zone is the 360° signature.
+   */
+  hasAlignTo?: boolean;
 }
 
 /**
