@@ -126,6 +126,13 @@ export interface EvaluatedLayer {
 export interface EvaluatedScene {
   layers: EvaluatedLayer[];
   time: number;
+  /**
+   * Un-wrapped scene time (seconds): progress × animationEnd, BEFORE any
+   * retime-wrap-to-0 the host applies. The compositor's particle-field proxy uses
+   * this so the field envelope follows the true transition progress even after the
+   * drop zones wrap back to source A. Falls back to `time` when unset.
+   */
+  unwrappedTime?: number;
   /** Animation end in seconds (last spatial keyframe). Used to normalize time. */
   animationEndSec: number;
   width: number;

@@ -123,6 +123,11 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
 
       // Evaluate all layers at this time
       const evaluated = evaluate(scene, timeSec);
+      // Preserve the UN-wrapped scene time (before the retime-wrap-to-0 above) so
+      // the compositor's particle-field proxy can follow the true transition
+      // envelope even after the drop zones wrap back to source A. The particle
+      // field / texture live on a separate (non-wrapping) timeline.
+      evaluated.unwrappedTime = progress * endSec;
 
       // Composite into a frame at native scene resolution
       const frame = composite(evaluated, imageA, imageB, width, height, opts?.mediaResolver);

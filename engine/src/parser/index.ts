@@ -1270,6 +1270,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
     cloneSourceId,
     cellSourceId,
     imageMaskSourceId,
+    isParticleEmitter: factoryType === 'Emitter' || undefined,
     dropZone: type === 'image' ? parseDropZone(params) : undefined,
     hasAlignTo: directChildren(el, 'behavior').some(
       b => parseInt(b.getAttribute('factoryID') || '0', 10) === 22
