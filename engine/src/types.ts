@@ -400,6 +400,29 @@ export interface Replicator {
   origin: number;
   /** Sequence Replicator behavior (per-instance staggered param ramp), if present. */
   sequence?: SequenceReplicator;
+  /**
+   * Motion "Shape" arrangement (Cell "Shape Parameters"/Shape id=302): 0=Rectangle,
+   * 1=Circle, 2=Burst, 3=Spiral, 4=Wave, 5=Geometry, 6=Image. This is DISTINCT from
+   * the legacy grid `arrangement` field (which reads the "Arrangement" param that
+   * these shape-based replicators do not author). When present it drives a
+   * point/circle/spiral instance layout with per-cell parameter ramps below.
+   */
+  shape?: number;
+  /** Points around the pattern (Circle/Spiral: instance count). */
+  points?: number;
+  /** Pattern radius in scene units (Circle/Spiral). */
+  radius?: number;
+  /**
+   * Per-cell ramps "over pattern": each instance i in [0,points) interpolates the
+   * cell's Scale (X≈Y) from `scaleStart` → `scaleEnd`, and its extra rotation from
+   * 0 → `angleEnd` (radians). Reproduces the nested vertigo spiral (small central
+   * ring scaling up to a large outer ring). Undefined ⇒ no ramp (uniform cells).
+   */
+  scaleStart?: number;
+  cellScaleEnd?: number;
+  angleEnd?: number;
+  /** Twists (Spiral shape): fractional turns the spiral sweeps across `points`. */
+  twists?: number;
 }
 
 /**

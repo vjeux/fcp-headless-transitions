@@ -87,6 +87,30 @@ function mat4MultiplyOffset(m: Float64Array, dx: number, dy: number): Float64Arr
   return r;
 }
 /**
+ * Full column-major 4x4 multiply: returns a·b (apply b first, then a).
+ * Used to compose a replicator instance's local scale/rotate/translate onto the
+ * replicator layer's world matrix so each instance rasterizes at its own pose.
+ */
+function mat4Mul(a: Float64Array, b: Float64Array): Float64Array {
+  const r = new Float64Array(16);
+  for (let c = 0; c < 4; c++) {
+    for (let rr = 0; rr < 4; rr++) {
+      let s = 0;
+      for (let k = 0; k < 4; k++) s += a[k * 4 + rr] * b[c * 4 + k];
+      r[c * 4 + rr] = s;
+    }
+  }
+  return r;
+}
+/** Local transform for a replicator instance: T(x,y)·Rz(angle)·S(scale). */
+function instanceLocalMatrix(x: number, y: number, angle: number, scale: number): Float64Array {
+  const cs = Math.cos(angle) * scale, sn = Math.sin(angle) * scale;
+  const m = new Float64Array(16);
+  m[0] = cs; m[1] = sn; m[4] = -sn; m[5] = cs; m[10] = scale; m[15] = 1;
+  m[12] = x; m[13] = y; m[14] = 0;
+  return m;
+}
+/**
  * Compositor: EvaluatedScene + source images → output ImageData
  *
  * Implements the core compositing pipeline:
@@ -845,7 +869,7 @@ function resolveImageMaskAlpha(sourceId: number, W: number, H: number, invert = 
   // rotation/scale — extra arrow instances). Collect each as {shape geometry,
   // world transform to rasterize it at}. Clones borrow the referenced shape's
   // geometry (incl. its stroke) but use the CLONE's own transform.
-  const entries: { shape: import('../types.js').Shape; xform: Float64Array }[] = [];
+  const entries: { shape: import('../types.js').Shape; xform: Float64Array; writeOnPhase?: number }[] = [];
   const findShapeLayer = (id: number): EvaluatedLayer | undefined => ctx!.evalLayerById.get(id);
   const walk = (el: EvaluatedLayer, isRoot: boolean): void => {
     if (!isRoot && el.layer.type === 'group' && el.opacity <= 0) return;
@@ -864,6 +888,32 @@ function resolveImageMaskAlpha(sourceId: number, W: number, H: number, invert = 
       if (srcLayer && srcLayer.layer.type === 'shape' && srcLayer.layer.shape) {
         entries.push({ shape: srcLayer.layer.shape, xform: el.worldTransform });
       }
+    } else if (el.layer.type === 'replicator' && el.layer.replicator && el.visible) {
+      // A Replicator inside the mask-source group (e.g. Vertigo's spiral of arc
+      // rings). Generate its instances from the Shape arrangement + per-cell
+      // Scale/Angle ramps, resolve the cell's arc SHAPE (Object Source id=128),
+      // and add one entry per instance at its own pose so each ring rasterizes
+      // into the mask. Fully param-driven — the same generic replicator layout
+      // that stamps image cells, reused as a mask-geometry provider.
+      const cellId = el.layer.cellSourceId;
+      const cellLayer = cellId !== undefined ? findShapeLayer(cellId) : undefined;
+      if (cellLayer && cellLayer.layer.type === 'shape' && cellLayer.layer.shape) {
+        const insts = generateInstances(el.layer.replicator);
+        for (const inst of insts) {
+          const local = instanceLocalMatrix(inst.x, inst.y, inst.angle ?? 0, inst.scale ?? 1);
+          entries.push({
+            shape: cellLayer.layer.shape,
+            xform: mat4Mul(el.worldTransform, local),
+            // Per-instance write-on phase = the instance's normalized pattern
+            // position. The cell's animated stroke offset is a GLOBAL front that
+            // sweeps the spiral center→out; an instance only starts drawing once
+            // the front reaches its pattern position (see the masks map). This
+            // reproduces Motion's replicator "build" sweep, where the huge outer
+            // rings appear late rather than all rings drawing at once.
+            writeOnPhase: inst.normalizedIndex,
+          });
+        }
+      }
     }
     for (const c of el.children) walk(c, false);
   };
@@ -880,7 +930,24 @@ function resolveImageMaskAlpha(sourceId: number, W: number, H: number, invert = 
     const stroke = e.shape.stroke;
     if (stroke) {
       const firstOffset = resolveOffset(stroke.firstPointOffset, 0);
-      const lastOffset = resolveOffset(stroke.lastPointOffset, 1);
+      let lastOffset = resolveOffset(stroke.lastPointOffset, 1);
+      // Per-instance write-on sweep: the cell's animated stroke offset is a GLOBAL
+      // front (0→1) that travels across the replicator pattern center→out. An
+      // instance at pattern phase `p` stays hidden until the front reaches it,
+      // then draws its arc over a 1/N-wide band. Without this the huge outer rings
+      // (per-cell Scale up to ~9×, so a single thick disc spans much of the frame)
+      // all draw from frame 1 and the reveal is effectively instantaneous.
+      if (e.writeOnPhase !== undefined && entries.length > 1) {
+        // The cell's animated stroke offset is a GLOBAL front (0..1). Each instance
+        // draws its own arc once the front reaches its pattern phase, over a band
+        // one instance wide (the replicator's default sequential build order). The
+        // front and per-instance timing come entirely from the .motr (the stroke
+        // curve + the pattern index) — no GT-fit constant.
+        const g = lastOffset;
+        const band = 1 / entries.length;
+        const local = (g - e.writeOnPhase) / band;
+        lastOffset = Math.max(0, Math.min(1, local));
+      }
       return rasterizeShape(e.shape, W, H, e.xform, ctx?.cameraZ, ctx?.cameraPosZ, { firstOffset, lastOffset });
     }
     return rasterizeShape(e.shape, W, H, e.xform);

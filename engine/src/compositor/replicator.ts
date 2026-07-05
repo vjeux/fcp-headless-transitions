@@ -25,6 +25,14 @@ export interface ReplicatorInstance {
   col: number;
   /** Normalized position 0-1 across the grid (for staggered animation). */
   normalizedIndex: number;
+  /**
+   * Per-instance uniform scale multiplier (Motion "Scale → Scale End" ramp over
+   * the pattern). Defaults to 1 for grid layouts; the Circle/Spiral shape layouts
+   * ramp it across the pattern index to build the nested vertigo rings.
+   */
+  scale?: number;
+  /** Per-instance extra rotation in radians ("Angle → Angle End" ramp). */
+  angle?: number;
 }
 
 export interface ReplicatorConfig {
@@ -33,6 +41,14 @@ export interface ReplicatorConfig {
   rows: number;
   sizeWidth: number;
   sizeHeight: number;
+  /** Motion "Shape" arrangement (Cell Shape id=302): 1=Circle, 3=Spiral, etc. */
+  shape?: number;
+  points?: number;
+  radius?: number;
+  twists?: number;
+  scaleStart?: number;
+  cellScaleEnd?: number;
+  angleEnd?: number;
 }
 
 /**
@@ -45,6 +61,44 @@ export function generateInstances(config: ReplicatorConfig): ReplicatorInstance[
 
   const cols = Math.max(1, Math.round(columns));
   const rowCount = Math.max(1, Math.round(rows));
+
+  // Shape-based arrangement (Motion "Shape Parameters"/Shape id=302). These
+  // replicators lay `points` instances on a Circle/Spiral of `radius` and ramp
+  // each cell's Scale + extra Angle across the pattern index — producing the
+  // nested concentric-ring / vertigo spiral (small central ring scaling up to a
+  // large outer one). Fully param-driven; no per-transition constant. shape 1 =
+  // Circle, 3 = Spiral. (Grid shapes 0/5 and image shape 6 fall through to the
+  // legacy grid/point path below.)
+  if ((config.shape === 1 || config.shape === 3) && config.points && config.points > 0) {
+    const n = Math.max(1, Math.round(config.points));
+    const radius = config.radius ?? 0;
+    const s0 = config.scaleStart ?? 1;
+    const s1 = config.cellScaleEnd ?? s0;
+    const a1 = config.angleEnd ?? 0;
+    // Spiral: the ring radius ramps 0→radius over the pattern while it also winds
+    // `twists` turns; Circle: fixed radius, instances evenly spaced by angle.
+    const twists = config.twists ?? 0;
+    for (let i = 0; i < n; i++) {
+      const u = n > 1 ? i / (n - 1) : 0;            // 0..1 across the pattern
+      const baseAngle = (i / n) * Math.PI * 2;      // even circular spacing
+      const spiralAngle = baseAngle + (config.shape === 3 ? twists * Math.PI * 2 * u : 0);
+      const r = config.shape === 3 ? radius * u : radius;
+      instances.push({
+        x: Math.cos(spiralAngle) * r,
+        y: Math.sin(spiralAngle) * r,
+        index: i,
+        row: 0,
+        col: i,
+        normalizedIndex: u,
+        // Per-cell Scale ramp (Motion interpolates Scale→Scale End across the
+        // pattern index) and extra rotation ramp (0→Angle End). The small central
+        // arc scales up to the large outer arc — the nested vertigo spiral.
+        scale: s0 + (s1 - s0) * u,
+        angle: a1 * u,
+      });
+    }
+    return instances;
+  }
 
   switch (arrangement) {
     case 0: // Point (single instance)
