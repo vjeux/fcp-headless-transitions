@@ -1047,7 +1047,7 @@ function findObjectSource(el: Element): number | undefined {
 
 }
 
-function parseShape(el: Element): Shape | undefined {
+function parseShape(el: Element, factories: Map<number, string>, linkSourceIds: Set<number>): Shape | undefined {
   const curveX = findDescendant(el, 'curve_X');
   const curveY = findDescendant(el, 'curve_Y');
   if (!curveX || !curveY) return undefined;
@@ -1090,7 +1090,20 @@ function parseShape(el: Element): Shape | undefined {
   // read for non-mask shapes; masks provide alpha, not color.
   let fillColor: { r: number; g: number; b: number; a: number } | undefined;
   if (!isMask) {
-    const fc = findFillColor(el);
+    // A color-DRIVER shape (Heart's "Gradient"/"Grad color link") either carries
+    // a direct `Link` (factory "Link") behavior that pipes its color into another
+    // layer, OR is itself referenced as a Link `Source Object` (id=201) by some
+    // behavior — i.e. it is a color swatch that other layers link FROM. A genuine
+    // decorative card (Center's panels) is neither. Only when the shape is not a
+    // color driver do we accept a gradient-mode-flagged (bit-clear) solid Fill
+    // Color — see findFillColor's exception comment.
+    const shapeId = parseInt(el.getAttribute('id') || '0', 10);
+    const hasColorLink =
+      linkSourceIds.has(shapeId) ||
+      directChildren(el, 'behavior').some(
+        b => factories.get(parseInt(b.getAttribute('factoryID') || '0', 10)) === 'Link',
+      );
+    const fc = findFillColor(el, !hasColorLink);
     if (fc) fillColor = fc;
   }
 
@@ -1189,7 +1202,10 @@ function findPanelFillColor(shapeEl: Element): { color: { r: number; g: number; 
  * animated `value` over `default`. Only the FIRST Fill Color found (the shape's
  * own fill) is used.
  */
-function findFillColor(shapeEl: Element): { r: number; g: number; b: number; a: number } | undefined {
+function findFillColor(
+  shapeEl: Element,
+  allowGradientModeSolid: boolean,
+): { r: number; g: number; b: number; a: number } | undefined {
   const params = Array.from(shapeEl.getElementsByTagName('parameter'));
   for (const p of params) {
     if (p.getAttribute('name') !== 'Fill Color' || p.getAttribute('id') !== '111') continue;
@@ -1198,14 +1214,26 @@ function findFillColor(shapeEl: Element): { r: number; g: number; b: number; a: 
     // (whose Fill Color is only a swatch; the shape actually renders its Gradient
     // — e.g. Stylized/Heart's reveal shapes). Motion sets bit 0x100000000 in the
     // "Fill Color" (id=111) flags when solid color is the ACTIVE fill mode; a
-    // gradient-mode shape leaves it clear. Only treat the shape as solid-filled
-    // when that bit is set — otherwise we'd wrongly paint gradient shapes as flat
-    // color and destroy those transitions (Heart, Center Reveal, Wipes/Diagonal).
+    // gradient-mode shape leaves it clear.
+    //
+    // EXCEPTION (Stylized/Kinetic/Center's decorative cards): some solidly-filled
+    // shapes leave that bit CLEAR (flags 0x2xxxxxxxx) yet render their solid Fill
+    // Color — the "Gradient" sub-branch is the untouched red→blue placeholder.
+    // These are indistinguishable from Heart's gradient shapes by the flag alone
+    // (Heart's shapes share the exact same 0x2xxxxxxxx pattern). The structural
+    // discriminator: Heart's shapes are COLOR-DRIVERS — they carry `Link`
+    // (factory "Link") behaviors that pipe their color into a gradient/other layer
+    // (affectingChannel `.../113/104/...`). A genuine decorative card carries NO
+    // such Link behavior. So when the shape has no color-publishing Link behavior
+    // (`allowGradientModeSolid`), accept its solid Fill Color even with the bit
+    // clear. This keeps Heart/Center Reveal/Wipes on the gradient path while
+    // painting Center's cards (Center 4.0→ double digits).
+    //
     // NB: JS bitwise ops are 32-bit; bit 32 (0x100000000) must be tested via
     // floating-point division, not `&`.
     const flags = Number(p.getAttribute('flags') || '0');
     const solidFillActive = Math.floor(flags / 0x100000000) % 2 === 1;
-    if (!solidFillActive) return undefined;
+    if (!solidFillActive && !allowGradientModeSolid) return undefined;
     let r: number | undefined, g: number | undefined, b: number | undefined;
     for (const ch of directChildren(p, 'parameter')) {
       const nm = ch.getAttribute('name');
@@ -1320,7 +1348,7 @@ function parseDropZone(params: Parameter[]): { type: number; width: number; heig
   return { type, width, height };
 }
 
-function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map<number, 'A' | 'B'>): Layer {
+function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map<number, 'A' | 'B'>, linkSourceIds: Set<number>): Layer {
   const factoryID = parseInt(el.getAttribute('factoryID') || '0', 10);
   const factoryType = factories.get(factoryID) || '';
 
@@ -1380,7 +1408,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
     if (childType !== 'ProPlugin Filter' && childType !== 'Fade In/Fade Out'
         && childType !== 'Oscillate' && childType !== 'Spin' && childType !== 'Throw'
         && childType !== 'Motion Path' && childType !== 'Align To') {
-      children.push(parseSceneNode(childNode, factories, clipAB));
+      children.push(parseSceneNode(childNode, factories, clipAB, linkSourceIds));
     }
   }
 
@@ -1480,7 +1508,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
     children,
     timing: parseTiming(el),
     retimeValue: extractRetimeValue(params),
-    shape: type === 'shape' ? parseShape(el) : undefined,
+    shape: type === 'shape' ? parseShape(el, factories, linkSourceIds) : undefined,
     replicator: type === 'replicator' ? parseReplicator(params, el, factories) : undefined,
     behaviors: parseLayerBehaviors(el, factories),
     source: (type === 'image' || type === 'generator') ? determineImageSource(params, el, clipAB) : undefined,
@@ -1653,7 +1681,7 @@ function parseFramingBehaviors(el: Element, factories: Map<number, string>): Fra
 /**
  * Parse a <layer> element (a group that contains scenenodes).
  */
-function parseLayerElement(el: Element, factories: Map<number, string>, clipAB: Map<number, 'A' | 'B'>): Layer {
+function parseLayerElement(el: Element, factories: Map<number, string>, clipAB: Map<number, 'A' | 'B'>, linkSourceIds: Set<number>): Layer {
   // Parse the layer's own parameters
   const params: Parameter[] = [];
   for (const paramEl of directChildren(el, 'parameter')) {
@@ -1678,10 +1706,10 @@ function parseLayerElement(el: Element, factories: Map<number, string>, clipAB: 
         }
         filters.push({ id: filterId, pluginName, pluginUUID, parameters: filterParams });
       } else {
-        children.push(parseSceneNode(childEl, factories, clipAB));
+        children.push(parseSceneNode(childEl, factories, clipAB, linkSourceIds));
       }
     } else if (childEl.tagName === 'layer' || childEl.tagName === 'group') {
-      children.push(parseLayerElement(childEl, factories, clipAB));
+      children.push(parseLayerElement(childEl, factories, clipAB, linkSourceIds));
     } else if (childEl.tagName === 'filter') {
       // Filter elements (blur, color, etc.)
       const filterId = parseInt(childEl.getAttribute('id') || '0', 10);
@@ -1962,17 +1990,29 @@ export function parseMotr(xmlText: string): MotrScene {
   // Resolve the footage drop-zone clips → A/B for authoritative source resolution.
   const clipAB = parseFootageClipAB(sceneEl);
 
+  // Collect every object ID referenced as a Link `Source Object` (id=201) — the
+  // set of "color swatch" driver shapes that other layers link their color FROM
+  // (e.g. Heart's "Grad color link" shapes). Used to keep those on the gradient
+  // path when deciding whether a bit-clear solid Fill Color should be painted.
+  const linkSourceIds = new Set<number>();
+  for (const p of Array.from(sceneEl.getElementsByTagName('parameter'))) {
+    if (p.getAttribute('name') === 'Source Object' && p.getAttribute('id') === '201') {
+      const v = parseInt(p.getAttribute('value') || '0', 10);
+      if (v) linkSourceIds.add(v);
+    }
+  }
+
   // 4. Parse the scene graph (layers + scenenodes under <scene>)
   const layers: Layer[] = [];
   for (const el of allDirectChildren(sceneEl)) {
     if (el.tagName === 'layer' || el.tagName === 'group') {
-      layers.push(parseLayerElement(el, factories, clipAB));
+      layers.push(parseLayerElement(el, factories, clipAB, linkSourceIds));
     } else if (el.tagName === 'scenenode') {
       const fid = parseInt(el.getAttribute('factoryID') || '0', 10);
       const ftype = factories.get(fid) || '';
       // Skip Project, Rig, Widget — they're metadata/control, not visual layers
       if (ftype !== 'Project' && ftype !== 'Rig' && ftype !== 'Widget') {
-        layers.push(parseSceneNode(el, factories, clipAB));
+        layers.push(parseSceneNode(el, factories, clipAB, linkSourceIds));
       }
     }
   }
