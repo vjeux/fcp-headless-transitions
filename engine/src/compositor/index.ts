@@ -71,6 +71,8 @@ interface RenderContext {
    * legacy default (2000) when no camera is present.
    */
   cameraZ: number;
+  /** Camera node's animated world Z position (dolly). Undefined when no camera. */
+  cameraPosZ?: number;
   /**
    * Framing camera pose (OZScene::computeFraming), present only when the camera
    * carries Framing behaviors (factory 3, "Framing"). When present the tile wall
@@ -993,7 +995,7 @@ function renderLayer(
   // at its world transform, fill with its Fill Color, and composite with the
   // layer's opacity + blend mode. Filters (if any) apply to the filled buffer.
   if (layer.type === 'shape' && layer.shape && !layer.shape.isMask && layer.shape.fillColor && opacity > 0) {
-    const alpha = rasterizeShape(layer.shape, output.width, output.height, worldTransform);
+    const alpha = rasterizeShape(layer.shape, output.width, output.height, worldTransform, ctx?.cameraZ, ctx?.cameraPosZ);
     const { r, g, b, a } = layer.shape.fillColor;
     const fillBuf = createBuffer(output.width, output.height);
     const fd = fillBuf.data;
@@ -1369,6 +1371,7 @@ export function composite(
     imageA,
     imageB,
     cameraZ: scene.camera?.distance ?? 2000,
+    cameraPosZ: scene.camera?.worldTransform ? scene.camera.worldTransform[14] : undefined,
     framed: scene.camera?.framed,
     imageMaskSourceIds: collectImageMaskSourceIds(scene.evalLayerById),
     mediaResolver,

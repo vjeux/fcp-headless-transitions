@@ -28,21 +28,59 @@ export function rasterizeShape(
   shape: Shape,
   width: number,
   height: number,
-  transform?: Float64Array
+  transform?: Float64Array,
+  cameraZ?: number,
+  cameraPosZ?: number
 ): Uint8Array {
   const mask = new Uint8Array(width * height);
   const { verticesX, verticesY } = shape;
   const n = verticesX.length;
   if (n < 3) return mask;
 
+  // A shape that lives at a non-zero world Z (or is 3D-rotated) must be projected
+  // through the camera's perspective, exactly like an image quad (projectQuad):
+  // Stylized/Documentary/Close & Open builds a 3D BOX of white-fill polygons
+  // (Z from −8000 to +5000) that a dolly camera frames. Without the perspective
+  // divide those far/near cards render at their flat XY (tiny, near-centre) and
+  // never tile the frame. `perspective` is enabled only when a finite cameraZ is
+  // supplied AND the transform carries real 3D depth (Z translation column-3 or a
+  // Z-coupled basis) — so ordinary 2D fill shapes (Flash/Panels/Heart/Wipes) keep
+  // the exact affine path below and are byte-for-byte unchanged.
+  const t = transform;
+  const perspective = t !== undefined && cameraZ !== undefined && isFinite(cameraZ)
+    && (Math.abs(t[2]) > 1e-6 || Math.abs(t[6]) > 1e-6 || Math.abs(t[8]) > 1e-6
+      || Math.abs(t[9]) > 1e-6 || Math.abs(t[14]) > 1e-6);
+  // Camera dolly: content is viewed from world Z = cameraPosZ, looking down −Z
+  // (Motion convention). The viewer-space depth of world point wz is (cameraPosZ −
+  // wz); the on-screen scale is the focal distance / that depth. When no camera
+  // position is supplied, fall back to Motion's origin-camera divide (cameraZ + wz).
+  const camP = cameraPosZ ?? 0;
+
   // --- Transform vertices (and tangent endpoints) into pixel coordinates. ---
   const toPixel = (vx: number, vy: number): [number, number] => {
     if (transform) {
-      const a = transform[0], b = transform[4], tx = transform[12];
-      const c = transform[1], d = transform[5], ty = transform[13];
-      const nx = a * vx + b * vy + tx;
-      const ny = c * vx + d * vy + ty;
-      vx = nx; vy = ny;
+      if (perspective) {
+        const m = transform;
+        // Full 4x4 (local vertex has z=0): world point.
+        const wx = m[0] * vx + m[4] * vy + m[12];
+        const wy = m[1] * vx + m[5] * vy + m[13];
+        const wz = m[2] * vx + m[6] * vy + m[14];
+        // Perspective divide. With an explicit camera dolly position the viewer-
+        // space depth of world point wz is (cameraPosZ − wz) — content in FRONT of
+        // the origin-facing camera has positive depth — and the on-screen scale is
+        // the focal distance (cameraZ) over that depth. Content behind the camera
+        // (depth ≤ 0) is culled. Falls back to Motion's origin-camera divide
+        // (cameraZ + wz) when no camera position is supplied.
+        const denom = cameraPosZ !== undefined ? (camP - wz) : (cameraZ! + wz);
+        const s = denom > 1e-6 ? cameraZ! / denom : 0;
+        vx = wx * s; vy = wy * s;
+      } else {
+        const a = transform[0], b = transform[4], tx = transform[12];
+        const c = transform[1], d = transform[5], ty = transform[13];
+        const nx = a * vx + b * vy + tx;
+        const ny = c * vx + d * vy + ty;
+        vx = nx; vy = ny;
+      }
     }
     // Centered coords → pixel coords (Y-up → Y-down)
     return [vx + width / 2, height / 2 - vy];
