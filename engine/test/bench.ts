@@ -12,6 +12,7 @@ if (typeof globalThis.ImageData === "undefined") {
 }
 import { createTransition } from '../src/index.js';
 import { PNG } from 'pngjs';
+import { loadGT } from './gt-cache.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -80,7 +81,7 @@ for (const slug of dirs.sort()) {
     const idxs = [0, Math.floor((gtFrames.length-1)/2), gtFrames.length-1];
     for (const i of idxs) {
       const prog = gtFrames.length > 1 ? i/(gtFrames.length-1) : 0;
-      const gt = loadPNG(path.join(GT_ROOT, slug, gtFrames[i]));
+      const gt = loadGT(path.join(GT_ROOT, slug, gtFrames[i]));
       const r = tr.render(imgA, imgB, prog);
       if (r.width !== gt.width || r.height !== gt.height) continue;
       sum += psnr(r, gt); cnt++;

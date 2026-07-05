@@ -12,6 +12,7 @@ if (typeof globalThis.ImageData === "undefined") {
 }
 import { createTransition } from '../src/index.js';
 import { PNG } from 'pngjs';
+import { loadGT } from './gt-cache.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -78,7 +79,7 @@ function runTests() {
 
     for (let i = 0; i < gtFrames.length; i++) {
       const progress = gtFrames.length > 1 ? i / (gtFrames.length - 1) : 0;
-      const gt = loadPNG(path.join(GT_ROOT, dir, gtFrames[i]));
+      const gt = loadGT(path.join(GT_ROOT, dir, gtFrames[i]));
       const rendered = transition.render(imgA, imgB, progress);
       if (rendered.width !== gt.width || rendered.height !== gt.height) continue;
       const p = psnr(rendered, gt);
