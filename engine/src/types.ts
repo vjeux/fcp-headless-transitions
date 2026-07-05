@@ -281,6 +281,39 @@ export interface Replicator {
   sizeHeight: number;
   /** Origin/pattern offset. */
   origin: number;
+  /** Sequence Replicator behavior (per-instance staggered param ramp), if present. */
+  sequence?: SequenceReplicator;
+}
+
+/**
+ * Sequence Replicator behavior — staggers a parameter animation across the
+ * replicator's instances as the transition plays. Each instance plays the same
+ * per-instance curve (Opacity/Scale/Rotation), but its START is offset by the
+ * instance's sequence position, producing a traveling wave across the grid.
+ *
+ * Params come from the behavior's "Sequence Control" group:
+ *   - sequencing (id 1011): ordering/traversal mode
+ *   - end        (id 1002): global progress at which the LAST instance begins
+ *   - spread     (id 1003): number of instances simultaneously animating (window)
+ *   - mapAnimation (id 1006), quadraticEase (id 1013): easing flags
+ *
+ * The animated targets are the per-instance curves keyframed on the behavior:
+ *   - opacityEnd:  Opacity   ramps 0 → opacityEnd  (usually 1)
+ *   - scaleEnd:    Scale X/Y ramps 1 → scaleEnd    (Motion scale is a multiplier;
+ *                  the curve stores 0→2.5 meaning +250% i.e. multiplier 1→3.5? —
+ *                  interpreted below as an additive-to-multiplier ramp)
+ *   - rotationEnd: Rotation Z ramps 0 → rotationEnd (radians)
+ */
+export interface SequenceReplicator {
+  sequencing: number;
+  end: number;
+  spread: number;
+  mapAnimation: number;
+  quadraticEase: number;
+  /** Per-instance animated curve endpoints (start is the replicator base). */
+  opacityEnd?: number;
+  scaleEnd?: number;
+  rotationEnd?: number;
 }
 
 

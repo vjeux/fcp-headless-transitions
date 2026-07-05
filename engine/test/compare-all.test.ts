@@ -25,6 +25,9 @@ const MOTR_PATHS: Record<string, string> = {
   'Blurs__Radial': `${MOTR_ROOT}/Blurs.localized/Radial.localized/Radial.motr`,
   'Lights__Bloom': `${MOTR_ROOT}/Lights.localized/Bloom.localized/Bloom.motr`,
   'Blurs__Zoom': `${MOTR_ROOT}/Blurs.localized/Zoom.localized/Zoom.motr`,
+  'Replicator__Duplicate': `${MOTR_ROOT}/Replicator:Clones.localized/Duplicate.localized/Duplicate.motr`,
+  'Replicator__Multi': `${MOTR_ROOT}/Replicator:Clones.localized/Multi.localized/Multi.motr`,
+  'Replicator__VideoWall': `${MOTR_ROOT}/Replicator:Clones.localized/Video Wall.localized/Video Wall.motr`,
 };
 
 function loadPNG(filepath: string): ImageData {

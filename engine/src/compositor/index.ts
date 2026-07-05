@@ -11,7 +11,7 @@ import { rasterizeShape, applyMask, unionMasks } from './shapes.js';
 import { needsPerspective, projectQuad, renderPerspectiveQuad } from './perspective.js';
 import { blendChannel, isSeparable, luma } from './blend.js';
 import type { BlendMode } from '../types.js';
-import { generateInstances } from './replicator.js';
+import { generateInstances, sequenceProgress, sequenceOrder } from './replicator.js';
 import { lookupFilter, makeContext } from './filters/registry.js';
 import './filters/index.js'; // side-effect: registers all UUID-keyed filter modules
 
@@ -56,6 +56,8 @@ interface RenderContext {
    * legacy default (2000) when no camera is present.
    */
   cameraZ: number;
+  /** Animation end (seconds) so replicator sequencing can normalize global time. */
+  animationEndSec: number;
 }
 let ctx: RenderContext | null = null;
 
@@ -196,7 +198,7 @@ function revealThroughMask(
     const dyc = dy - dh / 2;
     for (let dx = xLo; dx < xHi; dx++) {
       const dxc = dx - dw / 2;
-      // Inverse-map output → mask-source centered → mask pixel.
+      // Inverse-map output → mask-source centered → mask pixel (nearest).
       const sxc = ia * dxc + ib * dyc + itx;
       const syc = ic * dxc + id * dyc + ity;
       const mx = Math.round(sxc + mw / 2);
@@ -556,18 +558,46 @@ function renderLayer(
     const stampImg = cell?.kind === 'image' ? cell.img : cell?.kind === 'window' ? cell.maskCell : null;
     const cellBBox = stampImg ? cellContentBBox(stampImg) : null;
 
+    // Sequence Replicator: stagger a per-instance opacity/scale/rotation ramp
+    // across the ordered instances. globalProgress is normalized scene time.
+    const seq = layer.replicator.sequence;
+    const cols = Math.max(1, Math.round(layer.replicator.columns));
+    const rows = Math.max(1, Math.round(layer.replicator.rows));
+    const globalProgress = seq ? time / (ctx?.animationEndSec || 1) : 0;
+
     for (const inst of instances) {
-      if (cell && cellBBox && stampImg) {
+      // Per-instance sequenced parameters (default: no change).
+      let instOpacityMul = 1;
+      let instScale = 1;
+      if (seq) {
+        const order = sequenceOrder(inst, cols, rows);
+        const p = sequenceProgress(order, globalProgress, seq.end, seq.spread, instances.length);
+        // Apply the per-instance curves. Motion Scale curve is a MULTIPLIER
+        // ramp: value 0 → scaleEnd means the instance grows from 0 to scaleEnd×
+        // the base cell. Opacity ramps 0 → opacityEnd. (Rotation would rotate
+        // the cell; for a radially-symmetric dot mask it is a visual no-op, so
+        // it is intentionally not applied to the circular reveal.)
+        instOpacityMul = seq.opacityEnd !== undefined ? p * seq.opacityEnd : p;
+        instScale = seq.scaleEnd !== undefined ? p * seq.scaleEnd : p;
+      }
+
+      if (cell && cellBBox && stampImg && instOpacityMul > 0 && instScale > 0) {
         const instTransform = new Float64Array(worldTransform);
+        if (instScale !== 1) {
+          // Scale the cell about its own center (instance origin), then translate.
+          instTransform[0] *= instScale; instTransform[1] *= instScale;
+          instTransform[4] *= instScale; instTransform[5] *= instScale;
+        }
         instTransform[12] += inst.x;
         instTransform[13] += inst.y;
         const dstBBox = transformBBoxToOutput(stampImg, cellBBox, instTransform);
+        const instOpacity = opacity * instOpacityMul;
         if (cell.kind === 'window') {
           // Reveal the source image at this instance's screen location through
           // the (transformed) shape mask — dots/tiles are windows, not stamps.
-          revealThroughMask(output, cell.source, stampImg, instTransform, opacity, dstBBox);
+          revealThroughMask(output, cell.source, stampImg, instTransform, instOpacity, dstBBox);
         } else {
-          blitTransformed(output, stampImg, instTransform, opacity, crop, 'normal', dstBBox);
+          blitTransformed(output, stampImg, instTransform, instOpacity, crop, 'normal', dstBBox);
         }
       }
       // Also render any evaluated cell children (rare — most cells are empty and
@@ -712,6 +742,7 @@ export function composite(
     imageA,
     imageB,
     cameraZ: scene.camera?.distance ?? 2000,
+    animationEndSec: scene.animationEndSec || 1,
   };
 
   // Render layers back-to-front (Motion: first in list = top/foreground, last = bottom/background)
