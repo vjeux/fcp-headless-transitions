@@ -183,7 +183,7 @@ function buildLayerById(layers: Layer[], map: Map<number, Layer>): Map<number, L
 
 /** Read a driver layer's animated channel (X/Y/Z) from the given transform
  *  property (position/rotation/scale) at a given time. */
-function driverChannelValue(driver: Layer, channel: 'X' | 'Y' | 'Z', timeSec: number, prop: 'position' | 'rotation' | 'scale' = 'position'): number {
+function driverChannelValue(driver: Layer, channel: 'X' | 'Y' | 'Z', timeSec: number, prop: 'position' | 'rotation' | 'scale' | 'anchor' = 'position'): number {
   const t = driver.transform;
   let c: Curve | number | undefined;
   if (prop === 'rotation') {
@@ -193,6 +193,10 @@ function driverChannelValue(driver: Layer, channel: 'X' | 'Y' | 'Z', timeSec: nu
   if (prop === 'scale') {
     c = channel === 'X' ? t.scaleX : channel === 'Y' ? t.scaleY : t.scaleZ;
     return resolveValue(c, timeSec, 1);
+  }
+  if (prop === 'anchor') {
+    c = channel === 'X' ? t.anchorX : channel === 'Y' ? t.anchorY : t.anchorZ;
+    return resolveValue(c, timeSec, 0);
   }
   c = channel === 'X' ? t.positionX : channel === 'Y' ? t.positionY : t.positionZ;
   return resolveValue(c, timeSec, 0);
@@ -212,8 +216,23 @@ function applyLinks(
   widgetValues: Map<number, number>,
   timeSec: number
 ): Transform {
-  const links = linksByTarget.get(layer.id);
-  if (!links || links.length === 0) return transform;
+  const rawLinks = linksByTarget.get(layer.id);
+  if (!rawLinks || rawLinks.length === 0) return transform;
+  // Fold-rig detection: when a group carries BOTH a position-Z Link and an
+  // anchor-Z Link from the SAME driver (Movements/Reflection: LinkPos.Z + LinkAnchor.Z,
+  // both off the hidden Color Solid), Motion pins the content to the pivot plane —
+  // the driver's Z animation is the rotation-hinge DEPTH, not a viewer-distance
+  // translation. The engine models the pivot via the anchor separately, so applying
+  // the position-Z as an extra world-Z translation double-counts it and makes the
+  // card recede far too much (verified: dropping it lifts Reflection 10.9→12.9dB).
+  // Drop the coupled position-Z link (content stays on the screen plane and only
+  // rotates). Position X/Y and rotation links are unaffected.
+  const anchorZSources = new Set<number>();
+  for (const a of rawLinks) {
+    if (a.targetProp === 'anchor' && a.targetChannel === 'Z') anchorZSources.add(a.sourceObjectId);
+  }
+  const links = anchorZSources.size === 0 ? rawLinks : rawLinks.filter(l =>
+    !(l.targetProp === 'position' && l.targetChannel === 'Z' && anchorZSources.has(l.sourceObjectId)));
   const result = { ...transform };
   for (const link of links) {
     const driver = layerById.get(link.sourceObjectId);
@@ -270,6 +289,13 @@ function applyLinks(
       const base = resolveValue(result[chan], timeSec, 0);
       result[chan] = base * (1 - mix) + v * mix;
       overrides.add(ovKey);
+    } else if (link.targetProp === 'anchor') {
+      // Anchor Link (Movements/Reflection LinkAnchor): copy the driver's anchor
+      // channel onto this layer's anchor so the group hinges on the shared spine
+      // (driver anchor Z = 960). Anchor default is 0.
+      const chan = link.targetChannel === 'X' ? 'anchorX' : link.targetChannel === 'Y' ? 'anchorY' : 'anchorZ';
+      const base = resolveValue(result[chan], timeSec, 0);
+      result[chan] = base * (1 - mix) + v * mix;
     } else if (link.targetProp === 'scale') {
       // Scale is uniform on these nodes; drive all axes. Scale default is 1.
       const base = resolveValue(result.scaleX, timeSec, 1);
@@ -566,6 +592,11 @@ function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: nu
   // track together so a static offset (e.g. Fall's -540) cancels, leaving only the rotation pivot.
   const ancX = resolveWithRetime(tx.anchorX, timeSec, 0, retimeProgress);
   const ancY = resolveWithRetime(tx.anchorY, timeSec, 0, retimeProgress);
+  // Anchor Z: the rotation/scale pivot's depth. Movements/Reflection's incoming
+  // Transition B carries anchor Z = 960 (its page hinges on the shared "spine" at
+  // Z=960, not its own centre) — without it, B's 90° pre-rotation leaves it offset
+  // ~720px laterally when the group settles, instead of landing full-frame.
+  const ancZ = resolveWithRetime(tx.anchorZ, timeSec, 0, retimeProgress);
 
   // Transform order (Motion's documented order), producing the matrix
   //   M = T(position) · R · S · T(-anchor)
@@ -577,7 +608,7 @@ function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: nu
   // combines a non-origin position with scale AND rotation, e.g. the Wipes masks.)
   let m = mat4Identity();
   // Innermost: translate by -anchor
-  if (ancX !== 0 || ancY !== 0) m = mat4Multiply(mat4Translate(-ancX, -ancY, 0), m);
+  if (ancX !== 0 || ancY !== 0 || ancZ !== 0) m = mat4Multiply(mat4Translate(-ancX, -ancY, -ancZ), m);
   // Scale
   if (scX !== 1 || scY !== 1 || scZ !== 1) m = mat4Multiply(mat4Scale(scX, scY, scZ), m);
   // Rotate (X, Y, Z applied so Z is outermost of the three, matching prior code)

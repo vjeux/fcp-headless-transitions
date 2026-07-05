@@ -62,6 +62,7 @@ export interface Transform {
   scaleZ?: Curve | number;
   anchorX?: Curve | number;
   anchorY?: Curve | number;
+  anchorZ?: Curve | number;
   opacity?: Curve | number;
   cropLeft?: Curve | number;
   cropRight?: Curve | number;
@@ -259,10 +260,10 @@ export interface LinkBehavior {
    *  Defaults to 'position' when the path is absent/unrecognized (legacy Push
    *  links carry position paths). A rotation/scale Link (e.g. Clothesline's
    *  LinkRotZ on ".../100/109/3") must NOT corrupt positionZ. */
-  targetProp: 'position' | 'rotation' | 'scale';
+  targetProp: 'position' | 'rotation' | 'scale' | 'anchor';
   /** Which transform property the SOURCE channel is read from, decoded from the
    *  sourceChannelRef path. Defaults to 'position'. */
-  sourceProp: 'position' | 'rotation' | 'scale';
+  sourceProp: 'position' | 'rotation' | 'scale' | 'anchor';
   /** Which source channel is read: 'X' | 'Y' | 'Z'. */
   sourceChannel: 'X' | 'Y' | 'Z';
   /** Multiplier applied to the source value. */

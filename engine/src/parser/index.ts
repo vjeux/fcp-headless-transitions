@@ -375,6 +375,7 @@ function extractTransform(params: Parameter[]): Transform {
   if (anchorParam?.children) {
     tx.anchorX = getAnimValue(anchorParam.children, 'X') ?? getAnimValue(anchorParam.children, 'X', 1);
     tx.anchorY = getAnimValue(anchorParam.children, 'Y') ?? getAnimValue(anchorParam.children, 'Y', 2);
+    tx.anchorZ = getAnimValue(anchorParam.children, 'Z') ?? getAnimValue(anchorParam.children, 'Z', 3);
   }
 
   // Opacity (0-100 in Motion → 0-1 for compositing). The layer's own opacity is
@@ -730,36 +731,76 @@ function parseLinkBehaviors(el: Element, factories: Map<number, string>): LinkBe
       const last = ref.trim().split('/').pop();
       return last === '1' ? 'X' : last === '2' ? 'Y' : last === '3' ? 'Z' : undefined;
     };
-    let targetChannel: 'X' | 'Y' | 'Z' | undefined;
-    let sourceChannel: 'X' | 'Y' | 'Z' | undefined;
-    const expr = firstChild(b, 'expressionChannels');
-    let srcRefPath = '';
-    if (expr) {
-      const srcRef = getTextContent(expr, 'sourceChannelRef');
-      const tgtId = getTextContent(expr, 'targetChannelID');
-      sourceChannel = chanName(srcRef);
-      targetChannel = tgtId === '1' ? 'X' : tgtId === '2' ? 'Y' : tgtId === '3' ? 'Z' : undefined;
-      srcRefPath = srcRef || '';
-    }
-    const propFromPath = (path: string): 'position' | 'rotation' | 'scale' => {
+    const propFromPath = (path: string): 'position' | 'rotation' | 'scale' | 'anchor' => {
       const p = path.replace(/^\.\//, '').split('/').map(s => s.trim()).filter(Boolean);
       if (p[0] === '1' && p[1] === '100') {
         if (p[2] === '109') return 'rotation';
         if (p[2] === '105') return 'scale';
+        // 107 = Anchor Point. Only the Z channel is routed to the layer's anchor:
+        // Movements/Reflection's LinkAnchor copies the hidden driver's anchor Z
+        // (=960) so the card group hinges on the shared "spine" plane (its anchor-Z
+        // then cancels the position-Z base, keeping the fold pinned to the screen
+        // plane). Anchor X/Y links (e.g. Movements/Switch's anchorX≈737) historically
+        // behaved as position translations and score better that way, so they fall
+        // through to 'position'. The caller decides per-channel (see anchorProp).
+        if (p[2] === '107') return 'anchor';
       }
       return 'position';
     };
+    // Per-channel anchor routing: anchor-Z → 'anchor' (fold spine), anchor-X/Y →
+    // 'position' (legacy behavior, preserves Switch/etc.).
+    const anchorProp = (affPath: string, ch: 'X' | 'Y' | 'Z'): 'position' | 'rotation' | 'scale' | 'anchor' => {
+      const base = propFromPath(affPath);
+      if (base === 'anchor' && ch !== 'Z') return 'position';
+      return base;
+    };
     const cbEl = firstChild(b, 'channelBehavior');
     const affPath = cbEl?.getAttribute('affectingChannel') || '';
-    const targetProp = propFromPath(affPath);
-    // Source property from sourceChannelRef (falls back to target path if absent).
-    const sourceProp = propFromPath(srcRefPath || affPath);
-    // Fallback from the channelBehavior affectingChannel (the driven channel).
-    if (!targetChannel) {
-      targetChannel = chanName(affPath || null);
+    // A single Link behavior may drive MULTIPLE channels (X/Y/Z), one per
+    // <expressionChannels>. LinkPos/LinkAnchor carry three; LinkRot one. Reading
+    // only the first (the old behavior) silently dropped the Y/Z position links —
+    // e.g. Reflection's LinkPos.Z, which pulls the card group toward the camera.
+    // Collect all expression channels; emit one LinkBehavior per channel below.
+    const exprEls = directChildren(b, 'expressionChannels');
+    interface ChanSpec { targetChannel: 'X' | 'Y' | 'Z'; sourceChannel: 'X' | 'Y' | 'Z'; targetProp: 'position' | 'rotation' | 'scale' | 'anchor'; sourceProp: 'position' | 'rotation' | 'scale' | 'anchor'; }
+    const chanSpecs: ChanSpec[] = [];
+    for (const expr of exprEls) {
+      const srcRef = getTextContent(expr, 'sourceChannelRef');
+      const tgtId = getTextContent(expr, 'targetChannelID');
+      const sourceChannel = chanName(srcRef);
+      const targetChannel = tgtId === '1' ? 'X' : tgtId === '2' ? 'Y' : tgtId === '3' ? 'Z' : chanName(affPath || null);
+      if (!targetChannel) continue;
+      chanSpecs.push({
+        targetChannel,
+        sourceChannel: sourceChannel ?? targetChannel,
+        targetProp: anchorProp(affPath, targetChannel),
+        sourceProp: anchorProp(srcRef || affPath, (sourceChannel ?? targetChannel)),
+      });
     }
-    if (!sourceChannel) sourceChannel = targetChannel;
-    if (!targetChannel || !sourceChannel || sourceObjectId === 0) continue;
+    // Fallback: no expressionChannels — derive the single channel from affPath.
+    if (chanSpecs.length === 0) {
+      const targetChannel = chanName(affPath || null);
+      if (targetChannel) {
+        chanSpecs.push({ targetChannel, sourceChannel: targetChannel, targetProp: anchorProp(affPath, targetChannel), sourceProp: anchorProp(affPath, targetChannel) });
+      }
+    }
+    if (chanSpecs.length === 0 || sourceObjectId === 0) continue;
+
+    // Dedupe. A uniform-Scale Link (affectingChannel "./1/100/105" with no axis)
+    // lists X/Y/Z expressionChannels, but the evaluator's scale branch already drives
+    // ALL axes from one link — emitting three would triple-apply the mix blend
+    // (regressed Movements/Scale 31.9→24.3dB). Collapse all 'scale' specs to a single
+    // entry, and drop any exact (targetProp,targetChannel) duplicates.
+    const seen = new Set<string>();
+    const deduped: ChanSpec[] = [];
+    for (const c of chanSpecs) {
+      const key = c.targetProp === 'scale' ? 'scale' : `${c.targetProp}:${c.targetChannel}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(c);
+    }
+    chanSpecs.length = 0;
+    chanSpecs.push(...deduped);
 
     // Sibling "Rig Behavior"s drive this Link's Custom Mix (channel "./207") AND
     // its Scale (channel "./204") per direction. Both are rig snapshot arrays
@@ -798,22 +839,24 @@ function parseLinkBehaviors(el: Element, factories: Map<number, string>): LinkBe
       else if (affCh.endsWith('/204')) { rigScale = readSnapshots(rb); rigWidgetId = widgetId; }
     }
 
-    links.push({
-      affectedObjectId: affectedId,
-      sourceObjectId,
-      targetChannel,
-      targetProp,
-      sourceProp,
-      sourceChannel,
-      scale,
-      offset: targetChannel === 'X' ? offsetX : targetChannel === 'Y' ? offsetY : offsetZ,
-      customMix,
-      min,
-      max,
-      rigWidgetId,
-      rigCustomMix,
-      rigScale,
-    });
+    for (const spec of chanSpecs) {
+      links.push({
+        affectedObjectId: affectedId,
+        sourceObjectId,
+        targetChannel: spec.targetChannel,
+        targetProp: spec.targetProp,
+        sourceProp: spec.sourceProp,
+        sourceChannel: spec.sourceChannel,
+        scale,
+        offset: spec.targetChannel === 'X' ? offsetX : spec.targetChannel === 'Y' ? offsetY : offsetZ,
+        customMix,
+        min,
+        max,
+        rigWidgetId,
+        rigCustomMix,
+        rigScale,
+      });
+    }
   }
   return links;
 }
