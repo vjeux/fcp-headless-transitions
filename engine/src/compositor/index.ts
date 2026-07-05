@@ -898,6 +898,40 @@ function renderLayer(
     // through so they render on top.
   }
 
+  // Drop-zone framing: a drop zone declares a Width×Height FRAME (e.g. 1920×1920)
+  // that the source media is fit into (aspect-fill by width) BEFORE crop/scale.
+  // Motion's Crop is therefore expressed in FRAME-pixel space, not source-pixel
+  // space. A 1920×1080 source fit into a 1920×1920 frame is letterboxed with
+  // (1920−1080)/2 = 420px bars top & bottom; a Crop of Top=Bottom=420 removes
+  // exactly those bars, netting to the FULL source (no content cut). Convert the
+  // frame-space crop into source-space so the panel shows the framed image rather
+  // than a thin sliced band. Scoped to leaf image drop zones with a frame.
+  let effCrop = crop;
+  if ((layer.type === 'image') && layer.dropZone && layer.source) {
+    const srcImg0 = evalLayer.forceSourceA ? imageA : getSourceImage(layer.source, imageA, imageB);
+    if (srcImg0) {
+      const fw = layer.dropZone.width, fh = layer.dropZone.height;
+      const sw = srcImg0.width, sh = srcImg0.height;
+      if (fw > 0 && fh > 0) {
+        // Aspect-fill by width (Motion drop zones fill the frame width, letterbox
+        // the shorter axis). Fitted source size within the frame:
+        const fitScale = fw / sw;                    // width-fill
+        const fittedH = sh * fitScale;               // fitted source height (frame px)
+        const barTop = (fh - fittedH) / 2;           // frame-px letterbox bar
+        const barBottom = barTop;
+        const barLeft = 0, barRight = 0;             // width-fill → no side bars
+        // Frame-space crop minus letterbox bar → source-frame px, then / fitScale
+        // back into SOURCE pixels. Clamp ≥ 0 (a crop inside the bar shows full src).
+        effCrop = {
+          left: Math.max(0, crop.left - barLeft) / fitScale,
+          right: Math.max(0, crop.right - barRight) / fitScale,
+          top: Math.max(0, crop.top - barTop) / fitScale,
+          bottom: Math.max(0, crop.bottom - barBottom) / fitScale,
+        };
+      }
+    }
+  }
+
   if (layer.type === 'image' || layer.type === 'generator') {
     // Skip the full-frame particle-field texture: the field proxy composites it
     // over the whole frame on a derived envelope (rendering it here too would
@@ -917,7 +951,7 @@ function renderLayer(
         : null;
       if (maskAlpha) {
         const temp = createBuffer(output.width, output.height);
-        blitTransformed(temp, src, worldTransform, 1.0, crop);
+        blitTransformed(temp, src, worldTransform, 1.0, effCrop);
         let filtered = temp;
         for (const filter of layer.filters) {
           filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id));
@@ -927,7 +961,7 @@ function renderLayer(
       } else if (layer.filters.length > 0) {
         // Render to temp buffer, apply filters, then composite onto output
         const temp = createBuffer(output.width, output.height);
-        blitTransformed(temp, src, worldTransform, 1.0, crop); // full opacity to temp
+        blitTransformed(temp, src, worldTransform, 1.0, effCrop); // full opacity to temp
         let filtered = temp;
         for (const filter of layer.filters) {
           filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id));
@@ -938,7 +972,7 @@ function renderLayer(
         const corners = projectQuad(worldTransform, src.width, src.height, ctx?.cameraZ ?? 2000);
         renderPerspectiveQuad(output, src, corners, opacity);
       } else {
-        blitTransformed(output, src, worldTransform, opacity, crop, layer.blendMode);
+        blitTransformed(output, src, worldTransform, opacity, effCrop, layer.blendMode);
       }
     }
   }
