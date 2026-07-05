@@ -60,7 +60,8 @@ Status legend:  ✅ done & validated · 🟡 partial · ❌ not implemented
 | Motion Path | 2 | path-follow behavior | ❌ |
 | Gravity | 2 | particle force | ❌ |
 | Framing | 2 | reframe behavior | ❌ |
-| Throw / Scrub / Scale Over Life / Rate / Random Motion / Light / Grow-Shrink | 1 each | misc behaviors | ❌ |
+| Throw / Scale Over Life / Rate / Random Motion / Light / Grow-Shrink | 1 each | misc behaviors | ❌ |
+| Scrub (retiming) | 1 | `OZScrubRetimeBehavior` — formula decompiled from `RetimingMath::scrub` (see engine/src/evaluator/behaviors/SCRUB_DECOMPILE.md); implemented as `evaluateScrub`. Used by Objects/Curtains to retime its (missing) `Sequence 3.mov` curtain movie. | ✅ formula |
 
 ---
 

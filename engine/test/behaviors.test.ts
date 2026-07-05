@@ -1,7 +1,7 @@
 /**
  * Tests for animation behaviors.
  */
-import { evaluateFade, evaluateRampAtProgress, applyRampCurvature, evaluateOscillate, evaluateSpin } from '../src/evaluator/behaviors/index.js';
+import { evaluateFade, evaluateRampAtProgress, applyRampCurvature, evaluateOscillate, evaluateSpin, evaluateScrub, ScrubOffsetFrom } from '../src/evaluator/behaviors/index.js';
 
 function assert(cond: boolean, msg: string) { if (!cond) throw new Error(`FAIL: ${msg}`); }
 function assertClose(a: number, b: number, tol: number, msg: string) {
@@ -56,6 +56,23 @@ function runTests() {
   test('spin: 0 at t=0', () => assertClose(evaluateSpin(spin, 0), 0, 0.01, 't=0'));
   test('spin: 360 at t=1', () => assertClose(evaluateSpin(spin, 1), 360, 0.01, 't=1'));
   test('spin: 180 at t=0.5', () => assertClose(evaluateSpin(spin, 0.5), 180, 0.01, 't=0.5'));
+
+  // Scrub retiming — decompiled RetimingMath::scrub(objectFrame, offsetFrames, endFrames, frameOffset, offsetFrom)
+  // Window [offsetFrames=0, endFrames=24]; frameOffset = the animated Frame Offset channel.
+  const scrubCur = { offsetFrames: 0, endFrames: 24, offsetFrom: ScrubOffsetFrom.Current };
+  const scrubStart = { offsetFrames: 5, endFrames: 24, offsetFrom: ScrubOffsetFrom.Start };
+  // Inside window (objectFrame < endFrames): Current → objectFrame + frameOffset
+  test('scrub current: inside window offsets from current', () =>
+    assertClose(evaluateScrub(scrubCur, 10, -33), 10 - 33, 1e-9, 'obj10+(-33)'));
+  // Past BOTH bounds (objectFrame >= offsetFrames && >= endFrames): unchanged
+  test('scrub current: past window plays through', () =>
+    assertClose(evaluateScrub(scrubCur, 30, -33), 30, 1e-9, 'obj30 unchanged'));
+  // Start mode inside window → offsetFrames + frameOffset (independent of objectFrame)
+  test('scrub start: offsets from window start', () =>
+    assertClose(evaluateScrub(scrubStart, 10, 64.5), 5 + 64.5, 1e-9, 'start5+64.5'));
+  // objectFrame >= offsetFrames but < endFrames still scrubs (only past BOTH bounds stops).
+  test('scrub current: at offsetFrames but before endFrames still scrubs', () =>
+    assertClose(evaluateScrub(scrubCur, 0, 12), 0 + 12, 1e-9, 'obj0+12'));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail > 0) process.exit(1);

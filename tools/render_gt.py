@@ -117,6 +117,16 @@ def animation_end_seconds(motr_path):
                 sec = val / scale
                 if sec > max_t:
                     max_t = sec
+    if max_t <= 0:
+        # No spatial keyframes (e.g. Movements/Swing, Blurs/Zoom — motion is driven
+        # entirely by Ramp/Retime/procedural behaviors whose values live in
+        # Start/End Value params, NOT <keypoint>s). Bound the window by the max
+        # <timing out=...> across all nodes, EXACTLY mirroring the TS parser's
+        # fallback in src/parser/index.ts (animationEndSec = maxOut). Without this
+        # the harness fell through to the 1.6683s Push default, putting GT and the
+        # engine on DIFFERENT time domains (a silent PSNR killer for Swing et al.).
+        xml = open(motr_path, "r", encoding="utf-8", errors="ignore").read()
+        max_t = _scene_duration_seconds(xml)
     return max_t
 
 

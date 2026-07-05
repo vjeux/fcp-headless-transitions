@@ -114,6 +114,71 @@ export function evaluateOscillate(behavior: OscillateBehavior, timeSec: number):
   return amplitude * Math.sin(2 * Math.PI * frequency * timeSec + phaseRad);
 }
 
+/**
+ * OffsetFrom mode for the Scrub retiming behavior. Decompiled from
+ * `OZScrubRetimeBehavior::getOffsetFromValue` (Behaviors.ozp @ 0x7f978):
+ *   getValueAsInt(kCMTimeZero) == 1 → returns 1  (offset from behavior START)
+ *   otherwise                        → returns 0  (offset from the CURRENT frame)
+ * so the behavior only ever passes 0 or 1 into RetimingMath::scrub.
+ */
+export const enum ScrubOffsetFrom {
+  Current = 0, // scrubbed frame = objectFrame  + frameOffset
+  Start = 1,   // scrubbed frame = offsetFrames + frameOffset
+}
+
+export interface ScrubBehavior {
+  /** The behavior's timing-window start, in source FRAMES (getOffsetFrames). */
+  offsetFrames: number;
+  /** The behavior's timing-window end, in source FRAMES (getEndFrames). */
+  endFrames: number;
+  /** OffsetFrom selector (Current=0 / Start=1) — OZScrubRetimeBehavior::getOffsetFromValue. */
+  offsetFrom: ScrubOffsetFrom;
+}
+
+/**
+ * Evaluate the Scrub retiming behavior → the retimed SOURCE frame index that a
+ * clip should display at object-time `objectFrame`.
+ *
+ * EXACT formula decompiled from `RetimingMath::scrub(double,double,double,double,OffsetFrom)`
+ * (RetimingMath.framework, arm64 @ 0x5c68). The disassembly is only 9 instructions:
+ *
+ *   scrub(d0=objectFrame, d1=offsetFrames, d2=endFrames, d3=frameOffset, w0=offsetFrom):
+ *     0x5c68  fcmp   d0, d1                 ; objectFrame vs offsetFrames
+ *     0x5c6c  fccmp  d0, d2, #0, pl         ; if (objectFrame >= offsetFrames) also cmp vs endFrames
+ *     0x5c70  b.pl   0x5c90                 ; if (objectFrame >= offsetFrames && >= endFrames) → ret objectFrame
+ *     0x5c74  cmp    w0, #1
+ *     0x5c78  b.eq   0x5c8c                 ; offsetFrom == 1 (Start) → offsetFrames + frameOffset
+ *     0x5c7c  fadd   d1, d0, d3             ; tmp = objectFrame + frameOffset
+ *     0x5c80  cmp    w0, #0
+ *     0x5c84  fcsel  d0, d0, d1, ne         ; w0 != 0 → objectFrame (unchanged); w0 == 0 → tmp
+ *     0x5c88  ret
+ *     0x5c8c  fadd   d0, d1, d3 ; ret       ; offsetFrames + frameOffset
+ *     0x5c90  ret                           ; objectFrame
+ *
+ * In words: while the object time is still WITHIN the scrub window
+ * (objectFrame < offsetFrames OR objectFrame < endFrames), the source frame is
+ * displaced by the animated "Frame Offset" channel value; once the object time
+ * has passed BOTH window bounds the clip plays through untouched. The base the
+ * offset adds to is the window START (offsetFrom==1) or the CURRENT object frame
+ * (offsetFrom==0). Any other enum value (≥2) leaves the frame unchanged.
+ *
+ * @param frameOffset - the animated "Frame Offset" (id=200) channel value at this
+ *                       time, in frames (OZScrubRetimeBehavior::getOffsetValue @ 0x7f96c).
+ * @param objectFrame - the clip's own object time in frames (figToFrames of the sample time).
+ */
+export function evaluateScrub(
+  behavior: ScrubBehavior,
+  objectFrame: number,
+  frameOffset: number,
+): number {
+  const { offsetFrames, endFrames, offsetFrom } = behavior;
+  // fcmp/fccmp/b.pl: past BOTH window bounds → no scrub.
+  if (objectFrame >= offsetFrames && objectFrame >= endFrames) return objectFrame;
+  if (offsetFrom === 1) return offsetFrames + frameOffset; // Start
+  if (offsetFrom === 0) return objectFrame + frameOffset;  // Current
+  return objectFrame; // any other OffsetFrom enum value → unchanged
+}
+
 export interface SpinBehavior {
   rate: number; // degrees per second
 }
