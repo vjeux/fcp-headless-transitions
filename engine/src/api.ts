@@ -106,9 +106,29 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
       // Evaluate all layers at this time
       const evaluated = evaluate(scene, timeSec);
 
-      // Composite into a frame at native scene resolution
+      // Composite into a frame. FCP renders a transition at the PROJECT (output)
+      // resolution — template scene coordinates are interpreted 1:1 in that output
+      // space (a template authored at a sub-output preview canvas still lays its
+      // shapes/masks out in the project's pixel space). When the template's native
+      // canvas is SMALLER than the requested output (e.g. Dissolves/Divide &
+      // Movements/Drop In are authored at 1280×720 but rendered into a 1080p
+      // project), rendering at native then upscaling MIS-SCALES absolute-coordinate
+      // shape masks — Divide's section masks are authored in 1080 space, so a 720
+      // raster overflows every section to ~99% coverage instead of GT's ~48%.
+      // Rendering directly at output fixes this (Divide 7.5→9.4dB, Drop In +0.4dB).
+      //
+      // We do this ONLY for the upscale case. For templates whose native canvas is
+      // LARGER than output (the 360° equirectangular set at 4096×2048, Smear/Squares
+      // at 4096, etc.), the projection/geometry is resolution-dependent and the GT
+      // is produced by rendering at native then downscaling — so we preserve the
+      // native-render + resample path there (rendering those at 1080 regresses them
+      // ~3dB, e.g. Smear 9.9→7.1, Squares 10.6→7.4, 360° Push 10.1→7.4).
+      const upscale = !!(outW && outH && outW > width && outH > height);
+      if (upscale) {
+        return composite(evaluated, imageA, imageB, outW!, outH!, opts?.mediaResolver);
+      }
       const frame = composite(evaluated, imageA, imageB, width, height, opts?.mediaResolver);
-      // Conform to output resolution if requested
+      // Conform to output resolution if requested (native-render + resample).
       if (outW && outH && (outW !== width || outH !== height)) {
         return resample(frame, outW, outH);
       }

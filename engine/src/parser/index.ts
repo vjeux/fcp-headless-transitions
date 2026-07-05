@@ -472,6 +472,15 @@ function parseFootageClipAB(sceneEl: Element): Map<number, 'A' | 'B'> {
   // reverse them. To match ground truth we re-key A/B to the order the referencing
   // image elements appear in the document. Only applied when exactly two drop-zone
   // clips are referenced by exactly two image elements (the standard A/B case).
+  //
+  // NOTE: a timing-aware variant (order by each element's `in` time, tie-break by
+  // document order) was evaluated to fix Dissolves/Divide's A/B (whose "Transition
+  // A" element goes live before "Transition B"). It DID help Divide (+0.4dB) and
+  // Lights/Lens Flare (+28dB!), but REGRESSED Stylized/Center Reveal (−22dB: 40→18)
+  // and its effect on the ~40 other differing-`in` templates is unvalidated. The
+  // `in`-time alone does not discriminate Lens Flare (needs reorder) from Center
+  // Reveal (needs pure doc order) despite identical structure, so pure document
+  // order is retained as the safe, validated behavior.
   if (clips.length === 2) {
     const referenced: number[] = []; // clip ids in document order of their image elements
     const seen = new Set<number>();
