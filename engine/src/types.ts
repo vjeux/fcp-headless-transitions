@@ -269,14 +269,16 @@ export interface LinkBehavior {
   targetChannel: 'X' | 'Y' | 'Z';
   /** Which transform property the target channel belongs to, decoded from the
    *  channelBehavior affectingChannel path:
-   *  "./1/100/101/*"=position, "./1/100/105/*"=scale, "./1/100/109/*"=rotation.
+   *  "./1/100/101/*"=position, "./1/100/105/*"=scale, "./1/100/109/*"=rotation,
+   *  "./1/200/202"=opacity (Blending > Opacity).
    *  Defaults to 'position' when the path is absent/unrecognized (legacy Push
    *  links carry position paths). A rotation/scale Link (e.g. Clothesline's
-   *  LinkRotZ on ".../100/109/3") must NOT corrupt positionZ. */
-  targetProp: 'position' | 'rotation' | 'scale';
+   *  LinkRotZ on ".../100/109/3") must NOT corrupt positionZ. An opacity Link
+   *  (e.g. Scale's LinkAO/LinkBO/LinkBOF on ".../200/202") drives layer opacity. */
+  targetProp: 'position' | 'rotation' | 'scale' | 'opacity';
   /** Which transform property the SOURCE channel is read from, decoded from the
    *  sourceChannelRef path. Defaults to 'position'. */
-  sourceProp: 'position' | 'rotation' | 'scale';
+  sourceProp: 'position' | 'rotation' | 'scale' | 'opacity';
   /** Which source channel is read: 'X' | 'Y' | 'Z'. */
   sourceChannel: 'X' | 'Y' | 'Z';
   /** Multiplier applied to the source value. */

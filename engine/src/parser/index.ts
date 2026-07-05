@@ -712,7 +712,7 @@ function parseLinkBehaviors(el: Element, factories: Map<number, string>): LinkBe
     if (factories.get(fid) !== 'Link') continue;
 
     let sourceObjectId = 0, scale = 1, customMix = 1, min = -Infinity, max = Infinity;
-    let offsetX = 0, offsetY = 0, offsetZ = 0;
+    let offsetX = 0, offsetY = 0, offsetZ = 0, offsetOpacity = 0;
     // Motion nests LinkX/LinkY on the "Group" layer; their "Affecting Object" names
     // Transition A, but the observed effect is that the whole group (A + the B
     // clones) is driven together (so B enters as A leaves). We therefore apply the
@@ -726,13 +726,17 @@ function parseLinkBehaviors(el: Element, factories: Map<number, string>): LinkBe
       if (pname === 'Source Object') sourceObjectId = parseInt(v || '0', 10);
       else if (pname === 'Scale' && !isNaN(num)) scale = num;
       else if (pname === 'Custom Mix' && !isNaN(num)) customMix = num;
-      else if ((pname === 'X min' || pname === 'Y min' || pname === 'Z min') && !isNaN(num)) min = num;
-      else if ((pname === 'X max' || pname === 'Y max' || pname === 'Z max') && !isNaN(num)) max = num;
+      else if ((pname === 'X min' || pname === 'Y min' || pname === 'Z min' || pname === 'Opacity min') && !isNaN(num)) min = num;
+      else if ((pname === 'X max' || pname === 'Y max' || pname === 'Z max' || pname === 'Opacity max') && !isNaN(num)) max = num;
       // Additive per-clone offset (linked = source*scale + offset). Only set when
       // present (default 0). Clothesline's Transition B carries "X offset"≈+2072.
       else if (pname === 'X offset' && !isNaN(num)) offsetX = num;
       else if (pname === 'Y offset' && !isNaN(num)) offsetY = num;
       else if (pname === 'Z offset' && !isNaN(num)) offsetZ = num;
+      // Opacity offset (LinkBOF-style blend-opacity-fade links): linked opacity =
+      // source*scale + opacityOffset, then clamped to [min,max]. Scale's Clone-B
+      // fade uses scale=-1, offset=+1 → 1-source (fade-in as driver opacity 1→0).
+      else if (pname === 'Opacity offset' && !isNaN(num)) offsetOpacity = num;
     }
 
     // Determine which channels are driven from expressionChannels.
@@ -752,12 +756,14 @@ function parseLinkBehaviors(el: Element, factories: Map<number, string>): LinkBe
       targetChannel = tgtId === '1' ? 'X' : tgtId === '2' ? 'Y' : tgtId === '3' ? 'Z' : undefined;
       srcRefPath = srcRef || '';
     }
-    const propFromPath = (path: string): 'position' | 'rotation' | 'scale' => {
+    const propFromPath = (path: string): 'position' | 'rotation' | 'scale' | 'opacity' => {
       const p = path.replace(/^\.\//, '').split('/').map(s => s.trim()).filter(Boolean);
       if (p[0] === '1' && p[1] === '100') {
         if (p[2] === '109') return 'rotation';
         if (p[2] === '105') return 'scale';
       }
+      // Blending > Opacity: "./1/200/202" (LinkAO/LinkBO/LinkBOF drive opacity).
+      if (p[0] === '1' && p[1] === '200' && p[2] === '202') return 'opacity';
       return 'position';
     };
     const cbEl = firstChild(b, 'channelBehavior');
@@ -769,6 +775,12 @@ function parseLinkBehaviors(el: Element, factories: Map<number, string>): LinkBe
     if (!targetChannel) {
       targetChannel = chanName(affPath || null);
     }
+    // Opacity is a scalar (single channel). LinkAO/LinkBO/LinkBOF reference channel
+    // id 202 which has no X/Y/Z sub-index, so targetChannel/sourceChannel stay
+    // undefined above. Default both to 'X' so the scalar link is not dropped by the
+    // guard below; the opacity branch in applyLinks ignores the channel index.
+    if (targetProp === 'opacity' && !targetChannel) targetChannel = 'X';
+    if (sourceProp === 'opacity' && !sourceChannel) sourceChannel = 'X';
     if (!sourceChannel) sourceChannel = targetChannel;
     if (!targetChannel || !sourceChannel || sourceObjectId === 0) continue;
 
@@ -817,7 +829,8 @@ function parseLinkBehaviors(el: Element, factories: Map<number, string>): LinkBe
       sourceProp,
       sourceChannel,
       scale,
-      offset: targetChannel === 'X' ? offsetX : targetChannel === 'Y' ? offsetY : offsetZ,
+      offset: targetProp === 'opacity' ? offsetOpacity
+        : targetChannel === 'X' ? offsetX : targetChannel === 'Y' ? offsetY : offsetZ,
       customMix,
       min,
       max,

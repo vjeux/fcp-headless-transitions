@@ -183,9 +183,16 @@ function buildLayerById(layers: Layer[], map: Map<number, Layer>): Map<number, L
 
 /** Read a driver layer's animated channel (X/Y/Z) from the given transform
  *  property (position/rotation/scale) at a given time. */
-function driverChannelValue(driver: Layer, channel: 'X' | 'Y' | 'Z', timeSec: number, prop: 'position' | 'rotation' | 'scale' = 'position'): number {
+function driverChannelValue(driver: Layer, channel: 'X' | 'Y' | 'Z', timeSec: number, prop: 'position' | 'rotation' | 'scale' | 'opacity' = 'position'): number {
   const t = driver.transform;
   let c: Curve | number | undefined;
+  if (prop === 'opacity') {
+    // Opacity is a scalar (channel-independent). Motion stores 0-1; some legacy
+    // files use 0-100. Default 1 (fully opaque) when unset.
+    let v = resolveValue(t.opacity, timeSec, 1);
+    if (v > 1) v /= 100;
+    return v;
+  }
   if (prop === 'rotation') {
     c = channel === 'X' ? t.rotationX : channel === 'Y' ? t.rotationY : t.rotationZ;
     return resolveValue(c, timeSec, 0);
@@ -270,6 +277,14 @@ function applyLinks(
       const base = resolveValue(result[chan], timeSec, 0);
       result[chan] = base * (1 - mix) + v * mix;
       overrides.add(ovKey);
+    } else if (link.targetProp === 'opacity') {
+      // Opacity link (LinkAO/LinkBO/LinkBOF): drive layer opacity from the
+      // source's opacity via the mix blend. Motion stores opacity 0-1; the base
+      // defaults to 1 (fully opaque). result = base*(1-mix) + linkedOpacity*mix.
+      // `v` already carries the source*scale + offset (then clamp) computed above.
+      let base = resolveValue(result.opacity, timeSec, 1);
+      if (base > 1) base /= 100;
+      result.opacity = base * (1 - mix) + v * mix;
     } else if (link.targetProp === 'scale') {
       // Scale is uniform on these nodes; drive all axes. Scale default is 1.
       const base = resolveValue(result.scaleX, timeSec, 1);
