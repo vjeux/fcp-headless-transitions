@@ -53,3 +53,23 @@ console.log(`  easeInOut(0)=${easeInOut(0,0.25,0.25).toFixed(3)} easeInOut(1)=${
 
 console.log(`\n${pass}/${pass+fail} checks passed`);
 if (fail > 0) process.exit(1);
+
+// ── Stored-tangent Bezier (type 2) — distinct from CatmullRom (type 6) ─────────
+// Reference measured from the real engine for a 2-keyframe type-2 curve with
+// strong stored tangents (out=(0.5,-800) at kf0, in=(-0.5,-200) at kf1).
+{
+  const T = 200200 / 120000;
+  const k: CurveKeyframe[] = [
+    { t: 0, v: 0, interp: 2, outTangentTime: 0.5, outTangentValue: -800, inTangentTime: -0.1, inTangentValue: 0 },
+    { t: T, v: -1080, interp: 2, inTangentTime: -0.5, inTangentValue: -200, outTangentTime: 0.1, outTangentValue: 0 },
+  ];
+  const ref = [0,54,106,156,204,251,297,341,384,426,466,505,542,579,614,648,681,713,744,773,801,829,855,880,904,926,948,968,988,1006,1023];
+  let maxErr = 0, sum = 0;
+  for (let i = 0; i < ref.length; i++) {
+    const v = -evaluateMotionCurve(k, (i / 49) * T);
+    const e = Math.abs(v - ref[i]); maxErr = Math.max(maxErr, e); sum += e;
+  }
+  const ok = maxErr < 2.0;
+  console.log(`  type  2 Bezier(stored): mean ${(sum/ref.length).toFixed(2)}px max ${maxErr.toFixed(2)}px  ${ok?'PASS':'FAIL'}`);
+  if (!ok) process.exit(1);
+}
