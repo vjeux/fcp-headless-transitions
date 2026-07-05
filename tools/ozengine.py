@@ -30,6 +30,10 @@ DROPZONE_B = 1999869841
 _shim = None
 _ms = None
 _sel = None
+_engine_ready = False
+_OZDoc = None
+_NSURL = None
+_objc = None
 
 
 def _enable_embedded_plugins(Foundation):
@@ -62,9 +66,15 @@ def _enable_embedded_plugins(Foundation):
         info.setObject_forKey_(host, "PlugInKitHost")
     host.setObject_forKey_(True, "UsesEmbeddedCode")
 
-def boot(motr_path):
-    """Boot the engine and load a .motr document. Returns the C++ OZScene doc ptr."""
-    global _shim, _ms, _sel
+def init_engine():
+    """One-time engine init: dlopen Ozone/ProGL, CGL context, plugin opt-in, shim.
+
+    This is the ~1.3s cold-boot cost. It is process-global and idempotent — call
+    it once, then load many .motr docs via load_doc() in the SAME process to
+    amortize it across a batch of transitions (instead of re-paying it 65×)."""
+    global _shim, _ms, _sel, _engine_ready, _OZDoc, _NSURL, _objc
+    if _engine_ready:
+        return
     os.environ.setdefault("DYLD_FRAMEWORK_PATH", FW)
     oz = ctypes.CDLL(FW + "/Ozone.framework/Versions/A/Ozone")
     progl = ctypes.CDLL(FW + "/ProGL.framework/Versions/A/ProGL")
@@ -90,12 +100,34 @@ def boot(motr_path):
     _shim.oz_render_frame.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_uint,
                                       ctypes.c_char_p, ctypes.c_char_p,
                                       ctypes.c_double, ctypes.c_int, ctypes.c_char_p]
-    OZDoc = objc.lookUpClass("OZObjCDocument")
-    doc = OZDoc.alloc().init()
-    ok, _ = doc.readFromURL_ofType_error_(NSURL.fileURLWithPath_(motr_path), DOC_TYPE, None)
+    _OZDoc = objc.lookUpClass("OZObjCDocument")
+    _NSURL = NSURL
+    _objc = objc
+    _engine_ready = True
+
+
+def load_doc(motr_path):
+    """Load one .motr document into the already-initialized engine. Returns the
+    C++ OZScene doc ptr. Cheap relative to init_engine() — safe to call per
+    transition in a batch. Auto-inits the engine on first call."""
+    if not _engine_ready:
+        init_engine()
+    doc = _OZDoc.alloc().init()
+    ok, _ = doc.readFromURL_ofType_error_(_NSURL.fileURLWithPath_(motr_path), DOC_TYPE, None)
     if not ok:
         raise RuntimeError("failed to load .motr: " + motr_path)
-    return _ms(ctypes.c_void_p(objc.pyobjc_id(doc)), _sel(b"getDocument"))
+    return _ms(ctypes.c_void_p(_objc.pyobjc_id(doc)), _sel(b"getDocument"))
+
+
+def boot(motr_path):
+    """Boot the engine and load a .motr document. Returns the C++ OZScene doc ptr.
+
+    Backward-compatible: equivalent to init_engine() + load_doc(motr_path). For
+    rendering multiple transitions in one process, call init_engine() once then
+    load_doc() per transition to avoid re-paying the ~1.3s engine init."""
+    init_engine()
+    return load_doc(motr_path)
+
 
 def render_frame(doc, img_a, img_b, tsec, out, a_id=DROPZONE_A, b_id=DROPZONE_B):
     """Render one frame at scene time `tsec` (seconds) to PNG `out`."""

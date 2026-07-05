@@ -147,8 +147,61 @@ def _animation_end_seconds_linescan(motr_path):
         max_t = _scene_duration_seconds(xml)
     return max_t
 
+def _render_one(motr, img_a, img_b, outdir, nframes):
+    """Render one transition's frames into outdir. Assumes engine is initialized."""
+    os.makedirs(outdir, exist_ok=True)
+    end = animation_end_seconds(motr)
+    if end <= 0:
+        end = 1.6683333333333332  # last-resort Push default (no keyframes, no scene duration)
+    doc = ozengine.load_doc(motr)
+    for i in range(nframes):
+        p = i / (nframes - 1) if nframes > 1 else 0.0
+        t = p * end
+        if i == nframes - 1:
+            t = end - 1e-4  # nudge below the loop-point wrap
+        out = os.path.join(outdir, f"frame_{i:04d}.png")
+        ozengine.render_frame(doc, img_a, img_b, t, out)
+    return end
+
+
 def main():
     args = sys.argv[1:]
+
+    # --- Batch mode: render MANY transitions in ONE process, paying the ~1.3s
+    #     engine init only ONCE (instead of 65× cold boot). Reads a manifest of
+    #     "motr\timg_a\timg_b\toutdir" lines (one per transition) from a file or
+    #     stdin. Frame count via --frames N (default 24).
+    #       python tools/render_gt.py --batch manifest.tsv [--frames 24]
+    #       ... | python tools/render_gt.py --batch - [--frames 24]
+    if args and args[0] == "--batch":
+        manifest_path = args[1]
+        nframes = 24
+        if "--frames" in args:
+            nframes = int(args[args.index("--frames") + 1])
+        src = sys.stdin if manifest_path == "-" else open(manifest_path)
+        jobs = []
+        for line in src:
+            line = line.rstrip("\n")
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split("\t")
+            if len(parts) < 4:
+                continue
+            jobs.append(parts[:4])
+        if src is not sys.stdin:
+            src.close()
+        ozengine.init_engine()  # one-time ~1.3s cost for the whole batch
+        ok = 0
+        for motr, img_a, img_b, outdir in jobs:
+            try:
+                end = _render_one(motr, img_a, img_b, outdir, nframes)
+                print(f"OK  {outdir}  ({nframes}f, end={end:.4f}s)", flush=True)
+                ok += 1
+            except Exception as e:  # one bad template must not abort the batch
+                print(f"ERR {outdir}  {motr}: {e}", flush=True)
+        print(f"batch done: {ok}/{len(jobs)} transitions rendered", flush=True)
+        os._exit(0)  # avoid Ozone teardown crash on interpreter exit
+
     if args and args[0] == "--push":
         motr = os.path.expanduser("~/random/motion-renderer/examples/PETemplates.localized/"
                                   "Transitions.localized/Movements.localized/Push.localized/Push.motr")
@@ -160,20 +213,10 @@ def main():
         motr, img_a, img_b, outdir = args[0], args[1], args[2], args[3]
         nframes = int(args[4]) if len(args) > 4 else 50
 
-    os.makedirs(outdir, exist_ok=True)
-    end = animation_end_seconds(motr)
-    if end <= 0:
-        end = 1.6683333333333332  # last-resort Push default (no keyframes, no scene duration)
-    doc = ozengine.boot(motr)
-    for i in range(nframes):
-        p = i / (nframes - 1) if nframes > 1 else 0.0
-        t = p * end
-        if i == nframes - 1:
-            t = end - 1e-4  # nudge below the loop-point wrap
-        out = os.path.join(outdir, f"frame_{i:04d}.png")
-        ozengine.render_frame(doc, img_a, img_b, t, out)
+    end = _render_one(motr, img_a, img_b, outdir, nframes)
     print(f"rendered {nframes} frames to {outdir}  (animation_end={end:.6f}s)")
     os._exit(0)  # avoid Ozone teardown crash on interpreter exit
+
 
 if __name__ == "__main__":
     main()
