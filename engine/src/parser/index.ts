@@ -14,7 +14,7 @@
  */
 import type {
   MotrScene, SceneSettings, Layer, Curve, Keyframe, RationalTime,
-  Parameter, Transform, Filter, ImageSource, BlendMode, RigWidget, RigBehavior, Shape, Replicator, SequenceReplicator, LayerBehavior, SceneBehavior, LinkBehavior, GaussianGradientConfig
+  Parameter, Transform, Filter, ImageSource, BlendMode, RigWidget, RigBehavior, Shape, Replicator, SequenceReplicator, LayerBehavior, SceneBehavior, LinkBehavior, GaussianGradientConfig, FramingBehavior
 } from '../types.js';
 
 /**
@@ -1297,7 +1297,7 @@ function parseCameraParams(
   el: Element,
   params: Parameter[],
   factories: Map<number, string>
-): { angleOfView: number; aovSnapshots?: number[]; aovWidgetId?: number; aovDefault?: number } {
+): { angleOfView: number; aovSnapshots?: number[]; aovWidgetId?: number; aovDefault?: number; framing?: FramingBehavior[] } {
   // Find "Angle Of View" (id 201) in the param tree.
   let aov = 45; // Motion default
   const findAOV = (ps: Parameter[]): number | undefined => {
@@ -1346,7 +1346,57 @@ function parseCameraParams(
     }
   }
 
-  return { angleOfView: aov, aovSnapshots, aovWidgetId, aovDefault: aov };
+  return { angleOfView: aov, aovSnapshots, aovWidgetId, aovDefault: aov, framing: parseFramingBehaviors(el, factories) };
+}
+
+/**
+ * Parse Framing behaviors (factory 3, "Framing") attached to the Camera node.
+ * Each drives the camera to frame its Target object's world bbox over its
+ * timing window. Values are read from the behavior's direct parameters (ids
+ * 200/204/206/207/209/210/211/213). See OZScene::computeFraming and framing.ts.
+ */
+function parseFramingBehaviors(el: Element, factories: Map<number, string>): FramingBehavior[] | undefined {
+  const out: FramingBehavior[] = [];
+  for (const b of directChildren(el, 'behavior')) {
+    const fid = parseInt(b.getAttribute('factoryID') || '0', 10);
+    if (factories.get(fid) !== 'Framing') continue;
+    // Direct scalar param by id.
+    const num = (id: number, def: number): number => {
+      for (const p of directChildren(b, 'parameter')) {
+        if (parseInt(p.getAttribute('id') || '-1', 10) === id) {
+          const v = p.getAttribute('value');
+          if (v !== null) { const n = parseFloat(v); if (!isNaN(n)) return n; }
+        }
+      }
+      return def;
+    };
+    // Vector param (X/Y/Z children of a container param id).
+    const vec = (id: number): { x: number; y: number; z: number } => {
+      const r = { x: 0, y: 0, z: 0 };
+      for (const p of directChildren(b, 'parameter')) {
+        if (parseInt(p.getAttribute('id') || '-1', 10) !== id) continue;
+        for (const c of directChildren(p, 'parameter')) {
+          const cid = parseInt(c.getAttribute('id') || '0', 10);
+          const v = c.getAttribute('value'); if (v === null) continue;
+          const n = parseFloat(v); if (isNaN(n)) continue;
+          if (cid === 1) r.x = n; else if (cid === 2) r.y = n; else if (cid === 3) r.z = n;
+        }
+      }
+      return r;
+    };
+    out.push({
+      targetId: num(200, 0),
+      framingOffset: vec(204),
+      apex: num(206, 0.5),
+      pathOffset: vec(207),
+      positionTransitionTime: num(209, 0.5),
+      rotationTransitionTime: num(210, 0.5),
+      transition: num(211, 0),
+      easeOutCurve: num(213, 10),
+      timing: parseTiming(b),
+    });
+  }
+  return out.length > 0 ? out : undefined;
 }
 
 /**

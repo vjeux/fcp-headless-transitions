@@ -61,9 +61,18 @@ export function generateInstances(config: ReplicatorConfig): ReplicatorInstance[
       const startX = -sizeWidth / 2;
       const startY = sizeHeight / 2; // Y-up: top row at +Y
 
+      // Degenerate axis collapse: when a grid dimension has zero extent (Motion
+      // authors some replicators with sizeWidth/Height = 0), N>1 cells along that
+      // axis all land at the same coordinate — emitting N identical stamps. Motion
+      // renders a single row/column there (the extra cells coincide and contribute
+      // nothing new). Collapse the count on any zero-extent axis to 1 so we don't
+      // stamp duplicates (wasteful, and it double-blends semi-transparent cells).
+      const effCols = (cols > 1 && sizeWidth === 0) ? 1 : cols;
+      const effRows = (rowCount > 1 && sizeHeight === 0) ? 1 : rowCount;
+
       let idx = 0;
-      for (let r = 0; r < rowCount; r++) {
-        for (let c = 0; c < cols; c++) {
+      for (let r = 0; r < effRows; r++) {
+        for (let c = 0; c < effCols; c++) {
           instances.push({
             x: startX + c * spacingX,
             y: startY - r * spacingY,

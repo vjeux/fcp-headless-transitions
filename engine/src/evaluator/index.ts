@@ -21,6 +21,7 @@
 import type { MotrScene, Layer, Curve, Transform, RigWidget, RigBehavior, Parameter, SceneBehavior, LinkBehavior } from '../types.js';
 import { evaluateCurve, resolveValue, timeToSeconds } from './curves.js';
 import { evaluateFade, evaluateRampAtProgress, evaluateOscillate, evaluateSpin } from './behaviors/index.js';
+import { resolveFramedPose } from './framing.js';
 
 export { evaluateCurve, resolveValue, timeToSeconds } from './curves.js';
 
@@ -147,6 +148,14 @@ export interface EvaluatedScene {
     angleOfView: number;
     distance: number;
     worldTransform: Float64Array;
+    /**
+     * Render-time framed camera pose (OZScene::computeFraming), when the camera
+     * carries Framing behaviors (factory 3). Overrides the static camera position:
+     * `viewX`/`viewY` are the world XY of the framing point (subtracted from world
+     * coords to center the framed region), and `framingDistance` is the dolly
+     * distance used for perspective foreshortening of the tile wall.
+     */
+    framed?: { viewX: number; viewY: number; viewZ: number; framingDistance: number };
   };
 }
 
@@ -888,7 +897,7 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
   // Resolve the 3D camera (if any). Motion's Camera node sets a vertical Angle Of
   // View that determines the framing distance: content at Z=0 fills the frame, and
   // layers with world-Z get perspective foreshortening. distance = (H/2)/tan(AOV/2).
-  const camera = resolveCamera(layers, widgetValues, scene.settings.height);
+  const camera = resolveCamera(layers, widgetValues, scene.settings.height, evalLayerById, timeSec);
 
   return {
     layers,
@@ -911,8 +920,10 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
 function resolveCamera(
   layers: EvaluatedLayer[],
   widgetValues: Map<number, number>,
-  frameHeight: number
-): { angleOfView: number; distance: number; worldTransform: Float64Array } | undefined {
+  frameHeight: number,
+  evalLayerById: Map<number, EvaluatedLayer>,
+  timeSec: number
+): { angleOfView: number; distance: number; worldTransform: Float64Array; framed?: { viewX: number; viewY: number; viewZ: number; framingDistance: number } } | undefined {
   let camLayer: EvaluatedLayer | undefined;
   const walk = (ls: EvaluatedLayer[]) => {
     for (const l of ls) {
@@ -960,5 +971,16 @@ function resolveCamera(
   const halfRad = (aov * Math.PI) / 360; // AOV/2 in radians
   const t = Math.tan(halfRad);
   const distance = t > 1e-9 ? (frameHeight / 2) / t : 1e9;
-  return { angleOfView: aov, distance, worldTransform: camLayer.worldTransform };
+
+  // Framing camera (factory 3): when the camera carries Framing behaviors, the
+  // static camera position is ignored and the camera is driven to frame its
+  // target(s) at render time (OZScene::computeFraming). Resolve the framed pose.
+  let framed: { viewX: number; viewY: number; viewZ: number; framingDistance: number } | undefined;
+  if (cam.framing && cam.framing.length > 0) {
+    const pose = resolveFramedPose(cam.framing, (id) => evalLayerById.get(id), aov, timeSec);
+    if (pose) {
+      framed = { viewX: pose.target[0], viewY: pose.target[1], viewZ: pose.target[2], framingDistance: pose.distance };
+    }
+  }
+  return { angleOfView: aov, distance, worldTransform: camLayer.worldTransform, framed };
 }
