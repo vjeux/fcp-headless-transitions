@@ -226,13 +226,14 @@ function rasterizeTriangle(
 
       const i00 = (sy0 * sw + sx0) * 4, i10 = (sy0 * sw + sx1) * 4;
       const i01 = (sy1 * sw + sx0) * 4, i11 = (sy1 * sw + sx1) * 4;
-      const lerp2 = (a: number, b: number, c: number, d: number) =>
-        (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy;
+      // Bilinear weights (hoisted: no per-pixel closure allocation).
+      const gx = 1 - fx, gy = 1 - fy;
+      const w00b = gx * gy, w10b = fx * gy, w01b = gx * fy, w11b = fx * fy;
 
-      const sr = lerp2(src.data[i00], src.data[i10], src.data[i01], src.data[i11]);
-      const sg = lerp2(src.data[i00+1], src.data[i10+1], src.data[i01+1], src.data[i11+1]);
-      const sb = lerp2(src.data[i00+2], src.data[i10+2], src.data[i01+2], src.data[i11+2]);
-      const salpha = lerp2(src.data[i00+3], src.data[i10+3], src.data[i01+3], src.data[i11+3]);
+      const sr = src.data[i00]   * w00b + src.data[i10]   * w10b + src.data[i01]   * w01b + src.data[i11]   * w11b;
+      const sg = src.data[i00+1] * w00b + src.data[i10+1] * w10b + src.data[i01+1] * w01b + src.data[i11+1] * w11b;
+      const sb = src.data[i00+2] * w00b + src.data[i10+2] * w10b + src.data[i01+2] * w01b + src.data[i11+2] * w11b;
+      const salpha = src.data[i00+3] * w00b + src.data[i10+3] * w10b + src.data[i01+3] * w01b + src.data[i11+3] * w11b;
       const sa = salpha / 255 * opacity;
       if (sa <= 0) continue;
 

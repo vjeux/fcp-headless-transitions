@@ -358,6 +358,14 @@ function blitTransformed(
   const yHi = dstBBox ? Math.min(dh, dstBBox.y1 + 1) : dh;
   const xLo = dstBBox ? Math.max(0, dstBBox.x0) : 0;
   const xHi = dstBBox ? Math.min(dw, dstBBox.x1 + 1) : dw;
+  // Fast path for the overwhelmingly common 'normal' (source-over) blend: inline
+  // the composite so the hot per-pixel loop makes no function call and does no
+  // blend-mode string compare (~2M/frame at 1080p). Math is bit-identical to
+  // compositePixel's normal branch. Non-normal modes fall through to the generic
+  // compositePixel call below.
+  const fastNormal = blendMode === 'normal';
+  const ddata = dst.data;
+  const sdata = src.data;
   for (let dy = yLo; dy < yHi; dy++) {
     // Ozone/.motr internal space is Y-DOWN (screen_y = center + motionY): a clone
     // at Motion Y=-1080 renders at the TOP edge, and a +Y position translates
@@ -392,20 +400,32 @@ function blitTransformed(
       const i01 = (y1 * sw + cx0) * 4;
       const i11 = (y1 * sw + x1) * 4;
 
-      const lerp2 = (a: number, b: number, c: number, d: number) =>
-        (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy;
+      // Bilinear weights (hoisted: no per-pixel closure allocation).
+      const gx = 1 - fx, gy = 1 - fy;
+      const w00 = gx * gy, w10 = fx * gy, w01 = gx * fy, w11 = fx * fy;
 
-      const sr = lerp2(src.data[i00], src.data[i10], src.data[i01], src.data[i11]);
-      const sg = lerp2(src.data[i00+1], src.data[i10+1], src.data[i01+1], src.data[i11+1]);
-      const sb = lerp2(src.data[i00+2], src.data[i10+2], src.data[i01+2], src.data[i11+2]);
-      const srcAlpha = lerp2(src.data[i00+3], src.data[i10+3], src.data[i01+3], src.data[i11+3]);
+      const sr = sdata[i00]   * w00 + sdata[i10]   * w10 + sdata[i01]   * w01 + sdata[i11]   * w11;
+      const sg = sdata[i00+1] * w00 + sdata[i10+1] * w10 + sdata[i01+1] * w01 + sdata[i11+1] * w11;
+      const sb = sdata[i00+2] * w00 + sdata[i10+2] * w10 + sdata[i01+2] * w01 + sdata[i11+2] * w11;
+      const srcAlpha = sdata[i00+3] * w00 + sdata[i10+3] * w10 + sdata[i01+3] * w01 + sdata[i11+3] * w11;
       const sa = srcAlpha / 255 * opacity;
 
       const dstIdx = (dy * dw + dx) * 4;
 
       if (sa <= 0) continue;
 
-      compositePixel(dst.data, dstIdx, sr, sg, sb, sa, blendMode);
+      if (fastNormal) {
+        // Inlined source-over (bit-identical to compositePixel 'normal' branch).
+        const db = ddata[dstIdx + 3] / 255;
+        const outA = sa + db * (1 - sa);
+        if (outA <= 0) continue;
+        ddata[dstIdx]     = Math.round((sr * sa + ddata[dstIdx]     * db * (1 - sa)) / outA);
+        ddata[dstIdx + 1] = Math.round((sg * sa + ddata[dstIdx + 1] * db * (1 - sa)) / outA);
+        ddata[dstIdx + 2] = Math.round((sb * sa + ddata[dstIdx + 2] * db * (1 - sa)) / outA);
+        ddata[dstIdx + 3] = Math.round(outA * 255);
+      } else {
+        compositePixel(ddata, dstIdx, sr, sg, sb, sa, blendMode);
+      }
     }
   }
 }
