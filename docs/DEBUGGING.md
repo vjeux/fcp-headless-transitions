@@ -183,3 +183,55 @@ Push: **32.9 dB mean PSNR**, motion pixel-exact (split line within ~1 px of FCP
 across all frames). Remaining residual is sub-pixel edge resampling at the A/B seam
 plus a 1 px white seam artifact FCP itself emits. All 65 transitions render without
 crashing.
+
+## Interpolation types (fully decoded)
+
+`OZInterpolatorStrategies` (jump table @0xac588 + ::C2 ctor) maps the keyframe
+`interpolation="N"` attribute to an interpolator class:
+
+| N | interpolator | formula (u = normalized segment time) |
+|---|---|---|
+| 0 | Constant | hold |
+| 1, 18 | Linear | lerp |
+| 2–5, 9–12 | Bezier | cubic Bézier using the STORED tangent handles + time reparam |
+| 6 | CatmullRom | auto tangents from neighbours (see §6); 2-kf = smoothstep 3u²−2u³ |
+| 7 | EaseIn | vA+(vB−vA)·(1−cos(u·π/2)) |
+| 8 | EaseOut | vA+(vB−vA)·sin(u·π/2) |
+| 13 | Exponential | (unused by the 65 transitions) |
+| 14 | Logarithmic | (unused) |
+| 15 | Ease | PCMath::easeInOut(u, 0.25, 0.25) |
+| 16 | Accelerate | PCMath::easeInOut(u, 0.5, 0) |
+| 17 | Decelerate | PCMath::easeInOut(u, 0, 0.5) |
+| 19 | Convex / 20 Concave / 21 SCurve | (unused) |
+
+`PCMath::easeInOut` (ProCore 0x11f14) is a constant-accel / linear / constant-decel
+profile; ported in `motion-curve.ts`. Only 0,1,2,6,7,8,15,16,17 appear in the built-in
+transitions; all are implemented and validated to <0.65px via ruler renders of
+single-type test curves (`tools/edit_curve.py ... interp=N`).
+
+Implementation: `engine/src/evaluator/curves.ts` (dispatch) + the standalone spec
+`engine/src/evaluator/motion-curve.ts`. Tests: `test/interpolation-types.test.ts`,
+`test/motion-curve.test.ts`.
+
+## Keyframe flags (0x80 / 0x100 / 0x180)
+
+`<keypoint flags="N">`: 0x80 = boundary/corner marker (first & last keyframe carry
+it), 0x100/0x180 = locked / smooth handle editor state. VERIFIED via lldb codepath
+tracing + ruler renders that these do NOT affect evaluation output (linear OR
+catmull-rom) — they are UI metadata. The interpolation TYPE alone drives the math,
+so the evaluator ignores them. (256/384 co-occur almost only with type 0/1 where
+they can't change the shape anyway.)
+
+## Rig-driven Link parameters (transition direction)
+
+Push's Direction rig is implemented via two Links (LinkX/LinkY on the "Group",
+driven by the hidden Color Solid position). Each Link is controlled by TWO rig
+behaviors keyed on the Direction widget:
+  - Custom Mix (channel ./207) — which axis is active per direction
+    LinkX=[1,0,0,1] (dir 0,3 = horizontal), LinkY=[0,1,1,0] (dir 1,2 = vertical)
+  - Scale (channel ./204) — the per-direction SIGN
+    LinkX=[-1,1,1,1], LinkY=[1,1,-1,1]
+Both must be parsed (see parseLinkBehaviors) or only one direction renders right.
+STATUS: Bottom→Top is pixel-accurate; the other 3 render with correct structure
+but a residual clone horizontal-offset (~10-15dB mid-transition) — WIP, see
+test/push-directions.test.ts.
