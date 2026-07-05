@@ -18,7 +18,7 @@ export interface TransitionOptions {
    * The core engine does no file IO; the host injects a resolver (e.g. reading
    * from the .motr's directory). Returns null when the asset can't be resolved.
    */
-  mediaResolver?: (url: string) => ImageData | null;
+  mediaResolver?: (url: string, timeSec?: number) => ImageData | null;
 }
 
 /**

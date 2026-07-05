@@ -63,12 +63,19 @@ interface RenderContext {
    * NOT lift it to clip the enclosing group.
    */
   imageMaskSourceIds: Set<number>;
-  /** Host-injected resolver for bundled-media relativeURLs (Slide tile PNGs). */
-  mediaResolver?: (url: string) => ImageData | null;
+  /**
+   * Host-injected resolver for bundled-media relativeURLs. Still images (e.g.
+   * Slide's tile PNGs) ignore the second arg; VIDEO media (e.g. Objects/Veil's
+   * `Media/Veil.mov` overlay + wipe-matte) uses `timeSec` (current scene time)
+   * to pick the correct mov frame. The resolver owns its own decode cache.
+   */
+  mediaResolver?: (url: string, timeSec?: number) => ImageData | null;
   /** Per-frame cache of resolved media (avoids re-decoding a tile per layer/frame). */
   mediaCache: Map<string, ImageData | null>;
   /** Animation end (seconds) so replicator sequencing can normalize global time. */
   animationEndSec: number;
+  /** Current scene time (seconds) — threaded to the media resolver for video media. */
+  time: number;
 }
 let ctx: RenderContext | null = null;
 
@@ -517,14 +524,17 @@ function getSourceImage(source: ImageSource | undefined, imageA: ImageData, imag
     case 'transitionA': return imageA;
     case 'transitionB': return imageB;
     case 'media': {
-      // Bundled template asset (e.g. Slide's sliding tile PNGs). Resolved by the
-      // host-injected resolver and cached per frame. Null when unavailable — the
-      // layer then draws nothing (graceful degradation).
+      // Bundled template asset. Still images (Slide's tiles) resolve by URL and
+      // are cached per frame. VIDEO media (Objects/Veil, Leaves) varies with
+      // scene time, so it is keyed by url@time and never cached across frames —
+      // the host resolver owns the mov decode cache.
       if (!ctx?.mediaResolver) return null;
+      const t = ctx.time;
+      const key = `${source.url}@${t.toFixed(4)}`;
       const cache = ctx.mediaCache;
-      if (cache.has(source.url)) return cache.get(source.url)!;
-      const img = ctx.mediaResolver(source.url);
-      cache.set(source.url, img);
+      if (cache.has(key)) return cache.get(key)!;
+      const img = ctx.mediaResolver(source.url, t);
+      cache.set(key, img);
       return img;
     }
     case 'color': {
@@ -634,10 +644,39 @@ function collectImageMaskSourceIds(evalLayerById: Map<number, EvaluatedLayer>): 
  * — position/scale/rotation keyframes — is honored). Returns null if the source
  * can't be resolved or no shape is currently visible.
  */
-function resolveImageMaskAlpha(sourceId: number, W: number, H: number): Uint8Array | null {
+function resolveImageMaskAlpha(sourceId: number, W: number, H: number, invert = false): Uint8Array | null {
   if (!ctx) return null;
   const src = ctx.evalLayerById.get(sourceId);
   if (!src) return null;
+  const applyInvert = (m: Uint8Array): Uint8Array => {
+    if (!invert) return m;
+    for (let i = 0; i < m.length; i++) m[i] = 255 - m[i];
+    return m;
+  };
+  // Video/image media mask source (e.g. Objects/Veil's "Veil - Wipe Matte" mov):
+  // the layer is a media clip (often disabled — it exists only to supply matte
+  // luma). Its LUMA drives the reveal. Rasterize the media (via the time-aware
+  // resolver), fit it to the frame the same way a full-frame drop zone conforms,
+  // and use luma (0..255) as the mask alpha.
+  if (src.layer.type === 'image' && src.layer.source) {
+    const mediaImg = getSourceImage(src.layer.source, ctx.imageA, ctx.imageB);
+    if (mediaImg) {
+      const alpha = new Uint8Array(W * H);
+      // Full-frame matte: sample the media conformed to the output frame.
+      const mw = mediaImg.width, mh = mediaImg.height;
+      for (let y = 0; y < H; y++) {
+        const sy = Math.min(mh - 1, Math.floor(y * mh / H));
+        for (let x = 0; x < W; x++) {
+          const sx = Math.min(mw - 1, Math.floor(x * mw / W));
+          const si = (sy * mw + sx) * 4;
+          // Rec.601 luma; premultiply by the matte's own alpha (fully opaque here).
+          const l = (0.299 * mediaImg.data[si] + 0.587 * mediaImg.data[si + 1] + 0.114 * mediaImg.data[si + 2]);
+          alpha[y * W + x] = Math.round(l * (mediaImg.data[si + 3] / 255));
+        }
+      }
+      return applyInvert(alpha);
+    }
+  }
   // Collect visible shape descendants (the rig opacity selects the active one).
   const shapes: EvaluatedLayer[] = [];
   const walk = (el: EvaluatedLayer): void => {
@@ -649,7 +688,8 @@ function resolveImageMaskAlpha(sourceId: number, W: number, H: number): Uint8Arr
   walk(src);
   if (shapes.length === 0) return null;
   const masks = shapes.map(s => rasterizeShape(s.layer.shape!, W, H, s.worldTransform));
-  return masks.length === 1 ? masks[0] : unionMasks(masks, W, H);
+  const merged = masks.length === 1 ? masks[0] : unionMasks(masks, W, H);
+  return applyInvert(merged);
 }
 
 function renderLayer(
@@ -772,7 +812,7 @@ function renderLayer(
       // Wipes/Mask masks Transition B over an unmasked Transition A). Render to a
       // temp buffer, multiply alpha by the rasterized mask, then composite.
       const maskAlpha = layer.imageMaskSourceId !== undefined
-        ? resolveImageMaskAlpha(layer.imageMaskSourceId, output.width, output.height)
+        ? resolveImageMaskAlpha(layer.imageMaskSourceId, output.width, output.height, layer.imageMaskInvert)
         : null;
       if (maskAlpha) {
         const temp = createBuffer(output.width, output.height);
@@ -898,7 +938,7 @@ export function composite(
   imageB: ImageData,
   width: number,
   height: number,
-  mediaResolver?: (url: string) => ImageData | null
+  mediaResolver?: (url: string, timeSec?: number) => ImageData | null
 ): ImageData {
   const output = createBuffer(width, height);
 
@@ -916,6 +956,7 @@ export function composite(
     mediaResolver,
     mediaCache: new Map<string, ImageData | null>(),
     animationEndSec: scene.animationEndSec || 1,
+    time: scene.time,
   };
 
   // Render layers back-to-front (Motion: first in list = top/foreground, last = bottom/background)
