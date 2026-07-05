@@ -507,38 +507,41 @@ function parseLinkBehaviors(el: Element, factories: Map<number, string>): LinkBe
     if (!sourceChannel) sourceChannel = targetChannel;
     if (!targetChannel || !sourceChannel || sourceObjectId === 0) continue;
 
-    // A sibling "Rig Behavior" targeting this Link's Custom Mix (channel "./207")
-    // supplies per-direction Custom Mix snapshots. Find it.
+    // Sibling "Rig Behavior"s drive this Link's Custom Mix (channel "./207") AND
+    // its Scale (channel "./204") per direction. Both are rig snapshot arrays
+    // indexed by the Direction widget value. The Scale snapshots carry the
+    // per-direction SIGN (e.g. Left→Right needs scale −1, Right→Left +1) — without
+    // them only one direction renders correctly.
     let rigWidgetId: number | undefined;
     let rigCustomMix: number[] | undefined;
+    let rigScale: number[] | undefined;
     const linkId = parseInt(b.getAttribute('id') || '0', 10);
-    // Rig behaviors that affect this link are nested in the SAME parent as the link's
-    // owning layer (the Group). Search siblings of the layer.
     const parent = (el as any).parentNode as Element | null;
     const searchScope = parent ? Array.from(parent.getElementsByTagName('behavior')) : [];
+    const readSnapshots = (rb: Element): number[] | undefined => {
+      const snapsParam = directChildren(rb, 'parameter').find(p => p.getAttribute('name') === 'Snapshots');
+      if (!snapsParam) return undefined;
+      const out: number[] = [];
+      for (const snap of directChildren(snapsParam, 'parameter')) {
+        const curveEl = firstChild(snap, 'curve');
+        const val = curveEl?.getAttribute('value');
+        out.push(val !== null && val !== undefined ? parseFloat(val) : 0);
+      }
+      return out;
+    };
     for (const rb of searchScope) {
-      if ((rb.getAttribute('name') || '') !== 'Rig Behavior' && !(rb.getAttribute('name') || '').startsWith('Rig Behavior')) continue;
+      const nm = rb.getAttribute('name') || '';
+      if (!nm.startsWith('Rig Behavior')) continue;
       const cb = firstChild(rb, 'channelBehavior');
       const affCh = cb?.getAttribute('affectingChannel') || '';
-      // Must affect Custom Mix ("./207") AND target this link object.
       let affObj = 0, widgetId = 0;
       for (const p of directChildren(rb, 'parameter')) {
         if (p.getAttribute('name') === 'Affecting Object (Hidden)') affObj = parseInt(p.getAttribute('value') || '0', 10);
         if (p.getAttribute('name') === 'Widget') widgetId = parseInt(p.getAttribute('value') || '0', 10);
       }
-      if (affObj !== linkId || !affCh.endsWith('/207')) continue;
-      // Extract the per-value Custom Mix snapshots.
-      const snapsParam = directChildren(rb, 'parameter').find(p => p.getAttribute('name') === 'Snapshots');
-      if (!snapsParam) continue;
-      const mixes: number[] = [];
-      for (const snap of directChildren(snapsParam, 'parameter')) {
-        const curveEl = firstChild(snap, 'curve');
-        const val = curveEl?.getAttribute('value');
-        mixes.push(val !== null && val !== undefined ? parseFloat(val) : 0);
-      }
-      rigWidgetId = widgetId;
-      rigCustomMix = mixes;
-      break;
+      if (affObj !== linkId) continue;
+      if (affCh.endsWith('/207')) { rigCustomMix = readSnapshots(rb); rigWidgetId = widgetId; }
+      else if (affCh.endsWith('/204')) { rigScale = readSnapshots(rb); rigWidgetId = widgetId; }
     }
 
     links.push({
@@ -552,6 +555,7 @@ function parseLinkBehaviors(el: Element, factories: Map<number, string>): LinkBe
       max,
       rigWidgetId,
       rigCustomMix,
+      rigScale,
     });
   }
   return links;

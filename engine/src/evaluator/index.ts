@@ -194,6 +194,16 @@ function applyLinks(
     }
     if (mix === 0) continue; // link inactive for this direction
 
+    // Resolve the Scale (rig-gated per direction if a rig snapshot is present).
+    // The Scale snapshots carry the per-direction sign (e.g. Left→Right vs
+    // Right→Left share the X link but need opposite scale).
+    let scale = link.scale;
+    if (link.rigScale && link.rigWidgetId !== undefined) {
+      const wv = widgetValues.get(link.rigWidgetId) ?? 0;
+      const idx = Math.max(0, Math.min(link.rigScale.length - 1, Math.round(wv)));
+      scale = link.rigScale[idx];
+    }
+
     let v = driverChannelValue(driver, link.sourceChannel, timeSec);
     // Motion's "Clamp Source Value Within Range" uses min/max = ±100 as the
     // default (unset) UI sentinel; real transitions drive far past ±100 (e.g. a
@@ -203,7 +213,7 @@ function applyLinks(
       if (v < link.min) v = link.min;
       if (v > link.max) v = link.max;
     }
-    v *= link.scale;
+    v *= scale;
     const contribution = v * mix;
 
     if (link.targetChannel === 'X') result.positionX = (resolveValue(result.positionX, timeSec, 0)) + contribution;

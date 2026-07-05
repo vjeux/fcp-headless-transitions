@@ -145,6 +145,9 @@ export interface LinkBehavior {
   rigWidgetId?: number;
   /** Per-widget-value Custom Mix snapshots (index = widget value). */
   rigCustomMix?: number[];
+  /** Per-widget-value Scale snapshots (index = widget value). Carries the
+   *  per-direction sign; overrides the static `scale` when present. */
+  rigScale?: number[];
 }
 
 /** Scene-level settings (resolution, duration, frame rate). */
