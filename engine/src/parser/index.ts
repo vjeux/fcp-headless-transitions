@@ -2208,20 +2208,30 @@ export function parseMotr(xmlText: string): MotrScene {
         const scale = parts.length > 1 ? parseFloat(parts[1]) : 1;
         if (scale > 0 && isFinite(val)) {
           const rawSec = val / scale;
-          // Offset-shift (local-frame → scene time) applies ONLY to keyframes whose
-          // RAW local time is ≥ 0 — the shape's forward animation. A NEGATIVE local
-          // keyframe is pre-roll authored BEFORE the shape's local zero (e.g. a
-          // Stylized/Panels panel sweeping in from off-screen: Rectangle 7 Opacity
-          // key at local −2.069s, re-anchored by offset +3.670s). Adding the large
-          // offset to that pre-roll key (−2.069 + 3.670 = 1.6016s) would inflate the
-          // animation end far past the true visual end (the shape's positive-time
-          // Opacity key at 0.8008s), mis-sampling the whole progress→time mapping and
-          // destroying the score (Panels_Across 9.45dB). Flash (positive key 0.167 +
-          // 0.133 = 0.3003s) and Panels_Random's driver (White line 1, positive key
-          // 0.100 + 1.268 = 1.368s) both have POSITIVE raw keys, so they keep the
-          // shift and are unaffected. A negative raw key is counted UNSHIFTED (it can
-          // never extend maxT).
-          const sec = rawSec >= 0 ? rawSec + nodeOffsetSec : rawSec;
+          // Offset-shift (local-frame → scene time) is a FLASH-OVERLAY signature and
+          // is applied ONLY to an `Opacity` curve with a SMALL re-anchoring offset
+          // (< 1.0s) whose RAW local time is ≥ 0. Rationale:
+          //   • Lights/Flash authors its flash rectangle's OPACITY fade in the
+          //     shape's OWN local time (opacity key at local 0.167s), placed at a
+          //     small offset (0.1335s) on the parent timeline → true scene-time end
+          //     0.3003s. Without the shift the end collapses to 0.1668s (raw), cutting
+          //     the flash off mid-fade (Flash 24.98 → 17.56dB). So Flash NEEDS it.
+          //   • The Stylized/Kinetic decorative panels (Lower's "panel wipe"/cyan/
+          //     white panels) and the Stylized/Panels_Across sweep panels author their
+          //     POSITION (X/Y/Z) sweeps — and some large-offset OPACITY fades — in
+          //     SCENE time already, re-anchored by a LARGE offset (0.37s–6.5s). Adding
+          //     that offset over-extends animationEndSec far past the true visual end
+          //     (GT's animation_end_seconds does NO offset shift → raw-max = Lower
+          //     2.336s, Panels_Across 0.801s), compressing the whole progress→time
+          //     map and stalling the transition on source A. Gating the shift to
+          //     small-offset Opacity curves lands the engine on GT's exact time
+          //     domain for those (Lower 11.27 → 13.31, Panels_Across 14.60 → 18.80dB)
+          //     while leaving Flash untouched.
+          //   • A NEGATIVE raw key is pre-roll (authored before the shape's local
+          //     zero); it can never extend maxT, so it is counted UNSHIFTED.
+          const isFlashOverlay = ownerName === 'Opacity' && nodeOffsetSec < 1.0;
+          const shiftAmt = isFlashOverlay ? nodeOffsetSec : 0;
+          const sec = rawSec >= 0 ? rawSec + shiftAmt : rawSec;
           if (sec > maxT) maxT = sec;
         }
       }
