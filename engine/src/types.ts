@@ -305,7 +305,30 @@ export interface SceneBehavior {
   type: 'ramp' | 'oscillate' | 'spin' | 'other';
   affectedObjectId: number;
   params: Record<string, number>;
+  /**
+   * The `<channelBehavior affectingChannel="...">` path this behavior drives,
+   * e.g. "./1/100/109/2" (Transform → Rotation → Y) or "./203" (a rig End Value).
+   * Parsed into a structured target so the evaluator can route the ramped value
+   * to the correct transform channel (rotation/position/scale/opacity).
+   */
+  affectingChannel?: string;
+  /** Resolved transform channel this behavior targets, if the path maps to one. */
+  targetChannel?: RampTargetChannel;
+  /**
+   * The behavior's own `<timing in out offset>` window (scene time). Ramp
+   * progress `t` runs over [in, out] of THIS window, independent of the layer's
+   * Retime curve. `startFrameOffset`/`endFrameOffset` (from Start/End Frame
+   * Offset channels, default 0) nudge the window in frames.
+   */
+  timing?: { in: RationalTime; out: RationalTime; offset: RationalTime };
 }
+
+/** Which transform channel a Ramp behavior drives (resolved from affectingChannel). */
+export type RampTargetChannel =
+  | 'rotationX' | 'rotationY' | 'rotationZ'
+  | 'positionX' | 'positionY' | 'positionZ'
+  | 'scaleX' | 'scaleY' | 'scaleZ'
+  | 'opacity';
 
 /** A rig widget (popup/checkbox/slider that controls transition variants). */
 export interface RigWidget {

@@ -1,7 +1,7 @@
 /**
  * Tests for animation behaviors.
  */
-import { evaluateFade, evaluateRamp, evaluateOscillate, evaluateSpin } from '../src/evaluator/behaviors/index.js';
+import { evaluateFade, evaluateRampAtProgress, applyRampCurvature, evaluateOscillate, evaluateSpin } from '../src/evaluator/behaviors/index.js';
 
 function assert(cond: boolean, msg: string) { if (!cond) throw new Error(`FAIL: ${msg}`); }
 function assertClose(a: number, b: number, tol: number, msg: string) {
@@ -26,12 +26,24 @@ function runTests() {
   test('fade: 0.5 mid fade-out', () => assertClose(evaluateFade(fade, 95), 0.5, 0.01, 'mid-out'));
   test('fade: 0 at end', () => assertClose(evaluateFade(fade, 100), 0, 0.01, 'end'));
 
-  // Ramp (linear)
-  const ramp = { startValue: 0, endValue: 100, curvature: 0, startOffset: 0, endOffset: 0 };
-  test('ramp: start value', () => assertClose(evaluateRamp(ramp, 0, 100), 0, 0.01, 'start'));
-  test('ramp: mid = 50', () => assertClose(evaluateRamp(ramp, 50, 100), 50, 0.01, 'mid'));
-  test('ramp: end value', () => assertClose(evaluateRamp(ramp, 100, 100), 100, 0.01, 'end'));
-  test('ramp: clamps before start', () => assertClose(evaluateRamp(ramp, -10, 100), 0, 0.01, 'before'));
+  // Ramp (progress-based, exact decompiled formula)
+  const ramp = { startValue: 0, endValue: 100, curvature: 0 };
+  test('ramp: start value', () => assertClose(evaluateRampAtProgress(ramp, 0), 0, 0.01, 'start'));
+  test('ramp: mid = 50', () => assertClose(evaluateRampAtProgress(ramp, 0.5), 50, 0.01, 'mid'));
+  test('ramp: end value', () => assertClose(evaluateRampAtProgress(ramp, 1), 100, 0.01, 'end'));
+  test('ramp: clamps before start', () => assertClose(evaluateRampAtProgress(ramp, -0.1), 0, 0.01, 'before'));
+  test('ramp: clamps after end', () => assertClose(evaluateRampAtProgress(ramp, 1.2), 100, 0.01, 'after'));
+  // Curvature = 1 → pure raised-cosine ease: at t=0.5, s=(1-cos(π/2))/2=0.5 → 50
+  test('ramp curvature=1: linear-blend endpoints', () => {
+    assertClose(applyRampCurvature(0, 1), 0, 1e-9, 'c1 t0');
+    assertClose(applyRampCurvature(1, 1), 1, 1e-9, 'c1 t1');
+    assertClose(applyRampCurvature(0.5, 1), 0.5, 1e-9, 'c1 t0.5 = (1-cos(π/2))/2');
+  });
+  // Curvature=1 eases the early part slower than linear (t=0.25 → below 0.25)
+  test('ramp curvature=1: eased below linear at t=0.25', () => {
+    const eased = applyRampCurvature(0.25, 1);
+    assert(eased < 0.25 && eased > 0, `expected 0<eased<0.25, got ${eased}`);
+  });
 
   // Oscillate
   const osc = { amplitude: 100, frequency: 1, phase: 0 };

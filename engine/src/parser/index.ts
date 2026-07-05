@@ -369,8 +369,11 @@ function extractTransform(params: Parameter[]): Transform {
     tx.anchorY = getAnimValue(anchorParam.children, 'Y') ?? getAnimValue(anchorParam.children, 'Y', 2);
   }
 
-  // Opacity (0-100 in Motion → 0-1 for compositing)
-  const opacityParam = findParam(params, 'Opacity');
+  // Opacity (0-100 in Motion → 0-1 for compositing). The layer's own opacity is
+  // ALWAYS the Properties param id=202. Constrain by id so we don't accidentally
+  // grab a nested "Opacity" (e.g. Drop Shadow > Opacity id=211, default 0.75),
+  // which would darken the whole layer.
+  const opacityParam = findParam(params, 'Opacity', 202);
   if (opacityParam) {
     tx.opacity = opacityParam.curve ?? (typeof opacityParam.value === 'number' ? opacityParam.value : undefined);
   }
@@ -1152,6 +1155,40 @@ function parseRigBehaviors(sceneEl: Element): RigBehavior[] {
 
 
 /**
+ * Resolve a `channelBehavior affectingChannel` path into a transform channel.
+ *
+ * Channel paths are relative param-ID paths from the affected scenenode, e.g.
+ * "./1/100/109/2" = Properties(1) → Transform(100) → Rotation(109) → Y(2).
+ * Under Transform(100): Position=101, Scale=105, Rotation=109.
+ * Sub-index 1/2/3 = X/Y/Z. Scale may be uniform (no sub-index) → scaleX/Y/Z all.
+ * Paths that don't resolve to a transform channel (rig End Values like "./203",
+ * plugin params like "./2/353/...") return undefined and are handled elsewhere.
+ */
+function resolveRampTargetChannel(path: string | undefined): import('../types.js').RampTargetChannel | undefined {
+  if (!path) return undefined;
+  const parts = path.replace(/^\.\//, '').split('/').map(s => s.trim()).filter(Boolean);
+  // Expect Properties(1)/Transform(100)/<group>/<axis?>
+  if (parts.length < 3) return undefined;
+  if (parts[0] !== '1' || parts[1] !== '100') return undefined;
+  const group = parts[2];
+  const axis = parts[3]; // '1'|'2'|'3' or undefined (uniform)
+  const axisSuffix = axis === '1' ? 'X' : axis === '2' ? 'Y' : axis === '3' ? 'Z' : undefined;
+  if (group === '109') { // Rotation
+    if (axisSuffix) return `rotation${axisSuffix}` as import('../types.js').RampTargetChannel;
+    return undefined;
+  }
+  if (group === '101') { // Position
+    if (axisSuffix) return `position${axisSuffix}` as import('../types.js').RampTargetChannel;
+    return undefined;
+  }
+  if (group === '105') { // Scale (uniform on this node type)
+    // Uniform scale: driven onto all axes. Represent as scaleX; evaluator mirrors.
+    return 'scaleX';
+  }
+  return undefined;
+}
+
+/**
  * Parse scene-level behaviors that affect objects by ID (Ramp, Oscillate).
  * These are distinct from rig behaviors (which use snapshots) and layer behaviors
  * (like Fade, which attach directly to their parent).
@@ -1182,8 +1219,15 @@ function parseSceneBehaviors(sceneEl: Element, factories: Map<number, string>): 
         if (!isNaN(num)) params[pname] = num;
       }
     }
+
+    // Capture the affected channel path + the behavior's own timing window.
+    const cb = firstChild(b, 'channelBehavior');
+    const affectingChannel = cb?.getAttribute('affectingChannel') || undefined;
+    const targetChannel = resolveRampTargetChannel(affectingChannel);
+    const timing = parseTiming(b);
+
     if (affectedObjectId !== 0) {
-      result.push({ type, affectedObjectId, params });
+      result.push({ type, affectedObjectId, params, affectingChannel, targetChannel, timing });
     }
   }
   return result;

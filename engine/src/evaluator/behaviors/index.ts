@@ -53,41 +53,49 @@ export function evaluateFade(behavior: FadeBehavior, frame: number): number {
 export interface RampBehavior {
   startValue: number;
   endValue: number;
-  curvature: number;   // -100..100, 0 = linear
-  startOffset: number; // frames
-  endOffset: number;   // frames
+  /**
+   * Curvature — raw channel value from the .motr (an OZChannelPercent). 0 = linear.
+   * Positive blends toward a raised-cosine ease-in-ease-out; negative overshoots
+   * the linear ramp in the opposite direction.
+   */
+  curvature: number;
 }
 
 /**
- * Evaluate a Ramp behavior → the ramped value at the given frame.
- * Ramps from startValue to endValue over the duration, with optional easing curvature.
+ * Ease a normalized ramp progress `t` (0..1) by the Ramp's Curvature, using the
+ * EXACT formula decompiled from `OZRampBehavior::solveNode` (Behaviors.ozp):
+ *
+ *   s        = (1 - cos(π·t)) / 2          // raised-cosine ease
+ *   eased_t  = curvature·s + (1 - curvature)·t
+ *
+ * i.e. a linear blend between linear `t` and the raised-cosine ease `s`, weighted
+ * by the raw curvature value. Curvature 0 → pure linear. Curvature 1 → pure ease.
+ * (Disassembly: d10=t, d11=curvature; d0=(1-cos(πt))·0.5; d0=curv·d0;
+ *  d1=(1-curv)·t; eased = d0+d1.)
  */
-export function evaluateRamp(behavior: RampBehavior, frame: number, totalFrames: number): number {
-  const { startValue, endValue, curvature, startOffset, endOffset } = behavior;
+export function applyRampCurvature(t: number, curvature: number): number {
+  if (curvature === 0) return t;
+  const s = (1 - Math.cos(Math.PI * t)) / 2;
+  return curvature * s + (1 - curvature) * t;
+}
 
-  const start = startOffset;
-  const end = totalFrames + endOffset;
-  const duration = end - start;
-
-  if (duration <= 0) return startValue;
-
-  let t = (frame - start) / duration;
-  t = Math.max(0, Math.min(1, t));
-
-  // Apply curvature (ease in/out)
-  if (curvature !== 0) {
-    const c = curvature / 100; // -1..1
-    if (c > 0) {
-      // Ease: smoothstep-like
-      t = t * t * (3 - 2 * t) * c + t * (1 - c);
-    } else {
-      // Inverse ease (accelerate)
-      const eased = t * t * (3 - 2 * t);
-      t = eased * (-c) + t * (1 + c);
-    }
-  }
-
-  return startValue + (endValue - startValue) * t;
+/**
+ * Evaluate a Ramp behavior → the ramped value at a normalized progress `t`.
+ *
+ * `t` is the linear fraction through the Ramp's own timing window, clamped to
+ * [0, 1] (before the window → startValue; after → endValue). The curvature ease
+ * is applied to `t`, then the value is interpolated:
+ *
+ *   value = startValue + (endValue - startValue) · easedT
+ *
+ * (Matches OZRampBehavior::solveNode: base=startValue, delta=endValue-startValue,
+ *  result = base + delta·easedT.)
+ */
+export function evaluateRampAtProgress(behavior: RampBehavior, t: number): number {
+  const { startValue, endValue, curvature } = behavior;
+  const clamped = Math.max(0, Math.min(1, t));
+  const easedT = applyRampCurvature(clamped, curvature);
+  return startValue + (endValue - startValue) * easedT;
 }
 
 export interface OscillateBehavior {
