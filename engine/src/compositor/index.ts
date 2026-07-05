@@ -678,14 +678,21 @@ function resolveImageMaskAlpha(sourceId: number, W: number, H: number, invert = 
     }
   }
   // Collect visible shape descendants (the rig opacity selects the active one).
+  // A hidden ancestor group (opacity 0, e.g. the inactive "Number of Sections"
+  // snapshot subgroup in Dissolves/Divide) hides its whole subtree — the shape's
+  // own opacity is 1 but the rig zeroes the enclosing group, so we must NOT
+  // descend into a group whose opacity is 0 (else all snapshot variants union and
+  // the mask over-covers the frame). The Mask Source group itself is always
+  // traversed (it is the hidden geometry provider — its own opacity is irrelevant).
   const shapes: EvaluatedLayer[] = [];
-  const walk = (el: EvaluatedLayer): void => {
+  const walk = (el: EvaluatedLayer, isRoot: boolean): void => {
+    if (!isRoot && el.layer.type === 'group' && el.opacity <= 0) return;
     if (el.layer.type === 'shape' && el.layer.shape) {
       if (el.visible) shapes.push(el);
     }
-    for (const c of el.children) walk(c);
+    for (const c of el.children) walk(c, false);
   };
-  walk(src);
+  walk(src, true);
   if (shapes.length === 0) return null;
   const masks = shapes.map(s => rasterizeShape(s.layer.shape!, W, H, s.worldTransform));
   const merged = masks.length === 1 ? masks[0] : unionMasks(masks, W, H);
