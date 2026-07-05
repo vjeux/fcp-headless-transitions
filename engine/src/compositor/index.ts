@@ -46,6 +46,7 @@ import { renderGaussianGradient } from './filters/gradient.js';
  */
 interface RenderContext {
   layerById: Map<number, Layer>;
+  evalLayerById: Map<number, EvaluatedLayer>;
   imageA: ImageData;
   imageB: ImageData;
 }
@@ -67,6 +68,234 @@ function resolveCloneImage(cloneSourceId: number | undefined, depth = 0): ImageD
   if (src.source) return getSourceImage(src.source, ctx.imageA, ctx.imageB);
   return null;
 }
+/**
+ * Result of resolving a replicator cell's Object Source:
+ *  - kind 'image'  → a full-frame RGBA buffer holding the (centered) cell
+ *                    content that is TRANSLATED to each instance position.
+ *  - kind 'window' → the cell is a SHAPE that masks a source image. Each
+ *                    instance reveals `source` at that instance's screen
+ *                    position (a hole punched through the background), which is
+ *                    how Motion's dot/tile replicators (e.g. Duplicate) work.
+ */
+type CellContent =
+  | { kind: 'image'; img: ImageData }
+  | { kind: 'window'; maskCell: ImageData; source: ImageData };
+
+/**
+ * Resolve the drawable content a Replicator tiles across its instances. The
+ * Replicator Cell's `Object Source` references a scenenode/layer by ID:
+ *   - Transition A/B image  → the corresponding source pixels (translated)
+ *   - Shape                 → a window that reveals Transition A at each instance
+ *   - Group / other         → the first visible drawable descendant, handled as
+ *                             one of the above; else the rendered subtree.
+ */
+function resolveCellImage(
+  cellSourceId: number | undefined,
+  imageA: ImageData,
+  imageB: ImageData,
+  time: number,
+  filterOverrides: Map<number, Map<string, number>>
+): CellContent | null {
+  if (cellSourceId === undefined || !ctx) return null;
+
+  // Prefer the fully-evaluated cell source (has world transform, shape, source).
+  const evalSrc = ctx.evalLayerById.get(cellSourceId);
+  const rawSrc = ctx.layerById.get(cellSourceId);
+  const src = rawSrc;
+  if (!src) return null;
+
+  // Direct Transition A/B image cell (translated copy per instance).
+  if (src.source?.type === 'transitionA') return { kind: 'image', img: imageA };
+  if (src.source?.type === 'transitionB') return { kind: 'image', img: imageB };
+
+  const W = imageA.width, H = imageA.height;
+
+  // Shape cell: a window revealing Transition A at each instance position.
+  if (src.type === 'shape' && src.shape) {
+    return { kind: 'window', maskCell: shapeMaskCell(src.shape, evalSrc, W, H), source: imageA };
+  }
+
+  // Group / clone / other: the cell's drawable content is usually a single
+  // visible child (Motion Rigs toggle which child shows).
+  if (evalSrc) {
+    const drawable = findVisibleDrawable(evalSrc);
+    if (drawable) {
+      if (drawable.layer.type === 'shape' && drawable.layer.shape) {
+        return { kind: 'window', maskCell: shapeMaskCell(drawable.layer.shape, drawable, W, H), source: imageA };
+      }
+      if (drawable.layer.source?.type === 'transitionA') return { kind: 'image', img: imageA };
+      if (drawable.layer.source?.type === 'transitionB') return { kind: 'image', img: imageB };
+    }
+    // Fallback: render the whole (centered) subtree.
+    const centered = centerEvaluatedLayer(evalSrc);
+    const buf = createBuffer(W, H);
+    renderLayer(buf, centered, imageA, imageB, time, filterOverrides);
+    for (let i = 3; i < buf.data.length; i += 4) if (buf.data[i] > 0) return { kind: 'image', img: buf };
+  }
+  return null;
+}
+
+/**
+ * Rasterize a shape into a full-frame single-channel-in-alpha RGBA buffer,
+ * centered at the origin (white fill, shape alpha). Used as a per-instance
+ * window mask. The evaluated shape's transform is used with translation stripped.
+ */
+function shapeMaskCell(shape: import('../types.js').Shape, evalSrc: EvaluatedLayer | undefined, W: number, H: number): ImageData {
+  let xform: Float64Array | undefined;
+  if (evalSrc) {
+    xform = new Float64Array(evalSrc.worldTransform);
+    xform[12] = 0; xform[13] = 0;
+  }
+  const mask = rasterizeShape(shape, W, H, xform);
+  const buf = createBuffer(W, H);
+  for (let i = 0; i < mask.length; i++) {
+    const a = mask[i];
+    if (a === 0) continue;
+    const o = i * 4;
+    buf.data[o] = 255; buf.data[o + 1] = 255; buf.data[o + 2] = 255; buf.data[o + 3] = a;
+  }
+  return buf;
+}
+
+/**
+ * Reveal `source` at each output pixel through a shape mask positioned by the
+ * instance transform. The mask (a centered shape buffer) is inverse-mapped so
+ * its alpha at output pixel (ox,oy) determines how much of `source` (sampled at
+ * the SAME output pixel — a fixed window into the image) shows through.
+ * Restricted to `dstBBox` for performance.
+ */
+function revealThroughMask(
+  output: ImageData,
+  source: ImageData,
+  maskCell: ImageData,
+  m: Float64Array,
+  opacity: number,
+  dstBBox: { x0: number; y0: number; x1: number; y1: number }
+): void {
+  const dw = output.width, dh = output.height;
+  const mw = maskCell.width, mh = maskCell.height;
+  const a = m[0], b = m[4], tx = m[12];
+  const c = m[1], d = m[5], ty = m[13];
+  const det = a * d - b * c;
+  if (Math.abs(det) < 1e-10) return;
+  const invDet = 1 / det;
+  const ia = d * invDet, ib = -b * invDet, itx = (b * ty - d * tx) * invDet;
+  const ic = -c * invDet, id = a * invDet, ity = (c * tx - a * ty) * invDet;
+
+  const out = output.data, md = maskCell.data, sd = source.data;
+  const yLo = Math.max(0, dstBBox.y0), yHi = Math.min(dh, dstBBox.y1 + 1);
+  const xLo = Math.max(0, dstBBox.x0), xHi = Math.min(dw, dstBBox.x1 + 1);
+  for (let dy = yLo; dy < yHi; dy++) {
+    const dyc = dy - dh / 2;
+    for (let dx = xLo; dx < xHi; dx++) {
+      const dxc = dx - dw / 2;
+      // Inverse-map output → mask-source centered → mask pixel.
+      const sxc = ia * dxc + ib * dyc + itx;
+      const syc = ic * dxc + id * dyc + ity;
+      const mx = Math.round(sxc + mw / 2);
+      const my = Math.round(syc + mh / 2);
+      if (mx < 0 || mx >= mw || my < 0 || my >= mh) continue;
+      const ma = md[(my * mw + mx) * 4 + 3];
+      if (ma === 0) continue;
+      const sa = (ma / 255) * opacity;
+      const oi = (dy * dw + dx) * 4;
+      // Source RGB sampled at the SAME output location (fixed window into image).
+      const sr = sd[oi], sg = sd[oi + 1], sb = sd[oi + 2];
+      const srcA = (sd[oi + 3] / 255) * sa;
+      if (srcA <= 0) continue;
+      const da = out[oi + 3] / 255;
+      const outA = srcA + da * (1 - srcA);
+      if (outA <= 0) continue;
+      out[oi]     = Math.round((sr * srcA + out[oi]     * da * (1 - srcA)) / outA);
+      out[oi + 1] = Math.round((sg * srcA + out[oi + 1] * da * (1 - srcA)) / outA);
+      out[oi + 2] = Math.round((sb * srcA + out[oi + 2] * da * (1 - srcA)) / outA);
+      out[oi + 3] = Math.round(outA * 255);
+    }
+  }
+}
+
+/** First visible drawable (image/shape/generator) in an evaluated subtree. */
+function findVisibleDrawable(el: EvaluatedLayer): EvaluatedLayer | null {
+  const t = el.layer.type;
+  if ((t === 'shape' || t === 'image' || t === 'generator') && el.visible) return el;
+  for (const c of el.children) {
+    const r = findVisibleDrawable(c);
+    if (r) return r;
+  }
+  return null;
+}
+
+/** Non-transparent pixel bounding box of a full-frame cell buffer, or null. */
+function cellContentBBox(img: ImageData): { x0: number; y0: number; x1: number; y1: number } | null {
+  const w = img.width, h = img.height, d = img.data;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0; y < h; y++) {
+    const row = y * w * 4;
+    for (let x = 0; x < w; x++) {
+      if (d[row + x * 4 + 3] > 0) {
+        if (x < x0) x0 = x; if (x > x1) x1 = x;
+        if (y < y0) y0 = y; if (y > y1) y1 = y;
+      }
+    }
+  }
+  if (x1 < 0) return null;
+  return { x0, y0, x1, y1 };
+}
+
+/**
+ * Map a source-pixel bbox through the cell's world transform to an output-space
+ * integer bbox, so the blit loop only visits pixels the cell can actually cover.
+ * The transform maps SOURCE-centered coords to DEST-centered coords (Y-down).
+ */
+function transformBBoxToOutput(
+  src: ImageData,
+  bbox: { x0: number; y0: number; x1: number; y1: number },
+  m: Float64Array
+): { x0: number; y0: number; x1: number; y1: number } {
+  const sw = src.width, sh = src.height;
+  // Requires the DEST image dims; the compositor is single-size, so use src dims
+  // (cell buffers are full-frame, same size as output).
+  const dw = sw, dh = sh;
+  const a = m[0], b = m[4], tx = m[12];
+  const c = m[1], d = m[5], ty = m[13];
+  const corners = [
+    [bbox.x0, bbox.y0], [bbox.x1, bbox.y0], [bbox.x0, bbox.y1], [bbox.x1, bbox.y1],
+  ];
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [sx, sy] of corners) {
+    const scx = sx - sw / 2, scy = sy - sh / 2;
+    const dcx = a * scx + b * scy + tx;
+    const dcy = c * scx + d * scy + ty;
+    const px = dcx + dw / 2;
+    const py = dcy + dh / 2;
+    if (px < x0) x0 = px; if (px > x1) x1 = px;
+    if (py < y0) y0 = py; if (py > y1) y1 = py;
+  }
+  // Pad by 1px for bilinear sampling.
+  return { x0: Math.floor(x0) - 1, y0: Math.floor(y0) - 1, x1: Math.ceil(x1) + 1, y1: Math.ceil(y1) + 1 };
+}
+
+/**
+ * Clone an EvaluatedLayer subtree with its top-level world translation removed,
+ * so it renders centered at the frame origin. Child world transforms are shifted
+ * by the same delta to preserve their relative layout.
+ */
+function centerEvaluatedLayer(el: EvaluatedLayer): EvaluatedLayer {
+  const dx = el.worldTransform[12];
+  const dy = el.worldTransform[13];
+  const shift = (l: EvaluatedLayer): EvaluatedLayer => {
+    const wt = new Float64Array(l.worldTransform);
+    wt[12] -= dx; wt[13] -= dy;
+    return {
+      ...l,
+      worldTransform: wt,
+      visible: true,
+      children: l.children.map(shift),
+    };
+  };
+  return shift(el);
+}
+
 
 
 // ============================================================================
@@ -91,7 +320,8 @@ function blitTransformed(
   worldTransform: Float64Array,
   opacity: number,
   crop: { left: number; right: number; top: number; bottom: number },
-  blendMode: BlendMode = 'normal'
+  blendMode: BlendMode = 'normal',
+  dstBBox?: { x0: number; y0: number; x1: number; y1: number }
 ): void {
   const dw = dst.width, dh = dst.height;
   const sw = src.width, sh = src.height;
@@ -117,14 +347,18 @@ function blitTransformed(
   const srcBottom = sh - crop.bottom;
 
   // For each destination pixel
-  for (let dy = 0; dy < dh; dy++) {
+  const yLo = dstBBox ? Math.max(0, dstBBox.y0) : 0;
+  const yHi = dstBBox ? Math.min(dh, dstBBox.y1 + 1) : dh;
+  const xLo = dstBBox ? Math.max(0, dstBBox.x0) : 0;
+  const xHi = dstBBox ? Math.min(dw, dstBBox.x1 + 1) : dw;
+  for (let dy = yLo; dy < yHi; dy++) {
     // Ozone/.motr internal space is Y-DOWN (screen_y = center + motionY): a clone
     // at Motion Y=-1080 renders at the TOP edge, and a +Y position translates
     // content downward. This was verified against the real engine's Push render
     // (B enters from top, A exits the bottom). So dest-centered Y matches screen Y.
     const dyc = dy - dh / 2;
 
-    for (let dx = 0; dx < dw; dx++) {
+    for (let dx = xLo; dx < xHi; dx++) {
       const dxc = dx - dw / 2;
 
       // Inverse-map to source centered coords
@@ -304,18 +538,38 @@ function renderLayer(
   // Replicator: render the cell content at each grid instance
   if (layer.type === 'replicator' && layer.replicator) {
     const instances = generateInstances(layer.replicator);
+
+    // Materialize the cell's Object Source once, then stamp it at each instance.
+    const cell = resolveCellImage(layer.cellSourceId, imageA, imageB, time, filterOverrides);
+
+    // The mask/content bbox is computed ONCE. Per instance we transform it into
+    // output space and restrict the blit loop to that region — turning an
+    // O(frameArea × instances) cost into O(cellArea × instances). For a 13×9 dot
+    // grid this is ~1000× faster and avoids multi-second per-frame renders.
+    const stampImg = cell?.kind === 'image' ? cell.img : cell?.kind === 'window' ? cell.maskCell : null;
+    const cellBBox = stampImg ? cellContentBBox(stampImg) : null;
+
     for (const inst of instances) {
-      // Offset the world transform by the instance position
-      const instTransform = new Float64Array(worldTransform);
-      instTransform[12] += inst.x;
-      instTransform[13] += inst.y;
-      // Render each child (cell) at this instance
+      if (cell && cellBBox && stampImg) {
+        const instTransform = new Float64Array(worldTransform);
+        instTransform[12] += inst.x;
+        instTransform[13] += inst.y;
+        const dstBBox = transformBBoxToOutput(stampImg, cellBBox, instTransform);
+        if (cell.kind === 'window') {
+          // Reveal the source image at this instance's screen location through
+          // the (transformed) shape mask — dots/tiles are windows, not stamps.
+          revealThroughMask(output, cell.source, stampImg, instTransform, opacity, dstBBox);
+        } else {
+          blitTransformed(output, stampImg, instTransform, opacity, crop, 'normal', dstBBox);
+        }
+      }
+      // Also render any evaluated cell children (rare — most cells are empty and
+      // rely purely on the Object Source above).
       for (let i = evalLayer.children.length - 1; i >= 0; i--) {
-        const cell = evalLayer.children[i];
-        // Build a temp evaluated layer with the instance-offset transform
+        const childCell = evalLayer.children[i];
         const instCell: EvaluatedLayer = {
-          ...cell,
-          worldTransform: mat4MultiplyOffset(cell.worldTransform, inst.x, inst.y),
+          ...childCell,
+          worldTransform: mat4MultiplyOffset(childCell.worldTransform, inst.x, inst.y),
         };
         renderLayer(output, instCell, imageA, imageB, time, filterOverrides);
       }
@@ -431,7 +685,7 @@ export function composite(
   const output = createBuffer(width, height);
 
   // Set the render context so clone layers can resolve their mirrored image.
-  ctx = { layerById: scene.layerById, imageA, imageB };
+  ctx = { layerById: scene.layerById, evalLayerById: scene.evalLayerById, imageA, imageB };
 
   // Render layers back-to-front (Motion: first in list = top/foreground, last = bottom/background)
   for (let i = scene.layers.length - 1; i >= 0; i--) {

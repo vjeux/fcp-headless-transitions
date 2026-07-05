@@ -187,6 +187,14 @@ export interface Layer {
    */
   cloneSourceId?: number;
   /**
+   * Object ID of the drawable content a Replicator/Replicator-Cell tiles across
+   * its instances. Motion stores this on the Replicator Cell scenenode as the
+   * `Object Source id="128"` parameter, referencing another scenenode/layer
+   * (a Shape, a Group, a Transition A/B image, etc.). Attached to the replicator
+   * layer so the compositor can materialize the cell content at each instance.
+   */
+  cellSourceId?: number;
+  /**
    * Link behaviors attached to this layer. A Link makes one of this layer's
    * transform channels track a source object's channel (× scale, gated by a
    * rig-driven Custom Mix, clamped to [min,max]).
