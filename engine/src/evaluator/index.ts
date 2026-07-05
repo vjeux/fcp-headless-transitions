@@ -24,6 +24,14 @@ import { evaluateFade, evaluateRamp, evaluateOscillate, evaluateSpin } from './b
 
 export { evaluateCurve, resolveValue, timeToSeconds } from './curves.js';
 
+/**
+ * Scene frame rate for the current evaluation pass. Set at the top of
+ * `evaluate()`. Fade In/Out Times are expressed in frames; the behavior's
+ * timing window is in seconds, so we need the fps to convert.
+ */
+let CURRENT_FPS = 30;
+
+
 // ============================================================================
 // Transform Matrix (4x4 stored as Float64Array[16], column-major)
 // ============================================================================
@@ -367,17 +375,30 @@ function applyRampBehaviors(
   return opacityMult;
 }
 
-function applyFadeBehaviors(layer: Layer, frame: number, totalFrames: number): number {
+function applyFadeBehaviors(layer: Layer, timeSec: number): number {
   if (!layer.behaviors) return 1;
   let mult = 1;
   for (const b of layer.behaviors) {
-    if (b.type === 'fade') {
-      const fadeInTime = b.params['Fade In Time'] ?? 0;
-      const fadeOutTime = b.params['Fade Out Time'] ?? 0;
-      const startOffset = b.params['Start Offset'] ?? 0;
-      const endOffset = b.params['End Offset'] ?? 0;
-      mult *= evaluateFade({ fadeInTime, fadeOutTime, startOffset, endOffset }, frame, totalFrames);
-    }
+    if (b.type !== 'fade') continue;
+    const fadeInFrames = b.params['Fade In Time'] ?? 0;
+    const fadeOutFrames = b.params['Fade Out Time'] ?? 0;
+
+    // The behavior's <timing in out> window defines the fade anchors, in scene
+    // time. Fall back to the layer's own timing if the behavior lacks one.
+    const tim = b.timing ?? layer.timing;
+    if (!tim) continue;
+    const windowIn = timeToSeconds(tim.in);
+    const windowOut = timeToSeconds(tim.out);
+
+    // Fade In/Out Times are frame counts. Convert to seconds via the scene fps so
+    // everything lives in the same (scene-time) domain as the timing window.
+    const fadeInSec = fadeInFrames / CURRENT_FPS;
+    const fadeOutSec = fadeOutFrames / CURRENT_FPS;
+
+    mult *= evaluateFade(
+      { fadeInTime: fadeInSec, fadeOutTime: fadeOutSec, windowIn, windowOut },
+      timeSec,
+    );
   }
   return mult;
 }
@@ -490,13 +511,16 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   // Opacity: Motion stores 0-1 (some legacy use 0-100 but all current transitions use 0-1)
   let rawOpacity = resolveValue(riggedTransform.opacity, timeSec, 1);
   rawOpacity = rawOpacity > 1 ? rawOpacity / 100 : rawOpacity;
-  // Apply Fade behaviors (frame-based). Derive frame from the Retime curve if present.
+  // Fade In/Fade Out behaviors ramp opacity within the behavior's own <timing>
+  // window (scene time). These are independent of the Retime curve — the fade
+  // anchors come from the behavior timing, not the retimed template frame.
+  if (layer.behaviors && layer.behaviors.some(b => b.type === 'fade')) {
+    rawOpacity *= applyFadeBehaviors(layer, timeSec);
+  }
+  // Ramp behaviors are still driven off the retimed template frame.
   if (layer.retimeValue && layer.retimeValue.keyframes.length >= 2) {
     const curFrame = evaluateCurve(layer.retimeValue, timeSec);
     const totalFrames = layer.retimeValue.keyframes[layer.retimeValue.keyframes.length - 1].value;
-    if (layer.behaviors && layer.behaviors.some(b => b.type === 'fade')) {
-      rawOpacity *= applyFadeBehaviors(layer, curFrame, totalFrames);
-    }
     if (sceneBehaviors.length > 0) {
       rawOpacity *= applyRampBehaviors(layer, sceneBehaviors, curFrame, totalFrames);
     }
@@ -585,6 +609,7 @@ function computeFilterOverrides(scene: MotrScene, timeSec: number, widgetValues:
 }
 
 export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
+  CURRENT_FPS = scene.settings.frameRate || 30;
   const parentTransform = mat4Identity();
   const widgetValues = buildWidgetValueMap(scene.rigWidgets);
   const behaviors = scene.rigBehaviors;

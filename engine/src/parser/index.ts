@@ -605,7 +605,7 @@ function parseLayerBehaviors(el: Element, factories: Map<number, string>): Layer
       if (pname === 'Apply To' || pname === 'Target') targetParam = p.getAttribute('value') || undefined;
     }
 
-    behaviors.push({ type, params, targetParam });
+    behaviors.push({ type, params, targetParam, timing: parseTiming(b) });
   }
   return behaviors;
 }

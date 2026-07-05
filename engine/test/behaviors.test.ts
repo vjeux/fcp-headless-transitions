@@ -17,14 +17,14 @@ function runTests() {
 
   console.log('Behavior tests:\n');
 
-  // Fade In/Fade Out
-  const fade = { fadeInTime: 10, fadeOutTime: 10, startOffset: 0, endOffset: 0 };
-  test('fade: 0 at start', () => assertClose(evaluateFade(fade, 0, 100), 0, 0.01, 'start'));
-  test('fade: 0.5 mid fade-in', () => assertClose(evaluateFade(fade, 5, 100), 0.5, 0.01, 'mid-in'));
-  test('fade: 1.0 after fade-in', () => assertClose(evaluateFade(fade, 10, 100), 1.0, 0.01, 'after-in'));
-  test('fade: 1.0 in middle', () => assertClose(evaluateFade(fade, 50, 100), 1.0, 0.01, 'middle'));
-  test('fade: 0.5 mid fade-out', () => assertClose(evaluateFade(fade, 95, 100), 0.5, 0.01, 'mid-out'));
-  test('fade: 0 at end', () => assertClose(evaluateFade(fade, 100, 100), 0, 0.01, 'end'));
+  // Fade In/Fade Out. Window [0, 100]; fade in over first 10, fade out over last 10.
+  const fade = { fadeInTime: 10, fadeOutTime: 10, windowIn: 0, windowOut: 100 };
+  test('fade: 0 at start', () => assertClose(evaluateFade(fade, 0), 0, 0.01, 'start'));
+  test('fade: 0.5 mid fade-in', () => assertClose(evaluateFade(fade, 5), 0.5, 0.01, 'mid-in'));
+  test('fade: 1.0 after fade-in', () => assertClose(evaluateFade(fade, 10), 1.0, 0.01, 'after-in'));
+  test('fade: 1.0 in middle', () => assertClose(evaluateFade(fade, 50), 1.0, 0.01, 'middle'));
+  test('fade: 0.5 mid fade-out', () => assertClose(evaluateFade(fade, 95), 0.5, 0.01, 'mid-out'));
+  test('fade: 0 at end', () => assertClose(evaluateFade(fade, 100), 0, 0.01, 'end'));
 
   // Ramp (linear)
   const ramp = { startValue: 0, endValue: 100, curvature: 0, startOffset: 0, endOffset: 0 };

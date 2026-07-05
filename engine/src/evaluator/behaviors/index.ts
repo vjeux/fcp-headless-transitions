@@ -10,35 +10,44 @@
 export interface FadeBehavior {
   fadeInTime: number;   // frames
   fadeOutTime: number;  // frames
-  startOffset: number;  // frames from clip start
-  endOffset: number;    // frames from clip end
+  /** Behavior timing window start, in the SAME frame units as `frame`. */
+  windowIn: number;
+  /** Behavior timing window end, in the SAME frame units as `frame`. */
+  windowOut: number;
 }
 
 /**
  * Evaluate a Fade In/Fade Out behavior → opacity multiplier (0-1).
- * @param frame - current frame
- * @param totalFrames - total clip duration in frames
+ *
+ * The Fade In/Fade Out behavior in Motion ramps opacity within the behavior's
+ * own `<timing in out offset>` window (NOT generic Start/End Offset params):
+ *   - Fade In:  opacity ramps 0→1 over `fadeInTime` frames starting at `windowIn`.
+ *   - Fade Out: opacity ramps 1→0 over `fadeOutTime` frames ending at `windowOut`.
+ *   - Before the fade-in completes / after the fade-out starts, opacity is held
+ *     (0 outside the visible portion, 1 in the fully-visible middle).
+ *
+ * @param frame - current frame (must be in the same units as windowIn/windowOut)
  */
-export function evaluateFade(behavior: FadeBehavior, frame: number, totalFrames: number): number {
-  const { fadeInTime, fadeOutTime, startOffset, endOffset } = behavior;
+export function evaluateFade(behavior: FadeBehavior, frame: number): number {
+  const { fadeInTime, fadeOutTime, windowIn, windowOut } = behavior;
 
-  const start = startOffset;
-  const end = totalFrames + endOffset; // endOffset is typically negative or relative
+  let mult = 1;
 
-  // Fade in region: [start, start + fadeInTime]
-  if (fadeInTime > 0 && frame < start + fadeInTime) {
-    if (frame <= start) return 0;
-    return (frame - start) / fadeInTime;
+  // Fade in region: [windowIn, windowIn + fadeInTime]
+  if (fadeInTime > 0) {
+    if (frame <= windowIn) mult = 0;
+    else if (frame < windowIn + fadeInTime) mult = (frame - windowIn) / fadeInTime;
   }
 
-  // Fade out region: [end - fadeOutTime, end]
-  if (fadeOutTime > 0 && frame > end - fadeOutTime) {
-    if (frame >= end) return 0;
-    return (end - frame) / fadeOutTime;
+  // Fade out region: [windowOut - fadeOutTime, windowOut]
+  if (fadeOutTime > 0) {
+    let out = 1;
+    if (frame >= windowOut) out = 0;
+    else if (frame > windowOut - fadeOutTime) out = (windowOut - frame) / fadeOutTime;
+    mult = Math.min(mult, out);
   }
 
-  // Fully visible in the middle
-  return 1;
+  return mult;
 }
 
 export interface RampBehavior {

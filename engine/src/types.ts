@@ -265,6 +265,13 @@ export interface LayerBehavior {
   params: Record<string, number>;
   /** For Ramp: the target parameter name it animates. */
   targetParam?: string;
+  /**
+   * The behavior's own `<timing in out offset>` element. This — NOT generic
+   * Start/End Offset params — defines the window over which a Fade behavior
+   * ramps opacity. `in`/`out` are scene times (RationalTime). Fade In/Out Time
+   * params are frame counts anchored to this window.
+   */
+  timing?: { in: RationalTime; out: RationalTime; offset: RationalTime };
 }
 
 /** A vector shape (polygon mask or filled shape). */
