@@ -1,0 +1,423 @@
+[[ visible ]] FragmentOut HgcNoise_hgc_visible(const constant float4* hg_Params, 
+    texture2d< float > hg_Texture0, 
+    sampler hg_Sampler0,
+    float4 texCoord0)
+    const float4 c0 = float4(0.02127659507, 0.02439024299, 0.01639344171, 0.01694915257);
+    const float4 c1 = float4(47.00000000, -41.00000000, 32.00000000, 0.5000000000);
+    const float4 c2 = float4(0.3660254180, 0.2113248706, 0.003460207721, 289.0000000);
+    const float4 c3 = float4(1.000000000, 0.000000000, 34.00000000, 0.8537347317);
+    const float4 c4 = float4(1.792842865, 0.2113248706, -0.5773502588, -61.00000000);
+    const float4 c5 = float4(-59.00000000, 65.00000000, 0.01886792481, -53.00000000);
+    float4 r0, r1, r2, r3, r4, r5, r6, r7, r8;
+    FragmentOut output;
+    r0.xy = texCoord0.xy*c0.xy;
+    r0.xy = floor(r0.xy);
+    r1.w = texCoord0.x*c0.z;
+    r2.w = texCoord0.y*c0.w;
+    r1.w = floor(r1.w);
+    r2.w = floor(r2.w);
+    r0.y = r0.y*c1.y + texCoord0.y;
+    r0.x = -r0.x*c1.x + texCoord0.x;
+    r0.xy = r0.xy - c1.zz;
+    r0.xy = r0.xy + c1.ww;
+    r0.xy = r0.xy + hg_Params[0].xy;
+    r0.xy = r0.xy*hg_Params[0].zw;
+    r0.xy = hg_Texture0.sample(hg_Sampler0, r0.xy).xy;
+    r2.xy = r0.xy + texCoord0.xy;
+    r0.x = dot(r2.xy, c2.xx);
+    r0.xy = r2.xy + r0.xx;
+    r0.xy = floor(r0.xy);
+    r2.z = dot(r0.xy, c2.yy);
+    r2.xy = r2.xy - r0.xy;
+    r3.zw = r2.xy + r2.zz;
+    r0.zw = r0.xy*c2.zz;
+    r0.zw = floor(r0.zw);
+    r1.xy = -r0.zw*c2.ww + r0.xy;
+    r2.x = r3.w - r3.z;
+    r0.xy = select(c3.yx, c3.xy, r2.xx < 0.00000f);
+    r4.y = r0.y;
+    r4.xz = c3.yx;
+    r4.xyz = r1.yyy + r4.xyz;
+    r2.xyz = r4.xyz*c3.zzz + c3.xxx;
+    r4.xyz = r2.xyz*r4.xyz;
+    r2.xyz = r4.xyz*c2.zzz;
+    r2.xyz = floor(r2.xyz);
+    r4.xyz = -r2.xyz*c2.www + r4.xyz;
+    r2.xyz = r4.xyz + r1.xxx;
+    r4.y = r0.x;
+    r4.xz = c3.yx;
+    r4.xyz = r2.xyz + r4.xyz;
+    r2.xyz = r4.xyz*c3.zzz + c3.xxx;
+    r4.xyz = r2.xyz*r4.xyz;
+    r2.xyz = r4.xyz*c2.zzz;
+    r2.xyz = floor(r2.xyz);
+    r4.xyz = -r2.xyz*c2.www + r4.xyz;
+    r4.xyz = r4.xyz*c0.yyy;
+    r4.xyz = fract(r4.xyz);
+    r4.xyz = r4.xyz + r4.xyz;
+    r2.xyz = r4.xyz - c3.xxx;
+    r4.xyz = r4.xyz - c1.www;
+    r4.xyz = floor(r4.xyz);
+    r1.xyz = fabs(r2.xyz) - c1.www;
+    r2.xyz = r2.xyz - r4.xyz;
+    r4.xyz = r1.xyz*r1.xyz;
+    r4.xyz = r2.xyz*r2.xyz + r4.xyz;
+    r4.xyz = -r4.xyz*c3.www + c4.xxx;
+    r5 = r3.zwzw + c4.yyzz;
+    r5.xy = r5.xy - r0.xy;
+    r0.y = r1.w*c4.w + texCoord0.x;
+    r1.zw = r1.yz*r5.yw;
+    r0.x = r2.w*c5.x + texCoord0.y;
+    r0.zw = r0.xy - c1.zz;
+    r0.xy = r5.xy*r5.xy;
+    r0.zw = floor(r0.zw);
+    r6.xy = r0.zw + c1.ww;
+    r6.xy = r6.xy + hg_Params[0].xy;
+    r6.xy = r6.xy*hg_Params[0].zw;
+    r6.xy = hg_Texture0.sample(hg_Sampler0, r6.xy).xy;
+    r3.xy = texCoord0.xy + r6.xy;
+    r2.w = dot(r3.xy, c2.xx);
+    r6.xy = r3.xy + r2.ww;
+    r2.yz = r2.yz*r5.xz + r1.zw;
+    r6.zw = floor(r6.xy);
+    r0.zw = r3.zw*r3.zw;
+    r0.xy = r0.zx + r0.wy;
+    r0.z = dot(r5.zw, r5.zw);
+    r1.w = r3.w*r1.x;
+    r0.xyz = c1.www - r0.xyz;
+    r0.xyz = fmax(r0.xyz, c3.yyy);
+    r0.xyz = r0.xyz*r0.xyz;
+    r2.w = dot(r6.zw, c4.yy);
+    r5.zw = r3.xy - r6.zw;
+    r6.xy = r5.zw + r2.ww;
+    r5.xy = r6.zw*c2.zz;
+    r5.xy = floor(r5.xy);
+    r6.zw = -r5.xy*c2.ww + r6.zw;
+    r2.w = r6.y - r6.x;
+    r3.xy = select(c3.yx, c3.xy, r2.ww < 0.00000f);
+    r0.xyz = r0.xyz*r0.xyz;
+    r2.x = r3.z*r2.x + r1.w;
+    r0.xyz = r0.xyz*r4.xyz;
+    r0.w = dot(r0.xyz, r2.xyz);
+    output.color0.x = r0.w*c5.y + c1.w;
+    r5.w = texCoord0.x*c5.z;
+    r1.y = r3.y;
+    r1.xz = c3.yx;
+    r1.xyz = r6.www + r1.xyz;
+    r4.xyz = r1.xyz*c3.zzz + c3.xxx;
+    r1.xyz = r4.xyz*r1.xyz;
+    r2.xyz = r1.xyz*c2.zzz;
+    r5.xyz = floor(r2.xyz);
+    r5.xyz = -r5.xyz*c2.www + r1.xyz;
+    r0.xyz = r5.xyz + r6.zzz;
+    r5.y = r3.x;
+    r5.xz = c3.yx;
+    r5.xyz = r0.xyz + r5.xyz;
+    r4.xyz = r5.xyz*c3.zzz + c3.xxx;
+    r5.xyz = r4.xyz*r5.xyz;
+    r2.x = texCoord0.y*c0.x;
+    r2.x = floor(r2.x);
+    r2.y = -r2.x*c1.x + texCoord0.y;
+    r5.w = floor(r5.w);
+    r2.x = r5.w*c5.w + texCoord0.x;
+    r2.xy = r2.xy - c1.zz;
+    r1.xyz = r5.xyz*c2.zzz;
+    r1.xyz = floor(r1.xyz);
+    r5.xyz = -r1.xyz*c2.www + r5.xyz;
+    r5.xyz = r5.xyz*c0.yyy;
+    r2.xy = floor(r2.xy);
+    r2.xy = r2.xy + c1.ww;
+    r2.xy = r2.xy + hg_Params[0].xy;
+    r2.xy = r2.xy*hg_Params[0].zw;
+    r2.xy = hg_Texture0.sample(hg_Sampler0, r2.xy).xy;
+    r2.zw = texCoord0.xy + r2.xy;
+    r5.xyz = fract(r5.xyz);
+    r5.xyz = r5.xyz + r5.xyz;
+    r0.xyz = r5.xyz - c3.xxx;
+    r5.xyz = r5.xyz - c1.www;
+    r2.x = dot(r2.zw, c2.xx);
+    r2.xy = r2.zw + r2.xx;
+    r2.xy = floor(r2.xy);
+    r5.w = dot(r2.xy, c4.yy);
+    r2.zw = r2.zw - r2.xy;
+    r6.zw = r2.zw + r5.ww;
+    r4.xy = r2.xy*c2.zz;
+    r2.zw = floor(r4.xy);
+    r2.xy = -r2.zw*c2.ww + r2.xy;
+    r5.w = r6.w - r6.z;
+    r1.xy = select(c3.yx, c3.xy, r5.ww < 0.00000f);
+    r5.xyz = floor(r5.xyz);
+    r5.xyz = r0.xyz - r5.xyz;
+    r0.xyz = fabs(r0.xyz) - c1.www;
+    r4.xz = c3.yx;
+    r4.y = r1.y;
+    r4.xyz = r2.yyy + r4.xyz;
+    r7.xyz = r4.xyz*c3.zzz + c3.xxx;
+    r7.xyz = r7.xyz*r4.xyz;
+    r4.xyz = r0.xyz*r0.xyz;
+    r4.xyz = r5.xyz*r5.xyz + r4.xyz;
+    r8.xyz = r7.xyz*c2.zzz;
+    r8.xyz = floor(r8.xyz);
+    r8.xyz = -r8.xyz*c2.www + r7.xyz;
+    r4.xyz = -r4.xyz*c3.www + c4.xxx;
+    r8.xyz = r8.xyz + r2.xxx;
+    r7.xz = c3.yx;
+    r7.y = r1.x;
+    r8.xyz = r8.xyz + r7.xyz;
+    r2 = r6.xyxy + c4.yyzz;
+    r2.xy = r2.xy - r3.xy;
+    r0.zw = r0.yz*r2.yw;
+    r7.xyz = r8.xyz*c3.zzz + c3.xxx;
+    r7.xyz = r7.xyz*r8.xyz;
+    r3.zw = r2.zw*r2.zw;
+    r2.w = r6.y*r0.x;
+    r3.y = dot(r2.xy, r2.xy);
+    r3.x = dot(r6.xy, r6.xy);
+    r8.xyz = r7.xyz*c2.zzz;
+    r3.z = dot(r3.zw, 1.00000f);
+    r3.xyz = c1.www - r3.xyz;
+    r3.xyz = fmax(r3.xyz, c3.yyy);
+    r8.xyz = floor(r8.xyz);
+    r3.xyz = r3.xyz*r3.xyz;
+    r3.xyz = r3.xyz*r3.xyz;
+    r5.yz = r5.yz*r2.xz + r0.zw;
+    r5.x = r6.x*r5.x + r2.w;
+    r4.xyz = r3.xyz*r4.xyz;
+    r4.w = dot(r4.xyz, r5.xyz);
+    r7.xyz = -r8.xyz*c2.www + r7.xyz;
+    r7.xyz = r7.xyz*c0.yyy;
+    r7.xyz = fract(r7.xyz);
+    r7.xyz = r7.xyz + r7.xyz;
+    r0.xyz = r7.xyz - c3.xxx;
+    r4.xyz = r7.xyz - c1.www;
+    r2.xyz = fabs(r0.xyz) - c1.www;
+    r4.xyz = floor(r4.xyz);
+    r4.xyz = r0.xyz - r4.xyz;
+    r3 = r6.zwzw + c4.yyzz;
+    r1.xy = r3.xy - r1.xy;
+    r5.y = dot(r1.xy, r1.xy);
+    r5.x = dot(r6.zw, r6.zw);
+    r1.zw = r3.zw;
+    r5.z = dot(r3.zw, r3.zw);
+    r8.xy = r2.yz*r1.yw;
+    r7.xyz = r2.xyz*r2.xyz;
+    r7.xyz = r4.xyz*r4.xyz + r7.xyz;
+    r5.xyz = c1.www - r5.xyz;
+    r5.xyz = fmax(r5.xyz, c3.yyy);
+    r5.xyz = r5.xyz*r5.xyz;
+    r8.z = r6.w*r2.x;
+    r1.y = r4.w*c5.y;
+    r7.xyz = -r7.xyz*c3.www + c4.xxx;
+    r5.xyz = r5.xyz*r5.xyz;
+    r5.xyz = r5.xyz*r7.xyz;
+    r4.x = r6.z*r4.x + r8.z;
+    r4.yz = r4.yz*r1.xz + r8.xy;
+    r1.x = dot(r5.xyz, r4.xyz);
+    r1.x = r1.x*c5.y;
+    output.color0.yz = r1.yx + c1.ww;
+    output.color0.w = c3.x;
+    return output;
+//Metal1.0     
+//LEN=0000000522
+fragment FragmentOut fragmentFunc(VertexInOut frag [[ stage_in ]], 
+    const constant float4* hg_Params [[ buffer(0) ]], 
+    texture2d< float > hg_Texture0 [[ texture(0) ]], 
+    sampler hg_Sampler0 [[ sampler(0) ]])
+    const float4 c0 = float4(0.000000000, 1.000000000, 0.000000000, 0.000000000);
+    float4 r0, r1, r2, r3, r4;
+    FragmentOut output;
+    r0 = hg_Texture0.sample(hg_Sampler0, frag._texCoord0.xy);
+    r0 = r0 / float4(fmax(r0.www, 1.00000e-06f), 1.);
+    r1.xz = float2(dot(r0.xyz, hg_Params[0].xyz));
+    r2.x = hg_Params[2].y - hg_Params[2].x;
+    r2.xz = 1.00000f / r2.xx;
+    r3.xz = r1.xz - hg_Params[2].xx;
+    r3.xz = r3.xz*r2.xz;
+    r2.xz = float2(r1.xz >= hg_Params[2].xx);
+    r2.xz = r2.xz*r3.xz;
+    r3.xz = float2(r1.xz >= hg_Params[2].yy);
+    r2.x = clamp(r2.x + r3.x, 0.00000f, 1.00000f);
+    r2.y = c0.y - r2.x;
+    r4.z = c0.y - hg_Params[2].y;
+    r4.z = float(r1.z < r4.z);
+    r2.z = clamp(r3.z*r4.z + r2.z, 0.00000f, 1.00000f);
+    r2.w = c0.y - r2.z;
+    r2.w = dot(r2, hg_Params[1]);
+    r2.w = r2.w*r0.w;
+    output.color0.xyz = r0.xyz*r2.www;
+    output.color0.w = r2.w;
+    return output;
+//MD5=34c6f3dd:16366c1e:a18fd862:e09b84d4
+//SIG=00000000:00000001:00000001:00000000:0001:0003:0005:0000:0000:0000:0002:0000:0001:01:0:1:0
+HgcLumaKey_hgc_visible
+HgcLumaKey
+HgcLumaKey [hgc1]
+//Metal1.0     
+//LEN=00000003f6
+[[ visible ]] FragmentOut HgcLumaKey_hgc_visible(const constant float4* hg_Params,
+    float4 color0)
+    const float4 c0 = float4(0.000000000, 1.000000000, 0.000000000, 0.000000000);
+    float4 r0, r1, r2, r3, r4;
+    FragmentOut output;
+    r0 = color0;
+    r0 = r0 / float4(fmax(r0.www, 1.00000e-06f), 1.);
+    r1.xz = float2(dot(r0.xyz, hg_Params[0].xyz));
+    r2.x = hg_Params[2].y - hg_Params[2].x;
+    r2.xz = 1.00000f / r2.xx;
+    r3.xz = r1.xz - hg_Params[2].xx;
+    r3.xz = r3.xz*r2.xz;
+    r2.xz = float2(r1.xz >= hg_Params[2].xx);
+    r2.xz = r2.xz*r3.xz;
+    r3.xz = float2(r1.xz >= hg_Params[2].yy);
+    r2.x = clamp(r2.x + r3.x, 0.00000f, 1.00000f);
+    r2.y = c0.y - r2.x;
+    r4.z = c0.y - hg_Params[2].y;
+    r4.z = float(r1.z < r4.z);
+    r2.z = clamp(r3.z*r4.z + r2.z, 0.00000f, 1.00000f);
+    r2.w = c0.y - r2.z;
+    r2.w = dot(r2, hg_Params[1]);
+    r2.w = r2.w*r0.w;
+    output.color0.xyz = r0.xyz*r2.www;
+    output.color0.w = r2.w;
+    return output;
+//Metal1.0     
+//LEN=00000003ae
+fragment FragmentOut fragmentFunc(VertexInOut frag [[ stage_in ]], 
+    const constant float4* hg_Params [[ buffer(0) ]], 
+    texture2d< float > hg_Texture0 [[ texture(0) ]], 
+    sampler hg_Sampler0 [[ sampler(0) ]])
+    const float4 c0 = float4(9.999999975e-07, 0.000000000, 0.000000000, 0.000000000);
+    float4 r0, r1, r2;
+    FragmentOut output;
+    r0 = hg_Texture0.sample(hg_Sampler0, frag._texCoord0.xy);
+    r1.x = hg_Params[0].y - hg_Params[0].x;
+    r1.x = r1.x + c0.x;
+    r1 = 1.00000f / r1.xxxx;
+    r2 = r0.wwww - hg_Params[0].xxxx;
+    r2 = r2*r1;
+    r1 = float4(r0.wwww >= hg_Params[0].xxxx);
+    r1 = r1*r2;
+    r2 = float4(r0.wwww >= hg_Params[0].yyyy);
+    r1 = clamp(r1 + r2, 0.00000f, 1.00000f);
+    output.color0 = r0*r1;
+    return output;
+//MD5=8ff7daec:f930fce9:aa3f2af2:683ec6f0
+//SIG=00000000:00000001:00000001:00000000:0001:0001:0003:0000:0000:0000:0002:0000:0001:01:0:1:0
+HgcMatteChoker_hgc_visible
+HgcMatteChoker
+HgcMatteChoker [hgc1]
+//Metal1.0     
+//LEN=0000000286
+[[ visible ]] FragmentOut HgcMatteChoker_hgc_visible(const constant float4* hg_Params,
+    float4 color0)
+    const float4 c0 = float4(9.999999975e-07, 0.000000000, 0.000000000, 0.000000000);
+    float4 r0, r1, r2;
+    FragmentOut output;
+    r0 = color0;
+    r1.x = hg_Params[0].y - hg_Params[0].x;
+    r1.x = r1.x + c0.x;
+    r1 = 1.00000f / r1.xxxx;
+    r2 = r0.wwww - hg_Params[0].xxxx;
+    r2 = r2*r1;
+    r1 = float4(r0.wwww >= hg_Params[0].xxxx);
+    r1 = r1*r2;
+    r2 = float4(r0.wwww >= hg_Params[0].yyyy);
+    r1 = clamp(r1 + r2, 0.00000f, 1.00000f);
+    output.color0 = r0*r1;
+    return output;
+//Metal1.0     
+//LEN=0000000361
+fragment FragmentOut fragmentFunc(VertexInOut frag [[ stage_in ]], 
+    const constant float4* hg_Params [[ buffer(0) ]], 
+    texture2d< float > hg_Texture0 [[ texture(0) ]], 
+    sampler hg_Sampler0 [[ sampler(0) ]])
+    float4 r0, r1;
+    FragmentOut output;
+    r0.xyz = frag._texCoord0.xyz - hg_Params[0].xyz;
+    r1.x = dot(r0.xyz, hg_Params[1].xyx);
+    r1.y = dot(r0.xyz, hg_Params[1].zwz);
+    r1.x = abs(r1.x);
+    r0.x = dot(r1.xy, hg_Params[2].xy);
+    r0.y = dot(r1.xy, hg_Params[2].zw);
+    r0.xy = r0.xy + hg_Params[0].xy;
+    r0.xy = r0.xy + hg_Params[3].xy;
+    r0.xy = r0.xy*hg_Params[3].zw;
+    output.color0 = hg_Texture0.sample(hg_Sampler0, r0.xy);
+    return output;
+//MD5=c4438bd7:7a0ef036:b3cf2aa5:3af6f19d
+//SIG=00000000:00000000:00000000:00000000:0000:0004:0002:0000:0000:0000:0002:0000:0001:01:0:1:0
+HgcMirror_hgc_visible
+HgcMirror
+HgcMirror [hgc1]
+//Metal1.0     
+//LEN=000000029d
+[[ visible ]] FragmentOut HgcMirror_hgc_visible(const constant float4* hg_Params, 
+    texture2d< float > hg_Texture0, 
+    sampler hg_Sampler0,
+    float4 texCoord0)
+    float4 r0, r1;
+    FragmentOut output;
+    r0.xyz = texCoord0.xyz - hg_Params[0].xyz;
+    r1.x = dot(r0.xyz, hg_Params[1].xyx);
+    r1.y = dot(r0.xyz, hg_Params[1].zwz);
+    r1.x = abs(r1.x);
+    r0.x = dot(r1.xy, hg_Params[2].xy);
+    r0.y = dot(r1.xy, hg_Params[2].zw);
+    r0.xy = r0.xy + hg_Params[0].xy;
+    r0.xy = r0.xy + hg_Params[3].xy;
+    r0.xy = r0.xy*hg_Params[3].zw;
+    output.color0 = hg_Texture0.sample(hg_Sampler0, r0.xy);
+    return output;
+//Metal1.0     
+//LEN=00000002dd
+fragment FragmentOut fragmentFunc(VertexInOut frag [[ stage_in ]], 
+    const constant float4* hg_Params [[ buffer(0) ]], 
+    texture2d< float > hg_Texture0 [[ texture(0) ]], 
+    sampler hg_Sampler0 [[ sampler(0) ]])
+    const float4 c0 = float4(1.000000000, 0.000000000, 0.000000000, 0.000000000);
+    float4 r0;
+    FragmentOut output;
+    r0 = hg_Texture0.sample(hg_Sampler0, frag._texCoord0.xy);
+    r0 = r0 / float4(fmax(r0.www, 1.00000e-06f), 1.);
+    r0.xyz = c0.xxx - r0.xyz;
+    r0.xyz = r0.xyz*r0.www;
+    output.color0 = r0;
+    return output;
+//MD5=011e602f:67bea507:1fd33673:dddc8f8e
+//SIG=00000000:00000001:00000001:00000000:0001:0000:0001:0000:0000:0000:0002:0000:0001:01:0:1:0
+HgcNegative_hgc_visible
+HgcNegative
+HgcNegative [hgc1]
+//Metal1.0     
+//LEN=00000001b2
+[[ visible ]] FragmentOut HgcNegative_hgc_visible(const constant float4* hg_Params,
+    float4 color0)
+    const float4 c0 = float4(1.000000000, 0.000000000, 0.000000000, 0.000000000);
+    float4 r0;
+    FragmentOut output;
+    r0 = color0;
+    r0 = r0 / float4(fmax(r0.www, 1.00000e-06f), 1.);
+    r0.xyz = c0.xxx - r0.xyz;
+    r0.xyz = r0.xyz*r0.www;
+    output.color0 = r0;
+    return output;
+//Metal1.0     
+//LEN=0000000362
+fragment FragmentOut fragmentFunc(VertexInOut frag [[ stage_in ]], 
+    const constant float4* hg_Params [[ buffer(0) ]], 
+    texture2d< float > hg_Texture0 [[ texture(0) ]], 
+    sampler hg_Sampler0 [[ sampler(0) ]], 
+    texture2d< float > hg_Texture1 [[ texture(1) ]], 
+    sampler hg_Sampler1 [[ sampler(1) ]])
+    float4 r0, r1;
+    FragmentOut output;
+    r0 = hg_Texture0.sample(hg_Sampler0, frag._texCoord0.xy);
+    r1.x = hg_Texture1.sample(hg_Sampler1, frag._texCoord1.xy).x;
+    r0 = r0 / float4(fmax(r0.www, 1.00000e-06f), 1.);
+    r1 = float4(r1.xxxx >= hg_Params[0]);
+    r1 = r0.wwww*r1;
+    output.color0.xyz = r0.xyz*r1.xyz;
+    output.color0.w = r1.w;
+    return output;
+//MD5=9a9378f6:f075acd8:aa88e005:8b2372c0
+//SIG=00000000:00000003:00000003:00000000:0000:0001:0002:0000:0000:0000:0006:0000:0002:02:0:1:0
