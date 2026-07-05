@@ -111,21 +111,23 @@ export function evaluateCurve(curve: Curve, timeSec: number): number {
 
   // Bezier / smooth (all variants: 6,7,8,15,16,17).
   //
-  // IMPORTANT: Motion does NOT use the tangent handles stored in the .motr file.
-  // Verified empirically against the real Ozone engine by editing keyframe
-  // tangents in a template and re-rendering: perturbing (even zeroing or setting
-  // extreme) inputTangent/outputTangent values had ZERO effect on the output,
-  // while changing a keyframe VALUE scaled the motion exactly. Motion recomputes
-  // smooth tangents on load from the keyframe (time, value) points alone:
+  // CONFIRMED by disassembling ProChannel.framework (the real Motion curve engine):
+  //   OZChannel::getValueAsDouble → OZSpline::interpolate → OZBezierInterpolator
+  //   → getControlPoints → OZSpline::derivePoint.
+  // OZSpline::derivePoint fetches getPreviousValidVertex / getNextValidVertex and
+  // computes the tangent as a CENTERED difference of the neighbouring keyframe
+  // (time, value) points — it does NOT read the tangent handles stored in the
+  // .motr. (Independently verified by editing a template's stored tangents to
+  // zero/extreme values and re-rendering through the engine: zero effect on the
+  // output; only changing a keyframe VALUE changed the motion.) At the first/last
+  // vertex the missing-neighbour branch sets that slope component to zero, so the
+  // animation eases from / to rest.
   //
-  //   • Interior keyframe slope = Catmull-Rom centered difference:
-  //       m_i = (v[i+1] - v[i-1]) / (t[i+1] - t[i-1])
-  //   • Endpoint slopes = 0  (the animation eases from / to rest)
-  //   • Cubic Hermite, control points placed at 1/3 of the segment in time.
-  //
-  // This reproduces the real engine to ~1.6px (a 2-keyframe curve becomes exact
-  // smoothstep 3u²−2u³; a multi-keyframe ramp becomes a single ease-in → constant
-  // → ease-out sweep instead of one accelerate/decelerate hump per segment).
+  // Model (cubic Hermite, control points at 1/3 of the segment in time):
+  //   • interior slope m_i = (v[i+1] - v[i-1]) / (t[i+1] - t[i-1])
+  //   • endpoint slopes = 0
+  // A 2-keyframe curve therefore becomes exact smoothstep 3u²−2u³; a multi-key
+  // ramp becomes one ease-in → constant → ease-out sweep (not one hump/segment).
   if (isBezier(interp)) {
     const n = keyframes.length;
     const slopeAt = (i: number): number => {
