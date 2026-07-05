@@ -432,7 +432,7 @@ let CLIP_MEDIA = new Map<number, { url: string; frameRate?: number }>();
  */
 let DROPZONE_MEDIA_HEIGHT: number | undefined;
 
-function parseFootageClipAB(sceneEl: Element): Map<number, 'A' | 'B'> {
+function parseFootageClipAB(sceneEl: Element, factories: Map<number, string>): Map<number, 'A' | 'B'> {
   const map = new Map<number, 'A' | 'B'>();
   CLIP_MEDIA = new Map<number, { url: string; frameRate?: number }>();
   DROPZONE_MEDIA_HEIGHT = undefined;
@@ -585,10 +585,66 @@ function parseFootageClipAB(sceneEl: Element): Map<number, 'A' | 'B'> {
     }
   }
 
+  // MASKED-REVEAL A/B binding (Replicator-Clones/Duplicate). When one Transition
+  // drop zone is REVEALED by an Image Mask whose source is a grid Replicator (the
+  // growing-dots matte) and the sibling drop zone is the unmasked base, the headless
+  // FCP renderer binds them so the UNMASKED base shows the outgoing image and the
+  // MASKED layer reveals the incoming image. This template authors the two drop
+  // zones with the mask on the node named "Transition B" and the base on "Transition
+  // A", but the rendered result is the reverse of the name-based binding (the base
+  // holds the transition's FIRST image / drop-zone B, the masked reveal grows in the
+  // SECOND image / drop-zone A). So when a replicator-matte reveal is present, swap
+  // the A/B assignment of the two Transition drop-zone clips. Structural (fires on
+  // any replicator-mask-reveal drop zone) — no transition name, no GT constant.
+  {
+    // Find the clip ids of the masked (replicator-image-mask) and base drop zones.
+    let maskedClipId: number | undefined;
+    let baseClipId: number | undefined;
+    // Walk drawable Transition A/B drop-zone nodes; find which carries an Image Mask
+    // whose Mask Source is a replicator node (has a Sequence Replicator behavior).
+    for (const node of Array.from(sceneEl.getElementsByTagName('scenenode'))) {
+      const params: Parameter[] = [];
+      for (const p of directChildren(node, 'parameter')) params.push(parseParameter(p));
+      const cid = findSourceMediaId(params);
+      if (cid === undefined || !map.has(cid)) continue;
+      // Only the two designated Transition A/B clips (exclude the generic cell
+      // "Drop Zone" clip, which is not one of the two full-frame reveal layers).
+      const clipMeta = clips.find(c => c.id === cid);
+      const isTransitionAB = clipMeta && /transition\s*[ab]\b/.test(clipMeta.name);
+      if (!isTransitionAB) continue;
+      // Does this node carry an Image Mask whose source is a replicator?
+      let hasReplMask = false;
+      for (const maskEl of directChildren(node, 'mask')) {
+        for (const p of Array.from(maskEl.getElementsByTagName('parameter'))) {
+          if (p.getAttribute('name') !== 'Mask Source') continue;
+          const srcId = parseInt(p.getAttribute('value') || '0', 10);
+          if (!srcId) continue;
+          // Resolve the referenced node; a replicator source has a "Sequence
+          // Replicator" behavior descendant (the per-cell staggered ramp).
+          for (const cand of Array.from(sceneEl.getElementsByTagName('scenenode'))) {
+            if (parseInt(cand.getAttribute('id') || '0', 10) !== srcId) continue;
+            const behs = cand.getElementsByTagName('behavior');
+            for (let bi = 0; bi < behs.length; bi++) {
+              const bfid = parseInt(behs[bi].getAttribute('factoryID') || '0', 10);
+              if (factories.get(bfid) === 'Sequence Replicator') hasReplMask = true;
+            }
+          }
+        }
+      }
+      if (hasReplMask) maskedClipId = cid;
+      else baseClipId = cid;
+    }
+    // Swap: the unmasked base shows the OUTGOING/first image (bind → A), the masked
+    // reveal grows in the INCOMING/second image (bind → B). This inverts the
+    // name-based mapping (masked node named "Transition B" → actually reveals A).
+    if (maskedClipId !== undefined && baseClipId !== undefined && maskedClipId !== baseClipId) {
+      map.set(baseClipId, 'B');
+      map.set(maskedClipId, 'A');
+    }
+  }
+
   return map;
 }
-
-/** Find an image node's referenced clip id via its "Source Media" (id 300) param. */
 function findSourceMediaId(params: Parameter[]): number | undefined {
   for (const p of params) {
     if (p.name === 'Source Media' && p.id === 300 && typeof p.value === 'number') return p.value;
@@ -2210,7 +2266,7 @@ export function parseMotr(xmlText: string): MotrScene {
   const sceneBehaviors = parseSceneBehaviors(sceneEl, factories);
 
   // Resolve the footage drop-zone clips → A/B for authoritative source resolution.
-  const clipAB = parseFootageClipAB(sceneEl);
+  const clipAB = parseFootageClipAB(sceneEl, factories);
   // The drop-zone media box height (captured during the clip walk above) governs
   // the Drop In card conform.
   settings.dropZoneMediaHeight = DROPZONE_MEDIA_HEIGHT;

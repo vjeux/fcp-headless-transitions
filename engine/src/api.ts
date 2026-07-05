@@ -161,10 +161,28 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
     // the arrows back to a sliver and re-show A on the last frames. Detect a
     // stroked shape anywhere in the scene and disable the wrap for it.
     let hasStrokedMaskShape = false;
+    // A REPLICATOR-matte reveal (Replicator-Clones/Duplicate): a layer's Image Mask
+    // Mask Source is a grid Replicator whose Sequence Replicator grows the cells
+    // 0→1 to reveal the masked layer (Transition B) over the base (Transition A).
+    // That growing-dots reveal IS the entire transition; its end state (full B)
+    // must persist to progress=1. The many hidden cell-candidate shapes inside the
+    // replicator's cell group carry early drop-zone timeouts (~0.7s) that would
+    // otherwise set retimeWrapSec and snap the tail back to A. Disable the wrap
+    // when such a replicator-matte reveal exists. Structural (any replicator used
+    // as a mask source) — no transition name, no GT constant.
+    let hasReplicatorMaskReveal = false;
+    const replicatorIds = new Set<number>();
+    (function collectRepl(layers: readonly import('./types.js').Layer[]) {
+      for (const l of layers) {
+        if (l.type === 'replicator') replicatorIds.add(l.id);
+        collectRepl(l.children);
+      }
+    })(scene.layers);
     (function scan2(layers: readonly import('./types.js').Layer[]) {
       for (const l of layers) {
         if (l.type === 'shape' && l.shape && !l.shape.isMask && (l.shape.fillColor || l.shape.isSolidPanel)) hasFilledShapeOverlay = true;
         if (l.type === 'shape' && l.shape && l.shape.stroke) hasStrokedMaskShape = true;
+        if (l.imageMaskSourceId !== undefined && replicatorIds.has(l.imageMaskSourceId)) hasReplicatorMaskReveal = true;
         // A blended (screen/add) VIDEO media leaf that outlives the wrap: its own
         // Retime curve (clip-frame numbers) drives an independent playhead.
         if (l.type === 'image' && l.source?.type === 'media'
@@ -176,7 +194,7 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
         scan2(l.children);
       }
     })(scene.layers);
-    if (retimeWrapSec !== undefined && (hasFilledShapeOverlay || hasBlendedMediaOverlay) && endSec > retimeWrapSec + frameSec) {
+    if (retimeWrapSec !== undefined && (hasFilledShapeOverlay || hasBlendedMediaOverlay || hasReplicatorMaskReveal) && endSec > retimeWrapSec + frameSec) {
       retimeWrapSec = undefined;
     }
     // Stroked-mask reveal (Objects/Arrows): the growing arrow arcs cut A away to

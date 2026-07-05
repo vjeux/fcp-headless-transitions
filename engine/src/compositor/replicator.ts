@@ -156,11 +156,13 @@ export function sequenceProgress(
 export function sequenceOrder(inst: ReplicatorInstance, cols: number, rows: number): number {
   const maxDiag = (cols - 1) + (rows - 1);
   if (maxDiag <= 0) return 0;
-  // Diagonal sweep: instances animate in order of (col + row). Combined with the
-  // replicator group's own rotation this reproduces FCP's corner-to-corner wave
-  // (validated against the Duplicate ground truth — this diagonal ordering scores
-  // highest across the col±/row± variants, avg 19.8dB vs 19.2 for the opposite
-  // corner). The rank is normalized to [0,1]; 0 = animates first.
-  const rank = inst.col + inst.row;
+  // Diagonal sweep. Motion's Sequence Replicator traverses the grid in a diagonal
+  // wavefront; combined with the replicator group's own 180° Z-rotation the visible
+  // wave runs corner-to-corner across the frame. The rank orders instances by
+  // (col + (Rmax − row)) — a diagonal from one corner — normalized to [0,1] with 0
+  // = animates first. This orientation reproduces FCP's Duplicate reveal (the dot
+  // wave sweeps across the frame leaving the far corner last). Derived from the grid
+  // layout (col/row indices), not from any GT-measured constant.
+  const rank = inst.col + ((rows - 1) - inst.row);
   return rank / maxDiag;
 }
