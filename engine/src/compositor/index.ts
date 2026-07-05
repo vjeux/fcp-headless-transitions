@@ -1,7 +1,7 @@
 import { gaussianBlur } from './filters/gaussian-blur.js';
 import { glowFilter } from './filters/glow.js';
 import { levelsFilter, brightnessFilter } from './filters/levels.js';
-import { channelMixerFilter, colorizeFilter, tintFilter } from './filters/channel-mixer.js';
+import { channelMixerFilter, colorizeRemapFilter, tintFilter } from './filters/channel-mixer.js';
 import { hueSaturationFilter } from './filters/hue-saturation.js';
 import { directionalBlur, radialBlur, zoomBlur } from './filters/directional-blur.js';
 import { lumaKeyerFilter } from './filters/luma-keyer.js';
@@ -56,6 +56,17 @@ interface RenderContext {
    * legacy default (2000) when no camera is present.
    */
   cameraZ: number;
+  /**
+   * Set of object IDs referenced as an Image Mask `Mask Source` by some layer.
+   * A group in this set is a hidden geometry provider (it clips its owning layer
+   * via the Image Mask), NOT a sibling-clip "Masks" group, so `isMaskGroup` must
+   * NOT lift it to clip the enclosing group.
+   */
+  imageMaskSourceIds: Set<number>;
+  /** Host-injected resolver for bundled-media relativeURLs (Slide tile PNGs). */
+  mediaResolver?: (url: string) => ImageData | null;
+  /** Per-frame cache of resolved media (avoids re-decoding a tile per layer/frame). */
+  mediaCache: Map<string, ImageData | null>;
 }
 let ctx: RenderContext | null = null;
 
@@ -483,6 +494,17 @@ function getSourceImage(source: ImageSource | undefined, imageA: ImageData, imag
   switch (source.type) {
     case 'transitionA': return imageA;
     case 'transitionB': return imageB;
+    case 'media': {
+      // Bundled template asset (e.g. Slide's sliding tile PNGs). Resolved by the
+      // host-injected resolver and cached per frame. Null when unavailable — the
+      // layer then draws nothing (graceful degradation).
+      if (!ctx?.mediaResolver) return null;
+      const cache = ctx.mediaCache;
+      if (cache.has(source.url)) return cache.get(source.url)!;
+      const img = ctx.mediaResolver(source.url);
+      cache.set(source.url, img);
+      return img;
+    }
     case 'color': {
       // Solid color fill
       const { r, g, b, a } = source;
@@ -506,6 +528,10 @@ function getSourceImage(source: ImageSource | undefined, imageA: ImageData, imag
 function isMaskGroup(child: EvaluatedLayer): boolean {
   if (child.layer.type !== 'group') return false;
   if (child.layer.children.length === 0) return false;
+  // A group referenced by an Image Mask `Mask Source` is a hidden geometry
+  // provider for that layer's own mask — it must NOT be lifted to clip its
+  // enclosing group (that would clip both Transition A and B, leaving a strip).
+  if (ctx?.imageMaskSourceIds.has(child.layer.id)) return false;
   let maskCount = 0;
   let ok = true;
   const walk = (l: EvaluatedLayer): void => {
@@ -530,6 +556,44 @@ function collectMaskShapes(group: EvaluatedLayer, out: EvaluatedLayer[]): void {
   }
 }
 
+/** Gather every object ID referenced by some layer's Image Mask `Mask Source`. */
+function collectImageMaskSourceIds(evalLayerById: Map<number, EvaluatedLayer>): Set<number> {
+  const ids = new Set<number>();
+  for (const el of evalLayerById.values()) {
+    if (el.layer.imageMaskSourceId !== undefined) ids.add(el.layer.imageMaskSourceId);
+  }
+  return ids;
+}
+
+/**
+ * Rasterize an Image Mask's alpha from its `Mask Source` object.
+ *
+ * The referenced object is usually a "Masks" GROUP holding one or more shapes,
+ * with a rig behavior selecting exactly one (opacity=1) per the transition's
+ * Direction/variant widget (the others evaluate to opacity 0 → not visible). We
+ * collect every visible shape descendant and union their rasterized alpha. Each
+ * shape is rasterized at its own evaluated world transform (so the wipe animation
+ * — position/scale/rotation keyframes — is honored). Returns null if the source
+ * can't be resolved or no shape is currently visible.
+ */
+function resolveImageMaskAlpha(sourceId: number, W: number, H: number): Uint8Array | null {
+  if (!ctx) return null;
+  const src = ctx.evalLayerById.get(sourceId);
+  if (!src) return null;
+  // Collect visible shape descendants (the rig opacity selects the active one).
+  const shapes: EvaluatedLayer[] = [];
+  const walk = (el: EvaluatedLayer): void => {
+    if (el.layer.type === 'shape' && el.layer.shape) {
+      if (el.visible) shapes.push(el);
+    }
+    for (const c of el.children) walk(c);
+  };
+  walk(src);
+  if (shapes.length === 0) return null;
+  const masks = shapes.map(s => rasterizeShape(s.layer.shape!, W, H, s.worldTransform));
+  return masks.length === 1 ? masks[0] : unionMasks(masks, W, H);
+}
+
 function renderLayer(
   output: ImageData,
   evalLayer: EvaluatedLayer,
@@ -541,6 +605,11 @@ function renderLayer(
   if (!evalLayer.visible) return;
 
   const { layer, worldTransform, opacity, crop } = evalLayer;
+
+  // A group that is an Image Mask `Mask Source` is hidden geometry — it provides
+  // alpha to the layer that references it (rendered there via resolveImageMaskAlpha),
+  // and must never draw its shapes directly.
+  if (layer.type === 'group' && ctx?.imageMaskSourceIds.has(layer.id)) return;
 
   // Replicator: render the cell content at each grid instance
   if (layer.type === 'replicator' && layer.replicator) {
@@ -613,7 +682,22 @@ function renderLayer(
     // Leaf layer: render source image with transform
     const src = getSourceImage(layer.source, imageA, imageB);
     if (src) {
-      if (layer.filters.length > 0) {
+      // An Image Mask clips ONLY this layer by a rig-selected wipe shape (e.g.
+      // Wipes/Mask masks Transition B over an unmasked Transition A). Render to a
+      // temp buffer, multiply alpha by the rasterized mask, then composite.
+      const maskAlpha = layer.imageMaskSourceId !== undefined
+        ? resolveImageMaskAlpha(layer.imageMaskSourceId, output.width, output.height)
+        : null;
+      if (maskAlpha) {
+        const temp = createBuffer(output.width, output.height);
+        blitTransformed(temp, src, worldTransform, 1.0, crop);
+        let filtered = temp;
+        for (const filter of layer.filters) {
+          filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id));
+        }
+        applyMask(filtered, maskAlpha);
+        blitDirect(output, filtered, opacity, layer.blendMode);
+      } else if (layer.filters.length > 0) {
         // Render to temp buffer, apply filters, then composite onto output
         const temp = createBuffer(output.width, output.height);
         blitTransformed(temp, src, worldTransform, 1.0, crop); // full opacity to temp
@@ -698,7 +782,8 @@ export function composite(
   imageA: ImageData,
   imageB: ImageData,
   width: number,
-  height: number
+  height: number,
+  mediaResolver?: (url: string) => ImageData | null
 ): ImageData {
   const output = createBuffer(width, height);
 
@@ -712,6 +797,9 @@ export function composite(
     imageA,
     imageB,
     cameraZ: scene.camera?.distance ?? 2000,
+    imageMaskSourceIds: collectImageMaskSourceIds(scene.evalLayerById),
+    mediaResolver,
+    mediaCache: new Map<string, ImageData | null>(),
   };
 
   // Render layers back-to-front (Motion: first in list = top/foreground, last = bottom/background)
@@ -900,17 +988,31 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
     }
     return tintFilter(input, r, g, b, intensity, mix);
   }
-  // Colorize
+  // Colorize — Motion's is a black/white luminance remap, NOT a hue tint. Each
+  // pixel's luminance is mapped through a gradient from "Remap Black To" (at lum 0)
+  // to "Remap White To" (at lum 1). Used by Slide's tiles to recolor grayscale
+  // tile PNGs. The two endpoints are RGB color params (children Red/Green/Blue),
+  // and may be rig-driven (a Color widget selecting an accent) — honor overrides.
   if (name.includes('colorize')) {
-    let hue = 0, saturation = 1, mix = 1;
-    for (const p of filter.parameters) {
-      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
-      if (val === undefined) continue;
-      if (p.name === 'Remap Black To' || p.name === 'Hue') hue = val;
-      if (p.name === 'Saturation' || p.name === 'Intensity') saturation = val;
-      if (p.name === 'Mix') mix = val;
+    const readColor = (paramName: string, def: {r:number;g:number;b:number}): {r:number;g:number;b:number} => {
+      const p = filter.parameters.find(pp => pp.name === paramName);
+      if (!p) return def;
+      const ch = (n: string): number | undefined => {
+        const c = p.children?.find(cc => cc.name === n);
+        if (!c) return undefined;
+        return c.curve ? evaluateCurve(c.curve, time) : (typeof c.value === 'number' ? c.value : undefined);
+      };
+      return { r: ch('Red') ?? def.r, g: ch('Green') ?? def.g, b: ch('Blue') ?? def.b };
+    };
+    const black = readColor('Remap Black To', { r: 0, g: 0, b: 0 });
+    const white = readColor('Remap White To', { r: 1, g: 1, b: 1 });
+    let mix = 1;
+    const mixP = filter.parameters.find(p => p.name === 'Mix');
+    if (mixP) {
+      const v = mixP.curve ? evaluateCurve(mixP.curve, time) : (typeof mixP.value === 'number' ? mixP.value : undefined);
+      if (v !== undefined) mix = v;
     }
-    return colorizeFilter(input, hue, saturation, mix);
+    return colorizeRemapFilter(input, black, white, mix);
   }
   // Levels filter
   if (name.includes('level') || name === 'paelevels') {

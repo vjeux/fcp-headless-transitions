@@ -122,6 +122,7 @@ export interface Filter {
 export type ImageSource =
   | { type: 'transitionA' }
   | { type: 'transitionB' }
+  | { type: 'media'; url: string }
   | { type: 'generator'; name: string; parameters: Parameter[] }
   | { type: 'gaussianGradient'; gradient: GaussianGradientConfig }
   | { type: 'color'; r: number; g: number; b: number; a: number };
@@ -214,6 +215,16 @@ export interface Layer {
     aovWidgetId?: number;
     aovDefault?: number;
   };
+  /**
+   * Image Mask source object ID. Motion attaches an `<mask name="Image Mask">`
+   * node to a layer whose `Mask Source` (id=1) references another scenenode
+   * (a Shape or a group of shapes) supplying the alpha. Unlike the "Masks"-group
+   * sibling-clip convention, an Image Mask clips ONLY this layer (e.g. Wipes/Mask
+   * masks Transition B by a rig-selected wipe shape, over an unmasked Transition A).
+   * The compositor rasterizes the referenced shape(s) at their evaluated
+   * transforms and multiplies this layer's alpha by the result.
+   */
+  imageMaskSourceId?: number;
 }
 
 /**

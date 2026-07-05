@@ -143,3 +143,40 @@ export function tintFilter(input: ImageData, r: number, g: number, b: number, in
 
   return new ImageData(out, width, height);
 }
+
+/**
+ * Motion "Colorize" as a black-point/white-point luminance remap.
+ *
+ * Unlike a hue tint, Motion's Colorize maps each pixel's LUMINANCE through a
+ * gradient from `black` (at luminance 0) to `white` (at luminance 1):
+ *   out = black + luminance * (white - black)
+ * Colors are 0-1 RGB. This is what the Stylized/Documentary/Slide tiles use to
+ * recolor their grayscale tile PNGs (Remap Black To → dark, Remap White To →
+ * the selected accent color). `mix` cross-fades with the original pixel.
+ */
+export function colorizeRemapFilter(
+  input: ImageData,
+  black: { r: number; g: number; b: number },
+  white: { r: number; g: number; b: number },
+  mix: number = 1,
+): ImageData {
+  const src = input.data;
+  const out = new Uint8ClampedArray(src.length);
+  const bR = black.r * 255, bG = black.g * 255, bB = black.b * 255;
+  const wR = white.r * 255, wG = white.g * 255, wB = white.b * 255;
+  for (let i = 0; i < src.length; i += 4) {
+    const lum = (0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2]) / 255;
+    const rR = bR + lum * (wR - bR);
+    const rG = bG + lum * (wG - bG);
+    const rB = bB + lum * (wB - bB);
+    if (mix >= 1) {
+      out[i] = rR; out[i + 1] = rG; out[i + 2] = rB;
+    } else {
+      out[i] = src[i] * (1 - mix) + rR * mix;
+      out[i + 1] = src[i + 1] * (1 - mix) + rG * mix;
+      out[i + 2] = src[i + 2] * (1 - mix) + rB * mix;
+    }
+    out[i + 3] = src[i + 3];
+  }
+  return new ImageData(out, input.width, input.height);
+}
