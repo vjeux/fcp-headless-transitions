@@ -1120,8 +1120,19 @@ function parseRigWidgets(sceneEl: Element, factories: Map<number, string>): RigW
       if (raw !== null) {
         const num = parseFloat(raw);
         if (Number.isInteger(num)) {
-          // Discrete-index widget (e.g. Direction 0/1/2/3): the value IS the index.
-          value = num;
+          // Discrete-index widget. Motion's "Pop-up" menu widget stores a 1-BASED
+          // selection (menu item 1 = the first snapshot), whereas the "Direction"
+          // widget stores a 0-BASED index. Both share factoryID 13 and identical
+          // <snapshot>1..4</snapshot> tags, so we disambiguate by the widget name.
+          // Getting this wrong for Blurs/Gaussian & Blurs/Radial (Pop-up value=1)
+          // selected snapshot[1] — the blur ramp (Amount 0→100→0, Mix=1) — and
+          // over-blurred, when FCP actually shows NO blur (snapshot[0]: Mix=0).
+          if (name === 'Pop-up') {
+            value = Math.max(0, num - 1);
+          } else {
+            // Direction and other discrete widgets: the value IS the index.
+            value = num;
+          }
         } else {
           // Continuous-value widget (e.g. an Aspect Ratio pop-up storing 1.7777…).
           // The value is NOT a snapshot index — it matches one of the declared
@@ -1324,26 +1335,53 @@ export function parseMotr(xmlText: string): MotrScene {
   {
     const EXCLUDE_PARAMS = new Set([
       'Retime Value', 'Retime Value Cache', 'Duration Cache',
+      // "Page Number" is the drop-zone media frame-index counter (next to Source
+      // Media / Speed / Reverse / Time Remap). It shares the SAME keyframes as
+      // "Retime Value Cache" (e.g. 0->1, 0.5339->17) and runs one frame past the
+      // spatial animation; left in, progress=1 samples past the true visual end and
+      // Motion wraps the drop zone back to source A. Blurs/Gaussian, Blurs/Directional,
+      // Blurs/Radial, Blurs/Zoom all carry it. Excluding it lands progress=1 on pure B.
+      'Page Number',
       // Shape stroke-profile curves parametrise along the STROKE LENGTH (normalized
       // 0..1), not along scene time. Their keypoints live at time=0 and time=1 and
       // would wrongly inflate the animation end to 1.0s for shape transitions
       // (e.g. Wipes/Diagonal, whose real spatial animation ends at ~0.267s).
       'Pressure Over Stroke', 'Pen Speed Over Stroke', 'Opacity Over Stroke',
       'Width Over Stroke', 'Color Over Stroke',
+      // Filter INTENSITY curves ("Amount"/"Angle" on a blur/effect) animate the
+      // strength of an effect, NOT the on-screen lifetime of the layer. For the
+      // Blurs/* transitions the blur "Amount" keeps animating (to 0.5005s) after the
+      // drop-zone media has already wrapped back to source A at the Opacity crossfade
+      // end (0.4338s). Counting them overshoots the true visual end and the tail
+      // frames render pure A. The layer lifetime is governed by transform/opacity/
+      // geometry curves, which remain counted.
+      'Amount', 'Angle',
     ]);
-    // Walk curves, tracking the nearest enclosing <parameter name=...> so we can skip
-    // retiming curves. getElementsByTagName gives document order; we resolve each
-    // curve's owning parameter by climbing parentNode.
+    // Ancestor parameter names that mean "this curve is not live scene animation".
+    // "Snapshots" holds rig-widget snapshot COPIES of filter params (e.g. a copy of
+    // the Gaussian Blur "Amount"/"Angle" whose keyframes run to 0.5005s) that are
+    // NOT the layer being rendered. If counted, they overshoot the true animation
+    // end (the drop-zone Opacity crossfade at 0.4338s) and the render wraps to A.
+    const EXCLUDE_ANCESTORS = new Set(['Snapshots']);
+    // Walk curves, tracking the enclosing <parameter name=...> chain so we can skip
+    // retiming curves and rig-snapshot subtrees. getElementsByTagName gives document
+    // order; we resolve each curve's owning parameters by climbing parentNode.
     let maxT = 0;
     const curves = Array.from(sceneEl.getElementsByTagName('curve'));
     for (const curve of curves) {
-      // Find the enclosing parameter's name.
+      // Collect the full chain of enclosing <parameter> names.
       let node: any = (curve as any).parentNode;
       let ownerName = '';
+      let skip = false;
       while (node && node.nodeType === 1) {
-        if (node.tagName === 'parameter') { ownerName = node.getAttribute('name') || ''; break; }
+        if (node.tagName === 'parameter') {
+          const nm = node.getAttribute('name') || '';
+          if (!ownerName) ownerName = nm; // nearest enclosing parameter
+          if (EXCLUDE_ANCESTORS.has(nm)) { skip = true; break; }
+        }
         node = node.parentNode;
       }
+      if (skip) continue;
       if (EXCLUDE_PARAMS.has(ownerName)) continue;
       for (const kp of directChildren(curve as Element, 'keypoint')) {
         const timeEl = firstChild(kp, 'time');
