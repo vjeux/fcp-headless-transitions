@@ -612,11 +612,38 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   if (sceneBehaviors.length > 0) {
     riggedTransform = applyRampTransforms(layer, riggedTransform, sceneBehaviors, timeSec);
   }
-  const localTransform = buildTransformMatrix(riggedTransform, timeSec, retimeProgress);
+  // Drop-zone timeline offset: a Transition A/B image whose media `offset` sits
+  // LATER than its `in` point (offset > in) has its transform curves authored in
+  // the layer's own local time frame — Motion places that local timeline at
+  // `offset` on the parent timeline. Movements/Rotate is the canonical case: its
+  // Transition B panel has offset=0.367s but in=0.167s, and its Rotation-Z / Scale
+  // / Opacity curves are keyed in [-0.2s .. 0.934s] (they start BEFORE scene-zero).
+  // Evaluated at raw scene time those curves settle a third of a second too early,
+  // so B stops rotating and reaches full scale while A is still mid-spin — the
+  // engine renders an asymmetric cross instead of GT's symmetric X, and every
+  // mid-transition frame diverges (10–14 dB). Shifting the curve-eval time by the
+  // layer offset (curveTime = timeSec - offset) re-anchors B's animation to its
+  // authored local frame, restoring the A/B rotational symmetry FCP produces
+  // (Rotate 18.0 → 32.0 dB, with the Opacity crossfade shifted in lock-step below).
+  // Gated on a resolved drop-zone image with offset > in
+  // so scene-time-authored panels (offset == in: Zoom, Color Planes, Lens Flare)
+  // and offset==0 panels (Push, Scale, Fall) are untouched.
+  let curveTime = timeSec;
+  if (layer.type === 'image' && layer.source && layer.timing) {
+    const off = layer.timing.offset && layer.timing.offset.timescale > 0
+      ? layer.timing.offset.value / layer.timing.offset.timescale : 0;
+    const inn = layer.timing.in && layer.timing.in.timescale > 0
+      ? layer.timing.in.value / layer.timing.in.timescale : 0;
+    if (off - inn > 1e-3) curveTime = timeSec - off;
+  }
+  const localTransform = buildTransformMatrix(riggedTransform, curveTime, retimeProgress);
   const worldTransform = mat4Multiply(parentTransform, localTransform);
 
-  // Opacity: Motion stores 0-1 (some legacy use 0-100 but all current transitions use 0-1)
-  let rawOpacity = resolveValue(riggedTransform.opacity, timeSec, 1);
+  // Opacity: Motion stores 0-1 (some legacy use 0-100 but all current transitions use 0-1).
+  // Uses `curveTime` (offset-shifted for local-frame drop zones — see above) so the
+  // Opacity crossfade stays in lock-step with the offset-shifted Rotation/Scale; for
+  // every other layer curveTime === timeSec.
+  let rawOpacity = resolveValue(riggedTransform.opacity, curveTime, 1);
   rawOpacity = rawOpacity > 1 ? rawOpacity / 100 : rawOpacity;
   // Fade In/Fade Out behaviors ramp opacity within the behavior's own <timing>
   // window (scene time). These are independent of the Retime curve — the fade
