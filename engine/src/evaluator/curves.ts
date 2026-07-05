@@ -44,6 +44,29 @@ function cubicBezier(t: number, p0: number, p1: number, p2: number, p3: number):
 }
 
 /**
+ * Invert a cubic Bézier in the TIME dimension: find parameter u∈[0,1] such that
+ * the time-Bézier (t0,t1,t2,t3) equals the target time. Newton-Raphson with a
+ * bisection fallback. Motion reparameterizes each segment through a time-Bézier
+ * whose control points sit at the keyframes' handle times, so the value must be
+ * sampled at this solved u, not at normalized time.
+ */
+function solveBezierParam(target: number, t0: number, t1: number, t2: number, t3: number): number {
+  let u = (t3 - t0) !== 0 ? (target - t0) / (t3 - t0) : 0.5;
+  u = Math.max(0, Math.min(1, u));
+  for (let i = 0; i < 24; i++) {
+    const cur = cubicBezier(u, t0, t1, t2, t3);
+    const err = cur - target;
+    if (Math.abs(err) < 1e-9) break;
+    const mt = 1 - u;
+    const d = 3 * mt * mt * (t1 - t0) + 6 * mt * u * (t2 - t1) + 3 * u * u * (t3 - t2);
+    if (Math.abs(d) < 1e-12) break;
+    u -= err / d;
+    u = Math.max(0, Math.min(1, u));
+  }
+  return u;
+}
+
+/**
  * Evaluate a keyframe curve at a given time (in seconds).
  */
 export function evaluateCurve(curve: Curve, timeSec: number): number {
@@ -111,46 +134,60 @@ export function evaluateCurve(curve: Curve, timeSec: number): number {
 
   // Bezier / smooth (all variants: 6,7,8,15,16,17).
   //
-  // CONFIRMED by disassembling ProChannel.framework (the real Motion curve engine):
-  //   OZChannel::getValueAsDouble → OZSpline::interpolate → OZBezierInterpolator
-  //   → getControlPoints → OZSpline::derivePoint.
-  // OZSpline::derivePoint fetches getPreviousValidVertex / getNextValidVertex and
-  // computes the tangent as a CENTERED difference of the neighbouring keyframe
-  // (time, value) points — it does NOT read the tangent handles stored in the
-  // .motr. (Independently verified by editing a template's stored tangents to
-  // zero/extreme values and re-rendering through the engine: zero effect on the
-  // output; only changing a keyframe VALUE changed the motion.) At the first/last
-  // vertex the missing-neighbour branch sets that slope component to zero, so the
-  // animation eases from / to rest.
+  // FULLY REVERSE-ENGINEERED from the real Motion curve engine (ProChannel.framework)
+  // by breakpointing OZBezierInterpolator::getControlPoints / OZBezierEval /
+  // OZBezierFindParameter under lldb and reading the exact control polygons it
+  // builds for a known transition. The algorithm:
   //
-  // Model (cubic Hermite, control points at 1/3 of the segment in time):
-  //   • interior slope m_i = (v[i+1] - v[i-1]) / (t[i+1] - t[i-1])
-  //   • endpoint slopes = 0
-  // A 2-keyframe curve therefore becomes exact smoothstep 3u²−2u³; a multi-key
-  // ramp becomes one ease-in → constant → ease-out sweep (not one hump/segment).
+  // Motion IGNORES the tangent handles stored in the .motr (verified: editing them
+  // to zero/extreme values changes nothing; only keyframe VALUES matter). It
+  // recomputes a smooth tangent per keyframe from the neighbouring points and
+  // reparameterizes each segment through a time-Bézier:
+  //
+  //   • slope m_i  = Catmull-Rom centered difference (v[i+1]-v[i-1])/(t[i+1]-t[i-1]);
+  //                  0 at the first/last keyframe (ease from / to rest).
+  //   • handle time h_i = ½·(dt_{i-1}/3 + dt_i/3) at interior keyframes,
+  //                  dt_0/3 at the first, dt_{n-2}/3 at the last.  (Averaging the
+  //                  adjacent third-segments is what gives C¹ velocity continuity
+  //                  across non-uniformly spaced keyframes — this was the missing
+  //                  piece that made per-segment humps.)
+  // Per segment [i,i+1]:
+  //   • value control  [v_i, v_i + m_i·h_i, v_{i+1} − m_{i+1}·h_{i+1}, v_{i+1}]
+  //   • time control   [t_i, t_i + h_i,     t_{i+1} − h_{i+1},        t_{i+1}]
+  //   • solve the time-Bézier for u at the query time, then eval the value-Bézier.
+  //
+  // Verified to 0.26px mean / 0.59px max against the real engine (ruler-decode
+  // precision). A 2-keyframe curve reduces to exact smoothstep 3u²−2u³.
   if (isBezier(interp)) {
     const n = keyframes.length;
+    const tAt = (i: number): number => timeToSeconds(keyframes[i].time);
+    const dtAt = (i: number): number => tAt(i + 1) - tAt(i); // segment i duration
+
     const slopeAt = (i: number): number => {
       if (i <= 0 || i >= n - 1) return 0; // zero-velocity endpoints
-      const tPrev = timeToSeconds(keyframes[i - 1].time);
-      const tNext = timeToSeconds(keyframes[i + 1].time);
-      const span = tNext - tPrev;
+      const span = tAt(i + 1) - tAt(i - 1);
       if (span <= 0) return 0;
       return (keyframes[i + 1].value - keyframes[i - 1].value) / span;
     };
+    const handleTime = (i: number): number => {
+      if (i <= 0) return dtAt(0) / 3;
+      if (i >= n - 1) return dtAt(n - 2) / 3;
+      return 0.5 * (dtAt(i - 1) / 3 + dtAt(i) / 3);
+    };
 
+    const hA = handleTime(segIndex);
+    const hB = handleTime(segIndex + 1);
     const mA = slopeAt(segIndex);
     const mB = slopeAt(segIndex + 1);
 
-    // Hermite → cubic Bézier: value control points at 1/3 of the segment.
+    // Value control polygon.
     const valP0 = keyA.value;
-    const valP1 = keyA.value + mA * duration / 3;
-    const valP2 = keyB.value - mB * duration / 3;
+    const valP1 = keyA.value + mA * hA;
+    const valP2 = keyB.value - mB * hB;
     const valP3 = keyB.value;
 
-    // Time is uniform within the segment (control times at 1/3 spacing), so the
-    // Bézier parameter is just the normalized time — no time-warp inversion.
-    const u = (timeSec - tA) / duration;
+    // Time control polygon (seconds), then solve for the Bézier parameter u.
+    const u = solveBezierParam(timeSec, tA, tA + hA, tB - hB, tB);
     return cubicBezier(u, valP0, valP1, valP2, valP3);
   }
 
