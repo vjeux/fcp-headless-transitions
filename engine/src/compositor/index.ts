@@ -10,6 +10,8 @@ import { evaluateCurve } from '../evaluator/curves.js';
 import { rasterizeShape, applyMask, unionMasks } from './shapes.js';
 import { needsPerspective, projectQuad, renderPerspectiveQuad } from './perspective.js';
 import { generateInstances } from './replicator.js';
+import { lookupFilter, makeContext } from './filters/registry.js';
+import './filters/index.js'; // side-effect: registers all UUID-keyed filter modules
 
 /** Offset a transform matrix's translation by (dx, dy). */
 function mat4MultiplyOffset(m: Float64Array, dx: number, dy: number): Float64Array {
@@ -350,6 +352,17 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
   // Skip on-screen-control (OSC) preview filters — they're editor UI, not rendered output.
   if (name.includes('for osc') || name.includes('(osc)') || name.endsWith(' osc')) {
     return input;
+  }
+
+  // Registry first (UUID-keyed, self-registering modules — the extensible path
+  // that lets filters be added without touching this dispatch). Falls through to
+  // the legacy name-matched chain below for filters not yet migrated.
+  {
+    const mod = lookupFilter(filter);
+    if (mod) {
+      const ctx = makeContext(filter, time, input.width, input.height, overrides);
+      return mod.apply(input, ctx);
+    }
   }
 
   // Resolve a filter parameter, preferring a rig override if present.
