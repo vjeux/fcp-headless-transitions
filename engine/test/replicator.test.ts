@@ -1,7 +1,7 @@
 /**
  * Tests for replicator instance generation.
  */
-import { generateInstances, sequenceProgress } from '../src/compositor/replicator.js';
+import { generateInstances, sequenceProgress, sequenceOrder } from '../src/compositor/replicator.js';
 
 function assert(cond: boolean, msg: string) { if (!cond) throw new Error(`FAIL: ${msg}`); }
 function assertClose(a: number, b: number, tol: number, msg: string) {
@@ -67,32 +67,37 @@ function runTests() {
   });
 
 
-  // Sequence Replicator
-  const inst3 = generateInstances({ arrangement: 1, columns: 3, rows: 1, sizeWidth: 200, sizeHeight: 0 });
-
-  test('sequence: spread=0 → all instances same progress', () => {
-    const p0 = sequenceProgress(inst3[0], 0.5, 0);
-    const p2 = sequenceProgress(inst3[2], 0.5, 0);
-    assertClose(p0, p2, 0.01, 'spread=0 should be uniform');
-    assertClose(p0, 0.5, 0.01, 'should equal global progress');
+  // Sequence Replicator: sequenceProgress(seqPos, globalProgress, end, spread, total)
+  test('sequence: instance that finished leads one that has not', () => {
+    // At global progress mid-way, an early-ordered instance (seqPos 0) leads a
+    // late one (seqPos 1).
+    const early = sequenceProgress(0.0, 0.5, 0.8, 5, 10);
+    const late = sequenceProgress(1.0, 0.5, 0.8, 5, 10);
+    assert(early > late, `early instance (${early}) should lead late (${late})`);
   });
 
-  test('sequence: spread>0 → first instance ahead of last', () => {
-    const p0 = sequenceProgress(inst3[0], 0.5, 0.8);
-    const p2 = sequenceProgress(inst3[2], 0.5, 0.8);
-    assert(p0 > p2, `first instance (${p0}) should lead last (${p2})`);
-  });
-
-  test('sequence: reverse traversal flips order', () => {
-    const pFwd0 = sequenceProgress(inst3[0], 0.5, 0.8, 0);
-    const pRev0 = sequenceProgress(inst3[0], 0.5, 0.8, 1);
-    const pRev2 = sequenceProgress(inst3[2], 0.5, 0.8, 1);
-    assert(pRev2 > pRev0, `reverse: last instance (${pRev2}) should lead first (${pRev0})`);
+  test('sequence: earliest instance done, latest not started at small progress', () => {
+    const early = sequenceProgress(0.0, 0.9, 0.8, 5, 10);
+    assertClose(early, 1, 0.01, 'earliest instance should be complete near end');
+    const late = sequenceProgress(1.0, 0.05, 0.8, 5, 10);
+    assertClose(late, 0, 0.01, 'latest instance should not have started early');
   });
 
   test('sequence: clamped 0-1', () => {
-    const p = sequenceProgress(inst3[2], 0.1, 0.8);
-    assert(p >= 0 && p <= 1, `progress should be clamped, got ${p}`);
+    for (const g of [0, 0.1, 0.5, 0.9, 1]) {
+      for (const s of [0, 0.5, 1]) {
+        const p = sequenceProgress(s, g, 0.8, 70, 117);
+        assert(p >= 0 && p <= 1, `progress should be clamped, got ${p}`);
+      }
+    }
+  });
+
+  test('sequenceOrder: diagonal ranks corner→corner', () => {
+    // (0,0) first, (cols-1,rows-1) last on the diagonal sweep.
+    const first = sequenceOrder({ x: 0, y: 0, index: 0, row: 0, col: 0, normalizedIndex: 0 }, 3, 3);
+    const last = sequenceOrder({ x: 0, y: 0, index: 8, row: 2, col: 2, normalizedIndex: 1 }, 3, 3);
+    assertClose(first, 0, 0.001, 'top-left corner animates first');
+    assertClose(last, 1, 0.001, 'opposite corner animates last');
   });
 
   console.log(`\n${pass} passed, ${fail} failed`);

@@ -126,6 +126,8 @@ export interface EvaluatedLayer {
 export interface EvaluatedScene {
   layers: EvaluatedLayer[];
   time: number;
+  /** Animation end in seconds (last spatial keyframe). Used to normalize time. */
+  animationEndSec: number;
   width: number;
   height: number;
   /** Rig-resolved filter parameter overrides: filterId → (paramName → value). */
@@ -849,6 +851,7 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
   return {
     layers,
     time: timeSec,
+    animationEndSec: scene.settings.animationEndSec ?? (scene.settings.duration.value / scene.settings.duration.timescale),
     width: scene.settings.width,
     height: scene.settings.height,
     filterOverrides,

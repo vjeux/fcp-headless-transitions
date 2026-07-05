@@ -14,7 +14,7 @@
  */
 import type {
   MotrScene, SceneSettings, Layer, Curve, Keyframe, RationalTime,
-  Parameter, Transform, Filter, ImageSource, BlendMode, RigWidget, RigBehavior, Shape, Replicator, LayerBehavior, SceneBehavior, LinkBehavior, GaussianGradientConfig
+  Parameter, Transform, Filter, ImageSource, BlendMode, RigWidget, RigBehavior, Shape, Replicator, SequenceReplicator, LayerBehavior, SceneBehavior, LinkBehavior, GaussianGradientConfig
 } from '../types.js';
 
 /**
@@ -814,7 +814,7 @@ function parseLinkBehaviors(el: Element, factories: Map<number, string>): LinkBe
 }
 
 
-function parseReplicator(params: Parameter[]): Replicator | undefined {
+function parseReplicator(params: Parameter[], el?: Element, factories?: Map<number, string>): Replicator | undefined {
   function findVal(ps: Parameter[], name: string): number | undefined {
     for (const p of ps) {
       if (p.name === name && typeof p.value === 'number') return p.value;
@@ -844,7 +844,90 @@ function parseReplicator(params: Parameter[]): Replicator | undefined {
   const sizeHeight = (sizeGroup ? findVal(sizeGroup.children!, 'Height') : undefined) ?? findVal(params, 'Height') ?? 0;
   const origin = findVal(params, 'Origin') ?? 0;
 
-  return { arrangement, columns, rows, sizeWidth, sizeHeight, origin };
+  const sequence = el && factories ? parseSequenceReplicator(el, factories) : undefined;
+
+  return { arrangement, columns, rows, sizeWidth, sizeHeight, origin, sequence };
+}
+
+/**
+ * Parse the Sequence Replicator behavior attached to a Replicator scenenode.
+ *
+ * The behavior (factory description "Sequence Replicator") carries a "Sequence
+ * Control" parameter group (Sequencing/End/Spread/Map Animation/Use Quadratic
+ * Ease) plus per-instance animated curves (Opacity/Scale/Rotation). We read the
+ * control values by param NAME and the curve ENDPOINTS (last keypoint value) for
+ * Opacity(202), Scale(203) X, and Rotation(206) Z. Resolving by name/id (never
+ * by English transition name) keeps this template-agnostic.
+ */
+function parseSequenceReplicator(el: Element, factories: Map<number, string>): SequenceReplicator | undefined {
+  let seqBehavior: Element | undefined;
+  // The behavior is a direct <behavior> child of the Replicator scenenode.
+  const behaviors = el.getElementsByTagName('behavior');
+  for (let i = 0; i < behaviors.length; i++) {
+    const b = behaviors[i];
+    const fid = parseInt(b.getAttribute('factoryID') || '0', 10);
+    if (factories.get(fid) === 'Sequence Replicator') { seqBehavior = b; break; }
+  }
+  if (!seqBehavior) return undefined;
+
+  // Read a numeric param by name within a group (searches nested params).
+  const findParam = (root: Element, name: string): Element | undefined => {
+    const ps = root.getElementsByTagName('parameter');
+    for (let i = 0; i < ps.length; i++) {
+      if (ps[i].getAttribute('name') === name) return ps[i];
+    }
+    return undefined;
+  };
+  const numVal = (name: string, dflt: number): number => {
+    const p = findParam(seqBehavior!, name);
+    if (!p) return dflt;
+    const v = p.getAttribute('value');
+    const n = v !== null ? parseFloat(v) : NaN;
+    return isNaN(n) ? dflt : n;
+  };
+
+  // Sequence Control group values.
+  const sequencing = numVal('Sequencing', 0);
+  const end = numVal('End', 0.1);
+  const spread = numVal('Spread', 1);
+  const mapAnimation = numVal('Map Animation', 1);
+  const quadraticEase = numVal('Use Quadratic Ease', 1);
+
+  // Per-instance animated curve endpoints: the LAST keypoint value of each curve.
+  // Opacity(id 202), Scale(id 203)/X(id 1), Rotation(id 206)/Z(id 3).
+  const lastKeypointValue = (paramName: string, subName?: string): number | undefined => {
+    // Find the named parameter that owns a <curve>.
+    const ps = seqBehavior!.getElementsByTagName('parameter');
+    for (let i = 0; i < ps.length; i++) {
+      const p = ps[i];
+      if (p.getAttribute('name') !== paramName) continue;
+      let curveHost: Element | undefined = p;
+      if (subName) {
+        // descend into the sub-axis (e.g. Scale → X)
+        const subs = p.getElementsByTagName('parameter');
+        curveHost = undefined;
+        for (let j = 0; j < subs.length; j++) {
+          if (subs[j].getAttribute('name') === subName) { curveHost = subs[j]; break; }
+        }
+        if (!curveHost) continue;
+      }
+      const curve = firstChild(curveHost, 'curve');
+      if (!curve) continue;
+      const kps = curve.getElementsByTagName('keypoint');
+      if (kps.length === 0) continue;
+      const last = kps[kps.length - 1];
+      const raw = getTextContent(last, 'value');
+      const n = raw !== null ? parseFloat(raw) : NaN;
+      if (!isNaN(n)) return n;
+    }
+    return undefined;
+  };
+
+  const opacityEnd = lastKeypointValue('Opacity');
+  const scaleEnd = lastKeypointValue('Scale', 'X');
+  const rotationEnd = lastKeypointValue('Rotation', 'Z');
+
+  return { sequencing, end, spread, mapAnimation, quadraticEase, opacityEnd, scaleEnd, rotationEnd };
 }
 
 /** One vertex extracted from a curve_X or curve_Y element (single axis). */
@@ -1127,7 +1210,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
     timing: parseTiming(el),
     retimeValue: extractRetimeValue(params),
     shape: type === 'shape' ? parseShape(el) : undefined,
-    replicator: type === 'replicator' ? parseReplicator(params) : undefined,
+    replicator: type === 'replicator' ? parseReplicator(params, el, factories) : undefined,
     behaviors: parseLayerBehaviors(el, factories),
     source: (type === 'image' || type === 'generator') ? determineImageSource(params, el, clipAB) : undefined,
     enabled,

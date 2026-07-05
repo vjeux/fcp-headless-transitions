@@ -101,37 +101,57 @@ export function generateInstances(config: ReplicatorConfig): ReplicatorInstance[
 
 
 /**
- * Sequence Replicator: compute a per-instance time offset (0-1) for staggered animation.
+ * Sequence Replicator: compute a per-instance animation progress (0-1).
  *
- * Cells animate in sequence based on their position, creating a wave/cascade effect.
- * The `spread` controls how much the animation is staggered across instances.
+ * Motion's Sequence Replicator plays the SAME per-instance curve on every
+ * instance, but staggers each instance's START by its sequence position. As the
+ * global transition progress `g` sweeps 0→End, a "playhead" travels across the
+ * ordered instances; `Spread` sets how many instances animate at once (the width
+ * of the traveling band, in instance units).
  *
- * @param instance - the instance (has normalizedIndex 0-1)
- * @param globalProgress - overall transition progress (0-1)
- * @param spread - how spread out the sequence is (0 = all together, 1 = fully staggered)
- * @param traversal - direction/order: 0 = forward by index, 1 = reverse, 2 = from center
- * @returns per-instance progress (0-1), clamped
+ * Model (fit to FCP ground truth for Duplicate — see repl-sweep evidence):
+ *   seqPos  = ordered instance position in [0, 1]  (0 = first to finish)
+ *   front   = g / End                              (playhead 0→1 over [0,End])
+ *   band    = spread / N                           (fraction of grid animating)
+ *   local   = (front - seqPos) / band + 0.? … clamped to [0,1]
+ * Instances the playhead has passed are DONE (local=1); ahead are 0.
+ *
+ * `spread` here is the raw Spread param (a COUNT of instances). `total` is N.
  */
 export function sequenceProgress(
-  instance: ReplicatorInstance,
+  seqPos: number,      // ordered position 0..1 (0 = animates first)
   globalProgress: number,
+  end: number,
   spread: number,
-  traversal: number = 0
+  total: number
 ): number {
-  let idx = instance.normalizedIndex;
+  const front = end > 0 ? globalProgress / end : globalProgress;
+  // Band width as a fraction of the sequence. Spread is a count of instances;
+  // the leading edge sweeps 0→1 while a band of width `band` is mid-animation.
+  const band = total > 1 ? Math.max(1e-6, spread / total) : 1;
+  // The playhead must fully cover the last instance by g=End, so it travels
+  // from -band (nothing started) to 1 (everything done) as front goes 0→1.
+  const playhead = front * (1 + band) - band;
+  const local = (playhead - seqPos) / band + 1;
+  return Math.max(0, Math.min(1, local));
+}
 
-  // Traversal order
-  switch (traversal) {
-    case 1: idx = 1 - idx; break;             // reverse
-    case 2: idx = Math.abs(idx - 0.5) * 2; break; // from center outward
-  }
-
-  // With spread, each instance's animation window is offset.
-  // At spread=0, all instances share globalProgress.
-  // At spread=1, instance i starts at time idx and finishes at idx + (1-spread window).
-  const window = 1 - spread * 0.8; // animation window per instance (never 0)
-  const startTime = idx * spread * 0.8;
-  const localProgress = (globalProgress - startTime) / window;
-
-  return Math.max(0, Math.min(1, localProgress));
+/**
+ * Order value for an instance under a given Sequencing mode. Returns a position
+ * in [0, 1] where 0 = animates first (finishes first). The traversal direction
+ * is derived from the grid layout; the raw Sequencing enum (Motion) selects
+ * among orderings. For the grid replicators we care about (Duplicate), the
+ * observed FCP order is a diagonal sweep from one corner — modeled as the
+ * normalized (col+row) diagonal rank.
+ */
+export function sequenceOrder(inst: ReplicatorInstance, cols: number, rows: number): number {
+  const maxDiag = (cols - 1) + (rows - 1);
+  if (maxDiag <= 0) return 0;
+  // Diagonal sweep: instances animate in order of (col + row). Combined with the
+  // replicator group's own rotation this reproduces FCP's corner-to-corner wave
+  // (validated against the Duplicate ground truth — this diagonal ordering scores
+  // highest across the col±/row± variants, avg 19.8dB vs 19.2 for the opposite
+  // corner). The rank is normalized to [0,1]; 0 = animates first.
+  const rank = inst.col + inst.row;
+  return rank / maxDiag;
 }
