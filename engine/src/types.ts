@@ -158,6 +158,20 @@ export interface Layer {
    * rig-driven Custom Mix, clamped to [min,max]).
    */
   links?: LinkBehavior[];
+  /**
+   * Camera configuration (for type === 'camera'). Motion's Camera node carries an
+   * "Angle Of View" (param id 201, degrees). Some transitions rig-drive this via a
+   * Rig Behavior snapshot keyed on a widget (e.g. aspect ratio); `angleOfView` holds
+   * the resolved value. This is the vertical field of view used by gluPerspective.
+   */
+  camera?: {
+    /** Vertical field of view in degrees (Motion "Angle Of View", default 45). */
+    angleOfView: number;
+    /** Rig behavior driving the AOV, if any (widget-selected snapshots of AOV values). */
+    aovSnapshots?: number[];
+    aovWidgetId?: number;
+    aovDefault?: number;
+  };
 }
 
 /**

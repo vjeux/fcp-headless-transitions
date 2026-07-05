@@ -124,6 +124,18 @@ export interface EvaluatedScene {
   filterOverrides: Map<number, Map<string, number>>;
   /** Object ID → source Layer (for clone-source resolution in the compositor). */
   layerById: Map<number, Layer>;
+  /**
+   * Resolved 3D camera for perspective projection, if the scene has a Camera node.
+   * `distance` is the framing distance of the camera from the Z=0 plane, derived
+   * from the vertical Angle Of View so that content at Z=0 renders 1:1 with the
+   * frame: distance = (height/2) / tan(AOV·π/360). Matches Motion's gluPerspective
+   * (decompiled from Lithium's PCMatrix44Tmpl::setGLPerspective).
+   */
+  camera?: {
+    angleOfView: number;
+    distance: number;
+    worldTransform: Float64Array;
+  };
 }
 
 // ============================================================================
@@ -601,6 +613,11 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
   const layers = scene.layers.map(layer => evaluateLayer(layer, timeSec, parentTransform, behaviors, widgetValues, sceneBehaviors, layerById, linksByTarget));
   const filterOverrides = computeFilterOverrides(scene, timeSec, widgetValues);
 
+  // Resolve the 3D camera (if any). Motion's Camera node sets a vertical Angle Of
+  // View that determines the framing distance: content at Z=0 fills the frame, and
+  // layers with world-Z get perspective foreshortening. distance = (H/2)/tan(AOV/2).
+  const camera = resolveCamera(layers, widgetValues, scene.settings.height);
+
   return {
     layers,
     time: timeSec,
@@ -608,5 +625,49 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
     height: scene.settings.height,
     filterOverrides,
     layerById,
+    camera,
   };
+}
+
+/**
+ * Find the Camera layer in the evaluated tree and resolve its projection.
+ * Returns the vertical Angle Of View, the framing distance, and the camera's
+ * world transform (default: identity, camera at origin looking down -Z).
+ */
+function resolveCamera(
+  layers: EvaluatedLayer[],
+  widgetValues: Map<number, number>,
+  frameHeight: number
+): { angleOfView: number; distance: number; worldTransform: Float64Array } | undefined {
+  let camLayer: EvaluatedLayer | undefined;
+  const walk = (ls: EvaluatedLayer[]) => {
+    for (const l of ls) {
+      if (l.layer.type === 'camera') { camLayer = l; return; }
+      walk(l.children);
+      if (camLayer) return;
+    }
+  };
+  walk(layers);
+  if (!camLayer || !camLayer.layer.camera) return undefined;
+
+  const cam = camLayer.layer.camera;
+  let aov = cam.angleOfView;
+
+  // If the AOV is rig-driven, pick the snapshot the selected widget points to.
+  if (cam.aovSnapshots && cam.aovSnapshots.length > 0 && cam.aovWidgetId !== undefined) {
+    const wv = widgetValues.get(cam.aovWidgetId);
+    if (wv !== undefined) {
+      let idx = Math.round(wv);
+      idx = Math.max(0, Math.min(cam.aovSnapshots.length - 1, idx));
+      aov = cam.aovSnapshots[idx];
+    } else {
+      // No widget value — snapshots often share the "active" AOV; use the first.
+      aov = cam.aovSnapshots[0];
+    }
+  }
+
+  const halfRad = (aov * Math.PI) / 360; // AOV/2 in radians
+  const t = Math.tan(halfRad);
+  const distance = t > 1e-9 ? (frameHeight / 2) / t : 1e9;
+  return { angleOfView: aov, distance, worldTransform: camLayer.worldTransform };
 }
