@@ -237,6 +237,12 @@ export interface Layer {
    */
   imageMaskSourceId?: number;
   /**
+   * Image Mask "Invert Mask" flag (id 102). When true, the rasterized mask alpha
+   * is inverted before clipping (Objects/Veil reveals Transition B where the
+   * wipe-matte luma is DARK, not bright).
+   */
+  imageMaskInvert?: boolean;
+  /**
    * Drop-zone Object parameters for a Transition A/B image. Motion's drop zone
    * stores a `Type` (id 321) and a Fixed canvas `Width`/`Height` (Object ids
    * 313/314). The 360° transition family uses `Type=1` with a `4096×2048` fixed

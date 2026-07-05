@@ -1224,6 +1224,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
   // "Masks"-group sibling-clip convention). Capture the referenced object ID so
   // the compositor can rasterize it and clip this layer's alpha.
   let imageMaskSourceId: number | undefined;
+  let imageMaskInvert = false;
   for (const maskEl of directChildren(el, 'mask')) {
     // Find the Mask Source parameter anywhere within this mask node.
     const findMaskSource = (node: Element): number | undefined => {
@@ -1236,7 +1237,18 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
       return undefined;
     };
     const src = findMaskSource(maskEl);
-    if (src !== undefined) { imageMaskSourceId = src; break; }
+    if (src !== undefined) {
+      imageMaskSourceId = src;
+      // Invert Mask (id=102): when 1, the mask alpha is inverted (Objects/Veil
+      // reveals B where the wipe-matte luma is DARK). Read from the same mask node.
+      for (const p of Array.from(maskEl.getElementsByTagName('parameter'))) {
+        if (p.getAttribute('name') === 'Invert Mask') {
+          const v = p.getAttribute('value');
+          if (v !== null && parseInt(v, 10) === 1) imageMaskInvert = true;
+        }
+      }
+      break;
+    }
   }
 
   const layer: Layer = {
@@ -1257,6 +1269,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
     cloneSourceId,
     cellSourceId,
     imageMaskSourceId,
+    imageMaskInvert,
     dropZone: type === 'image' ? parseDropZone(params) : undefined,
     hasAlignTo: directChildren(el, 'behavior').some(
       b => parseInt(b.getAttribute('factoryID') || '0', 10) === 22
