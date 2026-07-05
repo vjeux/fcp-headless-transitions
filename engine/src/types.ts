@@ -472,7 +472,27 @@ export interface Shape {
    * Lights/Flash's full-frame white flash rectangles.
    */
   fillColor?: { r: number; g: number; b: number; a: number };
-
+  /**
+   * True when this shape is an OFFSET-AUTHORED sweeping panel — the Stylized/
+   * Panels signature: a non-mask solid-fill rectangle whose timing `offset` is
+   * re-anchored well past its `in` point AND whose Position curve is keyed at
+   * NEGATIVE (local-frame) times. This marker is set by the parser at the layer
+   * level (where both the shape fill and the transform curves are available) and
+   * is the SOLE gate for the compositor's panel-paint path. It is kept STRICTLY
+   * SEPARATE from `fillColor` so gradient-rendered shapes (Heart, Center Reveal,
+   * Wipes/Diagonal) — which are Fill Mode 0 but must render their gradient, not a
+   * flat color — are never painted as solid panels.
+   */
+  isSolidPanel?: boolean;
+  /**
+   * Solid fill color (0-255 RGB, 0-1 alpha) for an `isSolidPanel` shape, read
+   * permissively from the "Fill Color" (id=111) Red/Green/Blue params regardless
+   * of the solid-fill flag bit (the panels leave that bit clear). Populated ONLY
+   * when `isSolidPanel` is true; distinct from `fillColor`.
+   */
+  panelFill?: { r: number; g: number; b: number; a: number };
+  /** Fill opacity (0-1) for an `isSolidPanel` shape. Defaults to 1. */
+  panelFillOpacity?: number;
 }
 
 

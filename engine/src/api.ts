@@ -118,7 +118,7 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
     let hasFilledShapeOverlay = false;
     (function scan2(layers: readonly import('./types.js').Layer[]) {
       for (const l of layers) {
-        if (l.type === 'shape' && l.shape && !l.shape.isMask && l.shape.fillColor) hasFilledShapeOverlay = true;
+        if (l.type === 'shape' && l.shape && !l.shape.isMask && (l.shape.fillColor || l.shape.isSolidPanel)) hasFilledShapeOverlay = true;
         scan2(l.children);
       }
     })(scene.layers);
