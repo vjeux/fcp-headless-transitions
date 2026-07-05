@@ -56,6 +56,14 @@ export interface Transform {
   cropRight?: Curve | number;
   cropTop?: Curve | number;
   cropBottom?: Curve | number;
+  /**
+   * Channels ('posX'|'posY'|'posZ') whose value was REPLACED by a Link behavior
+   * or set by a rig Position snapshot. Motion's Link/rig override the channel
+   * outright — the value must NOT be re-scaled by the Retime static-position
+   * heuristic (which ramps a static value from its default toward the value over
+   * retimeProgress). These channels bypass that ramp and use the full value.
+   */
+  __overrideChannels?: Set<string>;
 }
 
 /** Blend mode for layer compositing. */

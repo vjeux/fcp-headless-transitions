@@ -813,12 +813,26 @@ function parseRigWidgets(sceneEl: Element, factories: Map<number, string>): RigW
       const id = parseInt(sn.getAttribute('id') || '0', 10);
       const name = sn.getAttribute('name') || '';
       // The widget's current value is stored in a parameter matching the widget name
-      // (e.g., "Direction" widget has a "Direction" parameter with value=2)
-      let value = 0;
+      // (e.g., "Direction" widget has a "Direction" parameter with value=2).
+      let raw: string | null = null;
       for (const p of Array.from(sn.getElementsByTagName('parameter'))) {
         if (p.getAttribute('name') === name) {
           const v = p.getAttribute('value');
-          if (v !== null) { value = parseInt(v, 10) || 0; break; }
+          if (v !== null) { raw = v; break; }
+        }
+      }
+      let value = 0;
+      if (raw !== null) {
+        const num = parseFloat(raw);
+        if (Number.isInteger(num)) {
+          // Discrete-index widget (e.g. Direction 0/1/2/3): the value IS the index.
+          value = num;
+        } else {
+          // Continuous-value widget (e.g. an Aspect Ratio pop-up storing 1.7777…).
+          // The value is NOT a snapshot index — it matches one of the declared
+          // Snapshot entries by its numeric "Value". Rig behaviors index their
+          // snapshot arrays by (snapshot id − 1), so resolve to that ordinal.
+          value = resolveContinuousWidgetIndex(sn, num);
         }
       }
       widgets.push({ id, name, value });
@@ -826,6 +840,31 @@ function parseRigWidgets(sceneEl: Element, factories: Map<number, string>): RigW
   }
   return widgets;
 }
+
+/**
+ * A continuous-value Widget (e.g. Aspect Ratio) stores a float like 1.7777. The
+ * active snapshot is the declared <Snapshots> entry whose "Value" matches. Rig
+ * behaviors driven by this widget index their snapshot arrays by (snapshot id − 1),
+ * so return that ordinal (falling back to nearest match, then 0).
+ */
+function resolveContinuousWidgetIndex(sn: Element, num: number): number {
+  let bestId = 1;
+  let bestDelta = Infinity;
+  for (const p of Array.from(sn.getElementsByTagName('parameter'))) {
+    if (p.getAttribute('name') !== 'Snapshots' || p.getAttribute('id') !== '101') continue;
+    for (const child of directChildren(p, 'parameter')) {
+      const snapId = parseInt(child.getAttribute('id') || '0', 10);
+      const valEl = directChildren(child, 'parameter').find(x => x.getAttribute('name') === 'Value');
+      if (!valEl) continue;
+      const v = parseFloat(valEl.getAttribute('value') || 'NaN');
+      if (Number.isNaN(v)) continue;
+      const delta = Math.abs(v - num);
+      if (delta < bestDelta) { bestDelta = delta; bestId = snapId; }
+    }
+  }
+  return bestId - 1;
+}
+
 
 /**
  * Parse rig behaviors. Each maps (affectedObject, widget) → parameter snapshots.
