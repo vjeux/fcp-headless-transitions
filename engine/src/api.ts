@@ -181,11 +181,20 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
       const endSec = scene.settings.animationEndSec ?? (duration.value / duration.timescale);
       let timeSec = progress * endSec;
 
+      // Frame-boundary tolerance for the retime wrap: FCP samples each output frame
+      // at its centre time and shows source A (loop start) once the wrapping drop
+      // zone has timed OUT by that frame. A frame that lands within half a frame of
+      // the drop zone's `out` time has effectively timed out, so wrap it. Without
+      // this half-frame rounding the frame sitting essentially ON the timeout
+      // (e.g. Lens Flare frame 13 @ 0.5658s vs A.out 0.5673s) still renders a stale
+      // crossfade frame instead of the wrapped-A frame the GT shows.
+      const wrapFrameTol = (scene.settings.frameRate > 0 ? 1 / scene.settings.frameRate : 1 / 30) / 2;
+
       // Retime extrapolation (mode 1 = wrap): past the last Retime keyframe the
       // transition loops back to the start, so the drop zones re-show source A.
       // Wrapping timeSec to 0 reproduces FCP's frozen-A tail (verified: GT frames
       // past the retime end are byte-identical to frame 0).
-      if (retimeWrapSec !== undefined && timeSec > retimeWrapSec) {
+      if (retimeWrapSec !== undefined && timeSec >= retimeWrapSec - wrapFrameTol) {
         timeSec = 0;
       }
 
