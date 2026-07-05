@@ -21,9 +21,8 @@ if (typeof globalThis.ImageData === "undefined") {
     }
   };
 }
-import { createTransition } from '../src/index.js';
 import { PNG } from 'pngjs';
-import { loadGT } from './gt-cache.js';
+import { loadGT, createBenchTransition } from './gt-cache.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -114,7 +113,10 @@ for (const slug of orderedSlugs) {
   process.stderr.write(`[${new Date().toISOString()}] scoring ${slug}${heavy ? ' (heavy/sampled)' : ''} ...\n`);
   try {
     // Render engine conformed to GT's 1920×1080 native resolution so PSNR is valid.
-    const tr = createTransition(fs.readFileSync(motrPath, 'utf-8'), { outputWidth: 1920, outputHeight: 1080 });
+    // createBenchTransition wires the host media resolver so media-dependent
+    // transitions (Veil/Leaves .mov, Diagonal/Glide texture.jpg, Light Noise
+    // overlay) score their committed gains; it is a no-op for media-free scenes.
+    const tr = createBenchTransition(motrPath, { outputWidth: 1920, outputHeight: 1080 });
     // Choose which GT frame indices to score. Full set for normal transitions;
     // an evenly-spaced subset for the 4K-equirect 360° transitions (cost control).
     let idxs: number[];

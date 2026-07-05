@@ -15,6 +15,8 @@
 import fs from 'node:fs';
 import { Image } from 'canvas';
 import { createCanvas } from 'canvas';
+import { createTransition } from '../src/index.js';
+import { makeMediaResolver } from './media-resolver.js';
 
 function decodeNative(pngPath: string): { data: Uint8ClampedArray; width: number; height: number } {
   const img = new Image();
@@ -63,4 +65,30 @@ export function loadGT(pngPath: string): ImageData {
   const { data, width, height } = decodeNative(pngPath);
   try { writeSidecar(rgbaPath, data, width, height); } catch { /* read-only fs: skip cache */ }
   return new ImageData(new Uint8ClampedArray(data), width, height);
+}
+
+/**
+ * Create a benchmark transition from a .motr path WITH the host media resolver
+ * wired in. This is the single point where the scored benchmark (scoreboard.ts,
+ * compare-all.test.ts) gains a `mediaResolver`, so the media-dependent transitions
+ * (Objects/Veil & Leaves' .mov overlay + luma matte, Stylized/Nature's texture.jpg
+ * particle-field proxy, Lights/Light Noise's screen overlay) actually score their
+ * committed engine gains instead of rendering at baseline.
+ *
+ * The resolver is bound to THIS .motr's directory and is a strict no-op for any
+ * scene without bundled Media/ (it only returns non-null when the .motr references
+ * a bundled relativeURL that exists on disk). Media-free transitions — Push, the
+ * dissolves, the 360° family — never invoke it, so their scores are unchanged.
+ * Missing media (e.g. an absent clip) resolves to null → the transition falls back
+ * to its non-media path with no crash.
+ *
+ * `opts` is forwarded to createTransition (e.g. outputWidth/outputHeight so the
+ * engine conforms to the GT native resolution).
+ */
+export function createBenchTransition(
+  motrPath: string,
+  opts: { outputWidth?: number; outputHeight?: number } = {}
+): ReturnType<typeof createTransition> {
+  const xml = fs.readFileSync(motrPath, 'utf-8');
+  return createTransition(xml, { ...opts, mediaResolver: makeMediaResolver(motrPath) });
 }

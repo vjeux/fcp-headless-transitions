@@ -10,9 +10,8 @@ if (typeof globalThis.ImageData === "undefined") {
     }
   };
 }
-import { createTransition } from '../src/index.js';
 import { PNG } from 'pngjs';
-import { loadGT } from './gt-cache.js';
+import { loadGT, createBenchTransition } from './gt-cache.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -77,7 +76,7 @@ function runTests() {
     const gtFrames = fs.readdirSync(path.join(GT_ROOT, dir)).filter(f => f.endsWith('.png')).sort();
     if (gtFrames.length === 0) continue;
 
-    const transition = createTransition(fs.readFileSync(motrPath, 'utf-8'));
+    const transition = createBenchTransition(motrPath);
     let sumPSNR = 0, count = 0, finiteCount = 0;
 
     for (let i = 0; i < gtFrames.length; i++) {

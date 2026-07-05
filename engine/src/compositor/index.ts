@@ -101,6 +101,13 @@ interface RenderContext {
   /** Current scene time (seconds) — threaded to the media resolver for video media. */
   time: number;
   /**
+   * Un-wrapped scene time (seconds) used for VIDEO media resolution. The host's
+   * drop-zone retime wraps `scene.time` back to 0 for the tail frames (see
+   * unwrappedTime); a .mov overlay/matte must keep advancing through those frames,
+   * so the media resolver is fed the un-wrapped time instead. Falls back to `time`.
+   */
+  mediaTime: number;
+  /**
    * Object ID of the full-frame bundled texture that the particle-field proxy owns
    * (Stylized/Nature emitter transitions). When set, renderLayer SKIPS that image
    * layer's normal render — the proxy composites the texture over the whole frame on
@@ -561,7 +568,7 @@ function getSourceImage(source: ImageSource | undefined, imageA: ImageData, imag
       // scene time, so it is keyed by url@time and never cached across frames —
       // the host resolver owns the mov decode cache.
       if (!ctx?.mediaResolver) return null;
-      const t = ctx.time;
+      const t = ctx.mediaTime;
       const key = `${source.url}@${t.toFixed(4)}`;
       const cache = ctx.mediaCache;
       if (cache.has(key)) return cache.get(key)!;
@@ -1052,6 +1059,7 @@ export function composite(
     mediaCache: new Map<string, ImageData | null>(),
     animationEndSec: scene.animationEndSec || 1,
     time: scene.time,
+    mediaTime: scene.unwrappedTime ?? scene.time,
   };
 
   // Particle-emitter field proxy (Stylized/Nature: Diagonal, Glide) — detect once.
