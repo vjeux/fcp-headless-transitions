@@ -2327,6 +2327,54 @@ export function parseMotr(xmlText: string): MotrScene {
       if (maxOut > 0) animationEndSec = maxOut;
     }
   }
+
+  // Framing-camera scenes (factory-3 "Framing" behaviors) — animation-end domain.
+  // These scenes carry NO scene-time spatial keyframes; their motion is the
+  // render-time Framing dolly plus the replicator tiles' normalized stroke-profile
+  // curves (keyed at normalized time 0..1). The blanket "Over Stroke" exclusion
+  // above (needed so Lights/Flash's flash-shape stroke curves don't inflate its end)
+  // drops those, so the walk falls back to the padded scene duration — far past the
+  // real transition window. The GT renderer (tools/render_gt.py) counts those
+  // normalized curves, landing animation_end at the max non-retime keyframe. Mirror
+  // that HERE, scoped to Framing scenes: take the max keyframe across all curves
+  // EXCEPT the retime/page caches (still excluded). This reads the value from the
+  // graph's own keyframes — no constant — and only affects scenes with a Framing
+  // behavior (so Flash and every non-framing transition are untouched).
+  {
+    let hasFraming = false;
+    for (const b of Array.from(sceneEl.getElementsByTagName('behavior'))) {
+      const fid = parseInt(b.getAttribute('factoryID') || '0', 10);
+      if (factories.get(fid) === 'Framing') { hasFraming = true; break; }
+    }
+    if (hasFraming) {
+      const RETIME_ONLY = new Set(['Retime Value', 'Retime Value Cache', 'Duration Cache', 'Page Number']);
+      let fmax = 0;
+      for (const curve of Array.from(sceneEl.getElementsByTagName('curve'))) {
+        let node: any = (curve as any).parentNode;
+        let ownerName = '';
+        let skip = false;
+        while (node && node.nodeType === 1) {
+          if (node.tagName === 'parameter') {
+            const nm = node.getAttribute('name') || '';
+            if (!ownerName) ownerName = nm;
+            if (nm === 'Snapshots') { skip = true; break; }
+          }
+          node = node.parentNode;
+        }
+        if (skip || RETIME_ONLY.has(ownerName)) continue;
+        for (const kp of directChildren(curve as Element, 'keypoint')) {
+          const timeEl = firstChild(kp, 'time');
+          if (!timeEl || !timeEl.textContent) continue;
+          const parts = timeEl.textContent.trim().split(/\s+/);
+          const val = parseFloat(parts[0]);
+          const scl = parts.length > 1 ? parseFloat(parts[1]) : 1;
+          if (scl > 0 && isFinite(val)) { const s = val / scl; if (s > fmax) fmax = s; }
+        }
+      }
+      if (fmax > 0) animationEndSec = fmax;
+    }
+  }
+
   settings.animationEndSec = animationEndSec;
 
   return { settings, layers, factories, rigWidgets, rigBehaviors, sceneBehaviors };

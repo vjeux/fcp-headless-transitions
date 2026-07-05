@@ -21,7 +21,7 @@
 import type { MotrScene, Layer, Curve, Transform, RigWidget, RigBehavior, Parameter, SceneBehavior, LinkBehavior } from '../types.js';
 import { evaluateCurve, resolveValue, timeToSeconds } from './curves.js';
 import { evaluateFade, evaluateRampAtProgress, evaluateOscillate, evaluateSpin } from './behaviors/index.js';
-import { resolveFramedPose } from './framing.js';
+import { resolveFramedPose, resolveFramedWallPose } from './framing.js';
 
 export { evaluateCurve, resolveValue, timeToSeconds } from './curves.js';
 
@@ -193,7 +193,7 @@ export interface EvaluatedScene {
      * coords to center the framed region), and `framingDistance` is the dolly
      * distance used for perspective foreshortening of the tile wall.
      */
-    framed?: { viewX: number; viewY: number; viewZ: number; framingDistance: number };
+    framed?: { viewX: number; viewY: number; viewZ: number; framingDistance: number; eye: [number, number, number]; target: [number, number, number]; aov: number };
   };
 }
 
@@ -1308,7 +1308,7 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
   // Resolve the 3D camera (if any). Motion's Camera node sets a vertical Angle Of
   // View that determines the framing distance: content at Z=0 fills the frame, and
   // layers with world-Z get perspective foreshortening. distance = (H/2)/tan(AOV/2).
-  const camera = resolveCamera(layers, widgetValues, scene.settings.height, evalLayerById, timeSec);
+  const camera = resolveCamera(layers, widgetValues, scene.settings.height, evalLayerById, timeSec, scene.settings.animationEndSec ?? (scene.settings.duration.value / scene.settings.duration.timescale));
 
   return {
     layers,
@@ -1334,8 +1334,9 @@ function resolveCamera(
   widgetValues: Map<number, number>,
   frameHeight: number,
   evalLayerById: Map<number, EvaluatedLayer>,
-  timeSec: number
-): { angleOfView: number; distance: number; worldTransform: Float64Array; framed?: { viewX: number; viewY: number; viewZ: number; framingDistance: number } } | undefined {
+  timeSec: number,
+  animationEndSec: number
+): { angleOfView: number; distance: number; worldTransform: Float64Array; framed?: { viewX: number; viewY: number; viewZ: number; framingDistance: number; eye: [number, number, number]; target: [number, number, number]; aov: number } } | undefined {
   let camLayer: EvaluatedLayer | undefined;
   const walk = (ls: EvaluatedLayer[]) => {
     for (const l of ls) {
@@ -1384,14 +1385,17 @@ function resolveCamera(
   const t = Math.tan(halfRad);
   const distance = t > 1e-9 ? (frameHeight / 2) / t : 1e9;
 
-  // Framing camera (factory 3): when the camera carries Framing behaviors, the
-  // static camera position is ignored and the camera is driven to frame its
-  // target(s) at render time (OZScene::computeFraming). Resolve the framed pose.
-  let framed: { viewX: number; viewY: number; viewZ: number; framingDistance: number } | undefined;
+  // Framing camera (factory 3): the static camera position is ignored; the camera
+  // is driven to frame its Framing behaviors' targets (OZScene::computeFraming),
+  // reconciled across the framer proxy (orientation) and the content tile (anchor
+  // + dolly). See resolveFramedWallPose — fully param-driven, no per-transition
+  // constant.
+  let framed: { viewX: number; viewY: number; viewZ: number; framingDistance: number; eye: [number, number, number]; target: [number, number, number]; aov: number } | undefined;
   if (cam.framing && cam.framing.length > 0) {
-    const pose = resolveFramedPose(cam.framing, (id) => evalLayerById.get(id), aov, timeSec);
+    const wall = resolveFramedWallPose(cam.framing, (id) => evalLayerById.get(id), aov, frameHeight, timeSec, animationEndSec);
+    const pose = wall ?? resolveFramedPose(cam.framing, (id) => evalLayerById.get(id), aov, timeSec);
     if (pose) {
-      framed = { viewX: pose.target[0], viewY: pose.target[1], viewZ: pose.target[2], framingDistance: pose.distance };
+      framed = { viewX: pose.target[0], viewY: pose.target[1], viewZ: pose.target[2], framingDistance: pose.distance, eye: pose.pos, target: pose.target, aov };
     }
   }
   return { angleOfView: aov, distance, worldTransform: camLayer.worldTransform, framed };
