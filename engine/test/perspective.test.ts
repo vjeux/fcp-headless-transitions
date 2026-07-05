@@ -61,11 +61,12 @@ function runTests() {
 
   test('projectQuad: identity → axis-aligned rectangle', () => {
     const corners = projectQuad(mat4Identity(), 200, 100);
-    // TL should be (-100, 50), TR (100, 50), BR (100, -50), BL (-100, -50)
+    // Y-DOWN local convention (matching blitTransformed): TL=(-100,-50), TR=(100,-50),
+    // BR=(100,50), BL=(-100,50). The final screen map (dh/2 + y) flips it back upright.
     assertClose(corners[0][0], -100, 0.1, 'TL x');
-    assertClose(corners[0][1], 50, 0.1, 'TL y');
+    assertClose(corners[0][1], -50, 0.1, 'TL y');
     assertClose(corners[2][0], 100, 0.1, 'BR x');
-    assertClose(corners[2][1], -50, 0.1, 'BR y');
+    assertClose(corners[2][1], 50, 0.1, 'BR y');
   });
 
   test('projectQuad: Y rotation → foreshortened (left/right edges differ)', () => {

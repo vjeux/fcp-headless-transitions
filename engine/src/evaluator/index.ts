@@ -452,7 +452,11 @@ function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: nu
   // Motion .motr stores rotation in RADIANS (e.g. Rotate uses π/2 for 90°). Convert to degrees
   // for the matrix helpers (which take degrees).
   const RAD2DEG = 180 / Math.PI;
-  const rotX = resolveWithRetime(tx.rotationX, timeSec, 0, retimeProgress) * RAD2DEG;
+  // X rotation sign: the perspective projector uses a Y-DOWN local convention
+  // (top corner at -hh), so a positive Motion X-rotation must tilt the TOP edge
+  // away from the viewer. Negating here makes m6/m9 couple Y→Z the correct way
+  // (verified against Fall GT: top edge recedes, bottom swings up).
+  const rotX = -resolveWithRetime(tx.rotationX, timeSec, 0, retimeProgress) * RAD2DEG;
   const rotY = resolveWithRetime(tx.rotationY, timeSec, 0, retimeProgress) * RAD2DEG;
   const rotZ = resolveWithRetime(tx.rotationZ, timeSec, 0, retimeProgress) * RAD2DEG;
   // Scale is FRACTIONAL (1.0 = 100%) in every .motr template (all 108 Scale curves have
