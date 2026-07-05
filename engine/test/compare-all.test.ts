@@ -21,6 +21,7 @@ const MOTR_ROOT = '/Users/vjeux/random/motion-renderer/examples/PETemplates.loca
 // Map ground-truth dir name → .motr path
 const MOTR_PATHS: Record<string, string> = {
   'Blurs__Gaussian': `${MOTR_ROOT}/Blurs.localized/Gaussian.localized/Gaussian.motr`,
+  'Blurs__Directional': `${MOTR_ROOT}/Blurs.localized/Directional.localized/Directional.motr`,
   'Lights__Bloom': `${MOTR_ROOT}/Lights.localized/Bloom.localized/Bloom.motr`,
   'Blurs__Zoom': `${MOTR_ROOT}/Blurs.localized/Zoom.localized/Zoom.motr`,
 };

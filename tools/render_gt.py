@@ -29,14 +29,78 @@ import ozengine
 
 RETIME_PARAMS = {
     "Retime Value", "Retime Value Cache", "Duration Cache",
+    # "Page Number" is the drop-zone media frame-index counter (sits next to
+    # Source Media / Speed / Reverse / Time Remap). It shares the SAME keyframes as
+    # "Retime Value Cache" (e.g. 0->1, 0.5339->17) and runs one frame past the
+    # spatial animation. Left in, it inflates the animation end and the final frame
+    # WRAPS back to source A (Motion resets past the last media page). Blurs/* all
+    # carry it; excluding it lands progress=1 on the true visual end (pure B).
+    "Page Number",
     # Shape stroke-profile curves are parametrised along stroke LENGTH (normalized
     # 0..1), not scene time; their time=1 keypoint wrongly inflates the animation
     # end to 1.0s for shape transitions (e.g. Wipes/Diagonal ends at ~0.267s).
     "Pressure Over Stroke", "Pen Speed Over Stroke", "Opacity Over Stroke",
     "Width Over Stroke", "Color Over Stroke",
+    # Filter INTENSITY curves ("Amount"/"Angle" of a blur/effect) animate the
+    # strength of the effect, not the layer's on-screen lifetime. For Blurs/* the
+    # blur Amount keeps animating (to 0.5005s) after the drop-zone media has already
+    # wrapped to source A at the Opacity crossfade end (0.4338s). Counting them
+    # overshoots the true visual end and the tail frames render pure A.
+    "Amount", "Angle",
 }
 
 def animation_end_seconds(motr_path):
+    """Max keyframe time (seconds) across all NON-retime, NON-snapshot curves.
+
+    Uses a real XML walk so we can skip whole subtrees: "Snapshots" holds rig-widget
+    snapshot COPIES of filter params (e.g. a copy of the Gaussian/Directional blur
+    Amount/Angle whose keyframes run to 0.5005s) that are NOT the rendered layer. If
+    counted they overshoot the true animation end (the drop-zone Opacity crossfade at
+    0.4338s) and the final frames WRAP back to source A. We also skip the RETIME_PARAMS
+    cache curves by nearest-parameter name.
+    """
+    from xml.dom.minidom import parse as _parse
+    EXCLUDE_ANCESTORS = {"Snapshots"}
+    try:
+        doc = _parse(motr_path)
+    except Exception:
+        return _animation_end_seconds_linescan(motr_path)
+    max_t = 0.0
+    for curve in doc.getElementsByTagName("curve"):
+        # Climb the ancestor <parameter> chain.
+        owner = None
+        skip = False
+        n = curve.parentNode
+        while n is not None and n.nodeType == 1:
+            if n.tagName == "parameter":
+                nm = n.getAttribute("name")
+                if owner is None:
+                    owner = nm
+                if nm in EXCLUDE_ANCESTORS:
+                    skip = True
+                    break
+            n = n.parentNode
+        if skip:
+            continue
+        if owner in RETIME_PARAMS:
+            continue
+        for kp in curve.getElementsByTagName("keypoint"):
+            ts = kp.getElementsByTagName("time")
+            if not ts or not ts[0].firstChild:
+                continue
+            parts = ts[0].firstChild.data.split()
+            try:
+                val = float(parts[0]); scale = float(parts[1]) if len(parts) > 1 else 1.0
+            except ValueError:
+                continue
+            if scale > 0:
+                sec = val / scale
+                if sec > max_t:
+                    max_t = sec
+    return max_t
+
+
+def _animation_end_seconds_linescan(motr_path):
     """Max keyframe time (seconds) across all NON-retime curves."""
     xml = open(motr_path, "r", encoding="utf-8", errors="ignore").read()
     max_t = 0.0
