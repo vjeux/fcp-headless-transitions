@@ -1,0 +1,65 @@
+[[ visible ]] FragmentOut HgcClouds_hgc_visible(const constant float4* hg_Params, 
+    texture2d< float > hg_Texture0, 
+    sampler hg_Sampler0,
+    float4 texCoord0,
+    float4 texCoord1,
+    float4 texCoord2,
+    float4 texCoord3,
+    float4 texCoord4,
+    float4 texCoord5,
+    float4 texCoord6,
+    float4 texCoord7)
+    const float4 c0 = float4(6.000000000, -15.00000000, 10.00000000, 256.0000000);
+    const float4 c1 = float4(0.000000000, 255.0000000, 0.5000000000, 0.000000000);
+    float4 r0, r1, r2, r3;
+    FragmentOut output;
+    r0.xy = texCoord0.xy*texCoord0.xy;
+    r0.xy = r0.xy*texCoord0.xy;
+    r1.xy = r0.xy*texCoord0.xy;
+    r2.xy = r1.xy*texCoord0.xy;
+    r2.xy = r2.xy*c0.xx;
+    r1.xy = r1.xy*c0.yy + r2.xy;
+    r0.xy = r0.xy*c0.zz + r1.xy;
+    r2.xy = mix(texCoord1.xz, texCoord1.yw, r0.xx);
+    r0.x = mix(r2.x, r2.y, r0.y);
+    r1.xy = texCoord2.xy*texCoord2.xy;
+    r1.xy = r1.xy*texCoord2.xy;
+    r2.xy = r1.xy*texCoord2.xy;
+    r3.xy = r2.xy*texCoord2.xy;
+    r3.xy = r3.xy*c0.xx;
+    r2.xy = r2.xy*c0.yy + r3.xy;
+    r1.xy = r1.xy*c0.zz + r2.xy;
+    r3.xy = mix(texCoord3.xz, texCoord3.yw, r1.xx);
+    r0.y = mix(r3.x, r3.y, r1.y);
+    r2.xy = texCoord4.xy*texCoord4.xy;
+    r2.xy = r2.xy*texCoord4.xy;
+    r1.xy = r2.xy*texCoord4.xy;
+    r3.xy = r1.xy*texCoord4.xy;
+    r3.xy = r3.xy*c0.xx;
+    r1.xy = r1.xy*c0.yy + r3.xy;
+    r2.xy = r2.xy*c0.zz + r1.xy;
+    r3.xy = mix(texCoord5.xz, texCoord5.yw, r2.xx);
+    r0.z = mix(r3.x, r3.y, r2.y);
+    r1.xy = texCoord6.xy*texCoord6.xy;
+    r1.xy = r1.xy*texCoord6.xy;
+    r2.xy = r1.xy*texCoord6.xy;
+    r3.xy = r2.xy*texCoord6.xy;
+    r3.xy = r3.xy*c0.xx;
+    r2.xy = r2.xy*c0.yy + r3.xy;
+    r1.xy = r1.xy*c0.zz + r2.xy;
+    r3.xy = mix(texCoord7.xz, texCoord7.yw, r1.xx);
+    r0.w = mix(r3.x, r3.y, r1.y);
+    r0.x = dot(r0, hg_Params[1]);
+    r0.x = r0.x*hg_Params[0].x + hg_Params[0].y;
+    r0.x = fabs(r0.x)*c0.w;
+    r0.x = fmax(r0.x, c1.x);
+    r0.x = fmin(r0.x, c1.y);
+    r0.y = c1.x;
+    r0.xy = floor(r0.xy);
+    r0.xy = r0.xy + c1.zz;
+    r0.xy = r0.xy + hg_Params[2].xy;
+    r0.xy = r0.xy*hg_Params[2].zw;
+    r0 = hg_Texture0.sample(hg_Sampler0, r0.xy);
+    r0.xyz = r0.xyz*r0.www;
+    output.color0 = r0;
+    return output;

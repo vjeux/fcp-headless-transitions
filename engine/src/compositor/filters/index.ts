@@ -10,5 +10,6 @@
  */
 import './fill.js';
 import './reorient360.js';
+import './noise.js';
 
 export {};
