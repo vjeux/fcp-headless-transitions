@@ -880,7 +880,24 @@ function resolveCamera(
     }
   };
   walk(layers);
-  if (!camLayer || !camLayer.layer.camera) return undefined;
+  if (!camLayer || !camLayer.layer.camera) {
+    // Camera-less 3D scene (e.g. Movements/Fall). Decompiling Ozone.framework
+    // (Apple Silicon Ozone binary, disassembled with otool -tV):
+    //   OZScene::getActiveCamera(CMTime)  @ 0x65cb4 iterates the scene's OZCamera
+    //   nodes via begin_t<OZCamera>. When the scene has NO OZCamera node the loop
+    //   falls through to 0x65f64 (`mov w19,#0x0`) and RETURNS NULL — there is no
+    //   synthetic default camera object created for the render path.
+    //   OZViewer::viewIsOrthographic @ 0x37420 then takes its null-camera branch
+    //   (cbz x0 -> 0x37444 zeroes the camera slot) so the effective |angleOfView|
+    //   is 0; the routine compares fabs(AOV) against the double 0x3e7ad7f29abcaf48
+    //   (== 1.0e-7 exactly) and returns true. A null/AOV-0 camera therefore renders under a
+    //   PARALLEL (orthographic) projection with no perspective foreshortening.
+    // So a camera-less 3D transition is framed orthographically: every Z projects
+    // at scale 1 (distance -> infinity). This matches the headless GT, whose Fall
+    // PSNR rises monotonically as the assumed camera distance grows
+    // (1303->17.4dB, 2000->18.5dB, orthographic->20.6dB) with no interior optimum.
+    return { angleOfView: 0, distance: Infinity, worldTransform: mat4Identity() };
+  }
 
   const cam = camLayer.layer.camera;
   let aov = cam.angleOfView;

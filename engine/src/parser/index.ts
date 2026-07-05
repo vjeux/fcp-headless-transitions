@@ -597,7 +597,12 @@ function determineImageSource(params: Parameter[], el: Element | undefined, clip
 
   // Color Solid generator (a plugin fill, not a drop zone).
   if (el && (el.getAttribute('pluginName')?.includes('Color Solid') || el.getAttribute('pluginName')?.includes('PAEColorSolid'))) {
-    let r = 1, g = 1, b = 1;
+    // Motion's Color Solid generator defaults to BLACK. Motion only serializes
+    // color channels that differ from the object default; e.g. Reflection's "Floor"
+    // Color Solid writes only <Blue value="0"/> (and Group 1's driver likewise) —
+    // Red/Green are absent because they equal the default 0. Defaulting to white
+    // here painted the floor plane bright yellow (255,255,0). Black is correct.
+    let r = 0, g = 0, b = 0;
     (function findColor(ps: Parameter[]) {
       for (const p of ps) {
         if (p.name === 'Red' && typeof p.value === 'number') r = p.value;

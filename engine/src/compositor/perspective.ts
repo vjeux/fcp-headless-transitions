@@ -67,6 +67,9 @@ function blendPixel(
  * @returns [screenX, screenY, perspectiveScale]
  */
 export function projectPoint(x: number, y: number, z: number, cameraZ: number = DEFAULT_CAMERA_Z): [number, number, number] {
+  // Orthographic camera (camera-less 3D scene: Motion's default LiCameraModel==1,
+  // AOV≈0 → parallel projection). cameraZ === Infinity signals no foreshortening.
+  if (!isFinite(cameraZ)) return [x, y, 1];
   // Perspective divide. Motion's convention (verified against headless GT): a point with
   // positive world-z has been rotated AWAY from the viewer and recedes (appears smaller);
   // negative z comes toward the viewer (appears larger).
