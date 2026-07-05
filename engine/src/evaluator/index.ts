@@ -167,6 +167,8 @@ export interface EvaluatedScene {
   animationEndSec: number;
   width: number;
   height: number;
+  /** Drop-zone media box height (Fixed Height) — governs the Drop In card conform. */
+  dropZoneMediaHeight?: number;
   /** Rig-resolved filter parameter overrides: filterId → (paramName → value). */
   filterOverrides: Map<number, Map<string, number>>;
   /** Object ID → source Layer (for clone-source resolution in the compositor). */
@@ -1234,6 +1236,7 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
     animationEndSec: scene.settings.animationEndSec ?? (scene.settings.duration.value / scene.settings.duration.timescale),
     width: scene.settings.width,
     height: scene.settings.height,
+    dropZoneMediaHeight: scene.settings.dropZoneMediaHeight,
     filterOverrides,
     layerById,
     evalLayerById,

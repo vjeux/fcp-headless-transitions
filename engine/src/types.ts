@@ -371,6 +371,14 @@ export interface SceneSettings {
    * keyframes exist, falls back to the scene duration.
    */
   animationEndSec?: number;
+  /**
+   * Smallest drop-zone media box height (the `<clip>` Fixed Height, id 115) across
+   * the transition's Transition A/B clips. Motion conforms the drop-zone source to
+   * this media box; Movements/Drop In uses it (600 in a 720 scene) to size the
+   * top-left card the source is scaled into. Undefined when no drop-zone clip
+   * declares a Fixed Height.
+   */
+  dropZoneMediaHeight?: number;
 }
 
 /** The complete parsed transition scene. */

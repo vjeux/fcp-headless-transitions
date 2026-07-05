@@ -425,10 +425,17 @@ function extractTransform(params: Parameter[]): Transform {
  * parseFootageClipAB call.
  */
 let CLIP_MEDIA = new Map<number, { url: string; frameRate?: number }>();
+/**
+ * Smallest drop-zone media box height (Fixed Height, id 115) seen while parsing
+ * the <footage> clips. Movements/Drop In conforms its source into this box.
+ * Populated by parseFootageClipAB; consumed when assembling SceneSettings.
+ */
+let DROPZONE_MEDIA_HEIGHT: number | undefined;
 
 function parseFootageClipAB(sceneEl: Element): Map<number, 'A' | 'B'> {
   const map = new Map<number, 'A' | 'B'>();
   CLIP_MEDIA = new Map<number, { url: string; frameRate?: number }>();
+  DROPZONE_MEDIA_HEIGHT = undefined;
   const clips: { id: number; path: string; name: string }[] = [];
   for (const footage of Array.from(sceneEl.getElementsByTagName('footage'))) {
     for (const clip of directChildren(footage, 'clip')) {
@@ -437,6 +444,20 @@ function parseFootageClipAB(sceneEl: Element): Map<number, 'A' | 'B'> {
       const path = (getTextContent(clip, 'pathURL') || '').toLowerCase();
       const name = (clip.getAttribute('name') || '').toLowerCase();
       clips.push({ id, path, name });
+      // Capture the drop-zone media box's Fixed Height (Object → id 115). Motion
+      // conforms the drop-zone source to this box; Drop In uses it to size the
+      // top-left card. Track the smallest across the transition's clips.
+      for (const objP of directChildren(clip, 'parameter')) {
+        if (objP.getAttribute('name') !== 'Object') continue;
+        for (const c of directChildren(objP, 'parameter')) {
+          if (c.getAttribute('name') === 'Fixed Height' && c.getAttribute('id') === '115') {
+            const v = parseFloat(c.getAttribute('value') || '');
+            if (isFinite(v) && v > 1 && (DROPZONE_MEDIA_HEIGHT === undefined || v < DROPZONE_MEDIA_HEIGHT)) {
+              DROPZONE_MEDIA_HEIGHT = v;
+            }
+          }
+        }
+      }
       // Bundled template media (e.g. Slide's rounded-rect tile PNGs) is referenced
       // via <relativeURL>Media/foo.png</relativeURL> (URL-encoded). Record it so
       // image copies pointing at this clip resolve to a media source.
@@ -2095,6 +2116,9 @@ export function parseMotr(xmlText: string): MotrScene {
 
   // Resolve the footage drop-zone clips → A/B for authoritative source resolution.
   const clipAB = parseFootageClipAB(sceneEl);
+  // The drop-zone media box height (captured during the clip walk above) governs
+  // the Drop In card conform.
+  settings.dropZoneMediaHeight = DROPZONE_MEDIA_HEIGHT;
 
   // Collect every object ID referenced as a Link `Source Object` (id=201) — the
   // set of "color swatch" driver shapes that other layers link their color FROM
@@ -2156,13 +2180,25 @@ export function parseMotr(xmlText: string): MotrScene {
       // frames render pure A. The layer lifetime is governed by transform/opacity/
       // geometry curves, which remain counted.
       'Amount', 'Angle',
+      // "Preview Position" (X/Y under an emitter's Object block) is an EDITOR-ONLY
+      // preview hint for where Motion draws the emitter's on-canvas control handle —
+      // it is NOT a rendered animation curve. Movements/Drop In authors it on its
+      // two Drop Impact particle emitters with keyframes out to 3.17s (the padded
+      // scene duration), which wrongly inflates animationEndSec to 3.17s. The real
+      // rendered content (the Transition A/B card bounce + retime crossfade) tops
+      // out at ~1.50s, so counting Preview Position stretches the transition's time
+      // domain ~2× and the bounce plays at half speed vs GT (which trims to the
+      // black-onset visual end ~1.60s). Excluding it lands animationEndSec on the
+      // true card lifetime. Editor-preview metadata, same class as Page Number.
+      // (Matched as an ANCESTOR because the actual keyframe curves are its X/Y
+      // sub-parameters, so the nearest owner name is 'X'/'Y', not 'Preview Position'.)
     ]);
     // Ancestor parameter names that mean "this curve is not live scene animation".
     // "Snapshots" holds rig-widget snapshot COPIES of filter params (e.g. a copy of
     // the Gaussian Blur "Amount"/"Angle" whose keyframes run to 0.5005s) that are
     // NOT the layer being rendered. If counted, they overshoot the true animation
     // end (the drop-zone Opacity crossfade at 0.4338s) and the render wraps to A.
-    const EXCLUDE_ANCESTORS = new Set(['Snapshots']);
+    const EXCLUDE_ANCESTORS = new Set(['Snapshots', 'Preview Position']);
     // Walk curves, tracking the enclosing <parameter name=...> chain so we can skip
     // retiming curves and rig-snapshot subtrees. getElementsByTagName gives document
     // order; we resolve each curve's owning parameters by climbing parentNode.
