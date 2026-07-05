@@ -659,26 +659,28 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
     const filterFactoryID = parseInt(filterNode.getAttribute('factoryID') || '0', 10);
     if (factories.get(filterFactoryID) === 'ProPlugin Filter') {
       const filterId = parseInt(filterNode.getAttribute('id') || '0', 10);
+      const nodeName = filterNode.getAttribute('name') || '';
       const pluginName = filterNode.getAttribute('pluginName') || '';
       const pluginUUID = filterNode.getAttribute('pluginUUID') || '';
       const filterParams: Parameter[] = [];
       for (const fp of directChildren(filterNode, 'parameter')) {
         filterParams.push(parseParameter(fp));
       }
-      filters.push({ id: filterId, pluginName, pluginUUID, parameters: filterParams });
+      filters.push({ id: filterId, name: nodeName, pluginName, pluginUUID, parameters: filterParams });
     }
   }
 
   // Also extract <filter> elements (direct children of scenenode)
   for (const filterEl of directChildren(el, 'filter')) {
     const filterId = parseInt(filterEl.getAttribute('id') || '0', 10);
+    const nodeName = filterEl.getAttribute('name') || '';
     const pluginName = filterEl.getAttribute('pluginName') || filterEl.getAttribute('name') || '';
     const pluginUUID = filterEl.getAttribute('pluginUUID') || '';
     const filterParams: Parameter[] = [];
     for (const fp of directChildren(filterEl, 'parameter')) {
       filterParams.push(parseParameter(fp));
     }
-    filters.push({ id: filterId, pluginName, pluginUUID, parameters: filterParams });
+    filters.push({ id: filterId, name: nodeName, pluginName, pluginUUID, parameters: filterParams });
   }
 
   // Parse children (nested scenenodes)
@@ -900,8 +902,22 @@ function parseSceneBehaviors(sceneEl: Element, factories: Map<number, string>): 
         if (!isNaN(num)) params[pname] = num;
       }
     }
+    // The driven channel + active time window come from <channelBehavior> / <timing>.
+    const cb = firstChild(b, 'channelBehavior');
+    const affectingChannel = cb?.getAttribute('affectingChannel') || undefined;
+    // sliderRange scales the Oscillate amplitude for filter-parameter targets.
+    if (cb) {
+      const sr = cb.getAttribute('sliderRange');
+      if (sr !== null) { const n = parseFloat(sr); if (!isNaN(n)) params['sliderRange'] = n; }
+    }
+    const t = parseTiming(b);
+    const timing = t ? {
+      in: t.in.value / t.in.timescale,
+      out: t.out.value / t.out.timescale,
+      offset: t.offset.value / t.offset.timescale,
+    } : undefined;
     if (affectedObjectId !== 0) {
-      result.push({ type, affectedObjectId, params });
+      result.push({ type, affectedObjectId, params, affectingChannel, timing });
     }
   }
   return result;
@@ -1002,6 +1018,27 @@ export function parseMotr(xmlText: string): MotrScene {
       }
     }
     if (maxT > 0) animationEndSec = maxT;
+    else {
+      // No spatial keyframes (e.g. Blurs/Zoom — motion is Retime + procedural
+      // behaviors). The animation window is bounded by the transition's own layer
+      // timing: the max <timing out=...> across all nodes. Past that, the drop-zone
+      // layers time out and the frame goes empty. This is tighter than the padded
+      // scene duration (durationFrames/frameRate) and matches what FCP renders.
+      let maxOut = 0;
+      const timings = Array.from(sceneEl.getElementsByTagName('timing'));
+      for (const tEl of timings) {
+        const outAttr = tEl.getAttribute('out');
+        if (!outAttr) continue;
+        const parts = outAttr.trim().split(/\s+/);
+        const val = parseFloat(parts[0]);
+        const scale = parts.length > 1 ? parseFloat(parts[1]) : 1;
+        if (scale > 0 && isFinite(val)) {
+          const sec = val / scale;
+          if (sec > maxOut) maxOut = sec;
+        }
+      }
+      if (maxOut > 0) animationEndSec = maxOut;
+    }
   }
   settings.animationEndSec = animationEndSec;
 
