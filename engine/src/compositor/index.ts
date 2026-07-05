@@ -904,6 +904,16 @@ function resolveImageMaskAlpha(sourceId: number, W: number, H: number, invert = 
 function retimedClipTime(evalLayer: EvaluatedLayer): number | undefined {
   const layer = evalLayer.layer;
   if (!layer.source || layer.source.type !== 'media') return undefined;
+  // SCOPE (fix 2026-07-06): the forward frame-numbered clip playhead is ONLY correct
+  // for a SCREEN/ADD-blend light overlay that FCP plays forward along its own Retime
+  // timeline (Lights/Light Noise). Normal-blend media overlays with a wipe-matte
+  // (Objects/Leaves, Objects/Veil) ALSO carry a frame-numbered retimeValue ([1..42])
+  // but FCP plays them via the reverse heuristic (progress 0 = clip last frame) —
+  // forcing them onto this forward path regressed Leaves 13.41→7.23 and Veil
+  // 18.64→16.10. Gate on the same blend modes as p12's other Light-Noise changes so
+  // reverse-played normal overlays keep the fallback (ctx.mediaTime + reverse).
+  const bm = layer.blendMode;
+  if (bm !== 'screen' && bm !== 'add' && bm !== 'overlay' && bm !== 'lighten') return undefined;
   const rv = layer.retimeValue;
   if (!rv || rv.keyframes.length < 2) return undefined;
   const fps = layer.source.frameRate;
