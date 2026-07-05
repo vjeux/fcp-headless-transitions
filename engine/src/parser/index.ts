@@ -1001,7 +1001,58 @@ function parseReplicator(params: Parameter[], el?: Element, factories?: Map<numb
 
   const sequence = el && factories ? parseSequenceReplicator(el, factories) : undefined;
 
-  return { arrangement, columns, rows, sizeWidth, sizeHeight, origin, sequence };
+  // Shape-based arrangement (Motion "Shape Parameters" id=301 on the Replicator
+  // node, and per-cell ramps on the Cell node). These replicators (e.g. Vertigo)
+  // do NOT author the legacy "Arrangement" param; instead they lay instances out
+  // on a Circle/Spiral shape and ramp each cell's Scale/Angle across the pattern.
+  // Read them by their Motion param IDs (generic — no transition name).
+  function findById(ps: Parameter[], name: string, id: number): number | undefined {
+    for (const p of ps) {
+      if (p.name === name && p.id === id && typeof p.value === 'number') return p.value;
+      if (p.children) { const r = findById(p.children, name, id); if (r !== undefined) return r; }
+    }
+    return undefined;
+  }
+  const shapeVal = findById(params, 'Shape', 302);
+  const points = findById(params, 'Points', 304);
+  const radius = findById(params, 'Radius', 307);
+  const twists = findById(params, 'Twists', 341);
+
+  // Per-cell ramps live on the Replicator Cell scenenode (factoryID 19), a direct
+  // child of the Replicator element. Read Scale (id116)/Scale End (id133) and
+  // Angle End (id147→3) + Align Angle (id132).
+  let scaleStart: number | undefined, cellScaleEnd: number | undefined, angleEnd: number | undefined;
+  if (el) {
+    const cellEl = directChildren(el, 'scenenode').find(c => {
+      const fid = parseInt(c.getAttribute('factoryID') || '0', 10);
+      return fid === 19;
+    });
+    if (cellEl) {
+      const cellParams: Parameter[] = [];
+      for (const p of directChildren(cellEl, 'parameter')) cellParams.push(parseParameter(p));
+      const scaleGroup = (function find(ps: Parameter[]): Parameter | undefined {
+        for (const p of ps) { if (p.name === 'Scale' && p.id === 116) return p; if (p.children) { const r = find(p.children); if (r) return r; } }
+        return undefined;
+      })(cellParams);
+      scaleStart = scaleGroup?.children ? findVal(scaleGroup.children, 'X') : undefined;
+      const seg = (function find(ps: Parameter[]): Parameter | undefined {
+        for (const p of ps) { if (p.name === 'Scale End' && p.id === 133) return p; if (p.children) { const r = find(p.children); if (r) return r; } }
+        return undefined;
+      })(cellParams);
+      cellScaleEnd = seg?.children ? findVal(seg.children, 'X') : undefined;
+      const aeg = (function find(ps: Parameter[]): Parameter | undefined {
+        for (const p of ps) { if (p.name === 'Angle End' && p.id === 147) return p; if (p.children) { const r = find(p.children); if (r) return r; } }
+        return undefined;
+      })(cellParams);
+      angleEnd = aeg?.children ? findVal(aeg.children, 'Angle End') : undefined;
+    }
+  }
+
+  return {
+    arrangement, columns, rows, sizeWidth, sizeHeight, origin, sequence,
+    shape: shapeVal, points, radius, twists,
+    scaleStart, cellScaleEnd, angleEnd,
+  };
 }
 
 /**
