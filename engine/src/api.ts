@@ -2,6 +2,7 @@ import { parseMotr } from './parser/index.js';
 import { evaluate } from './evaluator/index.js';
 import { composite } from './compositor/index.js';
 import { resample } from './compositor/resample.js';
+import { detect360Band, render360Band } from './compositor/transition360.js';
 import type { MotrScene } from './types.js';
 
 export interface TransitionOptions {
@@ -52,6 +53,23 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
   const height = opts?.height ?? scene.settings.height;
   const outW = opts?.outputWidth;
   const outH = opts?.outputHeight;
+
+  // 360° transition family: drop-zone cover-fit band + "Align To" horizontal push.
+  // These render at the CONFORMED output resolution directly (the push transform
+  // lives in point space and the equirect drop zone would otherwise be a slow 4K
+  // scene render). Detected by the 4096×2048 Type=1 drop zone + Align To signature.
+  const band360 = detect360Band(scene);
+  if (band360) {
+    const bw = outW ?? width, bh = outH ?? height;
+    return {
+      scene,
+      width: bw,
+      height: bh,
+      render(imageA: ImageData, imageB: ImageData, progress: number): ImageData {
+        return render360Band(band360, imageA, imageB, progress, bw, bh);
+      },
+    };
+  }
 
   // Retime wrap threshold: the time (seconds) past which FCP loops the transition
   // playhead back to the start (t=0) because a drop zone with retimingExtrapolation
