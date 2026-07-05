@@ -208,6 +208,17 @@ export interface Layer {
    */
   cellSourceId?: number;
   /**
+   * True for a Motion particle Emitter node (factoryID 23, factory description
+   * "Emitter"). Its children are Particle Cell (factory 15) nodes that Motion
+   * spawns into a dense field over the frame. The pure-JS engine does not run the
+   * seeded particle simulation; instead, for Emitter-based Stylized/Nature
+   * transitions (Diagonal, Glide) the compositor approximates the aggregate
+   * particle field by compositing the bundled gray "paper" texture over the frame
+   * on a structurally-derived bell envelope (see composite()). This flag lets the
+   * compositor detect such scenes without English-name matching.
+   */
+  isParticleEmitter?: boolean;
+  /**
    * Link behaviors attached to this layer. A Link makes one of this layer's
    * transform channels track a source object's channel (× scale, gated by a
    * rig-driven Custom Mix, clamped to [min,max]).

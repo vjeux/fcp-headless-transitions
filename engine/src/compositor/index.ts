@@ -52,7 +52,7 @@ function mat4MultiplyOffset(m: Float64Array, dx: number, dy: number): Float64Arr
  * can be added later for performance.
  */
 import type { EvaluatedScene, EvaluatedLayer } from '../evaluator/index.js';
-import type { ImageSource, Layer } from '../types.js';
+import type { ImageSource, Layer, RationalTime } from '../types.js';
 import { renderGaussianGradient } from './filters/gradient.js';
 
 /**
@@ -100,6 +100,14 @@ interface RenderContext {
   animationEndSec: number;
   /** Current scene time (seconds) — threaded to the media resolver for video media. */
   time: number;
+  /**
+   * Object ID of the full-frame bundled texture that the particle-field proxy owns
+   * (Stylized/Nature emitter transitions). When set, renderLayer SKIPS that image
+   * layer's normal render — the proxy composites the texture over the whole frame on
+   * a derived envelope, so rendering it twice (once dim, once via the proxy) would
+   * double-count. Undefined when the scene has no particle-field proxy.
+   */
+  fieldTextureLayerId?: number;
 }
 let ctx: RenderContext | null = null;
 
@@ -884,6 +892,10 @@ function renderLayer(
   }
 
   if (layer.type === 'image' || layer.type === 'generator') {
+    // Skip the full-frame particle-field texture: the field proxy composites it
+    // over the whole frame on a derived envelope (rendering it here too would
+    // double-count and wash the early frames too gray). See applyParticleFieldProxy.
+    if (layer.type === 'image' && ctx?.fieldTextureLayerId === layer.id) return;
     // Leaf layer: render source image with transform
     // A forced-A persistent base (wrapping drop zone past its lifetime) renders
     // source A regardless of its declared transitionA/B source — see evaluator's
@@ -1042,13 +1054,122 @@ export function composite(
     time: scene.time,
   };
 
+  // Particle-emitter field proxy (Stylized/Nature: Diagonal, Glide) — detect once.
+  // See applyParticleFieldProxy for rationale. Detecting the field texture up front
+  // lets renderLayer SKIP that texture's dim normal render (the proxy owns it),
+  // avoiding a double-composite that washed the early frames too gray.
+  const field = detectFieldTexture(scene, mediaResolver);
+  if (field) ctx.fieldTextureLayerId = field.layerId;
+
   // Render layers back-to-front (Motion: first in list = top/foreground, last = bottom/background)
   for (let i = scene.layers.length - 1; i >= 0; i--) {
     renderLayer(output, scene.layers[i], imageA, imageB, scene.time, scene.filterOverrides);
   }
 
+  // Composite the field-texture proxy over the rendered frame (no-op if not detected).
+  if (field) applyParticleFieldProxy(output, scene, field);
+
   ctx = null;
   return output;
+}
+
+/**
+ * Smoothstep 0→1 (Hermite) — 0 for x≤0, 1 for x≥1, smooth in between.
+ */
+function smoothstep01(x: number): number {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  return x * x * (3 - 2 * x);
+}
+
+/** Detected particle-field texture + its envelope window (progress space). */
+interface FieldTexture { img: ImageData; layerId: number; pin: number; pout: number; }
+
+/**
+ * Detect the full-frame bundled texture that stands in for a Stylized/Nature
+ * Emitter transition's aggregate particle field. Returns null unless the scene
+ * has a particle Emitter (factoryID 23), a resolvable frame-filling texture image,
+ * and a mediaResolver. The envelope window is that texture layer's own parsed
+ * timing (in→out) in progress space.
+ */
+function detectFieldTexture(
+  scene: EvaluatedScene,
+  mediaResolver?: (url: string) => ImageData | null
+): FieldTexture | null {
+  if (!mediaResolver) return null;
+
+  // 1. Require a particle Emitter (factoryID 23) somewhere in the scene.
+  let hasEmitter = false;
+  for (const l of scene.layerById.values()) { if (l.isParticleEmitter) { hasEmitter = true; break; } }
+  if (!hasEmitter) return null;
+
+  // 2. Find the largest resolvable full-frame texture image layer + its timing.
+  const end = scene.animationEndSec || 1;
+  let texImg: ImageData | null = null;
+  let texArea = 0, texId = -1;
+  let winIn = 0, winOut = end;
+  const t2s = (rt: RationalTime): number => (rt.timescale > 0 ? rt.value / rt.timescale : 0);
+  const scanTex = (l: Layer): void => {
+    if (l.type === 'image' && l.source && l.source.type === 'media') {
+      const img = mediaResolver(l.source.url);
+      if (img) {
+        const area = img.width * img.height;
+        if (area > texArea && img.width >= scene.width * 0.5 && img.height >= scene.height * 0.5) {
+          texImg = img; texArea = area; texId = l.id;
+          if (l.timing) { winIn = t2s(l.timing.in); winOut = t2s(l.timing.out); }
+        }
+      }
+    }
+    for (const c of l.children) scanTex(c);
+  };
+  for (const l of scene.layerById.values()) scanTex(l);
+  if (!texImg) return null;
+
+  const pin = Math.max(0, winIn / end);
+  const pout = Math.min(1, winOut / end);
+  if (pout <= pin) return null;
+  return { img: texImg, layerId: texId, pin, pout };
+}
+
+/**
+ * Composite the bundled gray texture over the frame as a proxy for the aggregate
+ * particle field of Stylized/Nature Emitter transitions. Motion spawns a dense
+ * field of gray hexagon/bokeh particles over a bundled gray "paper" texture,
+ * blending toward a near-uniform gray backdrop that hides the source photo through
+ * the middle of the transition. The pure-JS engine does not run Motion's seeded
+ * particle simulation, so this reconstructs the gray backdrop the field aggregates
+ * to, using the texture's own visibility window and a symmetric smoothstep bell
+ * (ramp = 35% of the window each side). Uses the UN-wrapped scene time so the
+ * envelope follows the true transition progress even after the drop zones
+ * retime-wrap back to source A.
+ */
+function applyParticleFieldProxy(output: ImageData, scene: EvaluatedScene, field: FieldTexture): void {
+  const end = scene.animationEndSec || 1;
+  const { img: tex, pin, pout } = field;
+  const fieldTime = scene.unwrappedTime ?? scene.time;
+  const progress = Math.min(1, Math.max(0, fieldTime / end));
+  if (progress <= pin || progress >= pout) return;
+  const win = pout - pin;
+  const ramp = Math.max(1e-3, 0.35 * win);
+  const up = smoothstep01((progress - pin) / ramp);
+  const dn = smoothstep01((pout - progress) / ramp);
+  const o = Math.min(up, dn);
+  if (o <= 0) return;
+
+  const ow = output.width, oh = output.height;
+  const tw = tex.width, th = tex.height;
+  const sameSize = tw === ow && th === oh;
+  for (let y = 0; y < oh; y++) {
+    const sy = sameSize ? y : Math.min(th - 1, (y * th / oh) | 0);
+    for (let x = 0; x < ow; x++) {
+      const sx = sameSize ? x : Math.min(tw - 1, (x * tw / ow) | 0);
+      const di = (y * ow + x) * 4;
+      const si = (sy * tw + sx) * 4;
+      output.data[di]   = output.data[di]   * (1 - o) + tex.data[si]   * o;
+      output.data[di+1] = output.data[di+1] * (1 - o) + tex.data[si+1] * o;
+      output.data[di+2] = output.data[di+2] * (1 - o) + tex.data[si+2] * o;
+    }
+  }
 }
 
 
