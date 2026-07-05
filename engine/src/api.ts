@@ -45,6 +45,36 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
   const outW = opts?.outputWidth;
   const outH = opts?.outputHeight;
 
+  // Retime wrap threshold: the time (seconds) past which FCP loops the transition
+  // playhead back to the start (t=0) because a drop zone with retimingExtrapolation
+  // mode 1 (wrap) has run out its media/lifetime — so the drop zones re-show source
+  // A. The loop fires when the FIRST wrapping drop zone times out (its layer
+  // timing `out`), which is when the outgoing content disappears. Verified on
+  // Blurs/Zoom: the A drop zone times out at 0.4338s and GT frames past that are
+  // byte-identical to frame 0 (pure A). The retime curve's last keyframe (0.4671s)
+  // over-shoots this, so we use the layer lifetime, not the keyframe time.
+  // undefined when no wrapping drop zone exists (the common case → no wrap).
+  let retimeWrapSec: number | undefined;
+  const t2s = (rt: import('./types.js').RationalTime): number =>
+    rt.timescale > 0 ? rt.value / rt.timescale : 0;
+  (function scan(layers: readonly import('./types.js').Layer[]) {
+    for (const l of layers) {
+      const rv = l.retimeValue;
+      if (rv && rv.retimingExtrapolation === 1 && rv.keyframes.length >= 2) {
+        // Prefer the layer's lifetime end (when the outgoing content times out);
+        // fall back to the retime curve's last keyframe if the layer is untimed.
+        let wrap: number;
+        if (l.timing) wrap = t2s(l.timing.out);
+        else {
+          const kf = rv.keyframes[rv.keyframes.length - 1];
+          wrap = t2s(kf.time);
+        }
+        if (wrap > 0 && (retimeWrapSec === undefined || wrap < retimeWrapSec)) retimeWrapSec = wrap;
+      }
+      scan(l.children);
+    }
+  })(scene.layers);
+
   return {
     scene,
     width: outW ?? width,
@@ -55,7 +85,15 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
       // frame past the last keyframe wraps back to the start in Motion.
       const duration = scene.settings.duration;
       const endSec = scene.settings.animationEndSec ?? (duration.value / duration.timescale);
-      const timeSec = progress * endSec;
+      let timeSec = progress * endSec;
+
+      // Retime extrapolation (mode 1 = wrap): past the last Retime keyframe the
+      // transition loops back to the start, so the drop zones re-show source A.
+      // Wrapping timeSec to 0 reproduces FCP's frozen-A tail (verified: GT frames
+      // past the retime end are byte-identical to frame 0).
+      if (retimeWrapSec !== undefined && timeSec > retimeWrapSec) {
+        timeSec = 0;
+      }
 
       // Evaluate all layers at this time
       const evaluated = evaluate(scene, timeSec);

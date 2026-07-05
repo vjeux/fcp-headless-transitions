@@ -179,10 +179,20 @@ function buildLayerById(layers: Layer[], map: Map<number, Layer>): Map<number, L
   return map;
 }
 
-/** Read a driver layer's animated Position channel (X/Y/Z) at a given time. */
-function driverChannelValue(driver: Layer, channel: 'X' | 'Y' | 'Z', timeSec: number): number {
+/** Read a driver layer's animated channel (X/Y/Z) from the given transform
+ *  property (position/rotation/scale) at a given time. */
+function driverChannelValue(driver: Layer, channel: 'X' | 'Y' | 'Z', timeSec: number, prop: 'position' | 'rotation' | 'scale' = 'position'): number {
   const t = driver.transform;
-  const c = channel === 'X' ? t.positionX : channel === 'Y' ? t.positionY : t.positionZ;
+  let c: Curve | number | undefined;
+  if (prop === 'rotation') {
+    c = channel === 'X' ? t.rotationX : channel === 'Y' ? t.rotationY : t.rotationZ;
+    return resolveValue(c, timeSec, 0);
+  }
+  if (prop === 'scale') {
+    c = channel === 'X' ? t.scaleX : channel === 'Y' ? t.scaleY : t.scaleZ;
+    return resolveValue(c, timeSec, 1);
+  }
+  c = channel === 'X' ? t.positionX : channel === 'Y' ? t.positionY : t.positionZ;
   return resolveValue(c, timeSec, 0);
 }
 
@@ -226,7 +236,7 @@ function applyLinks(
       scale = link.rigScale[idx];
     }
 
-    let v = driverChannelValue(driver, link.sourceChannel, timeSec);
+    let v = driverChannelValue(driver, link.sourceChannel, timeSec, link.sourceProp);
     // Motion's "Clamp Source Value Within Range" uses min/max = ±100 as the
     // default (unset) UI sentinel; real transitions drive far past ±100 (e.g. a
     // full 1080px push). Only clamp when a non-default range is present.
@@ -236,6 +246,10 @@ function applyLinks(
       if (v > link.max) v = link.max;
     }
     v *= scale;
+    // Additive per-clone offset (linked = source*scale + offset). Keeps a clone
+    // spatially separated from its shared driver (e.g. Clothesline's Transition B
+    // starts +2072px right so it swings to center as the driver slides left).
+    v += link.offset;
 
     // Motion's Link REPLACES the channel via a mix blend, it does NOT add to the
     // base value: result = base*(1-mix) + linkedValue*mix. When mix=1 the channel
@@ -244,7 +258,23 @@ function applyLinks(
     // link) and shifts the clone mid-transition. The linked channel is marked as
     // an override so buildTransformMatrix skips the Retime static-position ramp.
     const overrides = result.__overrideChannels ?? (result.__overrideChannels = new Set<string>());
-    if (link.targetChannel === 'X') {
+    // Route the linked value to the correct transform PROPERTY. A rotation or
+    // scale Link (e.g. Clothesline's LinkRotZ on ".../100/109/3") must drive the
+    // rotation/scale channel — NOT positionZ. Default (position) keeps Push's
+    // position links intact.
+    if (link.targetProp === 'rotation') {
+      const chan = link.targetChannel === 'X' ? 'rotationX' : link.targetChannel === 'Y' ? 'rotationY' : 'rotationZ';
+      const ovKey = link.targetChannel === 'X' ? 'rotX' : link.targetChannel === 'Y' ? 'rotY' : 'rotZ';
+      const base = resolveValue(result[chan], timeSec, 0);
+      result[chan] = base * (1 - mix) + v * mix;
+      overrides.add(ovKey);
+    } else if (link.targetProp === 'scale') {
+      // Scale is uniform on these nodes; drive all axes. Scale default is 1.
+      const base = resolveValue(result.scaleX, timeSec, 1);
+      const nv = base * (1 - mix) + v * mix;
+      result.scaleX = nv; result.scaleY = nv; result.scaleZ = nv;
+      overrides.add('scaleX'); overrides.add('scaleY'); overrides.add('scaleZ');
+    } else if (link.targetChannel === 'X') {
       const base = resolveValue(result.positionX, timeSec, 0);
       result.positionX = base * (1 - mix) + v * mix;
       overrides.add('posX');
@@ -522,14 +552,14 @@ function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: nu
   // (top corner at -hh), so a positive Motion X-rotation must tilt the TOP edge
   // away from the viewer. Negating here makes m6/m9 couple Y→Z the correct way
   // (verified against Fall GT: top edge recedes, bottom swings up).
-  const rotX = -resolveWithRetime(tx.rotationX, timeSec, 0, retimeProgress) * RAD2DEG;
-  const rotY = resolveWithRetime(tx.rotationY, timeSec, 0, retimeProgress) * RAD2DEG;
-  const rotZ = resolveWithRetime(tx.rotationZ, timeSec, 0, retimeProgress) * RAD2DEG;
+  const rotX = -resolveWithRetime(tx.rotationX, timeSec, 0, retimeProgress, ov?.has('rotX')) * RAD2DEG;
+  const rotY = resolveWithRetime(tx.rotationY, timeSec, 0, retimeProgress, ov?.has('rotY')) * RAD2DEG;
+  const rotZ = resolveWithRetime(tx.rotationZ, timeSec, 0, retimeProgress, ov?.has('rotZ')) * RAD2DEG;
   // Scale is FRACTIONAL (1.0 = 100%) in every .motr template (all 108 Scale curves have
   // default="1"). Used as-is — never divided by 100.
-  const scX = resolveWithRetime(tx.scaleX, timeSec, 1, retimeProgress);
-  const scY = resolveWithRetime(tx.scaleY, timeSec, 1, retimeProgress);
-  const scZ = resolveWithRetime(tx.scaleZ, timeSec, 1, retimeProgress);
+  const scX = resolveWithRetime(tx.scaleX, timeSec, 1, retimeProgress, ov?.has('scaleX'));
+  const scY = resolveWithRetime(tx.scaleY, timeSec, 1, retimeProgress, ov?.has('scaleY'));
+  const scZ = resolveWithRetime(tx.scaleZ, timeSec, 1, retimeProgress, ov?.has('scaleZ'));
   // Anchor is retime-interpolated like position (both have default=0, value=X); they must
   // track together so a static offset (e.g. Fall's -540) cancels, leaving only the rotation pivot.
   const ancX = resolveWithRetime(tx.anchorX, timeSec, 0, retimeProgress);

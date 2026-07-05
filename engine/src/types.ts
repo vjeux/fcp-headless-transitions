@@ -25,6 +25,17 @@ export interface Curve {
   default: number;
   /** Current/target value (for Retime-driven default→value interpolation on curves with no keyframes). */
   value?: number;
+  /**
+   * Retiming extrapolation mode (attribute `retimingExtrapolation` on a Retime
+   * Value / Page Number curve). Governs how the media playhead behaves PAST the
+   * last keyframe:
+   *   undefined / 0 = constant hold (playhead stays on the last frame)
+   *   1            = wrap/loop — the transition playhead loops back to the START
+   *                  (t=0), so past the last Retime keyframe the drop zones
+   *                  re-show source A. Verified on Blurs/Zoom: GT frames past the
+   *                  retime end are byte-identical to frame 0 (pure A).
+   */
+  retimingExtrapolation?: number;
   keyframes: Keyframe[];
 }
 
@@ -57,8 +68,8 @@ export interface Transform {
   cropTop?: Curve | number;
   cropBottom?: Curve | number;
   /**
-   * Channels ('posX'|'posY'|'posZ') whose value was REPLACED by a Link behavior
-   * or set by a rig Position snapshot. Motion's Link/rig override the channel
+   * Channels ('posX'|'posY'|'posZ'|'rotX'|'rotY'|'rotZ'|'scaleX'|'scaleY'|'scaleZ')
+   * whose value was REPLACED by a Link behavior or set by a rig snapshot. Motion's Link/rig override the channel
    * outright — the value must NOT be re-scaled by the Retime static-position
    * heuristic (which ramps a static value from its default toward the value over
    * retimeProgress). These channels bypass that ramp and use the full value.
@@ -231,10 +242,26 @@ export interface LinkBehavior {
   sourceObjectId: number;
   /** Which transform channel is driven: 'X' | 'Y' | 'Z'. */
   targetChannel: 'X' | 'Y' | 'Z';
+  /** Which transform property the target channel belongs to, decoded from the
+   *  channelBehavior affectingChannel path:
+   *  "./1/100/101/*"=position, "./1/100/105/*"=scale, "./1/100/109/*"=rotation.
+   *  Defaults to 'position' when the path is absent/unrecognized (legacy Push
+   *  links carry position paths). A rotation/scale Link (e.g. Clothesline's
+   *  LinkRotZ on ".../100/109/3") must NOT corrupt positionZ. */
+  targetProp: 'position' | 'rotation' | 'scale';
+  /** Which transform property the SOURCE channel is read from, decoded from the
+   *  sourceChannelRef path. Defaults to 'position'. */
+  sourceProp: 'position' | 'rotation' | 'scale';
   /** Which source channel is read: 'X' | 'Y' | 'Z'. */
   sourceChannel: 'X' | 'Y' | 'Z';
   /** Multiplier applied to the source value. */
   scale: number;
+  /** Additive offset applied AFTER scale: linked = source*scale + offset. Comes
+   *  from the Link's "X/Y/Z offset" parameter (the offsetChannelRef). Keeps a
+   *  clone spatially separated from its driver — e.g. Clothesline's Transition B
+   *  carries X offset ≈ +2072 so B starts off-screen right and swings to center
+   *  as the shared driver slides left. Default 0. */
+  offset: number;
   /** Static Custom Mix (0/1 gate). Overridden by a rig snapshot when present. */
   customMix: number;
   /** Clamp range for the source value. */
