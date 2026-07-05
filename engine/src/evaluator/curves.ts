@@ -44,37 +44,6 @@ function cubicBezier(t: number, p0: number, p1: number, p2: number, p3: number):
 }
 
 /**
- * Given a cubic bezier in the TIME dimension, find the parameter `t` (0-1) that
- * corresponds to a given time value. Uses Newton-Raphson iteration.
- *
- * This is needed because bezier keyframes define curves in (time, value) space,
- * but the X-axis (time) is ALSO a bezier — so we need to invert the time bezier
- * to find what parameter `t` gives us the desired time.
- */
-function solveBezierT(targetTime: number, t0: number, t1: number, t2: number, t3: number): number {
-  // Initial guess: linear proportion
-  let t = (t3 - t0) !== 0 ? (targetTime - t0) / (t3 - t0) : 0.5;
-  t = Math.max(0, Math.min(1, t));
-
-  // Newton-Raphson iterations
-  for (let i = 0; i < 12; i++) {
-    const currentTime = cubicBezier(t, t0, t1, t2, t3);
-    const error = currentTime - targetTime;
-    if (Math.abs(error) < 1e-10) break;
-
-    // Derivative of cubic bezier: B'(t) = 3(1-t)²(P1-P0) + 6(1-t)t(P2-P1) + 3t²(P3-P2)
-    const mt = 1 - t;
-    const dt = 3 * mt * mt * (t1 - t0) + 6 * mt * t * (t2 - t1) + 3 * t * t * (t3 - t2);
-    if (Math.abs(dt) < 1e-12) break;
-
-    t -= error / dt;
-    t = Math.max(0, Math.min(1, t));
-  }
-
-  return t;
-}
-
-/**
  * Evaluate a keyframe curve at a given time (in seconds).
  */
 export function evaluateCurve(curve: Curve, timeSec: number): number {
@@ -108,19 +77,16 @@ export function evaluateCurve(curve: Curve, timeSec: number): number {
     return keyframes[keyframes.length - 1].value;
   }
 
-  // Find the segment [keyA, keyB] that contains timeSec
-  let keyA = keyframes[0];
-  let keyB = keyframes[1];
+  // Find the segment index [i, i+1] that contains timeSec
+  let segIndex = 0;
   for (let i = 0; i < keyframes.length - 1; i++) {
     const tA = timeToSeconds(keyframes[i].time);
     const tB = timeToSeconds(keyframes[i + 1].time);
-    if (timeSec >= tA && timeSec <= tB) {
-      keyA = keyframes[i];
-      keyB = keyframes[i + 1];
-      break;
-    }
+    if (timeSec >= tA && timeSec <= tB) { segIndex = i; break; }
   }
 
+  const keyA = keyframes[segIndex];
+  const keyB = keyframes[segIndex + 1];
   const tA = timeToSeconds(keyA.time);
   const tB = timeToSeconds(keyB.time);
   const duration = tB - tA;
@@ -143,42 +109,47 @@ export function evaluateCurve(curve: Curve, timeSec: number): number {
     return keyA.value + (keyB.value - keyA.value) * frac;
   }
 
-  // Bezier (all variants: 6,7,8,15,16,17)
+  // Bezier / smooth (all variants: 6,7,8,15,16,17).
+  //
+  // IMPORTANT: Motion does NOT use the tangent handles stored in the .motr file.
+  // Verified empirically against the real Ozone engine by editing keyframe
+  // tangents in a template and re-rendering: perturbing (even zeroing or setting
+  // extreme) inputTangent/outputTangent values had ZERO effect on the output,
+  // while changing a keyframe VALUE scaled the motion exactly. Motion recomputes
+  // smooth tangents on load from the keyframe (time, value) points alone:
+  //
+  //   • Interior keyframe slope = Catmull-Rom centered difference:
+  //       m_i = (v[i+1] - v[i-1]) / (t[i+1] - t[i-1])
+  //   • Endpoint slopes = 0  (the animation eases from / to rest)
+  //   • Cubic Hermite, control points placed at 1/3 of the segment in time.
+  //
+  // This reproduces the real engine to ~1.6px (a 2-keyframe curve becomes exact
+  // smoothstep 3u²−2u³; a multi-keyframe ramp becomes a single ease-in → constant
+  // → ease-out sweep instead of one accelerate/decelerate hump per segment).
   if (isBezier(interp)) {
-    // Build the cubic bezier control points in (time, value) space.
-    //
-    // Motion stores each keyframe's tangent as a FULL-SPAN handle vector
-    // (inputTangent*, outputTangent*). The actual cubic-Bézier control point sits
-    // at the MIDPOINT of that handle — i.e. the VALUE offset is half the stored
-    // tangent value. Verified to sub-pixel accuracy against the real Ozone engine:
-    // the realized velocity at every interior keyframe is exactly 0.5× the stored
-    // tangent slope, which turns Motion's constant-velocity ramps (ease-in →
-    // constant → ease-out over the whole animation) into the correct single sweep
-    // instead of one accelerate/decelerate hump per segment. Time handles are used
-    // as-is (they already sit at ≈dt/3, defining the time reparameterization).
-    const TANGENT_VALUE_SCALE = 0.5;
-    const outTTime = keyA.outTangentTime ?? 0;
-    const outTValue = (keyA.outTangentValue ?? 0) * TANGENT_VALUE_SCALE;
-    const inTTime = keyB.inTangentTime ?? 0;
-    const inTValue = (keyB.inTangentValue ?? 0) * TANGENT_VALUE_SCALE;
+    const n = keyframes.length;
+    const slopeAt = (i: number): number => {
+      if (i <= 0 || i >= n - 1) return 0; // zero-velocity endpoints
+      const tPrev = timeToSeconds(keyframes[i - 1].time);
+      const tNext = timeToSeconds(keyframes[i + 1].time);
+      const span = tNext - tPrev;
+      if (span <= 0) return 0;
+      return (keyframes[i + 1].value - keyframes[i - 1].value) / span;
+    };
 
-    // Time control points (in seconds)
-    const timeP0 = tA;
-    const timeP1 = tA + outTTime;      // outgoing tangent time offset
-    const timeP2 = tB + inTTime;       // incoming tangent time offset (negative = before keyB)
-    const timeP3 = tB;
+    const mA = slopeAt(segIndex);
+    const mB = slopeAt(segIndex + 1);
 
-    // Value control points
+    // Hermite → cubic Bézier: value control points at 1/3 of the segment.
     const valP0 = keyA.value;
-    const valP1 = keyA.value + outTValue;   // outgoing tangent value offset (half handle)
-    const valP2 = keyB.value + inTValue;    // incoming tangent value offset (half handle)
+    const valP1 = keyA.value + mA * duration / 3;
+    const valP2 = keyB.value - mB * duration / 3;
     const valP3 = keyB.value;
 
-    // Find parameter t that gives us the desired time
-    const t = solveBezierT(timeSec, timeP0, timeP1, timeP2, timeP3);
-
-    // Evaluate value at parameter t
-    return cubicBezier(t, valP0, valP1, valP2, valP3);
+    // Time is uniform within the segment (control times at 1/3 spacing), so the
+    // Bézier parameter is just the normalized time — no time-warp inversion.
+    const u = (timeSec - tA) / duration;
+    return cubicBezier(u, valP0, valP1, valP2, valP3);
   }
 
   // Fallback: linear
