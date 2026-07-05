@@ -53,6 +53,14 @@ export function rasterizeShape(
     py.push(height / 2 - vy);
   }
 
+  // Circle/ellipse detection: Motion stores circles as a 4-vertex closed path
+  // whose control points sit at the N/E/S/W extremes (bezier circle). A naive
+  // polygon fill of those 4 points draws a DIAMOND. Detect this pattern and
+  // rasterize a true ellipse inscribed in the vertices' bounding box instead.
+  if (n === 4 && shape.closed && isBezierEllipse(px, py)) {
+    return rasterizeEllipse(px, py, width, height);
+  }
+
   // Compute bounding box to limit scanline range
   let minY = Infinity, maxY = -Infinity;
   for (let i = 0; i < n; i++) {
@@ -94,6 +102,55 @@ export function rasterizeShape(
     }
   }
 
+  return mask;
+}
+
+/**
+ * Detect a bezier circle/ellipse: 4 vertices where each lies on a different
+ * side extreme (two on the horizontal axis at the vertical midpoint, two on the
+ * vertical axis at the horizontal midpoint), i.e. N/E/S/W control points. This
+ * is how Motion encodes circles (and rotated ellipses collapse to this in the
+ * axis-aligned case). We test that the 4 points are the axis extremes of their
+ * own bounding box and that opposite pairs are roughly symmetric.
+ */
+function isBezierEllipse(px: number[], py: number[]): boolean {
+  const minX = Math.min(...px), maxX = Math.max(...px);
+  const minY = Math.min(...py), maxY = Math.max(...py);
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  const rx = (maxX - minX) / 2, ry = (maxY - minY) / 2;
+  if (rx < 1 || ry < 1) return false;
+  // Each vertex should be at one of the four axis extremes (top/bottom/left/right
+  // of the bbox, on the centre line of the other axis).
+  const tol = Math.max(1.5, Math.max(rx, ry) * 0.06);
+  let onLeft = 0, onRight = 0, onTop = 0, onBottom = 0;
+  for (let i = 0; i < 4; i++) {
+    const x = px[i], y = py[i];
+    if (Math.abs(x - minX) < tol && Math.abs(y - cy) < tol) onLeft++;
+    else if (Math.abs(x - maxX) < tol && Math.abs(y - cy) < tol) onRight++;
+    else if (Math.abs(y - minY) < tol && Math.abs(x - cx) < tol) onTop++;
+    else if (Math.abs(y - maxY) < tol && Math.abs(x - cx) < tol) onBottom++;
+    else return false;
+  }
+  return onLeft === 1 && onRight === 1 && onTop === 1 && onBottom === 1;
+}
+
+/** Rasterize a (bezier) ellipse inscribed in the vertices' bounding box. */
+function rasterizeEllipse(px: number[], py: number[], width: number, height: number): Uint8Array {
+  const mask = new Uint8Array(width * height);
+  const minX = Math.min(...px), maxX = Math.max(...px);
+  const minY = Math.min(...py), maxY = Math.max(...py);
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  const rx = (maxX - minX) / 2, ry = (maxY - minY) / 2;
+  if (rx < 0.5 || ry < 0.5) return mask;
+  const y0 = Math.max(0, Math.floor(minY)), y1 = Math.min(height - 1, Math.ceil(maxY));
+  for (let y = y0; y <= y1; y++) {
+    const dy = (y + 0.5 - cy) / ry;
+    if (Math.abs(dy) > 1) continue;
+    const halfW = rx * Math.sqrt(Math.max(0, 1 - dy * dy));
+    const xStart = Math.max(0, Math.round(cx - halfW));
+    const xEnd = Math.min(width - 1, Math.round(cx + halfW));
+    for (let x = xStart; x <= xEnd; x++) mask[y * width + x] = 255;
+  }
   return mask;
 }
 

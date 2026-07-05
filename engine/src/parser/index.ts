@@ -577,11 +577,50 @@ function parseReplicator(params: Parameter[]): Replicator | undefined {
   const arrangement = findVal(params, 'Arrangement') ?? 0;
   const columns = findVal(params, 'Columns') ?? 1;
   const rows = findVal(params, 'Rows') ?? 1;
-  const sizeWidth = findVal(params, 'Width') ?? 0;
-  const sizeHeight = findVal(params, 'Height') ?? 0;
+  // Grid extent lives in the "Size id=347" sub-group (Width/Height children),
+  // NOT the top-level "Width id=354" (which is a per-cell stroke width and is
+  // often 1). Prefer Size's Width/Height; fall back to any Width/Height.
+  function findSizeGroup(ps: Parameter[]): Parameter | undefined {
+    for (const p of ps) {
+      if (p.name === 'Size' && p.children && p.children.some(c => c.name === 'Width')) return p;
+      if (p.children) { const r = findSizeGroup(p.children); if (r) return r; }
+    }
+    return undefined;
+  }
+  const sizeGroup = findSizeGroup(params);
+  const sizeWidth = (sizeGroup ? findVal(sizeGroup.children!, 'Width') : undefined) ?? findVal(params, 'Width') ?? 0;
+  const sizeHeight = (sizeGroup ? findVal(sizeGroup.children!, 'Height') : undefined) ?? findVal(params, 'Height') ?? 0;
   const origin = findVal(params, 'Origin') ?? 0;
 
   return { arrangement, columns, rows, sizeWidth, sizeHeight, origin };
+}
+
+/**
+ * Find the `Object Source` (id=128) parameter anywhere in a scenenode subtree.
+ * Motion stores this on the Replicator Cell node, referencing the scenenode/layer
+ * ID of the drawable content the replicator tiles across its instances. The id
+ * varies slightly across templates, so we match by parameter NAME and fall back
+ * to a bare "Source" with a plausible object-ID value. Returns the referenced ID.
+ */
+function findObjectSource(el: Element): number | undefined {
+  for (let i = 0; i < el.childNodes.length; i++) {
+    const child = el.childNodes[i];
+    if (child.nodeType !== 1) continue;
+    const elem = child as Element;
+    if (elem.tagName === 'parameter') {
+      const name = elem.getAttribute('name') || '';
+      if (name === 'Object Source') {
+        const v = elem.getAttribute('value');
+        if (v !== null) {
+          const n = parseInt(v, 10);
+          if (!isNaN(n) && n > 0) return n;
+        }
+      }
+    }
+    const found = findObjectSource(elem);
+    if (found !== undefined) return found;
+  }
+  return undefined;
 }
 
 function parseShape(el: Element): Shape | undefined {
@@ -711,6 +750,15 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
     cloneSourceId = findSource(params);
   }
 
+  // Replicators tile a "cell" of drawable content across their instances. The
+  // cell's content is referenced by an `Object Source id="128"` parameter stored
+  // on the Replicator Cell scenenode (a child of the replicator node). Resolve it
+  // so the compositor can materialize the cell at each instance transform.
+  let cellSourceId: number | undefined;
+  if (type === 'replicator') {
+    cellSourceId = findObjectSource(el);
+  }
+
   const layer: Layer = {
     name: el.getAttribute('name') || '',
     id: parseInt(el.getAttribute('id') || '0', 10),
@@ -727,6 +775,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
     source: (type === 'image' || type === 'generator') ? determineImageSource(params, el, clipAB) : undefined,
     enabled,
     cloneSourceId,
+    cellSourceId,
     links: parseLinkBehaviors(el, factories),
   };
 

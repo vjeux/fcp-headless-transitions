@@ -124,6 +124,8 @@ export interface EvaluatedScene {
   filterOverrides: Map<number, Map<string, number>>;
   /** Object ID → source Layer (for clone-source resolution in the compositor). */
   layerById: Map<number, Layer>;
+  /** Object ID → EvaluatedLayer (for replicator cell-source resolution). */
+  evalLayerById: Map<number, EvaluatedLayer>;
 }
 
 // ============================================================================
@@ -487,15 +489,23 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   const children = layer.children.map(child => evaluateLayer(child, timeSec, worldTransform, behaviors, widgetValues, sceneBehaviors, layerById, linksByTarget));
 
   // Disabled nodes (<enabled>0</enabled>) drive other objects but are never drawn.
-  const drawn = layer.enabled !== false;
+  // EXCEPTION: a Replicator whose Object Source resolves to real content is the
+  // VISIBLE output even when Motion marks it enabled=0 (the base state is off and
+  // a Sequence Replicator behavior drives the per-instance opacity). Treat such a
+  // replicator as drawn at full opacity so the compositor can tile its cell. This
+  // is scoped strictly to replicators with a cellSourceId, so non-replicator
+  // hidden drivers (e.g. Push's Color Solid) are unaffected.
+  const isContentReplicator = layer.type === 'replicator' && layer.cellSourceId !== undefined;
+  const drawn = layer.enabled !== false || isContentReplicator;
+  const effectiveOpacity = isContentReplicator ? Math.max(opacity, 1) : opacity;
 
   return {
     layer,
     localTransform,
     worldTransform,
-    opacity: (visible && drawn) ? opacity : 0,
+    opacity: (visible && drawn) ? effectiveOpacity : 0,
     crop,
-    visible: visible && drawn && opacity > 0,
+    visible: visible && drawn && effectiveOpacity > 0,
     children,
   };
 }
@@ -575,6 +585,13 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
   const layers = scene.layers.map(layer => evaluateLayer(layer, timeSec, parentTransform, behaviors, widgetValues, sceneBehaviors, layerById, linksByTarget));
   const filterOverrides = computeFilterOverrides(scene, timeSec, widgetValues);
 
+  // Index every evaluated layer by object ID so the compositor can resolve a
+  // replicator cell's Object Source to its fully-evaluated content.
+  const evalLayerById = new Map<number, EvaluatedLayer>();
+  (function indexEval(els: EvaluatedLayer[]) {
+    for (const el of els) { evalLayerById.set(el.layer.id, el); indexEval(el.children); }
+  })(layers);
+
   return {
     layers,
     time: timeSec,
@@ -582,5 +599,6 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
     height: scene.settings.height,
     filterOverrides,
     layerById,
+    evalLayerById,
   };
 }
