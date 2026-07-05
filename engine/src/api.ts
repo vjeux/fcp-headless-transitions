@@ -83,10 +83,30 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
   let retimeWrapSec: number | undefined;
   const t2s = (rt: import('./types.js').RationalTime): number =>
     rt.timescale > 0 ? rt.value / rt.timescale : 0;
+  // Object IDs cloned by a Clone Layer whose lifetime extends past the source's own
+  // timeout. Such a source's timeout does NOT end the visible transition — its
+  // Clone keeps rendering the (rotating) content — so we must NOT treat that
+  // (early) timeout as the scene's wrap-to-frame-0 point. Movements/Switch's
+  // "Clone B" (in=0.934s, out=1.735s) clones the timed-out Transition B (out=0.9s):
+  // using B's 0.9s as the wrap collapsed the whole second half to frame 0. Excluding
+  // it leaves Transition A's 1.702s as the true wrap (GT frames past 1.702s ARE
+  // frame-0/source-A; the tail before that keeps animating via the clone).
+  const clonedContinuationSourceIds = new Set<number>();
+  (function scanClones(layers: readonly import('./types.js').Layer[]) {
+    for (const l of layers) {
+      if (l.type === 'clone' && l.cloneSourceId !== undefined && l.timing) {
+        clonedContinuationSourceIds.add(l.cloneSourceId);
+      }
+      scanClones(l.children);
+    }
+  })(scene.layers);
   (function scan(layers: readonly import('./types.js').Layer[]) {
     for (const l of layers) {
       const rv = l.retimeValue;
       if (rv && rv.retimingExtrapolation === 1 && rv.keyframes.length >= 2) {
+        // A drop zone whose media is continued by a Clone Layer does not end the
+        // transition at its own timeout — skip it from the wrap-min.
+        if (clonedContinuationSourceIds.has(l.id)) { scan(l.children); continue; }
         // Prefer the layer's lifetime end (when the outgoing content times out);
         // fall back to the retime curve's last keyframe if the layer is untimed.
         let wrap: number;
