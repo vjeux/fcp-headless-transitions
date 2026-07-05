@@ -414,8 +414,20 @@ function extractTransform(params: Parameter[]): Transform {
  * and not localized. As a last resort the two clips are ordered A, B by document
  * order (the format always lists A before B).
  */
+/**
+ * Clip-id → bundled media relativeURL, populated per parse. Some transitions
+ * (e.g. Stylized/Documentary/Slide) reference template-bundled PNG assets (the
+ * sliding rounded-rectangle tiles) via a `<clip>` with a `<relativeURL>` instead
+ * of a Transition A/B drop zone. Image copies pointing at these become
+ * `{type:'media', url}` sources, resolved by the host's mediaResolver. Module-level
+ * because parsing is synchronous and single-threaded; reset at the start of each
+ * parseFootageClipAB call.
+ */
+let CLIP_MEDIA = new Map<number, string>();
+
 function parseFootageClipAB(sceneEl: Element): Map<number, 'A' | 'B'> {
   const map = new Map<number, 'A' | 'B'>();
+  CLIP_MEDIA = new Map<number, string>();
   const clips: { id: number; path: string; name: string }[] = [];
   for (const footage of Array.from(sceneEl.getElementsByTagName('footage'))) {
     for (const clip of directChildren(footage, 'clip')) {
@@ -424,6 +436,15 @@ function parseFootageClipAB(sceneEl: Element): Map<number, 'A' | 'B'> {
       const path = (getTextContent(clip, 'pathURL') || '').toLowerCase();
       const name = (clip.getAttribute('name') || '').toLowerCase();
       clips.push({ id, path, name });
+      // Bundled template media (e.g. Slide's rounded-rect tile PNGs) is referenced
+      // via <relativeURL>Media/foo.png</relativeURL> (URL-encoded). Record it so
+      // image copies pointing at this clip resolve to a media source.
+      const rel = getTextContent(clip, 'relativeURL');
+      if (rel && rel.trim()) {
+        let url = rel.trim();
+        try { url = decodeURIComponent(url); } catch { /* keep raw */ }
+        CLIP_MEDIA.set(id, url);
+      }
     }
   }
   let sawA = false, sawB = false;
@@ -441,6 +462,35 @@ function parseFootageClipAB(sceneEl: Element): Map<number, 'A' | 'B'> {
   } else if (clips.length === 1 && !sawA && !sawB) {
     map.set(clips[0].id, 'A');
   }
+
+  // FCP discovery-order override. The headless render hook assigns image A to the
+  // FIRST OZImageElement that requests its media ref during render, and B to the
+  // second — i.e. by DOCUMENT/render order of the drop-zone image elements, NOT by
+  // the clip's "Transition A/B" name. For most templates these coincide (the A
+  // element is authored first), but some (e.g. Wipes/Mask, whose "Drop Zones" group
+  // lists the masked "Transition B" element BEFORE the background "Transition A")
+  // reverse them. To match ground truth we re-key A/B to the order the referencing
+  // image elements appear in the document. Only applied when exactly two drop-zone
+  // clips are referenced by exactly two image elements (the standard A/B case).
+  if (clips.length === 2) {
+    const referenced: number[] = []; // clip ids in document order of their image elements
+    const seen = new Set<number>();
+    for (const node of Array.from(sceneEl.getElementsByTagName('scenenode'))) {
+      // Only real drawable image elements carry a Source Media clip reference.
+      const params: Parameter[] = [];
+      for (const p of directChildren(node, 'parameter')) params.push(parseParameter(p));
+      const cid = findSourceMediaId(params);
+      if (cid !== undefined && map.has(cid) && !seen.has(cid)) {
+        seen.add(cid);
+        referenced.push(cid);
+      }
+    }
+    if (referenced.length === 2) {
+      map.set(referenced[0], 'A');
+      map.set(referenced[1], 'B');
+    }
+  }
+
   return map;
 }
 
@@ -563,6 +613,12 @@ function determineImageSource(params: Parameter[], el: Element | undefined, clip
   const clipId = findSourceMediaId(params);
   if (clipId !== undefined && clipAB.has(clipId)) {
     return clipAB.get(clipId) === 'A' ? { type: 'transitionA' } : { type: 'transitionB' };
+  }
+  // Bundled template media (a PNG in the template's Media/ folder, e.g. Slide's
+  // sliding rounded-rectangle tiles). Resolved at render time by the host's
+  // mediaResolver (the core engine is environment-agnostic; file IO is injected).
+  if (clipId !== undefined && CLIP_MEDIA.has(clipId)) {
+    return { type: 'media', url: CLIP_MEDIA.get(clipId)! };
   }
 
   return undefined;
@@ -1039,6 +1095,27 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
     cellSourceId = findObjectSource(el);
   }
 
+  // Image Mask: an `<mask name="Image Mask" factoryID="1">` child whose
+  // `Mask Source` (id=1, nested under Object(2)/Mask(100)) references the shape or
+  // group supplying the alpha. This masks ONLY this layer (distinct from the
+  // "Masks"-group sibling-clip convention). Capture the referenced object ID so
+  // the compositor can rasterize it and clip this layer's alpha.
+  let imageMaskSourceId: number | undefined;
+  for (const maskEl of directChildren(el, 'mask')) {
+    // Find the Mask Source parameter anywhere within this mask node.
+    const findMaskSource = (node: Element): number | undefined => {
+      for (const p of Array.from(node.getElementsByTagName('parameter'))) {
+        if (p.getAttribute('name') === 'Mask Source') {
+          const v = p.getAttribute('value');
+          if (v !== null) { const n = parseInt(v, 10); if (!Number.isNaN(n) && n !== 0) return n; }
+        }
+      }
+      return undefined;
+    };
+    const src = findMaskSource(maskEl);
+    if (src !== undefined) { imageMaskSourceId = src; break; }
+  }
+
   const layer: Layer = {
     name: el.getAttribute('name') || '',
     id: parseInt(el.getAttribute('id') || '0', 10),
@@ -1056,6 +1133,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
     enabled,
     cloneSourceId,
     cellSourceId,
+    imageMaskSourceId,
     links: parseLinkBehaviors(el, factories),
     camera: type === 'camera' ? parseCameraParams(el, params, factories) : undefined,
   };

@@ -10,6 +10,14 @@ export interface TransitionOptions {
   /** Conform output to this resolution (renders native then resamples). */
   outputWidth?: number;
   outputHeight?: number;
+  /**
+   * Resolve a bundled-media relativeURL (e.g. "Media/beginning rect copy.png")
+   * to decoded RGBA pixels. Some transitions (e.g. Stylized/Documentary/Slide)
+   * reference template-bundled PNG tile assets alongside the drop-zone images.
+   * The core engine does no file IO; the host injects a resolver (e.g. reading
+   * from the .motr's directory). Returns null when the asset can't be resolved.
+   */
+  mediaResolver?: (url: string) => ImageData | null;
 }
 
 /**
@@ -99,7 +107,7 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
       const evaluated = evaluate(scene, timeSec);
 
       // Composite into a frame at native scene resolution
-      const frame = composite(evaluated, imageA, imageB, width, height);
+      const frame = composite(evaluated, imageA, imageB, width, height, opts?.mediaResolver);
       // Conform to output resolution if requested
       if (outW && outH && (outW !== width || outH !== height)) {
         return resample(frame, outW, outH);

@@ -38,7 +38,16 @@ if (!motrPath || !outDir) {
 fs.mkdirSync(outDir, { recursive: true });
 
 const xml = fs.readFileSync(motrPath, 'utf-8');
-const transition = createTransition(xml);
+const motrDir = path.dirname(motrPath);
+const mediaResolver = (url: string): ImageData | null => {
+  try {
+    const p = path.resolve(motrDir, url);
+    if (!fs.existsSync(p)) return null;
+    const png = PNG.sync.read(fs.readFileSync(p));
+    return new ImageData(new Uint8ClampedArray(png.data), png.width, png.height);
+  } catch { return null; }
+};
+const transition = createTransition(xml, { mediaResolver });
 
 // Load source images (use test PNGs)
 const imgA = loadPNG(path.resolve(import.meta.dirname, 'start.png'));
