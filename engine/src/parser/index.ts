@@ -424,11 +424,11 @@ function extractTransform(params: Parameter[]): Transform {
  * because parsing is synchronous and single-threaded; reset at the start of each
  * parseFootageClipAB call.
  */
-let CLIP_MEDIA = new Map<number, string>();
+let CLIP_MEDIA = new Map<number, { url: string; frameRate?: number }>();
 
 function parseFootageClipAB(sceneEl: Element): Map<number, 'A' | 'B'> {
   const map = new Map<number, 'A' | 'B'>();
-  CLIP_MEDIA = new Map<number, string>();
+  CLIP_MEDIA = new Map<number, { url: string; frameRate?: number }>();
   const clips: { id: number; path: string; name: string }[] = [];
   for (const footage of Array.from(sceneEl.getElementsByTagName('footage'))) {
     for (const clip of directChildren(footage, 'clip')) {
@@ -444,7 +444,21 @@ function parseFootageClipAB(sceneEl: Element): Map<number, 'A' | 'B'> {
       if (rel && rel.trim()) {
         let url = rel.trim();
         try { url = decodeURIComponent(url); } catch { /* keep raw */ }
-        CLIP_MEDIA.set(id, url);
+        // Capture the footage clip's own Frame Rate (Object id=2 > "Frame Rate"
+        // id=107). A media layer's Retime Value curve stores clip FRAME numbers;
+        // dividing by this frame rate converts the retimed frame back to clip
+        // seconds for the host resolver's ffmpeg seek (see compositor mediaTime).
+        let frameRate: number | undefined;
+        const frElems = clip.getElementsByTagName('parameter');
+        for (let k = 0; k < frElems.length; k++) {
+          const p = frElems[k];
+          if (p.getAttribute('name') === 'Frame Rate' && p.getAttribute('id') === '107') {
+            const v = parseFloat(p.getAttribute('value') || '');
+            if (isFinite(v) && v > 0) frameRate = v;
+            break;
+          }
+        }
+        CLIP_MEDIA.set(id, { url, frameRate });
       }
     }
   }
@@ -644,7 +658,8 @@ function determineImageSource(params: Parameter[], el: Element | undefined, clip
   // sliding rounded-rectangle tiles). Resolved at render time by the host's
   // mediaResolver (the core engine is environment-agnostic; file IO is injected).
   if (clipId !== undefined && CLIP_MEDIA.has(clipId)) {
-    return { type: 'media', url: CLIP_MEDIA.get(clipId)! };
+    const cm = CLIP_MEDIA.get(clipId)!;
+    return { type: 'media', url: cm.url, frameRate: cm.frameRate };
   }
 
   return undefined;

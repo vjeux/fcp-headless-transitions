@@ -134,7 +134,7 @@ export interface Filter {
 export type ImageSource =
   | { type: 'transitionA' }
   | { type: 'transitionB' }
-  | { type: 'media'; url: string }
+  | { type: 'media'; url: string; frameRate?: number }
   | { type: 'generator'; name: string; parameters: Parameter[] }
   | { type: 'gaussianGradient'; gradient: GaussianGradientConfig }
   | { type: 'color'; r: number; g: number; b: number; a: number };
