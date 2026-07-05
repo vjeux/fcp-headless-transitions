@@ -1894,7 +1894,7 @@ function parseRigWidgets(sceneEl: Element, factories: Map<number, string>): RigW
           value = resolveContinuousWidgetIndex(sn, num);
         }
       }
-      widgets.push({ id, name, value });
+      widgets.push({ id, name, value, factoryID: fid });
     }
   }
   return widgets;

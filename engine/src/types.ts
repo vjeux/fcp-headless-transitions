@@ -555,6 +555,13 @@ export interface RigWidget {
   name: string;
   /** Current selected value (which snapshot to use). */
   value: number;
+  /**
+   * The scenenode factoryID of the Widget node. Direction widgets come in two
+   * flavours: factoryID 13 (Push/Reflection) and factoryID 12 (Scale/Flip/Switch).
+   * The evaluator's degenerate-direction advancement (adjustDegenerateDirection)
+   * is scoped to factoryID-12 Direction widgets so it cannot affect Push et al.
+   */
+  factoryID?: number;
 }
 
 /** A rig behavior: maps a widget value to a set of parameter snapshots for a target object. */

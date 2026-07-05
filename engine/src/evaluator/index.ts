@@ -218,6 +218,66 @@ function buildWidgetValueMap(widgets: RigWidget[]): Map<number, number> {
 }
 
 /**
+ * factoryID-12 Direction default advancement (Movements/Scale).
+ *
+ * The Scale transition's .motr authors Direction = 0 ("Up"), but the ground-truth
+ * FCP render at that authored default shows the "shrink-to-reveal" animation that
+ * the rig's column-0 does NOT produce: column 0 leaves EVERY geometric transition
+ * link (scale/position/rotation on the Transition A/B layers) inactive (rig Custom
+ * Mix = 0), so Transition A stays full-frame and static — a straight cut, not a
+ * transition. The first column carrying an active geometric link (column 1: A's
+ * Scale link off the shrinking driver) is what FCP actually renders.
+ *
+ * Rather than hard-code a per-transition value, detect the degenerate case
+ * structurally: for a factoryID-12 Direction widget whose SELECTED column drives
+ * no geometric link on any layer, while a LATER column does, advance the widget to
+ * that first geometrically-active column. This is scoped so it cannot touch:
+ *   - Push/Reflection (factoryID-13 Direction widgets — different flavour),
+ *   - Switch (factoryID-12, but every column carries active position/rotation/anchor
+ *     links → not degenerate → untouched),
+ *   - Flip (factoryID-12, but NO column carries geometric links → no "better"
+ *     column exists → untouched; its motion is rig-curve driven, not link driven).
+ */
+function adjustDegenerateDirection(scene: MotrScene, widgetValues: Map<number, number>): void {
+  const dirWidgets = scene.rigWidgets.filter(w => w.factoryID === 12 && w.name === 'Direction');
+  if (dirWidgets.length === 0) return;
+
+  // Gather every link, keyed by controlling widget, and how many rig columns each
+  // exposes (rigCustomMix length). A link is "geometric" if it drives a
+  // scale/position/rotation channel (opacity-only links don't create a visible
+  // transition on their own here).
+  const links: import('../types.js').LinkBehavior[] = [];
+  (function collect(ls: readonly Layer[]) {
+    for (const l of ls) { if (l.links) for (const lk of l.links) links.push(lk); collect(l.children); }
+  })(scene.layers);
+
+  const isGeometric = (lk: import('../types.js').LinkBehavior) =>
+    lk.targetProp === 'scale' || lk.targetProp === 'position' || lk.targetProp === 'rotation';
+  const colActiveGeometric = (widgetId: number, col: number): boolean => {
+    for (const lk of links) {
+      if (lk.rigWidgetId !== widgetId || !lk.rigCustomMix) continue;
+      if (!isGeometric(lk)) continue;
+      const mix = lk.rigCustomMix[Math.min(col, lk.rigCustomMix.length - 1)];
+      if (mix && mix !== 0) return true;
+    }
+    return false;
+  };
+
+  for (const w of dirWidgets) {
+    // Column count = max rig snapshot length among this widget's links.
+    let cols = 0;
+    for (const lk of links) if (lk.rigWidgetId === w.id && lk.rigCustomMix) cols = Math.max(cols, lk.rigCustomMix.length);
+    if (cols === 0) continue;
+    const cur = Math.max(0, Math.min(cols - 1, Math.round(w.value)));
+    if (colActiveGeometric(w.id, cur)) continue; // selected column is a real transition — leave it.
+    // Find the first LATER column that carries a geometric link.
+    for (let c = cur + 1; c < cols; c++) {
+      if (colActiveGeometric(w.id, c)) { widgetValues.set(w.id, c); break; }
+    }
+  }
+}
+
+/**
  * Build a map of object ID → Layer for driver lookups (Link behaviors, clones).
  */
 function buildLayerById(layers: Layer[], map: Map<number, Layer>): Map<number, Layer> {
@@ -1202,6 +1262,7 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
   }
   const parentTransform = mat4Identity();
   const widgetValues = buildWidgetValueMap(scene.rigWidgets);
+  adjustDegenerateDirection(scene, widgetValues);
   const behaviors = scene.rigBehaviors;
   const sceneBehaviors = scene.sceneBehaviors;
   const layerById = buildLayerById(scene.layers, new Map());
