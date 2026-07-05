@@ -235,3 +235,16 @@ Both must be parsed (see parseLinkBehaviors) or only one direction renders right
 STATUS: Bottom→Top is pixel-accurate; the other 3 render with correct structure
 but a residual clone horizontal-offset (~10-15dB mid-transition) — WIP, see
 test/push-directions.test.ts.
+
+## Cataloging what's left
+
+`docs/CATALOG.md` is the exhaustive inventory of every `.motr` structure, factory
+type, filter (by UUID), parameter, enum, and per-transition feature — with
+implementation status. Regenerate the underlying survey data anytime with:
+
+```bash
+./venv/bin/python tools/survey_catalog.py
+```
+
+(prints factory counts, filter UUID→name map, parameter vocabulary, and the
+per-transition feature matrix). Use it to pick the next highest-leverage feature.
