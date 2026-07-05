@@ -1854,8 +1854,16 @@ function parseRigWidgets(sceneEl: Element, factories: Map<number, string>): RigW
           if (name === 'Pop-up') {
             value = Math.max(0, num - 1);
           } else {
-            // Direction and other discrete widgets: the value IS the index.
-            value = num;
+            // Direction (and other discrete menu) widgets: the stored value is the
+            // menu TAG, which maps to a snapshot by matching the snapshot's declared
+            // "Value". Push's Direction declares snapshot Values [0,1,2,3] (0-based,
+            // so value N = index N), but Movements/Switch's Direction declares
+            // Values [1,2] with node ids [2,3] (value 1 = "From Left" = the FIRST
+            // snapshot = ordinal index 0). Resolving the value to the ORDINAL index
+            // of the matching snapshot Value handles both without a snapId-1 offset
+            // assumption. Falls back to the raw value when no snapshot list matches.
+            const ord = resolveDiscreteWidgetOrdinal(sn, num);
+            value = ord !== undefined ? ord : num;
           }
         } else {
           // Continuous-value widget (e.g. an Aspect Ratio pop-up storing 1.7777…).
@@ -1872,13 +1880,35 @@ function parseRigWidgets(sceneEl: Element, factories: Map<number, string>): RigW
 }
 
 /**
+ * A discrete menu Widget (e.g. Direction) stores a menu TAG (integer). Map it to
+ * the ORDINAL index (0-based order) of the <Snapshots id=101> child whose declared
+ * "Value" equals the tag. Returns undefined when no snapshot list / match exists,
+ * so the caller falls back to treating the value as the index directly.
+ */
+function resolveDiscreteWidgetOrdinal(sn: Element, num: number): number | undefined {
+  for (const p of Array.from(sn.getElementsByTagName('parameter'))) {
+    if (p.getAttribute('name') !== 'Snapshots' || p.getAttribute('id') !== '101') continue;
+    const kids = directChildren(p, 'parameter');
+    let ord = 0;
+    for (const child of kids) {
+      const valEl = directChildren(child, 'parameter').find(x => x.getAttribute('name') === 'Value');
+      if (!valEl) continue;
+      const v = parseFloat(valEl.getAttribute('value') || 'NaN');
+      if (!Number.isNaN(v) && v === num) return ord;
+      ord++;
+    }
+    return undefined; // list present but no exact match
+  }
+  return undefined;
+}
+
+/**
  * A continuous-value Widget (e.g. Aspect Ratio) stores a float like 1.7777. The
  * active snapshot is the declared <Snapshots> entry whose "Value" matches. Rig
  * behaviors driven by this widget index their snapshot arrays by (snapshot id − 1),
  * so return that ordinal (falling back to nearest match, then 0).
  */
-function resolveContinuousWidgetIndex(sn: Element, num: number): number {
-  let bestId = 1;
+function resolveContinuousWidgetIndex(sn: Element, num: number): number {  let bestId = 1;
   let bestDelta = Infinity;
   for (const p of Array.from(sn.getElementsByTagName('parameter'))) {
     if (p.getAttribute('name') !== 'Snapshots' || p.getAttribute('id') !== '101') continue;

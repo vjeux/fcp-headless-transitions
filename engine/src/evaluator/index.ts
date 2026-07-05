@@ -279,17 +279,31 @@ function resolveDriverChannel(
   timeSec: number,
   prop: 'position' | 'rotation' | 'scale' | 'opacity' | 'anchor',
   behaviors: RigBehavior[],
-  widgetValues: Map<number, number>
+  widgetValues: Map<number, number>,
+  layerById?: Map<number, Layer>,
+  linksByTarget?: Map<number, import('../types.js').LinkBehavior[]>,
+  visited?: Set<number>
 ): number {
   // The base (raw authored) channel value.
   const baseVal = driverChannelValue(driver, channel, timeSec, prop);
-  // Fast path: a driver with NO self-links behaves exactly as its raw channel
-  // (this preserves Push et al. — their driver's position is read directly and
-  // its rig behaviors are applied by the normal per-layer evaluation pass; we
-  // must NOT re-apply them here or Push's Direction snapshots double-count and
-  // the slide axis breaks). Only the pivot-rig self-link pattern needs more.
   const selfLinks = (driver.links || []).filter(l => l.sourceObjectId === driver.id);
-  if (selfLinks.length === 0) return baseVal;
+
+  // CROSS-links: Links where this layer copies a channel from ANOTHER object.
+  // Needed for chained pivot rigs (Movements/Switch): Transition A links its
+  // anchor/position from Clone B, which links from Transition B, which links
+  // from the hidden Color Solid driver. Reading A's pivot source (Clone B)
+  // naively returns Clone B's RAW transform (identity) — so A rotates about the
+  // scene origin instead of the shared right-side pivot. Resolving the source's
+  // own cross-links recursively propagates the real pivot down the chain.
+  const crossLinks = layerById && linksByTarget
+    ? (linksByTarget.get(driver.id) || []).filter(l => l.sourceObjectId !== driver.id)
+    : [];
+
+  // Fast path: a driver with NO self-links AND no relevant cross-links behaves
+  // exactly as its raw channel (preserves Push et al. — their driver's position
+  // is read directly and its rig behaviors are applied by the normal per-layer
+  // pass; re-applying them here would double-count Push's Direction snapshots).
+  if (selfLinks.length === 0 && crossLinks.length === 0) return baseVal;
 
   // Pivot rig (Movements/Switch): the driver copies one of its own channels onto
   // another via a self-link (anchorX ← positionX). Resolve that so a downstream
@@ -311,6 +325,31 @@ function resolveDriverChannel(
     if (sl.customMix === 0) continue;
     const sv = readRigged(sl.sourceProp, sl.sourceChannel) * sl.scale + sl.offset;
     value = value * (1 - sl.customMix) + sv * sl.customMix;
+  }
+  // Apply cross-links targeting this channel/prop, resolving their source
+  // recursively (visited guard prevents cycles). Motion's Link REPLACES via a
+  // mix blend: result = base*(1-mix) + src*scale*mix. Range clamp uses the
+  // ±100 sentinel convention (only clamp when a non-default range is present).
+  if (crossLinks.length > 0 && layerById && linksByTarget) {
+    const vis = visited ?? new Set<number>();
+    if (!vis.has(driver.id)) {
+      vis.add(driver.id);
+      for (const cl of crossLinks) {
+        if (cl.targetProp !== prop || cl.targetChannel !== channel) continue;
+        if (cl.customMix === 0) continue;
+        const src = layerById.get(cl.sourceObjectId);
+        if (!src) continue;
+        let sv = resolveDriverChannel(
+          src, cl.sourceChannel, timeSec, cl.sourceProp, behaviors, widgetValues,
+          layerById, linksByTarget, vis
+        );
+        const defRange = cl.min === -100 && cl.max === 100;
+        if (!defRange) { if (sv < cl.min) sv = cl.min; if (sv > cl.max) sv = cl.max; }
+        sv = sv * cl.scale + cl.offset;
+        value = value * (1 - cl.customMix) + sv * cl.customMix;
+      }
+      vis.delete(driver.id);
+    }
   }
   return value;
 }
@@ -371,7 +410,7 @@ function applyLinks(
       scale = link.rigScale[idx];
     }
 
-    let v = resolveDriverChannel(driver, link.sourceChannel, timeSec, link.sourceProp, behaviors, widgetValues);
+    let v = resolveDriverChannel(driver, link.sourceChannel, timeSec, link.sourceProp, behaviors, widgetValues, layerById, linksByTarget);
     // Motion's "Clamp Source Value Within Range" uses min/max = ±100 as the
     // default (unset) UI sentinel; real transitions drive far past ±100 (e.g. a
     // full 1080px push). Only clamp when a non-default range is present.

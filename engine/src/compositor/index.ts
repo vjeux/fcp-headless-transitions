@@ -662,6 +662,30 @@ function isMaskGroup(child: EvaluatedLayer): boolean {
   return ok && maskCount > 0;
 }
 
+/**
+ * A FLAT coplanar 2D stack: ≥2 visible full-frame image/clone/generator layers
+ * that carry ONLY Z-rotation (no camera-facing 3D X/Y tilt), with at least one
+ * Clone Layer. This is the Movements/Switch signature (Clone B + the two rotating
+ * drop zones). Such groups composite in DECLARED order (LAST-listed on top),
+ * unlike the default reverse convention. The 3D-hinge groups (Rotate/Reflection/
+ * Flip) are excluded: their pages carry X/Y rotation, which couples into the world
+ * matrix's third row/col, so this returns false for them.
+ */
+function isFlatCoplanarStack(children: EvaluatedLayer[]): boolean {
+  const content = children.filter(c =>
+    c.layer.type === 'image' || c.layer.type === 'clone' || c.layer.type === 'generator');
+  if (content.length < 2) return false;
+  if (!content.some(c => c.layer.type === 'clone')) return false;
+  // A pure Z-rotation + translation + scale matrix has m2,m6,m8,m9 ≈ 0. A Y- or
+  // X-rotation (page flip / hinge) puts sinθ into m8 / m6, so any non-trivial value
+  // there means the layer is not coplanar-2D.
+  for (const c of content) {
+    const m = c.worldTransform;
+    if (Math.abs(m[2]) > 1e-3 || Math.abs(m[6]) > 1e-3 || Math.abs(m[8]) > 1e-3 || Math.abs(m[9]) > 1e-3) return false;
+  }
+  return true;
+}
+
 /** Collect all mask shapes (recursively) from a mask group into `out`. */
 function collectMaskShapes(group: EvaluatedLayer, out: EvaluatedLayer[]): void {
   for (const c of group.children) {
@@ -1127,11 +1151,25 @@ function renderLayer(
     const hasMasks = maskShapes.length > 0;
     const hasBlend = layer.blendMode !== 'normal';
 
+    // Draw-order convention. The default renders children in REVERSE list order
+    // (last-listed rendered first = bottom, first-listed last = top), which the
+    // 3D-hinge groups (Rotate/Reflection/Flip) rely on — there depth, not draw
+    // order, resolves z. But a FLAT 2D stack of coplanar full-frame images/clones
+    // (Movements/Switch: Clone B + Transition A + Transition B, all Z-rotation
+    // only, no camera-facing 3D tilt) is composited by Motion in DECLARED order
+    // with the LAST-listed layer on TOP. Rendering such a group forward (so the
+    // last child blits last = on top) reproduces the switch's z-order: early both
+    // drop zones show with B (last) on top; after B times out its Clone (first,
+    // bottom) sits under Transition A, so A comes to the front — the "switch".
+    const flatStack = isFlatCoplanarStack(visibleChildren);
+    const order = (idx: number): EvaluatedLayer =>
+      flatStack ? visibleChildren[idx] : visibleChildren[visibleChildren.length - 1 - idx];
+
     if (hasFilters || hasMasks || hasBlend) {
       // Render visible children to a temp buffer
       const groupBuffer = createBuffer(output.width, output.height);
-      for (let i = visibleChildren.length - 1; i >= 0; i--) {
-        renderLayer(groupBuffer, visibleChildren[i], imageA, imageB, time, filterOverrides);
+      for (let i = 0; i < visibleChildren.length; i++) {
+        renderLayer(groupBuffer, order(i), imageA, imageB, time, filterOverrides);
       }
 
       // Apply masks (rasterize shapes, union them, apply to group content)
@@ -1154,8 +1192,8 @@ function renderLayer(
       // Composite onto output
       blitDirect(output, processed, opacity, layer.blendMode);
     } else {
-      for (let i = visibleChildren.length - 1; i >= 0; i--) {
-        renderLayer(output, visibleChildren[i], imageA, imageB, time, filterOverrides);
+      for (let i = 0; i < visibleChildren.length; i++) {
+        renderLayer(output, order(i), imageA, imageB, time, filterOverrides);
       }
     }
   }
