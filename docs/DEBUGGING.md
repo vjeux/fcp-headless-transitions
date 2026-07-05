@@ -1,0 +1,185 @@
+# Debugging & validating the browser engine against real FCP
+
+This is the playbook for making `motr-engine` (the from-scratch TypeScript renderer
+in `engine/`) match Final Cut Pro **pixel-for-pixel**. If you're an agent picking
+this up cold: read this end-to-end before touching the curve/transform code. It
+records how the current fidelity was reached and the exact tools to reproduce it.
+
+Everything runs on the Mac with FCP installed. All the helpers live in `tools/`.
+
+> **DYLD gotcha (read first):** the headless renderer `dlopen`s FCP's private
+> frameworks, which requires `DYLD_FRAMEWORK_PATH` to point at FCP's `Frameworks`
+> dir. macOS SIP **strips `DYLD_*` from the environment when a binary is launched
+> via `timeout`, `nohup`, or `sudo`.** So always run the python process *directly*
+> (background it with a trailing `&`), never wrapped in `timeout`/`nohup`/`sudo`.
+
+## 0. One-time setup
+
+```bash
+cd ~/random/final-cut-pro-transitions
+python3 -m venv venv
+./venv/bin/pip install pyobjc-core pyobjc-framework-Cocoa pyobjc-framework-Quartz pillow numpy pngjs
+./build.sh                      # builds oz_render.dylib against FCP frameworks
+(cd engine && npm install)      # browser engine deps (tsx, pngjs, ...)
+```
+
+## 1. Generate ground truth (the REAL FCP render)
+
+`tools/render_gt.py` drives FCP's actual Motion engine headless and writes a PNG
+sequence. It handles the single most important gotcha:
+
+> **A transition's animation ends at its LAST SPATIAL KEYFRAME, not the scene /
+> playRange duration.** Push's last keyframe is `200200/120000 = 1.6683s`, but the
+> scene duration is one frame longer and **wraps back to the start** (black/again
+> frames) if you sample there. `render_gt.py` parses the max keyframe time across
+> all curves *excluding* the `Retime Value` / `Retime Value Cache` / `Duration
+> Cache` curves (whose keyframes run a frame past the spatial animation), and maps
+> progress `0..1` onto `[0, animationEnd]`, nudging the final frame just below the
+> end. The old harness sampled `0..2.002s` and scored ~15% black frames — that's
+> why an early "37 dB Push" was meaningless.
+
+```bash
+FW="/Applications/Final Cut Pro.app/Contents/Frameworks"
+DYLD_FRAMEWORK_PATH="$FW" ./venv/bin/python tools/render_gt.py --push /tmp/push_clean 50 &
+# or any template:
+DYLD_FRAMEWORK_PATH="$FW" ./venv/bin/python tools/render_gt.py <foo.motr> <imgA> <imgB> <outdir> [nframes] &
+```
+
+The 50-frame Push ground truth is committed at `engine/test/ground-truth/Movements__Push/`.
+
+## 2. Measure the engine vs ground truth (PSNR)
+
+`engine/test/push-compare.ts` is the canonical harness: it renders the engine at
+each progress and reports mean PSNR + best/worst frames vs the committed GT.
+
+```bash
+cd engine
+node_modules/.bin/tsx test/push-compare.ts          # prints mean PSNR + worst frames
+node_modules/.bin/tsx test/push-compare.ts --dump    # also writes /tmp/push_engine/*.png
+```
+
+Robustness across the whole library (must stay 65/65, 0 crashes):
+
+```bash
+node_modules/.bin/tsx test/all-transitions.test.ts
+```
+
+## 3. Sub-pixel motion measurement — the "ruler" trick
+
+PSNR on photos is noisy for diagnosing *motion*. Instead, render the transition
+with **ruler images** whose RGB encodes each row index, then decode the exact
+per-frame displacement of each source (noise-free, ~0.5 px).
+
+```bash
+./venv/bin/python tools/make_ruler.py               # writes /tmp/rulerA.png /rulerB.png
+# render GT with rulers as the sources:
+DYLD_FRAMEWORK_PATH="$FW" ./venv/bin/python tools/render_gt.py \
+    <foo.motr> /tmp/rulerA.png /tmp/rulerB.png /tmp/ruler_out 50 &
+./venv/bin/python tools/decode_ruler.py /tmp/ruler_out   # prints "<frame> <displacement>"
+```
+
+This is how the Push displacement curve `[0,1,4,9,19,32,...]` was recovered exactly.
+
+## 4. Testing hypotheses by EDITING the .motr
+
+You can change the transition and re-render through the real engine to see what
+actually matters. `tools/edit_curve.py` rewrites the Color Solid's Y position curve
+(the thing that drives Push) with keyframes you control (and flattens X):
+
+```bash
+# 2-keyframe ramp 0 -> -1080 (sanity-check the engine reads your edit):
+./venv/bin/python tools/edit_curve.py <push.motr> /tmp/test.motr amplitude -1080
+# arbitrary keyframes (time in 120000-scale : value):
+./venv/bin/python tools/edit_curve.py <push.motr> /tmp/test.motr keyframes \
+    0:0 36036:-108.93 96096:-565.78 200200:-1080
+DYLD_FRAMEWORK_PATH="$FW" ./venv/bin/python tools/render_gt.py /tmp/test.motr \
+    /tmp/rulerA.png /tmp/rulerB.png /tmp/test_out 50 &
+./venv/bin/python tools/decode_ruler.py /tmp/test_out
+```
+
+**Key finding from this method:** editing the stored `inputTangent*`/`outputTangent*`
+handles to zero or extreme values changed the render **not at all**; only changing
+keyframe VALUES/TIMES changed the motion. Conclusion: **Motion ignores the stored
+tangent handles and recomputes them** from the keyframe points.
+
+## 5. Reverse-engineering the exact math with lldb
+
+When measurement + editing isn't enough, read the real algorithm out of the binary.
+The curve engine lives in `ProChannel.framework`; the call chain is:
+
+```
+OZChannel::getValueAsDouble -> OZSpline::interpolate -> OZBezierInterpolator
+   -> getControlPoints -> OZSpline::derivePoint (tangents from neighbour vertices)
+   -> OZBezierFindParameter (solve time-bezier for u) -> OZBezierEval (value at u)
+```
+
+`tools/lldb_capture_curve.py` breakpoints `OZBezierFindParameter` (time control
+polygon) and `OZBezierEval` (value control polygon) and prints both for every
+segment the engine evaluates:
+
+```bash
+lldb --batch -o "command script import tools/lldb_capture_curve.py"
+# ->
+#   TIME poly=[0.0, 0.3333, 0.5556, 1.0] target=0.49950
+#   VAL  poly=[0.0, 0.0, -14.633, -108.93] u=0.54452
+#   ... (one TIME+VAL pair per segment)
+```
+
+lldb notes (why the script is shaped the way it is):
+- FCP frameworks are **not signed for symbol resolution by lldb**; `BreakpointCreateByName`
+  on ProChannel symbols returns 0 locations and never fires.
+- The frameworks are `dlopen`'d late by python, so pending name breakpoints set
+  before launch also never bind.
+- **Workaround:** breakpoint our own shim symbol `oz_render_frame` (binds fine),
+  `Continue` once (ProChannel is now loaded), compute `slide = __TEXT load addr −
+  file addr`, then `BreakpointCreateByAddress(fileOffset + slide)`. arm64 file
+  offsets: `OZBezierEval = 0x9ff00`, `OZBezierFindParameter = 0xa0184` — re-derive
+  with `nm -arch arm64 ProChannel | grep OZBezier...` if FCP updates.
+- arm64 ABI: first pointer arg in `x0` (the 4-double coeff array), first double in `d0`.
+
+`tools/curve_probe.py` is the small script lldb launches; it renders a few frames of
+a `.motr` at times that land in every segment. Point it elsewhere with env vars
+`PROBE_MOTR` / `PROBE_TIMES`.
+
+## 6. The decoded curve algorithm (current implementation)
+
+`engine/src/evaluator/curves.ts` implements exactly what the captures revealed:
+
+- **slope** `m_i` = Catmull-Rom centered difference `(v[i+1]−v[i-1])/(t[i+1]−t[i-1])`,
+  **0 at the first/last keyframe** (ease from / to rest).
+- **handle time** `h_i` = `½·(dt_{i-1}/3 + dt_i/3)` at interior keyframes, `dt_0/3`
+  at the first, `dt_{n-2}/3` at the last. *Averaging the two adjacent third-segments*
+  is what gives C¹ velocity continuity across non-uniformly spaced keyframes — this
+  was the missing piece that had caused an accelerate/decelerate hump per segment.
+- per segment `[i, i+1]`:
+  - value control `[v_i, v_i + m_i·h_i, v_{i+1} − m_{i+1}·h_{i+1}, v_{i+1}]`
+  - time control  `[t_i, t_i + h_i,     t_{i+1} − h_{i+1},        t_{i+1}]`
+  - solve the time-bezier for `u` at the query time, then eval the value-bezier at `u`.
+
+A 2-keyframe curve reduces to exact `smoothstep = 3u²−2u³`. Verified to
+**0.26 px mean / 0.59 px max** against the engine (ruler-decode precision).
+
+## 7. Generate all comparison videos
+
+`tools/make_videos.py` builds the side-by-side, individual, diff videos and contact
+sheets from a GT dir + engine dir:
+
+```bash
+# 1) GT frames:
+DYLD_FRAMEWORK_PATH="$FW" ./venv/bin/python tools/render_gt.py --push /tmp/push_clean 50 &
+# 2) engine frames:
+(cd engine && node_modules/.bin/tsx test/push-compare.ts --dump)   # -> /tmp/push_engine
+# 3) videos + sheets into videos/ :
+./venv/bin/python tools/make_videos.py /tmp/push_clean /tmp/push_engine videos push
+```
+
+Outputs in `videos/`: `push_comparison.mp4` (FCP | engine, labeled),
+`push_fcp_groundtruth.mp4`, `push_engine.mp4`, `push_diff.mp4` (|diff|×4 + per-frame
+PSNR), `push_contact_sheet.png`, `push_diff_sheet.png`.
+
+## Current status
+
+Push: **32.9 dB mean PSNR**, motion pixel-exact (split line within ~1 px of FCP
+across all frames). Remaining residual is sub-pixel edge resampling at the A/B seam
+plus a 1 px white seam artifact FCP itself emits. All 65 transitions render without
+crashing.

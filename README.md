@@ -103,7 +103,39 @@ by-pointer passing of `shared_ptr`/`CMTime`/matrices).
 | `render.py`     | Driver: boots the engine, loads the `.motr`, renders frames, assembles mp4. |
 | `run_all.py`    | Discovers and renders every built-in FCP transition (subprocess-isolated). |
 | `images/`       | Example source images. |
-| `docs/GALLERY.md` | Animated previews of all supported transitions. |
+| `engine/`       | **`motr-engine`** — a from-scratch TypeScript reimplementation of the Motion transition engine, for running these transitions in the browser (see below). |
+| `tools/`        | Debugging / validation helpers: ground-truth rendering, sub-pixel measurement, `.motr` editing, lldb reverse-engineering, video generation. |
+| `docs/GALLERY.md`  | Animated previews of all supported transitions. |
+| `docs/DEBUGGING.md` | **How to validate the browser engine against real FCP, pixel-for-pixel.** Read this first if you're working on `engine/`. |
+
+## The browser engine (`engine/`)
+
+`engine/` is a clean-room TypeScript renderer that reproduces FCP/Motion transitions
+without any Apple frameworks, so they can run in a browser. The headless renderer
+above is its **ground truth**: we render a transition through FCP's real engine, then
+diff the browser engine against it frame-by-frame.
+
+```bash
+cd engine && npm install
+node_modules/.bin/tsx test/push-compare.ts        # PSNR vs committed ground truth
+node_modules/.bin/tsx test/all-transitions.test.ts # all 65 parse + render, 0 crashes
+```
+
+Getting a transition **pixel-perfect** took reverse-engineering Motion's exact curve
+interpolation (it ignores the tangent handles stored in the `.motr` and recomputes
+Catmull-Rom tangents with a specific handle-time rule) — the full methodology, tools,
+and findings are in **[docs/DEBUGGING.md](docs/DEBUGGING.md)**.
+
+### Validation tools (`tools/`)
+
+| Tool | Purpose |
+|------|---------|
+| `tools/ozengine.py` | Shared headless-engine boot boilerplate (import from other scripts). |
+| `tools/render_gt.py` | Render ground-truth frames through the real engine, with the correct animation-end time domain. `--push` for the default demo. |
+| `tools/make_ruler.py` / `decode_ruler.py` | Row-encoded "ruler" images for sub-pixel (≈0.5 px) motion measurement. |
+| `tools/edit_curve.py` | Patch a `.motr` keyframe curve to test interpolation hypotheses through the real engine. |
+| `tools/lldb_capture_curve.py` + `curve_probe.py` | lldb driver that dumps the exact Bézier control polygons the engine builds per segment. |
+| `tools/make_videos.py` | Build all comparison/diff videos + contact sheets from a GT dir + engine dir. |
 
 ## Using a different transition
 
