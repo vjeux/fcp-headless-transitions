@@ -1136,6 +1136,15 @@ function parseShape(el: Element, factories: Map<number, string>, linkSourceIds: 
     if (pf) { panelFillCandidate = pf.color; panelFillOpacityCandidate = pf.opacity; }
   }
 
+  // The Fill Color RGB swatch, read even when solid fill is NOT the active mode
+  // (gradient/particle-cell shapes). Recovers the base tint a particle field
+  // aggregates to — see Shape.swatchColor.
+  let swatchColor: { r: number; g: number; b: number; a: number } | undefined;
+  if (!isMask) {
+    const sw = findFillColorSwatch(el);
+    if (sw) swatchColor = sw;
+  }
+
   return {
     verticesX,
     verticesY,
@@ -1152,6 +1161,7 @@ function parseShape(el: Element, factories: Map<number, string>, linkSourceIds: 
     // isSolidPanel stays falsy and these are ignored by the compositor.
     panelFill: panelFillCandidate,
     panelFillOpacity: panelFillOpacityCandidate,
+    swatchColor,
   };
 }
 
@@ -1249,6 +1259,35 @@ function findFillColor(
     const flags = Number(p.getAttribute('flags') || '0');
     const solidFillActive = Math.floor(flags / 0x100000000) % 2 === 1;
     if (!solidFillActive && !allowGradientModeSolid) return undefined;
+    let r: number | undefined, g: number | undefined, b: number | undefined;
+    for (const ch of directChildren(p, 'parameter')) {
+      const nm = ch.getAttribute('name');
+      const vAttr = ch.getAttribute('value');
+      const dAttr = ch.getAttribute('default');
+      const v = vAttr !== null ? parseFloat(vAttr) : (dAttr !== null ? parseFloat(dAttr) : NaN);
+      if (isNaN(v)) continue;
+      if (nm === 'Red') r = v;
+      else if (nm === 'Green') g = v;
+      else if (nm === 'Blue') b = v;
+    }
+    if (r !== undefined && g !== undefined && b !== undefined) {
+      return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255), a: 1 };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Read a Shape node's "Fill Color" (id=111) Red/Green/Blue SWATCH regardless of
+ * the active fill mode (unlike `findFillColor`, which requires the solid-fill
+ * flag). Used to recover the base tint of a gradient/particle-cell shape. Reads
+ * the direct-child Red/Green/Blue of the FIRST id=111 Fill Color param, preferring
+ * the animated `value` over `default`. Returns 0-255 RGB (0-1 alpha), or undefined.
+ */
+function findFillColorSwatch(shapeEl: Element): { r: number; g: number; b: number; a: number } | undefined {
+  const params = Array.from(shapeEl.getElementsByTagName('parameter'));
+  for (const p of params) {
+    if (p.getAttribute('name') !== 'Fill Color' || p.getAttribute('id') !== '111') continue;
     let r: number | undefined, g: number | undefined, b: number | undefined;
     for (const ch of directChildren(p, 'parameter')) {
       const nm = ch.getAttribute('name');

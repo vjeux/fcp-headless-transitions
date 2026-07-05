@@ -493,6 +493,19 @@ export interface Shape {
   panelFill?: { r: number; g: number; b: number; a: number };
   /** Fill opacity (0-1) for an `isSolidPanel` shape. Defaults to 1. */
   panelFillOpacity?: number;
+
+  /**
+   * The shape's "Fill Color" (id=111) RGB SWATCH, read regardless of whether solid
+   * fill is the active fill mode. Unlike `fillColor` (which is populated ONLY when
+   * the solid-fill flag bit is set, so a gradient-mode shape reports undefined),
+   * `swatchColor` always carries the raw Fill Color param when present. Used to
+   * recover the base tint of a gradient/particle-cell shape — e.g. Stylized/Light
+   * Sweep's Background particle Rectangle, whose swatch (0,0.282,0.447) is the
+   * blue the dense particle field aggregates to; gamma-encoded it is the navy
+   * `(0,17,43)` backdrop the transition settles on. 0-255 RGB, 0-1 alpha.
+   */
+  swatchColor?: { r: number; g: number; b: number; a: number };
+
 }
 
 
