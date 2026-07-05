@@ -1103,7 +1103,21 @@ function parseShape(el: Element, factories: Map<number, string>, linkSourceIds: 
       directChildren(el, 'behavior').some(
         b => factories.get(parseInt(b.getAttribute('factoryID') || '0', 10)) === 'Link',
       );
-    const fc = findFillColor(el, !hasColorLink);
+    // Panels_Across authors a couple of STRAY rectangles ("White line",
+    // "Rectangle 8") that carry an EXPLICIT `Fill Mode` (id=114) parameter with a
+    // bit-clear Fill Color — Motion leaves them transparent (they are decorative
+    // guides masked by the panel choreography, not rendered cards). Center's
+    // decorative cards carry NO explicit `Fill Mode` param (the fill mode is
+    // implicit). So the presence of an explicit `Fill Mode` (id=114) param on a
+    // bit-clear shape marks it as an author-controlled fill that Motion does not
+    // render solid — do NOT extend the relaxed bit-clear acceptance to it. This
+    // keeps Center's cards painted while leaving Panels_Across's stray rectangles
+    // transparent (Panels_Across stays on p7's panelFill path). Verified: Center's
+    // 7 cards have no Fill Mode param; Panels_Across's 2 stray shapes both do.
+    const hasExplicitFillMode = Array.from(el.getElementsByTagName('parameter')).some(
+      p => p.getAttribute('name') === 'Fill Mode' && p.getAttribute('id') === '114',
+    );
+    const fc = findFillColor(el, !hasColorLink && !hasExplicitFillMode);
     if (fc) fillColor = fc;
   }
 
@@ -1423,7 +1437,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
   // rig-selected (e.g. Boxes/Center Reveal's 18 masks). A clone's self-mask has no
   // other path.
   if (type === 'clone') for (const maskNode of directChildren(el, 'mask')) {
-    const shape = parseShape(maskNode);
+    const shape = parseShape(maskNode, factories, linkSourceIds);
     if (!shape) continue;
     const maskParams: Parameter[] = [];
     for (const mp of directChildren(maskNode, 'parameter')) maskParams.push(parseParameter(mp));
