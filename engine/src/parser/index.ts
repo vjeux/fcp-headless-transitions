@@ -2117,14 +2117,29 @@ export function parseMotr(xmlText: string): MotrScene {
           // filled shape.
           const fid = parseInt((node as Element).getAttribute('factoryID') || '0', 10);
           if (factories.get(fid) === 'Shape') {
+            // Local-frame → scene-time offset shift, applied ONLY when the shape's
+            // timeline is genuinely re-anchored FORWARD (offset > in). Lights/Flash
+            // (offset 0.133 > in 0) and Stylized/Panels Random's driver (White line 1,
+            // offset 1.268 > in 0) are forward-re-anchored and need the shift;
+            // Panels_Across's Red bar (offset 0.367 < in 0.534) is NOT — shifting its
+            // positive Position key (0.8008 + 0.367 = 1.168) would inflate the
+            // animation end past the true visual end (0.8008s) and mis-sample the whole
+            // transition. Combined with the rawSec ≥ 0 gate below (which keeps the
+            // panels' deep-negative pre-roll keys from being shifted), this lands
+            // Panels_Across at the correct 0.8008s end (9.45→28dB).
             const tEl = firstChild(node as Element, 'timing');
             const offAttr = tEl?.getAttribute('offset');
-            if (offAttr) {
-              const op = offAttr.trim().split(/\s+/);
-              const ov = parseFloat(op[0]);
-              const os = op.length > 1 ? parseFloat(op[1]) : 1;
-              if (os > 0 && isFinite(ov)) nodeOffsetSec = ov / os;
-            }
+            const inAttr = tEl?.getAttribute('in');
+            const parseRT = (a: string | null | undefined): number => {
+              if (!a) return 0;
+              const p = a.trim().split(/\s+/);
+              const v = parseFloat(p[0]);
+              const s = p.length > 1 ? parseFloat(p[1]) : 1;
+              return s > 0 && isFinite(v) ? v / s : 0;
+            };
+            const offV = parseRT(offAttr);
+            const inV = parseRT(inAttr);
+            if (offAttr && offV - inV > 1e-3) nodeOffsetSec = offV;
           }
         }
         node = node.parentNode;
