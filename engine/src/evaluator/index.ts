@@ -31,6 +31,16 @@ export { evaluateCurve, resolveValue, timeToSeconds } from './curves.js';
  */
 let CURRENT_FPS = 30;
 
+/**
+ * When set (seconds), a wrapping drop-zone image layer (Retime mode 1) whose
+ * lifetime has ended is kept VISIBLE and re-shows source A past its `out`, rather
+ * than disappearing. Set only when the transition has an independent overlay
+ * animation that outlives the drop-zone crossfade (e.g. Lights/Flash's white
+ * flash), so the flash rides over a persistent source-A base instead of an empty
+ * frame. Undefined for ordinary transitions (drop zones time out normally).
+ */
+let DROPZONE_WRAP_TO_A = false;
+
 
 // ============================================================================
 // Transform Matrix (4x4 stored as Float64Array[16], column-major)
@@ -121,6 +131,15 @@ export interface EvaluatedLayer {
   visible: boolean;
   /** Evaluated children (for groups). */
   children: EvaluatedLayer[];
+  /**
+   * When true, the compositor renders this image layer as source A regardless of
+   * its declared transitionA/B source. Set for a wrapping drop zone (Retime mode
+   * 1) whose lifetime has ended while an independent overlay animation keeps the
+   * scene alive (e.g. Lights/Flash): FCP loops the drop-zone media back to the
+   * transition start (source A), so the flash rides over a persistent A base
+   * instead of an empty frame.
+   */
+  forceSourceA?: boolean;
 }
 
 export interface EvaluatedScene {
@@ -598,11 +617,41 @@ function isLayerVisible(layer: Layer, timeSec: number): boolean {
   if (!layer.timing) return true;
   const inTime = timeToSeconds(layer.timing.in);
   const outTime = timeToSeconds(layer.timing.out);
+  // A solid-FILL-COLOR shape overlay's lifetime is governed by its OPACITY curve,
+  // not the (often shorter) timing window. Motion authors these flash/color
+  // overlays with a timing `out` that can end before the opacity ramps back to 0
+  // (Lights/Flash's overlay "Rectangle": out=0.267s but opacity rides down to 0
+  // at scene 0.3s). A strict window check clips the fade tail to nothing. Treat
+  // such shapes as timing-unbounded — opacity>0 (checked downstream) decides
+  // visibility. Also covers the degenerate zero-duration (in==out) case.
+  // SCOPED to shapes with a solid fillColor (the flash rectangles) so mask shapes
+  // and gradient/stroke reveal shapes (Stylized/Heart, Center_Reveal) keep their
+  // normal window gating and don't linger past their lifetime.
+  if (layer.type === 'shape' && layer.shape && !layer.shape.isMask && layer.shape.fillColor) {
+    // Degenerate zero-duration window (in==out): the shape's whole lifetime is its
+    // opacity curve — treat as always on (opacity>0 downstream decides).
+    if (outTime <= inTime) return true;
+    // Otherwise honor the `in` point but ignore the (often too-early) `out`.
+    return timeSec >= inTime;
+  }
   return timeSec >= inTime && timeSec <= outTime;
 }
 
 function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Array, behaviors: RigBehavior[], widgetValues: Map<number, number>, sceneBehaviors: SceneBehavior[], layerById: Map<number, Layer>, linksByTarget: Map<number, import('../types.js').LinkBehavior[]>): EvaluatedLayer {
-  const visible = isLayerVisible(layer, timeSec);
+  let visible = isLayerVisible(layer, timeSec);
+  // Persistent-A drop zone (see DROPZONE_WRAP_TO_A): a wrapping drop-zone image
+  // past its lifetime re-shows source A and stays visible as the overlay's base.
+  let forceSourceA = false;
+  if (DROPZONE_WRAP_TO_A && layer.type === 'image' && layer.source
+    && layer.retimeValue && layer.retimeValue.retimingExtrapolation === 1 && layer.timing) {
+    const out = layer.timing.out.timescale > 0 ? layer.timing.out.value / layer.timing.out.timescale : 0;
+    const inn = layer.timing.in.timescale > 0 ? layer.timing.in.value / layer.timing.in.timescale : 0;
+    if (timeSec > out) {
+      // Past this drop zone's lifetime: it loops back to source A and remains
+      // visible as the persistent base. (Before `in` it stays hidden.)
+      if (timeSec >= inn) { visible = true; forceSourceA = true; }
+    }
+  }
   const retimeProgress = getRetimeProgress(layer, timeSec);
   let riggedTransform = applyRigBehaviors(layer, layer.transform, behaviors, widgetValues);
   // Links drive channels from a source object; apply after rig snapshots.
@@ -637,6 +686,19 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
     const inn = layer.timing.in && layer.timing.in.timescale > 0
       ? layer.timing.in.value / layer.timing.in.timescale : 0;
     if (off - inn > 1e-3) curveTime = timeSec - off;
+  }
+  // Filled-shape overlays (e.g. Lights/Flash's white flash rectangles) carry
+  // their opacity/transform curves in the layer's OWN local time frame, anchored
+  // at the layer's timeline `offset`. Motion places local-frame zero at `offset`,
+  // so a shape with offset=0.133s and opacity keyed [-0.133s..0.167s] peaks at
+  // scene time 0.133s and rides down to 0 by 0.3s — producing the mid-transition
+  // white peak. Evaluated at raw scene time the peak wrongly lands at t=0. Shift
+  // curveTime by the offset so the flash centers correctly. SCOPED to solid-fill
+  // shapes with a positive offset (mask/gradient/stroke shapes are untouched).
+  if (layer.type === 'shape' && layer.shape && !layer.shape.isMask && layer.shape.fillColor && layer.timing) {
+    const off = layer.timing.offset && layer.timing.offset.timescale > 0
+      ? layer.timing.offset.value / layer.timing.offset.timescale : 0;
+    if (off > 1e-3) curveTime = timeSec - off;
   }
   const localTransform = buildTransformMatrix(riggedTransform, curveTime, retimeProgress);
   const worldTransform = mat4Multiply(parentTransform, localTransform);
@@ -680,7 +742,24 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   // hidden drivers (e.g. Push's Color Solid) are unaffected.
   const isContentReplicator = layer.type === 'replicator' && layer.cellSourceId !== undefined;
   const drawn = layer.enabled !== false || isContentReplicator;
-  const effectiveOpacity = isContentReplicator ? Math.max(opacity, 1) : opacity;
+  let effectiveOpacity = isContentReplicator ? Math.max(opacity, 1) : opacity;
+  // A forced-A persistent base renders opaque regardless of its (timed-out)
+  // opacity curve, which would otherwise be 0 past the layer's lifetime.
+  if (forceSourceA) effectiveOpacity = 1;
+
+  // A group holding a still-live overlay/base child must stay visible past its own
+  // (timed-out) window so it doesn't gate that child out. Two cases:
+  //  - a forced-A persistent base (Lights/Flash's drop-zone "Group" — out=0.267s
+  //    but keeps showing source A behind the flash), and
+  //  - a non-mask filled-shape overlay whose opacity fade tail outlives the group
+  //    window (Lights/Flash's flash "Group 1" — out=0.267s but the white
+  //    rectangles ride down to opacity 0 at scene 0.3s).
+  if (layer.type === 'group' && !visible && children.some(c =>
+        c.opacity > 0 && (c.forceSourceA
+          || (c.layer.type === 'shape' && c.layer.shape && !c.layer.shape.isMask && c.layer.shape.fillColor)))) {
+    visible = true;
+    if (effectiveOpacity <= 0) effectiveOpacity = 1;
+  }
 
   return {
     layer,
@@ -690,6 +769,7 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
     crop,
     visible: visible && drawn && effectiveOpacity > 0,
     children,
+    forceSourceA,
   };
 }
 
@@ -845,6 +925,31 @@ function evaluateOscillateChannel(b: SceneBehavior, timeSec: number, scene: Motr
 
 export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
   CURRENT_FPS = scene.settings.frameRate || 30;
+  // Detect the "persistent-A-base + overlay" case (e.g. Lights/Flash): a wrapping
+  // drop zone (Retime mode 1) whose lifetime ends well before the scene's true
+  // animation end, WITH a solid-fill-shape overlay that keeps animating. In that
+  // case the drop zone loops back to source A and stays on-screen as the base for
+  // the overlay, instead of vanishing (which would leave an empty frame behind the
+  // flash). Gated on a filled-shape overlay so media-overlay Lights transitions
+  // (Bloom, Light Noise) — whose correct tail is the frozen-A wrap — are untouched.
+  {
+    const end = scene.settings.animationEndSec ?? (scene.settings.duration.value / scene.settings.duration.timescale);
+    const frameSec = CURRENT_FPS > 0 ? 1 / CURRENT_FPS : 1 / 30;
+    let minWrap = Infinity;
+    let hasFilledShapeOverlay = false;
+    (function scan(ls: Layer[]) {
+      for (const l of ls) {
+        if (l.type === 'image' && l.retimeValue && l.retimeValue.retimingExtrapolation === 1
+          && l.retimeValue.keyframes.length >= 2 && l.timing) {
+          const out = l.timing.out.timescale > 0 ? l.timing.out.value / l.timing.out.timescale : 0;
+          if (out > 0 && out < minWrap) minWrap = out;
+        }
+        if (l.type === 'shape' && l.shape && !l.shape.isMask && l.shape.fillColor) hasFilledShapeOverlay = true;
+        scan(l.children);
+      }
+    })(scene.layers);
+    DROPZONE_WRAP_TO_A = hasFilledShapeOverlay && minWrap !== Infinity && end > minWrap + frameSec;
+  }
   const parentTransform = mat4Identity();
   const widgetValues = buildWidgetValueMap(scene.rigWidgets);
   const behaviors = scene.rigBehaviors;
