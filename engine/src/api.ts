@@ -3,6 +3,7 @@ import { evaluate } from './evaluator/index.js';
 import { composite } from './compositor/index.js';
 import { resample } from './compositor/resample.js';
 import { detect360Band, render360Band } from './compositor/transition360.js';
+import { detectLightSweep, renderLightSweep } from './compositor/lightSweep.js';
 import type { MotrScene } from './types.js';
 
 export interface TransitionOptions {
@@ -71,8 +72,25 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
     };
   }
 
-  // Retime wrap threshold: the time (seconds) past which FCP loops the transition
-  // playhead back to the start (t=0) because a drop zone with retimingExtrapolation
+  // Stylized/Cinema — Light Sweep: a Motion-plugin-heavy scene (Gradient/Perlin/
+  // particle Emitter + PAE filters) that renders generically to white garbage. Its
+  // decoded ground truth is image A on a navy backdrop (the Background particle
+  // swatch, gamma-encoded), a mid-transition lens-flare bloom, and a flat-navy tail
+  // once every layer times out (B is never revealed). Handled by a dedicated path.
+  const lightSweep = detectLightSweep(scene);
+  if (lightSweep) {
+    const lw = outW ?? width, lh = outH ?? height;
+    return {
+      scene,
+      width: lw,
+      height: lh,
+      render(imageA: ImageData, imageB: ImageData, progress: number): ImageData {
+        return renderLightSweep(lightSweep, imageA, imageB, progress, lw, lh, opts?.mediaResolver);
+      },
+    };
+  }
+
+  // Retime wrap threshold: the time (seconds) past which FCP loops the transition  // playhead back to the start (t=0) because a drop zone with retimingExtrapolation
   // mode 1 (wrap) has run out its media/lifetime — so the drop zones re-show source
   // A. The loop fires when the FIRST wrapping drop zone times out (its layer
   // timing `out`), which is when the outgoing content disappears. Verified on
