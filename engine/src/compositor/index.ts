@@ -8,7 +8,7 @@ import { lumaKeyerFilter } from './filters/luma-keyer.js';
 import { bevelFilter } from './filters/bevel.js';
 import { evaluateCurve } from '../evaluator/curves.js';
 import { rasterizeShape, applyMask, unionMasks } from './shapes.js';
-import { needsPerspective, projectQuad, renderPerspectiveQuad } from './perspective.js';
+import { needsPerspective, projectQuad, renderPerspectiveQuad, renderPageFlip } from './perspective.js';
 import { blendChannel, isSeparable, luma } from './blend.js';
 import type { BlendMode } from '../types.js';
 import { generateInstances } from './replicator.js';
@@ -498,6 +498,42 @@ function getSourceImage(source: ImageSource | undefined, imageA: ImageData, imag
   }
 }
 
+/** PAEFlop plugin UUID (Movements/Flip's back-page mirror filter). */
+const PAEFLOP_UUID = '2FF8887B-E673-4727-9601-1B3353531C10';
+
+/**
+ * Perspective camera distance for the PAEFlop page-flip. Fit from the headless
+ * GT: the far (receding) edge of the rotating page sits at screen x≈0.87→0.64
+ * across θ=15.7°→78.3°, which a centre-axis rotation reproduces with a camera
+ * ≈7000 units back (much weaker perspective than the 2000 scene default — the
+ * flip is nearly orthographic). PSNR is flat for any camera ≥~6000.
+ */
+const FLIP_CAMERA_Z = 7000;
+
+
+/**
+ * Detect the PAEFlop page-flip pattern (Movements/Flip): a Group whose Rotation Y
+ * is driven 0→π and that holds two full-frame page children, the BACK page (B)
+ * carrying a PAEFlop filter. Returns the front/back page eval-layers plus the
+ * group's current Y-rotation angle θ (radians), or null if this isn't a flip
+ * group. Structural + UUID match only — no name/English heuristics.
+ */
+function detectPageFlip(group: EvaluatedLayer): { front: EvaluatedLayer; back: EvaluatedLayer; theta: number } | null {
+  if (group.layer.type !== 'group') return null;
+  const imgs = group.children.filter(c => (c.layer.type === 'image' || c.layer.type === 'generator') && c.layer.source);
+  if (imgs.length !== 2) return null;
+  const hasFlop = (c: EvaluatedLayer) => c.layer.filters.some(f => f.pluginUUID.toUpperCase() === PAEFLOP_UUID);
+  const back = imgs.find(hasFlop);
+  const front = imgs.find(c => !hasFlop(c));
+  if (!back || !front) return null;
+  // Extract the group's Y-rotation θ from its world transform (Y-rot puts cosθ at
+  // m0 and sinθ at m8 — see mat4RotateY). The flip is only meaningful once the
+  // group actually rotates about Y.
+  const m = group.worldTransform;
+  const theta = Math.atan2(m[8], m[0]);
+  return { front, back, theta };
+}
+
 /**
  * True if `child` is a group layer whose descendant shapes are ALL masks (and it
  * contains at least one mask shape). Such a group exists only to hold masks —
@@ -634,6 +670,35 @@ function renderLayer(
 
   // Render children (back to front = array order)
   if (evalLayer.children.length > 0) {
+    // PAEFlop page-flip (Movements/Flip): render each page hinged on its OUTER
+    // vertical edge instead of the shared group Y-axis. Front page (A) hinges on
+    // its LEFT edge and opens by θ; the back page (B) hinges on its RIGHT edge and
+    // opens by π−θ, so it lies face-on when θ→π. Only the page whose front faces
+    // the camera (open angle < 90°) is drawn, matching FCP's book-page look.
+    const flip = detectPageFlip(evalLayer);
+    if (flip) {
+      const camZ = ctx?.cameraZ ?? 2000;
+      // The single visible page rotates about its centre vertical axis by θ. While
+      // its front faces the camera (θ<90°) source A shows; past edge-on the page's
+      // BACK faces the camera and PAEFlop (Flop=0) mirrors it horizontally so it
+      // reads correctly. The headless reference resolves BOTH pages to source A, so
+      // the same drop-zone media renders throughout.
+      const pastEdge = flip.theta > Math.PI / 2;
+      const page = pastEdge ? flip.back : flip.front;
+      const src = getSourceImage(flip.front.layer.source, imageA, imageB);
+      // Continuous centre-axis rotation by θ (0→π). While the front faces the
+      // camera (θ<90°) source A shows normally; past edge-on the reverse faces the
+      // camera and PAEFlop (Flop=0) mirrors it (mirrorUV) so it reads correctly.
+      // The headless reference resolves BOTH pages to source A → same media
+      // throughout. The far edge recedes only mildly in the GT (fit from the
+      // first-half far-edge screen positions ⇒ camera ≈7000 for a 1080p scene, far
+      // weaker perspective than the 2000 default), so we use FLIP_CAMERA_Z.
+      if (src && page.visible) renderPageFlip(output, src, flip.theta, page.opacity, FLIP_CAMERA_Z, pastEdge);
+      return;
+    }
+
+
+
     // Separate mask shapes from visible children. Masks can be either direct
     // shape children OR nested inside a sub-group whose children are ALL masks
     // (e.g. a "Masks" layer holding several Bezier shapes). In the latter case
