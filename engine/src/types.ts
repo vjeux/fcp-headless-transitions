@@ -546,6 +546,14 @@ export interface RigBehavior {
   paramType: string;
   /** Snapshots: one parameter set per widget value. snapshots[widgetValue] is active. */
   snapshots: Parameter[];
+  /**
+   * Snapshot ids in the SAME order as `snapshots` (document order). A continuous
+   * Widget (e.g. Aspect Ratio) resolves to a snapshot *id* − 1, but snapshots are
+   * stored in document order which is NOT id order (e.g. 5,4,2,1,3,7). Selecting
+   * by array position then picks the wrong snapshot. Keep ids so the evaluator can
+   * match the active snapshot by id and only fall back to positional indexing.
+   */
+  snapshotIds: number[];
 }
 
 export interface MotrScene {

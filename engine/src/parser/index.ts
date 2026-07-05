@@ -1316,8 +1316,13 @@ function parseDropZone(params: Parameter[]): { type: number; width: number; heig
     else if (c.name === 'Width' && c.id === 313 && typeof c.value === 'number') width = c.value;
     else if (c.name === 'Height' && c.id === 314 && typeof c.value === 'number') height = c.value;
   }
-  if (type === undefined || width === undefined || height === undefined) return undefined;
-  return { type, width, height };
+  // Width/Height define the drop-zone FRAME (the square/rect canvas the source
+  // media is fit into before crop/scale). A missing Type (id 321) is fine — the
+  // "clone"-style drop zones (Replicator/Multi grid panels) omit it but still
+  // declare a Width×Height frame. Default Type to 0 so those panels are framed
+  // (their Crop is expressed in FRAME space, not source-pixel space).
+  if (width === undefined || height === undefined) return undefined;
+  return { type: type ?? 0, width, height };
 }
 
 function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map<number, 'A' | 'B'>): Layer {
@@ -1823,14 +1828,16 @@ function parseRigBehaviors(sceneEl: Element): RigBehavior[] {
 
     // Parse the snapshot parameters (one per widget value)
     const snapshots: Parameter[] = [];
+    const snapshotIds: number[] = [];
     let paramType = '';
     for (const snapEl of directChildren(snapshotsParam, 'parameter')) {
       const snap = parseParameter(snapEl);
       if (!paramType) paramType = snap.name;
       snapshots.push(snap);
+      snapshotIds.push(parseInt(snapEl.getAttribute('id') || '0', 10));
     }
 
-    behaviors.push({ affectedObjectId, widgetId, paramType, snapshots });
+    behaviors.push({ affectedObjectId, widgetId, paramType, snapshots, snapshotIds });
   }
   return behaviors;
 }

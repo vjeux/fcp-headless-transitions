@@ -412,6 +412,14 @@ function applyRigBehaviors(
     // Round to nearest integer and clamp to the valid snapshot range.
     let snapIndex = Math.round(rawValue);
     snapIndex = Math.max(0, Math.min(behavior.snapshots.length - 1, snapIndex));
+    // A continuous Widget resolves to a snapshot *id* − 1 (see parser's
+    // resolveContinuousWidgetIndex). But snapshots are stored in DOCUMENT order,
+    // which is not id order (e.g. Replicator/Multi's aspect rig: ids 5,4,2,1,3,7).
+    // Prefer matching the active snapshot by id (id === widgetValue+1); fall back
+    // to positional indexing when there is no id match (discrete-widget rigs whose
+    // snapshot ids already equal index+1 are unaffected).
+    const byId = behavior.snapshotIds.indexOf(snapIndex + 1);
+    if (byId >= 0) snapIndex = byId;
     const snapshot = behavior.snapshots[snapIndex];
     if (!snapshot) continue;
 
@@ -716,6 +724,18 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   }
   const retimeProgress = getRetimeProgress(layer, timeSec);
   let riggedTransform = applyRigBehaviors(layer, layer.transform, behaviors, widgetValues);
+  // A drop-zone-FRAMED grid panel (declares a SQUARE Width×Height frame, e.g. the
+  // Replicator/Multi 1920×1920 panels) carries an authoritative STATIC Scale (e.g.
+  // 0.32) that must NOT be ramped from 1.0 by the Retime static-position heuristic —
+  // Motion retime only advances the media playback frame, never the panel's layout
+  // scale. Ramping it inflates the panels ~3x early in the transition. Mark scale as
+  // an override so buildTransformMatrix uses the scenenode value directly. Scoped to
+  // SQUARE framed drop zones so full-frame Transition A/B (1920×1080) and ordinary
+  // retimed layers are unaffected.
+  if (layer.type === 'image' && layer.dropZone && layer.dropZone.width === layer.dropZone.height) {
+    const ov = riggedTransform.__overrideChannels ?? (riggedTransform.__overrideChannels = new Set<string>());
+    ov.add('scaleX'); ov.add('scaleY'); ov.add('scaleZ');
+  }
   // Links drive channels from a source object; apply after rig snapshots.
   riggedTransform = applyLinks(layer, riggedTransform, linksByTarget, layerById, widgetValues, timeSec);
   // Scene Ramp behaviors that drive transform channels (rotation/position/scale)
@@ -878,6 +898,8 @@ function computeFilterOverrides(scene: MotrScene, timeSec: number, widgetValues:
     const rawValue = widgetValues.get(behavior.widgetId) ?? 0;
     let snapIndex = Math.round(rawValue);
     snapIndex = Math.max(0, Math.min(behavior.snapshots.length - 1, snapIndex));
+    const byId = behavior.snapshotIds.indexOf(snapIndex + 1);
+    if (byId >= 0) snapIndex = byId;
     const snapshot = behavior.snapshots[snapIndex];
     if (!snapshot) continue;
 
