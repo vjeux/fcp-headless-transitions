@@ -21,7 +21,7 @@ The two drop-zone element IDs (A/B) are Push's; render_frame passes them through
 but the media-ref hook in oz_render.dylib actually assigns sources by call order,
 so they work for every template. Pass 0,0 to rely purely on call-order.
 """
-import ctypes, os
+import ctypes, os, re, tempfile
 
 FW = "/Applications/Final Cut Pro.app/Contents/Frameworks"
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -223,12 +223,113 @@ def init_engine():
     _engine_ready = True
 
 
+# ---- Rig-widget popup INDEX->TAG remap (generic directional-transition fix) ----
+#
+# ROOT CAUSE (2026-07-06, verified lldb + disasm + runtime trace + pixel): a Motion rig
+# widget (OZRigWidget) selects which snapshot to apply by EXACT-matching the widget's
+# popup channel value against each snapshot's "Value" channel
+# (OZRigWidget::getSnapshotIDsForValue, widgetType==2: |value - snapValue| < 1.27e-7,
+# reached via getCurrentSnapshotIDs -> OZChannel::getValueAsDouble on the popup channel at
+# this+0x438). A runtime breakpoint on a headless Push render showed the Direction rig fed
+# value 2.0 -> matched snapshot Value==2 -> "dir2" geometry (14.48 dB vs FCP's GUI).
+#
+# A rig popup carries a MENU whose <entry> elements each have an explicit TAG. The popup
+# channel stores the selected menu-list INDEX. When FCP applies a transition, a PUBLISHED
+# rig popup (exposed to the FCP inspector via <publishSettings>) is fed the TAG of the menu
+# entry at the stored index — the editor's index->tag mapping — whereas the raw stored
+# index reaches the rig headless. For ASCENDING-tag menus (tags == sorted(tags)) index==tag
+# so this is invisible; the bug only surfaces for PERMUTED-tag menus.
+#
+# Movements/Push is the sole shipped offender: its PUBLISHED Direction popup has value="2",
+# menu tags [LtR=0, RtL=3, TtB=1, BtT=2] (permuted) and snapshot Values [0,1,2,3]. Headless
+# fed 2 -> snapshot Value==2 -> dir2 (14.48 dB). FCP's GUI feeds tags[index=2]==1 -> snapshot
+# Value==1 -> dir1 (23.22 dB). The fix replays this index->tag lookup, gated on TWO conditions
+# so it is a strict no-op for everything else:
+#   (1) the popup is PUBLISHED (its object+channel appears in <publishSettings>) — this
+#       EXCLUDES internal rigs such as the Blurs Gaussian/Radial "Pop-up" rig, which share
+#       Push's exact permuted-tag structure but are fed their raw value (verified: remapping
+#       them regressed Gaussian 26.40->22.86 and Radial 23.69->19.73), and
+#   (2) the menu tags are PERMUTED (tags != sorted(tags)).
+# Across all 65 shipped templates only Push's Direction popup satisfies both with a nonzero
+# stored index; every other published/unpublished popup is left byte-for-byte untouched.
+# Fully generic — driven purely by each template's OWN <publishSettings> + <entry tag> tables,
+# NO per-transition constants.
+_RIG_POPUP_RE = re.compile(
+    r'<parameter name="(?P<name>[^"]+)" id="100" flags="(?P<flags>[^"]*)" '
+    r'default="(?P<default>[^"]*)" value="(?P<value>[^"]*)">'
+    r'(?P<entries>\s*(?:<entry[^>]*/>\s*)+)</parameter>')
+_ENTRY_RE = re.compile(r'<entry name="[^"]*" tag="(-?\d+)"/>')
+_PUBLISH_RE = re.compile(r'<publishSettings>(.*?)</publishSettings>', re.S)
+# published targets that point at a popup selection channel (".../100")
+_PUBTARGET_RE = re.compile(r'<target object="\d+" channel="[^"]*100" name="(?P<name>[^"]+)"/>')
+_remap_cache = {}
+
+
+def _rig_popup_index_to_tag(motr_path):
+    """Return a path to a .motr whose PUBLISHED + PERMUTED-tag rig-popup channels store the
+    menu TAG at the stored INDEX (FCP's editor semantics) instead of the raw index. All
+    other popups (unpublished internal rigs, ascending-tag menus) are left unchanged, so
+    for all but Push this returns the ORIGINAL path (strict no-op). Cached per source path."""
+    try:
+        st = os.stat(motr_path)
+    except OSError:
+        return motr_path
+    key = (motr_path, st.st_mtime_ns)
+    cached = _remap_cache.get(key)
+    if cached is not None:
+        return cached
+    try:
+        with open(motr_path, encoding='utf-8', errors='replace') as f:
+            txt = f.read()
+    except OSError:
+        return motr_path
+
+    pub = _PUBLISH_RE.search(txt)
+    published_popups = set(_PUBTARGET_RE.findall(pub.group(1))) if pub else set()
+    changed = [False]
+
+    def _sub(mo):
+        # (1) only PUBLISHED popups get the editor's index->tag treatment.
+        if mo.group('name') not in published_popups:
+            return mo.group(0)
+        entries = [int(t) for t in _ENTRY_RE.findall(mo.group('entries'))]
+        if not entries:
+            return mo.group(0)
+        # (2) ascending tags => index order == tag order => raw value already correct.
+        if entries == sorted(entries):
+            return mo.group(0)
+        try:
+            idx = int(float(mo.group('value')))
+        except ValueError:
+            return mo.group(0)
+        if not (0 <= idx < len(entries)):
+            return mo.group(0)
+        tag = entries[idx]
+        if tag == idx:
+            return mo.group(0)
+        changed[0] = True
+        # replace only the value="..." of THIS param header (first occurrence in match)
+        return mo.group(0).replace(f'value="{mo.group("value")}">',
+                                   f'value="{tag}">', 1)
+
+    out = _RIG_POPUP_RE.sub(_sub, txt)
+    if not changed[0]:
+        _remap_cache[key] = motr_path
+        return motr_path
+    tf = tempfile.NamedTemporaryFile(prefix='ozrig_', suffix='.motr', delete=False)
+    tf.write(out.encode('utf-8'))
+    tf.close()
+    _remap_cache[key] = tf.name
+    return tf.name
+
+
 def load_doc(motr_path):
     """Load one .motr document into the already-initialized engine. Returns the
     C++ OZScene doc ptr. Cheap relative to init_engine() — safe to call per
     transition in a batch. Auto-inits the engine on first call."""
     if not _engine_ready:
         init_engine()
+    motr_path = _rig_popup_index_to_tag(motr_path)
     doc = _OZDoc.alloc().init()
     ok, _ = doc.readFromURL_ofType_error_(_NSURL.fileURLWithPath_(motr_path), DOC_TYPE, None)
     if not ok:
