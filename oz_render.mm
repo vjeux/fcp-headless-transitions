@@ -134,19 +134,36 @@ static int oz_install_hook(void* target){
 }
 
 // ---- Helpers ----
-// Decode an image file to premultiplied ARGB8, returns malloc'd buffer + dims.
+// Output (sequence) resolution the sources are conformed to. FCP applies a Spatial
+// Conform to each drop-zone source so it maps into the sequence frame; headless must
+// do the same or the source renders at native size, centered — leaving black borders
+// (the ~18dB "geometric floor" vs the GUI). See GUI_GT_STATUS.md 2026-07-06.
+static int g_outW = 1920;
+static int g_outH = 1080;
+
+// Decode an image file to premultiplied ARGB8, CONFORMED to the sequence frame
+// (g_outW x g_outH), returns malloc'd buffer + conformed dims. Conform = Fit:
+// scale preserving aspect so the whole image is visible, centered (letterbox only
+// when the source aspect differs from the frame; for matching aspects this fills).
 static void* loadRGBA(const char* path, int* W, int* H){
     CFStringRef p=CFStringCreateWithCString(NULL,path,kCFStringEncodingUTF8);
     CFURLRef u=CFURLCreateWithFileSystemPath(NULL,p,kCFURLPOSIXPathStyle,false);
     CGImageSourceRef src=CGImageSourceCreateWithURL(u,NULL);
     if(!src){ fprintf(stderr,"[oz] cannot open image: %s\n",path); return NULL; }
     CGImageRef img=CGImageSourceCreateImageAtIndex(src,0,NULL);
-    int w=(int)CGImageGetWidth(img), h=(int)CGImageGetHeight(img);
-    *W=w; *H=h;
-    void* buf=malloc((size_t)w*h*4);
+    int sw=(int)CGImageGetWidth(img), sh=(int)CGImageGetHeight(img);
+    int ow=g_outW, oh=g_outH;
+    *W=ow; *H=oh;
+    void* buf=malloc((size_t)ow*oh*4);
+    memset(buf,0,(size_t)ow*oh*4);
     CGColorSpaceRef cs=CGColorSpaceCreateDeviceRGB();
-    CGContextRef ctx=CGBitmapContextCreate(buf,w,h,8,w*4,cs,kCGImageAlphaPremultipliedFirst|kCGBitmapByteOrder32Big);
-    CGContextDrawImage(ctx,CGRectMake(0,0,w,h),img);
+    CGContextRef ctx=CGBitmapContextCreate(buf,ow,oh,8,ow*4,cs,kCGImageAlphaPremultipliedFirst|kCGBitmapByteOrder32Big);
+    CGContextSetInterpolationQuality(ctx,kCGInterpolationHigh);
+    // Spatial Conform = Fit: max scale s.t. the whole source fits inside the frame.
+    double s = fmin((double)ow/sw, (double)oh/sh);
+    double dw = sw*s, dh = sh*s;
+    double dx = (ow-dw)*0.5, dy = (oh-dh)*0.5;
+    CGContextDrawImage(ctx,CGRectMake(dx,dy,dw,dh),img);
     return buf;
 }
 // Build a Motion render-graph image node from RGBA8 pixels, centered at the frame origin.

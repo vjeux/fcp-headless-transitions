@@ -241,6 +241,131 @@ def _visible_end_seconds(doc, img_a, img_b, end):
     return lo + 1e-4
 
 
+def _areturn_end_seconds(doc, img_a, img_b, end, log=None):
+    """Trim `end` down past a SOURCE-A-RETURN tail so the final sampled frame settles
+    on target B instead of looping back to source A. GENERIC + measurement-driven.
+
+    THE BUG THIS FIXES (distinct from `_visible_end_seconds`, which only trims a BLACK
+    loop-point tail): for ~21 transitions `animation_end_seconds` overshoots the true
+    transition end into FCP's retime-wrap loop-point where the drop zones re-show
+    source A. The tail is NOT black — it is *sepia source A*. The transition genuinely
+    reaches B mid-sequence and then wraps/ramps back to A, so the cached GT wrongly ENDS
+    ON A. An engine that correctly settles on B is penalized. Confirmed example:
+    Wipes/Diagonal reaches full B at ~95% then the final keyframe re-shows source A.
+
+    DETECTION (all measured on rendered scratch frames — the render IS the ground truth):
+      1. Render f0 (== source A reference) once.
+      2. Sample the window (0, end] at frame resolution; per sample compute
+         d0 = mean|frame - f0|      (how far from source A)  and
+         warmth = mean(R) - mean(B) (source A ≈ +75 warm, target B ≈ -47 cold).
+      3. NO A-RETURN if the LAST frame is still far from f0 (d0_last >= FAR): it ends on
+         content (B or the effect climax), not A. Return `end` UNCHANGED. This protects
+         every correctly-settling transition (Push: d0_last≈63, warmth≈-44 -> untouched).
+      4. Otherwise the tail has collapsed back to ≈A (d0_last small). We only trim when
+         the transition demonstrably REACHED B: some sample must be clearly COLD
+         (warmth <= B_WARM). The target for THIS benchmark's A/B pair is cold-blue B;
+         a peak that is merely gray/white/edge-on (warmth ≈ 0) or still warm is NOT B —
+         those are left alone and flagged UNSURE (see below). This is what distinguishes
+         "reached B then wrapped to A" (trim) from a flip/switch/curtain whose headless
+         render never composites the cold-B face, and from an authored A->B->A round
+         trip whose peak isn't cold-B (e.g. Flash's WHITE flash).
+      5. Trim `end` to the END of the cold-B plateau: the largest time whose frame is
+         within COLD_MARGIN of the coldest (most-B) frame. Sampling N frames over the
+         shorter [0, new_end] then yields a clean A->B ending squarely on B.
+
+    CONSERVATISM / UNSURE (returns `end` unchanged, logs UNSURE):
+      - No sample reaches cold-B (warmth never <= B_WARM): the effect never resolves to
+        B in the headless render (Flip/Switch/Multi-flip/Diagonal/Glide/Slide/Static/
+        Curtains/Earthquake/Color_Planes/Light_Noise/Concentric/Smear). Trimming would
+        end on a gray/edge frame that does NOT resemble B — so DON'T. Different owner.
+      - Transition never really progressed (peak d0 < MIN_PROGRESS): degenerate; skip.
+      - Distinguishing an AUTHORED A->B->A round trip (legit, e.g. Stylized/Heart) from
+        a retime-wrap return is not decidable from pixels alone when BOTH smoothly
+        reach cold-B and return. Those legit round trips are GUARDS handled by the
+        caller's allowlist (they are never passed to a re-render), so this function is
+        only invoked on the 21 known retime-wrap a-return slugs; the cold-B gate above
+        still keeps it from firing on any non-B-resolving transition.
+
+    Only active when opted-in (FCT_ATRIM=1 or --atrim) — see `_render_one` — because
+    the cold-B anchor is calibrated to this benchmark's warm-sepia->cold-blue A/B pair.
+    """
+    import tempfile
+    import numpy as np
+    FAR = 15.0          # d0 >= FAR  => frame still shows content (not source A)
+    B_WARM = -25.0      # warmth <= B_WARM => distinctly cold-blue B side (B ref ≈ -47)
+    B_MINCH = 40.0      # coldest frame's min channel must be >= this (B ref min ch ≈ 100);
+                        # rejects dark/crushed/tinted false-B (Slide's [4,92,86] warmth -82)
+    MIN_PROGRESS = 15.0 # peak d0 must exceed this or the transition never happened
+    COLD_MARGIN = 6.0   # frames within this of the coldest are "on the B plateau"
+    N = 48              # dense enough to locate the B plateau + its trailing edge
+
+    def _frame(t):
+        fd, tmp = tempfile.mkstemp(suffix=".png"); os.close(fd)
+        try:
+            ozengine.render_frame(doc, img_a, img_b, t, tmp)
+            a = np.asarray(__import__("PIL.Image", fromlist=["Image"]).open(tmp).convert("RGB"), dtype="float32")
+            return a
+        finally:
+            try: os.remove(tmp)
+            except OSError: pass
+
+    ts = [(i / (N - 1)) * end for i in range(N)]
+    ts[-1] = end - 1e-4
+    f0 = _frame(0.0)
+    d0 = np.empty(N); warmth = np.empty(N); minch = np.empty(N)
+    for i, t in enumerate(ts):
+        fr = _frame(t)
+        d0[i] = float(np.abs(fr - f0).mean())
+        chan = fr.reshape(-1, 3).mean(axis=0)  # [R,G,B] mean
+        warmth[i] = float(chan[0] - chan[2])
+        minch[i] = float(chan.min())
+
+    def _log(msg):
+        if log is not None: log(msg)
+
+    # (3) Last frame still shows content => no A-return. Untouched.
+    if d0[-1] >= FAR:
+        _log(f"atrim: no A-return (d0_last={d0[-1]:.1f} >= {FAR}); end unchanged {end:.4f}s")
+        return end
+    # (4a) Transition never progressed.
+    peak = float(d0.max())
+    if peak < MIN_PROGRESS:
+        _log(f"atrim: UNSURE — no progression (peak d0={peak:.1f} < {MIN_PROGRESS}); end unchanged")
+        return end
+    # (4b) Must reach clearly cold-B somewhere, else the peak isn't B -> UNSURE.
+    cold_min = float(warmth.min())
+    if cold_min > B_WARM:
+        _log(f"atrim: UNSURE — never resolves to cold-B (min warmth={cold_min:.1f} > {B_WARM}); "
+             f"end unchanged (not a B-ending transition in headless render)")
+        return end
+    # (4c) The cold frame must actually LOOK like target B (all channels substantial —
+    # B ref ≈ [100,116,147]), not a dark/crushed/tinted intermediate whose warmth is
+    # negative only because one channel is crushed to ~0 (e.g. Stylized/Slide's dark
+    # green-cyan wipe state RGB≈[4,92,86], warmth -82 but NOT source B). Require the
+    # coldest frame's min channel >= B_MINCH so a tinted false-B is rejected -> UNSURE.
+    coldest_i = int(warmth.argmin())
+    if minch[coldest_i] < B_MINCH:
+        _log(f"atrim: UNSURE — coldest f{coldest_i} is a crushed/tinted color "
+             f"(minChannel={minch[coldest_i]:.1f} < {B_MINCH}, warmth={cold_min:.1f}), "
+             f"not source B; end unchanged")
+        return end
+    # (5) Trim to the trailing edge of the cold-B plateau.
+    plateau = [i for i in range(N) if warmth[i] <= cold_min + COLD_MARGIN and minch[i] >= B_MINCH]
+    end_i = max(plateau)
+    # Guard: the chosen frame must itself be B-content (far from A) — belt & suspenders.
+    if d0[end_i] < FAR:
+        _log(f"atrim: UNSURE — B-plateau edge f{end_i} not content-bearing (d0={d0[end_i]:.1f}); end unchanged")
+        return end
+    new_end = ts[end_i] + 1e-4
+    if new_end >= end:
+        _log(f"atrim: B-plateau already at window end; end unchanged {end:.4f}s")
+        return end
+    _log(f"atrim: A-return trimmed {end:.4f}s -> {new_end:.4f}s "
+         f"(coldB f{coldest_i} warmth={cold_min:.1f}, plateau edge f{end_i} "
+         f"warmth={warmth[end_i]:.1f} d0={d0[end_i]:.1f}, was d0_last={d0[-1]:.1f})")
+    return new_end
+
+
 def _render_one(motr, img_a, img_b, outdir, nframes):
     """Render one transition's frames into outdir. Assumes engine is initialized."""
     os.makedirs(outdir, exist_ok=True)
@@ -258,6 +383,14 @@ def _render_one(motr, img_a, img_b, outdir, nframes):
     # drop-zone `out`, e.g. Stylized/Close & Open). Push/Gaussian/etc. — whose final
     # frame is already valid source B — are returned untouched.
     end = _visible_end_seconds(doc, img_a, img_b, end)
+    # Source-A-RETURN correction (retime-wrap loop-point re-shows sepia source A, not
+    # black — so `_visible_end_seconds`' black-only trim misses it). Opt-in via
+    # FCT_ATRIM=1 because the cold-B anchor is calibrated to this benchmark's
+    # warm-sepia->cold-blue A/B pair; fully generic within that pair and a no-op for
+    # any transition whose final frame already shows content (Push et al.).
+    if os.environ.get("FCT_ATRIM") == "1":
+        end = _areturn_end_seconds(doc, img_a, img_b, end,
+                                   log=lambda m, _o=outdir: print(f"  [{os.path.basename(_o)}] {m}", flush=True))
     for i in range(nframes):
         p = i / (nframes - 1) if nframes > 1 else 0.0
         t = p * end
