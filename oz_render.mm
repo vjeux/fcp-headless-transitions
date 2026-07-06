@@ -57,6 +57,12 @@ extern BmpRet  PGHelium_renderNodeToBitmap(void* hgr, const HGRefNode& node,
 extern void  PCBitmap_vimage(void*, void*) asm("__ZNK8PCBitmap15getVImageBufferEP13vImage_Buffer");
 extern GRRet OZXGetRenderGraph(void* scene, void* params, void* svctx, void* glr, bool b, void* hgr)
     asm("__Z17OZXGetRenderGraphP7OZScene14OZRenderParamsP11FFSVContextR10GLRendererbP10HGRenderer");
+// HGRenderer::GetDOD(HGNode*) -> HGRect : the node's Domain Of Definition (actual pixel bounds).
+// Used to make the readback ROI aperture-aware: some templates (Squares, 360°) render into a
+// larger canvas with the 1920x1080 content CENTERED; a hardcoded {0,0,1920,1080} then grabs a
+// corner (quadrant), leaving most of the frame black. GetDOD gives the true output extent so we
+// can center the 1920x1080 readback window on it.
+extern HGRect HGRenderer_GetDOD(void* hgr, void* node) asm("__ZN10HGRenderer6GetDODEP6HGNode");
 // The transition's media-ref resolver we hook (its address is patched at runtime):
 extern "C" void ozimg_getHeliumGraphFromMediaRef()
     asm("__ZN14OZImageElement26getHeliumGraphFromMediaRefERK14OZRenderParamsR18FxColorDescription");
@@ -229,7 +235,39 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
     CGColorSpace* ws=OZRenderParams_getWorkingColorSpace(params);
     if(!ws) ws=CGColorSpaceCreateDeviceRGB();
     void* liTech=params+0x55c;                            // LiRenderingTechnology lives inside OZRenderParams
+    // Aperture-aware readback: query the output node's Domain-Of-Definition (true pixel bounds)
+    // and center a 1920x1080 readback window on the DOD center. Most transitions have a DOD centered
+    // at the frame center (~960,540, possibly with a small filter bleed margin) -> ROI {0,0,...}.
+    // But some templates (Squares, and 360°) use Object3DEnvironments / a large canvas that places
+    // the 1920x1080 content OFF-CENTER (Squares DOD = [1088,540..3008,1620], center (2048,1080));
+    // a hardcoded {0,0,1920,1080} then reads a corner quadrant (78% black, ~7dB). Centering on the
+    // DOD center captures the full composite for both cases with no per-template special-casing.
     PCRectT<int> roi={0,0,1920,1080};
+    {
+        HGRect dod = HGRenderer_GetDOD(hgr, out.p);
+        // HGRect packs two int32 corner pairs: a={x0,y0}(min), b={x1,y1}(max).
+        int dx0=(int)(int32_t)(dod.a & 0xffffffff), dy0=(int)(int32_t)(dod.a >> 32);
+        int dx1=(int)(int32_t)(dod.b & 0xffffffff), dy1=(int)(int32_t)(dod.b >> 32);
+        int dw=dx1-dx0, dh=dy1-dy0;
+        if(getenv("OZ_DOD_DEBUG")) fprintf(stderr,"[oz] DOD x0=%d y0=%d x1=%d y1=%d (w=%d h=%d)\n",dx0,dy0,dx1,dy1,dw,dh);
+        // Sanity: only trust a plausible DOD (positive, not absurdly large). Then center the
+        // 1920x1080 readback window on the DOD center.
+        if(dw > 0 && dh > 0 && dw <= 8192 && dh <= 8192){
+            int cx = dx0 + dw/2, cy = dy0 + dh/2;
+            // Only re-center when the DOD center is clearly off the normal frame center (960,540).
+            // Normal transitions have a symmetric bleed margin -> center within a few px of (960,540);
+            // keeping the exact {0,0,1920,1080} for them avoids sub-pixel ROI drift regressions on the
+            // 56 already-good transitions. Off-center canvases (Squares center (2048,1080), 360°) deviate
+            // by hundreds of px and get corrected.
+            if(abs(cx-960) > 32 || abs(cy-540) > 32){
+                roi.x = cx - 960;
+                roi.y = cy - 540;
+                roi.w = 1920; roi.h = 1080;
+                if(getenv("OZ_DOD_DEBUG")) fprintf(stderr,"[oz] centered ROI %d,%d,1920,1080 (dod center %d,%d)\n",roi.x,roi.y,cx,cy);
+            }
+        }
+    }
+    { const char* e=getenv("OZ_ROI"); if(e){ int x,y,w,h; if(sscanf(e,"%d,%d,%d,%d",&x,&y,&w,&h)==4){ roi.x=x;roi.y=y;roi.w=w;roi.h=h; fprintf(stderr,"[oz] OZ_ROI override %d,%d,%d,%d\n",x,y,w,h);} } }  // debug-only manual override
     BmpRet br=PGHelium_renderNodeToBitmap(hgr,out,roi,channelOrder?channelOrder:1,ws,liTech);
     if(!br.p){ fprintf(stderr,"[oz] rasterize failed\n"); return 4; }
 
