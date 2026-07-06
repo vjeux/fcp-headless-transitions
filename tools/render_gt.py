@@ -53,6 +53,93 @@ RETIME_PARAMS = {
     "Amount", "Angle",
 }
 
+def _playrange_seconds(xml):
+    """The transition's <playRange duration="val scale ..."> in seconds, or None.
+
+    playRange is the AUTHORED transition span (the duration the drop-zone media is
+    laid across in the .motr timeline). For most transitions it agrees with the
+    max-spatial-keyframe `animation_end_seconds` to within a frame. For a FEW,
+    `animation_end_seconds` OVERSHOOTS it badly because the max keyframe sits on a
+    post-settle bounce/hold/decay keyframe that is PAST the visual A->B transition
+    (the transition has already reached B and is just holding/settling). Sampling
+    the render across that inflated window compresses the real motion into the first
+    handful of frames and wastes the rest on dead/held content -> a large PSNR loss
+    vs the GUI GT (which spans exactly the transition). See `_clamp_to_playrange`."""
+    m = re.search(r'playRange[^>]*duration="(\d+)\s+(\d+)', xml)
+    if m and int(m.group(2)) > 0:
+        return int(m.group(1)) / int(m.group(2))
+    return None
+
+
+# Overshoot ratio above which a Movements-family transition's animation_end is
+# considered a keyframe-max leak past the visual transition and is clamped down to
+# its authored playRange. Empirically (all 65 templates) within the Movements family
+# ONLY Drop_In (ratio 2.11) and Smear (ratio 2.83) exceed this; every guard that
+# currently renders correctly (Rotate 0.95, Pinwheel 1.00, Fall 0.98, Flashback 0.98,
+# Clothesline 0.98, Reflection 0.98, Earthquake 1.27, Multi-flip 1.34, Black_Hole 1.45)
+# stays UNDER it, so the clamp is targeted-but-principled and cannot touch them. Of the
+# two that exceed it, Smear is further gated OUT by the effect-filter check below (its
+# overshoot is filter/rig-driven, not a spatial-keyframe leak), so the clamp fires on
+# Drop_In alone across all 65 templates.
+# NOTE (deliberately conservative): this is NOT a universal playRange swap. Other
+# families have transitions whose animation_end legitimately (or for owner-specific
+# reasons) exceeds playRange (e.g. Wipes/Mask, several Stylized/*, Lights/Flash) and
+# clamping THOSE would REGRESS them / step on other pool workers — so the clamp is
+# scoped to the Movements family, which this worker owns.
+_PLAYRANGE_OVERSHOOT_RATIO = 1.5
+
+# Effect-filter plugins whose PRESENCE means the transition's overshoot is driven by
+# the FILTER's own parameter animation (a fast directional-blur / smear sweep), NOT by
+# post-settle spatial-motion keyframes. For those, clamping the SPAN to playRange does
+# not recover the missing effect/rig content — empirically it is a no-op-or-slight-loss
+# (Smear: playRange-clamp 9.02 dB vs unclamped 9.19 dB; the gap is g1's rig-direction,
+# not timing). So the span clamp is restricted to pure spatial-motion Movements (no
+# effect filter), where the overshoot IS a keyframe-max leak past the drop/settle
+# (Drop_In: playRange-clamp 9.23 dB vs unclamped 7.74 dB). This keeps the rule
+# principled and prevents it from touching effect-driven transitions.
+_EFFECT_FILTER_PLUGINS = ("DirectionalBlur", "Smear")
+
+
+def _is_movements_family(motr_path):
+    """True for a Movements-family transition template (path-based). Scopes the
+    playRange clamp to this worker's family so it can never affect Wipes/Stylized/
+    Lights/etc. transitions owned by other pool workers."""
+    return "Movements.localized" in (motr_path or "")
+
+
+def _clamp_to_playrange(motr_path, end, xml=None):
+    """Clamp a Movements-family `animation_end` down to the authored playRange when
+    it overshoots by more than `_PLAYRANGE_OVERSHOOT_RATIO` (see rationale above).
+
+    Purely structural (XML only, no render) so it applies uniformly wherever
+    `animation_end_seconds` is consumed (render_gt._render_one AND score_slug.py).
+    GENERIC within the Movements family: keyed on the overshoot ratio, not on slug
+    names. A no-op (returns `end` unchanged) for:
+      - non-Movements templates (family gate),
+      - templates with no parseable playRange,
+      - Movements transitions whose animation_end is within 1.5x of playRange
+        (i.e. every currently-correct Movements transition)."""
+    if end <= 0 or not _is_movements_family(motr_path):
+        return end
+    if os.environ.get("FCT_NO_PLAYRANGE_CLAMP") == "1":
+        return end  # A/B measurement escape hatch (does not affect normal runs)
+    if xml is None:
+        try:
+            xml = open(motr_path, "r", encoding="utf-8", errors="ignore").read()
+        except OSError:
+            return end
+    pr = _playrange_seconds(xml)
+    if pr and pr > 0 and end > _PLAYRANGE_OVERSHOOT_RATIO * pr:
+        # Effect-filter transitions (e.g. Smear's DirectionalBlur) overshoot because of
+        # the FILTER's own animation, not a post-settle spatial-keyframe leak; clamping
+        # their span does not help (see _EFFECT_FILTER_PLUGINS). Leave them to the
+        # effect/rig owners. Only clamp pure spatial-motion Movements (e.g. Drop_In).
+        if any(('pluginName="%s"' % p) in xml for p in _EFFECT_FILTER_PLUGINS):
+            return end
+        return pr
+    return end
+
+
 def _scene_duration_seconds(xml):
     """Fallback animation end for keyframe-less transitions (e.g. Blurs/Zoom).
 
@@ -141,6 +228,8 @@ def animation_end_seconds(motr_path):
         # engine on DIFFERENT time domains (a silent PSNR killer for Swing et al.).
         xml = open(motr_path, "r", encoding="utf-8", errors="ignore").read()
         max_t = _scene_duration_seconds(xml)
+    # Movements-family playRange overshoot clamp (Drop_In/Smear keyframe-max leak).
+    max_t = _clamp_to_playrange(motr_path, max_t)
     return max_t
 
 
@@ -169,6 +258,7 @@ def _animation_end_seconds_linescan(motr_path):
                     max_t = sec
     if max_t <= 0:
         max_t = _scene_duration_seconds(xml)
+    max_t = _clamp_to_playrange(motr_path, max_t, xml=xml)
     return max_t
 
 def _frame_mean(png_path):
