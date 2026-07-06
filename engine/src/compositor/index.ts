@@ -484,6 +484,42 @@ function createBuffer(width: number, height: number): ImageData {
 }
 
 /**
+ * Destination-space bounding box a forward-transformed (cropped) source rect
+ * covers, in DST pixel coords. Maps the four crop-bounded source corners through
+ * the affine `m` (source-centered → dest-centered, Y-down) using the ACTUAL dst
+ * dims — so it works when src and dst differ in size (unlike transformBBoxToOutput,
+ * which is for full-frame same-size cell buffers). Padded 1px for bilinear reach.
+ *
+ * PERF: passed as `dstBBox` to blitTransformed so the inverse-map loop only visits
+ * pixels the source can actually cover. Pixels outside this box would fail the
+ * existing in-bounds `continue`, so restricting the loop is BYTE-IDENTICAL — it
+ * just skips the wasted iterations. Big win for scenes with many small transformed
+ * layers (Movements/Pinwheel: 34 clones, each a small rotated wedge, previously
+ * scanned the full 1920×1080 frame apiece → 73% of frame time in blitTransformed).
+ */
+function blitDstBBox(
+  dst: ImageData, src: ImageData, m: Float64Array,
+  crop: { left: number; right: number; top: number; bottom: number },
+): { x0: number; y0: number; x1: number; y1: number } {
+  const sw = src.width, sh = src.height;
+  const dw = dst.width, dh = dst.height;
+  const sl = crop.left, sr = sw - crop.right, st = crop.top, sb = sh - crop.bottom;
+  const a = m[0], b = m[4], tx = m[12];
+  const c = m[1], d = m[5], ty = m[13];
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const cs: [number, number][] = [[sl, st], [sr, st], [sl, sb], [sr, sb]];
+  for (const [px, py] of cs) {
+    const scx = px - sw / 2, scy = py - sh / 2;
+    const dcx = a * scx + b * scy + tx;
+    const dcy = c * scx + d * scy + ty;
+    const ox = dcx + dw / 2, oy = dcy + dh / 2;
+    if (ox < x0) x0 = ox; if (ox > x1) x1 = ox;
+    if (oy < y0) y0 = oy; if (oy > y1) y1 = oy;
+  }
+  return { x0: Math.floor(x0) - 1, y0: Math.floor(y0) - 1, x1: Math.ceil(x1) + 1, y1: Math.ceil(y1) + 1 };
+}
+
+/**
  * Blit a source image onto a destination at an affine transform.
  * Uses inverse-mapping: for each output pixel, find the corresponding source pixel.
  *
@@ -1239,7 +1275,7 @@ function renderLayer(
           const corners = projectQuad(worldTransform, src.width, src.height, ctx?.cameraZ ?? 2000);
           renderPerspectiveQuad(temp, src, corners, 1.0, 'normal');
         } else {
-          blitTransformed(temp, src, worldTransform, 1.0, crop, 'normal');
+          blitTransformed(temp, src, worldTransform, 1.0, crop, 'normal', blitDstBBox(temp, src, worldTransform, crop));
         }
         const combined = cloneMasks.length === 1 ? cloneMasks[0] : unionMasks(cloneMasks, output.width, output.height);
         applyMask(temp, combined);
@@ -1248,7 +1284,7 @@ function renderLayer(
         const corners = projectQuad(worldTransform, src.width, src.height, ctx?.cameraZ ?? 2000);
         renderPerspectiveQuad(output, src, corners, opacity, layer.blendMode);
       } else {
-        blitTransformed(output, src, worldTransform, opacity, crop, layer.blendMode);
+        blitTransformed(output, src, worldTransform, opacity, crop, layer.blendMode, blitDstBBox(output, src, worldTransform, crop));
       }
     }
     // A clone's mask children are consumed above; skip the generic child-render
@@ -1394,7 +1430,7 @@ function renderLayer(
         : null;
       if (maskAlpha) {
         const temp = createBuffer(output.width, output.height);
-        blitTransformed(temp, src, worldTransform, 1.0, effCrop);
+        blitTransformed(temp, src, worldTransform, 1.0, effCrop, 'normal', blitDstBBox(temp, src, worldTransform, effCrop));
         let filtered = temp;
         for (const filter of layer.filters) {
           filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id));
@@ -1415,7 +1451,7 @@ function renderLayer(
         const corners = projectQuad(worldTransform, src.width, src.height, ctx?.cameraZ ?? 2000);
         renderPerspectiveQuad(output, src, corners, opacity);
       } else {
-        blitTransformed(output, src, worldTransform, opacity, effCrop, layer.blendMode);
+        blitTransformed(output, src, worldTransform, opacity, effCrop, layer.blendMode, blitDstBBox(output, src, worldTransform, effCrop));
       }
     }
   }

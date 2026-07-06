@@ -37,7 +37,8 @@ export function glowFilter(input: ImageData, params: GlowParams): ImageData {
   const brightData = new Uint8ClampedArray(width * height * 4);
   const thresholdByte = Math.round(threshold * 255);
 
-  for (let i = 0; i < src.length; i += 4) {
+  const n = src.length;
+  for (let i = 0; i < n; i += 4) {
     // Compute luminance (perceived brightness)
     const lum = 0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2];
     if (lum > thresholdByte) {
@@ -57,24 +58,24 @@ export function glowFilter(input: ImageData, params: GlowParams): ImageData {
   // Step 3: Blend the blurred glow back onto the original.
   // For amount <= 1: screen blend (gentle). For amount > 1: additive accumulation
   // (matches FCP's bloom overexposure that blows highlights toward white).
+  // PERF: the per-channel branch is hoisted out of the pixel loop (the additive vs
+  // screen decision is loop-invariant) and the c-loop is unrolled. Math is identical.
   const out = new Uint8ClampedArray(width * height * 4);
-  const additive = amount > 1;
-  for (let i = 0; i < src.length; i += 4) {
-    for (let c = 0; c < 3; c++) {
-      const base = src[i + c];
-      const glowPix = blurred.data[i + c];
-      let result: number;
-      if (additive) {
-        // Additive: base + glow*amount, saturating to white
-        result = base + glowPix * amount;
-      } else {
-        // Screen blend: base + glow*amount - base*glow*amount/255
-        const glow = glowPix * amount;
-        result = base + glow - (base * glow) / 255;
-      }
-      out[i + c] = Math.min(255, Math.round(result));
+  const bdata = blurred.data;
+  if (amount > 1) {
+    for (let i = 0; i < n; i += 4) {
+      out[i]     = Math.min(255, Math.round(src[i]     + bdata[i]     * amount));
+      out[i + 1] = Math.min(255, Math.round(src[i + 1] + bdata[i + 1] * amount));
+      out[i + 2] = Math.min(255, Math.round(src[i + 2] + bdata[i + 2] * amount));
+      out[i + 3] = src[i + 3];
     }
-    out[i + 3] = src[i + 3];
+  } else {
+    for (let i = 0; i < n; i += 4) {
+      let base = src[i];       let glow = bdata[i]     * amount; out[i]     = Math.min(255, Math.round(base + glow - (base * glow) / 255));
+      base = src[i + 1];       glow = bdata[i + 1]     * amount; out[i + 1] = Math.min(255, Math.round(base + glow - (base * glow) / 255));
+      base = src[i + 2];       glow = bdata[i + 2]     * amount; out[i + 2] = Math.min(255, Math.round(base + glow - (base * glow) / 255));
+      out[i + 3] = src[i + 3];
+    }
   }
 
   return new ImageData(out, width, height);
