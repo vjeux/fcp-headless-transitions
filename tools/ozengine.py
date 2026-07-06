@@ -110,6 +110,69 @@ def _load_pae_filters(objc):
               f"(bundle.load={loaded}, plugins={len(mgr.plugIns())}) — "
               "filtered transitions will render UNFILTERED.", file=_sys.stderr, flush=True)
 
+# ---- GLOBAL RENDER MUTEX (pool-wide) ----------------------------------------
+# The headless Ozone boot creates a MASTER CGL/OpenGL context. macOS cannot sustain
+# many concurrent headless GL master contexts: once several coexist the shared
+# master-context group WEDGES system-wide (FFCreateSharedCGLContextObj failed /
+# NSInternalInconsistencyException) and even solo renders then fail. With an 8-agent
+# pool each spawning render processes this is fatal. FIX: only ONE ozengine process
+# may hold a live engine at a time. We take a blocking, stale-reclaiming lock at
+# init_engine() and hold it for the whole process lifetime.
+_RENDER_LOCK_PATH = "/tmp/oz_render_global.lock"
+_render_lock_fd = None
+
+def _acquire_global_render_lock(timeout_s=3600, poll_s=0.5):
+    """Block until this process is the sole engine holder on the box. Reclaims a
+    stale lock whose owner PID is dead. Idempotent within a process."""
+    global _render_lock_fd
+    if _render_lock_fd is not None:
+        return
+    import time as _t, errno as _errno
+    start = _t.time()
+    while True:
+        try:
+            fd = os.open(_RENDER_LOCK_PATH, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o644)
+            os.write(fd, str(os.getpid()).encode())
+            _render_lock_fd = fd
+            import atexit as _atexit
+            _atexit.register(_release_global_render_lock)
+            return
+        except FileExistsError:
+            try:
+                with open(_RENDER_LOCK_PATH) as f:
+                    owner = int((f.read().strip() or "0"))
+            except (ValueError, FileNotFoundError):
+                owner = 0
+            alive = False
+            if owner > 0:
+                try:
+                    os.kill(owner, 0); alive = True
+                except OSError as e:
+                    alive = (e.errno == _errno.EPERM)
+            if owner == 0 or not alive:
+                try: os.unlink(_RENDER_LOCK_PATH)
+                except FileNotFoundError: pass
+                continue
+            if _t.time() - start > timeout_s:
+                raise TimeoutError("render lock held by pid %d > %ds" % (owner, timeout_s))
+            _t.sleep(poll_s)
+
+def _release_global_render_lock():
+    global _render_lock_fd
+    if _render_lock_fd is None:
+        return
+    try:
+        with open(_RENDER_LOCK_PATH) as f:
+            if (f.read().strip() or "0") == str(os.getpid()):
+                os.unlink(_RENDER_LOCK_PATH)
+    except (FileNotFoundError, ValueError):
+        pass
+    try: os.close(_render_lock_fd)
+    except OSError: pass
+    _render_lock_fd = None
+# -----------------------------------------------------------------------------
+
+
 def init_engine():
     """One-time engine init: dlopen Ozone/ProGL, CGL context, plugin opt-in, shim.
 
@@ -119,6 +182,7 @@ def init_engine():
     global _shim, _ms, _sel, _engine_ready, _OZDoc, _NSURL, _objc
     if _engine_ready:
         return
+    _acquire_global_render_lock()
     os.environ.setdefault("DYLD_FRAMEWORK_PATH", FW)
     # Force ProAppsFxSupport's usePlugInKitInternally() gate ON before any FCP
     # framework loads (it reads this env at first use). Without it the "unit
