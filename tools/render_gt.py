@@ -501,6 +501,12 @@ def _areturn_end_seconds(doc, img_a, img_b, end, log=None, motr_path=None):
     """
     import tempfile
     import numpy as np
+    # Reset the reverse-ramp schedule global every call so a prior slug's schedule can
+    # never leak. It is (re)populated at the END of this function, AFTER the linear `end`
+    # is fully trimmed, iff this is a genuine A->(snap B)->A round-trip whose LINEAR final
+    # frame fails to land on cold-B (see the reverse-ramp decision block below).
+    global _LAST_SCHEDULE
+    _LAST_SCHEDULE = None
     # TIME-DOMAIN scene-duration clamp (runs FIRST, unconditionally — independent of the
     # FCT_ATRIM cold-B trim below). animation_end is a max-keyframe heuristic that
     # OVERSHOOTS FCP's authored scene duration for the Flash/Bloom/Light_Noise/Color_Planes/
@@ -545,21 +551,30 @@ def _areturn_end_seconds(doc, img_a, img_b, end, log=None, motr_path=None):
     def _log(msg):
         if log is not None: log(msg)
 
+    def _finish(final_end):
+        """Single exit point: decide the reverse-ramp for the (now fully trimmed) linear
+        `final_end`, stash it in _LAST_SCHEDULE, and return `final_end` (unchanged — the
+        schedule, not the scalar, drives sampling when set). See _maybe_reverse_ramp."""
+        _mp_rr = motr_path if motr_path is not None else _LAST_MOTR_PATH
+        sched = _maybe_reverse_ramp(doc, img_a, img_b, final_end, _mp_rr, log=log)
+        globals()["_LAST_SCHEDULE"] = sched
+        return final_end
+
     # (3) Last frame still shows content => no A-return. Untouched.
     if d0[-1] >= FAR:
         _log(f"atrim: no A-return (d0_last={d0[-1]:.1f} >= {FAR}); end unchanged {end:.4f}s")
-        return end
+        return _finish(end)
     # (4a) Transition never progressed.
     peak = float(d0.max())
     if peak < MIN_PROGRESS:
         _log(f"atrim: UNSURE — no progression (peak d0={peak:.1f} < {MIN_PROGRESS}); end unchanged")
-        return end
+        return _finish(end)
     # (4b) Must reach clearly cold-B somewhere, else the peak isn't B -> UNSURE.
     cold_min = float(warmth.min())
     if cold_min > B_WARM:
         _log(f"atrim: UNSURE — never resolves to cold-B (min warmth={cold_min:.1f} > {B_WARM}); "
              f"end unchanged (not a B-ending transition in headless render)")
-        return end
+        return _finish(end)
     # (4c) The cold frame must actually LOOK like target B (all channels substantial —
     # B ref ≈ [100,116,147]), not a dark/crushed/tinted intermediate whose warmth is
     # negative only because one channel is crushed to ~0 (e.g. Stylized/Slide's dark
@@ -570,22 +585,188 @@ def _areturn_end_seconds(doc, img_a, img_b, end, log=None, motr_path=None):
         _log(f"atrim: UNSURE — coldest f{coldest_i} is a crushed/tinted color "
              f"(minChannel={minch[coldest_i]:.1f} < {B_MINCH}, warmth={cold_min:.1f}), "
              f"not source B; end unchanged")
-        return end
+        return _finish(end)
     # (5) Trim to the trailing edge of the cold-B plateau.
     plateau = [i for i in range(N) if warmth[i] <= cold_min + COLD_MARGIN and minch[i] >= B_MINCH]
     end_i = max(plateau)
     # Guard: the chosen frame must itself be B-content (far from A) — belt & suspenders.
     if d0[end_i] < FAR:
         _log(f"atrim: UNSURE — B-plateau edge f{end_i} not content-bearing (d0={d0[end_i]:.1f}); end unchanged")
-        return end
+        return _finish(end)
     new_end = ts[end_i] + 1e-4
     if new_end >= end:
         _log(f"atrim: B-plateau already at window end; end unchanged {end:.4f}s")
-        return end
+        return _finish(end)
     _log(f"atrim: A-return trimmed {end:.4f}s -> {new_end:.4f}s "
          f"(coldB f{coldest_i} warmth={cold_min:.1f}, plateau edge f{end_i} "
          f"warmth={warmth[end_i]:.1f} d0={d0[end_i]:.1f}, was d0_last={d0[-1]:.1f})")
-    return new_end
+    return _finish(new_end)
+
+
+def _play_range_seconds(motr_path):
+    """The transition's authored <playRange duration="V S ..."> in seconds, or None.
+
+    Thin file-reading wrapper over `_playrange_seconds(xml)` (which takes the XML text)
+    so the reverse-ramp path can go motr_path -> seconds in one call. playRange is tA
+    (the scene-time at which the A->B->A round-trip template SETTLES BACK to source A):
+    Loop 1.9686s, Heart/Glide 2.5025s, Center 5.3053s (7680000 timebase)."""
+    try:
+        xml = open(motr_path, "r", encoding="utf-8", errors="ignore").read()
+    except OSError:
+        return None
+    return _playrange_seconds(xml)
+
+
+def _maybe_reverse_ramp(doc, img_a, img_b, linear_end, motr_path, log=None):
+    """Decide whether to apply the reverse-ramp time-remap for THIS slug, and return its
+    per-frame schedule (or None to keep the caller's LINEAR sampling).
+
+    Gate (opt-in FCT_ATRIM=1, same benchmark cold-B anchor as _areturn_end_seconds).
+    The reverse-ramp is for the A->(snap B)->A round-trip family (Stylized Loop/Heart/
+    Center): the scene snaps to a cold-B climax EARLY/MID and smoothly RETURNS to source A
+    by playRange end. FCP shows that B->A decay ramp PLAYED IN REVERSE (== clean A->B);
+    linear forward sampling ends on A / a black wrap and oscillates. The discriminators
+    (all from the [0,playRange] scan inside _reverse_ramp_schedule) that separate this
+    family from every other slug, verified by a 48-frame warmth scan:
+
+      G1 (here). f0 must be WARM source-A (warmth >= A_WARM, non-black). EXCLUDES B-first
+         transitions whose GT starts on cold-B (Wipes/Mask f0 warmth ~ -47): the reverse
+         ramp assumes f0==source-A. Mask stays linear => no regression.
+
+      G2/G3/G4 (in _reverse_ramp_schedule):
+        - cold-B climax index iB must be EARLY/MID (iB <= RAMP_MAX_FRAC*N). Round-trips
+          reach cold-B at f2/f16/f25 (Center/Loop/Heart, all <= 52%); DIRECTIONAL slides
+          (Push f45, Rotate f44 — both ~94%) reach cold-B only at the very END (the slide
+          IS the transition), so they are EXCLUDED and stay linear (Push 23.22, Rotate
+          13.04 held). This is the key round-trip-vs-directional separator.
+        - cold-B must be genuine (warmth <= B_WARM AND min-channel >= B_MINCH): EXCLUDES
+          Glide (floor +5.3), Flash (white flash ~0), Drop_In (weak -25.5 / crushed).
+        - the scene must RETURN to warm-A after iB (some post-climax frame warmth >=
+          A_RETURN): confirms the A->B->A round trip (vs a one-way A->B that just ends cold).
+
+    `linear_end` is accepted for signature compatibility / future use but the decision is
+    made entirely from the playRange scan (independent of the linear trims) so it is not
+    entangled with the scene-clamp / A-return end value."""
+    import numpy as np
+    if os.environ.get("FCT_ATRIM") != "1":
+        return None
+    if not motr_path:
+        return None
+    pr = _play_range_seconds(motr_path)
+    if not pr or pr <= 0.05:
+        return None
+    return _reverse_ramp_schedule(doc, img_a, img_b, pr, 24, log=log)
+
+
+def _reverse_ramp_schedule(doc, img_a, img_b, play_range, nframes, log=None):
+    """Reverse-ramp time-remap for the A->(snap B)->A round-trip templates (Stylized
+    Loop/Heart/Center/...). Scan [0,playRange] (NSCAN frames), locate the cold-B climax,
+    verify the round-trip signature, and return a DECREASING per-frame scene-time schedule
+    that samples the B->A decay ramp BACKWARDS: f0->tA(source A), f_{N-1}->tB(cold-B).
+
+    Returns None (=> caller keeps its LINEAR schedule) unless ALL round-trip gates pass:
+      - f0 is warm source-A (warmth >= A_WARM) — B-first slugs (Mask) excluded.
+      - the coldest NON-BLACK frame is genuine cold-B (warmth <= B_WARM, minCh >= B_MINCH)
+        — Glide/Flash/weak-B (Drop_In) excluded.
+      - that cold-B climax is reached EARLY/MID (iB <= RAMP_MAX_FRAC*NSCAN) — DIRECTIONAL
+        slides whose cold-B is only reached at the very end (Push f45, Rotate f44 of 48)
+        are excluded and stay linear (this is the round-trip-vs-directional separator).
+      - the scene RETURNS to warm-A after the climax (max post-iB warmth >= A_RETURN) —
+        confirms the A->B->A round trip.
+
+    The returned schedule is DECREASING (f0 == largest time tA; f_{N-1} == smallest tB),
+    so it cannot be expressed as a single `end` scalar with linear forward sampling — the
+    caller samples schedule[i] directly (see sample_time / _render_one). When None, the
+    caller keeps linear sampling and the g3 (_scene_clamp) / g5b (_clamp_to_playrange) /
+    _areturn linear-path trims stay in force => zero regression outside the round-trip
+    family."""
+    import tempfile
+    import numpy as np
+    A_WARM = 25.0        # f0 (and post-climax return) must be at least this warm for A
+    A_RETURN = 25.0      # some post-climax frame must return this warm (round-trip proof)
+    B_WARM = -25.0       # coldest frame must be at least this cold to be genuine source B
+    B_MINCH = 40.0       # ... and not a crushed/tinted false-B (min channel >= this)
+    RAMP_MAX_FRAC = 0.75 # cold-B must be reached within the first 75% of the scan window;
+                         # round-trips: Center 4%, Loop 33%, Heart 52%; directional slides
+                         # Push 94% / Rotate 94% are past it and stay linear.
+    NSCAN = 48
+    def _frame(t):
+        fd, tmp = tempfile.mkstemp(suffix=".png"); os.close(fd)
+        try:
+            ozengine.render_frame(doc, img_a, img_b, t, tmp)
+            return np.asarray(__import__("PIL.Image", fromlist=["Image"]).open(tmp).convert("RGB"), dtype="float32")
+        finally:
+            try: os.remove(tmp)
+            except OSError: pass
+    ts = [(k / (NSCAN - 1)) * play_range for k in range(NSCAN)]
+    warmth = np.empty(NSCAN); minch = np.empty(NSCAN); mean = np.empty(NSCAN)
+    for k, t in enumerate(ts):
+        fr = _frame(t); ch = fr.reshape(-1, 3).mean(axis=0)
+        warmth[k] = float(ch[0] - ch[2]); minch[k] = float(ch.min()); mean[k] = float(fr.mean())
+    # G1: f0 must be warm source-A (not a B-first / Mask-style GT).
+    if mean[0] < 5.0 or warmth[0] < A_WARM:
+        if log: log(f"revramp: SKIP — f0 is not warm source-A (warmth={warmth[0]:.1f}); linear")
+        return None
+    # cold-B climax = coldest NON-BLACK frame (a black wrap frame has warmth~0 but mean~0)
+    valid = mean >= 5.0
+    cand = np.where(valid, warmth, 1e9)
+    iB = int(np.argmin(cand)); wB = float(warmth[iB])
+    # G2: genuine cold-B (excludes Glide floor +5.3, Flash white ~0, Drop_In weak/crushed).
+    if wB > B_WARM or minch[iB] < B_MINCH:
+        if log: log(f"revramp: SKIP — never resolves to genuine cold-B "
+                    f"(coldest warmth={wB:.1f} minCh={minch[iB]:.1f}); linear")
+        return None
+    # G3: cold-B must be EARLY/MID (round-trip snap), not a LATE directional-slide climax.
+    if iB > RAMP_MAX_FRAC * (NSCAN - 1):
+        if log: log(f"revramp: SKIP — cold-B reached LATE at f{iB}/{NSCAN} "
+                    f"({iB/(NSCAN-1):.0%} > {RAMP_MAX_FRAC:.0%}); directional slide, keep linear")
+        return None
+    # G4: the scene must RETURN to warm-A after the climax (A->B->A round-trip proof).
+    warm_after = float(warmth[iB:].max())
+    if warm_after < A_RETURN:
+        if log: log(f"revramp: SKIP — no warm-A return after cold-B (max post-climax "
+                    f"warmth={warm_after:.1f} < {A_RETURN}); one-way A->B, keep linear")
+        return None
+    tB = ts[iB]; tA = play_range
+    if tA - tB < 1e-3:
+        if log: log("revramp: cold-B at window end; linear fallback")
+        return None
+    sched = [tA - (i / (nframes - 1)) * (tA - tB) for i in range(nframes)] if nframes > 1 else [tB]
+    sched[0] = tA - 1e-4
+    if log: log(f"revramp: A->B reverse ramp tA={tA:.4f}s -> tB={tB:.4f}s "
+                f"(coldB f{iB}/{NSCAN} warmth={wB:.1f}, warm-return {warm_after:.1f})")
+    return sched
+
+
+# Module global: the last reverse-ramp schedule computed by _areturn_end_seconds (set to
+# None when the cold-B gate does not fire). Lets a linear scorer (score_slug.py /
+# gui_scoreboard.py) that only calls animation_end_seconds + _areturn_end_seconds pick up
+# the reverse-ramp schedule via `render_gt.sample_time(i, N, end)` WITHOUT restructuring its
+# loop into a decreasing per-frame schedule. See sample_time() and the coordination note in
+# the module docstring of the scorer patch (TIMEREMAP_FINDINGS.md).
+_LAST_SCHEDULE = None
+
+
+def sample_time(i, nframes, end):
+    """Return the scene-time for GT frame `i` of `nframes`.
+
+    If a reverse-ramp schedule was computed for the current doc (by the most recent
+    _areturn_end_seconds call, when its cold-B gate fired), return schedule[i] (the
+    DECREASING reverse-ramp time). Otherwise fall back to the linear forward sampling
+    `(i/(N-1))*end` (with the final frame nudged just below `end`), identical to the
+    existing scorer loop => zero behavior change for every slug the gate excludes.
+
+    This is the single call a linear scorer needs to substitute for its `t=i/23*end`
+    line to become reverse-ramp aware without any other change."""
+    sched = _LAST_SCHEDULE
+    if sched is not None and len(sched) == nframes:
+        return sched[i]
+    if nframes <= 1:
+        return 0.0
+    t = (i / (nframes - 1)) * end
+    if i == nframes - 1:
+        t = end - 1e-4
+    return t
 
 
 def _render_one(motr, img_a, img_b, outdir, nframes):
@@ -614,19 +795,45 @@ def _render_one(motr, img_a, img_b, outdir, nframes):
     # drop-zone `out`, e.g. Stylized/Close & Open). Push/Gaussian/etc. — whose final
     # frame is already valid source B — are returned untouched.
     end = _visible_end_seconds(doc, img_a, img_b, end)
-    # Source-A-RETURN correction (retime-wrap loop-point re-shows sepia source A, not
-    # black — so `_visible_end_seconds`' black-only trim misses it). Opt-in via
-    # FCT_ATRIM=1 because the cold-B anchor is calibrated to this benchmark's
-    # warm-sepia->cold-blue A/B pair; fully generic within that pair and a no-op for
-    # any transition whose final frame already shows content (Push et al.).
+    # REVERSE-RAMP time-remap (opt-in FCT_ATRIM=1 — same cold-B anchor as _areturn).
+    # The A->(snap B)->A round-trip templates (Stylized Loop/Heart/Center/...) settle
+    # back to source A at playRange end, so LINEAR forward sampling ends on A and
+    # oscillates. When this transition demonstrably resolves to cold-B, sample the B->A
+    # decay ramp BACKWARDS: f0->tA(source A), f_{N-1}->tB(cold-B climax) == a clean A->B.
+    # _areturn_end_seconds (called below on the FCT_ATRIM path) computes this schedule and
+    # stashes it in _LAST_SCHEDULE when its cold-B gate fires (returning `end` unchanged);
+    # otherwise _LAST_SCHEDULE is None and the linear A-return trim applies. This OVERRIDES
+    # the linear schedule ONLY for slugs whose gate fires; every other slug (Glide, flips,
+    # non-Stylized directional, authored round trips) falls through UNCHANGED to the linear
+    # path below. Purely additive. NOTE: _areturn_end_seconds builds the schedule for the
+    # canonical 24-frame GT; if nframes != 24 the schedule won't match and we rebuild it
+    # here for the requested frame count.
+    schedule = None
     if os.environ.get("FCT_ATRIM") == "1":
-        end = _areturn_end_seconds(doc, img_a, img_b, end,
+        # Source-A-RETURN correction (retime-wrap loop-point re-shows sepia source A, not
+        # black — so `_visible_end_seconds`' black-only trim misses it). Opt-in via
+        # FCT_ATRIM=1 because the cold-B anchor is calibrated to this benchmark's
+        # warm-sepia->cold-blue A/B pair; fully generic within that pair and a no-op for
+        # any transition whose final frame already shows content (Push et al.). This ALSO
+        # computes+stashes the reverse-ramp schedule in _LAST_SCHEDULE when the cold-B gate
+        # fires (and returns `end` unchanged in that case).
+        end = _areturn_end_seconds(doc, img_a, img_b, end, motr_path=motr,
                                    log=lambda m, _o=outdir: print(f"  [{os.path.basename(_o)}] {m}", flush=True))
+        schedule = _LAST_SCHEDULE
+        if schedule is not None and len(schedule) != nframes:
+            # Rebuild for the requested frame count (default GT is 24; --batch/CLI may differ).
+            pr = _play_range_seconds(motr)
+            schedule = _reverse_ramp_schedule(
+                doc, img_a, img_b, pr, nframes,
+                log=lambda m, _o=outdir: print(f"  [{os.path.basename(_o)}] {m}", flush=True)) if pr else None
     for i in range(nframes):
-        p = i / (nframes - 1) if nframes > 1 else 0.0
-        t = p * end
-        if i == nframes - 1:
-            t = end - 1e-4  # nudge below the loop-point wrap
+        if schedule is not None:
+            t = schedule[i]
+        else:
+            p = i / (nframes - 1) if nframes > 1 else 0.0
+            t = p * end
+            if i == nframes - 1:
+                t = end - 1e-4  # nudge below the loop-point wrap
         out = os.path.join(outdir, f"frame_{i:04d}.png")
         ozengine.render_frame(doc, img_a, img_b, t, out)
     return end
