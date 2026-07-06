@@ -40,23 +40,22 @@ _NSURL = None
 _objc = None
 
 
+# FCP's PAE* FxPlug filters (PAERadialBlur/PAEGaussianBlur/PAEDirectionalBlur/
+# PAEZoomBlur/PAEBloom/PAEGlow/PAEBlackHole/PAETrails/PAEBadTV/PAEEarthquake/
+# PAEUnderwater/... — 262 filters total) live in this legacy ProApps plugin
+# bundle, embedded inside InternalFiltersXPC.pluginkit. It is a plain `BNDL`
+# with ProPlugDynamicRegistration=false and a static ProPlugPlugInList — i.e. a
+# normal in-process ProApps plugin bundle, NOT something that requires the XPC
+# service to be running. We dlopen + scan it directly (see _load_pae_filters).
+_PAE_FILTERS_BUNDLE = ("/Applications/Final Cut Pro.app/Contents/PlugIns/"
+                       "InternalFiltersXPC.pluginkit/Contents/PlugIns/Filters.bundle")
+
+
 def _enable_embedded_plugins(Foundation):
     """Let PlugInKit load FCP's embedded FxPlug filter appex (InternalFiltersXPC).
 
-    FCP's PAE* filters (PAENoise, PAECloudsV2, PAEBlackHole, 360° Reorient, ...)
-    live in InternalFiltersXPC.pluginkit, whose Info.plist declares
-    `PlugInKit.EmbeddedCode = Filters.bundle`. PlugInKit refuses to discover such
-    embedded plug-ins unless the *host process's* main-bundle Info.plist opts in
-    via `PlugInKitHost.UsesEmbeddedCode = true` (the exact key FCP.app itself
-    sets). Headless we run as `python`, whose bundle lacks that key, so discovery
-    aborts with:
-        PlugInKit discovery failed - error #3, cannot request embedded plug-ins
-        without using the "UsesEmbeddedCode" key
-    and every filtered node renders black.
-
-    The main bundle's infoDictionary is a *mutable* __NSDictionaryM, so we inject
-    the opt-in in place before the engine boots. Must run before the first
-    PlugInKit discovery (i.e. before the render graph is built).
+    Kept as a belt-and-suspenders opt-in (the exact key FCP.app itself sets); the
+    actual PAE filter registration is done in-process by _load_pae_filters().
     """
     mb = Foundation.NSBundle.mainBundle()
     info = mb.infoDictionary()
@@ -64,11 +63,52 @@ def _enable_embedded_plugins(Foundation):
     if host is None:
         host = Foundation.NSMutableDictionary.dictionary()
         info.setObject_forKey_(host, "PlugInKitHost")
-    # host may be an immutable NSDictionary if FCP ever ships one; make it mutable.
     if not host.respondsToSelector_(b"setObject:forKey:"):
         host = Foundation.NSMutableDictionary.dictionaryWithDictionary_(host)
         info.setObject_forKey_(host, "PlugInKitHost")
     host.setObject_forKey_(True, "UsesEmbeddedCode")
+
+
+def _load_pae_filters(objc):
+    """Register FCP's PAE* FxPlug filters in-process so the Ozone render graph
+    can instantiate them (ProPlugin Filter nodes).
+
+    ⚠️ ROOT CAUSE this fixes (2026-07-06): the headless boot
+    (OZSharedApplicationForAllUnitTests) NEVER scans/registers any FxPlug plugin.
+    Worse, ProAppsFxSupport's `usePlugInKitInternally()` returns FALSE whenever
+    `PCInfo_IsUnitTesting()` is true (our headless engine boots as a "unit test"),
+    so even OZApplication::ScanPlugins() registers ZERO plugins. Consequently
+    every `<filter ... pluginName="PAERadialBlur">` node in a .motr had NO backing
+    filter implementation and the Ozone graph passed the layer through UNFILTERED
+    — a plain crossfade with the blur/effect silently dropped. This made the GT
+    for ~26 transitions (all Blurs, Bloom, Black Hole, Static, Earthquake, ...)
+    a filterless degenerate render.
+
+    THE FIX: the 262 PAE filter classes live in a plain in-process ProApps plugin
+    bundle (Filters.bundle, ProPlugDynamicRegistration=false). We dlopen it via
+    NSBundle.load() and register it with PROPlugInManager.sharedPlugInManager via
+    scanForPlugInsInBundle: — exactly what a legacy ProApps host does. After this,
+    `mgr.plugInWithClassName_("PAERadialBlur")` resolves (UUID
+    8F9F88CF-… matches the .motr), and the render graph applies the real filter.
+    Setting FXPLUG_USE_PLUGINKIT=1 keeps usePlugInKitInternally() honest as a
+    secondary guard. Idempotent (bundle already loaded -> scan is a no-op)."""
+    os.environ.setdefault("FXPLUG_USE_PLUGINKIT", "1")
+    if not os.path.isdir(_PAE_FILTERS_BUNDLE):
+        # Different FCP layout / not installed — leave filters unregistered rather
+        # than crash; render_gt's validator will still flag a degenerate render.
+        return
+    NSBundle = objc.lookUpClass("NSBundle")
+    bundle = NSBundle.bundleWithPath_(_PAE_FILTERS_BUNDLE)
+    loaded = bundle.load()
+    mgr = objc.lookUpClass("PROPlugInManager").sharedPlugInManager()
+    mgr.scanForPlugInsInBundle_deferralNotification_(bundle, None)
+    # Sanity check the marquee filter registered (UUID must match the .motr's).
+    ok = mgr.plugInWithClassName_("PAERadialBlur") is not None
+    if not ok:
+        import sys as _sys
+        print("[ozengine] WARNING: PAE filter registration failed "
+              f"(bundle.load={loaded}, plugins={len(mgr.plugIns())}) — "
+              "filtered transitions will render UNFILTERED.", file=_sys.stderr, flush=True)
 
 def init_engine():
     """One-time engine init: dlopen Ozone/ProGL, CGL context, plugin opt-in, shim.
@@ -80,6 +120,10 @@ def init_engine():
     if _engine_ready:
         return
     os.environ.setdefault("DYLD_FRAMEWORK_PATH", FW)
+    # Force ProAppsFxSupport's usePlugInKitInternally() gate ON before any FCP
+    # framework loads (it reads this env at first use). Without it the "unit
+    # testing" boot suppresses all FxPlug filter registration. See _load_pae_filters.
+    os.environ.setdefault("FXPLUG_USE_PLUGINKIT", "1")
     oz = ctypes.CDLL(FW + "/Ozone.framework/Versions/A/Ozone")
     progl = ctypes.CDLL(FW + "/ProGL.framework/Versions/A/ProGL")
     cgl = ctypes.CDLL("/System/Library/Frameworks/OpenGL.framework/OpenGL")
@@ -89,6 +133,11 @@ def init_engine():
     _enable_embedded_plugins(Foundation)
     oz["_Z34OZSharedApplicationForAllUnitTestsv"].restype = ctypes.c_void_p
     oz["_Z34OZSharedApplicationForAllUnitTestsv"]()
+    # Register the real PAE* FxPlug filters in-process so ProPlugin Filter nodes
+    # (PAERadialBlur/PAEGaussianBlur/... in the .motr) actually apply. The headless
+    # boot never scans plugins, so we must do it explicitly. Must run before the
+    # first render graph build.
+    _load_pae_filters(objc)
     progl["PGLMasterCGLContext"].restype = ctypes.c_void_p
     cgl.CGLSetCurrentContext.argtypes = [ctypes.c_void_p]
     cgl.CGLSetCurrentContext(progl["PGLMasterCGLContext"]())
