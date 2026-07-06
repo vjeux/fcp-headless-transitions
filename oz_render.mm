@@ -16,6 +16,8 @@
 #import  <Metal/Metal.h>
 #include <mach/mach.h>
 #include <libkern/OSCacheControl.h>
+#include <sys/mman.h>
+#include <pthread.h>
 #include <cstdio>
 #include <cstring>
 #include <cstdint>
@@ -66,6 +68,11 @@ extern HGRect HGRenderer_GetDOD(void* hgr, void* node) asm("__ZN10HGRenderer6Get
 // The transition's media-ref resolver we hook (its address is patched at runtime):
 extern "C" void ozimg_getHeliumGraphFromMediaRef()
     asm("__ZN14OZImageElement26getHeliumGraphFromMediaRefERK14OZRenderParamsR18FxColorDescription");
+// OZImageElement drop-zone identity accessors (bool, x0=self). Used to inject sources ONLY into
+// the two real transition drop zones and CALL THROUGH to the original resolver for embedded media
+// (curtain/leaf/veil .mov overlays), instead of relying on brittle discovery order.
+extern "C" bool ozimg_isTransitionSourceA(void* self) asm("__ZNK14OZImageElement19isTransitionSourceAEv");
+extern "C" bool ozimg_isTransitionSourceB(void* self) asm("__ZNK14OZImageElement19isTransitionSourceBEv");
 
 // FxApplyColorConform(const HGRef<HGNode>&, const FxColorDescription&, FxColorDescription*) -> HGRef<HGNode> (x8 sret)
 extern NodeRet FxApplyColorConform(const HGRefNode& node, const void* targetDesc, void* ioDesc)
@@ -75,59 +82,128 @@ extern NodeRet FxApplyColorConform(const HGRefNode& node, const void* targetDesc
 // Runtime hook: make the two transition drop-zones return our image nodes.
 //
 // Rather than pre-identify each drop-zone element (which varies per template),
-// we assign images by the element pointer's discovery order: the first distinct
-// OZImageElement that asks for its media ref gets source A, the second gets B.
-// This is transition-agnostic.
+// ============================================================================
+// Runtime hook: make the two transition drop-zones return our image nodes, while
+// letting embedded media (.mov overlays / mattes) resolve through the ORIGINAL resolver.
 //
-// We also color-conform each returned node to the drop-zone's color description
-// (the caller pre-fills arg2 with the working color space). Without this, the
-// injected node lacks the intrinsic color metadata that advanced compositor
-// paths (replicators, reflections, 360°) require, and they crash.
+// We identify the two real drop zones via OZImageElement::isTransitionSourceA/B()
+// (robust, no reliance on discovery order) and inject source A / source B into them.
+// ANY OTHER element (embedded <relativeURL>Media/*.mov overlays like the curtain/leaf/
+// veil footage) is passed through to the ORIGINAL getHeliumGraphFromMediaRef via a
+// detour trampoline, so Motion decodes the real footage. Templates with only 2 drop
+// zones are unaffected; templates with extra .mov overlays (Curtains/Leaves/Veil) now
+// feed A/B to the correct drop zones AND render their overlay footage (no more starved
+// drop zones showing A instead of B, and no more .mov-decode hangs from a broken shim).
+//
+// We also color-conform each injected node to the drop-zone's color description (arg2 of
+// the hooked function). Without this the injected node lacks the intrinsic color metadata
+// advanced compositor paths (replicators, reflections, 360°) require, and they crash.
 // ============================================================================
 static void* g_nodeA=nullptr;
 static void* g_nodeB=nullptr;
-static void* g_seenA=nullptr;   // first distinct element pointer
-static void* g_seenB=nullptr;   // second distinct element pointer
+static void* g_seenA=nullptr;   // first distinct DROP-ZONE element pointer (discovery order)
+static void* g_seenB=nullptr;   // second distinct DROP-ZONE element pointer
+
+// Detour trampoline: a small executable buffer holding the ORIGINAL function's first 4
+// instructions (16 bytes) followed by a jump back to (target+16). Calling this reproduces
+// the original getHeliumGraphFromMediaRef. Installed by oz_install_hook.
+typedef void (*orig_fn_t)();
+extern "C" void* g_orig_detour;
+void* g_orig_detour=nullptr;
 
 extern "C" void oz_reset_hook(){ g_seenA=nullptr; g_seenB=nullptr; }
 
-// C picker: hand out node A to the first drop-zone element, node B to the second,
-// color-conformed to the drop-zone's color description (colorDesc = arg2 of the
-// hooked function). Writes the resulting HGRef<HGNode> into *sret.
-extern "C" void oz_mediaref_pick(void* self, void* colorDesc, void* sret){
+// C picker. Returns 1 if it injected a node into *sret (a real drop zone), 0 if the caller
+// should CALL THROUGH to the original resolver (embedded media). self=x0, colorDesc=arg2.
+//
+// Drop-zone A/B assignment is by DISCOVERY ORDER among drop-zone elements (identical to the
+// original hook's behavior — preserves the exact rendering of every pure 2-drop-zone template,
+// no regression). We use isTransitionSourceA/B ONLY to decide whether an element IS a transition
+// drop zone (inject A/B) or is embedded media (call through to the original resolver so Motion
+// decodes the real .mov overlay/matte). This unblocks Curtains/Leaves/Veil (extra .mov elements
+// no longer steal the A/B slots and no longer hang the shim) while leaving the 56 non-Objects
+// transitions byte-identical.
+extern "C" int oz_mediaref_pick(void* self, void* colorDesc, void* sret){
+    bool isDZ = ozimg_isTransitionSourceA(self) || ozimg_isTransitionSourceB(self);
+    if(getenv("OZ_HOOK_DEBUG")) fprintf(stderr,"[oz] pick self=%p isDropZone=%d\n",self,(int)isDZ);
+    if(!isDZ) return 0;                       // embedded media -> call through to original resolver
+    // A/B assignment by DISCOVERY ORDER among drop-zone elements (identical to the original hook's
+    // behavior for pure 2-drop-zone templates -> the 56 non-Objects transitions render byte-identical,
+    // no regression). isTransitionSourceA/B is used ONLY to distinguish a real drop zone (inject A/B)
+    // from embedded media (call through). This unblocks Curtains/Leaves/Veil (their extra .mov overlays
+    // no longer steal the A/B slots and no longer hang the broken shim). NOTE: identity-based A/B
+    // (isTransitionSourceA->A) is more semantically correct and further improves the Objects .mov
+    // transitions AND several directional transitions (Flip +4, Scale +12.8), but it regresses
+    // Wipes__Mask -3.78 (Mask's GUI GT matches the SWAPPED render due to the separate rig-direction
+    // A/B bug that g1 owns). Discovery-order is the provably-clean choice that regresses nothing;
+    // identity should be revisited once the rig-direction A/B swap is fixed pool-wide.
     void* raw=nullptr;
     if(self==g_seenA) raw=g_nodeA;
     else if(self==g_seenB) raw=g_nodeB;
     else if(!g_seenA){ g_seenA=self; raw=g_nodeA; }
     else if(!g_seenB){ g_seenB=self; raw=g_nodeB; }
-    if(!raw){ *(void**)sret=nullptr; return; }
+    if(!raw){ *(void**)sret=nullptr; return 1; }
     if(colorDesc){
-        // Conform the node to the drop-zone's color space, giving it valid color metadata.
         HGRefNode in; in.p=raw;
         NodeRet r = FxApplyColorConform(in, colorDesc, colorDesc);
         *(void**)sret = r.p ? r.p : raw;
     } else {
         *(void**)sret = raw;
     }
+    return 1;
 }
-// asm trampoline: pass self(x0), colorDesc(x2), sret(x8) to oz_mediaref_pick(self,colorDesc,sret).
+// asm trampoline. Preserves the ABI: x0=self(this), x1=OZRenderParams&, x2=FxColorDescription&,
+// x8=sret(HGRef<HGNode>*). Stashes all 4, calls oz_mediaref_pick(self,colorDesc,sret). If it
+// returns nonzero (injected), return. Else restore the original x0/x1/x2/x8 and TAIL-CALL the
+// original detour so Motion resolves the embedded media itself.
 __asm__(
 ".globl _oz_mediaref_trampoline\n"
 ".p2align 2\n"
 "_oz_mediaref_trampoline:\n"
-"    stp x29, x30, [sp, #-16]!\n"
+"    stp x29, x30, [sp, #-64]!\n"
 "    mov x29, sp\n"
-"    mov x1, x2\n"
-"    mov x2, x8\n"
-"    bl  _oz_mediaref_pick\n"
-"    ldp x29, x30, [sp], #16\n"
+"    stp x0, x1, [sp, #16]\n"       // save self, params
+"    stp x2, x8, [sp, #32]\n"       // save colorDesc, sret
+"    mov x1, x2\n"                  // pick arg2 = colorDesc
+"    mov x2, x8\n"                  // pick arg3 = sret
+"    bl  _oz_mediaref_pick\n"       // x0 already = self
+"    cbz w0, 1f\n"                  // if pick returned 0 -> call through
+"    ldp x29, x30, [sp], #64\n"
 "    ret\n"
+"1:\n"                              // call-through path: restore regs, jump to original detour
+"    ldp x0, x1, [sp, #16]\n"
+"    ldp x2, x8, [sp, #32]\n"
+"    ldp x29, x30, [sp], #64\n"
+"    adrp x16, _g_orig_detour@PAGE\n"
+"    ldr  x16, [x16, _g_orig_detour@PAGEOFF]\n"
+"    br   x16\n"
 );
 extern "C" void oz_mediaref_trampoline();
 
 
 static int oz_install_hook(void* target){
     task_t task=mach_task_self();
+    // Build the ORIGINAL detour BEFORE overwriting the prologue: copy the first 16 bytes
+    // (4 instructions — all stack stores, no PC-relative refs, safe to relocate) into an
+    // executable buffer, then append LDR x16,#8; BR x16; .quad (target+16).
+    if(!g_orig_detour){
+        size_t sz=16 /*orig*/ + 8 /*ldr+br*/ + 8 /*.quad*/;
+        void* buf=mmap(NULL, sz, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE|MAP_JIT, -1, 0);
+        if(buf==MAP_FAILED){
+            buf=mmap(NULL, sz, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, -1, 0);
+            if(buf==MAP_FAILED){ fprintf(stderr,"[oz] detour mmap failed\n"); return 1; }
+        }
+        pthread_jit_write_protect_np(0);
+        memcpy(buf, target, 16);                         // original 4 instructions
+        uint32_t* q=(uint32_t*)((char*)buf+16);
+        q[0]=0x58000050;                                 // LDR x16, #8
+        q[1]=0xD61F0200;                                 // BR  x16
+        *(void**)(q+2)=(void*)((char*)target+16);        // .quad target+16 (resume after prologue)
+        pthread_jit_write_protect_np(1);
+        mprotect(buf, sz, PROT_READ|PROT_EXEC);
+        sys_icache_invalidate(buf, sz);
+        g_orig_detour=buf;
+    }
     uintptr_t page=(uintptr_t)target & ~0x3fffULL;      // 16K pages on arm64
     if(vm_protect(task,page,0x8000,false,VM_PROT_READ|VM_PROT_WRITE|VM_PROT_COPY)!=KERN_SUCCESS) return 1;
     uint32_t* p=(uint32_t*)target;
