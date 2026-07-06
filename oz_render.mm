@@ -18,6 +18,7 @@
 #include <libkern/OSCacheControl.h>
 #include <sys/mman.h>
 #include <pthread.h>
+#include <dlfcn.h>
 #include <cstdio>
 #include <cstring>
 #include <cstdint>
@@ -77,6 +78,32 @@ extern "C" bool ozimg_isTransitionSourceB(void* self) asm("__ZNK14OZImageElement
 // FxApplyColorConform(const HGRef<HGNode>&, const FxColorDescription&, FxColorDescription*) -> HGRef<HGNode> (x8 sret)
 extern NodeRet FxApplyColorConform(const HGRefNode& node, const void* targetDesc, void* ioDesc)
     asm("__Z19FxApplyColorConformRK5HGRefI6HGNodeERK18FxColorDescriptionPS4_");
+
+// ---- CGL master-context reset (fixes cross-render GL context poisoning) ----
+// The render engine shares ONE process-global CGL "master" context (ProGL's
+// PGLMasterCGLContext). Each oz_render_frame() builds a fresh HGGPURenderer and calls
+// HGGPURenderer::UpdateCurrentContext (which binds GL state onto that shared context) but
+// never restores it. Under a long batch (65 slugs × 24 frames) the leaked per-render GL
+// state accumulates; once any render leaves the shared context in a bad state, EVERY
+// subsequent render rasterizes all-black (observed: black from Stylized__Glide onward in
+// the 65-slug batch — 11 consecutive slugs). Re-asserting the master context as the
+// current CGL context at the START of each render gives every frame a clean, known GL
+// binding, so a prior render can no longer poison the next. Resolved dynamically (ProGL
+// is already dlopen'd by ozengine.init_engine) so we don't add a link-time dependency.
+typedef void* (*PGLMasterCtxFn)(void);
+typedef int   (*CGLSetCurrentFn)(void*);
+static PGLMasterCtxFn  g_pglMasterCtx = NULL;
+static CGLSetCurrentFn g_cglSetCurrent = NULL;
+static void oz_reset_gl_context(){
+    if(!g_pglMasterCtx)
+        g_pglMasterCtx = (PGLMasterCtxFn)dlsym(RTLD_DEFAULT, "PGLMasterCGLContext");
+    if(!g_cglSetCurrent)
+        g_cglSetCurrent = (CGLSetCurrentFn)dlsym(RTLD_DEFAULT, "CGLSetCurrentContext");
+    if(g_pglMasterCtx && g_cglSetCurrent){
+        void* master = g_pglMasterCtx();
+        if(master) g_cglSetCurrent(master);
+    }
+}
 
 // ============================================================================
 // Runtime hook: make the two transition drop-zones return our image nodes.
@@ -272,6 +299,10 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
                                const char* imgA, const char* imgB,
                                double timeSec, int timescale, const char* outPath){
     HG_RENDERER_ENV_Init();
+    // Reset the shared CGL master context to a clean binding BEFORE this render so a prior
+    // frame's leaked GL state cannot poison this one (see oz_reset_gl_context above). This
+    // is what makes a long single-process batch stable instead of going all-black partway.
+    oz_reset_gl_context();
     Vec3* dl=GetGPUComputeDeviceList();
     if(!dl || !dl->begin){ fprintf(stderr,"[oz] no GPU compute device\n"); return 1; }
     SP2 device=((SP2*)dl->begin)[0];
@@ -292,7 +323,7 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
 
     int wa,ha,wb,hb;
     void* ra=loadRGBA(imgA,&wa,&ha); void* rb=loadRGBA(imgB,&wb,&hb);
-    if(!ra||!rb) return 2;
+    if(!ra||!rb){ OZXSetThreadRenderer(NULL); free(hgr); return 2; }
     HGRefNode nA=makeImageNode(ra,wa,ha), nB=makeImageNode(rb,wb,hb);
 
     void* scene=*(void**)((char*)cppDoc+8);
@@ -305,7 +336,7 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
 
     GRRet gr=OZXGetRenderGraph(scene, params, NULL, h.glr, false, hgr);
     HGRefNode out; out.p=gr.p;
-    if(!out.p){ fprintf(stderr,"[oz] render graph build failed\n"); return 3; }
+    if(!out.p){ fprintf(stderr,"[oz] render graph build failed\n"); OZXSetThreadRenderer(NULL); free(hgr); return 3; }
 
     int channelOrder=*(int*)(params+0xd8);
     CGColorSpace* ws=OZRenderParams_getWorkingColorSpace(params);
@@ -345,21 +376,22 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
     }
     { const char* e=getenv("OZ_ROI"); if(e){ int x,y,w,h; if(sscanf(e,"%d,%d,%d,%d",&x,&y,&w,&h)==4){ roi.x=x;roi.y=y;roi.w=w;roi.h=h; fprintf(stderr,"[oz] OZ_ROI override %d,%d,%d,%d\n",x,y,w,h);} } }  // debug-only manual override
     BmpRet br=PGHelium_renderNodeToBitmap(hgr,out,roi,channelOrder?channelOrder:1,ws,liTech);
-    if(!br.p){ fprintf(stderr,"[oz] rasterize failed\n"); return 4; }
+    if(!br.p){ fprintf(stderr,"[oz] rasterize failed\n"); OZXSetThreadRenderer(NULL); free(hgr); return 4; }
 
     vImageBuf vb; memset(&vb,0,sizeof(vb));
     PCBitmap_vimage(br.p,&vb);
-    if(!vb.data) return 5;
+    if(!vb.data){ OZXSetThreadRenderer(NULL); free(hgr); return 5; }
     size_t bpp=vb.rowBytes/vb.width;                      // 8 => 16-bit half-float RGBA, else 8-bit
     CGImageRef cim=NULL;
+    CGColorSpaceRef cs=NULL; CGContextRef c=NULL;
     if(bpp==8){
-        CGColorSpaceRef cs=CGColorSpaceCreateWithName(kCGColorSpaceExtendedLinearSRGB);
-        CGContextRef c=CGBitmapContextCreate(vb.data,vb.width,vb.height,16,vb.rowBytes,cs,
+        cs=CGColorSpaceCreateWithName(kCGColorSpaceExtendedLinearSRGB);
+        c=CGBitmapContextCreate(vb.data,vb.width,vb.height,16,vb.rowBytes,cs,
             kCGImageAlphaPremultipliedLast|kCGBitmapByteOrder16Little|kCGBitmapFloatComponents);
         cim=CGBitmapContextCreateImage(c);
     } else {
-        CGColorSpaceRef cs=CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-        CGContextRef c=CGBitmapContextCreate(vb.data,vb.width,vb.height,8,vb.rowBytes,cs,
+        cs=CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+        c=CGBitmapContextCreate(vb.data,vb.width,vb.height,8,vb.rowBytes,cs,
             kCGImageAlphaPremultipliedLast|kCGBitmapByteOrder32Big);
         cim=CGBitmapContextCreateImage(c);
     }
@@ -368,5 +400,17 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
     CGImageDestinationRef dst=CGImageDestinationCreateWithURL(uu,CFSTR("public.png"),1,NULL);
     CGImageDestinationAddImage(dst,cim,NULL);
     bool ok=CGImageDestinationFinalize(dst);
+    // Release every per-render CoreGraphics/CoreFoundation object. Without this each of the
+    // ~1560 frames in a full batch leaks a CGImage + CGContext + CGColorSpace + CFString +
+    // CFURL + CGImageDestination; that unbounded growth is what eventually starves the
+    // process and turns renders black. Free the per-render HGGPURenderer too (malloc'd above).
+    if(dst) CFRelease(dst);
+    if(uu)  CFRelease(uu);
+    if(pp)  CFRelease(pp);
+    if(cim) CGImageRelease(cim);
+    if(c)   CGContextRelease(c);
+    if(cs)  CGColorSpaceRelease(cs);
+    OZXSetThreadRenderer(NULL);   // unbind our per-render renderer from this thread
+    free(hgr);
     return ok?0:6;
 }

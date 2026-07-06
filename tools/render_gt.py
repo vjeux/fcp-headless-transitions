@@ -747,81 +747,77 @@ def _reverse_ramp_schedule(doc, img_a, img_b, play_range, nframes, log=None):
 _LAST_SCHEDULE = None
 
 
-def sample_time(i, nframes, end):
-    """Return the scene-time for GT frame `i` of `nframes`.
+def sample_time(i, nframes, span):
+    """Return the scene-time (seconds) for GT frame `i` of `nframes`.
 
-    If a reverse-ramp schedule was computed for the current doc (by the most recent
-    _areturn_end_seconds call, when its cold-B gate fired), return schedule[i] (the
-    DECREASING reverse-ramp time). Otherwise fall back to the linear forward sampling
-    `(i/(N-1))*end` (with the final frame nudged just below `end`), identical to the
-    existing scorer loop => zero behavior change for every slug the gate excludes.
+    FCP plays the transition over its AUTHORED scene duration (`span` =
+    scene_duration_seconds) and the timeline covers it as `nframes` EQUAL,
+    HALF-OPEN slices: frame `i` sits at timeline progress `i/nframes`, so
 
-    This is the single call a linear scorer needs to substitute for its `t=i/23*end`
-    line to become reverse-ramp aware without any other change."""
+        t = (i / nframes) * span
+
+    Frame 0 is the pure-A start; the last frame (i = nframes-1) lands at
+    `(nframes-1)/nframes * span`, which is INSIDE the transition (fully B) —
+    it must NOT be nudged to `span`, because `span` is the loop-point where the
+    scene wraps back to source A. This half-open `i/N` convention (not the old
+    closed `i/(N-1)`, which stretched the last frame onto the wrap point and
+    lagged the whole back half) reproduces FCP's GUI cadence to <0.1% of frame
+    height (verified on Push via seam-position fit: RMS 0.0006 vs 0.0125).
+
+    If a reverse-ramp schedule was computed for the current doc (by the most
+    recent _areturn_end_seconds call, when its cold-B gate fired), return
+    schedule[i] (the DECREASING reverse-ramp time) instead."""
     sched = _LAST_SCHEDULE
     if sched is not None and len(sched) == nframes:
         return sched[i]
     if nframes <= 1:
         return 0.0
-    t = (i / (nframes - 1)) * end
-    if i == nframes - 1:
-        t = end - 1e-4
-    return t
+    return (i / nframes) * span
 
 
 def _render_one(motr, img_a, img_b, outdir, nframes):
-    """Render one transition's frames into outdir. Assumes engine is initialized."""
+    """Render one transition's frames into outdir. Assumes engine is initialized.
+
+    Time model (verified against FCP's GUI export via seam-position fit on Push,
+    RMS 0.0006 of frame height): FCP plays the transition over its AUTHORED scene
+    duration `span` = scene_duration_seconds(motr) = sceneSettings/duration ÷
+    frameRate. The `nframes` GT frames cover [0, span) as half-open equal slices:
+    frame i sits at scene-time (i/nframes)*span. Frame 0 = pure-A start; the final
+    frame lands at ((nframes-1)/nframes)*span, strictly BEFORE the loop-point `span`
+    where the scene wraps back to source A.
+
+    The old code sampled i/(nframes-1)*animation_end. Both parts were wrong:
+    animation_end (max spatial keyframe) is not the authored span, and the closed
+    i/(N-1) fencepost stretched the last frame onto the wrap-point (duplicated
+    final frame) and lagged the whole back half. That in turn spawned a stack of
+    compensating clamps (scene-clamp / visible-end / A-return trims). With the
+    correct span + half-open sampling those clamps are unnecessary and removed.
+    """
     os.makedirs(outdir, exist_ok=True)
-    end = animation_end_seconds(motr)
-    if end <= 0:
-        end = 1.6683333333333332  # last-resort Push default (no keyframes, no scene duration)
+    global _LAST_SCHEDULE
+    _LAST_SCHEDULE = None  # clear any stale reverse-ramp schedule from a prior slug
     doc = ozengine.load_doc(motr)
-    # TIME-DOMAIN scene-duration clamp (runs FIRST): animation_end is a max-keyframe
-    # heuristic that OVERSHOOTS FCP's authored scene duration for the Flash/Bloom/
-    # Light_Noise/Color_Planes/Center_Reveal/Heart/Light_Sweep/Static/Slide_In/Loop/
-    # Drop_In/Leaves family, pushing the sampled tail frames into a black/out-of-range
-    # void (Flash's black back half). Clamp `end` down to the authored scene duration
-    # when the overshoot region (sd, end] is a dead void; leave hold-then-reveal
-    # transitions (Mask) alone. Fully generic — no per-slug constants.
-    end = _scene_clamp_end_seconds(doc, img_a, img_b, motr, end,
-                                   log=lambda m, _o=outdir: print(f"  [{os.path.basename(_o)}] {m}", flush=True))
-    # True-visual-end correction (retime-wrap class): the FCP engine plays PAST the
-    # last drop-zone frame into a pure-black loop-point, and the max-keyframe `end`
-    # can land there. Trim `end` down (measurement-driven) so the final sampled frame
-    # is never a black-wrap frame. This is fully generic: it only trims transitions
-    # whose final frame is actually black, converging to the true black onset (so it
-    # handles the replicator case where clones time out before the source drop zone
-    # does, and NEVER over-trims transitions whose content legitimately outlives any
-    # drop-zone `out`, e.g. Stylized/Close & Open). Push/Gaussian/etc. — whose final
-    # frame is already valid source B — are returned untouched.
-    end = _visible_end_seconds(doc, img_a, img_b, end)
-    # REVERSE-RAMP time-remap (opt-in FCT_ATRIM=1 — same cold-B anchor as _areturn).
-    # The A->(snap B)->A round-trip templates (Stylized Loop/Heart/Center/...) settle
-    # back to source A at playRange end, so LINEAR forward sampling ends on A and
-    # oscillates. When this transition demonstrably resolves to cold-B, sample the B->A
-    # decay ramp BACKWARDS: f0->tA(source A), f_{N-1}->tB(cold-B climax) == a clean A->B.
-    # _areturn_end_seconds (called below on the FCT_ATRIM path) computes this schedule and
-    # stashes it in _LAST_SCHEDULE when its cold-B gate fires (returning `end` unchanged);
-    # otherwise _LAST_SCHEDULE is None and the linear A-return trim applies. This OVERRIDES
-    # the linear schedule ONLY for slugs whose gate fires; every other slug (Glide, flips,
-    # non-Stylized directional, authored round trips) falls through UNCHANGED to the linear
-    # path below. Purely additive. NOTE: _areturn_end_seconds builds the schedule for the
-    # canonical 24-frame GT; if nframes != 24 the schedule won't match and we rebuild it
-    # here for the requested frame count.
+    span = scene_duration_seconds(motr)
+    if not span or span <= 0:
+        # Templates without a parseable <sceneSettings> fall back to the max-keyframe
+        # heuristic (rare; keeps a sane window instead of 0).
+        span = animation_end_seconds(motr)
+    if not span or span <= 0:
+        span = 1.7  # last-resort default scene span (Push authored duration 51/30)
+    # REVERSE-RAMP time-remap (opt-in FCT_ATRIM=1): the A->(snap B)->A round-trip
+    # templates (Stylized Loop/Heart/Center/...) play a B->A decay after reaching B,
+    # so a plain forward walk ends back on source A. When such a transition
+    # demonstrably resolves to cold-B, _areturn_end_seconds computes a DECREASING
+    # reverse-ramp schedule and stashes it in _LAST_SCHEDULE; we sample that instead.
+    # This is a genuine per-template time REMAP (not a span correction) and is the
+    # one remaining time-domain special case. It is a no-op for every transition
+    # whose gate does not fire (Push et al. fall straight through to the linear walk).
     schedule = None
     if os.environ.get("FCT_ATRIM") == "1":
-        # Source-A-RETURN correction (retime-wrap loop-point re-shows sepia source A, not
-        # black — so `_visible_end_seconds`' black-only trim misses it). Opt-in via
-        # FCT_ATRIM=1 because the cold-B anchor is calibrated to this benchmark's
-        # warm-sepia->cold-blue A/B pair; fully generic within that pair and a no-op for
-        # any transition whose final frame already shows content (Push et al.). This ALSO
-        # computes+stashes the reverse-ramp schedule in _LAST_SCHEDULE when the cold-B gate
-        # fires (and returns `end` unchanged in that case).
-        end = _areturn_end_seconds(doc, img_a, img_b, end, motr_path=motr,
-                                   log=lambda m, _o=outdir: print(f"  [{os.path.basename(_o)}] {m}", flush=True))
+        _areturn_end_seconds(doc, img_a, img_b, span, motr_path=motr,
+                             log=lambda m, _o=outdir: print(f"  [{os.path.basename(_o)}] {m}", flush=True))
         schedule = _LAST_SCHEDULE
         if schedule is not None and len(schedule) != nframes:
-            # Rebuild for the requested frame count (default GT is 24; --batch/CLI may differ).
             pr = _play_range_seconds(motr)
             schedule = _reverse_ramp_schedule(
                 doc, img_a, img_b, pr, nframes,
@@ -830,13 +826,10 @@ def _render_one(motr, img_a, img_b, outdir, nframes):
         if schedule is not None:
             t = schedule[i]
         else:
-            p = i / (nframes - 1) if nframes > 1 else 0.0
-            t = p * end
-            if i == nframes - 1:
-                t = end - 1e-4  # nudge below the loop-point wrap
+            t = sample_time(i, nframes, span)
         out = os.path.join(outdir, f"frame_{i:04d}.png")
         ozengine.render_frame(doc, img_a, img_b, t, out)
-    return end
+    return span
 
 
 def main():
@@ -848,6 +841,62 @@ def main():
     #     stdin. Frame count via --frames N (default 24).
     #       python tools/render_gt.py --batch manifest.tsv [--frames 24]
     #       ... | python tools/render_gt.py --batch - [--frames 24]
+    # --- Isolated batch mode: render EACH job in its OWN fresh subprocess.
+    #     A single long-lived process accumulates unavoidable engine state (the
+    #     ProMedia/OZFootage bitmap cache + shared CGL master context); across a
+    #     full 65-slug run this eventually null-derefs in PMStillInstance::getFrameGPU
+    #     or leaves the shared GL context dirty (observed: SIGSEGV at slug ~53, and
+    #     pre-GL-reset, an all-black cascade from the poison point onward). Rendering
+    #     each slug in its own subprocess pays the ~1.3s engine boot per slug but is
+    #     100% robust: no slug can poison or crash another. Each subprocess still
+    #     benefits from the per-frame CGL reset + resource release in oz_render.mm.
+    #     Retries a crashed/black slug up to 3x. Use for the full GT regen:
+    #       python tools/render_gt.py --batch-isolated manifest.tsv [--frames 24]
+    if args and args[0] == "--batch-isolated":
+        manifest_path = args[1]
+        nframes = 24
+        if "--frames" in args:
+            nframes = int(args[args.index("--frames") + 1])
+        src = sys.stdin if manifest_path == "-" else open(manifest_path)
+        jobs = []
+        for line in src:
+            line = line.rstrip("\n")
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split("\t")
+            if len(parts) >= 4:
+                jobs.append(parts[:4])
+        if src is not sys.stdin:
+            src.close()
+        import subprocess
+        FW = ozengine.FW
+        ok = 0
+        failed = []
+        for motr, img_a, img_b, outdir in jobs:
+            slug = os.path.basename(outdir)
+            done = False
+            for attempt in range(1, 4):
+                env = dict(os.environ)
+                env["DYLD_FRAMEWORK_PATH"] = FW
+                r = subprocess.run(
+                    [sys.executable, os.path.abspath(__file__), motr, img_a, img_b, outdir, str(nframes)],
+                    env=env, capture_output=True, text=True, cwd=ozengine.HERE)
+                valid, reason = _validate_frames(outdir, nframes)
+                if r.returncode == 0 and valid:
+                    print(f"OK  {slug}  ({nframes}f) [attempt {attempt}]", flush=True)
+                    ok += 1
+                    done = True
+                    break
+                why = reason if not valid else f"rc={r.returncode}"
+                print(f"RETRY {slug}  {why} [attempt {attempt}]", flush=True)
+            if not done:
+                print(f"FAIL {slug}", flush=True)
+                failed.append(slug)
+        print(f"isolated batch done: {ok}/{len(jobs)} rendered", flush=True)
+        if failed:
+            print(f"FAILED ({len(failed)}): " + ", ".join(failed), flush=True)
+        os._exit(0)
+
     if args and args[0] == "--batch":
         manifest_path = args[1]
         nframes = 24
