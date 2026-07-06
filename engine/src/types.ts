@@ -379,6 +379,15 @@ export interface SceneSettings {
    * declares a Fixed Height.
    */
   dropZoneMediaHeight?: number;
+  /**
+   * Motion-blur shutter samples (`<motionBlurSamples>`), 1 = no blur. FCP averages
+   * this many sub-frame renders across the shutter interval (`motionBlurDuration`
+   * frames) to smear fast-moving content. Used by the Slide-family decorative
+   * tiles, whose fast sweep reads as a soft blur in the reference renderer.
+   */
+  motionBlurSamples?: number;
+  /** Shutter length in frames (`<motionBlurDuration>`), default 1. */
+  motionBlurDuration?: number;
 }
 
 /** The complete parsed transition scene. */
