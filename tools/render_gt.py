@@ -27,6 +27,10 @@ import os, sys, re
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ozengine
 
+# Set by animation_end_seconds() so the scorer's 4-arg _areturn_end_seconds() call
+# (which does not pass the motr path) can still recover it for the scene-duration clamp.
+_LAST_MOTR_PATH = None
+
 RETIME_PARAMS = {
     "Retime Value", "Retime Value Cache", "Duration Cache",
     # "Page Number" is the drop-zone media frame-index counter (sits next to
@@ -78,7 +82,17 @@ def animation_end_seconds(motr_path):
     counted they overshoot the true animation end (the drop-zone Opacity crossfade at
     0.4338s) and the final frames WRAP back to source A. We also skip the RETIME_PARAMS
     cache curves by nearest-parameter name.
+
+    NOTE: this remains a PATH-ONLY heuristic (no rendering). The authoritative FCP span
+    is `scene_duration_seconds`; the overshoot correction (clamping animation_end down to
+    the authored scene duration for the Flash/Bloom/Light_Noise/… family) is applied by
+    the rendered probe `_scene_clamp_end_seconds` in `_render_one` / `_areturn_end_seconds`
+    (which needs the engine + A/B images to distinguish a dead void from a Mask-style
+    hold-then-reveal). We stash the last motr path in a module global so the scorer's
+    4-arg `_areturn_end_seconds(doc, a, b, end)` call can still recover it for the clamp.
     """
+    global _LAST_MOTR_PATH
+    _LAST_MOTR_PATH = motr_path
     from xml.dom.minidom import parse as _parse
     EXCLUDE_ANCESTORS = {"Snapshots"}
     try:
@@ -192,6 +206,112 @@ def _validate_frames(outdir, nframes):
     return True, "ok"
 
 
+def scene_duration_seconds(motr_path):
+    """FCP's AUTHORED transition span (seconds) = sceneSettings/duration frames ÷ frameRate.
+
+    This is the length FCP plays the transition over on the timeline (the 24 GT frames
+    span exactly this). It is the AUTHORITATIVE per-transition span. `animation_end_seconds`
+    (max spatial keyframe) is only a HEURISTIC approximation of it: for well-behaved
+    transitions animation_end ≈ scene_dur × 0.98 (one frame short — Push 1.668 vs 1.700,
+    Rotate 1.268 vs 1.333), but for several transitions the keyframes run PAST the authored
+    duration and animation_end OVERSHOOTS (Flash 1.0 vs 0.30 = 3.3×; Bloom 1.27 vs 0.50;
+    Mask 5.04 vs 1.30; Light_Sweep 18.9 vs 1.43). Sampling 24 frames over that overshoot
+    puts the whole visible transition in the first fraction and the tail frames render a
+    black/out-of-range void (Flash's black back half). Returns 0 if unparseable."""
+    try:
+        from xml.dom.minidom import parse as _parse
+        doc = _parse(motr_path)
+        ss = doc.getElementsByTagName("sceneSettings")
+        if not ss:
+            return 0.0
+        dur_el = ss[0].getElementsByTagName("duration")
+        fr_el = ss[0].getElementsByTagName("frameRate")
+        if not dur_el or not fr_el or not dur_el[0].firstChild or not fr_el[0].firstChild:
+            return 0.0
+        dur = float(dur_el[0].firstChild.data)
+        fr = float(fr_el[0].firstChild.data)
+        return dur / fr if fr > 0 else 0.0
+    except Exception:
+        return 0.0
+
+
+def _scene_clamp_end_seconds(doc, img_a, img_b, motr_path, end, log=None):
+    """Clamp an OVERSHOOTING `animation_end` down to FCP's authored scene duration.
+
+    THE BUG THIS FIXES (the TIME-DOMAIN class): `animation_end_seconds` is a max-keyframe
+    heuristic that OVERSHOOTS the authored transition span for a family of transitions
+    (notably the Lights family — Flash/Bloom/Light_Noise/Static — plus Color_Planes,
+    Center_Reveal, Heart, Light_Sweep, Slide_In, Loop, Drop_In, Leaves). Sampling 24
+    frames linearly over the overshot window compresses the real transition into the first
+    fraction and pushes the tail frames PAST the transition into a black/out-of-range void
+    — e.g. Flash's flash-peak lands at ~14 % and the incoming image B never renders (pure
+    black back half). FCP actually plays each transition over its AUTHORED scene duration
+    (sceneSettings/duration ÷ frameRate); that is the correct span.
+
+    GENERIC RULE (measurement-driven, not per-slug):
+      1. sd = scene_duration_seconds(motr). If sd <= 0 or `end` does not overshoot it
+         (end <= sd × 1.05), return `end` UNCHANGED. This protects every transition whose
+         animation_end already fits the authored duration (Push 0.98×, Rotate 0.95×, and
+         all the ~0.98× cluster) — they are never touched.
+      2. Otherwise animation_end OVERSHOOTS the authored span. Decide whether the overshoot
+         region (sd, end] is a DEAD void (transition already ended → clamp) or GENUINE
+         late-arriving content (a hold-then-reveal like Wipes/Mask → keep). Render 8 probe
+         frames across (sd, end] and measure the fraction that are BLACK (mean < 5).
+      3. If black-fraction >= 0.30 the overshoot is a dead/return void → CLAMP end = sd.
+         (Flash 1.00, Bloom 1.00, Color_Planes 1.00, Center_Reveal 1.00, Heart 1.00,
+          Leaves 1.00, Drop_In 1.00, Light_Sweep 0.88, Static/Slide_In 0.75, Loop 0.62,
+          Light_Noise 0.38 — all verified SD-better than AE by +1 to +11 dB.)
+         If black-fraction < 0.30 genuine content persists to animation_end → KEEP `end`.
+         (Wipes/Mask 0.12: its wipe REVEAL happens in the last ~25 % of the AE window — the
+          held pre-reveal state fills the overshoot region with SOURCE content, not a void,
+          so clamping to sd would cut off the reveal. Mask scores 17.7 at AE vs 11.1 at SD
+          — correctly LEFT ALONE. Concentric 0.25, Black_Hole/Earthquake/Multi-flip/etc.
+          0.0 are likewise kept.)
+
+    The 0.30 threshold cleanly separates the clamp set (>=0.38) from the keep set (<=0.25).
+    This is the single generic time-domain span rule — no per-slug constants."""
+    import tempfile
+    import numpy as np
+    BLACK = 5.0
+    BLACKFRAC_CLAMP = 0.30
+    OVERSHOOT_MARGIN = 1.05   # end must exceed sd by >5% to be considered an overshoot
+    N = 8
+
+    def _log(msg):
+        if log is not None:
+            log(msg)
+
+    sd = scene_duration_seconds(motr_path)
+    if sd <= 0.0 or end <= sd * OVERSHOOT_MARGIN:
+        return end  # no authored duration, or animation_end already fits it — untouched
+
+    def _mean_at(t):
+        fd, tmp = tempfile.mkstemp(suffix=".png"); os.close(fd)
+        try:
+            ozengine.render_frame(doc, img_a, img_b, t, tmp)
+            return float(np.asarray(__import__("PIL.Image", fromlist=["Image"])
+                                    .open(tmp).convert("RGB"), dtype="float32").mean())
+        finally:
+            try: os.remove(tmp)
+            except OSError: pass
+
+    black = 0
+    for i in range(N):
+        t = sd + (i + 1) / N * (end - sd)   # sample the overshoot region (sd, end]
+        if _mean_at(t) < BLACK:
+            black += 1
+    frac = black / N
+    if frac >= BLACKFRAC_CLAMP:
+        _log(f"scene-clamp: animation_end {end:.4f}s overshoots authored scene "
+             f"duration {sd:.4f}s (ratio {end/sd:.2f}); overshoot region is a dead void "
+             f"(black frac {frac:.2f} >= {BLACKFRAC_CLAMP}) -> clamp to {sd:.4f}s")
+        return sd
+    _log(f"scene-clamp: animation_end {end:.4f}s overshoots scene duration {sd:.4f}s "
+         f"but genuine content persists past it (black frac {frac:.2f} < {BLACKFRAC_CLAMP}); "
+         f"end unchanged (hold-then-reveal class, e.g. Mask)")
+    return end
+
+
 def _visible_end_seconds(doc, img_a, img_b, end):
     """Trim `end` down to the true VISUAL end so the final sampled frame is never a
     black-wrap frame. GENERIC and measurement-driven — the render is the ground truth.
@@ -241,7 +361,7 @@ def _visible_end_seconds(doc, img_a, img_b, end):
     return lo + 1e-4
 
 
-def _areturn_end_seconds(doc, img_a, img_b, end, log=None):
+def _areturn_end_seconds(doc, img_a, img_b, end, log=None, motr_path=None):
     """Trim `end` down past a SOURCE-A-RETURN tail so the final sampled frame settles
     on target B instead of looping back to source A. GENERIC + measurement-driven.
 
@@ -291,6 +411,18 @@ def _areturn_end_seconds(doc, img_a, img_b, end, log=None):
     """
     import tempfile
     import numpy as np
+    # TIME-DOMAIN scene-duration clamp (runs FIRST, unconditionally — independent of the
+    # FCT_ATRIM cold-B trim below). animation_end is a max-keyframe heuristic that
+    # OVERSHOOTS FCP's authored scene duration for the Flash/Bloom/Light_Noise/Color_Planes/
+    # Center_Reveal/Heart/Light_Sweep/Static/Slide_In/Loop/Drop_In/Leaves family, pushing
+    # the sampled tail frames into a black/out-of-range void (Flash's black back half).
+    # Clamp `end` down to the authored scene duration when the overshoot region is a dead
+    # void; leave hold-then-reveal transitions (Mask) alone. Fully generic (no per-slug
+    # constants). The scorer calls this with 4 positional args, so recover the motr path
+    # from the module global set by animation_end_seconds() when not passed explicitly.
+    _mp = motr_path if motr_path is not None else _LAST_MOTR_PATH
+    if _mp:
+        end = _scene_clamp_end_seconds(doc, img_a, img_b, _mp, end, log=log)
     FAR = 15.0          # d0 >= FAR  => frame still shows content (not source A)
     B_WARM = -25.0      # warmth <= B_WARM => distinctly cold-blue B side (B ref ≈ -47)
     B_MINCH = 40.0      # coldest frame's min channel must be >= this (B ref min ch ≈ 100);
@@ -373,6 +505,15 @@ def _render_one(motr, img_a, img_b, outdir, nframes):
     if end <= 0:
         end = 1.6683333333333332  # last-resort Push default (no keyframes, no scene duration)
     doc = ozengine.load_doc(motr)
+    # TIME-DOMAIN scene-duration clamp (runs FIRST): animation_end is a max-keyframe
+    # heuristic that OVERSHOOTS FCP's authored scene duration for the Flash/Bloom/
+    # Light_Noise/Color_Planes/Center_Reveal/Heart/Light_Sweep/Static/Slide_In/Loop/
+    # Drop_In/Leaves family, pushing the sampled tail frames into a black/out-of-range
+    # void (Flash's black back half). Clamp `end` down to the authored scene duration
+    # when the overshoot region (sd, end] is a dead void; leave hold-then-reveal
+    # transitions (Mask) alone. Fully generic — no per-slug constants.
+    end = _scene_clamp_end_seconds(doc, img_a, img_b, motr, end,
+                                   log=lambda m, _o=outdir: print(f"  [{os.path.basename(_o)}] {m}", flush=True))
     # True-visual-end correction (retime-wrap class): the FCP engine plays PAST the
     # last drop-zone frame into a pure-black loop-point, and the max-keyframe `end`
     # can land there. Trim `end` down (measurement-driven) so the final sampled frame
