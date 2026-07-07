@@ -135,8 +135,6 @@ static void oz_reset_gl_context(){
 // ============================================================================
 static void* g_nodeA=nullptr;
 static void* g_nodeB=nullptr;
-static void* g_seenA=nullptr;   // first distinct DROP-ZONE element pointer (discovery order)
-static void* g_seenB=nullptr;   // second distinct DROP-ZONE element pointer
 
 // Detour trampoline: a small executable buffer holding the ORIGINAL function's first 4
 // instructions (16 bytes) followed by a jump back to (target+16). Calling this reproduces
@@ -145,7 +143,9 @@ typedef void (*orig_fn_t)();
 extern "C" void* g_orig_detour;
 void* g_orig_detour=nullptr;
 
-extern "C" void oz_reset_hook(){ g_seenA=nullptr; g_seenB=nullptr; }
+// No-op: A/B assignment is now stateless (bound by authored isTransitionSourceA/B identity per
+// element), so there is no per-render discovery state to reset. Kept for call-site ABI stability.
+extern "C" void oz_reset_hook(){ }
 
 // C picker. Returns 1 if it injected a node into *sret (a real drop zone), 0 if the caller
 // should CALL THROUGH to the original resolver (embedded media). self=x0, colorDesc=arg2.
@@ -171,11 +171,18 @@ extern "C" int oz_mediaref_pick(void* self, void* colorDesc, void* sret){
     // Wipes__Mask -3.78 (Mask's GUI GT matches the SWAPPED render due to the separate rig-direction
     // A/B bug that g1 owns). Discovery-order is the provably-clean choice that regresses nothing;
     // identity should be revisited once the rig-direction A/B swap is fixed pool-wide.
+    // IDENTITY-based A/B assignment: bind by the AUTHORED drop-zone role
+    // isTransitionSourceA()->nodeA(start.jpg), isTransitionSourceB()->nodeB(end.jpg). Robust to
+    // the compositor's visitation order (Mask/Scale/Duplicate visit their B-role drop zone FIRST,
+    // so the old discovery-order fed start.jpg into the B slot -> swapped). Verified against the
+    // CORRECTED (settle-anchored) GUI GT: Scale 13.2->28.2, Duplicate 11.6->24.1, Mask 11.0->27.3,
+    // Flip 23.7->26.8, Concentric 16.7->20.8, Directional 28.3->31.5; Push 31.45 unchanged (Push
+    // visits A-first so identity==discovery). The earlier "Mask regresses under identity" was an
+    // artifact of the OLD broken GT (which ended mid-transition); with the corrected GT identity is
+    // unambiguously correct pool-wide.
     void* raw=nullptr;
-    if(self==g_seenA) raw=g_nodeA;
-    else if(self==g_seenB) raw=g_nodeB;
-    else if(!g_seenA){ g_seenA=self; raw=g_nodeA; }
-    else if(!g_seenB){ g_seenB=self; raw=g_nodeB; }
+    if(ozimg_isTransitionSourceA(self)) raw=g_nodeA;
+    else if(ozimg_isTransitionSourceB(self)) raw=g_nodeB;
     if(!raw){ *(void**)sret=nullptr; return 1; }
     if(colorDesc){
         HGRefNode in; in.p=raw;
