@@ -406,13 +406,18 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
             if(getenv("OZ_DOD_DEBUG")) fprintf(stderr,"[oz] flat-aperture ROI 0,0,%d,%d (scaled to 1920x1080 downstream)\n",roi.w,roi.h);
         }
         // Otherwise: trust the DOD center for bounded off-center canvases (e.g. Squares, whose DOD is a
-        // STATIC off-center block). Sanity-gate on a plausible DOD.
-        else if(dw > 0 && dh > 0 && dw <= 8192 && dh <= 8192){
+        // STATIC off-center block). Sanity-gate on a plausible DOD. IMPORTANT: only re-center when the
+        // authored aperture is NOT the standard 1920x1080 frame. For a normal 1920x1080 aperture the
+        // output frame is FIXED at the aperture origin; content that bleeds OUTSIDE the frame (e.g.
+        // Stylized/Heart's heart-curve sweeps far past the frame -> DOD 2701x2230 off-center) must be
+        // CLIPPED by the frame, NOT chased — chasing the off-center DOD shifts the window off the real
+        // frame and squishes the content with black borders (Heart was 10.1dB from this). Squares-type
+        // off-center canvases have a >1920x1080 aperture and are handled here.
+        else if(dw > 0 && dh > 0 && dw <= 8192 && dh <= 8192
+                && (abs((int)sb.w-1920) > 2 || abs((int)sb.h-1080) > 2)){
             int cx = dx0 + dw/2, cy = dy0 + dh/2;
             // Only re-center when the DOD center is clearly off the normal frame center (960,540).
-            // Normal transitions have a symmetric bleed margin -> center within a few px of (960,540);
-            // keeping the exact {0,0,1920,1080} for them avoids sub-pixel ROI drift regressions on the
-            // 56 already-good transitions. Off-center canvases (Squares center (2048,1080)) get corrected.
+            // Off-center canvases (Squares center (2048,1080)) get corrected.
             if(abs(cx-960) > 32 || abs(cy-540) > 32){
                 roi.x = cx - 960;
                 roi.y = cy - 540;
