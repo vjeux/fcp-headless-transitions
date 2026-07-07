@@ -381,6 +381,23 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
             roi.x = cx - 960; roi.y = cy - 540; roi.w = 1920; roi.h = 1080;
             if(getenv("OZ_DOD_DEBUG")) fprintf(stderr,"[oz] equirect: aperture-center ROI %d,%d,1920,1080\n",roi.x,roi.y);
         }
+        // FLAT NON-1920x1080 APERTURE (e.g. Dissolves/Divide + Drop_In 1280x720; Color_Panels/
+        // Light_Sweep 1967x1080; Switch 2160x1080): FCP authors the transition at its own aperture and
+        // NORMALIZES that whole canvas to the 1920x1080 output frame. Our fixed 1920x1080 readback then
+        // grabs only a sub-region (content squished into a corner with black borders). Read back the FULL
+        // authored aperture instead; the output PNG is aperture-sized and the scorer/consumer scales it to
+        // 1920x1080 (matching FCP's normalize). Aperture origin in readback space = (-sb.x,-sb.y).
+        else if(sb.w > 0 && sb.h > 0 && sb.w < 3072 && (abs((int)sb.w-1920) > 2 || abs((int)sb.h-1080) > 2)
+                && dw <= (int)(sb.w*1.15) && dh <= (int)(sb.h*1.15)){
+            // Flat scenes whose content is CONTAINED within the authored aperture: FCP normalizes that
+            // aperture to the 1920x1080 output. Read the full aperture (content sits at readback origin
+            // (0,0); verified OZ_ROI=0,0,1280,720 recovers Dissolves/Divide). Scaled to 1920x1080
+            // downstream. GATED on DOD <= 1.15*aperture so we DON'T clip transitions whose animation
+            // spills OUTSIDE the aperture (e.g. Movements/Drop_In: aperture 1280x720 but DOD 1962x1122 —
+            // the dropping image moves beyond the canvas; those keep the default/DOD-centered readback).
+            roi.x=0; roi.y=0; roi.w=(int)sb.w; roi.h=(int)sb.h;
+            if(getenv("OZ_DOD_DEBUG")) fprintf(stderr,"[oz] flat-aperture ROI 0,0,%d,%d (scaled to 1920x1080 downstream)\n",roi.w,roi.h);
+        }
         // Otherwise: trust the DOD center for bounded off-center canvases (e.g. Squares, whose DOD is a
         // STATIC off-center block). Sanity-gate on a plausible DOD.
         else if(dw > 0 && dh > 0 && dw <= 8192 && dh <= 8192){
