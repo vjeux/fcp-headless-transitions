@@ -66,6 +66,13 @@ extern GRRet OZXGetRenderGraph(void* scene, void* params, void* svctx, void* glr
 // corner (quadrant), leaving most of the frame black. GetDOD gives the true output extent so we
 // can center the 1920x1080 readback window on it.
 extern HGRect HGRenderer_GetDOD(void* hgr, void* node) asm("__ZN10HGRenderer6GetDODEP6HGNode");
+// OZScene::getSceneBounds(PCRect<double>* out) — writes the scene's authored aperture {x,y,w,h}
+// (from sceneSettings width/height at scene+0x90/0x98) to the out pointer. Void return + out-param
+// => safe ABI. Used to anchor the readback for wide equirect (360°) canvases on the FIXED aperture
+// center instead of the MOVING DOD-union center (the 360° DOD is the union of two translating clone
+// layers, so its center slides across the panorama and a DOD-centered window lands on empty canvas).
+struct PCRectd { double x, y, w, h; };
+extern void OZScene_getSceneBounds(void* scene, PCRectd* out) asm("__ZN7OZScene14getSceneBoundsEP6PCRectIdE");
 // The transition's media-ref resolver we hook (its address is patched at runtime):
 extern "C" void ozimg_getHeliumGraphFromMediaRef()
     asm("__ZN14OZImageElement26getHeliumGraphFromMediaRefERK14OZRenderParamsR18FxColorDescription");
@@ -357,15 +364,31 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
         int dx1=(int)(int32_t)(dod.b & 0xffffffff), dy1=(int)(int32_t)(dod.b >> 32);
         int dw=dx1-dx0, dh=dy1-dy0;
         if(getenv("OZ_DOD_DEBUG")) fprintf(stderr,"[oz] DOD x0=%d y0=%d x1=%d y1=%d (w=%d h=%d)\n",dx0,dy0,dx1,dy1,dw,dh);
-        // Sanity: only trust a plausible DOD (positive, not absurdly large). Then center the
-        // 1920x1080 readback window on the DOD center.
-        if(dw > 0 && dh > 0 && dw <= 8192 && dh <= 8192){
+        // WIDE EQUIRECT CANVAS (360° family): the scene aperture is a 2:1 panorama (e.g. 4096x2048) and
+        // the DOD is the UNION of two clone layers translating across it — so the DOD center SLIDES with
+        // the animation (f0 center~2048, f12~2073, f23~3974) and a DOD-centered readback lands on empty
+        // canvas => black. For these, anchor a 1920x1080 window on the FIXED aperture center (front-facing
+        // view of the panorama). Detect via the authored scene aperture (getSceneBounds), not per-template.
+        PCRectd sb; memset(&sb,0,sizeof(sb)); OZScene_getSceneBounds(scene,&sb);
+        if(getenv("OZ_DOD_DEBUG")) fprintf(stderr,"[oz] sceneBounds x=%.0f y=%.0f w=%.0f h=%.0f\n",sb.x,sb.y,sb.w,sb.h);
+        if(sb.w >= 3072.0 && sb.h > 0){
+            // Equirect panorama: front-facing window centered on the aperture center.
+            // getSceneBounds reports the aperture centered on the ORIGIN (e.g. x=-2048,y=-1024,w=4096,
+            // h=2048 => center (0,0)), but the renderNodeToBitmap ROI is in READBACK space whose origin
+            // is the aperture's top-left corner. So the aperture center in readback space is
+            // (-sb.x, -sb.y) (= (2048,1024) for the 4096x2048 canvas). Anchor the 1920x1080 window there.
+            int cx=(int)(-sb.x), cy=(int)(-sb.y);
+            roi.x = cx - 960; roi.y = cy - 540; roi.w = 1920; roi.h = 1080;
+            if(getenv("OZ_DOD_DEBUG")) fprintf(stderr,"[oz] equirect: aperture-center ROI %d,%d,1920,1080\n",roi.x,roi.y);
+        }
+        // Otherwise: trust the DOD center for bounded off-center canvases (e.g. Squares, whose DOD is a
+        // STATIC off-center block). Sanity-gate on a plausible DOD.
+        else if(dw > 0 && dh > 0 && dw <= 8192 && dh <= 8192){
             int cx = dx0 + dw/2, cy = dy0 + dh/2;
             // Only re-center when the DOD center is clearly off the normal frame center (960,540).
             // Normal transitions have a symmetric bleed margin -> center within a few px of (960,540);
             // keeping the exact {0,0,1920,1080} for them avoids sub-pixel ROI drift regressions on the
-            // 56 already-good transitions. Off-center canvases (Squares center (2048,1080), 360°) deviate
-            // by hundreds of px and get corrected.
+            // 56 already-good transitions. Off-center canvases (Squares center (2048,1080)) get corrected.
             if(abs(cx-960) > 32 || abs(cy-540) > 32){
                 roi.x = cx - 960;
                 roi.y = cy - 540;
