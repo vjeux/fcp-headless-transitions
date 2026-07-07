@@ -1,0 +1,457 @@
+{
+"360\u00b0__360\u00b0_Bloom": {
+"transStart": 12,
+"settle": 32,
+"span": 21,
+"t0_idx": 12,
+"settle_idx": 32
+},
+"360\u00b0__360\u00b0_Circle_Wipe": {
+"transStart": 60,
+"settle": 81,
+"span": 22,
+"t0_idx": 12,
+"settle_idx": 33
+},
+"360\u00b0__360\u00b0_Divide": {
+"transStart": 107,
+"settle": 132,
+"span": 26,
+"t0_idx": 11,
+"settle_idx": 36
+},
+"360\u00b0__360\u00b0_Gaussian_Blur": {
+"transStart": 156,
+"settle": 179,
+"span": 24,
+"t0_idx": 12,
+"settle_idx": 35
+},
+"360\u00b0__360\u00b0_Push": {
+"transStart": 204,
+"settle": 228,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"360\u00b0__360\u00b0_Reveal_Wipe": {
+"transStart": 252,
+"settle": 276,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"360\u00b0__360\u00b0_Slide": {
+"transStart": 300,
+"settle": 324,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"360\u00b0__360\u00b0_Wipe": {
+"transStart": 347,
+"settle": 372,
+"span": 26,
+"t0_idx": 11,
+"settle_idx": 36
+},
+"Blurs__Directional": {
+"transStart": 396,
+"settle": 419,
+"span": 24,
+"t0_idx": 12,
+"settle_idx": 35
+},
+"Blurs__Gaussian": {
+"transStart": 444,
+"settle": 467,
+"span": 24,
+"t0_idx": 12,
+"settle_idx": 35
+},
+"Blurs__Radial": {
+"transStart": 492,
+"settle": 515,
+"span": 24,
+"t0_idx": 12,
+"settle_idx": 35
+},
+"Blurs__Zoom": {
+"transStart": 540,
+"settle": 563,
+"span": 24,
+"t0_idx": 12,
+"settle_idx": 35
+},
+"Dissolves__Divide": {
+"transStart": 588,
+"settle": 612,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Lights__Bloom": {
+"transStart": 636,
+"settle": 656,
+"span": 21,
+"t0_idx": 12,
+"settle_idx": 32
+},
+"Lights__Flash": {
+"transStart": 684,
+"settle": 708,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Lights__Lens_Flare": {
+"transStart": 732,
+"settle": 756,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Lights__Light_Noise": {
+"transStart": 780,
+"settle": 804,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Lights__Static": {
+"transStart": 828,
+"settle": 852,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Movements__Black_Hole": {
+"transStart": 876,
+"settle": 900,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Movements__Clothesline": {
+"transStart": 924,
+"settle": 948,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Movements__Color_Planes": {
+"transStart": 972,
+"settle": 995,
+"span": 24,
+"t0_idx": 12,
+"settle_idx": 35
+},
+"Movements__Drop_In": {
+"transStart": 1020,
+"settle": 1042,
+"span": 23,
+"t0_idx": 12,
+"settle_idx": 34
+},
+"Movements__Earthquake": {
+"transStart": 1068,
+"settle": 1091,
+"span": 24,
+"t0_idx": 12,
+"settle_idx": 35
+},
+"Movements__Fall": {
+"transStart": 1116,
+"settle": 1140,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Movements__Flashback": {
+"transStart": 1164,
+"settle": 1188,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Movements__Flip": {
+"transStart": 1212,
+"settle": 1236,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Movements__Multi-flip": {
+"transStart": 1260,
+"settle": 1284,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Movements__Pinwheel": {
+"transStart": 1308,
+"settle": 1332,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Movements__Push": {
+"transStart": 1356,
+"settle": 1379,
+"span": 24,
+"t0_idx": 12,
+"settle_idx": 35
+},
+"Movements__Reflection": {
+"transStart": 1404,
+"settle": 1428,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Movements__Rotate": {
+"transStart": 1452,
+"settle": 1476,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Movements__Scale": {
+"transStart": 1500,
+"settle": 1524,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Movements__Smear": {
+"transStart": 1548,
+"settle": 1569,
+"span": 22,
+"t0_idx": 12,
+"settle_idx": 33
+},
+"Movements__Swing": {
+"transStart": 1596,
+"settle": 1619,
+"span": 24,
+"t0_idx": 12,
+"settle_idx": 35
+},
+"Movements__Switch": {
+"transStart": 1644,
+"settle": 1668,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Objects__Arrows": {
+"transStart": 1692,
+"settle": 1714,
+"span": 23,
+"t0_idx": 12,
+"settle_idx": 34
+},
+"Objects__Curtains": {
+"transStart": 1740,
+"settle": 1764,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Objects__Leaves": {
+"transStart": 1788,
+"settle": 1812,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Objects__Squares": {
+"transStart": 1836,
+"settle": 1860,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Objects__Veil": {
+"transStart": 1884,
+"settle": 1907,
+"span": 24,
+"t0_idx": 12,
+"settle_idx": 35
+},
+"Replicator-Clones__3D_Rectangle": {
+"transStart": 1932,
+"settle": 1956,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Replicator-Clones__Clone_Spin": {
+"transStart": 1980,
+"settle": 2004,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Replicator-Clones__Combo_Spin": {
+"transStart": 2028,
+"settle": 2052,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Replicator-Clones__Concentric": {
+"transStart": 2076,
+"settle": 2100,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Replicator-Clones__Duplicate": {
+"transStart": 2124,
+"settle": 2148,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Replicator-Clones__Multi": {
+"transStart": 2172,
+"settle": 2196,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Replicator-Clones__Vertigo": {
+"transStart": 2220,
+"settle": 2243,
+"span": 24,
+"t0_idx": 12,
+"settle_idx": 35
+},
+"Replicator-Clones__Video_Wall": {
+"transStart": 2268,
+"settle": 2292,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Stylized__Center": {
+"transStart": 2316,
+"settle": 2340,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Stylized__Center_Reveal": {
+"transStart": 2364,
+"settle": 2386,
+"span": 23,
+"t0_idx": 12,
+"settle_idx": 34
+},
+"Stylized__Close_and_Open": {
+"transStart": 2412,
+"settle": 2435,
+"span": 24,
+"t0_idx": 12,
+"settle_idx": 35
+},
+"Stylized__Color_Panels": {
+"transStart": 2460,
+"settle": 2484,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Stylized__Diagonal": {
+"transStart": 2508,
+"settle": 2528,
+"span": 21,
+"t0_idx": 12,
+"settle_idx": 32
+},
+"Stylized__Glide": {
+"transStart": 2556,
+"settle": 2573,
+"span": 18,
+"t0_idx": 12,
+"settle_idx": 29
+},
+"Stylized__Heart": {
+"transStart": 2604,
+"settle": 2628,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Stylized__Light_Sweep": {
+"transStart": 2652,
+"settle": 2676,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Stylized__Loop": {
+"transStart": 2700,
+"settle": 2723,
+"span": 24,
+"t0_idx": 12,
+"settle_idx": 35
+},
+"Stylized__Lower": {
+"transStart": 2748,
+"settle": 2772,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Stylized__Panels_Across": {
+"transStart": 2796,
+"settle": 2819,
+"span": 24,
+"t0_idx": 12,
+"settle_idx": 35
+},
+"Stylized__Panels_Random": {
+"transStart": 2844,
+"settle": 2867,
+"span": 24,
+"t0_idx": 12,
+"settle_idx": 35
+},
+"Stylized__Slide": {
+"transStart": 2892,
+"settle": 2916,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Stylized__Slide_In": {
+"transStart": 2940,
+"settle": 2964,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Stylized__Up-Over": {
+"transStart": 2988,
+"settle": 3012,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+},
+"Wipes__Diagonal": {
+"transStart": 3036,
+"settle": 3056,
+"span": 21,
+"t0_idx": 12,
+"settle_idx": 32
+},
+"Wipes__Mask": {
+"transStart": 3084,
+"settle": 3108,
+"span": 25,
+"t0_idx": 12,
+"settle_idx": 36
+}
+}
