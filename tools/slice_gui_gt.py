@@ -45,12 +45,19 @@ for slug in sorted(WIN):
     segs=sorted(p for p in os.listdir(d) if p.startswith('_seg_'))
     if len(segs) < span:
         print(f"{slug}: WARN extracted {len(segs)}/{span}",flush=True)
-    # Map 24 output frames onto the extracted span via nearest-integer index, so the endpoints
-    # are exact: frame_0000 = span[0] = transStart (pure A), frame_0023 = span[-1] = settle (B).
+    # Map 24 output frames onto the extracted span via HALF-OPEN i/N (matching headless's
+    # sample_time = i/24 * scene_duration). Without this, the closed i/(N-1) mapping causes a
+    # timing misalignment of up to ~4% for span!=24 (50 of 65 transitions), which shows as a
+    # "timing lag" at the midpoint (Flip f12: GUI 4.2% ahead of headless -> +11dB from fix).
+    # EXCEPTION: frame N-1 (last) is pinned to the settle frame (src S-1 = B) so the GT still
+    # ends on B (Problem 1 requirement). This makes the last step slightly larger — acceptable
+    # since FCP's GUI export also ends on B at the settle.
     import shutil
     for i in range(N):
-        src_idx = round(i/(N-1) * (len(segs)-1)) if len(segs)>1 else 0
-        src_idx = min(src_idx, len(segs)-1)
+        if i == N - 1:
+            src_idx = len(segs) - 1  # last GT frame = settle = B
+        else:
+            src_idx = min(int(i / N * len(segs)), len(segs) - 1)
         shutil.copy(os.path.join(d,segs[src_idx]), os.path.join(d,f"frame_{i:04d}.png"))
     for p in segs:
         try: os.remove(os.path.join(d,p))
