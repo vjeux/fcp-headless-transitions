@@ -73,7 +73,11 @@ def worker(motr, img_a, img_b, out_dir, frames):
     a, b = img_a.encode(), img_b.encode()
     n = int(frames)
     for f in range(n):
-        tsec = (f / (n - 1)) * SCENE_DURATION if n > 1 else 0.0
+        # Half-open equal slices, matching tools/render_gt.py:sample_time():
+        # frame f sits at timeline progress f/n, so t = (f/n)*SCENE_DURATION. The
+        # old closed f/(n-1) convention stretched the last frame onto the wrap
+        # point and lagged the back half — see render_gt.sample_time's docstring.
+        tsec = (f / n) * SCENE_DURATION if n > 1 else 0.0
         out = os.path.join(out_dir, f"frame_{f:04d}.png").encode()
         shim.oz_render_frame(ctypes.c_void_p(cpp_doc), 0, 0, a, b, tsec, TIMESCALE, out)
     os._exit(0)

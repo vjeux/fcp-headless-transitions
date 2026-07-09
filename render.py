@@ -95,7 +95,11 @@ def main():
     b = os.path.abspath(args.img_b).encode()
     n = args.frames
     for i in range(n):
-        tsec = (i / (n - 1)) * args.duration if n > 1 else 0.0
+        # Half-open equal slices, matching tools/render_gt.py:sample_time():
+        # frame i sits at timeline progress i/n, so t = (i/n)*duration. The old
+        # closed i/(n-1) convention stretched the last frame onto the wrap point
+        # and lagged the whole back half — see render_gt.sample_time's docstring.
+        tsec = (i / n) * args.duration if n > 1 else 0.0
         out = os.path.join(args.out_dir, f"frame_{i:04d}.png").encode()
         rc = shim.oz_render_frame(ctypes.c_void_p(cpp_doc), DROPZONE_A_ID, DROPZONE_B_ID,
                                   a, b, tsec, TIMESCALE, out)
