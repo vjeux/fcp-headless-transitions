@@ -262,7 +262,68 @@ _ENTRY_RE = re.compile(r'<entry name="[^"]*" tag="(-?\d+)"/>')
 _PUBLISH_RE = re.compile(r'<publishSettings>(.*?)</publishSettings>', re.S)
 # published targets that point at a popup selection channel (".../100")
 _PUBTARGET_RE = re.compile(r'<target object="\d+" channel="[^"]*100" name="(?P<name>[^"]+)"/>')
+
+# One rig-widget scenenode (name, id, factoryID) + its full body — used by the binary
+# direction-toggle correction pass (needs the widget's Hidden + snapshot Value channels,
+# which live in the node body, not in the id=100 popup header alone).
+_RIG_BINARY_DIR_NODE_RE = re.compile(
+    r'<scenenode name="(?P<wname>[^"]+)" id="(?P<wid>\d+)" factoryID="\d+"[^>]*>'
+    r'(?P<body>.*?)</scenenode>', re.S)
+_NODE_POPUP_RE = re.compile(
+    r'<parameter name="[^"]+" id="100" flags="[^"]*" default="[^"]*" value="'
+    r'(?P<value>[^"]*)">(?P<entries>\s*(?:<entry[^>]*/>\s*)+)</parameter>')
+_NODE_HIDDEN_RE = re.compile(
+    r'<parameter name="Hidden" id="102"[^>]*value="(?P<h>[^"]*)"')
+# per-snapshot Value channel, in document (= snapshot-index) order
+_NODE_SNAPVAL_RE = re.compile(
+    r'<parameter name="Snapshots" id="\d+"[^>]*>\s*'
+    r'<parameter name="Value" id="1"[^>]*value="(?P<v>[^"]*)"')
+# publishSettings records the WIDGET object id; the popup channel lives on that widget.
+_PUBOBJ_RE = re.compile(r'<target object="(\d+)" channel="[^"]*100"')
+
 _remap_cache = {}
+
+
+def _fix_binary_dir_node(m, published_obj_ids, changed):
+    """If node `m` is a published, ascending-tag, exactly-two-entry direction TOGGLE whose
+    editor-active snapshot (Hidden) selects a snapshot whose Value differs from the stored
+    popup value, rewrite the popup value to that snapshot's Value. Strict no-op otherwise."""
+    body = m.group('body')
+    pop = _NODE_POPUP_RE.search(body)
+    if not pop:
+        return m.group(0)
+    # (1) published widget only — match by OBJECT ID (the widget scenenode id equals the
+    # <publishSettings> target object; the target's display NAME, e.g. "Rotate", differs
+    # from the scenenode NAME, e.g. "Pop-up", so id is the reliable key).
+    if m.group('wid') not in published_obj_ids:
+        return m.group(0)
+    entries = [int(t) for t in _ENTRY_RE.findall(pop.group('entries'))]
+    # (2) exactly two options (a binary direction toggle) with ASCENDING tags.
+    if len(entries) != 2 or entries != sorted(entries):
+        return m.group(0)
+    hidm = _NODE_HIDDEN_RE.search(body)
+    snapvals = _NODE_SNAPVAL_RE.findall(body)
+    if not hidm or len(snapvals) != 2:
+        return m.group(0)
+    try:
+        hidden = int(float(hidm.group('h')))
+    except ValueError:
+        return m.group(0)
+    # (3) Hidden must be a valid 1-based snapshot index (0/unset => no active snapshot).
+    if not (1 <= hidden <= 2):
+        return m.group(0)
+    target = snapvals[hidden - 1]
+    cur = pop.group('value')
+    try:
+        if abs(float(cur) - float(target)) < 1e-9:
+            return m.group(0)  # value already agrees with the editor-active snapshot.
+    except ValueError:
+        if cur == target:
+            return m.group(0)
+    changed[0] = True
+    new_pop = pop.group(0).replace(f'value="{cur}">', f'value="{target}">', 1)
+    return m.group(0).replace(pop.group(0), new_pop, 1)
+
 
 
 def _rig_popup_index_to_tag(motr_path):
@@ -286,6 +347,7 @@ def _rig_popup_index_to_tag(motr_path):
 
     pub = _PUBLISH_RE.search(txt)
     published_popups = set(_PUBTARGET_RE.findall(pub.group(1))) if pub else set()
+    _published_obj_ids = set(_PUBOBJ_RE.findall(pub.group(1))) if pub else set()
     changed = [False]
 
     def _sub(mo):
@@ -313,11 +375,37 @@ def _rig_popup_index_to_tag(motr_path):
                                    f'value="{tag}">', 1)
 
     out = _RIG_POPUP_RE.sub(_sub, txt)
+
+    # SECOND PASS — PUBLISHED BINARY DIRECTION TOGGLE snapshot correction.
+    #
+    # A rig widget's popup channel (id=100) stores the PLAYBACK value that
+    # OZRigWidget::getSnapshotIDsForValue exact-matches against each snapshot's Value
+    # channel; separately, the widget records the editor's LAST-ACTIVE snapshot in its
+    # `Hidden` (id=102) param. For most widgets these agree, or Hidden is stale editor
+    # state that FCP ignores on apply — so Hidden is NOT a trustworthy playback signal
+    # in general (e.g. Blurs Gaussian / Stylized Shape/Color / Speed selectors leave a
+    # stale mid-menu Hidden that must NOT override their value).
+    #
+    # There is exactly ONE structural case where Hidden IS the value FCP applies and the
+    # stored value is wrong headless: a PUBLISHED, ASCENDING-tag, EXACTLY-TWO-ENTRY
+    # direction TOGGLE (Clockwise/CounterClockwise, East/West). For these, FCP applies
+    # the editor's active snapshot (Hidden); headless applies the raw stored value and
+    # renders the MIRROR-image rotation/slide. This gate fires only for such binary
+    # toggles whose Hidden-indexed snapshot Value differs from the stored value — across
+    # all 65 shipped templates that is Movements/Rotate + 360°/Push + 360°/Slide, and it
+    # is a strict no-op for every multi-option selector (>2 entries), every unpublished
+    # internal rig, and every binary toggle whose value already matches Hidden (e.g.
+    # Movements/Swing Direction, whose author DID pick West=1 and whose Hidden agrees).
+    # Fully .motr-derived (publishSettings + entry tags + per-snapshot Value + Hidden);
+    # no per-transition constants.
+    out2 = _RIG_BINARY_DIR_NODE_RE.sub(
+        lambda m: _fix_binary_dir_node(m, _published_obj_ids, changed), out)
+
     if not changed[0]:
         _remap_cache[key] = motr_path
         return motr_path
     tf = tempfile.NamedTemporaryFile(prefix='ozrig_', suffix='.motr', delete=False)
-    tf.write(out.encode('utf-8'))
+    tf.write(out2.encode('utf-8'))
     tf.close()
     _remap_cache[key] = tf.name
     return tf.name
