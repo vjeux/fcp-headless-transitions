@@ -35,8 +35,11 @@ MOTR_FALLBACK = os.path.expanduser(
 DOC_TYPE = "com.apple.motion.transition"
 DROPZONE_A_ID = 1999869843   # OZImageElement "Transition A"
 DROPZONE_B_ID = 1999869841   # OZImageElement "Transition B"
-SCENE_DURATION = 2.002       # seconds (two 1.001s stills, 23.976fps)
-TIMESCALE = 24000
+# Canonical SCENE_DURATION / TIMESCALE live in the side-effect-free
+# tools/fcp_constants.py (safe to import here — this standalone, subprocess-boot
+# driver must NOT import ozengine, which has engine-boot side effects).
+sys.path.insert(0, os.path.join(HERE, "tools"))
+from fcp_constants import SCENE_DURATION, TIMESCALE  # 2.002s (two 1.001s stills); 24000 ticks/s
 
 
 def main():
