@@ -1,13 +1,20 @@
 # Build artifacts
 oz_render.dylib
+*.dylib
 *.o
 
 # Python venv (machine-specific; recreate via setup — see README)
 venv/
 
-# Render outputs
+# Browser engine (engine/) node deps
+node_modules/
+
+# Render outputs (headless + run_all + engine GT), and large media
 out/
+all_out/
+engine/test/ground-truth/
 *.mp4
+*.mov
 
 # macOS
 .DS_Store
