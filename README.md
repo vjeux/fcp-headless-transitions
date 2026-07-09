@@ -104,7 +104,7 @@ by-pointer passing of `shared_ptr`/`CMTime`/matrices).
 | `run_all.py`    | Discovers and renders every built-in FCP transition (subprocess-isolated). |
 | `images/`       | Example source images. |
 | `engine/`       | **`motr-engine`** — a from-scratch TypeScript reimplementation of the Motion transition engine, for running these transitions in the browser (see below). |
-| `tools/`        | Debugging / validation helpers: ground-truth rendering, sub-pixel measurement, `.motr` editing, lldb reverse-engineering, video generation. |
+| `tools/`        | Ground-truth + validation helpers: `ozengine.py` (engine boot), `render_gt.py` (headless GT), `slice_gui_gt.py` (GUI GT from a screen recording), plus sub-pixel measurement, `.motr` editing, lldb reverse-engineering, and video generation. See the table below. |
 | `docs/GALLERY.md`  | Animated previews of all supported transitions. |
 | `docs/DEBUGGING.md` | **How to validate the browser engine against real FCP, pixel-for-pixel.** Read this first if you're working on `engine/`. |
 
@@ -130,19 +130,34 @@ and findings are in **[docs/DEBUGGING.md](docs/DEBUGGING.md)**.
 
 | Tool | Purpose |
 |------|---------|
-| `tools/ozengine.py` | Shared headless-engine boot boilerplate (import from other scripts). |
-| `tools/render_gt.py` | Render ground-truth frames through the real engine, with the correct animation-end time domain. `--push` for the default demo. |
+| `tools/ozengine.py` | Shared headless-engine boot boilerplate: `init_engine()` / `load_doc()` / `render_frame()`. Boot the engine once, render many transitions in one process. Every GT/probe script imports it. |
+| `tools/render_gt.py` | Render *headless* ground-truth frames through the real engine over the transition's authored scene duration (half-open `i/N` time slices). `--push OUTDIR [N]` renders the default Push demo. |
+| `tools/slice_gui_gt.py` | Slice a screen-recorded FCP **GUI** export (`GT_ALL_65.mov`) into per-transition frames — the *second* ground truth. Detects each transition's B-settle frame per-slug and resamples its true extent to 24 frames using the same half-open `i/N` convention as the headless scorer. |
 | `tools/make_ruler.py` / `decode_ruler.py` | Row-encoded "ruler" images for sub-pixel (≈0.5 px) motion measurement. |
 | `tools/edit_curve.py` | Patch a `.motr` keyframe curve to test interpolation hypotheses through the real engine. |
 | `tools/lldb_capture_curve.py` + `curve_probe.py` | lldb driver that dumps the exact Bézier control polygons the engine builds per segment. |
 | `tools/make_videos.py` | Build all comparison/diff videos + contact sheets from a GT dir + engine dir. |
+| `tools/analyze_segments.py` / `survey_catalog.py` | Detect per-slug settle windows (feeds `slice_gui_gt.py`) and survey the `.motr` template catalog. |
+
+### Scoring against ground truth
+
+The scoreboard ([docs/SCOREBOARD.md](docs/SCOREBOARD.md)) reports the TS engine's mean
+PSNR vs FCP over up to 24 frames per transition (progress `i/23`), engine output
+conformed to GT-native 1920×1080. Two ground-truth sources are used:
+
+- **Headless GT** — `tools/render_gt.py` (FCP's engine in-process, this repo).
+- **GUI GT** — `tools/slice_gui_gt.py` (frames sliced from a real FCP GUI export).
+
+Both use the same half-open `i/N` time sampling, so the engine can be scored against
+either. Regenerate the batch headless GT with `run_all.py` (see the engine
+`ground-truth` npm script) and re-run `engine/test/scoreboard.ts`.
 
 ## Using a different transition
 
-Point `MOTR` in `render.py` at another `.motr`. The two source drop-zones are matched
-by discovery order at render time (via the media-ref hook), so no per-template IDs are
-needed — the renderer is transition-agnostic. `run_all.py` uses exactly this to sweep
-the whole library.
+Pass `--motr PATH` to `render.py` (or edit the `MOTR` default) to point at another
+`.motr`. The two source drop-zones are matched by discovery order at render time (via
+the media-ref hook), so no per-template IDs are needed — the renderer is
+transition-agnostic. `run_all.py` uses exactly this to sweep the whole library.
 
 ## Caveats
 
