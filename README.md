@@ -142,7 +142,9 @@ and findings are in **[docs/DEBUGGING.md](docs/DEBUGGING.md)**.
 ### Scoring against ground truth
 
 The scoreboard ([docs/SCOREBOARD.md](docs/SCOREBOARD.md)) reports the TS engine's mean
-PSNR vs FCP over up to 24 frames per transition (progress `i/23`), engine output
+PSNR vs FCP over up to 24 frames per transition (progress `i/N`, half-open: frame
+`i` samples scene-time `t = (i/24)·span`, so frame 0 is pure A and frame 24 would be
+the wrap point back to A — never rendered; the 24 frames are `i = 0..23`), engine output
 conformed to GT-native 1920×1080. Two ground-truth sources are used:
 
 - **Headless GT** — `tools/render_gt.py` (FCP's engine in-process, this repo).
