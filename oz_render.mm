@@ -158,8 +158,9 @@ extern "C" void oz_reset_hook(){ }
 // no longer steal the A/B slots and no longer hang the shim) while leaving the 56 non-Objects
 // transitions byte-identical.
 extern "C" int oz_mediaref_pick(void* self, void* colorDesc, void* sret){
-    bool isDZ = ozimg_isTransitionSourceA(self) || ozimg_isTransitionSourceB(self);
-    if(getenv("OZ_HOOK_DEBUG")) fprintf(stderr,"[oz] pick self=%p isDropZone=%d\n",self,(int)isDZ);
+    bool srcA = ozimg_isTransitionSourceA(self), srcB = ozimg_isTransitionSourceB(self);
+    bool isDZ = srcA || srcB;
+    if(getenv("OZ_HOOK_DEBUG")) fprintf(stderr,"[oz] pick self=%p isDropZone=%d srcA=%d srcB=%d\n",self,(int)isDZ,(int)srcA,(int)srcB);
     if(!isDZ) return 0;                       // embedded media -> call through to original resolver
     // A/B assignment by DISCOVERY ORDER among drop-zone elements (identical to the original hook's
     // behavior for pure 2-drop-zone templates -> the 56 non-Objects transitions render byte-identical,
@@ -394,6 +395,18 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
         // grabs only a sub-region (content squished into a corner with black borders). Read back the FULL
         // authored aperture instead; the output PNG is aperture-sized and the scorer/consumer scales it to
         // 1920x1080 (matching FCP's normalize). Aperture origin in readback space = (-sb.x,-sb.y).
+        // WIDE/TALL FLAT APERTURE larger than the 1920x1080 output (e.g. Switch 2160x1080): FCP does
+        // NOT squeeze the whole aperture into the output; the OUTPUT FRAME is the fixed 1920x1080 camera
+        // window CENTERED on the aperture. Reading the full 2160-wide aperture (and scaling it to 1920)
+        // would horizontally squeeze the content vs GUI; instead extract the centered 1920x1080 window.
+        // Verified for Switch: content at f0 is exactly the centered 1920 region (DOD x0=120..2040) and a
+        // 120,0,1920,1080 crop yields f0=38dB (pixel-perfect A) vs 0dB for the full-aperture output.
+        // Aperture origin in readback space = (0,0) (top-left); output-frame origin = ((w-1920)/2,(h-1080)/2).
+        else if(sb.w > 1922 && sb.h > 0 && sb.w < 3072 && (int)sb.h >= 1078 && (int)sb.h <= 1082
+                && dw <= (int)(sb.w*1.15) && dh <= (int)(sb.h*1.15)){
+            roi.x = ((int)sb.w - 1920)/2; roi.y = ((int)sb.h - 1080)/2; roi.w = 1920; roi.h = 1080;
+            if(getenv("OZ_DOD_DEBUG")) fprintf(stderr,"[oz] wide-aperture centered output ROI %d,%d,1920,1080 (aperture %.0fx%.0f)\n",roi.x,roi.y,sb.w,sb.h);
+        }
         else if(sb.w > 0 && sb.h > 0 && sb.w < 3072 && (abs((int)sb.w-1920) > 2 || abs((int)sb.h-1080) > 2)
                 && dw <= (int)(sb.w*1.15) && dh <= (int)(sb.h*1.15)){
             // Flat scenes whose content is CONTAINED within the authored aperture: FCP normalizes that
