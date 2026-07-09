@@ -158,8 +158,9 @@ extern "C" void oz_reset_hook(){ }
 // no longer steal the A/B slots and no longer hang the shim) while leaving the 56 non-Objects
 // transitions byte-identical.
 extern "C" int oz_mediaref_pick(void* self, void* colorDesc, void* sret){
-    bool isDZ = ozimg_isTransitionSourceA(self) || ozimg_isTransitionSourceB(self);
-    if(getenv("OZ_HOOK_DEBUG")) fprintf(stderr,"[oz] pick self=%p isDropZone=%d\n",self,(int)isDZ);
+    bool srcA = ozimg_isTransitionSourceA(self), srcB = ozimg_isTransitionSourceB(self);
+    bool isDZ = srcA || srcB;
+    if(getenv("OZ_HOOK_DEBUG")) fprintf(stderr,"[oz] pick self=%p isDropZone=%d srcA=%d srcB=%d\n",self,(int)isDZ,(int)srcA,(int)srcB);
     if(!isDZ) return 0;                       // embedded media -> call through to original resolver
     // A/B assignment by DISCOVERY ORDER among drop-zone elements (identical to the original hook's
     // behavior for pure 2-drop-zone templates -> the 56 non-Objects transitions render byte-identical,
