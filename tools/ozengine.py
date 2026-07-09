@@ -1,5 +1,4 @@
-"""
-Shared Ozone (FCP Motion engine) headless-boot boilerplate.
+"""Shared Ozone (FCP Motion engine) headless-boot boilerplate.
 
 Every ground-truth / probe script needs the same ~15 lines to bring up the real
 FCP render engine in-process. This module centralizes that so callers just do:
@@ -10,7 +9,7 @@ FCP render engine in-process. This module centralizes that so callers just do:
     render_frame(doc, "imgA.png", "imgB.png", tsec=0.5, out="frame.png")
 
 Render many transitions in ONE process by calling init_engine() once, then
-load_doc() per transition — this amortizes the boot instead of re-paying it.
+load_doc() per transition -- this amortizes the boot instead of re-paying it.
 
 IMPORTANT ENV: DYLD_FRAMEWORK_PATH must point at FCP's Frameworks dir so the
 engine's sibling frameworks resolve at dlopen time. `timeout`, `nohup`, and
@@ -21,7 +20,11 @@ The two drop-zone element IDs (A/B) are Push's; render_frame passes them through
 but the media-ref hook in oz_render.dylib actually assigns sources by call order,
 so they work for every template. Pass 0,0 to rely purely on call-order.
 """
-import ctypes, os, re, tempfile
+import ctypes
+import os
+import re
+import tempfile
+from typing import Optional
 
 FW = "/Applications/Final Cut Pro.app/Contents/Frameworks"
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -32,30 +35,27 @@ DROPZONE_A = 1999869843
 DROPZONE_B = 1999869841
 
 _shim = None
-_ms = None
-_sel = None
+_msg_send = None
+_sel_register = None
 _engine_ready = False
 _OZDoc = None
 _NSURL = None
 _objc = None
 
 
-# FCP's PAE* FxPlug filters (PAERadialBlur/PAEGaussianBlur/PAEDirectionalBlur/
-# PAEZoomBlur/PAEBloom/PAEGlow/PAEBlackHole/PAETrails/PAEBadTV/PAEEarthquake/
-# PAEUnderwater/... — 262 filters total) live in this legacy ProApps plugin
-# bundle, embedded inside InternalFiltersXPC.pluginkit. It is a plain `BNDL`
-# with ProPlugDynamicRegistration=false and a static ProPlugPlugInList — i.e. a
-# normal in-process ProApps plugin bundle, NOT something that requires the XPC
-# service to be running. We dlopen + scan it directly (see _load_pae_filters).
+# FCP's PAE* FxPlug filters (PAERadialBlur/PAEGaussianBlur/PAEBloom/PAEGlow/...
+# -- 262 filters total) live in this legacy ProApps plugin bundle, embedded
+# inside InternalFiltersXPC.pluginkit. It is a plain in-process ProApps bundle
+# (ProPlugDynamicRegistration=false, static ProPlugPlugInList), NOT something
+# that needs the XPC service running -- we dlopen + scan it directly.
 _PAE_FILTERS_BUNDLE = ("/Applications/Final Cut Pro.app/Contents/PlugIns/"
                        "InternalFiltersXPC.pluginkit/Contents/PlugIns/Filters.bundle")
 
 
-def _enable_embedded_plugins(Foundation):
-    """Let PlugInKit load FCP's embedded FxPlug filter appex (InternalFiltersXPC).
-
-    Kept as a belt-and-suspenders opt-in (the exact key FCP.app itself sets); the
-    actual PAE filter registration is done in-process by _load_pae_filters().
+def _enable_embedded_plugins(Foundation) -> None:
+    """Set PlugInKitHost.UsesEmbeddedCode so PlugInKit may load FCP's embedded
+    FxPlug filter appex. Belt-and-suspenders opt-in (the exact key FCP.app sets);
+    the actual PAE filter registration is done in-process by _load_pae_filters().
     """
     mb = Foundation.NSBundle.mainBundle()
     info = mb.infoDictionary()
@@ -69,32 +69,28 @@ def _enable_embedded_plugins(Foundation):
     host.setObject_forKey_(True, "UsesEmbeddedCode")
 
 
-def _load_pae_filters(objc):
-    """Register FCP's PAE* FxPlug filters in-process so the Ozone render graph
-    can instantiate them (ProPlugin Filter nodes).
+def _load_pae_filters(objc) -> None:
+    """Register FCP's PAE* FxPlug filters in-process so the Ozone render graph can
+    instantiate the ProPlugin Filter nodes referenced by .motr templates.
 
-    ⚠️ ROOT CAUSE this fixes (2026-07-06): the headless boot
-    (OZSharedApplicationForAllUnitTests) NEVER scans/registers any FxPlug plugin.
-    Worse, ProAppsFxSupport's `usePlugInKitInternally()` returns FALSE whenever
-    `PCInfo_IsUnitTesting()` is true (our headless engine boots as a "unit test"),
-    so even OZApplication::ScanPlugins() registers ZERO plugins. Consequently
-    every `<filter ... pluginName="PAERadialBlur">` node in a .motr had NO backing
-    filter implementation and the Ozone graph passed the layer through UNFILTERED
-    — a plain crossfade with the blur/effect silently dropped. This made the GT
-    for ~26 transitions (all Blurs, Bloom, Black Hole, Static, Earthquake, ...)
-    a filterless degenerate render.
+    The headless boot (OZSharedApplicationForAllUnitTests) never scans/registers
+    any FxPlug plugin, and ProAppsFxSupport's usePlugInKitInternally() returns
+    FALSE under PCInfo_IsUnitTesting() (our headless engine boots as a "unit
+    test"), so OZApplication::ScanPlugins() registers ZERO plugins. Without this,
+    every `<filter pluginName="PAERadialBlur">` node has no backing filter and the
+    graph passes the layer through UNFILTERED (a plain crossfade with the effect
+    silently dropped).
 
-    THE FIX: the 262 PAE filter classes live in a plain in-process ProApps plugin
-    bundle (Filters.bundle, ProPlugDynamicRegistration=false). We dlopen it via
-    NSBundle.load() and register it with PROPlugInManager.sharedPlugInManager via
-    scanForPlugInsInBundle: — exactly what a legacy ProApps host does. After this,
-    `mgr.plugInWithClassName_("PAERadialBlur")` resolves (UUID
-    8F9F88CF-… matches the .motr), and the render graph applies the real filter.
-    Setting FXPLUG_USE_PLUGINKIT=1 keeps usePlugInKitInternally() honest as a
-    secondary guard. Idempotent (bundle already loaded -> scan is a no-op)."""
+    Fix: the 262 PAE filter classes live in a plain in-process ProApps bundle
+    (Filters.bundle). We NSBundle.load() it and register it with
+    PROPlugInManager.sharedPlugInManager via scanForPlugInsInBundle: -- exactly
+    what a legacy ProApps host does. FXPLUG_USE_PLUGINKIT=1 keeps
+    usePlugInKitInternally() honest as a secondary guard. Idempotent (an
+    already-loaded bundle re-scans to a no-op).
+    """
     os.environ.setdefault("FXPLUG_USE_PLUGINKIT", "1")
     if not os.path.isdir(_PAE_FILTERS_BUNDLE):
-        # Different FCP layout / not installed — leave filters unregistered rather
+        # Different FCP layout / not installed -- leave filters unregistered rather
         # than crash; render_gt's validator will still flag a degenerate render.
         return
     NSBundle = objc.lookUpClass("NSBundle")
@@ -103,39 +99,41 @@ def _load_pae_filters(objc):
     mgr = objc.lookUpClass("PROPlugInManager").sharedPlugInManager()
     mgr.scanForPlugInsInBundle_deferralNotification_(bundle, None)
     # Sanity check the marquee filter registered (UUID must match the .motr's).
-    ok = mgr.plugInWithClassName_("PAERadialBlur") is not None
-    if not ok:
-        import sys as _sys
+    if mgr.plugInWithClassName_("PAERadialBlur") is None:
+        import sys
         print("[ozengine] WARNING: PAE filter registration failed "
-              f"(bundle.load={loaded}, plugins={len(mgr.plugIns())}) — "
-              "filtered transitions will render UNFILTERED.", file=_sys.stderr, flush=True)
+              f"(bundle.load={loaded}, plugins={len(mgr.plugIns())}) -- "
+              "filtered transitions will render UNFILTERED.", file=sys.stderr, flush=True)
+
 
 # ---- GLOBAL RENDER MUTEX (pool-wide) ----------------------------------------
-# The headless Ozone boot creates a MASTER CGL/OpenGL context. macOS cannot sustain
-# many concurrent headless GL master contexts: once several coexist the shared
-# master-context group WEDGES system-wide (FFCreateSharedCGLContextObj failed /
-# NSInternalInconsistencyException) and even solo renders then fail. With an 8-agent
-# pool each spawning render processes this is fatal. FIX: only ONE ozengine process
-# may hold a live engine at a time. We take a blocking, stale-reclaiming lock at
-# init_engine() and hold it for the whole process lifetime.
+# The headless Ozone boot creates a MASTER CGL/OpenGL context. macOS cannot
+# sustain many concurrent headless GL master contexts: once several coexist the
+# shared master-context group WEDGES system-wide (FFCreateSharedCGLContextObj
+# failed / NSInternalInconsistencyException) and even solo renders then fail.
+# With a multi-agent pool each spawning render processes this is fatal. So only
+# ONE ozengine process may hold a live engine at a time: init_engine() takes a
+# blocking, stale-reclaiming lock and holds it for the whole process lifetime.
 _RENDER_LOCK_PATH = "/tmp/oz_render_global.lock"
-_render_lock_fd = None
+_render_lock_fd: Optional[int] = None
 
-def _acquire_global_render_lock(timeout_s=3600, poll_s=0.5):
+
+def _acquire_global_render_lock(timeout_s: float = 3600, poll_s: float = 0.5) -> None:
     """Block until this process is the sole engine holder on the box. Reclaims a
     stale lock whose owner PID is dead. Idempotent within a process."""
     global _render_lock_fd
     if _render_lock_fd is not None:
         return
-    import time as _t, errno as _errno
-    start = _t.time()
+    import time
+    import errno
+    start = time.time()
     while True:
         try:
             fd = os.open(_RENDER_LOCK_PATH, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o644)
             os.write(fd, str(os.getpid()).encode())
             _render_lock_fd = fd
-            import atexit as _atexit
-            _atexit.register(_release_global_render_lock)
+            import atexit
+            atexit.register(_release_global_render_lock)
             return
         except FileExistsError:
             try:
@@ -146,18 +144,22 @@ def _acquire_global_render_lock(timeout_s=3600, poll_s=0.5):
             alive = False
             if owner > 0:
                 try:
-                    os.kill(owner, 0); alive = True
+                    os.kill(owner, 0)
+                    alive = True
                 except OSError as e:
-                    alive = (e.errno == _errno.EPERM)
+                    alive = (e.errno == errno.EPERM)
             if owner == 0 or not alive:
-                try: os.unlink(_RENDER_LOCK_PATH)
-                except FileNotFoundError: pass
+                try:
+                    os.unlink(_RENDER_LOCK_PATH)
+                except FileNotFoundError:
+                    pass
                 continue
-            if _t.time() - start > timeout_s:
+            if time.time() - start > timeout_s:
                 raise TimeoutError("render lock held by pid %d > %ds" % (owner, timeout_s))
-            _t.sleep(poll_s)
+            time.sleep(poll_s)
 
-def _release_global_render_lock():
+
+def _release_global_render_lock() -> None:
     global _render_lock_fd
     if _render_lock_fd is None:
         return
@@ -167,19 +169,21 @@ def _release_global_render_lock():
                 os.unlink(_RENDER_LOCK_PATH)
     except (FileNotFoundError, ValueError):
         pass
-    try: os.close(_render_lock_fd)
-    except OSError: pass
+    try:
+        os.close(_render_lock_fd)
+    except OSError:
+        pass
     _render_lock_fd = None
 # -----------------------------------------------------------------------------
 
 
-def init_engine():
+def init_engine() -> None:
     """One-time engine init: dlopen Ozone/ProGL, CGL context, plugin opt-in, shim.
 
-    This is the ~1.3s cold-boot cost. It is process-global and idempotent — call
+    This is the ~1.3s cold-boot cost. It is process-global and idempotent -- call
     it once, then load many .motr docs via load_doc() in the SAME process to
-    amortize it across a batch of transitions (instead of re-paying it 65×)."""
-    global _shim, _ms, _sel, _engine_ready, _OZDoc, _NSURL, _objc
+    amortize it across a batch of transitions (instead of re-paying it 65x)."""
+    global _shim, _msg_send, _sel_register, _engine_ready, _OZDoc, _NSURL, _objc
     if _engine_ready:
         return
     _acquire_global_render_lock()
@@ -191,7 +195,9 @@ def init_engine():
     oz = ctypes.CDLL(FW + "/Ozone.framework/Versions/A/Ozone")
     progl = ctypes.CDLL(FW + "/ProGL.framework/Versions/A/ProGL")
     cgl = ctypes.CDLL("/System/Library/Frameworks/OpenGL.framework/OpenGL")
-    import objc, AppKit, Foundation
+    import objc
+    import AppKit
+    import Foundation
     from Foundation import NSURL
     AppKit.NSApplication.sharedApplication().setActivationPolicy_(1)
     _enable_embedded_plugins(Foundation)
@@ -208,10 +214,10 @@ def init_engine():
     libobjc = ctypes.CDLL("/usr/lib/libobjc.dylib")
     libobjc.sel_registerName.restype = ctypes.c_void_p
     libobjc.sel_registerName.argtypes = [ctypes.c_char_p]
-    _ms = libobjc.objc_msgSend
-    _ms.restype = ctypes.c_void_p
-    _ms.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
-    _sel = libobjc.sel_registerName
+    _msg_send = libobjc.objc_msgSend
+    _msg_send.restype = ctypes.c_void_p
+    _msg_send.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    _sel_register = libobjc.sel_registerName
     _shim = ctypes.CDLL(os.path.join(HERE, "oz_render.dylib"))
     _shim.oz_render_frame.restype = ctypes.c_int
     _shim.oz_render_frame.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_uint,
@@ -225,35 +231,30 @@ def init_engine():
 
 # ---- Rig-widget popup INDEX->TAG remap (generic directional-transition fix) ----
 #
-# ROOT CAUSE (2026-07-06, verified lldb + disasm + runtime trace + pixel): a Motion rig
-# widget (OZRigWidget) selects which snapshot to apply by EXACT-matching the widget's
-# popup channel value against each snapshot's "Value" channel
-# (OZRigWidget::getSnapshotIDsForValue, widgetType==2: |value - snapValue| < 1.27e-7,
-# reached via getCurrentSnapshotIDs -> OZChannel::getValueAsDouble on the popup channel at
-# this+0x438). A runtime breakpoint on a headless Push render showed the Direction rig fed
-# value 2.0 -> matched snapshot Value==2 -> "dir2" geometry (14.48 dB vs FCP's GUI).
-#
-# A rig popup carries a MENU whose <entry> elements each have an explicit TAG. The popup
-# channel stores the selected menu-list INDEX. When FCP applies a transition, a PUBLISHED
-# rig popup (exposed to the FCP inspector via <publishSettings>) is fed the TAG of the menu
-# entry at the stored index — the editor's index->tag mapping — whereas the raw stored
-# index reaches the rig headless. For ASCENDING-tag menus (tags == sorted(tags)) index==tag
+# A Motion rig widget (OZRigWidget) selects which snapshot to apply by exact-matching
+# the widget's popup channel value against each snapshot's "Value" channel
+# (getSnapshotIDsForValue, widgetType==2: |value - snapValue| < 1.27e-7). A rig popup
+# carries a MENU whose <entry> elements each have an explicit TAG, and the popup channel
+# stores the selected menu-list INDEX. When FCP applies a transition, a PUBLISHED rig
+# popup (exposed to the FCP inspector via <publishSettings>) is fed the TAG of the menu
+# entry at the stored index -- the editor's index->tag mapping -- whereas the raw stored
+# index reaches the rig headless. For ASCENDING-tag menus (tags == sorted(tags)) index==tag,
 # so this is invisible; the bug only surfaces for PERMUTED-tag menus.
 #
-# Movements/Push is the sole shipped offender: its PUBLISHED Direction popup has value="2",
+# Movements/Push is the sole shipped offender: its published Direction popup has value="2",
 # menu tags [LtR=0, RtL=3, TtB=1, BtT=2] (permuted) and snapshot Values [0,1,2,3]. Headless
-# fed 2 -> snapshot Value==2 -> dir2 (14.48 dB). FCP's GUI feeds tags[index=2]==1 -> snapshot
-# Value==1 -> dir1 (23.22 dB). The fix replays this index->tag lookup, gated on TWO conditions
-# so it is a strict no-op for everything else:
-#   (1) the popup is PUBLISHED (its object+channel appears in <publishSettings>) — this
+# fed 2 -> snapshot Value==2 -> "dir2" (14.48 dB). FCP's GUI feeds tags[index=2]==1 ->
+# snapshot Value==1 -> "dir1" (23.22 dB). The fix replays this index->tag lookup, gated on
+# TWO conditions so it is a strict no-op for everything else:
+#   (1) the popup is PUBLISHED (its object+channel appears in <publishSettings>) -- this
 #       EXCLUDES internal rigs such as the Blurs Gaussian/Radial "Pop-up" rig, which share
-#       Push's exact permuted-tag structure but are fed their raw value (verified: remapping
-#       them regressed Gaussian 26.40->22.86 and Radial 23.69->19.73), and
+#       Push's permuted-tag structure but are fed their raw value (remapping them regressed
+#       Gaussian 26.40->22.86 and Radial 23.69->19.73), and
 #   (2) the menu tags are PERMUTED (tags != sorted(tags)).
 # Across all 65 shipped templates only Push's Direction popup satisfies both with a nonzero
-# stored index; every other published/unpublished popup is left byte-for-byte untouched.
-# Fully generic — driven purely by each template's OWN <publishSettings> + <entry tag> tables,
-# NO per-transition constants.
+# stored index; every other popup is left byte-for-byte untouched. Fully generic -- driven
+# purely by each template's own <publishSettings> + <entry tag> tables, NO per-transition
+# constants.
 _RIG_POPUP_RE = re.compile(
     r'<parameter name="(?P<name>[^"]+)" id="100" flags="(?P<flags>[^"]*)" '
     r'default="(?P<default>[^"]*)" value="(?P<value>[^"]*)">'
@@ -263,7 +264,7 @@ _PUBLISH_RE = re.compile(r'<publishSettings>(.*?)</publishSettings>', re.S)
 # published targets that point at a popup selection channel (".../100")
 _PUBTARGET_RE = re.compile(r'<target object="\d+" channel="[^"]*100" name="(?P<name>[^"]+)"/>')
 
-# One rig-widget scenenode (name, id, factoryID) + its full body — used by the binary
+# One rig-widget scenenode (name, id, factoryID) + its full body -- used by the binary
 # direction-toggle correction pass (needs the widget's Hidden + snapshot Value channels,
 # which live in the node body, not in the id=100 popup header alone).
 _RIG_BINARY_DIR_NODE_RE = re.compile(
@@ -292,7 +293,7 @@ def _fix_binary_dir_node(m, published_obj_ids, changed):
     pop = _NODE_POPUP_RE.search(body)
     if not pop:
         return m.group(0)
-    # (1) published widget only — match by OBJECT ID (the widget scenenode id equals the
+    # (1) published widget only -- match by OBJECT ID (the widget scenenode id equals the
     # <publishSettings> target object; the target's display NAME, e.g. "Rotate", differs
     # from the scenenode NAME, e.g. "Pop-up", so id is the reliable key).
     if m.group('wid') not in published_obj_ids:
@@ -325,8 +326,7 @@ def _fix_binary_dir_node(m, published_obj_ids, changed):
     return m.group(0).replace(pop.group(0), new_pop, 1)
 
 
-
-def _rig_popup_index_to_tag(motr_path):
+def _rig_popup_index_to_tag(motr_path: str) -> str:
     """Return a path to a .motr whose PUBLISHED + PERMUTED-tag rig-popup channels store the
     menu TAG at the stored INDEX (FCP's editor semantics) instead of the raw index. All
     other popups (unpublished internal rigs, ascending-tag menus) are left unchanged, so
@@ -347,7 +347,7 @@ def _rig_popup_index_to_tag(motr_path):
 
     pub = _PUBLISH_RE.search(txt)
     published_popups = set(_PUBTARGET_RE.findall(pub.group(1))) if pub else set()
-    _published_obj_ids = set(_PUBOBJ_RE.findall(pub.group(1))) if pub else set()
+    published_obj_ids = set(_PUBOBJ_RE.findall(pub.group(1))) if pub else set()
     changed = [False]
 
     def _sub(mo):
@@ -376,30 +376,30 @@ def _rig_popup_index_to_tag(motr_path):
 
     out = _RIG_POPUP_RE.sub(_sub, txt)
 
-    # SECOND PASS — PUBLISHED BINARY DIRECTION TOGGLE snapshot correction.
+    # SECOND PASS -- PUBLISHED BINARY DIRECTION TOGGLE snapshot correction.
     #
     # A rig widget's popup channel (id=100) stores the PLAYBACK value that
-    # OZRigWidget::getSnapshotIDsForValue exact-matches against each snapshot's Value
-    # channel; separately, the widget records the editor's LAST-ACTIVE snapshot in its
-    # `Hidden` (id=102) param. For most widgets these agree, or Hidden is stale editor
-    # state that FCP ignores on apply — so Hidden is NOT a trustworthy playback signal
-    # in general (e.g. Blurs Gaussian / Stylized Shape/Color / Speed selectors leave a
-    # stale mid-menu Hidden that must NOT override their value).
+    # getSnapshotIDsForValue exact-matches against each snapshot's Value channel;
+    # separately, the widget records the editor's LAST-ACTIVE snapshot in its `Hidden`
+    # (id=102) param. For most widgets these agree, or Hidden is stale editor state that
+    # FCP ignores on apply -- so Hidden is NOT a trustworthy playback signal in general
+    # (e.g. Blurs Gaussian / Stylized Shape/Color / Speed selectors leave a stale mid-menu
+    # Hidden that must NOT override their value).
     #
     # There is exactly ONE structural case where Hidden IS the value FCP applies and the
     # stored value is wrong headless: a PUBLISHED, ASCENDING-tag, EXACTLY-TWO-ENTRY
-    # direction TOGGLE (Clockwise/CounterClockwise, East/West). For these, FCP applies
-    # the editor's active snapshot (Hidden); headless applies the raw stored value and
-    # renders the MIRROR-image rotation/slide. This gate fires only for such binary
-    # toggles whose Hidden-indexed snapshot Value differs from the stored value — across
-    # all 65 shipped templates that is Movements/Rotate + 360°/Push + 360°/Slide, and it
-    # is a strict no-op for every multi-option selector (>2 entries), every unpublished
-    # internal rig, and every binary toggle whose value already matches Hidden (e.g.
-    # Movements/Swing Direction, whose author DID pick West=1 and whose Hidden agrees).
-    # Fully .motr-derived (publishSettings + entry tags + per-snapshot Value + Hidden);
-    # no per-transition constants.
+    # direction TOGGLE (Clockwise/CounterClockwise, East/West). For these, FCP applies the
+    # editor's active snapshot (Hidden); headless applies the raw stored value and renders
+    # the MIRROR-image rotation/slide. This gate fires only for such binary toggles whose
+    # Hidden-indexed snapshot Value differs from the stored value -- across all 65 shipped
+    # templates that is Movements/Rotate + 360deg/Push + 360deg/Slide, and it is a strict
+    # no-op for every multi-option selector (>2 entries), every unpublished internal rig,
+    # and every binary toggle whose value already matches Hidden (e.g. Movements/Swing
+    # Direction, whose author DID pick West=1 and whose Hidden agrees). Fully .motr-derived
+    # (publishSettings + entry tags + per-snapshot Value + Hidden); no per-transition
+    # constants.
     out2 = _RIG_BINARY_DIR_NODE_RE.sub(
-        lambda m: _fix_binary_dir_node(m, _published_obj_ids, changed), out)
+        lambda m: _fix_binary_dir_node(m, published_obj_ids, changed), out)
 
     if not changed[0]:
         _remap_cache[key] = motr_path
@@ -411,9 +411,9 @@ def _rig_popup_index_to_tag(motr_path):
     return tf.name
 
 
-def load_doc(motr_path):
+def load_doc(motr_path: str):
     """Load one .motr document into the already-initialized engine. Returns the
-    C++ OZScene doc ptr. Cheap relative to init_engine() — safe to call per
+    C++ OZScene doc ptr. Cheap relative to init_engine() -- safe to call per
     transition in a batch. Auto-inits the engine on first call."""
     if not _engine_ready:
         init_engine()
@@ -422,10 +422,11 @@ def load_doc(motr_path):
     ok, _ = doc.readFromURL_ofType_error_(_NSURL.fileURLWithPath_(motr_path), DOC_TYPE, None)
     if not ok:
         raise RuntimeError("failed to load .motr: " + motr_path)
-    return _ms(ctypes.c_void_p(_objc.pyobjc_id(doc)), _sel(b"getDocument"))
+    return _msg_send(ctypes.c_void_p(_objc.pyobjc_id(doc)), _sel_register(b"getDocument"))
 
 
-def render_frame(doc, img_a, img_b, tsec, out, a_id=DROPZONE_A, b_id=DROPZONE_B):
+def render_frame(doc, img_a: str, img_b: str, tsec: float, out: str,
+                 a_id: int = DROPZONE_A, b_id: int = DROPZONE_B) -> int:
     """Render one frame at scene time `tsec` (seconds) to PNG `out`."""
     return _shim.oz_render_frame(ctypes.c_void_p(doc), a_id, b_id,
                                  os.path.abspath(img_a).encode(),
