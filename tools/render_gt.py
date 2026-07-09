@@ -2,14 +2,24 @@
 """
 Render ground-truth frames for a .motr transition through the REAL FCP engine.
 
-Handles the critical time-domain gotcha: a transition's animation ends at its
-LAST SPATIAL KEYFRAME (e.g. Push = 200200/120000 = 1.6683s), NOT the scene/
-playRange duration (which is one frame longer and WRAPS back to the start,
-producing black frames). We parse the max keyframe time across all curves,
-EXCLUDING the Retime Value / Retime Value Cache / Duration Cache curves (whose
-keyframes run a frame past the spatial animation). progress p in [0,1] maps to
-time p * animationEnd, with the final frame nudged just below the end to avoid
-the loop-point wrap.
+Time model (verified against FCP's GUI export via seam-position fit on Push, RMS
+0.0006 of frame height): FCP plays a transition over its AUTHORED scene duration
+`span` = scene_duration_seconds(motr) = sceneSettings/duration ÷ frameRate. The
+`nframes` GT frames cover [0, span) as half-open equal slices: frame i sits at
+scene-time (i/nframes)*span (see sample_time / _render_one). Frame 0 is the pure-A
+start; the final frame lands strictly BEFORE `span` (the loop-point where the scene
+wraps back to source A), so it is never nudged onto the wrap.
+
+animation_end_seconds() (the max NON-retime spatial keyframe) is only a FALLBACK
+window for templates without a parseable <sceneSettings>. It is a heuristic that
+can OVERSHOOT the authored span, so the various clamps/trims below
+(_clamp_to_playrange, _scene_clamp_end_seconds, _areturn_end_seconds) correct it.
+
+The reverse-ramp time-remap (opt-in FCT_ATRIM=1 / --atrim) is the one remaining
+per-template time special case, for the A->(snap B)->A round-trip family
+(Stylized Loop/Heart/Center); it is a no-op for every transition whose cold-B gate
+does not fire. Its anchor is calibrated to this benchmark's warm-sepia->cold-blue
+A/B image pair.
 
 Usage:
     DYLD_FRAMEWORK_PATH="/Applications/Final Cut Pro.app/Contents/Frameworks" \
@@ -27,8 +37,9 @@ import os, sys, re
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ozengine
 
-# Set by animation_end_seconds() so the scorer's 4-arg _areturn_end_seconds() call
-# (which does not pass the motr path) can still recover it for the scene-duration clamp.
+# Set by animation_end_seconds() so an external caller that invokes the 4-arg
+# _areturn_end_seconds(doc, a, b, end) (without passing the motr path) can still
+# recover it for the scene-duration clamp.
 _LAST_MOTR_PATH = None
 
 RETIME_PARAMS = {
@@ -112,9 +123,8 @@ def _clamp_to_playrange(motr_path, end, xml=None):
     it overshoots by more than `_PLAYRANGE_OVERSHOOT_RATIO` (see rationale above).
 
     Purely structural (XML only, no render) so it applies uniformly wherever
-    `animation_end_seconds` is consumed (render_gt._render_one AND score_slug.py).
-    GENERIC within the Movements family: keyed on the overshoot ratio, not on slug
-    names. A no-op (returns `end` unchanged) for:
+    `animation_end_seconds` is consumed. GENERIC within the Movements family: keyed
+    on the overshoot ratio, not on slug names. A no-op (returns `end` unchanged) for:
       - non-Movements templates (family gate),
       - templates with no parseable playRange,
       - Movements transitions whose animation_end is within 1.5x of playRange
@@ -175,8 +185,9 @@ def animation_end_seconds(motr_path):
     the authored scene duration for the Flash/Bloom/Light_Noise/… family) is applied by
     the rendered probe `_scene_clamp_end_seconds` in `_render_one` / `_areturn_end_seconds`
     (which needs the engine + A/B images to distinguish a dead void from a Mask-style
-    hold-then-reveal). We stash the last motr path in a module global so the scorer's
-    4-arg `_areturn_end_seconds(doc, a, b, end)` call can still recover it for the clamp.
+    hold-then-reveal). We stash the last motr path in a module global so an external
+    caller's 4-arg `_areturn_end_seconds(doc, a, b, end)` call can still recover it
+    for the clamp.
     """
     global _LAST_MOTR_PATH
     _LAST_MOTR_PATH = motr_path
@@ -264,8 +275,6 @@ def _animation_end_seconds_linescan(motr_path):
 def _frame_mean(png_path):
     """Mean pixel value of a rendered frame (0-255), or -1 if unreadable."""
     try:
-        import struct, zlib
-        # Lightweight: use PIL if available, else fall back to a crude read.
         from PIL import Image
         import numpy as np
         a = np.asarray(Image.open(png_path).convert("RGB"), dtype="float32")
@@ -402,61 +411,12 @@ def _scene_clamp_end_seconds(doc, img_a, img_b, motr_path, end, log=None):
     return end
 
 
-def _visible_end_seconds(doc, img_a, img_b, end):
-    """Trim `end` down to the true VISUAL end so the final sampled frame is never a
-    black-wrap frame. GENERIC and measurement-driven — the render is the ground truth.
-
-    For the retime-wrap class of transitions the FCP engine plays PAST the last
-    drop-zone frame into a pure-black loop-point. `animation_end_seconds` (the max
-    spatial keyframe) can land there. We detect this by rendering the last-frame time
-    and, if it is black (mean < BLACK), binary-search the largest t < end whose render
-    is non-black — content is valid for t < B and black for t >= B (a single onset),
-    so this converges to just below B. Returns the trimmed end (or the original when
-    the final frame is already valid — Push/Gaussian/etc. are untouched).
-
-    A tmp scratch frame is used so we never clobber the real frame_*.png outputs."""
-    import tempfile
-    BLACK = 5.0
-    def _mean_at(t):
-        fd, tmp = tempfile.mkstemp(suffix=".png")
-        os.close(fd)
-        try:
-            ozengine.render_frame(doc, img_a, img_b, t, tmp)
-            return _frame_mean(tmp)
-        finally:
-            try:
-                os.remove(tmp)
-            except OSError:
-                pass
-    last_t = end - 1e-4
-    if _mean_at(last_t) >= BLACK:
-        return end  # already valid — do not touch (no regression)
-    # The final frame is black: the true visual end is below `end`. Binary-search
-    # for the largest non-black time in (0, end). lo is known non-black (frame 0
-    # region), hi is known black (`end`).
-    lo, hi = 0.0, end
-    lo_ok = _mean_at(lo) >= BLACK
-    if not lo_ok:
-        # Even t=0 is black (should not happen for a real A/B transition) — bail out
-        # and let the validator flag it rather than fabricate an end.
-        return end
-    for _ in range(24):  # ~1/16.7M of `end` — far finer than a frame
-        mid = (lo + hi) / 2.0
-        if _mean_at(mid) >= BLACK:
-            lo = mid
-        else:
-            hi = mid
-    # `lo` is the largest time we confirmed non-black. The new end must map the last
-    # frame (end - 1e-4) at or below `lo`, so set end = lo + 1e-4 (last frame -> lo).
-    return lo + 1e-4
-
-
 def _areturn_end_seconds(doc, img_a, img_b, end, log=None, motr_path=None):
     """Trim `end` down past a SOURCE-A-RETURN tail so the final sampled frame settles
     on target B instead of looping back to source A. GENERIC + measurement-driven.
 
-    THE BUG THIS FIXES (distinct from `_visible_end_seconds`, which only trims a BLACK
-    loop-point tail): for ~21 transitions `animation_end_seconds` overshoots the true
+    THE BUG THIS FIXES (distinct from the black-loop-point wrap that
+    `_scene_clamp_end_seconds` handles): for ~21 transitions `animation_end_seconds` overshoots the true
     transition end into FCP's retime-wrap loop-point where the drop zones re-show
     source A. The tail is NOT black — it is *sepia source A*. The transition genuinely
     reaches B mid-sequence and then wraps/ramps back to A, so the cached GT wrongly ENDS
@@ -514,8 +474,9 @@ def _areturn_end_seconds(doc, img_a, img_b, end, log=None, motr_path=None):
     # the sampled tail frames into a black/out-of-range void (Flash's black back half).
     # Clamp `end` down to the authored scene duration when the overshoot region is a dead
     # void; leave hold-then-reveal transitions (Mask) alone. Fully generic (no per-slug
-    # constants). The scorer calls this with 4 positional args, so recover the motr path
-    # from the module global set by animation_end_seconds() when not passed explicitly.
+    # constants). An external caller may invoke this with 4 positional args, so recover
+    # the motr path from the module global set by animation_end_seconds() when not passed
+    # explicitly.
     _mp = motr_path if motr_path is not None else _LAST_MOTR_PATH
     if _mp:
         end = _scene_clamp_end_seconds(doc, img_a, img_b, _mp, end, log=log)
@@ -739,11 +700,10 @@ def _reverse_ramp_schedule(doc, img_a, img_b, play_range, nframes, log=None):
 
 
 # Module global: the last reverse-ramp schedule computed by _areturn_end_seconds (set to
-# None when the cold-B gate does not fire). Lets a linear scorer (score_slug.py /
-# gui_scoreboard.py) that only calls animation_end_seconds + _areturn_end_seconds pick up
-# the reverse-ramp schedule via `render_gt.sample_time(i, N, end)` WITHOUT restructuring its
-# loop into a decreasing per-frame schedule. See sample_time() and the coordination note in
-# the module docstring of the scorer patch (TIMEREMAP_FINDINGS.md).
+# None when the cold-B gate does not fire). Lets an external linear scorer that only calls
+# animation_end_seconds + _areturn_end_seconds pick up the reverse-ramp schedule via
+# `render_gt.sample_time(i, N, end)` WITHOUT restructuring its loop into a decreasing
+# per-frame schedule. See sample_time().
 _LAST_SCHEDULE = None
 
 
@@ -789,9 +749,11 @@ def _render_one(motr, img_a, img_b, outdir, nframes):
     The old code sampled i/(nframes-1)*animation_end. Both parts were wrong:
     animation_end (max spatial keyframe) is not the authored span, and the closed
     i/(N-1) fencepost stretched the last frame onto the wrap-point (duplicated
-    final frame) and lagged the whole back half. That in turn spawned a stack of
-    compensating clamps (scene-clamp / visible-end / A-return trims). With the
-    correct span + half-open sampling those clamps are unnecessary and removed.
+    final frame) and lagged the whole back half. With the correct span + half-open
+    sampling the linear path needs no per-frame correction. animation_end (and its
+    clamps/trims) survives only as the fallback window for templates lacking a
+    parseable <sceneSettings>, and, under FCT_ATRIM=1, to drive the reverse-ramp
+    remap for the A->(snap B)->A round-trip family (see below).
     """
     os.makedirs(outdir, exist_ok=True)
     global _LAST_SCHEDULE
