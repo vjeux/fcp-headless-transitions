@@ -383,8 +383,16 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
         // Verified for Switch: content at f0 is exactly the centered 1920 region (DOD x0=120..2040) and a
         // 120,0,1920,1080 crop yields f0=38dB (pixel-perfect A) vs 0dB for the full-aperture output.
         // Aperture origin in readback space = (0,0) (top-left); output-frame origin = ((w-1920)/2,(h-1080)/2).
-        else if(sb.w > 1922 && sb.h > 0 && sb.w < 3072 && (int)sb.h >= 1078 && (int)sb.h <= 1082
-                && dw <= (int)(sb.w*1.15) && dh <= (int)(sb.h*1.15)){
+        else if(sb.w > 1922 && sb.h > 0 && sb.w < 3072 && (int)sb.h >= 1078 && (int)sb.h <= 1082){
+            // BUG-1: route by WIDTH/height class ONLY, not per-frame DOD. A wide flat ~1080-tall
+            // aperture (Switch 2160x1080, Light_Sweep/Color_Panels 1967x1080) is a FIXED 1920x1080
+            // camera window centered on the aperture for EVERY frame; the transition content (and any
+            // lens/light-sweep flare that inflates the DOD past 1.15x on the mid frames) is CLIPPED to
+            // that window, not squeezed. The old `dw<=1.15*sb.w && dh<=1.15*sb.h` gate let flare frames
+            // fall through to B3 (full-aperture readback + downstream horizontal squeeze), splitting a
+            // single template across two geometries mid-transition. Verified vs GUI GT (consistent crop
+            // vs baseline mixed): Light_Sweep 15.33->15.34, Color_Panels 18.05->19.73, Switch unchanged
+            // (all-B2 already). So ALL frames of this class take the centered crop.
             roi.x = ((int)sb.w - 1920)/2; roi.y = ((int)sb.h - 1080)/2; roi.w = 1920; roi.h = 1080;
             if(getenv("OZ_DOD_DEBUG")) fprintf(stderr,"[oz] wide-aperture centered output ROI %d,%d,1920,1080 (aperture %.0fx%.0f)\n",roi.x,roi.y,sb.w,sb.h);
         }
@@ -424,7 +432,8 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
         // frame and squishes the content with black borders (Heart was 10.1dB from this). Squares-type
         // off-center canvases have a >1920x1080 aperture and are handled here.
         else if(dw > 0 && dh > 0 && dw <= 8192 && dh <= 8192
-                && (abs((int)sb.w-1920) > 2 || abs((int)sb.h-1080) > 2)){
+                && sb.w > 0 && sb.h > 0                                        // BUG-2: a failed getSceneBounds (sb==0) is UNKNOWN, not
+                && (abs((int)sb.w-1920) > 2 || abs((int)sb.h-1080) > 2)){      // "non-1920x1080" -> fall through to the safe default B0, not DOD-chase.
             int cx = dx0 + dw/2, cy = dy0 + dh/2;
             // Only re-center when the DOD center is clearly off the normal frame center (960,540).
             // Off-center canvases (Squares center (2048,1080)) get corrected.
