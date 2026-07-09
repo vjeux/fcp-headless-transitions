@@ -301,7 +301,16 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
 
     static char params[0x800]; memset(params,0,sizeof(params));
     OZRenderParams_ctor(params);
-    OZX_prepareForRender(&h,t,0,false,1,1,0,NULL,NULL,false,0,0,false,&device,params);
+    // Render QUALITY: FCP's GUI ProRes export renders at Normal/High quality (OZXRenderQuality=1),
+    // which honors the scene's <useShapeAntialiasing>/<useHighQualityResampling> flags. The headless
+    // engine was launching at quality 0 (Draft), producing HARD, non-feathered mask/shape edges: a
+    // shape-mask boundary that GT anti-aliases over ~4-5px became a 1px step, and that ~70-unit edge
+    // error dominated the whole-frame MSE on any masked/shaped transition (Wipes/Mask, Objects, etc.).
+    // Quality 1 matches the GT feathering (q2 is identical output but far slower supersampling; q>=3
+    // clamps back to draft). This is a global render-context setting keyed on nothing but the engine
+    // itself -- NOT per-transition. Env override kept for probing.
+    int _q=1; { const char* qe=getenv("OZ_QUALITY"); if(qe) _q=atoi(qe); }
+    OZX_prepareForRender(&h,t,_q,false,1,1,0,NULL,NULL,false,0,0,false,&device,params);
 
     id<MTLDevice> mtl=MTLCreateSystemDefaultDevice();
     unsigned long long regID=[mtl registryID];
