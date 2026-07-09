@@ -18,8 +18,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TRANSITIONS_DIR = ("/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/"
                    "MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized")
 DOC_TYPE = "com.apple.motion.transition"
-SCENE_DURATION = 2.002
-TIMESCALE = 24000
+# Canonical SCENE_DURATION / TIMESCALE live in the side-effect-free
+# tools/fcp_constants.py. HERE is absolute, so this import is robust even in the
+# subprocess worker path (this script re-invokes itself via
+# `sys.executable __file__ --worker ...` from arbitrary cwd). This standalone
+# engine-boot driver must NOT import ozengine (engine-boot side effects).
+sys.path.insert(0, os.path.join(HERE, "tools"))
+from fcp_constants import SCENE_DURATION, TIMESCALE  # 2.002s (two 1.001s stills); 24000 ticks/s
 
 
 def discover():

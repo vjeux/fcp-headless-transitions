@@ -23,10 +23,16 @@ Output:  /tmp/seg_analysis.json
 Usage: ./venv/bin/python tools/analyze_segments.py
 """
 import json
+import os
+import sys
 import numpy as np
 from PIL import Image
 
-fps=24000/1001  # = TIMESCALE/1001 (canonical TIMESCALE=24000 in tools/ozengine.py); 23.976fps
+# tools/ dir holds the canonical side-effect-free constants module.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from fcp_constants import FPS  # canonical FPS = TIMESCALE/1001 = 24000/1001
+
+fps=FPS  # = TIMESCALE/1001 (canonical in tools/fcp_constants.py); 23.976fps
 gm={r['slug']:r for r in json.load(open('/tmp/gt_slice_map.json'))}  # slug -> {offset_s, ...}
 AF='/tmp/allframes'
 A=np.asarray(Image.open('images/start.jpg').convert('RGB').resize((320,180)),float)  # source A
