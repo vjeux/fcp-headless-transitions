@@ -29,6 +29,13 @@ from typing import Optional
 FW = "/Applications/Final Cut Pro.app/Contents/Frameworks"
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOC_TYPE = "com.apple.motion.transition"
+# CANONICAL project timescale (ticks/sec) for the FCP Motion engine. FCP authors
+# transitions at 24000/1001 fps (23.976), so TIMESCALE=24000 with a 1001-tick frame.
+# This value is intentionally re-declared (not imported) in render.py and run_all.py:
+# those are standalone, subprocess-ISOLATED engine-boot scripts that must not import
+# this module (importing ozengine has engine-boot side effects). analyze_segments.py
+# derives fps = TIMESCALE/1001 from the same canonical value. Keep all four in sync;
+# they must stay EXACTLY 24000.
 TIMESCALE = 24000
 # Push drop-zone image-element scene IDs (harmless defaults; hook uses call order).
 DROPZONE_A = 1999869843

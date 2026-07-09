@@ -26,7 +26,7 @@ import json
 import numpy as np
 from PIL import Image
 
-fps=24000/1001
+fps=24000/1001  # = TIMESCALE/1001 (canonical TIMESCALE=24000 in tools/ozengine.py); 23.976fps
 gm={r['slug']:r for r in json.load(open('/tmp/gt_slice_map.json'))}  # slug -> {offset_s, ...}
 AF='/tmp/allframes'
 A=np.asarray(Image.open('images/start.jpg').convert('RGB').resize((320,180)),float)  # source A
