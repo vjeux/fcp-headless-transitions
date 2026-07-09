@@ -395,13 +395,29 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
         // authored aperture instead; the output PNG is aperture-sized and the scorer/consumer scales it to
         // 1920x1080 (matching FCP's normalize). Aperture origin in readback space = (-sb.x,-sb.y).
         else if(sb.w > 0 && sb.h > 0 && sb.w < 3072 && (abs((int)sb.w-1920) > 2 || abs((int)sb.h-1080) > 2)
-                && dw <= (int)(sb.w*1.15) && dh <= (int)(sb.h*1.15)){
+                && ( (sb.w >= 1920.0 && sb.h >= 1080.0)                       // (A) aperture >= output: always full-aperture
+                     || (dw <= (int)(sb.w*1.15) && dh <= (int)(sb.h*1.15)) )){ // (B) sub-output aperture: only if DOD contained
             // Flat scenes whose content is CONTAINED within the authored aperture: FCP normalizes that
             // aperture to the 1920x1080 output. Read the full aperture (content sits at readback origin
             // (0,0); verified OZ_ROI=0,0,1280,720 recovers Dissolves/Divide). Scaled to 1920x1080
-            // downstream. GATED on DOD <= 1.15*aperture so we DON'T clip transitions whose animation
-            // spills OUTSIDE the aperture (e.g. Movements/Drop_In: aperture 1280x720 but DOD 1962x1122 —
-            // the dropping image moves beyond the canvas; those keep the default/DOD-centered readback).
+            // downstream.
+            //
+            // Two admission cases:
+            //  (A) Aperture is >= the 1920x1080 OUTPUT in both dims (e.g. Light_Sweep/Color_Panels
+            //      1967x1080, Switch 2160x1080). The transition content is authored to FILL this fixed
+            //      aperture and FCP clips anything outside it; a lens/light-sweep flare's glow+rays bleed
+            //      OUTSIDE the aperture and inflate the DOD (Light_Sweep f14 DOD 2076x1476, f16 2076x1658
+            //      — >1.15x tall), but that bleed is CLIPPED, not part of the output. So we ALWAYS read
+            //      the fixed full aperture here regardless of DOD size. (The old blanket DOD<=1.15x gate
+            //      mis-fired on these flare frames -> fell through to the DOD-centering branch, which
+            //      chased the flare-inflated DOD and SHIFTED the readback window vertically by 187-284px,
+            //      producing the black-band artifact. Fixed by not gating >=output apertures on DOD.)
+            //  (B) Aperture is SMALLER than the output (e.g. Movements/Drop_In & Dissolves/Divide
+            //      1280x720). Here a DOD that spills far beyond the aperture means the CONTENT itself
+            //      translates across a larger canvas (Drop_In: dropping image, DOD 1962x1313, center
+            //      drifts 640->550), NOT filter bleed — those must keep the DOD-centered readback, so we
+            //      still gate on DOD <= 1.15*aperture (Dissolves/Divide DOD stays within -> full aperture;
+            //      Drop_In DOD spills -> falls through to DOD-centering).
             roi.x=0; roi.y=0; roi.w=(int)sb.w; roi.h=(int)sb.h;
             if(getenv("OZ_DOD_DEBUG")) fprintf(stderr,"[oz] flat-aperture ROI 0,0,%d,%d (scaled to 1920x1080 downstream)\n",roi.w,roi.h);
         }
@@ -447,6 +463,15 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
             kCGImageAlphaPremultipliedLast|kCGBitmapByteOrder32Big);
         cim=CGBitmapContextCreateImage(c);
     }
+    // FCP-NORMALIZE (downstream, NOT done here): a flat non-1920x1080 authored aperture
+    // (Light_Sweep/Color_Panels 1967x1080, Switch 2160x1080, Dissolves/Divide 1280x720) is read
+    // back at aperture size and the emitted PNG is aperture-sized. FCP normalizes that aperture to
+    // the 1920x1080 sequence output, so the consumer/scorer must scale the PNG to 1920x1080 (a
+    // simple PIL/LANCZOS resize to the GT size) before comparing to the 1920x1080 GUI GT — otherwise
+    // the scorer's shape-equality check silently drops every aperture-sized frame (scores on 0
+    // frames). NOTE: an in-renderer CGImage/CoreGraphics resize was tried and REVERTED — its
+    // premultiplied-alpha float resample degraded the near-opaque endpoint frames (~22dB -> ~12dB)
+    // vs a downstream PIL-LANCZOS resize (which recovers ~13.96 mean). Keep the normalize downstream.
     CFStringRef pp=CFStringCreateWithCString(NULL,outPath,kCFStringEncodingUTF8);
     CFURLRef uu=CFURLCreateWithFileSystemPath(NULL,pp,kCFURLPOSIXPathStyle,false);
     CGImageDestinationRef dst=CGImageDestinationCreateWithURL(uu,CFSTR("public.png"),1,NULL);
