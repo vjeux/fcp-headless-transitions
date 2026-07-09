@@ -19,8 +19,14 @@ This guarantees every GT ends on B, and each transition's 24 frames span its TRU
 
 transStart/settle come from /tmp/settle_windows.json. Extracts the full span with ONE ffmpeg
 select= pass per slug, then maps to 24 frames. Output: ~/fct-gui-gt/<slug>/frame_XXXX.png (1920x1080).
+
+TIME CONVENTION: the 24 output frames use the HALF-OPEN i/N mapping (frame i <- source
+slice int(i/N * span)), matching the headless scorer's sample_time = i/24 * scene_duration
+(see ~/fct-notes/fct_score_lib.py). Frame N-1 is the only exception: it is pinned to the
+settle frame so the GT always ends on fully-settled source B. This module only SLICES the
+GT; the sRGB->bt709 color model that reconciles headless vs GUI lives in the scorer, not here.
 """
-import json, os, subprocess, sys
+import json, os, shutil, subprocess, sys
 MOV=os.path.expanduser('~/random/final-cut-pro-transitions/GT_ALL_65.mov')
 OUT=os.path.expanduser('~/fct-gui-gt')
 FFMPEG='/opt/homebrew/bin/ffmpeg'
@@ -52,7 +58,6 @@ for slug in sorted(WIN):
     # EXCEPTION: frame N-1 (last) is pinned to the settle frame (src S-1 = B) so the GT still
     # ends on B (Problem 1 requirement). This makes the last step slightly larger — acceptable
     # since FCP's GUI export also ends on B at the settle.
-    import shutil
     for i in range(N):
         if i == N - 1:
             src_idx = len(segs) - 1  # last GT frame = settle = B
