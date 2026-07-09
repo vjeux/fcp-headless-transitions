@@ -113,10 +113,6 @@ static void oz_reset_gl_context(){
 }
 
 // ============================================================================
-// Runtime hook: make the two transition drop-zones return our image nodes.
-//
-// Rather than pre-identify each drop-zone element (which varies per template),
-// ============================================================================
 // Runtime hook: make the two transition drop-zones return our image nodes, while
 // letting embedded media (.mov overlays / mattes) resolve through the ORIGINAL resolver.
 //
@@ -139,51 +135,30 @@ static void* g_nodeB=nullptr;
 // Detour trampoline: a small executable buffer holding the ORIGINAL function's first 4
 // instructions (16 bytes) followed by a jump back to (target+16). Calling this reproduces
 // the original getHeliumGraphFromMediaRef. Installed by oz_install_hook.
-typedef void (*orig_fn_t)();
 extern "C" void* g_orig_detour;
 void* g_orig_detour=nullptr;
-
-// No-op: A/B assignment is now stateless (bound by authored isTransitionSourceA/B identity per
-// element), so there is no per-render discovery state to reset. Kept for call-site ABI stability.
-extern "C" void oz_reset_hook(){ }
 
 // C picker. Returns 1 if it injected a node into *sret (a real drop zone), 0 if the caller
 // should CALL THROUGH to the original resolver (embedded media). self=x0, colorDesc=arg2.
 //
-// Drop-zone A/B assignment is by DISCOVERY ORDER among drop-zone elements (identical to the
-// original hook's behavior — preserves the exact rendering of every pure 2-drop-zone template,
-// no regression). We use isTransitionSourceA/B ONLY to decide whether an element IS a transition
-// drop zone (inject A/B) or is embedded media (call through to the original resolver so Motion
-// decodes the real .mov overlay/matte). This unblocks Curtains/Leaves/Veil (extra .mov elements
-// no longer steal the A/B slots and no longer hang the shim) while leaving the 56 non-Objects
-// transitions byte-identical.
+// isTransitionSourceA/B distinguishes a real transition drop zone (inject A/B) from embedded
+// media (call through to the original resolver so Motion decodes the real .mov overlay/matte).
+// This unblocks Curtains/Leaves/Veil (their extra .mov overlays no longer steal the A/B slots
+// and no longer hang the shim).
+//
+// A/B is bound by AUTHORED drop-zone IDENTITY: isTransitionSourceA()->nodeA(start.jpg),
+// isTransitionSourceB()->nodeB(end.jpg). This is robust to the compositor's visitation order
+// (Mask/Scale/Duplicate visit their B-role drop zone FIRST, so a discovery-order scheme would
+// feed start.jpg into the B slot -> swapped). Verified against the corrected (settle-anchored)
+// GUI GT: Scale 13.2->28.2, Duplicate 11.6->24.1, Mask 11.0->27.3, Flip 23.7->26.8,
+// Concentric 16.7->20.8, Directional 28.3->31.5; Push 31.45 unchanged (Push visits A-first, so
+// identity == discovery).
 extern "C" int oz_mediaref_pick(void* self, void* colorDesc, void* sret){
     bool srcA = ozimg_isTransitionSourceA(self), srcB = ozimg_isTransitionSourceB(self);
     bool isDZ = srcA || srcB;
     if(getenv("OZ_HOOK_DEBUG")) fprintf(stderr,"[oz] pick self=%p isDropZone=%d srcA=%d srcB=%d\n",self,(int)isDZ,(int)srcA,(int)srcB);
     if(!isDZ) return 0;                       // embedded media -> call through to original resolver
-    // A/B assignment by DISCOVERY ORDER among drop-zone elements (identical to the original hook's
-    // behavior for pure 2-drop-zone templates -> the 56 non-Objects transitions render byte-identical,
-    // no regression). isTransitionSourceA/B is used ONLY to distinguish a real drop zone (inject A/B)
-    // from embedded media (call through). This unblocks Curtains/Leaves/Veil (their extra .mov overlays
-    // no longer steal the A/B slots and no longer hang the broken shim). NOTE: identity-based A/B
-    // (isTransitionSourceA->A) is more semantically correct and further improves the Objects .mov
-    // transitions AND several directional transitions (Flip +4, Scale +12.8), but it regresses
-    // Wipes__Mask -3.78 (Mask's GUI GT matches the SWAPPED render due to the separate rig-direction
-    // A/B bug that g1 owns). Discovery-order is the provably-clean choice that regresses nothing;
-    // identity should be revisited once the rig-direction A/B swap is fixed pool-wide.
-    // IDENTITY-based A/B assignment: bind by the AUTHORED drop-zone role
-    // isTransitionSourceA()->nodeA(start.jpg), isTransitionSourceB()->nodeB(end.jpg). Robust to
-    // the compositor's visitation order (Mask/Scale/Duplicate visit their B-role drop zone FIRST,
-    // so the old discovery-order fed start.jpg into the B slot -> swapped). Verified against the
-    // CORRECTED (settle-anchored) GUI GT: Scale 13.2->28.2, Duplicate 11.6->24.1, Mask 11.0->27.3,
-    // Flip 23.7->26.8, Concentric 16.7->20.8, Directional 28.3->31.5; Push 31.45 unchanged (Push
-    // visits A-first so identity==discovery). The earlier "Mask regresses under identity" was an
-    // artifact of the OLD broken GT (which ended mid-transition); with the corrected GT identity is
-    // unambiguously correct pool-wide.
-    void* raw=nullptr;
-    if(ozimg_isTransitionSourceA(self)) raw=g_nodeA;
-    else if(ozimg_isTransitionSourceB(self)) raw=g_nodeB;
+    void* raw = srcA ? g_nodeA : g_nodeB;     // authored identity: A->start.jpg, B->end.jpg
     if(!raw){ *(void**)sret=nullptr; return 1; }
     if(colorDesc){
         HGRefNode in; in.p=raw;
@@ -221,7 +196,6 @@ __asm__(
 "    br   x16\n"
 );
 extern "C" void oz_mediaref_trampoline();
-
 
 static int oz_install_hook(void* target){
     task_t task=mach_task_self();
@@ -342,12 +316,10 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
     HGRefNode nA=makeImageNode(ra,wa,ha), nB=makeImageNode(rb,wb,hb);
 
     void* scene=*(void**)((char*)cppDoc+8);
-    // Register images by drop-zone discovery order (idA/idB unused; kept for API stability).
+    // A/B is bound by authored drop-zone identity in the hook (idA/idB unused; kept for API stability).
     (void)idA; (void)idB;
     g_nodeA=nA.p; g_nodeB=nB.p;
-    oz_reset_hook();
     oz_install_hook((void*)&ozimg_getHeliumGraphFromMediaRef);
-
 
     GRRet gr=OZXGetRenderGraph(scene, params, NULL, h.glr, false, hgr);
     HGRefNode out; out.p=gr.p;
