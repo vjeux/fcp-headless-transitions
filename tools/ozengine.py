@@ -17,8 +17,11 @@ engine's sibling frameworks resolve at dlopen time. `timeout`, `nohup`, and
 (e.g. `... python tools/foo.py & `), never wrapped.
 
 The two drop-zone element IDs (A/B) are Push's; render_frame passes them through
-but the media-ref hook in oz_render.dylib actually assigns sources by call order,
-so they work for every template. Pass 0,0 to rely purely on call-order.
+but the media-ref hook in oz_render.dylib IGNORES them (idA/idB are unused) and
+binds sources by AUTHORED drop-zone IDENTITY instead: isTransitionSourceA()->
+start.jpg, isTransitionSourceB()->end.jpg. That's robust to the compositor's
+visitation order (some templates visit their B-role zone first, so a discovery/
+call-order scheme would swap A/B), so the IDs work for every template. Pass 0,0.
 """
 import ctypes
 import os
@@ -30,7 +33,8 @@ FW = "/Applications/Final Cut Pro.app/Contents/Frameworks"
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOC_TYPE = "com.apple.motion.transition"
 TIMESCALE = 24000
-# Push drop-zone image-element scene IDs (harmless defaults; hook uses call order).
+# Push drop-zone image-element scene IDs (harmless defaults; hook ignores them
+# and binds A/B by authored drop-zone identity — see module docstring).
 DROPZONE_A = 1999869843
 DROPZONE_B = 1999869841
 
