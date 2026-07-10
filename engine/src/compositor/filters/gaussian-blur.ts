@@ -22,6 +22,8 @@
  * unchanged. This is a pure speed change (360° Bloom does three 4096×2160 blurs per
  * frame at radius 13/32/90 — the single biggest cost in the render pipeline).
  */
+import { resample } from '../resample.js';
+
 
 export function gaussianBlur(input: ImageData, radius: number): ImageData {
   if (radius <= 0) return input;
@@ -148,6 +150,18 @@ export function gaussianBlur(input: ImageData, radius: number): ImageData {
 }
 
 /**
+ * FCP's blur decimation level for a given radius — a faithful reimplementation of
+ * `HGBlur::GetDecimation(float)` (Helium.framework @ 0x1bc0d8), reverse-engineered
+ * from the disassembly (see docs/notes/FCP_360_BLUR_REVERSE_ENGINEERING.md). FCP does
+ * NOT convolve a giant kernel at full resolution; HGBlur DECIMATES (downsamples by
+ * 2^level), blurs the small image with a small kernel, then upsamples. The level
+ * rises each time radius² clears the next 25·4^k band:
+ *   radius <5 → 0 (1×) | ≥5 → 1 (2×) | ≥13 → 2 (4×) | ≥32 → 3 (8×) | ≥90 → 4 (16×) …
+ * This is O(pixels) regardless of radius — the reason FCP renders a radius-90 blur on
+ * a 4096-wide panorama instantly while a full-res convolution takes seconds.
+ */
+
+/**
  * Generate a normalized 1D Gaussian kernel.
  * Kernel size = 2*radius + 1. Values sum to 1.0.
  */
@@ -166,11 +180,54 @@ function makeGaussianKernel(radius: number): Float64Array {
   return kernel;
 }
 
+/**
+ * FCP's `HGBlur::GetDecimation(radius)` (Helium.framework @ 0x1bc0d8), exact:
+ * a large blur is not convolved at full res — the image is DECIMATED (downsampled)
+ * by 2^level, blurred small, then upsampled. The level rises each time radius²
+ * clears the next 25·4^k band: r<5→0(1×) | ≥5→1(2×) | ≥13→2(4×) | ≥32→3(8×) |
+ * ≥90→4(16×)… This is O(pixels) regardless of radius and is what makes FCP's
+ * radius-90 glow on a 4096-wide panorama fast. See
+ * docs/notes/FCP_360_BLUR_REVERSE_ENGINEERING.md.
+ */
+export function gaussianDecimation(radius: number): number {
+  let r2 = radius * radius;
+  if (r2 < 25.0) return 0;
+  let level = 0, scale = 1.0;
+  do {
+    level += 1;
+    r2 -= scale * 25.0;
+    scale *= 4.0;
+  } while (r2 >= scale * 25.0);
+  return level;
+}
+
+/**
+ * Decimate → blur → upsample, matching FCP's HGBlur. For radius < 5 (decimation 0)
+ * this is just the plain full-res gaussianBlur. Otherwise the image is bilinearly
+ * downsampled by 2^level, blurred at the reduced radius (radius / 2^level) on the
+ * small image, and bilinearly upsampled back to the original size — the same
+ * decimate-blur-upsample HGBlur runs (fastDecimateDown/Up), which is both faithful
+ * and O(pixels) instead of O(pixels·radius).
+ */
+export function decimatedGaussianBlur(input: ImageData, radius: number): ImageData {
+  if (radius <= 0) return input;
+  const level = gaussianDecimation(radius);
+  if (level === 0) return gaussianBlur(input, radius);
+  const factor = 1 << level; // 2^level
+  const dw = Math.max(1, Math.round(input.width / factor));
+  const dh = Math.max(1, Math.round(input.height / factor));
+  const small = resample(input, dw, dh);
+  const blurred = gaussianBlur(small, radius / factor);
+  return resample(blurred, input.width, input.height);
+}
+
 import { registerFilter } from './registry.js';
 
 // Gaussian Blur (UUID E472D646-…). Faithful to the legacy branch: Mix gates the
 // effect (0 = bypass); Amount via blurAmount (honors overrides + static-value=0
-// inactive rule); rendered radius = Amount * min(Mix,1).
+// inactive rule); rendered radius = Amount * min(Mix,1). Rendered through FCP's
+// decimate→blur→upsample HGBlur (decimatedGaussianBlur) so a large radius is O(pixels),
+// not O(pixels·radius) — matches FCP and is dramatically faster on big canvases.
 registerFilter({
   uuid: 'E472D646-2C92-464E-98A1-91CF8F162AD8',
   names: ['gaussian'],
@@ -178,7 +235,7 @@ registerFilter({
   apply(input, ctx) {
     const mix = ctx.param('Mix', 1);
     const amount = ctx.blurAmount('Amount', 0);
-    if (mix > 0 && amount > 0) return gaussianBlur(input, amount * (mix < 1 ? mix : 1));
+    if (mix > 0 && amount > 0) return decimatedGaussianBlur(input, amount * (mix < 1 ? mix : 1));
     return input;
   },
 });

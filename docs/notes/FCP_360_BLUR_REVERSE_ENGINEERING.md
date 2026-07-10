@@ -62,3 +62,36 @@ sinusoidal-scaled Gaussian only where it affects that crop — which is both cor
 (moves Bloom's gate output), so it belongs in a measured pixel-match investigation
 scored against the GUI GT, not a silent perf tweak. Filed as the top item in
 ENGINE_BACKLOG.
+
+## HGBlur decimation — the REAL reason FCP's big blurs are fast (Helium.framework)
+
+`HGBlur` (Helium, the node that HGaussianBlur/HEquirectGaussianBlur build) does NOT
+convolve a giant kernel at full res. It DECIMATES (downsamples), blurs the small
+image with a fixed small tap kernel, then upsamples — via HGBlur::fastDecimateDown /
+fastDecimateUp / ComputeDecimation / GetDecimation. This is O(pixels), independent of
+radius, and is the faithful algorithm (not a GPU trick).
+
+`HGBlur::GetDecimation(float radius)` @ Helium 0x1bc0d8 — EXACT asm:
+```
+s0 = radius*radius
+if (s0 < 25.0) return 0            // radius < 5 → no decimation
+level = 0; scale = 1.0
+do {
+  s4 = scale * 25.0
+  level += 1
+  s0 -= s4                          // subtract 25, 100, 400, 1600, ...
+  scale *= 4.0
+  s4 = scale * 25.0
+} while (s0 >= s4)
+return level                        // decimation = 2^level
+```
+i.e. decimation level rises each time radius² clears the next 25·4^k band:
+  radius <5 →0 (1×) | ≥5 →1 (2×) | ≥13 →2 (4×) | ≥32 →3 (8×) | ≥90 →4 (16×) …
+
+For 360°/Bloom's three group filters this means FCP blurs:
+  Gaussian r=13 → 4× → a 1024×540 image
+  Glow     r=90 → 16× → a 256×135 image   (the "6-second" full-res pass is ~instant)
+  Bloom    r=32 → 8× → a 512×270 image
+then upsamples each back to the working resolution. THIS is why FCP is fast and our
+full-res 4096×2160 convolution is 262 s/slug. Reproducing GetDecimation +
+decimate-blur-upsample is both the fidelity fix and the speed fix (same math FCP runs).

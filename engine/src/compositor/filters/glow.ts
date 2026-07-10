@@ -14,7 +14,7 @@
  *   - Threshold: brightness threshold 0-1 (pixels below this don't glow)
  *   - Amount/Intensity: strength of the glow overlay (default 1)
  */
-import { gaussianBlur } from './gaussian-blur.js';
+import { decimatedGaussianBlur } from './gaussian-blur.js';
 import { luma601 } from '../blend.js';
 
 export interface GlowParams {
@@ -54,7 +54,7 @@ export function glowFilter(input: ImageData, params: GlowParams): ImageData {
 
   // Step 2: Blur the bright pixels
   const brightImg = new ImageData(brightData, width, height);
-  const blurred = gaussianBlur(brightImg, radius);
+  const blurred = decimatedGaussianBlur(brightImg, radius);
 
   // Step 3: Blend the blurred glow back onto the original.
   // For amount <= 1: screen blend (gentle). For amount > 1: additive accumulation
