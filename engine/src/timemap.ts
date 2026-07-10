@@ -13,6 +13,7 @@
 //
 // The remap applies wrap first, then clamp. If neither fires it is the identity.
 import type { MotrScene, Layer, RationalTime } from './types.js';
+import { hasFilledShapeOverlay, hasStrokedMaskShape, hasReplicatorMaskReveal } from './capabilities.js';
 
 export interface TimeMap {
   /** Remap a raw scene time (seconds) to the effective render time (seconds). */
@@ -95,49 +96,33 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
   // frozen-A wrap.
   let clampSec: number | undefined;
   {
-    let hasFilledShapeOverlay = false;
-    let hasBlendedMediaOverlay = false;
-    // A STROKED-shape image mask (Objects/Arrows): the drop zone carries an Image
-    // Mask whose source group holds stroked arc shapes (arrow arcs) whose trim
-    // GROWS to full coverage. That reveal IS the entire transition and its END
-    // state (full B) must persist — freezing the scene back to frame 0 would snap
-    // the arrows back to a sliver and re-show A on the last frames. Detect a
-    // stroked shape anywhere in the scene and disable the wrap for it.
-    let hasStrokedMaskShape = false;
-    // A REPLICATOR-matte reveal (Replicator-Clones/Duplicate): a layer's Image Mask
-    // Mask Source is a grid Replicator whose Sequence Replicator grows the cells
-    // 0→1 to reveal the masked layer (Transition B) over the base (Transition A).
-    // That growing-dots reveal IS the entire transition; its end state (full B)
-    // must persist to progress=1. The many hidden cell-candidate shapes inside the
-    // replicator's cell group carry early drop-zone timeouts (~0.7s) that would
-    // otherwise set wrapSec and snap the tail back to A. Disable the wrap
-    // when such a replicator-matte reveal exists. Structural (any replicator used
-    // as a mask source) — no transition name, no GT constant.
-    let hasReplicatorMaskReveal = false;
-    const replicatorIds = new Set<number>();
-    (function collectRepl(layers: readonly Layer[]) {
+    // Structural overlay probes (capabilities.ts) — each keys off node/shape/mask
+    // TYPES, not transition names.
+    const filledShapeOverlay = hasFilledShapeOverlay(scene);
+    const strokedMaskShape = hasStrokedMaskShape(scene);
+    const replicatorMaskReveal = hasReplicatorMaskReveal(scene);
+    // A blended (screen/add) VIDEO media leaf that OUTLIVES the wrap plays along its
+    // own frame-numbered Retime timeline (Lights/Light Noise's light-noise .mov): its
+    // second burst fires past the drop-zone wrap, so freezing to time 0 would drop it.
+    // This one depends on wrapSec (is the overlay's `out` past the wrap?), so it stays
+    // local rather than in capabilities.ts.
+    let blendedMediaOverlay = false;
+    (function scanBlend(layers: readonly Layer[]) {
       for (const l of layers) {
-        if (l.type === 'replicator') replicatorIds.add(l.id);
-        collectRepl(l.children);
-      }
-    })(scene.layers);
-    (function scan2(layers: readonly Layer[]) {
-      for (const l of layers) {
-        if (l.type === 'shape' && l.shape && !l.shape.isMask && (l.shape.fillColor || l.shape.isSolidPanel)) hasFilledShapeOverlay = true;
-        if (l.type === 'shape' && l.shape && l.shape.stroke) hasStrokedMaskShape = true;
-        if (l.imageMaskSourceId !== undefined && replicatorIds.has(l.imageMaskSourceId)) hasReplicatorMaskReveal = true;
-        // A blended (screen/add) VIDEO media leaf that outlives the wrap: its own
-        // Retime curve (clip-frame numbers) drives an independent playhead.
         if (l.type === 'image' && l.source?.type === 'media'
           && (l.blendMode === 'screen' || l.blendMode === 'add' || l.blendMode === 'overlay' || l.blendMode === 'lighten')
           && l.timing) {
           const outSec = l.timing.out.timescale > 0 ? l.timing.out.value / l.timing.out.timescale : 0;
-          if (outSec > (wrapSec ?? 0) + frameSec) hasBlendedMediaOverlay = true;
+          if (outSec > (wrapSec ?? 0) + frameSec) blendedMediaOverlay = true;
         }
-        scan2(l.children);
+        scanBlend(l.children);
       }
     })(scene.layers);
-    if (wrapSec !== undefined && (hasFilledShapeOverlay || hasBlendedMediaOverlay || hasReplicatorMaskReveal) && endSec > wrapSec + frameSec) {
+    // The wrap freezes the WHOLE scene back to frame 0, which is correct only when the
+    // drop-zone crossfade IS the entire transition (Blurs/Zoom, Lights/Bloom). A
+    // filled-shape / blended-media / replicator-matte overlay keeps animating past the
+    // wrap, so its presence (plus a true animation end beyond the wrap) CANCELS the wrap.
+    if (wrapSec !== undefined && (filledShapeOverlay || blendedMediaOverlay || replicatorMaskReveal) && endSec > wrapSec + frameSec) {
       wrapSec = undefined;
     }
     // Stroked-mask reveal (Objects/Arrows): the growing arrow arcs cut A away to
@@ -146,7 +131,7 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
     // holds full B). Instead of wrapping, CLAMP the scene time to just under the
     // drop-zone timeout for the tail frames so the fully-revealed B (mask at full
     // coverage, both drop zones alive) persists to progress=1.
-    clampSec = (hasStrokedMaskShape && wrapSec !== undefined)
+    clampSec = (strokedMaskShape && wrapSec !== undefined)
       ? Math.max(0, wrapSec - frameSec * 0.25)
       : undefined;
     if (clampSec !== undefined) wrapSec = undefined;

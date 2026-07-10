@@ -10,14 +10,26 @@
  */
 import { parseMotr } from '../src/parser/index.js';
 import { detect360Band } from '../src/compositor/transition360.js';
+import {
+  hasColorizeRemapRig,
+  hasFilledShapeOverlay,
+  hasStrokedMaskShape,
+  hasReplicatorMaskReveal,
+} from '../src/capabilities.js';
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 
 const TX = '/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized';
 
-// Every scene-level dispatch detector used in api.ts must be registered here.
+// Every scene-level dispatch detector / capability probe used in api.ts + timemap.ts
+// must be registered here. A probe firing on < MIN_FIRES transitions is a
+// per-transition hardcode masquerading as a generic primitive.
 const DETECTORS: Record<string, (scene: any) => unknown> = {
   detect360Band,
+  hasColorizeRemapRig,
+  hasFilledShapeOverlay,
+  hasStrokedMaskShape,
+  hasReplicatorMaskReveal,
 };
 
 const MIN_FIRES = 2; // a detector firing on <2 transitions is a per-transition hardcode

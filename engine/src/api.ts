@@ -4,6 +4,7 @@ import { composite } from './compositor/index.js';
 import { resample, cropCenter } from './compositor/resample.js';
 import { detect360Band, render360Band } from './compositor/transition360.js';
 import { buildTimeMap } from './timemap.js';
+import { hasColorizeRemapRig, isWideEquirect } from './capabilities.js';
 import type { MotrScene } from './types.js';
 
 export interface TransitionOptions {
@@ -82,7 +83,7 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
   // 360°_Bloom at 5.1 dB vs the headless centred-crop's 16.9). Matches oz_render.mm's
   // `sceneBounds.w >= 3072` equirect readback. When set, renderInstant CROPs the
   // conform instead of resampling. See docs/notes/FCP_360_BLUR_REVERSE_ENGINEERING.md.
-  const wideEquirect = width >= 3072 && width >= 1.6 * height;
+  const wideEquirect = isWideEquirect(width, height);
 
   // 360° transition family: drop-zone cover-fit band + "Align To" horizontal push.
   // These render at the CONFORMED output resolution directly (the push transform
@@ -122,44 +123,11 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
   // node/behavior TYPES (no transition names). See timemap.ts.
   const timeMap = buildTimeMap(scene);
 
-  // Slide-family detection: a Colorize filter rig-driven by a "Color" accent
-  // widget over decorative image tiles. This structural signature matches a real
-  // family (Slide, Diagonal, Glide, Up/Over, Close & Open — a "Color" rig widget
-  // driving a Colorize). It gates the motion-blur pass below: these families have
-  // fast-sweeping decorative tiles that the reference renderer shutter-blurs into
-  // a soft wash. NOTE: this MUST require the rigged filter to be a COLORIZE — a
-  // "Color" widget can rig other filters (Light Sweep drives a glow), and enabling
-  // the tile motion-blur there regressed it (44→15dB).
-  // Capability probe (TYPE-driven, not a transition-name match): does the scene
-  // carry a COLORIZE filter rigged by a "Color" widget through a "remap" behavior?
-  // That structural signature is what motion blur keys off (the tile-slide family
-  // happens to have it; Light Sweep drives a glow/gradient filter instead and must
-  // NOT get the 16-sample blur — it regressed 44→15 dB when it did).
-  let hasColorizeRemapRig = false;
-  {
-    const colorWidgetIds = new Set<number>();
-    for (const w of scene.rigWidgets) if ((w.name || '').toLowerCase() === 'color') colorWidgetIds.add(w.id);
-    if (colorWidgetIds.size > 0) {
-      // Only a COLORIZE filter counts — a "Color" widget may rig OTHER filters
-      // (e.g. Light Sweep drives a glow/gradient filter and is NOT a Slide-family
-      // tile transition; enabling its 16-sample blur here regressed it 44→15dB).
-      const colorizeIds = new Set<number>();
-      (function collect(layers: readonly import('./types.js').Layer[]) {
-        for (const l of layers) {
-          for (const f of l.filters) {
-            const pn = (f.pluginName || '').toLowerCase();
-            const nm = (f.name || '').toLowerCase();
-            if (pn.includes('colorize') || nm.includes('colorize')) colorizeIds.add(f.id);
-          }
-          collect(l.children);
-        }
-      })(scene.layers);
-      for (const b of scene.rigBehaviors) {
-        if (colorizeIds.has(b.affectedObjectId) && colorWidgetIds.has(b.widgetId)
-            && (b.paramType || '').toLowerCase().includes('remap')) { hasColorizeRemapRig = true; break; }
-      }
-    }
-  }
+  // Motion blur keys off a structural signature (capabilities.ts): a COLORIZE
+  // filter rigged by a "Color" widget through a "remap" behavior — the decorative
+  // tile "Slide" family. NOT any "Color" rig (Light Sweep drives a glow and must not
+  // get the 16-sample blur: it regressed 44->15 dB when it did).
+  const colorizeRemapRig = hasColorizeRemapRig(scene);
 
 
   // Motion blur: the scene declares a shutter (motionBlurSamples>1). Enable it
@@ -176,7 +144,7 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
   // not be blurred (averaging sub-frames there would smear the A→B crossfade and
   // regress it). Measure the max per-frame world-translation of any animated image
   // layer over a short probe; require a few px/frame before blurring.
-  let motionBlurEnabled = (scene.settings.motionBlurSamples ?? 1) > 1 && hasColorizeRemapRig;
+  let motionBlurEnabled = (scene.settings.motionBlurSamples ?? 1) > 1 && colorizeRemapRig;
   if (motionBlurEnabled) {
     const endProbe = scene.settings.animationEndSec ?? (scene.settings.duration.value / scene.settings.duration.timescale);
     const fps = scene.settings.frameRate > 0 ? scene.settings.frameRate : 30;
