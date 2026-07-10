@@ -148,6 +148,14 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-10  Item 4 — PARSER globals ELIMINATED. Bundled CLIP_MEDIA + DROPZONE_MEDIA_HEIGHT
+              (+ the existing clipAB map) into one per-parse `ClipInfo {ab, media,
+              dropZoneMediaHeight}` returned by parseFootageClipAB and threaded through
+              parseSceneNode/parseLayerElement/determineImageSource (replaces the clipAB param,
+              no param bloat). parseMotr reads clip.dropZoneMediaHeight. Both module globals
+              deleted. tsc clean; full engine re-render; gate green 0/0. ALL render-scoped
+              module globals (evaluator + compositor + parser) are now eliminated. Next: add the
+              engine/test/concurrent.test.ts verifier (item-4 DoD) then mark item 4 DONE.
 - 2026-07-10  Item 4 — COMPOSITOR module globals ELIMINATED. composite() now builds a local
               `const rctx: RenderContext` (was module `let ctx`); threaded isMaskGroup +
               dropZonePlaceholderCell; moved the `_dzPlaceholder` size-keyed cache INTO
