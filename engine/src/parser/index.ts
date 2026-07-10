@@ -424,18 +424,35 @@ function extractTransform(params: Parameter[]): Transform {
  * because parsing is synchronous and single-threaded; reset at the start of each
  * parseFootageClipAB call.
  */
-let CLIP_MEDIA = new Map<number, { url: string; frameRate?: number }>();
 /**
- * Smallest drop-zone media box height (Fixed Height, id 115) seen while parsing
- * the <footage> clips. Movements/Drop In conforms its source into this box.
- * Populated by parseFootageClipAB; consumed when assembling SceneSettings.
+ * Per-parse footage-clip metadata, bundled into one object threaded through the
+ * parse tree (parseFootageClipAB -> parseSceneNode/parseLayerElement ->
+ * determineImageSource) instead of module globals, so concurrent parses never
+ * share mutable state.
  */
-let DROPZONE_MEDIA_HEIGHT: number | undefined;
+interface ClipInfo {
+  /** Footage clip-id -> which transition drop zone (A = outgoing, B = incoming). */
+  ab: Map<number, 'A' | 'B'>;
+  /**
+   * Footage clip-id -> bundled media relativeURL. Some transitions (e.g.
+   * Stylized/Documentary/Slide) reference template-bundled PNG assets (sliding
+   * rounded-rectangle tiles) via a <clip> with a <relativeURL> instead of a
+   * Transition A/B drop zone; image copies pointing at these become
+   * {type:'media', url} sources, resolved by the host's mediaResolver.
+   */
+  media: Map<number, { url: string; frameRate?: number }>;
+  /**
+   * Smallest drop-zone media box height (Fixed Height, id 115) seen while parsing
+   * the <footage> clips. Movements/Drop In conforms its source into this box.
+   * Undefined when no clip carries a Fixed Height.
+   */
+  dropZoneMediaHeight?: number;
+}
 
-function parseFootageClipAB(sceneEl: Element, factories: Map<number, string>): Map<number, 'A' | 'B'> {
+function parseFootageClipAB(sceneEl: Element, factories: Map<number, string>): ClipInfo {
   const map = new Map<number, 'A' | 'B'>();
-  CLIP_MEDIA = new Map<number, { url: string; frameRate?: number }>();
-  DROPZONE_MEDIA_HEIGHT = undefined;
+  const clipMedia = new Map<number, { url: string; frameRate?: number }>();
+  let dropZoneMediaHeight: number | undefined;
   const clips: { id: number; path: string; name: string }[] = [];
   for (const footage of Array.from(sceneEl.getElementsByTagName('footage'))) {
     for (const clip of directChildren(footage, 'clip')) {
@@ -452,8 +469,8 @@ function parseFootageClipAB(sceneEl: Element, factories: Map<number, string>): M
         for (const c of directChildren(objP, 'parameter')) {
           if (c.getAttribute('name') === 'Fixed Height' && c.getAttribute('id') === '115') {
             const v = parseFloat(c.getAttribute('value') || '');
-            if (isFinite(v) && v > 1 && (DROPZONE_MEDIA_HEIGHT === undefined || v < DROPZONE_MEDIA_HEIGHT)) {
-              DROPZONE_MEDIA_HEIGHT = v;
+            if (isFinite(v) && v > 1 && (dropZoneMediaHeight === undefined || v < dropZoneMediaHeight)) {
+              dropZoneMediaHeight = v;
             }
           }
         }
@@ -479,7 +496,7 @@ function parseFootageClipAB(sceneEl: Element, factories: Map<number, string>): M
             break;
           }
         }
-        CLIP_MEDIA.set(id, { url, frameRate });
+        clipMedia.set(id, { url, frameRate });
       }
     }
   }
@@ -643,7 +660,7 @@ function parseFootageClipAB(sceneEl: Element, factories: Map<number, string>): M
     }
   }
 
-  return map;
+  return { ab: map, media: clipMedia, dropZoneMediaHeight };
 }
 function findSourceMediaId(params: Parameter[]): number | undefined {
   for (const p of params) {
@@ -737,7 +754,7 @@ function parseGaussianGradient(params: Parameter[]): GaussianGradientConfig {
   return { width, height, centerX, centerY, absolutePoints, radius, color1, color2, flip };
 }
 
-function determineImageSource(params: Parameter[], el: Element | undefined, clipAB: Map<number, 'A' | 'B'>): ImageSource | undefined {
+function determineImageSource(params: Parameter[], el: Element | undefined, clip: ClipInfo): ImageSource | undefined {
   // Gaussian Gradient generator (radial glow used by Nature/Diagonal & Nature/Glide).
   const pluginUUID = el?.getAttribute('pluginUUID') || '';
   const pluginName = el?.getAttribute('pluginName') || '';
@@ -766,14 +783,14 @@ function determineImageSource(params: Parameter[], el: Element | undefined, clip
 
   // Resolve by footage clip reference (the authoritative signal).
   const clipId = findSourceMediaId(params);
-  if (clipId !== undefined && clipAB.has(clipId)) {
-    return clipAB.get(clipId) === 'A' ? { type: 'transitionA' } : { type: 'transitionB' };
+  if (clipId !== undefined && clip.ab.has(clipId)) {
+    return clip.ab.get(clipId) === 'A' ? { type: 'transitionA' } : { type: 'transitionB' };
   }
   // Bundled template media (a PNG in the template's Media/ folder, e.g. Slide's
   // sliding rounded-rectangle tiles). Resolved at render time by the host's
   // mediaResolver (the core engine is environment-agnostic; file IO is injected).
-  if (clipId !== undefined && CLIP_MEDIA.has(clipId)) {
-    const cm = CLIP_MEDIA.get(clipId)!;
+  if (clipId !== undefined && clip.media.has(clipId)) {
+    const cm = clip.media.get(clipId)!;
     return { type: 'media', url: cm.url, frameRate: cm.frameRate };
   }
 
@@ -1634,7 +1651,7 @@ function parseDropZone(params: Parameter[]): { type: number; width: number; heig
   return { type: type ?? 0, width, height };
 }
 
-function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map<number, 'A' | 'B'>, linkSourceIds: Set<number>): Layer {
+function parseSceneNode(el: Element, factories: Map<number, string>, clip: ClipInfo, linkSourceIds: Set<number>): Layer {
   const factoryID = parseInt(el.getAttribute('factoryID') || '0', 10);
   const factoryType = factories.get(factoryID) || '';
 
@@ -1694,7 +1711,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
     if (childType !== 'ProPlugin Filter' && childType !== 'Fade In/Fade Out'
         && childType !== 'Oscillate' && childType !== 'Spin' && childType !== 'Throw'
         && childType !== 'Motion Path' && childType !== 'Align To') {
-      children.push(parseSceneNode(childNode, factories, clipAB, linkSourceIds));
+      children.push(parseSceneNode(childNode, factories, clip, linkSourceIds));
     }
   }
 
@@ -1808,7 +1825,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clipAB: Map
     shape: type === 'shape' ? parseShape(el, factories, linkSourceIds) : undefined,
     replicator: type === 'replicator' ? parseReplicator(params, el, factories) : undefined,
     behaviors: parseLayerBehaviors(el, factories),
-    source: (type === 'image' || type === 'generator') ? determineImageSource(params, el, clipAB) : undefined,
+    source: (type === 'image' || type === 'generator') ? determineImageSource(params, el, clip) : undefined,
     enabled,
     cloneSourceId,
     cellSourceId,
@@ -1978,7 +1995,7 @@ function parseFramingBehaviors(el: Element, factories: Map<number, string>): Fra
 /**
  * Parse a <layer> element (a group that contains scenenodes).
  */
-function parseLayerElement(el: Element, factories: Map<number, string>, clipAB: Map<number, 'A' | 'B'>, linkSourceIds: Set<number>): Layer {
+function parseLayerElement(el: Element, factories: Map<number, string>, clip: ClipInfo, linkSourceIds: Set<number>): Layer {
   // Parse the layer's own parameters
   const params: Parameter[] = [];
   for (const paramEl of directChildren(el, 'parameter')) {
@@ -2003,10 +2020,10 @@ function parseLayerElement(el: Element, factories: Map<number, string>, clipAB: 
         }
         filters.push({ id: filterId, pluginName, pluginUUID, parameters: filterParams });
       } else {
-        children.push(parseSceneNode(childEl, factories, clipAB, linkSourceIds));
+        children.push(parseSceneNode(childEl, factories, clip, linkSourceIds));
       }
     } else if (childEl.tagName === 'layer' || childEl.tagName === 'group') {
-      children.push(parseLayerElement(childEl, factories, clipAB, linkSourceIds));
+      children.push(parseLayerElement(childEl, factories, clip, linkSourceIds));
     } else if (childEl.tagName === 'filter') {
       // Filter elements (blur, color, etc.)
       const filterId = parseInt(childEl.getAttribute('id') || '0', 10);
@@ -2321,11 +2338,12 @@ export function parseMotr(xmlText: string): MotrScene {
   const rigBehaviors = parseRigBehaviors(sceneEl);
   const sceneBehaviors = parseSceneBehaviors(sceneEl, factories);
 
-  // Resolve the footage drop-zone clips → A/B for authoritative source resolution.
-  const clipAB = parseFootageClipAB(sceneEl, factories);
+  // Resolve the footage drop-zone clips → A/B (+ bundled media + drop-zone box
+  // height) for authoritative source resolution.
+  const clip = parseFootageClipAB(sceneEl, factories);
   // The drop-zone media box height (captured during the clip walk above) governs
   // the Drop In card conform.
-  settings.dropZoneMediaHeight = DROPZONE_MEDIA_HEIGHT;
+  settings.dropZoneMediaHeight = clip.dropZoneMediaHeight;
 
   // Collect every object ID referenced as a Link `Source Object` (id=201) — the
   // set of "color swatch" driver shapes that other layers link their color FROM
@@ -2343,13 +2361,13 @@ export function parseMotr(xmlText: string): MotrScene {
   const layers: Layer[] = [];
   for (const el of allDirectChildren(sceneEl)) {
     if (el.tagName === 'layer' || el.tagName === 'group') {
-      layers.push(parseLayerElement(el, factories, clipAB, linkSourceIds));
+      layers.push(parseLayerElement(el, factories, clip, linkSourceIds));
     } else if (el.tagName === 'scenenode') {
       const fid = parseInt(el.getAttribute('factoryID') || '0', 10);
       const ftype = factories.get(fid) || '';
       // Skip Project, Rig, Widget — they're metadata/control, not visual layers
       if (ftype !== 'Project' && ftype !== 'Rig' && ftype !== 'Widget') {
-        layers.push(parseSceneNode(el, factories, clipAB, linkSourceIds));
+        layers.push(parseSceneNode(el, factories, clip, linkSourceIds));
       }
     }
   }
