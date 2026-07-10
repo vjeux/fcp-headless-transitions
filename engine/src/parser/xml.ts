@@ -197,3 +197,16 @@ export function parseParameter(el: Element): Parameter {
   return param;
 }
 
+/** Find first descendant element with a given tag (recursive). */
+export function findDescendant(el: Element, tag: string): Element | null {
+  for (let i = 0; i < el.childNodes.length; i++) {
+    const child = el.childNodes[i];
+    if (child.nodeType === 1) {
+      const elem = child as Element;
+      if (elem.tagName === tag) return elem;
+      const found = findDescendant(elem, tag);
+      if (found) return found;
+    }
+  }
+  return null;
+}
