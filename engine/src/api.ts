@@ -3,6 +3,7 @@ import { evaluate } from './evaluator/index.js';
 import { composite } from './compositor/index.js';
 import { resample, cropCenter } from './compositor/resample.js';
 import { detect360Band, render360Band } from './compositor/transition360.js';
+import { buildTimeMap } from './timemap.js';
 import type { MotrScene } from './types.js';
 
 export interface TransitionOptions {
@@ -117,58 +118,9 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
   // primitives exist it renders generically (lower PSNR) — an HONEST number beats a
   // scripted 44dB. See ~/fct-notes/GENERIC_ENGINE_POLICY.md.
 
-  // Retime wrap threshold: the time (seconds) past which FCP loops the transition  // playhead back to the start (t=0) because a drop zone with retimingExtrapolation
-  // mode 1 (wrap) has run out its media/lifetime — so the drop zones re-show source
-  // A. The loop fires when the FIRST wrapping drop zone times out (its layer
-  // timing `out`), which is when the outgoing content disappears. Verified on
-  // Blurs/Zoom: the A drop zone times out at 0.4338s and GT frames past that are
-  // byte-identical to frame 0 (pure A). The retime curve's last keyframe (0.4671s)
-  // over-shoots this, so we use the layer lifetime, not the keyframe time.
-  // undefined when no wrapping drop zone exists (the common case → no wrap).
-  let retimeWrapSec: number | undefined;
-  // Ceiling on scene time for a stroked-mask reveal (Objects/Arrows): the tail
-  // frames clamp here (just under the drop-zone timeout) so the fully-revealed B
-  // persists instead of wrapping to A or vanishing past the drop-zone lifetime.
-  let strokedMaskClampSec: number | undefined;
-  const t2s = (rt: import('./types.js').RationalTime): number =>
-    rt.timescale > 0 ? rt.value / rt.timescale : 0;
-  // Object IDs cloned by a Clone Layer whose lifetime extends past the source's own
-  // timeout. Such a source's timeout does NOT end the visible transition — its
-  // Clone keeps rendering the (rotating) content — so we must NOT treat that
-  // (early) timeout as the scene's wrap-to-frame-0 point. Movements/Switch's
-  // "Clone B" (in=0.934s, out=1.735s) clones the timed-out Transition B (out=0.9s):
-  // using B's 0.9s as the wrap collapsed the whole second half to frame 0. Excluding
-  // it leaves Transition A's 1.702s as the true wrap (GT frames past 1.702s ARE
-  // frame-0/source-A; the tail before that keeps animating via the clone).
-  const clonedContinuationSourceIds = new Set<number>();
-  (function scanClones(layers: readonly import('./types.js').Layer[]) {
-    for (const l of layers) {
-      if (l.type === 'clone' && l.cloneSourceId !== undefined && l.timing) {
-        clonedContinuationSourceIds.add(l.cloneSourceId);
-      }
-      scanClones(l.children);
-    }
-  })(scene.layers);
-  (function scan(layers: readonly import('./types.js').Layer[]) {
-    for (const l of layers) {
-      const rv = l.retimeValue;
-      if (rv && rv.retimingExtrapolation === 1 && rv.keyframes.length >= 2) {
-        // A drop zone whose media is continued by a Clone Layer does not end the
-        // transition at its own timeout — skip it from the wrap-min.
-        if (clonedContinuationSourceIds.has(l.id)) { scan(l.children); continue; }
-        // Prefer the layer's lifetime end (when the outgoing content times out);
-        // fall back to the retime curve's last keyframe if the layer is untimed.
-        let wrap: number;
-        if (l.timing) wrap = t2s(l.timing.out);
-        else {
-          const kf = rv.keyframes[rv.keyframes.length - 1];
-          wrap = t2s(kf.time);
-        }
-        if (wrap > 0 && (retimeWrapSec === undefined || wrap < retimeWrapSec)) retimeWrapSec = wrap;
-      }
-      scan(l.children);
-    }
-  })(scene.layers);
+  // Single scene-time authority: retime-wrap + stroked-mask clamp, derived from
+  // node/behavior TYPES (no transition names). See timemap.ts.
+  const timeMap = buildTimeMap(scene);
 
   // Slide-family detection: a Colorize filter rig-driven by a "Color" accent
   // widget over decorative image tiles. This structural signature matches a real
@@ -209,81 +161,6 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
     }
   }
 
-  // The wrap freezes the WHOLE scene back to frame 0 (drop zones re-show A). That
-  // is correct when the drop-zone crossfade IS the entire visible transition (e.g.
-  // Blurs/Zoom and Lights/Bloom, whose GT past the drop-zone timeout is
-  // byte-identical to frame 0). But a transition with a SOLID-FILL SHAPE overlay
-  // (Lights/Flash's white flash rectangles) keeps that overlay animating past the
-  // drop-zone wrap — freezing would kill the flash. Disable the wrap ONLY when
-  // such a filled-shape overlay exists AND the true animation end extends past the
-  // wrap. The same applies to a SCREEN/ADD-blend VIDEO overlay that plays along
-  // its own frame-numbered Retime timeline (Lights/Light Noise's light-noise .mov):
-  // its second light burst fires PAST the drop-zone wrap, so freezing the scene to
-  // time 0 (before the overlay's `in`) would drop that whole burst. Gating on a
-  // filled shape OR a blended media overlay (not just "end > wrap") avoids breaking
-  // plain media-crossfade Lights transitions (Bloom) whose correct tail IS the
-  // frozen-A wrap.
-  {
-    const endSec = scene.settings.animationEndSec
-      ?? (scene.settings.duration.value / scene.settings.duration.timescale);
-    const frameSec = scene.settings.frameRate > 0 ? 1 / scene.settings.frameRate : 1 / 30;
-    let hasFilledShapeOverlay = false;
-    let hasBlendedMediaOverlay = false;
-    // A STROKED-shape image mask (Objects/Arrows): the drop zone carries an Image
-    // Mask whose source group holds stroked arc shapes (arrow arcs) whose trim
-    // GROWS to full coverage. That reveal IS the entire transition and its END
-    // state (full B) must persist — freezing the scene back to frame 0 would snap
-    // the arrows back to a sliver and re-show A on the last frames. Detect a
-    // stroked shape anywhere in the scene and disable the wrap for it.
-    let hasStrokedMaskShape = false;
-    // A REPLICATOR-matte reveal (Replicator-Clones/Duplicate): a layer's Image Mask
-    // Mask Source is a grid Replicator whose Sequence Replicator grows the cells
-    // 0→1 to reveal the masked layer (Transition B) over the base (Transition A).
-    // That growing-dots reveal IS the entire transition; its end state (full B)
-    // must persist to progress=1. The many hidden cell-candidate shapes inside the
-    // replicator's cell group carry early drop-zone timeouts (~0.7s) that would
-    // otherwise set retimeWrapSec and snap the tail back to A. Disable the wrap
-    // when such a replicator-matte reveal exists. Structural (any replicator used
-    // as a mask source) — no transition name, no GT constant.
-    let hasReplicatorMaskReveal = false;
-    const replicatorIds = new Set<number>();
-    (function collectRepl(layers: readonly import('./types.js').Layer[]) {
-      for (const l of layers) {
-        if (l.type === 'replicator') replicatorIds.add(l.id);
-        collectRepl(l.children);
-      }
-    })(scene.layers);
-    (function scan2(layers: readonly import('./types.js').Layer[]) {
-      for (const l of layers) {
-        if (l.type === 'shape' && l.shape && !l.shape.isMask && (l.shape.fillColor || l.shape.isSolidPanel)) hasFilledShapeOverlay = true;
-        if (l.type === 'shape' && l.shape && l.shape.stroke) hasStrokedMaskShape = true;
-        if (l.imageMaskSourceId !== undefined && replicatorIds.has(l.imageMaskSourceId)) hasReplicatorMaskReveal = true;
-        // A blended (screen/add) VIDEO media leaf that outlives the wrap: its own
-        // Retime curve (clip-frame numbers) drives an independent playhead.
-        if (l.type === 'image' && l.source?.type === 'media'
-          && (l.blendMode === 'screen' || l.blendMode === 'add' || l.blendMode === 'overlay' || l.blendMode === 'lighten')
-          && l.timing) {
-          const outSec = l.timing.out.timescale > 0 ? l.timing.out.value / l.timing.out.timescale : 0;
-          if (outSec > (retimeWrapSec ?? 0) + frameSec) hasBlendedMediaOverlay = true;
-        }
-        scan2(l.children);
-      }
-    })(scene.layers);
-    if (retimeWrapSec !== undefined && (hasFilledShapeOverlay || hasBlendedMediaOverlay || hasReplicatorMaskReveal) && endSec > retimeWrapSec + frameSec) {
-      retimeWrapSec = undefined;
-    }
-    // Stroked-mask reveal (Objects/Arrows): the growing arrow arcs cut A away to
-    // full B by the drop-zone `out`. Past `out` the drop zones would vanish
-    // (blank frame) and the retime-wrap would snap back to A — both wrong (GT
-    // holds full B). Instead of wrapping, CLAMP the scene time to just under the
-    // drop-zone timeout for the tail frames so the fully-revealed B (mask at full
-    // coverage, both drop zones alive) persists to progress=1. Recorded here;
-    // applied in render().
-    strokedMaskClampSec = (hasStrokedMaskShape && retimeWrapSec !== undefined)
-      ? Math.max(0, retimeWrapSec - frameSec * 0.25)
-      : undefined;
-    if (strokedMaskClampSec !== undefined) retimeWrapSec = undefined;
-  }
 
   // Motion blur: the scene declares a shutter (motionBlurSamples>1). Enable it
   // ONLY for the Slide-family decorative-tile transitions — their tiles sweep
@@ -339,27 +216,16 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
   // the start in Motion. `render(progress)` and `renderAt(timeSec)` share this.
   const duration = scene.settings.duration;
   const endSec = scene.settings.animationEndSec ?? (duration.value / duration.timescale);
-  const wrapFrameTol = (scene.settings.frameRate > 0 ? 1 / scene.settings.frameRate : 1 / 30) / 2;
 
-  // Render a SINGLE scene instant (seconds) to a frame, applying retime-wrap +
-  // stroked-mask clamp + resolution conform. This is the engine's single time
-  // authority: both the public `renderAt(timeSec)` and the progress-based
-  // `render()` (via `progress * endSec`) funnel through here. Motion blur averages
-  // several of these across the shutter, so all per-instant logic lives here.
+  // Render a SINGLE scene instant (seconds) to a frame, applying the scene-time
+  // remap (retime-wrap + stroked-mask clamp, see timemap.ts) + resolution conform.
+  // This is the engine's single time authority: both the public `renderAt(timeSec)`
+  // and the progress-based `render()` (via `progress * endSec`) funnel through here.
+  // Motion blur averages several of these across the shutter, so all per-instant
+  // logic lives here.
   const renderInstant = (imageA: ImageData, imageB: ImageData, centerSec: number): ImageData => {
     const renderOne = (tSec: number): ImageData => {
-      let timeSec = tSec;
-      // Retime extrapolation (mode 1 = wrap): once the wrapping drop zone has
-      // timed out by this frame (within a half-frame tolerance — FCP samples the
-      // frame centre), the transition loops back to the start and re-shows A.
-      if (retimeWrapSec !== undefined && timeSec >= retimeWrapSec - wrapFrameTol) {
-        timeSec = 0;
-      }
-      // Stroked-mask reveal tail: clamp to just under the drop-zone timeout so the
-      // fully-revealed B holds for the last frames (see strokedMaskClampSec).
-      if (strokedMaskClampSec !== undefined && timeSec > strokedMaskClampSec) {
-        timeSec = strokedMaskClampSec;
-      }
+      const timeSec = timeMap.remap(tSec);
       const evaluated = evaluate(scene, timeSec);
       // Preserve the UN-wrapped scene time so the compositor's particle-field
       // proxy can follow the true transition envelope even after wrapping.
