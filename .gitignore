@@ -26,3 +26,4 @@ engine/test/_fct_render.ts
 montage.mp4
 tools/__pycache__/
 fct/__pycache__/
+.fctcache/

@@ -4,9 +4,9 @@
   fct gen  <gui|headless|engine> [slug ...|--all]   generate frames to disk
   fct read <file.png>                               print shape/mean of one frame
   fct cmp  <a.png> <b.png> [--color-b bt709] [--out diff.png]   compare two files
-  fct score   [slug ...|--all] [--source headless|engine] [--frames]   score vs GUI GT
-  fct baseline <source>                             freeze current scores -> the gate
-  fct regress  <source>                             re-score vs baseline; exit 1 on regression
+  fct score   [slug ...|--all] [--source headless|engine] [--frames] [--fast]   score vs GUI GT
+  fct baseline <source>                             freeze current scores (gate-res) -> the gate
+  fct regress  <source> [--verbose]                 re-score vs baseline (fast); exit 1 on regression
   fct montage [slug ...|--all] [--sources gui,headless,engine] [--out m.mp4]
 
 Headless needs the FCP engine: this CLI auto-re-execs under the venv python with
@@ -82,13 +82,16 @@ def main():
         return 0
 
     if cmd == "score":
-        from fct.score import score
+        from fct.score import score, GATE_SIZE
         source = _opt(rest, "--source") or "headless"
         show_frames = "--frames" in rest
+        gs = GATE_SIZE if "--fast" in rest else None
+        import time
         for sl in _resolve_slugs(rest):
-            r = score(sl, source)
-            line = f"{r['slug']}\t{source}\tMEAN {r['mean']}"
-            print(line, flush=True)
+            t0 = time.time()
+            r = score(sl, source, gate_size=gs)
+            dt = time.time() - t0
+            print(f"{r['slug']}\t{source}\tMEAN {r['mean']}\t{dt:.2f}s", flush=True)
             if show_frames:
                 for i, d in enumerate(r["frames"]): print(f"  f{i:02d}: {d}")
         return 0
@@ -103,14 +106,18 @@ def main():
 
     if cmd == "regress":
         from fct.baseline import regress
-        source = rest[0] if rest else "headless"
-        r = regress(source)
+        source = rest[0] if rest and not rest[0].startswith("--") else "headless"
+        r = regress(source, verbose="--verbose" in rest)
         for s, (b, c, d) in sorted(r["improvements"].items()):
             print(f"  IMPROVED  {s}: {b} -> {c} (+{d})")
         for s, (b, c, d) in sorted(r["regressions"].items()):
             print(f"  REGRESSED {s}: {b} -> {c} ({d})")
+        # slowest few slugs, so we can see if any single transition is dragging the gate
+        slow = sorted(r["timings"].items(), key=lambda kv: -kv[1])[:5]
+        print("  slowest: " + ", ".join(f"{s} {t:.2f}s" for s, t in slow))
         print(f"{'OK' if r['ok'] else 'FAIL'}: {len(r['regressions'])} regressions, "
-              f"{len(r['improvements'])} improvements vs baseline_{source} (tol {r['tol']}dB)", flush=True)
+              f"{len(r['improvements'])} improvements vs baseline_{source} "
+              f"(tol {r['tol']}dB) — {r['total_sec']}s total", flush=True)
         return 0 if r["ok"] else 1
 
     if cmd == "montage":
@@ -130,7 +137,7 @@ def _opt(args, name):
         if i + 1 < len(args): return args[i + 1]
     return None
 
-_OPTS_WITH_VALUES = {"--out", "--sources", "--color-a", "--color-b"}
+_OPTS_WITH_VALUES = {"--out", "--sources", "--color-a", "--color-b", "--source"}
 
 def _resolve_slugs(args):
     from fct.config import SLUGS

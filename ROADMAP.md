@@ -30,6 +30,21 @@ fct regress  engine
 
 Re-baseline ONLY intentionally, when an improvement is verified and you want it protected.
 
+**The gate is FAST by design** (a slow gate gets skipped, defeating the point):
+- It scores at `GATE_SIZE` (480×270), not full 1920×1080. Downscaling averages out
+  noise but **preserves regression ranking** — a real drop still shows as a drop
+  (validated: full-vs-gate offset is monotonic across the score range).
+- Both the immutable GUI GT **and** the source frames are read from mtime-invalidated
+  disk thumbnails (`.fctcache/<w>x<h>/`), so a re-rendered slug rebuilds only its own
+  thumbnail. Cost drops from "decode 48 full-res (up to 10MB) PNGs/slug" to "decode 48
+  ~40KB thumbnails".
+- **Warm timing: ~0.34s/slug, slug-uniform (~22s for all 65).** First run after a
+  re-render pays the thumbnail build once per changed slug. `fct regress` prints total
+  time + the slowest 5 slugs so a slow outlier is visible.
+- `fct score <slug> --full` (full res) is for reporting the true dB; the GATE uses
+  gate-res. Tolerance `TOL=0.30 dB`.
+
+
 ---
 
 ## Items  (priority = impact x safety; do top-down)
