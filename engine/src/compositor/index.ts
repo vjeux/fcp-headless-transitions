@@ -1,5 +1,5 @@
 import { gaussianBlur } from './filters/gaussian-blur.js';
-import { channelMixerFilter, colorizeRemapFilter, tintFilter } from './filters/channel-mixer.js';
+import { colorizeRemapFilter } from './filters/channel-mixer.js';
 import { hueSaturationFilter } from './filters/hue-saturation.js';
 import { directionalBlur, radialBlur, zoomBlur } from './filters/directional-blur.js';
 import { evaluateCurve } from '../evaluator/curves.js';
@@ -1950,46 +1950,6 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
       if (p.name === 'Mix') mix = val;
     }
     return hueSaturationFilter(input, { hue, saturation, brightness, mix });
-  }
-  // Channel Mixer
-  if (name.includes('channel') && name.includes('mixer')) {
-    const matrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]; // identity
-    const offsets = [0,0,0,0];
-    let mix = 1, monochrome = false;
-    for (const p of filter.parameters) {
-      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
-      if (val === undefined) continue;
-      // Map param names to matrix positions
-      if (p.name === 'Red - Red') matrix[0] = val;
-      if (p.name === 'Red - Green') matrix[1] = val;
-      if (p.name === 'Red - Blue') matrix[2] = val;
-      if (p.name === 'Green - Red') matrix[4] = val;
-      if (p.name === 'Green - Green') matrix[5] = val;
-      if (p.name === 'Green - Blue') matrix[6] = val;
-      if (p.name === 'Blue - Red') matrix[8] = val;
-      if (p.name === 'Blue - Green') matrix[9] = val;
-      if (p.name === 'Blue - Blue') matrix[10] = val;
-      if (p.name === 'Red Output') offsets[0] = val;
-      if (p.name === 'Green Output') offsets[1] = val;
-      if (p.name === 'Blue Output') offsets[2] = val;
-      if (p.name === 'Mix') mix = val;
-      if (p.name === 'Monochrome') monochrome = val > 0;
-    }
-    return channelMixerFilter(input, { matrix, offsets, mix, monochrome });
-  }
-  // Tint (PAETint / TintFx)
-  if (name.includes('tint')) {
-    let r = 1, g = 1, b = 1, intensity = 1, mix = 1;
-    for (const p of filter.parameters) {
-      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
-      if (val === undefined) continue;
-      if (p.name === 'Red') r = val;
-      if (p.name === 'Green') g = val;
-      if (p.name === 'Blue') b = val;
-      if (p.name === 'Intensity') intensity = val;
-      if (p.name === 'Mix') mix = val;
-    }
-    return tintFilter(input, r, g, b, intensity, mix);
   }
   // Colorize — Motion's is a black/white luminance remap, NOT a hue tint. Each
   // pixel's luminance is mapped through a gradient from "Remap Black To" (at lum 0)

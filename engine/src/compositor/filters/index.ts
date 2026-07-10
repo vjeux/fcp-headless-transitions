@@ -16,5 +16,6 @@ import './levels.js';   // registers Brightness (PAEBrightness)
 import './bevel.js';    // registers Bevel
 import './luma-keyer.js'; // registers Luma Keyer
 import './glow.js';     // registers Glow + Bloom
+import './channel-mixer.js'; // registers Channel Mixer + Tint
 
 export {};

@@ -99,3 +99,4 @@ export function hueSaturationFilter(input: ImageData, params: HueSatParams): Ima
 
   return new ImageData(out, width, height);
 }
+

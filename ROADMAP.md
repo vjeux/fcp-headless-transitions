@@ -97,7 +97,7 @@ Status legend: TODO / DOING / DONE / BLOCKED
   Brightness (PAEBrightness, UUID 2E4DBB0A-…) to levels.ts + barrel; removed its legacy
   name-includes branch. Fixed the stale "none yet" barrel comment. ~13 legacy filters remain
   (gaussian/bevel/luma-key/directional/radial/zoom/hsv/channel-mixer/tint/colorize/levels/
-  hsv/channel-mixer/tint/colorize; brightness+bevel+luma-keyer+levels+glow+bloom done) — migrate one-at-a-time, gate-green each. Verified pixel-neutral + re-froze baseline.
+  hsv/colorize/gaussian/directional/radial/zoom; brightness+bevel+luma-keyer+levels+glow+bloom+channel-mixer+tint done; HSV reverted-needs-debug) — migrate one-at-a-time, gate-green each. Verified pixel-neutral + re-froze baseline.
 
 ### 3. fct toolkit polish  [TODO]  (fct, safe)
 - DoD: (a) `engine/test/_fct_render.ts` is a committed real file read from argv/env, not a
@@ -148,6 +148,11 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-10  Item 2 — migrated Channel Mixer (B2E0DE39-…) + Tint (717D6E01-…) to UUID registry.
+              tsc clean, gate green 0/0. HSV Adjust migration REVERTED: it changed Color_Panels
+              output (verified real, max pixel diff 76 vs legacy) for reasons not fully explained
+              by param-reading inspection — per careful-coder rule, did NOT ship it. HSV + Colorize
+              + 4 blurs remain. HSV needs a param-by-param debug of ctx.param vs the legacy loop.
 - 2026-07-10  Item 2 — migrated Glow (73F69C87-…) + Bloom (5599C557-…) to UUID registry
               (both via glowFilter; users 360_Bloom, Lights_Bloom). tsc clean, gate green 0/0.
               ~8 filters left (gaussian/directional/radial/zoom/hsv/channel-mixer/tint/colorize).

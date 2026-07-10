@@ -16,6 +16,7 @@
  * Formula: outChannel = sum(inChannels * row) + offset
  */
 import { luma601 } from '../blend.js';
+import { registerFilter } from './registry.js';
 
 export interface ChannelMixerParams {
   matrix: number[]; // 4x4 row-major [RR,RG,RB,RA, GR,GG,GB,GA, BR,BG,BB,BA, AR,AG,AB,AA]
@@ -142,3 +143,34 @@ export function colorizeRemapFilter(
   }
   return new ImageData(out, input.width, input.height);
 }
+
+// Channel Mixer (UUID B2E0DE39-…). Behavior-identical to the legacy branch: builds
+// a 4x4 matrix + offsets from the per-channel params (identity default), Mix (1),
+// Monochrome (bool). Unset params keep their identity/zero defaults.
+registerFilter({
+  uuid: 'B2E0DE39-119F-4AD6-8796-C18BF8FE27B8',
+  names: ['channel mixer', 'channelmixer'],
+  label: 'Channel Mixer',
+  apply(input, ctx) {
+    const matrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+    matrix[0] = ctx.param('Red - Red', 1);   matrix[1] = ctx.param('Red - Green', 0);   matrix[2] = ctx.param('Red - Blue', 0);
+    matrix[4] = ctx.param('Green - Red', 0);  matrix[5] = ctx.param('Green - Green', 1); matrix[6] = ctx.param('Green - Blue', 0);
+    matrix[8] = ctx.param('Blue - Red', 0);   matrix[9] = ctx.param('Blue - Green', 0);  matrix[10] = ctx.param('Blue - Blue', 1);
+    const offsets = [ctx.param('Red Output', 0), ctx.param('Green Output', 0), ctx.param('Blue Output', 0), 0];
+    const mix = ctx.param('Mix', 1);
+    const monochrome = ctx.param('Monochrome', 0) > 0;
+    return channelMixerFilter(input, { matrix, offsets, mix, monochrome });
+  },
+});
+
+// Tint (PAETint, UUID 717D6E01-…). Behavior-identical: Red/Green/Blue (default 1),
+// Intensity (1), Mix (1).
+registerFilter({
+  uuid: '717D6E01-83F4-4A4B-AF92-42AABA4B176C',
+  names: ['tint'],
+  label: 'Tint',
+  apply(input, ctx) {
+    return tintFilter(input, ctx.param('Red', 1), ctx.param('Green', 1), ctx.param('Blue', 1),
+                      ctx.param('Intensity', 1), ctx.param('Mix', 1));
+  },
+});
