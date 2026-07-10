@@ -1,7 +1,7 @@
 import { parseMotr } from './parser/index.js';
 import { evaluate } from './evaluator/index.js';
 import { composite } from './compositor/index.js';
-import { resample } from './compositor/resample.js';
+import { resample, cropCenter } from './compositor/resample.js';
 import { detect360Band, render360Band } from './compositor/transition360.js';
 import type { MotrScene } from './types.js';
 
@@ -71,6 +71,17 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
   const height = opts?.height ?? scene.settings.height;
   const outW = opts?.outputWidth;
   const outH = opts?.outputHeight;
+
+  // WIDE EQUIRECT (360°/VR) scene: a ≥3072-wide, ~2:1 panorama that does NOT take
+  // the detect360Band fast path (e.g. 360°/Bloom: a 4096×2160 group with 360°-Aware
+  // Gaussian/Glow/Bloom filters over the two drop zones). FCP renders the full
+  // panorama then reads back an output-sized window CENTERED on the aperture centre —
+  // a front-facing view — NOT a bilinear squeeze of the 2:1 canvas into 16:9 (which
+  // horizontally compresses everything ~2.13×: the geometry bug that scored
+  // 360°_Bloom at 5.1 dB vs the headless centred-crop's 16.9). Matches oz_render.mm's
+  // `sceneBounds.w >= 3072` equirect readback. When set, renderInstant CROPs the
+  // conform instead of resampling. See docs/notes/FCP_360_BLUR_REVERSE_ENGINEERING.md.
+  const wideEquirect = width >= 3072 && width >= 1.6 * height;
 
   // 360° transition family: drop-zone cover-fit band + "Align To" horizontal push.
   // These render at the CONFORMED output resolution directly (the push transform
@@ -354,7 +365,15 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
       const upscale = !!(outW && outH && outW > width && outH > height);
       if (upscale) return composite(evaluated, imageA, imageB, outW!, outH!, opts?.mediaResolver);
       const frame = composite(evaluated, imageA, imageB, width, height, opts?.mediaResolver);
-      if (outW && outH && (outW !== width || outH !== height)) return resample(frame, outW, outH);
+      if (outW && outH && (outW !== width || outH !== height)) {
+        // WIDE EQUIRECT (360°/VR, e.g. 4096×2048 panorama): FCP reads back a
+        // centred output-sized window (front-facing view), it does NOT squeeze the
+        // 2:1 panorama into 16:9. Matches oz_render.mm's `sb.w >= 3072` readback ROI.
+        // A bilinear squeeze here horizontally compresses everything ~2.13× (the
+        // geometry bug behind Bloom's 5 dB vs headless's 17 dB). See
+        // docs/notes/FCP_360_BLUR_REVERSE_ENGINEERING.md.
+        return wideEquirect ? cropCenter(frame, outW, outH) : resample(frame, outW, outH);
+      }
       return frame;
     };
 

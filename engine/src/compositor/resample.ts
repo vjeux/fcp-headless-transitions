@@ -30,3 +30,36 @@ export function resample(src: ImageData, targetW: number, targetH: number): Imag
   }
   return out;
 }
+
+/**
+ * Extract a `targetW × targetH` window CENTERED on the source, clamped to bounds.
+ *
+ * This is what FCP does for a WIDE EQUIRECT (360°/VR) scene: it renders the full
+ * 2:1 panorama (e.g. 4096×2048) then reads back a 1920×1080 window anchored on the
+ * aperture centre — a front-facing view of the panorama — NOT a bilinear squeeze of
+ * the whole 2:1 canvas into 16:9 (which horizontally compresses everything ~2.13×).
+ * Verified against oz_render.mm's equirect readback (roi = {cx-960, cy-540, W, H},
+ * cx=-sceneBounds.x, cy=-sceneBounds.y) and the ~12 dB gap between the headless
+ * centred crop (Bloom 16.9 dB) and the old engine squeeze (5.1 dB). See
+ * docs/notes/FCP_360_BLUR_REVERSE_ENGINEERING.md.
+ */
+export function cropCenter(src: ImageData, targetW: number, targetH: number): ImageData {
+  if (src.width === targetW && src.height === targetH) return src;
+  const out = new ImageData(new Uint8ClampedArray(targetW * targetH * 4), targetW, targetH);
+  const sw = src.width, sh = src.height;
+  const x0 = Math.round((sw - targetW) / 2);
+  const y0 = Math.round((sh - targetH) / 2);
+  for (let y = 0; y < targetH; y++) {
+    const syRow = y + y0;
+    if (syRow < 0 || syRow >= sh) continue; // out-of-bounds rows stay transparent
+    for (let x = 0; x < targetW; x++) {
+      const sx = x + x0;
+      if (sx < 0 || sx >= sw) continue;
+      const o = (y * targetW + x) * 4;
+      const i = (syRow * sw + sx) * 4;
+      out.data[o] = src.data[i]; out.data[o + 1] = src.data[i + 1];
+      out.data[o + 2] = src.data[i + 2]; out.data[o + 3] = src.data[i + 3];
+    }
+  }
+  return out;
+}

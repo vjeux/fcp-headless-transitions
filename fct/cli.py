@@ -5,6 +5,9 @@
   fct read <file.png>                               print shape/mean of one frame
   fct cmp  <a.png> <b.png> [--color-b bt709] [--out diff.png]   compare two files
   fct score   [slug ...|--all] [--source headless|engine] [--frames] [--fast]   score vs GUI GT
+  fct probe   <slug> [frame=12]                     fast: render+PSNR ONE engine frame vs GUI GT
+  fct probe   <slug> [frame=12]                      render+score ONE engine frame (fast iterate)
+  fct probe   <slug> [frame=12]                     fast: render+PSNR ONE engine frame vs GUI GT
   fct baseline <source>                             freeze current scores (gate-res) -> the gate
   fct regress  <source> [--verbose]                 re-score vs baseline (fast); exit 1 on regression
   fct montage [slug ...|--all] [--sources gui,headless,engine] [--out m.mp4]
@@ -129,6 +132,34 @@ def main():
             print(f"{r['slug']}\t{source}\tMEAN {r['mean']}\t{dt:.2f}s", flush=True)
             if show_frames:
                 for i, d in enumerate(r["frames"]): print(f"  f{i:02d}: {d}")
+        return 0
+
+    if cmd == "probe":
+        # Fast single-frame iteration for the ENGINE: render ONE frame + PSNR it vs
+        # the GUI GT for that frame index. A full 24-frame render is minutes for a
+        # heavy slug (360°/Bloom); this returns in seconds so the edit→score loop is
+        # tight. Usage: fct probe <slug> [frame=12]. Truth is still the GUI GT.
+        import tempfile, time
+        from fct import gen
+        from fct.read import read_frame
+        from fct.color import to_bt709
+        from fct.compare import _psnr
+        from fct.config import frame_path, needs_bt709
+        slug = _resolve_slugs([a for a in rest if not a.startswith("-")])[0]
+        fi = int(_opt(rest, "--frame") or (rest[1] if len(rest) > 1 and rest[1].isdigit() else "12"))
+        tmp = tempfile.mktemp(suffix=".jpg")
+        t0 = time.time()
+        gen.gen_engine_frame(slug, fi, tmp)
+        en = read_frame(tmp)
+        gt = read_frame(frame_path("gui", slug, fi))
+        if en.shape != gt.shape:
+            en = read_frame(tmp, size=(gt.shape[1], gt.shape[0]))
+        if needs_bt709("engine"):
+            en = to_bt709(en)
+        dt = time.time() - t0
+        print(f"{slug}\tengine\tf{fi}\tPSNR {round(_psnr(gt, en), 2)} dB\t{dt:.1f}s", flush=True)
+        try: os.remove(tmp)
+        except OSError: pass
         return 0
 
     if cmd == "baseline":
