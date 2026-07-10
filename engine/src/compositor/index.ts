@@ -2,9 +2,9 @@ import { rasterizeShape, applyMask, unionMasks } from './shapes.js';
 import { needsPerspective, projectQuad, renderPerspectiveQuad, renderPageFlip } from './perspective.js';
 import {
   mat4MultiplyOffset, createBuffer, blitDstBBox,
-  blitTransformed, blitDirect, smoothstep01,
+  blitTransformed, blitDirect,
 } from './blit.js';
-import type { RenderContext, DropInCard } from './context.js';
+import type { RenderContext } from './context.js';
 import {
   resolveCloneImage, shapeMaskCell, revealThroughMask, findVisibleDrawable,
   getSourceImage, isMaskGroup, collectMaskShapes, collectImageMaskSourceIds,
@@ -15,6 +15,8 @@ import {
   transformBBoxToOutput, centerEvaluatedLayer, detectPageFlip, isFlatCoplanarStack,
   retimedClipTime,
 } from './geometry.js';
+import { detectFieldTexture, applyParticleFieldProxy } from './field-texture.js';
+import { detectDropInCard, blitDropInCard } from './drop-in.js';
 import { generateInstances, sequenceProgress, sequenceOrder } from './replicator.js';
 import { lookupFilter, makeContext } from './filters/registry.js';
 import './filters/index.js'; // side-effect: registers all UUID-keyed filter modules
@@ -48,7 +50,6 @@ const FRAMING_VIEW_ENABLED = true;
  * can be added later for performance.
  */
 import type { EvaluatedScene, EvaluatedLayer } from '../evaluator/index.js';
-import type { Layer, RationalTime } from '../types.js';
 
 
 
@@ -602,116 +603,6 @@ function renderLayer(
 // Main composite entry point
 // ============================================================================
 
-/**
- * Detect Movements/Drop In and compute its card-conform geometry.
- *
- * Drop In's signature (distinct from Push, which fills the frame): the scene is
- * authored SMALLER than the output (1280×720 → 1920×1080 upscale), it has two
- * Transition A/B drop-zone image nodes, and the incoming (Transition B) node
- * carries a multi-keyframe Position-Y BOUNCE curve that starts ≈ one scene-height
- * below (value ≈ scene height, so B enters from off-screen bottom) and settles to
- * 0 with decaying overshoot. Push has no such per-panel bounce and its scene ==
- * output. Divide/other upscaled templates have no Transition-B position bounce.
- *
- * The card geometry: the drop-zone media is 600px tall (its Fixed Height, a square
- * 600×600 media box). Motion conforms the source to that media box's HEIGHT and
- * pins it to the scene's top-left, then the whole scene scales to output. So the
- * card height in output = (mediaFixedHeight / sceneH) × outputH, and the width
- * follows the source's aspect. Validated: mediaH=600, sceneH=720, outputH=1080 →
- * cardH = 900 (GT measures 902); cardW = cardH × srcAspect (GT measures 1588).
- */
-function detectDropInCard(
-  scene: EvaluatedScene,
-  imageA: ImageData,
-  imageB: ImageData,
-  outputW: number,
-  outputH: number
-): DropInCard | undefined {
-  // Only the upscale case (scene authored smaller than output).
-  if (!(scene.width < outputW && scene.height < outputH)) return undefined;
-
-  // Find the two Transition A/B drop-zone image nodes and B's Position-Y bounce.
-  let aId: number | undefined, bId: number | undefined;
-  let bBounce: import('../types.js').Curve | undefined;
-  for (const l of scene.layerById.values()) {
-    if (l.type !== 'image' || !l.source) continue;
-    if (l.source.type === 'transitionA' && l.dropZone) aId = l.id;
-    if (l.source.type === 'transitionB' && l.dropZone) {
-      bId = l.id;
-      const py = l.transform?.positionY;
-      if (py && typeof py === 'object' && py.keyframes && py.keyframes.length >= 4) bBounce = py;
-    }
-  }
-  if (aId === undefined || bId === undefined || !bBounce) return undefined;
-
-  // The bounce must ENTER from ~one scene-height below (off-screen bottom) and
-  // settle near 0 — the "drop in" signature. First keyframe ≈ +sceneH, last ≈ 0.
-  const first = bBounce.keyframes[0].value;
-  const last = bBounce.keyframes[bBounce.keyframes.length - 1].value;
-  if (!(first > scene.height * 0.6 && Math.abs(last) < scene.height * 0.2)) return undefined;
-
-  // The drop-zone media box height governs the card conform. It lives on the
-  // referenced <clip> (Fixed Height, id 115), captured at parse time. If
-  // unavailable, fall back to the observed default (600 in a 720 scene = 5/6 of
-  // scene height — the media/scene ratio Motion authors for this template).
-  const mediaFixedH = scene.dropZoneMediaHeight ?? Math.round(scene.height * (5 / 6));
-  const posScale = outputH / scene.height;
-  const cardH = Math.round((mediaFixedH / scene.height) * outputH);
-  const srcAspect = imageB.width / imageB.height;
-  const cardW = Math.round(cardH * srcAspect);
-  return { cardW, cardH, posScale, aId, bId };
-}
-
-/**
- * Blit a source image conformed into a top-left CARD (Drop In). The source is
- * scaled to cardW×cardH and pinned to the output's top-left (0,0), then shifted
- * DOWN by `yOffset` output-pixels (the bounce). Pixels outside the card are left
- * untouched (source-over onto whatever is already there — black background, or the
- * static A card beneath a bouncing B). Bilinear sampled.
- */
-function blitDropInCard(
-  dst: ImageData,
-  src: ImageData,
-  cardW: number,
-  cardH: number,
-  yOffset: number,
-  opacity: number
-): void {
-  const OW = dst.width, OH = dst.height;
-  const sw = src.width, sh = src.height;
-  const y0 = Math.max(0, Math.floor(yOffset));
-  const y1 = Math.min(OH, Math.ceil(cardH + yOffset));
-  const ddata = dst.data, sdata = src.data;
-  for (let dy = y0; dy < y1; dy++) {
-    const cy = dy - yOffset;               // card-local y
-    if (cy < 0 || cy >= cardH) continue;
-    const syf = cy * sh / cardH;
-    const sy0 = Math.min(sh - 1, Math.floor(syf));
-    const sy1 = Math.min(sh - 1, sy0 + 1);
-    const fy = syf - sy0;
-    for (let dx = 0; dx < cardW; dx++) {
-      const sxf = dx * sw / cardW;
-      const sx0 = Math.min(sw - 1, Math.floor(sxf));
-      const sx1 = Math.min(sw - 1, sx0 + 1);
-      const fx = sxf - sx0;
-      const i00 = (sy0 * sw + sx0) * 4, i10 = (sy0 * sw + sx1) * 4;
-      const i01 = (sy1 * sw + sx0) * 4, i11 = (sy1 * sw + sx1) * 4;
-      const gx = 1 - fx, gy = 1 - fy;
-      const w00 = gx * gy, w10 = fx * gy, w01 = gx * fy, w11 = fx * fy;
-      const r = sdata[i00] * w00 + sdata[i10] * w10 + sdata[i01] * w01 + sdata[i11] * w11;
-      const g = sdata[i00 + 1] * w00 + sdata[i10 + 1] * w10 + sdata[i01 + 1] * w01 + sdata[i11 + 1] * w11;
-      const b = sdata[i00 + 2] * w00 + sdata[i10 + 2] * w10 + sdata[i01 + 2] * w01 + sdata[i11 + 2] * w11;
-      const a = (sdata[i00 + 3] * w00 + sdata[i10 + 3] * w10 + sdata[i01 + 3] * w01 + sdata[i11 + 3] * w11) / 255 * opacity;
-      if (a <= 0) continue;
-      const di = (dy * OW + dx) * 4;
-      const ia = 1 - a;
-      ddata[di] = r * a + ddata[di] * ia;
-      ddata[di + 1] = g * a + ddata[di + 1] * ia;
-      ddata[di + 2] = b * a + ddata[di + 2] * ia;
-      ddata[di + 3] = Math.min(255, a * 255 + ddata[di + 3] * ia);
-    }
-  }
-}
 
 export function composite(
   scene: EvaluatedScene,  // includes scene.time
@@ -787,96 +678,6 @@ export function composite(
   return output;
 }
 
-
-/** Detected particle-field texture + its envelope window (progress space). */
-interface FieldTexture { img: ImageData; layerId: number; pin: number; pout: number; }
-
-/**
- * Detect the full-frame bundled texture that stands in for a Stylized/Nature
- * Emitter transition's aggregate particle field. Returns null unless the scene
- * has a particle Emitter (factoryID 23), a resolvable frame-filling texture image,
- * and a mediaResolver. The envelope window is that texture layer's own parsed
- * timing (in→out) in progress space.
- */
-function detectFieldTexture(
-  scene: EvaluatedScene,
-  mediaResolver?: (url: string) => ImageData | null
-): FieldTexture | null {
-  if (!mediaResolver) return null;
-
-  // 1. Require a particle Emitter (factoryID 23) somewhere in the scene.
-  let hasEmitter = false;
-  for (const l of scene.layerById.values()) { if (l.isParticleEmitter) { hasEmitter = true; break; } }
-  if (!hasEmitter) return null;
-
-  // 2. Find the largest resolvable full-frame texture image layer + its timing.
-  const end = scene.animationEndSec || 1;
-  let texImg: ImageData | null = null;
-  let texArea = 0, texId = -1;
-  let winIn = 0, winOut = end;
-  const t2s = (rt: RationalTime): number => (rt.timescale > 0 ? rt.value / rt.timescale : 0);
-  const scanTex = (l: Layer): void => {
-    if (l.type === 'image' && l.source && l.source.type === 'media') {
-      const img = mediaResolver(l.source.url);
-      if (img) {
-        const area = img.width * img.height;
-        if (area > texArea && img.width >= scene.width * 0.5 && img.height >= scene.height * 0.5) {
-          texImg = img; texArea = area; texId = l.id;
-          if (l.timing) { winIn = t2s(l.timing.in); winOut = t2s(l.timing.out); }
-        }
-      }
-    }
-    for (const c of l.children) scanTex(c);
-  };
-  for (const l of scene.layerById.values()) scanTex(l);
-  if (!texImg) return null;
-
-  const pin = Math.max(0, winIn / end);
-  const pout = Math.min(1, winOut / end);
-  if (pout <= pin) return null;
-  return { img: texImg, layerId: texId, pin, pout };
-}
-
-/**
- * Composite the bundled gray texture over the frame as a proxy for the aggregate
- * particle field of Stylized/Nature Emitter transitions. Motion spawns a dense
- * field of gray hexagon/bokeh particles over a bundled gray "paper" texture,
- * blending toward a near-uniform gray backdrop that hides the source photo through
- * the middle of the transition. The pure-JS engine does not run Motion's seeded
- * particle simulation, so this reconstructs the gray backdrop the field aggregates
- * to, using the texture's own visibility window and a symmetric smoothstep bell
- * (ramp = 35% of the window each side). Uses the UN-wrapped scene time so the
- * envelope follows the true transition progress even after the drop zones
- * retime-wrap back to source A.
- */
-function applyParticleFieldProxy(output: ImageData, scene: EvaluatedScene, field: FieldTexture): void {
-  const end = scene.animationEndSec || 1;
-  const { img: tex, pin, pout } = field;
-  const fieldTime = scene.unwrappedTime ?? scene.time;
-  const progress = Math.min(1, Math.max(0, fieldTime / end));
-  if (progress <= pin || progress >= pout) return;
-  const win = pout - pin;
-  const ramp = Math.max(1e-3, 0.35 * win);
-  const up = smoothstep01((progress - pin) / ramp);
-  const dn = smoothstep01((pout - progress) / ramp);
-  const o = Math.min(up, dn);
-  if (o <= 0) return;
-
-  const ow = output.width, oh = output.height;
-  const tw = tex.width, th = tex.height;
-  const sameSize = tw === ow && th === oh;
-  for (let y = 0; y < oh; y++) {
-    const sy = sameSize ? y : Math.min(th - 1, (y * th / oh) | 0);
-    for (let x = 0; x < ow; x++) {
-      const sx = sameSize ? x : Math.min(tw - 1, (x * tw / ow) | 0);
-      const di = (y * ow + x) * 4;
-      const si = (sy * tw + sx) * 4;
-      output.data[di]   = output.data[di]   * (1 - o) + tex.data[si]   * o;
-      output.data[di+1] = output.data[di+1] * (1 - o) + tex.data[si+1] * o;
-      output.data[di+2] = output.data[di+2] * (1 - o) + tex.data[si+2] * o;
-    }
-  }
-}
 
 
 /** Apply a filter to an image buffer. */
