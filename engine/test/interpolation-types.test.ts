@@ -11,7 +11,7 @@ import type { Curve } from '../src/types.js';
 
 const T_LAST = 200200 / 120000;
 
-// Measured from the real engine (tools/decode_ruler.py on /tmp/interp_out_<ty>).
+// Measured from the real engine (decode_ruler.py, git history c940dc3, on /tmp/interp_out_<ty>).
 // Only frames where source A is still on-screen are meaningful; we test 0..38.
 const REF: Record<number, number[]> = {
   6:  [0,1,5,12,21,32,45,60,77,96,117,139,163,188,214,242,270,300,330,361,393,425,458,491,524,557,590,622,655,687,719,750,780,810,838,866,892,917,941],

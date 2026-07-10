@@ -2539,7 +2539,7 @@ export function parseMotr(xmlText: string): MotrScene {
   // curves (keyed at normalized time 0..1). The blanket "Over Stroke" exclusion
   // above (needed so Lights/Flash's flash-shape stroke curves don't inflate its end)
   // drops those, so the walk falls back to the padded scene duration — far past the
-  // real transition window. The GT renderer (tools/render_gt.py) counts those
+  // real transition window. The headless GT renderer counts those
   // normalized curves, landing animation_end at the max non-retime keyframe. Mirror
   // that HERE, scoped to Framing scenes: take the max keyframe across all curves
   // EXCEPT the retime/page caches (still excluded). This reads the value from the

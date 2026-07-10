@@ -3,7 +3,7 @@
  *
  * For each transition:
  *   1. Load the .motr file
- *   2. Load ground-truth PNGs (rendered by ../render.py)
+ *   2. Load ground-truth PNGs (rendered by `fct gen headless`)
  *   3. Render the same frames with our engine
  *   4. Compare pixel-by-pixel, report PSNR / % diff
  *

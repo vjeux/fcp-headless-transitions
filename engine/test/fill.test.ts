@@ -4,7 +4,7 @@
  * The real "Fill" FxPlug plugin does not load in the headless FCP render harness
  * (it exits without producing frames, the same class of failure as the 360°
  * reorient plugins used by its two host transitions — verified via
- * tools/render_gt_locked.sh producing all-zero frames). So Fill is validated here
+ * the headless renderer producing all-zero frames). So Fill is validated here
  * with deterministic unit tests on the documented Motion "Fill" (Color mode)
  * semantics: recolor each pixel's RGB toward the solid Color by Mix, preserving
  * alpha. Gradient mode (Fill With = 1) is unused by the shipping templates.

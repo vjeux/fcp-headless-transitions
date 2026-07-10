@@ -8,7 +8,7 @@
 // resolver so the two drop-zone sources return our own decoded image nodes (bypassing
 // the PMClip media pipeline that is unavailable headless). Renders each frame to PNG.
 //
-// Build (see build.sh). Driven from render.py.
+// Build (see build.sh). Driven from tools/ozengine.py (via `fct gen headless`).
 
 #include <CoreMedia/CoreMedia.h>
 #include <CoreGraphics/CoreGraphics.h>

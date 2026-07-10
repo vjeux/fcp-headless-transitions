@@ -1,5 +1,8 @@
 # Debugging & validating the browser engine against real FCP
 
+> **Note:** the deep reverse-engineering helpers referenced below (`make_ruler.py`, `decode_ruler.py`, `edit_curve.py`, `lldb_capture_curve.py`, `curve_probe.py`, `make_videos.py`, `analyze_segments.py`) were one-time RE tools; they've been removed from the working tree but remain in git history at commit `c940dc3` (`git show c940dc3:tools/<name>.py`). Day-to-day rendering/scoring is now the `fct` toolkit (see `fct/README.md`). The methodology below is kept for reference.
+
+
 This is the playbook for making `motr-engine` (the from-scratch TypeScript renderer
 in `engine/`) match Final Cut Pro **pixel-for-pixel**. If you're an agent picking
 this up cold: read this end-to-end before touching the curve/transform code. It
@@ -31,13 +34,14 @@ python3 -m venv venv
 
 ## 1. Generate ground truth (the REAL FCP render)
 
-`tools/render_gt.py` drives FCP's actual Motion engine headless and writes a PNG
-sequence. It handles the single most important gotcha:
+`fct gen headless <slug>` drives FCP's actual Motion engine headless (via
+`tools/ozengine.py`) and writes a 24-frame PNG sequence. It handles the single most
+important gotcha:
 
 > **A transition's animation ends at its LAST SPATIAL KEYFRAME, not the scene /
 > playRange duration.** Push's last keyframe is `200200/120000 = 1.6683s`, but the
 > scene duration is one frame longer and **wraps back to the start** (black/again
-> frames) if you sample there. `render_gt.py` parses the max keyframe time across
+> frames) if you sample there. the headless renderer parses the max keyframe time across
 > all curves *excluding* the `Retime Value` / `Retime Value Cache` / `Duration
 > Cache` curves (whose keyframes run a frame past the spatial animation), and maps
 > progress `0..1` onto `[0, animationEnd]`, nudging the final frame just below the
@@ -45,16 +49,14 @@ sequence. It handles the single most important gotcha:
 > why an early "37 dB Push" was meaningless.
 
 ```bash
-FW="/Applications/Final Cut Pro.app/Contents/Frameworks"
-DYLD_FRAMEWORK_PATH="$FW" ./venv/bin/python tools/render_gt.py --push /tmp/push_clean 50 &
-# or any template:
-DYLD_FRAMEWORK_PATH="$FW" ./venv/bin/python tools/render_gt.py <foo.motr> <imgA> <imgB> <outdir> [nframes] &
+# render one transition through FCP's real engine (auto-handles DYLD/venv):
+./fct.sh gen headless Movements__Push
+# frames land in ~/fct-frames/headless/Movements__Push/frame_0000..0023.png
 ```
 
-The 50-frame Push ground truth lives at `engine/test/ground-truth/Movements__Push/` — this
-directory is **gitignored** (a local artifact, not committed), so regenerate it with the
-`--push` command above before running `push-compare.ts`. The larger per-slug GT caches used by
-the scoreboard live under `~/fct-gt-cache/` (headless) and `~/fct-gui-gt/` (FCP GUI reference).
+The GUI ground truth (the only truth) lives at `~/fct-gui-gt/<slug>/`, sliced from the
+recorded FCP GUI capture by `./fct.sh gen gui <slug>`. Headless/engine renders land under
+`~/fct-frames/{headless,engine}/<slug>/`.
 
 ## 2. Measure the engine vs ground truth (PSNR)
 
@@ -82,7 +84,7 @@ per-frame displacement of each source (noise-free, ~0.5 px).
 ```bash
 ./venv/bin/python tools/make_ruler.py               # writes /tmp/rulerA.png /rulerB.png
 # render GT with rulers as the sources:
-DYLD_FRAMEWORK_PATH="$FW" ./venv/bin/python tools/render_gt.py \
+./fct.sh gen headless <slug>   # -> ~/fct-frames/headless/<slug>/
     <foo.motr> /tmp/rulerA.png /tmp/rulerB.png /tmp/ruler_out 50 &
 ./venv/bin/python tools/decode_ruler.py /tmp/ruler_out   # prints "<frame> <displacement>"
 ```
@@ -101,7 +103,7 @@ actually matters. `tools/edit_curve.py` rewrites the Color Solid's Y position cu
 # arbitrary keyframes (time in 120000-scale : value):
 ./venv/bin/python tools/edit_curve.py <push.motr> /tmp/test.motr keyframes \
     0:0 36036:-108.93 96096:-565.78 200200:-1080
-DYLD_FRAMEWORK_PATH="$FW" ./venv/bin/python tools/render_gt.py /tmp/test.motr \
+./fct.sh gen headless <slug>   # -> ~/fct-frames/headless/<slug>/
     /tmp/rulerA.png /tmp/rulerB.png /tmp/test_out 50 &
 ./venv/bin/python tools/decode_ruler.py /tmp/test_out
 ```
@@ -168,23 +170,18 @@ a `.motr` at times that land in every segment. Point it elsewhere with env vars
 A 2-keyframe curve reduces to exact `smoothstep = 3u²−2u³`. Verified to
 **0.26 px mean / 0.59 px max** against the engine (ruler-decode precision).
 
-## 7. Generate all comparison videos
+## 7. Generate comparison videos
 
-`tools/make_videos.py` builds the side-by-side, individual, diff videos and contact
-sheets from a GT dir + engine dir:
+`fct montage` builds a stacked GUI | headless | engine comparison video (with the
+color model applied and per-frame labels) from the on-disk frames:
 
 ```bash
-# 1) GT frames:
-DYLD_FRAMEWORK_PATH="$FW" ./venv/bin/python tools/render_gt.py --push /tmp/push_clean 50 &
-# 2) engine frames:
-(cd engine && node_modules/.bin/tsx test/push-compare.ts --dump)   # -> /tmp/push_engine
-# 3) videos + sheets into videos/ :
-./venv/bin/python tools/make_videos.py /tmp/push_clean /tmp/push_engine videos push
+./fct.sh gen gui      <slug>    # ~/fct-gui-gt/<slug>/   (the truth)
+./fct.sh gen headless <slug>    # ~/fct-frames/headless/<slug>/
+./fct.sh gen engine   <slug>    # ~/fct-frames/engine/<slug>/
+./fct.sh montage <slug>         # -> montage.mp4   (or --all for the whole board)
+./fct.sh cmp a.png b.png --color-b bt709 --out diff.png   # a single-frame diff image
 ```
-
-Outputs in `videos/`: `push_comparison.mp4` (FCP | engine, labeled),
-`push_fcp_groundtruth.mp4`, `push_engine.mp4`, `push_diff.mp4` (|diff|×4 + per-frame
-PSNR), `push_contact_sheet.png`, `push_diff_sheet.png`.
 
 ## Current status
 
@@ -196,8 +193,7 @@ at the A/B seam plus a 1 px white seam artifact FCP itself emits. All 65 transit
 without crashing.
 
 > Per-transition scores move as fixes land — do **not** trust hard-coded numbers in the docs.
-> The live scoreboard is `~/fct-notes/gui_scoreboard.tsv` (regenerated by
-> `~/fct-notes/gui_scoreboard.py`; per-slug scoring via `~/fct-notes/score_slug.py`). See
+> Generate live scores with `./fct.sh score --all` (or `./fct.sh score <slug> --frames`). See
 > `docs/SCOREBOARD.md` for a dated snapshot and how to reproduce it.
 
 ## Interpolation types (fully decoded)
@@ -259,7 +255,7 @@ type, filter (by UUID), parameter, enum, and per-transition feature — with
 implementation status. Regenerate the underlying survey data anytime with:
 
 ```bash
-./venv/bin/python tools/survey_catalog.py
+git show c940dc3:tools/survey_catalog.py > /tmp/survey_catalog.py && ./venv/bin/python /tmp/survey_catalog.py
 ```
 
 (prints factory counts, filter UUID→name map, parameter vocabulary, and the

@@ -23,10 +23,10 @@ every rendered layer times out far earlier:
   Transition B  in=1.068  out=1.468 s   (B.in ≥ A.out → B NEVER overlaps A)
   Lens flare    in=-0.033 out=1.401 s   (Screen blend)
   Background    in=0      out=5.505 s   (particle Rectangle + Clouds)
-The 24 GT frames are sampled linearly across 0 → 18.8855 s (render_gt.py does NOT
+The 24 GT frames are sampled linearly across 0 → 18.8855 s (the headless renderer does NOT
 trim here because the tail frames are navy, mean≈20 > its BLACK=5 threshold).
 
-## What each GT frame is (measured from ~/fct-gt-cache/Stylized__Light_Sweep)
+## What each GT frame is (measured from ~/fct-gui-gt/Stylized__Light_Sweep)
   f0            (t=0)             image A, letterboxed on navy (content bbox
                                   x[55..1909]=1855w, y[18..1060]=1043h ≈ A native
                                   1854×1042 centered in the 1967-wide scene canvas).

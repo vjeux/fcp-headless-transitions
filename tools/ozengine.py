@@ -39,12 +39,9 @@ HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOC_TYPE = "com.apple.motion.transition"
 # CANONICAL project timescale (ticks/sec) for the FCP Motion engine. FCP authors
 # transitions at 24000/1001 fps (23.976), so TIMESCALE=24000 with a 1001-tick frame.
-# The canonical value now lives in the side-effect-free tools/fcp_constants.py so
-# it can be shared safely: render.py and run_all.py are standalone,
-# subprocess-ISOLATED engine-boot scripts that must NOT import this module
-# (importing ozengine has engine-boot side effects), so they — like this module —
-# import TIMESCALE from fcp_constants instead. analyze_segments.py derives
-# fps = TIMESCALE/1001 from the same canonical value. It must stay EXACTLY 24000.
+# The canonical value lives in the side-effect-free tools/fcp_constants.py so it can
+# be imported anywhere without triggering this module's engine-boot side effects.
+# It must stay EXACTLY 24000.
 from fcp_constants import TIMESCALE  # noqa: E402 (canonical, side-effect-free)
 # Push drop-zone image-element scene IDs (harmless defaults; hook ignores them
 # and binds A/B by authored drop-zone identity — see module docstring).
@@ -108,7 +105,7 @@ def _load_pae_filters(objc) -> None:
     os.environ.setdefault("FXPLUG_USE_PLUGINKIT", "1")
     if not os.path.isdir(_PAE_FILTERS_BUNDLE):
         # Different FCP layout / not installed -- leave filters unregistered rather
-        # than crash; render_gt's validator will still flag a degenerate render.
+        # than crash; a degenerate (unfiltered) render will show up when scored.
         return
     NSBundle = objc.lookUpClass("NSBundle")
     bundle = NSBundle.bundleWithPath_(_PAE_FILTERS_BUNDLE)

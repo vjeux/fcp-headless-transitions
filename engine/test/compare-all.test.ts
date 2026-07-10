@@ -15,11 +15,10 @@ import { loadGT, createBenchTransition } from './gt-cache.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
-// Canonical ground-truth cache (deterministic; generated once into a stable
-// shared location, never regenerated per run). Falls back to the local
-// test/ground-truth dir if the cache is absent. Override with FCT_GT_CACHE.
+// Ground truth = the canonical GUI GT (the only truth), sliced by `fct gen gui`.
+// Falls back to the local test/ground-truth dir if absent. Override with FCT_GT_CACHE.
 const GT_CACHE = process.env.FCT_GT_CACHE
-  || path.join(process.env.HOME || '', 'fct-gt-cache');
+  || path.join(process.env.HOME || '', 'fct-gui-gt');
 const GT_ROOT = fs.existsSync(GT_CACHE)
   ? GT_CACHE
   : path.resolve(import.meta.dirname, 'ground-truth');

@@ -1,8 +1,8 @@
 #!/bin/bash
 # Build the headless renderer dylib against Final Cut Pro's frameworks.
 #
-# Produces oz_render.dylib, which render.py / run_all.py / tools/ozengine.py
-# dlopen() at runtime to drive FCP's real Motion engine headless.
+# Produces oz_render.dylib, which tools/ozengine.py dlopen()s at runtime to
+# drive FCP's real Motion engine headless (via `fct gen headless`).
 #
 # NOTE: FCP must be installed at the path below. At *run* time the callers set
 # DYLD_FRAMEWORK_PATH to this same dir so the engine's sibling frameworks

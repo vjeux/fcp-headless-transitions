@@ -1,12 +1,9 @@
 """Canonical FCP Motion render constants — SIDE-EFFECT-FREE literals only.
 
-This module is the single source of truth for the render timescale and scene
-duration used across the headless FCP transition pipeline. It contains ONLY
-literal constants and NO imports of ozengine, NO ctypes, and NO engine boot,
-so it is safe to import from ANYWHERE — including the standalone,
-subprocess-isolated drivers/workers (render.py, run_all.py) that must never
-import ozengine (importing ozengine has engine-boot side effects at import
-time).
+This module is the single source of truth for the render timescale used by the
+headless FCP transition pipeline. It contains ONLY literal constants and NO
+imports of ozengine, NO ctypes, and NO engine boot, so it is safe to import from
+ANYWHERE without triggering ozengine's engine-boot side effects.
 
 Values must stay EXACTLY these:
     TIMESCALE       = 24000     (ticks/sec; FCP authors transitions at

@@ -1,7 +1,7 @@
 /**
  * Push Direction rig variants (Left→Right, Top→Bottom, Bottom→Top, Right→Left)
  * vs real-FCP ground truth. Each /tmp/dir_gt_<N> is rendered from a push_dir<N>.motr
- * (Direction rig value N) via tools/render_gt.py.
+ * (Direction rig value N) via `fct gen headless`.
  *
  * STATUS: only Bottom→Top (dir 2) is currently pixel-accurate. The other 3 need
  * the per-direction clone-selection + link-axis/sign interaction fully worked out
@@ -32,7 +32,7 @@ console.log('Push Direction rig variants vs real FCP:\n');
 for (const dv of [0,1,2,3]) {
   const motr = `/tmp/push_dir${dv}.motr`;
   const gtDir = `/tmp/dir_gt_${dv}`;
-  if (!fs.existsSync(motr) || !fs.existsSync(gtDir)) { console.log(`  dir ${dv}: (no fixtures — run tools/render_gt.py on push_dir${dv}.motr)`); continue; }
+  if (!fs.existsSync(motr) || !fs.existsSync(gtDir)) { console.log(`  dir ${dv}: (no fixtures — render push_dir${dv}.motr via fct)`); continue; }
   const t = createTransition(fs.readFileSync(motr, 'utf-8'), { outputWidth: 1920, outputHeight: 1080 });
   const frames = fs.readdirSync(gtDir).filter(f => f.endsWith('.png')).sort();
   let sum = 0, cnt = 0;

@@ -43,28 +43,29 @@ python3 -m venv venv
 
 ## Usage
 
+Everything goes through one tool, `fct` (see [fct/README.md](fct/README.md)):
+
 ```bash
-FW="/Applications/Final Cut Pro.app/Contents/Frameworks"
-DYLD_FRAMEWORK_PATH="$FW" ./venv/bin/python render.py \
-    images/start.jpg images/end.jpg out \
-    --frames 48 --mp4 out/push.mp4
+./fct.sh gen headless Movements__Push   # render one transition's frames to disk
+./fct.sh gen engine   Movements__Push   # render the same via the browser engine
+./fct.sh gen gui      Movements__Push   # slice the GUI ground truth from the capture
+./fct.sh score        Movements__Push   # PSNR of headless vs the GUI ground truth
+./fct.sh montage      Movements__Push   # stacked GUI | headless | engine video
 ```
 
-- `out/frame_0000.png …` — the rendered frames
-- `out/push.mp4` — assembled video (with `--mp4`)
-
-Options: `--frames N`, `--duration SECS`, `--fps N`, `--motr PATH`, `--mp4 PATH`.
-
-> `DYLD_FRAMEWORK_PATH` must point at FCP's `Frameworks` dir so the engine's sibling
-> frameworks resolve at load time.
+`fct gen` writes 24 frames per transition (`frame_0000.png …`) at the half-open
+cadence `t = (i/24)·span`, 1920×1080, to a canonical per-source directory. Headless
+auto-re-execs under the venv with `DYLD_FRAMEWORK_PATH` set so FCP's sibling
+frameworks resolve at load time.
 
 ## Render *every* built-in transition
 
-`run_all.py` discovers all `.motr` transition templates bundled with Final Cut Pro and
-renders each one (in an isolated subprocess, so one bad template can't abort the batch):
+`fct gen headless --all` discovers all `.motr` transition templates bundled with Final
+Cut Pro and renders each one (in an isolated subprocess, so one bad template — or the
+engine's harmless teardown crash — can't abort the batch):
 
 ```bash
-./venv/bin/python run_all.py images/start.jpg images/end.jpg all_out --frames 24
+./fct.sh gen headless --all
 ```
 
 **All 65 built-in transitions render successfully.** See the full
@@ -100,11 +101,11 @@ by-pointer passing of `shared_ptr`/`CMTime`/matrices).
 |-----------------|---------|
 | `oz_render.mm`  | The renderer: engine bootstrap, GPU setup, image nodes, media-ref hook, rasterize→PNG. |
 | `build.sh`      | Compiles `oz_render.mm` → `oz_render.dylib`. |
-| `render.py`     | Driver: boots the engine, loads the `.motr`, renders frames, assembles mp4. |
-| `run_all.py`    | Discovers and renders every built-in FCP transition (subprocess-isolated). |
+| `fct/`          | **The toolkit** — one CLI for generating frames (gui/headless/engine), reading, comparing, scoring, and montaging. Run via `./fct.sh`. See [fct/README.md](fct/README.md). |
+| `fct.sh`        | Entry point for `fct`. |
 | `images/`       | Example source images. |
 | `engine/`       | **`motr-engine`** — a from-scratch TypeScript reimplementation of the Motion transition engine, for running these transitions in the browser (see below). |
-| `tools/`        | Ground-truth + validation helpers: `ozengine.py` (engine boot), `render_gt.py` (headless GT), `slice_gui_gt.py` (GUI GT from a screen recording), plus sub-pixel measurement, `.motr` editing, lldb reverse-engineering, and video generation. See the table below. |
+| `tools/`        | Low-level engine binding: `ozengine.py` (FCP engine boot + `render_frame`), `fcp_constants.py` (canonical timescale), `bootstrap_worktree.sh`. `fct` drives these. |
 | `docs/GALLERY.md`  | Animated previews of all supported transitions. |
 | `docs/DEBUGGING.md` | **How to validate the browser engine against real FCP, pixel-for-pixel.** Read this first if you're working on `engine/`. |
 
@@ -126,40 +127,41 @@ interpolation (it ignores the tangent handles stored in the `.motr` and recomput
 Catmull-Rom tangents with a specific handle-time rule) — the full methodology, tools,
 and findings are in **[docs/DEBUGGING.md](docs/DEBUGGING.md)**.
 
-### Validation tools (`tools/`)
+### Validation tools
 
-| Tool | Purpose |
+All validation flows through the `fct` toolkit (see [fct/README.md](fct/README.md)):
+
+| Command | Purpose |
 |------|---------|
-| `tools/ozengine.py` | Shared headless-engine boot boilerplate: `init_engine()` / `load_doc()` / `render_frame()`. Boot the engine once, render many transitions in one process. Every GT/probe script imports it. |
-| `tools/render_gt.py` | Render *headless* ground-truth frames through the real engine over the transition's authored scene duration (half-open `i/N` time slices). `--push OUTDIR [N]` renders the default Push demo. |
-| `tools/slice_gui_gt.py` | Slice a screen-recorded FCP **GUI** export (`GT_ALL_65.mov`) into per-transition frames — the *second* ground truth. Detects each transition's B-settle frame per-slug and resamples its true extent to 24 frames using the same half-open `i/N` convention as the headless scorer. |
-| `tools/make_ruler.py` / `decode_ruler.py` | Row-encoded "ruler" images for sub-pixel (≈0.5 px) motion measurement. |
-| `tools/edit_curve.py` | Patch a `.motr` keyframe curve to test interpolation hypotheses through the real engine. |
-| `tools/lldb_capture_curve.py` + `curve_probe.py` | lldb driver that dumps the exact Bézier control polygons the engine builds per segment. |
-| `tools/make_videos.py` | Build all comparison/diff videos + contact sheets from a GT dir + engine dir. |
-| `tools/analyze_segments.py` / `survey_catalog.py` | Detect per-slug settle windows (feeds `slice_gui_gt.py`) and survey the `.motr` template catalog. |
+| `fct gen gui <slug>` | Slice the screen-recorded FCP **GUI** export (`GT_ALL_65.mov`) into 24 per-transition frames — the **ground truth**. |
+| `fct gen headless <slug>` | Render the same transition through FCP's real engine in-process (`tools/ozengine.py`). |
+| `fct gen engine <slug>` | Render it through the from-scratch TS engine. |
+| `fct cmp <a.png> <b.png>` | Compare two frames on disk (PSNR + diff image). |
+| `fct score <slug>` | Per-frame + mean PSNR of a render vs the GUI ground truth. |
+| `fct montage <slug\|--all>` | Stacked GUI \| headless \| engine comparison video. |
+
+Deep `.motr` reverse-engineering helpers (curve dumping, ruler-based sub-pixel
+measurement, lldb probes) live in the git history and `docs/DEBUGGING.md`; the
+day-to-day workflow is the `fct` commands above.
 
 ### Scoring against ground truth
 
-The scoreboard ([docs/SCOREBOARD.md](docs/SCOREBOARD.md)) reports the TS engine's mean
-PSNR vs FCP over up to 24 frames per transition (progress `i/N`, half-open: frame
-`i` samples scene-time `t = (i/24)·span`, so frame 0 is pure A and frame 24 would be
-the wrap point back to A — never rendered; the 24 frames are `i = 0..23`), engine output
-conformed to GT-native 1920×1080. Two ground-truth sources are used:
+The **only** ground truth is the GUI export (`~/fct-gui-gt/`, sliced by `fct gen gui`
+from `GT_ALL_65.mov`). `fct score` reports per-frame + mean PSNR of a render against it,
+over 24 frames at the half-open cadence `t = (i/24)·span` (frame 0 is pure A; frame 24
+would be the wrap point back to A — never rendered; the frames are `i = 0..23`). The
+render is color-conformed (sRGB→bt709, `fct.color`) before comparison.
 
-- **Headless GT** — `tools/render_gt.py` (FCP's engine in-process, this repo).
-- **GUI GT** — `tools/slice_gui_gt.py` (frames sliced from a real FCP GUI export).
-
-Both use the same half-open `i/N` time sampling, so the engine can be scored against
-either. Regenerate the batch headless GT with `run_all.py` (see the engine
-`ground-truth` npm script) and re-run `engine/test/scoreboard.ts`.
+> Do **not** score a render against another render's output — that is circular. Truth is
+> the GUI GT only. (`docs/SCOREBOARD.md` may contain older numbers from a superseded
+> methodology; regenerate with `fct score --all`.)
 
 ## Using a different transition
 
-Pass `--motr PATH` to `render.py` (or edit the `MOTR` default) to point at another
-`.motr`. The two source drop-zones are matched by discovery order at render time (via
-the media-ref hook), so no per-template IDs are needed — the renderer is
-transition-agnostic. `run_all.py` uses exactly this to sweep the whole library.
+Pass any slug to `fct gen` (`./fct.sh gen headless <slug>`). The two source drop-zones
+are matched by authored drop-zone identity at render time (via the media-ref hook), so
+no per-template IDs are needed — the renderer is transition-agnostic. `fct gen
+headless --all` uses exactly this to sweep the whole library.
 
 ## Caveats
 
