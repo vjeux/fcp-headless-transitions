@@ -148,6 +148,15 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-10  Item 4 — EVALUATOR globals eliminated. Found the tree dirty from a prior
+              interrupted tick: EvalCtx interface defined + the 3 module globals (CURRENT_FPS,
+              DROPZONE_WRAP_TO_A, HOLD_INCOMING_B) deleted but 11 refs left DANGLING → engine
+              wouldn't compile (gate only passed on stale on-disk frames). Completed the refactor:
+              threaded EvalCtx through evaluate()->evaluateLayer->applyRampTransforms/
+              applyRampOpacity/applyFadeBehaviors->rampProgress. Also threaded compositor
+              resolveCellImage. tsc now FULLY CLEAN (0 errors); re-rendered all 65 engine slugs;
+              gate green 0/0. Remaining compositor globals: renderLayer(3)+composite(6)+_dzPlaceholder;
+              parser CLIP_MEDIA/DROPZONE_MEDIA_HEIGHT.
 - 2026-07-10  Item 4 — EVALUATOR globals ELIMINATED. Found the tree dirty from a prior
               interrupted tick: evaluator/index.ts had a broken half-refactor (EvalCtx defined,
               3 module globals deleted, 11 dangling refs -> tsc broken, engine wouldn't build).
