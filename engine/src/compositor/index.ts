@@ -222,7 +222,7 @@ function resolveCloneImage(cloneSourceId: number | undefined, depth = 0): ImageD
   if (src.source?.type === 'transitionB') return ctx.imageB;
   if (src.type === 'clone') return resolveCloneImage(src.cloneSourceId, depth + 1);
   // Image/generator source without an explicit A/B tag: fall back to its source.
-  if (src.source) return getSourceImage(src.source, ctx.imageA, ctx.imageB);
+  if (src.source) return getSourceImage(ctx!, src.source, ctx!.imageA, ctx!.imageB);
   return null;
 }
 /**
@@ -695,29 +695,19 @@ export function compositePixel(
 
 
 
-function getSourceImage(source: ImageSource | undefined, imageA: ImageData, imageB: ImageData, clipTimeOverride?: number): ImageData | null {
+function getSourceImage(rctx: RenderContext, source: ImageSource | undefined, imageA: ImageData, imageB: ImageData, clipTimeOverride?: number): ImageData | null {
   if (!source) return null;
   switch (source.type) {
     case 'transitionA': return imageA;
     case 'transitionB': return imageB;
     case 'media': {
-      // Bundled template asset. Still images (Slide's tiles) resolve by URL and
-      // are cached per frame. VIDEO media (Objects/Veil, Leaves) varies with
-      // scene time, so it is keyed by url@time and never cached across frames —
-      // the host resolver owns the mov decode cache.
-      if (!ctx?.mediaResolver) return null;
-      // A media layer with a Retime Value curve of clip FRAME numbers supplies an
-      // absolute forward clip time (clipTimeOverride). This is the authoritative
-      // per-clip playhead (Lights/Light Noise: the screen-blend light-noise .mov
-      // plays FORWARD through the transition per its Retime curve). When present,
-      // resolve at that absolute clip time (no reverse). Otherwise fall back to the
-      // global mediaTime + resolver's reverse heuristic (Veil/Leaves default).
+      if (!rctx.mediaResolver) return null;
       const absolute = clipTimeOverride !== undefined;
-      const t = absolute ? clipTimeOverride! : ctx.mediaTime;
+      const t = absolute ? clipTimeOverride! : rctx.mediaTime;
       const key = `${source.url}@${t.toFixed(4)}${absolute ? '#abs' : ''}`;
-      const cache = ctx.mediaCache;
+      const cache = rctx.mediaCache;
       if (cache.has(key)) return cache.get(key)!;
-      const img = ctx.mediaResolver(source.url, t, absolute);
+      const img = rctx.mediaResolver(source.url, t, absolute);
       cache.set(key, img);
       return img;
     }
@@ -962,7 +952,7 @@ function resolveImageMaskAlpha(sourceId: number, W: number, H: number, invert = 
   // resolver), fit it to the frame the same way a full-frame drop zone conforms,
   // and use luma (0..255) as the mask alpha.
   if (src.layer.type === 'image' && src.layer.source) {
-    const mediaImg = getSourceImage(src.layer.source, ctx.imageA, ctx.imageB);
+    const mediaImg = getSourceImage(ctx!, src.layer.source, ctx!.imageA, ctx!.imageB);
     if (mediaImg) {
       const alpha = new Uint8Array(W * H);
       // Full-frame matte: sample the media conformed to the output frame.
@@ -1349,7 +1339,7 @@ function renderLayer(
   // than a thin sliced band. Scoped to leaf image drop zones with a frame.
   let effCrop = crop;
   if ((layer.type === 'image') && layer.dropZone && layer.source) {
-    const srcImg0 = evalLayer.forceSourceA ? imageA : getSourceImage(layer.source, imageA, imageB);
+    const srcImg0 = evalLayer.forceSourceA ? imageA : getSourceImage(ctx!, layer.source, imageA, imageB);
     if (srcImg0) {
       const fw = layer.dropZone.width, fh = layer.dropZone.height;
       const sw = srcImg0.width, sh = srcImg0.height;
@@ -1397,7 +1387,7 @@ function renderLayer(
     // absolute forward clip time so the light-noise overlay plays along its own
     // timeline instead of the reverse-video default.
     const clipT = retimedClipTime(evalLayer, ctx!);
-    const src = evalLayer.forceSourceA ? imageA : getSourceImage(layer.source, imageA, imageB, clipT);
+    const src = evalLayer.forceSourceA ? imageA : getSourceImage(ctx!, layer.source, imageA, imageB, clipT);
     if (src) {
       // Framing camera (factory 3): the standalone Transition A/B drop-zone tiles
       // live in the same off-canvas world space as the replicator wall, so route
@@ -1465,7 +1455,7 @@ function renderLayer(
       // the same drop-zone media renders throughout.
       const pastEdge = flip.theta > Math.PI / 2;
       const page = pastEdge ? flip.back : flip.front;
-      const src = getSourceImage(flip.front.layer.source, imageA, imageB);
+      const src = getSourceImage(ctx!, flip.front.layer.source, imageA, imageB);
       // Continuous centre-axis rotation by θ (0→π). While the front faces the
       // camera (θ<90°) source A shows normally; past edge-on the reverse faces the
       // camera and PAEFlop (Flop=0) mirrors it (mirrorUV) so it reads correctly.
@@ -1716,12 +1706,12 @@ export function composite(
     // (Verified: A-on-top scores higher than B-on-top — the settled tail shows the
     // sepia A card with B fully occluded behind it.)
     if (bEval && bEval.visible && bEval.opacity > 0) {
-      const bSrc = getSourceImage(bEval.layer.source, imageA, imageB);
+      const bSrc = getSourceImage(ctx!, bEval.layer.source, imageA, imageB);
       if (bSrc) blitDropInCard(output, bSrc, c.cardW, c.cardH, bEval.worldTransform[13] * c.posScale, bEval.opacity);
     }
     // A (in front): static at the top-left.
     if (aEval && aEval.visible && aEval.opacity > 0) {
-      const aSrc = getSourceImage(aEval.layer.source, imageA, imageB);
+      const aSrc = getSourceImage(ctx!, aEval.layer.source, imageA, imageB);
       if (aSrc) blitDropInCard(output, aSrc, c.cardW, c.cardH, 0, aEval.opacity);
     }
   }
