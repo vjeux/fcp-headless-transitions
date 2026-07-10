@@ -1091,7 +1091,7 @@ function resolveImageMaskAlpha(sourceId: number, W: number, H: number, invert = 
  * their base clip). Returns undefined when there is no usable frame-numbered
  * retime curve, so the caller falls back to the global mediaTime + reverse.
  */
-function retimedClipTime(evalLayer: EvaluatedLayer): number | undefined {
+function retimedClipTime(evalLayer: EvaluatedLayer, rctx: RenderContext): number | undefined {
   const layer = evalLayer.layer;
   if (!layer.source || layer.source.type !== 'media') return undefined;
   // SCOPE (fix 2026-07-06): the forward frame-numbered clip playhead is ONLY correct
@@ -1117,7 +1117,7 @@ function retimedClipTime(evalLayer: EvaluatedLayer): number | undefined {
   // Layer-local time = scene media time minus the layer's timeline offset.
   const off = layer.timing ? (layer.timing.offset.timescale > 0
     ? layer.timing.offset.value / layer.timing.offset.timescale : 0) : 0;
-  const localTime = (ctx?.mediaTime ?? 0) - off;
+  const localTime = rctx.mediaTime - off;
   const frame = evaluateCurve(rv, localTime);
   // Motion's Retime Value / Page Number is a 1-BASED frame index: frame 1 is the
   // clip's FIRST frame (presentation time 0). Convert to the 0-based presentation
@@ -1396,7 +1396,7 @@ function renderLayer(
     // A frame-numbered Retime curve (Lights/Light Noise's screen .mov) supplies an
     // absolute forward clip time so the light-noise overlay plays along its own
     // timeline instead of the reverse-video default.
-    const clipT = retimedClipTime(evalLayer);
+    const clipT = retimedClipTime(evalLayer, ctx!);
     const src = evalLayer.forceSourceA ? imageA : getSourceImage(layer.source, imageA, imageB, clipT);
     if (src) {
       // Framing camera (factory 3): the standalone Transition A/B drop-zone tiles

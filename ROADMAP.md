@@ -107,7 +107,7 @@ Status legend: TODO / DOING / DONE / BLOCKED
   score.py/montage.py/config.py).
 - Verify: `python3 -c "import fct"` clean; `fct score Movements__Push` == 36.63.
 
-### 4. Thread RenderContext; remove module globals  [TODO]  (engine, medium)
+### 4. Thread RenderContext; remove module globals  [DOING]  (engine, medium)
 - DoD: `CURRENT_FPS`, `DROPZONE_WRAP_TO_A`, `HOLD_INCOMING_B` (evaluator), `ctx`,
   `_dzPlaceholder` (compositor), `CLIP_MEDIA` (parser) all threaded through an explicit
   `RenderContext`; two concurrent `render()` calls no longer corrupt each other.
@@ -148,6 +148,9 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-10  Item 4 STARTED — threaded RenderContext through retimedClipTime (first of 8
+              compositor functions to thread). Also fixed the cache-fidelity gate bug (cold!=warm)
+              that had been causing phantom regressions for several ticks. tsc unchanged, gate green.
 - 2026-07-10  GATE FIX — root-caused the recurring phantom regressions/improvements: read_frame_cached
               returned the pre-JPEG in-memory thumbnail on the COLD (build) path but the re-read lossy
               JPEG on the WARM path -> baseline(cold) and regress(warm) scored identical frames ~1dB
