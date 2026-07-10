@@ -66,11 +66,16 @@ reliably catches meaningful regressions on the slugs that matter most (the good 
 
 Status legend: TODO / DOING / DONE / BLOCKED
 
-### 1. Delete dead code + unify duplicated primitives  [TODO]  (engine, safe)
+### 1. Delete dead code + unify duplicated primitives  [DONE]  (engine, safe)
 - DoD: `colorizeFilter()`, `isOscFilter()` removed; a single `sampleBilinear()` and `luma()`
   in `engine/src/compositor/sampling.ts` used by transition360, reorient360, compositor,
   resample, perspective, channel-mixer (was 6 copies / 2 luma standards).
 - Verify: `cd engine && npx tsc --noEmit` clean; `fct regress engine` OK.
+- DONE 2026-07-10 (commits 6eaed6c, 2e65b19): deleted both dead fns; unified the 6
+  duplicated Rec.601 luma copies into `blend.luma601`. Rec.709 `blend.luma` kept separate
+  (different coefficients). Bilinear NOT deduped — the compositor's copy is fused into a
+  hot premult-alpha blit with crop bounds; extracting it would change edges + add per-pixel
+  overhead (documented as a deliberate non-change). tsc clean, gate green 0 regressions.
 
 ### 2. Finish the filter-registry migration  [TODO]  (engine, medium)
 - DoD: every filter dispatched by UUID via `filters/registry.ts`; the fuzzy
@@ -127,4 +132,7 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
-- (none yet — baseline being established)
+- 2026-07-10  Item 1 DONE — deleted dead code (colorizeFilter/isOscFilter); unified 6 Rec.601
+              luma copies into blend.luma601. Gate proven (goes red on a 15% darken, green after
+              revert). tsc clean, regress engine green. (6eaed6c, 2e65b19)
+- (baseline established: headless 21.8 / engine 11.5 dB, JPEG q90 frames)
