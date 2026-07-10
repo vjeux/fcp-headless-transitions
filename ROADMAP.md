@@ -148,6 +148,17 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-10  360°/equirect CROP fix (reverse-engineered from Filters.bundle + oz_render.mm):
+              wide-equirect scenes (width>=3072) now CENTER-CROP the panorama to the 1920x1080
+              output window (FCP's front-facing readback) instead of bilinear-squeezing the 2:1
+              canvas into 16:9. Fixed the geometry bug behind Bloom's 5 dB. Measured via the
+              official gate: 360°_Bloom 5.16->10.83 (+5.67), Movements__Smear 9.6->11.03 (+1.43),
+              Objects__Squares 7.21->7.78 (+0.57); 0 regressions. Added `fct probe <slug> [frame]`
+              + gen_engine_frame + engine/test/_fct_render_one.ts for fast single-frame iteration
+              (seconds, not the ~5 min full-slug render). Documented the real FCP 360-blur algo
+              (HEquirectGaussianBlur = seam-wrap + sinusoidal reproject + Gaussian) in
+              docs/notes/FCP_360_BLUR_REVERSE_ENGINEERING.md as the next lever toward the ~17 dB
+              headless ceiling (remaining gap: drop-zone fill scale + bloom overexposure).
 - 2026-07-10  Item 5 DONE — wrote docs/RENDERER_CONTRACT.md (render(motr,A,B,timeSec)->1920x1080
               RGBA sRGB; harness color-conforms to bt709; frame i = sample_time(i,24,span)). Added
               public TransitionFn.renderAt(A,B,timeSec) + .animationEndSec: both render() and
