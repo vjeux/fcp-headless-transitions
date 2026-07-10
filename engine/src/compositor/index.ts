@@ -1,6 +1,5 @@
 import { gaussianBlur } from './filters/gaussian-blur.js';
 import { colorizeRemapFilter } from './filters/channel-mixer.js';
-import { hueSaturationFilter } from './filters/hue-saturation.js';
 import { directionalBlur, radialBlur, zoomBlur } from './filters/directional-blur.js';
 import { evaluateCurve } from '../evaluator/curves.js';
 import { rasterizeShape, applyMask, unionMasks } from './shapes.js';
@@ -1937,19 +1936,6 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
     const amount = resolveBlurAmount('Amount', 0);
     if (mix > 0 && amount > 0) return zoomBlur(input, amount, 0.5, 0.5);
     return input;
-  }
-  // Hue/Saturation
-  if (name.includes('hsv') || name.includes('hue') || name.includes('saturation')) {
-    let hue = 0, saturation = 1, brightness = 0, mix = 1;
-    for (const p of filter.parameters) {
-      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
-      if (val === undefined) continue;
-      if (p.name === 'Hue' || p.name === 'Hue Rotation') hue = val;
-      if (p.name === 'Saturation') saturation = val;
-      if (p.name === 'Brightness' || p.name === 'Value') brightness = val;
-      if (p.name === 'Mix') mix = val;
-    }
-    return hueSaturationFilter(input, { hue, saturation, brightness, mix });
   }
   // Colorize — Motion's is a black/white luminance remap, NOT a hue tint. Each
   // pixel's luminance is mapped through a gradient from "Remap Black To" (at lum 0)

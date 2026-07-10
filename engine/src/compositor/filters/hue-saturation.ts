@@ -100,3 +100,25 @@ export function hueSaturationFilter(input: ImageData, params: HueSatParams): Ima
   return new ImageData(out, width, height);
 }
 
+
+import { registerFilter } from './registry.js';
+
+// HSV Adjust (PAEHSVAdjust, UUID D23AF030-…). FAITHFUL migration of the legacy
+// dispatch, which read the filter's OWN params and IGNORED rig overrides — so this
+// uses rawParam (not param). Hue (or 'Hue Rotation', default 0), Saturation (1),
+// brightness from 'Brightness' or 'Value' (0), Mix (1).
+// NOTE: whether HSV SHOULD honor rig overrides is a separate open question (ROADMAP)
+// — honoring them changed Stylized__Color_Panels output (−0.84 dB), so the mechanical
+// migration preserves the legacy raw-read behavior exactly.
+registerFilter({
+  uuid: 'D23AF030-B0BF-44DF-B622-7C9EA0DF5744',
+  names: ['hsv', 'hue', 'saturation'],
+  label: 'HSV Adjust',
+  apply(input, ctx) {
+    const hue = ctx.hasRaw('Hue') ? ctx.rawParam('Hue', 0) : ctx.rawParam('Hue Rotation', 0);
+    const saturation = ctx.rawParam('Saturation', 1);
+    const brightness = ctx.hasRaw('Brightness') ? ctx.rawParam('Brightness', 0) : ctx.rawParam('Value', 0);
+    const mix = ctx.rawParam('Mix', 1);
+    return hueSaturationFilter(input, { hue, saturation, brightness, mix });
+  },
+});

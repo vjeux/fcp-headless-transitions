@@ -23,6 +23,11 @@ export interface FilterContext {
   param(name: string, fallback: number): number;
   /** True if a param is explicitly present (curve or value). */
   has(name: string): boolean;
+  /** Resolve a param IGNORING rig overrides (filter's own curve/value only).
+   * For faithful migration of legacy dispatch that read params directly. */
+  rawParam(name: string, fallback: number): number;
+  /** True if a param is present as the filter's own curve/value (ignores overrides). */
+  hasRaw(name: string): boolean;
 }
 
 export interface FilterModule {
@@ -69,5 +74,20 @@ export function makeContext(filter: Filter, time: number, width: number, height:
     if (overrides && overrides.has(name)) return true;
     return filter.parameters.some(p => p.name === name && (p.curve || typeof p.value === 'number'));
   };
-  return { filter, time, overrides, width, height, param, has };
+  // Raw param read that IGNORES rig overrides (reads only the filter's own
+  // curve/value). Used by filters whose legacy dispatch read params directly and
+  // must migrate byte-faithfully; whether such a filter SHOULD honor overrides is
+  // a separate behavior question, tracked in ROADMAP, not this mechanical migration.
+  const rawParam = (name: string, fallback: number): number => {
+    for (const p of filter.parameters) {
+      if (p.name === name) {
+        if (p.curve) return evaluateCurve(p.curve, time);
+        if (typeof p.value === 'number') return p.value;
+      }
+    }
+    return fallback;
+  };
+  const hasRaw = (name: string): boolean =>
+    filter.parameters.some(p => p.name === name && (p.curve || typeof p.value === 'number'));
+  return { filter, time, overrides, width, height, param, has, rawParam, hasRaw };
 }

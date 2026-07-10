@@ -97,7 +97,7 @@ Status legend: TODO / DOING / DONE / BLOCKED
   Brightness (PAEBrightness, UUID 2E4DBB0A-…) to levels.ts + barrel; removed its legacy
   name-includes branch. Fixed the stale "none yet" barrel comment. ~13 legacy filters remain
   (gaussian/bevel/luma-key/directional/radial/zoom/hsv/channel-mixer/tint/colorize/levels/
-  hsv/colorize/gaussian/directional/radial/zoom; brightness+bevel+luma-keyer+levels+glow+bloom+channel-mixer+tint done; HSV reverted-needs-debug) — migrate one-at-a-time, gate-green each. Verified pixel-neutral + re-froze baseline.
+  colorize/gaussian/directional/radial/zoom; brightness+bevel+luma-keyer+levels+glow+bloom+channel-mixer+tint+hsv done) — migrate one-at-a-time, gate-green each. Verified pixel-neutral + re-froze baseline.
 
 ### 3. fct toolkit polish  [TODO]  (fct, safe)
 - DoD: (a) `engine/test/_fct_render.ts` is a committed real file read from argv/env, not a
@@ -148,6 +148,11 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-10  Item 2 — HSV root cause FOUND + fixed: legacy dispatch read raw filter params
+              (ignored rig overrides); registry ctx.param HONORS overrides -> diverged on
+              Color_Panels (rig-driven Saturation). Added ctx.rawParam/hasRaw to FilterContext;
+              HSV registered via rawParam = byte-identical to legacy (verified max pixel diff 0).
+              Migrated. tsc clean, gate green 0/0. Remaining: Colorize + 4 blurs.
 - 2026-07-10  Item 2 — migrated Channel Mixer (B2E0DE39-…) + Tint (717D6E01-…) to UUID registry.
               tsc clean, gate green 0/0. HSV Adjust migration REVERTED: it changed Color_Panels
               output (verified real, max pixel diff 76 vs legacy) for reasons not fully explained
