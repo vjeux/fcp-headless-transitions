@@ -60,14 +60,14 @@ function projectFramed(
  * read from the framework — NOT a value traced from any GT frame. Cached by size.
  */
 const DROPZONE_PLACEHOLDER_GRAY = 0x96; // 150 — Ozone createDropZoneGridBitmap constant
-let _dzPlaceholder: { w: number; h: number; img: ImageData } | null = null;
-function dropZonePlaceholderCell(w: number, h: number): ImageData {
-  if (_dzPlaceholder && _dzPlaceholder.w === w && _dzPlaceholder.h === h) return _dzPlaceholder.img;
+function dropZonePlaceholderCell(rctx: RenderContext, w: number, h: number): ImageData {
+  const cached = rctx.dzPlaceholder;
+  if (cached && cached.w === w && cached.h === h) return cached.img;
   const data = new Uint8ClampedArray(w * h * 4);
   const g = DROPZONE_PLACEHOLDER_GRAY;
   for (let i = 0; i < data.length; i += 4) { data[i] = g; data[i + 1] = g; data[i + 2] = g; data[i + 3] = 255; }
   const img = new ImageData(data, w, h);
-  _dzPlaceholder = { w, h, img };
+  rctx.dzPlaceholder = { w, h, img };
   return img;
 }
 
@@ -193,6 +193,13 @@ interface RenderContext {
    * this card conform instead of the default full-frame blit. See detectDropInCard.
    */
   dropInCard?: DropInCard;
+  /**
+   * Per-render memo for the size-keyed drop-zone placeholder cell (a flat gray
+   * Ozone createDropZoneGridBitmap fill). Kept on the context rather than a module
+   * global so concurrent renders don't share mutable state. Lazily populated by
+   * dropZonePlaceholderCell.
+   */
+  dzPlaceholder?: { w: number; h: number; img: ImageData };
 }
 
 /** Drop In card-conform geometry (output-pixel space). */
@@ -207,7 +214,6 @@ interface DropInCard {
   bId: number;
 }
 
-let ctx: RenderContext | null = null;
 
 /**
  * Resolve the source image a Clone Layer mirrors. Follows cloneSourceId to the
@@ -269,7 +275,7 @@ function resolveCellImage(
   // clip ref on these wells resolves to the A-footage id in the graph, so this must
   // be checked BEFORE the transitionA/B fall-through below.
   if (src.type === 'image' && src.dropZone?.type === 3) {
-    return { kind: 'image', img: dropZonePlaceholderCell(imageA.width, imageA.height) };
+    return { kind: 'image', img: dropZonePlaceholderCell(rctx, imageA.width, imageA.height) };
   }
 
   // Direct Transition A/B image cell (translated copy per instance).
@@ -767,13 +773,13 @@ function detectPageFlip(group: EvaluatedLayer): { front: EvaluatedLayer; back: E
  * contains at least one mask shape). Such a group exists only to hold masks —
  * its masks should clip the sibling content layers, not render on their own.
  */
-function isMaskGroup(child: EvaluatedLayer): boolean {
+function isMaskGroup(rctx: RenderContext, child: EvaluatedLayer): boolean {
   if (child.layer.type !== 'group') return false;
   if (child.layer.children.length === 0) return false;
   // A group referenced by an Image Mask `Mask Source` is a hidden geometry
   // provider for that layer's own mask — it must NOT be lifted to clip its
   // enclosing group (that would clip both Transition A and B, leaving a strip).
-  if (ctx?.imageMaskSourceIds.has(child.layer.id)) return false;
+  if (rctx.imageMaskSourceIds.has(child.layer.id)) return false;
   let maskCount = 0;
   let ok = true;
   const walk = (l: EvaluatedLayer): void => {
@@ -1090,7 +1096,7 @@ function retimedClipTime(evalLayer: EvaluatedLayer, rctx: RenderContext): number
   // but FCP plays them via the reverse heuristic (progress 0 = clip last frame) —
   // forcing them onto this forward path regressed Leaves 13.41→7.23 and Veil
   // 18.64→16.10. Gate on the same blend modes as p12's other Light-Noise changes so
-  // reverse-played normal overlays keep the fallback (ctx.mediaTime + reverse).
+  // reverse-played normal overlays keep the fallback (rctx.mediaTime + reverse).
   const bm = layer.blendMode;
   if (bm !== 'screen' && bm !== 'add' && bm !== 'overlay' && bm !== 'lighten') return undefined;
   const rv = layer.retimeValue;
@@ -1478,7 +1484,7 @@ function renderLayer(
     for (const child of evalLayer.children) {
       if (child.layer.type === 'shape' && child.layer.shape?.isMask) {
         maskShapes.push(child);
-      } else if (isMaskGroup(child)) {
+      } else if (isMaskGroup(rctx, child)) {
         // A group that contains only mask shapes → lift its masks.
         collectMaskShapes(child, maskShapes);
       } else {
@@ -1667,7 +1673,7 @@ export function composite(
   // replicator cells can resolve their Object Source (evalLayerById), and 3D
   // perspective uses the scene's resolved camera framing distance (Camera node's
   // Angle Of View) — otherwise the legacy default.
-  ctx = {
+  const rctx: RenderContext = {
     layerById: scene.layerById,
     evalLayerById: scene.evalLayerById,
     imageA,
@@ -1688,43 +1694,42 @@ export function composite(
   // lets renderLayer SKIP that texture's dim normal render (the proxy owns it),
   // avoiding a double-composite that washed the early frames too gray.
   const field = detectFieldTexture(scene, mediaResolver);
-  if (field) ctx.fieldTextureLayerId = field.layerId;
+  if (field) rctx.fieldTextureLayerId = field.layerId;
 
   // Movements/Drop In card conform: detect once. When present, renderLayer draws
   // the Transition A/B drop zones as top-left cards (A static, B bouncing behind)
   // instead of the default full-frame blit.
-  ctx.dropInCard = detectDropInCard(scene, imageA, imageB, width, height);
+  rctx.dropInCard = detectDropInCard(scene, imageA, imageB, width, height);
 
   // Draw the Drop In cards up front (B behind, A in front) so their z-order and
   // tail-frame behavior are independent of child render order / per-layer
   // visibility. The particle emitters then render on top via the normal loop.
-  if (ctx.dropInCard) {
-    const c = ctx.dropInCard;
+  if (rctx.dropInCard) {
+    const c = rctx.dropInCard;
     const bEval = scene.evalLayerById.get(c.bId);
     const aEval = scene.evalLayerById.get(c.aId);
     // B (behind): riding its Position-Y bounce, only while its lifetime is live.
     // (Verified: A-on-top scores higher than B-on-top — the settled tail shows the
     // sepia A card with B fully occluded behind it.)
     if (bEval && bEval.visible && bEval.opacity > 0) {
-      const bSrc = getSourceImage(ctx!, bEval.layer.source, imageA, imageB);
+      const bSrc = getSourceImage(rctx, bEval.layer.source, imageA, imageB);
       if (bSrc) blitDropInCard(output, bSrc, c.cardW, c.cardH, bEval.worldTransform[13] * c.posScale, bEval.opacity);
     }
     // A (in front): static at the top-left.
     if (aEval && aEval.visible && aEval.opacity > 0) {
-      const aSrc = getSourceImage(ctx!, aEval.layer.source, imageA, imageB);
+      const aSrc = getSourceImage(rctx, aEval.layer.source, imageA, imageB);
       if (aSrc) blitDropInCard(output, aSrc, c.cardW, c.cardH, 0, aEval.opacity);
     }
   }
 
   // Render layers back-to-front (Motion: first in list = top/foreground, last = bottom/background)
   for (let i = scene.layers.length - 1; i >= 0; i--) {
-    renderLayer(ctx!, output, scene.layers[i], imageA, imageB, scene.time, scene.filterOverrides);
+    renderLayer(rctx, output, scene.layers[i], imageA, imageB, scene.time, scene.filterOverrides);
   }
 
   // Composite the field-texture proxy over the rendered frame (no-op if not detected).
   if (field) applyParticleFieldProxy(output, scene, field);
 
-  ctx = null;
   return output;
 }
 

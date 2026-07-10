@@ -148,6 +148,13 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-10  Item 4 — COMPOSITOR module globals ELIMINATED. composite() now builds a local
+              `const rctx: RenderContext` (was module `let ctx`); threaded isMaskGroup +
+              dropZonePlaceholderCell; moved the `_dzPlaceholder` size-keyed cache INTO
+              RenderContext.dzPlaceholder. Deleted both module globals (`ctx`, `_dzPlaceholder`).
+              tsc fully clean; full engine re-render; gate green 0/0. Two concurrent composite()
+              calls no longer share mutable state. Item-4 remaining: parser CLIP_MEDIA +
+              DROPZONE_MEDIA_HEIGHT, then the concurrent.test.ts verifier.
 - 2026-07-10  Item 4 — threaded RenderContext through renderLayer (the core recursive render
               workhorse): 22 ctx refs → rctx param, 5 callers updated (3 recursive pass rctx,
               resolveCellImage + composite pass ctx!). tsc clean; full engine re-render;
