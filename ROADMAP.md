@@ -148,6 +148,14 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-10  Item 4 — EVALUATOR globals ELIMINATED. Found the tree dirty from a prior
+              interrupted tick: evaluator/index.ts had a broken half-refactor (EvalCtx defined,
+              3 module globals deleted, 11 dangling refs -> tsc broken, engine wouldn't build).
+              Completed it: threaded EvalCtx {fps,wrapToA,holdIncomingB} through evaluate ->
+              evaluateLayer -> applyRampTransforms/applyRampOpacity/applyFadeBehaviors ->
+              rampProgress. Also threaded compositor resolveCellImage. tsc now FULLY clean;
+              full engine re-render + gate green 0/0. Compositor globals remaining: renderLayer,
+              composite (+ the module `ctx` var itself).
 - 2026-07-10  Item 4 — threaded RenderContext through resolveImageMaskAlpha + replicatorMaskAlpha
               (6 ctx refs total → rctx; the mask fn also passes rctx into replicatorMaskAlpha).
               tsc clean, gate green 0/0. Remaining: resolveCellImage(2), renderLayer(3), composite.

@@ -246,17 +246,18 @@ type CellContent =
  *                             one of the above; else the rendered subtree.
  */
 function resolveCellImage(
+  rctx: RenderContext,
   cellSourceId: number | undefined,
   imageA: ImageData,
   imageB: ImageData,
   time: number,
   filterOverrides: Map<number, Map<string, number>>
 ): CellContent | null {
-  if (cellSourceId === undefined || !ctx) return null;
+  if (cellSourceId === undefined) return null;
 
   // Prefer the fully-evaluated cell source (has world transform, shape, source).
-  const evalSrc = ctx.evalLayerById.get(cellSourceId);
-  const rawSrc = ctx.layerById.get(cellSourceId);
+  const evalSrc = rctx.evalLayerById.get(cellSourceId);
+  const rawSrc = rctx.layerById.get(cellSourceId);
   const src = rawSrc;
   if (!src) return null;
 
@@ -1146,7 +1147,7 @@ function renderLayer(
       : undefined;
 
     // Materialize the cell's Object Source once, then stamp it at each instance.
-    const cell = resolveCellImage(layer.cellSourceId, imageA, imageB, time, filterOverrides);
+    const cell = resolveCellImage(ctx!, layer.cellSourceId, imageA, imageB, time, filterOverrides);
 
     // The mask/content bbox is computed ONCE. Per instance we transform it into
     // output space and restrict the blit loop to that region — turning an

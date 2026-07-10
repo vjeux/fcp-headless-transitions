@@ -29,28 +29,32 @@ export { evaluateCurve, resolveValue, timeToSeconds } from './curves.js';
  * Scene frame rate for the current evaluation pass. Set at the top of
  * `evaluate()`. Fade In/Out Times are expressed in frames; the behavior's
  * timing window is in seconds, so we need the fps to convert.
+ *
+ * These three were module-level globals (set per-render at the top of evaluate()),
+ * which meant two concurrent evaluate() calls corrupted each other and tests had to
+ * run serially. They are now bundled into a per-call EvalCtx threaded through the
+ * evaluation tree (evaluate -> evaluateLayer -> ...). Nothing render-scoped is a
+ * module global anymore.
  */
-let CURRENT_FPS = 30;
-
-/**
- * When set (seconds), a wrapping drop-zone image layer (Retime mode 1) whose
- * lifetime has ended is kept VISIBLE and re-shows source A past its `out`, rather
- * than disappearing. Set only when the transition has an independent overlay
- * animation that outlives the drop-zone crossfade (e.g. Lights/Flash's white
- * flash), so the flash rides over a persistent source-A base instead of an empty
- * frame. Undefined for ordinary transitions (drop zones time out normally).
- */
-let DROPZONE_WRAP_TO_A = false;
-/**
- * When set, the incoming (Type=2) Transition-B drop zone HOLDS its last frame
- * (source B) past its timing `out`, staying visible as the settled base. Set for
- * a scene whose drop-zone A→B crossfade is over-run by an independent blended
- * VIDEO overlay (Lights/Light Noise): the crossfade completes on B, the B drop
- * zone times out, but the overlay keeps the scene alive — so FCP holds B behind
- * the overlay instead of the drop zone vanishing to black. Without this the tail
- * frames render an empty (black) base once B times out.
- */
-let HOLD_INCOMING_B = false;
+interface EvalCtx {
+  /** scene.settings.frameRate (or 30). Frame->second conversions for behaviors. */
+  fps: number;
+  /**
+   * When true, a wrapping drop-zone image layer (Retime mode 1) whose lifetime has
+   * ended is kept VISIBLE re-showing source A past its `out`, rather than
+   * disappearing. Set only when the transition has an independent overlay animation
+   * that outlives the drop-zone crossfade (e.g. Lights/Flash's white flash), so the
+   * flash rides over a persistent source-A base instead of an empty frame.
+   */
+  wrapToA: boolean;
+  /**
+   * When true, the incoming (Type=2) Transition-B drop zone HOLDS its last frame
+   * (source B) past its timing `out`, staying visible as the settled base. Set for a
+   * scene whose drop-zone A->B crossfade is over-run by an independent blended VIDEO
+   * overlay (Lights/Light Noise). Without it the tail frames render an empty base.
+   */
+  holdIncomingB: boolean;
+}
 
 
 // ============================================================================
@@ -653,11 +657,11 @@ function applyRigBehaviors(
  * which anchors the ramp to [sceneStart + startFrameOffset, sceneEnd + endFrameOffset]
  * where sceneStart/End come from the behavior timing.
  */
-function rampProgress(b: SceneBehavior, timeSec: number): number {
+function rampProgress(b: SceneBehavior, timeSec: number, ectx: EvalCtx): number {
   const startFrameOffset = b.params['Start Frame Offset'] ?? b.params['Start Offset'] ?? 0;
   const endFrameOffset = b.params['End Frame Offset'] ?? b.params['End Offset'] ?? 0;
-  const startSec = (b.timing ? timeToSeconds(b.timing.in) : 0) + startFrameOffset / CURRENT_FPS;
-  const endSec = (b.timing ? timeToSeconds(b.timing.out) : 0) + endFrameOffset / CURRENT_FPS;
+  const startSec = (b.timing ? timeToSeconds(b.timing.in) : 0) + startFrameOffset / ectx.fps;
+  const endSec = (b.timing ? timeToSeconds(b.timing.out) : 0) + endFrameOffset / ectx.fps;
   const dur = endSec - startSec;
   if (dur <= 0) return timeSec >= endSec ? 1 : 0;
   return (timeSec - startSec) / dur;
@@ -672,7 +676,8 @@ function applyRampTransforms(
   layer: Layer,
   transform: Transform,
   sceneBehaviors: SceneBehavior[],
-  timeSec: number
+  timeSec: number,
+  ectx: EvalCtx
 ): Transform {
   let result = transform;
   for (const b of sceneBehaviors) {
@@ -684,7 +689,7 @@ function applyRampTransforms(
     const curvature = b.params['Curvature'] ?? 0;
     // A ramp with no motion (start==end) contributes nothing.
     if (startValue === endValue) continue;
-    const t = rampProgress(b, timeSec);
+    const t = rampProgress(b, timeSec, ectx);
     const value = evaluateRampAtProgress({ startValue, endValue, curvature }, t);
     if (result === transform) result = { ...transform };
     switch (b.targetChannel) {
@@ -709,7 +714,8 @@ function applyRampTransforms(
 function applyRampOpacity(
   layer: Layer,
   sceneBehaviors: SceneBehavior[],
-  timeSec: number
+  timeSec: number,
+  ectx: EvalCtx
 ): number {
   let opacityMult = 1;
   for (const b of sceneBehaviors) {
@@ -723,14 +729,14 @@ function applyRampOpacity(
     // as an opacity ramp. Resolved transform-channel ramps are NOT opacity.
     const heuristicOpacity = !b.targetChannel && Math.abs(startValue) <= 1.01 && Math.abs(endValue) <= 1.01;
     if (!isOpacity && !heuristicOpacity) continue;
-    const t = rampProgress(b, timeSec);
+    const t = rampProgress(b, timeSec, ectx);
     const rampVal = evaluateRampAtProgress({ startValue, endValue, curvature }, t);
     opacityMult *= Math.max(0, Math.min(1, rampVal));
   }
   return opacityMult;
 }
 
-function applyFadeBehaviors(layer: Layer, timeSec: number): number {
+function applyFadeBehaviors(layer: Layer, timeSec: number, ectx: EvalCtx): number {
   if (!layer.behaviors) return 1;
   let mult = 1;
   for (const b of layer.behaviors) {
@@ -747,8 +753,8 @@ function applyFadeBehaviors(layer: Layer, timeSec: number): number {
 
     // Fade In/Out Times are frame counts. Convert to seconds via the scene fps so
     // everything lives in the same (scene-time) domain as the timing window.
-    const fadeInSec = fadeInFrames / CURRENT_FPS;
-    const fadeOutSec = fadeOutFrames / CURRENT_FPS;
+    const fadeInSec = fadeInFrames / ectx.fps;
+    const fadeOutSec = fadeOutFrames / ectx.fps;
 
     mult *= evaluateFade(
       { fadeInTime: fadeInSec, fadeOutTime: fadeOutSec, windowIn, windowOut },
@@ -880,12 +886,12 @@ function isLayerVisible(layer: Layer, timeSec: number): boolean {
   return timeSec >= inTime && timeSec <= outTime;
 }
 
-function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Array, behaviors: RigBehavior[], widgetValues: Map<number, number>, sceneBehaviors: SceneBehavior[], layerById: Map<number, Layer>, linksByTarget: Map<number, import('../types.js').LinkBehavior[]>): EvaluatedLayer {
+function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Array, behaviors: RigBehavior[], widgetValues: Map<number, number>, sceneBehaviors: SceneBehavior[], layerById: Map<number, Layer>, linksByTarget: Map<number, import('../types.js').LinkBehavior[]>, ectx: EvalCtx): EvaluatedLayer {
   let visible = isLayerVisible(layer, timeSec);
-  // Persistent-A drop zone (see DROPZONE_WRAP_TO_A): a wrapping drop-zone image
+  // Persistent-A drop zone (see ectx.wrapToA): a wrapping drop-zone image
   // past its lifetime re-shows source A and stays visible as the overlay's base.
   let forceSourceA = false;
-  if (DROPZONE_WRAP_TO_A && layer.type === 'image' && layer.source
+  if (ectx.wrapToA && layer.type === 'image' && layer.source
     && layer.retimeValue && layer.retimeValue.retimingExtrapolation === 1 && layer.timing) {
     const out = layer.timing.out.timescale > 0 ? layer.timing.out.value / layer.timing.out.timescale : 0;
     const inn = layer.timing.in.timescale > 0 ? layer.timing.in.value / layer.timing.in.timescale : 0;
@@ -899,7 +905,7 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   // Hold the incoming (Type=2) B drop zone past its timeout when a blended overlay
   // keeps the scene alive (Lights/Light Noise): the crossfade has settled on B, so
   // B persists as the base behind the fading overlay instead of vanishing to black.
-  if (HOLD_INCOMING_B && !visible && layer.type === 'image'
+  if (ectx.holdIncomingB && !visible && layer.type === 'image'
     && layer.source?.type === 'transitionB' && layer.dropZone?.type === 2 && layer.timing) {
     const out = layer.timing.out.timescale > 0 ? layer.timing.out.value / layer.timing.out.timescale : 0;
     const inn = layer.timing.in.timescale > 0 ? layer.timing.in.value / layer.timing.in.timescale : 0;
@@ -944,7 +950,7 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   // behavior's own timing window. Applied after rigs/links (rigs configure the
   // ramp's End Value; the resolved static End Value is already in params).
   if (sceneBehaviors.length > 0) {
-    riggedTransform = applyRampTransforms(layer, riggedTransform, sceneBehaviors, timeSec);
+    riggedTransform = applyRampTransforms(layer, riggedTransform, sceneBehaviors, timeSec, ectx);
   }
   // Drop-zone timeline offset: a Transition A/B image whose media `offset` sits
   // LATER than its `in` point (offset > in) has its transform curves authored in
@@ -1023,12 +1029,12 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   // window (scene time). These are independent of the Retime curve — the fade
   // anchors come from the behavior timing, not the retimed template frame.
   if (layer.behaviors && layer.behaviors.some(b => b.type === 'fade')) {
-    rawOpacity *= applyFadeBehaviors(layer, timeSec);
+    rawOpacity *= applyFadeBehaviors(layer, timeSec, ectx);
   }
   // Opacity-driving Ramp behaviors run over the behavior's own timing window
   // (scene time), like Fade — NOT the retimed template frame.
   if (sceneBehaviors.length > 0) {
-    rawOpacity *= applyRampOpacity(layer, sceneBehaviors, timeSec);
+    rawOpacity *= applyRampOpacity(layer, sceneBehaviors, timeSec, ectx);
   }
   const opacity = Math.max(0, Math.min(1, rawOpacity));
 
@@ -1041,7 +1047,7 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   };
 
   // Evaluate children
-  const children = layer.children.map(child => evaluateLayer(child, timeSec, worldTransform, behaviors, widgetValues, sceneBehaviors, layerById, linksByTarget));
+  const children = layer.children.map(child => evaluateLayer(child, timeSec, worldTransform, behaviors, widgetValues, sceneBehaviors, layerById, linksByTarget, ectx));
 
   // Disabled nodes (<enabled>0</enabled>) drive other objects but are never drawn.
   // EXCEPTION: a Replicator whose Object Source resolves to real content is the
@@ -1236,7 +1242,7 @@ function evaluateOscillateChannel(b: SceneBehavior, timeSec: number, scene: Motr
 }
 
 export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
-  CURRENT_FPS = scene.settings.frameRate || 30;
+  const fps = scene.settings.frameRate || 30;
   // Detect the "persistent-A-base + overlay" case (e.g. Lights/Flash): a wrapping
   // drop zone (Retime mode 1) whose lifetime ends well before the scene's true
   // animation end, WITH a solid-fill-shape overlay that keeps animating. In that
@@ -1244,9 +1250,11 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
   // the overlay, instead of vanishing (which would leave an empty frame behind the
   // flash). Gated on a filled-shape overlay so media-overlay Lights transitions
   // (Bloom, Light Noise) — whose correct tail is the frozen-A wrap — are untouched.
+  let wrapToA = false;
+  let holdIncomingB = false;
   {
     const end = scene.settings.animationEndSec ?? (scene.settings.duration.value / scene.settings.duration.timescale);
-    const frameSec = CURRENT_FPS > 0 ? 1 / CURRENT_FPS : 1 / 30;
+    const frameSec = fps > 0 ? 1 / fps : 1 / 30;
     let minWrap = Infinity;
     let hasFilledShapeOverlay = false;
     (function scan(ls: Layer[]) {
@@ -1260,7 +1268,7 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
         scan(l.children);
       }
     })(scene.layers);
-    DROPZONE_WRAP_TO_A = hasFilledShapeOverlay && minWrap !== Infinity && end > minWrap + frameSec;
+    wrapToA = hasFilledShapeOverlay && minWrap !== Infinity && end > minWrap + frameSec;
     // Detect a blended (screen/add) VIDEO overlay that outlives the drop-zone
     // crossfade: it keeps the scene alive past the B drop zone's timeout, so the
     // incoming B must be held (not vanish to black) behind the overlay.
@@ -1277,8 +1285,9 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
         scan2(l.children);
       }
     })(scene.layers);
-    HOLD_INCOMING_B = hasBlendedMediaOverlay;
+    holdIncomingB = hasBlendedMediaOverlay;
   }
+  const ectx: EvalCtx = { fps, wrapToA, holdIncomingB };
   const parentTransform = mat4Identity();
   const widgetValues = buildWidgetValueMap(scene.rigWidgets);
   adjustDegenerateDirection(scene, widgetValues);
@@ -1295,7 +1304,7 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
       collectLinks(l.children);
     }
   })(scene.layers);
-  const layers = scene.layers.map(layer => evaluateLayer(layer, timeSec, parentTransform, behaviors, widgetValues, sceneBehaviors, layerById, linksByTarget));
+  const layers = scene.layers.map(layer => evaluateLayer(layer, timeSec, parentTransform, behaviors, widgetValues, sceneBehaviors, layerById, linksByTarget, ectx));
   const filterOverrides = computeFilterOverrides(scene, timeSec, widgetValues);
 
   // Index every evaluated layer by object ID so the compositor can resolve a
