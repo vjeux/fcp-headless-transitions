@@ -16,6 +16,12 @@ and a **Status**. Update Status in the same commit that does the work.
    only for well-scoped, gate-verifiable mechanical chunks — never "make it pixel-perfect".
 5. **Everything in the repo.** No `~/`-level scripts, notes, or scoreboards. `fct/` is the
    one toolkit; `docs/notes/` is the one knowledge store; this file is the one plan.
+6. **Commit == push.** Work on `main`. A change is not "done" until it is committed, the
+   gate is green, AND pushed to `origin/main`. Never leave `origin` behind — `git push`
+   in the same step as the commit, not as a separate "later" task (that drift is how the
+   remote fell 61 commits behind once the auto-pushing pool was removed).
+7. **No stray branches.** `main` is the only branch. No integration/agent branches — the
+   `fct regress` gate does the safety work a review branch used to.
 
 ## The gate, concretely
 
