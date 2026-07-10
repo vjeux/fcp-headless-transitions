@@ -36,6 +36,15 @@ fct regress  engine
 
 Re-baseline ONLY intentionally, when an improvement is verified and you want it protected.
 
+**Gate sensitivity caveat (verified 2026-07-10 by injecting a 15% darken):** the gate
+correctly goes RED (exit 1, names the slug) on a real regression, but its sensitivity
+scales with how close a render already is to truth. A uniform 15% darken dropped
+Blurs__Gaussian (baseline 18dB) by 1.57dB — caught — but Push/Mask (engine baseline
+12–14dB, already far from GUI) by only 0.02–0.19dB — under the 0.30 tol. So on
+LOW-scoring slugs a genuine regression can hide. Mitigation for later: a relative/
+per-slug tolerance (e.g. tighter tol on high-baseline slugs). For now, 0.30 dB absolute
+reliably catches meaningful regressions on the slugs that matter most (the good ones).
+
 **The gate is FAST by design** (a slow gate gets skipped, defeating the point):
 - It scores at `GATE_SIZE` (480×270), not full 1920×1080. Downscaling averages out
   noise but **preserves regression ranking** — a real drop still shows as a drop
