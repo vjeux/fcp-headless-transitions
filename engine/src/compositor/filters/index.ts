@@ -18,5 +18,7 @@ import './luma-keyer.js'; // registers Luma Keyer
 import './glow.js';     // registers Glow + Bloom
 import './channel-mixer.js'; // registers Channel Mixer + Tint
 import './hue-saturation.js'; // registers HSV Adjust
+import './gaussian-blur.js'; // registers Gaussian Blur
+import './directional-blur.js'; // registers Directional + Radial + Zoom Blur
 
 export {};

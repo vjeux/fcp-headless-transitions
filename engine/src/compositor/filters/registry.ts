@@ -28,6 +28,9 @@ export interface FilterContext {
   rawParam(name: string, fallback: number): number;
   /** True if a param is present as the filter's own curve/value (ignores overrides). */
   hasRaw(name: string): boolean;
+  /** Resolve a blur-intensity param honoring overrides, with the "keyframed curve
+   * whose static value=0 means authored-inactive -> 0" rule (legacy resolveBlurAmount). */
+  blurAmount(name: string, fallback: number): number;
 }
 
 export interface FilterModule {
@@ -89,5 +92,22 @@ export function makeContext(filter: Filter, time: number, width: number, height:
   };
   const hasRaw = (name: string): boolean =>
     filter.parameters.some(p => p.name === name && (p.curve || typeof p.value === 'number'));
-  return { filter, time, overrides, width, height, param, has, rawParam, hasRaw };
+  // Resolve a blur-intensity param (Amount/Distance/Angle), honoring rig overrides.
+  // Extra rule (matches the legacy resolveBlurAmount): a keyframed curve whose static
+  // `value` attribute is 0 means the filter is authored-INACTIVE -> 0 (no blur), even
+  // though its keyframes may ramp to a large value.
+  const blurAmount = (name: string, fallback: number): number => {
+    if (overrides && overrides.has(name)) return overrides.get(name)!;
+    for (const p of filter.parameters) {
+      if (p.name === name) {
+        if (p.curve) {
+          if (p.curve.keyframes.length > 0 && p.curve.value === 0) return 0;
+          return evaluateCurve(p.curve, time);
+        }
+        if (typeof p.value === 'number') return p.value;
+      }
+    }
+    return fallback;
+  };
+  return { filter, time, overrides, width, height, param, has, rawParam, hasRaw, blurAmount };
 }

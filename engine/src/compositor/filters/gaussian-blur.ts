@@ -165,3 +165,20 @@ function makeGaussianKernel(radius: number): Float64Array {
   for (let i = 0; i < size; i++) kernel[i] /= sum;
   return kernel;
 }
+
+import { registerFilter } from './registry.js';
+
+// Gaussian Blur (UUID E472D646-…). Faithful to the legacy branch: Mix gates the
+// effect (0 = bypass); Amount via blurAmount (honors overrides + static-value=0
+// inactive rule); rendered radius = Amount * min(Mix,1).
+registerFilter({
+  uuid: 'E472D646-2C92-464E-98A1-91CF8F162AD8',
+  names: ['gaussian'],
+  label: 'Gaussian Blur',
+  apply(input, ctx) {
+    const mix = ctx.param('Mix', 1);
+    const amount = ctx.blurAmount('Amount', 0);
+    if (mix > 0 && amount > 0) return gaussianBlur(input, amount * (mix < 1 ? mix : 1));
+    return input;
+  },
+});

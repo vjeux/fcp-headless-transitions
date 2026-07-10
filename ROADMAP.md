@@ -88,7 +88,7 @@ Status legend: TODO / DOING / DONE / BLOCKED
   hot premult-alpha blit with crop bounds; extracting it would change edges + add per-pixel
   overhead (documented as a deliberate non-change). tsc clean, gate green 0 regressions.
 
-### 2. Finish the filter-registry migration  [DOING]  (engine, medium)
+### 2. Finish the filter-registry migration  [DONE]  (engine, medium)
 - DoD: every filter dispatched by UUID via `filters/registry.ts`; the fuzzy
   `name.includes('gaussian'|'blur'|...)` chain in `applyFilter` deleted; the
   "Migrated so far: (none yet)" comment gone.
@@ -148,6 +148,10 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-10  Item 2 COMPLETE — migrated the last 4 filters (Gaussian/Directional/Radial/Zoom Blur)
+              via a new ctx.blurAmount helper (preserves override-honoring + 'static value=0=inactive').
+              Deleted the ENTIRE legacy name.includes chain + resolveParam/resolveBlurAmount + unused
+              imports; applyFilter is now pure UUID-registry dispatch. tsc clean, gate green 0/0.
 - 2026-07-10  Item 2 — migrated Colorize (PAEColorize, D995BBCF-…, 9 users) to UUID registry.
               Replicated the nested-child RGB readColor via ctx.filter.parameters (faithful, raw).
               Verified byte-identical on Stylized__Slide (max diff 0); tsc clean, gate green 0/0.

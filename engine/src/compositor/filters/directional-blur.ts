@@ -142,3 +142,49 @@ export function radialBlur(input: ImageData, amount: number, centerX: number = 0
 export function zoomBlur(input: ImageData, amount: number, centerX: number = 0.5, centerY: number = 0.5): ImageData {
   return radialBlur(input, amount, centerX, centerY, 'zoom');
 }
+
+import { registerFilter } from './registry.js';
+
+// Directional Blur (PAEDirectionalBlur, UUID 2E7B1340-…). Faithful to the legacy
+// branch: Mix gate; Amount (fallback Distance) via blurAmount; Angle via param.
+registerFilter({
+  uuid: '2E7B1340-5D4F-4015-8AA0-53BEB9F2CA52',
+  names: ['directional'],
+  label: 'Directional Blur',
+  apply(input, ctx) {
+    const mix = ctx.param('Mix', 1);
+    const amount = ctx.blurAmount('Amount', ctx.blurAmount('Distance', 0));
+    const angle = ctx.param('Angle', 0);
+    if (mix > 0 && amount > 0) return directionalBlur(input, amount, angle);
+    return input;
+  },
+});
+
+// Radial Blur (PAERadialBlur, UUID 8F9F88CF-…). Faithful: Mix gate; Amount (fallback
+// Angle) via blurAmount; spin about the frame center.
+registerFilter({
+  uuid: '8F9F88CF-F1DC-4C7E-8946-1A8B53B4F53A',
+  names: ['radial'],
+  label: 'Radial Blur',
+  apply(input, ctx) {
+    const mix = ctx.param('Mix', 1);
+    const amount = ctx.blurAmount('Amount', ctx.blurAmount('Angle', 0));
+    if (mix > 0 && amount > 0) return radialBlur(input, amount, 0.5, 0.5, 'spin');
+    return input;
+  },
+});
+
+// Zoom Blur (PAEZoomBlur, UUID 11C0E095-…). Faithful: Mix gate; Amount via blurAmount;
+// zoom about the frame center. (The "(for OSC)" preview variant shares this UUID but is
+// skipped by the OSC check in applyFilter before the registry lookup.)
+registerFilter({
+  uuid: '11C0E095-5F4F-46E2-AE28-F56ED7D38D7E',
+  names: ['zoom'],
+  label: 'Zoom Blur',
+  apply(input, ctx) {
+    const mix = ctx.param('Mix', 1);
+    const amount = ctx.blurAmount('Amount', 0);
+    if (mix > 0 && amount > 0) return zoomBlur(input, amount, 0.5, 0.5);
+    return input;
+  },
+});

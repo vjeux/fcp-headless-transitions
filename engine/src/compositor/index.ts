@@ -1,5 +1,3 @@
-import { gaussianBlur } from './filters/gaussian-blur.js';
-import { directionalBlur, radialBlur, zoomBlur } from './filters/directional-blur.js';
 import { evaluateCurve } from '../evaluator/curves.js';
 import { rasterizeShape, applyMask, unionMasks } from './shapes.js';
 import { needsPerspective, projectQuad, renderPerspectiveQuad, renderPageFlip } from './perspective.js';
@@ -1858,9 +1856,9 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
     return input;
   }
 
-  // Registry first (UUID-keyed, self-registering modules — the extensible path
-  // that lets filters be added without touching this dispatch). Falls through to
-  // the legacy name-matched chain below for filters not yet migrated.
+  // All filters are dispatched by UUID via the self-registering modules in
+  // compositor/filters/ (see filters/index.ts). Add a new filter as a module there;
+  // this function never needs editing. Unknown/unregistered filters pass through.
   {
     const mod = lookupFilter(filter);
     if (mod) {
@@ -1868,80 +1866,6 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
       return mod.apply(input, ctx);
     }
   }
-
-  // Resolve a filter parameter, preferring a rig override if present.
-  const resolveParam = (paramName: string, fallback: number): number => {
-    if (overrides && overrides.has(paramName)) return overrides.get(paramName)!;
-    for (const p of filter.parameters) {
-      if (p.name === paramName) {
-        if (p.curve) return evaluateCurve(p.curve, time);
-        if (typeof p.value === 'number') return p.value;
-      }
-    }
-    return fallback;
-  };
-  // Resolve a blur intensity parameter (Amount/Distance). A keyframed blur curve
-  // in a transition template can be a dormant "template animation" whose actual
-  // rendered strength is the curve's static `value` attribute — when that is 0 the
-  // filter is authored-inactive and FCP renders NO blur even though the keyframes
-  // ramp to a large value (verified for Blurs/Directional: a sharp impulse and the
-  // full-photo laplacian profile are pixel-identical to the non-blurred Gaussian
-  // crossfade). A rig override always wins (it's the live-driven value).
-  const resolveBlurAmount = (paramName: string, fallback: number): number => {
-    if (overrides && overrides.has(paramName)) return overrides.get(paramName)!;
-    for (const p of filter.parameters) {
-      if (p.name === paramName) {
-        if (p.curve) {
-          // Static value=0 on a keyframed curve = filter authored-inactive → no blur.
-          if (p.curve.keyframes.length > 0 && p.curve.value === 0) return 0;
-          return evaluateCurve(p.curve, time);
-        }
-        if (typeof p.value === 'number') return p.value;
-      }
-    }
-    return fallback;
-  };
-  if (name.includes('gaussian') || (name.includes('blur') && !name.includes('directional') && !name.includes('radial') && !name.includes('zoom'))) {
-    // Mix is the effect wet/dry gate (0 = filter fully bypassed). Blurs/Gaussian &
-    // Blurs/Radial select a rig snapshot whose Mix is 0 → the blur is OFF and the
-    // transition is a pure crossfade (verified against FCP: a sharp impulse stays
-    // 1px FWHM at every frame). Without this gate the engine over-blurred by ~40dB.
-    const mix = resolveParam('Mix', 1);
-    const amount = resolveBlurAmount('Amount', 0);
-    if (mix > 0 && amount > 0) {
-      return gaussianBlur(input, amount * (mix < 1 ? mix : 1));
-    }
-    return input;
-  }
-  // Bevel
-  // Directional Blur
-  if (name.includes('directional')) {
-    const mix = resolveParam('Mix', 1);
-    const amount = resolveBlurAmount('Amount', resolveBlurAmount('Distance', 0));
-    const angle = resolveParam('Angle', 0);
-    if (mix > 0 && amount > 0) return directionalBlur(input, amount, angle);
-    return input;
-  }
-  // Radial Blur
-  if (name.includes('radial')) {
-    const mix = resolveParam('Mix', 1);
-    const amount = resolveBlurAmount('Amount', resolveBlurAmount('Angle', 0));
-    if (mix > 0 && amount > 0) return radialBlur(input, amount, 0.5, 0.5, 'spin');
-    return input;
-  }
-  // Zoom Blur
-  if (name.includes('zoom')) {
-    const mix = resolveParam('Mix', 1);
-    const amount = resolveBlurAmount('Amount', 0);
-    if (mix > 0 && amount > 0) return zoomBlur(input, amount, 0.5, 0.5);
-    return input;
-  }
-  // Colorize — Motion's is a black/white luminance remap, NOT a hue tint. Each
-  // pixel's luminance is mapped through a gradient from "Remap Black To" (at lum 0)
-  // to "Remap White To" (at lum 1). Used by Slide's tiles to recolor grayscale
-  // tile PNGs. The two endpoints are RGB color params (children Red/Green/Blue),
-  // and may be rig-driven (a Color widget selecting an accent) — honor overrides.
-  // (Migrated to the UUID registry — see compositor/filters/channel-mixer.ts.)
   return input;
 }
 
