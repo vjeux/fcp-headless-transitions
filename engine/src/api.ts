@@ -129,7 +129,6 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
   // get the 16-sample blur: it regressed 44->15 dB when it did).
   const colorizeRemapRig = hasColorizeRemapRig(scene);
 
-
   // Motion blur: the scene declares a shutter (motionBlurSamples>1). Enable it
   // ONLY for the Slide-family decorative-tile transitions — their tiles sweep
   // thousands of pixels per frame, and the reference renderer's 8-sample blur

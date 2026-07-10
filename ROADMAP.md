@@ -122,7 +122,7 @@ Status legend: TODO / DOING / DONE / BLOCKED
 - Verify: for a few slugs, headless frame i and engine frame i are the same scene-time
   (spot-check via montage alignment); `fct regress` both OK.
 
-### 6. ⭐ Replace the heuristic router in api.ts  [TODO]  (engine, BIG)
+### 6. ⭐ Replace the heuristic router in api.ts  [DONE]  (engine, BIG)
 - DoD: `createTransition`'s pile of booleans (band360, isSlideFamily, retimeWrapSec,
   strokedMaskClampSec, hasFilledShapeOverlay, hasBlendedMediaOverlay, hasReplicatorMaskReveal,
   motionBlurEnabled) replaced by (a) ONE generic `buildTimeMap(scene) -> (p)=>tSec` reading
@@ -134,6 +134,16 @@ Status legend: TODO / DOING / DONE / BLOCKED
   boolean in place with a note rather than forcing a bad abstraction.
 - Verify: `fct regress engine` OK after each step; `no-hardcode.test.ts` still passes;
   final: zero transition-name special cases remain in api.ts.
+- DONE: api.ts 470->260 lines. `src/timemap.ts` = the single scene-time authority
+  (`buildTimeMap(scene) -> { remap, wrapSec, clampSec }`, all retime-wrap/clamp logic,
+  clone-continuation scan — type-driven). `src/capabilities.ts` = 5 structural probes
+  (hasColorizeRemapRig, hasFilledShapeOverlay, hasStrokedMaskShape, hasReplicatorMaskReveal,
+  isWideEquirect), ALL registered in `no-hardcode.test.ts` and each verified to fire on >=2
+  of the 65 built-ins (3/12/2/2 + detect360Band=7). Both `render(progress)` and
+  `renderAt(timeSec)` funnel through one `renderInstant` -> `timeMap.remap`. Zero
+  transition-name special cases remain in api.ts code (only comments name examples).
+  Commits: 047823c (rename isSlideFamily->hasColorizeRemapRig), 0c7bf7b (extract buildTimeMap),
+  fafb201 (extract capabilities + enforce genericity). Gate 0/0 after each.
 
 ### 7. Split the god-objects  [TODO]  (engine, do AFTER 6 shrinks them)
 - DoD: `parser/index.ts` (2585) -> per-node parsers; `compositor/index.ts` renderLayer (445-line
