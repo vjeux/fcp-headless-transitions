@@ -175,31 +175,17 @@ const FLIP_CAMERA_Z = 7000;
 
 
 
-function renderLayer(
-  rctx: RenderContext,
-  output: ImageData,
-  evalLayer: EvaluatedLayer,
-  imageA: ImageData,
-  imageB: ImageData,
-  time: number,
-  filterOverrides: Map<number, Map<string, number>>
-): void {  if (!evalLayer.visible) return;
+type RenderOutcome = 'stop' | 'children';
 
+function renderReplicatorLayer(rctx: RenderContext, output: ImageData, evalLayer: EvaluatedLayer, imageA: ImageData, imageB: ImageData, time: number, filterOverrides: Map<number, Map<string, number>>): RenderOutcome {
   const { layer, worldTransform, opacity, crop } = evalLayer;
-
-  // A group that is an Image Mask `Mask Source` is hidden geometry — it provides
-  // alpha to the layer that references it (rendered there via resolveImageMaskAlpha),
-  // and must never draw its shapes directly.
-  if (layer.type === 'group' && rctx.imageMaskSourceIds.has(layer.id)) return;
-
-  // Replicator: render the cell content at each grid instance
-  if (layer.type === 'replicator' && layer.replicator) {
+  if (!(layer.type === 'replicator' && layer.replicator)) return 'children';
     // A replicator that is an Image Mask `Mask Source` is HIDDEN geometry — it
     // provides the reveal matte to the layer that references it (Transition B),
     // rasterized there via resolveImageMaskAlpha → replicatorMaskAlpha. It must
     // never draw its cells directly (that would paint the dots as visible content
     // over the frame). Same semantic as the group-mask-source skip above.
-    if (rctx.imageMaskSourceIds.has(layer.id)) return;
+    if (rctx.imageMaskSourceIds.has(layer.id)) return 'stop';
     const instances = generateInstances(layer.replicator);
 
     // Framing-camera look-at basis (built once per replicator; present only when the
@@ -284,10 +270,11 @@ function renderLayer(
         renderLayer(rctx, output, instCell, imageA, imageB, time, filterOverrides);
       }
     }
-    return;
-  }
+  return 'stop';
+}
 
-  if (layer.type === 'clone') {
+function renderCloneLayer(rctx: RenderContext, output: ImageData, evalLayer: EvaluatedLayer, imageA: ImageData, imageB: ImageData, time: number, filterOverrides: Map<number, Map<string, number>>): RenderOutcome {
+  const { layer, worldTransform, opacity, crop } = evalLayer;
     // Clone Layer: draw the image of the object it mirrors, at this layer's transform.
     let src = resolveCloneImage(rctx, layer.cloneSourceId);
     if (src) {
@@ -333,15 +320,12 @@ function renderLayer(
     // A clone's mask children are consumed above; skip the generic child-render
     // (which would otherwise draw the mask shapes as visible content) when the
     // clone had mask children. Clones without masks fall through (rare).
-    if (evalLayer.children.some(c => c.layer.type === 'shape' && c.layer.shape?.isMask)) return;
-  }
+    if (evalLayer.children.some(c => c.layer.type === 'shape' && c.layer.shape?.isMask)) return 'stop';
+  return 'children';
+}
 
-  // Non-mask filled shape: a solid-color vector shape drawn as visible content
-  // (NOT a mask). Motion uses these for color/flash overlays — e.g. Lights/Flash's
-  // two full-frame white rectangles that peak at opacity ~1 mid-transition (one
-  // Normal, one Overlay blend) to fade the cut through white. Rasterize the shape
-  // at its world transform, fill with its Fill Color, and composite with the
-  // layer's opacity + blend mode. Filters (if any) apply to the filled buffer.
+function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: EvaluatedLayer, imageA: ImageData, imageB: ImageData, time: number, filterOverrides: Map<number, Map<string, number>>): RenderOutcome {
+  const { layer, worldTransform, opacity, crop } = evalLayer;
   if (layer.type === 'shape' && layer.shape && !layer.shape.isMask && layer.shape.fillColor && opacity > 0) {
     const alpha = rasterizeShape(layer.shape, output.width, output.height, worldTransform, rctx.cameraZ, rctx.cameraPosZ);
     const { r, g, b, a } = layer.shape.fillColor;
@@ -362,13 +346,6 @@ function renderLayer(
     // through so they render on top.
   }
 
-  // Offset-authored sweeping PANEL shape (Stylized/Panels): a non-mask solid-fill
-  // rectangle the parser marked `isSolidPanel` (offset re-anchored past `in` AND a
-  // negative-time Position sweep). Paint it with its permissive Fill Color/Opacity
-  // (`panelFill`/`panelFillOpacity`) and the layer's evaluated opacity + blend
-  // mode. This is a SEPARATE path from the strict-`fillColor` block above — it only
-  // fires for confirmed panels, so gradient-rendered Fill-Mode-0 shapes (Heart,
-  // Center Reveal, Wipes/Diagonal) are never painted flat. Source-over composite.
   if (layer.type === 'shape' && layer.shape && layer.shape.isSolidPanel && layer.shape.panelFill && opacity > 0) {
     const shp = layer.shape;
     const { r, g, b } = shp.panelFill!;
@@ -390,14 +367,6 @@ function renderLayer(
     // Panels can still have children; fall through.
   }
 
-  // Drop-zone framing: a drop zone declares a Width×Height FRAME (e.g. 1920×1920)
-  // that the source media is fit into (aspect-fill by width) BEFORE crop/scale.
-  // Motion's Crop is therefore expressed in FRAME-pixel space, not source-pixel
-  // space. A 1920×1080 source fit into a 1920×1920 frame is letterboxed with
-  // (1920−1080)/2 = 420px bars top & bottom; a Crop of Top=Bottom=420 removes
-  // exactly those bars, netting to the FULL source (no content cut). Convert the
-  // frame-space crop into source-space so the panel shows the framed image rather
-  // than a thin sliced band. Scoped to leaf image drop zones with a frame.
   let effCrop = crop;
   if ((layer.type === 'image') && layer.dropZone && layer.source) {
     const srcImg0 = evalLayer.forceSourceA ? imageA : getSourceImage(rctx, layer.source, imageA, imageB);
@@ -428,14 +397,14 @@ function renderLayer(
     // Skip the full-frame particle-field texture: the field proxy composites it
     // over the whole frame on a derived envelope (rendering it here too would
     // double-count and wash the early frames too gray). See applyParticleFieldProxy.
-    if (layer.type === 'image' && rctx.fieldTextureLayerId === layer.id) return;
+    if (layer.type === 'image' && rctx.fieldTextureLayerId === layer.id) return 'stop';
 
     // Movements/Drop In: the Transition A/B drop-zone cards are drawn by a
     // dedicated pass in composite() (below) so their B-under-A z-order and the
     // tail frames (B timed out → A alone, not black) are correct regardless of
     // child render order / visibility. Skip both here.
     const card = rctx.dropInCard;
-    if (card && layer.type === 'image' && (layer.id === card.aId || layer.id === card.bId)) return;
+    if (card && layer.type === 'image' && (layer.id === card.aId || layer.id === card.bId)) return 'stop';
 
 
 
@@ -498,9 +467,12 @@ function renderLayer(
       }
     }
   }
+  return 'children';
+}
 
-  // Render children (back to front = array order)
-  if (evalLayer.children.length > 0) {
+function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: EvaluatedLayer, imageA: ImageData, imageB: ImageData, time: number, filterOverrides: Map<number, Map<string, number>>): void {
+  const { layer, opacity } = evalLayer;
+  if (evalLayer.children.length === 0) return;
     // PAEFlop page-flip (Movements/Flip): render each page hinged on its OUTER
     // vertical edge instead of the shared group Y-axis. Front page (A) hinges on
     // its LEFT edge and opens by θ; the back page (B) hinges on its RIGHT edge and
@@ -596,7 +568,48 @@ function renderLayer(
         renderLayer(rctx, output, order(i), imageA, imageB, time, filterOverrides);
       }
     }
+}
+
+/**
+ * Per-layer-type render pipeline, registered by primary layer type. Each renderer
+ * keeps its own type/shape guard (so it is self-contained + unit-testable) and returns
+ * whether rendering should STOP or continue to the generic child render. renderLayer is
+ * a thin dispatcher: it resolves the ordered renderer chain for the layer's type from
+ * LAYER_RENDERERS, runs them until one says 'stop', then renders children.
+ *
+ * Chains (mirrors the original fall-through order exactly):
+ *   replicator -> [renderReplicatorLayer]                 (always 'stop')
+ *   clone      -> [renderCloneLayer, renderDrawableLayer] (clone may 'stop' or fall through)
+ *   image/generator/shape -> [renderDrawableLayer]        (draw then children, image may 'stop')
+ *   group/other -> []                                     (straight to children)
+ */
+const LAYER_RENDERERS: Record<string, Array<(rctx: RenderContext, output: ImageData, evalLayer: EvaluatedLayer, imageA: ImageData, imageB: ImageData, time: number, filterOverrides: Map<number, Map<string, number>>) => RenderOutcome>> = {
+  replicator: [renderReplicatorLayer],
+  clone: [renderCloneLayer, renderDrawableLayer],
+  image: [renderDrawableLayer],
+  generator: [renderDrawableLayer],
+  shape: [renderDrawableLayer],
+};
+
+function renderLayer(rctx: RenderContext, output: ImageData, evalLayer: EvaluatedLayer, imageA: ImageData, imageB: ImageData, time: number, filterOverrides: Map<number, Map<string, number>>): void {
+  if (!evalLayer.visible) return;
+  const { layer } = evalLayer;
+
+  // A group that is an Image Mask `Mask Source` is hidden geometry — it provides
+  // alpha to the layer that references it (rendered there via resolveImageMaskAlpha),
+  // and must never draw its shapes directly.
+  if (layer.type === 'group' && rctx.imageMaskSourceIds.has(layer.id)) return;
+
+  // Run the type's renderer chain; a renderer returning 'stop' skips the child render.
+  const chain = LAYER_RENDERERS[layer.type];
+  if (chain) {
+    for (const render of chain) {
+      if (render(rctx, output, evalLayer, imageA, imageB, time, filterOverrides) === 'stop') return;
+    }
   }
+
+  // Children (back to front).
+  renderChildLayers(rctx, output, evalLayer, imageA, imageB, time, filterOverrides);
 }
 
 // ============================================================================
