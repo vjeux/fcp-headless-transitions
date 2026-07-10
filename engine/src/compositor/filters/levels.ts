@@ -90,3 +90,19 @@ export function brightnessFilter(input: ImageData, amount: number): ImageData {
 
   return new ImageData(out, width, height);
 }
+
+import { registerFilter } from './registry.js';
+
+// PAEBrightness — additive brightness. Reads 'Brightness' or 'Amount' (default 0,
+// NOT the filter's declared default=1: the legacy dispatch inited amount=0 and
+// brightnessFilter early-returns on 0). Behavior-identical to the old name-matched
+// branch in compositor/index.ts.
+registerFilter({
+  uuid: '2E4DBB0A-A950-4896-BC2D-A5B0CFF7FAC6',
+  names: ['brightness'],
+  label: 'Brightness',
+  apply(input, ctx) {
+    const amount = ctx.has('Brightness') ? ctx.param('Brightness', 0) : ctx.param('Amount', 0);
+    return brightnessFilter(input, amount);
+  },
+});

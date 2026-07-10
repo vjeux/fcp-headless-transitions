@@ -45,6 +45,17 @@ LOW-scoring slugs a genuine regression can hide. Mitigation for later: a relativ
 per-slug tolerance (e.g. tighter tol on high-baseline slugs). For now, 0.30 dB absolute
 reliably catches meaningful regressions on the slugs that matter most (the good ones).
 
+**⚠️ JPEG-determinism gotcha (learned 2026-07-10, item 2):** the ENGINE render is
+deterministic (same code → byte-identical JPEG). BUT a baseline frozen from one encode
+path (e.g. PNG→JPEG bulk conversion) and compared against frames from a different encode
+path (canvas-JPEG-direct) shows ~0.5–0.7 dB false "regressions" on unchanged slugs — same
+pixels, different JPEG bytes → different thumbnail → jittered PSNR. RULE: when a behavior-
+NEUTRAL change trips the gate, first verify the render pixels are unchanged (render the slug
+with old vs new code, compare decoded pixels — max diff 0 = neutral). If neutral, the gate
+noise is a stale-baseline/encode mismatch: RE-RENDER the affected slugs fresh with current
+code and RE-FREEZE the baseline (`fct gen engine --all && fct baseline engine`) so baseline
+and future renders share one encode path. Do NOT chase these as real regressions.
+
 **The gate is FAST by design** (a slow gate gets skipped, defeating the point):
 - It scores at `GATE_SIZE` (480×270), not full 1920×1080. Downscaling averages out
   noise but **preserves regression ranking** — a real drop still shows as a drop
@@ -77,11 +88,16 @@ Status legend: TODO / DOING / DONE / BLOCKED
   hot premult-alpha blit with crop bounds; extracting it would change edges + add per-pixel
   overhead (documented as a deliberate non-change). tsc clean, gate green 0 regressions.
 
-### 2. Finish the filter-registry migration  [TODO]  (engine, medium)
+### 2. Finish the filter-registry migration  [DOING]  (engine, medium)
 - DoD: every filter dispatched by UUID via `filters/registry.ts`; the fuzzy
   `name.includes('gaussian'|'blur'|...)` chain in `applyFilter` deleted; the
   "Migrated so far: (none yet)" comment gone.
 - Verify: `cd engine && npx tsc --noEmit` clean; `fct regress engine` OK (filter output identical).
+- IN PROGRESS: registry infra already existed (fill/noise/reorient360 registered). Migrated
+  Brightness (PAEBrightness, UUID 2E4DBB0A-…) to levels.ts + barrel; removed its legacy
+  name-includes branch. Fixed the stale "none yet" barrel comment. ~13 legacy filters remain
+  (gaussian/bevel/luma-key/directional/radial/zoom/hsv/channel-mixer/tint/colorize/levels/
+  glow/bloom) — migrate one-at-a-time, gate-green each. Verified pixel-neutral + re-froze baseline.
 
 ### 3. fct toolkit polish  [TODO]  (fct, safe)
 - DoD: (a) `engine/test/_fct_render.ts` is a committed real file read from argv/env, not a
@@ -132,6 +148,9 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-10  Item 2 STARTED — migrated Brightness to the UUID registry; proved luma601 (item 1b)
+              pixel-neutral (max diff 0); found+documented the JPEG-encode baseline gotcha, re-froze
+              engine baseline (mean 11.48). Gate green 0/0. ~13 filters left to migrate.
 - 2026-07-10  Item 1 DONE — deleted dead code (colorizeFilter/isOscFilter); unified 6 Rec.601
               luma copies into blend.luma601. Gate proven (goes red on a 15% darken, green after
               revert). tsc clean, regress engine green. (6eaed6c, 2e65b19)

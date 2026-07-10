@@ -4,12 +4,14 @@
  * ONLY shared line an agent touches when adding a filter, and it's append-only
  * (one import line), which merges cleanly across parallel branches.
  *
- * Migrated to the registry so far: (none yet — legacy filters still handled by the
- * fallback chain in compositor/index.ts). New filters should be added as modules
- * here.
+ * Migrated to the UUID registry so far: fill, reorient360, noise, brightness.
+ * The rest are still handled by the legacy name-matched fallback chain in
+ * compositor/index.ts (being migrated incrementally). New filters should be added
+ * as UUID-registering modules here.
  */
 import './fill.js';
 import './reorient360.js';
 import './noise.js';
+import './levels.js';   // registers Brightness (PAEBrightness)
 
 export {};
