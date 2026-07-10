@@ -148,6 +148,10 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-10  Item 4 — threaded RenderContext through resolveCloneImage (self-recursive +
+              1 external caller in renderLayer; 4 ctx refs → rctx). tsc clean, gate green 0/0.
+              Remaining: resolveImageMaskAlpha(4), resolveCellImage(2), replicatorMaskAlpha(2),
+              renderLayer(3), composite(6).
 - 2026-07-10  Item 4 — threaded RenderContext through getSourceImage (7 callers updated,
               3 ctx refs → explicit rctx param). tsc clean (compositor), gate green 0/0.
               Remaining: resolveCloneImage(4), resolveImageMaskAlpha(4), resolveCellImage(2),

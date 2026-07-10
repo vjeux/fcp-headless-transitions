@@ -214,15 +214,14 @@ let ctx: RenderContext | null = null;
  * referenced Layer; if that layer is itself a clone/image of Transition A or B,
  * resolves transitively to the underlying source pixels.
  */
-function resolveCloneImage(cloneSourceId: number | undefined, depth = 0): ImageData | null {
-  if (cloneSourceId === undefined || !ctx || depth > 8) return null;
-  const src = ctx.layerById.get(cloneSourceId);
+function resolveCloneImage(rctx: RenderContext, cloneSourceId: number | undefined, depth = 0): ImageData | null {
+  if (cloneSourceId === undefined || depth > 8) return null;
+  const src = rctx.layerById.get(cloneSourceId);
   if (!src) return null;
-  if (src.source?.type === 'transitionA') return ctx.imageA;
-  if (src.source?.type === 'transitionB') return ctx.imageB;
-  if (src.type === 'clone') return resolveCloneImage(src.cloneSourceId, depth + 1);
-  // Image/generator source without an explicit A/B tag: fall back to its source.
-  if (src.source) return getSourceImage(ctx!, src.source, ctx!.imageA, ctx!.imageB);
+  if (src.source?.type === 'transitionA') return rctx.imageA;
+  if (src.source?.type === 'transitionB') return rctx.imageB;
+  if (src.type === 'clone') return resolveCloneImage(rctx, src.cloneSourceId, depth + 1);
+  if (src.source) return getSourceImage(rctx, src.source, rctx.imageA, rctx.imageB);
   return null;
 }
 /**
@@ -1228,7 +1227,7 @@ function renderLayer(
 
   if (layer.type === 'clone') {
     // Clone Layer: draw the image of the object it mirrors, at this layer's transform.
-    let src = resolveCloneImage(layer.cloneSourceId);
+    let src = resolveCloneImage(ctx!, layer.cloneSourceId);
     if (src) {
       // A clone may carry its OWN filters (e.g. Color Planes stacks 6 clones of the
       // same source, each with a Channel Mixer isolating one R/G/B channel, then
