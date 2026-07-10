@@ -178,7 +178,12 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
   // a soft wash. NOTE: this MUST require the rigged filter to be a COLORIZE — a
   // "Color" widget can rig other filters (Light Sweep drives a glow), and enabling
   // the tile motion-blur there regressed it (44→15dB).
-  let isSlideFamily = false;
+  // Capability probe (TYPE-driven, not a transition-name match): does the scene
+  // carry a COLORIZE filter rigged by a "Color" widget through a "remap" behavior?
+  // That structural signature is what motion blur keys off (the tile-slide family
+  // happens to have it; Light Sweep drives a glow/gradient filter instead and must
+  // NOT get the 16-sample blur — it regressed 44→15 dB when it did).
+  let hasColorizeRemapRig = false;
   {
     const colorWidgetIds = new Set<number>();
     for (const w of scene.rigWidgets) if ((w.name || '').toLowerCase() === 'color') colorWidgetIds.add(w.id);
@@ -199,7 +204,7 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
       })(scene.layers);
       for (const b of scene.rigBehaviors) {
         if (colorizeIds.has(b.affectedObjectId) && colorWidgetIds.has(b.widgetId)
-            && (b.paramType || '').toLowerCase().includes('remap')) { isSlideFamily = true; break; }
+            && (b.paramType || '').toLowerCase().includes('remap')) { hasColorizeRemapRig = true; break; }
       }
     }
   }
@@ -294,7 +299,7 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
   // not be blurred (averaging sub-frames there would smear the A→B crossfade and
   // regress it). Measure the max per-frame world-translation of any animated image
   // layer over a short probe; require a few px/frame before blurring.
-  let motionBlurEnabled = (scene.settings.motionBlurSamples ?? 1) > 1 && isSlideFamily;
+  let motionBlurEnabled = (scene.settings.motionBlurSamples ?? 1) > 1 && hasColorizeRemapRig;
   if (motionBlurEnabled) {
     const endProbe = scene.settings.animationEndSec ?? (scene.settings.duration.value / scene.settings.duration.timescale);
     const fps = scene.settings.frameRate > 0 ? scene.settings.frameRate : 30;
