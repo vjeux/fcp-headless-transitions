@@ -71,9 +71,3 @@ export function makeContext(filter: Filter, time: number, width: number, height:
   };
   return { filter, time, overrides, width, height, param, has };
 }
-
-/** Is this an on-screen-control (editor UI) filter that shouldn't render? */
-export function isOscFilter(filter: Filter): boolean {
-  const n = (filter.pluginName || '').toLowerCase();
-  return n.includes('for osc') || n.includes('(osc)') || n.endsWith(' osc');
-}

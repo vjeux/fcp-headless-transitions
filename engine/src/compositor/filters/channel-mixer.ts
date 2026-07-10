@@ -69,45 +69,6 @@ export function channelMixerFilter(input: ImageData, params: ChannelMixerParams)
 }
 
 /**
- * Colorize filter (simplified channel mixer variant).
- * Maps luminance to a target hue/saturation.
- * Plugin names: PAEColorize, Colorize
- */
-export function colorizeFilter(input: ImageData, hue: number, saturation: number, mix: number = 1): ImageData {
-  const width = input.width;
-  const height = input.height;
-  const src = input.data;
-  const out = new Uint8ClampedArray(src.length);
-
-  // Convert hue (degrees) to RGB multipliers
-  const hRad = (hue % 360) * Math.PI / 180;
-  const tR = 0.5 + Math.cos(hRad) * 0.5;
-  const tG = 0.5 + Math.cos(hRad - 2.094) * 0.5; // -120°
-  const tB = 0.5 + Math.cos(hRad + 2.094) * 0.5; // +120°
-
-  for (let i = 0; i < src.length; i += 4) {
-    const lum = (0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2]) / 255;
-    // Tint: lerp between grayscale and colorized based on saturation
-    const colR = lum * tR * saturation + lum * (1 - saturation);
-    const colG = lum * tG * saturation + lum * (1 - saturation);
-    const colB = lum * tB * saturation + lum * (1 - saturation);
-
-    if (mix >= 1) {
-      out[i] = Math.round(Math.max(0, Math.min(1, colR)) * 255);
-      out[i + 1] = Math.round(Math.max(0, Math.min(1, colG)) * 255);
-      out[i + 2] = Math.round(Math.max(0, Math.min(1, colB)) * 255);
-    } else {
-      out[i] = Math.round((src[i] * (1 - mix) + Math.max(0, Math.min(1, colR)) * 255 * mix));
-      out[i + 1] = Math.round((src[i + 1] * (1 - mix) + Math.max(0, Math.min(1, colG)) * 255 * mix));
-      out[i + 2] = Math.round((src[i + 2] * (1 - mix) + Math.max(0, Math.min(1, colB)) * 255 * mix));
-    }
-    out[i + 3] = src[i + 3];
-  }
-
-  return new ImageData(out, width, height);
-}
-
-/**
  * Tint filter (PAETint / TintFx).
  * Tints the image toward a target color, scaled by luminance and intensity.
  * @param r, g, b - target tint color (0-1)
