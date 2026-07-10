@@ -516,9 +516,27 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
     // vs a downstream PIL-LANCZOS resize (which recovers ~13.96 mean). Keep the normalize downstream.
     CFStringRef pp=CFStringCreateWithCString(NULL,outPath,kCFStringEncodingUTF8);
     CFURLRef uu=CFURLCreateWithFileSystemPath(NULL,pp,kCFURLPOSIXPathStyle,false);
-    CGImageDestinationRef dst=CGImageDestinationCreateWithURL(uu,CFSTR("public.png"),1,NULL);
-    CGImageDestinationAddImage(dst,cim,NULL);
+    // Pick the encoder from the output extension (the format decision lives in
+    // fct.config; the shim just honors the path). JPEG q=0.90 for .jpg/.jpeg
+    // (~10-20x smaller than PNG, ample for this comparison work); PNG otherwise.
+    size_t plen=strlen(outPath);
+    bool isJpeg = (plen>4 && (strcasecmp(outPath+plen-4,".jpg")==0)) ||
+                  (plen>5 && (strcasecmp(outPath+plen-5,".jpeg")==0));
+    CFStringRef utType = isJpeg ? CFSTR("public.jpeg") : CFSTR("public.png");
+    CGImageDestinationRef dst=CGImageDestinationCreateWithURL(uu,utType,1,NULL);
+    CFDictionaryRef props=NULL;
+    if(isJpeg){
+        float q=0.90f;
+        CFNumberRef qn=CFNumberCreate(NULL,kCFNumberFloatType,&q);
+        CFStringRef keys[1]={kCGImageDestinationLossyCompressionQuality};
+        CFTypeRef vals[1]={qn};
+        props=CFDictionaryCreate(NULL,(const void**)keys,(const void**)vals,1,
+                                 &kCFTypeDictionaryKeyCallBacks,&kCFTypeDictionaryValueCallBacks);
+        CFRelease(qn);
+    }
+    CGImageDestinationAddImage(dst,cim,props);
     bool ok=CGImageDestinationFinalize(dst);
+    if(props) CFRelease(props);
     // Release every per-render CoreGraphics/CoreFoundation object. Without this each of the
     // ~1560 frames in a full batch leaks a CGImage + CGContext + CGColorSpace + CFString +
     // CFURL + CGImageDestination; that unbounded growth is what eventually starves the

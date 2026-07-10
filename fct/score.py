@@ -8,8 +8,8 @@ This is the ONE scoring path. There is NO headless-vs-headless "ceiling" score �
 that was circular. Truth = GUI GT only.
 
 `gate_size` (w,h) downscales BOTH frames to a fixed small resolution before PSNR.
-Decoding 48 full 1920x1080 PNGs/slug dominates cost (a noisy slug is ~10MB/frame),
-so the regression GATE reads at a reduced resolution — PSNR ranking / regression
+Decoding 48 full 1920x1080 frames/slug dominates cost, so the regression GATE
+reads at a reduced resolution — PSNR ranking / regression
 detection is preserved, and it's ~an order of magnitude faster and slug-uniform.
 Pass gate_size=None for exact full-resolution scoring (reporting, not the gate).
 """
@@ -20,7 +20,7 @@ from .color import to_bt709
 from .compare import _psnr
 
 # Fixed gate resolution: fast, decode-cheap, and slug-uniform (a noisy 10MB frame
-# and a flat 2MB frame both cost the same once downscaled). PSNR at this size
+# and a flat frame both cost the same once downscaled). PSNR at this size
 # tracks full-res closely enough to catch any >0.3dB regression.
 GATE_SIZE = (480, 270)
 
@@ -36,7 +36,7 @@ def score(slug: str, source: str = "headless", gate_size=None) -> dict:
             # Both sides cached as mtime-invalidated thumbnails: the GUI GT is
             # immutable, and a re-rendered source has a newer mtime so its stale
             # thumbnail is rebuilt automatically. This turns the gate from
-            # "decode 48 full-res PNGs" into "decode 48 ~40KB thumbnails".
+            # "decode 48 full-res frames" into "decode 48 small thumbnails".
             g = read_frame_cached(gp, gate_size)
             h, w = g.shape[:2]
             s = read_frame_cached(sp, (w, h))

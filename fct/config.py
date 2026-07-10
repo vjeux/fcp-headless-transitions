@@ -12,6 +12,13 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 N_FRAMES = 24            # frames per transition
 SIZE = (1920, 1080)      # output (w, h)
 
+# --- frame file format (single source of truth). JPEG q=90 is plenty for this
+#     comparison work (the GUI GT is already ProRes-lossy) and ~10-20x smaller than
+#     PNG for these 1920x1080 frames. All three renderers + the thumbnail cache emit
+#     this. The C++ shim (oz_render.mm) picks its encoder from the output extension. ---
+FRAME_EXT = "jpg"        # "jpg" or "png"
+JPEG_QUALITY = 90
+
 # --- canonical on-disk locations (ONE place each) ---
 GUI_GT_DIR = os.path.join(HOME, "fct-gui-gt")          # the ONLY real ground truth
 FRAMES_DIR = os.path.join(HOME, "fct-frames")          # headless/ and engine/ live here
@@ -56,4 +63,4 @@ def frames_dir(source: str, slug: str) -> str:
     raise ValueError(f"unknown source {source!r} (want gui|headless|engine)")
 
 def frame_path(source: str, slug: str, i: int) -> str:
-    return os.path.join(frames_dir(source, slug), f"frame_{i:04d}.png")
+    return os.path.join(frames_dir(source, slug), f"frame_{i:04d}.{FRAME_EXT}")

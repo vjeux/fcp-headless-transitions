@@ -7,14 +7,14 @@ Replaces ~160 ad-hoc scripts. Four responsibilities, one way to do each:
   fct.compare  visual comparison between TWO files on disk (PSNR + diff image)
   fct.montage  build a video montage from frame directories
 
-Everything reads/writes PNG files on disk. No in-memory frame passing between
+Everything reads/writes image files on disk (JPEG q90 by default; see fct.config.FRAME_EXT). No in-memory frame passing between
 stages. The three renderers all emit 24 frames per slug at the SAME half-open
-progress (i/24), 1920x1080, named frame_0000.png .. frame_0023.png, so any two
+progress (i/24), 1920x1080, named frame_0000.<ext> .. frame_0023.<ext> (<ext>=fct.config.FRAME_EXT, jpg q90), so any two
 sources are directly comparable frame-for-frame.
 
 Canonical data locations (on disk, one place each):
-  ~/fct-gui-gt/<slug>/frame_XXXX.png       GUI ground truth  (the ONLY real truth)
-  ~/fct-frames/headless/<slug>/frame_*.png headless shim render
-  ~/fct-frames/engine/<slug>/frame_*.png   TS engine render
+  ~/fct-gui-gt/<slug>/frame_XXXX.jpg       GUI ground truth  (the ONLY real truth)
+  ~/fct-frames/headless/<slug>/frame_*.jpg headless shim render
+  ~/fct-frames/engine/<slug>/frame_*.jpg   TS engine render
 """
 from .config import SLUGS, slug_motr, GUI_GT_DIR, FRAMES_DIR, N_FRAMES, SIZE, GAM

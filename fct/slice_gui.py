@@ -6,7 +6,7 @@ at the SAME half-open i/N cadence the renderers use, so gui/headless/engine alig
 GUI GT is the ONLY real truth. Do NOT compare renders to each other's outputs.
 
 Window table: fct/gt_settle_windows.json  (transStart/settle per slug).
-Output: ~/fct-gui-gt/<slug>/frame_0000..0023.png (1920x1080).
+Output: ~/fct-gui-gt/<slug>/frame_0000..0023.<ext> (1920x1080, fct.config.FRAME_EXT).
 
 Safety: extracts to a scratch dir and verifies the full span BEFORE overwriting
 canonical frames — an under-extraction (ffmpeg under load) would silently corrupt
@@ -48,9 +48,12 @@ def slice_gui(slug: str) -> str:
             try: os.remove(os.path.join(d, p))
             except OSError: pass
     from PIL import Image
+    from .read import _save
+    from .config import FRAME_EXT
     for i in range(N_FRAMES):
         src_idx = (len(segs) - 1) if i == N_FRAMES - 1 else min(int(i / N_FRAMES * len(segs)), len(segs) - 1)
-        Image.open(os.path.join(scratch, segs[src_idx])).save(os.path.join(d, f"frame_{i:04d}.png"))
+        im = Image.open(os.path.join(scratch, segs[src_idx])).convert("RGB")
+        _save(im, os.path.join(d, f"frame_{i:04d}.{FRAME_EXT}"))
     for p in segs:
         try: os.remove(os.path.join(scratch, p))
         except OSError: pass
