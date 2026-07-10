@@ -57,3 +57,22 @@ export function lumaKeyerFilter(input: ImageData, params: LumaKeyerParams): Imag
 
   return new ImageData(out, width, height);
 }
+
+import { registerFilter } from './registry.js';
+
+// Luma Keyer (UUID 7E9178C5-…). Behavior-identical to the legacy branch: Luma
+// (default 0.5), rolloff from 'Luma Rolloff' or 'DefaultSoftness' (0.1), Strength
+// (1), Invert (bool from value > 0).
+registerFilter({
+  uuid: '7E9178C5-7B0F-4B86-884D-FE79F568B6CE',
+  names: ['luma keyer', 'lumakeyer'],
+  label: 'Luma Keyer',
+  apply(input, ctx) {
+    const luma = ctx.param('Luma', 0.5);
+    const rolloff = ctx.has('Luma Rolloff') ? ctx.param('Luma Rolloff', 0.1)
+                                            : ctx.param('DefaultSoftness', 0.1);
+    const strength = ctx.param('Strength', 1);
+    const invert = ctx.param('Invert', 0) > 0;
+    return lumaKeyerFilter(input, { luma, rolloff, strength, invert });
+  },
+});

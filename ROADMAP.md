@@ -97,7 +97,7 @@ Status legend: TODO / DOING / DONE / BLOCKED
   Brightness (PAEBrightness, UUID 2E4DBB0A-…) to levels.ts + barrel; removed its legacy
   name-includes branch. Fixed the stale "none yet" barrel comment. ~13 legacy filters remain
   (gaussian/bevel/luma-key/directional/radial/zoom/hsv/channel-mixer/tint/colorize/levels/
-  glow/bloom; brightness+bevel done) — migrate one-at-a-time, gate-green each. Verified pixel-neutral + re-froze baseline.
+  glow/bloom; brightness+bevel+luma-keyer done) — migrate one-at-a-time, gate-green each. Verified pixel-neutral + re-froze baseline.
 
 ### 3. fct toolkit polish  [TODO]  (fct, safe)
 - DoD: (a) `engine/test/_fct_render.ts` is a committed real file read from argv/env, not a
@@ -148,6 +148,9 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-10  Item 2 — migrated Luma Keyer to UUID registry (7E9178C5-…; users 360 Circle/Reveal
+              Wipe). tsc clean, gate green 0/0. ~11 filters left (gaussian/directional/radial/zoom/
+              hsv/channel-mixer/tint/colorize/levels/glow/bloom).
 - 2026-07-10  Item 2 — migrated Bevel filter to UUID registry (9C655247-…, only user
               Stylized__Panels_Across). tsc clean, gate green 0/0. ~12 filters left.
 - 2026-07-10  Item 2 STARTED — migrated Brightness to the UUID registry; proved luma601 (item 1b)
