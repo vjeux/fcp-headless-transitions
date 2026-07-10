@@ -97,7 +97,7 @@ Status legend: TODO / DOING / DONE / BLOCKED
   Brightness (PAEBrightness, UUID 2E4DBB0A-…) to levels.ts + barrel; removed its legacy
   name-includes branch. Fixed the stale "none yet" barrel comment. ~13 legacy filters remain
   (gaussian/bevel/luma-key/directional/radial/zoom/hsv/channel-mixer/tint/colorize/levels/
-  colorize/gaussian/directional/radial/zoom; brightness+bevel+luma-keyer+levels+glow+bloom+channel-mixer+tint+hsv done) — migrate one-at-a-time, gate-green each. Verified pixel-neutral + re-froze baseline.
+  gaussian/directional/radial/zoom; 10 done incl colorize) — migrate one-at-a-time, gate-green each. Verified pixel-neutral + re-froze baseline.
 
 ### 3. fct toolkit polish  [TODO]  (fct, safe)
 - DoD: (a) `engine/test/_fct_render.ts` is a committed real file read from argv/env, not a
@@ -148,6 +148,10 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-10  Item 2 — migrated Colorize (PAEColorize, D995BBCF-…, 9 users) to UUID registry.
+              Replicated the nested-child RGB readColor via ctx.filter.parameters (faithful, raw).
+              Verified byte-identical on Stylized__Slide (max diff 0); tsc clean, gate green 0/0.
+              Only the 4 blurs remain (gaussian/directional/radial/zoom).
 - 2026-07-10  Item 2 — HSV root cause FOUND + fixed: legacy dispatch read raw filter params
               (ignored rig overrides); registry ctx.param HONORS overrides -> diverged on
               Color_Panels (rig-driven Saturation). Added ctx.rawParam/hasRaw to FilterContext;

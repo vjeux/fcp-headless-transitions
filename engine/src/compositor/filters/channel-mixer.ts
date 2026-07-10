@@ -17,6 +17,7 @@
  */
 import { luma601 } from '../blend.js';
 import { registerFilter } from './registry.js';
+import { evaluateCurve } from '../../evaluator/curves.js';
 
 export interface ChannelMixerParams {
   matrix: number[]; // 4x4 row-major [RR,RG,RB,RA, GR,GG,GB,GA, BR,BG,BB,BA, AR,AG,AB,AA]
@@ -172,5 +173,37 @@ registerFilter({
   apply(input, ctx) {
     return tintFilter(input, ctx.param('Red', 1), ctx.param('Green', 1), ctx.param('Blue', 1),
                       ctx.param('Intensity', 1), ctx.param('Mix', 1));
+  },
+});
+
+// Colorize (PAEColorize, UUID D995BBCF-…). FAITHFUL migration of the legacy branch:
+// a luminance remap from "Remap Black To" (lum 0) to "Remap White To" (lum 1), each
+// a nested RGB color param (children Red/Green/Blue). Reads the filter's own params
+// directly (ignores rig overrides), matching the legacy dispatch exactly.
+registerFilter({
+  uuid: 'D995BBCF-F766-4950-89D5-7A4828CD9B6F',
+  names: ['colorize'],
+  label: 'Colorize',
+  apply(input, ctx) {
+    const t = ctx.time;
+    const readColor = (paramName: string, def: {r:number;g:number;b:number}) => {
+      const p = ctx.filter.parameters.find(pp => pp.name === paramName);
+      if (!p) return def;
+      const ch = (n: string): number | undefined => {
+        const c = p.children?.find(cc => cc.name === n);
+        if (!c) return undefined;
+        return c.curve ? evaluateCurve(c.curve, t) : (typeof c.value === 'number' ? c.value : undefined);
+      };
+      return { r: ch('Red') ?? def.r, g: ch('Green') ?? def.g, b: ch('Blue') ?? def.b };
+    };
+    const black = readColor('Remap Black To', { r: 0, g: 0, b: 0 });
+    const white = readColor('Remap White To', { r: 1, g: 1, b: 1 });
+    let mix = 1;
+    const mixP = ctx.filter.parameters.find(p => p.name === 'Mix');
+    if (mixP) {
+      const v = mixP.curve ? evaluateCurve(mixP.curve, t) : (typeof mixP.value === 'number' ? mixP.value : undefined);
+      if (v !== undefined) mix = v;
+    }
+    return colorizeRemapFilter(input, black, white, mix);
   },
 });

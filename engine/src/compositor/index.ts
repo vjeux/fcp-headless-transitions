@@ -1,5 +1,4 @@
 import { gaussianBlur } from './filters/gaussian-blur.js';
-import { colorizeRemapFilter } from './filters/channel-mixer.js';
 import { directionalBlur, radialBlur, zoomBlur } from './filters/directional-blur.js';
 import { evaluateCurve } from '../evaluator/curves.js';
 import { rasterizeShape, applyMask, unionMasks } from './shapes.js';
@@ -1942,27 +1941,7 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
   // to "Remap White To" (at lum 1). Used by Slide's tiles to recolor grayscale
   // tile PNGs. The two endpoints are RGB color params (children Red/Green/Blue),
   // and may be rig-driven (a Color widget selecting an accent) — honor overrides.
-  if (name.includes('colorize')) {
-    const readColor = (paramName: string, def: {r:number;g:number;b:number}): {r:number;g:number;b:number} => {
-      const p = filter.parameters.find(pp => pp.name === paramName);
-      if (!p) return def;
-      const ch = (n: string): number | undefined => {
-        const c = p.children?.find(cc => cc.name === n);
-        if (!c) return undefined;
-        return c.curve ? evaluateCurve(c.curve, time) : (typeof c.value === 'number' ? c.value : undefined);
-      };
-      return { r: ch('Red') ?? def.r, g: ch('Green') ?? def.g, b: ch('Blue') ?? def.b };
-    };
-    const black = readColor('Remap Black To', { r: 0, g: 0, b: 0 });
-    const white = readColor('Remap White To', { r: 1, g: 1, b: 1 });
-    let mix = 1;
-    const mixP = filter.parameters.find(p => p.name === 'Mix');
-    if (mixP) {
-      const v = mixP.curve ? evaluateCurve(mixP.curve, time) : (typeof mixP.value === 'number' ? mixP.value : undefined);
-      if (v !== undefined) mix = v;
-    }
-    return colorizeRemapFilter(input, black, white, mix);
-  }
+  // (Migrated to the UUID registry — see compositor/filters/channel-mixer.ts.)
   return input;
 }
 
