@@ -122,14 +122,16 @@ Status legend: TODO / DOING / DONE / BLOCKED
 - Verify: for a few slugs, headless frame i and engine frame i are the same scene-time
   (spot-check via montage alignment); `fct regress` both OK.
 
-### 6. ⭐ Replace the heuristic router in api.ts  [TODO]  (engine, BIG — needs approach review)
+### 6. ⭐ Replace the heuristic router in api.ts  [TODO]  (engine, BIG)
 - DoD: `createTransition`'s pile of booleans (band360, isSlideFamily, retimeWrapSec,
   strokedMaskClampSec, hasFilledShapeOverlay, hasBlendedMediaOverlay, hasReplicatorMaskReveal,
   motionBlurEnabled) replaced by (a) ONE generic `buildTimeMap(scene) -> (p)=>tSec` reading
   retime curves + layer lifetimes, and (b) capability probes driven by node/filter/behavior
   TYPES (not "looks like Arrows"). Same code path for all 65.
 - Approach: incremental — migrate ONE boolean at a time, `fct regress engine` green after each.
-  ⚠️ Get approach sign-off before starting (a wrong abstraction is worse than the special cases).
+  A wrong abstraction is worse than the special cases, so each step must be independently
+  revertible and gate-verified; if a migration can't stay gate-green, revert it and leave the
+  boolean in place with a note rather than forcing a bad abstraction.
 - Verify: `fct regress engine` OK after each step; `no-hardcode.test.ts` still passes;
   final: zero transition-name special cases remain in api.ts.
 
