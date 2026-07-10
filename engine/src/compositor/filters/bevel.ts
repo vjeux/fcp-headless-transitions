@@ -81,3 +81,22 @@ export function bevelFilter(input: ImageData, params: BevelParams): ImageData {
 
   return new ImageData(out, w, h);
 }
+
+import { registerFilter } from './registry.js';
+
+// Bevel (UUID 9C655247-…). Behavior-identical to the legacy name-matched branch:
+// reads Bevel Width / Light Angle / Opacity / Mix (defaults 0/135/1/1); a width of
+// 0 leaves the input unchanged (filter authored-inactive).
+registerFilter({
+  uuid: '9C655247-E514-458B-83BA-B3F63EFFD241',
+  names: ['bevel'],
+  label: 'Bevel',
+  apply(input, ctx) {
+    const width = ctx.param('Bevel Width', 0);
+    if (width <= 0) return input;
+    const lightAngle = ctx.param('Light Angle', 135);
+    const opacity = ctx.param('Opacity', 1);
+    const mix = ctx.param('Mix', 1);
+    return bevelFilter(input, { width, lightAngle, opacity, mix });
+  },
+});

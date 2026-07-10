@@ -13,5 +13,6 @@ import './fill.js';
 import './reorient360.js';
 import './noise.js';
 import './levels.js';   // registers Brightness (PAEBrightness)
+import './bevel.js';    // registers Bevel
 
 export {};

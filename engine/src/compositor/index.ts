@@ -5,7 +5,6 @@ import { channelMixerFilter, colorizeRemapFilter, tintFilter } from './filters/c
 import { hueSaturationFilter } from './filters/hue-saturation.js';
 import { directionalBlur, radialBlur, zoomBlur } from './filters/directional-blur.js';
 import { lumaKeyerFilter } from './filters/luma-keyer.js';
-import { bevelFilter } from './filters/bevel.js';
 import { evaluateCurve } from '../evaluator/curves.js';
 import { rasterizeShape, applyMask, unionMasks } from './shapes.js';
 import { needsPerspective, projectQuad, renderPerspectiveQuad, renderPageFlip } from './perspective.js';
@@ -1920,19 +1919,6 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
     return input;
   }
   // Bevel
-  if (name.includes('bevel')) {
-    let width = 0, lightAngle = 135, opacity = 1, mix = 1;
-    for (const p of filter.parameters) {
-      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
-      if (val === undefined) continue;
-      if (p.name === 'Bevel Width') width = val;
-      if (p.name === 'Light Angle') lightAngle = val;
-      if (p.name === 'Opacity') opacity = val;
-      if (p.name === 'Mix') mix = val;
-    }
-    if (width > 0) return bevelFilter(input, { width, lightAngle, opacity, mix });
-    return input;
-  }
   // Luma Keyer
   if (name.includes('luma') && name.includes('key')) {
     let luma = 0.5, rolloff = 0.1, strength = 1;
