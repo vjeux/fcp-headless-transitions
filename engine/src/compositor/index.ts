@@ -297,7 +297,7 @@ function resolveCellImage(
     // Fallback: render the whole (centered) subtree.
     const centered = centerEvaluatedLayer(evalSrc);
     const buf = createBuffer(W, H);
-    renderLayer(buf, centered, imageA, imageB, time, filterOverrides);
+    renderLayer(rctx, buf, centered, imageA, imageB, time, filterOverrides);
     for (let i = 3; i < buf.data.length; i += 4) if (buf.data[i] > 0) return { kind: 'image', img: buf };
   }
   return null;
@@ -1115,6 +1115,7 @@ function retimedClipTime(evalLayer: EvaluatedLayer, rctx: RenderContext): number
 }
 
 function renderLayer(
+  rctx: RenderContext,
   output: ImageData,
   evalLayer: EvaluatedLayer,
   imageA: ImageData,
@@ -1128,7 +1129,7 @@ function renderLayer(
   // A group that is an Image Mask `Mask Source` is hidden geometry — it provides
   // alpha to the layer that references it (rendered there via resolveImageMaskAlpha),
   // and must never draw its shapes directly.
-  if (layer.type === 'group' && ctx?.imageMaskSourceIds.has(layer.id)) return;
+  if (layer.type === 'group' && rctx.imageMaskSourceIds.has(layer.id)) return;
 
   // Replicator: render the cell content at each grid instance
   if (layer.type === 'replicator' && layer.replicator) {
@@ -1137,17 +1138,17 @@ function renderLayer(
     // rasterized there via resolveImageMaskAlpha → replicatorMaskAlpha. It must
     // never draw its cells directly (that would paint the dots as visible content
     // over the frame). Same semantic as the group-mask-source skip above.
-    if (ctx?.imageMaskSourceIds.has(layer.id)) return;
+    if (rctx.imageMaskSourceIds.has(layer.id)) return;
     const instances = generateInstances(layer.replicator);
 
     // Framing-camera look-at basis (built once per replicator; present only when the
     // Camera carries factory-3 Framing behaviors). Generic — see framedCameraBasis.
-    const framedCam = (FRAMING_VIEW_ENABLED && ctx?.framed && output.height)
-      ? framedCameraBasis(ctx.framed, output.height)
+    const framedCam = (FRAMING_VIEW_ENABLED && rctx.framed && output.height)
+      ? framedCameraBasis(rctx.framed, output.height)
       : undefined;
 
     // Materialize the cell's Object Source once, then stamp it at each instance.
-    const cell = resolveCellImage(ctx!, layer.cellSourceId, imageA, imageB, time, filterOverrides);
+    const cell = resolveCellImage(rctx, layer.cellSourceId, imageA, imageB, time, filterOverrides);
 
     // The mask/content bbox is computed ONCE. Per instance we transform it into
     // output space and restrict the blit loop to that region — turning an
@@ -1161,7 +1162,7 @@ function renderLayer(
     const seq = layer.replicator.sequence;
     const cols = Math.max(1, Math.round(layer.replicator.columns));
     const rows = Math.max(1, Math.round(layer.replicator.rows));
-    const globalProgress = seq ? time / (ctx?.animationEndSec || 1) : 0;
+    const globalProgress = seq ? time / (rctx.animationEndSec || 1) : 0;
 
     for (const inst of instances) {
       // Per-instance sequenced parameters (default: no change).
@@ -1219,7 +1220,7 @@ function renderLayer(
           ...childCell,
           worldTransform: mat4MultiplyOffset(childCell.worldTransform, inst.x, inst.y),
         };
-        renderLayer(output, instCell, imageA, imageB, time, filterOverrides);
+        renderLayer(rctx, output, instCell, imageA, imageB, time, filterOverrides);
       }
     }
     return;
@@ -1227,7 +1228,7 @@ function renderLayer(
 
   if (layer.type === 'clone') {
     // Clone Layer: draw the image of the object it mirrors, at this layer's transform.
-    let src = resolveCloneImage(ctx!, layer.cloneSourceId);
+    let src = resolveCloneImage(rctx, layer.cloneSourceId);
     if (src) {
       // A clone may carry its OWN filters (e.g. Color Planes stacks 6 clones of the
       // same source, each with a Channel Mixer isolating one R/G/B channel, then
@@ -1253,7 +1254,7 @@ function renderLayer(
       if (cloneMasks.length > 0) {
         const temp = createBuffer(output.width, output.height);
         if (needsPerspective(worldTransform)) {
-          const corners = projectQuad(worldTransform, src.width, src.height, ctx?.cameraZ ?? 2000);
+          const corners = projectQuad(worldTransform, src.width, src.height, rctx.cameraZ ?? 2000);
           renderPerspectiveQuad(temp, src, corners, 1.0, 'normal');
         } else {
           blitTransformed(temp, src, worldTransform, 1.0, crop, 'normal', blitDstBBox(temp, src, worldTransform, crop));
@@ -1262,7 +1263,7 @@ function renderLayer(
         applyMask(temp, combined);
         blitDirect(output, temp, opacity, layer.blendMode);
       } else if (needsPerspective(worldTransform)) {
-        const corners = projectQuad(worldTransform, src.width, src.height, ctx?.cameraZ ?? 2000);
+        const corners = projectQuad(worldTransform, src.width, src.height, rctx.cameraZ ?? 2000);
         renderPerspectiveQuad(output, src, corners, opacity, layer.blendMode);
       } else {
         blitTransformed(output, src, worldTransform, opacity, crop, layer.blendMode, blitDstBBox(output, src, worldTransform, crop));
@@ -1281,7 +1282,7 @@ function renderLayer(
   // at its world transform, fill with its Fill Color, and composite with the
   // layer's opacity + blend mode. Filters (if any) apply to the filled buffer.
   if (layer.type === 'shape' && layer.shape && !layer.shape.isMask && layer.shape.fillColor && opacity > 0) {
-    const alpha = rasterizeShape(layer.shape, output.width, output.height, worldTransform, ctx?.cameraZ, ctx?.cameraPosZ);
+    const alpha = rasterizeShape(layer.shape, output.width, output.height, worldTransform, rctx.cameraZ, rctx.cameraPosZ);
     const { r, g, b, a } = layer.shape.fillColor;
     const fillBuf = createBuffer(output.width, output.height);
     const fd = fillBuf.data;
@@ -1338,7 +1339,7 @@ function renderLayer(
   // than a thin sliced band. Scoped to leaf image drop zones with a frame.
   let effCrop = crop;
   if ((layer.type === 'image') && layer.dropZone && layer.source) {
-    const srcImg0 = evalLayer.forceSourceA ? imageA : getSourceImage(ctx!, layer.source, imageA, imageB);
+    const srcImg0 = evalLayer.forceSourceA ? imageA : getSourceImage(rctx, layer.source, imageA, imageB);
     if (srcImg0) {
       const fw = layer.dropZone.width, fh = layer.dropZone.height;
       const sw = srcImg0.width, sh = srcImg0.height;
@@ -1366,13 +1367,13 @@ function renderLayer(
     // Skip the full-frame particle-field texture: the field proxy composites it
     // over the whole frame on a derived envelope (rendering it here too would
     // double-count and wash the early frames too gray). See applyParticleFieldProxy.
-    if (layer.type === 'image' && ctx?.fieldTextureLayerId === layer.id) return;
+    if (layer.type === 'image' && rctx.fieldTextureLayerId === layer.id) return;
 
     // Movements/Drop In: the Transition A/B drop-zone cards are drawn by a
     // dedicated pass in composite() (below) so their B-under-A z-order and the
     // tail frames (B timed out → A alone, not black) are correct regardless of
     // child render order / visibility. Skip both here.
-    const card = ctx?.dropInCard;
+    const card = rctx.dropInCard;
     if (card && layer.type === 'image' && (layer.id === card.aId || layer.id === card.bId)) return;
 
 
@@ -1385,16 +1386,16 @@ function renderLayer(
     // A frame-numbered Retime curve (Lights/Light Noise's screen .mov) supplies an
     // absolute forward clip time so the light-noise overlay plays along its own
     // timeline instead of the reverse-video default.
-    const clipT = retimedClipTime(evalLayer, ctx!);
-    const src = evalLayer.forceSourceA ? imageA : getSourceImage(ctx!, layer.source, imageA, imageB, clipT);
+    const clipT = retimedClipTime(evalLayer, rctx);
+    const src = evalLayer.forceSourceA ? imageA : getSourceImage(rctx, layer.source, imageA, imageB, clipT);
     if (src) {
       // Framing camera (factory 3): the standalone Transition A/B drop-zone tiles
       // live in the same off-canvas world space as the replicator wall, so route
       // them through the same look-at camera (computeFraming pose). Generic — only
-      // active when the scene resolves a Framing pose (ctx.framed).
+      // active when the scene resolves a Framing pose (rctx.framed).
       let worldTransform = evalLayer.worldTransform;
-      if (FRAMING_VIEW_ENABLED && ctx?.framed && output.height && layer.type === 'image' && layer.dropZone) {
-        const fcam = framedCameraBasis(ctx.framed, output.height);
+      if (FRAMING_VIEW_ENABLED && rctx.framed && output.height && layer.type === 'image' && layer.dropZone) {
+        const fcam = framedCameraBasis(rctx.framed, output.height);
         const wtp = new Float64Array(worldTransform);
         const pr = projectFramed(wtp[12], wtp[13], wtp[14], fcam);
         if (pr) {
@@ -1407,7 +1408,7 @@ function renderLayer(
       // Wipes/Mask masks Transition B over an unmasked Transition A). Render to a
       // temp buffer, multiply alpha by the rasterized mask, then composite.
       const maskAlpha = layer.imageMaskSourceId !== undefined
-        ? resolveImageMaskAlpha(ctx!, layer.imageMaskSourceId, output.width, output.height, layer.imageMaskInvert)
+        ? resolveImageMaskAlpha(rctx, layer.imageMaskSourceId, output.width, output.height, layer.imageMaskInvert)
         : null;
       if (maskAlpha) {
         const temp = createBuffer(output.width, output.height);
@@ -1429,7 +1430,7 @@ function renderLayer(
         blitDirect(output, filtered, opacity, layer.blendMode);
       } else if (needsPerspective(worldTransform)) {
         // 3D perspective: project the source quad and rasterize
-        const corners = projectQuad(worldTransform, src.width, src.height, ctx?.cameraZ ?? 2000);
+        const corners = projectQuad(worldTransform, src.width, src.height, rctx.cameraZ ?? 2000);
         renderPerspectiveQuad(output, src, corners, opacity);
       } else {
         blitTransformed(output, src, worldTransform, opacity, effCrop, layer.blendMode, blitDstBBox(output, src, worldTransform, effCrop));
@@ -1446,7 +1447,7 @@ function renderLayer(
     // the camera (open angle < 90°) is drawn, matching FCP's book-page look.
     const flip = detectPageFlip(evalLayer);
     if (flip) {
-      const camZ = ctx?.cameraZ ?? 2000;
+      const camZ = rctx.cameraZ ?? 2000;
       // The single visible page rotates about its centre vertical axis by θ. While
       // its front faces the camera (θ<90°) source A shows; past edge-on the page's
       // BACK faces the camera and PAEFlop (Flop=0) mirrors it horizontally so it
@@ -1454,7 +1455,7 @@ function renderLayer(
       // the same drop-zone media renders throughout.
       const pastEdge = flip.theta > Math.PI / 2;
       const page = pastEdge ? flip.back : flip.front;
-      const src = getSourceImage(ctx!, flip.front.layer.source, imageA, imageB);
+      const src = getSourceImage(rctx, flip.front.layer.source, imageA, imageB);
       // Continuous centre-axis rotation by θ (0→π). While the front faces the
       // camera (θ<90°) source A shows normally; past edge-on the reverse faces the
       // camera and PAEFlop (Flop=0) mirrors it (mirrorUV) so it reads correctly.
@@ -1507,7 +1508,7 @@ function renderLayer(
       // Render visible children to a temp buffer
       const groupBuffer = createBuffer(output.width, output.height);
       for (let i = 0; i < visibleChildren.length; i++) {
-        renderLayer(groupBuffer, order(i), imageA, imageB, time, filterOverrides);
+        renderLayer(rctx, groupBuffer, order(i), imageA, imageB, time, filterOverrides);
       }
 
       // Apply masks (rasterize shapes, union them, apply to group content)
@@ -1531,7 +1532,7 @@ function renderLayer(
       blitDirect(output, processed, opacity, layer.blendMode);
     } else {
       for (let i = 0; i < visibleChildren.length; i++) {
-        renderLayer(output, order(i), imageA, imageB, time, filterOverrides);
+        renderLayer(rctx, output, order(i), imageA, imageB, time, filterOverrides);
       }
     }
   }
@@ -1717,7 +1718,7 @@ export function composite(
 
   // Render layers back-to-front (Motion: first in list = top/foreground, last = bottom/background)
   for (let i = scene.layers.length - 1; i >= 0; i--) {
-    renderLayer(output, scene.layers[i], imageA, imageB, scene.time, scene.filterOverrides);
+    renderLayer(ctx!, output, scene.layers[i], imageA, imageB, scene.time, scene.filterOverrides);
   }
 
   // Composite the field-texture proxy over the rendered frame (no-op if not detected).

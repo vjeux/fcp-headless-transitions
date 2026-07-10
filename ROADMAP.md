@@ -148,6 +148,11 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-10  Item 4 — threaded RenderContext through renderLayer (the core recursive render
+              workhorse): 22 ctx refs → rctx param, 5 callers updated (3 recursive pass rctx,
+              resolveCellImage + composite pass ctx!). tsc clean; full engine re-render;
+              gate green 0/0. Remaining item-4 work: composite() body + delete the module `ctx`
+              + `_dzPlaceholder` vars; parser CLIP_MEDIA/DROPZONE_MEDIA_HEIGHT.
 - 2026-07-10  Item 4 — EVALUATOR globals eliminated. Found the tree dirty from a prior
               interrupted tick: EvalCtx interface defined + the 3 module globals (CURRENT_FPS,
               DROPZONE_WRAP_TO_A, HOLD_INCOMING_B) deleted but 11 refs left DANGLING → engine
