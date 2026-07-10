@@ -840,14 +840,14 @@ function collectImageMaskSourceIds(evalLayerById: Map<number, EvaluatedLayer>): 
  * instance's world transform, and union all instances into a single alpha mask.
  * Returns null when the cell isn't a resolvable shape.
  */
-function replicatorMaskAlpha(replEval: EvaluatedLayer, W: number, H: number): Uint8Array | null {
+function replicatorMaskAlpha(rctx: RenderContext, replEval: EvaluatedLayer, W: number, H: number): Uint8Array | null {
   const layer = replEval.layer;
-  if (!layer.replicator || layer.cellSourceId === undefined || !ctx) return null;
+  if (!layer.replicator || layer.cellSourceId === undefined) return null;
 
   // Resolve the cell's shape geometry (the dot). The cell source is usually a
   // Group whose Rig selects one visible shape child (Circle); fall back to the
   // node itself if it is directly a shape.
-  const cellEval = ctx.evalLayerById.get(layer.cellSourceId);
+  const cellEval = rctx.evalLayerById.get(layer.cellSourceId);
   let shapeLayer: EvaluatedLayer | undefined;
   if (cellEval) {
     if (cellEval.layer.type === 'shape' && cellEval.layer.shape) shapeLayer = cellEval;
@@ -860,7 +860,7 @@ function replicatorMaskAlpha(replEval: EvaluatedLayer, W: number, H: number): Ui
   const seq = layer.replicator.sequence;
   const cols = Math.max(1, Math.round(layer.replicator.columns));
   const rows = Math.max(1, Math.round(layer.replicator.rows));
-  const globalProgress = seq ? (ctx.time ?? 0) / (ctx.animationEndSec || 1) : 0;
+  const globalProgress = seq ? (rctx.time ?? 0) / (rctx.animationEndSec || 1) : 0;
 
   // Base per-instance transform: the CELL SHAPE's evaluated basis (its authored
   // dot size/rotation), with translation supplied per-instance below. The dot's
@@ -922,9 +922,8 @@ function findVisibleShape(el: EvaluatedLayer): EvaluatedLayer | null {
  * — position/scale/rotation keyframes — is honored). Returns null if the source
  * can't be resolved or no shape is currently visible.
  */
-function resolveImageMaskAlpha(sourceId: number, W: number, H: number, invert = false): Uint8Array | null {
-  if (!ctx) return null;
-  const src = ctx.evalLayerById.get(sourceId);
+function resolveImageMaskAlpha(rctx: RenderContext, sourceId: number, W: number, H: number, invert = false): Uint8Array | null {
+  const src = rctx.evalLayerById.get(sourceId);
   if (!src) return null;
   const applyInvert = (m: Uint8Array): Uint8Array => {
     if (!invert) return m;
@@ -941,7 +940,7 @@ function resolveImageMaskAlpha(sourceId: number, W: number, H: number, invert = 
   // tiled + sequenced across instances. Fully param-driven (grid layout, sequence
   // End/Spread, per-cell Scale) — no per-transition constant.
   if (src.layer.type === 'replicator' && src.layer.replicator) {
-    const alpha = replicatorMaskAlpha(src, W, H);
+    const alpha = replicatorMaskAlpha(rctx, src, W, H);
     if (alpha) return applyInvert(alpha);
     return null;
   }
@@ -951,7 +950,7 @@ function resolveImageMaskAlpha(sourceId: number, W: number, H: number, invert = 
   // resolver), fit it to the frame the same way a full-frame drop zone conforms,
   // and use luma (0..255) as the mask alpha.
   if (src.layer.type === 'image' && src.layer.source) {
-    const mediaImg = getSourceImage(ctx!, src.layer.source, ctx!.imageA, ctx!.imageB);
+    const mediaImg = getSourceImage(rctx, src.layer.source, rctx.imageA, rctx.imageB);
     if (mediaImg) {
       const alpha = new Uint8Array(W * H);
       // Full-frame matte: sample the media conformed to the output frame.
@@ -982,7 +981,7 @@ function resolveImageMaskAlpha(sourceId: number, W: number, H: number, invert = 
   // world transform to rasterize it at}. Clones borrow the referenced shape's
   // geometry (incl. its stroke) but use the CLONE's own transform.
   const entries: { shape: import('../types.js').Shape; xform: Float64Array; writeOnPhase?: number }[] = [];
-  const findShapeLayer = (id: number): EvaluatedLayer | undefined => ctx!.evalLayerById.get(id);
+  const findShapeLayer = (id: number): EvaluatedLayer | undefined => rctx.evalLayerById.get(id);
   const walk = (el: EvaluatedLayer, isRoot: boolean): void => {
     if (!isRoot && el.layer.type === 'group' && el.opacity <= 0) return;
     if (el.layer.type === 'shape' && el.layer.shape && el.visible) {
@@ -1031,7 +1030,7 @@ function resolveImageMaskAlpha(sourceId: number, W: number, H: number, invert = 
   };
   walk(src, true);
   if (entries.length === 0) return null;
-  const t = ctx.time ?? 0;
+  const t = rctx.time ?? 0;
   const resolveOffset = (v: number | { keyframes: { value: number }[]; value?: number; default: number } | undefined, def: number): number => {
     if (v === undefined) return def;
     if (typeof v === 'number') return v;
@@ -1060,7 +1059,7 @@ function resolveImageMaskAlpha(sourceId: number, W: number, H: number, invert = 
         const local = (g - e.writeOnPhase) / band;
         lastOffset = Math.max(0, Math.min(1, local));
       }
-      return rasterizeShape(e.shape, W, H, e.xform, ctx?.cameraZ, ctx?.cameraPosZ, { firstOffset, lastOffset });
+      return rasterizeShape(e.shape, W, H, e.xform, rctx.cameraZ, rctx.cameraPosZ, { firstOffset, lastOffset });
     }
     return rasterizeShape(e.shape, W, H, e.xform);
   });
@@ -1407,7 +1406,7 @@ function renderLayer(
       // Wipes/Mask masks Transition B over an unmasked Transition A). Render to a
       // temp buffer, multiply alpha by the rasterized mask, then composite.
       const maskAlpha = layer.imageMaskSourceId !== undefined
-        ? resolveImageMaskAlpha(layer.imageMaskSourceId, output.width, output.height, layer.imageMaskInvert)
+        ? resolveImageMaskAlpha(ctx!, layer.imageMaskSourceId, output.width, output.height, layer.imageMaskInvert)
         : null;
       if (maskAlpha) {
         const temp = createBuffer(output.width, output.height);
