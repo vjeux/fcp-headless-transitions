@@ -36,10 +36,28 @@ export interface TransitionFn {
    * @returns The composited frame as ImageData
    */
   render(imageA: ImageData, imageB: ImageData, progress: number): ImageData;
+  /**
+   * Render one frame at an ABSOLUTE scene time (seconds) — the engine's single
+   * time authority. `render(progress)` is exactly `renderAt(progress *
+   * animationEndSec)`. A harness that wants headless and engine to sample the SAME
+   * scene-moment per frame should drive BOTH with the shared time model, e.g.
+   * `renderAt(sample_time(i, N, span))` (see docs/RENDERER_CONTRACT.md); the same
+   * timeSec then produces the same evaluated scene instant in either renderer.
+   * @param timeSec - Scene time in seconds (0 = start; animationEndSec = visual end)
+   */
+  renderAt(imageA: ImageData, imageB: ImageData, timeSec: number): ImageData;
   /** Width of the output frame. */
   width: number;
   /** Height of the output frame. */
   height: number;
+  /**
+   * The scene time (seconds) that progress=1 maps to — the transition's VISUAL end
+   * (the last animating keyframe / layer-out), which for most transitions is
+   * slightly before the authored span (duration/frameRate). `render(progress)`
+   * scales progress by this. Exposed so a caller can convert between the progress
+   * and absolute-time domains.
+   */
+  animationEndSec: number;
 }
 
 /**
@@ -61,12 +79,19 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
   const band360 = detect360Band(scene);
   if (band360) {
     const bw = outW ?? width, bh = outH ?? height;
+    // The 360° band renders directly from progress; its animation span is the
+    // authored scene duration (no keyframe-walk override applies to this fast path).
+    const band360End = scene.settings.animationEndSec ?? (scene.settings.duration.value / scene.settings.duration.timescale);
     return {
       scene,
       width: bw,
       height: bh,
+      animationEndSec: band360End,
       render(imageA: ImageData, imageB: ImageData, progress: number): ImageData {
         return render360Band(band360, imageA, imageB, progress, bw, bh);
+      },
+      renderAt(imageA: ImageData, imageB: ImageData, timeSec: number): ImageData {
+        return render360Band(band360, imageA, imageB, band360End > 0 ? timeSec / band360End : 0, bw, bh);
       },
     };
   }
@@ -293,78 +318,86 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
     if (maxTilePxPerFrame < 4) motionBlurEnabled = false;
   }
 
+  // progress=1 maps to the animation end (the last keyframe), NOT the full
+  // scene/playRange duration — the extra frame past the last keyframe wraps back to
+  // the start in Motion. `render(progress)` and `renderAt(timeSec)` share this.
+  const duration = scene.settings.duration;
+  const endSec = scene.settings.animationEndSec ?? (duration.value / duration.timescale);
+  const wrapFrameTol = (scene.settings.frameRate > 0 ? 1 / scene.settings.frameRate : 1 / 30) / 2;
+
+  // Render a SINGLE scene instant (seconds) to a frame, applying retime-wrap +
+  // stroked-mask clamp + resolution conform. This is the engine's single time
+  // authority: both the public `renderAt(timeSec)` and the progress-based
+  // `render()` (via `progress * endSec`) funnel through here. Motion blur averages
+  // several of these across the shutter, so all per-instant logic lives here.
+  const renderInstant = (imageA: ImageData, imageB: ImageData, centerSec: number): ImageData => {
+    const renderOne = (tSec: number): ImageData => {
+      let timeSec = tSec;
+      // Retime extrapolation (mode 1 = wrap): once the wrapping drop zone has
+      // timed out by this frame (within a half-frame tolerance — FCP samples the
+      // frame centre), the transition loops back to the start and re-shows A.
+      if (retimeWrapSec !== undefined && timeSec >= retimeWrapSec - wrapFrameTol) {
+        timeSec = 0;
+      }
+      // Stroked-mask reveal tail: clamp to just under the drop-zone timeout so the
+      // fully-revealed B holds for the last frames (see strokedMaskClampSec).
+      if (strokedMaskClampSec !== undefined && timeSec > strokedMaskClampSec) {
+        timeSec = strokedMaskClampSec;
+      }
+      const evaluated = evaluate(scene, timeSec);
+      // Preserve the UN-wrapped scene time so the compositor's particle-field
+      // proxy can follow the true transition envelope even after wrapping.
+      evaluated.unwrappedTime = tSec;
+      // FCP renders at the PROJECT (output) resolution. Only upscale-case renders
+      // directly at output (absolute-coordinate masks); larger native canvases
+      // render native then resample.
+      const upscale = !!(outW && outH && outW > width && outH > height);
+      if (upscale) return composite(evaluated, imageA, imageB, outW!, outH!, opts?.mediaResolver);
+      const frame = composite(evaluated, imageA, imageB, width, height, opts?.mediaResolver);
+      if (outW && outH && (outW !== width || outH !== height)) return resample(frame, outW, outH);
+      return frame;
+    };
+
+    if (motionBlurEnabled) {
+      const samples = scene.settings.motionBlurSamples ?? 1;
+      const shutterFrames = scene.settings.motionBlurDuration ?? 1;
+      const frameSec = scene.settings.frameRate > 0 ? 1 / scene.settings.frameRate : 1 / 30;
+      const shutterSec = shutterFrames * frameSec;
+      let out: ImageData | null = null;
+      let accum: Float64Array | null = null;
+      for (let s = 0; s < samples; s++) {
+        // Trailing shutter: motion blur accumulates the object's PAST positions
+        // (samples span [centerSec - shutter, centerSec]), the physically-correct
+        // model for a frame exposed over the preceding shutter interval.
+        const frac = samples > 1 ? (s / (samples - 1)) - 1 : 0; // -1..0
+        let tSec = centerSec + frac * shutterSec;
+        if (tSec < 0) tSec = 0;
+        if (tSec > endSec) tSec = endSec;
+        const f = renderOne(tSec);
+        if (!accum) { accum = new Float64Array(f.data.length); out = f; }
+        const d = f.data;
+        for (let i = 0; i < d.length; i++) accum[i] += d[i];
+      }
+      if (out && accum) {
+        const d = out.data;
+        for (let i = 0; i < d.length; i++) d[i] = Math.round(accum[i] / samples);
+        return out;
+      }
+    }
+
+    return renderOne(centerSec);
+  };
+
   return {
     scene,
     width: outW ?? width,
     height: outH ?? height,
+    animationEndSec: endSec,
     render(imageA: ImageData, imageB: ImageData, progress: number): ImageData {
-      // Map progress (0-1) to scene time. progress=1 maps to the animation end
-      // (the last keyframe), NOT the full scene/playRange duration — the extra
-      // frame past the last keyframe wraps back to the start in Motion.
-      const duration = scene.settings.duration;
-      const endSec = scene.settings.animationEndSec ?? (duration.value / duration.timescale);
-
-      // Render a single scene time to a frame (applies retime-wrap + stroked-mask
-      // clamp + resolution conform). Motion blur averages several of these across
-      // the shutter, so all per-time logic lives here (not in the caller).
-      const wrapFrameTol = (scene.settings.frameRate > 0 ? 1 / scene.settings.frameRate : 1 / 30) / 2;
-      const renderAt = (tSec: number): ImageData => {
-        let timeSec = tSec;
-        // Retime extrapolation (mode 1 = wrap): once the wrapping drop zone has
-        // timed out by this frame (within a half-frame tolerance — FCP samples the
-        // frame centre), the transition loops back to the start and re-shows A.
-        if (retimeWrapSec !== undefined && timeSec >= retimeWrapSec - wrapFrameTol) {
-          timeSec = 0;
-        }
-        // Stroked-mask reveal tail: clamp to just under the drop-zone timeout so the
-        // fully-revealed B holds for the last frames (see strokedMaskClampSec).
-        if (strokedMaskClampSec !== undefined && timeSec > strokedMaskClampSec) {
-          timeSec = strokedMaskClampSec;
-        }
-        const evaluated = evaluate(scene, timeSec);
-        // Preserve the UN-wrapped scene time so the compositor's particle-field
-        // proxy can follow the true transition envelope even after wrapping.
-        evaluated.unwrappedTime = tSec;
-        // FCP renders at the PROJECT (output) resolution. Only upscale-case renders
-        // directly at output (absolute-coordinate masks); larger native canvases
-        // render native then resample.
-        const upscale = !!(outW && outH && outW > width && outH > height);
-        if (upscale) return composite(evaluated, imageA, imageB, outW!, outH!, opts?.mediaResolver);
-        const frame = composite(evaluated, imageA, imageB, width, height, opts?.mediaResolver);
-        if (outW && outH && (outW !== width || outH !== height)) return resample(frame, outW, outH);
-        return frame;
-      };
-
-      const centerSec = progress * endSec;
-
-      if (motionBlurEnabled) {
-        const samples = scene.settings.motionBlurSamples ?? 1;
-        const shutterFrames = scene.settings.motionBlurDuration ?? 1;
-        const frameSec = scene.settings.frameRate > 0 ? 1 / scene.settings.frameRate : 1 / 30;
-        const shutterSec = shutterFrames * frameSec;
-        let out: ImageData | null = null;
-        let accum: Float64Array | null = null;
-        for (let s = 0; s < samples; s++) {
-          // Trailing shutter: motion blur accumulates the object's PAST positions
-          // (samples span [centerSec - shutter, centerSec]), the physically-correct
-          // model for a frame exposed over the preceding shutter interval.
-          const frac = samples > 1 ? (s / (samples - 1)) - 1 : 0; // -1..0
-          let tSec = centerSec + frac * shutterSec;
-          if (tSec < 0) tSec = 0;
-          if (tSec > endSec) tSec = endSec;
-          const f = renderAt(tSec);
-          if (!accum) { accum = new Float64Array(f.data.length); out = f; }
-          const d = f.data;
-          for (let i = 0; i < d.length; i++) accum[i] += d[i];
-        }
-        if (out && accum) {
-          const d = out.data;
-          for (let i = 0; i < d.length; i++) d[i] = Math.round(accum[i] / samples);
-          return out;
-        }
-      }
-
-      return renderAt(centerSec);
-    }
+      return renderInstant(imageA, imageB, progress * endSec);
+    },
+    renderAt(imageA: ImageData, imageB: ImageData, timeSec: number): ImageData {
+      return renderInstant(imageA, imageB, timeSec);
+    },
   };
 }

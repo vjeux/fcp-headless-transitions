@@ -16,11 +16,27 @@ from PIL import Image
 from .config import SIZE, FRAME_EXT, JPEG_QUALITY
 
 def _save(im: Image.Image, path: str) -> None:
-    """Save an image honoring the project frame format (JPEG q=90 by default)."""
-    if path.lower().endswith((".jpg", ".jpeg")):
-        im.save(path, quality=JPEG_QUALITY)
-    else:
-        im.save(path)
+    """Save an image honoring the project frame format (JPEG q=90 by default).
+
+    Writes ATOMICALLY (temp file in the same dir + os.replace) so a concurrent
+    reader never sees a half-written file. This matters for the .fctcache thumbnails
+    written lazily by read_frame_cached: parallel `fct gen`/`fct score` passes (see
+    the ThreadPoolExecutor in cli.py) can otherwise race on the same cache path and
+    produce a torn JPEG that PIL then fails to decode.
+    """
+    import tempfile
+    d = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(dir=d, suffix=os.path.splitext(path)[1] or ".tmp")
+    os.close(fd)
+    try:
+        if path.lower().endswith((".jpg", ".jpeg")):
+            im.save(tmp, format="JPEG", quality=JPEG_QUALITY)
+        else:
+            im.save(tmp, format="PNG")
+        os.replace(tmp, path)  # atomic on POSIX
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
 
 def read_frame(path: str, size=None) -> np.ndarray:
     """Read a PNG/JPG file -> (H,W,3) float64 RGB 0..255.

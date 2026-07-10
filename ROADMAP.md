@@ -114,7 +114,7 @@ Status legend: TODO / DOING / DONE / BLOCKED
 - Verify: `fct regress engine` OK; a new `engine/test/concurrent.test.ts` renders 2 slugs
   interleaved and gets identical frames to serial.
 
-### 5. Define the renderer contract + single time authority  [TODO]  (cross-cutting)
+### 5. Define the renderer contract + single time authority  [DONE]  (cross-cutting)
 - DoD: a short `docs/RENDERER_CONTRACT.md`: "a renderer takes (motr, imgA, imgB, timeSec)
   -> 1920x1080 RGBA sRGB; the harness color-conforms to bt709; frame i = timeSec
   sample_time(i,24,span)". Engine's `render(progress)` gains a `renderAt(timeSec)` that
@@ -148,6 +148,24 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-10  Item 5 DONE — wrote docs/RENDERER_CONTRACT.md (render(motr,A,B,timeSec)->1920x1080
+              RGBA sRGB; harness color-conforms to bt709; frame i = sample_time(i,24,span)). Added
+              public TransitionFn.renderAt(A,B,timeSec) + .animationEndSec: both render() and
+              renderAt() now funnel through ONE internal renderInstant() (single time authority).
+              KEY FINDING (measured): 64/65 slugs have animationEndSec != span, so render(i/N)
+              (= (i/N)*animationEndSec) samples a DIFFERENT scene instant than headless's
+              (i/N)*span. animationEndSec is an intentional gate-frozen scar; renderAt lets a
+              caller address absolute scene time directly without disturbing render(progress).
+              render(p)===renderAt(p*animationEndSec) verified byte-identical; tsc clean;
+              full engine re-render + gate green 0/0.
+- 2026-07-10  PERF: parallelized `fct gen engine/gui --all` across cores (ThreadPoolExecutor,
+              default min(8,ncpu), longest-slug-first, FCT_JOBS override; headless stays serial
+              for the FCP GL mutex). Measured 960s→537s (1.8x) on the full 65-slug engine batch.
+              Remaining bottleneck is 360°_Bloom alone (262s: it renders the full 4096x2048
+              equirect scene + 6 blur passes because it does NOT match the 360-band fast path,
+              unlike 360°_Slide) — noted as a future engine-perf lever, not touched (would risk
+              its gate output). Also hardened fct/read.py cache writes to be ATOMIC (temp +
+              os.replace) since parallel passes can race the shared .fctcache. Gate green 0/0.
 - 2026-07-10  Item 4 DONE — added engine/test/concurrent.test.ts verifier (DoD): renders 2
               structurally-different slug pairs SERIALLY vs INTERLEAVED (A0,B0,A1,B1,...) at
               1920×1080×24 and asserts BYTE-IDENTICAL frames + interleaved re-parse determinism.

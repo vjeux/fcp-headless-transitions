@@ -56,6 +56,41 @@ def main():
                 have = len([f for f in os.listdir(d) if f.startswith("frame_")]) if os.path.isdir(d) else 0
                 print(f"{'OK' if have == N_FRAMES else 'ERR'} headless {s} ({have}/{N_FRAMES})", flush=True)
             return 0
+        # Engine + GUI batches are embarrassingly parallel: each slug renders in an
+        # independent tsx subprocess (engine) / decode (gui) with its own I/O and NO
+        # shared state (the compositor/evaluator/parser module globals were removed in
+        # ROADMAP item 4). Unlike headless — which serializes on the single FCP GL
+        # master context above — these saturate all cores. A single serial pass over
+        # 65 slugs is ~15 min (360°_Bloom alone is ~260s at its 4096-wide equirect
+        # resolution); a pool cuts that to a few minutes. Longest-first scheduling
+        # keeps the Bloom tail from dominating wall time. Set FCT_JOBS=1 to force
+        # serial (debugging).
+        def _render_one(s):
+            if source == "gui":       return s, slice_gui.slice_gui(s), None
+            elif source == "engine":  return s, gen.gen_engine(s), None
+            elif source == "headless":return s, gen.gen_headless(s), None
+            else: raise ValueError(f"unknown source {source}")
+        jobs_env = os.environ.get("FCT_JOBS")
+        default_jobs = min(8, (os.cpu_count() or 4)) if source in ("engine", "gui") and len(slugs) > 1 else 1
+        jobs = int(jobs_env) if jobs_env else default_jobs
+        # Longest-known-slow slugs first so they don't tail the batch (best-effort;
+        # unknown slugs keep their given order after the known-slow ones).
+        _SLOW_FIRST = ["360°__360°_Bloom", "Movements__Pinwheel", "Stylized__Slide",
+                       "Replicator-Clones__Concentric", "Stylized__Color_Panels",
+                       "Replicator-Clones__3D_Rectangle", "Lights__Bloom", "Stylized__Up-Over"]
+        if jobs > 1 and len(slugs) > 1:
+            ordered = [s for s in _SLOW_FIRST if s in slugs] + [s for s in slugs if s not in _SLOW_FIRST]
+            import concurrent.futures as _cf
+            with _cf.ThreadPoolExecutor(max_workers=jobs) as ex:
+                futs = {ex.submit(_render_one, s): s for s in ordered}
+                for fut in _cf.as_completed(futs):
+                    s = futs[fut]
+                    try:
+                        s, d, _ = fut.result()
+                        print(f"OK {source} {s} -> {d}", flush=True)
+                    except Exception as e:
+                        print(f"ERR {source} {s}: {e}", flush=True)
+            return 0
         for s in slugs:
             try:
                 if source == "gui":     d = slice_gui.slice_gui(s)
