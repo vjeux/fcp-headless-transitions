@@ -148,6 +148,9 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-10  Re-froze the stale headless baseline from a fresh full headless re-render (mean 20.92,
+              Push 35.x gate-res). Headless gate green 0/0. This corrects the pre-existing drift found
+              in item 3; the headless renderer output is deterministic, baseline now matches disk.
 - 2026-07-10  Item 3 DONE — (a) _fct_render.ts already a committed file; (b) config.py slug map now
               lazy @cache, no import-time read, dropped /tmp fallback; (c) added SOURCES dict +
               needs_bt709() so gui=bt709/srgb-sources color decision lives in ONE place (score.py &
