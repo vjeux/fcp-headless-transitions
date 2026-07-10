@@ -15,6 +15,7 @@
  *   - Amount/Intensity: strength of the glow overlay (default 1)
  */
 import { gaussianBlur } from './gaussian-blur.js';
+import { luma601 } from '../blend.js';
 
 export interface GlowParams {
   radius: number;
@@ -40,7 +41,7 @@ export function glowFilter(input: ImageData, params: GlowParams): ImageData {
   const n = src.length;
   for (let i = 0; i < n; i += 4) {
     // Compute luminance (perceived brightness)
-    const lum = 0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2];
+    const lum = luma601(src[i], src[i + 1], src[i + 2]);
     if (lum > thresholdByte) {
       // Keep this pixel for the glow
       brightData[i] = src[i];

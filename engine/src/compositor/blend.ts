@@ -16,6 +16,13 @@ export function luma(r: number, g: number, b: number): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
+/** Rec.601 luma (0.299/0.587/0.114) of a straight RGB color in [0..255].
+ * Motion's filters (Colorize/Tint/luma-key/glow) use Rec.601, distinct from the
+ * Rec.709 `luma` above — keep both; do NOT collapse them (different outputs). */
+export function luma601(r: number, g: number, b: number): number {
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
 // --- Separable channel blend functions. Inputs cs (source) and cb (backdrop)
 //     are straight color channel values in [0..255]. Return in [0..255]. ---
 

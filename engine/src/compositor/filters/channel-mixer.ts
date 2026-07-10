@@ -15,6 +15,7 @@
  *
  * Formula: outChannel = sum(inChannels * row) + offset
  */
+import { luma601 } from '../blend.js';
 
 export interface ChannelMixerParams {
   matrix: number[]; // 4x4 row-major [RR,RG,RB,RA, GR,GG,GB,GA, BR,BG,BB,BA, AR,AG,AB,AA]
@@ -41,7 +42,7 @@ export function channelMixerFilter(input: ImageData, params: ChannelMixerParams)
 
     if (monochrome) {
       // Convert to grayscale first (luminance-based)
-      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+      const lum = luma601(r, g, b);
       r = g = b = lum;
     }
 
@@ -82,7 +83,7 @@ export function tintFilter(input: ImageData, r: number, g: number, b: number, in
   const out = new Uint8ClampedArray(src.length);
 
   for (let i = 0; i < src.length; i += 4) {
-    const lum = (0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2]) / 255;
+    const lum = luma601(src[i], src[i + 1], src[i + 2]) / 255;
     // Tinted color = luminance × target color
     const tR = lum * r * 255;
     const tG = lum * g * 255;
@@ -126,7 +127,7 @@ export function colorizeRemapFilter(
   const bR = black.r * 255, bG = black.g * 255, bB = black.b * 255;
   const wR = white.r * 255, wG = white.g * 255, wB = white.b * 255;
   for (let i = 0; i < src.length; i += 4) {
-    const lum = (0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2]) / 255;
+    const lum = luma601(src[i], src[i + 1], src[i + 2]) / 255;
     const rR = bR + lum * (wR - bR);
     const rG = bG + lum * (wG - bG);
     const rB = bB + lum * (wB - bB);

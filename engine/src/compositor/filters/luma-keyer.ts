@@ -11,6 +11,7 @@
  *   - Strength: how strongly to apply the key (0-1)
  *   - Invert: flip which side is keyed
  */
+import { luma601 } from '../blend.js';
 
 export interface LumaKeyerParams {
   luma: number;      // 0-1 threshold
@@ -33,7 +34,7 @@ export function lumaKeyerFilter(input: ImageData, params: LumaKeyerParams): Imag
   const softness = Math.max(0.001, rolloff);
 
   for (let i = 0; i < src.length; i += 4) {
-    const lum = (0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2]) / 255;
+    const lum = luma601(src[i], src[i + 1], src[i + 2]) / 255;
 
     // Compute key value: 0 = fully keyed (transparent), 1 = fully visible
     // Pixels below (threshold - softness) → keyed; above → visible; smooth in between

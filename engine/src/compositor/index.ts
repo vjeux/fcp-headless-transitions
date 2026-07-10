@@ -9,7 +9,7 @@ import { bevelFilter } from './filters/bevel.js';
 import { evaluateCurve } from '../evaluator/curves.js';
 import { rasterizeShape, applyMask, unionMasks } from './shapes.js';
 import { needsPerspective, projectQuad, renderPerspectiveQuad, renderPageFlip } from './perspective.js';
-import { blendChannel, isSeparable, luma } from './blend.js';
+import { blendChannel, isSeparable, luma, luma601 } from './blend.js';
 import type { BlendMode } from '../types.js';
 import { generateInstances, sequenceProgress, sequenceOrder } from './replicator.js';
 import { lookupFilter, makeContext } from './filters/registry.js';
@@ -981,7 +981,7 @@ function resolveImageMaskAlpha(sourceId: number, W: number, H: number, invert = 
           const sx = Math.min(mw - 1, Math.floor(x * mw / W));
           const si = (sy * mw + sx) * 4;
           // Rec.601 luma; premultiply by the matte's own alpha (fully opaque here).
-          const l = (0.299 * mediaImg.data[si] + 0.587 * mediaImg.data[si + 1] + 0.114 * mediaImg.data[si + 2]);
+          const l = luma601(mediaImg.data[si], mediaImg.data[si + 1], mediaImg.data[si + 2]);
           alpha[y * W + x] = Math.round(l * (mediaImg.data[si + 3] / 255));
         }
       }
