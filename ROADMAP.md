@@ -107,7 +107,7 @@ Status legend: TODO / DOING / DONE / BLOCKED
   score.py/montage.py/config.py).
 - Verify: `python3 -c "import fct"` clean; `fct score Movements__Push` == 36.63.
 
-### 4. Thread RenderContext; remove module globals  [DOING]  (engine, medium)
+### 4. Thread RenderContext; remove module globals  [DONE]  (engine, medium)
 - DoD: `CURRENT_FPS`, `DROPZONE_WRAP_TO_A`, `HOLD_INCOMING_B` (evaluator), `ctx`,
   `_dzPlaceholder` (compositor), `CLIP_MEDIA` (parser) all threaded through an explicit
   `RenderContext`; two concurrent `render()` calls no longer corrupt each other.
@@ -148,6 +148,13 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-10  Item 4 DONE — added engine/test/concurrent.test.ts verifier (DoD): renders 2
+              structurally-different slug pairs SERIALLY vs INTERLEAVED (A0,B0,A1,B1,...) at
+              1920×1080×24 and asserts BYTE-IDENTICAL frames + interleaved re-parse determinism.
+              All 3 tests pass. Proves two concurrent render() calls no longer corrupt each
+              other. ALL render-scoped module globals (evaluator+compositor+parser) eliminated;
+              tsc fully clean; engine gate green 0/0. Item 4 complete. Next: item 5 (renderer
+              contract + single time authority).
 - 2026-07-10  Item 4 — PARSER globals ELIMINATED. Bundled CLIP_MEDIA + DROPZONE_MEDIA_HEIGHT
               (+ the existing clipAB map) into one per-parse `ClipInfo {ab, media,
               dropZoneMediaHeight}` returned by parseFootageClipAB and threaded through
