@@ -1,5 +1,4 @@
 import { gaussianBlur } from './filters/gaussian-blur.js';
-import { glowFilter } from './filters/glow.js';
 import { channelMixerFilter, colorizeRemapFilter, tintFilter } from './filters/channel-mixer.js';
 import { hueSaturationFilter } from './filters/hue-saturation.js';
 import { directionalBlur, radialBlur, zoomBlur } from './filters/directional-blur.js';
@@ -2017,38 +2016,6 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
       if (v !== undefined) mix = v;
     }
     return colorizeRemapFilter(input, black, white, mix);
-  }
-  // Glow filter (PAEGlow): Radius (blur), Threshold, Opacity (intensity, can be >1)
-  if (name.includes('glow')) {
-    let radius = 0, threshold = 0, intensity = 1;
-    for (const p of filter.parameters) {
-      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
-      if (val === undefined) continue;
-      if (p.name === 'Radius') radius = val;
-      if (p.name === 'Threshold') threshold = val;
-      if (p.name === 'Opacity' || p.name === 'Intensity') intensity = val;
-    }
-    if (radius > 0 && intensity > 0) {
-      return glowFilter(input, { radius, threshold, amount: intensity });
-    }
-    return input;
-  }
-  // Bloom filter (PAEBloom): Amount (blur spread), Brightness (intensity boost), Threshold
-  if (name.includes('bloom')) {
-    let amount = 0, brightness = 1, threshold = 0;
-    for (const p of filter.parameters) {
-      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
-      if (val === undefined) continue;
-      if (p.name === 'Amount') amount = val;
-      if (p.name === 'Brightness') brightness = val;
-      if (p.name === 'Threshold') threshold = val;
-    }
-    if (amount > 0 && brightness > 0) {
-      // Bloom: brighten above threshold, blur, screen-add. Brightness is 0-100 (÷ scale).
-      // Threshold here is 0-100 (÷100 to normalize).
-      return glowFilter(input, { radius: amount, threshold: threshold / 100, amount: brightness / 100 });
-    }
-    return input;
   }
   return input;
 }

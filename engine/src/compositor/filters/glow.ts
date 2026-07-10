@@ -81,3 +81,39 @@ export function glowFilter(input: ImageData, params: GlowParams): ImageData {
 
   return new ImageData(out, width, height);
 }
+
+import { registerFilter } from './registry.js';
+
+// Glow (PAEGlow, UUID 73F69C87-…). Behavior-identical to the legacy branch:
+// Radius/Threshold(raw)/intensity(Opacity or Intensity, default 1); a radius<=0 or
+// intensity<=0 leaves input unchanged.
+registerFilter({
+  uuid: '73F69C87-7226-4F7A-81F2-F5E378501423',
+  names: ['glow'],
+  label: 'Glow',
+  apply(input, ctx) {
+    const radius = ctx.param('Radius', 0);
+    const threshold = ctx.param('Threshold', 0);
+    const intensity = ctx.has('Opacity') ? ctx.param('Opacity', 1) : ctx.param('Intensity', 1);
+    if (radius > 0 && intensity > 0) return glowFilter(input, { radius, threshold, amount: intensity });
+    return input;
+  },
+});
+
+// Bloom (PAEBloom, UUID 5599C557-…). Behavior-identical to the legacy branch:
+// Amount (blur spread) / Brightness (0-100, ÷100) / Threshold (0-100, ÷100),
+// rendered via glowFilter; amount<=0 or brightness<=0 leaves input unchanged.
+registerFilter({
+  uuid: '5599C557-CDC0-4112-B2C4-355E9A1A902E',
+  names: ['bloom'],
+  label: 'Bloom',
+  apply(input, ctx) {
+    const amount = ctx.param('Amount', 0);
+    const brightness = ctx.param('Brightness', 1);
+    const threshold = ctx.param('Threshold', 0);
+    if (amount > 0 && brightness > 0) {
+      return glowFilter(input, { radius: amount, threshold: threshold / 100, amount: brightness / 100 });
+    }
+    return input;
+  },
+});
