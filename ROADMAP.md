@@ -145,11 +145,23 @@ Status legend: TODO / DOING / DONE / BLOCKED
   Commits: 047823c (rename isSlideFamily->hasColorizeRemapRig), 0c7bf7b (extract buildTimeMap),
   fafb201 (extract capabilities + enforce genericity). Gate 0/0 after each.
 
-### 7. Split the god-objects  [TODO]  (engine, do AFTER 6 shrinks them)
+### 7. Split the god-objects  [DONE]  (engine)
 - DoD: `parser/index.ts` (2585) -> per-node parsers; `compositor/index.ts` renderLayer (445-line
   switch) -> per-layer-type renderers registered by type; `evaluator/index.ts` visibility
   rules -> per-concern resolvers. No file > ~800 lines.
 - Verify: `fct regress engine` OK; `npx tsc --noEmit` clean.
+- DONE: no engine file now exceeds 800 lines (max 726). Splits, each gate-verified 0/0 + tsc clean:
+  - parser 2603 -> 637: xml.ts (DOM+time+curve+param), shapes.ts, behaviors.ts, replicator.ts,
+    rig.ts, footage.ts (+ClipInfo), transform.ts (blend+retime+transform), camera.ts. index.ts
+    now holds only the recursive core (parseSceneNode/parseLayerElement) + parseMotr.
+  - evaluator 1411 -> 701: matrix.ts (4x4, re-exported), links.ts (driver/link/rig resolution),
+    ramp.ts (Ramp/Fade), filter-overrides.ts, context.ts (EvalCtx).
+  - compositor 1882 -> 726: blit.ts (pixel/matrix primitives), context.ts (RenderContext/DropInCard),
+    masks.ts (source-resolution + mask-alpha), geometry.ts (projection/detection), field-texture.ts,
+    drop-in.ts. renderLayer's 423-line switch -> LAYER_RENDERERS type->renderer-chain registry +
+    4 named per-type renderers (renderReplicatorLayer/renderCloneLayer/renderDrawableLayer/
+    renderChildLayers) each returning a RenderOutcome ('stop'|'children').
+  Commits 0a4ae30..c6493e5. All verbatim/faithful moves; fct regress engine 0/0 after each.
 
 ### 8. Measure the color transform; add Python CI  [TODO]  (cross-cutting)
 - DoD: (a) the 6 fitted GAM constants replaced by a measured/derived sRGB->bt709 transform
