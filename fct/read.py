@@ -58,4 +58,9 @@ def read_frame_cached(path: str, size) -> np.ndarray:
         im = im.resize((w, h), Image.LANCZOS)
     os.makedirs(cdir, exist_ok=True)
     _save(im, cpath)
-    return np.asarray(im, np.float64)
+    # Return by RE-READING the saved thumbnail (not the in-memory `im`): the cache
+    # format may be lossy (JPEG q90), so the just-written file's decoded pixels differ
+    # slightly from `im`. Reading it back makes the cold (build) and warm (reuse) paths
+    # return byte-identical pixels — otherwise `fct baseline` (cold) and `fct regress`
+    # (warm) would score the same frames differently (~1dB), causing phantom regressions.
+    return np.asarray(Image.open(cpath).convert("RGB"), np.float64)

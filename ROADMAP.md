@@ -45,7 +45,7 @@ LOW-scoring slugs a genuine regression can hide. Mitigation for later: a relativ
 per-slug tolerance (e.g. tighter tol on high-baseline slugs). For now, 0.30 dB absolute
 reliably catches meaningful regressions on the slugs that matter most (the good ones).
 
-**⚠️ JPEG-determinism gotcha (learned 2026-07-10, item 2):** the ENGINE render is
+**✅ JPEG-determinism gotcha (FIXED 2026-07-10 in read_frame_cached — cold path now re-reads the saved thumbnail so cold==warm; kept for history):** the ENGINE render is
 deterministic (same code → byte-identical JPEG). BUT a baseline frozen from one encode
 path (e.g. PNG→JPEG bulk conversion) and compared against frames from a different encode
 path (canvas-JPEG-direct) shows ~0.5–0.7 dB false "regressions" on unchanged slugs — same
@@ -148,6 +148,12 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-10  GATE FIX — root-caused the recurring phantom regressions/improvements: read_frame_cached
+              returned the pre-JPEG in-memory thumbnail on the COLD (build) path but the re-read lossy
+              JPEG on the WARM path -> baseline(cold) and regress(warm) scored identical frames ~1dB
+              apart. Fixed: cold path now re-reads the saved thumbnail. Both gates now truly 0/0.
+              Re-froze both baselines (headless 21.23, engine 11.48). This removes the JPEG-encode
+              gate-noise caveat.
 - 2026-07-10  Re-froze the stale headless baseline from a fresh full headless re-render (mean 20.92,
               Push 35.x gate-res). Headless gate green 0/0. This corrects the pre-existing drift found
               in item 3; the headless renderer output is deterministic, baseline now matches disk.
