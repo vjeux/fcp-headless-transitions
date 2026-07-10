@@ -13,7 +13,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from .read import read_frame
 from .color import to_bt709
-from .config import N_FRAMES, frame_path
+from .config import N_FRAMES, frame_path, needs_bt709
 
 FFMPEG = "/opt/homebrew/bin/ffmpeg"
 _PANEL = (640, 360)       # each source panel
@@ -25,9 +25,9 @@ def _font(sz):
     except Exception: return ImageFont.load_default()
 
 def _panel(source, slug, i):
-    """One labeled panel: read frame, color-correct if headless/engine, scale, label."""
+    """One labeled panel: read frame, conform sRGB sources to bt709, scale, label."""
     a = read_frame(frame_path(source, slug, i), size=_PANEL)
-    if source in ("headless", "engine"):
+    if needs_bt709(source):
         a = to_bt709(a)
     img = Image.new("RGB", (_LABELW + _PANEL[0], _PANEL[1]), (20, 20, 20))
     img.paste(Image.fromarray(a.astype(np.uint8)), (_LABELW, 0))

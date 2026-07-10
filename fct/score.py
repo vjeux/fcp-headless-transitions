@@ -14,7 +14,7 @@ detection is preserved, and it's ~an order of magnitude faster and slug-uniform.
 Pass gate_size=None for exact full-resolution scoring (reporting, not the gate).
 """
 import numpy as np
-from .config import N_FRAMES, frame_path
+from .config import N_FRAMES, frame_path, needs_bt709
 from .read import read_frame, read_frame_cached
 from .color import to_bt709
 from .compare import _psnr
@@ -28,6 +28,7 @@ def score(slug: str, source: str = "headless", gate_size=None) -> dict:
     """Score a source's frames vs GUI GT. Returns {mean, frames:[...], n}.
     gate_size=(w,h) downscales both sides first (fast gate); None = full res.
     At gate_size the immutable GUI GT is read from a disk thumbnail cache."""
+    conform = needs_bt709(source)  # sRGB sources are conformed to the bt709 GUI GT
     per = []
     for i in range(N_FRAMES):
         gp = frame_path("gui", slug, i)
@@ -44,7 +45,8 @@ def score(slug: str, source: str = "headless", gate_size=None) -> dict:
             g = read_frame(gp)
             h, w = g.shape[:2]
             s = read_frame(sp, size=(w, h))
-        s = to_bt709(s)
+        if conform:
+            s = to_bt709(s)
         per.append(round(_psnr(g, s), 2))
     return {"slug": slug, "source": source,
             "mean": round(float(np.mean(per)), 2), "frames": per, "n": len(per)}

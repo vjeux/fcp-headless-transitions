@@ -27,7 +27,7 @@ function saveFrame(img: any, p: string, ext: string, quality: number) {
   fs.writeFileSync(p, cv.toBuffer('image/jpeg', { quality: quality / 100 }));
 }
 
-const map = JSON.parse(fs.readFileSync(process.env.FCT_SLUGMAP || '/tmp/slug_map.json', 'utf-8'));
+const map = JSON.parse(fs.readFileSync(process.env.FCT_SLUGMAP || path.resolve('../fct/slug_map.json'), 'utf-8'));
 const imgA = loadPNG(path.resolve('test/start.png')), imgB = loadPNG(path.resolve('test/end.png'));
 const slug = process.env.FCT_SLUG!, outDir = process.env.FCT_OUT!, N = parseInt(process.env.FCT_N || '24');
 const ext = (process.env.FCT_EXT || 'jpg').toLowerCase(), quality = parseInt(process.env.FCT_QUALITY || '90');

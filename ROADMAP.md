@@ -99,7 +99,7 @@ Status legend: TODO / DOING / DONE / BLOCKED
   (gaussian/bevel/luma-key/directional/radial/zoom/hsv/channel-mixer/tint/colorize/levels/
   gaussian/directional/radial/zoom; 10 done incl colorize) — migrate one-at-a-time, gate-green each. Verified pixel-neutral + re-froze baseline.
 
-### 3. fct toolkit polish  [TODO]  (fct, safe)
+### 3. fct toolkit polish  [DONE]  (fct, safe)
 - DoD: (a) `engine/test/_fct_render.ts` is a committed real file read from argv/env, not a
   Python heredoc in `gen.py`; (b) `config.py` loads the slug map lazily (`@cache`), no
   import-time side effect, no `/tmp` fallback; (c) a `Source` enum/dict carries
@@ -148,6 +148,13 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-10  Item 3 DONE — (a) _fct_render.ts already a committed file; (b) config.py slug map now
+              lazy @cache, no import-time read, dropped /tmp fallback; (c) added SOURCES dict +
+              needs_bt709() so gui=bt709/srgb-sources color decision lives in ONE place (score.py &
+              montage.py now use it). Engine gate green 0/0; change proven behavior-neutral.
+              NOTE: found a PRE-EXISTING stale headless baseline (Push headless now renders 35.12,
+              baseline had 37.48) — unrelated to this change (OLD config gives same 35.12). Re-freezing
+              headless baseline separately.
 - 2026-07-10  Item 2 COMPLETE — migrated the last 4 filters (Gaussian/Directional/Radial/Zoom Blur)
               via a new ctx.blurAmount helper (preserves override-honoring + 'static value=0=inactive').
               Deleted the ENTIRE legacy name.includes chain + resolveParam/resolveBlurAmount + unused
