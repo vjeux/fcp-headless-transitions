@@ -106,3 +106,20 @@ registerFilter({
     return brightnessFilter(input, amount);
   },
 });
+
+// PAELevels (UUID 2B221FA1-…). Behavior-identical to the legacy branch: Black In
+// (0), White In (1), Gamma (1), White Out (1), Mix (1).
+registerFilter({
+  uuid: '2B221FA1-08A2-416E-998C-D7559E5509B5',
+  names: ['levels', 'paelevels'],
+  label: 'Levels',
+  apply(input, ctx) {
+    return levelsFilter(input, {
+      blackIn: ctx.param('Black In', 0),
+      whiteIn: ctx.param('White In', 1),
+      gamma: ctx.param('Gamma', 1),
+      whiteOut: ctx.param('White Out', 1),
+      mix: ctx.param('Mix', 1),
+    });
+  },
+});

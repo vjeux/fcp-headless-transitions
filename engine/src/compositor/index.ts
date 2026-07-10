@@ -1,6 +1,5 @@
 import { gaussianBlur } from './filters/gaussian-blur.js';
 import { glowFilter } from './filters/glow.js';
-import { levelsFilter } from './filters/levels.js';
 import { channelMixerFilter, colorizeRemapFilter, tintFilter } from './filters/channel-mixer.js';
 import { hueSaturationFilter } from './filters/hue-saturation.js';
 import { directionalBlur, radialBlur, zoomBlur } from './filters/directional-blur.js';
@@ -2019,22 +2018,6 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
     }
     return colorizeRemapFilter(input, black, white, mix);
   }
-  // Levels filter
-  if (name.includes('level') || name === 'paelevels') {
-    let blackIn = 0, whiteIn = 1, gamma = 1, whiteOut = 1, mix = 1;
-    for (const p of filter.parameters) {
-      const pn = p.name;
-      const val = p.curve ? evaluateCurve(p.curve, time) : (typeof p.value === 'number' ? p.value : undefined);
-      if (val === undefined) continue;
-      if (pn === 'Black In') blackIn = val;
-      if (pn === 'White In') whiteIn = val;
-      if (pn === 'Gamma') gamma = val;
-      if (pn === 'White Out') whiteOut = val;
-      if (pn === 'Mix') mix = val;
-    }
-    return levelsFilter(input, { blackIn, whiteIn, gamma, whiteOut, mix });
-  }
-  // Brightness filter
   // Glow filter (PAEGlow): Radius (blur), Threshold, Opacity (intensity, can be >1)
   if (name.includes('glow')) {
     let radius = 0, threshold = 0, intensity = 1;
