@@ -10,13 +10,21 @@ Transition A + Transition B drop zones with ONE scene-level <filter>), rewrite t
 <filter> to the target plugin UUID + static params, and render at t=0 where
 Transition A fully covers the frame -> headless output == filter(imageA).
 
+⚠️ Keep the injected <filter> at factoryID="7" (the skeleton's scene-filter slot).
+The pluginUUID selects the actual filter; a mismatched factoryID makes the host
+IGNORE the filter (observed: factoryID="21" -> filter never applied). Verified with
+PAEBrightness (out=in*amount) and TintFx (hard-light tint) both applying under f7.
+
 Because the headless IS FCP's real engine, headless-vs-TS on the SAME synthetic
 .motr is a legitimate Phase-2 fidelity check (NOT the banned render-vs-render
-TS-scoring shortcut, which is about scoring TS TRANSITIONS vs GUI GT).
+TS-transition scoring, which is about scoring TS TRANSITIONS vs GUI GT).
 
 USAGE
-  filter_probe.py --uuid <UUID> --name <PAEName> [--param "PName:id=value" ...] \
-      [--time 0.0] [--out /tmp/probe_headless.png]
+  # flat params:
+  filter_probe.py --uuid <UUID> --name <PAEName> --param "PName:id=value" ... [--out p.png]
+  # nested param (e.g. a Color group with RGB children):
+  filter_probe.py --uuid <UUID> --name <PAEName> \
+      --group "Color:1=Red:1:1.0,Green:2:0.0,Blue:3:0.0" --param "Intensity:2=1.0"
 """
 import os, sys, argparse, tempfile, re
 
@@ -26,21 +34,39 @@ SKELETON = ("/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/"
             "Transitions.localized/Blurs.localized/Directional.localized/Directional.motr")
 
 
-def build_filter_xml(uuid, name, params):
+def _param_xml(pname, pid, pval, indent="\t\t\t"):
+    return (f'{indent}<parameter name="{pname}" id="{pid}" flags="8606711824" '
+            f'default="0" value="{pval}"/>')
+
+
+def _group_xml(spec):
+    # "Color:1=Red:1:1.0,Green:2:0.0,Blue:3:0.0"
+    head, children = spec.split("=")
+    gname, gid = head.rsplit(":", 1)
+    lines = [f'\t\t\t<parameter name="{gname}" id="{gid}" flags="8589938704">']
+    for ch in children.split(","):
+        cn, cid, cv = ch.split(":")
+        lines.append(_param_xml(cn, cid, cv, indent="\t\t\t\t"))
+    lines.append('\t\t\t</parameter>')
+    return "\n".join(lines)
+
+
+def build_filter_xml(uuid, name, params, groups):
     lines = [f'\t\t<filter name="{name}" id="988471399" factoryID="7" '
              f'pluginUUID="{uuid}" pluginVersion="1" pluginName="{name}" pluginDynamicParams="0">',
              '\t\t\t<timing in="0 7680000 1 0" out="123063808 7680000 1 0" offset="0 7680000 1 0"/>',
              '\t\t\t<baseFlags>8589934672</baseFlags>']
+    for g in groups:
+        lines.append(_group_xml(g))
     for pname, pid, pval in params:
-        lines.append(f'\t\t\t<parameter name="{pname}" id="{pid}" flags="8606711824" '
-                     f'default="0" value="{pval}"/>')
+        lines.append(_param_xml(pname, pid, pval))
     lines.append('\t\t</filter>')
     return "\n".join(lines)
 
 
-def make_probe_motr(uuid, name, params):
+def make_probe_motr(uuid, name, params, groups):
     src = open(SKELETON, encoding="utf-8").read()
-    new_filter = build_filter_xml(uuid, name, params)
+    new_filter = build_filter_xml(uuid, name, params, groups)
     out = re.sub(r'\t\t<filter name="Directional Blur".*?</filter>', new_filter, src,
                  flags=re.DOTALL)
     fd, path = tempfile.mkstemp(suffix=".motr", prefix="fprobe_")
@@ -53,7 +79,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--uuid", required=True)
     ap.add_argument("--name", required=True)
-    ap.add_argument("--param", action="append", default=[])
+    ap.add_argument("--param", action="append", default=[], help='"PName:id=value"')
+    ap.add_argument("--group", action="append", default=[],
+                    help='"GName:gid=Child:cid:val,Child:cid:val"')
     ap.add_argument("--time", type=float, default=0.0)
     ap.add_argument("--out", default="/tmp/probe_headless.png")
     a = ap.parse_args()
@@ -62,7 +90,7 @@ def main():
         nameid, val = p.split("=")
         pname, pid = nameid.rsplit(":", 1)
         params.append((pname, pid, val))
-    motr = make_probe_motr(a.uuid, a.name, params)
+    motr = make_probe_motr(a.uuid, a.name, params, a.group)
     print("probe motr:", motr)
     sys.path.insert(0, os.path.join(REPO, "tools"))
     import ozengine

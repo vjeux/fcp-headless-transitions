@@ -26,20 +26,26 @@
  *
  * --- HgcTint (PAETint, UUID 717D6E01-…) — VERBATIM shader ---
  *   r0  = color0;  r0 = r0 / max(r0.w,1e-6)   // un-premultiply (rgb), alpha kept
- *   r1.w = dot(r0.xyz, hg_Params[2].xyz)      // LUMA (hg_Params[2] = luma weights)
- *   // two-slope tint ramp about luma 0.5, toward hg_Params[0] (tint color):
- *   r2.x = 1 - luma
- *   r1.xyz = r2.x*tint - r2.x                 //  (tint-1)*(1-luma)     [shadows leg]
- *   r2.xyz = r1.xyz*2 + 1                      //  2*that + 1
- *   r1.xyz = luma*tint                         //  luma*tint            [highlights leg]
- *   r1.xyz = r1.xyz*2 - r2.xyz                 //  2*that - shadowsLeg
- *   sel   = (luma < 0.5) ? 1 : 0
- *   r1.xyz = sel*r1.xyz + r2.xyz               // pick leg by luma<0.5  (a "hard-light"-style tint)
- *   r0.xyz = mix(r0.xyz, r1.xyz, hg_Params[1].xyz)  // hg_Params[1] = Amount/Intensity
+ *   luma = dot(r0.xyz, hg_Params[2].xyz)      // hg_Params[2] = luma weights
+ *   A = (1-luma)*(tint-1)                      // r1 = r2.x*tint - r2.x, r2.x=1-luma
+ *   shadowLeg    = 2*A + 1                      // r2 = r1*2 + 1
+ *   highlightLeg = 2*luma*tint - shadowLeg     // r1 = (luma*tint)*2 - r2
+ *   sel  = (luma < 0.5) ? 1 : 0                 // r1.w = float(luma < 0.5)
+ *   tinted = sel*highlightLeg + shadowLeg      // r1 = r1.w*highlightLeg + shadowLeg
+ *   r0.xyz = mix(r0.xyz, tinted, hg_Params[1].xyz)   // hg_Params[1] = Intensity
  *   r0.xyz *= r0.w                             // re-premultiply
- *   ⇒ FCP Tint is a HARD-LIGHT blend of the image luma against the tint color, NOT
- *   the simple `luma*tintColor` lerp the legacy tintFilter below implements. (See
- *   Phase-2 TODO: tintFilter is only correct at Intensity ramps where luma≈mid.)
+ *   ⇒ FCP Tint is a HARD-LIGHT-style tint (a two-leg select about luma 0.5), NOT
+ *   the simple `luma*tintColor` lerp the legacy tintFilter below implements.
+ *   ⚠️ PHASE-2 PROBE (tools/re/filter_probe, TintFx over image A, tint=[1,0,0],
+ *   Intensity=1): the exact-shader transcription above (sRGB space, either 601 or
+ *   709 luma) reproduces the RED channel (255) but lands the suppressed G/B at ~29
+ *   vs FCP's ~56 (mean|err|~21). The residual is NOT linear-light (that's worse,
+ *   err~45) — it is a TintFx-vs-PAETint variant / Color-Space(id=11)=3 nuance not yet
+ *   pinned. Real params are Color(id1: R/G/B children) + Intensity(id2) + Mix(10001),
+ *   NOT the top-level Red/Green/Blue the legacy registration reads (a param-name bug).
+ *   Phase-2: confirm the Color-Space handling before replacing tintFilter; Tint is
+ *   used by only 4 transitions (Glide/Wipes+Stylized Diagonal/Leaves), all dominated
+ *   by other gaps, so the gate is a weak discriminator here.
  *
  * --- HgcColorize (PAEColorize, UUID D995BBCF-…) — VERBATIM shader ---
  *   r0  = color0
