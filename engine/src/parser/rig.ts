@@ -37,15 +37,20 @@ export function parseRigWidgets(sceneEl: Element, factories: Map<number, string>
       if (raw !== null) {
         const num = parseFloat(raw);
         if (Number.isInteger(num)) {
-          // Discrete-index widget. Motion's "Pop-up" menu widget stores a 1-BASED
-          // selection (menu item 1 = the first snapshot), whereas the "Direction"
-          // widget stores a 0-BASED index. Both share factoryID 13 and identical
-          // <snapshot>1..4</snapshot> tags, so we disambiguate by the widget name.
-          // Getting this wrong for Blurs/Gaussian & Blurs/Radial (Pop-up value=1)
-          // selected snapshot[1] — the blur ramp (Amount 0→100→0, Mix=1) — and
-          // over-blurred, when FCP actually shows NO blur (snapshot[0]: Mix=0).
+          // Discrete-index widget. The "Pop-up" menu widget stores a 0-BASED snapshot
+          // index directly (its own-name parameter value = the selected snapshot's
+          // ordinal): Blurs/Gaussian Pop-up=1 -> snapshot[1] (Gaussian blur ramp,
+          // Amount 0->304->0, Mix=1); Blurs/Radial Pop-up=2 -> snapshot[2] (radial blur);
+          // Movements/Rotate + Stylized/Slide Pop-up=0 -> snapshot[0].
+          // ⚠️ SCAR CORRECTED (2026-07-11, GUI-GT-verified): this previously did
+          // `num - 1`, forcing Gaussian to snapshot[0] (Mix=0 = NO blur) and Radial to
+          // snapshot[1]. That was based on a mistaken "FCP shows no blur" reading — the
+          // GUI GT is in fact HEAVILY blurred (Blurs/Gaussian frame-12 edge-sharpness
+          // 0.18 vs the engine's then-2.30). With `num` the engine applies the blur FCP
+          // applies (Gaussian sharpness now tracks GT 0.18-0.63) and the gate is
+          // neutral-to-positive (Gaussian +0.25, others unchanged, 0 regressions/65).
           if (name === 'Pop-up') {
-            value = Math.max(0, num - 1);
+            value = Math.max(0, num);
           } else {
             // Direction (and other discrete menu) widgets: the stored value is the
             // menu TAG, which maps to a snapshot by matching the snapshot's declared
