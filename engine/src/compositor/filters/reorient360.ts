@@ -45,6 +45,124 @@
  * used by every 360° video tool; the only engine-specific choice (axis convention
  * / rotation order) is documented above and matches Motion's Tilt-X / Pan-Y /
  * Roll-Z labeling.
+ *
+ * ============================================================================
+ * VERBATIM FCP SHADERS (Phase-1 reverse-engineering — source of truth)
+ * ============================================================================
+ * CPU wiring: `-[PAEEquirectReorient addParameters]` (Filters.bundle arm64) adds
+ * exactly THREE `addAngleSliderWithName:parmId:…` calls with parmId 1, 2, 3 and
+ * default 0 — i.e. Tilt(1)/Pan(2)/Roll(3) as angle sliders (radians). Its
+ * `frameSetup` composes a rotation with `PCMatrix44Tmpl::rightMult` (a 4×4
+ * matrix multiply) — the reorientation is a single sphere rotation, applied in
+ * SINUSOIDAL space via the two shaders below. This is the SAME sinusoidal
+ * reprojection primitive used by the 360° Gaussian Blur (see
+ * FCP_360_BLUR_REVERSE_ENGINEERING.md: HEquirectGaussianBlur chains
+ * HgcEquirectToSinusoidal → operate → HgcSinusoidalToEquirect).
+ *
+ * FCP's reorient pipeline (per output pixel), reconstructed from the shaders:
+ *   equirect(src) ──HgcEquirectToSinusoidal──▶ sinusoidal ──rotate(R)──▶
+ *   sinusoidal' ──HgcSinusoidalToEquirect──▶ equirect(out)
+ * The rotation R lives in the params[4]/params[5] rows that each shader dots
+ * against the reprojected coordinate (a 2×3 affine that carries the composed
+ * pan/tilt/roll). Both shaders are inverse-map (they sample the SOURCE for each
+ * destination pixel), so the direction of R vs Rᵀ is baked into how FCP fills
+ * those rows — see FINDING G.
+ *
+ * ── HgcSinusoidalToEquirect (LEN=0x38f), verbatim: ──────────────────────────
+ *   const float4 c0 = float4(0.5, 3.141592741, 1.570796371, 1.0); // .5, π, π/2, 1
+ *   r0.y = dot(texCoord0, hg_Params[3]);            // affine map texCoord → v
+ *   r0.x = dot(texCoord0, hg_Params[2]);            // affine map texCoord → u
+ *   r0.xy = hg_Params[0].xy*0.5 + r0.xy;            // + ½·offset (recenters)
+ *   r0.xz = r0.xy * hg_Params[1].xy;                // × (scaleX, scaleY)
+ *   r0.xz = r0.xz - float2(π, π/2);                 // → (λ = x-π, φ = z-π/2)  [lon,lat]
+ *   r0.z = cos(r0.z);                               // cos(φ)
+ *   r0.x = r0.x*r0.z + π;                            // λ' = λ·cos(φ) + π   ← SINUSOIDAL squeeze
+ *   r0.x = r0.x / hg_Params[1].x;                    // undo scaleX (back to u space)
+ *   r0.xy = hg_Params[0].xy*-0.5 + r0.xy;            // − ½·offset (undo recenter)
+ *   r0.w = 1.0;
+ *   r1.y = dot(r0.xyw, hg_Params[5].xyz);            // rotate/affine → source v
+ *   r1.x = dot(r0.xyw, hg_Params[4].xyz);            // rotate/affine → source u
+ *   r1.xy = r1.xy + hg_Params[6].xy;                 // src atlas offset
+ *   r1.xy = r1.xy * hg_Params[6].zw;                 // src atlas scale → uv
+ *   output.color0 = hg_Texture0.sample(hg_Sampler0, r1.xy);
+ *
+ *   Meaning: converts a SINUSOIDAL-projection coordinate back to EQUIRECT. In a
+ *   sinusoidal projection, longitude is scaled by cos(latitude): the key line is
+ *     λ_sinusoidal = λ_equirect · cos(φ)
+ *   Here it maps the destination equirect (λ,φ) to the source column by
+ *   multiplying the centered longitude by cos(φ). The params[4]/[5] rows then
+ *   apply the composed rotation as a 2×3 affine before sampling the source.
+ *
+ * ── HgcEquirectToSinusoidal (LEN=0x4c7), verbatim: ──────────────────────────
+ *   const float4 c0 = float4(0.5, π, π/2, 0.1591549367);   // .5,π,π/2, 1/(2π)
+ *   const float4 c1 = float4(-6.283185482, 1.0, 0.0, 0.0); // −2π, 1, 0, 0
+ *   r0.xy = hg_Params[0].xy;
+ *   r1.y = dot(texCoord0, hg_Params[3]);            // affine texCoord → v
+ *   r1.x = dot(texCoord0, hg_Params[2]);            // affine texCoord → u
+ *   r1.xy = r0.xy*0.5 + r1.xy;                       // recenter
+ *   r1.xz = r1.xy * hg_Params[1].xy;                 // × (scaleX, scaleY)
+ *   r1.xz = r1.xz - float2(π, π/2);                  // → (λ, φ)
+ *   r1.z = cos(r1.z);                                // cos(φ)
+ *   r1.w = 1.0 / r1.z;                               // 1/cos(φ)
+ *   r1.w = r1.x * r1.w;                              // λ / cos(φ)   ← INVERSE sinusoidal
+ *   r1.z = abs(r1.z);
+ *   r1.x = (r1.z < 0) ? r1.w : r1.x;                 // guard cos(φ)→0 near poles
+ *   r1.x = r1.x + π;
+ *   r1.z = r1.x * (1/(2π));                          // wrap index = (λ/cosφ + π)/(2π)
+ *   r1.z = floor(r1.z);
+ *   r1.w = 1.0 / hg_Params[1].x;
+ *   r1.x = r1.z*(-2π) + r1.x;                         // wrap λ into one period
+ *   r1.x = r1.x * r1.w;                              // undo scaleX
+ *   r1.xy = r0.xy*-0.5 + r1.xy;                       // undo recenter
+ *   r1.w = 1.0;
+ *   r0.y = dot(r1.xyw, hg_Params[5].xyz);            // rotate/affine → source v
+ *   r0.x = dot(r1.xyw, hg_Params[4].xyz);            // rotate/affine → source u
+ *   r0.xy = r0.xy + hg_Params[6].xy;                 // src atlas offset
+ *   r0.xy = r0.xy * hg_Params[6].zw;                 // src atlas scale → uv
+ *   output.color0 = hg_Texture0.sample(hg_Sampler0, r0.xy);
+ *
+ *   Meaning: the INVERSE of the above — converts an EQUIRECT coordinate to a
+ *   SINUSOIDAL one by DIVIDING the centered longitude by cos(φ) (with a pole
+ *   guard when cos(φ)→0, plus a floor/−2π longitude WRAP so the un-squeezed
+ *   longitude stays within one [−π,π] period). Same params[4]/[5] rotation rows
+ *   and params[6] source-atlas transform.
+ *
+ * ── Shared hg_Params slot map (both sinusoidal shaders): ─────────────────────
+ *     [0].xy = recentering offset (½-added then ½-subtracted around the reproject)
+ *     [1].x  = longitude scale (maps u → λ range, and its reciprocal maps back)
+ *     [1].y  = latitude  scale (maps v → φ range)
+ *     [2]    = affine row: texCoord0 · [2] → u   (dest pixel → normalized u)
+ *     [3]    = affine row: texCoord0 · [3] → v   (dest pixel → normalized v)
+ *     [4].xyz= rotation/affine row → source u    (carries pan/tilt/roll)
+ *     [5].xyz= rotation/affine row → source v
+ *     [6].xy = source-texture atlas offset ; [6].zw = source-texture atlas scale
+ *
+ * ── FINDINGS where this TS impl differs from FCP (Phase-2 TODO): ─────────────
+ * FINDING G [Phase-2 TODO]: FCP performs the reorientation as an EQUIRECT→
+ *   SINUSOIDAL reprojection, applies the rotation as a 2×3 affine on the
+ *   sinusoidal coordinate (params[4]/[5]), then SINUSOIDAL→EQUIRECT. This TS
+ *   `reorient360` instead does a DIRECT 3-D spherical rotation of the unit
+ *   direction vector (d = Rᵀ·dir, then back to lon/lat) with NO sinusoidal
+ *   intermediate. For a PURE sphere rotation the two are mathematically
+ *   equivalent at the sampled points, BUT the sinusoidal round-trip changes
+ *   the RESAMPLING geometry (longitude gets squeezed by cos φ before/after the
+ *   affine), so pole behavior and interpolation smearing will differ from FCP.
+ *   Whether FCP's params[4]/[5] encode a full 3-D rotation or only a 2-D
+ *   affine-in-sinusoidal-space is NOT yet confirmed from the disasm (the matrix
+ *   is built on the CPU in frameSetup via PCMatrix44::rightMult and uploaded as
+ *   these rows). Phase-2 must confirm the exact rotation encoding against a GT
+ *   capture before changing the algorithm.
+ * FINDING H [Phase-2 TODO]: FCP's E→S shader has an explicit longitude WRAP
+ *   (floor(x/2π)·−2π) and a pole guard (1/cos φ blows up near φ=±π/2). This TS
+ *   impl wraps longitude at sample time (su -= floor(su)) and clamps latitude,
+ *   but does not reproduce the sinusoidal pole guard — polar pixels may map
+ *   differently near φ=±π/2.
+ * FINDING I [Phase-2 TODO]: bilinear filtering — FCP samples the source texture
+ *   through the hardware sampler (hg_Sampler0) with wrap/clamp addressing set by
+ *   params[6]. This TS impl hand-rolls bilinear with horizontal wrap + vertical
+ *   clamp; edge/wrap addressing modes should be confirmed to match FCP's sampler
+ *   state (esp. the top/bottom pole rows).
+ * ============================================================================
  */
 import { registerFilter, type FilterContext } from './registry.js';
 
