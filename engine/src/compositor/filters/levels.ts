@@ -1,17 +1,46 @@
 /**
- * Levels filter implementation.
+ * Levels (PAELevels) + Brightness (PAEBrightness) filters.
+ *
+ * ============================ FCP REVERSE-ENGINEERING ============================
+ * HgcLevels VERBATIM shader (tools/re/extract_shader.py HgcLevels). FCP's Levels is
+ * a TWO-STAGE remap with a gamma between the stages AND a second gamma at the end —
+ * richer than the single-stage TS levelsFilter below. Slot map (each hg_Params[i] is
+ * a full float4 = per-channel R,G,B + the .w alpha lane):
+ *   hg_Params[0] = input  BLACK point   hg_Params[1] = output BLACK point   (stage 1 in/out low)
+ *   hg_Params[2] = input  WHITE point   hg_Params[3] = output WHITE point   (stage 1 in/out high)
+ *   hg_Params[4] = stage-1 GAMMA (pow)
+ *   hg_Params[5..8] = stage-2 in-black/out-black/in-white/out-white
+ *   hg_Params[9]  = stage-2 GAMMA (pow)
+ *   hg_Params[10] = Mix
+ * Algorithm (un-premult r3 first):
+ *   // STAGE 1: affine remap inBlack..inWhite -> outBlack..outWhite
+ *   slope1 = (outWhite - outBlack) / ((inBlack - inWhite) + 1e-5)     // NOTE sign: (inB-inW)
+ *   b1     = slope1 * (-inBlack) + outBlack
+ *   x = clamp(rgb*slope1 + b1, 0,1);  x = clamp(x + 1e-5, 0,1)
+ *   x = pow(x, gamma1)                                                // hg_Params[4]
+ *   // STAGE 2: same affine shape with the stage-2 slots
+ *   slope2 = (out2White - out2Black) / ((in2Black - in2White) + 1e-5)
+ *   b2     = slope2 * (-in2Black) + out2Black
+ *   x = clamp(x*slope2 + b2, 0,1);  x = clamp(x + 1e-5, 0,1)
+ *   x = pow(x, gamma2)                                                // hg_Params[9]
+ *   x.rgb *= x.w                                                      // re-premult by alpha
+ *   out = mix(rgb_premult, x, hg_Params[10])                          // Mix
+ * ⚠️ FINDING: the legacy TS levelsFilter does ONE stage: normalize by
+ *   (in-blackIn)/(whiteIn-blackIn), pow(1/gamma), *whiteOut. FCP does the affine map
+ *   with a DISTINCT output-black AND output-white, gamma is pow(x,gamma) (NOT 1/gamma),
+ *   and there is a SECOND stage + Mix. Phase-2: expand levelsFilter to the two-stage
+ *   form. Where a transition only sets stage-1 params (the common case) the second
+ *   stage is identity, so the practical gap is gamma-direction (pow vs 1/pow) + the
+ *   separate output-black point. Verify against the gate before changing (Levels is
+ *   used by 27+ transitions — large blast radius).
+ *
+ * PAEBrightness: no dedicated Hgc shader (it maps to a generic brightness path);
+ * additive add of amount*255 per RGB channel, alpha preserved — the TS form matches.
+ * ============================================================================
  *
  * Used by: Many transitions (27+) for brightness/contrast control.
- * Plugin names: PAELevels, Levels
  *
- * Parameters:
- *   - Black In (0-1): input black point (pixels below → 0)
- *   - White In (0-1): input white point (pixels above → 1)
- *   - Gamma (0.1-10): midtone gamma correction (1.0 = neutral)
- *   - White Out (0-1): output white level (remaps output range)
- *   - Mix (0-1): blend original vs processed (1.0 = full effect)
- *
- * Formula per channel:
+ * Legacy single-stage TS form (see levelsFilter):
  *   normalized = clamp((input - blackIn) / (whiteIn - blackIn), 0, 1)
  *   gammaCorrected = pow(normalized, 1/gamma)
  *   output = gammaCorrected * whiteOut

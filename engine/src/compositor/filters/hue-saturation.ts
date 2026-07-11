@@ -1,14 +1,50 @@
 /**
- * Hue/Saturation filter implementation.
+ * Hue/Saturation (PAEHSVAdjust) + related Saturation/Desaturate filters.
+ *
+ * ============================ FCP REVERSE-ENGINEERING ============================
+ * Verbatim from the embedded Metal shaders (tools/re/extract_shader.py).
+ *
+ * --- HgcHSVAdjust (PAEHSVAdjust, UUID D23AF030-…) ---
+ * FCP does an in-place RGB↔HSV using a branchless max/min-based hue reconstruction,
+ * NOT a table lookup. Distilled from the shader (consts c0..c4):
+ *   V     = max(r,g,b)                         // value (r1 after the maxes)
+ *   norm  = rgb / V                            // normalize to the max
+ *   chroma= max(norm) - min(norm)              // r3.x
+ *   // hue sextant via which channel is the max (r4 = float3(rgb>=V) select mask):
+ *   hue6  = dot( (norm.yzx - norm.zxy)/chroma + {0,2,4}, r4 )   // 0..6 hue by sextant
+ *   hue   = frac( hue6 * (1/6) + hg_Params[0].x )   // hg_Params[0].x = HUE offset (turns)
+ *   sat   = clamp( (chroma/V) * hg_Params[0].y, 0, 1 )   // hg_Params[0].y = SATURATION mult
+ *   val   = ... * hg_Params[0].z                          // hg_Params[0].z = VALUE mult
+ *   // then HSV->RGB via the standard 6-sextant select ladder (r5/r6 selects), and
+ *   output.rgb = hsv2rgb(...) * V   (re-applies the original max as the value scale)
+ * ⚠️ FINDINGS vs the legacy TS below:
+ *   (1) FCP HUE offset is in TURNS (0..1), added AFTER the /6 — matches TS hueShift
+ *       = hue/360 only if the Motion param is DEGREES; confirm the param units.
+ *   (2) FCP SATURATION and VALUE are BOTH MULTIPLIERS (hg_Params[0].y/.z). The TS
+ *       impl multiplies saturation but ADDS brightness — Phase-2 must switch value
+ *       to a multiplier (v *= valueMult) to match, OR confirm PAEHSVAdjust exposes
+ *       an additive brightness that frameSetup pre-converts to a multiplier.
+ *   (3) No Mix in the shader itself — PAEHSVAdjust has no Mix slot; the legacy `mix`
+ *       param below is a TS-ism (keep at 1 for FCP-faithful behavior).
+ *
+ * --- HgcSaturation (used by Desaturate/Saturation filters) --- VERBATIM ---
+ *   luma = dot(rgb_unpremult, (0.2125, 0.7154, 0.0721))   // Rec.709, INLINE CONST
+ *   out.rgb = clamp( mix(luma, rgb, hg_Params[0].xyz), 0, 1 ) * alpha
+ *   ⇒ Saturation is a lerp between the Rec.709 grayscale and the color by a per-
+ *   channel saturation amount. This CONFIRMS FCP uses Rec.709 (NOT 601) luma here.
+ *
+ * --- HgcDesaturate --- VERBATIM ---
+ *   gray = rgb · hg_Params[1].xyz   (summed to all 3 channels)  // custom weights
+ *   out.rgb = mix(rgb, gray, hg_Params[0].xyz)                  // hg_Params[0]=amount
+ * ============================================================================
  *
  * Used by: 4 transitions for color shifting effects.
- * Plugin names: PAEHSVAdjust, Hue/Saturation
  *
- * Parameters:
+ * Legacy TS parameters (see hueSaturationFilter):
  *   - Hue: rotation in degrees (-180 to +180)
  *   - Saturation: multiplier (0 = grayscale, 1 = unchanged, >1 = oversaturated)
- *   - Brightness/Value: offset (-1 to +1)
- *   - Mix: blend factor (0-1)
+ *   - Brightness/Value: offset (-1 to +1)   [⚠️ FCP uses a multiplier — see finding 2]
+ *   - Mix: blend factor (0-1)                [⚠️ not in FCP shader — see finding 3]
  */
 
 export interface HueSatParams {
