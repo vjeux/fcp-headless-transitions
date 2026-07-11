@@ -164,37 +164,48 @@ export function tintFilter(input: ImageData, r: number, g: number, b: number, in
 }
 
 /**
- * Motion "Colorize" as a black-point/white-point luminance remap.
- *
- * Unlike a hue tint, Motion's Colorize maps each pixel's LUMINANCE through a
- * gradient from `black` (at luminance 0) to `white` (at luminance 1):
- *   out = black + luminance * (white - black)
- * Colors are 0-1 RGB. This is what the Stylized/Documentary/Slide tiles use to
- * recolor their grayscale tile PNGs (Remap Black To → dark, Remap White To →
- * the selected accent color). `mix` cross-fades with the original pixel.
+ * Motion "Colorize" — a luminance remap from `black` (luma 0) to `white` (luma 1),
+ * blended over the original by `intensity` (the colorize AMOUNT), then cross-faded
+ * with the original by `mix` (the final blend). Verbatim HgcColorize:
+ *   remapped = mix(black, white, luma)          // hg_Params[0..1], luma dot hg_Params[4]
+ *   colorized = mix(orig, remapped, intensity)  // hg_Params[2] = Intensity
+ *   out = mix(orig, colorized, mix)              // hg_Params[3] = Mix
+ * PHASE-2 VERIFIED (tools/re/filter_verify): at Intensity=0 FCP returns the ORIGINAL
+ * image unchanged (identity); the earlier one-stage form ignored Intensity and always
+ * applied the full remap. All 9 built-in Colorize transitions use Intensity=1 (so this
+ * is gate-neutral on them) but the two-stage form is correct across the full param
+ * space. Colors are 0-1 RGB.
+ * ⚠️ REMAINING GAP (Phase-2, not yet fixed): at Intensity=1 the R/G channels match FCP
+ * (~98 vs ~102) but the B channel diverges (FCP ~11 vs TS ~76 for a black.B=0.5/
+ * white.B=0 remap) — FCP's effective luma per channel is inconsistent with a single
+ * 601 dot, so the remap target math is more than `mix(black,white,luma601)`. Likely a
+ * different luma vector (hg_Params[4]) and/or a premultiplied/HDR-Rec709 path (the
+ * .motr carries a "Colorize::HDR In Rec. 709" param). Needs a flat-input luma-curve
+ * probe to pin before changing the remap; the Intensity plumbing above is correct and
+ * shipped independently.
  */
 export function colorizeRemapFilter(
   input: ImageData,
   black: { r: number; g: number; b: number },
   white: { r: number; g: number; b: number },
+  intensity: number = 1,
   mix: number = 1,
 ): ImageData {
   const src = input.data;
   const out = new Uint8ClampedArray(src.length);
   const bR = black.r * 255, bG = black.g * 255, bB = black.b * 255;
   const wR = white.r * 255, wG = white.g * 255, wB = white.b * 255;
+  // total blend from original toward the remapped color = intensity * mix (both
+  // stages lerp original->target, so they compose to a single lerp factor).
+  const k = intensity * mix;
   for (let i = 0; i < src.length; i += 4) {
     const lum = luma601(src[i], src[i + 1], src[i + 2]) / 255;
     const rR = bR + lum * (wR - bR);
     const rG = bG + lum * (wG - bG);
     const rB = bB + lum * (wB - bB);
-    if (mix >= 1) {
-      out[i] = rR; out[i + 1] = rG; out[i + 2] = rB;
-    } else {
-      out[i] = src[i] * (1 - mix) + rR * mix;
-      out[i + 1] = src[i + 1] * (1 - mix) + rG * mix;
-      out[i + 2] = src[i + 2] * (1 - mix) + rB * mix;
-    }
+    out[i] = src[i] * (1 - k) + rR * k;
+    out[i + 1] = src[i + 1] * (1 - k) + rG * k;
+    out[i + 2] = src[i + 2] * (1 - k) + rB * k;
     out[i + 3] = src[i + 3];
   }
   return new ImageData(out, input.width, input.height);
@@ -253,12 +264,14 @@ registerFilter({
     };
     const black = readColor('Remap Black To', { r: 0, g: 0, b: 0 });
     const white = readColor('Remap White To', { r: 1, g: 1, b: 1 });
-    let mix = 1;
-    const mixP = ctx.filter.parameters.find(p => p.name === 'Mix');
-    if (mixP) {
-      const v = mixP.curve ? evaluateCurve(mixP.curve, t) : (typeof mixP.value === 'number' ? mixP.value : undefined);
-      if (v !== undefined) mix = v;
-    }
-    return colorizeRemapFilter(input, black, white, mix);
+    const readScalar = (name: string, def: number): number => {
+      const p = ctx.filter.parameters.find(pp => pp.name === name);
+      if (!p) return def;
+      const v = p.curve ? evaluateCurve(p.curve, t) : (typeof p.value === 'number' ? p.value : undefined);
+      return v ?? def;
+    };
+    const intensity = readScalar('Intensity', 1);  // hg_Params[2]: colorize amount
+    const mix = readScalar('Mix', 1);               // hg_Params[3]: final blend
+    return colorizeRemapFilter(input, black, white, intensity, mix);
   },
 });
