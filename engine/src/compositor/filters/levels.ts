@@ -27,12 +27,19 @@
  *   out = mix(rgb_premult, x, hg_Params[10])                          // Mix
  * ⚠️ FINDING: the legacy TS levelsFilter does ONE stage: normalize by
  *   (in-blackIn)/(whiteIn-blackIn), pow(1/gamma), *whiteOut. FCP does the affine map
- *   with a DISTINCT output-black AND output-white, gamma is pow(x,gamma) (NOT 1/gamma),
- *   and there is a SECOND stage + Mix. Phase-2: expand levelsFilter to the two-stage
- *   form. Where a transition only sets stage-1 params (the common case) the second
- *   stage is identity, so the practical gap is gamma-direction (pow vs 1/pow) + the
- *   separate output-black point. Verify against the gate before changing (Levels is
- *   used by 27+ transitions — large blast radius).
+ *   with a DISTINCT output-black AND output-white, gamma is pow(x,gamma) at the SHADER
+ *   level, and there is a SECOND stage + Mix. Phase-2: expand levelsFilter to the
+ *   two-stage form. Where a transition only sets stage-1 params (the common case) the
+ *   second stage is identity, so the practical gap is the separate output-black point.
+ * ⚠️ GAMMA DIRECTION (GUI-GT-verified 2026-07-11, do NOT "fix" to pow(x,gamma)):
+ *   although the HgcLevels *shader* raises to pow(x, gamma), the Motion "Gamma" UI
+ *   param is fed to the shader as its RECIPROCAL, so the net mapping the TS LUT must
+ *   reproduce is pow(x, 1/gamma) — a UI Gamma>1 brightens midtones. Confirmed on
+ *   Objects/Leaves (authored Gamma=1.726): pow(1/gamma) scores 11.76/13.78 dB vs GUI
+ *   GT at f6/f12, while pow(gamma) drops to 9.75/12.54. A synthetic filter_probe
+ *   (factoryID=7, guessed param ids) rendered IDENTITY and cannot resolve this — only
+ *   the GUI GT can, because it exercises the real Histogram>RGB>Gamma(id=5) plumbing.
+ *   Verify against the gate before changing (Levels is used by 27+ transitions).
  *
  * PAEBrightness: no dedicated Hgc shader (it maps to a generic brightness path);
  * additive add of amount*255 per RGB channel, alpha preserved — the TS form matches.

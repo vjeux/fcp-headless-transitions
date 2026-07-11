@@ -105,6 +105,33 @@ def main():
     rc = ozengine.render_frame(doc, IMG_A, IMG_B, a.time, a.out)
     print("render rc:", rc, "->", a.out)
 
+    # IDENTITY GUARD. A probe is worthless if the host silently ignored the injected
+    # filter (wrong factoryID, or param names/ids that don't match the real plugin's
+    # nested structure) — it renders imageA UNCHANGED, and any TS-vs-headless compare
+    # then "measures" the TS filter against a bare copy of the input, which is
+    # meaningless and actively misleading. (This exact trap invalidated a PAELevels
+    # gamma probe on 2026-07-11: factoryID=7 + guessed Gamma id=3 rendered identity, so
+    # the probe couldn't resolve the gamma direction — only the GUI GT could.) So
+    # compare the output to the input and LOUDLY warn when they're within JPEG noise.
+    try:
+        import numpy as np
+        from PIL import Image
+        outimg = np.asarray(Image.open(a.out).convert("RGB"), dtype=np.float64)
+        inimg = np.asarray(Image.open(IMG_A).convert("RGB").resize(
+            (outimg.shape[1], outimg.shape[0])), dtype=np.float64)
+        mad = float(np.mean(np.abs(outimg - inimg)))
+        if mad < 1.5:
+            print(f"⚠️  IDENTITY WARNING: probe output == input (mean|Δ|={mad:.2f} ≈ JPEG "
+                  f"noise). The host likely IGNORED the filter — check factoryID (must be "
+                  f"the skeleton's scene-filter slot) and that the param names/ids match "
+                  f"the REAL plugin (grep a transition .motr that uses {a.name}). This "
+                  f"probe result is NOT a valid fidelity reference.", file=sys.stderr)
+        else:
+            print(f"filter applied (mean|Δ| vs input = {mad:.2f})")
+    except Exception as e:
+        print(f"(identity guard skipped: {e})", file=sys.stderr)
+
+
 
 if __name__ == "__main__":
     main()

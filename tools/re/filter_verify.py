@@ -66,10 +66,23 @@ def run(spec, time=0.0, keep=False):
     err = float(np.abs(h - t).mean())
     mse = float(((h - t) ** 2).mean())
     psnr = 99.0 if mse < 1e-9 else 10 * np.log10(255 * 255 / mse)
+    # IDENTITY GUARD: if the HEADLESS output equals the input image within JPEG noise,
+    # the host silently ignored the injected filter (wrong factoryID / param ids /
+    # nesting) and this comparison is meaningless — a high PSNR here would only mean
+    # "the TS filter also happened to be near-identity", not that it matches FCP. Flag
+    # it so a probe result is never trusted as a fidelity reference by accident.
+    a_in = np.asarray(Image.open(IMG_A_PNG).convert("RGB").resize(
+        (h.shape[1], h.shape[0]), Image.LANCZOS)).astype(float)
+    head_vs_input = float(np.abs(h - a_in).mean())
     res = {"mean_abs_err": round(err, 2), "psnr": round(psnr, 2),
            "headless_mean": [round(x, 1) for x in h.reshape(-1, 3).mean(0)],
            "ts_mean": [round(x, 1) for x in t.reshape(-1, 3).mean(0)],
+           "headless_vs_input_mad": round(head_vs_input, 2),
            "headless_png": head_png, "ts_png": ts_png}
+    if head_vs_input < 1.5:
+        res["identity_warning"] = ("headless output == input (filter IGNORED by host — "
+                                   "check factoryID + param names/ids vs a real .motr); "
+                                   "this PSNR is NOT a valid fidelity measurement")
     if not keep:
         for p in (head_png, ts_png, spec_file):
             try: os.remove(p)
