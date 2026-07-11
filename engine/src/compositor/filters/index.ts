@@ -24,5 +24,6 @@ import './flop.js';           // registers Flop (geometric mirror)
 import './minmax.js';         // registers MinMax (separable erode/dilate morphology)
 import './scrape.js';         // registers Smear/Scrape (directional inverse-map warp)
 import './earthquake.js';     // registers Earthquake (seeded RNG shake/twist transform)
+import './blackhole.js';      // registers Black Hole (radial gravity-lens warp, mip pyramid)
 
 export {};
