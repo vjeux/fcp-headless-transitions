@@ -107,6 +107,15 @@ output on the SAME synthetic .motr is legitimate here; the headless IS FCP). Gat
   angle-in-degrees x (dist/max(w,h)) giving near-zero rotation for the transition's
   Angle=2.39rad, and zoom uses a screen-space 1+t*0.01 scale. Both need the FCP
   polar-space (rect<->polar remap) + correct Amount->arc/scale mapping. Next target.
+- [ATTEMPTED+REVERTED] Radial (spin) blur geometry: measured FCP's spin as a RIGID
+  rotation over total arc = Angle x 0.5 rad (probe Angle=0.5/1.0). Implemented it
+  (screen-space rigid rotation, arc=Angle*0.5, uniform weight) — the blur then FIRES and
+  the sharpness tracks GT (engine 0.5-0.79 vs GT 0.17-0.24), BUT it REGRESSED Blurs/Radial
+  -0.43 on the gate. Even the best isolated screen-space spin fit only reached PSNR 33-36
+  (vs Gaussian's 46 for directional), i.e. the screen-space rigid rotation is NOT what FCP
+  does — FCP's radial blur is polar-space (rect<->polar remap, P2-RB1) with per-radius
+  arc. Reverted to keep the gate green; the polar-space rewrite is the real fix and is
+  the remaining Radial/Zoom item.
 - [TOOLING] Added an IDENTITY GUARD to filter_probe/filter_verify: warns when the
   headless output == input (filter silently ignored by the host due to wrong
   factoryID/param-ids). This trap had nearly flipped the Levels gamma direction. When a
