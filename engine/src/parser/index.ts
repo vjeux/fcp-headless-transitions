@@ -72,6 +72,11 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clip: ClipI
       for (const fp of directChildren(filterNode, 'parameter')) {
         filterParams.push(parseParameter(fp));
       }
+      // A filter with <enabled>0</enabled> is bypassed by FCP (it is NOT applied).
+      // (Same convention as layers — see the layer `enabled` parse below.) Skip it so
+      // a disabled filter never runs. Generic: no per-transition logic.
+      const fEnabledText = getTextContent(filterNode, 'enabled');
+      if (fEnabledText !== null && fEnabledText.trim() === '0') continue;
       filters.push({ id: filterId, name: nodeName, pluginName, pluginUUID, parameters: filterParams });
     }
   }
@@ -86,6 +91,9 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clip: ClipI
     for (const fp of directChildren(filterEl, 'parameter')) {
       filterParams.push(parseParameter(fp));
     }
+    // Skip filters disabled via <enabled>0</enabled> (FCP does not apply them).
+    const fEnabledText = getTextContent(filterEl, 'enabled');
+    if (fEnabledText !== null && fEnabledText.trim() === '0') continue;
     filters.push({ id: filterId, name: nodeName, pluginName, pluginUUID, parameters: filterParams });
   }
 
@@ -289,6 +297,9 @@ function parseLayerElement(el: Element, factories: Map<number, string>, clip: Cl
         for (const fp of directChildren(childEl, 'parameter')) {
           filterParams.push(parseParameter(fp));
         }
+        // Skip filters disabled via <enabled>0</enabled> (FCP does not apply them).
+        const fEnabledText = getTextContent(childEl, 'enabled');
+        if (fEnabledText !== null && fEnabledText.trim() === '0') continue;
         filters.push({ id: filterId, pluginName, pluginUUID, parameters: filterParams });
       } else {
         children.push(parseSceneNode(childEl, factories, clip, linkSourceIds));
@@ -304,6 +315,9 @@ function parseLayerElement(el: Element, factories: Map<number, string>, clip: Cl
       for (const fp of directChildren(childEl, 'parameter')) {
         filterParams.push(parseParameter(fp));
       }
+      // Skip filters disabled via <enabled>0</enabled> (FCP does not apply them).
+      const fEnabledText = getTextContent(childEl, 'enabled');
+      if (fEnabledText !== null && fEnabledText.trim() === '0') continue;
       filters.push({ id: filterId, pluginName, pluginUUID, parameters: filterParams });
     }
   }
