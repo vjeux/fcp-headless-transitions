@@ -61,3 +61,19 @@ output on the SAME synthetic .motr is legitimate here; the headless IS FCP). Gat
   pole guard + longitude wrap. TS = direct 3-D sphere rotation. Equivalent for pure
   rotation at sample points but resampling/pole geometry differs. Rotation encoding in
   params[4]/[5] unconfirmed — needs a GUI GT capture before changing.
+
+## Phase-2 progress (verified vs headless FCP + gate)
+- [DONE] Brightness: additive -> sRGB MULTIPLY (identity at 1). Curtains 4.7->14.31
+  (+9.61), 3D_Rectangle +0.55. filter_verify @0.5 PSNR 47.
+- [DONE] ChannelMixer: (a) read NESTED Red/Green/Blue-Output child weights (were read
+  flat -> identity no-op); (b) Monochrome = Red-row dot on all channels (was luma601 +
+  double matrix). Color_Planes 6.09->9.86 (+3.77). filter_verify PSNR ~42 both cases.
+- [DONE] Colorize: honor Intensity (hg_Params[2]) as colorize amount; was ignored so
+  the remap always applied at full strength. Gate-neutral (built-ins use Intensity=1)
+  but full-param-space correct (Intensity=0 now = FCP identity, PSNR 42). REMAINING:
+  B-channel luma-vector mismatch at Intensity=1 (FCP luma != 601 dot) — unfixed.
+- [PARTIAL] Tint: documented exact hard-light shader; sRGB transcription matches RED
+  channel but G/B off (~21 err) — TintFx/Color-Space=3 nuance unpinned. Only 4
+  transitions, all dominated by other gaps -> deferred.
+- Tooling: tools/re/{extract_shader,filter_probe,filter_verify,filter_usage}.py +
+  engine/test/_filter_apply.ts (committed; no /tmp scratch).
