@@ -44,13 +44,13 @@ impl matches RE · VERIFY = behavior confirmed vs headless across param space ·
 | directional-blur.ts (Directional) | PAEDirectionalBlur → HgcChannelBlur (angled) | TODO |
 | directional-blur.ts (Radial) | PAERadialBlur → Hgc? | TODO |
 | directional-blur.ts (Zoom) | PAEZoomBlur → HgcZoomBlur | TODO |
-| channel-mixer.ts (Channel Mixer) | PAEChannelMixer → HgcChannelMixer | TODO |
-| channel-mixer.ts (Tint) | PAETint? → HgcTint | TODO |
-| channel-mixer.ts (Colorize) | PAEColorize → HgcColorize | TODO |
-| hue-saturation.ts | PAEHSVAdjust → HgcHSVAdjust / HgcSaturation | TODO |
-| levels.ts (Levels) | PAELevels → HgcLevels | TODO |
-| levels.ts (Brightness) | PAEBrightness → Hgc? | TODO |
-| luma-keyer.ts | PAE? → HgcLumaKeyer / HgcLumaKey | TODO |
+| channel-mixer.ts (Channel Mixer) | PAEChannelMixer → HgcChannelMixer | RE |
+| channel-mixer.ts (Tint) | PAETint → HgcTint (⚠ hard-light, not luma-lerp) | RE |
+| channel-mixer.ts (Colorize) | PAEColorize → HgcColorize | RE |
+| hue-saturation.ts | PAEHSVAdjust → HgcHSVAdjust; Saturation→HgcSaturation (Rec709) | RE |
+| levels.ts (Levels) | PAELevels → HgcLevels (⚠ two-stage, pow(gamma)) | RE |
+| levels.ts (Brightness) | PAEBrightness (additive) | RE |
+| luma-keyer.ts | HgcLumaKey (ramp) / HgcLumaKeyer (LUT) | RE |
 | bevel.ts | PAEBevel → HgcBevel | TODO |
 | fill.ts | PAE? → HgcFillColor | TODO |
 | gradient.ts | PAE? → HgcGradientLinear/Radial | TODO |
