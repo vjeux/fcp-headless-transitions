@@ -48,10 +48,15 @@
  */
 
 export interface HueSatParams {
-  hue: number;        // degrees of hue rotation
-  saturation: number; // multiplier (1 = unchanged)
-  brightness: number; // additive (-1 to 1)
+  hue: number;        // HUE offset in TURNS (0..1 = 0..360°); FCP param "Hue"
+  saturation: number; // 0-CENTERED: 0 = unchanged, -1 = grayscale, >0 = more saturated
+  value: number;      // VALUE multiplier: out.rgb *= value^2 (1 = unchanged)
   mix: number;        // blend factor
+}
+
+// Rec.709 luma (FCP's HgcSaturation uses these inline: 0.2125/0.7154/0.0721).
+function luma709(r: number, g: number, b: number): number {
+  return 0.2125 * r + 0.7154 * g + 0.0721 * b;
 }
 
 /** Convert RGB (0-1) to HSV. */
@@ -62,13 +67,11 @@ function rgbToHsv(r: number, g: number, b: number): [number, number, number] {
   let h = 0;
   const s = max === 0 ? 0 : d / max;
   const v = max;
-
   if (d !== 0) {
     if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
     else if (max === g) h = ((b - r) / d + 2) / 6;
     else h = ((r - g) / d + 4) / 6;
   }
-
   return [h, s, v];
 }
 
@@ -79,8 +82,7 @@ function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
   const p = v * (1 - s);
   const q = v * (1 - f * s);
   const t = v * (1 - (1 - f) * s);
-
-  switch (i % 6) {
+  switch (((i % 6) + 6) % 6) {
     case 0: return [v, t, p];
     case 1: return [q, v, p];
     case 2: return [p, v, t];
@@ -92,43 +94,58 @@ function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
 }
 
 /**
- * Apply Hue/Saturation adjustment.
+ * Apply FCP's Hue/Saturation/Value adjustment. PHASE-2 measured against the real
+ * headless FCP engine (tools/re/filter_verify) — the three params are:
+ *   - Hue (TURNS): out hue = frac(hue_in + Hue). Hue=0.5 -> 180° shift; Hue=180 (=180
+ *     whole turns) -> identity. Verified.
+ *   - Saturation (0-centered): out = mix(gray709, rgb, 1 + Saturation). S=0 identity,
+ *     S=-1 grayscale, S=-0.5 halfway to gray. Verified ([118,94,78] at S=-0.5).
+ *   - Value: out.rgb *= Value^2 (a squared multiply, NOT linear/additive). Verified:
+ *     V=0.707 -> 0.5x A ([71,46,31]); V=0.5 -> 0.25x; V=2 -> clipped bright. Verified.
+ * ⚠️ This REPLACES the old model, which read FCP's Value (default 1) as ADDITIVE
+ * brightness -> added 255 to every pixel -> BLEW IDENTITY INPUTS TO WHITE, and treated
+ * the 0-centered Saturation as a plain multiplier. (Confirmed: old TS returned
+ * [255,255,255] where FCP returns the unchanged image.)
  */
 export function hueSaturationFilter(input: ImageData, params: HueSatParams): ImageData {
-  const { hue, saturation, brightness, mix } = params;
-
-  // No-op check
-  if (hue === 0 && saturation === 1 && brightness === 0) return input;
+  const { hue, saturation, value, mix } = params;
+  const satFactor = 1 + saturation;   // 0-centered -> lerp weight toward color
+  const valMul = value * value;       // FCP applies Value as a squared multiply
+  if (hue === 0 && saturation === 0 && value === 1) return input;
 
   const width = input.width;
   const height = input.height;
   const src = input.data;
   const out = new Uint8ClampedArray(src.length);
-
-  const hueShift = hue / 360; // normalize to 0-1
+  const doHue = hue % 1 !== 0;        // whole turns are identity
 
   for (let i = 0; i < src.length; i += 4) {
-    const r = src[i] / 255;
-    const g = src[i + 1] / 255;
-    const b = src[i + 2] / 255;
+    let r = src[i] / 255, g = src[i + 1] / 255, b = src[i + 2] / 255;
 
-    let [h, s, v] = rgbToHsv(r, g, b);
+    if (doHue) {
+      let [h, s, v] = rgbToHsv(r, g, b);
+      h = (h + hue % 1 + 1) % 1;
+      [r, g, b] = hsvToRgb(h, s, v);
+    }
+    // Saturation: lerp between Rec.709 gray and color by (1 + Saturation).
+    if (saturation !== 0) {
+      const gray = luma709(r, g, b);
+      r = gray + (r - gray) * satFactor;
+      g = gray + (g - gray) * satFactor;
+      b = gray + (b - gray) * satFactor;
+    }
+    // Value: squared multiply.
+    if (value !== 1) { r *= valMul; g *= valMul; b *= valMul; }
 
-    // Apply adjustments
-    h = (h + hueShift + 1) % 1; // rotate hue
-    s = Math.max(0, Math.min(1, s * saturation)); // scale saturation
-    v = Math.max(0, Math.min(1, v + brightness)); // offset brightness
-
-    const [outR, outG, outB] = hsvToRgb(h, s, v);
-
+    const cl = (x: number) => Math.max(0, Math.min(1, x));
     if (mix >= 1) {
-      out[i] = Math.round(outR * 255);
-      out[i + 1] = Math.round(outG * 255);
-      out[i + 2] = Math.round(outB * 255);
+      out[i] = Math.round(cl(r) * 255);
+      out[i + 1] = Math.round(cl(g) * 255);
+      out[i + 2] = Math.round(cl(b) * 255);
     } else {
-      out[i] = Math.round((r * (1 - mix) + outR * mix) * 255);
-      out[i + 1] = Math.round((g * (1 - mix) + outG * mix) * 255);
-      out[i + 2] = Math.round((b * (1 - mix) + outB * mix) * 255);
+      out[i] = Math.round((src[i] / 255 * (1 - mix) + cl(r) * mix) * 255);
+      out[i + 1] = Math.round((src[i + 1] / 255 * (1 - mix) + cl(g) * mix) * 255);
+      out[i + 2] = Math.round((src[i + 2] / 255 * (1 - mix) + cl(b) * mix) * 255);
     }
     out[i + 3] = src[i + 3];
   }
@@ -139,22 +156,21 @@ export function hueSaturationFilter(input: ImageData, params: HueSatParams): Ima
 
 import { registerFilter } from './registry.js';
 
-// HSV Adjust (PAEHSVAdjust, UUID D23AF030-…). FAITHFUL migration of the legacy
-// dispatch, which read the filter's OWN params and IGNORED rig overrides — so this
-// uses rawParam (not param). Hue (or 'Hue Rotation', default 0), Saturation (1),
-// brightness from 'Brightness' or 'Value' (0), Mix (1).
-// NOTE: whether HSV SHOULD honor rig overrides is a separate open question (ROADMAP)
-// — honoring them changed Stylized__Color_Panels output (−0.84 dB), so the mechanical
-// migration preserves the legacy raw-read behavior exactly.
+// HSV Adjust (PAEHSVAdjust, UUID D23AF030-…). PHASE-2 CORRECTED semantics (measured
+// vs headless FCP): Hue in TURNS (default 0), Saturation 0-CENTERED (default 0,
+// -1 = grayscale), Value MULTIPLIER applied squared (default 1). The old code read
+// FCP's Value as ADDITIVE brightness (default 0) which added 255 -> white blowout,
+// and treated the 0-centered Saturation as a multiplier. Reads the filter's own
+// params (rawParam) to preserve the legacy override-ignoring behavior (see note above).
 registerFilter({
   uuid: 'D23AF030-B0BF-44DF-B622-7C9EA0DF5744',
   names: ['hsv', 'hue', 'saturation'],
   label: 'HSV Adjust',
   apply(input, ctx) {
     const hue = ctx.hasRaw('Hue') ? ctx.rawParam('Hue', 0) : ctx.rawParam('Hue Rotation', 0);
-    const saturation = ctx.rawParam('Saturation', 1);
-    const brightness = ctx.hasRaw('Brightness') ? ctx.rawParam('Brightness', 0) : ctx.rawParam('Value', 0);
+    const saturation = ctx.rawParam('Saturation', 0);
+    const value = ctx.rawParam('Value', 1);
     const mix = ctx.rawParam('Mix', 1);
-    return hueSaturationFilter(input, { hue, saturation, brightness, mix });
+    return hueSaturationFilter(input, { hue, saturation, value, mix });
   },
 });
