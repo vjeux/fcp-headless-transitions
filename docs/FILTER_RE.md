@@ -69,14 +69,14 @@ exercised by real transitions — the objective ("every filter") requires them:
 
 | FCP class / node | UUID | used by | status |
 |------------------|------|---------|--------|
-| PAEFlop (mirror) | 2FF8887B-… | Movements/Flip, Replicator-Clones/Concentric | **DONE** — verbatim disasm, verified vs headless PSNR 42.2 all modes |
-| PAEMinMax (erode/dilate) | D2342006-… | Dissolves/Divide (×3) | **DONE** — verbatim Helium MMNode shader, verified PSNR 35-40 across Mode×Radius |
-| PAEScrape / "Smear" | 0D6E968B-… | Movements/Smear | RE in progress (HgcScrape shader extracted; directional/radial displacement) |
-| PAEBlackHole | 1A32EFEF-… | Movements/Black_Hole | RE in progress (HgcBlackHole radial gravity-lens warp) |
-| PAEEarthquake | DEB7CD03-… | Movements/Earthquake | RE in progress (CPU quakeHeliumNode shake/twist) |
-| PAEUnderwater | 9FA1F483-… | Movements/Flashback | RE in progress (HgcUnderwaterRefractV2 sinusoidal refraction) |
-| PAEBadTV | 32AB5EE1-… | Lights/Static | RE in progress (HgcBadTV roll/wave/scanline/static/desat) |
-| PAETrails | 2DB30B44-… | Movements/Black_Hole | DISABLED (`<enabled>0</enabled>`) — never applied by FCP; parser now skips it |
+| PAEFlop (mirror) | 2FF8887B-… | Movements/Flip, Replicator-Clones/Concentric | **DONE** — verbatim disasm, verified vs headless PSNR 42.2 all modes; unit-tested |
+| PAEMinMax (erode/dilate) | D2342006-… | Dissolves/Divide (×3) | **DONE** — verbatim Helium MMNode shader, verified PSNR 35-40 across Mode×Radius; unit-tested |
+| PAEScrape / "Smear" | 0D6E968B-… | Movements/Smear | **DONE** — verbatim HgcScrape inverse-map warp; geometry exact (synthetic mad 0.2); gate +0.35 |
+| PAEBlackHole | 1A32EFEF-… | Movements/Black_Hole | **DONE** — verbatim HgcBlackHole mip-pyramid radial lens; verified PSNR 32-39; gate +1.33 |
+| PAEEarthquake | DEB7CD03-… | Movements/Earthquake | **DONE** — CPU seeded RNG (LCG+Bays-Durham) fully recovered; pure-rotation PSNR 37.5; gate-neutral |
+| PAEBadTV | 32AB5EE1-… | Lights/Static | **DONE (partial)** — deterministic desaturate(34dB)+scanlines(23dB)+roll applied; waviness/static are per-frame RNG (seed=2·frame+1, unrecoverable) → documented + not applied. Lights/Static has Mix=0 so passthrough there. |
+| PAEUnderwater | 9FA1F483-… | Movements/Flashback | **PHASE-1 DONE; Phase-2 CEILING** — verbatim 10-octave sinusoid refraction documented; FreqSynth field uses an unrecoverable GPU noise texture (phases differ) AND renders black headless t>1.0. Wiring it regresses the gate −1.74, so registered as gate-safe passthrough (faithful impl retained as underwaterApply). |
+| PAETrails | 2DB30B44-… | Movements/Black_Hole | N/A — DISABLED (`<enabled>0</enabled>`); never applied by FCP; parser now skips it |
 
 Parser correctness fix (commit 967189b): the parser now honors `<enabled>0</enabled>`
 on filters (it previously pushed disabled filters), so a disabled filter is never

@@ -122,3 +122,54 @@ output on the SAME synthetic .motr is legitimate here; the headless IS FCP). Gat
   synthetic probe can't be made to apply, fall back to the GUI GT (fct probe <slug>).
 - Tooling: tools/re/{extract_shader,filter_probe,filter_verify,filter_usage}.py +
   engine/test/_filter_apply.ts (committed; no /tmp scratch).
+
+## The 8 previously-UNIMPLEMENTED transition filters (2026-07-12)
+These filters appeared in the 65 built-in transitions but were unregistered no-ops
+(passed through untouched). All 8 are now reverse-engineered + documented; 5 are
+matched+verified and wired in; 2 hit a structural RNG/noise ceiling; 1 is disabled.
+
+- [DONE] **PAEFlop** (mirror, 2FF8887B): verbatim disasm — geometric H/V/Both mirror
+  about image center via Helium XForm. Verified vs headless PSNR 42.2 (all modes).
+  Unit-tested (engine/test/flop.test.ts). Gate-neutral (built-ins use mode 0).
+- [DONE] **PAEMinMax** (D2342006): verbatim Helium MMNode<Mode,Axis> Metal shader —
+  separable X-then-Y (2R+1) min/max morphology on premul RGBA. Verified PSNR 35-40
+  across Mode×Radius. Unit-tested (engine/test/minmax.test.ts).
+- [DONE] **PAEScrape/Smear** (0D6E968B): verbatim HgcScrape inverse-map directional
+  warp. TWO disasm-label corrections proven empirically: axis=(-sin,cos) (sincos
+  bakes a π/2), threshold=(200-clamp(Amount,0,200)). Geometry EXACT (synthetic mad
+  0.2); real-photo PSNR 24-40 (residual = 1854→1920 conform, not algorithm). Fixed an
+  ESM `require()` bug in the draft. Gate: Movements__Smear +0.35.
+- [DONE] **PAEBlackHole** (1A32EFEF): verbatim HgcBlackHole — radial gravity-lens warp
+  as a mip pyramid (numLevels=max(1,round(log2(Amount/8)))); per-level radial pull-in
+  len'=len+clamp(len/radius,0,1)·Amount + OOB→transparent + edge-falloff blend. Amount
+  in 1920×1080 render px → conform-scaled. Verified PSNR 32-39 across Amount×Center.
+  Gate: Movements__Black_Hole +1.33.
+- [DONE] **PAEEarthquake** (DEB7CD03): no shader; CPU seeded RNG FULLY recovered — LCG
+  (a=4096,c=150889,m=714025) + Numerical-Recipes Bays-Durham shuffle (NTAB=101),
+  seed=RandomSeed+0x232323+trunc(frame·1000); 3 draws/layer → (rotRad=Twist·0.1·(2r-1),
+  tx=HShake·25·(2r-1), ty=VShake·25·(2r-1)); Rot about epicenter. Pure-rotation PSNR
+  37.5 (proves exact RNG). Gate-neutral (Layers=1, small shake, sub-pixel-conform).
+- [PARTIAL/CEILING] **PAEBadTV** (32AB5EE1): deterministic components verified+applied
+  (desaturate mix(luma,rgb,Sat/100+1) PSNR 34; scanline smoothstep bands PSNR 23; roll
+  phase; host Mix). Waviness + Static both draw from a per-frame-reseeded dSFMT RNG
+  (seed=2·frame+1) with host-side table normalization NOT byte-reproducible → phases
+  differ → NOT applied (a phase-divergent displacement/noise is not "identical" and
+  hurts full-res). Lights/Static sets Mix=0 → passthrough there. Gate-neutral.
+- [CEILING] **PAEUnderwater** (9FA1F483): verbatim 10-octave sum-of-sinusoids
+  refraction (HgcUnderwaterFreqSynth + HgcUnderwaterRefractV2) documented. Phase-2
+  BLOCKED: (1) FreqSynth reads a runtime GPU gradient-noise texture unrecoverable from
+  the binary → ripple phases differ; (2) plugin renders BLACK headless for t>~1.0 (no
+  GUI GT, same as reorient360); (3) MEASURED wiring it regresses Movements/Flashback
+  −1.74. Registered as gate-safe passthrough; faithful impl retained as underwaterApply().
+- [N/A] **PAETrails** (2DB30B44): `<enabled>0</enabled>` in its only use (Black_Hole) —
+  FCP never applies it. Parser fix (967189b) now skips disabled filters generally.
+
+### The 1854→1920 conform artifact (affects ALL geometry filters' probe PSNR)
+`engine/test/start.png` is 1854×1042 but FCP renders the probe at 1920×1080. So a
+geometry filter's TS half runs at 1854 while pixel-space params (radius, threshold,
+shake px) are in 1920 render px — a uniform ~3.6% scale mismatch that shows as a
+~1-3 mad floor / whole-frame residual on the real-photo probe, LARGEST where the
+displacement is largest. It is NOT an algorithm error: at matched resolution
+(synthetic gradient, or the real transition rendered at project size) the geometry is
+exact. Verified independently by Scrape (mad 0.2 synthetic), Earthquake (interior mad
+1.7 after removing the constant offset), BlackHole (mad→0.07 at Amount=1000).
