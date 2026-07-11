@@ -50,7 +50,8 @@ export interface LevelsParams {
   blackIn: number;   // 0-1, default 0
   whiteIn: number;   // 0-1, default 1
   gamma: number;     // default 1.0
-  whiteOut: number;  // 0-1, default 1
+  blackOut?: number; // 0-1, default 0 (output black point)
+  whiteOut: number;  // 0-1, default 1 (output white point)
   mix: number;       // 0-1, default 1
 }
 
@@ -59,9 +60,10 @@ export interface LevelsParams {
  */
 export function levelsFilter(input: ImageData, params: LevelsParams): ImageData {
   const { blackIn, whiteIn, gamma, whiteOut, mix } = params;
+  const blackOut = params.blackOut ?? 0;
 
   // No-op check
-  if (blackIn === 0 && whiteIn === 1 && gamma === 1 && whiteOut === 1) return input;
+  if (blackIn === 0 && whiteIn === 1 && gamma === 1 && blackOut === 0 && whiteOut === 1) return input;
 
   const width = input.width;
   const height = input.height;
@@ -71,12 +73,17 @@ export function levelsFilter(input: ImageData, params: LevelsParams): ImageData 
   const range = whiteIn - blackIn;
   const invGamma = gamma !== 0 ? 1 / gamma : 1;
 
-  // Build lookup table for speed (256 entries per channel)
+  // Build lookup table for speed (256 entries per channel):
+  //   norm = clamp((x - blackIn)/(whiteIn - blackIn), 0, 1)
+  //   out  = pow(norm, 1/gamma) * (whiteOut - blackOut) + blackOut
+  // Verified vs headless FCP: gamma is pow(x, 1/gamma) (gamma>1 brightens midtones);
+  // the input black/white affine + output black/white remap match the HgcLevels
+  // stage-1 form (the second HgcLevels stage is identity for these templates).
   const lut = new Uint8Array(256);
   for (let i = 0; i < 256; i++) {
     const normalized = Math.max(0, Math.min(1, (i / 255 - blackIn) / (range || 0.001)));
     const gammaCorrected = Math.pow(normalized, invGamma);
-    const output = gammaCorrected * whiteOut;
+    const output = gammaCorrected * (whiteOut - blackOut) + blackOut;
     lut[i] = Math.round(Math.max(0, Math.min(1, output)) * 255);
   }
 
@@ -129,6 +136,7 @@ export function brightnessFilter(input: ImageData, amount: number): ImageData {
 }
 
 import { registerFilter } from './registry.js';
+import { evaluateCurve } from '../../evaluator/curves.js';
 
 // PAEBrightness — sRGB per-channel MULTIPLY (out = in * amount; identity at 1).
 // Phase-2 verified against headless FCP (see brightnessFilter). Param default is 1
@@ -143,18 +151,34 @@ registerFilter({
   },
 });
 
-// PAELevels (UUID 2B221FA1-…). Behavior-identical to the legacy branch: Black In
-// (0), White In (1), Gamma (1), White Out (1), Mix (1).
+// PAELevels (UUID 2B221FA1-…). The Black/White In/Out + Gamma live NESTED under
+// "Histogram" > "RGB" (per-channel groups also exist: Red/Green/Blue). A flat
+// ctx.param('Black In') NEVER matched -> Levels was a NO-OP (verified vs headless
+// FCP: TS returned the unchanged image where FCP applied the remap). Reads the
+// nested RGB group (flat fallback kept for robustness).
 registerFilter({
   uuid: '2B221FA1-08A2-416E-998C-D7559E5509B5',
   names: ['levels', 'paelevels'],
   label: 'Levels',
   apply(input, ctx) {
+    const t = ctx.time;
+    // Resolve a value nested under Histogram > RGB > <name>, else flat.
+    const nested = (name: string, def: number): number => {
+      const hist = ctx.filter.parameters.find(p => p.name === 'Histogram');
+      const rgb = hist?.children?.find(c => c.name === 'RGB');
+      const c = rgb?.children?.find(cc => cc.name === name);
+      if (c) {
+        if (c.curve) return evaluateCurve(c.curve, t);
+        if (typeof c.value === 'number') return c.value;
+      }
+      return ctx.param(name, def);
+    };
     return levelsFilter(input, {
-      blackIn: ctx.param('Black In', 0),
-      whiteIn: ctx.param('White In', 1),
-      gamma: ctx.param('Gamma', 1),
-      whiteOut: ctx.param('White Out', 1),
+      blackIn: nested('Black In', 0),
+      whiteIn: nested('White In', 1),
+      gamma: nested('Gamma', 1),
+      blackOut: nested('Black Out', 0),
+      whiteOut: nested('White Out', 1),
       mix: ctx.param('Mix', 1),
     });
   },
