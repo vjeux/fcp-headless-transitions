@@ -100,8 +100,15 @@ function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
  *     whole turns) -> identity. Verified.
  *   - Saturation (0-centered): out = mix(gray709, rgb, 1 + Saturation). S=0 identity,
  *     S=-1 grayscale, S=-0.5 halfway to gray. Verified ([118,94,78] at S=-0.5).
- *   - Value: out.rgb *= Value^2 (a squared multiply, NOT linear/additive). Verified:
- *     V=0.707 -> 0.5x A ([71,46,31]); V=0.5 -> 0.25x; V=2 -> clipped bright. Verified.
+ *   - Value: out.rgb *= Value^2 (a squared multiply) FOR Value <= 1 (the dimming
+ *     range every transition uses). Verified vs headless FCP: V=0.65 -> in*0.4225
+ *     ([60.5,39.2,25.9] headless vs [59.4,38.4,25.5], PSNR 46.05); V=0.707 -> 0.5x A.
+ *     ⚠️ Value > 1 (BRIGHTEN) is NOT this model: the real HgcHSVAdjust shader works in
+ *     HSV space (normalize rgb by max(V,1), scale S and V, rebuild) which compresses
+ *     highlights differently — at V=1.5 the shader gives ~[238,210,186] while in*1.5^2
+ *     gives ~[229,176,131] (PSNR ~15). No built-in transition uses Value>1 (they use
+ *     0.65 or 1.0), so the squared multiply is correct for the shipped param space;
+ *     a full-HSV-space rewrite is only needed if a Value>1 test .motr is added.
  * ⚠️ This REPLACES the old model, which read FCP's Value (default 1) as ADDITIVE
  * brightness -> added 255 to every pixel -> BLEW IDENTITY INPUTS TO WHITE, and treated
  * the 0-centered Saturation as a plain multiplier. (Confirmed: old TS returned
