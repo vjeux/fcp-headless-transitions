@@ -33,6 +33,44 @@
  *
  * Color channels are 0..1 floats in the .motr; the compositor works in 0..255
  * so we scale by 255. Alpha is untouched by the Color fill.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * PHASE-1 RE NOTE — HgcFillColor (verbatim FCP Metal shader, Filters.bundle)
+ * Extract with: venv/bin/python3 tools/re/extract_shader.py HgcFillColor
+ *
+ *   FragmentOut HgcFillColor_hgc_visible(const constant float4* hg_Params, float4 color0):
+ *     const float4 c0 = (1, 0, 0, 1);
+ *     r0     = color0;
+ *     r1.xyz = hg_Params[0].xyz;          // fill color rgb
+ *     r1.w   = 1.0;                        // fill alpha forced to 1
+ *     r1     = mix(r0, r1, hg_Params[1]);  // lerp input -> fill by the Mix scalar
+ *     out    = r1 * r0.wwww;               // <-- RE-PREMULTIPLY by the ORIGINAL alpha
+ *
+ *   hg_Params SLOT MAP:
+ *     hg_Params[0].xyz = fill Color (0..1 rgb)
+ *     hg_Params[1]     = Mix (used as a float4 lerp factor; the .rgb selects color,
+ *                        the .w lerps alpha from input.a toward the forced 1.0)
+ *
+ *   KEY: the final `* r0.wwww` means the whole mixed result is multiplied by the
+ *   INPUT alpha. So on fully-transparent pixels (a=0) the output is 0 (stays
+ *   transparent) regardless of Mix — matching our "preserve/only affect visible"
+ *   intent — and inside the shape the output is PREMULTIPLIED. Note FCP also
+ *   lerps ALPHA toward 1 (r1.w=1, then mix by hg_Params[1].w) before the
+ *   premultiply, so a partial Mix nudges edge alpha upward, not just rgb.
+ *
+ * ── PHASE-2 TODO (TS <-> FCP divergences) ─────────────────────────────────────
+ *   TODO(P2-fill-1): ALPHA IS NOT INERT. TS copies input alpha through unchanged
+ *     (out.a = ia). FCP forces fill alpha to 1 then does out = mix(in, fill, Mix)
+ *     including the alpha lane, and finally premultiplies by input alpha. Net:
+ *     FCP raises alpha toward 1 by Mix (then re-masks by the original coverage),
+ *     TS leaves it untouched. For Mix=1 both give the same visible result on
+ *     opaque pixels; they diverge at partial Mix / partial-alpha edges.
+ *   TODO(P2-fill-2): PREMULTIPLIED OUTPUT. FCP emits premultiplied rgb
+ *     (result * input.a). TS emits straight (non-premultiplied) rgb with alpha
+ *     carried separately. Whether our compositor expects premultiplied here must
+ *     be reconciled in Phase-2 (affects downstream Luma Keyer / 360° reorient).
+ *   TODO(P2-fill-3): MIX IS A float4 IN FCP (per-lane lerp incl. alpha); TS uses
+ *     a single clamped scalar on rgb only.
  */
 import { registerFilter, type FilterContext } from './registry.js';
 

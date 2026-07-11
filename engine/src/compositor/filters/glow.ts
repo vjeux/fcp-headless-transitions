@@ -13,6 +13,81 @@
  *   - Radius: blur radius for the glow spread (default 0)
  *   - Threshold: brightness threshold 0-1 (pixels below this don't glow)
  *   - Amount/Intensity: strength of the glow overlay (default 1)
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * PHASE-1 RE NOTES — verbatim FCP Metal shaders (Filters.bundle)
+ * Extract with: venv/bin/python3 tools/re/extract_shader.py <Name>
+ * The glow pipeline in FCP is THREE fragment shaders + a Gaussian blur between
+ * the mask pass and the combine pass. Our TS collapses all three into
+ * glowFilter(); the notes below record exactly what each real pass does so
+ * Phase-2 can align the math.
+ *
+ * ── PASS 1 — HgcGlow (the threshold / luma-mask that feeds the blur) ──────────
+ *   FragmentOut HgcGlow_hgc_visible(const constant float4* hg_Params, float4 color0):
+ *     r0   = color0;
+ *     r0.w = clamp(dot(r0, hg_Params[0]), 0, 1);   // dot of the *whole* rgba, not rgb
+ *     r0.xyz = r0.xyz * r0.www;                     // premultiply rgb by the new mask alpha
+ *     out  = r0;
+ *   hg_Params SLOT MAP:
+ *     hg_Params[0] = luma/mask weights (float4, dotted against rgba). The .w term
+ *                    means the source alpha also contributes to the mask, and
+ *                    there is NO explicit threshold subtract here — the "cutoff"
+ *                    is produced purely by clamp(dot,0,1): pixels whose weighted
+ *                    sum <= 0 fall to 0. i.e. threshold is baked into hg_Params[0]
+ *                    (a negative bias in one lane) upstream, not a separate step.
+ *
+ * ── PASS 2 — Gaussian blur (separate shader/pass; see gaussian-blur.ts) ───────
+ *
+ * ── PASS 3 — HgcGlowCombineFx (composite blurred glow over the original) ──────
+ *   Inputs: color0 = original, color1 = blurred glow.
+ *     r0   = color1;
+ *     r1.w   = clamp(r0.w * hg_Params[0].x, 0, 1);        // glow coverage
+ *     r0.xyz = r0.xyz * hg_Params[0].xxx;                 // gain the glow rgb
+ *     r1.xyz = min(r0.xyz, hg_Params[1].xyz);             // clamp to a ceiling
+ *     r1.xyz = max(r1.xyz, 0);
+ *     out    = (1 - r1.w) * color0 + r1;                  // over-composite
+ *   hg_Params SLOT MAP:
+ *     hg_Params[0].x  = glow gain / opacity (scales both glow.rgb and its alpha)
+ *     hg_Params[1].xyz = per-channel clamp ceiling for the gained glow rgb
+ *   NOTE: this is an OVER composite gated by the blurred alpha — out =
+ *   lerp(color0, glow, glowAlpha) + (glow.rgb beyond the alpha term). Because
+ *   glow.rgb is added on top of (1-a)*orig it reads as a screen/plus-lighter add
+ *   near bright cores and a straight over toward the edges.
+ *
+ * ── Related optional passes (not wired into our glowFilter yet) ───────────────
+ *   HgcOuterGlowColorize: colorizes an alpha-only glow between two colors:
+ *     a = min(color0.w * hg_Params[3].x, 1);
+ *     rgb = mix(hg_Params[0].xyz [inner], hg_Params[1].xyz [outer], a);
+ *     out.w = min(a * hg_Params[2].x, 1);  out.rgb = rgb * out.w;  (premultiplied)
+ *     SLOTS: [0]=inner color, [1]=outer color, [2].x=opacity, [3].x=alpha gain.
+ *   HgcOuterGlowLumaWeight: out = mix(color0, color1, dot(color1, hg_Params[0]));
+ *     blends two layers by the luma of color1. SLOT: [0]=luma weights.
+ *   HgcSlitScanGlow: additive streak — out = (hg_Params[1].x / |dot(axis,p)|) *
+ *     hg_Params[2] + color0.  SLOTS: [0]=offset dir, [1].x=strength, [2]=streak
+ *     color, [3]=center, [4]=projection axis.  (transition-specific; not glow core.)
+ *
+ * ── PHASE-2 TODO (TS <-> FCP divergences) ─────────────────────────────────────
+ *   TODO(P2-glow-1): MASK MATH. TS does a hard binary cutoff on Rec.601 luma
+ *     (luma601 > thresholdByte ? keep : drop). FCP does a SOFT mask:
+ *     alpha = clamp(dot(rgba, hg_Params[0]), 0, 1) and PREMULTIPLIES rgb by it.
+ *     FCP therefore feathers the glow contribution near the threshold and lets
+ *     source alpha participate; TS produces a hard-edged mask. Replace the
+ *     binary test with the clamp(dot(...)) soft mask + premultiply.
+ *   TODO(P2-glow-2): DOT INCLUDES ALPHA. hg_Params[0] is dotted against the full
+ *     float4 (rgba), so alpha weights into the mask. TS uses rgb-only luma601.
+ *   TODO(P2-glow-3): THRESHOLD REPRESENTATION. FCP has no explicit `threshold`
+ *     scalar in HgcGlow — the cutoff is encoded as a bias term inside
+ *     hg_Params[0]. Our `threshold` param must be converted into that weight
+ *     vector (weights that make the dot cross zero at the desired luma), not
+ *     compared directly.
+ *   TODO(P2-glow-4): COMBINE MODEL. TS blends with an explicit screen formula
+ *     (base+glow-base*glow/255) for amount<=1 and pure additive for amount>1.
+ *     FCP always uses HgcGlowCombineFx: over-composite gated by blurred alpha,
+ *     with a per-channel ceiling (hg_Params[1].xyz). The `amount>1 -> additive`
+ *     branch is a TS approximation of that ceiling behaviour and should be
+ *     reconciled to the (1-a)*orig + min(glow*gain, ceiling) form.
+ *   TODO(P2-glow-5): GAIN APPLIES TO ALPHA TOO. In FCP hg_Params[0].x scales
+ *     BOTH glow.rgb and glow coverage (r1.w). TS `amount` scales only rgb.
  */
 import { decimatedGaussianBlur } from './gaussian-blur.js';
 import { luma601 } from '../blend.js';
@@ -103,6 +178,37 @@ registerFilter({
 // Bloom (PAEBloom, UUID 5599C557-…). Behavior-identical to the legacy branch:
 // Amount (blur spread) / Brightness (0-100, ÷100) / Threshold (0-100, ÷100),
 // rendered via glowFilter; amount<=0 or brightness<=0 leaves input unchanged.
+//
+// ── PHASE-1 RE NOTE — HgcBloomThreshold (verbatim, the pre-blur bloom mask) ──
+//   FragmentOut HgcBloomThreshold_hgc_visible(const constant float4* hg_Params, float4 color0):
+//     r0   = color0 * hg_Params[1] + hg_Params[0];        // scale then bias
+//     r0   = max(r0, 0);
+//     luma = max(max(r0.x, r0.y), r0.z);                  // max-channel, NOT rec.601
+//     r0.w = (hg_Params[3].w < 0) ? luma : r0.w;          // select: use maxlum as alpha
+//     r0.w = min(r0.w, hg_Params[2].y);                   // clamp hi
+//     out.w   = max(r0.w, hg_Params[2].x);                // clamp lo
+//     out.xyz = r0.xyz;
+//   hg_Params SLOT MAP:
+//     hg_Params[0]   = bias   (added after scale; carries the threshold as a
+//                              negative offset that pushes sub-threshold pixels <0)
+//     hg_Params[1]   = scale  (per-channel gain applied before bias)
+//     hg_Params[2].x = alpha clamp LO, hg_Params[2].y = alpha clamp HI
+//     hg_Params[3].w = mode flag: <0 selects max-channel luma as the mask alpha,
+//                                  otherwise the source alpha is kept.
+//   So FCP's bloom threshold is a scale+bias (affine) knockout using MAX-CHANNEL
+//   brightness, with lo/hi alpha clamps — feeding the same blur+combine as glow.
+//
+// ── PHASE-2 TODO (Bloom) ─────────────────────────────────────────────────────
+//   TODO(P2-bloom-1): TS reuses glowFilter's Rec.601 binary luma cutoff. FCP's
+//     bloom mask is affine (color*scale + bias, clamp>=0) using MAX-CHANNEL luma
+//     = max(r,g,b), not Rec.601 weighted luma. Different pixels qualify.
+//   TODO(P2-bloom-2): TS maps Brightness->amount (screen/add strength) and
+//     Threshold->cutoff independently. FCP folds Brightness into hg_Params[1]
+//     (scale) and Threshold into hg_Params[0] (bias); Amount is the blur spread
+//     only. The param->slot mapping (Brightness=scale, Threshold=bias) is unproven
+//     for our engine and must be derived in Phase-2, not assumed.
+//   TODO(P2-bloom-3): TS has no alpha lo/hi clamp (hg_Params[2].xy); the FCP
+//     mask floors/ceilings coverage before the blur.
 registerFilter({
   uuid: '5599C557-CDC0-4112-B2C4-355E9A1A902E',
   names: ['bloom'],
