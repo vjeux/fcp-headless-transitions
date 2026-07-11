@@ -10,6 +10,7 @@
   fct probe   <slug> [frame=12]                     fast: render+PSNR ONE engine frame vs GUI GT
   fct baseline <source>                             freeze current scores (gate-res) -> the gate
   fct regress  <source> [--verbose]                 re-score vs baseline (fast); exit 1 on regression
+  fct gate    [engine|headless] [slug ...|--all] [--no-render]   render source then run the gate (lockfile-guarded)
   fct montage [slug ...|--all] [--sources gui,headless,engine] [--out m.mp4]
 
 Headless needs the FCP engine: this CLI auto-re-execs under the venv python with
@@ -184,6 +185,47 @@ def main():
         print(f"{'OK' if r['ok'] else 'FAIL'}: {len(r['regressions'])} regressions, "
               f"{len(r['improvements'])} improvements vs baseline_{source} "
               f"(tol {r['tol']}dB) — {r['total_sec']}s total", flush=True)
+        return 0 if r["ok"] else 1
+
+    if cmd == "gate":
+        # The recurring "re-render a source then run the regression gate" workflow,
+        # as ONE committed command (previously re-created as throwaway /tmp scripts).
+        # Guarded by a lockfile so a double-launch (the bg tool sometimes fires twice)
+        # can't run two concurrent `gen ... --all` passes that race the frame dir.
+        #   fct gate [engine|headless] [slug ...|--all] [--no-render]
+        import time, subprocess
+        source = rest[0] if rest and not rest[0].startswith("--") else "engine"
+        slug_args = [a for a in rest[1:] if not a.startswith("--")]
+        lock = "/tmp/fct_render.lock"
+        if "--no-render" not in rest:
+            try:
+                os.mkdir(lock)
+            except FileExistsError:
+                print("LOCKED — another render holds /tmp/fct_render.lock; aborting", flush=True)
+                return 3
+            try:
+                t0 = time.time()
+                gen_args = slug_args or ["--all"]
+                print(f"=== gate: render {source} {' '.join(gen_args)} ===", flush=True)
+                # Shell out to our own `gen` (same interpreter/env) so the render path
+                # stays byte-identical to `fct gen` — no duplicated render logic here.
+                rc = subprocess.run([VENV_PY, "-u", os.path.abspath(__file__),
+                                     "gen", source] + gen_args,
+                                    env=dict(os.environ, _FCT_REEXEC="1")).returncode
+                print(f"=== render done in {time.time()-t0:.0f}s (gen rc={rc}) ===", flush=True)
+            finally:
+                try: os.rmdir(lock)
+                except OSError: pass
+        # Always run the gate after (or on its own with --no-render).
+        from fct.baseline import regress
+        r = regress(source, verbose=False)
+        for s, (b, c, d) in sorted(r["improvements"].items()):
+            print(f"  IMPROVED  {s}: {b} -> {c} (+{d})")
+        for s, (b, c, d) in sorted(r["regressions"].items()):
+            print(f"  REGRESSED {s}: {b} -> {c} ({d})")
+        print(f"{'OK' if r['ok'] else 'FAIL'}: {len(r['regressions'])} regressions, "
+              f"{len(r['improvements'])} improvements vs baseline_{source} "
+              f"(tol {r['tol']}dB) — gate {r['total_sec']}s", flush=True)
         return 0 if r["ok"] else 1
 
     if cmd == "montage":
