@@ -92,22 +92,27 @@ export function channelMixerFilter(input: ImageData, params: ChannelMixerParams)
   const out = new Uint8ClampedArray(src.length);
 
   for (let i = 0; i < src.length; i += 4) {
-    let r = src[i] / 255;
-    let g = src[i + 1] / 255;
-    let b = src[i + 2] / 255;
-    let a = src[i + 3] / 255;
+    const r = src[i] / 255;
+    const g = src[i + 1] / 255;
+    const b = src[i + 2] / 255;
+    const a = src[i + 3] / 255;
 
+    let outR: number, outG: number, outB: number, outA: number;
     if (monochrome) {
-      // Convert to grayscale first (luminance-based)
-      const lum = luma601(r, g, b);
-      r = g = b = lum;
+      // FCP Monochrome mode (constrainMonoParams): ALL channels take the RED-row
+      // weighted sum; the Green/Blue rows are IGNORED (verified vs headless FCP:
+      // out = [gray,gray,gray] with gray = R*matrix[0]+G*matrix[1]+B*matrix[2], the
+      // Red Output weights). The old code did luma601 THEN re-applied the full matrix
+      // (double-processing -> wrong G/B). Alpha row still applies to alpha.
+      const gray = matrix[0] * r + matrix[1] * g + matrix[2] * b + offsets[0];
+      outR = outG = outB = gray;
+      outA = matrix[12] * r + matrix[13] * g + matrix[14] * b + matrix[15] * a + offsets[3];
+    } else {
+      outR = matrix[0] * r + matrix[1] * g + matrix[2] * b + matrix[3] * a + offsets[0];
+      outG = matrix[4] * r + matrix[5] * g + matrix[6] * b + matrix[7] * a + offsets[1];
+      outB = matrix[8] * r + matrix[9] * g + matrix[10] * b + matrix[11] * a + offsets[2];
+      outA = matrix[12] * r + matrix[13] * g + matrix[14] * b + matrix[15] * a + offsets[3];
     }
-
-    // Apply 4x4 matrix
-    const outR = matrix[0] * r + matrix[1] * g + matrix[2] * b + matrix[3] * a + offsets[0];
-    const outG = matrix[4] * r + matrix[5] * g + matrix[6] * b + matrix[7] * a + offsets[1];
-    const outB = matrix[8] * r + matrix[9] * g + matrix[10] * b + matrix[11] * a + offsets[2];
-    const outA = matrix[12] * r + matrix[13] * g + matrix[14] * b + matrix[15] * a + offsets[3];
 
     // Mix with original
     if (mix >= 1) {
@@ -211,19 +216,39 @@ export function colorizeRemapFilter(
   return new ImageData(out, input.width, input.height);
 }
 
-// Channel Mixer (UUID B2E0DE39-…). Behavior-identical to the legacy branch: builds
-// a 4x4 matrix + offsets from the per-channel params (identity default), Mix (1),
-// Monochrome (bool). Unset params keep their identity/zero defaults.
+// Channel Mixer (UUID B2E0DE39-…). The per-channel weights are NESTED children of the
+// "Red/Green/Blue Output" group params (Motion nests "Red - Red"/"Red - Green"/
+// "Red - Blue" under "Red Output"), so a flat ctx.param('Red - Red') NEVER finds them
+// and the matrix stayed identity (verified vs headless FCP: TS left R unchanged where
+// FCP applied the luma weights). This reads the nested children (with a flat fallback).
 registerFilter({
   uuid: 'B2E0DE39-119F-4AD6-8796-C18BF8FE27B8',
   names: ['channel mixer', 'channelmixer'],
   label: 'Channel Mixer',
   apply(input, ctx) {
+    const t = ctx.time;
+    // Read a weight that lives EITHER as a nested child of `group` OR as a flat param.
+    const w = (group: string, child: string, def: number): number => {
+      const g = ctx.filter.parameters.find(p => p.name === group);
+      const c = g?.children?.find(cc => cc.name === child);
+      if (c) {
+        if (c.curve) return evaluateCurve(c.curve, t);
+        if (typeof c.value === 'number') return c.value;
+      }
+      return ctx.param(child, def);  // flat fallback (+ rig overrides)
+    };
     const matrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
-    matrix[0] = ctx.param('Red - Red', 1);   matrix[1] = ctx.param('Red - Green', 0);   matrix[2] = ctx.param('Red - Blue', 0);
-    matrix[4] = ctx.param('Green - Red', 0);  matrix[5] = ctx.param('Green - Green', 1); matrix[6] = ctx.param('Green - Blue', 0);
-    matrix[8] = ctx.param('Blue - Red', 0);   matrix[9] = ctx.param('Blue - Green', 0);  matrix[10] = ctx.param('Blue - Blue', 1);
-    const offsets = [ctx.param('Red Output', 0), ctx.param('Green Output', 0), ctx.param('Blue Output', 0), 0];
+    matrix[0] = w('Red Output', 'Red - Red', 1);    matrix[1] = w('Red Output', 'Red - Green', 0);    matrix[2] = w('Red Output', 'Red - Blue', 0);
+    matrix[4] = w('Green Output', 'Green - Red', 0); matrix[5] = w('Green Output', 'Green - Green', 1); matrix[6] = w('Green Output', 'Green - Blue', 0);
+    matrix[8] = w('Blue Output', 'Blue - Red', 0);   matrix[9] = w('Blue Output', 'Blue - Green', 0);   matrix[10] = w('Blue Output', 'Blue - Blue', 1);
+    // The "* - Alpha" child of each output group is that channel's constant OFFSET
+    // (the shader's 4-wide dot row uses r1.w=1, so the -Alpha term adds directly).
+    const offsets = [
+      w('Red Output', 'Red - Alpha', 0),
+      w('Green Output', 'Green - Alpha', 0),
+      w('Blue Output', 'Blue - Alpha', 0),
+      0,
+    ];
     const mix = ctx.param('Mix', 1);
     const monochrome = ctx.param('Monochrome', 0) > 0;
     return channelMixerFilter(input, { matrix, offsets, mix, monochrome });
