@@ -28,8 +28,9 @@ export interface FilterContext {
   rawParam(name: string, fallback: number): number;
   /** True if a param is present as the filter's own curve/value (ignores overrides). */
   hasRaw(name: string): boolean;
-  /** Resolve a blur-intensity param honoring overrides, with the "keyframed curve
-   * whose static value=0 means authored-inactive -> 0" rule (legacy resolveBlurAmount). */
+  /** Resolve a blur-intensity param honoring overrides. A curve is evaluated at the
+   * current time; it's treated as inactive (->0) only when it does NOT animate AND its
+   * static value is 0 (an animated 0->N->0 ramp is a real blur). */
   blurAmount(name: string, fallback: number): number;
 }
 
@@ -93,15 +94,26 @@ export function makeContext(filter: Filter, time: number, width: number, height:
   const hasRaw = (name: string): boolean =>
     filter.parameters.some(p => p.name === name && (p.curve || typeof p.value === 'number'));
   // Resolve a blur-intensity param (Amount/Distance/Angle), honoring rig overrides.
-  // Extra rule (matches the legacy resolveBlurAmount): a keyframed curve whose static
-  // `value` attribute is 0 means the filter is authored-INACTIVE -> 0 (no blur), even
-  // though its keyframes may ramp to a large value.
+  // A curve is evaluated at the current time. NOTE: Motion stores a channel's static
+  // `value` attribute (the value when no keyframes apply) separately from its keyframes;
+  // an ANIMATED curve (keyframes that actually vary) is a real blur ramp regardless of
+  // that static attribute. We only treat a curve as inactive when it does NOT actually
+  // animate (see curveAnimates) AND its static value is 0.
+  const curveAnimates = (c: NonNullable<import('../../types.js').Parameter['curve']>): boolean => {
+    if (!c.keyframes || c.keyframes.length === 0) return false;
+    const vs = c.keyframes.map(k => k.value);
+    return vs.some(v => v !== vs[0]); // any keyframe differs from the first => animates
+  };
   const blurAmount = (name: string, fallback: number): number => {
     if (overrides && overrides.has(name)) return overrides.get(name)!;
     for (const p of filter.parameters) {
       if (p.name === name) {
         if (p.curve) {
-          if (p.curve.keyframes.length > 0 && p.curve.value === 0) return 0;
+          // Inactive only when the curve is FLAT (no real animation) and its static
+          // value is 0. An animated 0->300->0 ramp (e.g. Blurs/Directional) is a real
+          // blur and must be evaluated — the old rule zeroed it by looking only at the
+          // static `value` attribute. GUI-GT-verified: FCP blurs those transitions.
+          if (!curveAnimates(p.curve) && p.curve.value === 0) return 0;
           return evaluateCurve(p.curve, time);
         }
         if (typeof p.value === 'number') return p.value;

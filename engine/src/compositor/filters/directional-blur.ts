@@ -71,29 +71,43 @@ export function directionalBlur(input: ImageData, amount: number, angle: number)
   const dx = Math.cos(rad);
   const dy = -Math.sin(rad); // Y-up → screen Y-down
 
-  // Number of samples along the blur direction
-  const samples = Math.max(3, Math.min(Math.ceil(amount) * 2 + 1, 101));
-  const halfSamples = Math.floor(samples / 2);
-  const step = amount / halfSamples;
-  const weight = 1 / samples;
+  // 1-D GAUSSIAN along the blur axis (NOT a uniform box). MEASURED vs headless FCP
+  // (tools/re/filter_probe PAEDirectionalBlur Amount=50/100, Angle=0): FCP's blur is a
+  // Gaussian with sigma = Amount/6.67 — the SAME constant as the planar Gaussian blur
+  // (HDirectionalBlur = rotate → HGaussianBlur 1-D → un-rotate). Fit: Amount=50 σ=7.5
+  // PSNR 46.4, Amount=100 σ=15 PSNR 45.8, vs the old box average's 33.5/32.2. The box
+  // both under-weighted the center and over-reached the tails, so activating it
+  // regressed Blurs/Directional; the Gaussian matches FCP.
+  const sigma = amount / 6.67;
+  const half = Math.max(1, Math.min(Math.ceil(sigma * 3), 150)); // ±3σ, capped
+  const twoSigmaSq = 2 * sigma * sigma;
+  const weights = new Float64Array(2 * half + 1);
+  let wSum = 0;
+  for (let s = -half; s <= half; s++) {
+    const w = Math.exp(-(s * s) / twoSigmaSq);
+    weights[s + half] = w;
+    wSum += w;
+  }
+  for (let i = 0; i < weights.length; i++) weights[i] /= wSum;
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       let rAcc = 0, gAcc = 0, bAcc = 0, aAcc = 0;
 
-      for (let s = -halfSamples; s <= halfSamples; s++) {
-        const sx = Math.round(x + dx * s * step);
-        const sy = Math.round(y + dy * s * step);
+      for (let s = -half; s <= half; s++) {
+        const w = weights[s + half];
+        const sx = Math.round(x + dx * s);
+        const sy = Math.round(y + dy * s);
 
         // Clamp to bounds
-        const cx = Math.max(0, Math.min(width - 1, sx));
-        const cy = Math.max(0, Math.min(height - 1, sy));
+        const cx = sx < 0 ? 0 : (sx >= width ? width - 1 : sx);
+        const cy = sy < 0 ? 0 : (sy >= height ? height - 1 : sy);
         const idx = (cy * width + cx) * 4;
 
-        rAcc += src[idx] * weight;
-        gAcc += src[idx + 1] * weight;
-        bAcc += src[idx + 2] * weight;
-        aAcc += src[idx + 3] * weight;
+        rAcc += src[idx] * w;
+        gAcc += src[idx + 1] * w;
+        bAcc += src[idx + 2] * w;
+        aAcc += src[idx + 3] * w;
       }
 
       const dIdx = (y * width + x) * 4;

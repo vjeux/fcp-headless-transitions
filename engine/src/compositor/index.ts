@@ -699,15 +699,16 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
 
   // Skip on-screen-control (OSC) preview filters — they're editor UI, not rendered
   // output. These share the SAME pluginName as the real filter (e.g. "PAEZoomBlur"),
-  // so pluginName alone can't distinguish them. The scenenode `name` attribute
-  // carries the "(for OSC)" marker, and OSC filters set `Publish OSC` = 1. Check
-  // both: the display name for the marker, and the Publish OSC parameter as a
-  // structural fallback.
+  // so pluginName alone can't distinguish them. The reliable discriminator is the
+  // scenenode `name` attribute's "(for OSC)" marker (e.g. Blurs/Zoom carries both
+  // "Zoom Blur (for OSC)" AND the real "Zoom Blur").
+  // ⚠️ Do NOT also skip on `Publish OSC == 1`: that is NOT an OSC marker — the REAL
+  // Directional Blur and Radial Blur filters set Publish OSC=1 too (verified in the
+  // Blurs/Directional + Blurs/Radial .motr), so skipping on it silently dropped their
+  // blur entirely (engine rendered sharp where FCP blurs heavily). GUI-GT-verified.
   const nodeName = (filter.name || '').toLowerCase();
   const isOscByName = (s: string) => s.includes('for osc') || s.includes('(osc)') || s.endsWith(' osc');
-  const publishOsc = filter.parameters.find(p => p.name === 'Publish OSC');
-  const publishOscOn = publishOsc && typeof publishOsc.value === 'number' && publishOsc.value >= 1;
-  if (isOscByName(name) || isOscByName(nodeName) || publishOscOn) {
+  if (isOscByName(name) || isOscByName(nodeName)) {
     return input;
   }
 
