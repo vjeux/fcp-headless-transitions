@@ -87,6 +87,18 @@ output on the SAME synthetic .motr is legitimate here; the headless IS FCP). Gat
   existing TS code was already correct; corrected the misleading doc + reverted a wrong
   edit. (Two-stage + output-black expansion remains a theoretical gap — the built-ins
   only set stage-1, so it's identity in practice.)
+- [DONE] Gaussian blur sigma: MEASURED vs headless FCP (probe Amount 10/20/40/80) that
+  FCP's blur is sigma = Amount/6.67, not the assumed radius/3 (2.2x too much blur).
+  Isolated filter_apply Amount=20: TS 34.0 -> 43.5 dB after fix. gaussian-blur.ts.
+- [DONE] Pop-up widget snapshot mapping (parser/rig.ts): was (value-1), forcing the
+  Blurs family to the NO-BLUR snapshot. ROOT CAUSE of Blurs rendering sharp where FCP
+  is heavily blurred (GT frame-12 sharpness 0.18 vs engine 2.30). Fixed to 0-based
+  index `num`: Gaussian=1->blur snapshot, Radial=2, Rotate/Slide=0. Gate 0 regressions,
+  Gaussian +0.25 (gate-res). Makes the sigma fix load-bearing. Re-baselined engine.
+- [OPEN] Radial/Zoom/Directional blur GEOMETRY (P2-RB1/ZB1/DB1): with the Pop-up fix the
+  blur now FIRES for these too, but they score unchanged at gate-res — the screen-space
+  vs FCP polar-space geometry (radial/zoom) and box-vs-Gaussian (directional) gaps remain
+  the limiter. Next blur-family target.
 - [TOOLING] Added an IDENTITY GUARD to filter_probe/filter_verify: warns when the
   headless output == input (filter silently ignored by the host due to wrong
   factoryID/param-ids). This trap had nearly flipped the Levels gamma direction. When a
