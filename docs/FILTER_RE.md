@@ -38,12 +38,12 @@ impl matches RE · VERIFY = behavior confirmed vs headless across param space ·
 ## Filters the TS engine currently implements (map to FCP shader)
 | TS module | FCP class / shader | Status |
 |-----------|--------------------|--------|
-| gaussian-blur.ts | PAEGaussianBlur → (HGBlur decimation + HgcChannelBlur/convolve) | TODO |
-| glow.ts (Glow) | PAEGlow → HgcGlow + HgcGlowCombineFx | TODO |
-| glow.ts (Bloom) | PAEBloom → HgcBloomThreshold + glow combine | TODO |
-| directional-blur.ts (Directional) | PAEDirectionalBlur → HgcChannelBlur (angled) | TODO |
-| directional-blur.ts (Radial) | PAERadialBlur → Hgc? | TODO |
-| directional-blur.ts (Zoom) | PAEZoomBlur → HgcZoomBlur | TODO |
+| gaussian-blur.ts | PAEGaussianBlur → HGaussianBlur/HGBlur decimate→convolve→upsample (HgcConvolvePass*) | RE |
+| glow.ts (Glow) | PAEGlow → HgcGlow + HgcGlowCombineFx | RE |
+| glow.ts (Bloom) | PAEBloom → HgcBloomThreshold + glow combine | RE |
+| directional-blur.ts (Directional) | PAEDirectionalBlur → HDirectionalBlur (rotate→1D Gaussian→un-rotate) | RE |
+| directional-blur.ts (Radial) | PAERadialBlur → polar→1D Gaussian(angle)→rect + HgcRadialMask | RE |
+| directional-blur.ts (Zoom) | PAEZoomBlur → polar→1D Gaussian(radius)→rect (HgcZoomBlur = OSC preview only) | RE |
 | channel-mixer.ts (Channel Mixer) | PAEChannelMixer → HgcChannelMixer | RE |
 | channel-mixer.ts (Tint) | PAETint → HgcTint (⚠ hard-light, not luma-lerp) | RE |
 | channel-mixer.ts (Colorize) | PAEColorize → HgcColorize | RE |
@@ -51,11 +51,17 @@ impl matches RE · VERIFY = behavior confirmed vs headless across param space ·
 | levels.ts (Levels) | PAELevels → HgcLevels (⚠ two-stage, pow(gamma)) | RE |
 | levels.ts (Brightness) | PAEBrightness (additive) | RE |
 | luma-keyer.ts | HgcLumaKey (ramp) / HgcLumaKeyer (LUT) | RE |
-| bevel.ts | PAEBevel → HgcBevel | TODO |
-| fill.ts | PAE? → HgcFillColor | TODO |
-| gradient.ts | PAE? → HgcGradientLinear/Radial | TODO |
-| noise.ts | PAENoise → HgcNoise (DONE prior) + HgcBadTV | RE (noise) |
-| reorient360.ts | PAEEquirectReorient → HgcEquirectToSinusoidal/SinusoidalToEquirect | TODO |
+| bevel.ts | PAEBevel → bevelHe (4-quad offset accumulation, |cos(θ+k)| lobes) + HgcBevel composite | RE |
+| fill.ts | PAEFillColor → HgcFillColor | RE |
+| gradient.ts | PAEGradient → HgcGradientLinear/Radial (nearest-texel LUT); HgcCIGaussianGradient (smoothstep) | RE |
+| noise.ts | PAENoise → HgcNoise (DONE prior) + HgcBadTV | RE |
+| reorient360.ts | PAEEquirectReorient → HgcEquirectToSinusoidal/SinusoidalToEquirect | RE |
+
+## Phase-1 status: COMPLETE for all currently-implemented filters
+All ~17 TS filter entries above are RE (verbatim FCP shader/disasm documented in the
+module). Phase-2 (match + verify vs headless) findings are captured as "P2-*" TODOs in
+each module and summarized in `docs/FILTER_RE_PHASE2.md`.
+
 
 ## Full embedded-shader inventory
 See `tools/re/extract_shader.py --list` (246 shaders). The complete list is tracked
