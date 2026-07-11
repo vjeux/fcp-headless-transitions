@@ -98,22 +98,30 @@ export function levelsFilter(input: ImageData, params: LevelsParams): ImageData 
 }
 
 /**
- * Simple brightness adjustment (additive).
- * Plugin names: Brightness, Brightness copy
+ * PAEBrightness — a per-channel MULTIPLY in sRGB space: out = clamp(in * amount).
+ *
+ * PHASE-2 VERIFIED (tools/re/filter_probe.py against the real headless FCP engine):
+ * rendering PAEBrightness over image A at static Brightness values gives, per pixel,
+ * out = in * amount EXACTLY (sRGB space, not linear): B=1.0 -> identity (out/A ratio
+ * 0.999), B=0.5 -> out = A*0.5 (center px [106,58,37] -> [53,29,18], mean|err| 0.72
+ * = JPEG noise; a linear-light multiply mismatches by 20.8). So FCP Brightness is a
+ * straight sRGB multiplier, and the plugin's param DEFAULT is 1 (identity).
+ * ⚠️ This REPLACES the old additive `src + amount*255` model, which was wrong: at
+ * Curtains' authored Brightness=2.91 additive blew every pixel to white (+742),
+ * whereas FCP multiplies by 2.91 (with clamp). The identity value is 1, not 0.
  */
 export function brightnessFilter(input: ImageData, amount: number): ImageData {
-  if (amount === 0) return input;
+  if (amount === 1) return input;
 
   const width = input.width;
   const height = input.height;
   const src = input.data;
   const out = new Uint8ClampedArray(src.length);
-  const add = Math.round(amount * 255);
 
   for (let i = 0; i < src.length; i += 4) {
-    out[i] = Math.max(0, Math.min(255, src[i] + add));
-    out[i + 1] = Math.max(0, Math.min(255, src[i + 1] + add));
-    out[i + 2] = Math.max(0, Math.min(255, src[i + 2] + add));
+    out[i] = Math.max(0, Math.min(255, src[i] * amount));
+    out[i + 1] = Math.max(0, Math.min(255, src[i + 1] * amount));
+    out[i + 2] = Math.max(0, Math.min(255, src[i + 2] * amount));
     out[i + 3] = src[i + 3];
   }
 
@@ -122,16 +130,15 @@ export function brightnessFilter(input: ImageData, amount: number): ImageData {
 
 import { registerFilter } from './registry.js';
 
-// PAEBrightness — additive brightness. Reads 'Brightness' or 'Amount' (default 0,
-// NOT the filter's declared default=1: the legacy dispatch inited amount=0 and
-// brightnessFilter early-returns on 0). Behavior-identical to the old name-matched
-// branch in compositor/index.ts.
+// PAEBrightness — sRGB per-channel MULTIPLY (out = in * amount; identity at 1).
+// Phase-2 verified against headless FCP (see brightnessFilter). Param default is 1
+// (the plugin's declared default), NOT 0 — a multiply's identity is 1.
 registerFilter({
   uuid: '2E4DBB0A-A950-4896-BC2D-A5B0CFF7FAC6',
   names: ['brightness'],
   label: 'Brightness',
   apply(input, ctx) {
-    const amount = ctx.has('Brightness') ? ctx.param('Brightness', 0) : ctx.param('Amount', 0);
+    const amount = ctx.has('Brightness') ? ctx.param('Brightness', 1) : ctx.param('Amount', 1);
     return brightnessFilter(input, amount);
   },
 });
