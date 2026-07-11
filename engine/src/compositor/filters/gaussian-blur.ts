@@ -217,7 +217,14 @@ export function gaussianBlur(input: ImageData, radius: number): ImageData {
 function makeGaussianKernel(radius: number): Float64Array {
   const size = radius * 2 + 1;
   const kernel = new Float64Array(size);
-  const sigma = radius / 3; // 3-sigma rule
+  // sigma = radius / 6.67. MEASURED vs headless FCP (2026-07-11): probed PAEGaussianBlur
+  // at Amount ∈ {10,20,40,80} and fitted the sigma that best matches FCP's output —
+  // sigma = Amount/6.67 (Amount10→σ1.5, 20→3.0, 40→5.8, 80→11.3; ratio ~6.7–7.1).
+  // The old sigma = radius/3 produced ~2.2× TOO MUCH blur (Amount=20: TS 34.0 dB vs
+  // FCP, over-blurred mad 6.49 vs FCP's 4.51). Because decimatedGaussianBlur scales the
+  // radius by 1/factor before this call and upsamples ×factor, the effective full-res
+  // sigma is (radius/factor)/6.67 × factor = radius/6.67 — so the constant lives here.
+  const sigma = radius / 6.67;
   const twoSigmaSq = 2 * sigma * sigma;
   let sum = 0;
   for (let i = 0; i < size; i++) {
