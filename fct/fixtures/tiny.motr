@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Minimal synthetic .motr fixture for fct.timing tests. NOT a real FCP scene;
+     it contains only the sceneSettings/duration + frameRate that
+     scene_duration_seconds() parses. 48 frames / 24 fps = 2.0 s span. -->
+<motr>
+  <sceneSettings>
+    <duration>48</duration>
+    <frameRate>24</frameRate>
+  </sceneSettings>
+</motr>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- degenerate fixture: no frameRate -> scene_duration_seconds returns 0.0 -->
+<motr>
+  <sceneSettings>
+    <duration>48</duration>
+  </sceneSettings>
+</motr>
