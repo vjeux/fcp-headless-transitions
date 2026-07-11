@@ -52,39 +52,6 @@ def gen_engine(slug: str, out_dir: str = None) -> str:
 
 # --- engine single-frame (fast iteration) ---
 def gen_engine_frame(slug: str, frame: int, out_file: str) -> str:
-    """Render ONE engine frame (index `frame` of N_FRAMES, at progress frame/N) to
-    `out_file`. For fast iteration: a full 24-frame gen_engine re-render is ~5s for a
-    simple slug but MINUTES for a heavy one (360°/Bloom), which murders the
-    edit->score loop. This renders just the frame you care about (typically a
-    mid-transition frame) so `fct probe` returns in seconds. Same committed
-    engine/test/_fct_render_one.ts path as gen_engine -> byte-identical to that frame
-    of a full render."""
-    env = dict(os.environ, FCT_SLUG=slug, FCT_FRAME=str(frame), FCT_N=str(N_FRAMES),
-               FCT_OUT=os.path.abspath(out_file),
-               FCT_SLUGMAP=os.path.join(REPO, "fct", "slug_map.json"))
-    subprocess.run(["node_modules/.bin/tsx", "test/_fct_render_one.ts"],
-                   cwd=os.path.join(REPO, "engine"), env=env, check=True)
-    return out_file
-
-# --- engine single-frame (fast iteration) ---
-def gen_engine_frame(slug: str, frame: int, out_file: str) -> str:
-    """Render ONE engine frame (index `frame` of N_FRAMES, at progress frame/N) to
-    `out_file`. For fast iteration: a full 24-frame gen_engine re-render is ~5 s for a
-    simple slug but MINUTES for a heavy one (360°/Bloom), which murders the
-    edit->score loop. This renders just the frame you care about (typically a
-    mid-transition frame), so `fct probe` returns in seconds. Uses the same committed
-    engine/test/_fct_render_one.ts createBenchTransition path as gen_engine, so it is
-    byte-identical to the corresponding frame of a full render."""
-    env = dict(os.environ, FCT_SLUG=slug, FCT_FRAME=str(frame), FCT_N=str(N_FRAMES),
-               FCT_OUT=os.path.abspath(out_file),
-               FCT_SLUGMAP=os.path.join(REPO, "fct", "slug_map.json"))
-    subprocess.run(
-        ["node_modules/.bin/tsx", "test/_fct_render_one.ts"],
-        cwd=os.path.join(REPO, "engine"), env=env, check=True)
-    return out_file
-
-# --- engine single-frame (fast iteration) ---
-def gen_engine_frame(slug: str, frame: int, out_file: str) -> str:
     """Render ONE engine frame (index `frame` of N_FRAMES, progress frame/N) to
     `out_file`. Fast-iteration path: a full 24-frame gen_engine is minutes for a
     heavy slug (360°/Bloom), so `fct probe` renders just the frame under study and
