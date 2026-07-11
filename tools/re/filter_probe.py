@@ -26,7 +26,7 @@ USAGE
   filter_probe.py --uuid <UUID> --name <PAEName> \
       --group "Color:1=Red:1:1.0,Green:2:0.0,Blue:3:0.0" --param "Intensity:2=1.0"
 """
-import os, sys, argparse, tempfile, re
+import os, sys, argparse, tempfile, re, json
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SKELETON = ("/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/"
@@ -34,39 +34,33 @@ SKELETON = ("/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/"
             "Transitions.localized/Blurs.localized/Directional.localized/Directional.motr")
 
 
-def _param_xml(pname, pid, pval, indent="\t\t\t"):
-    return (f'{indent}<parameter name="{pname}" id="{pid}" flags="8606711824" '
-            f'default="0" value="{pval}"/>')
+def _param_elem(p, indent):
+    """Recursively render a param (with optional nested children) as .motr XML."""
+    name, pid = p["name"], p["id"]
+    if "children" in p:
+        lines = [f'{indent}<parameter name="{name}" id="{pid}" flags="8589938704">']
+        for c in p["children"]:
+            lines.append(_param_elem(c, indent + "\t"))
+        lines.append(f'{indent}</parameter>')
+        return "\n".join(lines)
+    return (f'{indent}<parameter name="{name}" id="{pid}" flags="8606711824" '
+            f'default="0" value="{p["value"]}"/>')
 
 
-def _group_xml(spec):
-    # "Color:1=Red:1:1.0,Green:2:0.0,Blue:3:0.0"
-    head, children = spec.split("=")
-    gname, gid = head.rsplit(":", 1)
-    lines = [f'\t\t\t<parameter name="{gname}" id="{gid}" flags="8589938704">']
-    for ch in children.split(","):
-        cn, cid, cv = ch.split(":")
-        lines.append(_param_xml(cn, cid, cv, indent="\t\t\t\t"))
-    lines.append('\t\t\t</parameter>')
-    return "\n".join(lines)
-
-
-def build_filter_xml(uuid, name, params, groups):
+def build_filter_xml(uuid, name, params):
     lines = [f'\t\t<filter name="{name}" id="988471399" factoryID="7" '
              f'pluginUUID="{uuid}" pluginVersion="1" pluginName="{name}" pluginDynamicParams="0">',
              '\t\t\t<timing in="0 7680000 1 0" out="123063808 7680000 1 0" offset="0 7680000 1 0"/>',
              '\t\t\t<baseFlags>8589934672</baseFlags>']
-    for g in groups:
-        lines.append(_group_xml(g))
-    for pname, pid, pval in params:
-        lines.append(_param_xml(pname, pid, pval))
+    for p in params:
+        lines.append(_param_elem(p, "\t\t\t"))
     lines.append('\t\t</filter>')
     return "\n".join(lines)
 
 
-def make_probe_motr(uuid, name, params, groups):
+def make_probe_motr(uuid, name, params):
     src = open(SKELETON, encoding="utf-8").read()
-    new_filter = build_filter_xml(uuid, name, params, groups)
+    new_filter = build_filter_xml(uuid, name, params)
     out = re.sub(r'\t\t<filter name="Directional Blur".*?</filter>', new_filter, src,
                  flags=re.DOTALL)
     fd, path = tempfile.mkstemp(suffix=".motr", prefix="fprobe_")
@@ -79,18 +73,30 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--uuid", required=True)
     ap.add_argument("--name", required=True)
-    ap.add_argument("--param", action="append", default=[], help='"PName:id=value"')
+    ap.add_argument("--spec", help="JSON params list (preferred; supports arbitrary nesting)")
+    ap.add_argument("--param", action="append", default=[], help='flat "PName:id=value"')
     ap.add_argument("--group", action="append", default=[],
-                    help='"GName:gid=Child:cid:val,Child:cid:val"')
+                    help='one-level "GName:gid=Child:cid:val,..."')
     ap.add_argument("--time", type=float, default=0.0)
     ap.add_argument("--out", default="/tmp/probe_headless.png")
     a = ap.parse_args()
-    params = []
-    for p in a.param:
-        nameid, val = p.split("=")
-        pname, pid = nameid.rsplit(":", 1)
-        params.append((pname, pid, val))
-    motr = make_probe_motr(a.uuid, a.name, params, a.group)
+    if a.spec:
+        params = json.loads(a.spec)
+    else:
+        params = []
+        for g in a.group:
+            head, children = g.split("=")
+            gname, gid = head.rsplit(":", 1)
+            kids = []
+            for ch in children.split(","):
+                cn, cid, cv = ch.split(":")
+                kids.append({"name": cn, "id": cid, "value": cv})
+            params.append({"name": gname, "id": gid, "children": kids})
+        for p in a.param:
+            nameid, val = p.split("=")
+            pname, pid = nameid.rsplit(":", 1)
+            params.append({"name": pname, "id": pid, "value": val})
+    motr = make_probe_motr(a.uuid, a.name, params)
     print("probe motr:", motr)
     sys.path.insert(0, os.path.join(REPO, "tools"))
     import ozengine

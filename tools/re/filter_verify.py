@@ -29,15 +29,9 @@ IMG_A_PNG = os.path.join(REPO, "engine", "test", "start.png")
 
 
 def _probe_args(spec):
-    """Translate a spec's params into filter_probe.py --param/--group args."""
-    args = ["--uuid", spec["uuid"], "--name", spec["pluginName"]]
-    for p in spec.get("params", []):
-        if "children" in p:
-            kids = ",".join(f'{c["name"]}:{c["id"]}:{c["value"]}' for c in p["children"])
-            args += ["--group", f'{p["name"]}:{p["id"]}={kids}']
-        else:
-            args += ["--param", f'{p["name"]}:{p["id"]}={p["value"]}']
-    return args
+    """Pass the full params list as JSON so filter_probe handles arbitrary nesting."""
+    return ["--uuid", spec["uuid"], "--name", spec["pluginName"],
+            "--spec", json.dumps(spec.get("params", []))]
 
 
 def run(spec, time=0.0, keep=False):
