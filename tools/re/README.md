@@ -17,6 +17,21 @@ in /tmp for this — extend these instead (ROADMAP rule: everything in the repo)
   reports mean|err| / PSNR. This is a legitimate check (headless IS FCP), distinct
   from the banned render-vs-render TS-*transition* scoring.
 
+## ⚠️ The identity trap (read before trusting any probe number)
+If the injected synthetic filter has a WRONG factoryID, or param names/ids that don't
+match the real plugin's nested structure, the FCP host SILENTLY IGNORES it and renders
+image A UNCHANGED. A TS-vs-headless compare then scores the TS filter against a bare
+copy of the input — a meaningless number that has flipped at least one real decision
+(the PAELevels gamma direction, 2026-07-11). Both tools now emit an `identity_warning`
+/ stderr warning when the headless output is within JPEG noise of the input
+(`headless_vs_input_mad < 1.5`). If you see it: the probe did NOT exercise the filter —
+grep a real transition `.motr` that uses the plugin (e.g. `grep -rl <UUID>` under the
+Transitions templates dir) to get the correct factoryID + param names/ids + nesting,
+and remember `filter_probe` pins the injected filter to the skeleton's factoryID slot.
+**When a synthetic probe can't be made to apply, fall back to the GUI GT** (`fct probe
+<slug>`): it drives the real plumbing and is the one truth.
+
+
 Run headless tools with the FCP frameworks on the path + venv python, e.g.:
   PYTHONPATH="$PWD" DYLD_FRAMEWORK_PATH="/Applications/Final Cut Pro.app/Contents/Frameworks" \
     venv/bin/python3 tools/re/filter_verify.py --spec '{"uuid":"...","pluginName":"...","params":[...]}'
