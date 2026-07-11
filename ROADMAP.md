@@ -163,15 +163,44 @@ Status legend: TODO / DOING / DONE / BLOCKED
     renderChildLayers) each returning a RenderOutcome ('stop'|'children').
   Commits 0a4ae30..c6493e5. All verbatim/faithful moves; fct regress engine 0/0 after each.
 
-### 8. Measure the color transform; add Python CI  [TODO]  (cross-cutting)
+### 8. Measure the color transform; add Python CI  [DONE]  (cross-cutting)
 - DoD: (a) the 6 fitted GAM constants replaced by a measured/derived sRGB->bt709 transform
   (or the shim emits bt709 directly so no transform is needed); (b) `fct/test_fct.py` covers
   read/color/compare/score on synthetic arrays + sample_time on a fixture .motr (no FCP needed).
 - Verify: `python3 -m pytest fct/` green; `fct regress` both OK after the color change.
+- DONE (2026-07-11): (a) fct/fit_color.py now DERIVES the GAM constants by maximizing the
+  gate's own objective (mean per-frame PSNR vs GUI GT), with the docstring recording why
+  plain-MSE (~20.3 dB, worse) and a physical transfer function (~30.9 dB on color-isolated
+  frames vs ~40 dB empirical) are both wrong. The derivation reproduces the shipped values
+  to +0.059 dB (< 0.30 gate tol) so GAM is unchanged but now measured+reproducible; config.py
+  cites it. (b) fct/test_fct.py = 21 pytest tests (color/read/compare/score on synthetic
+  arrays + sample_time & scene_duration on committed fixture .motr), no FCP needed.
+  Verify: `python3 -m pytest fct/` -> 21 passed; `fct regress headless/engine` -> 0/0 both.
 
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-11  Item 8 DONE (color transform + Python CI). (a) fct/fit_color.py now DERIVES the
+              sRGB->bt709 GAM by maximizing the GATE metric (mean per-frame PSNR vs GUI GT),
+              not plain pixel-MSE: measured that MSE-optimal lands at gamma~0.9 and scores
+              ~20.3 dB (WORSE than shipped 21.85), and a physical sRGB->Rec.709 transfer
+              function scores ~30.9 dB on color-isolated frames vs ~40 dB empirical (FCP does
+              more than a transfer swap). The gate-metric fit reproduces the shipped 6 constants
+              to +0.059 dB (< 0.30 tol) -> GAM unchanged but now measured+reproducible, config.py
+              cites the derivation. Reverted the interrupted prior turn's pure-a GAM swap, which
+              had regressed the gate (headless 14 slugs down, engine Lights__Flash -0.62).
+              (b) fct/test_fct.py = 21 pytest tests over read/color/compare/score on synthetic
+              arrays + sample_time/scene_duration on a committed fixture .motr; runs with no FCP
+              and no rendered frames. Verify: pytest fct/ -> 21 passed; fct regress -> 0/0 both.
+- 2026-07-11  Items 6 & 7 DONE. Item 6: replaced api.ts heuristic router with buildTimeMap
+              (single scene-time authority) + capabilities.ts (TYPE-driven probes, no
+              transition-name matches; enforced by no-hardcode.test.ts). Item 7: split the
+              god-objects — parser/index.ts -> xml/shapes/behaviors/replicator/rig/footage/
+              transform/camera modules; evaluator -> matrix/filter-overrides/links/context/ramp;
+              compositor -> blit/context/masks/geometry/field-texture/drop-in + renderLayer
+              dispatched to per-layer-type renderers registered by type. Gate green after each
+              step; concurrent + evaluator tests pass; tsc clean.
+
 - 2026-07-10  360°/equirect CROP fix (reverse-engineered from Filters.bundle + oz_render.mm):
               wide-equirect scenes (width>=3072) now CENTER-CROP the panorama to the 1920x1080
               output window (FCP's front-facing readback) instead of bilinear-squeezing the 2:1
