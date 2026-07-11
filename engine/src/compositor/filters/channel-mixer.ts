@@ -43,9 +43,17 @@
  *   err~45) — it is a TintFx-vs-PAETint variant / Color-Space(id=11)=3 nuance not yet
  *   pinned. Real params are Color(id1: R/G/B children) + Intensity(id2) + Mix(10001),
  *   NOT the top-level Red/Green/Blue the legacy registration reads (a param-name bug).
- *   Phase-2: confirm the Color-Space handling before replacing tintFilter; Tint is
- *   used by only 4 transitions (Glide/Wipes+Stylized Diagonal/Leaves), all dominated
- *   by other gaps, so the gate is a weak discriminator here.
+ *   ⚠️ ATTEMPTED + REVERTED (2026-07-11, GUI-GT gate): rewrote tintFilter to the
+ *   verbatim hard-light shader (709 luma) AND fixed the nested-Color param read. The
+ *   probe confirmed the hard-light SHAPE + gray-tint output match FCP (gray tint 0.443
+ *   -> PSNR 27, 709 beats 601), but on the real GUI GT it REGRESSED Objects__Leaves
+ *   12.24 -> 11.69 (-0.55, gate FAIL). Reason: the unresolved color-space/gamma step
+ *   means the (correct-shape) hard-light output is farther from FCP's ACTUAL pixels
+ *   than the old `lum*color` lerp happened to be for Leaves' near-gray tint. So the
+ *   faithful shader is a NET GUI-GT REGRESSION until the color-space piece is pinned.
+ *   Do NOT re-apply the hard-light rewrite without ALSO resolving the gamma/color-space
+ *   step and confirming `fct gate engine` stays green. Tint is used by only 4
+ *   transitions (Glide/Wipes+Stylized Diagonal/Leaves), all dominated by other gaps.
  *
  * --- HgcColorize (PAEColorize, UUID D995BBCF-…) — VERBATIM shader ---
  *   r0  = color0
