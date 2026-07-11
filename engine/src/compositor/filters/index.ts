@@ -20,5 +20,6 @@ import './channel-mixer.js'; // registers Channel Mixer + Tint
 import './hue-saturation.js'; // registers HSV Adjust
 import './gaussian-blur.js'; // registers Gaussian Blur
 import './directional-blur.js'; // registers Directional + Radial + Zoom Blur
+import './flop.js';           // registers Flop (geometric mirror)
 
 export {};
