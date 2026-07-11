@@ -79,6 +79,8 @@ def main():
                     help='one-level "GName:gid=Child:cid:val,..."')
     ap.add_argument("--time", type=float, default=0.0)
     ap.add_argument("--out", default="/tmp/probe_headless.png")
+    ap.add_argument("--in-a", default=None, help="override transition-A image (default fct.config.IMG_A)")
+    ap.add_argument("--in-b", default=None, help="override transition-B image (default fct.config.IMG_B)")
     a = ap.parse_args()
     if a.spec:
         params = json.loads(a.spec)
@@ -101,8 +103,10 @@ def main():
     sys.path.insert(0, os.path.join(REPO, "tools"))
     import ozengine
     from fct.config import IMG_A, IMG_B
+    img_a = a.in_a or IMG_A
+    img_b = a.in_b or IMG_B
     doc = ozengine.load_doc(motr)
-    rc = ozengine.render_frame(doc, IMG_A, IMG_B, a.time, a.out)
+    rc = ozengine.render_frame(doc, img_a, img_b, a.time, a.out)
     print("render rc:", rc, "->", a.out)
 
     # IDENTITY GUARD. A probe is worthless if the host silently ignored the injected
@@ -117,7 +121,7 @@ def main():
         import numpy as np
         from PIL import Image
         outimg = np.asarray(Image.open(a.out).convert("RGB"), dtype=np.float64)
-        inimg = np.asarray(Image.open(IMG_A).convert("RGB").resize(
+        inimg = np.asarray(Image.open(img_a).convert("RGB").resize(
             (outimg.shape[1], outimg.shape[0])), dtype=np.float64)
         mad = float(np.mean(np.abs(outimg - inimg)))
         if mad < 1.5:
