@@ -75,5 +75,21 @@ output on the SAME synthetic .motr is legitimate here; the headless IS FCP). Gat
 - [PARTIAL] Tint: documented exact hard-light shader; sRGB transcription matches RED
   channel but G/B off (~21 err) — TintFx/Color-Space=3 nuance unpinned. Only 4
   transitions, all dominated by other gaps -> deferred.
+- [DONE] Fill: verified vs headless FCP across Mix. filter_verify (factoryID=7 applies
+  Fill fine, identity guard confirms it's NOT ignored — headless_vs_input_mad 88.5):
+  red fill Mix=1 -> PSNR 54.97; Mix=0.5 -> PSNR 45.35, means align to <0.2. The
+  P2-fill alpha-premult TODOs are theoretical (partial-coverage edge alpha); on the
+  opaque full-frame drop-zone input the transitions actually use, TS already matches
+  FCP. No code change needed.
+- [DONE] Levels gamma direction: GUI-GT-verified the net mapping is pow(x, 1/gamma)
+  (UI Gamma fed to the HgcLevels shader as its reciprocal). Objects/Leaves (Gamma=1.726)
+  scores 11.76/13.78 dB at f6/f12 with pow(1/gamma) vs 9.75/12.54 with pow(gamma). The
+  existing TS code was already correct; corrected the misleading doc + reverted a wrong
+  edit. (Two-stage + output-black expansion remains a theoretical gap — the built-ins
+  only set stage-1, so it's identity in practice.)
+- [TOOLING] Added an IDENTITY GUARD to filter_probe/filter_verify: warns when the
+  headless output == input (filter silently ignored by the host due to wrong
+  factoryID/param-ids). This trap had nearly flipped the Levels gamma direction. When a
+  synthetic probe can't be made to apply, fall back to the GUI GT (fct probe <slug>).
 - Tooling: tools/re/{extract_shader,filter_probe,filter_verify,filter_usage}.py +
   engine/test/_filter_apply.ts (committed; no /tmp scratch).
