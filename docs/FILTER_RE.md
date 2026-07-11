@@ -62,6 +62,27 @@ All ~17 TS filter entries above are RE (verbatim FCP shader/disasm documented in
 module). Phase-2 (match + verify vs headless) findings are captured as "P2-*" TODOs in
 each module and summarized in `docs/FILTER_RE_PHASE2.md`.
 
+## Filters used by the 65 transitions but NOT previously implemented (the real Phase-1 gap)
+A scan of all 65 .motr files finds 24 distinct filter UUIDs; the 17 above plus 7 that
+were unregistered no-ops (they passed through untouched in applyFilter). These ARE
+exercised by real transitions — the objective ("every filter") requires them:
+
+| FCP class / node | UUID | used by | status |
+|------------------|------|---------|--------|
+| PAEFlop (mirror) | 2FF8887B-… | Movements/Flip, Replicator-Clones/Concentric | **DONE** — verbatim disasm, verified vs headless PSNR 42.2 all modes |
+| PAEMinMax (erode/dilate) | D2342006-… | Dissolves/Divide (×3) | **DONE** — verbatim Helium MMNode shader, verified PSNR 35-40 across Mode×Radius |
+| PAEScrape / "Smear" | 0D6E968B-… | Movements/Smear | RE in progress (HgcScrape shader extracted; directional/radial displacement) |
+| PAEBlackHole | 1A32EFEF-… | Movements/Black_Hole | RE in progress (HgcBlackHole radial gravity-lens warp) |
+| PAEEarthquake | DEB7CD03-… | Movements/Earthquake | RE in progress (CPU quakeHeliumNode shake/twist) |
+| PAEUnderwater | 9FA1F483-… | Movements/Flashback | RE in progress (HgcUnderwaterRefractV2 sinusoidal refraction) |
+| PAEBadTV | 32AB5EE1-… | Lights/Static | RE in progress (HgcBadTV roll/wave/scanline/static/desat) |
+| PAETrails | 2DB30B44-… | Movements/Black_Hole | DISABLED (`<enabled>0</enabled>`) — never applied by FCP; parser now skips it |
+
+Parser correctness fix (commit 967189b): the parser now honors `<enabled>0</enabled>`
+on filters (it previously pushed disabled filters), so a disabled filter is never
+applied once registered. 4 disabled instances across the 65 (Trails, 2× Radial Blur,
+Zoom Blur OSC).
+
 
 ## Full embedded-shader inventory
 See `tools/re/extract_shader.py --list` (246 shaders). The complete list is tracked
