@@ -102,6 +102,7 @@
  *    a Rotation x Amount x Center sweep (see commit message for the PSNR table).
  */
 import { registerFilter } from './registry.js';
+import { evaluateCurve } from '../../evaluator/curves.js';
 
 /** Read a child param (X/Y) of a named group param, honoring curves. */
 function childValue(ctx: import('./registry.js').FilterContext, group: string, childName: string, childId: number, fallback: number): number {
@@ -109,7 +110,7 @@ function childValue(ctx: import('./registry.js').FilterContext, group: string, c
   if (g?.children) {
     for (const c of g.children) {
       if (c.name === childName || c.id === childId) {
-        if (c.curve) return require('../../evaluator/curves.js').evaluateCurve(c.curve, ctx.time);
+        if (c.curve) return evaluateCurve(c.curve, ctx.time);
         if (typeof c.value === 'number') return c.value;
       }
     }
