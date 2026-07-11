@@ -9,6 +9,55 @@
  *
  * Implementation: separable two-pass Gaussian (horizontal + vertical).
  *
+ * ===========================================================================
+ * FCP PHASE-1 REVERSE-ENGINEERING — verbatim shader / disasm backing
+ * ===========================================================================
+ * PAE class:  PAEGaussianBlur  (Filters.bundle/Contents/MacOS/Filters, arm64)
+ * Registry UUID (this engine): E472D646-2C92-464E-98A1-91CF8F162AD8
+ *
+ * WHAT PAEGaussianBlur ACTUALLY BUILDS (from -[PAEGaussianBlur
+ * canThrowRenderOutput:withInput:withInfo:] disasm @ 0x3064c):
+ *   - reads 3 floats via getFloatValue:fromParm:atFxTime: (amount + blurScale.x/y)
+ *   - planar path @ 0x3094c:  HGaussianBlur::init(f,f,f,b,b,b)   [_ZN13HGaussianBlur4initEfffbbb]
+ *   - 360 path   @ 0x30c58:  HEquirectGaussianBlur::init(f,f,f,i,i,PCVector4f×4)
+ *     (seam-wrap + optional sinusoidal reproject — see FCP_360_BLUR_REVERSE_ENGINEERING.md)
+ *
+ * THE PER-PIXEL ALGORITHM IS *NOT* A FULL-RES CONVOLUTION.
+ * HGaussianBlur delegates to Helium's HGBlur, which DECIMATES → convolves a
+ * SMALL fixed-tap kernel → UPSAMPLES:
+ *   1. HGBlur::GetDecimation(radius)  (Helium @ 0x1bc0d8) picks level 2^k so
+ *      radius²  clears successive 25·4^k bands (see gaussianDecimation() below).
+ *   2. HGBlur::fastDecimateDown  bilinearly downsamples by 2^level.
+ *   3. A SEPARABLE convolve pass runs on the small image. The GPU shaders are the
+ *      HgcConvolvePass* family (verbatim source via extract_shader.py):
+ *        HgcConvolvePass5tapPoint / 8tapPoint / 7tapDefocus …
+ *      Each is a weighted N-tap sum:
+ *        color0 = Σ hg_Params[base+i] * sample(texCoord_i)
+ *      NOTE: the per-tap WEIGHTS ARE RUNTIME PARAMS (hg_Params[...]), NOT baked
+ *      into the shader. They are the Gaussian coefficients HGBlur computes CPU-side
+ *      per (radius,level). => The exact tap COUNT/WEIGHTS are NOT visible in the
+ *      shader source; only the "Σ params[i]·tap_i" structure is. Do not invent them.
+ *   4. HGBlur::fastDecimateUp  bilinearly upsamples back to full res.
+ *   (HgcChannelBlur / HgcChannelBlurNoPremult are NOT the blur convolution — they
+ *    are the un-/re-premultiply channel-mix blends applied around the blur:
+ *      r1.xyz /= max(r1.w, 1e-6);  r1.xyz = mix(orig.xyz, r1.xyz, params[0].xyz);
+ *      color0.xyz = r1.xyz * orig.w;  color0.w = orig.w;  )
+ *
+ * PHASE-2 TODO (TS differs from FCP):
+ *   [P2-GB1] KERNEL FALLOFF: this file builds a full 2*r+1 Gaussian with
+ *     sigma = r/3 (makeGaussianKernel). FCP convolves a SMALL fixed-tap kernel
+ *     (5/7/8-tap) on the DECIMATED image with HGBlur-computed weights. The
+ *     decimatedGaussianBlur() wrapper reproduces the decimate→blur→upsample
+ *     *structure* and the GetDecimation levels, but the tap kernel here is a
+ *     from-scratch sigma=r/3 Gaussian at the reduced radius, NOT FCP's actual
+ *     HGBlur tap weights (which are not yet recovered — they live in HGBlur's
+ *     ComputeDecimation/kernel-builder, not in the shader). Pixel-exact match
+ *     requires recovering those weights.
+ *   [P2-GB2] sigma = r/3 is an assumption of THIS impl, not observed in FCP.
+ *   [P2-GB3] EDGE MODE: this impl CLAMPs at borders. FCP's 360 path seam-WRAPs
+ *     (NewEquirectWrapNode); the planar path's HGBlur edge mode is not documented
+ *     here — verify before claiming a match on border pixels.
+ *
  * PERF (2026-07-05): two exact speedups on the inner tap loop, both verified
  * byte-identical to the naive path (test/_perf_gbcheck against the reference impl):
  *   1. CLAMP-SPLIT: interior pixels (kHalf ≤ i < size-kHalf) never sample out of

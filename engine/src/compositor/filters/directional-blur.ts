@@ -9,6 +9,47 @@
  *   - Angle: direction of the blur in degrees (0 = horizontal right)
  *
  * Implementation: sample along the blur direction vector, averaging pixels.
+ *
+ * ===========================================================================
+ * FCP PHASE-1 REVERSE-ENGINEERING — verbatim shader / disasm backing
+ * ===========================================================================
+ * PAE class:  PAEDirectionalBlur  (Filters binary, arm64)
+ * Registry UUID (this engine): 2E7B1340-5D4F-4015-8AA0-53BEB9F2CA52
+ *
+ * WHAT PAEDirectionalBlur ACTUALLY BUILDS
+ * (-[PAEDirectionalBlur canThrowRenderOutput:] @ 0x23784):
+ *   getPixelTransformForImage: ; getFloatValue ×2 (Amount, Angle) ; getBoolValue
+ *   → HDirectionalBlur::init(PCVector2)          [_ZN16HDirectionalBlur4initERK9PCVector2IdE]
+ *
+ * HDirectionalBlur IS *NOT* A BOX AVERAGE. Its init (Filters @ 0xdd850) is:
+ *   1. HGXForm / HGTransform::LoadMatrix — a ROTATION/SHEAR matrix built from the
+ *      blur angle (uses atan @ 0xdd8ac, tanf @ 0xdd990/0xdd9a0, sin @ 0xdda0c),
+ *      i.e. it rotates the working frame so the blur axis becomes horizontal.
+ *   2. HGaussianBlur::init(f,f,f,b,b,b)          [_ZN13HGaussianBlur4initEfffbbb] @ 0xdda84
+ *      — the SAME separable Gaussian node as plain Gaussian Blur (so it DECIMATES
+ *      via HGBlur, see gaussian-blur.ts). The blur RADIUS is applied to ONE axis
+ *      only: @ 0xdda3c the code computes  mag = sqrt(dx*dx + dy*dy) ; r = |amount|*mag
+ *      then an fcsel on a bool (w23) routes `r` to the X radius and 0 to the Y radius
+ *      (or vice-versa). So it is a 1-D GAUSSIAN along the rotated axis.
+ *   3. A second HGXForm/LoadMatrix un-rotates back to screen space.
+ *   HDirectionalBlur::init(f,f,f,f) @ 0xdd7e4 is a convenience overload: it does
+ *   sincosf(angle) then calls init(PCVector2) with the (cos,sin) direction.
+ *
+ * So FCP directional blur = ROTATE → 1-D GAUSSIAN (decimated HGBlur) → UN-ROTATE.
+ *
+ * PHASE-2 TODO (TS differs from FCP):
+ *   [P2-DB1] FALLOFF: directionalBlur() below is a UNIFORM box average
+ *     (weight = 1/samples on every tap). FCP applies a GAUSSIAN falloff along the
+ *     axis (HGaussianBlur). Center-weighted, not flat.
+ *   [P2-DB2] LENGTH/SYMMETRY: this impl samples ±amount around the pixel (a 2*amount
+ *     total streak, symmetric). FCP's radius = |amount| * |dir| feeds a Gaussian
+ *     whose effective extent is ~3*sigma; the pixel-space length is not the same as
+ *     `samples*step` here. Needs measured match.
+ *   [P2-DB3] NO DECIMATION: this impl samples at full res; FCP decimates first
+ *     (HGBlur). Render-neutral for correctness but a perf gap on large amounts.
+ *   [P2-DB4] Y-AXIS SIGN: this impl uses dy = -sin(angle) (Y-up→screen-down).
+ *     FCP builds its rotation from atan/tanf/sin of the direction — verify the
+ *     handedness/angle-zero convention matches before claiming a pixel match.
  */
 
 /**
@@ -75,6 +116,38 @@ export function directionalBlur(input: ImageData, amount: number, angle: number)
  * @param centerX - Center X (0-1, relative to frame)
  * @param centerY - Center Y (0-1, relative to frame)
  * @param type - 'spin' (rotational) or 'zoom' (radial outward)
+ *
+ * ===========================================================================
+ * FCP PHASE-1 REVERSE-ENGINEERING — verbatim disasm backing
+ * ===========================================================================
+ * PAE class:  PAERadialBlur  (Filters binary, arm64)
+ * Registry UUID (this engine): 8F9F88CF-F1DC-4C7E-8946-1A8B53B4F53A
+ *
+ * PAERadialBlur is a SPIN (rotational) blur, and FCP implements it in POLAR SPACE.
+ * From -[PAERadialBlur canThrowRenderOutput:] @ 0x108950:
+ *   amount' = getFloat(Amount) * 1.5   (fmov d1,#1.5 @ 0x108994, fmul)
+ *   center  = getXValue:YValue: (center point param)
+ *   pipeline:
+ *     1. -[PAERadialBlur polarToRect:withInputImage:...centerX:centerY:upscaleFactor:...]
+ *        @ 0x107ad8 — rectangular→polar remap (angle on one axis, radius on the other)
+ *     2. HDirectionalBlur::init(f,f,f,f)  @ 0x108c40 — a 1-D GAUSSIAN (see the
+ *        HDirectionalBlur notes above) along the ANGLE axis of the polar image.
+ *     3. -[PAERadialBlur rectToPolar:...] @ 0x108020 — inverse remap back to screen.
+ *     4. HgcRadialMask (@ 0x108d0c) + getMaxDistanceFromCenterX:andCenterY: —
+ *        masks/normalizes the result by max radius from center.
+ *   So SPIN blur = polar-remap → 1-D Gaussian along angle → inverse-remap.
+ *   (HgcRadialBars is a DIFFERENT filter — not used by PAERadialBlur.)
+ *
+ * PHASE-2 TODO (TS differs from FCP):
+ *   [P2-RB1] SPACE: radialBlur() 'spin' below rotates each sample directly in
+ *     SCREEN space by an angle proportional to dist/max(w,h). FCP does the blur
+ *     in POLAR space (rect↔polar remap) with a 1-D Gaussian on the angle axis —
+ *     a different sampling geometry near/at the center and at the frame corners.
+ *   [P2-RB2] FALLOFF: this impl is a uniform box average (weight 1/samples). FCP
+ *     uses a GAUSSIAN falloff (HDirectionalBlur → HGaussianBlur).
+ *   [P2-RB3] AMOUNT SCALE: FCP multiplies Amount by 1.5 before the blur; this impl
+ *     uses Amount raw (and its own dist/max(w,h) angle scaling). Not matched.
+ *   [P2-RB4] The HgcRadialMask normalization step has no equivalent here.
  */
 export function radialBlur(input: ImageData, amount: number, centerX: number = 0.5, centerY: number = 0.5, type: 'spin' | 'zoom' = 'spin'): ImageData {
   if (amount <= 0) return input;
@@ -138,6 +211,50 @@ export function radialBlur(input: ImageData, amount: number, centerX: number = 0
 /**
  * Zoom Blur: blur radiating outward (zoom effect).
  * Plugin names: PAEZoomBlur, Zoom Blur
+ *
+ * ===========================================================================
+ * FCP PHASE-1 REVERSE-ENGINEERING — verbatim shader / disasm backing
+ * ===========================================================================
+ * PAE class:  PAEZoomBlur  (Filters binary, arm64)
+ * Registry UUID (this engine): 11C0E095-5F4F-46E2-AE28-F56ED7D38D7E
+ *
+ * PAEZoomBlur also works in POLAR SPACE (same shape as PAERadialBlur, but the
+ * Gaussian runs along the RADIUS axis instead of the angle axis).
+ * From -[PAEZoomBlur canThrowRenderOutput:] @ 0x75718:
+ *   amount' = getFloat(Amount) * 1.5 * 0.5   (fmov #1.5 @ 0x7575c ; *0.5 @ 0x757e4)
+ *   center  = getXValue:YValue:  (scaled by width/height @ 0x7582c/0x75854)
+ *   getInversePixelTransformForImage: (radius sized from the pixel transform)
+ *   pipeline:
+ *     1. -[PAEZoomBlur polarToRect:...centerX:centerY:upscaleFactor:...] @ 0x7490c
+ *     2. HDirectionalBlur::init(f,f,f,f) @ 0x75aec — 1-D GAUSSIAN along the RADIUS
+ *        axis of the polar image (this is what makes streaks point at the center).
+ *     3. -[PAEZoomBlur rectToPolar:...] @ 0x74e84 — inverse remap back to screen.
+ *     4. HGCrop @ 0x75bdc — crop back to the working rect.
+ *   So ZOOM blur = polar-remap → 1-D Gaussian along radius → inverse-remap → crop.
+ *
+ * VERBATIM SHADER — HgcZoomBlur (via extract_shader.py HgcZoomBlur):
+ *   This 5-tap shader is the OSC PREVIEW / fast path, NOT the PAEZoomBlur render
+ *   pipeline above. It is a fixed-weight 5-tap sum of pre-offset texCoords:
+ *     c0 = (0.15, 0.10, 0.20, 0.25)   c1 = (0.30, 0, 0, 0)
+ *     out = 0.15*tex(texCoord1) + 0.10*tex(texCoord2) + 0.20*tex(texCoord3)
+ *         + 0.25*tex(texCoord4) + 0.30*tex(texCoord0)        (weights sum to 1.0)
+ *   The 5 zoom-offset texCoords (texCoord0..4) are computed CPU-SIDE (the shader
+ *   just samples them); the offset stepping toward/away from center is set up on
+ *   the CPU when this preview node's vertex texcoords are filled — the geometry
+ *   is not visible in the fragment shader. The main render path uses the polar
+ *   HDirectionalBlur Gaussian (many taps), not these 5 fixed weights.
+ *
+ * PHASE-2 TODO (TS differs from FCP):
+ *   [P2-ZB1] SPACE: zoomBlur() delegates to radialBlur 'zoom', which scales each
+ *     sample outward in SCREEN space (scale = 1 + t*0.01). FCP does it in POLAR
+ *     space (rect↔polar remap) with a 1-D Gaussian on the radius axis. Different
+ *     geometry, especially far from center and at frame edges.
+ *   [P2-ZB2] FALLOFF: uniform box average here vs FCP's Gaussian falloff.
+ *   [P2-ZB3] AMOUNT SCALE: FCP uses Amount * 1.5 * 0.5 (= *0.75) and sizes the
+ *     radius from the inverse pixel transform; this impl uses Amount * 0.01 as a
+ *     screen-space scale factor — completely different magnitude mapping. Unmatched.
+ *   [P2-ZB4] The `0.01` scale and `1 + t*0.01` model are inventions of THIS impl,
+ *     not observed FCP constants.
  */
 export function zoomBlur(input: ImageData, amount: number, centerX: number = 0.5, centerY: number = 0.5): ImageData {
   return radialBlur(input, amount, centerX, centerY, 'zoom');
