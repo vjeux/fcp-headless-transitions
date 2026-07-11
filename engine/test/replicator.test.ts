@@ -93,11 +93,17 @@ function runTests() {
   });
 
   test('sequenceOrder: diagonal ranks corner→corner', () => {
-    // (0,0) first, (cols-1,rows-1) last on the diagonal sweep.
-    const first = sequenceOrder({ x: 0, y: 0, index: 0, row: 0, col: 0, normalizedIndex: 0 }, 3, 3);
-    const last = sequenceOrder({ x: 0, y: 0, index: 8, row: 2, col: 2, normalizedIndex: 1 }, 3, 3);
-    assertClose(first, 0, 0.001, 'top-left corner animates first');
-    assertClose(last, 1, 0.001, 'opposite corner animates last');
+    // Motion's Sequence Replicator sweeps a diagonal WAVEFRONT across the grid.
+    // sequenceOrder ranks by (col + (Rmax − row)) normalized to [0,1], so the wave
+    // runs from the BOTTOM-LEFT corner (rank 0, animates first) to the TOP-RIGHT
+    // corner (rank 1, animates last). This orientation is the one validated against
+    // the GUI GT for Replicator-Clones/Duplicate (the dot wave sweeps across the
+    // frame leaving the far corner last; scored 19.80→30.53 dB). Do NOT "fix" this to
+    // top-left-first — that was the pre-GT guess and mismatches FCP.
+    const first = sequenceOrder({ x: 0, y: 0, index: 6, row: 2, col: 0, normalizedIndex: 0 }, 3, 3);
+    const last = sequenceOrder({ x: 0, y: 0, index: 2, row: 0, col: 2, normalizedIndex: 1 }, 3, 3);
+    assertClose(first, 0, 0.001, 'bottom-left corner animates first');
+    assertClose(last, 1, 0.001, 'opposite (top-right) corner animates last');
   });
 
   console.log(`\n${pass} passed, ${fail} failed`);
