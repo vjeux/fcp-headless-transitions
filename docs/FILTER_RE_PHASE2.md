@@ -95,10 +95,18 @@ output on the SAME synthetic .motr is legitimate here; the headless IS FCP). Gat
   is heavily blurred (GT frame-12 sharpness 0.18 vs engine 2.30). Fixed to 0-based
   index `num`: Gaussian=1->blur snapshot, Radial=2, Rotate/Slide=0. Gate 0 regressions,
   Gaussian +0.25 (gate-res). Makes the sigma fix load-bearing. Re-baselined engine.
-- [OPEN] Radial/Zoom/Directional blur GEOMETRY (P2-RB1/ZB1/DB1): with the Pop-up fix the
-  blur now FIRES for these too, but they score unchanged at gate-res — the screen-space
-  vs FCP polar-space geometry (radial/zoom) and box-vs-Gaussian (directional) gaps remain
-  the limiter. Next blur-family target.
+- [DONE] Blur activation bugs (3 root causes, GUI-GT-verified): (1) applyFilter's OSC
+  skip was too broad — it dropped any filter with Publish OSC=1, but the REAL Directional
+  & Radial blurs set that too; narrowed to the 'for OSC' node-name marker. (2) blurAmount
+  treated any static-value-0 curve as inactive even with an animated 0->300->0 ramp
+  (Blurs/Directional); now only FLAT value-0 curves are inactive. (3) Directional blur
+  was a box average; FCP uses a 1-D Gaussian sigma=Amount/6.67 (measured: Amount=50 σ7.5
+  PSNR 46.4 vs box 33.5). Net: Directional now fires + matches FCP falloff (+0.08, was
+  -0.94 with box); sharpness tracks GT. Gate 0 regressions.
+- [OPEN] Radial/Zoom blur GEOMETRY (P2-RB1/ZB1): blur now FIRES but the spin math uses
+  angle-in-degrees x (dist/max(w,h)) giving near-zero rotation for the transition's
+  Angle=2.39rad, and zoom uses a screen-space 1+t*0.01 scale. Both need the FCP
+  polar-space (rect<->polar remap) + correct Amount->arc/scale mapping. Next target.
 - [TOOLING] Added an IDENTITY GUARD to filter_probe/filter_verify: warns when the
   headless output == input (filter silently ignored by the host due to wrong
   factoryID/param-ids). This trap had nearly flipped the Levels gamma direction. When a
