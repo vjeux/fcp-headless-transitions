@@ -99,6 +99,81 @@ S6  Framing-camera / clone-grid                3     13.9   4.6   partial, deepe
 S7  Residual per-slug (shape/mask/timing)     mixed   —      —    one-offs, opportunistic
 ```
 
+## Parallel execution model  (how to run a swarm of agents on this)
+
+The work is parallelizable, but ONLY if agents don't fight over the same files. The engine has
+FOUR "hub" files every subsystem is tempted to edit — these are the collision zone:
+
+```
+HUB FILES (serialize edits here — at most ONE agent may edit each per wave):
+  src/parser/index.ts        (parse dispatch)
+  src/evaluator/index.ts     (evaluateLayer pipeline)
+  src/compositor/index.ts    (renderLayer dispatch, composite())
+  src/types.ts               (shared Layer/Behaviour/Filter types)
+```
+
+The proven parallel-safe pattern already in the repo is the **filter registry**: each filter is
+its own module in `compositor/filters/*.ts`, self-registers via `registerFilter({uuid,apply})`,
+and the ONLY shared edit is an append-only import line in `filters/index.ts`. Multiple agents add
+filters simultaneously with zero conflicts. **Replicate this pattern for every new subsystem:**
+put new logic in its OWN file, expose ONE registration/entry hook, and touch a hub file only via a
+single append-only line.
+
+### Ownership lanes (disjoint file sets → safe to run concurrently)
+```
+LANE A  behaviours     OWNS: src/evaluator/links.ts, src/evaluator/behaviors/*,
+                             src/evaluator/ramp.ts, src/parser/behaviors.ts
+LANE B  particles      OWNS: src/compositor/field-texture.ts, NEW src/compositor/particles/*
+LANE C  gradient/gen   OWNS: src/compositor/filters/gradient.ts, NEW generators/*
+LANE D  compositing    OWNS: src/compositor/blend.ts, src/compositor/blit.ts, NEW color-space/*
+LANE E  framing/geom   OWNS: src/evaluator/framing.ts, src/compositor/geometry.ts,
+                             src/compositor/perspective.ts
+LANE F  filters        OWNS: src/compositor/filters/<one-file-per-filter>.ts (already parallel)
+```
+Each lane's edits are disjoint → agents A–F can run at the SAME TIME. Hub-file edits (the small
+wiring each lane needs) are batched into a serialized "integration" step (see waves).
+
+### Wave schedule (dependency-ordered; within a wave, run agents in parallel)
+```
+WAVE 1  (parallel, low-risk, additive — no hub-file behaviour change):
+   A1  colour-channel Link         (LANE A: links.ts only + types append)
+   C1  linear/radial gradient gen  (LANE C: gradient.ts only)
+   B1  emitter param PARSER        (LANE B: new particles/parse.ts; types append)
+   F*  any remaining filter polish (LANE F: per-filter files)
+
+WAVE 2  (parallel, medium — each needs ONE hub hook, added by the integration step):
+   A2  Motion Path driver          (LANE A + 1 line in evaluator/index.ts)
+   A3  Gravity driver              (LANE A + 1 line in evaluator/index.ts)
+   B2  emitter SIMULATION+render   (LANE B + 1 line in compositor/index.ts)
+   C2  Slide_In endSec fix         (LANE C + timemap.ts)
+
+WAVE 3  (serialize — architectural, single-owner, highest risk):
+   D1  linear working-space composite pass  (LANE D; flag-gated; migrate blends first)
+   D2  migrate colour filters into linear    (depends on D1)
+   E1  framing-camera anchor + clone wall    (LANE E; deepest geometry)
+```
+
+### Integration protocol (how the swarm converges without a red gate)
+1. Each agent works on its lane files ONLY; if it needs a hub hook, it writes the hook as a
+   SINGLE append-only line and notes it in its report — it does NOT refactor the hub.
+2. Agents never re-freeze the baseline. The INTEGRATOR (you, sequentially) merges one lane at a
+   time: apply the lane diff → `fct gen engine --all` → `fct regress engine`. Green → commit+push
+   + re-freeze baseline. Red → bounce that lane back with the failing slugs; do NOT merge.
+3. `test/no-hardcode.test.ts` must stay green (every new detector fires on ≥2 built-ins).
+4. One lane = one commit. Never batch two lanes into one commit (keeps each independently
+   revertible per the careful-coder rule).
+
+### Agent brief template (give each swarm agent EXACTLY this)
+```
+GOAL: <subsystem S# next-step, verbatim from its Item below>
+OWN ONLY: <lane file list>
+FORBIDDEN: editing any HUB file except appending ONE registration/import line (report it).
+TRUTH: score only vs GUI GT via `fct score <slug> --full`; never render-vs-render.
+DONE = your target slug(s) improve AND `fct regress engine` shows 0 regressions on YOUR render.
+Report: files touched, hub lines appended, per-slug before→after, gate result. Do NOT commit;
+the integrator merges + gates + commits.
+```
+
 ---
 
 ## Items  (priority = coverage × safety; do top-down)
@@ -109,7 +184,7 @@ Each subsystem below is a durable description of a REAL part of the FCP/Motion e
 current status in the TS engine, the slugs it gates, and the concrete next step. The ONE-TRUTH
 gate rules above apply to every item.
 
-### S1. Behaviour drivers — Link / Motion Path / Gravity  [DOING]  (evaluator, safe, high-coverage)
+### S1. Behaviour drivers — Link / Motion Path / Gravity  [DOING]  (LANE A · waves 1–2 · safe, high-coverage)
 **What it is (FCP):** Motion "Behaviors" are procedural animation drivers layered on top of
 keyframe curves. The engine already evaluates Rig Behavior, Fade In/Fade Out, Ramp, Align To,
 Oscillate, Spin, Throw, and Sequence Replicator. Three driver families are **parsed but NOT
@@ -128,7 +203,7 @@ gate-verifiable.
 **DoD:** each driver evaluated; gate 0 regressions; the gated low slugs improve; baseline re-frozen.
 **Verify:** `fct regress engine` + `fct score Movements__Color_Planes Stylized__Panels_Across --full`.
 
-### S2. Linear working-space compositing  [TODO]  (engine, BIG, highest ceiling)
+### S2. Linear working-space compositing  [TODO]  (LANE D · wave 3 · BIG, highest ceiling, serialize)
 **What it is (FCP):** `oz_render.mm` runs the WHOLE filter+blend+composite chain in
 `kCGColorSpaceLinearSRGB` and encodes to sRGB **once** at readback (decoded in item A6). The TS
 engine composites in gamma/sRGB space, so every semi-transparent overlay, additive/screen blend,
@@ -145,7 +220,7 @@ then migrate filter families into it one at a time, gate-green after each. Never
 **DoD:** linear chain on by default; net improvement across the gated slugs; 0 regressions.
 **Verify:** `fct regress engine`; spot `fct score Stylized__Lower Lights__Bloom --full`.
 
-### S3. Particle-emitter simulation  [TODO]  (compositor, deep, self-contained)
+### S3. Particle-emitter simulation  [TODO]  (LANE B · waves 1–2 · self-contained new module)
 **What it is (FCP):** Motion Emitters (factoryID 17/23) spawn Particle Cells (fID 15/18) with a
 birth rate, lifetime, initial velocity/spin, gravity, and scale/opacity/colour-over-life. The
 Stylized/Nature transitions are dominated by these (Diagonal = 18 emitters, Close_and_Open = 109,
@@ -159,7 +234,7 @@ spawn/advect/fade → composite. Additive new module (low regression risk).
 **DoD:** ≥4 of the 6 dominant slugs improve; 0 regressions; baseline re-frozen.
 **Verify:** `fct regress engine` + `fct score Wipes__Diagonal Stylized__Close_and_Open --full`.
 
-### S4. Colour pipeline — Tint / Bloom / Colorize / Brightness>1  [TODO]  (folds into S2)
+### S4. Colour pipeline — Tint / Bloom / Colorize / Brightness>1  [TODO]  (LANE D · wave 3 · folds into S2)
 **What it is (FCP):** these filters ARE implemented (registry), and match in ISOLATED probes, but
 regress when STACKED because FCP applies them in linear space (S2). Bloom's ObjC
 `bloomHeliumRender` and Tint's Color-Space=3 + Rig indirection are additionally non-convergent
@@ -171,7 +246,7 @@ Slide, Leaves.
 Only after S2 revisit Tint's shadow-leg transfer + Bloom's Helium pipeline as isolated decodes.
 **DoD/Verify:** subsumed by S2's gate.
 
-### S5. Gradient generator  [TODO]  (generator, small, self-contained)
+### S5. Gradient generator  [TODO]  (LANE C · waves 1–2 · small, self-contained)
 **What it is (FCP):** a linear/radial colour Gradient generator fills a layer (e.g. Slide_In's
 full-frame cyan gradient). `renderGaussianGradient` exists but linear/radial/colour gradients
 return null, so the layer renders empty.
@@ -183,7 +258,7 @@ Slide_In's endSec inflation. Bounded, low risk.
 **DoD:** the 3 slugs improve; 0 regressions.
 **Verify:** `fct regress engine` + `fct score Stylized__Slide_In --full`.
 
-### S6. Framing-camera / clone-grid geometry  [TODO]  (engine, deepest, lowest coverage)
+### S6. Framing-camera / clone-grid geometry  [TODO]  (LANE E · wave 3 · deepest geometry, do last)
 **What it is (FCP):** `OZScene::computeFraming` (decoded in `evaluator/framing.ts`) poses a camera
 to frame a target; Video_Wall builds a wall of ~14 hand-placed clone tiles viewed through it, each
 flipping to reveal B. Clone_Spin spins a clone grid.
@@ -195,7 +270,7 @@ Deepest geometry, only 2 low slugs — do LAST.
 **DoD:** Video_Wall + Clone_Spin improve; 0 regressions.
 **Verify:** `fct regress engine` + `fct score Replicator-Clones__Video_Wall --full`.
 
-### S7. Residual per-slug bugs  [ONGOING]  (opportunistic, one-offs)
+### S7. Residual per-slug bugs  [ONGOING]  (LANE varies · opportunistic, one-offs)
 Bugs not owned by a shared subsystem — fix opportunistically when a clean structural root cause is
 found (never per-transition hardcoding). Current known:
 - **Movements/Smear (11.0):** DirectionalBlur+Smear filter appearance + smear continuing past the
@@ -248,6 +323,16 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  ROADMAP made SWARM-PARALLELIZABLE — added a "Parallel execution model" section:
+              4 HUB files identified as the collision zone (parser/evaluator/compositor/index.ts +
+              types.ts); 6 disjoint OWNERSHIP LANES (A behaviours, B particles, C gradient/gen,
+              D compositing, E framing/geom, F filters) that can run concurrently; a 3-WAVE
+              dependency schedule (wave 1 additive/low-risk in parallel → wave 2 one-hub-hook-each
+              → wave 3 serialized architectural); an INTEGRATION protocol (agents own lane files
+              only, write hub hooks as single append-only lines, integrator merges one lane at a
+              time gate-green before commit); and an agent-brief template. Each S1–S6 header now
+              tagged with its LANE + WAVE. Models the parallel-safe filter-registry pattern
+              (self-registering module + append-only barrel import). Doc-only; gate 0/0.
 - 2026-07-13  ROADMAP REGENERATED — rewrote the Items section as a complete SUBSYSTEM catalogue
               (S1–S7) after all filters + architecture (items 1–11) landed. Every part of the
               engine is now documented: 6 remaining-work subsystems ranked by coverage×safety
