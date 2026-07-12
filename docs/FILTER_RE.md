@@ -57,7 +57,27 @@ impl matches RE · VERIFY = behavior confirmed vs headless across param space ·
 | noise.ts | PAENoise → HgcNoise (DONE prior) + HgcBadTV | RE |
 | reorient360.ts | PAEEquirectReorient → HgcEquirectToSinusoidal/SinusoidalToEquirect | RE |
 
-## Phase-1 status: COMPLETE for all currently-implemented filters
+## Phase-1 status: COMPLETE for ALL 24 transition filters (2026-07-12)
+Every filter UUID used by the 65 built-in transitions is now reverse-engineered and
+documented (verbatim shader + CPU wiring) in its TS module. Phase-2 (match+verify vs
+headless) status per filter is in the table below and the sweep suite.
+
+### Phase-2 verification: `tools/re/filter_sweep.py` (the repeatable artifact)
+Runs each filter through REAL headless FCP + the TS engine across a parameter matrix.
+Latest: 32 PASS, 0 true FAIL. MATCHED (verified vs headless across param space):
+flop, minmax, gaussian, radial/spin, scrape, blackhole, earthquake, brightness-darken,
+hsv (sat/value/grayscale), colorize (Intensity blend), fill. Remaining divergences are
+GAPS/CEILINGS that (a) are unexercised by any shipping transition and (b) trace to FCP's
+shared render color-management (Ozone), NOT per-filter RE: Brightness>1, HSV hue,
+Tint hard-light, Colorize Intensity=1 residual, Underwater noise field. See
+docs/FILTER_RE_PHASE2.md for the consolidated finding + measured evidence.
+
+### The methodology (docs/notes/FILTER_RE_METHODOLOGY.md) — decode, don't fit
+Root-caused the slow first pass: a FAT-binary offset bug (arm64 slice base) made every
+__const read garbage, forcing curve-fitting. Fixed with tools/re/read_const.py. Rule:
+decode CPU constants (fat-correct) + decode shared primitives ONCE; headless = VERIFY,
+not fit; if a fit won't converge, decode deeper.
+
 All ~17 TS filter entries above are RE (verbatim FCP shader/disasm documented in the
 module). Phase-2 (match + verify vs headless) findings are captured as "P2-*" TODOs in
 each module and summarized in `docs/FILTER_RE_PHASE2.md`.
