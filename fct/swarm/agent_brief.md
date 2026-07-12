@@ -31,16 +31,24 @@ TARGET SLUGS: {{TASK_SLUGS}}
 1. Do the work in this worktree. Keep the blast radius small.
 2. Gate green locally: `./fct.sh gen engine <target slugs>` then `./fct.sh regress engine`.
    Also run `npm --prefix engine test` (no-hardcode + unit tests).
-3. Rebase onto latest main:
-      git fetch origin && git rebase origin/main
-   Resolve any conflict (keep both sides' additive changes; re-run the gate after).
-4. Re-render + re-gate after the rebase (frames are derived — regenerate, don't trust).
-   Then re-freeze the baseline: `./fct.sh baseline engine`.
-5. Commit (ONE logical change; message: what/why + per-slug before->after + gate result).
-   Update ROADMAP.md: mark your task row DONE + add a one-line progress-log entry.
-6. Push with retry: `git push origin HEAD:main`. If REJECTED (someone merged first),
-   GOTO step 3. Never force-push.
-7. STOP. Print a final line: `SWARM_RESULT <TASK_ID> <DONE|BLOCKED|NOCHANGE> <one-line summary>`.
+3. Update ROADMAP.md: mark your task row DONE (or DROPPED) + add a one-line progress-log
+   entry (newest first) with your per-slug before->after PSNR and gate result.
+4. Write your commit message to a file:
+      cat > /tmp/swarm-{{TASK_ID}}-msg.txt <<'EOF'
+      {{TASK_ID}} DONE: <what changed> (<slug> X.XX->Y.YY dB)
+
+      <body: what/why, the decoded FCP fact you cited, gate result>
+      EOF
+5. PUSH via the helper (do NOT `git commit`/`git push` yourself — Claude Code's macOS
+   sandbox BLOCKS writes to this worktree's shared .git/worktrees/* metadata; the helper
+   lands your work from a /tmp clone the sandbox allows, re-runs the gate as a final check,
+   and rebase-retries if another agent pushed first):
+      bash fct/swarm/push_helper.sh {{TASK_ID}} /tmp/swarm-{{TASK_ID}}-msg.txt
+   - exit 0  => pushed to origin/main. Done.
+   - exit 4/6 (patch/rebase conflict) => another agent changed the same lines. Re-read
+     origin/main, redo your edit on top, re-gate, and call the helper again.
+   - exit 5 (gate red in clone) => your change regressed against latest main; fix and retry.
+6. STOP. Print a final line: `SWARM_RESULT {{TASK_ID}} <DONE|BLOCKED|NOCHANGE> <one-line summary>`.
 
 ## If the task is a false premise or not achievable
 Do NOT invent work. Print `SWARM_RESULT {{TASK_ID}} BLOCKED <reason>` and stop. It is
