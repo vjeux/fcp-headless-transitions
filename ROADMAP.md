@@ -367,6 +367,26 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  SHIPPED the parallel swarm (fct/swarm/) + LAUNCHED it: a self-refilling pool of 8
+              Claude Code agents working the flat task list, each in an isolated git worktree
+              (own frames dir via $FCT_FRAMES_DIR, own render lock via $FCT_LOCK, node_modules+venv
+              symlinked, frames seeded via per-slug symlinks; worktrees under ~/fct-swarm so CC's
+              internet-mode prompt never fires). Each agent owns one task end-to-end via the
+              self-merge contract (decode-first census -> build -> gate green vs GUI GT -> rebase
+              -> re-freeze baseline -> commit "swarm <id>:" -> push, retry on reject). A reflection
+              agent runs every 30 min: summarizes agent logs (wall time, gate fails, rebase churn)
+              and dispatches a CC efficiency agent that improves the brief/harness/tooling. Enabling
+              engine changes (config/cli/gen env overrides, symlinked-slug-dir guard) are
+              behavior-neutral for single-agent use; gate stayed green throughout. Launched all 8
+              slots (T-A1/A2/A3/B1/D1/E1/F1/G1) + pool + reflection loop under tmux; verified live.
+- 2026-07-13  SWARM LIVE — launched the self-refilling 8-agent Claude Code pool + 30-min reflection
+              loop (fct/swarm/, commits d4b1495..9de1bdf). 8 agents (T-A1/A2/A3/B1/D1/E1/F1/G1)
+              each own one ROADMAP task in a fully-isolated git worktree (own frames dir via
+              $FCT_FRAMES_DIR, own render lock via $FCT_LOCK, node_modules+venv symlinked, per-slug
+              frame symlinks seeded from the shared baseline). Pool keeps 8 alive and refills on
+              exit; agents self-merge (decode->gate->rebase->re-freeze->commit 'swarm <id>:'->push).
+              Reflection agent every 30 min reads agent logs and improves the brief/harness/tooling.
+              Isolation validated: an isolated worktree gates 0-regressions identical to main.
 - 2026-07-13  Baked in a DECODE-FIRST forcing function to stop the debug-spiral pattern.
               Added `fct census <slug>` (fct/census.py, wired in cli.py): reads a slug's REAL
               scene graph from its .motr — factory-resolved node types, <filter> plugins,
