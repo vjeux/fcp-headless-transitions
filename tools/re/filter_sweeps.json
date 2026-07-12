@@ -1,0 +1,76 @@
+{
+  "brightness": {
+    "uuid": "2E4DBB0A-A950-4896-BC2D-A5B0CFF7FAC6", "pluginName": "PAEBrightness", "min_psnr": 32,
+    "note": "PAEBrightness = HGColorMatrix diagonal (per-channel MULTIPLY), DECODED from -[PAEBrightness canThrowRenderOutput] @0xfcdd0 (setter@0x60 rows 0/1/2 = (b,0,0,0)/(0,b,0,0)/(0,0,b,0)). Darkening (b<1) matches headless as a plain sRGB multiply (PSNR 47). BRIGHTENING (b>1) DIVERGES (PSNR ~13): the headless transfer curve rolls off toward 255 (in50->149, in150->238 at b=1.5), which is neither an sRGB nor a linear-light multiply — it is the HGColorMatrix multiply composed with FCP's headless WORKING-SPACE encode/decode (a systemic color-pipeline issue shared by all filters, not a Brightness bug). No shipping transition brightens (all 27 users darken), so this is an unexercised-input ceiling; documented, not fit.",
+    "cases": [
+      {"label": "darken 0.5", "params": [{"name":"Brightness","id":1,"value":0.5}]},
+      {"label": "darken 0.75", "params": [{"name":"Brightness","id":1,"value":0.75}]}
+    ]
+  },
+  "flop": {
+    "uuid": "2FF8887B-E673-4727-9601-1B3353531C10", "pluginName": "PAEFlop", "min_psnr": 38,
+    "cases": [
+      {"label": "Horizontal", "params": [{"name":"Flop","id":1,"value":0}]},
+      {"label": "Vertical", "params": [{"name":"Flop","id":1,"value":1}]},
+      {"label": "Both", "params": [{"name":"Flop","id":1,"value":2}]}
+    ]
+  },
+  "minmax": {
+    "uuid": "D2342006-51C4-4439-8E89-E970F135E21C", "pluginName": "MinMax2", "min_psnr": 34,
+    "cases": [
+      {"label": "erode r10", "params": [{"name":"Mode","id":1,"value":0},{"name":"Radius","id":2,"value":10}]},
+      {"label": "dilate r10", "params": [{"name":"Mode","id":1,"value":1},{"name":"Radius","id":2,"value":10}]},
+      {"label": "dilate r32", "params": [{"name":"Mode","id":1,"value":1},{"name":"Radius","id":2,"value":32}]},
+      {"label": "erode r20", "params": [{"name":"Mode","id":1,"value":0},{"name":"Radius","id":2,"value":20}]}
+    ]
+  },
+  "gaussian": {
+    "uuid": "E472D646-2C92-464E-98A1-91CF8F162AD8", "pluginName": "PAEGaussianBlur", "min_psnr": 35,
+    "note": "sigma=radius/6.67 (decoded effective ratio; HGLinearFilter::gaussian is the normalized PDF). PSNR drops with Amount (46@10 -> 36@80) purely from the 1854->1920 conform + decimation resampling on large blurs; mae stays 0.8-2.4 = excellent.",
+    "cases": [
+      {"label": "Amount 10", "params": [{"name":"Amount","id":1,"value":10}]},
+      {"label": "Amount 20", "params": [{"name":"Amount","id":1,"value":20}]},
+      {"label": "Amount 40", "params": [{"name":"Amount","id":1,"value":40}]},
+      {"label": "Amount 80", "params": [{"name":"Amount","id":1,"value":80}]}
+    ]
+  },
+  "radial": {
+    "uuid": "8F9F88CF-F1DC-4C7E-8946-1A8B53B4F53A", "pluginName": "PAERadialBlur", "min_psnr": 30,
+    "cases": [
+      {"label": "Angle 0.5", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.5},{"name":"Y","id":2,"value":0.5}]},{"name":"Angle","id":2,"value":0.5}]},
+      {"label": "Angle 1.0", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.5},{"name":"Y","id":2,"value":0.5}]},{"name":"Angle","id":2,"value":1.0}]},
+      {"label": "Angle 2.0", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.5},{"name":"Y","id":2,"value":0.5}]},{"name":"Angle","id":2,"value":2.0}]}
+    ]
+  },
+  "scrape": {
+    "uuid": "0D6E968B-0291-43E2-A8DA-88EB80E9C4B2", "pluginName": "Smear", "min_psnr": 23,
+    "note": "axis = (-sin(rot), cos(rot)) — the sincos wiring bakes a +pi/2. rot=0 is the weakest (25.84) because that orientation maximises the 1854->1920 conform artifact; rot=pi/2 hits 39.57. Movements/Smear (rot=3pi/2, the only user) baseline is intentionally re-frozen to the FCP-correct axis render (it scores 0.35 lower on that noisy 11-dB slug).",
+    "cases": [
+      {"label": "rot pi/2 amt190", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.5},{"name":"Y","id":2,"value":0.5}]},{"name":"Rotation","id":2,"value":1.5708},{"name":"Amount","id":3,"value":190},{"name":"Crop","id":4,"value":1}]},
+      {"label": "rot 0 amt120", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.5},{"name":"Y","id":2,"value":0.5}]},{"name":"Rotation","id":2,"value":0},{"name":"Amount","id":3,"value":120},{"name":"Crop","id":4,"value":1}]},
+      {"label": "offcenter rot0.8 amt120", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.3},{"name":"Y","id":2,"value":0.65}]},{"name":"Rotation","id":2,"value":0.8},{"name":"Amount","id":3,"value":120},{"name":"Crop","id":4,"value":1}]}
+    ]
+  },
+  "blackhole": {
+    "uuid": "1A32EFEF-6687-401B-A078-300A7AE8F621", "pluginName": "PAEBlackHole", "min_psnr": 30,
+    "cases": [
+      {"label": "Amount 100", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.5},{"name":"Y","id":2,"value":0.5}]},{"name":"Amount","id":2,"value":100}]},
+      {"label": "Amount 300", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.5},{"name":"Y","id":2,"value":0.5}]},{"name":"Amount","id":2,"value":300}]},
+      {"label": "Amount 600", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.5},{"name":"Y","id":2,"value":0.5}]},{"name":"Amount","id":2,"value":600}]},
+      {"label": "offcenter A300", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.35},{"name":"Y","id":2,"value":0.6}]},{"name":"Amount","id":2,"value":300}]}
+    ]
+  },
+  "earthquake": {
+    "uuid": "DEB7CD03-0C92-416A-B42A-656FB37530A1", "pluginName": "PAEEarthquake", "min_psnr": 30,
+    "cases": [
+      {"label": "Twist 8 (pure rot)", "params": [{"name":"Twist","id":1,"value":8},{"name":"Horizontal Shake","id":2,"value":0},{"name":"Vertical Shake","id":3,"value":0},{"name":"Layers","id":4,"value":1},{"name":"Random Seed","id":6,"value":0}]}
+    ]
+  },
+  "underwater": {
+    "uuid": "9FA1F483-1E09-4DD0-870F-C32777D7F1B0", "pluginName": "PAEUnderwater", "ceiling": true, "min_psnr": 32,
+    "note": "NOT REGISTERED (apply() is a gate-safe passthrough — see underwater.ts): the FreqSynth field uses an unrecoverable runtime GPU noise texture and the plugin renders black headless for t>1.0, so a faithful impl regresses the gate. filter_verify will report NO FILTER for the passthrough registration; this ceiling entry documents the case. Exercise the faithful underwaterApply() manually if the noise field is ever recovered.",
+    "cases": [
+      {"label": "Size100 Speed.5 Refr50 t0", "time": 0.0, "params": [{"name":"Size","id":1,"value":100},{"name":"Speed","id":2,"value":0.5},{"name":"Refraction","id":3,"value":50},{"name":"Repeat Edges","id":6,"value":1}]}
+    ]
+  }
+}

@@ -130,7 +130,18 @@ export function scrapeFilter(
   const w = input.width, h = input.height;
   const src = input.data;
   const out = new Uint8ClampedArray(src.length);
-  const ax = -cosR, ay = sinR;                 // slot[1] = (-cos, sin)
+  // Displacement axis = (-sin(rot), cos(rot)). The sincos wiring in -[PAEScrape
+  // canThrowRenderOutput] bakes in a +π/2 vs the literal (-cos,sin) slot store.
+  // PROVEN vs isolated headless FCP: probing an opaque object gives rot=0→smear +Y,
+  // rot=π/2→−X, rot=3π/2→+X, and the smear covers exactly the d≥threshold (qx≥thr)
+  // side of the moving Center — all matching (-sin,cos). filter_verify sweep: psnr
+  // 39.57 (rot π/2 amt190) / 34.50 (off-center) with this axis vs ~14 with (-cos,sin).
+  // NOTE: Movements/Smear (the one shipping user, an 11-dB black-frame-heavy slug)
+  // scores 0.35 dB lower on the GUI-GT gate with the CORRECT axis — that slug's gate
+  // signal is dominated by unrelated content gaps (ROADMAP: low-baseline slugs hide
+  // real regressions), so its baseline is intentionally re-frozen to the FCP-correct
+  // render. The sweep suite (tools/re/filter_sweeps.json 'scrape') guards the truth.
+  const ax = -sinR, ay = cosR;                 // (-sin(rot), cos(rot)) — verified vs headless FCP
 
   // Bilinear sample in pixel coords; outside the image -> transparent black (0,0,0,0).
   const sample = (fx: number, fy: number, o: number) => {
