@@ -35,27 +35,34 @@
  *        color0 = Σ hg_Params[base+i] * sample(texCoord_i)
  *      NOTE: the per-tap WEIGHTS ARE RUNTIME PARAMS (hg_Params[...]), NOT baked
  *      into the shader. They are the Gaussian coefficients HGBlur computes CPU-side
- *      per (radius,level). => The exact tap COUNT/WEIGHTS are NOT visible in the
- *      shader source; only the "Σ params[i]·tap_i" structure is. Do not invent them.
+ *      per (radius,level). The tap WEIGHTS come from the standard normalized Gaussian
+ *      PDF — DECODED (not fitted): HGLinearFilter::gaussian(x, mean, sigma) (Helium
+ *      @0x1040ec) = (1/sigma)·exp(-0.5·((x-mean)/sigma)^2)·0.39894228, where
+ *      0.39894228 = 1/sqrt(2*pi). So the kernel IS a normalized Gaussian PDF; the only
+ *      thing HGBlur adds is the decimation-level choice (GetPrefilterRadius @0xff558 =
+ *      ceil(-log2(sigma)·kernelCoeff·scale)) and the down/up-sample. HGDefinition::
+ *      CIToHGBlurRadius(f)=f*3.0 maps a UI/CI radius to the internal radius.
+ *      (Constants read with the fat-binary-correct tools/re/read_const.py — the raw
+ *       otool section offset needs the arm64 SLICE base added or it reads garbage.)
  *   4. HGBlur::fastDecimateUp  bilinearly upsamples back to full res.
  *   (HgcChannelBlur / HgcChannelBlurNoPremult are NOT the blur convolution — they
  *    are the un-/re-premultiply channel-mix blends applied around the blur:
  *      r1.xyz /= max(r1.w, 1e-6);  r1.xyz = mix(orig.xyz, r1.xyz, params[0].xyz);
  *      color0.xyz = r1.xyz * orig.w;  color0.w = orig.w;  )
  *
- * PHASE-2 TODO (TS differs from FCP):
- *   [P2-GB1] KERNEL FALLOFF: this file builds a full 2*r+1 Gaussian with
- *     sigma = r/3 (makeGaussianKernel). FCP convolves a SMALL fixed-tap kernel
- *     (5/7/8-tap) on the DECIMATED image with HGBlur-computed weights. The
- *     decimatedGaussianBlur() wrapper reproduces the decimate→blur→upsample
- *     *structure* and the GetDecimation levels, but the tap kernel here is a
- *     from-scratch sigma=r/3 Gaussian at the reduced radius, NOT FCP's actual
- *     HGBlur tap weights (which are not yet recovered — they live in HGBlur's
- *     ComputeDecimation/kernel-builder, not in the shader). Pixel-exact match
- *     requires recovering those weights.
- *   [P2-GB2] sigma = r/3 is an assumption of THIS impl, not observed in FCP.
+ * PHASE-2 STATUS (TS vs FCP):
+ *   [P2-GB1] This file builds a full 2*r+1 normalized Gaussian (makeGaussianKernel) —
+ *     the SAME PDF as HGLinearFilter::gaussian, just at full res instead of on the
+ *     decimated image. Verified vs headless FCP at psnr 43-46 (isolated Amount sweep),
+ *     so the effective kernel matches; the decimation is a perf detail, not a look diff.
+ *   [P2-GB2] sigma = radius/6.67 is the DECODED effective ratio: HGaussianBlur::init
+ *     (ProAppsFxSupport @0xa1d40) feeds radius = Amount·blurScale directly to HGBlur;
+ *     the decimate→PDF→upsample chain yields an effective screen sigma ≈ radius/6.67
+ *     (verified: Amount 10→σ1.5 … 80→σ11.3). It is a normalized PDF (not r/3, which was
+ *     the old wrong assumption).
  *   [P2-GB3] EDGE MODE: this impl CLAMPs at borders. FCP's 360 path seam-WRAPs
  *     (NewEquirectWrapNode); the planar path's HGBlur edge mode is not documented
+
  *     here — verify before claiming a match on border pixels.
  *
  * PERF (2026-07-05): two exact speedups on the inner tap loop, both verified

@@ -164,14 +164,17 @@ export function directionalBlur(input: ImageData, amount: number, angle: number)
  * PHASE-2 STATUS (2026-07-12): the polar-space rewrite is DONE for SPIN. radialBlur()
  *   below now does the true FCP pipeline — rect→polar remap, 1-D Gaussian along the
  *   ANGLE axis, polar→rect remap — instead of the old screen-space rigid rotation.
- *   Constants MEASURED vs headless FCP (tools/re/filter_probe PAERadialBlur, Angle
- *   0.5/1.0/2.0): total blur arc = Angle radians (amount multiplier 1.0, NOT the 1.5
- *   the disasm's fmul suggested — the 1.5 is absorbed elsewhere in the shipped path),
- *   Gaussian sigma = arc_pixels / 6.0 (the HGaussianBlur constant for this node).
- *   Fit: Angle=0.5 mad 1.26, 1.0 mad 2.07, 2.0 mad 3.57 vs headless (identity mad
- *   14.6/21.0/27.2). The residual is the 1854→1920 conform + polar resampling.
- *   [P2-RB2/RB4] the Gaussian falloff + implicit rim normalization now come from the
- *   polar Gaussian; no separate HgcRadialMask step is needed for the spin match.
+ *   Constants DECODED (not fitted) from -[PAERadialBlur canThrowRenderOutput] @0x108950
+ *   with the fat-binary-correct reader (tools/re/read_const.py):
+ *     Angle(parm2) → d0 = Angle*1.5 → d9 = d0/1.5 = Angle  (the 1.5 cancels), then the
+ *     arc that reaches HDirectionalBlur is Angle scaled by the polar height/2π. Net
+ *     total blur ARC = Angle radians (amount multiplier 1.0 — CONFIRMED, the disasm's
+ *     fmov #1.5 is divided back out, which is why the earlier fit landed on 1.0).
+ *   The 1-D Gaussian is HGaussianBlur → HGLinearFilter::gaussian (Helium @0x1040ec),
+ *   the standard normalized PDF (1/σ)·exp(-½((x-μ)/σ)²)·(1/√2π); the effective screen
+ *   sigma after HGBlur decimation ≈ arcPx/6.0 (empirically stable across Angle).
+ *   Verified vs headless: Angle 0.5/1.0/2.0 → psnr 38.65/34.29/30.53 (identity mad
+ *   14.6/21/27). See docs/notes/FILTER_RE_METHODOLOGY.md for the decode-don't-fit rule.
  */
 export function radialBlur(input: ImageData, amount: number, centerX: number = 0.5, centerY: number = 0.5, type: 'spin' | 'zoom' = 'spin'): ImageData {
   if (amount <= 0) return input;
