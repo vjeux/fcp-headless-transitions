@@ -73,284 +73,188 @@ and future renders share one encode path. Do NOT chase these as real regressions
 
 ---
 
-## Items  (priority = impact x safety; do top-down)
+## Status snapshot  (2026-07-13)
+
+- **Engine mean: 13.91 dB** across 65 GUI-GT transitions; **20 / 65 already ≥ 15 dB** (matched).
+- **Architecture is DONE.** The renderer contract, single time authority, filter registry,
+  RenderContext threading, god-object splits, colour-transform CI, and the 360° full-frame
+  model all landed (items A1–A8 in the "Done architecture" ledger at the bottom).
+- **All 24+ FCP FILTERS are reverse-engineered and implemented** (registry in
+  `engine/src/compositor/filters/`). Remaining low scores are NOT missing filters — they are
+  missing **subsystems** (behaviours, particle sim, generators) and the **linear working-space
+  compositing** model. This file now tracks every subsystem, implemented or not.
+- Work top-down by **coverage × safety** (Σ deficit-to-16 dB ÷ risk). One subsystem per arc,
+  gate-green each commit, baseline re-frozen when an improvement is protected.
+
+Deficit accounting (Σ of `max(0, 16 − score)` over the slugs each subsystem gates):
+
+```
+SUBSYSTEM                                  #slugs  Σdef→16  avg   status
+S1  Behaviour drivers (Link/MotionPath/Grav)  16     37.6   2.4   PARTIAL — biggest safe lever
+S2  Linear working-space compositing          ~19    ~50    2.7   NOT DONE — highest ceiling, risky
+S3  Particle-emitter simulation                6     25.6   4.3   FAKED (texture proxy only)
+S4  Colour pipeline (Tint/Bloom/Colorize)      7     13.7   2.0   per-filter; folds into S2
+S5  Gradient generator                         3     11.4   3.8   returns null
+S6  Framing-camera / clone-grid                3     13.9   4.6   partial, deepest geometry
+S7  Residual per-slug (shape/mask/timing)     mixed   —      —    one-offs, opportunistic
+```
+
+---
+
+## Items  (priority = coverage × safety; do top-down)
 
 Status legend: TODO / DOING / DONE / BLOCKED
 
-### 1. Delete dead code + unify duplicated primitives  [DONE]  (engine, safe)
-- DoD: `colorizeFilter()`, `isOscFilter()` removed; a single `sampleBilinear()` and `luma()`
-  in `engine/src/compositor/sampling.ts` used by transition360, reorient360, compositor,
-  resample, perspective, channel-mixer (was 6 copies / 2 luma standards).
-- Verify: `cd engine && npx tsc --noEmit` clean; `fct regress engine` OK.
-- DONE 2026-07-10 (commits 6eaed6c, 2e65b19): deleted both dead fns; unified the 6
-  duplicated Rec.601 luma copies into `blend.luma601`. Rec.709 `blend.luma` kept separate
-  (different coefficients). Bilinear NOT deduped — the compositor's copy is fused into a
-  hot premult-alpha blit with crop bounds; extracting it would change edges + add per-pixel
-  overhead (documented as a deliberate non-change). tsc clean, gate green 0 regressions.
+Each subsystem below is a durable description of a REAL part of the FCP/Motion engine, its
+current status in the TS engine, the slugs it gates, and the concrete next step. The ONE-TRUTH
+gate rules above apply to every item.
 
-### 2. Finish the filter-registry migration  [DONE]  (engine, medium)
-- DoD: every filter dispatched by UUID via `filters/registry.ts`; the fuzzy
-  `name.includes('gaussian'|'blur'|...)` chain in `applyFilter` deleted; the
-  "Migrated so far: (none yet)" comment gone.
-- Verify: `cd engine && npx tsc --noEmit` clean; `fct regress engine` OK (filter output identical).
-- IN PROGRESS: registry infra already existed (fill/noise/reorient360 registered). Migrated
-  Brightness (PAEBrightness, UUID 2E4DBB0A-…) to levels.ts + barrel; removed its legacy
-  name-includes branch. Fixed the stale "none yet" barrel comment. ~13 legacy filters remain
-  (gaussian/bevel/luma-key/directional/radial/zoom/hsv/channel-mixer/tint/colorize/levels/
-  gaussian/directional/radial/zoom; 10 done incl colorize) — migrate one-at-a-time, gate-green each. Verified pixel-neutral + re-froze baseline.
+### S1. Behaviour drivers — Link / Motion Path / Gravity  [DOING]  (evaluator, safe, high-coverage)
+**What it is (FCP):** Motion "Behaviors" are procedural animation drivers layered on top of
+keyframe curves. The engine already evaluates Rig Behavior, Fade In/Fade Out, Ramp, Align To,
+Oscillate, Spin, Throw, and Sequence Replicator. Three driver families are **parsed but NOT
+evaluated**, so any channel they drive is silently frozen:
+- **Link** (`links.ts`) drives one object's channel from another's. Position/rotation/scale/
+  anchor/opacity work, but **colour-channel Links** (`Link 1/2/4 red|green|blue` — a source
+  colour piped into a shape/generator fill) are dropped. → Color_Planes (10.5), Panels_Across (10.4).
+- **Motion Path** (fID skipped in `parser/index.ts`) — a spatial path a layer follows. Unhandled.
+- **Gravity** — constant downward acceleration on a layer/particle. Parsed, never applied.
+**Status:** PARTIAL. Slugs gated (16): Panels_Across, Color_Planes, Lens_Flare, Switch,
+Center_Reveal, Push, Reflection, Zoom, 360°_Wipe, Drop_In, Clothesline, Earthquake, Scale,
+3D_Rectangle, 360°_Reveal_Wipe, 360°_Circle_Wipe (many already ≥15 — the low ones are the target).
+**Next step:** implement **colour-channel Link** first (unblocks the two lowest: Color_Planes,
+Panels_Across), then Motion Path, then Gravity — each an additive evaluator handler, independently
+gate-verifiable.
+**DoD:** each driver evaluated; gate 0 regressions; the gated low slugs improve; baseline re-frozen.
+**Verify:** `fct regress engine` + `fct score Movements__Color_Planes Stylized__Panels_Across --full`.
 
-### 3. fct toolkit polish  [DONE]  (fct, safe)
-- DoD: (a) `engine/test/_fct_render.ts` is a committed real file read from argv/env, not a
-  Python heredoc in `gen.py`; (b) `config.py` loads the slug map lazily (`@cache`), no
-  import-time side effect, no `/tmp` fallback; (c) a `Source` enum/dict carries
-  `{dir, needs_color}` so gui=bt709/engine=sRGB lives in ONE place (not duplicated across
-  score.py/montage.py/config.py).
-- Verify: `python3 -c "import fct"` clean; `fct score Movements__Push` == 36.63.
+### S2. Linear working-space compositing  [TODO]  (engine, BIG, highest ceiling)
+**What it is (FCP):** `oz_render.mm` runs the WHOLE filter+blend+composite chain in
+`kCGColorSpaceLinearSRGB` and encodes to sRGB **once** at readback (decoded in item A6). The TS
+engine composites in gamma/sRGB space, so every semi-transparent overlay, additive/screen blend,
+Brightness>1, and white flash lands warm/dim (Lower f12 GUI≈239,245 vs engine≈137,99; Bloom;
+Panels_Across; Colorize=1; Tint). This is the single largest ceiling.
+**Status:** NOT DONE. A per-FILTER linear encode was tried and REGRESSED the stacked GT (the
+error is in COMPOSITING, not isolated filters). The correct model is an engine-level pass:
+decode sRGB→linear once at scene input, run all blends/filters/composite in linear, encode once
+at output.
+**Slugs gated:** the low tail of the "other" bucket + all of S4 (Lower, Bloom, 360°_Bloom,
+Panels_Across, Smear, Brightness/Colorize/Tint users).
+**Next step:** add a linear composite path behind a flag; gate-green on the overlay slugs FIRST;
+then migrate filter families into it one at a time, gate-green after each. Never commit red.
+**DoD:** linear chain on by default; net improvement across the gated slugs; 0 regressions.
+**Verify:** `fct regress engine`; spot `fct score Stylized__Lower Lights__Bloom --full`.
 
-### 4. Thread RenderContext; remove module globals  [DONE]  (engine, medium)
-- DoD: `CURRENT_FPS`, `DROPZONE_WRAP_TO_A`, `HOLD_INCOMING_B` (evaluator), `ctx`,
-  `_dzPlaceholder` (compositor), `CLIP_MEDIA` (parser) all threaded through an explicit
-  `RenderContext`; two concurrent `render()` calls no longer corrupt each other.
-- Verify: `fct regress engine` OK; a new `engine/test/concurrent.test.ts` renders 2 slugs
-  interleaved and gets identical frames to serial.
+### S3. Particle-emitter simulation  [TODO]  (compositor, deep, self-contained)
+**What it is (FCP):** Motion Emitters (factoryID 17/23) spawn Particle Cells (fID 15/18) with a
+birth rate, lifetime, initial velocity/spin, gravity, and scale/opacity/colour-over-life. The
+Stylized/Nature transitions are dominated by these (Diagonal = 18 emitters, Close_and_Open = 109,
+Up-Over = 46) — the drifting bokeh/leaves/flakes ARE the transition.
+**Status:** FAKED. `compositor/field-texture.ts` composites ONE bundled full-frame texture over an
+envelope instead of simulating particles — a crude stand-in that caps these at ~11 dB.
+**Slugs gated (6 dominant):** Close_and_Open (10.9), Diagonal ×2 (11.1), Center (11.8),
+Up-Over (11.8), Glide (13.7); + accent particles on ~11 more.
+**Next step:** build a generic emitter: parse Emitter+Cell params → deterministic per-particle
+spawn/advect/fade → composite. Additive new module (low regression risk).
+**DoD:** ≥4 of the 6 dominant slugs improve; 0 regressions; baseline re-frozen.
+**Verify:** `fct regress engine` + `fct score Wipes__Diagonal Stylized__Close_and_Open --full`.
 
-### 5. Define the renderer contract + single time authority  [DONE]  (cross-cutting)
-- DoD: a short `docs/RENDERER_CONTRACT.md`: "a renderer takes (motr, imgA, imgB, timeSec)
-  -> 1920x1080 RGBA sRGB; the harness color-conforms to bt709; frame i = timeSec
-  sample_time(i,24,span)". Engine's `render(progress)` gains a `renderAt(timeSec)` that
-  uses `fct.timing`'s model so headless & engine sample the SAME scene-moment per frame.
-- Verify: for a few slugs, headless frame i and engine frame i are the same scene-time
-  (spot-check via montage alignment); `fct regress` both OK.
+### S4. Colour pipeline — Tint / Bloom / Colorize / Brightness>1  [TODO]  (folds into S2)
+**What it is (FCP):** these filters ARE implemented (registry), and match in ISOLATED probes, but
+regress when STACKED because FCP applies them in linear space (S2). Bloom's ObjC
+`bloomHeliumRender` and Tint's Color-Space=3 + Rig indirection are additionally non-convergent
+decodes noted in `docs/notes/`.
+**Status:** filters correct in isolation; the stacked error is the S2 linear-chain limit.
+**Slugs gated (7):** Bloom (10.6), 360°_Bloom (11.6), Panels_Random (13.0), Color_Panels, Veil,
+Slide, Leaves.
+**Next step:** do S2 first; then re-measure — most of this bucket resolves with linear compositing.
+Only after S2 revisit Tint's shadow-leg transfer + Bloom's Helium pipeline as isolated decodes.
+**DoD/Verify:** subsumed by S2's gate.
 
-### 6. ⭐ Replace the heuristic router in api.ts  [DONE]  (engine, BIG)
-- DoD: `createTransition`'s pile of booleans (band360, isSlideFamily, retimeWrapSec,
-  strokedMaskClampSec, hasFilledShapeOverlay, hasBlendedMediaOverlay, hasReplicatorMaskReveal,
-  motionBlurEnabled) replaced by (a) ONE generic `buildTimeMap(scene) -> (p)=>tSec` reading
-  retime curves + layer lifetimes, and (b) capability probes driven by node/filter/behavior
-  TYPES (not "looks like Arrows"). Same code path for all 65.
-- Approach: incremental — migrate ONE boolean at a time, `fct regress engine` green after each.
-  A wrong abstraction is worse than the special cases, so each step must be independently
-  revertible and gate-verified; if a migration can't stay gate-green, revert it and leave the
-  boolean in place with a note rather than forcing a bad abstraction.
-- Verify: `fct regress engine` OK after each step; `no-hardcode.test.ts` still passes;
-  final: zero transition-name special cases remain in api.ts.
-- DONE: api.ts 470->260 lines. `src/timemap.ts` = the single scene-time authority
-  (`buildTimeMap(scene) -> { remap, wrapSec, clampSec }`, all retime-wrap/clamp logic,
-  clone-continuation scan — type-driven). `src/capabilities.ts` = 5 structural probes
-  (hasColorizeRemapRig, hasFilledShapeOverlay, hasStrokedMaskShape, hasReplicatorMaskReveal,
-  isWideEquirect), ALL registered in `no-hardcode.test.ts` and each verified to fire on >=2
-  of the 65 built-ins (3/12/2/2 + detect360Band=7). Both `render(progress)` and
-  `renderAt(timeSec)` funnel through one `renderInstant` -> `timeMap.remap`. Zero
-  transition-name special cases remain in api.ts code (only comments name examples).
-  Commits: 047823c (rename isSlideFamily->hasColorizeRemapRig), 0c7bf7b (extract buildTimeMap),
-  fafb201 (extract capabilities + enforce genericity). Gate 0/0 after each.
+### S5. Gradient generator  [TODO]  (generator, small, self-contained)
+**What it is (FCP):** a linear/radial colour Gradient generator fills a layer (e.g. Slide_In's
+full-frame cyan gradient). `renderGaussianGradient` exists but linear/radial/colour gradients
+return null, so the layer renders empty.
+**Status:** NOT DONE (returns null). Slide_In additionally has an inflated endSec (=3.0s from the
+gradient's keyframes) that must be excluded — a coupled two-part fix.
+**Slugs gated (3):** Slide_In (10.2), Loop (12.9), Heart (13.5).
+**Next step:** implement linear + radial colour gradient in `filters/gradient.ts`; then fix
+Slide_In's endSec inflation. Bounded, low risk.
+**DoD:** the 3 slugs improve; 0 regressions.
+**Verify:** `fct regress engine` + `fct score Stylized__Slide_In --full`.
 
-### 7. Split the god-objects  [DONE]  (engine)
-- DoD: `parser/index.ts` (2585) -> per-node parsers; `compositor/index.ts` renderLayer (445-line
-  switch) -> per-layer-type renderers registered by type; `evaluator/index.ts` visibility
-  rules -> per-concern resolvers. No file > ~800 lines.
-- Verify: `fct regress engine` OK; `npx tsc --noEmit` clean.
-- DONE: no engine file now exceeds 800 lines (max 726). Splits, each gate-verified 0/0 + tsc clean:
-  - parser 2603 -> 637: xml.ts (DOM+time+curve+param), shapes.ts, behaviors.ts, replicator.ts,
-    rig.ts, footage.ts (+ClipInfo), transform.ts (blend+retime+transform), camera.ts. index.ts
-    now holds only the recursive core (parseSceneNode/parseLayerElement) + parseMotr.
-  - evaluator 1411 -> 701: matrix.ts (4x4, re-exported), links.ts (driver/link/rig resolution),
-    ramp.ts (Ramp/Fade), filter-overrides.ts, context.ts (EvalCtx).
-  - compositor 1882 -> 726: blit.ts (pixel/matrix primitives), context.ts (RenderContext/DropInCard),
-    masks.ts (source-resolution + mask-alpha), geometry.ts (projection/detection), field-texture.ts,
-    drop-in.ts. renderLayer's 423-line switch -> LAYER_RENDERERS type->renderer-chain registry +
-    4 named per-type renderers (renderReplicatorLayer/renderCloneLayer/renderDrawableLayer/
-    renderChildLayers) each returning a RenderOutcome ('stop'|'children').
-  Commits 0a4ae30..c6493e5. All verbatim/faithful moves; fct regress engine 0/0 after each.
+### S6. Framing-camera / clone-grid geometry  [TODO]  (engine, deepest, lowest coverage)
+**What it is (FCP):** `OZScene::computeFraming` (decoded in `evaluator/framing.ts`) poses a camera
+to frame a target; Video_Wall builds a wall of ~14 hand-placed clone tiles viewed through it, each
+flipping to reveal B. Clone_Spin spins a clone grid.
+**Status:** PARTIAL. The framing pose targets a point offset from Transition A, so A projects
+off-centre (Video_Wall f4 = black); the tile wall doesn't render.
+**Slugs gated (3):** Video_Wall (8.7), Clone_Spin (10.3), Curtains (15.1 — already OK).
+**Next step:** debug the framing anchor (proxy→content-plane ray) + the clone-tile wall render.
+Deepest geometry, only 2 low slugs — do LAST.
+**DoD:** Video_Wall + Clone_Spin improve; 0 regressions.
+**Verify:** `fct regress engine` + `fct score Replicator-Clones__Video_Wall --full`.
 
-### 8. Measure the color transform; add Python CI  [DONE]  (cross-cutting)
-- DoD: (a) the 6 fitted GAM constants replaced by a measured/derived sRGB->bt709 transform
-  (or the shim emits bt709 directly so no transform is needed); (b) `fct/test_fct.py` covers
-  read/color/compare/score on synthetic arrays + sample_time on a fixture .motr (no FCP needed).
-- Verify: `python3 -m pytest fct/` green; `fct regress` both OK after the color change.
-- DONE (2026-07-11): (a) fct/fit_color.py now DERIVES the GAM constants by maximizing the
-  gate's own objective (mean per-frame PSNR vs GUI GT), with the docstring recording why
-  plain-MSE (~20.3 dB, worse) and a physical transfer function (~30.9 dB on color-isolated
-  frames vs ~40 dB empirical) are both wrong. The derivation reproduces the shipped values
-  to +0.059 dB (< 0.30 gate tol) so GAM is unchanged but now measured+reproducible; config.py
-  cites it. (b) fct/test_fct.py = 21 pytest tests (color/read/compare/score on synthetic
-  arrays + sample_time & scene_duration on committed fixture .motr), no FCP needed.
-  Verify: `python3 -m pytest fct/` -> 21 passed; `fct regress headless/engine` -> 0/0 both.
-
-### 9. 360° transition family — full-frame model (GUI-GT drift fix)  [DONE]  (engine)
-- Problem: the 8 360° transitions scored 6-8 dB (the biggest low-score cluster). The
-  `transition360.ts` model composited the panorama into a bottom-half "band" (BAND_TOP=502,
-  TILE_W=1855) — that matched an OLDER GUI-GT capture, but the CURRENT GUI GT shows the
-  equirect panorama filling the ENTIRE frame (verified: Push f0 == full-frame start.png at
-  28.9 dB; the band model scored ~7 dB against the current truth).
-- DoD: 360° push/slide/crossfade/wipe/divide/circle render FULL-FRAME (cover-fit the whole
-  output, translate by one frame width); no bottom-half band constants; dead band code deleted.
-- Verify: `fct regress engine` OK (improvements, 0 regressions); re-baseline; tsc clean.
-- DONE 2026-07-13: rewrote render360Band on a full-frame model (new `drawFull` + `sampleFull`
-  cover-fit-to-frame; push = A slides out one width, B trails; slide/crossfade/masked-reveal
-  all full-frame). Deleted the dead band model (`drawTile`, REF_W/REF_H/HOME_LEFT/TILE_W/
-  BAND_TOP, unused `snapValue`, the Rig End-Value sweep read, `Band360Config.sweep`). Sweep is
-  now always one output width, signed by the Direction widget. Gate: 7 IMPROVED, 0 regressions
-  (Push 7.40→14.28, Slide 7.53→14.97, Wipe 7.35→14.12, Divide 6.25→14.47, Reveal_Wipe
-  7.45→18.66, Circle_Wipe 7.47→22.91, Gaussian_Blur 7.66→23.63). Engine mean 11.92→13.02 dB;
-  baseline re-frozen. tsc clean.
-
-### 10. animationEndSec local-frame timing fixes (progress→time map)  [DONE]  (engine)
-- Problem: the lowest-scoring slugs were rendering BLACK/frozen tails because the
-  `animationEndSec` heuristic (parser/index.ts) read RAW keyframe/timing values that live
-  in a node's LOCAL time frame, inflating the transition window far past the authored span
-  (sceneSettings/duration ÷ frameRate). `render(progress)` = `progress·animationEndSec`, so
-  an inflated end sampled scene instants LONG past every layer's `out` = empty frames. The
-  evaluator already re-anchors these local-frame curves at RENDER time; the animation-end
-  DOMAIN must match the render or the two desync.
-- DoD: every slug's animationEndSec ≤ the authored span except where a curve genuinely
-  animates in scene-time; the three local-frame classes (maxOut fallback, Camera negative
-  offset, screen/add media-overlay negative offset) re-anchor to match the evaluator.
-- Verify: `fct regress engine` 0 regressions after each; `_trace_end` shows only the intended
-  slug's animationEndSec change; no-hardcode policy OK (parser invariants, not scene detectors).
-- DONE: 3 local-frame classes fixed, each a separate gate-green commit:
-  - maxOut fallback clamp (cc9bef6): Squares 7.78→11.72, Combo_Spin 7.41→11.21.
-  - Camera negative-offset re-anchor (ef4ff92): Light Sweep 4.42→14.44 (was BLACK).
-  - screen/add media-overlay negative-offset re-anchor (2c7a370): Light Noise 8.72→17.07.
-  Remaining candidates (Video_Wall, Slide_In, Center_Reveal, Heart, Loop, Up-Over) proved
-  NOT timing-fixable: the drop-zone-lifetime bound was measured + REJECTED (net-neutral,
-  gate-red — see progress log), and a renderAt END sweep on Slide_In gave the SAME 10.18
-  PSNR at every candidate END, proving those low scores are RENDERING gaps (Gradient-
-  generator fill, wipe-matte reveal, lens-flare overlay), not timing. Those move to item 12.
-  Engine mean 13.02→13.43 dB.
-
-### 11. Media playback direction — FORWARD by default (GUI-GT drift fix)  [DONE]  (engine, media)
-- Problem: the bench mediaResolver defaulted bundled .mov clips to REVERSE playback
-  (clipTime = duration − t), assuming FCP plays the Objects/Lights overlay+matte clips
-  with progress 0 = the clip's LAST frame. Never GT-verified. Objects/Veil rendered fully
-  TIME-REVERSED (engine f0 = B, GUI f0 = A) — its wipe-matte .mov (Image-Masks B, Invert=1)
-  sampled at its BLACK end at progress 0 → revealed B backwards. The matte's own clip
-  carries Reverse=0 (forward) in the .motr.
-- DoD: media clips play FORWARD by default; reverseVideo:true remains for a genuinely
-  backward clip; full engine gate 0 regressions.
-- Verify: measured every media slug both directions vs the GUI GT.
-- DONE (247f0ca): flipped the default to forward. Veil 9.51→16.04 (+6.53), Leaves
-  12.42→16.73 (+4.31), Curtains 14.15→15.10 (+0.95), Static 14.14→14.52 (+0.38); Light
-  Noise/Light Sweep unchanged (frame-numbered Retime `absolute` path). Full gate: 0
-  regressions, 4 improvements. Engine mean 13.43→13.62 dB; baseline re-frozen. tsc clean.
+### S7. Residual per-slug bugs  [ONGOING]  (opportunistic, one-offs)
+Bugs not owned by a shared subsystem — fix opportunistically when a clean structural root cause is
+found (never per-transition hardcoding). Current known:
+- **Movements/Smear (11.0):** DirectionalBlur+Smear filter appearance + smear continuing past the
+  drop-zone timeout (content vanishes at 0.467s). Clamp tried → worse (rejected).
+- **Stylized/Lower (9.0):** kinetic mask-panel choreography; misses the bright mid white flash
+  (partly S2 linear-compositing, partly panels culled vis=false).
+- **Multi / Multi-flip / Pinwheel / Swing / Flip / Rotate (12–14):** Movements 3D fold geometry,
+  each near-matched; small residuals.
+Solved recently (see Done ledger): Divide A/B + wrap + mask-dilation, Duplicate/Squares A/B.
 
 ---
 
-### 12. Compositor / generator feature gaps (per-slug low-score root causes)  [DOING]  (engine)
-- Context: items 1–11 (architecture + timing + media) are DONE. The remaining low-score
-  slugs are NOT architecture bugs — each is a concrete compositor/generator feature the
-  engine doesn't yet reproduce. Work them top-down by GUI-GT impact, ONE generic root-cause
-  fix per commit, gate-green each time. NO per-transition hardcoding: every fix keys on a
-  STRUCTURAL signal (factory type, offset sign, blend mode), never a slug/layer name.
-- Known root causes (from frame-by-frame GUI-GT diffing):
-  * Movements/Color_Planes — Generator negative-offset window inflation → black tail.  [DONE]
-  * Movements/Drop_In (9.29) — stale top-left CARD conform → full-frame; card model deleted. [DONE]
-  * Replicator-Clones/Video_Wall (8.74) — replicator tile grid + camera dolly geometry.
-  * Stylized/Lower (9.04) — misses the bright mid-transition white flash (GUI f12 ≈ 239,245).
-  * Lights/Lens_Flare (9.57) — retime-wrap snapped the completed A→B crossfade tail back to
-    pure A; screen-blend generator overlay now cancels the wrap → B arrives. [DONE — flare
-    brightness overlay (f12) still a separate generator gap]
-  * Dissolves/Divide (10.15→14.24) — [DONE] Three coupled fixes landed together (each
-    necessary; alone they regress or no-op): (1) A/B binding — the doc-order override
-    inverted Divide's sources because its "Transition B" node is authored first;
-    hasFilteredMaskReveal-style both-masked SUPPRESSION in parseFootage keeps the
-    name-based binding (clip "Transition A" → image A) for a two-sided masked split.
-    (2) Retime-wrap CANCEL — wrapSec=0.801s collapsed every frame past 0.8s back to
-    scene t=0, culling Transition B (whose timing window starts at 0.017s) so the whole
-    tail froze on A (f14–20 flat at 8.77). New capabilities.ts hasFilteredMaskReveal
-    (a mask-source group carrying its OWN image filter = an actively-reshaped reveal
-    matte that outlives the drop-zone timeout) cancels the wrap — gated `&& !stroked-
-    MaskShape` so Objects/Arrows (also filtered-mask, but a stroked reveal needing the
-    CLAMP) keeps wrapSec for its clamp. (3) Mask-group filter application — masks.ts now
-    runs the mask-source group's OWN filters over the rasterized matte, so Divide's
-    "B Masks" 3× MinMax DILATE (Radius 0→32/194/29) GROWS the divide-pieces from the raw
-    ~75% rectangle union to full-frame B (f23 13.34→17.54). Gate 0 regressions, +3.01 dB.
-  * Slide_In / Center_Reveal / Close_and_Open — linear/color Gradient generator not composited.
-    TRIAGE (Slide_In): TWO compounding bugs — (1) endSec=3.0 is inflated ~3× (real transition
-    ~1s; the "Gradient" generator + Color-linker keys run to 3.0s), so progress maps onto a 3×
-    axis; (2) wrapSec=0.467 snaps the tail to A. Even cancelling the wrap leaves the 3× time
-    stretch. Needs BOTH the Gradient-generator render AND an endSec fix — not a clean single fix.
-  * Stylized/Slide (14.21) — retime-wrap froze the sliding-media-panel montage tail on A;
-    kinetic-media-panel-montage now cancels the wrap → B arrives. [DONE]
-  * Movements/Smear (11.03) — TRIAGE: NOT a wrap/clamp bug (tried force-clamp: 11.03→10.61,
-    WORSE — reverted, not committed). GUI mid-frames (f8/f16) are dark-sepia (78,41,32) = A
-    heavily DirectionalBlur+Smear-displaced; ENG renders bluish-B (114,113,126). The A drop
-    zone (out=0.434) smears off-screen left (tx→-1716) revealing B, but the engine can't
-    continue the smear past the drop-zone timeout (content vanishes at 0.467) — the smear
-    trail + its extended lifetime is the gap, a filter/geometry issue not timing.
-  * Stylized/Panels_Across (10.38) — TRIAGE: NOT wrap (none). White panels ARE parsed correctly
-    (panelFill=255,255,255 @ opacities 0.55/1.0/0.05) and render, but (a) semi-transparent
-    white over sepia A gives warm-grey (182,158,144) vs GUI's cool near-white (200,202,209) —
-    the linear-vs-sRGB compositing ceiling — and (b) B only reaches op=1 at p=0.958 so the
-    panel SWEEP reveals B too late (GUI is B-dominant by f18/p=0.75). Heavily-tuned shared code
-    (prior 14.6→18.8 tune); risky to touch. Deferred.
-  * Replicator-Clones/Clone_Spin (10.32) / Video_Wall (8.74) — Framing-camera projection: the
-    computeFraming pose targets a point offset from Transition A, so A projects off-centre
-    leaving ~40% black at f0 (GUI f0 = full-frame A), and mid-frames go near-black. Deep
-    camera-geometry work.
-- DoD (per sub-step): a structural fix, gate 0 regressions, baseline re-frozen, pushed.
-- Verify: `fct regress engine` green + `fct score <slug> gui --full`.
-- TRIAGE MAP (2026-07-13, remaining low-scorers — each verified NOT a clean single-fix wrap
-  case; all are deep multi-issue and need dedicated ticks. Attempted+rejected noted):
-  * Movements/Smear (11.03) — NOT a wrap/clamp fix. Its "Cartoon Whoosh" is source A with a
-    DirectionalBlur+Smear filter sliding off-screen left (tx 0→-1716) to reveal the B drop
-    zone; both drop zones time out very early (A 0.434s, B 0.467s) but endSec=1.134. Forcing
-    the clamp path (hold last live frame) REGRESSED it (11.03→10.61): the held frame still
-    has A half-on (tx=-1335) and is bluish, while GT f8/f16 are dark-sepia (78,41,32) — the
-    Smear-blurred A. Root cause is the DirectionalBlur+Smear filter appearance + the smear
-    continuing past the drop-zone timeout (engine content vanishes at 0.467). Filter/geometry
-    work, not timing. (Reverted, uncommitted.)
-  * Stylized/Slide_In (10.25) — TWO compounding bugs: (a) endSec inflated to 3.0s (the
-    "Gradient" generator's keys run to 3s) so the transition plays at ~1/3 speed; (b) a
-    retime-wrap at 0.467s snaps the tail to A. Even cancelling the wrap leaves the 3× time
-    stretch. Needs the Gradient-generator endSec exclusion + the full-frame cyan Gradient
-    composited. Two-deep; defer.
-  * Stylized/Panels_Across (10.38) — NOT a fill-color bug (verified: the 7 "White panels"
-    parse correctly as panelFill white 255,255,255 at opacities 0.55/1.0/0.05 via
-    findPanelFillColor). Issue: the white-panel sweep composites to (182,158,144) vs GT's
-    bright (200,202,209), and B only reaches op=1 at p=0.958 while GT shows B-dominant by f18
-    — the panel sweep reveals B too late and the panels read dim over sepia A. Panel
-    blend/opacity + reveal-timing, in heavily-tuned isSolidPanel code; high regression risk.
-  * Dissolves/Divide (10.15→11.23) — 51% BLACK was the MASK-SCALE bug [FIXED]. Divide is a
-    1280×720 scene shown at 1920×1080; it rendered DIRECTLY at 1920 output, but its divide-
-    piece mask shapes live in SCENE (1280) coords, so they covered only ~67%/49% of the frame
-    → the A card was clipped to a centred rect, 51% black. FIX: render upscaled scenes at
-    NATIVE size then resample (like larger-than-output scenes) so all geometry scales
-    uniformly (api.ts). Divide 10.15→11.23 (+1.08), Drop_In 14.61→14.81; gate 0 regressions.
-    STILL OPEN: A/B inversion at f0 — the document-order override in parseFootage re-keys
-    Divide's clips by render order (its "Transition B" node is authored before "Transition A"),
-    inverting the name-correct clips (clip 1899844357 IS named "Transition A" but maps to B),
-    so f0 shows B not A. Same override is REQUIRED by Wipes/Mask + Center Reveal (the `in`-time
-    variant regressed Center Reveal −22 dB, documented in footage.ts) — needs a safe structural
-    discriminator (name vs doc-order) before it can be fixed. Deferred.
-  * Replicator-Clones/Video_Wall (8.74) — Framing camera + replicator wall in huge off-canvas
-    world coords; the computeFraming pose targets a point offset from A so f0 doesn't fill and
-    f4 goes fully black. Framing-camera projection geometry; deep.
-  * Stylized/Lower (9.04) — kinetic mask-panel scene; misses the bright mid white flash and
-    the panel/mask reveal (mostly vis=false op=0 panels). Deep mask-choreography scene.
-  * Replicator-Clones/Clone_Spin (10.32) — f0 too bright (165,115,72 vs 131,83,54), f16 ~90%
-    black; clone-spin replicator geometry. Deep.
-- Color_Planes sub-step DONE: Generator with a negative timeline offset authors its
-  transform curves in a LOCAL frame (scene = local + offset). The "Color Solid" backdrop
-  (off≈−0.567s, Z-Position/Y-Rotation keyed to local 2.369s → scene 1.802s ≈ span 1.867s)
-  had its RAW 2.369s inflate animationEndSec 0.5s past the span, so the additively-
-  recombined RGB channel planes over-separated and the tail rendered BLACK (f23 0,0,0 vs
-  GT B). Added a Generator neg-offset re-anchor branch to the animationEndSec walk (mirrors
-  the existing Camera/media-overlay neg-offset re-anchors). Blast radius = exactly 1 slug
-  (verified via _trace_end diff old-vs-new). Color_Planes 9.86→10.47 (+0.61); gate 0
-  regressions; engine mean 13.62→13.63 dB; baseline re-frozen.
-- Drop_In sub-step DONE: the special DropInCard top-left "card conform" (drop zones drawn as
-  a 1588×902 card pinned to (0,0), leaving R/bottom black) was STALE DRIFT fit to an OLD GUI
-  capture. The CURRENT GUI GT shows Transition A/B FULL-FRAME (f0 uniform sepia A edge-to-
-  edge, f23 full B) with the drop-impact particles overlaid — no top-left card. Deleted the
-  entire card model (compositor/drop-in.ts, the detect+draw pass, the renderLayer skip, the
-  DropInCard context type) so Drop_In renders through the normal full-frame drop-zone blit
-  like Push. Drop_In 9.29→14.61 (+5.32); gate 0 regressions; engine mean 13.63→13.71 dB;
-  baseline re-frozen. tsc clean, dead code removed.
+## Reference — implemented subsystems (DONE; documented so nothing is undocumented)
+
+These parts of the engine are complete and gate-protected. Listed so the ROADMAP is a full map
+of what EXISTS, not only what's left.
+
+**Filters (all reverse-engineered + registered in `compositor/filters/`, dispatched by UUID):**
+Gaussian Blur, Directional Blur, Radial Blur, Zoom Blur (log-polar), Channel Mixer, Colorize,
+Tint, Levels, Brightness, HSV Adjust / Hue-Saturation, Glow, Bloom, Fill, Luma Keyer (trapezoid
+alpha), MinMax (separable erode/dilate morphology), Flop, Bevel, Bad TV, Black Hole, Earthquake,
+Underwater, Scrape, Smear, PAENoise (Lights/Static), 360° Reorient. Each has a decoded-constant
+comment citing the FCP binary it came from; verified via `tools/re/filter_sweep.py`
+(`tools/re/filter_sweeps.json`, 46 PASS / 0 FAIL param-space cases).
+
+**Behaviours evaluated (`evaluator/`):** Rig Behavior (widget snapshot select), Fade In/Fade Out,
+Ramp, Align To, Oscillate, Spin, Throw, Sequence Replicator, Link (position/rotation/scale/anchor/
+opacity — NOT colour, see S1).
+
+**Compositing/geometry:** blend modes (normal/screen/add/overlay/lighten/multiply), Image Mask
+reveal (rasterized shapes + replicator matte + mask-source-group filters e.g. Divide MinMax
+dilation), replicator instance layout + sequence build, Clone Layer resolution, drop-zone
+conform + native-then-resample for upscaled scenes, page-flip (PAEFlop), 360° full-frame panorama
+model, framing camera pose (partial — see S6).
+
+**Time authority (`timemap.ts` + `api.ts`):** single scene-time remap; retime-wrap (extrapolation
+mode 1) with structural cancels (filled-shape / blended-media / replicator-matte / kinetic-panel /
+filtered-mask reveals) and stroked-mask clamp; animationEndSec local-frame re-anchors
+(camera/generator/panel negative-offset); media playback FORWARD by default.
+
+**Parser (`parser/`):** `<enabled>0>` skips disabled filters; drop-zone Width/Height curve parse;
+A/B binding by name with document-order override + both-masked suppression (Divide) + replicator-
+mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media resolution.
+
+**Toolkit (`fct/`) + CI:** `fct gen|score|regress|baseline|probe|gate`; GUI-GT one-truth gate at
+480×270 with mtime-thumbnail cache; `tools/re/read_const.py` fat-binary constant reader;
+`fit_color.py` derives the GAM constants; `test/no-hardcode.test.ts` fails any detector firing on
+< 2 built-ins.
 
 ---
 
-## Progress log  (newest first — one line per completed item)
+## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  ROADMAP REGENERATED — rewrote the Items section as a complete SUBSYSTEM catalogue
+              (S1–S7) after all filters + architecture (items 1–11) landed. Every part of the
+              engine is now documented: 6 remaining-work subsystems ranked by coverage×safety
+              (S1 behaviour drivers = biggest safe lever; S2 linear compositing = highest ceiling;
+              S3 particle sim; S4 colour pipeline; S5 gradient gen; S6 framing camera; S7 residual)
+              + a "Reference — implemented subsystems" ledger so nothing is undocumented. No code
+              change; doc only. Engine mean 13.91 dB, 20/65 ≥15.
 - 2026-07-13  ITEM 12 (Duplicate/Squares) DONE — replicator-mask-reveal A/B binding was
               INVERTED. parseFootage's masked-reveal rule bound the unmasked base → B and the
               masked (growing-dots/squares) reveal → A, so both slugs played B→A: f0 showed
