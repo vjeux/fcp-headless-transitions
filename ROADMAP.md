@@ -180,6 +180,20 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-12  FILTER RE — Glow FULLY matched + working color space DECODED. (1) Instrumented
+              oz_render.mm (OZ_WS_DEBUG) to read OZRenderParams_getWorkingColorSpace() =
+              kCGColorSpaceLinearSRGB (16-bit half-float ExtendedLinearSRGB readback); this
+              RESOLVES the long-standing "color-pipeline root cause". Decoded the exact Brightness
+              transfer (darken=clip(b·v); brighten=srgbEncode(b·v/255), hard split at b=1) but SHIP
+              the plain multiply: the sole PAEBrightness user (Curtains, b=2.91) stacks Brightness→Mono
+              and the GUI GT prefers the plain-multiply chain (per-filter encode regressed it −0.46);
+              the "27 users darken" claim was wrong (1 user, it brightens). (2) DECODED HgcGlow mask
+              (soft ramp a=clamp((luma709−Threshold)/Softness+0.5,0,1)) + HgcGlowCombineFx
+              ((1−glowA)·orig + min(glow·gain,ceil)) from the Filters binary; glow.ts now applies both
+              verbatim. Isolated glow sweep 16-20 dB → 37-42 dB; GUI-GT 360°__360°_Bloom +0.70
+              (10.88→11.58), 0 regressions; baseline re-frozen (mean 11.92); glow.test.ts (6 tests).
+              3 commits pushed; sweep 35→37 PASS.
+
 - 2026-07-11  Item 8 DONE (color transform + Python CI). (a) fct/fit_color.py now DERIVES the
               sRGB->bt709 GAM by maximizing the GATE metric (mean per-frame PSNR vs GUI GT),
               not plain pixel-MSE: measured that MSE-optimal lands at gamma~0.9 and scores

@@ -271,13 +271,35 @@ there is 1 user and it brightens; the plain-multiply is nonetheless what the GUI
     linear before calling them ceilings (see the per-filter sweep notes).
 
 
-## Final sweep result (2026-07-12): 35 PASS, 0 FAIL across 16 filters
+## Sweep result (2026-07-12, updated): 37 PASS, 0 FAIL — GLOW now fully matched
 `tools/re/filter_sweep.py` (all): MATCHED vs headless FCP across their parameter spaces:
 brightness(darken), flop, minmax, gaussian, radial/spin, scrape, blackhole, earthquake,
 hsv(sat/value/grayscale/identity), colorize(Intensity blend, 709 luma), fill, LEVELS
-(gamma 1/1.73/0.5 @ 42-44 dB). CEILINGS/GAPS (documented, unexercised by transitions,
-excluded from the tally): glow (soft-vs-hard threshold mask [P2-glow-3]), bloom
-(Brightness>1 shared curve), tint (hard-light color-space), underwater (noise field),
-+ the color-pipeline gaps (Brightness>1, HSV-hue) — ALL traced to FCP's shared Ozone
-render color management, NOT per-filter RE. This is the repeatable Phase-2 verification
-artifact; re-run any time with the FCP frameworks on the path.
+(gamma 1/1.73/0.5 @ 42-44 dB), and now **GLOW** (radius30/thr0.5/soft0.5 41.66,
+radius60/thr0.3 36.92 — was a 16-20 dB gap; the mask+combine are now decoded verbatim,
+see below). CEILINGS/GAPS still open (documented, unexercised by transitions, excluded
+from the tally): bloom (its own affine HgcBloomThreshold mask + the Brightness>1 curve),
+tint (hard-light color-space + a ×2 slot puzzle in the TintFx variant), underwater (noise
+field), + the color-pipeline gaps (Brightness>1, HSV-hue). The working color space that
+these expose is now DECODED (kCGColorSpaceLinearSRGB — see the RESOLVED section above),
+so they are NOT a mystery; each remaining one is either an unexercised deep decode
+(HSV-hue: two code paths, sincos color-matrix — all 4 users Hue=0) or ships the GUI-GT-
+preferred model (Brightness plain-multiply). Re-run the suite any time with the FCP
+frameworks on the path.
+
+### GLOW — FULLY DECODED + MATCHED (2026-07-12)
+Both HgcGlow passes decoded from the Filters binary and matched in glow.ts:
+  * MASK (from -[PAEGlow canThrowRenderOutput] @0xceb54):
+      a = clamp((luma709 − Threshold)/Softness + 0.5, 0, 1)
+      luma = colorMatrixFromDesiredRGBToYCbCr Y-row (Rec.709)
+      bias hg_Params[0].w = −(Threshold − 0.5·Softness)/Softness ; scale = 1/Softness
+      (Softness fallback consts 0x26a890/898 = ±FLT_MAX → hard step when Softness==0).
+      rgb premultiplied by a.
+  * COMBINE (HgcGlowCombineFx, verbatim):
+      glowA   = clamp(glow.a·gain, 0, 1)      gain = Opacity (hg_Params[0].x)
+      glowRGB = max(min(glow.rgb·gain, ceil), 0)  ceil = 1.0 | FLT_MAX per 'allow>1' bool
+      out.rgb = (1 − glowA)·orig + glowRGB    (glow premultiplied)
+Result: isolated sweep 16-20 dB → 37-42 dB; GUI-GT gate 360°__360°_Bloom +0.70 (10.88→
+11.58), 0 regressions; baseline re-frozen; engine/test/glow.test.ts (6 tests) pins it.
+
+
