@@ -130,11 +130,43 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
         scanBlend(l.children);
       }
     })(scene.layers);
+    // Kinetic media-panel MONTAGE (Stylized/Slide): the transition is driven by a
+    // montage of many bundled-media sprite PANELS (Media/*.png "rectangles across")
+    // that SLIDE across (Position keyframes) and reveal B, and whose lifetimes OUTLIVE
+    // the drop-zone wrap. When the outgoing (A) drop zone times out at wrapSec (0.667s)
+    // the panels are still mid-slide (out=1.068s) and B (out=1.668s) is arriving — the
+    // wrap-to-frame-0 would freeze the whole scene back to pure A and kill the montage
+    // (Slide's tail froze on A: f12 rendered correctly but f23 snapped to A). This is
+    // the SAME "an overlay keeps animating past the wrap" class as the filled-shape /
+    // blended-media / replicator-matte cancels, just expressed as sliding media panels.
+    // Gated on ≥3 such panels surviving past the wrap so it fires ONLY on a genuine
+    // panel montage (Slide: 15) — a lone decorative media sprite (Loop: 1, not past
+    // the wrap) and every plain drop-zone-crossfade wrap slug (Bloom/Zoom/…: 0) are
+    // untouched. Structural (media source + position keyframes + out>wrap + count), not
+    // a transition name.
+    let kineticMediaPanels = 0;
+    (function scanPanels(layers: readonly Layer[]) {
+      for (const l of layers) {
+        if (l.type === 'image' && l.source?.type === 'media' && l.timing) {
+          const px = l.transform?.positionX, py = l.transform?.positionY;
+          const animated =
+            (px && typeof px === 'object' && 'keyframes' in px && (px as any).keyframes?.length >= 2) ||
+            (py && typeof py === 'object' && 'keyframes' in py && (py as any).keyframes?.length >= 2);
+          if (animated) {
+            const outSec = l.timing.out.timescale > 0 ? l.timing.out.value / l.timing.out.timescale : 0;
+            if (outSec > (wrapSec ?? 0) + 2 * frameSec) kineticMediaPanels++;
+          }
+        }
+        scanPanels(l.children);
+      }
+    })(scene.layers);
+    const kineticPanelMontage = kineticMediaPanels >= 3;
     // The wrap freezes the WHOLE scene back to frame 0, which is correct only when the
     // drop-zone crossfade IS the entire transition (Blurs/Zoom, Lights/Bloom). A
-    // filled-shape / blended-media / replicator-matte overlay keeps animating past the
-    // wrap, so its presence (plus a true animation end beyond the wrap) CANCELS the wrap.
-    if (wrapSec !== undefined && (filledShapeOverlay || blendedMediaOverlay || replicatorMaskReveal) && endSec > wrapSec + frameSec) {
+    // filled-shape / blended-media / replicator-matte overlay OR a kinetic media-panel
+    // montage keeps animating past the wrap, so its presence (plus a true animation end
+    // beyond the wrap) CANCELS the wrap.
+    if (wrapSec !== undefined && (filledShapeOverlay || blendedMediaOverlay || replicatorMaskReveal || kineticPanelMontage) && endSec > wrapSec + frameSec) {
       wrapSec = undefined;
     }
     // Stroked-mask reveal (Objects/Arrows): the growing arrow arcs cut A away to

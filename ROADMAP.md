@@ -252,6 +252,8 @@ Status legend: TODO / DOING / DONE / BLOCKED
     brightness overlay (f12) still a separate generator gap]
   * Dissolves/Divide (10.15) — B Masks mask-reveal geometry / A-B z-order.
   * Slide_In / Center_Reveal / Close_and_Open — linear/color Gradient generator not composited.
+  * Stylized/Slide (14.21) — retime-wrap froze the sliding-media-panel montage tail on A;
+    kinetic-media-panel-montage now cancels the wrap → B arrives. [DONE]
 - DoD (per sub-step): a structural fix, gate 0 regressions, baseline re-frozen, pushed.
 - Verify: `fct regress engine` green + `fct score <slug> gui --full`.
 - Color_Planes sub-step DONE: Generator with a negative timeline offset authors its
@@ -275,6 +277,23 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-13  ITEM 12 (Slide) DONE — retime-wrap cancel now covers a kinetic media-panel
+              MONTAGE. ROOT CAUSE of Stylized/Slide's frozen tail: its transition is a montage
+              of 18 bundled-media sprite PANELS (Media/*.png "rectangles across") that slide
+              across (Position keyframes) and reveal B, outliving the outgoing A drop zone
+              (panels out=1.068s, B out=1.668s vs wrapSec=0.667s). The retime-wrap snapped every
+              frame past 0.667s back to scene time 0 = pure A, so the mid-transition rendered
+              correctly (f12 matched GT) but the tail froze on A (f23 showed A, GT shows B). Same
+              "an overlay keeps animating past the wrap" class as the existing filled-shape /
+              blended-media / replicator-matte cancels, expressed as sliding media panels. Added
+              a kinetic-media-panel probe: ≥3 media-sourced image layers with a Position keyframe
+              curve whose lifetime `out` survives past the wrap → cancel. Fires ONLY on a genuine
+              montage (Slide: 15 past-wrap panels); a lone decorative sprite (Loop: 1, not past
+              wrap) and every plain drop-zone-crossfade wrap slug (Bloom/Zoom/Static/…: 0) are
+              untouched. Blast radius verified = exactly 1 slug (buildTimeMap wrap/clamp diff
+              old-vs-new: only Slide's 0.667 wrap → cancelled). Slide 14.21→16.59 (+2.38); gate
+              0 regressions; engine mean 13.74→13.78 dB; baseline re-frozen. tsc clean.
+              Structural (media source + position keyframes + out>wrap + count≥3), not a name.
 - 2026-07-13  ITEM 12 (Lens_Flare) DONE — retime-wrap cancel now covers screen-blend
               GENERATOR overlays. ROOT CAUSE of Lights/Lens_Flare (9.57): its Transition A
               drop zone times out at 0.567s (the A→B crossfade completing), so the retime-wrap
