@@ -195,7 +195,7 @@ Status legend: TODO / DOING / DONE / BLOCKED
   7.45→18.66, Circle_Wipe 7.47→22.91, Gaussian_Blur 7.66→23.63). Engine mean 11.92→13.02 dB;
   baseline re-frozen. tsc clean.
 
-### 10. animationEndSec local-frame timing fixes (progress→time map)  [DOING]  (engine)
+### 10. animationEndSec local-frame timing fixes (progress→time map)  [DONE]  (engine)
 - Problem: the lowest-scoring slugs were rendering BLACK/frozen tails because the
   `animationEndSec` heuristic (parser/index.ts) read RAW keyframe/timing values that live
   in a node's LOCAL time frame, inflating the transition window far past the authored span
@@ -208,17 +208,51 @@ Status legend: TODO / DOING / DONE / BLOCKED
   offset, screen/add media-overlay negative offset) re-anchor to match the evaluator.
 - Verify: `fct regress engine` 0 regressions after each; `_trace_end` shows only the intended
   slug's animationEndSec change; no-hardcode policy OK (parser invariants, not scene detectors).
-- IN PROGRESS: 3 classes fixed, each a separate gate-green commit:
+- DONE: 3 local-frame classes fixed, each a separate gate-green commit:
   - maxOut fallback clamp (cc9bef6): Squares 7.78→11.72, Combo_Spin 7.41→11.21.
   - Camera negative-offset re-anchor (ef4ff92): Light Sweep 4.42→14.44 (was BLACK).
   - screen/add media-overlay negative-offset re-anchor (2c7a370): Light Noise 8.72→17.07.
-  Engine mean 13.02→13.43 dB. Remaining candidates to audit: Video_Wall (8.74), Slide_In,
-  Center_Reveal, Heart, Loop, Up-Over (all have animationEndSec > span but via paths NOT yet
-  proven safe to clamp — each needs the render-vs-GT check before touching).
+  Remaining candidates (Video_Wall, Slide_In, Center_Reveal, Heart, Loop, Up-Over) proved
+  NOT timing-fixable: the drop-zone-lifetime bound was measured + REJECTED (net-neutral,
+  gate-red — see progress log), and a renderAt END sweep on Slide_In gave the SAME 10.18
+  PSNR at every candidate END, proving those low scores are RENDERING gaps (Gradient-
+  generator fill, wipe-matte reveal, lens-flare overlay), not timing. Those move to item 12.
+  Engine mean 13.02→13.43 dB.
+
+### 11. Media playback direction — FORWARD by default (GUI-GT drift fix)  [DONE]  (engine, media)
+- Problem: the bench mediaResolver defaulted bundled .mov clips to REVERSE playback
+  (clipTime = duration − t), assuming FCP plays the Objects/Lights overlay+matte clips
+  with progress 0 = the clip's LAST frame. Never GT-verified. Objects/Veil rendered fully
+  TIME-REVERSED (engine f0 = B, GUI f0 = A) — its wipe-matte .mov (Image-Masks B, Invert=1)
+  sampled at its BLACK end at progress 0 → revealed B backwards. The matte's own clip
+  carries Reverse=0 (forward) in the .motr.
+- DoD: media clips play FORWARD by default; reverseVideo:true remains for a genuinely
+  backward clip; full engine gate 0 regressions.
+- Verify: measured every media slug both directions vs the GUI GT.
+- DONE (247f0ca): flipped the default to forward. Veil 9.51→16.04 (+6.53), Leaves
+  12.42→16.73 (+4.31), Curtains 14.15→15.10 (+0.95), Static 14.14→14.52 (+0.38); Light
+  Noise/Light Sweep unchanged (frame-numbered Retime `absolute` path). Full gate: 0
+  regressions, 4 improvements. Engine mean 13.43→13.62 dB; baseline re-frozen. tsc clean.
 
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-13  ITEM 11 DONE — media clips play FORWARD by default (was reversed). The bench
+              mediaResolver defaulted bundled .mov overlays+mattes to REVERSE (clipTime =
+              duration − t) on an un-GT-verified assumption. Measured WRONG: Objects/Veil
+              rendered fully time-reversed (its Veil-Wipe-Matte, which Image-Masks B with
+              Invert=1, was sampled at its BLACK end at progress 0 → revealed B backwards;
+              the matte clip even carries Reverse=0). Forward beats reverse on EVERY media
+              slug vs the GUI GT: Veil 9.51→16.04 (+6.53), Leaves 12.42→16.73 (+4.31),
+              Curtains 14.15→15.10 (+0.95), Static 14.14→14.52 (+0.38); Light Noise/Light
+              Sweep unchanged (retime absolute path). Flipped the default to forward
+              (247f0ca). Full gate 0 regressions, 4 improvements; engine mean 13.43→13.62 dB.
+- 2026-07-13  ITEM 10 DONE — animationEndSec local-frame timing (3 classes) + audit of the rest.
+              The remaining end>span slugs (Slide_In, Center_Reveal, Heart, Loop, Up-Over,
+              Video_Wall) proved NOT timing bugs: a renderAt end-sweep on Slide_In scored an
+              identical 10.18 dB at every candidate end, so its low score is a Gradient-generator
+              rendering gap (the full-screen colored wipe isn't composited), not the animation
+              window. Those become item 12 (compositor/generator feature gaps).
 - 2026-07-13  ITEM 10 (note) — drop-zone-lifetime BOUND tried + REJECTED (gate red). Hypothesis:
               the frozen-tail slugs (Slide_In 10.25, Center_Reveal 12.09, Close_and_Open 10.95)
               inflate animationEndSec via a decorative background Gradient/offset-0 Camera whose
