@@ -101,49 +101,47 @@ S7  Residual per-slug (shape/mask/timing)     mixed   —      —    one-offs, 
 
 ## Parallel execution model  (crank it to the max)
 
-Every task below is an independent unit. There is NO wave gating and NO central integrator —
-**each agent rebases and merges its own work.** Run as many agents at once as you have tasks;
-the only real ordering is the handful of explicit `after:` dependencies in the flat task list.
+Every task below is an independent unit. There is NO wave gating, NO central integrator, and NO
+file-ownership rules — **each agent edits whatever files it needs and rebases + merges its own
+work.** If two agents touch the same file, git rebase resolves it at merge time (see the contract
+below). Run as many agents at once as you have tasks; the only ordering is the handful of explicit
+`after:` dependencies in the flat task list.
 
 ### Why it's safe to parallelize
-Collisions come from shared files, not from the work itself. There are exactly two shared-state
-hazards, and both have a mechanical resolution:
+Collisions are resolved by rebase, not prevented by carving up the tree. Two things make that
+smooth:
 
-```
-HUB FILES (edit only via a SINGLE append-only line — never refactor):
-  src/parser/index.ts        src/evaluator/index.ts
-  src/compositor/index.ts    src/types.ts
-  src/compositor/filters/index.ts   (append-only import barrel)
-
-SHARED BASELINE (regenerate, never hand-merge):
-  fct/baseline_engine.json   (git-tracked; the gate scores against it)
-```
-
-Append-only hub lines conflict trivially (rebase → keep both). The baseline is DERIVED state:
-after any rebase you regenerate it (`fct gen engine --all && fct baseline engine`), so a conflict
-there is resolved by "take regenerated," never by manual merge. The proven parallel-safe pattern
-is the **filter registry**: each unit lives in its OWN module, self-registers via one entry hook,
-and touches a hub only through one append-only line. Replicate it for every new subsystem.
+- **Prefer additive, self-registering modules.** The proven pattern is the **filter registry**:
+  each unit lives in its own module, self-registers via one entry hook, and wires in through a
+  single append-only import line. Additive edits rebase cleanly even when several agents touch the
+  same barrel. Reach for this pattern when it fits — but if a task genuinely needs to change a
+  shared file (`parser/index.ts`, `evaluator/index.ts`, `compositor/index.ts`, `types.ts`), just
+  do it and let the rebase sort it out.
+- **The baseline is DERIVED state, never hand-merged.** `fct/baseline_engine.json` is git-tracked
+  and the gate scores against it. On any rebase conflict there, take either side then REGENERATE
+  (`fct gen engine --all && fct baseline engine`) — the regenerated file is the truth.
 
 ### The self-merge contract (every agent follows this exactly)
 ```
 1. BRANCH   git fetch origin && git checkout -B <task-id> origin/main
-2. BUILD    edit ONLY your task's OWNED files. Any hub touch = ONE append-only line.
+2. BUILD    edit ANY files your task needs. Prefer additive/self-registering modules where they
+            fit, but change shared files freely if the work calls for it.
 3. GATE     fct gen engine --all && fct regress engine     # 0 regressions vs committed baseline
             (also: npm --prefix engine test  -> no-hardcode + unit tests green)
 4. MERGE    git fetch origin && git rebase origin/main
-              - hub-file conflict  -> keep BOTH append-only lines
-              - baseline conflict  -> take theirs, you re-freeze in step 5 anyway
+              - code conflict     -> resolve it (keep both changes; re-run the gate after)
+              - baseline conflict -> take either side; you REGENERATE + re-freeze in step 5
 5. REFREEZE fct gen engine --all && fct regress engine     # re-gate after rebase; must be green
             fct baseline engine                            # lock your improvements as new floor
-6. COMMIT   git add <owned files> fct/baseline_engine.json ROADMAP.md
+6. COMMIT   git add -A (your changes + fct/baseline_engine.json + ROADMAP.md)
             git commit  (ONE logical change; per-slug before->after in the message)
 7. PUSH     git push origin HEAD:main
               - rejected (non-fast-forward)? someone merged first -> GOTO 4
 8. LEDGER   tick your task in the flat list + add a Progress-log line (in the same commit).
 ```
-Hard rules: never force-push; never edit another task's OWNED files; never commit a red gate;
-never hand-edit `baseline_engine.json` (always regenerate); one task = one commit.
+Hard rules: never force-push; never commit a red gate; never hand-edit `baseline_engine.json`
+(always regenerate); one task = one commit. If a rebase conflict is non-trivial, re-run the FULL
+gate after resolving — a clean rebase does not guarantee a green gate.
 
 ### Truth & anti-drift (unchanged, apply to every agent)
 - Score ONLY vs GUI GT via `fct score <slug> --full` / `fct regress engine`. Never render-vs-render.
@@ -152,56 +150,41 @@ never hand-edit `baseline_engine.json` (always regenerate); one task = one commi
 - Reverse-engineer from the FCP binary; cite the decoded constant/offset in a code comment.
 
 ### Flat task list  (each row = one agent; run all non-blocked rows at once)
-`OWNS` = the only files that agent may edit (plus append-only hub lines). Two rows are safe to run
-concurrently iff their `OWNS` sets are disjoint. `after:` is the ONLY ordering constraint.
+`after:` is the ONLY ordering constraint. Rows without it run concurrently right now; if two rows
+happen to edit the same file, whoever merges second rebases onto the first.
 
 ```
-ID    STATUS  OWNS (edit these only)                              TARGET SLUGS / GOAL
+ID    STATUS  TASK                                                TARGET SLUGS / GOAL
 ----  ------  --------------------------------------------------  ------------------------------------
-T-A1  TODO    evaluator/links.ts (+types append)                  colour-channel Link -> Color_Planes,
-                                                                  Panels_Across (10.5/10.4)
-T-A2  TODO    NEW evaluator/motion-path.ts (+1 hook evaluator/    Motion Path driver (layer follows a
-              index.ts, +types append)                            spatial path); unblocks path users
-T-A3  TODO    NEW evaluator/gravity.ts (+1 hook evaluator/        Gravity driver (constant accel);
-              index.ts, +types append)                            feeds particle + layer fall
-T-B1  TODO    NEW compositor/particles/parse.ts (+1 hook          Emitter+Cell param PARSER (birth
-              parser/index.ts, +types append)                     rate, life, vel, spin, gravity)
-T-B2  TODO    NEW compositor/particles/sim.ts + render.ts (+1     Emitter SIM+render, MINIMAL: spawn +
-              hook compositor/index.ts)   after: T-B1             advect + gravity + composite (flat
-                                                                  colour). Target: Diagonal x2 improve
-T-B3  TODO    compositor/particles/render.ts   after: T-B2        appearance-over-life: colour/scale/
-                                                                  opacity ramps -> Close_and_Open,
-                                                                  Up-Over, Glide, Center
-T-C1  TODO    compositor/filters/gradient.ts                      linear+radial colour gradient ->
-                                                                  Slide_In, Loop, Heart
-T-C2  TODO    timemap.ts                     after: T-C1          Slide_In endSec inflation fix
-                                                                  (exclude gradient-keyframe 3.0s)
-T-D1  TODO    NEW compositor/color-space.ts + blend.ts +          linear working-space composite path
-              blit.ts (flag-gated) (+1 hook compositor/index.ts)  behind a flag; overlay slugs first
-T-D2a TODO    compositor/filters/levels.ts     after: T-D1        Brightness/Colorize into linear ->
-                                                                  Colorize=1 users, Brightness>1
-T-D2b TODO    compositor/filters/channel-mixer.ts  after: T-D1    Tint into linear -> Tint, Veil
-T-D2c TODO    compositor/filters/glow.ts       after: T-D1        Glow/Bloom into linear -> Bloom,
-                                                                  360°_Bloom
-T-D2d TODO    compositor/filters/hue-saturation.ts after: T-D1    HSV into linear -> Panels_Random,
-                                                                  Color_Panels
-T-E1  TODO    evaluator/framing.ts                                framing anchor (proxy->content ray)
-                                                                  -> Video_Wall f4 black, Clone_Spin
-T-E2  TODO    compositor/replicator.ts + geometry.ts  after:T-E1  clone-tile wall render (Video_Wall
-                                                                  14-tile grid)
-T-F1  TODO    compositor/filters/scrape.ts                        Smear appearance at mid-frames ->
-                                                                  Movements/Smear (11.0)
-T-G1  TODO    compositor/perspective.ts                           Movements 3D-fold residuals
-                                                                  (Multi/Flip/Pinwheel/Swing)
+T-A1  TODO    colour-channel Link                                 Color_Planes, Panels_Across
+                                                                  (10.5/10.4)
+T-A2  TODO    Motion Path driver                                  layer follows a spatial path;
+                                                                  unblocks path users
+T-A3  TODO    Gravity driver                                      constant accel; feeds particle +
+                                                                  layer fall
+T-B1  TODO    Emitter+Cell param PARSER                           birth rate, life, vel, spin, gravity
+T-B2  TODO    Emitter SIM+render, MINIMAL     after: T-B1         spawn + advect + gravity + composite
+                                                                  (flat colour). Target: Diagonal x2
+T-B3  TODO    Emitter appearance-over-life    after: T-B2         colour/scale/opacity ramps ->
+                                                                  Close_and_Open, Up-Over, Glide, Center
+T-C1  TODO    linear + radial colour gradient                     Slide_In, Loop, Heart
+T-C2  TODO    Slide_In endSec inflation fix   after: T-C1         exclude gradient-keyframe 3.0s
+T-D1  TODO    linear working-space composite path                 flag-gated; overlay slugs first
+T-D2a TODO    Brightness/Colorize into linear after: T-D1         Colorize=1 users, Brightness>1
+T-D2b TODO    Tint into linear               after: T-D1          Tint, Veil
+T-D2c TODO    Glow/Bloom into linear         after: T-D1          Bloom, 360°_Bloom
+T-D2d TODO    HSV into linear                after: T-D1          Panels_Random, Color_Panels
+T-E1  TODO    framing anchor (proxy->content ray)                 Video_Wall f4 black, Clone_Spin
+T-E2  TODO    clone-tile wall render          after: T-E1         Video_Wall 14-tile grid
+T-F1  TODO    Smear appearance at mid-frames                      Movements/Smear (11.0)
+T-G1  TODO    Movements 3D-fold residuals                         Multi/Flip/Pinwheel/Swing
 ```
 Max concurrency today = the 9 rows with no `after:` (T-A1,A2,A3,B1,C1,D1,E1,F1,G1) run
 simultaneously. Once parents merge, the dependents fan out to MORE parallelism, not less:
-T-B1→T-B2→T-B3 (chain); T-D1 unblocks FOUR disjoint filter rows at once (T-D2a/b/c/d);
-T-C1→T-C2; T-E1→T-E2. Rightsizing note: rows are kept at "one independently gate-verifiable
-change" — parse-only stages (T-A2/B1) are NOT split further because a parser edit scores nothing
-on its own; big rendering rows (T-B2, T-D2) ARE split because each sub-row moves PSNR alone. When
-a row's file set overlaps another (e.g. two S7 fixes touch `perspective.ts`), the second rebases
-onto the first — the self-merge contract handles it.
+T-B1→T-B2→T-B3 (chain); T-D1 unblocks FOUR filter rows at once (T-D2a/b/c/d); T-C1→T-C2; T-E1→T-E2.
+Rightsizing note: rows are kept at "one independently gate-verifiable change" — parse-only stages
+(T-A2/B1) are NOT split further because a parser edit scores nothing on its own; big rendering rows
+(T-B2, T-D2) ARE split because each sub-row moves PSNR alone.
 
 ---
 
@@ -352,6 +335,20 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  Removed the file-OWNERSHIP concept from the parallel model (it confused agents
+              last time more than it helped). Agents now edit WHATEVER files they need and rely on
+              git rebase to resolve collisions at merge time; the self-merge contract's BUILD step
+              says "edit any files your task needs" and MERGE says "resolve code conflicts, re-gate
+              after". Kept the additive/self-registering-module PREFERENCE (filter registry) as a
+              soft nicety, not a rule. Dropped the OWNS column from the flat task list (now just
+              ID/STATUS/TASK/TARGET). Doc-only; gate 0/0.
+- 2026-07-13  Removed the file-OWNERSHIP concept from the parallel model (it confused agents
+              more than it helped last time). Agents now edit ANY files they need and rely on
+              rebase/merge to resolve collisions — the self-merge contract's step 4 handles code
+              conflicts (keep both, re-gate) and baseline conflicts (regenerate). Dropped the
+              "OWNS (edit these only)" column from the flat task list and the hub-file edit
+              restriction; kept the additive/self-registering pattern as a PREFERENCE, not a rule.
+              Doc-only; gate 0/0.
 - 2026-07-13  Rightsized the flat task list — split the two genuinely-big rendering rows into
               independently gate-verifiable sub-rows: T-B2 (minimal emitter: spawn/advect/gravity/
               composite) + T-B3 (appearance-over-life ramps); T-D2 -> T-D2a/b/c/d (levels,
