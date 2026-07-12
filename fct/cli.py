@@ -6,8 +6,10 @@
   fct cmp  <a.png> <b.png> [--color-b bt709] [--out diff.png]   compare two files
   fct score   [slug ...|--all] [--source headless|engine] [--frames] [--fast]   score vs GUI GT
   fct probe   <slug> [frame=12]                     fast: render+PSNR ONE engine frame vs GUI GT
-  fct probe   <slug> [frame=12]                      render+score ONE engine frame (fast iterate)
-  fct probe   <slug> [frame=12]                     fast: render+PSNR ONE engine frame vs GUI GT
+  fct census  [slug ...|--all]                      decode a slug's REAL scene graph
+                                                    (filters/links/emitters/generators) from its
+                                                    .motr — VERIFY a task premise BEFORE writing
+                                                    engine code (decode-don't-fit forcing function)
   fct baseline <source>                             freeze current scores (gate-res) -> the gate
   fct regress  <source> [--verbose]                 re-score vs baseline (fast); exit 1 on regression
   fct gate    [engine|headless] [slug ...|--all] [--no-render]   render source then run the gate (lockfile-guarded)
@@ -227,6 +229,12 @@ def main():
               f"{len(r['improvements'])} improvements vs baseline_{source} "
               f"(tol {r['tol']}dB) — gate {r['total_sec']}s", flush=True)
         return 0 if r["ok"] else 1
+
+    if cmd == "census":
+        from fct.census import run as census_run
+        slugs = _resolve_slugs(rest)
+        census_run(slugs)
+        return 0
 
     if cmd == "montage":
         from fct.montage import montage

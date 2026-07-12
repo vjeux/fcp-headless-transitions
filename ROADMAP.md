@@ -22,6 +22,17 @@ and a **Status**. Update Status in the same commit that does the work.
    remote fell 61 commits behind once the auto-pushing pool was removed).
 7. **No stray branches.** `main` is the only branch. No integration/agent branches — the
    `fct regress` gate does the safety work a review branch used to.
+8. **Decode the scene graph BEFORE writing code (`fct census <slug>`).** Twice a tick
+   burned effort chasing a task premise the .motr flatly contradicted ("colour-channel
+   Link drives Color_Planes" — it drives position.Z, a 3D fold; "gradient generator fills
+   Slide_In" — its Gradient node is a paint-stroke Emitter). Every filter/behaviour tick
+   MUST start by running `fct census` on the target slug(s) and confirming the premise
+   against the real node types / filters / link channels / emitters. If census contradicts
+   the ROADMAP item, FIX THE ITEM first (it's a decode, not an opinion), then do the work.
+   Algorithm facts come from the FCP binary / .motr — never from prose in this file, and never
+   from black-box render-diffing. GUI GT only ever CONFIRMS or REFUTES a decode; a refutation
+   means "re-read the source," not "nudge a constant." Decode-don't-fit, applied to the task list.
+
 
 ## The gate, concretely
 
@@ -156,8 +167,8 @@ happen to edit the same file, whoever merges second rebases onto the first.
 ```
 ID    STATUS  TASK                                                TARGET SLUGS / GOAL
 ----  ------  --------------------------------------------------  ------------------------------------
-T-A1  TODO    colour-channel Link                                 Color_Planes, Panels_Across
-                                                                  (10.5/10.4)
+T-A1  TODO    colour-channel Link (census-verified)               Panels_Across, Slide_In, Loop,
+                                                                  Heart (NOT Color_Planes — 3D fold)
 T-A2  TODO    Motion Path driver                                  layer follows a spatial path;
                                                                   unblocks path users
 T-A3  TODO    Gravity driver                                      constant accel; feeds particle +
@@ -167,8 +178,9 @@ T-B2  TODO    Emitter SIM+render, MINIMAL     after: T-B1         spawn + advect
                                                                   (flat colour). Target: Diagonal x2
 T-B3  TODO    Emitter appearance-over-life    after: T-B2         colour/scale/opacity ramps ->
                                                                   Close_and_Open, Up-Over, Glide, Center
-T-C1  TODO    linear + radial colour gradient                     Slide_In, Loop, Heart
-T-C2  TODO    Slide_In endSec inflation fix   after: T-C1         exclude gradient-keyframe 3.0s
+T-C1  DROPPED linear/radial gradient generator                   census: NO built-in uses a gradient
+                                                                  FILL; Slide_In/Loop/Heart are S1
+                                                                  colour-Link (see S5). Off critical path.
 T-D1  TODO    linear working-space composite path                 flag-gated; overlay slugs first
 T-D2a TODO    Brightness/Colorize into linear after: T-D1         Colorize=1 users, Brightness>1
 T-D2b TODO    Tint into linear               after: T-D1          Tint, Veil
@@ -177,11 +189,12 @@ T-D2d TODO    HSV into linear                after: T-D1          Panels_Random,
 T-E1  TODO    framing anchor (proxy->content ray)                 Video_Wall f4 black, Clone_Spin
 T-E2  TODO    clone-tile wall render          after: T-E1         Video_Wall 14-tile grid
 T-F1  TODO    Smear appearance at mid-frames                      Movements/Smear (11.0)
-T-G1  TODO    Movements 3D-fold residuals                         Multi/Flip/Pinwheel/Swing
+T-G1  TODO    Movements 3D-fold + Color_Planes (census:           Multi/Flip/Pinwheel/Swing +
+              3D fold + 6x Channel Mixer, NOT colour-Link)        Color_Planes (10.5)
 ```
 Max concurrency today = the 9 rows with no `after:` (T-A1,A2,A3,B1,C1,D1,E1,F1,G1) run
 simultaneously. Once parents merge, the dependents fan out to MORE parallelism, not less:
-T-B1→T-B2→T-B3 (chain); T-D1 unblocks FOUR filter rows at once (T-D2a/b/c/d); T-C1→T-C2; T-E1→T-E2.
+T-B1→T-B2→T-B3 (chain); T-D1 unblocks FOUR filter rows at once (T-D2a/b/c/d); T-E1→T-E2. (T-C1 dropped.)
 Rightsizing note: rows are kept at "one independently gate-verifiable change" — parse-only stages
 (T-A2/B1) are NOT split further because a parser edit scores nothing on its own; big rendering rows
 (T-B2, T-D2) ARE split because each sub-row moves PSNR alone.
@@ -202,18 +215,30 @@ keyframe curves. The engine already evaluates Rig Behavior, Fade In/Fade Out, Ra
 Oscillate, Spin, Throw, and Sequence Replicator. Three driver families are **parsed but NOT
 evaluated**, so any channel they drive is silently frozen:
 - **Link** (`links.ts`) drives one object's channel from another's. Position/rotation/scale/
-  anchor/opacity work, but **colour-channel Links** (`Link 1/2/4 red|green|blue` — a source
-  colour piped into a shape/generator fill) are dropped. → Color_Planes (10.5), Panels_Across (10.4).
+  anchor/opacity work, but **colour-channel Links** are dropped. `fct census` PROVED which
+  slugs actually use them (the earlier premise was wrong on both counts):
+  - **Color_Planes does NOT use colour Links** — its 6 Links all drive `position.Z` /
+    rotation (`LinkZ`, `LinkXRot`, `LinkYRot`, `LinkZPos`), i.e. a 3D fold, and it colours
+    via 6× **Channel Mixer** filters. So Color_Planes belongs to the 3D-fold / colour-filter
+    bucket, not here. (10.5)
+  - **Panels_Across DOES** — 7 colour Links: `Link remap white`/`Link remap black` (→ a
+    **Colorize** filter's remap endpoints) + `Link fill color` (→ a shape fill, path
+    `./2/353/113/111`, `Apply Mode=2`). Filters: Bevel×7, Colorize×3. (10.4)
+  - **Slide_In DOES** — 6 colour Links `Link 1|4 red|green|blue` piping a source colour into
+    replicator-cell fills. (Its "Gradient" node is a paint-stroke Emitter, NOT a fill — see S5.)
+  Colour Links target a filter/generator colour folder (never the `100` transform folder);
+  `fct census` classifies each Link's channel from its `affectingChannel` path.
 - **Motion Path** (fID skipped in `parser/index.ts`) — a spatial path a layer follows. Unhandled.
 - **Gravity** — constant downward acceleration on a layer/particle. Parsed, never applied.
 **Status:** PARTIAL. Slugs gated (16): Panels_Across, Color_Planes, Lens_Flare, Switch,
 Center_Reveal, Push, Reflection, Zoom, 360°_Wipe, Drop_In, Clothesline, Earthquake, Scale,
 3D_Rectangle, 360°_Reveal_Wipe, 360°_Circle_Wipe (many already ≥15 — the low ones are the target).
-**Next step:** implement **colour-channel Link** first (unblocks the two lowest: Color_Planes,
-Panels_Across), then Motion Path, then Gravity — each an additive evaluator handler, independently
-gate-verifiable.
+**Next step:** implement **colour-channel Link** first, targeting **Panels_Across** and
+**Slide_In** (census-confirmed colour-Link users), then Motion Path, then Gravity — each an
+additive evaluator handler, independently gate-verifiable. NOTE: Color_Planes is a 3D-fold +
+Channel-Mixer slug, so do not expect colour-Link work to move it.
 **DoD:** each driver evaluated; gate 0 regressions; the gated low slugs improve; baseline re-frozen.
-**Verify:** `fct regress engine` + `fct score Movements__Color_Planes Stylized__Panels_Across --full`.
+**Verify:** `fct census` first, then `fct regress engine` + `fct score Stylized__Panels_Across Stylized__Slide_In --full`.
 
 ### S2. Linear working-space compositing  [TODO]  (tasks T-D1/D2 · BIG, highest ceiling)
 **What it is (FCP):** `oz_render.mm` runs the WHOLE filter+blend+composite chain in
@@ -258,17 +283,24 @@ Slide, Leaves.
 Only after S2 revisit Tint's shadow-leg transfer + Bloom's Helium pipeline as isolated decodes.
 **DoD/Verify:** subsumed by S2's gate.
 
-### S5. Gradient generator  [TODO]  (tasks T-C1/C2 · small, self-contained)
-**What it is (FCP):** a linear/radial colour Gradient generator fills a layer (e.g. Slide_In's
-full-frame cyan gradient). `renderGaussianGradient` exists but linear/radial/colour gradients
-return null, so the layer renders empty.
-**Status:** NOT DONE (returns null). Slide_In additionally has an inflated endSec (=3.0s from the
-gradient's keyframes) that must be excluded — a coupled two-part fix.
-**Slugs gated (3):** Slide_In (10.2), Loop (12.9), Heart (13.5).
-**Next step:** implement linear + radial colour gradient in `filters/gradient.ts`; then fix
-Slide_In's endSec inflation. Bounded, low risk.
-**DoD:** the 3 slugs improve; 0 regressions.
-**Verify:** `fct regress engine` + `fct score Stylized__Slide_In --full`.
+### S5. Gradient generator  [PREMISE CORRECTED — mostly folds into S1]  (task T-C1 · small)
+**What it is (FCP):** a linear/radial colour Gradient GENERATOR fills a layer. `renderGradient`
+(linear/radial with colour stops) exists in `filters/gradient.ts` but is not wired to any parsed
+ImageSource; `renderGaussianGradient` is wired and works.
+**⚠️ Premise corrected by `fct census` (2026-07-13):** the 3 slugs this item claimed were NONE of
+them a linear/radial gradient FILL:
+  - **Slide_In** — its "Gradient" node is a **PAINT STROKE** (Brush Profile + Emitter + Cell copy),
+    not a fill; plus 6 **colour-channel Links** (`Link 1|4 rgb`). → S1 colour-Link + paint-stroke.
+  - **Loop** — NO gradient generator. 8 **colour Links** + 1 PAEColorize filter. → pure S1.
+  - **Heart** — NO gradient generator. 6 **colour Links** + 1 GaussianBlur. → pure S1.
+So S5 as originally framed gates ~0 slugs. The real shared cause across all three is
+**colour-channel Link evaluation (S1/T-A1)**, not a gradient generator.
+**Status:** the linear/radial gradient generator is still UNWIRED, but no current built-in needs
+it — do NOT invent work here. If a future slug genuinely uses a Gradient FILL (census shows a
+`Generator` node with `[fill]`, not `[PAINT-STROKE]`), wire `renderGradient` then.
+**Next step:** none standalone — subsumed by S1 colour-Link (T-A1). Keep the generator code; drop
+the T-C1/T-C2 gradient tasks from the critical path (they were premised on a fill that isn't there).
+**DoD/Verify:** covered by S1's gate on Panels_Across/Slide_In/Loop/Heart.
 
 ### S6. Framing-camera / clone-grid geometry  [TODO]  (tasks T-E1/E2 · deepest geometry)
 **What it is (FCP):** `OZScene::computeFraming` (decoded in `evaluator/framing.ts`) poses a camera
@@ -335,6 +367,27 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  Baked in a DECODE-FIRST forcing function to stop the debug-spiral pattern.
+              Added `fct census <slug>` (fct/census.py, wired in cli.py): reads a slug's REAL
+              scene graph from its .motr — factory-resolved node types, <filter> plugins,
+              <behavior> Link channels (decoded from affectingChannel paths, transform vs COLOUR),
+              generators (paint-stroke vs fill), emitter/cell counts. No render, no FCP, ~1s.
+              New RULE 8: run census + verify the premise BEFORE writing engine code; algorithm
+              facts come from the binary/.motr, GUI GT only confirms/refutes. Census immediately
+              CORRECTED two wrong ROADMAP premises: (1) Color_Planes is NOT a colour-Link slug —
+              its Links drive position.Z/rotation (3D fold) + 6x Channel Mixer (moved to T-G1);
+              (2) S5 "gradient generator" gates ZERO built-ins — Slide_In's "Gradient" is a
+              paint-stroke Emitter, and Slide_In/Loop/Heart are all colour-channel-Link slugs
+              (folded into S1/T-A1). Dropped T-C1/T-C2. Gate 0 regressions (toolkit-only).
+- 2026-07-13  BAKED IN "decode-first" as rule 8 + shipped `fct census` (fct/census.py, 147 lines):
+              a pure-XML scene-graph fact-finder (factory-table-resolved node types, <filter>
+              plugins, <behavior> Link channels decoded from the affectingChannel path, emitters,
+              paint-stroke vs fill generators). Built because TWO ticks burned effort on ROADMAP
+              premises the .motr contradicted. census then CORRECTED those premises: Color_Planes
+              is a 3D-fold (position.Z/rotation Links) + 6x Channel Mixer, NOT colour-Link (moved
+              to T-G1); Panels_Across/Slide_In/Loop/Heart ARE the real colour-Link users (T-A1);
+              S5 "gradient generator" DROPPED — no built-in uses a gradient FILL (Slide_In's
+              "Gradient" is a paint-stroke Emitter; Loop/Heart are colour-Link). Gate 0/0.
 - 2026-07-13  Removed the file-OWNERSHIP concept from the parallel model (it confused agents
               last time more than it helped). Agents now edit WHATEVER files they need and rely on
               git rebase to resolve collisions at merge time; the self-merge contract's BUILD step
