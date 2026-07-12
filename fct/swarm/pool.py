@@ -241,6 +241,19 @@ def cmd_run(size, once):
                     print(f"[pool] slot {slot} ({st['slots'][str(slot)]['task']}) exited", flush=True)
                     clear_slot(slot)
         elig, done = eligible_tasks()
+        # Reap live slots whose task is already DONE (merged to origin/main by another
+        # agent or a prior run, or marked DONE/DROPPED in the ROADMAP). Continuing to
+        # run a finished task just burns a slot — kill it so the slot refills with real
+        # work. This closes the completion-detection RACE: a task can be relaunched in
+        # the window between an agent finishing and its result landing on origin; once
+        # the result lands, `done` catches it and we stop the redundant runner.
+        for slot in list(active.keys()):
+            tid = active.get(slot)
+            if tid and tid in done:
+                print(f"[pool] slot {slot} ({tid}) is DONE on origin — reaping redundant runner", flush=True)
+                subprocess.run([TMUX, "kill-session", "-t", session_name(slot)], capture_output=True)
+                clear_slot(slot)
+                del active[slot]
         in_flight = set(v for v in active.values() if v)
         queue = [t for t in elig if t["id"] not in in_flight]
 
