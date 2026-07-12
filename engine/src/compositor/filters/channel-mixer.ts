@@ -78,7 +78,7 @@
  * Legacy TS matrix form (row-major 4x4 + offsets) — see channelMixerFilter:
  *   outChannel = sum(inChannels * row) + offset,  then mix with original.
  */
-import { luma601 } from '../blend.js';
+import { luma601, luma } from '../blend.js';
 import { registerFilter } from './registry.js';
 import { evaluateCurve } from '../../evaluator/curves.js';
 
@@ -212,7 +212,12 @@ export function colorizeRemapFilter(
   // stages lerp original->target, so they compose to a single lerp factor).
   const k = intensity * mix;
   for (let i = 0; i < src.length; i += 4) {
-    const lum = luma601(src[i], src[i + 1], src[i + 2]) / 255;
+    // DECODED: HgcColorize dots against slot4 = the Y row of
+    // colorMatrixFromDesiredRGBToYCbCr (PAEColorize @0x1b1f4). For HD that is the
+    // Rec.709 luma (0.2126/0.7152/0.0722), NOT Rec.601 — measured closer to headless
+    // (sepia mad 18.5->16.2). Residual vs FCP is the shared working-space transform
+    // (see docs/FILTER_RE_PHASE2.md consolidated finding), not the luma weight.
+    const lum = luma(src[i], src[i + 1], src[i + 2]) / 255;
     const rR = bR + lum * (wR - bR);
     const rG = bG + lum * (wG - bG);
     const rB = bB + lum * (wB - bB);

@@ -1,4 +1,21 @@
 {
+  "colorize": {
+    "uuid": "D995BBCF-F766-4950-89D5-7A4828CD9B6F", "pluginName": "PAEColorize", "min_psnr": 26,
+    "note": "DECODED: HgcColorize luma = dot(rgb/alpha, hg_Params[4]) where slot4 = the Y row of colorMatrixFromDesiredRGBToYCbCr (verbatim, PAEColorize @0x1b1f4) = Rec.709 (0.2126,0.7152,0.0722) for HD. TS switched luma601->luma709 (decode-justified, gate-neutral on all 9 users, sepia mad 18.5->16.2). Intensity=0 = exact identity. Residual vs headless at Intensity=1 is the shared working-space/tone-map transform (Tint/HSV-hue/Brightness>1 consolidated finding), NOT the luma weight — hence min_psnr 26 (sepia lands ~26).",
+    "cases": [
+      {"label": "sepia int1", "params": [{"name":"Remap Black To","id":1,"children":[{"name":"Red","id":1,"value":0.1},{"name":"Green","id":2,"value":0.05},{"name":"Blue","id":3,"value":0.0}]},{"name":"Remap White To","id":2,"children":[{"name":"Red","id":1,"value":1.0},{"name":"Green","id":2,"value":0.9},{"name":"Blue","id":3,"value":0.6}]},{"name":"Intensity","id":3,"value":1.0}]},
+      {"label": "sepia int0.5", "params": [{"name":"Remap Black To","id":1,"children":[{"name":"Red","id":1,"value":0.1},{"name":"Green","id":2,"value":0.05},{"name":"Blue","id":3,"value":0.0}]},{"name":"Remap White To","id":2,"children":[{"name":"Red","id":1,"value":1.0},{"name":"Green","id":2,"value":0.9},{"name":"Blue","id":3,"value":0.6}]},{"name":"Intensity","id":3,"value":0.5}]},
+      {"label": "intensity 0 (identity)", "identity": true, "params": [{"name":"Remap Black To","id":1,"children":[{"name":"Red","id":1,"value":0.1},{"name":"Green","id":2,"value":0.05},{"name":"Blue","id":3,"value":0.0}]},{"name":"Remap White To","id":2,"children":[{"name":"Red","id":1,"value":1.0},{"name":"Green","id":2,"value":0.9},{"name":"Blue","id":3,"value":0.6}]},{"name":"Intensity","id":3,"value":0.0}]}
+    ]
+  },
+  "fill": {
+    "uuid": "47D6B897-5749-4A6A-B93B-00FABCF72B25", "pluginName": "Fill", "min_psnr": 40,
+    "note": "Fill With(id1) 0=Color; Color(id2 nested RGB); Mix(10001) lerps input->fill. Verified prior: Mix=1 psnr 55, Mix=0.5 psnr 45.",
+    "cases": [
+      {"label": "red Mix1", "params": [{"name":"Fill With","id":1,"value":0},{"name":"Color","id":2,"children":[{"name":"Red","id":1,"value":1.0},{"name":"Green","id":2,"value":0.0},{"name":"Blue","id":3,"value":0.0}]},{"name":"Mix","id":10001,"value":1.0}]},
+      {"label": "blue Mix0.5", "params": [{"name":"Fill With","id":1,"value":0},{"name":"Color","id":2,"children":[{"name":"Red","id":1,"value":0.0},{"name":"Green","id":2,"value":0.0},{"name":"Blue","id":3,"value":1.0}]},{"name":"Mix","id":10001,"value":0.5}]}
+    ]
+  },
   "hsv": {
     "uuid": "D23AF030-B0BF-44DF-B622-7C9EA0DF5744", "pluginName": "PAEHSVAdjust", "min_psnr": 30,
     "note": "NEUTRALS (verified vs headless): Hue=0 (turns), Saturation=0 (0-centered delta, -1=grayscale), Value=1 (multiplier, applied squared). Identity=(0,0,1). Saturation/Value/grayscale MATCH (39-48 dB). HUE ROTATION gap (psnr 15 @0.25turn) is a COLOR-SPACE issue, NOT filter math: a byte-faithful port of the verbatim HgcHSVAdjust shader gives the SAME mad ~37 vs headless (linear-light ~32), so the divergence is FCP's working-space transform around the shader (shared with Tint/Brightness>1), not the HSV reconstruction. All 5 shipping HSV transitions use Hue=0 -> unexercised. Documented, not fit.",
