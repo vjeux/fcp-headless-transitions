@@ -1,10 +1,10 @@
 {
   "glow": {
-    "uuid": "73F69C87-7226-4F7A-81F2-F5E378501423", "pluginName": "PAEGlow", "ceiling": true, "min_psnr": 26,
-    "note": "MASK DECODED 2026-07-12 (from -[PAEGlow canThrowRenderOutput] @0xceb54): the HgcGlow mask alpha is a SOFT linear ramp a=clamp((luma709-Threshold)/Softness + 0.5, 0, 1) with luma from colorMatrixFromDesiredRGBToYCbCr Y-row (Rec.709); the bias in hg_Params[0].w = -(Threshold-0.5*Softness)/Softness and the luma scale = 1/Softness (FLT_MAX if Softness==0 => hard step). glow.ts now reads Softness (id4, default 0.2), uses Rec.709 luma, and extracts rgb*a (soft) instead of the old hard luma601>threshold keep. Verified: isolated sweep radius30/thr0.5/soft0.5 17.96->20.31, radius60/thr0.3 15.96->16.48; GUI-GT gate green (Lights__Bloom unchanged). Residual (still [gap]) is the COMBINE model (P2-glow-4: HgcGlowCombineFx over-composite + per-channel ceiling), not the mask.",
+    "uuid": "73F69C87-7226-4F7A-81F2-F5E378501423", "pluginName": "PAEGlow", "min_psnr": 32,
+    "note": "FULLY DECODED + MATCHED 2026-07-12. MASK (from -[PAEGlow canThrowRenderOutput] @0xceb54): HgcGlow alpha is a SOFT linear ramp a=clamp((luma709-Threshold)/Softness + 0.5, 0, 1), luma = colorMatrixFromDesiredRGBToYCbCr Y-row (Rec.709), bias in hg_Params[0].w = -(Threshold-0.5*Softness)/Softness, luma scale = 1/Softness (FLT_MAX if Softness==0 => hard step); rgb premultiplied by a. COMBINE (HgcGlowCombineFx, verbatim): glowA=clamp(glow.a*gain,0,1) with gain=Opacity(hg_Params[0].x); glowRGB=max(min(glow.rgb*gain, ceiling),0), ceiling = 1.0 or FLT_MAX per the 'allow>1' bool (both cap at 255 in 8-bit); out.rgb=(1-glowA)*orig+glowRGB. glow.ts reads Softness (id4, default 0.2) and applies the exact mask+combine (replaced the old hard-cutoff + screen/additive approximation). Verified vs headless: radius30/thr0.5/soft0.5 17.96->41.66, radius60/thr0.3 15.96->36.92. GUI-GT gate GREEN (Lights__Bloom, the only PAEGlow user, unchanged).",
     "cases": [
-      {"label": "radius30 thr0.5 op1 [gap]", "gap": true, "params": [{"name":"Radius","id":1,"value":30},{"name":"Opacity","id":2,"value":1.0},{"name":"Threshold","id":3,"value":0.5},{"name":"Softness","id":4,"value":0.5}]},
-      {"label": "radius60 thr0.3 [gap]", "gap": true, "params": [{"name":"Radius","id":1,"value":60},{"name":"Opacity","id":2,"value":1.0},{"name":"Threshold","id":3,"value":0.3},{"name":"Softness","id":4,"value":0.5}]}
+      {"label": "radius30 thr0.5 op1", "params": [{"name":"Radius","id":1,"value":30},{"name":"Opacity","id":2,"value":1.0},{"name":"Threshold","id":3,"value":0.5},{"name":"Softness","id":4,"value":0.5}]},
+      {"label": "radius60 thr0.3", "params": [{"name":"Radius","id":1,"value":60},{"name":"Opacity","id":2,"value":1.0},{"name":"Threshold","id":3,"value":0.3},{"name":"Softness","id":4,"value":0.5}]}
     ]
   },
   "bloom": {

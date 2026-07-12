@@ -149,27 +149,28 @@ export function glowFilter(input: ImageData, params: GlowParams): ImageData {
   const brightImg = new ImageData(brightData, width, height);
   const blurred = decimatedGaussianBlur(brightImg, radius);
 
-  // Step 3: Blend the blurred glow back onto the original.
-  // For amount <= 1: screen blend (gentle). For amount > 1: additive accumulation
-  // (matches FCP's bloom overexposure that blows highlights toward white).
-  // PERF: the per-channel branch is hoisted out of the pixel loop (the additive vs
-  // screen decision is loop-invariant) and the c-loop is unrolled. Math is identical.
+  // Step 3: Composite the blurred glow over the original — VERBATIM HgcGlowCombineFx
+  // (DECODED 2026-07-12, extract_shader.py HgcGlowCombineFx + -[PAEGlow
+  // canThrowRenderOutput] @0xcec84):
+  //   glowA   = clamp(glow.a · gain, 0, 1)            // gain = hg_Params[0].x = Opacity
+  //   glowRGB = max(min(glow.rgb · gain, ceiling), 0) // ceiling = hg_Params[1].xyz
+  //   out.rgb = (1 − glowA) · orig.rgb + glowRGB      // over-composite (glow premult)
+  // The blurred glow (bdata) is ALREADY premultiplied (Step-1 mask premultiplied rgb
+  // by a, and the blur preserves premult), so glow.rgb is the premultiplied colour.
+  // gain = `amount` (Opacity/Brightness). ceiling is 1.0 (byte 255) when the plugin's
+  // "allow >1" bool is off, else FLT_MAX (unclamped); in 8-bit output both cap at 255,
+  // so a straight Uint8ClampedArray store realises the ceiling. This is ONE formula for
+  // all gains — it replaces the old screen(amount<=1)/additive(amount>1) approximation.
   const out = new Uint8ClampedArray(width * height * 4);
   const bdata = blurred.data;
-  if (amount > 1) {
-    for (let i = 0; i < n; i += 4) {
-      out[i]     = Math.min(255, Math.round(src[i]     + bdata[i]     * amount));
-      out[i + 1] = Math.min(255, Math.round(src[i + 1] + bdata[i + 1] * amount));
-      out[i + 2] = Math.min(255, Math.round(src[i + 2] + bdata[i + 2] * amount));
-      out[i + 3] = src[i + 3];
-    }
-  } else {
-    for (let i = 0; i < n; i += 4) {
-      let base = src[i];       let glow = bdata[i]     * amount; out[i]     = Math.min(255, Math.round(base + glow - (base * glow) / 255));
-      base = src[i + 1];       glow = bdata[i + 1]     * amount; out[i + 1] = Math.min(255, Math.round(base + glow - (base * glow) / 255));
-      base = src[i + 2];       glow = bdata[i + 2]     * amount; out[i + 2] = Math.min(255, Math.round(base + glow - (base * glow) / 255));
-      out[i + 3] = src[i + 3];
-    }
+  for (let i = 0; i < n; i += 4) {
+    let glowA = (bdata[i + 3] / 255) * amount;
+    if (glowA > 1) glowA = 1; else if (glowA < 0) glowA = 0;
+    const keep = 1 - glowA;
+    out[i]     = src[i]     * keep + bdata[i]     * amount;
+    out[i + 1] = src[i + 1] * keep + bdata[i + 1] * amount;
+    out[i + 2] = src[i + 2] * keep + bdata[i + 2] * amount;
+    out[i + 3] = src[i + 3];
   }
 
   return new ImageData(out, width, height);
