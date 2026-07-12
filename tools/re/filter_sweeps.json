@@ -1,4 +1,13 @@
 {
+  "levels": {
+    "uuid": "2B221FA1-08A2-416E-998C-D7559E5509B5", "pluginName": "PAELevels", "min_psnr": 30,
+    "note": "Gamma nested Histogram(1)>RGB(2)>Gamma(5). GUI-GT-verified the net map is pow(x, 1/gamma). Gamma=1 identity.",
+    "cases": [
+      {"label": "gamma 1 (identity)", "identity": true, "params": [{"name":"Histogram","id":1,"children":[{"name":"RGB","id":2,"children":[{"name":"Gamma","id":5,"value":1.0}]}]}]},
+      {"label": "gamma 1.73", "params": [{"name":"Histogram","id":1,"children":[{"name":"RGB","id":2,"children":[{"name":"Gamma","id":5,"value":1.7264}]}]}]},
+      {"label": "gamma 0.5", "params": [{"name":"Histogram","id":1,"children":[{"name":"RGB","id":2,"children":[{"name":"Gamma","id":5,"value":0.5}]}]}]}
+    ]
+  },
   "colorize": {
     "uuid": "D995BBCF-F766-4950-89D5-7A4828CD9B6F", "pluginName": "PAEColorize", "min_psnr": 26,
     "note": "DECODED: HgcColorize luma = dot(rgb/alpha, hg_Params[4]) where slot4 = the Y row of colorMatrixFromDesiredRGBToYCbCr (verbatim, PAEColorize @0x1b1f4) = Rec.709 (0.2126,0.7152,0.0722) for HD. TS switched luma601->luma709 (decode-justified, gate-neutral on all 9 users, sepia mad 18.5->16.2). Intensity=0 = exact identity. Residual vs headless at Intensity=1 is the shared working-space/tone-map transform (Tint/HSV-hue/Brightness>1 consolidated finding), NOT the luma weight — hence min_psnr 26 (sepia lands ~26).",
