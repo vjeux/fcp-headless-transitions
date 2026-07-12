@@ -171,22 +171,30 @@ def launch(slot, task):
     frames = os.path.join(ROOT, "frames", agent_id)
     lock = os.path.join(ROOT, "locks", f"{agent_id}.lock")
 
-    # 3. The command the agent runs: CC headless, reading the brief as its prompt.
-    #    stdin from /dev/null (cc rule); unset navi agent-role vars; pin render jobs.
-    inner = (
-        f"{BREW_PATH_EXPORT}"
-        f"cd {wt} && "
-        f"export FCT_FRAMES_DIR={frames} FCT_LOCK={lock} FCT_JOBS=2 && "
-        f"env -u META_AGENT_ROLE -u AGENT_ROLE -u CLAUDECODE "
-        f"claude -p --model 'claude-opus-4-7' --dangerously-skip-permissions "
-        f"\"$(cat {brief_path})\" < /dev/null 2>&1 | tee {log}; "
-        f"echo SWARM_SLOT_EXIT $? >> {log}"
-    )
-    # Kill any stale session in this slot, then start fresh.
+    # 3. Write a standalone runner SCRIPT (no nested shell quoting — passing the 3KB
+    #    brief through tmux `bash -lc "...$(cat)..."` broke on the brief's own
+    #    backticks/$/quotes and the agent died at startup). tmux runs this file
+    #    directly. The brief is read from its file inside the script's own clean shell.
+    runner = os.path.join(ROOT, "worktrees", agent_id, ".swarm_run.sh")
+    with open(runner, "w") as f:
+        f.write(
+            "#!/usr/bin/env bash\n"
+            'export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"\n'
+            f"cd {wt}\n"
+            f"export FCT_FRAMES_DIR={frames} FCT_LOCK={lock} FCT_JOBS=2\n"
+            f"export _FCT_REEXEC=1\n"  # avoid the DYLD re-exec dance for non-headless
+            "env -u META_AGENT_ROLE -u AGENT_ROLE -u CLAUDECODE \\\n"
+            "  claude -p --model 'claude-opus-4-7' --dangerously-skip-permissions \\\n"
+            f'  "$(cat {brief_path})" < /dev/null 2>&1 | tee {log}\n'
+            f"echo SWARM_SLOT_EXIT ${{PIPESTATUS[0]}} >> {log}\n"
+        )
+    os.chmod(runner, 0o755)
+
+    # Kill any stale session in this slot, then start fresh running the script file.
     subprocess.run([TMUX, "kill-session", "-t", session_name(slot)],
                    capture_output=True)
-    subprocess.run([TMUX, "new-session", "-d", "-s", session_name(slot), "bash", "-lc", inner],
-                   check=True)
+    subprocess.run([TMUX, "new-session", "-d", "-s", session_name(slot),
+                    "bash", runner], check=True)
     save_slot(slot, agent_id, log, wt)
     print(f"[pool] slot {slot} -> {agent_id}  (log: {log})", flush=True)
 
