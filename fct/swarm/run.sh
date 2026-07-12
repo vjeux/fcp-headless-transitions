@@ -15,12 +15,13 @@ mkdir -p "$HOME/fct-swarm/logs"
 VENV_PY="$(python3 -c 'import sys;print(sys.executable)')"
 
 # Pool scheduler (loops, keeps SIZE agents alive).
+# Pool scheduler (loops, keeps SIZE agents alive).
 "$TMUX" new-session -d -s fct-swarm-pool \
-  "cd $MAIN && python3 -m fct.swarm.pool run --size $SIZE 2>&1 | tee -a $HOME/fct-swarm/logs/pool.log"
+  "export PATH=/opt/homebrew/bin:/usr/local/bin:\$PATH; cd $MAIN && python3 -m fct.swarm.pool run --size $SIZE 2>&1 | tee -a $HOME/fct-swarm/logs/pool.log"
 
 # Reflection loop (every 30 min).
 "$TMUX" new-session -d -s fct-swarm-reflectloop \
-  "cd $MAIN && python3 -m fct.swarm.reflect loop 2>&1 | tee -a $HOME/fct-swarm/logs/reflectloop.log"
+  "export PATH=/opt/homebrew/bin:/usr/local/bin:\$PATH; cd $MAIN && python3 -m fct.swarm.reflect loop 2>&1 | tee -a $HOME/fct-swarm/logs/reflectloop.log"
 
 echo "swarm launched: pool (size $SIZE) + reflection loop."
 echo "  status:  python3 -m fct.swarm.pool status"
