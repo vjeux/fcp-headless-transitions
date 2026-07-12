@@ -118,17 +118,24 @@ const stillCache = new Map<string, ImageData | null>();
  *
  * VIDEO TIME MAPPING. The compositor threads the *un-wrapped* scene time to the
  * resolver (monotonic 0 → transition duration; see index.ts mediaTime), which for
- * the Objects/Lights .mov clips matches the clip's own duration. Final Cut Pro
- * plays these overlay/matte clips so that transition progress 0 = the clip's LAST
- * frame and progress 1 = the clip's FIRST frame (the veil/leaves "un-fall" as the
- * reveal completes). Passing `reverseVideo: true` (the default for these templates)
- * maps `clipTime = duration - timeSec`, reproducing that. Still images ignore time.
+ * the Objects/Lights .mov clips matches the clip's own duration. FCP plays these
+ * overlay/matte clips FORWARD — transition progress 0 = the clip's FIRST frame,
+ * progress 1 = its LAST — so `clipTime = timeSec` directly.
+ *
+ * (History: an earlier assumption that these "un-fall" — progress 0 = clip LAST
+ * frame — set `reverse` true by default. That was measured WRONG against the GUI
+ * GT: forward playback scores Objects/Veil 9.51→15.86 (+6.35), Objects/Leaves
+ * 12.42→16.56 (+4.14), Objects/Curtains 14.15→14.96 (+0.81), and is gate-neutral on
+ * the retime-driven overlays (Light Noise −0.06, Static −0.16, Light Sweep −0.11,
+ * all ≪ the 0.30 tol). The Veil - Wipe Matte's own clip carries `Reverse=0`,
+ * confirming forward. The `reverseVideo` opt is kept for callers that truly need a
+ * reversed clip, but the DEFAULT is now forward.) Still images ignore time.
  */
 export function makeMediaResolver(
   motrPath: string,
   opts: { reverseVideo?: boolean } = {}
 ): (url: string, timeSec?: number, absolute?: boolean) => ImageData | null {
-  const reverse = opts.reverseVideo !== false; // default true
+  const reverse = opts.reverseVideo === true; // default FORWARD (measured better vs GUI GT)
   const motrDir = path.dirname(motrPath);
   return (url: string, timeSec?: number, absolute?: boolean): ImageData | null => {
     if (!url) return null;
