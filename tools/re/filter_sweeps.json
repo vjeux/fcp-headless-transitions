@@ -1,4 +1,23 @@
 {
+  "hsv": {
+    "uuid": "D23AF030-B0BF-44DF-B622-7C9EA0DF5744", "pluginName": "PAEHSVAdjust", "min_psnr": 30,
+    "note": "NEUTRALS (verified vs headless): Hue=0 (turns), Saturation=0 (0-centered delta, -1=grayscale), Value=1 (multiplier, applied squared). Identity=(0,0,1). Saturation/Value/grayscale MATCH (39-48 dB). HUE ROTATION DIVERGES (psnr 15 @0.25turn): HgcHSVAdjust extracts hue via the max/min hexagon then hue_final=sector/6+Hue and reconstructs, but the TS rgbToHsv/hsvToRgb reconstruction differs from FCP's sector-select math (r5/r6 selects) — a color-reconstruction mismatch, not the neutral. ALL 5 shipping HSV transitions use Hue=0, so this is an unexercised-input gap; documented, not fit.",
+    "cases": [
+      {"label": "identity (0,0,1)", "params": [{"name":"Hue","id":1,"value":0},{"name":"Saturation","id":2,"value":0},{"name":"Value","id":3,"value":1}]},
+      {"label": "desaturate -0.5", "params": [{"name":"Hue","id":1,"value":0},{"name":"Saturation","id":2,"value":-0.5},{"name":"Value","id":3,"value":1}]},
+      {"label": "grayscale -1", "params": [{"name":"Hue","id":1,"value":0},{"name":"Saturation","id":2,"value":-1},{"name":"Value","id":3,"value":1}]},
+      {"label": "value 0.5", "params": [{"name":"Hue","id":1,"value":0},{"name":"Saturation","id":2,"value":0},{"name":"Value","id":3,"value":0.5}]},
+      {"label": "hue 0.25turn", "params": [{"name":"Hue","id":1,"value":0.25},{"name":"Saturation","id":2,"value":0},{"name":"Value","id":3,"value":1}]}
+    ]
+  },
+  "tint": {
+    "uuid": "717D6E01-83F4-4A4B-AF92-42AABA4B176C", "pluginName": "TintFx", "ceiling": true, "min_psnr": 24,
+    "note": "KNOWN CEILING [P2-TINT1]: HgcTint is a HARD-LIGHT blend of luma vs tint about 0.5, mix'd by Intensity. The verbatim hard-light rewrite MATCHES the shape but REGRESSED the GUI gate (the sRGB-vs-working color space for the hard-light legs is unpinned) so it was reverted; the shipped tintFilter is the simpler luma*color lerp. All 4 users default Intensity. Fixing needs the color-space pinned first. Tracked, not fit.",
+    "cases": [
+      {"label": "red tint int1", "params": [{"name":"Color","id":1,"children":[{"name":"Red","id":1,"value":1.0},{"name":"Green","id":2,"value":0.0},{"name":"Blue","id":3,"value":0.0}]},{"name":"Intensity","id":2,"value":1.0}]},
+      {"label": "sepia int0.5", "params": [{"name":"Color","id":1,"children":[{"name":"Red","id":1,"value":0.9},{"name":"Green","id":2,"value":0.7},{"name":"Blue","id":3,"value":0.4}]},{"name":"Intensity","id":2,"value":0.5}]}
+    ]
+  },
   "brightness": {
     "uuid": "2E4DBB0A-A950-4896-BC2D-A5B0CFF7FAC6", "pluginName": "PAEBrightness", "min_psnr": 32,
     "note": "PAEBrightness = HGColorMatrix diagonal (per-channel MULTIPLY), DECODED from -[PAEBrightness canThrowRenderOutput] @0xfcdd0 (setter@0x60 rows 0/1/2 = (b,0,0,0)/(0,b,0,0)/(0,0,b,0)). Darkening (b<1) matches headless as a plain sRGB multiply (PSNR 47). BRIGHTENING (b>1) DIVERGES (PSNR ~13): the headless transfer curve rolls off toward 255 (in50->149, in150->238 at b=1.5), which is neither an sRGB nor a linear-light multiply — it is the HGColorMatrix multiply composed with FCP's headless WORKING-SPACE encode/decode (a systemic color-pipeline issue shared by all filters, not a Brightness bug). No shipping transition brightens (all 27 users darken), so this is an unexercised-input ceiling; documented, not fit.",
