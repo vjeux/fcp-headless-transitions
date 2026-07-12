@@ -502,6 +502,10 @@ export function parseMotr(xmlText: string): MotrScene {
       // never interfere. Fires structurally on ANY Camera with a local-frame offset
       // (a generic timing primitive, not a per-transition path).
       let camNegOffsetSec = 0;
+      // Media-overlay local-frame re-anchor (screen/add/overlay/lighten media leaf
+      // with negative offset + retime) — mirrors the evaluator's curveTime shift so
+      // the animation window matches the render. See the Image branch below.
+      let mediaOverlayNegOffsetSec = 0;
       while (node && node.nodeType === 1) {
         if (node.tagName === 'parameter') {
           const nm = node.getAttribute('name') || '';
@@ -568,6 +572,48 @@ export function parseMotr(xmlText: string): MotrScene {
             };
             const offV = parseRT(offAttr);
             if (offAttr && offV < -1.0) camNegOffsetSec = offV;
+          } else if (factories.get(fid) === 'Image' && mediaOverlayNegOffsetSec === 0) {
+            // Media-overlay local-frame re-anchor: a screen/add/overlay/lighten-blended
+            // media (Image) leaf whose timeline offset is NEGATIVE anchors its Opacity/
+            // transform curves in the layer-local frame (local zero BEFORE scene zero).
+            // This mirrors the EXACT signature the evaluator already re-anchors
+            // (curveTime = timeSec − offset; evaluator/index.ts "blended (screen/add)
+            // VIDEO overlay" — a media leaf with a screen/add/overlay/lighten Blend Mode
+            // + a Retime curve). Lights/Light Noise's light-noise .mov has offset≈−0.734s
+            // and its Opacity-fade keys at LOCAL 2.27–2.47s → scene 1.53–1.74s; the walk
+            // read the RAW 2.469s (> the 1.733s span), landing the noise fade ~0.73s late
+            // in the progress→time map so the burst lingered past the crossfade. Match the
+            // evaluator: add the offset when the node carries a screen-family Blend Mode
+            // value + a Retime Value curve. Structural (blend+retime+negoff), not a name.
+            const tEl = firstChild(node as Element, 'timing');
+            const parseRT2 = (a: string | null | undefined): number => {
+              if (!a) return 0;
+              const p = a.trim().split(/\s+/);
+              const v = parseFloat(p[0]);
+              const s = p.length > 1 ? parseFloat(p[1]) : 1;
+              return s > 0 && isFinite(v) ? v / s : 0;
+            };
+            const offV = parseRT2(tEl?.getAttribute('offset'));
+            if (offV < -1e-3) {
+              // Confirm the screen/add-family blend (8=add, 9=lighten, 10=screen,
+              // 14=overlay) + a Retime Value curve anywhere under this node.
+              let blendVal: number | undefined;
+              let hasRetime = false;
+              const scan = (e: Element) => {
+                for (const p of directChildren(e, 'parameter')) {
+                  const nm = p.getAttribute('name');
+                  if (nm === 'Blend Mode' && blendVal === undefined) {
+                    const v = p.getAttribute('value') ?? p.getAttribute('default');
+                    if (v != null) blendVal = parseInt(v, 10);
+                  }
+                  if (nm === 'Retime Value') hasRetime = true;
+                  scan(p);
+                }
+              };
+              scan(node as Element);
+              const isScreenFamily = blendVal === 8 || blendVal === 9 || blendVal === 10 || blendVal === 14;
+              if (isScreenFamily && hasRetime) mediaOverlayNegOffsetSec = offV;
+            }
           }
         }
         node = node.parentNode;
@@ -610,9 +656,14 @@ export function parseMotr(xmlText: string): MotrScene {
           // 18.886 + (−17.584) = 1.301s). Applied to the raw key regardless of sign
           // since a camera dolly key is not "pre-roll" the way a shape's negative key is.
           const camShifted = camNegOffsetSec !== 0 ? rawSec + camNegOffsetSec : null;
+          // Screen/add media-overlay local frame → scene time: add its negative offset
+          // (Light Noise 2.469 + (−0.734) = 1.735s), mirroring the evaluator's shift.
+          const mediaShifted = mediaOverlayNegOffsetSec !== 0 ? rawSec + mediaOverlayNegOffsetSec : null;
           const sec = camShifted !== null
             ? camShifted
-            : (rawSec >= 0 ? rawSec + shiftAmt : rawSec);
+            : mediaShifted !== null
+              ? mediaShifted
+              : (rawSec >= 0 ? rawSec + shiftAmt : rawSec);
           if (sec > maxT) maxT = sec;
         }
       }
