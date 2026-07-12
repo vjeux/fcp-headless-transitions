@@ -185,7 +185,7 @@ T-B3  TODO    Emitter appearance-over-life    after: T-B2         colour/scale/o
 T-C1  DROPPED linear/radial gradient generator                   census: NO built-in uses a gradient
                                                                   FILL; Slide_In/Loop/Heart are S1
                                                                   colour-Link (see S5). Off critical path.
-T-D1  TODO    linear working-space composite path                 flag-gated; overlay slugs first
+T-D1  DONE    linear working-space composite path                 flag-gated; overlay slugs first
 T-D2a TODO    Brightness/Colorize into linear after: T-D1         Colorize=1 users, Brightness>1
 T-D2b TODO    Tint into linear               after: T-D1          Tint, Veil
 T-D2c TODO    Glow/Bloom into linear         after: T-D1          Bloom, 360°_Bloom
@@ -380,6 +380,29 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  T-D1 (S2) DONE — linear working-space compositing INFRASTRUCTURE landed
+              behind a flag that defaults OFF. Ships engine/src/compositor/linear.ts:
+              sRGB↔linear (IEC 61966-2-1) with 256-entry Float32 decode LUT — matches
+              CoreGraphics kCGColorSpaceExtendedLinearSRGB (decoded 2026-07-12 from
+              oz_render.mm OZ_WS_DEBUG); whole-image RGBA float ↔ u8 codecs
+              (decodeImageToLinear / encodeLinearToImage; alpha kept linear as
+              coverage per Extended-Linear-sRGB semantics); physically-correct
+              source-over blend in linear light — linearOverlay (ImageData pair)
+              and linearOverlayFloat (Float32 pair, so T-D2 can chain multiple ops
+              and encode ONCE — the model that avoids the per-filter re-encode drift
+              documented in levels.ts + brightness). Flag via {is,set}LinearComposite
+              Enabled(); getter is the only supported read so tests can flip it under
+              try/finally without touching the shipped OFF default. Unit tests
+              (engine/test/linear.test.ts, 15/15 pass) pin: sRGB→linear→sRGB u8-exact
+              round-trip; image-level round-trip pixel-exact; 50% grey @ 50%α on black
+              lands at the linear midpoint (~sRGB 188, NOT gamma-blended 94); float
+              blend matches ImageData blend to ≤1 code; flag defaults OFF. Overlay
+              slugs re-rendered + scored: Lower 9.04, Bloom 10.55, 360°_Bloom 11.58,
+              Panels_Across 10.38, Veil 16.04 — ALL byte-identical to pre-change (flag
+              OFF path proven neutral). Gate 0 regressions / 0 improvements; no-hardcode
+              6/6 green; tsc clean. Unblocks T-D2a/b/c/d (Brightness/Colorize, Tint,
+              Glow/Bloom, HSV migrations — each opts one filter family into the linear
+              chain and gate-verifies).
 - 2026-07-13  T-G1 (Color_Planes 3D fold) DONE — Movements/Color_Planes 10.47→11.35 (+0.88 dB),
               f23 (end frame) 8.49→14.21 (+5.72). ROOT CAUSE: the hidden Color Solid driver has
               `timing.offset=-68068/120000=-0.567s` while `in=0`, so its 6-KF Position.Z and
