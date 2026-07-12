@@ -1,4 +1,20 @@
 {
+  "glow": {
+    "uuid": "73F69C87-7226-4F7A-81F2-F5E378501423", "pluginName": "PAEGlow", "ceiling": true, "min_psnr": 26,
+    "note": "CEILING [P2-glow-3, documented in glow.ts]: FCP's HgcGlow mask is a SOFT clamp(dot(rgba, hg_Params[0])) with the threshold baked as a bias INSIDE hg_Params[0] and alpha participating; the TS uses a hard luma601>threshold binary mask + screen composite. Diverges away from the mask edge. Both Glow users (360/Bloom, Lights/Bloom) ramp Threshold and stay gate-green; the isolated sweep at fixed thresholds exposes the soft-vs-hard mask gap. Needs the hg_Params[0] bias decoded to match; tracked.",
+    "cases": [
+      {"label": "radius30 thr0.5 op1 [gap]", "gap": true, "params": [{"name":"Radius","id":1,"value":30},{"name":"Opacity","id":2,"value":1.0},{"name":"Threshold","id":3,"value":0.5},{"name":"Softness","id":4,"value":0.5}]},
+      {"label": "radius60 thr0.3 [gap]", "gap": true, "params": [{"name":"Radius","id":1,"value":60},{"name":"Opacity","id":2,"value":1.0},{"name":"Threshold","id":3,"value":0.3},{"name":"Softness","id":4,"value":0.5}]}
+    ]
+  },
+  "bloom": {
+    "uuid": "5599C557-CDC0-4112-B2C4-355E9A1A902E", "pluginName": "PAEBloom", "ceiling": true, "min_psnr": 24,
+    "note": "CEILING: HgcBloomThreshold is an affine scale+bias knockout using MAX-channel luma; the Brightness param (>1) feeds the SAME >1 gain that hits the documented working-space brighten curve (see FILTER_RE_PHASE2 consolidated finding). Both Bloom users ramp Threshold 100->3 and stay gate-green; the isolated sweep with Brightness=2 exposes the shared brighten-curve gap.",
+    "cases": [
+      {"label": "amt50 bright2 thr30 [gap]", "gap": true, "params": [{"name":"Amount","id":1,"value":50},{"name":"Brightness","id":2,"value":2.0},{"name":"Threshold","id":3,"value":30}]},
+      {"label": "amt80 bright1.5 thr10 [gap]", "gap": true, "params": [{"name":"Amount","id":1,"value":80},{"name":"Brightness","id":2,"value":1.5},{"name":"Threshold","id":3,"value":10}]}
+    ]
+  },
   "levels": {
     "uuid": "2B221FA1-08A2-416E-998C-D7559E5509B5", "pluginName": "PAELevels", "min_psnr": 30,
     "note": "Gamma nested Histogram(1)>RGB(2)>Gamma(5). GUI-GT-verified the net map is pow(x, 1/gamma). Gamma=1 identity.",
