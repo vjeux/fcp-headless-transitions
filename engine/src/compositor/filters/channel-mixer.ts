@@ -206,6 +206,21 @@ export function colorizeRemapFilter(
 ): ImageData {
   const src = input.data;
   const out = new Uint8ClampedArray(src.length);
+  // DECODED 2026-07-12: FCP renders in a LINEAR sRGB working space (see
+  // docs/FILTER_RE_PHASE2.md "RESOLVED"). On an ISOLATED probe, FCP sRGB->linear
+  // DECODES the "Remap Black/White To" colours before the luma lerp and emits the
+  // result to the linear framebuffer as-is, so the net gradient transfer is
+  //   out_code = 255·( s2l(black) + luma·(s2l(white) − s2l(black)) )   (luma from sRGB codes)
+  // and linearising the endpoints lands the ISOLATED sepia probe at mad 3.88 (vs 18.5
+  // with raw endpoints). HOWEVER shipping the endpoint-linearisation PER-FILTER
+  // REGRESSED the GUI-GT gate on the real Colorize transitions (Curtains −0.42,
+  // Stylized__Slide −0.76, Up-Over −0.52), because those STACK Colorize with other
+  // filters and FCP keeps the whole chain in linear + encodes ONCE at readback (a
+  // per-filter re-encode diverges — the same architecture limit that keeps
+  // Brightness>1 on the plain-multiply, see levels.ts). Per ROADMAP rule 1 (GUI GT is
+  // the one truth) the shipped code keeps the RAW sRGB endpoints: it is what the GUI
+  // GT prefers for the stacked chain. Closing the isolated gap needs a linear
+  // filter-chain (encode once after all filters), tracked as an engine-architecture item.
   const bR = black.r * 255, bG = black.g * 255, bB = black.b * 255;
   const wR = white.r * 255, wG = white.g * 255, wB = white.b * 255;
   // total blend from original toward the remapped color = intensity * mix (both
@@ -214,9 +229,9 @@ export function colorizeRemapFilter(
   for (let i = 0; i < src.length; i += 4) {
     // DECODED: HgcColorize dots against slot4 = the Y row of
     // colorMatrixFromDesiredRGBToYCbCr (PAEColorize @0x1b1f4). For HD that is the
-    // Rec.709 luma (0.2126/0.7152/0.0722), NOT Rec.601 — measured closer to headless
-    // (sepia mad 18.5->16.2). Residual vs FCP is the shared working-space transform
-    // (see docs/FILTER_RE_PHASE2.md consolidated finding), not the luma weight.
+    // Rec.709 luma (0.2126/0.7152/0.0722), NOT Rec.601 — measured closer to headless.
+    // Luma is computed on the sRGB code values (the shader unpremults but does NOT
+    // linearise the input before the dot).
     const lum = luma(src[i], src[i + 1], src[i + 2]) / 255;
     const rR = bR + lum * (wR - bR);
     const rG = bG + lum * (wG - bG);

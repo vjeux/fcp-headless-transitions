@@ -270,6 +270,26 @@ there is 1 user and it brightens; the plain-multiply is nonetheless what the GUI
     this SAME linear working space; their isolated shader ports should be re-checked in
     linear before calling them ceilings (see the per-filter sweep notes).
 
+### The per-filter-encode vs linear-CHAIN limit (why isolated matches can regress the gate)
+CONFIRMED on TWO filters now (Brightness>1 and Colorize@Intensity=1): the isolated
+headless probe is matched by a linear-working-space model (Brightness brighten
+srgbEncode(b·v/255) → 34 dB; Colorize endpoints sRGB→linear → sepia 33 dB), but SHIPPING
+that model PER-FILTER REGRESSES the GUI-GT gate on the real transitions that use it:
+  * Brightness brighten-encode: Curtains 14.31 → 13.85 (−0.46)
+  * Colorize endpoint-linearise: Curtains −0.42, Stylized__Slide −0.76, Up-Over −0.52
+ROOT CAUSE: FCP renders the ENTIRE node graph in the linear working space and
+sRGB-encodes ONCE at readback. The TS engine composites in 8-bit sRGB and runs each
+filter as a discrete sRGB→sRGB op, so any single filter that decode/encodes internally
+double-counts the transform when another filter (or the compositor) follows it. On the
+stacked transitions the GUI GT prefers the plain per-filter sRGB math, so BOTH filters
+ship the plain model (documented, decode retained in comments). The only correct way to
+close these isolated gaps is an engine-wide LINEAR FILTER CHAIN (decode once at the top
+of a layer's filter list, run all filters in linear, encode once at the bottom). That is
+an architecture change with blast radius across all 65 transitions; measured evidence
+(Curtains headless mean 11 vs GUI 30) shows it would move SOME slugs toward headless and
+AWAY from the GUI truth, so it is NOT an unambiguous win and must be gated slug-by-slug —
+tracked as a future engine item, deliberately NOT done as a per-filter hack.
+
 
 ## Sweep result (2026-07-12, updated): 37 PASS, 0 FAIL — GLOW now fully matched
 `tools/re/filter_sweep.py` (all): MATCHED vs headless FCP across their parameter spaces:
