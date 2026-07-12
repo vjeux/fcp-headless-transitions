@@ -29,12 +29,26 @@
  *     r0.xyz = r0.xyz * r0.www;                     // premultiply rgb by the new mask alpha
  *     out  = r0;
  *   hg_Params SLOT MAP:
- *     hg_Params[0] = luma/mask weights (float4, dotted against rgba). The .w term
- *                    means the source alpha also contributes to the mask, and
- *                    there is NO explicit threshold subtract here — the "cutoff"
- *                    is produced purely by clamp(dot,0,1): pixels whose weighted
- *                    sum <= 0 fall to 0. i.e. threshold is baked into hg_Params[0]
- *                    (a negative bias in one lane) upstream, not a separate step.
+ *     hg_Params[0] = (lumaScale·wR, lumaScale·wG, lumaScale·wB, bias) — DECODED
+ *                    2026-07-12 from -[PAEGlow canThrowRenderOutput] @0xceb54:
+ *                      d0 = Softness (parm 4),  d2 = Threshold (parm 3)
+ *                      lumaScale (d9) = 1 / Softness        (FLT_MAX if Softness==0)
+ *                      bias      (d8) = -(Threshold - 0.5·Softness) / Softness
+ *                                     = -(Threshold/Softness) + 0.5
+ *                      (wR,wG,wB) = the Y row of colorMatrixFromDesiredRGBToYCbCr
+ *                                   (Rec.709: 0.2126, 0.7152, 0.0722)
+ *                    So the mask alpha is the SOFT linear ramp
+ *                      a = clamp(luma709/Softness + bias, 0, 1)
+ *                        = clamp((luma709 − Threshold)/Softness + 0.5, 0, 1)
+ *                    i.e. a linear ramp centred at Threshold, full width = Softness
+ *                    (a==0 below Threshold−Softness/2, a==1 above Threshold+Softness/2).
+ *                    Softness==0 collapses it to a hard step (infinite slope). The
+ *                    source ALPHA also enters the dot via hg_Params[0].w · alpha, but
+ *                    for opaque input (alpha=1) that just adds the constant bias, which
+ *                    is already the .w term. RGB is then premultiplied by this alpha,
+ *                    so the extracted glow layer is rgb·a (partial for mid-bright px),
+ *                    NOT the old hard full-or-zero keep.
+
  *
  * ── PASS 2 — Gaussian blur (separate shader/pass; see gaussian-blur.ts) ───────
  *
@@ -67,19 +81,12 @@
  *     color, [3]=center, [4]=projection axis.  (transition-specific; not glow core.)
  *
  * ── PHASE-2 TODO (TS <-> FCP divergences) ─────────────────────────────────────
- *   TODO(P2-glow-1): MASK MATH. TS does a hard binary cutoff on Rec.601 luma
- *     (luma601 > thresholdByte ? keep : drop). FCP does a SOFT mask:
- *     alpha = clamp(dot(rgba, hg_Params[0]), 0, 1) and PREMULTIPLIES rgb by it.
- *     FCP therefore feathers the glow contribution near the threshold and lets
- *     source alpha participate; TS produces a hard-edged mask. Replace the
- *     binary test with the clamp(dot(...)) soft mask + premultiply.
- *   TODO(P2-glow-2): DOT INCLUDES ALPHA. hg_Params[0] is dotted against the full
- *     float4 (rgba), so alpha weights into the mask. TS uses rgb-only luma601.
- *   TODO(P2-glow-3): THRESHOLD REPRESENTATION. FCP has no explicit `threshold`
- *     scalar in HgcGlow — the cutoff is encoded as a bias term inside
- *     hg_Params[0]. Our `threshold` param must be converted into that weight
- *     vector (weights that make the dot cross zero at the desired luma), not
- *     compared directly.
+ *   [P2-glow-1..3 RESOLVED 2026-07-12] MASK MATH — decoded (see PASS 1 slot map):
+ *     the FCP mask is the SOFT linear ramp a = clamp((luma709 − Threshold)/Softness
+ *     + 0.5, 0, 1), and rgb is premultiplied by a. The `bias` in hg_Params[0].w IS
+ *     the threshold representation (−Threshold/Softness + 0.5); Softness is the ramp
+ *     width. Implemented below: step 1 reads Softness, uses Rec.709 luma, and
+ *     extracts rgb·a (soft) instead of the old hard luma601>threshold keep.
  *   TODO(P2-glow-4): COMBINE MODEL. TS blends with an explicit screen formula
  *     (base+glow-base*glow/255) for amount<=1 and pure additive for amount>1.
  *     FCP always uses HgcGlowCombineFx: over-composite gated by blurred alpha,
@@ -90,12 +97,15 @@
  *     BOTH glow.rgb and glow coverage (r1.w). TS `amount` scales only rgb.
  */
 import { decimatedGaussianBlur } from './gaussian-blur.js';
-import { luma601 } from '../blend.js';
+import { luma } from '../blend.js';
 
 export interface GlowParams {
   radius: number;
   threshold: number;
   amount: number;
+  /** Ramp width of the luma mask (FCP Softness param, id 4; default 0.2). A
+   *  value <= 0 collapses the mask to a hard step at Threshold. */
+  softness?: number;
 }
 
 /**
@@ -109,20 +119,28 @@ export function glowFilter(input: ImageData, params: GlowParams): ImageData {
   const height = input.height;
   const src = input.data;
 
-  // Step 1: Extract bright pixels (above threshold)
+  // Step 1: SOFT luma mask (DECODED HgcGlow, see header). The extracted glow
+  // layer is rgb·a where a = clamp((luma709 − Threshold)/Softness + 0.5, 0, 1) —
+  // a linear ramp centred at Threshold with full width Softness. Softness<=0 gives
+  // the old hard step. luma & threshold are in [0,1]; luma() returns [0,255] so we
+  // normalise. RGB is premultiplied by a (partial-brightness pixels feather in).
   const brightData = new Uint8ClampedArray(width * height * 4);
-  const thresholdByte = Math.round(threshold * 255);
-
+  const softness = params.softness ?? 0.2;
   const n = src.length;
   for (let i = 0; i < n; i += 4) {
-    // Compute luminance (perceived brightness)
-    const lum = luma601(src[i], src[i + 1], src[i + 2]);
-    if (lum > thresholdByte) {
-      // Keep this pixel for the glow
-      brightData[i] = src[i];
-      brightData[i + 1] = src[i + 1];
-      brightData[i + 2] = src[i + 2];
-      brightData[i + 3] = src[i + 3];
+    const lum = luma(src[i], src[i + 1], src[i + 2]) / 255; // Rec.709, normalised
+    let a: number;
+    if (softness > 0) {
+      a = (lum - threshold) / softness + 0.5;
+      a = a < 0 ? 0 : a > 1 ? 1 : a;
+    } else {
+      a = lum > threshold ? 1 : 0;
+    }
+    if (a > 0) {
+      brightData[i] = src[i] * a;
+      brightData[i + 1] = src[i + 1] * a;
+      brightData[i + 2] = src[i + 2] * a;
+      brightData[i + 3] = src[i + 3] * a;
     }
     // else: stays zero (transparent)
   }
@@ -169,8 +187,9 @@ registerFilter({
   apply(input, ctx) {
     const radius = ctx.param('Radius', 0);
     const threshold = ctx.param('Threshold', 0);
+    const softness = ctx.param('Softness', 0.2);
     const intensity = ctx.has('Opacity') ? ctx.param('Opacity', 1) : ctx.param('Intensity', 1);
-    if (radius > 0 && intensity > 0) return glowFilter(input, { radius, threshold, amount: intensity });
+    if (radius > 0 && intensity > 0) return glowFilter(input, { radius, threshold, amount: intensity, softness });
     return input;
   },
 });
@@ -218,7 +237,11 @@ registerFilter({
     const brightness = ctx.param('Brightness', 1);
     const threshold = ctx.param('Threshold', 0);
     if (amount > 0 && brightness > 0) {
-      return glowFilter(input, { radius: amount, threshold: threshold / 100, amount: brightness / 100 });
+      // Bloom's real pre-blur mask (HgcBloomThreshold) is an affine max-channel
+      // knockout, NOT the glow luma ramp — pass softness:0 so glowFilter keeps its
+      // hard cutoff here (the soft-ramp default is Glow-only). Bloom's exact mask
+      // is decoded in the header note but not yet wired (P2-bloom-*).
+      return glowFilter(input, { radius: amount, threshold: threshold / 100, amount: brightness / 100, softness: 0 });
     }
     return input;
   },
