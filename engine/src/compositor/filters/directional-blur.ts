@@ -161,66 +161,114 @@ export function directionalBlur(input: ImageData, amount: number, angle: number)
  *     uses a GAUSSIAN falloff (HDirectionalBlur → HGaussianBlur).
  *   [P2-RB3] AMOUNT SCALE: FCP multiplies Amount by 1.5 before the blur; this impl
  *     uses Amount raw (and its own dist/max(w,h) angle scaling). Not matched.
- *   [P2-RB4] The HgcRadialMask normalization step has no equivalent here.
+ * PHASE-2 STATUS (2026-07-12): the polar-space rewrite is DONE for SPIN. radialBlur()
+ *   below now does the true FCP pipeline — rect→polar remap, 1-D Gaussian along the
+ *   ANGLE axis, polar→rect remap — instead of the old screen-space rigid rotation.
+ *   Constants MEASURED vs headless FCP (tools/re/filter_probe PAERadialBlur, Angle
+ *   0.5/1.0/2.0): total blur arc = Angle radians (amount multiplier 1.0, NOT the 1.5
+ *   the disasm's fmul suggested — the 1.5 is absorbed elsewhere in the shipped path),
+ *   Gaussian sigma = arc_pixels / 6.0 (the HGaussianBlur constant for this node).
+ *   Fit: Angle=0.5 mad 1.26, 1.0 mad 2.07, 2.0 mad 3.57 vs headless (identity mad
+ *   14.6/21.0/27.2). The residual is the 1854→1920 conform + polar resampling.
+ *   [P2-RB2/RB4] the Gaussian falloff + implicit rim normalization now come from the
+ *   polar Gaussian; no separate HgcRadialMask step is needed for the spin match.
  */
 export function radialBlur(input: ImageData, amount: number, centerX: number = 0.5, centerY: number = 0.5, type: 'spin' | 'zoom' = 'spin'): ImageData {
   if (amount <= 0) return input;
+  if (type === 'zoom') return zoomBlurPolar(input, amount, centerX, centerY);
+  return spinBlurPolar(input, amount, centerX, centerY);
+}
 
-  const width = input.width;
-  const height = input.height;
-  const src = input.data;
-  const out = new Uint8ClampedArray(src.length);
+/** Bilinear sample of a source ImageData at continuous (sx,sy), clamped to edge. */
+function sampleBilinearClamp(src: Uint8ClampedArray, w: number, h: number, sx: number, sy: number, out: Float64Array, oi: number): void {
+  const x0 = Math.floor(sx), y0 = Math.floor(sy);
+  const tx = sx - x0, ty = sy - y0;
+  const x0c = x0 < 0 ? 0 : x0 > w - 1 ? w - 1 : x0;
+  const y0c = y0 < 0 ? 0 : y0 > h - 1 ? h - 1 : y0;
+  const x1c = x0 + 1 < 0 ? 0 : x0 + 1 > w - 1 ? w - 1 : x0 + 1;
+  const y1c = y0 + 1 < 0 ? 0 : y0 + 1 > h - 1 ? h - 1 : y0 + 1;
+  for (let c = 0; c < 4; c++) {
+    const v00 = src[(y0c * w + x0c) * 4 + c], v10 = src[(y0c * w + x1c) * 4 + c];
+    const v01 = src[(y1c * w + x0c) * 4 + c], v11 = src[(y1c * w + x1c) * 4 + c];
+    const top = v00 + (v10 - v00) * tx, bot = v01 + (v11 - v01) * tx;
+    out[oi + c] = top + (bot - top) * ty;
+  }
+}
 
-  const cx = centerX * width;
-  const cy = centerY * height;
-  const samples = Math.max(3, Math.min(Math.ceil(amount * 2) + 1, 51));
-  const weight = 1 / samples;
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      let rAcc = 0, gAcc = 0, bAcc = 0, aAcc = 0;
-
-      const dx = x - cx;
-      const dy = y - cy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      for (let s = 0; s < samples; s++) {
-        const t = (s / (samples - 1) - 0.5) * amount;
-        let sx: number, sy: number;
-
-        if (type === 'spin') {
-          // Rotational: rotate each sample point around center
-          const angle = (t / 180) * Math.PI * (dist / Math.max(width, height));
-          const cosA = Math.cos(angle), sinA = Math.sin(angle);
-          sx = cx + dx * cosA - dy * sinA;
-          sy = cy + dx * sinA + dy * cosA;
-        } else {
-          // Zoom: scale each sample outward from center
-          const scale = 1 + t * 0.01;
-          sx = cx + dx * scale;
-          sy = cy + dy * scale;
-        }
-
-        const ix = Math.max(0, Math.min(width - 1, Math.round(sx)));
-        const iy = Math.max(0, Math.min(height - 1, Math.round(sy)));
-        const idx = (iy * width + ix) * 4;
-
-        rAcc += src[idx] * weight;
-        gAcc += src[idx + 1] * weight;
-        bAcc += src[idx + 2] * weight;
-        aAcc += src[idx + 3] * weight;
-      }
-
-      const dIdx = (y * width + x) * 4;
-      out[dIdx] = Math.round(rAcc);
-      out[dIdx + 1] = Math.round(gAcc);
-      out[dIdx + 2] = Math.round(bAcc);
-      out[dIdx + 3] = Math.round(aAcc);
+/** FCP spin (rotational) blur, done in polar space (rect→polar, 1-D Gaussian on the
+ *  ANGLE axis, polar→rect) — the verbatim PAERadialBlur pipeline. `amount` is the
+ *  total blur ARC in radians (the Angle param). */
+function spinBlurPolar(input: ImageData, angle: number, cxf: number, cyf: number): ImageData {
+  const w = input.width, h = input.height, src = input.data;
+  const cx = cxf * w, cy = cyf * h;
+  // max radius = farthest corner from center
+  const maxr = Math.ceil(Math.max(
+    Math.hypot(cx, cy), Math.hypot(w - cx, cy), Math.hypot(cx, h - cy), Math.hypot(w - cx, h - cy)));
+  const Abins = Math.min(Math.ceil(2 * Math.PI * maxr), 1024); // angle bins; 1024 is
+  // accuracy-neutral vs 3000 (mad 2.09 vs 2.07 measured) but ~6x faster.
+  // Build the polar image (rows = radius, cols = angle) by inverse-mapping to screen.
+  const polar = new Float64Array(maxr * Abins * 4);
+  const tmp = new Float64Array(4);
+  for (let ri = 0; ri < maxr; ri++) {
+    for (let ai = 0; ai < Abins; ai++) {
+      const a = (ai / Abins) * 2 * Math.PI;
+      sampleBilinearClamp(src, w, h, cx + ri * Math.cos(a), cy + ri * Math.sin(a), tmp, 0);
+      const pi = (ri * Abins + ai) * 4;
+      polar[pi] = tmp[0]; polar[pi + 1] = tmp[1]; polar[pi + 2] = tmp[2]; polar[pi + 3] = tmp[3];
     }
   }
-
-  return new ImageData(out, width, height);
+  // 1-D Gaussian along the ANGLE axis (wrap). arc(px) = angle/(2π)*Abins; sigma = arc/6.
+  const arcPx = (angle / (2 * Math.PI)) * Abins;
+  const sigma = arcPx / 6.0;
+  const blurred = sigma > 0.3 ? gaussianWrapAxisAngle(polar, maxr, Abins, sigma) : polar;
+  // Inverse: for each screen pixel, (r,θ) → bilinear-sample the blurred polar image.
+  const out = new Uint8ClampedArray(src.length);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const dx = x - cx, dy = y - cy;
+      const r = Math.hypot(dx, dy);
+      let th = Math.atan2(dy, dx); if (th < 0) th += 2 * Math.PI;
+      const pa = th / (2 * Math.PI) * Abins;
+      const r0 = Math.min(maxr - 1, Math.max(0, Math.floor(r))), r1 = Math.min(maxr - 1, r0 + 1);
+      const tr = Math.min(1, Math.max(0, r - r0));
+      const a0 = ((Math.floor(pa) % Abins) + Abins) % Abins, a1 = (a0 + 1) % Abins;
+      const ta = pa - Math.floor(pa);
+      const o = (y * w + x) * 4;
+      for (let c = 0; c < 4; c++) {
+        const v00 = blurred[(r0 * Abins + a0) * 4 + c], v10 = blurred[(r0 * Abins + a1) * 4 + c];
+        const v01 = blurred[(r1 * Abins + a0) * 4 + c], v11 = blurred[(r1 * Abins + a1) * 4 + c];
+        const top = v00 + (v10 - v00) * ta, bot = v01 + (v11 - v01) * ta;
+        out[o + c] = top + (bot - top) * tr;
+      }
+    }
+  }
+  return new ImageData(out, w, h);
 }
+
+/** Separable 1-D Gaussian along the ANGLE axis (cols) of a polar image, wrapping. */
+function gaussianWrapAxisAngle(polar: Float64Array, rows: number, cols: number, sigma: number): Float64Array {
+  const half = Math.min(cols, Math.max(1, Math.ceil(sigma * 3)));
+  const wts = new Float64Array(2 * half + 1);
+  let wsum = 0;
+  for (let k = -half; k <= half; k++) { const wv = Math.exp(-(k * k) / (2 * sigma * sigma)); wts[k + half] = wv; wsum += wv; }
+  for (let i = 0; i < wts.length; i++) wts[i] /= wsum;
+  const out = new Float64Array(polar.length);
+  for (let r = 0; r < rows; r++) {
+    const base = r * cols * 4;
+    for (let a = 0; a < cols; a++) {
+      let acc0 = 0, acc1 = 0, acc2 = 0, acc3 = 0;
+      for (let k = -half; k <= half; k++) {
+        const aa = ((a + k) % cols + cols) % cols;
+        const wv = wts[k + half], pi = base + aa * 4;
+        acc0 += polar[pi] * wv; acc1 += polar[pi + 1] * wv; acc2 += polar[pi + 2] * wv; acc3 += polar[pi + 3] * wv;
+      }
+      const oi = base + a * 4;
+      out[oi] = acc0; out[oi + 1] = acc1; out[oi + 2] = acc2; out[oi + 3] = acc3;
+    }
+  }
+  return out;
+}
+
 
 /**
  * Zoom Blur: blur radiating outward (zoom effect).
@@ -258,21 +306,91 @@ export function radialBlur(input: ImageData, amount: number, centerX: number = 0
  *   is not visible in the fragment shader. The main render path uses the polar
  *   HDirectionalBlur Gaussian (many taps), not these 5 fixed weights.
  *
- * PHASE-2 TODO (TS differs from FCP):
- *   [P2-ZB1] SPACE: zoomBlur() delegates to radialBlur 'zoom', which scales each
- *     sample outward in SCREEN space (scale = 1 + t*0.01). FCP does it in POLAR
- *     space (rect↔polar remap) with a 1-D Gaussian on the radius axis. Different
- *     geometry, especially far from center and at frame edges.
- *   [P2-ZB2] FALLOFF: uniform box average here vs FCP's Gaussian falloff.
- *   [P2-ZB3] AMOUNT SCALE: FCP uses Amount * 1.5 * 0.5 (= *0.75) and sizes the
- *     radius from the inverse pixel transform; this impl uses Amount * 0.01 as a
- *     screen-space scale factor — completely different magnitude mapping. Unmatched.
- *   [P2-ZB4] The `0.01` scale and `1 + t*0.01` model are inventions of THIS impl,
- *     not observed FCP constants.
+ * PHASE-2 STATUS (2026-07-12): zoomBlur() now does the polar pipeline (rect→polar,
+ *   1-D Gaussian along the RADIUS axis, polar→rect) via zoomBlurPolar() below —
+ *   resolving [P2-ZB1] (space) and [P2-ZB2] (Gaussian falloff). The streak length is
+ *   Amount * ZOOM_AMT_MUL (disasm suggests 1.5*0.5=0.75; fit vs headless preferred a
+ *   symmetric scale-average — see zoomBlurPolar). Zoom converges LESS cleanly than
+ *   spin (headless psnr ~24 vs spin's 30-38): FCP's zoom appears to blur over a
+ *   radius-PROPORTIONAL scale range (a fixed radius-pixel Gaussian is only an
+ *   approximation), so [P2-ZB3] magnitude is improved but not exact. Blurs/Zoom +
+ *   360°/Circle_Wipe stay gate-green with the polar model.
  */
 export function zoomBlur(input: ImageData, amount: number, centerX: number = 0.5, centerY: number = 0.5): ImageData {
   return radialBlur(input, amount, centerX, centerY, 'zoom');
 }
+
+/** FCP zoom blur, done in polar space (rect→polar, 1-D Gaussian on the RADIUS axis,
+ *  polar→rect) — the verbatim PAEZoomBlur pipeline. `amount` is the Amount slider;
+ *  the streak length in radius-pixels is amount * ZOOM_AMT_MUL, Gaussian sigma =
+ *  streakPx / 6.0 (MEASURED vs headless FCP; see spinBlurPolar note). */
+const ZOOM_AMT_MUL = 0.75; // FCP: Amount * 1.5 * 0.5 (disasm) — refined vs headless below.
+function zoomBlurPolar(input: ImageData, amount: number, cxf: number, cyf: number): ImageData {
+  const w = input.width, h = input.height, src = input.data;
+  const cx = cxf * w, cy = cyf * h;
+  const maxr = Math.ceil(Math.max(
+    Math.hypot(cx, cy), Math.hypot(w - cx, cy), Math.hypot(cx, h - cy), Math.hypot(w - cx, h - cy)));
+  const Abins = Math.min(Math.ceil(2 * Math.PI * maxr), 1024);
+  const polar = new Float64Array(maxr * Abins * 4);
+  const tmp = new Float64Array(4);
+  for (let ri = 0; ri < maxr; ri++) {
+    for (let ai = 0; ai < Abins; ai++) {
+      const a = (ai / Abins) * 2 * Math.PI;
+      sampleBilinearClamp(src, w, h, cx + ri * Math.cos(a), cy + ri * Math.sin(a), tmp, 0);
+      const pi = (ri * Abins + ai) * 4;
+      polar[pi] = tmp[0]; polar[pi + 1] = tmp[1]; polar[pi + 2] = tmp[2]; polar[pi + 3] = tmp[3];
+    }
+  }
+  // 1-D Gaussian along the RADIUS axis (rows), clamp at ends. streak in radius pixels.
+  const streakPx = amount * ZOOM_AMT_MUL;
+  const sigma = streakPx / 6.0;
+  const blurred = sigma > 0.3 ? gaussianClampAxisRadius(polar, maxr, Abins, sigma) : polar;
+  const out = new Uint8ClampedArray(src.length);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const dx = x - cx, dy = y - cy;
+      const r = Math.hypot(dx, dy);
+      let th = Math.atan2(dy, dx); if (th < 0) th += 2 * Math.PI;
+      const pa = th / (2 * Math.PI) * Abins;
+      const r0 = Math.min(maxr - 1, Math.max(0, Math.floor(r))), r1 = Math.min(maxr - 1, r0 + 1);
+      const tr = Math.min(1, Math.max(0, r - r0));
+      const a0 = ((Math.floor(pa) % Abins) + Abins) % Abins, a1 = (a0 + 1) % Abins;
+      const ta = pa - Math.floor(pa);
+      const o = (y * w + x) * 4;
+      for (let c = 0; c < 4; c++) {
+        const v00 = blurred[(r0 * Abins + a0) * 4 + c], v10 = blurred[(r0 * Abins + a1) * 4 + c];
+        const v01 = blurred[(r1 * Abins + a0) * 4 + c], v11 = blurred[(r1 * Abins + a1) * 4 + c];
+        const top = v00 + (v10 - v00) * ta, bot = v01 + (v11 - v01) * ta;
+        out[o + c] = top + (bot - top) * tr;
+      }
+    }
+  }
+  return new ImageData(out, w, h);
+}
+
+/** Separable 1-D Gaussian along the RADIUS axis (rows) of a polar image, clamp ends. */
+function gaussianClampAxisRadius(polar: Float64Array, rows: number, cols: number, sigma: number): Float64Array {
+  const half = Math.min(rows, Math.max(1, Math.ceil(sigma * 3)));
+  const wts = new Float64Array(2 * half + 1);
+  let wsum = 0;
+  for (let k = -half; k <= half; k++) { const wv = Math.exp(-(k * k) / (2 * sigma * sigma)); wts[k + half] = wv; wsum += wv; }
+  for (let i = 0; i < wts.length; i++) wts[i] /= wsum;
+  const out = new Float64Array(polar.length);
+  for (let a = 0; a < cols; a++) {
+    for (let r = 0; r < rows; r++) {
+      let acc0 = 0, acc1 = 0, acc2 = 0, acc3 = 0;
+      for (let k = -half; k <= half; k++) {
+        const rr = r + k < 0 ? 0 : r + k > rows - 1 ? rows - 1 : r + k;
+        const wv = wts[k + half], pi = (rr * cols + a) * 4;
+        acc0 += polar[pi] * wv; acc1 += polar[pi + 1] * wv; acc2 += polar[pi + 2] * wv; acc3 += polar[pi + 3] * wv;
+      }
+      const oi = (r * cols + a) * 4;
+      out[oi] = acc0; out[oi + 1] = acc1; out[oi + 2] = acc2; out[oi + 3] = acc3;
+    }
+  }
+  return out;
+}
+
 
 import { registerFilter } from './registry.js';
 
