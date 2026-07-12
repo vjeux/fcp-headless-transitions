@@ -3,9 +3,9 @@
  *
  * RenderContext is the per-render state bundle threaded through the compositor's
  * render graph (source images, camera/framing pose, mask-source ids, media resolver +
- * cache, timing, and per-render memos). DropInCard is the Drop-In card-conform
- * geometry. Split into its own module (ROADMAP item 7) so the mask/render helper
- * modules can share these types without an import cycle through index.ts.
+ * cache, timing, and per-render memos). Split into its own module (ROADMAP item 7)
+ * so the mask/render helper modules can share these types without an import cycle
+ * through index.ts.
  */
 import type { Layer } from '../types.js';
 import type { EvaluatedLayer } from '../evaluator/index.js';
@@ -73,33 +73,10 @@ export interface RenderContext {
    */
   fieldTextureLayerId?: number;
   /**
-   * Movements/Drop In card conform. Drop In renders its two Transition A/B drop
-   * zones NOT full-frame but conformed into a smaller CARD anchored at the scene's
-   * top-left (the drop-zone media is 600px tall in a 720px scene → the source is
-   * scaled to ~83% of frame height and pinned top-left; verified against GT:
-   * the settled A card is exactly 1588×902 at (0,0) in the 1920×1080 output).
-   * Image A is the static card; image B rides the bounce (its Position-Y curve) as
-   * a same-size card BEHIND A. When set, renderLayer draws Transition A/B through
-   * this card conform instead of the default full-frame blit. See detectDropInCard.
-   */
-  dropInCard?: DropInCard;
-  /**
    * Per-render memo for the size-keyed drop-zone placeholder cell (a flat gray
    * Ozone createDropZoneGridBitmap fill). Kept on the context rather than a module
    * global so concurrent renders don't share mutable state. Lazily populated by
    * dropZonePlaceholderCell.
    */
   dzPlaceholder?: { w: number; h: number; img: ImageData };
-}
-
-/** Drop In card-conform geometry (output-pixel space). */
-export interface DropInCard {
-  /** Card width/height in output pixels (source conformed to the drop-zone box). */
-  cardW: number;
-  cardH: number;
-  /** scene→output scale applied to the bounce Position-Y (outputH / sceneH). */
-  posScale: number;
-  /** Layer IDs of the two drop-zone image nodes (A static, B bouncing). */
-  aId: number;
-  bId: number;
 }

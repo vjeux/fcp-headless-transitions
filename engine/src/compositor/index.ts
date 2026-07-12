@@ -16,7 +16,6 @@ import {
   retimedClipTime,
 } from './geometry.js';
 import { detectFieldTexture, applyParticleFieldProxy } from './field-texture.js';
-import { detectDropInCard, blitDropInCard } from './drop-in.js';
 import { generateInstances, sequenceProgress, sequenceOrder } from './replicator.js';
 import { lookupFilter, makeContext } from './filters/registry.js';
 import './filters/index.js'; // side-effect: registers all UUID-keyed filter modules
@@ -399,15 +398,6 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
     // double-count and wash the early frames too gray). See applyParticleFieldProxy.
     if (layer.type === 'image' && rctx.fieldTextureLayerId === layer.id) return 'stop';
 
-    // Movements/Drop In: the Transition A/B drop-zone cards are drawn by a
-    // dedicated pass in composite() (below) so their B-under-A z-order and the
-    // tail frames (B timed out → A alone, not black) are correct regardless of
-    // child render order / visibility. Skip both here.
-    const card = rctx.dropInCard;
-    if (card && layer.type === 'image' && (layer.id === card.aId || layer.id === card.bId)) return 'stop';
-
-
-
     // Leaf layer: render source image with transform
 
     // A forced-A persistent base (wrapping drop zone past its lifetime) renders
@@ -653,32 +643,6 @@ export function composite(
   // avoiding a double-composite that washed the early frames too gray.
   const field = detectFieldTexture(scene, mediaResolver);
   if (field) rctx.fieldTextureLayerId = field.layerId;
-
-  // Movements/Drop In card conform: detect once. When present, renderLayer draws
-  // the Transition A/B drop zones as top-left cards (A static, B bouncing behind)
-  // instead of the default full-frame blit.
-  rctx.dropInCard = detectDropInCard(scene, imageA, imageB, width, height);
-
-  // Draw the Drop In cards up front (B behind, A in front) so their z-order and
-  // tail-frame behavior are independent of child render order / per-layer
-  // visibility. The particle emitters then render on top via the normal loop.
-  if (rctx.dropInCard) {
-    const c = rctx.dropInCard;
-    const bEval = scene.evalLayerById.get(c.bId);
-    const aEval = scene.evalLayerById.get(c.aId);
-    // B (behind): riding its Position-Y bounce, only while its lifetime is live.
-    // (Verified: A-on-top scores higher than B-on-top — the settled tail shows the
-    // sepia A card with B fully occluded behind it.)
-    if (bEval && bEval.visible && bEval.opacity > 0) {
-      const bSrc = getSourceImage(rctx, bEval.layer.source, imageA, imageB);
-      if (bSrc) blitDropInCard(output, bSrc, c.cardW, c.cardH, bEval.worldTransform[13] * c.posScale, bEval.opacity);
-    }
-    // A (in front): static at the top-left.
-    if (aEval && aEval.visible && aEval.opacity > 0) {
-      const aSrc = getSourceImage(rctx, aEval.layer.source, imageA, imageB);
-      if (aSrc) blitDropInCard(output, aSrc, c.cardW, c.cardH, 0, aEval.opacity);
-    }
-  }
 
   // Render layers back-to-front (Motion: first in list = top/foreground, last = bottom/background)
   for (let i = scene.layers.length - 1; i >= 0; i--) {

@@ -244,8 +244,7 @@ Status legend: TODO / DOING / DONE / BLOCKED
   STRUCTURAL signal (factory type, offset sign, blend mode), never a slug/layer name.
 - Known root causes (from frame-by-frame GUI-GT diffing):
   * Movements/Color_Planes — Generator negative-offset window inflation → black tail.  [DONE]
-  * Movements/Drop_In (9.29) — B drop-in card mis-positioned/mis-scaled; big black R/bottom
-    at f23 (B never covers frame). Replicator/drop-impact geometry.
+  * Movements/Drop_In (9.29) — stale top-left CARD conform → full-frame; card model deleted. [DONE]
   * Replicator-Clones/Video_Wall (8.74) — replicator tile grid + camera dolly geometry.
   * Stylized/Lower (9.04) — misses the bright mid-transition white flash (GUI f12 ≈ 239,245).
   * Lights/Lens_Flare (9.57) — bright flare overlay the engine renders dark.
@@ -262,10 +261,47 @@ Status legend: TODO / DOING / DONE / BLOCKED
   the existing Camera/media-overlay neg-offset re-anchors). Blast radius = exactly 1 slug
   (verified via _trace_end diff old-vs-new). Color_Planes 9.86→10.47 (+0.61); gate 0
   regressions; engine mean 13.62→13.63 dB; baseline re-frozen.
+- Drop_In sub-step DONE: the special DropInCard top-left "card conform" (drop zones drawn as
+  a 1588×902 card pinned to (0,0), leaving R/bottom black) was STALE DRIFT fit to an OLD GUI
+  capture. The CURRENT GUI GT shows Transition A/B FULL-FRAME (f0 uniform sepia A edge-to-
+  edge, f23 full B) with the drop-impact particles overlaid — no top-left card. Deleted the
+  entire card model (compositor/drop-in.ts, the detect+draw pass, the renderLayer skip, the
+  DropInCard context type) so Drop_In renders through the normal full-frame drop-zone blit
+  like Push. Drop_In 9.29→14.61 (+5.32); gate 0 regressions; engine mean 13.63→13.71 dB;
+  baseline re-frozen. tsc clean, dead code removed.
 
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-13  ITEM 12 (Drop_In) DONE — deleted the STALE DropInCard "card conform" model.
+              Drop_In was scoring 9.29 because the compositor drew its Transition A/B drop
+              zones as a 1588×902 CARD pinned to the top-left (0,0), leaving ~30% of the frame
+              (right + bottom) BLACK from f0 onward. That card model was fit to an OLD GUI
+              capture; the CURRENT GUI GT shows A/B FULL-FRAME (f0 = uniform sepia A edge-to-
+              edge; f23 = full B) with the drop-impact particles overlaid. Deleted the whole
+              stale path: compositor/drop-in.ts (detectDropInCard + blitDropInCard), the
+              detect+draw block in composite(), the renderLayer skip, and the DropInCard type
+              in context.ts — Drop_In now renders through the normal full-frame drop-zone blit
+              like Push. Only Drop_In was affected (detectDropInCard's signature fired on it
+              alone). Drop_In 9.29→14.61 (+5.32); gate 0 regressions, 1 improvement; engine
+              mean 13.63→13.71 dB; baseline re-frozen. tsc clean; dead code removed (ROADMAP
+              rule: delete stale code, don't leave it disabled).
+- 2026-07-13  ITEM 12 (Drop_In) DONE — deleted the STALE top-left card-conform model → full
+              frame. Movements/Drop_In rendered its Transition A/B drop zones through a
+              dedicated "DropInCard" pass that conformed each source into a 1588×902 card
+              pinned to the output's top-left, leaving the right+bottom ~30% of the frame
+              BLACK (verified: f0 blackfrac 0.305, an L-shaped void). That geometry was fit to
+              an OLD GUI-GT capture; the CURRENT GUI GT shows A/B filling the ENTIRE frame at
+              every frame (f0 = full-frame sepia A, f23 = full-frame B, no void). The card
+              model was drift. Removed detectDropInCard/blitDropInCard + the DropInCard type +
+              the renderLayer skip + the composite() draw pass, and deleted
+              compositor/drop-in.ts (dead-code rule). Drop_In now renders through the normal
+              full-frame drop-zone path (same as Push). Scene is 1280×720 upscaled to 1920×1080
+              (identical 16:9 aspect → no letterbox); only the shared ~3.6% start.png conform
+              edge remains. Blast radius = Drop_In only (detectDropInCard fired on its unique
+              upscaled-scene + Transition-B position-bounce signature). Gate: 0 regressions,
+              Drop_In 9.29→14.61 (+5.32) gate-res / 14.89 full-res. Engine mean 13.63→13.71 dB;
+              baseline re-frozen. tsc clean.
 - 2026-07-13  ITEM 12 (Color_Planes) DONE — Generator negative-offset local-frame re-anchor.
               ROOT CAUSE of Movements/Color_Planes' BLACK tail (f23 = 0,0,0 vs GT B): the
               decorative "Color Solid" backdrop is a Generator (factory 4) with timeline
