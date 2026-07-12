@@ -166,16 +166,25 @@ T-A3  TODO    NEW evaluator/gravity.ts (+1 hook evaluator/        Gravity driver
               index.ts, +types append)                            feeds particle + layer fall
 T-B1  TODO    NEW compositor/particles/parse.ts (+1 hook          Emitter+Cell param PARSER (birth
               parser/index.ts, +types append)                     rate, life, vel, spin, gravity)
-T-B2  TODO    NEW compositor/particles/sim.ts + render.ts (+1     Emitter SIM+render -> Close_and_Open,
-              hook compositor/index.ts)   after: T-B1             Diagonal x2, Center, Up-Over, Glide
+T-B2  TODO    NEW compositor/particles/sim.ts + render.ts (+1     Emitter SIM+render, MINIMAL: spawn +
+              hook compositor/index.ts)   after: T-B1             advect + gravity + composite (flat
+                                                                  colour). Target: Diagonal x2 improve
+T-B3  TODO    compositor/particles/render.ts   after: T-B2        appearance-over-life: colour/scale/
+                                                                  opacity ramps -> Close_and_Open,
+                                                                  Up-Over, Glide, Center
 T-C1  TODO    compositor/filters/gradient.ts                      linear+radial colour gradient ->
                                                                   Slide_In, Loop, Heart
 T-C2  TODO    timemap.ts                     after: T-C1          Slide_In endSec inflation fix
                                                                   (exclude gradient-keyframe 3.0s)
 T-D1  TODO    NEW compositor/color-space.ts + blend.ts +          linear working-space composite path
               blit.ts (flag-gated) (+1 hook compositor/index.ts)  behind a flag; overlay slugs first
-T-D2  TODO    compositor/filters/{levels,channel-mixer,glow,      migrate colour filters into linear
-              hue-saturation}.ts            after: T-D1            -> Lower, Bloom, Tint, Colorize
+T-D2a TODO    compositor/filters/levels.ts     after: T-D1        Brightness/Colorize into linear ->
+                                                                  Colorize=1 users, Brightness>1
+T-D2b TODO    compositor/filters/channel-mixer.ts  after: T-D1    Tint into linear -> Tint, Veil
+T-D2c TODO    compositor/filters/glow.ts       after: T-D1        Glow/Bloom into linear -> Bloom,
+                                                                  360°_Bloom
+T-D2d TODO    compositor/filters/hue-saturation.ts after: T-D1    HSV into linear -> Panels_Random,
+                                                                  Color_Panels
 T-E1  TODO    evaluator/framing.ts                                framing anchor (proxy->content ray)
                                                                   -> Video_Wall f4 black, Clone_Spin
 T-E2  TODO    compositor/replicator.ts + geometry.ts  after:T-E1  clone-tile wall render (Video_Wall
@@ -186,9 +195,13 @@ T-G1  TODO    compositor/perspective.ts                           Movements 3D-f
                                                                   (Multi/Flip/Pinwheel/Swing)
 ```
 Max concurrency today = the 9 rows with no `after:` (T-A1,A2,A3,B1,C1,D1,E1,F1,G1) run
-simultaneously; T-B2/C2/D2/E2 start the moment their `after:` parent merges. When a row's file set
-overlaps another (e.g. two S7 fixes touch `perspective.ts`), the second rebases onto the first —
-the self-merge contract handles it.
+simultaneously. Once parents merge, the dependents fan out to MORE parallelism, not less:
+T-B1→T-B2→T-B3 (chain); T-D1 unblocks FOUR disjoint filter rows at once (T-D2a/b/c/d);
+T-C1→T-C2; T-E1→T-E2. Rightsizing note: rows are kept at "one independently gate-verifiable
+change" — parse-only stages (T-A2/B1) are NOT split further because a parser edit scores nothing
+on its own; big rendering rows (T-B2, T-D2) ARE split because each sub-row moves PSNR alone. When
+a row's file set overlaps another (e.g. two S7 fixes touch `perspective.ts`), the second rebases
+onto the first — the self-merge contract handles it.
 
 ---
 
@@ -236,7 +249,7 @@ then migrate filter families into it one at a time, gate-green after each. Never
 **DoD:** linear chain on by default; net improvement across the gated slugs; 0 regressions.
 **Verify:** `fct regress engine`; spot `fct score Stylized__Lower Lights__Bloom --full`.
 
-### S3. Particle-emitter simulation  [TODO]  (tasks T-B1/B2 · self-contained new module)
+### S3. Particle-emitter simulation  [TODO]  (tasks T-B1/B2/B3 · self-contained new module)
 **What it is (FCP):** Motion Emitters (factoryID 17/23) spawn Particle Cells (fID 15/18) with a
 birth rate, lifetime, initial velocity/spin, gravity, and scale/opacity/colour-over-life. The
 Stylized/Nature transitions are dominated by these (Diagonal = 18 emitters, Close_and_Open = 109,
@@ -250,7 +263,7 @@ spawn/advect/fade → composite. Additive new module (low regression risk).
 **DoD:** ≥4 of the 6 dominant slugs improve; 0 regressions; baseline re-frozen.
 **Verify:** `fct regress engine` + `fct score Wipes__Diagonal Stylized__Close_and_Open --full`.
 
-### S4. Colour pipeline — Tint / Bloom / Colorize / Brightness>1  [TODO]  (task T-D2 · folds into S2)
+### S4. Colour pipeline — Tint / Bloom / Colorize / Brightness>1  [TODO]  (tasks T-D2a–d · folds into S2)
 **What it is (FCP):** these filters ARE implemented (registry), and match in ISOLATED probes, but
 regress when STACKED because FCP applies them in linear space (S2). Bloom's ObjC
 `bloomHeliumRender` and Tint's Color-Space=3 + Rig indirection are additionally non-convergent
@@ -339,6 +352,13 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  Rightsized the flat task list — split the two genuinely-big rendering rows into
+              independently gate-verifiable sub-rows: T-B2 (minimal emitter: spawn/advect/gravity/
+              composite) + T-B3 (appearance-over-life ramps); T-D2 -> T-D2a/b/c/d (levels,
+              channel-mixer, glow, hue-saturation — 4 DISJOINT filter files, run in parallel once
+              T-D1 lands). Left parse-only rows (T-A2/B1) and atomic fixes unsplit: a split only
+              helps when each piece moves PSNR alone or is a disjoint module — a parser stage
+              scores nothing by itself, so splitting it just adds rebase overhead. 15 rows total.
 - 2026-07-13  ROADMAP parallelism reworked for MAX concurrency — dropped the wave/integrator
               model. Every task is now an INDEPENDENT unit and each agent REBASES + MERGES ITS
               OWN work via an 8-step self-merge contract (branch off origin/main → build owned
