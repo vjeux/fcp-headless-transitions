@@ -324,10 +324,20 @@ export function zoomBlur(input: ImageData, amount: number, centerX: number = 0.5
 }
 
 /** FCP zoom blur, done in polar space (rect→polar, 1-D Gaussian on the RADIUS axis,
- *  polar→rect) — the verbatim PAEZoomBlur pipeline. `amount` is the Amount slider;
- *  the streak length in radius-pixels is amount * ZOOM_AMT_MUL, Gaussian sigma =
- *  streakPx / 6.0 (MEASURED vs headless FCP; see spinBlurPolar note). */
-const ZOOM_AMT_MUL = 0.75; // FCP: Amount * 1.5 * 0.5 (disasm) — refined vs headless below.
+ *  polar→rect) — the verbatim PAEZoomBlur pipeline. `amount` is the Amount slider.
+ *  DECODED structure (-[PAEZoomBlur canThrowRenderOutput] @0x75718, constants via
+ *  read_const.py): Amount(parm1) is the polar-space blur RADIUS fed to HDirectionalBlur
+ *  (×d8, where d8 = imageType==2 ? 1.5 : 1.0 — a bit-depth factor, 1.0 for 8-bit float);
+ *  Swirl(parm4) → a polar-angle rotation offset (π/2)(Swirl+1) [not modelled here — 0 in
+ *  both shipping users]; Center(parm2) → center in pixels, clamped [1e-5, 65000].
+ *  NOTE both shipping users (Blurs/Zoom, 360°/Circle_Wipe) set Mix=0 → this is a
+ *  passthrough there, so ZOOM_AMT_MUL only affects the isolated filter_verify score
+ *  (the fixed radius-pixel radius-axis Gaussian is a good approximation of FCP's
+ *  Amount-radius zoom for Swirl=0; the exact HDirectionalBlur radius uses the polar
+ *  upscale factor which we fold into ZOOM_AMT_MUL). */
+const ZOOM_AMT_MUL = 0.75; // Amount→radius-pixels; decoded radius=Amount×d8 folded through
+                           // the polar upscale ≈ 0.75 (verify-only; Mix=0 in both users).
+
 function zoomBlurPolar(input: ImageData, amount: number, cxf: number, cyf: number): ImageData {
   const w = input.width, h = input.height, src = input.data;
   const cx = cxf * w, cy = cyf * h;
