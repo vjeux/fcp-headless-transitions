@@ -380,6 +380,25 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  SWARM HARDENING (tick) — fixed two harness bugs found watching the live pool:
+              (1) git worktrees SHARE .git/info/exclude, so setup_worktree.sh's per-call append
+              bloated one file 15x and didn't isolate; moved symlink+scratch patterns to the
+              TRACKED .gitignore (engine/node_modules, /venv, .swarm_run.sh, .frames/) that every
+              worktree inherits (commit 6d08f41). (2) the pool relaunched T-A3 in a tight loop
+              after it finished — the completion regex only matched "swarm <id>:" but the agent
+              committed "T-A3 DROPPED:"; regex now matches a task id at subject start in any
+              DONE/DROPPED/BLOCKED/NOOP/swarm form (commit 90c9dfe). Restarted the pool scheduler
+              with the fix; slot 2 now correctly idle (all 7 non-dep tasks in-flight, T-A3 done).
+              First real swarm result also landed: T-A3 DROPPED via decode-first census.
+- 2026-07-13  SWARM TICK — kept the pool healthy + fixed 2 harness bugs found by watching it run:
+              (1) git worktrees SHARE .git/info/exclude, so setup's per-call append bloated one
+              file 15x and didn't isolate; moved symlink/scratch/.frames patterns into the TRACKED
+              .gitignore (symlink-safe entries) which every worktree inherits. (2) completion regex
+              only matched "swarm <id>:" so the pool relaunched T-A3 five times after it finished
+              as "T-A3 DROPPED:"; regex now matches "<id> DONE/DROPPED/BLOCKED:" too. Restarted the
+              pool scheduler with the fix; slot 2 now correctly idle (all 7 non-dep tasks in
+              flight). First real swarm result landed: T-A3 (Gravity) DROPPED — census proved
+              gravity is a Particle-Cell param, not a layer driver (folds into T-B1). 7 agents live.
 - 2026-07-13  T-A3 DROPPED (Gravity LAYER driver) — census refuted the premise. `fct census`
               extended to report Gravity behaviours + host scenenode; ran across all built-ins:
               only Movements/Drop_In (3 cells) and Movements/Earthquake (1 cell) have Gravity,
