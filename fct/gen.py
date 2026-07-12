@@ -41,6 +41,13 @@ def gen_engine(slug: str, out_dir: str = None) -> str:
     """Render `slug` via the TS engine (node tsx). Writes 24 frames at i/N.
     Runs engine/test/_fct_render.ts (a committed script)."""
     out_dir = out_dir or frames_dir("engine", slug)
+    # If the slug dir is a SYMLINK (swarm agents seed their private frames dir with
+    # per-slug symlinks into the shared baseline store to avoid an 8x deep copy),
+    # replace it with a real directory before writing so a re-render NEVER writes back
+    # through the symlink into the shared store. Harmless for the normal (non-symlink)
+    # single-agent case.
+    if os.path.islink(out_dir):
+        os.unlink(out_dir)
     os.makedirs(out_dir, exist_ok=True)
     env = dict(os.environ, FCT_SLUG=slug, FCT_OUT=out_dir, FCT_N=str(N_FRAMES),
                FCT_EXT=FRAME_EXT, FCT_QUALITY=str(JPEG_QUALITY),

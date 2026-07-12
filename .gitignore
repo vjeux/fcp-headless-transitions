@@ -26,3 +26,7 @@ montage.mp4
 tools/__pycache__/
 fct/__pycache__/
 .fctcache/
+
+# swarm agent scratch (per-worktree prompt files)
+.swarm_brief.md
+.swarm_reflect_prompt.md

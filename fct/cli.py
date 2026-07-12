@@ -198,12 +198,12 @@ def main():
         import time, subprocess
         source = rest[0] if rest and not rest[0].startswith("--") else "engine"
         slug_args = [a for a in rest[1:] if not a.startswith("--")]
-        lock = "/tmp/fct_render.lock"
+        lock = os.environ.get("FCT_LOCK") or "/tmp/fct_render.lock"
         if "--no-render" not in rest:
             try:
                 os.mkdir(lock)
             except FileExistsError:
-                print("LOCKED — another render holds /tmp/fct_render.lock; aborting", flush=True)
+                print(f"LOCKED — another render holds {lock}; aborting", flush=True)
                 return 3
             try:
                 t0 = time.time()

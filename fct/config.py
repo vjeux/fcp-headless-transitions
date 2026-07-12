@@ -20,8 +20,14 @@ FRAME_EXT = "jpg"        # "jpg" or "png"
 JPEG_QUALITY = 90
 
 # --- canonical on-disk locations (ONE place each) ---
+# GUI GT is the shared, read-only ground truth (never written) — always $HOME.
 GUI_GT_DIR = os.path.join(HOME, "fct-gui-gt")          # the ONLY real ground truth
-FRAMES_DIR = os.path.join(HOME, "fct-frames")          # headless/ and engine/ live here
+# FRAMES_DIR (rendered headless/ and engine/ frames) is WRITTEN by `fct gen`, so
+# parallel agents in separate git worktrees MUST NOT share it or they corrupt each
+# other's renders (a race that silently mixes two builds' frames under one baseline).
+# It honors $FCT_FRAMES_DIR so each worktree can point at its own scratch dir; the
+# default is the shared $HOME/fct-frames (unchanged single-agent behavior).
+FRAMES_DIR = os.environ.get("FCT_FRAMES_DIR") or os.path.join(HOME, "fct-frames")
 HEADLESS_DIR = os.path.join(FRAMES_DIR, "headless")
 ENGINE_DIR = os.path.join(FRAMES_DIR, "engine")
 
