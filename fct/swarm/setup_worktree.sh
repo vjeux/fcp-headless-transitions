@@ -36,11 +36,25 @@ git worktree add --quiet -b "swarm/$ID" "$WT" origin/main
 if [ ! -e "$WT/engine/node_modules" ]; then
   ln -s "$MAIN/engine/node_modules" "$WT/engine/node_modules"
 fi
+# Guard: the node_modules/venv SYMLINKS don't match the repo's trailing-slash
+# gitignore patterns (which match dirs, not symlinks), so `git add -A` by an agent
+# could stage them. Add a worktree-local exclude to be safe.
+GITDIR="$(git -C "$WT" rev-parse --git-path info/exclude)"
+mkdir -p "$(dirname "$GITDIR")"
+{ echo "engine/node_modules"; echo "venv"; echo ".swarm_brief.md"; echo ".swarm_reflect_prompt.md"; } >> "$GITDIR"
+
 # Share the Python venv (gitignored, 207M; numpy/etc + the DYLD-wrapped python the
 # toolkit re-execs under). fct.sh calls venv/bin/python3 by path, so a symlink suffices.
 if [ ! -e "$WT/venv" ]; then
   ln -s "$MAIN/venv" "$WT/venv"
 fi
+
+# Guard: gitignore uses "node_modules/" / "venv/" (trailing slash = dirs only), which
+# does NOT match the SYMLINKS we just made, so `git add -A` could stage them. Add
+# symlink-safe excludes to this worktree's private exclude file.
+GITDIR="$(git -C "$WT" rev-parse --git-path info)"
+mkdir -p "$GITDIR"
+{ echo "engine/node_modules"; echo "venv"; echo ".swarm_brief.md"; echo ".swarm_reflect_prompt.md"; } >> "$GITDIR/exclude"
 
 # Seed the private frames dir so the gate (which reads ALL 65 slugs off disk) is
 # complete. A deep copy of the 481M store per agent is far too slow (>30s each), so we
