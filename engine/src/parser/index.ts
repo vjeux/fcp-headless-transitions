@@ -429,6 +429,10 @@ export function parseMotr(xmlText: string): MotrScene {
   // 204204/120000) and, if used, sample past the drop-zones' timing-out and render
   // a black frame. progress=1 maps here, not to the padded scene/playRange duration.
   let animationEndSec = duration.value / duration.timescale;
+  // True when animationEndSec came from the `maxOut` layer-timing fallback (no
+  // within-span spatial keyframes) rather than a real keyframe. That fallback can
+  // read an out-of-span `out` value; the span clamp below applies ONLY in that case.
+  let usedMaxOutFallback = false;
   {
     const EXCLUDE_PARAMS = new Set([
       'Retime Value', 'Retime Value Cache', 'Duration Cache',
@@ -595,7 +599,7 @@ export function parseMotr(xmlText: string): MotrScene {
           if (sec > maxOut) maxOut = sec;
         }
       }
-      if (maxOut > 0) animationEndSec = maxOut;
+      if (maxOut > 0) { animationEndSec = maxOut; usedMaxOutFallback = true; }
     }
   }
 
@@ -644,6 +648,23 @@ export function parseMotr(xmlText: string): MotrScene {
       }
       if (fmax > 0) animationEndSec = fmax;
     }
+  }
+
+  // HARD INVARIANT (maxOut fallback only): when a scene has NO within-span spatial
+  // keyframes (maxT==0 above — motion is Retime + procedural behaviors), the window
+  // falls back to the max <timing out=…> across nodes. Some scenes carry a node whose
+  // `out` sits FAR past the authored span (a Motion editor artifact — e.g. a hidden
+  // Comp group or a replicator whose lifetime `out` is authored in a padded timeline),
+  // which inflates animationEndSec many× the span. FCP plays the transition over
+  // exactly the authored span (sceneSettings/duration ÷ frameRate; the GUI GT captures
+  // exactly that many frames at t=(i/N)·span, fct.timing), so a fallback `out` LARGER
+  // than the span is definitionally not the visible transition window — clamp it. This
+  // rescues Combo_Spin / Squares / Video_Wall (no spatial keyframes → maxOut read 10-19s
+  // → render(0.5) sampled past every layer's `out` = a frozen/black tail). It touches
+  // ONLY the maxT==0 fallback path, so every keyframe-driven slug is unaffected.
+  const spanSec = duration.value / duration.timescale;
+  if (usedMaxOutFallback && spanSec > 0 && animationEndSec > spanSec) {
+    animationEndSec = spanSec;
   }
 
   settings.animationEndSec = animationEndSec;
