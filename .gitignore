@@ -27,6 +27,12 @@ tools/__pycache__/
 fct/__pycache__/
 .fctcache/
 
-# swarm agent scratch (per-worktree prompt files)
+# swarm agent scratch (per-worktree prompt files + runner + local frames)
 .swarm_brief.md
 .swarm_reflect_prompt.md
+.swarm_run.sh
+.frames/
+# swarm worktrees symlink node_modules/venv (the trailing-slash rules above match
+# DIRECTORIES only, not the symlinks), so match them without a slash too:
+engine/node_modules
+/venv

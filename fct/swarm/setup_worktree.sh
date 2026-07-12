@@ -36,12 +36,10 @@ git worktree add --quiet -b "swarm/$ID" "$WT" origin/main
 if [ ! -e "$WT/engine/node_modules" ]; then
   ln -s "$MAIN/engine/node_modules" "$WT/engine/node_modules"
 fi
-# Guard: the node_modules/venv SYMLINKS don't match the repo's trailing-slash
-# gitignore patterns (which match dirs, not symlinks), so `git add -A` by an agent
-# could stage them. Add a worktree-local exclude to be safe.
-GITDIR="$(git -C "$WT" rev-parse --git-path info/exclude)"
-mkdir -p "$(dirname "$GITDIR")"
-{ echo "engine/node_modules"; echo "venv"; echo ".swarm_brief.md"; echo ".swarm_reflect_prompt.md"; echo ".swarm_run.sh"; } >> "$GITDIR"
+# NOTE: node_modules/venv symlinks + swarm scratch (.swarm_*, .frames/) are covered by
+# the repo's TRACKED .gitignore (symlink-safe entries added there), which every worktree
+# inherits — so no per-worktree exclude is needed. (Git worktrees SHARE the common
+# .git/info/exclude, so appending here would bloat one shared file, not isolate anything.)
 
 # Share the Python venv (gitignored, 207M; numpy/etc + the DYLD-wrapped python the
 # toolkit re-execs under). fct.sh calls venv/bin/python3 by path, so a symlink suffices.
