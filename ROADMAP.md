@@ -351,6 +351,16 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-13  ITEM 12 (Duplicate/Squares) DONE — replicator-mask-reveal A/B binding was
+              INVERTED. parseFootage's masked-reveal rule bound the unmasked base → B and the
+              masked (growing-dots/squares) reveal → A, so both slugs played B→A: f0 showed
+              full blue B where GUI shows full sepia A, and the dots revealed A instead of B.
+              The code even CONTRADICTED its own comment ("unmasked base shows the OUTGOING
+              image, bind → A"). FIX: base → A, masked reveal → B (matches GUI GT A→B and the
+              comment's stated intent). Structural (fires on any replicator-mask-reveal drop
+              zone, hasReplicatorMaskReveal = Squares+Duplicate), no names. Duplicate 11.24→
+              15.51 (+4.27), Squares 11.72→12.46 (+0.74). Gate 0 regressions/2 improvements;
+              baseline re-frozen (engine mean 13.84→13.91 dB).
 - 2026-07-13  ITEM 12 (Replicator-mask A/B) DONE — Duplicate 11.24->15.51 (+4.27), Squares
               11.72->12.46 (+0.74). The MASKED-REVEAL A/B binding in parseFootage was INVERTED:
               it bound the unmasked BASE drop zone -> B and the replicator-masked reveal -> A,
