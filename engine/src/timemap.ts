@@ -109,7 +109,19 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
     let blendedMediaOverlay = false;
     (function scanBlend(layers: readonly Layer[]) {
       for (const l of layers) {
-        if (l.type === 'image' && l.source?.type === 'media'
+        // A screen/add-family-blended OVERLAY leaf that OUTLIVES the wrap keeps
+        // animating past the drop-zone timeout, so freezing the scene to time 0
+        // would drop it. Two forms share this class:
+        //   • a VIDEO media leaf (Lights/Light Noise's light-noise .mov — its 2nd
+        //     burst fires past the wrap), and
+        //   • a procedural GENERATOR leaf (Lights/Lens_Flare's LensFlareGenerator,
+        //     Blend Mode 10=screen, out=1.001s past the A-drop-zone wrap at 0.567s;
+        //     without this the completed A→B crossfade tail wrongly wrapped back to
+        //     pure A — GT shows B). Both are "a blended overlay that survives the
+        //     wrap", keyed on layer type + screen-family blend + out > wrapSec.
+        const isBlendedOverlayLeaf =
+          (l.type === 'image' && l.source?.type === 'media') || l.type === 'generator';
+        if (isBlendedOverlayLeaf
           && (l.blendMode === 'screen' || l.blendMode === 'add' || l.blendMode === 'overlay' || l.blendMode === 'lighten')
           && l.timing) {
           const outSec = l.timing.out.timescale > 0 ? l.timing.out.value / l.timing.out.timescale : 0;

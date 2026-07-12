@@ -247,7 +247,9 @@ Status legend: TODO / DOING / DONE / BLOCKED
   * Movements/Drop_In (9.29) — stale top-left CARD conform → full-frame; card model deleted. [DONE]
   * Replicator-Clones/Video_Wall (8.74) — replicator tile grid + camera dolly geometry.
   * Stylized/Lower (9.04) — misses the bright mid-transition white flash (GUI f12 ≈ 239,245).
-  * Lights/Lens_Flare (9.57) — bright flare overlay the engine renders dark.
+  * Lights/Lens_Flare (9.57) — retime-wrap snapped the completed A→B crossfade tail back to
+    pure A; screen-blend generator overlay now cancels the wrap → B arrives. [DONE — flare
+    brightness overlay (f12) still a separate generator gap]
   * Dissolves/Divide (10.15) — B Masks mask-reveal geometry / A-B z-order.
   * Slide_In / Center_Reveal / Close_and_Open — linear/color Gradient generator not composited.
 - DoD (per sub-step): a structural fix, gate 0 regressions, baseline re-frozen, pushed.
@@ -273,6 +275,39 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-13  ITEM 12 (Lens_Flare) DONE — retime-wrap cancel now covers screen-blend
+              GENERATOR overlays. ROOT CAUSE of Lights/Lens_Flare (9.57): its Transition A
+              drop zone times out at 0.567s (the A→B crossfade completing), so the retime-wrap
+              (min drop-zone `out`) snapped every tail frame past 0.567s back to scene time 0 =
+              pure A. But B lives to 1.001s (endSec) and IS the destination — GT f23 shows B,
+              not A. The wrap-cancel probe (which disables the wrap when a filled-shape /
+              blended-MEDIA / replicator-matte overlay keeps animating past the wrap) missed
+              Lens_Flare's LensFlareGenerator: a screen-blend (Blend Mode 10) GENERATOR that
+              outlives the wrap (out=1.001s) and animates the whole duration — the SAME
+              "blended overlay survives the wrap" class as Light Noise's screen .mov, just a
+              generator instead of a media image. Extended the blendedMediaOverlay scan to also
+              match l.type==='generator' with a screen-family blend + out>wrapSec. Blast radius
+              = Lens_Flare only (the only slug with BOTH a wrap AND a screen-blend generator
+              outliving it; verified every other slug's wrapSec/clampSec unchanged). f0 and f23
+              now match (A→B crossfade restored); the f12 flare-brightness overlay remains a
+              separate LensFlareGenerator feature gap. Lens_Flare 9.57→11.63 (+2.06) gate-res /
+              22.72 full-res; gate 0 regressions; engine mean 13.71→13.74 dB; baseline
+              re-frozen. tsc clean. Structural (layer type + blend + out>wrap), not a name.
+- 2026-07-13  ITEM 12 (Drop_In) DONE — deleted the STALE top-left card-conform model → full
+              frame. Movements/Drop_In drew its Transition A/B drop zones through a dedicated
+              "DropInCard" pass that conformed each source into a 1588×902 card pinned to the
+              output's TOP-LEFT, leaving the right+bottom ~30% of the frame BLACK (f0 blackfrac
+              0.305, an L-shaped void). That geometry was fit to an OLD GUI-GT capture; the
+              CURRENT GUI GT shows A/B filling the ENTIRE frame every frame (f0 = full-frame
+              sepia A, f23 = full-frame B, no void). Removed detectDropInCard/blitDropInCard +
+              the DropInCard context type + the renderLayer skip + the composite() draw pass,
+              and deleted compositor/drop-in.ts (dead-code rule). Drop_In now renders through
+              the normal full-frame drop-zone path (same as Push); scene 1280×720 upscales to
+              1920×1080 at identical 16:9 aspect (no letterbox) — only the shared ~3.6%
+              start.png conform edge remains. Blast radius = Drop_In only (detectDropInCard
+              fired on its unique upscaled-scene + Transition-B position-bounce signature).
+              Gate: 0 regressions, Drop_In 9.29→14.61 (+5.32) gate-res / 14.89 full-res.
+              Engine mean 13.63→13.71 dB; baseline re-frozen. tsc clean.
 - 2026-07-13  ITEM 12 (Drop_In) DONE — deleted the STALE DropInCard "card conform" model.
               Drop_In was scoring 9.29 because the compositor drew its Transition A/B drop
               zones as a 1588×902 CARD pinned to the top-left (0,0), leaving ~30% of the frame
