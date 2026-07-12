@@ -195,9 +195,43 @@ Status legend: TODO / DOING / DONE / BLOCKED
   7.45→18.66, Circle_Wipe 7.47→22.91, Gaussian_Blur 7.66→23.63). Engine mean 11.92→13.02 dB;
   baseline re-frozen. tsc clean.
 
+### 10. animationEndSec local-frame timing fixes (progress→time map)  [DOING]  (engine)
+- Problem: the lowest-scoring slugs were rendering BLACK/frozen tails because the
+  `animationEndSec` heuristic (parser/index.ts) read RAW keyframe/timing values that live
+  in a node's LOCAL time frame, inflating the transition window far past the authored span
+  (sceneSettings/duration ÷ frameRate). `render(progress)` = `progress·animationEndSec`, so
+  an inflated end sampled scene instants LONG past every layer's `out` = empty frames. The
+  evaluator already re-anchors these local-frame curves at RENDER time; the animation-end
+  DOMAIN must match the render or the two desync.
+- DoD: every slug's animationEndSec ≤ the authored span except where a curve genuinely
+  animates in scene-time; the three local-frame classes (maxOut fallback, Camera negative
+  offset, screen/add media-overlay negative offset) re-anchor to match the evaluator.
+- Verify: `fct regress engine` 0 regressions after each; `_trace_end` shows only the intended
+  slug's animationEndSec change; no-hardcode policy OK (parser invariants, not scene detectors).
+- IN PROGRESS: 3 classes fixed, each a separate gate-green commit:
+  - maxOut fallback clamp (cc9bef6): Squares 7.78→11.72, Combo_Spin 7.41→11.21.
+  - Camera negative-offset re-anchor (ef4ff92): Light Sweep 4.42→14.44 (was BLACK).
+  - screen/add media-overlay negative-offset re-anchor (2c7a370): Light Noise 8.72→17.07.
+  Engine mean 13.02→13.43 dB. Remaining candidates to audit: Video_Wall (8.74), Slide_In,
+  Center_Reveal, Heart, Loop, Up-Over (all have animationEndSec > span but via paths NOT yet
+  proven safe to clamp — each needs the render-vs-GT check before touching).
+
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-13  ITEM 10 (DOING) — animationEndSec LOCAL-FRAME timing fixes. The lowest slugs
+              rendered BLACK/frozen tails: their animationEndSec was inflated far past the
+              authored span because the keyframe/timing walk read RAW values that live in a
+              node's LOCAL time frame (the evaluator re-anchors these at render time, so the
+              animation DOMAIN and the render had desynced). Fixed 3 structural classes, each a
+              gate-green commit: (a) maxOut fallback clamp to span (cc9bef6) — Squares 7.78→11.72,
+              Combo_Spin 7.41→11.21; (b) Camera negative-offset re-anchor (ef4ff92) — Light Sweep
+              4.42→14.44 (its Camera offset −17.6s put Position keys at local 18.9s → scene 1.3s;
+              render(0.5) had sampled 9.4s = black); (c) screen/add media-overlay negative-offset
+              re-anchor (2c7a370) — Light Noise 8.72→17.07 (light-noise .mov screen overlay, offset
+              −0.734s + retime = the evaluator's exact re-anchor signature). Each verified via
+              _trace_end to change ONLY the intended slug's animationEndSec; no-hardcode OK (parser
+              invariants, not scene detectors). Engine mean 13.02→13.43 dB; baseline re-frozen 3×.
 - 2026-07-13  ITEM 9 DONE — 360° family FULL-FRAME model (GUI-GT drift fix). The 8 360°
               transitions scored 6-8 dB because transition360.ts composited the panorama into
               a bottom-half "band" (BAND_TOP=502) that matched an OLD GUI-GT capture; the
