@@ -112,17 +112,32 @@ export function levelsFilter(input: ImageData, params: LevelsParams): ImageData 
 }
 
 /**
- * PAEBrightness — a per-channel MULTIPLY in sRGB space: out = clamp(in * amount).
+ * PAEBrightness — per-channel MULTIPLY. FCP renders in a LINEAR working space
+ * (decoded below), which makes the ISOLATED transfer curve piecewise on `amount`:
  *
- * PHASE-2 VERIFIED (tools/re/filter_probe.py against the real headless FCP engine):
- * rendering PAEBrightness over image A at static Brightness values gives, per pixel,
- * out = in * amount EXACTLY (sRGB space, not linear): B=1.0 -> identity (out/A ratio
- * 0.999), B=0.5 -> out = A*0.5 (center px [106,58,37] -> [53,29,18], mean|err| 0.72
- * = JPEG noise; a linear-light multiply mismatches by 20.8). So FCP Brightness is a
- * straight sRGB multiplier, and the plugin's param DEFAULT is 1 (identity).
- * ⚠️ This REPLACES the old additive `src + amount*255` model, which was wrong: at
- * Curtains' authored Brightness=2.91 additive blew every pixel to white (+742),
- * whereas FCP multiplies by 2.91 (with clamp). The identity value is 1, not 0.
+ * DECODED 2026-07-12 (tools/re/filter_probe.py + a synthetic 0..255 gradient through
+ * the real headless FCP engine, and oz_render.mm OZ_WS_DEBUG confirming the working
+ * color space is kCGColorSpaceLinearSRGB / 16-bit half-float ExtendedLinearSRGB
+ * readback). The 8-bit source node is UNTAGGED, so FCP treats its code values AS
+ * linear working values; HGColorMatrix multiplies by `amount` in that space, and the
+ * readback sRGB-encodes the result. Measured ISOLATED transfer (gradient, code v):
+ *
+ *   • amount <= 1 (darken):   out = clip(amount · v)          — exact, mad 0.24
+ *   • amount  > 1 (brighten): out = srgbEncode(amount · v/255) — exact, mad 0.12
+ *
+ * with a hard discontinuity at amount == 1 (verified: b=0.95 code-mult leg, b=1.01
+ * linear-encode leg). This matches the isolated headless probe (brighten PSNR 13->34).
+ *
+ * ⚠️ BUT the brighten-encode is a PER-FILTER encode, and FCP keeps the WHOLE node
+ * graph in linear working space and encodes ONCE at readback. The only shipping
+ * PAEBrightness user (Objects__Curtains, amount=2.91) STACKS Brightness → Mono
+ * (PAEChannelMixer), so a per-filter sRGB-encode between them diverges from FCP's
+ * single-encode chain and REGRESSED the GUI-GT gate (Curtains 14.31 -> 13.85, -0.46).
+ * The one truth is the GUI GT (ROADMAP rule 1), so the shipped code keeps the plain
+ * code-multiply for BOTH legs: it is what the GUI GT prefers for the stacked chain,
+ * and correctly reduces to the darken leg for amount<=1. Closing the brighten leg
+ * requires a linear-working-space FILTER CHAIN (encode once after all filters), which
+ * is an engine-architecture change tracked separately — NOT a per-filter encode.
  */
 export function brightnessFilter(input: ImageData, amount: number): ImageData {
   if (amount === 1) return input;

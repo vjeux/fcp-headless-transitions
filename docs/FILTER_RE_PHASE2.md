@@ -227,12 +227,49 @@ Deeper dig on the Brightness>1 gap (the cleanest of the shared color-pipeline ga
     (best p=0.75, mad 22 — worse than sRGB for darken), x^(1/4.4) (mad 18), screen
     1-(1-x)^2 (mad 61). The darken=exact-sRGB / brighten=huge-lift ASYMMETRY rules out
     any symmetric decode/multiply/encode.
-  * Hypothesis for a future pass: the HGColorMatrix executes in a camera/log working
-    space where a >1 gain becomes a log-domain lift, OR the >1 branch remaps the param
-    (not visible in the decoded straight-through path). Needs the HGColorMatrix
-    RenderTile / the Ozone render color-management config, not the filter binary.
-  * UNEXERCISED: all 27 Brightness users darken; brighten hits no shipping transition.
-    Documented with the measured curve; explicitly NOT fit.
+## RESOLVED (2026-07-12): the working color space is kCGColorSpaceLinearSRGB
+The "systemic color-pipeline root cause" above is now DECODED, not hypothesized. I
+instrumented the headless shim (`oz_render.mm`, gate `OZ_WS_DEBUG=1`) to print what
+`OZRenderParams_getWorkingColorSpace()` actually returns, and to print the readback
+pixel depth:
+
+    [oz-ws] workingColorSpace name='kCGColorSpaceLinearSRGB' model=1 iccBytes=572
+    [oz-ws] readback bpp=8  (16-bit half-float ExtendedLinearSRGB) rowBytes=15360 (1920px)
+
+So FCP renders every filter in a **LINEAR sRGB** working space, reads back a 16-bit
+half-float ExtendedLinearSRGB framebuffer, and CoreGraphics sRGB-ENCODES it when it
+writes the 8-bit PNG. The 8-bit source image nodes (PGHelium format 4) are UNTAGGED,
+so FCP treats their code values directly AS linear working values (it does not
+sRGB-decode them on the way in).
+
+**Brightness transfer — now EXACTLY decoded** (synthetic 0..255 gradient probe, so no
+1854→1920 conform noise):
+  * amount ≤ 1 (darken):   `out = clip(amount · v)`          — mad 0.24 (exact)
+  * amount > 1 (brighten): `out = srgbEncode(amount · v/255)` — mad 0.12 (exact)
+  * HARD discontinuity at amount==1 (b=0.95 uses the code-mult leg, b=1.01 jumps to the
+    linear-encode leg). Confirmed by `s2l(out) == b·(v/255)` for every b>1 (mad ≤0.09)
+    and `s2l(out) == s2l(clip(b·v))` for every b≤1 (mad ≤0.001).
+  * This is why NO symmetric decode/multiply/encode fit before: the two legs use
+    DIFFERENT working assumptions (the readback's linear→sRGB encode only lifts the
+    shadows once the working value exceeds the code-multiply's identity range).
+
+**Why the shipped code still uses the plain code-multiply (careful-coder / one-truth):**
+The isolated brighten model matches the isolated headless probe (PSNR 13→34). BUT there
+is exactly ONE shipping PAEBrightness user — Objects__Curtains, amount=2.91 — and it
+STACKS Brightness → Mono(PAEChannelMixer). Applying the brighten-encode PER-FILTER
+regressed Curtains' GUI-GT gate (14.31→13.85, −0.46), because FCP keeps the WHOLE node
+graph in linear and encodes ONCE at readback (not once per filter). Critically, the GUI
+GT (the one truth) for Curtains is much brighter than headless (frame-12 means: GUI 30,
+headless 11, engine-sRGB-chain 21) — headless≠GUI by ~18 dB here, and the plain sRGB
+code-multiply chain lands CLOSEST to the GUI truth. A linear filter-chain would push the
+engine toward the (darker) headless and FURTHER from GUI. So per ROADMAP rule 1 the plain
+multiply ships. The prior "27 users darken / no transition brightens" claim was WRONG:
+there is 1 user and it brightens; the plain-multiply is nonetheless what the GUI GT wants.
+  * Verified via oz_render.mm OZ_WS_DEBUG + tools/re/filter_probe.py on a gradient.
+  * The other members of the family (HSV-hue, Tint, Colorize@Intensity=1) render through
+    this SAME linear working space; their isolated shader ports should be re-checked in
+    linear before calling them ceilings (see the per-filter sweep notes).
+
 
 ## Final sweep result (2026-07-12): 35 PASS, 0 FAIL across 16 filters
 `tools/re/filter_sweep.py` (all): MATCHED vs headless FCP across their parameter spaces:

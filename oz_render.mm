@@ -337,6 +337,22 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
     int channelOrder=*(int*)(params+0xd8);
     CGColorSpace* ws=OZRenderParams_getWorkingColorSpace(params);
     if(!ws) ws=CGColorSpaceCreateDeviceRGB();
+    if(getenv("OZ_WS_DEBUG") && ws){
+        // Decode the actual WORKING color space FCP renders filters through. This is
+        // the root of the color-pipeline gaps (Brightness>1/HSV-hue/Tint/Colorize):
+        // filter math runs in THIS space, not sRGB. Print its name + model + ICC size.
+        CFStringRef nm=CGColorSpaceCopyName(ws);
+        char buf[256]="?"; if(nm){ CFStringGetCString(nm,buf,sizeof(buf),kCFStringEncodingUTF8); CFRelease(nm);}
+        CGColorSpaceModel model=CGColorSpaceGetModel(ws);
+        CFDataRef icc=CGColorSpaceCopyICCData(ws);
+        long iccLen=icc?CFDataGetLength(icc):-1;
+        bool isLinear=false;
+        #ifdef kCGColorSpaceLinearSRGB
+        #endif
+        fprintf(stderr,"[oz-ws] workingColorSpace name='%s' model=%d iccBytes=%ld bpp=%zu channelOrder=%d\n",
+                buf,(int)model,iccLen,(size_t)0,channelOrder);
+        if(icc) CFRelease(icc);
+    }
     void* liTech=params+0x55c;                            // LiRenderingTechnology lives inside OZRenderParams
     // Aperture-aware readback: query the output node's Domain-Of-Definition (true pixel bounds)
     // and center a 1920x1080 readback window on the DOD center. Most transitions have a DOD centered
@@ -453,6 +469,7 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
     PCBitmap_vimage(br.p,&vb);
     if(!vb.data){ OZXSetThreadRenderer(NULL); free(hgr); return 5; }
     size_t bpp=vb.rowBytes/vb.width;                      // 8 => 16-bit half-float RGBA, else 8-bit
+    if(getenv("OZ_WS_DEBUG")) fprintf(stderr,"[oz-ws] readback bpp=%zu (8=>16bit-halffloat ExtLinearSRGB, 4=>8bit-sRGB) width=%lu rowBytes=%lu\n",bpp,(unsigned long)vb.width,(unsigned long)vb.rowBytes);
 
     // ZERO-ALPHA RGB CLEANUP (generic, all transitions). The Ozone framebuffer's
     // FULLY-TRANSPARENT pixels (alpha ~= 0) can carry UNDEFINED RGB garbage — commonly a
