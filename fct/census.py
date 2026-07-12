@@ -86,6 +86,33 @@ def _links(xml, fac):
     return out
 
 
+def _gravities(xml, fac):
+    # Gravity is a <behavior> whose factoryID resolves to description "Gravity"
+    # (id NOT stable across .motr files — always read from the factory table).
+    # Report the HOST scenenode's factory (Particle Cell vs Layer/Group vs Emitter):
+    # T-A3 census 2026-07-13 proved every built-in Gravity sits on a Particle Cell,
+    # never a layer — so "layer fall" is not a real usage, gravity is a particle-sim
+    # parameter (folded into T-B1). Future ticks reading this line skip the trap.
+    grav_fids = {fid for fid, d in fac.items() if d == "Gravity"}
+    if not grav_fids:
+        return []
+    out = []
+    for m in re.finditer(r'<behavior\b([^>]*)>', xml):
+        a = dict(re.findall(r'(\w+)="([^"]*)"', m.group(1)))
+        if int(a.get("factoryID", "0") or 0) not in grav_fids:
+            continue
+        # Walk back to the innermost enclosing <scenenode>.
+        host_fac = "?"
+        for m2 in reversed(list(re.finditer(r'<scenenode\b([^>]*)>', xml[:m.start()]))):
+            between = xml[m2.end():m.start()]
+            if len(re.findall(r'<scenenode\b', between)) == len(re.findall(r"</scenenode>", between)):
+                a2 = dict(re.findall(r'(\w+)="([^"]*)"', m2.group(1)))
+                host_fac = fac.get(int(a2.get("factoryID", "0") or 0), "?")
+                break
+        out.append({"host": host_fac, "name": a.get("name", "Gravity")})
+    return out
+
+
 def census_slug(slug, motr):
     xml = open(motr, encoding="utf-8", errors="ignore").read()
     fac = _factory_map(xml)
@@ -107,7 +134,8 @@ def census_slug(slug, motr):
             "filters": dict(filters.most_common()), "generators": generators,
             "emitters": types.get("Emitter", 0),
             "cells": types.get("Particle Cell", 0) + types.get("Cell", 0),
-            "links": _links(xml, fac)}
+            "links": _links(xml, fac),
+            "gravities": _gravities(xml, fac)}
 
 
 def _print(c):
@@ -121,6 +149,11 @@ def _print(c):
             for g in c["generators"]))
     if c["emitters"] or c["cells"]:
         print("  particles  : %d emitter(s), %d cell(s)" % (c["emitters"], c["cells"]))
+    if c["gravities"]:
+        hosts = Counter(g["host"] for g in c["gravities"])
+        print("  gravity    : %d behavior(s) on %s"
+              % (len(c["gravities"]),
+                 ", ".join("%s x%d" % (h, n) for h, n in hosts.most_common())))
     if c["links"]:
         n_col = sum(1 for l in c["links"] if l["colour"])
         print("  links      : %d total (%d transform, %d COLOUR)"

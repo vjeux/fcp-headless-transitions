@@ -171,9 +171,13 @@ T-A1  TODO    colour-channel Link (census-verified)               Panels_Across,
                                                                   Heart (NOT Color_Planes — 3D fold)
 T-A2  TODO    Motion Path driver                                  layer follows a spatial path;
                                                                   unblocks path users
-T-A3  TODO    Gravity driver                                      constant accel; feeds particle +
-                                                                  layer fall
+T-A3  DROPPED Gravity driver (LAYER-level)                        census: 0 built-in LAYERS use
+                                                                  Gravity. All 4 Gravity behaviours
+                                                                  (Drop_In x3, Earthquake x1) sit on
+                                                                  Particle Cells -> folded into T-B1
+                                                                  (which already lists "gravity").
 T-B1  TODO    Emitter+Cell param PARSER                           birth rate, life, vel, spin, gravity
+                                                                  (owns gravity after T-A3 dropped)
 T-B2  TODO    Emitter SIM+render, MINIMAL     after: T-B1         spawn + advect + gravity + composite
                                                                   (flat colour). Target: Diagonal x2
 T-B3  TODO    Emitter appearance-over-life    after: T-B2         colour/scale/opacity ramps ->
@@ -192,9 +196,10 @@ T-F1  TODO    Smear appearance at mid-frames                      Movements/Smea
 T-G1  TODO    Movements 3D-fold + Color_Planes (census:           Multi/Flip/Pinwheel/Swing +
               3D fold + 6x Channel Mixer, NOT colour-Link)        Color_Planes (10.5)
 ```
-Max concurrency today = the 9 rows with no `after:` (T-A1,A2,A3,B1,C1,D1,E1,F1,G1) run
-simultaneously. Once parents merge, the dependents fan out to MORE parallelism, not less:
-T-B1→T-B2→T-B3 (chain); T-D1 unblocks FOUR filter rows at once (T-D2a/b/c/d); T-E1→T-E2. (T-C1 dropped.)
+Max concurrency today = the 8 rows with no `after:` (T-A1,A2,B1,D1,E1,F1,G1 + all four T-D2*
+after T-D1) run simultaneously. Once parents merge, the dependents fan out to MORE parallelism,
+not less: T-B1→T-B2→T-B3 (chain); T-D1 unblocks FOUR filter rows at once (T-D2a/b/c/d); T-E1→T-E2.
+(T-A3 dropped — census: gravity only on Particle Cells, folded into T-B1. T-C1 dropped.)
 Rightsizing note: rows are kept at "one independently gate-verifiable change" — parse-only stages
 (T-A2/B1) are NOT split further because a parser edit scores nothing on its own; big rendering rows
 (T-B2, T-D2) ARE split because each sub-row moves PSNR alone.
@@ -209,7 +214,7 @@ Each subsystem below is a durable description of a REAL part of the FCP/Motion e
 current status in the TS engine, the slugs it gates, and the concrete next step. The ONE-TRUTH
 gate rules above apply to every item.
 
-### S1. Behaviour drivers — Link / Motion Path / Gravity  [DOING]  (tasks T-A1/A2/A3 · safe, high-coverage)
+### S1. Behaviour drivers — Link / Motion Path  [DOING]  (tasks T-A1/A2 · safe, high-coverage)
 **What it is (FCP):** Motion "Behaviors" are procedural animation drivers layered on top of
 keyframe curves. The engine already evaluates Rig Behavior, Fade In/Fade Out, Ramp, Align To,
 Oscillate, Spin, Throw, and Sequence Replicator. Three driver families are **parsed but NOT
@@ -229,13 +234,21 @@ evaluated**, so any channel they drive is silently frozen:
   Colour Links target a filter/generator colour folder (never the `100` transform folder);
   `fct census` classifies each Link's channel from its `affectingChannel` path.
 - **Motion Path** (fID skipped in `parser/index.ts`) — a spatial path a layer follows. Unhandled.
-- **Gravity** — constant downward acceleration on a layer/particle. Parsed, never applied.
+- **Gravity** — constant downward acceleration. **Census 2026-07-13 (T-A3):** ZERO built-in
+  transitions use Gravity at the LAYER level; all 4 Gravity behaviours in the corpus sit on
+  Particle Cells (Movements/Drop_In: 3 cells "Blur 11"/"copy"/"copy 1"; Movements/Earthquake:
+  1 cell "Blur 11" with a keyframed Acceleration curve default=30). "Layer fall" is not a
+  real usage — the Drop_In "card falling in" is a keyframed Position curve, not a Gravity
+  behaviour, and Movements/Fall has NO behaviours at all. Therefore Gravity as a LAYER driver
+  gates 0 slugs; the real Gravity work is emitter/cell param parsing, folded into T-B1
+  (which explicitly lists "gravity" in its scope) and consumed by T-B2's particle sim.
+  T-A3 DROPPED for this reason.
 **Status:** PARTIAL. Slugs gated (16): Panels_Across, Color_Planes, Lens_Flare, Switch,
 Center_Reveal, Push, Reflection, Zoom, 360°_Wipe, Drop_In, Clothesline, Earthquake, Scale,
 3D_Rectangle, 360°_Reveal_Wipe, 360°_Circle_Wipe (many already ≥15 — the low ones are the target).
 **Next step:** implement **colour-channel Link** first, targeting **Panels_Across** and
-**Slide_In** (census-confirmed colour-Link users), then Motion Path, then Gravity — each an
-additive evaluator handler, independently gate-verifiable. NOTE: Color_Planes is a 3D-fold +
+**Slide_In** (census-confirmed colour-Link users), then Motion Path — each an additive
+evaluator handler, independently gate-verifiable. NOTE: Color_Planes is a 3D-fold +
 Channel-Mixer slug, so do not expect colour-Link work to move it.
 **DoD:** each driver evaluated; gate 0 regressions; the gated low slugs improve; baseline re-frozen.
 **Verify:** `fct census` first, then `fct regress engine` + `fct score Stylized__Panels_Across Stylized__Slide_In --full`.
@@ -367,6 +380,21 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  T-A3 DROPPED (Gravity LAYER driver) — census refuted the premise. `fct census`
+              extended to report Gravity behaviours + host scenenode; ran across all built-ins:
+              only Movements/Drop_In (3 cells) and Movements/Earthquake (1 cell) have Gravity,
+              and every one of the 4 behaviours sits on a Particle Cell (factoryID resolves to
+              "Particle Cell", not a layer/group/emitter). Movements/Fall has ZERO behaviours —
+              its animation is pure keyframes, no Gravity. "Feeds layer fall" is not a real
+              usage; the drop-in "card falling" is a keyframed Position curve. Since Gravity is
+              purely a particle-sim parameter and T-B1 ("Emitter+Cell param PARSER") already
+              lists "gravity" in its scope, Gravity work is folded there and consumed by T-B2's
+              sim. ROADMAP updated: T-A3 row -> DROPPED with the census verdict; S1 heading now
+              "Link / Motion Path" (no Gravity), S1's Gravity bullet cites the T-A3 census;
+              T-B1 row annotated "owns gravity after T-A3 dropped"; concurrency count updated
+              (was 9, now 8). fct/census.py adds `_gravities()` + a "gravity:" print line
+              (walks back to the enclosing scenenode to distinguish Cell vs Layer hosts). Gate
+              0 regressions (toolkit + doc only, no engine change). Rule 8 saved a tick.
 - 2026-07-13  SHIPPED the parallel swarm (fct/swarm/) + LAUNCHED it: a self-refilling pool of 8
               Claude Code agents working the flat task list, each in an isolated git worktree
               (own frames dir via $FCT_FRAMES_DIR, own render lock via $FCT_LOCK, node_modules+venv
