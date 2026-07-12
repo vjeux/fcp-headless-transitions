@@ -177,9 +177,38 @@ Status legend: TODO / DOING / DONE / BLOCKED
   arrays + sample_time & scene_duration on committed fixture .motr), no FCP needed.
   Verify: `python3 -m pytest fct/` -> 21 passed; `fct regress headless/engine` -> 0/0 both.
 
+### 9. 360° transition family — full-frame model (GUI-GT drift fix)  [DONE]  (engine)
+- Problem: the 8 360° transitions scored 6-8 dB (the biggest low-score cluster). The
+  `transition360.ts` model composited the panorama into a bottom-half "band" (BAND_TOP=502,
+  TILE_W=1855) — that matched an OLDER GUI-GT capture, but the CURRENT GUI GT shows the
+  equirect panorama filling the ENTIRE frame (verified: Push f0 == full-frame start.png at
+  28.9 dB; the band model scored ~7 dB against the current truth).
+- DoD: 360° push/slide/crossfade/wipe/divide/circle render FULL-FRAME (cover-fit the whole
+  output, translate by one frame width); no bottom-half band constants; dead band code deleted.
+- Verify: `fct regress engine` OK (improvements, 0 regressions); re-baseline; tsc clean.
+- DONE 2026-07-13: rewrote render360Band on a full-frame model (new `drawFull` + `sampleFull`
+  cover-fit-to-frame; push = A slides out one width, B trails; slide/crossfade/masked-reveal
+  all full-frame). Deleted the dead band model (`drawTile`, REF_W/REF_H/HOME_LEFT/TILE_W/
+  BAND_TOP, unused `snapValue`, the Rig End-Value sweep read, `Band360Config.sweep`). Sweep is
+  now always one output width, signed by the Direction widget. Gate: 7 IMPROVED, 0 regressions
+  (Push 7.40→14.28, Slide 7.53→14.97, Wipe 7.35→14.12, Divide 6.25→14.47, Reveal_Wipe
+  7.45→18.66, Circle_Wipe 7.47→22.91, Gaussian_Blur 7.66→23.63). Engine mean 11.92→13.02 dB;
+  baseline re-frozen. tsc clean.
+
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-13  ITEM 9 DONE — 360° family FULL-FRAME model (GUI-GT drift fix). The 8 360°
+              transitions scored 6-8 dB because transition360.ts composited the panorama into
+              a bottom-half "band" (BAND_TOP=502) that matched an OLD GUI-GT capture; the
+              CURRENT GUI GT shows the equirect panorama filling the ENTIRE frame (Push f0 ==
+              full-frame start.png at 28.9 dB). Rewrote render360Band full-frame (drawFull +
+              sampleFull cover-fit; push=A slides out one width & B trails; slide/crossfade/
+              wipe/divide/circle all full-frame). Deleted the dead band code (drawTile, REF_*/
+              HOME_LEFT/TILE_W/BAND_TOP, snapValue, End-Value sweep read, Band360Config.sweep).
+              Gate: 7 IMPROVED, 0 regressions (Push 7.40→14.28, Slide→14.97, Wipe→14.12,
+              Divide 6.25→14.47, Reveal_Wipe→18.66, Circle_Wipe→22.91, Gaussian_Blur→23.63).
+              Engine mean 11.92→13.02 dB; baseline re-frozen. tsc clean.
 - 2026-07-12  FILTER RE — session wrap: added a STATUS SNAPSHOT to docs/FILTER_RE_PHASE2.md
               (24 filters: MATCHED+verified vs CEILING vs documented-GAP vs 360-is-compositing).
               This session matched Zoom Blur (log-polar), Luma Keyer (getAlphaLuma trapezoid +
