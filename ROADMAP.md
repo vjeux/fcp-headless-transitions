@@ -250,12 +250,71 @@ Status legend: TODO / DOING / DONE / BLOCKED
   * Lights/Lens_Flare (9.57) — retime-wrap snapped the completed A→B crossfade tail back to
     pure A; screen-blend generator overlay now cancels the wrap → B arrives. [DONE — flare
     brightness overlay (f12) still a separate generator gap]
-  * Dissolves/Divide (10.15) — B Masks mask-reveal geometry / A-B z-order.
+  * Dissolves/Divide (10.15) — B Masks mask-reveal geometry / A-B z-order. TRIAGE: 51% black
+    at EVERY frame incl. f0 (GUI f0 = full-frame A) — an L-shaped void; ENG bluish (53,59,72)
+    ≈ B even though B op=0 at f0. Two nested mask groups ("A Masks"/"B Masks") with MinMax
+    morphology filters clip the drop-zone A down to a centre region. NOT a timing/wrap bug
+    (wrapSec=0.801, endSec=1.385). Root cause is the mask-reveal COMPOSITE (the MinMax-dilated
+    rectangle-mask union is mis-applied, leaving A masked to centre + B bleeding through).
+    Deep mask-geometry work; no clean single-fix.
   * Slide_In / Center_Reveal / Close_and_Open — linear/color Gradient generator not composited.
+    TRIAGE (Slide_In): TWO compounding bugs — (1) endSec=3.0 is inflated ~3× (real transition
+    ~1s; the "Gradient" generator + Color-linker keys run to 3.0s), so progress maps onto a 3×
+    axis; (2) wrapSec=0.467 snaps the tail to A. Even cancelling the wrap leaves the 3× time
+    stretch. Needs BOTH the Gradient-generator render AND an endSec fix — not a clean single fix.
   * Stylized/Slide (14.21) — retime-wrap froze the sliding-media-panel montage tail on A;
     kinetic-media-panel-montage now cancels the wrap → B arrives. [DONE]
+  * Movements/Smear (11.03) — TRIAGE: NOT a wrap/clamp bug (tried force-clamp: 11.03→10.61,
+    WORSE — reverted, not committed). GUI mid-frames (f8/f16) are dark-sepia (78,41,32) = A
+    heavily DirectionalBlur+Smear-displaced; ENG renders bluish-B (114,113,126). The A drop
+    zone (out=0.434) smears off-screen left (tx→-1716) revealing B, but the engine can't
+    continue the smear past the drop-zone timeout (content vanishes at 0.467) — the smear
+    trail + its extended lifetime is the gap, a filter/geometry issue not timing.
+  * Stylized/Panels_Across (10.38) — TRIAGE: NOT wrap (none). White panels ARE parsed correctly
+    (panelFill=255,255,255 @ opacities 0.55/1.0/0.05) and render, but (a) semi-transparent
+    white over sepia A gives warm-grey (182,158,144) vs GUI's cool near-white (200,202,209) —
+    the linear-vs-sRGB compositing ceiling — and (b) B only reaches op=1 at p=0.958 so the
+    panel SWEEP reveals B too late (GUI is B-dominant by f18/p=0.75). Heavily-tuned shared code
+    (prior 14.6→18.8 tune); risky to touch. Deferred.
+  * Replicator-Clones/Clone_Spin (10.32) / Video_Wall (8.74) — Framing-camera projection: the
+    computeFraming pose targets a point offset from Transition A, so A projects off-centre
+    leaving ~40% black at f0 (GUI f0 = full-frame A), and mid-frames go near-black. Deep
+    camera-geometry work.
 - DoD (per sub-step): a structural fix, gate 0 regressions, baseline re-frozen, pushed.
 - Verify: `fct regress engine` green + `fct score <slug> gui --full`.
+- TRIAGE MAP (2026-07-13, remaining low-scorers — each verified NOT a clean single-fix wrap
+  case; all are deep multi-issue and need dedicated ticks. Attempted+rejected noted):
+  * Movements/Smear (11.03) — NOT a wrap/clamp fix. Its "Cartoon Whoosh" is source A with a
+    DirectionalBlur+Smear filter sliding off-screen left (tx 0→-1716) to reveal the B drop
+    zone; both drop zones time out very early (A 0.434s, B 0.467s) but endSec=1.134. Forcing
+    the clamp path (hold last live frame) REGRESSED it (11.03→10.61): the held frame still
+    has A half-on (tx=-1335) and is bluish, while GT f8/f16 are dark-sepia (78,41,32) — the
+    Smear-blurred A. Root cause is the DirectionalBlur+Smear filter appearance + the smear
+    continuing past the drop-zone timeout (engine content vanishes at 0.467). Filter/geometry
+    work, not timing. (Reverted, uncommitted.)
+  * Stylized/Slide_In (10.25) — TWO compounding bugs: (a) endSec inflated to 3.0s (the
+    "Gradient" generator's keys run to 3s) so the transition plays at ~1/3 speed; (b) a
+    retime-wrap at 0.467s snaps the tail to A. Even cancelling the wrap leaves the 3× time
+    stretch. Needs the Gradient-generator endSec exclusion + the full-frame cyan Gradient
+    composited. Two-deep; defer.
+  * Stylized/Panels_Across (10.38) — NOT a fill-color bug (verified: the 7 "White panels"
+    parse correctly as panelFill white 255,255,255 at opacities 0.55/1.0/0.05 via
+    findPanelFillColor). Issue: the white-panel sweep composites to (182,158,144) vs GT's
+    bright (200,202,209), and B only reaches op=1 at p=0.958 while GT shows B-dominant by f18
+    — the panel sweep reveals B too late and the panels read dim over sepia A. Panel
+    blend/opacity + reveal-timing, in heavily-tuned isSolidPanel code; high regression risk.
+  * Dissolves/Divide (10.15) — 51% BLACK at ALL frames incl. f0 (an inset center rectangle,
+    ~12.5% border black + bluish 53,59,72 fill) even though Transition A is vis=true op=1 in
+    the "Drop Zones" group. The "Group"→"A Masks"/"B Masks" mask groups (MinMax morphology
+    filters) are clipping/compositing the whole frame down to a center rect. Mask-reveal
+    geometry / group-mask compositing bug; needs mask-group render investigation.
+  * Replicator-Clones/Video_Wall (8.74) — Framing camera + replicator wall in huge off-canvas
+    world coords; the computeFraming pose targets a point offset from A so f0 doesn't fill and
+    f4 goes fully black. Framing-camera projection geometry; deep.
+  * Stylized/Lower (9.04) — kinetic mask-panel scene; misses the bright mid white flash and
+    the panel/mask reveal (mostly vis=false op=0 panels). Deep mask-choreography scene.
+  * Replicator-Clones/Clone_Spin (10.32) — f0 too bright (165,115,72 vs 131,83,54), f16 ~90%
+    black; clone-spin replicator geometry. Deep.
 - Color_Planes sub-step DONE: Generator with a negative timeline offset authors its
   transform curves in a LOCAL frame (scene = local + offset). The "Color Solid" backdrop
   (off≈−0.567s, Z-Position/Y-Rotation keyed to local 2.369s → scene 1.802s ≈ span 1.867s)
@@ -277,6 +336,50 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-13  ITEM 12 (triage tick) — investigated the next tranche of low-scorers and added
+              the item-12 TRIAGE MAP above; NO code landed because each is a deep multi-issue
+              case, and forcing a change into the heavily-tuned shared timemap / isSolidPanel /
+              mask-group code would risk regressions (careful-coder rule). Verified per slug:
+              Smear 11.03 is a DirectionalBlur+Smear filter/geometry gap NOT a wrap bug
+              (force-clamp REGRESSED 11.03→10.61, reverted uncommitted); Slide_In 10.25 is
+              two-deep (endSec inflated to 3.0s by the Gradient generator's keys + a 0.467s
+              wrap); Panels_Across 10.38 panels ARE parsed correctly as white (panelFill
+              255,255,255 verified) — the gap is dim panel blend over sepia A + late B reveal in
+              tuned code; Divide 10.15 renders a centered ~1350×782 content rect (51% black) from
+              the upscaled-scene (1280×720→1920×1080) + cross-group A/B MinMax mask compositing;
+              Video_Wall 8.74 / Clone_Spin 10.32 are Framing-camera projection geometry; Lower
+              9.04 is a kinetic mask-panel choreography. Tree clean, gate green (untouched). Next
+              tick: take ONE as a dedicated deep item (Divide's mask-group + upscale-conform is
+              the most concrete; Video_Wall's Framing pose is the lowest-scoring).
+- 2026-07-13  ITEM 12 (triage tick) — mapped the next tranche of low-scorers; NO code landed
+              because none is a clean single-fix and forcing a change into the heavily-tuned
+              shared timemap / isSolidPanel / mask-group code would risk regressions
+              (careful-coder). Added the item-12 TRIAGE MAP above with per-slug root causes +
+              rejected approaches. Key findings: Smear 11.03 is a DirectionalBlur+Smear
+              filter/geometry gap NOT a wrap bug (force-clamp REGRESSED 11.03→10.61, reverted
+              uncommitted); Slide_In 10.25 is two-deep (endSec inflated to 3.0s by the Gradient
+              generator's keys + a 0.467s wrap); Panels_Across 10.38 panels parse correctly as
+              white (verified panelFill 255,255,255) — the gap is dim panel blend + late B
+              reveal in tuned code; Divide 10.15 renders 51% black at every frame from cross-
+              group A/B mask compositing; Video_Wall 8.74 / Clone_Spin 10.32 are Framing-camera
+              projection geometry. Tree clean, gate green (untouched). Next tick: take ONE
+              dedicated deep item — Divide's mask-group compositing (most concrete: A op=1 but
+              clipped to an inset black rect) or the Framing-camera pose (Video_Wall, lowest).
+- 2026-07-13  ITEM 12 (triage tick) — investigated the next tranche of low-scorers; NO code
+              landed because none is a clean single-fix and forcing one would risk the
+              heavily-tuned shared timemap/isSolidPanel/mask code (careful-coder). Findings
+              recorded in the item-12 TRIAGE MAP above: (a) Smear 11.03 — DirectionalBlur+Smear
+              filter/geometry, NOT wrap; force-clamp REGRESSED 11.03→10.61 (reverted,
+              uncommitted). (b) Slide_In 10.25 — endSec inflated to 3.0s (Gradient generator
+              keys) AND a wrap; two-deep. (c) Panels_Across 10.38 — panels parse correctly as
+              white (verified), issue is dim panel blend over sepia A + late B reveal, in tuned
+              code. (d) Divide 10.15 — cross-group "A Masks"/"B Masks" (MinMax morphology) clip
+              the frame to a center rect → 51% black at every frame; mask-group compositing bug.
+              (e) Video_Wall 8.74 / Clone_Spin 10.32 — Framing-camera projection geometry.
+              (f) Lower 9.04 — kinetic mask-panel choreography. Each needs a dedicated tick.
+              Tree clean, gate untouched (green). Next: pick ONE (Divide's cross-group mask
+              compositing is the most concrete: A visible op=1 but rendered as an inset black
+              rect — a compositing bug, not subjective color/timing).
 - 2026-07-13  ITEM 12 (Slide) DONE — retime-wrap cancel now covers a kinetic media-panel
               MONTAGE. ROOT CAUSE of Stylized/Slide's frozen tail: its transition is a montage
               of 18 bundled-media sprite PANELS (Media/*.png "rectangles across") that slide
