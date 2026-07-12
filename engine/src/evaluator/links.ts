@@ -22,32 +22,61 @@ export function buildLayerById(layers: Layer[], map: Map<number, Layer>): Map<nu
   return map;
 }
 
+/**
+ * Compute a driver layer's LOCAL curve time when its scenenode `timing.offset`
+ * shifts the local timeline from the parent. Motion authors a driver's transform
+ * curves in the local frame (local_time = scene_time - offset); reading at raw
+ * scene_time reads the wrong point.
+ *
+ * Movements/Color_Planes is the canonical case: its hidden Color Solid driver has
+ * `offset=-68068/120000 = -0.567s` (with `in=0`). Position.Z / Rotation.Y are
+ * authored at local times 0.567..2.369s (6 KFs). Without the shift the last two
+ * KFs (KF5@1.802 val 649.95, KF6@2.369 val 0) never play at scene time 0..1.802 —
+ * Group 2 stays at Z≈600 (a small tilted plane off-camera at scene end) instead
+ * of unwinding to Z=0 (full-frame unfolded B). SAME shift semantics the
+ * evaluator applies to `image`/`shape` drop zones with `off - in != 0` (see
+ * evaluator/index.ts curveTime); extended here to ANY driver so a hidden generator
+ * with its own offset frame reads its curves correctly. Other Movements drivers
+ * all have offset==in (Push/Switch/Rotate/Pinwheel/Swing/Reflection/Clothesline
+ * verified via .motr grep) so this is a no-op for them.
+ */
+function driverCurveTime(driver: Layer, timeSec: number): number {
+  if (!driver.timing) return timeSec;
+  const off = driver.timing.offset && driver.timing.offset.timescale > 0
+    ? driver.timing.offset.value / driver.timing.offset.timescale : 0;
+  const inn = driver.timing.in && driver.timing.in.timescale > 0
+    ? driver.timing.in.value / driver.timing.in.timescale : 0;
+  if (Math.abs(off - inn) < 1e-3) return timeSec;
+  return timeSec - off;
+}
+
 /** Read a driver layer's animated channel (X/Y/Z) from the given transform
  *  property (position/rotation/scale) at a given time. */
 function driverChannelValue(driver: Layer, channel: 'X' | 'Y' | 'Z', timeSec: number, prop: 'position' | 'rotation' | 'scale' | 'opacity' | 'anchor' = 'position'): number {
   const t = driver.transform;
+  const localTime = driverCurveTime(driver, timeSec);
   let c: Curve | number | undefined;
   if (prop === 'opacity') {
     // Opacity is a scalar (channel-independent). Motion stores 0-1; some legacy
     // files use 0-100. Default 1 (fully opaque) when unset.
-    let v = resolveValue(t.opacity, timeSec, 1);
+    let v = resolveValue(t.opacity, localTime, 1);
     if (v > 1) v /= 100;
     return v;
   }
   if (prop === 'rotation') {
     c = channel === 'X' ? t.rotationX : channel === 'Y' ? t.rotationY : t.rotationZ;
-    return resolveValue(c, timeSec, 0);
+    return resolveValue(c, localTime, 0);
   }
   if (prop === 'scale') {
     c = channel === 'X' ? t.scaleX : channel === 'Y' ? t.scaleY : t.scaleZ;
-    return resolveValue(c, timeSec, 1);
+    return resolveValue(c, localTime, 1);
   }
   if (prop === 'anchor') {
     c = channel === 'X' ? t.anchorX : channel === 'Y' ? t.anchorY : t.anchorZ;
-    return resolveValue(c, timeSec, 0);
+    return resolveValue(c, localTime, 0);
   }
   c = channel === 'X' ? t.positionX : channel === 'Y' ? t.positionY : t.positionZ;
-  return resolveValue(c, timeSec, 0);
+  return resolveValue(c, localTime, 0);
 }
 
 /**
@@ -108,12 +137,16 @@ function resolveDriverChannel(
   // own rig behaviors (its position comes from an aspect-ratio Position snapshot),
   // matching how the driver itself is evaluated.
   const rigged = applyRigBehaviors(driver, driver.transform, behaviors, widgetValues);
+  // Same offset shift as driverChannelValue: rigged reads must sample at the
+  // driver's local time so an offset-shifted driver (Color_Planes' Color Solid)
+  // yields curve values consistent with its base channel read.
+  const localTime = driverCurveTime(driver, timeSec);
   const readRigged = (p: typeof prop, ch: typeof channel): number => {
-    if (p === 'opacity') { const vv = resolveValue(rigged.opacity, timeSec, 1); return vv > 1 ? vv / 100 : vv; }
-    if (p === 'rotation') return resolveValue(ch === 'X' ? rigged.rotationX : ch === 'Y' ? rigged.rotationY : rigged.rotationZ, timeSec, 0);
-    if (p === 'scale') return resolveValue(ch === 'X' ? rigged.scaleX : ch === 'Y' ? rigged.scaleY : rigged.scaleZ, timeSec, 1);
-    if (p === 'anchor') return resolveValue(ch === 'X' ? rigged.anchorX : ch === 'Y' ? rigged.anchorY : rigged.anchorZ, timeSec, 0);
-    return resolveValue(ch === 'X' ? rigged.positionX : ch === 'Y' ? rigged.positionY : rigged.positionZ, timeSec, 0);
+    if (p === 'opacity') { const vv = resolveValue(rigged.opacity, localTime, 1); return vv > 1 ? vv / 100 : vv; }
+    if (p === 'rotation') return resolveValue(ch === 'X' ? rigged.rotationX : ch === 'Y' ? rigged.rotationY : rigged.rotationZ, localTime, 0);
+    if (p === 'scale') return resolveValue(ch === 'X' ? rigged.scaleX : ch === 'Y' ? rigged.scaleY : rigged.scaleZ, localTime, 1);
+    if (p === 'anchor') return resolveValue(ch === 'X' ? rigged.anchorX : ch === 'Y' ? rigged.anchorY : rigged.anchorZ, localTime, 0);
+    return resolveValue(ch === 'X' ? rigged.positionX : ch === 'Y' ? rigged.positionY : rigged.positionZ, localTime, 0);
   };
   let value = readRigged(prop, channel);
   for (const sl of selfLinks) {

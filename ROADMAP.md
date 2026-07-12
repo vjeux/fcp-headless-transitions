@@ -193,8 +193,8 @@ T-D2d TODO    HSV into linear                after: T-D1          Panels_Random,
 T-E1  TODO    framing anchor (proxy->content ray)                 Video_Wall f4 black, Clone_Spin
 T-E2  TODO    clone-tile wall render          after: T-E1         Video_Wall 14-tile grid
 T-F1  TODO    Smear appearance at mid-frames                      Movements/Smear (11.0)
-T-G1  TODO    Movements 3D-fold + Color_Planes (census:           Multi/Flip/Pinwheel/Swing +
-              3D fold + 6x Channel Mixer, NOT colour-Link)        Color_Planes (10.5)
+T-G1  DONE    Movements 3D-fold + Color_Planes (census:           Multi/Flip/Pinwheel/Swing +
+              3D fold + 6x Channel Mixer, NOT colour-Link)        Color_Planes 10.47→11.35 (+0.88)
 ```
 Max concurrency today = the 8 rows with no `after:` (T-A1,A2,B1,D1,E1,F1,G1 + all four T-D2*
 after T-D1) run simultaneously. Once parents merge, the dependents fan out to MORE parallelism,
@@ -380,6 +380,24 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  T-G1 (Color_Planes 3D fold) DONE — Movements/Color_Planes 10.47→11.35 (+0.88 dB),
+              f23 (end frame) 8.49→14.21 (+5.72). ROOT CAUSE: the hidden Color Solid driver has
+              `timing.offset=-68068/120000=-0.567s` while `in=0`, so its 6-KF Position.Z and
+              Rotation.Y curves are authored in the LOCAL frame (KFs at local times 0.567..2.369s).
+              At scene time 0..1.802 the correct playback is local = scene + 0.567 (KF1 at scene 0,
+              KF6 at scene 1.802s = scene end). The engine's Link source-read went straight to the
+              raw curves at scene time (no shift), so the last two KFs (KF5 val 649.95, KF6 val 0)
+              never played and Group 2 stayed at Z≈650 at scene end — engine rendered a small
+              tilted plane where GT shows the full-frame un-folded B. Same failure on Rotation.Y
+              (never reached π=180°, so the fold never completed). FIX: added driverCurveTime() in
+              evaluator/links.ts that shifts the driver's read time by its own timing.offset (same
+              semantic the evaluator already applies to image/shape drop zones with off != in);
+              driverChannelValue and resolveDriverChannel's readRigged now sample the driver's
+              curves at local time. Blast radius = 4 driver-source scenenodes with off != in (grep
+              across 65 built-ins): Color_Planes' Color Solid (-0.567), Switch's Transition B
+              (-0.901, tiny gate-size effect: 11.68→11.64, under 0.30 tol), 360°_Circle_Wipe /
+              360°_Wipe (-0.017 each, no-op). Gate 0 regressions / 1 improvement; baseline
+              re-frozen (engine mean 13.91→13.93 dB).
 - 2026-07-13  SWARM HARDENING (tick) — fixed two harness bugs found watching the live pool:
               (1) git worktrees SHARE .git/info/exclude, so setup_worktree.sh's per-call append
               bloated one file 15x and didn't isolate; moved symlink+scratch patterns to the
