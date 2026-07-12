@@ -99,80 +99,96 @@ S6  Framing-camera / clone-grid                3     13.9   4.6   partial, deepe
 S7  Residual per-slug (shape/mask/timing)     mixed   —      —    one-offs, opportunistic
 ```
 
-## Parallel execution model  (how to run a swarm of agents on this)
+## Parallel execution model  (crank it to the max)
 
-The work is parallelizable, but ONLY if agents don't fight over the same files. The engine has
-FOUR "hub" files every subsystem is tempted to edit — these are the collision zone:
+Every task below is an independent unit. There is NO wave gating and NO central integrator —
+**each agent rebases and merges its own work.** Run as many agents at once as you have tasks;
+the only real ordering is the handful of explicit `after:` dependencies in the flat task list.
+
+### Why it's safe to parallelize
+Collisions come from shared files, not from the work itself. There are exactly two shared-state
+hazards, and both have a mechanical resolution:
 
 ```
-HUB FILES (serialize edits here — at most ONE agent may edit each per wave):
-  src/parser/index.ts        (parse dispatch)
-  src/evaluator/index.ts     (evaluateLayer pipeline)
-  src/compositor/index.ts    (renderLayer dispatch, composite())
-  src/types.ts               (shared Layer/Behaviour/Filter types)
+HUB FILES (edit only via a SINGLE append-only line — never refactor):
+  src/parser/index.ts        src/evaluator/index.ts
+  src/compositor/index.ts    src/types.ts
+  src/compositor/filters/index.ts   (append-only import barrel)
+
+SHARED BASELINE (regenerate, never hand-merge):
+  fct/baseline_engine.json   (git-tracked; the gate scores against it)
 ```
 
-The proven parallel-safe pattern already in the repo is the **filter registry**: each filter is
-its own module in `compositor/filters/*.ts`, self-registers via `registerFilter({uuid,apply})`,
-and the ONLY shared edit is an append-only import line in `filters/index.ts`. Multiple agents add
-filters simultaneously with zero conflicts. **Replicate this pattern for every new subsystem:**
-put new logic in its OWN file, expose ONE registration/entry hook, and touch a hub file only via a
-single append-only line.
+Append-only hub lines conflict trivially (rebase → keep both). The baseline is DERIVED state:
+after any rebase you regenerate it (`fct gen engine --all && fct baseline engine`), so a conflict
+there is resolved by "take regenerated," never by manual merge. The proven parallel-safe pattern
+is the **filter registry**: each unit lives in its OWN module, self-registers via one entry hook,
+and touches a hub only through one append-only line. Replicate it for every new subsystem.
 
-### Ownership lanes (disjoint file sets → safe to run concurrently)
+### The self-merge contract (every agent follows this exactly)
 ```
-LANE A  behaviours     OWNS: src/evaluator/links.ts, src/evaluator/behaviors/*,
-                             src/evaluator/ramp.ts, src/parser/behaviors.ts
-LANE B  particles      OWNS: src/compositor/field-texture.ts, NEW src/compositor/particles/*
-LANE C  gradient/gen   OWNS: src/compositor/filters/gradient.ts, NEW generators/*
-LANE D  compositing    OWNS: src/compositor/blend.ts, src/compositor/blit.ts, NEW color-space/*
-LANE E  framing/geom   OWNS: src/evaluator/framing.ts, src/compositor/geometry.ts,
-                             src/compositor/perspective.ts
-LANE F  filters        OWNS: src/compositor/filters/<one-file-per-filter>.ts (already parallel)
+1. BRANCH   git fetch origin && git checkout -B <task-id> origin/main
+2. BUILD    edit ONLY your task's OWNED files. Any hub touch = ONE append-only line.
+3. GATE     fct gen engine --all && fct regress engine     # 0 regressions vs committed baseline
+            (also: npm --prefix engine test  -> no-hardcode + unit tests green)
+4. MERGE    git fetch origin && git rebase origin/main
+              - hub-file conflict  -> keep BOTH append-only lines
+              - baseline conflict  -> take theirs, you re-freeze in step 5 anyway
+5. REFREEZE fct gen engine --all && fct regress engine     # re-gate after rebase; must be green
+            fct baseline engine                            # lock your improvements as new floor
+6. COMMIT   git add <owned files> fct/baseline_engine.json ROADMAP.md
+            git commit  (ONE logical change; per-slug before->after in the message)
+7. PUSH     git push origin HEAD:main
+              - rejected (non-fast-forward)? someone merged first -> GOTO 4
+8. LEDGER   tick your task in the flat list + add a Progress-log line (in the same commit).
 ```
-Each lane's edits are disjoint → agents A–F can run at the SAME TIME. Hub-file edits (the small
-wiring each lane needs) are batched into a serialized "integration" step (see waves).
+Hard rules: never force-push; never edit another task's OWNED files; never commit a red gate;
+never hand-edit `baseline_engine.json` (always regenerate); one task = one commit.
 
-### Wave schedule (dependency-ordered; within a wave, run agents in parallel)
-```
-WAVE 1  (parallel, low-risk, additive — no hub-file behaviour change):
-   A1  colour-channel Link         (LANE A: links.ts only + types append)
-   C1  linear/radial gradient gen  (LANE C: gradient.ts only)
-   B1  emitter param PARSER        (LANE B: new particles/parse.ts; types append)
-   F*  any remaining filter polish (LANE F: per-filter files)
+### Truth & anti-drift (unchanged, apply to every agent)
+- Score ONLY vs GUI GT via `fct score <slug> --full` / `fct regress engine`. Never render-vs-render.
+- No per-transition hardcoding. New capability detectors must fire on ≥2 built-ins
+  (`engine/test/no-hardcode.test.ts` stays green).
+- Reverse-engineer from the FCP binary; cite the decoded constant/offset in a code comment.
 
-WAVE 2  (parallel, medium — each needs ONE hub hook, added by the integration step):
-   A2  Motion Path driver          (LANE A + 1 line in evaluator/index.ts)
-   A3  Gravity driver              (LANE A + 1 line in evaluator/index.ts)
-   B2  emitter SIMULATION+render   (LANE B + 1 line in compositor/index.ts)
-   C2  Slide_In endSec fix         (LANE C + timemap.ts)
+### Flat task list  (each row = one agent; run all non-blocked rows at once)
+`OWNS` = the only files that agent may edit (plus append-only hub lines). Two rows are safe to run
+concurrently iff their `OWNS` sets are disjoint. `after:` is the ONLY ordering constraint.
 
-WAVE 3  (serialize — architectural, single-owner, highest risk):
-   D1  linear working-space composite pass  (LANE D; flag-gated; migrate blends first)
-   D2  migrate colour filters into linear    (depends on D1)
-   E1  framing-camera anchor + clone wall    (LANE E; deepest geometry)
 ```
-
-### Integration protocol (how the swarm converges without a red gate)
-1. Each agent works on its lane files ONLY; if it needs a hub hook, it writes the hook as a
-   SINGLE append-only line and notes it in its report — it does NOT refactor the hub.
-2. Agents never re-freeze the baseline. The INTEGRATOR (you, sequentially) merges one lane at a
-   time: apply the lane diff → `fct gen engine --all` → `fct regress engine`. Green → commit+push
-   + re-freeze baseline. Red → bounce that lane back with the failing slugs; do NOT merge.
-3. `test/no-hardcode.test.ts` must stay green (every new detector fires on ≥2 built-ins).
-4. One lane = one commit. Never batch two lanes into one commit (keeps each independently
-   revertible per the careful-coder rule).
-
-### Agent brief template (give each swarm agent EXACTLY this)
+ID    STATUS  OWNS (edit these only)                              TARGET SLUGS / GOAL
+----  ------  --------------------------------------------------  ------------------------------------
+T-A1  TODO    evaluator/links.ts (+types append)                  colour-channel Link -> Color_Planes,
+                                                                  Panels_Across (10.5/10.4)
+T-A2  TODO    NEW evaluator/motion-path.ts (+1 hook evaluator/    Motion Path driver (layer follows a
+              index.ts, +types append)                            spatial path); unblocks path users
+T-A3  TODO    NEW evaluator/gravity.ts (+1 hook evaluator/        Gravity driver (constant accel);
+              index.ts, +types append)                            feeds particle + layer fall
+T-B1  TODO    NEW compositor/particles/parse.ts (+1 hook          Emitter+Cell param PARSER (birth
+              parser/index.ts, +types append)                     rate, life, vel, spin, gravity)
+T-B2  TODO    NEW compositor/particles/sim.ts + render.ts (+1     Emitter SIM+render -> Close_and_Open,
+              hook compositor/index.ts)   after: T-B1             Diagonal x2, Center, Up-Over, Glide
+T-C1  TODO    compositor/filters/gradient.ts                      linear+radial colour gradient ->
+                                                                  Slide_In, Loop, Heart
+T-C2  TODO    timemap.ts                     after: T-C1          Slide_In endSec inflation fix
+                                                                  (exclude gradient-keyframe 3.0s)
+T-D1  TODO    NEW compositor/color-space.ts + blend.ts +          linear working-space composite path
+              blit.ts (flag-gated) (+1 hook compositor/index.ts)  behind a flag; overlay slugs first
+T-D2  TODO    compositor/filters/{levels,channel-mixer,glow,      migrate colour filters into linear
+              hue-saturation}.ts            after: T-D1            -> Lower, Bloom, Tint, Colorize
+T-E1  TODO    evaluator/framing.ts                                framing anchor (proxy->content ray)
+                                                                  -> Video_Wall f4 black, Clone_Spin
+T-E2  TODO    compositor/replicator.ts + geometry.ts  after:T-E1  clone-tile wall render (Video_Wall
+                                                                  14-tile grid)
+T-F1  TODO    compositor/filters/scrape.ts                        Smear appearance at mid-frames ->
+                                                                  Movements/Smear (11.0)
+T-G1  TODO    compositor/perspective.ts                           Movements 3D-fold residuals
+                                                                  (Multi/Flip/Pinwheel/Swing)
 ```
-GOAL: <subsystem S# next-step, verbatim from its Item below>
-OWN ONLY: <lane file list>
-FORBIDDEN: editing any HUB file except appending ONE registration/import line (report it).
-TRUTH: score only vs GUI GT via `fct score <slug> --full`; never render-vs-render.
-DONE = your target slug(s) improve AND `fct regress engine` shows 0 regressions on YOUR render.
-Report: files touched, hub lines appended, per-slug before→after, gate result. Do NOT commit;
-the integrator merges + gates + commits.
-```
+Max concurrency today = the 9 rows with no `after:` (T-A1,A2,A3,B1,C1,D1,E1,F1,G1) run
+simultaneously; T-B2/C2/D2/E2 start the moment their `after:` parent merges. When a row's file set
+overlaps another (e.g. two S7 fixes touch `perspective.ts`), the second rebases onto the first —
+the self-merge contract handles it.
 
 ---
 
@@ -184,7 +200,7 @@ Each subsystem below is a durable description of a REAL part of the FCP/Motion e
 current status in the TS engine, the slugs it gates, and the concrete next step. The ONE-TRUTH
 gate rules above apply to every item.
 
-### S1. Behaviour drivers — Link / Motion Path / Gravity  [DOING]  (LANE A · waves 1–2 · safe, high-coverage)
+### S1. Behaviour drivers — Link / Motion Path / Gravity  [DOING]  (tasks T-A1/A2/A3 · safe, high-coverage)
 **What it is (FCP):** Motion "Behaviors" are procedural animation drivers layered on top of
 keyframe curves. The engine already evaluates Rig Behavior, Fade In/Fade Out, Ramp, Align To,
 Oscillate, Spin, Throw, and Sequence Replicator. Three driver families are **parsed but NOT
@@ -203,7 +219,7 @@ gate-verifiable.
 **DoD:** each driver evaluated; gate 0 regressions; the gated low slugs improve; baseline re-frozen.
 **Verify:** `fct regress engine` + `fct score Movements__Color_Planes Stylized__Panels_Across --full`.
 
-### S2. Linear working-space compositing  [TODO]  (LANE D · wave 3 · BIG, highest ceiling, serialize)
+### S2. Linear working-space compositing  [TODO]  (tasks T-D1/D2 · BIG, highest ceiling)
 **What it is (FCP):** `oz_render.mm` runs the WHOLE filter+blend+composite chain in
 `kCGColorSpaceLinearSRGB` and encodes to sRGB **once** at readback (decoded in item A6). The TS
 engine composites in gamma/sRGB space, so every semi-transparent overlay, additive/screen blend,
@@ -220,7 +236,7 @@ then migrate filter families into it one at a time, gate-green after each. Never
 **DoD:** linear chain on by default; net improvement across the gated slugs; 0 regressions.
 **Verify:** `fct regress engine`; spot `fct score Stylized__Lower Lights__Bloom --full`.
 
-### S3. Particle-emitter simulation  [TODO]  (LANE B · waves 1–2 · self-contained new module)
+### S3. Particle-emitter simulation  [TODO]  (tasks T-B1/B2 · self-contained new module)
 **What it is (FCP):** Motion Emitters (factoryID 17/23) spawn Particle Cells (fID 15/18) with a
 birth rate, lifetime, initial velocity/spin, gravity, and scale/opacity/colour-over-life. The
 Stylized/Nature transitions are dominated by these (Diagonal = 18 emitters, Close_and_Open = 109,
@@ -234,7 +250,7 @@ spawn/advect/fade → composite. Additive new module (low regression risk).
 **DoD:** ≥4 of the 6 dominant slugs improve; 0 regressions; baseline re-frozen.
 **Verify:** `fct regress engine` + `fct score Wipes__Diagonal Stylized__Close_and_Open --full`.
 
-### S4. Colour pipeline — Tint / Bloom / Colorize / Brightness>1  [TODO]  (LANE D · wave 3 · folds into S2)
+### S4. Colour pipeline — Tint / Bloom / Colorize / Brightness>1  [TODO]  (task T-D2 · folds into S2)
 **What it is (FCP):** these filters ARE implemented (registry), and match in ISOLATED probes, but
 regress when STACKED because FCP applies them in linear space (S2). Bloom's ObjC
 `bloomHeliumRender` and Tint's Color-Space=3 + Rig indirection are additionally non-convergent
@@ -246,7 +262,7 @@ Slide, Leaves.
 Only after S2 revisit Tint's shadow-leg transfer + Bloom's Helium pipeline as isolated decodes.
 **DoD/Verify:** subsumed by S2's gate.
 
-### S5. Gradient generator  [TODO]  (LANE C · waves 1–2 · small, self-contained)
+### S5. Gradient generator  [TODO]  (tasks T-C1/C2 · small, self-contained)
 **What it is (FCP):** a linear/radial colour Gradient generator fills a layer (e.g. Slide_In's
 full-frame cyan gradient). `renderGaussianGradient` exists but linear/radial/colour gradients
 return null, so the layer renders empty.
@@ -258,7 +274,7 @@ Slide_In's endSec inflation. Bounded, low risk.
 **DoD:** the 3 slugs improve; 0 regressions.
 **Verify:** `fct regress engine` + `fct score Stylized__Slide_In --full`.
 
-### S6. Framing-camera / clone-grid geometry  [TODO]  (LANE E · wave 3 · deepest geometry, do last)
+### S6. Framing-camera / clone-grid geometry  [TODO]  (tasks T-E1/E2 · deepest geometry)
 **What it is (FCP):** `OZScene::computeFraming` (decoded in `evaluator/framing.ts`) poses a camera
 to frame a target; Video_Wall builds a wall of ~14 hand-placed clone tiles viewed through it, each
 flipping to reveal B. Clone_Spin spins a clone grid.
@@ -270,7 +286,7 @@ Deepest geometry, only 2 low slugs — do LAST.
 **DoD:** Video_Wall + Clone_Spin improve; 0 regressions.
 **Verify:** `fct regress engine` + `fct score Replicator-Clones__Video_Wall --full`.
 
-### S7. Residual per-slug bugs  [ONGOING]  (LANE varies · opportunistic, one-offs)
+### S7. Residual per-slug bugs  [ONGOING]  (tasks T-F1/G1 · opportunistic, one-offs)
 Bugs not owned by a shared subsystem — fix opportunistically when a clean structural root cause is
 found (never per-transition hardcoding). Current known:
 - **Movements/Smear (11.0):** DirectionalBlur+Smear filter appearance + smear continuing past the
@@ -323,6 +339,15 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  ROADMAP parallelism reworked for MAX concurrency — dropped the wave/integrator
+              model. Every task is now an INDEPENDENT unit and each agent REBASES + MERGES ITS
+              OWN work via an 8-step self-merge contract (branch off origin/main → build owned
+              files only → gate → rebase → RE-FREEZE baseline → commit → push w/ retry-on-reject
+              → tick ledger). Baseline_engine.json is treated as DERIVED state (regenerate on
+              rebase, never hand-merge); hub touches stay single append-only lines (rebase keeps
+              both). Added a FLAT TASK LIST (T-A1..T-G1, 13 rows) with per-task OWNED file sets +
+              `after:` deps; 9 rows have no deps → run simultaneously today. S1–S6 headers now
+              point at task IDs. Doc-only; gate 0/0.
 - 2026-07-13  ROADMAP made SWARM-PARALLELIZABLE — added a "Parallel execution model" section:
               4 HUB files identified as the collision zone (parser/evaluator/compositor/index.ts +
               types.ts); 6 disjoint OWNERSHIP LANES (A behaviours, B particles, C gradient/gen,
