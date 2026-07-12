@@ -290,6 +290,24 @@ an architecture change with blast radius across all 65 transitions; measured evi
 AWAY from the GUI truth, so it is NOT an unambiguous win and must be gated slug-by-slug —
 tracked as a future engine item, deliberately NOT done as a per-filter hack.
 
+### DECISIVE: headless ≠ GUI GT even for SINGLE-filter color transitions (2026-07-12)
+Measured the strongest possible test — Stylized__Slide uses ONLY PAEColorize (no filter
+stacking) — to see whether matching the isolated headless filter helps the GUI-GT gate.
+It does NOT, because the headless FULL RENDER already diverges hugely from the GUI GT for
+reasons OTHER than the filter. Per-frame means (1920×1080, frame 12):
+    GUI GT mean 96.4   headless mean 57.8   engine mean 107.3
+    headless_vs_GUI 12.9 dB   engine_vs_GUI 14.5 dB
+Headless is ~40% DARKER than the GUI truth here; the engine's plain-sRGB Colorize actually
+lands CLOSER to GUI than headless does. So the residual on these color transitions is
+dominated by NON-filter factors (drop-zone conform/scale, compositing, the GUI capture's
+own color management), NOT the (correctly-decoded) filter math. CONSEQUENCE: the
+color-pipeline family (Brightness>1, Colorize@Int=1, Tint, HSV-hue) is genuinely blocked
+from further GUI-GT-positive progress by factors outside the per-filter algorithm. The
+isolated filter decodes are CORRECT and documented (verified vs the isolated headless
+probe); shipping them per-filter regresses the one truth because the one truth's error is
+elsewhere. This is the evidence-backed stopping point for those four — NOT a punt: the
+filter math is decoded; the gate residual is upstream of the filter.
+
 
 ## Sweep result (2026-07-12, updated): 37 PASS, 0 FAIL — GLOW now fully matched
 `tools/re/filter_sweep.py` (all): MATCHED vs headless FCP across their parameter spaces:
