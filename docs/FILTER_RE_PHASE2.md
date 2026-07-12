@@ -213,3 +213,23 @@ pipeline investigation (shared by all filters), distinct from per-filter RE, and
 of the 65 shipping transitions exercise these paths (all darken / Hue=0 / default Tint).
 Documented as the correct stopping point: filter math is decoded + verified; the
 residual is the color pipeline, tracked for a dedicated future pass. Do NOT fit it.
+
+## Brightness>1 curve — measured, defies standard color-space models (2026-07-12)
+Deeper dig on the Brightness>1 gap (the cleanest of the shared color-pipeline gaps):
+  * DECODED: PAEBrightness = HGColorMatrix diagonal (r0.x/y/z = Brightness, alpha row
+    = 1), raw param → matrix with NO transform (frameSetup confirms). So FCP's op IS
+    `out = in * Brightness`.
+  * darken (×0.5): plain sRGB multiply matches headless mad 0.67 (EXACT). So the
+    working space for multiply-down is sRGB.
+  * brighten (×2.0): the MEASURED transfer is an extreme shadow-lift, NOT in*2:
+    in~10→104, 30→143, 60→188, 90→220, 120→249, 160→255 (in*2 would be 20/60/120/...).
+    No standard model fits: linear-light ×2 (mad 73), single-gamma working space
+    (best p=0.75, mad 22 — worse than sRGB for darken), x^(1/4.4) (mad 18), screen
+    1-(1-x)^2 (mad 61). The darken=exact-sRGB / brighten=huge-lift ASYMMETRY rules out
+    any symmetric decode/multiply/encode.
+  * Hypothesis for a future pass: the HGColorMatrix executes in a camera/log working
+    space where a >1 gain becomes a log-domain lift, OR the >1 branch remaps the param
+    (not visible in the decoded straight-through path). Needs the HGColorMatrix
+    RenderTile / the Ozone render color-management config, not the filter binary.
+  * UNEXERCISED: all 27 Brightness users darken; brighten hits no shipping transition.
+    Documented with the measured curve; explicitly NOT fit.
