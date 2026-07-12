@@ -22,6 +22,12 @@ MAIN = os.path.join(HOME, "random", "final-cut-pro-transitions")
 ROOT = os.path.join(HOME, "fct-swarm")
 LOGS = os.path.join(ROOT, "logs")
 
+import shutil as _shutil
+TMUX = (_shutil.which("tmux") or
+        next((c for c in ("/opt/homebrew/bin/tmux", "/usr/local/bin/tmux",
+                          "/usr/bin/tmux") if os.path.exists(c)), "tmux"))
+BREW_PATH_EXPORT = 'export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"; '
+
 
 def gather_metrics():
     """Summarize agent logs: per-task wall-time proxy, friction signals, gate outcomes."""
@@ -122,13 +128,14 @@ def dispatch_reflection(metrics_md):
     frames = os.path.join(ROOT, "frames", "reflect")
     lock = os.path.join(ROOT, "locks", "reflect.lock")
     inner = (
+        f"{BREW_PATH_EXPORT}"
         f"cd {wt} && export FCT_FRAMES_DIR={frames} FCT_LOCK={lock} FCT_JOBS=2 && "
         f"env -u META_AGENT_ROLE -u AGENT_ROLE -u CLAUDECODE "
         f"claude -p --model 'claude-opus-4-7' --dangerously-skip-permissions "
         f'"$(cat {ppath})" < /dev/null 2>&1 | tee {log}; echo SWARM_SLOT_EXIT $? >> {log}'
     )
-    subprocess.run(["tmux", "kill-session", "-t", "fct-swarm-reflect"], capture_output=True)
-    subprocess.run(["tmux", "new-session", "-d", "-s", "fct-swarm-reflect", "bash", "-lc", inner],
+    subprocess.run([TMUX, "kill-session", "-t", "fct-swarm-reflect"], capture_output=True)
+    subprocess.run([TMUX, "new-session", "-d", "-s", "fct-swarm-reflect", "bash", "-lc", inner],
                    check=True)
     print(f"[reflect] dispatched reflection agent (log: {log})", flush=True)
 

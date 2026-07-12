@@ -34,6 +34,16 @@ BRIEF = os.path.join(MAIN, "fct", "swarm", "agent_brief.md")
 SETUP = os.path.join(MAIN, "fct", "swarm", "setup_worktree.sh")
 SESSION_PREFIX = "fct-swarm-"
 
+# Resolve tmux robustly: brew installs to /opt/homebrew/bin which is NOT on the
+# non-interactive PATH. Prefer an absolute path; fall back to bare "tmux".
+import shutil as _shutil
+TMUX = (_shutil.which("tmux") or
+        next((c for c in ("/opt/homebrew/bin/tmux", "/usr/local/bin/tmux",
+                          "/usr/bin/tmux") if os.path.exists(c)), "tmux"))
+# Ensure spawned login shells can see brew binaries (tmux, node, etc).
+BREW_PATH_EXPORT = 'export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"; '
+
+
 # ---------------------------------------------------------------------------
 # Task list parsing (ROADMAP flat table is the single source of truth)
 # ---------------------------------------------------------------------------
@@ -120,7 +130,7 @@ def eligible_tasks():
 # tmux helpers
 # ---------------------------------------------------------------------------
 def tmux(*args, check=False, capture=False):
-    cmd = ["tmux", *args]
+    cmd = [TMUX, *args]
     if capture:
         return subprocess.run(cmd, text=True, capture_output=True).stdout
     return subprocess.run(cmd, check=check).returncode
@@ -129,7 +139,7 @@ def session_name(slot):
     return f"{SESSION_PREFIX}{slot}"
 
 def slot_running(slot):
-    rc = subprocess.run(["tmux", "has-session", "-t", session_name(slot)],
+    rc = subprocess.run([TMUX, "has-session", "-t", session_name(slot)],
                         capture_output=True).returncode
     return rc == 0
 
@@ -164,6 +174,7 @@ def launch(slot, task):
     # 3. The command the agent runs: CC headless, reading the brief as its prompt.
     #    stdin from /dev/null (cc rule); unset navi agent-role vars; pin render jobs.
     inner = (
+        f"{BREW_PATH_EXPORT}"
         f"cd {wt} && "
         f"export FCT_FRAMES_DIR={frames} FCT_LOCK={lock} FCT_JOBS=2 && "
         f"env -u META_AGENT_ROLE -u AGENT_ROLE -u CLAUDECODE "
@@ -172,9 +183,9 @@ def launch(slot, task):
         f"echo SWARM_SLOT_EXIT $? >> {log}"
     )
     # Kill any stale session in this slot, then start fresh.
-    subprocess.run(["tmux", "kill-session", "-t", session_name(slot)],
+    subprocess.run([TMUX, "kill-session", "-t", session_name(slot)],
                    capture_output=True)
-    subprocess.run(["tmux", "new-session", "-d", "-s", session_name(slot), "bash", "-lc", inner],
+    subprocess.run([TMUX, "new-session", "-d", "-s", session_name(slot), "bash", "-lc", inner],
                    check=True)
     save_slot(slot, agent_id, log, wt)
     print(f"[pool] slot {slot} -> {agent_id}  (log: {log})", flush=True)
@@ -255,7 +266,7 @@ def cmd_status():
 
 def cmd_stop():
     for s in running_slots():
-        subprocess.run(["tmux", "kill-session", "-t", s], capture_output=True)
+        subprocess.run([TMUX, "kill-session", "-t", s], capture_output=True)
         print(f"[pool] killed {s}")
 
 def main():
