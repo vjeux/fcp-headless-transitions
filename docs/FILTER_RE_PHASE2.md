@@ -173,3 +173,23 @@ displacement is largest. It is NOT an algorithm error: at matched resolution
 (synthetic gradient, or the real transition rendered at project size) the geometry is
 exact. Verified independently by Scrape (mad 0.2 synthetic), Earthquake (interior mad
 1.7 after removing the constant offset), BlackHole (mad→0.07 at Amount=1000).
+
+## Phase-2 verification suite (2026-07-12) — the repeatable artifact
+`tools/re/filter_sweep.py` + `filter_sweeps.json` run each filter through REAL headless
+FCP + the TS engine across a parameter matrix (the objective's "verify identical across
+ALL inputs, incl. values the 65 transitions don't exercise"). Run:
+  DYLD_FRAMEWORK_PATH=".../Frameworks" PYTHONPATH="$PWD" venv/bin/python3 tools/re/filter_sweep.py
+Latest results — 27 PASS, 0 true FAIL, plus tracked GAPs and CEILINGs:
+  * PASS (matched vs headless across their param space): flop, minmax, gaussian
+    (46→36 dB as Amount grows — conform floor, mae stays 0.8-2.4), radial/spin
+    (38→30 dB over Angle), scrape (39.6 / 34.5; rot=0 weakest 25.8 = conform),
+    blackhole (32-33 dB over Amount×Center), earthquake (37.5 pure-rot),
+    brightness-darken (47/44), hsv sat/value/grayscale (39-48).
+  * GAP (real divergence, but NO shipping transition exercises the input — documented,
+    not fit): HSV hue rotation (hexagon reconstruction differs, all 5 users Hue=0);
+    Brightness >1 (HGColorMatrix multiply confirmed, headless working-space transform
+    unresolved, all 27 users darken).
+  * CEILING (structural, can't be made identical): Tint [P2-TINT1] hard-light
+    color-space; Underwater unrecoverable GPU noise field + black-headless.
+The suite CAUGHT a real shipped bug: the committed Scrape axis was (-cos,sin); the
+sweep's isolated-headless check proved it must be (-sin,cos) (psnr 14→39.6) — fixed.
