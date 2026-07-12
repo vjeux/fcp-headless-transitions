@@ -17,6 +17,51 @@ import { luma601 } from './blend.js';
 import { generateInstances, sequenceProgress, sequenceOrder } from './replicator.js';
 import { renderGaussianGradient } from './filters/gradient.js';
 import { mat4Mul, instanceLocalMatrix, createBuffer } from './blit.js';
+import { lookupFilter, makeContext } from './filters/registry.js';
+
+/**
+ * Apply a mask-source group's OWN filters to a resolved alpha matte.
+ *
+ * A mask-source group (the layer an Image Mask points at) can carry image filters
+ * that reshape the matte before it clips the masked layer. The clearest case is
+ * Dissolves/Divide's "B Masks" group, which stacks three MinMax (PAEMinMax, Mode=1 =
+ * Maximum = morphological DILATE, Radius curves ramping 0→32/194/29) over a union of
+ * animated Rectangle Masks. The raw rectangle union only reaches ~75% frame coverage
+ * at the end of the transition; the MinMax dilation is what GROWS the divide-pieces
+ * out to fully tile the frame so image B fills it (GUI f23 = full B). Without applying
+ * these filters the reveal stalls at the raw-rectangle 75% and 25% renders as black
+ * divide-gap voids.
+ *
+ * The matte is a single-channel alpha; filters operate on RGBA ImageData, so we wrap
+ * the alpha into all four channels (a grey image whose value == the matte), run the
+ * group's registered filters in order, and read the alpha channel back. This is the
+ * same UUID-dispatch path renderLayer uses (lookupFilter + makeContext) — no filter
+ * is special-cased and any morphology/blur filter on a mask group is honored.
+ */
+function applyMaskGroupFilters(
+  alpha: Uint8Array, W: number, H: number, group: EvaluatedLayer, time: number,
+): Uint8Array {
+  const filters = group.layer.filters;
+  if (!filters || filters.length === 0) return alpha;
+  // Wrap alpha → RGBA (value replicated across RGB + A) so channel filters see it.
+  let img = new (globalThis as any).ImageData(new Uint8ClampedArray(W * H * 4), W, H) as ImageData;
+  for (let i = 0; i < alpha.length; i++) {
+    const v = alpha[i], o = i * 4;
+    img.data[o] = v; img.data[o + 1] = v; img.data[o + 2] = v; img.data[o + 3] = v;
+  }
+  for (const filter of filters) {
+    if ((filter as any).enabled === false) continue;
+    const mod = lookupFilter(filter);
+    if (!mod) continue;
+    const ctx = makeContext(filter, time, W, H);
+    img = mod.apply(img, ctx);
+  }
+  // Read the alpha channel back (MinMax and other morphology treat all channels
+  // identically, so RGB and A agree; alpha is the canonical matte channel).
+  const out = new Uint8Array(W * H);
+  for (let i = 0; i < out.length; i++) out[i] = img.data[i * 4 + 3];
+  return out;
+}
 
 /**
  * Resolve the source image a Clone Layer mirrors. Follows cloneSourceId to the
@@ -434,5 +479,8 @@ export function resolveImageMaskAlpha(rctx: RenderContext, sourceId: number, W: 
     return rasterizeShape(e.shape, W, H, e.xform);
   });
   const merged = masks.length === 1 ? masks[0] : unionMasks(masks, W, H);
-  return applyInvert(merged);
+  // Apply the mask-source group's own image filters (e.g. Dissolves/Divide's
+  // "B Masks" MinMax dilation) to the rasterized matte before it clips the layer.
+  const filtered = applyMaskGroupFilters(merged, W, H, src, t);
+  return applyInvert(filtered);
 }

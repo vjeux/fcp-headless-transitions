@@ -15,6 +15,7 @@ import {
   hasFilledShapeOverlay,
   hasStrokedMaskShape,
   hasReplicatorMaskReveal,
+  hasFilteredMaskReveal,
 } from '../src/capabilities.js';
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -30,6 +31,7 @@ const DETECTORS: Record<string, (scene: any) => unknown> = {
   hasFilledShapeOverlay,
   hasStrokedMaskShape,
   hasReplicatorMaskReveal,
+  hasFilteredMaskReveal,
 };
 
 const MIN_FIRES = 2; // a detector firing on <2 transitions is a per-transition hardcode

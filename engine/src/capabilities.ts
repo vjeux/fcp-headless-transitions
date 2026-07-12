@@ -87,3 +87,37 @@ export function hasReplicatorMaskReveal(scene: MotrScene): boolean {
 export function isWideEquirect(width: number, height: number): boolean {
   return width >= 3072 && width >= 1.6 * height;
 }
+
+/**
+ * A layer whose Image Mask source is a GROUP that carries its own image FILTERS.
+ * A filter on a mask-source group means the reveal MATTE is not a static rasterized
+ * shape — it is actively RESHAPED over the transition (morphology GROWS it, blur
+ * SOFTENS its edge), so the reveal keeps advancing PAST the outgoing drop zone's
+ * retime-wrap. Dissolves/Divide is the canonical case: its "B Masks" group stacks
+ * three MinMax (PAEMinMax, Mode=1 = Maximum = morphological DILATE, Radius curves
+ * ramping 0→32/194/29 px) over a union of animated rectangle masks, and that dilation
+ * GROWS the divide-pieces to tile the whole frame by the transition end (GT f23 = full
+ * B). The outgoing (A) drop zone times out at wrapSec (0.80s) while the pieces are
+ * only ~50% grown; the wrap-to-frame-0 would freeze the scene at that half-grown state
+ * and strand the reveal (Divide froze at 8.77 dB f14–f20 vs 15.96 with the reveal
+ * running through). Its presence therefore CANCELS the wrap — the same "an active
+ * reveal outlives the drop-zone timeout" class as the replicator-matte / filled-shape
+ * / kinetic-panel cancels, expressed as a FILTERED mask-source group.
+ *
+ * Structural: fires on any scene whose Image-Mask `Mask Source` id resolves to a layer
+ * bearing ≥1 filter (Divide's MinMax matte, Objects/Arrows' Radial-Blur matte,
+ * Stylized/Light Sweep's Directional-Blur matte). No transition names, no per-filter
+ * constants. (Only Divide actually wraps, so the wrap-cancel changes only Divide; the
+ * other two already have wrapSec undefined — but the probe legitimately fires on the
+ * whole filtered-mask family.)
+ */
+export function hasFilteredMaskReveal(scene: MotrScene): boolean {
+  const maskSourceIds = new Set<number>();
+  walk(scene.layers, (l) => { if (l.imageMaskSourceId !== undefined) maskSourceIds.add(l.imageMaskSourceId); });
+  if (maskSourceIds.size === 0) return false;
+  let found = false;
+  walk(scene.layers, (l) => {
+    if (maskSourceIds.has(l.id) && l.filters && l.filters.length > 0) found = true;
+  });
+  return found;
+}

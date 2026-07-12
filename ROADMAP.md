@@ -250,13 +250,21 @@ Status legend: TODO / DOING / DONE / BLOCKED
   * Lights/Lens_Flare (9.57) — retime-wrap snapped the completed A→B crossfade tail back to
     pure A; screen-blend generator overlay now cancels the wrap → B arrives. [DONE — flare
     brightness overlay (f12) still a separate generator gap]
-  * Dissolves/Divide (10.15) — B Masks mask-reveal geometry / A-B z-order. TRIAGE: 51% black
-    at EVERY frame incl. f0 (GUI f0 = full-frame A) — an L-shaped void; ENG bluish (53,59,72)
-    ≈ B even though B op=0 at f0. Two nested mask groups ("A Masks"/"B Masks") with MinMax
-    morphology filters clip the drop-zone A down to a centre region. NOT a timing/wrap bug
-    (wrapSec=0.801, endSec=1.385). Root cause is the mask-reveal COMPOSITE (the MinMax-dilated
-    rectangle-mask union is mis-applied, leaving A masked to centre + B bleeding through).
-    Deep mask-geometry work; no clean single-fix.
+  * Dissolves/Divide (10.15→14.24) — [DONE] Three coupled fixes landed together (each
+    necessary; alone they regress or no-op): (1) A/B binding — the doc-order override
+    inverted Divide's sources because its "Transition B" node is authored first;
+    hasFilteredMaskReveal-style both-masked SUPPRESSION in parseFootage keeps the
+    name-based binding (clip "Transition A" → image A) for a two-sided masked split.
+    (2) Retime-wrap CANCEL — wrapSec=0.801s collapsed every frame past 0.8s back to
+    scene t=0, culling Transition B (whose timing window starts at 0.017s) so the whole
+    tail froze on A (f14–20 flat at 8.77). New capabilities.ts hasFilteredMaskReveal
+    (a mask-source group carrying its OWN image filter = an actively-reshaped reveal
+    matte that outlives the drop-zone timeout) cancels the wrap — gated `&& !stroked-
+    MaskShape` so Objects/Arrows (also filtered-mask, but a stroked reveal needing the
+    CLAMP) keeps wrapSec for its clamp. (3) Mask-group filter application — masks.ts now
+    runs the mask-source group's OWN filters over the rasterized matte, so Divide's
+    "B Masks" 3× MinMax DILATE (Radius 0→32/194/29) GROWS the divide-pieces from the raw
+    ~75% rectangle union to full-frame B (f23 13.34→17.54). Gate 0 regressions, +3.01 dB.
   * Slide_In / Center_Reveal / Close_and_Open — linear/color Gradient generator not composited.
     TRIAGE (Slide_In): TWO compounding bugs — (1) endSec=3.0 is inflated ~3× (real transition
     ~1s; the "Gradient" generator + Color-linker keys run to 3.0s), so progress maps onto a 3×
@@ -343,6 +351,75 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-13  ITEM 12 (Divide) DONE — Dissolves/Divide 11.23->14.24 (+3.01). THREE coupled
+              root causes, all necessary together (alone each regresses or no-ops):
+              (1) A/B INVERSION — the doc-order override in parseFootage re-keyed Divide's
+              clips by render order (its "Transition B" scenenode is authored before
+              "Transition A"), so image A got source B. FIX: BOTH-MASKED SUPPRESSION — when
+              both referenced drop zones carry an Image Mask (a two-sided masked split), keep
+              the name-based binding instead of the doc-order re-key. Fires only when
+              referenced.length===2 so Up-Over (3 refs) is safe.
+              (2) RETIME-WRAP froze the tail — wrapSec=0.801s collapsed every render past 0.8s
+              to scene t=0, culling Transition B (timing in=0.017s) so f14-20 froze flat at
+              8.77 dB. FIX: new capabilities.ts hasFilteredMaskReveal (a mask-source group
+              bearing its OWN image filter is an actively-reshaped reveal that outlives the
+              drop-zone timeout) cancels the wrap — gated && !strokedMaskShape so
+              Objects/Arrows (also a filtered mask, but a STROKED reveal needing the clamp,
+              which depends on wrapSec surviving) is untouched (verified: Arrows held 16.9).
+              (3) MASK-GROUP FILTER APPLICATION — resolveImageMaskAlpha now runs the
+              mask-source group's OWN filters over the rasterized matte (generic UUID dispatch,
+              no-op when the group has no filters), so Divide's "B Masks" 3x MinMax DILATE
+              (Radius 0->32/194/29) GROWS the raw ~75% rectangle union to full-frame B
+              (f23 13.34->17.54). Files: capabilities.ts (+probe), timemap.ts (wire+gate),
+              parser/footage.ts (both-masked suppression), compositor/masks.ts (filter apply),
+              test/no-hardcode.test.ts (register probe: fires on Arrows+Divide). Gate 0
+              regressions/1 improvement; baseline re-frozen (engine mean 13.79->13.84 dB).
+- 2026-07-13  ITEM 12 (Divide) DONE — Dissolves/Divide 11.23→14.24 (+3.01). THREE coupled
+              root causes, all necessary together (alone each regresses or no-ops):
+              (1) A/B INVERSION — the doc-order override in parseFootage re-keyed Divide's
+              clips by render order (its "Transition B" scenenode is authored before
+              "Transition A"), so image A got source B. FIX: BOTH-MASKED SUPPRESSION — when
+              both referenced drop zones carry an Image Mask (a two-sided masked split), keep
+              the name-based binding instead of the doc-order re-key. Fires only when
+              referenced.length===2 so Up-Over (3 masked refs) is unaffected.
+              (2) RETIME-WRAP froze the tail — wrapSec=0.801s collapsed every render past 0.8s
+              to scene t=0, culling Transition B (timing in=0.017s) so f14–20 froze flat at
+              8.77 dB. FIX: new capabilities.ts hasFilteredMaskReveal (a mask-source group
+              bearing its OWN image filter is an actively-reshaped reveal that outlives the
+              drop-zone timeout) cancels the wrap — gated `&& !strokedMaskShape` so
+              Objects/Arrows (also filtered-mask, but a STROKED reveal needing the clamp that
+              depends on wrapSec surviving) is untouched (verified Arrows 16.9 held).
+              (3) MASK-GROUP FILTER APPLICATION — resolveImageMaskAlpha now runs the
+              mask-source group's OWN filters over the rasterized matte (generic UUID dispatch,
+              no-op when the group has no filters), so Divide's "B Masks" 3× MinMax DILATE
+              (Radius 0→32/194/29) GROWS the raw ~75% rectangle union to full-frame B
+              (f23 13.34→17.54). Files: capabilities.ts, timemap.ts, parser/footage.ts,
+              compositor/masks.ts, test/no-hardcode.test.ts. Gate 0 regressions/1 improvement;
+              baseline re-frozen (engine mean 13.79→13.84 dB).
+- 2026-07-13  ITEM 12 (Dissolves/Divide) DONE — full A→B reveal, 11.23→14.24 (+3.01). THREE
+              coupled root causes, all fixed in one gate-green commit (each necessary; any
+              alone regresses or no-ops). (1) A/B INVERSION: the parseFootage doc-order override
+              re-keyed Divide's clips by render order (its "Transition B" scenenode is authored
+              BEFORE "Transition A"), so image A got source B. FIX: BOTH-MASKED SUPPRESSION —
+              when both referenced drop-zone nodes carry a direct Image Mask (a two-sided masked
+              split, not the single-masked reveal the override targets), keep the NAME-based
+              binding. Fires only when referenced.length===2 so Up-Over (3 masked refs) is
+              untouched. (2) RETIME-WRAP froze the scene to t=0 past wrapSec=0.801s → Transition
+              B (timing in=0.017s) was culled for f14–f23, flat 8.77 dB. FIX: new
+              capabilities.ts hasFilteredMaskReveal (a mask-SOURCE group carrying its OWN image
+              filter = a matte actively reshaped over the transition, outliving the drop-zone
+              timeout) cancels the wrap — gated && !strokedMaskShape so Objects/Arrows (also a
+              filtered-mask reveal, but STROKED → needs the CLAMP, which requires wrapSec to
+              survive) is unaffected (verified: Arrows 16.9, 0 regression). (3) MATTE GROWTH:
+              masks.ts applyMaskGroupFilters runs the mask-source group's OWN filters over the
+              rasterized matte (generic UUID dispatch, no-op when the group has no filters), so
+              Divide's "B Masks" 3× MinMax DILATE (Radius 0→32/194/29) grows the divide-pieces
+              from the raw ~75% rectangle union to full-frame B (f23 13.34→17.54). Files:
+              engine/src/capabilities.ts (+hasFilteredMaskReveal), engine/src/timemap.ts (wire
+              cancel), engine/src/compositor/masks.ts (+applyMaskGroupFilters),
+              engine/src/parser/footage.ts (both-masked suppression), test/no-hardcode.test.ts
+              (register probe — fires on 2: Arrows, Divide). Gate 0 regressions, engine mean
+              13.79→13.84 dB. Baseline re-frozen.
 - 2026-07-13  ITEM 12 (Divide mask-scale) DONE — upscaled scenes now render NATIVE-then-resample.
               ROOT CAUSE of Dissolves/Divide's 51% BLACK (an inset centred rect at every frame,
               incl. f0 where GUI shows full A): Divide is a 1280×720 scene shown at 1920×1080 and

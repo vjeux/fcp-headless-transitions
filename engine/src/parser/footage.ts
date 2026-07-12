@@ -160,6 +160,9 @@ export function parseFootageClipAB(sceneEl: Element, factories: Map<number, stri
     // Read from the node's own "Fade In/Fade Out" behavior (factoryID 17):
     // Fade In Time (id 200) vs Fade Out Time (id 201) in frames.
     const fadeDir = new Map<number, number>();
+    // Which referenced drop-zone nodes carry a direct-child Image Mask. When BOTH
+    // do, the document-order override below is SUPPRESSED (see comment there).
+    const maskedClips = new Set<number>();
     const seen = new Set<number>();
     for (const node of Array.from(sceneEl.getElementsByTagName('scenenode'))) {
       // Only real drawable image elements carry a Source Media clip reference.
@@ -169,6 +172,10 @@ export function parseFootageClipAB(sceneEl: Element, factories: Map<number, stri
       if (cid !== undefined && map.has(cid) && !seen.has(cid)) {
         seen.add(cid);
         referenced.push(cid);
+        // Record a direct-child <mask name="Image Mask"> on this drop-zone node.
+        for (const maskEl of directChildren(node, 'mask')) {
+          if (maskEl.getAttribute('name') === 'Image Mask') { maskedClips.add(cid); break; }
+        }
         // Detect a direct-child "Fade In/Fade Out" behavior on this node.
         for (const b of directChildren(node, 'behavior')) {
           if (b.getAttribute('name')?.startsWith('Fade In/Fade Out')) {
@@ -198,7 +205,19 @@ export function parseFootageClipAB(sceneEl: Element, factories: Map<number, stri
       // (Stylized/Center Reveal) and single-fade templates keep pure document order.
       const [c0, c1] = referenced;
       const d0 = fadeDir.get(c0), d1 = fadeDir.get(c1);
-      if (d0 !== undefined && d1 !== undefined && Math.sign(d0) !== Math.sign(d1)
+      // BOTH-MASKED SUPPRESSION: when BOTH drop-zone nodes carry an Image Mask, the
+      // template is a two-sided masked SPLIT (each source revealed through its own
+      // matte — Dissolves/Divide's divide-piece union, Stylized/Up-Over's two panels),
+      // NOT the single-masked reveal the document-order override was built for
+      // (Wipes/Mask, Center Reveal, which mask only ONE side over an unmasked base).
+      // In a two-sided split the headless renderer keeps each source on its NAME-
+      // matched matte (clip "Transition A" → image A), so the doc-order re-key — which
+      // for Divide/Up-Over inverts them because the "Transition B" node is authored
+      // first — is WRONG here. Keep the name-based binding already in `map`. Structural
+      // (fires on "both referenced drop zones carry an Image Mask"), no names.
+      if (referenced.length === 2 && maskedClips.has(c0) && maskedClips.has(c1)) {
+        // leave name-based A/B binding untouched
+      } else if (d0 !== undefined && d1 !== undefined && Math.sign(d0) !== Math.sign(d1)
           && d0 !== 0 && d1 !== 0) {
         // Assign by fade: negative (fade-out) → A, positive (fade-in) → B.
         map.set(d0 < 0 ? c0 : c1, 'A');

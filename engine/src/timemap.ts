@@ -13,7 +13,7 @@
 //
 // The remap applies wrap first, then clamp. If neither fires it is the identity.
 import type { MotrScene, Layer, RationalTime } from './types.js';
-import { hasFilledShapeOverlay, hasStrokedMaskShape, hasReplicatorMaskReveal } from './capabilities.js';
+import { hasFilledShapeOverlay, hasStrokedMaskShape, hasReplicatorMaskReveal, hasFilteredMaskReveal } from './capabilities.js';
 
 export interface TimeMap {
   /** Remap a raw scene time (seconds) to the effective render time (seconds). */
@@ -101,6 +101,20 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
     const filledShapeOverlay = hasFilledShapeOverlay(scene);
     const strokedMaskShape = hasStrokedMaskShape(scene);
     const replicatorMaskReveal = hasReplicatorMaskReveal(scene);
+    // A mask-source group carrying its own image FILTER actively RESHAPES the reveal
+    // matte over the transition (Dissolves/Divide's "B Masks" MinMax dilation grows
+    // the divide-pieces to full-frame). That growth continues PAST the outgoing drop
+    // zone's timeout, so the wrap-to-frame-0 would strand the reveal at its wrap-time
+    // coverage — its presence cancels the wrap (see hasFilteredMaskReveal).
+    //
+    // EXCLUDE the stroked-mask case: Objects/Arrows ALSO carries a filter on its mask
+    // source (a Radial Blur) so hasFilteredMaskReveal fires on it too, but Arrows is a
+    // STROKED-mask reveal whose tail must CLAMP (below), not wrap-cancel — the clamp
+    // needs wrapSec to SURVIVE this line (clampSec = strokedMaskShape && wrapSec !==
+    // undefined). Cancelling Arrows' wrap here nulls wrapSec, so clampSec never sets
+    // and Arrows loses its held-B tail (regressed 16.9→16.5). Divide has no stroked
+    // shape, so `&& !strokedMaskShape` cleanly routes Divide → wrap-cancel, Arrows → clamp.
+    const filteredMaskReveal = hasFilteredMaskReveal(scene) && !strokedMaskShape;
     // A blended (screen/add) VIDEO media leaf that OUTLIVES the wrap plays along its
     // own frame-numbered Retime timeline (Lights/Light Noise's light-noise .mov): its
     // second burst fires past the drop-zone wrap, so freezing to time 0 would drop it.
@@ -166,7 +180,20 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
     // filled-shape / blended-media / replicator-matte overlay OR a kinetic media-panel
     // montage keeps animating past the wrap, so its presence (plus a true animation end
     // beyond the wrap) CANCELS the wrap.
-    if (wrapSec !== undefined && (filledShapeOverlay || blendedMediaOverlay || replicatorMaskReveal || kineticPanelMontage) && endSec > wrapSec + frameSec) {
+    // The wrap freezes the WHOLE scene back to frame 0, which is correct only when the
+    // drop-zone crossfade IS the entire transition (Blurs/Zoom, Lights/Bloom). A
+    // filled-shape / blended-media / replicator-matte overlay OR a kinetic media-panel
+    // montage keeps animating past the wrap, so its presence (plus a true animation end
+    // beyond the wrap) CANCELS the wrap.
+    //
+    // filteredMaskReveal (a FILTER-driven Image-Mask matte, e.g. Divide's MinMax
+    // dilation) is ALSO a "reveal outlives the wrap" cancel — BUT it must NOT pre-empt
+    // the stroked-mask CLAMP below. Objects/Arrows is both a filtered-mask reveal (its
+    // arc matte carries a Radial Blur) AND a stroked-mask reveal, and it needs the
+    // clamp (which requires wrapSec !== undefined). So gate the filteredMaskReveal
+    // cancel on NOT strokedMaskShape — a stroked reveal takes the clamp path instead.
+    const nonStrokedFilteredReveal = filteredMaskReveal && !strokedMaskShape;
+    if (wrapSec !== undefined && (filledShapeOverlay || blendedMediaOverlay || replicatorMaskReveal || kineticPanelMontage || nonStrokedFilteredReveal) && endSec > wrapSec + frameSec) {
       wrapSec = undefined;
     }
     // Stroked-mask reveal (Objects/Arrows): the growing arrow arcs cut A away to
