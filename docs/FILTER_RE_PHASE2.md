@@ -6,6 +6,34 @@ headless FCP engine (the real engine — comparing TS-filter output to headless-
 output on the SAME synthetic .motr is legitimate here; the headless IS FCP). Gate
 (`fct regress`) must stay green vs the GUI GT after every change.
 
+## STATUS SNAPSHOT (2026-07-12) — 24 registered filters + variants
+
+MATCHED + headless-verified (sweep PASS, `tools/re/filter_sweep.py`):
+  Gaussian Blur, Glow, Directional Blur, Radial Blur, **Zoom Blur (log-polar)**,
+  **Channel Mixer**, Colorize (Int<1), Levels, Fill, HSV (sat/value/gray), Brightness
+  (darken), Flop, MinMax, Scrape/Smear, BlackHole, Earthquake, **Luma Keyer (getAlphaLuma
+  trapezoid, alpha-scored)**.  Full sweep: 46 PASS / 0 FAIL across 21 filter keys.
+
+CEILING — decoded but a key param is NOT probe-drivable (headless renders identically for
+any injected flat value; same class), so that dimension can't be headless-verified:
+  Tint (Light/Color transfer + Color Space=3 leg; nested color IS drivable, transfer
+  measured but non-convergent — see below), Bevel (band-width law MATCHED+verified; Light
+  Angle not drivable), Bloom (bloomHeliumRender ObjC pipeline; Brightness>1 chain),
+  PAENoise (bit-exact dSFMT+simplex; per-frame reseed lives in FCP's host — statistical
+  match), BadTV / Underwater (unrecoverable runtime GPU noise field).
+
+FILTER CORRECT, low GUI-GT score is NOT the filter:
+  360 Reorient — the equirect remap fills the frame with 0% black in isolation (verified);
+  the 360° family's 6-8 dB scores are a TRANSITION-COMPOSITING issue (drop-zone / push
+  geometry), out of filter scope.
+
+DOCUMENTED GAPs (gate-green, shared root cause = per-filter-encode vs linear-CHAIN):
+  Brightness>1, Colorize Intensity=1 endpoint linearisation, HSV large hue rotation. FCP
+  keeps the whole filter chain in linear working space (kCGColorSpaceLinearSRGB) and
+  encodes ONCE at readback; a per-filter encode matches the isolated probe but regresses
+  the STACKED GUI-GT transitions. Needs an engine-level linear-chain (encode after all
+  filters), not per-filter encodes. Same limit blocks the Tint transfer from shipping.
+
 ## Verification method (Phase-2)
 1. `tools/re/filter_probe.py <shader> [param=val ...]` — renders a filter through the
    REAL FCP filter (headless) on a synthetic input and compares to the TS filter's
