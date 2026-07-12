@@ -180,6 +180,12 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-12  FILTER RE — HSV Hue unit DECODED = DEGREES (was treated as turns, 360x off).
+              From -[PAEHSVAdjust canThrowRenderOutput] @0x372f4-0x37350: FCP wraps Hue to
+              [0,360] then hg_Params[0].x=Hue/360+1.0. Fixed hue-saturation.ts; isolated
+              sweep Hue=0.25 14.97->29.01. Gate-neutral (all 5 users Hue=0), verified 0 regress.
+              Large hue rotations NOT probe-verifiable (headless renders Hue=90/180 as identity
+              — the w25/HGColorMatrix branch isn't triggered by a bare param set). commit bb97e59.
 - 2026-07-12  FILTER RE — Glow FULLY matched + working color space DECODED. (1) Instrumented
               oz_render.mm (OZ_WS_DEBUG) to read OZRenderParams_getWorkingColorSpace() =
               kCGColorSpaceLinearSRGB (16-bit half-float ExtendedLinearSRGB readback); this
