@@ -70,12 +70,30 @@
       {"label": "brighten 2.0 [gap]", "gap": true, "params": [{"name":"Brightness","id":1,"value":2.0}]}
     ]
   },
+  "channelmixer": {
+    "uuid": "B2E0DE39-119F-4AD6-8796-C18BF8FE27B8", "pluginName": "Channel Mixer", "min_psnr": 38,
+    "note": "VERBATIM HgcChannelMixer: out.rgb = per-channel dot(unpremult_rgba, hg_Params[row]) (row 4th col = offset via r1.w=1), re-premultiply, mix(orig, out, Mix). Nested param groups: Red Output(id1)>Red-Red(2)/Red-Green(3)/Red-Blue(4)/Red-Alpha(5); Green Output(6)>7/8/9/10; Blue Output(11)>12/13/14/15; Monochrome(21) sets all 3 rows to the RED-row weights (constrainMonoParams); Mix(10001). Verified vs headless: R<->B swap 42.25, Monochrome(0.3/0.59/0.11) 41.95, R<->B Mix0.5 42.38 — matched. 7 shipping users.",
+    "cases": [
+      {"label": "R<->B swap", "params": [{"name":"Red Output","id":1,"children":[{"name":"Red - Red","id":2,"value":0},{"name":"Red - Green","id":3,"value":0},{"name":"Red - Blue","id":4,"value":1},{"name":"Red - Alpha","id":5,"value":0}]},{"name":"Green Output","id":6,"children":[{"name":"Green - Red","id":7,"value":0},{"name":"Green - Green","id":8,"value":1},{"name":"Green - Blue","id":9,"value":0},{"name":"Green - Alpha","id":10,"value":0}]},{"name":"Blue Output","id":11,"children":[{"name":"Blue - Red","id":12,"value":1},{"name":"Blue - Green","id":13,"value":0},{"name":"Blue - Blue","id":14,"value":0},{"name":"Blue - Alpha","id":15,"value":0}]},{"name":"Mix","id":10001,"value":1}]},
+      {"label": "Monochrome 0.3/0.59/0.11", "params": [{"name":"Red Output","id":1,"children":[{"name":"Red - Red","id":2,"value":0.3},{"name":"Red - Green","id":3,"value":0.59},{"name":"Red - Blue","id":4,"value":0.11},{"name":"Red - Alpha","id":5,"value":0}]},{"name":"Monochrome","id":21,"value":1},{"name":"Mix","id":10001,"value":1}]},
+      {"label": "R<->B swap Mix0.5", "params": [{"name":"Red Output","id":1,"children":[{"name":"Red - Red","id":2,"value":0},{"name":"Red - Green","id":3,"value":0},{"name":"Red - Blue","id":4,"value":1},{"name":"Red - Alpha","id":5,"value":0}]},{"name":"Blue Output","id":11,"children":[{"name":"Blue - Red","id":12,"value":1},{"name":"Blue - Green","id":13,"value":0},{"name":"Blue - Blue","id":14,"value":0},{"name":"Blue - Alpha","id":15,"value":0}]},{"name":"Mix","id":10001,"value":0.5}]}
+    ]
+  },
   "flop": {
     "uuid": "2FF8887B-E673-4727-9601-1B3353531C10", "pluginName": "PAEFlop", "min_psnr": 38,
     "cases": [
       {"label": "Horizontal", "params": [{"name":"Flop","id":1,"value":0}]},
       {"label": "Vertical", "params": [{"name":"Flop","id":1,"value":1}]},
       {"label": "Both", "params": [{"name":"Flop","id":1,"value":2}]}
+    ]
+  },
+  "channelmixer": {
+    "uuid": "B2E0DE39-119F-4AD6-8796-C18BF8FE27B8", "pluginName": "Channel Mixer", "min_psnr": 38,
+    "note": "HgcChannelMixer VERBATIM (channel-mixer.ts): un-premultiply -> per-out-channel 4-wide dot (RR/RG/RB weights + '-Alpha' child as the constant OFFSET via r1.w=1) -> clamp alpha -> re-premultiply -> mix(orig,mixed,Mix). Monochrome (id21) = constrainMonoParams: all 3 out rows take the RED-row weights (verified: the old luma601-then-matrix double-processing was wrong). Real param IDs from Movements/Color_Planes.motr: Red Output(1){Red-Red 2, Red-Green 3, Red-Blue 4, Red-Alpha 5}, Green Output(6){7,8,9,10}, Blue Output(11){12,13,14,15}, Monochrome(21), Mix(10001). Verified vs headless: R<->B swap PSNR 42.25, Monochrome(.3/.59/.11) 41.95, R<->B Mix0.5 42.38.",
+    "cases": [
+      {"label": "R<->B swap", "params": [{"name":"Red Output","id":1,"children":[{"name":"Red - Red","id":2,"value":0},{"name":"Red - Green","id":3,"value":0},{"name":"Red - Blue","id":4,"value":1},{"name":"Red - Alpha","id":5,"value":0}]},{"name":"Green Output","id":6,"children":[{"name":"Green - Red","id":7,"value":0},{"name":"Green - Green","id":8,"value":1},{"name":"Green - Blue","id":9,"value":0},{"name":"Green - Alpha","id":10,"value":0}]},{"name":"Blue Output","id":11,"children":[{"name":"Blue - Red","id":12,"value":1},{"name":"Blue - Green","id":13,"value":0},{"name":"Blue - Blue","id":14,"value":0},{"name":"Blue - Alpha","id":15,"value":0}]},{"name":"Mix","id":10001,"value":1}]},
+      {"label": "Monochrome .3/.59/.11", "params": [{"name":"Red Output","id":1,"children":[{"name":"Red - Red","id":2,"value":0.3},{"name":"Red - Green","id":3,"value":0.59},{"name":"Red - Blue","id":4,"value":0.11},{"name":"Red - Alpha","id":5,"value":0}]},{"name":"Monochrome","id":21,"value":1},{"name":"Mix","id":10001,"value":1}]},
+      {"label": "R<->B swap Mix0.5", "params": [{"name":"Red Output","id":1,"children":[{"name":"Red - Red","id":2,"value":0},{"name":"Red - Green","id":3,"value":0},{"name":"Red - Blue","id":4,"value":1},{"name":"Red - Alpha","id":5,"value":0}]},{"name":"Blue Output","id":11,"children":[{"name":"Blue - Red","id":12,"value":1},{"name":"Blue - Green","id":13,"value":0},{"name":"Blue - Blue","id":14,"value":0},{"name":"Blue - Alpha","id":15,"value":0}]},{"name":"Mix","id":10001,"value":0.5}]}
     ]
   },
   "minmax": {
