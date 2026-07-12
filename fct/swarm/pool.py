@@ -104,9 +104,15 @@ def done_task_ids():
             ["git", "-C", MAIN, "log", "origin/main", "--pretty=%s", "-n", "400"],
             text=True, timeout=30)
         for line in log.splitlines():
-            m = re.match(r"^swarm\s+(T-[A-Za-z0-9]+):", line)
-            if m:
+            # An agent's completion commit. The brief asks for "swarm <id>: ..." but
+            # agents also legitimately use "<id> DONE: ..." / "<id> DROPPED: ..." /
+            # "<id> BLOCKED: ...". Match a task id at the START of the subject in any of
+            # these forms so the pool reliably detects completion (a too-strict regex
+            # made the pool relaunch a finished task in a tight loop — observed on T-A3).
+            m = re.match(r"^(?:swarm\s+)?(T-[A-Za-z0-9]+)\b", line)
+            if m and re.search(r"\b(swarm|DONE|DROPPED|BLOCKED|NOOP)\b", line, re.I):
                 done.add(m.group(1))
+
     except Exception as e:
         print(f"[pool] warn: completion scan failed: {e}", flush=True)
     return done
