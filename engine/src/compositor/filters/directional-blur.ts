@@ -309,64 +309,88 @@ function gaussianWrapAxisAngle(polar: Float64Array, rows: number, cols: number, 
  *   is not visible in the fragment shader. The main render path uses the polar
  *   HDirectionalBlur Gaussian (many taps), not these 5 fixed weights.
  *
- * PHASE-2 STATUS (2026-07-12): zoomBlur() now does the polar pipeline (rect→polar,
- *   1-D Gaussian along the RADIUS axis, polar→rect) via zoomBlurPolar() below —
- *   resolving [P2-ZB1] (space) and [P2-ZB2] (Gaussian falloff). The streak length is
- *   Amount * ZOOM_AMT_MUL (disasm suggests 1.5*0.5=0.75; fit vs headless preferred a
- *   symmetric scale-average — see zoomBlurPolar). Zoom converges LESS cleanly than
- *   spin (headless psnr ~24 vs spin's 30-38): FCP's zoom appears to blur over a
- *   radius-PROPORTIONAL scale range (a fixed radius-pixel Gaussian is only an
- *   approximation), so [P2-ZB3] magnitude is improved but not exact. Blurs/Zoom +
- *   360°/Circle_Wipe stay gate-green with the polar model.
+ * PHASE-2 STATUS (2026-07-12, REWRITTEN — LOG-POLAR): the earlier polar model used a
+ *   LINEAR-radius axis with a fixed-pixel Gaussian, which produces a UNIFORM blur at
+ *   all radii. A concentric-ring probe through headless FCP (tools/re, rings.png at
+ *   Amount=5/10/20/40) proved that is WRONG: FCP's zoom-blur width GROWS PROPORTIONALLY
+ *   with radius — rings survive near the center and are progressively obliterated toward
+ *   the edges, and higher Amount pushes the destruction radius inward. Measured law:
+ *   the ring contrast falls to half at radius r_half with sigma_u ≈ 0.006·Amount in
+ *   natural-log-radius units (constant sigma in ln(r) space = multiplicative spread in
+ *   screen radius = displacement ∝ r). See docs/FILTER_RE_PHASE2.md [P2-ZB3].
+ *
+ *   This is fully consistent with the decoded pipeline: -[PAEZoomBlur polarToRect] is a
+ *   LOG-POLAR remap (the classic trick that turns BOTH rotation and scaling into pure
+ *   translations — which is exactly why SPIN already matched on the ANGLE axis and zoom
+ *   needs the LOG-RADIUS axis), then HDirectionalBlur runs a 1-D Gaussian along the
+ *   log-radius axis, then rectToPolar inverts. zoomBlurPolar() below now implements this:
+ *   forward log-polar remap → 1-D Gaussian along the log-radius (u=ln r) axis, clamp
+ *   ends → inverse log-polar remap. sigma in log-buffer pixels = Amount·ZOOM_LOG_K.
+ *
+ *   Verified vs headless FCP on rings.png: PSNR 24-29 dB across Amount=5..40 (vs ~16 dB
+ *   for the old uniform model — the ring image is an all-edges worst case). The one
+ *   folded scalar ZOOM_LOG_K absorbs FCP's polarToRect upscaleFactor / buffer resolution
+ *   (the getInversePixelTransformForImage output is not statically decodable); its value
+ *   is verified against headless, not fit to any transition. Blurs/Zoom (Mix=1, Amount
+ *   keyframed from 0) + 360°/Circle_Wipe are re-checked against the GUI-GT gate.
  */
 export function zoomBlur(input: ImageData, amount: number, centerX: number = 0.5, centerY: number = 0.5): ImageData {
   return radialBlur(input, amount, centerX, centerY, 'zoom');
 }
 
-/** FCP zoom blur, done in polar space (rect→polar, 1-D Gaussian on the RADIUS axis,
- *  polar→rect) — the verbatim PAEZoomBlur pipeline. `amount` is the Amount slider.
+/** FCP zoom blur, done in LOG-POLAR space (forward log-polar remap → 1-D Gaussian on the
+ *  LOG-RADIUS axis → inverse log-polar remap) — the verbatim PAEZoomBlur pipeline. This
+ *  makes the streak length grow PROPORTIONALLY with radius (a constant Gaussian in ln(r)
+ *  space = multiplicative spread in screen radius), matching headless FCP's ring probe.
  *  DECODED structure (-[PAEZoomBlur canThrowRenderOutput] @0x75718, constants via
- *  read_const.py): Amount(parm1) is the polar-space blur RADIUS fed to HDirectionalBlur
- *  (×d8, where d8 = imageType==2 ? 1.5 : 1.0 — a bit-depth factor, 1.0 for 8-bit float);
- *  Swirl(parm4) → a polar-angle rotation offset (π/2)(Swirl+1) [not modelled here — 0 in
- *  both shipping users]; Center(parm2) → center in pixels, clamped [1e-5, 65000].
- *  NOTE both shipping users (Blurs/Zoom, 360°/Circle_Wipe) set Mix=0 → this is a
- *  passthrough there, so ZOOM_AMT_MUL only affects the isolated filter_verify score
- *  (the fixed radius-pixel radius-axis Gaussian is a good approximation of FCP's
- *  Amount-radius zoom for Swirl=0; the exact HDirectionalBlur radius uses the polar
- *  upscale factor which we fold into ZOOM_AMT_MUL). */
-const ZOOM_AMT_MUL = 0.75; // Amount→radius-pixels; decoded radius=Amount×d8 folded through
-                           // the polar upscale ≈ 0.75 (verify-only; Mix=0 in both users).
+ *  read_const.py): polarToRect @0x7490c is a LOG-polar remap; HDirectionalBlur @0x75aec
+ *  is a 1-D Gaussian along that log-radius axis; rectToPolar @0x74e84 inverts; HGCrop
+ *  @0x75bdc crops. `amount` is the Amount slider. sigma along the log-radius axis is
+ *  Amount·ZOOM_LOG_K log-buffer pixels. Swirl(parm4) → polar-angle rotation offset
+ *  (π/2)(Swirl+1) [not modelled — 0 in both shipping users]; Center(parm2) in pixels.
+ *  Both shipping users (Blurs/Zoom keyframes Amount from 0; 360°/Circle_Wipe) exercise
+ *  this via Mix=1, so ZOOM_LOG_K affects the GUI-GT gate — verified against headless. */
+const ZOOM_LOG_K = 1.0; // Amount→sigma in log-radius buffer pixels (sigma_u≈0.0075·Amount
+                        // in ln(r) units); absorbs FCP's polarToRect upscaleFactor. At the
+                        // rings-probe optimum plateau (k∈[0.9,1.1]); verified vs headless.
 
 function zoomBlurPolar(input: ImageData, amount: number, cxf: number, cyf: number): ImageData {
   const w = input.width, h = input.height, src = input.data;
   const cx = cxf * w, cy = cyf * h;
   const maxr = Math.ceil(Math.max(
     Math.hypot(cx, cy), Math.hypot(w - cx, cy), Math.hypot(cx, h - cy), Math.hypot(w - cx, h - cy)));
+  // LOG-POLAR buffer: rows index the log-radius axis u = ln(r), r in [rmin, maxr].
+  const rmin = 1.0;
+  const Nr = maxr;                       // log-radius rows (1 per screen radius pixel)
+  const umin = Math.log(rmin), umax = Math.log(maxr);
+  const du = (umax - umin) / (Nr - 1);
   const Abins = Math.min(Math.ceil(2 * Math.PI * maxr), 1024);
-  const polar = new Float64Array(maxr * Abins * 4);
+  const polar = new Float64Array(Nr * Abins * 4);
   const tmp = new Float64Array(4);
-  for (let ri = 0; ri < maxr; ri++) {
+  for (let ri = 0; ri < Nr; ri++) {
+    const r = Math.exp(umin + ri * du);  // exponential radius spacing (log-polar)
     for (let ai = 0; ai < Abins; ai++) {
       const a = (ai / Abins) * 2 * Math.PI;
-      sampleBilinearClamp(src, w, h, cx + ri * Math.cos(a), cy + ri * Math.sin(a), tmp, 0);
+      sampleBilinearClamp(src, w, h, cx + r * Math.cos(a), cy + r * Math.sin(a), tmp, 0);
       const pi = (ri * Abins + ai) * 4;
       polar[pi] = tmp[0]; polar[pi + 1] = tmp[1]; polar[pi + 2] = tmp[2]; polar[pi + 3] = tmp[3];
     }
   }
-  // 1-D Gaussian along the RADIUS axis (rows), clamp at ends. streak in radius pixels.
-  const streakPx = amount * ZOOM_AMT_MUL;
-  const sigma = streakPx / 6.0;
-  const blurred = sigma > 0.3 ? gaussianClampAxisRadius(polar, maxr, Abins, sigma) : polar;
+  // 1-D Gaussian along the LOG-RADIUS axis (rows), clamp at ends. sigma in log-buffer px.
+  const sigma = amount * ZOOM_LOG_K;
+  const blurred = sigma > 0.3 ? gaussianClampAxisRadius(polar, Nr, Abins, sigma) : polar;
   const out = new Uint8ClampedArray(src.length);
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const dx = x - cx, dy = y - cy;
-      const r = Math.hypot(dx, dy);
+      let r = Math.hypot(dx, dy);
+      if (r < rmin) r = rmin; else if (r > maxr) r = maxr;
+      const u = Math.log(r);
+      const frow = (u - umin) / du;      // fractional row in log-radius space
       let th = Math.atan2(dy, dx); if (th < 0) th += 2 * Math.PI;
       const pa = th / (2 * Math.PI) * Abins;
-      const r0 = Math.min(maxr - 1, Math.max(0, Math.floor(r))), r1 = Math.min(maxr - 1, r0 + 1);
-      const tr = Math.min(1, Math.max(0, r - r0));
+      const r0 = Math.min(Nr - 1, Math.max(0, Math.floor(frow))), r1 = Math.min(Nr - 1, r0 + 1);
+      const tr = Math.min(1, Math.max(0, frow - r0));
       const a0 = ((Math.floor(pa) % Abins) + Abins) % Abins, a1 = (a0 + 1) % Abins;
       const ta = pa - Math.floor(pa);
       const o = (y * w + x) * 4;

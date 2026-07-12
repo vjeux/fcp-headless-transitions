@@ -180,6 +180,19 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-12  FILTER RE — Zoom Blur is a LOG-POLAR scale-space blur (P2-ZB3 RESOLVED). A
+              concentric-ring headless probe (new committed tool tools/re/gen_pattern.py) proved
+              FCP's zoom-blur width GROWS ∝ radius: rings survive at center, are obliterated
+              toward the edges, and higher Amount pushes the destruction radius inward (measured
+              constant sigma in ln(r) space). This is the decoded polarToRect(LOG-polar) →
+              HDirectionalBlur 1-D Gaussian along the log-radius axis → rectToPolar pipeline — the
+              same reason SPIN works on the angle axis. Rewrote zoomBlurPolar() from the old
+              LINEAR-radius uniform Gaussian (blurred every radius equally, ~16 dB @Amount=50) to
+              log-radius. Verified vs headless: rings.png PSNR 24-29 dB (Amount=5..40), start.png
+              19-21 dB (smooth-input remap ceiling). ZOOM_LOG_K=1.0 (rings-optimum plateau).
+              Added zoom(3)+directional(2) sweep cases (suite now 42 PASS/0 FAIL). Full engine
+              gate GREEN 0/0 (both users keyframe Amount from 0 / wipe-dominated: 13.76→13.69,
+              7.47→7.46). tsc clean.
 - 2026-07-12  FILTER RE — HSV Hue unit DECODED = DEGREES (was treated as turns, 360x off).
               From -[PAEHSVAdjust canThrowRenderOutput] @0x372f4-0x37350: FCP wraps Hue to
               [0,360] then hg_Params[0].x=Hue/360+1.0. Fixed hue-saturation.ts; isolated

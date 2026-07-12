@@ -46,6 +46,16 @@ output on the SAME synthetic .motr is legitimate here; the headless IS FCP). Gat
 - **Radial/Zoom [P2-RB1/ZB1]**: FCP does the blur in POLAR space (rect↔polar remap);
   TS does it in screen space. Amount scaling: radial ×1.5, zoom ×0.75 (TS uses invented
   ×0.01). Different geometry near center + corners.
+  **[RESOLVED — Radial spin 2026-07-12; Zoom 2026-07-12]** Both rewritten to polar space.
+  Radial = 1-D Gaussian on the ANGLE axis (linear-radius polar). Zoom = 1-D Gaussian on
+  the LOG-RADIUS axis (LOG-polar) — see P2-ZB3 below.
+  → RADIAL RESOLVED (spin polar-space rewrite, angle-axis Gaussian).
+  → ZOOM RESOLVED 2026-07-12: FCP's polarToRect is a **LOG-polar** remap, so the 1-D
+    Gaussian runs along the LOG-radius axis → streak width grows ∝ radius. A concentric-
+    ring headless probe proved it (rings survive at center, obliterated at edges; higher
+    Amount pushes destruction inward). Rewrote zoomBlurPolar() to log-polar; verified vs
+    headless on rings.png PSNR 24-29 dB (Amount=5..40) and on start.png 19-21 dB (smooth
+    input, remap-resampling limited). Gate green (both users unchanged). See [P2-ZB3] below.
 - **Gaussian [P2-GB1]**: FCP convolves a small fixed-tap kernel on the DECIMATED image
   with HGBlur-computed weights (not visible in shader — need HGBlur::ComputeDecimation).
   TS builds a full 2r+1 kernel, sigma=r/3 (an assumption). Perf + edge-mode gaps.
@@ -103,10 +113,40 @@ output on the SAME synthetic .motr is legitimate here; the headless IS FCP). Gat
   was a box average; FCP uses a 1-D Gaussian sigma=Amount/6.67 (measured: Amount=50 σ7.5
   PSNR 46.4 vs box 33.5). Net: Directional now fires + matches FCP falloff (+0.08, was
   -0.94 with box); sharpness tracks GT. Gate 0 regressions.
-- [OPEN] Radial/Zoom blur GEOMETRY (P2-RB1/ZB1): blur now FIRES but the spin math uses
-  angle-in-degrees x (dist/max(w,h)) giving near-zero rotation for the transition's
-  Angle=2.39rad, and zoom uses a screen-space 1+t*0.01 scale. Both need the FCP
-  polar-space (rect<->polar remap) + correct Amount->arc/scale mapping. Next target.
+- [RESOLVED 2026-07-12] Radial/Zoom blur GEOMETRY (P2-RB1/ZB1): both now do the FCP
+  polar-space pipeline. RADIAL (spin) = 1-D Gaussian on the ANGLE axis of a linear-radius
+  polar image (rotation → angle translation). ZOOM = 1-D Gaussian on the LOG-radius axis
+  of a LOG-polar image (scaling → log-radius translation) — this is the key insight:
+  -[PAEZoomBlur polarToRect] is a LOG-polar remap (the classic trick that turns BOTH
+  rotation and scaling into pure translations), which is why spin worked on the angle axis
+  and zoom needed the log-radius axis. A concentric-ring headless probe (tools/re,
+  rings.png, Amount=5/10/20/40) decisively showed FCP's zoom-blur width grows ∝ radius —
+  rings survive at the center and are progressively destroyed toward the edges; the old
+  linear-radius fixed-pixel model produced a WRONG uniform blur (PSNR ~16 on start.png at
+  Amount=50). The log-polar rewrite: PSNR 24-29 dB vs headless on rings.png, 19-21 dB on
+  start.png (smooth photo, remap-resampling limited — the achievable structural ceiling).
+  sigma along the log-radius axis = Amount·ZOOM_LOG_K (=1.0, at the rings-probe optimum
+  plateau; folds FCP's polarToRect upscaleFactor which is not statically decodable). Sweep
+  suite: zoom (3 cases) + directional (2 cases) added, all PASS. Gate green (Blurs__Zoom,
+  360°__Circle_Wipe unchanged — both keyframe Amount from 0 / are wipe-dominated).
+  → BOTH RESOLVED (see [P2-ZB3] below + the RADIAL polar rewrite): spin = angle-axis
+    Gaussian in polar space; zoom = log-radius-axis Gaussian in LOG-polar space.
+- [DONE — P2-ZB3] Zoom blur is a LOG-POLAR scale-space blur (2026-07-12). The decoded
+  pipeline is polarToRect(log-polar) → HDirectionalBlur 1-D Gaussian along the log-radius
+  axis → rectToPolar. A constant Gaussian in u=ln(r) space = multiplicative spread in
+  screen radius = displacement ∝ radius. A concentric-ring headless probe (rings.png,
+  Amount=5/10/20/40) decisively confirmed the proportional growth (ring contrast falls to
+  half at r_half with sigma_u ≈ 0.006·Amount in ln(r) units — constant in log space).
+  Reproduce the probe input with the committed tool:
+    `tools/re/gen_pattern.py rings --out /tmp/rings.png --w 1854 --h 1042 --spacing 40`
+  then `tools/re/filter_probe.py --uuid 11C0E095-… --name PAEZoomBlur --spec
+  '[{"name":"Amount","id":1,"value":50}]' --in-a /tmp/rings.png --out /tmp/rings_fcp.png`.
+  This replaces the old LINEAR-radius uniform-Gaussian model (which blurred every radius
+  equally, PSNR ~16 at Amount=50). New model: PSNR 24-29 dB on rings, 19-21 dB on the
+  smooth start.png (remap-resampling ceiling). ZOOM_LOG_K=1.0 (rings-optimum plateau
+  k∈[0.9,1.1]) folds FCP's polarToRect upscaleFactor. Sweep suite: zoom 3/3 PASS,
+  directional 2/2 PASS. Gate green (Blurs__Zoom 13.76→13.69, 360°/Circle_Wipe 7.47→7.46
+  — both keyframe Amount from 0 / wipe-dominated, so isolated-filter fidelity ≠ gate move).
 - [ATTEMPTED+REVERTED] Radial (spin) blur geometry: measured FCP's spin as a RIGID
   rotation over total arc = Angle x 0.5 rad (probe Angle=0.5/1.0). Implemented it
   (screen-space rigid rotation, arc=Angle*0.5, uniform weight) — the blur then FIRES and

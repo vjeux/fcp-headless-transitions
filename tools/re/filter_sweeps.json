@@ -105,6 +105,40 @@
       {"label": "Angle 2.0", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.5},{"name":"Y","id":2,"value":0.5}]},{"name":"Angle","id":2,"value":2.0}]}
     ]
   },
+  "zoom": {
+    "uuid": "11C0E095-5F4F-46E2-AE28-F56ED7D38D7E", "pluginName": "PAEZoomBlur", "min_psnr": 17,
+    "note": "LOG-POLAR (2026-07-12): a concentric-ring probe through headless FCP proved the zoom-blur width GROWS PROPORTIONALLY with radius (rings survive at center, obliterated at edges; higher Amount pushes destruction inward) — displacement is not a fixed pixel count. This is the log-polar polarToRect leg + 1-D Gaussian along the log-radius axis (see directional-blur.ts zoomBlurPolar). Rewritten from the old uniform (linear-radius) model; verified vs headless on rings.png: PSNR 24-29 dB across Amount=5..40. On start.png (smooth photo, the sweep input) PSNR is lower (~18-20 dB) because the polar remap resampling + 1854->1920 conform dominate a smooth image; that is the achievable structural ceiling for this remap filter, not a shape error. sigma_u=Amount*ZOOM_LOG_K(=1.0) log-buffer px. Both shipping users (Blurs/Zoom keyframes Amount from 0, 360/Circle_Wipe) stay gate-green.",
+    "cases": [
+      {"label": "Amount 20", "params": [{"name":"Amount","id":1,"value":20}]},
+      {"label": "Amount 50", "params": [{"name":"Amount","id":1,"value":50}]},
+      {"label": "Amount 100", "params": [{"name":"Amount","id":1,"value":100}]}
+    ]
+  },
+  "directional": {
+    "uuid": "2E7B1340-5D4F-4015-8AA0-53BEB9F2CA52", "pluginName": "PAEDirectionalBlur", "min_psnr": 28,
+    "note": "PAEDirectionalBlur = 1-D Gaussian along the Angle direction, streak = Amount px. Verified vs headless: Amount=50/Angle=0 -> PSNR ~46, Amount=100/Angle=45 -> PSNR ~30 (drops with streak length purely from the 1854->1920 conform). No fix needed; entries pin the match.",
+    "cases": [
+      {"label": "Amount 50 Angle 0", "params": [{"name":"Amount","id":1,"value":50},{"name":"Angle","id":2,"value":0}]},
+      {"label": "Amount 100 Angle 45", "params": [{"name":"Amount","id":1,"value":100},{"name":"Angle","id":2,"value":45}]}
+    ]
+  },
+  "zoom": {
+    "uuid": "11C0E095-5F4F-46E2-AE28-F56ED7D38D7E", "pluginName": "PAEZoomBlur", "min_psnr": 18,
+    "note": "LOG-POLAR (2026-07-12): PAEZoomBlur's polarToRect is a LOG-polar remap, so a 1-D Gaussian along the log-radius axis makes the streak length grow PROPORTIONALLY with radius (rings survive near center, obliterated at edges) — proven by a concentric-ring probe (rings.png Amount=5/10/20/40, log-polar PSNR 24-29 dB vs ~16 dB for the old linear-radius uniform model). sigma_u = Amount*ZOOM_LOG_K in ln(r) units, ZOOM_LOG_K=1.0 at the rings-probe optimum plateau. On the smooth start.png probe input the structural match reads ~18-20 dB (Amount 20/50) / ~19 dB (Amount 100), bounded by the 1854->1920 conform + the smooth-image PSNR floor; the ring probe is the honest geometric verifier. Both shipping users (Blurs/Zoom keyframes Amount from 0; 360°/Circle_Wipe wipe-dominated) stay gate-green.",
+    "cases": [
+      {"label": "Amount 20", "params": [{"name":"Amount","id":1,"value":20}]},
+      {"label": "Amount 50", "params": [{"name":"Amount","id":1,"value":50}]},
+      {"label": "Amount 100", "params": [{"name":"Amount","id":1,"value":100}]}
+    ]
+  },
+  "directional": {
+    "uuid": "2E7B1340-5D4F-4015-8AA0-53BEB9F2CA52", "pluginName": "PAEDirectionalBlur", "min_psnr": 28,
+    "note": "PAEDirectionalBlur: 1-D Gaussian along the (cos,sin) Angle axis, sigma=Amount*.../6. Verified vs headless: Amount=50/Angle=0 -> PSNR 46, Amount=100/Angle=45 -> PSNR 30. High PSNR because the blur is axis-aligned and shape-exact; the residual is the 1854->1920 conform on the largest kernels.",
+    "cases": [
+      {"label": "Amount 50 Angle 0", "params": [{"name":"Amount","id":1,"value":50},{"name":"Angle","id":2,"value":0}]},
+      {"label": "Amount 100 Angle 45", "params": [{"name":"Amount","id":1,"value":100},{"name":"Angle","id":2,"value":45}]}
+    ]
+  },
   "scrape": {
     "uuid": "0D6E968B-0291-43E2-A8DA-88EB80E9C4B2", "pluginName": "Smear", "min_psnr": 23,
     "note": "axis = (-sin(rot), cos(rot)) — the sincos wiring bakes a +pi/2. rot=0 is the weakest (25.84) because that orientation maximises the 1854->1920 conform artifact; rot=pi/2 hits 39.57. Movements/Smear (rot=3pi/2, the only user) baseline is intentionally re-frozen to the FCP-correct axis render (it scores 0.35 lower on that noisy 11-dB slug).",
