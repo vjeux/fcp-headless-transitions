@@ -506,6 +506,20 @@ export function parseMotr(xmlText: string): MotrScene {
       // with negative offset + retime) — mirrors the evaluator's curveTime shift so
       // the animation window matches the render. See the Image branch below.
       let mediaOverlayNegOffsetSec = 0;
+      // Generator local-frame re-anchor: a Generator scenenode (e.g. Color Solid,
+      // Noise) with a NEGATIVE timeline offset authors its transform curves in its
+      // own local time frame (Motion places local-frame zero at `offset`). Same class
+      // as the Camera negative-offset case, but generators are decorative background
+      // fills whose Z-Position/Rotation curves can run well past the true visual end.
+      // Movements/Color Planes' "Color Solid" backdrop has offset≈−0.567s and its
+      // Z-Position/Y-Rotation keys at LOCAL 2.369s → scene 1.802s (≈ the 1.867s span);
+      // the walk read the RAW 2.369s and inflated the window 0.5s past the span, so the
+      // additively-recombined RGB channel planes (offset ±154px at that end) over-
+      // separated and the tail frames rendered BLACK (Color Planes f23 = 0,0,0 vs GT B).
+      // Re-anchor scene = local + offset. Gated on a clearly backward offset (< −0.3s)
+      // so a scene-time generator (offset ≈ 0) is untouched. Structural (factory +
+      // negative offset), not a per-transition path.
+      let genNegOffsetSec = 0;
       while (node && node.nodeType === 1) {
         if (node.tagName === 'parameter') {
           const nm = node.getAttribute('name') || '';
@@ -614,6 +628,23 @@ export function parseMotr(xmlText: string): MotrScene {
               const isScreenFamily = blendVal === 8 || blendVal === 9 || blendVal === 10 || blendVal === 14;
               if (isScreenFamily && hasRetime) mediaOverlayNegOffsetSec = offV;
             }
+          } else if (factories.get(fid) === 'Generator' && genNegOffsetSec === 0) {
+            // Generator with a negative timeline offset → its transform curves are in
+            // a local frame anchored at `offset` (scene = local + offset). Only
+            // Color Planes' Color Solid backdrop matches (off≈−0.567, curve to local
+            // 2.369s → scene 1.802s ≈ span). Gated on offset < −0.3s so scene-time
+            // generators (offset ≈ 0) are untouched.
+            const tEl = firstChild(node as Element, 'timing');
+            const offAttr = tEl?.getAttribute('offset');
+            const parseRTg = (a: string | null | undefined): number => {
+              if (!a) return 0;
+              const p = a.trim().split(/\s+/);
+              const v = parseFloat(p[0]);
+              const s = p.length > 1 ? parseFloat(p[1]) : 1;
+              return s > 0 && isFinite(v) ? v / s : 0;
+            };
+            const offVg = parseRTg(offAttr);
+            if (offAttr && offVg < -0.3) genNegOffsetSec = offVg;
           }
         }
         node = node.parentNode;
@@ -659,11 +690,16 @@ export function parseMotr(xmlText: string): MotrScene {
           // Screen/add media-overlay local frame → scene time: add its negative offset
           // (Light Noise 2.469 + (−0.734) = 1.735s), mirroring the evaluator's shift.
           const mediaShifted = mediaOverlayNegOffsetSec !== 0 ? rawSec + mediaOverlayNegOffsetSec : null;
+          // Generator local frame → scene time: add its negative offset (Color Planes
+          // Color Solid 2.369 + (−0.567) = 1.802s). Same class as the camera shift.
+          const genShifted = genNegOffsetSec !== 0 ? rawSec + genNegOffsetSec : null;
           const sec = camShifted !== null
             ? camShifted
             : mediaShifted !== null
               ? mediaShifted
-              : (rawSec >= 0 ? rawSec + shiftAmt : rawSec);
+              : genShifted !== null
+                ? genShifted
+                : (rawSec >= 0 ? rawSec + shiftAmt : rawSec);
           if (sec > maxT) maxT = sec;
         }
       }

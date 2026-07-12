@@ -236,7 +236,50 @@ Status legend: TODO / DOING / DONE / BLOCKED
 
 ---
 
+### 12. Compositor / generator feature gaps (per-slug low-score root causes)  [DOING]  (engine)
+- Context: items 1–11 (architecture + timing + media) are DONE. The remaining low-score
+  slugs are NOT architecture bugs — each is a concrete compositor/generator feature the
+  engine doesn't yet reproduce. Work them top-down by GUI-GT impact, ONE generic root-cause
+  fix per commit, gate-green each time. NO per-transition hardcoding: every fix keys on a
+  STRUCTURAL signal (factory type, offset sign, blend mode), never a slug/layer name.
+- Known root causes (from frame-by-frame GUI-GT diffing):
+  * Movements/Color_Planes — Generator negative-offset window inflation → black tail.  [DONE]
+  * Movements/Drop_In (9.29) — B drop-in card mis-positioned/mis-scaled; big black R/bottom
+    at f23 (B never covers frame). Replicator/drop-impact geometry.
+  * Replicator-Clones/Video_Wall (8.74) — replicator tile grid + camera dolly geometry.
+  * Stylized/Lower (9.04) — misses the bright mid-transition white flash (GUI f12 ≈ 239,245).
+  * Lights/Lens_Flare (9.57) — bright flare overlay the engine renders dark.
+  * Dissolves/Divide (10.15) — B Masks mask-reveal geometry / A-B z-order.
+  * Slide_In / Center_Reveal / Close_and_Open — linear/color Gradient generator not composited.
+- DoD (per sub-step): a structural fix, gate 0 regressions, baseline re-frozen, pushed.
+- Verify: `fct regress engine` green + `fct score <slug> gui --full`.
+- Color_Planes sub-step DONE: Generator with a negative timeline offset authors its
+  transform curves in a LOCAL frame (scene = local + offset). The "Color Solid" backdrop
+  (off≈−0.567s, Z-Position/Y-Rotation keyed to local 2.369s → scene 1.802s ≈ span 1.867s)
+  had its RAW 2.369s inflate animationEndSec 0.5s past the span, so the additively-
+  recombined RGB channel planes over-separated and the tail rendered BLACK (f23 0,0,0 vs
+  GT B). Added a Generator neg-offset re-anchor branch to the animationEndSec walk (mirrors
+  the existing Camera/media-overlay neg-offset re-anchors). Blast radius = exactly 1 slug
+  (verified via _trace_end diff old-vs-new). Color_Planes 9.86→10.47 (+0.61); gate 0
+  regressions; engine mean 13.62→13.63 dB; baseline re-frozen.
+
+---
+
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-13  ITEM 12 (Color_Planes) DONE — Generator negative-offset local-frame re-anchor.
+              ROOT CAUSE of Movements/Color_Planes' BLACK tail (f23 = 0,0,0 vs GT B): the
+              decorative "Color Solid" backdrop is a Generator (factory 4) with timeline
+              offset≈−0.567s, so its Z-Position/Y-Rotation curves live in the layer-LOCAL
+              frame. The animationEndSec walk read the RAW local 2.369s (0.5s past the 1.867s
+              span), so the progress→time map over-ran and the additively-recombined RGB
+              channel planes (offset ±154px at that end) over-separated → black tail. FIX:
+              re-anchor Generator neg-offset curves to scene time (scene = local + offset =
+              1.802s ≈ span), mirroring the existing Camera / media-overlay neg-offset
+              re-anchors. Gated on factory=Generator AND offset < −0.3s. _trace_end old-vs-new
+              diff confirms it changes ONLY Color_Planes' animationEndSec (2.369→1.802), zero
+              blast radius. Gate 0 regressions, Color_Planes 9.86→10.47 (+0.61); engine mean
+              13.62→13.63 dB; baseline re-frozen. tsc clean. Structural (factory + neg offset),
+              not a per-transition path.
 - 2026-07-13  ITEM 11 DONE — media clips play FORWARD by default (was reversed). The bench
               mediaResolver defaulted bundled .mov overlays+mattes to REVERSE (clipTime =
               duration − t) on an un-GT-verified assumption. Measured WRONG: Objects/Veil
