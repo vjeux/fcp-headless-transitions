@@ -43,13 +43,13 @@
   },
   "hsv": {
     "uuid": "D23AF030-B0BF-44DF-B622-7C9EA0DF5744", "pluginName": "PAEHSVAdjust", "min_psnr": 30,
-    "note": "NEUTRALS (verified vs headless): Hue=0 (turns), Saturation=0 (0-centered delta, -1=grayscale), Value=1 (multiplier, applied squared). Identity=(0,0,1). Saturation/Value/grayscale MATCH (39-48 dB). HUE ROTATION gap (psnr 15 @0.25turn) is a COLOR-SPACE issue, NOT filter math: a byte-faithful port of the verbatim HgcHSVAdjust shader gives the SAME mad ~37 vs headless (linear-light ~32), so the divergence is FCP's working-space transform around the shader (shared with Tint/Brightness>1), not the HSV reconstruction. All 5 shipping HSV transitions use Hue=0 -> unexercised. Documented, not fit.",
+    "note": "NEUTRALS (verified vs headless): Hue=0, Saturation=0 (0-centered, -1=grayscale), Value=1 (multiplier, applied squared). Identity=(0,0,1). Saturation/Value/grayscale MATCH (39-48 dB). HUE param DECODED 2026-07-12 (-[PAEHSVAdjust canThrowRenderOutput] @0x372f4-0x37350): it is in DEGREES, not turns — FCP wraps to [0,360] then sets hg_Params[0].x=Hue/360+1.0 (the +1 is a no-op inside the shader frac). Fixed hue-saturation.ts to convert deg->turns (was treating the param as turns, 360x off); the 0.25deg sweep case improved 14.97->29.01 dB. FULL hue-rotation remains a [gap] and is NOT probe-verifiable: at Hue=90/180 the headless probe returns the INPUT unchanged (hvi~1.1, IDENTITY guard fires) — the injected filter does not engage FCP\u2019s hue path there (likely the versionAtCreation/dynamicRangeType w25 branch selects the HGColorMatrix sincos path which our factoryID-7 skeleton doesn\u2019t trigger). All 4 shipping HSV users set Hue=0 so hue is gate-neutral regardless. The 29 dB residual on the tiny 0.25deg rotation is the linear-space hexagon reconstruction, shared with the color-pipeline working-space finding.",
     "cases": [
       {"label": "identity (0,0,1)", "identity": true, "params": [{"name":"Hue","id":1,"value":0},{"name":"Saturation","id":2,"value":0},{"name":"Value","id":3,"value":1}]},
       {"label": "desaturate -0.5", "params": [{"name":"Hue","id":1,"value":0},{"name":"Saturation","id":2,"value":-0.5},{"name":"Value","id":3,"value":1}]},
       {"label": "grayscale -1", "params": [{"name":"Hue","id":1,"value":0},{"name":"Saturation","id":2,"value":-1},{"name":"Value","id":3,"value":1}]},
       {"label": "value 0.5", "params": [{"name":"Hue","id":1,"value":0},{"name":"Saturation","id":2,"value":0},{"name":"Value","id":3,"value":0.5}]},
-      {"label": "hue 0.25turn [gap]", "gap": true, "params": [{"name":"Hue","id":1,"value":0.25},{"name":"Saturation","id":2,"value":0},{"name":"Value","id":3,"value":1}]}
+      {"label": "hue 0.25deg [gap]", "gap": true, "params": [{"name":"Hue","id":1,"value":0.25},{"name":"Saturation","id":2,"value":0},{"name":"Value","id":3,"value":1}]}
     ]
   },
   "tint": {

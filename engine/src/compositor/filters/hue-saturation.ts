@@ -18,8 +18,16 @@
  *   // then HSV->RGB via the standard 6-sextant select ladder (r5/r6 selects), and
  *   output.rgb = hsv2rgb(...) * V   (re-applies the original max as the value scale)
  * ⚠️ FINDINGS vs the legacy TS below:
- *   (1) FCP HUE offset is in TURNS (0..1), added AFTER the /6 — matches TS hueShift
- *       = hue/360 only if the Motion param is DEGREES; confirm the param units.
+ *   (1) FCP HUE offset is in DEGREES — DECODED 2026-07-12 from
+ *       -[PAEHSVAdjust canThrowRenderOutput] @0x372f4-0x37350: the plugin reads Hue
+ *       via getFloatValue, wraps into [0, 360] (adding/subtracting 360 as needed —
+ *       consts 0x269760=360, 0x269a40=-360), then computes
+ *         hg_Params[0].x = Hue/360 + 1.0
+ *       The +1 is a no-op inside the shader's `frac()` on the hue value, so the
+ *       effective offset is `Hue/360` TURNS. Motion's convention: Hue param is DEGREES,
+ *       not turns. All 4 shipping HSV users (Objects__Leaves, Stylized__Center /
+ *       Light_Sweep / Lower) set Hue=0 so this is gate-neutral; the sweep's
+ *       Hue=0.25 is 0.25 DEGREES (basically no rotation, matching headless).
  *   (2) FCP SATURATION and VALUE are BOTH MULTIPLIERS (hg_Params[0].y/.z). The TS
  *       impl multiplies saturation but ADDS brightness — Phase-2 must switch value
  *       to a multiplier (v *= valueMult) to match, OR confirm PAEHSVAdjust exposes
@@ -48,7 +56,8 @@
  */
 
 export interface HueSatParams {
-  hue: number;        // HUE offset in TURNS (0..1 = 0..360°); FCP param "Hue"
+  hue: number;        // HUE offset in DEGREES (0..360); FCP param "Hue" (decoded). Internal
+                      //    hg_Params[0].x = (hue/360) + 1.0 (the +1 is a no-op inside frac).
   saturation: number; // 0-CENTERED: 0 = unchanged, -1 = grayscale, >0 = more saturated
   value: number;      // VALUE multiplier: out.rgb *= value^2 (1 = unchanged)
   mix: number;        // blend factor
@@ -124,14 +133,21 @@ export function hueSaturationFilter(input: ImageData, params: HueSatParams): Ima
   const height = input.height;
   const src = input.data;
   const out = new Uint8ClampedArray(src.length);
-  const doHue = hue % 1 !== 0;        // whole turns are identity
+  // DECODED 2026-07-12 (-[PAEHSVAdjust canThrowRenderOutput] @0x37294): the Hue param
+  // is in DEGREES (not turns). FCP wraps it into [0, 360] then divides by 360 to feed
+  // hg_Params[0].x as turns; the +1.0 inside frac() is a no-op. So turns = hue/360.
+  // (Prior TS docstring said "turns" — that was wrong. All 4 shipping users set Hue=0,
+  // so this is gate-neutral, but the isolated sweep exercised Hue=0.25 which is
+  // 0.25 DEGREES ≈ 0.000694 turns — a tiny rotation, exactly what headless produces.)
+  const hueTurns = (((hue / 360) % 1) + 1) % 1;
+  const doHue = hueTurns !== 0;
 
   for (let i = 0; i < src.length; i += 4) {
     let r = src[i] / 255, g = src[i + 1] / 255, b = src[i + 2] / 255;
 
     if (doHue) {
       let [h, s, v] = rgbToHsv(r, g, b);
-      h = (h + hue % 1 + 1) % 1;
+      h = (h + hueTurns) % 1;
       [r, g, b] = hsvToRgb(h, s, v);
     }
     // Saturation: lerp between Rec.709 gray and color by (1 + Saturation).
