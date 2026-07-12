@@ -180,6 +180,18 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-12  FILTER RE — session wrap: added a STATUS SNAPSHOT to docs/FILTER_RE_PHASE2.md
+              (24 filters: MATCHED+verified vs CEILING vs documented-GAP vs 360-is-compositing).
+              This session matched Zoom Blur (log-polar), Luma Keyer (getAlphaLuma trapezoid +
+              RGBA harness fix), pinned Channel Mixer (42 dB sweep), fixed Bevel band-width law
+              (1px no-op → headless-verified band), and characterised the Tint ceiling
+              (nested-color IS probe-drivable; transfer measured but non-convergent — Color
+              Space=3 leg undecoded). Full sweep 46 PASS/0 FAIL across 21 filters; full engine
+              gate 0 regressions; tsc clean. Remaining filter ceilings all share ONE of two
+              root causes: (a) a key param not probe-drivable (Tint transfer, Bevel angle,
+              Bloom), or (b) the per-filter-encode vs linear-CHAIN limit (needs an engine-level
+              linear filter chain, not per-filter encodes). 360-family low scores are
+              transition-compositing, not filter math (reorient fills the frame, 0% black).
 - 2026-07-12  FILTER RE — Bevel band-width law DECODED + verified (P2-BEV1 partial). ROOT
               CAUSE of the bevel being a 1-px no-op: TS read the NORMALIZED Bevel Width (a
               fraction ~0.05) as a raw pixel step (Math.round→0→1px). DECODED + HEADLESS-VERIFIED
