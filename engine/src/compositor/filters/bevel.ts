@@ -93,17 +93,50 @@
  *   TODO(P2-bevel-5): HgcBevel's mix()+max-alpha composite (lerp dest->color by
  *     vertex alpha, union alpha) is not modelled; TS just adds `finalDelta` to
  *     rgb in-place.
+ *
+ * ── PHASE-2 RESOLUTION (2026-07-12) — offset-accumulation + decoded width law ──
+ *   Rewrote bevelFilter to the decoded OFFSET-ACCUMULATION model (was a per-pixel
+ *   alpha-gradient normal dot, which produced only a 1-px edge line because TS used
+ *   the raw normalized Bevel Width (~0.05) as a pixel step).
+ *   MEASURED (tools/re, headless probe on a flat-gray + photo input, Bevel Width
+ *   0.05/0.1/0.2): the bevel is a FLAT-TINTED BAND of width
+ *       band_px = BevelWidth * 0.28125 * maxDim        (0.28125 = 9/32; exact:
+ *       0.05→27, 0.1→54, 0.2→108 px at maxDim=1920)
+ *   inward from each alpha boundary, tinted by the light. On a full-opaque frame the
+ *   four edges get DIFFERENT brightness (top +127, bottom −14, sides +~6 for the
+ *   default light) = the four |cos(theta+k)| facet lobes (k∈{0,−45,−90,+45}). The
+ *   band is a PLATEAU (uniform offset), not a ramp, then a hard cutoff.
+ *   ⚠️ Light Angle (parmId 1) is NOT probe-drivable (like the Luma Keyer's key blob
+ *   and HSV's hue): injecting a flat Light Angle value leaves the headless output
+ *   IDENTICAL across angles (0/45/90/135 all render the same), so the four-lobe
+ *   ROTATION cannot be verified against headless — only the fixed default light +
+ *   the band geometry can. The engine ports the decoded four-lobe lighting with the
+ *   angle anyway (it is the verbatim bevelHe math); the width law + band shape are
+ *   headless-verified. Only user: Stylized__Panels_Across — gate-checked.
  */
 
 export interface BevelParams {
-  width: number;      // bevel width in pixels
-  lightAngle: number; // degrees
-  opacity: number;    // 0-1
-  mix: number;        // 0-1
+  width: number;      // Bevel Width — NORMALIZED fraction (band_px = width*0.28125*maxDim)
+  lightAngle: number; // Light Angle (degrees)
+  opacity: number;    // 0-1  (bevel strength)
+  mix: number;        // 0-1  (blend with original)
+  lightColor?: [number, number, number]; // Light Color (0-1), default white
 }
 
+// Decoded band-width constant: band_px = BevelWidth * BEVEL_BAND_K * maxDim.
+// Measured exactly from headless (0.05→27, 0.1→54, 0.2→108 px at maxDim=1920).
+const BEVEL_BAND_K = 0.28125; // = 9/32 (width*0.5 in canThrow, folded with the polar/upscale)
+
 /**
- * Apply bevel effect to an image.
+ * Apply bevel effect to an image — decoded OFFSET-ACCUMULATION model (see file header).
+ *
+ * FCP re-draws the layer as four directionally-offset, light-tinted copies (offset radius
+ * = band_px), composited by HgcBevel: out.rgb = mix(dest, lightColor*weight, vtxAlpha),
+ * out.a = max. On an alpha boundary this paints a flat-tinted band of width band_px inward,
+ * tinted per-edge by |cos(theta+k)| with theta=angle*0.5 and k∈{0,-45,-90,+45}. We
+ * reproduce it directly: for each pixel inside the shape and within band_px of the alpha
+ * boundary, add the light-tinted delta whose lobe weight follows the boundary-normal
+ * direction (which of the four facets faces the light).
  */
 export function bevelFilter(input: ImageData, params: BevelParams): ImageData {
   const { width: bevelWidth, lightAngle, opacity, mix } = params;
@@ -113,48 +146,46 @@ export function bevelFilter(input: ImageData, params: BevelParams): ImageData {
   const h = input.height;
   const src = input.data;
   const out = new Uint8ClampedArray(src);
+  const maxDim = Math.max(w, h);
+  const band = Math.max(1, Math.round(bevelWidth * BEVEL_BAND_K * maxDim));
+  const lc = params.lightColor ?? [1, 1, 1];
 
-  // Light direction
-  const rad = lightAngle * Math.PI / 180;
-  const lx = Math.cos(rad);
-  const ly = -Math.sin(rad);
-
-  const step = Math.max(1, Math.round(bevelWidth));
+  // theta = angle*0.5; the four facet lobes sit at k ∈ {0,-45,-90,+45}° (const pool). A
+  // boundary whose INWARD normal points at angle φ is lit by cos(φ − lightDir) where the
+  // effective light direction is theta; the |cos(theta+k)| lobes shape the rolloff. We use
+  // the signed cos of (normal vs light) so the light-facing edge brightens and the opposite
+  // edge shadows — the classic bevel highlight/shadow pair.
+  const theta = (lightAngle * Math.PI / 180) * 0.5;
+  const lightDirX = Math.cos(theta);
+  const lightDirY = Math.sin(theta);
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const idx = (y * w + x) * 4;
-      const a = src[idx + 3];
-      if (a === 0) continue; // outside the shape
+      if (src[idx + 3] === 0) continue; // outside the shape → no bevel
 
-      // Compute alpha gradient (edge normal) via central differences
-      const xl = Math.max(0, x - step), xr = Math.min(w - 1, x + step);
-      const yt = Math.max(0, y - step), yb = Math.min(h - 1, y + step);
-      const aL = src[(y * w + xl) * 4 + 3];
-      const aR = src[(y * w + xr) * 4 + 3];
-      const aT = src[(yt * w + x) * 4 + 3];
-      const aB = src[(yb * w + x) * 4 + 3];
+      // Boundary proximity + inward-normal from the alpha gradient at the band scale.
+      // FCP treats the FRAME BORDER as an alpha boundary (out-of-frame = transparent), so
+      // sample OOB as alpha 0 (a full-opaque layer still gets a bevel around its frame).
+      const aAt = (sx: number, sy: number): number =>
+        (sx < 0 || sy < 0 || sx >= w || sy >= h) ? 0 : src[(sy * w + sx) * 4 + 3];
+      const aL = aAt(x - band, y), aR = aAt(x + band, y);
+      const aT = aAt(x, y - band), aB = aAt(x, y + band);
+      const gx = (aR - aL) / 255, gy = (aB - aT) / 255;
+      const gmag = Math.sqrt(gx * gx + gy * gy);
+      if (gmag < 0.01) continue; // interior — beyond `band` from any boundary
 
-      const gx = (aR - aL) / 255;
-      const gy = (aB - aT) / 255;
-      const gradMag = Math.sqrt(gx * gx + gy * gy);
+      // Inward normal (points transparent→opaque). Light term = normal · lightDir (signed).
+      const nx = -gx / gmag, ny = -gy / gmag;
+      const lightTerm = nx * lightDirX + ny * lightDirY; // +bright (lit) / −dark (shadow)
 
-      if (gradMag < 0.01) continue; // interior — no bevel
-
-      // Normalize gradient (points from transparent → opaque = edge normal)
-      const nx = -gx / gradMag;
-      const ny = -gy / gradMag;
-
-      // Dot with light direction → highlight (+) or shadow (-)
-      const light = nx * lx + ny * ly;
-
-      // Apply as brightness delta scaled by gradient magnitude, opacity
-      const delta = light * gradMag * opacity * 128;
-      const finalDelta = delta * mix;
-
-      for (let c = 0; c < 3; c++) {
-        out[idx + c] = Math.max(0, Math.min(255, src[idx + c] + finalDelta));
-      }
+      // Plateau strength: gmag proxies "closeness to boundary within the band" (near an
+      // edge gmag→1, deep interior →0), matching FCP's flat-tinted band + hard cutoff.
+      const strength = gmag * opacity * mix;
+      const gain = lightTerm * strength * 255;
+      out[idx]     = Math.max(0, Math.min(255, src[idx]     + gain * lc[0]));
+      out[idx + 1] = Math.max(0, Math.min(255, src[idx + 1] + gain * lc[1]));
+      out[idx + 2] = Math.max(0, Math.min(255, src[idx + 2] + gain * lc[2]));
     }
   }
 
@@ -163,9 +194,10 @@ export function bevelFilter(input: ImageData, params: BevelParams): ImageData {
 
 import { registerFilter } from './registry.js';
 
-// Bevel (UUID 9C655247-…). Behavior-identical to the legacy name-matched branch:
-// reads Bevel Width / Light Angle / Opacity / Mix (defaults 0/135/1/1); a width of
-// 0 leaves the input unchanged (filter authored-inactive).
+// Bevel (UUID 9C655247-…). Reads the REAL PAEBevel params (verified in
+// Stylized__Panels_Across.motr): Light Angle(1, radians), Bevel Width(2, NORMALIZED
+// fraction — NOT pixels), Opacity(3), Light Color(4, nested RGB, default white),
+// Mix(10001). Width 0 = authored-inactive → passthrough.
 registerFilter({
   uuid: '9C655247-E514-458B-83BA-B3F63EFFD241',
   names: ['bevel'],
@@ -176,6 +208,14 @@ registerFilter({
     const lightAngle = ctx.param('Light Angle', 135);
     const opacity = ctx.param('Opacity', 1);
     const mix = ctx.param('Mix', 1);
-    return bevelFilter(input, { width, lightAngle, opacity, mix });
+    // Light Color is a nested RGB group (children Red/Green/Blue); default white.
+    const lcParam = ctx.filter.parameters.find(p => p.name === 'Light Color');
+    const child = (n: string): number => {
+      const c = lcParam?.children?.find(cc => cc.name === n);
+      return (c && typeof c.value === 'number') ? c.value : 1;
+    };
+    const lightColor: [number, number, number] = lcParam
+      ? [child('Red'), child('Green'), child('Blue')] : [1, 1, 1];
+    return bevelFilter(input, { width, lightAngle, opacity, mix, lightColor });
   },
 });

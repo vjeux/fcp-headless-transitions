@@ -180,6 +180,19 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-12  FILTER RE — Bevel band-width law DECODED + verified (P2-BEV1 partial). ROOT
+              CAUSE of the bevel being a 1-px no-op: TS read the NORMALIZED Bevel Width (a
+              fraction ~0.05) as a raw pixel step (Math.round→0→1px). DECODED + HEADLESS-VERIFIED
+              the band-width law band_px = BevelWidth·0.28125·maxDim (9/32; exact 0.05→27,
+              0.1→54, 0.2→108 @1920). Rewrote bevelFilter to the offset-accumulation model:
+              band-width law + 4-lobe |cos(theta+k)| lighting (k∈{0,-45,-90,+45}) + treat the
+              FRAME BORDER as an alpha boundary (OOB=transparent) + plumb Light Color. TS band
+              now matches headless (104 vs 105 px @w0.2). CEILING: Light Angle is NOT
+              probe-drivable (headless identical for 0/45/90/135 — same class as keyer blob /
+              HSV hue / Tint), so the angle-dependent lobe rotation + exact HgcBevel composite
+              can't be headless-verified; only band GEOMETRY (exact) + default top-lit result
+              are observable. Only user Stylized__Panels_Across gate-neutral (10.36→10.33), full
+              gate 0 regressions. 4 bevel unit tests updated for the normalized-width contract.
 - 2026-07-12  FILTER RE — Luma Keyer MATCHED + harness fixed (was a false "ceiling"). DECODED
               OMKeyer2D::getAlphaLuma (ProAppsFxSupport @0x3bf94) = a 4-control-point TRAPEZOID
               band-pass over luma Y (Rec.709): 0 below A', smoothstep rise A'→B', plateau 1

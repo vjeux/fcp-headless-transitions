@@ -106,6 +106,18 @@ output on the SAME synthetic .motr is legitimate here; the headless IS FCP). Gat
   for k∈{0,−45,−90,+45}, width HALVED, composite = mix(tex,color,color.a)+max alpha. TS
   = per-pixel gradient-normal dot with invented Opacity/Mix params, ignores Light Color,
   uses width raw (2× off). Rewrite to the offset-accumulation model.
+  → PARTIAL RESOLUTION 2026-07-12. DECODED + HEADLESS-VERIFIED the band-width law:
+    band_px = BevelWidth · 0.28125 · maxDim (0.28125 = 9/32; exact 0.05→27, 0.1→54,
+    0.2→108 @1920). ROOT CAUSE of the old 1-px no-op: TS read the NORMALIZED Bevel Width
+    (~0.05, a fraction) as a raw pixel step (Math.round→0→1px). Rewrote bevelFilter to the
+    band-width law + the 4-lobe |cos(theta+k)| lighting + treating the FRAME BORDER as an
+    alpha boundary (OOB=transparent) — TS band now matches headless (104 vs 105 px @w0.2)
+    and it plumbs Light Color. CEILING that remains: Light Angle is NOT probe-drivable
+    (headless renders identically for angle 0/45/90/135 — same class as the Luma Keyer key
+    blob, HSV hue, Tint), so the angle-dependent lobe rotation + the exact HgcBevel
+    mix(dest,color,vtxAlpha) composite can't be verified against headless; only the band
+    GEOMETRY (verified exact) and the default top-lit result are observable. Isolated PSNR
+    14-19 dB (angle-limited). Only user Stylized__Panels_Across gate-neutral (10.36→10.33).
 
 ### 360 Reorient (needs GUI GT — plugin renders black headless)
 - **Reorient [P2-360*]**: FCP = equirect→sinusoidal→affine rot→sinusoidal→equirect with
