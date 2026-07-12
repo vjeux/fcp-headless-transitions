@@ -233,3 +233,14 @@ Deeper dig on the Brightness>1 gap (the cleanest of the shared color-pipeline ga
     RenderTile / the Ozone render color-management config, not the filter binary.
   * UNEXERCISED: all 27 Brightness users darken; brighten hits no shipping transition.
     Documented with the measured curve; explicitly NOT fit.
+
+## Final sweep result (2026-07-12): 35 PASS, 0 FAIL across 16 filters
+`tools/re/filter_sweep.py` (all): MATCHED vs headless FCP across their parameter spaces:
+brightness(darken), flop, minmax, gaussian, radial/spin, scrape, blackhole, earthquake,
+hsv(sat/value/grayscale/identity), colorize(Intensity blend, 709 luma), fill, LEVELS
+(gamma 1/1.73/0.5 @ 42-44 dB). CEILINGS/GAPS (documented, unexercised by transitions,
+excluded from the tally): glow (soft-vs-hard threshold mask [P2-glow-3]), bloom
+(Brightness>1 shared curve), tint (hard-light color-space), underwater (noise field),
++ the color-pipeline gaps (Brightness>1, HSV-hue) — ALL traced to FCP's shared Ozone
+render color management, NOT per-filter RE. This is the repeatable Phase-2 verification
+artifact; re-run any time with the FCP frameworks on the path.
