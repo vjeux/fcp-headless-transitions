@@ -278,12 +278,15 @@ export function parseFootageClipAB(sceneEl: Element, factories: Map<number, stri
       if (hasReplMask) maskedClipId = cid;
       else baseClipId = cid;
     }
-    // Swap: the unmasked base shows the OUTGOING/first image (bind → A), the masked
-    // reveal grows in the INCOMING/second image (bind → B). This inverts the
-    // name-based mapping (masked node named "Transition B" → actually reveals A).
+    // Bind: the unmasked base shows the OUTGOING/first image (drop-zone A at f0, e.g.
+    // Duplicate/Squares f0 = full sepia A), and the masked layer REVEALS the incoming
+    // image (drop-zone B growing in through the replicator dots/squares → f23 = full B).
+    // GUI GT confirms A→B (sepia→blue); the previous binding (base→B, masked→A) inverted
+    // both slugs (f0 showed blue B). Structural (fires on any replicator-mask-reveal drop
+    // zone), no transition name, no GT constant.
     if (maskedClipId !== undefined && baseClipId !== undefined && maskedClipId !== baseClipId) {
-      map.set(baseClipId, 'B');
-      map.set(maskedClipId, 'A');
+      map.set(baseClipId, 'A');
+      map.set(maskedClipId, 'B');
     }
   }
 

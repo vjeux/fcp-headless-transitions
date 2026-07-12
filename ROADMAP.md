@@ -351,6 +351,15 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-13  ITEM 12 (Replicator-mask A/B) DONE — Duplicate 11.24->15.51 (+4.27), Squares
+              11.72->12.46 (+0.74). The MASKED-REVEAL A/B binding in parseFootage was INVERTED:
+              it bound the unmasked BASE drop zone -> B and the replicator-masked reveal -> A,
+              so both slugs played B->A (f0 showed the incoming blue B instead of outgoing sepia
+              A). GUI GT is A->B (base = outgoing A at f0; the growing dots/squares reveal the
+              incoming B). FIX: bind base -> A, masked-reveal -> B (matches the code's OWN stated
+              comment, which disagreed with the code). Structural (fires on any replicator-mask
+              reveal: Squares + Duplicate), no names. Gate 0 regressions/2 improvements; baseline
+              re-frozen (engine mean 13.84->13.91 dB).
 - 2026-07-13  ITEM 12 (Divide) DONE — Dissolves/Divide 11.23->14.24 (+3.01). THREE coupled
               root causes, all necessary together (alone each regresses or no-ops):
               (1) A/B INVERSION — the doc-order override in parseFootage re-keyed Divide's
