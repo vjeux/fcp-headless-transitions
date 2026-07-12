@@ -433,11 +433,32 @@ export function determineImageSource(params: Parameter[], el: Element | undefine
 export function parseDropZone(params: Parameter[]): { type: number; width: number; height: number } | undefined {
   const obj = params.find(p => p.name === 'Object' && p.id === 2);
   if (!obj || !obj.children) return undefined;
+  // Resolve a drop-zone dimension param to its effective numeric value. Width/
+  // Height (id 313/314) are usually static (`value`), but some templates author
+  // them as a CURVE (Dissolves/Divide's A/B drop zones ramp Width 1311→…). In that
+  // case Motion writes a SENTINEL static `value=1` (min=1) alongside the real curve
+  // (keyframe value 1311) — reading the static 1 makes the compositor's aspect-fill
+  // fitScale = frameW/srcW ≈ 1/1854 ≈ 0, collapsing the drop zone to a tiny centred
+  // sliver (Divide rendered a 51%-black frame with a shrunken centre card). So when
+  // a curve is present, prefer the curve's value (first-keyframe size at t=0, then
+  // the curve `value`/`default`) over the sentinel static value. Only fall back to
+  // the static value when there is no curve. Returns undefined if nothing is a
+  // usable (>1) size.
+  const dim = (c: Parameter): number | undefined => {
+    if (c.curve) {
+      const kf0 = c.curve.keyframes && c.curve.keyframes.length > 0 ? c.curve.keyframes[0].value : undefined;
+      if (typeof kf0 === 'number' && kf0 > 1) return kf0;
+      if (typeof c.curve.value === 'number' && c.curve.value > 1) return c.curve.value;
+      if (typeof c.curve.default === 'number' && c.curve.default > 1) return c.curve.default;
+    }
+    if (typeof c.value === 'number' && c.value > 1) return c.value;
+    return undefined;
+  };
   let type: number | undefined, width: number | undefined, height: number | undefined;
   for (const c of obj.children) {
     if (c.name === 'Type' && c.id === 321 && typeof c.value === 'number') type = c.value;
-    else if (c.name === 'Width' && c.id === 313 && typeof c.value === 'number') width = c.value;
-    else if (c.name === 'Height' && c.id === 314 && typeof c.value === 'number') height = c.value;
+    else if (c.name === 'Width' && c.id === 313) width = dim(c);
+    else if (c.name === 'Height' && c.id === 314) height = dim(c);
   }
   // Width/Height define the drop-zone FRAME (the square/rect canvas the source
   // media is fit into before crop/scale). A missing Type (id 321) is fine — the

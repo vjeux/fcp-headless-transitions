@@ -305,9 +305,16 @@ Status legend: TODO / DOING / DONE / BLOCKED
     blend/opacity + reveal-timing, in heavily-tuned isSolidPanel code; high regression risk.
   * Dissolves/Divide (10.15) — 51% BLACK at ALL frames incl. f0 (an inset center rectangle,
     ~12.5% border black + bluish 53,59,72 fill) even though Transition A is vis=true op=1 in
-    the "Drop Zones" group. The "Group"→"A Masks"/"B Masks" mask groups (MinMax morphology
-    filters) are clipping/compositing the whole frame down to a center rect. Mask-reveal
-    geometry / group-mask compositing bug; needs mask-group render investigation.
+    the "Drop Zones" group. TWO issues found: (1) [FIXED] the A/B drop-zone frame Width was
+    read as the sentinel 1 (Motion authors Width id=313 as a CURVE ramping 1311→… with a
+    static value=1 alongside; parseDropZone read the sentinel) — behavior-neutral on the gate
+    but corrected latent parser data (now 1311×720 / 1280×720); (2) [OPEN] the "Group"→"A
+    Masks"/"B Masks" mask groups (MinMax morphology filters) still clip/composite the frame
+    down to a center rect — the real remaining root cause. Mask-reveal geometry work. NOTE: found
+    + fixed a related latent parser bug on the way (drop-zone Width authored as a CURVE with a
+    sentinel static value=1 → parseDropZone read 1 instead of the curve's 1311; fixed to read
+    curved dims — 9 slugs' dims corrected, gate-verified behavior-NEUTRAL). The 51% black is a
+    SEPARATE mask-compositing issue, still open.
   * Replicator-Clones/Video_Wall (8.74) — Framing camera + replicator wall in huge off-canvas
     world coords; the computeFraming pose targets a point offset from A so f0 doesn't fill and
     f4 goes fully black. Framing-camera projection geometry; deep.
@@ -336,6 +343,23 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-13  ITEM 12 (parser correctness) — fixed a latent drop-zone Width/Height CURVE bug +
+              added the low-scorer TRIAGE MAP. parseDropZone read the drop-zone frame Width/
+              Height (id 313/314) only from the static `value`, but Motion authors some as a
+              CURVE (Dissolves/Divide ramps Width 1311→…) with a SENTINEL static value=1 (min=1)
+              alongside — so the parser captured 1, which would collapse the compositor's
+              aspect-fill (fitScale = frameW/srcW ≈ 1/1854 ≈ 0). Fixed parseDropZone to prefer a
+              curved dimension's real size (first keyframe → curve value → curve default) over
+              the sentinel; 4 new unit tests (test/dropzone-dim.test.ts) green. Blast radius = 9
+              slugs' parsed drop-zone dims corrected (Divide, Blurs/Gaussian+Radial, Multi-flip,
+              Smear, Light_Sweep, Loop, Slide, Up-Over, Wipes/Mask — all had 1×/0× sentinels);
+              re-rendered all 9, gate 0 regressions AND 0 score change (behavior-NEUTRAL: the
+              compositor's effCrop produced identical output either way, so no metric movement —
+              but the parsed data is now correct, unblocking future compositor work on these
+              upscaled/curved-frame slugs). Also TRIAGED the top low-scorers (Smear/Slide_In/
+              Panels_Across/Divide/Video_Wall/Clone_Spin/Lower): each is a deep multi-issue case
+              documented in the item-12 TRIAGE MAP; Smear's clamp path was tried + REJECTED
+              (11.03→10.61, uncommitted). tsc clean, gate green.
 - 2026-07-13  ITEM 12 (triage tick) — investigated the next tranche of low-scorers and added
               the item-12 TRIAGE MAP above; NO code landed because each is a deep multi-issue
               case, and forcing a change into the heavily-tuned shared timemap / isSolidPanel /
