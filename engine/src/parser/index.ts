@@ -488,6 +488,20 @@ export function parseMotr(xmlText: string): MotrScene {
       let ownerName = '';
       let skip = false;
       let nodeOffsetSec = 0;
+      // Camera-node local-frame re-anchor: a Camera scenenode with a LARGE-NEGATIVE
+      // timeline offset authors its dolly/orientation curves in its own local time
+      // frame (Motion places local-frame zero at `offset`). Light Sweep's Camera has
+      // offset≈−17.6s and its Position keyframes live at LOCAL t≈18.9s → true scene
+      // time ≈1.3s. Unlike the Shape flash-overlay case (small FORWARD offset), the
+      // camera's is a big BACKWARD offset, so scene = local + offset. The evaluator
+      // already renders the camera at this re-anchored time (its worldTransform is
+      // built from the offset-shifted curveTime); the animationEndSec walk must match
+      // or it reads raw local 18.9s and inflates the window 13× (→ render(0.5) samples
+      // past every layer's `out` = a BLACK frame; Light Sweep scored 4.42). Captured
+      // separately from nodeOffsetSec (which is the Shape forward-shift) so the two
+      // never interfere. Fires structurally on ANY Camera with a local-frame offset
+      // (a generic timing primitive, not a per-transition path).
+      let camNegOffsetSec = 0;
       while (node && node.nodeType === 1) {
         if (node.tagName === 'parameter') {
           const nm = node.getAttribute('name') || '';
@@ -537,6 +551,23 @@ export function parseMotr(xmlText: string): MotrScene {
             const offV = parseRT(offAttr);
             const inV = parseRT(inAttr);
             if (offAttr && offV - inV > 1e-3) nodeOffsetSec = offV;
+          } else if (factories.get(fid) === 'Camera' && camNegOffsetSec === 0) {
+            // Camera with a large-negative timeline offset → its curves are in a
+            // local frame anchored at `offset`. Record it so the keyframe loop
+            // re-anchors to scene time (scene = local + offset). Gated on a clearly
+            // backward offset (< −1s) so an ordinary scene-time camera (offset ≈ 0)
+            // is untouched.
+            const tEl = firstChild(node as Element, 'timing');
+            const offAttr = tEl?.getAttribute('offset');
+            const parseRT = (a: string | null | undefined): number => {
+              if (!a) return 0;
+              const p = a.trim().split(/\s+/);
+              const v = parseFloat(p[0]);
+              const s = p.length > 1 ? parseFloat(p[1]) : 1;
+              return s > 0 && isFinite(v) ? v / s : 0;
+            };
+            const offV = parseRT(offAttr);
+            if (offAttr && offV < -1.0) camNegOffsetSec = offV;
           }
         }
         node = node.parentNode;
@@ -574,7 +605,14 @@ export function parseMotr(xmlText: string): MotrScene {
           //     zero); it can never extend maxT, so it is counted UNSHIFTED.
           const isFlashOverlay = ownerName === 'Opacity' && nodeOffsetSec < 1.0;
           const shiftAmt = isFlashOverlay ? nodeOffsetSec : 0;
-          const sec = rawSec >= 0 ? rawSec + shiftAmt : rawSec;
+          // Camera local-frame keys are ≥0 in the camera's own (backward-shifted)
+          // frame; add its negative offset to land in scene time (e.g. Light Sweep
+          // 18.886 + (−17.584) = 1.301s). Applied to the raw key regardless of sign
+          // since a camera dolly key is not "pre-roll" the way a shape's negative key is.
+          const camShifted = camNegOffsetSec !== 0 ? rawSec + camNegOffsetSec : null;
+          const sec = camShifted !== null
+            ? camShifted
+            : (rawSec >= 0 ? rawSec + shiftAmt : rawSec);
           if (sec > maxT) maxT = sec;
         }
       }
