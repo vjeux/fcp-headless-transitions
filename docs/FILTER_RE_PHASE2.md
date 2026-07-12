@@ -193,3 +193,23 @@ Latest results — 27 PASS, 0 true FAIL, plus tracked GAPs and CEILINGs:
     color-space; Underwater unrecoverable GPU noise field + black-headless.
 The suite CAUGHT a real shipped bug: the committed Scrape axis was (-cos,sin); the
 sweep's isolated-headless check proved it must be (-sin,cos) (psnr 14→39.6) — fixed.
+
+## Consolidated finding: the 3 remaining GAPs share ONE root cause (2026-07-12)
+Brightness>1, HSV hue rotation, and Tint hard-light all diverge from headless despite
+DECODED-correct filter math. Evidence they are NOT filter-math bugs:
+  * Brightness: darken 0.5 = plain sRGB multiply matches headless mad 0.67 (near-exact);
+    brighten 2.0 mad 63.8. NO single working-space transfer (sRGB<->lin, gamma 1.8/2.2)
+    reconciles both (all make darken WORSE). => brightening engages a highlight
+    rolloff / soft-clip on the HGColorMatrix output values that exceed 1.0, beyond the
+    pure multiply — an FCP output tone-map, not the (correctly-decoded) matrix.
+  * HSV hue: a byte-faithful port of the verbatim HgcHSVAdjust shader gives the SAME
+    mad ~37 as the naive TS (linear-light ~32) => the divergence is the working-space
+    transform around the shader, not the HSV reconstruction.
+  * Tint: the verbatim hard-light shader matches SHAPE but the sRGB-vs-working legs are
+    unpinned (regressed the gate when shipped).
+COMMON ROOT: FCP's headless renders through a working color space + output tone-map
+that these out-of-range / hue-rotated operations expose. This is a SYSTEMIC color-
+pipeline investigation (shared by all filters), distinct from per-filter RE, and NONE
+of the 65 shipping transitions exercise these paths (all darken / Hue=0 / default Tint).
+Documented as the correct stopping point: filter math is decoded + verified; the
+residual is the color pipeline, tracked for a dedicated future pass. Do NOT fit it.

@@ -1,7 +1,7 @@
 {
   "hsv": {
     "uuid": "D23AF030-B0BF-44DF-B622-7C9EA0DF5744", "pluginName": "PAEHSVAdjust", "min_psnr": 30,
-    "note": "NEUTRALS (verified vs headless): Hue=0 (turns), Saturation=0 (0-centered delta, -1=grayscale), Value=1 (multiplier, applied squared). Identity=(0,0,1). Saturation/Value/grayscale MATCH (39-48 dB). HUE ROTATION DIVERGES (psnr 15 @0.25turn): HgcHSVAdjust extracts hue via the max/min hexagon then hue_final=sector/6+Hue and reconstructs, but the TS rgbToHsv/hsvToRgb reconstruction differs from FCP's sector-select math (r5/r6 selects) — a color-reconstruction mismatch, not the neutral. ALL 5 shipping HSV transitions use Hue=0, so this is an unexercised-input gap; documented, not fit.",
+    "note": "NEUTRALS (verified vs headless): Hue=0 (turns), Saturation=0 (0-centered delta, -1=grayscale), Value=1 (multiplier, applied squared). Identity=(0,0,1). Saturation/Value/grayscale MATCH (39-48 dB). HUE ROTATION gap (psnr 15 @0.25turn) is a COLOR-SPACE issue, NOT filter math: a byte-faithful port of the verbatim HgcHSVAdjust shader gives the SAME mad ~37 vs headless (linear-light ~32), so the divergence is FCP's working-space transform around the shader (shared with Tint/Brightness>1), not the HSV reconstruction. All 5 shipping HSV transitions use Hue=0 -> unexercised. Documented, not fit.",
     "cases": [
       {"label": "identity (0,0,1)", "identity": true, "params": [{"name":"Hue","id":1,"value":0},{"name":"Saturation","id":2,"value":0},{"name":"Value","id":3,"value":1}]},
       {"label": "desaturate -0.5", "params": [{"name":"Hue","id":1,"value":0},{"name":"Saturation","id":2,"value":-0.5},{"name":"Value","id":3,"value":1}]},
