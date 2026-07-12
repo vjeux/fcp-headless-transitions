@@ -219,6 +219,20 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-13  ITEM 10 (note) — drop-zone-lifetime BOUND tried + REJECTED (gate red). Hypothesis:
+              the frozen-tail slugs (Slide_In 10.25, Center_Reveal 12.09, Close_and_Open 10.95)
+              inflate animationEndSec via a decorative background Gradient/offset-0 Camera whose
+              keys run past the drop zones, so bounding animationEndSec by max(span, latest
+              drop-zone image `out`) should trim the overshoot. MEASURED (rendered 11 affected
+              slugs, scored vs GUI GT): net-neutral but FAILS the gate — +Static/Color_Planes/Heart
+              (0.5/0.8/1.92) but −Smear/Center_Reveal/Loop (0.8/1.02/0.43), and crucially
+              Slide_In/Close_and_Open/Up-Over did NOT improve. CONCLUSION: (a) those three frozen
+              slugs are NOT fixed by shortening animationEndSec — their freeze has a different root
+              cause (the decorative gradient IS the intended render, or the drop-zone slide geometry
+              is wrong), needs separate investigation; (b) Center_Reveal/Smear/Loop genuinely
+              PREFER their larger animationEndSec (retime maps the visible transition onto a longer
+              scene-time axis). Reverted; NOT committed. Lesson: the drop-zone `out` is not a safe
+              universal upper bound for the animation window.
 - 2026-07-13  ITEM 10 (DOING) — animationEndSec LOCAL-FRAME timing fixes. The lowest slugs
               rendered BLACK/frozen tails: their animationEndSec was inflated far past the
               authored span because the keyframe/timing walk read RAW values that live in a
