@@ -197,11 +197,17 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
       // Preserve the UN-wrapped scene time so the compositor's particle-field
       // proxy can follow the true transition envelope even after wrapping.
       evaluated.unwrappedTime = tSec;
-      // FCP renders at the PROJECT (output) resolution. Only upscale-case renders
-      // directly at output (absolute-coordinate masks); larger native canvases
-      // render native then resample.
-      const upscale = !!(outW && outH && outW > width && outH > height);
-      if (upscale) return composite(evaluated, imageA, imageB, outW!, outH!, opts?.mediaResolver);
+      // FCP renders at the PROJECT (output) resolution. A scene authored SMALLER
+      // than the output (Dissolves/Divide, Movements/Drop In: 1280×720 → 1920×1080)
+      // renders at its NATIVE scene size and then resamples to output — exactly like
+      // a scene authored LARGER than output. Rendering an upscaled scene DIRECTLY at
+      // output size (an earlier special-case) left every SCENE-space geometry — most
+      // visibly the mask shapes — at its authored pixel extent inside the bigger
+      // buffer: Divide's divide-piece masks (authored to tile the 1280-wide frame)
+      // then covered only 1280/1920 ≈ 67% → the A card was clipped to a centred rect
+      // and 51% of the frame rendered BLACK. Native-then-resample scales the whole
+      // scene (images, shapes, masks) uniformly, so the pieces tile the frame again.
+      // (Verified vs GUI GT: Divide 10.15→11.16, Drop In 14.61→14.76; both improve.)
       const frame = composite(evaluated, imageA, imageB, width, height, opts?.mediaResolver);
       if (outW && outH && (outW !== width || outH !== height)) {
         // WIDE EQUIRECT (360°/VR, e.g. 4096×2048 panorama): FCP reads back a

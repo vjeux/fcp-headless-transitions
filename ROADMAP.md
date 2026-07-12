@@ -303,18 +303,18 @@ Status legend: TODO / DOING / DONE / BLOCKED
     bright (200,202,209), and B only reaches op=1 at p=0.958 while GT shows B-dominant by f18
     — the panel sweep reveals B too late and the panels read dim over sepia A. Panel
     blend/opacity + reveal-timing, in heavily-tuned isSolidPanel code; high regression risk.
-  * Dissolves/Divide (10.15) — 51% BLACK at ALL frames incl. f0 (an inset center rectangle,
-    ~12.5% border black + bluish 53,59,72 fill) even though Transition A is vis=true op=1 in
-    the "Drop Zones" group. TWO issues found: (1) [FIXED] the A/B drop-zone frame Width was
-    read as the sentinel 1 (Motion authors Width id=313 as a CURVE ramping 1311→… with a
-    static value=1 alongside; parseDropZone read the sentinel) — behavior-neutral on the gate
-    but corrected latent parser data (now 1311×720 / 1280×720); (2) [OPEN] the "Group"→"A
-    Masks"/"B Masks" mask groups (MinMax morphology filters) still clip/composite the frame
-    down to a center rect — the real remaining root cause. Mask-reveal geometry work. NOTE: found
-    + fixed a related latent parser bug on the way (drop-zone Width authored as a CURVE with a
-    sentinel static value=1 → parseDropZone read 1 instead of the curve's 1311; fixed to read
-    curved dims — 9 slugs' dims corrected, gate-verified behavior-NEUTRAL). The 51% black is a
-    SEPARATE mask-compositing issue, still open.
+  * Dissolves/Divide (10.15→11.23) — 51% BLACK was the MASK-SCALE bug [FIXED]. Divide is a
+    1280×720 scene shown at 1920×1080; it rendered DIRECTLY at 1920 output, but its divide-
+    piece mask shapes live in SCENE (1280) coords, so they covered only ~67%/49% of the frame
+    → the A card was clipped to a centred rect, 51% black. FIX: render upscaled scenes at
+    NATIVE size then resample (like larger-than-output scenes) so all geometry scales
+    uniformly (api.ts). Divide 10.15→11.23 (+1.08), Drop_In 14.61→14.81; gate 0 regressions.
+    STILL OPEN: A/B inversion at f0 — the document-order override in parseFootage re-keys
+    Divide's clips by render order (its "Transition B" node is authored before "Transition A"),
+    inverting the name-correct clips (clip 1899844357 IS named "Transition A" but maps to B),
+    so f0 shows B not A. Same override is REQUIRED by Wipes/Mask + Center Reveal (the `in`-time
+    variant regressed Center Reveal −22 dB, documented in footage.ts) — needs a safe structural
+    discriminator (name vs doc-order) before it can be fixed. Deferred.
   * Replicator-Clones/Video_Wall (8.74) — Framing camera + replicator wall in huge off-canvas
     world coords; the computeFraming pose targets a point offset from A so f0 doesn't fill and
     f4 goes fully black. Framing-camera projection geometry; deep.
@@ -343,6 +343,39 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-13  ITEM 12 (Divide mask-scale) DONE — upscaled scenes now render NATIVE-then-resample.
+              ROOT CAUSE of Dissolves/Divide's 51% BLACK (an inset centred rect at every frame,
+              incl. f0 where GUI shows full A): Divide is a 1280×720 scene shown at 1920×1080 and
+              was rendered DIRECTLY at 1920 output, but its divide-piece MASK shapes are authored
+              in SCENE (1280) coordinates. Rasterized into the 1920 buffer without a scene→output
+              scale, the pieces covered only 1280/1920≈67% per axis (≈49% area) — clipping the A
+              card to a centred rect, the rest black (isolated: A-Masks alpha coverage 0.49 @1920
+              vs 0.98 @1280 native). FIX: dropped the "render upscaled scenes directly at output"
+              special-case; upscaled scenes now render at their NATIVE size then resample to
+              output (identical to how larger-than-output canvases already render), so ALL
+              geometry — drop-zone images, shapes, AND masks — scales uniformly and the pieces
+              tile the frame again. Blast radius = the only two upscaled slugs, both improve:
+              Divide 10.15→11.23 (+1.08), Drop_In 14.61→14.81 (+0.20). Gate 0 regressions; engine
+              mean 13.78→13.79; baseline re-frozen. tsc clean. STILL OPEN (documented in the
+              item-12 TRIAGE MAP): Divide's A/B inversion at f0 (parseFootage document-order
+              override inverts its name-correct clips; the same override is required by Wipes/
+              Mask + Center Reveal, so it needs a safe structural discriminator).
+- 2026-07-13  ITEM 12 (Divide mask-scale) DONE — upscaled scenes now render NATIVE then
+              resample. ROOT CAUSE of Dissolves/Divide's 51% black: it is a 1280×720 scene shown
+              at 1920×1080 and rendered DIRECTLY at 1920 output, but its divide-piece MASK shapes
+              live in SCENE (1280) coordinates — so rasterized into the 1920 buffer they covered
+              only 1280/1920 ≈ 67% width (≈49% area), clipping the A card to a centred rect with
+              a black L-border (verified: A-Masks alpha coverage 0.488 at output res vs 0.980 at
+              native res; the 4 divide rectangles tile ±640/±360 = the full 1280×720 frame in
+              scene space). The drop-zone IMAGES happened to fill by their own source size, hiding
+              the bug for years. FIX: removed the "render upscaled scenes directly at output"
+              special-case so they render at native scene size then resample to output (api.ts),
+              scaling ALL geometry (images, shapes, masks) uniformly — same path the larger-than-
+              output canvases already use. Blast radius = the 2 upscaled slugs, both improve:
+              Divide 10.15→11.23 (+1.08), Drop_In 14.61→14.81 (+0.20). Gate 0 regressions; engine
+              mean 13.78→13.79; baseline re-frozen. tsc clean. STILL OPEN (documented in triage):
+              Divide's f0 shows B not A — a separate A/B document-order-override inversion that
+              also serves Wipes/Mask + Center Reveal, so it needs a safe discriminator first.
 - 2026-07-13  ITEM 12 (parser correctness) — fixed a latent drop-zone Width/Height CURVE bug +
               added the low-scorer TRIAGE MAP. parseDropZone read the drop-zone frame Width/
               Height (id 313/314) only from the static `value`, but Motion authors some as a
