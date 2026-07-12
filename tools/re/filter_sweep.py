@@ -61,6 +61,11 @@ def main(argv):
                 continue
             psnr = res.get("psnr", 0); mae = res.get("mean_abs_err", 99)
             hvi = res.get("headless_vs_input_mad", 0)
+            # Alpha-keying filters (Luma Keyer) carry their whole effect in the MATTE, so
+            # gate them on alpha_psnr (RGB is an un-premultiplied passthrough there). All
+            # other filters gate on the RGB psnr. `alpha: true` in the sweep entry selects.
+            is_alpha = f.get("alpha", False)
+            score = res.get("alpha_psnr", 0) if is_alpha else psnr
             applied = hvi >= 1.5
             # A case flagged "identity": true is EXPECTED to be a no-op (the params are
             # the filter's neutral point); a near-identity headless output there is a
@@ -69,9 +74,9 @@ def main(argv):
             is_identity = case.get("identity", False)
             is_gap = case.get("gap", False)  # documented unexercised-input divergence
             if is_identity:
-                ok = psnr >= min_psnr  # both near-identity -> high psnr -> pass
+                ok = score >= min_psnr  # both near-identity -> high psnr -> pass
             else:
-                ok = psnr >= min_psnr and applied
+                ok = score >= min_psnr and applied
             if is_gap:
                 tag = "GAP" if not ok else "PASS"
             else:
@@ -79,7 +84,8 @@ def main(argv):
             if not ceiling and not is_gap:
                 total_pass += ok; total_fail += (not ok)
             warn = "" if (applied or is_identity) else " (IDENTITY — not applied)"
-            print(f"  {case['label']:28s} psnr={psnr:5.2f} mae={mae:5.2f} hvi={hvi:5.1f} [{tag}]{warn}")
+            ascore = f" a_psnr={res.get('alpha_psnr', 0):5.2f}" if is_alpha else ""
+            print(f"  {case['label']:28s} psnr={psnr:5.2f}{ascore} mae={mae:5.2f} hvi={hvi:5.1f} [{tag}]{warn}")
     print(f"\n{'='*50}\nTOTAL: {total_pass} pass, {total_fail} fail (ceilings excluded)")
     return 1 if total_fail else 0
 

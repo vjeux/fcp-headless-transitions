@@ -39,6 +39,47 @@ output on the SAME synthetic .motr is legitimate here; the headless IS FCP). Gat
 - **LumaKey [P2-LK1]**: FCP is a LINEAR ramp across [lo,hi] with luma weights as a PARAM;
   TS uses symmetric threshold±softness with fixed 601. HgcLumaKeyer variant bakes a
   256-wide 1-D tolerance LUT. Match the [lo,hi] ramp; read luma wts from param.
+  → RESOLVED 2026-07-12 for HgcLumaKeyer (the shipping UUID 7E9178C5): DECODED
+    OMKeyer2D::getAlphaLuma (ProAppsFxSupport @0x3bf94) = a 4-control-point TRAPEZOID
+    band-pass over luma Y (Rec.709): 0 below A', smoothstep rise A'→B', plateau 1 B'→C',
+    linear fall C'→D', 0 above D'. The LUT (-[PAELumaKeyer createLutForNode:]) is just
+    lut[i]=getAlphaLuma(i/255). RGB is un-premultiplied and passes through UNCHANGED; only
+    ALPHA is keyed. Both shipping users have a STATIC (numberOfKeypoints=0) keyer blob = the
+    DEFAULT curve, MEASURED with a ramp probe: rise luma≈[0.004,0.067], plateau→0.56, linear
+    fall→0 at 1.0. Rewrote luma-keyer.ts to reproduce it; isolated headless PSNR 7.54→34.15
+    (alpha_psnr 30.78). ROOT CAUSE of the earlier "not verifiable" verdict: filter_verify
+    compared RGB-ONLY so the alpha-only keyer looked near-identity — FIXED the harness to
+    also score alpha_psnr (gated for `alpha:true` sweep entries). Gate-neutral (both users
+    360-reorient dominated). 7 unit tests rewritten to pin the decoded band-pass behavior.
+  → RESOLVED 2026-07-12 for HgcLumaKeyer (the shipping UUID 7E9178C5): DECODED
+    OMKeyer2D::getAlphaLuma (ProAppsFxSupport @0x3bf94) = a 4-control-point TRAPEZOID
+    band-pass over luma Y (Rec.709): 0 below A', smoothstep rise A'→B', plateau 1 B'→C',
+    linear fall C'→D', 0 above D'. The LUT (-[PAELumaKeyer createLutForNode:]) is just
+    lut[i]=getAlphaLuma(i/255). RGB is un-premultiplied and passes through UNCHANGED; only
+    ALPHA is keyed. Both shipping users have a STATIC (numberOfKeypoints=0) keyer blob = the
+    DEFAULT curve, MEASURED with a ramp probe: rise luma≈[0.004,0.067], plateau→0.56, linear
+    fall→0 at 1.0. Rewrote luma-keyer.ts to reproduce it; isolated headless PSNR 7.54→34.15
+    (alpha_psnr 30.78). ROOT CAUSE of the earlier "not verifiable" verdict: filter_verify
+    compared RGB-ONLY so the alpha-only keyer looked near-identity — FIXED the harness to
+    also score alpha_psnr (gated for `alpha:true` sweep entries). Gate-neutral (both users
+    360-reorient dominated). 7 unit tests rewritten to pin the decoded band-pass behavior.
+  → RESOLVED 2026-07-12 for the shipping HgcLumaKeyer (UUID 7E9178C5). Decoded the LUT
+    build: -[PAELumaKeyer createLutForNode:] fills lut[i]=OMKeyer2D::getAlphaLuma(i/255);
+    getAlphaLuma (ProAppsFxSupport @0x3bf94) is a 4-control-point TRAPEZOID band-pass over
+    luma Y (Rec.709): 0 below A', smoothstep rise A'→B', plateau 1 B'→C', linear fall
+    C'→D', 0 above D'. RGB passes through UNCHANGED; only ALPHA is keyed. Both shipping
+    users have a STATIC (numberOfKeypoints=0) Luma blob = the DEFAULT curve, which a ramp
+    probe MEASURED: A'≈0.004, B'≈0.067, C'≈0.56, D'≈1.0 (keeps shadows+mids, keys out
+    highlights + pure black). Rewrote lumaKeyerFilter to reproduce it.
+  → ROOT CAUSE of the earlier "not probe-verifiable" verdict: filter_verify compared
+    RGB-ONLY, so an alpha-only keyer looked like near-identity (hvi 1.35) and tripped the
+    identity guard. FIXED filter_verify to compute a SEPARATE alpha_psnr and use RGBA for
+    the identity guard; the sweep runner gates `alpha: true` filters on alpha_psnr. Result:
+    isolated headless PSNR 7.54→34.15 (RGB) / alpha_psnr 30.78, mae 65.85→1.51; ramp-curve
+    mae 0.019. Gate-neutral (both users are 360-reorient dominated — separate black-render
+    ceiling): Circle_Wipe 7.47→7.46, Reveal_Wipe 7.45→7.43, 0 regressions. luma-keyer.test.ts
+    rewritten (7 tests) to pin the band-pass behavior (the old tests encoded the wrong
+    symmetric-threshold model).
 
 ### Blur family (geometry — larger, verify carefully)
 - **Directional [P2-DB1]**: FCP = rotate→1-D GAUSSIAN→un-rotate; TS = uniform box average.

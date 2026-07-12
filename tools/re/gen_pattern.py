@@ -15,7 +15,7 @@ from PIL import Image
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("kind", choices=["rings","ring","spokes","grid"])
+    ap.add_argument("kind", choices=["rings","ring","spokes","grid","ramp"])
     ap.add_argument("--out", required=True)
     ap.add_argument("--w", type=int, default=1920)
     ap.add_argument("--h", type=int, default=1080)
@@ -45,6 +45,11 @@ def main():
     elif a.kind=="grid":
         m = (np.abs(xx % a.spacing) < a.thick) | (np.abs(yy % a.spacing) < a.thick)
         img[m]=255
+    elif a.kind=="ramp":
+        # horizontal grayscale ramp: luma 0 (left) -> 255 (right). Feeding this through a
+        # luma-dependent filter (Luma Keyer, Levels, HSV Value...) makes each output COLUMN
+        # a direct sample of that filter's per-luma transfer curve — probe it, read a row.
+        img = (xx / (W - 1) * 255.0)
     rgb = np.stack([img,img,img],axis=-1).astype(np.uint8)
     Image.fromarray(rgb).save(a.out)
     print(f"wrote {a.kind} {W}x{H} -> {a.out}")

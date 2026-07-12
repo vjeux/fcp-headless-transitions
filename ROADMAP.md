@@ -180,6 +180,37 @@ Status legend: TODO / DOING / DONE / BLOCKED
 ---
 
 ## Progress log  (newest first — one line per completed item)
+- 2026-07-12  FILTER RE — Luma Keyer MATCHED + harness fixed (was a false "ceiling"). DECODED
+              OMKeyer2D::getAlphaLuma (ProAppsFxSupport @0x3bf94) = a 4-control-point TRAPEZOID
+              band-pass over luma Y (Rec.709): 0 below A', smoothstep rise A'→B', plateau 1
+              B'→C', linear fall C'→D', 0 above D'; the HgcLumaKeyer LUT is just
+              lut[i]=getAlphaLuma(i/255). RGB passes through UNCHANGED, only ALPHA is keyed. ROOT
+              CAUSE of the earlier "not probe-verifiable" verdict: filter_verify compared RGB-ONLY,
+              so the alpha-only keyer looked near-identity (hvi 1.35) and tripped the identity
+              guard. FIXED the harness: compare RGBA for the identity guard + report alpha_psnr;
+              filter_sweep gates `alpha:true` filters on alpha_psnr, everything else on RGB psnr
+              (so the 45 opaque cases stay stable — verified 46/46 PASS). MEASURED the default
+              keyer curve with a new gen_pattern.py `ramp` probe (both users have a STATIC
+              numberOfKeypoints=0 keyer blob = the default). Rewrote luma-keyer.ts to reproduce it:
+              isolated headless PSNR 7.54→34.15 (alpha_psnr 30.78), ramp-curve mae 0.019.
+              Gate-neutral (both users 360-reorient dominated): Circle_Wipe 7.47→7.46, Reveal_Wipe
+              7.45→7.43, 0 regressions across 65 slugs. 7 unit tests rewritten to pin the decoded
+              band-pass. tsc clean.
+- 2026-07-12  FILTER RE — Luma Keyer MATCHED + harness fixed (was a false "ceiling"). DECODED
+              OMKeyer2D::getAlphaLuma (ProAppsFxSupport @0x3bf94) = a 4-control-point TRAPEZOID
+              band-pass over luma Y (Rec.709): 0 below A', smoothstep rise A'→B', plateau 1
+              B'→C', linear fall C'→D', 0 above D'; the HgcLumaKeyer LUT is just
+              lut[i]=getAlphaLuma(i/255) (-[PAELumaKeyer createLutForNode:]). RGB passes through
+              UNCHANGED, only ALPHA is keyed. ROOT CAUSE of the prior "not probe-verifiable"
+              verdict: filter_verify compared RGB-ONLY, so the alpha-only keyer looked like
+              near-identity (hvi 1.35) and tripped the identity guard — FIXED filter_verify to
+              ALSO score alpha_psnr + made the identity guard RGBA-aware; sweep runner gates
+              `alpha:true` entries on alpha_psnr. Added a `ramp` pattern to gen_pattern.py and
+              MEASURED FCP's default keyer curve directly (both users have a static
+              numberOfKeypoints=0 blob = default). Rewrote luma-keyer.ts: isolated headless PSNR
+              7.54→34.15 (alpha_psnr 30.78, ramp-curve mae 0.019). 7 unit tests rewritten to
+              pin the decoded band-pass. Sweep 46 PASS/0 FAIL. Full engine gate GREEN 0 regress
+              (both users 360-reorient dominated; Circle_Wipe 7.47→7.46, Reveal_Wipe 7.45→7.43).
 - 2026-07-12  FILTER RE — Zoom Blur is a LOG-POLAR scale-space blur (P2-ZB3 RESOLVED). A
               concentric-ring headless probe (new committed tool tools/re/gen_pattern.py) proved
               FCP's zoom-blur width GROWS ∝ radius: rings survive at center, are obliterated

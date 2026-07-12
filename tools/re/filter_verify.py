@@ -55,28 +55,41 @@ def run(spec, time=0.0, keep=False):
                    env=dict(os.environ, FCT_FILTER_SPEC=spec_file), check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    # compare (resize headless to TS size; TS runs at the input 1854x1042)
+    # Compare. PRIMARY psnr is over RGB (the visible color result) so the existing
+    # per-filter thresholds stay stable; alpha is scored SEPARATELY (alpha_psnr) because
+    # alpha-modifying filters (Luma Keyer) carry their whole effect in the matte while
+    # geometry filters (polar-remap blurs) legitimately differ in edge transparency that
+    # is irrelevant to their color match. Callers that care about the matte read
+    # alpha_psnr; the identity guard uses RGBA so an alpha-only keyer is not mis-flagged
+    # as "ignored by the host".
     import numpy as np
     from PIL import Image
-    h = np.asarray(Image.open(head_png).convert("RGB")).astype(float)
-    t = np.asarray(Image.open(ts_png).convert("RGB")).astype(float)
-    if h.shape != t.shape:
-        h = np.asarray(Image.open(head_png).convert("RGB").resize(
-            (t.shape[1], t.shape[0]), Image.LANCZOS)).astype(float)
+    h4 = np.asarray(Image.open(head_png).convert("RGBA")).astype(float)
+    t4 = np.asarray(Image.open(ts_png).convert("RGBA")).astype(float)
+    if h4.shape != t4.shape:
+        h4 = np.asarray(Image.open(head_png).convert("RGBA").resize(
+            (t4.shape[1], t4.shape[0]), Image.LANCZOS)).astype(float)
+    h = h4[:, :, :3]; t = t4[:, :, :3]
     err = float(np.abs(h - t).mean())
     mse = float(((h - t) ** 2).mean())
     psnr = 99.0 if mse < 1e-9 else 10 * np.log10(255 * 255 / mse)
+    amse = float(((h4[:, :, 3] - t4[:, :, 3]) ** 2).mean())
+    alpha_psnr = 99.0 if amse < 1e-9 else 10 * np.log10(255 * 255 / amse)
     # IDENTITY GUARD: if the HEADLESS output equals the input image within JPEG noise,
     # the host silently ignored the injected filter (wrong factoryID / param ids /
     # nesting) and this comparison is meaningless — a high PSNR here would only mean
     # "the TS filter also happened to be near-identity", not that it matches FCP. Flag
     # it so a probe result is never trusted as a fidelity reference by accident.
-    a_in = np.asarray(Image.open(IMG_A_PNG).convert("RGB").resize(
-        (h.shape[1], h.shape[0]), Image.LANCZOS)).astype(float)
-    head_vs_input = float(np.abs(h - a_in).mean())
+    # Measured over RGBA so an alpha-only keyer is correctly seen as "applied".
+    a_in = np.asarray(Image.open(IMG_A_PNG).convert("RGBA").resize(
+        (h4.shape[1], h4.shape[0]), Image.LANCZOS)).astype(float)
+    head_vs_input = float(np.abs(h4 - a_in).mean())
+
+
     res = {"mean_abs_err": round(err, 2), "psnr": round(psnr, 2),
-           "headless_mean": [round(x, 1) for x in h.reshape(-1, 3).mean(0)],
-           "ts_mean": [round(x, 1) for x in t.reshape(-1, 3).mean(0)],
+           "alpha_psnr": round(alpha_psnr, 2),
+           "headless_mean": [round(x, 1) for x in h4.reshape(-1, 4).mean(0)],
+           "ts_mean": [round(x, 1) for x in t4.reshape(-1, 4).mean(0)],
            "headless_vs_input_mad": round(head_vs_input, 2),
            "headless_png": head_png, "ts_png": ts_png}
     if head_vs_input < 1.5:
