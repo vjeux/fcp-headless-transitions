@@ -380,6 +380,15 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  SWARM RESILIENCE TICK — two pool fixes so agents' work reliably lands. (1) REAP:
+              the pool now kills any live slot whose task is already DONE on origin (T-D1 had been
+              redundantly re-run in slot 2 for 25min after it merged); reaping freed slot 2 which
+              refilled with T-D2d. (2) HARVEST: agents launched before push_helper build+gate fine
+              but can't commit (CC sandbox blocks .git/worktrees/*); on slot exit the pool now
+              auto-runs push_helper for any worktree left dirty with a gate-green "SWARM_RESULT
+              <id> DONE" (push_helper re-gates in a /tmp clone and refuses to push red, so a bad
+              DONE can't regress). Restarted the scheduler with both fixes; all 8 slots now on
+              distinct real work (T-A1,A2,B1,D2a-d,F1). Commits e724a48, 1e57d17.
 - 2026-07-13  SWARM TICK — landed T-D1 + found & fixed the swarm's #1 blocker. (a) Applied +
               gate-verified T-D1 (linear-compositing infra, flag-OFF, byte-identical, 0 reg),
               which UNBLOCKED T-D2a/b/c/d — the pool auto-fanned them out to free slots. done set
