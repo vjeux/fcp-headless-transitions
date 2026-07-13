@@ -750,6 +750,21 @@ export interface Shape {
    */
   fillColor?: { r: number; g: number; b: number; a: number };
   /**
+   * Shape-fill GRADIENT stop list (Fill Mode = gradient), read from the shape's
+   * Style → Fill → "Gradient" (id=104) → "RGB" tags folder (id=1). Each stop is a
+   * scenenode ("RGB1"/"RGB2"/…) with an id (the `tagId` a colour-Link targets via
+   * `.../104/1/<tagId>/3/{1,2,3}`), a `location` (0..1 along the ramp) and a
+   * `color` (0..1 float RGB, from Color(id=3) Red/Green/Blue). Distinct from the
+   * generator's `GaussianGradientConfig` (that is a RADIAL center/radius gradient;
+   * this is a SHAPE-fill STOP LIST). Undefined for solid-fill or mask shapes.
+   * See docs/notes/GRADIENT_TAG_COLOUR_LINK_RE.md. Currently parsed for future
+   * gradient-fill rendering + colour-Link stop overrides (S1/T-A1).
+   */
+  fillGradient?: {
+    /** Stops in authored order; `tagId` is the stop scenenode id (per-file, not stable). */
+    stops: { tagId: number; location: number; color: { r: number; g: number; b: number } }[];
+  };
+  /**
    * True when this shape is an OFFSET-AUTHORED sweeping panel — the Stylized/
    * Panels signature: a non-mask solid-fill rectangle whose timing `offset` is
    * re-anchored well past its `in` point AND whose Position curve is keyed at

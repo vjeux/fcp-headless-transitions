@@ -234,7 +234,86 @@ export function parseShape(el: Element, factories: Map<number, string>, linkSour
     panelFill: panelFillCandidate,
     panelFillOpacity: panelFillOpacityCandidate,
     stroke,
+    fillGradient: isMask ? undefined : parseFillGradient(el),
   };
+}
+
+/**
+ * Parse a shape's Fill Mode = gradient STOP LIST from Style → Fill → "Gradient"
+ * (id=104) → "RGB" tags folder (id=1). Each stop child is a scenenode ("RGB1"/
+ * "RGB2"/…, factoryID=3) carrying a "Location" (id=1) curve and a "Color" (id=3)
+ * folder with Red/Green/Blue (ids 1/2/3, factoryID=24) curves (0..1 float). The
+ * stop scenenode's own id is the `tagId` that a colour-Link targets via
+ * `.../104/1/<tagId>/3/{1,2,3}`. Returns undefined when the shape has no gradient
+ * tags (solid-fill / plain shapes) so this is additive + behavior-neutral until a
+ * gradient rasteriser consumes it. See docs/notes/GRADIENT_TAG_COLOUR_LINK_RE.md.
+ *
+ * Structural only — matches on parameter ids (104 Gradient, 1 RGB folder, 3 Color,
+ * 1/2/3 R/G/B), never on transition/shape name.
+ */
+function parseFillGradient(shapeEl: Element): { stops: { tagId: number; location: number; color: { r: number; g: number; b: number } }[] } | undefined {
+  // Find the "Gradient" (id=104) parameter (there may be several — take the first
+  // that actually carries an RGB tags folder with stops).
+  const params = Array.from(shapeEl.getElementsByTagName('parameter'));
+  for (const grad of params) {
+    if (grad.getAttribute('id') !== '104') continue;
+    // RGB tags folder: a direct child <parameter name="RGB" id="1">.
+    const rgbFolder = directChildren(grad, 'parameter').find(
+      p => p.getAttribute('id') === '1' && (p.getAttribute('name') || '').toUpperCase() === 'RGB',
+    );
+    if (!rgbFolder) continue;
+    const stops: { tagId: number; location: number; color: { r: number; g: number; b: number } }[] = [];
+    // Each stop is a direct <parameter> child of the RGB folder (RGB1, RGB2, …),
+    // itself an id'd scenenode-style parameter (factoryID=3).
+    for (const stop of directChildren(rgbFolder, 'parameter')) {
+      const tagId = parseInt(stop.getAttribute('id') || '0', 10);
+      if (!tagId) continue;
+      // Location (id=1) curve value; Color (id=3) folder → Red/Green/Blue curves.
+      let location = 0;
+      let color: { r: number; g: number; b: number } | undefined;
+      for (const sub of directChildren(stop, 'parameter')) {
+        const sid = sub.getAttribute('id');
+        if (sid === '1') {
+          location = curveValueOf(sub) ?? 0;
+        } else if (sid === '3') {
+          // Color folder: Red(1)/Green(2)/Blue(3) curves, 0..1 float.
+          let r: number | undefined, g: number | undefined, b: number | undefined;
+          for (const ch of directChildren(sub, 'parameter')) {
+            const cid = ch.getAttribute('id');
+            const v = curveValueOf(ch);
+            if (v === undefined) continue;
+            if (cid === '1') r = v;
+            else if (cid === '2') g = v;
+            else if (cid === '3') b = v;
+          }
+          if (r !== undefined && g !== undefined && b !== undefined) color = { r, g, b };
+        }
+      }
+      if (color) stops.push({ tagId, location, color });
+    }
+    if (stops.length > 0) return { stops };
+  }
+  return undefined;
+}
+
+/**
+ * Read a parameter's scalar value: prefer a nested <curve> value/default, else the
+ * parameter's own value/default attribute. Motion stores gradient stop channels as
+ * <curve> children (see the RE note); a plain attribute is the fallback.
+ */
+function curveValueOf(param: Element): number | undefined {
+  const curve = firstChild(param, 'curve');
+  if (curve) {
+    const cv = curve.getAttribute('value');
+    if (cv !== null && !isNaN(parseFloat(cv))) return parseFloat(cv);
+    const cd = curve.getAttribute('default');
+    if (cd !== null && !isNaN(parseFloat(cd))) return parseFloat(cd);
+  }
+  const v = param.getAttribute('value');
+  if (v !== null && !isNaN(parseFloat(v))) return parseFloat(v);
+  const d = param.getAttribute('default');
+  if (d !== null && !isNaN(parseFloat(d))) return parseFloat(d);
+  return undefined;
 }
 
 /**
