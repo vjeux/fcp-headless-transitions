@@ -359,10 +359,20 @@ uses ±10 range + −2.25 bias; the exact Brightness→RGB-scale + Threshold→b
 full bloomHeliumRender register trace (NEXT tick, decode-don't-fit). See glow.ts P2-bloom notes.
 **Slugs gated (7):** Bloom (10.6), 360°_Bloom (11.6), Panels_Random (13.0), Color_Panels, Veil,
 Slide, Leaves.
-**Next step:** (a) FINISH the Bloom decode (bloomHeliumRender register trace → Brightness scale +
-Threshold bias + Clip-to-White ceiling) and fix glowFilter's Bloom path — isolated, blast radius 1,
-gate-verifiable, +3–6 dB potential on the peak frames. (b) Then do S2 for the STACKED colour
-bucket (Tint/Colorize/Brightness>1). Bloom's peak-white is a real filter gap, NOT an S2 dependency.
+**Next step:** the Bloom pipeline is now FULLY DECODED (2026-07-13f, bloomHeliumRender register
+trace): extract `rgb=max(color·10 − Threshold/10, 0)` → Gaussian blur → ADDITIVE combine
+(HgcEchoScaleAndAdd) `out = orig + blur·(Brightness/50)`, clamp to (Clip to White ? 1 : ∞).
+Blast radius = 2 (Lights__Bloom + 360°__360°_Bloom; the latter stores pluginName="Bloom"). A
+decode-faithful bloomFilter was built + REVERTED — it's correct in isolation (peak → white) but
+blocked by TWO transition-timing issues that make it net-NEGATIVE: (A) the retime-wrap fires at
+0.20s BEFORE the bloom keyframes (0.36→0.59s) so Threshold stays 100 → zero bloom (GT f06 past the
+wrap is already blown-out, so the wrap is WRONG here); cancelling it makes bloom fire BUT (B) both
+drop zones time out by 0.534s → BLACK tail (GT holds the bloom peak then reveals CLEAN B by f23 —
+a flash-to-white A→B wipe), so the content must PERSIST (hold B) while the FILTER time plays
+through. Also the 8-bit-blur HEADROOM proxy distorts the >1 energy (360° Bloom regressed
+11.47→10.48). Fix needs: float-buffer blur (no 8-bit proxy) + content-persist/clamp decoupled
+from filter-time + gate-verify BOTH Bloom slugs. Multi-step; decode notes in glow.ts. (b) Then S2
+for the STACKED colour bucket (Tint/Colorize/Brightness>1).
 **DoD/Verify:** subsumed by S2's gate.
 
 ### S5. Gradient generator  [PREMISE CORRECTED — mostly folds into S1]  (task T-C1 · small)
@@ -449,6 +459,27 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13f  BLOOM pipeline FULLY DECODED + implemented + REVERTED (net-negative, two timing
+              blockers). Completed the -[PAEBloom bloomHeliumRender:…] @0xe58a register trace: three
+              GPU nodes — HgcBloomThreshold extract rgb=max(color·10 − Threshold/10, 0); Gaussian
+              blur; HgcEchoScaleAndAdd ADDITIVE combine out = orig + blur·(Brightness/50) clamped to
+              (Clip to White ? 1 : ∞). Built a decode-faithful bloomFilter (correct in isolation:
+              mean-luma 97→255 at peak). REVERTED per the gate rule — net-negative in the render due
+              to TWO transition-timing blockers, not a filter-math error: (A) buildTimeMap wraps
+              Lights__Bloom to time 0 at 0.20s, BEFORE the Bloom/Glow keyframes at 0.36→0.59s, so
+              Threshold stays pinned at 100 → the extract knocks out everything → ZERO bloom (the
+              filter is dormant, hence gate-neutral on Lights__Bloom). GT REFUTES the wrap (f06 past
+              0.20s is already blown-out, not frame-0). (B) cancelling the wrap makes bloom FIRE but
+              exposes a BLACK tail — Transition A(out 0.20s)+B(in 0.234,out 0.534s) BOTH time out by
+              0.534s → frames f11+ have no drop zone → black. GT holds the bloom peak (~f14 white)
+              then reveals CLEAN B by f23 (a flash-to-white A→B wipe), so the content must PERSIST
+              (hold B) while the FILTER time plays through — a clamp on CONTENT time decoupled from
+              FILTER time. Also blast radius is 2 (360°__360°_Bloom stores pluginName="Bloom", not
+              "PAEBloom" — earlier grep missed it) and the 8-bit-blur HEADROOM proxy distorted the >1
+              energy (360° Bloom regressed 11.47→10.48). Recorded the full decode + both blockers in
+              glow.ts (comment-only, gate-neutral, tsc clean). NEXT (multi-step): float-buffer blur
+              (no 8-bit proxy) + content-persist/clamp decoupled from filter-time + gate-verify BOTH
+              Bloom slugs. No pixels changed this tick.
 - 2026-07-13e  BLOOM under-bloom ROOT-CAUSE (isolated filter bug, blast radius 1, decode-in-progress).
               Diagnosed Lights__Bloom (10.44) via GUI GT: PEAK frames f11-18 should blow the frame to
               WHITE (GT f14 ~full white) but the engine renders the near-UNBLOOMED sepia photo (f14 ~3

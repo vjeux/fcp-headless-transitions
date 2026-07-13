@@ -256,7 +256,44 @@ registerFilter({
 //   FIX SHAPE (once decoded): threshold pass = max(color·brightnessScale + thresholdBias, 0),
 //   alpha = clamp(max_channel, lo, hi); blur; combine = (1−glowA)·orig + min(glowRGB, 1)
 //   [Clip to White ceiling]. The Brightness gain (>1) is what pushes the blurred cores
-//   past white. Blast radius = 1 slug (Lights__Bloom is the ONLY PAEBloom/PAEGlow user).
+//   past white. Blast radius = 2 slugs: Lights__Bloom AND 360°__360°_Bloom (the latter
+//   stores pluginName="Bloom", not "PAEBloom" — the earlier "only 1 user" grep missed it).
+//
+// ── PHASE-1 RE UPDATE 2026-07-13f — FULL pipeline decoded + two blockers found ──
+//   Completed the -[PAEBloom bloomHeliumRender:…] @0xe58a register trace. The THREE real
+//   GPU nodes (normal bloom, doDarkBloom=0):
+//     1. HgcBloomThreshold (pre-blur extract):  rgb = max(color·SCALE + BIAS, 0)
+//          SCALE (hg_Params[1]) = +10                         (fcsel ±10 on doDarkBloom)
+//          BIAS  (hg_Params[0]) = −10·Threshold/100 = −Threshold/10  (Threshold 0–100)
+//          alpha = clamp(max(r,g,b), lo=−FLT_MAX, hi=+FLT_MAX)   (i.e. no alpha clamp)
+//        i.e. a 10× gain minus a threshold floor — THIS is the amplification the current
+//        code drops (it premultiplies by a ≤1 mask so nothing ever brightens).
+//     2. Gaussian blur by the spread radius (Amount).
+//     3. HgcEchoScaleAndAdd (combine, ADDITIVE — not the glow over-composite):
+//          out = orig + blurred·(Brightness/50)               (d9=50 via fcsel on doDarkBloom)
+//          then CLAMP to ceiling = (Clip to White ? 1.0 : +∞)  (fcsel on doClip, hg_Params[1])
+//        Brightness 0–100 → /50 = ≈1.4–2× gain; the additive+clip is what blows to white.
+//   IMPLEMENTED + REFUTED (reverted): a decode-faithful bloomFilter (extract ×10−Thr/10,
+//   additive combine ×Brightness/50, clip-to-white) rendered correctly IN ISOLATION
+//   (mean-luma 97→255 at peak) but the render was gated by TWO transition-timing blockers:
+//     BLOCKER-A (retime-wrap kills the bloom): buildTimeMap wraps Lights__Bloom to time 0
+//       at wrapSec≈0.20s, but the Bloom/Glow Threshold+Radius keyframes fire at 0.36→0.59s
+//       — so Threshold stays pinned at 100 → the extract knocks out everything → ZERO bloom
+//       (the filter is dormant, which is why the "fix" was gate-neutral on Lights__Bloom).
+//       GT REFUTES the wrap: f06 (0.317s, past the wrap) is already blown-out, NOT frame-0.
+//       A wrap-cancel (animated-filter-past-wrap) makes the bloom FIRE.
+//     BLOCKER-B (black tail): cancelling the wrap exposes a BLACK tail — Transition A
+//       (out=0.20s) and B (in=0.234,out=0.534s) BOTH time out by 0.534s, so frames f11+
+//       have no drop zone → black. GT holds the bloom peak (~f14 white) then reveals CLEAN
+//       B by f23 (the bloom is a flash-to-white A→B wipe). So the fix needs the drop-zone
+//       content to PERSIST (hold B) past 0.534s WHILE the Bloom filter time plays THROUGH
+//       (a clamp on CONTENT time decoupled from FILTER time) — more than one safe tick.
+//     Also: on 360°__360°_Bloom (which does NOT wrap, so its Bloom evaluates live) the
+//       isolated bloomFilter REGRESSED 11.47→10.48 — the ×10 extract + 8-bit-blur HEADROOM
+//       proxy distorts the energy vs GT. The magnitude needs the blur run in FLOAT (no 8-bit
+//       proxy) and re-verified against BOTH Bloom slugs' GUI GT. NEXT: (1) float-buffer blur
+//       so >1 cores survive without the HEADROOM hack; (2) content-persist + filter-time-
+//       through for the wrap/black-tail coupling; (3) gate-verify Lights__Bloom AND 360° Bloom.
 registerFilter({
   uuid: '5599C557-CDC0-4112-B2C4-355E9A1A902E',
   names: ['bloom'],
