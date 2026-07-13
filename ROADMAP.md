@@ -97,6 +97,16 @@ and future renders share one encode path. Do NOT chase these as real regressions
 - Work top-down by **coverage × safety** (Σ deficit-to-16 dB ÷ risk). One subsystem per arc,
   gate-green each commit, baseline re-frozen when an improvement is protected.
 
+- **⚠ BASELINE RE-FREEZE PENDING (2026-07-13):** `fct regress engine` is GREEN (0 regressions,
+  0 improvements, 64s) — but that is measured against a baseline frozen from **Jul-10 engine
+  frames**, which PREDATE several landed improvements (T-G1 Color_Planes 10.47→11.35, T-E1
+  Video_Wall 8.74→~9.1, T-B2 emitter sim, the four T-D2 linear migrations [flags OFF =
+  byte-identical]). The main-worktree engine frames on disk are also stale, so the current
+  13.91 dB does NOT yet include those gains. DO NOT re-freeze piecemeal mid-swarm (agents need
+  the cores + may land more this session). Correct action: once the swarm DRAINS (T-B3/E2/F1
+  done), run `fct gen engine --all` then `fct baseline engine` to capture ALL landed gains at
+  once, then re-verify green. Until then, treat 13.91 as a conservative floor.
+
 Deficit accounting (Σ of `max(0, 16 − score)` over the slugs each subsystem gates):
 
 ```
@@ -394,6 +404,23 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  GATE-HEALTH + STALE-BASELINE FINDING TICK — with all remaining ROADMAP tasks
+              either DONE (12/16) or actively in-flight (T-B3/E2/F1) and T-A1's gradient-tag
+              renderer blocked by a hard file-collision (it needs types.ts + parser/behaviors.ts
+              + parser/index.ts, all being edited RIGHT NOW by T-F1 and T-B3 — editing them would
+              guarantee a merge conflict, violating careful-coder), there was no safe non-colliding
+              engine chunk. Did the valuable isolated work instead: ran `fct regress engine` = GREEN
+              (0 regressions, 0 improvements, 64s, rc=0) — the ONE-TRUTH gate confirms nothing has
+              regressed. BUT discovered the baseline is STALE: it was frozen from Jul-10 engine
+              frames that predate landed gains (T-G1 Color_Planes 10.47→11.35, T-E1 Video_Wall
+              8.74→~9.1, T-B2 emitter, T-D2* linear [flags OFF]). Deliberately did NOT re-freeze
+              mid-swarm (would starve the 3 active agents of cores + miss improvements they may
+              still land this session). Documented a standing "BASELINE RE-FREEZE PENDING" note in
+              the status snapshot: once the swarm drains, `fct gen engine --all` + `fct baseline
+              engine` captures all gains at once. Confirmed T-A1 PARTIAL gap precisely: colour Links
+              to gradient-tag colour (`.../353/113/104/1/<tagId>/3/{1,2,3}`, used by Loop/Heart/
+              Slide_In) are parsed-but-not-rendered; parseColorTarget needs a 'gradientTag' kind.
+              Doc-only tick, no code/behavior touched.
 - 2026-07-13  ROADMAP-DRIFT TOOLING TICK — the ROADMAP flat task table kept drifting from
               reality: T-A2, T-D2a, T-D2c all sat as TODO on origin/main long after their DONE
               commits landed (agents edit the row separately from the commit, and concurrent
