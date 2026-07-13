@@ -22,6 +22,10 @@ import { hueSaturationFilter } from '../src/compositor/filters/hue-saturation.js
 import { lookupFilter, makeContext } from '../src/compositor/filters/registry.js';
 import '../src/compositor/filters/index.js';
 import type { Filter } from '../src/types.js';
+import {
+  setLinearCompositeEnabled, isLinearCompositeEnabled,
+  linearChannelToSrgb, srgbChannelToLinear,
+} from '../src/compositor/linear.js';
 
 function assert(cond: boolean, msg: string) { if (!cond) throw new Error(`FAIL: ${msg}`); }
 
@@ -100,6 +104,73 @@ function runTests() {
     const gray = 0.2125 * 200 + 0.7154 * 100 + 0.0721 * 40;
     const exp = Math.round(gray * 0.65 * 0.65);
     assert(Math.abs(px(out, 0) - exp) <= 2, `grayscale*Value^2 (got ${px(out,0)} exp ${exp})`);
+  });
+
+  // ----- LINEAR WORKING-SPACE MIGRATION (T-D2d) -----
+  // The flag defaults OFF. These tests toggle it under try/finally so the module state
+  // is restored to the shipping default — cross-test isolation.
+
+  test('linear-mode flag defaults OFF (T-D1 safety contract)', () => {
+    assert(isLinearCompositeEnabled() === false, 'flag off by default');
+  });
+
+  test('linear-mode: identity params still pass through', () => {
+    setLinearCompositeEnabled(true);
+    try {
+      const img = solid(180, 90, 40);
+      const out = hueSaturationFilter(img, { hue: 0, saturation: 0, value: 1, mix: 1 });
+      for (let i = 0; i < out.data.length; i++) assert(out.data[i] === img.data[i], 'identity even in linear');
+    } finally { setLinearCompositeEnabled(false); }
+  });
+
+  test('linear-mode: Value=0.5 dims light in LINEAR (physically correct midtone)', () => {
+    // Legacy sRGB-as-linear path on sRGB 188 with V=0.5:
+    //   (188/255) * 0.25 = 0.184 → sRGB 47
+    // Linear path on sRGB 188 with V=0.5:
+    //   decode 188 → linear ~0.502, *0.25 = 0.126, encode → sRGB ~99
+    // The two disagree by ~50 codes, and the linear result matches the FCP shader's
+    // linear working-space semantics (Value is a photon multiplier in linear light).
+    const legacy = hueSaturationFilter(solid(188, 188, 188), { hue: 0, saturation: 0, value: 0.5, mix: 1 });
+    setLinearCompositeEnabled(true);
+    let lin: ImageData;
+    try { lin = hueSaturationFilter(solid(188, 188, 188), { hue: 0, saturation: 0, value: 0.5, mix: 1 }); }
+    finally { setLinearCompositeEnabled(false); }
+    // Sanity: the two paths give measurably different answers on this input.
+    assert(Math.abs(px(legacy) - px(lin)) >= 20, `legacy vs linear must differ ≥20 codes (legacy=${px(legacy)} lin=${px(lin)})`);
+    // Predicted linear result: encode(srgbToLinear(188) * 0.25).
+    const exp = linearChannelToSrgb(srgbChannelToLinear(188) * 0.25);
+    assert(Math.abs(px(lin) - exp) <= 1, `linear V=0.5 on sRGB 188 → sRGB ${exp} (got ${px(lin)})`);
+  });
+
+  test('linear-mode: Saturation=-1 grayscale = luma709 of LINEAR RGB, encoded to sRGB', () => {
+    setLinearCompositeEnabled(true);
+    let out: ImageData;
+    try { out = hueSaturationFilter(solid(200, 100, 40), { hue: 0, saturation: -1, value: 1, mix: 1 }); }
+    finally { setLinearCompositeEnabled(false); }
+    // Predicted: gray = luma709(linear(200), linear(100), linear(40)); encode(gray).
+    const rL = srgbChannelToLinear(200), gL = srgbChannelToLinear(100), bL = srgbChannelToLinear(40);
+    const gray = 0.2125 * rL + 0.7154 * gL + 0.0721 * bL;
+    const exp = linearChannelToSrgb(gray);
+    assert(Math.abs(px(out, 0) - exp) <= 1 && Math.abs(px(out, 1) - exp) <= 1 && Math.abs(px(out, 2) - exp) <= 1,
+      `linear grayscale = sRGB ${exp} (got ${px(out,0)},${px(out,1)},${px(out,2)})`);
+    // Sanity: linear grayscale differs from the gamma-space grayscale — it's usually
+    // DARKER because the sRGB→linear→luma→sRGB round trip preserves relative light,
+    // while gamma-space luma over-weights the encoded reds.
+    const gamma = Math.round(0.2125 * 200 + 0.7154 * 100 + 0.0721 * 40);
+    assert(Math.abs(px(out, 0) - gamma) >= 3, `linear and gamma grayscales must differ (linear=${px(out,0)} gamma=${gamma})`);
+  });
+
+  test('linear-mode: flag OFF path is BYTE-IDENTICAL after toggle (isolation)', () => {
+    const img = solid(200, 100, 40);
+    const params = { hue: 0, saturation: -1, value: 0.65, mix: 1 };
+    const before = hueSaturationFilter(img, params);
+    setLinearCompositeEnabled(true);
+    try { hueSaturationFilter(img, params); /* burn once in linear */ }
+    finally { setLinearCompositeEnabled(false); }
+    const after = hueSaturationFilter(img, params);
+    for (let i = 0; i < before.data.length; i++) {
+      assert(before.data[i] === after.data[i], `flag-off byte-identical (i=${i} before=${before.data[i]} after=${after.data[i]})`);
+    }
   });
 
   console.log(`\n${pass} passed, ${fail} failed`);

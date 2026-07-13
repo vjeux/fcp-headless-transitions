@@ -122,6 +122,28 @@ function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
  * brightness -> added 255 to every pixel -> BLEW IDENTITY INPUTS TO WHITE, and treated
  * the 0-centered Saturation as a plain multiplier. (Confirmed: old TS returned
  * [255,255,255] where FCP returns the unchanged image.)
+ *
+ * ============================ LINEAR WORKING SPACE (T-D2d) ============================
+ * FCP's HgcHSVAdjust shader runs in the LINEAR working color space (decoded in
+ * compositor/linear.ts: oz_render.mm OZ_WS_DEBUG confirms kCGColorSpaceExtendedLinearSRGB
+ * for the entire filter+composite chain). The 4 shipping HSV users (Objects__Leaves,
+ * Stylized__Center / Light_Sweep / Lower + Color_Panels) get RGB in LINEAR light, run
+ * the max/min/normalize HSV reconstruction there, apply Saturation as a lerp toward the
+ * Rec.709 luma of the LINEAR RGB, apply Value as a squared multiply on LINEAR RGB, and
+ * emit LINEAR to the next stage. The engine currently decodes sRGB code as if it were
+ * linear, biasing Saturation lerps (luma weights compressed by the sRGB gamma) and
+ * Value dims (V=0.65 in gamma → sRGB 130 midtone lands at 84; in linear → sRGB 105 —
+ * a ~20-code shift). Every HSV shipping user also STACKS more filters (Colorize on
+ * Color_Panels, Bloom/DirectionalBlur on Leaves), so the correct model is not per-filter
+ * encode but a linear WORKING BUFFER carried across the chain (T-D1 groundwork).
+ *
+ * This function honors `isLinearCompositeEnabled()`:
+ *   flag OFF (shipped default, T-D1's safety contract) — legacy sRGB-as-linear path,
+ *     BYTE-IDENTICAL to before this migration.
+ *   flag ON  — decode sRGB→linear via LUT_SRGB_TO_LINEAR, do the HSV math in linear
+ *     light, encode linear→sRGB via linearChannelToSrgb at emission. Mix (unused in
+ *     shipping — PAEHSVAdjust has no Mix slot) also lerps in linear when the flag is on.
+ * ============================================================================
  */
 export function hueSaturationFilter(input: ImageData, params: HueSatParams): ImageData {
   const { hue, saturation, value, mix } = params;
@@ -141,34 +163,69 @@ export function hueSaturationFilter(input: ImageData, params: HueSatParams): Ima
   // 0.25 DEGREES ≈ 0.000694 turns — a tiny rotation, exactly what headless produces.)
   const hueTurns = (((hue / 360) % 1) + 1) % 1;
   const doHue = hueTurns !== 0;
+  // Linear working-space migration (T-D2d / S2). Off by default; flip the master flag
+  // (setLinearCompositeEnabled) to opt into the physically-correct pipeline. See the
+  // header comment "LINEAR WORKING SPACE" for the decoded FCP reference.
+  const useLinear = isLinearCompositeEnabled();
 
   for (let i = 0; i < src.length; i += 4) {
-    let r = src[i] / 255, g = src[i + 1] / 255, b = src[i + 2] / 255;
+    let r: number, g: number, b: number;
+    if (useLinear) {
+      r = LUT_SRGB_TO_LINEAR[src[i]];
+      g = LUT_SRGB_TO_LINEAR[src[i + 1]];
+      b = LUT_SRGB_TO_LINEAR[src[i + 2]];
+    } else {
+      r = src[i] / 255; g = src[i + 1] / 255; b = src[i + 2] / 255;
+    }
 
     if (doHue) {
       let [h, s, v] = rgbToHsv(r, g, b);
       h = (h + hueTurns) % 1;
       [r, g, b] = hsvToRgb(h, s, v);
     }
-    // Saturation: lerp between Rec.709 gray and color by (1 + Saturation).
+    // Saturation: lerp between Rec.709 gray and color by (1 + Saturation). In linear
+    // mode the Rec.709 luma is computed on LINEAR RGB (FCP's HgcSaturation reads its
+    // input from the linear working buffer, per the shader's inline 0.2125/0.7154/0.0721
+    // weights running against ExtendedLinearSRGB samples).
     if (saturation !== 0) {
       const gray = luma709(r, g, b);
       r = gray + (r - gray) * satFactor;
       g = gray + (g - gray) * satFactor;
       b = gray + (b - gray) * satFactor;
     }
-    // Value: squared multiply.
+    // Value: squared multiply. In linear space this is a true photon scale (v=0.5 halves
+    // light, then encodes to sRGB ≈ 188 — the physically correct midtone dim).
     if (value !== 1) { r *= valMul; g *= valMul; b *= valMul; }
 
     const cl = (x: number) => Math.max(0, Math.min(1, x));
-    if (mix >= 1) {
-      out[i] = Math.round(cl(r) * 255);
-      out[i + 1] = Math.round(cl(g) * 255);
-      out[i + 2] = Math.round(cl(b) * 255);
+    if (useLinear) {
+      const rC = cl(r), gC = cl(g), bC = cl(b);
+      if (mix >= 1) {
+        out[i] = linearChannelToSrgb(rC);
+        out[i + 1] = linearChannelToSrgb(gC);
+        out[i + 2] = linearChannelToSrgb(bC);
+      } else {
+        // Lerp in LINEAR light between the original linear source and the processed
+        // linear result, then encode. PAEHSVAdjust ships mix=1 so this path is only
+        // exercised by the TS-ism unit tests, but the linear-space lerp is the
+        // consistent choice for the working-space model.
+        const srcRL = LUT_SRGB_TO_LINEAR[src[i]];
+        const srcGL = LUT_SRGB_TO_LINEAR[src[i + 1]];
+        const srcBL = LUT_SRGB_TO_LINEAR[src[i + 2]];
+        out[i] = linearChannelToSrgb(srcRL * (1 - mix) + rC * mix);
+        out[i + 1] = linearChannelToSrgb(srcGL * (1 - mix) + gC * mix);
+        out[i + 2] = linearChannelToSrgb(srcBL * (1 - mix) + bC * mix);
+      }
     } else {
-      out[i] = Math.round((src[i] / 255 * (1 - mix) + cl(r) * mix) * 255);
-      out[i + 1] = Math.round((src[i + 1] / 255 * (1 - mix) + cl(g) * mix) * 255);
-      out[i + 2] = Math.round((src[i + 2] / 255 * (1 - mix) + cl(b) * mix) * 255);
+      if (mix >= 1) {
+        out[i] = Math.round(cl(r) * 255);
+        out[i + 1] = Math.round(cl(g) * 255);
+        out[i + 2] = Math.round(cl(b) * 255);
+      } else {
+        out[i] = Math.round((src[i] / 255 * (1 - mix) + cl(r) * mix) * 255);
+        out[i + 1] = Math.round((src[i + 1] / 255 * (1 - mix) + cl(g) * mix) * 255);
+        out[i + 2] = Math.round((src[i + 2] / 255 * (1 - mix) + cl(b) * mix) * 255);
+      }
     }
     out[i + 3] = src[i + 3];
   }
@@ -178,6 +235,11 @@ export function hueSaturationFilter(input: ImageData, params: HueSatParams): Ima
 
 
 import { registerFilter } from './registry.js';
+import {
+  isLinearCompositeEnabled,
+  LUT_SRGB_TO_LINEAR,
+  linearChannelToSrgb,
+} from '../linear.js';
 
 // HSV Adjust (PAEHSVAdjust, UUID D23AF030-…). PHASE-2 CORRECTED semantics (measured
 // vs headless FCP): Hue in TURNS (default 0), Saturation 0-CENTERED (default 0,

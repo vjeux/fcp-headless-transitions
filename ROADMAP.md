@@ -189,7 +189,9 @@ T-D1  DONE    linear working-space composite path                 flag-gated; ov
 T-D2a TODO    Brightness/Colorize into linear after: T-D1         Colorize=1 users, Brightness>1
 T-D2b DONE    Tint into linear               after: T-D1          Tint filter flag-gated (Leaves +0.07)
 T-D2c TODO    Glow/Bloom into linear         after: T-D1          Bloom, 360°_Bloom
-T-D2d TODO    HSV into linear                after: T-D1          Panels_Random, Color_Panels
+T-D2d DONE    HSV into linear                after: T-D1          Color_Panels (HSV x4; flag OFF, byte-id).
+                                                                  Panels_Random has ZERO HSV (Colorize
+                                                                  only, folds into T-D2a).
 T-E1  TODO    framing anchor (proxy->content ray)                 Video_Wall f4 black, Clone_Spin
 T-E2  TODO    clone-tile wall render          after: T-E1         Video_Wall 14-tile grid
 T-F1  TODO    Smear appearance at mid-frames                      Movements/Smear (11.0)
@@ -380,6 +382,32 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  T-D2d (S2/S4 · HSV→linear) DONE — added a LINEAR-working-space
+              branch to `hueSaturationFilter`
+              (engine/src/compositor/filters/hue-saturation.ts) behind
+              `isLinearCompositeEnabled()` (T-D1's flag, DEFAULTS OFF so gate
+              stays byte-identical — 0 regressions / 0 improvements vs
+              baseline_engine). The linear path decodes input sRGB codes via
+              LUT_SRGB_TO_LINEAR, runs the HgcHSVAdjust math (RGB→HSV normalize,
+              Hue rotation, Rec.709-luma Saturation lerp, squared-multiply
+              Value) on LINEAR RGB, and encodes via linearChannelToSrgb at
+              emission — matching the FCP shader's ExtendedLinearSRGB working
+              space (decoded 2026-07-12 in linear.ts header; oz_render.mm
+              OZ_WS_DEBUG confirms). Mix (unused in shipping — PAEHSVAdjust
+              has no Mix slot) also lerps in LINEAR when the flag is on, for
+              consistency with the working-space model. Target slugs (census-
+              verified via `fct census`): Stylized__Color_Panels is the real
+              target (PAEHSVAdjust ×4 + PAEColorize ×4 + Clone Layer ×4);
+              Stylized__Panels_Random has ZERO HSV filters (Colorize ×3 only)
+              so this task cannot move it — folds into T-D2a's scope. Post-
+              migration scores (flag OFF, intentionally identical to pre-change):
+              Color_Panels 15.12, Panels_Random 12.99, Color_Planes 11.35 — all
+              equal to baseline. Unit tests: hue-saturation 13/13 (+5 for T-D2d:
+              flag default, linear-mode identity, linear V=0.5 physically-correct
+              midtone [sRGB 188 → 99 in linear vs 47 in legacy], linear grayscale
+              = encode(luma709 of linear RGB), flag-off byte-identical after
+              toggle); linear 15/15; no-hardcode 6/6; tsc clean. Progress: T-D2d
+              landed; done={A3,C1,D1,D2b,D2d,G1}.
 - 2026-07-13  SWARM DATA-SAFETY TICK — fixed a work-DESTROYING bug + broadened harvest. T-B1's
               completed, gate-green emitter-parser work was WIPED when the pool relaunched it:
               setup_worktree.sh did `git worktree remove --force` on the uncommitted worktree
