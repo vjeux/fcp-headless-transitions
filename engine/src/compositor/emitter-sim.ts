@@ -1,6 +1,5 @@
 /**
- * Compositor — Motion Emitter particle simulation + render (ROADMAP S3 / T-B2 sim,
- * T-B3 appearance layer).
+ * Compositor — MINIMAL Motion Emitter particle simulation + render (ROADMAP S3 / T-B2).
  *
  * Motion's particle Emitter (factory description "Emitter") owns one or more Particle
  * Cell children (factory "Particle Cell"). Each cell spawns per-second at `birthRate`
@@ -11,24 +10,9 @@
  * transition starts" — so at scene t=0 a stream of already-airborne particles
  * blankets the frame; see Stylized/Nature Diagonal, cell "hexagon" in=-4.838s).
  *
- * T-B2 laid the deterministic spawn+advect+gravity backbone (flat near-white dots
- * on top of the field-texture proxy). T-B3 layers APPEARANCE onto the same
- * simulation:
- *   - per-cell Color (Object/id=130) drives the dot colour instead of a global
- *     near-white — Motion cells author markedly different tints (Diagonal grey
- *     hexagons at 0.48, Ring cells at green/purple, etc.), so a single flat colour
- *     under-fits every cell,
- *   - per-cell Scale (Object/id=116 X/Y) multiplies the base dot radius so tiny
- *     cells contribute sub-pixel dots and large cells contribute a full radius,
- *   - a per-particle Opacity-Over-Life envelope (linear fade-in over the first
- *     10% of life, hold, then linear fade-out over the last 25%) approximates
- *     Motion's authored id=112 Opacity Over Life ramp without decoding the
- *     gradient stops — the envelope is close enough to Motion's default
- *     ease-in/ease-out fade shape that PSNR is monotone in the direction of GT
- *     versus the T-B2 hard-edged step (a particle that appears at full alpha
- *     the frame it's born and vanishes hard the frame it dies).
- *
- * Precondition: T-B1 populates `scene.emitters` / `scene.particleCells`;
+ * This module is the T-B2 MINIMAL SIM: deterministic spawn+advect+gravity, composited
+ * as flat-COLOUR dots (no per-particle sprite; no colour/scale/opacity-over-life ramp —
+ * that's T-B3). Precondition: T-B1 populates `scene.emitters` / `scene.particleCells`;
  * the evaluator marks the enclosing Emitter LAYER visible=true for the rig-selected
  * variant (Diagonal's rig picks 1 of 8 shape variants; the other 7 emitters end up at
  * opacity 0, evaluator visible=false). We sim ONLY cells whose parent emitter layer
@@ -100,33 +84,6 @@ function cellContributes(cell: ParticleCellParams, emitter: EmitterParams): bool
 }
 
 /**
- * T-B3 opacity-over-life envelope. Motion's Particle Cell authors an id=112 curve
- * ("Opacity Over Life" or "Color Range" depending on Color Mode); the exact
- * decoded shape is a gradient over particle age. Without decoding the gradient
- * stops we approximate the DOMINANT shape used across the corpus: a soft
- * fade-in over the first ~10% of life, hold at full alpha through the middle,
- * then a longer fade-out over the last ~25%. This kills the T-B2 hard-edged
- * "particle POP" (dots appearing and disappearing at full alpha) and matches
- * the aggregate look of a Motion particle field where each dot is a bell rather
- * than a rectangle in time.
- *
- * Bounds justified per the FCP Emitter authoring UI: "Life" ramps default to a
- * shorter fade-in than fade-out (leaves/hexagons drop-in fast, drift-out slow),
- * and 10%/25% matches the default Motion "Fade In/Out" behaviour shipped with
- * a plain Particle Cell (0 to 10 to 75 to 100 percent-of-life, the last stop at
- * alpha 0).
- */
-function opacityOverLife(ageFrac: number): number {
-  if (ageFrac <= 0) return 0;
-  if (ageFrac >= 1) return 0;
-  const FADE_IN_END = 0.10;
-  const FADE_OUT_START = 0.75;
-  if (ageFrac < FADE_IN_END) return ageFrac / FADE_IN_END;
-  if (ageFrac > FADE_OUT_START) return (1 - ageFrac) / (1 - FADE_OUT_START);
-  return 1;
-}
-
-/**
  * Simulate one cell + composite each alive particle as a flat-COLOUR dot. Called
  * once per visible cell. Deterministic: identical params → identical dots.
  *
@@ -144,15 +101,6 @@ function opacityOverLife(ageFrac: number): number {
  * Motion accumulates identical formulas per particle; the analytical form is
  * pixel-equivalent to running a per-step integrator and orders-of-magnitude
  * cheaper for 100–1500 alive particles per frame.
- *
- * T-B3 additions:
- *   - dot COLOUR is `cell.color` (Object/id=130) scaled to 0..255, alpha
- *     mixed with the cell's own opacity (color.a),
- *   - dot RADIUS is baseRadius × mean(cell.cellScale.x, cell.cellScale.y),
- *     clamped to [0.5, 8.0] px (sub-half-pixel dots get culled by the raster
- *     bbox; a hard upper cap prevents pathological huge dots),
- *   - per-particle ALPHA is multiplied by opacityOverLife(elapsed/life) so
- *     each particle's fade is a bell over its lifetime instead of a hard step.
  */
 function simulateAndCompositeCell(
   output: ImageData,
@@ -160,8 +108,8 @@ function simulateAndCompositeCell(
   cell: ParticleCellParams,
   emEval: EvaluatedLayer,
   sceneTime: number,
-  baseAlpha: number,
-  baseRadius: number,
+  color: { r: number; g: number; b: number; a: number },
+  dotRadius: number,
   particleBudget: number,
 ): number {
   const win = cellWindow(cell);
@@ -172,20 +120,6 @@ function simulateAndCompositeCell(
   const life = numAt(cell.life);
   const speed = numAt(cell.speed);
   const gravity = cell.gravity ? numAt(cell.gravity.acceleration) : 0;
-
-  // T-B3: per-cell colour (0..255) + per-cell alpha (× baseAlpha).
-  const cc = cell.color;
-  const cr = cc ? Math.round(Math.max(0, Math.min(1, cc.r)) * 255) : 240;
-  const cg = cc ? Math.round(Math.max(0, Math.min(1, cc.g)) * 255) : 240;
-  const cb = cc ? Math.round(Math.max(0, Math.min(1, cc.b)) * 255) : 240;
-  const cellAlpha = cc ? Math.max(0, Math.min(1, cc.a)) : 1;
-
-  // T-B3: per-cell radius (baseRadius × mean(scaleX, scaleY)). Clamped so
-  // sub-half-pixel dots (which would render as one greyish pixel via edge
-  // coverage) still land and huge cells can't blow up per-frame work.
-  const cs = cell.cellScale;
-  const scaleMul = cs ? 0.5 * (cs.x + cs.y) : 1;
-  const dotRadius = Math.max(0.5, Math.min(8, baseRadius * scaleMul));
 
   // Emitter world position (Motion internal Y-DOWN; blit.ts convention).
   const emX = emEval.worldTransform[12];
@@ -208,7 +142,6 @@ function simulateAndCompositeCell(
   const seedB = (cell.randomSeed | 0) ^ 0x85ebca77;
 
   let drawn = 0;
-  const color = { r: cr, g: cg, b: cb, a: 0 };
   for (let i = 0; i < total; i++) {
     // Streamed particles at index i are born at inSec + i/birthRate; burst particles
     // (initialNumber) are born at inSec — Motion fires them all together at emitter
@@ -219,12 +152,6 @@ function simulateAndCompositeCell(
     const birthTime = isBurst ? win.inSec : win.inSec + (i / birthRate);
     const elapsed = sceneTime - birthTime;
     if (elapsed < 0 || elapsed > life) continue;
-
-    // T-B3: opacity-over-life envelope (fade-in/hold/fade-out). No effect on dot
-    // position — pure per-particle alpha modulation. life>0 gated by
-    // cellContributes; guard the divide anyway.
-    const envelope = life > 0 ? opacityOverLife(elapsed / life) : 1;
-    if (envelope <= 0) continue;
 
     // Emission direction: uniform in [angle-halfRange, angle+halfRange]. Seeded by
     // (emitterSeed, cellSeed, particle-index) → identical dots every render.
@@ -248,8 +175,6 @@ function simulateAndCompositeCell(
     if (sx + dotRadius < 0 || sx - dotRadius >= W ||
         sy + dotRadius < 0 || sy - dotRadius >= H) continue;
 
-    color.a = baseAlpha * cellAlpha * envelope;
-    if (color.a <= 0) continue;
     drawDot(output, sx, sy, dotRadius, color);
     drawn++;
   }
@@ -357,11 +282,11 @@ export function applyEmitterSim(
   const sceneTime = scene.unwrappedTime ?? scene.time;
 
   let budget = MAX_PARTICLES_PER_FRAME;
-  // Base radius before per-cell scale multiplier. 2px is a subtle "salt"; the
-  // per-cell Scale from Object/id=116 modulates it (Diagonal Bar at 0.05 → 0.5
-  // clamp, Ring at 1.0 → 2.0). T-B3.
-  const BASE_ALPHA = 0.10;
-  const BASE_RADIUS = 2;
+  // Flat colour: near-white, low alpha. Matches Motion's LIGHT bokeh/hexagon look
+  // as an aggregate. T-B3 will replace this with per-cell colour ramps (colour-
+  // over-life) read from the cell's Particle Source colour.
+  const color = { r: 240, g: 240, b: 240, a: 0.10 };
+  const dotRadius = 2;
 
   for (const cellId of cellIds) {
     if (budget <= 0) break;
@@ -383,13 +308,8 @@ export function applyEmitterSim(
 
     const drawn = simulateAndCompositeCell(
       output, emitter, cell, emEval, sceneTime,
-      BASE_ALPHA, BASE_RADIUS, budget,
+      color, dotRadius, budget,
     );
     budget -= drawn;
   }
 }
-
-// Re-exported for tests to exercise the opacity envelope in isolation. Not used
-// outside test/emitter-sim.test.ts — hides the T-B3 shape from the compositor
-// contract while making it verifiable independently of the full sim.
-export const __opacityOverLifeForTests = opacityOverLife;

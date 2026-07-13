@@ -31,7 +31,8 @@ BREW_PATH_EXPORT = 'export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"; '
 
 def gather_metrics():
     """Summarize agent logs: per-task wall-time proxy, friction signals, gate outcomes."""
-    metrics = {"tasks": {}, "signals": collections.Counter()}
+    metrics = {"tasks": {}, "signals": collections.Counter(), "wedged": []}
+    now = time.time()
     for log in sorted(glob.glob(os.path.join(LOGS, "*.log"))):
         tid = os.path.basename(log).split(".")[0]
         try:
@@ -55,6 +56,19 @@ def gather_metrics():
             n = len(re.findall(re.escape(sig), txt, re.I))
             if n:
                 metrics["signals"][sig] += n
+        # Wedged-slot detection: the pool has a stall-reaper (pool.py _slot_stalled),
+        # but surfacing wedged logs in metrics helps the reflection agent see the class
+        # of failure at a glance instead of having to eyeball ps + tmux state.
+        # A log is "wedged" if it's >=15 min old, still very small, and never emitted
+        # a SWARM_RESULT or SWARM_SLOT_EXIT. Matches the T-B3/T-F1/T-E2 pattern from
+        # 2026-07-13 04:07 where 3 of 3 slots wedged simultaneously with 3-line logs.
+        try:
+            stat = os.stat(log)
+            age_min = (now - stat.st_mtime) / 60.0
+            if (age_min >= 15 and len(txt) < 2048 and not rr and not ex):
+                metrics["wedged"].append((tid, os.path.basename(log), int(age_min), len(txt)))
+        except Exception:
+            pass
     return metrics
 
 
@@ -72,6 +86,17 @@ def render_summary(metrics):
         lines.append("- (none)")
     for sig, n in metrics["signals"].most_common():
         lines.append(f"- {sig}: {n}")
+    wedged = metrics.get("wedged") or []
+    if wedged:
+        lines += ["", "## Wedged agent logs (>=15m old, <2KB, no SWARM_RESULT/EXIT)"]
+        lines.append("These are the 'started but never made progress' logs — usually the")
+        lines.append("claude_code plugin-init + MCP orphan wedge. Pool.py auto-reaps them")
+        lines.append("(see _slot_stalled), but a persistently growing list means the reaper")
+        lines.append("isn't running or the wedge starts earlier than it thinks.")
+        lines.append("| task | log | age_min | bytes |")
+        lines.append("|------|-----|---------|-------|")
+        for tid, name, age, sz in wedged[:20]:
+            lines.append(f"| {tid} | {name} | {age} | {sz} |")
     return "\n".join(lines)
 
 
@@ -115,7 +140,52 @@ big speculative refactor.
 """
 
 
+def _free_mem_mb():
+    """Approx reclaimable RAM (free + inactive pages) in MB, via vm_stat. -1 on failure."""
+    try:
+        out = subprocess.check_output(["vm_stat"], text=True, timeout=10)
+        pages = {}
+        psize = 4096
+        for line in out.splitlines():
+            m = re.match(r"Mach Virtual Memory Statistics.*page size of (\d+)", line)
+            if m:
+                psize = int(m.group(1))
+            m2 = re.match(r"Pages (free|inactive):\s+(\d+)", line)
+            if m2:
+                pages[m2.group(1)] = int(m2.group(2))
+        if "free" in pages:
+            return int((pages.get("free", 0) + pages.get("inactive", 0)) * psize / (1024 * 1024))
+    except Exception:
+        pass
+    return -1
+
+
+def _live_worker_sessions():
+    """Count live pool worker tmux sessions (fct-swarm-0..N)."""
+    try:
+        out = subprocess.check_output([TMUX, "ls"], text=True, stderr=subprocess.DEVNULL)
+        return len(re.findall(r"^fct-swarm-\d+:", out, re.M))
+    except Exception:
+        return 0
+
+
+# Only dispatch the (heavy Claude Code) reflection agent when there is RAM headroom.
+# The reflection agent is a FULL extra CC process; launching it on top of a saturated
+# size-5 pool on this Mac pushed memory over the edge and OOM-killed pool agents
+# mid-work (SIGKILL 137). The reflection loop is a meta-optimiser — it must NEVER
+# starve the primary task agents. Skip (and retry next cycle) when free+inactive RAM is
+# below this floor. ~1.5 GB is roughly one CC agent's working set.
+REFLECT_MIN_FREE_MB = 2500
+
+
 def dispatch_reflection(metrics_md):
+    free = _free_mem_mb()
+    workers = _live_worker_sessions()
+    if free != -1 and free < REFLECT_MIN_FREE_MB:
+        print(f"[reflect] SKIP dispatch — only {free}MB free RAM (< {REFLECT_MIN_FREE_MB}MB floor), "
+              f"{workers} pool workers live. Reflecting would risk OOM-killing a task agent. "
+              f"Will retry next cycle.", flush=True)
+        return
     os.makedirs(os.path.join(ROOT, "worktrees"), exist_ok=True)
     wt = subprocess.check_output(
         ["bash", os.path.join(MAIN, "fct", "swarm", "setup_worktree.sh"), "reflect"],

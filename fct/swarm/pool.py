@@ -255,6 +255,79 @@ def _log_has_result(log_path, task_id):
     return re.search(r"SWARM_RESULT\s+" + re.escape(task_id) + r"\b", txt) is not None
 
 
+# --- Stuck-slot detection ------------------------------------------------------
+# Symptom (observed live 2026-07-13 04:07 — 3 of 3 pool slots simultaneously wedged):
+#   T-B3 slot 0 (30m), T-F1 slot 1 (60m), T-E2 slot 2 (22m) all had 3-line logs
+#   ("Claude Code at Meta / Using AI Gateway / Warning: agent-market plugins ..."),
+#   no SWARM_RESULT, no SWARM_SLOT_EXIT. `ps -o pgid` showed the `bash + tee` runner
+#   still alive with ~30 MCP fast_mux orphans holding the pipe FDs open — the `claude`
+#   process either wedged in plugin bringup or exited without closing the pipe (macOS
+#   claude_code + parallel MCP servers). Result: slot burnt forever; pool capacity
+#   silently shrinks tick after tick.
+#
+# Rule: if a slot has been running for STALL_MIN minutes AND its log has not grown
+# for STALL_QUIET_MIN minutes AND no SWARM_RESULT was ever emitted, treat it as
+# wedged. Kill the tmux session AND every process in its process group (to reap MCP
+# orphans that would otherwise hold the pipe/FDs open across the tmux kill).
+STALL_MIN = 20        # min age before we consider a slot "old enough to be suspect"
+STALL_QUIET_MIN = 15  # min since last log growth for us to call it wedged
+
+def _slot_stalled(slot_info, task_id):
+    """Return (stalled, reason) for a live slot that hasn't printed a SWARM_RESULT yet."""
+    started = slot_info.get("started", time.time())
+    age_min = (time.time() - started) / 60.0
+    if age_min < STALL_MIN:
+        return False, ""
+    log = slot_info.get("log", "")
+    if not log or not os.path.exists(log):
+        return False, ""
+    try:
+        stat = os.stat(log)
+    except Exception:
+        return False, ""
+    quiet_min = (time.time() - stat.st_mtime) / 60.0
+    if quiet_min < STALL_QUIET_MIN:
+        return False, ""
+    # Never treat a session as stalled if it already reported a terminal result —
+    # that's the reap-DONE path's job, not ours.
+    if _log_has_result(log, task_id):
+        return False, ""
+    return True, f"age={age_min:.0f}m quiet={quiet_min:.0f}m log={stat.st_size}B"
+
+
+def _kill_slot_pg(slot):
+    """Kill the tmux session AND its process group so orphaned MCP fast_mux servers
+    stop holding the runner's stdout/tee pipe open (that's what wedges the slot in
+    the first place — see _slot_stalled). Best-effort: not all children are in the
+    same PGID because Claude Code's native process may re-parent."""
+    sess = session_name(slot)
+    # Enumerate the runner's PIDs before we tear down tmux (once tmux is gone the
+    # session_name -> pane -> shell chain is lost).
+    pids = []
+    try:
+        pane_pid = subprocess.check_output(
+            [TMUX, "list-panes", "-t", sess, "-F", "#{pane_pid}"],
+            text=True, stderr=subprocess.DEVNULL).strip()
+        if pane_pid:
+            # `pgrep -g <pgid>` finds every process with that pgid, incl. MCP orphans.
+            pgid_out = subprocess.check_output(
+                ["ps", "-o", "pgid=", "-p", pane_pid], text=True).strip()
+            if pgid_out:
+                pgid = pgid_out.split()[0]
+                pids = subprocess.check_output(
+                    ["pgrep", "-g", pgid], text=True).split()
+    except Exception:
+        pass
+    subprocess.run([TMUX, "kill-session", "-t", sess], capture_output=True)
+    for pid in pids:
+        subprocess.run(["kill", "-TERM", pid], capture_output=True)
+    # After 2s, ensure any survivors get the hammer.
+    if pids:
+        time.sleep(2)
+        for pid in pids:
+            subprocess.run(["kill", "-KILL", pid], capture_output=True)
+
+
 def harvest_exited_slot(task_id, log_path):
     """When an agent's session exits, its work may be stranded in the worktree because
     Claude Code's sandbox/TCC blocked the in-worktree commit/push (writes to the parent
@@ -333,6 +406,16 @@ def cmd_run(size, once):
                           f" — harvesting + reaping", flush=True)
                     harvest_exited_slot(tid, lg)
                     subprocess.run([TMUX, "kill-session", "-t", session_name(slot)], capture_output=True)
+                    clear_slot(slot)
+                    continue
+                # Wedge check: log stopped growing and no result was ever produced.
+                # See _slot_stalled — this reaps the "3-line log, alive forever" case
+                # that was permanently burning pool capacity 2026-07-13.
+                stalled, why = _slot_stalled(st["slots"].get(str(slot), {}), tid or "")
+                if stalled:
+                    print(f"[pool] slot {slot} ({tid or '?'}) WEDGED ({why}) — killing session"
+                          f" + MCP orphans", flush=True)
+                    _kill_slot_pg(slot)
                     clear_slot(slot)
                     continue
                 active[slot] = tid

@@ -56,7 +56,16 @@ git checkout --quiet -B main origin/main
 #    deleted in the worktree are also removed in the clone). node_modules and venv
 #    are the two exceptions because they're gitignored symlinks — deleting them in
 #    the clone would leave `./fct.sh regress` unable to run.
+# --filter='protect .git' is belt-and-suspenders: `--exclude='.git'/.git/` should
+# already keep rsync out of the destination's `.git`, but 2026-07-13 T-B1's harvest
+# died with `rsync error: .git: unlinkat: Directory not empty` on this same call
+# (see pool.log around 02:41), which STRANDED gate-verified work until a later run
+# re-derived it. `protect` is a hard "never delete" instruction on the destination
+# side, independent of the include/exclude machinery — it can't be tripped by an edge
+# case where source has `.git` as a file (worktree gitlink) and dest has it as a dir.
 rsync -a --delete \
+  --filter='protect /.git' \
+  --filter='protect /.git/**' \
   --exclude='.git/' \
   --exclude='.git' \
   --exclude='engine/node_modules' \

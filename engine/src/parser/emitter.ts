@@ -29,24 +29,6 @@ import type {
 import { directChildren, firstChild, parseCurve, parseTiming } from './xml.js';
 
 /**
- * Read a scalar sub-parameter (name+id) directly nested under `parent`. Returns
- * `defaultValue` when the child is absent or unparseable. Motion authors nested
- * scalars (e.g. Color.Red id=1, Color.Green id=2) as `<parameter value=".." default=".."/>`
- * one level under the parent; this walks direct children only, ignoring deeper
- * gradient / curve stops that share the same ids at other depths.
- */
-function readSubStatic(parent: Element, id: number, defaultValue: number): number {
-  for (const p of directChildren(parent, 'parameter')) {
-    if (parseInt(p.getAttribute('id') || '0', 10) !== id) continue;
-    const v = p.getAttribute('value') ?? p.getAttribute('default');
-    if (v === null) return defaultValue;
-    const n = parseFloat(v);
-    return isFinite(n) ? n : defaultValue;
-  }
-  return defaultValue;
-}
-
-/**
  * Read a leaf-level numeric parameter (a `<parameter>` whose value/default is a
  * plain number, or which wraps a single `<curve>`), given its child-id under a
  * parent element. Returns either a static number or a Curve; falls back to
@@ -219,39 +201,6 @@ export function parseParticleCellParams(
       gravity, timing,
     };
   }
-  // Appearance (T-B3): per-cell base Color (id=130 R/G/B/Opacity), Color Mode
-  // (id=129), and Scale (id=116 X/Y). Values are in Motion 0..1 physical
-  // colour space; consumers should scale by 255 when compositing to 8-bit
-  // RGBA. Verified by XML dump on Stylized/Diagonal cells (hexagon Color Mode=3
-  // grey (0.483,0.482,0.484); Hexagon 1 Color Mode=1 near-white (0.999,0.960,
-  // 0.956); Ring cells Color Mode=1 (0.41,0.76,0.36) etc; Scale ranges 0.05 → 1.0).
-  const colorFolder = findParameterById(obj, 130);
-  let color: { r: number; g: number; b: number; a: number } | undefined;
-  if (colorFolder) {
-    color = {
-      r: readSubStatic(colorFolder, 1, 1),
-      g: readSubStatic(colorFolder, 2, 1),
-      b: readSubStatic(colorFolder, 3, 1),
-      // Motion's Color/Opacity sub-parameter (id=4, "Opacity") is the physical
-      // colour's alpha; default 1. Absent on many cells, in which case the
-      // per-particle sim falls back to the cell's opacity envelope alone.
-      a: readSubStatic(colorFolder, 4, 1),
-    };
-  }
-  const colorMode = readStaticNumber(obj, 129, 0);
-  // Cell Scale (id=116) is a Motion size-vector: X (id=1), Y (id=2). Rare
-  // cells author non-uniform X/Y (Diagonal Bar has 0.05/0.05, Ring cells 1.0/1.0)
-  // — the sim treats the average as a per-cell radius multiplier so a
-  // 0.05-scale Bar produces near-invisible dots while a 1.0-scale Ring
-  // gets a full radius.
-  const scaleFolder = findParameterById(obj, 116);
-  let cellScale: { x: number; y: number } | undefined;
-  if (scaleFolder) {
-    cellScale = {
-      x: readSubStatic(scaleFolder, 1, 1),
-      y: readSubStatic(scaleFolder, 2, 1),
-    };
-  }
   return {
     id, name, emitterId,
     birthRate: readNumericParam(obj, 101, 30),
@@ -267,8 +216,5 @@ export function parseParticleCellParams(
     randomSeed: readStaticNumber(obj, 131, 0),
     gravity,
     timing,
-    color,
-    colorMode,
-    cellScale,
   };
 }
