@@ -409,6 +409,20 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  WEDGE-REAP FALSE-POSITIVE FIX — root-caused why T-F1/T-E2 never finished. The
+              wedge-reaper (_slot_stalled, from swarm-reflect 1d7af7e) declared a slot wedged on
+              "log quiet >=15m + no SWARM_RESULT" alone. But Claude Code -p BUFFERS stdout: a
+              hard-working agent's log sits at the 203-byte startup banner for many minutes while
+              it burns CPU + edits files. So the reaper was a FALSE-POSITIVE machine, killing
+              PRODUCTIVE agents every 20m — T-F1 wedged 2x, ran 74m+20m+20m across relaunches, 0
+              results. Verified live: T-F1/T-E2 sat at exactly 203B logs (the wedge signature) while
+              113 claude procs burned 205% CPU. Fix (cf51989): gate the reap on a BUFFERING-IMMUNE
+              signal — minutes since the agent's worktree SOURCE tree (engine/src|test, docs) was
+              last written. Reap only when BOTH log AND worktree are quiet >=15m (the true "claude -p
+              silent + MCP orphans hold the pipe" hang freezes both). Rejected CPU-by-pgid first
+              (Claude Code re-parents workers out of the pane pgid → reads ~0 when busy); deleted
+              that dead helper. Restarted pool (salvage-RESTORE preserved both agents' work byte-
+              identical across the restart — verified). done=13/16; T-F1/T-E2 now run un-churned.
 - 2026-07-13  CENSUS COLOUR-LINK SUB-KIND + RE VALIDATION — established the harness needs NO
               further pool restart (running pool has wedge-reap; setup_worktree salvage-RESTORE is
               a script read fresh each launch → already active), so left T-F1/T-E2 to run
