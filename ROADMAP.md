@@ -419,6 +419,21 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  HARNESS-POLLUTION FEEDBACK-LOOP FIX — caught a landmine in T-E2's worktree: it
+              carried a diff DELETING the salvage-RESTORE block from fct/swarm/setup_worktree.sh
+              (the agent was even actively editing it, mtime fresher than its task file). Root cause:
+              salvage did `git add -A`, capturing harness files that leaked into task worktrees; with
+              salvage-RESTORE, a stale patch reverting a harness file gets salvaged→restored→re-reverted
+              — a feedback loop that would have re-landed the reflect-agent regression a 3rd time if
+              T-E2 committed. Fix: (1) reset setup_worktree.sh in T-E2's worktree to origin (kept its
+              real clone-tile work); (2) scope salvage to non-harness paths (git add -A -- . :(exclude)
+              fct/swarm/*) so harness state lives ONLY on origin/main (80da4cf). VERIFIED T-E2 is doing
+              EXCELLENT targeted work: decoded Video_Wall's "Pin N" Type-3 drop-zone convention (Pin 1→A,
+              Pin 2→B) to route the 14 wall tiles to real photos instead of gray placeholders — exactly
+              the right clone-tile fix. T-E2 healthy post-reset (wt_quiet 4m, clean diff). DECISION:
+              leaving reflectloop DOWN — it keeps dying after dispatching, its agents have CAUSED
+              regressions (1d7af7e), and with only 1 pool task left it has ~nothing to optimize; not
+              worth more debug time. done=13/16, T-E2 in-flight and productive.
 - 2026-07-13  T-F1 (Smear) PULLED FROM POOL — the liveness-gated wedge-reaper (prev tick) worked
               exactly right: it stopped false-reaping T-E2 (which is genuinely progressing, editing
               engine/src) but CORRECTLY reaped T-F1 whose worktree AND log were both frozen 20m. That
