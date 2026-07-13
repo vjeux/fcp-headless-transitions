@@ -44,6 +44,24 @@ git worktree prune
 git branch -D "swarm/$ID" 2>/dev/null || true
 git worktree add --quiet -b "swarm/$ID" "$WT" origin/main
 
+# RESTORE the most recent salvage patch for this id so an OOM-killed / wedge-reaped /
+# pool-restarted agent RESUMES its work instead of redoing 60+ min from scratch. Without
+# this, salvage only PRESERVES the patch on disk; the relaunched agent never sees it and
+# re-does everything (observed: a pool restart relaunched T-F1 after 60m/14 files and its
+# work was NOT restored). Apply against a FRESH origin/main worktree; if the work already
+# landed (DONE tasks aren't relaunched) or the patch no longer applies, --3way fails and we
+# hard-reset to a pristine tree (fresh start, no harm). Only non-empty patches considered.
+# NOTE: this block was reverted once by a stale-base swarm-reflect commit (1d7af7e) — keep it.
+LATEST_SALVAGE="$(ls -t "$ROOT/salvage/$ID."*.patch 2>/dev/null | head -1 || true)"
+if [ -n "$LATEST_SALVAGE" ] && [ -s "$LATEST_SALVAGE" ]; then
+  if ( cd "$WT" && git apply --3way --whitespace=nowarn "$LATEST_SALVAGE" >/dev/null 2>&1 ); then
+    echo "setup_worktree: RESTORED salvaged $ID work <- $LATEST_SALVAGE" >&2
+  else
+    ( cd "$WT" && git checkout -- . >/dev/null 2>&1; git reset --hard origin/main >/dev/null 2>&1 ) || true
+    echo "setup_worktree: salvage $ID did not apply (likely already landed or diverged) — fresh start" >&2
+  fi
+fi
+
 # Share node_modules (gitignored, 61M) read-only via symlink so tsx runs immediately.
 if [ ! -e "$WT/engine/node_modules" ]; then
   ln -s "$MAIN/engine/node_modules" "$WT/engine/node_modules"
