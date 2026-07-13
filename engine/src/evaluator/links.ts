@@ -150,6 +150,9 @@ function resolveDriverChannel(
   };
   let value = readRigged(prop, channel);
   for (const sl of selfLinks) {
+    // Colour-channel Links are handled by evaluator/color-links.ts (they don't
+    // drive transform channels), so skip them here.
+    if (sl.targetProp === 'color' || sl.sourceProp === 'color') continue;
     if (sl.targetProp !== prop || sl.targetChannel !== channel) continue;
     if (sl.customMix === 0) continue;
     const sv = readRigged(sl.sourceProp, sl.sourceChannel) * sl.scale + sl.offset;
@@ -164,6 +167,7 @@ function resolveDriverChannel(
     if (!vis.has(driver.id)) {
       vis.add(driver.id);
       for (const cl of crossLinks) {
+        if (cl.targetProp === 'color' || cl.sourceProp === 'color') continue;
         if (cl.targetProp !== prop || cl.targetChannel !== channel) continue;
         if (cl.customMix === 0) continue;
         const src = layerById.get(cl.sourceObjectId);
@@ -217,6 +221,10 @@ export function applyLinks(
     !(l.targetProp === 'position' && l.targetChannel === 'Z' && anchorZSources.has(l.sourceObjectId)));
   const result = { ...transform };
   for (const link of links) {
+    // Colour-channel Links are evaluated in a separate pass (evaluator/color-
+    // links.ts). Skip them here so they never reach the transform-channel branches
+    // below (which would corrupt a random transform channel with an RGB value).
+    if (link.targetProp === 'color') continue;
     const driver = layerById.get(link.sourceObjectId);
     if (!driver) continue;
 
@@ -239,7 +247,10 @@ export function applyLinks(
       scale = link.rigScale[idx];
     }
 
-    let v = resolveDriverChannel(driver, link.sourceChannel, timeSec, link.sourceProp, behaviors, widgetValues, layerById, linksByTarget);
+    // sourceProp cannot be 'color' here — the guard above already `continue`d on
+     // colour Links. TS can't narrow through the object property, so we assert.
+    const srcProp = link.sourceProp as 'position' | 'rotation' | 'scale' | 'opacity' | 'anchor';
+    let v = resolveDriverChannel(driver, link.sourceChannel, timeSec, srcProp, behaviors, widgetValues, layerById, linksByTarget);
     // Motion's "Clamp Source Value Within Range" uses min/max = ±100 as the
     // default (unset) UI sentinel; real transitions drive far past ±100 (e.g. a
     // full 1080px push). Only clamp when a non-default range is present.

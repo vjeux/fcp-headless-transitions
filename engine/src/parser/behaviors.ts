@@ -46,6 +46,62 @@ export function parseLayerBehaviors(el: Element, factories: Map<number, string>)
 }
 
 /**
+ * Detect a colour-Link source path. A `sourceChannelRef` walking through Fill Color
+ * (id 111) — e.g. `./2/353/113/111/{1,2,3}` (Object > Shape > Style > Fill Color >
+ * Red/Green/Blue) — reads a shape's Fill Color RGB and is the SOURCE half of a
+ * colour-channel Link. The trailing 1/2/3 selects R/G/B. Returns null if the path
+ * does not name a Fill Color RGB channel.
+ */
+function parseColorSourcePath(path: string | null | undefined): 'R' | 'G' | 'B' | null {
+  if (!path) return null;
+  const segs = path.replace(/^\.\//, '').split('/').map(s => s.trim()).filter(Boolean);
+  const i = segs.indexOf('111');
+  if (i < 0) return null;
+  const chSeg = segs[i + 1];
+  if (chSeg === '1') return 'R';
+  if (chSeg === '2') return 'G';
+  if (chSeg === '3') return 'B';
+  return null;
+}
+
+/**
+ * Detect a colour-Link target from the Link's affectingChannel + the Affecting
+ * Object's node type. Returns the ColorTarget kind or null.
+ *
+ * Two structural shapes cover the built-in colour Links:
+ *   1. Colorize filter Remap folder: affectingChannel `./1` (Remap Black To id=1)
+ *      or `./2` (Remap White To id=2) AND the affected object is a ProPlugin
+ *      filter whose pluginName contains "colorize" (also matches PAEColorize).
+ *      Panels_Across's 3 crosses each carry this pair.
+ *   2. Shape Fill Color: affectingChannel `./2/353/113/111` — Object(2) > Shape(353)
+ *      > Style(113) > Fill Color(111). Panels_Across's "Red bar" uses this.
+ *
+ * The channelBehavior's sliderRange=1 attribute also tags a colour-channel target
+ * (channel domain is 0..1) but we don't rely on it — the path shape is the reliable
+ * decode. Gradient-tag targets (`./2/353/113/104/1/<tagId>/3/{1,2,3}`) — used by
+ * Slide_In/Loop/Heart — are not returned here yet (their renderer support is separate;
+ * see ROADMAP S1/T-A1 note).
+ */
+function parseColorTarget(
+  affectingChannel: string,
+  affectingObjectId: number,
+  filtersById: Map<number, { pluginName?: string; name?: string }>,
+): 'colorizeRemapBlack' | 'colorizeRemapWhite' | 'shapeFill' | null {
+  const path = affectingChannel.trim();
+  const isColorizeFilter = (id: number): boolean => {
+    const f = filtersById.get(id);
+    if (!f) return false;
+    const pn = (f.pluginName || '').toLowerCase();
+    const nm = (f.name || '').toLowerCase();
+    return pn.includes('colorize') || nm.includes('colorize');
+  };
+  if (path === './1' && isColorizeFilter(affectingObjectId)) return 'colorizeRemapBlack';
+  if (path === './2' && isColorizeFilter(affectingObjectId)) return 'colorizeRemapWhite';
+  if (path === './2/353/113/111') return 'shapeFill';
+  return null;
+}
+
+/**
  * Parse Link behaviors (factory "Link", id 7) attached to a layer.
  *
  * A Link drives one of the host layer's Position channels from a source object's
@@ -54,17 +110,29 @@ export function parseLayerBehaviors(el: Element, factories: Map<number, string>)
  * onto the visible transition group — one Link per axis, gated by the Direction rig.
  *
  * Channel refs like "./1/100/101/1" mean Properties(1)/Transform(100)/Position(101)/X(1);
- * the trailing 1/2/3 = X/Y/Z.
+ * the trailing 1/2/3 = X/Y/Z. COLOUR Links drive a Colorize filter's Remap Black/
+ * White folder or a Shape's Fill Color from a source shape's Fill Color RGB
+ * (sourceChannelRef contains `111` = Fill Color); see parseColorTarget +
+ * parseColorSourcePath. Panels_Across is the canonical colour-Link user (Colorize
+ * Remap + Red bar Fill).
  */
-export function parseLinkBehaviors(el: Element, factories: Map<number, string>): LinkBehavior[] {
+export function parseLinkBehaviors(
+  el: Element,
+  factories: Map<number, string>,
+  filtersById?: Map<number, { pluginName?: string; name?: string }>,
+): LinkBehavior[] {
   const links: LinkBehavior[] = [];
 
   for (const b of directChildren(el, 'behavior')) {
     const fid = parseInt(b.getAttribute('factoryID') || '0', 10);
     if (factories.get(fid) !== 'Link') continue;
 
-    let sourceObjectId = 0, scale = 1, customMix = 1, min = -Infinity, max = Infinity;
+    let sourceObjectId = 0, affectingObjectId = 0, scale = 1, customMix = 1, min = -Infinity, max = Infinity;
     let offsetX = 0, offsetY = 0, offsetZ = 0, offsetOpacity = 0;
+    let redOffset = 0, greenOffset = 0, blueOffset = 0;
+    let redMin: number | undefined, redMax: number | undefined;
+    let greenMin: number | undefined, greenMax: number | undefined;
+    let blueMin: number | undefined, blueMax: number | undefined;
     // Motion nests LinkX/LinkY on the "Group" layer; their "Affecting Object" names
     // Transition A, but the observed effect is that the whole group (A + the B
     // clones) is driven together (so B enters as A leaves). We therefore apply the
@@ -76,8 +144,23 @@ export function parseLinkBehaviors(el: Element, factories: Map<number, string>):
       const v = p.getAttribute('value');
       const num = v !== null ? parseFloat(v) : NaN;
       if (pname === 'Source Object') sourceObjectId = parseInt(v || '0', 10);
+      // Colour-Link routing needs the Affecting Object (Hidden) id (id=199) to
+      // decide whether `./1`/`./2` targets a Colorize filter's Remap Black/White
+      // folder. Ignored by transform links (redundant with the enclosing layer id).
+      else if (pname === 'Affecting Object (Hidden)' && !isNaN(num)) affectingObjectId = num;
       else if (pname === 'Scale' && !isNaN(num)) scale = num;
       else if (pname === 'Custom Mix' && !isNaN(num)) customMix = num;
+      // Per-channel R/G/B offsets and min/max — colour links use these instead of
+      // X/Y/Z. Motion emits "Red offset", "Red min", "Red max" (and G/B).
+      else if (pname === 'Red offset' && !isNaN(num)) redOffset = num;
+      else if (pname === 'Green offset' && !isNaN(num)) greenOffset = num;
+      else if (pname === 'Blue offset' && !isNaN(num)) blueOffset = num;
+      else if (pname === 'Red min' && !isNaN(num)) redMin = num;
+      else if (pname === 'Red max' && !isNaN(num)) redMax = num;
+      else if (pname === 'Green min' && !isNaN(num)) greenMin = num;
+      else if (pname === 'Green max' && !isNaN(num)) greenMax = num;
+      else if (pname === 'Blue min' && !isNaN(num)) blueMin = num;
+      else if (pname === 'Blue max' && !isNaN(num)) blueMax = num;
       else if ((pname === 'X min' || pname === 'Y min' || pname === 'Z min' || pname === 'Opacity min') && !isNaN(num)) min = num;
       else if ((pname === 'X max' || pname === 'Y max' || pname === 'Z max' || pname === 'Opacity max') && !isNaN(num)) max = num;
       // Additive per-clone offset (linked = source*scale + offset). Only set when
@@ -125,12 +208,71 @@ export function parseLinkBehaviors(el: Element, factories: Map<number, string>):
     };
     const cbEl = firstChild(b, 'channelBehavior');
     const affPath = cbEl?.getAttribute('affectingChannel') || '';
+    // COLOUR-LINK DETECTION. If any expressionChannels sourceChannelRef reads a Fill
+    // Color RGB (path ends in `.../111/{1,2,3}`) AND the target path is a recognised
+    // colour target (Colorize Remap folder or a Shape's Fill Color), classify this
+    // Link as a colour-channel Link and emit R/G/B specs instead of X/Y/Z position.
+    // Detection is purely structural — path shape + affected node type — never per
+    // transition. See parseColorTarget / parseColorSourcePath.
+    const exprEls = directChildren(b, 'expressionChannels');
+    const colorTargetKind = filtersById
+      ? parseColorTarget(affPath, affectingObjectId, filtersById)
+      : null;
+    const anyColourSourceRef = exprEls.some(e => parseColorSourcePath(getTextContent(e, 'sourceChannelRef')) !== null);
+    // A colour Link whose target we DON'T yet render (gradient colour tags — used
+    // by Loop/Heart/Slide_In, affectingChannel `.../353/113/104/...`) has a colour
+    // source path (`.../111/{1,2,3}`) but no `colorTargetKind` match here. Skip
+    // the whole link: falling through to the transform-link path would decode the
+    // Fill Color as a POSITION and drive a random transform channel with garbage.
+    // Once gradient-tag rendering lands (S1/T-A1 follow-up), extend parseColorTarget
+    // to return a 'gradientTag' kind and add a case above.
+    if (anyColourSourceRef && !colorTargetKind) {
+      continue;
+    }
+    if (colorTargetKind && anyColourSourceRef) {
+      // Emit one LinkBehavior per RGB channel driven. sourceChannel/targetChannel
+      // are represented as X/Y/Z (the shared LinkBehavior schema) with
+      // colorTarget.channel carrying the true R/G/B — the evaluator's colour path
+      // reads colorTarget.channel and ignores targetChannel for routing.
+      for (const expr of exprEls) {
+        const srcRef = getTextContent(expr, 'sourceChannelRef');
+        const chan = parseColorSourcePath(srcRef);
+        if (!chan) continue;
+        const tgtChar: 'X' | 'Y' | 'Z' = chan === 'R' ? 'X' : chan === 'G' ? 'Y' : 'Z';
+        const perChOffset = chan === 'R' ? redOffset : chan === 'G' ? greenOffset : blueOffset;
+        const perChMin = chan === 'R' ? redMin : chan === 'G' ? greenMin : blueMin;
+        const perChMax = chan === 'R' ? redMax : chan === 'G' ? greenMax : blueMax;
+        // The colour-Link min/max apply per channel; a value that isn't emitted
+        // stays at the LinkBehavior's default (±100 sentinel = no clamp).
+        const linkMin = perChMin !== undefined ? perChMin : min;
+        const linkMax = perChMax !== undefined ? perChMax : max;
+        links.push({
+          affectedObjectId: colorTargetKind === 'shapeFill' ? affectedId : affectingObjectId,
+          sourceObjectId,
+          targetChannel: tgtChar,
+          targetProp: 'color',
+          sourceProp: 'color',
+          sourceChannel: tgtChar,
+          scale,
+          offset: perChOffset,
+          customMix,
+          min: linkMin,
+          max: linkMax,
+          colorTarget: {
+            kind: colorTargetKind,
+            channel: chan,
+            filterId: colorTargetKind === 'shapeFill' ? undefined : affectingObjectId,
+          },
+        });
+      }
+      // Colour Link handled — skip the transform-link path below.
+      continue;
+    }
     // A single Link behavior may drive MULTIPLE channels (X/Y/Z), one per
     // <expressionChannels>. LinkPos/LinkAnchor carry three; LinkRot one. Reading
     // only the first (the old behavior) silently dropped the Y/Z position links —
     // e.g. Reflection's LinkPos.Z, which pulls the card group toward the camera.
     // Collect all expression channels; emit one LinkBehavior per channel below.
-    const exprEls = directChildren(b, 'expressionChannels');
     interface ChanSpec { targetChannel: 'X' | 'Y' | 'Z'; sourceChannel: 'X' | 'Y' | 'Z'; targetProp: 'position' | 'rotation' | 'scale' | 'opacity' | 'anchor'; sourceProp: 'position' | 'rotation' | 'scale' | 'opacity' | 'anchor'; }
     const chanSpecs: ChanSpec[] = [];
     for (const expr of exprEls) {

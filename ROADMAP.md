@@ -167,8 +167,11 @@ happen to edit the same file, whoever merges second rebases onto the first.
 ```
 ID    STATUS  TASK                                                TARGET SLUGS / GOAL
 ----  ------  --------------------------------------------------  ------------------------------------
-T-A1  TODO    colour-channel Link (census-verified)               Panels_Across, Slide_In, Loop,
+T-A1  PARTIAL colour-channel Link (census-verified)               Panels_Across, Slide_In, Loop,
                                                                   Heart (NOT Color_Planes — 3D fold)
+              [infrastructure landed; PSNR=neutral because downstream renderers missing —
+               Cross image = Media/cross.ai vector-unsupported, Loop/Heart/Slide_In target
+               GRADIENT-TAG colour (renderer TBD). Framework hooks left for future ticks.]
 T-A2  TODO    Motion Path driver                                  layer follows a spatial path;
                                                                   unblocks path users
 T-A3  DROPPED Gravity driver (LAYER-level)                        census: 0 built-in LAYERS use
@@ -476,6 +479,65 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
               to agent_brief.md so an agent launched onto an already-DONE task exits in ~1s
               instead of running full census (six T-A3 relaunches on 2026-07-13 each spent
               ~1-5min re-confirming the same DROPPED verdict). Gate 0 reg / 0 imp (harness-only).
+- 2026-07-13  T-A1 (colour-channel Link, PARTIAL/NEUTRAL) — landed the colour-Link
+              INFRASTRUCTURE end-to-end (parser -> evaluator -> Colorize filter + Shape
+              fill) but the census-verified target slugs stay at 0.00 dB delta because
+              the downstream renderers a colour Link needs are ABSENT for every
+              built-in colour-Link user in the wild.
+              Decode (fct census, verified in-code): 4 slugs are true colour-Link
+              users. Panels_Across has 7 colour Links (3 Colorize Remap-Black/White
+              pairs on "Cross 1/2/3" + 1 Shape-Fill on "Red bar") all sourced from
+              the hidden enabled=0 "Color linker" shape whose static Fill Color is
+              (0.737, 0.070, 0.141). Slide_In has 6, Loop 8, Heart 6 — all targeting
+              GRADIENT COLOR TAGS on a Gradient shape (affectingChannel path
+              `.../353/113/104/1/<tagId>/3/{1,2,3}`). Sources decoded from
+              `./2/353/113/111/{1,2,3}` (Object > Shape > Style > Fill Color > R/G/B)
+              via expressionChannels.
+              Implementation: extended LinkBehavior with targetProp='color' + a
+              structural `colorTarget` discriminator (colorizeRemapBlack |
+              colorizeRemapWhite | shapeFill); parser adds a pre-scan for
+              filtersById (needed to classify `./1`/`./2` as Colorize-Remap when
+              the affected object is a Colorize filter) and a linkColorSources
+              scan (Fill-Color RGB from every scenenode, INCLUDING enabled=0 and
+              solid-fill-flag-clear driver shapes — the strict shape-parse gates
+              rejected the hidden "Color linker"). New evaluator/color-links.ts
+              resolves Link value = clamp(src,min,max)*scale+offset per RGB, folds
+              Colorize-Remap overrides into filterOverrides via special
+              `__ColorLink.RemapBlack.{Red|Green|Blue}` / `.RemapWhite.*` keys the
+              Colorize filter checks, and rides Shape-Fill overrides on
+              EvaluatedLayer.fillColorOverride (renderDrawableLayer accepts an
+              override even when parseShape's strict solid-fill gate skipped the
+              base fillColor). Gradient-tag targets are DETECTED as colour Links
+              (source path ends in 111) but SKIPPED (no target renderer yet) so
+              they never fall through to the transform-link path (which would
+              otherwise decode a colour ref as a POSITION and drive a random
+              transform channel with garbage).
+              Neutrality: Panels_Across 10.33->10.33, Slide_In 10.18->10.18,
+              Loop 12.82->12.82, Heart 13.34->13.34 (full-res). Gate-size:
+              10.38/10.25/12.92/13.49 all delta 0.00. Verified neutral on 7
+              additional sample slugs (Blurs__Gaussian 18.30/18.30, Objects__
+              Curtains 15.10/15.10, Wipes__Mask 14.30/14.30, ...).
+              Why 0.00 dB: (a) Panels_Across's Colorize filters apply to "Cross"
+              IMAGE layers whose Source Media is `Media/cross.ai` — a vector .ai
+              file the engine cannot load (no vector-image support), so the layer
+              renders nothing and the Colorize override never touches a pixel.
+              (b) Red bar's Shape-Fill override activates (parser produces
+              linkColorSource 988593389 -> (188,18,36) and the compositor accepts
+              it via the new fillColorOverride path) — frames 20-23 pixel-differ
+              from baseline but the change nets to 0.00 dB (a small crimson bar
+              at the transition tail). (c) Loop/Heart/Slide_In colour Links target
+              GRADIENT color tags — the renderer they need (gradient-tag colour
+              override on a Shape's Gradient generator) doesn't exist yet.
+              No-hardcode: probes unchanged (still 6 detectors, all fire on >=2).
+              Detection is purely path-shape (`111` for source, `./1`/`./2` +
+              Colorize filter for target, `./2/353/113/111` for shapeFill) — no
+              transition names. Parser structural detection fires on 4 built-ins
+              (Panels_Across + Slide_In + Loop + Heart).
+              Follow-ups this UNBLOCKS: a vector-image loader (would make
+              Panels_Across's Cross Colorize actually paint the accent — likely
+              the biggest single win on this slug); a gradient-tag override path
+              on the Gradient generator (would light up Loop/Heart/Slide_In's
+              colour Links immediately with no more Link work).
 - 2026-07-13  SWARM RESILIENCE TICK — two pool fixes so agents' work reliably lands. (1) REAP:
               the pool now kills any live slot whose task is already DONE on origin (T-D1 had been
               redundantly re-run in slot 2 for 25min after it merged); reaping freed slot 2 which

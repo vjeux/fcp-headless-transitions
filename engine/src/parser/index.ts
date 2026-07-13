@@ -38,7 +38,7 @@ import { parseCameraParams } from './camera.js';
 // ============================================================================
 
 
-function parseSceneNode(el: Element, factories: Map<number, string>, clip: ClipInfo, linkSourceIds: Set<number>): Layer {
+function parseSceneNode(el: Element, factories: Map<number, string>, clip: ClipInfo, linkSourceIds: Set<number>, filtersById?: Map<number, { pluginName?: string; name?: string }>): Layer {
   const factoryID = parseInt(el.getAttribute('factoryID') || '0', 10);
   const factoryType = factories.get(factoryID) || '';
 
@@ -106,7 +106,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clip: ClipI
     if (childType !== 'ProPlugin Filter' && childType !== 'Fade In/Fade Out'
         && childType !== 'Oscillate' && childType !== 'Spin' && childType !== 'Throw'
         && childType !== 'Motion Path' && childType !== 'Align To') {
-      children.push(parseSceneNode(childNode, factories, clip, linkSourceIds));
+      children.push(parseSceneNode(childNode, factories, clip, linkSourceIds, filtersById));
     }
   }
 
@@ -232,7 +232,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clip: ClipI
       b => parseInt(b.getAttribute('factoryID') || '0', 10) === 22
         || factories.get(parseInt(b.getAttribute('factoryID') || '0', 10)) === 'Align To'
     ),
-    links: parseLinkBehaviors(el, factories),
+    links: parseLinkBehaviors(el, factories, filtersById),
     camera: type === 'camera' ? parseCameraParams(el, params, factories) : undefined,
   };
 
@@ -274,7 +274,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clip: ClipI
 /**
  * Parse a <layer> element (a group that contains scenenodes).
  */
-function parseLayerElement(el: Element, factories: Map<number, string>, clip: ClipInfo, linkSourceIds: Set<number>): Layer {
+function parseLayerElement(el: Element, factories: Map<number, string>, clip: ClipInfo, linkSourceIds: Set<number>, filtersById?: Map<number, { pluginName?: string; name?: string }>): Layer {
   // Parse the layer's own parameters
   const params: Parameter[] = [];
   for (const paramEl of directChildren(el, 'parameter')) {
@@ -302,10 +302,10 @@ function parseLayerElement(el: Element, factories: Map<number, string>, clip: Cl
         if (fEnabledText !== null && fEnabledText.trim() === '0') continue;
         filters.push({ id: filterId, pluginName, pluginUUID, parameters: filterParams });
       } else {
-        children.push(parseSceneNode(childEl, factories, clip, linkSourceIds));
+        children.push(parseSceneNode(childEl, factories, clip, linkSourceIds, filtersById));
       }
     } else if (childEl.tagName === 'layer' || childEl.tagName === 'group') {
-      children.push(parseLayerElement(childEl, factories, clip, linkSourceIds));
+      children.push(parseLayerElement(childEl, factories, clip, linkSourceIds, filtersById));
     } else if (childEl.tagName === 'filter') {
       // Filter elements (blur, color, etc.)
       const filterId = parseInt(childEl.getAttribute('id') || '0', 10);
@@ -332,7 +332,7 @@ function parseLayerElement(el: Element, factories: Map<number, string>, clip: Cl
     children,
     timing: parseTiming(el),
     enabled: (() => { const t = getTextContent(el, 'enabled'); return t === null ? true : t.trim() !== '0'; })(),
-    links: parseLinkBehaviors(el, factories),
+    links: parseLinkBehaviors(el, factories, filtersById),
   };
 }
 
@@ -405,17 +405,87 @@ export function parseMotr(xmlText: string): MotrScene {
     }
   }
 
+  // Pre-scan: filtersById maps filter-object id → its pluginName/name. Needed by
+  // parseLinkBehaviors to decide whether a colour-Link path `./1`/`./2` targets a
+  // Colorize filter's Remap Black/White folder (structural colour-Link detection,
+  // per ROADMAP S1/T-A1 — Panels_Across uses this).
+  const filtersById = new Map<number, { pluginName?: string; name?: string }>();
+  {
+    const fEls = Array.from(sceneEl.getElementsByTagName('scenenode'))
+      .concat(Array.from(sceneEl.getElementsByTagName('filter')));
+    for (const f of fEls) {
+      const fid = parseInt(f.getAttribute('id') || '0', 10);
+      if (!fid) continue;
+      const pluginName = f.getAttribute('pluginName') || undefined;
+      const nm = f.getAttribute('name') || undefined;
+      // Only capture actual FILTER nodes (either <filter> elements or ProPlugin
+      // Filter scenenodes). Non-filter scenenodes still get an entry with just
+      // `name`, which parseColorTarget rejects (needs a colorize plugin name).
+      const fFactoryId = parseInt(f.getAttribute('factoryID') || '0', 10);
+      const isFilterScenenode = factories.get(fFactoryId) === 'ProPlugin Filter';
+      const isFilterElement = f.tagName === 'filter';
+      if (isFilterScenenode || isFilterElement) {
+        filtersById.set(fid, { pluginName, name: nm });
+      }
+    }
+  }
+
+  // Pre-scan: linkColorSources maps object id → Fill Color RGB (0-1) for ANY
+  // scenenode carrying a Fill Color (id=111) with Red/Green/Blue children —
+  // regardless of `<enabled>0</enabled>` and regardless of the solid-fill flag bit.
+  // A colour-channel Link's sourceChannelRef `./2/353/113/111/{1,2,3}` reads these
+  // RGB, and the source is usually a HIDDEN driver shape (Panels_Across's "Color
+  // linker" is enabled=0 with the solid-fill bit CLEAR — findFillColor skips it —
+  // yet its (0.737, 0.070, 0.141) fill is what feeds every Colorize accent). Kept
+  // in a separate map so the strict Layer.shape.fillColor path (Lights/Flash) and
+  // the gradient path (Heart) are undisturbed. Static values only for now (built-in
+  // colour drivers all use static swatches — verified by inspecting the four T-A1
+  // slugs).
+  const linkColorSources = new Map<number, { r: number; g: number; b: number }>();
+  {
+    for (const node of Array.from(sceneEl.getElementsByTagName('scenenode'))) {
+      const nid = parseInt(node.getAttribute('id') || '0', 10);
+      if (!nid) continue;
+      // Only shapes / generators carry a Fill Color; the getElementsByTagName scan
+      // avoids deep nested Fill Color params (a filter's Remap folder also has
+      // Red/Green/Blue children with different ids). We select by name+id.
+      let fillColor: { r: number; g: number; b: number } | undefined;
+      for (const p of Array.from(node.getElementsByTagName('parameter'))) {
+        if (p.getAttribute('name') !== 'Fill Color' || p.getAttribute('id') !== '111') continue;
+        // The FIRST Fill Color anywhere in this scenenode is the shape's own fill.
+        // A shape with a nested mask (Circle Mask) would show the mask's Fill Color
+        // second — the first-match rule captures the outer shape's colour.
+        let r: number | undefined, g: number | undefined, b: number | undefined;
+        for (const ch of directChildren(p, 'parameter')) {
+          const nm = ch.getAttribute('name');
+          const vAttr = ch.getAttribute('value');
+          const dAttr = ch.getAttribute('default');
+          const v = vAttr !== null ? parseFloat(vAttr) : (dAttr !== null ? parseFloat(dAttr) : NaN);
+          if (isNaN(v)) continue;
+          if (nm === 'Red') r = v;
+          else if (nm === 'Green') g = v;
+          else if (nm === 'Blue') b = v;
+        }
+        if (r !== undefined && g !== undefined && b !== undefined) {
+          fillColor = { r, g, b };
+          break;
+        }
+      }
+      if (fillColor) linkColorSources.set(nid, fillColor);
+    }
+  }
+
   // 4. Parse the scene graph (layers + scenenodes under <scene>)
   const layers: Layer[] = [];
   for (const el of allDirectChildren(sceneEl)) {
     if (el.tagName === 'layer' || el.tagName === 'group') {
-      layers.push(parseLayerElement(el, factories, clip, linkSourceIds));
+      layers.push(parseLayerElement(el, factories, clip, linkSourceIds, filtersById));
     } else if (el.tagName === 'scenenode') {
       const fid = parseInt(el.getAttribute('factoryID') || '0', 10);
       const ftype = factories.get(fid) || '';
       // Skip Project, Rig, Widget — they're metadata/control, not visual layers
       if (ftype !== 'Project' && ftype !== 'Rig' && ftype !== 'Widget') {
-        layers.push(parseSceneNode(el, factories, clip, linkSourceIds));
+        layers.push(parseSceneNode(el, factories, clip, linkSourceIds, filtersById));
       }
     }
   }
@@ -794,5 +864,5 @@ export function parseMotr(xmlText: string): MotrScene {
 
   settings.animationEndSec = animationEndSec;
 
-  return { settings, layers, factories, rigWidgets, rigBehaviors, sceneBehaviors };
+  return { settings, layers, factories, rigWidgets, rigBehaviors, sceneBehaviors, linkColorSources };
 }

@@ -374,8 +374,30 @@ registerFilter({
       };
       return { r: ch('Red') ?? def.r, g: ch('Green') ?? def.g, b: ch('Blue') ?? def.b };
     };
+    // Colour-Link overrides (ROADMAP S1/T-A1). A `Link remap black`/`white`
+    // behaviour on the enclosing scenenode has piped a source shape's Fill Color
+    // RGB into this filter's Remap Black/White folder. The evaluator merges those
+    // as special `__ColorLink.RemapBlack.{Red|Green|Blue}` / `.RemapWhite.*` keys
+    // in ctx.overrides; when present, they REPLACE the filter's own nested-child
+    // Remap value per channel. Per-channel: an override for just Red keeps the
+    // filter's own Green/Blue (the built-in colour Links always drive all three
+    // R/G/B siblings, but the plumbing is per-channel for future partial links).
     const black = readColor('Remap Black To', { r: 0, g: 0, b: 0 });
     const white = readColor('Remap White To', { r: 1, g: 1, b: 1 });
+    if (ctx.overrides) {
+      const bR = ctx.overrides.get('__ColorLink.RemapBlack.Red');
+      const bG = ctx.overrides.get('__ColorLink.RemapBlack.Green');
+      const bB = ctx.overrides.get('__ColorLink.RemapBlack.Blue');
+      if (bR !== undefined) black.r = bR;
+      if (bG !== undefined) black.g = bG;
+      if (bB !== undefined) black.b = bB;
+      const wR = ctx.overrides.get('__ColorLink.RemapWhite.Red');
+      const wG = ctx.overrides.get('__ColorLink.RemapWhite.Green');
+      const wB = ctx.overrides.get('__ColorLink.RemapWhite.Blue');
+      if (wR !== undefined) white.r = wR;
+      if (wG !== undefined) white.g = wG;
+      if (wB !== undefined) white.b = wB;
+    }
     const readScalar = (name: string, def: number): number => {
       const p = ctx.filter.parameters.find(pp => pp.name === name);
       if (!p) return def;

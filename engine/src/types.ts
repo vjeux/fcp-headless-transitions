@@ -303,10 +303,38 @@ export interface LinkBehavior {
    *  (e.g. Scale's LinkAO/LinkBO/LinkBOF on ".../200/202") drives layer opacity.
    *  An anchor Link (e.g. Reflection's LinkAnchor on ".../100/107") drives the
    *  anchor point (anchor-Z = the book-fold hinge spine). */
-  targetProp: 'position' | 'rotation' | 'scale' | 'opacity' | 'anchor';
+  targetProp: 'position' | 'rotation' | 'scale' | 'opacity' | 'anchor' | 'color';
   /** Which transform property the SOURCE channel is read from, decoded from the
    *  sourceChannelRef path. Defaults to 'position'. */
-  sourceProp: 'position' | 'rotation' | 'scale' | 'opacity' | 'anchor';
+  sourceProp: 'position' | 'rotation' | 'scale' | 'opacity' | 'anchor' | 'color';
+  /**
+   * Colour-Link target (only set when `targetProp === 'color'`). Decoded from the
+   * Link's affectingChannel path + the Affecting Object's node type:
+   *
+   *   Colorize filter's Remap Black To (id=1)/Remap White To (id=2) — the Link is
+   *   attached to a scenenode whose Affecting Object (id 199) resolves to a
+   *   ProPlugin Colorize filter (pluginName contains "Colorize"), and
+   *   affectingChannel is `./1` (RemapBlack) or `./2` (RemapWhite). Panels_Across
+   *   uses this: 3× "Cross" scenenodes each carry a Colorize filter + a `Link
+   *   remap black` (./1) + `Link remap white` (./2), both reading the hidden
+   *   "Color linker" shape's Fill Color RGB (0.737, 0.070, 0.141) as the accent.
+   *
+   *   Shape Fill Color (id=111) — affectingChannel is `./2/353/113/111` and the
+   *   affected object is a Shape scenenode. Panels_Across's "Red bar" uses this
+   *   (a single Link fill color copies the Color linker's RGB into the bar's fill).
+   *
+   *   The channel is R/G/B, mapped from targetChannel X/Y/Z (Motion emits three
+   *   sibling <expressionChannels> with targetChannelID 1/2/3 → R/G/B). Colour
+   *   Links are decoded by the source path shape (contains `111` = Fill Color)
+   *   and the target path shape, NEVER by transition name.
+   */
+  colorTarget?: {
+    kind: 'colorizeRemapBlack' | 'colorizeRemapWhite' | 'shapeFill';
+    channel: 'R' | 'G' | 'B';
+    /** For 'colorize*' targets, the filter object id (the Affecting Object). Absent
+     *  for shapeFill (the affected layer id is `affectedObjectId`). */
+    filterId?: number;
+  };
   /** Which source channel is read: 'X' | 'Y' | 'Z'. */
   sourceChannel: 'X' | 'Y' | 'Z';
   /** Multiplier applied to the source value. */
@@ -647,4 +675,16 @@ export interface MotrScene {
   rigWidgets: RigWidget[];
   rigBehaviors: RigBehavior[];
   sceneBehaviors: SceneBehavior[];
+  /**
+   * Object ID → static Fill Color RGB (0-1) read from ANY scenenode that carries a
+   * Fill Color (id=111) param, INCLUDING nodes marked `<enabled>0</enabled>` and
+   * nodes whose solid-fill flag bit is clear. Populated by scanning the raw XML so
+   * hidden "colour driver" shapes (the source of a colour-channel Link) are always
+   * available: Panels_Across's "Color linker" (enabled=0) has fill (0.737,0.070,
+   * 0.141) that Motion pipes via `Link remap black/white` into each Colorize
+   * filter's Remap folder; Slide_In/Loop/Heart have similar hidden source shapes.
+   * A colour Link's `sourceChannelRef` `./2/353/113/111/{1,2,3}` reads these RGB.
+   * See parser/index.ts (buildLinkColorSources).
+   */
+  linkColorSources?: Map<number, { r: number; g: number; b: number }>;
 }

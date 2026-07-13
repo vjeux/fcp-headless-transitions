@@ -26,6 +26,7 @@ import {
   mat4Identity, mat4Multiply, mat4Translate, mat4Scale, mat4RotateZ, mat4RotateX, mat4RotateY,
 } from './matrix.js';
 import { computeFilterOverrides } from './filter-overrides.js';
+import { computeColorLinks, mergeColorLinksIntoFilterOverrides } from './color-links.js';
 import type { EvalCtx } from './context.js';
 import { applyRampTransforms, applyRampOpacity, applyFadeBehaviors } from './ramp.js';
 import { buildLayerById, applyLinks, applyRigBehaviors } from './links.js';
@@ -66,6 +67,14 @@ export interface EvaluatedLayer {
    * instead of an empty frame.
    */
   forceSourceA?: boolean;
+  /**
+   * Colour-Link Fill Color override (0-255 RGB), replaces this shape layer's
+   * `layer.shape.fillColor` before rasterisation. Set only when a colour-channel
+   * Link (targetProp='color', colorTarget.kind='shapeFill') drives this shape
+   * (Panels_Across's "Red bar" copies the Color linker's RGB into its fill).
+   * See evaluator/color-links.ts + compositor/index.ts renderDrawableLayer.
+   */
+  fillColorOverride?: { r: number; g: number; b: number };
 }
 
 export interface EvaluatedScene {
@@ -596,6 +605,22 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
   })(scene.layers);
   const layers = scene.layers.map(layer => evaluateLayer(layer, timeSec, parentTransform, behaviors, widgetValues, sceneBehaviors, layerById, linksByTarget, ectx));
   const filterOverrides = computeFilterOverrides(scene, timeSec, widgetValues);
+
+  // Colour-channel Links (ROADMAP S1/T-A1): resolve each colour Link's source
+  // Fill Color RGB and merge Colorize-remap overrides into filterOverrides via
+  // special `__ColorLink.RemapBlack/White.{R|G|B}` keys the Colorize filter reads.
+  // Shape-fill overrides ride on the EvaluatedLayer as `fillColorOverride`.
+  const colorLinks = computeColorLinks(scene, timeSec);
+  mergeColorLinksIntoFilterOverrides(filterOverrides, colorLinks);
+  if (colorLinks.shapeFill.size > 0) {
+    (function propagateShapeFill(els: EvaluatedLayer[]) {
+      for (const el of els) {
+        const override = colorLinks.shapeFill.get(el.layer.id);
+        if (override) el.fillColorOverride = override;
+        propagateShapeFill(el.children);
+      }
+    })(layers);
+  }
 
   // Index every evaluated layer by object ID so the compositor can resolve a
   // replicator cell's Object Source to its fully-evaluated content.

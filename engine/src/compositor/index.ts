@@ -325,9 +325,23 @@ function renderCloneLayer(rctx: RenderContext, output: ImageData, evalLayer: Eva
 
 function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: EvaluatedLayer, imageA: ImageData, imageB: ImageData, time: number, filterOverrides: Map<number, Map<string, number>>): RenderOutcome {
   const { layer, worldTransform, opacity, crop } = evalLayer;
-  if (layer.type === 'shape' && layer.shape && !layer.shape.isMask && layer.shape.fillColor && opacity > 0) {
+  if (layer.type === 'shape' && layer.shape && !layer.shape.isMask
+      && (layer.shape.fillColor || evalLayer.fillColorOverride) && opacity > 0) {
     const alpha = rasterizeShape(layer.shape, output.width, output.height, worldTransform, rctx.cameraZ, rctx.cameraPosZ);
-    const { r, g, b, a } = layer.shape.fillColor;
+    // A colour-channel Link (ROADMAP S1/T-A1) may drive this shape's Fill Color
+    // RGB from a hidden colour-driver shape's fill. Panels_Across's "Red bar"
+    // authors its Fill Color WITHOUT the solid-fill flag bit (findFillColor
+    // returns undefined) BECAUSE the fill is Link-driven (the "Link fill color"
+    // behaviour copies the Color linker's (188, 18, 36) into the bar's fill each
+    // frame). When only the Link override is present, we treat it as the fill and
+    // rasterise at full alpha (the override is authoritative — the source shape
+    // is a colour swatch, no per-channel alpha modulation).
+    const baseFC = layer.shape.fillColor;
+    const linked = evalLayer.fillColorOverride;
+    const r = linked ? linked.r : baseFC!.r;
+    const g = linked ? linked.g : baseFC!.g;
+    const b = linked ? linked.b : baseFC!.b;
+    const a = baseFC ? baseFC.a : 1;
     const fillBuf = createBuffer(output.width, output.height);
     const fd = fillBuf.data;
     for (let p = 0, di = 0; p < alpha.length; p++, di += 4) {
