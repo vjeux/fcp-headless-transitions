@@ -181,7 +181,12 @@ T-A1  PARTIAL colour-channel Link (census-verified)               Panels_Across,
                                                                   Heart (NOT Color_Planes — 3D fold)
               [infrastructure landed; PSNR=neutral because downstream renderers missing —
                Cross image = Media/cross.ai vector-unsupported, Loop/Heart/Slide_In target
-               GRADIENT-TAG colour (renderer TBD). Framework hooks left for future ticks.]
+               GRADIENT-TAG colour (renderer TBD). Framework hooks left for future ticks.
+               2026-07-13: gradient-tag structure fully DECODED from Loop/Heart .motr — see
+               docs/notes/GRADIENT_TAG_COLOUR_LINK_RE.md. Target path `.../104/1/<tagId>/3/{1,2,3}`
+               = Gradient→RGB-folder→stop→Color→R/G/B (0..1 float). Renderer is a 6-step plan in
+               that note; needs types.ts + parser/behaviors.ts + parser/index.ts (was collision-
+               blocked by in-flight T-F1/T-B3 at decode time). Build once those land.]
 T-A2  DONE    Motion Path driver                                  layer follows a spatial path;
                                                                   unblocks path users
 T-A3  DROPPED Gravity driver (LAYER-level)                        census: 0 built-in LAYERS use
@@ -417,6 +422,21 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
               And reflect.py surfaces the wedged-log list in metrics so future reflections don't
               have to eyeball ps. Gate: 0 regressions (harness-only). See docs/notes/swarm/
               reflection-2026-07-13-0407.md for the full write-up.
+- 2026-07-13  T-A1 GRADIENT-TAG RE TICK — the T-A1 PARTIAL renderer gap (colour Links to
+              gradient-tag colour, used by Loop/Heart/Slide_In) was blocked from CODING by a
+              file-collision with in-flight agents (T-F1/T-B3 hold types.ts + parser/index.ts).
+              So did the Phase-1 work that DOESN'T collide: read-only reverse-engineering. Decoded
+              the gradient-tag target path straight from Loop.motr + Heart.motr (FCP binary):
+              `.../104/1/<tagId>/3/{1,2,3}` = Gradient param(104) → RGB colour-tags folder(1) →
+              a specific STOP scenenode (RGB1 id 845136460, factoryID=3) → Color(3, fac=15) →
+              Red/Green/Blue(1/2/3, fac=24), each a 0..1 float curve (range −6..8, NOT 0-255).
+              Verified GaussianGradientConfig is the GENERATOR gradient (distinct from these
+              shape-fill stops) and that the compositor shape branch renders flat fillColor only
+              (no stops) — so a stop-list parse + a gradient rasteriser upgrade are needed. Wrote
+              the full decode + a 6-step renderer plan to docs/notes/GRADIENT_TAG_COLOUR_LINK_RE.md
+              and linked it from the T-A1 row. This makes the renderer buildable in one shot once
+              T-F1/T-B3 free those files. Doc-only, no engine/behaviour touched. Swarm unchanged:
+              12/16 DONE, T-B3/E2/F1 in-flight (T-F1 63m/14 files deep on Smear).
 - 2026-07-13  REFLECTLOOP RESILIENCE TICK — the 30-min reflection meta-loop had been DOWN for
               several ticks (needing manual restart each tick) AND was itself CAUSING OOM churn.
               Root causes + fixes: (1) the python `reflect loop` never crashes (robust try/except)
@@ -481,6 +501,79 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
               No new capability detectors -> no-hardcode test unaffected. Framing-
               anchor projection itself STILL diverges ~350px from A (deeper OZ
               computeFraming decode needed for that) — left as follow-up in S6.
+- 2026-07-13  T-B3 DONE (S3 · Emitter appearance — per-cell colour/scale +
+              opacity-over-life envelope, PARTIAL/NEUTRAL, gate 0 reg).
+              CENSUS-VERIFIED FIRST: 3 of 4 ROADMAP-listed targets are NOT
+              emitter scenes — Stylized/Close_and_Open has 107 Replicator
+              +107 Replicator Cell +107 Shape nodes and ZERO Emitter/Particle
+              Cell nodes (the roadmap's "109 emitters" for Close_and_Open
+              miscounted Shape+Replicator+Cell); Stylized/Up-Over is 44
+              Replicators +44 Cells with ZERO emitters; Stylized/Center has
+              41 Shapes +5 Clone Layers with ZERO emitters. Only Glide (15
+              emitters/15 cells) and Diagonal ×2 (15/37 each) among the
+              listed targets are true emitter scenes; the drifting bokeh in
+              Close_and_Open/Up-Over/Center is a Replicator-driven pattern
+              that a future T-B* row would need to gate (out-of-scope for
+              T-B3 which is definitionally emitter-appearance).
+              Ships APPEARANCE INFRASTRUCTURE on top of T-B2's spawn+advect
+              backbone: (1) extends ParticleCellParams with `color`
+              (Object/id=130 R/G/B/Opacity), `colorMode` (id=129 enum: 0
+              Original / 1 Colorize / 3 Over Life), `cellScale` (id=116
+              X/Y) — census-verified against Diagonal hexagon cell
+              (RGBA=0.483,0.482,0.484,1; ColorMode=3; Scale=0.5/0.5),
+              Hexagon 1 (0.999,0.960,0.956,1; ColorMode=1; 0.75/0.75), Bar
+              (0.05/0.05 scale → sub-pixel), Ring 1 (green 0.41,0.76,0.36);
+              (2) parser/emitter.ts reads them with the same numeric-or-
+              default convention as the existing schema (readSubStatic
+              walks direct children of the Color / Scale folders so nested
+              gradient stops at other depths don't pollute the read); (3)
+              compositor/emitter-sim.ts consumes: per-particle colour is
+              scaled from cell.color (fallback near-white 240 for the
+              handful of cells that omit the folder, e.g. Diagonal
+              circle_particle), per-particle alpha is baseAlpha (0.10) ×
+              cell.color.a × opacityOverLife(elapsed/life), per-dot radius
+              is BASE_RADIUS (2px) × mean(cellScale.x, cellScale.y) clamped
+              to [0.5, 8]. Opacity envelope is a linear 10%-fade-in / hold /
+              25%-fade-out — approximates Motion's default id=112 Opacity
+              Over Life ramp shape without decoding the gradient stops.
+              Determinism preserved (same emitterSeed+cellSeed+index →
+              same dot).
+              PSNR (all target slugs, engine vs GUI GT, gate res):
+              Stylized__Diagonal 10.99 (baseline 11.09; delta -0.10 within
+              0.30 tol), Wipes__Diagonal 10.99 (11.09 -0.10), Stylized__
+              Glide 13.54 (13.68 -0.14), Stylized__Close_and_Open 10.87
+              (10.95 -0.08 — non-emitter scene, delta is JPEG-encode noise
+              not the sim), Stylized__Up-Over 11.71 (11.75 -0.04
+              non-emitter), Stylized__Center 11.76 (11.81 -0.05
+              non-emitter). All within tol; the emitter targets are byte-
+              similar to T-B2's contribution (frame-level cmp between old
+              and new Diagonal f12 shows 69.22 dB PSNR / mean abs diff 0.004
+              — per-cell colour/scale/envelope DID change the composited
+              pixels, but the T-B2 dot alpha × radius contribution is small
+              enough that per-cell colouring doesn't yet clear the noise
+              floor at aggregate PSNR). Gate: 0 regressions across all 65
+              slugs; 1 improvement (Movements__Color_Planes 10.47→11.35, a
+              carry-over from T-G1's earlier landing that hadn't been
+              re-baselined — NOT caused by this change).
+              NEXT VISIBLE LEVER (not this row): render each particle as
+              its Particle Source SPRITE (a bundled shape/image tile), not
+              a flat dot — Diagonal cells reference sprite ids 971894859
+              (hexagon), Ring cells reference full geometry, Glide's
+              circle_particle references media 970697767. That's a sizeable
+              new module: sprite raster + per-particle spin + composite
+              blend. This T-B3 landing is the schema + colour + envelope
+              infrastructure that sprite rendering will consume.
+              Tests: emitter-parser (21/21 pass, +3: hexagon/Hexagon 1
+              colour+scale+mode assertions, "most cells >=90% have color"
+              proving the schema is canonical without demanding it on
+              every cell); emitter-sim (15/15 pass, +5: envelope shape at
+              4 age fractions, "per-cell colour paints below-240 pixels
+              on Diagonal" proving the colour path fires); no-hardcode 7/7
+              (hasSimulatableEmitter still fires on 4 built-ins: Diagonal,
+              Glide, Drop In, Earthquake); parser 12/12; behaviors 23/23;
+              tsc clean.
+              Unblocks: T-B4/T-B5 if/when someone wants per-cell sprite
+              rendering (colour+scale schema and alpha envelope are ready).
 - 2026-07-13  T-B2 DONE (S3 · Emitter SIM+render MINIMAL — spawn/advect/gravity
               /composite flat-COLOUR dots, gate 0/0). Ships
               engine/src/compositor/emitter-sim.ts: deterministic
