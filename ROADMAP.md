@@ -307,10 +307,20 @@ Panels_Across; Colorize=1; Tint). This is the single largest ceiling.
 error is in COMPOSITING, not isolated filters). The correct model is an engine-level pass:
 decode sRGB→linear once at scene input, run all blends/filters/composite in linear, encode once
 at output.
+**RE-CONFIRMED 2026-07-13d (measurement):** flipping the existing `LINEAR_COMPOSITE_ENABLED`
+flag ON (its only consumers are the HSV + Channel-Mixer filters, T-D2d) does NOT help — measured
+Color_Planes 11.35→11.26 (slightly WORSE) and Center 11.76→11.76 (unchanged), full gate reverted.
+This RE-VALIDATES the thesis above: a per-filter linear encode is a DEAD END; the fix must be the
+WHOLE-CHAIN engine-level pass (linear buffer through every blit/blend/composite, one encode at
+output), NOT more per-filter flag flips. Do not re-test the flag — build the whole-chain pass.
 **Slugs gated:** the low tail of the "other" bucket + all of S4 (Lower, Bloom, 360°_Bloom,
 Panels_Across, Smear, Brightness/Colorize/Tint users).
-**Next step:** add a linear composite path behind a flag; gate-green on the overlay slugs FIRST;
-then migrate filter families into it one at a time, gate-green after each. Never commit red.
+**Next step:** add a WHOLE-CHAIN linear composite path (Float32 linear `output` buffer + linear
+blit/blend variants) behind the flag; gate-green (byte-identical) with the flag OFF FIRST, then
+flip + measure on the overlay slugs (start with the cleanest single-blend case, not the
+mask-choreography scenes — Lower/Center's deficits are dominated by mask-reveal breakage, NOT
+linear dimness, so they are the WRONG first target). Migrate one blend/filter family at a time,
+gate-green after each. Never commit red.
 **DoD:** linear chain on by default; net improvement across the gated slugs; 0 regressions.
 **Verify:** `fct regress engine`; spot `fct score Stylized__Lower Lights__Bloom --full`.
 
@@ -424,6 +434,25 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13d  S2 LINEAR-COMPOSITE re-confirmation (measurement, no code shipped). Empirically
+              tested flipping the existing LINEAR_COMPOSITE_ENABLED flag ON (consumers: HSV +
+              Channel-Mixer filters only): Color_Planes 11.35→11.26 (WORSE), Center 11.76→11.76
+              (unchanged) → reverted, tree clean, gate green. This RE-VALIDATES that the per-filter
+              linear encode is a DEAD END (matches the original "per-filter regressed the stacked
+              GT" finding); the fix MUST be the whole-chain engine-level pass (Float32 linear buffer
+              through every blit/blend/composite, one encode at output). Updated S2 next-step to say
+              so + flagged that Lower/Center/Panels_Across are the WRONG first target (their deficits
+              are dominated by mask-reveal breakage + wipe-timing, NOT linear dimness — verified via
+              GT vs engine frame compares: Center f23 renders a broken white panel over blank instead
+              of full B; Panels_Across f12 left third still shows A + dim gray panels). The clean
+              first linear target is a single semi-transparent overlay blend, not a choreography scene.
+              Also re-confirmed Loop's write-on source is elusive: arc/shape/Loop1 clips are all
+              "Missing Is Still=1" (single-still placeholders, not sequences) and the "Gradient" vector
+              shape's First/Last Point Offset carry NO keyframes — so the visible stroke write-on is an
+              FCP-internal procedural draw not reconstructable from a static PNG; reinforces that the
+              Loop reveal-timing is a dedicated multi-step RE item. NEXT: build the S2 whole-chain
+              linear composite pass (biggest lever) as a dedicated multi-tick effort, gate-green flag
+              OFF first, then flip+measure on a clean single-blend overlay slug.
 - 2026-07-13c  LOOP REVEAL — full GT-verified RE + MEASURED decomposition (docs/notes/
               STYLIZED_LOOP_HEART_REVEAL_RE.md refined). Killed two wrong hypotheses: the "growing
               teardrop" is NOT a scaling matte (shape/Group/Ornament all Scale=1.0 the whole
