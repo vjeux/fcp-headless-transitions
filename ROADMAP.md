@@ -86,7 +86,7 @@ and future renders share one encode path. Do NOT chase these as real regressions
 
 ## Status snapshot  (2026-07-13)
 
-- **Engine mean: 13.91 dB** across 65 GUI-GT transitions; **20 / 65 already ≥ 15 dB** (matched).
+- **Engine mean: 13.93 dB** across 65 GUI-GT transitions; **20 / 65 already ≥ 15 dB** (matched).
 - **Architecture is DONE.** The renderer contract, single time authority, filter registry,
   RenderContext threading, god-object splits, colour-transform CI, and the 360° full-frame
   model all landed (items A1–A8 in the "Done architecture" ledger at the bottom).
@@ -97,15 +97,11 @@ and future renders share one encode path. Do NOT chase these as real regressions
 - Work top-down by **coverage × safety** (Σ deficit-to-16 dB ÷ risk). One subsystem per arc,
   gate-green each commit, baseline re-frozen when an improvement is protected.
 
-- **⚠ BASELINE RE-FREEZE PENDING (2026-07-13):** `fct regress engine` is GREEN (0 regressions,
-  0 improvements, 64s) — but that is measured against a baseline frozen from **Jul-10 engine
-  frames**, which PREDATE several landed improvements (T-G1 Color_Planes 10.47→11.35, T-E1
-  Video_Wall 8.74→~9.1, T-B2 emitter sim, the four T-D2 linear migrations [flags OFF =
-  byte-identical]). The main-worktree engine frames on disk are also stale, so the current
-  13.91 dB does NOT yet include those gains. DO NOT re-freeze piecemeal mid-swarm (agents need
-  the cores + may land more this session). Correct action: once the swarm DRAINS (T-B3/E2/F1
-  done), run `fct gen engine --all` then `fct baseline engine` to capture ALL landed gains at
-  once, then re-verify green. Until then, treat 13.91 as a conservative floor.
+- **✅ BASELINE RE-FROZEN (2026-07-13, commit f8d4d6d):** the swarm drained, all 65 slugs were
+  re-rendered from current main (0 regressions), and `fct baseline engine` re-froze at **13.93 dB**
+  — now capturing the landed gains (T-G1 Color_Planes 10.47→11.35, T-E1 Video_Wall 8.74→9.1; the
+  T-D2 linear migrations are flags-OFF = byte-identical, so no delta). `fct regress engine` is
+  clean (0/0). Those gains are now PROTECTED — any future regression trips the gate.
 
 Deficit accounting (Σ of `max(0, 16 − score)` over the slugs each subsystem gates):
 
@@ -419,6 +415,22 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  T-A1 RENDERER STEP 1 (gradient stop-list parse) + BASELINE RE-FREEZE. With the
+              swarm fully drained (no agents holding types.ts/parser/compositor), started building
+              the documented T-A1 gradient-tag renderer. Confirmed the real gap first: the compositor
+              shape branch renders ONLY flat fillColor/override — it has NO gradient-fill path, and
+              the parser deliberately EXCLUDES gradient-mode shapes (so Heart/Loop's gradient shapes
+              don't render at all today). So the renderer is a multi-step build. Step 1 (this tick,
+              66f8629): parse the shape-fill gradient STOP LIST onto Shape.fillGradient — Style→Fill→
+              Gradient(104)→RGB folder(1)→stops (each tagId + location + 0..1 RGB). Additive +
+              behavior-neutral (nothing consumes it yet). Verified vs Heart.motr: extracts 'Circle'
+              (red→blue placeholder) + 'Gradient' (cream→olive, the colour-Link-driven one, tags
+              845044020/845044022) — decode confirmed end-to-end. Gate 0 regressions. THEN, since the
+              re-render surfaced the long-pending stale-baseline gains (T-G1 +0.88, T-E1 +0.36),
+              re-froze the engine baseline 13.914→13.93 (f8d4d6d) — gains now PROTECTED, regress
+              clean 0/0. Resolved the "BASELINE RE-FREEZE PENDING" note. NEXT: step 2 (parseColorTarget
+              gradientTag kind) + step 3-5 (evaluator stop-override + compositor GRADIENT RASTERISER —
+              the big new piece) + verify Loop/Heart/Slide_In.
 - 2026-07-13  SWARM DRAINED + roadmap-sync BLOCKED-bug FIX + T-A1 premise VERIFIED. The pool
               exited (0 eligible): all 16 tasks are terminal except T-A1 (PARTIAL). T-E2 landed
               BLOCKED (5f0c2e9: Video_Wall's black frame is an S6 framing-camera POSE bug —
