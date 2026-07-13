@@ -39,14 +39,24 @@ _AXIS = {"1": "X", "2": "Y", "3": "Z"}
 
 def _classify_channel(path, link_name=""):
     low = (path + " " + link_name).lower()
-    # Signal 1: the link/param name literally names a colour channel or fill.
-    if any(k in low for k in ("red", "green", "blue", "color", "colour",
-                              "remap", "fill", "gradient", "tint")):
-        return "COLOUR"
     segs = [p for p in path.split("/") if p and p != "."]
-    # Signal 2: target passes through a filter colour folder (353 Colorize / 113 fill)
-    # and NOT through the 100 transform folder.
-    if "100" not in segs and any(s in ("353", "113", "111") for s in segs):
+    # COLOUR target sub-kind (matches the 3 renderer buckets in evaluator/color-links.ts +
+    # the gradient-tag decode in docs/notes/GRADIENT_TAG_COLOUR_LINK_RE.md). Reporting the
+    # SPECIFIC kind — not a flat "COLOUR" — tells you exactly which renderer path a link
+    # needs, and validates the decode straight from the .motr. Discriminate by path shape:
+    #   104 present            -> gradient-tag stop colour (Gradient(104)/RGB folder/stop/Color/RGB)
+    #   353 present (Colorize) -> Colorize Remap Black/White folder
+    #   113/111 (no 104/353)   -> a Shape's Fill Color (id 111 under Fill 113)
+    is_colour_name = any(k in low for k in ("red", "green", "blue", "color", "colour",
+                                            "remap", "fill", "gradient", "tint"))
+    is_colour_path = "100" not in segs and any(s in ("353", "113", "111", "104") for s in segs)
+    if is_colour_name or is_colour_path:
+        if "104" in segs:
+            return "COLOUR:gradientTag"      # renderer TBD — see GRADIENT_TAG_COLOUR_LINK_RE.md
+        if "353" in segs:
+            return "COLOUR:colorizeRemap"    # rendered (channel-mixer.ts)
+        if "111" in segs or "113" in segs:
+            return "COLOUR:shapeFill"        # rendered (compositor shape branch)
         return "COLOUR"
     if "100" in segs:
         i = segs.index("100")
@@ -82,7 +92,7 @@ def _links(xml, fac):
             + re.findall(r'<sourceChannelRef>([^<]+)</sourceChannelRef>', body)
         props = sorted({_classify_channel(c, name) for c in chans}) or ["<unresolved>"]
         out.append({"name": name, "channels": props,
-                    "colour": any(p == "COLOUR" for p in props)})
+                    "colour": any(p.startswith("COLOUR") for p in props)})
     return out
 
 
