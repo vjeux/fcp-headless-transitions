@@ -248,52 +248,59 @@ def clear_slot(slot):
 # ---------------------------------------------------------------------------
 def harvest_exited_slot(task_id, log_path):
     """When an agent's session exits, its work may be stranded in the worktree because
-    Claude Code's sandbox blocked the in-worktree commit/push (the .git/worktrees/* SIP
-    block). If the worktree has uncommitted changes AND the agent's log reports a
-    gate-green DONE result, land the work on the agent's behalf via push_helper (which
-    runs OUTSIDE the sandbox: /tmp clone -> re-gate -> commit -> push w/ retry).
+    Claude Code's sandbox/TCC blocked the in-worktree commit/push (writes to the parent
+    .git are denied). If the worktree has uncommitted changes and ANY of this task's
+    logs report a gate-green result, land the work via push_helper (which runs OUTSIDE
+    the sandbox: /tmp clone -> re-gate -> commit -> push w/ retry).
 
-    Safety: only harvest on an explicit `SWARM_RESULT <id> DONE ...` (the agent asserts
-    it gated green). BLOCKED/NOCHANGE/NOOP are NOT harvested (false premise, or already
-    merged). push_helper re-runs the full gate in the clone and refuses to push if red,
-    so a wrong DONE claim cannot land a regression."""
+    SAFETY MODEL: push_helper RE-RUNS the full `fct regress engine` in the clone and
+    refuses to push if it is red. So harvesting is safe even if the agent's self-report
+    is imperfect — a false/regressing change simply won't land. We therefore harvest on
+    either an explicit `SWARM_RESULT <id> DONE` OR a BLOCKED result whose text asserts
+    the work is complete + gate-green (the common old-brief case: 'work-complete-and-
+    gate-green-... TCC blocks git writes'). We scan ALL of the task's logs, not just the
+    current one, because the completing run's SWARM_RESULT may be in an earlier log."""
     wt = os.path.join(ROOT, "worktrees", task_id)
     if not os.path.isdir(wt):
         return
-    # Uncommitted changes present?
     dirty = subprocess.run(["git", "-C", wt, "status", "--porcelain"],
                            capture_output=True, text=True).stdout.strip()
     if not dirty:
         return
-    # Did the agent report a gate-green DONE?
-    result = ""
-    if log_path and os.path.exists(log_path):
+    # Scan ALL logs for this task for a completion signal.
+    import glob as _glob
+    logs = sorted(_glob.glob(os.path.join(LOGS, f"{task_id}.*.log")))
+    if log_path and log_path not in logs and os.path.exists(log_path):
+        logs.append(log_path)
+    result, summary, gate_green = "", "", False
+    for lg in logs:
         try:
-            tail = subprocess.check_output(["tail", "-n", "40", log_path], text=True)
+            txt = open(lg, errors="ignore").read()
         except Exception:
-            tail = ""
-        m = re.search(r"SWARM_RESULT\s+" + re.escape(task_id) + r"\s+(\w+)", tail)
+            continue
+        m = re.search(r"SWARM_RESULT\s+" + re.escape(task_id) + r"\s+(\w+)\s*(.*)", txt)
         if m:
             result = m.group(1).upper()
-    if result != "DONE":
-        print(f"[pool] slot for {task_id} exited dirty but result={result or 'none'} "
-              f"(not DONE) — NOT harvesting (agent must have hit a real block)", flush=True)
+            summary = m.group(2).strip().strip("`").strip()[:200]
+        if re.search(r"0 regressions|gate.?green|gate-verified", txt, re.I):
+            gate_green = True
+    # Harvest if the agent said DONE, or said BLOCKED but asserts complete+gate-green.
+    complete = (result == "DONE") or (result == "BLOCKED" and gate_green) or \
+               (result == "BLOCKED" and re.search(r"complete|gate.?green", summary, re.I))
+    if not complete:
+        print(f"[pool] {task_id} exited dirty; result={result or 'none'} gate_green={gate_green}"
+              f" — NOT harvesting (push_helper would re-gate, but no completion signal)", flush=True)
         return
-    # Build a commit message from the agent's SWARM_RESULT summary.
-    summary = ""
-    mm = re.search(r"SWARM_RESULT\s+" + re.escape(task_id) + r"\s+DONE\s+(.*)", tail)
-    if mm:
-        summary = mm.group(1).strip()[:200]
     msgfile = f"/tmp/swarm-{task_id}-harvest-msg.txt"
     with open(msgfile, "w") as f:
         f.write(f"{task_id} DONE: {summary or 'swarm agent result (auto-harvested)'}\n\n"
-                f"Auto-harvested by the swarm pool: the agent gated green but Claude Code's\n"
-                f"sandbox blocked its in-worktree commit; push_helper landed it from a /tmp\n"
-                f"clone after re-running the gate.\n")
-    print(f"[pool] harvesting {task_id} (agent reported DONE) via push_helper...", flush=True)
+                f"Auto-harvested by the swarm pool: the agent gated green in-worktree but\n"
+                f"macOS TCC/sandbox blocked its git write; push_helper re-ran the gate in a\n"
+                f"/tmp clone (refuses to push red) and landed it.\n")
+    print(f"[pool] harvesting {task_id} (result={result}, gate_green={gate_green}) via push_helper...", flush=True)
     rc = subprocess.run(["bash", PUSH_HELPER, task_id, msgfile]).returncode
     print(f"[pool] harvest {task_id} -> push_helper rc={rc}", flush=True)
-
+    return
 
 def cmd_run(size, once):
     os.makedirs(LOGS, exist_ok=True)

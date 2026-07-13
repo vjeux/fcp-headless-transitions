@@ -25,7 +25,19 @@ cd "$MAIN"
 git fetch origin --quiet
 
 # Remove any stale worktree/branch for this id, then recreate fresh off origin/main.
+# SAFETY: if the existing worktree has UNCOMMITTED work (an agent finished but its
+# in-worktree git write was TCC/sandbox-blocked, so nothing was committed), do NOT
+# silently destroy it — save a patch to ~/fct-swarm/salvage/ first so a relaunch can
+# never lose gate-verified work. (This bug ate T-B1's emitter parser once.)
 if [ -d "$WT" ]; then
+  PENDING="$(git -C "$WT" status --porcelain 2>/dev/null)"
+  if [ -n "$PENDING" ]; then
+    mkdir -p "$ROOT/salvage"
+    STAMP="$(date +%Y%m%d-%H%M%S)"
+    ( cd "$WT" && git add -A >/dev/null 2>&1 && \
+      git diff --cached origin/main > "$ROOT/salvage/$ID.$STAMP.patch" 2>/dev/null ) || true
+    echo "setup_worktree: SALVAGED uncommitted $ID work -> $ROOT/salvage/$ID.$STAMP.patch" >&2
+  fi
   git worktree remove --force "$WT" 2>/dev/null || rm -rf "$WT"
 fi
 git worktree prune
