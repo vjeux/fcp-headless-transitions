@@ -81,6 +81,12 @@
 import { luma601, luma } from '../blend.js';
 import { registerFilter } from './registry.js';
 import { evaluateCurve } from '../../evaluator/curves.js';
+import {
+  isLinearCompositeEnabled,
+  LUT_SRGB_TO_LINEAR,
+  linearChannelToSrgb,
+  srgbChannelToLinear,
+} from '../linear.js';
 
 export interface ChannelMixerParams {
   matrix: number[]; // 4x4 row-major [RR,RG,RB,RA, GR,GG,GB,GA, BR,BG,BB,BA, AR,AG,AB,AA]
@@ -142,15 +148,64 @@ export function channelMixerFilter(input: ImageData, params: ChannelMixerParams)
 /**
  * Tint filter (PAETint / TintFx).
  * Tints the image toward a target color, scaled by luminance and intensity.
- * @param r, g, b - target tint color (0-1)
+ * @param r, g, b - target tint color (0-1, sRGB-encoded as authored in Motion UI)
  * @param intensity - tint strength (0-1)
  * @param mix - blend with original
+ * @param linear - when true, do all math in linear working-space per FCP's
+ *   kCGColorSpaceExtendedLinearSRGB pipeline (decoded 2026-07-12 in
+ *   oz_render.mm — see linear.ts). Wired to isLinearCompositeEnabled() at
+ *   the registry callsite; flag defaults OFF so shipped behaviour is
+ *   byte-identical (T-D2b safety contract).
  */
-export function tintFilter(input: ImageData, r: number, g: number, b: number, intensity: number, mix: number = 1): ImageData {
+export function tintFilter(input: ImageData, r: number, g: number, b: number, intensity: number, mix: number = 1, linear: boolean = false): ImageData {
   const width = input.width;
   const height = input.height;
   const src = input.data;
   const out = new Uint8ClampedArray(src.length);
+
+  if (linear) {
+    // FCP runs the tint shader in linear working space (see linear.ts). The
+    // sRGB-authored target colour (Motion UI) is decoded to linear ONCE, the
+    // luma-scaled tint is computed on linear-light values, the intensity/mix
+    // lerps happen in linear, and the final result is encoded back to sRGB
+    // at output — same "decode once / encode once" contract as T-D1's
+    // linearOverlay. Note: this is a PER-FILTER decode/encode; the ceiling
+    // (single linear buffer chained across all filters) is reached only when
+    // T-D2a-d have all landed and the outer compositor keeps a Float32 buffer
+    // across the whole filter chain. Until then the per-filter path is
+    // guarded by isLinearCompositeEnabled() (default OFF) so no regression
+    // can be introduced from the shipped default.
+    const rLin = srgbChannelToLinear(r * 255);
+    const gLin = srgbChannelToLinear(g * 255);
+    const bLin = srgbChannelToLinear(b * 255);
+    const lut = LUT_SRGB_TO_LINEAR;
+    for (let i = 0; i < src.length; i += 4) {
+      const srL = lut[src[i]];
+      const sgL = lut[src[i + 1]];
+      const sbL = lut[src[i + 2]];
+      // Rec.601 luma weights (matches sRGB-path tintFilter above; the FCP
+      // luma vector is stored in HgcTint's hg_Params[2]; documented above).
+      const lumL = 0.299 * srL + 0.587 * sgL + 0.114 * sbL;
+      const tR = lumL * rLin;
+      const tG = lumL * gLin;
+      const tB = lumL * bLin;
+      // Intensity lerp in linear.
+      let iR = srL * (1 - intensity) + tR * intensity;
+      let iG = sgL * (1 - intensity) + tG * intensity;
+      let iB = sbL * (1 - intensity) + tB * intensity;
+      // Mix lerp in linear.
+      if (mix < 1) {
+        iR = srL * (1 - mix) + iR * mix;
+        iG = sgL * (1 - mix) + iG * mix;
+        iB = sbL * (1 - mix) + iB * mix;
+      }
+      out[i]     = linearChannelToSrgb(iR);
+      out[i + 1] = linearChannelToSrgb(iG);
+      out[i + 2] = linearChannelToSrgb(iB);
+      out[i + 3] = src[i + 3];
+    }
+    return new ImageData(out, width, height);
+  }
 
   for (let i = 0; i < src.length; i += 4) {
     const lum = luma601(src[i], src[i + 1], src[i + 2]) / 255;
@@ -284,14 +339,18 @@ registerFilter({
 });
 
 // Tint (PAETint, UUID 717D6E01-…). Behavior-identical: Red/Green/Blue (default 1),
-// Intensity (1), Mix (1).
+// Intensity (1), Mix (1). The `linear` flag opts into the T-D1 linear working-
+// space branch of tintFilter (see linear.ts) — defaults OFF so shipped output
+// is byte-identical; flips ON alongside the sibling T-D2a/c/d migrations when
+// the linear composite chain is enabled end-to-end.
 registerFilter({
   uuid: '717D6E01-83F4-4A4B-AF92-42AABA4B176C',
   names: ['tint'],
   label: 'Tint',
   apply(input, ctx) {
     return tintFilter(input, ctx.param('Red', 1), ctx.param('Green', 1), ctx.param('Blue', 1),
-                      ctx.param('Intensity', 1), ctx.param('Mix', 1));
+                      ctx.param('Intensity', 1), ctx.param('Mix', 1),
+                      isLinearCompositeEnabled());
   },
 });
 

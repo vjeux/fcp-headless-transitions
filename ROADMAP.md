@@ -187,7 +187,7 @@ T-C1  DROPPED linear/radial gradient generator                   census: NO buil
                                                                   colour-Link (see S5). Off critical path.
 T-D1  DONE    linear working-space composite path                 flag-gated; overlay slugs first
 T-D2a TODO    Brightness/Colorize into linear after: T-D1         Colorize=1 users, Brightness>1
-T-D2b TODO    Tint into linear               after: T-D1          Tint, Veil
+T-D2b DONE    Tint into linear               after: T-D1          Tint filter flag-gated (Leaves +0.07)
 T-D2c TODO    Glow/Bloom into linear         after: T-D1          Bloom, 360°_Bloom
 T-D2d TODO    HSV into linear                after: T-D1          Panels_Random, Color_Panels
 T-E1  TODO    framing anchor (proxy->content ray)                 Video_Wall f4 black, Clone_Spin
@@ -380,6 +380,38 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  T-D2b (S2/S4 · Tint→linear) DONE — added a LINEAR-working-space
+              branch to `tintFilter` (engine/src/compositor/filters/channel-mixer.ts)
+              behind `isLinearCompositeEnabled()` (T-D1's flag, DEFAULTS OFF so
+              gate stays byte-identical — 0 regressions / 0 improvements). The
+              linear path decodes input sRGB codes via LUT_SRGB_TO_LINEAR,
+              decodes the sRGB-authored target colour ONCE via srgbChannelToLinear,
+              computes luma601 on LINEAR-light values (not sRGB codes), runs the
+              intensity+mix lerps in linear, then encodes back to sRGB — a
+              per-filter decode/encode matching FCP's kCGColorSpaceExtendedLinearSRGB
+              working-space semantics (decoded 2026-07-12 in oz_render.mm) for a
+              single filter. The CEILING (one Float32 linear buffer chained across
+              ALL filters, encoded ONCE at compositor exit) is reached only after
+              all four T-D2* land and the outer compositor threads the buffer.
+              Census before code: the 4 real Tint users are Objects__Leaves
+              (PAETint x2), Stylized__Diagonal / Wipes__Diagonal / Stylized__Glide
+              (TintFx x1 each — all particle-emitter-dominated). "Veil" in the
+              task row is a Colorize user (PAEColorize x1) not a Tint user, so
+              it belongs to T-D2a; rendered here as a byte-identity spot-check
+              (Objects__Veil 16.04 unchanged). FLAG-ON PROBE via FCT_LINEAR=1
+              (scratch env hook in _fct_render.ts, since removed): Leaves
+              16.56→16.63 (+0.07, real but sub-tol), Diagonal / Glide /
+              Wipes__Diagonal all 0.00 change (the emitters swamp the single
+              TintFx contribution — those slugs' tails are owned by S3/T-B2/B3,
+              not S4). Ships infrastructure only; the default flag flip happens
+              after all four T-D2 families migrate (T-D1's contract). Files:
+              channel-mixer.ts (+63 -4 for tintFilter linear branch + registry
+              wiring), NEW engine/test/tint.test.ts (9/9 pass: sRGB path byte-
+              identical to legacy formula, linear path matches decode/apply/encode
+              expectation, intensity=0 identity, mix=0 identity, sRGB-vs-linear
+              divergence on saturated inputs, registered filter respects flag
+              under try/finally). Gate 0 reg / 0 imp; no-hardcode 6/6 green;
+              tsc clean. Unblocks the eventual whole-chain flag flip.
 - 2026-07-13  SWARM REFLECT TICK — three fixes complementing the reap/harvest work: (a) pool.py
               completion regex now accepts `T-<id>:` at commit-subject start (T-G1 committed as
               `T-G1: Color_Planes 3D fold — driver offset shift...` with no DONE keyword; the old
