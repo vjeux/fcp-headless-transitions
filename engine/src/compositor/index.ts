@@ -15,7 +15,7 @@ import {
   transformBBoxToOutput, centerEvaluatedLayer, detectPageFlip, isFlatCoplanarStack,
   retimedClipTime,
 } from './geometry.js';
-import { detectFieldTexture, applyParticleFieldProxy } from './field-texture.js';
+import { detectFieldTexture, applyParticleFieldProxy, detectParticleGroupTint } from './field-texture.js';
 import { applyEmitterSim } from './emitter-sim.js';
 import { generateInstances, sequenceProgress, sequenceOrder } from './replicator.js';
 import { lookupFilter, makeContext } from './filters/registry.js';
@@ -683,14 +683,32 @@ export function composite(
   }
 
   // Composite the field-texture proxy over the rendered frame (no-op if not detected).
-  if (field) applyParticleFieldProxy(output, scene, field);
+  // T-B3 (flag-gated, default OFF): tint the proxy texture by the particle group's
+  // ancestor TintFx so the backdrop matches Motion's green wash. Default path is the
+  // untinted proxy (byte-identical to the shipped baseline).
+  const spriteSimOn = process.env.FCT_SPRITE_SIM === '1';
+  const particleTint = spriteSimOn && field ? detectParticleGroupTint(scene) : null;
+  if (field) applyParticleFieldProxy(output, scene, field, particleTint);
 
-  // T-B2: MINIMAL emitter sim + render (flat-COLOUR dots). No-op when the scene has
-  // no simulatable emitter — non-particle transitions are byte-identical to
-  // pre-T-B2. On particle transitions this runs AFTER the field-texture proxy so
-  // it adds visible dot detail on top of the aggregate gray blend (T-B3 will layer
-  // per-cell colour/scale/opacity-over-life on top).
-  applyEmitterSim(output, scene, { emitters: scene.emitters, particleCells: scene.particleCells });
+  // Emitter sim + render. T-B2 default: flat-COLOUR dots (byte-identical to baseline).
+  // T-B3 (flag-gated FCT_SPRITE_SIM=1): renders the cell's REAL Particle Source sprite
+  // (resolved PNG, scaled/rotated/tinted/faded-over-life) + tints it by the particle-
+  // group TintFx. The sprite subsystem is BUILT and verified to render the correct
+  // structure (green hexagons over a green field on Wipes/Diagonal), but is gated OFF
+  // pending two calibration decodes that currently regress the PSNR vs GUI GT:
+  //   (1) TINT MAGNITUDE — Motion's TintFx (Color Space id=11 = 3) yields a PALE green
+  //       (GT f12 mean ≈ (183,225,178)); the luma·color model here over-darkens
+  //       (≈(52,134,50)). Needs the Color-Space=3 blend decoded (not plain luma·tint).
+  //   (2) FIELD ENVELOPE TIMING — GT stays pure brown photo through f05 then greens
+  //       f06→f11 and holds; the current proxy bell starts at progress≈0.088 (f02),
+  //       far too early. Needs the real green-onset envelope (texture layer opacity
+  //       curve, not a symmetric bell) decoded.
+  // No-op when the scene has no simulatable emitter — non-particle transitions stay
+  // byte-identical. Runs AFTER the field-texture proxy.
+  applyEmitterSim(
+    output, scene, { emitters: scene.emitters, particleCells: scene.particleCells },
+    spriteSimOn ? mediaResolver : undefined, particleTint,
+  );
 
   return output;
 }

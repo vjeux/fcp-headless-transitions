@@ -30,8 +30,60 @@
  * Up-Over/Center). Zero transition-name checks.
  */
 import type { EvaluatedScene, EvaluatedLayer } from '../evaluator/index.js';
-import type { ParticleCellParams, EmitterParams, Curve } from '../types.js';
+import type { ParticleCellParams, EmitterParams, Curve, Layer } from '../types.js';
 import { evaluateCurve, timeToSeconds } from '../evaluator/curves.js';
+
+/** Media resolver signature (matches compositor/api mediaResolver). */
+type MediaResolver = (url: string, timeSec?: number, absolute?: boolean) => ImageData | null;
+
+/**
+ * A resolved particle SPRITE: the cell's Particle Source image (e.g. hexagon_white.png,
+ * 256×256 with alpha) plus the source LAYER's own scale/opacity, which Motion folds into
+ * every emitted particle's on-screen size. `baseScale` = source-layer uniform scale;
+ * `baseOpacity` = source-layer opacity. Cached per source layer id.
+ */
+interface Sprite {
+  img: ImageData;
+  nativeW: number;
+  nativeH: number;
+  baseScaleX: number;
+  baseScaleY: number;
+  baseOpacity: number;
+}
+
+/**
+ * Resolve a cell's Particle Source layer → its bundled sprite image + native size +
+ * the source layer's own transform scale/opacity. Returns null when the source isn't a
+ * resolvable media image (in which case the caller falls back to flat dots). Cached.
+ */
+function resolveSprite(
+  cell: ParticleCellParams,
+  scene: EvaluatedScene,
+  mediaResolver: MediaResolver | undefined,
+  cache: Map<number, Sprite | null>,
+): Sprite | null {
+  if (!mediaResolver || cell.particleSourceId === undefined) return null;
+  const cached = cache.get(cell.particleSourceId);
+  if (cached !== undefined) return cached;
+  const srcLayer: Layer | undefined = scene.layerById.get(cell.particleSourceId);
+  let out: Sprite | null = null;
+  if (srcLayer && srcLayer.source && srcLayer.source.type === 'media') {
+    const img = mediaResolver(srcLayer.source.url);
+    if (img && img.width > 0 && img.height > 0) {
+      const t = srcLayer.transform;
+      out = {
+        img,
+        nativeW: img.width,
+        nativeH: img.height,
+        baseScaleX: t?.scaleX !== undefined ? numAt(t.scaleX) : 1,
+        baseScaleY: t?.scaleY !== undefined ? numAt(t.scaleY) : 1,
+        baseOpacity: t?.opacity !== undefined ? numAt(t.opacity) : 1,
+      };
+    }
+  }
+  cache.set(cell.particleSourceId, out);
+  return out;
+}
 
 /**
  * Deterministic hash → uniform [0,1). Same particle index + seed → same random
@@ -111,6 +163,8 @@ function simulateAndCompositeCell(
   color: { r: number; g: number; b: number; a: number },
   dotRadius: number,
   particleBudget: number,
+  sprite: Sprite | null,
+  groupTint: { r: number; g: number; b: number; intensity: number; mix: number } | null,
 ): number {
   const win = cellWindow(cell);
   if (sceneTime < win.inSec) return 0;
@@ -120,6 +174,30 @@ function simulateAndCompositeCell(
   const life = numAt(cell.life);
   const speed = numAt(cell.speed);
   const gravity = cell.gravity ? numAt(cell.gravity.acceleration) : 0;
+  const spin = cell.spin !== undefined ? numAt(cell.spin) : 0; // radians/sec
+
+  // Per-cell appearance (T-B3). colorMode: 0=Original (source colour, no tint),
+  // 1=Colorize (tint by cell colour), others fall back to no-tint. Cell opacity ×
+  // source-layer opacity is the base alpha; scaleX/Y × source-layer scale sizes it.
+  const doTint = cell.colorMode === 1 && cell.color !== undefined;
+  let cellColor = doTint ? cell.color! : { r: 1, g: 1, b: 1 };
+  // Fold in the particle-group TintFx (e.g. Diagonal's green): Motion applies
+  // luma·tintColor to the whole group, so a white sprite tinted by the cell colour
+  // then by the group becomes group-tint·cellColor. drawSprite multiplies sprite RGB
+  // by this effective tint, so pre-compose them here (intensity·mix lerp toward the
+  // group colour). This makes the sprites match the green backdrop.
+  if (groupTint) {
+    const im = groupTint.intensity * groupTint.mix;
+    cellColor = {
+      r: cellColor.r * (1 - im) + cellColor.r * groupTint.r * im,
+      g: cellColor.g * (1 - im) + cellColor.g * groupTint.g * im,
+      b: cellColor.b * (1 - im) + cellColor.b * groupTint.b * im,
+    };
+  }
+  const cellOpacity = cell.opacity !== undefined ? cell.opacity : 1;
+  const cScaleX = cell.scaleX !== undefined ? cell.scaleX : 1;
+  const cScaleY = cell.scaleY !== undefined ? cell.scaleY : 1;
+  const scaleRand = cell.scaleRandomness ?? 0;
 
   // Emitter world position (Motion internal Y-DOWN; blit.ts convention).
   const emX = emEval.worldTransform[12];
@@ -171,11 +249,31 @@ function simulateAndCompositeCell(
     const sx = W * 0.5 + px;
     const sy = H * 0.5 + py;
 
-    // Cull dots whose bbox is entirely off-frame.
-    if (sx + dotRadius < 0 || sx - dotRadius >= W ||
-        sy + dotRadius < 0 || sy - dotRadius >= H) continue;
-
-    drawDot(output, sx, sy, dotRadius, color);
+    if (sprite) {
+      // Per-particle size: native × source-layer scale × cell scale × per-particle
+      // random scale variation (Scale Randomness is a ± fraction of the base size).
+      const rScale = scaleRand > 0 ? 1 + (hash01(seedA ^ 0x2545f491, seedB, i) - 0.5) * 2 * scaleRand : 1;
+      const destW = sprite.nativeW * sprite.baseScaleX * cScaleX * rScale;
+      const destH = sprite.nativeH * sprite.baseScaleY * cScaleY * rScale;
+      const maxHalf = Math.max(destW, destH) * 0.5;
+      if (sx + maxHalf < 0 || sx - maxHalf >= W || sy + maxHalf < 0 || sy - maxHalf >= H) continue;
+      // Rotation: base spin (radians/sec) accumulated over the particle's life.
+      const rot = spin * elapsed;
+      // Over-life opacity: Motion's default particle envelope fades in over the first
+      // ~15% of life and out over the last ~15% (a trapezoid), so newborn/dying
+      // particles are translucent. lifeFrac ∈ [0,1].
+      const lifeFrac = life > 0 ? elapsed / life : 0;
+      const fade = lifeFrac < 0.15 ? lifeFrac / 0.15
+                 : lifeFrac > 0.85 ? (1 - lifeFrac) / 0.15
+                 : 1;
+      const alpha = cellOpacity * sprite.baseOpacity * fade;
+      drawSprite(output, sprite, sx, sy, destW, destH, rot, cellColor, alpha);
+    } else {
+      // Cull dots whose bbox is entirely off-frame.
+      if (sx + dotRadius < 0 || sx - dotRadius >= W ||
+          sy + dotRadius < 0 || sy - dotRadius >= H) continue;
+      drawDot(output, sx, sy, dotRadius, color);
+    }
     drawn++;
   }
   return drawn;
@@ -217,6 +315,83 @@ function drawDot(
       }
       const sa = ca * cov;
       if (sa <= 0) continue;
+      const di = (y * W + x) * 4;
+      const db = data[di + 3] / 255;
+      const outA = sa + db * (1 - sa);
+      if (outA <= 0) continue;
+      data[di]     = Math.round((cr * sa + data[di]     * db * (1 - sa)) / outA);
+      data[di + 1] = Math.round((cg * sa + data[di + 1] * db * (1 - sa)) / outA);
+      data[di + 2] = Math.round((cb * sa + data[di + 2] * db * (1 - sa)) / outA);
+      data[di + 3] = Math.round(outA * 255);
+    }
+  }
+}
+
+/**
+ * Composite a scaled + rotated + tinted particle SPRITE at (cx, cy), source-over.
+ *
+ * The sprite (e.g. hexagon_white.png, a white shape on transparent) is Motion's
+ * Particle Source image. Motion draws each particle as that image, scaled to
+ * `destW × destH` on screen, rotated by `rot` (radians), TINTED by (tr,tg,tb) — the
+ * particle multiplies its RGB by the cell colour — and faded to `alpha` (cell opacity
+ * × source-layer opacity × over-life envelope). We iterate the destination bbox and,
+ * for each pixel, inverse-map into sprite UV (rotation + scale), bilinear-sample the
+ * sprite's RGBA, tint, premultiply by `alpha`, and blend source-over. This is a real
+ * textured-quad blit — the same operation Motion's GPU does per particle, on the CPU.
+ */
+function drawSprite(
+  output: ImageData,
+  sprite: Sprite,
+  cx: number, cy: number,
+  destW: number, destH: number,
+  rot: number,
+  tint: { r: number; g: number; b: number },
+  alpha: number,
+): void {
+  if (alpha <= 0 || destW <= 0 || destH <= 0) return;
+  const W = output.width, H = output.height, data = output.data;
+  const sImg = sprite.img.data, sW = sprite.img.width, sH = sprite.img.height;
+  const hw = destW * 0.5, hh = destH * 0.5;
+  // Rotated half-extent bounds the destination bbox (conservative AABB of the quad).
+  const cosr = Math.cos(rot), sinr = Math.sin(rot);
+  const ext = Math.abs(hw * cosr) + Math.abs(hh * sinr);
+  const eyt = Math.abs(hw * sinr) + Math.abs(hh * cosr);
+  const x0 = Math.max(0, Math.floor(cx - ext));
+  const x1 = Math.min(W - 1, Math.ceil(cx + ext));
+  const y0 = Math.max(0, Math.floor(cy - eyt));
+  const y1 = Math.min(H - 1, Math.ceil(cy + eyt));
+  if (x1 < x0 || y1 < y0) return;
+  const tr = tint.r, tg = tint.g, tb = tint.b;
+  // Inverse rotation (screen→local): rotate by −rot, then /halfsize to get [-1,1] UV.
+  for (let y = y0; y <= y1; y++) {
+    const dyc = y + 0.5 - cy;
+    for (let x = x0; x <= x1; x++) {
+      const dxc = x + 0.5 - cx;
+      // Screen delta → local (un-rotate).
+      const lx = dxc * cosr + dyc * sinr;
+      const ly = -dxc * sinr + dyc * cosr;
+      // Local → sprite pixel coords. lx∈[-hw,hw] maps to u∈[0,sW].
+      const u = (lx / destW + 0.5) * sW;
+      const v = (ly / destH + 0.5) * sH;
+      if (u < 0 || u >= sW || v < 0 || v >= sH) continue;
+      // Bilinear sample.
+      const u0 = Math.floor(u - 0.5), v0 = Math.floor(v - 0.5);
+      const fu = u - 0.5 - u0, fv = v - 0.5 - v0;
+      const u0c = u0 < 0 ? 0 : u0 >= sW ? sW - 1 : u0;
+      const v0c = v0 < 0 ? 0 : v0 >= sH ? sH - 1 : v0;
+      const u1c = u0 + 1 < 0 ? 0 : u0 + 1 >= sW ? sW - 1 : u0 + 1;
+      const v1c = v0 + 1 < 0 ? 0 : v0 + 1 >= sH ? sH - 1 : v0 + 1;
+      const i00 = (v0c * sW + u0c) * 4, i10 = (v0c * sW + u1c) * 4;
+      const i01 = (v1c * sW + u0c) * 4, i11 = (v1c * sW + u1c) * 4;
+      const w00 = (1 - fu) * (1 - fv), w10 = fu * (1 - fv), w01 = (1 - fu) * fv, w11 = fu * fv;
+      const sr = sImg[i00] * w00 + sImg[i10] * w10 + sImg[i01] * w01 + sImg[i11] * w11;
+      const sg = sImg[i00 + 1] * w00 + sImg[i10 + 1] * w10 + sImg[i01 + 1] * w01 + sImg[i11 + 1] * w11;
+      const sb = sImg[i00 + 2] * w00 + sImg[i10 + 2] * w10 + sImg[i01 + 2] * w01 + sImg[i11 + 2] * w11;
+      const saSrc = sImg[i00 + 3] * w00 + sImg[i10 + 3] * w10 + sImg[i01 + 3] * w01 + sImg[i11 + 3] * w11;
+      const sa = (saSrc / 255) * alpha;
+      if (sa <= 0) continue;
+      // Tint: multiply sprite RGB (0-255) by the cell colour (0-1).
+      const cr = sr * tr, cg = sg * tg, cb = sb * tb;
       const di = (y * W + x) * 4;
       const db = data[di + 3] / 255;
       const outA = sa + db * (1 - sa);
@@ -273,6 +448,8 @@ export function applyEmitterSim(
     emitters?: Map<number, EmitterParams>;
     particleCells?: Map<number, ParticleCellParams>;
   },
+  mediaResolver?: MediaResolver,
+  groupTint?: { r: number; g: number; b: number; intensity: number; mix: number } | null,
 ): void {
   if (!hasSimulatableEmitter(motrScene)) return;
 
@@ -280,11 +457,11 @@ export function applyEmitterSim(
   // frames across Map iteration whims.
   const cellIds = [...motrScene.particleCells!.keys()].sort((a, b) => a - b);
   const sceneTime = scene.unwrappedTime ?? scene.time;
+  const spriteCache = new Map<number, Sprite | null>();
 
   let budget = MAX_PARTICLES_PER_FRAME;
-  // Flat colour: near-white, low alpha. Matches Motion's LIGHT bokeh/hexagon look
-  // as an aggregate. T-B3 will replace this with per-cell colour ramps (colour-
-  // over-life) read from the cell's Particle Source colour.
+  // Flat-dot fallback colour (used only when the cell's Particle Source can't be
+  // resolved to a sprite): near-white, low alpha.
   const color = { r: 240, g: 240, b: 240, a: 0.10 };
   const dotRadius = 2;
 
@@ -306,9 +483,12 @@ export function applyEmitterSim(
     const cellEval = scene.evalLayerById.get(cellId);
     if (!cellEval || !cellEval.visible) continue;
 
+    // Resolve the cell's Particle Source sprite (T-B3). Null → flat-dot fallback.
+    const sprite = resolveSprite(cell, scene, mediaResolver, spriteCache);
+
     const drawn = simulateAndCompositeCell(
       output, emitter, cell, emEval, sceneTime,
-      color, dotRadius, budget,
+      color, dotRadius, budget, sprite, groupTint ?? null,
     );
     budget -= drawn;
   }

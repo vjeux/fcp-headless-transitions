@@ -232,8 +232,22 @@ T-B2  DONE    Emitter SIM+render, MINIMAL     after: T-B1         spawn + advect
                                                                   wired after field-texture proxy; gate 0/0
                                                                   regressions (Diagonal ×2 within noise —
                                                                   colour comes in T-B3). Probe fires on 4.
-T-B3  DONE    Emitter appearance-over-life    after: T-B2         colour/scale/opacity ramps ->
+T-B3  DOING   Emitter appearance-over-life    after: T-B2         colour/scale/opacity ramps ->
                                                                   Close_and_Open, Up-Over, Glide, Center
+              [2026-07-13h: the REAL sprite renderer is BUILT (emitter-sim.ts drawSprite +
+               resolveSprite + field-texture.ts detectParticleGroupTint) — resolves the cell's
+               Particle Source PNG (Diagonal hexagon_white.png 256²), scales by source-layer×cell
+               scale (~145px on-screen), rotates by spin, fades over life (trapezoid envelope),
+               tints by the cell colour AND the particle-group ancestor TintFx (green). Verified
+               to render the CORRECT STRUCTURE (green hexagons over a green field) vs the old
+               gray-dot proxy. GATED OFF behind FCT_SPRITE_SIM=1 (default byte-identical, gate
+               0/0) pending TWO calibration decodes that currently REGRESS PSNR (10.99→8.74):
+               (1) TINT MAGNITUDE — Motion TintFx Color-Space id=11=3 gives a PALE green (GT f12
+               mean ≈(183,225,178)); the luma·color model over-darkens (≈(52,134,50)). Decode the
+               Color-Space=3 blend (not plain luma·tint). (2) FIELD ENVELOPE TIMING — GT stays pure
+               brown photo through f05 then greens f06→f11; the proxy bell starts at progress≈0.088
+               (f02), far too early. Decode the real green-onset envelope (texture opacity curve,
+               not a symmetric bell). Finish both → flip default ON → verify Diagonal ↑.]
 T-C1  DROPPED linear/radial gradient generator                   census: NO built-in uses a gradient
                                                                   FILL; Slide_In/Loop/Heart are S1
                                                                   colour-Link (see S5). Off critical path.
@@ -503,6 +517,50 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13h  T-B3 SPRITE SUBSYSTEM built end-to-end (rule 9 — a real subsystem, not a stub).
+              emitter-sim.ts: resolveSprite() loads each cell's Particle Source PNG via the
+              mediaResolver (Diagonal hexagon_white.png = 256×256 w/ alpha, cached per source id);
+              drawSprite() is a bilinear-sampled, scaled+rotated+tinted+alpha quad blit — replacing
+              the flat 2px dots. Per particle: size = nativePNG · sourceLayerScale · cellScale ·
+              (1±scaleRandomness); rotation = spin(rad/s)·elapsed; over-life = trapezoid fade
+              (15% in / 15% out); tint = cell colour (colorMode==1) folded with the particle-group
+              ancestor TintFx. field-texture.ts: detectParticleGroupTint() finds the TintFx on the
+              nearest ancestor group that contains an emitter (Diagonal green 0.30/0.77/0.29) and
+              applyParticleFieldProxy() now tints the texture backdrop by it. VERIFIED (GUI GT, one
+              truth): the render now shows the CORRECT STRUCTURE — green hexagons drifting over a
+              green field — vs the old monochrome gray dots. HONEST STATUS: with the subsystem live
+              it currently REGRESSES 10.99→8.74 because two constants aren't decoded yet: (1) the
+              TintFx Color-Space=3 blend makes GT's green PALE (f12 (183,225,178)) but luma·color
+              over-darkens to (52,134,50); (2) the field/green envelope fires too early (proxy bell
+              starts f02; GT stays pure brown photo through f05, greens f06→f11). Per the gate, a
+              regression must NOT ship, so the sprite path is GATED behind FCT_SPRITE_SIM=1 (default
+              OFF → byte-identical to baseline, gate 0 regressions / 0 improvements, tsc clean). This
+              is rule-9(b): an explicitly-labelled intermediate step of a subsystem being finished
+              NEXT tick (decode the two constants, flip the flag ON, verify Diagonal improves,
+              ungate). T-B3 → DOING. Files: engine/src/compositor/emitter-sim.ts,
+              engine/src/compositor/field-texture.ts, engine/src/compositor/index.ts.
+- 2026-07-13h  T-B3 REAL sprite emitter renderer BUILT (subsystem, not a stub) — flag-gated OFF
+              pending 2 calibration decodes. Replaced the flat 2px-dot particle render with a real
+              textured-quad sprite blit: resolveSprite() loads the cell's Particle Source PNG via
+              the mediaResolver (Diagonal hexagon_white.png 256²) + the source layer's own scale/
+              opacity; drawSprite() composites each particle scaled (native×source-scale×cell-scale
+              ×scale-randomness ≈145px), rotated by spin·elapsed, faded over life (15% in/out
+              trapezoid), tinted by the cell colour AND the particle-group ancestor TintFx
+              (detectParticleGroupTint finds the green RGB(0.30,0.77,0.29) on the group wrapping the
+              emitters); applyParticleFieldProxy now also tints its texture backdrop by that group
+              tint. GUI-GT VERIFIED the render is now STRUCTURALLY correct — green hexagons drifting
+              over a green field (was a gray paper wash + invisible white dots). BUT it currently
+              REGRESSES PSNR (Diagonal 10.99→8.74) for two decoded-but-uncalibrated reasons, so it
+              is GATED behind FCT_SPRITE_SIM=1 (default OFF = byte-identical, full gate 0 regressions,
+              tsc clean): (1) TINT MAGNITUDE — Motion TintFx (Color Space id=11=3) yields a PALE green
+              (GT f12 mean≈(183,225,178)); the luma·color model over-darkens to ≈(52,134,50) — need
+              the Color-Space=3 blend decoded, not plain luma·tint. (2) FIELD ENVELOPE TIMING — GT
+              stays pure brown photo through f05 then greens f06→f11 and holds; the proxy bell starts
+              at progress≈0.088 (f02), far too early — need the real green-onset envelope (texture
+              opacity curve, not a symmetric bell). NEXT TICK: decode both, flip the default ON, and
+              verify Diagonal (and the other emitter slugs Glide/Close_and_Open/Up-Over) improve on
+              GT. This is rule-9(b): a labelled intermediate step of a subsystem being finished — the
+              renderer is real, verified-to-render code, not inert scaffolding.
 - 2026-07-13g  S1 driver scope SETTLED via census (Rule-8 premise check, doc-only, no code
               change). (1) COLOUR-CHANNEL LINK verified DONE + firing: the parser→computeColorLinks→
               Colorize-override pipeline RESOLVES on the real slugs — Panels_Across 21 raw colour
