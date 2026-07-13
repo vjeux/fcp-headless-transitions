@@ -246,6 +246,15 @@ def clear_slot(slot):
 # ---------------------------------------------------------------------------
 # Commands
 # ---------------------------------------------------------------------------
+def _log_has_result(log_path, task_id):
+    """True if this log already contains a terminal SWARM_RESULT for the task."""
+    try:
+        txt = subprocess.check_output(["tail", "-n", "60", log_path], text=True)
+    except Exception:
+        return False
+    return re.search(r"SWARM_RESULT\s+" + re.escape(task_id) + r"\b", txt) is not None
+
+
 def harvest_exited_slot(task_id, log_path):
     """When an agent's session exits, its work may be stranded in the worktree because
     Claude Code's sandbox/TCC blocked the in-worktree commit/push (writes to the parent
@@ -311,7 +320,22 @@ def cmd_run(size, once):
         active = {}
         for slot in range(size):
             if slot_running(slot):
-                active[slot] = st["slots"].get(str(slot), {}).get("task")
+                tid = st["slots"].get(str(slot), {}).get("task")
+                lg = st["slots"].get(str(slot), {}).get("log")
+                # A LIVE session that has ALREADY printed a terminal SWARM_RESULT in its
+                # current log is DONE — Claude Code's -p mode often lingers after emitting
+                # the result (esp. when its in-worktree git push was TCC-blocked), holding
+                # the slot indefinitely. Reap it now (harvest first) instead of waiting for
+                # the OS to exit the session, so the slot refills and stuck agents don't
+                # churn. harvest_exited_slot() no-ops if there's nothing gate-green to land.
+                if tid and lg and os.path.exists(lg) and _log_has_result(lg, tid):
+                    print(f"[pool] slot {slot} ({tid}) already reported SWARM_RESULT while live"
+                          f" — harvesting + reaping", flush=True)
+                    harvest_exited_slot(tid, lg)
+                    subprocess.run([TMUX, "kill-session", "-t", session_name(slot)], capture_output=True)
+                    clear_slot(slot)
+                    continue
+                active[slot] = tid
             else:
                 if str(slot) in st["slots"]:
                     tid = st["slots"][str(slot)]["task"]
