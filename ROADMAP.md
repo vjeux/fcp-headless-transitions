@@ -33,6 +33,26 @@ and a **Status**. Update Status in the same commit that does the work.
    from black-box render-diffing. GUI GT only ever CONFIRMS or REFUTES a decode; a refutation
    means "re-read the source," not "nudge a constant." Decode-don't-fit, applied to the task list.
 
+9. **BUILD THE SUBSYSTEM. Do not hide behind gate-neutral no-ops.** The gate says "don't commit
+   RED." It does NOT say "only commit changes that do nothing." A byte-identical parser stub, a
+   struct nothing reads, or a documentation-only tick is NOT progress — it cannot regress, but it
+   also cannot help, and shipping a stream of them is how the last effort drifted while looking
+   busy. The unit of work is a WHOLE WORKING SUBSYSTEM (the emitter sim renders real sprites; the
+   linear chain composites the whole frame in float; the gradient generator actually rasterises),
+   built end-to-end until a TARGET SLUG MEASURABLY IMPROVES against GUI GT. The correct loop is:
+   build the whole thing → verify the target slug's dB goes UP → confirm 0 collateral regressions
+   → THEN commit. A tick that ends with "gate-neutral, no pixels changed" is only acceptable when
+   it is (a) a genuine premise-correcting decode that RETIRES/RESCOPES a task (like dropping a
+   dead driver), or (b) an explicitly-labelled intermediate step of a subsystem you WILL finish in
+   the same or next tick. It is NOT acceptable as the habitual outcome. If you find yourself
+   reaching for "commit the stub, it's safe" — STOP: that is timidity, not discipline. Land the
+   working subsystem or land nothing.
+
+   **Per-tick honesty check (answer before you commit):** "Does this change move a real pixel
+   toward GT on a real slug, or am I committing a no-op because it feels safe?" If the latter,
+   keep working — the tick is not done. A "measure twice" investigation tick is fine; a
+   perpetual-stub tick is the failure mode this rule exists to kill.
+
 
 ## The gate, concretely
 
