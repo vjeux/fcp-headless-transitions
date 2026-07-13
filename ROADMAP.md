@@ -409,6 +409,21 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  CENSUS COLOUR-LINK SUB-KIND + RE VALIDATION — established the harness needs NO
+              further pool restart (running pool has wedge-reap; setup_worktree salvage-RESTORE is
+              a script read fresh each launch → already active), so left T-F1/T-E2 to run
+              UNINTERRUPTED (my frequent restarts had been resetting T-F1: 5 relaunches, never a
+              SWARM_RESULT — it is churn-victim, not a landing bug). Did isolated, no-collision work:
+              enhanced `fct census` _classify_channel to report the colour-Link target SUB-KIND
+              (COLOUR:gradientTag / colorizeRemap / shapeFill) by path shape. This VALIDATES the
+              gradient-tag RE against real .motr data — census now shows Loop+Heart colour-Links
+              resolving to COLOUR:gradientTag(+colorizeRemap), confirming the decode in
+              docs/notes/GRADIENT_TAG_COLOUR_LINK_RE.md is correct and telling you which renderer
+              path each link needs. Fixed the summary flag to startswith('COLOUR'); verified no
+              regression (Panels_Across colorizeRemap/shapeFill intact, Color_Planes stays
+              6-transform/0-COLOUR). census is a pure decode tool (not on the engine render path) →
+              no gate impact. Commit 50891b7. State: 13/16 DONE, T-F1(Smear)+T-E2(clone-tile) in-
+              flight; T-A1 renderer documented+validated, buildable once those free types.ts.
 - 2026-07-13  SALVAGE-RESTORE REGRESSION FIX — while integrating this tick's gradient-tag RE
               doc, discovered the swarm-reflect commit 1d7af7e (reap wedged slots) had branched
               from a STALE base and, on landing, silently REVERTED my earlier salvage-RESTORE block
