@@ -189,7 +189,9 @@ T-C1  DROPPED linear/radial gradient generator                   census: NO buil
                                                                   FILL; Slide_In/Loop/Heart are S1
                                                                   colour-Link (see S5). Off critical path.
 T-D1  DONE    linear working-space composite path                 flag-gated; overlay slugs first
-T-D2a TODO    Brightness/Colorize into linear after: T-D1         Colorize=1 users, Brightness>1
+T-D2a DONE    Brightness/Colorize into linear after: T-D1         Curtains (PAEBrightness+PAEColorize),
+                                                                  8 Colorize slugs; flag-gated OFF,
+                                                                  byte-identical (Curtains 15.10→15.10).
 T-D2b DONE    Tint into linear               after: T-D1          Tint filter flag-gated (Leaves +0.07)
 T-D2c DONE    Glow/Bloom into linear         after: T-D1          Glow+Bloom filters flag-gated (byte-id)
 T-D2d DONE    HSV into linear                after: T-D1          Color_Panels (HSV x4; flag OFF, byte-id).
@@ -385,6 +387,62 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  T-D2a (S2/S4 · Brightness+Colorize→linear) DONE — added a
+              LINEAR-working-space branch to `brightnessFilter`
+              (engine/src/compositor/filters/levels.ts) AND `colorizeRemapFilter`
+              (engine/src/compositor/filters/channel-mixer.ts) behind
+              `isLinearCompositeEnabled()` (T-D1's flag, DEFAULTS OFF so gate
+              stays byte-identical — 0 regressions / 0 improvements vs
+              baseline_engine). Both linear paths decode input sRGB codes via
+              LUT_SRGB_TO_LINEAR, run the filter math on LINEAR RGB, and encode
+              back via linearChannelToSrgb at emission — matching the FCP
+              shader's ExtendedLinearSRGB working space (decoded 2026-07-12 in
+              linear.ts; oz_render.mm OZ_WS_DEBUG confirms).
+              Brightness: physically-correct linear multiply
+              (decode → *amount → encode); same math for BOTH legs (no
+              discontinuity at amount=1), matching FCP's chain when all filters
+              run in linear and the buffer encodes ONCE at readback. Ceiling
+              vs the isolated per-filter test is reached only when the whole
+              chain is linear (T-D1 contract).
+              Colorize: decode input + sRGB-authored Remap Black/White
+              endpoints to linear ONCE (srgbChannelToLinear), luma computed on
+              LINEAR RGB via Rec.709 weights (HgcColorize slot4 luma vector,
+              PAEColorize @0x1b1f4), remap+intensity+mix lerps in linear light.
+              This closes the ISOLATED-probe gap noted in channel-mixer.ts
+              ("sepia probe mad 3.88 with linear endpoints vs 18.5 raw") that
+              couldn't ship per-filter because the STACKED gate regressed —
+              behind the flag it's now available for the whole-chain flip.
+              Target slugs (census-verified via `fct census`): Brightness>1 —
+              Objects__Curtains (PAEBrightness x1, amount=2.91) + Replicator-
+              Clones__3D_Rectangle (Brightness x8 with animated dims); Colorize —
+              Curtains, Objects__Veil, Stylized__{Close_and_Open, Color_Panels,
+              Loop, Panels_Across, Panels_Random, Slide, Up-Over} (Colorize x9
+              across 8 slugs — every shipping Colorize user in the corpus).
+              Panels_Across's PAEChannelMixer=luma601 remap-source-not-Colorize
+              filter is unchanged; only PAEColorize hits the branch.
+              Flag-OFF re-render byte-identity spot-check: Curtains, Veil,
+              3D_Rectangle, Panels_Random, Slide all 24/24 frames maxDiff=0
+              vs pre-change frames (proves shipped path is neutral). Flag-ON
+              probe (temp source flip, reverted immediately after): Curtains
+              maxPix=13 avg=1.27 across 23/24 frames; Veil maxPix=30 avg=1.55
+              23/24; Slide maxPix=14 avg=0.83 22/24; Panels_Random maxPix=0
+              (its Colorize params keep intensity path a no-op vs raw). Full-
+              res GT scores under flag-ON: OFF≈ON on the tested slugs (small
+              pixel deltas wash out in mean-PSNR — expected until the full
+              chain flips per T-D1). Unit tests: NEW brightness.test.ts 16/16
+              (sRGB byte-identical, both paths identity at amount=1, linear
+              mid-grey * 0.5 = decode/multiply/encode expectation, brighten
+              math, saturation clamp, flag toggle byte-identity, alpha
+              preserved). NEW colorize.test.ts 15/15 (sRGB legacy formula
+              within ≤1 code Uint8ClampedArray rounding, both paths identity
+              at intensity=0 and mix=0, linear mid-grey pure-red endpoint
+              matches decode/apply/encode, saturated input paths-differ, luma-0
+              and luma-1 endpoint round-trip, flag toggle byte-identity, alpha
+              preserved). Sibling tests still green: linear 15/15, hue-
+              saturation 13/13, tint 9/9, no-hardcode 6/6 (still 6 detectors,
+              all fire on ≥2). tsc clean. Progress: T-D2a landed; done={A2,A3,
+              B1,C1,D1,D2a,D2b,D2c,D2d,G1}. All four T-D2* siblings now DONE
+              — T-D1's flag is ready to flip default ON with a re-baseline.
 - 2026-07-13  T-D2c (S2/S4 · Glow/Bloom→linear) DONE — added a LINEAR-working-space
               branch to `glowFilter` (engine/src/compositor/filters/glow.ts) behind
               `isLinearCompositeEnabled()` (T-D1's flag, DEFAULTS OFF so gate stays
