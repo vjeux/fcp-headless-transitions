@@ -404,6 +404,19 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  REFLECTLOOP RESILIENCE TICK — the 30-min reflection meta-loop had been DOWN for
+              several ticks (needing manual restart each tick) AND was itself CAUSING OOM churn.
+              Root causes + fixes: (1) the python `reflect loop` never crashes (robust try/except)
+              but the PROCESS gets OOM-SIGKILLed, ending the python|tee pipeline + killing the tmux
+              session → wrapped it in a bash restart-supervisor (`while true; python; sleep 60`) so
+              the session self-heals across OOM. (2) dispatch_reflection launches a FULL extra Claude
+              Code agent; on a saturated size-5 pool this tipped RAM over and OOM-killed POOL agents
+              mid-work → added a vm_stat RAM guard: skip dispatch (retry next cycle) when free+inactive
+              < 2500MB, so the meta-optimiser never starves the primary task agents. Verified guard
+              (4.8GB free → dispatches; computes worker count). run.sh default SIZE 8→5 to match live
+              pool. Swarm state unchanged: 12/16 DONE, T-B3/E2/F1 in-flight (T-F1 53m/13 files deep on
+              Smear, T-B3 24m/5 files, T-E2 15m). Harness-only, no engine/headless code touched.
+              Commit 278e24c.
 - 2026-07-13  GATE-HEALTH + STALE-BASELINE FINDING TICK — with all remaining ROADMAP tasks
               either DONE (12/16) or actively in-flight (T-B3/E2/F1) and T-A1's gradient-tag
               renderer blocked by a hard file-collision (it needs types.ts + parser/behaviors.ts
