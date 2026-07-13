@@ -32,6 +32,7 @@ STATE = os.path.join(ROOT, "state.json")
 ROADMAP = os.path.join(MAIN, "ROADMAP.md")
 BRIEF = os.path.join(MAIN, "fct", "swarm", "agent_brief.md")
 SETUP = os.path.join(MAIN, "fct", "swarm", "setup_worktree.sh")
+PUSH_HELPER = os.path.join(MAIN, "fct", "swarm", "push_helper.sh")
 SESSION_PREFIX = "fct-swarm-"
 
 # Resolve tmux robustly: brew installs to /opt/homebrew/bin which is NOT on the
@@ -226,6 +227,55 @@ def clear_slot(slot):
 # ---------------------------------------------------------------------------
 # Commands
 # ---------------------------------------------------------------------------
+def harvest_exited_slot(task_id, log_path):
+    """When an agent's session exits, its work may be stranded in the worktree because
+    Claude Code's sandbox blocked the in-worktree commit/push (the .git/worktrees/* SIP
+    block). If the worktree has uncommitted changes AND the agent's log reports a
+    gate-green DONE result, land the work on the agent's behalf via push_helper (which
+    runs OUTSIDE the sandbox: /tmp clone -> re-gate -> commit -> push w/ retry).
+
+    Safety: only harvest on an explicit `SWARM_RESULT <id> DONE ...` (the agent asserts
+    it gated green). BLOCKED/NOCHANGE/NOOP are NOT harvested (false premise, or already
+    merged). push_helper re-runs the full gate in the clone and refuses to push if red,
+    so a wrong DONE claim cannot land a regression."""
+    wt = os.path.join(ROOT, "worktrees", task_id)
+    if not os.path.isdir(wt):
+        return
+    # Uncommitted changes present?
+    dirty = subprocess.run(["git", "-C", wt, "status", "--porcelain"],
+                           capture_output=True, text=True).stdout.strip()
+    if not dirty:
+        return
+    # Did the agent report a gate-green DONE?
+    result = ""
+    if log_path and os.path.exists(log_path):
+        try:
+            tail = subprocess.check_output(["tail", "-n", "40", log_path], text=True)
+        except Exception:
+            tail = ""
+        m = re.search(r"SWARM_RESULT\s+" + re.escape(task_id) + r"\s+(\w+)", tail)
+        if m:
+            result = m.group(1).upper()
+    if result != "DONE":
+        print(f"[pool] slot for {task_id} exited dirty but result={result or 'none'} "
+              f"(not DONE) — NOT harvesting (agent must have hit a real block)", flush=True)
+        return
+    # Build a commit message from the agent's SWARM_RESULT summary.
+    summary = ""
+    mm = re.search(r"SWARM_RESULT\s+" + re.escape(task_id) + r"\s+DONE\s+(.*)", tail)
+    if mm:
+        summary = mm.group(1).strip()[:200]
+    msgfile = f"/tmp/swarm-{task_id}-harvest-msg.txt"
+    with open(msgfile, "w") as f:
+        f.write(f"{task_id} DONE: {summary or 'swarm agent result (auto-harvested)'}\n\n"
+                f"Auto-harvested by the swarm pool: the agent gated green but Claude Code's\n"
+                f"sandbox blocked its in-worktree commit; push_helper landed it from a /tmp\n"
+                f"clone after re-running the gate.\n")
+    print(f"[pool] harvesting {task_id} (agent reported DONE) via push_helper...", flush=True)
+    rc = subprocess.run(["bash", PUSH_HELPER, task_id, msgfile]).returncode
+    print(f"[pool] harvest {task_id} -> push_helper rc={rc}", flush=True)
+
+
 def cmd_run(size, once):
     os.makedirs(LOGS, exist_ok=True)
     print(f"[pool] target size {size}; scheduling from {ROADMAP}", flush=True)
@@ -238,7 +288,9 @@ def cmd_run(size, once):
                 active[slot] = st["slots"].get(str(slot), {}).get("task")
             else:
                 if str(slot) in st["slots"]:
-                    print(f"[pool] slot {slot} ({st['slots'][str(slot)]['task']}) exited", flush=True)
+                    tid = st["slots"][str(slot)]["task"]
+                    print(f"[pool] slot {slot} ({tid}) exited", flush=True)
+                    harvest_exited_slot(tid, st["slots"][str(slot)].get("log"))
                     clear_slot(slot)
         elig, done = eligible_tasks()
         # Reap live slots whose task is already DONE (merged to origin/main by another
