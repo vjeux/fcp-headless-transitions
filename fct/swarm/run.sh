@@ -4,7 +4,11 @@
 set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 TMUX="$(command -v tmux || echo /opt/homebrew/bin/tmux)"
-SIZE="${1:-8}"
+# Default pool size 5, not 8: on this Mac, 8 concurrent Claude Code + node builds drove
+# heavy memory pressure (13G compressor, <2.5G free) and OOM SIGKILL(137) killed ~27% of
+# agent runs mid-work — infinite churn. 5 fits in RAM, kills stop, and each agent has room
+# to finish. Combined with salvage-RESTORE in setup_worktree.sh, killed agents now resume.
+SIZE="${1:-5}"
 MAIN="$HOME/random/final-cut-pro-transitions"
 cd "$MAIN"
 mkdir -p "$HOME/fct-swarm/logs"
