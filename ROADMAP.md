@@ -172,19 +172,15 @@ T-A1  PARTIAL colour-channel Link (census-verified)               Panels_Across,
               [infrastructure landed; PSNR=neutral because downstream renderers missing —
                Cross image = Media/cross.ai vector-unsupported, Loop/Heart/Slide_In target
                GRADIENT-TAG colour (renderer TBD). Framework hooks left for future ticks.]
-T-A2  DONE    Motion Path driver                                  layer follows a spatial path;
+T-A2  TODO    Motion Path driver                                  layer follows a spatial path;
                                                                   unblocks path users
 T-A3  DROPPED Gravity driver (LAYER-level)                        census: 0 built-in LAYERS use
                                                                   Gravity. All 4 Gravity behaviours
                                                                   (Drop_In x3, Earthquake x1) sit on
                                                                   Particle Cells -> folded into T-B1
                                                                   (which already lists "gravity").
-T-B1  DONE    Emitter+Cell param PARSER                           birth rate, life, vel, spin, gravity
-                                                                  (owns gravity after T-A3 dropped) —
-                                                                  EmitterParams/ParticleCellParams
-                                                                  /GravityBehavior types + parser
-                                                                  + MotrScene.emitters/particleCells
-                                                                  flat indexes. Parse-only, gate 0/0.
+T-B1  TODO    Emitter+Cell param PARSER                           birth rate, life, vel, spin, gravity
+                                                                  (owns gravity after T-A3 dropped)
 T-B2  TODO    Emitter SIM+render, MINIMAL     after: T-B1         spawn + advect + gravity + composite
                                                                   (flat colour). Target: Diagonal x2
 T-B3  TODO    Emitter appearance-over-life    after: T-B2         colour/scale/opacity ramps ->
@@ -195,7 +191,7 @@ T-C1  DROPPED linear/radial gradient generator                   census: NO buil
 T-D1  DONE    linear working-space composite path                 flag-gated; overlay slugs first
 T-D2a TODO    Brightness/Colorize into linear after: T-D1         Colorize=1 users, Brightness>1
 T-D2b DONE    Tint into linear               after: T-D1          Tint filter flag-gated (Leaves +0.07)
-T-D2c TODO    Glow/Bloom into linear         after: T-D1          Bloom, 360°_Bloom
+T-D2c DONE    Glow/Bloom into linear         after: T-D1          Glow+Bloom filters flag-gated (byte-id)
 T-D2d DONE    HSV into linear                after: T-D1          Color_Panels (HSV x4; flag OFF, byte-id).
                                                                   Panels_Random has ZERO HSV (Colorize
                                                                   only, folds into T-D2a).
@@ -389,56 +385,44 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
-- 2026-07-13  OOM-CHURN FIX TICK — diagnosed the stalled swarm: 8 concurrent Claude Code
-              agents drove severe memory pressure (13G compressor, <2.5G free); ~27% of runs
-              (6/22) died SWARM_SLOT_EXIT 137 = SIGKILL/OOM MID-WORK. Salvage preserved their
-              patches (T-F1 165KB, T-B1 142KB, T-D2c 125KB) but NOTHING restored them -> agents
-              redid work from scratch, got re-killed, never converged. Fixes: (1) setup_worktree.sh
-              RESTORES the latest salvage patch (git apply --3way) onto the fresh worktree so a
-              killed agent RESUMES; (2) pool size 8->5 to fit RAM + stop OOM; (3) pool orphan-slot
-              sweep (range(size,16)) harvests+drains leftover runners after a smaller-size restart
-              (waits for result/exit, never hard-kills mid-work). RESULT: the fixes immediately
-              landed 3 stuck tasks — T-A1 (colour-Link infra, PARTIAL: downstream gradient/vector
-              renderers TBD), T-A2 (Motion Path driver, DONE), T-B1 (emitter parser, DONE). T-B2
-              now in-flight (unblocked by T-B1). done = {A2,A3,B1,C1,D1,D2b,D2d,G1} = 8. Also synced
-              stale T-A2 ROADMAP marker TODO->DONE. Commits debed7e, d745973.
-- 2026-07-13  T-B1 DONE (S3 · Emitter+Cell param PARSER, PARSE-ONLY, gate 0/0)
-              — added typed `EmitterParams` / `ParticleCellParams` /
-              `GravityBehavior` schemas + `engine/src/parser/emitter.ts`
-              lifting the Motion Emitter/Cell Object folder into them from
-              canonical param ids (Emitter/Object: 310 emissionAngle, 358
-              emissionLongitude, 311 emissionRange, 303 emitAtPoints, 349
-              emitterSeed, 356 3D, 357 faceCamera, 307 radius; Cell/Object:
-              101 birthRate, 102 birthRateRandomness, 103 initialNumber,
-              104 life, 105 lifeRandomness, 106 speed, 107 speedRandomness,
-              110 spin, 111 spinRandomness, 128 particleSource, 131 seed;
-              Gravity behavior: 401 acceleration static-or-curve default 30,
-              300 affectSubobjects). Verified by XML dump on Movements/Drop_In
-              (fid 19/14 — every cell carries Gravity default=30, static),
-              Movements/Earthquake (fid 19/14 — Life=0.4s, Speed=2409, an
-              animated 5-keypoint Acceleration curve 0→−75.7→−100→−200→0),
-              and Stylized/Diagonal (fid 23/15 — Emitter emissionAngle
-              5.198 rad, emissionRange 2.008 rad; hexagon cell birthRate 30
-              / life 10s / speed 350 / spin 0.873 rad-s / particleSourceId
-              971894859). Wired via parser/index.ts into the returned Layer
-              (layer.emitter / layer.particleCell) + into MotrScene as flat
-              lookup maps (scene.emitters / scene.particleCells, undefined
-              on non-particle scenes so consumers can early-out); cells get
-              their `emitterId` back-reference stamped by a post-parse walk
-              of the layer tree. Gravity behaviour is folded onto the cell
-              (owns gravity after T-A3 dropped — census 2026-07-13 proved
-              every built-in Gravity sits on a Particle Cell, never a layer).
-              PARSE-ONLY: nothing evaluator/compositor-side reads the new
-              fields yet, so render pixels are byte-identical (`fct regress
-              engine` 0 regressions / 0 improvements vs baseline, 35.45s).
-              Tests: new `engine/test/emitter-parser.test.ts` (18/18 pass)
-              covers all three census slugs + the empty-scene contract
-              (Push.motr → emitters/particleCells absent, not empty). Also
-              green: parser.test.ts (12/12), behaviors.test.ts (23/23),
-              no-hardcode.test.ts (6/6 detectors ≥ 2 built-ins). This unblocks
-              T-B2 (minimal emitter SIM: spawn + advect + gravity + composite)
-              and T-B3 (appearance-over-life ramps), both of which now have a
-              typed input schema to consume.
+- 2026-07-13  T-D2c (S2/S4 · Glow/Bloom→linear) DONE — added a LINEAR-working-space
+              branch to `glowFilter` (engine/src/compositor/filters/glow.ts) behind
+              `isLinearCompositeEnabled()` (T-D1's flag, DEFAULTS OFF so gate stays
+              byte-identical — 0 regressions / 0 improvements vs baseline_engine).
+              The linear path decodes input sRGB codes via LUT_SRGB_TO_LINEAR,
+              computes the HgcGlow mask alpha (a = clamp((luma709−Threshold)/Softness
+              +0.5, 0, 1)) on LINEAR Rec.709 luma, premultiplies LINEAR RGB by a,
+              stores the intermediate as u8-in-linear-light (blur is a linear op,
+              so blurring linear-u8 stays linear-u8 up to the same round-to-int
+              quantization the sRGB path already lives with), runs the FCP
+              HgcGlowCombineFx over-composite ((1−glowA)·orig + glow.rgb·gain) in
+              linear light, and encodes ONCE via linearChannelToSrgb at emission
+              — matching the FCP shader's kCGColorSpaceExtendedLinearSRGB working
+              space (decoded 2026-07-12 in linear.ts header; oz_render.mm
+              OZ_WS_DEBUG at ~338/515 confirms). Threshold is interpreted as a
+              LINEAR luma cutoff when the flag is on, per the FCP shader's
+              semantics (the same param has a physically-brighter meaning in
+              linear working space than in sRGB code space — e.g. threshold=0.5
+              corresponds to sRGB ~188, not 128). Target slugs (census-verified):
+              Lights__Bloom (PAEGlow ×2 + PAEBloom ×2 + PAEGaussianBlur ×2) and
+              360°__360°_Bloom (Glow + Bloom + Gaussian Blur) both stack Glow and
+              Bloom in the same chain, so both registrations must migrate together.
+              Post-migration scores (flag OFF, intentionally identical to
+              pre-change): Lights__Bloom 10.44, 360°__360°_Bloom 11.51 — both
+              equal to baseline. Byte-identity verified: re-rendered both target
+              slugs into /tmp with the new code and cmp'd frame_0000/5/10/15/20
+              against the pre-change frames — all identical. Unit tests: glow
+              15/15 (+9 for T-D2c: linear flag default, byte-identity of default
+              params, sRGB-vs-linear divergence on mid-tones with amount>1 —
+              needed because uniform amount=1 self-cancels via combine identity
+              (1-a)·orig + orig·a = orig — LINEAR threshold gating on dark input,
+              bright-input decode/combine round-trip, flag-off byte-identity after
+              toggle, both PAEGlow + PAEBloom registrations respect the flag);
+              linear 15/15; hue-saturation 13/13; tint 9/9; no-hardcode 6/6; tsc
+              clean. Ships infrastructure only; the default flag flip happens
+              after all four T-D2 families migrate (T-D1's contract) — with T-D2c
+              landed, done = {A3,C1,D1,D2b,D2c,D2d,G1}; only T-D2a (Brightness/
+              Colorize) is left to unblock the whole-chain flag flip.
 - 2026-07-13  SWARM THROUGHPUT TICK — added "reap LIVE sessions that already reported
               SWARM_RESULT". Agents on the old brief finish + print a terminal SWARM_RESULT
               (usually BLOCKED, since macOS TCC blocks their in-worktree git push) but Claude

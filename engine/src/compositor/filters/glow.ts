@@ -98,6 +98,11 @@
  */
 import { decimatedGaussianBlur } from './gaussian-blur.js';
 import { luma } from '../blend.js';
+import {
+  isLinearCompositeEnabled,
+  LUT_SRGB_TO_LINEAR,
+  linearChannelToSrgb,
+} from '../linear.js';
 
 export interface GlowParams {
   radius: number;
@@ -106,10 +111,52 @@ export interface GlowParams {
   /** Ramp width of the luma mask (FCP Softness param, id 4; default 0.2). A
    *  value <= 0 collapses the mask to a hard step at Threshold. */
   softness?: number;
+  /** When true, run the whole mask+blur+combine chain in LINEAR working space
+   *  (FCP's kCGColorSpaceExtendedLinearSRGB, decoded 2026-07-12 in linear.ts —
+   *  oz_render.mm OZ_WS_DEBUG confirms). Wired to isLinearCompositeEnabled()
+   *  at the registry callsites; defaults OFF so shipped output is byte-identical
+   *  (T-D2c safety contract, same as T-D2b/T-D2d). */
+  linear?: boolean;
 }
 
 /**
  * Apply glow/bloom effect to an image.
+ *
+ * ============================ LINEAR WORKING SPACE (T-D2c) ============================
+ * FCP's HgcGlow / HgcBloomThreshold / HgcGlowCombineFx shaders all sample from and emit
+ * to the LINEAR working color space (decoded in compositor/linear.ts:
+ * kCGColorSpaceExtendedLinearSRGB confirmed via OZ_WS_DEBUG at oz_render.mm ~338/515).
+ * The 6 shipping Glow/Bloom users (Lights__Bloom + 360°__360°_Bloom drive both PAEGlow
+ * and PAEBloom; four more use PAEGlow standalone) currently see the whole pipeline —
+ * luma mask, Gaussian blur, over-composite — done on sRGB code values, which is wrong
+ * in two ways:
+ *   (a) the Rec.709 luma mask is a WEIGHTED SUM: on gamma-encoded codes it reads the
+ *       relative brightness of encoded pixels, not photons. The soft ramp centred at
+ *       Threshold therefore picks up different pixels than FCP does — the encoding
+ *       compresses highlights, so mid-highlights get MORE weight in gamma than in
+ *       linear (linear luma 0.5 → sRGB ≈ 188, so the sRGB path treats sRGB 128 as
+ *       "midtone" while linear treats sRGB 188 as midtone). This shifts which pixels
+ *       glow.
+ *   (b) the over-composite lerp (1-a)·orig + glow is a LINEAR blend of light, which
+ *       is what makes bloom read as ADDITIVE emission near bright cores. In sRGB code
+ *       space that same formula darkens the mid-tones (the gamma-compressed sum of two
+ *       equal codes ≠ 2× the light). Documented in ROADMAP S2 — Bloom / 360°_Bloom
+ *       read over-dim vs GUI GT because the encode-blend-encode chain runs in gamma.
+ *
+ * The linear branch below decodes sRGB→linear via LUT_SRGB_TO_LINEAR, computes the
+ * mask alpha on LINEAR luma709, premultiplies LINEAR RGB by a, stores the intermediate
+ * as u8-in-linear-light (each u8 = round(linear·255)), blurs that buffer (Gaussian is
+ * a linear operation, so blurring linear-u8 stays linear-u8 up to quantization — same
+ * quantization the sRGB path lives with today, applied to a different sample space),
+ * then combines in linear light and encodes ONCE at emission. Threshold is interpreted
+ * as a LINEAR luma cutoff when the flag is on (per the FCP shader's semantics), so
+ * threshold=0.5 corresponds to a physically-brighter cutoff than in the sRGB path — the
+ * same param, a different working space.
+ *
+ * Both callsites (PAEGlow + PAEBloom registrations at the bottom) opt in via
+ * isLinearCompositeEnabled(), which defaults OFF. Flag off is BYTE-IDENTICAL to the
+ * pre-T-D2c code (verified in test/glow.test.ts).
+ * ============================================================================
  */
 export function glowFilter(input: ImageData, params: GlowParams): ImageData {
   const { radius, threshold, amount } = params;
@@ -118,6 +165,75 @@ export function glowFilter(input: ImageData, params: GlowParams): ImageData {
   const width = input.width;
   const height = input.height;
   const src = input.data;
+  const softness = params.softness ?? 0.2;
+  const n = src.length;
+  const linear = params.linear === true;
+
+  if (linear) {
+    // LINEAR path (T-D2c). Same three steps as the sRGB path, but every operation
+    // is on linear-light values. The intermediate `brightData` u8 buffer stores
+    // linear light in [0,255] (u8 code = round(linear · 255)), NOT sRGB codes —
+    // so the blur that runs on it stays in linear light (a Gaussian is a linear
+    // op; blurring linear-u8 keeps linear-u8 semantics up to the same round-to-int
+    // quantization the sRGB path already lives with).
+    const lut = LUT_SRGB_TO_LINEAR;
+
+    // Step 1 (LINEAR): soft luma mask on Rec.709 luma of LINEAR RGB.
+    const brightData = new Uint8ClampedArray(width * height * 4);
+    for (let i = 0; i < n; i += 4) {
+      const rL = lut[src[i]];
+      const gL = lut[src[i + 1]];
+      const bL = lut[src[i + 2]];
+      // Rec.709 luma weights (HgcGlow hg_Params[0].xyz = the Y row of
+      // colorMatrixFromDesiredRGBToYCbCr; the same weights blend.ts's luma()
+      // applies in the sRGB path, but read here off LINEAR channels).
+      const lumL = 0.2126 * rL + 0.7152 * gL + 0.0722 * bL;
+      let a: number;
+      if (softness > 0) {
+        a = (lumL - threshold) / softness + 0.5;
+        a = a < 0 ? 0 : a > 1 ? 1 : a;
+      } else {
+        a = lumL > threshold ? 1 : 0;
+      }
+      if (a > 0) {
+        // Store linear-light u8: v = round(linear · a · 255). Alpha stays as a
+        // coverage fraction (u8 = round(a · srcAlpha)) — same convention as the
+        // sRGB path (coverage is not gamma-encoded, per linear.ts).
+        brightData[i]     = Math.round(rL * a * 255);
+        brightData[i + 1] = Math.round(gL * a * 255);
+        brightData[i + 2] = Math.round(bL * a * 255);
+        brightData[i + 3] = Math.round(a * src[i + 3]);
+      }
+      // else: stays zero (transparent)
+    }
+
+    // Step 2 (LINEAR): blur the linear-light bright buffer. decimatedGaussianBlur
+    // is a weighted sum of samples — it doesn't care what colour space the samples
+    // live in, so blurring linear-u8 yields linear-u8.
+    const brightImg = new ImageData(brightData, width, height);
+    const blurred = decimatedGaussianBlur(brightImg, radius);
+    const bdata = blurred.data;
+
+    // Step 3 (LINEAR): HgcGlowCombineFx in linear light, then encode once to sRGB.
+    // Decode the original source per-pixel (no allocation of a whole float buffer —
+    // the LUT lookup is a single indexed read). glow.rgb is already linear-premult
+    // from step 1; the combine formula is a straight source-over lerp on linear
+    // light, exactly what the FCP shader does in kCGColorSpaceExtendedLinearSRGB.
+    const out = new Uint8ClampedArray(width * height * 4);
+    for (let i = 0; i < n; i += 4) {
+      let glowA = (bdata[i + 3] / 255) * amount;
+      if (glowA > 1) glowA = 1; else if (glowA < 0) glowA = 0;
+      const keep = 1 - glowA;
+      const oR = lut[src[i]]     * keep + (bdata[i]     / 255) * amount;
+      const oG = lut[src[i + 1]] * keep + (bdata[i + 1] / 255) * amount;
+      const oB = lut[src[i + 2]] * keep + (bdata[i + 2] / 255) * amount;
+      out[i]     = linearChannelToSrgb(oR);
+      out[i + 1] = linearChannelToSrgb(oG);
+      out[i + 2] = linearChannelToSrgb(oB);
+      out[i + 3] = src[i + 3];
+    }
+    return new ImageData(out, width, height);
+  }
 
   // Step 1: SOFT luma mask (DECODED HgcGlow, see header). The extracted glow
   // layer is rgb·a where a = clamp((luma709 − Threshold)/Softness + 0.5, 0, 1) —
@@ -125,8 +241,6 @@ export function glowFilter(input: ImageData, params: GlowParams): ImageData {
   // the old hard step. luma & threshold are in [0,1]; luma() returns [0,255] so we
   // normalise. RGB is premultiplied by a (partial-brightness pixels feather in).
   const brightData = new Uint8ClampedArray(width * height * 4);
-  const softness = params.softness ?? 0.2;
-  const n = src.length;
   for (let i = 0; i < n; i += 4) {
     const lum = luma(src[i], src[i + 1], src[i + 2]) / 255; // Rec.709, normalised
     let a: number;
@@ -180,7 +294,11 @@ import { registerFilter } from './registry.js';
 
 // Glow (PAEGlow, UUID 73F69C87-…). Behavior-identical to the legacy branch:
 // Radius/Threshold(raw)/intensity(Opacity or Intensity, default 1); a radius<=0 or
-// intensity<=0 leaves input unchanged.
+// intensity<=0 leaves input unchanged. The `linear` param opts into the T-D2c
+// linear working-space branch of glowFilter (see linear.ts) — defaults OFF via
+// isLinearCompositeEnabled() so shipped output is byte-identical; flips ON
+// alongside the sibling T-D2a/b/d migrations when the linear composite chain
+// is enabled end-to-end.
 registerFilter({
   uuid: '73F69C87-7226-4F7A-81F2-F5E378501423',
   names: ['glow'],
@@ -190,7 +308,9 @@ registerFilter({
     const threshold = ctx.param('Threshold', 0);
     const softness = ctx.param('Softness', 0.2);
     const intensity = ctx.has('Opacity') ? ctx.param('Opacity', 1) : ctx.param('Intensity', 1);
-    if (radius > 0 && intensity > 0) return glowFilter(input, { radius, threshold, amount: intensity, softness });
+    if (radius > 0 && intensity > 0) return glowFilter(input, {
+      radius, threshold, amount: intensity, softness, linear: isLinearCompositeEnabled(),
+    });
     return input;
   },
 });
@@ -242,7 +362,13 @@ registerFilter({
       // knockout, NOT the glow luma ramp — pass softness:0 so glowFilter keeps its
       // hard cutoff here (the soft-ramp default is Glow-only). Bloom's exact mask
       // is decoded in the header note but not yet wired (P2-bloom-*).
-      return glowFilter(input, { radius: amount, threshold: threshold / 100, amount: brightness / 100, softness: 0 });
+      // `linear` opts into the T-D2c linear working-space branch (see linear.ts) —
+      // defaults OFF via isLinearCompositeEnabled() so shipped output is byte-
+      // identical; flips ON alongside T-D2a/b/d when the linear chain lands.
+      return glowFilter(input, {
+        radius: amount, threshold: threshold / 100, amount: brightness / 100,
+        softness: 0, linear: isLinearCompositeEnabled(),
+      });
     }
     return input;
   },
