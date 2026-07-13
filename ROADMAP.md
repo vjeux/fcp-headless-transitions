@@ -182,7 +182,16 @@ T-A1  PARTIAL colour-channel Link (census-verified)               Panels_Across,
                docs/notes/GRADIENT_TAG_COLOUR_LINK_RE.md. Target path `.../104/1/<tagId>/3/{1,2,3}`
                = Gradient→RGB-folder→stop→Color→R/G/B (0..1 float). Renderer is a 6-step plan in
                that note; needs types.ts + parser/behaviors.ts + parser/index.ts (was collision-
-               blocked by in-flight T-F1/T-B3 at decode time). Build once those land.]
+               blocked by in-flight T-F1/T-B3 at decode time). Build once those land.
+               2026-07-13b: gradient-tag DATA PIPELINE landed (de070ba: types+parser+color-links
+               resolve stop overrides). CRITICAL Rule-8 correction: the gradient renderer is NOT the
+               Loop/Heart lever — GUI GT proves those two deficits are a STALLED B-REVEAL (static A
+               for the whole transition), not a missing gradient. Full decode in
+               docs/notes/STYLIZED_LOOP_HEART_REVEAL_RE.md. The gradient swoosh is a small STROKE
+               decoration on the reveal; the reveal itself is a media Image-Mask (shape.png teardrop).
+               Loop/Heart now belong to a new REVEAL-TIMING item (S6/S7), not T-A1. T-A1's remaining
+               renderer value is the SWOOSH stroke, which composites via the shape branch once the
+               reveal path lands.]
 T-A2  DONE    Motion Path driver                                  layer follows a spatial path;
                                                                   unblocks path users
 T-A3  DROPPED Gravity driver (LAYER-level)                        census: 0 built-in LAYERS use
@@ -415,6 +424,27 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  STYLIZED/LOOP+HEART STALLED-REVEAL RE (Rule-8 decode corrects the T-A1 premise).
+              Full root-cause decode written to docs/notes/STYLIZED_LOOP_HEART_REVEAL_RE.md.
+              The gradient-tag renderer is NOT the Loop/Heart lever — GT proves the deficit is a
+              STALLED B-REVEAL: the engine renders a STATIC Transition A for the whole transition
+              (Loop f4-f23 ~9.9 dB frozen-A). THREE stacked bugs found: (1) DOMINANT — buildTimeMap's
+              retime-wrap is driven by a decorative ORNAMENT media layer ("arc" out=0.60s) instead of
+              the A/B drop zones, collapsing everything past 0.6s to frame 0 so B never reveals;
+              (2) resolveImageMaskAlpha's media branch used luma×alpha = 0 EVERYWHERE for shape.png's
+              alpha-defined teardrop matte (inside luma0×a1, outside luma255×a0); (3) mask-source shape
+              collection gated on el.visible excludes DISABLED mask geometry. Reveal mechanism decoded:
+              Transition B is clipped by an Image Mask whose Mask Source is the disabled image "shape"
+              (Media/shape.png teardrop), NOT a vector wipe and NOT the gradient swoosh. LANDED
+              (gate-neutral, RE-correct prerequisites): fixes (2)+(3) in compositor/masks.ts — media-mask
+              ALPHA-vs-luma channel decision + disabled-mask-geometry admit. DEFERRED: fix (1) wrap
+              (exclude bundled media from wrap-min) — it is CORRECT but reveals B TOO EARLY without a
+              progressive stroke-then-fill reveal-timing model + completed-B CLAMP tail, so alone it
+              regresses Loop 12.82->11.09 (GT f6 = thin arc STROKE, engine = B already filled). Reverted
+              per the gate rule; must land WITH the timing model. Gate 0/0, tsc clean, no-hardcode green.
+              NEXT: build the progressive reveal-timing (teardrop matte gated by the shape's Retime
+              -11..94 / arc stroke write-on) + clamp-to-completed-B tail, verified frame-by-frame vs GT
+              (f0 none -> mid arc-stroke -> fill -> held-B), then re-enable the media-from-wrap exclusion.
 - 2026-07-13  T-A1 RENDERER STEP 2 (gradientTag detect + stop-override resolve). Completed the
               gradient-tag DATA PIPELINE (de070ba): (1) types.ts colorTarget gains 'gradientTag'
               kind + tagId; (2) parseColorTarget structurally matches .../104/1/<tagId>/3/{1,2,3}

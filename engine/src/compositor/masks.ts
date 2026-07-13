@@ -359,25 +359,54 @@ export function resolveImageMaskAlpha(rctx: RenderContext, sourceId: number, W: 
     if (alpha) return applyInvert(alpha);
     return null;
   }
-  // Video/image media mask source (e.g. Objects/Veil's "Veil - Wipe Matte" mov):
-  // the layer is a media clip (often disabled — it exists only to supply matte
-  // luma). Its LUMA drives the reveal. Rasterize the media (via the time-aware
-  // resolver), fit it to the frame the same way a full-frame drop zone conforms,
-  // and use luma (0..255) as the mask alpha.
+  // Video/image media mask source (e.g. Objects/Veil's "Veil - Wipe Matte" mov;
+  // Stylized/Loop + Heart's "shape.png" teardrop matte): the layer is a media clip
+  // (usually DISABLED — it exists only to supply the matte) whose rendered RGBA is
+  // the reveal shape. Motion derives the matte from the source's COVERAGE:
+  //   • A matte authored as an OPAQUE luma ramp (Veil's wipe .mov: alpha=255
+  //     everywhere, the shape is in the black↔white luma) → use LUMA.
+  //   • A matte authored as a SHAPE-BY-ALPHA cutout (Loop/Heart's shape.png: a
+  //     black teardrop at alpha=255 on a fully TRANSPARENT alpha=0 field; its luma
+  //     is 0 INSIDE the shape and 255 outside) → use ALPHA. Using luma×alpha here
+  //     (the old code) gave 0 EVERYWHERE (inside: luma0×a1=0; outside: luma255×a0=0)
+  //     so Transition B was never revealed and Loop/Heart rendered a static
+  //     Transition A for the whole transition.
+  // Decide the channel ONCE from the source's alpha: if the matte carries real
+  // transparency (a meaningful fraction of near-zero alpha) the shape lives in the
+  // ALPHA channel; otherwise it is an opaque luma matte. Structural (channel stats),
+  // never per-transition.
   if (src.layer.type === 'image' && src.layer.source) {
     const mediaImg = getSourceImage(rctx, src.layer.source, rctx.imageA, rctx.imageB);
     if (mediaImg) {
       const alpha = new Uint8Array(W * H);
-      // Full-frame matte: sample the media conformed to the output frame.
       const mw = mediaImg.width, mh = mediaImg.height;
+      const md = mediaImg.data;
+      // One-time channel decision: sample the alpha channel on a coarse grid. If a
+      // meaningful fraction of pixels are (near-)transparent, the matte is defined
+      // by ALPHA (a shape cutout); else it's an opaque LUMA matte.
+      let transparentCount = 0, sampled = 0;
+      const stepY = Math.max(1, Math.floor(mh / 64)), stepX = Math.max(1, Math.floor(mw / 64));
+      for (let y = 0; y < mh; y += stepY) {
+        for (let x = 0; x < mw; x += stepX) {
+          if (md[(y * mw + x) * 4 + 3] < 16) transparentCount++;
+          sampled++;
+        }
+      }
+      const useAlpha = sampled > 0 && transparentCount / sampled > 0.02;
+      // Full-frame matte: sample the media conformed to the output frame.
       for (let y = 0; y < H; y++) {
         const sy = Math.min(mh - 1, Math.floor(y * mh / H));
         for (let x = 0; x < W; x++) {
           const sx = Math.min(mw - 1, Math.floor(x * mw / W));
           const si = (sy * mw + sx) * 4;
-          // Rec.601 luma; premultiply by the matte's own alpha (fully opaque here).
-          const l = luma601(mediaImg.data[si], mediaImg.data[si + 1], mediaImg.data[si + 2]);
-          alpha[y * W + x] = Math.round(l * (mediaImg.data[si + 3] / 255));
+          if (useAlpha) {
+            // Shape-by-alpha matte: the alpha channel IS the reveal coverage.
+            alpha[y * W + x] = md[si + 3];
+          } else {
+            // Opaque luma matte: Rec.601 luma × the matte's own alpha (≈1 here).
+            const l = luma601(md[si], md[si + 1], md[si + 2]);
+            alpha[y * W + x] = Math.round(l * (md[si + 3] / 255));
+          }
         }
       }
       return applyInvert(alpha);
@@ -397,11 +426,33 @@ export function resolveImageMaskAlpha(rctx: RenderContext, sourceId: number, W: 
   // geometry (incl. its stroke) but use the CLONE's own transform.
   const entries: { shape: import('../types.js').Shape; xform: Float64Array; writeOnPhase?: number }[] = [];
   const findShapeLayer = (id: number): EvaluatedLayer | undefined => rctx.evalLayerById.get(id);
+  // A DISABLED (<enabled>0</enabled>) shape used as Image Mask geometry is the
+  // standard Motion pattern: the mask-geometry shape is switched OFF so it never
+  // draws directly — it exists ONLY to supply the reveal matte (Stylized/Loop,
+  // Heart: the "shape" mask source is disabled, so `el.visible` is false and the
+  // whole reveal was silently EMPTY → Transition B never composited in and the
+  // engine rendered a static Transition A for the entire transition). A disabled
+  // mask source still contributes its geometry, so admit it as long as it's within
+  // its own timing window (a timed-out disabled shape must NOT leak in). Its
+  // render opacity/enabled flag is irrelevant to its use AS a mask — exactly like
+  // the mask-source GROUP whose own opacity is already ignored above. Non-disabled
+  // shapes keep the strict `el.visible` gate (the rig snapshot selects the active
+  // variant via the group-opacity early-return + per-shape visibility).
+  const t = rctx.time ?? 0;
+  const withinTimingWindow = (el: EvaluatedLayer): boolean => {
+    const tm = el.layer.timing;
+    if (!tm) return true;
+    const inn = tm.in && tm.in.timescale > 0 ? tm.in.value / tm.in.timescale : -Infinity;
+    const out = tm.out && tm.out.timescale > 0 ? tm.out.value / tm.out.timescale : Infinity;
+    return t >= inn && t <= out;
+  };
+  const eligibleMaskGeom = (el: EvaluatedLayer): boolean =>
+    el.visible || (el.layer.enabled === false && withinTimingWindow(el));
   const walk = (el: EvaluatedLayer, isRoot: boolean): void => {
     if (!isRoot && el.layer.type === 'group' && el.opacity <= 0) return;
-    if (el.layer.type === 'shape' && el.layer.shape && el.visible) {
+    if (el.layer.type === 'shape' && el.layer.shape && eligibleMaskGeom(el)) {
       entries.push({ shape: el.layer.shape, xform: el.worldTransform });
-    } else if (el.layer.type === 'clone' && el.visible && el.layer.cloneSourceId !== undefined) {
+    } else if (el.layer.type === 'clone' && eligibleMaskGeom(el) && el.layer.cloneSourceId !== undefined) {
       // Resolve the clone's source shape (may itself chain through clones).
       let srcId: number | undefined = el.layer.cloneSourceId; let hop = 0;
       let srcLayer: EvaluatedLayer | undefined;
@@ -445,7 +496,6 @@ export function resolveImageMaskAlpha(rctx: RenderContext, sourceId: number, W: 
   };
   walk(src, true);
   if (entries.length === 0) return null;
-  const t = rctx.time ?? 0;
   const resolveOffset = (v: number | { keyframes: { value: number }[]; value?: number; default: number } | undefined, def: number): number => {
     if (v === undefined) return def;
     if (typeof v === 'number') return v;
