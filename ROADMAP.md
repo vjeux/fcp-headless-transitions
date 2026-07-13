@@ -220,7 +220,7 @@ T-D2d DONE    HSV into linear                after: T-D1          Color_Panels (
                                                                   Panels_Random has ZERO HSV (Colorize
                                                                   only, folds into T-D2a).
 T-E1  DONE    retime-ramp cancel for off-canvas wall Transition A Video_Wall 8.7->9.1 (+0.36; Clone_Spin unchanged)
-T-E2  TODO    clone-tile wall render          after: T-E1         Video_Wall 14-tile grid
+T-E2  BLOCKED clone-tile wall render          after: T-E1         Video_Wall 14-tile grid (blocked by S6 framing-camera pose bug — see progress log 2026-07-13)
 T-F1  BLOCKED Smear appearance at mid-frames                      Movements/Smear (11.0)
               [2026-07-13: pulled from the swarm pool after 6 identical failed runs — the CC
                agent hangs EVERY run (log frozen at the 203-byte startup banner + worktree quiet
@@ -419,6 +419,41 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  T-E2 BLOCKED (S6 · clone-tile wall render, on top of the harness-pollution fix below).
+              Prior-tick's HARNESS-POLLUTION log correctly identified the parsePinIndex compositor
+              add as "the right clone-tile fix" (Pin 1→imageA, Pin 2→imageB). Kept. This tick
+              INSTRUMENTED the remaining PSNR gap: baseline 9.06 (post-T-E1) → GT fills the frame
+              throughout, engine renders bottom 100% black + top 22% dark with a CONSTANT per-frame
+              pattern. Root cause is the SAME S6 framing-camera pose bug T-E1's log flagged as a
+              follow-up ("Framing-anchor projection itself STILL diverges ~350px from A — deeper OZ
+              computeFraming decode needed").
+              Decode: at t=0 (100% "framer" proxy) resolveFramedWallPose computes eye
+              (2490,-1589,1190), focal=1304 (AOV=45°), dolly range near=1317→far=2341 — near/far
+              BOTH derive from Transition B's single-tile bbox (halfV=540, halfMax=960) at
+              framing.ts:259-262, so the whole dolly spans ONE TILE. Wall extends world
+              (-2000..+6000)X × (-2400..+6000)Y ≈ 8000+ units — a fit needs dist ~10000+. Result:
+              Replicator Pin 1's 3×3 tiles at origin project to screen (sx,sy) up to (-43295,56289)
+              — massively off the 1920×1080 frame. Also: timeMap wraps ALL frames ≥ 0.367s back to
+              t=0 because Transition A's retime-1 curve times out at 0.367s (shortest wins
+              min-wrapSec).
+              Tried (all rejected as regressions or no-ops):
+                • Extend T-E1's off-canvas override to Transition B (dropZone.type∈{1,2}): B not
+                  actually retime-ramped, no delta.
+                • Treat replicator scenenodes as always-visible (<timing> is Sequence-Replicator
+                  internal band, not clip lifetime): all 14 become vis=true in trace but framing
+                  projection still lands them off-screen — no delta.
+                • Skip wall-placed drop zones in timemap wrapSec-min: removes the t=0 freeze but
+                  UNMASKS the misprojection — tiles animate through wrong positions and score
+                  regresses 9.06→8.29. Reverted.
+                • Swap proxy/content near-far assignment (farDist + (near-far)*f): 8.56, worse.
+                  Direction was correct; magnitudes are the issue.
+              Full fix needs the "far" distance in resolveFramedWallPose (framing.ts:255-262) to
+              fit the FULL WALL bbox (all Replicators' world positions + per-instance grid
+              extents), not just the content-behavior target tile's own bbox. Requires OZ_FRAMING_
+              DEBUG on native FCP to record eye/target/distance at every GUI-GT frame, then
+              replay. Marked T-E2 BLOCKED so the pool stops assigning it; this is a focused
+              sequential S6 item, not a swarm task. Gate: 0 regressions / 0 improvements
+              (Video_Wall 9.06 unchanged from prior tick's parsePinIndex; no other slugs touched).
 - 2026-07-13  HARNESS-POLLUTION FEEDBACK-LOOP FIX — caught a landmine in T-E2's worktree: it
               carried a diff DELETING the salvage-RESTORE block from fct/swarm/setup_worktree.sh
               (the agent was even actively editing it, mtime fresher than its task file). Root cause:

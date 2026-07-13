@@ -67,6 +67,16 @@ type CellContent =
   | { kind: 'window'; maskCell: ImageData; source: ImageData };
 
 /**
+ * Motion Template "Pin N" drop-zone convention (Type=3 user-media wells named
+ * "Pin 1"/"Pin 2"/…). Returns the 1-based Pin index or undefined for other names.
+ * Trims trailing whitespace (Video_Wall.motr authors "Pin 1 " with a stray space).
+ */
+function parsePinIndex(name: string): number | undefined {
+  const m = name.trim().match(/^Pin\s+(\d+)$/i);
+  return m ? parseInt(m[1], 10) : undefined;
+}
+
+/**
  * Resolve the drawable content a Replicator tiles across its instances. The
  * Replicator Cell's `Object Source` references a scenenode/layer by ID:
  *   - Transition A/B image  → the corresponding source pixels (translated)
@@ -90,14 +100,22 @@ function resolveCellImage(
   const src = rawSrc;
   if (!src) return null;
 
-  // Unfilled user-media Drop Zone well (Type=3): the headless render supplies only
-  // Transition A (Type=1) and B (Type=2); a Type-3 "Pin"/user well has no media, so
-  // Motion renders its placeholder (OZImageElement::createDropZoneGridBitmap → flat
-  // gray). This is the generic drop-zone semantic — a Type-3 well with no host media
-  // is always the placeholder, independent of which transition it belongs to. The
-  // clip ref on these wells resolves to the A-footage id in the graph, so this must
-  // be checked BEFORE the transitionA/B fall-through below.
+  // User-media Drop Zone well (Type=3): the headless render supplies only Transition
+  // A (Type=1) and B (Type=2); a Type-3 well has no bound media by itself. Two cases:
+  //  • Motion Template "Pin N" — Replicator/Clones · Video_Wall names its two Type-3
+  //    wells "Pin 1"/"Pin 2". Motion Templates enumerate drop zones per-index; FCPX
+  //    binds a 2-clip transition's A→Pin 1 and B→Pin 2 (the drop-zone dialog's
+  //    "Drop Zone 1"/"Drop Zone 2" ordering carries through). Route the cell to the
+  //    matching source image so the 14 replicated wall tiles show the real A/B
+  //    photos instead of the gray placeholder. The name is the ONE piece of the
+  //    scenenode that expresses the Pin index (there's no separate index parameter).
+  //  • Everything else (name doesn't match "Pin N") — fall through to Motion's
+  //    OZImageElement::createDropZoneGridBitmap gray placeholder, preserving the
+  //    generic Type=3-without-content behaviour for non-Pin templates.
   if (src.type === 'image' && src.dropZone?.type === 3) {
+    const pinIdx = parsePinIndex(src.name);
+    if (pinIdx === 1) return { kind: 'image', img: imageA };
+    if (pinIdx === 2) return { kind: 'image', img: imageB };
     return { kind: 'image', img: dropZonePlaceholderCell(rctx, imageA.width, imageA.height) };
   }
 
