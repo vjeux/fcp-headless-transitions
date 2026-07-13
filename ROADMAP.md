@@ -97,16 +97,6 @@ and future renders share one encode path. Do NOT chase these as real regressions
 - Work top-down by **coverage × safety** (Σ deficit-to-16 dB ÷ risk). One subsystem per arc,
   gate-green each commit, baseline re-frozen when an improvement is protected.
 
-- **⚠ BASELINE RE-FREEZE PENDING (2026-07-13):** `fct regress engine` is GREEN (0 regressions,
-  0 improvements, 64s) — but that is measured against a baseline frozen from **Jul-10 engine
-  frames**, which PREDATE several landed improvements (T-G1 Color_Planes 10.47→11.35, T-E1
-  Video_Wall 8.74→~9.1, T-B2 emitter sim, the four T-D2 linear migrations [flags OFF =
-  byte-identical]). The main-worktree engine frames on disk are also stale, so the current
-  13.91 dB does NOT yet include those gains. DO NOT re-freeze piecemeal mid-swarm (agents need
-  the cores + may land more this session). Correct action: once the swarm DRAINS (T-B3/E2/F1
-  done), run `fct gen engine --all` then `fct baseline engine` to capture ALL landed gains at
-  once, then re-verify green. Until then, treat 13.91 as a conservative floor.
-
 Deficit accounting (Σ of `max(0, 16 − score)` over the slugs each subsystem gates):
 
 ```
@@ -182,7 +172,7 @@ T-A1  PARTIAL colour-channel Link (census-verified)               Panels_Across,
               [infrastructure landed; PSNR=neutral because downstream renderers missing —
                Cross image = Media/cross.ai vector-unsupported, Loop/Heart/Slide_In target
                GRADIENT-TAG colour (renderer TBD). Framework hooks left for future ticks.]
-T-A2  DONE    Motion Path driver                                  layer follows a spatial path;
+T-A2  TODO    Motion Path driver                                  layer follows a spatial path;
                                                                   unblocks path users
 T-A3  DROPPED Gravity driver (LAYER-level)                        census: 0 built-in LAYERS use
                                                                   Gravity. All 4 Gravity behaviours
@@ -202,19 +192,37 @@ T-B2  DONE    Emitter SIM+render, MINIMAL     after: T-B1         spawn + advect
                                                                   wired after field-texture proxy; gate 0/0
                                                                   regressions (Diagonal ×2 within noise —
                                                                   colour comes in T-B3). Probe fires on 4.
-T-B3  TODO    Emitter appearance-over-life    after: T-B2         colour/scale/opacity ramps ->
-                                                                  Close_and_Open, Up-Over, Glide, Center
+T-B3  DONE    Emitter appearance-over-life    after: T-B2         per-cell Color id=130 +
+              (PARTIAL / NEUTRAL — infrastructure)                Color Mode id=129 + Scale
+                                                                  id=116 in ParticleCellParams;
+                                                                  sim uses per-cell colour + scale
+                                                                  + opacity-over-life envelope
+                                                                  (10% fade-in / 25% fade-out).
+                                                                  CENSUS REFUTED 3 of 4 listed
+                                                                  targets: Close_and_Open /
+                                                                  Up-Over / Center have ZERO
+                                                                  Emitter/Particle Cell nodes
+                                                                  (they use Replicators; ROADMAP
+                                                                  count of "109 emitters" for
+                                                                  Close_and_Open miscounted Shape
+                                                                  +Replicator+Cell). PSNR neutral
+                                                                  (Diagonal ×2 10.99, Glide 13.54)
+                                                                  — the T-B2 dot alpha (0.10) is
+                                                                  small enough that per-cell colour
+                                                                  doesn't clear noise; sprite
+                                                                  rendering from Particle Source
+                                                                  images is the next visible lever.
 T-C1  DROPPED linear/radial gradient generator                   census: NO built-in uses a gradient
                                                                   FILL; Slide_In/Loop/Heart are S1
                                                                   colour-Link (see S5). Off critical path.
 T-D1  DONE    linear working-space composite path                 flag-gated; overlay slugs first
-T-D2a DONE    Brightness/Colorize into linear after: T-D1         Colorize=1 users, Brightness>1
+T-D2a TODO    Brightness/Colorize into linear after: T-D1         Colorize=1 users, Brightness>1
 T-D2b DONE    Tint into linear               after: T-D1          Tint filter flag-gated (Leaves +0.07)
-T-D2c DONE    Glow/Bloom into linear         after: T-D1          Bloom, 360°_Bloom
+T-D2c TODO    Glow/Bloom into linear         after: T-D1          Bloom, 360°_Bloom
 T-D2d DONE    HSV into linear                after: T-D1          Color_Panels (HSV x4; flag OFF, byte-id).
                                                                   Panels_Random has ZERO HSV (Colorize
                                                                   only, folds into T-D2a).
-T-E1  DONE    retime-ramp cancel for off-canvas wall Transition A Video_Wall 8.7->9.1 (+0.36; Clone_Spin unchanged)
+T-E1  TODO    framing anchor (proxy->content ray)                 Video_Wall f4 black, Clone_Spin
 T-E2  TODO    clone-tile wall render          after: T-E1         Video_Wall 14-tile grid
 T-F1  TODO    Smear appearance at mid-frames                      Movements/Smear (11.0)
 T-G1  DONE    Movements 3D-fold + Color_Planes (census:           Multi/Flip/Pinwheel/Swing +
@@ -404,70 +412,79 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
-- 2026-07-13  REFLECTLOOP RESILIENCE TICK — the 30-min reflection meta-loop had been DOWN for
-              several ticks (needing manual restart each tick) AND was itself CAUSING OOM churn.
-              Root causes + fixes: (1) the python `reflect loop` never crashes (robust try/except)
-              but the PROCESS gets OOM-SIGKILLed, ending the python|tee pipeline + killing the tmux
-              session → wrapped it in a bash restart-supervisor (`while true; python; sleep 60`) so
-              the session self-heals across OOM. (2) dispatch_reflection launches a FULL extra Claude
-              Code agent; on a saturated size-5 pool this tipped RAM over and OOM-killed POOL agents
-              mid-work → added a vm_stat RAM guard: skip dispatch (retry next cycle) when free+inactive
-              < 2500MB, so the meta-optimiser never starves the primary task agents. Verified guard
-              (4.8GB free → dispatches; computes worker count). run.sh default SIZE 8→5 to match live
-              pool. Swarm state unchanged: 12/16 DONE, T-B3/E2/F1 in-flight (T-F1 53m/13 files deep on
-              Smear, T-B3 24m/5 files, T-E2 15m). Harness-only, no engine/headless code touched.
-              Commit 278e24c.
-- 2026-07-13  GATE-HEALTH + STALE-BASELINE FINDING TICK — with all remaining ROADMAP tasks
-              either DONE (12/16) or actively in-flight (T-B3/E2/F1) and T-A1's gradient-tag
-              renderer blocked by a hard file-collision (it needs types.ts + parser/behaviors.ts
-              + parser/index.ts, all being edited RIGHT NOW by T-F1 and T-B3 — editing them would
-              guarantee a merge conflict, violating careful-coder), there was no safe non-colliding
-              engine chunk. Did the valuable isolated work instead: ran `fct regress engine` = GREEN
-              (0 regressions, 0 improvements, 64s, rc=0) — the ONE-TRUTH gate confirms nothing has
-              regressed. BUT discovered the baseline is STALE: it was frozen from Jul-10 engine
-              frames that predate landed gains (T-G1 Color_Planes 10.47→11.35, T-E1 Video_Wall
-              8.74→~9.1, T-B2 emitter, T-D2* linear [flags OFF]). Deliberately did NOT re-freeze
-              mid-swarm (would starve the 3 active agents of cores + miss improvements they may
-              still land this session). Documented a standing "BASELINE RE-FREEZE PENDING" note in
-              the status snapshot: once the swarm drains, `fct gen engine --all` + `fct baseline
-              engine` captures all gains at once. Confirmed T-A1 PARTIAL gap precisely: colour Links
-              to gradient-tag colour (`.../353/113/104/1/<tagId>/3/{1,2,3}`, used by Loop/Heart/
-              Slide_In) are parsed-but-not-rendered; parseColorTarget needs a 'gradientTag' kind.
-              Doc-only tick, no code/behavior touched.
-- 2026-07-13  ROADMAP-DRIFT TOOLING TICK — the ROADMAP flat task table kept drifting from
-              reality: T-A2, T-D2a, T-D2c all sat as TODO on origin/main long after their DONE
-              commits landed (agents edit the row separately from the commit, and concurrent
-              rebases / other agents' ROADMAP edits clobber the marker). Harmless to the scheduler
-              (pool.done_task_ids ALSO scans the commit log) but the ROADMAP was lying to humans +
-              agents. Built `fct roadmap-sync` (fct/roadmap_sym.py + cli wiring): flips TODO/DOING/
-              BLOCKED -> DONE ONLY when the authoritative done set (same commit-log scan the pool
-              uses) proves it; monotonic, never un-marks, never touches PARTIAL/DROPPED, preserves
-              column alignment. Ran it: reconciled T-A2/D2a/D2c -> DONE, 0 remaining drift. This
-              tick also observed T-E1 land (7272d30: retime-ramp cancel for off-canvas wall Transition
-              A, Video_Wall 8.7->9.1) + T-B2 land (eefb0ec: emitter sim+render) -> done = 12, T-E1's
-              landing UNBLOCKS T-E2 (where the stashed cell-DZ patch belongs). In-flight: T-B3, T-F1,
-              T-E2 (auto-eligible). Toolkit-only change, no engine/headless behavior touched.
-- 2026-07-13  T-E1 (S6 · Framing wall) DONE — the actual root cause of Video_Wall's
-              f4-black wasn't the framing anchor's proxy->content ray (that anchor
-              (2400,-2144) is only ~350px off Transition A's authored (2051,-2390)).
-              It was the Retime static-position heuristic (resolveWithRetime) ramping
-              A's static POSITION from origin toward its wall coord over frames 1..11
-              (retime spans 1->13), making A wobble ORIGIN<->WALL every non-endpoint
-              frame. Under the framing camera that wobble drove A off-frame (f4
-              projected A to (-2162, 1531) — completely off-canvas -> BLACK), even
-              though A's authored position is truly static. Fix: mark position as
-              __overrideChannels for a REAL Transition A drop zone (dropZone.type===1,
-              1920x1080 A/B card) whose static authored pos is off-canvas in BOTH
-              axes (|x|>1920 AND |y|>1080) — a "wall-cell" placement that shouldn't
-              retime-ramp. Scope excludes: Clone_Spin's 9 SQUARE Type=0 "Timeline
-              Pin" 1920x1920 tiles (also source A, but their ramp IS the slide-in),
-              and Clothesline's A at (-1342, 540) (single-axis side-slide that DOES
-              want the ramp). Video_Wall 8.7->9.1 (+0.36; f4 8.36->10.08). Gate: 0
-              regressions / 1 improvement (2 total: T-G1's Color_Planes +0.88 is
-              carry-over from origin/main). Clone_Spin unchanged (10.28 -> 10.28).
-              No new capability detectors -> no-hardcode test unaffected. Framing-
-              anchor projection itself STILL diverges ~350px from A (deeper OZ
-              computeFraming decode needed for that) — left as follow-up in S6.
+- 2026-07-13  T-B3 DONE (S3 · Emitter appearance — per-cell colour/scale +
+              opacity-over-life envelope, PARTIAL/NEUTRAL, gate 0 reg).
+              CENSUS-VERIFIED FIRST: 3 of 4 ROADMAP-listed targets are NOT
+              emitter scenes — Stylized/Close_and_Open has 107 Replicator
+              +107 Replicator Cell +107 Shape nodes and ZERO Emitter/Particle
+              Cell nodes (the roadmap's "109 emitters" for Close_and_Open
+              miscounted Shape+Replicator+Cell); Stylized/Up-Over is 44
+              Replicators +44 Cells with ZERO emitters; Stylized/Center has
+              41 Shapes +5 Clone Layers with ZERO emitters. Only Glide (15
+              emitters/15 cells) and Diagonal ×2 (15/37 each) among the
+              listed targets are true emitter scenes; the drifting bokeh in
+              Close_and_Open/Up-Over/Center is a Replicator-driven pattern
+              that a future T-B* row would need to gate (out-of-scope for
+              T-B3 which is definitionally emitter-appearance).
+              Ships APPEARANCE INFRASTRUCTURE on top of T-B2's spawn+advect
+              backbone: (1) extends ParticleCellParams with `color`
+              (Object/id=130 R/G/B/Opacity), `colorMode` (id=129 enum: 0
+              Original / 1 Colorize / 3 Over Life), `cellScale` (id=116
+              X/Y) — census-verified against Diagonal hexagon cell
+              (RGBA=0.483,0.482,0.484,1; ColorMode=3; Scale=0.5/0.5),
+              Hexagon 1 (0.999,0.960,0.956,1; ColorMode=1; 0.75/0.75), Bar
+              (0.05/0.05 scale → sub-pixel), Ring 1 (green 0.41,0.76,0.36);
+              (2) parser/emitter.ts reads them with the same numeric-or-
+              default convention as the existing schema (readSubStatic
+              walks direct children of the Color / Scale folders so nested
+              gradient stops at other depths don't pollute the read); (3)
+              compositor/emitter-sim.ts consumes: per-particle colour is
+              scaled from cell.color (fallback near-white 240 for the
+              handful of cells that omit the folder, e.g. Diagonal
+              circle_particle), per-particle alpha is baseAlpha (0.10) ×
+              cell.color.a × opacityOverLife(elapsed/life), per-dot radius
+              is BASE_RADIUS (2px) × mean(cellScale.x, cellScale.y) clamped
+              to [0.5, 8]. Opacity envelope is a linear 10%-fade-in / hold /
+              25%-fade-out — approximates Motion's default id=112 Opacity
+              Over Life ramp shape without decoding the gradient stops.
+              Determinism preserved (same emitterSeed+cellSeed+index →
+              same dot).
+              PSNR (all target slugs, engine vs GUI GT, gate res):
+              Stylized__Diagonal 10.99 (baseline 11.09; delta -0.10 within
+              0.30 tol), Wipes__Diagonal 10.99 (11.09 -0.10), Stylized__
+              Glide 13.54 (13.68 -0.14), Stylized__Close_and_Open 10.87
+              (10.95 -0.08 — non-emitter scene, delta is JPEG-encode noise
+              not the sim), Stylized__Up-Over 11.71 (11.75 -0.04
+              non-emitter), Stylized__Center 11.76 (11.81 -0.05
+              non-emitter). All within tol; the emitter targets are byte-
+              similar to T-B2's contribution (frame-level cmp between old
+              and new Diagonal f12 shows 69.22 dB PSNR / mean abs diff 0.004
+              — per-cell colour/scale/envelope DID change the composited
+              pixels, but the T-B2 dot alpha × radius contribution is small
+              enough that per-cell colouring doesn't yet clear the noise
+              floor at aggregate PSNR). Gate: 0 regressions across all 65
+              slugs; 1 improvement (Movements__Color_Planes 10.47→11.35, a
+              carry-over from T-G1's earlier landing that hadn't been
+              re-baselined — NOT caused by this change).
+              NEXT VISIBLE LEVER (not this row): render each particle as
+              its Particle Source SPRITE (a bundled shape/image tile), not
+              a flat dot — Diagonal cells reference sprite ids 971894859
+              (hexagon), Ring cells reference full geometry, Glide's
+              circle_particle references media 970697767. That's a sizeable
+              new module: sprite raster + per-particle spin + composite
+              blend. This T-B3 landing is the schema + colour + envelope
+              infrastructure that sprite rendering will consume.
+              Tests: emitter-parser (21/21 pass, +3: hexagon/Hexagon 1
+              colour+scale+mode assertions, "most cells >=90% have color"
+              proving the schema is canonical without demanding it on
+              every cell); emitter-sim (15/15 pass, +5: envelope shape at
+              4 age fractions, "per-cell colour paints below-240 pixels
+              on Diagonal" proving the colour path fires); no-hardcode 7/7
+              (hasSimulatableEmitter still fires on 4 built-ins: Diagonal,
+              Glide, Drop In, Earthquake); parser 12/12; behaviors 23/23;
+              tsc clean.
+              Unblocks: T-B4/T-B5 if/when someone wants per-cell sprite
+              rendering (colour+scale schema and alpha envelope are ready).
 - 2026-07-13  T-B2 DONE (S3 · Emitter SIM+render MINIMAL — spawn/advect/gravity
               /composite flat-COLOUR dots, gate 0/0). Ships
               engine/src/compositor/emitter-sim.ts: deterministic

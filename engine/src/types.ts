@@ -676,6 +676,37 @@ export interface ParticleCellParams {
    * from per-particle `life` (which is how long a spawned particle lives).
    */
   timing?: { in: RationalTime; out: RationalTime; offset: RationalTime };
+  /**
+   * Cell base "Color" (Object/id=130) — the physical particle colour in the
+   * cell's colour space (0..1 R/G/B + Opacity). Consumed by the T-B3 emitter
+   * sim to paint each particle in its cell's authored colour instead of a flat
+   * near-white. Absent when the cell has no Color folder (unusual — most
+   * particle-sim cells author one). Example values (Stylized/Diagonal):
+   * hexagon (0.483,0.482,0.484,1.0), Hexagon 1 (0.999,0.960,0.956,1.0),
+   * Ring 1 (0.41,0.76,0.36,1.0).
+   */
+  color?: { r: number; g: number; b: number; a: number };
+  /**
+   * Colour Mode enum (Object/id=129, "Color Mode"). Motion enum:
+   *   0 = Original (take image's own colour),
+   *   1 = Colorize (tint image by base `color`),
+   *   2 = Take Image Color (per-pixel tint from source),
+   *   3 = Over Life (interpolate along a gradient over particle life —
+   *       the gradient stops live under id=112 "Color Range").
+   * Absent → default 0. The T-B3 emitter sim treats modes 1 and 3 as
+   * "use `color` as the base"; mode 0 also falls back to `color` since the
+   * flat-dot sim has no image source to sample.
+   */
+  colorMode?: number;
+  /**
+   * Cell "Scale" (Object/id=116 X/Y) — per-cell size multiplier applied to
+   * the particle sprite before the per-particle randomness. The T-B3 sim
+   * multiplies the base dot radius by mean(x,y), so tiny cells (Diagonal Bar
+   * has X=Y=0.05) produce sub-pixel dots and large cells (Ring at 1.0) get
+   * the full base radius. Undefined when the Scale folder is absent
+   * (interpret as {x:1, y:1}).
+   */
+  cellScale?: { x: number; y: number };
 }
 
 /**

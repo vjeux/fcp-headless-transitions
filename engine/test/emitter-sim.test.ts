@@ -27,7 +27,7 @@ if (typeof (globalThis as any).ImageData === 'undefined') {
 import { parseMotr } from '../src/parser/index.js';
 import { evaluate } from '../src/evaluator/index.js';
 import { composite } from '../src/compositor/index.js';
-import { hasSimulatableEmitter, applyEmitterSim } from '../src/compositor/emitter-sim.js';
+import { hasSimulatableEmitter, applyEmitterSim, __opacityOverLifeForTests } from '../src/compositor/emitter-sim.js';
 import { createBuffer } from '../src/compositor/blit.js';
 import fs from 'node:fs';
 
@@ -159,6 +159,48 @@ function runTests() {
     applyEmitterSim(b, evalScene, { emitters: diag.emitters, particleCells: diag.particleCells });
     const d = firstDiff(a, b);
     assert(d < 0, `not deterministic, diff at byte ${d}`);
+  });
+
+  // -------- T-B3: opacity-over-life envelope --------
+  test('t-b3 envelope: is 0 at t=0 and t=1 (particle birth+death)', () => {
+    assert(__opacityOverLifeForTests(0) === 0, 'birth 0');
+    assert(__opacityOverLifeForTests(1) === 0, 'death 0');
+    assert(__opacityOverLifeForTests(-0.1) === 0, 'pre-birth 0');
+    assert(__opacityOverLifeForTests(1.5) === 0, 'post-death 0');
+  });
+  test('t-b3 envelope: full alpha at mid-life (0.5)', () => {
+    const mid = __opacityOverLifeForTests(0.5);
+    assert(mid === 1, `expected 1 at 0.5, got ${mid}`);
+  });
+  test('t-b3 envelope: linear fade-in over first 10%', () => {
+    // 5% into life → 50% alpha.
+    const a = __opacityOverLifeForTests(0.05);
+    assert(Math.abs(a - 0.5) < 1e-9, `expected 0.5 at 5% life, got ${a}`);
+  });
+  test('t-b3 envelope: linear fade-out over last 25%', () => {
+    // 90% into life → 40% down the 25% fade-out ramp → alpha ~0.60/(1-0) i.e.
+    // (1-0.90)/(1-0.75) = 0.10/0.25 = 0.4.
+    const a = __opacityOverLifeForTests(0.9);
+    assert(Math.abs(a - 0.4) < 1e-9, `expected 0.4 at 90% life, got ${a}`);
+  });
+
+  // -------- T-B3: per-cell colour lands on the composited pixels --------
+  // Diagonal's hexagon cell is grey (~0.48), Hexagon 1 is near-white (~0.99).
+  // With per-cell colour on, at least SOME pixel painted by the sim must carry
+  // an R value distinctly under 240 (the old T-B2 flat near-white). Prove the
+  // colour path fires — not the exact pixel count, since sim positions vary.
+  test('t-b3 colour: sim paints below-240 pixels on Diagonal (per-cell colour applied)', () => {
+    const evalScene = evaluate(diag, 0.5);
+    const overlay = createBuffer(evalScene.width, evalScene.height);
+    applyEmitterSim(overlay, evalScene, { emitters: diag.emitters, particleCells: diag.particleCells });
+    // Sample: any pixel whose alpha > 0 AND R < 220 proves cell.color drove the
+    // dot colour (Diagonal grey hexagon at 0.48 → ~123 R). The old T-B2 (flat
+    // 240 white) would never produce a painted pixel below R=240.
+    let sawDarkPainted = false;
+    for (let i = 0; i < overlay.data.length; i += 4) {
+      if (overlay.data[i + 3] > 0 && overlay.data[i] < 220) { sawDarkPainted = true; break; }
+    }
+    assert(sawDarkPainted, 'expected some painted pixels with R<220 (per-cell colour, hex cell ≈ 0.48 grey)');
   });
 
   // -------- Time-dependence: at scene t=0 vs later, the aggregate particle set

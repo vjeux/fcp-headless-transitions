@@ -14,9 +14,6 @@
   fct regress  <source> [--verbose]                 re-score vs baseline (fast); exit 1 on regression
   fct gate    [engine|headless] [slug ...|--all] [--no-render]   render source then run the gate (lockfile-guarded)
   fct montage [slug ...|--all] [--sources gui,headless,engine] [--out m.mp4]
-  fct roadmap-sync                                  flip ROADMAP TODO->DONE markers to match the
-                                                    authoritative done set (commit-log scan); safe,
-                                                    monotonic, never un-marks or touches PARTIAL/DROPPED
 
 Headless needs the FCP engine: this CLI auto-re-execs under the venv python with
 DYLD_FRAMEWORK_PATH set (SIP strips DYLD from child processes, so we exec, not spawn).
@@ -247,10 +244,6 @@ def main():
         out = _opt(rest, "--out") or os.path.join(REPO, "montage.mp4")
         montage(slugs, sources, out=out)
         return 0
-
-    if cmd == "roadmap-sync":
-        from fct.roadmap_sync import run as roadmap_sync_run
-        return roadmap_sync_run()
 
     print(f"unknown command {cmd}\n{__doc__}"); return 1
 

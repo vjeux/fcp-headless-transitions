@@ -138,6 +138,46 @@ function runTests() {
     assert(first.particleSourceId === 971894859, `particleSourceId ${first.particleSourceId}`);
   });
 
+  // T-B3: per-cell appearance (Color id=130, Color Mode id=129, Scale id=116).
+  // XML dump of the hexagon cell: Color Mode=3 (Over Life), Color=(0.483,0.482,0.484,1),
+  // Scale=(0.50,0.50). Hexagon 1 cell: Color Mode=1 (Colorize), Color=(0.999,0.960,
+  // 0.956,1), Scale=(0.75,0.75).
+  test('diagonal: hexagon cell has Color/ColorMode/Scale (T-B3)', () => {
+    const hex = [...diag.particleCells!.values()].find(c => c.name === 'hexagon')!;
+    assert(!!hex, 'hexagon cell missing');
+    assert(!!hex.color, 'hexagon color missing');
+    assertClose(hex.color!.r, 0.483, 0.01, 'hex R');
+    assertClose(hex.color!.g, 0.482, 0.01, 'hex G');
+    assertClose(hex.color!.b, 0.484, 0.01, 'hex B');
+    assertClose(hex.color!.a, 1.0, 1e-6, 'hex A');
+    assert(hex.colorMode === 3, `hex colorMode ${hex.colorMode}`);
+    assert(!!hex.cellScale, 'hex cellScale missing');
+    assertClose(hex.cellScale!.x, 0.50, 1e-4, 'hex sx');
+    assertClose(hex.cellScale!.y, 0.50, 1e-4, 'hex sy');
+  });
+  test('diagonal: Hexagon 1 cell has Color/ColorMode/Scale (T-B3)', () => {
+    const h1 = [...diag.particleCells!.values()].find(c => c.name === 'Hexagon 1')!;
+    assert(!!h1, 'Hexagon 1 cell missing');
+    assert(!!h1.color, 'Hexagon 1 color missing');
+    assertClose(h1.color!.r, 0.999, 0.01, 'H1 R');
+    assertClose(h1.color!.g, 0.961, 0.01, 'H1 G');
+    assertClose(h1.color!.b, 0.956, 0.01, 'H1 B');
+    assert(h1.colorMode === 1, `H1 colorMode ${h1.colorMode}`);
+    assertClose(h1.cellScale!.x, 0.75, 1e-4, 'H1 sx');
+    assertClose(h1.cellScale!.y, 0.75, 1e-4, 'H1 sy');
+  });
+  // Most Diagonal cells author a Color folder; a handful (e.g. circle_particle,
+  // whose colour comes from a Particle Source image tint) do not — the T-B3 sim
+  // falls back to a flat near-white in that case. Prove the majority DO have a
+  // parsed colour, so downstream code isn't defending against a rare no-colour
+  // path only. Threshold picked from the census: 36/37 Diagonal cells author Color.
+  test('diagonal: most cells (>=90%) carry parsed color', () => {
+    let withColor = 0;
+    for (const c of diag.particleCells!.values()) if (c.color) withColor++;
+    const total = diag.particleCells!.size;
+    assert(withColor / total >= 0.9, `only ${withColor}/${total} cells have color`);
+  });
+
   // -------- MotrScene index consistency --------
   test('scene index: every layer.emitter is in scene.emitters', () => {
     const walk = (ls: any[]) => {
