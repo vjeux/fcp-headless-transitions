@@ -409,6 +409,19 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  SALVAGE-RESTORE REGRESSION FIX — while integrating this tick's gradient-tag RE
+              doc, discovered the swarm-reflect commit 1d7af7e (reap wedged slots) had branched
+              from a STALE base and, on landing, silently REVERTED my earlier salvage-RESTORE block
+              in setup_worktree.sh (+ the orphan-sweep/MAX_SLOTS in pool.py). Consequence: a pool
+              restart relaunched T-F1 (60m/14 files) + T-E2 without restoring their salvaged work.
+              RE-added salvage-RESTORE (git apply --3way of the latest patch onto the fresh worktree,
+              hard-reset-to-pristine on failure), marked so it isn't reverted again (9eb51bc). Kept
+              the reflect agent's genuinely-useful wedge-reap (_slot_stalled + _kill_slot_pg, which
+              reaps the "claude -p silent + MCP orphans hold the stdout pipe open so tee never hits
+              EOF" case). Did NOT restore the orphan-sweep (only needed when restarting at a smaller
+              size; we are steady at 5). Restarted pool (stable, wedge-reap loaded). T-B3 landed
+              (42ab49a: emitter appearance) → emitter chain B1→B2→B3 complete, done=13/16. Only
+              T-F1 (Smear) + T-E2 (clone-tile wall) remain in-flight; T-A1 PARTIAL collision-blocked.
 - 2026-07-13  SWARM WEDGE-REAP TICK — at 04:07 all 3 pool slots were simultaneously WEDGED (T-B3
               30m, T-F1 60m, T-E2 22m) with 3-line logs and no SWARM_RESULT. Root cause: `claude
               -p` went silent while its ~30 MCP fast_mux orphans kept the runner's stdout pipe FDs
