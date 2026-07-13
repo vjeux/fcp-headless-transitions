@@ -219,18 +219,26 @@ export interface Layer {
    */
   isParticleEmitter?: boolean;
   /**
+   * Parsed Motion Emitter parameters — populated on scenenodes whose factory
+   * description is "Emitter" (companion to `isParticleEmitter`). Owns emission
+   * direction/range and the emitter random seed. The Particle Cell children carry
+   * the per-particle physics (see `particleCell` below). Populated by T-B1 parser;
+   * consumed by T-B2's particle sim.
+   */
+  emitter?: EmitterParams;
+  /**
+   * Parsed Motion Particle Cell parameters — populated on scenenodes whose
+   * factory description is "Particle Cell". Owns birth rate, life, initial
+   * velocity, spin, and any Gravity behavior. Populated by T-B1 parser;
+   * consumed by T-B2's particle sim.
+   */
+  particleCell?: ParticleCellParams;
+  /**
    * Link behaviors attached to this layer. A Link makes one of this layer's
    * transform channels track a source object's channel (× scale, gated by a
    * rig-driven Custom Mix, clamped to [min,max]).
    */
   links?: LinkBehavior[];
-  /**
-   * Motion Path behaviors attached to this layer. Each Motion Path additively
-   * drives the layer's Position (X/Y/Z) over its own timing window; the animated
-   * Position curves are sampled in the behavior's local frame (local = scene -
-   * offset). Multiple Motion Paths sum. Skipped when `<enabled>0</enabled>`.
-   */
-  motionPaths?: MotionPathBehavior[];
   /**
    * Camera configuration (for type === 'camera'). Motion's Camera node carries an
    * "Angle Of View" (param id 201, degrees). Some transitions rig-drive this via a
@@ -367,50 +375,6 @@ export interface LinkBehavior {
 }
 
 /**
- * A Motion Path behavior (factory "Motion Path", commonly factoryID 24). Motion
- * attaches this to a layer's Position channel to drive the layer along an authored
- * path over its timing window. The behavior authors two Position parameter groups:
- *
- *   - `Position` id=200 — the ANIMATED OUTPUT position (X/Y/Z curves): the value
- *     added to the host layer's Position at scene time. Motion evaluates the
- *     curves in the behavior's LOCAL time frame (local = scene - offset), the
- *     same convention behaviors like Ramp/Oscillate use. This is what actually
- *     moves the layer.
- *   - `Position` id=206 — the SPATIAL PATH (a closed/open Bezier of X/Y/Z keys
- *     along path length) that the "Path Shape" param (id=207) selects (Line,
- *     Spline, Rectangle, Circle, etc.). Motion normally samples this path via
- *     the animated Position for path-shape=Bezier; for Path Shape=0 (Line) the
- *     animated Position IS the endpoint. Not evaluated here — the animated
- *     Position (id=200) already carries the resolved offset for every built-in
- *     Motion-Path user in the corpus (Stylized/Center_Reveal, Stylized/Slide_In,
- *     both driving Gradient generators).
- *
- * Multiple Motion Paths on the same host are ADDITIVE — Motion sums each
- * behavior's contribution, gated by its `<enabled>` flag (disabled behaviors are
- * skipped, matching the same convention the parser applies to disabled filters).
- * This mirrors the additive semantics documented for stacked FCP behaviors
- * (e.g. multiple Fade / Ramp instances each contribute).
- *
- * Reverse-engineered from Motion's built-in Motion Path behavior (factory
- * description "Motion Path"). The FCP binary defines factoryID → "Motion Path"
- * in each .motr's factory table (id NOT stable across files — read from the
- * table). Verified against Stylized/Center_Reveal (16 MPs on 2 Gradient
- * generators) and Stylized/Slide_In (8 MPs on 1 Gradient generator) via
- * `fct census`.
- */
-export interface MotionPathBehavior {
-  /** Behavior's own <timing in out offset> element (scene time, RationalTime).
-   *  The animated Position curves (below) are sampled in this LOCAL time frame:
-   *  local = scene_time - offset. Motion clamps to the first/last keypoint value
-   *  past the window boundaries (standard Motion curve behavior). */
-  timing?: { in: RationalTime; out: RationalTime; offset: RationalTime };
-  /** Animated Position id=200 — X sub-curve; the additive X offset. */
-  positionX?: Curve;
-  positionY?: Curve;
-  positionZ?: Curve;
-}
-
-/**
  * A Framing behavior (factory 3). Attached to the camera; drives the camera to
  * frame `targetId`'s world bbox over its timing window. Transcribed from
  * OZScene::computeFraming. `framingOffset` shifts the framing point in the
@@ -544,6 +508,200 @@ export interface SequenceReplicator {
   rotationEnd?: number;
 }
 
+
+/**
+ * Motion Emitter parameters (parsed from the Emitter scenenode's Object/id=2 tree).
+ *
+ * A Motion "Emitter" (factory description "Emitter"; factoryID NOT stable across
+ * .motr files — always resolved by the per-file factory table) is the spawn side
+ * of a particle simulation: it declares an emission REGION + direction, and any
+ * Particle Cell scenenodes nested under it are the particles being spawned. The
+ * cell owns the per-particle physics (birth rate, life, velocity, spin, gravity —
+ * see ParticleCellParams). Together they describe the drifting bokeh/leaves/flakes
+ * that dominate the Stylized/Nature transitions (Diagonal, Glide, Close_and_Open,
+ * Up-Over, Center).
+ *
+ * Field IDs come from Motion's canonical Object folder for an Emitter, verified by
+ * XML dump of Movements/Drop_In (fid 19), Movements/Earthquake (fid 19), and
+ * Stylized/Diagonal (fid 23) — all three carry the SAME id numbering under Object,
+ * confirming these are the plugin-schema ids, not per-file assignments.
+ *
+ * PARSE-ONLY: T-B1 wires these into MotrScene but does not consume them; T-B2 will
+ * run the actual particle sim off this schema.
+ */
+export interface EmitterParams {
+  /** Object ID of the Emitter scenenode (matches Layer.id). */
+  id: number;
+  /** Human-readable emitter node name. */
+  name?: string;
+  /**
+   * Emission direction center in RADIANS (Object/id 310, "Emission Angle").
+   * 0 = +X (right); positive = counter-clockwise. Combined with `emissionRange`
+   * gives the spawn direction arc. Diagonal emits at ~5.198 rad ≈ 297.9°.
+   */
+  emissionAngle: number;
+  /**
+   * Emission longitude in RADIANS (Object/id 358, "Emission Longitude"). Only
+   * meaningful when `is3D` is true (adds a spherical/latitude component to the
+   * spawn direction). Default 3π/2 ≈ 4.712 rad.
+   */
+  emissionLongitude: number;
+  /**
+   * Emission arc width in RADIANS (Object/id 311, "Emission Range"). 2π ≈ 6.283
+   * = omnidirectional; smaller values narrow the cone around `emissionAngle`.
+   */
+  emissionRange: number;
+  /**
+   * Emit-at-points flag (Object/id 303). When 1, particles spawn from a discrete
+   * point set defined by the Emitter's Shape Parameters (Points/Columns/Rows on
+   * a rectangle/circle/spiral arrangement) instead of a continuous region.
+   */
+  emitAtPoints: boolean;
+  /**
+   * Emitter random seed (Object/id 349). Motion uses this to seed the emitter's
+   * spawn RNG so the same .motr renders identical particle streams across runs.
+   */
+  emitterSeed: number;
+  /**
+   * 3D emitter flag (Object/id 356). When 1, particles spawn into an XYZ volume
+   * and `emissionLongitude` participates in the direction; when 0 (the default
+   * across all built-ins observed), the emitter is 2D — Longitude is ignored.
+   */
+  is3D: boolean;
+  /**
+   * Face-camera flag (Object/id 357). When 1 (default), each particle sprite is
+   * billboarded to face the camera; when 0, the sprite orientation is fixed in
+   * world space.
+   */
+  faceCamera: boolean;
+  /**
+   * Optional spawn-region radius in scene units (Object/id 307 under Shape
+   * Parameters). Used by circle/spiral/burst arrangements to size the emission
+   * region. Absent when the emitter uses a point/line arrangement.
+   */
+  radius?: number;
+}
+
+/**
+ * Motion Particle Cell parameters (parsed from the Particle Cell scenenode's
+ * Object/id=2 tree — and its Gravity behavior child).
+ *
+ * A Particle Cell is the PER-PARTICLE physics + appearance spec. Motion nests one
+ * or more Particle Cell scenenodes under an Emitter (see EmitterParams). Each cell
+ * declares:
+ *   • birth rate & life (how often, how long each particle lives),
+ *   • initial velocity magnitude (`speed`) + directional randomness,
+ *   • initial spin rate (rotational velocity, radians/sec),
+ *   • a "Particle Source" object id that names the sprite/shape the emitter draws
+ *     at each particle position,
+ *   • an optional Gravity behavior child that adds a constant downward acceleration
+ *     (folded into T-B1 after T-A3 census proved every built-in Gravity sits on a
+ *     Particle Cell, never a layer — see ROADMAP S1/T-A3 census note).
+ *
+ * Field IDs come from Motion's canonical Object folder for a Particle Cell, verified
+ * against Movements/Drop_In (cell fid 14, "Blur 11"), Movements/Earthquake (fid 14),
+ * and Stylized/Diagonal (fid 15, "hexagon") — same numbering across all three.
+ *
+ * PARSE-ONLY: T-B1 wires these into MotrScene but does not consume them; T-B2 will
+ * run the deterministic per-particle spawn/advect/fade loop off this schema.
+ */
+export interface ParticleCellParams {
+  /** Object ID of the Cell scenenode (matches Layer.id). */
+  id: number;
+  /** Cell node name (Motion often names cells after their source shape, e.g. "hexagon"). */
+  name?: string;
+  /** Object ID of the enclosing Emitter (undefined when the cell is orphaned). */
+  emitterId?: number;
+  /**
+   * Particles per second (Object/id 101, "Birth Rate"). Static or animated —
+   * Stylized/Glide/Diagonal are static, Drop_In cells are 0 (spawn triggered by
+   * `initialNumber`), Earthquake is 0 (single-burst emitter). Motion default 30.
+   */
+  birthRate: number | Curve;
+  /** Birth rate ± Randomness (Object/id 102). Motion default 0. */
+  birthRateRandomness: number;
+  /**
+   * Initial number of particles emitted AT birth-time (Object/id 103, "Initial
+   * Number"). Non-zero cells fire a one-shot burst at the emitter's `in` time —
+   * this is how Drop_In's impact cells spawn their card-strike particle puff.
+   */
+  initialNumber: number | Curve;
+  /**
+   * Particle lifetime in SECONDS (Object/id 104, "Life"). Static or animated;
+   * Earthquake's cell is 0.4s, Diagonal's is 10s. Motion default 5.
+   */
+  life: number | Curve;
+  /** Life ± Randomness in seconds (Object/id 105). Motion default 0. */
+  lifeRandomness: number;
+  /**
+   * Initial velocity magnitude (Object/id 106, "Speed"), in scene units/sec. The
+   * direction comes from the enclosing Emitter's `emissionAngle` ± `emissionRange`.
+   * Diagonal cells fly at 350 units/sec; Drop_In impact cells at 2409. Default 100.
+   */
+  speed: number | Curve;
+  /** Speed ± Randomness (Object/id 107). Motion default 0. */
+  speedRandomness: number;
+  /**
+   * Initial spin rate in RADIANS/sec (Object/id 110, "Spin"). Diagonal cells
+   * spin at 0.873 rad/s ≈ 50°/s (creates the rotating hexagons/leaves).
+   * Motion default 0.
+   */
+  spin: number | Curve;
+  /** Spin ± Randomness (Object/id 111). Motion default 0. */
+  spinRandomness: number;
+  /**
+   * Object ID of the drawable Motion uses as the particle sprite (Object/id 128,
+   * "Particle Source"). References another scenenode (a Shape, an Image, a Group)
+   * in the same .motr — e.g. Diagonal's hexagon cell points to id 971894859
+   * (its "hexagon" shape). Undefined when the cell renders a built-in point
+   * primitive instead of an object.
+   */
+  particleSourceId?: number;
+  /**
+   * Cell random seed (Object/id 131, "Random Seed"). Seeds the per-particle RNG
+   * so identical .motr replays produce identical particle streams.
+   */
+  randomSeed: number;
+  /**
+   * Gravity behavior on this cell (constant downward acceleration), if present.
+   * Every built-in Gravity in the corpus sits on a Particle Cell (T-A3 census,
+   * ROADMAP 2026-07-13). Absent on the majority of cells (they float / drift
+   * without gravity).
+   */
+  gravity?: GravityBehavior;
+  /**
+   * The Cell's own `<timing in out offset>` element. Motion uses this to define
+   * WHEN the cell actively spawns on the parent timeline (Drop_In's impact cells
+   * spawn only during a narrow window around the card-strike moment). Distinct
+   * from per-particle `life` (which is how long a spawned particle lives).
+   */
+  timing?: { in: RationalTime; out: RationalTime; offset: RationalTime };
+}
+
+/**
+ * A Gravity behavior on a Particle Cell — constant downward acceleration.
+ *
+ * Motion authors this as a `<behavior>` whose factory description resolves to
+ * "Gravity" (factoryID NOT stable across .motr files). Its `Acceleration` (id 401)
+ * child is either a static value (default 30) or a Curve (Movements/Earthquake
+ * animates Acceleration through 0→-100→-200→0 across the shake). Value units are
+ * scene units/sec² downward (positive = +Y = down in Motion's coordinate frame).
+ *
+ * ROADMAP T-A3 census 2026-07-13 verified every built-in Gravity attaches to a
+ * Particle Cell, NEVER a layer — so gravity is definitionally a particle-sim
+ * parameter and lives here (folded into T-B1 per ROADMAP S1/T-A3 note).
+ */
+export interface GravityBehavior {
+  /** Downward acceleration (scene units/sec²), static or animated. */
+  acceleration: number | Curve;
+  /**
+   * Whether the behavior propagates to nested sub-emitters (id 300, "Affect
+   * Subobjects"). Motion default 0 (only this cell's particles feel it).
+   */
+  affectSubobjects: boolean;
+  /** Behavior timing window (usually inherits the parent cell's). */
+  timing?: { in: RationalTime; out: RationalTime; offset: RationalTime };
+}
 
 /** An animation behavior attached to a layer (Fade, Ramp, Oscillate, Spin). */
 export interface LayerBehavior {
@@ -738,4 +896,18 @@ export interface MotrScene {
    * See parser/index.ts (buildLinkColorSources).
    */
   linkColorSources?: Map<number, { r: number; g: number; b: number }>;
+  /**
+   * Flat index of every parsed EmitterParams in the scene, keyed by Emitter
+   * scenenode id (matches Layer.id). Populated by the T-B1 parser as a walk-free
+   * lookup for downstream code (T-B2 particle sim, no-hardcode detector) that
+   * doesn't want to re-descend the layer tree to enumerate emitters. Absent when
+   * the scene has zero Emitter nodes.
+   */
+  emitters?: Map<number, EmitterParams>;
+  /**
+   * Flat index of every parsed ParticleCellParams in the scene, keyed by Cell
+   * scenenode id. Populated by the T-B1 parser (see `emitters` above). Absent
+   * when the scene has zero Particle Cell nodes.
+   */
+  particleCells?: Map<number, ParticleCellParams>;
 }

@@ -44,24 +44,6 @@ git worktree prune
 git branch -D "swarm/$ID" 2>/dev/null || true
 git worktree add --quiet -b "swarm/$ID" "$WT" origin/main
 
-# RESTORE the most recent salvage patch for this id so an OOM-killed (SIGKILL 137) or
-# TCC-blocked agent RESUMES its work instead of redoing 90+ min from scratch. Without
-# this, salvage only PRESERVES the patch on disk; the relaunched agent never sees it and
-# re-does everything, and under memory pressure it gets re-killed before landing -> infinite
-# churn. We apply against a FRESH origin/main worktree; if the work already landed (DONE
-# tasks aren't relaunched) or the patch no longer applies cleanly, --3way fails and we skip
-# (agent starts fresh, no harm). Only non-empty patches are considered.
-LATEST_SALVAGE="$(ls -t "$ROOT/salvage/$ID."*.patch 2>/dev/null | head -1 || true)"
-if [ -n "$LATEST_SALVAGE" ] && [ -s "$LATEST_SALVAGE" ]; then
-  if ( cd "$WT" && git apply --3way --whitespace=nowarn "$LATEST_SALVAGE" >/dev/null 2>&1 ); then
-    echo "setup_worktree: RESTORED salvaged $ID work <- $LATEST_SALVAGE" >&2
-  else
-    # Clean up any partial 3way merge markers so the agent gets a pristine tree.
-    ( cd "$WT" && git checkout -- . >/dev/null 2>&1; git reset --hard origin/main >/dev/null 2>&1 ) || true
-    echo "setup_worktree: salvage $ID did not apply (likely already landed or diverged) — fresh start" >&2
-  fi
-fi
-
 # Share node_modules (gitignored, 61M) read-only via symlink so tsx runs immediately.
 if [ ! -e "$WT/engine/node_modules" ]; then
   ln -s "$MAIN/engine/node_modules" "$WT/engine/node_modules"

@@ -14,7 +14,7 @@
  */
 import type {
   MotrScene, SceneSettings, Layer, Curve, Keyframe, RationalTime,
-  Parameter, Transform, Filter, ImageSource, BlendMode, RigWidget, RigBehavior, Shape, Replicator, SequenceReplicator, LayerBehavior, SceneBehavior, LinkBehavior, GaussianGradientConfig, FramingBehavior
+  Parameter, Transform, Filter, ImageSource, BlendMode, RigWidget, RigBehavior, Shape, Replicator, SequenceReplicator, LayerBehavior, SceneBehavior, LinkBehavior, GaussianGradientConfig, FramingBehavior, EmitterParams, ParticleCellParams
 } from '../types.js';
 
 // XML/DOM + time/keyframe/curve/parameter helpers live in ./xml.ts
@@ -24,7 +24,8 @@ import {
   parseTime, parseTiming, parseKeyframe, parseCurve, parseParameter, findDescendant,
 } from './xml.js';
 import { parseShape, findObjectSource } from './shapes.js';
-import { parseLayerBehaviors, parseLinkBehaviors, parseMotionPathBehaviors } from './behaviors.js';
+import { parseLayerBehaviors, parseLinkBehaviors } from './behaviors.js';
+import { parseEmitterParams, parseParticleCellParams } from './emitter.js';
 import { parseReplicator } from './replicator.js';
 import { parseRigWidgets, parseRigBehaviors, parseSceneBehaviors } from './rig.js';
 import { parseFootageClipAB, determineImageSource, parseDropZone } from './footage.js';
@@ -227,13 +228,18 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clip: ClipI
     imageMaskSourceId,
     imageMaskInvert,
     isParticleEmitter: factoryType === 'Emitter' || undefined,
+    // T-B1 parser: lift Motion Emitter + Particle Cell parameter blocks into
+    // typed EmitterParams / ParticleCellParams (with any Gravity behavior child
+    // folded into the cell). Purely additive — no evaluator/compositor path yet
+    // reads these fields (T-B2 will run the particle sim off this schema).
+    emitter: factoryType === 'Emitter' ? parseEmitterParams(el) : undefined,
+    particleCell: factoryType === 'Particle Cell' ? parseParticleCellParams(el, factories) : undefined,
     dropZone: type === 'image' ? parseDropZone(params) : undefined,
     hasAlignTo: directChildren(el, 'behavior').some(
       b => parseInt(b.getAttribute('factoryID') || '0', 10) === 22
         || factories.get(parseInt(b.getAttribute('factoryID') || '0', 10)) === 'Align To'
     ),
     links: parseLinkBehaviors(el, factories, filtersById),
-    motionPaths: parseMotionPathBehaviors(el, factories),
     camera: type === 'camera' ? parseCameraParams(el, params, factories) : undefined,
   };
 
@@ -334,7 +340,6 @@ function parseLayerElement(el: Element, factories: Map<number, string>, clip: Cl
     timing: parseTiming(el),
     enabled: (() => { const t = getTextContent(el, 'enabled'); return t === null ? true : t.trim() !== '0'; })(),
     links: parseLinkBehaviors(el, factories, filtersById),
-    motionPaths: parseMotionPathBehaviors(el, factories),
   };
 }
 
@@ -866,5 +871,31 @@ export function parseMotr(xmlText: string): MotrScene {
 
   settings.animationEndSec = animationEndSec;
 
-  return { settings, layers, factories, rigWidgets, rigBehaviors, sceneBehaviors, linkColorSources };
+  // T-B1: build flat indexes of every parsed Emitter + Particle Cell in the scene,
+  // and stamp each cell's `emitterId` with its enclosing Emitter's id (Motion
+  // authors cells as direct scenenode children of an emitter — verified by XML
+  // dump of Drop_In / Earthquake / Diagonal — but we walk recursively so a
+  // future nested-emitter case still resolves correctly). Absent when the scene
+  // has no emitter or no cell (leave the MotrScene fields undefined so consumers
+  // can early-out on `!scene.emitters`).
+  const emittersMap = new Map<number, EmitterParams>();
+  const particleCellsMap = new Map<number, ParticleCellParams>();
+  const walkForParticles = (ls: Layer[], enclosingEmitterId: number | undefined) => {
+    for (const l of ls) {
+      const emId = l.emitter ? l.emitter.id : enclosingEmitterId;
+      if (l.emitter) emittersMap.set(l.emitter.id, l.emitter);
+      if (l.particleCell) {
+        if (l.particleCell.emitterId === undefined && enclosingEmitterId !== undefined) {
+          l.particleCell.emitterId = enclosingEmitterId;
+        }
+        particleCellsMap.set(l.particleCell.id, l.particleCell);
+      }
+      if (l.children.length > 0) walkForParticles(l.children, emId);
+    }
+  };
+  walkForParticles(layers, undefined);
+  const emitters = emittersMap.size > 0 ? emittersMap : undefined;
+  const particleCells = particleCellsMap.size > 0 ? particleCellsMap : undefined;
+
+  return { settings, layers, factories, rigWidgets, rigBehaviors, sceneBehaviors, linkColorSources, emitters, particleCells };
 }

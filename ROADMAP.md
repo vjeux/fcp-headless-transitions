@@ -172,18 +172,19 @@ T-A1  PARTIAL colour-channel Link (census-verified)               Panels_Across,
               [infrastructure landed; PSNR=neutral because downstream renderers missing —
                Cross image = Media/cross.ai vector-unsupported, Loop/Heart/Slide_In target
                GRADIENT-TAG colour (renderer TBD). Framework hooks left for future ticks.]
-T-A2  DONE    Motion Path driver (parse + additive eval)          Center_Reveal, Slide_In 0dB —
-                                                                  primitive lands but MPs live on
-                                                                  <mask> children of Generators, not
-                                                                  scenenodes; masks-on-Generators
-                                                                  parse is the next lever.
+T-A2  TODO    Motion Path driver                                  layer follows a spatial path;
+                                                                  unblocks path users
 T-A3  DROPPED Gravity driver (LAYER-level)                        census: 0 built-in LAYERS use
                                                                   Gravity. All 4 Gravity behaviours
                                                                   (Drop_In x3, Earthquake x1) sit on
                                                                   Particle Cells -> folded into T-B1
                                                                   (which already lists "gravity").
-T-B1  TODO    Emitter+Cell param PARSER                           birth rate, life, vel, spin, gravity
-                                                                  (owns gravity after T-A3 dropped)
+T-B1  DONE    Emitter+Cell param PARSER                           birth rate, life, vel, spin, gravity
+                                                                  (owns gravity after T-A3 dropped) —
+                                                                  EmitterParams/ParticleCellParams
+                                                                  /GravityBehavior types + parser
+                                                                  + MotrScene.emitters/particleCells
+                                                                  flat indexes. Parse-only, gate 0/0.
 T-B2  TODO    Emitter SIM+render, MINIMAL     after: T-B1         spawn + advect + gravity + composite
                                                                   (flat colour). Target: Diagonal x2
 T-B3  TODO    Emitter appearance-over-life    after: T-B2         colour/scale/opacity ramps ->
@@ -388,40 +389,43 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
-- 2026-07-13  T-A2 (S1) DONE — Motion Path DRIVER PRIMITIVE lands (parse + additive
-              evaluate), gate byte-identical. Ships engine/src/parser/behaviors.ts
-              parseMotionPathBehaviors() (factory "Motion Path" — commonly fID 24,
-              id NOT stable across .motr files so resolved from the factory table
-              per rule 8): reads each MP behavior's animated Position id=200 X/Y/Z
-              sub-curves via the shared parseParameter (bezier tangents preserved),
-              skips <enabled>0</enabled> MPs (same convention as disabled filters).
-              engine/src/evaluator/links.ts applyMotionPaths() sums each enabled
-              MP's animated Position offset in the behavior's LOCAL time frame
-              (localT = scene - offset, same shift driverCurveTime uses for
-              offset-shifted Link drivers), then ADDS to the layer's position and
-              marks posX/Y/Z overrides (skips the Retime static-position ramp). Wired
-              into evaluateLayer AFTER applyLinks so a Motion Path OFFSET rides on
-              top of the rig-selected base position (matching Motion's Behavior stack
-              order). PARSER wiring in parseSceneNode + parseLayerElement (Layer.
-              motionPaths). Types: new MotionPathBehavior + Layer.motionPaths?.
-              CENSUS-VERIFIED premise: only 2 built-ins carry factory-24 behaviors —
-              Stylized/Center_Reveal (16 MPs) and Stylized/Slide_In (8 MPs) — and in
-              BOTH cases every MP is nested inside a <mask> shape child of a Gradient
-              Generator scenenode (Rounded rect / Rectangle / Arrow / Pill × 2 sides
-              × 2 sets), NOT on the Generator scenenode itself. `directChildren(el,
-              'behavior')` on the Generator therefore returns 0 MPs, so applyMotion
-              Paths is a no-op on every layer in the current corpus — the primitive
-              is correct and additive-safe, but its consumers need the masks-on-
-              Generators layer parse to be wired first (Center_Reveal/Slide_In are
-              blocked on that + the Gradient generator FILL render, S5 areas). Byte-
-              identical to prior renders on Center_Reveal 11.99 and Slide_In 10.18
-              (0 pixel delta across all 24 frames each, verified via PIL max-diff),
-              and byte-identical on a 6-slug sample of non-MP transitions (360°/Bloom,
-              Color_Panels, Pinwheel, 3D_Rectangle, Concentric, Slide — max diff 0).
-              tsc clean, no-hardcode 6/6 green, unit tests (curves/evaluator/
-              behaviors) 47/47 green. Unblocks a future "parse mask-children as
-              positioned shape layers of Generators" tick — Motion Path drivers are
-              now waiting for their consumers instead of the reverse.
+- 2026-07-13  T-B1 DONE (S3 · Emitter+Cell param PARSER, PARSE-ONLY, gate 0/0)
+              — added typed `EmitterParams` / `ParticleCellParams` /
+              `GravityBehavior` schemas + `engine/src/parser/emitter.ts`
+              lifting the Motion Emitter/Cell Object folder into them from
+              canonical param ids (Emitter/Object: 310 emissionAngle, 358
+              emissionLongitude, 311 emissionRange, 303 emitAtPoints, 349
+              emitterSeed, 356 3D, 357 faceCamera, 307 radius; Cell/Object:
+              101 birthRate, 102 birthRateRandomness, 103 initialNumber,
+              104 life, 105 lifeRandomness, 106 speed, 107 speedRandomness,
+              110 spin, 111 spinRandomness, 128 particleSource, 131 seed;
+              Gravity behavior: 401 acceleration static-or-curve default 30,
+              300 affectSubobjects). Verified by XML dump on Movements/Drop_In
+              (fid 19/14 — every cell carries Gravity default=30, static),
+              Movements/Earthquake (fid 19/14 — Life=0.4s, Speed=2409, an
+              animated 5-keypoint Acceleration curve 0→−75.7→−100→−200→0),
+              and Stylized/Diagonal (fid 23/15 — Emitter emissionAngle
+              5.198 rad, emissionRange 2.008 rad; hexagon cell birthRate 30
+              / life 10s / speed 350 / spin 0.873 rad-s / particleSourceId
+              971894859). Wired via parser/index.ts into the returned Layer
+              (layer.emitter / layer.particleCell) + into MotrScene as flat
+              lookup maps (scene.emitters / scene.particleCells, undefined
+              on non-particle scenes so consumers can early-out); cells get
+              their `emitterId` back-reference stamped by a post-parse walk
+              of the layer tree. Gravity behaviour is folded onto the cell
+              (owns gravity after T-A3 dropped — census 2026-07-13 proved
+              every built-in Gravity sits on a Particle Cell, never a layer).
+              PARSE-ONLY: nothing evaluator/compositor-side reads the new
+              fields yet, so render pixels are byte-identical (`fct regress
+              engine` 0 regressions / 0 improvements vs baseline, 35.45s).
+              Tests: new `engine/test/emitter-parser.test.ts` (18/18 pass)
+              covers all three census slugs + the empty-scene contract
+              (Push.motr → emitters/particleCells absent, not empty). Also
+              green: parser.test.ts (12/12), behaviors.test.ts (23/23),
+              no-hardcode.test.ts (6/6 detectors ≥ 2 built-ins). This unblocks
+              T-B2 (minimal emitter SIM: spawn + advect + gravity + composite)
+              and T-B3 (appearance-over-life ramps), both of which now have a
+              typed input schema to consume.
 - 2026-07-13  SWARM THROUGHPUT TICK — added "reap LIVE sessions that already reported
               SWARM_RESULT". Agents on the old brief finish + print a terminal SWARM_RESULT
               (usually BLOCKED, since macOS TCC blocks their in-worktree git push) but Claude
