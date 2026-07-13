@@ -43,6 +43,10 @@ TMUX = (_shutil.which("tmux") or
                           "/usr/bin/tmux") if os.path.exists(c)), "tmux"))
 # Ensure spawned login shells can see brew binaries (tmux, node, etc).
 BREW_PATH_EXPORT = 'export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"; '
+# Upper bound for orphan-slot cleanup when the pool is restarted at a smaller size.
+# We never schedule above `size`, but we sweep up to MAX_SLOTS to harvest+reap leftover
+# runners from a previous larger run so the fleet converges cleanly.
+MAX_SLOTS = 16
 
 
 # ---------------------------------------------------------------------------
