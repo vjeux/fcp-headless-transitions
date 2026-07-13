@@ -34,9 +34,16 @@ if [ -d "$WT" ]; then
   if [ -n "$PENDING" ]; then
     mkdir -p "$ROOT/salvage"
     STAMP="$(date +%Y%m%d-%H%M%S)"
-    ( cd "$WT" && git add -A >/dev/null 2>&1 && \
-      git diff --cached origin/main > "$ROOT/salvage/$ID.$STAMP.patch" 2>/dev/null ) || true
-    echo "setup_worktree: SALVAGED uncommitted $ID work -> $ROOT/salvage/$ID.$STAMP.patch" >&2
+    # EXCLUDE the swarm harness itself (fct/swarm/**) from salvage. Agents work on the
+    # ENGINE (engine/, parser, compositor), docs, and ROADMAP — never the harness. If a
+    # stale salvage patch ever reverts a harness file, salvaging that revert and restoring
+    # it into the next worktree creates a FEEDBACK LOOP that silently re-reverts harness
+    # fixes (observed: T-E2's worktree carried a diff DELETING the salvage-RESTORE block,
+    # which would have re-landed the reflect-agent regression). Scoping salvage to non-
+    # harness paths breaks the loop — harness state lives only on origin/main.
+    ( cd "$WT" && git add -A -- . ':(exclude)fct/swarm/*' >/dev/null 2>&1 && \
+      git diff --cached origin/main -- . ':(exclude)fct/swarm/*' > "$ROOT/salvage/$ID.$STAMP.patch" 2>/dev/null ) || true
+    echo "setup_worktree: SALVAGED uncommitted $ID work (excl. fct/swarm) -> $ROOT/salvage/$ID.$STAMP.patch" >&2
   fi
   git worktree remove --force "$WT" 2>/dev/null || rm -rf "$WT"
 fi
