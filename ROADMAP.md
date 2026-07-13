@@ -172,7 +172,7 @@ T-A1  PARTIAL colour-channel Link (census-verified)               Panels_Across,
               [infrastructure landed; PSNR=neutral because downstream renderers missing —
                Cross image = Media/cross.ai vector-unsupported, Loop/Heart/Slide_In target
                GRADIENT-TAG colour (renderer TBD). Framework hooks left for future ticks.]
-T-A2  TODO    Motion Path driver                                  layer follows a spatial path;
+T-A2  DONE    Motion Path driver                                  layer follows a spatial path;
                                                                   unblocks path users
 T-A3  DROPPED Gravity driver (LAYER-level)                        census: 0 built-in LAYERS use
                                                                   Gravity. All 4 Gravity behaviours
@@ -198,9 +198,9 @@ T-C1  DROPPED linear/radial gradient generator                   census: NO buil
                                                                   FILL; Slide_In/Loop/Heart are S1
                                                                   colour-Link (see S5). Off critical path.
 T-D1  DONE    linear working-space composite path                 flag-gated; overlay slugs first
-T-D2a TODO    Brightness/Colorize into linear after: T-D1         Colorize=1 users, Brightness>1
+T-D2a DONE    Brightness/Colorize into linear after: T-D1         Colorize=1 users, Brightness>1
 T-D2b DONE    Tint into linear               after: T-D1          Tint filter flag-gated (Leaves +0.07)
-T-D2c TODO    Glow/Bloom into linear         after: T-D1          Bloom, 360°_Bloom
+T-D2c DONE    Glow/Bloom into linear         after: T-D1          Bloom, 360°_Bloom
 T-D2d DONE    HSV into linear                after: T-D1          Color_Panels (HSV x4; flag OFF, byte-id).
                                                                   Panels_Random has ZERO HSV (Colorize
                                                                   only, folds into T-D2a).
@@ -394,6 +394,19 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  ROADMAP-DRIFT TOOLING TICK — the ROADMAP flat task table kept drifting from
+              reality: T-A2, T-D2a, T-D2c all sat as TODO on origin/main long after their DONE
+              commits landed (agents edit the row separately from the commit, and concurrent
+              rebases / other agents' ROADMAP edits clobber the marker). Harmless to the scheduler
+              (pool.done_task_ids ALSO scans the commit log) but the ROADMAP was lying to humans +
+              agents. Built `fct roadmap-sync` (fct/roadmap_sym.py + cli wiring): flips TODO/DOING/
+              BLOCKED -> DONE ONLY when the authoritative done set (same commit-log scan the pool
+              uses) proves it; monotonic, never un-marks, never touches PARTIAL/DROPPED, preserves
+              column alignment. Ran it: reconciled T-A2/D2a/D2c -> DONE, 0 remaining drift. This
+              tick also observed T-E1 land (7272d30: retime-ramp cancel for off-canvas wall Transition
+              A, Video_Wall 8.7->9.1) + T-B2 land (eefb0ec: emitter sim+render) -> done = 12, T-E1's
+              landing UNBLOCKS T-E2 (where the stashed cell-DZ patch belongs). In-flight: T-B3, T-F1,
+              T-E2 (auto-eligible). Toolkit-only change, no engine/headless behavior touched.
 - 2026-07-13  T-E1 (S6 · Framing wall) DONE — the actual root cause of Video_Wall's
               f4-black wasn't the framing anchor's proxy->content ray (that anchor
               (2400,-2144) is only ~350px off Transition A's authored (2051,-2390)).
