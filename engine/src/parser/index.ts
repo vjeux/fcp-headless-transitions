@@ -24,7 +24,7 @@ import {
   parseTime, parseTiming, parseKeyframe, parseCurve, parseParameter, findDescendant,
 } from './xml.js';
 import { parseShape, findObjectSource } from './shapes.js';
-import { parseLayerBehaviors, parseLinkBehaviors } from './behaviors.js';
+import { parseLayerBehaviors, parseLinkBehaviors, parseMotionPathBehaviors } from './behaviors.js';
 import { parseReplicator } from './replicator.js';
 import { parseRigWidgets, parseRigBehaviors, parseSceneBehaviors } from './rig.js';
 import { parseFootageClipAB, determineImageSource, parseDropZone } from './footage.js';
@@ -233,6 +233,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clip: ClipI
         || factories.get(parseInt(b.getAttribute('factoryID') || '0', 10)) === 'Align To'
     ),
     links: parseLinkBehaviors(el, factories, filtersById),
+    motionPaths: parseMotionPathBehaviors(el, factories),
     camera: type === 'camera' ? parseCameraParams(el, params, factories) : undefined,
   };
 
@@ -333,6 +334,7 @@ function parseLayerElement(el: Element, factories: Map<number, string>, clip: Cl
     timing: parseTiming(el),
     enabled: (() => { const t = getTextContent(el, 'enabled'); return t === null ? true : t.trim() !== '0'; })(),
     links: parseLinkBehaviors(el, factories, filtersById),
+    motionPaths: parseMotionPathBehaviors(el, factories),
   };
 }
 

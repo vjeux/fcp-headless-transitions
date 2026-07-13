@@ -172,8 +172,11 @@ T-A1  PARTIAL colour-channel Link (census-verified)               Panels_Across,
               [infrastructure landed; PSNR=neutral because downstream renderers missing —
                Cross image = Media/cross.ai vector-unsupported, Loop/Heart/Slide_In target
                GRADIENT-TAG colour (renderer TBD). Framework hooks left for future ticks.]
-T-A2  TODO    Motion Path driver                                  layer follows a spatial path;
-                                                                  unblocks path users
+T-A2  DONE    Motion Path driver (parse + additive eval)          Center_Reveal, Slide_In 0dB —
+                                                                  primitive lands but MPs live on
+                                                                  <mask> children of Generators, not
+                                                                  scenenodes; masks-on-Generators
+                                                                  parse is the next lever.
 T-A3  DROPPED Gravity driver (LAYER-level)                        census: 0 built-in LAYERS use
                                                                   Gravity. All 4 Gravity behaviours
                                                                   (Drop_In x3, Earthquake x1) sit on
@@ -385,6 +388,40 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  T-A2 (S1) DONE — Motion Path DRIVER PRIMITIVE lands (parse + additive
+              evaluate), gate byte-identical. Ships engine/src/parser/behaviors.ts
+              parseMotionPathBehaviors() (factory "Motion Path" — commonly fID 24,
+              id NOT stable across .motr files so resolved from the factory table
+              per rule 8): reads each MP behavior's animated Position id=200 X/Y/Z
+              sub-curves via the shared parseParameter (bezier tangents preserved),
+              skips <enabled>0</enabled> MPs (same convention as disabled filters).
+              engine/src/evaluator/links.ts applyMotionPaths() sums each enabled
+              MP's animated Position offset in the behavior's LOCAL time frame
+              (localT = scene - offset, same shift driverCurveTime uses for
+              offset-shifted Link drivers), then ADDS to the layer's position and
+              marks posX/Y/Z overrides (skips the Retime static-position ramp). Wired
+              into evaluateLayer AFTER applyLinks so a Motion Path OFFSET rides on
+              top of the rig-selected base position (matching Motion's Behavior stack
+              order). PARSER wiring in parseSceneNode + parseLayerElement (Layer.
+              motionPaths). Types: new MotionPathBehavior + Layer.motionPaths?.
+              CENSUS-VERIFIED premise: only 2 built-ins carry factory-24 behaviors —
+              Stylized/Center_Reveal (16 MPs) and Stylized/Slide_In (8 MPs) — and in
+              BOTH cases every MP is nested inside a <mask> shape child of a Gradient
+              Generator scenenode (Rounded rect / Rectangle / Arrow / Pill × 2 sides
+              × 2 sets), NOT on the Generator scenenode itself. `directChildren(el,
+              'behavior')` on the Generator therefore returns 0 MPs, so applyMotion
+              Paths is a no-op on every layer in the current corpus — the primitive
+              is correct and additive-safe, but its consumers need the masks-on-
+              Generators layer parse to be wired first (Center_Reveal/Slide_In are
+              blocked on that + the Gradient generator FILL render, S5 areas). Byte-
+              identical to prior renders on Center_Reveal 11.99 and Slide_In 10.18
+              (0 pixel delta across all 24 frames each, verified via PIL max-diff),
+              and byte-identical on a 6-slug sample of non-MP transitions (360°/Bloom,
+              Color_Panels, Pinwheel, 3D_Rectangle, Concentric, Slide — max diff 0).
+              tsc clean, no-hardcode 6/6 green, unit tests (curves/evaluator/
+              behaviors) 47/47 green. Unblocks a future "parse mask-children as
+              positioned shape layers of Generators" tick — Motion Path drivers are
+              now waiting for their consumers instead of the reverse.
 - 2026-07-13  SWARM THROUGHPUT TICK — added "reap LIVE sessions that already reported
               SWARM_RESULT". Agents on the old brief finish + print a terminal SWARM_RESULT
               (usually BLOCKED, since macOS TCC blocks their in-worktree git push) but Claude

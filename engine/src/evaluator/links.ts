@@ -8,8 +8,8 @@
  * (map a rig widget's selected snapshot onto a target transform). Split out of
  * evaluator/index.ts (ROADMAP item 7).
  */
-import type { Layer, Transform, Parameter, Curve, RigBehavior, LinkBehavior } from '../types.js';
-import { resolveValue } from './curves.js';
+import type { Layer, Transform, Parameter, Curve, RigBehavior, LinkBehavior, MotionPathBehavior } from '../types.js';
+import { resolveValue, timeToSeconds } from './curves.js';
 
 /**
  * Build a map of object ID → Layer for driver lookups (Link behaviors, clones).
@@ -185,6 +185,60 @@ function resolveDriverChannel(
     }
   }
   return value;
+}
+
+/**
+ * Apply Motion Path behaviors to a layer's transform. Each Motion Path drives
+ * the layer's Position channel additively from its animated `Position` (id=200)
+ * X/Y/Z sub-curves, sampled in the behavior's LOCAL time frame (local = scene
+ * - offset). Motion sums each behavior's contribution (multiple stacked Motion
+ * Paths are additive), skipping any with an empty timing window or absent
+ * position curves.
+ *
+ * Applied after Links / rigs so a Motion Path OFFSET rides on top of the
+ * rig-selected base position (matching Motion's Behavior stack order:
+ * Behaviors run AFTER the parameter's own animation, adding their contribution).
+ * Marks driven position channels as overrides so the Retime static-position
+ * heuristic does not double-count them.
+ */
+export function applyMotionPaths(layer: Layer, transform: Transform, timeSec: number): Transform {
+  const mps = layer.motionPaths;
+  if (!mps || mps.length === 0) return transform;
+  let dx = 0, dy = 0, dz = 0;
+  let drove = false;
+  for (const mp of mps) {
+    // Local time = scene - offset (Motion's behavior-local frame convention;
+    // same shift the evaluator applies to drop-zone image / shape overlay curves
+    // and that driverCurveTime applies to offset-shifted Link drivers).
+    const off = mp.timing && mp.timing.offset && mp.timing.offset.timescale > 0
+      ? mp.timing.offset.value / mp.timing.offset.timescale : 0;
+    const localT = timeSec - off;
+    // Sample each axis; resolveValue clamps to first/last keypoint value outside
+    // the curve's authored time span, which matches Motion's "hold endpoint"
+    // behavior past a behavior's window.
+    if (mp.positionX) { dx += resolveValue(mp.positionX, localT, 0); drove = true; }
+    if (mp.positionY) { dy += resolveValue(mp.positionY, localT, 0); drove = true; }
+    if (mp.positionZ) { dz += resolveValue(mp.positionZ, localT, 0); drove = true; }
+  }
+  if (!drove) return transform;
+  const result = { ...transform };
+  const overrides = result.__overrideChannels ?? (result.__overrideChannels = new Set<string>());
+  if (dx !== 0) {
+    const base = resolveValue(result.positionX, timeSec, 0);
+    result.positionX = base + dx;
+    overrides.add('posX');
+  }
+  if (dy !== 0) {
+    const base = resolveValue(result.positionY, timeSec, 0);
+    result.positionY = base + dy;
+    overrides.add('posY');
+  }
+  if (dz !== 0) {
+    const base = resolveValue(result.positionZ, timeSec, 0);
+    result.positionZ = base + dz;
+    overrides.add('posZ');
+  }
+  return result;
 }
 
 /**

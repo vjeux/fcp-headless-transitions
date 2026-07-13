@@ -225,6 +225,13 @@ export interface Layer {
    */
   links?: LinkBehavior[];
   /**
+   * Motion Path behaviors attached to this layer. Each Motion Path additively
+   * drives the layer's Position (X/Y/Z) over its own timing window; the animated
+   * Position curves are sampled in the behavior's local frame (local = scene -
+   * offset). Multiple Motion Paths sum. Skipped when `<enabled>0</enabled>`.
+   */
+  motionPaths?: MotionPathBehavior[];
+  /**
    * Camera configuration (for type === 'camera'). Motion's Camera node carries an
    * "Angle Of View" (param id 201, degrees). Some transitions rig-drive this via a
    * Rig Behavior snapshot keyed on a widget (e.g. aspect ratio); `angleOfView` holds
@@ -357,6 +364,50 @@ export interface LinkBehavior {
   /** Per-widget-value Scale snapshots (index = widget value). Carries the
    *  per-direction sign; overrides the static `scale` when present. */
   rigScale?: number[];
+}
+
+/**
+ * A Motion Path behavior (factory "Motion Path", commonly factoryID 24). Motion
+ * attaches this to a layer's Position channel to drive the layer along an authored
+ * path over its timing window. The behavior authors two Position parameter groups:
+ *
+ *   - `Position` id=200 — the ANIMATED OUTPUT position (X/Y/Z curves): the value
+ *     added to the host layer's Position at scene time. Motion evaluates the
+ *     curves in the behavior's LOCAL time frame (local = scene - offset), the
+ *     same convention behaviors like Ramp/Oscillate use. This is what actually
+ *     moves the layer.
+ *   - `Position` id=206 — the SPATIAL PATH (a closed/open Bezier of X/Y/Z keys
+ *     along path length) that the "Path Shape" param (id=207) selects (Line,
+ *     Spline, Rectangle, Circle, etc.). Motion normally samples this path via
+ *     the animated Position for path-shape=Bezier; for Path Shape=0 (Line) the
+ *     animated Position IS the endpoint. Not evaluated here — the animated
+ *     Position (id=200) already carries the resolved offset for every built-in
+ *     Motion-Path user in the corpus (Stylized/Center_Reveal, Stylized/Slide_In,
+ *     both driving Gradient generators).
+ *
+ * Multiple Motion Paths on the same host are ADDITIVE — Motion sums each
+ * behavior's contribution, gated by its `<enabled>` flag (disabled behaviors are
+ * skipped, matching the same convention the parser applies to disabled filters).
+ * This mirrors the additive semantics documented for stacked FCP behaviors
+ * (e.g. multiple Fade / Ramp instances each contribute).
+ *
+ * Reverse-engineered from Motion's built-in Motion Path behavior (factory
+ * description "Motion Path"). The FCP binary defines factoryID → "Motion Path"
+ * in each .motr's factory table (id NOT stable across files — read from the
+ * table). Verified against Stylized/Center_Reveal (16 MPs on 2 Gradient
+ * generators) and Stylized/Slide_In (8 MPs on 1 Gradient generator) via
+ * `fct census`.
+ */
+export interface MotionPathBehavior {
+  /** Behavior's own <timing in out offset> element (scene time, RationalTime).
+   *  The animated Position curves (below) are sampled in this LOCAL time frame:
+   *  local = scene_time - offset. Motion clamps to the first/last keypoint value
+   *  past the window boundaries (standard Motion curve behavior). */
+  timing?: { in: RationalTime; out: RationalTime; offset: RationalTime };
+  /** Animated Position id=200 — X sub-curve; the additive X offset. */
+  positionX?: Curve;
+  positionY?: Curve;
+  positionZ?: Curve;
 }
 
 /**

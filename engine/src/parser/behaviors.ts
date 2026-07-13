@@ -5,8 +5,8 @@
  * Link behaviors that drive one object's parameters from another. Rig behaviors are
  * handled separately by the rig system. Split out of parser/index.ts (ROADMAP item 7).
  */
-import type { LayerBehavior, LinkBehavior } from '../types.js';
-import { directChildren, firstChild, getTextContent, parseTiming } from './xml.js';
+import type { LayerBehavior, LinkBehavior, MotionPathBehavior, Curve, Parameter } from '../types.js';
+import { directChildren, firstChild, getTextContent, parseTiming, parseParameter } from './xml.js';
 
 /**
  * Parse animation behaviors (Fade, Ramp, etc.) attached as children of a layer.
@@ -376,4 +376,54 @@ export function parseLinkBehaviors(
     }
   }
   return links;
+}
+
+
+/**
+ * Parse Motion Path behaviors (factory "Motion Path", commonly factoryID 24)
+ * attached to a layer. Each Motion Path drives the layer's Position channel
+ * additively over its timing window from the animated `Position` (id=200) X/Y/Z
+ * sub-curves. `<enabled>0</enabled>` behaviors are skipped (same convention as
+ * disabled filters). Motion Path scenenodes with NO animated position curves
+ * (only a spatial path via id=206) are skipped here — evaluating Path Shape /
+ * spatial-path sampling is a later extension; the animated Position alone
+ * covers every Motion-Path user in the corpus (verified via `fct census`).
+ */
+export function parseMotionPathBehaviors(el: Element, factories: Map<number, string>): MotionPathBehavior[] {
+  const out: MotionPathBehavior[] = [];
+  for (const b of directChildren(el, 'behavior')) {
+    const fid = parseInt(b.getAttribute('factoryID') || '0', 10);
+    if (factories.get(fid) !== 'Motion Path') continue;
+    // Disabled behaviors are bypassed by Motion (same convention the parser
+    // applies to disabled filters — see parseSceneNode). Motion authors
+    // <enabled>0</enabled> on Motion Paths that are edit-time variants for
+    // other rig snapshots (e.g. Center_Reveal carries pairs of enabled +
+    // disabled MPs; the disabled ones must NOT contribute to the additive sum).
+    const enTxt = getTextContent(b, 'enabled');
+    if (enTxt !== null && enTxt.trim() === '0') continue;
+    // Read the animated `Position` (id=200) sub-parameters. This is the OUTPUT
+    // position the behavior contributes; parsed via parseParameter so it inherits
+    // the shared curve/keypoint reader (bezier tangents, interpolation types).
+    let positionX: Curve | undefined;
+    let positionY: Curve | undefined;
+    let positionZ: Curve | undefined;
+    for (const p of directChildren(b, 'parameter')) {
+      if (p.getAttribute('name') !== 'Position' || p.getAttribute('id') !== '200') continue;
+      const parsed: Parameter = parseParameter(p);
+      if (parsed.children) {
+        for (const sub of parsed.children) {
+          const nm = sub.name;
+          const cur = sub.curve;
+          if (!cur || cur.keyframes.length === 0) continue;
+          if (nm === 'X') positionX = cur;
+          else if (nm === 'Y') positionY = cur;
+          else if (nm === 'Z') positionZ = cur;
+        }
+      }
+      break;
+    }
+    if (!positionX && !positionY && !positionZ) continue;
+    out.push({ timing: parseTiming(b), positionX, positionY, positionZ });
+  }
+  return out;
 }

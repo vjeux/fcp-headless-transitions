@@ -29,7 +29,7 @@ import { computeFilterOverrides } from './filter-overrides.js';
 import { computeColorLinks, mergeColorLinksIntoFilterOverrides } from './color-links.js';
 import type { EvalCtx } from './context.js';
 import { applyRampTransforms, applyRampOpacity, applyFadeBehaviors } from './ramp.js';
-import { buildLayerById, applyLinks, applyRigBehaviors } from './links.js';
+import { buildLayerById, applyLinks, applyMotionPaths, applyRigBehaviors } from './links.js';
 
 export { evaluateCurve, resolveValue, timeToSeconds } from './curves.js';
 export {
@@ -390,6 +390,15 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   }
   // Links drive channels from a source object; apply after rig snapshots.
   riggedTransform = applyLinks(layer, riggedTransform, linksByTarget, layerById, widgetValues, timeSec, behaviors);
+  // Motion Path behaviors add a position OFFSET over their own timing window
+  // (multiple stacked MPs sum, per Motion's additive behavior semantics).
+  // Applied after Links so the path offset rides on top of the rig-selected
+  // base position (matching Motion's Behavior stack: behaviors run AFTER the
+  // parameter's own animation and any Link value). No-op when layer.motionPaths
+  // is empty (blast radius = layers that actually carry a factory-24 behavior:
+  // Stylized/Center_Reveal's 2 Gradient generators and Stylized/Slide_In's 1
+  // Gradient generator).
+  riggedTransform = applyMotionPaths(layer, riggedTransform, timeSec);
   // Scene Ramp behaviors that drive transform channels (rotation/position/scale)
   // — e.g. Flip's Ramp Y drives the Group's Rotation Y from 0→π over the
   // behavior's own timing window. Applied after rigs/links (rigs configure the
