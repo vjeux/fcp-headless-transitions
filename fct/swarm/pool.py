@@ -49,8 +49,22 @@ BREW_PATH_EXPORT = 'export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"; '
 # Task list parsing (ROADMAP flat table is the single source of truth)
 # ---------------------------------------------------------------------------
 def parse_tasks():
-    """Parse the ROADMAP flat task list into [{id, status, goal, slugs, after}]."""
-    txt = open(ROADMAP).read()
+    """Parse the ROADMAP flat task list into [{id, status, goal, slugs, after}].
+
+    We read from `origin/main:ROADMAP.md` (not the local working tree) so a task
+    marked DONE by an agent's push is visible to the scheduler on the very next
+    cycle — even if nothing has pulled MAIN. Bug seen 2026-07-13: T-G1 landed and
+    updated ROADMAP row to DONE, but the local MAIN's working tree hadn't been
+    pulled, so parse_tasks still saw TODO and the pool re-launched T-G1 (013622
+    NOCHANGE). Fetching + `git show origin/main:` closes that window.
+    """
+    try:
+        subprocess.run(["git", "-C", MAIN, "fetch", "origin", "--quiet"], timeout=60)
+        txt = subprocess.check_output(
+            ["git", "-C", MAIN, "show", "origin/main:ROADMAP.md"],
+            text=True, timeout=30)
+    except Exception:
+        txt = open(ROADMAP).read()  # fall back to local working tree
     # The block between the "ID    STATUS  TASK" header and the closing ``` fence.
     m = re.search(r"ID\s+STATUS\s+TASK.*?\n(.*?)\n```", txt, re.S)
     if not m:
@@ -100,18 +114,23 @@ def done_task_ids():
         if t["status"] in ("DONE", "DROPPED"):
             done.add(t["id"])
     try:
+        # parse_tasks already fetched, but keep a fetch here for safety when this
+        # function is called without a preceding parse_tasks pass.
         subprocess.run(["git", "-C", MAIN, "fetch", "origin", "--quiet"], timeout=60)
         log = subprocess.check_output(
             ["git", "-C", MAIN, "log", "origin/main", "--pretty=%s", "-n", "400"],
             text=True, timeout=30)
         for line in log.splitlines():
-            # An agent's completion commit. The brief asks for "swarm <id>: ..." but
-            # agents also legitimately use "<id> DONE: ..." / "<id> DROPPED: ..." /
-            # "<id> BLOCKED: ...". Match a task id at the START of the subject in any of
-            # these forms so the pool reliably detects completion (a too-strict regex
-            # made the pool relaunch a finished task in a tight loop — observed on T-A3).
-            m = re.match(r"^(?:swarm\s+)?(T-[A-Za-z0-9]+)\b", line)
-            if m and re.search(r"\b(swarm|DONE|DROPPED|BLOCKED|NOOP)\b", line, re.I):
+            # An agent's completion commit. The brief asks for "<id> DONE: ..." but
+            # agents in practice also write "<id> DROPPED: ...", "<id> BLOCKED: ...",
+            # bare "<id>: <changed>" (T-G1 did this — commit 4e3c17a — and the pool
+            # relaunched it because the old keyword-required regex missed it), or
+            # "swarm <id>: ...". Accept any of these forms: a task id at subject start
+            # followed by either a colon OR a DONE/DROPPED/BLOCKED/NOOP keyword.
+            m = re.match(
+                r"^(?:swarm\s+)?(T-[A-Za-z0-9]+)(?::|\s+(?:DONE|DROPPED|BLOCKED|NOOP)\b)",
+                line, re.I)
+            if m:
                 done.add(m.group(1))
 
     except Exception as e:

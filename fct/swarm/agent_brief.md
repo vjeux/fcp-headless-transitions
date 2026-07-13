@@ -7,6 +7,21 @@ TASK_ID: {{TASK_ID}}
 GOAL: {{TASK_GOAL}}
 TARGET SLUGS: {{TASK_SLUGS}}
 
+## Zeroth step: check the task isn't already resolved
+Before ANY census/coding/rendering, run these two lookups. If either fires, print
+`SWARM_RESULT {{TASK_ID}} NOCHANGE already-landed-on-main` and STOP immediately.
+Do NOT re-do census, do NOT re-verify. Six T-A3 relaunches on 2026-07-13 (each ~5min
+of decode work) each re-confirmed the same DROPPED verdict and quit — pure waste.
+
+    # 1. Is there already a commit on origin/main starting with our task id?
+    git -C ~/random/final-cut-pro-transitions fetch --quiet origin
+    git -C ~/random/final-cut-pro-transitions log origin/main --pretty='%h %s' -n 60 \
+      | grep -E "^[0-9a-f]+ (swarm )?{{TASK_ID}}(:| DONE| DROPPED| BLOCKED| NOOP)" && exit 0
+
+    # 2. Is the ROADMAP row on origin/main already DONE/DROPPED?
+    git -C ~/random/final-cut-pro-transitions show origin/main:ROADMAP.md \
+      | grep -E "^{{TASK_ID}} +(DONE|DROPPED)" && exit 0
+
 ## Environment (already set for you — do NOT change)
 - CWD: your private worktree (branch swarm/{{AGENT_ID}} off origin/main)
 - FCT_FRAMES_DIR / FCT_LOCK: your private render dir + lock (isolated from other agents)
@@ -33,21 +48,31 @@ TARGET SLUGS: {{TASK_SLUGS}}
    Also run `npm --prefix engine test` (no-hardcode + unit tests).
 3. Update ROADMAP.md: mark your task row DONE (or DROPPED) + add a one-line progress-log
    entry (newest first) with your per-slug before->after PSNR and gate result.
-4. Write your commit message to a file:
+4. Write your commit message to a file. **The subject line MUST start with
+   `{{TASK_ID}}` followed by either a colon or a status keyword (DONE/DROPPED/BLOCKED/
+   NOOP)** — the pool scans commit subjects to detect completion, and a subject that
+   doesn't match this shape causes the pool to relaunch this same task in a loop
+   (observed 2026-07-13: T-G1 committed as `T-G1: Color_Planes 3D fold...` — no keyword —
+   and got a wasted NOCHANGE relaunch). ALWAYS prefer `{{TASK_ID}} DONE: ...` for
+   completions:
+
       cat > /tmp/swarm-{{TASK_ID}}-msg.txt <<'EOF'
       {{TASK_ID}} DONE: <what changed> (<slug> X.XX->Y.YY dB)
 
       <body: what/why, the decoded FCP fact you cited, gate result>
       EOF
 5. PUSH via the helper (do NOT `git commit`/`git push` yourself — Claude Code's macOS
-   sandbox BLOCKS writes to this worktree's shared .git/worktrees/* metadata; the helper
-   lands your work from a /tmp clone the sandbox allows, re-runs the gate as a final check,
-   and rebase-retries if another agent pushed first):
+   sandbox BLOCKS writes to this worktree's shared .git/worktrees/* metadata; even
+   `git add` silently fails because it can't write `.git/worktrees/{{TASK_ID}}/index.lock`.
+   The helper rsyncs your worktree state into a fresh /tmp clone the sandbox allows,
+   re-runs the gate as a final check, and rebase-retries if another agent pushed first):
       bash fct/swarm/push_helper.sh {{TASK_ID}} /tmp/swarm-{{TASK_ID}}-msg.txt
    - exit 0  => pushed to origin/main. Done.
-   - exit 4/6 (patch/rebase conflict) => another agent changed the same lines. Re-read
-     origin/main, redo your edit on top, re-gate, and call the helper again.
    - exit 5 (gate red in clone) => your change regressed against latest main; fix and retry.
+   - exit 6 (rebase conflict) => another agent changed the same lines. Re-read
+     origin/main, redo your edit on top, re-gate, and call the helper again.
+   - Do NOT stage your own `/tmp/swarm-*-apply/apply.sh` workaround — that pattern has
+     been superseded by push_helper.sh and skipping it leaves work stranded on disk.
 6. STOP. Print a final line: `SWARM_RESULT {{TASK_ID}} <DONE|BLOCKED|NOCHANGE> <one-line summary>`.
 
 ## If the task is a false premise or not achievable

@@ -380,6 +380,20 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  SWARM REFLECT TICK — three fixes complementing the reap/harvest work: (a) pool.py
+              completion regex now accepts `T-<id>:` at commit-subject start (T-G1 committed as
+              `T-G1: Color_Planes 3D fold — driver offset shift...` with no DONE keyword; the old
+              regex missed it → wasted NOCHANGE relaunch in log T-G1.013622). (b) parse_tasks reads
+              ROADMAP.md from origin/main via `git show` so a fresh DONE row is visible on the very
+              next scheduler cycle regardless of MAIN's working-tree freshness. (c) push_helper.sh
+              rewritten to rsync the worktree state into the /tmp clone instead of `git add -A` +
+              `git diff --cached` — the sandbox silently denies `.git/worktrees/<id>/index.lock`
+              writes, so the old capture returned an empty diff and push_helper reported "nothing
+              to push" while real work sat uncommitted (harvest_exited_slot depends on push_helper,
+              so this fix multiplies the value of 1e57d17). Also added a "zeroth-step" grep check
+              to agent_brief.md so an agent launched onto an already-DONE task exits in ~1s
+              instead of running full census (six T-A3 relaunches on 2026-07-13 each spent
+              ~1-5min re-confirming the same DROPPED verdict). Gate 0 reg / 0 imp (harness-only).
 - 2026-07-13  SWARM RESILIENCE TICK — two pool fixes so agents' work reliably lands. (1) REAP:
               the pool now kills any live slot whose task is already DONE on origin (T-D1 had been
               redundantly re-run in slot 2 for 25min after it merged); reaping freed slot 2 which
