@@ -44,6 +44,15 @@ export interface ColorLinkResult {
   colorizeRemap: Map<number, ColorizeRemapOverride>;
   /** layerId → shape Fill Color override (0-255 RGB, matches Shape.fillColor). */
   shapeFill: Map<number, { r: number; g: number; b: number }>;
+  /**
+   * gradientOwnerLayerId → (stop tagId → per-channel 0-1 float override). A colour
+   * Link with colorTarget.kind='gradientTag' drives a specific gradient STOP's
+   * colour (see docs/notes/GRADIENT_TAG_COLOUR_LINK_RE.md). Consumed by the
+   * compositor gradient-fill rasteriser (later T-A1 step) to override the matching
+   * Shape.fillGradient stop before building the colour ramp. Values are 0-1 float
+   * (the shape gradient stops are 0-1, unlike the 0-255 shapeFill bucket).
+   */
+  gradientStops: Map<number, Map<number, { r?: number; g?: number; b?: number }>>;
 }
 
 /**
@@ -122,6 +131,21 @@ function walkColorLinks(
           else if (link.colorTarget.channel === 'G') cur.g = asByte;
           else cur.b = asByte;
           out.shapeFill.set(link.affectedObjectId, cur);
+        } else if (link.colorTarget.kind === 'gradientTag') {
+          // Drive one gradient STOP's channel. Stored as 0-1 float (Shape.fillGradient
+          // stops are 0-1). Keyed by the gradient-owner layer id (affectedObjectId) then
+          // the stop tagId. Consumed by the compositor gradient rasteriser (later step);
+          // for now this bucket is written but not read (gate-neutral).
+          const tagId = link.colorTarget.tagId;
+          if (tagId === undefined) continue;
+          let byTag = out.gradientStops.get(link.affectedObjectId);
+          if (!byTag) { byTag = new Map(); out.gradientStops.set(link.affectedObjectId, byTag); }
+          const cur = byTag.get(tagId) ?? {};
+          const v01 = Math.max(0, Math.min(1, value));
+          if (link.colorTarget.channel === 'R') cur.r = v01;
+          else if (link.colorTarget.channel === 'G') cur.g = v01;
+          else cur.b = v01;
+          byTag.set(tagId, cur);
         }
       }
     }
@@ -139,6 +163,7 @@ export function computeColorLinks(scene: MotrScene, _timeSec: number): ColorLink
   const out: ColorLinkResult = {
     colorizeRemap: new Map(),
     shapeFill: new Map(),
+    gradientStops: new Map(),
   };
   if (!scene.linkColorSources || scene.linkColorSources.size === 0) return out;
   walkColorLinks(scene.layers, scene.linkColorSources, out);

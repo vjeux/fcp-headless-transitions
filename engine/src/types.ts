@@ -344,11 +344,16 @@ export interface LinkBehavior {
    *   and the target path shape, NEVER by transition name.
    */
   colorTarget?: {
-    kind: 'colorizeRemapBlack' | 'colorizeRemapWhite' | 'shapeFill';
+    kind: 'colorizeRemapBlack' | 'colorizeRemapWhite' | 'shapeFill' | 'gradientTag';
     channel: 'R' | 'G' | 'B';
     /** For 'colorize*' targets, the filter object id (the Affecting Object). Absent
      *  for shapeFill (the affected layer id is `affectedObjectId`). */
     filterId?: number;
+    /** For 'gradientTag' targets: the gradient STOP scenenode id being driven (the
+     *  `<tagId>` in `.../104/1/<tagId>/3/{1,2,3}`). Matches Shape.fillGradient
+     *  stops[].tagId so the evaluator can override exactly that stop's colour.
+     *  See docs/notes/GRADIENT_TAG_COLOUR_LINK_RE.md. */
+    tagId?: number;
   };
   /** Which source channel is read: 'X' | 'Y' | 'Z'. */
   sourceChannel: 'X' | 'Y' | 'Z';

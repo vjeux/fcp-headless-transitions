@@ -86,7 +86,7 @@ function parseColorTarget(
   affectingChannel: string,
   affectingObjectId: number,
   filtersById: Map<number, { pluginName?: string; name?: string }>,
-): 'colorizeRemapBlack' | 'colorizeRemapWhite' | 'shapeFill' | null {
+): { kind: 'colorizeRemapBlack' | 'colorizeRemapWhite' | 'shapeFill' | 'gradientTag'; tagId?: number } | null {
   const path = affectingChannel.trim();
   const isColorizeFilter = (id: number): boolean => {
     const f = filtersById.get(id);
@@ -95,9 +95,23 @@ function parseColorTarget(
     const nm = (f.name || '').toLowerCase();
     return pn.includes('colorize') || nm.includes('colorize');
   };
-  if (path === './1' && isColorizeFilter(affectingObjectId)) return 'colorizeRemapBlack';
-  if (path === './2' && isColorizeFilter(affectingObjectId)) return 'colorizeRemapWhite';
-  if (path === './2/353/113/111') return 'shapeFill';
+  if (path === './1' && isColorizeFilter(affectingObjectId)) return { kind: 'colorizeRemapBlack' };
+  if (path === './2' && isColorizeFilter(affectingObjectId)) return { kind: 'colorizeRemapWhite' };
+  if (path === './2/353/113/111') return { kind: 'shapeFill' };
+  // Gradient-tag colour target: a shape's Style→Fill→Gradient stop colour, path
+  // `./2/353/113/104/1/<tagId>/3/{1,2,3}` (Object > Style(353) > Fill(113) >
+  // Gradient(104) > RGB folder(1) > stop(<tagId>) > Color(3) > R/G/B(1/2/3)).
+  // Structural match on the segment IDS only — never per-transition. The trailing
+  // {1,2,3} is the channel (parsed separately via the sourceChannelRef); we capture
+  // the <tagId> so the evaluator can override exactly that gradient stop.
+  // See docs/notes/GRADIENT_TAG_COLOUR_LINK_RE.md.
+  const segs = path.split('/').filter(s => s && s !== '.');
+  const gi = segs.indexOf('104');
+  if (gi >= 0 && segs[gi + 1] === '1' && segs[gi + 3] === '3'
+      && (segs[gi + 4] === '1' || segs[gi + 4] === '2' || segs[gi + 4] === '3')) {
+    const tagId = parseInt(segs[gi + 2] || '0', 10);
+    if (tagId) return { kind: 'gradientTag', tagId };
+  }
   return null;
 }
 
@@ -215,17 +229,18 @@ export function parseLinkBehaviors(
     // Detection is purely structural — path shape + affected node type — never per
     // transition. See parseColorTarget / parseColorSourcePath.
     const exprEls = directChildren(b, 'expressionChannels');
-    const colorTargetKind = filtersById
+    const colorTgt = filtersById
       ? parseColorTarget(affPath, affectingObjectId, filtersById)
       : null;
+    const colorTargetKind = colorTgt?.kind ?? null;
     const anyColourSourceRef = exprEls.some(e => parseColorSourcePath(getTextContent(e, 'sourceChannelRef')) !== null);
-    // A colour Link whose target we DON'T yet render (gradient colour tags — used
-    // by Loop/Heart/Slide_In, affectingChannel `.../353/113/104/...`) has a colour
-    // source path (`.../111/{1,2,3}`) but no `colorTargetKind` match here. Skip
-    // the whole link: falling through to the transform-link path would decode the
-    // Fill Color as a POSITION and drive a random transform channel with garbage.
-    // Once gradient-tag rendering lands (S1/T-A1 follow-up), extend parseColorTarget
-    // to return a 'gradientTag' kind and add a case above.
+    // A colour Link whose target we can't classify (unknown colour path) has a colour
+    // source path (`.../111/{1,2,3}`) but no `colorTargetKind` match. Skip the whole
+    // link: falling through to the transform-link path would decode the Fill Color as
+    // a POSITION and drive a random transform channel with garbage. (gradientTag IS
+    // classified now — see parseColorTarget; the compositor gradient rasteriser that
+    // consumes it lands in a later T-A1 step, but detecting + resolving it here is safe
+    // because color-links.ts only WRITES the override into a bucket nothing reads yet.)
     if (anyColourSourceRef && !colorTargetKind) {
       continue;
     }
@@ -246,8 +261,15 @@ export function parseLinkBehaviors(
         // stays at the LinkBehavior's default (±100 sentinel = no clamp).
         const linkMin = perChMin !== undefined ? perChMin : min;
         const linkMax = perChMax !== undefined ? perChMax : max;
+        // gradientTag targets a stop on the shape carrying the Gradient (the AFFECTED
+        // object = the gradient owner); shapeFill targets the affected layer; colorize*
+        // targets the filter (affecting) object.
+        const affForKind =
+          colorTargetKind === 'shapeFill' ? affectedId
+          : colorTargetKind === 'gradientTag' ? affectingObjectId
+          : affectingObjectId;
         links.push({
-          affectedObjectId: colorTargetKind === 'shapeFill' ? affectedId : affectingObjectId,
+          affectedObjectId: affForKind,
           sourceObjectId,
           targetChannel: tgtChar,
           targetProp: 'color',
@@ -261,7 +283,8 @@ export function parseLinkBehaviors(
           colorTarget: {
             kind: colorTargetKind,
             channel: chan,
-            filterId: colorTargetKind === 'shapeFill' ? undefined : affectingObjectId,
+            filterId: (colorTargetKind === 'shapeFill' || colorTargetKind === 'gradientTag') ? undefined : affectingObjectId,
+            tagId: colorTargetKind === 'gradientTag' ? colorTgt!.tagId : undefined,
           },
         });
       }
