@@ -229,6 +229,34 @@ registerFilter({
 //     for our engine and must be derived in Phase-2, not assumed.
 //   TODO(P2-bloom-3): TS has no alpha lo/hi clamp (hg_Params[2].xy); the FCP
 //     mask floors/ceilings coverage before the blur.
+//
+// ── PHASE-1 RE UPDATE 2026-07-13e — the REAL dispatch + why Bloom UNDER-BLOOMS ──
+//   Diagnosed against GUI GT: Lights__Bloom PEAK frames (f11–f18) should blow the
+//   whole frame to WHITE (GT f14 ≈ full white + cyan glow); the engine renders the
+//   near-UNBLOOMED sepia photo (f14 ≈ 3 dB). Root cause: the extracted highlight
+//   layer is NOT gained by Brightness, so the additive combine has nothing bright to
+//   add — glowFilter just replaces the image with a blurred copy of ITSELF (measured:
+//   input mean-luma 97.3 → bloom output 97.3, i.e. no brightening at any threshold).
+//   The .motr Bloom is Amount=32 (blur spread), Brightness=100, Threshold ramps
+//   100→1, Clip to White=1.
+//
+//   REAL METHOD (Filters.bundle arm64): the dispatch is
+//     -[PAEBloom bloomHeliumRender:withInput:withRadius:withBrightness:withThreshold:
+//        doDarkBloom:withXScale:withYScale:withDoCrop:withDoClip:is360:withInfo:] @0xe58a
+//   so Radius, Brightness, Threshold, doDarkBloom, XScale(Horizontal), YScale(Vertical),
+//   doCrop, doClip(=Clip to White) are ALL distinct inputs — TS currently drops
+//   Brightness (maps it to the combine gain=1.0 via /100) and ignores Clip to White,
+//   doDarkBloom, X/Y scale. Decoded constants so far (canThrowRenderOutput @0xe269 +
+//   bloomHeliumRender @0xe58a): d11 @0x268c48 = 0.01 (the /100 for Horizontal/Vertical→
+//   XScale/YScale), radius scale ×4.0, threshold pack uses ±10 range + a −2.25 bias
+//   constant and two 0.5·0.01 terms (the HgcBloomThreshold scale+bias). The exact
+//   Brightness→hg_Params[1] (RGB scale) and Threshold→hg_Params[0] (bias) mapping still
+//   needs the full bloomHeliumRender register trace (movi/str q into the shader param
+//   buffer at sp#0xa0..0xd0) — NEXT TICK, decode-don't-fit (no guessed constant).
+//   FIX SHAPE (once decoded): threshold pass = max(color·brightnessScale + thresholdBias, 0),
+//   alpha = clamp(max_channel, lo, hi); blur; combine = (1−glowA)·orig + min(glowRGB, 1)
+//   [Clip to White ceiling]. The Brightness gain (>1) is what pushes the blurred cores
+//   past white. Blast radius = 1 slug (Lights__Bloom is the ONLY PAEBloom/PAEGlow user).
 registerFilter({
   uuid: '5599C557-CDC0-4112-B2C4-355E9A1A902E',
   names: ['bloom'],

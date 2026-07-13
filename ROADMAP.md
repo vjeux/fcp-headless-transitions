@@ -344,10 +344,25 @@ regress when STACKED because FCP applies them in linear space (S2). Bloom's ObjC
 `bloomHeliumRender` and Tint's Color-Space=3 + Rig indirection are additionally non-convergent
 decodes noted in `docs/notes/`.
 **Status:** filters correct in isolation; the stacked error is the S2 linear-chain limit.
+**⚠️ CORRECTION 2026-07-13e (Bloom is NOT correct in isolation):** diagnosed Lights__Bloom (the
+ONLY PAEBloom/PAEGlow user, blast radius 1) — its PEAK frames (f11–f18) should blow the whole
+frame to WHITE (GT f14 ≈ full white); the engine renders the near-UNBLOOMED sepia photo (f14 ≈
+3 dB, mean 10.44). Root cause is a FILTER bug, not linear compositing: glowFilter drops the
+Bloom **Brightness** gain (maps Brightness=100 → combine gain 1.0 via /100) so the extracted
+highlight layer is never amplified — measured input mean-luma 97.3 → bloom output 97.3 (NO
+brightening at any threshold); the additive combine has nothing bright to add and just replaces
+the image with a blurred copy of itself. Also ignores Clip to White (=1), doDarkBloom, X/Y scale.
+The REAL dispatch is `-[PAEBloom bloomHeliumRender:…:withRadius:withBrightness:withThreshold:
+doDarkBloom:withXScale:withYScale:withDoCrop:withDoClip:is360:]` (Filters.bundle @0xe58a) — all
+distinct inputs. Decoded so far: d11@0x268c48=0.01 (H/V→XScale /100), radius ×4.0, threshold pack
+uses ±10 range + −2.25 bias; the exact Brightness→RGB-scale + Threshold→bias packing needs the
+full bloomHeliumRender register trace (NEXT tick, decode-don't-fit). See glow.ts P2-bloom notes.
 **Slugs gated (7):** Bloom (10.6), 360°_Bloom (11.6), Panels_Random (13.0), Color_Panels, Veil,
 Slide, Leaves.
-**Next step:** do S2 first; then re-measure — most of this bucket resolves with linear compositing.
-Only after S2 revisit Tint's shadow-leg transfer + Bloom's Helium pipeline as isolated decodes.
+**Next step:** (a) FINISH the Bloom decode (bloomHeliumRender register trace → Brightness scale +
+Threshold bias + Clip-to-White ceiling) and fix glowFilter's Bloom path — isolated, blast radius 1,
+gate-verifiable, +3–6 dB potential on the peak frames. (b) Then do S2 for the STACKED colour
+bucket (Tint/Colorize/Brightness>1). Bloom's peak-white is a real filter gap, NOT an S2 dependency.
 **DoD/Verify:** subsumed by S2's gate.
 
 ### S5. Gradient generator  [PREMISE CORRECTED — mostly folds into S1]  (task T-C1 · small)
@@ -434,6 +449,23 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13e  BLOOM under-bloom ROOT-CAUSE (isolated filter bug, blast radius 1, decode-in-progress).
+              Diagnosed Lights__Bloom (10.44) via GUI GT: PEAK frames f11-18 should blow the frame to
+              WHITE (GT f14 ~full white) but the engine renders the near-UNBLOOMED sepia photo (f14 ~3
+              dB). Root cause is a FILTER bug (NOT S2 linear compositing): glowFilter's Bloom path drops
+              the Brightness gain (maps Brightness=100 -> combine gain 1.0 via /100), so the extracted
+              highlight layer is never amplified — measured glowFilter input mean-luma 97.3 -> output
+              97.3 (zero brightening at ANY threshold); the additive combine has nothing bright to add
+              and just replaces the image with a blurred copy of itself. Corrected the S4 ROADMAP claim
+              ("filters correct in isolation" — Bloom is NOT). Found the real dispatch
+              -[PAEBloom bloomHeliumRender:...:withRadius:withBrightness:withThreshold:doDarkBloom:
+              withXScale:withYScale:withDoCrop:withDoClip:is360:] @0xe58a (all distinct inputs; TS also
+              ignores Clip-to-White=1, doDarkBloom, X/Y scale). Decoded constants: d11@0x268c48=0.01
+              (H/V->XScale /100), radius x4.0, threshold pack ±10 range + -2.25 bias. Recorded precise
+              P2-bloom notes in glow.ts (comment-only, gate-neutral, tsc clean). NEXT: complete the
+              bloomHeliumRender register trace (Brightness->RGB scale, Threshold->bias, Clip-to-White
+              ceiling), decode-don't-fit, then fix glowFilter's Bloom path and gate-verify (+3-6 dB
+              potential, only affects Lights__Bloom). No pixels changed this tick.
 - 2026-07-13d  S2 LINEAR-COMPOSITE re-confirmation (measurement, no code shipped). Empirically
               tested flipping the existing LINEAR_COMPOSITE_ENABLED flag ON (consumers: HSV +
               Channel-Mixer filters only): Color_Planes 11.35→11.26 (WORSE), Center 11.76→11.76
