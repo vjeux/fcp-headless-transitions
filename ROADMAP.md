@@ -382,6 +382,16 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  SWARM THROUGHPUT TICK — added "reap LIVE sessions that already reported
+              SWARM_RESULT". Agents on the old brief finish + print a terminal SWARM_RESULT
+              (usually BLOCKED, since macOS TCC blocks their in-worktree git push) but Claude
+              Code's -p mode LINGERS, holding the slot indefinitely (T-A1 96m, T-F1 95m). The
+              pool only harvested on OS session EXIT, which never came. Now each cycle, a LIVE
+              slot whose current log already has "SWARM_RESULT <id>" is harvested (lands gate-green
+              work via push_helper, no-op otherwise) then killed+refilled. Restarted the pool with
+              the fix (0 errors, looping clean). Progress: T-D2d landed (HSV->linear); done now
+              {A3,C1,D1,D2b,D2d,G1} = 6 tasks. 7 agents on all remaining eligible work; slot 2
+              idle waiting on deps (T-B2/B3/E2 gated on T-B1/T-E1). Commit 8dc3c36.
 - 2026-07-13  T-D2d (S2/S4 · HSV→linear) DONE — added a LINEAR-working-space
               branch to `hueSaturationFilter`
               (engine/src/compositor/filters/hue-saturation.ts) behind
