@@ -419,6 +419,24 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  SWARM DRAINED + roadmap-sync BLOCKED-bug FIX + T-A1 premise VERIFIED. The pool
+              exited (0 eligible): all 16 tasks are terminal except T-A1 (PARTIAL). T-E2 landed
+              BLOCKED (5f0c2e9: Video_Wall's black frame is an S6 framing-camera POSE bug —
+              resolveFramedWallPose fits the dolly to a SINGLE tile bbox, not the 8000-unit wall
+              extent, so tiles project ±43000px off-screen; + timeMap wraps all frames to t=0). Found
+              & fixed a roadmap-sync bug: it reused pool.done_task_ids() (which counts BLOCKED/NOOP
+              commits as "done"), so a "T-E2 BLOCKED" commit wrongly flipped its row TODO->DONE,
+              erasing the ceiling signal. Fixed: _done_only_ids() scans ONLY "T-X DONE" subjects;
+              reconcile upgrades ONLY TODO/DOING (BLOCKED+PARTIAL are deliberate, left alone).
+              Reverted T-E2 marker to BLOCKED. (a7029b1). Then, with the swarm drained and NO agents
+              holding types.ts/parser (the collision that blocked T-A1 for many ticks is GONE),
+              VERIFIED the gradient-tag renderer premise against Loop.motr ground truth: real link
+              affectingChannel="./2/353/113/104/1/845136461/3/3" = Style(353)/Fill(113)/Gradient(104)/
+              RGB-folder(1)/stop(845136461)/Color(3)/Blue(3) — decode CONFIRMED (the 353 is Style, NOT
+              Colorize; census correctly shows some links drive BOTH a Colorize ./1|./2 remap AND a
+              gradient ./…/104 stop via separate channelBehaviors). T-A1 gradient-tag renderer is now
+              UNBLOCKED + premise-verified; build it next tick (6-step plan in the RE note). done=13,
+              +T-A1 PARTIAL, 2 BLOCKED ceilings (T-E2 S6-pose, T-F1 Smear-timing), 2 DROPPED.
 - 2026-07-13  T-E2 BLOCKED (S6 · clone-tile wall render, on top of the harness-pollution fix below).
               Prior-tick's HARNESS-POLLUTION log correctly identified the parsePinIndex compositor
               add as "the right clone-tile fix" (Pin 1→imageA, Pin 2→imageB). Kept. This tick
