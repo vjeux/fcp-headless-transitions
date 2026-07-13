@@ -379,6 +379,38 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
     const ov = riggedTransform.__overrideChannels ?? (riggedTransform.__overrideChannels = new Set<string>());
     ov.add('scaleX'); ov.add('scaleY'); ov.add('scaleZ');
   }
+  // A REAL Transition A drop zone (drop-zone Type=1, the transition-source card,
+  // 1920×1080) whose STATIC authored position sits FAR OFF-CANVAS is a STRUCTURAL
+  // wall placement — the "starting tile" in a proxy+content Framing scene
+  // (Replicator/Clones/Video_Wall's Transition A at world (2051,-2390) is one of
+  // the 14 wall cells the framing camera dollies away from). The Retime static-
+  // position heuristic (resolveWithRetime) ramps a static param value from its
+  // default (0) toward the authored value over retimeProgress; for a wall-placed
+  // A that ramp makes A wobble between origin and its wall position over frames
+  // 1..11 (retime spans 1→13), so A drops off the framing camera's view and
+  // Video_Wall f4 renders BLACK. A's off-canvas authored position is truly
+  // static — it doesn't advance with the media playback frame. Mark position as
+  // override so buildTransformMatrix uses the authored value.
+  // Scope: SCOPED TO Type=1 (the real transition-source card, NOT the Type=0
+  // custom drop zones like Clone_Spin's 9 SQUARE "Timeline Pin" 1920×1920 tiles
+  // that ALSO source Transition A but rely on the ramp for their slide-in).
+  // Threshold: |x| > 1920 AND |y| > 1080 — a true WALL placement is off-canvas
+  // in BOTH axes (Video_Wall's A at (2051, -2390) is beyond a full frame in X
+  // and >2x frame-height in Y). A single-axis offscreen placement (e.g.
+  // Movements/Clothesline's A at (-1342, 540) — just past the left edge in X,
+  // fully on-canvas in Y) is the "slides in from the side" pattern that DOES
+  // want the ramp (its authored offscreen position is the START of the slide,
+  // ramped IN from origin as the media plays); excluding it keeps that gate
+  // slug neutral (Movements__Clothesline 15.22 stayed unchanged).
+  if (layer.type === 'image' && layer.dropZone && layer.dropZone.type === 1
+      && layer.source && layer.source.type === 'transitionA') {
+    const t = layer.transform;
+    const mag = (v: unknown) => typeof v === 'number' ? Math.abs(v) : 0;
+    if (mag(t.positionX) > 1920 && mag(t.positionY) > 1080) {
+      const ov = riggedTransform.__overrideChannels ?? (riggedTransform.__overrideChannels = new Set<string>());
+      ov.add('posX'); ov.add('posY'); ov.add('posZ');
+    }
+  }
   // A Clone Layer's STATIC 3D pre-rotation is a fixed structural fold, not a
   // media-retimed channel — it must apply at its full authored value, NOT ramp
   // from 0 by the Retime static-position heuristic. Movements/Swing's "Clone B"

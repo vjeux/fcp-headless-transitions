@@ -204,7 +204,7 @@ T-D2c TODO    Glow/Bloom into linear         after: T-D1          Bloom, 360°_B
 T-D2d DONE    HSV into linear                after: T-D1          Color_Panels (HSV x4; flag OFF, byte-id).
                                                                   Panels_Random has ZERO HSV (Colorize
                                                                   only, folds into T-D2a).
-T-E1  TODO    framing anchor (proxy->content ray)                 Video_Wall f4 black, Clone_Spin
+T-E1  DONE    retime-ramp cancel for off-canvas wall Transition A Video_Wall 8.7->9.1 (+0.36; Clone_Spin unchanged)
 T-E2  TODO    clone-tile wall render          after: T-E1         Video_Wall 14-tile grid
 T-F1  TODO    Smear appearance at mid-frames                      Movements/Smear (11.0)
 T-G1  DONE    Movements 3D-fold + Color_Planes (census:           Multi/Flip/Pinwheel/Swing +
@@ -394,6 +394,27 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  T-E1 (S6 · Framing wall) DONE — the actual root cause of Video_Wall's
+              f4-black wasn't the framing anchor's proxy->content ray (that anchor
+              (2400,-2144) is only ~350px off Transition A's authored (2051,-2390)).
+              It was the Retime static-position heuristic (resolveWithRetime) ramping
+              A's static POSITION from origin toward its wall coord over frames 1..11
+              (retime spans 1->13), making A wobble ORIGIN<->WALL every non-endpoint
+              frame. Under the framing camera that wobble drove A off-frame (f4
+              projected A to (-2162, 1531) — completely off-canvas -> BLACK), even
+              though A's authored position is truly static. Fix: mark position as
+              __overrideChannels for a REAL Transition A drop zone (dropZone.type===1,
+              1920x1080 A/B card) whose static authored pos is off-canvas in BOTH
+              axes (|x|>1920 AND |y|>1080) — a "wall-cell" placement that shouldn't
+              retime-ramp. Scope excludes: Clone_Spin's 9 SQUARE Type=0 "Timeline
+              Pin" 1920x1920 tiles (also source A, but their ramp IS the slide-in),
+              and Clothesline's A at (-1342, 540) (single-axis side-slide that DOES
+              want the ramp). Video_Wall 8.7->9.1 (+0.36; f4 8.36->10.08). Gate: 0
+              regressions / 1 improvement (2 total: T-G1's Color_Planes +0.88 is
+              carry-over from origin/main). Clone_Spin unchanged (10.28 -> 10.28).
+              No new capability detectors -> no-hardcode test unaffected. Framing-
+              anchor projection itself STILL diverges ~350px from A (deeper OZ
+              computeFraming decode needed for that) — left as follow-up in S6.
 - 2026-07-13  T-B2 DONE (S3 · Emitter SIM+render MINIMAL — spawn/advect/gravity
               /composite flat-COLOUR dots, gate 0/0). Ships
               engine/src/compositor/emitter-sim.ts: deterministic
