@@ -172,7 +172,7 @@ T-A1  PARTIAL colour-channel Link (census-verified)               Panels_Across,
               [infrastructure landed; PSNR=neutral because downstream renderers missing —
                Cross image = Media/cross.ai vector-unsupported, Loop/Heart/Slide_In target
                GRADIENT-TAG colour (renderer TBD). Framework hooks left for future ticks.]
-T-A2  TODO    Motion Path driver                                  layer follows a spatial path;
+T-A2  DONE    Motion Path driver                                  layer follows a spatial path;
                                                                   unblocks path users
 T-A3  DROPPED Gravity driver (LAYER-level)                        census: 0 built-in LAYERS use
                                                                   Gravity. All 4 Gravity behaviours
@@ -389,6 +389,19 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  OOM-CHURN FIX TICK — diagnosed the stalled swarm: 8 concurrent Claude Code
+              agents drove severe memory pressure (13G compressor, <2.5G free); ~27% of runs
+              (6/22) died SWARM_SLOT_EXIT 137 = SIGKILL/OOM MID-WORK. Salvage preserved their
+              patches (T-F1 165KB, T-B1 142KB, T-D2c 125KB) but NOTHING restored them -> agents
+              redid work from scratch, got re-killed, never converged. Fixes: (1) setup_worktree.sh
+              RESTORES the latest salvage patch (git apply --3way) onto the fresh worktree so a
+              killed agent RESUMES; (2) pool size 8->5 to fit RAM + stop OOM; (3) pool orphan-slot
+              sweep (range(size,16)) harvests+drains leftover runners after a smaller-size restart
+              (waits for result/exit, never hard-kills mid-work). RESULT: the fixes immediately
+              landed 3 stuck tasks — T-A1 (colour-Link infra, PARTIAL: downstream gradient/vector
+              renderers TBD), T-A2 (Motion Path driver, DONE), T-B1 (emitter parser, DONE). T-B2
+              now in-flight (unblocked by T-B1). done = {A2,A3,B1,C1,D1,D2b,D2d,G1} = 8. Also synced
+              stale T-A2 ROADMAP marker TODO->DONE. Commits debed7e, d745973.
 - 2026-07-13  T-B1 DONE (S3 · Emitter+Cell param PARSER, PARSE-ONLY, gate 0/0)
               — added typed `EmitterParams` / `ParticleCellParams` /
               `GravityBehavior` schemas + `engine/src/parser/emitter.ts`
