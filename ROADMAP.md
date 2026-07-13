@@ -207,7 +207,7 @@ T-B2  DONE    Emitter SIM+render, MINIMAL     after: T-B1         spawn + advect
                                                                   wired after field-texture proxy; gate 0/0
                                                                   regressions (Diagonal ×2 within noise —
                                                                   colour comes in T-B3). Probe fires on 4.
-T-B3  TODO    Emitter appearance-over-life    after: T-B2         colour/scale/opacity ramps ->
+T-B3  DONE    Emitter appearance-over-life    after: T-B2         colour/scale/opacity ramps ->
                                                                   Close_and_Open, Up-Over, Glide, Center
 T-C1  DROPPED linear/radial gradient generator                   census: NO built-in uses a gradient
                                                                   FILL; Slide_In/Loop/Heart are S1

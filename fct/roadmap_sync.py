@@ -26,10 +26,39 @@ ROADMAP = os.path.join(REPO, "ROADMAP.md")
 ROW_RE = re.compile(r"^(T-[A-Za-z0-9]+)(\s+)(TODO|DOING|PARTIAL|BLOCKED|DONE|DROPPED)(\s+)(.*)$")
 
 
+def _done_only_ids():
+    """Task ids that have a genuine 'T-X DONE' commit on origin/main OR are already
+    marked DONE/DROPPED in the ROADMAP. This is DELIBERATELY NARROWER than
+    pool.done_task_ids(): the pool treats BLOCKED/NOOP commits as 'done' too (so it
+    won't RE-RUN a blocked task), but for ROADMAP *markers* a BLOCKED task must STAY
+    BLOCKED — it's a documented ceiling, not a completed deliverable. Marking a blocked
+    row DONE would silently erase that signal (bug observed 2026-07-13: T-E2 landed a
+    'T-E2 BLOCKED' commit and roadmap-sync wrongly flipped its row TODO->DONE)."""
+    import subprocess, os as _os
+    from fct.swarm.pool import parse_tasks, MAIN
+    ids = set()
+    # Already-terminal ROADMAP states are authoritative.
+    for t in parse_tasks():
+        if t["status"] in ("DONE", "DROPPED"):
+            ids.add(t["id"])
+    # Commit-log scan: ONLY 'T-X DONE' subjects (not BLOCKED/DROPPED/NOOP/bare-colon).
+    try:
+        subprocess.run(["git", "-C", MAIN, "fetch", "origin", "--quiet"], timeout=60)
+        log = subprocess.check_output(
+            ["git", "-C", MAIN, "log", "origin/main", "--pretty=%s", "-n", "400"],
+            text=True, timeout=30)
+        for line in log.splitlines():
+            m = re.match(r"^(?:swarm\s+)?(T-[A-Za-z0-9]+)\s+DONE\b", line, re.I)
+            if m:
+                ids.add(m.group(1))
+    except Exception as e:
+        print(f"roadmap-sync: warn: DONE-commit scan failed: {e}")
+    return ids
+
+
 def reconcile(write=True):
-    """Reconcile ROADMAP markers to the done set. Returns list of (id, old, new)."""
-    from fct.swarm.pool import done_task_ids
-    done = done_task_ids()
+    """Reconcile ROADMAP markers to the DONE set. Returns list of (id, old, new)."""
+    done = _done_only_ids()
 
     lines = open(ROADMAP).read().split("\n")
     changes = []
@@ -38,9 +67,12 @@ def reconcile(write=True):
         if not m:
             continue
         tid, sp1, status, sp2, rest = m.groups()
-        if tid in done and status in ("TODO", "DOING", "BLOCKED"):
-            # Proven done on origin, and the row is in a not-started/in-progress state.
-            # (PARTIAL is intentionally excluded — see module docstring.)
+        # Only flip a NOT-STARTED / IN-PROGRESS row to DONE. BLOCKED is EXCLUDED: a
+        # BLOCKED marker is a deliberate ceiling decision (documented in the row), not
+        # something to auto-upgrade — even if a 'T-X DONE' commit somehow also exists,
+        # a human/agent set BLOCKED for a reason. PARTIAL is likewise left alone (its
+        # note tracks remaining work). DROPPED/DONE are terminal, untouched.
+        if tid in done and status in ("TODO", "DOING"):
             field_w = len(status) + len(sp2)
             new_sp2 = " " * max(1, field_w - len("DONE"))
             lines[i] = f"{tid}{sp1}DONE{new_sp2}{rest}"
