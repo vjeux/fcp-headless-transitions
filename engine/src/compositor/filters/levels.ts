@@ -138,53 +138,14 @@ export function levelsFilter(input: ImageData, params: LevelsParams): ImageData 
  * and correctly reduces to the darken leg for amount<=1. Closing the brighten leg
  * requires a linear-working-space FILTER CHAIN (encode once after all filters), which
  * is an engine-architecture change tracked separately — NOT a per-filter encode.
- *
- * ============================ LINEAR WORKING SPACE (T-D2a) ============================
- * FCP's HGColorMatrix runs in the LINEAR working color space (see compositor/linear.ts:
- * kCGColorSpaceExtendedLinearSRGB, decoded 2026-07-12 from oz_render.mm OZ_WS_DEBUG).
- * The physically-correct model — matching FCP's chain when all filters run in linear
- * and the buffer encodes ONCE at readback — is:
- *   linear = srgbDecode(v/255) ; linear' = linear * amount ; out = srgbEncode(clip(linear'))
- * This is what the shader actually computes when the working buffer is Extended-Linear-
- * sRGB and its input has been sRGB-decoded at scene ingest (T-D1's contract). It
- * DIFFERS from BOTH measured legs of the standalone probe: the darken measurement
- * (clip(amount·v)) matches only because FCP's isolated test passed an sRGB-tagged
- * 8-bit source through a code-space multiply. In the working-space chain the two
- * PAEBrightness users — Objects__Curtains (amount=2.91) + Replicator-Clones__3D_
- * Rectangle (8× Brightness copies, animated 1.0→~0.65 dims) — both flow through
- * the linear buffer.
- *
- * `linear=true` opts into that path: decode input sRGB→linear via LUT_SRGB_TO_LINEAR,
- * multiply by `amount` in linear light, encode back via linearChannelToSrgb. Wired to
- * `isLinearCompositeEnabled()` at the registry callsite; flag defaults OFF so shipped
- * behaviour is BYTE-IDENTICAL. The default flag flip happens after all four T-D2*
- * filter families have landed (T-D1's contract).
- * ============================================================================
  */
-export function brightnessFilter(input: ImageData, amount: number, linear: boolean = false): ImageData {
+export function brightnessFilter(input: ImageData, amount: number): ImageData {
   if (amount === 1) return input;
 
   const width = input.width;
   const height = input.height;
   const src = input.data;
   const out = new Uint8ClampedArray(src.length);
-
-  if (linear) {
-    // Physically-correct linear-working-space multiply: decode → multiply →
-    // encode. Same math for BOTH legs (no discontinuity at amount=1). Alpha
-    // is coverage (linear), preserved as-is.
-    const lut = LUT_SRGB_TO_LINEAR;
-    for (let i = 0; i < src.length; i += 4) {
-      const rL = lut[src[i]]     * amount;
-      const gL = lut[src[i + 1]] * amount;
-      const bL = lut[src[i + 2]] * amount;
-      out[i]     = linearChannelToSrgb(rL);
-      out[i + 1] = linearChannelToSrgb(gL);
-      out[i + 2] = linearChannelToSrgb(bL);
-      out[i + 3] = src[i + 3];
-    }
-    return new ImageData(out, width, height);
-  }
 
   for (let i = 0; i < src.length; i += 4) {
     out[i] = Math.max(0, Math.min(255, src[i] * amount));
@@ -198,24 +159,17 @@ export function brightnessFilter(input: ImageData, amount: number, linear: boole
 
 import { registerFilter } from './registry.js';
 import { evaluateCurve } from '../../evaluator/curves.js';
-import {
-  isLinearCompositeEnabled,
-  LUT_SRGB_TO_LINEAR,
-  linearChannelToSrgb,
-} from '../linear.js';
 
 // PAEBrightness — sRGB per-channel MULTIPLY (out = in * amount; identity at 1).
 // Phase-2 verified against headless FCP (see brightnessFilter). Param default is 1
-// (the plugin's declared default), NOT 0 — a multiply's identity is 1. The `linear`
-// arg opts into the T-D1 linear working-space branch (see brightnessFilter header);
-// wired to isLinearCompositeEnabled() so flag OFF is byte-identical (T-D2a contract).
+// (the plugin's declared default), NOT 0 — a multiply's identity is 1.
 registerFilter({
   uuid: '2E4DBB0A-A950-4896-BC2D-A5B0CFF7FAC6',
   names: ['brightness'],
   label: 'Brightness',
   apply(input, ctx) {
     const amount = ctx.has('Brightness') ? ctx.param('Brightness', 1) : ctx.param('Amount', 1);
-    return brightnessFilter(input, amount, isLinearCompositeEnabled());
+    return brightnessFilter(input, amount);
   },
 });
 

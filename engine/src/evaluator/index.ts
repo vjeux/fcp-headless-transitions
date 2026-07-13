@@ -18,7 +18,7 @@
  *   - Y-up (positive Y = up)
  *   - Angles in degrees, clockwise positive
  */
-import type { MotrScene, Layer, Curve, Transform, RigWidget, RigBehavior, Parameter, SceneBehavior, LinkBehavior } from '../types.js';
+import type { MotrScene, Layer, Curve, Transform, RigWidget, RigBehavior, Parameter, SceneBehavior, LinkBehavior, EmitterParams, ParticleCellParams } from '../types.js';
 import { evaluateCurve, resolveValue, timeToSeconds } from './curves.js';
 import { evaluateFade, evaluateRampAtProgress, evaluateOscillate, evaluateSpin } from './behaviors/index.js';
 import { resolveFramedPose, resolveFramedWallPose } from './framing.js';
@@ -119,6 +119,16 @@ export interface EvaluatedScene {
      */
     framed?: { viewX: number; viewY: number; viewZ: number; framingDistance: number; eye: [number, number, number]; target: [number, number, number]; aov: number };
   };
+  /**
+   * Flat index of parsed Motion Emitters (T-B1 parser). Copied by reference from
+   * MotrScene so the compositor's emitter-sim (T-B2) can iterate cells + resolve
+   * their parent emitter's params without re-descending the layer tree. Undefined
+   * when the scene has no Emitter nodes (early-out is free for non-particle
+   * transitions).
+   */
+  emitters?: Map<number, EmitterParams>;
+  /** Flat index of parsed Particle Cells (T-B1 parser). Companion to `emitters`. */
+  particleCells?: Map<number, ParticleCellParams>;
 }
 
 // ============================================================================
@@ -645,6 +655,8 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
     layerById,
     evalLayerById,
     camera,
+    emitters: scene.emitters,
+    particleCells: scene.particleCells,
   };
 }
 

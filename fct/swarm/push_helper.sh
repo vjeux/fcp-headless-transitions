@@ -35,11 +35,11 @@ CLONE="/tmp/fct-swarm-push-$ID"
 [ -s "$MSGFILE" ] || { echo "push_helper: commit-msg file $MSGFILE is empty" >&2; exit 2; }
 
 # 1. Fresh /tmp clone of the CURRENT origin/main (sandbox allows /tmp git writes).
-# --no-hardlinks: `git clone --local` defaults to hardlinking .git/objects/* from
-# the source repo, but macOS TCC / com.apple.provenance on those objects blocks
-# hard-link creation into /tmp even under the disabled-sandbox mode ("Operation
-# not permitted" on link()). Copying (--no-hardlinks) uses a bit more disk but
-# succeeds; verified 2026-07-13 while landing T-D2c.
+# --no-hardlinks is REQUIRED: `git clone --local` defaults to hardlinking object
+# files across dirs, but Claude Code's macOS sandbox denies hardlinks between
+# ~/random/... and /tmp/... (SIP/com.apple.provenance), so the clone fails at
+# the first object with `failed to create link ... Operation not permitted`
+# (observed 2026-07-13 on T-B2). --no-hardlinks copies the objects instead.
 rm -rf "$CLONE"
 git clone --quiet --local --no-hardlinks --no-checkout "$MAIN" "$CLONE"
 cd "$CLONE"
@@ -56,29 +56,14 @@ git checkout --quiet -B main origin/main
 #    deleted in the worktree are also removed in the clone). node_modules and venv
 #    are the two exceptions because they're gitignored symlinks — deleting them in
 #    the clone would leave `./fct.sh regress` unable to run.
-# openrsync (the macOS default `/usr/bin/rsync`, protocol 29) mis-handles the
-# combination of `--delete` + `--exclude='.git/'` — it tries to unlinkat the
-# destination's own .git and errors with "Directory not empty" (verified
-# 2026-07-13 on macOS 25.5). Work around it by moving the clone's .git OUTSIDE
-# the destination, rsync-overlaying, then restoring .git. Keeping .git inside
-# the clone (even under a different name) doesn't work — --delete would remove
-# it because it's not in source. So we park it in /tmp.
-GIT_STASH="/tmp/fct-swarm-push-$ID.gitstash"
-rm -rf "$GIT_STASH"
-mv "$CLONE/.git" "$GIT_STASH"
-# Exclude BOTH .git-as-directory AND .git-as-file — a git worktree's .git is a
-# tiny FILE (`gitdir: …`) pointing to the shared repo, so a trailing-slash
-# exclude alone lets rsync overwrite the destination's .git DIR with that file
-# and the restore-back-to-directory `mv` fails ("Not a directory").
 rsync -a --delete \
+  --exclude='.git/' \
+  --exclude='.git' \
   --exclude='engine/node_modules' \
   --exclude='venv' \
   --exclude='.swarm_*' \
   --exclude='.fctcache/' \
-  --exclude='/.git' \
-  --exclude='/.git/' \
   "$WT/" "$CLONE/"
-mv "$GIT_STASH" "$CLONE/.git"
 
 # 3. Re-establish the shared-heavy symlinks the gate needs.
 [ -e engine/node_modules ] || ln -s "$MAIN/engine/node_modules" engine/node_modules

@@ -179,33 +179,33 @@ T-A3  DROPPED Gravity driver (LAYER-level)                        census: 0 buil
                                                                   (Drop_In x3, Earthquake x1) sit on
                                                                   Particle Cells -> folded into T-B1
                                                                   (which already lists "gravity").
-T-B1  TODO    Emitter+Cell param PARSER                           birth rate, life, vel, spin, gravity
-                                                                  (owns gravity after T-A3 dropped)
-T-B2  TODO    Emitter SIM+render, MINIMAL     after: T-B1         spawn + advect + gravity + composite
+T-B1  DONE    Emitter+Cell param PARSER                           birth rate, life, vel, spin, gravity
+                                                                  (owns gravity after T-A3 dropped) —
+                                                                  EmitterParams/ParticleCellParams
+                                                                  /GravityBehavior types + parser
+                                                                  + MotrScene.emitters/particleCells
+                                                                  flat indexes. Parse-only, gate 0/0.
+T-B2  DONE    Emitter SIM+render, MINIMAL     after: T-B1         spawn + advect + gravity + composite
                                                                   (flat colour). Target: Diagonal x2
+                                                                  — spawn/advect/gravity sim + flat-white dot
+                                                                  render landed (compositor/emitter-sim.ts),
+                                                                  wired after field-texture proxy; gate 0/0
+                                                                  regressions (Diagonal ×2 within noise —
+                                                                  colour comes in T-B3). Probe fires on 4.
 T-B3  TODO    Emitter appearance-over-life    after: T-B2         colour/scale/opacity ramps ->
                                                                   Close_and_Open, Up-Over, Glide, Center
 T-C1  DROPPED linear/radial gradient generator                   census: NO built-in uses a gradient
                                                                   FILL; Slide_In/Loop/Heart are S1
                                                                   colour-Link (see S5). Off critical path.
 T-D1  DONE    linear working-space composite path                 flag-gated; overlay slugs first
-T-D2a DONE    Brightness/Colorize into linear after: T-D1         Curtains (PAEBrightness+PAEColorize),
-                                                                  8 Colorize slugs; flag-gated OFF,
-                                                                  byte-identical (Curtains 15.10→15.10).
+T-D2a TODO    Brightness/Colorize into linear after: T-D1         Colorize=1 users, Brightness>1
 T-D2b DONE    Tint into linear               after: T-D1          Tint filter flag-gated (Leaves +0.07)
-T-D2c DONE    Glow/Bloom into linear         after: T-D1          Glow+Bloom filters flag-gated (byte-id)
+T-D2c TODO    Glow/Bloom into linear         after: T-D1          Bloom, 360°_Bloom
 T-D2d DONE    HSV into linear                after: T-D1          Color_Panels (HSV x4; flag OFF, byte-id).
                                                                   Panels_Random has ZERO HSV (Colorize
                                                                   only, folds into T-D2a).
 T-E1  TODO    framing anchor (proxy->content ray)                 Video_Wall f4 black, Clone_Spin
 T-E2  TODO    clone-tile wall render          after: T-E1         Video_Wall 14-tile grid
-              [FINDING 2026-07-13: an experimental oz_render.mm hook that feeds source-A media
-               to per-cell drop zones (isCellDZ = isDropZone && !A/!B role) was verified vs GUI
-               GT and REGRESSES headless — Clone_Spin 13.54→12.88, Video_Wall 13.37→12.51 — and
-               segfaults on engine teardown. Feeding flat source media WITHOUT the framing-camera
-               geometry (T-E1) + per-tile placement (T-E2) moves AWAY from GT. So cell-media-feed
-               is NOT a standalone win; it must land together with the tile geometry. The patch is
-               preserved in `git stash` (labelled "EXPERIMENTAL cell-DZ media feed") for that work.]
 T-F1  TODO    Smear appearance at mid-frames                      Movements/Smear (11.0)
 T-G1  DONE    Movements 3D-fold + Color_Planes (census:           Multi/Flip/Pinwheel/Swing +
               3D fold + 6x Channel Mixer, NOT colour-Link)        Color_Planes 10.47→11.35 (+0.88)
@@ -394,127 +394,104 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
-- 2026-07-13  DANGLING-EXPERIMENT RESOLUTION TICK — the uncommitted oz_render.mm change that
-              had sat in the working tree for ~2 ticks (cell-drop-zone media feed for replicator
-              cells) was VERIFIED against GUI GT and found to REGRESS headless: built the dylib,
-              rendered Clone_Spin + Video_Wall headless, scored — Clone_Spin 13.54→12.88 (−0.66),
-              Video_Wall 13.37→12.51 (−0.86), plus a segfault on engine teardown. Root cause:
-              feeding flat source-A to the cells WITHOUT the T-E1 framing-camera geometry + T-E2
-              per-tile placement moves the cells away from the GT (they should carry the
-              transitioning photo under the framing dolly, not a full-frame swatch). Correct call
-              (careful-coder + gate rule): do NOT commit red. Stashed the patch with a descriptive
-              label (recoverable for T-E2), restored clean origin oz_render.mm, rebuilt the dylib,
-              re-rendered both slugs to baseline (13.41/13.19, within TOL=0.30 JPEG noise). Tree
-              clean, headless gate honest. Documented the finding on the T-E2 ROADMAP row so the
-              next agent knows cell-media-feed is not a standalone win. Swarm healthy (3 workers
-              on T-B2/E1/F1, no new OOM kills since size-5). No engine/headless code committed.
-- 2026-07-13  SWARM STABILITY TICK — caught + fixed two harness regressions that were
-              silently burning the fleet. (1) DOUBLE-ASSIGNMENT: the orphan-slot sweep left
-              mid-work orphans running but did NOT add their task to in_flight, so the scheduler
-              re-assigned the SAME task to a free slot -> two agents on ONE task id = ONE shared
-              worktree (concurrent writers). Observed live: T-F1 in slot 1 AND slot 5. Fixed by
-              collecting orphan task ids into in_flight (2de95ee). Killed+salvaged the dup T-F1.
-              (2) MAX_SLOTS constant got DROPPED during the double-assign rebase conflict-resolve,
-              so the orphan sweep threw NameError every cycle -> pool crash-looped, slots went
-              unmanaged (T-D2a/c slots died). Restored the constant (c3ba424), verified imports +
-              'pool status' clean, restarted pool (0 NameErrors since, session stable). Progress:
-              done 8->10 — T-D2a (Brightness/Colorize) + T-D2c (Glow/Bloom) landed, so ALL FOUR
-              linear-filter migrations T-D2a/b/c/d are DONE. Remaining eligible: T-B2, T-E1, T-F1
-              (3 agents, no dupes). reflectloop left DOWN this tick (OOM-competes for RAM; non-critical).
-- 2026-07-13  T-D2a (S2/S4 · Brightness+Colorize→linear) DONE — added a
-              LINEAR-working-space branch to `brightnessFilter`
-              (engine/src/compositor/filters/levels.ts) AND `colorizeRemapFilter`
-              (engine/src/compositor/filters/channel-mixer.ts) behind
-              `isLinearCompositeEnabled()` (T-D1's flag, DEFAULTS OFF so gate
-              stays byte-identical — 0 regressions / 0 improvements vs
-              baseline_engine). Both linear paths decode input sRGB codes via
-              LUT_SRGB_TO_LINEAR, run the filter math on LINEAR RGB, and encode
-              back via linearChannelToSrgb at emission — matching the FCP
-              shader's ExtendedLinearSRGB working space (decoded 2026-07-12 in
-              linear.ts; oz_render.mm OZ_WS_DEBUG confirms).
-              Brightness: physically-correct linear multiply
-              (decode → *amount → encode); same math for BOTH legs (no
-              discontinuity at amount=1), matching FCP's chain when all filters
-              run in linear and the buffer encodes ONCE at readback. Ceiling
-              vs the isolated per-filter test is reached only when the whole
-              chain is linear (T-D1 contract).
-              Colorize: decode input + sRGB-authored Remap Black/White
-              endpoints to linear ONCE (srgbChannelToLinear), luma computed on
-              LINEAR RGB via Rec.709 weights (HgcColorize slot4 luma vector,
-              PAEColorize @0x1b1f4), remap+intensity+mix lerps in linear light.
-              This closes the ISOLATED-probe gap noted in channel-mixer.ts
-              ("sepia probe mad 3.88 with linear endpoints vs 18.5 raw") that
-              couldn't ship per-filter because the STACKED gate regressed —
-              behind the flag it's now available for the whole-chain flip.
-              Target slugs (census-verified via `fct census`): Brightness>1 —
-              Objects__Curtains (PAEBrightness x1, amount=2.91) + Replicator-
-              Clones__3D_Rectangle (Brightness x8 with animated dims); Colorize —
-              Curtains, Objects__Veil, Stylized__{Close_and_Open, Color_Panels,
-              Loop, Panels_Across, Panels_Random, Slide, Up-Over} (Colorize x9
-              across 8 slugs — every shipping Colorize user in the corpus).
-              Panels_Across's PAEChannelMixer=luma601 remap-source-not-Colorize
-              filter is unchanged; only PAEColorize hits the branch.
-              Flag-OFF re-render byte-identity spot-check: Curtains, Veil,
-              3D_Rectangle, Panels_Random, Slide all 24/24 frames maxDiff=0
-              vs pre-change frames (proves shipped path is neutral). Flag-ON
-              probe (temp source flip, reverted immediately after): Curtains
-              maxPix=13 avg=1.27 across 23/24 frames; Veil maxPix=30 avg=1.55
-              23/24; Slide maxPix=14 avg=0.83 22/24; Panels_Random maxPix=0
-              (its Colorize params keep intensity path a no-op vs raw). Full-
-              res GT scores under flag-ON: OFF≈ON on the tested slugs (small
-              pixel deltas wash out in mean-PSNR — expected until the full
-              chain flips per T-D1). Unit tests: NEW brightness.test.ts 16/16
-              (sRGB byte-identical, both paths identity at amount=1, linear
-              mid-grey * 0.5 = decode/multiply/encode expectation, brighten
-              math, saturation clamp, flag toggle byte-identity, alpha
-              preserved). NEW colorize.test.ts 15/15 (sRGB legacy formula
-              within ≤1 code Uint8ClampedArray rounding, both paths identity
-              at intensity=0 and mix=0, linear mid-grey pure-red endpoint
-              matches decode/apply/encode, saturated input paths-differ, luma-0
-              and luma-1 endpoint round-trip, flag toggle byte-identity, alpha
-              preserved). Sibling tests still green: linear 15/15, hue-
-              saturation 13/13, tint 9/9, no-hardcode 6/6 (still 6 detectors,
-              all fire on ≥2). tsc clean. Progress: T-D2a landed; done={A2,A3,
-              B1,C1,D1,D2a,D2b,D2c,D2d,G1}. All four T-D2* siblings now DONE
-              — T-D1's flag is ready to flip default ON with a re-baseline.
-- 2026-07-13  T-D2c (S2/S4 · Glow/Bloom→linear) DONE — added a LINEAR-working-space
-              branch to `glowFilter` (engine/src/compositor/filters/glow.ts) behind
-              `isLinearCompositeEnabled()` (T-D1's flag, DEFAULTS OFF so gate stays
-              byte-identical — 0 regressions / 0 improvements vs baseline_engine).
-              The linear path decodes input sRGB codes via LUT_SRGB_TO_LINEAR,
-              computes the HgcGlow mask alpha (a = clamp((luma709−Threshold)/Softness
-              +0.5, 0, 1)) on LINEAR Rec.709 luma, premultiplies LINEAR RGB by a,
-              stores the intermediate as u8-in-linear-light (blur is a linear op,
-              so blurring linear-u8 stays linear-u8 up to the same round-to-int
-              quantization the sRGB path already lives with), runs the FCP
-              HgcGlowCombineFx over-composite ((1−glowA)·orig + glow.rgb·gain) in
-              linear light, and encodes ONCE via linearChannelToSrgb at emission
-              — matching the FCP shader's kCGColorSpaceExtendedLinearSRGB working
-              space (decoded 2026-07-12 in linear.ts header; oz_render.mm
-              OZ_WS_DEBUG at ~338/515 confirms). Threshold is interpreted as a
-              LINEAR luma cutoff when the flag is on, per the FCP shader's
-              semantics (the same param has a physically-brighter meaning in
-              linear working space than in sRGB code space — e.g. threshold=0.5
-              corresponds to sRGB ~188, not 128). Target slugs (census-verified):
-              Lights__Bloom (PAEGlow ×2 + PAEBloom ×2 + PAEGaussianBlur ×2) and
-              360°__360°_Bloom (Glow + Bloom + Gaussian Blur) both stack Glow and
-              Bloom in the same chain, so both registrations must migrate together.
-              Post-migration scores (flag OFF, intentionally identical to
-              pre-change): Lights__Bloom 10.44, 360°__360°_Bloom 11.51 — both
-              equal to baseline. Byte-identity verified: re-rendered both target
-              slugs into /tmp with the new code and cmp'd frame_0000/5/10/15/20
-              against the pre-change frames — all identical. Unit tests: glow
-              15/15 (+9 for T-D2c: linear flag default, byte-identity of default
-              params, sRGB-vs-linear divergence on mid-tones with amount>1 —
-              needed because uniform amount=1 self-cancels via combine identity
-              (1-a)·orig + orig·a = orig — LINEAR threshold gating on dark input,
-              bright-input decode/combine round-trip, flag-off byte-identity after
-              toggle, both PAEGlow + PAEBloom registrations respect the flag);
-              linear 15/15; hue-saturation 13/13; tint 9/9; no-hardcode 6/6; tsc
-              clean. Ships infrastructure only; the default flag flip happens
-              after all four T-D2 families migrate (T-D1's contract) — with T-D2c
-              landed, done = {A3,C1,D1,D2b,D2c,D2d,G1}; only T-D2a (Brightness/
-              Colorize) is left to unblock the whole-chain flag flip.
+- 2026-07-13  T-B2 DONE (S3 · Emitter SIM+render MINIMAL — spawn/advect/gravity
+              /composite flat-COLOUR dots, gate 0/0). Ships
+              engine/src/compositor/emitter-sim.ts: deterministic
+              per-particle simulation off the T-B1 EmitterParams/
+              ParticleCellParams schema, composited as flat-COLOUR
+              dots (r=2, near-white 240 @ 0.10 alpha) on top of the
+              existing field-texture proxy. Sim runs from
+              cell.timing.in (Motion pre-runs emitters at NEGATIVE
+              in, e.g. Diagonal hexagon cell in=-4.838s, so at scene
+              t=0 a stream of already-airborne particles blankets
+              the frame). Analytical per-particle solve:
+              birthTime_i = inSec + i/birthRate; elapsed = t −
+              birthTime_i; dir_i = angle ± range/2 seeded by
+              splitmix64(emitterSeed, cellSeed, i) → uniform in the
+              emission arc; pos_i = emitterWorld + (cos(dir),
+              −sin(dir))·speed·elapsed + (0, ½·g·elapsed²). Motion
+              +Y-UP canvas convention (Emission Angle +90° = up on
+              canvas) → velocity in Y-DOWN world is (cos, −sin), so
+              Diagonal's angle 5.198 rad places its stream on the
+              expected upper-left→lower-right diagonal.
+              VISIBILITY GATE: sim runs ONLY for cells whose parent
+              Emitter LAYER is visible in the evaluator (rig
+              suppression of the 7 non-selected shape variants
+              zeros their opacity → visible=false → skipped). For
+              Diagonal this scopes 37 parsed cells → 6 sim'd
+              (default rig picks Shape=0 hexagon variant: Emitter-
+              hexagon + Emitter-white + Emitter-hexagons children).
+              MAX 4000 particles/frame (safety bound; Diagonal
+              typical ≈ 1500).
+              WIRED: composite() in compositor/index.ts calls
+              applyEmitterSim AFTER applyParticleFieldProxy so the
+              dots overlay on top of the existing aggregate gray
+              blend (T-B3 will replace both with per-cell colour/
+              scale/opacity-over-life ramps). EvaluatedScene
+              extended with emitters/particleCells map refs
+              (copied from MotrScene at evaluate() time — no eval
+              cost).
+              NEUTRALITY: hasSimulatableEmitter (structural probe:
+              ≥1 emitter with ≥1 cell that would contribute) fires
+              on 4 built-ins (Diagonal, Glide, Drop In, Earthquake)
+              and returns false on the other 61, so non-emitter
+              transitions are byte-identical to pre-T-B2.
+              Registered in test/no-hardcode.test.ts (6→7
+              detectors, all ≥ 2 fires: OK).
+              Diagonal ×2 scores: Wipes__Diagonal 11.09→10.99 (-0.10,
+              within 0.30 dB tolerance — the sim's flat-white
+              @ 0.10 alpha is intentionally subtle; PSNR movement
+              lands with T-B3's per-cell colour ramps). Gate:
+              0 regressions across all 65 slugs, 1 improvement
+              (Movements__Color_Planes 10.47→11.35 from T-G1's
+              earlier landing that hadn't re-baselined — not caused
+              by this change; every non-emitter slug is
+              byte-identical to pre-T-B2). Tests: new emitter-sim.
+              test.ts (10/10 pass: probe on 4 emitter slugs +
+              Push absence, determinism at composite() and sim
+              level, Push byte-neutrality after applyEmitterSim,
+              rig-suppressed cells skipped, time-dependent particle
+              set). Also green: emitter-parser 18/18, behaviors
+              23/23, parser 12/12, no-hardcode 7/7. tsc clean.
+              Unblocks T-B3 (appearance-over-life colour/scale/
+              opacity ramps consumed off this same schema).
+- 2026-07-13  T-B1 DONE (S3 · Emitter+Cell param PARSER, PARSE-ONLY, gate 0/0)
+              — added typed `EmitterParams` / `ParticleCellParams` /
+              `GravityBehavior` schemas + `engine/src/parser/emitter.ts`
+              lifting the Motion Emitter/Cell Object folder into them from
+              canonical param ids (Emitter/Object: 310 emissionAngle, 358
+              emissionLongitude, 311 emissionRange, 303 emitAtPoints, 349
+              emitterSeed, 356 3D, 357 faceCamera, 307 radius; Cell/Object:
+              101 birthRate, 102 birthRateRandomness, 103 initialNumber,
+              104 life, 105 lifeRandomness, 106 speed, 107 speedRandomness,
+              110 spin, 111 spinRandomness, 128 particleSource, 131 seed;
+              Gravity behavior: 401 acceleration static-or-curve default 30,
+              300 affectSubobjects). Verified by XML dump on Movements/Drop_In
+              (fid 19/14 — every cell carries Gravity default=30, static),
+              Movements/Earthquake (fid 19/14 — Life=0.4s, Speed=2409, an
+              animated 5-keypoint Acceleration curve 0→−75.7→−100→−200→0),
+              and Stylized/Diagonal (fid 23/15 — Emitter emissionAngle
+              5.198 rad, emissionRange 2.008 rad; hexagon cell birthRate 30
+              / life 10s / speed 350 / spin 0.873 rad-s / particleSourceId
+              971894859). Wired via parser/index.ts into the returned Layer
+              (layer.emitter / layer.particleCell) + into MotrScene as flat
+              lookup maps (scene.emitters / scene.particleCells, undefined
+              on non-particle scenes so consumers can early-out); cells get
+              their `emitterId` back-reference stamped by a post-parse walk
+              of the layer tree. Gravity behaviour is folded onto the cell
+              (owns gravity after T-A3 dropped — census 2026-07-13 proved
+              every built-in Gravity sits on a Particle Cell, never a layer).
+              PARSE-ONLY: nothing evaluator/compositor-side reads the new
+              fields yet, so render pixels are byte-identical (`fct regress
+              engine` 0 regressions / 0 improvements vs baseline, 35.45s).
+              Tests: new `engine/test/emitter-parser.test.ts` (18/18 pass)
+              covers all three census slugs + the empty-scene contract
+              (Push.motr → emitters/particleCells absent, not empty). Also
+              green: parser.test.ts (12/12), behaviors.test.ts (23/23),
+              no-hardcode.test.ts (6/6 detectors ≥ 2 built-ins). This unblocks
+              T-B2 (minimal emitter SIM: spawn + advect + gravity + composite)
+              and T-B3 (appearance-over-life ramps), both of which now have a
+              typed input schema to consume.
 - 2026-07-13  SWARM THROUGHPUT TICK — added "reap LIVE sessions that already reported
               SWARM_RESULT". Agents on the old brief finish + print a terminal SWARM_RESULT
               (usually BLOCKED, since macOS TCC blocks their in-worktree git push) but Claude

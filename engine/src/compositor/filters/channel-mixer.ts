@@ -258,7 +258,6 @@ export function colorizeRemapFilter(
   white: { r: number; g: number; b: number },
   intensity: number = 1,
   mix: number = 1,
-  linear: boolean = false,
 ): ImageData {
   const src = input.data;
   const out = new Uint8ClampedArray(src.length);
@@ -274,61 +273,9 @@ export function colorizeRemapFilter(
   // filters and FCP keeps the whole chain in linear + encodes ONCE at readback (a
   // per-filter re-encode diverges — the same architecture limit that keeps
   // Brightness>1 on the plain-multiply, see levels.ts). Per ROADMAP rule 1 (GUI GT is
-  // the one truth) the shipped code (linear=false) keeps the RAW sRGB endpoints: it
-  // is what the GUI GT prefers for the stacked chain. Closing the isolated gap needs
-  // a linear filter-chain (encode once after all filters), tracked under T-D1/T-D2a.
-  //
-  // ============================ LINEAR WORKING SPACE (T-D2a) ==========================
-  // `linear=true` opts into the physically-correct FCP model: decode input sRGB→linear
-  // via LUT_SRGB_TO_LINEAR, decode the sRGB-authored Remap Black/White endpoints ONCE
-  // via srgbChannelToLinear, compute LUMA on LINEAR-light RGB (Rec.709 — HgcColorize
-  // shader dots against slot4 = the Y row of colorMatrixFromDesiredRGBToYCbCr,
-  // PAEColorize @0x1b1f4), lerp black_lin → white_lin by that luma to build the
-  // remapped LINEAR colour, apply the intensity+mix lerp in linear light, encode
-  // back to sRGB. Same shape math as the sRGB path — different colour space. This is
-  // what the shader actually runs when the working buffer is ExtendedLinearSRGB and
-  // its input has been decoded at scene ingest (T-D1's chain contract).
-  //
-  // Wired to isLinearCompositeEnabled() at the registry callsite; flag defaults OFF
-  // so this ships INFRASTRUCTURE only (byte-identical, 0 regression, 0 improvement).
-  // The Colorize users this migration unlocks (census 2026-07-13): Curtains, Veil,
-  // Close_and_Open, Color_Panels, Loop, Panels_Across, Panels_Random, Slide, Up-Over
-  // — the "Colorize=1 users" scope from ROADMAP T-D2a. The flag flip happens after
-  // T-D2c (Glow/Bloom) also lands, per T-D1's contract.
-  // ============================================================================
-  if (linear) {
-    const lut = LUT_SRGB_TO_LINEAR;
-    // Decode sRGB-authored endpoint colours once. `black`/`white` are 0..1 sRGB
-    // values (Motion's UI colour authoring space), so scale to 0..255 for the LUT
-    // path via srgbChannelToLinear (which accepts a 0..255 u8-ish code).
-    const bRl = srgbChannelToLinear(black.r * 255);
-    const bGl = srgbChannelToLinear(black.g * 255);
-    const bBl = srgbChannelToLinear(black.b * 255);
-    const wRl = srgbChannelToLinear(white.r * 255);
-    const wGl = srgbChannelToLinear(white.g * 255);
-    const wBl = srgbChannelToLinear(white.b * 255);
-    const k = intensity * mix;
-    for (let i = 0; i < src.length; i += 4) {
-      const srL = lut[src[i]];
-      const sgL = lut[src[i + 1]];
-      const sbL = lut[src[i + 2]];
-      // Rec.709 luma on LINEAR-light RGB — HgcColorize's slot4 luma vector, dotted
-      // against the ExtendedLinearSRGB working buffer (per the decoded shader).
-      const lumL = 0.2126 * srL + 0.7152 * sgL + 0.0722 * sbL;
-      const rL = bRl + lumL * (wRl - bRl);
-      const gL = bGl + lumL * (wGl - bGl);
-      const bL = bBl + lumL * (wBl - bBl);
-      const oR = srL * (1 - k) + rL * k;
-      const oG = sgL * (1 - k) + gL * k;
-      const oB = sbL * (1 - k) + bL * k;
-      out[i]     = linearChannelToSrgb(oR);
-      out[i + 1] = linearChannelToSrgb(oG);
-      out[i + 2] = linearChannelToSrgb(oB);
-      out[i + 3] = src[i + 3];
-    }
-    return new ImageData(out, input.width, input.height);
-  }
-
+  // the one truth) the shipped code keeps the RAW sRGB endpoints: it is what the GUI
+  // GT prefers for the stacked chain. Closing the isolated gap needs a linear
+  // filter-chain (encode once after all filters), tracked as an engine-architecture item.
   const bR = black.r * 255, bG = black.g * 255, bB = black.b * 255;
   const wR = white.r * 255, wG = white.g * 255, wB = white.b * 255;
   // total blend from original toward the remapped color = intensity * mix (both
@@ -459,7 +406,6 @@ registerFilter({
     };
     const intensity = readScalar('Intensity', 1);  // hg_Params[2]: colorize amount
     const mix = readScalar('Mix', 1);               // hg_Params[3]: final blend
-    // Linear working-space branch (T-D2a); flag defaults OFF -> byte-identical.
-    return colorizeRemapFilter(input, black, white, intensity, mix, isLinearCompositeEnabled());
+    return colorizeRemapFilter(input, black, white, intensity, mix);
   },
 });

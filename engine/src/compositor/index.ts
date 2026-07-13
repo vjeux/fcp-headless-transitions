@@ -16,6 +16,7 @@ import {
   retimedClipTime,
 } from './geometry.js';
 import { detectFieldTexture, applyParticleFieldProxy } from './field-texture.js';
+import { applyEmitterSim } from './emitter-sim.js';
 import { generateInstances, sequenceProgress, sequenceOrder } from './replicator.js';
 import { lookupFilter, makeContext } from './filters/registry.js';
 import './filters/index.js'; // side-effect: registers all UUID-keyed filter modules
@@ -665,6 +666,13 @@ export function composite(
 
   // Composite the field-texture proxy over the rendered frame (no-op if not detected).
   if (field) applyParticleFieldProxy(output, scene, field);
+
+  // T-B2: MINIMAL emitter sim + render (flat-COLOUR dots). No-op when the scene has
+  // no simulatable emitter — non-particle transitions are byte-identical to
+  // pre-T-B2. On particle transitions this runs AFTER the field-texture proxy so
+  // it adds visible dot detail on top of the aggregate gray blend (T-B3 will layer
+  // per-cell colour/scale/opacity-over-life on top).
+  applyEmitterSim(output, scene, { emitters: scene.emitters, particleCells: scene.particleCells });
 
   return output;
 }
