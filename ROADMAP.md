@@ -380,6 +380,18 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  SWARM DATA-SAFETY TICK — fixed a work-DESTROYING bug + broadened harvest. T-B1's
+              completed, gate-green emitter-parser work was WIPED when the pool relaunched it:
+              setup_worktree.sh did `git worktree remove --force` on the uncommitted worktree
+              (reflog "reset: moving to HEAD"). FIX 1: setup_worktree.sh now saves any uncommitted
+              changes to ~/fct-swarm/salvage/<id>.<stamp>.patch BEFORE removing (already caught a
+              reflect-worktree patch). FIX 2: harvest_exited_slot scans ALL of a task's logs (not
+              just the current run) and harvests on DONE *or* a BLOCKED result that asserts
+              complete+gate-green (push_helper re-gates + refuses red, so it can't regress).
+              Removed a dead stub. Complements reflect's own 60cdb45 (T-id regex + read ROADMAP
+              from origin/main) — the reflection loop independently caught the same relaunch-waste
+              class. Progress: T-D2b landed; done={A3,C1,D1,D2b,G1}; 8 slots on distinct work.
+              Commits 967066a (+ reflect 60cdb45).
 - 2026-07-13  T-D2b (S2/S4 · Tint→linear) DONE — added a LINEAR-working-space
               branch to `tintFilter` (engine/src/compositor/filters/channel-mixer.ts)
               behind `isLinearCompositeEnabled()` (T-D1's flag, DEFAULTS OFF so
