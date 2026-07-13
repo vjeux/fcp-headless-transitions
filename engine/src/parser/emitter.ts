@@ -201,6 +201,28 @@ export function parseParticleCellParams(
       gravity, timing,
     };
   }
+  // ── Particle appearance (T-B3): Colour Mode / Colour+Opacity / Scale ─────────
+  // Colour folder (id 130) carries Red(1)/Green(2)/Blue(3)/Opacity(4) leaves;
+  // Scale folder (id 116) carries X(1)/Y(2); Scale Randomness (id 117) X/Y.
+  const colorFolder = findParameterById(obj, 130);
+  let color: { r: number; g: number; b: number } | undefined;
+  let opacity: number | undefined;
+  if (colorFolder) {
+    const r = readStaticNumber(colorFolder, 1, 1);
+    const g = readStaticNumber(colorFolder, 2, 1);
+    const b = readStaticNumber(colorFolder, 3, 1);
+    color = { r, g, b };
+    opacity = readStaticNumber(colorFolder, 4, 1);
+  }
+  const scaleFolder = findParameterById(obj, 116);
+  const scaleX = scaleFolder ? readStaticNumber(scaleFolder, 1, 1) : undefined;
+  const scaleY = scaleFolder ? readStaticNumber(scaleFolder, 2, 1) : undefined;
+  const scaleRandFolder = findParameterById(obj, 117);
+  // Scale Randomness X/Y are near-identical in every built-in; take X as the scalar.
+  const scaleRandomness = scaleRandFolder ? readStaticNumber(scaleRandFolder, 1, 0) : undefined;
+  const colorMode = findParameterById(obj, 129) ? readStaticNumber(obj, 129, 0) : undefined;
+  const showParticlesAs = findParameterById(obj, 100) ? readStaticNumber(obj, 100, 3) : undefined;
+  const pointSize = findParameterById(obj, 127) ? readStaticNumber(obj, 127, 2) : undefined;
   return {
     id, name, emitterId,
     birthRate: readNumericParam(obj, 101, 30),
@@ -216,5 +238,8 @@ export function parseParticleCellParams(
     randomSeed: readStaticNumber(obj, 131, 0),
     gravity,
     timing,
+    colorMode, color, opacity,
+    scaleX, scaleY, scaleRandomness,
+    showParticlesAs, pointSize,
   };
 }

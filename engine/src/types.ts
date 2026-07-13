@@ -681,6 +681,45 @@ export interface ParticleCellParams {
    * from per-particle `life` (which is how long a spawned particle lives).
    */
   timing?: { in: RationalTime; out: RationalTime; offset: RationalTime };
+
+  // ── Particle APPEARANCE (ROADMAP S3 / T-B3) ────────────────────────────────
+  // Decoded from a real airborne cell (Wipes/Diagonal "Ring 4 copy"): the sim
+  // must draw each particle at the cell's real SIZE and COLOUR, not a fixed 2px
+  // near-white dot. These are parsed here (gate-neutral until the sim reads them)
+  // so the T-B3 sim wiring is a pure consumer change.
+  /**
+   * Colour Mode (Object/id 129). 0 = "Original" (use the source object's own
+   * colour / image), 1 = "Colorize" (tint every particle by the cell `color`),
+   * 2 = "Over Life", 3 = "Pick from Range". The built-in airborne cells
+   * (Diagonal/Glide/Up-Over hexagons/leaves) use mode 1 with a solid colour.
+   */
+  colorMode?: number;
+  /**
+   * Cell tint colour (Object/id 130 → children Red 1 / Green 2 / Blue 3), 0-1
+   * float RGB. Used when colorMode routes to a solid tint. undefined = no colour
+   * folder (fall back to the source object's colour).
+   */
+  color?: { r: number; g: number; b: number };
+  /** Particle opacity (Object/id 130 → Opacity 4), 0-1. Motion default 1. */
+  opacity?: number;
+  /**
+   * Cell Scale (Object/id 116 → X 1 / Y 2) as a FRACTION of the source object's
+   * native size (1 = 100%). Motion default 1. The on-screen particle size =
+   * sourceSize · scale · (1 ± scaleRandomness·rand).
+   */
+  scaleX?: number;
+  scaleY?: number;
+  /** Scale ± Randomness (Object/id 117 → X/Y), fraction. Motion default 0. */
+  scaleRandomness?: number;
+  /**
+   * Show Particles As (Object/id 100): 3 = render the source OBJECT (a shape/
+   * image sprite — the common case), other values select a built-in point
+   * primitive. The sim uses this to decide sprite-size vs point-size.
+   */
+  showParticlesAs?: number;
+  /** Point Size (Object/id 127) — the point-primitive radius when NOT showing an
+   *  object source. Motion default 2. */
+  pointSize?: number;
 }
 
 /**
