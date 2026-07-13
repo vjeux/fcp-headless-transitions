@@ -270,9 +270,41 @@ def _log_has_result(log_path, task_id):
 # wedged. Kill the tmux session AND every process in its process group (to reap MCP
 # orphans that would otherwise hold the pipe/FDs open across the tmux kill).
 STALL_MIN = 20        # min age before we consider a slot "old enough to be suspect"
-STALL_QUIET_MIN = 15  # min since last log growth for us to call it wedged
+STALL_QUIET_MIN = 15  # min since last LOG growth AND worktree write to call it wedged
 
-def _slot_stalled(slot_info, task_id):
+def _worktree_quiet_min(task_id):
+    """Minutes since the agent's worktree SOURCE tree was last written, or None if it
+    can't be determined. This is a buffering-immune progress signal: an agent that is
+    editing engine/src, engine/test, or docs is working even when its stdout log is
+    frozen by Claude Code's -p buffering. We scan only source-ish dirs (NOT node_modules/
+    venv symlinks — those never change and would always look 'fresh' or 'stale' wrong).
+    Returns the SMALLEST age (most-recent write) across the tree."""
+    wt = os.path.join(ROOT, "worktrees", task_id)
+    if not os.path.isdir(wt):
+        return None
+    newest = 0.0
+    scanned = False
+    for sub in ("engine/src", "engine/test", "docs"):
+        d = os.path.join(wt, sub)
+        if not os.path.isdir(d):
+            continue
+        for root, dirs, files in os.walk(d):
+            # prune heavy/symlinked dirs defensively
+            dirs[:] = [x for x in dirs if x not in ("node_modules", "venv", ".git")]
+            for f in files:
+                try:
+                    m = os.stat(os.path.join(root, f)).st_mtime
+                    scanned = True
+                    if m > newest:
+                        newest = m
+                except Exception:
+                    pass
+    if not scanned:
+        return None
+    return (time.time() - newest) / 60.0
+
+
+def _slot_stalled(slot_info, task_id, slot=None):
     """Return (stalled, reason) for a live slot that hasn't printed a SWARM_RESULT yet."""
     started = slot_info.get("started", time.time())
     age_min = (time.time() - started) / 60.0
@@ -292,7 +324,21 @@ def _slot_stalled(slot_info, task_id):
     # that's the reap-DONE path's job, not ours.
     if _log_has_result(log, task_id):
         return False, ""
-    return True, f"age={age_min:.0f}m quiet={quiet_min:.0f}m log={stat.st_size}B"
+    # LIVENESS GATE (fixes a FALSE-POSITIVE that was churning T-F1/T-E2 at 20m): Claude
+    # Code's `-p` mode BUFFERS stdout heavily, so a hard-working agent's LOG can sit at
+    # the 203-byte startup banner for many minutes while it burns CPU + writes files. The
+    # log-quiet-only test then killed PRODUCTIVE agents and they never finished (T-F1
+    # wedged 2x, ran 74m+20m+20m, 0 results). Before reaping, check whether the agent has
+    # WRITTEN to its worktree recently — real progress is immune to stdout buffering. A
+    # worktree touched within STALL_QUIET_MIN means it's working; only reap when BOTH the
+    # log AND the worktree have been quiet (the true "silent + MCP orphans hold the pipe"
+    # hang leaves both frozen). CPU-by-pgid was tried and rejected: Claude Code re-parents
+    # its workers out of the pane's process group, so the pgid CPU reads ~0 even when busy.
+    wt_quiet = _worktree_quiet_min(task_id)
+    if wt_quiet is not None and wt_quiet < STALL_QUIET_MIN:
+        return False, ""
+    wt_note = f" wt_quiet={wt_quiet:.0f}m" if wt_quiet is not None else ""
+    return True, f"age={age_min:.0f}m quiet={quiet_min:.0f}m log={stat.st_size}B{wt_note}"
 
 
 def _kill_slot_pg(slot):
@@ -411,7 +457,7 @@ def cmd_run(size, once):
                 # Wedge check: log stopped growing and no result was ever produced.
                 # See _slot_stalled — this reaps the "3-line log, alive forever" case
                 # that was permanently burning pool capacity 2026-07-13.
-                stalled, why = _slot_stalled(st["slots"].get(str(slot), {}), tid or "")
+                stalled, why = _slot_stalled(st["slots"].get(str(slot), {}), tid or "", slot)
                 if stalled:
                     print(f"[pool] slot {slot} ({tid or '?'}) WEDGED ({why}) — killing session"
                           f" + MCP orphans", flush=True)
