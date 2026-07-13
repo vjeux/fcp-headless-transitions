@@ -419,6 +419,19 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  T-F1 (Smear) PULLED FROM POOL — the liveness-gated wedge-reaper (prev tick) worked
+              exactly right: it stopped false-reaping T-E2 (which is genuinely progressing, editing
+              engine/src) but CORRECTLY reaped T-F1 whose worktree AND log were both frozen 20m. That
+              exposed the truth: T-F1 hangs on EVERY run — all 6 runs' logs are exactly 203 bytes
+              (startup banner only), the CC agent freezes for 20m, gets reaped+restored+relaunched,
+              and repeats. Not a false-wedge, not a filter gap (scrape.ts/PAEScrape-Smear is probe-
+              verified vs isolated headless FCP). The 11-dB deficit is a TRANSITION timing problem
+              (smear tail continues past the drop-zone timeout; content vanishes at 0.467s; clamp
+              tried→worse). Marked T-F1 BLOCKED (a45918f) so the pool stops wasting a slot; saved its
+              WIP patch; killed the stuck session. Pool now correctly runs ONLY T-E2 (eligible=[T-E2],
+              slot 1 empty, no relaunch). Net: swarm converged to 1 productive agent, 0 churn.
+              done=13/16; remaining = T-A1 (PARTIAL, gradient-tag renderer documented), T-E2 (in-flight),
+              T-F1 (BLOCKED ceiling — needs focused drop-zone RE alongside S2 linear-composite).
 - 2026-07-13  WEDGE-REAP FALSE-POSITIVE FIX — root-caused why T-F1/T-E2 never finished. The
               wedge-reaper (_slot_stalled, from swarm-reflect 1d7af7e) declared a slot wedged on
               "log quiet >=15m + no SWARM_RESULT" alone. But Claude Code -p BUFFERS stdout: a
