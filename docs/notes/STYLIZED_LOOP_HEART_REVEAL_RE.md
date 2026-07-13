@@ -94,6 +94,81 @@ from its `in`. That progressive-reveal + clamp is the next tick's work; it is mo
 safe chunk and must be built against GUI GT frame-by-frame (f0 none → mid arc-stroke → fill →
 completed-hold), gate-green.
 
+## 2026-07-13c — REFINED reveal mechanism (frame-by-frame GT + Media asset decode)
+
+Traced Loop's GUI GT f0→f23 and decoded the four bundled Media/ PNGs. The mechanism is a
+**layered progressive UNCOVER of a STATIC full-frame teardrop**, NOT a growing/scaling matte and
+NOT a sprite sequence. Kill both earlier guesses:
+
+- **shape.png** (1639×915) is the reveal matte: a near-FULL-FRAME teardrop — opaque (alpha=255)
+  bbox is 1618×913 (68% of the canvas). It is a SINGLE static image; there is no numbered
+  sequence in Media/ and it is not a sprite sheet, so the Retime Value on "shape" (−11→94) does
+  NOT index matte frames. The teardrop does not scale: "shape", its parent "Group", and
+  "Ornament" all hold Scale=1.0 for the whole transition (verified via evaluated world
+  transforms). ⇒ the GT "growing eye" is the full-size teardrop being progressively UNCOVERED,
+  not a matte that grows.
+- **Loop1.png** (1833×977, only 9% opaque) is the thin loop-curl STROKE art. **arc.png /
+  arc 3.png** are the write-on ARC ornaments (each carries a Bezier Mask + a Retime that sweeps
+  the arc on). **"Gradient"** (vector shape, id 845136459) is the grey gradient STROKE swoosh
+  drawn on the loop edge (gradient-tag colour-Link driven; stroke offsets NOT parsed onto it —
+  `stroke: none` — so the write-on comes from the arc/Bezier ornaments' Retime, not a stroke
+  firstPoint/lastPoint offset).
+
+GT stages (endSec≈5.54, 24 frames):
+- **f0–f8**  pure sepia A; the grey STROKE writes on from top-left, sweeping AROUND the loop
+  until the eye/leaf outline is FULLY CLOSED by ~f8. **B is totally absent through f8** (verified
+  f8: complete grey eye outline, whole frame still sepia A — no B fill anywhere).
+- **f8–f16** B FILLS/cross-fades in INSIDE the closed eye outline (A→B); the eye grows.
+- **f16**    large eye of B bounded by the thick grey stroke; frame CORNERS still sepia A (~80%).
+- **f23**    full clean B; only a sliver of stroke remains bottom-left.
+
+So the reveal = (static full-frame teardrop matte) × (an animating UNCOVER front driven by the
+arc/Bezier-mask ornaments' Retime write-on) × (a B-over-A CROSS-FADE that begins ONLY AFTER the
+stroke outline CLOSES ~f8), and the TAIL holds completed B (clamp, not wrap-to-A). CRITICAL: the
+B fill is gated on STROKE-WRITE-ON COMPLETION (~f8), NOT the mask-source Opacity ramp (which
+completes f0→f6) and NOT the Retime progress (linear from f0) — both start B ~4 frames too early.
+
+### Why this is deferred (not landable as one safe tick)
+Reproducing it needs, together: (a) the media-from-wrap exclusion (BUG 1); (b) a CLAMP tail that
+holds completed B; (c) the media Image-Mask sampled through the mask-source **world transform**
+(and, critically, an UNCOVER front from the arc/Bezier ornaments — the teardrop must not appear
+whole from its `in`); (d) the B-over-A cross-fade gated by the offset-corrected opacity ramp.
+The uncover-front geometry (how the arc ornaments' Retime sweeps the reveal open over the static
+teardrop) is the unresolved core and needs its own focused RE against GT. Shipping any subset
+alone reveals B too early / with a wrong tail and REGRESSES the raw GUI-GT score (measured:
+12.82→11.09). Per the gate rule this stays a dedicated multi-step item; the RE-correct,
+gate-neutral prerequisites (media-mask ALPHA channel + disabled-geometry admit) already landed
+(a7ec75f) so the future implementation starts from a working matte path.
+
+### 2026-07-13c — MEASURED per-frame decomposition (isolates the exact missing piece)
+Built the full combined change (media-from-wrap exclusion + media-mask CLAMP tail + a B-over-A
+cross-fade gated by the mask-source's offset-corrected Opacity ramp) and measured Loop per-frame
+vs GT (then reverted — net regression, gate rule):
+
+```
+frame   baseline(frozen-A)   with-change   GT content
+f00     18.2                 18.2          pure sepia A            (match)
+f03-08  ~17                  11.0-11.4     pure sepia A + stroke   ← BIG LOSS (-6): B revealed too early
+f10-15  16→11                12.2-13.5     A/B blend → mostly B    ≈ neutral / slight win
+f16-23  9.9  (frozen A)      12.9-13.0     completed full B        ← BIG WIN (+3): clamp holds B
+mean    12.82                12.18         —                       net −0.64 (early loss > tail win)
+```
+
+Two independent conclusions, each actionable:
+1. **The CLAMP tail is a clear win in isolation** (+3 dB on f16–23: 9.9→13.0). The completed-B
+   hold is correct; the media-from-wrap exclusion + media-mask clamp are the right tail model.
+2. **The early frames are the ONLY thing blocking a net win.** B must stay ~invisible until the
+   loop stroke CLOSES (~f10) — neither the mask-source Opacity ramp (offset-corrected: fade
+   0→1 over f0→f6) NOR the "shape" Retime-normalized progress (0.11 at f0, linear) delays the
+   fade far enough; both start B ~4 frames too early. The correct gate is the **arc/Bezier-mask
+   ornament WRITE-ON** (the stroke drawing around the loop), which completes ~f10 and only then
+   lets B fill. That write-on is `arc`/`arc 3` (Retime 5→12 / 2→21, each with a Bezier Mask) +
+   Loop1.png — modelling it is the unresolved core.
+
+⇒ Next implementation: RE the arc/Bezier write-on front (how the ornaments' Retime sweeps the
+reveal open), gate the B cross-fade on write-on completion, keep the clamp tail. Then the tail
+win is retained AND the early frames match GT's pure-A → net positive. Gate-verify frame-by-frame.
+
 ## What landed vs deferred (2026-07-13)
 - LANDED (gate-neutral, RE-correct prerequisites): BUG 2 (media-mask ALPHA channel) + BUG 3
   (disabled mask-geometry admit) in `compositor/masks.ts`. Latent until the reveal path is

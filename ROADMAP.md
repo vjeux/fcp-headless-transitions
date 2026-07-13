@@ -424,6 +424,25 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13c  LOOP REVEAL — full GT-verified RE + MEASURED decomposition (docs/notes/
+              STYLIZED_LOOP_HEART_REVEAL_RE.md refined). Killed two wrong hypotheses: the "growing
+              teardrop" is NOT a scaling matte (shape/Group/Ornament all Scale=1.0 the whole
+              transition) and NOT a sprite sequence (shape.png is a single static near-FULL-FRAME
+              teardrop, opaque bbox 1618×913 = 68% of canvas; no numbered frames in Media/). The
+              reveal = static full-frame teardrop matte × an UNCOVER front (arc/Bezier ornament
+              Retime write-on) × a B-over-A cross-fade that begins ONLY AFTER the grey stroke
+              outline CLOSES (~f8 — GT-verified: f8 shows a complete eye outline with the WHOLE
+              frame still sepia A, zero B), then a CLAMP tail holding completed B. Built + measured
+              the full combined change (media-from-wrap exclusion + media-mask clamp + opacity-ramp
+              cross-fade), then REVERTED per the gate rule (net −0.64: 12.82→12.18). Per-frame decomp
+              isolates the exact missing piece: CLAMP tail is a clean +3 dB win in isolation (f16-23
+              9.9→13.0) but the early frames LOSE −6 dB (f3-8 11.0 vs 17) because B reveals ~4 frames
+              too early — neither the mask-source Opacity ramp (fade f0→f6) nor the "shape" Retime
+              progress (linear from f0) delays B to f8; the B fill is gated on STROKE-WRITE-ON
+              COMPLETION (~f8), which is the unresolved core. NEXT (dedicated multi-step): RE the
+              arc/Bezier write-on front → gate the B cross-fade on write-on completion → keep the
+              clamp tail → net-positive, gate-verified frame-by-frame. Gate untouched (all code
+              reverted; Loop back to 12.82). tsc clean.
 - 2026-07-13  STYLIZED/LOOP+HEART STALLED-REVEAL RE (Rule-8 decode corrects the T-A1 premise).
               Full root-cause decode written to docs/notes/STYLIZED_LOOP_HEART_REVEAL_RE.md.
               The gradient-tag renderer is NOT the Loop/Heart lever — GT proves the deficit is a
