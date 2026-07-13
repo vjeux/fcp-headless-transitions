@@ -221,7 +221,17 @@ T-D2d DONE    HSV into linear                after: T-D1          Color_Panels (
                                                                   only, folds into T-D2a).
 T-E1  DONE    retime-ramp cancel for off-canvas wall Transition A Video_Wall 8.7->9.1 (+0.36; Clone_Spin unchanged)
 T-E2  TODO    clone-tile wall render          after: T-E1         Video_Wall 14-tile grid
-T-F1  TODO    Smear appearance at mid-frames                      Movements/Smear (11.0)
+T-F1  BLOCKED Smear appearance at mid-frames                      Movements/Smear (11.0)
+              [2026-07-13: pulled from the swarm pool after 6 identical failed runs — the CC
+               agent hangs EVERY run (log frozen at the 203-byte startup banner + worktree quiet
+               for 20m, on both signals, so the liveness-gated reaper correctly kills+relaunches
+               it, forever). Not a false-wedge; the agent genuinely cannot make progress on this
+               task via the swarm. And it is NOT a filter-algorithm gap: scrape.ts (PAEScrape/Smear,
+               UUID 0D6E968B-…) is probe-verified vs isolated headless FCP. The 11-dB deficit is a
+               TRANSITION timing issue — the smear tail continues PAST the drop-zone timeout (content
+               vanishes at 0.467s; a clamp was tried and made it WORSE, rejected). Needs focused
+               sequential drop-zone/retime RE, not swarm churn. Set BLOCKED so the pool stops
+               wasting a slot; revisit as a dedicated ceiling item alongside S2 linear-composite.]
 T-G1  DONE    Movements 3D-fold + Color_Planes (census:           Multi/Flip/Pinwheel/Swing +
               3D fold + 6x Channel Mixer, NOT colour-Link)        Color_Planes 10.47→11.35 (+0.88)
 ```
