@@ -415,6 +415,21 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  T-A1 RENDERER STEP 2 (gradientTag detect + stop-override resolve). Completed the
+              gradient-tag DATA PIPELINE (de070ba): (1) types.ts colorTarget gains 'gradientTag'
+              kind + tagId; (2) parseColorTarget structurally matches .../104/1/<tagId>/3/{1,2,3}
+              and returns {kind,tagId} (was a bare string — caller updated) so these links are no
+              longer dropped; (3) color-links.ts gains a gradientStops bucket (ownerLayerId→tagId→
+              0-1 RGB) that walkColorLinks fills. VERIFIED end-to-end on Heart.motr: 6 gradientTag
+              links → gradientStops resolves owner 845044017 (the "Gradient" shape) tags 845044020/
+              845044022 to driven colours at t=0.5. ADDITIVE + behavior-neutral (compositor doesn't
+              read gradientStops yet). Gate 0 regressions/0 improvements (byte-identical). Also
+              diagnosed Heart's deficit is CONCENTRATED (f06-09 + f16-23 at ~10dB, rest ~15-18) —
+              a missing mid/late reveal element, consistent with the unrendered gradient shape, so
+              the rasteriser payoff is real. NEXT (step 3, the big one): compositor GRADIENT-FILL
+              RASTERISER — render Shape.fillGradient (2-stop linear ramp, type/direction from the
+              Gradient param) with gradientStops overrides applied, behind the existing shape-branch
+              guard so solid-fill rendering is untouched; verify Loop/Heart/Slide_In, gate green.
 - 2026-07-13  T-A1 RENDERER STEP 1 (gradient stop-list parse) + BASELINE RE-FREEZE. With the
               swarm fully drained (no agents holding types.ts/parser/compositor), started building
               the documented T-A1 gradient-tag renderer. Confirmed the real gap first: the compositor
