@@ -199,6 +199,13 @@ T-D2d DONE    HSV into linear                after: T-D1          Color_Panels (
                                                                   only, folds into T-D2a).
 T-E1  TODO    framing anchor (proxy->content ray)                 Video_Wall f4 black, Clone_Spin
 T-E2  TODO    clone-tile wall render          after: T-E1         Video_Wall 14-tile grid
+              [FINDING 2026-07-13: an experimental oz_render.mm hook that feeds source-A media
+               to per-cell drop zones (isCellDZ = isDropZone && !A/!B role) was verified vs GUI
+               GT and REGRESSES headless — Clone_Spin 13.54→12.88, Video_Wall 13.37→12.51 — and
+               segfaults on engine teardown. Feeding flat source media WITHOUT the framing-camera
+               geometry (T-E1) + per-tile placement (T-E2) moves AWAY from GT. So cell-media-feed
+               is NOT a standalone win; it must land together with the tile geometry. The patch is
+               preserved in `git stash` (labelled "EXPERIMENTAL cell-DZ media feed") for that work.]
 T-F1  TODO    Smear appearance at mid-frames                      Movements/Smear (11.0)
 T-G1  DONE    Movements 3D-fold + Color_Planes (census:           Multi/Flip/Pinwheel/Swing +
               3D fold + 6x Channel Mixer, NOT colour-Link)        Color_Planes 10.47→11.35 (+0.88)
@@ -387,6 +394,20 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  DANGLING-EXPERIMENT RESOLUTION TICK — the uncommitted oz_render.mm change that
+              had sat in the working tree for ~2 ticks (cell-drop-zone media feed for replicator
+              cells) was VERIFIED against GUI GT and found to REGRESS headless: built the dylib,
+              rendered Clone_Spin + Video_Wall headless, scored — Clone_Spin 13.54→12.88 (−0.66),
+              Video_Wall 13.37→12.51 (−0.86), plus a segfault on engine teardown. Root cause:
+              feeding flat source-A to the cells WITHOUT the T-E1 framing-camera geometry + T-E2
+              per-tile placement moves the cells away from the GT (they should carry the
+              transitioning photo under the framing dolly, not a full-frame swatch). Correct call
+              (careful-coder + gate rule): do NOT commit red. Stashed the patch with a descriptive
+              label (recoverable for T-E2), restored clean origin oz_render.mm, rebuilt the dylib,
+              re-rendered both slugs to baseline (13.41/13.19, within TOL=0.30 JPEG noise). Tree
+              clean, headless gate honest. Documented the finding on the T-E2 ROADMAP row so the
+              next agent knows cell-media-feed is not a standalone win. Swarm healthy (3 workers
+              on T-B2/E1/F1, no new OOM kills since size-5). No engine/headless code committed.
 - 2026-07-13  SWARM STABILITY TICK — caught + fixed two harness regressions that were
               silently burning the fleet. (1) DOUBLE-ASSIGNMENT: the orphan-slot sweep left
               mid-work orphans running but did NOT add their task to in_flight, so the scheduler
