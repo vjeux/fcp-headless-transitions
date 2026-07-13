@@ -258,7 +258,7 @@ Each subsystem below is a durable description of a REAL part of the FCP/Motion e
 current status in the TS engine, the slugs it gates, and the concrete next step. The ONE-TRUTH
 gate rules above apply to every item.
 
-### S1. Behaviour drivers — Link / Motion Path  [DOING]  (tasks T-A1/A2 · safe, high-coverage)
+### S1. Behaviour drivers — Link / Motion Path  [DONE — drivers settled; low slugs move via S3/S7]  (tasks T-A1/A2 · safe, high-coverage)
 **What it is (FCP):** Motion "Behaviors" are procedural animation drivers layered on top of
 keyframe curves. The engine already evaluates Rig Behavior, Fade In/Fade Out, Ramp, Align To,
 Oscillate, Spin, Throw, and Sequence Replicator. Three driver families are **parsed but NOT
@@ -287,13 +287,37 @@ evaluated**, so any channel they drive is silently frozen:
   gates 0 slugs; the real Gravity work is emitter/cell param parsing, folded into T-B1
   (which explicitly lists "gravity" in its scope) and consumed by T-B2's particle sim.
   T-A3 DROPPED for this reason.
-**Status:** PARTIAL. Slugs gated (16): Panels_Across, Color_Planes, Lens_Flare, Switch,
-Center_Reveal, Push, Reflection, Zoom, 360°_Wipe, Drop_In, Clothesline, Earthquake, Scale,
-3D_Rectangle, 360°_Reveal_Wipe, 360°_Circle_Wipe (many already ≥15 — the low ones are the target).
-**Next step:** implement **colour-channel Link** first, targeting **Panels_Across** and
-**Slide_In** (census-confirmed colour-Link users), then Motion Path — each an additive
-evaluator handler, independently gate-verifiable. NOTE: Color_Planes is a 3D-fold +
-Channel-Mixer slug, so do not expect colour-Link work to move it.
+- **Motion Path** (factory "Motion Path" id 24) — **CENSUS 2026-07-13g: gates 0 directly-
+  rendered layers, DROPPED as a standalone S1 driver (mirrors T-A3 Gravity).** Only 2 slugs
+  carry Motion Path behaviours and BOTH attach them to non-layer subsystems: Slide_In's 8
+  Motion Paths are all on **Replicator Cells** (parent factory "Replicator Cell") → they feed
+  the replicator/particle sim (S3, currently a texture-proxy fake), and Center_Reveal's 16 are
+  all on **Generators** ("Grad middle"/"Grad ends", factory "Generator") → the gradient
+  generator (S5, returns null). No top-level rendered layer carries a Motion Path, so a
+  standalone layer-driver implementation would be dead code (nothing consumes it). The real
+  Motion Path work is per-cell traversal inside S3 and per-generator path inside S5 — folded
+  there, not implemented here. (Decoded by walking each Motion Path behaviour to its parent
+  scenenode factory across the corpus.)
+**Status:** COLOUR-LINK DONE (layer level); Motion Path DROPPED (folds into S3/S5). Slugs gated
+(16): Panels_Across, Color_Planes, Lens_Flare, Switch, Center_Reveal, Push, Reflection, Zoom,
+360°_Wipe, Drop_In, Clothesline, Earthquake, Scale, 3D_Rectangle, 360°_Reveal_Wipe,
+360°_Circle_Wipe (many already ≥15 — the low ones are the target).
+**Colour-channel Link — VERIFIED DONE + FIRING (2026-07-13g).** The full pipeline (parser →
+`computeColorLinks` → `mergeColorLinksIntoFilterOverrides` / shapeFill override → Colorize
+filter reading `__ColorLink.Remap*` keys) is landed and RESOLVES on the real slugs: Panels_Across
+(21 raw colour Links → 3 Colorize Remap-Black/White overrides + 1 shapeFill, all firing at the
+correct red RGB 0.74/0.07/0.14). Heart/Loop use `gradientTag` colour Links → the `gradientStops`
+bucket (written, consumed only by the DEFERRED T-A1 gradient rasteriser). Slide_In's 6 "Link N
+red/green/blue" colour Links are all on **Replicator Cells** (S3), so the layer-level parser
+correctly does not surface them — they belong to the replicator sim, not here. So colour-Link is
+NOT the remaining lever on Panels_Across/Slide_In: their dominant gap is TIMING/CHOREOGRAPHY —
+GUI-GT verified the panel/solid wipe races across MUCH faster than the engine (Panels_Across GT
+f09 ≈ fully white/wiped while engine is mid-wipe; Slide_In GT f12 ≈ full teal slid-in while engine
+is still 100% photo A). That wipe timing is an S7 residual + the S3 replicator sim, tracked there.
+**Next step:** colour-Link + Motion Path are settled (done / dropped-into-S3-S5). S1's remaining
+open driver work is Motion-Path-in-S3 (replicator-cell traversal) — pursue via S3. This S1 item's
+standalone driver scope is now COMPLETE; the low gated slugs move via S3 (replicator) / S7 (wipe
+timing), not via more S1 driver code. NOTE: Color_Planes is a 3D-fold + Channel-Mixer slug.
 **DoD:** each driver evaluated; gate 0 regressions; the gated low slugs improve; baseline re-frozen.
 **Verify:** `fct census` first, then `fct regress engine` + `fct score Stylized__Panels_Across Stylized__Slide_In --full`.
 
@@ -459,6 +483,23 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13g  S1 driver scope SETTLED via census (Rule-8 premise check, doc-only, no code
+              change). (1) COLOUR-CHANNEL LINK verified DONE + firing: the parser→computeColorLinks→
+              Colorize-override pipeline RESOLVES on the real slugs — Panels_Across 21 raw colour
+              Links → 3 Colorize Remap-Black/White + 1 shapeFill all firing at the correct red RGB
+              (0.74,0.07,0.14); Heart/Loop use gradientTag Links → the gradientStops bucket (read
+              only by the deferred T-A1 gradient rasteriser). (2) MOTION PATH DROPPED as a standalone
+              S1 driver (mirrors T-A3 Gravity): it gates 0 directly-rendered layers — walked every
+              Motion Path behaviour to its parent factory across the corpus; Slide_In's 8 are ALL on
+              Replicator Cells (→ S3 particle sim) and Center_Reveal's 16 are ALL on Generators (→ S5
+              gradient). Standalone impl would be dead code. (3) GUI-GT proved the remaining
+              Panels_Across/Slide_In gap is TIMING/CHOREOGRAPHY not colour: GT f09 Panels_Across is
+              fully wiped-white while engine is mid-wipe; GT f12 Slide_In is full teal slid-in while
+              engine is still 100% photo A — that wipe timing is S7 + the S3 replicator sim. Also
+              found Slide_In's 6 colour Links are on Replicator Cells (S3), so the layer parser
+              correctly surfaces 0 of them. S1 header → DONE (drivers settled); low slugs move via
+              S3/S7. Gate: unchanged (doc-only). Next top-down item: S2 (linear compositing) or S3
+              (replicator sim, which now also owns Slide_In's Motion Path + colour Links).
 - 2026-07-13f  BLOOM pipeline FULLY DECODED + implemented + REVERTED (net-negative, two timing
               blockers). Completed the -[PAEBloom bloomHeliumRender:…] @0xe58a register trace: three
               GPU nodes — HgcBloomThreshold extract rgb=max(color·10 − Threshold/10, 0); Gaussian
