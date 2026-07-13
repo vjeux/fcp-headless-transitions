@@ -343,6 +343,32 @@ def cmd_run(size, once):
                     harvest_exited_slot(tid, st["slots"][str(slot)].get("log"))
                     clear_slot(slot)
         elig, done = eligible_tasks()
+        orphan_tasks = set()
+        # ORPHAN SLOTS: if the pool was restarted with a SMALLER size, slots >= size from
+        # the previous run are still live but unmanaged. We do NOT hard-kill mid-work
+        # orphans (that would throw away near-done work — and briefly running size+1 agents
+        # is harmless). Instead we harvest+reap them once they REPORT a result or EXIT, so
+        # their work lands and the fleet drains to the new size naturally.
+        for slot in range(size, MAX_SLOTS):
+            if slot_running(slot):
+                tid = st["slots"].get(str(slot), {}).get("task")
+                lg = st["slots"].get(str(slot), {}).get("log")
+                if tid and lg and os.path.exists(lg) and _log_has_result(lg, tid):
+                    print(f"[pool] orphan slot {slot} ({tid}) reported result — harvest+reap", flush=True)
+                    harvest_exited_slot(tid, lg)
+                    subprocess.run([TMUX, "kill-session", "-t", session_name(slot)], capture_output=True)
+                    clear_slot(slot)
+                elif tid:
+                    # Mid-work orphan: leave it running (harvests on exit) BUT record its
+                    # task so the scheduler below does NOT double-assign the same task to a
+                    # free slot in 0..size-1 (that bug ran T-F1 in two slots at once).
+                    orphan_tasks.add(tid)
+                # else: leave the mid-work orphan running; it harvests on exit below.
+            elif str(slot) in st["slots"]:
+                tid = st["slots"][str(slot)]["task"]
+                print(f"[pool] orphan slot {slot} ({tid}) exited — harvest + drain", flush=True)
+                harvest_exited_slot(tid, st["slots"][str(slot)].get("log"))
+                clear_slot(slot)
         # Reap live slots whose task is already DONE (merged to origin/main by another
         # agent or a prior run, or marked DONE/DROPPED in the ROADMAP). Continuing to
         # run a finished task just burns a slot — kill it so the slot refills with real
@@ -356,7 +382,7 @@ def cmd_run(size, once):
                 subprocess.run([TMUX, "kill-session", "-t", session_name(slot)], capture_output=True)
                 clear_slot(slot)
                 del active[slot]
-        in_flight = set(v for v in active.values() if v)
+        in_flight = set(v for v in active.values() if v) | orphan_tasks
         queue = [t for t in elig if t["id"] not in in_flight]
 
         free = [s for s in range(size) if s not in active]
