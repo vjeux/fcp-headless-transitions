@@ -387,6 +387,19 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13  SWARM STABILITY TICK — caught + fixed two harness regressions that were
+              silently burning the fleet. (1) DOUBLE-ASSIGNMENT: the orphan-slot sweep left
+              mid-work orphans running but did NOT add their task to in_flight, so the scheduler
+              re-assigned the SAME task to a free slot -> two agents on ONE task id = ONE shared
+              worktree (concurrent writers). Observed live: T-F1 in slot 1 AND slot 5. Fixed by
+              collecting orphan task ids into in_flight (2de95ee). Killed+salvaged the dup T-F1.
+              (2) MAX_SLOTS constant got DROPPED during the double-assign rebase conflict-resolve,
+              so the orphan sweep threw NameError every cycle -> pool crash-looped, slots went
+              unmanaged (T-D2a/c slots died). Restored the constant (c3ba424), verified imports +
+              'pool status' clean, restarted pool (0 NameErrors since, session stable). Progress:
+              done 8->10 — T-D2a (Brightness/Colorize) + T-D2c (Glow/Bloom) landed, so ALL FOUR
+              linear-filter migrations T-D2a/b/c/d are DONE. Remaining eligible: T-B2, T-E1, T-F1
+              (3 agents, no dupes). reflectloop left DOWN this tick (OOM-competes for RAM; non-critical).
 - 2026-07-13  T-D2a (S2/S4 · Brightness+Colorize→linear) DONE — added a
               LINEAR-working-space branch to `brightnessFilter`
               (engine/src/compositor/filters/levels.ts) AND `colorizeRemapFilter`
