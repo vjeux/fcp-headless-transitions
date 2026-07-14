@@ -371,6 +371,62 @@ T-M7  TODO    FILTER-P2: sweep-harness audit — add missing sweeps filter tooli
                space (not just built-in values), add missing sweep entries, and run the full sweep      that `filter_sweep.py` runs green
                (`python3 tools/re/filter_sweep.py`) to get a fresh PASS/FAIL/CEILING scoreboard. Write   or documents each CEILING. Report
                the scoreboard to docs/FILTER_RE_PHASE2.md. This UNBLOCKS/scopes T-M1..M6. Gate 0.]       the scoreboard.
+T-N1  TODO    Stylized/Lower kinetic-panel + white-flash          Stylized__Lower (9.04 — WORST slug).
+              [Two coupled deficits (docs S2+S8): (a) kinetic mask-panel choreography misses the bright  Worst slug: misses the mid white
+               mid white FLASH (partly S2 linear-compositing — engine flash lands warm/dim ~137,99 vs    flash + panels culled vis=false.
+               GUI ~239,245), (b) some panels are culled vis=false. Census + score --frames; decode      Decode panel visibility + flash.
+               the flash compositing + panel visibility. May share the S7 panel-retime + T-P1 linear
+               chain. GENERIC (>=2 slugs); gate 0 regressions.]
+T-N2  TODO    Close_and_Open / Up-Over kinetic-panel residual     Close_and_Open (10.95), Up-Over (11.75).
+              [Kinetic-panel reveal cluster. The S7 template-retime (curveTime=in+t·(out-in)/endSec-off) Kinetic panels + heavy accent
+               shipped for Panels_Across; these two ALSO have isSolidPanel + heavy accent particles      particles (Close_and_Open=109,
+               (Close_and_Open 109 leaves, Up-Over 46). Score --frames; decode whether the residual is   Up-Over 46). Residual after the
+               panel-retime, particle appearance, or reveal timing. GENERIC; gate 0 regressions.]        S7 retime — decode + close.
+T-N3  TODO    Movements/Switch early-swap position-curve timing   Movements__Switch (11.96).
+              [Tail z-order already fixed (b5c3a07 flat-stack painter sort, +0.28). REMAINING: early     A/B swaps too early (f02-f05);
+               swap f02-f05 shows B too early — photo A swings OUT too fast in the engine (position-      A swings out too fast. Position-
+               curve timing / retime domain). Decode the swap position schedule vs GT; gate 0.]          curve timing decode.
+T-N4  TODO    Diagonal pair shape-mask write-on residual          Stylized__Diagonal + Wipes__Diagonal
+              [S8 procedural shape-mask write-on SHIPPED (+2.08 each -> 13.47). Residual ~13.5 dB: score  (both 13.47). S8 write-on shipped;
+               --frames to find the remaining band (likely accent-particle bokeh appearance or the       decode the ~13.5dB residual (accent
+               mask edge softness). Both share the mask machinery. GENERIC; gate 0 regressions.]          particles or mask edge).
+T-P1  TODO    S2 LINEAR WORKING-SPACE chain (encode once)         BIG shared root cause. Brightness>1,
+              [The single biggest shared filter root cause (docs S2 + FILTER_RE_PHASE2 "DOCUMENTED       Colorize=1, HSV, Tint, Bloom, and
+               GAPs"): FCP keeps the WHOLE filter chain in linear working space (kCGColorSpaceLinear-     the white-flash slugs all need the
+               SRGB) and encodes to sRGB ONCE at readback. The engine encodes per-filter, which matches  chain kept in linear + encoded ONCE
+               the isolated probe but regresses STACKED transitions. T-D1 landed a flag-gated linear     at readback (T-D1 infra exists,
+               path; extend it to an engine-level linear CHAIN (composite + all filters in linear,       flag-gated). Flip ON chain-wide;
+               encode after). HIGH RISK/HIGH REWARD — flip ON incrementally, gate the FULL 65 set after  gate all 65. Unblocks T-M1/M3/M5.
+               each filter family. Unblocks Tint(T-M1)/HSV(T-M3)/Colorize(T-M5)/Brightness/Bloom.]
+T-Q1  TODO    360° push/slide/divide/wipe drop-zone geometry      360°_Push (14.28), 360°_Slide (14.97),
+              [The 360° "band" family (detect360Band fires on Divide/Circle_Wipe/Push/Slide/Reveal_Wipe/ 360°_Divide (14.47), 360°_Wipe
+               Gaussian_Blur/Wipe) shares a drop-zone/push GEOMETRY compositing path. The low ones       (14.12). Shared 360° band drop-
+               (Push/Slide/Divide/Wipe 14.1-15) trail the high ones (Circle_Wipe 22.9, Gaussian 23.6).   zone/push geometry — the low
+               Decode the band crossfade + equirect push geometry vs GT; find the shared gap. GENERIC.]  members trail; decode shared gap.
+T-Q2  TODO    Movements Reflection / Rotate residual              Reflection (13.67), Rotate (13.81).
+              [Both Movements 3D-fold/mirror family. Rotate had a prior wrap-settle win; Reflection is   Movements 3D transforms with a
+               a mirror-flip. Score --frames; decode the residual (fold phase, mirror axis, reflection   ~13.7dB residual — decode fold/
+               plane, or retime). May reuse T-G1 fold machinery. GENERIC (>=2 slugs); gate 0.]           mirror geometry vs GT.
+T-Q3  TODO    Movements Black_Hole / Fall / Drop_In               Black_Hole (14.53), Fall (14.63),
+              [Three Movements slugs ~14.5. Drop_In has 3 particle cells (Blur 11/copy/copy1);          Drop_In (14.73). Particle-cell +
+               Black_Hole is a swirl warp; Fall has NO behaviours (pure keyframed Position). Score       keyframed-position Movements at
+               --frames each; decode the dominant per-slug gap (particle appearance, warp, or timing).   ~14.5 — decode each dominant gap.
+               These may be separate; if so, do the one with the clearest decode + gate 0 regressions.]  Split if not shared.
+T-Q4  TODO    Lights Flash / Static / Lens_Flare overlay timing   Flash (13.94), Static (14.52),
+              [Lights family = independent overlay animation (white flash / noise / lens-flare) riding   Lens_Flare (13.83). Overlay flash/
+               over an A->B crossfade. Lens_Flare got a procedural generator (+2.2 prior). Flash is a     noise/flare timing over the A->B
+               flash-to-white A->B wipe; Static is noise overlay. Score --frames; decode the overlay     crossfade. Decode overlay onset/
+               onset/envelope + wrap-cancel vs GT. GENERIC across the Lights family; gate 0.]             envelope vs GT.
+T-Q5  TODO    Glide / Light_Sweep / Dissolves_Divide / Panels_Random  Glide (14.32), Light_Sweep (14.15),
+              [Grab-bag of ~14dB near-misses. Glide = kinetic slide (S7 panel family). Light_Sweep = a   Divide (14.24), Panels_Random
+               moving bright band. Dissolves/Divide = A/B split dissolve. Panels_Random = kinetic panels 12.99). ~14dB near-misses; decode
+               (4 solid panels, S7 retime family). Score --frames each; pick the clearest decode(s) and  each; ship the clear ones, note
+               ship gate-green; note the rest. GENERIC; gate 0 regressions.]                              the rest. Gate 0.
+T-M8  TODO    FILTER-P2: Bevel Light-Angle + Underwater base       filters: Bevel, Underwater. Both have
+              [Two CEILING filters (params not headless-drivable): (a) Bevel Light Angle renders          documented CEILINGs. Bevel Light
+               identically for 0/45/90/135 headless — try to drive it via a GUI-GT capture instead, or   Angle not probe-drivable; Underwater
+               confirm+document the ceiling. (b) Underwater renders BLACK for t>0 (T-L1) — the base       renders black t>0. Decode via GUI-GT
+               image must pass through; decode why it drops. VERIFY where possible; gate 0 regressions.]  or confirm+document the ceiling.
 ```
 Max concurrency today = the 8 rows with no `after:` (T-A1,A2,B1,D1,E1,F1,G1 + all four T-D2*
 after T-D1) run simultaneously. Once parents merge, the dependents fan out to MORE parallelism,
@@ -967,6 +1023,25 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14z  METHOD PIVOT → MINIMIZER-FIRST (per vjeux: slug-level work is too coarse). The 8
+              slug-level sub-agents each eyeballed whole-frame montages and converged on "hard
+              multi-part problem" diagnoses (Slide_In renders near-passthrough, Concentric ring-masks
+              unwired, Smear drop-zone scale gap, framing pose wrong, float-bloom onset lag). Correct
+              approach: `fct minimize <slug>` delta-debugs the .motr down to the minimal node set that
+              still diverges from HEADLESS FCP (the legitimate oracle for reduced repros — GUI-GT stays
+              the shipped-transition truth), pinpointing the exact broken node instead of guessing from
+              4K frames. Ran minimize on Stylized__Lower: worst frame f13, engine-vs-FCP PSNR 4.80 dB
+              (a real reproducible engine bug, not GUI-alignment). ddmin in progress (box is RAM-
+              thrashed at 25GB swap → run ONE minimizer at a time, not parallel). NEXT: harvest Lower's
+              minimal repro (→ fct/minimized/), read the survivor nodes, fix that node, verify via
+              min-score (engine==FCP) AND the GUI-GT gate. Then minimize the rest of the bottom slugs.
+              SALVAGED a stray uncommitted parser change found on main (group-level Image Mask wiring,
+              the T-H1/T-H4 convergence) → docs/notes/salvage/group-image-mask-parser.patch. It is the
+              PARSER half only (wires imageMaskSourceId onto <group>/<layer>); the COMPOSITOR half
+              (apply a group-level mask in renderChildLayers — currently masks only leaf-drawables at
+              index.ts:478) is missing, so committing it alone is unsafe (would feed collectImageMask-
+              SourceIds and could hide mask-source shapes → regression). Reverted main to clean; the
+              group-mask fix is a real follow-up once the minimizer confirms it on a reduced repro.
 - 2026-07-14y  SCALED TO 8-WIDE + BIG BACKLOG — generated 13 more parallel tasks and now run 8 Navi
               sub-agents concurrently (CC pool stays retired — it wedges). Backlog is 19 TODO tasks:
               transition slugs (T-H1 Center-mask, T-H2/T-K1 Replicator framing, T-H3 float-bloom,

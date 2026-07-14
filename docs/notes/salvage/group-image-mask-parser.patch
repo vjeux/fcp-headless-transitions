@@ -1,0 +1,140 @@
+diff --git a/engine/src/parser/index.ts b/engine/src/parser/index.ts
+index fadbe91..b08449f 100644
+--- a/engine/src/parser/index.ts
++++ b/engine/src/parser/index.ts
+@@ -107,6 +107,56 @@ function liftProceduralMasks(
+ }
+ 
+ 
++/**
++ * IMAGE MASK (Mask Source) extraction — shared by both node parsers.
++ *
++ * An `<mask name="Image Mask" factoryID="1">` child whose `Mask Source` (id=1,
++ * nested under Object(2)/Mask(100)) references the shape/group that supplies the
++ * alpha. This masks ONLY the owning node (distinct from the "Masks"-group
++ * sibling-clip convention). Returns the referenced object id + whether the mask
++ * alpha is inverted (Invert Mask=1 or Mask Blend Mode=1 SUBTRACT).
++ *
++ * Authored on either a `<scenenode>` (Wipes/Mask, Objects/Veil, Concentric's
++ * Rectangle clones — factory-15 clone leaves) OR on a `<group>`/`<layer>`
++ * (Replicator-Clones/Concentric's "Nth right/left copy" ring groups mask a whole
++ * group of stacked Clone A/B to a Circle shape; also Pinwheel/Combo_Spin/Heart).
++ * Both node parsers must extract it or the group renders UNMASKED (the ring
++ * bug: 12 group-level Image Masks were silently dropped, so Concentric rendered
++ * plain full-frame source A instead of the depth-swinging concentric rings).
++ */
++function extractImageMask(el: Element): { sourceId?: number; invert: boolean } {
++  let sourceId: number | undefined;
++  let invert = false;
++  for (const maskEl of directChildren(el, 'mask')) {
++    const findMaskSource = (node: Element): number | undefined => {
++      for (const p of Array.from(node.getElementsByTagName('parameter'))) {
++        if (p.getAttribute('name') === 'Mask Source') {
++          const v = p.getAttribute('value');
++          if (v !== null) { const n = parseInt(v, 10); if (!Number.isNaN(n) && n !== 0) return n; }
++        }
++      }
++      return undefined;
++    };
++    const src = findMaskSource(maskEl);
++    if (src !== undefined) {
++      sourceId = src;
++      for (const p of Array.from(maskEl.getElementsByTagName('parameter'))) {
++        if (p.getAttribute('name') === 'Invert Mask') {
++          const v = p.getAttribute('value');
++          if (v !== null && parseInt(v, 10) === 1) invert = true;
++        }
++        if (p.getAttribute('name') === 'Mask Blend Mode' && p.getAttribute('id') === '103') {
++          const v = p.getAttribute('value');
++          if (v !== null && parseInt(v, 10) === 1) invert = true;
++        }
++      }
++      break;
++    }
++  }
++  return { sourceId, invert };
++}
++
++
+ function parseSceneNode(el: Element, factories: Map<number, string>, clip: ClipInfo, linkSourceIds: Set<number>, filtersById?: Map<number, { pluginName?: string; name?: string }>): Layer {
+   const factoryID = parseInt(el.getAttribute('factoryID') || '0', 10);
+   const factoryType = factories.get(factoryID) || '';
+@@ -233,48 +283,11 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clip: ClipI
+   }
+ 
+   // Image Mask: an `<mask name="Image Mask" factoryID="1">` child whose
+-  // `Mask Source` (id=1, nested under Object(2)/Mask(100)) references the shape or
+-  // group supplying the alpha. This masks ONLY this layer (distinct from the
+-  // "Masks"-group sibling-clip convention). Capture the referenced object ID so
+-  // the compositor can rasterize it and clip this layer's alpha.
+-  let imageMaskSourceId: number | undefined;
+-  let imageMaskInvert = false;
+-  for (const maskEl of directChildren(el, 'mask')) {
+-    // Find the Mask Source parameter anywhere within this mask node.
+-    const findMaskSource = (node: Element): number | undefined => {
+-      for (const p of Array.from(node.getElementsByTagName('parameter'))) {
+-        if (p.getAttribute('name') === 'Mask Source') {
+-          const v = p.getAttribute('value');
+-          if (v !== null) { const n = parseInt(v, 10); if (!Number.isNaN(n) && n !== 0) return n; }
+-        }
+-      }
+-      return undefined;
+-    };
+-    const src = findMaskSource(maskEl);
+-    if (src !== undefined) {
+-      imageMaskSourceId = src;
+-      // Invert Mask (id=102): when 1, the mask alpha is inverted (Objects/Veil
+-      // reveals B where the wipe-matte luma is DARK). Read from the same mask node.
+-      for (const p of Array.from(maskEl.getElementsByTagName('parameter'))) {
+-        if (p.getAttribute('name') === 'Invert Mask') {
+-          const v = p.getAttribute('value');
+-          if (v !== null && parseInt(v, 10) === 1) imageMaskInvert = true;
+-        }
+-        // Mask Blend Mode (id=103): default (absent/0) = the mask KEEPS the layer
+-        // inside the shape (intersect); value 1 = SUBTRACT — the shape region is
+-        // CUT OUT of the layer (holes), i.e. the layer shows everywhere EXCEPT the
+-        // shape. Objects/Arrows uses mode 1 so its growing arrow arcs cut holes in
+-        // the on-top A layer, revealing the base B beneath. Subtract ≡ invert the
+-        // rasterized alpha. Wipes/Mask has no Mask Blend Mode (default) so it is
+-        // unaffected.
+-        if (p.getAttribute('name') === 'Mask Blend Mode' && p.getAttribute('id') === '103') {
+-          const v = p.getAttribute('value');
+-          if (v !== null && parseInt(v, 10) === 1) imageMaskInvert = true;
+-        }
+-      }
+-      break;
+-    }
+-  }
++  // `Mask Source` references the shape/group supplying the alpha (see
++  // extractImageMask). Masks ONLY this layer (distinct from the "Masks"-group
++  // sibling-clip convention). Capture the referenced object ID so the compositor
++  // can rasterize it and clip this layer's alpha.
++  const { sourceId: imageMaskSourceId, invert: imageMaskInvert } = extractImageMask(el);
+ 
+   // PROCEDURAL (source-less) SHAPE MASK — S8. Lift a `<mask>` child that draws its
+   // own alpha (no Mask Source) into a mask-shape child so the compositor clips this
+@@ -412,6 +425,15 @@ function parseLayerElement(el: Element, factories: Map<number, string>, clip: Cl
+   // liftProceduralMasks for the full rationale + the FCT_LIFT_ALL_MASKS regression scar.
+   liftProceduralMasks(el, factories, linkSourceIds, children);
+ 
++  // Image Mask on a GROUP/LAYER: a `<mask>` child with a `Mask Source` clips the
++  // WHOLE group to the referenced shape (Concentric's ring groups mask stacked
++  // Clone A/B to a Circle shape — the concentric-ring geometry; the swing is the
++  // group's own Rotation.Y 0→∓π). Silently dropped before this (parseSceneNode
++  // extracted it but parseLayerElement did not), so the rings rendered as plain
++  // full-frame source A. Fires on 9 built-ins (Concentric, Pinwheel, Combo_Spin,
++  // Heart, Center, Close_and_Open, Light_Sweep, Lower, Panels_Random).
++  const { sourceId: imageMaskSourceId, invert: imageMaskInvert } = extractImageMask(el);
++
+   return {
+     name: el.getAttribute('name') || '',
+     id: parseInt(el.getAttribute('id') || '0', 10),
+@@ -421,6 +443,8 @@ function parseLayerElement(el: Element, factories: Map<number, string>, clip: Cl
+     filters,
+     children,
+     timing: parseTiming(el),
++    imageMaskSourceId,
++    imageMaskInvert,
+     enabled: (() => { const t = getTextContent(el, 'enabled'); return t === null ? true : t.trim() !== '0'; })(),
+     links: parseLinkBehaviors(el, factories, filtersById),
+   };
