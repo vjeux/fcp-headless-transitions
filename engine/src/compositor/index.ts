@@ -570,16 +570,37 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
     // Draw-order convention. The default renders children in REVERSE list order
     // (last-listed rendered first = bottom, first-listed last = top), which the
     // 3D-hinge groups (Rotate/Reflection/Flip) rely on — there depth, not draw
-    // order, resolves z. But a FLAT 2D stack of coplanar full-frame images/clones
+    // order, resolves z. A FLAT 2D stack of coplanar full-frame images/clones
     // (Movements/Switch: Clone B + Transition A + Transition B, all Z-rotation
-    // only, no camera-facing 3D tilt) is composited by Motion in DECLARED order
-    // with the LAST-listed layer on TOP. Rendering such a group forward (so the
-    // last child blits last = on top) reproduces the switch's z-order: early both
-    // drop zones show with B (last) on top; after B times out its Clone (first,
-    // bottom) sits under Transition A, so A comes to the front — the "switch".
+    // only) has NO 3D depth to resolve z, so Motion's compositor shows whichever
+    // co-planar card is CLOSEST TO FRAME CENTRE on top — the "switch" is the two
+    // cards counter-rotating past each other so the incoming card (B, then its
+    // Clone once B times out) slides to centre and covers the outgoing one (A),
+    // which swings away. VERIFIED vs GUI GT: A holds centre f00→~f05, B takes over
+    // ~f06 and STAYS to the end (the engine's old declared-order model wrongly
+    // brought A back to the front at the tail — f18–f23 showed warm A, GT is cool
+    // B). So for a flat stack we PAINT the visible cards farthest-centre-first
+    // (bottom) → closest-centre-last (top). Distance uses the world-transform
+    // translation (m12,m13) from the output centre. The 3D-hinge groups keep the
+    // reverse default (their z is real depth). Generic: keyed on the flat-stack
+    // geometry, never a slug name.
     const flatStack = isFlatCoplanarStack(visibleChildren, layer);
-    const order = (idx: number): EvaluatedLayer =>
-      flatStack ? visibleChildren[idx] : visibleChildren[visibleChildren.length - 1 - idx];
+    let order: (idx: number) => EvaluatedLayer;
+    if (flatStack) {
+      // The layer world-transform translation (m12,m13) is already expressed
+      // relative to the frame centre (Motion's scene origin is the canvas centre),
+      // so |(m12,m13)| IS the distance from centre.
+      const centreDist = (c: EvaluatedLayer): number => {
+        const m = c.worldTransform;
+        const dx = m ? m[12] : 0;
+        const dy = m ? m[13] : 0;
+        return dx * dx + dy * dy;
+      };
+      const sorted = [...visibleChildren].sort((a, b) => centreDist(b) - centreDist(a));
+      order = (idx: number): EvaluatedLayer => sorted[idx];
+    } else {
+      order = (idx: number): EvaluatedLayer => visibleChildren[visibleChildren.length - 1 - idx];
+    }
 
     if (hasFilters || hasMasks || hasBlend) {
       // Render visible children to a temp buffer

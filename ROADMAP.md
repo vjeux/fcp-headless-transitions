@@ -566,17 +566,20 @@ baselines (deterministic re-score): Clone_Spin 10.28, Video_Wall 9.06, Concentri
 ### S7. Residual per-slug bugs  [ONGOING]  (tasks T-F1/G1 · opportunistic, one-offs)
 Bugs not owned by a shared subsystem — fix opportunistically when a clean structural root cause is
 found (never per-transition hardcoding). Current known:
-- **Movements/Switch (11.64):** 🔬 DECODED 2026-07-14o (docs-only, no code). A "Clone B" node
-  (id 1999871187) + LinkPos/LinkAnchor/LinkRot 3D card-flip (transform[109]). Per-frame score is a
-  symmetric double-dip: f04–f06 ≈7.7 dB and the WHOLE tail f16–f23 ≈9–10 dB, while the mid flip
-  (f10–f13) is fine ≈16 dB. Mean-colour signature nails TWO bugs: (1) f04 engine=(33,39,56)
-  dark-cool vs GT (115,92,85) warm — the card rotates/darkens TOO EARLY (flip-timing/back-face shows
-  before it should); (2) THE DOMINANT one — the tail f20–f23 engine stays WARM (118,84,67 ≈ photo A)
-  while GT is COOL BLUE (92,106,137 = photo B): **the flip never SETTLES on B**. B is a Clone Layer
-  ("Clone B"), so this is the same clone-resolve/settle family as Swing/Rotate/Scale/Duplicate — the
-  incoming B clone isn't bound/visible at the flip's end. Likely shares a root cause with the Flip
-  page-flip back-face fix (ac186de: page.layer.source binding). NEXT: check the clone-B source
-  binding + the LinkRot settle at progress→1; verify it doesn't regress the other clone slugs.
+- **Movements/Switch (11.68→11.96, +0.28 SHIPPED 2026-07-14u):** the tail-settle bug is FIXED — it
+  was NOT a clone-source binding issue (Clone B correctly mirrors Transition B) but a Z-ORDER bug in
+  the flat-coplanar-stack draw order. Structure (census): Group{ Clone B(→Transition B) + Transition A
+  + Transition B }, all Z-rotation only (flat 2D). The two cards counter-rotate + translate past each
+  other (the "switch"): A holds centre f00→~f05, then B slides to centre and STAYS to the end (after
+  Transition B times out ~f16, its Clone B persists B). The old `isFlatCoplanarStack` used DECLARED
+  order (last-listed on top) which wrongly brought the still-visible Transition A back to the front at
+  the tail → f18–f23 rendered warm photo A; GUI GT is cool photo B. FIX (compositor/index.ts): for a
+  flat coplanar stack, PAINT the visible cards farthest-from-frame-centre first (bottom) → closest
+  last (top), using |worldTransform (m12,m13)| (Motion origin = canvas centre). Verified vs GUI GT:
+  tail f20 10.32→10.83, f21 10.63→11.53, f22 10.64→12.44, f23 10.34→13.76 — the tail now settles on B.
+  Generic (flat-stack geometry, no slug name); gate 0 regressions. REMAINING (smaller): the early
+  swap f02–f05 still shows B a touch too early (GT holds A to ~f05) + the tail card's coverage/scale
+  is slightly under GT (mean-luma low) — a geometry refinement, separate from the now-correct z-order.
 - **Movements/Smear (10.91):** DirectionalBlur+Smear filter appearance + smear continuing past the
   drop-zone timeout (content vanishes at 0.467s). Clamp tried → worse (rejected).
   **🔬 CONFIRMED NOT-FILTER-MATH (2026-07-14n, S7-smear agent):** the Smear (PAEScrape, `scrape.ts`)
@@ -828,6 +831,22 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14u  S7 WIN — Movements/Switch tail-settle FIXED via flat-stack z-order (11.68→11.96, +0.28,
+              gate 0 regressions). Pivoted off Bloom (3 ticks, decode complete, remaining blocker is a
+              subtle curve/temporal effect) to a shippable slug. Census confirmed the premise but
+              CORRECTED the earlier "clone-source binding" decode: Clone B DOES correctly mirror
+              Transition B — the bug was Z-ORDER. Switch = a flat coplanar stack (Clone B + Transition
+              A + Transition B, all Z-rotation only); the two cards counter-rotate past each other so A
+              holds centre f00→~f05 then B slides to centre and STAYS to the end. The old
+              isFlatCoplanarStack used DECLARED order (last-listed on top), which wrongly brought the
+              still-visible Transition A to the front at the tail → f18–f23 rendered warm photo A while
+              GUI GT is cool photo B. FIX (compositor/index.ts): for a flat stack, paint visible cards
+              farthest-from-centre first (bottom) → closest last (top) using |worldTransform(m12,m13)|
+              (Motion origin = canvas centre). Tail f20 10.32→10.83, f22 10.64→12.44, f23 10.34→13.76.
+              Generic (flat-stack geometry, not a slug name); only Switch carries the Clone-B flat-stack
+              signature in the corpus. Baseline re-frozen 14.39→14.395. tsc + no-hardcode green.
+              Remaining (smaller, separate): early swap f02–f05 shows B slightly too early + tail card
+              coverage/scale a touch under GT — a geometry refinement, not the (now-correct) z-order.
 - 2026-07-14t  S4/T-D2c BLOOM — decoded the canThrowRenderOutput PARAM PREP (the missing transform
               layer) + isolated the residual to a threshold-curve/temporal effect (NOT Glow, NOT the
               Bloom math). Register-traced -[PAEBloom canThrowRenderOutput:…] @0xc610: the UI params
