@@ -490,12 +490,48 @@ but also would force-ortho the base=16 Close_and_Open which regresses), Z-depth 
 and box slugs have Z-translated content). Diagnostic: `FCT_XFORM=1 tsx test/_trace_layers.ts`.
 **DoD:** Video_Wall + Clone_Spin improve; 0 regressions.
 **Verify:** `fct regress engine` + `fct score Replicator-Clones__Video_Wall --full`.
+**⚠️ DECODE UPDATE (2026-07-14n, S6 agent — premise corrected):** the task premise "framed stays
+UNDEFINED" is WRONG — `framed` DOES populate for both. Instrumented `evaluate()`: Clone_Spin has
+**1 Framing behavior (factory 1, NOT 3)** → falls back to `resolveFramedPose` (single-target);
+Video_Wall has **2 (factory 3)** → `resolveFramedWallPose`. Concentric has **0 camera / 0 Framing**
+→ camera-less orthographic (SCOPE OUT — needs depth-resolved 3D swing, a different subsystem). The
+real bug: the framed pose is MISCALIBRATED so the 14-tile wall projects off-frame/behind camera.
+For Video_Wall at t=0.5 the replicators span world x[-2021,6132] y[-2379,6012] (centroid ≈
+[1535,2572], z=0) but the framed pose anchors at **[2399,-2145]** (the wall's BOTTOM EDGE, from the
+proxy-ray→content-plane reconciliation) → ~9/14 grids fail `projectFramed`'s `cz<=1e-3` behind-camera
+guard, the rest land at sx=±5000-8000 (frame 1920 wide) → engine renders ONE static drop-zone tile,
+frozen, offset up-left ~78% scale; the wall never appears. A world-axis-orientation experiment
+(FLATZ, both pose fns) was MEASURED (CS 10.28→10.27, VW 9.06→9.11) = within noise, REJECTED+reverted
+— orientation is NOT the dominant error, the ANCHOR is. Also: the wall path fires on only 1 built-in
+(Video_Wall) and the single path on only 1 (Clone_Spin), so ONLY a SHARED-geometry fix satisfies the
+≥2-builtin rule. **NEXT-TICK BUILD (single highest-value piece):** fix the framing ANCHOR in
+`resolveFramedWallPose`/`framePose` to resolve to the wall/content-tile world CENTROID (VW ≈
+[1535,2572]; content tile @[716,1253]) instead of the proxy-ray point, + a distance that frames the
+visible sub-grid (not one tile), + calcFramingRotation quaternion (RE'd at Ozone `0x6cb40`
+`PCMatrix44::leftRotate(PCQuat)`; distance via `fcsel` max-extent at `0x6ce9c`/`0x6cec0`). Multi-tick
+arc — build on Video_Wall, verify Clone_Spin (shared `framePose`) doesn't regress. Current clean
+baselines (deterministic re-score): Clone_Spin 10.28, Video_Wall 9.06, Concentric 8.95.
 
 ### S7. Residual per-slug bugs  [ONGOING]  (tasks T-F1/G1 · opportunistic, one-offs)
 Bugs not owned by a shared subsystem — fix opportunistically when a clean structural root cause is
 found (never per-transition hardcoding). Current known:
-- **Movements/Smear (11.0):** DirectionalBlur+Smear filter appearance + smear continuing past the
+- **Movements/Smear (10.91):** DirectionalBlur+Smear filter appearance + smear continuing past the
   drop-zone timeout (content vanishes at 0.467s). Clamp tried → worse (rejected).
+  **🔬 CONFIRMED NOT-FILTER-MATH (2026-07-14n, S7-smear agent):** the Smear (PAEScrape, `scrape.ts`)
+  + DirectionalBlur math is verified CORRECT (~39 dB vs isolated headless FCP; all .motr constants
+  decode cleanly: Rotation=3π/2, Amount 70→thr 130, Center.X 1.043→0). The 10.91 deficit is the
+  A/B-RETIME + content-persistence subsystem, not the filter: per-frame trace shows the engine
+  composites Transition-B fully opaque from f01 (occluding smeared A) then wraps to frame-0 for
+  f09–f23, whereas GUI-GT holds photo A while it smears into horizontal streaks (revealing B as a
+  thin growing strip from the LEFT edge f0–f16) and only fades to full B at the tail (f17–f23).
+  Neither drop zone has an Opacity curve — the reveal is driven purely by drop-zone lifetimes ×
+  smear geometry × retime. MEASURED all candidates: wrap-cancel 10.91→10.15, +holdIncomingB 10.15
+  (fixes f10–16 to ~12 but f17–23 collapse 10.4→6.4 — GT keeps REVEALING B while hold freezes it),
+  clamp@{0.30,0.40,0.467,0.55} all 10.15. Frame-0 wrap "wins" only because frozen-A is numerically
+  closer to final-B than the black/frozen tail a cancel produces. Real fix = the flagged S4/S2
+  continuing-reveal content-persistence model (multi-tick), NOT a one-slug patch. T-F1 confirmed +
+  generalized: wrap-cancel/hold-B/clamp ALL regress because the true bug is a CONTINUING reveal the
+  current drop-zone model cannot express.
 - **Stylized/Lower (9.0):** kinetic mask-panel choreography; misses the bright mid white flash
   (partly S2 linear-compositing, partly panels culled vis=false).
 - **Stylized/Panels_Across (10.4):** DIAGNOSED 2026-07-14 — sharp per-frame dip at f09–f11
@@ -730,6 +766,31 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14n(2)  3 of 5 dispatched agents SETTLED as premise-correcting decodes (NO code, gate
+              untouched — Rule-9(a) valid): S5-gradient BLOCKED (gradient generator + gradientTag
+              pipeline already exist; Loop/Heart's real deficit is media-ornament reveal-timing, a
+              separate subsystem). S6-clonegrid NO NET WIN (premise wrong: `framed` IS populated;
+              Clone_Spin=1 Framing behavior factory 1, Video_Wall=2 factory 3, Concentric=camera-less;
+              real bug = framing ANCHOR lands on the wall bottom-edge not centroid → wall projects
+              off-frame; measured FLATZ orientation fix = within noise, reverted; next step = anchor→
+              centroid, decoded Ozone offsets recorded in S6 section). S7-smear NO NET WIN (Smear/
+              Scrape filter math verified correct ~39 dB isolated; deficit is A/B-retime content-
+              persistence; measured wrap-cancel/hold-B/clamp ALL regress 10.91→10.15). Findings
+              written to the S6/S7 sections. S3-bloom + S7-lensflare still building (implementation
+              agents — the two that may ship a win). Each ran in an isolated worktree+frames+lock; I
+              gate-verify + merge any winner on main (no auto-push pool).
+- 2026-07-14o  PARALLEL AGENTS wave results (orchestrator gate-verifies before merge — rule 4).
+              3 of 5 returned NO-NET-WIN with valuable premise-correcting decodes (no code, worktrees
+              clean, nothing to merge): (S5) gradient generator + gradientTag pipeline already exist —
+              Loop/Heart's real deficit is the media-ornament reveal-timing subsystem, not a fill
+              gradient; (S6) framing `framed` pose IS populated (premise wrong: Clone_Spin=factory-1
+              single path, Video_Wall=factory-3 wall path, Concentric=camera-less ortho) — real bug is
+              the pose ANCHOR ([2399,-2145]=wall bottom edge, should be centroid [1535,2572]) scattering
+              the wall off-frame; shared world-axis-orientation fix measured within-noise + reverted;
+              blocked on ≥2-builtin rule (each path = 1 builtin); (S7-smear) Scrape/DirBlur math verified
+              correct (~39 dB isolated) — deficit is A/B-retime continuing-reveal (S4 content-persistence),
+              wrap-cancel/hold-B/clamp ALL measured-worse (10.91→10.15). S3-bloom + S7-lensflare still
+              building (both in implementation, may ship). All decodes recorded in S6/S7 sections above.
 - 2026-07-14n  DISPATCHED 5 focused sub-agents (isolated worktrees + private frames/lock via
               fct/swarm/setup_worktree.sh) on the remaining subsystems: S5 Gradient generator
               (Loop/Heart), S6 Framing-camera/clone-grid (Clone_Spin/Video_Wall/Concentric), S3/S4
