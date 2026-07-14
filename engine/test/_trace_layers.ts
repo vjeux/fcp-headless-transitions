@@ -13,7 +13,12 @@ const ev = evaluate(scene, t);
 function walk(ls: readonly any[], d=0){
   for(const l of ls){
     const wt=l.worldTransform;
-    console.log('  '.repeat(d)+`[${l.layer.type}] "${l.layer.name}" id=${l.layer.id} vis=${l.visible} op=${l.opacity.toFixed(2)} src=${l.layer.source??''} tx=${wt?wt[12].toFixed(0):'-'},${wt?wt[13].toFixed(0):'-'} filters=${(l.layer.filters||[]).map((f:any)=>f.pluginName).join(',')}`);
+    // FCT_XFORM=1 → also print Z translation + the 3x3 linear part (rotation/scale)
+    // so 3D folds (Z / X-rot / Y-rot links) are visible, not just X/Y translation.
+    const xf = process.env.FCT_XFORM === '1' && wt
+      ? ` z=${wt[14].toFixed(0)} m3x3=[${[wt[0],wt[1],wt[2],wt[4],wt[5],wt[6],wt[8],wt[9],wt[10]].map((x:number)=>x.toFixed(2)).join(',')}]`
+      : '';
+    console.log('  '.repeat(d)+`[${l.layer.type}] "${l.layer.name}" id=${l.layer.id} vis=${l.visible} op=${l.opacity.toFixed(2)} src=${l.layer.source??''} tx=${wt?wt[12].toFixed(0):'-'},${wt?wt[13].toFixed(0):'-'} filters=${(l.layer.filters||[]).map((f:any)=>f.pluginName).join(',')}${xf}`);
     walk(l.children, d+1);
   }
 }

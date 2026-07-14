@@ -457,6 +457,22 @@ off-centre (Video_Wall f4 = black); the tile wall doesn't render.
 **Slugs gated (3):** Video_Wall (8.7), Clone_Spin (10.3), Curtains (15.1 — already OK).
 **Next step:** debug the framing anchor (proxy→content-plane ray) + the clone-tile wall render.
 Deepest geometry, only 2 low slugs — do LAST.
+**⚠️ ORTHOGRAPHIC-FOLD lead (measured 2026-07-14e, NOT yet safe to ship):** the static-camera
+plane-fold slugs project too strongly. Forcing near-orthographic projection (RenderContext cameraZ
+→ 1e5, via a temporary `FCT_PROBE_CAMZ` probe) MEASURED: **Color_Planes 11.26→14.26 (+3.0),
+Reflection 12.61→13.52 (+0.91)** — both monotonically improve toward orthographic with NO interior
+optimum (the exact signature the camera-less/AOV≈0 branch already treats as parallel projection, per
+the Ozone `viewIsOrthographic` disasm). BUT a blanket "static camera → orthographic" rule REGRESSES
+**3D_Rectangle 16.59→16.23 (−0.36)** (its box tiles genuinely need perspective), and is a no-op for
+360°_Divide (band model) / Up-Over (camera not the lever). So the win is real but needs a SAFE
+structural discriminator separating in-place plane folds (Color_Planes/Reflection: Link-driven
+Y-rotation, NO Replicator) from perspective clone-boxes (3D_Rectangle: 149 Replicator refs). Z-depth
+alone does NOT discriminate (both have Z-translated content). Also: Color_Planes' AOV rig resolves
+`widgetVal=0`→AOV 31.6° (the aspect-ratio widget 1999869211 value isn't reaching resolveCamera as
+its ordinal 2), but even the correct AOV (19.6–31.6°) scores far below orthographic, so the AOV is
+NOT the lever — the projection MODEL is. Candidate discriminator for a future tick: "static camera +
+no Replicator + all rendered content is Link/rig-rotated planes → orthographic". Must gate-verify it
+holds 3D_Rectangle on perspective. Diagnostic: `FCT_XFORM=1 tsx test/_trace_layers.ts` prints z+m3x3.
 **DoD:** Video_Wall + Clone_Spin improve; 0 regressions.
 **Verify:** `fct regress engine` + `fct score Replicator-Clones__Video_Wall --full`.
 
@@ -603,6 +619,19 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14e  S6 INVESTIGATION (gate 0/0, no pixels shipped) — measured the plane-fold camera model.
+              Targeted the biggest engine↔headless gap (Color_Planes: engine 11.3 vs headless 36.7).
+              PROVED via a temporary cameraZ probe that Color_Planes (+3.0) and Reflection (+0.91)
+              want NEAR-ORTHOGRAPHIC projection (both monotonic-to-∞, the camera-less/AOV≈0 signature),
+              but a blanket static-camera→ortho rule REGRESSES 3D_Rectangle (16.59→16.23, needs its
+              perspective box). No safe structural discriminator found yet (Z-depth doesn't separate
+              them; both have Z-translated content). Also decoded that Color_Planes' AOV rig resolves
+              widgetVal=0→31.6° (aspect widget 1999869211 not reaching resolveCamera as ordinal 2) —
+              but AOV is NOT the lever, the projection MODEL is. Full finding + candidate discriminator
+              ("static cam + no Replicator + only rig-rotated planes → orthographic") recorded in S6.
+              SHIPPED: `FCT_XFORM=1` diagnostic in test/_trace_layers.ts (prints z + 3x3 rotation so
+              3D folds are visible). Probe reverted, frames re-rendered, gate green (0 regressions).
+              Next: find + gate-verify the ortho discriminator (must hold 3D_Rectangle on perspective).
 - 2026-07-14d  S1 WIN — factoryID-13 Direction popup index→tag remap (parser/rig.ts). Decoded the
               long-open RIG_DIRECTION question (docs/notes/RIG_DIRECTION_FORENSICS.md "THE OPEN
               QUESTION"): a **factoryID-13** Direction popup stores the selected menu entry's
