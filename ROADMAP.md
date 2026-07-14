@@ -634,9 +634,38 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 `fit_color.py` derives the GAM constants; `test/no-hardcode.test.ts` fails any detector firing on
 < 2 built-ins.
 
+**Delta-debug minimizer (`fct minimize` + `fct min-*`):** shrinks a transition's `.motr` to the
+MINIMAL node subtree where the TS engine still DIVERGES from the real FCP engine (headless), so a
+fix targets the exact responsible nodes instead of a 17k-element scene. ddmin over structural nodes
+(scenenode/layer/group/filter/behavior/mask), oracle = engine-vs-headless-FCP PSNR on the SAME
+reduced `.motr` (headless IS the real Motion algorithm — this isolates where our CODE differs from
+FCP's CODE; it does NOT replace the GUI-GT gate on the 65 shipped transitions). Two correctness
+invariants: (1) trial motrs are written in a work dir that SYMLINKS the source's siblings so FCP +
+the TS engine resolve bundled `Media/` textures relative to the `.motr` dir (a bare /tmp copy loses
+them → false divergence); (2) each headless render runs in an ISOLATED subprocess (`fct
+_headless-frame`) so a malformed reduced doc that SIGSEGVs the FCP engine only kills that trial.
+Reduced cases live in `fct/minimized/<case>/` (case.motr + headless/ truth frames + manifest); the
+`min-gen|min-score|min-baseline|min-regress` gate tracks engine-vs-FCP PSNR per case (99 dB = the
+underlying engine bug is fixed). This is the new forcing function for the hard subsystems (S2/S3/S8):
+minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
+
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14j  TOOLING: added `fct minimize` — a `.motr` DELTA-DEBUGGER (ddmin) that reduces a
+              transition to the minimal node subtree where the TS engine still diverges from the real
+              FCP engine (headless), plus the `fct min-gen|min-score|min-baseline|min-regress` gate
+              over `fct/minimized/<case>/`. Debugging whole transitions was the blocker (Diagonal =
+              17,671 XML elements); this isolates the exact responsible nodes. Oracle = engine-vs-
+              headless on the SAME reduced motr (headless = real Motion algo; NOT a GUI-GT stand-in —
+              the shipped-transition GUI gate is untouched). Decoded + fixed two traps: (1) FCP/engine
+              resolve bundled `Media/` RELATIVE TO the .motr dir, so trial motrs must symlink the
+              source's siblings (a /tmp copy renders Diagonal's field 146→161 = a false 21.8 dB
+              divergence); (2) the FCP engine SIGSEGVs on malformed reduced docs, so each headless
+              render is subprocess-isolated. Verified end-to-end on Wipes__Diagonal: baseline worst
+              frame f3, engine-vs-FCP 6.52 dB (huge divergence, the real S8 write-on-mask bug). Commit
+              e2aff22 (pushed). NEXT: let the Diagonal minimization finish, commit the reduced case +
+              freeze the min-baseline, then fix the minimal repro and verify on both gates.
 - 2026-07-14i  S7 Wipes__Mask — endSec-cap hypothesis TESTED + REFUTED (clean reversal, gate 0/0).
               DECODED the mechanism: Wipes__Mask's `animationEndSec` = **5.038s** while the authored
               span (duration÷frameRate) = **1.30s** and ALL real motion curves (the "Vertical" wipe
