@@ -462,6 +462,33 @@ found (never per-transition hardcoding). Current known:
   drop-zone timeout (content vanishes at 0.467s). Clamp tried → worse (rejected).
 - **Stylized/Lower (9.0):** kinetic mask-panel choreography; misses the bright mid white flash
   (partly S2 linear-compositing, partly panels culled vis=false).
+- **Stylized/Panels_Across (10.4):** DIAGNOSED 2026-07-14 — sharp per-frame dip at f09–f11
+  (5.16/6.11/7.68 dB). GUI GT f09–f11 is a near-UNIFORM WHITE FLASH (mean ≈(252,251,251)→(223)) but
+  the engine renders a LEFT→RIGHT whiteness RAMP (col-brightness 8 bins: 50,81,98,100,166,231,214,
+  254 vs GT 250–254 flat). Root cause: the "White panels" group (id 1027432) has 7 white "Rectangle"
+  strips with STATIC per-panel Fill Opacity (id=141: 0.05,0.15,0.30,0.55,0.70,0.80,1.0 — verified NO
+  animation curve; layer opacity + group opacity both flat 1.0) that FAN OUT from a stack over time
+  (t=0.20 all at tx≈545; t=0.375 four low-op panels bunch at screen x=[880..1157], the 0.7/0.8/1.0
+  panels at [1087..1919]). So at the flash peak the engine covers only the RIGHT ~half (mid-scanline
+  white-alpha bins 0,0,0,.25,.79,.73,.83,1.0) leaving the LEFT half tan photo-A, while FCP shows full
+  white. The flash is NOT opacity-animated and NOT Transition B (vis=false at f09). Likely the panel
+  Fill Opacity 0.05→1.0 is NOT a per-panel render alpha but a build-order stagger (all panels paint
+  opaque white, sequenced), OR the panels are wider / positioned to fully tile at peak. Needs the
+  real panel layout/opacity semantics decoded before a fix — a wrong guess (e.g. force opaque) risks
+  regressing the correct pre/post-flash frames. TESTED + REJECTED (2026-07-14): flag FCT_PANEL_OPAQUE
+  forcing all panel fills to alpha 1.0 made Panels_Across WORSE (10.33→9.21) and left f09 at 5.19 —
+  the left frame-half stays tan REGARDLESS of opacity because NO panel covers it at the peak. So the
+  bug is GEOMETRIC COVERAGE (panels only reach the right ~half by f09), not fill alpha. The real fix
+  is the panel sweep/position/count so they tile the FULL frame at the flash peak (or a separate
+  full-frame white element FCP composites that the engine drops). DECODED FURTHER 2026-07-14: each of
+  the 7 panels (verts x=[-139..139]=278px, wt scale 1.0) has a different Position-X keyframe count and
+  distinct final rest that together TILE the frame: R1(2kf)→+833, R2(3kf)→+556, R3(4kf)→+277,
+  R4(5kf)→0, R5(6kf)→-278, R6(7kf)→-556, R7(8kf)→-833 (offset 3.67s; the isSolidPanel re-anchor
+  curveTime=timeSec-offset IS applied). Each reaches its rest at a DIFFERENT scene time (R1 ~f6 …
+  R7 ~f17), so full tiling completes ~f17 — but GT peaks at f09 then FADES (252→241→223→200→167), a
+  TRANSIENT, not the late opaque tiling. So GT's f09 full-white is likely a mid-sweep OVERLAP peak
+  that the 278px strips can't reproduce (panels probably wider in FCP, or more of them, or a separate
+  contributor). Unresolved mechanism; a wrong guess regresses. NO fix shipped; full decode recorded.
 - **Multi / Multi-flip / Pinwheel / Swing / Flip / Rotate (12–14):** Movements 3D fold geometry,
   each near-matched; small residuals.
 Solved recently (see Done ledger): Divide A/B + wrap + mask-dilation, Duplicate/Squares A/B.
@@ -562,6 +589,17 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13l  S7 Panels_Across DIAGNOSED (no fix shipped; gate 0/0). Its f09–f11 dip (5.2/6.1/7.7 dB)
+              is a GUI-GT near-uniform WHITE FLASH peaking at f09 then fading, which the engine misses
+              (renders a left→right whiteness ramp; left frame-half stays tan). Decoded the "White
+              panels" group: 7 white 278px strips, STATIC per-panel Fill Opacity 0.05→1.0 (no anim
+              curve), each with a different Position-X keyframe count fanning to rest positions that
+              tile the frame (-833..+833) — but each rests at a DIFFERENT scene time (R1 ~f6 … R7 ~f17)
+              so full tiling completes ~f17, while GT peaks at f09 → GT flash is a TRANSIENT, not the
+              late tiling. TESTED+REJECTED the opacity hypothesis (flag FCT_PANEL_OPAQUE forcing fills
+              to 1.0 made it WORSE 10.33→9.21, f09 unchanged) → the bug is GEOMETRIC coverage, not
+              fill alpha. Mechanism (wider panels / more panels / separate flash element) unresolved;
+              a wrong guess regresses, so recorded the full decode for a future focused effort.
 - 2026-07-13k  T-B3 DEEP RE — FULLY DECODED the Nature/Diagonal early-frame wash + RETIRED the
               "particle population density" hypothesis from 13j. Method: instrumented the compositor
               layer-by-layer (temporary FCT_DBG_TOP / FCT_DBG_CHILD / FCT_DBG_RENDER traces, all
