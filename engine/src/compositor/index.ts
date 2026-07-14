@@ -573,14 +573,33 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
         renderLayer(rctx, groupBuffer, order(i), imageA, imageB, time, filterOverrides);
       }
 
-      // Apply masks (rasterize shapes, union them, apply to group content)
+      // Apply masks (rasterize shapes, union them, apply to group content).
+      // WRITE-ON masks (S8): a procedural mask carrying `writeOnTransforms` sweeps a
+      // finite quad that RETREATS; FCP reveals monotonically. Rasterize the shape at
+      // every sub-time transform and union (per-pixel max) so a pixel revealed at ANY
+      // earlier sub-time stays revealed — the monotonic write-on envelope. An EMPTY
+      // writeOnTransforms means the sweep has not entered yet ⇒ reveal nothing (an
+      // all-zero matte), NOT "no mask" (which would leave the group unmasked).
       if (hasMasks) {
-        const masks = maskShapes
-          .filter(m => m.visible && m.layer.shape)
-          .map(m => rasterizeShape(m.layer.shape!, output.width, output.height, m.worldTransform));
+        const masks: Uint8Array[] = [];
+        let writeOnPending = false; // a write-on mask exists but reveals nothing yet
+        for (const m of maskShapes) {
+          if (!m.visible || !m.layer.shape) continue;
+          if (m.writeOnTransforms) {
+            if (m.writeOnTransforms.length === 0) { writeOnPending = true; continue; }
+            for (const xf of m.writeOnTransforms) {
+              masks.push(rasterizeShape(m.layer.shape, output.width, output.height, xf));
+            }
+          } else {
+            masks.push(rasterizeShape(m.layer.shape, output.width, output.height, m.worldTransform));
+          }
+        }
         if (masks.length > 0) {
           const combined = masks.length === 1 ? masks[0] : unionMasks(masks, output.width, output.height);
           applyMask(groupBuffer, combined);
+        } else if (writeOnPending) {
+          // Sweep not started: nothing revealed → zero out the group content.
+          applyMask(groupBuffer, new Uint8Array(output.width * output.height));
         }
       }
 

@@ -67,17 +67,16 @@ function liftProceduralMasks(
   linkSourceIds: Set<number>,
   out: Layer[],
 ): void {
-  // FLAG-GATED (FCT_PROCMASK, default OFF). The procedural shape-mask matte is a
-  // BUILT + VERIFIED intermediate, but NOT yet a net win on the GUI-GT gate: the
-  // instantaneous shape mask reveals then RETREATS (a finite quad sweeps ACROSS
-  // the frame and exits), whereas FCP's reveal is a MONOTONIC write-on (once a
-  // pixel is revealed by the sweep it STAYS revealed — the greenness grid sweeps
-  // BL→TR and never retreats; decoded 2026-07-14). Enabling it as-is regresses the
-  // Diagonal pair −0.47 dB (11.39→10.92), so it stays OFF until the write-on
-  // temporal accumulation (max-over-time of the mask alpha) lands on top of it.
-  // The parse+feather+lift infrastructure below is correct and reused by that
-  // next step. Default OFF ⇒ byte-identical to the shipped baseline (gate green).
-  if (typeof process === 'undefined' || process.env?.FCT_PROCMASK !== '1') return;
+  // S8 PROCEDURAL SHAPE-MASK MATTE (default ON; set FCT_PROCMASK=0 to disable).
+  // Lifts a source-less animated `<mask>` (Wipes/Diagonal's "Animated mask") into a
+  // child mask-shape so the compositor rasterizes it as the owning group's alpha
+  // matte. The mask sweeps a finite feathered quad diagonally; its INSTANTANEOUS
+  // alpha reveals then RETREATS, but FCP's reveal is a MONOTONIC write-on — so the
+  // evaluator emits `writeOnTransforms` (K sub-time samples) and the compositor
+  // unions them (per-pixel max) into a monotonic envelope. VERIFIED WIN on GUI-GT:
+  // Diagonal pair 11.39 → 13.47 dB (+2.08), 0 collateral regressions across all 65
+  // (2026-07-14m). Lift fires on 14 built-ins so it is a generic reveal primitive.
+  if (typeof process !== 'undefined' && process.env?.FCT_PROCMASK === '0') return;
   for (const maskEl of directChildren(el, 'mask')) {
     // Skip Image Masks (have a non-zero Mask Source — handled by the imageMaskSourceId path).
     let hasSource = false;

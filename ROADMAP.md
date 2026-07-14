@@ -541,7 +541,7 @@ found (never per-transition hardcoding). Current known:
   photo B. Fix: bind each page to its own drop-zone source (front→A, back→B). Concentric neutral.
 Solved recently (see Done ledger): Divide A/B + wrap + mask-dilation, Duplicate/Squares A/B.
 
-### S8. Procedural / animated group masks  [TODO — rescoped 2026-07-14k: build source-less SHAPE-mask matte FIRST (minimizer proved the emitter is NOT the f03 driver) · HIGH coverage]  (task T-H1)
+### S8. Procedural / animated group masks  [SHIPPED 2026-07-14m: source-less shape-mask matte + write-on envelope, Diagonal pair 11.39→13.47 (+2.08), default ON · HIGH coverage]  (task T-H1)
 DECODED (Stylized/Wipes Diagonal): the effects field is revealed by an `<mask name="Animated mask"
 factoryID="11">` attached to the "Gradient and background" GROUP (id 999207202). The mask is
 SELF-DRAWING — it contains an Emitter replicator ("Emitter" 987201535 → "Cell copy") that paints a
@@ -645,29 +645,28 @@ S8 SUB-TAXONOMY (decoded 2026-07-13k — pick the tractable path FIRST):
   on by default. The accumulation needs the compositor (or evaluator) to re-rasterise the mask at
   sub-times — a localized addition on top of the now-landed lift+feather+re-anchor.
 
-  ⭐ BUILT + PROVEN (2026-07-14l, FLAG-GATED OFF `FCT_PROCMASK`): the procedural shape-mask matte
-  infrastructure is now LANDED (byte-identical baseline, gate 0/0): (1) parser `liftProceduralMasks`
-  lifts a source-less `<mask>` with real closed-shape geometry + Is Mask=1 into a child mask-shape
-  (in BOTH parseSceneNode and parseLayerElement — Diagonal's "Animated mask" is a direct `<mask>`
-  child of the `Transition Diagonal` <layer>, not a scenenode); (2) `parseShape` reads the mask
-  `Feather` radius; (3) `rasterizeShape` applies a 3-pass separable box blur (Gaussian approx) to
-  the alpha, scaled by the transform magnification; (4) evaluator re-anchors the mask's animated
-  Position/Scale curves to the mask timeline `offset` (Diagonal's sweep is keyed in local frame,
-  offset 0.3003s). ⚠️ MEASURED: with the flag ON the isolated min-case improves 8.48→**11.21 dB**
-  (worst 2.27→6.18), BUT the FULL Diagonal pair REGRESSES on the GUI-GT gate −0.47 dB (11.39→10.92)
-  because the reveal is WRONG: the instantaneous shape mask is a finite quad that sweeps ACROSS the
-  frame (coverage 0→11→39→85→52→0 as pos goes (-572,-1386)→(2271,2001)) and EXITS — it reveals then
-  RETREATS. FCP's reveal is MONOTONIC WRITE-ON: the greenness grid sweeps BL→TR and NEVER retreats
-  (f06 only BL corner green; f08 BL half; f10 ~2/3; f12 full; then holds; only the WHOLE group fades
-  to black at the tail). ⭐ DECISIVE next-step decode: the mask alpha at time t must be the per-pixel
-  MAX over sub-sampled times from mask-start to t (temporal write-on accumulation), NOT the
-  instantaneous rasterization. That single addition turns the retreating coverage into 0→11→39→85→
-  85→85 (monotonic) and should flip the −0.47 into a win. Because the reveal-timing accumulation is
-  a new mechanism (needs the mask transform sampled at K sub-times, e.g. evaluator-precomputed
-  sub-time transforms or a compositor re-rasterize loop), it is the next tick's build — the
-  infrastructure it sits on is committed and byte-identical here. Coverage: the lift fires on 14
-  built-ins (Diagonal ×2, Center, Center_Reveal, Lower, Glide, Loop, Heart, Slide_In, Light_Sweep,
-  Color_Panels, 3D_Rectangle, Combo_Spin, Arrows), so the write-on is a genuinely generic lever.
+  ⭐ SHIPPED (2026-07-14m, `FCT_PROCMASK` default ON): the procedural shape-mask matte + write-on
+  envelope. (1) parser `liftProceduralMasks` lifts a source-less `<mask>` with real closed-shape
+  geometry + Is Mask=1 into a child mask-shape (in BOTH parseSceneNode and parseLayerElement —
+  Diagonal's "Animated mask" is a direct `<mask>` child of the `Transition Diagonal` <layer>, not a
+  scenenode; the layer path was silently dropping it → the fix); (2) `parseShape` reads the mask
+  `Feather` radius; (3) `rasterizeShape` applies a 3-pass separable box blur (Gaussian approx),
+  scaled by transform magnification; (4) evaluator re-anchors the mask's animated Position/Scale
+  curves to the mask timeline `offset` (Diagonal's sweep is keyed in local frame, offset 0.3003s);
+  (5) ⭐ WRITE-ON envelope: the evaluator samples the mask worldTransform at K=12 sub-times in
+  [mask-start, t] (`EvaluatedLayer.writeOnTransforms`) and the compositor rasterizes each + unions
+  them per-pixel-max, so the reveal is MONOTONIC (a pixel revealed at any earlier sub-time stays
+  revealed) instead of the instantaneous quad that sweeps ACROSS and RETREATS. An empty
+  writeOnTransforms (sweep not yet entered) zeroes the group matte (reveal nothing) rather than
+  leaving it unmasked. WHY write-on: the greenness grid proved FCP's reveal sweeps BL→TR and never
+  retreats (f06 BL corner; f08 BL half; f10 ~2/3; f12 full; then holds). VERIFIED on the GUI-GT gate
+  (the one truth): Diagonal pair **11.39 → 13.47 dB (+2.08 each), 0 collateral regressions** across
+  all 65 (the lift fires on 14 built-ins: Diagonal ×2, Center, Center_Reveal, Lower, Glide, Loop,
+  Heart, Slide_In, Light_Sweep, Color_Panels, 3D_Rectangle, Combo_Spin, Arrows — none regressed).
+  NOTE: the plain instantaneous mask (no write-on) REGRESSED −0.47 dB and its min-gate score (11.21)
+  is ANTI-correlated with GUI-GT — a reminder that the min-gate is a diagnostic, NOT the truth; only
+  `fct regress engine` (GUI-GT) decides. Perf: K=12 rasterizations/mask/frame makes mask-heavy slugs
+  (Color_Panels) slower to render; acceptable for now, could be adaptively reduced later.
 
 
 ---
@@ -731,6 +730,34 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14m  S8 SHIPPED — procedural shape-mask matte + WRITE-ON envelope, `FCT_PROCMASK` default
+              ON. Completed the write-on temporal accumulation the previous tick decoded: evaluator
+              samples the mask worldTransform at K=12 sub-times in [mask-start, t]
+              (EvaluatedLayer.writeOnTransforms); compositor rasterizes each and unions per-pixel-max
+              → MONOTONIC reveal (matches FCP's BL→TR sweep that never retreats), instead of the
+              instantaneous quad that swept ACROSS + RETREATED. Empty transforms (sweep not entered)
+              → zero matte (reveal nothing), not unmasked. VERIFIED on GUI-GT (the one truth):
+              Diagonal pair 11.39 → 13.47 dB (+2.08 each), 0 collateral regressions across all 65
+              (lift fires on 14 built-ins, none regressed). ⚠️ PROCESS NOTE: a sub-agent had reverted
+              the write-on based on the MIN-GATE (10.24 < plain-lift 11.21) — but the min-gate is a
+              DIAGNOSTIC and here it is ANTI-correlated with GUI-GT (the reduced case's f18–f23 tail
+              is a separate group-end-fade, not the mask). Rule #1 (score ONLY vs GUI-GT) caught it:
+              the GUI-GT gate proves write-on is a clean win, so it ships default-ON. tsc + no-
+              hardcode green. Perf: K=12 rasterizations/mask/frame slows mask-heavy slugs; acceptable.
+- 2026-07-14m  S8 SHIPPED — procedural shape-mask matte + WRITE-ON envelope, default ON
+              (`FCT_PROCMASK=0` disables). Diagonal pair **11.39 → 13.47 dB (+2.08 each), 0
+              regressions** across all 65 on the GUI-GT gate. The write-on completes last tick's
+              flag-OFF infrastructure: evaluator samples the mask worldTransform at K=12 sub-times
+              in [mask-start, t] (`EvaluatedLayer.writeOnTransforms`); compositor rasterizes each +
+              unions per-pixel-max → the reveal is MONOTONIC (matches FCP's BL→TR sweep that never
+              retreats) instead of the instantaneous quad that sweeps across + exits (which
+              regressed −0.47). Empty writeOnTransforms (sweep not entered) zeroes the group matte
+              (reveal nothing), not unmasked. CAUTION LOGGED: a sub-agent reverted the write-on
+              based on the MIN-gate (10.24 < plain-lift 11.21) — but the min-gate is ANTI-correlated
+              with GUI-GT here (its tail-frame divergence dominates); the ROADMAP's #1 rule (ONE
+              TRUTH = GUI-GT) is why the write-on ships: `fct regress engine` = +2.08, 0 regress.
+              Perf: K=12 rasterizations/mask/frame slows mask-heavy slugs (Color_Panels) but renders
+              fine. Lift fires on 14 built-ins (generic reveal primitive). tsc + no-hardcode green.
 - 2026-07-14l  S8 SUBSYSTEM (procedural shape-mask matte) — infrastructure BUILT + write-on
               mechanism DECODED, landed FLAG-GATED OFF (`FCT_PROCMASK`, byte-identical baseline,
               gate 0/0). Parser `liftProceduralMasks` lifts a source-less `<mask>` (no Mask Source)

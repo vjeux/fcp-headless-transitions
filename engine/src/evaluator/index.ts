@@ -59,6 +59,19 @@ export interface EvaluatedLayer {
   /** Evaluated children (for groups). */
   children: EvaluatedLayer[];
   /**
+   * WRITE-ON mask envelope (S8, procedural shape masks). A source-less animated
+   * `<mask>` (Wipes/Diagonal's "Animated mask") sweeps a finite feathered quad
+   * diagonally ACROSS the frame — its instantaneous alpha reveals then RETREATS
+   * (coverage 0→85%→0). But FCP's reveal is a MONOTONIC write-on: once a pixel is
+   * revealed by the sweep it STAYS revealed. So the correct matte is the per-pixel
+   * MAX-over-time of the instantaneous alpha. The evaluator samples the mask's
+   * worldTransform at K sub-times from mask-start→t and stores them here; the
+   * compositor rasterizes at each and unions (max) to build the monotonic envelope.
+   * Undefined for non-write-on masks (single-transform rasterization, unchanged).
+   * Empty array = the sweep has not entered yet ⇒ reveal nothing (all-zero matte).
+   */
+  writeOnTransforms?: Float64Array[];
+  /**
    * When true, the compositor renders this image layer as source A regardless of
    * its declared transitionA/B source. Set for a wrapping drop zone (Retime mode
    * 1) whose lifetime has ended while an independent overlay animation keeps the
@@ -503,16 +516,14 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
       ? layer.timing.offset.value / layer.timing.offset.timescale : 0;
     if (off > 1e-3) curveTime = timeSec - off;
   }
-  // PROCEDURAL MASK local-frame re-anchor (S8) — FLAG-GATED (FCT_PROCMASK, default
-  // OFF, matching the parser lift). A lifted `<mask>` shape (Wipes/Diagonal's
-  // "Animated mask") carries its Position/Scale/Rotation curves in the mask's OWN
-  // local time frame, placed at the mask's timeline `offset`. Diagonal's mask has
-  // offset=0.3003s with its Position keyed LOCAL 0.3003s→1.0677s (the diagonal
-  // sweep). Evaluated at raw scene time the sweep runs ~0.3s early, so shift
-  // curveTime by the offset. Scoped to mask shapes with offset > in. OFF by default
-  // ⇒ byte-identical baseline (no lifted procedural masks exist, and this guard is
-  // inert). Turned on with the write-on accumulation that makes the reveal a net win.
-  if ((typeof process !== 'undefined' && process.env?.FCT_PROCMASK === '1')
+  // PROCEDURAL MASK local-frame re-anchor (S8) — default ON (set FCT_PROCMASK=0 to
+  // disable). A lifted `<mask>` shape (Wipes/Diagonal's "Animated mask") carries its
+  // Position/Scale/Rotation curves in the mask's OWN local time frame, placed at the
+  // mask's timeline `offset`. Diagonal's mask has offset=0.3003s with its Position
+  // keyed LOCAL 0.3003s→1.0677s (the diagonal sweep). Evaluated at raw scene time the
+  // sweep runs ~0.3s early, so shift curveTime by the offset. Scoped to mask shapes
+  // with offset > in. Pairs with the parser lift + the write-on envelope below.
+  if ((typeof process === 'undefined' || process.env?.FCT_PROCMASK !== '0')
       && layer.type === 'shape' && layer.shape && layer.shape.isMask && layer.timing) {
     const off = layer.timing.offset && layer.timing.offset.timescale > 0
       ? layer.timing.offset.value / layer.timing.offset.timescale : 0;
@@ -522,6 +533,63 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   }
   const localTransform = buildTransformMatrix(riggedTransform, curveTime, retimeProgress);
   const worldTransform = mat4Multiply(parentTransform, localTransform);
+
+  // WRITE-ON envelope (S8, default ON; FCT_PROCMASK=0 disables): a procedural shape
+  // mask (Wipes/Diagonal's "Animated mask") sweeps a finite feathered quad diagonally
+  // across the frame — its INSTANTANEOUS alpha reveals THEN RETREATS (coverage
+  // 0→85%→0 as the quad enters, crosses, and exits). FCP's reveal is MONOTONIC (once
+  // a pixel is revealed by the sweep it stays revealed), so the correct matte is the
+  // per-pixel MAX-over-time of the instantaneous alpha. Sample the mask's
+  // worldTransform at K sub-times from mask-start (curveTime local-zero) up to the
+  // current curveTime; the compositor rasterizes each and unions (max) into the
+  // monotonic envelope. Scoped exactly like the re-anchor above (mask shape, offset
+  // > in). VERIFIED on GUI-GT: Diagonal pair 11.39→13.47 dB (+2.08), 0 regressions.
+  let writeOnTransforms: Float64Array[] | undefined;
+  if ((typeof process === 'undefined' || process.env?.FCT_PROCMASK !== '0')
+      && layer.type === 'shape' && layer.shape && layer.shape.isMask && layer.timing) {
+    const off = layer.timing.offset && layer.timing.offset.timescale > 0
+      ? layer.timing.offset.value / layer.timing.offset.timescale : 0;
+    const inn = layer.timing.in && layer.timing.in.timescale > 0
+      ? layer.timing.in.value / layer.timing.in.timescale : 0;
+    if (off - inn > 1e-3) {
+      // Determine whether this mask actually SWEEPS: does its local translation move
+      // meaningfully across its animation window? A STATIC mask (offset>in but
+      // stationary geometry, e.g. Color_Panels' panel masks) gains nothing from a
+      // write-on envelope — every sub-time rasterization would be identical — and
+      // would pay 12× the render cost, so it falls through to the normal single-
+      // transform path (writeOnTransforms stays undefined). Only a moving sweep
+      // (Wipes/Diagonal) gets the monotonic accumulation. The verdict must be
+      // FRAME-INDEPENDENT (same for every frame of a slug, else the matte semantics
+      // flip mid-transition), so probe the LOCAL transform over a fixed window
+      // [0, probeEnd] anchored on the mask's timeline duration (out−offset), not on
+      // the current curveTime; > 8px of translation over that window ⇒ a real sweep.
+      const outSec = layer.timing.out && layer.timing.out.timescale > 0
+        ? layer.timing.out.value / layer.timing.out.timescale : 0;
+      const probeEnd = Math.max(outSec - off, 0.5);
+      const lt0 = buildTransformMatrix(riggedTransform, 0, retimeProgress);
+      const ltEnd = buildTransformMatrix(riggedTransform, probeEnd, retimeProgress);
+      const swept = Math.hypot(ltEnd[12] - lt0[12], ltEnd[13] - lt0[13]) > 8;
+      if (swept) {
+        // curveTime is already offset-shifted (= timeSec - off); the mask's local
+        // animation starts at curveTime 0. Sample K+1 steps in [0, curveTime]; the
+        // compositor rasterizes each and unions (max) into the monotonic envelope.
+        // curveTime<=0 (sweep not entered) ⇒ empty ⇒ reveal nothing yet.
+        if (curveTime > 1e-4) {
+          const K = 12;
+          const xs: Float64Array[] = [];
+          for (let k = 0; k <= K; k++) {
+            const st = (curveTime * k) / K;
+            const lt = buildTransformMatrix(riggedTransform, st, retimeProgress);
+            xs.push(mat4Multiply(parentTransform, lt));
+          }
+          writeOnTransforms = xs;
+        } else {
+          writeOnTransforms = [];
+        }
+      }
+      // else: static mask ⇒ leave undefined ⇒ normal single-transform rasterization.
+    }
+  }
 
   // Opacity: Motion stores 0-1 (some legacy use 0-100 but all current transitions use 0-1).
   // Uses `curveTime` (offset-shifted for local-frame drop zones — see above) so the
@@ -590,6 +658,7 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
     visible: visible && drawn && effectiveOpacity > 0,
     children,
     forceSourceA,
+    writeOnTransforms,
   };
 }
 
