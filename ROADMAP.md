@@ -500,12 +500,14 @@ VERIFY: gate green; expect Diagonal pair + Lower/Center/Glide/Loop to move up to
 S8 SUB-TAXONOMY (decoded 2026-07-13k — pick the tractable path FIRST):
   (a) STATIC shape masks — rig-selected, timing-gated shapes with curve_X/curve_Y geometry and
       NO emitter (Stylized/Lower's 20 triangle/leaf/box panels fid=12; Stylized/Center fid=14).
-      Tractable: parse the mask node via parseShape() and lift it to an isMask shape child of its
-      owning layer — BUT there is a DOCUMENTED SCAR: an earlier "lift ALL <mask> nodes" attempt
-      regressed rig-selected masks (Boxes/Center Reveal's 18 masks), which is why the current lift
-      is SCOPED to type==='clone' only (parser/index.ts). The correct generalisation must be
-      RIG-AWARE (only lift masks the Rig actually selects/enables) and/or TIMING-gated (Lower's
-      masks carry explicit in/out windows). Do this with the rig-selection model, not a blanket lift.
+      ⚠️ MEASURED DEAD END (2026-07-13k): a flag-gated experiment (FCT_LIFT_ALL_MASKS) that lifted
+      EVERY non-Image-Mask procedural <mask> to an isMask clip child and rendered all 65 slugs gave
+      **0 improvements and 1 regression** (Stylized/Center_Reveal 12.09→11.04, −1.05; Lower 9.04→
+      8.97, Slide_In 10.25→10.18, Diagonal/Glide −0.1). So these masks are NOT simple alpha clips —
+      lifting their geometry as a clip helps nothing and hurts. They are either write-on strokes
+      (see (b)) or additive content, and need the FULL semantics, not a shape lift. The old
+      clone-only scar is now quantified: the same lift regresses Center_Reveal by ~1 dB. Do NOT
+      pursue the naive static-mask-lift; it is retired.
   (b) PAINT-STROKE WRITE-ON masks — emitter/brush masks (fid=11/13 with Emitter=true) whose alpha
       is painted progressively along a bezier stroke by a brush-dab emitter (params: Brush Source /
       Brush Profile / Brush Type / Build Style / "Completed" write-on % / Angle+Pen-Speed Over
@@ -513,8 +515,10 @@ S8 SUB-TAXONOMY (decoded 2026-07-13k — pick the tractable path FIRST):
       Slide_In (8 rect/arrow/pill × up/down variants), and this is the SAME "arc write-on = FCP-
       internal procedural draw" already flagged deferred for Loop/Heart/Center-reveal timing. This
       is the HARDEST render primitive in the engine: a brush-dab stroke rasteriser along a bezier
-      path gated by a "Completed" write-on envelope. Build path (b) only AFTER (a) lands, and treat
-      it as its own multi-tick primitive (brush-dab stroke rasteriser) shared across ≥5 slugs.
+      path gated by a "Completed" write-on envelope. Since (a) is a proven dead end, S8's ONLY real
+      path is (b) — build the brush-dab write-on stroke rasteriser as its own primitive (shared
+      across ≥5 slugs: Diagonal ×2, Slide_In, Loop, Heart, Center-reveal). Treat as multi-tick.
+
 
 ---
 
