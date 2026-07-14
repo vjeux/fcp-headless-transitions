@@ -674,7 +674,16 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
   // Resolve the 3D camera (if any). Motion's Camera node sets a vertical Angle Of
   // View that determines the framing distance: content at Z=0 fills the frame, and
   // layers with world-Z get perspective foreshortening. distance = (H/2)/tan(AOV/2).
-  const camera = resolveCamera(layers, widgetValues, scene.settings.height, evalLayerById, timeSec, scene.settings.animationEndSec ?? (scene.settings.duration.value / scene.settings.duration.timescale));
+  // Scene-level Replicator presence (parse-time factory check). A "Replicator" or
+  // "Sequence Replicator" factory means the scene tiles a cell across a clone grid /
+  // panel wall / 360° environment — a genuine 3D scene that must use the camera's
+  // perspective projection. Its ABSENCE (with a static camera) marks a rig/Link
+  // plane-fold that Motion composites orthographically. See resolveCamera.
+  let sceneHasReplicator = false;
+  for (const desc of scene.factories.values()) {
+    if (desc === 'Replicator' || desc === 'Sequence Replicator') { sceneHasReplicator = true; break; }
+  }
+  const camera = resolveCamera(layers, widgetValues, scene.settings.height, evalLayerById, timeSec, scene.settings.animationEndSec ?? (scene.settings.duration.value / scene.settings.duration.timescale), sceneHasReplicator);
 
   return {
     layers,
@@ -703,7 +712,8 @@ function resolveCamera(
   frameHeight: number,
   evalLayerById: Map<number, EvaluatedLayer>,
   timeSec: number,
-  animationEndSec: number
+  animationEndSec: number,
+  sceneHasReplicator: boolean
 ): { angleOfView: number; distance: number; worldTransform: Float64Array; framed?: { viewX: number; viewY: number; viewZ: number; framingDistance: number; eye: [number, number, number]; target: [number, number, number]; aov: number } } | undefined {
   let camLayer: EvaluatedLayer | undefined;
   const walk = (ls: EvaluatedLayer[]) => {
@@ -751,7 +761,43 @@ function resolveCamera(
 
   const halfRad = (aov * Math.PI) / 360; // AOV/2 in radians
   const t = Math.tan(halfRad);
-  const distance = t > 1e-9 ? (frameHeight / 2) / t : 1e9;
+  let distance = t > 1e-9 ? (frameHeight / 2) / t : 1e9;
+
+  // ORTHOGRAPHIC PLANE-FOLD scenes (decoded 2026-07-14f).
+  // Motion composites a group's 3D contents into the scene through the active
+  // camera's perspective projection ONLY when the scene is a genuine 3D scene.
+  // A transition whose entire 3D content is a set of rig/Link-rotated PLANES with
+  // NO Replicator anywhere (no clone grid, no particle system, no 360° environment
+  // replicator) is composited by Motion in its flattened 2D space — i.e. under a
+  // PARALLEL/orthographic projection, exactly like the camera-less branch above
+  // (OZViewer::viewIsOrthographic). The perspective camera object still exists in
+  // the .motr (it sets the framing/AOV for the authoring canvas) but the rendered
+  // transition output foreshortens the folding planes far LESS than a 45°/31° AOV
+  // camera would — the score rises MONOTONICALLY toward distance→∞ with no interior
+  // optimum, the same signature the camera-less orthographic slugs (Fall) show.
+  //
+  // Discriminator (structural, no transition names): a static (non-framing) camera
+  // driving a scene that contains ZERO Replicator layers. This fires on exactly the
+  // two rep=0 static-camera slugs (Color_Planes, Reflection) and NO others — every
+  // perspective-needing static-camera slug carries ≥2 Replicator refs (3D_Rectangle
+  // clone box, 360° environment replicators, Close_and_Open panel replicator), and
+  // forcing THEM orthographic was MEASURED to regress (Close_and_Open 10.87→10.55,
+  // 3D_Rectangle 16.59→16.23). Framing cameras (factory-3, Video_Wall/Clone_Spin)
+  // are handled by their own framed-pose path below and are unaffected.
+  // MEASURED wins: Color_Planes 11.26→14.26 (+3.0), Reflection 12.61→13.52 (+0.91).
+  const hasFraming = !!(cam.framing && cam.framing.length > 0);
+  if (!hasFraming && !sceneHasReplicator) {
+    // Replicator-free plane-fold scene → orthographic (parallel) projection.
+    // NOTE the discriminator is a PARSE-TIME factory check (scene.factories has a
+    // "Replicator"/"Sequence Replicator" node), NOT an evaluated-layer-type scan:
+    // Motion expands a Replicator/Sequence-Replicator node into per-instance CLONE
+    // layers at render time, so the evaluated tree of 3D_Rectangle shows 25 [clone]
+    // layers and ZERO [replicator] layers — a `type === 'replicator'` scan wrongly
+    // returned false and force-orthographic'd it (MEASURED regression −0.56). The
+    // factory-description presence is the clean binary separator: False only for
+    // Color_Planes/Reflection, True for every perspective clone/panel/360° slug.
+    distance = Infinity;
+  }
 
   // Framing camera (factory 3): the static camera position is ignored; the camera
   // is driven to frame its Framing behaviors' targets (OZScene::computeFraming),

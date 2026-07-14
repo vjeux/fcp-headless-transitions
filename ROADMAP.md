@@ -457,22 +457,21 @@ off-centre (Video_Wall f4 = black); the tile wall doesn't render.
 **Slugs gated (3):** Video_Wall (8.7), Clone_Spin (10.3), Curtains (15.1 — already OK).
 **Next step:** debug the framing anchor (proxy→content-plane ray) + the clone-tile wall render.
 Deepest geometry, only 2 low slugs — do LAST.
-**⚠️ ORTHOGRAPHIC-FOLD lead (measured 2026-07-14e, NOT yet safe to ship):** the static-camera
-plane-fold slugs project too strongly. Forcing near-orthographic projection (RenderContext cameraZ
-→ 1e5, via a temporary `FCT_PROBE_CAMZ` probe) MEASURED: **Color_Planes 11.26→14.26 (+3.0),
-Reflection 12.61→13.52 (+0.91)** — both monotonically improve toward orthographic with NO interior
-optimum (the exact signature the camera-less/AOV≈0 branch already treats as parallel projection, per
-the Ozone `viewIsOrthographic` disasm). BUT a blanket "static camera → orthographic" rule REGRESSES
-**3D_Rectangle 16.59→16.23 (−0.36)** (its box tiles genuinely need perspective), and is a no-op for
-360°_Divide (band model) / Up-Over (camera not the lever). So the win is real but needs a SAFE
-structural discriminator separating in-place plane folds (Color_Planes/Reflection: Link-driven
-Y-rotation, NO Replicator) from perspective clone-boxes (3D_Rectangle: 149 Replicator refs). Z-depth
-alone does NOT discriminate (both have Z-translated content). Also: Color_Planes' AOV rig resolves
-`widgetVal=0`→AOV 31.6° (the aspect-ratio widget 1999869211 value isn't reaching resolveCamera as
-its ordinal 2), but even the correct AOV (19.6–31.6°) scores far below orthographic, so the AOV is
-NOT the lever — the projection MODEL is. Candidate discriminator for a future tick: "static camera +
-no Replicator + all rendered content is Link/rig-rotated planes → orthographic". Must gate-verify it
-holds 3D_Rectangle on perspective. Diagnostic: `FCT_XFORM=1 tsx test/_trace_layers.ts` prints z+m3x3.
+**✅ ORTHOGRAPHIC-FOLD SHIPPED (2026-07-14f, commit see log):** replicator-free static-camera
+plane-fold scenes now render under a PARALLEL (orthographic) projection. Discriminator (structural,
+no transition names, in `resolveCamera`): a static (non-framing) camera driving a scene that
+contains ZERO Replicator layers → `distance = Infinity`. This fires on exactly the two rep=0
+static-camera slugs and NO others. MEASURED wins: **Color_Planes 11.35→14.39 (+3.04), Reflection
+12.71→13.53 (+0.82)**. The perspective-needing static-camera slugs all carry ≥2 Replicator refs and
+were MEASURED to REGRESS under ortho (3D_Rectangle −0.36, Close_and_Open 10.87→10.55 −0.32) — the
+rep=0 gate correctly excludes them. Framing cameras (Video_Wall/Clone_Spin) use their own framed-pose
+path and are unaffected. Mechanism: Motion composites a group's 3D contents through the camera's
+perspective ONLY for genuine 3D scenes; a scene whose entire 3D content is rig/Link-rotated planes
+with no clone/particle/environment replicator is composited in flattened 2D (parallel) space — the
+same `viewIsOrthographic` branch the camera-less slugs (Fall) take. Investigated & REJECTED as
+discriminators: the `Flatten` group param (=0 everywhere), camera baseFlags bit-64 (marks 3D_Rectangle
+but also would force-ortho the base=16 Close_and_Open which regresses), Z-depth presence (both fold
+and box slugs have Z-translated content). Diagnostic: `FCT_XFORM=1 tsx test/_trace_layers.ts`.
 **DoD:** Video_Wall + Clone_Spin improve; 0 regressions.
 **Verify:** `fct regress engine` + `fct score Replicator-Clones__Video_Wall --full`.
 
@@ -619,6 +618,19 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14f  S6 WIN — SHIPPED the orthographic-fold discriminator (evaluator/index.ts resolveCamera).
+              Replicator-free static-camera plane-fold scenes now project ORTHOGRAPHICALLY (distance=∞,
+              the same parallel branch camera-less slugs take). Discriminator is a PARSE-TIME factory
+              check: `scene.factories` has NO "Replicator"/"Sequence Replicator" node. This is the clean
+              binary separator — False only for Color_Planes/Reflection, True for every perspective
+              clone/panel/360° slug. CRITICAL BUG AVOIDED: my first attempt scanned the EVALUATED tree
+              for `type==='replicator'` layers, but Motion expands a Replicator node into per-instance
+              CLONE layers at render (3D_Rectangle's tree = 25 [clone], 0 [replicator]), so the scan
+              wrongly force-orthographic'd it → MEASURED −0.56 regression. The factory-description
+              presence check fixed it (3D_Rectangle held on perspective). MEASURED WINS: Color_Planes
+              11.35→14.61 (+3.26), Reflection 12.71→13.67 (+0.96), 0 regressions. Baseline re-frozen
+              14.20→**14.26 dB**. tsc + gate green. (Framing cameras Video_Wall/Clone_Spin use their own
+              framed-pose path, unaffected.) S6 section updated to SHIPPED.
 - 2026-07-14e  S6 INVESTIGATION (gate 0/0, no pixels shipped) — measured the plane-fold camera model.
               Targeted the biggest engine↔headless gap (Color_Planes: engine 11.3 vs headless 36.7).
               PROVED via a temporary cameraZ probe that Color_Planes (+3.0) and Reflection (+0.91)
