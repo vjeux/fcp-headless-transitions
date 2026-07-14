@@ -232,22 +232,13 @@ T-B2  DONE    Emitter SIM+render, MINIMAL     after: T-B1         spawn + advect
                                                                   wired after field-texture proxy; gate 0/0
                                                                   regressions (Diagonal ×2 within noise —
                                                                   colour comes in T-B3). Probe fires on 4.
-T-B3  DOING   Emitter appearance-over-life    after: T-B2         colour/scale/opacity ramps ->
+T-B3  DONE    Emitter appearance-over-life    after: T-B2         colour/scale/opacity ramps ->
                                                                   Close_and_Open, Up-Over, Glide, Center
-              [2026-07-13h: the REAL sprite renderer is BUILT (emitter-sim.ts drawSprite +
-               resolveSprite + field-texture.ts detectParticleGroupTint) — resolves the cell's
-               Particle Source PNG (Diagonal hexagon_white.png 256²), scales by source-layer×cell
-               scale (~145px on-screen), rotates by spin, fades over life (trapezoid envelope),
-               tints by the cell colour AND the particle-group ancestor TintFx (green). Verified
-               to render the CORRECT STRUCTURE (green hexagons over a green field) vs the old
-               gray-dot proxy. GATED OFF behind FCT_SPRITE_SIM=1 (default byte-identical, gate
-               0/0) pending TWO calibration decodes that currently REGRESS PSNR (10.99→8.74):
-               (1) TINT MAGNITUDE — Motion TintFx Color-Space id=11=3 gives a PALE green (GT f12
-               mean ≈(183,225,178)); the luma·color model over-darkens (≈(52,134,50)). Decode the
-               Color-Space=3 blend (not plain luma·tint). (2) FIELD ENVELOPE TIMING — GT stays pure
-               brown photo through f05 then greens f06→f11; the proxy bell starts at progress≈0.088
-               (f02), far too early. Decode the real green-onset envelope (texture opacity curve,
-               not a symmetric bell). Finish both → flip default ON → verify Diagonal ↑.]
+              [2026-07-13i: SHIPPED as a net win — flag flipped ON by default (FCT_SPRITE_SIM=0
+               forces old flat-dot path). Diagonal ×2 11.09→11.39, Glide 13.68→14.32; gate 0
+               regressions. The two calibration decodes + the sprite-onset gate that were pending
+               are all landed — see progress-log 2026-07-13i for the full mechanism (hard-light
+               TintFx shader, texture-opacity backdrop envelope, groupFade sprite-onset gate).]
 T-C1  DROPPED linear/radial gradient generator                   census: NO built-in uses a gradient
                                                                   FILL; Slide_In/Loop/Heart are S1
                                                                   colour-Link (see S5). Off critical path.
@@ -517,6 +508,42 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13i  T-B3 SPRITE SUBSYSTEM SHIPPED as a NET WIN — flag flipped ON by default (rule 9:
+              a whole working subsystem verified to improve the target metric, 0 regressions).
+              Decoded and landed the two calibration constants + the sprite-onset gate that the
+              prior tick flagged:
+              (1) TINT MODEL — the particle-group TintFx is FCP's HARD-LIGHT two-leg shader
+                  (tintPixelHardLight, transcribed verbatim from Filters.bundle HgcTint), NOT the
+                  luma·color multiply. For the gray field texture (152)+Diagonal green it yields
+                  (111,208,108) and, crucially, leaves WHITE hexagon-sprite highlights near-white
+                  (sel=0 leg→1) so the massed field reads PALE green — matching GT. Applied to BOTH
+                  the field-proxy backdrop and the sprite blit. f12 mean (52,134,50)→(144,213,142)
+                  vs GT (183,229,181); mid-frames f10–f19 jumped ~5.7→12–13.7 dB.
+              (2) BACKDROP ENVELOPE — the tinted backdrop now uses the texture layer's OWN evaluated
+                  Opacity (decoded test/_trace_texop.ts: op≈0 through f02, 0.03→0.31 f03–f11, ~0.31
+                  plateau, decays) instead of the synthetic bell. Gated behind `tint` present so the
+                  untinted default path keeps the byte-identical bell (the real-opacity envelope
+                  REGRESSES the untinted gray 10.99→10.46 — verified).
+              (3) SPRITE-ONSET GATE — the whole particle GROUP shares a fade-in (FCP holds pure
+                  source A, then fades texture+sprites in together). Emitter opacity is a flat 1.0
+                  (no fade), so I gate sprite alpha by groupFade = clamp(texOpacity/0.31, 0..1). This
+                  recovered f00–f02 to a perfect 18.08 (pure photo A held) — the missing piece that
+                  turned flag-ON from 10.24 (regress) into 11.39 (win).
+              RESULT (one truth, GUI GT, gate-res): Stylized/Wipes Diagonal 11.09→11.39 (+0.30 each),
+              Glide 13.68→14.32 (+0.64); Close_and_Open / Up-Over / Earthquake FLAT (no field texture
+              → my changes don't touch them); Drop_In −0.08 (sub-tol). Full gate: 0 regressions,
+              1 gate-registered improvement. Baseline re-frozen 13.93→13.95 dB. tsc clean, no-hardcode
+              policy OK (7 detectors). Flag inverted: FCT_SPRITE_SIM=0 forces the old flat-dot path.
+              Also FIXED a toolkit bug: `./fct.sh regress|score|gate|cmp|probe|census|montage|read`
+              now re-exec under the venv python (were crashing ModuleNotFoundError: numpy via the
+              system-python3 wrapper). New committed diagnostics: engine/test/_trace_field.ts (texture
+              window/mean/tint), _trace_texop.ts (texture opacity curve), _trace_emop.ts (emitter
+              opacity/frame), _trace_blend.ts (emitter/tint/blend tree). Files: fct/cli.py,
+              fct/baseline_engine.json, engine/src/compositor/{index,field-texture,emitter-sim}.ts.
+              NEXT: f03–f07 green onset is still slightly steep vs GT (6.6–7.7 dB) — refine the
+              onset curve; then decode Glide's own tint (0.13/0.82/0.07) coverage.
+
+
 - 2026-07-13h  T-B3 SPRITE SUBSYSTEM built end-to-end (rule 9 — a real subsystem, not a stub).
               emitter-sim.ts: resolveSprite() loads each cell's Particle Source PNG via the
               mediaResolver (Diagonal hexagon_white.png = 256×256 w/ alpha, cached per source id);

@@ -32,7 +32,7 @@
 import type { EvaluatedScene, EvaluatedLayer } from '../evaluator/index.js';
 import type { ParticleCellParams, EmitterParams, Curve, Layer } from '../types.js';
 import { evaluateCurve, timeToSeconds } from '../evaluator/curves.js';
-
+import { tintPixelHardLight } from './field-texture.js';
 /** Media resolver signature (matches compositor/api mediaResolver). */
 type MediaResolver = (url: string, timeSec?: number, absolute?: boolean) => ImageData | null;
 
@@ -165,6 +165,7 @@ function simulateAndCompositeCell(
   particleBudget: number,
   sprite: Sprite | null,
   groupTint: { r: number; g: number; b: number; intensity: number; mix: number } | null,
+  groupFade: number = 1,
 ): number {
   const win = cellWindow(cell);
   if (sceneTime < win.inSec) return 0;
@@ -180,20 +181,13 @@ function simulateAndCompositeCell(
   // 1=Colorize (tint by cell colour), others fall back to no-tint. Cell opacity ×
   // source-layer opacity is the base alpha; scaleX/Y × source-layer scale sizes it.
   const doTint = cell.colorMode === 1 && cell.color !== undefined;
-  let cellColor = doTint ? cell.color! : { r: 1, g: 1, b: 1 };
-  // Fold in the particle-group TintFx (e.g. Diagonal's green): Motion applies
-  // luma·tintColor to the whole group, so a white sprite tinted by the cell colour
-  // then by the group becomes group-tint·cellColor. drawSprite multiplies sprite RGB
-  // by this effective tint, so pre-compose them here (intensity·mix lerp toward the
-  // group colour). This makes the sprites match the green backdrop.
-  if (groupTint) {
-    const im = groupTint.intensity * groupTint.mix;
-    cellColor = {
-      r: cellColor.r * (1 - im) + cellColor.r * groupTint.r * im,
-      g: cellColor.g * (1 - im) + cellColor.g * groupTint.g * im,
-      b: cellColor.b * (1 - im) + cellColor.b * groupTint.b * im,
-    };
-  }
+  const cellColor = doTint ? cell.color! : { r: 1, g: 1, b: 1 };
+  // The particle-group TintFx (e.g. Diagonal's green) is applied per-pixel inside
+  // drawSprite via the DECODED hard-light two-leg shader (tintPixelHardLight), NOT
+  // pre-folded into cellColor as a `luma·color` multiply. A white hexagon sprite
+  // (luma≈1) under hard-light stays near-white (pale) — matching FCP's PALE green
+  // massed field — whereas the old multiply drove it to a saturated dark green
+  // (255·0.30,255·0.77,255·0.29)=(77,197,73). groupTint is threaded to drawSprite.
   const cellOpacity = cell.opacity !== undefined ? cell.opacity : 1;
   const cScaleX = cell.scaleX !== undefined ? cell.scaleX : 1;
   const cScaleY = cell.scaleY !== undefined ? cell.scaleY : 1;
@@ -266,8 +260,8 @@ function simulateAndCompositeCell(
       const fade = lifeFrac < 0.15 ? lifeFrac / 0.15
                  : lifeFrac > 0.85 ? (1 - lifeFrac) / 0.15
                  : 1;
-      const alpha = cellOpacity * sprite.baseOpacity * fade;
-      drawSprite(output, sprite, sx, sy, destW, destH, rot, cellColor, alpha);
+      const alpha = cellOpacity * sprite.baseOpacity * fade * groupFade;
+      drawSprite(output, sprite, sx, sy, destW, destH, rot, cellColor, alpha, groupTint);
     } else {
       // Cull dots whose bbox is entirely off-frame.
       if (sx + dotRadius < 0 || sx - dotRadius >= W ||
@@ -347,6 +341,7 @@ function drawSprite(
   rot: number,
   tint: { r: number; g: number; b: number },
   alpha: number,
+  groupTint?: { r: number; g: number; b: number; intensity: number; mix: number } | null,
 ): void {
   if (alpha <= 0 || destW <= 0 || destH <= 0) return;
   const W = output.width, H = output.height, data = output.data;
@@ -390,8 +385,14 @@ function drawSprite(
       const saSrc = sImg[i00 + 3] * w00 + sImg[i10 + 3] * w10 + sImg[i01 + 3] * w01 + sImg[i11 + 3] * w11;
       const sa = (saSrc / 255) * alpha;
       if (sa <= 0) continue;
-      // Tint: multiply sprite RGB (0-255) by the cell colour (0-1).
-      const cr = sr * tr, cg = sg * tg, cb = sb * tb;
+      // Tint: multiply sprite RGB (0-255) by the cell colour (0-1), THEN apply the
+      // particle-group TintFx via the decoded hard-light shader (leaves white sprite
+      // highlights pale rather than darkening them to a saturated green).
+      let cr = sr * tr, cg = sg * tg, cb = sb * tb;
+      if (groupTint) {
+        const amt = groupTint.intensity * groupTint.mix;
+        if (amt > 0) [cr, cg, cb] = tintPixelHardLight(cr, cg, cb, groupTint.r, groupTint.g, groupTint.b, amt);
+      }
       const di = (y * W + x) * 4;
       const db = data[di + 3] / 255;
       const outA = sa + db * (1 - sa);
@@ -450,8 +451,10 @@ export function applyEmitterSim(
   },
   mediaResolver?: MediaResolver,
   groupTint?: { r: number; g: number; b: number; intensity: number; mix: number } | null,
+  groupFade: number = 1,
 ): void {
   if (!hasSimulatableEmitter(motrScene)) return;
+  if (groupFade <= 0) return; // whole particle group not yet faded in
 
   // Iterate cells in a STABLE order (numeric id) so identical scenes render identical
   // frames across Map iteration whims.
@@ -488,7 +491,7 @@ export function applyEmitterSim(
 
     const drawn = simulateAndCompositeCell(
       output, emitter, cell, emEval, sceneTime,
-      color, dotRadius, budget, sprite, groupTint ?? null,
+      color, dotRadius, budget, sprite, groupTint ?? null, groupFade,
     );
     budget -= drawn;
   }

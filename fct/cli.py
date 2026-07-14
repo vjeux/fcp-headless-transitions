@@ -42,6 +42,13 @@ def main():
     cmd, rest = argv[0], argv[1:]
     sys.path.insert(0, REPO)
 
+    # numpy/score/baseline (and the FCP headless engine) live in the venv. Invoking
+    # via ./fct.sh uses the system python3 (no numpy), so every numpy-dependent
+    # command must re-exec under the venv python. `gen engine` is pure node (no numpy
+    # import) so it's exempt; `gen headless` re-execs below for the DYLD framework path.
+    if cmd in ("score", "regress", "gate", "cmp", "probe", "baseline", "census", "montage", "read"):
+        _reexec_under_venv_if_needed()
+
     if cmd == "gen":
         source = rest[0]
         slugs = _resolve_slugs(rest[1:])

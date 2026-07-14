@@ -26,6 +26,42 @@ export interface FieldTexture { img: ImageData; layerId: number; pin: number; po
 export interface ParticleGroupTint { r: number; g: number; b: number; intensity: number; mix: number; }
 
 /**
+ * Apply the FCP TintFx (PAETint / HgcTint) hard-light two-leg shader to one sRGB
+ * pixel (channels 0-255), returning the tinted RGB. Decoded VERBATIM from the
+ * embedded Metal fragment (see channel-mixer.ts HgcTint notes):
+ *   luma = dot(rgb01, wt601)
+ *   A            = (1-luma)*(tint-1)          // per channel, tint in 0-1
+ *   shadowLeg    = 2*A + 1
+ *   highlightLeg = 2*luma*tint - shadowLeg
+ *   sel          = (luma < 0.5) ? 1 : 0
+ *   tinted       = sel*highlightLeg + shadowLeg
+ *   out          = mix(rgb, tinted, intensity·mix)
+ * This is a HARD-LIGHT tint, NOT the `luma·tintColor` multiply the legacy path used:
+ * for the gray particle-field texture (152,152,152) + Diagonal's green tint it yields
+ * ≈(111,208,108) — far closer to the GUI-GT green wash than the multiply's dark
+ * (46,117,44) — and it leaves WHITE sprite highlights near-white (sel=0 ⇒ tinted≈1),
+ * which is why FCP's massed white-hexagon field reads as a PALE green, not a saturated
+ * dark green. Used by the particle-group tint path ONLY (field proxy + sprite sim);
+ * the registered `tintFilter` is intentionally left on its own model (a hard-light
+ * rewrite there regressed Leaves — see channel-mixer.ts).
+ */
+export function tintPixelHardLight(
+  r: number, g: number, b: number,
+  tr: number, tg: number, tb: number, amount: number,
+): [number, number, number] {
+  const r01 = r / 255, g01 = g / 255, b01 = b / 255;
+  const luma = 0.299 * r01 + 0.587 * g01 + 0.114 * b01;
+  const sel = luma < 0.5 ? 1 : 0;
+  const leg = (c01: number, t: number): number => {
+    const shadowLeg = 2 * ((1 - luma) * (t - 1)) + 1;
+    const highlightLeg = 2 * luma * t - shadowLeg;
+    const tinted = sel * highlightLeg + shadowLeg;
+    return c01 * (1 - amount) + tinted * amount;
+  };
+  return [leg(r01, tr) * 255, leg(g01, tg) * 255, leg(b01, tb) * 255];
+}
+
+/**
  * Find the TintFx on the nearest ancestor GROUP that contains a particle Emitter.
  * Structural (a Tint filter on a group whose subtree has an emitter) — never keyed
  * on a transition name. Reads the tint colour from the filter's Color folder
@@ -144,19 +180,35 @@ export function applyParticleFieldProxy(output: ImageData, scene: EvaluatedScene
   const fieldTime = scene.unwrappedTime ?? scene.time;
   const progress = Math.min(1, Math.max(0, fieldTime / end));
   if (progress <= pin || progress >= pout) return;
-  const win = pout - pin;
-  const ramp = Math.max(1e-3, 0.35 * win);
-  const up = smoothstep01((progress - pin) / ramp);
-  const dn = smoothstep01((pout - progress) / ramp);
-  const o = Math.min(up, dn);
+
+  // Envelope. DEFAULT (untinted) path keeps the original symmetric smoothstep bell —
+  // it is byte-identical to the shipped baseline and, without the green tint, the bell's
+  // gray coverage happens to track GT's greying mid-frames better than the real opacity
+  // (verified: real-opacity envelope alone REGRESSES the untinted default 10.99→10.46).
+  // When the particle-group TINT is active (T-B3 flag ON), switch to the texture LAYER's
+  // OWN evaluated Opacity (FCP's authored fade curve, decoded in test/_trace_texop.ts:
+  // op≈0 through f02, 0.03→0.31 f03–f11, ~0.31 plateau, then decays). With the correct
+  // hard-light green tint that real curve tracks GT's "hold photo A then green in" — the
+  // bell would instead flood the frame with green far past FCP's 0.31 plateau.
+  let o: number;
+  const texEval = tint ? scene.evalLayerById?.get(field.layerId) : undefined;
+  if (texEval) {
+    if (!texEval.visible) return;      // layer not yet on (op 0) — proxy contributes nothing
+    o = texEval.opacity;
+  } else {
+    const win = pout - pin;
+    const ramp = Math.max(1e-3, 0.35 * win);
+    const up = smoothstep01((progress - pin) / ramp);
+    const dn = smoothstep01((pout - progress) / ramp);
+    o = Math.min(up, dn);
+  }
   if (o <= 0) return;
 
   const ow = output.width, oh = output.height;
   const tw = tex.width, th = tex.height;
   const sameSize = tw === ow && th === oh;
   // The texture backdrop lives under the particle group's TintFx, so tint it the
-  // same way (luma·tintColor lerp by intensity·mix) before compositing. Matches the
-  // Tint filter model in channel-mixer.ts.
+  // same way (hard-light two-leg shader — see tintPixelHardLight) before compositing.
   const im = tint ? tint.intensity * tint.mix : 0;
   for (let y = 0; y < oh; y++) {
     const sy = sameSize ? y : Math.min(th - 1, (y * th / oh) | 0);
@@ -166,10 +218,7 @@ export function applyParticleFieldProxy(output: ImageData, scene: EvaluatedScene
       const si = (sy * tw + sx) * 4;
       let tr = tex.data[si], tg = tex.data[si + 1], tb = tex.data[si + 2];
       if (tint && im > 0) {
-        const lum = 0.299 * tr + 0.587 * tg + 0.114 * tb;
-        tr = tr * (1 - im) + lum * tint.r * im;
-        tg = tg * (1 - im) + lum * tint.g * im;
-        tb = tb * (1 - im) + lum * tint.b * im;
+        [tr, tg, tb] = tintPixelHardLight(tr, tg, tb, tint.r, tint.g, tint.b, im);
       }
       output.data[di]   = output.data[di]   * (1 - o) + tr * o;
       output.data[di+1] = output.data[di+1] * (1 - o) + tg * o;

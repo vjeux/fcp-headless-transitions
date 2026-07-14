@@ -686,9 +686,20 @@ export function composite(
   // T-B3 (flag-gated, default OFF): tint the proxy texture by the particle group's
   // ancestor TintFx so the backdrop matches Motion's green wash. Default path is the
   // untinted proxy (byte-identical to the shipped baseline).
-  const spriteSimOn = process.env.FCT_SPRITE_SIM === '1';
+  const spriteSimOn = process.env.FCT_SPRITE_SIM !== '0';
   const particleTint = spriteSimOn && field ? detectParticleGroupTint(scene) : null;
   if (field) applyParticleFieldProxy(output, scene, field, particleTint);
+
+  // The whole particle GROUP shares a fade-in envelope (FCP holds pure source A, then
+  // fades the tinted texture backdrop AND the massed sprites in together). The texture
+  // layer's evaluated opacity IS that group envelope (decoded: op 0 → 0.31 plateau).
+  // Gate the sprite sim by it so sprites don't render over the held photo in the early
+  // frames (GT stays pure photo A through ~f05, then greens). Normalised by the 0.31
+  // plateau and clamped to [0,1] so it reaches full strength at the plateau. Defaults
+  // to 1 when there's no field texture (non-Nature emitter scenes are unaffected).
+  const groupFade = spriteSimOn && field
+    ? Math.min(1, Math.max(0, (scene.evalLayerById?.get(field.layerId)?.opacity ?? 0.31) / 0.31))
+    : 1;
 
   // Emitter sim + render. T-B2 default: flat-COLOUR dots (byte-identical to baseline).
   // T-B3 (flag-gated FCT_SPRITE_SIM=1): renders the cell's REAL Particle Source sprite
@@ -707,7 +718,7 @@ export function composite(
   // byte-identical. Runs AFTER the field-texture proxy.
   applyEmitterSim(
     output, scene, { emitters: scene.emitters, particleCells: scene.particleCells },
-    spriteSimOn ? mediaResolver : undefined, particleTint,
+    spriteSimOn ? mediaResolver : undefined, particleTint, groupFade,
   );
 
   return output;
