@@ -488,7 +488,16 @@ found (never per-transition hardcoding). Current known:
   R7 ~f17), so full tiling completes ~f17 — but GT peaks at f09 then FADES (252→241→223→200→167), a
   TRANSIENT, not the late opaque tiling. So GT's f09 full-white is likely a mid-sweep OVERLAP peak
   that the 278px strips can't reproduce (panels probably wider in FCP, or more of them, or a separate
-  contributor). Unresolved mechanism; a wrong guess regresses. NO fix shipped; full decode recorded.
+  contributor). ACTIONABLE ROOT (2026-07-14): each panel ALSO has an animated LAYER Opacity (id=202)
+  fading 1→0 over LOCAL time −2.369..−2.069s, but the engine's single `curveTime = timeSec−offset`
+  (offset 3.67s → curveTime range −3.67..−2.87 for scene 0..0.80) NEVER reaches −2.37, so the panels
+  never fade — opacity holds 1.0 all transition. The panel POSITION curves (−3.67..−2.97) and OPACITY
+  curves (−2.37..−2.07) live in DIFFERENT local sub-ranges spanning ~1.6s total, which must be mapped
+  into the 0.80s clip by the TEMPLATE RETIME (playRange 1.668s), not a single constant offset shift.
+  So the real fix is a template-timeline retime for offset-authored panel shapes (scale local time to
+  the clip), NOT a position/opacity tweak — a time-authority change (risky; the current single-offset
+  model is what gives Rotate 18→32 dB, so must be done isolated + gate-green). Unresolved mechanism;
+  a wrong guess regresses. NO fix shipped; full decode recorded for a future focused time-authority effort.
 - **Multi / Multi-flip / Pinwheel / Swing / Flip / Rotate (12–14):** Movements 3D fold geometry,
   each near-matched; small residuals.
 Solved recently (see Done ledger): Divide A/B + wrap + mask-dilation, Duplicate/Squares A/B.
@@ -600,6 +609,18 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
               to 1.0 made it WORSE 10.33→9.21, f09 unchanged) → the bug is GEOMETRIC coverage, not
               fill alpha. Mechanism (wider panels / more panels / separate flash element) unresolved;
               a wrong guess regresses, so recorded the full decode for a future focused effort.
+              TEMPLATE-RETIME GAP (2026-07-14, the actionable root cause): the panels ALSO have an
+              animated LAYER Opacity (id=202) keyed to fade 1→0 at LOCAL time -2.37..-2.07s, but the
+              engine's single `curveTime = timeSec - offset` (offset 3.67s → curveTime range
+              -3.67..-2.87 for scene 0..0.80) NEVER reaches those opacity keyframes, so the panels
+              never fade. The position curves (local -3.67..-2.97) and the opacity curves (-2.37..
+              -2.07) live in DIFFERENT local sub-ranges that a single offset shift cannot reconcile —
+              they require the template's full RETIME (playRange duration 1.668s mapped into the
+              ~0.80s transition). The engine shifts but does NOT scale local→scene time for shapes.
+              NEXT: model the template playRange→transition retime for offset-authored shape panels
+              (scale, not just shift, curveTime) so both the sweep AND the opacity fade land in-window
+              — carefully, since the current single-offset shift is what makes Rotate/Flash correct
+              (gate every slug). This is time-authority work, its own focused chunk.
 - 2026-07-13k  T-B3 DEEP RE — FULLY DECODED the Nature/Diagonal early-frame wash + RETIRED the
               "particle population density" hypothesis from 13j. Method: instrumented the compositor
               layer-by-layer (temporary FCT_DBG_TOP / FCT_DBG_CHILD / FCT_DBG_RENDER traces, all
