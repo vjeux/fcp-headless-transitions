@@ -338,9 +338,29 @@ export interface BloomParams {
  *        out = max(r1, 0)
  *      Register wiring: hg_Params[0] = Brightness/50 (cc04: d8/50, d9=50 via fcsel doDarkBloom);
  *      hg_Params[1].x = doClip ? 1.0 : +FLT_MAX (cc44: fcsel on withDoClip=w25).
- *      => out = original + blurred·(Brightness/50), clamped to (Clip to White ? 1 : ∞).
+ *      => out = original + blurred·(withBrightness/50), clamped to (Clip to White ? 1 : ∞).
  *      (The legacy HGTransform::Translate(0,-2.25,0) at cc98 is GATED on versionAtCreation==0
  *       — a pre-modern compat echo-offset — and is SKIPPED on the current render path; omitted.)
+ *
+ * ── PARAM PREP decoded 2026-07-14t from -[PAEBloom canThrowRenderOutput:…] @0xc610 ──
+ * The UI params are TRANSFORMED before bloomHeliumRender is called (this was the missing
+ * piece — the raw Amount/Brightness/Threshold are NOT what the render method receives):
+ *   withRadius     = Amount (idx1)              [blur radius inside = 0.5·withRadius]
+ *   withBrightness = |Brightness − 50| · 4      (c790-c7a4: (Bright−50)·4 then fabs)
+ *                    → e.g. Brightness=100 → 200 → gain=200/50=4.0; Brightness=50 → 0
+ *   withThreshold  = Threshold, OR (100 − Threshold) when Brightness < 50 (dark-bloom invert)
+ *   doDarkBloom    = (Brightness < 50)          (c7dc cset mi)
+ *   withXScale     = Horizontal · 0.01 · (scale.x / max(scale.x,scale.y))   [d11=0.01 @0x268c48]
+ *   withYScale     = Vertical  · 0.01 · (scale.y / max(scale.x,scale.y))
+ * NOTE (unresolved, gated OFF): with these EXACT register-verified transforms the 360° Bloom
+ * PEAK matches GT (f13–14 ≈223 vs 227) but the MID-RAMP still over-blooms (10.48 < baseline
+ * 11.51). Bloom-ALONE (Glow disabled) STILL over-blooms (f06 112 vs GT 98, f10 191 vs 138), so
+ * it is NOT the co-stacked Glow and NOT the (now register-verified) Bloom filter math — it is a
+ * threshold-CURVE-response / temporal effect: GT holds flat until ~f06 then ramps to the f14
+ * peak, while the engine's threshold (linear interp of the 100→3→100 curve, and even the
+ * flat-tangent bezier ≈41 at f06) lets the ×10 extract bloom the base's many bright pixels
+ * (~36% have max-channel>0.63) far too early. Needs the curve-time/onset decode; smoothstep
+ * ease was TESTED and is WORSE. Gated behind FCT_BLOOM_FLOAT until resolved.
  */
 export function bloomFilter(input: ImageData, params: BloomParams): ImageData {
   const { amount, brightness, threshold, clipToWhite } = params;
@@ -351,22 +371,35 @@ export function bloomFilter(input: ImageData, params: BloomParams): ImageData {
   const n = src.length;
   const px = width * height;
 
-  // Step 1 — HgcBloomThreshold extract: rgb = max(color·10 − Threshold/10, 0), no alpha clamp.
-  const thrFloor = threshold / 10; // BIAS = Threshold/10 (Threshold is the raw 0–100 param).
+  // canThrowRenderOutput param prep (register-decoded @0xc610, 2026-07-14t): the UI params
+  // are TRANSFORMED before bloomHeliumRender receives them.
+  //   withRadius     = Amount            (blur radius inside = 0.5·withRadius)
+  //   withBrightness = |Brightness − 50| · 4    → combine gain = withBrightness/50
+  //   withThreshold  = Threshold, OR 100−Threshold when Brightness<50 (dark-bloom invert)
+  //   doDarkBloom    = (Brightness < 50)
+  const darkBloom = brightness < 50;
+  const withBrightness = Math.abs(brightness - 50) * 4;
+  const withThreshold = darkBloom ? 100 - threshold : threshold;
+  const withRadius = amount;
+
+  // Step 1 — HgcBloomThreshold extract. Normal: rgb = max(color·10 − Threshold/10, 0).
+  //   doDarkBloom flips the SCALE/BIAS sign (s13/s14 fcsel): rgb = max(−color·10 + Thr/10, 0).
+  const scale = darkBloom ? -10 : 10;
+  const bias = (darkBloom ? 10 : -10) * withThreshold / 100; // s14·Threshold/100
   const bright = new Float32Array(px * 3);
   for (let i = 0, j = 0; i < n; i += 4, j += 3) {
     const r = src[i] / 255, g = src[i + 1] / 255, b = src[i + 2] / 255;
-    let er = r * 10 - thrFloor; if (er < 0) er = 0;
-    let eg = g * 10 - thrFloor; if (eg < 0) eg = 0;
-    let eb = b * 10 - thrFloor; if (eb < 0) eb = 0;
+    let er = r * scale + bias; if (er < 0) er = 0;
+    let eg = g * scale + bias; if (eg < 0) eg = 0;
+    let eb = b * scale + bias; if (eb < 0) eb = 0;
     bright[j] = er; bright[j + 1] = eg; bright[j + 2] = eb;
   }
 
-  // Step 2 — blur the extracted highlights in FLOAT at radius 0.5·Amount (register trace).
-  const blurred = decimatedBlurFloatRGB(bright, width, height, 0.5 * amount);
+  // Step 2 — blur the extracted highlights in FLOAT at radius 0.5·withRadius (register trace).
+  const blurred = decimatedBlurFloatRGB(bright, width, height, 0.5 * withRadius);
 
-  // Step 3 — HgcEchoScaleAndAdd: out = orig + blurred·(Brightness/50), clip to (doClip ? 1 : ∞).
-  const gain = brightness / 50;
+  // Step 3 — HgcEchoScaleAndAdd: out = orig + blurred·(withBrightness/50), clip (doClip ? 1 : ∞).
+  const gain = withBrightness / 50;
   const out = new Uint8ClampedArray(n);
   for (let i = 0, j = 0; i < n; i += 4, j += 3) {
     let or_ = src[i] / 255 + blurred[j] * gain;

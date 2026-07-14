@@ -828,6 +828,26 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14t  S4/T-D2c BLOOM — decoded the canThrowRenderOutput PARAM PREP (the missing transform
+              layer) + isolated the residual to a threshold-curve/temporal effect (NOT Glow, NOT the
+              Bloom math). Register-traced -[PAEBloom canThrowRenderOutput:…] @0xc610: the UI params
+              are TRANSFORMED before bloomHeliumRender receives them — withRadius=Amount,
+              withBrightness=|Brightness−50|·4 (so Brightness=100 → gain 200/50=4.0, NOT 2.0),
+              withThreshold=Threshold (or 100−Threshold if Brightness<50), doDarkBloom=(Brightness<50),
+              withXScale/YScale=Horiz/Vert·0.01·(scale/max). Wired all of these into bloomFilter
+              (glow.ts). CRITICAL ISOLATION: rendered Bloom-ALONE with the Glow filter disabled (temp
+              FCT_NO_GLOW diagnostic, reverted) — it STILL over-blooms the mid-ramp (f06 112 vs GT 98,
+              f10 191 vs 138), so the over-bloom is NEITHER the co-stacked Glow NOR the now
+              register-verified Bloom math. It is a threshold-CURVE-response/temporal onset: GT holds
+              flat (~89) until ~f06 then ramps to the f14 peak, while the engine's threshold (linear
+              interp of the 100→3→100 curve — and even the exact flat-tangent bezier ≈41 at f06) lets
+              the ×10 extract bloom the base's many bright pixels (~36% have max-ch>0.63) far too early.
+              Peak still matches GT (f13–14 ≈223 vs 227). Kept FCT_BLOOM_FLOAT default OFF (gate
+              re-confirmed 0/0, byte-identical). NEXT: decode the curve-time/onset (why FCP's effective
+              threshold stays high through f06) — likely the filter evaluating its curve on the filter's
+              OWN 0.25s timeline vs the engine's 0.2667s span, or an HGBlur/threshold temporal property;
+              decode-don't-fit (smoothstep ease TESTED, worse). This is the sole remaining blocker to
+              flipping the flag ON and shipping the verified peak-fix. tsc + no-hardcode green.
 - 2026-07-14s  S4/T-D2c BLOOM — COMPLETED the bloomHeliumRender register trace (decode-don't-fit) +
               corrected the blur radius; float bloom landed FLAG-OFF (byte-identical, gate 0/0) as a
               register-verified building block. The prior @0xe58a addr was the x86_64 slice — the arm64
