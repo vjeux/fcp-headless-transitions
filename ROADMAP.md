@@ -306,6 +306,71 @@ T-F2  TODO    Smear drop-zone/retime tail                         Movements/Smea
                The deficit is TRANSITION timing: the smear tail continues PAST the drop-zone timeout    deficit is the tail continuing past the
                (content vanishes at 0.467s; a naive clamp made it WORSE). Needs focused drop-zone/      drop-zone timeout. Timemap/retime RE.
                retime RE, NOT filter math. Decode the retime envelope vs GT tail; gate 0 regressions.]
+T-K1  TODO    Replicator framing family — Combo_Spin/Multi        Combo_Spin (11.21), Multi (11.95).
+              [Same S6 framing/replicator-camera class as Video_Wall/Clone_Spin (T-H2) but the         Replicator-Clones grid transitions
+               spin-combo + multi variants. Decode the replicator cell layout + per-cell spin/scale    that mis-frame/mis-spin the grid.
+               schedule + the framing camera. COORDINATE with T-H2 (shared framing code) — rebase on    Coordinate w/ T-H2 framing fix.
+               its result if it lands first. Generic across the replicator family; gate 0 regressions.]
+T-K2  TODO    Slide_In reveal/slide timing                        Stylized__Slide_In (10.25).
+              [Census-decode: Slide_In is a Stylized kinetic slide. Score --frames to find the worst   A kinetic slide-in that mis-times
+               band; decode the slide/reveal schedule vs GT (likely a drop-zone slide offset or a       the slide or reveal vs GT.
+               kinetic-panel/local-time re-anchor like the S7 panel-retime win). Gate 0 regressions.]
+T-K3  TODO    Loop/Heart arc-ornament reveal gate                 Stylized__Loop (12.92), Heart (13.49).
+              [DECODED (docs/notes/STYLIZED_LOOP_HEART_REVEAL_RE.md): the B-reveal is a media Image-    B-reveal is a shape.png Image-Mask
+               Mask (shape.png teardrop/loop) whose growth GATES when photo B appears; a gradient       whose write-on gates B; engine
+               swoosh STROKE decorates the arc. Engine reveal-timing completes wrong. Decode the arc    reveal completes at wrong time.
+               write-on envelope that gates B; may share the S8 write-on-accumulate machinery.]
+T-K4  TODO    Squares replicator-mask reveal                      Objects__Squares (12.46).
+              [Census: Squares uses a replicator-mask-reveal A/B binding (see Duplicate, which scores   Replicator-mask reveal grid; the
+               15.51 — same family, working). Compare Squares' mask/reveal wiring to Duplicate's;        square tiles reveal B in wrong
+               decode why Squares' per-tile reveal diverges. Generic; gate 0 regressions.]              order/timing vs the working Duplicate.
+T-K5  TODO    Swing/Pinwheel 3D-fold residual                     Swing (12.89), Pinwheel (13.27).
+              [T-G1 landed the Movements 3D-fold (Multi/Flip/Pinwheel/Swing share it). These two still  3D-fold slugs with residual
+               trail — score --frames + decode the residual (fold axis phase, back-face source bind,    deficit after the T-G1 fold fix.
+               or z-order). Reuse the T-G1 fold machinery; generic; gate 0 regressions.]
+T-L1  TODO    Underwater filter black-render fix                  Objects/other Underwater users.
+              [underwater.ts renders BLACK for t>0 headless (known bug — the runtime GPU noise field    Underwater renders black past t=0;
+               is unrecoverable, but the BASE image must still pass through — currently the whole       find why the base image is dropped
+               frame goes black). Decode why the base drops; make the base image survive with the       and restore it (noise field aside).
+               noise as an overlay. Verify vs headless where possible; gate 0 regressions.]
+T-M1  TODO    FILTER-P2: Tint hard-light G/B transfer            filter: Tint (HgcTint). Isolated
+              [P2-TINT1 PARTIAL: hard-light shader transcribed; RED channel matches headless but G/B    headless-verified via
+               off ~21 err (TintFx / Color-Space=3 nuance unpinned). Re-derive the two-leg hard-light   tools/re/filter_probe.py; add a
+               transfer for G/B from Filters.bundle HgcTint (cite the __const luma wts + transfer).      sweep entry to filter_sweeps.json.
+               VERIFY vs `tools/re/filter_probe.py tint <params>` across the color sweep; gate green.]   Full param space, not just built-ins.
+T-M2  TODO    FILTER-P2: Levels two-stage affine remap           filter: Levels (HgcLevels). 27+
+              [P2-LVL1: FCP Levels is a TWO-STAGE affine remap (in/out black+white per stage) with      transitions use Levels — gate is
+               pow(gamma) between AND after, then Mix; TS is single-stage. Built-ins only set stage-1   load-bearing. Verify two-stage +
+               so it's identity in practice, but full param space needs the second stage + output-      output-black expansion vs headless
+               black expansion. Implement + VERIFY vs filter_probe across the full Levels param space   probe across full param space.
+               (in/out black/white, gamma, mix). Gate 0 regressions (27+ users — careful).]
+T-M3  TODO    FILTER-P2: HSV multiplicative Value + hue           filter: HSV (HgcHueSaturation).
+              [P2-HSV1: FCP Value is a MULTIPLIER (hg_Params[0].z); TS ADDS brightness. Also confirm    Value should multiply not add;
+               saturation mix uses Rec.709 (TS uses 601) and large-hue-rotation behavior. Switch to     saturation wts 709 vs 601; verify
+               multiplicative Value, reconcile luma wts. VERIFY vs filter_probe hsv sweep (sat/value/    the full HSV sweep vs headless.
+               hue/gray) across full param space. Gate 0 regressions (Color_Panels + others).]           Full param space.
+T-M4  TODO    FILTER-P2: ChannelMixer alpha-column reconcile      filter: ChannelMixer. Color_Planes
+              [P2: FCP rows are 4-wide dots incl. the ALPHA column (offset via r1.w=1), clamps ALPHA    + others. Reconcile the alpha
+               only, re-premults by NEW alpha. TS uses separate offsets[] and clamps ALL channels.      column + clamp/premult model vs
+               Reconcile to the 4-wide-dot + alpha-only-clamp + re-premult model. VERIFY vs filter_     the decoded 4-wide-dot shader;
+               probe channelmixer sweep across full matrix incl. alpha/offset. Gate 0 regressions.]     verify full matrix vs headless.
+T-M5  TODO    FILTER-P2: Colorize Intensity=1 luma-vector         filter: Colorize. Built-ins use
+              [P2: TS structure matches (black->white luma remap) and Intensity is honored, but at      Intensity=1 so gate is neutral, but
+               Intensity=1 the B-channel luma vector mismatches (FCP luma != 601 dot). Decode the        the Intensity=1 endpoint mismatches
+               exact luma weights + the colorize-Amount (hg_Params[2]) vs final Mix (hg_Params[3])       FCP. Decode luma wts + amount/mix
+               split from HgcColorize. VERIFY vs filter_probe colorize sweep. Gate 0 regressions.]        split; verify full sweep vs headless.
+T-M6  TODO    FILTER-P2: Gaussian decimation kernel + edge mode   filter: Gaussian Blur. 3+ users,
+              [P2-GB1: sigma=Amount/6.67 is DONE, but FCP convolves a small fixed-tap kernel on the     load-bearing (Blurs family). Decode
+               DECIMATED image with HGBlur-computed weights (HGBlur::ComputeDecimation) + a specific    HGBlur::ComputeDecimation + edge
+               edge mode; TS builds a full 2r+1 kernel sigma=r/3 with an assumed edge mode. Decode the  mode; verify decimated kernel +
+               decimation + weights + edge handling; VERIFY vs filter_probe gaussian sweep. Gate 0.]     edges vs headless across sweep.
+T-M7  TODO    FILTER-P2: sweep-harness audit — add missing sweeps filter tooling: tools/re/
+              [The full-parameter-space verification the OBJECTIVE requires means EVERY filter needs a  filter_sweeps.json + filter_verify.
+               headless sweep covering params the 65 built-ins DON'T exercise. AUDIT filter_sweeps.json  Ensure every registered filter has
+               vs the 22 registered filters: for each filter, confirm its sweep covers the FULL param   a full-param-space sweep entry +
+               space (not just built-in values), add missing sweep entries, and run the full sweep      that `filter_sweep.py` runs green
+               (`python3 tools/re/filter_sweep.py`) to get a fresh PASS/FAIL/CEILING scoreboard. Write   or documents each CEILING. Report
+               the scoreboard to docs/FILTER_RE_PHASE2.md. This UNBLOCKS/scopes T-M1..M6. Gate 0.]       the scoreboard.
 ```
 Max concurrency today = the 8 rows with no `after:` (T-A1,A2,B1,D1,E1,F1,G1 + all four T-D2*
 after T-D1) run simultaneously. Once parents merge, the dependents fan out to MORE parallelism,
