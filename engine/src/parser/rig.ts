@@ -104,8 +104,9 @@ export function parseRigWidgets(sceneEl: Element, factories: Map<number, string>
  * we accept any `<parameter>` with entries so an off-name popup still resolves.
  *
  * For menus whose tags already equal display order (tags==[0,1,2,…]) this returns
- * `num` unchanged (identity), so it only alters selection for the reordered menus
- * (Movements/Push tags=[0,3,1,2], Movements/Switch tags=[1,2]).
+ * `num` unchanged (identity). The only factoryID-13 menu in the corpus with a
+ * reordered tag list is Movements/Push (tags=[0,3,1,2]); this call site is scoped
+ * to factoryID 13, so factoryID-12 menus (e.g. Switch tags=[1,2]) never reach here.
  */
 function resolveMenuEntryTag(sn: Element, widgetName: string, num: number): number | undefined {
   const params = Array.from(sn.getElementsByTagName('parameter'));
