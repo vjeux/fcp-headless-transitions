@@ -466,6 +466,37 @@ found (never per-transition hardcoding). Current known:
   each near-matched; small residuals.
 Solved recently (see Done ledger): Divide A/B + wrap + mask-dilation, Duplicate/Squares A/B.
 
+### S8. Procedural / animated group masks  [TODO — discovered 2026-07-13k · HIGH coverage]  (task T-H1)
+DECODED (Stylized/Wipes Diagonal): the effects field is revealed by an `<mask name="Animated mask"
+factoryID="11">` attached to the "Gradient and background" GROUP (id 999207202). The mask is
+SELF-DRAWING — it contains an Emitter replicator ("Emitter" 987201535 → "Cell copy") that paints a
+shape along a stroke, sweeping DIAGONALLY from bottom-left to fill the frame. Its rendered content IS
+the group's alpha matte, so the gray Background + hard-light green field are revealed progressively
+(GT greenness grid: green sweeps BL→TR; f05 only BL corner, f08 lower-left ~half green, TR still
+brown). My engine has NO handling for a `<mask>` node WITHOUT a `Mask Source` reference (parser only
+captures Image Mask = masks that POINT to another shape/group; this one draws its own alpha), so the
+"Gradient and background" group renders UNMASKED and washes the whole frame gray from its hard
+timing.in=0.100s (≈f03). THIS is the true root cause of the Diagonal f03 wash (NOT population
+density, NOT the field proxy — both retired; see progress log 13k).
+COVERAGE: a census of all 65 built-ins found **16 slugs** with non-Image-Mask procedural `<mask>`
+nodes (factoryID 11/12/13/14/15 = various shape/animated/emitter mask kinds): Objects/Arrows,
+3D_Rectangle, Combo_Spin, Stylized/Center, Center_Reveal, Color_Panels, Diagonal (×2 slugs),
+Glide, Heart, Light_Sweep, Loop, Lower, Slide_In. Several are current low performers (Lower 9.0,
+Center 11.8, Glide, Loop, Heart) → this is a genuinely GENERIC, high-value subsystem, not a
+per-transition patch.
+BUILD PLAN (generic, no transition names):
+  1. Parser: capture `<mask>` nodes that have NO Mask Source but DO contain drawable content
+     (shape geometry and/or an Emitter replicator) — a "procedural mask". Store its subtree so the
+     compositor can render it to an alpha buffer.
+  2. Compositor: render the procedural mask's content to a single-channel alpha buffer at the
+     evaluated time (rasterize its shape(s); sim its emitter-along-stroke if present), then use that
+     as the owning layer/group's alpha matte (multiply group alpha), honouring Invert + Mask Blend
+     Mode already decoded for Image Mask.
+  3. The cumulative-ancestor-opacity primitive (buildCumulativeOpacity, built + reverted in 13k) is
+     the correct COMPANION gate for the emitter cells and should be reintroduced together so the
+     net is a win (alone it regressed because early sprites compensated for the unmasked wash).
+VERIFY: gate green; expect Diagonal pair + Lower/Center/Glide/Loop to move up together.
+
 ---
 
 ## Reference — implemented subsystems (DONE; documented so nothing is undocumented)
