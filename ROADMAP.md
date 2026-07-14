@@ -508,6 +508,48 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13j  T-B3 FOLLOW-UP: root-caused the early-frame wash (f03–f06 ≈6.6 dB while GT holds
+              pure photo A), NO code change shipped (two curve fixes tested + REVERTED — gate stays
+              at the 2026-07-13i baseline, 0/0). DECODED (via a temporary `[field]` proxy trace +
+              per-frame mean-RGB reads, one truth = GUI GT):
+              (a) the backdrop proxy is NOT the culprit — at f03 its o=0.030 and the tinted texture
+                  is (75,193,72), so it contributes ~3% and the composite stays brown (~130,89,58).
+              (b) per-sprite alpha is NOT the culprit either — the wash is PARTICLE POPULATION
+                  DENSITY: the sim keeps thousands of sprites alive at f03 (cell in-times are
+                  NEGATIVE / pre-roll, so streamed=floor((sceneTime−inSec)·birthRate) is already
+                  huge), and 500+ overlapping white-hexagon sprites source-over-stack to ≈0.99
+                  coverage even at groupFade²-suppressed alpha 0.009 (1−(1−0.009)^500).
+              TESTED + REJECTED: (1) real-opacity backdrop envelope on the untinted default — known
+              to regress 10.99→10.46. (2) groupFade² sprite gate — helps Diagonal +0.04 (full-res)
+              but REGRESSES Glide 14.32→14.21 (gate-res) because Glide's texOp curve differs; a
+              single global exponent is a fit, not a decode, so reverted per careful-coder.
+              REAL FIX (next, substantial S3 decode): FCP's emitter start/pre-roll semantics + the
+              particle-DENSITY ramp — the field is genuinely SPARSE at onset and fills in; the sim's
+              pre-roll population must be cut to match (likely: particles born before the group's
+              own fade-in are not yet emitted, OR density scales with the group envelope at the
+              COUNT level with a per-slug-correct curve derived from each cell's real birthRate/life,
+              not a blanket square). Instrument left in place: engine/test/_trace_texop.ts.
+
+- 2026-07-13j  T-B3 FOLLOW-UP — ROOT-CAUSED the f03–f06 early-frame wash (Diagonal stuck ~6.6 dB
+              while GT holds pure photo A), and REJECTED two curve-shape fixes against the GUI GT.
+              INSTRUMENTED the field proxy (FCT_DBG_FIELD trace) + the texture-opacity curve
+              (_trace_texop.ts): at f03 the BACKDROP contributes only 3% (o=0.030, tinted (75,193,72))
+              → composites to ~(130,89,58), essentially still brown. So the wash to (194,185,177) is
+              NOT the backdrop and NOT per-sprite alpha — it is PARTICLE POPULATION DENSITY. The sim
+              streams particles from the cell's (negative, pre-roll) in-time, so THOUSANDS are alive
+              at f03; even at groupFade²-suppressed alpha ≈0.009 each, 500+ overlapping sprites stack
+              source-over to ~0.99 coverage (1−(1−0.009)^500). No per-particle alpha curve can fix a
+              too-dense population. TESTED + REJECTED: (a) real-opacity backdrop envelope alone
+              regresses the untinted default (known); (b) groupFade² sprite gate — helped Diagonal
+              +0.04 at full-res but REGRESSED Glide 14.32→14.21 at gate-res (its texOp curve differs),
+              so a global curve-shape guess is wrong. Reverted to the shipped linear groupFade; gate
+              clean (0/0). CONCLUSION: the real lever is the S3 PARTICLE-POPULATION model — decode
+              FCP's emitter start / pre-roll semantics (is the cell in-time truly negative? does FCP
+              pre-roll the stream or ignite at t=0?) and the density ramp, so the early field is
+              genuinely SPARSE (few particles) rather than dense-but-dim. That is the named next step;
+              it is a population decode, not a constant nudge. No engine change committed this tick
+              (revert = shipped state); this is a decode/"do-not-ship-a-regressing-guess" record.
+
 - 2026-07-13i  T-B3 SPRITE SUBSYSTEM SHIPPED as a NET WIN — flag flipped ON by default (rule 9:
               a whole working subsystem verified to improve the target metric, 0 regressions).
               Decoded and landed the two calibration constants + the sprite-onset gate that the
