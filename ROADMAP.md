@@ -445,17 +445,35 @@ gated slugs, for two now-fully-measured reasons — NEITHER is the filter maths:
     SettleB` does NOT rescue it: B.out=0.534 ≪ endSec=1.270, so the "B lives to the end" gate
     correctly rejects it. A naive wrap-cancel would expose a BLACK tail (both drop zones dead by
     0.534s), so the content must PERSIST (hold B) past 0.534s while the bloom filter time plays on.
-  • **360°__360°_Bloom (regressed): the 360° BAND crossfade path BYPASSES the filter entirely.**
-    transition360.ts treats Bloom as "filter inert / plain crossfade" (its detect360Band comment
-    literally says "blur/bloom filter is Amount≈0/inert") — but the REAL params are Amount=32,
-    Brightness=100, Threshold→3 at the peak (MEASURED at the CORRECT frame times: span=0.2667s so the
-    peak is f12–f13 = t≈0.14s, NOT t≈1.1s — an earlier trace used a wrong span=2.0). So the 360°
-    band renderer never applies the bloom → the peak stays dim. Wiring bloom INTO the 360° band path
-    is a separate sub-step.
-So the fix needs THREE things landed together: (1) float-buffer bloomFilter (DONE, reverted, ready);
+  • **360°__360°_Bloom (regressed 11.51→10.48): NOT a band-path bypass — CORRECTED 2026-07-14r.**
+    The earlier claim here ("the 360° BAND crossfade path BYPASSES the filter") is FALSE and now
+    retired: VERIFIED that `detect360Band` returns NULL for 360° Bloom (it is NOT in the 7 slugs the
+    detector fires on: Divide/Circle_Wipe/Push/Slide/Reveal_Wipe/Gaussian_Blur/Wipe). 360° Bloom takes
+    the NORMAL filter path — the stacked Gaussian Blur → Glow → Bloom all execute LIVE (no wrap, no
+    band bypass). So the bloom DOES fire; it just under-bloomed at the PEAK under the 8-bit path.
+    2026-07-14r BUILT + MEASURED the decode-faithful FLOAT bloomFilter (extract max(color·10 −
+    Threshold/10,0) → decimatedBlurFloatRGB [new Float32 mirror of the u8 decimated blur, same kernel/
+    decimation] → additive orig+blur·(Brightness/50), clip@1). RESULT: the PEAK is now CORRECT —
+    f13–f14 luma 194→**222.8 vs GT 227** (the 8-bit clamp that lost the >1 headroom is fixed, proven).
+    BUT the MID-RAMP over-blooms: f06 132 (GT 98), f09 191 (GT 119), f10 209 (GT 138) — it reaches full
+    bloom ~3–4 frames too early, so net 11.51→10.48 (REVERTED, clean). THREE measured causes, none a
+    tuned constant: (a) the threshold-curve keypoints are interp="1" with FLAT stored tangents
+    (outputTangentValue=0) — tested treating them as smoothstep-ease, made it slightly WORSE (10.39),
+    so that's not it; (b) the co-stacked GLOW (Radius 0→13, Threshold 1→0.1) ALSO ramps and blooms,
+    compounding with Bloom — the two filters' interaction/order isn't modeled; (c) GT's bloom LAGS its
+    own threshold curve by ~2–4 frames (peak lum at f14 while threshold-min is f10–12) = a real FCP
+    temporal ACCUMULATION/persistence the engine doesn't model. The exact HgcBloomThreshold param
+    packing (the −2.25 bias + ±10 range constants noted below) still needs the full bloomHeliumRender
+    @0xe58a register trace. NEXT: (1) complete that register trace with tools/re/read_const.py to nail
+    scale/bias/gain exactly; (2) decode the Glow↔Bloom stacking; (3) model the temporal lag — THEN the
+    float peak-fix (verified-correct building block) lands as a net win. Do NOT ship the partial decode
+    (regresses) and do NOT fit the ramp.
+So the fix needs THREE things landed together: (1) float-buffer bloomFilter (BUILT+peak-VERIFIED 2×,
+reverted — needs the register-trace packing + Glow-stack + temporal-lag before it's a net win);
 (2) Lights__Bloom wrap-cancel + B-content-persistence past 0.534s (time-authority change, risky);
-(3) apply the bloom filter inside the 360° band crossfade path (transition360.ts). Multi-step; decode
-notes in glow.ts. (b) Then S2 for the STACKED colour bucket (Tint/Colorize/Brightness>1).
+(3) 360° Bloom already takes the normal filter path (NOT the band path — corrected above), so the
+bloom fires live there; the sub-step is the packing/stack/lag decode, not band-wiring. Multi-step;
+decode notes in glow.ts. (b) Then S2 for the STACKED colour bucket (Tint/Colorize/Brightness>1).
 **DoD/Verify:** subsumed by S2's gate.
 
 ### S5. Gradient generator  [PREMISE CORRECTED — mostly folds into S1]  (task T-C1 · small)
@@ -790,6 +808,24 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14r  S4/T-D2c BLOOM — BUILT + PEAK-VERIFIED the float bloomFilter; REVERTED clean (mid-ramp
+              regresses). Anti-timidity: proven building block + clean reversal, NOT a diagnosis-only
+              no-op. (1) CORRECTED a false premise (rule 8): the ROADMAP claimed 360° Bloom's band path
+              "BYPASSES the filter" — VERIFIED detect360Band returns NULL for Bloom (fires only on the
+              other 7 push/slide/wipe 360° slugs), so 360° Bloom takes the NORMAL path and its stacked
+              Gaussian Blur→Glow→Bloom all fire LIVE. (2) Implemented the decode-faithful FLOAT bloom
+              (glow.ts bloomFilter + gaussian-blur.ts decimatedBlurFloatRGB — a Float32 mirror of the u8
+              decimated blur, identical kernel/decimation so the blur SHAPE matches HGBlur, but no 8-bit
+              clamp so the ×10 extract's >1 cores survive). (3) MEASURED vs GUI-GT: the PEAK is FIXED —
+              360° Bloom f13–f14 luma 194→222.8 vs GT 227 (the 8-bit headroom clamp the old glowFilter
+              path imposed is gone, proven correct). BUT the mid-ramp over-blooms ~3–4 frames early
+              (f09 191 vs GT 119) → net 11.51→10.48, so REVERTED (tree clean, gate re-confirmed 0/0).
+              Isolated 3 decode-shaped causes (none a tuned constant): flat-tangent interp=1 threshold
+              curve (tested smoothstep ease → worse, ruled out), the co-stacked Glow ALSO ramping/
+              compounding, and a real FCP bloom temporal-LAG (GT peaks ~2–4 frames AFTER threshold-min).
+              NEXT: full bloomHeliumRender @0xe58a register trace (scale/bias/gain packing via
+              tools/re/read_const.py) + Glow↔Bloom stack order + temporal-lag model, THEN the verified
+              float peak-fix lands as a net win. Full detail in S4 section. No pixels shipped (revert).
 - 2026-07-14q  FORENSIC premise-correction (rule 8/9a, docs-only): T-D2c "Glow/Bloom into linear —
               DONE" was FALSE. Traced glow.ts blob history: b8a6c8e added the linear branch (flag-OFF,
               7× isLinearCompositeEnabled), then eefb0ec (T-B2 Emitter SIM, cut from a stale glow.ts)
