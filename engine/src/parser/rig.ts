@@ -52,16 +52,33 @@ export function parseRigWidgets(sceneEl: Element, factories: Map<number, string>
           if (name === 'Pop-up') {
             value = Math.max(0, num);
           } else {
-            // Direction (and other discrete menu) widgets: the stored value is the
-            // menu TAG, which maps to a snapshot by matching the snapshot's declared
-            // "Value". Push's Direction declares snapshot Values [0,1,2,3] (0-based,
-            // so value N = index N), but Movements/Switch's Direction declares
-            // Values [1,2] with node ids [2,3] (value 1 = "From Left" = the FIRST
-            // snapshot = ordinal index 0). Resolving the value to the ORDINAL index
-            // of the matching snapshot Value handles both without a snapId-1 offset
-            // assumption. Falls back to the raw value when no snapshot list matches.
-            const ord = resolveDiscreteWidgetOrdinal(sn, num);
-            value = ord !== undefined ? ord : num;
+            // Direction (and other discrete menu) widgets. Two widget FLAVOURS exist:
+            //   • factoryID 13 (Push / Reflection / Color_Planes): the popup's stored
+            //     numeric (`<parameter name="Direction" id="100" value="N">`) is the
+            //     0-based DISPLAY INDEX of the selected menu entry — NOT the entry's
+            //     tag. FCP feeds the rig the selected entry's `tag`, then the rig picks
+            //     the snapshot whose declared "Value" equals that tag
+            //     (getSnapshotIDsForValue type-2, arm64 disasm: exact Value match). See
+            //     docs/notes/RIG_DIRECTION_FORENSICS.md.
+            //       Push.motr: entries (display order) tags = [0,3,1,2]; stored value=2
+            //       → display entry[2] "Top to Bottom" → tag 1 → snapshot Value==1 →
+            //       ordinal 1. The engine previously matched the stored value (2)
+            //       directly against snapshot Values → ordinal 2 (the WRONG "Bottom to
+            //       Top" snapshot), pushing source A DOWN instead of UP (headless/GUI
+            //       GT: A slides up, B enters from bottom). GUI-GT verified: Push
+            //       12.3→17.4 dB. Reflection/Color_Planes have natural-order tags
+            //       [0,1,…] so the remap is an identity no-op for them.
+            //   • factoryID 12 (Switch / Scale / Flip): the stored numeric is ALREADY
+            //     the tag (Switch tags=[1,2], value=1 = "From Left" = the first
+            //     snapshot). Remapping it through the menu as a display index would
+            //     wrongly select the second entry (measured: Switch 11.7→10.1). So the
+            //     display-index→tag remap is scoped to factoryID 13 ONLY; factoryID 12
+            //     keeps matching the stored value against snapshot "Value" directly.
+            const eff = fid === 13
+              ? (resolveMenuEntryTag(sn, name, num) ?? num)
+              : num;
+            const ord = resolveDiscreteWidgetOrdinal(sn, eff);
+            value = ord !== undefined ? ord : eff;
           }
         } else {
           // Continuous-value widget (e.g. an Aspect Ratio pop-up storing 1.7777…).
@@ -75,6 +92,41 @@ export function parseRigWidgets(sceneEl: Element, factories: Map<number, string>
     }
   }
   return widgets;
+}
+
+/**
+ * A discrete menu popup widget stores its selection as the chosen entry's DISPLAY
+ * INDEX (0-based position in the `<entry name=… tag=…/>` list). FCP feeds the rig
+ * the selected entry's TAG. Return that tag for a given stored display index, or
+ * undefined when the widget has no such menu popup (caller falls back to the raw
+ * value). The popup is the direct-descendant `<parameter>` carrying `<entry>`
+ * children — usually the one whose name matches the widget (e.g. "Direction"), but
+ * we accept any `<parameter>` with entries so an off-name popup still resolves.
+ *
+ * For menus whose tags already equal display order (tags==[0,1,2,…]) this returns
+ * `num` unchanged (identity), so it only alters selection for the reordered menus
+ * (Movements/Push tags=[0,3,1,2], Movements/Switch tags=[1,2]).
+ */
+function resolveMenuEntryTag(sn: Element, widgetName: string, num: number): number | undefined {
+  const params = Array.from(sn.getElementsByTagName('parameter'));
+  // Prefer the popup parameter named like the widget; else the first with entries.
+  let named: Element | undefined;
+  let anyWithEntries: Element | undefined;
+  for (const p of params) {
+    const entries = directChildren(p, 'entry');
+    if (entries.length === 0) continue;
+    if (!anyWithEntries) anyWithEntries = p;
+    if (p.getAttribute('name') === widgetName) { named = p; break; }
+  }
+  const popup = named ?? anyWithEntries;
+  if (!popup) return undefined;
+  const entries = directChildren(popup, 'entry');
+  const idx = Math.round(num);
+  if (idx < 0 || idx >= entries.length) return undefined;
+  const tag = entries[idx].getAttribute('tag');
+  if (tag === null) return undefined;
+  const t = parseInt(tag, 10);
+  return Number.isNaN(t) ? undefined : t;
 }
 
 /**

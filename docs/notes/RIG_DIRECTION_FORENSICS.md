@@ -44,3 +44,31 @@ DELIVERABLE OPTIONS:
   (This is for DIAGNOSIS only — the SHIPPED fix must NOT edit .motr templates.)
 - Directional transitions (have a Direction popup id=100): Push, Slide, Flip, Swing, Smear, Scale,
   Clothesline, Switch, Color Planes, Mask, Diagonal, 360 Divide. (Slide In, Center Reveal use id=219.)
+
+---
+
+## RESOLVED (2026-07-14) — the open question, answered + shipped in the TS engine
+
+**Root cause (candidate (a) was correct):** a **factoryID-13** Direction popup stores the
+selected menu entry's **DISPLAY INDEX**, and FCP feeds the rig that entry's **TAG** (not the
+raw stored numeric). The rig then matches the snapshot whose declared "Value" == the fed tag
+(the disasm fact above). For a factoryID-13 menu whose tags are reordered, the stored index and
+the fed tag differ:
+
+- Push.motr Direction (factoryID 13): menu entries in DISPLAY order carry tags `[0,3,1,2]`
+  (L→R, R→L, T→B, B→T). Stored `value=2` = display index 2 = "Top to Bottom" → **tag 1** →
+  snapshot Value==1 → rig **ordinal 1** = the vertical-**up** push (A slides up, B enters from
+  the bottom) that the GUI GT shows. The engine previously fed the raw `2` → ordinal 2 = the
+  "Bottom to Top" DOWN snapshot → A pushed down. **GUI-GT: Push 12.3 → 17.4 dB** (flat ~17 dB
+  every frame; the mid-transition dip is gone).
+
+**Scope / why it's generic and safe:** the remap is `effectiveValue = menuEntryTag(displayIndex)`
+and is applied **only to factoryID-13 Direction widgets**. For every factoryID-13 menu whose tags
+are already in natural order (`[0,1,2,…]` — Reflection, Color_Planes) it is an identity no-op.
+factoryID-**12** Direction widgets (Switch/Scale/Flip) store the TAG directly, so they are
+excluded: routing Switch (tags `[1,2]`, stored 1) through the display-index remap wrongly picked
+the 2nd entry and regressed it 11.7→10.1 — hence the factoryID-13 gate. Only **Push** changes
+value in the whole 65-slug corpus (Switch stays byte-identical at 11.6).
+
+Implementation: `resolveMenuEntryTag()` in `engine/src/parser/rig.ts` + the factoryID-13 branch in
+`parseRigWidgets`.

@@ -343,6 +343,11 @@ is still 100% photo A). That wipe timing is an S7 residual + the S3 replicator s
 open driver work is Motion-Path-in-S3 (replicator-cell traversal) — pursue via S3. This S1 item's
 standalone driver scope is now COMPLETE; the low gated slugs move via S3 (replicator) / S7 (wipe
 timing), not via more S1 driver code. NOTE: Color_Planes is a 3D-fold + Channel-Mixer slug.
+**Direction-rig index→tag remap DONE (2026-07-14d):** factoryID-13 Direction popups store a menu
+DISPLAY INDEX; FCP feeds the rig the entry's TAG (parser/rig.ts `resolveMenuEntryTag`). Fixed the
+Push vertical-direction inversion (12.41→17.59, +5.18; 0 regressions). Generic across the whole
+factoryID-13 rig family + all direction values; factoryID-12 (Switch/Scale/Flip) excluded (stored
+value is already the tag). See docs/notes/RIG_DIRECTION_FORENSICS.md (RESOLVED).
 **DoD:** each driver evaluated; gate 0 regressions; the gated low slugs improve; baseline re-frozen.
 **Verify:** `fct census` first, then `fct regress engine` + `fct score Stylized__Panels_Across Stylized__Slide_In --full`.
 
@@ -598,6 +603,26 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14d  S1 WIN — factoryID-13 Direction popup index→tag remap (parser/rig.ts). Decoded the
+              long-open RIG_DIRECTION question (docs/notes/RIG_DIRECTION_FORENSICS.md "THE OPEN
+              QUESTION"): a **factoryID-13** Direction popup stores the selected menu entry's
+              DISPLAY INDEX, but FCP feeds the rig that entry's TAG. Push.motr menu tags (display
+              order) = [0,3,1,2]; stored value=2 = display idx 2 = "Top to Bottom" → tag 1 →
+              snapshot Value==1 → rig ordinal 1 = the vertical-UP push the GUI GT renders. The
+              engine was feeding the raw value 2 → ordinal 2 = the DOWN push (source A slid down
+              instead of up; headless/GUI GT both push A up, B in from bottom). Root proven by
+              forced-index probe: ALL rigs at ordinal 1 → Push 12.3→17.4 flat every frame (the
+              mid-transition dip vanished); ordinals 0/2/3 all ≤12.5. Fix = `resolveMenuEntryTag`
+              maps the popup display index through the menu <entry tag=…> list, scoped to
+              factoryID 13 ONLY. Identity no-op for every menu with natural-order tags (Reflection,
+              Color_Planes, all 360°/Blur/Scale/Flip/Swing directional slugs). factoryID-12 (Switch/
+              Scale/Flip) EXCLUDED — its stored value is already the tag; routing Switch (tags
+              [1,2], stored 1) through the remap regressed it 11.7→10.1, so the fID-13 gate keeps
+              Switch byte-identical. **Full 65-slug gate: 1 improvement (Push 12.41→17.59, +5.18),
+              0 regressions.** Baseline re-frozen 14.12→**14.20 dB**. tsc + no-hardcode green.
+              This is a real per-input FCP-fidelity fix: it corrects the Direction semantics for
+              the ENTIRE factoryID-13 rig family across ALL direction values (not just Push's
+              value=2), so any future factoryID-13 template with a reordered menu resolves correctly.
 - 2026-07-14c  INVESTIGATION (gate 0/0, no pixels changed) — mined the remaining head/tail anomalies
               in the low-mid band and PROVED three dead-ends with measurements so future ticks stop
               re-chasing them:
