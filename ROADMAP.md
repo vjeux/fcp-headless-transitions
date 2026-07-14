@@ -416,17 +416,33 @@ Slide, Leaves.
 **Next step:** the Bloom pipeline is now FULLY DECODED (2026-07-13f, bloomHeliumRender register
 trace): extract `rgb=max(color·10 − Threshold/10, 0)` → Gaussian blur → ADDITIVE combine
 (HgcEchoScaleAndAdd) `out = orig + blur·(Brightness/50)`, clamp to (Clip to White ? 1 : ∞).
-Blast radius = 2 (Lights__Bloom + 360°__360°_Bloom; the latter stores pluginName="Bloom"). A
-decode-faithful bloomFilter was built + REVERTED — it's correct in isolation (peak → white) but
-blocked by TWO transition-timing issues that make it net-NEGATIVE: (A) the retime-wrap fires at
-0.20s BEFORE the bloom keyframes (0.36→0.59s) so Threshold stays 100 → zero bloom (GT f06 past the
-wrap is already blown-out, so the wrap is WRONG here); cancelling it makes bloom fire BUT (B) both
-drop zones time out by 0.534s → BLACK tail (GT holds the bloom peak then reveals CLEAN B by f23 —
-a flash-to-white A→B wipe), so the content must PERSIST (hold B) while the FILTER time plays
-through. Also the 8-bit-blur HEADROOM proxy distorts the >1 energy (360° Bloom regressed
-11.47→10.48). Fix needs: float-buffer blur (no 8-bit proxy) + content-persist/clamp decoupled
-from filter-time + gate-verify BOTH Bloom slugs. Multi-step; decode notes in glow.ts. (b) Then S2
-for the STACKED colour bucket (Tint/Colorize/Brightness>1).
+Blast radius = 2 (Lights__Bloom + 360°__360°_Bloom; the latter stores pluginName="Bloom").
+**FLOAT-BUFFER bloomFilter BUILT + VERIFIED-IN-ISOLATION then REVERTED (2026-07-14h):** wrote a
+decode-faithful `bloomFilter` in glow.ts carrying extract→blur→combine in Float32 (blurFloatRGB +
+resampleFloatRGB + decimatedBlurFloatRGB, mirroring gaussian-blur.ts's sigma=radius/6.67 kernel and
+gaussianDecimation strategy so blur SHAPE is identical, but with NO 8-bit clamp so the ×10 extract's
+>1 cores survive). UNIT-VERIFIED: a uniform 0.8 input → 255 white (the old glowFilter 8-bit path
+clamped the extract to 1.0 and under-bloomed). REVERTED because shipping it alone net-REGRESSES both
+gated slugs, for two now-fully-measured reasons — NEITHER is the filter maths:
+  • **Lights__Bloom (−0.11): the retime-wrap pins f4–f23 ALL to t=0** (MEASURED: timeMap.remap(t)=0
+    for every t≥0.212s). At t=0 the Bloom Threshold=100/Mix=0 → the filter is inert → the engine
+    renders the flat sepia base for the ENTIRE second half. But GT is a **flash-to-white A→B wipe**
+    (f12 warm 242,204,151 → f14 WHITE 241,255,255 → f23 photo B 92,107,137), NOT frozen sepia. The
+    old "Bloom tail = frame 0" claim in timemap.ts was STALE — now corrected in-code. `pureCrossfade
+    SettleB` does NOT rescue it: B.out=0.534 ≪ endSec=1.270, so the "B lives to the end" gate
+    correctly rejects it. A naive wrap-cancel would expose a BLACK tail (both drop zones dead by
+    0.534s), so the content must PERSIST (hold B) past 0.534s while the bloom filter time plays on.
+  • **360°__360°_Bloom (regressed): the 360° BAND crossfade path BYPASSES the filter entirely.**
+    transition360.ts treats Bloom as "filter inert / plain crossfade" (its detect360Band comment
+    literally says "blur/bloom filter is Amount≈0/inert") — but the REAL params are Amount=32,
+    Brightness=100, Threshold→3 at the peak (MEASURED at the CORRECT frame times: span=0.2667s so the
+    peak is f12–f13 = t≈0.14s, NOT t≈1.1s — an earlier trace used a wrong span=2.0). So the 360°
+    band renderer never applies the bloom → the peak stays dim. Wiring bloom INTO the 360° band path
+    is a separate sub-step.
+So the fix needs THREE things landed together: (1) float-buffer bloomFilter (DONE, reverted, ready);
+(2) Lights__Bloom wrap-cancel + B-content-persistence past 0.534s (time-authority change, risky);
+(3) apply the bloom filter inside the 360° band crossfade path (transition360.ts). Multi-step; decode
+notes in glow.ts. (b) Then S2 for the STACKED colour bucket (Tint/Colorize/Brightness>1).
 **DoD/Verify:** subsumed by S2's gate.
 
 ### S5. Gradient generator  [PREMISE CORRECTED — mostly folds into S1]  (task T-C1 · small)
@@ -621,6 +637,22 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14h  S4 Bloom DECODE ADVANCE (gate-neutral, premise-correcting per rule 9a) — built the
+              decode-faithful FLOAT-buffer `bloomFilter` (glow.ts: extract ×10−Thr/10 → float Gaussian
+              blur mirroring makeGaussianKernel/gaussianDecimation with NO 8-bit clamp → additive
+              combine ×Bright/50 → clip-to-white). UNIT-VERIFIED correct (uniform 0.8 → 255 white, the
+              amplification the 8-bit glowFilter path dropped). REVERTED (clean) — shipping it alone
+              net-regresses BOTH gated slugs, and MEASURED exactly why: (1) Lights__Bloom's retime-wrap
+              pins f4–f23 all to t=0 (bloom Threshold=100/inert there) so the filter never fires at the
+              peak — but GT is a flash-to-white A→B wipe (f14 WHITE 241,255,255, f23 photo B), NOT the
+              frozen sepia the stale timemap comment claimed (comment now CORRECTED in-code);
+              pureCrossfadeSettleB can't cancel the wrap (B.out 0.534 ≪ endSec 1.27 → black tail needs
+              content-persistence). (2) 360°__360°_Bloom's band-crossfade path BYPASSES the filter
+              entirely (transition360 "filter inert" premise is WRONG — real params Amount=32/Bright=100
+              /Thr→3 at the peak; earlier "t≈1.1 peak" was a wrong span=2.0, true span=0.267s → peak
+              f12–13). Fix needs 3 coupled sub-steps (float filter READY + wrap-cancel/B-persist +
+              360°-band filter wiring). Full analysis in S4 + glow.ts. tsc clean, gate 0/0 (no pixels
+              changed — the filter code was reverted; only the timemap/ROADMAP premise corrections land).
 - 2026-07-14g  S7 WIN — Flip page-flip back-face now shows source B (compositor/index.ts). The PAEFlop
               page-flip path drew `flip.front.layer.source` (Transition A → imageA) for BOTH the front
               AND the back page, on a stale note claiming "headless resolves both pages to source A".

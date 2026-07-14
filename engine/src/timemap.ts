@@ -157,18 +157,26 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
 
   // The wrap freezes the WHOLE scene back to frame 0 (drop zones re-show A). That
   // is correct when the drop-zone crossfade IS the entire visible transition (e.g.
-  // Blurs/Zoom and Lights/Bloom, whose GT past the drop-zone timeout is
-  // byte-identical to frame 0). But a transition with a SOLID-FILL SHAPE overlay
-  // (Lights/Flash's white flash rectangles) keeps that overlay animating past the
-  // drop-zone wrap — freezing would kill the flash. Disable the wrap ONLY when
-  // such a filled-shape overlay exists AND the true animation end extends past the
-  // wrap. The same applies to a SCREEN/ADD-blend VIDEO overlay that plays along
-  // its own frame-numbered Retime timeline (Lights/Light Noise's light-noise .mov):
-  // its second light burst fires PAST the drop-zone wrap, so freezing the scene to
-  // time 0 (before the overlay's `in`) would drop that whole burst. Gating on a
-  // filled shape OR a blended media overlay (not just "end > wrap") avoids breaking
-  // plain media-crossfade Lights transitions (Bloom) whose correct tail IS the
-  // frozen-A wrap.
+  // Blurs/Zoom past the drop-zone timeout). ⚠️ Lights/Bloom is NOT such a case
+  // (stale claim REFUTED 2026-07-14h against current GUI GT): its wrap pins f4–f23
+  // all to t=0 (sepia photo A), but GT is a flash-to-white A→B wipe — f12 warm
+  // (242,204,151), f14 WHITE (241,255,255), f23 photo B (92,107,137). So freezing
+  // to frame 0 is wrong for Bloom too; its correct fix (a wrap-cancel that lets the
+  // bloom filter + A→B reveal play through) is BLOCKED because both drop zones die
+  // early (A.out 0.200, B.out 0.534 ≪ endSec 1.270) so a naive cancel exposes a
+  // black tail — the content must PERSIST (hold B) past 0.534s while filter time
+  // plays on. That content-persistence is a separate time-authority change (S4).
+  // A transition with a SOLID-FILL SHAPE overlay (Lights/Flash's white flash
+  // rectangles) keeps that overlay animating past the drop-zone wrap — freezing
+  // would kill the flash. Disable the wrap ONLY when such a filled-shape overlay
+  // exists AND the true animation end extends past the wrap. The same applies to a
+  // SCREEN/ADD-blend VIDEO overlay that plays along its own frame-numbered Retime
+  // timeline (Lights/Light Noise's light-noise .mov): its second light burst fires
+  // PAST the drop-zone wrap, so freezing the scene to time 0 (before the overlay's
+  // `in`) would drop that whole burst. Gating on a filled shape OR a blended media
+  // overlay (not just "end > wrap") avoids breaking plain media-crossfade Lights
+  // transitions. (Bloom's flash-to-white tail remains mis-frozen pending the S4
+  // content-persistence work; it is not a plain frozen-A crossfade.)
   let clampSec: number | undefined;
   {
     // Structural overlay probes (capabilities.ts) — each keys off node/shape/mask
