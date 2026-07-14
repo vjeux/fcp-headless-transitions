@@ -1,0 +1,13 @@
+{
+  "slug": "Stylized__Slide_In",
+  "source_motr": "/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized/Stylized.localized/Boxes.localized/Slide In.localized/Slide In.motr",
+  "worst_frame": 13,
+  "baseline_psnr": 8.703,
+  "final_psnr": 7.101,
+  "struct_before": 67,
+  "struct_after": 5,
+  "removed": 52,
+  "nframes": 24,
+  "slack": 0.12,
+  "finding": "5-node repro: Transition 1 layer > {Gradient generator (factoryID=8 UUID 40091D89) with a <mask Rounded rect down> + Motion Path behavior} + Transition B. Engine 8.55 dB vs FCP. Bug = the Gradient-generator panel, masked by a rounded-rect shape moving along a Motion Path, is not rendered/revealed correctly (Slide_In renders near-passthrough A). Distinct from the group-Image-Mask bug: this is a GENERATOR + motion-path-driven shape mask reveal."
+}

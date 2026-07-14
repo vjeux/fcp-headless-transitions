@@ -1,0 +1,46 @@
+diff --git a/engine/src/compositor/index.ts b/engine/src/compositor/index.ts
+index fa37e38..dff47be 100644
+--- a/engine/src/compositor/index.ts
++++ b/engine/src/compositor/index.ts
+@@ -566,6 +566,14 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
+     const hasFilters = layer.filters.length > 0;
+     const hasMasks = maskShapes.length > 0;
+     const hasBlend = layer.blendMode !== 'normal';
++    // GROUP-LEVEL IMAGE MASK: a `<mask Image Mask>` authored on the GROUP/LAYER (not a
++    // leaf drawable) clips the WHOLE group to a referenced shape/clone. Concentric's
++    // ring groups mask stacked Clone A/B to a Circle shape (the concentric-ring
++    // geometry); minimized 11-node repro proves the engine renders the unmasked
++    // full-frame clone (f10-f18 ~6 dB) because this mask was dropped. Trigger the
++    // temp-buffer path so the group's composited children can be alpha-clipped by the
++    // rasterized mask source, exactly like the leaf-drawable path at renderDrawableLayer.
++    const hasImageMask = layer.imageMaskSourceId !== undefined;
+ 
+     // Draw-order convention. The default renders children in REVERSE list order
+     // (last-listed rendered first = bottom, first-listed last = top), which the
+@@ -602,7 +610,7 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
+       order = (idx: number): EvaluatedLayer => visibleChildren[visibleChildren.length - 1 - idx];
+     }
+ 
+-    if (hasFilters || hasMasks || hasBlend) {
++    if (hasFilters || hasMasks || hasBlend || hasImageMask) {
+       // Render visible children to a temp buffer
+       const groupBuffer = createBuffer(output.width, output.height);
+       for (let i = 0; i < visibleChildren.length; i++) {
+@@ -639,6 +647,17 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
+         }
+       }
+ 
++      // Apply a GROUP-LEVEL Image Mask (a `<mask Image Mask>` on this group/layer whose
++      // Mask Source is a sibling shape/clone). Rasterize the source alpha and multiply
++      // it into the composited group content — the same operation the leaf-drawable path
++      // does at renderDrawableLayer (:479), lifted to the group so ring-mask groups
++      // (Concentric) clip their stacked clones to the shape. `invert` honors Invert Mask.
++      if (hasImageMask && layer.imageMaskSourceId !== undefined) {
++        const maskAlpha = resolveImageMaskAlpha(
++          rctx, layer.imageMaskSourceId, output.width, output.height, layer.imageMaskInvert);
++        if (maskAlpha) applyMask(groupBuffer, maskAlpha);
++      }
++
+       // Apply filters
+       let processed = groupBuffer;
+       for (const filter of layer.filters) {

@@ -1023,6 +1023,25 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-15a  MINIMIZER PIPELINE → 3 new node-level repros + group-mask fix ATTEMPTED (gate-reverted).
+              Minimized 3 bottom slugs to pinpoint repros (committed to fct/minimized/): Concentric
+              140→11 nodes (ring group: Circle shape + Clone B + group-level <mask Image Mask>, f10-f18
+              ~6 dB — the group mask is DROPPED), Lower 153→3 (offset-anchored bezier panel renders
+              BLACK f12-f17 while FCP fills the right half), Slide_In 67→5 (Gradient generator +
+              rounded-rect Motion-Path mask reveal, 8.55 dB — near-passthrough). BUILT the group-level
+              Image-Mask fix (parser: extractImageMask on <group>/<layer>; compositor: apply mask in
+              renderChildLayers temp-buffer). It fixed the Concentric MINIMAL repro (25.98→40.08 dB,
+              f10-f18 6.1→24.3) and Center +0.46 — BUT the full GUI-GT gate REGRESSED 4 slugs
+              (Combo_Spin -4.28, Pinwheel -3.46, Close_and_Open -1.29, Concentric itself -0.94). ROOT
+              CAUSE: the mask is rasterized in SCREEN space, but the ring/pinwheel groups carry a 3D
+              SWING rotation on the GROUP — the child mask-source shape must be rasterized in the
+              GROUP-LOCAL frame and transformed WITH the group, not in output space (the leaf-drawable
+              path works per-clone because each clone's own transform is applied). This is the one-truth
+              rule proving its worth: the reduced-repro (vs headless FCP) improved while the shipped
+              transition (vs GUI-GT) regressed. REVERTED to HEAD, re-rendered affected slugs, gate green
+              (0 regressions). WIP + patches salvaged to docs/notes/salvage/group-image-mask-*. NEXT:
+              rasterize the group mask in group-local space (or gate it to non-3D-rotated groups) and
+              re-verify vs the Concentric repro AND the full gate.
 - 2026-07-14z  METHOD PIVOT → MINIMIZER-FIRST (per vjeux: slug-level work is too coarse). The 8
               slug-level sub-agents each eyeballed whole-frame montages and converged on "hard
               multi-part problem" diagnoses (Slide_In renders near-passthrough, Concentric ring-masks
