@@ -620,6 +620,55 @@ S8 SUB-TAXONOMY (decoded 2026-07-13k — pick the tractable path FIRST):
   against this minimal repro, drive it to ≥25 dB on the reduced case via `fct min-*`, THEN verify
   the Diagonal pair (and other shape-mask slugs) on the GUI-GT gate.
 
+  ⭐ BUILT (2026-07-14l, FLAG-GATED `FCT_PROCMASK`, default OFF — byte-identical baseline, gate
+  0/0): the procedural-shape-mask matte infrastructure is landed. Parser lifts a source-less
+  `<mask>` (no Mask Source) that carries its own closed geometry into a child mask-shape — in BOTH
+  `parseSceneNode` AND `parseLayerElement` (Diagonal's "Animated mask" is a direct `<mask>` child of
+  the "Transition Diagonal" `<layer>`, not a scenenode). Added `Shape.feather` (parsed from the
+  mask's Feather param) + a 3-pass separable box-blur in `rasterizeShape` that soft-blurs the alpha
+  edge by feather·transformScale px (Diagonal Feather=300 → wide soft sweep). Added a mask
+  local-frame re-anchor (curveTime −= offset) so the sweep starts off-screen not mid-frame. Verified:
+  flag ON lifts the mask + improves the reduced case **8.48 → 11.21 dB** (min-gen/min-score); flag
+  OFF renders max-pixel-diff 0 vs baseline on Center_Reveal/Lower/Arrows (byte-identical).
+  ⚠️ WHY STILL FLAG-OFF (the write-on discovery): with the flag ON the FULL Diagonal GUI-GT slug
+  REGRESSES −0.47 dB (11.39→10.92). Root cause DECODED via instrumented mask coverage: the
+  instantaneous shape mask is a FINITE quad that sweeps diagonally ACROSS the frame and EXITS
+  (coverage 0→11→39→85→52→0 over f0–f18) — it reveals then RETREATS. But the GUI-GT greenness grid
+  proves FCP's reveal is a MONOTONIC WRITE-ON: the green front sweeps bottom-left→top-right and once
+  a pixel is revealed it STAYS revealed (f06 BL-corner only → f08 BL-half → f10 ⅔ → f12 full, never
+  retreating). So the correct matte is the per-pixel MAX-over-time of the instantaneous mask alpha
+  (a write-on envelope), NOT the instantaneous alpha. This is the same "write-on" semantic (b)
+  flagged for the emitter — but it applies to the SHAPE mask's own swept region, and is the ONE
+  remaining piece. NEXT S8 step: add the temporal max-accumulation (sample the mask transform at K
+  sub-times from mask-start→t, union the rasterised alphas) so the reveal is monotonic; verify the
+  reduced case → ≥25 dB AND the Diagonal pair goes UP on the GUI-GT gate, THEN flip `FCT_PROCMASK`
+  on by default. The accumulation needs the compositor (or evaluator) to re-rasterise the mask at
+  sub-times — a localized addition on top of the now-landed lift+feather+re-anchor.
+
+  ⭐ BUILT + PROVEN (2026-07-14l, FLAG-GATED OFF `FCT_PROCMASK`): the procedural shape-mask matte
+  infrastructure is now LANDED (byte-identical baseline, gate 0/0): (1) parser `liftProceduralMasks`
+  lifts a source-less `<mask>` with real closed-shape geometry + Is Mask=1 into a child mask-shape
+  (in BOTH parseSceneNode and parseLayerElement — Diagonal's "Animated mask" is a direct `<mask>`
+  child of the `Transition Diagonal` <layer>, not a scenenode); (2) `parseShape` reads the mask
+  `Feather` radius; (3) `rasterizeShape` applies a 3-pass separable box blur (Gaussian approx) to
+  the alpha, scaled by the transform magnification; (4) evaluator re-anchors the mask's animated
+  Position/Scale curves to the mask timeline `offset` (Diagonal's sweep is keyed in local frame,
+  offset 0.3003s). ⚠️ MEASURED: with the flag ON the isolated min-case improves 8.48→**11.21 dB**
+  (worst 2.27→6.18), BUT the FULL Diagonal pair REGRESSES on the GUI-GT gate −0.47 dB (11.39→10.92)
+  because the reveal is WRONG: the instantaneous shape mask is a finite quad that sweeps ACROSS the
+  frame (coverage 0→11→39→85→52→0 as pos goes (-572,-1386)→(2271,2001)) and EXITS — it reveals then
+  RETREATS. FCP's reveal is MONOTONIC WRITE-ON: the greenness grid sweeps BL→TR and NEVER retreats
+  (f06 only BL corner green; f08 BL half; f10 ~2/3; f12 full; then holds; only the WHOLE group fades
+  to black at the tail). ⭐ DECISIVE next-step decode: the mask alpha at time t must be the per-pixel
+  MAX over sub-sampled times from mask-start to t (temporal write-on accumulation), NOT the
+  instantaneous rasterization. That single addition turns the retreating coverage into 0→11→39→85→
+  85→85 (monotonic) and should flip the −0.47 into a win. Because the reveal-timing accumulation is
+  a new mechanism (needs the mask transform sampled at K sub-times, e.g. evaluator-precomputed
+  sub-time transforms or a compositor re-rasterize loop), it is the next tick's build — the
+  infrastructure it sits on is committed and byte-identical here. Coverage: the lift fires on 14
+  built-ins (Diagonal ×2, Center, Center_Reveal, Lower, Glide, Loop, Heart, Slide_In, Light_Sweep,
+  Color_Panels, 3D_Rectangle, Combo_Spin, Arrows), so the write-on is a genuinely generic lever.
+
 
 ---
 
@@ -682,6 +731,26 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14l  S8 SUBSYSTEM (procedural shape-mask matte) — infrastructure BUILT + write-on
+              mechanism DECODED, landed FLAG-GATED OFF (`FCT_PROCMASK`, byte-identical baseline,
+              gate 0/0). Parser `liftProceduralMasks` lifts a source-less `<mask>` (no Mask Source)
+              with real closed geometry + Is Mask=1 into a child mask-shape, in BOTH parseSceneNode
+              AND parseLayerElement (Diagonal's "Animated mask" is a `<mask>` child of the
+              `Transition Diagonal` <layer>, which parseLayerElement handles — the initial lift in
+              parseSceneNode alone missed it). Added `Shape.feather` parse + a 3-pass separable
+              box-blur in rasterizeShape (Gaussian approx, scaled by transform magnification;
+              Diagonal Feather=300 → wide soft sweep) + an evaluator mask local-frame re-anchor
+              (curveTime −= offset). VERIFIED: flag ON improves the isolated min-case 8.48→11.21 dB
+              (min-score); flag OFF renders max-pixel-diff 0 vs baseline on Center_Reveal/Lower/
+              Arrows (byte-identical) and full gate 0 regressions. ⚠️ Kept OFF because flag-ON
+              REGRESSES the full Diagonal pair −0.47 dB (11.39→10.92): the instantaneous shape mask
+              is a finite quad that sweeps ACROSS + EXITS (coverage 0→11→39→85→52→0) — reveals then
+              RETREATS — but the GUI-GT greenness grid proves FCP's reveal is a MONOTONIC WRITE-ON
+              (BL→TR, never retreats). DECODED next step: mask alpha(t) = per-pixel MAX over
+              sub-times [mask-start, t] (write-on accumulation), which makes coverage monotonic; that
+              addition (evaluator-precomputed sub-time transforms or a compositor re-rasterize loop)
+              is the next tick and should flip −0.47 into a win. Lift fires on 14 built-ins so the
+              write-on is generic. tsc + no-hardcode green.
 - 2026-07-14k  TOOLING+DECODE: (1) made the minimizer's headless renders use a PERSISTENT worker
               (`fct _headless-worker` + `_HeadlessWorker` in minimize.py) — boots the FCP Ozone
               engine ONCE and reuses it across all ddmin trials, respawning only on an actual
