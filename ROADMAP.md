@@ -508,6 +508,92 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13k  T-B3 DEEP RE — FULLY DECODED the Nature/Diagonal early-frame wash + RETIRED the
+              "particle population density" hypothesis from 13j. Method: instrumented the compositor
+              layer-by-layer (temporary FCT_DBG_TOP / FCT_DBG_CHILD / FCT_DBG_RENDER traces, all
+              reverted) and read per-quadrant + per-3×3-cell mean RGB of the GUI GT. FINDINGS (one
+              truth = GUI GT):
+              (1) The wash is NOT the sprites and NOT the field-texture proxy. With BOTH proxy and
+                  sprite-sim disabled, f03 STILL washes to (196,184,179) — the wash is a plain layer
+                  render. The culprit is the "Background" SHAPE (id 971105401, fill (227,227,227) +
+                  a Levels filter → gray ~168) inside the "Gradient and background" group (id
+                  999207202). That group has timing.in = 768768/7680000 = 0.100s (≈f03) and NO
+                  opacity fade — it HARD-POPS ON at 100% at f03, painting the whole frame gray.
+              (2) GT does NOT show that gray full-frame at f03. GT is a genuine DIAGONAL SPATIAL WIPE
+                  from the BOTTOM-LEFT: per-3×3-cell GT means show BL greening first (f06 BL
+                  (158,157,131) while top rows still brown ~ (142,94,62)), sweeping up-right (f07 BL
+                  (199,229,196), TR still (136,86,52)). The frame MEAN rises because the green AREA
+                  grows, NOT because a global opacity ramps — a global-opacity model provably can't
+                  fit it (compositing the aggregate pale-green field (183,225,178) at the texOp
+                  envelope 0.03→0.31 undershoots f08/f11 by ~30 in G: model 141/147 vs GT 172/183).
+              (3) The reveal geometry: the effects root "Transition Diagonal" (332773) is a sibling
+                  OVER the "Transition Drop Zones" (987205193, photo A/B). Its first child "Bezier 29"
+                  (971936924, factoryID=11 shape) carries an "Emitter" REPLICATOR (factoryID=17) that
+                  spawns "Cell copy" ALONG the bezier STROKE ("Angle/Source-Start-Frame Over Stroke",
+                  rangeName "Stroke Length") — i.e. the sparkle LEADING EDGE of the diagonal sweep.
+                  The "Gaussian Gradient" (971142209) is a RADIAL gradient (Center 0.536,0.462 R=615)
+                  with Blend Mode 14 and Fade In/Out=20 — the soft reveal matte, ramping from f05.
+                  The hexagon field lives under "Emitters-hard light" (971892355, blend=hardLight)
+                  which the evaluator marks OFF the whole transition; the visible particles are the
+                  "Emitter-normal" group (987210282, opacity 0→0.857 f08→end).
+              CONCLUSION: matching this pair (Wipes__Diagonal + Stylized__Diagonal, both map to the
+              SAME Nature/Diagonal .motr, a 3-phase Nature CONTENT clip — the known GT-bug pair) needs
+              a SPATIAL diagonal-wipe reveal subsystem (radial-gaussian luma matte gating the whole
+              effects group's alpha + bezier-stroke leading-edge emitter), NOT any global
+              opacity/count curve. Also decoded + tested a correct-but-partial fix: gating each
+              particle cell by its CUMULATIVE ancestor-group opacity (buildCumulativeOpacity tree
+              walk) correctly drops the hard-light hexagons (ancestor 0) and fades normal particles
+              in from f08 — but it REGRESSES the metric (Diagonal 11.39→11.13, Glide 14.32→14.21)
+              because those sprites were partially masking the background wash; REVERTED (gate stays
+              0/0 at 8226ae7). The cumulative-opacity gating is the RIGHT primitive but only lands as
+              a net win once the spatial reveal matte exists to suppress the background wash. Next
+              lever = build the radial-gaussian reveal matte for the effects group (generic: gate the
+              effects-root alpha by an in-group luma-matte generator), then re-apply cumulative gating.
+
+- 2026-07-13k  T-B3 FOLLOW-UP #2 — SUPERSEDED the "particle population density" root cause from
+              tick 13k(j) with the CORRECT one, via a full layer-tree + per-child-composite decode
+              (one truth = GUI GT). NO code shipped (a cumulative-ancestor-opacity gate was built,
+              measured, and REVERTED as a net regression; gate stays 0/0 at 8226ae7). FINDINGS:
+              (1) The f03 wash is NOT the sprites and NOT the field-texture proxy — proven by
+                  disabling BOTH (FCT_NO_PROXY + FCT_SPRITE_SIM=0): f02 stays perfect brown
+                  (131,85,56) but f03 still jumps to (196,184,179). Per-top-layer + per-child mean
+                  traces isolate it to ONE layer: the "Background" SHAPE (id 971105401, fill
+                  (227,227,227) → PAELevels → ~168 gray) inside "Gradient and background" (999207202),
+                  which has a hard timing.in = 768768/7680000 = 0.100s (≈f03) at opacity 1.0 and NO
+                  fade. My engine composites it FULL-FRAME at f03; the whole effects group washes gray.
+              (2) The particle sprites ARE mis-gated too (independent bug): cells live under
+                  intermediate GROUPS that carry the real fade envelope — "Emitter-normal" (987210282,
+                  off until f08 then 0.05→0.86) and "Emitters-hard light" (971892355, OFF entire
+                  transition, blend=hardLight). The Emitter LAYERS + cells all evaluate opacity 1.0
+                  in isolation, so gating on them alone draws ~200 pre-rolled sprites from f03. Built
+                  buildCumulativeOpacity() (product of ancestor-group opacities, generic tree walk)
+                  and gated each cell by it — CORRECT (hexagons never draw, normal particles fade in
+                  from f08) but it REGRESSED the metric (Diagonal 11.39→11.13, Glide 14.32→14.21)
+                  because those sprites were partially COMPENSATING for the background wash. Reverted.
+              (3) THE REAL MECHANISM is a DIAGONAL SPATIAL WIPE, not any global fade. 3×3 quadrant
+                  means of the GUI GT: f06 bottom-left greens (158,157,131) while top-right stays
+                  brown (152,102,67); f07 BL fully green (199,229,196) sweeping up-right; f08 BL
+                  (196,229,193) vs TR (153,105,69). The effects field (gray Background + hard-light
+                  green particle field) is REVEALED along a BL→TR diagonal. Verified a global-opacity
+                  model can't fit: compositing the field aggregate at texOp (max 0.30) undershoots
+                  f08/f11 badly (model 141/147 vs GT 172/183) — the frame mean rises because more
+                  AREA turns green, each region near-fully green, not because a global alpha ramps.
+              (4) Reveal geometry decoded: root "Transition Diagonal" (332773) child order (top-first)
+                  = [Bezier 29 (971936924, factoryID=11 shape) → "Emitter" replicator (factoryID=17)
+                  → "Cell copy" spawning ALONG the bezier stroke ("Angle/Source-Start Over Stroke",
+                  rangeName "Stroke Length") = the sparkle LEADING EDGE of the wipe], "Texture
+                  opacity", "Emitter-normal", "Emitters-hard light" (blend hardLight), "Gradient and
+                  background" (radial "Gaussian Gradient " id 971142209: Center (0.536,0.462),
+                  Radius 615, Blend Mode 14, Fade In/Out 20 + gray Background). Root's only filter is
+                  the green TintFx (R0.302 G0.773 B0.286, Color Space 3) — already detected.
+              CONCLUSION / NEXT LEVER: this is a SPATIAL-REVEAL subsystem (bezier-stroke leading-edge
+              emitter + radial-gradient/stroke reveal matte gating the whole effects group's alpha +
+              hard-light green field + background timing.in), NOT a per-sprite or global-opacity nudge.
+              It is a multi-component build; the cumulative-ancestor-opacity primitive (buildCumulative
+              Opacity) is a CORRECT sub-piece to reintroduce ONLY once the spatial reveal lands so the
+              net is a win. NOTE: Wipes__Diagonal AND Stylized__Diagonal both map to this same
+              Stylized/Nature/Diagonal .motr (flagged GT-content-not-a-wipe pair, ~11.1–11.4 dB).
+
 - 2026-07-13j  T-B3 FOLLOW-UP: root-caused the early-frame wash (f03–f06 ≈6.6 dB while GT holds
               pure photo A), NO code change shipped (two curve fixes tested + REVERTED — gate stays
               at the 2026-07-13i baseline, 0/0). DECODED (via a temporary `[field]` proxy trace +
