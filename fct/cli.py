@@ -17,6 +17,15 @@
   fct roadmap-sync                                  flip ROADMAP TODO->DONE markers to match the
                                                     authoritative done set (commit-log scan); safe,
                                                     monotonic, never un-marks or touches PARTIAL/DROPPED
+  fct minimize <slug> [--frames N] [--slack F] [--name NAME] [--params]
+                                                    DELTA-DEBUG a transition: strip .motr nodes while
+                                                    the TS engine still DIVERGES from real FCP
+                                                    (headless), leaving the MINIMAL repro of the bug.
+                                                    Writes fct/minimized/<slug>/ (case.motr + frames).
+  fct min-gen   [case ...|--all]                    re-render the ENGINE frames for each minimized case
+  fct min-score [case ...|--all] [--frames]         per-case engine-vs-FCP PSNR (99 dB = bug fixed)
+  fct min-baseline                                  freeze per-case engine-vs-FCP PSNR -> the min-gate
+  fct min-regress                                   re-score; exit 1 if any minimized case got WORSE
 
 Headless needs the FCP engine: this CLI auto-re-execs under the venv python with
 DYLD_FRAMEWORK_PATH set (SIP strips DYLD from child processes, so we exec, not spawn).
@@ -46,7 +55,8 @@ def main():
     # via ./fct.sh uses the system python3 (no numpy), so every numpy-dependent
     # command must re-exec under the venv python. `gen engine` is pure node (no numpy
     # import) so it's exempt; `gen headless` re-execs below for the DYLD framework path.
-    if cmd in ("score", "regress", "gate", "cmp", "probe", "baseline", "census", "montage", "read"):
+    if cmd in ("score", "regress", "gate", "cmp", "probe", "baseline", "census", "montage", "read",
+               "minimize", "min-gen", "min-score", "min-regress", "min-baseline"):
         _reexec_under_venv_if_needed()
 
     if cmd == "gen":
@@ -258,6 +268,29 @@ def main():
     if cmd == "roadmap-sync":
         from fct.roadmap_sync import run as roadmap_sync_run
         return roadmap_sync_run()
+
+    if cmd == "minimize":
+        from fct.minimize import run as minimize_run
+        return minimize_run(rest)
+
+    if cmd == "_headless-frame":
+        # Internal: render ONE headless frame of an arbitrary .motr in an ISOLATED
+        # process (the FCP engine SIGSEGVs on some malformed reduced docs; isolating
+        # each render keeps a crash from killing the minimizer). Args: motr frame nframes out
+        _reexec_under_venv_if_needed()
+        sys.path.insert(0, os.path.join(REPO, "tools"))
+        import ozengine
+        from fct import timing
+        from fct.config import IMG_A, IMG_B
+        motr, frame_i, nframes, out = rest[0], int(rest[1]), int(rest[2]), rest[3]
+        span = timing.scene_duration_seconds(motr) or 2.0
+        doc = ozengine.load_doc(motr)
+        ozengine.render_frame(doc, IMG_A, IMG_B, timing.sample_time(frame_i, nframes, span), out)
+        return 0
+
+    if cmd in ("min-gen", "min-score", "min-regress", "min-baseline"):
+        from fct.minimize_gate import run as min_gate_run
+        return min_gate_run(cmd, rest)
 
     print(f"unknown command {cmd}\n{__doc__}"); return 1
 

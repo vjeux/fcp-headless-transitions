@@ -27,6 +27,9 @@ tools/__pycache__/
 fct/__pycache__/
 .fctcache/
 
+# minimizer scratch (per-case slug map written by min-gen; the case.motr + frames commit)
+fct/minimized/*/_slugmap.json
+
 # swarm agent scratch (per-worktree prompt files + runner + local frames)
 .swarm_brief.md
 .swarm_reflect_prompt.md
@@ -36,3 +39,9 @@ fct/__pycache__/
 # DIRECTORIES only, not the symlinks), so match them without a slash too:
 engine/node_modules
 /venv
+
+# Minimized delta-debug cases (fct/minimized/<case>/): COMMIT case.motr + manifest.json
+# + headless/ (the frozen FCP truth — can't be regenerated without FCP). The engine/
+# frames are re-rendered by `fct min-gen`, and _slugmap.json is scratch → ignore both.
+fct/minimized/*/engine/
+fct/minimized/*/_slugmap.json
