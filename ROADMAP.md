@@ -967,6 +967,17 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14y  SCALED TO 8-WIDE + BIG BACKLOG — generated 13 more parallel tasks and now run 8 Navi
+              sub-agents concurrently (CC pool stays retired — it wedges). Backlog is 19 TODO tasks:
+              transition slugs (T-H1 Center-mask, T-H2/T-K1 Replicator framing, T-H3 float-bloom,
+              T-H4 Concentric, T-H5 Wipes/Center_Reveal, T-F2 Smear, T-K2 Slide_In, T-K3 Loop/Heart
+              reveal, T-K4 Squares, T-K5 Swing/Pinwheel, T-L1 Underwater) + FILTER PHASE-2 full-
+              param-space verification vs headless FCP (T-M1 Tint G/B, T-M2 Levels two-stage, T-M3
+              HSV mult-Value, T-M4 ChannelMixer alpha col, T-M5 Colorize luma, T-M6 Gaussian
+              decimation, T-M7 sweep-harness audit). Running now: T-H1..H5,T-F2,T-M7,T-K2 (8). The
+              rest launch as slots free. Every task: decode-first + one-truth gate (GUI-GT for
+              transitions, headless-FCP sweep for filters) + generic-only + push_helper (re-gates,
+              refuses RED). Baseline 14.47 dB; 41 slugs <15 dB, 19 <13.
 - 2026-07-14x  SWARM DISPATCH (Navi sub-agents, NOT Claude Code) — the CC pool wedged every run
               (frozen at the 203-byte startup banner; `claude -p --model claude-opus-4-7` hangs on
               this box). Switched to 6 Navi sub-agents, each locked to cli:vjeux-mac in its own
