@@ -599,6 +599,21 @@ found (never per-transition hardcoding). Current known:
   current drop-zone model cannot express.
 - **Stylized/Lower (9.0):** kinetic mask-panel choreography; misses the bright mid white flash
   (partly S2 linear-compositing, partly panels culled vis=false).
+  **→ part of the KINETIC-PANEL-REVEAL cluster, see the consolidated note at the end of S7.**
+- **Stylized/Center (11.76→ tail collapse f16–f23 8.5→5.88):** 🔬 DECODED 2026-07-14v. Clean tail
+  signature: mid (f06–f15) fine ≈13–22 dB (the white-flash peak matches), but the tail COLLAPSES —
+  GT reveals photo B (cool 92,106,137 by f23) while the engine STAYS near-white (231,235,236) the
+  whole tail. Structure (census): 963 KB, 41 shapes + 5 Clone Layers + 1 Image Mask; two top-level
+  groups — "Comp" (decorative panels + the "Shapes for image mask" reveal system, listed FIRST) and
+  "Transition Drop Zones" (A+B, listed SECOND). At the tail the decorative "Comp" panels are STILL
+  visible+on-top (count GROWS 22→29 f15→f23, never clears) covering Transition B. The panels rest
+  ON-SCREEN by POSITION (e.g. "Right full" posX ends at +594, on-frame; NO opacity fade curve) — so
+  they don't exit; B must be revealed OVER them via the Image-Mask growing to full-frame, which the
+  engine's mask/retime doesn't complete. Same ROOT as Panels_Across: local-time-authored panel curves
+  (offset ≈1.5–2.4s, playRange 5.305s vs animationEndSec 4.671s) are re-anchored by a single CONSTANT
+  offset, but the reveal needs the panel/mask timeline SCALED into the clip (template retime), not
+  shifted. NOT a simple z-order swap (unlike Switch — here the reveal is an Image Mask, not coplanar
+  cards). Part of the KINETIC-PANEL-REVEAL cluster below.
 - **Stylized/Panels_Across (10.4):** DIAGNOSED 2026-07-14 — sharp per-frame dip at f09–f11
   (5.16/6.11/7.68 dB). GUI GT f09–f11 is a near-UNIFORM WHITE FLASH (mean ≈(252,251,251)→(223)) but
   the engine renders a LEFT→RIGHT whiteness RAMP (col-brightness 8 bins: 50,81,98,100,166,231,214,
@@ -641,6 +656,28 @@ found (never per-transition hardcoding). Current known:
   BOTH card faces (stale "headless resolves both pages to A" note); GUI GT shows the back face is
   photo B. Fix: bind each page to its own drop-zone source (front→A, back→B). Concentric neutral.
 Solved recently (see Done ledger): Divide A/B + wrap + mask-dilation, Duplicate/Squares A/B.
+
+**🎯 KINETIC-PANEL-REVEAL CLUSTER (consolidated 2026-07-14v — the biggest remaining lever in the
+9–11 dB band).** Four of the five bottom slugs share ONE root cause, not four separate bugs:
+Stylized/Lower (9.0), Panels_Across (10.4), Close_and_Open (10.9), Center (11.8 w/ tail collapse to
+5.9). All are "Kinetic"-family transitions built from many decorative panel/shape layers whose
+Position/Opacity curves are authored in each layer's OWN LOCAL negative-time frame and re-anchored by
+a large positive `offset` (1.5–3.7s), inside a template whose playRange (5.3s Center / 1.67s
+Panels) is RETIMED into the rendered clip (animationEndSec 4.67s / 0.80s). The engine re-anchors with
+a single CONSTANT shift `curveTime = timeSec − offset`, which lands the POSITION sweep roughly right
+but leaves the panels' EXIT/FADE (and the Image-Mask growth that reveals Transition B) in the wrong
+sub-range — so decorative panels persist/grow to the tail (Center: 22→29 visible f15→f23) and cover
+B, and the flash/reveal races at the wrong rate (Panels_Across left-half stays tan at the peak).
+THE FIX (one subsystem, unblocks all four): a TEMPLATE-TIMELINE RETIME that SCALES each offset-
+authored layer's local curve time into the clip duration (map [layer local range] → [0, clipDur] via
+the playRange↔animationEndSec ratio), replacing the constant-shift for kinetic-panel layers only.
+RISK: the constant-shift is what gives Rotate 18→32 and the S8 Diagonal write-on — so the scale MUST
+be scoped (kinetic-panel shapes / Image-Mask reveal layers) and gate-verified isolated; a global
+scale would regress the drop-zone re-anchor slugs. Build behind a flag, measure each of the 4 slugs +
+full gate, flip ON only if net-positive with 0 regressions. This is the highest-ROI structural work
+left (≈Σ 6–7 dB of deficit across 4 slugs) and is decode-complete — the mechanism is understood; what
+remains is the careful scoped implementation. NOT yet attempted in code (a wrong global retime
+regresses; needs the scoped design above). Supersedes the individual Lower/Panels/Center/Close notes.
 
 ### S8. Procedural / animated group masks  [SHIPPED 2026-07-14m: source-less shape-mask matte + write-on envelope, Diagonal pair 11.39→13.47 (+2.08), default ON · HIGH coverage]  (task T-H1)
 DECODED (Stylized/Wipes Diagonal): the effects field is revealed by an `<mask name="Animated mask"
