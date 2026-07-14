@@ -730,6 +730,25 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14n  DISPATCHED 5 focused sub-agents (isolated worktrees + private frames/lock via
+              fct/swarm/setup_worktree.sh) on the remaining subsystems: S5 Gradient generator
+              (Loop/Heart), S6 Framing-camera/clone-grid (Clone_Spin/Video_Wall/Concentric), S3/S4
+              Bloom (Lights__Bloom/360°_Bloom), S7 Lens-Flare generator (Lights__Lens_Flare), S7
+              Smear (Movements__Smear). Each self-gates in isolation and reports before→after +
+              premise; per ROADMAP rule 4 the ORCHESTRATOR gate-verifies every result on main before
+              merging (no autonomous auto-push pool). Early return: S5 correctly reported PREMISE
+              WRONG — the gradient generator + gradientTag pipeline already exist; Loop/Heart's real
+              deficit is the reveal-timing subsystem (STYLIZED_LOOP_HEART_REVEAL_RE.md), not a fill
+              gradient — no code, nothing to merge (rigorous decode-first, saved a wasted build).
+- 2026-07-14n  DISPATCHED 5 focused isolated-worktree agents (one subsystem each) via the
+              per-agent worktree+FCT_FRAMES_DIR+FCT_LOCK isolation (fct/swarm/setup_worktree.sh),
+              orchestrator gate-verifies + merges each result on main (NOT an auto-push pool — rule 4):
+              S5-gradient (Loop/Heart), S6-clonegrid (Clone_Spin/Video_Wall/Concentric),
+              S3-bloom (Lights__Bloom/360°_Bloom), S7-lensflare (Lights__Lens_Flare),
+              S7-smear (Movements__Smear). Each: census-first, one-truth GUI-GT, gate-green,
+              report before->after. S5 came back BLOCKED (false premise — the gradient generator +
+              gradientTag pipeline already exist; Loop/Heart's true deficit is reveal-timing, a
+              separate multi-tick subsystem — no code, nothing to merge). Others in flight.
 - 2026-07-14m  S8 SHIPPED — procedural shape-mask matte + WRITE-ON envelope, `FCT_PROCMASK` default
               ON. Completed the write-on temporal accumulation the previous tick decoded: evaluator
               samples the mask worldTransform at K=12 sub-times in [mask-start, t]
