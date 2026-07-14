@@ -518,8 +518,11 @@ found (never per-transition hardcoding). Current known:
   the clip), NOT a position/opacity tweak — a time-authority change (risky; the current single-offset
   model is what gives Rotate 18→32 dB, so must be done isolated + gate-green). Unresolved mechanism;
   a wrong guess regresses. NO fix shipped; full decode recorded for a future focused time-authority effort.
-- **Multi / Multi-flip / Pinwheel / Swing / Flip / Rotate (12–14):** Movements 3D fold geometry,
+- **Multi / Multi-flip / Pinwheel / Swing / Rotate (12–14):** Movements 3D fold geometry,
   each near-matched; small residuals.
+- **Movements/Flip — FIXED 2026-07-14g (14.70→16.50):** the PAEFlop page-flip drew source A on
+  BOTH card faces (stale "headless resolves both pages to A" note); GUI GT shows the back face is
+  photo B. Fix: bind each page to its own drop-zone source (front→A, back→B). Concentric neutral.
 Solved recently (see Done ledger): Divide A/B + wrap + mask-dilation, Duplicate/Squares A/B.
 
 ### S8. Procedural / animated group masks  [TODO — discovered 2026-07-13k · HIGH coverage]  (task T-H1)
@@ -618,6 +621,16 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14g  S7 WIN — Flip page-flip back-face now shows source B (compositor/index.ts). The PAEFlop
+              page-flip path drew `flip.front.layer.source` (Transition A → imageA) for BOTH the front
+              AND the back page, on a stale note claiming "headless resolves both pages to source A".
+              GUI GT (the one truth) refutes that: the flip tail settles on photo B (bluish 91,106,137),
+              not A (brown 130,84,56). Fix = bind each page to its OWN drop-zone source (front→A,
+              back→B) via `page.layer.source`. Movements__Flip 14.70→**16.50 (+1.80)** — the whole tail
+              collapse (f13–f23 were 9.9–15.6, showing brown A; now 13–18, showing blue B) is gone.
+              The other PAEFlop user (Concentric) is byte-NEUTRAL (verified by stash-diff: its
+              detectPageFlip group never reaches pastEdge with a differing front/back source in the
+              rendered range). 0 regressions. Baseline re-frozen. tsc + gate green.
 - 2026-07-14f  S6 WIN — SHIPPED the orthographic-fold discriminator (evaluator/index.ts resolveCamera).
               Replicator-free static-camera plane-fold scenes now project ORTHOGRAPHICALLY (distance=∞,
               the same parallel branch camera-less slugs take). Discriminator is a PARSE-TIME factory

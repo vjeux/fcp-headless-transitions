@@ -511,7 +511,13 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
       // the same drop-zone media renders throughout.
       const pastEdge = flip.theta > Math.PI / 2;
       const page = pastEdge ? flip.back : flip.front;
-      const src = getSourceImage(rctx, flip.front.layer.source, imageA, imageB);
+      // Draw the media of the page whose FRONT faces the camera: front page (A)
+      // before edge-on, back page (B) after. FCP's card flip is two-sided — A on
+      // the front, B on the reverse (pre-mirrored by PAEFlop so it reads upright).
+      // GUI GT confirms the reveal: the flip tail settles on photo B (bluish), not
+      // A — the earlier "headless resolves both pages to source A" note was a wrong
+      // assumption (one truth = GUI GT). Bind each page to its OWN drop-zone source.
+      const src = getSourceImage(rctx, page.layer.source, imageA, imageB);
       // Continuous centre-axis rotation by θ (0→π). While the front faces the
       // camera (θ<90°) source A shows normally; past edge-on the reverse faces the
       // camera and PAEFlop (Flop=0) mirrors it (mirrorUV) so it reads correctly.
