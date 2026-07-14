@@ -96,7 +96,7 @@
  *   TODO(P2-glow-5): GAIN APPLIES TO ALPHA TOO. In FCP hg_Params[0].x scales
  *     BOTH glow.rgb and glow coverage (r1.w). TS `amount` scales only rgb.
  */
-import { decimatedGaussianBlur } from './gaussian-blur.js';
+import { decimatedGaussianBlur, decimatedBlurFloatRGB } from './gaussian-blur.js';
 import { luma } from '../blend.js';
 
 export interface GlowParams {
@@ -294,6 +294,93 @@ registerFilter({
 //       proxy) and re-verified against BOTH Bloom slugs' GUI GT. NEXT: (1) float-buffer blur
 //       so >1 cores survive without the HEADROOM hack; (2) content-persist + filter-time-
 //       through for the wrap/black-tail coupling; (3) gate-verify Lights__Bloom AND 360° Bloom.
+
+export interface BloomParams {
+  /** FCP Amount (blur spread). The blur radius fed to HGaussianBlur is 0.5·Amount. */
+  amount: number;
+  /** FCP Brightness 0–100 → additive gain Brightness/50. */
+  brightness: number;
+  /** FCP Threshold 0–100 → extract bias Threshold/10 (on the ×10-gained colour). */
+  threshold: number;
+  /** Clip to White (doClip): clamp the additive result to 1.0 when true, else unbounded. */
+  clipToWhite: boolean;
+}
+
+/**
+ * FCP Bloom (PAEBloom `bloomHeliumRender`), decode-faithful FLOAT implementation.
+ *
+ * FULLY DECODED 2026-07-14s from the arm64 register trace of -[PAEBloom
+ * bloomHeliumRender:withInput:withRadius:withBrightness:withThreshold:doDarkBloom:
+ * withXScale:withYScale:withDoCrop:withDoClip:is360:withInfo:] @0xc88c (Filters.bundle,
+ * InternalFiltersXPC slice) + the verbatim HgcBloomThreshold / HgcEchoScaleAndAdd shaders
+ * (extract_shader.py). Three GPU nodes, normal bloom (doDarkBloom=0):
+ *
+ *   1. HgcBloomThreshold (pre-blur extract).  Param wiring (register trace):
+ *        s13 = doDarkBloom ? -10 : +10   → hg_Params[1] (SCALE) = +10
+ *        s14 = doDarkBloom ? +10 : -10   → hg_Params[0] (BIAS)  = s14·Threshold/100
+ *                                          = -10·Threshold/100 = -Threshold/10
+ *        hg_Params[2] = (lo=-FLT_MAX, hi=+FLT_MAX)  → NO alpha clamp
+ *        hg_Params[3] = 0
+ *      shader: r0 = color·SCALE + BIAS = color·10 − Threshold/10; then max(r0, 0).
+ *      i.e. a 10× gain minus a threshold floor — the amplification the 8-bit glowFilter
+ *      path DROPPED (it premultiplied by a ≤1 mask so nothing ever brightened past white).
+ *
+ *   2. Gaussian blur.  Register trace (both HGaussianBlur::init and HEquirectGaussianBlur::init
+ *      paths): the radius arg = 0.5·Amount (cb8c/caa8: fmov d0,#0.5; fmul d0,d11,d0). So the
+ *      spread fed to HGBlur is HALF the Amount param — NOT the raw Amount. (X/Y scale are the
+ *      Horizontal/Vertical params, |·|·image-dim; both 1 for these slugs.) MUST run in Float32:
+ *      the ×10 extract produces >1 cores; an 8-bit intermediate caps them at 1 and dilutes the
+ *      capped core with dark neighbours, losing the flash-to-white energy.
+ *
+ *   3. HgcEchoScaleAndAdd (combine, ADDITIVE — verbatim shader):
+ *        r1 = color0·hg_Params[0] + color1        (color0 = blurred glow, color1 = original)
+ *        r1.xyz = min(r1.xyz, hg_Params[1].x)      (ceiling)
+ *        out = max(r1, 0)
+ *      Register wiring: hg_Params[0] = Brightness/50 (cc04: d8/50, d9=50 via fcsel doDarkBloom);
+ *      hg_Params[1].x = doClip ? 1.0 : +FLT_MAX (cc44: fcsel on withDoClip=w25).
+ *      => out = original + blurred·(Brightness/50), clamped to (Clip to White ? 1 : ∞).
+ *      (The legacy HGTransform::Translate(0,-2.25,0) at cc98 is GATED on versionAtCreation==0
+ *       — a pre-modern compat echo-offset — and is SKIPPED on the current render path; omitted.)
+ */
+export function bloomFilter(input: ImageData, params: BloomParams): ImageData {
+  const { amount, brightness, threshold, clipToWhite } = params;
+  if (amount <= 0 || brightness <= 0) return input;
+  const width = input.width;
+  const height = input.height;
+  const src = input.data;
+  const n = src.length;
+  const px = width * height;
+
+  // Step 1 — HgcBloomThreshold extract: rgb = max(color·10 − Threshold/10, 0), no alpha clamp.
+  const thrFloor = threshold / 10; // BIAS = Threshold/10 (Threshold is the raw 0–100 param).
+  const bright = new Float32Array(px * 3);
+  for (let i = 0, j = 0; i < n; i += 4, j += 3) {
+    const r = src[i] / 255, g = src[i + 1] / 255, b = src[i + 2] / 255;
+    let er = r * 10 - thrFloor; if (er < 0) er = 0;
+    let eg = g * 10 - thrFloor; if (eg < 0) eg = 0;
+    let eb = b * 10 - thrFloor; if (eb < 0) eb = 0;
+    bright[j] = er; bright[j + 1] = eg; bright[j + 2] = eb;
+  }
+
+  // Step 2 — blur the extracted highlights in FLOAT at radius 0.5·Amount (register trace).
+  const blurred = decimatedBlurFloatRGB(bright, width, height, 0.5 * amount);
+
+  // Step 3 — HgcEchoScaleAndAdd: out = orig + blurred·(Brightness/50), clip to (doClip ? 1 : ∞).
+  const gain = brightness / 50;
+  const out = new Uint8ClampedArray(n);
+  for (let i = 0, j = 0; i < n; i += 4, j += 3) {
+    let or_ = src[i] / 255 + blurred[j] * gain;
+    let og = src[i + 1] / 255 + blurred[j + 1] * gain;
+    let ob = src[i + 2] / 255 + blurred[j + 2] * gain;
+    if (clipToWhite) { if (or_ > 1) or_ = 1; if (og > 1) og = 1; if (ob > 1) ob = 1; }
+    out[i] = Math.round(or_ * 255);
+    out[i + 1] = Math.round(og * 255);
+    out[i + 2] = Math.round(ob * 255);
+    out[i + 3] = src[i + 3];
+  }
+  return new ImageData(out, width, height);
+}
+
 registerFilter({
   uuid: '5599C557-CDC0-4112-B2C4-355E9A1A902E',
   names: ['bloom'],
@@ -303,10 +390,16 @@ registerFilter({
     const brightness = ctx.param('Brightness', 1);
     const threshold = ctx.param('Threshold', 0);
     if (amount > 0 && brightness > 0) {
-      // Bloom's real pre-blur mask (HgcBloomThreshold) is an affine max-channel
-      // knockout, NOT the glow luma ramp — pass softness:0 so glowFilter keeps its
-      // hard cutoff here (the soft-ramp default is Glow-only). Bloom's exact mask
-      // is decoded in the header note but not yet wired (P2-bloom-*).
+      // Decode-faithful FLOAT bloom (bloomHeliumRender register trace, see bloomFilter
+      // header): extract max(color·10 − Threshold/10, 0) → float blur(0.5·Amount) →
+      // additive orig + blur·(Brightness/50), clip to white. Gated behind FCT_BLOOM_FLOAT
+      // while gate-verifying; the 8-bit fallback below is the prior shipping behaviour.
+      if (process.env?.FCT_BLOOM_FLOAT) {
+        const clipToWhite = ctx.has('Clip to White') ? ctx.param('Clip to White', 1) > 0.5 : true;
+        return bloomFilter(input, { amount, brightness, threshold, clipToWhite });
+      }
+      // Prior 8-bit path (glowFilter): Bloom's pre-blur mask approximated by a hard
+      // luma cutoff; drops the ×10 amplification so it under-blooms at the peak.
       return glowFilter(input, { radius: amount, threshold: threshold / 100, amount: brightness / 100, softness: 0 });
     }
     return input;

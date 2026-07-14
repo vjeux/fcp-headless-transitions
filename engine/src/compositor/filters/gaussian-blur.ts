@@ -284,6 +284,104 @@ export function decimatedGaussianBlur(input: ImageData, radius: number): ImageDa
   return resample(blurred, input.width, input.height);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FLOAT-buffer Gaussian blur (RGB, 3-channel interleaved, NO 8-bit clamp).
+//
+// The Uint8ClampedArray path above clamps every intermediate to [0,255], which is
+// correct for a normal blur but DESTROYS the >1.0 headroom Bloom's ×10 highlight
+// extract produces (a mid-gray 0.5 → 5.0; an 8-bit store caps it at 1.0 and the blur
+// then dilutes the capped core with dark neighbours, so the energy that should blow
+// the frame to white is lost). Bloom therefore runs its blur in Float32 here.
+// The kernel + decimation are IDENTICAL to the 8-bit path (same makeGaussianKernel,
+// same gaussianDecimation), so the blur SHAPE matches FCP's HGBlur exactly; only the
+// storage type (and thus the headroom) differs. See glow.ts bloomFilter.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Bilinear resample of a Float32 RGB buffer (mirrors resample() for u8 RGBA). */
+function resampleFloatRGB(src: Float32Array, sw: number, sh: number, tw: number, th: number): Float32Array {
+  if (sw === tw && sh === th) return src;
+  const out = new Float32Array(tw * th * 3);
+  for (let y = 0; y < th; y++) {
+    const sy = (y + 0.5) * sh / th - 0.5;
+    const y0 = Math.max(0, Math.floor(sy));
+    const y1 = Math.min(sh - 1, y0 + 1);
+    const fy = sy - Math.floor(sy);
+    for (let x = 0; x < tw; x++) {
+      const sx = (x + 0.5) * sw / tw - 0.5;
+      const x0 = Math.max(0, Math.floor(sx));
+      const x1 = Math.min(sw - 1, x0 + 1);
+      const fx = sx - Math.floor(sx);
+      const o = (y * tw + x) * 3;
+      const i00 = (y0 * sw + x0) * 3, i10 = (y0 * sw + x1) * 3;
+      const i01 = (y1 * sw + x0) * 3, i11 = (y1 * sw + x1) * 3;
+      for (let c = 0; c < 3; c++) {
+        const top = src[i00 + c] * (1 - fx) + src[i10 + c] * fx;
+        const bot = src[i01 + c] * (1 - fx) + src[i11 + c] * fx;
+        out[o + c] = top * (1 - fy) + bot * fy;
+      }
+    }
+  }
+  return out;
+}
+
+/** Separable full-res Gaussian on a Float32 RGB buffer (mirrors gaussianBlur, no clamp). */
+function gaussianBlurFloatRGB(src: Float32Array, width: number, height: number, radius: number): Float32Array {
+  const r = Math.min(Math.ceil(radius), 200);
+  if (r === 0) return src;
+  const kernel = makeGaussianKernel(r);
+  const kSize = kernel.length;
+  const kHalf = r;
+  const temp = new Float32Array(width * height * 3);
+  const out = new Float32Array(width * height * 3);
+  for (let y = 0; y < height; y++) {
+    const rowBase = y * width;
+    for (let x = 0; x < width; x++) {
+      let rA = 0, gA = 0, bA = 0;
+      for (let k = 0; k < kSize; k++) {
+        let sx = x + k - kHalf;
+        if (sx < 0) sx = 0; else if (sx >= width) sx = width - 1;
+        const idx = (rowBase + sx) * 3;
+        const w = kernel[k];
+        rA += src[idx] * w; gA += src[idx + 1] * w; bA += src[idx + 2] * w;
+      }
+      const d = (rowBase + x) * 3;
+      temp[d] = rA; temp[d + 1] = gA; temp[d + 2] = bA;
+    }
+  }
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let rA = 0, gA = 0, bA = 0;
+      for (let k = 0; k < kSize; k++) {
+        let sy = y + k - kHalf;
+        if (sy < 0) sy = 0; else if (sy >= height) sy = height - 1;
+        const idx = (sy * width + x) * 3;
+        const w = kernel[k];
+        rA += temp[idx] * w; gA += temp[idx + 1] * w; bA += temp[idx + 2] * w;
+      }
+      const d = (y * width + x) * 3;
+      out[d] = rA; out[d + 1] = gA; out[d + 2] = bA;
+    }
+  }
+  return out;
+}
+
+/**
+ * Decimate → float-blur → upsample, matching FCP's HGBlur decimation but carrying
+ * values in Float32 so >1.0 bloom cores survive. Identical decimation levels + kernel
+ * to decimatedGaussianBlur (the u8 path).
+ */
+export function decimatedBlurFloatRGB(src: Float32Array, width: number, height: number, radius: number): Float32Array {
+  if (radius <= 0) return src;
+  const level = gaussianDecimation(radius);
+  if (level === 0) return gaussianBlurFloatRGB(src, width, height, radius);
+  const factor = 1 << level;
+  const dw = Math.max(1, Math.round(width / factor));
+  const dh = Math.max(1, Math.round(height / factor));
+  const small = resampleFloatRGB(src, width, height, dw, dh);
+  const blurred = gaussianBlurFloatRGB(small, dw, dh, radius / factor);
+  return resampleFloatRGB(blurred, dw, dh, width, height);
+}
+
 import { registerFilter } from './registry.js';
 
 // Gaussian Blur (UUID E472D646-…). Faithful to the legacy branch: Mix gates the

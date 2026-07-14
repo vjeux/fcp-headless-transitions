@@ -462,14 +462,34 @@ gated slugs, for two now-fully-measured reasons — NEITHER is the filter maths:
     so that's not it; (b) the co-stacked GLOW (Radius 0→13, Threshold 1→0.1) ALSO ramps and blooms,
     compounding with Bloom — the two filters' interaction/order isn't modeled; (c) GT's bloom LAGS its
     own threshold curve by ~2–4 frames (peak lum at f14 while threshold-min is f10–12) = a real FCP
-    temporal ACCUMULATION/persistence the engine doesn't model. The exact HgcBloomThreshold param
-    packing (the −2.25 bias + ±10 range constants noted below) still needs the full bloomHeliumRender
-    @0xe58a register trace. NEXT: (1) complete that register trace with tools/re/read_const.py to nail
-    scale/bias/gain exactly; (2) decode the Glow↔Bloom stacking; (3) model the temporal lag — THEN the
-    float peak-fix (verified-correct building block) lands as a net win. Do NOT ship the partial decode
-    (regresses) and do NOT fit the ramp.
-So the fix needs THREE things landed together: (1) float-buffer bloomFilter (BUILT+peak-VERIFIED 2×,
-reverted — needs the register-trace packing + Glow-stack + temporal-lag before it's a net win);
+    temporal ACCUMULATION/persistence the engine doesn't model.
+    ── REGISTER TRACE COMPLETE 2026-07-14s (arm64, InternalFiltersXPC slice; the prior @0xe58a was
+    x86_64 — arm64 is @0xc88c). -[PAEBloom bloomHeliumRender:…] fully decoded, extract/scale/bias/
+    gain/RADIUS all confirmed (decode-don't-fit, no guessed constant):
+      • HgcBloomThreshold: s13=doDarkBloom?-10:+10 → SCALE hg_Params[1]=+10; s14=doDarkBloom?+10:-10
+        → BIAS hg_Params[0]=s14·Threshold/100=−Threshold/10; hg_Params[2]=(−FLT_MAX,+FLT_MAX)=NO
+        alpha clamp; hg_Params[3]=0. Shader r0=color·10−Threshold/10, max(·,0). (extract CONFIRMED.)
+      • BLUR radius fed to HGaussianBlur::init / HEquirectGaussianBlur::init = 0.5·Amount (cb8c/caa8:
+        fmov d0,#0.5; fmul d0,d11,d0) — HALF the Amount param, NOT raw Amount. X/Y scale = |Horiz|·
+        imgW, |Vert|·imgH (both 1 here). CORRECTED my impl (was using raw Amount = 2× too wide).
+      • HgcEchoScaleAndAdd (verbatim shader): r1=color0·hg_Params[0]+color1; min(·,hg_Params[1].x);
+        max(·,0). Wiring: hg_Params[0]=Brightness/50 (cc04 d8/50, d9=50 fcsel doDarkBloom);
+        hg_Params[1].x=doClip?1.0:+FLT_MAX (cc44 fcsel on withDoClip). => out=orig+blur·(Bright/50),
+        clip@(ClipToWhite?1:∞). (combine CONFIRMED.) The −2.25 HGTransform::Translate at cc98 is
+        GATED on versionAtCreation==0 (legacy compat) and SKIPPED on the modern path — correctly omitted.
+    RESULT after the 0.5·Amount radius fix: 360° Bloom PEAK still matches (f13–14 ≈ 223 vs GT 227) but
+    the mid-ramp STILL over-blooms (10.48→10.54, still < baseline 11.51). So the spatial math is now
+    fully register-verified CORRECT; the residual is NOT the Bloom filter — it is (b) the Glow-stack +
+    (c) the ~2-frame temporal ONSET lag, BOTH of which also affect the OLD 8-bit path (old engine also
+    blooms at f04 while GT waits to f06 — the lag is pre-existing, not introduced). Verified the 360°
+    base image matches GT at f00–f03 (84.6 vs 89), so it's not an equirect-base error.
+    NEXT (the ONLY remaining blockers, both pre-existing): (1) decode the Glow↔Bloom stacking/onset;
+    (2) model the temporal onset lag (GT holds flat ~89 through f06 then ramps — likely a curve/eval
+    or HGBlur temporal property, decode-don't-fit — smoothstep-ease on the interp=1 threshold was
+    TESTED and made it WORSE, so it is NOT a naive ease). THEN the register-verified float peak-fix
+    lands as a net win. Do NOT ship the partial (regresses) and do NOT fit the ramp.
+So the fix needs THREE things landed together: (1) float-buffer bloomFilter (BUILT+peak-VERIFIED 3×,
+register-decode COMPLETE + radius corrected — needs Glow-stack + temporal-onset before it's a net win);
 (2) Lights__Bloom wrap-cancel + B-content-persistence past 0.534s (time-authority change, risky);
 (3) 360° Bloom already takes the normal filter path (NOT the band path — corrected above), so the
 bloom fires live there; the sub-step is the packing/stack/lag decode, not band-wiring. Multi-step;
@@ -808,6 +828,25 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14s  S4/T-D2c BLOOM — COMPLETED the bloomHeliumRender register trace (decode-don't-fit) +
+              corrected the blur radius; float bloom landed FLAG-OFF (byte-identical, gate 0/0) as a
+              register-verified building block. The prior @0xe58a addr was the x86_64 slice — the arm64
+              method is -[PAEBloom bloomHeliumRender:…] @0xc88c. Traced every shader-param store:
+              HgcBloomThreshold SCALE=+10 / BIAS=−Threshold/10 / no-alpha-clamp (extract CONFIRMED as
+              already implemented); HgcEchoScaleAndAdd out=orig+blur·(Brightness/50) clip@(doClip?1:∞)
+              (combine CONFIRMED); and the ONE correction — the blur radius fed to HGaussianBlur::init
+              is 0.5·Amount, not raw Amount (my impl was 2× too wide). Also confirmed the −2.25 echo
+              Translate is a legacy versionAtCreation==0 path, SKIPPED on modern renders (correctly
+              omitted). Rebuilt glow.ts bloomFilter (radius 0.5·Amount) + gaussian-blur.ts
+              decimatedBlurFloatRGB (Float32 mirror of the u8 decimated blur). MEASURED: peak still
+              matches GT (f13–14 ≈223 vs 227) but the mid-ramp still over-blooms (10.54 < baseline
+              11.51) → gated behind FCT_BLOOM_FLOAT (default OFF = byte-identical, gate re-confirmed
+              0/0). Isolated the residual to two PRE-EXISTING (also in the 8-bit path) issues, NOT the
+              now-verified Bloom math: the co-stacked GLOW ramp + a ~2-frame temporal ONSET lag (GT
+              holds flat ~89 through f06 then ramps; engine blooms at f04). Verified the 360° base
+              image matches GT (f00 84.6 vs 89) so it's not an equirect-base error; smoothstep-ease on
+              the interp=1 threshold was tested and made it WORSE (ruled out). NEXT: decode the temporal
+              onset lag + Glow-stack, THEN flip the flag to ship. tsc + no-hardcode green.
 - 2026-07-14r  S4/T-D2c BLOOM — BUILT + PEAK-VERIFIED the float bloomFilter; REVERTED clean (mid-ramp
               regresses). Anti-timidity: proven building block + clean reversal, NOT a diagnosis-only
               no-op. (1) CORRECTED a false premise (rule 8): the ROADMAP claimed 360° Bloom's band path
