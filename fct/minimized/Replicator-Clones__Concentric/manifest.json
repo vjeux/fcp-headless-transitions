@@ -1,0 +1,13 @@
+{
+  "slug": "Replicator-Clones__Concentric",
+  "source_motr": "/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized/Replicator:Clones.localized/Concentric.localized/Concentric.motr",
+  "worst_frame": 13,
+  "baseline_psnr": 9.237,
+  "final_psnr": 6.125,
+  "struct_before": 140,
+  "struct_after": 11,
+  "removed": 122,
+  "nframes": 24,
+  "slack": 0.12,
+  "finding": "11-node repro: Group>Circles>1st left copy{Circle 6 (factoryID=12 shape) + Clone B copy 21 (factoryID=15 clone) + <mask Image Mask factoryID=1>}. f10-f18 diverge ~6.1 dB uniformly: FCP masks the clone to the circle (a concentric RING); the ENGINE drops the GROUP-level Image Mask (parser extracts imageMaskSourceId only on <scenenode>, not <group>/<layer>) so it renders unmasked full-frame clone instead of the ring. Fix = wire imageMaskSourceId on group/layer parse (see docs/notes/salvage/group-image-mask-parser.patch) AND apply a group-level mask in the compositor (index.ts renderChildLayers; currently masks only leaf-drawables at :478)."
+}
