@@ -598,7 +598,26 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
-- 2026-07-13m  S7 WIN — retime-wrap "settle-on-B" fix (timemap.ts). Decoded that the wrap-to-frame-0
+- 2026-07-14  S7 WIN — no-op curve guard in animationEndSec walk (parser/index.ts). Decoded that
+              Movements/Multi-flip freezes on static photo B from f16–f23 (tail collapse 21→7 dB)
+              because animationEndSec is set to 1.568s by a NO-OP curve: "Transition B" Rotation.Z
+              runs 0.0→0.0003 rad (a ~0.017° non-motion) with a stray keyframe at 1.568s, PAST the
+              authored scene duration (1.167s). The real card-flip (Clone Layer Rotation.X/Y, value
+              range 4.6/2.4) ends at 1.034s. The inflated 1.568s window compressed the multi-flip
+              into f0–15 then held B for the tail, while GT keeps flipping (photo A returns f16–21,
+              B settles only at f22–23). FIX: a curve whose keyframe VALUES never change (value-range
+              < 1e-3) may extend the animation window only UP TO the scene duration, never past it —
+              a value that doesn't move has no motion to bound. Same class as the existing Retime/
+              Preview/Snapshot exclusions but keyed on the curve's own value delta. Census (all 65):
+              fires on EXACTLY Multi-flip + Black_Hole (both have a zero-range curve keyed past their
+              duration; Black_Hole's "Transition A" Scale.X/Y/Z hold constant with a key at 0.968s vs
+              dur 0.667s). Real animating curves are never capped, so the many legitimate "animates
+              past nominal duration" slugs (Arrows, Duplicate, Curtains, etc.) are untouched. Full
+              65-slug gate: **2 improvements, 0 regressions** — Multi-flip 12.36→15.66 (+3.3),
+              Black_Hole 13.93→14.53 (+0.6). Baseline re-frozen 14.04→**14.10 dB**. tsc + no-hardcode
+              policy green. Commit <pending>.
+
+
               (loop back to source A once the outgoing drop zone times out) is WRONG for a plain A→B
               crossfade whose Transition B drop zone stays alive to the animation end: the current
               GUI GT tail holds photo B, not A (Blurs/Zoom f23 ≈ (92,106,137)=B while wrap-to-0

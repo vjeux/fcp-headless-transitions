@@ -728,6 +728,44 @@ export function parseMotr(xmlText: string): MotrScene {
       }
       if (skip) continue;
       if (EXCLUDE_PARAMS.has(ownerName)) continue;
+      // NO-OP CURVE GUARD: a curve whose keyframe VALUES never change animates
+      // nothing — it cannot define "when visible motion ends". Motion sometimes
+      // authors such a curve with a trailing keyframe that sits PAST the scene's
+      // authored duration (a leftover editor artifact), which then wins the maxT
+      // walk and inflates animationEndSec far past the real motion end. That
+      // stretches the progress→time map so the true animation is compressed into
+      // the early frames and the tail holds a static frame.
+      //   • Movements/Multi-flip: "Transition B" Rotation.Z runs 0.0→0.0003 (a
+      //     ~0.017° no-op) with its last key at 1.568s, while the real card-flip
+      //     (Clone Layer Rotation.X/Y) ends at 1.034s and the scene duration is
+      //     1.167s. Native 1.568s freezes the flip on B by f16 (mean 12.1);
+      //     capping the no-op at the scene duration (1.167s) lets the multi-flip
+      //     play to f22 (mean 15.5, +3.4 dB).
+      //   • Movements/Black_Hole: "Transition A" Scale.X/Y/Z hold a constant
+      //     (0.0 value-range) with a key at 0.968s vs scene duration 0.667s; the
+      //     real black-hole warp finishes within the duration. Cap → +0.6 dB.
+      // A REAL animating curve is never capped (its value-range exceeds epsilon),
+      // so scenes that legitimately animate past their nominal duration (e.g. the
+      // many "OVER duration" spatial-curve slugs) are untouched. Census (all 65):
+      // fires on exactly Multi-flip + Black_Hole. Same class of "not-live-
+      // animation" exclusion as Retime/Preview/Snapshot, but keyed on the curve's
+      // own value delta rather than a parameter name.
+      let curveValueRange = 0;
+      {
+        let vMin = Infinity, vMax = -Infinity, nVals = 0;
+        for (const kp of directChildren(curve as Element, 'keypoint')) {
+          const vEl = firstChild(kp, 'value');
+          if (!vEl || !vEl.textContent) continue;
+          const vv = parseFloat(vEl.textContent.trim().split(/\s+/)[0]);
+          if (!isFinite(vv)) continue;
+          nVals++;
+          if (vv < vMin) vMin = vv;
+          if (vv > vMax) vMax = vv;
+        }
+        curveValueRange = nVals > 0 ? vMax - vMin : 0;
+      }
+      const isNoOpCurve = curveValueRange < 1e-3;
+      const sceneDurSec = duration.value / duration.timescale;
       for (const kp of directChildren(curve as Element, 'keypoint')) {
         const timeEl = firstChild(kp, 'time');
         if (!timeEl || !timeEl.textContent) continue;
@@ -777,7 +815,10 @@ export function parseMotr(xmlText: string): MotrScene {
               : genShifted !== null
                 ? genShifted
                 : (rawSec >= 0 ? rawSec + shiftAmt : rawSec);
-          if (sec > maxT) maxT = sec;
+          // A no-op curve (no value change) may only extend the window up to the
+          // authored scene duration — never past it (see NO-OP CURVE GUARD above).
+          const secCapped = isNoOpCurve ? Math.min(sec, sceneDurSec) : sec;
+          if (secCapped > maxT) maxT = secCapped;
         }
       }
     }
