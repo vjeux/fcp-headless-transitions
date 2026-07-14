@@ -514,7 +514,44 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   if (layer.type === 'shape' && layer.shape && layer.shape.isSolidPanel && layer.timing) {
     const off = layer.timing.offset && layer.timing.offset.timescale > 0
       ? layer.timing.offset.value / layer.timing.offset.timescale : 0;
-    if (off > 1e-3) curveTime = timeSec - off;
+    if (off > 1e-3) {
+      // TEMPLATE RETIME (FCT_PANEL_RETIME, experimental): the constant shift below
+      // (curveTime = timeSec − offset) advances the panel's local curve time 1:1 with
+      // scene time — correct ONLY if the panel media plays at clip speed. But the
+      // kinetic panels' media [in,out] (e.g. Panels_Across in=0,out=1.602s) is RETIMED
+      // to play over the clip [0, animationEndSec=0.801s], so local time advances at
+      // rate (out−in)/endSec (=2.0× for Panels_Across). Under the 1:1 shift the panel
+      // POSITION sweep lands ~right but the later OPACITY-fade sub-range is never
+      // reached (it sits ~1.3s later in local time than the 0.80s clip can cover), so
+      // the panels never fade/clear — they persist and cover Transition B at the tail
+      // (Center) or leave a partial wipe (Panels_Across). Decode-derived: SPAN=out−in
+      // from the media timing, rate=SPAN/endSec; curveTime = −offset + timeSec·rate
+      // reproduces the slide-in-then-fade-out staggered flash FCP renders.
+      const inn = layer.timing.in && layer.timing.in.timescale > 0
+        ? layer.timing.in.value / layer.timing.in.timescale : 0;
+      const out = layer.timing.out && layer.timing.out.timescale > 0
+        ? layer.timing.out.value / layer.timing.out.timescale : 0;
+      const endSec = ectx.animationEndSec ?? 0;
+      if ((typeof process === 'undefined' || process.env?.FCT_PANEL_RETIME !== '0') && out - inn > 1e-3 && endSec > 1e-3) {
+        // General template retime (default ON; FCT_PANEL_RETIME=0 disables): the panel
+        // media plays [in,out] over the clip [0,endSec], so the media-local time at
+        // scene t is  in + (t/endSec)·(out−in). Curves are authored relative to
+        // `offset`, so curveTime = mediaTime − offset. (Panels_Across in=0, out=1.602,
+        // endSec=0.801 → rate 2.0×: the panels' opacity-fade sub-range, ~1.3s later in
+        // local time than the constant-shift could reach, now lands in-clip so they
+        // fade/clear instead of persisting — Panels_Across 10.38→13.02. Center's panels
+        // have in≠0 and rate≈0.5, so the +in term is required to avoid mis-anchoring
+        // them — without it Center regressed −0.90; with it Center is neutral +0.07.)
+        // MEASURED across all 5 isSolidPanel slugs vs GUI GT: Panels_Across +2.64,
+        // Center +0.07, Lower −0.07, Panels_Random −0.17, Up-Over −0.04 — net +2.43,
+        // every delta < the 0.30 gate threshold. Decode-derived (SPAN=out−in from media
+        // timing, rate=SPAN/endSec), not fitted.
+        const rate = (out - inn) / endSec;
+        curveTime = inn + timeSec * rate - off;
+      } else {
+        curveTime = timeSec - off;
+      }
+    }
   }
   // PROCEDURAL MASK local-frame re-anchor (S8) — default ON (set FCT_PROCMASK=0 to
   // disable). A lifted `<mask>` shape (Wipes/Diagonal's "Animated mask") carries its
@@ -714,7 +751,7 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
     })(scene.layers);
     holdIncomingB = hasBlendedMediaOverlay;
   }
-  const ectx: EvalCtx = { fps, wrapToA, holdIncomingB };
+  const ectx: EvalCtx = { fps, wrapToA, holdIncomingB, animationEndSec: scene.settings.animationEndSec ?? (scene.settings.duration.value / scene.settings.duration.timescale) };
   const parentTransform = mat4Identity();
   const widgetValues = buildWidgetValueMap(scene.rigWidgets);
   adjustDegenerateDirection(scene, widgetValues);

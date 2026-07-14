@@ -36,4 +36,11 @@ export interface EvalCtx {
    * overlay (Lights/Light Noise). Without it the tail frames render an empty base.
    */
   holdIncomingB: boolean;
+  /**
+   * animationEndSec — the rendered clip duration (last spatial keyframe / scene
+   * duration). Used by the kinetic-panel template RETIME: an offset-authored panel's
+   * media [in,out] range plays over [0,endSec], so its local curve time advances at
+   * rate (out-in)/endSec, not 1:1 with scene time. Needed where curveTime is built.
+   */
+  animationEndSec?: number;
 }

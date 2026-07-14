@@ -657,8 +657,8 @@ found (never per-transition hardcoding). Current known:
   photo B. Fix: bind each page to its own drop-zone source (front→A, back→B). Concentric neutral.
 Solved recently (see Done ledger): Divide A/B + wrap + mask-dilation, Duplicate/Squares A/B.
 
-**🎯 KINETIC-PANEL-REVEAL CLUSTER (consolidated 2026-07-14v — the biggest remaining lever in the
-9–11 dB band).** Four of the five bottom slugs share ONE root cause, not four separate bugs:
+**🎯 KINETIC-PANEL-REVEAL CLUSTER — template retime SHIPPED 2026-07-14w (Panels_Across 10.38→13.11
++2.73, Color_Panels 15.12→17.23 +2.11, 0 regressions).** Four+ bottom slugs shared ONE root cause:
 Stylized/Lower (9.0), Panels_Across (10.4), Close_and_Open (10.9), Center (11.8 w/ tail collapse to
 5.9). All are "Kinetic"-family transitions built from many decorative panel/shape layers whose
 Position/Opacity curves are authored in each layer's OWN LOCAL negative-time frame and re-anchored by
@@ -668,16 +668,21 @@ a single CONSTANT shift `curveTime = timeSec − offset`, which lands the POSITI
 but leaves the panels' EXIT/FADE (and the Image-Mask growth that reveals Transition B) in the wrong
 sub-range — so decorative panels persist/grow to the tail (Center: 22→29 visible f15→f23) and cover
 B, and the flash/reveal races at the wrong rate (Panels_Across left-half stays tan at the peak).
-THE FIX (one subsystem, unblocks all four): a TEMPLATE-TIMELINE RETIME that SCALES each offset-
-authored layer's local curve time into the clip duration (map [layer local range] → [0, clipDur] via
-the playRange↔animationEndSec ratio), replacing the constant-shift for kinetic-panel layers only.
-RISK: the constant-shift is what gives Rotate 18→32 and the S8 Diagonal write-on — so the scale MUST
-be scoped (kinetic-panel shapes / Image-Mask reveal layers) and gate-verified isolated; a global
-scale would regress the drop-zone re-anchor slugs. Build behind a flag, measure each of the 4 slugs +
-full gate, flip ON only if net-positive with 0 regressions. This is the highest-ROI structural work
-left (≈Σ 6–7 dB of deficit across 4 slugs) and is decode-complete — the mechanism is understood; what
-remains is the careful scoped implementation. NOT yet attempted in code (a wrong global retime
-regresses; needs the scoped design above). Supersedes the individual Lower/Panels/Center/Close notes.
+THE FIX (SHIPPED — evaluator/index.ts, default ON, FCT_PANEL_RETIME=0 escape hatch): a TEMPLATE-
+TIMELINE RETIME for offset-authored isSolidPanel shapes. The panel media plays its [in,out] range
+over the clip [0,animationEndSec], so the media-local time at scene t is `in + (t/endSec)·(out−in)`
+and the curve (authored relative to `offset`) is evaluated at `curveTime = in + t·(out−in)/endSec −
+offset`. This replaces the old constant shift `curveTime = t − offset` (which advanced local time 1:1
+and left each panel's later OPACITY-fade sub-range unreachable → panels never cleared). Decode-derived
+(SPAN=out−in from the media timing; the `+in` term is REQUIRED — Panels_Across has in=0 but Center's
+panels have in≠0 & rate≈0.5, and omitting +in mis-anchored Center by −0.90). MEASURED vs GUI GT across
+all 5 isSolidPanel slugs: Panels_Across +2.73, Color_Panels +2.11 (bonus), Center +0.13, Lower −0.07,
+Panels_Random −0.17, Up-Over −0.04 — net strongly positive, every regression < the 0.30 gate
+threshold, full gate 0 regressions / 2 improvements. Baseline re-frozen 14.40→14.47.
+REMAINING in this cluster (separate bugs, NOT the panel retime): Center's TAIL collapse (f16–f23,
+still ~6–8 dB) is the Image-Mask reveal not growing to full-frame (the decorative panels cover B) —
+a distinct Image-Mask-growth mechanism; Lower's mid white-flash is partly S2 linear + mask.
+Superseded per-slug notes below retained for the Center Image-Mask + Panels_Across flash-peak detail.
 
 ### S8. Procedural / animated group masks  [SHIPPED 2026-07-14m: source-less shape-mask matte + write-on envelope, Diagonal pair 11.39→13.47 (+2.08), default ON · HIGH coverage]  (task T-H1)
 DECODED (Stylized/Wipes Diagonal): the effects field is revealed by an `<mask name="Animated mask"
@@ -868,6 +873,22 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14w  S7/KINETIC-PANEL WIN — template-timeline RETIME for offset-authored panels
+              (Panels_Across 10.38→13.11 +2.73, Color_Panels 15.12→17.23 +2.11, 0 regressions).
+              Kinetic panels' Position/Opacity curves are authored in the layer's LOCAL frame and the
+              panel media [in,out] is RETIMED to play over the clip [0,animationEndSec]; the old constant
+              shift curveTime=t−offset advanced local time 1:1, so each panel's later OPACITY-fade
+              sub-range was never reached → panels never cleared (Panels_Across left-half stayed tan at
+              the flash peak). FIX (evaluator/index.ts, default ON, FCT_PANEL_RETIME=0 escape):
+              curveTime = in + t·(out−in)/endSec − offset. Decode-derived: SPAN=out−in from media timing
+              (Panels_Across in=0/out=1.602/endSec=0.801 → rate 2.0×); the +in term is REQUIRED (Center's
+              panels have in≠0 & rate≈0.5 — omitting +in regressed Center −0.90; with it Center +0.13).
+              Added animationEndSec to EvalCtx (context.ts). MEASURED all 5 isSolidPanel slugs vs GUI GT:
+              PA +2.73, CP +2.11, Center +0.13, Lower −0.07, Panels_Random −0.17, Up-Over −0.04 — every
+              delta under the 0.30 gate threshold. Full gate 0 regressions / 2 improvements; baseline
+              re-frozen 14.40→14.47. (Center TAIL collapse is a SEPARATE Image-Mask reveal-growth bug.)
+- 2026-07-14v  KINETIC-PANEL cluster consolidated (docs, 6fb97e5): decoded Center's tail + unified
+              Lower/Panels_Across/Center/Close_and_Open under the template-retime root cause.
 - 2026-07-14u  S7 WIN — Movements/Switch tail-settle FIXED via flat-stack z-order (11.68→11.96, +0.28,
               gate 0 regressions). Pivoted off Bloom (3 ticks, decode complete, remaining blocker is a
               subtle curve/temporal effect) to a shippable slug. Census confirmed the premise but
