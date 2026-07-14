@@ -515,6 +515,17 @@ baselines (deterministic re-score): Clone_Spin 10.28, Video_Wall 9.06, Concentri
 ### S7. Residual per-slug bugs  [ONGOING]  (tasks T-F1/G1 · opportunistic, one-offs)
 Bugs not owned by a shared subsystem — fix opportunistically when a clean structural root cause is
 found (never per-transition hardcoding). Current known:
+- **Movements/Switch (11.64):** 🔬 DECODED 2026-07-14o (docs-only, no code). A "Clone B" node
+  (id 1999871187) + LinkPos/LinkAnchor/LinkRot 3D card-flip (transform[109]). Per-frame score is a
+  symmetric double-dip: f04–f06 ≈7.7 dB and the WHOLE tail f16–f23 ≈9–10 dB, while the mid flip
+  (f10–f13) is fine ≈16 dB. Mean-colour signature nails TWO bugs: (1) f04 engine=(33,39,56)
+  dark-cool vs GT (115,92,85) warm — the card rotates/darkens TOO EARLY (flip-timing/back-face shows
+  before it should); (2) THE DOMINANT one — the tail f20–f23 engine stays WARM (118,84,67 ≈ photo A)
+  while GT is COOL BLUE (92,106,137 = photo B): **the flip never SETTLES on B**. B is a Clone Layer
+  ("Clone B"), so this is the same clone-resolve/settle family as Swing/Rotate/Scale/Duplicate — the
+  incoming B clone isn't bound/visible at the flip's end. Likely shares a root cause with the Flip
+  page-flip back-face fix (ac186de: page.layer.source binding). NEXT: check the clone-B source
+  binding + the LinkRot settle at progress→1; verify it doesn't regress the other clone slugs.
 - **Movements/Smear (10.91):** DirectionalBlur+Smear filter appearance + smear continuing past the
   drop-zone timeout (content vanishes at 0.467s). Clamp tried → worse (rejected).
   **🔬 CONFIRMED NOT-FILTER-MATH (2026-07-14n, S7-smear agent):** the Smear (PAEScrape, `scrape.ts`)
