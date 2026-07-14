@@ -245,7 +245,20 @@ T-C1  DROPPED linear/radial gradient generator                   census: NO buil
 T-D1  DONE    linear working-space composite path                 flag-gated; overlay slugs first
 T-D2a DONE    Brightness/Colorize into linear after: T-D1         Colorize=1 users, Brightness>1
 T-D2b DONE    Tint into linear               after: T-D1          Tint filter flag-gated (Leaves +0.07)
-T-D2c DONE    Glow/Bloom into linear         after: T-D1          Bloom, 360°_Bloom
+T-D2c PARTIAL Glow/Bloom into linear         after: T-D1          Bloom, 360°_Bloom
+              [⚠️ STATUS CORRECTED 2026-07-14 (rule 8, forensic). The "DONE" was WRONG on two counts:
+               (1) ACCIDENTAL CLOBBER — b8a6c8e added a linear branch to glow.ts (flag-OFF, byte-id),
+               but eefb0ec (T-B2 Emitter SIM) was cut from a STALE glow.ts and its merge reverted
+               glow.ts's blob 56219de→7ea6bec, silently DELETING the entire T-D2c linear branch + its
+               9 unit tests. eefb0ec's message never mentions glow — pure rebase-clobber (parallel-
+               worktree hazard). Current glow.ts on main has NO `../linear.js` import; only channel-
+               mixer.ts + hue-saturation.ts are wired to the linear chain. (2) EVEN IF RESTORED, it
+               would NOT fix Bloom — b8a6c8e stored the bright/blur intermediate as Uint8ClampedArray
+               (linear-light u8, clamped at 255), so it CANNOT preserve the >1.0 headroom Bloom needs
+               (S3-bloom agent proved 360°_Bloom under-blooms 194 vs GT 250; the 8-bit clamp is the
+               cause). REAL T-D2c = a FLOAT (Float32) headroom-preserving glow/bloom chain, tone-mapped
+               once at readback. So T-D2c is PARTIAL/NOT-DONE: the u8 scaffold was lost AND was
+               insufficient. Do NOT trust the old "byte-identical DONE" — rebuild as float.]
 T-D2d DONE    HSV into linear                after: T-D1          Color_Panels (HSV x4; flag OFF, byte-id).
                                                                   Panels_Random has ZERO HSV (Colorize
                                                                   only, folds into T-D2a).
@@ -777,6 +790,18 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14q  FORENSIC premise-correction (rule 8/9a, docs-only): T-D2c "Glow/Bloom into linear —
+              DONE" was FALSE. Traced glow.ts blob history: b8a6c8e added the linear branch (flag-OFF,
+              7× isLinearCompositeEnabled), then eefb0ec (T-B2 Emitter SIM, cut from a stale glow.ts)
+              reverted the blob 56219de→7ea6bec on merge, silently deleting the whole T-D2c linear
+              branch + its 9 tests — a rebase-clobber (eefb0ec's message never mentions glow). Verified
+              current main: glow.ts has NO ../linear.js import; only channel-mixer + hue-saturation are
+              linear-wired. AND even the lost branch stored intermediates as Uint8ClampedArray (u8
+              linear-light, clamped 255) so it could never hold Bloom's >1.0 headroom (corroborates the
+              S3-bloom agent's 194-vs-250 under-bloom proof). Flipped the flat-list marker DONE→PARTIAL
+              with the full forensic note; the real T-D2c is a FLOAT headroom-preserving glow/bloom
+              chain (tone-map once at readback), still pending. No code touched (flag was OFF = no pixel
+              impact either way); this retires a false "done" that would have misled the next S2 tick.
 - 2026-07-14p  S7 LENS-FLARE GENERATOR SHIPPED — real subsystem win, gate-green (orchestrator merged
               the S7-lensflare agent's work after gate-verifying on main per rule 4). The engine's
               `determineImageSource` returned `undefined` for the LensFlareGenerator (pluginUUID
