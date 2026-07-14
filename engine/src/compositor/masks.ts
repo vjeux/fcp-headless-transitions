@@ -15,7 +15,7 @@ import { evaluateCurve } from '../evaluator/curves.js';
 import { rasterizeShape, unionMasks } from './shapes.js';
 import { luma601 } from './blend.js';
 import { generateInstances, sequenceProgress, sequenceOrder } from './replicator.js';
-import { renderGaussianGradient } from './filters/gradient.js';
+import { renderGaussianGradient, renderLensFlare } from './filters/gradient.js';
 import { mat4Mul, instanceLocalMatrix, createBuffer } from './blit.js';
 import { lookupFilter, makeContext } from './filters/registry.js';
 
@@ -196,6 +196,21 @@ export function getSourceImage(rctx: RenderContext, source: ImageSource | undefi
     }
     case 'gaussianGradient':
       return renderGaussianGradient(source.gradient);
+    case 'lensFlare':
+      // The flare envelope + sweep follow the LINEAR transition progress, so use
+      // the UN-wrapped scene time (mediaTime) — the retime-wrap that remaps
+      // `rctx.time` for the drop zones must not warp the flare's own animation.
+      if (typeof process !== 'undefined' && process.env?.FCT_FLARE_DEBUG) {
+        // eslint-disable-next-line no-console
+        console.error(`[flare] time=${rctx.time} media=${rctx.mediaTime} endSec=${rctx.animationEndSec} canvas=${source.flare.width}x${source.flare.height} out=${imageA.width}x${imageA.height}`);
+      }
+      // Render the flare AT THE OUTPUT FRAME SIZE (not the generator's authored
+      // 1920×1080 canvas). The generator canvas is larger than the render frame
+      // (1854×1042 here), and the layer's world transform maps canvas→frame, which
+      // shifts a canvas-sized buffer into a sub-rect. The flare is inherently
+      // full-frame (it floods the whole scene in the GUI GT), so we rasterize it
+      // directly into frame space; the (near-identity) transform then places it 1:1.
+      return renderLensFlare(source.flare, rctx.mediaTime ?? rctx.time ?? 0, rctx.animationEndSec || 1, imageA.width, imageA.height);
     default: return null;
   }
 }

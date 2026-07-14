@@ -442,6 +442,21 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
     const clipT = retimedClipTime(evalLayer, rctx);
     const src = evalLayer.forceSourceA ? imageA : getSourceImage(rctx, layer.source, imageA, imageB, clipT);
     if (src) {
+      // Lens-flare glow: renderLensFlare emits a FULL-FRAME field already in output
+      // coordinates (its centre sweep + envelope are computed in frame pixels), so
+      // it composites 1:1 with the layer's Screen/add blend — NOT through the
+      // generator layer's worldTransform. That layer carries a rig-driven Scale
+      // (Oscillate Size) + a fixed-res box that would otherwise displace/shrink the
+      // full-frame glow into a corner. (Generic: keyed on the lensFlare SOURCE
+      // TYPE, never the slug.)
+      if (layer.source?.type === 'lensFlare') {
+        let filtered = src;
+        for (const filter of layer.filters) {
+          filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id));
+        }
+        blitDirect(output, filtered, opacity, layer.blendMode);
+        return 'children';
+      }
       // Framing camera (factory 3): the standalone Transition A/B drop-zone tiles
       // live in the same off-canvas world space as the replicator wall, so route
       // them through the same look-at camera (computeFraming pose). Generic — only

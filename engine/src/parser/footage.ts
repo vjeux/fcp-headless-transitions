@@ -8,7 +8,7 @@
  * globals) so concurrent parses never share mutable state. Split out of
  * parser/index.ts (ROADMAP item 7).
  */
-import type { ImageSource, GaussianGradientConfig, Parameter } from '../types.js';
+import type { ImageSource, GaussianGradientConfig, LensFlareConfig, Parameter } from '../types.js';
 import { directChildren, getTextContent, parseParameter } from './xml.js';
 
 /**
@@ -384,12 +384,123 @@ function parseGaussianGradient(params: Parameter[]): GaussianGradientConfig {
   return { width, height, centerX, centerY, absolutePoints, radius, color1, color2, flip };
 }
 
+/**
+ * Parse Motion's LensFlareGenerator (`Lens Flare` procedural generator). Reads
+ * the `Object > Lens Flare` (id 2 > id 1) parameter block for the core/ring/streak
+ * appearance, and the flare-sweep endpoints from the two published "Center
+ * Start"/"Center End" controls — which are authored as the `Center` (id 1) of the
+ * template's disabled `Blur Start`/`Blur End` filters (pluginName). The generator's
+ * own LinkX/LinkY behaviors bind its Center to these two endpoints and the rig
+ * sweeps between them over the transition; we reproduce that by interpolating
+ * centerStart→centerEnd by transition progress at render time. `el` is the
+ * generator's <scenenode>. See LensFlareConfig for the full id map + RE notes.
+ */
+function parseLensFlare(params: Parameter[], el: Element | undefined): LensFlareConfig {
+  // Inner "Lens Flare" object folder: Object(id 2) > Lens Flare(id 1).
+  let obj: Parameter[] | undefined;
+  const objectFolder = findParamByIdName(params, 2, 'Object');
+  if (objectFolder?.children) {
+    const lf = objectFolder.children.find(p => p.name.trim() === 'Lens Flare');
+    obj = lf?.children ?? objectFolder.children;
+  }
+  const src = obj ?? params;
+
+  const num = (p: Parameter | undefined, dflt: number): number => {
+    if (!p) return dflt;
+    if (typeof p.value === 'number') return p.value;
+    if (p.curve && typeof p.curve.value === 'number') return p.curve.value;
+    if (p.curve && typeof p.curve.default === 'number') return p.curve.default;
+    return dflt;
+  };
+
+  const width = num(src.find(p => p.id === 300), 1920);
+  const height = num(src.find(p => p.id === 301), 1080);
+
+  const intensity = num(src.find(p => p.id === 3 && p.name.trim() === 'Intensity'), 1);
+  const falloffParam = src.find(p => p.id === 4 && p.name.trim() === 'Falloff');
+  const falloff = falloffParam?.curve;
+  const falloffStatic = num(falloffParam, 4);
+
+  // Core colour (id 5) { Red Green Blue } — default white.
+  const readRGB = (folderId: number, name: string, dflt: [number, number, number]): { r: number; g: number; b: number } => {
+    const folder = src.find(p => p.id === folderId && p.name.trim() === name);
+    let cr = dflt[0], cg = dflt[1], cb = dflt[2];
+    if (folder?.children) {
+      const rp = folder.children.find(p => p.name === 'Red');
+      const gp = folder.children.find(p => p.name === 'Green');
+      const bp = folder.children.find(p => p.name === 'Blue');
+      if (rp) cr = num(rp, dflt[0]); if (gp) cg = num(gp, dflt[1]); if (bp) cb = num(bp, dflt[2]);
+    }
+    return { r: Math.round(cr * 255), g: Math.round(cg * 255), b: Math.round(cb * 255) };
+  };
+  const color = readRGB(5, 'Color', [1, 1, 1]);
+  const streakColor = readRGB(8, 'Streak Color', [1, 1, 1]);
+
+  const streakIntensity = num(src.find(p => p.id === 9), 0.1);
+  const streakCount = Math.round(num(src.find(p => p.id === 10), 50));
+  const ringRadius = num(src.find(p => p.id === 13), 0.32);
+  const ringWidth = num(src.find(p => p.id === 14), 0.12);
+  const glowFalloff = num(src.find(p => p.id === 15), 5);
+
+  // Flare-sweep endpoints. The generator's Center is link-bound to two published
+  // controls "Center Start"/"Center End" — authored on the template's DISABLED
+  // `Blur Start`/`Blur End` filters as their Center (id 1) {X(1),Y(2)}, normalized
+  // 0-1 with Motion's +Y-up origin. Query them off the owner document GENERICALLY
+  // by pluginName (never by slug). Fall back to the canonical corner-to-corner
+  // diagonal (bottom-left→top-right) if the controls are absent.
+  let centerStart = { x: 0, y: 0 };
+  let centerEnd = { x: 1, y: 1 };
+  const doc = el?.ownerDocument;
+  if (doc) {
+    const readFilterCenter = (pluginName: string): { x: number; y: number } | undefined => {
+      for (const f of Array.from(doc.getElementsByTagName('filter'))) {
+        if ((f.getAttribute('pluginName') || '').trim() !== pluginName) continue;
+        for (const c of Array.from(f.getElementsByTagName('parameter'))) {
+          if ((c.getAttribute('name') || '') === 'Center' && (c.getAttribute('id') || '') === '1') {
+            let x: number | undefined, y: number | undefined;
+            for (const ch of Array.from(c.getElementsByTagName('parameter'))) {
+              const n = ch.getAttribute('name'), id = ch.getAttribute('id');
+              const v = parseFloat(ch.getAttribute('value') || 'NaN');
+              if (Number.isNaN(v)) continue;
+              if (n === 'X' && id === '1') x = v;
+              if (n === 'Y' && id === '2') y = v;
+            }
+            if (x !== undefined && y !== undefined) return { x, y };
+          }
+        }
+      }
+      return undefined;
+    };
+    const s = readFilterCenter('Blur Start');
+    const e = readFilterCenter('Blur End');
+    if (s) centerStart = s;
+    if (e) centerEnd = e;
+  }
+
+  return {
+    width, height,
+    centerStart, centerEnd,
+    color, streakColor,
+    intensity, falloff, falloffStatic,
+    streakIntensity, streakCount,
+    ringRadius, ringWidth, glowFalloff,
+  };
+}
+
+
 export function determineImageSource(params: Parameter[], el: Element | undefined, clip: ClipInfo): ImageSource | undefined {
   // Gaussian Gradient generator (radial glow used by Nature/Diagonal & Nature/Glide).
   const pluginUUID = el?.getAttribute('pluginUUID') || '';
   const pluginName = el?.getAttribute('pluginName') || '';
   if (pluginUUID.toUpperCase().startsWith('96A13FF0') || pluginName.trim() === 'Gaussian Gradient') {
     return { type: 'gaussianGradient', gradient: parseGaussianGradient(params) };
+  }
+
+  // LensFlareGenerator (procedural lens flare, Transitions/Lights/Lens Flare).
+  // Detected GENERICALLY by plugin UUID / name — never by transition slug. The
+  // engine previously returned undefined here, so the flare rendered as nothing.
+  if (pluginUUID.toUpperCase().startsWith('4933D9F1') || pluginName.trim() === 'LensFlareGenerator') {
+    return { type: 'lensFlare', flare: parseLensFlare(params, el) };
   }
 
   // Color Solid generator (a plugin fill, not a drop zone).

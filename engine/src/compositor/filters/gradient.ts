@@ -232,7 +232,8 @@ export function renderGradient(config: GradientConfig, width: number, height: nu
 //   uses an isotropic (circular) distance only.
 // ============================================================================
 
-import type { GaussianGradientConfig } from '../../types.js';
+import type { GaussianGradientConfig, LensFlareConfig } from '../../types.js';
+import { evaluateCurve } from '../../evaluator/curves.js';
 
 /**
  * Gaussian falloff constant. The Motion generator draws a radial glow whose
@@ -281,6 +282,130 @@ export function renderGaussianGradient(config: GaussianGradientConfig): ImageDat
       out.data[idx + 1] = Math.round(c1.g + (c2.g - c1.g) * t);
       out.data[idx + 2] = Math.round(c1.b + (c2.b - c1.b) * t);
       out.data[idx + 3] = Math.round((c1.a + (c2.a - c1.a) * t) * 255);
+    }
+  }
+  return out;
+}
+
+
+// ============================================================================
+// LensFlareGenerator (Transitions/Lights/Lens Flare)
+// ============================================================================
+// Motion's procedural lens flare, SCREEN-blended (Blend Mode id 203 = 10) over
+// the A→B crossfade. RE'd from Lens Flare.motr (see LensFlareConfig). We render an
+// RGB glow field on the generator canvas; the layer's blendMode='screen' does the
+// compositing. The flare CORE travels the link-driven axis centerStart→centerEnd
+// (published "Center Start"/"Center End" controls; verified against GUI-GT: the
+// bright core sweeps corner-to-corner, (0,0.99)→(0.99,0.02) in image space, as the
+// mean luminance ramps up to a peak at the centre frame then back down).
+//
+// Appearance = additive sum of three faithful-approximation elements:
+//   1. a HOT central core: a Gaussian glow (glowFalloff exponent) — the dominant
+//      full-frame wash; its radius/brightness track the Falloff envelope (lower
+//      Falloff = tighter+hotter, so brightness peaks mid-transition).
+//   2. a radial STAR-BURST: `streakCount` faint rays through the core.
+//   3. a concentric HALO RING at ringRadius·(half-diagonal), width ringWidth.
+export function renderLensFlare(config: LensFlareConfig, timeSec: number, endSec: number, outW?: number, outH?: number): ImageData {
+  // Calibration hook: FCT_FLARE_* env vars let the gate sweep the appearance
+  // constants without recompiling. Never set in normal operation (defaults apply).
+  const tunable = (name: string, dflt: number): number => {
+    if (typeof process !== 'undefined' && process.env?.[name]) {
+      const v = parseFloat(process.env[name]!);
+      if (!Number.isNaN(v)) return v;
+    }
+    return dflt;
+  };
+  const { color, streakColor } = config;
+  // Rasterize at the OUTPUT frame size when provided (the flare is full-frame; its
+  // authored 1920×1080 canvas is larger than the render frame). Normalized center
+  // coords map identically into whatever raster size we use.
+  const width = outW && outW > 0 ? outW : config.width;
+  const height = outH && outH > 0 ? outH : config.height;
+  const out = new ImageData(new Uint8ClampedArray(width * height * 4), width, height);
+
+  const end = endSec > 0 ? endSec : 1;
+  const t = Math.min(1, Math.max(0, timeSec / end)); // transition progress 0..1
+
+  // Core centre: interpolate the published endpoints by progress. Motion center is
+  // normalized 0-1 with +Y up; image space is +Y down → cy = (1-my)*height.
+  const mx = config.centerStart.x + (config.centerEnd.x - config.centerStart.x) * t;
+  const my = config.centerStart.y + (config.centerEnd.y - config.centerStart.y) * t;
+  const cx = mx * width;
+  const cy = (1 - my) * height;
+
+  const halfDiag = 0.5 * Math.sqrt(width * width + height * height);
+
+  // Falloff envelope → master brightness. The Falloff CURVE dips from ~10 (ends)
+  // to ~0.71 (middle); LOWER falloff = HOTTER core. Map falloff f∈[~0.7,10] to a
+  // 0..1 brightness envelope that peaks (→1) at low falloff and fades (→0) at
+  // high falloff. env = clamp((FMAX - f)/(FMAX - FMIN)). Tuned so the core blazes
+  // mid-transition and is nearly invisible at the very ends (matches GT).
+  const fVal = config.falloff ? evaluateCurve(config.falloff, timeSec) : config.falloffStatic;
+  const FMIN = 0.71, FMAX = 10;
+  let env = (FMAX - fVal) / (FMAX - FMIN);
+  env = Math.min(1, Math.max(0, env));
+  // Ease + sharpen the envelope so the bloom peaks near the centre frame and
+  // decays faster toward the ends (GT mean luminance is a fairly narrow bell:
+  // ~174 at f8, 210 at f12, 165 at f16 — not a wide plateau). smoothstep then a
+  // mild gamma>1 narrows the peak.
+  env = env * env * (3 - 2 * env);   // smoothstep
+  const ENVG = tunable('FCT_FLARE_ENVG', 1.6);
+  env = Math.pow(env, ENVG);          // narrow the peak
+
+  // Overall master brightness. `intensity` is the Intensity param (~0.88). The GT
+  // mid frame is a bright FULL-FRAME wash (mean ~210), so the flare adds a broad
+  // additive term via the Screen blend. Gain lifts the emitted glow into range.
+  const GAIN = tunable('FCT_FLARE_GAIN', 1.35);
+  const MCAP = tunable('FCT_FLARE_CAP', 1.2);
+  const master = Math.min(MCAP, config.intensity * env * GAIN);
+  if (master <= 0.001) return out; // fully off at the ends
+
+  // Core glow radius (px). At peak the glow FLOODS the whole frame (GT washes edge
+  // to edge); glowFalloff (≈20) controls the radial exponent (smaller = softer).
+  const coreRadius = halfDiag * tunable('FCT_FLARE_RAD', 1.7);
+  const glowExp = Math.max(1, config.glowFalloff) / tunable('FCT_FLARE_EXPDIV', 13); // ≈1.5 (soft, wide)
+
+  const streakN = Math.max(0, Math.min(64, config.streakCount || 0));
+  const streakAmp = config.streakIntensity;
+
+  const ringR = config.ringRadius * halfDiag;
+  const ringHalfW = Math.max(2, config.ringWidth * halfDiag * 0.5);
+
+  // A modest broad "veil" wash: at peak the whole frame lifts (GT min ~153). Keep
+  // it small enough that the moving CORE still dominates the local brightness.
+  const veil = master * 0.30;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const dx = x - cx, dy = y - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      // 1. Core Gaussian glow (0..1). Normalized distance from core.
+      const nd = dist / coreRadius;
+      const glow = Math.exp(-glowExp * nd * nd);
+
+      // 2. Star-burst streaks: modulate brightness by angle so `streakN` rays
+      //    stand out. Small additive term, strongest near the core.
+      let streak = 0;
+      if (streakN > 0 && streakAmp > 0 && dist > 1) {
+        const ang = Math.atan2(dy, dx);
+        const rays = 0.5 + 0.5 * Math.cos(ang * streakN);
+        // Rays fade with distance (radial spikes near the core).
+        streak = streakAmp * Math.pow(rays, 6) * Math.exp(-2.5 * nd);
+      }
+
+      // 3. Halo ring: a thin bright annulus at ringR.
+      const rd = (dist - ringR) / ringHalfW;
+      const ring = 0.5 * Math.exp(-rd * rd);
+
+      const idx = (y * width + x) * 4;
+      // Core + streaks + veil use core colour; ring uses streak colour.
+      const gv = master * (glow + streak) + veil * (0.2 + 0.8 * glow);
+      const rv = master * ring;
+      out.data[idx]     = Math.min(255, gv * color.r + rv * streakColor.r);
+      out.data[idx + 1] = Math.min(255, gv * color.g + rv * streakColor.g);
+      out.data[idx + 2] = Math.min(255, gv * color.b + rv * streakColor.b);
+      out.data[idx + 3] = 255;
     }
   }
   return out;

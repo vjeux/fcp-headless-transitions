@@ -137,7 +137,53 @@ export type ImageSource =
   | { type: 'media'; url: string; frameRate?: number }
   | { type: 'generator'; name: string; parameters: Parameter[] }
   | { type: 'gaussianGradient'; gradient: GaussianGradientConfig }
+  | { type: 'lensFlare'; flare: LensFlareConfig }
   | { type: 'color'; r: number; g: number; b: number; a: number };
+
+/**
+ * Parsed parameters of Motion's "LensFlareGenerator"
+ * (pluginUUID 4933D9F1-A848-4625-BCCA-198A97726DB5), used by Lights/Lens Flare.
+ *
+ * A procedural lens flare: a bright additive glow CORE with a radial star-burst
+ * and a large concentric HALO ring, SCREEN-blended over the crossfade. The core
+ * travels along a link-driven axis from `centerStart` to `centerEnd` (Motion's
+ * published "Center Start"/"Center End" controls, normalized 0-1, +Y up), driven
+ * by transition progress (time / animationEndSec).
+ */
+export interface LensFlareConfig {
+  /** Generator canvas size (Width/Height params, px). */
+  width: number;
+  height: number;
+  /** Flare-axis endpoints in Motion normalized coords (0-1, origin bottom-left, +Y up). */
+  centerStart: { x: number; y: number };
+  centerEnd: { x: number; y: number };
+  /** Core color (0-255). */
+  color: { r: number; g: number; b: number };
+  /** Streak/ray color (0-255). */
+  streakColor: { r: number; g: number; b: number };
+  /** Master intensity (Intensity param, 0..~). */
+  intensity: number;
+  /**
+   * Falloff CURVE (Falloff param, id 4): dips from 10 at the transition ends to
+   * ~0.71 at the middle. LOWER falloff = a tighter, HOTTER, brighter core, so this
+   * doubles as the brightness envelope (dim at the ends, blazing at the midpoint —
+   * matches the GUI GT mean-luminance peaking at the centre frame). Undefined ⇒
+   * use `falloffStatic`.
+   */
+  falloff?: Curve;
+  falloffStatic: number;
+  /** Streak intensity (0-1). */
+  streakIntensity: number;
+  /** Number of star-burst rays. */
+  streakCount: number;
+  /** Halo ring radius as a fraction of the half-diagonal (Ring Radius param). */
+  ringRadius: number;
+  /** Halo ring width fraction (Ring Width param). */
+  ringWidth: number;
+  /** Glow falloff exponent (Glow Falloff param). */
+  glowFalloff: number;
+}
+
 
 /**
  * Parsed parameters of the Motion "Gaussian Gradient" generator

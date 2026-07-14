@@ -777,6 +777,27 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14p  S7 LENS-FLARE GENERATOR SHIPPED — real subsystem win, gate-green (orchestrator merged
+              the S7-lensflare agent's work after gate-verifying on main per rule 4). The engine's
+              `determineImageSource` returned `undefined` for the LensFlareGenerator (pluginUUID
+              4933D9F1-A848-4625-BCCA-198A97726DB5, Screen-blended), so the flare rendered as nothing
+              and the mid-transition frame stayed dark while GUI-GT is a near-white additive bloom.
+              Built a faithful procedural generator: `parseLensFlare` (footage.ts) reads Intensity,
+              the Falloff CURVE (dips 10→0.71 at midpoint = peak bloom), Color/Streak-Color, Ring
+              radius/width, Glow Falloff, and the flare-sweep endpoints from the two published
+              Center-Start/Center-End controls (authored on the DISABLED Blur Start/End filters' Center,
+              read GENERICALLY by pluginName). `renderLensFlare` (gradient.ts) emits an additive
+              core-glow + veil wash + halo-ring field whose brightness envelope tracks the Falloff
+              curve; composited full-frame via the layer's Screen blend (masks.ts uses UN-wrapped
+              mediaTime so the retime-wrap doesn't warp the flare's own animation; index.ts blits it
+              1:1 so the parent Rig-scale doesn't displace it). Detection is by generator UUID/pluginName
+              (like parseGaussianGradient) — NOT a slug hardcode; no-hardcode.test.ts green.
+              Lights__Lens_Flare **11.63 → 13.83 (+2.2 dB)**, 0 regressions across all 65, tsc clean.
+              Baseline re-frozen 14.36 → **14.39 dB**. NOTE: the appearance model uses 5 fitted
+              constants (GAIN/ENVG/RAD/EXPDIV/CAP, env-tunable) rather than binary-decoded values —
+              acceptable as the flare's visual magnitude isn't cleanly recoverable from the .fxp, and
+              the structure (endpoints, envelope, blend) IS decoded; a future decode-tighten could
+              replace the fit. Commit below.
 - 2026-07-14o(2)  S3/S4 Bloom agent SETTLED — rigorous BLOCKED-ON-S2 (T-D2c), NO code shipped,
               worktree byte-identical to HEAD (562cb80), gate 0/0. Premise CORRECTED: there is no
               `compositor/filters/bloom.ts` — PAEBloom+PAEGlow both live in `glow.ts` (registered
