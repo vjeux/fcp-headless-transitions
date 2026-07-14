@@ -637,6 +637,28 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14i  S7 Wipes__Mask — endSec-cap hypothesis TESTED + REFUTED (clean reversal, gate 0/0).
+              DECODED the mechanism: Wipes__Mask's `animationEndSec` = **5.038s** while the authored
+              span (duration÷frameRate) = **1.30s** and ALL real motion curves (the "Vertical" wipe
+              shape's X/scale sweep) end by **0.968s**. The inflation comes from the drop-zone
+              `Object`-block FIT curves (Object>Width 1088→1920, Object>Fit Factor X/Y 1→1) carrying a
+              trailing keyframe at 5.038s — canvas layout metadata, not motion. HYPOTHESIS: cap those
+              Object-fit curves to spanSec so the 24 frames sample the real ~1s wipe (Divide's in-span
+              Object>Width 1280→1311 at 1.00s stays untouched — verified endSec 1.38 unchanged; only
+              Wipes__Mask 5.04→1.30 and Earthquake 2.25→1.77 changed). MEASURED: **REGRESSED** Wipes__
+              Mask 14.30→10.40 (and Earthquake 15.27→15.11). Root of the refutation: the inflated endSec
+              was ACCIDENTALLY LOAD-BEARING — it froze the wipe mask at FULL for f6–f23, and that frozen
+              full-mask happens to render photo-A held across the body, which matches GT (GT holds photo-A
+              through f17, wipes to B only at f18–f23). Capping endSec made the mask wipe CONTINUOUSLY
+              across all 24 frames instead, which is further from GT. The real fix is NOT the time window:
+              it is the A/B binding (engine base = transitionB but GT's held frames are photo-A) COMBINED
+              with a mask that HOLDS its start state then wipes late — i.e. a template-retime + binding
+              problem, same class as Panels_Across. The naive A/B swap alone was already shown to regress
+              the body (see S7 note). Reverted parser, re-rendered the 3 touched slugs, gate green 0/0.
+              LESSON: a too-long animationEndSec can be a hidden CRUTCH for a hold-then-act transition —
+              don't "fix" it in isolation. (Also confirmed: LensFlare/Bloom are missing-subsystem, and
+              Rotate/Swing/Scale/Duplicate/Concentric are coupled clone/mask geometry — no clean 1-tick
+              pixel win exists in the current 9–14 dB band; the remaining wins are subsystem builds.)
 - 2026-07-14h  S4 Bloom DECODE ADVANCE (gate-neutral, premise-correcting per rule 9a) — built the
               decode-faithful FLOAT-buffer `bloomFilter` (glow.ts: extract ×10−Thr/10 → float Gaussian
               blur mirroring makeGaussianKernel/gaussianDecimation with NO 8-bit clamp → additive
