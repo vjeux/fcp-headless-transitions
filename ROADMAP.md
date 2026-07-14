@@ -598,6 +598,22 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-13m  S7 WIN — retime-wrap "settle-on-B" fix (timemap.ts). Decoded that the wrap-to-frame-0
+              (loop back to source A once the outgoing drop zone times out) is WRONG for a plain A→B
+              crossfade whose Transition B drop zone stays alive to the animation end: the current
+              GUI GT tail holds photo B, not A (Blurs/Zoom f23 ≈ (92,106,137)=B while wrap-to-0
+              rendered brown A ≈ (131,85,56); the in-code comment claiming "GT past the timeout is
+              byte-identical to frame 0" was stale). Added a structural wrap-CANCEL case
+              `pureCrossfadeSettleB`: the ONLY wrapping (extrap=1) zones are the two drop zones
+              (transitionA+transitionB), no accent/overlay media, AND B.out ≥ endSec−1frame. Then the
+              identity remap lets the crossfade run to completion and hold B (tops out at
+              progress·endSec < endSec = the settled-B instant). Rejected two global variants first
+              (hold-wrapSec and hold-endSec each REGRESSED Loop/Static/Heart/Bloom/Smear — those loop
+              or have overlays that keep animating, so their frame-0 wrap is correct). Full 65-slug
+              gate: **3 improvements, 0 regressions** — Blurs/Zoom 13.75→15.47 (+1.72), Movements/
+              Flashback 16.87→19.59 (+2.72), Movements/Flip 13.54→14.70 (+1.16). Baseline re-frozen
+              13.95→**14.04 dB**. tsc + no-hardcode policy green. Commit de6b37c.
+
 - 2026-07-13l  S7 Panels_Across DIAGNOSED (no fix shipped; gate 0/0). Its f09–f11 dip (5.2/6.1/7.7 dB)
               is a GUI-GT near-uniform WHITE FLASH peaking at f09 then fading, which the engine misses
               (renders a left→right whiteness ramp; left frame-half stays tan). Decoded the "White

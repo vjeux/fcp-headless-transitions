@@ -80,6 +80,81 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
     }
   })(scene.layers);
 
+  // Pure A→B drop-zone crossfade detection. When the ONLY wrapping (extrapolation=1)
+  // zones are the two Transition drop zones (A + B) and Transition B is alive all the
+  // way to the animation end, the transition is a plain crossfade that genuinely
+  // COMPLETES to B — its settled tail is source B, NOT a loop back to frame-0/A. The
+  // historical wrap-to-frame-0 was verified against an OLDER GUI GT; the current GUI
+  // GT holds B in the tail (verified 2026-07-13m: Blurs/Zoom f17–f23 ≈ (100,110,137) =
+  // photo B, not the brown photo A). Cancelling the wrap lets the crossfade settle on
+  // B (the render never samples past endSec, where B is fully faded in). Gated tightly
+  // so ONLY a pure 2-drop-zone crossfade with B-to-the-end qualifies: an accent/overlay
+  // media zone (Loop's "arc", Static's "Static-Clip", Earthquake's "blurry cloud") or a
+  // B that dies before the end (Smear: B.out 0.467 << endSec 1.134, the smear-blur
+  // continues past the drop zones) does NOT qualify and keeps the frame-0 wrap.
+  let pureCrossfadeToB = false;
+  {
+    const wrapZones: { isDropZone: boolean; isB: boolean; out: number }[] = [];
+    (function scanZones(layers: readonly Layer[]) {
+      for (const l of layers) {
+        const rv = l.retimeValue;
+        if (rv && rv.retimingExtrapolation === 1 && rv.keyframes.length >= 2
+            && !clonedContinuationSourceIds.has(l.id)) {
+          const st = l.source?.type;
+          const isDropZone = st === 'transitionA' || st === 'transitionB';
+          const out = l.timing ? t2s(l.timing.out) : t2s(rv.keyframes[rv.keyframes.length - 1].time);
+          wrapZones.push({ isDropZone, isB: st === 'transitionB', out });
+        }
+        scanZones(l.children);
+      }
+    })(scene.layers);
+    const bZone = wrapZones.find(z => z.isB);
+    pureCrossfadeToB =
+      wrapZones.length === 2 &&
+      wrapZones.every(z => z.isDropZone) &&
+      bZone !== undefined &&
+      bZone.out >= endSec - frameSec;
+  }
+
+  // PURE A→B DROP-ZONE CROSSFADE that SETTLES on B (cancel the wrap).
+  // The wrap-to-frame-0 assumes the transition LOOPS back to source A once the
+  // outgoing (A) drop zone times out. That is right for a looping/accent-driven
+  // scene, but WRONG for a plain crossfade whose Transition B drop zone stays
+  // alive to the animation end: there the transition genuinely COMPLETES on B and
+  // the GUI GT tail holds photo B, not A (verified 2026-07-13m: Blurs/Zoom +
+  // Movements/Flashback tails are photo B, e.g. Zoom f23 ≈ (92,106,137) = B, while
+  // the wrap-to-0 rendered photo A ≈ (131,85,56)). Structural signature (no slug
+  // names): the ONLY wrapping (retimingExtrapolation=1) zones are the two drop
+  // zones (transitionA + transitionB) — no accent/overlay media that would keep
+  // animating past the wrap — AND Transition B outlives the wrap all the way to
+  // the animation end (B.out ≥ endSec − 1 frame). Then cancelling the wrap lets the
+  // A→B crossfade run to completion and hold B (the identity remap tops out at
+  // progress·endSec < endSec, which is already the settled-B instant). Slugs whose
+  // wrap is set by a SHORT-lived accent zone (Loop's "arc") or whose drop zones die
+  // early while a blur/smear continues (Smear: B.out 0.467 ≪ endSec 1.134) or which
+  // have extra overlay media (Static/Earthquake/Heart) do NOT match, so their
+  // existing wrap/other-cancel behaviour is untouched.
+  let pureCrossfadeSettleB = false;
+  if (wrapSec !== undefined) {
+    let wrapZoneCount = 0;
+    let nonDropZoneWrap = false;
+    let bOutSec = -1;
+    (function scanX(layers: readonly Layer[]) {
+      for (const l of layers) {
+        const rv = l.retimeValue;
+        if (rv && rv.retimingExtrapolation === 1 && rv.keyframes.length >= 2
+            && !clonedContinuationSourceIds.has(l.id)) {
+          wrapZoneCount++;
+          const st = l.source?.type;
+          if (st !== 'transitionA' && st !== 'transitionB') nonDropZoneWrap = true;
+          if (st === 'transitionB' && l.timing) bOutSec = Math.max(bOutSec, t2s(l.timing.out));
+        }
+        scanX(l.children);
+      }
+    })(scene.layers);
+    pureCrossfadeSettleB = wrapZoneCount === 2 && !nonDropZoneWrap && bOutSec >= endSec - frameSec;
+  }
+
   // The wrap freezes the WHOLE scene back to frame 0 (drop zones re-show A). That
   // is correct when the drop-zone crossfade IS the entire visible transition (e.g.
   // Blurs/Zoom and Lights/Bloom, whose GT past the drop-zone timeout is
@@ -193,7 +268,7 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
     // clamp (which requires wrapSec !== undefined). So gate the filteredMaskReveal
     // cancel on NOT strokedMaskShape — a stroked reveal takes the clamp path instead.
     const nonStrokedFilteredReveal = filteredMaskReveal && !strokedMaskShape;
-    if (wrapSec !== undefined && (filledShapeOverlay || blendedMediaOverlay || replicatorMaskReveal || kineticPanelMontage || nonStrokedFilteredReveal) && endSec > wrapSec + frameSec) {
+    if (wrapSec !== undefined && (filledShapeOverlay || blendedMediaOverlay || replicatorMaskReveal || kineticPanelMontage || nonStrokedFilteredReveal || pureCrossfadeSettleB) && endSec > wrapSec + frameSec) {
       wrapSec = undefined;
     }
     // Stroked-mask reveal (Objects/Arrows): the growing arrow arcs cut A away to
