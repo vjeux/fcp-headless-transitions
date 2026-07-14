@@ -503,6 +503,23 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
       ? layer.timing.offset.value / layer.timing.offset.timescale : 0;
     if (off > 1e-3) curveTime = timeSec - off;
   }
+  // PROCEDURAL MASK local-frame re-anchor (S8) — FLAG-GATED (FCT_PROCMASK, default
+  // OFF, matching the parser lift). A lifted `<mask>` shape (Wipes/Diagonal's
+  // "Animated mask") carries its Position/Scale/Rotation curves in the mask's OWN
+  // local time frame, placed at the mask's timeline `offset`. Diagonal's mask has
+  // offset=0.3003s with its Position keyed LOCAL 0.3003s→1.0677s (the diagonal
+  // sweep). Evaluated at raw scene time the sweep runs ~0.3s early, so shift
+  // curveTime by the offset. Scoped to mask shapes with offset > in. OFF by default
+  // ⇒ byte-identical baseline (no lifted procedural masks exist, and this guard is
+  // inert). Turned on with the write-on accumulation that makes the reveal a net win.
+  if ((typeof process !== 'undefined' && process.env?.FCT_PROCMASK === '1')
+      && layer.type === 'shape' && layer.shape && layer.shape.isMask && layer.timing) {
+    const off = layer.timing.offset && layer.timing.offset.timescale > 0
+      ? layer.timing.offset.value / layer.timing.offset.timescale : 0;
+    const inn = layer.timing.in && layer.timing.in.timescale > 0
+      ? layer.timing.in.value / layer.timing.in.timescale : 0;
+    if (off - inn > 1e-3) curveTime = timeSec - off;
+  }
   const localTransform = buildTransformMatrix(riggedTransform, curveTime, retimeProgress);
   const worldTransform = mat4Multiply(parentTransform, localTransform);
 

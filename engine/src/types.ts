@@ -787,6 +787,16 @@ export interface Shape {
   /** Whether this shape is used as a mask (vs a filled shape). */
   isMask: boolean;
   /**
+   * Mask edge FEATHER width in shape-local units (Motion "Feather" id, 0 = hard
+   * edge). Motion soft-blurs the mask alpha outward+inward by this radius, which
+   * for a large value (e.g. Wipes/Diagonal's "Animated mask" = 300) makes the
+   * reveal edge a wide soft gradient rather than a crisp cut. The compositor
+   * converts this shape-local radius into output pixels (using the same
+   * centered-coord→pixel scale the vertices use) and blurs the rasterized alpha.
+   * Undefined/0 = no feather (existing hard-edged behaviour, byte-identical).
+   */
+  feather?: number;
+  /**
    * Solid fill color for a NON-mask filled shape (0-255 RGB, 0-1 alpha), read
    * from the shape's "Fill Color" (id=111) Red/Green/Blue params. Undefined when
    * the shape has no solid fill (e.g. gradient-only) or is a mask. Used by

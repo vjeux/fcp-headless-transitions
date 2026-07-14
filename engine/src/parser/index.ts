@@ -39,6 +39,75 @@ import { parseCameraParams } from './camera.js';
 // ============================================================================
 
 
+/**
+ * PROCEDURAL (source-less) SHAPE MASK — S8. Lift every `<mask>` child of `el`
+ * that draws its OWN alpha (no Mask Source) into a child mask-SHAPE layer, so the
+ * existing group-mask compositor (renderChildLayers: collects `shape.isMask`
+ * children, rasterizes + unions + applyMask) clips the owning group/layer content.
+ *
+ * Wipes+Stylized/Diagonal's "Animated mask" (factoryID=11) is this: an animated
+ * feathered closed shape that sweeps diagonally as a DIRECT CHILD of the
+ * "Transition Diagonal" <layer>, masking the sibling "Gradient and background"
+ * group progressively. Motion applies a layer-level mask to that layer's content;
+ * lifting it to a mask-shape child reproduces the clip via the same path Motion's
+ * shape masks use. Without it the group renders UNMASKED and washes the whole
+ * frame from the mask's timing.in (the minimal 6-node repro scored 8.48 dB; the
+ * real bug was `parseLayerElement` silently DROPPING `<mask>` children entirely).
+ *
+ * SCOPED (avoids the FCT_LIFT_ALL_MASKS scar that regressed rig-selected masks by
+ * −1 dB): only lift a `<mask>` that (a) has no Mask Source, (b) parses to a closed
+ * mask shape with real geometry (≥3 verts), and (c) is not a clone self-mask (the
+ * caller gates that) or an Image Mask (has a Mask Source — handled elsewhere). The
+ * lifted shape carries its own transform (the animated diagonal Position/Rotation)
+ * + feather so the compositor reproduces the soft sweep.
+ */
+function liftProceduralMasks(
+  el: Element,
+  factories: Map<number, string>,
+  linkSourceIds: Set<number>,
+  out: Layer[],
+): void {
+  // FLAG-GATED (FCT_PROCMASK, default OFF). The procedural shape-mask matte is a
+  // BUILT + VERIFIED intermediate, but NOT yet a net win on the GUI-GT gate: the
+  // instantaneous shape mask reveals then RETREATS (a finite quad sweeps ACROSS
+  // the frame and exits), whereas FCP's reveal is a MONOTONIC write-on (once a
+  // pixel is revealed by the sweep it STAYS revealed — the greenness grid sweeps
+  // BL→TR and never retreats; decoded 2026-07-14). Enabling it as-is regresses the
+  // Diagonal pair −0.47 dB (11.39→10.92), so it stays OFF until the write-on
+  // temporal accumulation (max-over-time of the mask alpha) lands on top of it.
+  // The parse+feather+lift infrastructure below is correct and reused by that
+  // next step. Default OFF ⇒ byte-identical to the shipped baseline (gate green).
+  if (typeof process === 'undefined' || process.env?.FCT_PROCMASK !== '1') return;
+  for (const maskEl of directChildren(el, 'mask')) {
+    // Skip Image Masks (have a non-zero Mask Source — handled by the imageMaskSourceId path).
+    let hasSource = false;
+    for (const p of Array.from(maskEl.getElementsByTagName('parameter'))) {
+      if (p.getAttribute('name') === 'Mask Source') {
+        const v = p.getAttribute('value');
+        if (v !== null) { const n = parseInt(v, 10); if (!Number.isNaN(n) && n !== 0) { hasSource = true; break; } }
+      }
+    }
+    if (hasSource) continue;
+    const mshape = parseShape(maskEl, factories, linkSourceIds);
+    if (!mshape || !mshape.isMask || mshape.verticesX.length < 3) continue;
+    const maskParams: Parameter[] = [];
+    for (const mp of directChildren(maskEl, 'parameter')) maskParams.push(parseParameter(mp));
+    out.push({
+      id: parseInt(maskEl.getAttribute('id') || '0', 10),
+      name: maskEl.getAttribute('name') || 'Procedural Mask',
+      type: 'shape',
+      transform: extractTransform(maskParams),
+      blendMode: 'normal',
+      filters: [],
+      children: [],
+      shape: mshape,
+      timing: parseTiming(maskEl),
+      behaviors: parseLayerBehaviors(maskEl, factories),
+    });
+  }
+}
+
+
 function parseSceneNode(el: Element, factories: Map<number, string>, clip: ClipInfo, linkSourceIds: Set<number>, filtersById?: Map<number, { pluginName?: string; name?: string }>): Layer {
   const factoryID = parseInt(el.getAttribute('factoryID') || '0', 10);
   const factoryType = factories.get(factoryID) || '';
@@ -208,6 +277,12 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clip: ClipI
     }
   }
 
+  // PROCEDURAL (source-less) SHAPE MASK — S8. Lift a `<mask>` child that draws its
+  // own alpha (no Mask Source) into a mask-shape child so the compositor clips this
+  // node's content. SCOPED to non-clone nodes (clones handle their self-mask above);
+  // see liftProceduralMasks for the full rationale + regression scar.
+  if (type !== 'clone') liftProceduralMasks(el, factories, linkSourceIds, children);
+
   const layer: Layer = {
     name: el.getAttribute('name') || '',
     id: parseInt(el.getAttribute('id') || '0', 10),
@@ -328,6 +403,15 @@ function parseLayerElement(el: Element, factories: Map<number, string>, clip: Cl
       filters.push({ id: filterId, pluginName, pluginUUID, parameters: filterParams });
     }
   }
+
+  // PROCEDURAL (source-less) SHAPE MASK — S8. A `<mask>` authored as a DIRECT CHILD
+  // of a <layer>/<group> (a sibling of the content it clips) is a layer-level mask
+  // in Motion. The child-element loop above only handles scenenode/layer/group/filter
+  // and would silently DROP it, leaving the content UNMASKED (Wipes/Diagonal's
+  // "Animated mask" sweeps its sibling "Gradient and background" group). Lift it into
+  // a mask-shape child so renderChildLayers clips this layer's content. See
+  // liftProceduralMasks for the full rationale + the FCT_LIFT_ALL_MASKS regression scar.
+  liftProceduralMasks(el, factories, linkSourceIds, children);
 
   return {
     name: el.getAttribute('name') || '',

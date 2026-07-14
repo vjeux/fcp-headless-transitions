@@ -217,6 +217,19 @@ export function parseShape(el: Element, factories: Map<number, string>, linkSour
     }
   }
 
+  // Mask FEATHER (id=105 "Feather"): the soft-edge radius (shape-local units) that
+  // Motion blurs the mask alpha by. Read for mask shapes only (a fill shape's
+  // Feather softens its FILL, which we don't render for masks). 0/absent = hard
+  // edge (unchanged). The scalar lives directly on the shape's "Feather" param.
+  let feather: number | undefined;
+  if (isMask) {
+    for (const p of Array.from(el.getElementsByTagName('parameter'))) {
+      if (p.getAttribute('name') !== 'Feather') continue;
+      const v = p.getAttribute('value');
+      if (v !== null) { const f = parseFloat(v); if (!Number.isNaN(f) && f > 0) { feather = f; break; } }
+    }
+  }
+
   return {
     verticesX,
     verticesY,
@@ -227,6 +240,7 @@ export function parseShape(el: Element, factories: Map<number, string>, linkSour
     hasTangents,
     closed,
     isMask,
+    feather,
     fillColor,
     // Candidates carried on panelFill/panelFillOpacity; isSolidPanel is set later
     // (parseSceneNode) only if the layer passes the panel gate. If it never passes,

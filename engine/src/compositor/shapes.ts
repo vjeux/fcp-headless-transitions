@@ -153,8 +153,86 @@ export function rasterizeShape(
     );
   }
 
-  return fillPolygonAA(poly, width, height);
+  const alpha = fillPolygonAA(poly, width, height);
+
+  // FEATHER (S8): Motion soft-blurs a mask's alpha edge by the shape's Feather
+  // radius (shape-local units). Convert to pixels via the transform's average
+  // linear magnification (verts already map 1:1 to native pixels), then blur the
+  // rasterized alpha. A large feather (Wipes/Diagonal's Animated mask = 300) turns
+  // the sweep edge into a wide soft gradient — the crux of the diagonal reveal.
+  // 0/absent = hard edge (unchanged; the blur is skipped entirely).
+  if (shape.feather && shape.feather > 0) {
+    let fscale = 1;
+    if (transform) {
+      const sx = Math.hypot(transform[0], transform[1]);
+      const sy = Math.hypot(transform[4], transform[5]);
+      fscale = (sx + sy) / 2;
+    }
+    const radius = shape.feather * fscale;
+    if (radius >= 0.75) featherAlpha(alpha, width, height, radius);
+  }
+  return alpha;
 }
+
+/**
+ * Soft-blur a rasterized alpha buffer IN PLACE by `radius` pixels, approximating
+ * Motion's mask Feather. Motion's feather is a symmetric Gaussian falloff about
+ * the shape edge; three passes of a separable box blur closely approximate a
+ * Gaussian (central-limit), which is what real-time compositors use. The box
+ * half-width is chosen so the combined 3-pass stddev ≈ radius/2 (so the visible
+ * soft band spans ≈±radius about the edge, matching Motion's "Feather = full
+ * edge-to-edge soft width" convention). Cost is O(W·H) per pass (running sum),
+ * negligible next to the fill.
+ */
+function featherAlpha(a: Uint8Array, width: number, height: number, radius: number): void {
+  // 3 box passes; each box radius r gives variance r(r+1)/3. Solve 3·var ≈
+  // (radius/2)² for r → r ≈ radius/2 · sqrt(1/ ... ) ; empirically r≈radius/3
+  // reproduces Motion's soft width well. Clamp to ≥1.
+  const boxR = Math.max(1, Math.round(radius / 3));
+  const tmp = new Float32Array(width * height);
+  const buf = new Float32Array(width * height);
+  for (let i = 0; i < a.length; i++) buf[i] = a[i];
+  for (let pass = 0; pass < 3; pass++) {
+    // horizontal
+    boxBlurH(buf, tmp, width, height, boxR);
+    // vertical
+    boxBlurV(tmp, buf, width, height, boxR);
+  }
+  for (let i = 0; i < a.length; i++) a[i] = buf[i] < 0 ? 0 : buf[i] > 255 ? 255 : Math.round(buf[i]);
+}
+
+/** Separable running-sum box blur, horizontal pass (src→dst). */
+function boxBlurH(src: Float32Array, dst: Float32Array, width: number, height: number, r: number): void {
+  const win = 2 * r + 1;
+  for (let y = 0; y < height; y++) {
+    const row = y * width;
+    let sum = 0;
+    // Prime with clamped-left window.
+    for (let k = -r; k <= r; k++) sum += src[row + Math.min(width - 1, Math.max(0, k))];
+    for (let x = 0; x < width; x++) {
+      dst[row + x] = sum / win;
+      const addX = Math.min(width - 1, x + r + 1);
+      const subX = Math.max(0, x - r);
+      sum += src[row + addX] - src[row + subX];
+    }
+  }
+}
+
+/** Separable running-sum box blur, vertical pass (src→dst). */
+function boxBlurV(src: Float32Array, dst: Float32Array, width: number, height: number, r: number): void {
+  const win = 2 * r + 1;
+  for (let x = 0; x < width; x++) {
+    let sum = 0;
+    for (let k = -r; k <= r; k++) sum += src[Math.min(height - 1, Math.max(0, k)) * width + x];
+    for (let y = 0; y < height; y++) {
+      dst[y * width + x] = sum / win;
+      const addY = Math.min(height - 1, y + r + 1);
+      const subY = Math.max(0, y - r);
+      sum += src[addY * width + x] - src[subY * width + x];
+    }
+  }
+}
+
 
 /**
  * Rasterize a STROKED, arc-trimmed, arrow-capped path into an alpha mask.
