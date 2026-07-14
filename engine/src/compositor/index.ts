@@ -556,7 +556,7 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
     // last child blits last = on top) reproduces the switch's z-order: early both
     // drop zones show with B (last) on top; after B times out its Clone (first,
     // bottom) sits under Transition A, so A comes to the front — the "switch".
-    const flatStack = isFlatCoplanarStack(visibleChildren);
+    const flatStack = isFlatCoplanarStack(visibleChildren, layer);
     const order = (idx: number): EvaluatedLayer =>
       flatStack ? visibleChildren[idx] : visibleChildren[visibleChildren.length - 1 - idx];
 

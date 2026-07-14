@@ -598,7 +598,26 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
-- 2026-07-14  S7 WIN — no-op curve guard in animationEndSec walk (parser/index.ts). Decoded that
+- 2026-07-14b  S7 WIN — flat-coplanar-stack momentary-flat guard (compositor/geometry.ts). Decoded
+              that Movements/Pinwheel (f00) and Replicator-Clones/Concentric (f00–f01) render blue
+              photo-B instead of the brown photo-A the GT starts on — an isolated HEAD glitch (both
+              had f00 ≈ 10 dB while every other slug starts ~18 dB). Root cause: isFlatCoplanarStack
+              decides clone-group draw order from the INSTANTANEOUS world matrix — a coplanar stack
+              (m2/m6/m8/m9 ≈ 0) renders FORWARD (last-listed on top = the Switch "flat 2D stack"
+              rule). Pinwheel/Concentric are 3D FOLDS whose tiles rotate about X/Y over time, but at
+              t=0 every fold angle is exactly 0 → sinθ = 0 → the matrix looks coplanar → the group is
+              misclassified as a flat stack for the FIRST frame(s) and flips to forward order, landing
+              the source-B clone on top. Fix: reject a flat-stack classification when the group's OWN
+              transform (Concentric: each per-tile "…copy" GROUP carries a Rotation.Y curve reaching
+              π) OR any content-child subtree (Pinwheel: an invisible "square_fix" fold image sibling
+              carries a Rotation.X/Y curve reaching π) has an ANIMATED X/Y-rotation CURVE — a 3D fold
+              that WILL tilt out of plane. Curve-based, so it holds at every instant including t=0.
+              Switch has no X/Y-rotation curve anywhere → stays a flat stack (unchanged). Full 65-slug
+              gate: **2 improvements, 0 regressions** — Pinwheel 12.92→13.27 (+0.35), Concentric
+              11.50→12.61 (+1.11). Baseline re-frozen 14.10→**14.12 dB**. tsc + no-hardcode green.
+              Commit 9d7bd63.
+
+
               Movements/Multi-flip freezes on static photo B from f16–f23 (tail collapse 21→7 dB)
               because animationEndSec is set to 1.568s by a NO-OP curve: "Transition B" Rotation.Z
               runs 0.0→0.0003 rad (a ~0.017° non-motion) with a stray keyframe at 1.568s, PAST the

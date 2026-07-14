@@ -171,7 +171,7 @@ export function detectPageFlip(group: EvaluatedLayer): { front: EvaluatedLayer; 
  * Flip) are excluded: their pages carry X/Y rotation, which couples into the world
  * matrix's third row/col, so this returns false for them.
  */
-export function isFlatCoplanarStack(children: EvaluatedLayer[]): boolean {
+export function isFlatCoplanarStack(children: EvaluatedLayer[], groupLayer?: import('../types.js').Layer): boolean {
   const content = children.filter(c =>
     c.layer.type === 'image' || c.layer.type === 'clone' || c.layer.type === 'generator');
   if (content.length < 2) return false;
@@ -183,8 +183,59 @@ export function isFlatCoplanarStack(children: EvaluatedLayer[]): boolean {
     const m = c.worldTransform;
     if (Math.abs(m[2]) > 1e-3 || Math.abs(m[6]) > 1e-3 || Math.abs(m[8]) > 1e-3 || Math.abs(m[9]) > 1e-3) return false;
   }
+  // The instantaneous matrix test above passes for a GENUINE flat 2D stack
+  // (Movements/Switch — its content is coplanar for the WHOLE transition), but it
+  // ALSO passes at the single instant a 3D-FOLD group is momentarily flat.
+  // Movements/Pinwheel and Replicator-Clones/Concentric fold their tiles about X/Y
+  // over time; at t=0 every fold angle is exactly 0 (sinθ = 0 → m6/m8 = 0), so the
+  // matrix test wrongly flips the group to forward render order and lands the
+  // last-listed (source-B) clone on TOP for the FIRST frame (Pinwheel f00,
+  // Concentric f00–f01 rendered blue photo-B instead of the brown photo-A the GT
+  // starts on; the momentary-flat squares also carry an INVISIBLE fold-driver image
+  // whose own X/Y rotation is what un-flattens the group for t>0). Reject any group
+  // whose group transform OR whose content subtree carries an ANIMATED X/Y-rotation
+  // CURVE that reaches a non-trivial angle — a 3D fold that WILL tilt out of plane
+  // even when momentarily flat. Curve-based, so it holds at every instant including
+  // t=0. Switch has no X/Y-rotation curve anywhere → stays a flat stack; the fold
+  // rotation lives on Pinwheel's invisible "square_fix" fold-driver child and on
+  // Concentric's per-tile "copy" GROUP (an ancestor of the clones, hence the
+  // groupLayer check) → both correctly excluded. Structural (curve shape), not a
+  // per-transition name.
+  if (groupLayer && (curveReachesNonZero(groupLayer.transform?.rotationX) || curveReachesNonZero(groupLayer.transform?.rotationY))) return false;
+  for (const c of content) {
+    if (subtreeHasOutOfPlaneRotationCurve(c.layer)) return false;
+  }
   return true;
 }
+
+/**
+ * True when a layer OR any descendant carries an X- or Y-rotation CURVE that
+ * reaches a non-trivial angle across its keyframes — i.e. somewhere in this
+ * subtree there is a 3D fold that tilts out of the 2D plane over time. Used by
+ * isFlatCoplanarStack to reject a momentarily-coplanar 3D-fold group (at t=0 its
+ * sin(θ) matrix terms vanish, but the CURVE still proves the fold).
+ */
+function subtreeHasOutOfPlaneRotationCurve(layer: import('../types.js').Layer): boolean {
+  const tx = layer.transform;
+  if (tx && (curveReachesNonZero(tx.rotationX) || curveReachesNonZero(tx.rotationY))) return true;
+  for (const child of layer.children) {
+    if (subtreeHasOutOfPlaneRotationCurve(child)) return true;
+  }
+  return false;
+}
+
+/** True when a rotation channel (curve or constant) ever reaches |angle| > 1e-3. */
+function curveReachesNonZero(c: import('../types.js').Curve | number | undefined): boolean {
+  if (c === undefined) return false;
+  if (typeof c === 'number') return Math.abs(c) > 1e-3;
+  const kfs = c.keyframes;
+  if (kfs && kfs.length > 0) {
+    for (const k of kfs) if (Math.abs(k.value) > 1e-3) return true;
+    return false;
+  }
+  return Math.abs(c.value ?? c.default ?? 0) > 1e-3;
+}
+
 
 /**
  * Absolute forward clip time (seconds) for a VIDEO media leaf whose Retime Value
