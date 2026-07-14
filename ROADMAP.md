@@ -615,7 +615,7 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
               Switch has no X/Y-rotation curve anywhere → stays a flat stack (unchanged). Full 65-slug
               gate: **2 improvements, 0 regressions** — Pinwheel 12.92→13.27 (+0.35), Concentric
               11.50→12.61 (+1.11). Baseline re-frozen 14.10→**14.12 dB**. tsc + no-hardcode green.
-              Commit 9d7bd63.
+              Commit 901bb1d.
 
 
               Movements/Multi-flip freezes on static photo B from f16–f23 (tail collapse 21→7 dB)
