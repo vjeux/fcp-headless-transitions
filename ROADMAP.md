@@ -615,7 +615,7 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
               past nominal duration" slugs (Arrows, Duplicate, Curtains, etc.) are untouched. Full
               65-slug gate: **2 improvements, 0 regressions** — Multi-flip 12.36→15.66 (+3.3),
               Black_Hole 13.93→14.53 (+0.6). Baseline re-frozen 14.04→**14.10 dB**. tsc + no-hardcode
-              policy green. Commit <pending>.
+              policy green. Commit b502442.
 
 
               (loop back to source A once the outgoing drop zone times out) is WRONG for a plain A→B
