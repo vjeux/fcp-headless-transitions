@@ -902,6 +902,17 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14x  SWARM DISPATCH (Navi sub-agents, NOT Claude Code) — the CC pool wedged every run
+              (frozen at the 203-byte startup banner; `claude -p --model claude-opus-4-7` hangs on
+              this box). Switched to 6 Navi sub-agents, each locked to cli:vjeux-mac in its own
+              isolated worktree (~/fct-swarm/worktrees/<id>, private FCT_FRAMES_DIR + FCT_LOCK),
+              following the decode-first + GUI-GT-gate + generic-only contract and merging via
+              push_helper.sh (re-gates in a clean clone, refuses RED). Tasks: T-H1 Center tail
+              Image-Mask (Comp group 349436 mask 554134500 Invert=1 not wired to the group layer),
+              T-H2 Video_Wall/Clone_Spin framing-camera union-bbox+dolly, T-H3 Float32 headroom
+              bloom/glow chain (Bloom/360°_Bloom), T-H4 Concentric orthographic depth-swing, T-H5
+              Wipes_Mask/Center_Reveal hold-A-then-late-wipe retime, T-F2 Smear drop-zone/retime
+              tail. Orchestrator gate-verifies each merge on main. Baseline before wave: 14.47 dB.
 - 2026-07-14w  S7/KINETIC-PANEL WIN — template-timeline RETIME for offset-authored panels
               (Panels_Across 10.38→13.11 +2.73, Color_Panels 15.12→17.23 +2.11, 0 regressions).
               Kinetic panels' Position/Opacity curves are authored in the layer's LOCAL frame and the
