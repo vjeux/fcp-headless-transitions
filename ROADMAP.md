@@ -497,6 +497,25 @@ BUILD PLAN (generic, no transition names):
      net is a win (alone it regressed because early sprites compensated for the unmasked wash).
 VERIFY: gate green; expect Diagonal pair + Lower/Center/Glide/Loop to move up together.
 
+S8 SUB-TAXONOMY (decoded 2026-07-13k — pick the tractable path FIRST):
+  (a) STATIC shape masks — rig-selected, timing-gated shapes with curve_X/curve_Y geometry and
+      NO emitter (Stylized/Lower's 20 triangle/leaf/box panels fid=12; Stylized/Center fid=14).
+      Tractable: parse the mask node via parseShape() and lift it to an isMask shape child of its
+      owning layer — BUT there is a DOCUMENTED SCAR: an earlier "lift ALL <mask> nodes" attempt
+      regressed rig-selected masks (Boxes/Center Reveal's 18 masks), which is why the current lift
+      is SCOPED to type==='clone' only (parser/index.ts). The correct generalisation must be
+      RIG-AWARE (only lift masks the Rig actually selects/enables) and/or TIMING-gated (Lower's
+      masks carry explicit in/out windows). Do this with the rig-selection model, not a blanket lift.
+  (b) PAINT-STROKE WRITE-ON masks — emitter/brush masks (fid=11/13 with Emitter=true) whose alpha
+      is painted progressively along a bezier stroke by a brush-dab emitter (params: Brush Source /
+      Brush Profile / Brush Type / Build Style / "Completed" write-on % / Angle+Pen-Speed Over
+      Stroke / Dab Depth Ordered). Used by Wipes+Stylized/Diagonal ("Animated mask"), Stylized/
+      Slide_In (8 rect/arrow/pill × up/down variants), and this is the SAME "arc write-on = FCP-
+      internal procedural draw" already flagged deferred for Loop/Heart/Center-reveal timing. This
+      is the HARDEST render primitive in the engine: a brush-dab stroke rasteriser along a bezier
+      path gated by a "Completed" write-on envelope. Build path (b) only AFTER (a) lands, and treat
+      it as its own multi-tick primitive (brush-dab stroke rasteriser) shared across ≥5 slugs.
+
 ---
 
 ## Reference — implemented subsystems (DONE; documented so nothing is undocumented)
