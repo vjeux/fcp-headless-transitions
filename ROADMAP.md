@@ -777,6 +777,23 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14o(2)  S3/S4 Bloom agent SETTLED — rigorous BLOCKED-ON-S2 (T-D2c), NO code shipped,
+              worktree byte-identical to HEAD (562cb80), gate 0/0. Premise CORRECTED: there is no
+              `compositor/filters/bloom.ts` — PAEBloom+PAEGlow both live in `glow.ts` (registered
+              "Glow"+"Bloom"). Agent also CLEANED UP a broken non-compiling experiment left by a prior
+              run (`evaluator/index.ts` had a half-wired `bloomWipe` behind FCT_BLOOM_EXP=1 that deleted
+              the `ectx` construction + dangling brace → tsc failed); reverted 3 files via
+              `git show HEAD:… > file` (not checkout), removed scratch. One-truth per-frame luma decode:
+              (A) Lights__Bloom retime-wrap fires f6 and FREEZES scene to photo A — engine luma flat 90.7
+              all 24 frames while GT ramps 89→250 (white flash f14)→111 (photo B); naive wrap-cancel →
+              black tail (both drop zones die 0.534 ≪ endSec 1.270). (B) 360°__360°_Bloom does NOT wrap,
+              bloom fires live, engine peaks 194 vs GT 250 = pure 8-bit under-bloom. WHY NO WIN: (1)
+              corpus scan for the wrap-cancel bloom signature matched ONLY Lights__Bloom (1 slug) → any
+              time-fix is a 1-built-in HARDCODE (violates ≥2 rule); (2) glow.ts runs entirely in 8-bit
+              Uint8ClampedArray clamping at 255 at extract/blur/combine → destroys >1.0 headroom; linear
+              float infra (linear.ts, S2) exists but defaults OFF, encode clamps [0,1], and Glow/Bloom is
+              NOT wired in. Both slugs gate on T-D2c (migrate Glow/Bloom to headroom-preserving float
+              chain). Do NOT ship the env-flagged bloomWipe synthetic-crossfade hack (per-transition).
 - 2026-07-14n(2)  3 of 5 dispatched agents SETTLED as premise-correcting decodes (NO code, gate
               untouched — Rule-9(a) valid): S5-gradient BLOCKED (gradient generator + gradientTag
               pipeline already exist; Loop/Heart's real deficit is media-ornament reveal-timing, a
