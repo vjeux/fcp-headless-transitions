@@ -1,0 +1,13 @@
+{
+  "slug": "Stylized__Lower",
+  "source_motr": "/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized/Stylized.localized/Kinetic.localized/Lower.localized/Lower.motr",
+  "worst_frame": 13,
+  "baseline_psnr": 4.801,
+  "final_psnr": 4.154,
+  "struct_before": 153,
+  "struct_after": 3,
+  "removed": 150,
+  "nframes": 24,
+  "slack": 0.12,
+  "finding": "3-node repro: Comp>Background panels>Panel right 1 (factoryID=12 shape, 15-kp bezier Position.X in local neg-time, timing in=2.870s out=6.773s offset=3.337s). f00-f10 match FCP (99dB); f12-f17 the panel fills the RIGHT HALF (cols5-7=254 white) in FCP but the ENGINE renders it BLACK/absent (all cols 0). Bug = panel visibility/position: engine drops the offset-anchored panel exactly when FCP shows it. Likely animationEndSec or the offset-curveTime re-anchor evaluating the panel off-screen/invisible in the f12-f17 window."
+}
