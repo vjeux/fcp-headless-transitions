@@ -598,6 +598,39 @@ mask-reveal binding (Squares/Duplicate); fade-direction A/B; footage clip media 
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14c  INVESTIGATION (gate 0/0, no pixels changed) — mined the remaining head/tail anomalies
+              in the low-mid band and PROVED three dead-ends with measurements so future ticks stop
+              re-chasing them:
+              (1) **Clone_Spin f23 wrap-to-A is a NO-OP** (not a settle-on-B win). Its retime-wrap
+              fires only at the very last frame (wrapSec 1.869 / endSec 1.969, ratio 0.949; f23
+              remaps to 0) and GT f23 = photo B — looked exactly like the earlier Multi-flip/Zoom
+              settle-on-B wins. But MEASURED: rendering f23 as settled-B (renderAt endSec·0.999) vs
+              the frame-0 wrap gives the IDENTICAL PSNR (9.71 both), because Clone_Spin is dominated
+              by the S6 framing-camera bug (camera pose never populates; the 9 "Timeline Pin" clone
+              tiles at Z=-842..-1192 project wrong regardless of which source they hold). Widening the
+              pureCrossfadeSettleB gate to Clone_Spin's 11-wrap-zone case would also risk Video_Wall
+              (whose wrap fires EARLY at ratio 0.367 = a real loop, not a tail settle). Not worth it.
+              Clone_Spin/Video_Wall/Combo_Spin(spatial detail) are pure S6 (framing-camera), do LAST.
+              (2) **Single-masked-reveal A/B "fix" REGRESSES** (reverted). Wipes/Mask + Center_Reveal
+              both render photo-B at f00–f01 where GT shows photo-A (the unmasked base "Transition A"
+              node is bound to source transitionB via the document-order override). Tried binding by
+              MASK ROLE (unmasked base→A, masked reveal→B) — it fixes f00 but REGRESSED both slugs
+              (Wipes/Mask 14.14→12.55, Center_Reveal 11.99→11.65): the swapped binding is correct for
+              the BODY of the transition (the mask reveals the base's opposite source), so the small
+              f00 head error is the right tradeoff. The old "keep pure document order" note stands;
+              it was NOT stale. Reverted, re-rendered, gate green.
+              (3) **Combo_Spin / Multi tail declines are NOT isolated** — Combo_Spin's tail color
+              matches GT (settles to B ≈92,107,137); its dB decline is spinning-tile spatial detail
+              (S6). Multi's f20–21 black dip → f23 B reveal is 3D-fold crossfade choreography, not a
+              time-authority bug.
+              CONCLUSION: the clean isolated-collapse vein (3 wins over prior ticks: no-op-curve
+              endSec, flat-stack momentary-flat, retime settle-on-B) is now EXHAUSTED at the top of
+              the low-slug list. The remaining deficit is genuine subsystem work — S6 framing-camera
+              (Video_Wall 9.1, Clone_Spin 10.3), S2 whole-chain linear composite (highest ceiling),
+              S3 particle sim, and the Movements 3D-fold choreography residuals. Next tick should
+              commit to one multi-tick subsystem (S6 or S2), not hunt for more one-frame fixes.
+
+
 - 2026-07-14b  S7 WIN — flat-coplanar-stack momentary-flat guard (compositor/geometry.ts). Decoded
               that Movements/Pinwheel (f00) and Replicator-Clones/Concentric (f00–f01) render blue
               photo-B instead of the brown photo-A the GT starts on — an isolated HEAD glitch (both
