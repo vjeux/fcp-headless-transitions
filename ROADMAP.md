@@ -301,32 +301,11 @@ T-H4  TODO    Concentric orthographic depth swing                 Objects/Concen
 T-H5  TODO    Wipes_Mask / Center_Reveal A/B-bind + late wipe     Wipes/Mask (14.3), Center_Reveal
               [A/B binding + hold-then-late-wipe template retime. The wipe holds source A, then         (12.09). Hold A, then late
                wipes late; engine wipes early/binds wrong source. Decode the retime + A/B bind.]        template-retimed wipe reveal.
-
-T-H2  TODO    Center tail Image-Mask reveal-growth                Stylized/Center (11.83, tail f16-f23
-              [The Image Mask (id 554134500, Invert=1) is a DIRECT child of the top-level "Comp"       collapses 8.5->5.87). GUI GT tail =
-               layer (349436); Mask Source = "Shapes for image mask" group (554019971). The parser     pure photo B; engine holds near-white
-               only reads imageMaskSourceId when it is set — verify walk shows Comp.imgMaskSrc          because decorative Comp panels stay on
-               =undefined, so the mask is DROPPED and the decorative panels never get clipped off       top of Transition B and are never
-               Transition B at the tail. Wire the Comp-group Image Mask (masks.ts/parser) so the        clipped. Fix must be generic (>=2 slugs)
-               growing shape reveal clips the panels, revealing B. GENERIC: group-level Image Mask      + gate 0 regressions.
-               on >=2 slugs. Decode-first: census + probe the mask alpha growth vs GT.]
 T-F2  TODO    Smear drop-zone/retime tail                         Movements/Smear (10.97). scrape.ts
               [NOT a filter-algorithm gap — scrape.ts (PAEScrape) is probe-verified vs headless FCP.    filter is probe-correct; the 11-dB
                The deficit is TRANSITION timing: the smear tail continues PAST the drop-zone timeout    deficit is the tail continuing past the
                (content vanishes at 0.467s; a naive clamp made it WORSE). Needs focused drop-zone/      drop-zone timeout. Timemap/retime RE.
                retime RE, NOT filter math. Decode the retime envelope vs GT tail; gate 0 regressions.]
-T-I1  TODO    Framing-camera union-bbox anchor + dolly            Video_Wall (9.10), Clone_Spin (10.32)
-              [S6 framing class: the camera framing anchor targets a reference TILE not the wall        — both mis-frame because the camera
-               origin, and the dolly schedule is wrong. Both slugs share this. Decode the framing       anchor + dolly schedule are wrong.
-               behaviour's union-bbox target + dolly keyframes from the .motr; make the camera pose     Shared framing subsystem; generic fix.
-               track the full wall bbox. GENERIC across the 2 framing slugs; gate 0 regressions.]
-T-J1  TODO    Float (Float32) headroom bloom/glow chain           Bloom (10.55), 360°_Bloom
-              [Rebuild T-D2c as FLOAT: the u8 scaffold was lost AND insufficient (8-bit clamp at 255    under-bloom because the bright/blur
-               cannot preserve Bloom's >1.0 headroom — 360°_Bloom under-blooms 194 vs GT 250). Build     intermediate is u8-clamped, losing HDR
-               a Float32 headroom-preserving glow/bloom chain, tone-mapped once at readback. The        headroom. FCT_BLOOM_FLOAT infra exists
-               spatial math is register-decoded (see progress log 2026-07-14: extract max(color·10 −    (glow.ts) but temporal-onset lag remains.
-               Threshold/10,0), radius 0.5×Amount, gain |Bright−50|×4/50). Remaining: temporal onset    Flip float ON once onset matches; gate 0.
-               lag (GT holds flat until ~f06, engine blooms from f04). Decode + gate 0 regressions.]
 ```
 Max concurrency today = the 8 rows with no `after:` (T-A1,A2,B1,D1,E1,F1,G1 + all four T-D2*
 after T-D1) run simultaneously. Once parents merge, the dependents fan out to MORE parallelism,
