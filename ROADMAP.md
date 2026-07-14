@@ -541,7 +541,7 @@ found (never per-transition hardcoding). Current known:
   photo B. Fix: bind each page to its own drop-zone source (front→A, back→B). Concentric neutral.
 Solved recently (see Done ledger): Divide A/B + wrap + mask-dilation, Duplicate/Squares A/B.
 
-### S8. Procedural / animated group masks  [TODO — discovered 2026-07-13k · HIGH coverage]  (task T-H1)
+### S8. Procedural / animated group masks  [TODO — rescoped 2026-07-14k: build source-less SHAPE-mask matte FIRST (minimizer proved the emitter is NOT the f03 driver) · HIGH coverage]  (task T-H1)
 DECODED (Stylized/Wipes Diagonal): the effects field is revealed by an `<mask name="Animated mask"
 factoryID="11">` attached to the "Gradient and background" GROUP (id 999207202). The mask is
 SELF-DRAWING — it contains an Emitter replicator ("Emitter" 987201535 → "Cell copy") that paints a
@@ -594,6 +594,32 @@ S8 SUB-TAXONOMY (decoded 2026-07-13k — pick the tractable path FIRST):
       path is (b) — build the brush-dab write-on stroke rasteriser as its own primitive (shared
       across ≥5 slugs: Diagonal ×2, Slide_In, Loop, Heart, Center-reveal). Treat as multi-tick.
 
+  ⭐ PREMISE CORRECTION (2026-07-14k, from `fct minimize Wipes__Diagonal --frame 3`): the Diagonal
+  early-frame wash is NOT gated by the (b) brush-dab write-on emitter. The minimizer converged the
+  17,671-element scene to a **6-node** reproducer that still diverges 6.5→7.0 dB at f3 — and it
+  STRIPPED THE EMITTER ENTIRELY. The surviving essential nodes are just:
+      layer "Transition Diagonal"
+        └ group "Gradient and background"
+            └ scenenode "Background" (fID 11 = shape)
+        └ mask  "Animated mask"      (fID 11, NO emitter, NO Mask Source)
+      layer "Transition Drop Zones"
+        └ scenenode "Transition A"   (fID 9 = photo A)
+  The "Animated mask" reduces to a **closed, feathered, keyframe-animated SHAPE mask** (Shape
+  Type=1, Closed=1, Is Mask=1, Feather=300, Mask Blend Mode=0; curve_X/curve_Y = 12 vertices;
+  27 curves / 14 keypoints animating the control points; Rotation.Z≈−0.79 rad ≈ −45°). Its content
+  IS the group's alpha matte. Our engine has NO handler for a `<mask>` with NO Mask Source (it
+  draws its own alpha from its own shape geometry), so the "Gradient and background" group renders
+  UNMASKED and washes gray from Background's timing.in=0.100s (≈f03). At f03 the emitter has barely
+  painted anything, so the DOMINANT early-frame bug is purely the missing procedural SHAPE-mask
+  matte — a far more tractable primitive than the feared brush-dab stroke rasteriser. The emitter/
+  brush (b) still refines the LATE progressive edge (f06–f12), but the first, biggest win is:
+  rasterise the animated closed feathered shape → single-channel alpha → multiply the owning
+  group's alpha (honour Feather + Rotation + the already-decoded Invert/Blend Mode). Reduced case:
+  `fct/minimized/Wipes__Diagonal/` (case.motr + 24 frozen FCP-truth frames + manifest, engine-vs-
+  FCP 8.48 dB mean / 2.27 dB worst). NEXT S8 step: build the procedural-shape-mask alpha matte
+  against this minimal repro, drive it to ≥25 dB on the reduced case via `fct min-*`, THEN verify
+  the Diagonal pair (and other shape-mask slugs) on the GUI-GT gate.
+
 
 ---
 
@@ -642,8 +668,12 @@ reduced `.motr` (headless IS the real Motion algorithm — this isolates where o
 FCP's CODE; it does NOT replace the GUI-GT gate on the 65 shipped transitions). Two correctness
 invariants: (1) trial motrs are written in a work dir that SYMLINKS the source's siblings so FCP +
 the TS engine resolve bundled `Media/` textures relative to the `.motr` dir (a bare /tmp copy loses
-them → false divergence); (2) each headless render runs in an ISOLATED subprocess (`fct
-_headless-frame`) so a malformed reduced doc that SIGSEGVs the FCP engine only kills that trial.
+them → false divergence); (2) headless renders go through a PERSISTENT worker (`fct
+_headless-worker`) that boots the FCP Ozone engine ONCE and is reused across all trials, only
+RESPAWNING when a malformed reduced doc SIGSEGVs it — so crash-isolation is preserved but the
+~3.5s engine boot is paid ~once-per-crash instead of once-per-trial (measured ~1.7s first render
+incl boot, then ~0.35s reused; the whole finalize dropped from ">12 min stuck" to ~30s). The
+per-call isolated `fct _headless-frame` path is kept as a fallback.
 Reduced cases live in `fct/minimized/<case>/` (case.motr + headless/ truth frames + manifest); the
 `min-gen|min-score|min-baseline|min-regress` gate tracks engine-vs-FCP PSNR per case (99 dB = the
 underlying engine bug is fixed). This is the new forcing function for the hard subsystems (S2/S3/S8):
@@ -652,6 +682,32 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14k  TOOLING+DECODE: (1) made the minimizer's headless renders use a PERSISTENT worker
+              (`fct _headless-worker` + `_HeadlessWorker` in minimize.py) — boots the FCP Ozone
+              engine ONCE and reuses it across all ddmin trials, respawning only on an actual
+              SIGSEGV (crash-isolation preserved, ~10x fewer boots; measured 1.71s first render
+              incl boot then ~0.35s reused; the case-frame finalize dropped from ">12 min stuck on
+              the per-trial-boot path" to ~30s). Verified reuse + crash-recovery (good→bad→good all
+              correct). Also routed `_render_case_frames` through the worker and deleted 2 dead
+              duplicate `_link_siblings` defs. (2) DECISIVE S8 PREMISE CORRECTION from the converged
+              Wipes__Diagonal minimization: ddmin reduced 105 scenenodes → a 6-node fixpoint
+              (2 scenenodes/2 layers/1 group/1 mask; ZERO filters/behaviours, EMITTER STRIPPED) that
+              STILL diverges at f3 (6.95 dB). So the Diagonal wash is NOT the feared brush-dab
+              write-on emitter (S8(b)) — it is the plain **animated closed feathered SHAPE mask**
+              ("Animated mask" fID=11: Shape Type=1, Closed=1, Is Mask=1, Feather=300, 12-vertex
+              curve_X/Y outline w/ 27 curves/14 keypoints animating BL→TR) acting as the group's
+              alpha matte, which our engine drops (no handler for a source-less `<mask>`) → gray
+              wash from f03 while FCP holds photo-A. S8's tractable FIRST build is the procedural
+              shape-mask matte (rasterise the mask's own animated shape → alpha → multiply group
+              alpha), FAR simpler than the brush-dab rasteriser. Reduced case committed at
+              `fct/minimized/Wipes__Diagonal/` (min-score 8.48 dB mean / 2.27 worst). Gate green
+              (engine 0/0; tooling-only, no engine pixels changed). (3) Fixed `npm --prefix engine
+              test` which crashed on Node 24 (`ts-node/esm` loader is broken there) — switched the
+              `test`/`test:visual` scripts to the already-declared `tsx` runner; `npm test` now
+              exits 0 and no-hardcode.test.ts passes (all 7 detectors fire on ≥2 built-ins),
+              restoring the self-merge contract's test step. NEXT: build the source-less
+              shape-mask alpha matte, drive the reduced case → 99 dB on the min-gate, verify the
+              Diagonal pair improves on GUI-GT.
 - 2026-07-14j  TOOLING: added `fct minimize` — a `.motr` DELTA-DEBUGGER (ddmin) that reduces a
               transition to the minimal node subtree where the TS engine still diverges from the real
               FCP engine (headless), plus the `fct min-gen|min-score|min-baseline|min-regress` gate

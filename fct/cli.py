@@ -288,6 +288,86 @@ def main():
         ozengine.render_frame(doc, IMG_A, IMG_B, timing.sample_time(frame_i, nframes, span), out)
         return 0
 
+    if cmd == "_headless-worker":
+        # Internal: a PERSISTENT headless render server. Boots the FCP Ozone engine
+        # ONCE (~3.5s), then reads render requests line-by-line off stdin and renders
+        # each into the SAME live engine — amortizing the boot across every trial that
+        # does NOT crash. Crash-isolation is preserved at a coarser grain: if a
+        # malformed reduced doc SIGSEGVs the engine, THIS worker dies and the parent
+        # (minimize.py) simply respawns it and marks only the in-flight trial as
+        # "broke headless". So we pay the boot once per crash, not once per trial.
+        # Protocol (one request per line on stdin):
+        #     <motr_path>\t<frame_i>\t<nframes>\t<out_path>\n
+        # Response on stdout, one line per request, flushed:
+        #     OK\n   (out_path was written)  |  ERR\n  (load/render failed, no crash)
+        # A crash produces no line (pipe closes / short read) -> parent respawns.
+        _reexec_under_venv_if_needed()
+        sys.path.insert(0, os.path.join(REPO, "tools"))
+        import ozengine
+        from fct import timing
+        from fct.config import IMG_A, IMG_B
+        ozengine.init_engine()  # pay the boot ONCE up front
+        sys.stdout.write("READY\n"); sys.stdout.flush()
+        for line in sys.stdin:
+            line = line.rstrip("\n")
+            if not line or line == "QUIT":
+                break
+            try:
+                motr, frame_i, nframes, out = line.split("\t")
+                frame_i, nframes = int(frame_i), int(nframes)
+                span = timing.scene_duration_seconds(motr) or 2.0
+                doc = ozengine.load_doc(motr)
+                ozengine.render_frame(doc, IMG_A, IMG_B,
+                                      timing.sample_time(frame_i, nframes, span), out)
+                ok = os.path.exists(out)
+                sys.stdout.write("OK\n" if ok else "ERR\n")
+            except Exception:
+                # A recoverable error (bad load / non-crash render fail): report ERR
+                # and keep serving. Only a real SIGSEGV takes the process down.
+                sys.stdout.write("ERR\n")
+            sys.stdout.flush()
+        return 0
+
+    if cmd == "_headless-worker":
+        # Internal: a PERSISTENT headless render server. Boots the FCP Ozone engine
+        # ONCE (~3.5s), then reads render requests line-by-line off stdin and renders
+        # each into the SAME live engine -- amortizing the boot across every trial that
+        # does NOT crash. Crash-isolation is preserved at a coarser grain: if a
+        # malformed reduced doc SIGSEGVs the engine, THIS worker dies and the parent
+        # (minimize.py) simply respawns it and marks only the in-flight trial as
+        # "broke headless". So we pay the boot once per crash, not once per trial.
+        # Protocol (one request per line on stdin):
+        #     <motr_path>\t<frame_i>\t<nframes>\t<out_path>\n
+        # Response on stdout, one line per request, flushed:
+        #     OK\n   (out_path was written)  |  ERR\n  (load/render failed, no crash)
+        # A crash produces no line (pipe closes / short read) -> parent respawns.
+        _reexec_under_venv_if_needed()
+        sys.path.insert(0, os.path.join(REPO, "tools"))
+        import ozengine
+        from fct import timing
+        from fct.config import IMG_A, IMG_B
+        ozengine.init_engine()  # pay the boot ONCE up front
+        sys.stdout.write("READY\n"); sys.stdout.flush()
+        for line in sys.stdin:
+            line = line.rstrip("\n")
+            if not line or line == "QUIT":
+                break
+            try:
+                motr, frame_i, nframes, out = line.split("\t")
+                frame_i, nframes = int(frame_i), int(nframes)
+                span = timing.scene_duration_seconds(motr) or 2.0
+                doc = ozengine.load_doc(motr)
+                ozengine.render_frame(doc, IMG_A, IMG_B,
+                                      timing.sample_time(frame_i, nframes, span), out)
+                ok = os.path.exists(out)
+                sys.stdout.write("OK\n" if ok else "ERR\n")
+            except Exception:
+                # A recoverable error (bad load / non-crash render fail): report ERR
+                # and keep serving. Only a real SIGSEGV takes the process down.
+                sys.stdout.write("ERR\n")
+            sys.stdout.flush()
+        return 0
+
     if cmd in ("min-gen", "min-score", "min-regress", "min-baseline"):
         from fct.minimize_gate import run as min_gate_run
         return min_gate_run(cmd, rest)
