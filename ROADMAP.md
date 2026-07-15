@@ -1112,6 +1112,22 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-15k  RECOVERY TICK — reclaimed the box from the render-storm deadlock + confirmed M-BLOOM
+              landed + started M-LOWER merge. The box had been knocked OFFLINE by swarm
+              over-subscription (load 194, 21 concurrent gen --all, 60 _fct_render workers, swap over
+              physical). On reconnect it was still thrashing (load 176, 46-60 render procs). RECOVERY:
+              (1) verified all fixes safely captured on branches (M-BLOOM db5a567, M-LOWER b025389,
+              M-CONCENTRIC 79bf7de, M-VIDEOWALL 81085aa) + committed FIX-FRAMING's uncommitted worktree
+              edits to its branch (772426e) so nothing is lost; (2) killed the stale gen/regress/
+              _fct_render storm (all work was committed) → render procs 0, load easing 176→101.
+              M-BLOOM LANDED on origin during recovery (c00c688, Lights__Bloom 10.55→13.04 +2.49dB,
+              gate 0-reg) — synced main to it (baseline now has Bloom 13.04 + Squares 13.11). Started
+              the next serial merge: cherry-picked M-LOWER onto c00c688 (clean, only evaluator/index.ts
+              +43 lines, tsc-clean), read the diff (both hunks cleanly scoped to isSolidPanel &&
+              in>animationEndSec — proven Lower-only; decode-derived not fitted), gate running. KEY:
+              serialized the merges (M-BLOOM done, M-LOWER next) instead of parallel gate-racing. Merge
+              queue remaining: M-LOWER (gating), M-CONCENTRIC 79bf7de, FIX-FRAMING 772426e vs
+              M-VIDEOWALL 81085aa (same framing subsystem — reconcile). Doc-only, no gate. Main @ c00c688.
 - 2026-07-15j  ORCHESTRATOR MERGE-GATEKEEPING — reviewed 3 DONE swarm branches, prepped M-BLOOM
               merge; blocked on swarm gate-contention. Per rule 4 (orchestrator gate-verifies before
               merge): M-BLOOM (Lights__Bloom 10.55→13.04 +2.49dB, 4 coupled time-authority bugs),
