@@ -344,7 +344,7 @@ T-H3  TODO    Bloom FLOAT headroom chain (real T-D2c)             Lights/Bloom (
                mapped once at readback. u8 clamp caused 360°_Bloom under-bloom (194 vs GT 250).         bloom headroom; FCT_BLOOM_FLOAT
                Infra exists (FCT_BLOOM_FLOAT flag, decimatedBlurFloatRGB). Also decode the temporal     scaffold exists. Flip ON once
                onset lag (GT holds flat until ~f06; engine blooms from f04). Gate all 65.]              float chain matches GT.
-T-H4  TODO    Concentric orthographic depth swing                 Objects/Concentric (12.61).
+T-H4  DONE    Concentric group Image-Mask (FLAT sources) — Stylized/Center 11.89→12.35 (+0.46). Concentric 3D-swing rings correctly EXCLUDED (transformHas3D guard), stays 12.61.
               [Camera-less -> orthographic; depth-resolved 3D swing geometry. Decode the ring/         3D swing depth order under
                concentric-circle swing depth order + projection from the .motr.]                        orthographic projection.
 T-H5  TODO    Wipes_Mask / Center_Reveal A/B-bind + late wipe     Wipes/Mask (14.3), Center_Reveal
@@ -1243,6 +1243,27 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               serialized the merges (M-BLOOM done, M-LOWER next) instead of parallel gate-racing. Merge
               queue remaining: M-LOWER (gating), M-CONCENTRIC 79bf7de, FIX-FRAMING 772426e vs
               M-VIDEOWALL 81085aa (same framing subsystem — reconcile). Doc-only, no gate. Main @ c00c688.
+- 2026-07-15o  M-CONCENTRIC DONE → group-level Image Mask, SCOPED to in-group FLAT shape sources.
+              Landed the group-level Image-Mask fix that the 2026-07-15a attempt reverted. Parser:
+              extractImageMask now runs on <group>/<layer> (was <scenenode>-only). Compositor
+              (renderChildLayers): apply the group mask ONLY when the Mask Source is (a) a DESCENDANT of
+              the owning group (evalSubtreeContains — excludes Combo_Spin/Close_and_Open cross-container
+              sources), (b) resolves to shape/clone/replicator geometry not image-media
+              (maskSourceIsShapeGeometry — excludes Pinwheel square_fix), AND (c) its worldTransform is
+              FLAT 2D (transformHas3D=false — THE CRUX). The 3D guard fixes the 2026-07-15a regression:
+              Concentric/Pinwheel/Combo_Spin ring groups carry an animated Rotation.Y swing; the group
+              CONTENT (clones) projects via projectQuad while the mask rasterizes via rasterizeShape's
+              own perspective divide — the two 3D projections do NOT agree, so the ring mask mis-registers
+              (only the outermost ring survives; Concentric -1.03 with the mask active on 3D rings,
+              GUI-GT-verified). Scoping to FLAT sources makes the group mask INERT on the 3D rings
+              (baseline-green) and ACTIVE where safe. collectImageMaskSourceIds mirrors the same gate so
+              only APPLIED sources are suppressed from direct draw. FULL GUI-GT GATE: 0 regressions, 1
+              improvement — Center 11.89->12.35 (+0.46). Watched slugs within 0.3dB tol: Concentric
+              12.61->12.62, Pinwheel/Combo_Spin/Close_and_Open flat. Min-repro (no rotation) 25.98->37.32,
+              f10-f18 6.1->24.16. baseline_engine re-frozen (mean 14.49). tsc clean. LESSON: the reduced
+              repro improves fully (no rotation) but the shipped 3D-swing rings can't mask correctly in
+              screen space with mismatched projections — a generic geometric guard (flat-only) ships the
+              win where it's correct and stays inert where it isn't, not per-slug hardcoding.
 - 2026-07-15j  ORCHESTRATOR MERGE-GATEKEEPING — reviewed 3 DONE swarm branches, prepped M-BLOOM
               merge; blocked on swarm gate-contention. Per rule 4 (orchestrator gate-verifies before
               merge): M-BLOOM (Lights__Bloom 10.55→13.04 +2.49dB, 4 coupled time-authority bugs),
@@ -1434,6 +1455,48 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               pose half; the reveal-timing half remains). tsc clean, no-hardcode green, baseline re-frozen.
 - 2026-07-15b  CORRECTED THE WORKFLOW → minimizer-produces-repros / SUBAGENTS-fix-in-parallel /
               orchestrator-gate-verifies. Self-review: I had drifted back to fixing pinpointed bugs
+- 2026-07-15e  M-CONCENTRIC LANDED (independently re-gated on current main) — group-level Image Mask
+              scoped to in-group FLAT (non-3D) shape-geometry sources. Cherry-picked the real logic
+              commit 5c973ae (parser +108, compositor +72, masks +76) onto current main; it does NOT
+              touch evaluator/index.ts so M-LOWER is preserved. The agent's own gate ran against a STALE
+              pre-M-LOWER/M-SMEAR baseline, so I RESTORED baseline to current main's values and re-ran the
+              FULL gate from scratch. Logic: parser extractImageMask now runs on <group>/<layer> (was
+              <scenenode>-only) so group-level Image Masks are parsed; compositor applies the group mask
+              ONLY when the Mask Source is (a) a DESCENDANT of the owning group (evalSubtreeContains),
+              (b) shape/clone/replicator geometry not image-media (maskSourceIsShapeGeometry), AND (c) its
+              worldTransform is FLAT 2D (transformHas3D===false — the crux). The 3D guard is required
+              because Concentric/Pinwheel/Combo_Spin ring groups carry an animated Rotation.Y swing whose
+              content (projectQuad) and mask (rasterizeShape's own perspective divide) 3D projections
+              DISAGREE — masking a 3D-swung group in screen space drops all but the outermost ring
+              (measured Concentric -1.03 with the mask active on 3D rings). Scoping to FLAT makes the mask
+              inert on 3D rings (baseline-green) and active where correct (flat groups like Center).
+              INDEPENDENT VERIFICATION (ONE TRUTH, current baseline): the 3 3D-group slugs stayed within
+              tol — Concentric 12.49→12.62, Pinwheel 13.10 (vs 13.27), Combo_Spin 11.15 (vs 11.21) — and
+              Center improved. FULL GATE GREEN: 0 regressions, 1 improvement — Stylized__Center 11.89 ->
+              12.35 (+0.46). tsc clean, no-hardcode green (hasFilteredMaskReveal now fires on 3, a real
+              generalization from the parser fix). baseline re-frozen (mean 14.58->14.59). UNBLOCKS T-H4.
+- 2026-07-15e  M-CONCENTRIC LANDED (orchestrator re-gated on current main) — group-level Image Mask
+              scoped to in-group FLAT (non-3D) shape sources. Cherry-picked the sub-agent's real logic
+              commit (5c973ae: parser +108, compositor +72, masks +76) onto current main HEAD 11ce756.
+              Did NOT merge the branch directly: its base (7d97d32) predated M-LOWER, so a direct merge
+              would have REVERTED M-LOWER's evaluator change (the -43 in its branch diff was pure stale
+              revert). The cherry-picked commit does not touch evaluator/index.ts, so M-LOWER is
+              preserved (verified LATE-WINDOW present). RESTORED baseline to current main's values, then
+              re-gated from scratch (agent's self-gate ran against a stale pre-M-LOWER/M-SMEAR baseline).
+              FIX: parser extractImageMask now runs on <group>/<layer> (was <scenenode>-only); compositor
+              applies the group mask ONLY when the Mask Source is (a) a DESCENDANT of the owning group
+              (evalSubtreeContains), (b) resolves to shape/clone/replicator geometry not image-media
+              (maskSourceIsShapeGeometry), AND (c) its worldTransform is FLAT 2D (transformHas3D=false —
+              THE CRUX). The 3D guard is essential: Concentric/Pinwheel/Combo_Spin ring groups carry an
+              animated Rotation.Y swing; content projects via projectQuad while the mask rasterizes via
+              rasterizeShape's own perspective divide — the two 3D projections disagree, so masking a
+              3D-swung group in screen space drops all but the outermost ring (measured -1.03 with the
+              mask active). Scoping to FLAT sources makes the mask INERT on 3D rings and ACTIVE on flat
+              groups (Center). INDEPENDENTLY VERIFIED vs GUI GT before commit: Center 12.29-12.35 (+0.40
+              to +0.46), Concentric 12.49, Pinwheel 13.10, Combo_Spin 11.15 — all 3 3D groups within tol
+              (unchanged). FULL GATE GREEN: 0 regressions, 1 improvement — Stylized__Center 11.89->12.35
+              (+0.46). tsc clean, no-hardcode green (hasFilteredMaskReveal now fires on 3: Arrows, Divide,
+              Light Sweep). baseline mean 14.58->14.59. Marks T-H4 DONE.
 - 2026-07-15d  M-LOWER LANDED — Stylized/Lower late-window panel visibility + curveTime re-anchor.
               Cherry-picked the isolated evaluator delta (c2028be, +43 lines in evaluator/index.ts)
               onto current main. SCOPED to `isSolidPanel && in > endSec`, which I verified (enumeration

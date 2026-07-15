@@ -251,11 +251,83 @@ export function collectMaskShapes(group: EvaluatedLayer, out: EvaluatedLayer[]):
   }
 }
 
-/** Gather every object ID referenced by some layer's Image Mask `Mask Source`. */
+/**
+ * True when a GROUP-LEVEL Image Mask's resolved Mask Source is SHAPE geometry the
+ * group-mask compositor can rasterize through its own world transform (so it
+ * swings/foreshortens WITH the group): a shape, a clone (chained to a shape), a
+ * replicator of shape cells, or a group whose descendants are shapes/clones and
+ * carry NO image-media layer.
+ *
+ * NOT eligible when the source is an image-MEDIA layer: its reveal matte is
+ * rasterized FLAT full-frame by resolveImageMaskAlpha (ignoring the source's own 3D
+ * transform), so masking a group to it mis-registers (Pinwheel's `square_fix`
+ * regressed −3.46). Those stay on the pre-existing render path.
+ */
+export function maskSourceIsShapeGeometry(src: EvaluatedLayer): boolean {
+  const t = src.layer.type;
+  if (t === 'shape') return !!src.layer.shape;
+  if (t === 'clone') return src.layer.cloneSourceId !== undefined;
+  if (t === 'replicator') return !!src.layer.replicator;
+  if (t === 'image') return false; // flat-conformed media matte — not group-eligible
+  if (t === 'group') {
+    // Eligible iff SOME descendant is shape/clone/replicator geometry AND NONE is an
+    // image-media layer that would be rasterized flat (Center's "Shapes for image
+    // mask" group qualifies; a group holding a media matte does not).
+    let hasGeom = false;
+    const walk = (el: EvaluatedLayer): boolean => {
+      const et = el.layer.type;
+      if (et === 'image') return false;
+      if (et === 'shape' && el.layer.shape) hasGeom = true;
+      else if (et === 'clone' && el.layer.cloneSourceId !== undefined) hasGeom = true;
+      else if (et === 'replicator' && el.layer.replicator) hasGeom = true;
+      for (const c of el.children) if (!walk(c)) return false;
+      return true;
+    };
+    if (!walk(src)) return false;
+    return hasGeom;
+  }
+  return false;
+}
+
+/**
+ * True when `id` is `root` itself or one of its evaluated descendants — i.e. the
+ * Image Mask's Mask Source lives INSIDE the masked group (in-group clip geometry
+ * that moves with the group). Cross-container mask sources (Combo_Spin's separate
+ * `Shape Masks` layer, Close_and_Open's `Mask shapes` layer) are NOT descendants
+ * and must not take the group-mask path.
+ */
+export function evalSubtreeContains(root: EvaluatedLayer, id: number): boolean {
+  if (root.layer.id === id) return true;
+  for (const c of root.children) if (evalSubtreeContains(c, id)) return true;
+  return false;
+}
+
+/**
+ * Gather every object ID referenced by some layer's Image Mask `Mask Source` that
+ * will ACTUALLY be consumed as a mask (so the renderer suppresses the source's own
+ * direct draw — hidden geometry, not visible content).
+ *
+ * A LEAF-drawable owner (image/shape/clone/replicator) always consumes its source
+ * (renderDrawableLayer). A GROUP owner consumes its source ONLY when the group-mask
+ * apply gate passes (source is a DESCENDANT resolving to SHAPE geometry — mirrors
+ * renderChildLayers). Groups that DON'T take the group-apply path (Combo_Spin/
+ * Close_and_Open — cross-container source; Pinwheel — image source) must NOT
+ * suppress their source, or the source is wrongly hidden and the slug regresses
+ * (Close_and_Open −0.36).
+ */
 export function collectImageMaskSourceIds(evalLayerById: Map<number, EvaluatedLayer>): Set<number> {
   const ids = new Set<number>();
   for (const el of evalLayerById.values()) {
-    if (el.layer.imageMaskSourceId !== undefined) ids.add(el.layer.imageMaskSourceId);
+    const srcId = el.layer.imageMaskSourceId;
+    if (srcId === undefined) continue;
+    if (el.layer.type === 'group') {
+      const src = evalLayerById.get(srcId);
+      const applied = src !== undefined
+        && maskSourceIsShapeGeometry(src)
+        && evalSubtreeContains(el, srcId);
+      if (!applied) continue;
+    }
+    ids.add(srcId);
   }
   return ids;
 }

@@ -8,7 +8,7 @@ import type { RenderContext } from './context.js';
 import {
   resolveCloneImage, shapeMaskCell, revealThroughMask, findVisibleDrawable,
   getSourceImage, isMaskGroup, collectMaskShapes, collectImageMaskSourceIds,
-  resolveImageMaskAlpha,
+  resolveImageMaskAlpha, maskSourceIsShapeGeometry, evalSubtreeContains,
 } from './masks.js';
 import {
   framedCameraBasis, projectFramed, dropZonePlaceholderCell, cellContentBBox,
@@ -31,6 +31,19 @@ import './filters/index.js'; // side-effect: registers all UUID-keyed filter mod
  * tile and framed image layer is projected through this camera (projectFramed).
  */
 const FRAMING_VIEW_ENABLED = true;
+
+/**
+ * True when a 4x4 world transform carries real 3D depth — a non-negligible Z basis
+ * (columns coupling into/out of Z) or a Z translation. Mirrors the `perspective`
+ * predicate in rasterizeShape: a flat 2D affine (rotation/scale/translation in the
+ * XY plane only) returns false. Used to keep the group-level Image Mask off
+ * 3D-swinging groups whose mask + content use different 3D projections (Concentric).
+ */
+function transformHas3D(m: Float64Array | undefined): boolean {
+  if (!m) return false;
+  return Math.abs(m[2]) > 1e-6 || Math.abs(m[6]) > 1e-6 || Math.abs(m[8]) > 1e-6
+    || Math.abs(m[9]) > 1e-6 || Math.abs(m[14]) > 1e-6;
+}
 
 
 
@@ -566,6 +579,50 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
     const hasFilters = layer.filters.length > 0;
     const hasMasks = maskShapes.length > 0;
     const hasBlend = layer.blendMode !== 'normal';
+    // GROUP-LEVEL IMAGE MASK: a `<mask Image Mask>` authored on the GROUP/LAYER (not a
+    // leaf drawable) clips the WHOLE group to a referenced shape/clone. Concentric's
+    // ring groups mask stacked Clone A/B to a Circle shape (the concentric-ring
+    // geometry); minimized 11-node repro proves the engine renders the unmasked
+    // full-frame clone (f10-f18 ~6 dB) because this mask was dropped. Trigger the
+    // temp-buffer path so the group's composited children can be alpha-clipped by the
+    // rasterized mask source, exactly like the leaf-drawable path at renderDrawableLayer.
+    //
+    // SCOPE (verified vs the full GUI-GT gate): apply the group mask ONLY when the
+    // Mask Source is a DESCENDANT of this group AND resolves to SHAPE/CLONE geometry
+    // (rasterized through its own world transform, so it swings/foreshortens WITH the
+    // group). This is the "in-group clip geometry" semantic — the source lives inside
+    // the masked group (Concentric's Circle child, Center's Shapes-group child) and
+    // moves with it. Two other conventions must NOT take this path or they regress:
+    //   • Cross-container source (Combo_Spin's separate `Shape Masks` layer, -4.28;
+    //     Close_and_Open's `Mask shapes` layer, -1.29): source is NOT a descendant —
+    //     masking the whole composited group to a foreign static shape drops the
+    //     spinning clones. Handled by the pre-existing (non-group) paths.
+    //   • Image-MEDIA source (Pinwheel's `square_fix`, -3.46): the source is an image
+    //     whose reveal matte is rasterized FLAT full-frame (resolveImageMaskAlpha's
+    //     image branch ignores the source's own 3D-swing transform), so masking the
+    //     group to it mis-registers. Left to the pre-existing path.
+    // Concentric (+min-repro 40 dB) and Center (+0.46) are descendant SHAPE/CLONE
+    // sources -> they take this path; the four regressors are all excluded.
+    const maskSrcEval = layer.imageMaskSourceId !== undefined
+      ? rctx.evalLayerById.get(layer.imageMaskSourceId)
+      : undefined;
+    const maskSrcIsShapeGeom = maskSrcEval !== undefined && maskSourceIsShapeGeometry(maskSrcEval);
+    // 3D-SWING GUARD (verified vs GUI-GT): Concentric's ring groups carry an animated
+    // Rotation.Y swing on the group, so the mask-source Circle's worldTransform has
+    // real 3D depth. The group content (clones) is projected via projectQuad while the
+    // mask is rasterized via rasterizeShape's own perspective divide — the two 3D
+    // projections do NOT agree, so the ring mask mis-registers against the swinging
+    // clone content and only the outermost ring survives (the rest render black). The
+    // full-gate measured Concentric -1.03 with the group mask active on the 3D rings.
+    // A flat 2D mask source (no Z depth in its world basis) rasterizes correctly and
+    // aligns with its (also-flat) content, so the group mask is SAFE only there. Skip
+    // the group-mask path when the mask source is 3D-rotated/translated — those groups
+    // fall back to the pre-existing per-leaf render (inert here, baseline-green).
+    const maskSrcIsFlat = maskSrcEval !== undefined && !transformHas3D(maskSrcEval.worldTransform);
+    const hasImageMask = layer.imageMaskSourceId !== undefined
+      && maskSrcIsShapeGeom
+      && maskSrcIsFlat
+      && evalSubtreeContains(evalLayer, layer.imageMaskSourceId);
 
     // Draw-order convention. The default renders children in REVERSE list order
     // (last-listed rendered first = bottom, first-listed last = top), which the
@@ -602,7 +659,7 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
       order = (idx: number): EvaluatedLayer => visibleChildren[visibleChildren.length - 1 - idx];
     }
 
-    if (hasFilters || hasMasks || hasBlend) {
+    if (hasFilters || hasMasks || hasBlend || hasImageMask) {
       // Render visible children to a temp buffer
       const groupBuffer = createBuffer(output.width, output.height);
       for (let i = 0; i < visibleChildren.length; i++) {
@@ -637,6 +694,17 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
           // Sweep not started: nothing revealed → zero out the group content.
           applyMask(groupBuffer, new Uint8Array(output.width * output.height));
         }
+      }
+
+      // Apply a GROUP-LEVEL Image Mask (a `<mask Image Mask>` on this group/layer whose
+      // Mask Source is a sibling shape/clone). Rasterize the source alpha and multiply
+      // it into the composited group content — the same operation the leaf-drawable path
+      // does at renderDrawableLayer (:479), lifted to the group so ring-mask groups
+      // (Concentric) clip their stacked clones to the shape. `invert` honors Invert Mask.
+      if (hasImageMask && layer.imageMaskSourceId !== undefined) {
+        const maskAlpha = resolveImageMaskAlpha(
+          rctx, layer.imageMaskSourceId, output.width, output.height, layer.imageMaskInvert);
+        if (maskAlpha) applyMask(groupBuffer, maskAlpha);
       }
 
       // Apply filters
