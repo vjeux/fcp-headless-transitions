@@ -500,6 +500,78 @@ to confirm the gradient TYPE per slug before writing a generator (Rule 7 — pri
 Group-level image mask on comp groups; 3D-rotated groups can't use screen-space mask
 rasterization (guard skips them → unmasked). **Start:** `fct minimize Stylized__Center`.
 
+**WIPES/MASK — TWO coupled bugs decoded; a NET-NEGATIVE fix attempt REVERTED (2026-07-15).**
+The GT wipe holds photo A almost the whole transition and reveals B only in the last ~5 frames
+(f0=warm A → f23=cool B); the engine rendered the ENDPOINTS inverted (f0 cool B, f23 warm A) with a
+correct-looking middle. Decoded TWO independent root causes:
+  1. **A/B binding swapped.** The "Drop Zones" group lists the masked node NAMED "Transition B"
+     BEFORE the unmasked base "Transition A", so the document-order override (`parser/footage.ts`)
+     re-keys base→B / masked→A. GUI GT wants base→A (the unmasked base holds the outgoing A; the
+     single masked layer reveals incoming B). Verified: `_trace_src.ts` (now slug-parameterized +
+     `FCT_DEBUG_AB=1`) shows base "Transition A"→transitionB.
+  2. **animationEndSec inflated 4×.** `render(progress)=renderAt(progress·endSec)`. For Wipes/Mask
+     `animationEndSec`=**5.038s** but the true span (sceneSettings duration/frameRate) is **1.30s**,
+     because the drop-zone Image Object's media-fit params **Width(313)/Height(314)/Fit Factor(318)**
+     carry padding keyframes at the scene end (5.038s). The keyframe-walk counted them, so
+     progress=0.5 sampled scene-time ≈2.5s — far PAST the mask's ~1.0s sweep → B fully revealed
+     across the whole frame mid-transition.
+  **FIX ATTEMPT + why it was REVERTED (Rule 2, measured net-negative):** (a) generalise the
+  replicator-only masked-reveal binding to ANY single-masked reveal (base→A, masked→B for
+  maskedCount==1); (b) CAP Width/Height/Fit-Factor keyframes to the span (surgical — preserves
+  Stylized/Slide whose Width animates to 1.001s < its 1.067s span; only clamps beyond-span padding).
+  RESULT on the full gate: **Wipes/Mask +2.19 (14.30→16.49)** BUT **Objects/Arrows −16.70
+  (27.16→10.46)** and **Replicator-Clones/Vertigo −8.36 (19.76→11.40)**, Center_Reveal −0.69.
+  Net catastrophically negative → reverted both files.
+  **WHY the binding generalisation is WRONG (the load-bearing lesson):** "exactly one drop zone
+  carries an Image Mask" is NOT sufficient to mean "A/B crossfade reveal". Objects/Arrows and
+  Vertigo ALSO have a single Image Mask on a Transition drop zone, but they are NOT A→B wipes — the
+  mask is decorative/structural, and the NAME-based binding is already correct for them. Flipping it
+  inverted their A/B (Arrows collapsed to 10 dB). The original `hasReplMask` restriction (mask SOURCE
+  is a Sequence Replicator) was the real discriminator: it fires ONLY on the true replicator-matte
+  A→B reveals (Duplicate/Squares). The shape-mask A→B wipes (Wipes/Mask, Center_Reveal) need a
+  DIFFERENT, NARROWER signal than "has any Image Mask" — e.g. the mask source is a single sweeping/
+  growing SHAPE that monotonically covers the frame (a wipe matte), distinct from Arrows' composed
+  arrow shapes and Vertigo's spiral. NEXT: find that precise discriminator (decode Arrows/Vertigo
+  mask-source geometry vs Wipes-Mask/Center_Reveal) BEFORE re-touching the binding, and fix
+  Center_Reveal's OWN endSec (its 3.0s comes from "Grad middle/ends" Position curves that saturate
+  visually by ~0.567s — a value-plateau-past-visual-end case, separate from the media-fit padding).
+  The endSec media-fit CAP (b) is correct in isolation (preserves Slide) but useless without a
+  correct binding, so it was reverted with (a); re-land them together once the binding discriminator
+  is right.
+
+**WIPES/MASK — TWO coupled root causes decoded; a naive fix is NET-NEGATIVE (2026-07-15).**
+Engine 14.30 vs headless 35.7 (+21 reachable). Diagnosed via `_trace_src.ts` (A/B binding) +
+`_trace_wipemask.ts` (mask coverage) + column-warmth probes. GT holds photo A (warm) f0–f18 then
+reveals B (cool) only at f23 — a LATE single-shape wipe (the "Vertical" bar mask on "Transition B"
+over an unmasked "Transition A" base). TWO independent bugs:
+  1. **A/B binding SWAPPED.** The doc-order override binds the FIRST-listed drop-zone node → A. Wipes/
+     Mask lists the masked "Transition B" node FIRST, so base→transitionB(cool), masked→transitionA —
+     backwards (engine f0 = cool B; GT f0 = warm A). The existing MASKED-REVEAL rule (base→A, masked→B)
+     ONLY fires for REPLICATOR-source masks (Duplicate/Squares); a SHAPE-source mask (Wipes/Mask,
+     Center_Reveal) falls through to the wrong doc-order swap.
+  2. **animationEndSec INFLATED 4×.** `render(progress)=renderAt(progress·endSec)` uses the keyframe-walk
+     max = 5.038s, but the transition span is 1.3s (sceneSettings 39f/30fps). The 5.038s comes from the
+     drop-zone Object media-fit params "Width"(313)/"Height"(314)/"Fit Factor"(318), whose keyframes are
+     padded to the scene end (NOT transition animation — same class as the already-excluded Page Number/
+     Retime Value). So progress 0.5 samples scene-time 2.52s, way past the ~1.0s mask sweep → the wipe is
+     already complete → engine shows the fully-revealed image across the whole mid-transition.
+  **NET-NEGATIVE FIX (measured + reverted — do NOT re-attempt as-is):** (a) generalise the masked-reveal
+  binding to ANY single-masked reveal (base→A, masked→B) + (b) cap the drop-zone Width/Height/Fit-Factor
+  keyframes to the span. Wipes/Mask improved **14.30→16.49 (+2.19)** and Slide was preserved (the CAP,
+  unlike a blanket Width/Height exclusion, left Slide's in-span 1.001s Width key untouched: 20.36→20.33).
+  BUT the binding generalisation CATASTROPHICALLY regressed **Objects__Arrows 27.16→10.46 (−16.7)** and
+  **Replicator-Clones__Vertigo 19.76→11.40 (−8.36)**, plus Center_Reveal −0.69. Arrows/Vertigo carry a
+  single Image Mask but are NOT A/B-crossfade reveals (Arrows = arrow-shape composition; Vertigo = spiral
+  replicator), so forcing base→A/masked→B inverted their correct name-based binding. FAIL: 3 reg / 1 imp.
+  Reverted per Rule 2. **The replicator-source restriction on the masked-reveal rule is LOAD-BEARING** —
+  it distinguishes a true A/B wipe/reveal from a decorative single mask. **NEXT (both needed together):**
+  (i) a PRECISE discriminator for "single-masked A/B REVEAL" that includes Wipes/Mask + Center_Reveal but
+  EXCLUDES Arrows/Vertigo (e.g. the masked node's source is a full-frame Transition drop zone AND the
+  sibling base is the OTHER full-frame Transition drop zone AND the mask geometry sweeps/grows to full
+  coverage — not an arrow glyph or spiral); (ii) the drop-zone-fit endSec CAP (already surgical + Slide-
+  safe). Center_Reveal ALSO needs its own endSec fix (its 3.0s comes from "Grad middle/ends" Position
+  curves that saturate visually ~0.57s but keep animating — a separate visible-end-vs-keyframe-end issue).
+
 **SQUARES — the "Shuffle Order" reveal is SYMMETRIC, not a random PRNG (decoded 2026-07-15).**
 The engine reveals tiles in a DIAGONAL wavefront (bottom-left staircase, `sequenceOrder`); GT +
 headless reveal a SCATTERED-looking pattern that the ROADMAP long assumed was Motion's pseudo-random
