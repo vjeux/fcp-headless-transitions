@@ -23,6 +23,27 @@
  *   clamped in-shader (the framebuffer format clamps on store). Monochrome is a
  *   CPU-side param preset (constrainMonoParams:) that sets all three rows to the
  *   same luma weights — there is no separate mono branch in the shader.
+ *   ⚠️ PHASE-2 GAP (T-M4, 2026-07-15 — DOCUMENTED, NOT FIXED, unexercised input):
+ *   the "…-Alpha" OFFSET column does NOT behave as the clean per-channel `chan +=
+ *   offset` the disassembled 4-wide dot implies. Real headless FCP (PAEChannelMixer,
+ *   Red-Alpha=0.3, all other rows identity) lifts ALL THREE output channels, not just
+ *   Red: in→[191,136,82] out→[237,196,159] (a control render with Red-Alpha=0 is
+ *   byte-clean vs input — mean|Δ|=1.15 — so unspecified Green/Blue rows DO default to
+ *   identity and the cross-channel lift is genuine FCP behaviour, not probe
+ *   contamination). Decoded in LINEAR working space the lift is a near-global additive
+ *   ~+0.27, but it does NOT converge to a clean model: red-only linear +0.3 → mean|Δ|
+ *   53.5; all-channel linear +0.3 → 23.2; best-fit global linear c=0.27 → 22.4 with a
+ *   high per-pixel residual (linear-ΔR/ΔG/ΔB std ≈ 0.06–0.08). The residual + the
+ *   observed reduced output alpha (140 on ~0.2% of pixels) point to a premultiply /
+ *   matte interaction in the offset path that the isolated probe can't cleanly pin.
+ *   Per the decode-don't-fit rule this stays a documented GAP rather than a fitted
+ *   rewrite. IMPACT: ZERO on the GUI-GT gate — verified all 7 ChannelMixer transitions
+ *   (360° Circle_Wipe/Divide/Push/Reveal_Wipe/Slide, Movements Color_Planes, Objects
+ *   Curtains) set every "…-Alpha" offset to 0, so the shipped `offsets[]` path (which
+ *   applies the offset per-channel) is exercised only at offset=0 where it is exact.
+ *   The un-swept offset endpoint is captured as a `gap:true` case in filter_sweeps.json
+ *   ("Red-Alpha offset 0.3"). Do NOT rewrite the offset path around the non-converged
+ *   global-lift model — it would change nothing on the gate and risks the 7 transitions.
  *
  * --- HgcTint (PAETint, UUID 717D6E01-…) — VERBATIM shader ---
  *   r0  = color0;  r0 = r0 / max(r0.w,1e-6)   // un-premultiply (rgb), alpha kept

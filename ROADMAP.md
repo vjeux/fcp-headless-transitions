@@ -423,11 +423,17 @@ T-M3  DONE    FILTER-P2: HSV multiplicative Value + hue           filter: HSV (H
                Hue is driven via the Widget/OSC (id=200), not the raw float, so the probe cannot
                exercise it. The TS hue math (hg_Params[0].x=Hue/360 turns, decoded HgcHSVAdjust) is
                correct + documented in hue-saturation.ts. No engine change needed; gate unaffected.]
-T-M4  TODO    FILTER-P2: ChannelMixer alpha-column reconcile      filter: ChannelMixer. Color_Planes
-              [P2: FCP rows are 4-wide dots incl. the ALPHA column (offset via r1.w=1), clamps ALPHA    + others. Reconcile the alpha
-               only, re-premults by NEW alpha. TS uses separate offsets[] and clamps ALL channels.      column + clamp/premult model vs
-               Reconcile to the 4-wide-dot + alpha-only-clamp + re-premult model. VERIFY vs filter_     the decoded 4-wide-dot shader;
-               probe channelmixer sweep across full matrix incl. alpha/offset. Gate 0 regressions.]     verify full matrix vs headless.
+T-M4  DONE    FILTER-P2: ChannelMixer alpha-column reconcile      filter: ChannelMixer. Color_Planes
+              [P2 DONE 2026-07-15: probed the full matrix incl. the un-swept "…-Alpha" OFFSET column    + others. RGB-matrix + Mono
+               vs headless. RGB-matrix (R<->B swap, Mix0.5) + Monochrome all PASS ≥42dB (already        rows + Mix VERIFIED ≥42dB.
+               shipped). The OFFSET column is NOT the clean per-channel add the disasm implies —        The "…-Alpha" offset column
+               real FCP lifts ALL THREE channels for one X-Alpha offset (control render at offset=0     lifts all 3 channels + shows a
+               is byte-clean, so cross-chan lift is genuine, not probe contamination); it does NOT      premult/matte interaction that
+               converge to a clean model (best global-linear fit still mean|Δ|22.4, residual std       does not converge → documented
+               .06-.08, + reduced output alpha ⇒ premult/matte interaction the isolated probe can't    GAP (decode-don't-fit), ZERO
+               pin). VERIFIED all 7 ChannelMixer transitions set every -Alpha offset = 0, so the        gate impact (all 7 users set
+               shipped offsets[] path is exercised only at 0 where exact ⇒ ZERO gate impact.           offset=0). gap:true sweep case
+               Documented as GAP per decode-don't-fit (RE comment + gap:true sweep case). Gate green.]  + RE comment. Gate 0 regress.]
 T-M5  TODO    FILTER-P2: Colorize Intensity=1 luma-vector         filter: Colorize. Built-ins use
               [P2: TS structure matches (black->white luma remap) and Intensity is honored, but at      Intensity=1 so gate is neutral, but
                Intensity=1 the B-channel luma vector mismatches (FCP luma != 601 dot). Decode the        the Intensity=1 endpoint mismatches
@@ -1149,6 +1155,31 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-15q  T-M4 (ChannelMixer alpha/offset column) → DONE (Phase-2 decode + document; gate-neutral).
+              Probed the un-swept "…-Alpha" OFFSET column against real headless FCP: Red-Alpha=0.3 (all
+              other rows identity) lifts ALL THREE output channels (in[191,136,82]→out[237,196,159]),
+              NOT the per-channel `chan+=offset` the disassembled 4-wide dot implies. CONTROL (Red-Alpha=0,
+              only Red Output specified) is byte-clean vs input (mean|Δ|=1.15) → unspecified Green/Blue
+              rows DO default to identity, so the cross-channel lift is genuine FCP behaviour, not probe
+              contamination. Decode-don't-fit: in LINEAR space the lift is a near-global additive ~+0.27
+              but does NOT converge (red-only linear+0.3 → mean|Δ| 53.5; all-chan linear+0.3 → 23.2;
+              best-fit global c=0.27 → 22.4 with per-pixel residual std 0.06–0.08; the reduced output
+              alpha (140 on ~0.2% px) points to a premult/matte interaction the isolated probe can't pin).
+              → documented as a GAP (precise RE comment in channel-mixer.ts + gap:true sweep case
+              "Red-Alpha offset 0.3" in filter_sweeps.json), NOT a fitted rewrite. IMPACT ZERO on GUI-GT:
+              verified all 7 ChannelMixer transitions (360° Circle_Wipe/Divide/Push/Reveal_Wipe/Slide,
+              Movements Color_Planes, Objects Curtains) set every -Alpha offset to 0, so the shipped
+              offsets[] path is exercised only at offset=0 (exact there). Also flagged the two prior Levels
+              black/white-point cases with gap:true (they lacked the flag → would count as sweep FAILs).
+              Full filter sweep = 46 PASS / 0 FAIL (all divergences are documented GAP/CEILING). tsc clean.
+              INFRA FINDING (this tick): the engine is byte-DETERMINISTIC (2 isolated Smear renders →
+              24/24 identical frames); the transient gate "regressions" were frame-corruption from a
+              concurrent agent writing the SHARED ~/fct-frames dir while 3 runaway analyze_mask.py workers
+              (172 CPU-min each, 0 output 5.7h) + two runaway `find /` scans (8h & 26h) thrashed the box
+              to load 77. Killed the runaways by explicit PID (never touched the agent worktree/CLI);
+              load 77→9; isolated re-render restored Smear 11.69 (≈baseline 11.75). Gate GREEN: 0 regr,
+              0 impr vs baseline_engine. Comment+test-JSON only — provably behavior-neutral (channel-mixer.ts
+              diff is 100% comment lines).
 - 2026-07-15p  T-N1 (Lower, WORST slug) → DONE. Cherry-picked M-LOWER's isolated evaluator delta
               (c2028be, +43 lines in evaluator/index.ts) onto current main. Two coupled fixes, BOTH
               scoped to `isSolidPanel && in > endSec` (verified by enumeration to fire on ONLY Lower —

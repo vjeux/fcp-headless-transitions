@@ -201,7 +201,8 @@
               }
             ]
           }
-        ]
+        ],
+        "gap": true
       },
       {
         "label": "white in 0.7 (GAP: highlight remap diverges ~34dB)",
@@ -223,7 +224,8 @@
               }
             ]
           }
-        ]
+        ],
+        "gap": true
       }
     ]
   },
@@ -989,6 +991,38 @@
             "name": "Mix",
             "id": 10001,
             "value": 0.5
+          }
+        ]
+      },
+      {
+        "label": "Red-Alpha offset 0.3 (GAP: cross-chan lift)",
+        "gap": true,
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 0
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0.3
+              }
+            ]
           }
         ]
       }
