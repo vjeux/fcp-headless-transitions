@@ -1135,6 +1135,23 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-15o  M-SMEAR Bloom-HAZARD CLEARED (verified safe) + full gate in progress. Investigated the
+              flagged hazard (M-SMEAR might regress the landed Bloom 13.04→11.38). Resolved DEFINITIVELY
+              by reading the merged timemap precedence + DIRECT capability instrumentation on the
+              cherry-picked tree (merge-ready/M-SMEAR b2dfb9b): M-BLOOM's filter-offset animEnd fix sets
+              Bloom's animationEndSec=0.5021, which makes bOut(0.467) >= endSec-frameSec TRUE →
+              pureCrossfadeSettleB owns Bloom AND M-SMEAR's hasFilterRevealSettleB probe returns FALSE
+              for Bloom (verified: hasFilterRevealSettleB(Bloom)=false, (Smear)=true). CONFIRMED by
+              rendering Bloom on the merged tree: MEAN 12.94 = M-BLOOM's baseline (13.04, within tol),
+              NOT the 11.38 M-SMEAR's stale-baseline message claimed. So M-SMEAR only fires on Smear;
+              Bloom is untouched. The "11.38" was measured before M-SMEAR was rebased onto M-BLOOM's
+              animEnd fix — a stale-baseline artifact, NOT a real regression. HAZARD CLEARED → M-SMEAR
+              is safe to merge for Bloom. Full gen --all+regress launched on the merged tree to confirm
+              Smear improvement + 0 regressions across all 65 (progressing, orphan-safe). Merge M-SMEAR
+              (merge-ready/M-SMEAR b2dfb9b) once the full gate confirms 0-reg. LESSON: an agent's
+              self-reported cross-family dB is stale if a sibling win on the shared family landed after
+              its baseline freeze — re-instrument the capability on the REBASED tree, don't trust the
+              message. Doc-only, no gate committed. Main @ f2cbc7a.
 - 2026-07-15n  ORPHAN-FIX VERIFIED IN PROD + M-SMEAR merge-hazard flagged. Confirmed my orphan-reaping
               fix (0a65f09) works live: box recovered to load 62 (was 100-194), 0 orphaned renderers,
               and killing a gate now reaps its children cleanly (verified twice — 0 orphans post-kill).
