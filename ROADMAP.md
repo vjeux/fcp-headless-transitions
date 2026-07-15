@@ -1358,6 +1358,28 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               GT (f21-f23 16-17 dB vs the old ~5-9). tsc + no-hardcode + glow/curves/parser unit tests
               green. 360°__360°_Bloom unchanged (11.58, its filters carry no such offset). Files:
               parser/index.ts, timemap.ts, compositor/{index,context,filters/registry}.ts, types.ts.
+
+- 2026-07-15d  M-VIDEOWALL PARTIAL — Video_Wall 9.10 → 10.24 dB (+1.14), gate 0 regressions / 1 improvement.
+              Two decoded framing fixes (both generic, no per-slug logic; only the 2 factory-3 Framing
+              slugs — Video_Wall, Clone_Spin — can be touched, and Clone_Spin is provably unchanged
+              10.32→10.32; every non-framing slug byte-identical, verified Push f12 md5):
+              (1) animEnd for framing scenes = MAX Framing-behavior <timing out> time, NOT the
+                  normalized 0..1 stroke-profile keyframe. Video_Wall's "Frame B" out = 15119104/7680000
+                  = 1.9686s (prior fmax read 1.0 from a Pressure-Over-Stroke-type curve, TRUNCATING the
+                  dolly to half length). Decodes hint (a). (parser/index.ts framing block.)
+              (2) framing WALL anchor = the tile wall's geometric centre = bbox centre of the LARGEST
+                  replicator (Video_Wall's main origin-centred 3×3 grid), NOT the proxy-ray-cast point
+                  (which landed at a corner tile (2399,−2145) so the camera pointed off-axis and blew one
+                  tile up full-frame with black margins). New computeWallCenter (evaluator/index.ts) +
+                  wallCenter param on resolveFramedWallPose (framing.ts). Fixes hint (b) generically.
+              REMAINING (next step, now has a REAL oracle — the 4-node minimize repro landed on
+              origin/main same day: Camera + Frame-B behavior + Source + Transition B, 46→4 nodes,
+              baseline 8.14 dB): the repro shows FCP's schedule is BLACK f00-f19 then Frame-B RAMP-REVEAL
+              f20-f23, while the engine paints B posed throughout. Implement that black-then-reveal
+              SCHEDULE against fct/minimized/Replicator-Clones__Video_Wall/ (my anchor+dolly fix is the
+              pose half; the reveal-timing half remains). tsc clean, no-hardcode green, baseline re-frozen.
+- 2026-07-15b  CORRECTED THE WORKFLOW → minimizer-produces-repros / SUBAGENTS-fix-in-parallel /
+              orchestrator-gate-verifies. Self-review: I had drifted back to fixing pinpointed bugs
 - 2026-07-15b  CORRECTED THE WORKFLOW → minimizer-produces-repros / SUBAGENTS-fix-in-parallel /
               orchestrator-gate-verifies. Self-review: I had drifted back to fixing pinpointed bugs
               INLINE + SEQUENTIALLY (collapsing 3 roles into myself). Fixed the division of labor:

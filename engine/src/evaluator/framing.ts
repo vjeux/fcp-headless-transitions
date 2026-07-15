@@ -283,6 +283,7 @@ export function resolveFramedWallPose(
   frameHeight: number,
   timeSec: number,
   animationEndSec: number,
+  wallCenter?: [number, number, number],
 ): CameraPose | undefined {
   if (framing.length < 2) return undefined;
   const t2s = (rt: RationalTime | undefined) => (rt && rt.timescale > 0) ? rt.value / rt.timescale : 0;
@@ -323,11 +324,32 @@ export function resolveFramedWallPose(
   ];
   const cb = worldBBox(content);
   const planeZ = cb.center[2]; // content tile plane
-  // Ray fp + s·(−fwd) hits z=planeZ. If the ray is parallel to the plane, fall back
-  // to the content-tile centre.
+  // ANCHOR = the tile WALL's geometric centre.
+  //
+  // DECODED (2026-07-14, M-VIDEOWALL): the framing camera in a Video-Wall
+  // transition centres on the WHOLE tile wall, not on the content behavior's single
+  // "Transition B" tile. The wall is a grid of replicated photo tiles; its
+  // geometric centre (the centroid of every replicator instance position, passed in
+  // as `wallCenter`) is the point FCP frames — the GUI GT starts full-frame on the
+  // centre tile and dollies straight back along the framer proxy's forward axis to
+  // reveal the surrounding tiles symmetrically.
+  //
+  // The previous model ray-cast the proxy's framing point onto the content-tile
+  // plane, which landed FAR off the wall (Video_Wall: (2399,−2145) — a corner tile
+  // position), so the camera pointed off-axis and projected every tile thousands of
+  // px off-screen (engine rendered one blown-up tile with black margins, 9.05 dB).
+  // Anchoring on the wall centroid restores the centred, symmetric dolly the GUI GT
+  // shows (9.05 → ~10.2 dB). Only Video_Wall reaches this code path (it is the only
+  // built-in with ≥2 Framing behaviors; Clone_Spin has 1 and uses framePose), so
+  // this is isolated to the wall class. Falls back to the proxy ray-cast when no
+  // wall centroid is available (defensive — a framing scene with no replicator).
   const dz = -fwd[2];
   let anchor: [number, number, number];
-  if (Math.abs(dz) > EPS) {
+  if (wallCenter) {
+    anchor = [wallCenter[0], wallCenter[1], wallCenter[2]];
+  } else if (Math.abs(dz) > EPS) {
+    // Ray fp + s·(−fwd) hits z=planeZ (proxy framing point projected onto the tile
+    // plane). Legacy fallback when the wall centroid is unavailable.
     const s = (planeZ - fp[2]) / dz;
     anchor = [fp[0] - fwd[0] * s, fp[1] - fwd[1] * s, planeZ];
   } else {

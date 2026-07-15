@@ -22,6 +22,7 @@ import type { MotrScene, Layer, Curve, Transform, RigWidget, RigBehavior, Parame
 import { evaluateCurve, resolveValue, timeToSeconds } from './curves.js';
 import { evaluateFade, evaluateRampAtProgress, evaluateOscillate, evaluateSpin } from './behaviors/index.js';
 import { resolveFramedPose, resolveFramedWallPose } from './framing.js';
+import { generateInstances } from '../compositor/replicator.js';
 import {
   mat4Identity, mat4Multiply, mat4Translate, mat4Scale, mat4RotateZ, mat4RotateX, mat4RotateY,
 } from './matrix.js';
@@ -825,6 +826,47 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
 }
 
 /**
+ * Geometric centre of the tile WALL — the point a framing camera dollies away
+ * from in a replicator "wall" transition (Video_Wall).
+ *
+ * The scene tiles the wall with MANY replicators (Video_Wall: 14), but only the
+ * LARGEST (most instances) is the main body of the wall — the smaller ones are
+ * edge/fill patches whose off-centre positions skew a naive all-instance centroid
+ * far off the visible wall centre (Video_Wall's all-instance centroid is
+ * (1016,1903); the main 3×3 grid is centred on the origin, which is where the GUI
+ * GT frames). So the wall centre = the bounding-box centre of the replicator with
+ * the MOST instances. Returns undefined when the scene has no replicator tiles (so
+ * the framing pose keeps its ray-cast fallback). Pure geometric readout of the
+ * graph — no constant, no per-transition logic.
+ */
+function computeWallCenter(layers: EvaluatedLayer[]): [number, number, number] | undefined {
+  let best: { n: number; cx: number; cy: number; cz: number } | undefined;
+  const walk = (ls: EvaluatedLayer[]) => {
+    for (const l of ls) {
+      if (l.layer.type === 'replicator' && l.layer.replicator) {
+        const insts = generateInstances(l.layer.replicator);
+        if (insts.length > 0) {
+          const wt = l.worldTransform;
+          let minx = Infinity, maxx = -Infinity, miny = Infinity, maxy = -Infinity;
+          for (const inst of insts) {
+            const px = wt[12] + inst.x, py = wt[13] + inst.y;
+            if (px < minx) minx = px; if (px > maxx) maxx = px;
+            if (py < miny) miny = py; if (py > maxy) maxy = py;
+          }
+          if (!best || insts.length > best.n) {
+            best = { n: insts.length, cx: (minx + maxx) / 2, cy: (miny + maxy) / 2, cz: wt[14] };
+          }
+        }
+      }
+      walk(l.children);
+    }
+  };
+  walk(layers);
+  if (!best) return undefined;
+  return [best.cx, best.cy, best.cz];
+}
+
+/**
  * Find the Camera layer in the evaluated tree and resolve its projection.
  * Returns the vertical Angle Of View, the framing distance, and the camera's
  * world transform (default: identity, camera at origin looking down -Z).
@@ -931,7 +973,14 @@ function resolveCamera(
   let framed: { viewX: number; viewY: number; viewZ: number; framingDistance: number; eye: [number, number, number]; target: [number, number, number]; aov: number } | undefined;
   if (cam.framing && cam.framing.length > 0) {
     const frameAspect = frameHeight > 0 ? frameWidth / frameHeight : 1;
-    const wall = resolveFramedWallPose(cam.framing, (id) => evalLayerById.get(id), aov, frameHeight, timeSec, animationEndSec);
+    // Wall centroid: the geometric centre of every replicated tile instance in the
+    // scene (the point the framing camera dollies away from). Computed from the
+    // replicator instance grid — each replicator's world-transform translation plus
+    // its per-instance offsets — averaged over all instances. Used only by the
+    // 2-behavior wall pose (Video_Wall); undefined when no replicator tiles exist,
+    // in which case the pose falls back to its proxy-ray-cast anchor.
+    const wallCenter = computeWallCenter(layers);
+    const wall = resolveFramedWallPose(cam.framing, (id) => evalLayerById.get(id), aov, frameHeight, timeSec, animationEndSec, wallCenter);
     const pose = wall ?? resolveFramedPose(cam.framing, (id) => evalLayerById.get(id), aov, timeSec, frameAspect);
     if (pose) {
       framed = { viewX: pose.target[0], viewY: pose.target[1], viewZ: pose.target[2], framingDistance: pose.distance, eye: pose.pos, target: pose.target, aov };

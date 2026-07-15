@@ -973,49 +973,45 @@ export function parseMotr(xmlText: string): MotrScene {
   }
 
   // Framing-camera scenes (factory-3 "Framing" behaviors) — animation-end domain.
-  // These scenes carry NO scene-time spatial keyframes; their motion is the
-  // render-time Framing dolly plus the replicator tiles' normalized stroke-profile
-  // curves (keyed at normalized time 0..1). The blanket "Over Stroke" exclusion
-  // above (needed so Lights/Flash's flash-shape stroke curves don't inflate its end)
-  // drops those, so the walk falls back to the padded scene duration — far past the
-  // real transition window. The headless GT renderer counts those
-  // normalized curves, landing animation_end at the max non-retime keyframe. Mirror
-  // that HERE, scoped to Framing scenes: take the max keyframe across all curves
-  // EXCEPT the retime/page caches (still excluded). This reads the value from the
-  // graph's own keyframes — no constant — and only affects scenes with a Framing
-  // behavior (so Flash and every non-framing transition are untouched).
+  //
+  // DECODED (2026-07-14, M-VIDEOWALL) — the authoritative animation window of a
+  // framing transition is the max Framing-behavior <timing out=…> time, NOT any
+  // keyframe curve. A framing behavior (e.g. Video_Wall's "Frame B") dollies the
+  // camera across its own [in, out] timing window; the LAST behavior's `out` is the
+  // moment the dolly finishes = the real end of the visible transition. Video_Wall's
+  // two behaviors are "Frame framer" (out 7431424/7680000 = 0.9676s) and "Frame B"
+  // (out 15119104/7680000 = 1.9686s) → animEnd = 1.9686s.
+  //
+  // The scene's ONLY spatial keyframe curves are the replicator tiles' normalized
+  // stroke-profile curves keyed at normalized time 0..1 (a "Pressure Over Stroke"
+  // family — parametrised along stroke LENGTH, not scene time), so the prior code
+  // read fmax=1.0 and TRUNCATED the dolly to half its true length (the wall never
+  // fully revealed; every mid/tail frame diverged from the GUI GT). Reading the
+  // behavior `out` instead lands the progress→time map on the true 1.9686s window.
+  //
+  // This is a DECODED value from the graph's own behavior timing (no constant, no
+  // per-slug logic) and fires only on scenes with a Framing behavior, so Flash and
+  // every non-framing transition are untouched. Fires generically on all framing
+  // scenes (Video_Wall, Clone_Spin, Combo_Spin, 3D_Rectangle, Concentric, …).
   {
-    let hasFraming = false;
+    let framingOutMax = 0;
     for (const b of Array.from(sceneEl.getElementsByTagName('behavior'))) {
       const fid = parseInt(b.getAttribute('factoryID') || '0', 10);
-      if (factories.get(fid) === 'Framing') { hasFraming = true; break; }
+      if (factories.get(fid) !== 'Framing') continue;
+      const tEl = firstChild(b as Element, 'timing');
+      const outAttr = tEl?.getAttribute('out');
+      if (!outAttr) continue;
+      const parts = outAttr.trim().split(/\s+/);
+      const val = parseFloat(parts[0]);
+      const scl = parts.length > 1 ? parseFloat(parts[1]) : 1;
+      if (scl > 0 && isFinite(val)) { const s = val / scl; if (s > framingOutMax) framingOutMax = s; }
     }
-    if (hasFraming) {
-      const RETIME_ONLY = new Set(['Retime Value', 'Retime Value Cache', 'Duration Cache', 'Page Number']);
-      let fmax = 0;
-      for (const curve of Array.from(sceneEl.getElementsByTagName('curve'))) {
-        let node: any = (curve as any).parentNode;
-        let ownerName = '';
-        let skip = false;
-        while (node && node.nodeType === 1) {
-          if (node.tagName === 'parameter') {
-            const nm = node.getAttribute('name') || '';
-            if (!ownerName) ownerName = nm;
-            if (nm === 'Snapshots') { skip = true; break; }
-          }
-          node = node.parentNode;
-        }
-        if (skip || RETIME_ONLY.has(ownerName)) continue;
-        for (const kp of directChildren(curve as Element, 'keypoint')) {
-          const timeEl = firstChild(kp, 'time');
-          if (!timeEl || !timeEl.textContent) continue;
-          const parts = timeEl.textContent.trim().split(/\s+/);
-          const val = parseFloat(parts[0]);
-          const scl = parts.length > 1 ? parseFloat(parts[1]) : 1;
-          if (scl > 0 && isFinite(val)) { const s = val / scl; if (s > fmax) fmax = s; }
-        }
-      }
-      if (fmax > 0) animationEndSec = fmax;
+    if (framingOutMax > 0) {
+      // Clamp to the authored scene span — a behavior `out` authored in a padded
+      // editor timeline could exceed the rendered span (the GUI GT captures exactly
+      // the span). Video_Wall's 1.9686s < 2.0s span, so it is used as-is.
+      const spanSecF = duration.value / duration.timescale;
+      animationEndSec = spanSecF > 0 ? Math.min(framingOutMax, spanSecF) : framingOutMax;
     }
   }
 

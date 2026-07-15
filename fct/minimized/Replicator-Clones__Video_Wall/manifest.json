@@ -10,5 +10,19 @@
   "nframes": 24,
   "slack": 0.12,
   "finding": "4-node repro: {Camera (factoryID=23) + 'Frame B' framing behavior (factoryID=3) + 'Source' layer + 'Transition B' scenenode (factoryID=11)}. All 14 Replicator/Cell tiles were REMOVABLE without losing the bug -> the divergence is NOT the tile wall, it is the FRAMED-CAMERA POSE of a single framed layer (confirms T-H2/S6 resolveFramedWallPose anchor bug). Per-frame engine-vs-FCP: f00-f07 both black (match); f08-f19 FCP=black(0.0) but ENGINE renders B at mean 34.3 (engine brings framed B on-screen ~12 frames too early, at a wrong static pose); f20-f23 FCP reveals B (mean 51->119, the real Frame-B framing ramp) while ENGINE stays FROZEN at 34.3 (mis-posed, static, never matches the reveal). Net: engine paints one static off-centre framed 'Transition B' the whole clip instead of FCP's black-then-framed-reveal schedule. Bug lives in the framing pose/schedule for the 'Frame B' behavior (factoryID=3) + Camera, i.e. evaluator/framing.ts resolveFramedWallPose anchor (bottom-edge [2399,-2145] instead of content centroid) AND its reveal timing, not the replicator grid.",
-  "gate_result": "FIX-FRAMING (2026-07-14): resolveFramedPose single-behavior reveal+cover fix. Min-repro engine-vs-FCP 8.14 -> 84.42 dB (f08-f19 now black=99dB matching FCP; f20=12.7, f22=9.8, f23=13.8 reveal-ramp). Full GUI-GT gate `fct regress engine` = 0 regressions / 0 improvements (baseline_engine byte-identical). tsc clean, no-hardcode policy PASS. NOTE: the FULL Video_Wall slug (2 factory-3 behaviors) uses resolveFramedWallPose (unchanged, still 9.10 dB) \u2014 this fix corrects the SINGLE-framer reveal path exercised by the minimized repro; the wall-pose anchor/schedule for the full slug remains a separate open item (T-H2/S6)."
+  "gate_result": "FIX-FRAMING (2026-07-14): resolveFramedPose single-behavior reveal+cover fix. Min-repro engine-vs-FCP 8.14 -> 84.42 dB (f08-f19 now black=99dB matching FCP; f20=12.7, f22=9.8, f23=13.8 reveal-ramp). Full GUI-GT gate `fct regress engine` = 0 regressions / 0 improvements (baseline_engine byte-identical). tsc clean, no-hardcode policy PASS. NOTE: the FULL Video_Wall slug (2 factory-3 behaviors) uses resolveFramedWallPose (unchanged, still 9.10 dB) \u2014 this fix corrects the SINGLE-framer reveal path exercised by the minimized repro; the wall-pose anchor/schedule for the full slug remains a separate open item (T-H2/S6).",
+  "fix_2026_07_15_M_VIDEOWALL": {
+    "agent": "M-VIDEOWALL",
+    "date": "2026-07-15",
+    "note_vs_fix_framing": "COMPLEMENTARY to FIX-FRAMING above: FIX-FRAMING fixed the SINGLE-behavior resolveFramedPose path (the minimized 1-behavior repro -> 84.42 dB). THIS change fixes the FULL slug's 2-behavior resolveFramedWallPose path (wall anchor + animEnd), taking the full Video_Wall slug 9.10 -> 10.24 dB. Both land together; no overlap (different framing pose functions).",
+    "changes": [
+      "parser/index.ts: framing-scene animEnd = MAX Framing-behavior <timing out> (Frame B 1.9686s), not the normalized 0..1 stroke keyframe (was 1.0, truncated the dolly)",
+      "evaluator/index.ts: computeWallCenter (bbox centre of the LARGEST replicator) + pass as wallCenter to resolveFramedWallPose",
+      "framing.ts: wallCenter param anchors the wall pose on the tile-wall centre instead of the ray-cast corner (2399,-2145)"
+    ],
+    "video_wall_db_before": 9.10,
+    "video_wall_db_after": 10.24,
+    "gate_result": "0 regressions vs baseline_engine (tol 0.3dB); tsc clean; no-hardcode green; baseline re-frozen",
+    "remaining": "The wall dolly still frames ~1 tile through mid/tail (GT reveals the full 3x3 grid); far-dolly distance + proxy->content reveal SCHEDULE (per FIX-FRAMING's decode: black f00-f19 then ramp) remain for the 2-behavior wall path."
+  }
 }
