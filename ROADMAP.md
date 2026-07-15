@@ -1135,6 +1135,24 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-15l  SERIAL-MERGE + ORPHAN-STORM CLEANUP. Confirmed FIX-FRAMING landed (e82fa9c, gate 0/0,
+              Video_Wall min-repro 8.14→84.42; full-slug dB unchanged because shipped Video_Wall/
+              Clone_Spin use the 2-behavior resolveFramedWallPose path, which FIX-FRAMING doesn't
+              touch — so it and M-VIDEOWALL are COMPLEMENTARY, not conflicting: FIX-FRAMING = single-
+              behavior resolveFramedPose reveal+cover, M-VIDEOWALL = wall-pose anchor+animEnd). Synced
+              main to e82fa9c (now carries M-BLOOM +2.49 + FIX-FRAMING). ROOT-CAUSE of the multi-tick
+              gate starvation FOUND + reclaimed: 4 `gen --all` trees were ORPHANED (ppid=1, 5-14 min
+              old — parents/agents dead, detached python children reparented to init) thrashing the
+              box and starving every live gate (mine AND the agents'). Killed all orphaned (ppid=1) +
+              stale (>10min) gen/regress/_fct_render procs (11 total) — safe (only discards regenerable
+              frames, no committed code, no live owner). This is the mechanism behind the load-194
+              offline crash. M-LOWER gate got starved to 24/65 slugs by the same orphans → stopped my
+              verify (was in a re-poll loop), preserved M-LOWER rebased-clean+tsc-clean on
+              merge-ready/M-LOWER (c2028be) + swarm/M-LOWER (b025389). DEFERRED its gate to a quiet
+              window. LESSON: the swarm's teardown leaks orphaned gen trees; the pool needs a
+              process-group kill (kill -PID's whole tree) on agent exit, and a machine-wide render
+              semaphore. Merge queue: M-LOWER (+1.08, prepped), M-CONCENTRIC (79bf7de, +14dB repro),
+              M-VIDEOWALL (81085aa, wall-pose — complementary to landed FIX-FRAMING). Doc-only, no gate.
 - 2026-07-15k  RECOVERY TICK — reclaimed the box from the render-storm deadlock + confirmed M-BLOOM
               landed + started M-LOWER merge. The box had been knocked OFFLINE by swarm
               over-subscription (load 194, 21 concurrent gen --all, 60 _fct_render workers, swap over
