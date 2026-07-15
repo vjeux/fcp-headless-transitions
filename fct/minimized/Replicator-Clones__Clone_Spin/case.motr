@@ -1,0 +1,772 @@
+<ozml version="5.13">
+
+<displayversion>5.6.3.1</displayversion>
+
+<factory id="1" uuid="24594f34e7774bf290ae932f3a3147cd">
+	<description>Framing</description>
+	<manufacturer>Apple</manufacturer>
+	<version>1</version>
+</factory>
+
+<factory id="2" uuid="27f3ee8b229211d7925a00039389b702">
+	<description>Channel</description>
+	<manufacturer>Apple</manufacturer>
+	<version>1</version>
+</factory>
+
+<factory id="3" uuid="402246385249454b90e08b2ee1b6bf06">
+	<description>Rig</description>
+	<manufacturer>Apple</manufacturer>
+	<version>1</version>
+</factory>
+
+<factory id="4" uuid="46c844a813d311d8a438000a95af9f7e">
+	<description>Channel</description>
+	<manufacturer>Apple</manufacturer>
+	<version>1</version>
+</factory>
+
+<factory id="5" uuid="615c4bf6406511d88802000a95af90f2">
+	<description>Generator</description>
+	<manufacturer>Apple</manufacturer>
+	<version>1</version>
+</factory>
+
+<factory id="6" uuid="65cb4dc9d4504fa281921f5f751fba06">
+	<description>Widget</description>
+	<manufacturer>Apple</manufacturer>
+	<version>1</version>
+</factory>
+
+<factory id="7" uuid="66fc0d6af6a911d6a7a7000393670732">
+	<description>Image</description>
+	<manufacturer>Apple</manufacturer>
+	<version>1</version>
+</factory>
+
+<factory id="8" uuid="7d468273c013498e9806a0d7bc32fddf">
+	<description>Project</description>
+	<manufacturer>Apple</manufacturer>
+	<version>1</version>
+</factory>
+
+<factory id="9" uuid="dbca752470fd11d7980100039389b702">
+	<description>Channel</description>
+	<manufacturer>Apple</manufacturer>
+	<version>1</version>
+</factory>
+
+<factory id="10" uuid="dd0036f96c9e4bfdadb82f71fbf5c9d8">
+	<description>Rig Behavior</description>
+	<manufacturer>Apple</manufacturer>
+	<version>1</version>
+</factory>
+
+<factory id="11" uuid="de1a9415beb34e5fb0964d1528bef14a">
+	<description>Camera</description>
+	<manufacturer>Apple</manufacturer>
+	<version>1</version>
+</factory>
+
+<factory id="12" uuid="e35c74f01d5042f6b468eb530169bfb7">
+	<description>Widget</description>
+	<manufacturer>Apple</manufacturer>
+	<version>1</version>
+</factory>
+
+
+<template>
+	<flags>1</flags>
+</template>
+
+<build />
+
+<description />
+
+<scene>
+	<sceneSettings>
+		<width>1920</width>
+		<height>1080</height>
+		<duration>60</duration>
+		<shouldOverrideFCDuration>1</shouldOverrideFCDuration>
+		<frameRate>30</frameRate>
+		<NTSC>1</NTSC>
+		<pixelAspectRatio>1</pixelAspectRatio>
+		<workingGamut>0</workingGamut>
+		<viewGamut>-1</viewGamut>
+		<optimizeForDisplay>0</optimizeForDisplay>
+		<backgroundColor red="0" green="0" blue="0" alpha="1" />
+		<audioChannels>2</audioChannels>
+		<audioBitsPerSample>32</audioBitsPerSample>
+		<fieldRenderingMode>0</fieldRenderingMode>
+		<motionBlurSamples>8</motionBlurSamples>
+		<motionBlurDuration>1</motionBlurDuration>
+		<sharpScaling>0</sharpScaling>
+		<startTimecode>0</startTimecode>
+		<presetPath />
+		<backgroundMode>0</backgroundMode>
+		<reflectionRecursionLimit>2</reflectionRecursionLimit>
+		<glyphOSCMode>0</glyphOSCMode>
+		<animateFlag>0</animateFlag>
+		<parameterColorSpaceID>3</parameterColorSpaceID>
+		<savePreviewMovie>0</savePreviewMovie>
+		<Object3DEnvironments>100</Object3DEnvironments>
+		<DRTSupport>1</DRTSupport>
+		<onHDRDisplay>0</onHDRDisplay>
+	</sceneSettings>
+	<publishSettings>
+		<version>2</version>
+		<target object="998269049" channel="./1/324/300" name="Drop Zone" />
+		<target object="998269058" channel="./1/324/300" name="Drop Zone 1" />
+		<target object="998269301" channel="./1/324/300" name="Drop Zone 3" />
+		<target object="998269304" channel="./1/324/300" name="Drop Zone 4" />
+		<target object="998269307" channel="./1/324/300" name="Drop Zone 5" />
+		<target object="998269310" channel="./1/324/300" name="Drop Zone 6" />
+		<target object="998269313" channel="./1/324/300" name="Drop Zone 7" />
+		<target object="998269316" channel="./1/324/300" name="Drop Zone 8" />
+		<target object="998269319" channel="./1/324/300" name="Drop Zone 9" />
+		<target object="998269442" channel="./2/100" name="Black Background" />
+	</publishSettings>
+	<currentFrame>68068 120000 1 0</currentFrame>
+	<currentObject>998269442</currentObject>
+	<activeLayer>998269422</activeLayer>
+	<timeRange offset="0 1 1 0" duration="15375360 7680000 1 0" />
+	<playRange offset="0 1 1 0" duration="15375360 7680000 1 0" />
+	<flags>1</flags>
+	<audioTracks>0</audioTracks>
+	<timemarkerset>
+		<timemarker>
+			<inpoint>6918912 7680000 1 0</inpoint>
+			<color>1</color>
+			<type>8</type>
+		</timemarker>
+	</timemarkerset>
+	<guideset />
+	<curvesets selected="1" />
+	<scenenode name="Camera" id="987618487" factoryID="11" version="5">
+		<aspectRatio>1</aspectRatio>
+		<flags>0</flags>
+		<timing in="0 1 1 0" out="15119104 7680000 1 0" offset="0 1 1 0" />
+		<foldFlags>1</foldFlags>
+		<baseFlags>80</baseFlags>
+		<parameter name="Properties" id="1" flags="8589938704">
+			<parameter name="Transform" id="100" flags="8589938704">
+				<parameter name="Position" id="101" flags="8589938704">
+					<foldFlags>11</foldFlags>
+					<parameter name="X" id="1" flags="12901679120" default="0" value="0" />
+					<parameter name="Y" id="2" flags="12901679120" default="0" value="0" />
+					<parameter name="Z" id="3" flags="12901679120" default="0" value="0" />
+				</parameter>
+				<parameter name="Rotation" id="109" flags="8589938704">
+					<foldFlags>11</foldFlags>
+					<parameter name="X" id="1" flags="12901679120" default="0" value="0" />
+					<parameter name="Y" id="2" flags="12901679120" default="0" value="0" />
+					<parameter name="Z" id="3" flags="12901679120" default="0" value="0" />
+					<parameter name="Animate" id="4" flags="12901679120" default="0" value="0" />
+				</parameter>
+				<parameter name="Rotation" id="102" flags="12884901906" default="0" value="0" />
+			</parameter>
+		</parameter>
+		<parameter name="Object" id="2" flags="8589938704">
+			<parameter name="Near Plane" id="202" flags="8589934592" default="10" value="1" />
+			<parameter name="Far Plane" id="203" flags="12901679104" default="10000" value="12000" />
+		</parameter>
+		<behavior name="Framing" id="987618579" factoryID="1">
+			<timing in="0 7680000 1 0" out="15119104 7680000 1 0" offset="0 1 1 0" />
+			<baseFlags>8589934672</baseFlags>
+			<parameter name="Target" id="200" flags="12901744656" default="0" value="987618479" />
+			<parameter name="Framing" id="203" flags="8606777360" default="2" value="4" />
+			<parameter name="Offset Path Apex" id="206" flags="12901679104" default="0.5" value="0.2925307147998093" />
+			<parameter name="Path Offset" id="207" flags="8589938688">
+				<foldFlags>15</foldFlags>
+				<parameter name="X" id="1" flags="12901679120" default="0" value="1449.9764717603946" />
+				<parameter name="Y" id="2" flags="12901679120" default="0" value="979.50718005078761" />
+				<parameter name="Z" id="3" flags="12901679120" default="0" value="5332.4755834404095" />
+			</parameter>
+			<parameter name="Orientation" id="208" flags="12901744656" default="0" value="1" />
+			<parameter name="Position Transition Time" id="209" flags="12901679120" default="0.5" value="1" />
+			<parameter name="Rotation Transition Time" id="210" flags="12901679120" default="0.5" value="1" />
+			<parameter name="Transition" id="211" flags="12901744656" default="0" value="1" />
+			<parameter name="Ease Out Time" id="212" flags="12901679120" default="1" value="1" />
+			<parameter name="Ease Out Curve" id="213" flags="12901679120" default="10" value="10" />
+		</behavior>
+	</scenenode>
+	<group name="Comp" id="987618738">
+		<scenenode name="Transition B" id="987618479" factoryID="7" version="5">
+			<validTracks>0</validTracks>
+			<aspectRatio>1</aspectRatio>
+			<flags>0</flags>
+			<timing in="256256 7680000 1 0" out="15119104 7680000 1 0" offset="256256 7680000 1 0" />
+			<foldFlags>16384</foldFlags>
+			<baseFlags>524304</baseFlags>
+			<parameter name="Properties" id="1" flags="8589938704">
+				<parameter name="Transform" id="100" flags="8589938704">
+					<parameter name="Position" id="101" flags="8589938704">
+						<foldFlags>15</foldFlags>
+						<parameter name="X" id="1" flags="8589934608" default="0" value="-2718.9661052393949" />
+						<parameter name="Y" id="2" flags="8589934608" default="0" value="1945.4812522734312" />
+						<parameter name="Z" id="3" flags="8589934609" default="0" value="-3872.271849199265" />
+					</parameter>
+					<parameter name="Rotation" id="109" flags="8589938704">
+						<foldFlags>11</foldFlags>
+						<parameter name="X" id="1" flags="8589934608" default="0" value="0.30892327760299632" />
+						<parameter name="Y" id="2" flags="8589934608" default="0" value="0.52883476335428181" />
+						<parameter name="Z" id="3" flags="8589934608" default="0" value="0.010471975511965978" />
+					</parameter>
+				</parameter>
+				<parameter name="Cinematic" id="344" flags="8589938706">
+					<foldFlags>131076</foldFlags>
+					<parameter name="Depth of Field" id="346" flags="8589934608" default="1.3999999999999999" value="2" />
+					<parameter name="Focus Point" id="348" flags="8589938706">
+						<foldFlags>15</foldFlags>
+					</parameter>
+				</parameter>
+				<parameter name="Color" id="243" flags="8589938688">
+					<parameter name="Conversion Version" id="245" flags="8589934610" default="1" value="2" />
+					<parameter name="Conversion Type" id="247" flags="8590032912" default="2" value="2" />
+				</parameter>
+				<parameter name="Media" id="324" flags="8589938704">
+					<foldFlags>4</foldFlags>
+					<parameter name="Source Media" id="300" flags="12901744656" default="998269401" value="998269401" />
+					<parameter name="Source Media" id="325" flags="8590000146" />
+				</parameter>
+				<parameter name="Page Number" id="301" flags="12884901906" default="1" value="1" />
+				<parameter name="Speed" id="309" flags="12905938960" default="1" value="1" />
+				<parameter name="Reverse" id="310" flags="12905938960" default="0" value="0" />
+				<parameter name="Retime Value" id="304" flags="8590066066">
+					<curve type="1" default="1" value="1" round="0" retimingExtrapolation="1">
+						<numberOfKeypoints>2</numberOfKeypoints>
+						<keypoint interpolation="1" flags="0">
+							<time>0 7680000 1 0</time>
+							<value>1</value>
+						</keypoint>
+						<keypoint interpolation="1" flags="0">
+							<time>15119104 7680000 1 0</time>
+							<value>60</value>
+						</keypoint>
+					</curve>
+				</parameter>
+				<parameter name="Retime Value Cache" id="319" flags="8590065810">
+					<curve type="1" default="1" value="1">
+						<numberOfKeypoints>2</numberOfKeypoints>
+						<keypoint interpolation="1" flags="128">
+							<time>0 7680000 1 0</time>
+							<value>1</value>
+						</keypoint>
+						<keypoint interpolation="1" flags="128">
+							<time>15119104 7680000 1 0</time>
+							<value>60</value>
+						</keypoint>
+					</curve>
+				</parameter>
+				<parameter name="End Duration" id="307" flags="12884934674" default="0" value="0" />
+				<parameter name="Duration Cache" id="320" flags="12884901906" default="0" value="59" />
+			</parameter>
+			<parameter name="Object" id="2" flags="8589938704">
+				<parameter name="Drop Zone" id="311" flags="12884902034" default="0" value="1" />
+				<parameter name="Type" id="321" flags="12901744658" default="0" value="2" />
+				<parameter name="Source" id="322" flags="12901679122" default="0" value="1" />
+				<parameter name="Replaced" id="312" flags="12884901906" default="0" value="0" />
+				<parameter name="Pan" id="326" flags="77309415442">
+					<foldFlags>15</foldFlags>
+				</parameter>
+				<parameter name="Scale" id="327" flags="77309415442">
+					<foldFlags>15</foldFlags>
+				</parameter>
+				<parameter name="Fill Opaque" id="328" flags="8589934608" default="0" value="0" />
+				<parameter name="Fill Color" id="329" flags="8589938704">
+					<foldFlags>15</foldFlags>
+				</parameter>
+				<parameter name="Clear" id="315" flags="12901744656" default="0" value="0" />
+				<parameter name="Width" id="313" flags="12884901906" default="1" value="1920" />
+				<parameter name="Height" id="314" flags="12884901906" default="1" value="1080" />
+			</parameter>
+		</scenenode>
+		<layer name="Drop Zones" id="987618475">
+			<scenenode name="Transition A" id="987618481" factoryID="7" version="5">
+				<validTracks>0</validTracks>
+				<aspectRatio>1</aspectRatio>
+				<flags>0</flags>
+				<timing in="0 1 1 0" out="14350336 7680000 1 0" offset="0 1 1 0" />
+				<foldFlags>16384</foldFlags>
+				<baseFlags>524304</baseFlags>
+				<parameter name="Properties" id="1" flags="8589938704">
+					<parameter name="Cinematic" id="344" flags="8589938706">
+						<foldFlags>131076</foldFlags>
+						<parameter name="Depth of Field" id="346" flags="8589934608" default="1.3999999999999999" value="2" />
+						<parameter name="Focus Point" id="348" flags="8589938706">
+							<foldFlags>15</foldFlags>
+						</parameter>
+					</parameter>
+					<parameter name="Color" id="243" flags="8589938688">
+						<parameter name="Conversion Version" id="245" flags="8589934610" default="1" value="2" />
+						<parameter name="Conversion Type" id="247" flags="8590032912" default="2" value="2" />
+					</parameter>
+					<parameter name="Media" id="324" flags="8589938704">
+						<foldFlags>4</foldFlags>
+						<parameter name="Source Media" id="300" flags="12901744656" default="998269402" value="998269402" />
+						<parameter name="Source Media" id="325" flags="8590000146" />
+					</parameter>
+					<parameter name="Page Number" id="301" flags="12884901906" default="1" value="1" />
+					<parameter name="Speed" id="309" flags="12905938960" default="1" value="1" />
+					<parameter name="Reverse" id="310" flags="12905938960" default="0" value="0" />
+					<parameter name="Retime Value" id="304" flags="8590066066">
+						<curve type="1" default="1" value="1" round="0" retimingExtrapolation="1">
+							<numberOfKeypoints>2</numberOfKeypoints>
+							<keypoint interpolation="1" flags="0">
+								<time>0 1 1 0</time>
+								<value>1</value>
+							</keypoint>
+							<keypoint interpolation="1" flags="0">
+								<time>14606592 7680000 1 0</time>
+								<value>58</value>
+							</keypoint>
+						</curve>
+					</parameter>
+					<parameter name="Retime Value Cache" id="319" flags="8590065810">
+						<curve type="1" default="1" value="1">
+							<numberOfKeypoints>2</numberOfKeypoints>
+							<keypoint interpolation="1" flags="128">
+								<time>0 1 1 0</time>
+								<value>1</value>
+							</keypoint>
+							<keypoint interpolation="1" flags="128">
+								<time>14606592 7680000 1 0</time>
+								<value>58</value>
+							</keypoint>
+						</curve>
+					</parameter>
+					<parameter name="End Duration" id="307" flags="12884934674" default="0" value="0" />
+					<parameter name="Duration Cache" id="320" flags="12884901906" default="0" value="57" />
+				</parameter>
+				<parameter name="Object" id="2" flags="8589938704">
+					<parameter name="Drop Zone" id="311" flags="12884902034" default="0" value="1" />
+					<parameter name="Type" id="321" flags="12901744658" default="0" value="1" />
+					<parameter name="Source" id="322" flags="12901679122" default="0" value="1" />
+					<parameter name="Replaced" id="312" flags="12884901906" default="0" value="0" />
+					<parameter name="Pan" id="326" flags="77309415442">
+						<foldFlags>15</foldFlags>
+					</parameter>
+					<parameter name="Scale" id="327" flags="77309415442">
+						<foldFlags>15</foldFlags>
+					</parameter>
+					<parameter name="Fill Opaque" id="328" flags="8589934608" default="0" value="0" />
+					<parameter name="Fill Color" id="329" flags="8589938704">
+						<foldFlags>15</foldFlags>
+					</parameter>
+					<parameter name="Clear" id="315" flags="12901744656" default="0" value="0" />
+					<parameter name="Width" id="313" flags="12884901906" default="1" value="1920" />
+					<parameter name="Height" id="314" flags="12884901906" default="1" value="1080" />
+				</parameter>
+			</scenenode>
+			<aspectRatio>1</aspectRatio>
+			<flags>0</flags>
+			<timing in="0 1 1 0" out="14350336 7680000 1 0" offset="0 1 1 0" />
+			<foldFlags>1</foldFlags>
+			<baseFlags>524304</baseFlags>
+			<parameter name="Properties" id="1" flags="8589938704">
+				<parameter name="Transform" id="100" flags="8589938704">
+					<parameter name="Position" id="101" flags="8589938704">
+						<foldFlags>11</foldFlags>
+						<parameter name="X" id="1" flags="12901679120" default="0" value="-1.3422110797905589" />
+						<parameter name="Y" id="2" flags="12901679120" default="0" value="0.01233004330808285" />
+						<parameter name="Z" id="3" flags="12901679120" default="0" value="492.36167003873834" />
+					</parameter>
+					<parameter name="Rotation" id="102" flags="12884901906" default="0" value="0" />
+				</parameter>
+				<parameter name="Shadows" id="234" flags="8589938706">
+					<foldFlags>15</foldFlags>
+					<parameter name="Cast Shadows" id="1" flags="12884901904" default="1" value="1" />
+					<parameter name="Receive Shadows" id="2" flags="12884901904" default="1" value="1" />
+					<parameter name="Shadows Only" id="3" flags="12884901904" default="0" value="0" />
+				</parameter>
+				<parameter name="Drop Shadow" id="208" flags="8589973522">
+					<foldFlags>131087</foldFlags>
+					<parameter name="Opacity" id="211" flags="12884901904" default="0.75" value="0.75" />
+					<parameter name="Blur" id="213" flags="12884901904" default="5" value="5" />
+					<parameter name="Distance" id="212" flags="12884901904" default="5" value="5" />
+					<parameter name="Angle" id="214" flags="12884901904" default="5.497787143782138" value="5.497787143782138" />
+					<parameter name="Fixed Source" id="232" flags="12884901904" default="0" value="0" />
+				</parameter>
+				<parameter name="Four Corner" id="207" flags="8589973506">
+					<foldFlags>131087</foldFlags>
+				</parameter>
+				<parameter name="Crop" id="216" flags="8589973522">
+					<foldFlags>131087</foldFlags>
+					<parameter name="Left" id="1" flags="12884901904" default="0" value="0" />
+					<parameter name="Right" id="2" flags="12884901904" default="0" value="0" />
+					<parameter name="Bottom" id="3" flags="12884901904" default="0" value="0" />
+					<parameter name="Top" id="4" flags="12884901904" default="0" value="0" />
+				</parameter>
+			</parameter>
+			<parameter name="Object" id="2" flags="8589938704">
+				<parameter name="Type" id="307" flags="12901679120" default="0" value="1" />
+				<parameter name="Fixed Resolution" id="301" flags="12884903954" default="0" value="0" />
+				<parameter name="Fixed Width" id="302" flags="12884901910" default="1920" value="1920" />
+				<parameter name="Fixed Height" id="303" flags="12884901910" default="1080" value="1080" />
+				<parameter name="Flatten" id="311" flags="12901679120" default="0" value="0" />
+				<parameter name="Layer Order" id="305" flags="12901679120" default="0" value="0" />
+				<parameter name="Aperture Width" id="312" flags="12884901906" default="1920" value="1920" />
+				<parameter name="Aperture Height" id="313" flags="12884901906" default="1080" value="1080" />
+				<parameter name="Hidden Channel" id="314" flags="12884901906" default="5" value="5" />
+				<parameter name="New Fixed Res Behavior" id="315" flags="8594194480" default="1" value="0" />
+			</parameter>
+		</layer>
+		<aspectRatio>1</aspectRatio>
+		<flags>0</flags>
+		<timing in="0 7680000 1 0" out="15119104 7680000 1 0" offset="0 1 1 0" />
+		<foldFlags>1</foldFlags>
+		<baseFlags>524304</baseFlags>
+		<parameter name="Properties" id="1" flags="8589938704">
+			<parameter name="Transform" id="100" flags="8589938704">
+				<parameter name="Position" id="101" flags="8589938704">
+					<foldFlags>11</foldFlags>
+					<parameter name="X" id="1" flags="12901679120" default="0" value="0.5" />
+					<parameter name="Z" id="3" flags="12901679120" default="0" value="-492.10248495923452" />
+				</parameter>
+				<parameter name="Rotation" id="102" flags="12884901906" default="0" value="0" />
+			</parameter>
+			<parameter name="Shadows" id="234" flags="8589938706">
+				<foldFlags>15</foldFlags>
+				<parameter name="Cast Shadows" id="1" flags="12884901904" default="1" value="1" />
+				<parameter name="Receive Shadows" id="2" flags="12884901904" default="1" value="1" />
+				<parameter name="Shadows Only" id="3" flags="12884901904" default="0" value="0" />
+			</parameter>
+			<parameter name="Drop Shadow" id="208" flags="8589973522">
+				<foldFlags>131087</foldFlags>
+				<parameter name="Opacity" id="211" flags="12884901904" default="0.75" value="0.75" />
+				<parameter name="Blur" id="213" flags="12884901904" default="5" value="5" />
+				<parameter name="Distance" id="212" flags="12884901904" default="5" value="5" />
+				<parameter name="Angle" id="214" flags="12884901904" default="5.497787143782138" value="5.497787143782138" />
+				<parameter name="Fixed Source" id="232" flags="12884901904" default="0" value="0" />
+			</parameter>
+			<parameter name="Four Corner" id="207" flags="8589973506">
+				<foldFlags>131087</foldFlags>
+			</parameter>
+			<parameter name="Crop" id="216" flags="8589973522">
+				<foldFlags>131087</foldFlags>
+				<parameter name="Right" id="2" flags="12884901904" default="0" value="0" />
+				<parameter name="Top" id="4" flags="12884901904" default="0" value="0" />
+			</parameter>
+		</parameter>
+		<parameter name="Object" id="2" flags="8589938704">
+			<parameter name="Type" id="307" flags="12884901904" default="0" value="1" />
+			<parameter name="Fixed Resolution" id="301" flags="12884903954" default="0" value="0" />
+			<parameter name="Fixed Width" id="302" flags="12884901910" default="1920" value="1920" />
+			<parameter name="Fixed Height" id="303" flags="12884901910" default="1080" value="1080" />
+			<parameter name="Flatten" id="311" flags="12901679120" default="0" value="0" />
+			<parameter name="Layer Order" id="305" flags="12901679120" default="0" value="0" />
+			<parameter name="Aperture Width" id="312" flags="12884901906" default="1920" value="1920" />
+			<parameter name="Aperture Height" id="313" flags="12884901906" default="1080" value="1080" />
+			<parameter name="Hidden Channel" id="314" flags="12884901906" default="5" value="5" />
+			<parameter name="New Fixed Res Behavior" id="315" flags="8594194480" default="1" value="0" />
+		</parameter>
+	</group>
+	<footage name="Media Layer" id="987618478">
+		<clip name="Drop Zone Transition A" id="998269402">
+			<pathURL>Drop Zone Transition A.tiff</pathURL>
+			<missingWidth>1200</missingWidth>
+			<missingHeight>1200</missingHeight>
+			<missingDuration>0.033333333333333333</missingDuration>
+			<creationDuration>1</creationDuration>
+			<mediaID />
+			<flags>0</flags>
+			<timing in="0 1 1 0" out="0 120000 1 0" offset="0 1 1 0" />
+			<foldFlags>0</foldFlags>
+			<baseFlags>524304</baseFlags>
+			<parameter name="Properties" id="1" flags="8589938704" />
+			<parameter name="Object" id="2" flags="8589938704">
+				<parameter name="Pixel Aspect Ratio" id="104" flags="12884901888" default="1" value="1" />
+				<parameter name="Frame Rate" id="107" flags="8589934592" default="0" value="30" />
+				<parameter name="Fixed Width" id="114" flags="12884901888" default="600" value="600" />
+				<parameter name="Fixed Height" id="115" flags="12884901888" default="600" value="600" />
+				<parameter name="Use Background Color" id="116" flags="8589934594" default="0" value="0" />
+				<parameter name="Background Color" id="117" flags="8589971458">
+					<foldFlags>15</foldFlags>
+					<parameter name="Red" id="1" flags="8589967376" default="1" value="1" />
+					<parameter name="Green" id="2" flags="8589967376" default="1" value="1" />
+					<parameter name="Blue" id="3" flags="8589967376" default="1" value="1" />
+				</parameter>
+				<parameter name="Missing Is Still" id="128" flags="8589934610" default="0" value="1" />
+			</parameter>
+		</clip>
+		<clip name="Drop Zone Transition B" id="998269401">
+			<pathURL>Drop Zone Transition B.tiff</pathURL>
+			<missingWidth>1200</missingWidth>
+			<missingHeight>1200</missingHeight>
+			<missingDuration>0.033333333333333333</missingDuration>
+			<creationDuration>1</creationDuration>
+			<mediaID />
+			<flags>0</flags>
+			<timing in="0 1 1 0" out="0 120000 1 0" offset="0 1 1 0" />
+			<foldFlags>0</foldFlags>
+			<baseFlags>524304</baseFlags>
+			<parameter name="Properties" id="1" flags="8589938704" />
+			<parameter name="Object" id="2" flags="8589938704">
+				<parameter name="Pixel Aspect Ratio" id="104" flags="12884901888" default="1" value="1" />
+				<parameter name="Frame Rate" id="107" flags="8589934592" default="0" value="30" />
+				<parameter name="Fixed Width" id="114" flags="12884901888" default="600" value="600" />
+				<parameter name="Fixed Height" id="115" flags="12884901888" default="600" value="600" />
+				<parameter name="Use Background Color" id="116" flags="8589934594" default="0" value="0" />
+				<parameter name="Background Color" id="117" flags="8589971458">
+					<foldFlags>15</foldFlags>
+					<parameter name="Red" id="1" flags="8589967376" default="1" value="1" />
+					<parameter name="Green" id="2" flags="8589967376" default="1" value="1" />
+					<parameter name="Blue" id="3" flags="8589967376" default="1" value="1" />
+				</parameter>
+				<parameter name="Missing Is Still" id="128" flags="8589934610" default="0" value="1" />
+			</parameter>
+		</clip>
+		<clip name="Drop Zone" id="998269400">
+			<pathURL>Drop Zone.tiff</pathURL>
+			<missingWidth>1200</missingWidth>
+			<missingHeight>1200</missingHeight>
+			<missingDuration>0.033333333333333333</missingDuration>
+			<creationDuration>1</creationDuration>
+			<mediaID />
+			<flags>0</flags>
+			<timing in="0 1 1 0" out="0 120000 1 0" offset="0 1 1 0" />
+			<foldFlags>0</foldFlags>
+			<baseFlags>524304</baseFlags>
+			<parameter name="Properties" id="1" flags="8589938704" />
+			<parameter name="Object" id="2" flags="8589938704">
+				<parameter name="Pixel Aspect Ratio" id="104" flags="12884901888" default="1" value="1" />
+				<parameter name="Frame Rate" id="107" flags="8589934592" default="0" value="30" />
+				<parameter name="Fixed Width" id="114" flags="12884901888" default="600" value="600" />
+				<parameter name="Fixed Height" id="115" flags="12884901888" default="600" value="600" />
+				<parameter name="Use Background Color" id="116" flags="8589934594" default="0" value="0" />
+				<parameter name="Background Color" id="117" flags="8589971458">
+					<foldFlags>15</foldFlags>
+					<parameter name="Red" id="1" flags="8589967376" default="1" value="1" />
+					<parameter name="Green" id="2" flags="8589967376" default="1" value="1" />
+					<parameter name="Blue" id="3" flags="8589967376" default="1" value="1" />
+				</parameter>
+				<parameter name="Missing Is Still" id="128" flags="8589934610" default="0" value="1" />
+			</parameter>
+		</clip>
+		<clip name="Drop Zone" id="998269399">
+			<pathURL>Drop Zone.tiff</pathURL>
+			<missingWidth>1200</missingWidth>
+			<missingHeight>1200</missingHeight>
+			<missingDuration>0.033333333333333333</missingDuration>
+			<creationDuration>1</creationDuration>
+			<mediaID />
+			<flags>0</flags>
+			<timing in="0 1 1 0" out="0 120000 1 0" offset="0 1 1 0" />
+			<foldFlags>0</foldFlags>
+			<baseFlags>524304</baseFlags>
+			<parameter name="Properties" id="1" flags="8589938704" />
+			<parameter name="Object" id="2" flags="8589938704">
+				<parameter name="Pixel Aspect Ratio" id="104" flags="12884901888" default="1" value="1" />
+				<parameter name="Frame Rate" id="107" flags="8589934592" default="0" value="30" />
+				<parameter name="Fixed Width" id="114" flags="12884901888" default="600" value="600" />
+				<parameter name="Fixed Height" id="115" flags="12884901888" default="600" value="600" />
+				<parameter name="Use Background Color" id="116" flags="8589934594" default="0" value="0" />
+				<parameter name="Background Color" id="117" flags="8589971458">
+					<foldFlags>15</foldFlags>
+					<parameter name="Red" id="1" flags="8589967376" default="1" value="1" />
+					<parameter name="Green" id="2" flags="8589967376" default="1" value="1" />
+					<parameter name="Blue" id="3" flags="8589967376" default="1" value="1" />
+				</parameter>
+				<parameter name="Missing Is Still" id="128" flags="8589934610" default="0" value="1" />
+			</parameter>
+		</clip>
+		<clip name="Drop Zone" id="998269398">
+			<pathURL>Drop Zone.tiff</pathURL>
+			<missingWidth>1200</missingWidth>
+			<missingHeight>1200</missingHeight>
+			<missingDuration>0.033333333333333333</missingDuration>
+			<creationDuration>1</creationDuration>
+			<mediaID />
+			<flags>0</flags>
+			<timing in="0 1 1 0" out="0 120000 1 0" offset="0 1 1 0" />
+			<foldFlags>0</foldFlags>
+			<baseFlags>524304</baseFlags>
+			<parameter name="Properties" id="1" flags="8589938704" />
+			<parameter name="Object" id="2" flags="8589938704">
+				<parameter name="Pixel Aspect Ratio" id="104" flags="12884901888" default="1" value="1" />
+				<parameter name="Frame Rate" id="107" flags="8589934592" default="0" value="30" />
+				<parameter name="Fixed Width" id="114" flags="12884901888" default="600" value="600" />
+				<parameter name="Fixed Height" id="115" flags="12884901888" default="600" value="600" />
+				<parameter name="Use Background Color" id="116" flags="8589934594" default="0" value="0" />
+				<parameter name="Background Color" id="117" flags="8589971458">
+					<foldFlags>15</foldFlags>
+					<parameter name="Red" id="1" flags="8589967376" default="1" value="1" />
+					<parameter name="Green" id="2" flags="8589967376" default="1" value="1" />
+					<parameter name="Blue" id="3" flags="8589967376" default="1" value="1" />
+				</parameter>
+				<parameter name="Missing Is Still" id="128" flags="8589934610" default="0" value="1" />
+			</parameter>
+		</clip>
+		<clip name="Drop Zone" id="998269397">
+			<pathURL>Drop Zone.tiff</pathURL>
+			<missingWidth>1200</missingWidth>
+			<missingHeight>1200</missingHeight>
+			<missingDuration>0.033333333333333333</missingDuration>
+			<creationDuration>1</creationDuration>
+			<mediaID />
+			<flags>0</flags>
+			<timing in="0 1 1 0" out="0 120000 1 0" offset="0 1 1 0" />
+			<foldFlags>0</foldFlags>
+			<baseFlags>524304</baseFlags>
+			<parameter name="Properties" id="1" flags="8589938704" />
+			<parameter name="Object" id="2" flags="8589938704">
+				<parameter name="Pixel Aspect Ratio" id="104" flags="12884901888" default="1" value="1" />
+				<parameter name="Frame Rate" id="107" flags="8589934592" default="0" value="30" />
+				<parameter name="Fixed Width" id="114" flags="12884901888" default="600" value="600" />
+				<parameter name="Fixed Height" id="115" flags="12884901888" default="600" value="600" />
+				<parameter name="Use Background Color" id="116" flags="8589934594" default="0" value="0" />
+				<parameter name="Background Color" id="117" flags="8589971458">
+					<foldFlags>15</foldFlags>
+					<parameter name="Red" id="1" flags="8589967376" default="1" value="1" />
+					<parameter name="Green" id="2" flags="8589967376" default="1" value="1" />
+					<parameter name="Blue" id="3" flags="8589967376" default="1" value="1" />
+				</parameter>
+				<parameter name="Missing Is Still" id="128" flags="8589934610" default="0" value="1" />
+			</parameter>
+		</clip>
+		<clip name="Drop Zone" id="998269396">
+			<pathURL>Drop Zone.tiff</pathURL>
+			<missingWidth>1200</missingWidth>
+			<missingHeight>1200</missingHeight>
+			<missingDuration>0.033333333333333333</missingDuration>
+			<creationDuration>1</creationDuration>
+			<mediaID />
+			<flags>0</flags>
+			<timing in="0 1 1 0" out="0 120000 1 0" offset="0 1 1 0" />
+			<foldFlags>0</foldFlags>
+			<baseFlags>524304</baseFlags>
+			<parameter name="Properties" id="1" flags="8589938704" />
+			<parameter name="Object" id="2" flags="8589938704">
+				<parameter name="Pixel Aspect Ratio" id="104" flags="12884901888" default="1" value="1" />
+				<parameter name="Frame Rate" id="107" flags="8589934592" default="0" value="30" />
+				<parameter name="Fixed Width" id="114" flags="12884901888" default="600" value="600" />
+				<parameter name="Fixed Height" id="115" flags="12884901888" default="600" value="600" />
+				<parameter name="Use Background Color" id="116" flags="8589934594" default="0" value="0" />
+				<parameter name="Background Color" id="117" flags="8589971458">
+					<foldFlags>15</foldFlags>
+					<parameter name="Red" id="1" flags="8589967376" default="1" value="1" />
+					<parameter name="Green" id="2" flags="8589967376" default="1" value="1" />
+					<parameter name="Blue" id="3" flags="8589967376" default="1" value="1" />
+				</parameter>
+				<parameter name="Missing Is Still" id="128" flags="8589934610" default="0" value="1" />
+			</parameter>
+		</clip>
+		<clip name="Drop Zone" id="998269395">
+			<pathURL>Drop Zone.tiff</pathURL>
+			<missingWidth>1200</missingWidth>
+			<missingHeight>1200</missingHeight>
+			<missingDuration>0.033333333333333333</missingDuration>
+			<creationDuration>1</creationDuration>
+			<mediaID />
+			<flags>0</flags>
+			<timing in="0 1 1 0" out="0 120000 1 0" offset="0 1 1 0" />
+			<foldFlags>0</foldFlags>
+			<baseFlags>524304</baseFlags>
+			<parameter name="Properties" id="1" flags="8589938704" />
+			<parameter name="Object" id="2" flags="8589938704">
+				<parameter name="Pixel Aspect Ratio" id="104" flags="12884901888" default="1" value="1" />
+				<parameter name="Frame Rate" id="107" flags="8589934592" default="0" value="30" />
+				<parameter name="Fixed Width" id="114" flags="12884901888" default="600" value="600" />
+				<parameter name="Fixed Height" id="115" flags="12884901888" default="600" value="600" />
+				<parameter name="Use Background Color" id="116" flags="8589934594" default="0" value="0" />
+				<parameter name="Background Color" id="117" flags="8589971458">
+					<foldFlags>15</foldFlags>
+					<parameter name="Red" id="1" flags="8589967376" default="1" value="1" />
+					<parameter name="Green" id="2" flags="8589967376" default="1" value="1" />
+					<parameter name="Blue" id="3" flags="8589967376" default="1" value="1" />
+				</parameter>
+				<parameter name="Missing Is Still" id="128" flags="8589934610" default="0" value="1" />
+			</parameter>
+		</clip>
+		<clip name="Drop Zone" id="998269394">
+			<pathURL>Drop Zone.tiff</pathURL>
+			<missingWidth>1200</missingWidth>
+			<missingHeight>1200</missingHeight>
+			<missingDuration>0.033333333333333333</missingDuration>
+			<creationDuration>1</creationDuration>
+			<mediaID />
+			<flags>0</flags>
+			<timing in="0 1 1 0" out="0 120000 1 0" offset="0 1 1 0" />
+			<foldFlags>0</foldFlags>
+			<baseFlags>524304</baseFlags>
+			<parameter name="Properties" id="1" flags="8589938704" />
+			<parameter name="Object" id="2" flags="8589938704">
+				<parameter name="Pixel Aspect Ratio" id="104" flags="12884901888" default="1" value="1" />
+				<parameter name="Frame Rate" id="107" flags="8589934592" default="0" value="30" />
+				<parameter name="Fixed Width" id="114" flags="12884901888" default="600" value="600" />
+				<parameter name="Fixed Height" id="115" flags="12884901888" default="600" value="600" />
+				<parameter name="Use Background Color" id="116" flags="8589934594" default="0" value="0" />
+				<parameter name="Background Color" id="117" flags="8589971458">
+					<foldFlags>15</foldFlags>
+					<parameter name="Red" id="1" flags="8589967376" default="1" value="1" />
+					<parameter name="Green" id="2" flags="8589967376" default="1" value="1" />
+					<parameter name="Blue" id="3" flags="8589967376" default="1" value="1" />
+				</parameter>
+				<parameter name="Missing Is Still" id="128" flags="8589934610" default="0" value="1" />
+			</parameter>
+		</clip>
+		<clip name="Drop Zone" id="998269393">
+			<pathURL>Drop Zone.tiff</pathURL>
+			<missingWidth>1200</missingWidth>
+			<missingHeight>1200</missingHeight>
+			<missingDuration>0.033333333333333333</missingDuration>
+			<creationDuration>1</creationDuration>
+			<mediaID />
+			<flags>0</flags>
+			<timing in="0 1 1 0" out="0 120000 1 0" offset="0 1 1 0" />
+			<foldFlags>0</foldFlags>
+			<baseFlags>524304</baseFlags>
+			<parameter name="Properties" id="1" flags="8589938704" />
+			<parameter name="Object" id="2" flags="8589938704">
+				<parameter name="Pixel Aspect Ratio" id="104" flags="12884901888" default="1" value="1" />
+				<parameter name="Frame Rate" id="107" flags="8589934592" default="0" value="30" />
+				<parameter name="Fixed Width" id="114" flags="12884901888" default="600" value="600" />
+				<parameter name="Fixed Height" id="115" flags="12884901888" default="600" value="600" />
+				<parameter name="Use Background Color" id="116" flags="8589934594" default="0" value="0" />
+				<parameter name="Background Color" id="117" flags="8589971458">
+					<foldFlags>15</foldFlags>
+					<parameter name="Red" id="1" flags="8589967376" default="1" value="1" />
+					<parameter name="Green" id="2" flags="8589967376" default="1" value="1" />
+					<parameter name="Blue" id="3" flags="8589967376" default="1" value="1" />
+				</parameter>
+				<parameter name="Missing Is Still" id="128" flags="8589934610" default="0" value="1" />
+			</parameter>
+		</clip>
+		<clip name="Drop Zone" id="998269392">
+			<pathURL>Drop Zone.tiff</pathURL>
+			<missingWidth>1200</missingWidth>
+			<missingHeight>1200</missingHeight>
+			<missingDuration>0.033333333333333333</missingDuration>
+			<creationDuration>1</creationDuration>
+			<mediaID />
+			<flags>0</flags>
+			<timing in="0 1 1 0" out="0 120000 1 0" offset="0 1 1 0" />
+			<foldFlags>0</foldFlags>
+			<baseFlags>524304</baseFlags>
+			<parameter name="Properties" id="1" flags="8589938704" />
+			<parameter name="Object" id="2" flags="8589938704">
+				<parameter name="Pixel Aspect Ratio" id="104" flags="12884901888" default="1" value="1" />
+				<parameter name="Frame Rate" id="107" flags="8589934592" default="0" value="30" />
+				<parameter name="Fixed Width" id="114" flags="12884901888" default="600" value="600" />
+				<parameter name="Fixed Height" id="115" flags="12884901888" default="600" value="600" />
+				<parameter name="Use Background Color" id="116" flags="8589934594" default="0" value="0" />
+				<parameter name="Background Color" id="117" flags="8589971458">
+					<foldFlags>15</foldFlags>
+					<parameter name="Red" id="1" flags="8589967376" default="1" value="1" />
+					<parameter name="Green" id="2" flags="8589967376" default="1" value="1" />
+					<parameter name="Blue" id="3" flags="8589967376" default="1" value="1" />
+				</parameter>
+				<parameter name="Missing Is Still" id="128" flags="8589934610" default="0" value="1" />
+			</parameter>
+		</clip>
+		<flags>0</flags>
+		<timing in="0 1 1 0" out="0 120000 1 0" offset="0 1 1 0" />
+		<foldFlags>0</foldFlags>
+		<baseFlags>524368</baseFlags>
+		<parameter name="Properties" id="1" flags="8589938704" />
+		<parameter name="Object" id="2" flags="8589938704" />
+	</footage>
+</scene>
+
+</ozml>

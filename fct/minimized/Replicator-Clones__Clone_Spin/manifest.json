@@ -1,0 +1,12 @@
+{
+  "slug": "Replicator-Clones__Clone_Spin",
+  "source_motr": "/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized/Replicator:Clones.localized/Clone Spin.localized/Clone Spin.motr",
+  "worst_frame": 22,
+  "baseline_psnr": 7.541,
+  "final_psnr": 7.951,
+  "struct_before": 23,
+  "struct_after": 6,
+  "removed": 17,
+  "nframes": 24,
+  "slack": 0.12
+}
