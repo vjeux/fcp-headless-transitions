@@ -450,7 +450,7 @@ T-M7  DONE    FILTER-P2: sweep-harness audit — add missing sweeps filter tooli
                diverge (psnr ~8.5). REMAINING: run the full 56-case sweep under low load + refresh     docs/FILTER_RE_PHASE2.md, then this
                the PASS/FAIL/CEILING scoreboard in docs/FILTER_RE_PHASE2.md (harness confirmed working  is DONE (unblocks T-M1..M6).
                — brightness psnr47; the old "errored on all cases" note was a stale env, not a bug).]
-T-N1  BLOCKED Stylized/Lower kinetic-panel — visibility fix COUPLED to retime rate  Stylized__Lower (9.04 — WORST slug).
+T-N1  DONE    Stylized/Lower kinetic-panel — late-window panel visibility + curveTime re-anchor  Stylized__Lower 9.04 → 10.19 (+1.15).
               [Two coupled deficits (docs S2+S8): (a) kinetic mask-panel choreography misses the bright  Worst slug: misses the mid white
                mid white FLASH (partly S2 linear-compositing — engine flash lands warm/dim ~137,99 vs    flash + panels culled vis=false.
                GUI ~239,245), (b) some panels are culled vis=false. Census + score --frames; decode      Decode panel visibility + flash.
@@ -1135,6 +1135,24 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-15p  T-N1 (Lower, WORST slug) → DONE. Cherry-picked M-LOWER's isolated evaluator delta
+              (c2028be, +43 lines in evaluator/index.ts) onto current main. Two coupled fixes, BOTH
+              scoped to `isSolidPanel && in > endSec` (verified by enumeration to fire on ONLY Lower —
+              all 5 other isSolidPanel families have in<endSec so they take the unchanged path, i.e.
+              PROVABLY behavior-neutral for the other 64 slugs): (a) LATE-WINDOW VISIBILITY RE-ANCHOR —
+              isLayerVisible gates on the RAW [in,out] window, but Lower's survivor panel has in=2.870s
+              > animationEndSec=2.336s so the raw check is false for EVERY frame → panel dropped to
+              BLACK; re-anchor the window by −offset (the same shift the panel's curveTime gets) so it's
+              visible over [in−offset, out−offset]. (b) CURVETIME RE-ANCHOR — the general isSolidPanel
+              retime (rate=(out−in)/endSec anchored at `in`) slides the panel in at frame 0; the correct
+              model plays the full source span over the render with local-0 pinned to the render
+              midpoint: curveTime=(out/endSec)·(t−endSec/2), so the opacity peak lands at prog 0.5 (FCP:
+              panel appears at midpoint, holds, fades by end). This is what resolves last tick's
+              retime-rate COUPLING blocker — the visibility fix ALONE regressed (9.04→8.27); paired with
+              the curve re-anchor it lands the panel correctly. GATE GREEN: 0 regressions, 1 improvement
+              vs baseline_engine (tol 0.3dB) — Stylized__Lower 9.04→10.19 (+1.15). tsc clean; baseline
+              re-frozen (only Lower changed, mean 14.56→14.58). Scoped by a scene-PARAMETER (in>endSec),
+              not a transition name — same param-driven-refinement justification as needsFilterRevealForceHoldB.
 - 2026-07-15o  M-SMEAR Bloom-HAZARD CLEARED (verified safe) + full gate in progress. Investigated the
               flagged hazard (M-SMEAR might regress the landed Bloom 13.04→11.38). Resolved DEFINITIVELY
               by reading the merged timemap precedence + DIRECT capability instrumentation on the
@@ -1416,6 +1434,36 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               pose half; the reveal-timing half remains). tsc clean, no-hardcode green, baseline re-frozen.
 - 2026-07-15b  CORRECTED THE WORKFLOW → minimizer-produces-repros / SUBAGENTS-fix-in-parallel /
               orchestrator-gate-verifies. Self-review: I had drifted back to fixing pinpointed bugs
+- 2026-07-15d  M-LOWER LANDED — Stylized/Lower late-window panel visibility + curveTime re-anchor.
+              Cherry-picked the isolated evaluator delta (c2028be, +43 lines in evaluator/index.ts)
+              onto current main. SCOPED to `isSolidPanel && in > endSec`, which I verified (enumeration
+              over all 65 built-ins) fires on ONLY Stylized__Lower — every other isSolidPanel family
+              (Panels_Across in=0, Center in<=2.069, Panels_Random in=0, Up-Over in<=2.936,
+              Close_and_Open) has in<endSec so it takes the unchanged retime path and is provably
+              byte-identical. Two hunks: (1) late-window VISIBILITY re-anchor (a panel authored with
+              in=2.870 > animationEndSec=2.336 is off the rendered range every frame -> re-anchor the
+              window by -offset, the same shift the curve gets); (2) curveTime re-anchor
+              (curveTime=(out/endSec)*(t-endSec/2), local-zero pinned to the render midpoint) — this
+              SECOND hunk resolves the retime-rate coupling that made the visibility-only fix regress
+              last tick (9.04->8.27). Decode-derived from the panel's own timing (out=6.773s ~ 6.8s
+              source), not fitted. GATE GREEN: 0 regressions, 1 improvement — Stylized__Lower 9.04 ->
+              10.19 (+1.15). tsc clean, baseline re-frozen (mean 14.56->14.58, only Lower changed).
+              UNBLOCKS T-N1.
+- 2026-07-15d  M-LOWER LANDED — Stylized/Lower late-window panel visibility + curveTime re-anchor.
+              Cherry-picked the isolated evaluator delta (c2028be, +43 lines in evaluator/index.ts)
+              onto current main. The fix is SCOPED to `isSolidPanel && in > endSec`, which I verified
+              (enumeration over all 65 built-ins) fires on ONLY Stylized__Lower — every other
+              isSolidPanel family (Panels_Across in=0, Center in<=2.069, Panels_Random in=0, Up-Over
+              in<=2.936, Close_and_Open) has in<endSec so it takes the unchanged retime path and is
+              provably byte-identical. Two hunks: (1) a late-window VISIBILITY re-anchor (isLayerVisible
+              gates on raw [in,out] but a panel authored with in=2.870 > animationEndSec=2.336 is off
+              the rendered range for every frame -> re-anchor the window by -offset, the same shift the
+              curve gets); (2) a curveTime re-anchor (curveTime=(out/endSec)*(t-endSec/2), local-zero
+              pinned to the render midpoint) — this SECOND hunk resolves the retime-rate coupling that
+              made the visibility-only fix regress last tick (9.04->8.27). Decode-derived from the
+              panel timing (out=6.773s ~ source dur), not fitted. GATE GREEN: 0 regressions, 1
+              improvement — Stylized__Lower 9.04 -> 10.19 (+1.15). tsc clean, baseline re-frozen (mean
+              14.56->14.58, only Lower changed). UNBLOCKS T-N1.
 - 2026-07-15c  M-SMEAR REBASED + LANDED — filter-reveal-settle-B, Smear only (Bloom already fixed by
               M-BLOOM). The M-SMEAR branch was authored on a pre-M-BLOOM tree; on the CURRENT tree its
               probe hasFilterRevealSettleB (which had a `B.out < endSec` clause baked in) collapsed to

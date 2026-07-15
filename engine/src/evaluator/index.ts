@@ -364,6 +364,33 @@ function isLayerVisible(layer: Layer, timeSec: number): boolean {
 
 function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Array, behaviors: RigBehavior[], widgetValues: Map<number, number>, sceneBehaviors: SceneBehavior[], layerById: Map<number, Layer>, linksByTarget: Map<number, import('../types.js').LinkBehavior[]>, ectx: EvalCtx): EvaluatedLayer {
   let visible = isLayerVisible(layer, timeSec);
+  // LATE-WINDOW PANEL VISIBILITY RE-ANCHOR (Stylized/Kinetic "Lower"). isLayerVisible()
+  // gates a shape on its RAW timing window [in,out]. An isSolidPanel carries that window
+  // in the panel's LOCAL, offset-anchored frame (the same frame the isSolidPanel curveTime
+  // retime below re-anchors by −offset). When the panel's raw `in` sits PAST the whole
+  // rendered range (in > animationEndSec) the raw check returns false for EVERY frame → the
+  // panel is dropped to BLACK even though FCP paints it. Decoded from the committed 3-node
+  // min-repro (fct/minimized/Stylized__Lower): the survivor "Panel right 1" (factoryID=12,
+  // isSolidPanel) has in=2.870s out=6.773s offset=3.337s while animationEndSec is 2.336s
+  // (full) / 1.835s (reduced), so raw in > endSec and the engine renders it BLACK at f12–f17
+  // while FCP fills the right half with it (min-repro f12–f17 ≈ 4.2 dB). Re-anchor the window
+  // by −offset (the SAME shift the panel's curve gets below), so the panel is visible over
+  // scene time [in−offset, out−offset]. SCOPED to `in > endSec` — the only regime where the
+  // raw window is definitionally off the rendered range; every other isSolidPanel family has
+  // in < endSec (Panels_Across in=0, Center in≤2.069, Panels_Random in=0, Up-Over in≤2.936)
+  // so isLayerVisible already fires and this branch never touches them.
+  if (layer.type === 'shape' && layer.shape && layer.shape.isSolidPanel && layer.timing) {
+    const _voff = layer.timing.offset && layer.timing.offset.timescale > 0
+      ? layer.timing.offset.value / layer.timing.offset.timescale : 0;
+    const _vin = layer.timing.in && layer.timing.in.timescale > 0
+      ? layer.timing.in.value / layer.timing.in.timescale : 0;
+    const _vend = ectx.animationEndSec ?? 0;
+    if (_voff > 1e-3 && _vend > 1e-3 && _vin > _vend) {
+      const _vout = layer.timing.out && layer.timing.out.timescale > 0
+        ? layer.timing.out.value / layer.timing.out.timescale : 0;
+      visible = timeSec >= _vin - _voff && timeSec <= _vout - _voff;
+    }
+  }
   // Persistent-A drop zone (see ectx.wrapToA): a wrapping drop-zone image
   // past its lifetime re-shows source A and stays visible as the overlay's base.
   let forceSourceA = false;
@@ -572,6 +599,22 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
         // timing, rate=SPAN/endSec), not fitted.
         const rate = (out - inn) / endSec;
         curveTime = inn + timeSec * rate - off;
+        // LATE-WINDOW panel ("Lower"): a panel whose raw `in` lands PAST the render end
+        // (in > endSec) is authored on the full source timeline and re-anchored by
+        // `offset`; its curve settles (local 0 = opacity peak / slide-in complete) at the
+        // clip MIDPOINT and then fades to its 0.4 tail by the clip end. The general
+        // retime above (rate=(out−in)/endSec, anchored at `in`) instead slides the panel
+        // in at frame 0 (opacity peaks ~f3) and never reaches the fade — wrong (min-repro
+        // f12–f17 render black; full-gate Lower 9.04 dB). The correct model plays the full
+        // source span [0, out≈sceneDuration] over the rendered [0, endSec] (rate =
+        // out/endSec) with local-zero pinned to the render midpoint: curveTime(endSec/2)=0,
+        // so the opacity peak lands at prog 0.5 (FCP: panel appears at the midpoint, holds,
+        // fades out by the end). Decode-derived from the panel's own timing (out=6.773s ≈
+        // the 6.8s source duration), NOT fitted. SCOPED to in > endSec so the other
+        // isSolidPanel families keep the general retime — they all have in < endSec.
+        if (inn > endSec + 1e-3) {
+          curveTime = (out / endSec) * (timeSec - endSec / 2);
+        }
       } else {
         curveTime = timeSec - off;
       }
