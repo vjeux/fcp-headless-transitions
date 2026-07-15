@@ -330,6 +330,7 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+
 - 2026-07-15t  🧪 CAPABILITY CATALOG harness built (answer to "implement FCP features one-by-one,
               like minimize in spirit"). New: tools/re/probe_scene.py (builds a minimal synthetic
               .motr isolating ONE primitive, renders headless-FCP + full TS pipeline, compares),
