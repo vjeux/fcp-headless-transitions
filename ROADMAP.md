@@ -289,6 +289,21 @@ STRIPES instead of concentric rings. THREE bugs, all now fixed:
   show. The ring rotation curves (0→π, inner-first staggered wave) are CORRECTLY evaluated (verified
   vs .motr keyframes); the divergence is the Clone-A/Clone-B crossfade-vs-rotation coupling within
   each ring group. Not a big-subsystem blocker — a per-ring crossfade-phase decode.
+  **CROP-ON-MASK-GEOMETRY DEAD-END (decisively refuted 2026-07-15, decode-don't-fit).** The ring-mask
+  Circles/Clone-Layers DO carry a real Crop id=216 (half-disc pattern: left copies get Right=900,
+  right copies get Left=900 — each ring split into a left+right copy group, each Image-Mask-clipped to
+  its half-disc). Hypothesis: honoring that crop on the mask geometry would carve the woven seam. It
+  does NOT: (a) the MATH refutes it — Circle 1 verts span ±803.5, so Right=900 keeps local x∈[−803.5,
+  −96.5] and Left=900 keeps [96.5,803.5], leaving a ~193-local-unit CENTRAL GAP ≈12% of ring diameter
+  (~230px at the outer ring); GT shows CONTINUOUS rings with only a thin ~5–15px seam. (b) the GUI-GT
+  gate refutes it — implementing the crop clip (Sutherland–Hodgman against the transformed crop quad in
+  shapes.ts, wired through resolveImageMaskAlpha entries in masks.ts) rendered Concentric 12.67→**10.42**
+  (−2.25, net-negative). CONCLUSION: FCP does NOT honor Crop id=216 on these mask-geometry Shapes/
+  Clone-Layers — SAME node-class finding as the proven drop-zone-Image and Clone crop ignore (Crop only
+  applies on the general-layer-compositor node types, not mask-source geometry). The half-disc seam in
+  GT comes from the per-ring A/B crossfade PHASE (Clone A src=10008 / Clone B src=10006 stacked, no
+  per-clone opacity — the fade is Rig/timing-driven), NOT from crop. Reverted per Rule 2d. Do NOT
+  re-attempt crop-on-mask-geometry; the remaining gap is the A/B crossfade-phase subsystem above.
 
 The wall dolly currently frames ~1 tile where GT reveals the full grid; the framing-camera
 pose (`compositor/geometry.ts` + `evaluator/framing.ts`, `FRAMING_VIEW_ENABLED`) is partial.
