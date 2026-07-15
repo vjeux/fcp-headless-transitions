@@ -43,6 +43,48 @@ def _reap_live_children(*_a):
         except (ProcessLookupError, PermissionError, OSError):
             pass
 
+def sweep_orphaned_renderers():
+    """PRE-KILL sweep: reap render workers ORPHANED by a prior SIGKILLed parent.
+
+    The in-process reaper below only kills children of the CURRENTLY-live python (on
+    any catchable exit). But a `gen --all` (or swarm wrapper) python that is SIGKILLed
+    — OOM-killer, `kill -9`, a wedged box — cannot trap the signal, so ITS render tsx
+    children are NOT reaped: they reparent to init (ppid==1) and keep rendering for
+    10+ min, thrashing the box. The next batch then piles on top → the load-194 storm.
+
+    So BEFORE launching a new batch we sweep any such orphans. We match ONLY
+    tsx-render workers whose parent is init (ppid==1) — i.e. genuinely stranded, not a
+    concurrent agent's live batch (whose children have a live python ppid) and never
+    the navi-node CLI itself (never matches the render argv). This is intentionally
+    conservative: a live sibling batch is untouched; only true orphans die.
+    """
+    import re
+    try:
+        out = subprocess.run(["ps", "-Ao", "pid,ppid,command"],
+                             capture_output=True, text=True, timeout=10).stdout
+    except (subprocess.SubprocessError, OSError):
+        return 0
+    killed = 0
+    for line in out.splitlines()[1:]:
+        m = re.match(r"\s*(\d+)\s+(\d+)\s+(.*)", line)
+        if not m:
+            continue
+        pid, ppid, cmd = int(m.group(1)), int(m.group(2)), m.group(3)
+        # Only true orphans (reparented to init) running one of OUR render tsx scripts.
+        if ppid != 1:
+            continue
+        if "test/_fct_render.ts" not in cmd and "test/_fct_render_one.ts" not in cmd:
+            continue
+        try:
+            os.kill(pid, signal.SIGKILL)
+            killed += 1
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+    if killed:
+        print(f"[gen] swept {killed} orphaned render worker(s) from a prior killed batch",
+              file=sys.stderr, flush=True)
+    return killed
+
 atexit.register(_reap_live_children)
 for _sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
     try:
