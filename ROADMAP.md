@@ -1073,6 +1073,20 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-15e  M-SLIDEIN → BLOCKED (deep 3-part subsystem), salvaged decode into the repo. The fix-
+              agent correctly pushed NOTHING (its naive attempt regressed 8.55->7.05 dB) and reverted
+              clean. Salvaged its full root-cause to docs/notes/salvage/slide-in-three-missing-
+              subsystems.md (rule 5: out of /tmp, into the repo) and cleaned its stray probe*.mjs.
+              Corrected the T-K2 task premise TODO->BLOCKED: Slide_In is NOT a reveal/slide-timing
+              tweak — it is 3 stacked MISSING subsystems: (1) linear Gradient generator (factoryID=8
+              UUID 40091D89) renders BLACK today (determineImageSource only handles "Gaussian
+              Gradient"); renderLinearGradient decoded+working but alone washes the frame; (2) rounded-
+              rect <mask> factoryID=13 not lifted (detectMask keys off name not tagName; broadening =
+              the FCT_LIFT_ALL_MASKS -1dB scar across 8 slugs — must scope narrowly); (3) Motion Path
+              behavior factoryID=24 is a SHAPE-PATH FOLLOWER (id206 diamond path + id200 arc-length,
+              retime 1->31), not a linear tween. Recorded the multi-tick BUILD ARC (gradient infra ->
+              shape-following motion path -> narrowly-scoped mask clip, gate-verify each). Doc-only, no
+              gate needed. Main @ 39abb44.
 - 2026-07-15d  ORCHESTRATION TICK → dispatched the FIX-FRAMING fix-agent (highest-value un-owned bug).
               The Video_Wall minimizer (24bc8bf) pinpointed the framed-camera subsystem
               (evaluator/framing.ts resolveFramedWallPose/resolveFramedPose) at the node level: a
