@@ -42,5 +42,19 @@
   "decode_2026_07_15_timing_gate": {
     "date": "2026-07-15",
     "correction_to_part3": "The '~5 sparse tiles / dense wall placement blocker' framing in decode_2026_07_15_wrap_freeze part 3 is REFINED: the 14 replicators are each TIME-GATED with a STAGGERED timing window [in,out] (measured, in seconds): #1 Pin2c[0.63,1.13], #2[0.63,1.13], #3[0.50,1.84], #4[0.03,0.77], #5[0.00,0.53], #6[0.40,0.97], #7 Pin2[0.00,0.37], #8[0.90,1.77], #9[0.50,1.77], #10[0.73,1.77], #11[0.60,1.77], #12[0.60,1.87], #13[0.53,1.87], #14 Pin1[0.00,1.10]. At any instant only the replicators whose window contains t are visible (op=1); the rest are op=0. This is the INTENDED staggered wall build-up (tiles pop in over time), NOT a placement/density bug. At t=0.5 (mid), 4 replicators are live (Pin1 9inst + 3 others 4inst = 13 instances); combined with the correct far dolly ~18/32 project on-screen. So part 3 is really: (a) the wrap-cancel (part 1) so t advances and the staggered windows actually fire, (b) the correct near->far->near dolly + wall-centered anchor (parts 2+4) so the live tiles land on-screen. The tiles crossfade A->B via their Pin1(=A)/Pin2(=B) cell sources (resolveCellImage already maps Pin1->imageA, Pin2->imageB). NET: the subsystem is wrap-cancel + 3-key anchor dolly + correct wall centroid; the replicator content/timing is already parsed correctly. The remaining risk is purely the CAMERA PATH (anchor + dolly schedule), not tile generation."
+  },
+  "build_attempt_2026_07_15_3key": {
+    "date": "2026-07-15",
+    "result": "NET-NEGATIVE, reverted per Rule 2d (gate: 1 reg Video_Wall 10.24->9.52, 0 improvements, all 64 others byte-identical). WIP saved: docs/notes/wip/vw_{framing,index,timemap}_3key.ts.txt.",
+    "what_worked": [
+      "timemap wrap-cancel for framing scenes (hasFramingCamera): time now ADVANCES (was frozen at t=0) \u2014 objectively correct, the staggered replicator windows now fire.",
+      "3-key anchor camera path in resolveFramedWallPose (key0=near-A static-cam pose, key1=far proxy-eye depth @ wall centroid, key2=near-B content framePose): the NEAR-B END NOW SETTLES ON PHOTO B correctly (GT f23 match, was black/wrong before). Per-tile A/B also renders (Pin1->A sepia, Pin2->B blue mix visible mid).",
+      "computeWallCenter changed to all-instance centroid: mid tiles better centered (8.9->9.46)."
+    ],
+    "remaining_gap": [
+      "MID-WALL still too SPARSE + tiles too small vs GT's full tight grid. Root: at t=0.5 only 13/32 instances live (correct staggered timing) but they span a HUGE \u00b15000 area (Pin-1 3x3 alone is 8200x2400 wide) so each tile projects tiny; GT shows a COMPACT grid filling the frame. Either (a) FCP frames a TIGHTER region (just the Pin-1 3x3 center, not the scattered decorations at 2000-6000), or (b) the far dolly distance is too large. farDist=proxyEyeDist~5109; wall-fit(Pin-1 halfW4100)=~5496 similar. The scattered replicators at 2000-6000 may be OFF-screen decorations FCP doesn't frame.",
+      "f0 near-A renders FLAT SEPIA (solid color, no photo detail) \u2014 the near-A key frames staticCamPos XY (2051,-2390) at nearDist but the A tile there shows one flat color; needs investigation (is the standalone Transition A tile rendering its photo, or a placeholder, under the framed camera?).",
+      "NEXT: (1) try framing ONLY the Pin-1 3x3 grid (main wall) \u2014 exclude the scattered 2000-6000 replicators from the wall centroid + use Pin-1 extent for farDist; (2) debug f0 flat-sepia (A-tile content under framed cam)."
+    ]
   }
 }
