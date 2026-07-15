@@ -12,8 +12,34 @@ and a **Status**. Update Status in the same commit that does the work.
 2. **The gate.** Every change must pass `fct regress <source>` (no slug drops >0.30 dB
    below the committed baseline) BEFORE it is committed. Green gate = safe to commit.
 3. **One change per commit**, small blast radius, independently revertible.
-4. **No autonomous pool** that declares success against a self-generated metric. Agents
-   only for well-scoped, gate-verifiable mechanical chunks — never "make it pixel-perfect".
+4. **PARALLEL SUB-AGENTS ARE THE MANDATED WORK MODEL (up to 8 concurrent).** (Superseded the
+   old "no autonomous pool / do it yourself sequentially" rule per vjeux 2026-07-15.) The bottleneck
+   is WALL TIME, not CPU — keep as many of the 8 slots busy as possible; do NOT throttle for system
+   load. The three roles are SEPARATE and must not collapse into one:
+     - **Minimizer = pinpoint factory.** `fct minimize <slug>` delta-debugs a slug to a node-level
+       repro in `fct/minimized/<slug>/` (case.motr + frozen headless-FCP truth frames + `min-score`
+       PSNR). This is a legitimate DEBUG ORACLE (headless FCP on the reduced input), NOT the ship
+       truth. Minimizing is itself parallelizable — give it to a sub-agent, don't hoard it on the
+       orchestrator.
+     - **Sub-agents = the fix workforce.** Each owns ONE slug/bug end-to-end (minimize → decode →
+       fix → verify) in its OWN isolated worktree (`~/fct-swarm/worktrees/<id>`, own `FCT_FRAMES_DIR`
+       + `FCT_LOCK`, symlinked node_modules/venv). Assign INDEPENDENT subsystems to different agents
+       so two agents never edit the same hot path (e.g. don't put two agents on the group-mask
+       compositor at once). Each sub-agent commits+pushes to `main` ITSELF only after its own
+       full-gate check is green.
+     - **Orchestrator (the tick driver) = dispatcher + gatekeeper.** Spawn the 8, keep the queue
+       full, and GATE-VERIFY every landing. Do NOT implement fixes inline+sequentially — that is the
+       exact drift this rule now forbids (collapsing pinpoint-factory + fix-workforce + gatekeeper
+       into one serial actor wastes 7 slots of wall time). The orchestrator should avoid running
+       heavy `gen --all`/`minimize` in the MAIN worktree while agents hold the render locks; do
+       light read-only / doc / queue-staging work between merges.
+   **The anti-drift guardrails still hold, unchanged:** ONE TRUTH is still the GUI-GT gate
+   (`fct regress engine`, 0 regressions) — the per-repro `min-score` is a debugging oracle, never the
+   merge bar. No sub-agent's self-generated metric ("my repro went to 40 dB") authorizes a merge; the
+   FULL GUI-GT gate does. A fix that helps a reduced repro but regresses the shipped gate is REJECTED
+   (this happened to the group-mask screen-space fix — repro improved, Pinwheel/Combo_Spin regressed).
+   Sub-agents must be given a well-scoped bug + the strict "verify repro AND full gate, push nothing
+   if you can't get 0 regressions" protocol. "Make it pixel-perfect" with no scope is still banned.
 5. **Everything in the repo.** No `~/`-level scripts, notes, or scoreboards. `fct/` is the
    one toolkit; `docs/notes/` is the one knowledge store; this file is the one plan.
 6. **Commit == push.** Work on `main`. A change is not "done" until it is committed, the
@@ -364,13 +390,18 @@ T-M6  TODO    FILTER-P2: Gaussian decimation kernel + edge mode   filter: Gaussi
                DECIMATED image with HGBlur-computed weights (HGBlur::ComputeDecimation) + a specific    HGBlur::ComputeDecimation + edge
                edge mode; TS builds a full 2r+1 kernel sigma=r/3 with an assumed edge mode. Decode the  mode; verify decimated kernel +
                decimation + weights + edge handling; VERIFY vs filter_probe gaussian sweep. Gate 0.]     edges vs headless across sweep.
-T-M7  TODO    FILTER-P2: sweep-harness audit — add missing sweeps filter tooling: tools/re/
-              [The full-parameter-space verification the OBJECTIVE requires means EVERY filter needs a  filter_sweeps.json + filter_verify.
-               headless sweep covering params the 65 built-ins DON'T exercise. AUDIT filter_sweeps.json  Ensure every registered filter has
-               vs the 22 registered filters: for each filter, confirm its sweep covers the FULL param   a full-param-space sweep entry +
-               space (not just built-in values), add missing sweep entries, and run the full sweep      that `filter_sweep.py` runs green
-               (`python3 tools/re/filter_sweep.py`) to get a fresh PASS/FAIL/CEILING scoreboard. Write   or documents each CEILING. Report
-               the scoreboard to docs/FILTER_RE_PHASE2.md. This UNBLOCKS/scopes T-M1..M6. Gate 0.]       the scoreboard.
+T-M7  PARTIAL FILTER-P2: sweep-harness audit — add missing sweeps filter tooling: tools/re/
+              [AUDIT DONE 2026-07-15: 24 registered TS filters vs 21 sweep entries -> 3 MISSING       filter_sweeps.json + filter_verify.
+               (PAENoise, 360° Reorient, PAEBadTV), 0 stale. Added all 3 as sweep entries (params +   Every registered filter now has a
+               pluginNames decoded from real templates Static.motr / 360° Divide.motr); every         sweep entry (24/24). 3 new = CEILING
+               registered filter now has an entry (24/24). Each new entry is a documented CEILING,     (PAENoise SIGABRT generator; Reorient
+               evidence gathered this tick via direct filter_verify probes: PAENoise = generator,      resample/pole geometry psnr14.5;
+               injecting into the filter slot ABORTS the host (SIGABRT); 360° Reorient APPLIES but     BadTV per-frame-reseed RNG psnr8.5).
+               TS 3-D-sphere vs FCP equirect resampling diverge (psnr ~14.5, NOT black-headless as an  REMAINING: run full 56-case sweep to
+               old note claimed); PAEBadTV APPLIES but Waviness/Static per-frame-reseed RNG phases     refresh the PASS/FAIL scoreboard in
+               diverge (psnr ~8.5). REMAINING: run the full 56-case sweep under low load + refresh     docs/FILTER_RE_PHASE2.md, then this
+               the PASS/FAIL/CEILING scoreboard in docs/FILTER_RE_PHASE2.md (harness confirmed working  is DONE (unblocks T-M1..M6).
+               — brightness psnr47; the old "errored on all cases" note was a stale env, not a bug).]
 T-N1  TODO    Stylized/Lower kinetic-panel + white-flash          Stylized__Lower (9.04 — WORST slug).
               [Two coupled deficits (docs S2+S8): (a) kinetic mask-panel choreography misses the bright  Worst slug: misses the mid white
                mid white FLASH (partly S2 linear-compositing — engine flash lands warm/dim ~137,99 vs    flash + panels culled vis=false.
@@ -1023,6 +1054,21 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-15c  T-M7 (filter-sweep audit) → PARTIAL. Orchestrator-tick work (read-only + tooling, no
+              engine code — safe while 8 sub-agents hold the render locks). AUDITED the 24 registered
+              TS filters vs the 21 filter_sweeps.json entries: exactly 3 lacked a sweep (PAENoise,
+              360° Reorient, PAEBadTV), 0 stale. ADDED all 3 (params + pluginNames decoded from the
+              real FCP templates Static.motr / 360° Divide.motr; +23 lines, original compact format
+              preserved) so coverage is now 24/24. Each is a documented CEILING with THIS-TICK
+              filter_verify evidence: PAENoise SIGABRTs (it's a GENERATOR — can't be hosted in the
+              factoryID=7 filter slot); 360° Reorient DOES apply (hvi 18.6, head_mean [140,91,60] —
+              NOT black-headless as an old note claimed) but psnr ~14.5 (TS sphere-rot vs FCP equirect
+              resampling/pole geometry); PAEBadTV applies (hvi 64.9) but psnr ~8.5 (Waviness/Static
+              per-frame-reseed dSFMT RNG phases non-reproducible). Also debunked the stale "harness
+              errored on all cases" note — filter_verify runs clean directly (brightness psnr 47); the
+              harness just DEVNULLs subprocess stderr. REMAINING to close T-M7: run the full 56-case
+              sweep (backgrounded; slow under load) + write the PASS/FAIL/CEILING scoreboard to
+              docs/FILTER_RE_PHASE2.md. Unblocks T-M1..M6. Gate: n/a (no engine code; JSON+doc only).
 - 2026-07-15b  CORRECTED THE WORKFLOW → minimizer-produces-repros / SUBAGENTS-fix-in-parallel /
               orchestrator-gate-verifies. Self-review: I had drifted back to fixing pinpointed bugs
               INLINE + SEQUENTIALLY (collapsing 3 roles into myself). Fixed the division of labor:

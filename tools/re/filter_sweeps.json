@@ -208,5 +208,28 @@
     "cases": [
       {"label": "Size100 Speed.5 Refr50 t0", "time": 0.0, "params": [{"name":"Size","id":1,"value":100},{"name":"Speed","id":2,"value":0.5},{"name":"Refraction","id":3,"value":50},{"name":"Repeat Edges","id":6,"value":1}]}
     ]
+  },
+  "noise": {
+    "uuid": "30911E49-2043-4EEC-88A8-2E4AAA835D59", "pluginName": "PAENoise", "ceiling": true, "min_psnr": 32,
+    "note": "CEILING (verified 2026-07-15): PAENoise is a GENERATOR, not a per-pixel filter — injecting it into the factoryID=7 scene-filter slot makes the headless probe abort with SIGABRT (the host has no input image to feed a generator there), so it is structurally UNVERIFIABLE via filter_probe/filter_verify. Separately its dSFMT field is per-frame reseeded by FCP's host with host-side table normalization not byte-reproducible from the binary, so even a hosted render would only match statistically. noise.ts reproduces the documented dSFMT+simplex field; the only users (Lights/Static, Lights/Light_Noise) are gate-scored via GUI GT. Kept so `filter_sweep.py noise` reports the SIGABRT rather than silently omitting the filter.",
+    "cases": [
+      {"label": "Random Seed 0 (generator — SIGABRT expected)", "time": 0.0, "params": [{"name":"Random Seed","id":1,"value":0}]}
+    ]
+  },
+  "reorient": {
+    "uuid": "E61FE95E-0108-47DA-8F29-3CB3C47428EF", "pluginName": "360° Reorient", "ceiling": true, "min_psnr": 32,
+    "note": "CEILING (verified 2026-07-15): the equirect reorient DOES apply headless at t=0 (Pan(Y)=0.5rad -> headless_vs_input MAD 18.6, head_mean [140,91,60]) — NOT black-headless as an earlier note assumed. TS (reorient360.ts, direct 3-D sphere rotation) vs FCP (equirect->sinusoidal->affine-rot->sinusoidal->equirect with pole guard + longitude wrap) diverge on RESAMPLING/POLE GEOMETRY: psnr ~14.5 for a pure Pan. Equivalent at sample points, different reprojection. The params[4]/[5] rotation encoding is unconfirmed and the 360 family's low GUI-GT scores are a transition-compositing (drop-zone/push) issue, not the filter. Params from 360° Divide.motr: Tilt(X) id=1, Pan(Y) id=2, Roll(Z) id=3 (radians angle sliders), Mix id=10001. Needs a GUI GT capture before changing the primitive.",
+    "cases": [
+      {"label": "Pan(Y) 0.5rad", "time": 0.0, "params": [{"name":"Pan (Y)","id":2,"value":0.5}]},
+      {"label": "Tilt(X) 0.5rad", "time": 0.0, "params": [{"name":"Tilt (X)","id":1,"value":0.5}]},
+      {"label": "Roll(Z) 0.5rad", "time": 0.0, "params": [{"name":"Roll (Z)","id":3,"value":0.5}]}
+    ]
+  },
+  "badtv": {
+    "uuid": "32AB5EE1-BACB-4B81-B44E-6D1E643C8D00", "pluginName": "PAEBadTV", "ceiling": true, "min_psnr": 32,
+    "note": "CEILING (verified 2026-07-15): PAEBadTV applies headless (Waviness=10/Static=4/Saturate=-25 -> headless_vs_input MAD 64.9) but psnr ~8.5 vs TS. Its DETERMINISTIC legs are matched+verified elsewhere (desaturate mix(luma,rgb,Sat/100+1) PSNR 34; scanline smoothstep bands PSNR 23; roll phase; host Mix). The Waviness + Static displacement/overlay legs draw from a PER-FRAME-RESEEDED dSFMT RNG (seed=2*frame+1) with host-side table normalization NOT byte-reproducible from the binary, so their phases diverge and a full-frame probe cannot converge. Its only user (Lights/Static) sets Mix=0 -> passthrough, so it is gate-neutral. Params from Static.motr: Waviness id=1, Roll id=2, Static id=3, Saturate id=5, Mix id=10001.",
+    "cases": [
+      {"label": "Waviness10 Static4 Sat-25 Mix1 (RNG legs -> non-convergent)", "time": 0.0, "params": [{"name":"Waviness","id":1,"value":10},{"name":"Static","id":3,"value":4},{"name":"Saturate","id":5,"value":-25},{"name":"Mix","id":10001,"value":1}]}
+    ]
   }
 }
