@@ -394,6 +394,113 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-15zz CONCENTRIC (12.62 dB, L1) ROOT-CAUSE fully diagnosed — 2-part bug, fix is scoped for a
+              focused next tick. VISUAL (GT vs engine f12): engine renders FLAT B, none of the
+              concentric rings. Traced the whole chain with committed diagnostics:
+              (1) The Shape rig widget (factory 23, `Shape id=100` menu Circles=0 / Rectangles=1) is
+                  on Circles(0), so the "Circles" group is active (vis=1, op=1) and "Rectangles" is
+                  correctly hidden (rig snapshot opacity 0). Engine gets this RIGHT.
+              (2) The "Circles" group holds 12 ring groups ("1st..6th left/right copy"), each a GROUP
+                  with an Image Mask → a Circle shape/clone of a distinct radius, and inside each:
+                  Clone A(10008) + Clone B(10006) stacked, both masked to that ring, B crossfading in.
+              (3) BUG-A (mask projection): the group-mask 3D-SWING GUARD (`maskSrcIsFlat`,
+                  index.ts) SKIPS the masks because each Circle carries a shared Rotation.Y (~140°,
+                  m[0]=-0.775/m[2]=0.632). Guard exists because resolveImageMaskAlpha rasterized the
+                  shape FLAT-affine (masks.ts:623 called rasterizeShape WITHOUT cameraZ) while the
+                  clone content is perspective-projected (projectQuad) — they disagreed. FIX (proven
+                  to render the OUTERMOST ring): pass rctx.cameraZ/cameraPosZ to that rasterizeShape
+                  call so the mask projects the SAME way as the content; then the guard can drop
+                  (mask+content share the group transform → they register). Mask+content verified to
+                  share worldTransform (both m[0]=0.631/m[2]=-0.775 on "6th left copy").
+              (4) BUG-B (draw order, NOT yet fixed): the 12 ring groups are listed 6th→1st
+                  (largest→smallest radius); the default group render is REVERSE-list, so the LARGEST
+                  disc draws LAST = on TOP and covers every inner ring → only the outermost survives.
+                  Concentric needs largest-first(bottom)→smallest-last(top). The existing flatStack
+                  centre-distance sort can't separate them (all centred), so it needs a radius/scale
+                  order for nested coplanar masked groups.
+              Because only BUG-A was applied, the full gate measured Concentric 12.62→11.67 (-0.95,
+              one big wrong ring worse than flat B), so BOTH changes were REVERTED — they must land
+              together. NEXT: re-apply BUG-A + add a radius-ordered draw order for nested-mask
+              coplanar ring groups, gate-verify BOTH, then commit. NOTE: baseline_engine.json is
+              STALE (predates the eed1f5d conform fix → gate shows ~40 false "improvements"); a clean
+              regen + `fct baseline engine` re-freeze is in progress to fix the gate reference.
+
+- 2026-07-15z2 🔬 CONCENTRIC flat-B ROOT CAUSE fully diagnosed (2-part fix scoped; partial fix
+              reverted — regressed −0.95 alone). Visual proof: engine renders FLAT B at f12 (9.23 dB
+              trough) while GT shows nested concentric A/B rings. Traced the whole scene graph:
+              (1) A rig "Shape" widget (Circles/Rectangles menu, value=0) correctly selects the
+              "Circles" layer (vis=1) and hides "Rectangles" (op=0) — engine gets this right.
+              (2) The 12 visible ring groups ("1st..6th left/right copy" under "Comp copy") each
+              carry a GROUP-level Image Mask → a Circle shape/clone of increasing radius, wrapping a
+              stacked A-clone + B-clone (crossfade). PART-A BUG: the group-mask 3D-SWING GUARD
+              (`maskSrcIsFlat`) SKIPS these masks because each Circle's worldTransform carries a real
+              ~140° Rotation.Y (m0=−0.775,m2=0.631) shared with its clones — so every clone blitted
+              full-frame ⇒ flat B. Root of THAT: resolveImageMaskAlpha rasterized the shape mask
+              FLAT-affine (masks.ts:623 called rasterizeShape WITHOUT cameraZ) while the clones are
+              perspective-projected (projectQuad) → mis-register → the guard was added to hide it.
+              FIX-A (verified: outermost ring now renders correctly): pass rctx.cameraZ/cameraPosZ to
+              that rasterizeShape call so the mask projects the SAME way as the content; then drop the
+              maskSrcIsFlat guard (a DESCENDANT shape source shares the parent transform, so it
+              registers whether flat or 3D). PART-B BUG (still open): with FIX-A only the OUTERMOST
+              ring shows — the ring groups are listed 6th→1st (largest→smallest radius) and the
+              default group render is REVERSE-list, so the LARGEST disc draws LAST = on top and
+              covers all inner rings. Concentric needs largest-first (bottom) → smallest-last (top),
+              i.e. FORWARD list order (or radius-sorted) for these coplanar nested-mask ring groups.
+              Because only PART-A landed, the full gate measured Concentric 12.62→11.67 (−0.95, one
+              big wrong ring worse than flat B), so BOTH changes were reverted — they must land
+              together. NEXT: re-apply FIX-A + add a radius-ordered draw path for nested-mask coplanar
+              ring groups, gate-verify BOTH. Also: baseline_engine.json is STALE (predates the
+              eed1f5d conform fix — the gate shows 40 false "improvements"); re-freezing now.
+
+- 2026-07-15zz  🔬 CONCENTRIC root cause FULLY diagnosed (2-part fix scoped; not yet landed). Concentric
+              renders flat B at mid-transition (f11-f16 ~9-10 dB, the 12.49 mean's trough) — visually
+              proven: GT shows nested concentric A/B rings, engine shows plain B. Traced the whole
+              scene graph: the visible content is the "Circles" group (Shape widget=0 selects Circles,
+              value=1 would select the correctly-hidden "Rectangles" group — engine's rig-snapshot
+              selection is CORRECT). Circles > "Comp copy" holds 12 ring groups ("6th..1st left/right
+              copy"), each a GROUP-level Image Mask (imageMaskSourceId → a Circle shape or a
+              Clone-of-Circle) clipping stacked A/B clones to a ring, A→B crossfading via the B-clone
+              Opacity. TWO bugs block it: (1) the group-mask 3D-SWING GUARD (maskSrcIsFlat) SKIPS the
+              masks because the Circle sources carry a real ~140° Rotation.Y — but the mask AND its
+              clones share the SAME worldTransform, so they WOULD align if projected the same way.
+              Root: resolveImageMaskAlpha's shape path (masks.ts:623) rasterizes the mask FLAT-affine
+              (no cameraZ) while the clones go through projectQuad (perspective) → mismatch. FIX A:
+              pass rctx.cameraZ/cameraPosZ to that rasterizeShape + drop the maskSrcIsFlat guard →
+              the OUTERMOST ring then renders (verified visually). (2) But inner rings stay hidden:
+              "Comp copy" children are listed 6th→1st (largest→smallest radius) and the compositor's
+              DEFAULT reverse-list order draws the LARGEST disc LAST (on top), covering all inner
+              rings. FIX B (not done): concentric masked-ring groups must draw largest-first
+              (bottom) → smallest-last (top), i.e. FORWARD list order (or sort by mask radius). With
+              only FIX A the partial (1-ring) render measured Concentric -0.95 vs baseline, so FIX A
+              was REVERTED pending FIX B — they must land together. NOTE: the gate showed 40 stale
+              "improvements" because baseline_engine.json predates the eed1f5d conform fix; a clean
+              regen + `fct baseline engine` re-freeze is running to make the gate accurate again.
+
+- 2026-07-15za CONCENTRIC ROOT-CAUSE fully diagnosed (2-part bug; partial fix reverted, gate-negative).
+              Visual (GT vs engine f12) showed the engine renders FLAT B — none of the concentric
+              ring clones appear. Traced it: the Shape rig widget = "Circles" (0), so the "Circles"
+              layer is the active one (vis=1; "Rectangles" correctly hidden op=0). Circles holds 12
+              ring groups ("1st..6th left/right copy") each with a GROUP-level Image Mask → a Circle
+              shape/clone of a distinct radius, stacking A-clone + B-clone masked to that ring.
+              BUG PART 1 (mask projection): the group-mask 3D-SWING GUARD (maskSrcIsFlat) SKIPS the
+              masks because each Circle carries a shared Rotation.Y (~140°, m[0]=0.63/m[2]=-0.78).
+              The guard exists because resolveImageMaskAlpha rasterized the shape FLAT-affine
+              (rasterizeShape at masks.ts:623 was called WITHOUT cameraZ) while the clone content is
+              perspective-projected (projectQuad) — the two disagreed. FIX (verified visually):
+              pass rctx.cameraZ/cameraPosZ to that rasterizeShape call so the mask projects the SAME
+              way as the content; then the guard can be removed (mask+content share the group
+              transform, so they register). This made the OUTERMOST ring render correctly.
+              BUG PART 2 (draw order, NOT yet fixed): the 12 ring groups are listed 6th→1st
+              (largest→smallest radius); the default group render is REVERSE-list, so the LARGEST
+              disc draws LAST = on top and covers all inner rings → only the outermost survives.
+              Concentric needs largest-first (bottom) → smallest-last (top). Because only part 1
+              landed, the full-gate measured Concentric 12.62→11.67 (-0.95, one big wrong ring worse
+              than flat B) so BOTH changes were REVERTED — they must land together. NEXT: re-apply
+              part 1 + add a radius-ordered (mask-source scale/bbox) draw order for nested-mask
+              coplanar ring groups, gate-verify BOTH, then commit. Also: baseline_engine.json is
+              STALE (predates the eed1f5d conform fix → gate shows 40 false "improvements"); a clean
+              regen + `fct baseline engine` re-freeze is running to fix the gate reference.
+
 - 2026-07-15z  🔬 crop.* DEAD-END on drop-zone + ROOT CAUSE found (Rule 8). Tried a crop.left cap
               (Crop id=216, decoded from Flip.motr:441 — id 216 not 500, Left/Right/Top/Bottom id
               1/2/3/4, source px). Headless IGNORED it (hvi 0.9) while TS DID crop → false FAIL.
