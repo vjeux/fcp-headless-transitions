@@ -337,10 +337,29 @@ T-K1  TODO    Replicator framing family — Combo_Spin/Multi        Combo_Spin (
                spin-combo + multi variants. Decode the replicator cell layout + per-cell spin/scale    that mis-frame/mis-spin the grid.
                schedule + the framing camera. COORDINATE with T-H2 (shared framing code) — rebase on    Coordinate w/ T-H2 framing fix.
                its result if it lands first. Generic across the replicator family; gate 0 regressions.]
-T-K2  TODO    Slide_In reveal/slide timing                        Stylized__Slide_In (10.25).
-              [Census-decode: Slide_In is a Stylized kinetic slide. Score --frames to find the worst   A kinetic slide-in that mis-times
-               band; decode the slide/reveal schedule vs GT (likely a drop-zone slide offset or a       the slide or reveal vs GT.
-               kinetic-panel/local-time re-anchor like the S7 panel-retime win). Gate 0 regressions.]
+T-K2  BLOCKED Slide_In = THREE stacked missing subsystems (not a timing tweak)  Stylized__Slide_In (10.25).
+              [DECODED 2026-07-15 (M-SLIDEIN agent; full findings docs/notes/salvage/                  NOT a reveal-timing tweak: it is
+               slide-in-three-missing-subsystems.md). The 8.55 dB min-repro is NOT a slide-offset       3 stacked missing pieces —
+               re-anchor — it is 3 coupled gaps: (1) LINEAR GRADIENT GENERATOR not rendered
+               (scenenode factoryID=8 pluginName="Gradient" UUID 40091D89; determineImageSource only
+               handles "Gaussian Gradient" -> returns undefined -> renders BLACK). Gotcha: gradient
+               stop colors are <curve default=1 value=...> so read p.curve.value FIRST. Decoded stops
+               teal(72,141,144)->lightblue(223,241,242). renderLinearGradient (HgcGradientLinear
+               verbatim) renders correctly BUT alone WASHES the full frame (7.73<8.55) — needs the
+               mask. (2) ROUNDED-RECT <mask> factoryID=13 not lifted: detectMask keys off name/
+               ancestor names not tagName; adding tagName==='mask' is TOO BROAD (flips 8 gate slugs
+               Center/Center_Reveal/Glide/Heart/Light_Sweep/Lower/3D_Rectangle — the FCT_LIFT_ALL_MASKS
+               -1dB scar). Must scope the lift NARROWLY to generator/image leaves carrying a Motion
+               Path. (3) MOTION PATH behavior factoryID=24 not implemented: a SHAPE-PATH FOLLOWER
+               (Position id206 closed-diamond path + id200 arc-length 0->4080, Attach To Shape=1,
+               retime 1->31), NOT a linear Start->End tween. FCP truth: top band y[0..250], right-
+               pinned, rigid leftward slide (left edge 806->0 over f0-6 ~-134px/fr) then stops on the
+               retimed playhead; B revealed ~f13. Naive linear motion-path REGRESSED (8.55->7.05).
+               BUILD ARC (multi-tick, gate-verify EACH step): (a) land renderLinearGradient as safe
+               net-new infra (but it can't ship for Slide_In until the mask clips it); (b) implement
+               Motion Path shape-following (id206 path + id200 arc-length, retime-aware); (c) lift+clip
+               the <mask> scoped ONLY to generator/image leaves with a Motion-Path behavior. NO push
+               until the FULL gate is 0-regressions. Baseline preserved; worktree reverted clean.]
 T-K3  TODO    Loop/Heart arc-ornament reveal gate                 Stylized__Loop (12.92), Heart (13.49).
               [DECODED (docs/notes/STYLIZED_LOOP_HEART_REVEAL_RE.md): the B-reveal is a media Image-    B-reveal is a shape.png Image-Mask
                Mask (shape.png teardrop/loop) whose growth GATES when photo B appears; a gradient       whose write-on gates B; engine
