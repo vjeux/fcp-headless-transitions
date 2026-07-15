@@ -56,5 +56,17 @@
       "f0 near-A renders FLAT SEPIA (solid color, no photo detail) \u2014 the near-A key frames staticCamPos XY (2051,-2390) at nearDist but the A tile there shows one flat color; needs investigation (is the standalone Transition A tile rendering its photo, or a placeholder, under the framed camera?).",
       "NEXT: (1) try framing ONLY the Pin-1 3x3 grid (main wall) \u2014 exclude the scattered 2000-6000 replicators from the wall centroid + use Pin-1 extent for farDist; (2) debug f0 flat-sepia (A-tile content under framed cam)."
     ]
+  },
+  "build_attempt_2026_07_15_3key_v2": {
+    "date": "2026-07-15 (session 2)",
+    "result": "Reconstructed the 3-key camera path + wrap-cancel; iterated to 9.94-9.98 (best), still < frozen baseline 10.24. NOT shipped (net-negative + best result needs a fitted far-distance constant = fit-scaffolding).",
+    "confirmed_wins": [
+      "NEAR-A key now works: f0 = 18.20 dB (was ~8, flat-sepia). Fix: near-A eye = staticCamPos.xy at (contentPlaneZ + nearDist), look straight down at the A tile plane (NOT the static camera's own Z=23 which is a rig depth, far too close).",
+      "NEAR-B key works: f23/f21 settle on photo B (~10.3 dB, was black).",
+      "all-instance wall centroid (1016,1903) beats Pin-1-only origin centroid (9.57 vs 9.07) \u2014 the scattered 2000-6000 replicators ARE part of the visible wall."
+    ],
+    "far_distance_finding": "CRITICAL: the proxy-eye far distance (~5109) is TOO FAR \u2014 the mid-wall reveal zooms out so much that only 3-4 of ~13 live tiles fall in the framed view (41-66% of the frame is BLACK) while GT shows ~9-12 tiles filling the frame. Sweeping a far-distance multiplier FCT_FARK: 1.5->9.50, 1.0->9.57, 0.6->9.71, 0.4->9.84, 0.3->9.94, 0.25->9.98 (peak), 0.20->9.97, 0.15->9.93. So the true far distance is ~0.25x the proxy-eye depth (~1280, barely dollying out). The proxy-framePose-eye model for farDist is WRONG; the real far pose frames the compact visible wall tightly, not the proxy's far Z. But even the tuned peak (9.98) is < 10.24, and 0.25 is a fitted constant (fit-scaffolding, banned).",
+    "remaining_gap": "Even at the optimal zoom the mid-wall has fewer tiles than GT (~4 vs ~9-12) because the live instances at t=mid are spread over \u00b15000 while GT's visible wall is a compact cluster. The far distance must be DERIVED from the actual visible-tile bbox extent (frame the live-instance cluster tightly), not a constant and not the proxy depth. NEXT: compute the bbox of currently-LIVE (op>0) replicator instances per frame and set farDist = fit-that-bbox-to-frame; that removes the fitted constant AND matches GT's tile density.",
+    "reverted": "per Rule 2d (net-negative) + no-fit-scaffolding (the 0.25 peak is a fitted constant). WIP not committed to engine; full spec here + docs/notes/wip/README.md."
   }
 }
