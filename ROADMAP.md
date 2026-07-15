@@ -1469,6 +1469,19 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               pose half; the reveal-timing half remains). tsc clean, no-hardcode green, baseline re-frozen.
 - 2026-07-15b  CORRECTED THE WORKFLOW → minimizer-produces-repros / SUBAGENTS-fix-in-parallel /
               orchestrator-gate-verifies. Self-review: I had drifted back to fixing pinpointed bugs
+- 2026-07-15g  T-M2 (Levels) — full-param-space PROBED + divergence documented (Phase-2 verification
+              coverage; no engine change). The 65-slug gate only exercises Levels' Gamma (Histogram>RGB>
+              Gamma id=5, all PASS). Probed the UNEXERCISED input black/white points via real headless
+              FCP (filter_probe, Histogram>RGB>{Black In id=1, White In id=3}): FCP accepts them but the
+              current single-stage TS affine DIVERGES — Black In=0.3 ~12dB (TS crushes shadows harder:
+              FCP in[191,136,82]->[169,99,39] vs TS [163,85,7]), White In=0.7 ~34dB (FCP pushes G/B to
+              255 harder than TS). Neither sRGB- nor linear-space single-stage affine reproduces both,
+              consistent with FCP's internal TWO-STAGE HgcLevels. CEILING/GAP: GUI-GT gate UNAFFECTED
+              (no built-in authors these points); a faithful two-stage rewrite is deferred (needs the
+              stage-1<->stage-2 split + space decoded; Levels is used by 27+ transitions = gate-load-
+              bearing). Added 'black in 0.3'/'white in 0.7' GAP cases to filter_sweeps.json + measured
+              finding in levels.ts RE comment. Param-id map: Black In=1, White In=3, Gamma=5 (verified);
+              Black/White Out=2/4 (convention). Comment/tooling only, tsc clean, behavior-neutral.
 - 2026-07-15f  T-N3 (Switch, worst-band slug 11.96) DECODED + minimizer repro committed (no engine
               change — durable diagnosis, not a fix). Ran fct minimize -> 27->4 node repro, worst frame
               f04 at engine-vs-FCP-headless 9.00 dB (a REAL engine divergence). GUI-GT pixel evidence:

@@ -1,235 +1,1706 @@
 {
   "glow": {
-    "uuid": "73F69C87-7226-4F7A-81F2-F5E378501423", "pluginName": "PAEGlow", "min_psnr": 32,
+    "uuid": "73F69C87-7226-4F7A-81F2-F5E378501423",
+    "pluginName": "PAEGlow",
+    "min_psnr": 32,
     "note": "FULLY DECODED + MATCHED 2026-07-12. MASK (from -[PAEGlow canThrowRenderOutput] @0xceb54): HgcGlow alpha is a SOFT linear ramp a=clamp((luma709-Threshold)/Softness + 0.5, 0, 1), luma = colorMatrixFromDesiredRGBToYCbCr Y-row (Rec.709), bias in hg_Params[0].w = -(Threshold-0.5*Softness)/Softness, luma scale = 1/Softness (FLT_MAX if Softness==0 => hard step); rgb premultiplied by a. COMBINE (HgcGlowCombineFx, verbatim): glowA=clamp(glow.a*gain,0,1) with gain=Opacity(hg_Params[0].x); glowRGB=max(min(glow.rgb*gain, ceiling),0), ceiling = 1.0 or FLT_MAX per the 'allow>1' bool (both cap at 255 in 8-bit); out.rgb=(1-glowA)*orig+glowRGB. glow.ts reads Softness (id4, default 0.2) and applies the exact mask+combine (replaced the old hard-cutoff + screen/additive approximation). Verified vs headless: radius30/thr0.5/soft0.5 17.96->41.66, radius60/thr0.3 15.96->36.92. GUI-GT gate GREEN (Lights__Bloom, the only PAEGlow user, unchanged).",
     "cases": [
-      {"label": "radius30 thr0.5 op1", "params": [{"name":"Radius","id":1,"value":30},{"name":"Opacity","id":2,"value":1.0},{"name":"Threshold","id":3,"value":0.5},{"name":"Softness","id":4,"value":0.5}]},
-      {"label": "radius60 thr0.3", "params": [{"name":"Radius","id":1,"value":60},{"name":"Opacity","id":2,"value":1.0},{"name":"Threshold","id":3,"value":0.3},{"name":"Softness","id":4,"value":0.5}]}
+      {
+        "label": "radius30 thr0.5 op1",
+        "params": [
+          {
+            "name": "Radius",
+            "id": 1,
+            "value": 30
+          },
+          {
+            "name": "Opacity",
+            "id": 2,
+            "value": 1.0
+          },
+          {
+            "name": "Threshold",
+            "id": 3,
+            "value": 0.5
+          },
+          {
+            "name": "Softness",
+            "id": 4,
+            "value": 0.5
+          }
+        ]
+      },
+      {
+        "label": "radius60 thr0.3",
+        "params": [
+          {
+            "name": "Radius",
+            "id": 1,
+            "value": 60
+          },
+          {
+            "name": "Opacity",
+            "id": 2,
+            "value": 1.0
+          },
+          {
+            "name": "Threshold",
+            "id": 3,
+            "value": 0.3
+          },
+          {
+            "name": "Softness",
+            "id": 4,
+            "value": 0.5
+          }
+        ]
+      }
     ]
   },
   "bloom": {
-    "uuid": "5599C557-CDC0-4112-B2C4-355E9A1A902E", "pluginName": "PAEBloom", "ceiling": true, "min_psnr": 24,
+    "uuid": "5599C557-CDC0-4112-B2C4-355E9A1A902E",
+    "pluginName": "PAEBloom",
+    "ceiling": true,
+    "min_psnr": 24,
     "note": "CEILING: HgcBloomThreshold is an affine scale+bias knockout using MAX-channel luma; the Brightness param (>1) feeds the SAME >1 gain that hits the documented working-space brighten curve (see FILTER_RE_PHASE2 consolidated finding). Both Bloom users ramp Threshold 100->3 and stay gate-green; the isolated sweep with Brightness=2 exposes the shared brighten-curve gap.",
     "cases": [
-      {"label": "amt50 bright2 thr30 [gap]", "gap": true, "params": [{"name":"Amount","id":1,"value":50},{"name":"Brightness","id":2,"value":2.0},{"name":"Threshold","id":3,"value":30}]},
-      {"label": "amt80 bright1.5 thr10 [gap]", "gap": true, "params": [{"name":"Amount","id":1,"value":80},{"name":"Brightness","id":2,"value":1.5},{"name":"Threshold","id":3,"value":10}]}
+      {
+        "label": "amt50 bright2 thr30 [gap]",
+        "gap": true,
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 50
+          },
+          {
+            "name": "Brightness",
+            "id": 2,
+            "value": 2.0
+          },
+          {
+            "name": "Threshold",
+            "id": 3,
+            "value": 30
+          }
+        ]
+      },
+      {
+        "label": "amt80 bright1.5 thr10 [gap]",
+        "gap": true,
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 80
+          },
+          {
+            "name": "Brightness",
+            "id": 2,
+            "value": 1.5
+          },
+          {
+            "name": "Threshold",
+            "id": 3,
+            "value": 10
+          }
+        ]
+      }
     ]
   },
   "levels": {
-    "uuid": "2B221FA1-08A2-416E-998C-D7559E5509B5", "pluginName": "PAELevels", "min_psnr": 30,
-    "note": "Gamma nested Histogram(1)>RGB(2)>Gamma(5). GUI-GT-verified the net map is pow(x, 1/gamma). Gamma=1 identity.",
+    "uuid": "2B221FA1-08A2-416E-998C-D7559E5509B5",
+    "pluginName": "PAELevels",
+    "min_psnr": 30,
+    "note": "Gamma nested Histogram(1)>RGB(2)>Gamma(5). GUI-GT-verified the net map is pow(x, 1/gamma). Gamma=1 identity. | 2026-07-15: Black In(id=1)/White In(id=3) are ACCEPTED by FCP under Histogram>RGB but the TS single-stage affine remap DIVERGES from FCP (blackIn=0.3 ~12dB: TS crushes shadows harder \u2014 FCP in[191,136,82]->[169,99,39] vs TS [163,85,7]; whiteIn=0.7 ~34dB: FCP pushes G/B to 255 harder than TS). Neither sRGB nor linear-space single-stage affine matches; consistent with FCP's internal TWO-STAGE HgcLevels (see levels.ts slot map). CEILING/GAP: built-ins only author Gamma so the GUI-GT gate is unaffected; full black/white-point param-space match is a deferred decode. Black Out=id2, White Out=id4 by convention (unverified).",
     "cases": [
-      {"label": "gamma 1 (identity)", "identity": true, "params": [{"name":"Histogram","id":1,"children":[{"name":"RGB","id":2,"children":[{"name":"Gamma","id":5,"value":1.0}]}]}]},
-      {"label": "gamma 1.73", "params": [{"name":"Histogram","id":1,"children":[{"name":"RGB","id":2,"children":[{"name":"Gamma","id":5,"value":1.7264}]}]}]},
-      {"label": "gamma 0.5", "params": [{"name":"Histogram","id":1,"children":[{"name":"RGB","id":2,"children":[{"name":"Gamma","id":5,"value":0.5}]}]}]}
+      {
+        "label": "gamma 1 (identity)",
+        "identity": true,
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "label": "gamma 1.73",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.7264
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "label": "gamma 0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "label": "black in 0.3 (GAP: shadow remap diverges ~12dB)",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.3
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "label": "white in 0.7 (GAP: highlight remap diverges ~34dB)",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.7
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
     ]
   },
   "colorize": {
-    "uuid": "D995BBCF-F766-4950-89D5-7A4828CD9B6F", "pluginName": "PAEColorize", "min_psnr": 26,
+    "uuid": "D995BBCF-F766-4950-89D5-7A4828CD9B6F",
+    "pluginName": "PAEColorize",
+    "min_psnr": 26,
     "note": "DECODED 2026-07-12. HgcColorize: luma=dot(rgb sRGB codes, hg_Params[4]=Rec.709 Y-row of colorMatrixFromDesiredRGBToYCbCr); r2=mix(black,white,luma); out=mix(orig,r2, Intensity*Mix). WORKING-SPACE nuance: FCP sRGB->linear DECODES the Remap Black/White endpoints before the lerp (FCP renders in kCGColorSpaceLinearSRGB) and emits the result to the linear framebuffer as-is; the ISOLATED gradient transfer is out=255*(s2l(black)+luma*(s2l(white)-s2l(black))) which matches headless to sepia mad 3.88. BUT shipping the endpoint-linearisation PER-FILTER regressed the GUI-GT gate on the stacked Colorize transitions (Curtains -0.42, Stylized__Slide -0.76, Up-Over -0.52) because FCP keeps the whole chain in linear + encodes once at readback. Per ROADMAP rule 1 (GUI GT = one truth) the shipped colorizeRemapFilter keeps RAW sRGB endpoints; the isolated [gap] at Intensity=1 (sepia ~22 dB) is the per-filter-vs-linear-chain limit, shared with Brightness>1. Intensity=0 exact identity.",
     "cases": [
-      {"label": "sepia int1 [gap]", "gap": true, "params": [{"name":"Remap Black To","id":1,"children":[{"name":"Red","id":1,"value":0.1},{"name":"Green","id":2,"value":0.05},{"name":"Blue","id":3,"value":0.0}]},{"name":"Remap White To","id":2,"children":[{"name":"Red","id":1,"value":1.0},{"name":"Green","id":2,"value":0.9},{"name":"Blue","id":3,"value":0.6}]},{"name":"Intensity","id":3,"value":1.0}]},
-      {"label": "sepia int0.5", "params": [{"name":"Remap Black To","id":1,"children":[{"name":"Red","id":1,"value":0.1},{"name":"Green","id":2,"value":0.05},{"name":"Blue","id":3,"value":0.0}]},{"name":"Remap White To","id":2,"children":[{"name":"Red","id":1,"value":1.0},{"name":"Green","id":2,"value":0.9},{"name":"Blue","id":3,"value":0.6}]},{"name":"Intensity","id":3,"value":0.5}]},
-      {"label": "intensity 0 (identity)", "identity": true, "params": [{"name":"Remap Black To","id":1,"children":[{"name":"Red","id":1,"value":0.1},{"name":"Green","id":2,"value":0.05},{"name":"Blue","id":3,"value":0.0}]},{"name":"Remap White To","id":2,"children":[{"name":"Red","id":1,"value":1.0},{"name":"Green","id":2,"value":0.9},{"name":"Blue","id":3,"value":0.6}]},{"name":"Intensity","id":3,"value":0.0}]}
+      {
+        "label": "sepia int1 [gap]",
+        "gap": true,
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.05
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.9
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.6
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          }
+        ]
+      },
+      {
+        "label": "sepia int0.5",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.05
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.9
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.6
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 0.5
+          }
+        ]
+      },
+      {
+        "label": "intensity 0 (identity)",
+        "identity": true,
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.05
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.9
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.6
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 0.0
+          }
+        ]
+      }
     ]
   },
   "fill": {
-    "uuid": "47D6B897-5749-4A6A-B93B-00FABCF72B25", "pluginName": "Fill", "min_psnr": 40,
+    "uuid": "47D6B897-5749-4A6A-B93B-00FABCF72B25",
+    "pluginName": "Fill",
+    "min_psnr": 40,
     "note": "Fill With(id1) 0=Color; Color(id2 nested RGB); Mix(10001) lerps input->fill. Verified prior: Mix=1 psnr 55, Mix=0.5 psnr 45.",
     "cases": [
-      {"label": "red Mix1", "params": [{"name":"Fill With","id":1,"value":0},{"name":"Color","id":2,"children":[{"name":"Red","id":1,"value":1.0},{"name":"Green","id":2,"value":0.0},{"name":"Blue","id":3,"value":0.0}]},{"name":"Mix","id":10001,"value":1.0}]},
-      {"label": "blue Mix0.5", "params": [{"name":"Fill With","id":1,"value":0},{"name":"Color","id":2,"children":[{"name":"Red","id":1,"value":0.0},{"name":"Green","id":2,"value":0.0},{"name":"Blue","id":3,"value":1.0}]},{"name":"Mix","id":10001,"value":0.5}]}
+      {
+        "label": "red Mix1",
+        "params": [
+          {
+            "name": "Fill With",
+            "id": 1,
+            "value": 0
+          },
+          {
+            "name": "Color",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      {
+        "label": "blue Mix0.5",
+        "params": [
+          {
+            "name": "Fill With",
+            "id": 1,
+            "value": 0
+          },
+          {
+            "name": "Color",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1.0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 0.5
+          }
+        ]
+      }
     ]
   },
   "hsv": {
-    "uuid": "D23AF030-B0BF-44DF-B622-7C9EA0DF5744", "pluginName": "PAEHSVAdjust", "min_psnr": 30,
-    "note": "NEUTRALS (verified vs headless): Hue=0, Saturation=0 (0-centered, -1=grayscale), Value=1 (multiplier, applied squared). Identity=(0,0,1). Saturation/Value/grayscale MATCH (39-48 dB). HUE param DECODED 2026-07-12 (-[PAEHSVAdjust canThrowRenderOutput] @0x372f4-0x37350): it is in DEGREES, not turns — FCP wraps to [0,360] then sets hg_Params[0].x=Hue/360+1.0 (the +1 is a no-op inside the shader frac). Fixed hue-saturation.ts to convert deg->turns (was treating the param as turns, 360x off); the 0.25deg sweep case improved 14.97->29.01 dB. FULL hue-rotation remains a [gap] and is NOT probe-verifiable: at Hue=90/180 the headless probe returns the INPUT unchanged (hvi~1.1, IDENTITY guard fires) — the injected filter does not engage FCP\u2019s hue path there (likely the versionAtCreation/dynamicRangeType w25 branch selects the HGColorMatrix sincos path which our factoryID-7 skeleton doesn\u2019t trigger). All 4 shipping HSV users set Hue=0 so hue is gate-neutral regardless. The 29 dB residual on the tiny 0.25deg rotation is the linear-space hexagon reconstruction, shared with the color-pipeline working-space finding.",
+    "uuid": "D23AF030-B0BF-44DF-B622-7C9EA0DF5744",
+    "pluginName": "PAEHSVAdjust",
+    "min_psnr": 30,
+    "note": "NEUTRALS (verified vs headless): Hue=0, Saturation=0 (0-centered, -1=grayscale), Value=1 (multiplier, applied squared). Identity=(0,0,1). Saturation/Value/grayscale MATCH (39-48 dB). HUE param DECODED 2026-07-12 (-[PAEHSVAdjust canThrowRenderOutput] @0x372f4-0x37350): it is in DEGREES, not turns \u2014 FCP wraps to [0,360] then sets hg_Params[0].x=Hue/360+1.0 (the +1 is a no-op inside the shader frac). Fixed hue-saturation.ts to convert deg->turns (was treating the param as turns, 360x off); the 0.25deg sweep case improved 14.97->29.01 dB. FULL hue-rotation remains a [gap] and is NOT probe-verifiable: at Hue=90/180 the headless probe returns the INPUT unchanged (hvi~1.1, IDENTITY guard fires) \u2014 the injected filter does not engage FCP\u2019s hue path there (likely the versionAtCreation/dynamicRangeType w25 branch selects the HGColorMatrix sincos path which our factoryID-7 skeleton doesn\u2019t trigger). All 4 shipping HSV users set Hue=0 so hue is gate-neutral regardless. The 29 dB residual on the tiny 0.25deg rotation is the linear-space hexagon reconstruction, shared with the color-pipeline working-space finding.",
     "cases": [
-      {"label": "identity (0,0,1)", "identity": true, "params": [{"name":"Hue","id":1,"value":0},{"name":"Saturation","id":2,"value":0},{"name":"Value","id":3,"value":1}]},
-      {"label": "desaturate -0.5", "params": [{"name":"Hue","id":1,"value":0},{"name":"Saturation","id":2,"value":-0.5},{"name":"Value","id":3,"value":1}]},
-      {"label": "grayscale -1", "params": [{"name":"Hue","id":1,"value":0},{"name":"Saturation","id":2,"value":-1},{"name":"Value","id":3,"value":1}]},
-      {"label": "value 0.5", "params": [{"name":"Hue","id":1,"value":0},{"name":"Saturation","id":2,"value":0},{"name":"Value","id":3,"value":0.5}]},
-      {"label": "hue 0.25deg [gap]", "gap": true, "params": [{"name":"Hue","id":1,"value":0.25},{"name":"Saturation","id":2,"value":0},{"name":"Value","id":3,"value":1}]}
+      {
+        "label": "identity (0,0,1)",
+        "identity": true,
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": 0
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 1
+          }
+        ]
+      },
+      {
+        "label": "desaturate -0.5",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.5
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 1
+          }
+        ]
+      },
+      {
+        "label": "grayscale -1",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -1
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 1
+          }
+        ]
+      },
+      {
+        "label": "value 0.5",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": 0
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.5
+          }
+        ]
+      },
+      {
+        "label": "hue 0.25deg [gap]",
+        "gap": true,
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.25
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": 0
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 1
+          }
+        ]
+      }
     ]
   },
   "tint": {
-    "uuid": "717D6E01-83F4-4A4B-AF92-42AABA4B176C", "pluginName": "TintFx", "ceiling": true, "min_psnr": 24,
-    "note": "CEILING [P2-TINT1], further characterised (2026-07-12). The shipping filter is TintFx (UUID 717D6E01), an FxPlug wrapped by a Motion .moef template. Its params are NESTED: Color(id1){Red 1, Green 2, Blue 3, Color Space id11=3}, Intensity(id2), Mix(10001) — the TS registry read FLAT top-level Red/Green/Blue which DO NOT EXIST, so every user silently fell back to WHITE (1,1,1). NEW: with the correct NESTED Color params + Color Space=3, TintFx IS probe-drivable (green tint mad 52 vs input, no identity) — a faithful isolated reference now exists (unlike Bevel/Luma-angle). MEASURED the transfer via a red-tint ramp probe: the tint channel is a steep near-linear ramp saturating at luma~0.26 (slope ~3.85); the non-tint channel stays 0 until luma~0.28 then rises ~(2*luma-1) — a two-leg overlay/hard-light shape that does NOT fit standard overlay/hardlight/screen in sRGB OR linear (Color Space=3 applies an un-pinned transfer; the linear-overlay model matches the highlight leg 0.9->200 but misses the shadow leg 0.1: 39 vs 97). ATTEMPTED the nested-color fix ALONE (keeping the simple lum*color transfer): it REGRESSES the GUI-GT gate (Objects__Leaves -1.23, Glide -0.47; Diagonal/Wipes +0.61; net -0.48, gate FAIL) because reading the true dark-green tint with the wrong transfer darkens Leaves. So the nested-color read + the exact transfer must ship TOGETHER; either alone regresses. Per decode-dont-fit we do NOT ship the non-convergent transfer — reverted to keep the gate green. Remaining: decode the Color Space=3 leg (the exact FxPlug .moef transfer). Working color space = linear sRGB (shared with the color-pipeline family). REFINED: Tint.moef wraps PAETint (HgcTint hard-light shader, inner UUID 41122549) — there is NO Color Space transfer inside; the inner filter is just Color{RGB}+Intensity+Mix. Verified the decoded HgcTint two-leg against the ramp probe: the NON-TINT (highlight) leg matches EXACTLY (luma 0.7->0.40 model vs 0.443 meas, 0.9->0.80 vs 0.792), but the TINT (shadow) leg is a CONSTANT ~1.92x the textbook 2*luma*tint (0.05->0.184 vs 0.10, 0.20->0.769 vs 0.40) — a clean 2x-ish scale that points to a Rig/Widget indirection on Intensity in the .moef graph (Intensity id2 is rig-linked, not the raw 1.0) or a stacked tint. Decoding that Rig behavior is the remaining work; the shadow-leg scale is NOT a free curve-fit so we do not ship it. Non-tint leg + hard-light SHAPE are confirmed correct.",
+    "uuid": "717D6E01-83F4-4A4B-AF92-42AABA4B176C",
+    "pluginName": "TintFx",
+    "ceiling": true,
+    "min_psnr": 24,
+    "note": "CEILING [P2-TINT1], further characterised (2026-07-12). The shipping filter is TintFx (UUID 717D6E01), an FxPlug wrapped by a Motion .moef template. Its params are NESTED: Color(id1){Red 1, Green 2, Blue 3, Color Space id11=3}, Intensity(id2), Mix(10001) \u2014 the TS registry read FLAT top-level Red/Green/Blue which DO NOT EXIST, so every user silently fell back to WHITE (1,1,1). NEW: with the correct NESTED Color params + Color Space=3, TintFx IS probe-drivable (green tint mad 52 vs input, no identity) \u2014 a faithful isolated reference now exists (unlike Bevel/Luma-angle). MEASURED the transfer via a red-tint ramp probe: the tint channel is a steep near-linear ramp saturating at luma~0.26 (slope ~3.85); the non-tint channel stays 0 until luma~0.28 then rises ~(2*luma-1) \u2014 a two-leg overlay/hard-light shape that does NOT fit standard overlay/hardlight/screen in sRGB OR linear (Color Space=3 applies an un-pinned transfer; the linear-overlay model matches the highlight leg 0.9->200 but misses the shadow leg 0.1: 39 vs 97). ATTEMPTED the nested-color fix ALONE (keeping the simple lum*color transfer): it REGRESSES the GUI-GT gate (Objects__Leaves -1.23, Glide -0.47; Diagonal/Wipes +0.61; net -0.48, gate FAIL) because reading the true dark-green tint with the wrong transfer darkens Leaves. So the nested-color read + the exact transfer must ship TOGETHER; either alone regresses. Per decode-dont-fit we do NOT ship the non-convergent transfer \u2014 reverted to keep the gate green. Remaining: decode the Color Space=3 leg (the exact FxPlug .moef transfer). Working color space = linear sRGB (shared with the color-pipeline family). REFINED: Tint.moef wraps PAETint (HgcTint hard-light shader, inner UUID 41122549) \u2014 there is NO Color Space transfer inside; the inner filter is just Color{RGB}+Intensity+Mix. Verified the decoded HgcTint two-leg against the ramp probe: the NON-TINT (highlight) leg matches EXACTLY (luma 0.7->0.40 model vs 0.443 meas, 0.9->0.80 vs 0.792), but the TINT (shadow) leg is a CONSTANT ~1.92x the textbook 2*luma*tint (0.05->0.184 vs 0.10, 0.20->0.769 vs 0.40) \u2014 a clean 2x-ish scale that points to a Rig/Widget indirection on Intensity in the .moef graph (Intensity id2 is rig-linked, not the raw 1.0) or a stacked tint. Decoding that Rig behavior is the remaining work; the shadow-leg scale is NOT a free curve-fit so we do not ship it. Non-tint leg + hard-light SHAPE are confirmed correct.",
     "cases": [
-      {"label": "red tint int1 CS3 [ceiling]", "gap": true, "params": [{"name":"Color","id":1,"children":[{"name":"Red","id":1,"value":1.0},{"name":"Green","id":2,"value":0.0},{"name":"Blue","id":3,"value":0.0},{"name":"Color Space","id":11,"value":3}]},{"name":"Intensity","id":2,"value":1.0},{"name":"Mix","id":10001,"value":1}]},
-      {"label": "sepia int0.5 CS3 [ceiling]", "gap": true, "params": [{"name":"Color","id":1,"children":[{"name":"Red","id":1,"value":0.9},{"name":"Green","id":2,"value":0.7},{"name":"Blue","id":3,"value":0.4},{"name":"Color Space","id":11,"value":3}]},{"name":"Intensity","id":2,"value":0.5},{"name":"Mix","id":10001,"value":1}]}
+      {
+        "label": "red tint int1 CS3 [ceiling]",
+        "gap": true,
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              },
+              {
+                "name": "Color Space",
+                "id": 11,
+                "value": 3
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      {
+        "label": "sepia int0.5 CS3 [ceiling]",
+        "gap": true,
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.9
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.7
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.4
+              },
+              {
+                "name": "Color Space",
+                "id": 11,
+                "value": 3
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 0.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      }
     ]
   },
   "bevel": {
-    "uuid": "9C655247-E514-458B-83BA-B3F63EFFD241", "pluginName": "Bevel", "ceiling": true, "min_psnr": 20,
-    "note": "PARTIAL MATCH 2026-07-12. PAEBevel is an OFFSET-ACCUMULATION bevel (bevelHe @0x94fec + HgcBevel): it re-draws the layer as 4 directionally-offset light-tinted copies, offset radius = BevelWidth*0.28125*maxDim (band_px; DECODED+HEADLESS-VERIFIED EXACTLY: 0.05->27, 0.1->54, 0.2->108 px @1920). theta=angle*0.5, four |cos(theta+k)| lobes k in {0,-45,-90,+45}. RGB is lit in a flat-tinted band inward from each alpha boundary (FCP treats the FRAME BORDER as a boundary — a full-opaque layer still bevels its frame). ROOT CAUSE of the old 1-px no-op: TS read the NORMALIZED Bevel Width (~0.05) as a raw pixel step (Math.round=0->1px); rewrote bevelFilter to the decoded band-width law + 4-lobe lighting + OOB-as-transparent boundary (TS band now matches headless: 104 vs 105 px @w0.2). CEILING on the isolated PSNR (14-19 dB): the Light Angle param is NOT probe-drivable (like the Luma Keyer key blob / HSV hue / Tint) — injecting a flat Light Angle leaves headless IDENTICAL across 0/45/90/135, so the ANGLE-DEPENDENT lobe rotation + the exact HgcBevel mix(dest,color,vtxAlpha) composite cannot be verified against headless; only the band GEOMETRY (verified exact) and the default top-lit result are observable. Only user Stylized__Panels_Across is gate-neutral (10.36->10.33). Band-width geometry is the headless-verified deliverable; angle lighting is decode-faithful but unverifiable.",
+    "uuid": "9C655247-E514-458B-83BA-B3F63EFFD241",
+    "pluginName": "Bevel",
+    "ceiling": true,
+    "min_psnr": 24,
+    "note": "PARTIAL 2026-07-12: the BAND-WIDTH LAW is DECODED + headless-verified EXACTLY; the ANGLE-dependent lighting is decoded from disasm but NOT probe-verifiable. bevelHe (Filters, @0x94fec): width*=0.5 in canThrow, theta=angle*0.5, four facet light lobes |cos(theta+k)| for k in {0,-45,-90,+45}, offset-accumulation of 4 tinted layer copies composited by HgcBevel (mix(dest,color,vtxAlpha), union alpha). MEASURED band width from a headless flat-gray/photo probe (Bevel Width 0.05/0.1/0.2 -> 27/54/108 px @maxDim=1920): band_px = BevelWidth*0.28125*maxDim (0.28125=9/32) \u2014 Bevel Width is a NORMALIZED fraction, NOT pixels. FCP treats the FRAME BORDER as an alpha boundary (out-of-frame=transparent). Rewrote bevel.ts from the old per-pixel alpha-gradient-normal (which used the raw ~0.05 width as a 1-PX step -> effectively a no-op) to the offset-accumulation band model; TS band width now matches headless to 1px (104 vs 105 @w0.2). CEILING: the Light Angle param (parmId 1) is NOT probe-drivable \u2014 headless renders IDENTICALLY for injected angle 0/45/90/135 (its default light is top-bright/bottom-dark/sides-neutral), so the four-lobe ROTATION cannot be verified (same class as the Luma Keyer key blob, HSV hue, Tint). The real user (Stylized__Panels_Across, angle=-4.1rad) applies it to sliding alpha panels; gate-neutral (10.36->10.33). Isolated PSNR is angle-limited (~14-19) because the probe's fixed default light != the injected angle. Light Color(id4) now plumbed.",
     "cases": [
-      {"label": "w0.2 op1 [angle-ceiling]", "gap": true, "params": [{"name":"Light Angle","id":1,"value":45},{"name":"Bevel Width","id":2,"value":0.2},{"name":"Opacity","id":3,"value":1.0},{"name":"Mix","id":10001,"value":1}]}
-    ]
-  },
-  "bevel": {
-    "uuid": "9C655247-E514-458B-83BA-B3F63EFFD241", "pluginName": "Bevel", "ceiling": true, "min_psnr": 24,
-    "note": "PARTIAL 2026-07-12: the BAND-WIDTH LAW is DECODED + headless-verified EXACTLY; the ANGLE-dependent lighting is decoded from disasm but NOT probe-verifiable. bevelHe (Filters, @0x94fec): width*=0.5 in canThrow, theta=angle*0.5, four facet light lobes |cos(theta+k)| for k in {0,-45,-90,+45}, offset-accumulation of 4 tinted layer copies composited by HgcBevel (mix(dest,color,vtxAlpha), union alpha). MEASURED band width from a headless flat-gray/photo probe (Bevel Width 0.05/0.1/0.2 -> 27/54/108 px @maxDim=1920): band_px = BevelWidth*0.28125*maxDim (0.28125=9/32) — Bevel Width is a NORMALIZED fraction, NOT pixels. FCP treats the FRAME BORDER as an alpha boundary (out-of-frame=transparent). Rewrote bevel.ts from the old per-pixel alpha-gradient-normal (which used the raw ~0.05 width as a 1-PX step -> effectively a no-op) to the offset-accumulation band model; TS band width now matches headless to 1px (104 vs 105 @w0.2). CEILING: the Light Angle param (parmId 1) is NOT probe-drivable — headless renders IDENTICALLY for injected angle 0/45/90/135 (its default light is top-bright/bottom-dark/sides-neutral), so the four-lobe ROTATION cannot be verified (same class as the Luma Keyer key blob, HSV hue, Tint). The real user (Stylized__Panels_Across, angle=-4.1rad) applies it to sliding alpha panels; gate-neutral (10.36->10.33). Isolated PSNR is angle-limited (~14-19) because the probe's fixed default light != the injected angle. Light Color(id4) now plumbed.",
-    "cases": [
-      {"label": "w0.1 op0.8 [angle-ceiling]", "gap": true, "params": [{"name":"Light Angle","id":1,"value":45},{"name":"Bevel Width","id":2,"value":0.1},{"name":"Opacity","id":3,"value":0.8},{"name":"Mix","id":10001,"value":1}]}
+      {
+        "label": "w0.1 op0.8 [angle-ceiling]",
+        "gap": true,
+        "params": [
+          {
+            "name": "Light Angle",
+            "id": 1,
+            "value": 45
+          },
+          {
+            "name": "Bevel Width",
+            "id": 2,
+            "value": 0.1
+          },
+          {
+            "name": "Opacity",
+            "id": 3,
+            "value": 0.8
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      }
     ]
   },
   "lumakeyer": {
-    "uuid": "7E9178C5-7B0F-4B86-884D-FE79F568B6CE", "pluginName": "Luma Keyer", "min_psnr": 30, "alpha": true,
-    "note": "MATCHED 2026-07-12 (was a false 'ceiling'). HgcLumaKeyer is the LUT keyer: it clamps luma Y (Rec.709), samples a 256-wide LUT built CPU-side in -[PAELumaKeyer createLutForNode:] as lut[i]=OMKeyer2D::getAlphaLuma(i/255), then scale+biases. getAlphaLuma (ProAppsFxSupport @0x3bf94, decoded) is a 4-control-point TRAPEZOID band-pass over luma (A'=(lumA+1)/2..D'=(lumD+1)/2): 0 below A', smoothstep rise A'->B', plateau 1 B'->C', linear fall C'->D', 0 above D'. RGB passes through UNCHANGED (un-premultiplied); only ALPHA is keyed. ROOT CAUSE of the earlier 'not probe-verifiable' verdict: filter_verify compared RGB-ONLY, so an alpha-only keyer looked like near-identity (hvi 1.35) and tripped the identity guard — FIXED filter_verify to compare RGBA (the keyer's matte is now scored). Both shipping users (360/Circle_Wipe, 360/Reveal_Wipe) have a STATIC (numberOfKeypoints=0) Luma keyer blob = the DEFAULT curve, which the ramp probe MEASURED: alpha rises across luma~[0.004,0.067], plateau to ~0.56, linear fall to 0 at 1.0. TS lumaKeyerFilter rewritten to reproduce it: isolated headless PSNR 7.54->34.15 (mae 65.85->1.51), ramp-curve mae 0.019. Gate-neutral (both users are 360-reorient dominated, which renders black headless — separate ceiling): Circle_Wipe 7.47->7.46, Reveal_Wipe 7.45->7.43, 0 regressions.",
+    "uuid": "7E9178C5-7B0F-4B86-884D-FE79F568B6CE",
+    "pluginName": "Luma Keyer",
+    "min_psnr": 30,
+    "alpha": true,
+    "note": "MATCHED 2026-07-12 (was a false 'ceiling'). HgcLumaKeyer is the LUT keyer: it clamps luma Y (Rec.709), samples a 256-wide LUT built CPU-side in -[PAELumaKeyer createLutForNode:] as lut[i]=OMKeyer2D::getAlphaLuma(i/255), then scale+biases. getAlphaLuma (ProAppsFxSupport @0x3bf94, decoded) is a 4-control-point TRAPEZOID band-pass over luma (A'=(lumA+1)/2..D'=(lumD+1)/2): 0 below A', smoothstep rise A'->B', plateau 1 B'->C', linear fall C'->D', 0 above D'. RGB passes through UNCHANGED (un-premultiplied); only ALPHA is keyed. ROOT CAUSE of the earlier 'not probe-verifiable' verdict: filter_verify compared RGB-ONLY, so an alpha-only keyer looked like near-identity (hvi 1.35) and tripped the identity guard \u2014 FIXED filter_verify to compare RGBA (the keyer's matte is now scored). Both shipping users (360/Circle_Wipe, 360/Reveal_Wipe) have a STATIC (numberOfKeypoints=0) Luma keyer blob = the DEFAULT curve, which the ramp probe MEASURED: alpha rises across luma~[0.004,0.067], plateau to ~0.56, linear fall to 0 at 1.0. TS lumaKeyerFilter rewritten to reproduce it: isolated headless PSNR 7.54->34.15 (mae 65.85->1.51), ramp-curve mae 0.019. Gate-neutral (both users are 360-reorient dominated, which renders black headless \u2014 separate ceiling): Circle_Wipe 7.47->7.46, Reveal_Wipe 7.45->7.43, 0 regressions.",
     "cases": [
-      {"label": "default keyer", "params": [{"name":"Luma","id":5,"value":0.5},{"name":"DefaultSoftness","id":1,"value":9},{"name":"Strength","id":36,"value":1},{"name":"Invert","id":50,"value":0}]}
+      {
+        "label": "default keyer",
+        "params": [
+          {
+            "name": "Luma",
+            "id": 5,
+            "value": 0.5
+          },
+          {
+            "name": "DefaultSoftness",
+            "id": 1,
+            "value": 9
+          },
+          {
+            "name": "Strength",
+            "id": 36,
+            "value": 1
+          },
+          {
+            "name": "Invert",
+            "id": 50,
+            "value": 0
+          }
+        ]
+      }
     ]
   },
   "brightness": {
-    "uuid": "2E4DBB0A-A950-4896-BC2D-A5B0CFF7FAC6", "pluginName": "PAEBrightness", "min_psnr": 32,
-    "note": "PAEBrightness = HGColorMatrix diagonal (per-channel MULTIPLY). DECODED 2026-07-12 the full transfer + the ROOT CAUSE of the old 'brighten diverges' gap: FCP's working color space is kCGColorSpaceLinearSRGB (16-bit half-float ExtendedLinearSRGB readback — confirmed by instrumenting OZRenderParams_getWorkingColorSpace in oz_render.mm, OZ_WS_DEBUG). The 8-bit source node is UNTAGGED, so FCP treats code AS linear working values. ISOLATED transfer (synthetic 0..255 gradient, per code v): amount<=1 out=clip(amount*v) (mad 0.24); amount>1 out=srgbEncode(amount*v/255) (mad 0.12) — a hard discontinuity at amount==1 (b=0.95 code-mult, b=1.01 linear-encode). CORRECTION to prior docs: there is exactly ONE shipping PAEBrightness user — Objects__Curtains, amount=2.91 (it BRIGHTENS, not 'all 27 darken'). Applying the isolated brighten-encode PER-FILTER regressed Curtains' GUI-GT gate (14.31->13.85), because Curtains STACKS Brightness->Mono(ChannelMixer) and FCP keeps the WHOLE chain in linear + encodes ONCE at readback (headless Curtains mean 11 vs GUI 30 — the sRGB code-multiply chain lands closest to the GUI truth). So shipped code keeps the plain code-multiply (correct for the darken leg and closest for the stacked brighten user); the isolated brighten leg needs a linear FILTER-CHAIN (encode once after all filters), tracked as an engine-architecture item, NOT a per-filter encode.",
+    "uuid": "2E4DBB0A-A950-4896-BC2D-A5B0CFF7FAC6",
+    "pluginName": "PAEBrightness",
+    "min_psnr": 32,
+    "note": "PAEBrightness = HGColorMatrix diagonal (per-channel MULTIPLY). DECODED 2026-07-12 the full transfer + the ROOT CAUSE of the old 'brighten diverges' gap: FCP's working color space is kCGColorSpaceLinearSRGB (16-bit half-float ExtendedLinearSRGB readback \u2014 confirmed by instrumenting OZRenderParams_getWorkingColorSpace in oz_render.mm, OZ_WS_DEBUG). The 8-bit source node is UNTAGGED, so FCP treats code AS linear working values. ISOLATED transfer (synthetic 0..255 gradient, per code v): amount<=1 out=clip(amount*v) (mad 0.24); amount>1 out=srgbEncode(amount*v/255) (mad 0.12) \u2014 a hard discontinuity at amount==1 (b=0.95 code-mult, b=1.01 linear-encode). CORRECTION to prior docs: there is exactly ONE shipping PAEBrightness user \u2014 Objects__Curtains, amount=2.91 (it BRIGHTENS, not 'all 27 darken'). Applying the isolated brighten-encode PER-FILTER regressed Curtains' GUI-GT gate (14.31->13.85), because Curtains STACKS Brightness->Mono(ChannelMixer) and FCP keeps the WHOLE chain in linear + encodes ONCE at readback (headless Curtains mean 11 vs GUI 30 \u2014 the sRGB code-multiply chain lands closest to the GUI truth). So shipped code keeps the plain code-multiply (correct for the darken leg and closest for the stacked brighten user); the isolated brighten leg needs a linear FILTER-CHAIN (encode once after all filters), tracked as an engine-architecture item, NOT a per-filter encode.",
     "cases": [
-      {"label": "darken 0.5", "params": [{"name":"Brightness","id":1,"value":0.5}]},
-      {"label": "darken 0.75", "params": [{"name":"Brightness","id":1,"value":0.75}]},
-      {"label": "brighten 1.5 [gap]", "gap": true, "params": [{"name":"Brightness","id":1,"value":1.5}]},
-      {"label": "brighten 2.0 [gap]", "gap": true, "params": [{"name":"Brightness","id":1,"value":2.0}]}
+      {
+        "label": "darken 0.5",
+        "params": [
+          {
+            "name": "Brightness",
+            "id": 1,
+            "value": 0.5
+          }
+        ]
+      },
+      {
+        "label": "darken 0.75",
+        "params": [
+          {
+            "name": "Brightness",
+            "id": 1,
+            "value": 0.75
+          }
+        ]
+      },
+      {
+        "label": "brighten 1.5 [gap]",
+        "gap": true,
+        "params": [
+          {
+            "name": "Brightness",
+            "id": 1,
+            "value": 1.5
+          }
+        ]
+      },
+      {
+        "label": "brighten 2.0 [gap]",
+        "gap": true,
+        "params": [
+          {
+            "name": "Brightness",
+            "id": 1,
+            "value": 2.0
+          }
+        ]
+      }
     ]
   },
   "channelmixer": {
-    "uuid": "B2E0DE39-119F-4AD6-8796-C18BF8FE27B8", "pluginName": "Channel Mixer", "min_psnr": 38,
-    "note": "VERBATIM HgcChannelMixer: out.rgb = per-channel dot(unpremult_rgba, hg_Params[row]) (row 4th col = offset via r1.w=1), re-premultiply, mix(orig, out, Mix). Nested param groups: Red Output(id1)>Red-Red(2)/Red-Green(3)/Red-Blue(4)/Red-Alpha(5); Green Output(6)>7/8/9/10; Blue Output(11)>12/13/14/15; Monochrome(21) sets all 3 rows to the RED-row weights (constrainMonoParams); Mix(10001). Verified vs headless: R<->B swap 42.25, Monochrome(0.3/0.59/0.11) 41.95, R<->B Mix0.5 42.38 — matched. 7 shipping users.",
+    "uuid": "B2E0DE39-119F-4AD6-8796-C18BF8FE27B8",
+    "pluginName": "Channel Mixer",
+    "min_psnr": 38,
+    "note": "HgcChannelMixer VERBATIM (channel-mixer.ts): un-premultiply -> per-out-channel 4-wide dot (RR/RG/RB weights + '-Alpha' child as the constant OFFSET via r1.w=1) -> clamp alpha -> re-premultiply -> mix(orig,mixed,Mix). Monochrome (id21) = constrainMonoParams: all 3 out rows take the RED-row weights (verified: the old luma601-then-matrix double-processing was wrong). Real param IDs from Movements/Color_Planes.motr: Red Output(1){Red-Red 2, Red-Green 3, Red-Blue 4, Red-Alpha 5}, Green Output(6){7,8,9,10}, Blue Output(11){12,13,14,15}, Monochrome(21), Mix(10001). Verified vs headless: R<->B swap PSNR 42.25, Monochrome(.3/.59/.11) 41.95, R<->B Mix0.5 42.38.",
     "cases": [
-      {"label": "R<->B swap", "params": [{"name":"Red Output","id":1,"children":[{"name":"Red - Red","id":2,"value":0},{"name":"Red - Green","id":3,"value":0},{"name":"Red - Blue","id":4,"value":1},{"name":"Red - Alpha","id":5,"value":0}]},{"name":"Green Output","id":6,"children":[{"name":"Green - Red","id":7,"value":0},{"name":"Green - Green","id":8,"value":1},{"name":"Green - Blue","id":9,"value":0},{"name":"Green - Alpha","id":10,"value":0}]},{"name":"Blue Output","id":11,"children":[{"name":"Blue - Red","id":12,"value":1},{"name":"Blue - Green","id":13,"value":0},{"name":"Blue - Blue","id":14,"value":0},{"name":"Blue - Alpha","id":15,"value":0}]},{"name":"Mix","id":10001,"value":1}]},
-      {"label": "Monochrome 0.3/0.59/0.11", "params": [{"name":"Red Output","id":1,"children":[{"name":"Red - Red","id":2,"value":0.3},{"name":"Red - Green","id":3,"value":0.59},{"name":"Red - Blue","id":4,"value":0.11},{"name":"Red - Alpha","id":5,"value":0}]},{"name":"Monochrome","id":21,"value":1},{"name":"Mix","id":10001,"value":1}]},
-      {"label": "R<->B swap Mix0.5", "params": [{"name":"Red Output","id":1,"children":[{"name":"Red - Red","id":2,"value":0},{"name":"Red - Green","id":3,"value":0},{"name":"Red - Blue","id":4,"value":1},{"name":"Red - Alpha","id":5,"value":0}]},{"name":"Blue Output","id":11,"children":[{"name":"Blue - Red","id":12,"value":1},{"name":"Blue - Green","id":13,"value":0},{"name":"Blue - Blue","id":14,"value":0},{"name":"Blue - Alpha","id":15,"value":0}]},{"name":"Mix","id":10001,"value":0.5}]}
+      {
+        "label": "R<->B swap",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 1
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Green Output",
+            "id": 6,
+            "children": [
+              {
+                "name": "Green - Red",
+                "id": 7,
+                "value": 0
+              },
+              {
+                "name": "Green - Green",
+                "id": 8,
+                "value": 1
+              },
+              {
+                "name": "Green - Blue",
+                "id": 9,
+                "value": 0
+              },
+              {
+                "name": "Green - Alpha",
+                "id": 10,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Blue Output",
+            "id": 11,
+            "children": [
+              {
+                "name": "Blue - Red",
+                "id": 12,
+                "value": 1
+              },
+              {
+                "name": "Blue - Green",
+                "id": 13,
+                "value": 0
+              },
+              {
+                "name": "Blue - Blue",
+                "id": 14,
+                "value": 0
+              },
+              {
+                "name": "Blue - Alpha",
+                "id": 15,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      {
+        "label": "Monochrome .3/.59/.11",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 0.3
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0.59
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 0.11
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Monochrome",
+            "id": 21,
+            "value": 1
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      {
+        "label": "R<->B swap Mix0.5",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 1
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Blue Output",
+            "id": 11,
+            "children": [
+              {
+                "name": "Blue - Red",
+                "id": 12,
+                "value": 1
+              },
+              {
+                "name": "Blue - Green",
+                "id": 13,
+                "value": 0
+              },
+              {
+                "name": "Blue - Blue",
+                "id": 14,
+                "value": 0
+              },
+              {
+                "name": "Blue - Alpha",
+                "id": 15,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 0.5
+          }
+        ]
+      }
     ]
   },
   "flop": {
-    "uuid": "2FF8887B-E673-4727-9601-1B3353531C10", "pluginName": "PAEFlop", "min_psnr": 38,
+    "uuid": "2FF8887B-E673-4727-9601-1B3353531C10",
+    "pluginName": "PAEFlop",
+    "min_psnr": 38,
     "cases": [
-      {"label": "Horizontal", "params": [{"name":"Flop","id":1,"value":0}]},
-      {"label": "Vertical", "params": [{"name":"Flop","id":1,"value":1}]},
-      {"label": "Both", "params": [{"name":"Flop","id":1,"value":2}]}
-    ]
-  },
-  "channelmixer": {
-    "uuid": "B2E0DE39-119F-4AD6-8796-C18BF8FE27B8", "pluginName": "Channel Mixer", "min_psnr": 38,
-    "note": "HgcChannelMixer VERBATIM (channel-mixer.ts): un-premultiply -> per-out-channel 4-wide dot (RR/RG/RB weights + '-Alpha' child as the constant OFFSET via r1.w=1) -> clamp alpha -> re-premultiply -> mix(orig,mixed,Mix). Monochrome (id21) = constrainMonoParams: all 3 out rows take the RED-row weights (verified: the old luma601-then-matrix double-processing was wrong). Real param IDs from Movements/Color_Planes.motr: Red Output(1){Red-Red 2, Red-Green 3, Red-Blue 4, Red-Alpha 5}, Green Output(6){7,8,9,10}, Blue Output(11){12,13,14,15}, Monochrome(21), Mix(10001). Verified vs headless: R<->B swap PSNR 42.25, Monochrome(.3/.59/.11) 41.95, R<->B Mix0.5 42.38.",
-    "cases": [
-      {"label": "R<->B swap", "params": [{"name":"Red Output","id":1,"children":[{"name":"Red - Red","id":2,"value":0},{"name":"Red - Green","id":3,"value":0},{"name":"Red - Blue","id":4,"value":1},{"name":"Red - Alpha","id":5,"value":0}]},{"name":"Green Output","id":6,"children":[{"name":"Green - Red","id":7,"value":0},{"name":"Green - Green","id":8,"value":1},{"name":"Green - Blue","id":9,"value":0},{"name":"Green - Alpha","id":10,"value":0}]},{"name":"Blue Output","id":11,"children":[{"name":"Blue - Red","id":12,"value":1},{"name":"Blue - Green","id":13,"value":0},{"name":"Blue - Blue","id":14,"value":0},{"name":"Blue - Alpha","id":15,"value":0}]},{"name":"Mix","id":10001,"value":1}]},
-      {"label": "Monochrome .3/.59/.11", "params": [{"name":"Red Output","id":1,"children":[{"name":"Red - Red","id":2,"value":0.3},{"name":"Red - Green","id":3,"value":0.59},{"name":"Red - Blue","id":4,"value":0.11},{"name":"Red - Alpha","id":5,"value":0}]},{"name":"Monochrome","id":21,"value":1},{"name":"Mix","id":10001,"value":1}]},
-      {"label": "R<->B swap Mix0.5", "params": [{"name":"Red Output","id":1,"children":[{"name":"Red - Red","id":2,"value":0},{"name":"Red - Green","id":3,"value":0},{"name":"Red - Blue","id":4,"value":1},{"name":"Red - Alpha","id":5,"value":0}]},{"name":"Blue Output","id":11,"children":[{"name":"Blue - Red","id":12,"value":1},{"name":"Blue - Green","id":13,"value":0},{"name":"Blue - Blue","id":14,"value":0},{"name":"Blue - Alpha","id":15,"value":0}]},{"name":"Mix","id":10001,"value":0.5}]}
+      {
+        "label": "Horizontal",
+        "params": [
+          {
+            "name": "Flop",
+            "id": 1,
+            "value": 0
+          }
+        ]
+      },
+      {
+        "label": "Vertical",
+        "params": [
+          {
+            "name": "Flop",
+            "id": 1,
+            "value": 1
+          }
+        ]
+      },
+      {
+        "label": "Both",
+        "params": [
+          {
+            "name": "Flop",
+            "id": 1,
+            "value": 2
+          }
+        ]
+      }
     ]
   },
   "minmax": {
-    "uuid": "D2342006-51C4-4439-8E89-E970F135E21C", "pluginName": "MinMax2", "min_psnr": 34,
+    "uuid": "D2342006-51C4-4439-8E89-E970F135E21C",
+    "pluginName": "MinMax2",
+    "min_psnr": 34,
     "cases": [
-      {"label": "erode r10", "params": [{"name":"Mode","id":1,"value":0},{"name":"Radius","id":2,"value":10}]},
-      {"label": "dilate r10", "params": [{"name":"Mode","id":1,"value":1},{"name":"Radius","id":2,"value":10}]},
-      {"label": "dilate r32", "params": [{"name":"Mode","id":1,"value":1},{"name":"Radius","id":2,"value":32}]},
-      {"label": "erode r20", "params": [{"name":"Mode","id":1,"value":0},{"name":"Radius","id":2,"value":20}]}
+      {
+        "label": "erode r10",
+        "params": [
+          {
+            "name": "Mode",
+            "id": 1,
+            "value": 0
+          },
+          {
+            "name": "Radius",
+            "id": 2,
+            "value": 10
+          }
+        ]
+      },
+      {
+        "label": "dilate r10",
+        "params": [
+          {
+            "name": "Mode",
+            "id": 1,
+            "value": 1
+          },
+          {
+            "name": "Radius",
+            "id": 2,
+            "value": 10
+          }
+        ]
+      },
+      {
+        "label": "dilate r32",
+        "params": [
+          {
+            "name": "Mode",
+            "id": 1,
+            "value": 1
+          },
+          {
+            "name": "Radius",
+            "id": 2,
+            "value": 32
+          }
+        ]
+      },
+      {
+        "label": "erode r20",
+        "params": [
+          {
+            "name": "Mode",
+            "id": 1,
+            "value": 0
+          },
+          {
+            "name": "Radius",
+            "id": 2,
+            "value": 20
+          }
+        ]
+      }
     ]
   },
   "gaussian": {
-    "uuid": "E472D646-2C92-464E-98A1-91CF8F162AD8", "pluginName": "PAEGaussianBlur", "min_psnr": 35,
+    "uuid": "E472D646-2C92-464E-98A1-91CF8F162AD8",
+    "pluginName": "PAEGaussianBlur",
+    "min_psnr": 35,
     "note": "sigma=radius/6.67 (decoded effective ratio; HGLinearFilter::gaussian is the normalized PDF). PSNR drops with Amount (46@10 -> 36@80) purely from the 1854->1920 conform + decimation resampling on large blurs; mae stays 0.8-2.4 = excellent.",
     "cases": [
-      {"label": "Amount 10", "params": [{"name":"Amount","id":1,"value":10}]},
-      {"label": "Amount 20", "params": [{"name":"Amount","id":1,"value":20}]},
-      {"label": "Amount 40", "params": [{"name":"Amount","id":1,"value":40}]},
-      {"label": "Amount 80", "params": [{"name":"Amount","id":1,"value":80}]}
+      {
+        "label": "Amount 10",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 10
+          }
+        ]
+      },
+      {
+        "label": "Amount 20",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 20
+          }
+        ]
+      },
+      {
+        "label": "Amount 40",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 40
+          }
+        ]
+      },
+      {
+        "label": "Amount 80",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 80
+          }
+        ]
+      }
     ]
   },
   "radial": {
-    "uuid": "8F9F88CF-F1DC-4C7E-8946-1A8B53B4F53A", "pluginName": "PAERadialBlur", "min_psnr": 30,
+    "uuid": "8F9F88CF-F1DC-4C7E-8946-1A8B53B4F53A",
+    "pluginName": "PAERadialBlur",
+    "min_psnr": 30,
     "cases": [
-      {"label": "Angle 0.5", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.5},{"name":"Y","id":2,"value":0.5}]},{"name":"Angle","id":2,"value":0.5}]},
-      {"label": "Angle 1.0", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.5},{"name":"Y","id":2,"value":0.5}]},{"name":"Angle","id":2,"value":1.0}]},
-      {"label": "Angle 2.0", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.5},{"name":"Y","id":2,"value":0.5}]},{"name":"Angle","id":2,"value":2.0}]}
+      {
+        "label": "Angle 0.5",
+        "params": [
+          {
+            "name": "Center",
+            "id": 1,
+            "children": [
+              {
+                "name": "X",
+                "id": 1,
+                "value": 0.5
+              },
+              {
+                "name": "Y",
+                "id": 2,
+                "value": 0.5
+              }
+            ]
+          },
+          {
+            "name": "Angle",
+            "id": 2,
+            "value": 0.5
+          }
+        ]
+      },
+      {
+        "label": "Angle 1.0",
+        "params": [
+          {
+            "name": "Center",
+            "id": 1,
+            "children": [
+              {
+                "name": "X",
+                "id": 1,
+                "value": 0.5
+              },
+              {
+                "name": "Y",
+                "id": 2,
+                "value": 0.5
+              }
+            ]
+          },
+          {
+            "name": "Angle",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      {
+        "label": "Angle 2.0",
+        "params": [
+          {
+            "name": "Center",
+            "id": 1,
+            "children": [
+              {
+                "name": "X",
+                "id": 1,
+                "value": 0.5
+              },
+              {
+                "name": "Y",
+                "id": 2,
+                "value": 0.5
+              }
+            ]
+          },
+          {
+            "name": "Angle",
+            "id": 2,
+            "value": 2.0
+          }
+        ]
+      }
     ]
   },
   "zoom": {
-    "uuid": "11C0E095-5F4F-46E2-AE28-F56ED7D38D7E", "pluginName": "PAEZoomBlur", "min_psnr": 17,
-    "note": "LOG-POLAR (2026-07-12): a concentric-ring probe through headless FCP proved the zoom-blur width GROWS PROPORTIONALLY with radius (rings survive at center, obliterated at edges; higher Amount pushes destruction inward) — displacement is not a fixed pixel count. This is the log-polar polarToRect leg + 1-D Gaussian along the log-radius axis (see directional-blur.ts zoomBlurPolar). Rewritten from the old uniform (linear-radius) model; verified vs headless on rings.png: PSNR 24-29 dB across Amount=5..40. On start.png (smooth photo, the sweep input) PSNR is lower (~18-20 dB) because the polar remap resampling + 1854->1920 conform dominate a smooth image; that is the achievable structural ceiling for this remap filter, not a shape error. sigma_u=Amount*ZOOM_LOG_K(=1.0) log-buffer px. Both shipping users (Blurs/Zoom keyframes Amount from 0, 360/Circle_Wipe) stay gate-green.",
+    "uuid": "11C0E095-5F4F-46E2-AE28-F56ED7D38D7E",
+    "pluginName": "PAEZoomBlur",
+    "min_psnr": 18,
+    "note": "LOG-POLAR (2026-07-12): PAEZoomBlur's polarToRect is a LOG-polar remap, so a 1-D Gaussian along the log-radius axis makes the streak length grow PROPORTIONALLY with radius (rings survive near center, obliterated at edges) \u2014 proven by a concentric-ring probe (rings.png Amount=5/10/20/40, log-polar PSNR 24-29 dB vs ~16 dB for the old linear-radius uniform model). sigma_u = Amount*ZOOM_LOG_K in ln(r) units, ZOOM_LOG_K=1.0 at the rings-probe optimum plateau. On the smooth start.png probe input the structural match reads ~18-20 dB (Amount 20/50) / ~19 dB (Amount 100), bounded by the 1854->1920 conform + the smooth-image PSNR floor; the ring probe is the honest geometric verifier. Both shipping users (Blurs/Zoom keyframes Amount from 0; 360\u00b0/Circle_Wipe wipe-dominated) stay gate-green.",
     "cases": [
-      {"label": "Amount 20", "params": [{"name":"Amount","id":1,"value":20}]},
-      {"label": "Amount 50", "params": [{"name":"Amount","id":1,"value":50}]},
-      {"label": "Amount 100", "params": [{"name":"Amount","id":1,"value":100}]}
+      {
+        "label": "Amount 20",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 20
+          }
+        ]
+      },
+      {
+        "label": "Amount 50",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 50
+          }
+        ]
+      },
+      {
+        "label": "Amount 100",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 100
+          }
+        ]
+      }
     ]
   },
   "directional": {
-    "uuid": "2E7B1340-5D4F-4015-8AA0-53BEB9F2CA52", "pluginName": "PAEDirectionalBlur", "min_psnr": 28,
-    "note": "PAEDirectionalBlur = 1-D Gaussian along the Angle direction, streak = Amount px. Verified vs headless: Amount=50/Angle=0 -> PSNR ~46, Amount=100/Angle=45 -> PSNR ~30 (drops with streak length purely from the 1854->1920 conform). No fix needed; entries pin the match.",
-    "cases": [
-      {"label": "Amount 50 Angle 0", "params": [{"name":"Amount","id":1,"value":50},{"name":"Angle","id":2,"value":0}]},
-      {"label": "Amount 100 Angle 45", "params": [{"name":"Amount","id":1,"value":100},{"name":"Angle","id":2,"value":45}]}
-    ]
-  },
-  "zoom": {
-    "uuid": "11C0E095-5F4F-46E2-AE28-F56ED7D38D7E", "pluginName": "PAEZoomBlur", "min_psnr": 18,
-    "note": "LOG-POLAR (2026-07-12): PAEZoomBlur's polarToRect is a LOG-polar remap, so a 1-D Gaussian along the log-radius axis makes the streak length grow PROPORTIONALLY with radius (rings survive near center, obliterated at edges) — proven by a concentric-ring probe (rings.png Amount=5/10/20/40, log-polar PSNR 24-29 dB vs ~16 dB for the old linear-radius uniform model). sigma_u = Amount*ZOOM_LOG_K in ln(r) units, ZOOM_LOG_K=1.0 at the rings-probe optimum plateau. On the smooth start.png probe input the structural match reads ~18-20 dB (Amount 20/50) / ~19 dB (Amount 100), bounded by the 1854->1920 conform + the smooth-image PSNR floor; the ring probe is the honest geometric verifier. Both shipping users (Blurs/Zoom keyframes Amount from 0; 360°/Circle_Wipe wipe-dominated) stay gate-green.",
-    "cases": [
-      {"label": "Amount 20", "params": [{"name":"Amount","id":1,"value":20}]},
-      {"label": "Amount 50", "params": [{"name":"Amount","id":1,"value":50}]},
-      {"label": "Amount 100", "params": [{"name":"Amount","id":1,"value":100}]}
-    ]
-  },
-  "directional": {
-    "uuid": "2E7B1340-5D4F-4015-8AA0-53BEB9F2CA52", "pluginName": "PAEDirectionalBlur", "min_psnr": 28,
+    "uuid": "2E7B1340-5D4F-4015-8AA0-53BEB9F2CA52",
+    "pluginName": "PAEDirectionalBlur",
+    "min_psnr": 28,
     "note": "PAEDirectionalBlur: 1-D Gaussian along the (cos,sin) Angle axis, sigma=Amount*.../6. Verified vs headless: Amount=50/Angle=0 -> PSNR 46, Amount=100/Angle=45 -> PSNR 30. High PSNR because the blur is axis-aligned and shape-exact; the residual is the 1854->1920 conform on the largest kernels.",
     "cases": [
-      {"label": "Amount 50 Angle 0", "params": [{"name":"Amount","id":1,"value":50},{"name":"Angle","id":2,"value":0}]},
-      {"label": "Amount 100 Angle 45", "params": [{"name":"Amount","id":1,"value":100},{"name":"Angle","id":2,"value":45}]}
+      {
+        "label": "Amount 50 Angle 0",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 50
+          },
+          {
+            "name": "Angle",
+            "id": 2,
+            "value": 0
+          }
+        ]
+      },
+      {
+        "label": "Amount 100 Angle 45",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 100
+          },
+          {
+            "name": "Angle",
+            "id": 2,
+            "value": 45
+          }
+        ]
+      }
     ]
   },
   "scrape": {
-    "uuid": "0D6E968B-0291-43E2-A8DA-88EB80E9C4B2", "pluginName": "Smear", "min_psnr": 23,
-    "note": "axis = (-sin(rot), cos(rot)) — the sincos wiring bakes a +pi/2. rot=0 is the weakest (25.84) because that orientation maximises the 1854->1920 conform artifact; rot=pi/2 hits 39.57. Movements/Smear (rot=3pi/2, the only user) baseline is intentionally re-frozen to the FCP-correct axis render (it scores 0.35 lower on that noisy 11-dB slug).",
+    "uuid": "0D6E968B-0291-43E2-A8DA-88EB80E9C4B2",
+    "pluginName": "Smear",
+    "min_psnr": 23,
+    "note": "axis = (-sin(rot), cos(rot)) \u2014 the sincos wiring bakes a +pi/2. rot=0 is the weakest (25.84) because that orientation maximises the 1854->1920 conform artifact; rot=pi/2 hits 39.57. Movements/Smear (rot=3pi/2, the only user) baseline is intentionally re-frozen to the FCP-correct axis render (it scores 0.35 lower on that noisy 11-dB slug).",
     "cases": [
-      {"label": "rot pi/2 amt190", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.5},{"name":"Y","id":2,"value":0.5}]},{"name":"Rotation","id":2,"value":1.5708},{"name":"Amount","id":3,"value":190},{"name":"Crop","id":4,"value":1}]},
-      {"label": "rot 0 amt120", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.5},{"name":"Y","id":2,"value":0.5}]},{"name":"Rotation","id":2,"value":0},{"name":"Amount","id":3,"value":120},{"name":"Crop","id":4,"value":1}]},
-      {"label": "offcenter rot0.8 amt120", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.3},{"name":"Y","id":2,"value":0.65}]},{"name":"Rotation","id":2,"value":0.8},{"name":"Amount","id":3,"value":120},{"name":"Crop","id":4,"value":1}]}
+      {
+        "label": "rot pi/2 amt190",
+        "params": [
+          {
+            "name": "Center",
+            "id": 1,
+            "children": [
+              {
+                "name": "X",
+                "id": 1,
+                "value": 0.5
+              },
+              {
+                "name": "Y",
+                "id": 2,
+                "value": 0.5
+              }
+            ]
+          },
+          {
+            "name": "Rotation",
+            "id": 2,
+            "value": 1.5708
+          },
+          {
+            "name": "Amount",
+            "id": 3,
+            "value": 190
+          },
+          {
+            "name": "Crop",
+            "id": 4,
+            "value": 1
+          }
+        ]
+      },
+      {
+        "label": "rot 0 amt120",
+        "params": [
+          {
+            "name": "Center",
+            "id": 1,
+            "children": [
+              {
+                "name": "X",
+                "id": 1,
+                "value": 0.5
+              },
+              {
+                "name": "Y",
+                "id": 2,
+                "value": 0.5
+              }
+            ]
+          },
+          {
+            "name": "Rotation",
+            "id": 2,
+            "value": 0
+          },
+          {
+            "name": "Amount",
+            "id": 3,
+            "value": 120
+          },
+          {
+            "name": "Crop",
+            "id": 4,
+            "value": 1
+          }
+        ]
+      },
+      {
+        "label": "offcenter rot0.8 amt120",
+        "params": [
+          {
+            "name": "Center",
+            "id": 1,
+            "children": [
+              {
+                "name": "X",
+                "id": 1,
+                "value": 0.3
+              },
+              {
+                "name": "Y",
+                "id": 2,
+                "value": 0.65
+              }
+            ]
+          },
+          {
+            "name": "Rotation",
+            "id": 2,
+            "value": 0.8
+          },
+          {
+            "name": "Amount",
+            "id": 3,
+            "value": 120
+          },
+          {
+            "name": "Crop",
+            "id": 4,
+            "value": 1
+          }
+        ]
+      }
     ]
   },
   "blackhole": {
-    "uuid": "1A32EFEF-6687-401B-A078-300A7AE8F621", "pluginName": "PAEBlackHole", "min_psnr": 30,
+    "uuid": "1A32EFEF-6687-401B-A078-300A7AE8F621",
+    "pluginName": "PAEBlackHole",
+    "min_psnr": 30,
     "cases": [
-      {"label": "Amount 100", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.5},{"name":"Y","id":2,"value":0.5}]},{"name":"Amount","id":2,"value":100}]},
-      {"label": "Amount 300", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.5},{"name":"Y","id":2,"value":0.5}]},{"name":"Amount","id":2,"value":300}]},
-      {"label": "Amount 600", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.5},{"name":"Y","id":2,"value":0.5}]},{"name":"Amount","id":2,"value":600}]},
-      {"label": "offcenter A300", "params": [{"name":"Center","id":1,"children":[{"name":"X","id":1,"value":0.35},{"name":"Y","id":2,"value":0.6}]},{"name":"Amount","id":2,"value":300}]}
+      {
+        "label": "Amount 100",
+        "params": [
+          {
+            "name": "Center",
+            "id": 1,
+            "children": [
+              {
+                "name": "X",
+                "id": 1,
+                "value": 0.5
+              },
+              {
+                "name": "Y",
+                "id": 2,
+                "value": 0.5
+              }
+            ]
+          },
+          {
+            "name": "Amount",
+            "id": 2,
+            "value": 100
+          }
+        ]
+      },
+      {
+        "label": "Amount 300",
+        "params": [
+          {
+            "name": "Center",
+            "id": 1,
+            "children": [
+              {
+                "name": "X",
+                "id": 1,
+                "value": 0.5
+              },
+              {
+                "name": "Y",
+                "id": 2,
+                "value": 0.5
+              }
+            ]
+          },
+          {
+            "name": "Amount",
+            "id": 2,
+            "value": 300
+          }
+        ]
+      },
+      {
+        "label": "Amount 600",
+        "params": [
+          {
+            "name": "Center",
+            "id": 1,
+            "children": [
+              {
+                "name": "X",
+                "id": 1,
+                "value": 0.5
+              },
+              {
+                "name": "Y",
+                "id": 2,
+                "value": 0.5
+              }
+            ]
+          },
+          {
+            "name": "Amount",
+            "id": 2,
+            "value": 600
+          }
+        ]
+      },
+      {
+        "label": "offcenter A300",
+        "params": [
+          {
+            "name": "Center",
+            "id": 1,
+            "children": [
+              {
+                "name": "X",
+                "id": 1,
+                "value": 0.35
+              },
+              {
+                "name": "Y",
+                "id": 2,
+                "value": 0.6
+              }
+            ]
+          },
+          {
+            "name": "Amount",
+            "id": 2,
+            "value": 300
+          }
+        ]
+      }
     ]
   },
   "earthquake": {
-    "uuid": "DEB7CD03-0C92-416A-B42A-656FB37530A1", "pluginName": "PAEEarthquake", "min_psnr": 30,
+    "uuid": "DEB7CD03-0C92-416A-B42A-656FB37530A1",
+    "pluginName": "PAEEarthquake",
+    "min_psnr": 30,
     "cases": [
-      {"label": "Twist 8 (pure rot)", "params": [{"name":"Twist","id":1,"value":8},{"name":"Horizontal Shake","id":2,"value":0},{"name":"Vertical Shake","id":3,"value":0},{"name":"Layers","id":4,"value":1},{"name":"Random Seed","id":6,"value":0}]}
+      {
+        "label": "Twist 8 (pure rot)",
+        "params": [
+          {
+            "name": "Twist",
+            "id": 1,
+            "value": 8
+          },
+          {
+            "name": "Horizontal Shake",
+            "id": 2,
+            "value": 0
+          },
+          {
+            "name": "Vertical Shake",
+            "id": 3,
+            "value": 0
+          },
+          {
+            "name": "Layers",
+            "id": 4,
+            "value": 1
+          },
+          {
+            "name": "Random Seed",
+            "id": 6,
+            "value": 0
+          }
+        ]
+      }
     ]
   },
   "underwater": {
-    "uuid": "9FA1F483-1E09-4DD0-870F-C32777D7F1B0", "pluginName": "PAEUnderwater", "ceiling": true, "min_psnr": 32,
-    "note": "NOT REGISTERED (apply() is a gate-safe passthrough — see underwater.ts): the FreqSynth field uses an unrecoverable runtime GPU noise texture and the plugin renders black headless for t>1.0, so a faithful impl regresses the gate. filter_verify will report NO FILTER for the passthrough registration; this ceiling entry documents the case. Exercise the faithful underwaterApply() manually if the noise field is ever recovered.",
+    "uuid": "9FA1F483-1E09-4DD0-870F-C32777D7F1B0",
+    "pluginName": "PAEUnderwater",
+    "ceiling": true,
+    "min_psnr": 32,
+    "note": "NOT REGISTERED (apply() is a gate-safe passthrough \u2014 see underwater.ts): the FreqSynth field uses an unrecoverable runtime GPU noise texture and the plugin renders black headless for t>1.0, so a faithful impl regresses the gate. filter_verify will report NO FILTER for the passthrough registration; this ceiling entry documents the case. Exercise the faithful underwaterApply() manually if the noise field is ever recovered.",
     "cases": [
-      {"label": "Size100 Speed.5 Refr50 t0", "time": 0.0, "params": [{"name":"Size","id":1,"value":100},{"name":"Speed","id":2,"value":0.5},{"name":"Refraction","id":3,"value":50},{"name":"Repeat Edges","id":6,"value":1}]}
+      {
+        "label": "Size100 Speed.5 Refr50 t0",
+        "time": 0.0,
+        "params": [
+          {
+            "name": "Size",
+            "id": 1,
+            "value": 100
+          },
+          {
+            "name": "Speed",
+            "id": 2,
+            "value": 0.5
+          },
+          {
+            "name": "Refraction",
+            "id": 3,
+            "value": 50
+          },
+          {
+            "name": "Repeat Edges",
+            "id": 6,
+            "value": 1
+          }
+        ]
+      }
     ]
   },
   "noise": {
-    "uuid": "30911E49-2043-4EEC-88A8-2E4AAA835D59", "pluginName": "PAENoise", "ceiling": true, "min_psnr": 32,
-    "note": "CEILING (verified 2026-07-15): PAENoise is a GENERATOR, not a per-pixel filter — injecting it into the factoryID=7 scene-filter slot makes the headless probe abort with SIGABRT (the host has no input image to feed a generator there), so it is structurally UNVERIFIABLE via filter_probe/filter_verify. Separately its dSFMT field is per-frame reseeded by FCP's host with host-side table normalization not byte-reproducible from the binary, so even a hosted render would only match statistically. noise.ts reproduces the documented dSFMT+simplex field; the only users (Lights/Static, Lights/Light_Noise) are gate-scored via GUI GT. Kept so `filter_sweep.py noise` reports the SIGABRT rather than silently omitting the filter.",
+    "uuid": "30911E49-2043-4EEC-88A8-2E4AAA835D59",
+    "pluginName": "PAENoise",
+    "ceiling": true,
+    "min_psnr": 32,
+    "note": "CEILING (verified 2026-07-15): PAENoise is a GENERATOR, not a per-pixel filter \u2014 injecting it into the factoryID=7 scene-filter slot makes the headless probe abort with SIGABRT (the host has no input image to feed a generator there), so it is structurally UNVERIFIABLE via filter_probe/filter_verify. Separately its dSFMT field is per-frame reseeded by FCP's host with host-side table normalization not byte-reproducible from the binary, so even a hosted render would only match statistically. noise.ts reproduces the documented dSFMT+simplex field; the only users (Lights/Static, Lights/Light_Noise) are gate-scored via GUI GT. Kept so `filter_sweep.py noise` reports the SIGABRT rather than silently omitting the filter.",
     "cases": [
-      {"label": "Random Seed 0 (generator — SIGABRT expected)", "time": 0.0, "params": [{"name":"Random Seed","id":1,"value":0}]}
+      {
+        "label": "Random Seed 0 (generator \u2014 SIGABRT expected)",
+        "time": 0.0,
+        "params": [
+          {
+            "name": "Random Seed",
+            "id": 1,
+            "value": 0
+          }
+        ]
+      }
     ]
   },
   "reorient": {
-    "uuid": "E61FE95E-0108-47DA-8F29-3CB3C47428EF", "pluginName": "360° Reorient", "ceiling": true, "min_psnr": 32,
-    "note": "CEILING (verified 2026-07-15): the equirect reorient DOES apply headless at t=0 (Pan(Y)=0.5rad -> headless_vs_input MAD 18.6, head_mean [140,91,60]) — NOT black-headless as an earlier note assumed. TS (reorient360.ts, direct 3-D sphere rotation) vs FCP (equirect->sinusoidal->affine-rot->sinusoidal->equirect with pole guard + longitude wrap) diverge on RESAMPLING/POLE GEOMETRY: psnr ~14.5 for a pure Pan. Equivalent at sample points, different reprojection. The params[4]/[5] rotation encoding is unconfirmed and the 360 family's low GUI-GT scores are a transition-compositing (drop-zone/push) issue, not the filter. Params from 360° Divide.motr: Tilt(X) id=1, Pan(Y) id=2, Roll(Z) id=3 (radians angle sliders), Mix id=10001. Needs a GUI GT capture before changing the primitive.",
+    "uuid": "E61FE95E-0108-47DA-8F29-3CB3C47428EF",
+    "pluginName": "360\u00b0 Reorient",
+    "ceiling": true,
+    "min_psnr": 32,
+    "note": "CEILING (verified 2026-07-15): the equirect reorient DOES apply headless at t=0 (Pan(Y)=0.5rad -> headless_vs_input MAD 18.6, head_mean [140,91,60]) \u2014 NOT black-headless as an earlier note assumed. TS (reorient360.ts, direct 3-D sphere rotation) vs FCP (equirect->sinusoidal->affine-rot->sinusoidal->equirect with pole guard + longitude wrap) diverge on RESAMPLING/POLE GEOMETRY: psnr ~14.5 for a pure Pan. Equivalent at sample points, different reprojection. The params[4]/[5] rotation encoding is unconfirmed and the 360 family's low GUI-GT scores are a transition-compositing (drop-zone/push) issue, not the filter. Params from 360\u00b0 Divide.motr: Tilt(X) id=1, Pan(Y) id=2, Roll(Z) id=3 (radians angle sliders), Mix id=10001. Needs a GUI GT capture before changing the primitive.",
     "cases": [
-      {"label": "Pan(Y) 0.5rad", "time": 0.0, "params": [{"name":"Pan (Y)","id":2,"value":0.5}]},
-      {"label": "Tilt(X) 0.5rad", "time": 0.0, "params": [{"name":"Tilt (X)","id":1,"value":0.5}]},
-      {"label": "Roll(Z) 0.5rad", "time": 0.0, "params": [{"name":"Roll (Z)","id":3,"value":0.5}]}
+      {
+        "label": "Pan(Y) 0.5rad",
+        "time": 0.0,
+        "params": [
+          {
+            "name": "Pan (Y)",
+            "id": 2,
+            "value": 0.5
+          }
+        ]
+      },
+      {
+        "label": "Tilt(X) 0.5rad",
+        "time": 0.0,
+        "params": [
+          {
+            "name": "Tilt (X)",
+            "id": 1,
+            "value": 0.5
+          }
+        ]
+      },
+      {
+        "label": "Roll(Z) 0.5rad",
+        "time": 0.0,
+        "params": [
+          {
+            "name": "Roll (Z)",
+            "id": 3,
+            "value": 0.5
+          }
+        ]
+      }
     ]
   },
   "badtv": {
-    "uuid": "32AB5EE1-BACB-4B81-B44E-6D1E643C8D00", "pluginName": "PAEBadTV", "ceiling": true, "min_psnr": 32,
+    "uuid": "32AB5EE1-BACB-4B81-B44E-6D1E643C8D00",
+    "pluginName": "PAEBadTV",
+    "ceiling": true,
+    "min_psnr": 32,
     "note": "CEILING (verified 2026-07-15): PAEBadTV applies headless (Waviness=10/Static=4/Saturate=-25 -> headless_vs_input MAD 64.9) but psnr ~8.5 vs TS. Its DETERMINISTIC legs are matched+verified elsewhere (desaturate mix(luma,rgb,Sat/100+1) PSNR 34; scanline smoothstep bands PSNR 23; roll phase; host Mix). The Waviness + Static displacement/overlay legs draw from a PER-FRAME-RESEEDED dSFMT RNG (seed=2*frame+1) with host-side table normalization NOT byte-reproducible from the binary, so their phases diverge and a full-frame probe cannot converge. Its only user (Lights/Static) sets Mix=0 -> passthrough, so it is gate-neutral. Params from Static.motr: Waviness id=1, Roll id=2, Static id=3, Saturate id=5, Mix id=10001.",
     "cases": [
-      {"label": "Waviness10 Static4 Sat-25 Mix1 (RNG legs -> non-convergent)", "time": 0.0, "params": [{"name":"Waviness","id":1,"value":10},{"name":"Static","id":3,"value":4},{"name":"Saturate","id":5,"value":-25},{"name":"Mix","id":10001,"value":1}]}
+      {
+        "label": "Waviness10 Static4 Sat-25 Mix1 (RNG legs -> non-convergent)",
+        "time": 0.0,
+        "params": [
+          {
+            "name": "Waviness",
+            "id": 1,
+            "value": 10
+          },
+          {
+            "name": "Static",
+            "id": 3,
+            "value": 4
+          },
+          {
+            "name": "Saturate",
+            "id": 5,
+            "value": -25
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      }
     ]
   }
 }

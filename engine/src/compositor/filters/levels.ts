@@ -31,6 +31,26 @@
  *   level, and there is a SECOND stage + Mix. Phase-2: expand levelsFilter to the
  *   two-stage form. Where a transition only sets stage-1 params (the common case) the
  *   second stage is identity, so the practical gap is the separate output-black point.
+ * ⚠️ BLACK/WHITE-POINT DIVERGENCE MEASURED (2026-07-15, real headless FCP probes):
+ *   the built-in transitions author ONLY Gamma (Histogram>RGB>Gamma id=5), so the
+ *   input/output black+white points are UNEXERCISED by the 65-slug gate. Phase-2
+ *   probed them directly (filter_probe, Histogram>RGB>{Black In id=1, White In id=3}):
+ *   FCP ACCEPTS them but the current single-stage TS affine DIVERGES:
+ *     • Black In=0.3 → TS mean|Δ|≈12: TS crushes shadows harder than FCP
+ *       (FCP in[191,136,82]→[169,99,39] vs TS [163,85,7] — TS B-channel goes to 7,
+ *        FCP holds it at 39).
+ *     • White In=0.7 → TS mean|Δ|≈34: FCP pushes G/B toward 255 harder than TS
+ *       (FCP in[191,136,82]→[255,255,167] vs TS [255,194,117]).
+ *   Neither an sRGB-space nor a linear-space single-stage affine reproduces both
+ *   (linear got B closer on Black In but overshot R). This is consistent with FCP's
+ *   internal TWO-STAGE HgcLevels (slot map above) applying the affine differently than
+ *   the single-stage LUT. This stays a documented CEILING/GAP: the GUI-GT gate is
+ *   UNAFFECTED (no built-in authors these points), and a faithful two-stage rewrite is
+ *   deferred (needs the exact stage-1↔stage-2 param split + space decoded, and Levels
+ *   is used by 27+ transitions so any change is gate-load-bearing). Sweep GAP cases
+ *   'black in 0.3' / 'white in 0.7' added to tools/re/filter_sweeps.json track it.
+ *   Param-id map (verified where noted): Black In=1, White In=3, Gamma=5; Black Out=2,
+ *   White Out=4 by convention (unverified).
  * ⚠️ GAMMA DIRECTION (GUI-GT-verified 2026-07-11, do NOT "fix" to pow(x,gamma)):
  *   although the HgcLevels *shader* raises to pow(x, gamma), the Motion "Gamma" UI
  *   param is fed to the shader as its RECIPROCAL, so the net mapping the TS LUT must
