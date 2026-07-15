@@ -143,6 +143,23 @@ and future renders share one encode path. Do NOT chase these as real regressions
 - Work top-down by **coverage × safety** (Σ deficit-to-16 dB ÷ risk). One subsystem per arc,
   gate-green each commit, baseline re-frozen when an improvement is protected.
 
+- **✅ FIX-FRAMING — single-behavior framing reveal SCHEDULE + COVER-framing (2026-07-14, T-H2/S6):**
+  Fixed `evaluator/framing.ts resolveFramedPose` (the SINGLE-Framing-behavior path). Two bugs, both
+  generic (no slug branch): (1) NO reveal schedule — a delayed framer (tin>0) is a scheduled reveal:
+  the tile must be absent (off-frame) until its window opens, then slide up over [tin,tout]; added
+  `revealEase` (hold off-frame until ~60% of window, then near-linear slide) + `revealPose` (shifts
+  look-at Y by 2.6·halfH·(1−e)). tin≤eps → plain pose (always-on framers like Clone_Spin's spin are
+  untouched). (2) `framePose` fit the WIDTH half-extent into the VERTICAL aov (letterboxed ~60% tile);
+  added COVER mode `distance=min(hw/tanH, hh/tanV)` with `tanH=tanV·frameAspect` so a 16:9 tile FILLS
+  a 16:9 frame. Threaded `scene.settings.width`→frameAspect through resolveCamera.
+  **Video_Wall min-repro (PRIMARY oracle) 8.14 → 84.42 dB** (f08–f19 black-match=99 dB; f20/f22/f23
+  reveal-ramp 12.7/9.8/13.8 — was frozen@34.3). **Full GUI-GT gate `fct regress engine` = 0/0**
+  (baseline_engine byte-identical); tsc clean; no-hardcode policy PASS.
+  **⚠️ SCOPE**: full Video_Wall/Clone_Spin have 2 factory-3 behaviors → `resolveFramedWallPose` (the
+  wall path, NOT touched), so full-slug dB is UNCHANGED (VW 9.10, CS 10.32). This fix corrects the
+  single-framer reveal path the MINIMIZED repro exercises; the wall-path anchor (bottom-edge
+  [2399,-2145] vs centroid [1535,2572]) + dolly remain the next full-slug lever for T-H2/T-K1.
+
 - **✅ BASELINE RE-FROZEN (2026-07-13, commit f8d4d6d):** the swarm drained, all 65 slugs were
   re-rendered from current main (0 regressions), and `fct baseline engine` re-froze at **13.93 dB**
   — now capturing the landed gains (T-G1 Color_Planes 10.47→11.35, T-E1 Video_Wall 8.74→9.1; the
@@ -312,10 +329,16 @@ T-H1  TODO    Center-tail Image-Mask on Comp group                Stylized/Cente
                Transition B at the tail (engine stays near-white 231,235,236; GT reveals photo B).      the tail. Find why the parser
                Fix: make the parser capture + the compositor apply the Image Mask on a GROUP layer      drops the group Image Mask;
                (not just leaf/drop-zone), respecting Invert. Gate all 65 (mask code is shared).]        wire it; respect Invert.
-T-H2  TODO    Video_Wall / Clone_Spin framing camera              Video_Wall (9.10), Clone_Spin (10.32).
-              [S6 framing-camera pose bug (see T-E2 BLOCKED + progress log 2026-07-13). Camera-less     Framing anchor targets the wrong
-               orthographic framing anchors on the wrong tile/origin; dolly schedule wrong. Decode      origin (reference tile vs wall
-               the union-bbox anchor + dolly from the .motr framing behaviour; both slugs share it.]    origin) + wrong dolly schedule.
+T-H2  PARTIAL Video_Wall / Clone_Spin framing camera              Video_Wall (9.10), Clone_Spin (10.32).
+              [2026-07-14 FIX-FRAMING: fixed the SINGLE-BEHAVIOR framing path (resolveFramedPose):     Single-framer reveal SCHEDULE +
+               (a) a scheduled-REVEAL slide (delayed tin>0 framer holds the tile off-frame then slides   COVER-framing FIXED (min-repro
+               it up over [tin,tout] via revealEase) and (b) COVER-framing (fit tile to fill the frame   8.14->84.42 dB, 0 full-gate
+               using tanH=tanV·aspect, not letterboxed max-extent). Video_Wall min-repro 8.14->84.42     regressions). Full-slug dB
+               dB (f08-f19 black-match=99, f20-f23 reveal-ramp). tin<=eps -> plain pose so Clone_Spin's   UNCHANGED — full Video_Wall/
+               always-on spin framer is untouched. FULL-SLUG dB UNCHANGED: full Video_Wall has 2         Clone_Spin route through the
+               factory-3 behaviors -> resolveFramedWallPose (the wall/anchor path, NOT touched here).    2-behavior resolveFramedWallPose
+               REMAINING: the wall-path anchor ([2399,-2145] bottom-edge vs centroid [1535,2572]) +      wall path (bottom-edge anchor +
+               its dolly schedule are the full-slug bug — that is the next lever for T-H2/T-K1.]         dolly still wrong). Next lever.
 T-H3  TODO    Bloom FLOAT headroom chain (real T-D2c)             Lights/Bloom (10.55), 360°_Bloom
               [Rebuild glow/bloom on Float32 (not u8) so >1.0 headroom survives blur+combine, tone-     (11.58). u8 clamp at 255 caps
                mapped once at readback. u8 clamp caused 360°_Bloom under-bloom (194 vs GT 250).         bloom headroom; FCT_BLOOM_FLOAT

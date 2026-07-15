@@ -806,7 +806,7 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
   for (const desc of scene.factories.values()) {
     if (desc === 'Replicator' || desc === 'Sequence Replicator') { sceneHasReplicator = true; break; }
   }
-  const camera = resolveCamera(layers, widgetValues, scene.settings.height, evalLayerById, timeSec, scene.settings.animationEndSec ?? (scene.settings.duration.value / scene.settings.duration.timescale), sceneHasReplicator);
+  const camera = resolveCamera(layers, widgetValues, scene.settings.height, evalLayerById, timeSec, scene.settings.animationEndSec ?? (scene.settings.duration.value / scene.settings.duration.timescale), sceneHasReplicator, scene.settings.width);
 
   return {
     layers,
@@ -836,7 +836,8 @@ function resolveCamera(
   evalLayerById: Map<number, EvaluatedLayer>,
   timeSec: number,
   animationEndSec: number,
-  sceneHasReplicator: boolean
+  sceneHasReplicator: boolean,
+  frameWidth: number = frameHeight
 ): { angleOfView: number; distance: number; worldTransform: Float64Array; framed?: { viewX: number; viewY: number; viewZ: number; framingDistance: number; eye: [number, number, number]; target: [number, number, number]; aov: number } } | undefined {
   let camLayer: EvaluatedLayer | undefined;
   const walk = (ls: EvaluatedLayer[]) => {
@@ -929,8 +930,9 @@ function resolveCamera(
   // constant.
   let framed: { viewX: number; viewY: number; viewZ: number; framingDistance: number; eye: [number, number, number]; target: [number, number, number]; aov: number } | undefined;
   if (cam.framing && cam.framing.length > 0) {
+    const frameAspect = frameHeight > 0 ? frameWidth / frameHeight : 1;
     const wall = resolveFramedWallPose(cam.framing, (id) => evalLayerById.get(id), aov, frameHeight, timeSec, animationEndSec);
-    const pose = wall ?? resolveFramedPose(cam.framing, (id) => evalLayerById.get(id), aov, timeSec);
+    const pose = wall ?? resolveFramedPose(cam.framing, (id) => evalLayerById.get(id), aov, timeSec, frameAspect);
     if (pose) {
       framed = { viewX: pose.target[0], viewY: pose.target[1], viewZ: pose.target[2], framingDistance: pose.distance, eye: pose.pos, target: pose.target, aov };
     }

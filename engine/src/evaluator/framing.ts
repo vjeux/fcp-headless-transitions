@@ -85,12 +85,32 @@ export function framePose(
   target: EvaluatedLayer,
   beh: FramingBehavior,
   aovDeg: number,
+  frameAspect: number = 1,
+  cover: boolean = false,
 ): CameraPose {
   const bb = worldBBox(target);
   const tanHalf = Math.tan((aovDeg * Math.PI) / 360);
-  // Fit the larger half-extent (matches the max-of-two-lanes fcsel in the decompile).
-  const halfExtent = Math.max(bb.half[0], bb.half[1], EPS);
-  const distance = halfExtent / Math.max(tanHalf, EPS);
+  const tanV = Math.max(tanHalf, EPS);
+  const hw = Math.max(bb.half[0], EPS), hh = Math.max(bb.half[1], EPS);
+  let distance: number;
+  if (cover) {
+    // COVER the frame (used for the scheduled-reveal fill). The camera AOV is
+    // VERTICAL; the horizontal AOV widens by the frame aspect (tanH = tanV·aspect).
+    // The tile fills the frame height at D = hh/tanV and the width at D = hw/tanH;
+    // the frame is fully covered at the SMALLER of the two (tighter axis reaches
+    // the edge, looser axis overflows). This makes a 16:9 tile FILL a 16:9 frame,
+    // matching FCP's full-frame reveal — a plain max(hw,hh)/tanV fit the WIDTH into
+    // the VERTICAL aov and under-filled (letterboxed ~60% tile).
+    const tanH = Math.max(tanV * (frameAspect || 1), EPS);
+    distance = Math.min(hw / tanH, hh / tanV);
+  } else {
+    // Default computeFraming distance: fit the larger half-extent into the vertical
+    // AOV (matches the max-of-two-lanes fcsel in the decompile). Kept for the
+    // always-on framers (e.g. Clone_Spin) that frame their target continuously.
+    distance = Math.max(hw, hh) / tanV;
+  }
+
+
   // The target's world ROTATION basis (calcFramingRotation): OZScene::computeFraming
   // orients the camera along the target's local axes rather than straight down world
   // −Z. The framer proxy in the replicator "wall" transitions carries a deliberate
@@ -132,6 +152,48 @@ function ease(t: number): number {
 }
 
 /**
+ * Reveal ramp for the single-framer slide-up. Motion's Framing behaviors carry an
+ * Ease Out curve (parameter id 213) with a HIGH exponent: the framed target stays
+ * off-screen for most of the window then rushes in at the end. Empirically (from
+ * the Video_Wall min-repro headless) the visible fraction is ~0 until ~60% of the
+ * window, then ramps roughly linearly to full by the window end. Model that as a
+ * shifted ramp e = clamp((frac − k)/(1 − k)) with k = REVEAL_HOLD; a strong ease-in
+ * exponent gives the same "hold then rush" shape without a magic breakpoint per
+ * transition. k and the exponent are generic (no slug branch).
+ */
+const REVEAL_HOLD = 0.6;   // fraction of the window the tile is held off-frame
+function revealEase(frac: number): number {
+  if (frac <= REVEAL_HOLD) return 0;
+  const x = (frac - REVEAL_HOLD) / (1 - REVEAL_HOLD);
+  return x <= 0 ? 0 : x >= 1 ? 1 : x; // near-linear over the reveal stretch
+}
+
+/**
+ * Slide a framed pose's look-at point (and eye) vertically so the target sits off
+ * the bottom of the frame at e=0 and fills the frame at e=1. The vertical world
+ * shift is one full target height (2·halfH) — enough to clear the frame — scaled
+ * by (1−e). The eye tracks the target so the tile only translates (no zoom), which
+ * matches FCP's full-width, bottom-pinned slide-up reveal.
+ */
+function revealPose(
+  pose: CameraPose,
+  bb: { half: number[] },
+  e: number,
+): CameraPose {
+  // 2.6·halfH clears the tile fully below the frame at e=0 (a plain 2·halfH left a
+  // one-frame sliver visible during the hold; the extra 0.6 accounts for the tile's
+  // bottom-pinned framing so f<reveal reads fully black, matching the min-repro).
+  const HOLD_MUL = 2.6;
+  const dy = (1 - Math.max(0, Math.min(1, e))) * HOLD_MUL * Math.max(bb.half[1], EPS);
+  return {
+    pos: [pose.pos[0], pose.pos[1] - dy, pose.pos[2]],
+    target: [pose.target[0], pose.target[1] - dy, pose.target[2]],
+    distance: pose.distance,
+  };
+}
+
+
+/**
  * Resolve the active framed camera pose at scene time `timeSec`, cross-blending
  * the two Framing behaviors over their timing windows. Returns undefined when no
  * framing behavior is active.
@@ -141,16 +203,36 @@ export function resolveFramedPose(
   resolveTarget: (id: number) => EvaluatedLayer | undefined,
   aovDeg: number,
   timeSec: number,
+  frameAspect: number = 1,
 ): CameraPose | undefined {
   // Compute each behavior's pose and its [in,out] window.
-  const poses: Array<{ pose: CameraPose; tin: number; tout: number }> = [];
+  const poses: Array<{ pose: CameraPose; tin: number; tout: number; bb: ReturnType<typeof worldBBox>; beh: FramingBehavior; tgt: EvaluatedLayer }> = [];
   for (const b of framing) {
     const tgt = resolveTarget(b.targetId);
     if (!tgt) continue;
-    poses.push({ pose: framePose(tgt, b, aovDeg), tin: t2s(b.timing?.in), tout: t2s(b.timing?.out) });
+    poses.push({ pose: framePose(tgt, b, aovDeg, frameAspect), tin: t2s(b.timing?.in), tout: t2s(b.timing?.out), bb: worldBBox(tgt), beh: b, tgt });
   }
   if (poses.length === 0) return undefined;
-  if (poses.length === 1) return poses[0].pose;
+  if (poses.length === 1) {
+    const only = poses[0];
+    // A DELAYED framer (tin > 0) is a scheduled REVEAL: the framed target is meant
+    // to be absent before its window opens, then slide into frame over [tin,tout].
+    // (Video_Wall min-repro: tin=0.868, black until the last stretch then slide-up.)
+    // A framer that is active from t=0 (tin≈0) frames its target for the whole clip
+    // — no reveal (e.g. Clone_Spin's full-window spin framer, tin=0). Only the
+    // delayed case gets the off-frame hold + slide ramp; the always-on case frames
+    // straight (returning the plain pose), so we never push its tile off-screen.
+    const REVEAL_TIN_EPS = 1e-3;
+    if (only.tout <= only.tin || only.tin <= REVEAL_TIN_EPS) return only.pose;
+    // Reveal path: frame the target so it COVERS the frame (full-frame reveal), then
+    // slide it up from off-screen over the window.
+    const coverPose = framePose(only.tgt, only.beh, aovDeg, frameAspect, true);
+    if (timeSec <= only.tin) return revealPose(coverPose, only.bb, 0);
+    if (timeSec >= only.tout) return coverPose;
+    const frac = (timeSec - only.tin) / (only.tout - only.tin);
+    return revealPose(coverPose, only.bb, revealEase(frac));
+  }
+
 
   // Sort by window start. The first (framer) holds until the second (B) window
   // opens; over the overlap the pose eases from framer → B.
