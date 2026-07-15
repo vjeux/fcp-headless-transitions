@@ -439,11 +439,19 @@ T-M5  TODO    FILTER-P2: Colorize Intensity=1 luma-vector         filter: Colori
                Intensity=1 the B-channel luma vector mismatches (FCP luma != 601 dot). Decode the        the Intensity=1 endpoint mismatches
                exact luma weights + the colorize-Amount (hg_Params[2]) vs final Mix (hg_Params[3])       FCP. Decode luma wts + amount/mix
                split from HgcColorize. VERIFY vs filter_probe colorize sweep. Gate 0 regressions.]        split; verify full sweep vs headless.
-T-M6  TODO    FILTER-P2: Gaussian decimation kernel + edge mode   filter: Gaussian Blur. 3+ users,
-              [P2-GB1: sigma=Amount/6.67 is DONE, but FCP convolves a small fixed-tap kernel on the     load-bearing (Blurs family). Decode
-               DECIMATED image with HGBlur-computed weights (HGBlur::ComputeDecimation) + a specific    HGBlur::ComputeDecimation + edge
-               edge mode; TS builds a full 2r+1 kernel sigma=r/3 with an assumed edge mode. Decode the  mode; verify decimated kernel +
-               decimation + weights + edge handling; VERIFY vs filter_probe gaussian sweep. Gate 0.]     edges vs headless across sweep.
+T-M6  DONE    FILTER-P2: Gaussian decimation kernel + edge mode   filter: Gaussian Blur. 3+ users,
+              [P2 DONE 2026-07-15: decimation (gaussianDecimation = HGBlur::GetDecimation) + kernel     load-bearing (Blurs family). Decode
+               (normalized Gaussian PDF = HGLinearFilter::gaussian, σ=Amount/6.67) were already        HGBlur::ComputeDecimation + edge
+               decoded & verified (opaque Amount sweep 36–46 dB). This tick DECODED the remaining       mode; verify decimated kernel +
+               [P2-GB3] EDGE MODE via synthetic solid/edge patterns (new gen_pattern.py kinds):        edges vs headless across sweep.
+               (a) WITHIN-IMAGE borders = CLAMP (matches this impl; a wrong mode would break the 36
+               dB sweep). (b) IMAGE-BOUNDARY vs transparency = PREMULTIPLIED blur (solid patch keeps
+               straight RGB~255, alpha feathers 0→240) — a straight RGBA blur (this impl) would dark-
+               halo. REAL divergence but NOT gate-exercised: all 16 users blur full-frame OPAQUE
+               content, and masked-reveal users apply the mask AFTER the filter on opaque src
+               (renderDrawableLayer). Per rule 1 + decode-don't-fit, documented in the RE comment
+               (with a premult-rewrite recipe if a future alpha-edged blur needs it), NOT rewritten
+               on the 16-user load-bearing filter. Gate GREEN (0 regr). tsc clean.]
 T-M7  DONE    FILTER-P2: sweep-harness audit — add missing sweeps filter tooling: tools/re/
               [AUDIT DONE 2026-07-15: 24 registered TS filters vs 21 sweep entries -> 3 MISSING       filter_sweeps.json + filter_verify.
                (PAENoise, 360° Reorient, PAEBadTV), 0 stale. Added all 3 as sweep entries (params +   Every registered filter now has a
@@ -1155,6 +1163,25 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-15r  T-M6 (Gaussian Blur decimation + edge mode) → DONE (Phase-2 decode + document; gate-neutral).
+              Decimation (gaussianDecimation ≡ HGBlur::GetDecimation) + kernel (normalized Gaussian PDF ≡
+              HGLinearFilter::gaussian, σ=Amount/6.67) were already decoded/verified (opaque Amount sweep
+              36–46 dB). This tick closed the open [P2-GB3] EDGE MODE via two new committed synthetic
+              patterns (tools/re/gen_pattern.py `solid` + `edge`) fed through filter_probe --in-a:
+              (a) WITHIN-IMAGE borders = CLAMP (repeat-edge) — matches this impl; a bright bar flush to
+              col-0 blurred at Amount=80 keeps col-0 bright (clamp extends) not reflected/zeroed, and a
+              wrong within-image mode would break the 36 dB opaque sweep. (b) IMAGE-BOUNDARY vs the
+              transparent canvas = PREMULTIPLIED blur: a solid-white patch's boundary keeps STORED
+              straight RGB~255 constant while ALPHA feathers (0→18→34→60→132→240), i.e. FCP blurs (rgb·a)
+              & a then un-premults. A STRAIGHT RGBA blur (this impl) would average white against rgb=0
+              transparent neighbours → a DARK HALO. REAL decoded divergence, but NOT gate-exercised: all
+              16 Gaussian transitions blur FULL-FRAME OPAQUE content, and masked-reveal users apply the
+              mask AFTER the filter on opaque source (index.ts renderDrawableLayer: blit→filter→applyMask→
+              composite) so the blur never sees an alpha edge. Per rule 1 (GUI GT = one truth) + decode-
+              don't-fit, documented in the RE comment (with a premult un/re-wrap recipe = the HgcChannelBlur/
+              NoPremult blends FCP applies around HGBlur, for a future alpha-edged blur) rather than
+              rewriting the 16-user load-bearing filter (gate-neutral at best on opaque, risky at worst).
+              Comment + committed-tool only; tsc clean; gate GREEN (0 regr, 0 impr vs baseline_engine).
 - 2026-07-15q  T-M4 (ChannelMixer alpha/offset column) → DONE (Phase-2 decode + document; gate-neutral).
               Probed the un-swept "…-Alpha" OFFSET column against real headless FCP: Red-Alpha=0.3 (all
               other rows identity) lifts ALL THREE output channels (in[191,136,82]→out[237,196,159]),

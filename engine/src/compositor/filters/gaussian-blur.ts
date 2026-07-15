@@ -60,10 +60,30 @@
  *     the decimate→PDF→upsample chain yields an effective screen sigma ≈ radius/6.67
  *     (verified: Amount 10→σ1.5 … 80→σ11.3). It is a normalized PDF (not r/3, which was
  *     the old wrong assumption).
- *   [P2-GB3] EDGE MODE: this impl CLAMPs at borders. FCP's 360 path seam-WRAPs
- *     (NewEquirectWrapNode); the planar path's HGBlur edge mode is not documented
-
- *     here — verify before claiming a match on border pixels.
+ *   [P2-GB3] EDGE MODE — DECODED 2026-07-15 (tools/re/gen_pattern.py {solid,edge} +
+ *     filter_probe --in-a). Two distinct edges to distinguish:
+ *     (a) WITHIN-IMAGE borders (a sample would step off the pixel grid): FCP CLAMPs
+ *         (repeat-edge), same as this impl. Verified: a bright bar flush to col-0 blurred
+ *         at Amount=80 keeps col-0 bright (clamp extends it) rather than reflecting/zeroing
+ *         — and the isolated opaque Amount sweep matches headless at 36–46 dB, which a
+ *         wrong within-image edge mode would break. So the CLAMP here is correct.
+ *     (b) IMAGE-BOUNDARY against transparency (the image sits on a transparent canvas):
+ *         FCP blurs in PREMULTIPLIED space — at a solid-white patch's boundary the STORED
+ *         (straight) RGB stays ~255 constant while ALPHA feathers 0→18→34→60→132→240; i.e.
+ *         it blurs (rgb·a) and a, then un-premultiplies. A STRAIGHT RGBA blur (what
+ *         gaussianBlur below does) would instead average the white against the rgb=0
+ *         transparent neighbours and pull the stored RGB toward 0 → a DARK HALO at alpha
+ *         edges. THIS IS A REAL DECODED DIVERGENCE, but it is NOT exercised by the GUI-GT
+ *         gate: the 16 Gaussian transitions blur FULL-FRAME OPAQUE content, and for the
+ *         masked-reveal users the compositor applies the mask AFTER the filter on an opaque
+ *         source (index.ts renderDrawableLayer: blit src→temp → applyFilter → applyMask →
+ *         composite), so the blur never sees the alpha edge. Per rule 1 (GUI GT = one truth)
+ *         + decode-don't-fit, the premult-blur is documented here rather than shipped: a
+ *         premult-aware rewrite of this 16-user load-bearing filter would be gate-neutral at
+ *         best (opaque inputs are identical) and risky at worst. If a future scene DOES blur
+ *         an alpha-edged layer (Bloom's Float path already carries its own premult story),
+ *         wrap this in an un/re-premultiply (the HgcChannelBlur/NoPremult blends FCP applies
+ *         around HGBlur) before shipping, and gate-green.
  *
  * PERF (2026-07-05): two exact speedups on the inner tap loop, both verified
  * byte-identical to the naive path (test/_perf_gbcheck against the reference impl):

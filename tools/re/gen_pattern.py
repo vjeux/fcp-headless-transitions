@@ -15,7 +15,7 @@ from PIL import Image
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("kind", choices=["rings","ring","spokes","grid","ramp"])
+    ap.add_argument("kind", choices=["rings","ring","spokes","grid","ramp","solid","edge"])
     ap.add_argument("--out", required=True)
     ap.add_argument("--w", type=int, default=1920)
     ap.add_argument("--h", type=int, default=1080)
@@ -50,6 +50,18 @@ def main():
         # luma-dependent filter (Luma Keyer, Levels, HSV Value...) makes each output COLUMN
         # a direct sample of that filter's per-luma transfer curve — probe it, read a row.
         img = (xx / (W - 1) * 255.0)
+    elif a.kind=="solid":
+        # uniform bright field (value=`thick` clamped to 0..255, default 255). Blurring a
+        # SOLID image is the decisive edge-mode discriminator: CLAMP/MIRROR leave the border
+        # pixels unchanged (all neighbours share the value), while ZERO-PAD darkens the
+        # border toward value/2 (edge) and value/4 (corner). Read the border row/col.
+        img = np.full((H, W), min(255.0, max(0.0, a.thick if a.thick != 2.0 else 255.0)), float)
+    elif a.kind=="edge":
+        # bright vertical bar flush against the LEFT border (cols [0, spacing)) on black.
+        # Blurring it decides CLAMP vs MIRROR at the left edge: CLAMP extends col-0's value
+        # outward (so the blurred profile is asymmetric, brighter at the border), MIRROR
+        # reflects the bar's own falloff back in (symmetric about col-0). Read row H/2.
+        img[:, :a.spacing] = 255.0
     rgb = np.stack([img,img,img],axis=-1).astype(np.uint8)
     Image.fromarray(rgb).save(a.out)
     print(f"wrote {a.kind} {W}x{H} -> {a.out}")
