@@ -421,12 +421,33 @@ T-M7  DONE    FILTER-P2: sweep-harness audit — add missing sweeps filter tooli
                diverge (psnr ~8.5). REMAINING: run the full 56-case sweep under low load + refresh     docs/FILTER_RE_PHASE2.md, then this
                the PASS/FAIL/CEILING scoreboard in docs/FILTER_RE_PHASE2.md (harness confirmed working  is DONE (unblocks T-M1..M6).
                — brightness psnr47; the old "errored on all cases" note was a stale env, not a bug).]
-T-N1  TODO    Stylized/Lower kinetic-panel + white-flash          Stylized__Lower (9.04 — WORST slug).
+T-N1  BLOCKED Stylized/Lower kinetic-panel — visibility fix COUPLED to retime rate  Stylized__Lower (9.04 — WORST slug).
               [Two coupled deficits (docs S2+S8): (a) kinetic mask-panel choreography misses the bright  Worst slug: misses the mid white
                mid white FLASH (partly S2 linear-compositing — engine flash lands warm/dim ~137,99 vs    flash + panels culled vis=false.
                GUI ~239,245), (b) some panels are culled vis=false. Census + score --frames; decode      Decode panel visibility + flash.
                the flash compositing + panel visibility. May share the S7 panel-retime + T-P1 linear
                chain. GENERIC (>=2 slugs); gate 0 regressions.]
+              ── M-LOWER DECODE 2026-07-15 (BLOCKED — visibility fix regresses the ship gate):
+               Lower has ONE isSolidPanel ("Panel right 1", factoryID=12) with in=2.870 out=6.773
+               offset=3.337, while animationEndSec=2.336 (full) / 1.835 (min-repro). Since raw
+               in>endSec, isLayerVisible() returns FALSE every frame -> engine renders it BLACK where
+               FCP paints white. CORRECT generic discriminator = `isSolidPanel && offset>0 &&
+               in>animationEndSec` (proven Lower-only: Panels_Across in=0, Center in<=2.069/end=4.671,
+               Panels_Random in=0, Up-Over in<=2.936/end=9.977 all have in<end; no non-panel slug has
+               isSolidPanel). Fix = re-anchor visibility to scene [in-offset, out-offset]. Min-repro
+               f12-f17 4.15->13-41 dB (PASSES) BUT full gate REGRESSES Lower 9.04->8.27 (-0.77). ROOT
+               CAUSE of the regression: making the panel VISIBLE exposes that the shared isSolidPanel
+               curve-retime (curveTime=in+t*rate-off, rate=(out-in)/endSec=1.67, behind
+               FCT_PANEL_RETIME) settles the panel FAR too early — opacity ramps 0->1 by ~f03 and
+               holds, whereas FCP builds the white panel up around f11-f12. So the panel lands in the
+               wrong place/time = worse than black. Needs rate ~=3.05 (peak near clip midpoint, fade to
+               0.4 tail by end), but that retime is SHARED across all 5 panel families and tuned to net
+               +2.43 dB (Panels_Across +2.64) — changing it is a high-risk multi-slug retime-subsystem
+               effort, NOT a clean isolated visibility patch (same "min-repro up / gate down" trap as
+               the group-mask fix). SHIP PLAN (multi-tick): fix BOTH the visibility gate (the in>endSec
+               re-anchor is correct+generic, keep it) AND the panel opacity/position retime for the
+               in>endSec regime, then verify Panels_Across/Center/Panels_Random/Up-Over/Color_Panels
+               all >= baseline. Agent pushed NOTHING (correct); no regression landed.]
 T-N2  TODO    Close_and_Open / Up-Over kinetic-panel residual     Close_and_Open (10.95), Up-Over (11.75).
               [Kinetic-panel reveal cluster. The S7 template-retime (curveTime=in+t·(out-in)/endSec-off) Kinetic panels + heavy accent
                shipped for Panels_Across; these two ALSO have isSolidPanel + heavy accent particles      particles (Close_and_Open=109,
@@ -1085,6 +1106,21 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-15g  T-N1 (Lower, worst slug) → BLOCKED, salvaged M-LOWER decode into the item. The
+              M-LOWER fix-agent correctly pushed NOTHING (its fix regressed the ship gate). Recorded
+              its full root-cause in T-N1: the black-panel bug is real (isSolidPanel "Panel right 1"
+              in=2.870 > animationEndSec=2.336 -> isLayerVisible false every frame). The generic
+              discriminator `isSolidPanel && offset>0 && in>animationEndSec` (proven Lower-only across
+              all 65) + re-anchor visibility to [in-offset,out-offset] PASSES the min-repro (f12-f17
+              4.15->13-41 dB) but REGRESSES the full gate (Lower 9.04->8.27): making the panel visible
+              exposes that the shared isSolidPanel curve-retime rate (1.67) settles it too early
+              (opacity->1 by ~f03) vs FCP's f11-f12 build-up. Correct rate ~3.05 but that retime is
+              shared across 5 panel families (tuned +2.43 dB) -> multi-tick retime-subsystem, not a
+              one-shot patch (same "min-repro up / gate down" coupling trap as group-mask + Slide_In).
+              ALSO flagged: the box is in a MEMORY CRISIS (swap 24.4/25.6 GB, load 151, ~26 render
+              procs from 3 live agents M-CONCENTRIC/M-SMEAR/M-SQUARES) — agents' `gen --all` gate runs
+              are OOM-risky; do NOT spawn more agents until it drains. Orchestrator did non-render doc
+              work only. Doc-only; no gate. Main @ 31a2c01.
 - 2026-07-14   T-M7 DONE: full sweep scoreboard written to FILTER_RE_PHASE2.md — 46 pass / 0 fail /
               7 ceiling (bloom, tint, bevel, underwater, noise, reorient, badtv; last 3 new this
               tick). No non-ceiling FAIL = no regression. Doc-only, no gate needed.
