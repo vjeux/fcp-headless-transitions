@@ -338,6 +338,16 @@ regresses vs the accidental frozen 10.24 — see `fct/minimized/Replicator-Clone
   4. **camera orientation** — proxy fwd=(0.069,0.422,0.904) tilts the view (real: GT tiles show 3D
      perspective); the eye dollies along fwd from the wall centre and must keep the wall centred/on-screen
      (tiles slid off in the WIP attempt).
+  5. **3-KEY ANCHOR PATH (found while iterating, likely the correct model).** The dolly is NOT a single
+     wall-centre anchor — it follows the TWO Framing targets plus the static start: at t=0 the camera is
+     at its STATIC pose (world (2050,−2390,23), sitting right on the Transition A tile → frames photo A
+     near); "Frame framer" moves it to frame the far proxy (→ wall reveal); "Frame B" moves it to frame
+     the Transition B tile (2054,3596 → photo B near). So the near ENDS use DIFFERENT anchors (A tile,
+     then B tile), the far MIDDLE uses the wall/proxy — a 3-key camera path, not one anchor + triangle
+     dolly. The WIP's single wall-centre (0,0,0) anchor made the near ends frame EMPTY space (black
+     f16–f23). Implementing the static→proxy→content keyframe interpolation (Motion Transition type=3,
+     Position Transition Time=1) is likely the clean model; verify the static camera pose frames A.
+
 **DoD:** Video_Wall + Clone_Spin measurably up (target ≥13), 0 regressions.
 **Verify:** `fct score Replicator-Clones__Video_Wall Replicator-Clones__Clone_Spin --full`.
 **Start:** parts 1+2 are decoded and verified-in-isolation; the tick that lands this must ALSO build
