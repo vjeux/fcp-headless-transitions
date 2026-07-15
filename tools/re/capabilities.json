@@ -62,7 +62,7 @@
     },
     "time": 0.0,
     "min_psnr": 28,
-    "note": "Rotate 30deg about Z. REAL schema: Transform id=100 > Rotation id=109 (X/Y/Z id 1/2/3), DEGREES, default=0 (Movements/Rotate.motr:276). Earlier injector used a single-leaf id=102 -> headless IGNORED it."
+    "note": "Rotate 30\u00b0 about Z (in-plane spin). Transform id=100 > Rotation id=109 (X/Y/Z id 1/2/3). UNITS = RADIANS in the .motr (VERIFIED: Movements/Rotate.motr Z keyframe = 1.5707963267948966 = \u03c0/2 = 90\u00b0); the injector now converts the catalog's degrees\u2192radians (was emitting the degree value raw, so both engines read it as radians and a Z cap still PASSed by mutual agreement but at the wrong angle). PASS psnr 36.88."
   },
   {
     "cap": "opacity.half",
@@ -74,5 +74,18 @@
     "time": 0.0,
     "min_psnr": 34,
     "note": "Transition A Opacity 0.5 over Transition B (Blending>Opacity id=202). Tests the source-over composite fraction."
+  },
+  {
+    "cap": "transform.scale.x",
+    "family": "transform",
+    "inject": {
+      "kind": "transform",
+      "scale": {
+        "x": 0.5
+      }
+    },
+    "time": 0.0,
+    "min_psnr": 28,
+    "note": "Non-uniform X-only scale 0.5 (Scale id=105 X-child only, Y/Z default 1). PASS (psnr 42.41, hvi 75.6): the engine applies anisotropic scale (horizontal squash to 50%) matching headless FCP, distinct from the uniform scale.half cap. Verifies the per-axis Scale schema + the compositor's non-uniform affine."
   }
 ]

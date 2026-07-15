@@ -27,6 +27,22 @@ A capability spec (one entry in capabilities.json) is:
 The scene is the clean Blurs/Directional skeleton with its scene <filter> REMOVED and the
 ONE primitive injected on Transition A, rendered at `time` where A covers the frame so the
 output == primitive(imageA).
+
+⚠️ ORACLE LIMITATION — CAMERA-LESS PERSPECTIVE (found + verified 2026-07-15). The Directional
+skeleton has NO Camera node. For a camera-less scene the FCP GUI renderer (the ONE truth)
+projects ORTHOGRAPHICALLY — verified two ways: (a) the decompiled Ozone path
+OZScene::getActiveCamera→NULL → OZViewer::viewIsOrthographic→true (|AOV|<1e-7 ⇒ parallel);
+(b) the camera-less GUI-GT slug Movements/Fall scores 19.41 dB against the engine's
+distance=Infinity orthographic model and its GT PSNR rises monotonically toward orthographic.
+BUT headless ozengine renders a camera-less 3D transform WITH perspective foreshortening (a
+Y-rotated card FOLDS, a Z-pushed card SHRINKS) — i.e. ozengine supplies a default document
+perspective camera the GUI does not use. So a `transform.rotation.y` / `transform.position.z`
+cap on this skeleton is a FALSE FAIL: the TS engine correctly renders orthographic (matches
+the GUI), while headless (the cap's oracle) diverges. Do NOT add camera-less perspective caps
+here and do NOT "fix" the engine to match headless — that would REGRESS Fall vs the GUI GT
+(Rule 1: GUI is the only truth; headless is only a valid oracle where it agrees with the GUI).
+To unit-test the perspective/3D-fold projection, a cap must add a real Camera node (finite AOV)
+to the skeleton so GUI and headless agree — deferred until the skeleton carries a camera.
 """
 import os, sys, argparse, tempfile, re, json, subprocess
 
@@ -102,13 +118,21 @@ def _transform_xml(inject, indent="\t\t\t\t"):
         lines.append(f'{indent}\t</parameter>')
     rot = inject.get("rotation")
     if rot is not None:
-        # Rotation id=109, DEGREES, X/Y/Z children (id 1/2/3, default="0"). A scalar
-        # rotation is the Z channel (in-plane spin); a dict sets any of X/Y/Z.
+        # Rotation id=109, X/Y/Z children (id 1/2/3, default="0"). UNITS = RADIANS in
+        # the .motr XML (Motion stores rotation in radians even though the UI shows
+        # degrees — VERIFIED: Movements/Rotate.motr Z keyframe value=1.5707963267948966
+        # = π/2 for a 90° spin). The inject spec is given in DEGREES (human-friendly);
+        # we convert to radians here so both engines rotate by the true angle. (Earlier
+        # this emitted the degree value raw, so headless FCP + the TS engine BOTH read
+        # it as radians — they agreed with each other, so a cap could still PASS, but
+        # the tested angle was wrong, e.g. rotation.y=40 became 40 rad ≡ 132°.)
+        import math as _m
         rot_axes = rot if isinstance(rot, dict) else {"z": rot}
         lines.append(f'{indent}\t<parameter name="Rotation" id="109" flags="8589938704">')
         for axis, aid in (("x", 1), ("y", 2), ("z", 3)):
             if axis in rot_axes:
-                lines.append(f'{indent}\t\t<parameter name="{axis.upper()}" id="{aid}" flags="8606711824" default="0" value="{rot_axes[axis]}"/>')
+                rad = rot_axes[axis] * _m.pi / 180.0
+                lines.append(f'{indent}\t\t<parameter name="{axis.upper()}" id="{aid}" flags="8606711824" default="0" value="{rad}"/>')
         lines.append(f'{indent}\t</parameter>')
     scale = inject.get("scale")
     if scale:
@@ -342,6 +366,9 @@ def main(argv):
         warn = "" if applied else " (headless==input: injection IGNORED — check schema)"
         print(f"  {c['cap']:28s} psnr={res['psnr']:5.2f} mae={res['mean_abs_err']:5.2f} "
               f"hvi={res['headless_vs_input_mad']:5.1f} [{tag}]{warn}")
+        if a.keep and "headless_png" in res:
+            print(f"       kept: headless={res['headless_png']} ts={res['ts_png']}")
+
         npass += ok; nfail += (not ok)
     print(f"\nTOTAL: {npass} pass, {nfail} fail")
     return 1 if nfail else 0
