@@ -56,7 +56,7 @@ def main():
     # command must re-exec under the venv python. `gen engine` is pure node (no numpy
     # import) so it's exempt; `gen headless` re-execs below for the DYLD framework path.
     if cmd in ("score", "regress", "gate", "cmp", "probe", "baseline", "census", "montage", "read",
-               "minimize", "min-gen", "min-score", "min-regress", "min-baseline"):
+               "minimize", "min-gen", "min-score", "min-regress", "min-baseline", "caps"):
         _reexec_under_venv_if_needed()
 
     if cmd == "gen":
@@ -257,6 +257,14 @@ def main():
               f"{len(r['improvements'])} improvements vs baseline_{source} "
               f"(tol {r['tol']}dB) — gate {r['total_sec']}s", flush=True)
         return 0 if r["ok"] else 1
+
+    if cmd == "caps":
+        # Capability catalog: run tools/re/probe_scene.py (each entry isolates ONE FCP
+        # primitive in a synthetic scene, renders headless-FCP vs TS, compares). A DEV
+        # ORACLE for building engine features one-by-one; NOT the GUI-GT gate.
+        _reexec_under_venv_if_needed()
+        import subprocess
+        return subprocess.call([sys.executable, os.path.join(REPO, "tools/re/probe_scene.py")] + rest)
 
     if cmd == "census":
         from fct.census import run as census_run

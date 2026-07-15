@@ -1,0 +1,80 @@
+[
+  {
+    "cap": "baseline.identity",
+    "family": "baseline",
+    "inject": {
+      "kind": "transform",
+      "position": {
+        "x": 0
+      }
+    },
+    "time": 0.0,
+    "min_psnr": 30,
+    "note": "HARNESS FLOOR probe: A with an identity transform should render == imageA in BOTH engines. FINDING 2026-07-15: headless matches A (mae 1.09) but TS diverges (mae 16.5), worst at the TOP rows (mae~140) \u2014 the TS drop-zone CONFORM/fit differs from FCP on the bare skeleton (centre pixel is identical, so it is edge/framing, not colour). The synthetic scene needs the drop-zone Fit/Type/dim params that real slugs carry before per-primitive deltas are trustworthy. This is the FIRST capability to close.",
+    "schema_todo": true
+  },
+  {
+    "cap": "transform.position.x",
+    "family": "transform",
+    "inject": {
+      "kind": "transform",
+      "position": {
+        "x": 300
+      }
+    },
+    "time": 0.0,
+    "min_psnr": 30,
+    "note": "Layer Position X +300px (Motion centre origin, +x=right). WORKING: both engines apply it; ~19dB residual = a sub-pixel/edge-sampling divergence in the compositor blit, the first concrete transform capability to close."
+  },
+  {
+    "cap": "transform.position.y",
+    "family": "transform",
+    "inject": {
+      "kind": "transform",
+      "position": {
+        "y": 200
+      }
+    },
+    "time": 0.0,
+    "min_psnr": 30,
+    "note": "Layer Position Y +200px. WORKING (hvi 71): verifies the y-axis sign (Motion +y=UP). ~18dB residual, same blit-sampling gap as position.x."
+  },
+  {
+    "cap": "transform.scale.half",
+    "family": "transform",
+    "inject": {
+      "kind": "transform",
+      "scale": {
+        "x": 50,
+        "y": 50
+      }
+    },
+    "time": 0.0,
+    "min_psnr": 30,
+    "schema_todo": true,
+    "note": "SCHEMA TODO: injecting Scale id=103 under Properties>Transform did NOT apply in headless (hvi~0.9). A real Movements/Scale uses Scale id=105 with a curve; the drop-zone scale path likely needs a different node/id. Decode the real Scale slug's exact transform encoding before enabling."
+  },
+  {
+    "cap": "transform.rotation.z",
+    "family": "transform",
+    "inject": {
+      "kind": "transform",
+      "rotation": 30
+    },
+    "time": 0.0,
+    "min_psnr": 28,
+    "schema_todo": true,
+    "note": "SCHEMA TODO: Rotation id=102 injection did not apply in headless (hvi~0.9). Movements/Flip uses Rotation id=109 AND 102 (3D fold). Decode the real 2D-rotation encoding before enabling."
+  },
+  {
+    "cap": "opacity.half",
+    "family": "blending",
+    "inject": {
+      "kind": "opacity",
+      "value": 0.5
+    },
+    "time": 0.0,
+    "min_psnr": 34,
+    "note": "Transition A Opacity 0.5 over Transition B (Blending>Opacity id=202). Tests the source-over composite fraction."
+  }
+]

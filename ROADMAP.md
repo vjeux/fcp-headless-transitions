@@ -78,6 +78,51 @@ intentionally, when an improvement is verified and you want it protected.
 
 ---
 
+## ⭐⭐ CAPABILITY CATALOG — unit-test every FCP primitive (NEW methodology, 2026-07-15)
+
+**The problem this solves.** The 65 built-in transitions are 100+-node integration scenes;
+a low score can't be attributed to one cause, so fixing a slug means getting many subsystems
+right at once — the exact trap that produced the flat-14.6 local optimum. `fct minimize`
+shrinks a FAILING slug REACTIVELY. This is the inverse and PROACTIVE: enumerate every atomic
+thing FCP does, and for each build a MINIMAL synthetic scene that isolates exactly ONE feature,
+verified against headless FCP. Engine UNIT TESTS, with real FCP as the per-primitive oracle.
+
+**How it works (built this tick):**
+- `tools/re/probe_scene.py` — builds a minimal synthetic `.motr` that injects ONE primitive
+  (a Transform / Opacity / Blend Mode / Time-Remap / behavior / filter) onto Transition A of the
+  clean Blurs/Directional skeleton (scene filter stripped), renders it through BOTH the real
+  headless FCP engine (`ozengine`) AND the full TS pipeline (`_scene_render.ts`: parse→evaluate→
+  composite), and compares. Generalises `filter_probe.py` from filters to ALL primitives.
+- `engine/test/_scene_render.ts` — renders one frame of an ARBITRARY `.motr` path through the TS
+  engine at an absolute scene time (the same `createBenchTransition` path the 65 slugs use, so a
+  capability probe exercises the parser + evaluator + compositor, not just the filter registry).
+- `tools/re/capabilities.json` — the CATALOG: one entry per capability {cap, family, inject, time,
+  min_psnr, note}. Grows as primitives are enumerated.
+- `fct caps [ids…] [--list]` — run the catalog; PASS/FAIL per capability. This is a DEV ORACLE
+  (headless FCP is truth for a synthetic scene), NOT the GUI-GT gate — the 65 shipped slugs are
+  still scored ONLY against `~/fct-gui-gt`.
+
+**The build order (do these top-down; each closes ONE capability to PASS, then add the next):**
+1. **baseline.identity** — A with identity transform must render == imageA in BOTH engines.
+   FINDING this tick: headless matches A (mae 1.09) but TS diverges (mae 16.5), worst at the TOP
+   rows (~140) — the TS **drop-zone conform/fit** differs from FCP on the bare skeleton (centre
+   pixel is identical → it's edge/framing, not colour). CLOSE THIS FIRST; it is the harness floor
+   and likely a hidden baseline error under many slugs.
+2. **transform.position.x / .y** — WORKING (both engines apply; ~19 dB residual = the same
+   conform floor from #1, not a translate bug). Re-verify once #1 is closed.
+3. **transform.scale / .rotation** — SCHEMA TODO: injected Scale id=103 / Rotation id=102 under
+   Properties>Transform did NOT apply in headless (hvi~0.9). Decode a real Movements/Scale (uses
+   Scale id=105) + Movements/Rotate encoding, fix the injector, then close.
+4. Then enumerate the rest: opacity, blend modes, crop, anchor, shear, time-remap/speed/reverse,
+   masks (rect/circle/bezier), behaviors (Fade/Ramp/Throw/Spin/Oscillate/Sequence-Replicator),
+   replicator layout, camera/3D projection, generators. Each = one catalog entry + make it PASS.
+
+**Why this breaks the loop:** a capability PASS is a small, attributable, gate-safe win. When a
+primitive is verified in isolation, every transition that uses it improves for free, and a slug's
+remaining error is now a COMPOSITION of known-good parts — debuggable. Prefer closing capabilities
+over grinding whole slugs. (This complements the leverage table: capabilities are the *unit* of
+engine correctness; the leverage table says which SLUGS the wins should target first.)
+
 ## Status snapshot (2026-07-15, rebuilt)
 
 - **Engine mean: 14.59 dB** across 65 slugs (median 14.30). Distribution: 5 broken (<11),
@@ -89,6 +134,41 @@ intentionally, when an improvement is verified and you want it protected.
 - **Phase 2 (match + verify): the frontier is now STRUCTURAL, not filters.** The dB deficit
   lives in geometry + compositing (see leverage table). The filter color gaps (Colorize=1,
   Tint, Brightness>1, Bloom) are real but small and all fold into S2 (linear chain).
+
+## 🧪 CAPABILITY CATALOG — unit-test every FCP primitive one-by-one (new 2026-07-15)
+
+The 65 transitions are 100+-node INTEGRATION scenes: a low score can't be blamed on one
+cause, which is the exact trap that produced the filter-grind local optimum. The catalog
+inverts `fct minimize` (which REACTIVELY shrinks a failing slug): it PROACTIVELY builds a
+MINIMAL synthetic scene that isolates exactly ONE primitive, renders it through BOTH the
+real headless FCP engine AND the full TS pipeline (parse->evaluate->composite), and compares.
+Unit tests for the engine, with headless FCP as the per-primitive oracle.
+
+- `tools/re/capabilities.json` — the catalog. One entry per atomic FCP capability:
+  `{cap, family, inject:{kind,...}, time, min_psnr, note}`.
+- `tools/re/probe_scene.py` — builds the synthetic .motr (skeleton + ONE injected primitive
+  on Transition A, scene filter stripped), renders headless + TS, reports psnr/mae/hvi
+  (headless-vs-input, so hvi~0 => FCP IGNORED the injection = a schema bug, not an engine bug).
+- `engine/test/_scene_render.ts` — renders an arbitrary .motr through the TS engine at time t.
+- `fct caps [ids...] [--list] [--keep]` — run the catalog (a DEV ORACLE; the GUI-GT gate is
+  still the only merge bar for the 65 slugs).
+
+**FIRST FINDINGS (2026-07-15, this is the harness working as designed):**
+1. **Harness FLOOR bug** — even an IDENTITY scene (show image A) diverges: headless matches A
+   (mae 1.09) but the TS engine diverges (mae 16.5), worst at the TOP rows (~140 mae; centre
+   pixel is byte-identical). So the TS **drop-zone conform/fit** differs from FCP on the bare
+   skeleton — a real engine gap under every transition, previously masked inside the integration
+   scenes. **This is the first capability to close** (before per-primitive deltas are trustworthy).
+2. **Schema TODOs** — transform Position X/Y DO apply in both engines (hvi 45/71); Scale/Rotation/
+   Opacity injections were IGNORED by headless (hvi~0.9) => the drop-zone transform/opacity
+   encoding needs decoding from a real slug (Scale appears as id=105 in Movements/Scale, Rotation
+   id=109 in Flip — the ids/nesting vary). Marked `schema_todo` in the catalog.
+
+**How to extend:** add a capability to capabilities.json, add its injector `kind` to
+probe_scene.py (transform + opacity exist), decode the exact .motr schema from a real slug that
+uses it (Rule 8 — `fct census`), then `fct caps <cap>` until it PASSES. Families to build out:
+transform (position✓/scale/rotation/anchor/shear/crop), blend modes, opacity, time-remap/speed,
+behaviours (Fade/Ramp/Throw/Oscillate/Spin/Link), masks, replicator layout, camera/3D, generators.
 
 ## ⭐ LEVERAGE TABLE — the work, ordered by measured dB deficit (do top-down)
 
@@ -250,6 +330,31 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-15t  🧪 CAPABILITY CATALOG harness built (answer to "implement FCP features one-by-one,
+              like minimize in spirit"). New: tools/re/probe_scene.py (builds a minimal synthetic
+              .motr isolating ONE primitive, renders headless-FCP + full TS pipeline, compares),
+              engine/test/_scene_render.ts (render any .motr through the TS engine at time t),
+              tools/re/capabilities.json (the catalog), and `fct caps`. Proven end-to-end: transform
+              Position X/Y apply in BOTH engines. TWO real findings the harness surfaced immediately:
+              (1) HARNESS FLOOR — an identity "show image A" scene diverges (headless mae 1.09 vs A,
+              TS mae 16.5, worst at top rows ~140; centre pixel byte-identical) => TS drop-zone
+              conform/fit differs from FCP under EVERY transition, previously masked in the 100-node
+              integration scenes; this is the first capability to close. (2) SCHEMA TODOs — Scale/
+              Rotation/Opacity injections were ignored by headless (hvi~0.9), the drop-zone transform/
+              opacity encoding needs decoding from a real slug. Harness is a DEV ORACLE; GUI-GT gate
+              unchanged (0 regressions, tools/test only). tsc clean.
+- 2026-07-15t  ⭐ NEW METHODOLOGY: capability catalog (unit-test every FCP primitive vs headless FCP).
+              Answering "build a listing of everything FCP does + a small testable implementation for
+              each" — the inverse of `fct minimize`. Built `tools/re/probe_scene.py` (injects ONE
+              primitive into a minimal synthetic .motr, renders headless-FCP vs the full TS pipeline,
+              compares), `engine/test/_scene_render.ts` (render an arbitrary .motr through parse→eval→
+              composite), `tools/re/capabilities.json` (the catalog), and wired `fct caps`. Proven
+              end-to-end: transform.position.x/y APPLY in both engines. FINDING it immediately surfaced:
+              the HARNESS FLOOR is only ~17.6 dB — an IDENTITY scene (show A) already diverges (headless
+              mae 1.09 vs A, TS mae 16.5), worst at the TOP rows (~140), centre pixel identical ⇒ the TS
+              DROP-ZONE CONFORM/fit differs from FCP on a bare skeleton. That is a hidden baseline error
+              under many slugs and is now capability #1 to close. Scale/rotation injectors need the real
+              id schema decoded (documented as schema_todo). Tools+test only; tsc clean; gate 0 regressions.
 ## Full pre-rebuild log (171 entries) archived in docs/notes/ROADMAP_ARCHIVE_2026-07-15.md
 
 - 2026-07-15s  ⚙️ ROADMAP REBUILT to break the filter-grind local optimum. The old plan was ORDERED
