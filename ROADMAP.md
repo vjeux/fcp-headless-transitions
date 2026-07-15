@@ -1112,6 +1112,24 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-15j  ORCHESTRATOR MERGE-GATEKEEPING — reviewed 3 DONE swarm branches, prepped M-BLOOM
+              merge; blocked on swarm gate-contention. Per rule 4 (orchestrator gate-verifies before
+              merge): M-BLOOM (Lights__Bloom 10.55→13.04 +2.49dB, 4 coupled time-authority bugs),
+              M-VIDEOWALL (framing animEnd+wall-centre, Video_Wall 9.10→10.24), M-CONCENTRIC (group
+              Image Mask scoped to descendant shape geometry, Concentric min-repro 25.98→40.08 +
+              Center +0.40, 9 slugs within TOL). M-SQUARES already self-landed (0939776, +0.65dB).
+              PREPPED M-BLOOM: rebased swarm/M-BLOOM onto current origin (db5a567 on merge-ready/
+              M-BLOOM), resolved the ROADMAP progress-log conflict (kept both M-SQUARES + M-BLOOM
+              entries), tsc CLEAN. types.ts merge was clean (M-BLOOM adds timingOffsetSec?, M-SQUARES
+              adds cellScale? — different interfaces). BLOCKER: could NOT complete an independent
+              `gen --all`+regress gate — the box is in destructive contention (3 live agents FIX-
+              FRAMING/M-CONCENTRIC/M-SMEAR each run their own gate; their broad `pkill "gen engine"`
+              teardown patterns killed my verify 3×; load 110-157, swap ~24GB). Did NOT push unverified
+              (rule 2 non-negotiable). Launched a patient nice-19 FCT_JOBS=1 M-BLOOM gate
+              (/tmp/bloomgate_final.log) to complete as the swarm drains; harvest + push next tick.
+              LESSON: parallel AUTHORING is done but gate-verification is inherently SERIAL (shared
+              render lock + baseline_engine.json) — next ticks should serialize merges in quiet
+              windows, not spawn more gate-racing agents. Doc-only, no gate. Main @ 0939776.
 - 2026-07-15i  T-M3 (HSV) → DONE via careful re-measurement (corrected a scoreboard misdiagnosis).
               Read hue-saturation.ts + probed with filter_verify (single-frame, no gate contention with
               the live FIX-FRAMING gen --all). Findings: (1) the Value MULTIPLIER (out.rgb*=value^2) was
