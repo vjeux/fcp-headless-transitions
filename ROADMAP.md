@@ -1135,6 +1135,26 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-15m  ROOT-CAUSE FIX for the recurring swarm box-death (the multi-tick merge blocker).
+              Read fct/cli.py + fct/gen.py: `gen --all` used a ThreadPoolExecutor with
+              default_jobs=min(8,cpu)=8 tsx renderers, EACH spawned via plain subprocess.run() in the
+              PARENT's process group. Two compounding bugs: (1) 8×N renderers when N agents each run
+              `gen --all` unset on a 10-core/25GB-swap Mac → swap OVER physical → thrash → node OFFLINE
+              (observed load 194, 60 workers); (2) on parent kill (agent teardown, esp. SIGKILL which
+              can't be trapped) the tsx children ORPHAN (reparented to init, ppid=1) and keep rendering
+              10+ min — the orphan storm I've been manually reclaiming every tick. FIXES (toolkit-only,
+              fct/ — NO engine/src, so rendered frames are byte-IDENTICAL, gate result unchanged by
+              construction): (a) cli.py default_jobs cap 8→4 (behavior-neutral per the code's own
+              'embarrassingly parallel, no shared state' comment; env FCT_JOBS still overrides for solo
+              runs); (b) gen.py new _run_render() launches every render tsx via Popen(start_new_session=
+              True) in its OWN process group, tracks live child PGIDs, and reaps them via killpg on
+              atexit + SIGTERM/SIGINT/SIGHUP handlers → children die WITH the parent instead of
+              orphaning. VERIFIED: normal render still produces frames (10/24 of 360°_Bloom, identical
+              path); SIGTERM'ing a gen parent leaves 0 orphaned tsx (was the bug signature); bad-slug
+              still raises CalledProcessError (check=True semantics preserved); syntax+import clean.
+              This unblocks all future gate-verification (no more storms starving gates). Merge queue
+              still pending (gate each in a now-cleaner window): M-LOWER (+1.08), M-CONCENTRIC (79bf7de,
+              +14dB repro), M-VIDEOWALL (81085aa). Gate: n/a (toolkit-only, frames byte-identical).
 - 2026-07-15l  SERIAL-MERGE + ORPHAN-STORM CLEANUP. Confirmed FIX-FRAMING landed (e82fa9c, gate 0/0,
               Video_Wall min-repro 8.14→84.42; full-slug dB unchanged because shipped Video_Wall/
               Clone_Spin use the 2-behavior resolveFramedWallPose path, which FIX-FRAMING doesn't

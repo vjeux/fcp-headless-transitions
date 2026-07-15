@@ -97,7 +97,15 @@ def main():
             elif source == "headless":return s, gen.gen_headless(s), None
             else: raise ValueError(f"unknown source {source}")
         jobs_env = os.environ.get("FCT_JOBS")
-        default_jobs = min(8, (os.cpu_count() or 4)) if source in ("engine", "gui") and len(slugs) > 1 else 1
+        # Per-`gen --all` parallelism. Renders are embarrassingly parallel with NO shared
+        # state (see above), so job count is behavior-NEUTRAL — output is byte-identical at
+        # any job count; this only trades wall-time for RAM/core pressure. Default capped at
+        # 4 (was min(8,cpu)): on the shared swarm box MULTIPLE agents run `gen --all` at once,
+        # and 8×N tsx renderers on a 10-core / 25GB-swap Mac drives swap OVER physical →
+        # thrash → the CLI node is starved OFFLINE (observed load 194, 60 render workers, the
+        # multi-tick merge blocker). 4 keeps a solo run fast while leaving headroom for a
+        # couple of concurrent agents. A solo/quiet run can still bump it: FCT_JOBS=8.
+        default_jobs = min(4, (os.cpu_count() or 4)) if source in ("engine", "gui") and len(slugs) > 1 else 1
         jobs = int(jobs_env) if jobs_env else default_jobs
         # Longest-known-slow slugs first so they don't tail the batch (best-effort;
         # unknown slugs keep their given order after the known-slow ones).
