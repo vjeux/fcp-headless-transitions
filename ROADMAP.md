@@ -1106,6 +1106,18 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-15h  SWARM ISOLATION VERIFIED + ops limits documented (fct/swarm/README.md). A 2nd
+              M-SLIDEIN BLOCKED report (dup of the T-K2 salvage) flagged its worktree files "reset
+              mid-session by something outside my edits" — a potential all-agent infra blocker.
+              INVESTIGATED: each worktree's engine/src/** are REAL separate files (distinct mtimes:
+              M-SLIDEIN 01:51, M-CONCENTRIC 00:58, M-SMEAR/M-SQUARES 01:08), only node_modules is
+              symlinked (read-only shared), tsx runs from src (no shared dist to race). All worktree
+              footage.ts are CLEAN vs their own HEAD. Verdict: FALSE ALARM — the "reset" was the
+              agent's OWN git-checkout revert of its regressing fix. Isolation is sound; no infra bug.
+              Also captured the RAM-ceiling finding: only 3 live agents pinned swap to 24.5/25.6 GB
+              (95%), load 151, OOM-killed `gen --all` twice — box sustains ~2-3 concurrent `gen --all`,
+              NOT 8; above that gate runs die and nothing merges. Documented both + the old-base-rebase
+              gotcha in the swarm README (rule 5). Doc-only, no gate. Main @ 4beac37.
 - 2026-07-15g  T-N1 (Lower, worst slug) → BLOCKED, salvaged M-LOWER decode into the item. The
               M-LOWER fix-agent correctly pushed NOTHING (its fix regressed the ship gate). Recorded
               its full root-cause in T-N1: the black-panel bug is real (isSolidPanel "Panel right 1"

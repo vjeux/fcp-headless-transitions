@@ -37,3 +37,56 @@ tmux kill-session -t fct-swarm-reflect
 Each agent follows `agent_brief.md`: decode-first (census), build, gate green (one truth
 vs GUI GT), rebase onto main, re-freeze baseline, commit `swarm <id>: ...`, push (retry
 on reject), print `SWARM_RESULT`. The pool detects completion by that commit subject.
+
+## Operational limits (verified 2026-07-15)
+- **RAM is the hard ceiling, NOT CPU.** Each agent runs `gen engine --all` (65 slugs) +
+  `regress` at `FCT_JOBS=2`; ~2 agents doing `gen --all` simultaneously pins swap. Observed
+  with only 3 live agents: swap 24.5/25.6 GB (95%), load 151, ~26 concurrent `_fct_render`
+  workers, `gen --all` **OOM-killed twice**. The box (25 GB swap) realistically sustains
+  ~2–3 concurrent `gen --all` agents, NOT 8. Above that, gate runs die and NOTHING can merge
+  (wasted wall time). Stagger agents so their heavy `gen --all` phases don't all overlap, or
+  cap concurrency. A change that fires on a provably-small slug subset can be verified on that
+  subset instead of a full `gen --all` (M-LOWER did this soundly: its fix was provably
+  Lower-only across all 65).
+- **An agent reverting its own regressing fix LOOKS like an external "worktree reset."**
+  Two agents reported their worktree `footage.ts`/`types.ts` "reset mid-session by something
+  outside my edits." VERIFIED FALSE ALARM: each worktree's `engine/src/**` are REAL separate
+  files (distinct mtimes per worktree); only `node_modules` is symlinked (read-only shared).
+  The "reset" was the agent's own `git checkout`/revert restoring HEAD after its fix regressed
+  the gate. Isolation is sound — do NOT chase a phantom contamination bug. If `git diff` looks
+  stale for a few seconds it is the editor/fs cache, not another agent.
+- **Agents may branch off an OLD base.** Long-lived worktrees (e.g. M-SMEAR/M-SQUARES) can sit
+  several commits behind origin/main. That is fine for isolated work but they MUST
+  `git fetch origin && git rebase origin/main` + re-gate before pushing (already in the
+  contract via push-retry, but rebase early to avoid a stale-baseline gate).
+
+## Operational gotchas (learned running the swarm 2026-07-15)
+
+**RAM is the real ceiling, NOT CPU.** Each agent runs `gen engine --all` (65 slugs) +
+`regress` with `FCT_JOBS=2`, so N agents = ~2N concurrent `tsx` render workers, each
+~150–650 MB. On this box (25 GB swap) even 3 agents pin swap to ~98% (load 150+), and a
+full `gen --all` gets **OOM-killed**. Symptoms: `gen --all` dies silently, agents fall
+back to verifying only the provably-affected slug subset. Mitigations, in order:
+  1. Cap concurrency to what RAM allows (≈3–4 heavy-gate agents here, not 8), OR
+  2. give minimizer/`gen --all`-heavy tasks their own slot and run them **one at a time**
+     (the ROADMAP's "run minimizers ONE AT A TIME" rule), OR
+  3. lower `FCT_JOBS` per agent when many run at once.
+The orchestrator must NOT add render load (its own `gen`/`minimize`) while agents hold the
+locks — do read-only / doc / queue-staging work between merges.
+
+**"Worktree reset mid-session" is almost always the agent's OWN revert, not
+cross-contamination.** Isolation IS sound: each worktree has a REAL separate
+`engine/src` checkout (verified — distinct mtimes, `git status` clean per worktree); only
+`node_modules` is symlinked (read-only shared deps), and `tsx` runs from `src` (no shared
+`dist` build artifact to race). When an agent abandons a regressing fix it runs
+`git checkout -- .` / `reset --hard`, which restores files to HEAD and updates mtimes —
+this looks like "something external reset my files" but is self-inflicted. Before blaming
+isolation, check: does any OTHER worktree symlink into `engine/src`? (No.) Are the files
+clean vs the worktree's own HEAD? (If yes → self-revert, not contamination.)
+
+**Agents correctly push NOTHING when a fix regresses the ship gate.** Several deep bugs
+(Slide_In 3-part subsystem, Lower visibility↔retime coupling, group-mask 3D-rotated
+groups) are the "min-repro up / full-gate down" trap: the reduced repro improves but a
+shared code path regresses shipped slugs. The agent reverting + reporting BLOCKED is the
+CORRECT outcome — salvage its decode into ROADMAP/docs so the next attempt starts from the
+root cause, don't re-dispatch the same one-shot.
