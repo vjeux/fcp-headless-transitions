@@ -486,6 +486,20 @@ T-N3  TODO    Movements/Switch early-swap position-curve timing   Movements__Swi
               [Tail z-order already fixed (b5c3a07 flat-stack painter sort, +0.28). REMAINING: early     A/B swaps too early (f02-f05);
                swap f02-f05 shows B too early — photo A swings OUT too fast in the engine (position-      A swings out too fast. Position-
                curve timing / retime domain). Decode the swap position schedule vs GT; gate 0.]          curve timing decode.
+              -- DECODE 2026-07-15 (minimizer + GUI-GT pixel evidence, fct/minimized/Movements__Switch):
+               worst frame f04 (score 7.71; engine-vs-FCP-headless 9.00 dB = a REAL engine divergence,
+               not a GUI-GT artifact). GUI GT f04 = BOTH photos mid-swap: photo A (sepia rocks) in the
+               TOP half swinging up/out, photo B (blue mtns) swinging in from the BOTTOM, both tilted.
+               Engine f04 = ONLY photo B (A already fully swung off-frame) -> A's swing-out reaches its
+               end-state too early. Swing = Rig Behaviors (fID 11) -> LinkPos/LinkRot/LinkAnchor (fID 6)
+               off an animated driver; the engine's progress->pose map for outgoing A advances faster
+               than FCP. The 3-node minimizer repro (behaviors stripped) isolates a SECONDARY clone-
+               visibility issue (Clone B shown shrunk+letterboxed before its in=0.934s while FCP holds
+               full-frame A), NOT the swing timing -- do NOT use it as the fix oracle. The real fix is
+               in the Rig-snapshot/Link interpolation timing (evaluator/links.ts applyRigBehaviors +
+               driver-curve retime), SHARED across the Movements 3D-fold family (Multi/Flip/Pinwheel/
+               Swing/Reflection/Rotate -- all landed wins), so it must gate the whole family. Deferred
+               as a multi-tick subsystem, not a safe single-tick change.]
 T-N4  TODO    Diagonal pair shape-mask write-on residual          Stylized__Diagonal + Wipes__Diagonal
               [S8 procedural shape-mask write-on SHIPPED (+2.08 each -> 13.47). Residual ~13.5 dB: score  (both 13.47). S8 write-on shipped;
                --frames to find the remaining band (likely accent-particle bokeh appearance or the       decode the ~13.5dB residual (accent
@@ -1455,6 +1469,18 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               pose half; the reveal-timing half remains). tsc clean, no-hardcode green, baseline re-frozen.
 - 2026-07-15b  CORRECTED THE WORKFLOW → minimizer-produces-repros / SUBAGENTS-fix-in-parallel /
               orchestrator-gate-verifies. Self-review: I had drifted back to fixing pinpointed bugs
+- 2026-07-15f  T-N3 (Switch, worst-band slug 11.96) DECODED + minimizer repro committed (no engine
+              change — durable diagnosis, not a fix). Ran fct minimize -> 27->4 node repro, worst frame
+              f04 at engine-vs-FCP-headless 9.00 dB (a REAL engine divergence). GUI-GT pixel evidence:
+              f04 shows photo A (sepia) in the TOP half swinging out + photo B swinging in from the
+              BOTTOM (both tilted); the engine has A ALREADY fully swung off-frame — 'A swings out too
+              fast', confirming the premise at pixel level. The swing is Rig-Behavior(fID11) ->
+              Link(fID6) driven off an animated driver; the fix is in the SHARED Rig-snapshot/Link
+              interpolation timing (Movements 3D-fold family: Multi/Flip/Pinwheel/Swing/Reflection/
+              Rotate — all landed), so it must gate the whole family — deferred as a multi-tick
+              subsystem rather than risk regressing 6 landed wins with a speculative single-tick change.
+              Committed fct/minimized/Movements__Switch/ (case.motr + manifest w/ diagnosis) as the
+              reusable oracle for the next focused attempt.
 - 2026-07-15e  M-CONCENTRIC LANDED (independently re-gated on current main) — group-level Image Mask
               scoped to in-group FLAT (non-3D) shape-geometry sources. Cherry-picked the real logic
               commit 5c973ae (parser +108, compositor +72, masks +76) onto current main; it does NOT

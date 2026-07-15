@@ -1,0 +1,13 @@
+{
+  "slug": "Movements__Switch",
+  "source_motr": "/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized/Movements.localized/Switch.localized/Switch.motr",
+  "worst_frame": 4,
+  "baseline_psnr": 8.996,
+  "final_psnr": 9.339,
+  "struct_before": 27,
+  "struct_after": 4,
+  "removed": 22,
+  "nframes": 24,
+  "slack": 0.12,
+  "diagnosis": "T-N3 decode (2026-07-15, orchestrator): the f04 error is 'photo A swings out TOO FAST'. GUI GT f04 shows BOTH photos mid-swap \u2014 photo A (sepia rocks/lake) occupying the TOP half (swinging up/out) AND photo B (blue mountains) swinging in from the BOTTOM, both tilted. The engine at f04 shows ONLY photo B (A already fully swung off-frame) \u2014 A's swing-out reaches its end-state well before FCP's. The swing is driven by Rig Behaviors (factoryID=11) -> LinkPos/LinkRot/LinkAnchor (factoryID=6) reading an animated driver transform; the engine's progress->pose mapping for the outgoing A advances faster than FCP's. NOTE: the 3-node minimizer repro (Clone B + Transition A/B, behaviors stripped) isolates a SECONDARY issue (Clone B rendered shrunk+letterboxed and shown before its in=0.934s, while FCP holds full-frame A) \u2014 it is NOT the primary swing-timing bug and should not be used as the fix oracle. The real fix is in the Rig-snapshot/Link interpolation timing (evaluator/links.ts applyRigBehaviors + the driver curve retime), which is SHARED across the Movements 3D-fold family (Multi/Flip/Pinwheel/Swing/Reflection/Rotate \u2014 all landed wins) so any change must gate the whole family. Deferred as a multi-tick subsystem, not a safe single-tick fix."
+}
