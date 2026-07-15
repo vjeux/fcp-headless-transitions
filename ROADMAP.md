@@ -260,14 +260,39 @@ slugs on the current tree, re-measured 2026-07-15) — gated OFF until the onset
 
 ## Work items (detail)
 
-### L1 — S6 replicator / clone-grid / framing-camera geometry  [TODO · HIGHEST LEVERAGE]
-**Slugs:** Video_Wall (10.24), Clone_Spin (10.32), Combo_Spin (11.21), Multi (11.95),
-Concentric (12.62), Vertigo (15.24), Duplicate (15.51), 3D_Rectangle (16.95).
+### L1 — S6 replicator / clone-grid / framing-camera geometry  [IN PROGRESS · HIGHEST LEVERAGE]
+**Slugs:** Video_Wall (10.24), Clone_Spin (10.32), Combo_Spin (11.21), Multi (11.85),
+Concentric (12.67), Vertigo (19.76), Duplicate (21.34), 3D_Rectangle (16.79).
 **What it is:** these compose off-canvas tiles/clones through a framing camera (look-at pose)
 and/or a replicator grid. Census: Video_Wall = 14 Replicators + Camera + framing; Clone_Spin =
-11 Images + Camera; Multi = 6 Images + Rig; Concentric = 44 Clone Layers + 26 Image Masks.
+9 Timeline-Pin tiles + Camera(Framing beh); Multi = 6 Images + Rig; Concentric = 44 Clone Layers
++ 26 Image Masks; Combo_Spin = 6 blade groups (C1-C6) each masked + replicators.
+
+**CONCENTRIC — STRUCTURAL FIX SHIPPED 2026-07-15 (3ac72b0 + 821ad0b):** was rendering vertical
+STRIPES instead of concentric rings. THREE bugs, all now fixed:
+  1. **Static-value drop (the real root cause, deeper than the old BUG-A/B notes).** The ring-mask
+     Circles carry static Scale `<parameter default="1" value="1.27"/>` (1.27/1.0/0.75/0.5/0.26/0.15).
+     `resolveWithRetime` returned `default`(1.0) not `value` for empty-curve-with-value when
+     retimeProgress==0 — and a layer with NO retime curve is retimeProgress==0 EVERY frame, so all
+     ring circles collapsed to radius 803. Fix: thread `hasRetime`; static `value` authoritative when
+     !hasRetime. Gate +2 (Dissolves_Divide +1.16, Light_Sweep +0.79), 0 reg.
+  2. **Mask perspective** (masks.ts): resolveImageMaskAlpha now rasterizes the non-stroke mask shape
+     through the SAME cameraZ perspective divide as the content (was flat-affine → mis-registered on
+     3D-swung rings).
+  3. **Concentric draw order + 3D-swing guard removed** (index.ts): paint masked ring groups by
+     DESCENDING mask radius (largest bottom → smallest top) via `maskSourceWorldRadius`; deleted the
+     `maskSrcIsFlat` guard + dead `transformHas3D`. Engine now renders concentric rings (verified
+     visually). Metric flat 12.62→12.67 — ring GEOMETRY/SIZE/ORDER/rotation-timing all now correct.
+  **REMAINING (Concentric, next):** the per-ring A/B content PHASE. GT shows an alternating woven
+  bullseye (adjacent rings show different A/B phase, ~5-6 distinct rings mid-transition); the engine's
+  inner rings settle to B early (Clone A op→0) so they merge into the B background and only ~2 rings
+  show. The ring rotation curves (0→π, inner-first staggered wave) are CORRECTLY evaluated (verified
+  vs .motr keyframes); the divergence is the Clone-A/Clone-B crossfade-vs-rotation coupling within
+  each ring group. Not a big-subsystem blocker — a per-ring crossfade-phase decode.
+
 The wall dolly currently frames ~1 tile where GT reveals the full grid; the framing-camera
 pose (`compositor/geometry.ts` + `evaluator/framing.ts`, `FRAMING_VIEW_ENABLED`) is partial.
+Combo_Spin renders only flat B (its 6-blade replicator spiral doesn't render at all).
 **DoD:** Video_Wall + Clone_Spin measurably up (target ≥13), 0 regressions.
 **Verify:** `fct score Replicator-Clones__Video_Wall Replicator-Clones__Clone_Spin --full`.
 **Start:** `fct census` + `fct minimize Replicator-Clones__Video_Wall` → fix the framed-wall pose.
