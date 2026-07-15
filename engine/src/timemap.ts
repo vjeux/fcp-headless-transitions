@@ -155,6 +155,76 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
     pureCrossfadeSettleB = wrapZoneCount === 2 && !nonDropZoneWrap && bOutSec >= endSec - frameSec;
   }
 
+  // FILTER-ANIMATION OUTLIVES CONTENT (Lights/Bloom): a plain 2-drop-zone crossfade
+  // whose drop zones BOTH time out early (A.out 0.200, B.out 0.534) but whose scene
+  // animationEnd is pushed WAY past that (1.270s) by a KEYFRAMED FILTER curve on a drop
+  // zone (Bloom's Threshold ramps 100→1 to flash the frame to white, then a 2nd Bloom's
+  // Threshold ramps 1→100 to fade the bloom back off and reveal clean B). The wrap-to-0
+  // freezes the WHOLE scene to source A, which kills BOTH the A→B content crossfade AND
+  // (with filter time now decoupled — see compositor filterTime) leaves the tail stranded
+  // on the wrong photo: GT holds photo B in the decaying tail (f23 ≈ (92,107,137) = B),
+  // not the sepia photo A the wrap re-shows.
+  //
+  // The correct behavior: let CONTENT play to the last live drop-zone instant and HOLD
+  // there (B fully faded in), while the FILTER animation plays THROUGH in true scene time
+  // (the compositor already evaluates filter curves at the un-wrapped time). So instead of
+  // wrapping to 0 we CLAMP content time to just under the last drop-zone `out` — the fully
+  // revealed B persists and the bloom filter blooms then un-blooms over it.
+  //
+  // Structural signature (no slug names): the ONLY wrapping (extrapolation=1) zones are the
+  // two drop zones (A+B), NEITHER outlives the wrap to endSec (so pureCrossfadeSettleB does
+  // NOT already handle it), a drop zone carries a KEYFRAMED (animating) filter param whose
+  // last keyframe fires past the last drop-zone death, AND endSec extends materially past
+  // DROP-ZONE CONTENT-GAP BRIDGE (Lights/Bloom): the two drop zones do not overlap —
+  // Transition A times out at 0.200s but Transition B is not born until 0.234s, leaving
+  // a ~1-frame DEAD GAP with no live content (a black hole). FCP holds the outgoing A
+  // across that gap until B appears (the A→B swap is masked by the bloom flash). When
+  // the wrap is cancelled (pureCrossfadeSettleB, so the scene plays through instead of
+  // looping to frame 0), a frame landing in [A.out, B.in) would render black. Bridge it
+  // by holding A's last-alive instant until B is born, so the content never flashes to
+  // black.
+  //
+  // ⚠️ SCOPED to a PURE drop-zone crossfade — the two drop zones must be the ONLY visible
+  // content. A kinetic media-panel MONTAGE (Stylized/Slide: 15 sliding sprite panels)
+  // fills the gap with its own panels, so holding A there strands the montage
+  // (Slide regressed 16.6→11.9). Require: exactly two drop zones (A+B), and NO extra
+  // media/generator/filled-shape content layers that would be alive during the gap.
+  let gapBridgeAHold: number | undefined; // hold-A content time during the gap
+  let gapStart = 0, gapEnd = 0;
+  {
+    let aOut = -1, bIn = -1;
+    let dropZoneCount = 0;
+    let extraContentLayers = 0; // non-drop-zone media/generator/filled-shape leaves
+    (function scanGap(layers: readonly Layer[]) {
+      for (const l of layers) {
+        const rv = l.retimeValue;
+        const isDropZone = rv && rv.retimingExtrapolation === 1
+          && !clonedContinuationSourceIds.has(l.id)
+          && (l.source?.type === 'transitionA' || l.source?.type === 'transitionB');
+        if (isDropZone && l.timing) {
+          dropZoneCount++;
+          if (l.source?.type === 'transitionA') aOut = t2s(l.timing.out);
+          if (l.source?.type === 'transitionB') bIn = t2s(l.timing.in);
+        } else {
+          // Any OTHER content leaf that can render pixels (bundled media sprite,
+          // generator, or a filled/solid shape) means the transition is NOT a pure
+          // 2-drop-zone crossfade — the gap is filled by that content, so bridging A
+          // would be wrong. (Mask shapes don't render pixels; ignore them.)
+          const isMedia = l.type === 'image' && l.source?.type === 'media';
+          const isGen = l.type === 'generator';
+          const isFilledShape = l.type === 'shape' && !!l.shape && !l.shape.isMask;
+          if (isMedia || isGen || isFilledShape) extraContentLayers++;
+        }
+        scanGap(l.children);
+      }
+    })(scene.layers);
+    if (dropZoneCount === 2 && extraContentLayers === 0 && aOut > 0 && bIn > aOut + frameSec * 0.25) {
+      gapStart = aOut;
+      gapEnd = bIn;
+      gapBridgeAHold = Math.max(0, aOut - frameSec * 0.5);
+    }
+  }
+
   // The wrap freezes the WHOLE scene back to frame 0 (drop zones re-show A). That
   // is correct when the drop-zone crossfade IS the entire visible transition (e.g.
   // Blurs/Zoom past the drop-zone timeout). ⚠️ Lights/Bloom is NOT such a case
@@ -298,6 +368,14 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
     // frame centre), the transition loops back to the start and re-shows A.
     if (wrapSec !== undefined && timeSec >= wrapSec - wrapFrameTol) {
       timeSec = 0;
+    }
+    // Drop-zone content-gap bridge (Lights/Bloom): when the wrap is cancelled and the
+    // scene plays through, a frame landing in the dead gap between the outgoing A
+    // (out) and incoming B (in) would render black (no live drop zone). Hold A's
+    // last-alive instant across [A.out, B.in) so the content never flashes to black.
+    if (gapBridgeAHold !== undefined && wrapSec === undefined
+        && timeSec >= gapStart - wrapFrameTol && timeSec < gapEnd) {
+      timeSec = gapBridgeAHold;
     }
     // Stroked-mask reveal tail: clamp to just under the drop-zone timeout so the
     // fully-revealed B holds for the last frames (see clampSec).

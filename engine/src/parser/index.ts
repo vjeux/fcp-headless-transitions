@@ -163,7 +163,19 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clip: ClipI
     // Skip filters disabled via <enabled>0</enabled> (FCP does not apply them).
     const fEnabledText = getTextContent(filterEl, 'enabled');
     if (fEnabledText !== null && fEnabledText.trim() === '0') continue;
-    filters.push({ id: filterId, name: nodeName, pluginName, pluginUUID, parameters: filterParams });
+    // The filter's <timing offset> re-anchors its parameter curves from filter-local
+    // time to scene time (scene = local + offset). Store it so the compositor can
+    // evaluate the filter's curves at (sceneTime − offset). See Filter.timingOffsetSec.
+    const fTimingEl = firstChild(filterEl, 'timing');
+    const fOffAttr = fTimingEl?.getAttribute('offset');
+    let timingOffsetSec: number | undefined;
+    if (fOffAttr) {
+      const p = fOffAttr.trim().split(/\s+/);
+      const v = parseFloat(p[0]);
+      const s = p.length > 1 ? parseFloat(p[1]) : 1;
+      if (s > 0 && isFinite(v) && Math.abs(v / s) > 1e-6) timingOffsetSec = v / s;
+    }
+    filters.push({ id: filterId, name: nodeName, pluginName, pluginUUID, parameters: filterParams, timingOffsetSec });
   }
 
   // Parse children (nested scenenodes)
@@ -680,6 +692,10 @@ export function parseMotr(xmlText: string): MotrScene {
       // so a scene-time generator (offset ≈ 0) is untouched. Structural (factory +
       // negative offset), not a per-transition path.
       let genNegOffsetSec = 0;
+      // Filter-local-frame re-anchor: a curve inside a <filter> animates on the
+      // effect's own timeline, placed at the filter's `timing offset` (scene = local +
+      // offset). Recorded when the ancestor walk climbs into a <filter> (see below).
+      let filterOffsetSec = 0;
       while (node && node.nodeType === 1) {
         if (node.tagName === 'parameter') {
           const nm = node.getAttribute('name') || '';
@@ -692,6 +708,26 @@ export function parseMotr(xmlText: string): MotrScene {
           // Stroke) and X/Y sub-curves under a "Jitter Over Stroke" group. Present
           // on Lights/Flash's flash rectangles. Skip the whole family.
           if (nm.endsWith('Over Stroke')) { skip = true; break; }
+        } else if (node.tagName === 'filter') {
+          // A curve enclosed in a <filter> animates a FILTER PARAM on the effect's
+          // OWN timeline, which is re-anchored by the filter's `timing offset` (Motion
+          // places the filter-local zero at `offset` on the scene timeline: scene =
+          // local + offset). Lights/Bloom's Bloom/Glow filters key Threshold/Softness/
+          // Horizontal/Opacity out to filter-LOCAL t≈1.27s but carry offset≈−0.77s, so
+          // the TRUE scene-time end is ≈0.50s (near the drop-zone death). The walk read
+          // the RAW local time and inflated animationEndSec to 1.27s (2.5× the real 0.5s
+          // scene/playRange duration), so render(progress)=progress·1.27 over-ran the
+          // transition and every frame sampled far too late. Re-anchor scene = local +
+          // filterOffset. (The filter curves are still evaluated live at the un-wrapped
+          // scene time by the compositor — this only fixes the animation-window length.)
+          const tEl = firstChild(node as Element, 'timing');
+          const offAttr = tEl?.getAttribute('offset');
+          if (offAttr) {
+            const p = offAttr.trim().split(/\s+/);
+            const v = parseFloat(p[0]);
+            const s = p.length > 1 ? parseFloat(p[1]) : 1;
+            if (s > 0 && isFinite(v)) filterOffsetSec = v / s;
+          }
         } else if (node.tagName === 'scenenode' && nodeOffsetSec === 0) {
           // The nearest enclosing scenenode's timeline offset. Motion authors a
           // layer's animation curves in the layer's OWN local time frame, placed at
@@ -891,13 +927,20 @@ export function parseMotr(xmlText: string): MotrScene {
           // Generator local frame → scene time: add its negative offset (Color Planes
           // Color Solid 2.369 + (−0.567) = 1.802s). Same class as the camera shift.
           const genShifted = genNegOffsetSec !== 0 ? rawSec + genNegOffsetSec : null;
+          // Filter local frame → scene time: add the filter's `timing offset` (Bloom's
+          // Threshold key at filter-local 1.2695 + offset(−0.7674) = scene 0.5021s, which
+          // lands the animation window on the real 0.5s transition duration instead of the
+          // raw 1.27s). Same class as the camera/generator negative-offset shifts.
+          const filterShifted = filterOffsetSec !== 0 ? rawSec + filterOffsetSec : null;
           const sec = camShifted !== null
             ? camShifted
             : mediaShifted !== null
               ? mediaShifted
               : genShifted !== null
                 ? genShifted
-                : (rawSec >= 0 ? rawSec + shiftAmt : rawSec);
+                : filterShifted !== null
+                  ? filterShifted
+                  : (rawSec >= 0 ? rawSec + shiftAmt : rawSec);
           // A no-op curve (no value change) may only extend the window up to the
           // authored scene duration — never past it (see NO-OP CURVE GUARD above).
           const secCapped = isNoOpCurve ? Math.min(sec, sceneDurSec) : sec;

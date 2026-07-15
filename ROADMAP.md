@@ -1248,7 +1248,39 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               decode. tsc clean, replicator/parser/no-hardcode unit tests pass, 65-transition
               robustness render passes. Affected-slug analysis (only 4 slugs touch this code) +
               stash-diff proved Duplicate/Vertigo byte-identical (gate: both == baseline).
-
+- 2026-07-15c  M-BLOOM WIN — Lights__Bloom 10.55→13.04 (+2.49 dB), full GUI-GT gate 0 regressions.
+              Root cause was NOT the bloom kernel (already register-decoded) but FOUR coupled
+              time-authority bugs that left the whole bloom DORMANT (engine rendered a flat sepia
+              photo A across all 24 frames = mean-luma 90.7 every frame; GT ramps 89→250→112):
+              (1) animationEndSec was derived from a FILTER param curve's LAST keyframe (Bloom copy's
+              Threshold at filter-LOCAL t≈1.27s), but a filter's curves are authored on the effect's
+              OWN timeline re-anchored by its <timing offset> (≈−0.77s) → true scene end ≈0.50s. The
+              raw local time inflated the transition window 2.5× (endSec 1.27 vs the real 0.50s
+              scene/playRange), so render(progress)=progress·1.27 over-ran the 0.5s transition and
+              every frame sampled far too late. FIX (parser): re-anchor filter-enclosed curve keyframe
+              times by the filter's timing offset (scene = local + offset) in the animationEndSec walk
+              — same class as the existing Camera/Generator negative-offset shifts.
+              (2) the retime-wrap froze the whole scene to t=0 (source A) past 0.20s — with the
+              corrected 0.50s endSec the scene now qualifies as pureCrossfadeSettleB (B outlives
+              endSec), so the wrap self-cancels and the A→B content + bloom play through.
+              (3) FILTER curves were evaluated at the WRAPPED content time; a filter's parameter
+              animation plays on its OWN (un-retimed) timeline. FIX (compositor): added
+              rctx.filterTime = un-wrapped scene time and evaluate filter param curves there (same
+              principle already used for lensFlare/video overlays via mediaTime); AND
+              makeContext now samples filter curves at (sceneTime − filter.timingOffsetSec) so the
+              offset-anchored Threshold ramp reads the right value.
+              (4) the two drop zones don't overlap (A.out 0.200 < B.in 0.234) → a ~1-frame dead gap
+              rendered BLACK once the wrap was cancelled. FIX (timemap): DROP-ZONE CONTENT-GAP BRIDGE
+              holds A's last-alive instant across [A.out, B.in). SCOPED to a pure 2-drop-zone crossfade
+              (no other media/generator/filled-shape content) — a first over-broad version fired on
+              Stylized/Slide's 15-panel montage and regressed it 16.6→11.9; gating on
+              extraContentLayers===0 fixed that (Slide back to 16.59, 0 change). ALL FIXES ARE GENERIC
+              keyframe/timing behavior, no per-slug constants. Ships on the DEFAULT (8-bit glow) bloom
+              path — FCT_BLOOM_FLOAT stays OFF (the ×10 float extract over-blooms the ramp; the gentle
+              8-bit path matches GT's ramp better here, 12.94 vs 11.82 measured). Peak/tail now track
+              GT (f21-f23 16-17 dB vs the old ~5-9). tsc + no-hardcode + glow/curves/parser unit tests
+              green. 360°__360°_Bloom unchanged (11.58, its filters carry no such offset). Files:
+              parser/index.ts, timemap.ts, compositor/{index,context,filters/registry}.ts, types.ts.
 - 2026-07-15b  CORRECTED THE WORKFLOW → minimizer-produces-repros / SUBAGENTS-fix-in-parallel /
               orchestrator-gate-verifies. Self-review: I had drifted back to fixing pinpointed bugs
               INLINE + SEQUENTIALLY (collapsing 3 roles into myself). Fixed the division of labor:

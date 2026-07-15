@@ -1,0 +1,37 @@
+{
+  "slug": "Lights__Bloom",
+  "source_motr": "/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized/Lights.localized/Bloom.localized/Bloom.motr",
+  "status": "FIXED",
+  "baseline_dB": 10.55,
+  "final_dB": 13.04,
+  "delta_dB": 2.49,
+  "minimize_result": "NOTHING TO MINIMIZE — after the fix the engine MATCHES headless FCP (worst frame f01, engine-vs-FCP MSE=-1.0 => 99.00 dB). The residual gap to the GUI GT (13.04 dB) is the bt709/ProRes-export color-space difference, NOT an engine bug. Before the fix the engine rendered a flat sepia photo-A across all 24 frames (mean-luma 90.7 every frame) because the bloom was DORMANT.",
+  "decoded_onset_ramp_math": {
+    "scene": "endSec=0.502s (playRange duration), 24 frames @30fps. NOT 1.270s — that was a filter-LOCAL keyframe time mis-read as scene time.",
+    "bloom_0_transitionA": "filter timing in=0.000 out=0.200 offset=-0.367. Threshold curve keyed at filter-LOCAL 0.3637(v100)->0.5895(v1); scene = local + offset => ramps 100->1 over scene t~0.00->0.22 (f00->f10) as A fades out. Blooms photo A.",
+    "bloom_1_transitionB": "filter timing in=0.234 out=0.534 offset=-0.767. Threshold curve keyed at filter-LOCAL 1.0313(v1)->1.2695(v100); scene = local + offset => stays 1 then ramps 1->100 over scene t~0.26->0.50 (f13->f23). Un-blooms B back to clean photo B in the tail.",
+    "filter_math": "PAEBloom bloomHeliumRender (register-decoded, prior ticks): withRadius=Amount(32), withBrightness=|Brightness-50|*4, withThreshold=Threshold. Amount/Brightness are STATIC (not animated); the animated param is THRESHOLD. Ships on the 8-bit glow path (FCT_BLOOM_FLOAT OFF) which matches GT's gentle ramp better than the float x10 extract.",
+    "gt_shape": "GT holds flat sepia photo A (mean~89) through f04, blooms f06->f14 to flash-white (mean 250, rgb 241,255,255), then decays f15->f23 revealing clean photo B (rgb 92,107,137)."
+  },
+  "root_cause": "FOUR coupled time-authority bugs, NOT the bloom kernel: (1) animationEndSec derived from a filter-LOCAL keyframe (1.27s) without applying the filter timing offset -> window inflated 2.5x; (2) retime-wrap froze scene to t=0 (self-cancels once endSec corrected -> pureCrossfadeSettleB); (3) filter curves evaluated at wrapped content time + without the filter offset; (4) non-overlapping drop zones (A.out 0.200 < B.in 0.234) left a black gap.",
+  "fixes": [
+    "parser/index.ts: re-anchor filter-enclosed curve keyframe times by the filter <timing offset> in the animationEndSec walk (scene = local + offset).",
+    "types.ts + parser/index.ts: parse Filter.timingOffsetSec from the <filter><timing offset>.",
+    "compositor/context.ts + index.ts: add rctx.filterTime (un-wrapped scene time); applyFilter evaluates filter curves there instead of the wrapped content time.",
+    "compositor/filters/registry.ts: makeContext samples filter curves at (sceneTime - filter.timingOffsetSec).",
+    "timemap.ts: DROP-ZONE CONTENT-GAP BRIDGE holds A across [A.out, B.in) for a pure 2-drop-zone crossfade (gated extraContentLayers===0 so Stylized/Slide's panel montage is untouched)."
+  ],
+  "gate_result": {
+    "full_gui_gt_gate": "0 regressions, 1 improvement vs baseline_engine.json (tol 0.3dB, 65 slugs)",
+    "improved": "Lights__Bloom 10.55 -> 13.04 (+2.49)",
+    "regressed": "none",
+    "tsc": "clean (--noEmit rc=0)",
+    "no_hardcode": "pass (all 7 detectors fire on >=2 transitions; no per-slug constants)",
+    "unit_tests": "glow/curves/parser/interpolation-types green",
+    "cousin_360_bloom": "360°__360°_Bloom unchanged at 11.58 (its Bloom filter carries no timing offset)"
+  },
+  "per_frame_before_after": {
+    "f04": "18.13 -> 15.76", "f06": "15.71 -> 11.38", "f10": "9.95 -> 10.31",
+    "f14": "3.07 -> 9.04", "f18": "5.05 -> 11.38", "f21": "8.45 -> 16.36", "f23": "9.92 -> 17.39"
+  }
+}

@@ -128,6 +128,15 @@ export interface Filter {
   pluginUUID: string;
   parameters: Parameter[];
   enabled?: Curve | boolean;
+  /**
+   * The filter's `<timing offset>` in seconds. A filter's parameter curves are
+   * authored on the effect's OWN (filter-local) timeline; Motion places local zero
+   * at `offset` on the scene timeline (scene = local + offset). To evaluate a filter
+   * curve at a given scene time, sample it at (sceneTime − timingOffsetSec). Undefined
+   * ⇒ 0 (curves already in scene time). Lights/Bloom's Bloom filters carry a large
+   * negative offset (≈−0.77s) that re-anchors their Threshold ramps into scene time.
+   */
+  timingOffsetSec?: number;
 }
 
 /** Source of an image layer (transition input A or B, or a generator). */

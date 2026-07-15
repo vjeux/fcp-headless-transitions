@@ -64,11 +64,18 @@ export function lookupFilter(filter: Filter): FilterModule | undefined {
 
 /** Build the FilterContext for a given filter invocation. */
 export function makeContext(filter: Filter, time: number, width: number, height: number, overrides?: Map<string, number>): FilterContext {
+  // A filter's parameter curves are authored on the effect's OWN (filter-local)
+  // timeline; Motion places local zero at the filter's `timing offset` on the scene
+  // timeline (scene = local + offset). So a curve is sampled at (sceneTime − offset).
+  // Lights/Bloom's Bloom filters carry offset≈−0.77s that re-anchors their Threshold
+  // ramps into scene time; without it the curve (keyed at local 0.36–1.27s) reads the
+  // wrong value at the scene time passed in. Static `value` params are unaffected.
+  const curveTime = time - (filter.timingOffsetSec ?? 0);
   const param = (name: string, fallback: number): number => {
     if (overrides && overrides.has(name)) return overrides.get(name)!;
     for (const p of filter.parameters) {
       if (p.name === name) {
-        if (p.curve) return evaluateCurve(p.curve, time);
+        if (p.curve) return evaluateCurve(p.curve, curveTime);
         if (typeof p.value === 'number') return p.value;
       }
     }
@@ -85,7 +92,7 @@ export function makeContext(filter: Filter, time: number, width: number, height:
   const rawParam = (name: string, fallback: number): number => {
     for (const p of filter.parameters) {
       if (p.name === name) {
-        if (p.curve) return evaluateCurve(p.curve, time);
+        if (p.curve) return evaluateCurve(p.curve, curveTime);
         if (typeof p.value === 'number') return p.value;
       }
     }
@@ -114,7 +121,7 @@ export function makeContext(filter: Filter, time: number, width: number, height:
           // blur and must be evaluated — the old rule zeroed it by looking only at the
           // static `value` attribute. GUI-GT-verified: FCP blurs those transitions.
           if (!curveAnimates(p.curve) && p.curve.value === 0) return 0;
-          return evaluateCurve(p.curve, time);
+          return evaluateCurve(p.curve, curveTime);
         }
         if (typeof p.value === 'number') return p.value;
       }

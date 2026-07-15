@@ -65,6 +65,15 @@ export interface RenderContext {
    */
   mediaTime: number;
   /**
+   * Filter-curve evaluation time (seconds). A filter's keyframes animate on the
+   * effect's OWN timeline in true (un-retimed) scene time — the drop-zone retime-wrap
+   * that loops `time` back to 0 (source-media playback) must NOT warp a filter's
+   * parameter animation. So filter param curves are evaluated at this un-wrapped time
+   * while geometry/content stays on the wrapped `time`. Falls back to `time`.
+   * (Same principle already applied to lensFlare/video overlays via mediaTime.)
+   */
+  filterTime: number;
+  /**
    * Object ID of the full-frame bundled texture that the particle-field proxy owns
    * (Stylized/Nature emitter transitions). When set, renderLayer SKIPS that image
    * layer's normal render — the proxy composites the texture over the whole frame on

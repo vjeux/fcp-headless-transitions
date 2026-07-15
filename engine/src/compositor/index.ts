@@ -304,7 +304,7 @@ function renderCloneLayer(rctx: RenderContext, output: ImageData, evalLayer: Eva
       // and the additive stack blows out (too bright) or collapses (too dark).
       if (layer.filters.length > 0) {
         for (const filter of layer.filters) {
-          src = applyFilter(src, filter, evalLayer, time, filterOverrides.get(filter.id));
+          src = applyFilter(src, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
         }
       }
       // A clone may carry its OWN mask shapes (e.g. Stylized/Color Panels clones a
@@ -371,7 +371,7 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
     }
     let filtered = fillBuf;
     for (const filter of layer.filters) {
-      filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id));
+      filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
     }
     blitDirect(output, filtered, opacity, layer.blendMode);
     // A filled shape may still have children (e.g. a replicator emitter); fall
@@ -393,7 +393,7 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
     }
     let filtered = fillBuf;
     for (const filter of layer.filters) {
-      filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id));
+      filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
     }
     blitDirect(output, filtered, opacity, layer.blendMode);
     // Panels can still have children; fall through.
@@ -452,7 +452,7 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
       if (layer.source?.type === 'lensFlare') {
         let filtered = src;
         for (const filter of layer.filters) {
-          filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id));
+          filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
         }
         blitDirect(output, filtered, opacity, layer.blendMode);
         return 'children';
@@ -483,7 +483,7 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
         blitTransformed(temp, src, worldTransform, 1.0, effCrop, 'normal', blitDstBBox(temp, src, worldTransform, effCrop));
         let filtered = temp;
         for (const filter of layer.filters) {
-          filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id));
+          filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
         }
         applyMask(filtered, maskAlpha);
         blitDirect(output, filtered, opacity, layer.blendMode);
@@ -493,7 +493,7 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
         blitTransformed(temp, src, worldTransform, 1.0, effCrop); // full opacity to temp
         let filtered = temp;
         for (const filter of layer.filters) {
-          filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id));
+          filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
         }
         blitDirect(output, filtered, opacity, layer.blendMode);
       } else if (needsPerspective(worldTransform)) {
@@ -642,7 +642,7 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
       // Apply filters
       let processed = groupBuffer;
       for (const filter of layer.filters) {
-        processed = applyFilter(processed, filter, evalLayer, time, filterOverrides.get(filter.id));
+        processed = applyFilter(processed, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
       }
 
       // Composite onto output
@@ -729,6 +729,7 @@ export function composite(
     animationEndSec: scene.animationEndSec || 1,
     time: scene.time,
     mediaTime: scene.unwrappedTime ?? scene.time,
+    filterTime: scene.unwrappedTime ?? scene.time,
   };
 
   // Particle-emitter field proxy (Stylized/Nature: Diagonal, Glide) — detect once.
@@ -788,7 +789,7 @@ export function composite(
 
 
 /** Apply a filter to an image buffer. */
-function applyFilter(input: ImageData, filter: import('../types.js').Filter, evalLayer: EvaluatedLayer, time: number, overrides?: Map<string, number>): ImageData {
+function applyFilter(input: ImageData, filter: import('../types.js').Filter, evalLayer: EvaluatedLayer, time: number, overrides?: Map<string, number>, rctx?: RenderContext): ImageData {
   const name = filter.pluginName.toLowerCase();
 
   // Skip on-screen-control (OSC) preview filters — they're editor UI, not rendered
@@ -812,7 +813,17 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
   {
     const mod = lookupFilter(filter);
     if (mod) {
-      const ctx = makeContext(filter, time, input.width, input.height, overrides);
+      // Filter parameter curves animate on the effect's OWN (un-retimed) timeline —
+      // the drop-zone retime-wrap that loops `time` back to 0 for the content must
+      // NOT warp a filter's keyframed params (e.g. Lights/Bloom's Threshold ramp
+      // fires at t≈0.33→0.59s but every frame past the 0.20s wrap froze it at t=0 =
+      // Threshold 100 = the ×10 extract knocks everything out = ZERO bloom). Evaluate
+      // filter curves at the un-wrapped scene time (rctx.filterTime) so keyframed
+      // filter animation plays through regardless of the source-media wrap. Same
+      // principle already used for lensFlare/video overlays (mediaTime). Falls back
+      // to the wrapped `time` when no rctx is threaded.
+      const fTime = rctx?.filterTime ?? time;
+      const ctx = makeContext(filter, fTime, input.width, input.height, overrides);
       return mod.apply(input, ctx);
     }
   }
