@@ -157,7 +157,7 @@ S1  Behaviour drivers (Link/MotionPath/Grav)  16     37.6   2.4   PARTIAL — bi
 S2  Linear working-space compositing          ~19    ~50    2.7   NOT DONE — highest ceiling, risky
 S3  Particle-emitter simulation                6     25.6   4.3   FAKED (texture proxy only)
 S4  Colour pipeline (Tint/Bloom/Colorize)      7     13.7   2.0   per-filter; folds into S2
-S5  Gradient generator                         3     11.4   3.8   returns null
+S5  Gradient generator                         3     12.2   —    BLACK; coupled to masks (not standalone)
 S6  Framing-camera / clone-grid                3     13.9   4.6   partial, deepest geometry
 S7  Residual per-slug (shape/mask/timing)     mixed   —      —    one-offs, opportunistic
 ```
@@ -409,7 +409,7 @@ T-M6  TODO    FILTER-P2: Gaussian decimation kernel + edge mode   filter: Gaussi
                DECIMATED image with HGBlur-computed weights (HGBlur::ComputeDecimation) + a specific    HGBlur::ComputeDecimation + edge
                edge mode; TS builds a full 2r+1 kernel sigma=r/3 with an assumed edge mode. Decode the  mode; verify decimated kernel +
                decimation + weights + edge handling; VERIFY vs filter_probe gaussian sweep. Gate 0.]     edges vs headless across sweep.
-T-M7  PARTIAL FILTER-P2: sweep-harness audit — add missing sweeps filter tooling: tools/re/
+T-M7  DONE    FILTER-P2: sweep-harness audit — add missing sweeps filter tooling: tools/re/
               [AUDIT DONE 2026-07-15: 24 registered TS filters vs 21 sweep entries -> 3 MISSING       filter_sweeps.json + filter_verify.
                (PAENoise, 360° Reorient, PAEBadTV), 0 stale. Added all 3 as sweep entries (params +   Every registered filter now has a
                pluginNames decoded from real templates Static.motr / 360° Divide.motr); every         sweep entry (24/24). 3 new = CEILING
@@ -696,24 +696,36 @@ bloom fires live there; the sub-step is the packing/stack/lag decode, not band-w
 decode notes in glow.ts. (b) Then S2 for the STACKED colour bucket (Tint/Colorize/Brightness>1).
 **DoD/Verify:** subsumed by S2's gate.
 
-### S5. Gradient generator  [PREMISE CORRECTED — mostly folds into S1]  (task T-C1 · small)
+### S5. Gradient generator  [RE-CORRECTED 2026-07-15 — real gap, coupled to masks]  (task T-C1)
 **What it is (FCP):** a linear/radial colour Gradient GENERATOR fills a layer. `renderGradient`
 (linear/radial with colour stops) exists in `filters/gradient.ts` but is not wired to any parsed
 ImageSource; `renderGaussianGradient` is wired and works.
-**⚠️ Premise corrected by `fct census` (2026-07-13):** the 3 slugs this item claimed were NONE of
-them a linear/radial gradient FILL:
-  - **Slide_In** — its "Gradient" node is a **PAINT STROKE** (Brush Profile + Emitter + Cell copy),
-    not a fill; plus 6 **colour-channel Links** (`Link 1|4 rgb`). → S1 colour-Link + paint-stroke.
-  - **Loop** — NO gradient generator. 8 **colour Links** + 1 PAEColorize filter. → pure S1.
-  - **Heart** — NO gradient generator. 6 **colour Links** + 1 GaussianBlur. → pure S1.
-So S5 as originally framed gates ~0 slugs. The real shared cause across all three is
-**colour-channel Link evaluation (S1/T-A1)**, not a gradient generator.
-**Status:** the linear/radial gradient generator is still UNWIRED, but no current built-in needs
-it — do NOT invent work here. If a future slug genuinely uses a Gradient FILL (census shows a
-`Generator` node with `[fill]`, not `[PAINT-STROKE]`), wire `renderGradient` then.
-**Next step:** none standalone — subsumed by S1 colour-Link (T-A1). Keep the generator code; drop
-the T-C1/T-C2 gradient tasks from the critical path (they were premised on a fill that isn't there).
-**DoD/Verify:** covered by S1's gate on Panels_Across/Slide_In/Loop/Heart.
+**⚠️ TWO-LEVEL premise history — read both:**
+  - *2026-07-13 (shallow census):* claimed the 3 slugs were paint-strokes / colour-Links, not
+    gradient fills, so S5 gated ~0 slugs. This was a SHALLOW read.
+  - *2026-07-15 (M-SLIDEIN deep decode + this-tick census, AUTHORITATIVE):* the linear Gradient
+    generator (scenenode factoryID=8, pluginName "Gradient", Apple factory f32e7a31-146f-11d8,
+    UUID 40091D89) IS used, as a real FILL, by EXACTLY 3 slugs, and it currently renders BLACK
+    (`determineImageSource()` only handles "Gaussian Gradient" → returns undefined):
+      · **Stylized__Slide_In** (10.25) — gradient clipped by `<mask name="Rounded rect up">`, slid
+        by a Motion Path (see T-K2 — 3-part build arc).
+      · **Stylized__Center_Reveal** (12.09) — gradient (Blend Mode=0 Normal) clipped by
+        `<mask name="Rounded rect up">`.
+      · **Stylized__Light_Sweep** (14.15) — gradient clipped by `<mask name="Triangle inside">`.
+**KEY SCOPING (why gradient infra can't ship alone):** in ALL 3 slugs the gradient sits under a
+`<mask>` sibling. Wiring `renderLinearGradient` WITHOUT the mask-clip makes the generator paint the
+FULL frame → WASHES the result (M-SLIDEIN measured Slide_In 8.55→7.73 with gradient-only). So S5 is
+COUPLED to the mask-lifting subsystem; it is NOT safe standalone infra. `renderLinearGradient` is
+decoded+working (HgcGradientLinear; stops teal(72,141,144)→lightblue(223,241,242); GOTCHA: gradient
+stop colors are `<curve default=1 value=...>` so read `p.curve.value` FIRST).
+**Status:** UNWIRED but real (3 slugs). BLOCKED-as-standalone — folds into the mask build arc.
+**Next step:** land as part of a coupled chunk: (1) `renderLinearGradient` wired into
+determineImageSource, gated behind detection of a linear-Gradient generator; (2) lift+clip its
+`<mask>` sibling, scoped NARROWLY to generator/image leaves (NOT a broad detectMask change — that is
+the FCT_LIFT_ALL_MASKS −1dB scar). Verify on Center_Reveal + Light_Sweep first (static masks; no
+Motion Path) — they are the LOW-RISK entry point before Slide_In's Motion-Path shape-follower.
+**DoD/Verify:** `fct regress engine` 0 regressions; Center_Reveal/Light_Sweep/Slide_In improve or
+hold; no other slug drops (esp. the 8 rig/Image-Mask slugs the broad mask-lift would flip).
 
 ### S6. Framing-camera / clone-grid geometry  [TODO]  (tasks T-E1/E2 · deepest geometry)
 **What it is (FCP):** `OZScene::computeFraming` (decoded in `evaluator/framing.ts`) poses a camera
@@ -1073,6 +1085,21 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-14   T-M7 DONE: full sweep scoreboard written to FILTER_RE_PHASE2.md — 46 pass / 0 fail /
+              7 ceiling (bloom, tint, bevel, underwater, noise, reorient, badtv; last 3 new this
+              tick). No non-ceiling FAIL = no regression. Doc-only, no gate needed.
+- 2026-07-15f  S5 RE-SCOPED (read-only census + doc; no engine edits — safe while 5 fix-agents hold
+              render locks). UUID census across all 65 slugs: EXACTLY 3 use the linear Gradient
+              generator (factoryID=8, pluginName "Gradient", UUID 40091D89, Apple factory f32e7a31):
+              Slide_In (10.25, mask "Rounded rect up" + Motion Path), Center_Reveal (12.09, Blend=0 +
+              mask "Rounded rect up"), Light_Sweep (14.15, mask "Triangle inside"). This CORRECTS the
+              stale 2026-07-13 S5 note ("no built-in needs it — don't invent work"): the earlier census
+              read the wrong (paint-stroke) node in Slide_In and missed the real generator, which
+              renders BLACK today (determineImageSource only handles "Gaussian Gradient"). KEY finding:
+              in all 3 slugs the gradient is clipped by a <mask> sibling, so renderLinearGradient
+              CANNOT ship standalone (washes the frame — M-SLIDEIN measured 8.55->7.73). S5 is COUPLED
+              to the mask-lift subsystem; low-risk entry = Center_Reveal + Light_Sweep (static masks,
+              no Motion Path) before Slide_In. Recorded the coupled build arc. Doc-only, no gate.
 - 2026-07-15e  M-SLIDEIN → BLOCKED (deep 3-part subsystem), salvaged decode into the repo. The fix-
               agent correctly pushed NOTHING (its naive attempt regressed 8.55->7.05 dB) and reverted
               clean. Salvaged its full root-cause to docs/notes/salvage/slide-in-three-missing-

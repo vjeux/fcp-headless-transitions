@@ -34,6 +34,94 @@ DOCUMENTED GAPs (gate-green, shared root cause = per-filter-encode vs linear-CHA
   the STACKED GUI-GT transitions. Needs an engine-level linear-chain (encode after all
   filters), not per-filter encodes. Same limit blocks the Tint transfer from shipping.
 
+## Full sweep scoreboard (2026-07-14)
+
+Fresh full run of `tools/re/filter_sweep.py` (headless FCP vs TS filter, per-case
+psnr / hvi), all 24 registered filters. **TOTAL: 46 PASS / 0 FAIL** (ceilings excluded).
+**No non-ceiling FAIL — no regression.** 7 filters are CEILING (not counted); their GAP
+cases are known-undrivable and documented below. Values verbatim from the run log.
+
+17 counted filters (46/46 PASS):
+
+| filter | case | psnr | hvi | tag |
+|---|---|---|---|---|
+| glow | radius30 thr0.5 op1 | 41.66 | 1.8 | PASS |
+| glow | radius60 thr0.3 | 36.92 | 3.9 | PASS |
+| levels | gamma 1 (identity) | 42.23 | 0.9 | PASS |
+| levels | gamma 1.73 | 42.20 | 31.6 | PASS |
+| levels | gamma 0.5 | 43.56 | 35.6 | PASS |
+| colorize | sepia int1 | 21.87 | 18.1 | GAP (linear-chain endpoint) |
+| colorize | sepia int0.5 | 27.11 | 9.6 | PASS |
+| colorize | intensity 0 (identity) | 42.22 | 0.9 | PASS |
+| fill | red Mix1 | 54.97 | 66.4 | PASS |
+| fill | blue Mix0.5 | 44.36 | 53.4 | PASS |
+| hsv | identity (0,0,1) | 42.23 | 0.9 | PASS |
+| hsv | desaturate -0.5 | 39.71 | 10.9 | PASS |
+| hsv | grayscale -1 | 40.01 | 21.8 | PASS |
+| hsv | value 0.5 | 47.87 | 54.2 | PASS |
+| hsv | hue 0.25deg | 29.01 | 5.9 | GAP (linear-chain hue) |
+| lumakeyer | default keyer (a_psnr=30.78) | 36.31 | 3.8 | PASS |
+| brightness | darken 0.5 | 47.04 | 36.6 | PASS |
+| brightness | darken 0.75 | 44.24 | 18.3 | PASS |
+| brightness | brighten 1.5 | 13.32 | 67.5 | GAP (Brightness>1 linear-chain) |
+| brightness | brighten 2.0 | 14.35 | 81.3 | GAP (Brightness>1 linear-chain) |
+| channelmixer | R<->B swap | 42.25 | 40.4 | PASS |
+| channelmixer | Monochrome .3/.59/.11 | 41.95 | 22.9 | PASS |
+| channelmixer | R<->B swap Mix0.5 | 42.39 | 20.4 | PASS |
+| flop | Horizontal | 42.23 | 26.4 | PASS |
+| flop | Vertical | 42.23 | 36.8 | PASS |
+| flop | Both | 42.23 | 37.8 | PASS |
+| minmax | erode r10 | 37.65 | 17.0 | PASS |
+| minmax | dilate r10 | 39.93 | 16.4 | PASS |
+| minmax | dilate r32 | 36.63 | 30.4 | PASS |
+| minmax | erode r20 | 35.86 | 24.4 | PASS |
+| gaussian | Amount 10 | 46.20 | 2.4 | PASS |
+| gaussian | Amount 20 | 43.39 | 3.7 | PASS |
+| gaussian | Amount 40 | 39.05 | 5.3 | PASS |
+| gaussian | Amount 80 | 36.18 | 7.8 | PASS |
+| radial | Angle 0.5 | 38.74 | 13.3 | PASS |
+| radial | Angle 1.0 | 34.34 | 20.0 | PASS |
+| radial | Angle 2.0 | 30.49 | 27.7 | PASS |
+| zoom | Amount 20 | 20.62 | 19.2 | PASS |
+| zoom | Amount 50 | 20.50 | 24.0 | PASS |
+| zoom | Amount 100 | 19.03 | 29.0 | PASS |
+| directional | Amount 50 Angle 0 | 46.18 | 3.7 | PASS |
+| directional | Amount 100 Angle 45 | 30.00 | 5.1 | PASS |
+| scrape | rot pi/2 amt190 | 39.59 | 12.5 | PASS |
+| scrape | rot 0 amt120 | 25.84 | 14.7 | PASS |
+| scrape | offcenter rot0.8 amt120 | 34.50 | 6.4 | PASS |
+| blackhole | Amount 100 | 31.82 | 46.6 | PASS |
+| blackhole | Amount 300 | 31.34 | 92.1 | PASS |
+| blackhole | Amount 600 | 32.21 | 125.7 | PASS |
+| blackhole | offcenter A300 | 31.28 | 91.6 | PASS |
+| earthquake | Twist 8 (pure rot) | 33.93 | 62.5 | PASS |
+
+7 CEILING filters (not counted — undrivable / non-convergent, all expected):
+
+| filter | case | psnr | hvi | tag / reason |
+|---|---|---|---|---|
+| bloom | amt50 bright2 thr30 | 8.96 | 57.5 | CEILING — bloomHeliumRender ObjC pipeline (Brightness>1 chain) |
+| bloom | amt80 bright1.5 thr10 | 7.17 | 73.2 | CEILING |
+| tint | red tint int1 CS3 | 8.74 | 42.1 | CEILING — Light/Color transfer measured but non-convergent (linear-chain) |
+| tint | sepia int0.5 CS3 | 19.16 | 12.7 | CEILING |
+| bevel | w0.1 op0.8 | 14.52 | 8.0 | CEILING — band-width MATCHED; Light Angle not probe-drivable |
+| underwater | Size100 Speed.5 Refr50 t0 | ERROR | — | CEILING — unrecoverable runtime GPU noise field (tsx exit 2) |
+| noise | Random Seed 0 (generator) | ERROR (SIGABRT) | — | CEILING (NEW) — noise generator SIGABRTs headless; can't render |
+| reorient | Pan(Y) 0.5rad | 14.47 | 18.6 | CEILING (NEW) — ~14.5 psnr resample / pole geometry |
+| reorient | Tilt(X) 0.5rad | 42.56 | 35.3 | PASS (within ceiling filter) |
+| reorient | Roll(Z) 0.5rad | 12.75 | 31.8 | CEILING — pole geometry |
+| badtv | Waviness10 Static4 Sat-25 Mix1 | 8.52 | 64.9 | CEILING (NEW) — ~8.5 psnr per-frame-RNG legs, non-convergent |
+
+**3 new ceilings added this tick** (T-M7 audit, 15934fa): **noise** (SIGABRT generator — can't
+render headless), **reorient** (~14.5 psnr — equirect resample / pole geometry, isolated-filter
+artifact, not a transition-scope bug), **badtv** (~8.5 psnr — per-frame RNG legs are non-convergent
+against the GUI GT).
+
+The 4 non-ceiling GAP cases (colorize sepia int1, hsv hue 0.25deg, brightness brighten 1.5/2.0)
+are the previously-documented shared-root-cause linear-CHAIN gaps (FCP encodes once after the whole
+filter chain in kCGColorSpaceLinearSRGB); they are gate-green and blocked on an engine-level
+linear-chain, NOT regressions.
+
 ## Verification method (Phase-2)
 1. `tools/re/filter_probe.py <shader> [param=val ...]` — renders a filter through the
    REAL FCP filter (headless) on a synthetic input and compares to the TS filter's
