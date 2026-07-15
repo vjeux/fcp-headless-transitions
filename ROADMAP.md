@@ -500,6 +500,55 @@ to confirm the gradient TYPE per slug before writing a generator (Rule 7 — pri
 Group-level image mask on comp groups; 3D-rotated groups can't use screen-space mask
 rasterization (guard skips them → unmasked). **Start:** `fct minimize Stylized__Center`.
 
+**SQUARES — the "Shuffle Order" reveal is SYMMETRIC, not a random PRNG (decoded 2026-07-15).**
+The engine reveals tiles in a DIAGONAL wavefront (bottom-left staircase, `sequenceOrder`); GT +
+headless reveal a SCATTERED-looking pattern that the ROADMAP long assumed was Motion's pseudo-random
+shuffle PRNG (seed 987639852). NOT SO. Extracting the per-tile A→B flip FRAME from headless (the
+FCP oracle) on the 14×8 grid shows a **4-fold-SYMMETRIC** reveal (mirror L↔R AND top↔bottom), with
+rows in identical pairs and only ~7 distinct flip times {3,4,5,10,15,16,20,23}:
+```
+20  3  3 23 23 16 16 16 16 23 23  3  3 20      (rows 0,1 identical)
+ 4 10 10 15 15  5  5  5  5 15 15 10 10  4      (rows 2,3,4,5 identical)
+20  3  3 23 23 16 16 16 16 23 23  3  3 20      (rows 6,7 identical)
+```
+So the reveal order is a DETERMINISTIC symmetric function of (|row−centre|, |col−centre|), NOT a
+Fisher-Yates/PRNG scramble — the seeded-hash-scatter attempts failed BECAUSE they modelled the wrong
+thing. The engine's diagonal `sequenceOrder` is what's wrong. NEXT: replace the diagonal rank for a
+Shuffle-Order=1 replicator with the symmetric radial order decoded above (verify the exact
+flip-frame→order mapping against headless per-tile, then implement in `sequenceOrder`/`sequenceProgress`
+keyed on the replicator's Shuffle Order param — no per-slug constant). Motion's PRNG (`HGRandomInit` →
+`ran_setup`, an LCG `x*0x4A4E39 + 0x5AFA6 & 0xffffff` in Helium) is the seed generator but the SHUFFLE
+here is symmetric — decode which "Build Style"/"Origin" (id 330/331/360 = 4/2/14 here) selects the
+symmetric-vs-random order before implementing. Endpoints f00/f23 ALSO gap ~20 dB vs headless despite
+being ~pure A/B — a separate base conform/tone issue (engine f0 mean is CLOSER to GT than headless but
+MAE is worse → structural, likely a tile already mis-revealed at f0 or a resample/tone offset).
+
+**SQUARES — reveal order is SYMMETRIC, not a random PRNG shuffle (decoded 2026-07-15).** The
+Replicator authors Shuffle Order=1 + Replicate Seed=987639852, 14×8 grid, Sequencing=1. The
+engine reveals in a DIAGONAL wavefront (`sequenceOrder` = normalized col+row diagonal); GT +
+headless reveal in a SCATTERED-looking pattern that the ROADMAP long assumed was Motion's PRNG.
+DECODED the ACTUAL per-tile flip-frame from the headless frames (the FCP oracle) by A→B tile
+transition: the reveal is **4-FOLD MIRROR-SYMMETRIC** (mirrored left↔right AND top↔bottom) with
+only ~7 distinct flip times {3,4,5,10,15,16,20,23} — NOT a random permutation. Row/col structure
+(center-sampled 14×8):
+```
+20  3  3 23 23 16 16 16 16 23 23  3  3 20
+ 4 10 10 15 15  5  5  5  5 15 15 10 10  4   (rows 2–5 identical)
+20  3  3 23 23 16 16 16 16 23 23  3  3 20   (rows 6,7 == rows 0,1)
+```
+So "Shuffle Order" here is a DETERMINISTIC symmetric ordering keyed off the seed, reflected into
+4 quadrants — NOT a Fisher-Yates scatter (a seeded-hash scatter was tried before and MEASURED
+12.70 < diagonal 12.97; now known WHY — the target isn't random). NEXT: decode Motion's exact
+symmetric order. Motion's PRNG is `HGRandomInit`→`ran_setup` in Helium (an LCG: state·0x4A4E39 +
+0x5AFA6, &0xFFFFFF, →float; disassembled at Helium 0x1205f4). The shuffle likely sorts instance
+indices by a per-instance random key THEN the Replicator's symmetric Build Style (Origin=4/14,
+Build Style=2/0/1) folds it into quadrant symmetry. Implement the symmetric order in
+`sequenceOrder` (compositor/replicator.ts) and verify the flip-frame grid matches headless before
+scoring. This is a bounded decode (LCG + symmetric fold), higher-ROI than 3D_Rectangle's depth
+tunnel. NOTE the endpoint gap (f0 15.7 vs headless 36, f23 14.7 vs 37) is a SEPARATE base-conform/
+tone issue (engine f0 ≈ GT f0 visually but MAE 23 vs headless 8.6) — the same class as the
+drop-zone conform capability, not the shuffle; worth a separate look.
+
 ### L7 — S6-360 equirect push/slide geometry  [TODO]  Push (14.28), Slide (14.97), Divide
 (14.47), Wipe (14.12). The 360° "band" family shares an equirect push/crossfade geometry; the
 low members show a smooth mid-transition U-dip (two panorama halves positioned differently than
