@@ -13,7 +13,7 @@
 //
 // The remap applies wrap first, then clamp. If neither fires it is the identity.
 import type { MotrScene, Layer, RationalTime } from './types.js';
-import { hasFilledShapeOverlay, hasStrokedMaskShape, hasReplicatorMaskReveal, hasFilteredMaskReveal } from './capabilities.js';
+import { hasFilledShapeOverlay, hasStrokedMaskShape, hasReplicatorMaskReveal, hasFilteredMaskReveal, needsFilterRevealForceHoldB } from './capabilities.js';
 
 export interface TimeMap {
   /** Remap a raw scene time (seconds) to the effective render time (seconds). */
@@ -361,12 +361,40 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
     if (clampSec !== undefined) wrapSec = undefined;
   }
 
+  // A filter-driven A→B reveal that SETTLES on B in the final tail (Smear, Bloom).
+  // These slugs wrap-to-frame-0 (re-showing A) once their early-dying drop zones
+  // time out — CORRECT for the mid-transition frames, where the GUI GT shows A being
+  // smeared/bloomed to a dark/blown transitional state that is colour-closer to the
+  // frozen warm A than to the incoming cool B (verified: keeping the wrap through the
+  // middle scores ~11.4 dB/frame on Smear f9–f18, vs ~9 dB when B shows through).
+  // BUT the GUI GT SETTLES on photo B in the last few frames (Smear f19–f23 ramp to
+  // (92,106,137)=B; Bloom f19–f23 to (92,107,137)=B), where the frozen-A wrap costs
+  // ~1–5 dB/frame. So for THIS family only, keep the wrap for the middle and release
+  // it (let natural scene time flow → the drop-zone crossfade reveals settled B) for
+  // the final tail. settleBSec = the instant past which natural time resumes; chosen
+  // as the last ~28% of the animation (endSec·0.72), where the GUI GT has crossed
+  // over to B-dominant (Smear crosses ~f19–20 ≈ 0.80·end; 0.72 is the balanced
+  // midpoint — full-gate verified to improve Smear with 0 regressions elsewhere).
+  // Gate: needsFilterRevealForceHoldB — the subset of the hasFilterRevealSettleB
+  // structural family (Bloom, Combo Spin, Black Hole, Smear) whose incoming B drop
+  // zone DIES before the animation end (Smear today), so the tail must force-release
+  // the wrap + hold B; the others settle on B via the crossfade and are untouched.
+  // No transition names, no GT constants.
+  let settleBSec: number | undefined;
+  if (wrapSec !== undefined && endSec > wrapSec + frameSec && needsFilterRevealForceHoldB(scene)) {
+    settleBSec = endSec * 0.72;
+  }
+
   const remap = (tSec: number): number => {
     let timeSec = tSec;
     // Retime extrapolation (mode 1 = wrap): once the wrapping drop zone has
     // timed out by this frame (within a half-frame tolerance — FCP samples the
     // frame centre), the transition loops back to the start and re-shows A.
-    if (wrapSec !== undefined && timeSec >= wrapSec - wrapFrameTol) {
+    // EXCEPTION (settleBSec): a filter-reveal-settle-B family keeps the wrap for the
+    // mid-transition frames but RELEASES it for the final tail so natural scene time
+    // resumes and the crossfade settles on photo B (see settleBSec above).
+    if (wrapSec !== undefined && timeSec >= wrapSec - wrapFrameTol
+        && !(settleBSec !== undefined && timeSec >= settleBSec)) {
       timeSec = 0;
     }
     // Drop-zone content-gap bridge (Lights/Bloom): when the wrap is cancelled and the

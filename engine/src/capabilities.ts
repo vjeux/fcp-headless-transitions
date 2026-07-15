@@ -121,3 +121,102 @@ export function hasFilteredMaskReveal(scene: MotrScene): boolean {
   });
   return found;
 }
+
+/**
+ * FILTER-DRIVEN A→B REVEAL that SETTLES on B (Movements/Smear, Lights/Bloom).
+ *
+ * The transition's outgoing (Transition-A) drop zone carries an image FILTER — a
+ * geometric warp (Scrape/PAEScrape) and/or a blow-out blur/glow (Directional Blur,
+ * Gaussian Blur + Glow + Bloom) — that dissolves/displaces A away over the first
+ * third, revealing the incoming Transition-B drop zone underneath. BOTH drop zones
+ * are Retime-wrap (extrapolation=1) zones and BOTH die well before the animation end
+ * (Smear: A.out 0.434s, B.out 0.467s ≪ end 1.134s; Bloom: A.out 0.200s, B.out 0.534s
+ * ≪ end 1.270s). There is NO overlay/accent media or generator that could keep the
+ * scene alive on its own.
+ *
+ * The historical retime-wrap loops the playhead to frame-0 once the outgoing zone
+ * times out — re-showing photo A frozen for the whole tail. That is WRONG for this
+ * family: the GUI GT tail HOLDS photo B (Smear f23 ≈ (92,106,137) = B; Bloom f23 ≈
+ * (92,107,137) = B), not the frozen warm A the wrap rendered. So the wrap must be
+ * cancelled AND the incoming B held past its `out` as the settled base (the drop
+ * zones die before end, so a naive cancel alone would strand the tail on black —
+ * holdIncomingB fills it with settled B). See timemap.ts (wrap-cancel) and
+ * evaluator/index.ts (holdIncomingB / heldIncomingB).
+ *
+ * Structural signature (no transition names, no GT constants):
+ *   • EXACTLY two Retime-wrap zones, BOTH Transition drop zones (A + B),
+ *   • the Transition-A drop zone bears ≥1 image filter (the reveal driver),
+ *   • NO overlay media leaf or generator (a blended/accent overlay would drive its
+ *     own persistence via the existing blendedMediaOverlay / filled-shape cancels),
+ *   • the Transition-B drop zone dies before the animation end (B.out < end − 1frame)
+ *     — i.e. the settled tail is NOT already covered by the pureCrossfadeSettleB
+ *     rule (which needs B alive to the end).
+ * Fires on {Smear, Bloom} — a real 2-slug family, not a per-transition hardcode.
+ */
+export function hasFilterRevealSettleB(scene: MotrScene): boolean {
+  const end = scene.settings.animationEndSec
+    ?? (scene.settings.duration.timescale > 0 ? scene.settings.duration.value / scene.settings.duration.timescale : 0);
+  const frameSec = (scene.settings.frameRate && scene.settings.frameRate > 0) ? 1 / scene.settings.frameRate : 1 / 30;
+  const t2s = (rt: { value: number; timescale: number } | undefined): number =>
+    rt && rt.timescale > 0 ? rt.value / rt.timescale : 0;
+  let wrapZones = 0;
+  let nonDropZoneWrap = false;
+  let aHasFilter = false;
+  let bOut = -1;
+  let hasOverlayMedia = false;
+  walk(scene.layers, (l) => {
+    const rv = l.retimeValue;
+    if (rv && rv.retimingExtrapolation === 1 && rv.keyframes && rv.keyframes.length >= 2) {
+      wrapZones++;
+      const st = l.source?.type;
+      if (st !== 'transitionA' && st !== 'transitionB') nonDropZoneWrap = true;
+      if (st === 'transitionA' && l.filters && l.filters.length > 0) aHasFilter = true;
+      if (st === 'transitionB' && l.timing) bOut = Math.max(bOut, t2s(l.timing.out));
+    }
+    // A media leaf or generator overlay carries the scene on its own — those cases
+    // are handled by the blendedMediaOverlay / filled-shape / kinetic-panel cancels.
+    if (l.type === 'image' && l.source?.type === 'media') hasOverlayMedia = true;
+    if (l.type === 'generator') hasOverlayMedia = true;
+  });
+  // NOTE: this predicate identifies the STRUCTURAL family (a filter-driven A→B reveal
+  // with exactly two Retime-wrap drop zones and no overlay media). It intentionally
+  // does NOT include the `bOut < end` timing test that distinguishes "B dies early so
+  // the tail must FORCE-hold B" (Smear) from "B is alive to/past the end so the drop-
+  // zone crossfade already settles on B" (Bloom, Combo Spin, Black Hole). That
+  // disambiguation is a CONSUMPTION-SITE concern and lives at the timemap `settleBSec`
+  // gate (timemap.ts) and the evaluator `heldIncomingB` gate — NOT here — so the probe
+  // reports the true ≥2-member family (Bloom, Combo Spin, Black Hole, Smear) instead of
+  // collapsing to a single-transition signature. Keeping the timing test inside the
+  // probe made it fire on only Smear once M-BLOOM's animEnd fix pushed Bloom's B.out
+  // past endSec, which trips the no-hardcode gate for a purely incidental reason.
+  void end; void frameSec; void bOut; // structural predicate only (see note above)
+  return wrapZones === 2 && !nonDropZoneWrap && aHasFilter && !hasOverlayMedia && bOut >= 0;
+}
+
+/**
+ * The SUBSET of hasFilterRevealSettleB scenes whose incoming Transition-B drop zone
+ * DIES before the animation end (`B.out < end − 1 frame`), so the settled tail is NOT
+ * already carried by the drop-zone crossfade / pureCrossfadeSettleB. Only these need
+ * the wrap RELEASED late + B force-held (Movements/Smear). The others in the family
+ * (Bloom, Combo Spin, Black Hole) keep B alive to/past the end and settle naturally, so
+ * applying the force-hold to them would be wrong. This is the timing disambiguation
+ * that used to live inside hasFilterRevealSettleB; split out so the structural probe
+ * can honestly report its full ≥2-member family (see the note in that function).
+ */
+export function needsFilterRevealForceHoldB(scene: MotrScene): boolean {
+  if (!hasFilterRevealSettleB(scene)) return false;
+  const end = scene.settings.animationEndSec
+    ?? (scene.settings.duration.timescale > 0 ? scene.settings.duration.value / scene.settings.duration.timescale : 0);
+  const frameSec = (scene.settings.frameRate && scene.settings.frameRate > 0) ? 1 / scene.settings.frameRate : 1 / 30;
+  const t2s = (rt: { value: number; timescale: number } | undefined): number =>
+    rt && rt.timescale > 0 ? rt.value / rt.timescale : 0;
+  let bOut = -1;
+  walk(scene.layers, (l) => {
+    const rv = l.retimeValue;
+    if (rv && rv.retimingExtrapolation === 1 && rv.keyframes && rv.keyframes.length >= 2
+        && l.source?.type === 'transitionB' && l.timing) {
+      bOut = Math.max(bOut, t2s(l.timing.out));
+    }
+  });
+  return bOut >= 0 && bOut < end - frameSec;
+}

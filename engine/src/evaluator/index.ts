@@ -31,6 +31,7 @@ import { computeColorLinks, mergeColorLinksIntoFilterOverrides } from './color-l
 import type { EvalCtx } from './context.js';
 import { applyRampTransforms, applyRampOpacity, applyFadeBehaviors } from './ramp.js';
 import { buildLayerById, applyLinks, applyRigBehaviors } from './links.js';
+import { needsFilterRevealForceHoldB } from '../capabilities.js';
 
 export { evaluateCurve, resolveValue, timeToSeconds } from './curves.js';
 export {
@@ -81,6 +82,12 @@ export interface EvaluatedLayer {
    * instead of an empty frame.
    */
   forceSourceA?: boolean;
+  /**
+   * When true, this is the incoming Transition-B drop zone HELD past its timing
+   * `out` as the settled base (see EvalCtx.holdIncomingB). Rendered opaque; keeps
+   * its parent group visible so the tail shows settled B, not a black frame.
+   */
+  heldIncomingB?: boolean;
   /**
    * Colour-Link Fill Color override (0-255 RGB), replaces this shape layer's
    * `layer.shape.fillColor` before rasterisation. Set only when a colour-channel
@@ -371,14 +378,30 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
     }
   }
   const retimeProgress = getRetimeProgress(layer, timeSec);
-  // Hold the incoming (Type=2) B drop zone past its timeout when a blended overlay
-  // keeps the scene alive (Lights/Light Noise): the crossfade has settled on B, so
-  // B persists as the base behind the fading overlay instead of vanishing to black.
+  // Hold the incoming (Type=2) B drop zone past its timeout when the scene stays
+  // alive past the drop-zone crossfade. Two cases share this:
+  //   • a blended VIDEO overlay keeps the scene alive (Lights/Light Noise): B
+  //     persists as the base behind the fading overlay, or
+  //   • a SMEAR/displacement-filter reveal (Movements/Smear): A is warped OUT by a
+  //     Scrape (PAEScrape) displacement filter over the first ~third, revealing B
+  //     underneath; both drop zones die early (A.out 0.434s, B.out 0.467s ≪ endSec
+  //     1.134s) but the GUI GT tail HOLDS photo B (f17–f23 ramp to (92,106,137) = B,
+  //     not the frozen photo A the wrap-to-0 rendered). So B must persist to endSec.
+  // Past `out` the retime curve wraps to B's last authored frame (extrap=1), which
+  // is the settled B — so holding the layer visible + opaque there yields settled B.
+  let heldIncomingB = false;
   if (ectx.holdIncomingB && !visible && layer.type === 'image'
     && layer.source?.type === 'transitionB' && layer.dropZone?.type === 2 && layer.timing) {
     const out = layer.timing.out.timescale > 0 ? layer.timing.out.value / layer.timing.out.timescale : 0;
     const inn = layer.timing.in.timescale > 0 ? layer.timing.in.value / layer.timing.in.timescale : 0;
-    if (timeSec > out && timeSec >= inn) visible = true;
+    // Light Noise keeps its historical visible-only hold (B rides behind a still-
+    // opaque overlay). The filter-reveal-settle-B family (Smear/Bloom) additionally
+    // marks heldIncomingB so B renders OPAQUE and forces its timed-out group visible
+    // (the tail would otherwise be black once the drop zones die).
+    if (timeSec > out && timeSec >= inn) {
+      visible = true;
+      if (ectx.filterRevealSettleB) heldIncomingB = true;
+    }
   }
   let riggedTransform = applyRigBehaviors(layer, layer.transform, behaviors, widgetValues);
   // A drop-zone-FRAMED grid panel (declares a SQUARE Width×Height frame, e.g. the
@@ -672,6 +695,9 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   // A forced-A persistent base renders opaque regardless of its (timed-out)
   // opacity curve, which would otherwise be 0 past the layer's lifetime.
   if (forceSourceA) effectiveOpacity = 1;
+  // A held incoming-B base renders opaque past its (timed-out) opacity curve, which
+  // would otherwise be 0 — the settled B must be fully visible in the tail.
+  if (heldIncomingB) effectiveOpacity = 1;
 
   // A group holding a still-live overlay/base child must stay visible past its own
   // (timed-out) window so it doesn't gate that child out. Two cases:
@@ -680,8 +706,11 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   //  - a non-mask filled-shape overlay whose opacity fade tail outlives the group
   //    window (Lights/Flash's flash "Group 1" — out=0.267s but the white
   //    rectangles ride down to opacity 0 at scene 0.3s).
+  //  - a HELD incoming-B base (Movements/Smear): the "Cartoon Whoosh" group times
+  //    out at 0.467s but its B drop zone is held to endSec as the settled base, so
+  //    the group must stay visible or it would gate B out (black tail).
   if (layer.type === 'group' && !visible && children.some(c =>
-        c.opacity > 0 && (c.forceSourceA
+        c.opacity > 0 && (c.forceSourceA || c.heldIncomingB
           || (c.layer.type === 'shape' && c.layer.shape && !c.layer.shape.isMask && c.layer.shape.fillColor)))) {
     visible = true;
     if (effectiveOpacity <= 0) effectiveOpacity = 1;
@@ -696,6 +725,7 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
     visible: visible && drawn && effectiveOpacity > 0,
     children,
     forceSourceA,
+    heldIncomingB,
     writeOnTransforms,
   };
 }
@@ -717,6 +747,7 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
   // (Bloom, Light Noise) — whose correct tail is the frozen-A wrap — are untouched.
   let wrapToA = false;
   let holdIncomingB = false;
+  let filterRevealSettleB = false;
   {
     const end = scene.settings.animationEndSec ?? (scene.settings.duration.value / scene.settings.duration.timescale);
     const frameSec = fps > 0 ? 1 / fps : 1 / 30;
@@ -751,8 +782,18 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
       }
     })(scene.layers);
     holdIncomingB = hasBlendedMediaOverlay;
+    // A filter-driven A→B reveal that settles on B, whose incoming B drop zone dies
+    // BEFORE the animation end (Smear): A is dissolved/displaced away by its image
+    // filter, revealing B; both drop zones die before the animation end but the GUI
+    // tail holds photo B. Hold the incoming B past its `out` as the settled base so
+    // the wrap-released tail shows B, not black. (The structural family also includes
+    // Bloom/Combo Spin/Black Hole, but those keep B alive to the end and settle via
+    // the crossfade, so only the force-hold subset gets holdIncomingB here — see
+    // capabilities.needsFilterRevealForceHoldB.)
+    filterRevealSettleB = needsFilterRevealForceHoldB(scene);
+    if (filterRevealSettleB) holdIncomingB = true;
   }
-  const ectx: EvalCtx = { fps, wrapToA, holdIncomingB, animationEndSec: scene.settings.animationEndSec ?? (scene.settings.duration.value / scene.settings.duration.timescale) };
+  const ectx: EvalCtx = { fps, wrapToA, holdIncomingB, filterRevealSettleB, animationEndSec: scene.settings.animationEndSec ?? (scene.settings.duration.value / scene.settings.duration.timescale) };
   const parentTransform = mat4Identity();
   const widgetValues = buildWidgetValueMap(scene.rigWidgets);
   adjustDegenerateDirection(scene, widgetValues);

@@ -37,6 +37,15 @@ export interface EvalCtx {
    */
   holdIncomingB: boolean;
   /**
+   * When true, this scene is a FILTER-driven A→B reveal that SETTLES on B in the
+   * tail (Movements/Smear, Lights/Bloom — see capabilities.hasFilterRevealSettleB).
+   * Its held B drop zone must render OPAQUE and force its (timed-out) parent group
+   * visible, so the wrap-released tail shows settled photo B instead of a black
+   * frame. Distinct from holdIncomingB (Light Noise), whose held B rides behind a
+   * still-opaque overlay and keeps its own (curve) opacity + group gating unchanged.
+   */
+  filterRevealSettleB: boolean;
+  /**
    * animationEndSec — the rendered clip duration (last spatial keyframe / scene
    * duration). Used by the kinetic-panel template RETIME: an offset-authored panel's
    * media [in,out] range plays over [0,endSec], so its local curve time advances at

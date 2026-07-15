@@ -1416,6 +1416,32 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               pose half; the reveal-timing half remains). tsc clean, no-hardcode green, baseline re-frozen.
 - 2026-07-15b  CORRECTED THE WORKFLOW → minimizer-produces-repros / SUBAGENTS-fix-in-parallel /
               orchestrator-gate-verifies. Self-review: I had drifted back to fixing pinpointed bugs
+- 2026-07-15c  M-SMEAR REBASED + LANDED — filter-reveal-settle-B, Smear only (Bloom already fixed by
+              M-BLOOM). The M-SMEAR branch was authored on a pre-M-BLOOM tree; on the CURRENT tree its
+              probe hasFilterRevealSettleB (which had a `B.out < endSec` clause baked in) collapsed to
+              fire on ONLY Smear, because M-BLOOM's animEnd fix pushed Bloom's B.out PAST endSec so it
+              now settles via pureCrossfadeSettleB instead. That tripped the no-hardcode gate (fires on
+              1). FIX (careful-coder split): hasFilterRevealSettleB is now the pure STRUCTURAL family
+              probe (2 Retime-wrap drop zones A+B, A carries an image filter, no overlay media) → fires
+              on 4 (Bloom, Combo Spin, Black Hole, Smear); the `B.out < endSec` timing test moved into a
+              new param-driven SUBSET refinement needsFilterRevealForceHoldB (the members whose B dies
+              before end and so must FORCE-hold B — just Smear today). timemap `settleBSec` + evaluator
+              `heldIncomingB` now gate on the subset, so RUNTIME BEHAVIOR IS UNCHANGED from M-SMEAR's
+              intent (only Smear gets the wrap-release + force-hold). no-hardcode: structural parent
+              fires on 4 (OK); subset is an audited param-refinement exemption (SUBSET_REFINEMENTS) with
+              its generic parent held to MIN_FIRES. Census (unchanged): Smear group "Cartoon Whoosh" > A
+              (transitionA, DZ type=1, RETIME extrap=1, Directional-Blur + Scrape displacement, A.out
+              0.434) + "Drop Zone" (transitionB, DZ type=2, extrap=1, B.out 0.467); endSec 1.134. GUI
+              tail settles on photo B (f23≈(92,106,137)=B) but the engine wrapped-to-frame-0 (frozen
+              warm A) — WRONG. Fix keeps the wrap for the mid frames, releases it for the tail
+              (settleBSec=endSec·0.72) so the crossfade settles on B; evaluator holds B opaque past its
+              `out`. tsc clean, no-hardcode green, Tint decode (6e72802) preserved. GATE GREEN: 0
+              regressions, 2 improvements vs baseline_engine (tol 0.3dB) — Movements__Smear 10.97→11.75
+              (+0.78) + a bonus Lights__Static 14.52→15.32 (+0.80, already-landed framing interaction
+              captured on re-freeze). Bloom/Combo Spin/Black Hole (now in the structural family)
+              confirmed unchanged: Bloom 12.94 vs 13.04, Black_Hole 14.35 vs 14.53 (both within tol),
+              proving the force-hold stays restricted to the Smear subset. Manifest:
+              fct/minimized/Movements__Smear/.
 - 2026-07-15b  CORRECTED THE WORKFLOW → minimizer-produces-repros / SUBAGENTS-fix-in-parallel /
               orchestrator-gate-verifies. Self-review: I had drifted back to fixing pinpointed bugs
               INLINE + SEQUENTIALLY (collapsing 3 roles into myself). Fixed the division of labor:

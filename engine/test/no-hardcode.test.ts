@@ -16,6 +16,8 @@ import {
   hasStrokedMaskShape,
   hasReplicatorMaskReveal,
   hasFilteredMaskReveal,
+  hasFilterRevealSettleB,
+  needsFilterRevealForceHoldB,
 } from '../src/capabilities.js';
 import { hasSimulatableEmitter } from '../src/compositor/emitter-sim.js';
 import { execSync } from 'node:child_process';
@@ -33,7 +35,24 @@ const DETECTORS: Record<string, (scene: any) => unknown> = {
   hasStrokedMaskShape,
   hasReplicatorMaskReveal,
   hasFilteredMaskReveal,
+  hasFilterRevealSettleB,
+  needsFilterRevealForceHoldB,
   hasSimulatableEmitter,
+};
+
+// PARAM-DRIVEN SUBSET REFINEMENTS. These are NOT structural dispatch probes — each is a
+// `<structuralProbe>(scene) && <scene-param comparison>` refinement that selects WHICH
+// members of an already-generic family need an extra behavior. They may legitimately
+// fire on a single transition today (the family member the extra behavior applies to),
+// because the discriminator is a .motr PARAMETER (e.g. B.out vs animationEnd), not a
+// transition name — exactly the "generic primitive driven by params" the policy asks
+// for. The GENERIC parent (the structural probe they call) is registered above and IS
+// held to MIN_FIRES. Each entry names its parent so the exemption stays auditable.
+//   needsFilterRevealForceHoldB → parent hasFilterRevealSettleB (family: Bloom, Combo
+//     Spin, Black Hole, Smear); refinement selects the B-dies-before-end subset (Smear)
+//     that needs the force-hold. The others settle on B via the drop-zone crossfade.
+const SUBSET_REFINEMENTS: Record<string, string> = {
+  needsFilterRevealForceHoldB: 'hasFilterRevealSettleB',
 };
 
 const MIN_FIRES = 2; // a detector firing on <2 transitions is a per-transition hardcode
@@ -51,6 +70,25 @@ function main() {
   }
   let failed = false;
   for (const [name, hits] of Object.entries(counts)) {
+    const parent = SUBSET_REFINEMENTS[name];
+    if (parent) {
+      // Param-driven subset refinement: exempt from MIN_FIRES, but its structural
+      // parent MUST be registered and MUST itself pass MIN_FIRES (otherwise the
+      // "generic family" it refines is a fiction and the exemption is unjustified).
+      const parentHits = counts[parent];
+      if (parentHits === undefined) {
+        console.error(`FAIL ${name}: subset refinement of unregistered parent "${parent}"`);
+        failed = true;
+        continue;
+      }
+      if (parentHits.length < MIN_FIRES) {
+        console.error(`FAIL ${name}: parent "${parent}" fires on ${parentHits.length} (< ${MIN_FIRES}) — exemption unjustified`);
+        failed = true;
+        continue;
+      }
+      console.error(`OK   ${name}: fires on ${hits.length} (subset of ${parent}, param-driven refinement — exempt)`);
+      continue;
+    }
     const ok = hits.length >= MIN_FIRES;
     console.error(`${ok ? 'OK  ' : 'FAIL'} ${name}: fires on ${hits.length} (${hits.join(', ')})`);
     if (!ok) failed = true;
