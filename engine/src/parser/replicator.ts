@@ -64,15 +64,23 @@ export function parseReplicator(params: Parameter[], el?: Element, factories?: M
   const radius = findById(params, 'Radius', 307);
   const twists = findById(params, 'Twists', 341);
 
-  // Per-cell ramps live on the Replicator Cell scenenode (factoryID 19), a direct
-  // child of the Replicator element. Read Scale (id116)/Scale End (id133) and
-  // Angle End (id147→3) + Align Angle (id132).
+  // Per-cell ramps + cell-size scale live on the Replicator Cell scenenode, a
+  // direct child of the Replicator element. Motion authors the cell under TWO
+  // distinct factoryIDs across templates — both with factory description
+  // "Replicator Cell" (e.g. Vertigo's spiral cell is fid 19; Squares' grid cell
+  // is fid 18). Resolve the cell by factory DESCRIPTION (never a hardcoded id) so
+  // grid cells (fid 18) are handled too — the old fid===19-only match silently
+  // dropped Squares' cell "Scale" (id 116 = 1.13), rasterizing tiles at their bare
+  // extent and leaving orange seams between them.
   let scaleStart: number | undefined, cellScaleEnd: number | undefined, angleEnd: number | undefined;
+  let cellScale: number | undefined;
   if (el) {
-    const cellEl = directChildren(el, 'scenenode').find(c => {
+    const isReplicatorCell = (c: Element): boolean => {
       const fid = parseInt(c.getAttribute('factoryID') || '0', 10);
-      return fid === 19;
-    });
+      if (factories) return factories.get(fid) === 'Replicator Cell';
+      return fid === 19 || fid === 18;
+    };
+    const cellEl = directChildren(el, 'scenenode').find(isReplicatorCell);
     if (cellEl) {
       const cellParams: Parameter[] = [];
       for (const p of directChildren(cellEl, 'parameter')) cellParams.push(parseParameter(p));
@@ -80,12 +88,24 @@ export function parseReplicator(params: Parameter[], el?: Element, factories?: M
         for (const p of ps) { if (p.name === 'Scale' && p.id === 116) return p; if (p.children) { const r = find(p.children); if (r) return r; } }
         return undefined;
       })(cellParams);
-      scaleStart = scaleGroup?.children ? findVal(scaleGroup.children, 'X') : undefined;
+      // The cell "Scale" (id 116) is the uniform cell-SIZE multiplier: it scales the
+      // tiled shape up to fill its grid cell. It is the cell's baseline scale, NOT a
+      // per-instance ramp start — the spiral ramp start (Vertigo) is a SEPARATE
+      // "Scale" that ramps to "Scale End"(133). We expose id-116 as cellScale (tile
+      // fill) and only treat it as scaleStart when a Scale End ramp is present.
+      const cellScaleX = scaleGroup?.children ? findVal(scaleGroup.children, 'X') : undefined;
       const seg = (function find(ps: Parameter[]): Parameter | undefined {
         for (const p of ps) { if (p.name === 'Scale End' && p.id === 133) return p; if (p.children) { const r = find(p.children); if (r) return r; } }
         return undefined;
       })(cellParams);
       cellScaleEnd = seg?.children ? findVal(seg.children, 'X') : undefined;
+      if (cellScaleEnd !== undefined) {
+        // Spiral-style per-cell ramp: id-116 is the ramp START (Vertigo behaviour).
+        scaleStart = cellScaleX;
+      } else {
+        // Plain grid cell (no ramp): id-116 is the cell-size fill multiplier.
+        cellScale = cellScaleX;
+      }
       const aeg = (function find(ps: Parameter[]): Parameter | undefined {
         for (const p of ps) { if (p.name === 'Angle End' && p.id === 147) return p; if (p.children) { const r = find(p.children); if (r) return r; } }
         return undefined;
@@ -97,7 +117,7 @@ export function parseReplicator(params: Parameter[], el?: Element, factories?: M
   return {
     arrangement, columns, rows, sizeWidth, sizeHeight, origin, sequence,
     shape: shapeVal, points, radius, twists,
-    scaleStart, cellScaleEnd, angleEnd,
+    scaleStart, cellScaleEnd, angleEnd, cellScale,
   };
 }
 
@@ -140,7 +160,15 @@ function parseSequenceReplicator(el: Element, factories: Map<number, string>): S
 
   // Sequence Control group values.
   const sequencing = numVal('Sequencing', 0);
-  const end = numVal('End', 0.1);
+  // "End" is the global progress at which the LAST instance BEGINS its ramp — i.e.
+  // when the playhead reaches the far end of the sequence. When a template authors
+  // it explicitly (Duplicate: End=0.8) we honour that value; when it is ABSENT the
+  // sequence sweeps over the WHOLE transition (the behaviour's own timing runs
+  // in→out ≈ the full clip), so the correct default is 1.0, NOT 0.1. The old 0.1
+  // default made no-End sequences (Squares, 360° Divide) rush the entire reveal in
+  // the first ~2 frames (front = progress/0.1 saturates at progress≥0.1) and then
+  // freeze — instead of ramping steadily across all 24 frames as FCP does.
+  const end = numVal('End', 1.0);
   const spread = numVal('Spread', 1);
   const mapAnimation = numVal('Map Animation', 1);
   const quadraticEase = numVal('Use Quadratic Ease', 1);

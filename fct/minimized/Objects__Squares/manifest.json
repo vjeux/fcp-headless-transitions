@@ -1,0 +1,22 @@
+{
+  "slug": "Objects__Squares",
+  "source_motr": "/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized/Objects.localized/Squares.localized/Squares.motr",
+  "minimize": "SKIPPED — `fct minimize` reported the engine ALREADY matches FCP headless here (worst frame f1, PSNR 99 dB); the discrepancy is engine-vs-GUI, not engine-vs-FCP-headless. Oracle = the full GUI-GT gate, not a node-level repro.",
+  "scene": "Image Mask on Transition B, Mask Source = a Replicator (14 cols x 8 rows = 112 tiles, grid size 1800x960 centered). Cell = a parametric Rectangle shape (extent 122.4px) referenced by the Replicator Cell (factoryID 18, cell Scale id=116 = 1.13). A 'Sequence opacity' behavior (Sequence Replicator, factoryID 16) staggers per-tile opacity across the grid; Shuffle Order (id=335)=1, Replicate Seed=node id. Transition A is the background drop zone.",
+  "bug1_seams": "Replicator Cell Scale (id 116 = 1.13) read ONLY for factoryID 19; Squares' grid cell is factoryID 18 -> scale dropped -> tiles rasterize at bare 122.4px extent on 138.5px grid spacing -> orange grid-line lattice between tiles. FIX: resolve the cell by factory DESCRIPTION 'Replicator Cell' (fid 18 AND 19), expose id-116 as `cellScale` (tile-fill multiplier); Vertigo (has Scale-End 133 ramp) still routes id-116 to scaleStart -> byte-identical.",
+  "bug2_timing": "Sequence Replicator 'End' default 0.1 -> front = progress/0.1 saturates by frame ~2 and the reveal FREEZES at ~0.49 B%. The behavior authors NO explicit End (sweeps the whole transition). FIX: default End = 1.0 when absent. Duplicate keeps explicit 0.8; 360_Divide unaffected.",
+  "rejected": "Seeded-hash scatter order for Shuffle-Order=1: MEASURED 12.70 full-res < diagonal 12.97; a hash != Motion's exact PRNG, so it just moved the error. Kept the diagonal; documented in sequenceOrder for a future exact-PRNG decode.",
+  "repro_before_after": "Full GUI-GT score: 12.46 -> 12.97 (full res) / 12.46 -> 13.11 (gate size). B% per frame goes from 'jump to 0.49 by f2 then flat' to 'linear 0->0.60 across all 24 frames' matching FCP.",
+  "gate_result": {
+    "status": "GREEN",
+    "regressions": 0,
+    "improvements": 1,
+    "improved": {"Objects__Squares": [12.46, 13.11]},
+    "slugs": 65,
+    "mean_dB": 14.48,
+    "tol_dB": 0.3,
+    "tsc": "clean",
+    "unit_tests": "replicator/parser/no-hardcode pass; 65-transition robustness render passes",
+    "affected_slugs_verified_identical": ["Replicator-Clones__Duplicate", "Replicator-Clones__Vertigo", "360°__360°_Divide"]
+  }
+}

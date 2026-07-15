@@ -1210,6 +1210,27 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               harness just DEVNULLs subprocess stderr. REMAINING to close T-M7: run the full 56-case
               sweep (backgrounded; slow under load) + write the PASS/FAIL/CEILING scoreboard to
               docs/FILTER_RE_PHASE2.md. Unblocks T-M1..M6. Gate: n/a (no engine code; JSON+doc only).
+- 2026-07-15c  M-SQUARES DONE (Objects__Squares 12.46→13.11 gate, +0.65 dB; 0 regressions / 65 slugs,
+              mean 14.48). Two generic replicator/sequence-replicator bugs, decoded from the .motr +
+              GUI-GT (headless already matched FCP — the gap was vs the GUI). (1) SEAM/GRID-LINE bug:
+              the Replicator Cell "Scale" (id 116 = 1.13) was only read for factoryID 19; Squares'
+              grid cell is factoryID 18, so the tile shape rasterized at its bare 122.4px extent on a
+              138.5px grid spacing, leaving an orange lattice. FIX: read the cell by factory
+              DESCRIPTION "Replicator Cell" (covers fid 18 AND 19) and expose id-116 as `cellScale`
+              (tile-fill multiplier: 122.4×1.13 = 138.3 ≈ spacing → tiles tessellate seamlessly);
+              only treated as spiral scaleStart when a Scale-End(133) ramp is present, so Vertigo is
+              byte-identical. (2) TIMING bug: Sequence Replicator "End" default was 0.1 → front =
+              progress/0.1 saturated by frame ~2 and the whole reveal froze; the behaviour has NO
+              explicit End so it sweeps the WHOLE transition. FIX: default End = 1.0 when absent
+              (Duplicate keeps its explicit 0.8; 360°_Divide unaffected in score). Result: B%
+              ramps steadily 0→0.6 across all 24 frames matching FCP instead of jumping to 0.49 and
+              freezing. TRIED + REJECTED (measured): a seeded-hash scatter order for the template's
+              Shuffle-Order=1 shuffle — it did NOT beat the diagonal (12.70 vs 12.97 full-res) because
+              a hash is not Motion's exact PRNG; left documented in sequenceOrder for a future exact
+              decode. tsc clean, replicator/parser/no-hardcode unit tests pass, 65-transition
+              robustness render passes. Affected-slug analysis (only 4 slugs touch this code) +
+              stash-diff proved Duplicate/Vertigo byte-identical (gate: both == baseline).
+
 - 2026-07-15b  CORRECTED THE WORKFLOW → minimizer-produces-repros / SUBAGENTS-fix-in-parallel /
               orchestrator-gate-verifies. Self-review: I had drifted back to fixing pinpointed bugs
               INLINE + SEQUENTIALLY (collapsing 3 roles into myself). Fixed the division of labor:

@@ -299,6 +299,12 @@ function replicatorMaskAlpha(rctx: RenderContext, replEval: EvaluatedLayer, W: n
   const base = shapeLayer.worldTransform;
   const rx = replEval.worldTransform[12];
   const ry = replEval.worldTransform[13];
+  // Uniform cell-SIZE multiplier (Replicator Cell "Scale" id=116). For a grid
+  // replicator this scales the tiled shape up so its extent == the grid spacing
+  // and the tiles tessellate seamlessly (Squares: shape extent 122.4 × cellScale
+  // 1.13 = 138.3 == grid spacing 1800/13 = 138.5). Without it, tiles rasterize at
+  // their bare extent and leave orange seams between them.
+  const cellScale = layer.replicator.cellScale ?? 1;
 
   const masks: Uint8Array[] = [];
   for (const inst of instances) {
@@ -311,10 +317,11 @@ function replicatorMaskAlpha(rctx: RenderContext, replEval: EvaluatedLayer, W: n
       instOpacity = seq.opacityEnd !== undefined ? p * seq.opacityEnd : p;
     }
     if (instScale <= 0 || instOpacity <= 0) continue;
+    const totalScale = instScale * cellScale;
     const m = new Float64Array(base);
-    if (instScale !== 1) {
-      m[0] *= instScale; m[1] *= instScale;
-      m[4] *= instScale; m[5] *= instScale;
+    if (totalScale !== 1) {
+      m[0] *= totalScale; m[1] *= totalScale;
+      m[4] *= totalScale; m[5] *= totalScale;
     }
     // Grid placement: replicator group translation + instance grid offset.
     m[12] = rx + inst.x;

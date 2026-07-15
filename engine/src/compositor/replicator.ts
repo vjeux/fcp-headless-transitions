@@ -217,6 +217,16 @@ export function sequenceOrder(inst: ReplicatorInstance, cols: number, rows: numb
   // = animates first. This orientation reproduces FCP's Duplicate reveal (the dot
   // wave sweeps across the frame leaving the far corner last). Derived from the grid
   // layout (col/row indices), not from any GT-measured constant.
+  //
+  // NOTE (Squares): that template sets Replicator "Shuffle Order"=1, so FCP reveals
+  // tiles in a pseudo-random permutation, not a diagonal band. A deterministic
+  // seeded-hash scatter was tried and MEASURED (full 24-frame GUI-GT score): it
+  // did NOT beat the diagonal (12.70 vs 12.97 dB) because the hash permutation is
+  // not Motion's actual PRNG order — it just moved the error around. Reproducing
+  // Motion's exact shuffle PRNG is out of scope; the diagonal remains the best
+  // generic order. Left documented so a future exact-PRNG decode can revisit.
   const rank = inst.col + ((rows - 1) - inst.row);
   return rank / maxDiag;
 }
+
+

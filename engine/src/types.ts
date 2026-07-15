@@ -524,6 +524,17 @@ export interface Replicator {
   scaleStart?: number;
   cellScaleEnd?: number;
   angleEnd?: number;
+  /**
+   * Uniform per-cell scale MULTIPLIER read from the Replicator Cell scenenode's
+   * "Scale" param (id=116, X≈Y — Motion's cell-size control, distinct from the
+   * replicator group's own transform scale). Multiplies the cell shape's authored
+   * size so the tile fills its grid cell. For a grid replicator whose cell shape
+   * extent × cellScale == the grid spacing, the tiles tessellate with NO gaps;
+   * dropping this (as the old fid-19-only reader did for fid-18 cells like Squares)
+   * rasterizes the cell at its bare extent, leaving orange seams between tiles.
+   * Undefined ⇒ 1 (no extra scale).
+   */
+  cellScale?: number;
   /** Twists (Spiral shape): fractional turns the spiral sweeps across `points`. */
   twists?: number;
 }
