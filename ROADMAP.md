@@ -127,17 +127,22 @@ verified against headless FCP. Engine UNIT TESTS, with real FCP as the per-primi
   still scored ONLY against `~/fct-gui-gt`.
 
 **The build order (do these top-down; each closes ONE capability to PASS, then add the next):**
-1. **baseline.identity** — A with identity transform must render == imageA in BOTH engines.
-   FINDING this tick: headless matches A (mae 1.09) but TS diverges (mae 16.5), worst at the TOP
-   rows (~140) — the TS **drop-zone conform/fit** differs from FCP on the bare skeleton (centre
-   pixel is identical → it's edge/framing, not colour). CLOSE THIS FIRST; it is the harness floor
-   and likely a hidden baseline error under many slugs.
-2. **transform.position.x / .y** — WORKING (both engines apply; ~19 dB residual = the same
-   conform floor from #1, not a translate bug). Re-verify once #1 is closed.
-3. **transform.scale / .rotation** — SCHEMA TODO: injected Scale id=103 / Rotation id=102 under
-   Properties>Transform did NOT apply in headless (hvi~0.9). Decode a real Movements/Scale (uses
-   Scale id=105) + Movements/Rotate encoding, fix the injector, then close.
-4. Then enumerate the rest: opacity, blend modes, crop, anchor, shear, time-remap/speed/reverse,
+1. **baseline.identity** — ✅ CLOSED 2026-07-15 (drop-zone conform, commit eed1f5d). Was headless
+   mae 1.09 vs A but TS mae 16.5 (worst at TOP rows ~140 — a black letterbox band because the TS
+   compositor blitted the 1854×1042 source at native size instead of conforming it to fill the
+   frame). Now psnr 17.58→43.31, mae 1.04. This was a hidden baseline error under EVERY full-frame
+   slug (Blurs__Directional 17.79→26.84 +9.05, Movements__Push 17.59→19.68 +2.09).
+2. **transform.position.x / .y** — ✅ CLOSED (both engines apply, psnr 44.4/43.7 after #1's
+   conform floor was fixed).
+3. **transform.scale / .rotation / opacity** — ✅ CLOSED 2026-07-15. The injector used the WRONG
+   ids/units (Scale id=103 default="100" percent, Rotation id=102 single-leaf, Opacity attr-append
+   over an animated curve) so headless FCP IGNORED them (hvi~0.9). Decoded the REAL schema from the
+   shipped templates: Transform id=100 > Position id=101 / Rotation id=**109** (deg, X/Y/Z) / Scale
+   id=**105** (RATIO 1.0=100%, X/Y/Z). Opacity id=202 ships as a <curve>, so the injector now
+   replaces the whole element with a static-value leaf. RESULT: scale.half hvi 0.9→111.6 (psnr
+   42.70), rotation.z hvi 0.9→76.8 (34.93), opacity.half hvi 0.9→33.3 (39.96) — all 3 now APPLY and
+   the TS engine matches. `fct caps` = 6/6 PASS. (Engine math was already correct; tools+docstring only.)
+4. Then enumerate the rest: blend modes, crop, anchor, shear, time-remap/speed/reverse,
    masks (rect/circle/bezier), behaviors (Fade/Ramp/Throw/Spin/Oscillate/Sequence-Replicator),
    replicator layout, camera/3D projection, generators. Each = one catalog entry + make it PASS.
 
@@ -354,6 +359,58 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+
+- 2026-07-15w  ✅ CAPABILITY #2-4 CLOSED — transform Scale/Rotation/Opacity SCHEMA decode. The
+              catalog's scale/rotation/opacity injections were IGNORED by headless FCP (hvi~0.9 =
+              no-op) — a SCHEMA bug in the PROBE INJECTOR, not the engine. Decoded the real Motion
+              Transform schema from the shipped templates (Rule 8): Transform id=100 > Position
+              id=101 / Rotation id=**109** (deg, X/Y/Z group) / Scale id=**105** (RATIO 1.0=100%,
+              X/Y/Z) — the injector had used Rotation id=102 (single leaf) + Scale id=103 default=100
+              (percent), so FCP dropped both. Opacity id=202 ships as an animated <curve> so the old
+              attribute-append regex silently no-op'd; injector now replaces the whole Opacity element
+              with a static value. Fixed tools/re/probe_scene.py (_transform_xml ids/units,
+              rotation scalar|dict, opacity block-replace) + corrected the STALE docstring in
+              engine/src/parser/transform.ts (ids 109/105, Scale=ratio — the extractor matches by
+              NAME so the 65 slugs were always fine; ids are docs only). RESULT: fct caps = **6/6
+              PASS**, all previously-ignored injects now APPLY: scale.half hvi 0.9→111.6 (psnr 42.70),
+              rotation.z 0.9→76.8 (34.93), opacity.half 0.9→33.3 (39.96). Tools+docstring only, NO
+              engine behavior change (evaluator already treats scale as fractional, rotation×RAD2DEG),
+              so the GUI-GT gate is UNAFFECTED. tsc clean.
+
+- 2026-07-15w  ✅ CAPABILITY #2-4 CLOSED — transform Scale/Rotation/Opacity schema decode. The
+              catalog's scale/rotation/opacity injections were IGNORED by headless FCP (hvi~0.9 =
+              no-op) — a SCHEMA bug in the PROBE INJECTOR, not the engine. Decoded the REAL Motion
+              Transform schema from the shipped templates (Rule 8, from the .motr not prose):
+              Transform id=100 > Position id=101 / Rotation id=**109** (deg, X/Y/Z group) / Scale
+              id=**105** (RATIO 1.0=100%, X/Y/Z) — the injector had used Rotation id=102 (single leaf)
+              and Scale id=103 default="100" (percent), so FCP dropped them. Opacity id=202 ships as
+              an ANIMATED <curve>, so the old attribute-append regex silently no-op'd; now the whole
+              Opacity(202) element is replaced with a static-value curve. Fixed tools/re/probe_scene.py
+              (_transform_xml ids/units + rotation dict|scalar + opacity block-replace) and the STALE
+              parser docstring in engine/src/parser/transform.ts (the extractor matches by NAME so the
+              65 slugs were always fine — ids are documentation only). RESULT: `fct caps` = 6/6 PASS,
+              every previously-ignored inject now APPLIES: scale.half hvi 0.9→111.6 (psnr 42.70),
+              rotation.z hvi 0.9→76.8 (34.93), opacity.half hvi 0.9→33.3 (39.96). Tools+docstring
+              only; the engine transform math was already correct (evaluator treats scale as
+              fractional, rotation×RAD2DEG), so the GUI-GT gate is UNAFFECTED. tsc clean.
+
+- 2026-07-15v  ✅ CAPABILITY #2-4 CLOSED — transform Scale / Rotation / Opacity schema decode.
+              The catalog's scale/rotation/opacity injections were being IGNORED by headless FCP
+              (hvi~0.9 = no-op) — a SCHEMA bug in the probe injector, NOT an engine bug. Decoded the
+              REAL Motion Transform schema from the shipped templates (Rule 8): Transform id=100 >
+              Position id=101 / Rotation id=**109** (deg) / Scale id=**105** (RATIO 1.0=100%, all 108
+              shipped Scale curves default="1") — the injector had used Rotation id=102 / Scale id=103
+              with default="100" (percent), so FCP dropped them. Opacity (id=202) ships as an ANIMATED
+              <curve> not a scalar, so the old attribute-append regex silently no-op'd; now the whole
+              Opacity(202) element is replaced with a static single-keypoint curve. Fixed
+              tools/re/probe_scene.py (_transform_xml ids/units, rotation dict|scalar, opacity block
+              replace) + corrected the STALE parser docstring in engine/src/parser/transform.ts
+              (id 109/105, ratio — the extractor matches by NAME so the 65 slugs were always fine;
+              ids are documentation only). RESULT: `fct caps` = **6/6 PASS**, all previously-ignored
+              injects now APPLY: scale.half hvi 0.9→111.6 (psnr 42.70), rotation.z hvi 0.9→76.8 (34.93),
+              opacity.half hvi 0.9→33.3 (39.96). Tools+docstring only — the engine transform math was
+              already correct (evaluator treats scale as fractional, rotation×RAD2DEG), so the 65-slug
+              GUI-GT gate is UNAFFECTED (no engine behavior change). tsc clean.
 
 - 2026-07-15u  ✅ CAPABILITY #1 CLOSED — drop-zone media conform (the "base A renders as a band"
               letterbox bug, shared by Blurs/Push/Rotate/Kinetic; ENGINE_RE_PLAYBOOK.md:847). FCP

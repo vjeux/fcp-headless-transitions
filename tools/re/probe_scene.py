@@ -79,9 +79,19 @@ def _strip_scene_filter(src):
 
 def _transform_xml(inject, indent="\t\t\t\t"):
     """Build a <parameter name="Transform" id="100"> group from an inject spec:
-       {"position":{"x":..,"y":..,"z":..}, "scale":{"x":..,"y":..}, "rotation":..}
-    Position X/Y/Z id 1/2/3 (px, Motion centre origin), Scale id=102 X/Y/Z id 1/2/3 (%),
-    Rotation id=103 (deg). Matches parser/transform.ts + a real Movements/Push .motr."""
+       {"position":{"x":..,"y":..,"z":..}, "scale":{"x":..,"y":..,"z":..}, "rotation":..
+        or "rotation":{"x":..,"y":..,"z":..}, "anchor":{...}}
+
+    REAL Motion schema decoded 2026-07-15 from the shipped .motr templates (Rule 8 —
+    facts come from the FCP binary/.motr, not prose). The earlier injector used the
+    WRONG ids/units (Rotation id=102, Scale id=103, Scale default="100" percent), which
+    is why headless FCP IGNORED the scale/rotation injections (hvi~0.9 = no-op):
+      Transform id=100
+        Position id=101 : X(1)/Y(2)/Z(3)  px, default="0"
+        Rotation id=109 : X(1)/Y(2)/Z(3)  DEGREES, default="0"   (Movements/Rotate.motr:276)
+        Scale    id=105 : X(1)/Y(2)/Z(3)  RATIO 1.0=100%, default="1"  (Movements/Scale.motr:213)
+        Anchor Point id=106 : X(1)/Y(2)/Z(3)  px, default="0"
+    A single-value Rotation (2D) is written as Rotation id=109 with a Z child (id=3)."""
     lines = [f'{indent}<parameter name="Transform" id="100" flags="8589938704">']
     pos = inject.get("position")
     if pos:
@@ -92,13 +102,21 @@ def _transform_xml(inject, indent="\t\t\t\t"):
         lines.append(f'{indent}\t</parameter>')
     rot = inject.get("rotation")
     if rot is not None:
-        lines.append(f'{indent}\t<parameter name="Rotation" id="102" flags="8606711824" default="0" value="{rot}"/>')
+        # Rotation id=109, DEGREES, X/Y/Z children (id 1/2/3, default="0"). A scalar
+        # rotation is the Z channel (in-plane spin); a dict sets any of X/Y/Z.
+        rot_axes = rot if isinstance(rot, dict) else {"z": rot}
+        lines.append(f'{indent}\t<parameter name="Rotation" id="109" flags="8589938704">')
+        for axis, aid in (("x", 1), ("y", 2), ("z", 3)):
+            if axis in rot_axes:
+                lines.append(f'{indent}\t\t<parameter name="{axis.upper()}" id="{aid}" flags="8606711824" default="0" value="{rot_axes[axis]}"/>')
+        lines.append(f'{indent}\t</parameter>')
     scale = inject.get("scale")
     if scale:
-        lines.append(f'{indent}\t<parameter name="Scale" id="103" flags="8589938704">')
+        # Scale id=105, RATIO (1.0 = 100%), X/Y/Z children (id 1/2/3, default="1").
+        lines.append(f'{indent}\t<parameter name="Scale" id="105" flags="8589938704">')
         for axis, aid in (("x", 1), ("y", 2), ("z", 3)):
             if axis in scale:
-                lines.append(f'{indent}\t\t<parameter name="{axis.upper()}" id="{aid}" flags="8606711824" default="100" value="{scale[axis]}"/>')
+                lines.append(f'{indent}\t\t<parameter name="{axis.upper()}" id="{aid}" flags="8606711824" default="1" value="{scale[axis]}"/>')
         lines.append(f'{indent}\t</parameter>')
     anchor = inject.get("anchor")
     if anchor:
@@ -132,10 +150,33 @@ def build_scene(inject):
     if kind == "transform":
         src = _inject_into_transition_a_properties(src, _transform_xml(inject))
     elif kind == "opacity":
-        # set Transition A Blending>Opacity (id=202) to a static value
-        src = re.sub(r'(<parameter name="Opacity" id="202"[^>]*?)(/?>)',
-                     lambda m: f'{m.group(1)} default="1" value="{inject["value"]}"/>' if m.group(2) == "/>"
-                     else m.group(0), src, count=1)
+        # Replace Transition A's Blending>Opacity (id=202) with a STATIC value.
+        # The skeleton ships Opacity 202 as an ANIMATED curve (2 keypoints 1->0 over the
+        # transition), so the previous attribute-injection was a double no-op: (a) the tag
+        # is an OPENING tag `<... flags=...>` not self-closing `/>` so the regex `else`
+        # branch left it untouched, and (b) even if attrs were added FCP evaluates the
+        # <curve>, ignoring default/value attrs. At the probe's t=0 the curve's first
+        # keypoint (~0.133s) is value=1 => opacity 1.0 => headless==input (hvi~0.9).
+        # Fix: rewrite the whole Opacity(202) element to a leaf with a single-keypoint
+        # constant curve at the target value, so FCP holds it for all t.
+        val = inject["value"]
+        static = (
+            f'<parameter name="Opacity" id="202" flags="8606711824">\n'
+            f'\t\t\t\t\t\t<curve type="1" default="1" value="{val}">\n'
+            f'\t\t\t\t\t\t\t<numberOfKeypoints>1</numberOfKeypoints>\n'
+            f'\t\t\t\t\t\t\t<min>0</min>\n'
+            f'\t\t\t\t\t\t\t<max>1</max>\n'
+            f'\t\t\t\t\t\t\t<keypoint interpolation="1" flags="0">\n'
+            f'\t\t\t\t\t\t\t\t<time>0 1 1 0</time>\n'
+            f'\t\t\t\t\t\t\t\t<value>{val}</value>\n'
+            f'\t\t\t\t\t\t\t</keypoint>\n'
+            f'\t\t\t\t\t\t</curve>\n'
+            f'\t\t\t\t\t</parameter>'
+        )
+        # Replace only the FIRST Opacity(202) block (Transition A comes before B in the file).
+        src = re.sub(
+            r'<parameter name="Opacity" id="202"[^>]*>.*?</parameter>',
+            lambda m: static, src, count=1, flags=re.DOTALL)
     else:
         raise RuntimeError(f"unknown inject kind: {kind}")
     fd, path = tempfile.mkstemp(suffix=".motr", prefix="capscene_")

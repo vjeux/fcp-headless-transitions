@@ -94,18 +94,26 @@ export function extractBlendMode(params: Parameter[]): BlendMode {
 
 /**
  * Extract transform values from a parameter tree.
- * Motion's standard layout:
+ *
+ * Motion's REAL layout, decoded 2026-07-15 from the shipped .motr templates
+ * (Movements/Scale.motr line 213, Movements/Rotate.motr line 276) — the earlier
+ * docstring had the Rotation/Scale ids and the Scale unit WRONG:
  *   Properties (id=1)
  *     Transform (id=100)
- *       Position (id=101): X(1), Y(2), Z(3)
- *       Rotation (id=102): X(1), Y(2), Z(3) [or single value for 2D]
- *       Scale (id=103): X(1)=%, Y(2)=%, Z(3)=%
+ *       Position (id=101): X(1), Y(2), Z(3)   — pixels, Motion centre origin
+ *       Rotation (id=109): X(1), Y(2), Z(3)   — DEGREES (was mis-documented id=102)
+ *       Scale    (id=105): X(1), Y(2), Z(3)   — RATIO, 1.0 = 100% (was mis-documented
+ *                                                id=103 / percent). ALL 108 shipped
+ *                                                Scale curves have default="1".
  *       Anchor Point (id=106): X(1), Y(2), Z(3)
- *       Shear (id=105): X(1), Y(2)
+ *       Shear (varies): X(1), Y(2)
  *     Blending (id=200)
- *       Opacity (id=202): value 0-100
+ *       Opacity (id=202): value 0..1 (some slugs 0..100 → normalised downstream)
  *     Crop (id=500)
  *       Left(1), Right(2), Top(3), Bottom(4)
+ * IMPORTANT: this extractor matches by NAME (findParam(params,'Scale') etc.), so it is
+ * robust to the id drift above — the ids are documentation only. Scale is consumed
+ * as-is (fractional) in evaluator/index.ts; NEVER divided by 100.
  */
 export function extractRetimeValue(params: Parameter[]): Curve | undefined {
   // Retime Value is at params > Properties > Retime Value (id=304 typically)

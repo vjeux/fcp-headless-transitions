@@ -45,14 +45,13 @@
     "inject": {
       "kind": "transform",
       "scale": {
-        "x": 50,
-        "y": 50
+        "x": 0.5,
+        "y": 0.5
       }
     },
     "time": 0.0,
     "min_psnr": 30,
-    "schema_todo": true,
-    "note": "SCHEMA TODO: injecting Scale id=103 under Properties>Transform did NOT apply in headless (hvi~0.9). A real Movements/Scale uses Scale id=105 with a curve; the drop-zone scale path likely needs a different node/id. Decode the real Scale slug's exact transform encoding before enabling."
+    "note": "Scale to 50% (ratio 0.5). REAL schema decoded 2026-07-15: Transform id=100 > Scale id=105 (X/Y/Z id 1/2/3), RATIO not percent, default=1 (Movements/Scale.motr:213). Earlier injector used id=103/default=100 (percent) -> headless IGNORED it (hvi~0.9)."
   },
   {
     "cap": "transform.rotation.z",
@@ -63,8 +62,7 @@
     },
     "time": 0.0,
     "min_psnr": 28,
-    "schema_todo": true,
-    "note": "SCHEMA TODO: Rotation id=102 injection did not apply in headless (hvi~0.9). Movements/Flip uses Rotation id=109 AND 102 (3D fold). Decode the real 2D-rotation encoding before enabling."
+    "note": "Rotate 30deg about Z. REAL schema: Transform id=100 > Rotation id=109 (X/Y/Z id 1/2/3), DEGREES, default=0 (Movements/Rotate.motr:276). Earlier injector used a single-leaf id=102 -> headless IGNORED it."
   },
   {
     "cap": "opacity.half",
