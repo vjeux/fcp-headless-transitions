@@ -559,3 +559,37 @@ Result: isolated sweep 16-20 dB → 37-42 dB; GUI-GT gate 360°__360°_Bloom +0.
 11.58), 0 regressions; baseline re-frozen; engine/test/glow.test.ts (6 tests) pins it.
 
 
+
+## Tint zero-channel decode (2026-07-15) — CEILING confirmed, ColorSpace theory disproven
+
+Captured a REAL headless FCP TintFx render (`tools/re/filter_probe.py --uuid
+717D6E01-83F4-4A4B-AF92-42AABA4B176C --name PAETint --group 'Color:1=Red:1:1.0,
+Green:2:0.0,Blue:3:0.0' --param 'Intensity:2=1.0'`, single frame t=0 over image A)
+and reduced it numerically against the shipping engine's candidate models.
+
+**Real TintFx param set** (verified against the shipping Leaves.motr TintFx block,
+`factoryID="13"`): `Color(id=1){Red id1, Green id2, Blue id3}`, `Intensity(id=2)`,
+`Mix(id=10001)`, `Flip(id=10002)`, `Input Points(id=10003)`. **There is NO
+`ColorSpace` / `id=11` parameter** — the earlier "Color-Space(id=11)=3" nuance
+speculation is DISPROVEN. (The legacy TS registration reading top-level
+Red/Green/Blue instead of the nested Color group is still a param-name bug.)
+
+**Measured facts (tint=[1,0,0], Intensity=1):**
+- FCP's two zero-tint channels are ALWAYS EQUAL (G==B), i.e. driven by ONE shared
+  luma leg → confirms the shared-luma HgcTint shader shape.
+- The disassembled hard branch `sel=(luma<0.5)` → zero-channel `= clip(2*lum-1)`,
+  which scores mean|Δ|G ≈ **10.8** vs FCP.
+- FCP's zero channel is matched to sub-LSB (mean|Δ|G ≈ **0.85**) by a **smoothstep in
+  sRGB-Rec.601 luma**: `smoothstep(≈0.27, ≈1.22, lum)`. i.e. FCP's `sel` is a SMOOTH
+  (mix-based) blend, not the hard `luma<0.5` step in the disasm.
+- Swept + rejected (all fit worse or non-cleanly): linear-working-space leg (err≈29),
+  gamma-on-luma (best p≈0.85, not a canonical constant), 601/709 weight mix,
+  `sel=smoothstep` INSIDE the exact two-leg formula (errRGB≈19.8, does NOT converge).
+
+**Verdict: CEILING (unchanged).** The smoothstep(0.27,1.22) is an empirical descriptor
+of the OUTPUT curve, not a decoded shader structure — per decode-don't-fit we do NOT
+ship a 2-param fit. The shipped `lum*color` lerp is retained because the faithful
+hard-light rewrite REGRESSED Objects__Leaves on the GUI GT (12.24→11.69, 2026-07-11):
+Leaves' near-gray tint sits closer to the old lerp than to the still-imperfect
+hard-light. Tint is used by only 4 transitions (Glide, Wipes/Stylized Diagonal,
+Leaves), all dominated by other gaps, so no GUI-GT metric depends on closing this.

@@ -40,9 +40,32 @@
  *   Intensity=1): the exact-shader transcription above (sRGB space, either 601 or
  *   709 luma) reproduces the RED channel (255) but lands the suppressed G/B at ~29
  *   vs FCP's ~56 (mean|err|~21). The residual is NOT linear-light (that's worse,
- *   err~45) — it is a TintFx-vs-PAETint variant / Color-Space(id=11)=3 nuance not yet
- *   pinned. Real params are Color(id1: R/G/B children) + Intensity(id2) + Mix(10001),
- *   NOT the top-level Red/Green/Blue the legacy registration reads (a param-name bug).
+ *   err~45).
+ *   ⚠️ 2026-07-15 RE-DECODE (captured a REAL headless FCP TintFx render, tint=[1,0,0]
+ *   Intensity=1, and reduced it numerically — see docs/FILTER_RE_PHASE2.md "Tint
+ *   zero-channel decode"):
+ *     · The "Color-Space (id=11)=3" nuance the earlier note speculated about is
+ *       DISPROVEN — TintFx has NO id=11 param. The REAL param set (verified against
+ *       the shipping Leaves.motr TintFx block, factoryID=13) is exactly:
+ *         Color(id=1){Red id=1, Green id=2, Blue id=3}, Intensity(id=2),
+ *         Mix(id=10001), Flip(id=10002), Input Points(id=10003).
+ *       (The legacy registration reading top-level Red/Green/Blue is still a
+ *       param-name bug — the real color is the nested Color group.)
+ *     · FCP's zero-tint channels are ALWAYS EQUAL (G==B for tint=[1,0,0]) → they are
+ *       driven by a single shared luma leg, confirming the shared-luma shader shape.
+ *     · BUT the transfer is SMOOTHER than the disassembled hard `sel=(luma<0.5)`
+ *       branch: the hard branch gives 2*lum-1 (mean|Δ|G≈10.8 vs FCP), whereas FCP's
+ *       zero channel is fit to sub-LSB (mean|Δ|G≈0.85) by a *smoothstep* in sRGB-601
+ *       luma, smoothstep(≈0.27, ≈1.22, lum). Replacing `sel` with a smoothstep INSIDE
+ *       the exact two-leg formula does NOT converge (errRGB≈19.8) — so the smoothstep
+ *       is an empirical descriptor of the zero-channel OUTPUT, not the decoded shader
+ *       structure. Linear-space, gamma-on-luma, and 601/709-mix variants were all
+ *       swept and all fit worse or non-cleanly (best gamma p≈0.85 is not a canonical
+ *       constant). Per the decode-don't-fit rule this stays a documented CEILING: the
+ *       shipped `lum*color` lerp is retained (it happens to sit closer to Leaves' near-
+ *       gray GUI-GT pixels than the faithful-but-still-imperfect hard-light — the 2026-
+ *       07-11 hard-light rewrite REGRESSED Leaves 12.24→11.69). The true FCP select is
+ *       a smooth (mix/smoothstep) blend, NOT the hard luma<0.5 branch in the disasm.
  *   ⚠️ ATTEMPTED + REVERTED (2026-07-11, GUI-GT gate): rewrote tintFilter to the
  *   verbatim hard-light shader (709 luma) AND fixed the nested-Color param read. The
  *   probe confirmed the hard-light SHAPE + gray-tint output match FCP (gray tint 0.443
