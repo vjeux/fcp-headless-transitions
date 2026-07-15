@@ -10,8 +10,8 @@
     },
     "time": 0.0,
     "min_psnr": 30,
-    "note": "HARNESS FLOOR probe: A with an identity transform should render == imageA in BOTH engines. FINDING 2026-07-15: headless matches A (mae 1.09) but TS diverges (mae 16.5), worst at the TOP rows (mae~140) \u2014 the TS drop-zone CONFORM/fit differs from FCP on the bare skeleton (centre pixel is identical, so it is edge/framing, not colour). The synthetic scene needs the drop-zone Fit/Type/dim params that real slugs carry before per-primitive deltas are trustworthy. This is the FIRST capability to close.",
-    "schema_todo": true
+    "note": "HARNESS FLOOR / drop-zone conform probe: A with an identity transform must render == imageA in BOTH engines. CLOSED 2026-07-15: the TS drop-zone conform now stretches the base full-frame drop-zone source to fill the frame (compositor conformDropZoneSource, FCT_CONFORM_FILL). Was psnr 17.58 (TS blitted the 1854x1042 source at native size, ~19/33px black border); now psnr 43.31 (mae 1.04), matching headless. expect_identity=true: headless SHOULD equal input for a no-op transform, so PASS is decided by the headless-vs-TS psnr alone (the hvi schema-guard is skipped).",
+    "expect_identity": true
   },
   {
     "cap": "transform.position.x",

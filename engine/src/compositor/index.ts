@@ -15,6 +15,7 @@ import {
   transformBBoxToOutput, centerEvaluatedLayer, detectPageFlip, isFlatCoplanarStack,
   retimedClipTime,
 } from './geometry.js';
+import { resample } from './resample.js';
 import { detectFieldTexture, applyParticleFieldProxy, detectParticleGroupTint } from './field-texture.js';
 import { applyEmitterSim } from './emitter-sim.js';
 import { generateInstances, sequenceProgress, sequenceOrder } from './replicator.js';
@@ -31,6 +32,30 @@ import './filters/index.js'; // side-effect: registers all UUID-keyed filter mod
  * tile and framed image layer is projected through this camera (projectFramed).
  */
 const FRAMING_VIEW_ENABLED = true;
+
+// Drop-zone media conform (capability #1, "close this first"). FCP conforms a
+// drop-zone's SOURCE media to its declared Width×Height box before the transition
+// graph runs — a Fit=0 / Type=1 drop zone stretches the media to exactly fill the box
+// (Use Display Aspect Ratio id=323=0 → no aspect preservation). The engine historically
+// blitted the source at its NATIVE pixel size, so a 1854×1042 bench image landed centred
+// in the 1920×1080 frame leaving a ~19px top/bottom + ~33px left/right BLACK band ("base
+// A renders as a band not full-frame", the known letterbox-conform bug shared by
+// Blurs/Push/Rotate/360°/Kinetic). GUI GT + headless FCP both fill the frame; the identity
+// capability scene measured headless mae 1.0 vs A (conformed) but TS mae 16.4 (edge error).
+//
+// conformDropZoneSource stretch-resamples a leaf drop-zone source UP to the box (== output
+// frame for the full-frame Transition A/B cards). Anamorphic STRETCH (not aspect-fill): the
+// box aspect (16:9) already ~matches the source (1.7793 vs 1.7778) and headless matches a
+// stretch (edge mae ~1.0) over aspect-fill+crop (right-edge mae ~3.1). Only UPSCALE. Scoped
+// at the call site to the base full-frame UNCROPPED case (box ≈ frame, crop=0 so effCrop is
+// 0 too, no framing/perspective/360). Env FCT_CONFORM_FILL=0 restores the native blit.
+const CONFORM_FILL_ENABLED = process.env.FCT_CONFORM_FILL !== '0';
+function conformDropZoneSource(src: ImageData, boxW: number, boxH: number): ImageData {
+  if (!CONFORM_FILL_ENABLED) return src;
+  if (boxW <= 0 || boxH <= 0) return src;
+  if (src.width >= boxW && src.height >= boxH) return src;
+  return resample(src, boxW, boxH);
+}
 
 /**
  * True when a 4x4 world transform carries real 3D depth — a non-negligible Z basis
@@ -63,6 +88,7 @@ function transformHas3D(m: Float64Array | undefined): boolean {
  * can be added later for performance.
  */
 import type { EvaluatedScene, EvaluatedLayer } from '../evaluator/index.js';
+import { isWideEquirect } from '../capabilities.js';
 
 
 
@@ -470,6 +496,24 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
         blitDirect(output, filtered, opacity, layer.blendMode);
         return 'children';
       }
+      // Conform the base full-frame drop-zone SOURCE to fill the frame (capability #1;
+      // see conformDropZoneSource). Scoped to a plain UNCROPPED drop-zone image whose box
+      // ≈ the render buffer AND that buffer is a normal (non-panorama) frame — a 360°/VR
+      // scene renders at its NATIVE 4096×2160 equirect size (output IS 4096×2160 here,
+      // native-then-resample in api.ts) with a 4096-wide drop zone, so `box ≈ output`
+      // would otherwise fire there and stretch the source into the panorama (regressed
+      // 360°_Bloom −0.38). `isWideEquirect` (FCP's oz_render.mm sb.w≥3072 equirect
+      // readback threshold — the SAME predicate api.ts uses to pick the 360° readback,
+      // no new magic number) gates that out. Also excluded: the framing camera
+      // (off-canvas wall tiles project their own scale) and cropped drop zones (crop is
+      // in native source pixels).
+      const drawSrc = (layer.type === 'image' && layer.dropZone && !(FRAMING_VIEW_ENABLED && rctx.framed)
+          && !isWideEquirect(output.width, output.height)
+          && Math.abs(layer.dropZone.width - output.width) <= 2
+          && Math.abs(layer.dropZone.height - output.height) <= 2
+          && crop.left === 0 && crop.right === 0 && crop.top === 0 && crop.bottom === 0)
+        ? conformDropZoneSource(src, output.width, output.height)
+        : src;
       // Framing camera (factory 3): the standalone Transition A/B drop-zone tiles
       // live in the same off-canvas world space as the replicator wall, so route
       // them through the same look-at camera (computeFraming pose). Generic — only
@@ -493,7 +537,7 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
         : null;
       if (maskAlpha) {
         const temp = createBuffer(output.width, output.height);
-        blitTransformed(temp, src, worldTransform, 1.0, effCrop, 'normal', blitDstBBox(temp, src, worldTransform, effCrop));
+        blitTransformed(temp, drawSrc, worldTransform, 1.0, effCrop, 'normal', blitDstBBox(temp, drawSrc, worldTransform, effCrop));
         let filtered = temp;
         for (const filter of layer.filters) {
           filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
@@ -503,7 +547,7 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
       } else if (layer.filters.length > 0) {
         // Render to temp buffer, apply filters, then composite onto output
         const temp = createBuffer(output.width, output.height);
-        blitTransformed(temp, src, worldTransform, 1.0, effCrop); // full opacity to temp
+        blitTransformed(temp, drawSrc, worldTransform, 1.0, effCrop); // full opacity to temp
         let filtered = temp;
         for (const filter of layer.filters) {
           filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
@@ -511,10 +555,10 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
         blitDirect(output, filtered, opacity, layer.blendMode);
       } else if (needsPerspective(worldTransform)) {
         // 3D perspective: project the source quad and rasterize
-        const corners = projectQuad(worldTransform, src.width, src.height, rctx.cameraZ ?? 2000);
-        renderPerspectiveQuad(output, src, corners, opacity);
+        const corners = projectQuad(worldTransform, drawSrc.width, drawSrc.height, rctx.cameraZ ?? 2000);
+        renderPerspectiveQuad(output, drawSrc, corners, opacity);
       } else {
-        blitTransformed(output, src, worldTransform, opacity, effCrop, layer.blendMode, blitDstBBox(output, src, worldTransform, effCrop));
+        blitTransformed(output, drawSrc, worldTransform, opacity, effCrop, layer.blendMode, blitDstBBox(output, drawSrc, worldTransform, effCrop));
       }
     }
   }

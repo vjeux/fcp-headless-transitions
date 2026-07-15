@@ -31,6 +31,12 @@ output == primitive(imageA).
 import os, sys, argparse, tempfile, re, json, subprocess
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Make `import fct.*` work regardless of how we were launched. When invoked via
+# `fct.sh caps`, fct/cli.py has ALREADY re-exec'd under the venv python with DYLD set,
+# so the re-exec guard below is skipped and PYTHONPATH=REPO is never exported — leaving
+# REPO off sys.path and `from fct.config import ...` failing. Insert it unconditionally.
+if REPO not in sys.path:
+    sys.path.insert(0, REPO)
 FRAMEWORKS = "/Applications/Final Cut Pro.app/Contents/Frameworks"
 
 # Headless FCP needs venv python + DYLD_FRAMEWORK_PATH set AT EXEC TIME (SIP strips DYLD
@@ -204,7 +210,14 @@ def main(argv):
         mp = c.get("min_psnr", 34)
         if "error" in res:
             print(f"  {c['cap']:28s} ERROR {res['error']}"); nfail += 1; continue
-        applied = res["headless_vs_input_mad"] >= 1.0
+        # `applied` guards the SCHEMA: for an injection that is meant to CHANGE the
+        # image, headless == input (hvi≈0) means FCP ignored the inject (a schema bug,
+        # not an engine bug). But an IDENTITY capability (baseline.identity, a no-op
+        # transform) is CORRECT when headless == input — the only signal is the
+        # headless-vs-TS psnr. Entries mark this with "expect_identity": true so the
+        # guard is skipped and the psnr bar alone decides PASS/FAIL.
+        expect_identity = bool(c.get("expect_identity"))
+        applied = expect_identity or res["headless_vs_input_mad"] >= 1.0
         ok = res["psnr"] >= mp and applied
         tag = "PASS" if ok else "FAIL"
         warn = "" if applied else " (headless==input: injection IGNORED — check schema)"

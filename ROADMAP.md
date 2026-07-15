@@ -21,12 +21,21 @@ Every work item has a **Definition of Done (DoD)**, a **Verify** command, and a
 1. **One truth.** Score ONLY against the GUI GT (`~/fct-gui-gt`, via `fct score`).
    NEVER compare a render to another render ("headless-vs-headless" was circular and
    produced false "at ceiling" verdicts — see `docs/notes/CEILING_DIAGNOSTIC_FAILURE.md`).
-2. **The gate.** Every change must pass `fct regress <source>` (no slug drops >0.30 dB
-   below the committed baseline) BEFORE it is committed. Re-render affected slugs with
-   `fct gen engine <slug>` (or `--all`) first — the gate reads frames off disk. If a
-   change you believe is behavior-neutral trips the gate, STOP and investigate (usually a
-   stale-baseline/JPEG-encode mismatch — re-render + re-freeze; NEVER chase it as real,
-   NEVER commit red).
+2. **The gate = NET progress, not "zero regressions."** (Policy changed 2026-07-15 on
+   vjeux's instruction: *"remove the rule that you can't break existing things — these
+   transitions are massive and have a lot wrong right now; go in small pieces and fix one
+   by one."*) A change ships when it is a genuine correctness improvement and moves the
+   whole-engine mean UP: run `fct regress engine --verbose` and require **improvements
+   that clearly outweigh regressions** (e.g. the drop-zone conform: +40 slugs, −2 slugs of
+   <0.5 dB). Small collateral regressions on a few slugs are ACCEPTABLE when the fix is
+   correct and net-positive — they become the next small piece to fix. Still: (a) re-render
+   affected slugs with `fct gen engine <slug>`/`--all` first (the gate reads frames off
+   disk); (b) UNDERSTAND every regression before shipping — a regression you can't explain
+   is a bug, not collateral (investigate; a stale-baseline/JPEG-encode mismatch is not a
+   real regression); (c) re-`fct baseline engine` after shipping so the new floor is
+   protected; (d) never ship a NET-NEGATIVE change. Do NOT chase a behavior-neutral change
+   that trips the gate as if it were real.
+
 3. **One change per commit**, small blast radius, independently revertible.
 4. **Focused sub-agents OK, gate-verified before merge.** A well-scoped, gate-verifiable
    mechanical chunk may go to a sub-agent (own worktree `~/fct-swarm/worktrees/<id>`, own
@@ -61,20 +70,35 @@ Every work item has a **Definition of Done (DoD)**, a **Verify** command, and a
    worst slug and force a minimizer repro (`fct minimize <slug>`) to find a concrete pixel
    bug rather than re-documenting a known ceiling.
 
-## The gate, concretely
+## The workflow, concretely (EFFICIENCY-FIRST — updated 2026-07-15 on vjeux's instruction)
+
+vjeux: *"remove the whole 'run 65 slugs' from the project … focus on efficiency and
+just build for now."* So the DEFAULT loop is BUILD + cheap checks, NOT a full-fleet
+render every change. Rendering all 65 slugs (`fct gen engine --all`, ~2–3 min) is now an
+OCCASIONAL confirmation step, not the per-change gate.
 
 ```
-fct gen engine   --all        # populate ~/fct-frames/engine/ (after any engine change)
-fct baseline engine           # freeze fct/baseline_engine.json (ONLY when an improvement is verified)
-fct regress  engine           # after ANY change: exit 0 = safe, exit 1 = regression, DO NOT COMMIT
-fct score <slug> --full       # true dB for a single slug (full-res); the gate itself uses 480×270
-fct census <slug>             # decode the scene graph (node types / filters / links / generators)
-fct minimize <slug>           # delta-debug to a node-level engine-vs-FCP repro in fct/minimized/<slug>/
+# --- fast inner loop (use these every change) ---
+cd engine && node_modules/.bin/tsc --noEmit      # typecheck — instant, catches most breakage
+fct caps [cap ...]            # capability catalog: ONE primitive vs headless FCP (dev oracle, ~seconds)
+fct probe <slug> [frame]      # render+PSNR ONE engine frame vs GUI GT (seconds, not minutes)
+fct gen engine <slug>         # render ONE slug (24 frames) when you need its full score
+fct score <slug> --source engine   # that slug's dB vs GUI GT
+fct census <slug>             # decode the scene graph BEFORE writing code (Rule 7)
+fct minimize <slug>           # delta-debug to a node-level engine-vs-FCP repro
+
+# --- occasional whole-fleet confirmation (NOT every change) ---
+fct gen engine --all          # re-render all 65 (only before a re-baseline / net-change audit)
+fct regress engine --verbose  # per-slug improved/regressed table vs baseline
+fct baseline engine           # freeze the new floor AFTER a verified net-positive change
 ```
 
-Gate is fast (~0.34s/slug warm, ~22s for all 65) at 480×270 with an mtime-thumbnail cache;
-downscaling preserves regression ranking. TOL = 0.30 dB absolute. Re-baseline ONLY
-intentionally, when an improvement is verified and you want it protected.
+Verify the SMALL SET a change can affect (the slugs whose subsystem you touched) with
+`fct probe`/`fct gen <slug>`+`fct score`. Only run the full `gen --all` + `regress` when
+you're auditing a broad change (e.g. a base-compositor change like the drop-zone conform)
+or about to re-freeze the baseline. Gate math unchanged: 480×270, TOL 0.30 dB, but the BAR
+is NET progress (Rule 2), not zero-regression.
+
 
 ---
 
@@ -331,9 +355,29 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-15u  ✅ CAPABILITY #1 CLOSED — drop-zone media conform (the "base A renders as a band"
+              letterbox bug, shared by Blurs/Push/Rotate/Kinetic; ENGINE_RE_PLAYBOOK.md:847). FCP
+              conforms a Fit=0/Type=1 drop zone's SOURCE to the drop-zone Width×Height box (stretch,
+              no aspect preservation); the TS engine blitted the 1854×1042 source at NATIVE size
+              centred, leaving a ~19/33px black band under EVERY slug (identity capability scene was
+              psnr 17.58 / mae 16.4 all at the edges → now 43.31 / mae 1.04). Fix:
+              compositor/index.ts conformDropZoneSource stretch-resamples a base full-frame
+              drop-zone source UP to the frame, scoped to UNCROPPED box≈frame images, EXCLUDING the
+              wide-equirect 360° native render (isWideEquirect gate — a 360° scene renders at 4096×
+              2160 so box≈output would fire and stretch into the panorama, initially regressed
+              360°_Bloom −0.38; the gate fixed it). FULL gate BEFORE the 360° guard: +40 improved /
+              −2 (both <0.5 dB). Representative re-verify AFTER the guard: Blurs__Directional
+              17.79→26.84 (+9.0), Panels_Random 12.99→17.8 (+4.8), 360°_Bloom neutral (11.51),
+              Squares 13.11→12.97 (−0.14 noise). Also fixed `fct caps` (probe_scene.py couldn't
+              import fct.* when launched via fct.sh) + baseline.identity now PASSes (expect_identity
+              flag). NET-POSITIVE per the new Rule-2 policy (vjeux: ship small correct pieces, don't
+              gate on zero-regression). tsc clean. NOTE: baseline_engine.json NOT re-frozen this tick
+              (vjeux asked to stop the full 65-slug render loop for efficiency) — re-freeze on the
+              next whole-fleet audit.
 - 2026-07-15t  🧪 CAPABILITY CATALOG harness built (answer to "implement FCP features one-by-one,
               like minimize in spirit"). New: tools/re/probe_scene.py (builds a minimal synthetic
               .motr isolating ONE primitive, renders headless-FCP + full TS pipeline, compares),
+
               engine/test/_scene_render.ts (render any .motr through the TS engine at time t),
               tools/re/capabilities.json (the catalog), and `fct caps`. Proven end-to-end: transform
               Position X/Y apply in BOTH engines. TWO real findings the harness surfaced immediately:
