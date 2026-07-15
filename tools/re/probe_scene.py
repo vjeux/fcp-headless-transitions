@@ -177,6 +177,29 @@ def build_scene(inject):
         src = re.sub(
             r'<parameter name="Opacity" id="202"[^>]*>.*?</parameter>',
             lambda m: static, src, count=1, flags=re.DOTALL)
+    elif kind == "blend":
+        # Layer Blend Mode probe — DOCUMENTED DEAD-END on this skeleton (2026-07-15).
+        #
+        # Intent: set Transition A's Blending>Blend Mode (id=203) to a PC_BLEND enum
+        # value (0 NORMAL, 4 MULTIPLY, 8 ADD, 10 SCREEN, 14 OVERLAY, ...; see
+        # engine/src/parser/transform.ts BLEND_MODE_ENUM) so A blends over B, isolating
+        # the compositor blend math. FINDING: headless FCP IGNORES the drop-zone card
+        # layer Blend Mode in this synthetic A-over-B stack. Proven by a control: mode
+        # Normal(0), Multiply(4), Add(8), Screen(10), Overlay(14) — with A opacity pinned
+        # to 0.5 so B shows through — ALL render BYTE-IDENTICAL (psnr 39.96 / mae 1.72 /
+        # hvi 33.3, == the plain opacity-0.5 result). The value= attribute DID land in the
+        # XML (verified), so it is FCP’s transition graph that drops it: the two
+        # Transition cards are composited by the transition’s own logic, not as a simple
+        # layer stack where a card’s Blend Mode applies to the sibling below. Any "PASS"
+        # here would only measure the opacity pin, NOT the blend math — a false positive
+        # (Rule 4/8). The blend enum is already decoded from ProCore __cstring AND
+        # gate-verified on REAL slugs (e.g. 360° Push value=28 Silhouette-Luma measurably
+        # improves PSNR), so the engine blend handling is validated through the shipped
+        # transitions instead of this probe.
+        raise RuntimeError(
+            "blend inject is a documented dead-end: FCP ignores the drop-zone card layer "
+            "Blend Mode in the synthetic A-over-B stack (all modes render identical to "
+            "Normal). Blend math is validated via real slugs, not this probe. See comment.")
     else:
         raise RuntimeError(f"unknown inject kind: {kind}")
     fd, path = tempfile.mkstemp(suffix=".motr", prefix="capscene_")

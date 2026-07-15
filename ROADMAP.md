@@ -145,6 +145,15 @@ verified against headless FCP. Engine UNIT TESTS, with real FCP as the per-primi
 4. Then enumerate the rest: blend modes, crop, anchor, shear, time-remap/speed/reverse,
    masks (rect/circle/bezier), behaviors (Fade/Ramp/Throw/Spin/Oscillate/Sequence-Replicator),
    replicator layout, camera/3D projection, generators. Each = one catalog entry + make it PASS.
+   - **blend modes** — ⛔ DEAD-END on the Directional skeleton (decoded 2026-07-15): headless FCP
+     IGNORES the drop-zone card's layer Blend Mode in the synthetic A-over-B stack (control: Normal
+     vs Multiply/Add/Screen all render BYTE-IDENTICAL == the opacity-0.5 result). Any blend.* cap
+     here is a FALSE PASS (measures opacity, not the mode). The `blend` inject kind is kept but
+     `raise`s a documented error so no false cap can be built on it. The blend enum is already
+     decoded from ProCore __cstring AND gate-verified on REAL slugs (360° Push value=28 improves
+     PSNR), so the engine's blend handling is validated there. A valid blend cap would need a
+     skeleton with an explicit sibling stack under a group whose Blend Mode FCP honors (TODO:
+     Lens_Flare / Color_Planes overlay-media layers).
 
 **Why this breaks the loop:** a capability PASS is a small, attributable, gate-safe win. When a
 primitive is verified in isolation, every transition that uses it improves for free, and a slug's
@@ -359,6 +368,21 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+
+- 2026-07-15x  ⛔ CAPABILITY blend.* — DEAD-END decoded + documented (Rule 8 premise-correction).
+              Tried to add blend.multiply/add/screen/overlay caps by injecting Transition A's
+              Blend Mode (id=203) over B. FINDING via a CONTROL: value=0 Normal and value=4/8/10
+              Multiply/Add/Screen (A opacity pinned 0.5) all render BYTE-IDENTICAL headless
+              (psnr 39.96 / mae 1.72 / hvi 33.3 == the pure opacity-0.5 result) — the value= DID
+              land in the XML, so headless FCP is IGNORING the drop-zone card's layer Blend Mode in
+              this synthetic A-over-B stack (the two Transition cards are composited by the
+              transition graph, not as a simple sibling stack where a card's mode applies to B). Any
+              blend.* cap here would be a FALSE PASS measuring opacity, not the mode (Rule 4/8), so
+              NONE were kept. The `blend` inject kind is retained but now RAISES a documented error.
+              The blend enum is already decoded from ProCore __cstring AND gate-verified on the REAL
+              slugs that use it (360° Push value=28 SILHOUETTE_LUMA improves GUI-GT PSNR), so the
+              engine blend handling is validated through the shipped transitions. Tools-only; caps
+              still 6/6 PASS; tsc clean; GUI-GT gate untouched.
 
 - 2026-07-15w  ✅ CAPABILITY #2-4 CLOSED — transform Scale/Rotation/Opacity SCHEMA decode. The
               catalog's scale/rotation/opacity injections were IGNORED by headless FCP (hvi~0.9 =
