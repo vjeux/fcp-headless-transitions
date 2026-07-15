@@ -308,9 +308,40 @@ STRIPES instead of concentric rings. THREE bugs, all now fixed:
 The wall dolly currently frames ~1 tile where GT reveals the full grid; the framing-camera
 pose (`compositor/geometry.ts` + `evaluator/framing.ts`, `FRAMING_VIEW_ENABLED`) is partial.
 Combo_Spin renders only flat B (its 6-blade replicator spiral doesn't render at all).
+
+**VIDEO_WALL — DEEPER ROOT CAUSE DECODED 2026-07-15 (the recorded "framing pose" diagnosis was
+incomplete).** The engine's `timeMap.remap()` COLLAPSES ALL scene times to 0 for Video_Wall:
+`buildTimeMap` sets `wrapSec=0.367s` because Transition A (a drop zone with retimingExtrapolation=1
+"wrap") times out at 0.367s, so the retime-wrap loops the playhead back to frame-0 past that. But
+Video_Wall's transition is authored by the CAMERA DOLLY (two Framing behaviors running to
+animationEnd=1.969s), NOT the drop-zone crossfade — so EVERY rendered frame evaluates at t=0, a
+single static pose. The frozen-at-0 render coincidentally scores ~10.24 dB (it holds GT's near-tile
+f0 look); UNFREEZING it (cancel the wrap for framing scenes) drops to ~9.0 because the framing pose
+AND the wall placement are also wrong, so the now-animating dolly is wrong throughout. The GT is a
+near→far→near dolly (f0 one tile A near; f4–f16 dolly OUT to the full grid, tiles crossfade A→B;
+f20–f23 dolly IN to one tile B near). FOUR parts must land TOGETHER to net-improve (each partial
+regresses vs the accidental frozen 10.24 — see `fct/minimized/Replicator-Clones__Video_Wall/manifest.json`
+`decode_2026_07_15_wrap_freeze`):
+  1. **timemap.ts** — cancel the drop-zone wrap when the scene has Framing behaviors (factory 3);
+     a `hasFramingCamera()` helper. Fires only on Video_Wall (0.367 ≪ end) and Clone_Spin (1.869 ≈
+     end, negligible). *(Verified correct in isolation: unfreezes time.)*
+  2. **framing.ts `resolveFramedWallPose`** — far dist = the PROXY framePose eye distance from the
+     wall anchor (proxy at world Z≈5711 → eye Z≈5109, where the wall half-width ≈4100 fills the 45°
+     frame — the full-grid reveal), NOT the single content-tile fit (~2341, which barely dollies);
+     schedule = near→far→near triangle over the two behavior windows. *(Verified correct in isolation.)*
+  3. **WALL PLACEMENT — the real remaining blocker.** The 14 replicators must collectively populate a
+     DENSE grid that fills the frame at the far pose. Today the engine renders only ~5 sparse tiles on a
+     mostly-black frame (frame means ~30–50 vs GT ~90–130). Pin-1 replicator has the 3×3 (9 inst) at
+     origin; the other 13 carry 1–3 edge/fill tiles at scattered (2000–6000) positions. Need to verify
+     every instance renders, resolves its A/B cell content, and lands on-screen through the oblique
+     proxy-orientation camera.
+  4. **camera orientation** — proxy fwd=(0.069,0.422,0.904) tilts the view (real: GT tiles show 3D
+     perspective); the eye dollies along fwd from the wall centre and must keep the wall centred/on-screen
+     (tiles slid off in the WIP attempt).
 **DoD:** Video_Wall + Clone_Spin measurably up (target ≥13), 0 regressions.
 **Verify:** `fct score Replicator-Clones__Video_Wall Replicator-Clones__Clone_Spin --full`.
-**Start:** `fct census` + `fct minimize Replicator-Clones__Video_Wall` → fix the framed-wall pose.
+**Start:** parts 1+2 are decoded and verified-in-isolation; the tick that lands this must ALSO build
+part 3 (dense wall placement) so the combined change is net-positive — do NOT ship 1+2 alone (regresses).
 
 ### L2 — kinetic-panel coverage  [TODO]
 **Slugs:** Lower (10.19 — already had a +1.15 fix, still worst), Close_and_Open (10.95),

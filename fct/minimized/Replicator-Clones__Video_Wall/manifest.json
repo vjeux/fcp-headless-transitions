@@ -20,9 +20,23 @@
       "evaluator/index.ts: computeWallCenter (bbox centre of the LARGEST replicator) + pass as wallCenter to resolveFramedWallPose",
       "framing.ts: wallCenter param anchors the wall pose on the tile-wall centre instead of the ray-cast corner (2399,-2145)"
     ],
-    "video_wall_db_before": 9.10,
+    "video_wall_db_before": 9.1,
     "video_wall_db_after": 10.24,
     "gate_result": "0 regressions vs baseline_engine (tol 0.3dB); tsc clean; no-hardcode green; baseline re-frozen",
     "remaining": "The wall dolly still frames ~1 tile through mid/tail (GT reveals the full 3x3 grid); far-dolly distance + proxy->content reveal SCHEDULE (per FIX-FRAMING's decode: black f00-f19 then ramp) remain for the 2-behavior wall path."
+  },
+  "decode_2026_07_15_wrap_freeze": {
+    "agent": "framing-dolly-decode",
+    "date": "2026-07-15",
+    "root_cause_correction": "DEEPER than the recorded finding (which blamed a mis-posed framing pose). The engine's timeMap.remap() COLLAPSES ALL scene times to 0 for Video_Wall: buildTimeMap sets wrapSec=0.367s because Transition A (drop zone, retimingExtrapolation=1 'wrap') times out at 0.367s, and the retime-wrap loops the playhead back to frame-0 past that. But the Video_Wall transition is authored by the CAMERA DOLLY (two Framing behaviors running to animationEnd=1.969s), NOT the drop-zone crossfade. So every rendered frame evaluates at t=0 -> one static pose. Frozen-at-0 coincidentally scores ~10.24 (holds GT near-tile f0 look); unfreezing (cancel wrap for framing scenes) drops to ~9.0 because the framing pose + wall placement are ALSO wrong.",
+    "decoded_schedule": "GT near->far->near dolly: f0=one tile (photo A near); f4-f16=dolly OUT revealing full ~3x3+ tile grid (tiles crossfade A->B); f20-f23=dolly IN to one tile (photo B near). framer window [0,0.9676] pulls OUT, Frame B window [0.8676,1.9686] pulls IN. Peak-far f~11.6.",
+    "decoded_geometry": "AOV=45. content tile 1920x1080 scale1.01 -> near cover ~1317, near fit ~2341. Framer PROXY small shape (half 186.8x254.5) at world Z=5711; framePose(proxy) eye ~Z5109 in front of wall (Z~0), where wall half-width ~4100 fills 45deg frame (35.7 vs 36.4 horiz half-AOV) => full-grid reveal. farDist should be proxy-eye dist ~5109, NOT single-tile fit ~2341 (current code barely dollies).",
+    "three_parts_needed_together": [
+      "1. timemap.ts: cancel drop-zone wrap when scene has Framing behaviors (factory 3). hasFramingCamera() helper. Fires only Video_Wall (0.367<<end) + Clone_Spin (1.869~=end, negligible).",
+      "2. framing.ts resolveFramedWallPose: far=proxy framePose eye dist from wall anchor; near=content cover; schedule=near->far->near triangle over the two windows.",
+      "3. WALL PLACEMENT (real blocker): 14 replicators must populate a DENSE grid filling the frame at far. Engine renders ~5 sparse tiles on black (means ~30-50 vs GT ~90-130). Pin-1 has 3x3(9) at origin; 13 others carry 1-3 edge/fill tiles at (2000-6000). Verify all instances render + resolve A/B cell content + land on-screen through the oblique camera.",
+      "4. camera orientation: proxy fwd=(0.069,0.422,0.904) tilts view (real - GT tiles show 3D perspective). Keep wall centered/on-screen (tiles slid off in WIP)."
+    ],
+    "status": "All 4 must land TOGETHER to net-improve; each partial regresses because frozen-at-0 accidentally scores 10.24. Parts 1+2 verified correct in isolation. Part 3 (dense wall placement) is the remaining blocker. Reverted this tick per Rule 2d; decode preserved for the multi-tick build."
   }
 }
