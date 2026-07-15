@@ -1054,6 +1054,20 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-15d  ORCHESTRATION TICK → dispatched the FIX-FRAMING fix-agent (highest-value un-owned bug).
+              The Video_Wall minimizer (24bc8bf) pinpointed the framed-camera subsystem
+              (evaluator/framing.ts resolveFramedWallPose/resolveFramedPose) at the node level: a
+              4-node repro (Camera + "Frame B" behavior fid3 + Source + Transition B) with ALL 14
+              replicator tiles removable — so the bug is the framed POSE + REVEAL SCHEDULE, not the
+              tile wall. Per-frame: f08-f19 engine shows B (mean 34.3) while FCP is BLACK (on-screen
+              ~12fr too early at a wrong static pose); f20-f23 FCP ramps the reveal (51->119) while
+              engine stays FROZEN. Clone_Spin minimized too (23->6, same family). Spawned FIX-FRAMING
+              (worktree ~/fct-swarm/worktrees/FIX-FRAMING) to own the reveal-timing + anchor/dolly fix
+              against BOTH repros, gated on the full GUI-GT (framing.ts is shared across Video_Wall/
+              Clone_Spin/Combo_Spin/Pinwheel/Fall/Rotate/Push/Scale/3D_*/Panels — 0-regressions bar).
+              Active fix-agents now: FIX-FRAMING, M-CONCENTRIC, M-LOWER, M-SLIDEIN, M-SMEAR + the
+              T-M7-scoreboard finisher. Orchestrator did read-only work only (no engine edits) while
+              agents hold the render locks. Main clean @ 15934fa; no gate needed (doc-only).
 - 2026-07-15c  T-M7 (filter-sweep audit) → PARTIAL. Orchestrator-tick work (read-only + tooling, no
               engine code — safe while 8 sub-agents hold the render locks). AUDITED the 24 registered
               TS filters vs the 21 filter_sweeps.json entries: exactly 3 lacked a sweep (PAENoise,
