@@ -1023,6 +1023,24 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-15b  CORRECTED THE WORKFLOW → minimizer-produces-repros / SUBAGENTS-fix-in-parallel /
+              orchestrator-gate-verifies. Self-review: I had drifted back to fixing pinpointed bugs
+              INLINE + SEQUENTIALLY (collapsing 3 roles into myself). Fixed the division of labor:
+              (1) MINIMIZER = pinpoint factory (produces node-level repros in fct/minimized/, each a
+              self-contained oracle: case.motr + frozen FCP-truth frames + min-score PSNR);
+              (2) SUBAGENTS = parallel fix workforce, one repro each, in isolated worktrees
+              (~/fct-swarm/worktrees/M-*), driving engine==FCP on their repro; (3) ME = orchestrator +
+              gatekeeper — every merge must pass the full GUI-GT gate (0 regressions) before it lands,
+              never a self-generated metric. Dispatched 3 fix-subagents in parallel off origin/main
+              (HEAD b31f8ef): M-LOWER (offset-anchored panel visibility re-anchor; candidate patch in
+              docs/notes/salvage/lower-panel-visibility-reanchor.patch — PARTIAL, f12/f13 fixed, f14-f17
+              still off), M-CONCENTRIC (group-level Image Mask; the naive screen-space apply regressed
+              Pinwheel/Combo_Spin/Close_and_Open — needs GROUP-LOCAL rasterization for 3D-swung groups),
+              M-SLIDEIN (Gradient generator + rounded-rect Motion-Path mask reveal, decode-first).
+              Each subagent verifies its minimal repro (engine-vs-FCP) AND the full GUI-GT gate before
+              pushing. NEXT wave of minimizer repros (Bloom, Video_Wall, Smear, Combo_Spin, ...) queued
+              — launch ONE minimizer at a time (box is RAM/swap-constrained; 3 subagents each run
+              gen --all + regress, so hold new minimizers until load settles).
 - 2026-07-15a  MINIMIZER PIPELINE → 3 new node-level repros + group-mask fix ATTEMPTED (gate-reverted).
               Minimized 3 bottom slugs to pinpoint repros (committed to fct/minimized/): Concentric
               140→11 nodes (ring group: Circle shape + Clone B + group-level <mask Image Mask>, f10-f18

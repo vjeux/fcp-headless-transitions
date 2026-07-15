@@ -1,0 +1,36 @@
+diff --git a/engine/src/evaluator/index.ts b/engine/src/evaluator/index.ts
+index 49727f2..5cc6a24 100644
+--- a/engine/src/evaluator/index.ts
++++ b/engine/src/evaluator/index.ts
+@@ -356,6 +356,31 @@ function isLayerVisible(layer: Layer, timeSec: number): boolean {
+ 
+ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Array, behaviors: RigBehavior[], widgetValues: Map<number, number>, sceneBehaviors: SceneBehavior[], layerById: Map<number, Layer>, linksByTarget: Map<number, import('../types.js').LinkBehavior[]>, ectx: EvalCtx): EvaluatedLayer {
+   let visible = isLayerVisible(layer, timeSec);
++  // OFFSET-ANCHORED PANEL VISIBILITY (pairs with the isSolidPanel curveTime retime
++  // below). isLayerVisible gates on the RAW timing window [in,out], but an
++  // offset-authored kinetic panel has its media [in,out] placed LATER on the scene
++  // timeline (offset > in) while the transition renders a retimed sub-window [0,
++  // animationEndSec]. Minimized repro (Stylized__Lower, 3 nodes): panel in=2.870s
++  // out=6.773s offset=3.337s, but the clip renders timeSec 0→1.835s, so the raw
++  // window check makes the panel NEVER visible — the engine rendered it BLACK at
++  // f12–f17 while FCP fills the right half with it (4.2 dB). The S7 retime already
++  // treats the panel media as playing its full [in,out] over [0,endSec], so the panel
++  // is visible for the WHOLE clip; re-anchor the visibility window by −offset to match
++  // (visible over [in−off, out−off] in scene time). Scoped EXACTLY like the curveTime
++  // retime (isSolidPanel, off−in > 1e-3) so nothing else is touched. Gated by the same
++  // FCT_PANEL_RETIME flag.
++  if ((typeof process === 'undefined' || process.env?.FCT_PANEL_RETIME !== '0')
++      && layer.type === 'shape' && layer.shape && layer.shape.isSolidPanel && layer.timing) {
++    const off = layer.timing.offset && layer.timing.offset.timescale > 0
++      ? layer.timing.offset.value / layer.timing.offset.timescale : 0;
++    const inn = layer.timing.in && layer.timing.in.timescale > 0
++      ? layer.timing.in.value / layer.timing.in.timescale : 0;
++    const out = layer.timing.out && layer.timing.out.timescale > 0
++      ? layer.timing.out.value / layer.timing.out.timescale : 0;
++    if (off - inn > 1e-3 && out > inn) {
++      visible = timeSec >= (inn - off) - 1e-6 && timeSec <= (out - off) + 1e-6;
++    }
++  }
+   // Persistent-A drop zone (see ectx.wrapToA): a wrapping drop-zone image
+   // past its lifetime re-shows source A and stays visible as the overlay's base.
+   let forceSourceA = false;
