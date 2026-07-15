@@ -1135,6 +1135,25 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-15n  ORPHAN-FIX VERIFIED IN PROD + M-SMEAR merge-hazard flagged. Confirmed my orphan-reaping
+              fix (0a65f09) works live: box recovered to load 62 (was 100-194), 0 orphaned renderers,
+              and killing a gate now reaps its children cleanly (verified twice — 0 orphans post-kill).
+              M-VIDEOWALL also landed during the window (26a1897, Video_Wall 9.10→10.24). ⚠️ FLAGGED A
+              REAL MERGE HAZARD in swarm/M-SMEAR (25428e3, DONE-claimed: Smear 10.97→11.67 + "Bloom
+              10.55→11.38"): M-SMEAR was built on 319daf7 which ALREADY INCLUDES M-BLOOM (Bloom=13.04),
+              yet it reports Bloom from the OLD 10.55 baseline → its hasFilterRevealSettleB capability
+              FIRES ON {Smear, Bloom} and its timemap wrap-release likely OVERRIDES M-BLOOM's Bloom fix,
+              REGRESSING the landed Bloom 13.04 → 11.38 (−1.66) while disguising it as a +0.83 "win".
+              M-SMEAR must NOT merge until the gate proves Bloom stays ≥13.04. Cherry-picked M-SMEAR
+              onto current origin (merge-ready/M-SMEAR b2dfb9b — engine files merged CLEAN, only a
+              ROADMAP append conflict; tsc clean) but the gate was STARVED by 3 concurrent live-agent
+              gates (M-CONCENTRIC/M-LOWER/M-SMEAR) — even a 2-slug Bloom+Smear check couldn't get render
+              slots (Bloom is the ~260s slowest slug). GATE PENDING on a quiet window. Did NOT merge
+              (rule 2 + the Bloom-regression risk). LESSON: an agent that gates against a STALE baseline
+              (before a concurrently-landed win on the SAME slug family) can report a regression as an
+              improvement — the orchestrator MUST re-gate cross-family fixes against CURRENT origin.
+              Merge queue: M-LOWER (+1.08, isolated — safest next), M-CONCENTRIC (+14dB repro),
+              M-SMEAR (⚠️ verify Bloom≥13.04 FIRST). Doc-only, no gate. Main @ 26a1897.
 - 2026-07-15m  ROOT-CAUSE FIX for the recurring swarm box-death (the multi-tick merge blocker).
               Read fct/cli.py + fct/gen.py: `gen --all` used a ThreadPoolExecutor with
               default_jobs=min(8,cpu)=8 tsx renderers, EACH spawned via plain subprocess.run() in the
