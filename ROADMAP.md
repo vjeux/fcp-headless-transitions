@@ -263,10 +263,115 @@ slugs on the current tree, re-measured 2026-07-15) — gated OFF until the onset
 ### L1 — S6 replicator / clone-grid / framing-camera geometry  [IN PROGRESS · HIGHEST LEVERAGE]
 **Slugs:** Video_Wall (10.24), Clone_Spin (10.32), Combo_Spin (11.21), Multi (11.85),
 Concentric (12.67), Vertigo (19.76), Duplicate (21.34), 3D_Rectangle (16.79).
+
+**⭐ HEADLESS-ORACLE GAP RANKING (decoded 2026-07-15 — where the findable engine bugs are).**
+Headless FCP (ozengine) scores the SAME .motr against the GUI GT MUCH higher than the TS engine on
+the clone/replicator slugs — so headless is a trustworthy per-slug oracle here and each gap is a
+concrete engine bug (not a GT/oracle artifact). Ranked by headless−engine gap:
+  | slug | headless | engine | gap |
+  | 3D_Rectangle | 32.25 | 16.79 | **15.46** |
+  | Multi | 19.48 | 11.85 | 7.63 (SKIP — see below) |
+  | Squares | 17.70 | 13.11 | 4.59 |
+  | Combo_Spin | 14.54 | 11.21 | 3.33 |
+  | Clone_Spin | 13.54 | 10.32 | 3.22 |
+  | Video_Wall | 13.37 | 10.24 | **3.13 (SMALLEST!)** |
+  **Lesson: Video_Wall — the slug 7 prior ticks were spent on — has the SMALLEST headroom of the
+  group.** The leverage is in 3D_Rectangle / Squares / Combo_Spin, NOT Video_Wall. Use
+  `fct score <slug> --source headless` as the per-slug reachability check BEFORE picking a target.
+
+**MULTI (11.85) — NOT A REAL TARGET (decoded 2026-07-15).** Its GUI GT is a DEGENERATE capture:
+every frame is FCP's empty-drop-zone PLACEHOLDER graphic (uniform gray 106,106,106 with a
+down-arrow), not real photo content — headless renders the same gray placeholder (mean 60). The TS
+engine correctly fills the 6 panels with the A/B photos, so it "diverges" from a GT that shows no
+content. Matching the placeholder arrows is not reverse-engineering. Skip Multi; its 7.63 dB "gap"
+is unreachable/meaningless. (If the GT is ever re-captured with real drop-zone media, revisit.)
+
+**3D_RECTANGLE (16.79) — ROOT CAUSE DECODED + one fix approach REFUTED (2026-07-15).**
+Structure (census + `_trace_layers`): a "Pieces" group of 9 "Clone Layer" nodes, each cloning a
+"Shape 0X" that is a clone of Transition A carrying its OWN Image Mask "Inside 0X" (nested filled
+rectangles at scale 0.21/0.31/…/0.91; coverage 4.4%→82.9%, cleanly nested & centred). Each Clone
+Layer is pushed to its own ANIMATED world-Z (0 at t=0 → −768..+601 at t=1.5) and seen through a
+Camera. GT = flat photo A that grows a SPIRAL of thin blue-bordered nested rectangle FRAMES inward;
+the borders are photo B showing in thin seams, interiors stay photo A. The engine renders ~flat A
+the whole transition (f18 9.75 dB vs headless 35) because **`resolveCloneImage` (masks.ts) resolves
+a clone's source PIXELS but DROPS the Image Mask on the source layer** — so every Piece paints the
+FULL photo A instead of its rectangle slice.
+  **REFUTED FIX (net-negative, reverted — do NOT re-attempt as-is):** (a) bake the source layer's
+  Image-Mask alpha into the resolved clone pixels in `renderCloneLayer` (keyed on the clone SOURCE
+  having an `imageMaskSourceId` — generic), + (b) paint the Pieces group far→near by world-Z
+  (painter's order). Result: f00 jumped 18.59→**37.87** (the mask IS correct at Z=0) BUT mid-frames
+  regressed → 3D_Rectangle 16.79→**15.60** and EVERY affected slug regressed slightly (Pinwheel
+  13.27→13.10, Arrows 27.16→26.96, Combo_Spin 11.21→11.15, Concentric 12.67→12.53, Duplicate
+  21.34→21.25, Vertigo 19.76→19.60, Center 12.35→12.29, Center_Reveal 15.24→15.10, Light_Sweep
+  17.10→16.98). 0 improvements, 10 regressions. Reverted per Rule 2.
+  **WHY IT FAILS:** the reveal is NOT filled A-rectangles occluding by painter/Z order. The visible
+  structure is thin ROTATING rectangle OUTLINES with photo B in the borders — a true per-pixel 3D
+  depth-tunnel where (i) each masked rectangle sits at its own animated Z, (ii) the rectangles
+  slightly ROTATE (the spiral), so their edges misalign and B (the base, Z≈−143..−600) shows in the
+  thin seams, and (iii) occlusion is per-PIXEL by depth, not per-layer painter's order (the Z-order
+  does NOT correlate with mask size — measured: Z −768→+601 vs coverage 4.4%→82.9% are uncorrelated).
+  Baking a full-frame filled mask + layer-Z-sort cannot produce the thin B-seam borders — adjacent
+  filled A-rectangles fully overlap (smaller inside larger, both photo A) → no seam, ≈flat A.
+  **NEXT (real subsystem, multi-tick):** a proper Z-BUFFERED composite of the 9 masked+rotated
+  rectangle quads (per-pixel depth test against the B base), OR decode whether FCP renders each
+  "Shape 0X" to its own texture (mask baked) and the depth compositor resolves the seams. The
+  clone-source-mask BAKE (step a) is correct in isolation (f00 +19 dB) and should be RE-USED once
+  the depth composite is built — it is only net-negative WITHOUT the depth/rotation seam mechanism.
+  `resolveImageMaskAlpha(rctx, sourceLayer.imageMaskSourceId, …)` already exists and gives the right
+  nested-rectangle alpha; the missing piece is the depth/rotation seam composite, not the mask.
 **What it is:** these compose off-canvas tiles/clones through a framing camera (look-at pose)
 and/or a replicator grid. Census: Video_Wall = 14 Replicators + Camera + framing; Clone_Spin =
 9 Timeline-Pin tiles + Camera(Framing beh); Multi = 6 Images + Rig; Concentric = 44 Clone Layers
 + 26 Image Masks; Combo_Spin = 6 blade groups (C1-C6) each masked + replicators.
+
+**⭐ HEADLESS-ORACLE RANKING (decoded 2026-07-15 — use this to pick the next L1 target).** Headless
+FCP (`fct score --source headless`) is a TRUSTWORTHY oracle for these slugs (it scores 13–32 dB vs
+the GUI GT), so `headless − engine` measures the FINDABLE engine gap per slug:
+| slug | headless | engine | gap | note |
+|---|---|---|---|---|
+| 3D_Rectangle | 32.25 | 16.79 | **15.46** | biggest gap; engine renders ~flat A (reveal missing) — see dead-end below |
+| Multi | 19.48 | 11.85 | 7.63 | ⚠️ **DEGENERATE GT** — do NOT target (below) |
+| Squares | 17.70 | 13.11 | 4.59 | replicator shuffle-order (known) |
+| Combo_Spin | 14.54 | 11.21 | 3.33 | 6-blade replicator spiral |
+| Clone_Spin | 13.54 | 10.32 | 3.22 | framing camera |
+| Video_Wall | 13.37 | 10.24 | **3.13** | SMALLEST gap — 7 diagnosis ticks spent here were low-ROI |
+Video_Wall is the LOWEST-leverage L1 slug by findable gap, not the highest — the 7 prior
+Video_Wall-only ticks were the Rule-9 drift trap. Prefer the big-gap slugs.
+
+**MULTI — DEGENERATE GUI GT, NOT A REAL TARGET (decoded 2026-07-15).** Multi's `~/fct-gui-gt`
+capture shows FCP's EMPTY-DROP-ZONE PLACEHOLDER graphic (a uniform gray field R=G=B≈106 with
+down-arrow glyphs) for the inner tiles, NOT real photo content — the GUI capture was taken with
+unfilled drop zones. Headless renders the same gray (mean 60). The TS engine correctly fills the
+tiles with the A/B photos, so it "diverges" from a placeholder. Matching the placeholder arrows is
+not reverse-engineering; the 7.63 "gap" is a capture artifact. SKIP Multi until its GT is re-captured
+with real media. (Verified: GT f10 meanRGB=[106,106,106] std 58, pure grayscale placeholder.)
+
+**3D_RECTANGLE — clone-source Image-Mask + Z-painter-order: NET-NEGATIVE DEAD-END (measured +
+reverted 2026-07-15).** Root cause CORRECTLY decoded: the visible "Pieces" group holds 9 "Clone
+Layer" nodes, each cloning a hidden "Shape 0X" that is photo-A clipped to a nested rectangle Image
+Mask ("Inside 0X", scale 0.2..0.9), each pushed to its own ANIMATED world-Z (−768..+601 at t=1.5).
+`resolveCloneImage` returns the source PIXELS but DROPS the source layer's Image Mask, so every clone
+paints full photo A → the engine renders ~flat A and the whole nested-rectangle reveal is missing
+(engine f18 9.75 dB vs headless 35). Two fixes were built + MEASURED on the full affected set:
+  (1) bake the clone SOURCE's Image Mask into the resolved pixels in `renderCloneLayer` (conform to
+      full frame, `resolveImageMaskAlpha`, `applyMask`);
+  (2) paint the Pieces clones FAR→NEAR by ascending world-Z (painter's order) via a `depthPieceStack`
+      branch keyed on clone children whose source carries an Image Mask + a Z spread.
+RESULT: f00 jumped 18.59→**37.87** (mask correct at Z=0, huge) BUT the mid-transition regressed
+(f04–f18 all down), NET **16.79→15.60 (−1.19)**, and EVERY other affected slug regressed too
+(Pinwheel −0.17, Arrows −0.20, Concentric −0.14, Duplicate −0.09, Vertigo −0.16, Center −0.06,
+Center_Reveal −0.14, Light_Sweep −0.12; 0 improvements). REVERTED per Rule 2.
+  **WHY it's net-negative (the real GT mechanism, decoded from GT f1–f8):** the reveal is NOT filled
+  photo-A rectangles — it is a spiral of THIN BLUE (photo-B) RECTANGLE OUTLINES that grow + rotate
+  inward (a tunnel of concentric rectangle FRAMES; interior stays A, the thin frames show B). The
+  masked-A-rectangle-stack model produces overlapping FILLED A rectangles (adjacent nested rects are
+  both photo A → no visible seam → collapses to flat A). The borders come from (a) the per-piece
+  Z-parallax opening thin B-gaps between mis-registered rectangle edges AND (b) the "Shading" group
+  (Top/Left/Right shapes at op 0.48) drawing the bevel edges — a per-pixel 3D DEPTH composite +
+  edge-shading subsystem, NOT a layer-painter's order. Baking the mask alone (or with Z-sort) can't
+  reproduce it. NEXT ATTEMPT must model the depth-composite (z-buffer or the exact FCP occlusion) AND
+  the Shading-group bevel, and verify the thin-B-border spiral against GT — a whole subsystem, not a
+  one-line mask fix. Do NOT re-attempt the bake-source-mask shortcut; it is measured net-negative.
 
 **CONCENTRIC — STRUCTURAL FIX SHIPPED 2026-07-15 (3ac72b0 + 821ad0b):** was rendering vertical
 STRIPES instead of concentric rings. THREE bugs, all now fixed:
