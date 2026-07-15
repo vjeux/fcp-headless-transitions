@@ -303,6 +303,40 @@ export function evalSubtreeContains(root: EvaluatedLayer, id: number): boolean {
 }
 
 /**
+ * World-space bounding radius of a mask-source shape (resolving through clone
+ * chains to the underlying shape geometry, and transforming the shape's local
+ * vertices by the SOURCE layer's world transform). Used to order concentric
+ * masked ring groups (Concentric): each ring group clips its clones to a Circle
+ * of a distinct scale (1.27/1.0/0.75/0.5/0.26/0.15), so the source-shape world
+ * radius is the ring size. Returns 0 when the source is not resolvable to a shape.
+ * The radius is measured in the XY plane after the full world transform (so a
+ * 3D-swung circle foreshortens correctly — its projected extent still orders it
+ * consistently by authored scale). Purely geometric; no slug/name dependency.
+ */
+export function maskSourceWorldRadius(byId: Map<number, EvaluatedLayer>, sourceId: number): number {
+  let cur = byId.get(sourceId);
+  let hop = 0;
+  while (cur && hop++ < 8) {
+    if (cur.layer.type === 'shape' && cur.layer.shape) break;
+    if (cur.layer.cloneSourceId === undefined) break;
+    cur = byId.get(cur.layer.cloneSourceId);
+  }
+  if (!cur || cur.layer.type !== 'shape' || !cur.layer.shape) return 0;
+  const shp = cur.layer.shape;
+  const wt = cur.worldTransform;
+  const xs = shp.verticesX, ys = shp.verticesY;
+  if (!xs || xs.length === 0) return 0;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (let i = 0; i < xs.length; i++) {
+    const wx = wt[0] * xs[i] + wt[4] * ys[i] + wt[12];
+    const wy = wt[1] * xs[i] + wt[5] * ys[i] + wt[13];
+    if (wx < x0) x0 = wx; if (wx > x1) x1 = wx;
+    if (wy < y0) y0 = wy; if (wy > y1) y1 = wy;
+  }
+  return Math.max(x1 - x0, y1 - y0) / 2;
+}
+
+/**
  * Gather every object ID referenced by some layer's Image Mask `Mask Source` that
  * will ACTUALLY be consumed as a mask (so the renderer suppresses the source's own
  * direct draw — hidden geometry, not visible content).

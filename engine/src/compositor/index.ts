@@ -9,6 +9,7 @@ import {
   resolveCloneImage, shapeMaskCell, revealThroughMask, findVisibleDrawable,
   getSourceImage, isMaskGroup, collectMaskShapes, collectImageMaskSourceIds,
   resolveImageMaskAlpha, maskSourceIsShapeGeometry, evalSubtreeContains,
+  maskSourceWorldRadius,
 } from './masks.js';
 import {
   framedCameraBasis, projectFramed, dropZonePlaceholderCell, cellContentBBox,
@@ -58,22 +59,6 @@ function conformDropZoneSource(src: ImageData, boxW: number, boxH: number): Imag
 }
 
 /**
- * True when a 4x4 world transform carries real 3D depth — a non-negligible Z basis
- * (columns coupling into/out of Z) or a Z translation. Mirrors the `perspective`
- * predicate in rasterizeShape: a flat 2D affine (rotation/scale/translation in the
- * XY plane only) returns false. Used to keep the group-level Image Mask off
- * 3D-swinging groups whose mask + content use different 3D projections (Concentric).
- */
-function transformHas3D(m: Float64Array | undefined): boolean {
-  if (!m) return false;
-  return Math.abs(m[2]) > 1e-6 || Math.abs(m[6]) > 1e-6 || Math.abs(m[8]) > 1e-6
-    || Math.abs(m[9]) > 1e-6 || Math.abs(m[14]) > 1e-6;
-}
-
-
-
-
-/**
  * Compositor: EvaluatedScene + source images → output ImageData
  *
  * Implements the core compositing pipeline:
@@ -89,6 +74,7 @@ function transformHas3D(m: Float64Array | undefined): boolean {
  */
 import type { EvaluatedScene, EvaluatedLayer } from '../evaluator/index.js';
 import { isWideEquirect } from '../capabilities.js';
+
 
 
 
@@ -651,21 +637,19 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
       ? rctx.evalLayerById.get(layer.imageMaskSourceId)
       : undefined;
     const maskSrcIsShapeGeom = maskSrcEval !== undefined && maskSourceIsShapeGeometry(maskSrcEval);
-    // 3D-SWING GUARD (verified vs GUI-GT): Concentric's ring groups carry an animated
-    // Rotation.Y swing on the group, so the mask-source Circle's worldTransform has
-    // real 3D depth. The group content (clones) is projected via projectQuad while the
-    // mask is rasterized via rasterizeShape's own perspective divide — the two 3D
-    // projections do NOT agree, so the ring mask mis-registers against the swinging
-    // clone content and only the outermost ring survives (the rest render black). The
-    // full-gate measured Concentric -1.03 with the group mask active on the 3D rings.
-    // A flat 2D mask source (no Z depth in its world basis) rasterizes correctly and
-    // aligns with its (also-flat) content, so the group mask is SAFE only there. Skip
-    // the group-mask path when the mask source is 3D-rotated/translated — those groups
-    // fall back to the pre-existing per-leaf render (inert here, baseline-green).
-    const maskSrcIsFlat = maskSrcEval !== undefined && !transformHas3D(maskSrcEval.worldTransform);
+    // GROUP IMAGE-MASK on 3D-swinging ring groups (Concentric): the mask-source
+    // Circle carries the group's animated Rotation.Y swing, so its worldTransform has
+    // real 3D depth. Historically the group content (clones) was projected via
+    // projectQuad while the mask rasterized FLAT-AFFINE (resolveImageMaskAlpha passed
+    // no cameraZ), so the two disagreed and only the outermost ring survived — a
+    // 3D-swing GUARD skipped the mask for 3D sources. That guard is now removed:
+    // resolveImageMaskAlpha rasterizes the mask shape through the SAME perspective
+    // camera as the content (rctx.cameraZ/cameraPosZ), and the evaluator honors each
+    // Circle's static Scale (1.27/0.75/0.5/…) so the concentric rings are correctly
+    // sized. A flat 2D mask source takes rasterizeShape's affine path unchanged, so
+    // flat group masks (Center/Heart) are byte-for-byte identical to before.
     const hasImageMask = layer.imageMaskSourceId !== undefined
       && maskSrcIsShapeGeom
-      && maskSrcIsFlat
       && evalSubtreeContains(evalLayer, layer.imageMaskSourceId);
 
     // Draw-order convention. The default renders children in REVERSE list order
@@ -686,8 +670,32 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
     // reverse default (their z is real depth). Generic: keyed on the flat-stack
     // geometry, never a slug name.
     const flatStack = isFlatCoplanarStack(visibleChildren, layer);
+    // CONCENTRIC MASKED-RING ORDER (Concentric): the children are masked ring GROUPS,
+    // each clipped to a filled circle of a DIFFERENT authored radius (Circle 1..6 =
+    // Scale 1.27/1.0/0.75/0.5/0.26/0.15). Each ring shows a disc of one photo phase;
+    // stacked, they form concentric rings ONLY when the largest disc is drawn at the
+    // BOTTOM and the smallest on TOP (else the outer disc covers all inner rings). The
+    // .motr lists them largest-first, and the default reverse-list order would draw the
+    // largest LAST (on top) → full-frame cover (verified: engine rendered flat photo B).
+    // Detect the pattern structurally — ≥3 visible children, ALL carrying an in-group
+    // shape-geometry Image Mask, with a spread of mask radii — then paint
+    // largest-radius-first (bottom) → smallest-last (top). Fully param-driven (the mask
+    // circle's authored Scale IS the radius); never a slug name.
+    const ringRadii = visibleChildren.map(c =>
+      c.layer.imageMaskSourceId !== undefined
+        ? maskSourceWorldRadius(rctx.evalLayerById, c.layer.imageMaskSourceId)
+        : undefined);
+    const ringCount = ringRadii.filter(r => r !== undefined).length;
+    const distinctRadii = new Set(ringRadii.filter(r => r !== undefined).map(r => Math.round(r!))).size;
+    const concentricRings = ringCount === visibleChildren.length && ringCount >= 3 && distinctRadii >= 2;
     let order: (idx: number) => EvaluatedLayer;
-    if (flatStack) {
+    if (concentricRings) {
+      // Largest radius first (bottom), smallest last (top). Stable sort keeps the
+      // authored left/right pairing of equal-radius rings.
+      const idxs = visibleChildren.map((_, i) => i);
+      idxs.sort((a, b) => (ringRadii[b] ?? 0) - (ringRadii[a] ?? 0));
+      order = (idx: number): EvaluatedLayer => visibleChildren[idxs[idx]];
+    } else if (flatStack) {
       // The layer world-transform translation (m12,m13) is already expressed
       // relative to the frame centre (Motion's scene origin is the canvas centre),
       // so |(m12,m13)| IS the distance from centre.
