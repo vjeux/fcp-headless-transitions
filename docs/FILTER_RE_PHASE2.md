@@ -59,7 +59,7 @@ cases are known-undrivable and documented below. Values verbatim from the run lo
 | hsv | desaturate -0.5 | 39.71 | 10.9 | PASS |
 | hsv | grayscale -1 | 40.01 | 21.8 | PASS |
 | hsv | value 0.5 | 47.87 | 54.2 | PASS |
-| hsv | hue 0.25deg | 29.01 | 5.9 | GAP (linear-chain hue) |
+| hsv | hue 0.25deg | 29.01 | 5.9 | GAP (probe can't drive Hue — see note) |
 | lumakeyer | default keyer (a_psnr=30.78) | 36.31 | 3.8 | PASS |
 | brightness | darken 0.5 | 47.04 | 36.6 | PASS |
 | brightness | darken 0.75 | 44.24 | 18.3 | PASS |
@@ -117,10 +117,19 @@ render headless), **reorient** (~14.5 psnr — equirect resample / pole geometry
 artifact, not a transition-scope bug), **badtv** (~8.5 psnr — per-frame RNG legs are non-convergent
 against the GUI GT).
 
-The 4 non-ceiling GAP cases (colorize sepia int1, hsv hue 0.25deg, brightness brighten 1.5/2.0)
-are the previously-documented shared-root-cause linear-CHAIN gaps (FCP encodes once after the whole
-filter chain in kCGColorSpaceLinearSRGB); they are gate-green and blocked on an engine-level
-linear-chain, NOT regressions.
+The non-ceiling GAP cases split into two DISTINCT root causes (verified 2026-07-15):
+  - **colorize sepia int1, brightness brighten 1.5/2.0** — shared linear-CHAIN gaps (FCP
+    encodes once after the whole filter chain in kCGColorSpaceLinearSRGB); gate-green,
+    blocked on an engine-level linear-chain (T-P1), NOT regressions.
+  - **hsv hue 0.25deg** — NOT a linear-chain issue and NOT a TS bug. Re-measured via
+    filter_verify: FCP's PAEHSVAdjust SILENTLY IGNORES an injected raw `Hue` (id=1) float
+    in the single-filter probe (Hue=30 AND Hue=90 both give headless hvi=0.9 == identity,
+    while Saturation id=2 and Value id=3 inject fine — sat=-1 grayscales at PSNR 40). In
+    real templates Hue is driven via the Widget/OSC (id=200), not the raw float, so the
+    probe cannot exercise it. The TS hue math (`hg_Params[0].x = Hue/360` turns, per the
+    decoded HgcHSVAdjust shader) is correct and documented in hue-saturation.ts; this GAP
+    is a PROBE LIMITATION, not an engine divergence. T-M3 (HSV Value multiplier) is DONE
+    (value 0.5 PASSes @47.87); the hue axis is unverifiable via the probe harness.
 
 ## Verification method (Phase-2)
 1. `tools/re/filter_probe.py <shader> [param=val ...]` — renders a filter through the

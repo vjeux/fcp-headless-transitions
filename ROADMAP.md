@@ -389,11 +389,17 @@ T-M2  TODO    FILTER-P2: Levels two-stage affine remap           filter: Levels 
                so it's identity in practice, but full param space needs the second stage + output-      output-black expansion vs headless
                black expansion. Implement + VERIFY vs filter_probe across the full Levels param space   probe across full param space.
                (in/out black/white, gamma, mix). Gate 0 regressions (27+ users — careful).]
-T-M3  TODO    FILTER-P2: HSV multiplicative Value + hue           filter: HSV (HgcHueSaturation).
-              [P2-HSV1: FCP Value is a MULTIPLIER (hg_Params[0].z); TS ADDS brightness. Also confirm    Value should multiply not add;
-               saturation mix uses Rec.709 (TS uses 601) and large-hue-rotation behavior. Switch to     saturation wts 709 vs 601; verify
-               multiplicative Value, reconcile luma wts. VERIFY vs filter_probe hsv sweep (sat/value/    the full HSV sweep vs headless.
-               hue/gray) across full param space. Gate 0 regressions (Color_Panels + others).]           Full param space.
+T-M3  DONE    FILTER-P2: HSV multiplicative Value + hue           filter: HSV (HgcHueSaturation).
+              [P2-HSV1 DONE + VERIFIED 2026-07-15. Value is now a MULTIPLIER (out.rgb *= value^2 for   Value multiplies (not adds) — DONE;
+               value<=1) not additive — sweep `hsv value 0.5` PASSES @47.87, identity(0,0,1) @42.23,   sweep PASSES value/sat/gray. Hue
+               desaturate/grayscale @39.7/40.0. Saturation uses the decoded 709-ish mix. The residual  axis is UNVERIFIABLE via the probe
+               `hsv hue 0.25deg` sweep GAP is NOT a TS bug and NOT linear-chain: re-measured via        (FCP ignores raw Hue id=1 inject;
+               filter_verify, FCP's PAEHSVAdjust SILENTLY IGNORES an injected raw Hue (id=1) float in   driven by Widget id=200). TS hue
+               the single-filter probe (Hue=30 AND Hue=90 both headless hvi=0.9 == identity; while      math (Hue/360 turns) is decoded-
+               Saturation id=2 grayscales fine @PSNR40 and Value id=3 injects fine). In real templates  correct. No code change needed.
+               Hue is driven via the Widget/OSC (id=200), not the raw float, so the probe cannot
+               exercise it. The TS hue math (hg_Params[0].x=Hue/360 turns, decoded HgcHSVAdjust) is
+               correct + documented in hue-saturation.ts. No engine change needed; gate unaffected.]
 T-M4  TODO    FILTER-P2: ChannelMixer alpha-column reconcile      filter: ChannelMixer. Color_Planes
               [P2: FCP rows are 4-wide dots incl. the ALPHA column (offset via r1.w=1), clamps ALPHA    + others. Reconcile the alpha
                only, re-premults by NEW alpha. TS uses separate offsets[] and clamps ALL channels.      column + clamp/premult model vs
@@ -1106,6 +1112,19 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+- 2026-07-15i  T-M3 (HSV) → DONE via careful re-measurement (corrected a scoreboard misdiagnosis).
+              Read hue-saturation.ts + probed with filter_verify (single-frame, no gate contention with
+              the live FIX-FRAMING gen --all). Findings: (1) the Value MULTIPLIER (out.rgb*=value^2) was
+              already shipped + PASSES (value 0.5 @47.87, identity @42.23) — T-M3's core deliverable is
+              DONE. (2) The scoreboard's `hsv hue 0.25deg` GAP was mis-tagged "linear-chain hue"; it is
+              actually a PROBE LIMITATION — FCP's PAEHSVAdjust SILENTLY IGNORES an injected raw Hue
+              (id=1) float (Hue=30 AND Hue=90 both give headless hvi=0.9 == identity, while Saturation
+              id=2 grayscales @PSNR40 and Value id=3 injects fine). In real templates Hue is driven via
+              the Widget id=200, not the raw float, so the probe can't exercise it. The TS hue math
+              (Hue/360 turns, decoded HgcHSVAdjust) is correct+documented. No engine change; corrected
+              the tag in FILTER_RE_PHASE2.md + marked T-M3 DONE. Careful-coder: measured before
+              changing — the "bug" was a harness artifact, so I shipped a doc correction, not a risky
+              filter edit. Doc-only, no gate. Main @ 7e831fd.
 - 2026-07-15h  SWARM ISOLATION VERIFIED + ops limits documented (fct/swarm/README.md). A 2nd
               M-SLIDEIN BLOCKED report (dup of the T-K2 salvage) flagged its worktree files "reset
               mid-session by something outside my edits" — a potential all-agent infra blocker.
