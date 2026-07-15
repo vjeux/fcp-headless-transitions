@@ -192,10 +192,24 @@ def build_scene(inject):
         # Transition cards are composited by the transition’s own logic, not as a simple
         # layer stack where a card’s Blend Mode applies to the sibling below. Any "PASS"
         # here would only measure the opacity pin, NOT the blend math — a false positive
-        # (Rule 4/8). The blend enum is already decoded from ProCore __cstring AND
-        # gate-verified on REAL slugs (e.g. 360° Push value=28 Silhouette-Luma measurably
-        # improves PSNR), so the engine blend handling is validated through the shipped
-        # transitions instead of this probe.
+        # (Rule 4/8).
+        #
+        # ROOT CAUSE (fully debugged 2026-07-15, not just observed):
+        #   • B IS behind A (opacity=0 on A reveals end.jpg; headless & TS agree, mae 0.0),
+        #     so the "no effect" is NOT an empty backdrop.
+        #   • It is NOT the parameter flags: rewriting A's Blend Mode flags from the
+        #     skeleton's 0x301010010 to Color Planes' honored 0x200010010 STILL renders
+        #     byte-identical (maxdiff 0). The two extra skeleton bits (0x1000000|0x100000000)
+        #     are not a disable gate.
+        #   • FCP's transition compositor simply DOES NOT consult the Blend Mode of a
+        #     drop-zone Image (factory 3) card. Blend modes only take effect on the node
+        #     types the transition stacks as an explicit sibling group — Clone Layers
+        #     (factory 9, e.g. Color Planes' 6 AR/AG/AB/BR/BG/BB planes value=8) and
+        #     overlay generators (Lens Flare value=10). Those ARE gate-verified on real slugs.
+        #   • The TS engine already MATCHES this: Normal-vs-Add on the drop-zone Image is
+        #     maxdiff 0 in BOTH engines — so there is NO engine bug here, nothing to fix.
+        # The blend enum itself is decoded from ProCore __cstring and gate-verified on the
+        # real slugs (360° Push value=28 SILHOUETTE_LUMA improves GUI-GT PSNR).
         raise RuntimeError(
             "blend inject is a documented dead-end: FCP ignores the drop-zone card layer "
             "Blend Mode in the synthetic A-over-B stack (all modes render identical to "

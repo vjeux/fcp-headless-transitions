@@ -145,15 +145,19 @@ verified against headless FCP. Engine UNIT TESTS, with real FCP as the per-primi
 4. Then enumerate the rest: blend modes, crop, anchor, shear, time-remap/speed/reverse,
    masks (rect/circle/bezier), behaviors (Fade/Ramp/Throw/Spin/Oscillate/Sequence-Replicator),
    replicator layout, camera/3D projection, generators. Each = one catalog entry + make it PASS.
-   - **blend modes** — ⛔ DEAD-END on the Directional skeleton (decoded 2026-07-15): headless FCP
-     IGNORES the drop-zone card's layer Blend Mode in the synthetic A-over-B stack (control: Normal
-     vs Multiply/Add/Screen all render BYTE-IDENTICAL == the opacity-0.5 result). Any blend.* cap
-     here is a FALSE PASS (measures opacity, not the mode). The `blend` inject kind is kept but
-     `raise`s a documented error so no false cap can be built on it. The blend enum is already
-     decoded from ProCore __cstring AND gate-verified on REAL slugs (360° Push value=28 improves
-     PSNR), so the engine's blend handling is validated there. A valid blend cap would need a
-     skeleton with an explicit sibling stack under a group whose Blend Mode FCP honors (TODO:
-     Lens_Flare / Color_Planes overlay-media layers).
+   - **blend modes** — ⛔ DEAD-END on the Directional skeleton, FULLY DEBUGGED 2026-07-15. FCP
+     ignores the drop-zone Image card's layer Blend Mode here. Root cause, proven step by step:
+     (1) B IS behind A (opacity=0 on A reveals end.jpg, hvi 136.7, both engines agree) — not an
+     empty backdrop. (2) NOT a flag gate — the skeleton's Blend Mode flags 0x301010010 vs a working
+     Color-Planes 0x200010010 differ by bits 0x1000000|0x100000000, but rewriting to the working
+     flags STILL renders maxdiff 0. (3) STRUCTURAL — FCP's transition compositor draws the drop-zone
+     Image (factory 3) cards through a fixed source-over path that never consults their Blend Mode;
+     modes only apply on the node types stacked through the general layer compositor (Color Planes'
+     6 Clone-Layer / factory-9 siblings value=8; Lens Flare overlay value=10), which ARE gate-verified
+     on real slugs. (4) The TS engine ALREADY MATCHES: TS Normal-vs-Add is also maxdiff 0 — NO engine
+     bug. So any blend.* cap here is a FALSE PASS (measures opacity, not the mode); the `blend` inject
+     kind is kept but `raise`s a documented error. Blend math is validated via the real slugs per
+     Rule 1.
 
 **Why this breaks the loop:** a capability PASS is a small, attributable, gate-safe win. When a
 primitive is verified in isolation, every transition that uses it improves for free, and a slug's
@@ -368,6 +372,36 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+
+- 2026-07-15y  🔬 BLEND DEAD-END — root cause FULLY DEBUGGED (vjeux: "debug WHY the headless renderer
+              doesn't render it, don't just stop there"). Proven step by step, not just observed:
+              (1) B IS behind A — forcing A opacity=0 reveals end.jpg (hvi 136.7), both engines agree,
+              so it is NOT an empty/black backdrop. (2) NOT a parameter-flag gate — the skeleton's
+              Blend Mode flags 0x301010010 vs a working Color-Planes blend 0x200010010 differ by bits
+              0x1000000|0x100000000, but REWRITING the skeleton flags to the working value STILL
+              renders maxdiff 0. (3) STRUCTURAL — FCP's transition compositor draws the drop-zone
+              Image (factory 3) cards via a fixed source-over path that never consults their layer
+              Blend Mode; modes only apply on the node types FCP stacks through the general layer
+              compositor (Color Planes' 6 Clone-Layer/factory-9 siblings value=8; Lens Flare overlay
+              value=10) — those ARE gate-verified on real slugs. (4) The TS engine ALREADY MATCHES:
+              TS Normal-vs-Add is also maxdiff 0 → NO engine bug. Documented the full root cause in
+              probe_scene.py + ROADMAP; blend inject still `raise`s (no false cap). Tools+docs only,
+              caps 6/6 PASS, tsc clean, GUI-GT gate untouched.
+
+- 2026-07-15y  🔬 blend.* DEAD-END — ROOT CAUSE fully debugged (not just observed). vjeux: "debug WHY
+              the headless renderer doesn't render it, don't just stop there." Did exactly that with
+              4 controlled experiments: (1) A opacity=0 reveals end.jpg (hvi 136.7, both engines
+              agree mae 0.0) ⇒ B IS behind A, backdrop is real not black. (2) The skeleton Blend
+              Mode flags (0x301010010) differ from a WORKING Color-Planes blend (0x200010010) by
+              bits 0x1000000|0x100000000 — but REWRITING the skeleton to the working flags STILL
+              renders maxdiff 0 ⇒ NOT a flag gate. (3) So it is STRUCTURAL: FCP's transition
+              compositor draws the drop-zone Image (factory 3) cards through a fixed source-over path
+              that never consults their layer Blend Mode; modes only apply on Clone-Layer (factory 9,
+              Color Planes' 6 planes value=8) / overlay-generator (Lens Flare value=10) siblings —
+              which ARE gate-verified on real slugs. (4) The TS engine ALREADY MATCHES (TS Normal-vs-
+              Add also maxdiff 0) ⇒ NO engine bug. Documented in probe_scene.py + ROADMAP; the blend
+              inject kind stays but raises. All temp diagnostics deleted (Rule 5). caps 6/6 PASS; tsc
+              clean; GUI-GT gate untouched.
 
 - 2026-07-15x  ⛔ CAPABILITY blend.* — DEAD-END decoded + documented (Rule 8 premise-correction).
               Tried to add blend.multiply/add/screen/overlay caps by injecting Transition A's
