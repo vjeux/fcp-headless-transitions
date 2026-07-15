@@ -256,17 +256,30 @@ function getRetimeProgress(layer: Layer, timeSec: number): number {
  * If the value is a curve, evaluate it normally.
  * If it's a static number and retimeProgress > 0, interpolate from defaultVal toward the value.
  */
-function resolveWithRetime(value: number | Curve | undefined, timeSec: number, defaultVal: number, retimeProgress: number, bypassRetime: boolean = false): number {
+function resolveWithRetime(value: number | Curve | undefined, timeSec: number, defaultVal: number, retimeProgress: number, bypassRetime: boolean = false, hasRetime: boolean = false): number {
   if (value === undefined) return defaultVal;
   if (typeof value === 'object') {
     // Curve
     if (value.keyframes.length > 0) {
       return evaluateCurve(value, timeSec); // real keyframes → evaluate normally
     }
-    // Empty curve with default→value: Retime-interpolate (unless overridden).
+    // Empty curve with default→value. Motion authors a STATIC transform parameter as
+    // `<parameter default="1" value="1.27"/>` (no keyframes) — the `value` is the
+    // authoritative static value and `default` is only the parameter's documented
+    // default. The Retime "static-position" heuristic (ramp default→value driven by
+    // the layer's playback progress) applies ONLY when the layer actually carries a
+    // Retime curve (≥2 keyframes); it models media that advances its authored value
+    // as the retimed frame plays. A layer with NO retime curve is not being retimed,
+    // so its static `value` is authoritative from the first frame — resolving to
+    // `default` there silently drops every static Scale/Position/Rotation authored
+    // this way (Concentric's ring-mask Circles carry Scale value=1.27/0.75/0.5/… with
+    // no retime; the old `return from` collapsed them all to 1.0 → the concentric
+    // rings all rasterized at one radius). Bypass (Link/rig override) always uses the
+    // full value.
     const from = value.default;
     const to = value.value !== undefined ? value.value : value.default;
     if (bypassRetime) return to; // Link/rig override: use the full value directly.
+    if (!hasRetime) return to;   // No retime curve: the static `value` is authoritative.
     if (retimeProgress > 0 && to !== from) {
       return from + (to - from) * retimeProgress;
     }
@@ -274,17 +287,19 @@ function resolveWithRetime(value: number | Curve | undefined, timeSec: number, d
   }
   // Static number: Link/rig override uses it directly (no ramp from default).
   if (bypassRetime) return value;
-  // Static number with retime: interpolate default → value
-  if (retimeProgress > 0 && value !== defaultVal) {
+  // Static number with retime: interpolate default → value ONLY when the layer is
+  // actually being retimed (a real retime curve drives retimeProgress). Without a
+  // retime curve the authored number is authoritative from frame 0.
+  if (hasRetime && retimeProgress > 0 && value !== defaultVal) {
     return defaultVal + (value - defaultVal) * retimeProgress;
   }
   return value;
 }
-function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: number = 0): Float64Array {
+function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: number = 0, hasRetime: boolean = false): Float64Array {
   const ov = tx.__overrideChannels;
-  const posX = resolveWithRetime(tx.positionX, timeSec, 0, retimeProgress, ov?.has('posX'));
-  const posY = resolveWithRetime(tx.positionY, timeSec, 0, retimeProgress, ov?.has('posY'));
-  const posZ = resolveWithRetime(tx.positionZ, timeSec, 0, retimeProgress, ov?.has('posZ'));
+  const posX = resolveWithRetime(tx.positionX, timeSec, 0, retimeProgress, ov?.has('posX'), hasRetime);
+  const posY = resolveWithRetime(tx.positionY, timeSec, 0, retimeProgress, ov?.has('posY'), hasRetime);
+  const posZ = resolveWithRetime(tx.positionZ, timeSec, 0, retimeProgress, ov?.has('posZ'), hasRetime);
 
   // Motion .motr stores rotation in RADIANS (e.g. Rotate uses π/2 for 90°). Convert to degrees
   // for the matrix helpers (which take degrees).
@@ -293,23 +308,23 @@ function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: nu
   // (top corner at -hh), so a positive Motion X-rotation must tilt the TOP edge
   // away from the viewer. Negating here makes m6/m9 couple Y→Z the correct way
   // (verified against Fall GT: top edge recedes, bottom swings up).
-  const rotX = -resolveWithRetime(tx.rotationX, timeSec, 0, retimeProgress, ov?.has('rotX')) * RAD2DEG;
-  const rotY = resolveWithRetime(tx.rotationY, timeSec, 0, retimeProgress, ov?.has('rotY')) * RAD2DEG;
-  const rotZ = resolveWithRetime(tx.rotationZ, timeSec, 0, retimeProgress, ov?.has('rotZ')) * RAD2DEG;
+  const rotX = -resolveWithRetime(tx.rotationX, timeSec, 0, retimeProgress, ov?.has('rotX'), hasRetime) * RAD2DEG;
+  const rotY = resolveWithRetime(tx.rotationY, timeSec, 0, retimeProgress, ov?.has('rotY'), hasRetime) * RAD2DEG;
+  const rotZ = resolveWithRetime(tx.rotationZ, timeSec, 0, retimeProgress, ov?.has('rotZ'), hasRetime) * RAD2DEG;
   // Scale is FRACTIONAL (1.0 = 100%) in every .motr template (all 108 Scale curves have
   // default="1"). Used as-is — never divided by 100.
-  const scX = resolveWithRetime(tx.scaleX, timeSec, 1, retimeProgress, ov?.has('scaleX'));
-  const scY = resolveWithRetime(tx.scaleY, timeSec, 1, retimeProgress, ov?.has('scaleY'));
-  const scZ = resolveWithRetime(tx.scaleZ, timeSec, 1, retimeProgress, ov?.has('scaleZ'));
+  const scX = resolveWithRetime(tx.scaleX, timeSec, 1, retimeProgress, ov?.has('scaleX'), hasRetime);
+  const scY = resolveWithRetime(tx.scaleY, timeSec, 1, retimeProgress, ov?.has('scaleY'), hasRetime);
+  const scZ = resolveWithRetime(tx.scaleZ, timeSec, 1, retimeProgress, ov?.has('scaleZ'), hasRetime);
   // Anchor is retime-interpolated like position (both have default=0, value=X); they must
   // track together so a static offset (e.g. Fall's -540) cancels, leaving only the rotation pivot.
-  const ancX = resolveWithRetime(tx.anchorX, timeSec, 0, retimeProgress);
-  const ancY = resolveWithRetime(tx.anchorY, timeSec, 0, retimeProgress);
+  const ancX = resolveWithRetime(tx.anchorX, timeSec, 0, retimeProgress, false, hasRetime);
+  const ancY = resolveWithRetime(tx.anchorY, timeSec, 0, retimeProgress, false, hasRetime);
   // Anchor Z: the rotation/scale pivot's depth. Movements/Reflection's incoming
   // Transition B carries anchor Z = 960 (its page hinges on the shared "spine" at
   // Z=960, not its own centre) — without it, B's 90° pre-rotation leaves it offset
   // ~720px laterally when the group settles, instead of landing full-frame.
-  const ancZ = resolveWithRetime(tx.anchorZ, timeSec, 0, retimeProgress);
+  const ancZ = resolveWithRetime(tx.anchorZ, timeSec, 0, retimeProgress, false, hasRetime);
 
   // Transform order (Motion's documented order), producing the matrix
   //   M = T(position) · R · S · T(-anchor)
@@ -405,6 +420,14 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
     }
   }
   const retimeProgress = getRetimeProgress(layer, timeSec);
+  // Whether this layer actually carries a Retime curve (≥2 keyframes). The
+  // Retime static-value ramp (default→value driven by retimeProgress) applies
+  // ONLY to genuinely-retimed layers; a layer with no retime curve resolves its
+  // static empty-curve `value` authoritatively (see resolveWithRetime). A static
+  // param encoded as `<parameter default="1" value="X"/>` (Motion's standard
+  // static-transform encoding) must NOT be collapsed to `default` — that silently
+  // dropped Concentric's ring-mask Circle scales (1.27/0.75/0.5/0.26/0.15 → 1.0).
+  const hasRetime = !!(layer.retimeValue && layer.retimeValue.keyframes.length >= 2);
   // Hold the incoming (Type=2) B drop zone past its timeout when the scene stays
   // alive past the drop-zone crossfade. Two cases share this:
   //   • a blended VIDEO overlay keeps the scene alive (Lights/Light Noise): B
@@ -635,7 +658,7 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
       ? layer.timing.in.value / layer.timing.in.timescale : 0;
     if (off - inn > 1e-3) curveTime = timeSec - off;
   }
-  const localTransform = buildTransformMatrix(riggedTransform, curveTime, retimeProgress);
+  const localTransform = buildTransformMatrix(riggedTransform, curveTime, retimeProgress, hasRetime);
   const worldTransform = mat4Multiply(parentTransform, localTransform);
 
   // WRITE-ON envelope (S8, default ON; FCT_PROCMASK=0 disables): a procedural shape
@@ -670,8 +693,8 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
       const outSec = layer.timing.out && layer.timing.out.timescale > 0
         ? layer.timing.out.value / layer.timing.out.timescale : 0;
       const probeEnd = Math.max(outSec - off, 0.5);
-      const lt0 = buildTransformMatrix(riggedTransform, 0, retimeProgress);
-      const ltEnd = buildTransformMatrix(riggedTransform, probeEnd, retimeProgress);
+      const lt0 = buildTransformMatrix(riggedTransform, 0, retimeProgress, hasRetime);
+      const ltEnd = buildTransformMatrix(riggedTransform, probeEnd, retimeProgress, hasRetime);
       const swept = Math.hypot(ltEnd[12] - lt0[12], ltEnd[13] - lt0[13]) > 8;
       if (swept) {
         // curveTime is already offset-shifted (= timeSec - off); the mask's local
@@ -683,7 +706,7 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
           const xs: Float64Array[] = [];
           for (let k = 0; k <= K; k++) {
             const st = (curveTime * k) / K;
-            const lt = buildTransformMatrix(riggedTransform, st, retimeProgress);
+            const lt = buildTransformMatrix(riggedTransform, st, retimeProgress, hasRetime);
             xs.push(mat4Multiply(parentTransform, lt));
           }
           writeOnTransforms = xs;

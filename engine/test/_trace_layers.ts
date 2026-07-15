@@ -18,7 +18,13 @@ function walk(ls: readonly any[], d=0){
     const xf = process.env.FCT_XFORM === '1' && wt
       ? ` z=${wt[14].toFixed(0)} m3x3=[${[wt[0],wt[1],wt[2],wt[4],wt[5],wt[6],wt[8],wt[9],wt[10]].map((x:number)=>x.toFixed(2)).join(',')}]`
       : '';
-    console.log('  '.repeat(d)+`[${l.layer.type}] "${l.layer.name}" id=${l.layer.id} vis=${l.visible} op=${l.opacity.toFixed(2)} src=${l.layer.source??''} tx=${wt?wt[12].toFixed(0):'-'},${wt?wt[13].toFixed(0):'-'} filters=${(l.layer.filters||[]).map((f:any)=>f.pluginName).join(',')}${xf}`);
+    // FCT_MASK=1 → print the group/leaf Image-Mask wiring (imageMaskSourceId +
+    // invert flag) and the clone source id, so mask-source registration bugs
+    // (Concentric ring groups clipping to their sibling Circle shapes) are visible.
+    const mk = process.env.FCT_MASK === '1'
+      ? ` imgMask=${l.layer.imageMaskSourceId??'-'}${l.layer.imageMaskInvert?'(inv)':''} clone=${l.layer.cloneSourceId??'-'}`
+      : '';
+    console.log('  '.repeat(d)+`[${l.layer.type}] "${l.layer.name}" id=${l.layer.id} vis=${l.visible} op=${l.opacity.toFixed(2)} src=${l.layer.source??''} tx=${wt?wt[12].toFixed(0):'-'},${wt?wt[13].toFixed(0):'-'} filters=${(l.layer.filters||[]).map((f:any)=>f.pluginName).join(',')}${xf}${mk}`);
     walk(l.children, d+1);
   }
 }
