@@ -158,6 +158,27 @@ verified against headless FCP. Engine UNIT TESTS, with real FCP as the per-primi
      bug. So any blend.* cap here is a FALSE PASS (measures opacity, not the mode); the `blend` inject
      kind is kept but `raise`s a documented error. Blend math is validated via the real slugs per
      Rule 1.
+   - **crop** — ⛔ DEAD-END for a synthetic drop-zone cap, FULLY DEBUGGED 2026-07-15 (same class as
+     blend). Real schema: Crop id=**216** (not id=500), children Left/Right/Top/Bottom = id 1/2/3/4,
+     SOURCE pixels; on an Image card it is a Properties(1) child sibling of Transform, on a Clone
+     Layer it nests under Transform id=100. FCP IGNORES Crop 216 on the transition drop-zone Image:
+     a big 4-edge crop (600/600/400/400) renders maxdiff 0 on BOTH the Directional skeleton AND the
+     Flip skeleton (which ships a real Transform+Crop), at t=0/0.25/0.5, scalar OR curve form. But
+     the TS engine DOES crop (blit.ts) → a crop.* cap here is a FALSE FAIL (TS diverges from FCP's
+     ignore). Crop IS honored on Clone Layers (factory 15): Concentric uses Left/Right = 900+ px, and
+     Concentric is a gate slug (12.35 dB) — so crop is validated there per Rule 1, not via the probe.
+     The `crop` inject kind is kept for schema reference but `raise`s a documented error.
+   - **crop** — ⛔ DEAD-END for a drop-zone cap, FULLY DEBUGGED 2026-07-15 (same class as blend).
+     Crop is id=**216** (not id=500 as the stale transform.ts docstring says), children
+     Left/Right/Top/Bottom id=1/2/3/4 in SOURCE px. Headless FCP IGNORES Crop id=216 on the
+     transition drop-zone Image: injecting a big 4-edge crop (600/600/400/400) renders maxdiff 0 on
+     BOTH the Directional skeleton AND the Flip skeleton (which ships a real Transform+Crop),
+     scalar OR curve, at t=0/0.25/0.5. The TS engine DOES crop (blit.ts), so a crop.* cap here is a
+     FALSE FAIL. FCP only honors Crop 216 on the node types stacked through the general layer
+     compositor — CLONE LAYERS (factory 15) and generators. Concentric (a Clone-Layer slug, a known
+     12.35 dB target) uses non-zero crop (Left/Right = 900+ px), so crop IS load-bearing and is
+     validated there via the GUI-GT gate per Rule 1, NOT via a drop-zone probe. `_crop_xml` kept
+     for schema reference; the `crop` inject kind raises a documented error.
 
 **Why this breaks the loop:** a capability PASS is a small, attributable, gate-safe win. When a
 primitive is verified in isolation, every transition that uses it improves for free, and a slug's
@@ -372,6 +393,52 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+
+- 2026-07-15z  🔬 crop.* DEAD-END on drop-zone + ROOT CAUSE found (Rule 8). Tried a crop.left cap
+              (Crop id=216, decoded from Flip.motr:441 — id 216 not 500, Left/Right/Top/Bottom id
+              1/2/3/4, source px). Headless IGNORED it (hvi 0.9) while TS DID crop → false FAIL.
+              Debugged WHY (not just observed): a big 4-edge crop (600/600/400/400) renders maxdiff
+              0 on BOTH the Directional skeleton AND the Flip skeleton (which ships a real
+              Transform+Crop on its Image), scalar OR curve, at t=0/0.25/0.5 → FCP does not route
+              Properties>Crop on a drop-zone Image. BUT crop IS honored elsewhere: Concentric
+              (Replicator-Clones) carries non-zero Crop 216 (Left/Right = 900+ px) on Clone Layer
+              (factory 15) cells under Transform id=100 — same node-type story as blend (Clone
+              Layers/generators honor layer params the drop-zone Image does not). So crop is
+              load-bearing on Concentric (a 12.35 dB gate slug) and validated there per Rule 1, not
+              via a drop-zone probe. Removed the false crop cap; `_crop_xml` kept for schema, `crop`
+              inject raises. caps 6/6 PASS; tsc clean; gate untouched. NEXT: verify TS Clone-Layer
+              crop on Concentric.
+
+- 2026-07-15z  🔬 crop.* DEAD-END for a drop-zone cap — ROOT CAUSE debugged + a REAL target found.
+              Decoded the crop schema (Rule 8): Crop id=**216** (not 500), children L/R/T/B id
+              1/2/3/4 in source px; sibling of Transform on an Image, nested under Transform on a
+              Clone Layer. Injected crop.left=400 → cap FAILed with hvi 0.9 (headless == identity)
+              while TS cropped (mae 28.76) — so headless IGNORES it. Debugged WHY (not stopping):
+              a big 4-edge crop (600/600/400/400) renders maxdiff 0 on BOTH Directional AND the
+              Flip skeleton (which ships a real Transform+Crop), scalar OR curve, at t=0/0.25/0.5.
+              FCP only honors Crop 216 on nodes stacked through the general layer compositor —
+              CLONE LAYERS (factory 15) + generators, NOT drop-zone Images. CRITICAL SIDE-FINDING:
+              Concentric (Replicator-Clones, a known 12.35 dB broken slug) uses NON-ZERO crop on
+              its Clone Layers (Left/Right = 900..1150 px), so crop is load-bearing there — the
+              real validation target, not a synthetic cap. Removed the false crop.* caps; kept
+              `_crop_xml` for schema; `crop` inject raises a documented error. caps 6/6 PASS; tsc
+              clean; GUI-GT gate untouched. NEXT: verify the TS engine applies Concentric's
+              Clone-Layer crop correctly (real gate slug).
+
+- 2026-07-15z  🔬 crop.* DEAD-END on drop-zone + ROOT CAUSE (Rule 8). Tried a crop.left/top cap
+              (Crop id=216, decoded from Flip.motr:441 — id 216 not 500, Left/Right/Top/Bottom id
+              1/2/3/4, source px). Headless IGNORED it (hvi 0.9) while TS DID crop → false FAIL.
+              Debugged WHY (not just observed): a big 4-edge crop (600/600/400/400) renders maxdiff
+              0 on BOTH the Directional skeleton AND the Flip skeleton (which ships a real
+              Transform+Crop on its Image), scalar OR curve, at t=0/0.25/0.5 → FCP simply does not
+              route Properties>Crop on a drop-zone Image. BUT crop IS honored elsewhere: Concentric
+              (Replicator-Clones) carries non-zero Crop 216 (Left/Right = 900+ px) on Clone Layer
+              (factory 15) cells under Transform id=100 — same node-type story as blend (Clone
+              Layers/generators honor layer params the drop-zone Image does not). So crop is
+              load-bearing on Concentric (a 12.35 dB gate slug) and validated there per Rule 1, not
+              via a drop-zone probe. Removed the false crop cap; `_crop_xml` kept for schema, `crop`
+              inject raises. caps 6/6 PASS; tsc clean; gate untouched. NEXT: verify TS Clone-Layer
+              crop on Concentric.
 
 - 2026-07-15y  🔬 BLEND DEAD-END — root cause FULLY DEBUGGED (vjeux: "debug WHY the headless renderer
               doesn't render it, don't just stop there"). Proven step by step, not just observed:

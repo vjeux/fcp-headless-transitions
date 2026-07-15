@@ -129,6 +129,38 @@ def _transform_xml(inject, indent="\t\t\t\t"):
     return "\n".join(lines)
 
 
+def _crop_xml(inject, indent="\t\t\t\t"):
+    """Build a <parameter name="Crop" id="216"> group from an inject spec:
+       {"left":px,"right":px,"top":px,"bottom":px}  (any subset; missing = 0).
+
+    REAL Motion schema decoded 2026-07-15 from the shipped templates (Rule 8):
+    Crop is id=**216** (NOT id=500 as the stale transform.ts docstring says); on a layer's
+    Image card it is a DIRECT child of Properties (id=1) — a SIBLING of Transform (id=100)
+    (Movements/Flip.motr:441). On a Clone Layer it is nested under Transform id=100
+    (Concentric.motr:~425). Children Left/Right/Top/Bottom = id 1/2/3/4, values in SOURCE
+    PIXELS cropped from that edge (default="0").
+
+    ⚠️ DEAD-END for a synthetic drop-zone cap (fully debugged 2026-07-15): headless FCP
+    IGNORES Crop id=216 on the transition drop-zone Image card. Proven on BOTH the
+    Directional skeleton (bare Properties) AND the Flip skeleton (which ships a real
+    Transform+Crop structure): injecting a big 4-edge crop (600/600/400/400) renders
+    maxdiff 0 at t=0/0.25/0.5, scalar OR curve form. FCP only honors Crop 216 on the node
+    types it stacks through the general layer compositor — CLONE LAYERS (factory 15;
+    Concentric uses Left/Right = 900+ px) and generators — NOT drop-zone Images. So a
+    crop.* cap on this skeleton is a FALSE FAIL (the TS engine DOES crop → diverges from
+    FCP's ignore). Crop is instead load-bearing/validated on the REAL slug that uses it
+    (Concentric, a Clone-Layer slug) per Rule 1, not this probe. Helper kept for schema
+    reference; build_scene raises for kind='crop'."""
+    lines = [f'{indent}<parameter name="Crop" id="216" flags="8589971474">',
+             f'{indent}\t<foldFlags>131087</foldFlags>']
+    for edge, eid in (("left", 1), ("right", 2), ("top", 3), ("bottom", 4)):
+        if edge in inject:
+            lines.append(f'{indent}\t<parameter name="{edge.capitalize()}" id="{eid}" '
+                         f'flags="12884901904" default="0" value="{inject[edge]}"/>')
+    lines.append(f'{indent}</parameter>')
+    return "\n".join(lines)
+
+
 def _inject_into_transition_a_properties(src, param_xml):
     """Insert param_xml as the first child of Transition A's <parameter name="Properties"
     id="1"> group. In a real .motr the layer Transform (id=100) sits directly under
@@ -149,6 +181,15 @@ def build_scene(inject):
     kind = inject["kind"]
     if kind == "transform":
         src = _inject_into_transition_a_properties(src, _transform_xml(inject))
+    elif kind == "crop":
+        # DEAD-END on the drop-zone skeleton — see _crop_xml docstring. FCP ignores Crop
+        # id=216 on the transition Image card (proven maxdiff 0 on Directional AND Flip,
+        # all edges, t=0/0.25/0.5). The TS engine DOES crop, so a crop.* cap here is a
+        # FALSE FAIL. Crop is validated on the real Clone-Layer slug (Concentric) instead.
+        raise RuntimeError(
+            "crop inject is a documented dead-end: FCP ignores Crop id=216 on the drop-zone "
+            "Image card (only Clone Layers/generators honor it). Crop is validated via the "
+            "real Concentric slug, not this probe. See _crop_xml docstring.")
     elif kind == "opacity":
         # Replace Transition A's Blending>Opacity (id=202) with a STATIC value.
         # The skeleton ships Opacity 202 as an ANIMATED curve (2 keypoints 1->0 over the
