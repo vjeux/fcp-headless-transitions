@@ -121,6 +121,9 @@ def all_items(from_origin=True):
             if not _TODO_FETCHED and os.environ.get("FCT_SKIP_FETCH") != "1":
                 subprocess.run(["git", "-C", REPO, "fetch", "origin", "--quiet"], timeout=60)
                 _TODO_FETCHED = True
+                # tell any sibling guard (pool._fetch_origin_once) origin is fetched this
+                # process so it skips its own redundant fetch of the same remote.
+                os.environ["FCT_SKIP_FETCH"] = "1"
             listing = subprocess.check_output(
                 ["git", "-C", REPO, "ls-tree", "--name-only", "origin/main",
                  "fct/swarm/todo/"], text=True, timeout=30).splitlines()

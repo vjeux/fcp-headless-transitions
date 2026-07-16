@@ -50,10 +50,14 @@ def _fetch_origin_once():
     if _FETCHED or os.environ.get("FCT_SKIP_FETCH") == "1":
         return
     try:
-        _fetch_origin_once()
+        subprocess.run(["git", "-C", MAIN, "fetch", "origin", "--quiet"], timeout=60)
     except Exception as e:
         print(f"[pool] warn: git fetch failed: {e}", flush=True)
     _FETCHED = True
+    # Signal the todo module (separate process-global guard) that origin is already fetched
+    # this process, so its all_items() read skips the redundant second fetch of the same
+    # remote (kept status at 2 fetches; now 1). todo honors FCT_SKIP_FETCH.
+    os.environ["FCT_SKIP_FETCH"] = "1"
 
 
 # ---------------------------------------------------------------------------
