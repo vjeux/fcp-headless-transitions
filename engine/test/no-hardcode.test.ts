@@ -18,6 +18,7 @@ import {
   hasFilteredMaskReveal,
   hasFilterRevealSettleB,
   needsFilterRevealForceHoldB,
+  isEquirectScene,
 } from '../src/capabilities.js';
 import { hasSimulatableEmitter } from '../src/compositor/emitter-sim.js';
 import { execSync } from 'node:child_process';
@@ -38,6 +39,7 @@ const DETECTORS: Record<string, (scene: any) => unknown> = {
   hasFilterRevealSettleB,
   needsFilterRevealForceHoldB,
   hasSimulatableEmitter,
+  isEquirectScene,
 };
 
 // PARAM-DRIVEN SUBSET REFINEMENTS. These are NOT structural dispatch probes — each is a

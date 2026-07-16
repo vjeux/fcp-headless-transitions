@@ -4,7 +4,7 @@ import { composite } from './compositor/index.js';
 import { resample, cropCenter } from './compositor/resample.js';
 import { detect360Band, render360Band } from './compositor/transition360.js';
 import { buildTimeMap } from './timemap.js';
-import { hasColorizeRemapRig, isWideEquirect } from './capabilities.js';
+import { hasColorizeRemapRig, isEquirectScene } from './capabilities.js';
 import type { MotrScene } from './types.js';
 
 export interface TransitionOptions {
@@ -83,7 +83,11 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
   // 360°_Bloom at 5.1 dB vs the headless centred-crop's 16.9). Matches oz_render.mm's
   // `sceneBounds.w >= 3072` equirect readback. When set, renderInstant CROPs the
   // conform instead of resampling. See docs/notes/FCP_360_BLUR_REVERSE_ENGINEERING.md.
-  const wideEquirect = isWideEquirect(width, height);
+  // Scene-aware: only a GENUINE panorama scene (both drop zones wide, see
+  // isEquirectScene) takes the cropCenter readback. A plain HD transition inside a 4K
+  // canvas (Movements/Smear) resamples the full frame down (and its drop zones get the
+  // fill-conform) so the settled-B tail fills the frame instead of centre-cropping.
+  const wideEquirect = isEquirectScene(scene);
 
   // 360° transition family: drop-zone cover-fit band + "Align To" horizontal push.
   // These render at the CONFORMED output resolution directly (the push transform

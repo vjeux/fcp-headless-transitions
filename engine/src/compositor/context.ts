@@ -88,4 +88,13 @@ export interface RenderContext {
    * dropZonePlaceholderCell.
    */
   dzPlaceholder?: { w: number; h: number; img: ImageData };
+  /**
+   * True only for a GENUINE wide-equirect (360°/VR panorama) SCENE — where BOTH
+   * transition drop zones are authored at the wide (≥3072 px) panorama resolution
+   * (see isEquirectScene in capabilities.ts). A ≥3072-wide canvas that composites a
+   * plain HD transition (Movements/Smear: a 1920×1080 Transition-A card inside a
+   * 4096×2160 project) is NOT equirect — its drop-zone sources must still be
+   * fill-conformed so the settled tail fills the frame instead of letterboxing.
+   */
+  equirectScene?: boolean;
 }

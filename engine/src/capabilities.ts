@@ -89,6 +89,42 @@ export function isWideEquirect(width: number, height: number): boolean {
 }
 
 /**
+ * A GENUINE wide-equirect (360°/VR panorama) SCENE — the scene-aware form of
+ * isWideEquirect used to pick FCP's oz_render.mm centred-window readback (cropCenter)
+ * + skip the fill-conform (see api.ts + compositor/index.ts).
+ *
+ * The raw dimension test `isWideEquirect(canvasW, canvasH)` fires on ANY ≥3072-wide,
+ * ≥1.6:1 canvas — but not every 4K canvas is a panorama. A real equirect scene projects
+ * its transition onto the FULL panorama sphere, so BOTH transition drop zones are
+ * authored at the wide canvas resolution (360°_Bloom / Objects/Squares: A+B both
+ * 4096×2160; 360°/Push et al.: 4096×2048). Movements/Smear ALSO declares a 4096×2160
+ * project canvas but is a plain HD transition composited into it — its Transition-A drop
+ * zone is a standard 1920×1080 card (a SUB-canvas drop zone), NOT a panorama plate.
+ * Treating Smear as equirect took the cropCenter readback + skipped the fill-conform, so
+ * the settled-B tail rendered LETTERBOXED / centre-cropped instead of filling the frame
+ * — costing several dB/frame on the tail vs the GUI GT (which fills the frame).
+ *
+ * Structural discriminator (no slug names): the canvas is wide-equirect AND EVERY
+ * transition-A/B drop zone is itself wide (≥3072 px). A scene with any sub-canvas
+ * (e.g. 1920-wide HD) transition drop zone is NOT a panorama → take the normal
+ * fill-conform + resample path. Fires on the true panorama family (all 360°__* +
+ * 360°_Bloom + Squares → 9 built-ins); excludes Smear.
+ */
+export function isEquirectScene(scene: MotrScene): boolean {
+  if (!isWideEquirect(scene.settings.width, scene.settings.height)) return false;
+  let anyDropZone = false;
+  let allWide = true;
+  walk(scene.layers, (l) => {
+    if (l.type === 'image' && l.dropZone
+      && (l.source?.type === 'transitionA' || l.source?.type === 'transitionB')) {
+      anyDropZone = true;
+      if (l.dropZone.width < 3072) allWide = false;
+    }
+  });
+  return anyDropZone && allWide;
+}
+
+/**
  * A layer whose Image Mask source is a GROUP that carries its own image FILTERS.
  * A filter on a mask-source group means the reveal MATTE is not a static rasterized
  * shape — it is actively RESHAPED over the transition (morphology GROWS it, blur

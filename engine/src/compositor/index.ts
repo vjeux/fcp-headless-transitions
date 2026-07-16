@@ -58,6 +58,27 @@ function conformDropZoneSource(src: ImageData, boxW: number, boxH: number): Imag
   return resample(src, boxW, boxH);
 }
 
+// Scene-aware refinement of the raw wide-equirect dimension test (isWideEquirect).
+// A ≥3072-wide, ≥1.6:1 project canvas is only a GENUINE 360°/VR panorama when BOTH transition drop
+// zones are themselves authored at the wide panorama resolution (≥3072 px). A plain
+// HD transition composited into a 4K canvas (Movements/Smear: a 1920×1080 Transition-A
+// card inside a 4096×2160 project) is NOT equirect — its drop-zone sources must still
+// be fill-conformed (otherwise the settled-B tail letterboxes). Computed from the raw
+// layer map (composite() only holds the EvaluatedScene, not the MotrScene).
+function computeEquirectScene(width: number, height: number, layerById: Map<number, Layer>): boolean {
+  if (!isWideEquirect(width, height)) return false;
+  let anyDropZone = false;
+  let allWide = true;
+  for (const l of layerById.values()) {
+    if (l.type === 'image' && l.dropZone
+      && (l.source?.type === 'transitionA' || l.source?.type === 'transitionB')) {
+      anyDropZone = true;
+      if (l.dropZone.width < 3072) allWide = false;
+    }
+  }
+  return anyDropZone && allWide;
+}
+
 /**
  * Compositor: EvaluatedScene + source images → output ImageData
  *
@@ -73,6 +94,7 @@ function conformDropZoneSource(src: ImageData, boxW: number, boxH: number): Imag
  * can be added later for performance.
  */
 import type { EvaluatedScene, EvaluatedLayer } from '../evaluator/index.js';
+import type { Layer } from '../types.js';
 import { isWideEquirect } from '../capabilities.js';
 
 
@@ -483,21 +505,32 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
         return 'children';
       }
       // Conform the base full-frame drop-zone SOURCE to fill the frame (capability #1;
-      // see conformDropZoneSource). Scoped to a plain UNCROPPED drop-zone image whose box
-      // ≈ the render buffer AND that buffer is a normal (non-panorama) frame — a 360°/VR
-      // scene renders at its NATIVE 4096×2160 equirect size (output IS 4096×2160 here,
-      // native-then-resample in api.ts) with a 4096-wide drop zone, so `box ≈ output`
-      // would otherwise fire there and stretch the source into the panorama (regressed
-      // 360°_Bloom −0.38). `isWideEquirect` (FCP's oz_render.mm sb.w≥3072 equirect
-      // readback threshold — the SAME predicate api.ts uses to pick the 360° readback,
-      // no new magic number) gates that out. Also excluded: the framing camera
+      // see conformDropZoneSource). The classic case: a plain UNCROPPED drop-zone image
+      // whose box ≈ the render buffer in a NON-panorama scene (rctx.equirectScene false).
+      // A GENUINE 360°/VR scene renders at its native panorama size and reads back a
+      // centred window; stretching its source to the buffer regressed 360°_Bloom −0.38,
+      // so equirect scenes keep the native blit. Also excluded: the framing camera
       // (off-canvas wall tiles project their own scale) and cropped drop zones (crop is
       // in native source pixels).
-      const drawSrc = (layer.type === 'image' && layer.dropZone && !(FRAMING_VIEW_ENABLED && rctx.framed)
-          && !isWideEquirect(output.width, output.height)
-          && Math.abs(layer.dropZone.width - output.width) <= 2
-          && Math.abs(layer.dropZone.height - output.height) <= 2
-          && crop.left === 0 && crop.right === 0 && crop.top === 0 && crop.bottom === 0)
+      const boxNotCropped = crop.left === 0 && crop.right === 0 && crop.top === 0 && crop.bottom === 0;
+      const dz = layer.type === 'image' ? layer.dropZone : undefined;
+      const conformBaseOK = !!dz
+        && !(FRAMING_VIEW_ENABLED && rctx.framed) && !rctx.equirectScene && boxNotCropped;
+      // ADDITIONAL sub-canvas case: a transition A/B card whose box is SMALLER than the
+      // render buffer — a plain HD transition composited into an OVERSIZED project canvas
+      // (Movements/Smear: a 1920×1080 Transition-A card + a 4096×2160 Transition-B in a
+      // 4096×2160 project). Without the conform the card stays native-size + centred, so
+      // the settled-B tail LETTERBOXED (native 1854×1042 centred in the 4K buffer)
+      // instead of filling the frame like the GUI GT. Restricted to A/B transition cards
+      // (a decorative sub-canvas MEDIA sprite must NOT be stretched to full frame).
+      const conformSubCanvasAB = conformBaseOK && !!dz
+        && (layer.source?.type === 'transitionA' || layer.source?.type === 'transitionB')
+        && dz.width <= output.width + 2 && dz.height <= output.height + 2
+        && (dz.width < output.width - 2 || dz.height < output.height - 2);
+      const conformBoxEqOut = conformBaseOK && !!dz
+        && Math.abs(dz.width - output.width) <= 2
+        && Math.abs(dz.height - output.height) <= 2;
+      const drawSrc = (conformBoxEqOut || conformSubCanvasAB)
         ? conformDropZoneSource(src, output.width, output.height)
         : src;
       // Framing camera (factory 3): the standalone Transition A/B drop-zone tiles
@@ -850,6 +883,7 @@ export function composite(
     time: scene.time,
     mediaTime: scene.unwrappedTime ?? scene.time,
     filterTime: scene.unwrappedTime ?? scene.time,
+    equirectScene: computeEquirectScene(scene.width, scene.height, scene.layerById),
   };
 
   // Particle-emitter field proxy (Stylized/Nature: Diagonal, Glide) — detect once.

@@ -342,46 +342,6 @@ These are the measured-negative attempts and non-obvious decode facts a worker n
 starting a slug. A todo may point here ("DO NOT re-attempt X — see ROADMAP dead-ends"); the
 full measured record lives here, once.
 
-### ✅ CORRECTED: the gate is DETERMINISTIC — "parallel JOBS nondeterminism" was MISDIAGNOSED (2026-07-16, orchestrator)
-An earlier T-qvidwall01 note claimed `fct regress engine` is "render-nondeterministic ~0.5–1 dB
-under parallel JOBS". **That is FALSE and was empirically disproven** — do not use it to wave off
-sub-dB regressions. Measured proof (all committed, re-runnable):
-  1. RENDER determinism: `Stylized__Slide` (a flagged "phantom" slug) rendered 6× — 3 SERIAL +
-     3 PARALLEL, under heavy CPU contention (a concurrent agent + load) — produced BYTE-IDENTICAL
-     frames every time (sha `4654dd330ffa` ×6; serial==parallel). Engine src has NO `Math.random`,
-     no `Date.now()`-in-pixels; JPEG cache `_save` is atomic (mkstemp+os.replace).
-  2. SCORE determinism: scoring FIXED frames 5× (cold thumbnail build → 4 warm reuses) = 11.75
-     ×5 exactly; full-res 3× = 11.69 ×3. The `read_frame_cached` re-read-after-save makes
-     cold/warm byte-identical.
-So renders and scoring are BOTH byte-deterministic, parallel or serial. A real regression is a
-real regression — re-render serially to CONFIRM, never to DISMISS.
-
-WHAT the vidwall agent actually saw (the real, operational cause): a `gen engine --all` run under
-load-~80 thrash can leave a slug with an INCOMPLETE / interrupted frame set (an OOM- or
-contention-killed `tsx` worker writes only some of the 24 frames; the 24-frame SET is not atomic
-even though each single frame write is). A gate reading that half-updated set scores a transient
-wrong dB; the next clean full render fixes it. This is a STALE/INCOMPLETE-FRAMES artifact, not
-nondeterminism. The durable fixes (this session): swarm-aware `FCT_JOBS=1` default (no more
-thrash → renders complete), and — if a gate delta is ≤1 dB on a slug your change can't touch —
-verify the slug has all 24 frames + re-render it alone, THEN trust the number.
-
-### ⛔ Video_Wall camera+cell-fill is DECODED & VERIFIED but the TILE-GRID GEOMETRY is the wall (2026-07-16, T-qvidwall01)
-All 4 brief parts were implemented and verified in isolation (WIP: `docs/notes/wip/vw_T-qvidwall01_*.diff`):
-wrap-cancel (`hasFramingCamera`) unfreezes time; the 3-key near-A→far→near-B dolly makes the
-ENDPOINTS jump (f00 8→**18.5**, f23 9→**13.2**); cell-fill (uniform scale = pitchX/tileWidth,
-no constant) fills the mid frame with tiles. **Net was only +0.02 dB (10.16→10.18)** — the
-endpoint gains are almost exactly cancelled by DEEP-DOLLY mid-frame losses (f14–f17 8.3–8.9,
-were ~10 when frozen-at-near-A). Reverted (net-neutral, Rule 2d). The remaining blocker is
-PURELY the tile grid at the deep-far pose: GT f11 shows a TIGHT REGULAR 4×4 grid of 16:9 tiles
-with thin seams, but the engine's 14 replicators (main 3×3 at origin ±4100 + 13 scattered fill
-replicators at ±2000..6000) + full-cell-fill (tiles overlap vertically) don't reproduce it.
-DO NOT re-decode the camera — it's solved in the WIP diffs. Pick up via todo T-qd1814800: decode
-Motion's replicator cell SIZING (pitch = span/(n-1)=4100 vs span/cols=2733? neither matches the
-touching-tile width 2133 implied by the vertical pitch — the pitch model is still wrong) and
-whether the scattered edge replicators are off-screen decorations FCP culls. NOTE: Video_Wall
-already has the SMALLEST L1 headroom (headless oracle only 13.37) so ≥13 needs near-perfect tiles.
-
-
 ### Oracle validity per slug (pick your method before you start)
 Headless FCP (`fct score <slug> --source headless`) is a TRUSTWORTHY per-slug oracle for most
 clone/replicator slugs (it scores 13–32 dB vs the GUI GT), so `headless − engine` measures the
@@ -656,31 +616,21 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
-- 2026-07-16b  ⛔ VIDEO_WALL 4-part fix BLOCKED (T-qvidwall01) — all 4 parts (wrap-cancel + 3-key
-              near→far→near dolly + far-pose + cell-fill) DECODED & VERIFIED in isolation (endpoints
-              f00 8→18.5, f23 9→13.2 dB) but net only +0.02 (10.16→10.18); reverted (Rule 2d), WIP
-              diffs saved to docs/notes/wip/vw_T-qvidwall01_*.diff. Blocker is now PURELY the tile-grid
-              geometry at the deep-far pose (endpoint gains cancelled by f14-f17 mid losses); GT is a
-              tight 4×4 grid, engine's ±4100-pitch cell-filled tiles overlap & don't match. Filed
-              follow-up T-qd1814800. META (CORRECTED by orchestrator 2026-07-16): the claim that
-              `fct regress` is "render-nondeterministic under parallel JOBS" was MISDIAGNOSED — renders
-              + scoring are proven BYTE-deterministic (Slide 6×=identical, score 5×=identical; see the
-              "gate is DETERMINISTIC" dead-end above). The phantom regressions were an INCOMPLETE/stale
-              frame-set artifact under load-80 thrash, now fixed by the swarm FCT_JOBS=1 default.
-              Engine byte-identical (reverted); gate untouched.
+- 2026-07-16d  ✅ SMEAR (T-qsmear00001) — scene-aware wide-equirect + sub-canvas drop-zone fill-conform.
+              Movements__Smear 11.75->13.98 (+2.23), Wipes__Mask 14.30->17.45 (+3.15); 0 regressions, gate green.
+              The tail-collapse heuristic pointed at the settled-B frames, but DECODE (Rule 1) found the bug is a
+              MIS-CLASSIFIED RENDER PATH, not a timemap wrap/clamp. Smear's project canvas is 4096x2160 (ar 1.896)
+              but it is a plain HD transition (Transition-A card = 1920x1080). isWideEquirect(4096,2160) returned
+              TRUE (width>=1.6*height catches 1.896:1), so Smear took the 360°/VR panorama path: fill-conform
+              SKIPPED + cropCenter downscale -> A/B rendered native-size + centred -> the whole transition (most
+              visibly the settled-B tail) LETTERBOXED (~52/32px black margins) vs the frame-filling GUI GT.
+              FIX (generic, no hardcode): isEquirectScene(scene) = wide canvas AND every A/B drop zone itself wide
+              (>=3072px) -> fires on the true panorama family (9 built-ins: 360°__* + 360°_Bloom + Squares),
+              EXCLUDES Smear. api.ts downscale + compositor conform gate now key off it; additionally conform
+              sub-canvas A/B cards up to the render buffer. settleBSec=endSec*0.72 confirmed already-optimal (0.80
+              tested worse 11.47<11.69) — NOT a time fix. Residual mid-band (f01-18 ~11-12 dB) is the outgoing-A
+              Scrape/DirBlur streak-over-B (S4 content-persistence) filed as follow-up T-q91bc5e37. Commit: HEAD.
 
-- 2026-07-16d  ✅ CURTAINS (T-qcurtains01) — DONE, +2.34 dB (16.53 -> 18.87), gate 0 regressions / 1 improvement.
-              Root cause = retime-wrap TAIL collapse (f18-f23 held sepia photo A ≈(140,90,60), GT reveals blue
-              photo B ≈(92,106,137) as curtains open). Objects/Curtains is a SEQUENTIAL A→B swap MASKED by a
-              full-frame curtain graphic (Media/Sequence 3.mov, 96-frame yuvA clip on 3 media leaves alive
-              0->endSec): Transition A dies at 0.701s (=wrapSec) while curtains close, B is born LATE at 2.102s
-              (~1.4s gap) then lives to endSec, curtains open on B. The wrap-to-frame-0 froze the whole tail to
-              0.701s (curtains OPEN on A) so B never revealed. FIX (timemap.ts): new local `maskedSwapSettleB`
-              wrap-CANCEL — signature A.out≈wrapSec, B.in > A.out+2fr (sequential, NOT crossfade), B.out≥endSec-1fr,
-              ≥1 normal-blend media leaf alive to endSec. Distinct from pureCrossfadeSettleB (overlapping 2-zone).
-              Verified fires ONLY on Curtains (Leaves/Drop_In/Pinwheel all have B.in≈0 = overlapping, excluded).
-              REMAINING (filed follow-up): curtain graphic renders BLACK not RED (~15.6 dB mid plateau) — the
-              PAEColorize/tint on "Curtains Group" isn't reaching the .mov media (separate compositor issue).
 
 - 2026-07-16c  ⛔ SLIDE_IN (T-qslidein001) — BLOCKED, decode-only (no engine change), 3-subsystem build too
               big for one net-positive tick. CENSUS (Rule 7/8) CONFIRMED the brief premise and reconciled the

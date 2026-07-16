@@ -1,0 +1,14 @@
+{
+  "id": "T-q91bc5e37",
+  "title": "Smear mid-transition: streak Scrape-displaced A over held B (S4 content-persistence)",
+  "project": "fct",
+  "goal": "After T-qsmear00001 (conform-fill) Smear is 13.98 dB with the tail settled on full-frame B, but mid-transition f01-f18 (~11-12 dB) still renders the outgoing A as DISSOLVED-to-clean-B. GUI GT instead STREAKS the outgoing A across B: A is displaced by its Scrape/PAEScrape filter (inverse-map warp, Center-X curve animates t=0.77-0.87, Rotation=3pi/2 axis +X, Amount=70) + blown out by a Directional Blur (Amount keyframes t=0.801->1.134) \u2014 a directional smear-WIPE revealing B underneath (see fct-gui-gt/Movements__Smear/frame_0019.jpg: warm A streaks off the RIGHT while B fills in from the left). Today the retime-wrap freezes A to clean frame-0 for the mid frames (colour-closer to warm A than cool B, ~11.4 dB) and heldIncomingB shows clean B in the tail. To close the mid-band the engine must KEEP the outgoing A drop zone ALIVE past its 0.434s timeout and composite A (with its animating Scrape displacement + Directional Blur, evaluated at un-wrapped filterTime) OVER the held B \u2014 the S4 filter-reveal content-persistence class flagged in ROADMAP. Scrape/DirBlur filter math is already verified ~39 dB vs headless FCP (per minimize manifest); the gap is purely the A/B continuing-reveal compositing, not the filters. This is a subsystem (multi-tick), not an isolated fix \u2014 do NOT ship net-negative; build A-persistence generically (fires on the hasFilterRevealSettleB family: Bloom/Combo Spin/Black Hole/Smear).",
+  "slugs": [
+    "Movements__Smear"
+  ],
+  "after": "T-qsmear00001",
+  "status": "open",
+  "created_by": "T-qsmear00001",
+  "created_at": "2026-07-16T12:55:35+00:00",
+  "notes": ""
+}

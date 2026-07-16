@@ -31,11 +31,11 @@
   "Movements__Reflection": 14.32,
   "Movements__Rotate": 14.76,
   "Movements__Scale": 19.84,
-  "Movements__Smear": 11.75,
+  "Movements__Smear": 14.01,
   "Movements__Swing": 12.89,
   "Movements__Switch": 12.31,
   "Objects__Arrows": 27.16,
-  "Objects__Curtains": 18.87,
+  "Objects__Curtains": 16.53,
   "Objects__Leaves": 22.02,
   "Objects__Squares": 13.11,
   "Objects__Veil": 21.49,
@@ -63,5 +63,5 @@
   "Stylized__Slide_In": 12.11,
   "Stylized__Up-Over": 11.64,
   "Wipes__Diagonal": 17.43,
-  "Wipes__Mask": 14.3
+  "Wipes__Mask": 17.51
 }
