@@ -12,16 +12,21 @@ the next eligible task. A reflection agent every 30 min makes the workers faster
 - **Worker sub-agents do the actual work**, one task each, fully isolated, taking their
   task all the way to a pushed commit on origin/main via the self-merge contract
   (`agent_brief.md`).
-- **Work comes from two places, merged by the scheduler:**
-  1. the ROADMAP flat task table (human-authored `ID  STATUS  TASK` rows), and
-  2. the **appendable TODO queue** (`fct/swarm/todo/*.json`, one JSON file per task).
+- **Work comes from the appendable TODO queue** (`fct/swarm/todo/*.json`, one JSON file
+  per task) — the single source of per-slug work (one claimable item per transition below
+  the 17 dB "good" bar, each with its diagnosis + next step + DoD). The scheduler ALSO
+  reads any legacy `ID  STATUS  TASK` fenced table in the ROADMAP for backward compat, but
+  the ROADMAP no longer carries per-slug task rows: it holds the RULES, leverage ordering,
+  methodology, done-map, and durable dead-ends (guardrails that must survive a slug's
+  completion). See the ROADMAP's "Work items (detail) -> now the swarm TODO queue" pointer.
 - **Workers FEED the queue.** When a worker discovers follow-up work it is not doing in
   its own task (a decode that opens a new fix, a subsystem too big for one task, a
   regressed-but-already-imperfect slug per ROADMAP Rule 11, a capability worth unit-
   testing), it APPENDS a new item via `python3 -m fct.swarm.todo add ...` and pushes it.
   Future agents pick it up. This is what lets the swarm run open-endedly without a human
-  re-authoring the ROADMAP each time. One file per item = concurrent producers never
-  merge-conflict.
+  re-authoring the plan each time. One file per item = concurrent producers never
+  merge-conflict. A worker that PROVES a fix net-negative also records the dead-end in the
+  ROADMAP's "Durable findings & dead-ends" section so no future agent re-attempts it.
 
 ## The TODO queue
 ```bash

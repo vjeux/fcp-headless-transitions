@@ -1,18 +1,28 @@
 # ROADMAP — full-engine reverse-engineering plan (rebuilt 2026-07-15)
 
-This is the living plan and the ONLY tracking file. The previous ROADMAP grew to 3,841
-lines and — critically — was ORDERED by filter-completeness, so "work the next TODO
-top-down" kept steering every tick into low-leverage filter documentation while the
-engine mean sat FLAT at 14.59 dB for many ticks. That was a local optimum. This rebuild
-re-orders the work by **measured dB leverage across the WHOLE engine** (parser →
-evaluator → compositor → timemap), not by which filter is next in a list.
+This is the living plan. It holds the **rules, leverage ordering, methodology, done-map,
+and durable dead-ends** — the parts that must survive any individual slug's completion. The
+**per-slug forward work** (one claimable item per transition below the 17 dB bar, each with
+its diagnosis + next step + DoD) lives in the appendable **swarm TODO queue**
+(`fct/swarm/todo/*.json`, `python3 -m fct.swarm.todo list`), NOT here — that is the single
+source of truth for "what to do next per slug" and avoids duplicating it in two places.
+
+The previous ROADMAP grew to 3,841 lines and — critically — was ORDERED by
+filter-completeness, so "work the next TODO top-down" kept steering every tick into
+low-leverage filter documentation while the engine mean sat FLAT at 14.59 dB for many ticks.
+That was a local optimum. This rebuild re-orders the work by **measured dB leverage across
+the WHOLE engine** (parser → evaluator → compositor → timemap), not by which filter is next
+in a list.
 
 The full prior plan (all decoded-constant history, 171 progress entries, per-filter RE
 notes) is preserved verbatim in `docs/notes/ROADMAP_ARCHIVE_2026-07-15.md`. Nothing was
 lost; this file is the lean forward plan.
 
-Every work item has a **Definition of Done (DoD)**, a **Verify** command, and a
-**Status**. Update Status in the same commit that does the work.
+Every per-slug work item lives in the TODO queue with its own **Definition of Done (DoD)**
+and target slug; completion is a pushed commit whose subject starts `<id> DONE|DROPPED:`.
+The leverage table (below) is the ORDERING over those items; this file's dead-ends are the
+guardrails. Update the queue item's status + this file's dead-ends in the commit that does
+the work.
 
 ## How the work gets done: the swarm (2026-07-16)
 The engineering is run by a **pool of Claude Code worker sub-agents** (default 8), each
@@ -280,13 +290,13 @@ below a "good" 17 dB bar). This is the anti-loop ordering: **highest deficit fir
 
 | # | Subsystem (task) | slugs | mean | worst | deficit | status |
 |---|---|---|---|---|---|---|
-| **L1** | **S6-geom — replicator / clone-grid / framing-camera** | 8 | 13.00 | 10.24 | **32.0** | TODO |
-| **L2** | **kinetic-panel coverage** (Lower/Close_and_Open/Up-Over/Panels/Loop) | 7 | 12.73 | 10.19 | **30.1** | TODO |
-| **L3** | **3D-fold Movements** (Switch/Swing/Pinwheel/Reflection/Rotate/Flip/Fall/...) | 12 | 14.65 | 11.96 | **28.7** | TODO |
-| **L4** | **S2/S4 — linear working-space chain + colour** (Bloom/Flash/LensFlare/Static) | 6 | 14.13 | 11.58 | **17.3** | TODO |
-| **L5** | **S5 — gradient generator** (Slide_In/Center_Reveal/Light_Sweep) | 3 | 12.17 | 10.25 | **14.5** | TODO |
-| **L6** | **group Image-Mask reveal** (Center/Heart/Squares) | 3 | 12.98 | 12.35 | **12.1** | TODO |
-| **L7** | **S6-360 — equirect push/slide geometry** | 7 | 17.58 | 14.12 | **10.2** | TODO |
+| **L1** | **S6-geom — replicator / clone-grid / framing-camera** | 8 | 13.00 | 10.24 | **32.0** | queue: 5 items (Video_Wall/Clone_Spin/Combo_Spin/Concentric/3D_Rectangle) |
+| **L2** | **kinetic-panel coverage** (Lower/Close_and_Open/Up-Over/Panels/Loop) | 7 | 12.73 | 10.19 | **30.1** | queue: LEAD Close_and_Open → 4 deps |
+| **L3** | **3D-fold Movements** (Switch/Swing/Pinwheel/Reflection/Rotate/Flip/Fall/...) | 12 | 14.65 | 11.96 | **28.7** | queue: LEAD Switch (Rig/Link) → 7 deps |
+| **L4** | **S2/S4 — linear working-space chain + colour** (Bloom/Flash/LensFlare/Static) | 6 | 14.13 | 11.58 | **17.3** | queue: LEAD 360°_Bloom → Flash/Lens_Flare |
+| **L5** | **S5 — gradient generator** (Slide_In/Center_Reveal/Light_Sweep) | 3 | 12.17 | 10.25 | **14.5** | queue: Slide_In LEAD; Center_Reveal after L8 |
+| **L6** | **group Image-Mask reveal** (Center/Heart/Squares) | 3 | 12.98 | 12.35 | **12.1** | queue: Center + Squares (Heart ≥17, done) |
+| **L7** | **S6-360 — equirect push/slide geometry** | 7 | 17.58 | 14.12 | **10.2** | queue: LEAD 360°_Push → Slide/Divide/Wipe |
 | **L8** | **S8 — procedural shape-mask write-on** (Diagonal pair, Wipes/Mask) | 3 | 13.75 | 13.47 | 9.8 | mostly SHIPPED |
 | — | colour/xfade/blur/timemap residuals | 16 | — | — | <9 each | opportunistic (S7) |
 
@@ -298,381 +308,218 @@ slugs on the current tree, re-measured 2026-07-15) — gated OFF until the onset
 
 ---
 
-## Work items (detail)
+## Work items (detail) → now the swarm TODO queue
 
-### L1 — S6 replicator / clone-grid / framing-camera geometry  [IN PROGRESS · HIGHEST LEVERAGE]
-**Slugs:** Video_Wall (10.24), Clone_Spin (10.32), Combo_Spin (11.21), Multi (11.85),
-Concentric (12.67), Vertigo (19.76), Duplicate (21.34), 3D_Rectangle (16.79).
+Per-slug work items (diagnosis + next concrete step + DoD) are **no longer listed here** —
+they live in the appendable swarm queue as one claimable item per slug scoring below the
+17 dB "good" bar:
 
-**⭐ HEADLESS-ORACLE GAP RANKING (decoded 2026-07-15 — where the findable engine bugs are).**
-Headless FCP (ozengine) scores the SAME .motr against the GUI GT MUCH higher than the TS engine on
-the clone/replicator slugs — so headless is a trustworthy per-slug oracle here and each gap is a
-concrete engine bug (not a GT/oracle artifact). Ranked by headless−engine gap:
-  | slug | headless | engine | gap |
-  | 3D_Rectangle | 32.25 | 16.79 | **15.46** |
-  | Multi | 19.48 | 11.85 | 7.63 (SKIP — see below) |
-  | Squares | 17.70 | 13.11 | 4.59 |
-  | Combo_Spin | 14.54 | 11.21 | 3.33 |
-  | Clone_Spin | 13.54 | 10.32 | 3.22 |
-  | Video_Wall | 13.37 | 10.24 | **3.13 (SMALLEST!)** |
-  **Lesson: Video_Wall — the slug 7 prior ticks were spent on — has the SMALLEST headroom of the
-  group.** The leverage is in 3D_Rectangle / Squares / Combo_Spin, NOT Video_Wall. Use
-  `fct score <slug> --source headless` as the per-slug reachability check BEFORE picking a target.
+```
+python3 -m fct.swarm.todo list            # all queued work
+python3 -m fct.swarm.todo list --status open
+cat fct/swarm/todo/<id>.json              # full brief for one item
+```
 
-**MULTI (11.85) — NOT A REAL TARGET (decoded 2026-07-15).** Its GUI GT is a DEGENERATE capture:
-every frame is FCP's empty-drop-zone PLACEHOLDER graphic (uniform gray 106,106,106 with a
-down-arrow), not real photo content — headless renders the same gray placeholder (mean 60). The TS
-engine correctly fills the 6 panels with the A/B photos, so it "diverges" from a GT that shows no
-content. Matching the placeholder arrows is not reverse-engineering. Skip Multi; its 7.63 dB "gap"
-is unreachable/meaningless. (If the GT is ever re-captured with real drop-zone media, revisit.)
+The queue is the single source of truth for *what to do next per slug*. This ROADMAP keeps
+only what must survive a slug's completion and isn't captured by a transient todo: the
+**rules** (above), the **leverage ordering** (below), the **capability-catalog methodology**
+(above), the **done-map** (Reference section), and the **durable findings & dead-ends**
+(below). When a worker finishes a slug, its todo closes — but the dead-ends it proved stay
+here so no future agent re-attempts a measured-negative fix.
 
-**3D_RECTANGLE (16.79) — ROOT CAUSE DECODED + one fix approach REFUTED (2026-07-15).**
-Structure (census + `_trace_layers`): a "Pieces" group of 9 "Clone Layer" nodes, each cloning a
-"Shape 0X" that is a clone of Transition A carrying its OWN Image Mask "Inside 0X" (nested filled
-rectangles at scale 0.21/0.31/…/0.91; coverage 4.4%→82.9%, cleanly nested & centred). Each Clone
-Layer is pushed to its own ANIMATED world-Z (0 at t=0 → −768..+601 at t=1.5) and seen through a
-Camera. GT = flat photo A that grows a SPIRAL of thin blue-bordered nested rectangle FRAMES inward;
-the borders are photo B showing in thin seams, interiors stay photo A. The engine renders ~flat A
-the whole transition (f18 9.75 dB vs headless 35) because **`resolveCloneImage` (masks.ts) resolves
-a clone's source PIXELS but DROPS the Image Mask on the source layer** — so every Piece paints the
-FULL photo A instead of its rectangle slice.
-  **REFUTED FIX (net-negative, reverted — do NOT re-attempt as-is):** (a) bake the source layer's
-  Image-Mask alpha into the resolved clone pixels in `renderCloneLayer` (keyed on the clone SOURCE
-  having an `imageMaskSourceId` — generic), + (b) paint the Pieces group far→near by world-Z
-  (painter's order). Result: f00 jumped 18.59→**37.87** (the mask IS correct at Z=0) BUT mid-frames
-  regressed → 3D_Rectangle 16.79→**15.60** and EVERY affected slug regressed slightly (Pinwheel
-  13.27→13.10, Arrows 27.16→26.96, Combo_Spin 11.21→11.15, Concentric 12.67→12.53, Duplicate
-  21.34→21.25, Vertigo 19.76→19.60, Center 12.35→12.29, Center_Reveal 15.24→15.10, Light_Sweep
-  17.10→16.98). 0 improvements, 10 regressions. Reverted per Rule 2.
-  **WHY IT FAILS:** the reveal is NOT filled A-rectangles occluding by painter/Z order. The visible
-  structure is thin ROTATING rectangle OUTLINES with photo B in the borders — a true per-pixel 3D
-  depth-tunnel where (i) each masked rectangle sits at its own animated Z, (ii) the rectangles
-  slightly ROTATE (the spiral), so their edges misalign and B (the base, Z≈−143..−600) shows in the
-  thin seams, and (iii) occlusion is per-PIXEL by depth, not per-layer painter's order (the Z-order
-  does NOT correlate with mask size — measured: Z −768→+601 vs coverage 4.4%→82.9% are uncorrelated).
-  Baking a full-frame filled mask + layer-Z-sort cannot produce the thin B-seam borders — adjacent
-  filled A-rectangles fully overlap (smaller inside larger, both photo A) → no seam, ≈flat A.
-  **NEXT (real subsystem, multi-tick):** a proper Z-BUFFERED composite of the 9 masked+rotated
-  rectangle quads (per-pixel depth test against the B base), OR decode whether FCP renders each
-  "Shape 0X" to its own texture (mask baked) and the depth compositor resolves the seams. The
-  clone-source-mask BAKE (step a) is correct in isolation (f00 +19 dB) and should be RE-USED once
-  the depth composite is built — it is only net-negative WITHOUT the depth/rotation seam mechanism.
-  `resolveImageMaskAlpha(rctx, sourceLayer.imageMaskSourceId, …)` already exists and gives the right
-  nested-rectangle alpha; the missing piece is the depth/rotation seam composite, not the mask.
-**What it is:** these compose off-canvas tiles/clones through a framing camera (look-at pose)
-and/or a replicator grid. Census: Video_Wall = 14 Replicators + Camera + framing; Clone_Spin =
-9 Timeline-Pin tiles + Camera(Framing beh); Multi = 6 Images + Rig; Concentric = 44 Clone Layers
-+ 26 Image Masks; Combo_Spin = 6 blade groups (C1-C6) each masked + replicators.
+The leverage table (which subsystem to drain first) is the ordering; the queue's `after:`
+deps encode the shared-root leads (L2 Close_and_Open, L3 Switch Rig/Link, L7 360°_Push
+equirect, L4 360°_Bloom linear-chain, L8 Wipes/Mask discriminator → Center_Reveal).
 
-**⭐ HEADLESS-ORACLE RANKING (decoded 2026-07-15 — use this to pick the next L1 target).** Headless
-FCP (`fct score --source headless`) is a TRUSTWORTHY oracle for these slugs (it scores 13–32 dB vs
-the GUI GT), so `headless − engine` measures the FINDABLE engine gap per slug:
+---
+
+## Durable findings & dead-ends (survive todo completion — DO NOT re-attempt the ⛔ items)
+
+These are the measured-negative attempts and non-obvious decode facts a worker needs BEFORE
+starting a slug. A todo may point here ("DO NOT re-attempt X — see ROADMAP dead-ends"); the
+full measured record lives here, once.
+
+### Oracle validity per slug (pick your method before you start)
+Headless FCP (`fct score <slug> --source headless`) is a TRUSTWORTHY per-slug oracle for most
+clone/replicator slugs (it scores 13–32 dB vs the GUI GT), so `headless − engine` measures the
+FINDABLE engine gap. L1 ranking (decoded 2026-07-15):
+
 | slug | headless | engine | gap | note |
 |---|---|---|---|---|
-| 3D_Rectangle | 32.25 | 16.79 | **15.46** | biggest gap; engine renders ~flat A (reveal missing) — see dead-end below |
+| 3D_Rectangle | 32.25 | 16.79 | **15.46** | biggest gap; engine renders ~flat A (reveal missing) |
 | Multi | 19.48 | 11.85 | 7.63 | ⚠️ **DEGENERATE GT** — do NOT target (below) |
-| Squares | 17.70 | 13.11 | 4.59 | replicator shuffle-order (known) |
+| Squares | 17.70 | 13.11 | 4.59 | ⚠️ headless order does NOT match GT (corr 0.102) — NOT a valid oracle |
 | Combo_Spin | 14.54 | 11.21 | 3.33 | 6-blade replicator spiral |
 | Clone_Spin | 13.54 | 10.32 | 3.22 | framing camera |
-| Video_Wall | 13.37 | 10.24 | **3.13** | SMALLEST gap — 7 diagnosis ticks spent here were low-ROI |
-Video_Wall is the LOWEST-leverage L1 slug by findable gap, not the highest — the 7 prior
-Video_Wall-only ticks were the Rule-9 drift trap. Prefer the big-gap slugs.
+| Video_Wall | 13.37 | 10.24 | **3.13** | SMALLEST gap — the 7 prior Video_Wall-only ticks were the Rule-9 drift trap |
 
-**MULTI — DEGENERATE GUI GT, NOT A REAL TARGET (decoded 2026-07-15).** Multi's `~/fct-gui-gt`
-capture shows FCP's EMPTY-DROP-ZONE PLACEHOLDER graphic (a uniform gray field R=G=B≈106 with
-down-arrow glyphs) for the inner tiles, NOT real photo content — the GUI capture was taken with
-unfilled drop zones. Headless renders the same gray (mean 60). The TS engine correctly fills the
-tiles with the A/B photos, so it "diverges" from a placeholder. Matching the placeholder arrows is
-not reverse-engineering; the 7.63 "gap" is a capture artifact. SKIP Multi until its GT is re-captured
-with real media. (Verified: GT f10 meanRGB=[106,106,106] std 58, pure grayscale placeholder.)
+Lesson: prefer the BIG-gap slugs (3D_Rectangle, Squares, Combo_Spin). Video_Wall has the
+smallest findable headroom of the L1 group. **Exception: Squares** — headless does NOT
+reproduce the GT reveal order (correlation 0.102), so for Squares the GUI GT is the ONLY
+oracle (the symmetric-order decode below is from the GUI GT, not headless).
 
-**3D_RECTANGLE — clone-source Image-Mask + Z-painter-order: NET-NEGATIVE DEAD-END (measured +
-reverted 2026-07-15).** Root cause CORRECTLY decoded: the visible "Pieces" group holds 9 "Clone
-Layer" nodes, each cloning a hidden "Shape 0X" that is photo-A clipped to a nested rectangle Image
-Mask ("Inside 0X", scale 0.2..0.9), each pushed to its own ANIMATED world-Z (−768..+601 at t=1.5).
-`resolveCloneImage` returns the source PIXELS but DROPS the source layer's Image Mask, so every clone
-paints full photo A → the engine renders ~flat A and the whole nested-rectangle reveal is missing
-(engine f18 9.75 dB vs headless 35). Two fixes were built + MEASURED on the full affected set:
-  (1) bake the clone SOURCE's Image Mask into the resolved pixels in `renderCloneLayer` (conform to
-      full frame, `resolveImageMaskAlpha`, `applyMask`);
-  (2) paint the Pieces clones FAR→NEAR by ascending world-Z (painter's order) via a `depthPieceStack`
+### ⛔ MULTI — DEGENERATE GUI GT, not a real target (decoded 2026-07-15)
+Multi's `~/fct-gui-gt` capture shows FCP's EMPTY-DROP-ZONE PLACEHOLDER graphic (uniform gray
+R=G=B≈106 with down-arrow glyphs; f10 meanRGB=[106,106,106] std 58) for the inner tiles, NOT
+real photo content — captured with unfilled drop zones. Headless renders the same gray (mean
+60). The TS engine CORRECTLY fills the tiles with the A/B photos, so it "diverges" from a
+placeholder. Matching placeholder arrows is not reverse-engineering; the 7.63 "gap" is a
+capture artifact. SKIP until the GT is re-captured with real media.
+
+### ⛔ 3D_RECTANGLE — clone-source Image-Mask + Z-painter-order is NET-NEGATIVE (measured + reverted 2026-07-15)
+Root cause CORRECTLY decoded: a "Pieces" group of 9 "Clone Layer" nodes, each cloning a hidden
+"Shape 0X" = photo-A clipped to a nested rectangle Image Mask ("Inside 0X", scale 0.2..0.9),
+each pushed to its own ANIMATED world-Z (−768..+601 at t=1.5), seen through a Camera.
+`resolveCloneImage` (masks.ts) returns the source PIXELS but DROPS the source layer's Image
+Mask, so every clone paints full photo A → engine renders ~flat A, the whole nested-rectangle
+reveal missing (engine f18 9.75 dB vs headless 35). Two fixes built + MEASURED:
+  (1) bake the clone SOURCE's Image Mask into the resolved pixels in `renderCloneLayer`
+      (keyed on `imageMaskSourceId` — generic; `resolveImageMaskAlpha`+`applyMask`);
+  (2) paint the Pieces clones FAR→NEAR by world-Z (painter's order) via a `depthPieceStack`
       branch keyed on clone children whose source carries an Image Mask + a Z spread.
-RESULT: f00 jumped 18.59→**37.87** (mask correct at Z=0, huge) BUT the mid-transition regressed
-(f04–f18 all down), NET **16.79→15.60 (−1.19)**, and EVERY other affected slug regressed too
-(Pinwheel −0.17, Arrows −0.20, Concentric −0.14, Duplicate −0.09, Vertigo −0.16, Center −0.06,
-Center_Reveal −0.14, Light_Sweep −0.12; 0 improvements). REVERTED per Rule 2.
-  **WHY it's net-negative (the real GT mechanism, decoded from GT f1–f8):** the reveal is NOT filled
-  photo-A rectangles — it is a spiral of THIN BLUE (photo-B) RECTANGLE OUTLINES that grow + rotate
-  inward (a tunnel of concentric rectangle FRAMES; interior stays A, the thin frames show B). The
-  masked-A-rectangle-stack model produces overlapping FILLED A rectangles (adjacent nested rects are
-  both photo A → no visible seam → collapses to flat A). The borders come from (a) the per-piece
-  Z-parallax opening thin B-gaps between mis-registered rectangle edges AND (b) the "Shading" group
-  (Top/Left/Right shapes at op 0.48) drawing the bevel edges — a per-pixel 3D DEPTH composite +
-  edge-shading subsystem, NOT a layer-painter's order. Baking the mask alone (or with Z-sort) can't
-  reproduce it. NEXT ATTEMPT must model the depth-composite (z-buffer or the exact FCP occlusion) AND
-  the Shading-group bevel, and verify the thin-B-border spiral against GT — a whole subsystem, not a
-  one-line mask fix. Do NOT re-attempt the bake-source-mask shortcut; it is measured net-negative.
+RESULT: f00 jumped 18.59→**37.87** (mask correct at Z=0) BUT mid-transition regressed → net
+16.79→**15.60 (−1.19)** and 10 slugs regressed, 0 improved (Pinwheel 13.27→13.10, Arrows
+27.16→26.96, Combo_Spin 11.21→11.15, Concentric 12.67→12.53, Duplicate 21.34→21.25, Vertigo
+19.76→19.60, Center 12.35→12.29, Center_Reveal 15.24→15.10, Light_Sweep 17.10→16.98). Reverted.
+**WHY IT FAILS:** the reveal is NOT filled A-rectangles occluding by painter/Z order — it is a
+spiral of THIN photo-B rectangle OUTLINES; interiors stay A, thin frames show B. Sources:
+(i) each masked rectangle at its own animated Z, (ii) rectangles slightly ROTATE (the spiral)
+so edges misalign and B (base Z≈−143..−600) shows in thin seams, (iii) occlusion is per-PIXEL
+by depth (Z −768→+601 vs coverage 4.4%→82.9% are UNCORRELATED, so layer-Z-sort is wrong).
+Adjacent filled A-rectangles fully overlap (smaller inside larger, both A → no seam → flat A).
+**NEXT (real subsystem):** a per-pixel Z-BUFFERED composite of the 9 masked+rotated rectangle
+quads against the B base + the "Shading" group (Top/Left/Right shapes at op 0.48) bevel edges.
+The clone-source-mask BAKE (step 1) is correct in isolation (f00 +19 dB) and should be RE-USED
+once the depth composite exists — it is only net-negative WITHOUT the depth/rotation seam.
 
-**CONCENTRIC — STRUCTURAL FIX SHIPPED 2026-07-15 (3ac72b0 + 821ad0b):** was rendering vertical
-STRIPES instead of concentric rings. THREE bugs, all now fixed:
-  1. **Static-value drop (the real root cause, deeper than the old BUG-A/B notes).** The ring-mask
-     Circles carry static Scale `<parameter default="1" value="1.27"/>` (1.27/1.0/0.75/0.5/0.26/0.15).
-     `resolveWithRetime` returned `default`(1.0) not `value` for empty-curve-with-value when
-     retimeProgress==0 — and a layer with NO retime curve is retimeProgress==0 EVERY frame, so all
-     ring circles collapsed to radius 803. Fix: thread `hasRetime`; static `value` authoritative when
-     !hasRetime. Gate +2 (Dissolves_Divide +1.16, Light_Sweep +0.79), 0 reg.
-  2. **Mask perspective** (masks.ts): resolveImageMaskAlpha now rasterizes the non-stroke mask shape
-     through the SAME cameraZ perspective divide as the content (was flat-affine → mis-registered on
-     3D-swung rings).
-  3. **Concentric draw order + 3D-swing guard removed** (index.ts): paint masked ring groups by
-     DESCENDING mask radius (largest bottom → smallest top) via `maskSourceWorldRadius`; deleted the
-     `maskSrcIsFlat` guard + dead `transformHas3D`. Engine now renders concentric rings (verified
-     visually). Metric flat 12.62→12.67 — ring GEOMETRY/SIZE/ORDER/rotation-timing all now correct.
-  **REMAINING (Concentric, next):** the per-ring A/B content PHASE. GT shows an alternating woven
-  bullseye (adjacent rings show different A/B phase, ~5-6 distinct rings mid-transition); the engine's
-  inner rings settle to B early (Clone A op→0) so they merge into the B background and only ~2 rings
-  show. The ring rotation curves (0→π, inner-first staggered wave) are CORRECTLY evaluated (verified
-  vs .motr keyframes); the divergence is the Clone-A/Clone-B crossfade-vs-rotation coupling within
-  each ring group. Not a big-subsystem blocker — a per-ring crossfade-phase decode.
-  **CROP-ON-MASK-GEOMETRY DEAD-END (decisively refuted 2026-07-15, decode-don't-fit).** The ring-mask
-  Circles/Clone-Layers DO carry a real Crop id=216 (half-disc pattern: left copies get Right=900,
-  right copies get Left=900 — each ring split into a left+right copy group, each Image-Mask-clipped to
-  its half-disc). Hypothesis: honoring that crop on the mask geometry would carve the woven seam. It
-  does NOT: (a) the MATH refutes it — Circle 1 verts span ±803.5, so Right=900 keeps local x∈[−803.5,
-  −96.5] and Left=900 keeps [96.5,803.5], leaving a ~193-local-unit CENTRAL GAP ≈12% of ring diameter
-  (~230px at the outer ring); GT shows CONTINUOUS rings with only a thin ~5–15px seam. (b) the GUI-GT
-  gate refutes it — implementing the crop clip (Sutherland–Hodgman against the transformed crop quad in
-  shapes.ts, wired through resolveImageMaskAlpha entries in masks.ts) rendered Concentric 12.67→**10.42**
-  (−2.25, net-negative). CONCLUSION: FCP does NOT honor Crop id=216 on these mask-geometry Shapes/
-  Clone-Layers — SAME node-class finding as the proven drop-zone-Image and Clone crop ignore (Crop only
-  applies on the general-layer-compositor node types, not mask-source geometry). The half-disc seam in
-  GT comes from the per-ring A/B crossfade PHASE (Clone A src=10008 / Clone B src=10006 stacked, no
-  per-clone opacity — the fade is Rig/timing-driven), NOT from crop. Reverted per Rule 2d. Do NOT
-  re-attempt crop-on-mask-geometry; the remaining gap is the A/B crossfade-phase subsystem above.
+### CONCENTRIC — structural fix SHIPPED (3ac72b0 + 821ad0b), + one dead-end
+Was rendering vertical STRIPES instead of concentric rings. THREE bugs fixed:
+  1. **Static-value drop (root cause).** Ring-mask Circles carry static Scale
+     `<parameter default="1" value="1.27"/>` (1.27/1.0/0.75/0.5/0.26/0.15). `resolveWithRetime`
+     returned `default`(1.0) not `value` when retimeProgress==0 — and a layer with NO retime
+     curve is retimeProgress==0 EVERY frame, so all ring circles collapsed to radius 803. Fix:
+     thread `hasRetime`; static `value` authoritative when !hasRetime. Gate +2 (Dissolves_Divide
+     +1.16, Light_Sweep +0.79), 0 reg.
+  2. **Mask perspective** (masks.ts): `resolveImageMaskAlpha` now rasterizes the non-stroke mask
+     shape through the SAME cameraZ perspective divide as the content (was flat-affine).
+  3. **Draw order + 3D-swing guard removed** (index.ts): paint masked ring groups by DESCENDING
+     mask radius (largest bottom → smallest top) via `maskSourceWorldRadius`; deleted the
+     `maskSrcIsFlat` guard + dead `transformHas3D`. Metric 12.62→12.67.
+  **⛔ CROP-ON-MASK-GEOMETRY DEAD-END (refuted 2026-07-15).** The ring-mask Circles/Clone-Layers
+  DO carry a real Crop id=216 (half-disc: left copies Right=900, right copies Left=900). Honoring
+  it does NOT carve the woven seam: (a) MATH — Circle 1 verts span ±803.5, so the crop leaves a
+  ~193-local-unit CENTRAL GAP (~230px), but GT shows CONTINUOUS rings with a thin ~5–15px seam;
+  (b) GATE — implementing the crop clip (Sutherland–Hodgman in shapes.ts via masks.ts) rendered
+  Concentric 12.67→**10.42 (−2.25)**. FCP does NOT honor Crop id=216 on mask-geometry Shapes/
+  Clone-Layers (same class as the drop-zone-Image + Clone crop ignore). The woven seam comes from
+  the per-ring A/B crossfade PHASE (Clone A src10008 / Clone B src10006 stacked, Rig/timing-driven
+  fade), NOT crop. Do NOT re-attempt crop-on-mask-geometry.
 
-The wall dolly currently frames ~1 tile where GT reveals the full grid; the framing-camera
-pose (`compositor/geometry.ts` + `evaluator/framing.ts`, `FRAMING_VIEW_ENABLED`) is partial.
-Combo_Spin's 6-blade counter-rotating pinwheel NOW RENDERS (spin subsystem shipped 2026-07-16a,
-11.21→12.32); its remaining gap is the per-blade A/B fade-crossfade timing (reveals B too early
-mid-transition), not the spin geometry.
+### VIDEO_WALL — deeper root cause (the "framing pose" diagnosis was incomplete, decoded 2026-07-15)
+`timeMap.remap()` COLLAPSES ALL scene times to 0: `buildTimeMap` sets `wrapSec=0.367s` because
+Transition A (drop zone, retimingExtrapolation=1 "wrap") times out at 0.367s, so the retime-wrap
+loops the playhead to frame-0. But Video_Wall's transition is authored by the CAMERA DOLLY (two
+Framing behaviors to 1.969s), NOT the drop-zone crossfade — so EVERY frame evaluates at t=0, a
+static pose that coincidentally scores 10.24. GT is a near→far→near dolly. FOUR parts must land
+TOGETHER (each partial regresses vs the accidental frozen 10.24 — see the slug's
+`fct/minimized/…/manifest.json` `decode_2026_07_15_wrap_freeze`):
+  1. **timemap.ts** — cancel the drop-zone wrap when the scene has Framing behaviors (factory 3),
+     via a `hasFramingCamera()` helper (fires on Video_Wall 0.367≪end; Clone_Spin 1.869≈end
+     negligible). *Verified correct in isolation.*
+  2. **framing.ts `resolveFramedWallPose`** — far dist = the PROXY framePose eye distance (eye
+     Z≈5109 where wall half-width ≈4100 fills the 45° frame), near→far→near triangle. *Verified.*
+  3. **WALL PLACEMENT (the real blocker)** — the 14 replicators must collectively fill a DENSE
+     grid at the far pose (engine renders ~5 sparse tiles, frame mean ~30–50 vs GT ~90–130).
+  4. **camera orientation / 3-KEY ANCHOR PATH** — proxy fwd=(0.069,0.422,0.904); the dolly likely
+     follows STATIC A-tile pose → proxy/wall → B-tile pose (Motion Transition type=3), NOT one
+     wall-centre anchor (the WIP single-anchor made the near ends frame EMPTY space).
+Parts 1+2 are decoded + verified-in-isolation; a landing tick MUST also build part 3 so the
+combined change is net-positive — do NOT ship 1+2 alone (regresses).
 
-**VIDEO_WALL — DEEPER ROOT CAUSE DECODED 2026-07-15 (the recorded "framing pose" diagnosis was
-incomplete).** The engine's `timeMap.remap()` COLLAPSES ALL scene times to 0 for Video_Wall:
-`buildTimeMap` sets `wrapSec=0.367s` because Transition A (a drop zone with retimingExtrapolation=1
-"wrap") times out at 0.367s, so the retime-wrap loops the playhead back to frame-0 past that. But
-Video_Wall's transition is authored by the CAMERA DOLLY (two Framing behaviors running to
-animationEnd=1.969s), NOT the drop-zone crossfade — so EVERY rendered frame evaluates at t=0, a
-single static pose. The frozen-at-0 render coincidentally scores ~10.24 dB (it holds GT's near-tile
-f0 look); UNFREEZING it (cancel the wrap for framing scenes) drops to ~9.0 because the framing pose
-AND the wall placement are also wrong, so the now-animating dolly is wrong throughout. The GT is a
-near→far→near dolly (f0 one tile A near; f4–f16 dolly OUT to the full grid, tiles crossfade A→B;
-f20–f23 dolly IN to one tile B near). FOUR parts must land TOGETHER to net-improve (each partial
-regresses vs the accidental frozen 10.24 — see `fct/minimized/Replicator-Clones__Video_Wall/manifest.json`
-`decode_2026_07_15_wrap_freeze`):
-  1. **timemap.ts** — cancel the drop-zone wrap when the scene has Framing behaviors (factory 3);
-     a `hasFramingCamera()` helper. Fires only on Video_Wall (0.367 ≪ end) and Clone_Spin (1.869 ≈
-     end, negligible). *(Verified correct in isolation: unfreezes time.)*
-  2. **framing.ts `resolveFramedWallPose`** — far dist = the PROXY framePose eye distance from the
-     wall anchor (proxy at world Z≈5711 → eye Z≈5109, where the wall half-width ≈4100 fills the 45°
-     frame — the full-grid reveal), NOT the single content-tile fit (~2341, which barely dollies);
-     schedule = near→far→near triangle over the two behavior windows. *(Verified correct in isolation.)*
-  3. **WALL PLACEMENT — the real remaining blocker.** The 14 replicators must collectively populate a
-     DENSE grid that fills the frame at the far pose. Today the engine renders only ~5 sparse tiles on a
-     mostly-black frame (frame means ~30–50 vs GT ~90–130). Pin-1 replicator has the 3×3 (9 inst) at
-     origin; the other 13 carry 1–3 edge/fill tiles at scattered (2000–6000) positions. Need to verify
-     every instance renders, resolves its A/B cell content, and lands on-screen through the oblique
-     proxy-orientation camera.
-  4. **camera orientation** — proxy fwd=(0.069,0.422,0.904) tilts the view (real: GT tiles show 3D
-     perspective); the eye dollies along fwd from the wall centre and must keep the wall centred/on-screen
-     (tiles slid off in the WIP attempt).
-  5. **3-KEY ANCHOR PATH (found while iterating, likely the correct model).** The dolly is NOT a single
-     wall-centre anchor — it follows the TWO Framing targets plus the static start: at t=0 the camera is
-     at its STATIC pose (world (2050,−2390,23), sitting right on the Transition A tile → frames photo A
-     near); "Frame framer" moves it to frame the far proxy (→ wall reveal); "Frame B" moves it to frame
-     the Transition B tile (2054,3596 → photo B near). So the near ENDS use DIFFERENT anchors (A tile,
-     then B tile), the far MIDDLE uses the wall/proxy — a 3-key camera path, not one anchor + triangle
-     dolly. The WIP's single wall-centre (0,0,0) anchor made the near ends frame EMPTY space (black
-     f16–f23). Implementing the static→proxy→content keyframe interpolation (Motion Transition type=3,
-     Position Transition Time=1) is likely the clean model; verify the static camera pose frames A.
+### ⛔ WIPES/MASK — two coupled bugs; the naive binding fix is NET-NEGATIVE (measured + reverted 2026-07-15)
+Engine 14.30 vs headless 35.7 (+21 reachable). GT holds photo A (warm) f0–f18 then reveals B
+(cool) only at f23 — a LATE single-shape wipe. TWO independent bugs:
+  1. **A/B binding SWAPPED.** The "Drop Zones" group lists the masked "Transition B" node BEFORE
+     the unmasked base "Transition A", so the doc-order override (parser/footage.ts) binds
+     base→B / masked→A. GUI GT wants base→A (unmasked outgoing) + the single masked layer reveals
+     B. The existing MASKED-REVEAL rule (base→A, masked→B) ONLY fires for REPLICATOR-source masks
+     (Duplicate/Squares); a SHAPE-source mask (Wipes/Mask, Center_Reveal) falls through wrong.
+  2. **animationEndSec INFLATED 4×.** `render(progress)=renderAt(progress·endSec)` uses the
+     keyframe-walk max 5.038s, but the transition span is 1.30s (39f/30fps). The 5.038s comes from
+     the drop-zone Image media-fit params Width(313)/Height(314)/Fit-Factor(318), padded to scene
+     end. So progress 0.5 samples scene-time ~2.52s, past the ~1.0s mask sweep → B fully revealed
+     mid-transition.
+  **NET-NEGATIVE FIX (reverted — do NOT re-attempt as-is):** (a) generalise the masked-reveal
+  binding to ANY single-masked reveal + (b) cap Width/Height/Fit-Factor keyframes to the span.
+  Wipes/Mask improved **14.30→16.49 (+2.19)** and Slide was preserved, BUT it CATASTROPHICALLY
+  regressed **Arrows 27.16→10.46 (−16.7)** and **Vertigo 19.76→11.40 (−8.36)** (+Center_Reveal
+  −0.69): both carry a single Image Mask but are NOT A/B-crossfade reveals (Arrows = arrow-glyph
+  composition; Vertigo = spiral replicator), so forcing base→A/masked→B inverted their correct
+  name-based binding. The replicator-source restriction (`hasReplMask`) is LOAD-BEARING — it's
+  what distinguishes a true A/B wipe from a decorative single mask.
+  **NEXT (both together):** (i) a PRECISE discriminator for "single-masked A/B REVEAL" that
+  INCLUDES Wipes/Mask + Center_Reveal but EXCLUDES Arrows/Vertigo — e.g. masked node source is a
+  full-frame Transition drop zone AND the sibling base is the OTHER full-frame Transition drop zone
+  AND the mask geometry sweeps/grows to full coverage (not an arrow glyph or spiral); (ii) the
+  surgical drop-zone-fit endSec CAP (already Slide-safe). Center_Reveal ALSO needs its own endSec
+  fix (its 3.0s comes from "Grad middle/ends" Position curves that saturate visually ~0.57s but
+  keep animating — a separate visible-end-vs-keyframe-end issue).
 
-**DoD:** Video_Wall + Clone_Spin measurably up (target ≥13), 0 regressions.
-**Verify:** `fct score Replicator-Clones__Video_Wall Replicator-Clones__Clone_Spin --full`.
-**Start:** parts 1+2 are decoded and verified-in-isolation; the tick that lands this must ALSO build
-part 3 (dense wall placement) so the combined change is net-positive — do NOT ship 1+2 alone (regresses).
-
-### L2 — kinetic-panel coverage  [TODO]
-**Slugs:** Lower (10.19 — already had a +1.15 fix, still worst), Close_and_Open (10.95),
-Up-Over (11.75), Panels_Random (12.99), Panels_Across (13.11), Loop (12.92), Color_Panels (17.23).
-**What it is:** replicator-driven panels that slide/close to COVER photo A then reveal B.
-Close_and_Open = 107 Shapes + 107 Replicators + Image Mask + Clouds generator; at mid-transition
-the engine shows full photo A where GT shows the closed panels occluding it. This is a
-replicator-panel z-coverage + reveal-timing subsystem (`compositor/replicator.ts` + timemap).
-**DoD:** Close_and_Open + Up-Over up (target ≥13), 0 regressions.
-**Start:** `fct minimize Stylized__Close_and_Open` → find why panels don't occlude.
-
-### L3 — 3D-fold Movements family  [TODO · shared subsystem, 12 slugs]
-**Slugs:** Switch (11.96), Swing (12.89), Pinwheel (13.27), Reflection (13.67), Rotate (13.81),
-Multi-flip (15.66), Flip (16.65), Fall (14.63), Drop_In (14.73), Scale (15.77), Push (17.59),
-Clothesline (15.22). **Shared root (decoded, T-N3 archive):** a Rig-Behavior→Link swing-out
-curve advances the photo's 3D fold too fast in the interpolation-timing subsystem. A correct
-fix to the shared Rig/Link timing lifts the whole family — but MUST be gated against all 12 so
-one doesn't regress another. **DoD:** ≥3 of the family up, 0 regressions across all 12.
-**Start:** re-open `fct/minimized/Movements__Switch/` (repro already committed) → fix Rig/Link timing.
-
-### L4 — S2 linear working-space chain + colour pipeline  [TODO · BIG, highest ceiling]
-**Slugs:** 360°_Bloom (11.58), Lights_Bloom (13.04), Flash (13.94), Lens_Flare (13.83),
-Static (15.32), Light_Noise (17.07). **What it is:** FCP keeps the WHOLE filter+blend chain in
-`kCGColorSpaceLinearSRGB` and encodes to sRGB ONCE at readback; the engine encodes per-filter.
-Infra exists (`compositor/linear.ts`, flag-gated). **DoD:** engine-level linear buffer through
-every blit/blend/composite, encode once; flip ON family-by-family, gate all 65 after each.
-**Risk:** HIGH — do incrementally, gate-green after each family, never commit red. A per-filter
-linear encode is a PROVEN DEAD-END (regresses stacked transitions); build the whole-chain pass.
-**Bloom-float sub-item:** decoded + register-verified but the threshold temporal onset over-blooms
-(re-measured 2026-07-15: FCT_BLOOM_FLOAT ON regresses Lights_Bloom −1.0, 360°_Bloom −1.1). Stays
-OFF until the onset curve is decoded — do NOT re-ship the flag without fixing onset.
-
-### L5 — gradient generator  [TODO · coupled to masks]
-**Slugs:** Slide_In (10.25), Center_Reveal (12.10), Light_Sweep (14.15). All 3 have a
-`<mask>` sibling clipping the gradient — not a standalone generator. Census: Slide_In gradient
-is a PAINT-STROKE emitter (NOT a fill); Center_Reveal has two Gradient fills + Gaussian + 2 Image
-Masks + 6 colour Links. **DoD:** Slide_In up (target ≥12), 0 regressions. **Start:** `fct census`
-to confirm the gradient TYPE per slug before writing a generator (Rule 7 — prior premise was wrong).
-
-### L6 — group Image-Mask reveal  [TODO]  Center (12.35), Heart (13.49), Squares (13.11).
-Group-level image mask on comp groups; 3D-rotated groups can't use screen-space mask
-rasterization (guard skips them → unmasked). **Start:** `fct minimize Stylized__Center`.
-
-**WIPES/MASK — TWO coupled bugs decoded; a NET-NEGATIVE fix attempt REVERTED (2026-07-15).**
-The GT wipe holds photo A almost the whole transition and reveals B only in the last ~5 frames
-(f0=warm A → f23=cool B); the engine rendered the ENDPOINTS inverted (f0 cool B, f23 warm A) with a
-correct-looking middle. Decoded TWO independent root causes:
-  1. **A/B binding swapped.** The "Drop Zones" group lists the masked node NAMED "Transition B"
-     BEFORE the unmasked base "Transition A", so the document-order override (`parser/footage.ts`)
-     re-keys base→B / masked→A. GUI GT wants base→A (the unmasked base holds the outgoing A; the
-     single masked layer reveals incoming B). Verified: `_trace_src.ts` (now slug-parameterized +
-     `FCT_DEBUG_AB=1`) shows base "Transition A"→transitionB.
-  2. **animationEndSec inflated 4×.** `render(progress)=renderAt(progress·endSec)`. For Wipes/Mask
-     `animationEndSec`=**5.038s** but the true span (sceneSettings duration/frameRate) is **1.30s**,
-     because the drop-zone Image Object's media-fit params **Width(313)/Height(314)/Fit Factor(318)**
-     carry padding keyframes at the scene end (5.038s). The keyframe-walk counted them, so
-     progress=0.5 sampled scene-time ≈2.5s — far PAST the mask's ~1.0s sweep → B fully revealed
-     across the whole frame mid-transition.
-  **FIX ATTEMPT + why it was REVERTED (Rule 2, measured net-negative):** (a) generalise the
-  replicator-only masked-reveal binding to ANY single-masked reveal (base→A, masked→B for
-  maskedCount==1); (b) CAP Width/Height/Fit-Factor keyframes to the span (surgical — preserves
-  Stylized/Slide whose Width animates to 1.001s < its 1.067s span; only clamps beyond-span padding).
-  RESULT on the full gate: **Wipes/Mask +2.19 (14.30→16.49)** BUT **Objects/Arrows −16.70
-  (27.16→10.46)** and **Replicator-Clones/Vertigo −8.36 (19.76→11.40)**, Center_Reveal −0.69.
-  Net catastrophically negative → reverted both files.
-  **WHY the binding generalisation is WRONG (the load-bearing lesson):** "exactly one drop zone
-  carries an Image Mask" is NOT sufficient to mean "A/B crossfade reveal". Objects/Arrows and
-  Vertigo ALSO have a single Image Mask on a Transition drop zone, but they are NOT A→B wipes — the
-  mask is decorative/structural, and the NAME-based binding is already correct for them. Flipping it
-  inverted their A/B (Arrows collapsed to 10 dB). The original `hasReplMask` restriction (mask SOURCE
-  is a Sequence Replicator) was the real discriminator: it fires ONLY on the true replicator-matte
-  A→B reveals (Duplicate/Squares). The shape-mask A→B wipes (Wipes/Mask, Center_Reveal) need a
-  DIFFERENT, NARROWER signal than "has any Image Mask" — e.g. the mask source is a single sweeping/
-  growing SHAPE that monotonically covers the frame (a wipe matte), distinct from Arrows' composed
-  arrow shapes and Vertigo's spiral. NEXT: find that precise discriminator (decode Arrows/Vertigo
-  mask-source geometry vs Wipes-Mask/Center_Reveal) BEFORE re-touching the binding, and fix
-  Center_Reveal's OWN endSec (its 3.0s comes from "Grad middle/ends" Position curves that saturate
-  visually by ~0.567s — a value-plateau-past-visual-end case, separate from the media-fit padding).
-  The endSec media-fit CAP (b) is correct in isolation (preserves Slide) but useless without a
-  correct binding, so it was reverted with (a); re-land them together once the binding discriminator
-  is right.
-
-**WIPES/MASK — TWO coupled root causes decoded; a naive fix is NET-NEGATIVE (2026-07-15).**
-Engine 14.30 vs headless 35.7 (+21 reachable). Diagnosed via `_trace_src.ts` (A/B binding) +
-`_trace_wipemask.ts` (mask coverage) + column-warmth probes. GT holds photo A (warm) f0–f18 then
-reveals B (cool) only at f23 — a LATE single-shape wipe (the "Vertical" bar mask on "Transition B"
-over an unmasked "Transition A" base). TWO independent bugs:
-  1. **A/B binding SWAPPED.** The doc-order override binds the FIRST-listed drop-zone node → A. Wipes/
-     Mask lists the masked "Transition B" node FIRST, so base→transitionB(cool), masked→transitionA —
-     backwards (engine f0 = cool B; GT f0 = warm A). The existing MASKED-REVEAL rule (base→A, masked→B)
-     ONLY fires for REPLICATOR-source masks (Duplicate/Squares); a SHAPE-source mask (Wipes/Mask,
-     Center_Reveal) falls through to the wrong doc-order swap.
-  2. **animationEndSec INFLATED 4×.** `render(progress)=renderAt(progress·endSec)` uses the keyframe-walk
-     max = 5.038s, but the transition span is 1.3s (sceneSettings 39f/30fps). The 5.038s comes from the
-     drop-zone Object media-fit params "Width"(313)/"Height"(314)/"Fit Factor"(318), whose keyframes are
-     padded to the scene end (NOT transition animation — same class as the already-excluded Page Number/
-     Retime Value). So progress 0.5 samples scene-time 2.52s, way past the ~1.0s mask sweep → the wipe is
-     already complete → engine shows the fully-revealed image across the whole mid-transition.
-  **NET-NEGATIVE FIX (measured + reverted — do NOT re-attempt as-is):** (a) generalise the masked-reveal
-  binding to ANY single-masked reveal (base→A, masked→B) + (b) cap the drop-zone Width/Height/Fit-Factor
-  keyframes to the span. Wipes/Mask improved **14.30→16.49 (+2.19)** and Slide was preserved (the CAP,
-  unlike a blanket Width/Height exclusion, left Slide's in-span 1.001s Width key untouched: 20.36→20.33).
-  BUT the binding generalisation CATASTROPHICALLY regressed **Objects__Arrows 27.16→10.46 (−16.7)** and
-  **Replicator-Clones__Vertigo 19.76→11.40 (−8.36)**, plus Center_Reveal −0.69. Arrows/Vertigo carry a
-  single Image Mask but are NOT A/B-crossfade reveals (Arrows = arrow-shape composition; Vertigo = spiral
-  replicator), so forcing base→A/masked→B inverted their correct name-based binding. FAIL: 3 reg / 1 imp.
-  Reverted per Rule 2. **The replicator-source restriction on the masked-reveal rule is LOAD-BEARING** —
-  it distinguishes a true A/B wipe/reveal from a decorative single mask. **NEXT (both needed together):**
-  (i) a PRECISE discriminator for "single-masked A/B REVEAL" that includes Wipes/Mask + Center_Reveal but
-  EXCLUDES Arrows/Vertigo (e.g. the masked node's source is a full-frame Transition drop zone AND the
-  sibling base is the OTHER full-frame Transition drop zone AND the mask geometry sweeps/grows to full
-  coverage — not an arrow glyph or spiral); (ii) the drop-zone-fit endSec CAP (already surgical + Slide-
-  safe). Center_Reveal ALSO needs its own endSec fix (its 3.0s comes from "Grad middle/ends" Position
-  curves that saturate visually ~0.57s but keep animating — a separate visible-end-vs-keyframe-end issue).
-
-**SQUARES — the "Shuffle Order" reveal is SYMMETRIC, not a random PRNG (decoded 2026-07-15).**
-The engine reveals tiles in a DIAGONAL wavefront (bottom-left staircase, `sequenceOrder`); GT +
-headless reveal a SCATTERED-looking pattern that the ROADMAP long assumed was Motion's pseudo-random
-shuffle PRNG (seed 987639852). NOT SO. Extracting the per-tile A→B flip FRAME from headless (the
-FCP oracle) on the 14×8 grid shows a **4-fold-SYMMETRIC** reveal (mirror L↔R AND top↔bottom), with
-rows in identical pairs and only ~7 distinct flip times {3,4,5,10,15,16,20,23}:
+### SQUARES — the reveal order is 4-fold SYMMETRIC, not a random PRNG (decoded from GUI GT 2026-07-15)
+The Replicator authors Shuffle Order=1, Replicate Seed=987639852, 14×8 grid, Sequencing=1. The
+engine reveals in a DIAGONAL wavefront (`sequenceOrder` = normalized col+row diagonal); GT reveals
+a scattered-looking pattern the ROADMAP long assumed was Motion's PRNG. NOT SO. Extracting the
+per-tile A→B flip FRAME from the GUI GT shows a **4-FOLD MIRROR-SYMMETRIC** reveal (mirror L↔R AND
+top↔bottom), rows in identical pairs, ~7 distinct flip times {3,4,5,10,15,16,20,23} (center-sampled
+14×8):
 ```
 20  3  3 23 23 16 16 16 16 23 23  3  3 20      (rows 0,1 identical)
  4 10 10 15 15  5  5  5  5 15 15 10 10  4      (rows 2,3,4,5 identical)
-20  3  3 23 23 16 16 16 16 23 23  3  3 20      (rows 6,7 identical)
+20  3  3 23 23 16 16 16 16 23 23  3  3 20      (rows 6,7 == rows 0,1)
 ```
-So the reveal order is a DETERMINISTIC symmetric function of (|row−centre|, |col−centre|), NOT a
-Fisher-Yates/PRNG scramble — the seeded-hash-scatter attempts failed BECAUSE they modelled the wrong
-thing. The engine's diagonal `sequenceOrder` is what's wrong. NEXT: replace the diagonal rank for a
-Shuffle-Order=1 replicator with the symmetric radial order decoded above (verify the exact
-flip-frame→order mapping against headless per-tile, then implement in `sequenceOrder`/`sequenceProgress`
-keyed on the replicator's Shuffle Order param — no per-slug constant). Motion's PRNG (`HGRandomInit` →
-`ran_setup`, an LCG `x*0x4A4E39 + 0x5AFA6 & 0xffffff` in Helium) is the seed generator but the SHUFFLE
-here is symmetric — decode which "Build Style"/"Origin" (id 330/331/360 = 4/2/14 here) selects the
-symmetric-vs-random order before implementing. Endpoints f00/f23 ALSO gap ~20 dB vs headless despite
-being ~pure A/B — a separate base conform/tone issue (engine f0 mean is CLOSER to GT than headless but
-MAE is worse → structural, likely a tile already mis-revealed at f0 or a resample/tone offset).
+So the order is a DETERMINISTIC symmetric function of (|row−centre|, |col−centre|), NOT a
+Fisher-Yates/PRNG scramble (a seeded-hash scatter was tried and MEASURED 12.70 < diagonal 12.97 —
+now known WHY: the target isn't random). Motion's PRNG (`HGRandomInit`→`ran_setup`, an LCG
+`x*0x4A4E39 + 0x5AFA6 & 0xffffff` in Helium at 0x1205f4) has spearman 0.15 vs the GT order → the
+shuffle is NOT in Helium; it's in the Ozone/PE layer. **NEXT:** decode which Build Style(id330=2)/
+Origin(id331=4, id360=14) selects the symmetric order, implement it in `sequenceOrder`/
+`sequenceProgress` keyed on the replicator's Shuffle Order param (NO per-slug constant), verify the
+flip-frame grid vs the GUI GT. NOTE: endpoints f0/f23 also gap ~20 dB — a SEPARATE base-conform/
+tone issue (the drop-zone conform capability), not the shuffle.
 
-**SQUARES — reveal order is SYMMETRIC, not a random PRNG shuffle (decoded 2026-07-15).** The
-Replicator authors Shuffle Order=1 + Replicate Seed=987639852, 14×8 grid, Sequencing=1. The
-engine reveals in a DIAGONAL wavefront (`sequenceOrder` = normalized col+row diagonal); GT +
-headless reveal in a SCATTERED-looking pattern that the ROADMAP long assumed was Motion's PRNG.
-DECODED the ACTUAL per-tile flip-frame from the headless frames (the FCP oracle) by A→B tile
-transition: the reveal is **4-FOLD MIRROR-SYMMETRIC** (mirrored left↔right AND top↔bottom) with
-only ~7 distinct flip times {3,4,5,10,15,16,20,23} — NOT a random permutation. Row/col structure
-(center-sampled 14×8):
-```
-20  3  3 23 23 16 16 16 16 23 23  3  3 20
- 4 10 10 15 15  5  5  5  5 15 15 10 10  4   (rows 2–5 identical)
-20  3  3 23 23 16 16 16 16 23 23  3  3 20   (rows 6,7 == rows 0,1)
-```
-So "Shuffle Order" here is a DETERMINISTIC symmetric ordering keyed off the seed, reflected into
-4 quadrants — NOT a Fisher-Yates scatter (a seeded-hash scatter was tried before and MEASURED
-12.70 < diagonal 12.97; now known WHY — the target isn't random). NEXT: decode Motion's exact
-symmetric order. Motion's PRNG is `HGRandomInit`→`ran_setup` in Helium (an LCG: state·0x4A4E39 +
-0x5AFA6, &0xFFFFFF, →float; disassembled at Helium 0x1205f4). The shuffle likely sorts instance
-indices by a per-instance random key THEN the Replicator's symmetric Build Style (Origin=4/14,
-Build Style=2/0/1) folds it into quadrant symmetry. Implement the symmetric order in
-`sequenceOrder` (compositor/replicator.ts) and verify the flip-frame grid matches headless before
-scoring. This is a bounded decode (LCG + symmetric fold), higher-ROI than 3D_Rectangle's depth
-tunnel. NOTE the endpoint gap (f0 15.7 vs headless 36, f23 14.7 vs 37) is a SEPARATE base-conform/
-tone issue (engine f0 ≈ GT f0 visually but MAE 23 vs headless 8.6) — the same class as the
-drop-zone conform capability, not the shuffle; worth a separate look.
-
-### L7 — S6-360 equirect push/slide geometry  [TODO]  Push (14.28), Slide (14.97), Divide
-(14.47), Wipe (14.12). The 360° "band" family shares an equirect push/crossfade geometry; the
-low members show a smooth mid-transition U-dip (two panorama halves positioned differently than
-GT — confirmed f12). Circle_Wipe (22.9) + Gaussian_Blur (23.6) are the good members.
-**Start:** decode the equirect push offset in `compositor/transition360.ts` vs GT.
-
-### S7 — residual per-slug bugs  [ONGOING · opportunistic]
-Smear tail (11.75), Black_Hole, Color_Planes, Glide/Slide colour, Dissolves_Divide. Pick up
-between big-subsystem ticks. My-notes heuristic: scan mid-band per-frame scores for a TAIL/HEAD
-collapse — those are isolated time-authority (timemap wrap/clamp) bugs with clean structural fixes.
+### Subsystem framing (what each L-group's shared root IS)
+- **L1 clone/replicator/framing:** off-canvas tiles/clones through a framing camera (look-at pose)
+  and/or a replicator grid. Video_Wall = 14 Replicators + Camera + framing; Clone_Spin = 9
+  Timeline-Pin tiles + Camera(Framing beh); Concentric = 44 Clone Layers + 26 Image Masks;
+  Combo_Spin = 6 blade groups (C1–C6) masked + replicators.
+- **L2 kinetic-panel:** replicator-driven panels that slide/close to COVER photo A then reveal B
+  (Close_and_Open = 107 Shapes + 107 Replicators + Image Mask + Clouds generator; at mid-transition
+  the engine shows full A where GT shows closed panels occluding it — a replicator-panel z-coverage
+  + reveal-timing subsystem in `compositor/replicator.ts` + timemap). Close_and_Open is the LEAD.
+- **L3 3D-fold Movements (12 slugs):** a Rig-Behavior→Link swing-out curve advances the photo's 3D
+  fold TOO FAST in the interpolation-timing subsystem (decoded, T-N3 archive). A correct shared
+  Rig/Link timing fix lifts the whole family but MUST be gated against all 12. Switch is the LEAD.
+- **L4 S2 linear working-space chain:** FCP keeps the WHOLE filter+blend chain in
+  `kCGColorSpaceLinearSRGB` and encodes to sRGB ONCE at readback; the engine encodes per-filter.
+  Infra exists (`compositor/linear.ts`, flag-gated). A per-filter linear encode is a PROVEN
+  DEAD-END (regresses stacked transitions) — build the WHOLE-CHAIN float pass, flip ON
+  family-by-family, gate all 65 after each, never commit red. Bloom-float is decoded but its
+  threshold TEMPORAL ONSET over-blooms (FCT_BLOOM_FLOAT ON regresses Lights_Bloom −1.0, 360°_Bloom
+  −1.1) — stays OFF until the onset is decoded.
+- **L5 gradient generator (coupled to masks):** all 3 (Slide_In/Center_Reveal/Light_Sweep) have a
+  `<mask>` sibling clipping the gradient. Census: Slide_In gradient is a PAINT-STROKE emitter (NOT
+  a fill); Center_Reveal has two Gradient fills + Gaussian + 2 Image Masks + 6 colour Links.
+  Confirm the gradient TYPE per slug (Rule 7 — a prior premise was wrong) before writing a generator.
+- **L6 group Image-Mask reveal:** group-level image mask on comp groups; 3D-rotated groups can't
+  use screen-space mask rasterization (guard skips them → unmasked). Reuse Concentric's cameraZ-
+  perspective mask rasterization for 3D-rotated groups.
+- **L7 S6-360 equirect:** the 360° "band" family (Push/Slide/Divide/Wipe) shares an equirect
+  push/crossfade geometry; the low members show a smooth mid-transition U-dip (two panorama halves
+  positioned differently than GT — confirmed f12). Circle_Wipe (22.9) + Gaussian_Blur (23.6) are
+  the good members to diff against. Decode the equirect push offset in `compositor/transition360.ts`.
+- **S7 opportunistic residuals:** Smear tail, Black_Hole, Color_Planes, Glide/Slide colour,
+  Dissolves_Divide. Heuristic: scan mid-band per-frame scores for a TAIL/HEAD collapse — those are
+  isolated time-authority (timemap wrap/clamp) bugs with clean structural fixes.
 
 ### FILTER-P2 leftovers  [LOW PRIORITY — do NOT let these dominate ticks (see Rule 9)]
 T-M1 Tint hard-light G/B (CEILING — colour-space unpinned), T-M2 Levels two-stage (load-bearing,
