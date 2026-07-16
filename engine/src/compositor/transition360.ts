@@ -158,10 +158,17 @@ type Mask = (x: number, y: number) => number;
 /** Cover-fit `src` to the FULL output frame and sample at output (x,y) shifted by `left`.
  *  Returns false if the shifted sample falls outside the source card (transparent gap).
  *  The 360° panoramas fill the ENTIRE frame in the current GUI GT (not a bottom band):
- *  a 16:9-ish equirect image is cover-scaled to outW×outH and translated horizontally. */
-function sampleFull(src: ImageData, x: number, y: number, left: number, outW: number, outH: number, px: number[]): boolean {
-  const tx = x - left;
-  if (tx < 0 || tx >= outW) return false;
+ *  a 16:9-ish equirect image is cover-scaled to outW×outH and translated horizontally.
+ *  With `wrap`=true, the horizontal axis WRAPS mod outW — an equirectangular panorama
+ *  is a 360° cylinder, so a yaw shift re-enters from the opposite edge instead of
+ *  clipping. Used by the 360° push/slide equirect geometry (yaw = one output width). */
+function sampleFull(src: ImageData, x: number, y: number, left: number, outW: number, outH: number, px: number[], wrap = false): boolean {
+  let tx = x - left;
+  if (wrap) {
+    tx = ((tx % outW) + outW) % outW;   // 360° cylinder wrap
+  } else if (tx < 0 || tx >= outW) {
+    return false;
+  }
   const scale = Math.max(outW / src.width, outH / src.height);
   const dispW = src.width * scale, dispH = src.height * scale;
   const offX = (dispW - outW) / 2, offY = (dispH - outH) / 2;
@@ -170,17 +177,19 @@ function sampleFull(src: ImageData, x: number, y: number, left: number, outW: nu
   return bilinear(src, sx, sy, px);
 }
 
-/** Draw a full-frame cover-fit card of `src` translated by `left`, alpha·mask. */
+/** Draw a full-frame cover-fit card of `src` translated by `left`, alpha·mask.
+ *  With `wrap`=true the card wraps horizontally (equirect cylinder) so every output
+ *  column is covered — used by 360° push/slide where the sphere yaws by one width. */
 function drawFull(
   out: ImageData, src: ImageData, left: number, outW: number, outH: number,
-  alpha: number, mask: Mask | null,
+  alpha: number, mask: Mask | null, wrap = false,
 ): void {
   const px: number[] = [0, 0, 0, 0];
-  const xs = Math.max(0, Math.floor(left));
-  const xe = Math.min(outW - 1, Math.ceil(left + outW));
+  const xs = wrap ? 0 : Math.max(0, Math.floor(left));
+  const xe = wrap ? outW - 1 : Math.min(outW - 1, Math.ceil(left + outW));
   for (let y = 0; y < outH; y++) {
     for (let x = xs; x <= xe; x++) {
-      if (!sampleFull(src, x, y, left, outW, outH, px) || px[3] < 1) continue;
+      if (!sampleFull(src, x, y, left, outW, outH, px, wrap) || px[3] < 1) continue;
       let a = alpha;
       if (mask) { a *= mask(x, y); if (a <= 0) continue; }
       const o = (y * outW + x) * 4;
@@ -247,13 +256,57 @@ export function render360Band(
   }
 
   if (cfg.mode === 'slide') {
-    // A static full-frame; B translates in from the Direction edge over [w0,1].
-    const w0 = cfg.w0 ?? 0;
-    let tt = (progress - w0) / (1 - w0);
-    if (tt < 0) tt = 0; if (tt > 1) tt = 1;
-    const leftB = -sweepPx * (1 - tt);   // enters from -dir edge, lands home at tt=1
+    // EQUIRECT 360° SLIDE (decoded 2026-07-16 from the GUI GT per-column A/B seam
+    // classification + per-frame yaw sweep — see below). Same equirect cylinder
+    // geometry as the sibling 360° Push (commit 5fe0b86), BUT with A STATIC: only
+    // the incoming panorama B yaws in from the right, wrapping around the 360°
+    // cylinder to land home at progress 1. B is revealed in a growing wedge
+    // anchored at frame CENTRE, so outgoing A stays visible in the complement.
+    //
+    // DECODED GEOMETRY (per-column A/B classifier over the raw GUI GT, W=1920):
+    //   - A stays FIXED at identity: at every frame where A is visible its pixels
+    //     are at home (x=0→A@0, x=383→A@383, x=1535→A@1535, x=1919→A@1919). A
+    //     does NOT yaw. This is why the Transition A image has hasAlignTo=false
+    //     in the .motr while the Rectangle alpha-mask and Transition B image
+    //     both have hasAlignTo=true — only B (and the mask) move.
+    //   - B rolls right with wrap by a linear function of frame index. A
+    //     high-precision yaw sweep against the GT gave yaw(f) = 86·f for
+    //     f=5..22 EXACTLY, saturating at yaw=W (identity via wrap) at f≈22.32
+    //     and landing on identity at f23. Equivalently: yaw = min(86·f, W) =
+    //     min(p·N·86, W). N=24 gives yaw = min(2064·p, 1920) = min(1.075·p·W, W).
+    //     Same rate as sibling 360° Push (yaw/f=86 verified on Push GT too);
+    //     Push scores 20 dB with just p·W because BOTH A+B yaw together, so its
+    //     ~80 px per-frame error is symmetric. Slide has A static, so a bad B
+    //     yaw is UNCOMPENSATED — the exact 86·f is what closes the tail dip.
+    //   - Reveal wedge: same shape/anchor as push — leading edge fixed at frame
+    //     CENTRE (c0 = W/2), trailing edge sweeps by width = p·W as B fills in.
+    //     B is composited only where d = ((x - c0)·dir) mod W is in [0, width);
+    //     A is drawn everywhere BENEATH B (visible in the wedge complement).
+    // The 86 px/frame constant matches the .motr Rig Behavior sweep of 4096
+    // canvas units (equirect drop zone width) across animationEndSec=1.333s,
+    // cover-fit-scaled to output space: 4096 · min(1920/4096, 1080/2048) yields
+    // the observed 2064-px total sweep (minus a small time-margin gap that the
+    // animation completes early at f≈22.32/24).
+    const NF = 24;                            // fct sampling: 24 frames at p=i/N
+    // 86 px/frame in output space, decoded from GT (see above). Equivalent to
+    // yaw = min(p · N · 86, outW) — kept in fraction-of-outW form for clarity.
+    const yawFraction = Math.min(progress * NF * 86 / outW, 1);
+    const yaw = yawFraction * outW * cfg.dir;
+    const c0 = 0.5 * outW;                    // reveal wedge leading edge = frame centre
+    // Wedge width grows linearly with progress UNTIL the yaw saturates (yawFraction=1
+    // at p≈0.93), after which B is fully back at identity via wrap and the whole
+    // frame must be B — otherwise the tail (f22, f23) leaves the rightmost ~80 px
+    // showing A (verified: with plain width=p·W, f23 scored 23.48 dB; snap-to-W once
+    // yaw completes gives f23=41.91 dB). Mid-band mask matches GT better with p·W
+    // than yawFraction·W (yawFraction grows 1.075× faster, uncovering A prematurely).
+    const width = yawFraction >= 1 ? outW : progress * outW;
+    const bMask: Mask = (x) => {
+      const d = (((x - c0) * cfg.dir) % outW + outW) % outW;
+      return d < width ? 1 : 0;
+    };
+    // A static at identity (no yaw, no wrap needed); B yawed with wrap, over wedge.
     drawFull(out, imageA, 0, outW, outH, 1, null);
-    drawFull(out, imageB, leftB, outW, outH, 1, null);
+    drawFull(out, imageB, yaw, outW, outH, 1, bMask, true);
     return out;
   }
 
