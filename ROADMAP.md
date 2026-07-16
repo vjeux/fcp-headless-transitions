@@ -342,24 +342,16 @@ These are the measured-negative attempts and non-obvious decode facts a worker n
 starting a slug. A todo may point here ("DO NOT re-attempt X — see ROADMAP dead-ends"); the
 full measured record lives here, once.
 
-### 🔁 ORCHESTRATOR: the harness-clobber loop — FIXED by DROPPING rsync (2026-07-16)
-Symptom seen 4× in one session: an agent lands a real engine win but its push ALSO reverted the
-swarm harness (pool.py/cli.py/todo.py/push_helper.sh/agent_brief.md) to an older form — silently
-undoing orchestrator fixes. ROOT CAUSE: the OLD `push_helper.sh` rsync'd the agent's WHOLE worktree
-FILE STATE over a fresh origin/main clone with `--delete`, then `git add -A`. An agent whose worktree
-branched off an OLD origin/main carries a STALE copy of every untouched file; the overlay dragged that
-hour-old harness back onto origin. It was NOT a git-history revert (the fix commits stay in ancestry) —
-a FILE-CONTENT overlay, so `git merge-base --is-ancestor` said "already landed" while the files were
-reverted. (rsync was originally chosen because worktrees share the main `.git` and some sandboxed envs
-denied writes to `.git/worktrees/*`, making an in-worktree `git add` silently fail. That constraint does
-NOT hold on the Mac CLI node — in-worktree commits work fine, verified.)
-REAL FIX (vjeux: "drop the whole rsync"): push_helper now COMMITS IN THE WORKTREE and pushes via
-`git rebase origin/main`. rebase replays ONLY the agent's committed diff on top of current origin, so
-every file the agent didn't touch (the whole harness) comes from origin UNCHANGED — the clobber is
-structurally impossible. Belt-and-suspenders: staging uses `git add -A -- . ':(exclude)fct/swarm'` then
-`git add fct/swarm/todo` so harness files are never even staged (agents only author engine/docs/ROADMAP
-+ the append-only todo/ queue). Verified end-to-end: stale-base worktree (harness v1) + engine change,
-origin at harness v2 → after push, origin keeps harness v2 AND gets the engine change + the new todo.
+### ⛔ ORCHESTRATOR: never rsync a worktree's file-state to land work — commit+rebase instead (2026-07-16)
+DO NOT reintroduce the old "rsync the whole worktree over a fresh clone with --delete then git add -A"
+push path. It clobbered the swarm harness 4× in one session: a worktree branched off an OLD origin/main
+carries a stale copy of EVERY untouched file, and the --delete overlay dragged that stale harness back
+onto origin (a file-content overlay, so `git merge-base --is-ancestor` reported "already landed" while
+the files were reverted). push_helper now commits IN THE WORKTREE and pushes via `git rebase origin/main`
+— rebase replays only the agent's diff, so untouched files come from origin unchanged; the clobber is
+structurally impossible. Staging also excludes fct/swarm (except the append-only todo/) so harness files
+are never even staged. In-worktree commits work fine on the Mac CLI node (the sandbox `.git/worktrees/*`
+write-denial that originally motivated rsync does not apply here).
 No rsync, no `--delete`, no whole-tree overlay anywhere in the swarm anymore.
 
 ### Oracle validity per slug (pick your method before you start)
