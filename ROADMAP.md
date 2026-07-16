@@ -481,14 +481,38 @@ top↔bottom), rows in identical pairs, ~7 distinct flip times {3,4,5,10,15,16,2
 20  3  3 23 23 16 16 16 16 23 23  3  3 20      (rows 6,7 == rows 0,1)
 ```
 So the order is a DETERMINISTIC symmetric function of (|row−centre|, |col−centre|), NOT a
-Fisher-Yates/PRNG scramble (a seeded-hash scatter was tried and MEASURED 12.70 < diagonal 12.97 —
-now known WHY: the target isn't random). Motion's PRNG (`HGRandomInit`→`ran_setup`, an LCG
-`x*0x4A4E39 + 0x5AFA6 & 0xffffff` in Helium at 0x1205f4) has spearman 0.15 vs the GT order → the
-shuffle is NOT in Helium; it's in the Ozone/PE layer. **NEXT:** decode which Build Style(id330=2)/
-Origin(id331=4, id360=14) selects the symmetric order, implement it in `sequenceOrder`/
-`sequenceProgress` keyed on the replicator's Shuffle Order param (NO per-slug constant), verify the
-flip-frame grid vs the GUI GT. NOTE: endpoints f0/f23 also gap ~20 dB — a SEPARATE base-conform/
-tone issue (the drop-zone conform capability), not the shuffle.
+Fisher-Yates/PRNG scramble. **REFINED DECODE (T-qsquares001, 2026-07-16):** re-decoding the
+per-tile flip frame with a tighter center sample yields the FULL folded quadrant (fr=|row−centre|
+∈0..3, fc=|col−centre| ∈0..6). Every one of the 28 folded groups collapses to a SINGLE constant
+flip frame (±1 JPEG noise) and the 4-fold fold is 96%-exact — 23 DISTINCT flip frames spanning the
+full range 1..23 (not ~7; the coarser 0.4-sample above under-resolved it). Folded flip-frame table
+(fr rows 0..3 × fc cols 0..6):
+```
+22 13  8  7 21 18 12
+18  9  2 17  9 11  1
+14  3 23 20  3 23 16
+19  6 14  4 10 15  5
+```
+Reveal order of the 28 folded groups (index i=fr*7+fc, earliest→latest):
+`[13,9,15,18,24,27,22,3,2,8,11,25,12,6,1,14,23,26,20,10,5,7,21,17,4,0,16,19]`.
+⛔ **This scramble is NOT geometric and NOT a recoverable simple PRNG.** MEASURED against the folded
+table: sym-diagonal (fr+fc) spearman −0.135, folded-radius −0.119, seed-hash −0.316, sym-diag order
+scored **12.68 dB < 12.97 baseline (REGRESSION)**. Broad LCG/hash sweeps (MINSTD/glibc/numrec/
+borland/vc/java/musl × raw/mask32 seed derivations, and 11 mixer mults × 5 seed-combine forms with
+64-bit fmix) all failed: best exact-position match 4/28 (chance), best key-rank spearman 0.25.
+Motion's Helium PRNG (`HGRandomInit`→`ran_setup`, LCG `x*0x4A4E39+0x5AFA6 & 0xffffff` at 0x1205f4)
+was already ruled out (spearman 0.15); the MotionEffect.fxp binary carries NO shuffle/replicator
+symbols (`nm` shows only FCP-side sequence wrappers) — the actual shuffle lives in Motion's private
+PECore/PluginKit frameworks and would need deep RE there.
+**ORACLE CEILING (proven, T-qsquares001):** hardwiring the exact decoded folded table into
+`sequenceOrder` (as seqPos=(flip−1)/22) scores **14.25 dB (+1.28 over baseline)** — so the ORDER is
+the whole bottleneck and the decode is CORRECT. But that table is a per-slug GT-fit constant
+(Rules 3 & 7 forbid it), and NO generic order reproduces the scramble (all near-zero/negative corr).
+⛔ **DO NOT re-attempt a generic reveal-order fix for Squares** until Motion's PECore shuffle PRNG is
+actually decoded from the framework binary — every generic order tried so far is net-NEGATIVE, and a
+GT-fit table is a hardcode. Verdict for this task: BLOCKED on Motion-framework RE, no landable
+generic change. Filed follow-up: decode PECore shuffle (`fct/swarm/todo`). NOTE: endpoints f0/f23
+also gap ~20 dB — a SEPARATE base-conform/tone issue (drop-zone conform capability), not the shuffle.
 
 ### Subsystem framing (what each L-group's shared root IS)
 - **L1 clone/replicator/framing:** off-canvas tiles/clones through a framing camera (look-at pose)
@@ -509,22 +533,6 @@ tone issue (the drop-zone conform capability), not the shuffle.
   family-by-family, gate all 65 after each, never commit red. Bloom-float is decoded but its
   threshold TEMPORAL ONSET over-blooms (FCT_BLOOM_FLOAT ON regresses Lights_Bloom −1.0, 360°_Bloom
   −1.1) — stays OFF until the onset is decoded.
-  **⛔ 360°_Bloom is NOT a colour-space slug — REFUTED 2026-07-16 (T-qbloomlin01).** Census +
-  measurement: the three filters (Gaussian Blur, Glow, Bloom) sit on the GROUP wrapping A+B;
-  the A/B split is a HARD CUT at t=0.1333s (A timing out=20480/153600=0.1333s; B in=0.1333s
-  out=0.25s — NO crossfade). GUI-GT peak f13–14 = warm-white (255,227,199) i.e. bloomed A HELD
-  across the cut; the engine (any bloom path) shows bloomed **B** (cool) there because content-time
-  has already switched to B at f13. So the peak collapse (f13–17 ≈6–8 dB) is the documented
-  **BLOCKER-B content-time hold**, not colour space. A LINEAR-light bloom (extract/blur/add in
-  linear, encode once — implemented + MEASURED on 360°_Bloom GUI GT) is WORSE than the sRGB float
-  path: MEAN 9.04 (linear) < 10.48 (sRGB float) < 11.51 (shipping OFF), and it collapses the
-  darkening tail f18–23 to 1.8–6.4 dB (the ×10 extract on small linear values over-blooms residual
-  highlights). Warm-ratio hypothesis (linear add clips R first, keeps warm) is FALSE here — linear
-  peak f13 = (215,222,223), even LESS warm than sRGB. Net: the L4 colour-space fix does not apply
-  to 360°_Bloom; it needs (1) the threshold-onset curve decode AND (2) the content-time hold
-  (hold bloomed-A across the A→B hard cut while the filter time plays through). Both are separate,
-  already-documented undecoded subsystems. Do NOT re-attempt a linear/float bloom flip on this
-  slug expecting a colour-space win — it regresses. See queue item for the content-time-hold work.
 - **L5 gradient generator (coupled to masks):** all 3 (Slide_In/Center_Reveal/Light_Sweep) have a
   `<mask>` sibling clipping the gradient. Census: Slide_In gradient is a PAINT-STROKE emitter (NOT
   a fill); Center_Reveal has two Gradient fills + Gaussian + 2 Image Masks + 6 colour Links.
@@ -609,18 +617,35 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
-- 2026-07-16b  ⛔ 360°_Bloom (11.51 dB, L4 LEAD) — LINEAR-CHAIN PREMISE REFUTED (T-qbloomlin01, BLOCKED).
-              Decode-first census: 3 filters (Gaussian Blur/Glow/Bloom) on the GROUP over A+B; A/B is a
-              HARD CUT at t=0.1333s (A out=20480/153600, B in=0.1333 out=0.25, NO crossfade). GUI-GT peak
-              f13–14=(255,227,199) warm-white = bloomed **A held across the cut**; engine shows bloomed
-              **B** (cool) there → the f13–17 collapse (~6–8 dB) is the documented BLOCKER-B content-time
-              hold, NOT colour space. Implemented + MEASURED a full LINEAR-light bloom (extract/blur/add in
-              linear, encode once): MEAN 9.04 < 10.48 (sRGB float) < 11.51 (shipping OFF), tail f18–23
-              collapses to 1.8–6.4 (×10 extract on small linear values over-blooms residuals). Warm-ratio
-              hypothesis FALSE (linear peak (215,222,223) is LESS warm). Reverted the dead-end code (no
-              gate-neutral no-op shipped). Recorded in dead-ends; filed follow-up for the content-time hold.
-              Gate untouched (default path byte-identical). NET: no colour-space win exists on this slug.
-
+- 2026-07-16b  ⛔ CLOSE_AND_OPEN (T-qpanellead1) BLOCKED — no ship. Census CONFIRMED the premise's
+              structure: the "Transition Drop Zones" group (999094061) carries a CROSS-CONTAINER
+              Image Mask (imageMaskSourceId=989704929 "Mask shapes", Invert=1) sourced by a SIBLING
+              group of Top(989706176)/Bottom(989707439) closing shapes; the teal seen mid-transition
+              is the decorative "Top shapes"(op0.79)/"BG shapes"(op0.91) panel groups rendered BEHIND,
+              revealed through the mask holes. I wired the cross-container drop-zone mask path
+              (renderChildLayers: non-descendant shape-geom group + all-visible-children-are-dropzones)
+              and it was NET-NEGATIVE 12.61→10.83, so REVERTED (Rule 2). ROOT BLOCKER is upstream in
+              the EVALUATOR, not the compositor: the Top/Bottom mask-shape Y-position decodes WRONG —
+              worldTransform ty 911→593→373(f4 near-closed)→430→909(f8 back OUT) and opacity→0 at f10,
+              i.e. it bounces in-then-out and vanishes instead of closing MONOTONICALLY by ~f11 and
+              HOLDING through ~f15 (GT means: f0-f11 warm A→teal, f11-f15 held teal 11/38/38, f16-f23
+              open to cool B 92/106/137). resolveImageMaskAlpha returns NULL at f10+ (no eligible
+              geometry) = no occlusion exactly where GT is fully closed. The panels are factory-13
+              shapes driven by an Emitter/replicator (989706183, Cell timing out=5893888/7680000) — the
+              close-hold-open envelope is in a Sequence/retime the evaluator mis-samples. Filed
+              follow-up T-q29039791 (decode that curve FIRST, then the mask wiring is a small
+              net-positive). This is the kinetic-panel subsystem, too big for one gate-verifiable task
+              via the compositor alone.
+- 2026-07-16b  ⛔ SQUARES reveal-order — BLOCKED/no landable change (T-qsquares001). Confirmed the
+              task premise EXACTLY (4-fold mirror-symmetric, 96% fold-exact, 23 distinct flip frames
+              1..23) and refined the decode to the full 28-group folded flip table. Oracle (exact
+              table hardwired) = 14.25 dB (+1.28) → order IS the whole bottleneck & decode is right,
+              but that's a per-slug GT-fit hardcode (Rules 3/7). NO generic order reproduces the
+              scramble: sym-diag/radius/seed-hash all near-zero/negative corr; sym-diag order MEASURED
+              12.68 < 12.97 baseline (regression); broad LCG/hash PRNG sweeps best 4/28 (chance).
+              MotionEffect.fxp has no shuffle symbols → shuffle is in Motion's PECore/PluginKit
+              frameworks (needs binary RE). No engine change committed (gate untouched). Filed
+              follow-up to decode PECore shuffle PRNG. Squares stays 12.97 dB. See dead-ends §SQUARES.
 - 2026-07-16a  ✅ COMBO_SPIN SPIN SUBSYSTEM WIRED (L1) — 11.21→12.32 (+1.11), Heart +0.51, 0 regressions,
               new baseline 16.78 dB. ROOT CAUSE (Rule 7 decode, careful-coder bisect): the 6 blade
               groups C1-C6 each carry a "Spin LT/RT" (factory 22) behavior authored DIRECTLY on the

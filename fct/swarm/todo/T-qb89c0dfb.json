@@ -1,0 +1,14 @@
+{
+  "id": "T-qb89c0dfb",
+  "title": "Decode Motion PECore replicator Shuffle-Order PRNG (Squares reveal order)",
+  "project": "fct",
+  "goal": "Squares reveal is 4-fold mirror-symmetric over the 28 folded quadrant groups (fr=|row-4|0..3, fc=|col-7|0..6), 23 distinct flip frames 1..23. The exact order is a Motion shuffle keyed on Replicate Seed=987639852 (Shuffle Order id335=1, Origin id330=4, Build Style id331=2, 14x8 grid). PROVEN oracle ceiling: hardwiring the decoded folded flip table (seqPos=(flip-1)/22) into sequenceOrder scores 14.25 dB vs 12.97 baseline (+1.28). BUT that table is a per-slug GT-fit hardcode (forbidden). Helium LCG ruled out (spearman 0.15); broad LCG/hash sweeps best 4/28 (chance); MotionEffect.fxp has NO shuffle symbols. CONCRETE FIRST STEP: RE the Motion PECore/PluginKit framework binaries (under /Applications/Final Cut Pro.app or Motion.app) for the replicator sequence-shuffle routine that consumes Replicate Seed -> recover its PRNG constants, then implement generically in sequenceOrder keyed on the Shuffle Order param + Replicate Seed (fold to quadrant, mirror 4-fold). Verify the recovered permutation matches the folded reveal order [13,9,15,18,24,27,22,3,2,8,11,25,12,6,1,14,23,26,20,10,5,7,21,17,4,0,16,19] and net-positive. DO NOT re-attempt generic non-decoded orders (all net-negative, see ROADMAP dead-ends SQUARES).",
+  "slugs": [
+    "Objects__Squares"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qsquares001",
+  "created_at": "2026-07-16T11:21:23+00:00",
+  "notes": ""
+}
