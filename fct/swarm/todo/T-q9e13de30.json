@@ -1,0 +1,14 @@
+{
+  "id": "T-q9e13de30",
+  "title": "3D_Rectangle: Shading bevel-edge subsystem (Top/Left/Right shapes @ op 0.48)",
+  "project": "fct",
+  "goal": "Add the 'Shading' Widget bevel-edge subsystem for 3D_Rectangle (do AFTER the per-pixel Z-buffer composite T-q98a30de5 lands; the bevel edges are only visible once the ring reveal composites correctly). DECODED (T-qrect3d0001): a 'Shading' Widget (id 1979006091) under a Rig (id 1979006090) contains three Shape nodes Top (id 1979006045), Left (1979006049), Right (1979006059). Two LinkOpacity behaviors drive channel ./1/200/202 (opacity) with 'Affecting Object' 1979006059 referencing 1979006045 -> the shading shapes' opacity is linked (base op ~0.48). These draw the bevel/edge shading on the 3D rectangle frames. DoD: bevel edges present on the ring frames, GT f4-f10 shading matches, fct regress engine net-positive. NOTE: generic, must fire on >=2 built-ins if a new detector is added (no per-transition hardcode; engine/test/no-hardcode.test.ts stays green).",
+  "slugs": [
+    "Replicator-Clones__3D_Rectangle"
+  ],
+  "after": "T-q98a30de5",
+  "status": "open",
+  "created_by": "T-qrect3d0001",
+  "created_at": "2026-07-16T11:16:10+00:00",
+  "notes": ""
+}
