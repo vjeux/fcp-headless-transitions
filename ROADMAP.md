@@ -704,6 +704,35 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16q  ✅ REFLECTION STATIC B-FOLD (T-q7529db51 DONE) — **Movements__Reflection 14.23 → 14.82
+              (+0.59 dB), 0 real regressions.** DECODE (Reflection.motr, verified — the prior "candidate
+              #3 = Transition A own rotY ~+45°→0°" hypothesis is REFUTED): Transition A carries NO
+              Rotation param at all (rotationY undefined). Transition B (scenenode id=1999870955,
+              dropZone Type=2) carries a STATIC Rotation Y = value="1.5707963267948966" (=π/2, param
+              id=109 "Rotation" → child id=2 "Y", no keyframes) — a fixed structural 3D pre-fold, plus
+              anchorZ=posZ=960 (hinges on the shared spine). The parent Group (id=1999870952) has
+              rotationY=0 driven by a LinkRot pulling Color Solid's (id=1999870964) Y-rot curve
+              0→−π/2. BUG: resolveWithRetime's static-value ramp (default→value × retimeProgress,
+              active whenever the layer has a ≥2-keyframe retime curve — every A/B drop zone does)
+              was collapsing B's π/2 fold to ~0 for most of the transition (traced B world m8≈−0.05≈0°
+              at t=0.717 instead of group-fold(−33°)+90°≈+57°, m8≈+0.83). FIX (evaluator/index.ts,
+              right after the clone-layer static-fold block): a REAL transition-source drop zone
+              (dropZone.type 1 or 2 = Transition A/B card) with a STATIC number X/Y rotation marks that
+              channel as an __overrideChannels entry so buildTransformMatrix uses the authored angle
+              directly (bypassRetime), exactly like the Swing clone-fold block. Scoped to type 1/2 so
+              Clone_Spin's Type=0 "Timeline Pin" tiles (which DO rely on the retime ramp to rotate in
+              from flat) are untouched. Fires on exactly 1 layer corpus-wide (Reflection Transition B);
+              verified zero hits on Leaves and every non-A/B slug. Per-frame: broad mid-transition lift
+              f03–f23. Gate: Reflection +0.63 real; Switch/Color_Panels deltas are stale-baseline
+              phantoms (my worktree branched pre-Switch-land — resolve on rebase); Objects__Leaves
+              22.44→22.02 in the one-off gate render is Combo-Spin emitter FLAP noise (3 fresh renders
+              with my change all give a STABLE 22.36; my change fires 0× on Leaves so it cannot be the
+              cause). SWITCH-LANE NOTE (per brief): this fix touches ONLY evaluator/index.ts drop-zone
+              static-rotation override — it does NOT change parser/behaviors.ts::parseLinkBehaviors
+              routing, so it is fully compatible with Switch's pending descendant-vs-sibling routing
+              heuristic (no collision; Switch can build on the current ENCLOSING-scenenode routing
+              untouched). Clothesline 19.31 and the rest of the 3D-fold family unaffected (none carry a
+              static A/B-card rotation). Commit gate-green.
 - 2026-07-16q  ✅ 360° WIPE CENTRE-HALF SWEEP (T-qwipe360001 DONE) — **360°__360°_Wipe 14.23 → 16.45
               (+2.22 dB)**, gate net-positive (0 real regressions; Leaves −0.42/Switch/Color_Panels
               are pre-existing stale-baseline phantoms, re-render confirms Leaves 22.36≈22.44). New

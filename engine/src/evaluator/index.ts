@@ -629,6 +629,34 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
       ov.add('rotY');
     }
   }
+  // A REAL transition-source drop zone (Type=1 Transition A / Type=2 Transition B)
+  // that carries a STATIC (number, no keyframes) X/Y Rotation is a fixed STRUCTURAL
+  // 3D pre-fold — the card is authored pre-rotated (e.g. Movements/Reflection's
+  // incoming Transition B carries Rotation Y = π/2 = value="1.5707963267948966" on
+  // its scenenode's Rotation param id=109/Y id=2, decoded from Reflection.motr).
+  // This is NOT a media-retimed channel: the retime curve only advances the drop
+  // zone's media PLAYBACK frame, it must never ramp a structural fold from 0 → its
+  // authored angle. resolveWithRetime's static-value ramp (default→value scaled by
+  // retimeProgress, active whenever the layer has a ≥2-keyframe retime curve — which
+  // every A/B drop zone does) was collapsing B's π/2 to ~0 for most of the transition
+  // (traced: B world m8≈−0.05≈0° at t=0.717 instead of the group-fold(−33°)+90°≈+57°
+  // it should hold). Marking the static rotation as an override makes
+  // buildTransformMatrix use the authored angle directly (bypassRetime path), exactly
+  // as the clone-layer block above does for Swing's static clone fold. Scoped to the
+  // REAL A/B source cards (dropZone.type 1 or 2) so Clone_Spin's Type=0 custom
+  // "Timeline Pin" tiles — which DO rely on the retime ramp to slide/rotate in from
+  // flat — are untouched.
+  if (layer.type === 'image' && layer.dropZone
+      && (layer.dropZone.type === 1 || layer.dropZone.type === 2)) {
+    if (typeof layer.transform.rotationX === 'number' && layer.transform.rotationX !== 0) {
+      const ov = riggedTransform.__overrideChannels ?? (riggedTransform.__overrideChannels = new Set<string>());
+      ov.add('rotX');
+    }
+    if (typeof layer.transform.rotationY === 'number' && layer.transform.rotationY !== 0) {
+      const ov = riggedTransform.__overrideChannels ?? (riggedTransform.__overrideChannels = new Set<string>());
+      ov.add('rotY');
+    }
+  }
   // Links drive channels from a source object; apply after rig snapshots.
   riggedTransform = applyLinks(layer, riggedTransform, linksByTarget, layerById, widgetValues, timeSec, behaviors);
   // Scene Ramp behaviors that drive transform channels (rotation/position/scale)
