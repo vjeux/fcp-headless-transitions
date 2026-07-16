@@ -138,6 +138,13 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
   if (wrapSec !== undefined) {
     let wrapZoneCount = 0;
     let nonDropZoneWrap = false;
+    // Overlay wrap zones that are STATIC full-frame image-media (dust/cloud/light
+    // sheets that composite ON TOP of the crossfade) vs any OTHER non-drop-zone wrap
+    // (clone/replicator/generator/shape — the signature of a kinetic sprite MONTAGE
+    // whose panels ARE the content). Only the former are safe to ignore when deciding
+    // that the A→B crossfade genuinely settles on B.
+    let overlayMediaWrap = 0;
+    let hasNonOverlayWrap = false;
     let bOutSec = -1;
     (function scanX(layers: readonly Layer[]) {
       for (const l of layers) {
@@ -146,13 +153,42 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
             && !clonedContinuationSourceIds.has(l.id)) {
           wrapZoneCount++;
           const st = l.source?.type;
-          if (st !== 'transitionA' && st !== 'transitionB') nonDropZoneWrap = true;
+          if (st !== 'transitionA' && st !== 'transitionB') {
+            nonDropZoneWrap = true;
+            if (l.type === 'image' && st === 'media' && !l.replicator) overlayMediaWrap++;
+            else hasNonOverlayWrap = true;
+          }
           if (st === 'transitionB' && l.timing) bOutSec = Math.max(bOutSec, t2s(l.timing.out));
         }
         scanX(l.children);
       }
     })(scene.layers);
-    pureCrossfadeSettleB = wrapZoneCount === 2 && !nonDropZoneWrap && bOutSec >= endSec - frameSec;
+    const bAliveToEnd = bOutSec >= endSec - frameSec;
+    // Base case: exactly the two drop zones wrap, no overlay at all.
+    pureCrossfadeSettleB = wrapZoneCount === 2 && !nonDropZoneWrap && bAliveToEnd;
+    // OVERLAY-DUST CROSSFADE (Earthquake / Light Noise / Drop In / Leaves / Veil /
+    // Curtains): the A→B crossfade completes to B, but a FEW static full-frame
+    // image-media overlays (a "blurry cloud" dust sheet at out=1.985s over the whole
+    // 2.252s scene, a "light-effect" screen sheet, etc.) also wrap. Those overlays
+    // composite ON TOP of the settled B (they do not replace the content), so the
+    // wrap-to-frame-0 is still WRONG — it re-shows brown photo A and kills both the
+    // crossfade and the overlay's own late animation. Cancelling the wrap lets the
+    // crossfade settle on B with the overlay drawn over it (verified vs GUI GT:
+    // Earthquake f19–f23 climb to ~25–38 dB settling on photo B, vs ~8–10 dB when the
+    // wrap re-shows A). SCOPED so a kinetic sprite MONTAGE (Pinwheel 17 panels, Swing
+    // 16 clones, Diagonal 37, Glide 16 — where the many tiled panels ARE the visible
+    // content, not an overlay) does NOT qualify: require the ONLY non-drop-zone wrap
+    // zones to be static image-media overlays AND few of them (≤ 4). A montage's panel
+    // count (≥16) or clone/replicator zones fail this and keep their frame-0 wrap.
+    // (Originally landed in f43499d "T-qearthquak1 DONE", clobbered by a bad rebase in
+    // 86b8489 T-qsmear00001 — this restores it. Task T-qca011a65.)
+    if (!pureCrossfadeSettleB
+        && (wrapZoneCount - overlayMediaWrap) === 2  // exactly the 2 drop zones + overlays
+        && !hasNonOverlayWrap
+        && overlayMediaWrap >= 1 && overlayMediaWrap <= 4
+        && bAliveToEnd) {
+      pureCrossfadeSettleB = true;
+    }
   }
 
   // FILTER-ANIMATION OUTLIVES CONTENT (Lights/Bloom): a plain 2-drop-zone crossfade

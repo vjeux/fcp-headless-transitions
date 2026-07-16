@@ -1,0 +1,14 @@
+{
+  "id": "T-q7f6795d6",
+  "title": "Earthquake mid-crossfade dip f10-f16 (~10-13 dB), post-tail-fix restore",
+  "project": "fct",
+  "goal": "Earthquake tail is now fixed (21.26 dB) but mid-transition f10-f16 dips to 10-13 dB. Root cause: engine crossfade midpoint at ~f10 (scene 0.98s, A.timing.out=0.951) but GUI GT holds photo A until ~f11 solid and midpoint is at f12-f13 (scene ~1.24s). Delta ~0.28s (~4 frames later). No opacity animation on A/B (both undefined); crossfade is timing-driven. Also A has aggressive position keyframes going to y=-477px near t=0.934s (shakes A off-screen just as it should be settled). Investigate: (a) does FCP delay B fade-in by rig-widget control? (b) does PAEEarthquake filter affect A's visibility/position? (c) is there a rig-widget-driven opacity override? DoD: raise f10-f16 without regressing tail (currently 20.99 mean; aim >22).",
+  "slugs": [
+    "Movements__Earthquake"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qca011a65",
+  "created_at": "2026-07-16T19:53:57+00:00",
+  "notes": ""
+}
