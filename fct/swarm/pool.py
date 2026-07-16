@@ -176,7 +176,6 @@ def completed_task_ids():
     (T-qpanellead1) counted as 'done', which UNBLOCKED its 4 dependents — they'd have been
     picked up and hit the exact same undecoded evaluator wall the lead deferred to a
     follow-up. Dependency gating must key on real completion, not terminality."""
-    done = completed = set()
     completed = set()
     for t in all_tasks():
         if t["status"] == "DONE":
