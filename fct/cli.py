@@ -66,12 +66,13 @@ def main():
             _reexec_under_venv_if_needed()
         from fct.config import SLUGS
         from fct import gen, slice_gui
-        # PRE-KILL every leftover render worker before launching a new batch — the
-        # load-194 storm guard. Kills ALL of our render tsx processes (true orphans
-        # from a prior kill -9 AND any still-running previous batch); matched by argv
-        # so the navi-node CLI and unrelated node procs are never touched. Safe here
-        # because this runs before the current batch spawns any worker of its own.
-        # See gen.sweep_orphaned_renderers.
+        # PRE-KILL every leftover render worker AND any stale previous gen/min-gen
+        # DRIVER before launching a new batch — the load-194 storm guard. A stale
+        # driver keeps respawning workers, so killing only workers is futile; we kill
+        # the driver(s) too. Matched by argv (render tsx + `cli.py gen/min-gen`), so
+        # the navi-node CLI and unrelated procs are never touched; our own PID and the
+        # launcher PPID are excluded. Safe here because it runs before this batch
+        # spawns any worker of its own. See gen.sweep_orphaned_renderers.
         gen.sweep_orphaned_renderers()
         # Headless batch (>1 slug) renders each slug in an ISOLATED subprocess:
         # the FCP GL master context can wedge/poison across slugs, so one bad
