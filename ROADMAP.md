@@ -679,6 +679,23 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               follow-up T-q7f6795d6 for the residual mid-crossfade dip f10-f16 (~10-13 dB)
               that remains after the tail fix — a separate crossfade-timing problem
               (engine crossfade midpoint ~f10, GUI GT midpoint ~f12-f13).
+- 2026-07-16j  📝 VIDEO_WALL DECODE-4 (T-qd1814800 WIP, gate 0/0) — instrumented trace of the framed
+              projection path REFUTES the "giant plate = projected quad rasterizing across frame"
+              hypothesis from the task briefing. `FCT_TRACE_FRAMED=1` dump at f11 shows the
+              standalone Transition B at world (1313, 2298) projects to sy=+813 (dest y ∈ [1145,
+              1561], entirely below the 1080-tall frame) with the correct sign convention:
+              `projectFramed` returns center-relative sx/sy, `up=(0,1,0)`, blitTransformed uses
+              m[13]=sy as Y-DOWN center-relative — and `blitDstBBox` correctly clips the off-frame
+              plate. NO on-frame pixels are written for that standalone. The visible "giant blue
+              plate" at f11 is actually `Replicator Pin 2 copy` (cellSrc=Pin 2 → imageB) whose 1×2
+              8260-wide grid + cellFill=pitchX/tileW=4.46× stretches its imageB tile to 1966×1105
+              (near-frame-filling). REFUTED two fallback attempts (aspect-preserving cellFill
+              MIN → 9.58, wall-bbox-derived farDist → 9.89). Follow-up T-q7fd2fef0 queued:
+              decompile Motion's OZReplicator stamp/cell-scale for the aspect-preserving cover-fit
+              rule (prior decode: GT screen pitch aspect 1.68 = tile-native 16:9, NOT pitch aspect
+              3.42). WIP state: timemap wrap-cancel + 3-key dolly + wall-centroid +
+              cellFill(pitchX/tileW) land 10.16→10.18. All engine changes staged; standalone cull
+              gated & DISABLED per f00/f23 near-key evidence (do not re-enable).
 
 - 2026-07-16h  🔧 SWING (T-qswing00001 WIP, gate 0/0) — landed the reusable per-pixel Z-BUFFERED
               perspective rasterizer (perspective.ts::projectQuadWithWorldZ +

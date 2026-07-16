@@ -97,4 +97,18 @@ export interface RenderContext {
    * fill-conformed so the settled tail fills the frame instead of letterboxing.
    */
   equirectScene?: boolean;
+  /**
+   * Set of layer ids for STANDALONE Transition A/B drop-zone image scenenodes
+   * (Object.Type=1 or 2) that FCP CULLS from the framed-camera render because their
+   * A/B content is already provided to the scene through a Replicator wall whose
+   * Cell `Object Source` (id=128) references a Type=3 drop-zone well ("Pin N" —
+   * FCPX binds the two transition clips into these Type-3 pins per the Motion
+   * Template drop-zone convention). Without the cull those standalone off-canvas
+   * plates project through the framing camera as giant lone tiles overlapping the
+   * wall (engine f11 showed a full-height blue Transition-B plate; GT shows only
+   * the tile grid). Populated once per composite() from a structural scene scan
+   * (hasReplicatorWallWithDropZoneRefs, no slug names / fitted constants). Gated
+   * behind rctx.framed so origin-camera scenes are untouched.
+   */
+  culledStandaloneAB?: Set<number>;
 }

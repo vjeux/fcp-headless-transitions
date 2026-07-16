@@ -1165,7 +1165,10 @@ function resolveCamera(
     // 2-behavior wall pose (Video_Wall); undefined when no replicator tiles exist,
     // in which case the pose falls back to its proxy-ray-cast anchor.
     const wallCenter = computeWallCenter(layers);
-    const wall = resolveFramedWallPose(cam.framing, (id) => evalLayerById.get(id), aov, frameHeight, timeSec, animationEndSec, wallCenter);
+    const staticCamPos: [number, number, number] = [
+      camLayer.worldTransform[12], camLayer.worldTransform[13], camLayer.worldTransform[14],
+    ];
+    const wall = resolveFramedWallPose(cam.framing, (id) => evalLayerById.get(id), aov, frameHeight, timeSec, animationEndSec, wallCenter, staticCamPos, frameWidth);
     const pose = wall ?? resolveFramedPose(cam.framing, (id) => evalLayerById.get(id), aov, timeSec, frameAspect);
     if (pose) {
       framed = { viewX: pose.target[0], viewY: pose.target[1], viewZ: pose.target[2], framingDistance: pose.distance, eye: pose.pos, target: pose.target, aov };

@@ -191,6 +191,34 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
     }
   }
 
+  // FRAMING-CAMERA DOLLY OUTLIVES THE DROP-ZONE WRAP (Video_Wall). A replicator-wall
+  // transition is authored by a CAMERA whose factory-3 Framing behaviors dolly
+  // near→far→near over the whole animation (Video_Wall: two Framing behaviors run to
+  // animationEnd=1.969s). Its Transition-A drop zone still carries a wrapping
+  // (retimingExtrapolation=1) retime that times out early (0.367s); the wrap-to-0
+  // then FREEZES the entire scene at t=0 — killing the camera dolly AND the staggered
+  // per-replicator reveal windows — so the engine renders one static pose for all 24
+  // frames (it accidentally scores ~10.2 dB by holding GT's near-A opening frame).
+  // The dolly, not the drop-zone crossfade, is the transition; cancel the wrap so
+  // scene time advances through the whole dolly + staggered windows.
+  // Structural signature (no slug names): the scene's Camera carries ≥1 Framing
+  // behavior AND the animation extends materially past the wrap (endSec > wrapSec).
+  // Fires on Video_Wall (wrapSec 0.367 ≪ end 1.969) + Clone_Spin (framing camera,
+  // wrapSec≈end so the guard below no-ops it) — the only two built-ins with a
+  // factory-3 framing camera; every other slug has camera.framing empty and is
+  // untouched. Decoded from the .motr Camera node (framing behaviors present) —
+  // no per-transition constant.
+  let hasFramingCamera = false;
+  (function scanCam(layers: readonly Layer[]) {
+    for (const l of layers) {
+      if (l.type === 'camera' && l.camera && l.camera.framing && l.camera.framing.length > 0) {
+        hasFramingCamera = true; return;
+      }
+      scanCam(l.children);
+      if (hasFramingCamera) return;
+    }
+  })(scene.layers);
+
   // FILTER-ANIMATION OUTLIVES CONTENT (Lights/Bloom): a plain 2-drop-zone crossfade
   // whose drop zones BOTH time out early (A.out 0.200, B.out 0.534) but whose scene
   // animationEnd is pushed WAY past that (1.270s) by a KEYFRAMED FILTER curve on a drop
@@ -382,7 +410,7 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
     // clamp (which requires wrapSec !== undefined). So gate the filteredMaskReveal
     // cancel on NOT strokedMaskShape — a stroked reveal takes the clamp path instead.
     const nonStrokedFilteredReveal = filteredMaskReveal && !strokedMaskShape;
-    if (wrapSec !== undefined && (filledShapeOverlay || blendedMediaOverlay || replicatorMaskReveal || kineticPanelMontage || nonStrokedFilteredReveal || pureCrossfadeSettleB) && endSec > wrapSec + frameSec) {
+    if (wrapSec !== undefined && (filledShapeOverlay || blendedMediaOverlay || replicatorMaskReveal || kineticPanelMontage || nonStrokedFilteredReveal || pureCrossfadeSettleB || hasFramingCamera) && endSec > wrapSec + frameSec) {
       wrapSec = undefined;
     }
     // Stroked-mask reveal (Objects/Arrows): the growing arrow arcs cut A away to

@@ -80,6 +80,66 @@ function computeEquirectScene(width: number, height: number, layerById: Map<numb
 }
 
 /**
+ * IDs of the standalone Transition A/B drop-zone image scenenodes (Object.Type=1
+ * or 2) that FCP CULLS when the same A/B content is already provided to the scene
+ * by a Replicator wall through drop-zone (Type=3) "Pin" cells.
+ *
+ * Decoded 2026-07-16 (T-qd1814800): Replicator-Clones · Video_Wall authors 14
+ * Replicators whose Cells' `Object Source` (param id 128) point to two Type=3
+ * drop-zone Image scenenodes named "Pin 1 " / "Pin 2" (FCPX Motion-Template
+ * convention: FCPX binds the transition's two clips into the two indexed Pin
+ * wells, and resolveCellImage routes Pin 1 → imageA, Pin 2 → imageB). The scene
+ * also carries STANDALONE Transition A (Type=1, world y=-2390) and Transition B
+ * (Type=2, world y=+3596) image scenenodes at extreme off-canvas Y. FCP's real
+ * render suppresses these standalone plates once the same A/B content lives in
+ * the tile wall (otherwise the framing-camera projection blows them up into
+ * lone frame-filling tiles that overlap the wall — engine f11 rendered a
+ * frame-height blue Transition-B plate that GT does not show).
+ *
+ * Structural signature (no slug names / fitted constants):
+ *   - AT LEAST ONE Replicator layer whose Cell (cellSourceId) resolves to an
+ *     Image layer carrying an Object.Type=3 drop zone (dropZone.type === 3),
+ *   - AND at least one STANDALONE Image layer at top-level whose source is
+ *     transitionA (Type=1) or transitionB (Type=2) with a drop zone
+ *     (layer.dropZone defined).
+ *
+ * The cull is applied ONLY when the render context has a framing pose
+ * (rctx.framed) — an origin-camera scene never projects off-canvas plates
+ * into the frame, so nothing to cull.
+ *
+ * Returns the set of standalone A/B image layer ids to skip (empty when the
+ * signature doesn't fire).
+ */
+function collectCulledStandaloneAB(scene: EvaluatedScene): Set<number> {
+  const out = new Set<number>();
+  const layerById = scene.layerById;
+  // Discover Type=3 drop-zone image ids that are cell sources.
+  let anyType3CellSrc = false;
+  for (const l of layerById.values()) {
+    if (l.type !== 'replicator' || !l.replicator) continue;
+    const csid = l.cellSourceId;
+    if (csid === undefined) continue;
+    const src = layerById.get(csid);
+    if (src && src.type === 'image' && src.dropZone && src.dropZone.type === 3) {
+      anyType3CellSrc = true;
+      break;
+    }
+  }
+  if (!anyType3CellSrc) return out;
+  // Standalone A/B image scenenodes (Type=1 or Type=2 drop zones with source
+  // transitionA / transitionB). Walk the whole layerById map — these live
+  // INSIDE the "Source" group, not at top level.
+  for (const l of layerById.values()) {
+    if (l.type === 'image' && l.dropZone
+      && (l.dropZone.type === 1 || l.dropZone.type === 2)
+      && (l.source?.type === 'transitionA' || l.source?.type === 'transitionB')) {
+      out.add(l.id);
+    }
+  }
+  return out;
+}
+
+/**
  * Compositor: EvaluatedScene + source images → output ImageData
  *
  * Implements the core compositing pipeline:
@@ -276,6 +336,28 @@ function renderReplicatorLayer(rctx: RenderContext, output: ImageData, evalLayer
     const rows = Math.max(1, Math.round(layer.replicator.rows));
     const globalProgress = seq ? time / (rctx.animationEndSec || 1) : 0;
 
+    // CELL-FILL scale (decoded 2026-07-16, T-qvidwall01). Motion scales a replicator
+    // cell's content to FILL its grid cell: the visible wall tiles TOUCH (thin seams),
+    // they do not float as small stamps in a wide cell. The grid pitch (the world
+    // distance between adjacent instances) is sizeWidth/(cols−1); a raw 1920-px photo
+    // tile at Video_Wall's ~4100 pitch would leave a ~2180-px black gap on every side
+    // (the engine rendered ~4 tiny tiles on black at the far dolly — 41-66% black —
+    // vs GT's frame-filling grid). Uniformly scale the cell so its WIDTH fills the
+    // grid-cell pitch (pitchX / tileWidth), which makes adjacent tiles meet with a
+    // thin seam exactly as the GUI GT shows. Derived purely from the parsed grid
+    // geometry (sizeWidth, columns) and the source tile width — NO fitted constant,
+    // NO per-transition branch. Only fires for multi-column grids whose pitch exceeds
+    // the tile (fillScale>1); single-column / already-dense grids keep scale 1, so
+    // dot/panel replicators (Duplicate, Squares, Concentric) are untouched. This is
+    // the tile-density half of the Video_Wall wall-fill fix (the camera 3-key dolly is
+    // the other half — see resolveFramedWallPose).
+    let cellFill = 1;
+    if (stampImg && stampImg.width > 0 && cols > 1) {
+      const pitchX = layer.replicator.sizeWidth / (cols - 1);
+      const fillScale = pitchX / stampImg.width;
+      if (fillScale > 1) cellFill = fillScale;
+    }
+
     for (const inst of instances) {
       // Per-instance sequenced parameters (default: no change).
       let instOpacityMul = 1;
@@ -294,10 +376,11 @@ function renderReplicatorLayer(rctx: RenderContext, output: ImageData, evalLayer
 
       if (cell && cellBBox && stampImg && instOpacityMul > 0 && instScale > 0) {
         const instTransform = new Float64Array(worldTransform);
-        if (instScale !== 1) {
+        const effScale = instScale * cellFill;
+        if (effScale !== 1) {
           // Scale the cell about its own center (instance origin), then translate.
-          instTransform[0] *= instScale; instTransform[1] *= instScale;
-          instTransform[4] *= instScale; instTransform[5] *= instScale;
+          instTransform[0] *= effScale; instTransform[1] *= effScale;
+          instTransform[4] *= effScale; instTransform[5] *= effScale;
         }
         instTransform[12] += inst.x;
         instTransform[13] += inst.y;
@@ -497,6 +580,20 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
     // over the whole frame on a derived envelope (rendering it here too would
     // double-count and wash the early frames too gray). See applyParticleFieldProxy.
     if (layer.type === 'image' && rctx.fieldTextureLayerId === layer.id) return 'stop';
+
+    // Skip a STANDALONE Transition A/B drop-zone image layer whose A/B content is
+    // already provided to the framed scene by a Replicator wall through Type=3
+    // drop-zone Pin cells (see collectCulledStandaloneAB). Without this cull the
+    // off-canvas (world y ~ ±3000) A/B plates project through the framing camera
+    // as giant lone tiles overlapping the wall (Video_Wall f11 rendered a
+    // frame-height blue Transition-B plate; GT shows only the tile grid).
+    // Gated behind rctx.framed via culledStandaloneAB being populated only when
+    // scene.camera?.framed is present, so origin-camera scenes are untouched.
+    // DISABLED — see per-frame investigation: at f00/f23 the standalone A/B IS
+    // the near-key content that fills the frame (GT shows only that plate). The
+    // wall replicator is what needs suppressing in mid-frames, or the plate
+    // culled only in the FAR pose. See ROADMAP.
+    // if (layer.type === 'image' && rctx.culledStandaloneAB && rctx.culledStandaloneAB.has(layer.id)) return 'stop';
 
     // Leaf layer: render source image with transform
 
@@ -904,6 +1001,7 @@ export function composite(
     mediaTime: scene.unwrappedTime ?? scene.time,
     filterTime: scene.unwrappedTime ?? scene.time,
     equirectScene: computeEquirectScene(scene.width, scene.height, scene.layerById),
+    culledStandaloneAB: scene.camera?.framed ? collectCulledStandaloneAB(scene) : undefined,
   };
 
   // Particle-emitter field proxy (Stylized/Nature: Diagonal, Glide) — detect once.

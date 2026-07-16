@@ -1,0 +1,14 @@
+{
+  "id": "T-q7fd2fef0",
+  "title": "OZReplicator cell aspect-fit decode \u2014 Video_Wall spatial layout",
+  "project": "fct",
+  "goal": "Decompile OZReplicator::stamp or OZReplicatorCell scale to find how Motion sizes per-instance stamps against grid pitch. Prior decode: GT screen pitch aspect (1.68) matches tile-native 16:9 (not pitch aspect 3.42). Hypothesis: aspect-preserving cover-fit min(pitchX/w, pitchY/h) \u2014 but confirm from the binary. cellFill=pitchX/tileW helps main 3x3 wall but overshoots decorative 1x2/8260-pitch replicators into frame-filling plates (visible as giant blue plate at f11). Fix must be generic (no per-transition) and derived from Motion's actual OZReplicator behavior. Also: projection math verified correct (center-relative Y-DOWN, bbox clipped); the gap is layout.",
+  "slugs": [
+    "Replicator-Clones__Video_Wall"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qd1814800",
+  "created_at": "2026-07-16T19:28:09+00:00",
+  "notes": ""
+}
