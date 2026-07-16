@@ -46,6 +46,10 @@ TODO_DIR = os.path.join(REPO, "fct", "swarm", "todo")
 
 _VALID_STATUS = ("open", "doing", "done", "dropped", "blocked")
 
+# Fetch-once guard (see all_items): fetch origin at most once per process so a status call
+# that fans out to many todo reads doesn't re-fetch. Reset by re-importing the module.
+_TODO_FETCHED = False
+
 
 def _now():
     return datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
@@ -56,11 +60,17 @@ def _new_id():
 
 
 def add(goal, title=None, project="fct", slugs=None, after=None, by="orchestrator",
-        notes=None, tid=None):
+        notes=None, tid=None, tier="isolated"):
     """Append a new task to the queue. Returns its id. Writes a fresh per-item file
-    (never edits a shared file) so concurrent producers never conflict."""
+    (never edits a shared file) so concurrent producers never conflict.
+
+    tier: 'isolated' (a single-slug bug, ~one session) or 'subsystem' (needs building a
+    whole new capability — z-buffer compositor, generator, etc.; expect multi-session WIP
+    increments + a bigger token budget). The orchestrator reads this to size the sub-agent."""
     os.makedirs(TODO_DIR, exist_ok=True)
     tid = tid or _new_id()
+    if tier not in ("isolated", "subsystem"):
+        raise SystemExit("tier must be 'isolated' or 'subsystem'")
     item = {
         "id": tid,
         "title": title or (goal[:60] + ("…" if len(goal) > 60 else "")),
@@ -69,6 +79,7 @@ def add(goal, title=None, project="fct", slugs=None, after=None, by="orchestrato
         "slugs": list(slugs) if slugs else [],
         "after": after,
         "status": "open",
+        "tier": tier,
         "created_by": by,
         "created_at": _now(),
         "notes": notes or "",
@@ -103,21 +114,50 @@ def all_items(from_origin=True):
     items = {}
     if from_origin:
         try:
-            subprocess.run(["git", "-C", REPO, "fetch", "origin", "--quiet"], timeout=60)
+            # Fetch AT MOST ONCE per process (shared with pool's fetch-once guard via the
+            # module global + FCT_SKIP_FETCH). A status call already fetched via pool, so
+            # skip the redundant network round-trip here (was ~2-4s of the old 19s status).
+            global _TODO_FETCHED
+            if not _TODO_FETCHED and os.environ.get("FCT_SKIP_FETCH") != "1":
+                subprocess.run(["git", "-C", REPO, "fetch", "origin", "--quiet"], timeout=60)
+                _TODO_FETCHED = True
+                # tell any sibling guard (pool._fetch_origin_once) origin is fetched this
+                # process so it skips its own redundant fetch of the same remote.
+                os.environ["FCT_SKIP_FETCH"] = "1"
             listing = subprocess.check_output(
                 ["git", "-C", REPO, "ls-tree", "--name-only", "origin/main",
                  "fct/swarm/todo/"], text=True, timeout=30).splitlines()
-            for p in listing:
-                if not p.endswith(".json"):
-                    continue
-                try:
-                    blob = subprocess.check_output(
-                        ["git", "-C", REPO, "show", f"origin/main:{p}"], text=True, timeout=30)
-                    it = json.loads(blob)
-                    if isinstance(it, dict) and it.get("id"):
-                        items[it["id"]] = it
-                except Exception:
-                    pass
+            paths = [p for p in listing if p.endswith(".json")]
+            # Batch-read ALL blobs in ONE `git cat-file --batch` process instead of a
+            # `git show` per file (was 40+ subprocess spawns ≈ most of the status wall time).
+            if paths:
+                specs = "".join(f"origin/main:{p}\n" for p in paths)
+                proc = subprocess.run(
+                    ["git", "-C", REPO, "cat-file", "--batch"],
+                    input=specs, capture_output=True, timeout=30)
+                buf = proc.stdout
+                off = 0
+                # --batch output per object: "<sha> <type> <size>\n<size bytes>\n"
+                while off < len(buf):
+                    nl = buf.find(b"\n", off)
+                    if nl < 0:
+                        break
+                    header = buf[off:nl].decode("utf-8", "replace")
+                    parts = header.split(" ")
+                    if len(parts) != 3 or parts[1] != "blob":
+                        # "<oid> missing" line (no size) — skip just this header line.
+                        off = nl + 1
+                        continue
+                    size = int(parts[2])
+                    start = nl + 1
+                    payload = buf[start:start + size]
+                    off = start + size + 1  # skip trailing newline
+                    try:
+                        it = json.loads(payload)
+                        if isinstance(it, dict) and it.get("id"):
+                            items[it["id"]] = it
+                    except Exception:
+                        pass
         except Exception:
             pass
     # Overlay local working-tree files (newer than origin, e.g. just-added by this call).
@@ -151,6 +191,9 @@ def _main():
     a.add_argument("--by", default="orchestrator")
     a.add_argument("--notes")
     a.add_argument("--id")
+    a.add_argument("--tier", default="isolated", choices=("isolated", "subsystem"),
+                   help="isolated = single-slug bug (~1 session); subsystem = build a whole "
+                        "new capability (multi-session WIP + bigger budget)")
     li = sub.add_parser("list")
     li.add_argument("--status")
     li.add_argument("--json", action="store_true")
@@ -163,7 +206,7 @@ def _main():
     if args.cmd == "add":
         tid, path = add(args.goal, title=args.title, project=args.project,
                         slugs=args.slugs, after=args.after, by=args.by,
-                        notes=args.notes, tid=args.id)
+                        notes=args.notes, tid=args.id, tier=args.tier)
         print(f"added {tid} -> {path}")
         print("commit + push it so the pool + other agents see it:")
         print(f"  git add {path} && git commit -m '{tid}: queue task' && <push>")
@@ -177,8 +220,10 @@ def _main():
         else:
             for i in items:
                 dep = f" after:{i['after']}" if i.get("after") else ""
+                tier = i.get("tier", "isolated")
+                tag = " «subsystem»" if tier == "subsystem" else ""
                 print(f"  {i['id']:12s} {i.get('status','?'):7s} [{i.get('project','')}] "
-                      f"{i.get('title','')}{dep}")
+                      f"{i.get('title','')}{dep}{tag}")
             print(f"  ({len(items)} item(s))")
     elif args.cmd == "done":
         print("updated", set_status(args.id, args.status))

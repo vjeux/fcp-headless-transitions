@@ -34,6 +34,33 @@ ROADMAP = os.path.join(MAIN, "ROADMAP.md")
 
 
 # ---------------------------------------------------------------------------
+# Fetch-once guard. A single `pool status` / eligible_tasks() call fans out to
+# parse_tasks() + done_task_ids() + completed_task_ids() + the todo queue, and each USED to
+# run its OWN `git fetch origin` (~2-4s over the network) — 4 fetches ≈ 19s per status call,
+# which timed out the 5-min keep-8 tick and interactive checks (measured 2026-07-16). The
+# refs don't change within a single process invocation, so fetch AT MOST ONCE and let every
+# caller reuse it. Callers that need fresh refs across a long-lived process (none today) can
+# reset _FETCHED. The env override FCT_SKIP_FETCH=1 skips entirely (offline / test).
+# ---------------------------------------------------------------------------
+_FETCHED = False
+
+
+def _fetch_origin_once():
+    global _FETCHED
+    if _FETCHED or os.environ.get("FCT_SKIP_FETCH") == "1":
+        return
+    try:
+        subprocess.run(["git", "-C", MAIN, "fetch", "origin", "--quiet"], timeout=60)
+    except Exception as e:
+        print(f"[pool] warn: git fetch failed: {e}", flush=True)
+    _FETCHED = True
+    # Signal the todo module (separate process-global guard) that origin is already fetched
+    # this process, so its all_items() read skips the redundant second fetch of the same
+    # remote (kept status at 2 fetches; now 1). todo honors FCT_SKIP_FETCH.
+    os.environ["FCT_SKIP_FETCH"] = "1"
+
+
+# ---------------------------------------------------------------------------
 # Task list parsing + scheduling
 # ---------------------------------------------------------------------------
 def parse_tasks():
@@ -47,7 +74,7 @@ def parse_tasks():
     NOCHANGE). Fetching + `git show origin/main:` closes that window.
     """
     try:
-        subprocess.run(["git", "-C", MAIN, "fetch", "origin", "--quiet"], timeout=60)
+        _fetch_origin_once()
         txt = subprocess.check_output(
             ["git", "-C", MAIN, "show", "origin/main:ROADMAP.md"],
             text=True, timeout=30)
@@ -107,6 +134,7 @@ def _queue_tasks():
             "status": sched,
             "desc": (it.get("title", "") + ": " + goal).strip(": "),
             "after": it.get("after"),
+            "tier": it.get("tier", "isolated"),
             "extra": " " + " ".join(it.get("slugs", []) or []),
         })
     return out
@@ -146,7 +174,7 @@ def done_task_ids():
     try:
         # parse_tasks already fetched, but keep a fetch here for safety when this
         # function is called without a preceding parse_tasks pass.
-        subprocess.run(["git", "-C", MAIN, "fetch", "origin", "--quiet"], timeout=60)
+        _fetch_origin_once()
         log = subprocess.check_output(
             ["git", "-C", MAIN, "log", "origin/main", "--pretty=%s", "-n", "400"],
             text=True, timeout=30)
@@ -176,13 +204,12 @@ def completed_task_ids():
     (T-qpanellead1) counted as 'done', which UNBLOCKED its 4 dependents — they'd have been
     picked up and hit the exact same undecoded evaluator wall the lead deferred to a
     follow-up. Dependency gating must key on real completion, not terminality."""
-    done = completed = set()
     completed = set()
     for t in all_tasks():
         if t["status"] == "DONE":
             completed.add(t["id"])
     try:
-        subprocess.run(["git", "-C", MAIN, "fetch", "origin", "--quiet"], timeout=60)
+        _fetch_origin_once()
         log = subprocess.check_output(
             ["git", "-C", MAIN, "log", "origin/main", "--pretty=%s", "-n", "400"],
             text=True, timeout=30)
@@ -238,9 +265,12 @@ def cmd_status():
     for t in elig:
         dep = f"  after:{t['after']}" if t.get("after") else ""
         slugs = " ".join(slugs_for(t)) or "-"
-        print(f"    {t['id']:14s} [{slugs}]{dep}")
+        tier = t.get("tier", "isolated")
+        tag = "  «SUBSYSTEM»" if tier == "subsystem" else ""
+        print(f"    {t['id']:14s} [{slugs}]{dep}{tag}")
     if not elig:
         print("    (none - queue empty or all deps pending; nothing to spawn)")
+    print("  (tasks tagged «SUBSYSTEM» need a bigger token budget + expect WIP relaunches)")
     return 0
 
 

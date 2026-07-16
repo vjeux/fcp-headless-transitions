@@ -113,7 +113,18 @@ def main():
         # thrash → the CLI node is starved OFFLINE (observed load 194, 60 render workers, the
         # multi-tick merge blocker). 4 keeps a solo run fast while leaving headroom for a
         # couple of concurrent agents. A solo/quiet run can still bump it: FCT_JOBS=8.
-        default_jobs = min(4, (os.cpu_count() or 4)) if source in ("engine", "gui") and len(slugs) > 1 else 1
+        #
+        # SWARM-AWARE DEFAULT (2026-07-16): when running inside a swarm worktree the box has
+        # up to 8 agents ALL rendering at once. If each defaults to 4, that's ~32 tsx workers
+        # on 10 cores → load ~80, swap thrash, every gate slower (measured this session). So
+        # in swarm context (FCT_ISOLATION_ID set, e.g. "swarm-<id>") the default is 1: N
+        # agents × 1 ≈ N workers ≈ core count. An agent that WANTS more can still export
+        # FCT_JOBS explicitly (the brief sets 2). Solo/human runs (no isolation id) keep 4.
+        in_swarm = bool(os.environ.get("FCT_ISOLATION_ID", "").startswith("swarm-"))
+        if source in ("engine", "gui") and len(slugs) > 1:
+            default_jobs = 1 if in_swarm else min(4, (os.cpu_count() or 4))
+        else:
+            default_jobs = 1
         jobs = int(jobs_env) if jobs_env else default_jobs
         # Longest-known-slow slugs first so they don't tail the batch (best-effort;
         # unknown slugs keep their given order after the known-slow ones).
