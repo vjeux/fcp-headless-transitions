@@ -322,18 +322,13 @@ function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: nu
   const scZ = resolveWithRetime(tx.scaleZ, timeSec, 1, retimeProgress, ov?.has('scaleZ'), hasRetime);
   // Anchor is retime-interpolated like position (both have default=0, value=X); they must
   // track together so a static offset (e.g. Fall's -540) cancels, leaving only the rotation pivot.
-  // When a Link drives the anchor (ov has 'ancX'/'ancY'/'ancZ'), bypass the Retime
-  // static-position ramp so the FULL linked anchor is used — matching the way position
-  // links bypass. Movements/Switch links BOTH position and anchor off the shared pivot;
-  // ramping only the anchor left a large lever arm that flung A off-frame (see
-  // evaluator/links.ts anchor branch).
-  const ancX = resolveWithRetime(tx.anchorX, timeSec, 0, retimeProgress, ov?.has('ancX'), hasRetime);
-  const ancY = resolveWithRetime(tx.anchorY, timeSec, 0, retimeProgress, ov?.has('ancY'), hasRetime);
+  const ancX = resolveWithRetime(tx.anchorX, timeSec, 0, retimeProgress, false, hasRetime);
+  const ancY = resolveWithRetime(tx.anchorY, timeSec, 0, retimeProgress, false, hasRetime);
   // Anchor Z: the rotation/scale pivot's depth. Movements/Reflection's incoming
   // Transition B carries anchor Z = 960 (its page hinges on the shared "spine" at
   // Z=960, not its own centre) — without it, B's 90° pre-rotation leaves it offset
   // ~720px laterally when the group settles, instead of landing full-frame.
-  const ancZ = resolveWithRetime(tx.anchorZ, timeSec, 0, retimeProgress, ov?.has('ancZ'), hasRetime);
+  const ancZ = resolveWithRetime(tx.anchorZ, timeSec, 0, retimeProgress, false, hasRetime);
 
   // Transform order (Motion's documented order), producing the matrix
   //   M = T(position) · R · S · T(-anchor)

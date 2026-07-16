@@ -64,6 +64,7 @@ git checkout --quiet -B main origin/main
 rsync -a --delete \
   --filter='protect /.git' \
   --filter='protect /.git/**' \
+  --filter='protect /fct/swarm/todo/**' \
   --exclude='.git/' \
   --exclude='.git' \
   --exclude='engine/node_modules' \
