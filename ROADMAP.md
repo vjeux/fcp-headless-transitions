@@ -616,6 +616,20 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16d  ⛔ DIVIDE (T-qdissdivide) — BLOCKED, decode-only (no engine change). Opportunistic residual
+              (15.40 dB) checked for an isolated collapse per brief; census (Rule 7) shows it's a SUBSYSTEM, not
+              isolated. Per-frame: the whole ACTIVE window f00-f13 is uniformly 12-14 dB while the settle f14-f20
+              is 19.18 dB — no single-frame collapse to snipe. DECODE: Divide.motr has ZERO keyframes; 18 Shape
+              panels each carry a Fade In/Fade Out + a Rig (49 Rig Behaviors) ramping scale(100/105 x16),
+              position(100/101 x15), opacity(200/202 x6), Colorize remap(2/353/103 x8) from 18 STATIC snapshots
+              by transition progress. EVIDENCE the panels translate-apart too little: mid-row (y=540) A/B boundary
+              cols at f0013 are engine=[19,243,299,472] vs GUI-GT=[16,247,292,623,797] — GT's right panel group
+              separates to col ~623/797, engine stops at ~472. So the Rig position-snapshot ramp amplitude (or its
+              progress mapping) is systematically short across the whole active window — a subsystem-sized fix,
+              not a clean opportunistic win. Filed follow-up T-q95b898a4 (concrete first step: trace the 15
+              position(100/101) snapshots through applyRigBehaviors/getSnapshotValue in evaluator/links.ts,
+              check the endpoint reached at progress=1). No code touched; gate untouched (baseline 15.40 intact).
+
 - 2026-07-16c  ⛔ SLIDE_IN (T-qslidein001) — BLOCKED, decode-only (no engine change), 3-subsystem build too
               big for one net-positive tick. CENSUS (Rule 7/8) CONFIRMED the brief premise and reconciled the
               stale "linear gradient fill" premise: Slide_In has ONE Gradient generator (factoryID=8, pluginUUID

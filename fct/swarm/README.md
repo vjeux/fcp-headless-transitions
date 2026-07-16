@@ -29,11 +29,9 @@ keeps the pool full by spawning replacements as tasks complete.
   methodology, done-map, and durable dead-ends (guardrails that survive a slug's
   completion). See the ROADMAP's "Work items (detail) -> now the swarm TODO queue" pointer.
 - **Sub-agents FEED the queue.** When a sub-agent discovers follow-up work it is not doing
-  in its own task (a decode that opens a GENUINELY SEPARATE fix, a DIFFERENT slug its
-  correct fix regressed that was already imperfect per ROADMAP Rule 11, a capability worth
-  unit-testing), it APPENDS a new item. (A large subsystem the sub-agent's OWN slug needs is
-  NOT filed as follow-up — that subsystem IS its task; it builds it, incrementally if needed.)
-  It via `python3 -m fct.swarm.todo add ...` and pushes it.
+  in its own task (a decode that opens a new fix, a subsystem too big for one task, a
+  regressed-but-already-imperfect slug per ROADMAP Rule 11, a capability worth unit-
+  testing), it APPENDS a new item via `python3 -m fct.swarm.todo add ...` and pushes it.
   Future agents pick it up — the swarm runs open-endedly without a human re-authoring the
   plan. One file per item = concurrent producers never merge-conflict. A sub-agent that
   PROVES a fix net-negative records the dead-end in the ROADMAP's "Durable findings &
@@ -102,16 +100,11 @@ Worktrees live OUTSIDE `~/random` so a sub-agent's fs-security prompt (which blo
 non-interactive runs in that tree) never fires.
 
 ## Contract
-Each agent follows `agent_brief.md`: decode-first (census), build (INCLUDING an entire new
-subsystem — no task is too big; size is never a reason to defer), gate green (one truth vs
-GUI GT), rebase onto main, commit, push via `push_helper.sh` (retry on reject), CLEAN UP its
-worktree via `setup_worktree.sh cleanup <id>` (only when fully DONE), and print `SWARM_RESULT`.
-A subsystem too large to finish gate-green in one session is landed in INCREMENTS: each is
-gate-green, committed with a NON-terminal `WIP <id>: ...` subject, and the scheduler relaunches
-the id so the persistent worktree resumes until the target slug measurably improves. Final
-completion is detected by a `<id> DONE:` (or `<id>:`) commit subject; `WIP <id>:` is NOT
-terminal. BLOCKED is a narrow escape hatch (false premise / external-framework RE / degenerate
-GT), never a size valve.
+Each agent follows `agent_brief.md`: decode-first (census), build, gate green (one truth
+vs GUI GT), rebase onto main, re-freeze baseline, commit `<id> DONE: ...`, push via
+`push_helper.sh` (retry on reject), CLEAN UP its worktree via `setup_worktree.sh cleanup
+<id>` (only after the work has landed), and print `SWARM_RESULT`. Completion is detected by
+that commit subject.
 
 ## Operational limits (verified 2026-07-15)
 - **RAM is the hard ceiling, NOT CPU.** Each agent runs `gen engine --all` (65 slugs) +
@@ -159,11 +152,9 @@ this looks like "something external reset my files" but is self-inflicted. Befor
 isolation, check: does any OTHER worktree symlink into `engine/src`? (No.) Are the files
 clean vs the worktree's own HEAD? (If yes → self-revert, not contamination.)
 
-**Never commit gate-red, but never BLOCK for size either.** Several deep bugs (Slide_In
-3-part subsystem, Lower visibility↔retime coupling, group-mask 3D-rotated groups) are the
-"min-repro up / full-gate down" trap: the reduced repro improves but a shared code path
-regresses shipped slugs. The agent must NOT ship that red change — but the correct response
-is to BUILD THE REST of the subsystem so the whole thing is net-positive (landing gate-green
-`WIP <id>:` increments across relaunches until it does), NOT to give up. Reserve BLOCKED for a
-genuine dead-end (false premise / external-framework RE / degenerate GT). Always salvage the
-decode into ROADMAP/docs so a relaunch resumes from the root cause.
+**Agents correctly push NOTHING when a fix regresses the ship gate.** Several deep bugs
+(Slide_In 3-part subsystem, Lower visibility↔retime coupling, group-mask 3D-rotated
+groups) are the "min-repro up / full-gate down" trap: the reduced repro improves but a
+shared code path regresses shipped slugs. The agent reverting + reporting BLOCKED is the
+CORRECT outcome — salvage its decode into ROADMAP/docs so the next attempt starts from the
+root cause, don't re-dispatch the same one-shot.
