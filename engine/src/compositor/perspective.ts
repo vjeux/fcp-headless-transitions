@@ -361,13 +361,96 @@ function rasterizeTriangle(
 // linearly across the triangle, divide by the interpolated `1/s`.
 //
 // STATUS. Ready to hook. Not yet wired into `renderChildLayers` — the WIRING
-// requires an upstream ANCHOR / ROTATION-SIGN decode per family (Swing's rig
-// widget selects "Top" but the engine's worldTransform anchors the pair at
-// frame_y≈630, and `-rotX` negation in evaluator/index.ts was calibrated for
-// Fall; 3D_Rectangle needs the clone-source Image-Mask BAKE to feed the depth
-// pass its 25 masked rectangles). Unit-tested here (perspective.test.ts) to
-// pin the projection + depth-compare semantics so those upstream ticks can
-// consume this infrastructure without re-deriving the math.
+// requires the compositor to walk sibling perspective quads under a shared
+// Z-buffer, replacing the current single-quad `renderPerspectiveQuad` call at
+// `compositor/index.ts::renderChildLayers`. Blocked here by cross-agent scope
+// (T-qswing00001 is scoped to perspective.ts only; three concurrent agents own
+// disjoint regions of `compositor/index.ts`).
+//
+// SWING DECODE (from Movements/Swing.motr, Anchor widget value=2 → "Top" branch,
+// verified with tools/re/read_const style manual XML walk, 2026-07-16):
+//   Top-away LAYER: Position=(0,+728.34,0), Anchor=(0,+540,0), Ramp on rotationX
+//     0 → +π/2 rad over the transition (behavior id=987619281).
+//   Top-away CloneA (id=987619277): Position=(0,+540,0), Anchor=(0,+540,0),
+//     Rotation.X = 0    (source = Transition A id=987619205).
+//   Top-away CloneB (id=987619279): Position=(0,+540,0), Anchor=(0,+540,0),
+//     Rotation.X = -π/2 (source = Transition B id=987619203).
+//   Same shape for Bottom/Left/Right branches, mirrored via ±540 pos/anchor.
+// Under `M = T(pos)·R·S·T(-anchor)` this puts BOTH clones sharing the BOTTOM
+// hinge edge at world (X±540, Y=+540, Z=0), with Clone A face-on (identity when
+// R=I) and Clone B tilted 90° X so its back extends INTO the scene at Z=-1080.
+// As the Top-away Ramp advances, Clone A rotates AWAY (top-of-source swings
+// forward), Clone B rotates INTO face-on. Painter's-order (reverse-list) draws
+// Clone A on TOP for the whole transition — the two-clone occlusion bug.
+//
+// SWING GATE-MEASURED DEAD-ENDS (do NOT re-attempt without new decode):
+//   • Naive whole-quad z-sort by CENTRE wz (paint farther-first): 12.89 → 12.58
+//     (−0.31 dB). Verified 2026-07-16 with an FCT_SWING_ZORDER=1 experimental
+//     path in renderChildLayers.
+//   • Per-pixel Z-buffer wiring alone WITHOUT correcting the "Top away" world Y:
+//     produces engine panels centred BELOW frame centre (Clone A pixel_y=358..1080,
+//     Clone B pixel_y=286..973 at t≈0.94) — but GUI GT wants the reveal centred at
+//     TOP (source B fills pixel_y=0..~700 with a black band below). The world
+//     transforms are geometrically self-consistent but the OFFSET AXIS does not
+//     match the GT reveal — implies the fix needs an evaluator-side Y-inversion
+//     OR a rig-column swap for factoryID-16 anchor widgets, both OUT of scope for
+//     `perspective.ts`.
+//
+// WHAT THE Z-BUFFER PATH NEEDS FROM ITS CALLER (compositor/index.ts wiring plan
+// once the geometry is settled):
+//   1. In `renderChildLayers`, for a group whose visible children are all
+//      camera-projected quads with `needsPerspective(worldTransform)==true`
+//      (typically clone/image leaves under a 3D-fold parent), allocate a shared
+//      `Float64Array(output.width*output.height).fill(Infinity)` z-buffer.
+//   2. For each child in ANY order (order becomes irrelevant), compute
+//      `cornersWithZ = projectQuadWithWorldZ(child.worldTransform, srcW, srcH, cameraZ)`
+//      and call `renderPerspectiveQuadDepth(output, zbuf, src, cornersWithZ, opacity)`.
+//   3. Skip the current painter's-order sort branches (concentric, flatStack,
+//      reverse-list) since depth is now data-driven per pixel.
+// Unit-tested here (perspective.test.ts +2 Swing-specific cases) to pin the
+// projection + depth-compare semantics so the upstream tick can consume this
+// infrastructure without re-deriving the math.
+//
+// SWING DECODE (2026-07-16 session, T-qswing00001 revisit). The Movements/Swing
+// .motr Top-away branch (Anchor widget default value=2) is a two-clone pair:
+//   Clone A: pos=(0,540,0), anchor=(0,540,0), rot=0            → identity at t=0
+//   Clone B: pos=(0,540,0), anchor=(0,540,0), rot.X=-π/2 (rad) → 90° edge-on
+//   Parent "Top away" LAYER: pos=(0,728.34,0), anchor=(0,540,0)
+//   Parent "Top" group: pos=(0,-188,0)  (cancels Top-away's +188 static offset)
+//   Ramp on "Top away" rotationX: 0 → +π/2 over transition duration.
+// Under engine convention `rotX_deg = -motr_rotX * RAD2DEG`, at t=0 world
+// transforms are: Clone A = identity, Clone B = T(0,+540,-540) with rot +90°
+// (horizontal "shelf" panel at frame bottom, edge-on).
+//
+// THE MEASURED DEAD-END (this session confirmed prior WIP finding). Two
+// z-composite experiments both regress vs GT:
+//   (a) whole-quad centre-Z paint order (12.76 → 12.58, −0.18 dB): sorting by
+//       worldTransform[14] puts Clone B on top when its centre is nearer, but
+//       both quads' PROJECTED GEOMETRY covers the wrong screen region (both
+//       hinge at frame-bottom Y=+540, GT wants hinge in middle/top of frame).
+//   (b) per-pixel z-buffer via renderPerspectiveQuadDepth: identical outcome —
+//       the DEPTH math is correct, but the GEOMETRY FEEDING the depth pass
+//       (which panel occupies which screen pixels) matches the FCP compositor's
+//       Y-DOWN interpretation, not the FCP renderer's *visual* result. GT f11
+//       shows source B occupying the TOP ~65% of the frame with black at
+//       bottom; the engine's decoded geometry puts both clones straddling the
+//       BOTTOM half. The mismatch is upstream of perspective.ts — either the
+//       evaluator's rotation-sign convention for this specific "Anchor=Top"
+//       widget variant, or the interaction between the Top-away layer's
+//       Position Y=+728.34 and the parent Top's -188 translation, produces
+//       screen-space output rotated about a hinge line that doesn't match FCP's
+//       real render (visible ONLY when comparing to GUI GT, not headless).
+//
+// The wiring FROM the compositor is a small change to `renderChildLayers`
+// (compositor/index.ts around L826, adding a two-perspective-siblings order/
+// z-buffer path alongside the existing `flatStack`, `concentricRings`, and
+// default reverse-list paths). That change is currently gated by the collision
+// map (3 concurrent editors of index.ts: Concentric renderCloneLayer, Close_and_
+// Open group-mask block, Video_Wall standalone-render). Once index.ts is free,
+// the wiring should also address the upstream anchor/rotation decode so the
+// underlying geometry matches GT — otherwise even a correct z-buffer will
+// score net-negative (both experiments above confirmed on 2026-07-16).
+
 
 /** Project a quad and also return world-Z per corner. Same order as projectQuad. */
 export function projectQuadWithWorldZ(

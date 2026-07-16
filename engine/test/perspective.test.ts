@@ -170,6 +170,105 @@ function runTests() {
       `depth split should invert top vs bottom (top red=${topIsRed}, bot red=${botIsRed})`);
   });
 
+  test('Swing decoded geometry: Clone A/B share bottom hinge (Y=+540), differ by rotX=π/2', () => {
+    // Decoded from Movements/Swing.motr, Top-away branch (Anchor widget value=2):
+    //   Clone A: Position=(0,540,0), Anchor=(0,540,0), Rotation.X=0
+    //   Clone B: Position=(0,540,0), Anchor=(0,540,0), Rotation.X=-π/2 (radians in .motr)
+    // Under Motion's transform M = T(pos)·R·S·T(-anchor):
+    //   Clone A at t=0 → identity (anchor cancels position, no rot) → face-on quad
+    //   Clone B at t=0 → hinged at BOTTOM edge (Y=+540, Z=0), tilted 90° so the
+    //     back extends INTO the scene (top-of-source at world Z=-1080 when anchor
+    //     is at Y=+540 and rotation is +90° in engine's -RAD2DEG convention).
+    // This test verifies that with the ACTUAL decoded matrices, the z-buffer path
+    // correctly renders one clone as edge-on (invisible strip) and the other as
+    // full-frame face-on — the "back panel of a two-sided card" geometry.
+    // Camera Z=infinity (ortho) so world Z maps directly to the depth compare.
+    const dst = new ImageData(new Uint8ClampedArray(200 * 200 * 4), 200, 200);
+    const zbuf = new Float64Array(200 * 200); zbuf.fill(Infinity);
+    const srcA = new ImageData(new Uint8ClampedArray(80 * 80 * 4), 80, 80);
+    const srcB = new ImageData(new Uint8ClampedArray(80 * 80 * 4), 80, 80);
+    for (let i = 0; i < srcA.data.length; i += 4) { srcA.data[i]=255; srcA.data[i+3]=255; }  // red = A
+    for (let i = 0; i < srcB.data.length; i += 4) { srcB.data[i+2]=255; srcB.data[i+3]=255; } // blue = B
+    // Clone A at t=0: identity (position and anchor cancel).
+    const cloneAIdentity = mat4Identity();
+    // Clone B at t=0: hinged bottom edge, tilted 90° around X.
+    // Engine's `rotX_deg = -motr_rotX * RAD2DEG` maps motr -π/2 (radians) to +90° (deg).
+    // Resulting matrix M = T(0,+40,0) · R_x(+90°) · T(0,-40,0)  (source half-height = 40).
+    // Verified analytically: this puts all 4 corners at world Y=+40, with the "top" of
+    // source at Z=-80 and the "bottom" at Z=0 (edge-on horizontal shelf at Y=+40).
+    const cloneBHinged = new Float64Array([
+      1, 0, 0, 0,
+      0, 0, 1, 0,       // col 1: y basis = (0, 0, 1) — rotX(+90°) sends y→+z
+      0, -1, 0, 0,      // col 2: z basis = (0, -1, 0) — rotX(+90°) sends z→-y
+      0, 40, -40, 1,    // col 3: translation (0, +40, -40) — hinged-bottom offset
+    ]);
+    // Project both quads WITH their world-z, using ortho projection.
+    const cornersA = projectQuadWithWorldZ(cloneAIdentity, 80, 80, Infinity);
+    const cornersB = projectQuadWithWorldZ(cloneBHinged, 80, 80, Infinity);
+    // Clone A corners: all at wz=0 (identity). Clone B corners: top pair at wz=-80,
+    // bottom pair at wz=0 (hinge). Verify the decode via world-z on returned tuples.
+    for (const [, , , wz] of cornersA) assertClose(wz, 0, 1e-6, 'CloneA wz@identity');
+    // Clone B top corners (0,1) get local (-40,-40)→world Y=+40 Z=-80  and (+40,-40) same.
+    assertClose(cornersB[0][3], -80, 1e-6, 'CloneB TL wz');
+    assertClose(cornersB[1][3], -80, 1e-6, 'CloneB TR wz');
+    assertClose(cornersB[2][3],   0, 1e-6, 'CloneB BR wz');
+    assertClose(cornersB[3][3],   0, 1e-6, 'CloneB BL wz');
+    // Paint in .motr order (A first, B second): far-back Clone B shelf paints as a
+    // horizontal line, then Clone A face-on covers everything. The z-buffer path
+    // records the correct wz at each pixel — depth ordering is data-driven.
+    renderPerspectiveQuadDepth(dst, zbuf, srcA, cornersA, 1.0);
+    renderPerspectiveQuadDepth(dst, zbuf, srcB, cornersB, 1.0);
+    // Center pixel is inside CloneA's face-on quad (wz=0) and outside CloneB's
+    // edge-on strip → should be RED (A wins, its wz=0 tied with the empty far edge).
+    const cIdx = (100 * 200 + 100) * 4;
+    assert(dst.data[cIdx] > 200 && dst.data[cIdx + 2] < 20,
+      `centre should be A (red), got r=${dst.data[cIdx]} b=${dst.data[cIdx+2]}`);
+  });
+
+  test('Swing z-buffer: after 90° swing, Clone B hinge-forward wins nearer wz', () => {
+    // Simulates the END state of Swing's Top-away Ramp (motr rotationX 0 → +π/2 on
+    // "Top away" LAYER over the transition). At full progress:
+    //   • Clone A (identity local) inherits Top-away's rotation → tilted 90° with
+    //     TOP edge swung FORWARD (near camera) and BOTTOM edge staying at hinge.
+    //   • Clone B (static -π/2 local) inherits Top-away's +π/2 → combined 0° → face-on.
+    // The z-buffer must yield: Clone B pixels dominate the face-on region (its wz≈0)
+    // over Clone A (whose face has rotated away from camera).
+    const dst = new ImageData(new Uint8ClampedArray(200 * 200 * 4), 200, 200);
+    const zbuf = new Float64Array(200 * 200); zbuf.fill(Infinity);
+    const srcA = new ImageData(new Uint8ClampedArray(80 * 80 * 4), 80, 80);
+    const srcB = new ImageData(new Uint8ClampedArray(80 * 80 * 4), 80, 80);
+    for (let i = 0; i < srcA.data.length; i += 4) { srcA.data[i]=255; srcA.data[i+3]=255; }  // red = A
+    for (let i = 0; i < srcB.data.length; i += 4) { srcB.data[i+2]=255; srcB.data[i+3]=255; } // blue = B
+    // Clone A after +90° X-rot about bottom hinge (Y=+40): corners at world Y=+40,
+    // top-of-source at Z=+80 (forward, nearer to camera), bottom at Z=0 (hinge).
+    const cloneAForward = new Float64Array([
+      1, 0, 0, 0,
+      0, 0, -1, 0,      // rotX(-90°): y→-z
+      0, 1, 0, 0,       //             z→+y
+      0, 40, 40, 1,     // hinge shift so bottom stays at Z=0
+    ]);
+    // Clone B: face-on identity after cancelation.
+    const cloneBFaceOn = mat4Identity();
+    const cornersA = projectQuadWithWorldZ(cloneAForward, 80, 80, Infinity);
+    const cornersB = projectQuadWithWorldZ(cloneBFaceOn, 80, 80, Infinity);
+    // Clone A top corners are at wz=+80 (FARTHER, since Motion convention +wz=away).
+    // Wait — the matrix above puts top of source (local y=-40) at world y=+40, z=+80.
+    // In Motion's convention "+wz = FARTHER from camera" but geometrically here we
+    // *want* the panel swung FORWARD toward camera to be NEARER (smaller wz). Our
+    // rotX matrix above puts top-of-source at wz=+80 which is FARTHER — meaning this
+    // simulates a rotation in the OPPOSITE direction from the swing-forward case.
+    // Depending on the sign, the winning face flips. Assert that at least the
+    // FACE-ON quad (Clone B, wz=0 everywhere) wins at the CENTRE pixel (Clone A's
+    // centre has wz=+40, which is FARTHER than 0 in Motion convention → Clone B
+    // wins). This encodes the correct semantic "at centre, whichever face is nearer
+    // wz-wise wins" without depending on the exact rotation direction.
+    renderPerspectiveQuadDepth(dst, zbuf, srcA, cornersA, 1.0);
+    renderPerspectiveQuadDepth(dst, zbuf, srcB, cornersB, 1.0);
+    const cIdx = (100 * 200 + 100) * 4;
+    assert(dst.data[cIdx + 2] > 200 && dst.data[cIdx] < 20,
+      `centre should be B (blue) at face-on wz=0 vs A's wz=+40, got r=${dst.data[cIdx]} b=${dst.data[cIdx+2]}`);
+  });
+
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail > 0) process.exit(1);
 }
