@@ -1,0 +1,14 @@
+{
+  "id": "T-qfcdfc30f",
+  "title": "Pinwheel tile fold direction + A/B alternation timing",
+  "project": "fct",
+  "goal": "Pinwheel now at 13.98 dB after T-qpinwheel01 landed the group-mask image-media-driver fix. Remaining gap vs GT (~17 dB target): (a) some tiles fold the WRONG SENSE (rotation direction inverted for a subset \u2014 decode: check the sign of each square_fix Rotation.X/Y curve vs the tile position quadrant; the pinwheel's counter-rotating pairs may need signed handling); (b) per-tile A/B crossfade TIMING inside the fold \u2014 right now Clone Layer 6 (A, timing offset -1.5s out 0.968s) times out mid-fold and Clone Layer 1 (B) covers, but the exact scene time each tile flips A->B must match GT (currently some tiles show all-A or all-B for too long a window). Decode from the tile's clone timings vs its driver Rotation curve; the flip should happen ~when the fold hits \u03c0/2 (edge-on). VERIFY: gate-green with 0 regressions, target Pinwheel >= 15 dB.",
+  "slugs": [
+    "Movements__Pinwheel"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qpinwheel01",
+  "created_at": "2026-07-16T15:49:31+00:00",
+  "notes": ""
+}

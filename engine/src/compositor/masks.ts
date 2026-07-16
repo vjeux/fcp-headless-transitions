@@ -252,23 +252,43 @@ export function collectMaskShapes(group: EvaluatedLayer, out: EvaluatedLayer[]):
 }
 
 /**
- * True when a GROUP-LEVEL Image Mask's resolved Mask Source is SHAPE geometry the
+ * True when a GROUP-LEVEL Image Mask's resolved Mask Source is geometry the
  * group-mask compositor can rasterize through its own world transform (so it
  * swings/foreshortens WITH the group): a shape, a clone (chained to a shape), a
- * replicator of shape cells, or a group whose descendants are shapes/clones and
- * carry NO image-media layer.
+ * replicator of shape cells, a group whose descendants are shapes/clones and
+ * carry NO image-media layer, or a POSITIONED/FOLDED image-media matte (a
+ * disabled media Image node with a non-identity worldTransform + a Width/Height
+ * dropZone quad — Pinwheel's `square_fix` PNG drivers).
  *
- * NOT eligible when the source is an image-MEDIA layer: its reveal matte is
- * rasterized FLAT full-frame by resolveImageMaskAlpha (ignoring the source's own 3D
- * transform), so masking a group to it mis-registers (Pinwheel's `square_fix`
- * regressed −3.46). Those stay on the pre-existing render path.
+ * NOT eligible when the source is an image-MEDIA layer at IDENTITY WT (its reveal
+ * matte is rasterized flat full-frame by resolveImageMaskAlpha and masking a
+ * group to it would mis-register — Stylized/Loop's shape.png, Objects/Veil's wipe
+ * .mov). Those stay on the pre-existing flat-conform path via the leaf mask
+ * branch, not the group path.
  */
 export function maskSourceIsShapeGeometry(src: EvaluatedLayer): boolean {
   const t = src.layer.type;
   if (t === 'shape') return !!src.layer.shape;
   if (t === 'clone') return src.layer.cloneSourceId !== undefined;
   if (t === 'replicator') return !!src.layer.replicator;
-  if (t === 'image') return false; // flat-conformed media matte — not group-eligible
+  if (t === 'image') {
+    // POSITIONED / FOLDED image-media mask driver (Pinwheel `square_fix`, 17
+    // tile-groups): eligible iff the source has a Width/Height dropZone quad AND
+    // a non-identity worldTransform (position/scale/3D rotation). The transformed
+    // media matte is rasterized through the SAME projection the group content
+    // uses, so mask + content register. A flat identity-WT media matte (Loop's
+    // shape.png at world origin, Veil's wipe.mov) still fails this check → stays
+    // on the pre-existing full-frame path (byte-for-byte unchanged).
+    if (!src.layer.dropZone) return false;
+    const wt = src.worldTransform;
+    if (!wt) return false;
+    const identityWT =
+      Math.abs(wt[0] - 1) < 1e-6 && Math.abs(wt[5] - 1) < 1e-6 && Math.abs(wt[10] - 1) < 1e-6
+      && Math.abs(wt[1]) < 1e-6 && Math.abs(wt[2]) < 1e-6 && Math.abs(wt[4]) < 1e-6
+      && Math.abs(wt[6]) < 1e-6 && Math.abs(wt[8]) < 1e-6 && Math.abs(wt[9]) < 1e-6
+      && Math.abs(wt[12]) < 1e-6 && Math.abs(wt[13]) < 1e-6 && Math.abs(wt[14]) < 1e-6;
+    return !identityWT;
+  }
   if (t === 'group') {
     // Eligible iff SOME descendant is shape/clone/replicator geometry AND NONE is an
     // image-media layer that would be rasterized flat (Center's "Shapes for image
@@ -521,20 +541,142 @@ export function resolveImageMaskAlpha(rctx: RenderContext, sourceId: number, W: 
         }
       }
       const useAlpha = sampled > 0 && transparentCount / sampled > 0.02;
+      const alphaAt = (sx: number, sy: number): number => {
+        const si = (sy * mw + sx) * 4;
+        if (useAlpha) return md[si + 3];
+        const l = luma601(md[si], md[si + 1], md[si + 2]);
+        return Math.round(l * (md[si + 3] / 255));
+      };
+
+      // POSITIONED / FOLDED image-media mask driver (Pinwheel's `square_fix`): the
+      // mask source is a small square-shaped PNG matte (576×576, alpha=0 outside a
+      // soft square) authored as a DISABLED <enabled>0</enabled> Image scenenode
+      // whose Transform carries the tile's Position + fold Rotation (X or Y axis,
+      // 0→π radians via a Curve keypoint pair). The driver never draws — its role
+      // is to supply the group-level Image Mask's reveal geometry: the tile's
+      // silhouette is the matte's alpha PROJECTED through the driver's own world
+      // transform (position + fold). Every one of the 17 pinwheel tile-groups
+      // wires its Image Mask this way (17 disabled square_fix drivers, each
+      // Position + Rotation.X or .Y curve on a distinct axis so tiles fan out).
+      // Detected structurally: source is an `image` node with a Width/Height
+      // Object block (parseDropZone populated) AND a non-identity worldTransform
+      // (translated / rotated / scaled). The full-frame fallback below is kept
+      // for un-transformed media mattes (Stylized/Loop's shape.png, Objects/Veil's
+      // wipe .mov — those sit at world-origin with an identity transform, so this
+      // branch never fires for them). Byte-for-byte identical for that legacy
+      // path (verified: identity transform + full-frame source → the sampling
+      // math below collapses to the same conform loop).
+      const wt = src.worldTransform;
+      const dz = src.layer.dropZone;
+      const identityWT = wt !== undefined
+        && Math.abs(wt[0] - 1) < 1e-6 && Math.abs(wt[5] - 1) < 1e-6 && Math.abs(wt[10] - 1) < 1e-6
+        && Math.abs(wt[1]) < 1e-6 && Math.abs(wt[2]) < 1e-6 && Math.abs(wt[4]) < 1e-6
+        && Math.abs(wt[6]) < 1e-6 && Math.abs(wt[8]) < 1e-6 && Math.abs(wt[9]) < 1e-6
+        && Math.abs(wt[12]) < 1e-6 && Math.abs(wt[13]) < 1e-6 && Math.abs(wt[14]) < 1e-6;
+      if (wt !== undefined && dz !== undefined && !identityWT) {
+        // Project the 4 corners of a dz.width × dz.height quad (centered) through
+        // the source's worldTransform + camera. Rasterize the media's alpha into
+        // the mask via barycentric-interpolated UV sampling with perspective
+        // divide — same conventions as renderPerspectiveQuad (Y-DOWN screen).
+        const camZ = rctx.cameraZ ?? 2000;
+        const camP = rctx.cameraPosZ;
+        // Orthographic scene (cameraZ = Infinity / no perspective camera in the
+        // template — Pinwheel, and any FCP transition without a `<camera>` node):
+        // skip the perspective divide and project the quad affinely. Perspective
+        // divide with non-finite camZ collapses every corner to the frame centre
+        // (s = camZ / denom = Infinity / (0 - wz) = NaN|0) — the quad renders
+        // nothing. Motion's orthographic default keeps content at unit scale
+        // (screen = world + frameCentre) which matches every non-camera scene.
+        const orthographic = !isFinite(camZ);
+        const hw = dz.width / 2, hh = dz.height / 2;
+        const localCorners: Array<[number, number]> = [
+          [-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh],
+        ];
+        const pts: Array<[number, number, number]> = [];
+        for (const [lx, ly] of localCorners) {
+          const wx = wt[0] * lx + wt[4] * ly + wt[12];
+          const wy = wt[1] * lx + wt[5] * ly + wt[13];
+          const wz = wt[2] * lx + wt[6] * ly + wt[14];
+          if (orthographic) {
+            // Orthographic: no perspective divide. World Z is unused for screen
+            // position (X/Y still fold as authored via m2/m6 rotation columns).
+            // Third component is 1 so 1/w = 1 and UV interp is standard affine.
+            pts.push([wx + W / 2, wy + H / 2, 1]);
+            continue;
+          }
+          const denom = camP !== undefined ? (camP - wz) : (camZ + wz);
+          const s = denom > 1e-6 ? camZ / denom : 0;
+          // Y-down screen (same as projectQuad/renderPerspectiveQuad).
+          pts.push([wx * s + W / 2, wy * s + H / 2, denom > 1e-6 ? denom / camZ : 0]);
+        }
+        // The 3rd component (`w`) above is 1/scale — the perspective divisor. For
+        // perspective-correct UV interp we need iw = 1/w = scale, so we invert.
+        const invW: number[] = pts.map(p => p[2] > 1e-9 ? 1 / p[2] : 0);
+        // Rasterize the quad as two triangles: (TL,TR,BR) and (TL,BR,BL).
+        const [TL, TR, BR, BL] = pts;
+        const uvs: Array<[number, number]> = [[0, 0], [1, 0], [1, 1], [0, 1]];
+        const tris: Array<[number, number, number]> = [[0, 1, 2], [0, 2, 3]];
+        // BBox for the whole quad.
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (const p of pts) {
+          minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]);
+          minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]);
+        }
+        const bx0 = Math.max(0, Math.floor(minX));
+        const bx1 = Math.min(W - 1, Math.ceil(maxX));
+        const by0 = Math.max(0, Math.floor(minY));
+        const by1 = Math.min(H - 1, Math.ceil(maxY));
+        for (const [iA, iB, iC] of tris) {
+          const pa = pts[iA], pb = pts[iB], pc = pts[iC];
+          const ax = pa[0], ay = pa[1], bx = pb[0], by = pb[1], cx = pc[0], cy = pc[1];
+          const area = (bx - ax) * (cy - ay) - (cx - ax) * (by - ay);
+          if (Math.abs(area) < 1e-9) continue;
+          const invArea = 1 / area;
+          const iwa = invW[iA], iwb = invW[iB], iwc = invW[iC];
+          const uva = uvs[iA], uvb = uvs[iB], uvc = uvs[iC];
+          const ua = uva[0] * iwa, va = uva[1] * iwa;
+          const ub = uvb[0] * iwb, vb = uvb[1] * iwb;
+          const uc = uvc[0] * iwc, vc = uvc[1] * iwc;
+          const triMinX = Math.max(bx0, Math.floor(Math.min(ax, bx, cx)));
+          const triMaxX = Math.min(bx1, Math.ceil(Math.max(ax, bx, cx)));
+          const triMinY = Math.max(by0, Math.floor(Math.min(ay, by, cy)));
+          const triMaxY = Math.min(by1, Math.ceil(Math.max(ay, by, cy)));
+          for (let y = triMinY; y <= triMaxY; y++) {
+            for (let x = triMinX; x <= triMaxX; x++) {
+              const px = x + 0.5, py = y + 0.5;
+              const w0 = ((bx - px) * (cy - py) - (cx - px) * (by - py)) * invArea;
+              const w1 = ((cx - px) * (ay - py) - (ax - px) * (cy - py)) * invArea;
+              const w2 = 1 - w0 - w1;
+              if (w0 < 0 || w1 < 0 || w2 < 0) continue;
+              const iw = w0 * iwa + w1 * iwb + w2 * iwc;
+              if (iw <= 1e-9) continue;
+              const u = (w0 * ua + w1 * ub + w2 * uc) / iw;
+              const v = (w0 * va + w1 * vb + w2 * vc) / iw;
+              // Bilinear-sample the media's alpha at (u,v) in [0,1]².
+              const sxf = u * mw - 0.5, syf = v * mh - 0.5;
+              const sx0 = Math.max(0, Math.min(mw - 1, Math.floor(sxf)));
+              const sy0 = Math.max(0, Math.min(mh - 1, Math.floor(syf)));
+              const sx1 = Math.min(mw - 1, sx0 + 1), sy1 = Math.min(mh - 1, sy0 + 1);
+              const fx = sxf - Math.floor(sxf), fy = syf - Math.floor(syf);
+              const gx = 1 - fx, gy = 1 - fy;
+              const a00 = alphaAt(sx0, sy0), a10 = alphaAt(sx1, sy0);
+              const a01 = alphaAt(sx0, sy1), a11 = alphaAt(sx1, sy1);
+              const a = a00 * gx * gy + a10 * fx * gy + a01 * gx * fy + a11 * fx * fy;
+              const cur = alpha[y * W + x];
+              const nv = Math.round(a);
+              if (nv > cur) alpha[y * W + x] = nv;
+            }
+          }
+        }
+        return applyInvert(alpha);
+      }
+
       // Full-frame matte: sample the media conformed to the output frame.
       for (let y = 0; y < H; y++) {
         const sy = Math.min(mh - 1, Math.floor(y * mh / H));
         for (let x = 0; x < W; x++) {
           const sx = Math.min(mw - 1, Math.floor(x * mw / W));
-          const si = (sy * mw + sx) * 4;
-          if (useAlpha) {
-            // Shape-by-alpha matte: the alpha channel IS the reveal coverage.
-            alpha[y * W + x] = md[si + 3];
-          } else {
-            // Opaque luma matte: Rec.601 luma × the matte's own alpha (≈1 here).
-            const l = luma601(md[si], md[si + 1], md[si + 2]);
-            alpha[y * W + x] = Math.round(l * (md[si + 3] / 255));
-          }
+          alpha[y * W + x] = alphaAt(sx, sy);
         }
       }
       return applyInvert(alpha);

@@ -460,7 +460,24 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   // param encoded as `<parameter default="1" value="X"/>` (Motion's standard
   // static-transform encoding) must NOT be collapsed to `default` — that silently
   // dropped Concentric's ring-mask Circle scales (1.27/0.75/0.5/0.26/0.15 → 1.0).
-  const hasRetime = !!(layer.retimeValue && layer.retimeValue.keyframes.length >= 2);
+  //
+  // EXCEPTION — DISABLED media DRIVER (Pinwheel's 17 `square_fix` fold drivers,
+  // 3D_Rectangle's shape/scale drivers): a `<enabled>0</enabled>` image node
+  // never "plays" its media — it exists ONLY to publish a static Position +
+  // animated Rotation Transform for a consumer (its sibling group's Image Mask,
+  // or a Link behavior). Retime-ramping its static Position from 0 → authored
+  // value would slide the driver from centre to its authored tile position as
+  // the retime curve advances, which is a media-playback semantic ("as the clip
+  // plays, its authored transform activates") — bogus for a hidden geometric
+  // driver whose Position is the tile's FIXED coordinate. So bypass the
+  // retime-ramp for disabled media drivers: their authored values are the ones
+  // the mask consumer needs. Scoped strictly to layer.enabled === false AND
+  // layer.type === 'image' AND a media source (a hidden Color Solid or
+  // Generator DRIVES rig behaviors, not the transform-mask path this
+  // exception targets). Byte-for-byte a no-op for every enabled layer, incl.
+  // the drop-zone A/B images and Concentric's ring-mask Circles.
+  const hasRetime = !!(layer.retimeValue && layer.retimeValue.keyframes.length >= 2)
+    && !(layer.enabled === false && layer.type === 'image' && layer.source?.type === 'media');
   // Hold the incoming (Type=2) B drop zone past its timeout when the scene stays
   // alive past the drop-zone crossfade. Two cases share this:
   //   • a blended VIDEO overlay keeps the scene alive (Lights/Light Noise): B

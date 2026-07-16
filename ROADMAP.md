@@ -687,6 +687,49 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               the hinge-relative projection for orthographic-fold scenes (measure Z-delta from anchor
               world-Z, flip sign, keep panels at authored size while adding rotation-induced wedge).
 
+- 2026-07-16f  ✅ PINWHEEL (T-qpinwheel01) — group Image-Mask now honors POSITIONED/FOLDED image-media
+              mask drivers. Movements__Pinwheel 13.27->13.98 (+0.71), gate green (0 regressions across
+              65 slugs). ROOT CAUSE decoded from .motr: each of the 17 pinwheel tile-groups (One..
+              Seventeen) authors an <enabled>0</enabled> `square_fix` Image scenenode as a hidden
+              FOLD DRIVER — it carries the tile's Position (X/Y in pixels) + fold Rotation.X or
+              Rotation.Y curve (0->π radians) via a Curve keypoint pair, plus a 576x576 Width/Height
+              Object block. The tile's group-level `<mask name="Image Mask">` references this
+              disabled driver's id as its Mask Source; the two sibling `Clone Layer` nodes (Transition
+              A source id=10008, Transition B id=10006) stack full-frame and the mask clips them to
+              the folded tile silhouette. TWO bugs kept this dead in the engine:
+              (1) `maskSourceIsShapeGeometry` returned false for ANY `image` mask source — the
+                  Pinwheel group-mask code path never fired. Now it returns TRUE when the source is
+                  a disabled/positioned/rotated media image with a dropZone Width/Height quad (a
+                  transformed mask matte, distinct from the flat full-frame media matte Stylized/Loop
+                  + Objects/Veil use). Byte-for-byte identical for flat identity-WT media mattes.
+              (2) `resolveImageMaskAlpha`'s image branch stamped the media FULL-FRAME (`sy = y*mh/H`),
+                  ignoring the source's own worldTransform — so a positioned/folded matte would
+                  register at frame corners instead of the tile pose. Now the image branch projects
+                  the 4 corners of the dz.width x dz.height quad through the source's worldTransform
+                  + camera and rasterizes the media's alpha via barycentric-interpolated UV sampling
+                  (mirrors `renderPerspectiveQuad`), so the mask silhouette folds through the SAME
+                  projection the group content uses. Orthographic scenes (cameraZ = Infinity, no
+                  `<camera>` node — Pinwheel and every non-camera FCP transition) take an affine
+                  path (screen = world + frameCentre) since the perspective divide with camZ=Inf
+                  collapses every corner to the frame centre.
+              PLUS: retime static-value ramp bypass for DISABLED media DRIVERS
+                (evaluator/index.ts). Motion's `resolveWithRetime` interpolates a static Position from
+                default (0) -> authored value over retimeProgress, correct for a real retimed clip
+                whose transform "activates" as it plays (Concentric's ring-mask Circle scales rely on
+                this). But a disabled media Image is NEVER played — it exists only to publish a
+                static Position + animated Rotation to a mask consumer or Link behavior. Applying
+                the retime ramp there slid every driver from the frame centre out to its authored
+                tile position, so at t=0 all 17 Pinwheel tiles clustered at centre (77% coverage
+                instead of ~100%). New gate: `layer.enabled === false && layer.type === 'image' &&
+                layer.source?.type === 'media'` — bypass the retime ramp. Scoped strictly (drop-zone
+                Transition A/B images have source.type='transitionA'/'B', so unaffected).
+              STRUCTURAL fixes, no per-transition hardcoding: predicate keys on
+              enabled=false + image + media source + non-identity WT + dropZone Width/Height quad;
+              fires on Pinwheel's 17 tile-drivers and any future template with the same disabled-
+              media-driver pattern. Full-frame media matte legacy path preserved for Loop/Veil.
+              Remaining Pinwheel gap (13.98 vs GT ~17): per-tile A/B alternation timing and fold
+              direction/axis (some tiles rotate the wrong sense — a separate decode) but the tile
+              silhouettes now register through their fold. Commits + verified.
 - 2026-07-16d  ✅ SMEAR (T-qsmear00001) — scene-aware wide-equirect + sub-canvas drop-zone fill-conform.
               Movements__Smear 11.75->13.98 (+2.23), Wipes__Mask 14.30->17.45 (+3.15); 0 regressions, gate green.
               The tail-collapse heuristic pointed at the settled-B frames, but DECODE (Rule 1) found the bug is a
