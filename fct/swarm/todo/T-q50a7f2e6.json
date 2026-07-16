@@ -1,0 +1,14 @@
+{
+  "id": "T-q50a7f2e6",
+  "title": "Reflection perspective: hinge-relative Z + sign flip",
+  "project": "fct",
+  "goal": "Movements/Reflection 14.23 dB stuck in orthographic branch. Prior decode (ROADMAP durable findings, T-qreflect001) proved: (a) GT wedge direction requires Motion Z-convention = +Z toward viewer (opposite of current perspective.ts denom=cameraZ+z); (b) sign flip gets wedge SHAPE right but panels blow up in X (14.17 @ D=2000+FLIP vs 14.23 ortho); (c) monotonic toward ortho, no interior D optimum. NEXT: build 'hinge-relative perspective' \u2014 for orthographic-fold detected scenes (rep=0, static-cam, has anchor-Z coupled link), apply perspective divide using the Z-DELTA from anchor world-Z rather than raw wz, AND flip the sign so +delta = further. This should keep panels at authored size while adding rotation-induced wedge. Test: gate 0 regress vs baseline_engine.json, Color_Planes (14.26) must not regress, Reflection >14.23. Cite: perspective.ts::projectPoint, evaluator/index.ts::resolveCamera S6 branch, evaluator/links.ts anchor-Z-couple detector.",
+  "slugs": [
+    "Movements__Reflection"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qreflect001",
+  "created_at": "2026-07-16T15:19:03+00:00",
+  "notes": ""
+}

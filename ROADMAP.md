@@ -342,6 +342,50 @@ These are the measured-negative attempts and non-obvious decode facts a worker n
 starting a slug. A todo may point here ("DO NOT re-attempt X — see ROADMAP dead-ends"); the
 full measured record lives here, once.
 
+### 🔬 REFLECTION Z-CONVENTION DECODE — sign is INVERTED in perspective.ts (2026-07-16, T-qreflect001)
+
+Investigating Movements/Reflection (14.23 dB, currently orthographic-forced by the S6 discriminator)
+to add the missing mid-transition book-fold wedge. Measured wedge geometry vs GT + traced world
+transforms, established the Motion Z convention that current `projectPoint` inverts:
+
+- **GT Reflection f10** (mid-transition) has near-seam panel height ~689px, off-frame panel height
+  ~961px. The panels are **SHORTER at the seam, TALLER at their outer edges** — i.e. the outer
+  edge is closer to the camera.
+- Engine world transforms at t=0.737: Panel A corner near seam is at world Z=-373, corner off-frame
+  at world Z=+721 (measured via `FCT_XFORM=1 test/_trace_layers.ts`).
+- So the outer edge (world Z=+721) is CLOSER to camera than the seam (world Z=-373). Motion's
+  convention: **+Z = toward viewer** (not away, as the current code comment claims).
+- Current `perspective.ts::projectPoint` uses `denom = cameraZ + z; scale = cameraZ/denom` — this
+  makes +Z RECEDE (smaller) and -Z APPROACH (bigger), the OPPOSITE of Motion. Verified: with
+  FCT_FORCE_PERSPECTIVE=1 (default cam distance 1614 for AOV=37°) at f10, engine renders panel-A
+  near-seam TALLER than off-frame — exactly the flip of GT (see /tmp/reflect_cmp/persp*_f10.jpg).
+- Adding a sign flip (`denom = cameraZ - z`) gives the CORRECT wedge direction visually
+  (verified render at D=2000+FLIP: near-seam shorter, off-frame taller — matches GT), but does
+  NOT beat orthographic globally: 14.23 (ortho) vs 14.17 (flip+perspective @ D=2000). At true
+  D=1614 the flip produces 12.62 dB (panels blow up in X).
+
+### ⛔ REFLECTION — global camera-distance sweep is DEAD-END (2026-07-16, T-qreflect001)
+
+Measured cam-distance sweep with both FCT_FORCE_PERSPECTIVE=1 and FCT_FLIP_Z=1 (custom Z-flip
+gated on env for the sweep). Both curves are MONOTONIC toward orthographic — no interior optimum:
+
+| D    | no-flip | flip |
+|------|---------|------|
+| 1614 | 13.68   | 12.62 |
+| 2000 | -       | 14.17 |
+| 3000 | 13.92   | 14.16 |
+| 6000 | 14.03   | 14.18 |
+| ∞    | 14.23 (ortho baseline) | |
+
+So a naive global "camera distance / AOV" nudge cannot recover the wedge. Motion's actual
+projection model has an additional structural component — likely a **framing-plane depth
+offset** so panels appear near-full-size regardless of their world Z, with perspective divide
+only applied to the Z-DELTA (relative to some reference plane, probably the anchor Z=+960).
+This is a multi-tick subsystem-level fix (proper "hinge-relative perspective" + Z-sign in the
+compositor). DoD for the next tick: measurable improvement of Reflection above 14.23 dB with
+0 regressions (Color_Planes 14.26 is the other slug that hits this same orthographic branch and
+must not fall below 14.26).
+
 ### ⛔ ORCHESTRATOR: never rsync a worktree's file-state to land work — commit+rebase instead (2026-07-16)
 DO NOT reintroduce the old "rsync the whole worktree over a fresh clone with --delete then git add -A"
 push path. It clobbered the swarm harness 4× in one session: a worktree branched off an OLD origin/main
@@ -627,6 +671,21 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+
+- 2026-07-16e  📝 REFLECTION DECODE (T-qreflect001 WIP, docs-only, gate 0/0) — investigated the missing
+              mid-transition book-fold wedge on Movements__Reflection (14.23 dB, orthographic-forced by
+              the S6 rep=0/static-cam discriminator). Ran perspective + cam-distance sweeps and per-column
+              GT wedge geometry measurement (frame_0010: near-seam panel height 689px vs off-frame 961px
+              → outer edge is CLOSER to camera). Cross-referenced with the engine world transforms via
+              FCT_XFORM=1 (Panel A at t=0.737: near-seam corner world Z=-373, off-frame corner Z=+721)
+              — proving Motion's Z convention is +Z=TOWARD viewer, **opposite** of the current
+              perspective.ts (`denom = cameraZ + z` makes +Z recede). Verified: a sign-flip perspective
+              (denom = cameraZ - z) renders the correct wedge DIRECTION but panels still blow up in X;
+              cam-distance sweep is monotonic toward orthographic under both sign conventions (no interior
+              optimum). Docs-only WIP: recorded the decode in Durable findings + queued the follow-up
+              subsystem work (hinge-relative perspective + Z-sign flip) as T-q50a7f2e6. Next tick: build
+              the hinge-relative projection for orthographic-fold scenes (measure Z-delta from anchor
+              world-Z, flip sign, keep panels at authored size while adding rotation-induced wedge).
 
 - 2026-07-16d  ✅ SMEAR (T-qsmear00001) — scene-aware wide-equirect + sub-canvas drop-zone fill-conform.
               Movements__Smear 11.75->13.98 (+2.23), Wipes__Mask 14.30->17.45 (+3.15); 0 regressions, gate green.
