@@ -6,7 +6,7 @@ import {
 } from './blit.js';
 import type { RenderContext } from './context.js';
 import {
-  resolveCloneImage, shapeMaskCell, revealThroughMask, findVisibleDrawable,
+  resolveCloneImage, cloneChainLeafId, shapeMaskCell, revealThroughMask, findVisibleDrawable,
   getSourceImage, isMaskGroup, collectMaskShapes, collectImageMaskSourceIds,
   resolveImageMaskAlpha, maskSourceIsShapeGeometry, evalSubtreeContains,
   maskSourceWorldRadius,
@@ -343,6 +343,25 @@ function renderCloneLayer(rctx: RenderContext, output: ImageData, evalLayer: Eva
     // Clone Layer: draw the image of the object it mirrors, at this layer's transform.
     let src = resolveCloneImage(rctx, layer.cloneSourceId);
     if (src) {
+      // CLONE SOURCE'S OWN FILTERS: when a Clone Layer references a standalone
+      // Transition A/B (or another leaf) as its `cloneSourceId`, the SOURCE layer's
+      // filters must be applied to the resolved pixels — resolveCloneImage returns
+      // the raw imageA/imageB without them. Decoded from Replicator-Clones/Concentric:
+      // standalone Transition B (id 10006) carries a PAEFlop (horizontal-mirror)
+      // filter, and every "Clone B copy N" ring clones B by ID. Without applying
+      // the source's PAEFlop here, the ring content is un-mirrored (raw imageB),
+      // so the interior rings look identical to the B background — no visible
+      // woven bullseye. Walking `cloneSourceId` up to the terminal leaf (bounded
+      // by resolveCloneImage's depth guard) and running its filters is a strict
+      // superset of the previous behavior — clone chains whose leaf has no filters
+      // are byte-identical.
+      const leafId = cloneChainLeafId(rctx, layer.cloneSourceId);
+      const leaf = leafId !== undefined ? rctx.layerById.get(leafId) : undefined;
+      if (leaf && leaf.filters && leaf.filters.length > 0) {
+        for (const filter of leaf.filters) {
+          src = applyFilter(src, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
+        }
+      }
       // A clone may carry its OWN filters (e.g. Color Planes stacks 6 clones of the
       // same source, each with a Channel Mixer isolating one R/G/B channel, then
       // additively blends them at different Z depths for the chromatic-split look).

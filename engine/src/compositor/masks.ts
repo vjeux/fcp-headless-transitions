@@ -80,6 +80,25 @@ export function resolveCloneImage(rctx: RenderContext, cloneSourceId: number | u
 }
 
 /**
+ * Walk a clone chain to its terminal leaf's layer ID — the SAME chain
+ * resolveCloneImage descends. Returns the ID of the layer whose pixels
+ * resolveCloneImage ultimately returns (a leaf with `source`), or undefined if
+ * the chain is broken. Consumers use this to grab the LEAF layer's own filters
+ * (e.g. a PAEFlop mirror on the standalone Transition B whose clones must show
+ * mirrored B content). Mirrors resolveCloneImage's depth guard so the two agree.
+ */
+export function cloneChainLeafId(rctx: RenderContext, cloneSourceId: number | undefined, depth = 0): number | undefined {
+  if (cloneSourceId === undefined || depth > 8) return undefined;
+  const src = rctx.layerById.get(cloneSourceId);
+  if (!src) return undefined;
+  if (src.type === 'clone') return cloneChainLeafId(rctx, src.cloneSourceId, depth + 1);
+  // Any non-clone with a source (transitionA/B, image, generator, etc.) — or a leaf
+  // without a source — is the terminal node. Return its id so the caller can read
+  // its filter list.
+  return cloneSourceId;
+}
+
+/**
  * Rasterize a shape into a full-frame single-channel-in-alpha RGBA buffer,
  * centered at the origin (white fill, shape alpha). Used as a per-instance
  * window mask. The evaluated shape's transform is used with translation stripped.

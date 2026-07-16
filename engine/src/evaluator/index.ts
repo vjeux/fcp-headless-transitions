@@ -879,18 +879,36 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
     const frameSec = fps > 0 ? 1 / fps : 1 / 30;
     let minWrap = Infinity;
     let hasFilledShapeOverlay = false;
+    // A LIVE Transition-B drop zone at the tail (its `out` reaches endSec) means
+    // the scene SETTLES ON PHOTO B, not on a persistent-A base. The wrap-to-A
+    // pattern (Lights/Flash) applies when the wrapping drop-zone dies well before
+    // endSec AND no successor B drop zone remains alive at endSec — the overlay
+    // then rides over a re-looped source A base. But Stylized/Kinetic/Center
+    // chains A (out=2.40) → B (out=5.27, endSec 4.67) as a straight succession
+    // with an inverted-mask panel overlay: past A's out, source B is alive and IS
+    // the settled tail (GT + headless FCP both render photo B at f23; the engine
+    // was rendering photo A because wrapToA forced A visible on top of B). So
+    // gate wrapToA on "no transitionB drop zone alive at endSec". Verified on the
+    // 10 wrapToA-eligible slugs (fct: /tmp/scan5.mjs): Flash / Close_and_Open /
+    // Up_Over have no live-B tail → keep wrapToA (correct); Center + Multi /
+    // Duplicate / Diagonal / Glide / Panels_Random / Panels_Across have live B
+    // at tail → wrapToA off (correct: tail is B). Structural (drop-zone timing),
+    // never a slug name.
+    let bDropZoneAliveAtEnd = false;
     (function scan(ls: Layer[]) {
       for (const l of ls) {
         if (l.type === 'image' && l.retimeValue && l.retimeValue.retimingExtrapolation === 1
           && l.retimeValue.keyframes.length >= 2 && l.timing) {
           const out = l.timing.out.timescale > 0 ? l.timing.out.value / l.timing.out.timescale : 0;
           if (out > 0 && out < minWrap) minWrap = out;
+          if (l.source?.type === 'transitionB' && out >= end - frameSec) bDropZoneAliveAtEnd = true;
         }
         if (l.type === 'shape' && l.shape && !l.shape.isMask && (l.shape.fillColor || l.shape.isSolidPanel)) hasFilledShapeOverlay = true;
         scan(l.children);
       }
     })(scene.layers);
-    wrapToA = hasFilledShapeOverlay && minWrap !== Infinity && end > minWrap + frameSec;
+    wrapToA = hasFilledShapeOverlay && minWrap !== Infinity && end > minWrap + frameSec
+      && !bDropZoneAliveAtEnd;
     // Detect a blended (screen/add) VIDEO overlay that outlives the drop-zone
     // crossfade: it keeps the scene alive past the B drop zone's timeout, so the
     // incoming B must be held (not vanish to black) behind the overlay.
