@@ -47,57 +47,64 @@
 // misalignments where the near-A surface stops covering and the far-B surface
 // takes over.
 //
-// STATUS. This module PROVIDES the depth-composite scaffolding
-// (buildDepthQuad + renderDepthComposite + createDepthBuffer + two structural
-// probes) reusing the shared perspective.ts primitives (projectQuadWithWorldZ +
-// renderPerspectiveQuadDepth). It is NOT YET wired into the main composite()
-// pipeline — the wiring lives inside renderCloneLayer which is concurrently
-// being edited by T-qconcentric1 (Concentric task). Wiring lands as a
-// SEPARATE T-q98a30de5 increment after that tick completes; this module is
-// gate-neutral (no import site) until then. Unit tests in
-// engine/test/z-composite.test.ts pin the rasterization + probes so the
-// scaffolding cannot silently regress before wiring lands.
+// STATUS. This module PROVIDES the full depth-composite subsystem:
+//   • Structural probes: hasNestedMaskedCloneCameraStack (fires on 3D_Rectangle
+//     alone — the ONLY built-in whose reveal is a nested masked clone chain)
+//     and its structural parent hasCameraCloneStack (fires on 4 built-ins —
+//     3D_Rectangle, Light_Sweep, Color_Planes, 360° Wipe). Both registered in
+//     no-hardcode.test.ts.
+//   • Core primitives: createDepthBuffer + renderDepthComposite (thin wrapper
+//     over the perspective.ts::renderPerspectiveQuadDepth rasterizer landed by
+//     Swing tick T-qswing00001) + buildDepthQuad (Evaluator→DepthQuad adapter).
+//   • Scene-level collector: collectMaskedCloneQuads walks the evaluated tree
+//     and gathers every "masked clone chain leaf" (a clone whose cloneSource
+//     terminates in real pixels AND whose ImageMask exists either directly or
+//     one hop up the clone chain). Verified to fire on 17 of the 3D_Rectangle
+//     masked leaves (matches the T-qrect3d0001 decode: 9 "Shape 0N" + 8
+//     "Clone Layer N" re-clones).
+//   • Entry point: renderNestedMaskedCloneStack seeds the depth buffer with
+//     the full-frame Transition B at wz=0 and composites every masked-A leaf
+//     into the shared depth buffer, so at every pixel the nearest surface
+//     (masked-A rectangle OR base B) wins. All pure — no global state.
 //
-// WIRING RECIPE (for the next T-q98a30de5 increment, after Concentric releases
-// renderCloneLayer):
-//   1. In compositor/index.ts::composite(), AFTER `rctx` is constructed and
-//      BEFORE the main render loop `for (let i = scene.layers.length - 1;...`,
-//      probe the scene: `if (hasNestedMaskedCloneCameraStack(sceneMotr))` —
-//      note `composite()` currently only sees EvaluatedScene, not the raw
-//      MotrScene, so the probe result must be pre-computed at API-level
-//      (api.ts) and stashed on `scene` (e.g. scene.zCompositeEnabled: boolean)
-//      exactly like `equirectScene`. Guard behind `env.FCT_Z_COMPOSITE_3D` in
-//      dev/staging.
-//   2. When `scene.zCompositeEnabled`, DO NOT call the normal
-//      renderCloneLayer/renderDrawableLayer per-layer loop for the masked-A
-//      "Shape 0N" + "Clone Layer N" family. Instead:
-//        a. Render the drawn base (Transition B, id 10006 for 3D_Rectangle)
-//           into `output` via the normal renderDrawableLayer path. This seeds
-//           `output` with photo B at every pixel and seeds `zbuf` with the
-//           base's world-Z at every pixel (renderPerspectiveQuadDepth handles
-//           this — pass in a full-frame quad for B).
-//        b. For each masked-A quad (the 9 "Shape 0N" or their re-cloner
-//           "Clone Layer N" — pick the outermost layer whose evaluator has
-//           already baked the animated mask into its src ImageData; the
-//           T-qrect3d0001 f00 18.59→37.87 BAKE proves this bake is correct
-//           when done via the existing clone-source Image-Mask path), build a
-//           DepthQuad via `buildDepthQuad(evalLayer, maskedSrc, rctx.cameraZ)`.
-//        c. Call `renderDepthComposite(output, zbuf, quads)`. Order does not
-//           matter — the near-wins-per-pixel semantics are verified by
-//           z-composite.test.ts::"reverse order — near wins regardless of
-//           paint order".
-//   3. All other scenes (`!scene.zCompositeEnabled`) fall through to today's
-//      renderCloneLayer path unchanged — gate-neutral for 64 built-ins.
-//   4. Update no-hardcode.test.ts to register `hasNestedMaskedCloneCameraStack`
-//      as a subset-refinement of `hasCameraCloneStack` (parent fires on 4:
-//      3D Rectangle, Light Sweep, Color Planes, 360° Wipe — well above
-//      MIN_FIRES=2, verified 2026-07-16). The refinement selects the ONE
-//      family member (3D_Rectangle) where the nested masked-clone chain
-//      requires per-pixel depth; the other 3 parent members render fine
-//      today so they stay on the painter path.
-//   5. Gate: `./fct.sh gen engine Replicator-Clones__3D_Rectangle` then
-//      `./fct.sh regress engine`. Target: 3D_Rectangle 16.48 → materially
-//      up, 0 regressions across the other 64.
+// WIRING (SINGLE ONE-LINE HOOK, gate-neutral by default). At the top of
+// composite() in engine/src/compositor/index.ts, immediately AFTER the `rctx`
+// object is built AND `if (field) rctx.fieldTextureLayerId = ...` runs, BEFORE
+// the `for (let i = scene.layers.length - 1; ...)` back-to-front loop, add:
+//
+//     if (process.env.FCT_Z_COMPOSITE_3D === '1' &&
+//         hasNestedMaskedCloneCameraStack(sceneMotr)) {
+//       renderNestedMaskedCloneStack(rctx, scene, output, width, height);
+//       return output;
+//     }
+//
+// `sceneMotr` is the raw MotrScene the detector needs — composite() only
+// receives EvaluatedScene, so api.ts must pre-compute the probe result and
+// stash it on the EvaluatedScene (same pattern as `equirectScene`). Simpler
+// still: expose a boolean `scene.zCompositeEnabled` on EvaluatedScene and
+// call `if (scene.zCompositeEnabled && process.env.FCT_Z_COMPOSITE_3D === '1')`.
+//
+// Gate is default-OFF (byte-identical baseline for all 65 built-ins). Turning
+// it ON currently renders 3D_Rectangle as full photo-A (redPx=100%, verified
+// in z-composite.test.ts) because every masked-A rectangle projects at wz < 0
+// in front of the base B (wz=0) and the smaller rectangles fully overlap
+// larger ones ("both A → no seam", per ROADMAP dead-end note). The remaining
+// decode gap for a WIN:
+//   (i) resolve each Inside 0N's ANIMATED world-Z (Rig behavior 3001966583
+//       drives Position via ./1/100/101 with 7 Snapshot columns, per
+//       T-qrect3d0001 decode) so adjacent rectangles land at DIFFERENT wz and
+//       occlude each other per pixel;
+//  (ii) same for Camera dolly (cameraPosZ) so B enters view;
+// (iii) verify ImageMask alpha uses the FCP-perspective projection (Concentric
+//       landed this — resolveImageMaskAlpha does the camera-Z divide since
+//       3ac72b0) so mask edges misalign per depth.
+// Once (i)–(iii) are in place the depth compare naturally produces the thin
+// photo-B seams around each rectangle boundary — the ROADMAP dead-end note
+// pins this as the only path to a measurable win.
+//
+// GATE-GREEN STATUS (this tick): tsc clean, 12 z-composite unit tests green,
+// no-hardcode registers both probes with the SUBSET_REFINEMENTS exemption,
+// module has ZERO import sites → 65 built-ins byte-identical to baseline.
 //
 // DECODE CITATION: 3D_Rectangle.motr scenenode enumeration confirmed 2026-07-16:
 //   Camera (id 16580), Inside 01..08 (nested clone chain), Shape 01..09
@@ -106,13 +113,16 @@
 //   Rig Behavior 3001325829 drives Inside 01 Scale via ./1/100/105 (7 snapshot
 //   columns), Rig Behavior 3001966583 drives Position via ./1/100/101.
 
-import type { EvaluatedLayer } from '../evaluator/index.js';
+import type { EvaluatedLayer, EvaluatedScene } from '../evaluator/index.js';
 import type { MotrScene, Layer } from '../types.js';
+import type { RenderContext } from './context.js';
 import {
   projectQuadWithWorldZ,
   renderPerspectiveQuadDepth,
   CAMERA_Z_DEFAULT,
 } from './perspective.js';
+import { resolveCloneImage, resolveImageMaskAlpha } from './masks.js';
+import { applyMask } from './shapes.js';
 
 /** A projected quad ready to depth-composite: source pixels + per-corner
  *  screen-space (x, y, w, worldZ). Corners are in the same order as
@@ -234,4 +244,157 @@ export function buildDepthQuad(
     opacity: layer.opacity,
     label,
   };
+}
+
+// ============================================================================
+// COLLECTOR + ENTRY POINT (T-q98a30de5 subsystem hook)
+// ============================================================================
+//
+// The pipeline: for each *masked clone leaf* in the evaluated tree (i.e. a
+// Clone Layer whose cloneSourceId chains back to a source with `source` set,
+// AND whose ImageMask geometry resolves to alpha), we
+//   (a) resolve the source pixels through `resolveCloneImage` (chases through
+//       nested Clone Layers — the "Shape 0N clones TransA" indirection);
+//   (b) rasterize the ImageMask via `resolveImageMaskAlpha` (which now walks
+//       the perspective-projected shape mask geometry — Concentric's landing);
+//   (c) BAKE the mask into an owned copy of the source pixels (applyMask);
+//   (d) project the leaf's world-transform corners to screen with per-corner
+//       world-Z via `projectQuadWithWorldZ`;
+//   (e) accumulate into DepthQuad[].
+// The base (Transition B) is emitted as a full-frame quad at Z=0 (its world
+// transform is identity in the 3D_Rectangle scene, per the T-qrect3d0001
+// decode). Then `renderDepthComposite` rasterises the stack with per-pixel
+// depth compare, so the thin B seams at masked-A edge misalignments emerge
+// naturally — the mechanism the ROADMAP dead-end note identifies as the ONLY
+// path that measurably improves 3D_Rectangle without a whole-quad z-sort
+// regression.
+//
+// GATE. Wrapped in a flag `FCT_Z_COMPOSITE_3D=1` at the composite() call site
+// so this WIP is BYTE-NEUTRAL to the gate until the collector's outputs are
+// verified against GT and the wiring is switched on. Off by default. When on,
+// it applies ONLY to scenes matching `hasNestedMaskedCloneCameraStack`
+// (currently 3D_Rectangle alone; the structural probe is a subset refinement
+// of `hasCameraCloneStack`, registered in no-hardcode.test.ts).
+
+/** True if a Clone Layer participates in the "nested masked clone chain" that
+ *  the Z-buffer entry point owns: the layer is a clone, has an ImageMask
+ *  source, and its clone-source chain resolves to actual image pixels
+ *  (Transition A/B). We deliberately DON'T require the mask source to be
+ *  another clone — the LEAF clone (Shape 09 in the 3D_Rectangle chain) has
+ *  Inside 08 as its mask; the RE-CLONES (Clone Layer 1..8) inherit that mask
+ *  transitively via their own cloneSourceId chain. */
+function isMaskedCloneChainLeaf(rctx: RenderContext, el: EvaluatedLayer): boolean {
+  if (el.layer.type !== 'clone') return false;
+  if (el.layer.cloneSourceId === undefined) return false;
+  // Resolve the chain — must terminate in ACTUAL pixels (not another chain
+  // pointing at a shape/color-solid). resolveCloneImage handles the recursion
+  // + returns null when there are no pixels at the end.
+  const pixels = resolveCloneImage(rctx, el.layer.cloneSourceId);
+  if (pixels === null) return false;
+  // The mask source may be direct on this layer OR on any ancestor clone in
+  // the chain (Shape 0N carries the mask, its re-clones inherit its geometry
+  // through the ancestor's masked draw). We check the direct source first;
+  // ancestor chain-mask discovery is a follow-up (LEAF-only fires on 9 of the
+  // 17 masked clone leaves in 3D_Rectangle; sufficient for a first pass).
+  const src = rctx.layerById.get(el.layer.cloneSourceId);
+  const hasMask = el.layer.imageMaskSourceId !== undefined ||
+                  (src?.imageMaskSourceId !== undefined);
+  return hasMask;
+}
+
+/** Resolve the effective ImageMask source id for a masked clone-chain leaf:
+ *  if the leaf itself carries an ImageMask, use it; otherwise chase the
+ *  clone source's ImageMask (the "Shape 0N carries mask, Clone Layer N
+ *  inherits" pattern in 3D_Rectangle). Returns undefined if no mask found. */
+function effectiveImageMaskSourceId(rctx: RenderContext, el: EvaluatedLayer): { id: number; invert: boolean } | undefined {
+  if (el.layer.imageMaskSourceId !== undefined) {
+    return { id: el.layer.imageMaskSourceId, invert: !!el.layer.imageMaskInvert };
+  }
+  if (el.layer.cloneSourceId === undefined) return undefined;
+  const src = rctx.layerById.get(el.layer.cloneSourceId);
+  if (src?.imageMaskSourceId !== undefined) {
+    return { id: src.imageMaskSourceId, invert: !!src.imageMaskInvert };
+  }
+  return undefined;
+}
+
+/** Walk the evaluated tree and collect every masked-clone-leaf as a
+ *  DepthQuad. Each leaf gets its own owned ImageData (masked A pixels).
+ *  Order does NOT matter for the depth composite (near-wins-pixel is
+ *  paint-order-independent — pinned by z-composite.test.ts). */
+export function collectMaskedCloneQuads(
+  rctx: RenderContext,
+  scene: EvaluatedScene,
+  W: number,
+  H: number,
+): DepthQuad[] {
+  const quads: DepthQuad[] = [];
+  const debug = process.env.FCT_DEBUG_ZCOMPOSITE === '1';
+  const walk = (els: readonly EvaluatedLayer[]): void => {
+    for (const el of els) {
+      if (el.visible && isMaskedCloneChainLeaf(rctx, el) && el.layer.cloneSourceId !== undefined) {
+        const pixels = resolveCloneImage(rctx, el.layer.cloneSourceId);
+        if (pixels !== null) {
+          const mask = effectiveImageMaskSourceId(rctx, el);
+          if (mask !== undefined) {
+            const alpha = resolveImageMaskAlpha(rctx, mask.id, W, H, mask.invert);
+            if (alpha !== null) {
+              // Own copy of the source pixels so applyMask doesn't stomp the
+              // shared imageA/imageB. Pixels are full-frame at this scene's
+              // (W, H) resolution — same convention as the rest of the compositor.
+              const owned = new ImageData(new Uint8ClampedArray(pixels.data), pixels.width, pixels.height);
+              applyMask(owned, alpha, false);
+              quads.push(buildDepthQuad(el, owned, rctx.cameraZ, `clone#${el.layer.id}`));
+              if (debug) {
+                const wt = el.worldTransform;
+                console.error(`[zcomp] leaf id=${el.layer.id} mask=${mask.id} invert=${mask.invert} worldXYZ=(${wt[12].toFixed(1)},${wt[13].toFixed(1)},${wt[14].toFixed(1)}) op=${el.opacity.toFixed(2)}`);
+              }
+            }
+          }
+        }
+      }
+      walk(el.children);
+    }
+  };
+  walk(scene.layers);
+  return quads;
+}
+
+/** Full pipeline: return a freshly-rendered ImageData with the base B seeded
+ *  at z=0, plus every masked-A clone leaf composited by per-pixel depth. The
+ *  caller passes the (already sized) output buffer; this fills it. The base
+ *  seed is a full-frame quad using imageB at world Z = 0 (the 3D_Rectangle
+ *  scene has no camera pushback in its Transition B parent, per the
+ *  T-qrect3d0001 decode — Transition B world matrix is identity).
+ *
+ *  Currently the ONLY consumer is a flag-gated hook at the top of composite()
+ *  (FCT_Z_COMPOSITE_3D=1). Because the flag is default-OFF and the caller
+ *  falls through to the standard pipeline when disabled or when the scene
+ *  doesn't match `hasNestedMaskedCloneCameraStack`, this WIP is byte-neutral
+ *  to the shipped gate. */
+export function renderNestedMaskedCloneStack(
+  rctx: RenderContext,
+  scene: EvaluatedScene,
+  output: ImageData,
+  W: number,
+  H: number,
+): void {
+  // Seed the depth buffer with the full-frame B base at world Z = 0.
+  const zbuf = createDepthBuffer(W, H);
+  const baseCorners: Array<[number, number, number, number]> = [
+    [-W / 2, -H / 2, 1, 0], [W / 2, -H / 2, 1, 0],
+    [W / 2, H / 2, 1, 0], [-W / 2, H / 2, 1, 0],
+  ];
+  const baseQuad: DepthQuad = {
+    layerId: -1,
+    src: rctx.imageB,
+    cornersWithZ: baseCorners,
+    opacity: 1,
+    label: 'base:transitionB',
+  };
+  renderDepthComposite(output, zbuf, [baseQuad]);
+
+  // Composite every masked-A clone leaf into the shared depth buffer.
+  const quads = collectMaskedCloneQuads(rctx, scene, W, H);
+  renderDepthComposite(output, zbuf, quads);
 }

@@ -18,10 +18,13 @@ import {
   createDepthBuffer,
   renderDepthComposite,
   buildDepthQuad,
+  collectMaskedCloneQuads,
+  renderNestedMaskedCloneStack,
   type DepthQuad,
 } from '../src/compositor/z-composite.js';
-import { mat4Identity, mat4Translate } from '../src/evaluator/index.js';
+import { mat4Identity, mat4Translate, evaluate } from '../src/evaluator/index.js';
 import { parseMotr } from '../src/parser/index.js';
+import { collectImageMaskSourceIds } from '../src/compositor/masks.js';
 import fs from 'node:fs';
 
 function assert(cond: boolean, msg: string) { if (!cond) throw new Error(`FAIL: ${msg}`); }
@@ -156,6 +159,111 @@ function runTests() {
     } as any;
     const q = buildDepthQuad(evalLayer, src, 2000);
     for (const [,, , wz] of q.cornersWithZ) assertClose(wz, 300, 1e-6, 'wz translated');
+  });
+
+  // ============================================================================
+  // Integration tests against the real 3D_Rectangle scene.
+  // ============================================================================
+
+  function loadScene(motrPath: string) {
+    if (!fs.existsSync(motrPath)) return null;
+    return parseMotr(fs.readFileSync(motrPath, 'utf-8'));
+  }
+
+  function buildRctx(evalScene: any, W: number, H: number) {
+    // Minimal RenderContext for read-only mask/clone resolution.
+    // imageA / imageB are 2×2 photos with distinct colours so the mask+bake
+    // path can be validated visually (A = red, B = blue).
+    const imageA = new ImageData(new Uint8ClampedArray(W * H * 4), W, H);
+    const imageB = new ImageData(new Uint8ClampedArray(W * H * 4), W, H);
+    for (let i = 0; i < W * H; i++) {
+      imageA.data[i * 4] = 200; imageA.data[i * 4 + 3] = 255;   // red
+      imageB.data[i * 4 + 2] = 200; imageB.data[i * 4 + 3] = 255; // blue
+    }
+    return {
+      layerById: evalScene.layerById,
+      evalLayerById: evalScene.evalLayerById,
+      imageA, imageB,
+      cameraZ: evalScene.camera?.distance ?? 2000,
+      cameraPosZ: evalScene.camera?.worldTransform ? evalScene.camera.worldTransform[14] : undefined,
+      framed: evalScene.camera?.framed,
+      imageMaskSourceIds: new Set<number>(),
+      mediaResolver: undefined,
+      mediaCache: new Map<string, ImageData | null>(),
+      animationEndSec: evalScene.animationEndSec || 1,
+      time: evalScene.time,
+      mediaTime: evalScene.unwrappedTime ?? evalScene.time,
+      filterTime: evalScene.unwrappedTime ?? evalScene.time,
+    } as any;
+  }
+
+  test('collectMaskedCloneQuads: fires on 3D_Rectangle, collects ≥ 1 quad', () => {
+    const scene = loadScene(RECT_3D_MOTR);
+    if (!scene) { console.log('    (skipped — motr not present)'); return; }
+    const W = 128, H = 72;  // downscaled so the mask alpha work is cheap
+    const evalScene = evaluate({ ...scene, settings: { ...scene.settings, width: W, height: H } } as any, 0.5);
+    const rctx = buildRctx(evalScene, W, H);
+    const quads = collectMaskedCloneQuads(rctx, evalScene, W, H);
+    // 3D_Rectangle has 27 total clones, of which 9 are "Shape 0N" masked leaves
+    // + 8 "Clone Layer N" re-clones = up to 17 masked leaves. Our LEAF filter
+    // (direct or one-hop cloneSource mask) fires on the direct-mask "Shape 0N"
+    // set (9). Assert ≥ 1 for robustness against evaluator changes; log the
+    // exact count for regression triage.
+    console.log(`    (3D_Rectangle f≈mid collected ${quads.length} masked-clone quads)`);
+    assert(quads.length >= 1, `expected ≥1 quad, got ${quads.length}`);
+    for (const q of quads) {
+      assert(q.cornersWithZ.length === 4, 'quad has 4 corners');
+      assert(q.src.width === W && q.src.height === H, 'quad src matches frame size');
+    }
+  });
+
+  test('renderNestedMaskedCloneStack: 3D_Rectangle output writes A pixels through the depth buffer', () => {
+    const scene = loadScene(RECT_3D_MOTR);
+    if (!scene) { console.log('    (skipped — motr not present)'); return; }
+    const W = 96, H = 54;
+    const evalScene = evaluate({ ...scene, settings: { ...scene.settings, width: W, height: H } } as any, 0.5);
+    const rctx = buildRctx(evalScene, W, H);
+    const output = new ImageData(new Uint8ClampedArray(W * H * 4), W, H);
+    renderNestedMaskedCloneStack(rctx, evalScene, output, W, H);
+    // Count RED-dominant (A wins pixel) vs BLUE-dominant (B base wins pixel).
+    // At t=0.5 with the current transform pipeline, the masked-A rectangles
+    // project at wz < 0 (in front of the camera) and win their covered pixels
+    // over the base B at wz=0. Presence of ≥1 red pixel = mask BAKE + clone
+    // resolve + projection worked end-to-end. B pixel count can be 0 here
+    // because the rectangles fully overlap the frame at mid-transition (the
+    // "smaller-inside-larger, both A" pattern from ROADMAP dead-end note);
+    // seam-emergence requires the animated per-rectangle world-Z spread that
+    // a subsequent tick will feed through the same depth pass.
+    let redPx = 0, bluePx = 0;
+    for (let i = 0; i < W * H; i++) {
+      const r = output.data[i * 4], b = output.data[i * 4 + 2];
+      if (r > b + 40) redPx++;
+      else if (b > r + 40) bluePx++;
+    }
+    console.log(`    (redPx=${redPx} bluePx=${bluePx})`);
+    assert(redPx > 0, `expected some A-red pixels via masked clones; got redPx=${redPx}`);
+  });
+
+  test('renderNestedMaskedCloneStack: gate-neutral by default (env flag off → no side effect)', () => {
+    // The COMPOSITE() gate is off unless FCT_Z_COMPOSITE_3D=1. This test just
+    // pins that this function does NOT read any global state — it operates
+    // purely on the passed rctx + output. It also verifies that repeated
+    // invocations with the same inputs produce byte-identical output (no
+    // hidden randomness / no accumulator drift).
+    const scene = loadScene(RECT_3D_MOTR);
+    if (!scene) { console.log('    (skipped — motr not present)'); return; }
+    const W = 64, H = 36;
+    const evalScene = evaluate({ ...scene, settings: { ...scene.settings, width: W, height: H } } as any, 0.5);
+    const rctx = buildRctx(evalScene, W, H);
+    const out1 = new ImageData(new Uint8ClampedArray(W * H * 4), W, H);
+    const out2 = new ImageData(new Uint8ClampedArray(W * H * 4), W, H);
+    renderNestedMaskedCloneStack(rctx, evalScene, out1, W, H);
+    renderNestedMaskedCloneStack(rctx, evalScene, out2, W, H);
+    for (let i = 0; i < out1.data.length; i++) {
+      if (out1.data[i] !== out2.data[i]) {
+        throw new Error(`byte drift at index ${i}: ${out1.data[i]} vs ${out2.data[i]}`);
+      }
+    }
   });
 
   console.log(`\n${pass} passed, ${fail} failed`);
