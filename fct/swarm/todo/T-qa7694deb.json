@@ -1,0 +1,14 @@
+{
+  "id": "T-qa7694deb",
+  "title": "Reflection Floor reflection group decode & wire",
+  "project": "fct",
+  "goal": "Movements/Reflection: MEASURED hinge-relative perspective is a dead-end (see ROADMAP T-qreflect001 + T-q50a7f2e6). The tail-difference vs GT is dominated by the 'Floor' group \u2014 a mirrored copy of the panels on a Z-tilted plane (Color_Solid 1 at m3x3=[4,0,0, 0,0,-4, 0,4,0], y=-540, scale 4x). Decode Motion's floor-reflection semantics: (a) does the reflection re-render the two panel Transitions with the Y-flip built into the transform, or is it a screen-space mirror of the rendered panels? (b) how are the retimemap/opacity of the reflection tied to the panels? (c) is there a fade/glow blend? Structural detector for the fold-rig scenes (see T-q50a7f2e6 evaluator/index.ts decode) already identifies this scene. Cite parser/footage.ts::Reflection floor-color exception. DoD: Reflection >14.23 (measurable), 0 regressions.",
+  "slugs": [
+    "Movements__Reflection"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-q50a7f2e6",
+  "created_at": "2026-07-16T20:05:15+00:00",
+  "notes": ""
+}

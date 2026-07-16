@@ -364,7 +364,7 @@ transforms, established the Motion Z convention that current `projectPoint` inve
   NOT beat orthographic globally: 14.23 (ortho) vs 14.17 (flip+perspective @ D=2000). At true
   D=1614 the flip produces 12.62 dB (panels blow up in X).
 
-### ⛔ REFLECTION — global camera-distance sweep is DEAD-END (2026-07-16, T-qreflect001)
+### ⛔ REFLECTION — perspective-projection ALL variants are DEAD-END (2026-07-16, T-qreflect001 + T-q50a7f2e6)
 
 Measured cam-distance sweep with both FCT_FORCE_PERSPECTIVE=1 and FCT_FLIP_Z=1 (custom Z-flip
 gated on env for the sweep). Both curves are MONOTONIC toward orthographic — no interior optimum:
@@ -377,14 +377,30 @@ gated on env for the sweep). Both curves are MONOTONIC toward orthographic — n
 | 6000 | 14.03   | 14.18 |
 | ∞    | 14.23 (ortho baseline) | |
 
-So a naive global "camera distance / AOV" nudge cannot recover the wedge. Motion's actual
-projection model has an additional structural component — likely a **framing-plane depth
-offset** so panels appear near-full-size regardless of their world Z, with perspective divide
-only applied to the Z-DELTA (relative to some reference plane, probably the anchor Z=+960).
-This is a multi-tick subsystem-level fix (proper "hinge-relative perspective" + Z-sign in the
-compositor). DoD for the next tick: measurable improvement of Reflection above 14.23 dB with
-0 regressions (Color_Planes 14.26 is the other slug that hits this same orthographic branch and
-must not fall below 14.26).
+**T-q50a7f2e6 update (2026-07-16i):** the hypothesized "hinge-relative perspective"
+(perspective divide on Z-DELTA from the scene's anchor world Z, sign-flipped to match
+Motion's +Z=toward-viewer decode) was BUILT end-to-end and MEASURED. Structural detector
+(anchor-Z + position-Z Links coupled from the same driver) fires on Reflection (parent
+Group anchor world Z = 960). Best result: 14.26 dB @ D=30000 with hingeWorldZ=960 (sign=−).
+Every combination at the AOV-implied D=1614 is 12.33–13.53 dB (i.e. −0.70 to −1.90 vs
+ortho). See 2026-07-16i progress-log entry for the full 4×7 sweep. So perspective
+projection in ANY form (raw, hinge-relative, either sign, any D consistent with the AOV
+of 37°) cannot recover the wedge — the +0.03 at D=30000 is within score noise and
+requires a camera distance ~19× the AOV-implied one, which has no Motion decode support.
+This CLOSES the perspective-subsystem line of attack for Reflection.
+
+Where the wedge actually comes from — the three candidates that dominate Reflection's
+tail difference vs GT (all NOT perspective):
+1. The "Floor" reflection group — a mirrored copy of the panels on a Z-tilted plane below
+   y=-540, using Color_Solid 1 at m3x3=[4,0,0, 0,0,-4, 0,4,0] (a 4× scale sheet reflection);
+2. Cinematic Depth of Field (id 344, value 2 — Motion's default is 1.4), blurring the far
+   panel edge selectively;
+3. Transition A's OWN drop-zone rotY keyframes (~+45° at t=0 → 0° at t=endSec) — A rotates
+   INDEPENDENTLY of the group Y-rotation link, so the two rotations stack asymmetrically.
+
+Filed follow-ups (see fct/swarm/todo/): T-qreflectfloor (decode & wire Floor reflection
+group), T-qreflectdof (Cinematic DoF blur), T-qreflectrot (Transition A own rotY curve).
+DoD for those: measurable improvement of Reflection above 14.23 dB with 0 regressions.
 
 ### ⛔ ORCHESTRATOR: never rsync a worktree's file-state to land work — commit+rebase instead (2026-07-16)
 DO NOT reintroduce the old "rsync the whole worktree over a fresh clone with --delete then git add -A"
@@ -698,6 +714,59 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               the ⛔ MULTI section below; this tick formalizes it as a swarm-queue DROP).
               Multi row in the L1 leverage table stays annotated ⚠️ DEGENERATE GT. Zero
               engine diff — commit is ROADMAP.md only, gate impossible to regress.
+
+- 2026-07-16j  📝 REFLECTION HINGE-RELATIVE — MEASURED DEAD-END (T-q50a7f2e6 DROPPED, docs-only,
+              gate 0/0). Built the hinge-relative perspective end-to-end per the task brief and
+              MEASURED that it does NOT beat orthographic for Movements/Reflection. The full
+              build: (a) evaluator scene-level detector for anchor-Z+position-Z-coupled Links
+              from the same driver source (fires on Movements/Reflection AND Movements/Switch,
+              structural — no transition names; Switch's coupled Link is anchor.X not .Z so
+              gates out at the resolveCamera step); (b) computed scene-shared hinge world Z
+              by transforming the coupled-link target's local anchor through its
+              worldTransform (Reflection: parent Group anchor=[0,0,960] → world Z 960);
+              (c) resolveCamera S6 branch, when anchor-Z-coupled: keep the AOV-derived
+              distance (D=1614 for Reflection AOV=37°) and set hingeRelativePerspective=true;
+              (d) projectQuad + rctx.hingeWorldZ path applies `scale = D / (D − (wz − 960))`
+              (Motion's decoded +Z=toward-viewer convention → sign FLIPPED versus current
+              projectPoint's `denom = cameraZ + z`); (e) numerical denom clamp |denom| ≥ D/16
+              so a runaway rotation can't produce NaN.
+              Full D-sweep on Reflection with the wired code (env-gated FCT_HINGE_D + FCT_HINGE_WZ
+              probe to explore the (D, hinge-world-Z, sign) space without editing code between runs):
+              | D    | hingeWZ=960 sign=− | hingeWZ=960 sign=+ | hingeWZ=(per-layer m14) sign=− | hingeWZ=0 sign=− (bare flip) |
+              |------|--------------------|--------------------|--------------------------------|------------------------------|
+              | 1614 | 12.53              | 12.33              | 13.53                          | 12.62                        |
+              | 2000 | 12.77              | 12.54              | 13.62                          | 14.17                        |
+              | 3000 | 13.16              | 12.48              | 13.78                          | -                            |
+              | 5000 | 13.61              | 13.27              | 13.96                          | 14.17                        |
+              | 8000 | 13.88              | 13.56              | 14.06                          | -                            |
+              | 15000| 14.13              | 13.84              | 14.14                          | 14.20                        |
+              | 30000| **14.26**          | -                  | 14.21                          | -                            |
+              | ortho baseline (all D=∞) = **14.23** ← best physically-plausible; the +0.03 dB
+              at D=30000 is within score noise and requires a camera distance ~19× the AOV-
+              implied 1614, which has no Motion-decode support (Motion's OZScene camera is
+              literally the null-camera orthographic branch here — see resolveCamera's
+              !hasFraming && !sceneHasReplicator comment). Every entry with D at Motion's true
+              AOV distance 1614 is WORSE than ortho by 0.02–1.70 dB across all four variants.
+              This subsumes and refutes the task-brief hypothesis; the ROADMAP dead-end
+              (T-qreflect001) now covers hinge-relative too, not just global-perspective.
+              Where the wedge actually comes from: NOT a perspective divide. Reflection's
+              GT tail difference is dominated by (a) the "Floor" reflection group (a mirrored
+              copy of the panels on a Z-tilted plane below y=-540 — Color_Solid 1 at
+              m3x3=[4,0,0, 0,0,-4, 0,4,0] is a 4× lens-flare-scale sheet reflection); (b) the
+              Cinematic "Depth of Field" (id 344, value 2 — default 1.4) blurring the far
+              edge; and (c) the drop-zone rotate keyframes on Transition A itself (rotY
+              swings from ~+45° to 0° AS the group rotates back, so A doesn't rotate in
+              lockstep with the group). Reflection's headroom lives in ONE of those three
+              subsystems, NOT in perspective projection. Filed follow-ups: T-qa7694deb
+              (Floor group), T-qe59c7f31 (Cinematic DoF), T-q7529db51 (Transition A/B own
+              rotY curves). Files touched during decode: none landed (engine reverted to
+              origin/main exactly; ROADMAP progress-log line + task DROPPED status only).
+              Diagnostic tests (_trace_anchor.ts, _trace_group_anchor.ts, _trace_cam.ts,
+              _trace_tx.ts, _check_folds.ts) written and DELETED — data captured in this
+              log entry (structural detector fires on Reflection + Switch; Reflection hinge
+              world Z = 960 from parent Group anchor; Panel A pivots on m14 without own
+              anchor while Panel B has anchor=(0,0,389)→world 960).
+
 - 2026-07-16i  ✅ EARTHQUAKE (T-qca011a65 DONE, gate 0/0, +3 improved) — restored the overlay-dust
               pureCrossfadeSettleB extension in timemap.ts that had been silently reverted by
               a stale-base rebase in the Smear commit (86b8489). Earthquake 16.51→21.26 dB
@@ -722,6 +791,56 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               3.42). WIP state: timemap wrap-cancel + 3-key dolly + wall-centroid +
               cellFill(pitchX/tileW) land 10.16→10.18. All engine changes staged; standalone cull
               gated & DISABLED per f00/f23 near-key evidence (do not re-enable).
+
+              gate 0/0). Built the hinge-relative perspective end-to-end per the task brief and
+              MEASURED that it does NOT beat orthographic for Movements/Reflection. The full
+              build: (a) evaluator scene-level detector for anchor-Z+position-Z-coupled Links
+              from the same driver source (fires on Movements/Reflection AND Movements/Switch,
+              structural — no transition names; Switch's coupled Link is anchor.X not .Z so
+              gates out at the resolveCamera step); (b) computed scene-shared hinge world Z
+              by transforming the coupled-link target's local anchor through its
+              worldTransform (Reflection: parent Group anchor=[0,0,960] → world Z 960);
+              (c) resolveCamera S6 branch, when anchor-Z-coupled: keep the AOV-derived
+              distance (D=1614 for Reflection AOV=37°) and set hingeRelativePerspective=true;
+              (d) projectQuad + rctx.hingeWorldZ path applies `scale = D / (D − (wz − 960))`
+              (Motion's decoded +Z=toward-viewer convention → sign FLIPPED versus current
+              projectPoint's `denom = cameraZ + z`); (e) numerical denom clamp |denom| ≥ D/16
+              so a runaway rotation can't produce NaN.
+              Full D-sweep on Reflection with the wired code (env-gated FCT_HINGE_D + FCT_HINGE_WZ
+              probe to explore the (D, hinge-world-Z, sign) space without editing code between runs):
+              | D    | hingeWZ=960 sign=− | hingeWZ=960 sign=+ | hingeWZ=(per-layer m14) sign=− | hingeWZ=0 sign=− (bare flip) |
+              |------|--------------------|--------------------|--------------------------------|------------------------------|
+              | 1614 | 12.53              | 12.33              | 13.53                          | 12.62                        |
+              | 2000 | 12.77              | 12.54              | 13.62                          | 14.17                        |
+              | 3000 | 13.16              | 12.48              | 13.78                          | -                            |
+              | 5000 | 13.61              | 13.27              | 13.96                          | 14.17                        |
+              | 8000 | 13.88              | 13.56              | 14.06                          | -                            |
+              | 15000| 14.13              | 13.84              | 14.14                          | 14.20                        |
+              | 30000| **14.26**          | -                  | 14.21                          | -                            |
+              | ortho baseline (all D=∞) = **14.23** ← best physically-plausible; the +0.03 dB
+              at D=30000 is within score noise and requires a camera distance ~19× the AOV-
+              implied 1614, which has no Motion-decode support (Motion's OZScene camera is
+              literally the null-camera orthographic branch here — see resolveCamera's
+              !hasFraming && !sceneHasReplicator comment). Every entry with D at Motion's true
+              AOV distance 1614 is WORSE than ortho by 0.02–1.70 dB across all four variants.
+              This subsumes and refutes the task-brief hypothesis; the ROADMAP dead-end
+              (T-qreflect001) now covers hinge-relative too, not just global-perspective.
+              Where the wedge actually comes from: NOT a perspective divide. Reflection's
+              GT tail difference is dominated by (a) the "Floor" reflection group (a mirrored
+              copy of the panels on a Z-tilted plane below y=-540 — Color_Solid 1 at
+              m3x3=[4,0,0, 0,0,-4, 0,4,0] is a 4× lens-flare-scale sheet reflection); (b) the
+              Cinematic "Depth of Field" (id 344, value 2 — default 1.4) blurring the far
+              edge; and (c) the drop-zone rotate keyframes on Transition A itself (rotY
+              swings from ~+45° to 0° AS the group rotates back, so A doesn't rotate in
+              lockstep with the group). Reflection's headroom lives in ONE of those three
+              subsystems, NOT in perspective projection. Filed follow-ups (see below).
+              Files touched during decode: none landed (engine reverted to origin/main
+              exactly; ROADMAP progress-log line + task DROPPED status only). Diagnostic tests
+              (_trace_anchor.ts, _trace_group_anchor.ts, _trace_cam.ts, _trace_tx.ts,
+              _check_folds.ts) written and DELETED — data captured in this log entry
+              (structural detector fires on Reflection + Switch; Reflection hinge world Z =
+              960 from parent Group anchor; Panel A pivots on m14 without own anchor while
+              Panel B has anchor=(0,0,389)→world 960).
 
 - 2026-07-16h  🔧 SWING (T-qswing00001 WIP, gate 0/0) — landed the reusable per-pixel Z-BUFFERED
               perspective rasterizer (perspective.ts::projectQuadWithWorldZ +
