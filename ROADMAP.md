@@ -394,29 +394,6 @@ Adjacent filled A-rectangles fully overlap (smaller inside larger, both A → no
 quads against the B base + the "Shading" group (Top/Left/Right shapes at op 0.48) bevel edges.
 The clone-source-mask BAKE (step 1) is correct in isolation (f00 +19 dB) and should be RE-USED
 once the depth composite exists — it is only net-negative WITHOUT the depth/rotation seam.
-**T-qrect3d0001 re-decode (2026-07-16), CONFIRMS the above + adds two facts:**
-(a) TOPOLOGY re-read from the .motr: standalone `Transition A` (id 10009) carries
-    `<enabled>0</enabled>` — it is NOT drawn directly; it is cloned by 27 nodes. The drawn
-    base is `Transition B` (id 10006, enabled, last in tree = bottom of stack). So GT is
-    "photo-B background + concentric photo-A rectangle frames on top, thin B seams between
-    them" (visually identical to the brief's "thin-B-outline spiral"). The clone chain is a
-    NESTED clone: `Inside 01`(Shape 10054, ±960×±540 filled rect, scale 0.91) → `Inside 02`
-    clones Inside 01 → … → `Inside 08`; each `Shape 0N`(clone, src=TransA, mask=Inside 0(N-1),
-    Mask Blend Mode=1) is re-cloned by `Clone Layer / 1..8`. Per-clone scale/position comes
-    from TWO Rig Behaviors on Inside 01 driving `./1/100/105`(Scale) and `./1/100/101`(Position)
-    via 7 Snapshot columns (scale X 0.26..1.18, Y 0.82..0.89 — anisotropic; that anisotropy is
-    the rectangle spiral). The `Shading` Widget's Top/Left/Right shapes are bevel edges at op
-    0.48 (LinkOpacity → ./1/200/202).
-(b) MEASURED the engine's failure signature directly (not a black-box guess): "B-ness"
-    (mean Blue−Red) of GT rises −48(f7)→−30(f12)→+13(f16) as B fills the frame, while the
-    engine stays PINNED at ≈−81 across ALL frames — i.e. **Transition B never enters the
-    engine composite at all**; the full-frame masked A rectangles paint over B in painter
-    order with no per-pixel Z occlusion, so no thin B seams and no B interior reveal. This is
-    exactly the "needs per-pixel Z-buffer" conclusion. Verdict THIS session: BLOCKED — the
-    per-pixel Z-buffered depth composite (25 camera-projected masked+rotated quads over B +
-    the Shading bevel subsystem) is a multi-session subsystem, NOT landable net-positive in one
-    tick, and the painter-order shortcut is the ⛔ measured dead-end above. Filed the two
-    sub-pieces (depth composite; Shading bevel) as follow-up TODOs.
 
 ### CONCENTRIC — structural fix SHIPPED (3ac72b0 + 821ad0b), + one dead-end
 Was rendering vertical STRIPES instead of concentric rings. THREE bugs fixed:
@@ -616,20 +593,25 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
-- 2026-07-16b  ⛔ 3D_RECTANGLE (T-qrect3d0001) — BLOCKED, decode-only (no engine change). Re-decoded the
-              full scene graph from the .motr and CONFIRMED the existing ⛔ dead-end + brief premise:
-              drawn base = Transition B (10006, enabled); Transition A (10009) is <enabled>0> and only a
-              clone source; 27-node nested clone chain (Inside 01→08 filled rects, Shape 0N clones
-              masked by Inside 0(N-1)) driven by 2 Rig Behaviors on Inside 01 (Scale ./1/100/105 +
-              Position ./1/100/101, 7 anisotropic Snapshot columns) pushed to animated world-Z through
-              the Camera; Shading Widget Top/Left/Right @ op 0.48 (LinkOpacity ./1/200/202) = bevel
-              edges. MEASURED failure: GT B-ness (Blue−Red) −48(f7)→−30(f12)→+13(f16) as B fills in,
-              engine PINNED ≈−81 all frames ⇒ Transition B never enters the composite; full-frame masked
-              A quads occlude B in painter order (no per-pixel Z, no thin B seams). Fix = per-pixel
-              Z-buffered depth composite + Shading bevel — a multi-session subsystem, NOT landable
-              net-positive this tick, and the painter/layer-Z shortcut is the ⛔ measured dead-end
-              (net −1.19). Filed 2 follow-up TODOs (T-q98a30de5 depth composite; T-q9e13de30 Shading
-              bevel, --after). Score unchanged 16.48; gate untouched (no code edit).
+- 2026-07-16b  ⛔ CLOSE_AND_OPEN (T-qpanellead1) BLOCKED — no ship. Census CONFIRMED the premise's
+              structure: the "Transition Drop Zones" group (999094061) carries a CROSS-CONTAINER
+              Image Mask (imageMaskSourceId=989704929 "Mask shapes", Invert=1) sourced by a SIBLING
+              group of Top(989706176)/Bottom(989707439) closing shapes; the teal seen mid-transition
+              is the decorative "Top shapes"(op0.79)/"BG shapes"(op0.91) panel groups rendered BEHIND,
+              revealed through the mask holes. I wired the cross-container drop-zone mask path
+              (renderChildLayers: non-descendant shape-geom group + all-visible-children-are-dropzones)
+              and it was NET-NEGATIVE 12.61→10.83, so REVERTED (Rule 2). ROOT BLOCKER is upstream in
+              the EVALUATOR, not the compositor: the Top/Bottom mask-shape Y-position decodes WRONG —
+              worldTransform ty 911→593→373(f4 near-closed)→430→909(f8 back OUT) and opacity→0 at f10,
+              i.e. it bounces in-then-out and vanishes instead of closing MONOTONICALLY by ~f11 and
+              HOLDING through ~f15 (GT means: f0-f11 warm A→teal, f11-f15 held teal 11/38/38, f16-f23
+              open to cool B 92/106/137). resolveImageMaskAlpha returns NULL at f10+ (no eligible
+              geometry) = no occlusion exactly where GT is fully closed. The panels are factory-13
+              shapes driven by an Emitter/replicator (989706183, Cell timing out=5893888/7680000) — the
+              close-hold-open envelope is in a Sequence/retime the evaluator mis-samples. Filed
+              follow-up T-q29039791 (decode that curve FIRST, then the mask wiring is a small
+              net-positive). This is the kinetic-panel subsystem, too big for one gate-verifiable task
+              via the compositor alone.
 - 2026-07-16a  ✅ COMBO_SPIN SPIN SUBSYSTEM WIRED (L1) — 11.21→12.32 (+1.11), Heart +0.51, 0 regressions,
               new baseline 16.78 dB. ROOT CAUSE (Rule 7 decode, careful-coder bisect): the 6 blade
               groups C1-C6 each carry a "Spin LT/RT" (factory 22) behavior authored DIRECTLY on the
