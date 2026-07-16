@@ -690,12 +690,8 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
         }
         blitDirect(output, filtered, opacity, layer.blendMode);
       } else if (needsPerspective(worldTransform)) {
-        // 3D perspective: project the source quad and rasterize. Pass the layer's
-        // local-origin world Z (m14 = worldTransform[14]) as the hinge reference
-        // when the scene has hinge-relative perspective on (Movements/Reflection);
-        // undefined for every other scene -> legacy raw-Z divide.
-        const hingeWZ = rctx.hingeRelativePerspective ? worldTransform[14] : undefined;
-        const corners = projectQuad(worldTransform, drawSrc.width, drawSrc.height, rctx.cameraZ ?? 2000, hingeWZ);
+        // 3D perspective: project the source quad and rasterize
+        const corners = projectQuad(worldTransform, drawSrc.width, drawSrc.height, rctx.cameraZ ?? 2000);
         renderPerspectiveQuad(output, drawSrc, corners, opacity);
       } else {
         blitTransformed(output, drawSrc, worldTransform, opacity, effCrop, layer.blendMode, blitDstBBox(output, drawSrc, worldTransform, effCrop));
