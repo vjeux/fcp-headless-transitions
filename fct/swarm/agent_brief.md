@@ -50,8 +50,8 @@ of decode work) each re-confirmed the same DROPPED verdict and quit — pure was
    entry (newest first) with your per-slug before->after PSNR and gate result.
 4. Write your commit message to a file. **The subject line MUST start with
    `{{TASK_ID}}` followed by either a colon or a status keyword (DONE/DROPPED/BLOCKED/
-   NOOP)** — the pool scans commit subjects to detect completion, and a subject that
-   doesn't match this shape causes the pool to relaunch this same task in a loop
+   NOOP)** — the scheduler scans commit subjects to detect completion, and a subject that
+   doesn't match this shape causes the orchestrator to relaunch this same task in a loop
    (observed 2026-07-13: T-G1 committed as `T-G1: Color_Planes 3D fold...` — no keyword —
    and got a wasted NOCHANGE relaunch). ALWAYS prefer `{{TASK_ID}} DONE: ...` for
    completions:
@@ -61,11 +61,9 @@ of decode work) each re-confirmed the same DROPPED verdict and quit — pure was
 
       <body: what/why, the decoded FCP fact you cited, gate result>
       EOF
-5. PUSH via the helper (do NOT `git commit`/`git push` yourself — Claude Code's macOS
-   sandbox BLOCKS writes to this worktree's shared .git/worktrees/* metadata; even
-   `git add` silently fails because it can't write `.git/worktrees/{{TASK_ID}}/index.lock`.
-   The helper rsyncs your worktree state into a fresh /tmp clone the sandbox allows,
-   re-runs the gate as a final check, and rebase-retries if another agent pushed first):
+5. PUSH via the helper (recommended — it rsyncs your worktree state into a fresh /tmp
+   clone, re-runs the gate there as a final safety check, and rebase-retries if another
+   agent pushed first; it also sidesteps any shared .git/worktrees/* metadata write issues):
       bash fct/swarm/push_helper.sh {{TASK_ID}} /tmp/swarm-{{TASK_ID}}-msg.txt
    - exit 0  => pushed to origin/main. Done.
    - exit 5 (gate red in clone) => your change regressed against latest main; fix and retry.
@@ -81,7 +79,7 @@ correct and valuable to report "census shows this premise is wrong" — that sav
 next agent a wasted tick.
 
 ## Keep the swarm fed: FILE FOLLOW-UP WORK to the TODO queue
-You are one worker in an open-ended pool. When you discover work you are NOT doing in
+You are one worker in an open-ended sub-agent pool. When you discover work you are NOT doing in
 THIS task — a decode that opens a separate fix, a subsystem too big for one task, a slug
 your correct fix REGRESSED that was already imperfect (ROADMAP Rule 11), a capability
 worth unit-testing — APPEND it to the shared TODO queue so a future agent picks it up.
