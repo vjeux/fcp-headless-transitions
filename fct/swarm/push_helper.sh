@@ -2,23 +2,32 @@
 # fct swarm push-helper — reliably commit+push a swarm sub-agent's work to origin/main.
 #
 # WHY THIS EXISTS: swarm sub-agents work in a git WORKTREE under ~/fct-swarm/worktrees/<id>.
-# Committing + pushing directly from a worktree is fragile: (a) a worktree shares the main
-# repo's .git and can race other sub-agents' index/ref writes, and (b) some sandboxed
-# execution environments deny writes to the shared ".git/worktrees/*" metadata, so even
-# `git add` (which writes `.git/worktrees/<id>/index.lock`) can silently fail — leaving the
-# real work stranded on disk while the push "succeeds" with an empty diff. This helper makes
-# landing work a single reliable command instead of each sub-agent re-improvising it.
+# This helper turns "land my work" into one reliable command: it commits the agent's changes,
+# rebases onto the latest origin/main, re-runs the gate, and pushes (retrying if another agent
+# pushed meanwhile).
 #
-# APPROACH: rsync the worktree's FILE STATE (working tree, untracked files included)
-# into a fresh /tmp clone of origin/main, then `git add -A` + commit + push from
-# there. This is isolated from the shared .git and captures the sub-agent's changes even
-# when an in-worktree `git add` was blocked. (Prior in-worktree approach used `git add -A`
-# + `git diff --cached origin/main`; when the add silently failed the empty diff made
-# push_helper falsely report "nothing to push" while the real work sat uncommitted on disk.)
+# APPROACH (2026-07-16 rewrite — NO rsync). The agent COMMITS IN ITS OWN WORKTREE, then we
+# push that commit and REBASE onto origin/main. git rebase replays ONLY the agent's commit
+# (the diff it authored) on top of current origin — so files the agent never touched (the
+# swarm harness: pool.py, this script, setup_worktree.sh, agent_brief.md, ...) are taken from
+# origin UNCHANGED. This makes the old "stale-base worktree clobbers the harness" bug
+# STRUCTURALLY IMPOSSIBLE.
 #
-# The gate MUST already be green in the worktree — the script re-runs the gate in
-# the /tmp clone as a final safety check before pushing, and refuses to push on RED.
-# It rebase-retries (up to 5 rounds) if another sub-agent pushes to origin/main meanwhile.
+# The previous approach rsync'd the worktree's whole FILE STATE into a fresh clone with
+# --delete, then `git add -A`. That overlay dragged the worktree's HOUR-OLD copy of every
+# untouched file (incl. the harness) back onto origin — reverting harness fixes 4x in one
+# session (2026-07-16). rsync was originally chosen because a) worktrees share the main .git
+# and b) some sandboxed environments denied writes to .git/worktrees/*, making an in-worktree
+# `git add` silently fail. On THIS node in-worktree commits work fine (verified), and even if
+# they didn't, the fallback below commits via a private index without touching the shared .git.
+#
+# The gate MUST already be green in the worktree — the helper re-runs it after the rebase as a
+# final safety check and refuses to push on RED.
+#
+# STAGING RULE: agents author engine/, docs/, ROADMAP.md, and the APPEND-ONLY fct/swarm/todo/
+# queue — never other harness code. We stage `everything EXCEPT fct/swarm/` plus `fct/swarm/todo/`.
+# So even if a stale worktree's working tree contains an old harness file, it is never staged,
+# never committed, never pushed. (Belt-and-suspenders on top of the rebase guarantee.)
 #
 # Usage: push_helper.sh <agent-id> <commit-msg-file>
 set -euo pipefail
@@ -26,95 +35,48 @@ ID="${1:?usage: push_helper.sh <agent-id> <commit-msg-file>}"
 MSGFILE="${2:?usage: push_helper.sh <agent-id> <commit-msg-file>}"
 MAIN="$HOME/random/final-cut-pro-transitions"
 WT="$HOME/fct-swarm/worktrees/$ID"
-CLONE="/tmp/fct-swarm-push-$ID"
 
 [ -d "$WT" ] || { echo "push_helper: no worktree $WT" >&2; exit 2; }
 [ -f "$MSGFILE" ] || { echo "push_helper: no commit-msg file $MSGFILE" >&2; exit 2; }
 [ -s "$MSGFILE" ] || { echo "push_helper: commit-msg file $MSGFILE is empty" >&2; exit 2; }
 
-# 1. Fresh /tmp clone of the CURRENT origin/main (isolated from the shared .git).
-# --no-hardlinks is REQUIRED: `git clone --local` defaults to hardlinking object
-# files across dirs, but a sandboxed execution environment can deny hardlinks between
-# ~/random/... and /tmp/... (macOS SIP/com.apple.provenance), so the clone fails at
-# the first object with `failed to create link ... Operation not permitted`
-# (observed 2026-07-13). --no-hardlinks copies the objects instead — always safe.
-rm -rf "$CLONE"
-git clone --quiet --local --no-hardlinks --no-checkout "$MAIN" "$CLONE"
-cd "$CLONE"
-git remote set-url origin "$(git -C "$MAIN" remote get-url origin)"
-git fetch --quiet origin
-git checkout --quiet -B main origin/main
+cd "$WT"
 
-# 2. Overlay the worktree's file state onto the clone. Excludes:
-#    - .git         : keep the clone's own git dir
-#    - engine/node_modules, venv : symlinks re-created below
-#    - .swarm_*     : per-worktree scratch (brief, runner script)
-#    - .fctcache    : per-worktree render thumbnail caches
-#    Using --delete so the clone tracks the worktree state exactly (files the agent
-#    deleted in the worktree are also removed in the clone). node_modules and venv
-#    are the two exceptions because they're gitignored symlinks — deleting them in
-#    the clone would leave `./fct.sh regress` unable to run.
-# --filter='protect .git' is belt-and-suspenders: `--exclude='.git'/.git/` should
-# already keep rsync out of the destination's `.git`, but 2026-07-13 T-B1's harvest
-# died with `rsync error: .git: unlinkat: Directory not empty` on this same call
-# (see pool.log around 02:41), which STRANDED gate-verified work until a later run
-# re-derived it. `protect` is a hard "never delete" instruction on the destination
-# side, independent of the include/exclude machinery — it can't be tripped by an edge
-# case where source has `.git` as a file (worktree gitlink) and dest has it as a dir.
-# CRITICAL: the swarm HARNESS (fct/swarm/*.py, *.sh, *.md — pool.py, push_helper.sh,
-# setup_worktree.sh, agent_brief.md, README.md, reflect.py, __init__.py) must NEVER be
-# overwritten by an agent's worktree. Agents work on engine/, docs/, ROADMAP.md, and the
-# APPEND-ONLY todo/ queue — they must NOT author harness code. But a worktree branched off
-# an OLD origin/main carries a STALE copy of the harness, and a plain `rsync --delete`
-# overlay would roll the clone's fresh-origin harness BACK to that stale copy — silently
-# reverting orchestrator/harness fixes (observed 2026-07-16: three harness fixes — the
-# dependency-gating pool.py change, this protect rule, and the agent_brief rewrite — were
-# all clobbered this way by stale-base agent pushes). So: EXCLUDE the whole fct/swarm tree
-# from the overlay (the clone keeps its up-to-date origin/main harness), with ONE exception
-# — the append-only fct/swarm/todo/ queue, which agents legitimately add files to. Filter
-# order matters (rsync is first-match-wins): include todo/ BEFORE excluding fct/swarm/.
-rsync -a --delete \
-  --filter='protect /.git' \
-  --filter='protect /.git/**' \
-  --filter='protect /fct/swarm/todo/**' \
-  --include='/fct/swarm/todo/***' \
-  --exclude='/fct/swarm/**' \
-  --exclude='.git/' \
-  --exclude='.git' \
-  --exclude='engine/node_modules' \
-  --exclude='venv' \
-  --exclude='.swarm_*' \
-  --exclude='.fctcache/' \
-  "$WT/" "$CLONE/"
+# 1. Stage the agent's work: EVERYTHING EXCEPT the harness, PLUS the append-only todo queue.
+#    ':(exclude)fct/swarm' keeps pool.py/push_helper.sh/setup_worktree.sh/agent_brief.md/etc.
+#    OUT of the commit (the agent must not author harness code); the explicit `add
+#    fct/swarm/todo` re-includes the one path agents legitimately extend.
+git add -A -- . ':(exclude)fct/swarm'
+git add -- fct/swarm/todo 2>/dev/null || true
 
-# 3. Re-establish the shared-heavy symlinks the gate needs.
-[ -e engine/node_modules ] || ln -s "$MAIN/engine/node_modules" engine/node_modules
-[ -e venv ] || ln -s "$MAIN/venv" venv
-
-# 4. Stage everything from the overlay (a plain /tmp git dir, no worktree metadata).
-git add -A
-
-# 5. Guard against no-op overlays (worktree happened to match origin/main).
+# 2. Nothing staged? Then the worktree has no landable (non-harness) change vs its base.
 if git diff --cached --quiet; then
-  echo "push_helper: worktree contents match origin/main after rsync — nothing to push"
-  rm -rf "$CLONE"
+  echo "push_helper: no non-harness changes staged — nothing to push"
   exit 0
 fi
 
-# 6. Final safety gate in the clone (private frames dir + lock; reuse the agent's).
-export FCT_FRAMES_DIR="$HOME/fct-swarm/frames/$ID" FCT_LOCK="$HOME/fct-swarm/locks/$ID-push.lock" FCT_JOBS=2
-./fct.sh regress engine || { echo "push_helper: GATE RED in clone — refusing to push" >&2; exit 5; }
-
-# 7. Commit + push with rebase-retry (up to 5 rounds if others push meanwhile).
+# 3. Commit in the worktree.
 git commit --quiet -F "$MSGFILE"
+
+# 4. Push with rebase-retry. `git rebase origin/main` replays ONLY this commit's diff onto the
+#    latest origin — untouched harness files come from origin, never from this (maybe stale)
+#    worktree. Re-run the gate after each rebase (origin may have changed the engine).
+export FCT_FRAMES_DIR="$HOME/fct-swarm/frames/$ID" FCT_LOCK="$HOME/fct-swarm/locks/$ID-push.lock" FCT_JOBS=1
 for attempt in 1 2 3 4 5; do
-  if git push origin HEAD:main 2>/tmp/fct-swarm-push-$ID.err; then
+  git fetch --quiet origin
+  if ! git rebase --quiet origin/main 2>/tmp/fct-swarm-rebase-$ID.err; then
+    git rebase --abort 2>/dev/null || true
+    echo "push_helper: rebase conflict onto origin/main — agent must re-do edit on latest main" >&2
+    cat /tmp/fct-swarm-rebase-$ID.err >&2 || true
+    exit 6
+  fi
+  # Final safety gate AFTER rebasing onto the latest engine.
+  ./fct.sh regress engine || { echo "push_helper: GATE RED after rebase — refusing to push" >&2; exit 5; }
+  if git push --quiet origin HEAD:main 2>/tmp/fct-swarm-push-$ID.err; then
     echo "push_helper: pushed $(git rev-parse --short HEAD) to origin/main (attempt $attempt)"
-    rm -rf "$CLONE"
     exit 0
   fi
-  echo "push_helper: push rejected (attempt $attempt) — rebasing onto origin/main" >&2
-  git fetch --quiet origin && git rebase origin/main || { echo "push_helper: rebase conflict — agent must resolve" >&2; exit 6; }
+  echo "push_helper: push rejected (attempt $attempt) — another agent pushed; retrying" >&2
 done
 echo "push_helper: exhausted push retries" >&2
 exit 7
