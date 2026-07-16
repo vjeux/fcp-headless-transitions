@@ -297,8 +297,14 @@ function resolveWithRetime(value: number | Curve | undefined, timeSec: number, d
 }
 function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: number = 0, hasRetime: boolean = false): Float64Array {
   const ov = tx.__overrideChannels;
-  const posX = resolveWithRetime(tx.positionX, timeSec, 0, retimeProgress, ov?.has('posX'), hasRetime);
-  const posY = resolveWithRetime(tx.positionY, timeSec, 0, retimeProgress, ov?.has('posY'), hasRetime);
+  // Motion Path behaviors (factoryID=24) contribute an additive positionX/Y offset
+  // via tx.__mpDeltaX/Y (set by applyMotionPathBehaviors, undefined for layers
+  // without a Motion Path). Added to the retime-resolved authored position so
+  // the layer both animates its authored curves AND slides along the Motion Path.
+  const posX = resolveWithRetime(tx.positionX, timeSec, 0, retimeProgress, ov?.has('posX'), hasRetime)
+    + (tx.__mpDeltaX ?? 0);
+  const posY = resolveWithRetime(tx.positionY, timeSec, 0, retimeProgress, ov?.has('posY'), hasRetime)
+    + (tx.__mpDeltaY ?? 0);
   const posZ = resolveWithRetime(tx.positionZ, timeSec, 0, retimeProgress, ov?.has('posZ'), hasRetime);
 
   // Motion .motr stores rotation in RADIANS (e.g. Rotate uses π/2 for 90°). Convert to degrees
@@ -380,6 +386,56 @@ function applySpinBehaviors(layer: Layer, tx: Transform, timeSec: number): Trans
   }
   if (angle === 0) return tx;
   return { ...tx, __spinRadians: (tx.__spinRadians ?? 0) + angle };
+}
+
+/**
+ * Apply Motion Path behaviors (factoryID=24) on a layer as an additive positionX/Y
+ * offset — a MINIMAL first pass that handles ONLY the `basePosition` X/Y curves.
+ * Decoded from the Motion Path parser (parseMotionPath in parser/behaviors.ts,
+ * see also MotionPathPayload in types.ts). Slide_In authors its "Rounded rect
+ * down" mask with a Motion Path behavior whose basePosition X curve ramps
+ * 0→4080 over the behavior-local 1s window (Slide In.motr line 553). The panel
+ * mask starts far offscreen-left at static position (-1500,-1229) and this
+ * Motion Path drives it across the frame — without evaluating the behavior
+ * the mask sits offscreen the entire transition (verified: FCT_LINEAR_GRADIENT_GEN
+ * +FCT_MOTION_PATH_MASK_LIFT together score 12.11 = baseline because the mask
+ * clips the panel to nothing).
+ *
+ * Behavior-local time: `tLocal = clamp(sceneTime - timing.in, 0, timing.out - timing.in)`.
+ * Motion Path holds the last curve value past the behavior's `out` (Motion's
+ * documented "end condition"; default 0 = hold). Multiple Motion Paths on one
+ * layer sum. Follow-up ticks will layer on: `pathControlPoints` curved path
+ * with Attach-To-Shape, Start/End Point trimming, Custom Speed retiming, and
+ * Amplitude/Frequency/Phase oscillation.
+ *
+ * SCOPED to layers that actually carry a Motion Path behavior — no-op for every
+ * other layer, mirroring the applySpinBehaviors pattern.
+ */
+function applyMotionPathBehaviors(layer: Layer, tx: Transform, timeSec: number): Transform {
+  const mps = (layer.behaviors ?? []).filter(b => b.type === 'motionPath' && b.motionPath);
+  if (mps.length === 0) return tx;
+  let dx = 0;
+  let dy = 0;
+  for (const mp of mps) {
+    const inSec = mp.timing ? timeToSeconds(mp.timing.in) : 0;
+    const outSec = mp.timing ? timeToSeconds(mp.timing.out) : Infinity;
+    // Behavior-local time: clamp to behavior lifetime, then subtract behavior in.
+    const tClamped = Math.max(inSec, Math.min(timeSec, outSec));
+    const tLocal = tClamped - inSec;
+    const bp = mp.motionPath!.basePosition;
+    if (bp?.x) dx += evaluateCurve(bp.x, tLocal);
+    if (bp?.y) dy += evaluateCurve(bp.y, tLocal);
+  }
+  if (process.env.FCT_MP_DEBUG === '1') {
+    // eslint-disable-next-line no-console
+    console.error(`[MP] layer=${layer.name} type=${layer.type} t=${timeSec.toFixed(3)} dx=${dx.toFixed(1)} dy=${dy.toFixed(1)} mps=${mps.length}`);
+  }
+  if (dx === 0 && dy === 0) return tx;
+  return {
+    ...tx,
+    __mpDeltaX: (tx.__mpDeltaX ?? 0) + dx,
+    __mpDeltaY: (tx.__mpDeltaY ?? 0) + dy,
+  };
 }
 
 // ============================================================================
@@ -586,6 +642,15 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   // place. SCOPED to layers that actually carry a Spin behavior (no global effect —
   // the PLAYBOOK warns a global spin regresses Vertigo/Leaves).
   riggedTransform = applySpinBehaviors(layer, riggedTransform, timeSec);
+  // Motion Path behaviors (factoryID=24) contribute an additive positionX/Y offset
+  // via __mpDeltaX/Y (basePosition curve at behavior-local time). Flag-gated
+  // (FCT_MOTION_PATH_EVAL=1, default OFF) — enabling adds the panel-slide for
+  // Slide_In but is a MINIMAL first pass that ignores pathControlPoints curved
+  // paths, so it may misplace other Motion-Path-driven scenes. Follow-up ticks
+  // expand coverage.
+  if (typeof process !== 'undefined' && process.env?.FCT_MOTION_PATH_EVAL === '1') {
+    riggedTransform = applyMotionPathBehaviors(layer, riggedTransform, timeSec);
+  }
   // Drop-zone timeline offset: a Transition A/B image whose media `offset` sits
   // LATER than its `in` point (offset > in) has its transform curves authored in
   // the layer's own local time frame — Motion places that local timeline at

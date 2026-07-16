@@ -10,17 +10,16 @@ import { directChildren, firstChild, getTextContent, parseTiming, parseParameter
 
 /**
  * Extract the Curve object from a leaf `<parameter>` element. Returns a
- * minimal Curve (single-keypoint constant) when the element has no `<curve>`
- * child — parseParameter's own logic then synthesises defaults, but we need a
- * concrete Curve type here for the Motion Path payload.
+ * zero-keyframe Curve (constant) when the element has no `<curve>` child, so
+ * downstream evaluateCurve() returns curve.value ?? curve.default.
  */
 function paramToCurve(pel: Element | undefined): Curve {
-  if (!pel) return { keypoints: [], defaultValue: 0 } as unknown as Curve;
+  if (!pel) return { type: 1, default: 0, keyframes: [] };
   const p = parseParameter(pel);
   if (p.curve) return p.curve;
-  // Constant fallback — synthesize a zero-keypoint Curve carrying the value.
-  const v = typeof p.value === 'number' ? p.value : 0;
-  return { keypoints: [], defaultValue: v } as unknown as Curve;
+  const v = typeof p.value === 'number' ? p.value
+    : (typeof p.default === 'number' ? p.default : 0);
+  return { type: 1, default: v, value: v, keyframes: [] };
 }
 
 function findChildParam(parent: Element, id: number, name?: string): Element | undefined {

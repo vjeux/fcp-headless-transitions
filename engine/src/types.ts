@@ -85,6 +85,21 @@ export interface Transform {
    * rotation curve without disturbing the Retime/override logic.
    */
   __spinRadians?: number;
+  /**
+   * Additive positionX offset (pixels) contributed by a Motion Path behavior
+   * (factoryID=24) on this layer, evaluated from the Motion Path's `basePosition`
+   * X curve at the behavior-local time (sceneTime clamped to the behavior's own
+   * timing window). Added to positionX in buildTransformMatrix so the layer
+   * slides in world space. Set by applyMotionPathBehaviors; undefined when the
+   * layer carries no Motion Path. Kept separate from positionX so it stacks on
+   * any authored position curve without disturbing the Retime/override logic.
+   * See parseMotionPath (parser/behaviors.ts) for the payload decode. Follow-up
+   * ticks will evaluate the `pathControlPoints` curved path with Attach-To-Shape
+   * (currently only the linear basePosition curve contributes).
+   */
+  __mpDeltaX?: number;
+  /** Additive positionY offset from a Motion Path behavior. See __mpDeltaX. */
+  __mpDeltaY?: number;
 }
 
 /**
