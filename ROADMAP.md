@@ -70,6 +70,35 @@ Every work item has a **Definition of Done (DoD)**, a **Verify** command, and a
    worst slug and force a minimizer repro (`fct minimize <slug>`) to find a concrete pixel
    bug rather than re-documenting a known ceiling.
 
+10. **⚠️ MINIMIZE-FIRST when debugging a full transition (added 2026-07-16).** If you are
+    debugging a FULL transition, you must FIRST minimize it, fix the MINIMIZED version, and
+    THEN try again on the full one. Do not attempt a fix directly on the 100+-node full
+    scene — `fct minimize <slug>` shrinks it to the minimal node subtree where the TS engine
+    still diverges from headless FCP, so the fix targets the exact responsible nodes instead
+    of guessing against the whole graph. Order every debugging tick: `fct minimize <slug>` →
+    fix the minimized repro (verify via `fct min-score`/`min-regress`) → re-run the fix on
+    the full slug and confirm on the GUI-GT gate.
+
+11. **Regressions of already-imperfect slugs are OK — WRITE THEM DOWN, don't discard
+    (added 2026-07-16).** If a correct fix regresses OTHER slugs that were NOT fully correct
+    in the first place, that is ACCEPTABLE — do NOT immediately revert/discard the fix.
+    Instead, keep the fix (it moved the target slug toward GT) and RECORD each regressed slug
+    in this ROADMAP as a **next target to be investigated** (add it to the "Regression
+    follow-ups" list below with the before→after dB and the fix that caused it). Only a
+    NET-NEGATIVE change that regresses ALREADY-CORRECT (high-dB, "done") slugs must be
+    reverted. The judgement call: a small regression on a known-broken slug is the next
+    small piece to fix (Rule 2), not a reason to throw away a correct improvement. (This
+    supersedes the old reflex of reverting on ANY regression — that reflex caused several
+    correct fixes to be discarded, e.g. the Wipes/Mask binding.)
+
+## Regression follow-ups — slugs knocked down by a correct fix, to investigate next
+
+Log every slug a shipped-but-net-positive fix regressed here (Rule 11), newest first, so a
+future tick picks it up as a concrete target instead of the regression being lost/reverted.
+Format: `<slug> <before>→<after> (caused by <commit/fix>) — why it was already imperfect / hypothesis`.
+
+- _(none yet — populate as Rule 11 fires)_
+
 ## The workflow, concretely (EFFICIENCY-FIRST — updated 2026-07-15 on vjeux's instruction)
 
 vjeux: *"remove the whole 'run 65 slugs' from the project … focus on efficiency and
