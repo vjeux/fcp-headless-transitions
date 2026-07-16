@@ -1,0 +1,14 @@
+{
+  "id": "T-qd1814800",
+  "title": "Video_Wall tile-grid geometry (camera+cellfill done, layout is the blocker)",
+  "project": "fct",
+  "goal": "Camera 3-key dolly + wrap-cancel + cell-fill are DECODED, VERIFIED-in-isolation, and saved as WIP diffs (docs/notes/wip/vw_T-qvidwall01_*.diff) \u2014 endpoints f00 8->18.5, f23 9->13.2. The ONLY remaining blocker is the TILE GRID GEOMETRY at the deep-far pose: GT f11 (full-res) shows a TIGHT REGULAR 4x4 grid of full 16:9 photo tiles with thin seams, but the engine's 14 replicators (main 3x3 at origin +/-4100 PLUS 13 scattered edge/fill replicators at world +/-2000..6000) + full-cell-fill (tiles scaled 2.14x -> overlap vertically) do NOT reproduce GT's positions/count. Net was only +0.02 (endpoint gains cancelled by deep-dolly mid losses f14-f17). CONCRETE FIRST STEP: apply the 4 WIP diffs, then (a) decode Motion replicator cell SIZING \u2014 is sizeWidth the TOTAL span (pitch=span/(n-1)=4100) or per-cell (pitch=span/cols=2733)? Neither matches the touching-tile width implied by the vertical pitch (2133), so the cell-fill/pitch model is still wrong; read OZReplicator cell layout in Ozone.framework. (b) Determine which of the 13 scattered edge replicators (+/-2000..6000) actually land in GT's frame at far vs are off-screen decorations FCP culls. NOTE: the fct regress gate is render-NONDETERMINISTIC at ~0.5-1dB under parallel JOBS \u2014 measure Video_Wall SERIALLY (JOBS=1) to trust deltas. DoD: Video_Wall >=13, gate net-positive (serial), no fitted constants.",
+  "slugs": [
+    "Replicator-Clones__Video_Wall"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qvidwall01",
+  "created_at": "2026-07-16T12:06:25+00:00",
+  "notes": ""
+}

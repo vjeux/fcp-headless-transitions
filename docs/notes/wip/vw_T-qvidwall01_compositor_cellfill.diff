@@ -1,0 +1,48 @@
+diff --git a/engine/src/compositor/index.ts b/engine/src/compositor/index.ts
+index 4515974..d4f1bca 100644
+--- a/engine/src/compositor/index.ts
++++ b/engine/src/compositor/index.ts
+@@ -254,6 +254,28 @@ function renderReplicatorLayer(rctx: RenderContext, output: ImageData, evalLayer
+     const rows = Math.max(1, Math.round(layer.replicator.rows));
+     const globalProgress = seq ? time / (rctx.animationEndSec || 1) : 0;
+ 
++    // CELL-FILL scale (decoded 2026-07-16, T-qvidwall01). Motion scales a replicator
++    // cell's content to FILL its grid cell: the visible wall tiles TOUCH (thin seams),
++    // they do not float as small stamps in a wide cell. The grid pitch (the world
++    // distance between adjacent instances) is sizeWidth/(cols−1); a raw 1920-px photo
++    // tile at Video_Wall's ~4100 pitch would leave a ~2180-px black gap on every side
++    // (the engine rendered ~4 tiny tiles on black at the far dolly — 41-66% black —
++    // vs GT's frame-filling grid). Uniformly scale the cell so its WIDTH fills the
++    // grid-cell pitch (pitchX / tileWidth), which makes adjacent tiles meet with a
++    // thin seam exactly as the GUI GT shows. Derived purely from the parsed grid
++    // geometry (sizeWidth, columns) and the source tile width — NO fitted constant,
++    // NO per-transition branch. Only fires for multi-column grids whose pitch exceeds
++    // the tile (fillScale>1); single-column / already-dense grids keep scale 1, so
++    // dot/panel replicators (Duplicate, Squares, Concentric) are untouched. This is
++    // the tile-density half of the Video_Wall wall-fill fix (the camera 3-key dolly is
++    // the other half — see resolveFramedWallPose).
++    let cellFill = 1;
++    if (stampImg && stampImg.width > 0 && cols > 1) {
++      const pitchX = layer.replicator.sizeWidth / (cols - 1);
++      const fillScale = pitchX / stampImg.width;
++      if (fillScale > 1) cellFill = fillScale;
++    }
++
+     for (const inst of instances) {
+       // Per-instance sequenced parameters (default: no change).
+       let instOpacityMul = 1;
+@@ -272,10 +294,11 @@ function renderReplicatorLayer(rctx: RenderContext, output: ImageData, evalLayer
+ 
+       if (cell && cellBBox && stampImg && instOpacityMul > 0 && instScale > 0) {
+         const instTransform = new Float64Array(worldTransform);
+-        if (instScale !== 1) {
++        const effScale = instScale * cellFill;
++        if (effScale !== 1) {
+           // Scale the cell about its own center (instance origin), then translate.
+-          instTransform[0] *= instScale; instTransform[1] *= instScale;
+-          instTransform[4] *= instScale; instTransform[5] *= instScale;
++          instTransform[0] *= effScale; instTransform[1] *= effScale;
++          instTransform[4] *= effScale; instTransform[5] *= effScale;
+         }
+         instTransform[12] += inst.x;
+         instTransform[13] += inst.y;

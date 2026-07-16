@@ -1,0 +1,14 @@
+{
+  "id": "T-qb697c0d4",
+  "title": "Curtains: colorize the curtain .mov RED (renders black; ~15.6 dB mid plateau)",
+  "project": "fct",
+  "goal": "Objects/Curtains mid-band (f05-f17, curtains fully closed) sits at ~15.6 dB because the curtain graphic renders BLACK/dark-grey in the engine but is RED in the GUI GT (full-frame \u2248(80,9,1)). The tail-collapse (wrap) bug is already fixed (T-qcurtains01, +2.34 dB). The remaining error is the FILTER CHAIN on the 'Curtains Group' (id=989454293) not tinting the Media/Sequence 3.mov leaves. Decoded chain (in order): (1) PAEChannelMixer Red-out=0.30R+0.59G+0.11B (desaturate curtain to a luma/mono value), (2) PAEBrightness 2.91x boost, (3) PAEColorize Remap White To=(0.725,0.102,0.0)=RED (maps the mono luma into the red curtain color). The engine output is black => this desaturate->brighten->colorize stack is not reaching/compositing onto the group's media children correctly. Note levels.ts already flags a Brightness->Mono single-encode STACKING regression for this exact user (Curtains 14.31->13.85). DoD: >=17 dB overall or clear mid-band improvement, gate net-positive. Decode-first: confirm how group-level filters propagate to child media leaves in the compositor, and whether Colorize Remap-White-To is applied as a tint on the luma.",
+  "slugs": [
+    "Objects__Curtains"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qcurtains01",
+  "created_at": "2026-07-16T12:02:47+00:00",
+  "notes": ""
+}

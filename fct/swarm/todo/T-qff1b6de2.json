@@ -1,0 +1,14 @@
+{
+  "id": "T-qff1b6de2",
+  "title": "Switch A/B swing DIRECTION swapped (settles on A not B)",
+  "project": "fct",
+  "goal": "After T-qfoldlead01's anchor-link retime-bypass fix (Switch 12.27->12.62), the swing GEOMETRY is correct but the A/B vertical direction is INVERTED: engine f04 shows B(blue) on TOP + A(sepia) BOTTOM and the tail (f20-23) settles on photo A, while GUI GT f04 shows A(sepia) TOP + B(blue) BOTTOM and the tail settles fully on B(blue mountains). Root: the rotationZ sign per layer comes from the Direction widget's rigScale column (Direction value=0 -> A rigScale[0]=+1, B rigScale[0]=-1). Either the Direction widget value is being resolved to the wrong column (cf. Push factoryID-13 display-index->tag remap in evaluator/rig.ts; Switch is factoryID-12 tags=[1,2]) or the A/B layer role assignment is swapped. DECODE FIRST: dump the driver rotationZ curve (0->-0.489rad@t=0.868->0), confirm which layer (Transition A #1999871182 vs B #1999871180) should carry +Z vs -Z by matching GUI GT f04/f08 photo positions, cite the .motr Snapshots Value/tag. Fix must be generic (no per-slug hardcode) and gate all 12 L3 family slugs. DoD: Switch tail f20-23 settles on B (>=14 dB each), Switch mean up, 0 family regressions.",
+  "slugs": [
+    "Movements__Switch"
+  ],
+  "after": "T-qfoldlead01",
+  "status": "open",
+  "created_by": "T-qfoldlead01",
+  "created_at": "2026-07-16T11:32:43+00:00",
+  "notes": ""
+}
