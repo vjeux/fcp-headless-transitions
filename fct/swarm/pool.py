@@ -134,7 +134,6 @@ def _queue_tasks():
             "status": sched,
             "desc": (it.get("title", "") + ": " + goal).strip(": "),
             "after": it.get("after"),
-            "tier": it.get("tier", "isolated"),
             "extra": " " + " ".join(it.get("slugs", []) or []),
         })
     return out
@@ -265,12 +264,9 @@ def cmd_status():
     for t in elig:
         dep = f"  after:{t['after']}" if t.get("after") else ""
         slugs = " ".join(slugs_for(t)) or "-"
-        tier = t.get("tier", "isolated")
-        tag = "  «SUBSYSTEM»" if tier == "subsystem" else ""
-        print(f"    {t['id']:14s} [{slugs}]{dep}{tag}")
+        print(f"    {t['id']:14s} [{slugs}]{dep}")
     if not elig:
         print("    (none - queue empty or all deps pending; nothing to spawn)")
-    print("  (tasks tagged «SUBSYSTEM» need a bigger token budget + expect WIP relaunches)")
     return 0
 
 

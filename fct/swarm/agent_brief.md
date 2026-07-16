@@ -175,15 +175,7 @@ follow-up and quit. Only queue work that a different agent should own independen
       --title "<short label>" \
       --by {{TASK_ID}} \
       --slugs Category__Name \
-      --tier isolated \
       --goal "<what to do + why; the next agent's brief. Cite the decoded FCP fact.>"
-
-The `--tier` tells the orchestrator how to size the next agent:
-- `isolated` (default) — a single-slug bug fixable in ~one session.
-- `subsystem` — needs BUILDING a whole new capability (z-buffer compositor, generator,
-  Motion-Path follower, evaluator retime decode, linear-light chain). The orchestrator gives
-  these a bigger token budget and expects multi-session `WIP` increments. Tag it honestly:
-  if your BLOCKED reason was "this is a subsystem", the follow-up you file IS `--tier subsystem`.
 
 This writes ONE new file `fct/swarm/todo/<newid>.json` (never edits a shared file, so it
 can't merge-conflict with other agents). It becomes eligible work the moment it lands on

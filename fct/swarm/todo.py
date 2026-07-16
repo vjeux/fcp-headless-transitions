@@ -60,17 +60,11 @@ def _new_id():
 
 
 def add(goal, title=None, project="fct", slugs=None, after=None, by="orchestrator",
-        notes=None, tid=None, tier="isolated"):
+        notes=None, tid=None):
     """Append a new task to the queue. Returns its id. Writes a fresh per-item file
-    (never edits a shared file) so concurrent producers never conflict.
-
-    tier: 'isolated' (a single-slug bug, ~one session) or 'subsystem' (needs building a
-    whole new capability — z-buffer compositor, generator, etc.; expect multi-session WIP
-    increments + a bigger token budget). The orchestrator reads this to size the sub-agent."""
+    (never edits a shared file) so concurrent producers never conflict."""
     os.makedirs(TODO_DIR, exist_ok=True)
     tid = tid or _new_id()
-    if tier not in ("isolated", "subsystem"):
-        raise SystemExit("tier must be 'isolated' or 'subsystem'")
     item = {
         "id": tid,
         "title": title or (goal[:60] + ("…" if len(goal) > 60 else "")),
@@ -79,7 +73,6 @@ def add(goal, title=None, project="fct", slugs=None, after=None, by="orchestrato
         "slugs": list(slugs) if slugs else [],
         "after": after,
         "status": "open",
-        "tier": tier,
         "created_by": by,
         "created_at": _now(),
         "notes": notes or "",
@@ -191,9 +184,6 @@ def _main():
     a.add_argument("--by", default="orchestrator")
     a.add_argument("--notes")
     a.add_argument("--id")
-    a.add_argument("--tier", default="isolated", choices=("isolated", "subsystem"),
-                   help="isolated = single-slug bug (~1 session); subsystem = build a whole "
-                        "new capability (multi-session WIP + bigger budget)")
     li = sub.add_parser("list")
     li.add_argument("--status")
     li.add_argument("--json", action="store_true")
@@ -206,7 +196,7 @@ def _main():
     if args.cmd == "add":
         tid, path = add(args.goal, title=args.title, project=args.project,
                         slugs=args.slugs, after=args.after, by=args.by,
-                        notes=args.notes, tid=args.id, tier=args.tier)
+                        notes=args.notes, tid=args.id)
         print(f"added {tid} -> {path}")
         print("commit + push it so the pool + other agents see it:")
         print(f"  git add {path} && git commit -m '{tid}: queue task' && <push>")
@@ -220,10 +210,8 @@ def _main():
         else:
             for i in items:
                 dep = f" after:{i['after']}" if i.get("after") else ""
-                tier = i.get("tier", "isolated")
-                tag = " «subsystem»" if tier == "subsystem" else ""
                 print(f"  {i['id']:12s} {i.get('status','?'):7s} [{i.get('project','')}] "
-                      f"{i.get('title','')}{dep}{tag}")
+                      f"{i.get('title','')}{dep}")
             print(f"  ({len(items)} item(s))")
     elif args.cmd == "done":
         print("updated", set_status(args.id, args.status))
