@@ -270,6 +270,100 @@ def cmd_status():
     return 0
 
 
+POOL_TARGET = 8  # RAM-safe concurrency on the 10-core box (see README "Why the isolation")
+
+
+def _worktrees_on_disk():
+    """Ids that currently have a swarm worktree under ~/fct-swarm/worktrees/<id>."""
+    root = os.path.expanduser("~/fct-swarm/worktrees")
+    if not os.path.isdir(root):
+        return []
+    return sorted(d for d in os.listdir(root)
+                  if os.path.isdir(os.path.join(root, d)) and d.startswith("T-"))
+
+
+def _live_ids():
+    """Ids whose sub-agent is actually RUNNING right now, detected by a live process
+    referencing the agent's private isolation id / worktree / frames dir. A navi
+    sub-agent is one-shot: spawn -> run -> report -> exit. When it exits (finished,
+    errored, or ran out of budget) WITHOUT a terminal SWARM_RESULT, no announcement
+    reaches the orchestrator, so the slot silently empties. This is how we DETECT that
+    (a worktree with no live process = a dead slot to reclaim/relaunch)."""
+    try:
+        ps = subprocess.check_output(["ps", "axww", "-o", "command"],
+                                     text=True, timeout=15, stderr=subprocess.DEVNULL)
+    except Exception:
+        return set()
+    live = set()
+    for wt in _worktrees_on_disk():
+        # A render/build/agent process is "live for <id>" if its command line mentions
+        # any of the id's private paths or its isolation tag.
+        needles = (f"swarm-{wt}", f"worktrees/{wt}", f"frames/{wt}", f"locks/{wt}")
+        for line in ps.splitlines():
+            if any(n in line for n in needles):
+                live.add(wt)
+                break
+    return live
+
+
+def _unlanded(wt_id):
+    """(has_uncommitted_nonharness, unpushed_commits) for a worktree — used to decide
+    whether a dead slot's worktree carries in-progress work worth resuming vs is a
+    clean base to reclaim. Harness files (fct/swarm/*) are excluded from 'uncommitted'."""
+    wt = os.path.expanduser(f"~/fct-swarm/worktrees/{wt_id}")
+    if not os.path.isdir(wt):
+        return (False, 0)
+    def _git(*a):
+        try:
+            return subprocess.check_output(["git", "-C", wt, *a], text=True,
+                                           timeout=20, stderr=subprocess.DEVNULL)
+        except Exception:
+            return ""
+    dirty = [l for l in _git("status", "--porcelain").splitlines()
+             if l[3:].strip() and not l[3:].strip().startswith("fct/swarm")
+             and not l.startswith("??")]
+    unpushed = len([l for l in _git("log", "--oneline", "origin/main..HEAD").splitlines() if l])
+    return (len(dirty) > 0, unpushed)
+
+
+def cmd_reconcile():
+    """Report pool health so the orchestrator can refill to POOL_TARGET deterministically.
+    Classifies every worktree as RUNNING (live process) or DEAD (no process), flags dead
+    slots that carry unlanded work (relaunch to resume) vs clean base (reclaim), and lists
+    the top eligible tasks to spawn for empty slots. Read-only: prints a plan, spawns
+    nothing (spawning is the orchestrator agent's job via spawn_agent)."""
+    _fetch_origin_once()
+    wts = _worktrees_on_disk()
+    live = _live_ids()
+    elig, done = eligible_tasks()
+    live_wts = [w for w in wts if w in live]
+    dead_wts = [w for w in wts if w not in live]
+    print("=== fct swarm pool reconcile ===")
+    print(f"  target concurrency: {POOL_TARGET}")
+    print(f"  worktrees on disk : {len(wts)}")
+    print(f"  RUNNING (live proc): {len(live_wts)}  {sorted(live_wts)}")
+    print(f"  DEAD (no process)  : {len(dead_wts)}")
+    resume, reclaim = [], []
+    for w in dead_wts:
+        dirty, unpushed = _unlanded(w)
+        tag = "resume(unlanded)" if (dirty or unpushed) else "reclaim(clean-base)"
+        (resume if (dirty or unpushed) else reclaim).append(w)
+        print(f"      {w:16s} {tag}  dirty={dirty} unpushed={unpushed}")
+    running_ct = len(live_wts)
+    need = max(0, POOL_TARGET - running_ct)
+    print(f"  --> running={running_ct}  need {need} more to reach {POOL_TARGET}")
+    print(f"  DEAD-with-unlanded-work (RELAUNCH same id, worktree resumes): {sorted(resume)}")
+    print(f"  DEAD-clean-base (reclaim slot; can spawn a NEW eligible task): {sorted(reclaim)}")
+    # eligible tasks NOT already represented by a worktree (fresh work for empty slots)
+    fresh = [t for t in elig if t["id"] not in wts]
+    print(f"  fresh eligible (no worktree yet) — top {min(need+3,len(fresh))}:")
+    for t in fresh[:need + 3]:
+        slugs = " ".join(slugs_for(t)) or "-"
+        dep = f"  after:{t['after']}" if t.get("after") else ""
+        print(f"      {t['id']:14s} [{slugs}]{dep}")
+    return 0
+
+
 def _task_by_id(tid):
     """Return the full task dict for an id (queue item preferred), or None."""
     for t in all_tasks():
@@ -325,11 +419,14 @@ def main():
     sub = ap.add_subparsers(dest="cmd")
     sub.add_parser("status", help="show eligible + done tasks")
     sub.add_parser("eligible", help="alias for status")
+    sub.add_parser("reconcile", help="pool health: running vs dead worktrees + refill plan")
     b = sub.add_parser("brief", help="print the filled agent brief for a task id")
     b.add_argument("id")
     args = ap.parse_args()
     if args.cmd == "brief":
         return cmd_brief(args.id)
+    if args.cmd == "reconcile":
+        return cmd_reconcile()
     if args.cmd in (None, "status", "eligible"):
         return cmd_status()
     ap.print_help()
