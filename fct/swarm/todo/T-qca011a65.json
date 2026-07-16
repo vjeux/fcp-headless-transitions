@@ -1,0 +1,14 @@
+{
+  "id": "T-qca011a65",
+  "title": "Earthquake mid-transition A->B crossfade ramp (f10-f16 dip)",
+  "project": "fct",
+  "goal": "Earthquake tail now settles on B correctly (T-qearthquak1, 16.79->21.26). Remaining residual is the MID-transition A->B crossfade region: per-frame PSNR dips to ~10-13 dB at f10-f16 while GUI GT is mid-crossfade (GT mean climbs 90->138 over f11-f15). Transition A out=0.951s (f10.1), Transition B in=0.801s (f8.5), so the two drop zones overlap f8.5-f10.1; past f10.1 only B is live but the engine's crossfade opacity ramp / overlap shape does not match FCP's during the handoff (also the shaking Transition A + blurry-cloud dust overlay + Falling Impact debris particles composite during this window). Investigate the A/B opacity crossfade curve and overlap timing (not the earthquake shake filter, which is correct in the early frames). DoD: raise f10-f16 without regressing the settled tail; net-positive on Movements__Earthquake.",
+  "slugs": [
+    "Movements__Earthquake"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qearthquak1",
+  "created_at": "2026-07-16T12:23:26+00:00",
+  "notes": ""
+}

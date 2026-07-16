@@ -21,7 +21,7 @@
   "Movements__Clothesline": 19.31,
   "Movements__Color_Planes": 14.61,
   "Movements__Drop_In": 14.73,
-  "Movements__Earthquake": 16.79,
+  "Movements__Earthquake": 21.26,
   "Movements__Fall": 19.41,
   "Movements__Flashback": 20.9,
   "Movements__Flip": 16.65,
@@ -35,10 +35,10 @@
   "Movements__Swing": 12.89,
   "Movements__Switch": 12.31,
   "Objects__Arrows": 27.16,
-  "Objects__Curtains": 16.53,
+  "Objects__Curtains": 18.87,
   "Objects__Leaves": 22.02,
   "Objects__Squares": 13.11,
-  "Objects__Veil": 21.49,
+  "Objects__Veil": 21.52,
   "Replicator-Clones__3D_Rectangle": 16.79,
   "Replicator-Clones__Clone_Spin": 10.32,
   "Replicator-Clones__Combo_Spin": 12.32,
@@ -48,7 +48,7 @@
   "Replicator-Clones__Vertigo": 19.76,
   "Replicator-Clones__Video_Wall": 10.24,
   "Stylized__Center": 12.35,
-  "Stylized__Center_Reveal": 14.55,
+  "Stylized__Center_Reveal": 15.24,
   "Stylized__Close_and_Open": 12.62,
   "Stylized__Color_Panels": 19.05,
   "Stylized__Diagonal": 17.43,
@@ -63,5 +63,5 @@
   "Stylized__Slide_In": 12.11,
   "Stylized__Up-Over": 11.64,
   "Wipes__Diagonal": 17.43,
-  "Wipes__Mask": 16.49
+  "Wipes__Mask": 14.3
 }

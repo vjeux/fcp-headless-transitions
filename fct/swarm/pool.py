@@ -167,18 +167,59 @@ def done_task_ids():
         print(f"[pool] warn: completion scan failed: {e}", flush=True)
     return done
 
+
+def completed_task_ids():
+    """Ids that genuinely LANDED a deliverable — DONE (or a bare `<id>:` change commit),
+    NOT merely terminal. This is DELIBERATELY NARROWER than done_task_ids(): a BLOCKED or
+    DROPPED task is terminal (don't relaunch it) but did NOT deliver, so it must NOT satisfy
+    a downstream `after:` dependency. Bug it fixes (2026-07-16): a BLOCKED L2 lead
+    (T-qpanellead1) counted as 'done', which UNBLOCKED its 4 dependents — they'd have been
+    picked up and hit the exact same undecoded evaluator wall the lead deferred to a
+    follow-up. Dependency gating must key on real completion, not terminality."""
+    done = completed = set()
+    completed = set()
+    for t in all_tasks():
+        if t["status"] == "DONE":
+            completed.add(t["id"])
+    try:
+        subprocess.run(["git", "-C", MAIN, "fetch", "origin", "--quiet"], timeout=60)
+        log = subprocess.check_output(
+            ["git", "-C", MAIN, "log", "origin/main", "--pretty=%s", "-n", "400"],
+            text=True, timeout=30)
+        for line in log.splitlines():
+            # A real landed change: "<id> DONE: ..." or a bare "<id>: ...". EXCLUDES
+            # "<id> BLOCKED"/"<id> DROPPED"/"<id> NOOP" (space + keyword, no colon) — those
+            # are terminal-without-deliverable and must NOT satisfy a dependency.
+            m = re.match(r"^(?:swarm\s+)?(T-[A-Za-z0-9]+)(?::|\s+DONE\b)", line, re.I)
+            if m:
+                completed.add(m.group(1))
+    except Exception as e:
+        print(f"[pool] warn: completed scan failed: {e}", flush=True)
+    return completed
+
 def eligible_tasks():
-    """TODO tasks whose `after:` dep (if any) is DONE. Draws from BOTH the ROADMAP flat
-    table AND the appendable swarm TODO queue (all_tasks)."""
+    """TODO tasks that are (a) not themselves terminal, and (b) whose `after:` dep — if
+    any — has genuinely LANDED a deliverable. Draws from BOTH the ROADMAP flat table AND
+    the appendable swarm TODO queue (all_tasks).
+
+    Two DIFFERENT completion sets are used deliberately:
+      - done_task_ids()      = TERMINAL (DONE/DROPPED/BLOCKED/NOOP) → don't relaunch a task
+                               that already reached a terminal state.
+      - completed_task_ids() = genuinely DONE only → a dependency is satisfied ONLY when the
+                               upstream task actually delivered. A BLOCKED/DROPPED lead must
+                               NOT unblock its dependents (fixed 2026-07-16: a BLOCKED L2
+                               lead was unblocking 4 dependents onto the same undecoded wall).
+    """
     tasks = all_tasks()
-    done = done_task_ids()
+    done = done_task_ids()            # terminal — for relaunch suppression
+    completed = completed_task_ids()  # genuinely delivered — for dependency gating
     out = []
     for t in tasks:
         if t["status"] not in ("TODO", "DOING"):
             continue
         if t["id"] in done:
             continue
-        if t["after"] and t["after"] not in done:
+        if t["after"] and t["after"] not in completed:
             continue
         out.append(t)
     return out, done
