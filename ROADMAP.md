@@ -732,6 +732,30 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               f01-f06 = A invisible, B huge-rotated (ramp phase inverted). Score unchanged at
               14.67 (frozen baseline still 12.31; T-qff1b6de2 landed code but no rebaseline).
 
+- 2026-07-16q  📦 PAINT-STROKE EMITTER RASTERISER SUBSYSTEM (T-q1f2f0f55 WIP, gate neutral) —
+              New standalone module `engine/src/compositor/emitter-render.ts` (524 lines) +
+              `engine/test/emitter-render.test.ts` (564 lines, 39/39 passing). Decodes Motion's
+              THIRD kind of instance-generator (distinct from grid replicators and particle
+              emitters): a scenenode NAMED "Emitter" whose factoryID resolves via the per-file
+              factory table to "Replicator", carrying `Shape (id 302)=4`, `Emit At Points=1`,
+              a Points × Ranks lattice, and a "Cell copy" child with per-stroke curves
+              (Angle/Width/Spacing/Jitter/Source-Start-Over-Stroke, rangeName "Stroke Length")
+              and `Dab Depth Ordered`. Structural discriminator: `layer.type ===
+              'replicator' && layer.replicator.shape === 4`. Verified fires on 6 built-ins
+              (Flash, Duplicate, Up:Over, Slide_In, Light_Sweep, Close & Open) via
+              `hasPaintStrokeReplicator` — registered in `no-hardcode.test.ts`, MIN_FIRES OK,
+              zero transition-name checks. Module has ZERO import sites → 65 built-ins
+              byte-identical to baseline (0/2 regress). One-line wiring recipe is documented
+              in the module header (behind `FCT_PAINT_STROKE=1` flag); wiring deferred to a
+              downstream tick when compositor/index.ts is uncontended by other editors.
+              Parser gaps documented for a follow-up: replicator.ts does not yet lift the
+              per-cell over-stroke curves nor Ranks (id 359) / Emit At Points (id 303) /
+              Image Source (id 327) off the "Cell copy" — extractor supplies safe defaults
+              (ranks=1, extent=1920×1080, empty curves) so the rasteriser produces a correct
+              uniform-dab layout even before the parser work lands. This is the FIRST
+              landing tick of a multi-tick subsystem — the wiring + parser enrichment +
+              brush-sprite resolver + score-vs-GT are follow-ups.
+
 - 2026-07-16o  ✅ CONCENTRIC CLONE IMAGE-MASK (T-qconcentric1 DONE) — **Replicator-Clones__Concentric
               12.67 → 13.38 (+0.71 dB)**. `renderCloneLayer` now honors a clone layer's own
               `imageMaskSourceId` (rig-selected Image Mask) — mirroring exactly what `renderMedia`

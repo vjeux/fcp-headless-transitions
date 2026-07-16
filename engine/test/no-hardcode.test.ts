@@ -25,6 +25,7 @@ import {
   hasNestedMaskedCloneCameraStack,
   hasCameraCloneStack,
 } from '../src/compositor/z-composite.js';
+import { hasPaintStrokeReplicator } from '../src/compositor/emitter-render.js';
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 
@@ -46,6 +47,7 @@ const DETECTORS: Record<string, (scene: any) => unknown> = {
   isEquirectScene,
   hasCameraCloneStack,
   hasNestedMaskedCloneCameraStack,
+  hasPaintStrokeReplicator,
 };
 
 // PARAM-DRIVEN SUBSET REFINEMENTS. These are NOT structural dispatch probes — each is a
