@@ -342,14 +342,28 @@ These are the measured-negative attempts and non-obvious decode facts a worker n
 starting a slug. A todo may point here ("DO NOT re-attempt X — see ROADMAP dead-ends"); the
 full measured record lives here, once.
 
-### ⚠️ The `fct regress engine` gate is RENDER-NONDETERMINISTIC under parallel JOBS (2026-07-16, T-qvidwall01)
-Under `FCT_JOBS>1` the engine render + JPEG encode varies by **~0.5–1 dB** run-to-run on some
-slugs. A full-fleet `gen engine --all` + `regress engine` reported 3 "regressions"
-(Smear −1.47, Center_Reveal −0.69, Slide −0.60) and 1 "improvement" (Wipes__Mask +2.19) from a
-change that PROVABLY could not touch those slugs (they have NO replicator and NO framing camera).
-A **serial (JOBS=1) re-render reproduced clean-main byte-for-byte** on all four. LESSON: before
-trusting any <1 dB gate delta, re-render the flagged slug SERIALLY and re-score; parallel-render
-noise is not a real regression (Rule 2b). This likely explains earlier "phantom" regressions too.
+### ✅ CORRECTED: the gate is DETERMINISTIC — "parallel JOBS nondeterminism" was MISDIAGNOSED (2026-07-16, orchestrator)
+An earlier T-qvidwall01 note claimed `fct regress engine` is "render-nondeterministic ~0.5–1 dB
+under parallel JOBS". **That is FALSE and was empirically disproven** — do not use it to wave off
+sub-dB regressions. Measured proof (all committed, re-runnable):
+  1. RENDER determinism: `Stylized__Slide` (a flagged "phantom" slug) rendered 6× — 3 SERIAL +
+     3 PARALLEL, under heavy CPU contention (a concurrent agent + load) — produced BYTE-IDENTICAL
+     frames every time (sha `4654dd330ffa` ×6; serial==parallel). Engine src has NO `Math.random`,
+     no `Date.now()`-in-pixels; JPEG cache `_save` is atomic (mkstemp+os.replace).
+  2. SCORE determinism: scoring FIXED frames 5× (cold thumbnail build → 4 warm reuses) = 11.75
+     ×5 exactly; full-res 3× = 11.69 ×3. The `read_frame_cached` re-read-after-save makes
+     cold/warm byte-identical.
+So renders and scoring are BOTH byte-deterministic, parallel or serial. A real regression is a
+real regression — re-render serially to CONFIRM, never to DISMISS.
+
+WHAT the vidwall agent actually saw (the real, operational cause): a `gen engine --all` run under
+load-~80 thrash can leave a slug with an INCOMPLETE / interrupted frame set (an OOM- or
+contention-killed `tsx` worker writes only some of the 24 frames; the 24-frame SET is not atomic
+even though each single frame write is). A gate reading that half-updated set scores a transient
+wrong dB; the next clean full render fixes it. This is a STALE/INCOMPLETE-FRAMES artifact, not
+nondeterminism. The durable fixes (this session): swarm-aware `FCT_JOBS=1` default (no more
+thrash → renders complete), and — if a gate delta is ≤1 dB on a slug your change can't touch —
+verify the slug has all 24 frames + re-render it alone, THEN trust the number.
 
 ### ⛔ Video_Wall camera+cell-fill is DECODED & VERIFIED but the TILE-GRID GEOMETRY is the wall (2026-07-16, T-qvidwall01)
 All 4 brief parts were implemented and verified in isolation (WIP: `docs/notes/wip/vw_T-qvidwall01_*.diff`):
@@ -648,9 +662,12 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               diffs saved to docs/notes/wip/vw_T-qvidwall01_*.diff. Blocker is now PURELY the tile-grid
               geometry at the deep-far pose (endpoint gains cancelled by f14-f17 mid losses); GT is a
               tight 4×4 grid, engine's ±4100-pitch cell-filled tiles overlap & don't match. Filed
-              follow-up T-qd1814800. META: `fct regress engine` is render-nondeterministic ~0.5-1dB
-              under parallel JOBS — the gate flagged 3 phantom regressions on non-replicator slugs a
-              serial re-render disproved. Engine byte-identical (reverted); gate untouched.
+              follow-up T-qd1814800. META (CORRECTED by orchestrator 2026-07-16): the claim that
+              `fct regress` is "render-nondeterministic under parallel JOBS" was MISDIAGNOSED — renders
+              + scoring are proven BYTE-deterministic (Slide 6×=identical, score 5×=identical; see the
+              "gate is DETERMINISTIC" dead-end above). The phantom regressions were an INCOMPLETE/stale
+              frame-set artifact under load-80 thrash, now fixed by the swarm FCT_JOBS=1 default.
+              Engine byte-identical (reverted); gate untouched.
 
 - 2026-07-16d  ✅ CURTAINS (T-qcurtains01) — DONE, +2.34 dB (16.53 -> 18.87), gate 0 regressions / 1 improvement.
               Root cause = retime-wrap TAIL collapse (f18-f23 held sepia photo A ≈(140,90,60), GT reveals blue
