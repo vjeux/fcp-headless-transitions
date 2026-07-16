@@ -342,6 +342,23 @@ These are the measured-negative attempts and non-obvious decode facts a worker n
 starting a slug. A todo may point here ("DO NOT re-attempt X — see ROADMAP dead-ends"); the
 full measured record lives here, once.
 
+### 🔁 ORCHESTRATOR: the harness-clobber loop and its (now structural) fix (2026-07-16)
+Symptom seen 4× in one session: an agent lands a real engine win but its push ALSO reverts the
+swarm harness (pool.py/cli.py/todo.py/push_helper.sh/agent_brief.md) to an older form — silently
+undoing orchestrator fixes. MECHANISM: `push_helper.sh` rsyncs the agent's WHOLE worktree over a
+fresh origin/main clone. An agent whose worktree was branched off an OLD origin/main carries a
+STALE copy of the harness; a plain `rsync --delete` overlay rolls the clone's fresh harness BACK
+to that stale copy. It is NOT a git-history revert (the fix commits stay in ancestry) — it's a
+FILE-CONTENT overlay, so `git merge-base --is-ancestor` says "already landed" while the files are
+reverted. FIX (structural, all three layers now on origin/main): (1) push_helper excludes the
+whole `fct/swarm/**` from the overlay except the append-only `todo/` (verified: dst harness
+preserved, agent todo + engine changes still land). (2) setup_worktree branches fresh off
+origin/main AND salvages/restores excluding `fct/swarm/*` (no harness in salvage → no feedback
+loop). (3) For agents ALREADY in-flight with a stale push_helper, the orchestrator copies the
+fixed push_helper.sh into their live worktrees. Once all pre-fix agents cycle out, every path
+sources harness only from origin/main. If you see a 5th clobber: check whether a NEW pre-fix
+worktree slipped in, and re-verify push_helper on origin has `--exclude='/fct/swarm/**'`.
+
 ### Oracle validity per slug (pick your method before you start)
 Headless FCP (`fct score <slug> --source headless`) is a TRUSTWORTHY per-slug oracle for most
 clone/replicator slugs (it scores 13–32 dB vs the GUI GT), so `headless − engine` measures the
