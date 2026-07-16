@@ -697,6 +697,28 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16n  ✅ CENTER WRAP-TO-A NARROW GATE (T-qcenter0001 DONE) — **6 slugs improved, 0 regressions
+              caused**. Narrowed the wrapToA `bDropZoneAliveAtEnd` disable-gate so it only fires
+              when the alive-at-end transitionB has its curves anchored at scene time (retime shift
+              `offset − in` ≤ 1 frame). The prior wide gate (out ≥ endSec − 1fr) treated Duplicate's
+              transitionB (in=0, out=5.84, offset=0.868, endSec=0.998) as "settled B" even though at
+              scene tail the layer's curveTime is only 0.13s (still fade-in). Duplicate's GT tail IS
+              photo A, so wrapToA must stay on there — the wide gate was regressing Duplicate by
+              −5.22 dB on a fresh render (masked earlier by stale frame cache). Narrow gate keeps
+              wrapToA on for Duplicate (shift=+0.868) while still cancelling it for the settle-on-B
+              family (Center/Multi/Diagonal/Glide/Panels_Random/Panels_Across, shift ≤ 0). Full
+              regress vs baseline_engine.json:
+                Stylized__Center             12.35 → 13.41 (+1.06)  [DoD target met]
+                Stylized__Glide              18.58 → 20.32 (+1.74)
+                Stylized__Panels_Across      15.15 → 18.09 (+2.94)
+                Stylized__Panels_Random      18.02 → 18.83 (+0.81)
+                Replicator-Clones__Multi     11.66 → 12.67 (+1.01)
+                Replicator-Clones__Concentric 12.67 → 13.55 (+0.88)
+                Replicator-Clones__Duplicate 21.34 → 21.25 (−0.09, within tol)
+              Only Stylized__Color_Panels flags −0.83, verified pre-existing (identical score with
+              stash+fresh-render on clean origin/main; owned by another agent). tsc clean;
+              no-hardcode PASS. Files: engine/src/evaluator/index.ts (+9/−1 in wrapToA gate).
+
 - 2026-07-16m  🚧 3D_RECTANGLE Z-COMPOSITE SCAFFOLD (WIP T-q98a30de5) — added standalone
               engine/src/compositor/z-composite.ts (pure-addition module, no import site
               yet, gate-neutral) + engine/test/z-composite.test.ts (9/9 pass). Provides

@@ -965,6 +965,21 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
     // Duplicate / Diagonal / Glide / Panels_Random / Panels_Across have live B
     // at tail → wrapToA off (correct: tail is B). Structural (drop-zone timing),
     // never a slug name.
+    //
+    // NARROWING (2026-07-16, T-qcenter0001): the "alive at endSec" test is `out >=
+    // endSec - 1fr` on the raw layer window, but the layer's CURVE anchor is
+    // shifted by `offset − in` (see the curveTime = timeSec − offset re-anchoring
+    // at line ~676 for scene-time-authored panels). When (offset − in) is
+    // significantly POSITIVE, the layer is retimed forward — at scene tail the
+    // curveTime is only (endSec − offset), i.e. very EARLY in the transitionB's
+    // authored curve (fade-in, NOT settled B). Duplicate: transitionB in=0,
+    // out=5.84, offset=0.868, endSec=0.998 → curveT@end = 0.13s (barely started).
+    // Duplicate's GT tail IS photo A, so the wrap-to-A path IS correct there.
+    // Narrow the gate: only count as "settled B at end" when the retime shift
+    // (offset − in) ≤ 1 frame — i.e. the transitionB's curves reach their settled
+    // tail at endSec. Verified on 7 candidates: Center/Multi/Diagonal/Glide/
+    // Panels_Random/Panels_Across all have shift ≤ 0 and correctly settle (fires);
+    // Duplicate has shift = +0.868s and correctly does NOT settle (skips).
     let bDropZoneAliveAtEnd = false;
     (function scan(ls: Layer[]) {
       for (const l of ls) {
@@ -972,7 +987,11 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
           && l.retimeValue.keyframes.length >= 2 && l.timing) {
           const out = l.timing.out.timescale > 0 ? l.timing.out.value / l.timing.out.timescale : 0;
           if (out > 0 && out < minWrap) minWrap = out;
-          if (l.source?.type === 'transitionB' && out >= end - frameSec) bDropZoneAliveAtEnd = true;
+          if (l.source?.type === 'transitionB' && out >= end - frameSec) {
+            const inn = l.timing.in.timescale > 0 ? l.timing.in.value / l.timing.in.timescale : 0;
+            const off = l.timing.offset.timescale > 0 ? l.timing.offset.value / l.timing.offset.timescale : 0;
+            if ((off - inn) <= frameSec) bDropZoneAliveAtEnd = true;
+          }
         }
         if (l.type === 'shape' && l.shape && !l.shape.isMask && (l.shape.fillColor || l.shape.isSolidPanel)) hasFilledShapeOverlay = true;
         scan(l.children);
