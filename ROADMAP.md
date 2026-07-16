@@ -14,6 +14,17 @@ lost; this file is the lean forward plan.
 Every work item has a **Definition of Done (DoD)**, a **Verify** command, and a
 **Status**. Update Status in the same commit that does the work.
 
+## How the work gets done: the swarm (2026-07-16)
+The engineering is run by a **pool of Claude Code worker sub-agents** (default 8), each
+taking ONE task in an isolated git worktree and self-merging to origin/main. The
+**main/orchestrator agent does NO engineering** — its only job is to keep that pool at
+capacity (see the scheduled "swarm — keep the worker pool at capacity" tick). Work comes
+from TWO sources the scheduler merges: (1) this ROADMAP's task rows, and (2) the
+**appendable TODO queue** `fct/swarm/todo/*.json`. Worker agents APPEND follow-up work
+they discover (a new fix a decode opens, a subsystem too big for one task, a
+regressed-but-already-imperfect slug per Rule 11) to that queue so future agents pick it
+up. See `fct/swarm/README.md`; file items with `python3 -m fct.swarm.todo add`.
+
 ---
 
 ## The rules (non-negotiable — these are why the last effort drifted)

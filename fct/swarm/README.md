@@ -1,8 +1,41 @@
 # fct swarm — self-refilling Claude Code agent pool
 
-Runs N (default 8) Claude Code agents in parallel on the ROADMAP flat task list, keeps
-the pool full (relaunches the next eligible task whenever a slot frees), and runs a
-reflection agent every 30 min that makes the workers faster.
+Runs N (default 8) Claude Code worker sub-agents in parallel, each on ONE task in its own
+isolated git worktree, and keeps the pool FULL: whenever a slot frees, the pool launches
+the next eligible task. A reflection agent every 30 min makes the workers faster.
+
+## The operating model (updated 2026-07-16)
+- **The main / orchestrator agent does NO engineering.** Its ONLY job is to keep the
+  worker pool running at capacity (default 8). It schedules, launches, reaps wedged
+  slots, and refills — it never renders, scores, minimizes, or edits engine code itself
+  (that would fight the workers for RAM and the render locks).
+- **Worker sub-agents do the actual work**, one task each, fully isolated, taking their
+  task all the way to a pushed commit on origin/main via the self-merge contract
+  (`agent_brief.md`).
+- **Work comes from two places, merged by the scheduler:**
+  1. the ROADMAP flat task table (human-authored `ID  STATUS  TASK` rows), and
+  2. the **appendable TODO queue** (`fct/swarm/todo/*.json`, one JSON file per task).
+- **Workers FEED the queue.** When a worker discovers follow-up work it is not doing in
+  its own task (a decode that opens a new fix, a subsystem too big for one task, a
+  regressed-but-already-imperfect slug per ROADMAP Rule 11, a capability worth unit-
+  testing), it APPENDS a new item via `python3 -m fct.swarm.todo add ...` and pushes it.
+  Future agents pick it up. This is what lets the swarm run open-endedly without a human
+  re-authoring the ROADMAP each time. One file per item = concurrent producers never
+  merge-conflict.
+
+## The TODO queue
+```bash
+# a worker (or you) files follow-up work — writes fct/swarm/todo/<id>.json:
+python3 -m fct.swarm.todo add --project fct --by <TASK_ID|human> \
+  --title "short label" --slugs Category__Name \
+  --goal "what to do + why; the next agent's brief (cite the decoded FCP fact)"
+
+python3 -m fct.swarm.todo list                # queued items (reads origin/main)
+python3 -m fct.swarm.todo done <id> [--status done|dropped|blocked]
+```
+The pool reads the queue from origin/main each cycle, so an item is eligible the moment
+its file is pushed. Completion is still detected by the commit subject (`<id> DONE: …`),
+exactly like ROADMAP tasks — the queue is just an appendable task SOURCE.
 
 ## Why the isolation
 8 agents sharing one working tree / frames dir / render lock corrupt each other (two

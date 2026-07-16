@@ -93,6 +93,48 @@ def parse_tasks():
         tasks.append(cur)
     return tasks
 
+def _queue_tasks():
+    """Tasks from the APPENDABLE swarm TODO queue (fct/swarm/todo/*.json), read from
+    origin/main so an item pushed by any worker is visible on the next pool cycle.
+    Worker sub-agents append to this queue as they discover follow-up work, so the
+    swarm keeps finding things to do without a human re-authoring the ROADMAP table.
+    Returned in the same shape as parse_tasks() rows so the scheduler treats queue
+    items and ROADMAP rows uniformly."""
+    try:
+        from fct.swarm import todo as _todo
+    except Exception:
+        import importlib.util as _ilu
+        spec = _ilu.spec_from_file_location("_swarm_todo",
+                                            os.path.join(MAIN, "fct", "swarm", "todo.py"))
+        _todo = _ilu.module_from_spec(spec); spec.loader.exec_module(_todo)
+    out = []
+    for it in _todo.all_items(from_origin=True):
+        status = (it.get("status") or "open").upper()
+        # map queue status -> scheduler status vocabulary
+        sched = {"OPEN": "TODO", "DOING": "DOING", "DONE": "DONE",
+                 "DROPPED": "DROPPED", "BLOCKED": "TODO"}.get(status, "TODO")
+        goal = it.get("goal", "") or it.get("title", "")
+        out.append({
+            "id": it["id"],
+            "status": sched,
+            "desc": (it.get("title", "") + ": " + goal).strip(": "),
+            "after": it.get("after"),
+            "extra": " " + " ".join(it.get("slugs", []) or []),
+        })
+    return out
+
+
+def all_tasks():
+    """ROADMAP flat-table tasks PLUS appendable TODO-queue items (queue items win on id
+    collision). This is the single scheduling source the pool draws from."""
+    by_id = {}
+    for t in parse_tasks():
+        by_id[t["id"]] = t
+    for t in _queue_tasks():
+        by_id[t["id"]] = t
+    return list(by_id.values())
+
+
 def slugs_for(task):
     """Best-effort extract target slug tokens (Category__Name) from a task's text."""
     blob = task["desc"] + " " + task["extra"]
@@ -110,7 +152,7 @@ def slugs_for(task):
 # ---------------------------------------------------------------------------
 def done_task_ids():
     done = set()
-    for t in parse_tasks():
+    for t in all_tasks():
         if t["status"] in ("DONE", "DROPPED"):
             done.add(t["id"])
     try:
@@ -138,8 +180,9 @@ def done_task_ids():
     return done
 
 def eligible_tasks():
-    """TODO tasks whose `after:` dep (if any) is DONE, in ROADMAP order."""
-    tasks = parse_tasks()
+    """TODO tasks whose `after:` dep (if any) is DONE. Draws from BOTH the ROADMAP flat
+    table AND the appendable swarm TODO queue (all_tasks)."""
+    tasks = all_tasks()
     done = done_task_ids()
     out = []
     for t in tasks:

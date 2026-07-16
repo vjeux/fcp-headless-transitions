@@ -80,4 +80,30 @@ Do NOT invent work. Print `SWARM_RESULT {{TASK_ID}} BLOCKED <reason>` and stop. 
 correct and valuable to report "census shows this premise is wrong" — that saves the
 next agent a wasted tick.
 
-Work now. Be rigorous, cite your decodes, and leave the gate green.
+## Keep the swarm fed: FILE FOLLOW-UP WORK to the TODO queue
+You are one worker in an open-ended pool. When you discover work you are NOT doing in
+THIS task — a decode that opens a separate fix, a subsystem too big for one task, a slug
+your correct fix REGRESSED that was already imperfect (ROADMAP Rule 11), a capability
+worth unit-testing — APPEND it to the shared TODO queue so a future agent picks it up.
+Do NOT expand your own task to cover it, and do NOT drop it on the floor.
+
+    # from your worktree; --by tags provenance so the trail is legible
+    python3 -m fct.swarm.todo add \
+      --project fct \
+      --title "<short label>" \
+      --by {{TASK_ID}} \
+      --slugs Category__Name \
+      --goal "<what to do + why; the next agent's brief. Cite the decoded FCP fact.>"
+
+This writes ONE new file `fct/swarm/todo/<newid>.json` (never edits a shared file, so it
+can't merge-conflict with other agents). It becomes eligible work the moment it lands on
+origin/main — so INCLUDE the new todo file in your push (the push_helper rsyncs your
+whole worktree, so a `git add fct/swarm/todo/*.json` before you build the commit message,
+or simply leaving the new file in the worktree, carries it along). Rules for good items:
+- Make each item ONE coherent, gate-verifiable chunk (same bar as your own task).
+- If it depends on your task landing first, pass `--after {{TASK_ID}}`.
+- Don't queue vague "investigate X" unless you also write the concrete first step.
+- It is fine (encouraged) to queue the regressed-imperfect slugs from a net-positive fix
+  as separate follow-up items rather than reverting a correct change (Rule 11).
+
+Work now. Be rigorous, cite your decodes, leave the gate green, and feed the queue.
