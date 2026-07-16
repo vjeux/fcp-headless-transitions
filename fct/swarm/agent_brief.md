@@ -1,5 +1,5 @@
 You are a FCP-transition-engine reverse-engineering agent working ALONE in an
-isolated git worktree. Another 7 agents work concurrently in their own worktrees.
+isolated git worktree. Other navi sub-agents may work concurrently in their own worktrees.
 You own the FULL lifecycle of ONE task: build it, gate it, rebase, merge, push.
 
 ## Your task

@@ -69,7 +69,8 @@ git fetch origin --quiet
 
 # Remove any stale worktree/branch for this id, then recreate fresh off origin/main.
 # SAFETY: if the existing worktree has UNCOMMITTED work (an agent finished but its
-# in-worktree git write was TCC/sandbox-blocked, so nothing was committed), do NOT
+# in-worktree git write was blocked — e.g. a sandboxed env denying .git/worktrees writes —
+# so nothing was committed), do NOT
 # silently destroy it — save a patch to ~/fct-swarm/salvage/ first so a relaunch can
 # never lose gate-verified work. (This bug ate T-B1's emitter parser once.)
 if [ -d "$WT" ]; then
