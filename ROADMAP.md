@@ -672,6 +672,29 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16f  📝 VIDEO_WALL DECODE-3 (T-qd1814800 WIP, docs-only, gate 0/0) — restored the 4 WIP diffs
+              (they were deleted by an unrelated Smear-fix commit 86b8489); re-verified they apply
+              cleanly against current origin/main and land Video_Wall 10.16→10.18 (+0.02, still
+              net-neutral per Rule 2d, engine reverted). Two NEW decode findings recorded:
+              (1) **pitch-model X-vs-Y ambiguity REFUTED** — empirically measured GT f11 tile seams
+              (screen pitchX~630, pitchY~350, aspect 1.68); all three candidate pitch formulas
+              (sizeWidth/(cols-1), /cols, /(cols+1)) give the SAME world aspect 3.42 (→ screen 3.77
+              after Y-tilt cos 25° foreshortening), NONE match 1.68 regardless of denominator, so
+              the tile pitch model is NOT the blocker; (2) **standalone Transition A/B are rendered
+              through the framing camera as giant tiles** — .motr has 'Transition A' Object.Type=1
+              at world y=−2390 and 'Transition B' Object.Type=2 at world y=+3596 as separate
+              top-level Image nodes (also used as replicator cell content via Pin 1/Pin 2). Engine
+              compositor:498 renders every dropZone image through projectFramed; at mid-far dolly
+              this puts raw Transition B into the frame as a ~40%-of-screen solitary blue rectangle
+              (visually verified rendering engine f11 with WIP diffs). GT does NOT show this;
+              FCP suppresses standalone A/B when consumed as cell sources in a replicator-wall
+              scene. Concrete next step: skip standalone A/B render when rctx.framed AND scene has
+              a replicator-wall layer; add `hasReplicatorWallWithDropZoneRefs` detector (≥2
+              built-ins). Full decode in fct/minimized/Replicator-Clones__Video_Wall/manifest.json
+              → decode_2026_07_16_T-qd1814800_transitionAB_and_perspective. Gate: `fct regress
+              engine` 0 regressions / 0 improvements (byte-identical to origin/main), tsc clean,
+              no-hardcode 10/10 detectors ≥2.
+
 - 2026-07-16e  📝 REFLECTION DECODE (T-qreflect001 WIP, docs-only, gate 0/0) — investigated the missing
               mid-transition book-fold wedge on Movements__Reflection (14.23 dB, orthographic-forced by
               the S6 rep=0/static-cam discriminator). Ran perspective + cam-distance sweeps and per-column
