@@ -697,6 +697,34 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16p  📝 SWITCH A/B INVERSION DECODE (T-q7b464494 WIP, docs-only, gate 0/0) — deep decode of
+              Movements__Switch's remaining inversion after T-qff1b6de2 landed 12.31→14.67. Empirical
+              symptom: engine f01-f06 render only Trans B (heavily rotated), Trans A is COMPLETELY
+              INVISIBLE; engine f10 (peak swing) ≈ GT. So the ROT-Z magnitudes are correct but
+              A/B compositing during the ramp phase is inverted. Full link-routing map decoded:
+              (1) LinkPos/LinkAnchor in BOTH Trans A & Trans B scenenodes → Affecting Object =
+              Clone B (1999871187), NOT the enclosing scenenode. LinkRot in Trans A → self (Trans A),
+              LinkRot in Trans B → CROSS to sibling Trans A (1999871182). (2) Rig Behaviors for the
+              two LinkRots have INVERTED snapshot columns (Trans A rig: id=2 +1, id=3 -1; Trans B
+              rig: id=2 -1, id=3 +1) which compose with inverted inline Scale (+1 / -1) to
+              produce IDENTICAL signed rotZ on both scenenodes. (3) Trans B carries timing
+              offset=-108108 so it reads the driver curve 108108 ahead of Trans A — Trans B
+              reads near-peak rotZ at scene t=0 while Trans A reads near-zero. (4) Parser
+              currently uses ENCLOSING-scenenode routing (parser/behaviors.ts::parseLinkBehaviors
+              L246: `affectedId = enclosing.id`), ignoring Affecting Object for transform links.
+              This is CORRECT for Clothesline (19.31 with cross-linked LinkRot but different
+              geometry) but produces the observed A/B compositing inversion for Switch. Two
+              candidate fixes both carry cross-family regression risk: (a) descendant-vs-sibling
+              heuristic in parser link routing (collides with Reflection T-q50a7f2e6's parser
+              lane), (b) compositor z-order rule for standalone Transition A/B during their
+              overlap phase (collides with z-composite / Concentric / Video_Wall / 3D_Rect
+              lanes). No code change this tick — landing decode so the next Switch tick, once
+              parser+compositor lanes clear, can commit surgical code without re-tracing.
+              Files: ROADMAP.md (append-only, this entry). Empirical evidence: side-by-side
+              GT vs engine reads of frames 0/1/2/4/10 confirm f10 ≈ GT (swing peak correct),
+              f01-f06 = A invisible, B huge-rotated (ramp phase inverted). Score unchanged at
+              14.67 (frozen baseline still 12.31; T-qff1b6de2 landed code but no rebaseline).
+
 - 2026-07-16o  ✅ CONCENTRIC CLONE IMAGE-MASK (T-qconcentric1 DONE) — **Replicator-Clones__Concentric
               12.67 → 13.38 (+0.71 dB)**. `renderCloneLayer` now honors a clone layer's own
               `imageMaskSourceId` (rig-selected Image Mask) — mirroring exactly what `renderMedia`
