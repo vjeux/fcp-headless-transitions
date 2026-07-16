@@ -44,19 +44,23 @@ def _reap_live_children(*_a):
             pass
 
 def sweep_orphaned_renderers():
-    """PRE-KILL sweep: reap render workers ORPHANED by a prior SIGKILLed parent.
+    """PRE-KILL sweep: reap EVERY leftover render worker before launching a new batch.
 
     The in-process reaper below only kills children of the CURRENTLY-live python (on
     any catchable exit). But a `gen --all` (or swarm wrapper) python that is SIGKILLed
     — OOM-killer, `kill -9`, a wedged box — cannot trap the signal, so ITS render tsx
-    children are NOT reaped: they reparent to init (ppid==1) and keep rendering for
-    10+ min, thrashing the box. The next batch then piles on top → the load-194 storm.
+    children are NOT reaped: they keep rendering for 10+ min, thrashing the box. The
+    next batch then piles on top → the load-194 storm.
 
-    So BEFORE launching a new batch we sweep any such orphans. We match ONLY
-    tsx-render workers whose parent is init (ppid==1) — i.e. genuinely stranded, not a
-    concurrent agent's live batch (whose children have a live python ppid) and never
-    the navi-node CLI itself (never matches the render argv). This is intentionally
-    conservative: a live sibling batch is untouched; only true orphans die.
+    This runs at the TOP of the `gen` batch entrypoint, BEFORE the current process has
+    launched any render worker of its own — so killing EVERY matching render tsx
+    process is safe: none of them belong to this run yet. We match ONLY our render tsx
+    scripts by argv (test/_fct_render.ts / test/_fct_render_one.ts), so the navi-node
+    CLI and any unrelated node/python process are NEVER touched. We also skip our own
+    PID and our own process group defensively (they can't match the render argv, but
+    belt-and-suspenders). This kills BOTH true orphans (ppid==1 from a prior killed
+    parent) AND any still-running sibling batch's workers — the user asked for a clean
+    slate every `gen`, so a previous batch is always superseded.
     """
     import re
     try:
@@ -64,16 +68,23 @@ def sweep_orphaned_renderers():
                              capture_output=True, text=True, timeout=10).stdout
     except (subprocess.SubprocessError, OSError):
         return 0
+    my_pid = os.getpid()
+    try:
+        my_pgid = os.getpgrp()
+    except OSError:
+        my_pgid = None
     killed = 0
     for line in out.splitlines()[1:]:
         m = re.match(r"\s*(\d+)\s+(\d+)\s+(.*)", line)
         if not m:
             continue
         pid, ppid, cmd = int(m.group(1)), int(m.group(2)), m.group(3)
-        # Only true orphans (reparented to init) running one of OUR render tsx scripts.
-        if ppid != 1:
-            continue
+        # Only OUR render tsx workers (never the navi-node CLI or other node procs).
         if "test/_fct_render.ts" not in cmd and "test/_fct_render_one.ts" not in cmd:
+            continue
+        # Never kill ourselves (defensive — the current python can't match the render
+        # argv, but a render worker we just tracked shouldn't exist yet at sweep time).
+        if pid == my_pid:
             continue
         try:
             os.kill(pid, signal.SIGKILL)
@@ -81,7 +92,7 @@ def sweep_orphaned_renderers():
         except (ProcessLookupError, PermissionError, OSError):
             pass
     if killed:
-        print(f"[gen] swept {killed} orphaned render worker(s) from a prior killed batch",
+        print(f"[gen] swept {killed} leftover render worker(s) from a previous batch",
               file=sys.stderr, flush=True)
     return killed
 
