@@ -1,0 +1,14 @@
+{
+  "id": "T-q4b346e73",
+  "title": "Movements__Earthquake mid-crossfade f10-f16 dip \u2014 decode true A/B opacity ramp during retiming overlap",
+  "project": "fct",
+  "goal": "Task T-qca011a65 landed the tail-settle-on-B fix (Earthquake 16.79->21.26 dB, gate 0/0). REMAINING RESIDUAL: mid-transition A->B crossfade region f10-f16 sits at ~10-13 dB while GT is mid-crossfade (GT mean climbs 90->138 over f11-f15). Per-frame after fix: f10=11.72, f11=10.17, f12=11.33, f13=12.81, f14=11.6, f15=12.44, f16=13.7 (then recovers f17=15.54, f18=17.89, f19=21.11, f22=35.18). Facts already decoded: Transition A timing.out=0.951s (f10.1); Transition B timing.in=0.801s (f8.5); drop zones overlap f8.5-f10.1; past f10.1 only B is technically live but FCP still shows A CONTENT during f10-f13 (engine A dies at f9). Working hypothesis: FCP uses retimingExtrapolation=1 (or similar) to HOLD Transition A visible past its timing.out during the crossfade window, whereas the engine treats timing.out as a hard invisibility cut. NEXT STEPS: (1)  to shrink to node-level repro of the mid-crossfade divergence; (2) read the retimingExtrapolation / extrapolationMode / holdLast constants on Transition A in the .motr via tools/re/read_const.py (cite the decoded id/value in the fix); (3) trace engine A opacity/visibility eval at f10-f13 (engine/src/evaluator/*) to find where timing.out becomes a hard cut; (4) implement a generic 'extrapolation-hold' path on drop-zone media that reads that decoded constant. Do NOT hardcode Earthquake \u2014 the hold must be gated by the decoded param and must fire on >=2 built-ins (check Curtains/Color_Panels/Flashback which share the retime-wrap+overlay pattern). DoD: Earthquake mean >=22.5 dB (raise f10-f16 without regressing >=17 dB tail); regress engine green (0 regressions).  Also: the shaking Transition A + blurry-cloud dust overlay + Falling Impact debris particles all composite in this window \u2014 verify (via minimize) which layer's opacity is the primary culprit before writing the fix.",
+  "slugs": [
+    "Movements__Earthquake"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qca011a65",
+  "created_at": "2026-07-16T20:03:04+00:00",
+  "notes": ""
+}
