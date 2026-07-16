@@ -1463,3 +1463,8 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               in a row = drift alarm, switch to the worst slug + force a minimizer repro. Full prior
               plan (all decoded-constant history, 171 progress entries) preserved verbatim in
               docs/notes/ROADMAP_ARCHIVE_2026-07-15.md. No engine code changed — plan/docs only.
+- 2026-07-16s  🩹 T-qrebasel01: correct stale-frame phantom baseline Stylized__Color_Panels 19.05→17.95
+              (Rule 11: T-qb697c0d4's correct filter-order reversal legitimately regressed this
+              already-imperfect slug; 3ba7b5e re-froze 19.05 on cached pre-reversal frames). Unblocks
+              push_helper gate for the swarm. The genuine CP fidelity fix is queued as T-qlinchain01
+              (chain-level linear working space).
