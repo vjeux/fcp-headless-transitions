@@ -745,6 +745,23 @@ export function parseMotr(xmlText: string): MotrScene {
     // retiming curves and rig-snapshot subtrees. getElementsByTagName gives document
     // order; we resolve each curve's owning parameters by climbing parentNode.
     let maxT = 0;
+    // Subtree-cache for the loop-container exemption below: for a given
+    // scenenode/layer/group element, does its subtree contain ANY <curve
+    // retimingExtrapolation="1">? Cached because the outer loop walks every curve
+    // in the file and each curve queries every ancestor.
+    const loopContainerCache = new WeakMap<Element, boolean>();
+    function subtreeHasLoopingCurve(el: Element): boolean {
+      const cached = loopContainerCache.get(el);
+      if (cached !== undefined) return cached;
+      const cs = (el as any).getElementsByTagName('curve') as HTMLCollectionOf<Element>;
+      let has = false;
+      for (let i = 0; i < cs.length; i++) {
+        if (cs.item(i)?.getAttribute('retimingExtrapolation') === '1') { has = true; break; }
+      }
+      loopContainerCache.set(el, has);
+      return has;
+    }
+
     const curves = Array.from(sceneEl.getElementsByTagName('curve'));
     for (const curve of curves) {
       // Collect the full chain of enclosing <parameter> names, and the nearest
@@ -753,6 +770,29 @@ export function parseMotr(xmlText: string): MotrScene {
       let ownerName = '';
       let skip = false;
       let nodeOffsetSec = 0;
+      // BROAD SCENE-DURATION CAP (T-q29039791). FCP's authoring pipeline routinely
+      // ships trailing keypoints that live FAR past the transition's <duration> —
+      // Stylized__Close_and_Open's Camera Position X/Y/Z AND its `Top shapes`
+      // layer's Position/Scale X/Y/Z sit at 3.470s while sceneDur=0.7s. If those
+      // keys win the maxT walk, animationEndSec inflates ~5× and the whole
+      // progress→time map is compressed, so mid-frames sample past every layer's
+      // timing-out (drop zones die → empty frame). The safe cap: cap ANY curve's
+      // contribution to maxT at sceneDurSec EXCEPT curves inside a "loop container"
+      // — a scenenode/layer/group whose subtree contains at least one
+      // retimingExtrapolation=1 curve. Retime-wrap semantics mean the layer's own
+      // curves LEGITIMATELY loop past sceneDur (Stylized__Loop's `Transition loop`
+      // group holds Loop/shape/Transition-A/B with re=1 and its Ornament sub-groups
+      // author X/Y Position curves out to 5.54s — those must NOT be capped or the
+      // rendered loop stalls). Compare directRE-only vs subtree: the direct-Retime
+      // check misses the Ornament siblings (which don't have their own Retime but
+      // move in-sync with the loop's wrap); the subtree check correctly exempts
+      // every descendant of a container that holds any looping curve, and
+      // correctly does NOT exempt Close_and_Open (its `Top shapes` layer contains
+      // zero re=1 curves — only the sibling `Transition Drop Zones` layer has
+      // re=1). Verified: exempts 10 Loop curves / caps 4 Close_and_Open curves
+      // (Camera Z, Top shapes X/Y/Z). This is the T-q29039791 fix per the task
+      // brief; the earlier Camera-only variant missed the `Top shapes` inflation.
+      let insideLoopContainer = false;
       // Camera-node local-frame re-anchor: a Camera scenenode with a LARGE-NEGATIVE
       // timeline offset authors its dolly/orientation curves in its own local time
       // frame (Motion places local-frame zero at `offset`). Light Sweep's Camera has
@@ -790,6 +830,15 @@ export function parseMotr(xmlText: string): MotrScene {
       // offset). Recorded when the ancestor walk climbs into a <filter> (see below).
       let filterOffsetSec = 0;
       while (node && node.nodeType === 1) {
+        // Loop-container detection for the broad scene-duration cap (T-q29039791).
+        // The ancestor is a scenenode/layer/group whose subtree contains at least
+        // one retimingExtrapolation=1 curve → this curve is part of a legitimate
+        // Retime-wrap loop and must NOT be capped at sceneDur.
+        if (!insideLoopContainer
+            && (node.tagName === 'scenenode' || node.tagName === 'layer' || node.tagName === 'group')
+            && subtreeHasLoopingCurve(node as Element)) {
+          insideLoopContainer = true;
+        }
         if (node.tagName === 'parameter') {
           const nm = node.getAttribute('name') || '';
           if (!ownerName) ownerName = nm; // nearest enclosing parameter
@@ -1036,7 +1085,19 @@ export function parseMotr(xmlText: string): MotrScene {
                   : (rawSec >= 0 ? rawSec + shiftAmt : rawSec);
           // A no-op curve (no value change) may only extend the window up to the
           // authored scene duration — never past it (see NO-OP CURVE GUARD above).
-          const secCapped = isNoOpCurve ? Math.min(sec, sceneDurSec) : sec;
+          // T-q29039791: also apply the sceneDur cap to any REAL animating curve
+          // that is NOT inside a loop container (see insideLoopContainer above).
+          // FCP occasionally ships trailing keys past the transition's <duration>
+          // (Close_and_Open Camera + `Top shapes` at 3.47s, sceneDur=0.7s) — those
+          // are editor-leftover artifacts that inflate animationEndSec ~5× and
+          // collapse the mid-transition render. Curves inside a loop container
+          // (any ancestor scenenode/layer/group whose subtree holds a
+          // retimingExtrapolation=1 curve — e.g. Stylized__Loop's `Transition
+          // loop`) are exempted: their Retime-wrap semantics let them legitimately
+          // run past sceneDur.
+          const secCapped = (isNoOpCurve || !insideLoopContainer)
+            ? Math.min(sec, sceneDurSec)
+            : sec;
           if (secCapped > maxT) maxT = secCapped;
         }
       }

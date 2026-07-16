@@ -122,6 +122,13 @@ future tick picks it up as a concrete target instead of the regression being los
 Format: `<slug> <before>→<after> (caused by <commit/fix>) — why it was already imperfect / hypothesis`.
 
 - _(none yet — populate as Rule 11 fires)_
+- Stylized__Loop 15.91→15.63 (caused by T-q29039791 broad sceneDur cap on 2026-07-16) — Loop's
+  `Transition loop` subtree has retimingExtrapolation=1 curves (correctly exempted) but its
+  sibling decorative shape curves (Ornament groups authoring X/Y Position out to 5.539s) are
+  outside the loop container and get capped. Hypothesis: extend the loop-container check to
+  cover a scene-level "any subtree contains re=1" signal, OR use direct-curve re=1 detection
+  instead of subtree scan. Fix should confirm no Close_and_Open regression.
+
 
 ## The workflow, concretely (EFFICIENCY-FIRST — updated 2026-07-15 on vjeux's instruction)
 

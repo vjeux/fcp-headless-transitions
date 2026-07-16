@@ -823,6 +823,31 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
       && maskSrcIsShapeGeom
       && evalSubtreeContains(evalLayer, layer.imageMaskSourceId);
 
+    // CROSS-CONTAINER Image Mask on a pure drop-zone group (T-q29039791,
+    // Stylized__Close_and_Open). The `Transition Drop Zones` group (id 999094061)
+    // carries an Image Mask whose Source (id 989704929 'Mask shapes',
+    // imageMaskInvert=1) sits in a SIBLING container, not as a descendant. Every
+    // VISIBLE child of the drop-zone group is a drop-zone image leaf (Transition A
+    // / Transition B). The mask geometry animates (Top/Bottom shapes' Position.Y
+    // close-hold-open envelope), so the drop-zone stack is progressively revealed
+    // and the decorative panel groups rendered BEHIND become visible through the
+    // mask holes. Gate on:
+    //   (1) mask source is NOT a descendant of this group (evalSubtreeContains
+    //       false — the descendant case is `hasImageMask` above and is unchanged)
+    //   (2) every visible child is `type=='image'` with `dropZone` populated (rules
+    //       out Concentric's ring-mask GROUP children and Combo_Spin's spinning
+    //       clone children — both would fail this gate)
+    //   (3) mask source is shape-geometry (rules out image-content masks)
+    // This is strictly additive to the descendant `hasImageMask` path — Concentric,
+    // Center, Heart etc. resolve on that path unchanged.
+    const allChildrenAreDropZones = visibleChildren.length > 0 && visibleChildren.every(
+      c => c.layer.type === 'image' && c.layer.dropZone !== undefined
+    );
+    const hasCrossContainerDropZoneMask = layer.imageMaskSourceId !== undefined
+      && maskSrcIsShapeGeom
+      && !evalSubtreeContains(evalLayer, layer.imageMaskSourceId)
+      && allChildrenAreDropZones;
+
     // Draw-order convention. The default renders children in REVERSE list order
     // (last-listed rendered first = bottom, first-listed last = top), which the
     // 3D-hinge groups (Rotate/Reflection/Flip) rely on — there depth, not draw
@@ -882,7 +907,7 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
       order = (idx: number): EvaluatedLayer => visibleChildren[visibleChildren.length - 1 - idx];
     }
 
-    if (hasFilters || hasMasks || hasBlend || hasImageMask) {
+    if (hasFilters || hasMasks || hasBlend || hasImageMask || hasCrossContainerDropZoneMask) {
       // Render visible children to a temp buffer
       const groupBuffer = createBuffer(output.width, output.height);
       for (let i = 0; i < visibleChildren.length; i++) {
@@ -925,6 +950,18 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
       // does at renderDrawableLayer (:479), lifted to the group so ring-mask groups
       // (Concentric) clip their stacked clones to the shape. `invert` honors Invert Mask.
       if (hasImageMask && layer.imageMaskSourceId !== undefined) {
+        const maskAlpha = resolveImageMaskAlpha(
+          rctx, layer.imageMaskSourceId, output.width, output.height, layer.imageMaskInvert);
+        if (maskAlpha) applyMask(groupBuffer, maskAlpha);
+      }
+
+      // CROSS-CONTAINER DROP-ZONE MASK (T-q29039791, Stylized__Close_and_Open):
+      // the mask source is a foreign shape-geometry layer AND every visible child
+      // of this group is a drop-zone image (see hasCrossContainerDropZoneMask
+      // definition above). Apply the reveal-matte the same way as the descendant
+      // path — the Top/Bottom mask shapes close→hold→open on the sibling layer,
+      // producing the reveal-then-cover-then-reveal envelope.
+      if (hasCrossContainerDropZoneMask && layer.imageMaskSourceId !== undefined) {
         const maskAlpha = resolveImageMaskAlpha(
           rctx, layer.imageMaskSourceId, output.width, output.height, layer.imageMaskInvert);
         if (maskAlpha) applyMask(groupBuffer, maskAlpha);
