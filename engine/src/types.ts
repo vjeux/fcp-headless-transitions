@@ -156,7 +156,47 @@ export type ImageSource =
   | { type: 'generator'; name: string; parameters: Parameter[] }
   | { type: 'gaussianGradient'; gradient: GaussianGradientConfig }
   | { type: 'lensFlare'; flare: LensFlareConfig }
+  | { type: 'linearGradient'; gradient: LinearGradientConfig }
   | { type: 'color'; r: number; g: number; b: number; a: number };
+
+/**
+ * Parsed parameters of Motion's "Gradient" generator (factoryID=8,
+ * pluginUUID 40091D89-9517-4344-9CB5-18436B1542D1, pluginName "Gradient").
+ *
+ * A LINEAR gradient fill: authored under `Object(id=2) > Gradient(id=1)` with
+ * canvas Width(id=300) x Height(id=301), a Gradient(id=310) folder holding two
+ * RGB stops (RGB1/RGB2, each with Location(id=1) + Color(id=3, R/G/B) child
+ * curves), Opacity stops (Opacity1/Opacity2), and a Start(id=4)/End(id=5) axis
+ * (X id=1, Y id=2, canvas-centred pixel coords, +Y up) as direct children of
+ * `Gradient(id=310)` (the same folder as the stops). The gradient value at a
+ * pixel `p` is computed by projecting `(p - Start)` onto the axis
+ * `(End - Start)` and normalizing by `|axis|^2`, then clamping [0,1]:
+ *   `t = dot(p - Start, End - Start) / |End - Start|^2`.
+ *
+ * SALVAGE — read `curve.value` NOT `curve.default`: the parser's parseParameter
+ * mirrors `curve.default` onto `param.value` when `param.value` is unset, so
+ * reading `param.value` returns the AUTHORED default (RED(1,0,0)@stop0,
+ * BLUE(0,0,1)@stop1). Slide_In's 6 COLOUR links (colorizeRemap) remap those
+ * defaults to the observed teal(72,141,144)->lightblue(223,241,242), and the
+ * remapped values live in `curve.value` on each Red/Green/Blue leaf. Access
+ * `param.curve.value` (falling back to `curve.default`, then `param.value`) so
+ * the colorized colors are read out.
+ */
+export interface LinearGradientConfig {
+  /** Generator canvas size (Width/Height params, in px). */
+  width: number;
+  height: number;
+  /** Gradient axis start point, canvas-centred pixels (+Y up). */
+  start: { x: number; y: number };
+  /** Gradient axis end point, canvas-centred pixels (+Y up). */
+  end: { x: number; y: number };
+  /**
+   * Colour stops, sorted by location ascending. Each stop has an axis location
+   * (0..1), an RGB colour (0-255), and an opacity (0..1). Between stops the
+   * engine linearly interpolates R, G, B, A.
+   */
+  stops: Array<{ location: number; r: number; g: number; b: number; a: number }>;
+}
 
 /**
  * Parsed parameters of Motion's "LensFlareGenerator"

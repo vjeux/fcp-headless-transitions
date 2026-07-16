@@ -8,7 +8,7 @@
  * globals) so concurrent parses never share mutable state. Split out of
  * parser/index.ts (ROADMAP item 7).
  */
-import type { ImageSource, GaussianGradientConfig, LensFlareConfig, Parameter } from '../types.js';
+import type { ImageSource, GaussianGradientConfig, LensFlareConfig, LinearGradientConfig, Parameter } from '../types.js';
 import { directChildren, getTextContent, parseParameter } from './xml.js';
 
 /**
@@ -385,6 +385,117 @@ function parseGaussianGradient(params: Parameter[]): GaussianGradientConfig {
 }
 
 /**
+ * Parse Motion's "Gradient" generator (factoryID=8, pluginUUID starts with
+ * 40091D89, pluginName="Gradient"). Reads the `Object(id=2) > Gradient(id=1)`
+ * parameter block for the linear-gradient fill.
+ *
+ * The gradient axis (Start id=4, End id=5) is a direct child of `Object(id=2)`
+ * — NOT nested under Gradient(id=1). Both endpoints are canvas-centred pixel
+ * coordinates (+Y up in Motion). Inside `Gradient(id=1)` the `Gradient(id=310)`
+ * folder holds the RGB stops (`RGB id=1` with children RGB1/RGB2, each a
+ * `<parameter Location id=1>` + `<parameter Color id=3>` with R/G/B/A children)
+ * and the Opacity stops (`Opacity id=2` with Opacity1/Opacity2 -> Location +
+ * Opacity curves).
+ *
+ * SALVAGE GOTCHA (T-qcf704c6b census): parseParameter mirrors `curve.default`
+ * onto `param.value` when `param.value` is not set on the param element. So
+ * reading `param.value` for a stop's Red channel returns the AUTHORED default
+ * (1 for RGB1.Red, 0 for RGB2.Red) — i.e. the pre-remap RED->BLUE canonical
+ * gradient. The 6 COLOUR links (colorizeRemap) that recolor the panel to
+ * teal->lightblue write their remapped values into `curve.value` on each
+ * Red/Green/Blue leaf. Read `param.curve?.value` in preference to
+ * `param.curve?.default` / `param.value` so the colorized stops flow through.
+ */
+function parseLinearGradient(params: Parameter[]): LinearGradientConfig {
+  // Locate `Object(id=2) > Gradient(id=1)`.
+  const objectFolder = findParamByIdName(params, 2, 'Object');
+  const gradientFolder = objectFolder?.children?.find(p => p.id === 1 && p.name.trim() === 'Gradient');
+  const gsrc = gradientFolder?.children ?? [];
+
+  // Prefer curve.value (the colorized/remapped value) over curve.default (the
+  // authored default that Motion also serializes) — see SALVAGE GOTCHA above.
+  const num = (p: Parameter | undefined, dflt: number): number => {
+    if (!p) return dflt;
+    if (p.curve) {
+      if (typeof p.curve.value === 'number') return p.curve.value;
+      if (typeof p.curve.default === 'number') return p.curve.default;
+    }
+    if (typeof p.value === 'number') return p.value;
+    return dflt;
+  };
+
+  const width = num(gsrc.find(p => p.id === 300), 1920);
+  const height = num(gsrc.find(p => p.id === 301), 1080);
+
+  // The gradient stops sit under `Gradient(id=310)`.
+  const stopsFolder = gsrc.find(p => p.id === 310 && p.name.trim() === 'Gradient');
+  const rgbFolder = stopsFolder?.children?.find(p => p.id === 1 && p.name.trim() === 'RGB');
+  const opFolder = stopsFolder?.children?.find(p => p.id === 2 && p.name.trim() === 'Opacity');
+
+  // Each RGB stop: Location (id=1), Color (id=3) > Red/Green/Blue leaves.
+  const readRGBStop = (stop: Parameter, defaultLoc: number, defaultRGB: [number, number, number]) => {
+    const loc = num(stop.children?.find(p => p.id === 1 && p.name === 'Location'), defaultLoc);
+    const color = stop.children?.find(p => p.id === 3 && p.name === 'Color');
+    const r = num(color?.children?.find(p => p.name === 'Red'), defaultRGB[0]);
+    const g = num(color?.children?.find(p => p.name === 'Green'), defaultRGB[1]);
+    const b = num(color?.children?.find(p => p.name === 'Blue'), defaultRGB[2]);
+    return { location: loc, r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
+  };
+  // Each Opacity stop: Location (id=1), Opacity leaf (id=3).
+  const readOpacityStop = (stop: Parameter, defaultLoc: number, defaultA: number) => {
+    const loc = num(stop.children?.find(p => p.id === 1 && p.name === 'Location'), defaultLoc);
+    const a = num(stop.children?.find(p => p.name === 'Opacity'), defaultA);
+    return { location: loc, a };
+  };
+
+  const rgbStops = (rgbFolder?.children ?? []).filter(p => (p.name === 'RGB1' || p.name === 'RGB2' || /^RGB\d+$/.test(p.name)));
+  const opStops = (opFolder?.children ?? []).filter(p => /^Opacity\d+$/.test(p.name));
+
+  // Motion's canonical gradient defaults: RED(1,0,0)@loc=0 -> BLUE(0,0,1)@loc=1,
+  // fully opaque throughout. Missing folders fall back to this canonical gradient.
+  const rgbDefaults: [number, [number, number, number]][] = [
+    [0, [1, 0, 0]],
+    [1, [0, 0, 1]],
+  ];
+  const rgbList = rgbStops.length > 0
+    ? rgbStops.map((s, i) => readRGBStop(s, rgbDefaults[Math.min(i, 1)][0], rgbDefaults[Math.min(i, 1)][1]))
+    : rgbDefaults.map(([loc, rgb]) => ({ location: loc, r: Math.round(rgb[0] * 255), g: Math.round(rgb[1] * 255), b: Math.round(rgb[2] * 255) }));
+  const opList = opStops.length > 0
+    ? opStops.map((s, i) => readOpacityStop(s, i === 0 ? 0 : 1, 1))
+    : [{ location: 0, a: 1 }, { location: 1, a: 1 }];
+
+  // Merge RGB + Opacity by nearest-location (both are usually authored as pairs
+  // at the same locations). If counts differ, fall back to positional pairing.
+  const stops = rgbList.map((rgb, i) => {
+    let a = 1;
+    if (opList.length > 0) {
+      const opAt = opList.find(o => Math.abs(o.location - rgb.location) < 1e-4) ?? opList[Math.min(i, opList.length - 1)];
+      a = opAt.a;
+    }
+    return { location: rgb.location, r: rgb.r, g: rgb.g, b: rgb.b, a };
+  }).sort((a, b) => a.location - b.location);
+
+  // Start (id=4) / End (id=5) — direct children of `Gradient(id=310)` (the
+  // stops folder, itself a child of `Gradient(id=1)` under `Object(id=2)`).
+  // Coordinates are canvas-centred pixels, +Y up. Motion's authored defaults:
+  // Start.X=0/Y=+100, End.X=0/Y=-100 (a short vertical axis through the
+  // centre). Slide_In authors Start.Y=540, End=(3.36, -798.78) — a full-frame
+  // top-to-bottom axis.
+  const startFolder = (stopsFolder?.children ?? []).find(p => p.id === 4 && p.name.trim() === 'Start');
+  const endFolder = (stopsFolder?.children ?? []).find(p => p.id === 5 && p.name.trim() === 'End');
+  const start = {
+    x: num(startFolder?.children?.find(p => p.id === 1 && p.name === 'X'), 0),
+    y: num(startFolder?.children?.find(p => p.id === 2 && p.name === 'Y'), 100),
+  };
+  const end = {
+    x: num(endFolder?.children?.find(p => p.id === 1 && p.name === 'X'), 0),
+    y: num(endFolder?.children?.find(p => p.id === 2 && p.name === 'Y'), -100),
+  };
+
+  return { width, height, start, end, stops };
+}
+
+/**
  * Parse Motion's LensFlareGenerator (`Lens Flare` procedural generator). Reads
  * the `Object > Lens Flare` (id 2 > id 1) parameter block for the core/ring/streak
  * appearance, and the flare-sweep endpoints from the two published "Center
@@ -501,6 +612,27 @@ export function determineImageSource(params: Parameter[], el: Element | undefine
   // engine previously returned undefined here, so the flare rendered as nothing.
   if (pluginUUID.toUpperCase().startsWith('4933D9F1') || pluginName.trim() === 'LensFlareGenerator') {
     return { type: 'lensFlare', flare: parseLensFlare(params, el) };
+  }
+
+  // "Gradient" generator (Motion's classic linear gradient generator, factoryID=8,
+  // pluginUUID 40091D89-9517-4344-9CB5-18436B1542D1, pluginName "Gradient"). Used
+  // by Stylized/Slide_In as the teal->lightblue panel fill under the sliding
+  // rounded-rect masks. Distinct from the "Gaussian Gradient" generator (radial,
+  // pluginUUID 96A13FF0…) — that branch fires first above so this UUID check
+  // never sees a Gaussian Gradient. Detected generically by plugin UUID (the
+  // most reliable signal). Decoded from Slide In.motr (line 369).
+  //
+  // FLAG-GATED (`FCT_LINEAR_GRADIENT_GEN`): the render + own-mask clip subsystem
+  // is being built incrementally (T-qcf704c6b). Without the Motion Path behavior
+  // (factoryID=24, filed as T-q66b34d79) driving the mask, enabling this
+  // unconditionally regresses Slide_In (12.11 -> 5.78 dB — the panel renders
+  // at the wrong position). Land the parse/render machinery behind a flag so
+  // the gate stays green while Motion Path is developed.
+  if (pluginUUID.toUpperCase().startsWith('40091D89')) {
+    if (process.env.FCT_LINEAR_GRADIENT_GEN === '1') {
+      return { type: 'linearGradient', gradient: parseLinearGradient(params) };
+    }
+    // Default: fall through (return undefined below), preserving 12.11 baseline.
   }
 
   // Color Solid generator (a plugin fill, not a drop zone).

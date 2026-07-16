@@ -232,7 +232,7 @@ export function renderGradient(config: GradientConfig, width: number, height: nu
 //   uses an isotropic (circular) distance only.
 // ============================================================================
 
-import type { GaussianGradientConfig, LensFlareConfig } from '../../types.js';
+import type { GaussianGradientConfig, LensFlareConfig, LinearGradientConfig } from '../../types.js';
 import { evaluateCurve } from '../../evaluator/curves.js';
 
 /**
@@ -406,6 +406,96 @@ export function renderLensFlare(config: LensFlareConfig, timeSec: number, endSec
       out.data[idx + 1] = Math.min(255, gv * color.g + rv * streakColor.g);
       out.data[idx + 2] = Math.min(255, gv * color.b + rv * streakColor.b);
       out.data[idx + 3] = 255;
+    }
+  }
+  return out;
+}
+
+// ============================================================================
+// Motion "Gradient" generator — LINEAR variant
+// (pluginUUID 40091D89-9517-4344-9CB5-18436B1542D1, pluginName "Gradient")
+// ============================================================================
+//
+// Per the verbatim HgcGradientLinear shader documented at the top of this file,
+// the linear gradient at pixel `p` is the SCALAR PROJECTION onto the axis
+// `(Start -> End)` normalised by |axis|^2, clamped to [0, 1], then sampled from
+// the 1-D color LUT built by the color stops.
+//
+//   axis  = End - Start                 (canvas-pixel vector)
+//   t     = dot(p - Start, axis) / dot(axis, axis)
+//   color = LUT( clamp(t, 0, 1) )
+//
+// Motion authors Start/End in canvas-CENTRED pixels with +Y up. The output image
+// uses top-left pixel coordinates with +Y down, so we convert pixel-y to
+// canvas-y via `cy = height/2 - y - 0.5` (pixel-centre sample).
+//
+// Alpha in the LUT is straight (0..1) — we output straight-alpha RGBA so the
+// caller's blit path handles premultiplication uniformly.
+
+/**
+ * Render Motion's "Gradient" (linear) generator into an ImageData at the
+ * generator's own canvas resolution (config.width x config.height). Straight
+ * alpha; premultiplication is applied by the compositor blit path.
+ */
+export function renderLinearGradient(config: LinearGradientConfig): ImageData {
+  const { width, height, start, end, stops } = config;
+  const out = new ImageData(new Uint8ClampedArray(width * height * 4), width, height);
+
+  // Sort stops by location for the interpolator (parser already does this,
+  // but be defensive).
+  const S = stops.slice().sort((a, b) => a.location - b.location);
+  if (S.length === 0) return out;
+
+  const sample = (t: number): [number, number, number, number] => {
+    if (t <= S[0].location) return [S[0].r, S[0].g, S[0].b, S[0].a];
+    const last = S[S.length - 1];
+    if (t >= last.location) return [last.r, last.g, last.b, last.a];
+    for (let i = 0; i < S.length - 1; i++) {
+      const s0 = S[i], s1 = S[i + 1];
+      if (t >= s0.location && t <= s1.location) {
+        const range = s1.location - s0.location;
+        const f = range > 0 ? (t - s0.location) / range : 0;
+        return [
+          s0.r + (s1.r - s0.r) * f,
+          s0.g + (s1.g - s0.g) * f,
+          s0.b + (s1.b - s0.b) * f,
+          s0.a + (s1.a - s0.a) * f,
+        ];
+      }
+    }
+    return [last.r, last.g, last.b, last.a];
+  };
+
+  const axisX = end.x - start.x;
+  const axisY = end.y - start.y;
+  const axisLen2 = axisX * axisX + axisY * axisY;
+  if (axisLen2 <= 0) {
+    // Degenerate axis: fill with the first stop (matches the LUT clamp result).
+    const [r, g, b, a] = sample(0);
+    for (let i = 0; i < out.data.length; i += 4) {
+      out.data[i] = Math.round(r); out.data[i + 1] = Math.round(g);
+      out.data[i + 2] = Math.round(b); out.data[i + 3] = Math.round(a * 255);
+    }
+    return out;
+  }
+
+  const hw = width / 2, hh = height / 2;
+  for (let y = 0; y < height; y++) {
+    // Motion canvas Y is +up, origin at canvas centre; pixel Y is +down from
+    // the top. Sample at pixel centres.
+    const cy = hh - (y + 0.5);
+    for (let x = 0; x < width; x++) {
+      const cx = (x + 0.5) - hw;
+      const dx = cx - start.x;
+      const dy = cy - start.y;
+      let t = (dx * axisX + dy * axisY) / axisLen2;
+      if (t < 0) t = 0; else if (t > 1) t = 1;
+      const [r, g, b, a] = sample(t);
+      const idx = (y * width + x) * 4;
+      out.data[idx] = Math.round(r);
+      out.data[idx + 1] = Math.round(g);
+      out.data[idx + 2] = Math.round(b);
+      out.data[idx + 3] = Math.round(a * 255);
     }
   }
   return out;

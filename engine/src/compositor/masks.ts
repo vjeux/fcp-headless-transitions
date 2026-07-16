@@ -15,7 +15,7 @@ import { evaluateCurve } from '../evaluator/curves.js';
 import { rasterizeShape, unionMasks } from './shapes.js';
 import { luma601 } from './blend.js';
 import { generateInstances, sequenceProgress, sequenceOrder } from './replicator.js';
-import { renderGaussianGradient, renderLensFlare } from './filters/gradient.js';
+import { renderGaussianGradient, renderLensFlare, renderLinearGradient } from './filters/gradient.js';
 import { mat4Mul, instanceLocalMatrix, createBuffer } from './blit.js';
 import { lookupFilter, makeContext } from './filters/registry.js';
 
@@ -196,6 +196,13 @@ export function getSourceImage(rctx: RenderContext, source: ImageSource | undefi
     }
     case 'gaussianGradient':
       return renderGaussianGradient(source.gradient);
+    case 'linearGradient':
+      // Motion's "Gradient" (linear) generator (pluginUUID 40091D89…). Rendered
+      // at the generator's own canvas size; the layer's world transform + a
+      // Motion-Path-carrying rounded-rect mask child then clip + position the
+      // panel over the frame (see renderChildLayers's mask-child clip path for
+      // generator leaves).
+      return renderLinearGradient(source.gradient);
     case 'lensFlare':
       // The flare envelope + sweep follow the LINEAR transition progress, so use
       // the UN-wrapped scene time (mediaTime) — the retime-wrap that remaps
