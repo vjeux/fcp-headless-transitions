@@ -5,8 +5,97 @@
  * Link behaviors that drive one object's parameters from another. Rig behaviors are
  * handled separately by the rig system. Split out of parser/index.ts (ROADMAP item 7).
  */
-import type { LayerBehavior, LinkBehavior } from '../types.js';
-import { directChildren, firstChild, getTextContent, parseTiming } from './xml.js';
+import type { LayerBehavior, LinkBehavior, MotionPathPayload, Curve } from '../types.js';
+import { directChildren, firstChild, getTextContent, parseTiming, parseParameter } from './xml.js';
+
+/**
+ * Extract the Curve object from a leaf `<parameter>` element. Returns a
+ * minimal Curve (single-keypoint constant) when the element has no `<curve>`
+ * child — parseParameter's own logic then synthesises defaults, but we need a
+ * concrete Curve type here for the Motion Path payload.
+ */
+function paramToCurve(pel: Element | undefined): Curve {
+  if (!pel) return { keypoints: [], defaultValue: 0 } as unknown as Curve;
+  const p = parseParameter(pel);
+  if (p.curve) return p.curve;
+  // Constant fallback — synthesize a zero-keypoint Curve carrying the value.
+  const v = typeof p.value === 'number' ? p.value : 0;
+  return { keypoints: [], defaultValue: v } as unknown as Curve;
+}
+
+function findChildParam(parent: Element, id: number, name?: string): Element | undefined {
+  for (const p of directChildren(parent, 'parameter')) {
+    if (parseInt(p.getAttribute('id') || '0', 10) === id) {
+      if (!name || (p.getAttribute('name') || '') === name) return p;
+    }
+  }
+  return undefined;
+}
+
+function readNum(pel: Element | undefined, dflt: number): number {
+  if (!pel) return dflt;
+  const v = pel.getAttribute('value');
+  if (v !== null) { const n = parseFloat(v); if (!isNaN(n)) return n; }
+  const d = pel.getAttribute('default');
+  if (d !== null) { const n = parseFloat(d); if (!isNaN(n)) return n; }
+  return dflt;
+}
+
+/**
+ * Decode a factoryID=24 Motion Path behavior element into a typed payload.
+ * See MotionPathPayload jsdoc in types.ts for the field-to-XML mapping. All
+ * fields default to Motion's canonical Motion Path defaults if absent.
+ */
+function parseMotionPath(b: Element): MotionPathPayload {
+  const pos200 = findChildParam(b, 200, 'Position');
+  const pos206 = findChildParam(b, 206, 'Position');
+  const start214 = findChildParam(b, 214, 'Start Point');
+  const end215 = findChildParam(b, 215, 'End Point');
+
+  const xy = (parent: Element | undefined) => ({
+    x: paramToCurve(parent && findChildParam(parent, 1, 'X')),
+    y: paramToCurve(parent && findChildParam(parent, 2, 'Y')),
+  });
+  const xyz = (parent: Element | undefined) => ({
+    ...xy(parent),
+    z: paramToCurve(parent && findChildParam(parent, 3, 'Z')),
+  });
+
+  // pos206 has an optional <closed>1</closed> element inside each axis curve;
+  // capture whichever axis reports closed=1 (Motion writes it consistently).
+  let closed = false;
+  if (pos206) {
+    for (const axis of directChildren(pos206, 'parameter')) {
+      const cEl = firstChild(axis, 'curve');
+      if (cEl) {
+        const cl = firstChild(cEl, 'closed');
+        if (cl && (cl.textContent || '').trim() === '1') { closed = true; break; }
+      }
+    }
+  }
+
+  return {
+    basePosition: xyz(pos200),
+    pathControlPoints: { ...xyz(pos206), closed },
+    startPoint: xy(start214),
+    endPoint: {
+      x: readNum(end215 && findChildParam(end215, 1, 'X'), 0),
+      y: readNum(end215 && findChildParam(end215, 2, 'Y'), 0),
+    },
+    amplitude: readNum(findChildParam(b, 216, 'Amplitude'), 100),
+    frequency: readNum(findChildParam(b, 217, 'Frequency'), 1),
+    phase: readNum(findChildParam(b, 218, 'Phase'), 0),
+    damping: readNum(findChildParam(b, 221, 'Damping'), 0),
+    shapeSource: readNum(findChildParam(b, 210, 'Shape Source'), 0),
+    offset: readNum(findChildParam(b, 211, 'Offset'), 0),
+    attachToShape: readNum(findChildParam(b, 220, 'Attach To Shape'), 1),
+    direction: readNum(findChildParam(b, 219, 'Direction'), 0),
+    customSpeed: readNum(findChildParam(b, 204, 'Custom Speed'), 0),
+    applySpeed: readNum(findChildParam(b, 209, 'Apply Speed'), 0),
+    loops: readNum(findChildParam(b, 208, 'Loops'), 1),
+    endCondition: readNum(findChildParam(b, 222, 'End Condition'), 0),
+  };
+}
 
 /**
  * Parse animation behaviors (Fade, Ramp, etc.) attached as children of a layer.
@@ -26,6 +115,7 @@ export function parseLayerBehaviors(el: Element, factories: Map<number, string>)
     else if (ftype === 'Ramp') type = 'ramp';
     else if (ftype === 'Oscillate') type = 'oscillate';
     else if (ftype === 'Spin') type = 'spin';
+    else if (ftype === 'Motion Path' || fid === 24) type = 'motionPath';
 
     // Collect params
     const params: Record<string, number> = {};
@@ -40,7 +130,9 @@ export function parseLayerBehaviors(el: Element, factories: Map<number, string>)
       if (pname === 'Apply To' || pname === 'Target') targetParam = p.getAttribute('value') || undefined;
     }
 
-    behaviors.push({ type, params, targetParam, timing: parseTiming(b) });
+    const beh: LayerBehavior = { type, params, targetParam, timing: parseTiming(b), factoryID: fid };
+    if (type === 'motionPath') beh.motionPath = parseMotionPath(b);
+    behaviors.push(beh);
   }
   return behaviors;
 }

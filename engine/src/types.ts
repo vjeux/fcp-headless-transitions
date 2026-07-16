@@ -862,9 +862,9 @@ export interface GravityBehavior {
   timing?: { in: RationalTime; out: RationalTime; offset: RationalTime };
 }
 
-/** An animation behavior attached to a layer (Fade, Ramp, Oscillate, Spin). */
+/** An animation behavior attached to a layer (Fade, Ramp, Oscillate, Spin, Motion Path). */
 export interface LayerBehavior {
-  type: 'fade' | 'ramp' | 'oscillate' | 'spin' | 'other';
+  type: 'fade' | 'ramp' | 'oscillate' | 'spin' | 'motionPath' | 'other';
   /** Behavior parameters (name → value). */
   params: Record<string, number>;
   /** For Ramp: the target parameter name it animates. */
@@ -876,6 +876,95 @@ export interface LayerBehavior {
    * params are frame counts anchored to this window.
    */
   timing?: { in: RationalTime; out: RationalTime; offset: RationalTime };
+  /**
+   * FactoryID of the underlying behavior scenenode (e.g. 24 = Motion Path).
+   * Set when structural decoding needs to route on factoryID even for behaviors
+   * that fall into the generic 'other' bucket (whose `type` doesn't yet encode
+   * the specifics). Optional — pre-Motion-Path behaviors don't carry this.
+   */
+  factoryID?: number;
+  /**
+   * Motion Path payload (factoryID=24). Present only when `type='motionPath'`.
+   * Decoded from the built-in Motion "Motion Path" behavior — a shared behavior
+   * primitive that animates an object's position along a path over the
+   * behavior's own timing window. Fires on 16 built-ins (per fct census, e.g.
+   * Slide_In, Center_Reveal, Heart, Lower, Loop, Wipes/Mask, 360°/Push/Slide).
+   *
+   * Motion authors the path as a small parameter tree. Field mapping to the
+   * .motr:
+   *   - `basePosition`: `Position(id=200)` — the base position CURVE (X/Y/Z),
+   *     often the traveled-distance-along-path when Shape Source != 0, or a
+   *     plain animated position when the behavior is a straight-line
+   *     translate.
+   *   - `pathControlPoints`: `Position(id=206)` — the CUSTOM PATH keypoints
+   *     (closed=1 loops back to first). Each channel (X/Y/Z) is a keyframed
+   *     Curve with Bezier tangents; use these vertices as the control polygon
+   *     that defines the spatial path when `attachToShape=1` and
+   *     `shapeSource=0`.
+   *   - `startPoint` / `endPoint`: `Point(id=214)` / `Point(id=215)` — the
+   *     STRAIGHT-LINE endpoints (used when `shapeSource=0` and the path
+   *     degenerates to a line).
+   *   - Sinusoidal modulation: `amplitude(id=216)`, `frequency(id=217)`,
+   *     `phase(id=218)`, `damping(id=221)` — a perpendicular sine wave
+   *     superimposed on the base path (Amplitude=0 → straight path).
+   *   - Path selection: `shapeSource(id=210)` (0 = built-in / straight line,
+   *     nonzero = external Shape object), `offset(id=211)` (starting position
+   *     along path 0..1), `attachToShape(id=220)` (1 = follow the shape's
+   *     tangent orientation), `direction(id=219)`, `customSpeed(id=204)`,
+   *     `applySpeed(id=209)`, `loops(id=208)`, `endCondition(id=222)`.
+   *
+   * The evaluator applies the Motion Path as an ADDITIVE position offset to
+   * the host layer's transform (like Fade/Ramp/Spin do for their target
+   * parameter). Gate-neutral until the evaluator subsystem is wired up.
+   */
+  motionPath?: MotionPathPayload;
+}
+
+/**
+ * Motion "Motion Path" behavior payload — the structural parameter tree of a
+ * factoryID=24 behavior child. Decoded from Slide In.motr (line 548) and
+ * cross-checked against Motion's built-in Motion Path behavior schema.
+ *
+ * Parser reads and types it; evaluator TBD (T-qcf704c6b Stage 2 continuation).
+ */
+export interface MotionPathPayload {
+  /** Base position curve (id=200). X/Y/Z are keyframed curves. */
+  basePosition: { x: Curve; y: Curve; z: Curve };
+  /** Custom path control points (id=206). Closed=1 loops. */
+  pathControlPoints: { x: Curve; y: Curve; z: Curve; closed: boolean };
+  /** Straight-line START endpoint (id=214). */
+  startPoint: { x: Curve; y: Curve };
+  /** Straight-line END endpoint (id=215). */
+  endPoint: { x: number; y: number };
+  /** Sinusoidal amplitude (id=216) perpendicular to path. 0 = straight. */
+  amplitude: number;
+  /** Sine frequency (id=217). */
+  frequency: number;
+  /** Sine phase (id=218). */
+  phase: number;
+  /** Sine damping (id=221). */
+  damping: number;
+  /**
+   * Path type / source (id=210). 0 = built-in (line via startPoint/endPoint or
+   * pathControlPoints). Nonzero = external Shape object reference.
+   */
+  shapeSource: number;
+  /** Starting position along path (id=211, 0..1). */
+  offset: number;
+  /**
+   * Attach To Shape (id=220). 1 = orient tangent to path; 0 = position only.
+   */
+  attachToShape: number;
+  /** Direction (id=219): 0 = forward, 1 = reverse. */
+  direction: number;
+  /** Custom Speed (id=204). */
+  customSpeed: number;
+  /** Apply Speed (id=209). 0 = use default speed, 1 = use Custom Speed. */
+  applySpeed: number;
+  /** Loop count (id=208). */
+  loops: number;
+  /** End Condition (id=222): 0 = stop, 1 = wrap, etc. */
+  endCondition: number;
 }
 
 /** A vector shape (polygon mask or filled shape). */

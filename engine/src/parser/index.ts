@@ -66,6 +66,7 @@ function liftProceduralMasks(
   factories: Map<number, string>,
   linkSourceIds: Set<number>,
   out: Layer[],
+  hostType?: Layer['type'],
 ): void {
   // S8 PROCEDURAL SHAPE-MASK MATTE (default ON; set FCT_PROCMASK=0 to disable).
   // Lifts a source-less animated `<mask>` (Wipes/Diagonal's "Animated mask") into a
@@ -88,7 +89,35 @@ function liftProceduralMasks(
     }
     if (hasSource) continue;
     const mshape = parseShape(maskEl, factories, linkSourceIds);
-    if (!mshape || !mshape.isMask || mshape.verticesX.length < 3) continue;
+    if (!mshape || mshape.verticesX.length < 3) continue;
+
+    // NARROW MOTION-PATH MASK LIFT (T-qcf704c6b, flag-gated,
+    // `FCT_MOTION_PATH_MASK_LIFT`, default OFF). Some scenes (Stylized/Slide_In)
+    // author a `<mask>` DIRECTLY UNDER a generator/image LEAF whose name isn't
+    // "Mask"/"Masks" and whose enclosing DOM chain doesn't include one either —
+    // so detectMask (in shapes.ts, name-walk-based) returns isMask=false and the
+    // existing lift skips it. Broadening detectMask by tagName regressed 8 slugs
+    // by ~1 dB (FCT_LIFT_ALL_MASKS scar — see docs/notes). Instead, use a
+    // STRUCTURAL discriminator: a `<mask>` that (a) hangs off a generator/image
+    // leaf and (b) carries a `<behavior factoryID=24>` (Motion Path) child is
+    // MOTION-DRIVEN: the mask is the moving clip window for the panel below it
+    // (verified in Slide In.motr line 548 — one Motion Path per active mask).
+    // Motion Path is a Motion behavior family, not a per-transition marker.
+    // Force-lift by promoting mshape.isMask to true LOCALLY (a shallow copy in
+    // the emitted Layer — no leak back to shapes.ts).
+    let effectiveIsMask = mshape.isMask;
+    const motionPathLiftEnabled = typeof process !== 'undefined'
+      && process.env?.FCT_MOTION_PATH_MASK_LIFT === '1';
+    if (motionPathLiftEnabled && !effectiveIsMask
+        && (hostType === 'generator' || hostType === 'image')) {
+      const hasMotionPath = directChildren(maskEl, 'behavior').some(b => {
+        const fid = parseInt(b.getAttribute('factoryID') || '0', 10);
+        return fid === 24 || factories.get(fid) === 'Motion Path';
+      });
+      if (hasMotionPath) effectiveIsMask = true;
+    }
+    if (!effectiveIsMask) continue;
+
     const maskParams: Parameter[] = [];
     for (const mp of directChildren(maskEl, 'parameter')) maskParams.push(parseParameter(mp));
     out.push({
@@ -99,7 +128,7 @@ function liftProceduralMasks(
       blendMode: 'normal',
       filters: [],
       children: [],
-      shape: mshape,
+      shape: { ...mshape, isMask: true },
       timing: parseTiming(maskEl),
       behaviors: parseLayerBehaviors(maskEl, factories),
     });
@@ -332,7 +361,7 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clip: ClipI
   // own alpha (no Mask Source) into a mask-shape child so the compositor clips this
   // node's content. SCOPED to non-clone nodes (clones handle their self-mask above);
   // see liftProceduralMasks for the full rationale + regression scar.
-  if (type !== 'clone') liftProceduralMasks(el, factories, linkSourceIds, children);
+  if (type !== 'clone') liftProceduralMasks(el, factories, linkSourceIds, children, type);
 
   const layer: Layer = {
     name: el.getAttribute('name') || '',
