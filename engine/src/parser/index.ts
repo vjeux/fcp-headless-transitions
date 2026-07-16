@@ -459,6 +459,14 @@ function parseLayerElement(el: Element, factories: Map<number, string>, clip: Cl
     imageMaskInvert,
     enabled: (() => { const t = getTextContent(el, 'enabled'); return t === null ? true : t.trim() !== '0'; })(),
     links: parseLinkBehaviors(el, factories, filtersById),
+    // Animation behaviors authored DIRECTLY on a <group>/<layer> (Fade/Ramp/
+    // Oscillate/Spin). parseSceneNode captures these on <scenenode> elements, but
+    // parseLayerElement historically omitted them, so a group-level Spin (Combo_Spin's
+    // 6 blade groups C1-C6 each carry a "Spin LT/RT" factory-22 behavior on the GROUP)
+    // was silently DROPPED → the blades never rotated → the pinwheel didn't render.
+    // Same omission would drop a group-level Fade/Ramp. Parsing here is inert until a
+    // consumer reads it (evaluator applies Spin as a local-space Z rotation, scoped).
+    behaviors: parseLayerBehaviors(el, factories),
   };
 }
 

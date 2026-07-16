@@ -76,6 +76,15 @@ export interface Transform {
    * retimeProgress). These channels bypass that ramp and use the full value.
    */
   __overrideChannels?: Set<string>;
+  /**
+   * Extra in-plane Z rotation (RADIANS) contributed by a Spin behavior (factory 22)
+   * on this layer, accumulated over the behavior's own timing window and ADDED to
+   * rotationZ in buildTransformMatrix (composed about the layer's own anchor origin,
+   * so the layer pivots in place). Set by applySpinBehaviors; undefined when the
+   * layer carries no Spin. Kept separate from rotationZ so it stacks on any authored
+   * rotation curve without disturbing the Retime/override logic.
+   */
+  __spinRadians?: number;
 }
 
 /**

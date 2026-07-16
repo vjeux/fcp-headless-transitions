@@ -310,7 +310,11 @@ function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: nu
   // (verified against Fall GT: top edge recedes, bottom swings up).
   const rotX = -resolveWithRetime(tx.rotationX, timeSec, 0, retimeProgress, ov?.has('rotX'), hasRetime) * RAD2DEG;
   const rotY = resolveWithRetime(tx.rotationY, timeSec, 0, retimeProgress, ov?.has('rotY'), hasRetime) * RAD2DEG;
-  const rotZ = resolveWithRetime(tx.rotationZ, timeSec, 0, retimeProgress, ov?.has('rotZ'), hasRetime) * RAD2DEG;
+  // A Spin behavior contributes an extra in-plane Z rotation (RADIANS), added to the
+  // authored rotationZ so it pivots about the layer's own anchor origin. tx.__spinRadians
+  // is set by applySpinBehaviors and is 0/undefined for non-spinning layers.
+  const rotZ = (resolveWithRetime(tx.rotationZ, timeSec, 0, retimeProgress, ov?.has('rotZ'), hasRetime)
+    + (tx.__spinRadians ?? 0)) * RAD2DEG;
   // Scale is FRACTIONAL (1.0 = 100%) in every .motr template (all 108 Scale curves have
   // default="1"). Used as-is — never divided by 100.
   const scX = resolveWithRetime(tx.scaleX, timeSec, 1, retimeProgress, ov?.has('scaleX'), hasRetime);
@@ -347,6 +351,35 @@ function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: nu
   m = mat4Multiply(mat4Translate(posX, posY, posZ), m);
 
   return m;
+}
+
+/**
+ * Apply Spin behaviors (factory 22) on a layer as an accumulating in-plane Z rotation.
+ *
+ * Decoded from OZTransformNode::computeSpin (ENGINE_RE_PLAYBOOK): the "Spin Rate" param
+ * (id=400) is in RADIANS/SEC and the angle accrues over the behavior's OWN timing window,
+ * held constant after the window ends:
+ *   angleZ(t) = rate * (clamp(t, in, out) - in)
+ * Multiple Spin behaviors on the same layer sum. The result is stashed in
+ * transform.__spinRadians (added to rotationZ in buildTransformMatrix, so the layer pivots
+ * about its own anchor origin). Returns the input transform unchanged when the layer has no
+ * Spin behavior, so this is a no-op for every non-spinning layer (scoped per the PLAYBOOK
+ * warning that a global spin regresses Vertigo/Leaves).
+ */
+function applySpinBehaviors(layer: Layer, tx: Transform, timeSec: number): Transform {
+  const spins = (layer.behaviors ?? []).filter(b => b.type === 'spin');
+  if (spins.length === 0) return tx;
+  let angle = 0;
+  for (const s of spins) {
+    const rate = s.params['Spin Rate'] ?? 0;
+    if (rate === 0) continue;
+    const inSec = s.timing ? timeToSeconds(s.timing.in) : 0;
+    const outSec = s.timing ? timeToSeconds(s.timing.out) : Infinity;
+    const tClamped = Math.max(inSec, Math.min(timeSec, outSec));
+    angle += rate * (tClamped - inSec);
+  }
+  if (angle === 0) return tx;
+  return { ...tx, __spinRadians: (tx.__spinRadians ?? 0) + angle };
 }
 
 // ============================================================================
@@ -526,6 +559,16 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   if (sceneBehaviors.length > 0) {
     riggedTransform = applyRampTransforms(layer, riggedTransform, sceneBehaviors, timeSec, ectx);
   }
+  // Spin behaviors (factory 22) on THIS layer contribute an accumulating in-plane Z
+  // rotation. Decoded from OZTransformNode::computeSpin (ENGINE_RE_PLAYBOOK): Spin Rate
+  // is RAD/SEC and the angle accrues over the behavior's OWN timing window, held after
+  // `out`:  angleZ(t) = rate * (clamp(t, in, out) - in), in RADIANS. Combo_Spin's blade
+  // groups C1-C6 each carry a "Spin LT/RT" (rate ±3.2468 rad/s over 0.9676s = ±π — the
+  // counter-rotating A↔B card flip). Composed as a local-space Z rotation via
+  // __spinRadians (buildTransformMatrix adds it to rotationZ), so the group pivots in
+  // place. SCOPED to layers that actually carry a Spin behavior (no global effect —
+  // the PLAYBOOK warns a global spin regresses Vertigo/Leaves).
+  riggedTransform = applySpinBehaviors(layer, riggedTransform, timeSec);
   // Drop-zone timeline offset: a Transition A/B image whose media `offset` sits
   // LATER than its `in` point (offset > in) has its transform curves authored in
   // the layer's own local time frame — Motion places that local timeline at
