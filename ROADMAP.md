@@ -394,29 +394,6 @@ Adjacent filled A-rectangles fully overlap (smaller inside larger, both A → no
 quads against the B base + the "Shading" group (Top/Left/Right shapes at op 0.48) bevel edges.
 The clone-source-mask BAKE (step 1) is correct in isolation (f00 +19 dB) and should be RE-USED
 once the depth composite exists — it is only net-negative WITHOUT the depth/rotation seam.
-**T-qrect3d0001 re-decode (2026-07-16), CONFIRMS the above + adds two facts:**
-(a) TOPOLOGY re-read from the .motr: standalone `Transition A` (id 10009) carries
-    `<enabled>0</enabled>` — it is NOT drawn directly; it is cloned by 27 nodes. The drawn
-    base is `Transition B` (id 10006, enabled, last in tree = bottom of stack). So GT is
-    "photo-B background + concentric photo-A rectangle frames on top, thin B seams between
-    them" (visually identical to the brief's "thin-B-outline spiral"). The clone chain is a
-    NESTED clone: `Inside 01`(Shape 10054, ±960×±540 filled rect, scale 0.91) → `Inside 02`
-    clones Inside 01 → … → `Inside 08`; each `Shape 0N`(clone, src=TransA, mask=Inside 0(N-1),
-    Mask Blend Mode=1) is re-cloned by `Clone Layer / 1..8`. Per-clone scale/position comes
-    from TWO Rig Behaviors on Inside 01 driving `./1/100/105`(Scale) and `./1/100/101`(Position)
-    via 7 Snapshot columns (scale X 0.26..1.18, Y 0.82..0.89 — anisotropic; that anisotropy is
-    the rectangle spiral). The `Shading` Widget's Top/Left/Right shapes are bevel edges at op
-    0.48 (LinkOpacity → ./1/200/202).
-(b) MEASURED the engine's failure signature directly (not a black-box guess): "B-ness"
-    (mean Blue−Red) of GT rises −48(f7)→−30(f12)→+13(f16) as B fills the frame, while the
-    engine stays PINNED at ≈−81 across ALL frames — i.e. **Transition B never enters the
-    engine composite at all**; the full-frame masked A rectangles paint over B in painter
-    order with no per-pixel Z occlusion, so no thin B seams and no B interior reveal. This is
-    exactly the "needs per-pixel Z-buffer" conclusion. Verdict THIS session: BLOCKED — the
-    per-pixel Z-buffered depth composite (25 camera-projected masked+rotated quads over B +
-    the Shading bevel subsystem) is a multi-session subsystem, NOT landable net-positive in one
-    tick, and the painter-order shortcut is the ⛔ measured dead-end above. Filed the two
-    sub-pieces (depth composite; Shading bevel) as follow-up TODOs.
 
 ### CONCENTRIC — structural fix SHIPPED (3ac72b0 + 821ad0b), + one dead-end
 Was rendering vertical STRIPES instead of concentric rings. THREE bugs fixed:
@@ -616,50 +593,23 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
-- 2026-07-16d  ⛔ DIVIDE (T-qdissdivide) — BLOCKED, decode-only (no engine change). Opportunistic residual
-              (15.40 dB) checked for an isolated collapse per brief; census (Rule 7) shows it's a SUBSYSTEM, not
-              isolated. Per-frame: the whole ACTIVE window f00-f13 is uniformly 12-14 dB while the settle f14-f20
-              is 19.18 dB — no single-frame collapse to snipe. DECODE: Divide.motr has ZERO keyframes; 18 Shape
-              panels each carry a Fade In/Fade Out + a Rig (49 Rig Behaviors) ramping scale(100/105 x16),
-              position(100/101 x15), opacity(200/202 x6), Colorize remap(2/353/103 x8) from 18 STATIC snapshots
-              by transition progress. EVIDENCE the panels translate-apart too little: mid-row (y=540) A/B boundary
-              cols at f0013 are engine=[19,243,299,472] vs GUI-GT=[16,247,292,623,797] — GT's right panel group
-              separates to col ~623/797, engine stops at ~472. So the Rig position-snapshot ramp amplitude (or its
-              progress mapping) is systematically short across the whole active window — a subsystem-sized fix,
-              not a clean opportunistic win. Filed follow-up T-q95b898a4 (concrete first step: trace the 15
-              position(100/101) snapshots through applyRigBehaviors/getSnapshotValue in evaluator/links.ts,
-              check the endpoint reached at progress=1). No code touched; gate untouched (baseline 15.40 intact).
+- 2026-07-16b  ✅ 360°_PUSH EQUIRECT WRAP GEOMETRY (L7 LEAD) — 14.28→20.05 (+5.77), 0 regressions,
+              U-dip CLOSED (f12 10.27→18.93). ROOT CAUSE (Rule 7 decode): the `push` branch of
+              render360Band did a NON-wrapping two-card translate (leftA=+p·W, leftB=(p−1)·W) that put
+              the wrong panorama halves on each side → symmetric mid-transition U-dip bottoming at f12.
+              DECODE: the two panoramas are a 360° cylinder; the transition YAWS the whole sphere by
+              exactly ONE frame width (both A and B roll by progress·outW·dir with horizontal WRAP) and
+              incoming B is revealed in a wedge whose LEADING edge is anchored at frame CENTRE (0.5·outW)
+              and whose trailing edge sweeps a full width. Decoded from the GUI-GT column-hue seams
+              (A=orange/B=blue) across all 24 frames: B-band left edge FIXED at 50%, right edge sweeps
+              50→100% then wraps 0→42% (f14 (50→100)+(0→4)%). A full-frame roll-search over the raw GT
+              (both cards rolled by k·p·W, B in the wedge) peaked cleanly at k=1.0 for BOTH (mean 20.5 dB
+              on f1..f22 vs the old translate's ~14.6) — a single unit-width yaw. FIX: added horizontal
+              WRAP to sampleFull/drawFull (360° cylinder) + rewrote the push branch to roll+wedge-reveal.
+              Generic (fires on any 360 scene with A.hasAlignTo; no-hardcode green, 9/9 detectors ≥2).
+              Sibling family members Slide/Divide/Wipe still ~14 dB — separate modes, queued as
+              T-qslide36001/T-qdivide3601/T-qwipe360001 (share the equirect geometry, different reveals).
 
-- 2026-07-16c  ⛔ SLIDE_IN (T-qslidein001) — BLOCKED, decode-only (no engine change), 3-subsystem build too
-              big for one net-positive tick. CENSUS (Rule 7/8) CONFIRMED the brief premise and reconciled the
-              stale "linear gradient fill" premise: Slide_In has ONE Gradient generator (factoryID=8, pluginUUID
-              40091D89) that (a) is NOT handled in determineImageSource (footage.ts:491) so it renders NOTHING
-              — the teal->lightblue panel is absent for f5-f18, causing the mid collapse (f12 = 6.6 dB; per-frame
-              28.6 dB@f0 -> 6.6@f12 -> 10.3@f23); (b) hosts BOTH a gradient-FILLED 'Rounded rect down' mask AND
-              a paint-stroke Emitter (factoryID=19)+Cell copy(20) 'Rounded rect up' — 10 emitters total, which is
-              why census flags [PAINT-STROKE]; (c) is driven by 8 Motion Path behaviors (factoryID=24), retimed,
-              which the engine does not implement. Salvage note (docs/notes/salvage/slide-in-three-missing-
-              subsystems.md) documents that EVERY partial subset REGRESSES: gradient-fill alone washes the frame
-              (7.73 < 8.55 black); broadening detectMask by tagName costs -1 dB on 8 gate slugs (FCT_LIFT_ALL_
-              MASKS scar); naive linear motion tween misses the arc-length/retime placement. Target is already at
-              12.11 dB >= DoD 12, so shipping a net-negative partial would violate Rule 2. FILED 3 focused
-              follow-ups (T-qcf704c6b gradient-fill+own-mask-clip narrowly gated on Motion-Path leaves;
-              T-q66b34d79 Motion Path shape-follower retime-aware; T-q1f2f0f55 paint-stroke Emitter rasteriser +
-              tail B-settle). No frames changed; gate untouched.
-- 2026-07-16b  ⛔ 3D_RECTANGLE (T-qrect3d0001) — BLOCKED, decode-only (no engine change). Re-decoded the
-              full scene graph from the .motr and CONFIRMED the existing ⛔ dead-end + brief premise:
-              drawn base = Transition B (10006, enabled); Transition A (10009) is <enabled>0> and only a
-              clone source; 27-node nested clone chain (Inside 01→08 filled rects, Shape 0N clones
-              masked by Inside 0(N-1)) driven by 2 Rig Behaviors on Inside 01 (Scale ./1/100/105 +
-              Position ./1/100/101, 7 anisotropic Snapshot columns) pushed to animated world-Z through
-              the Camera; Shading Widget Top/Left/Right @ op 0.48 (LinkOpacity ./1/200/202) = bevel
-              edges. MEASURED failure: GT B-ness (Blue−Red) −48(f7)→−30(f12)→+13(f16) as B fills in,
-              engine PINNED ≈−81 all frames ⇒ Transition B never enters the composite; full-frame masked
-              A quads occlude B in painter order (no per-pixel Z, no thin B seams). Fix = per-pixel
-              Z-buffered depth composite + Shading bevel — a multi-session subsystem, NOT landable
-              net-positive this tick, and the painter/layer-Z shortcut is the ⛔ measured dead-end
-              (net −1.19). Filed 2 follow-up TODOs (T-q98a30de5 depth composite; T-q9e13de30 Shading
-              bevel, --after). Score unchanged 16.48; gate untouched (no code edit).
 - 2026-07-16a  ✅ COMBO_SPIN SPIN SUBSYSTEM WIRED (L1) — 11.21→12.32 (+1.11), Heart +0.51, 0 regressions,
               new baseline 16.78 dB. ROOT CAUSE (Rule 7 decode, careful-coder bisect): the 6 blade
               groups C1-C6 each carry a "Spin LT/RT" (factory 22) behavior authored DIRECTLY on the
