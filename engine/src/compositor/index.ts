@@ -358,6 +358,7 @@ function renderCloneLayer(rctx: RenderContext, output: ImageData, evalLayer: Eva
       const leafId = cloneChainLeafId(rctx, layer.cloneSourceId);
       const leaf = leafId !== undefined ? rctx.layerById.get(leafId) : undefined;
       if (leaf && leaf.filters && leaf.filters.length > 0) {
+        if (process.env.FCT_DEBUG_CLONE_FILT) console.error(`[clone-filt] layer=${layer.id} type=${layer.type} name=${layer.name} leafId=${leafId} leafName=${leaf.name} filters=${leaf.filters.map(f=>(f as any).kind||(f as any).type||'?').join(',')}`);
         for (const filter of leaf.filters) {
           src = applyFilter(src, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
         }
