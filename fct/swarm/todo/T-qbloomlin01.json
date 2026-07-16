@@ -1,0 +1,14 @@
+{
+  "id": "T-qbloomlin01",
+  "title": "360_Bloom linear chain + bloom onset (L4 LEAD)",
+  "project": "fct",
+  "goal": "360_Bloom 11.58 dB -> LEAD/worst of the S2/S4 linear-chain+colour family. FCP keeps the WHOLE filter+blend chain in kCGColorSpaceLinearSRGB and encodes to sRGB ONCE at readback; the engine encodes per-filter. Infra exists (compositor/linear.ts, flag-gated). A per-filter linear encode is a PROVEN DEAD-END (regresses stacked transitions) - build the WHOLE-CHAIN float pass, encode once, flip ON family-by-family, gate all 65 after each. Bloom-float is decoded + register-verified but its threshold TEMPORAL ONSET over-blooms (FCT_BLOOM_FLOAT ON regresses Lights_Bloom -1.0, 360_Bloom -1.1) - stays OFF until the onset curve is decoded. DoD: linear chain lands family-by-family gate-green; do NOT commit red.",
+  "slugs": [
+    "360\u00b0__360\u00b0_Bloom"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

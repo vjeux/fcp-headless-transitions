@@ -1,0 +1,14 @@
+{
+  "id": "T-qpush360001",
+  "title": "360 equirect push geometry (L7 LEAD)",
+  "project": "fct",
+  "goal": "360_Push 14.28 dB -> LEAD for the S6-360 band family. The low members (Push/Slide/Divide/Wipe) share an equirect push/crossfade geometry and show a smooth mid-transition U-dip (two panorama halves positioned differently than GT, confirmed f12). Decode the equirect push OFFSET in compositor/transition360.ts vs GT. Circle_Wipe(22.9)/Gaussian_Blur(23.6) are the good members to diff against. DoD: mid-transition U-dip closed, gate net-positive.",
+  "slugs": [
+    "360\u00b0__360\u00b0_Push"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

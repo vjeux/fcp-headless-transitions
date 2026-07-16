@@ -1,0 +1,14 @@
+{
+  "id": "T-qdissdivide",
+  "title": "Dissolves_Divide residual (S7)",
+  "project": "fct",
+  "goal": "Dissolves_Divide 15.40 dB. Opportunistic residual (got +1.16 from the Concentric static-value fix). Check per-frame scores for an isolated collapse. DoD: measurably up, gate net-positive.",
+  "slugs": [
+    "Dissolves__Divide"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

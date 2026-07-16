@@ -1,0 +1,14 @@
+{
+  "id": "T-qloop000001",
+  "title": "Loop panel coverage (L2)",
+  "project": "fct",
+  "goal": "Loop 15.91 dB. Kinetic-panel family. Build on Close_and_Open lead decode. DoD: measurably up, gate net-positive.",
+  "slugs": [
+    "Stylized__Loop"
+  ],
+  "after": "T-qpanellead1",
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

@@ -1,0 +1,14 @@
+{
+  "id": "T-qcolorplan1",
+  "title": "Color_Planes fold/blend (L3)",
+  "project": "fct",
+  "goal": "Color_Planes 14.61 dB. Movements 3D-fold family member. NOTE: blend-mode path on the Directional skeleton is a documented DEAD-END (FCP ignores drop-zone blend mode structurally). Focus on the shared Rig/Link fold timing after the Switch lead. DoD: measurably up, gate net-positive.",
+  "slugs": [
+    "Movements__Color_Planes"
+  ],
+  "after": "T-qfoldlead01",
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

@@ -1,0 +1,14 @@
+{
+  "id": "T-qslide36001",
+  "title": "360\u00b0_Slide equirect geometry (L7)",
+  "project": "fct",
+  "goal": "360\u00b0_Slide 14.97 dB. Member of the S6-360 equirect band family sharing the push/crossfade geometry. Apply the equirect push-offset fix from the 360_Push lead decode. DoD: measurably up, gate net-positive.",
+  "slugs": [
+    "360\u00b0__360\u00b0_Slide"
+  ],
+  "after": "T-qpush360001",
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

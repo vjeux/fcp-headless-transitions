@@ -1,0 +1,14 @@
+{
+  "id": "T-qpanellead1",
+  "title": "Close_and_Open panel z-coverage (L2 LEAD)",
+  "project": "fct",
+  "goal": "Close_and_Open 12.62 dB -> target >=13. LEAD task for the kinetic-panel subsystem. 107 Shapes + 107 Replicators + Image Mask + Clouds generator. At mid-transition the engine shows full photo A where GT shows the closed panels OCCLUDING it - a replicator-panel z-coverage + reveal-timing subsystem (compositor/replicator.ts + timemap). Rule 10: fct minimize Stylized__Close_and_Open -> find why panels don't occlude. This decode should lift the rest of L2 (Up-Over/Lower/Panels_Across/Loop). DoD: panels occlude A mid-transition, gate net-positive.",
+  "slugs": [
+    "Stylized__Close_and_Open"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

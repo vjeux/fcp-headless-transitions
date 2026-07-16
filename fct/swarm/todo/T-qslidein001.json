@@ -1,0 +1,14 @@
+{
+  "id": "T-qslidein001",
+  "title": "Slide_In gradient PAINT-STROKE emitter (L5 LEAD)",
+  "project": "fct",
+  "goal": "Slide_In 12.11 dB -> target >=12. LEAD for the gradient-generator subsystem. Census (Rule 7): the Slide_In gradient is a PAINT-STROKE emitter (NOT a fill) + rounded-rect mask + Motion Path (3 missing subsystems). Rule 8: fct census to CONFIRM the gradient TYPE before writing a generator (prior premise was wrong). DoD: >=12, gate net-positive.",
+  "slugs": [
+    "Stylized__Slide_In"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

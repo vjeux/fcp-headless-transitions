@@ -1,0 +1,14 @@
+{
+  "id": "T-qmulti00001",
+  "title": "Multi: verify degenerate GT + mark dropped (NOT a real target)",
+  "project": "fct",
+  "goal": "Multi 11.66 dB. DO NOT ATTEMPT TO MATCH PIXELS. Its GUI GT is a DEGENERATE capture: empty-drop-zone PLACEHOLDER graphics (the FCP UI drop-zone arrows), not real transition content. Matching placeholder arrows is not reverse-engineering. TASK: verify the GT is degenerate (visually confirm the ~/fct-gui-gt frames show placeholder arrows), document the finding in ROADMAP, and mark this DROPPED (commit subject 'T-qmulti00001 DROPPED: ...'). No engine change.",
+  "slugs": [
+    "Replicator-Clones__Multi"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

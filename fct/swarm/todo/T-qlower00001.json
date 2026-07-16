@@ -1,0 +1,14 @@
+{
+  "id": "T-qlower00001",
+  "title": "Lower panel coverage + linear tail (L2)",
+  "project": "fct",
+  "goal": "Lower 11.76 dB (had a +1.15 fix, still weak). Kinetic-panel coverage PLUS a known pre-existing linear-vs-sRGB opacity-blend TAIL residual (T-N1). Build on Close_and_Open lead. Rule 10: fct minimize. DoD: >=13, gate net-positive.",
+  "slugs": [
+    "Stylized__Lower"
+  ],
+  "after": "T-qpanellead1",
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

@@ -1,0 +1,14 @@
+{
+  "id": "T-qflash00001",
+  "title": "Flash linear chain (L4)",
+  "project": "fct",
+  "goal": "Flash 15.33 dB. S2/S4 linear-chain family. Build on the 360_Bloom whole-chain float pass lead. DoD: measurably up, gate all 65 green.",
+  "slugs": [
+    "Lights__Flash"
+  ],
+  "after": "T-qbloomlin01",
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

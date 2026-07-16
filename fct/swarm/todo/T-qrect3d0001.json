@@ -1,0 +1,14 @@
+{
+  "id": "T-qrect3d0001",
+  "title": "3D_Rectangle depth-composite + Shading bevel (L1)",
+  "project": "fct",
+  "goal": "3D_Rectangle 16.79 dB, headless reachable 32.25 (gap 15.46 - BIGGEST in L1). The reveal is NOT filled photo-A rectangles - it is a spiral of THIN photo-B RECTANGLE OUTLINES that grow+rotate inward (concentric rectangle FRAMES; interior stays A, thin frames show B). Two sources: (a) per-piece Z-parallax opening thin B-gaps between mis-registered rectangle edges; (b) the 'Shading' group (Top/Left/Right shapes at op 0.48) drawing bevel edges. Requires a per-pixel 3D DEPTH composite (z-buffer / exact FCP occlusion) + edge-shading subsystem. DO NOT re-attempt the bake-source-mask shortcut (measured net -1.19, regressed 8 slugs). Whole subsystem. DoD: thin-B-border spiral matches GT f1-f8, gate net-positive.",
+  "slugs": [
+    "Replicator-Clones__3D_Rectangle"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

@@ -1,0 +1,14 @@
+{
+  "id": "T-qsquares001",
+  "title": "Squares symmetric shuffle order (L6)",
+  "project": "fct",
+  "goal": "Squares 13.11 dB. IMPORTANT: headless is NOT a valid oracle here (corr 0.102). Decoded from GUI GT: the reveal is 4-FOLD MIRROR-SYMMETRIC (mirror L<->R AND top<->bottom), 23 distinct flip frames (full range 1..23) - a DETERMINISTIC symmetric function of (|row-centre|,|col-centre|), NOT a Fisher-Yates/PRNG scramble. The engine's diagonal sequenceOrder is what's wrong. Helium LCG spearman 0.15 => Motion's shuffle PRNG is NOT Helium; it's in the Ozone/PE layer. NEXT: decode which Build Style(id330=2)/Origin(id331=4,id360=14) selects the symmetric order, implement in sequenceOrder/sequenceProgress keyed on the replicator's Shuffle Order param (NO per-slug constant), verify flip-frame grid vs GUI GT. DoD: symmetric order matches GT, net-positive.",
+  "slugs": [
+    "Objects__Squares"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

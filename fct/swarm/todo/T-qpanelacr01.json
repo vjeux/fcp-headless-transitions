@@ -1,0 +1,14 @@
+{
+  "id": "T-qpanelacr01",
+  "title": "Panels_Across panel coverage (L2)",
+  "project": "fct",
+  "goal": "Panels_Across 15.15 dB. Kinetic-panel family; earlier retime win landed. Build on Close_and_Open lead. DoD: measurably up, gate net-positive.",
+  "slugs": [
+    "Stylized__Panels_Across"
+  ],
+  "after": "T-qpanellead1",
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

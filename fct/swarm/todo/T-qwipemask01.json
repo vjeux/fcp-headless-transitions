@@ -1,0 +1,14 @@
+{
+  "id": "T-qwipemask01",
+  "title": "Wipes/Mask A/B binding discriminator + endSec cap (L8 LEAD)",
+  "project": "fct",
+  "goal": "Wipes/Mask 14.30 dB, headless reachable 35.7 (+21). TWO coupled bugs; a naive fix is NET-NEGATIVE (reverted). (1) A/B binding SWAPPED: the masked 'Transition B' node is listed FIRST so doc-order override binds base->B (GT wants base->A unmasked outgoing, single masked layer reveals B). (2) animationEndSec inflated 4x (5.038s vs true 1.30s span) from drop-zone media-fit Width(313)/Height(314)/Fit-Factor(318) padding keyframes. The naive fix (generalise masked-reveal binding to ANY single-masked reveal) CATASTROPHICALLY regressed Arrows -16.7 and Vertigo -8.36 (single Image Mask but NOT A/B reveals). NEXT (both together): (i) a PRECISE discriminator that includes Wipes/Mask + Center_Reveal but EXCLUDES Arrows/Vertigo - e.g. masked node source is a full-frame Transition drop zone AND sibling base is the OTHER full-frame Transition drop zone AND mask geometry sweeps/grows to full coverage (not arrow glyph / spiral); (ii) the surgical drop-zone-fit endSec CAP (already Slide-safe). DoD: Wipes/Mask up, 0 reg Arrows/Vertigo/Slide.",
+  "slugs": [
+    "Wipes__Mask"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

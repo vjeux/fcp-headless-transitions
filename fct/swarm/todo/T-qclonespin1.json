@@ -1,0 +1,14 @@
+{
+  "id": "T-qclonespin1",
+  "title": "Clone_Spin framing + retime (L1)",
+  "project": "fct",
+  "goal": "Clone_Spin 10.32 dB -> target >=13. Headless oracle reachable to 13.54 (gap 3.22). Needs the framing subsystem (1 framing behavior) + wrapSec=1.869 (~=endSec, near-negligible retime) handling; shares the framing-camera pose work with Video_Wall (compositor/geometry.ts + evaluator/framing.ts, FRAMING_VIEW_ENABLED). Rule 8: fct census first. Rule 10: fct minimize. DoD: measurably up, gate net-positive.",
+  "slugs": [
+    "Replicator-Clones__Clone_Spin"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

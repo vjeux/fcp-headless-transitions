@@ -1,0 +1,14 @@
+{
+  "id": "T-qconcentric1",
+  "title": "Concentric per-ring A/B crossfade phase (L1)",
+  "project": "fct",
+  "goal": "Concentric 12.67 dB. Ring GEOMETRY/SIZE/ORDER/rotation-timing all now CORRECT (structural fix shipped 3ac72b0+821ad0b). REMAINING gap: per-ring A/B content PHASE - GT shows an alternating woven bullseye (~5-6 distinct rings, adjacent rings different A/B phase); engine's inner rings settle to B early (Clone A op->0) so they merge into B background and only ~2 rings show. The Clone-A(src10008)/Clone-B(src10006) crossfade is Rig/timing-driven (no per-clone opacity). DO NOT re-attempt crop-on-mask-geometry (refuted, net -2.25). DoD: >=5 rings show woven phase, gate net-positive.",
+  "slugs": [
+    "Replicator-Clones__Concentric"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

@@ -1,0 +1,14 @@
+{
+  "id": "T-qcombospin1",
+  "title": "Combo_Spin per-blade A/B fade timing (L1)",
+  "project": "fct",
+  "goal": "Combo_Spin 12.32 dB (spin geometry already SHIPPED 2026-07-16a, 11.21->12.32). REMAINING gap: the 6-blade counter-rotating pinwheel renders correctly but each blade's A/B fade-crossfade reveals B too early mid-transition (f08-f12 ~9 dB). NOT the spin geometry. Rule 10: fct minimize Combo_Spin -> diagnose the Fade timing window vs the actual GT per-blade crossfade. Headless reachable 14.54 (gap 3.33). DoD: f08-f12 up, gate net-positive.",
+  "slugs": [
+    "Replicator-Clones__Combo_Spin"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

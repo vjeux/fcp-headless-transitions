@@ -1,0 +1,14 @@
+{
+  "id": "T-qvidwall01",
+  "title": "Video_Wall dolly+wall-placement (L1)",
+  "project": "fct",
+  "goal": "Video_Wall 10.24 dB -> target >=13. ROOT (decoded 2026-07-15): timeMap.remap() collapses ALL scene times to 0 because Transition A drop-zone wrap (retimingExtrapolation=1) times out at 0.367s, but the real transition is authored by the CAMERA DOLLY (two Framing behaviors to 1.969s), so every frame renders the static t=0 pose (accidentally scores 10.24). FOUR parts must land TOGETHER (each alone regresses): (1) timemap.ts cancel drop-zone wrap when scene has Framing behaviors via hasFramingCamera() [verified isolation]; (2) framing.ts resolveFramedWallPose far dist = proxy framePose eye distance (eye Z~5109 where wall half-width ~4100 fills 45deg frame), near->far->near triangle [verified isolation]; (3) DENSE WALL PLACEMENT - 14 replicators must fill the frame at far pose (engine renders ~5 sparse tiles, frame mean ~30-50 vs GT ~90-130) - the real remaining blocker; (4) camera orientation proxy fwd=(0.069,0.422,0.904); likely a 3-KEY ANCHOR PATH (static A-tile pose -> proxy/wall -> B-tile pose), Motion Transition type=3. Rule 10: use fct/minimized/Replicator-Clones__Video_Wall repro. DoD: >=13, gate net-positive.",
+  "slugs": [
+    "Replicator-Clones__Video_Wall"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

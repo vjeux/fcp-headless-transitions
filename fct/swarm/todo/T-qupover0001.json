@@ -1,0 +1,14 @@
+{
+  "id": "T-qupover0001",
+  "title": "Up-Over panel coverage (L2)",
+  "project": "fct",
+  "goal": "Up-Over 11.64 dB (worst of L2 kinetic-panels after Close_and_Open). Same replicator-panel z-coverage class. Build on the Close_and_Open lead decode. Rule 10: fct minimize. DoD: >=13, gate net-positive.",
+  "slugs": [
+    "Stylized__Up-Over"
+  ],
+  "after": "T-qpanellead1",
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

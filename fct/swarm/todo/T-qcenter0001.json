@@ -1,0 +1,14 @@
+{
+  "id": "T-qcenter0001",
+  "title": "Center group Image-Mask reveal on 3D-rotated group (L6 LEAD)",
+  "project": "fct",
+  "goal": "Center 12.35 dB. Group-level image mask on comp groups; 3D-rotated groups can't use screen-space mask rasterization (guard skips them -> unmasked -> engine settles on photo A at tail; GT shows photo B). Rule 10: fct minimize Stylized__Center. Reuse Concentric's cameraZ-perspective mask rasterization approach for 3D-rotated groups. DoD: >=13, gate net-positive.",
+  "slugs": [
+    "Stylized__Center"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

@@ -1,0 +1,14 @@
+{
+  "id": "T-qdropin0001",
+  "title": "Drop_In 3D-fold timing (L3)",
+  "project": "fct",
+  "goal": "Drop_In 14.73 dB. Part of the 12-slug 3D-fold Movements family sharing the Rig/Link swing-out interpolation timing root. Apply/verify the shared Rig/Link fold-timing fix from the Switch lead decode; gate against all 12 family slugs. DoD: measurably up, 0 regressions across the family.",
+  "slugs": [
+    "Movements__Drop_In"
+  ],
+  "after": "T-qfoldlead01",
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

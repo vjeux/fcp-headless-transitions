@@ -1,0 +1,14 @@
+{
+  "id": "T-qfoldlead01",
+  "title": "Switch: decode shared Rig/Link fold timing (L3 LEAD)",
+  "project": "fct",
+  "goal": "Switch 12.31 dB -> target >=13. LEAD task for the 12-slug 3D-fold Movements family. SHARED ROOT (decoded, T-N3 archive): a Rig-Behavior->Link swing-out curve advances the photo's 3D fold TOO FAST in the interpolation-timing subsystem. A correct fix to the shared Rig/Link timing lifts the whole family. Rule 10: re-open fct/minimized/Movements__Switch (repro committed) -> fix Rig/Link timing. MUST gate against all 12 family slugs so one doesn't regress another. DoD: >=3 of the family up, 0 regressions across all 12.",
+  "slugs": [
+    "Movements__Switch"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

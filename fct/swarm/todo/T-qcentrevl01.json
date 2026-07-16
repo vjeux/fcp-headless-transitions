@@ -1,0 +1,14 @@
+{
+  "id": "T-qcentrevl01",
+  "title": "Center_Reveal gradient + endSec + binding (L5/L8)",
+  "project": "fct",
+  "goal": "Center_Reveal 15.24 dB. Two Gradient fills + Gaussian + 2 Image Masks + 6 colour Links. Also has its OWN endSec bug: animationEndSec=3.0s comes from 'Grad middle/ends' Position curves that saturate visually by ~0.567s but keep animating (value-plateau-past-visual-end, separate from media-fit padding). AND its A/B binding is swapped (shape-source mask falls through to wrong doc-order swap). Needs: (i) the precise single-masked-A/B-REVEAL discriminator that includes Center_Reveal but EXCLUDES Arrows/Vertigo; (ii) its own endSec fix. Build after the Wipes/Mask discriminator task. DoD: measurably up, 0 reg on Arrows/Vertigo/Slide.",
+  "slugs": [
+    "Stylized__Center_Reveal"
+  ],
+  "after": "T-qwipemask01",
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}

@@ -1,0 +1,14 @@
+{
+  "id": "T-qcurtains01",
+  "title": "Curtains residual (S7)",
+  "project": "fct",
+  "goal": "Curtains 16.53 dB. Opportunistic - just under the 17 dB good bar. Scan per-frame scores for a TAIL/HEAD collapse or a small structural gap. DoD: >=17, gate net-positive.",
+  "slugs": [
+    "Objects__Curtains"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "human",
+  "created_at": "2026-07-16T09:53:07+00:00",
+  "notes": ""
+}
