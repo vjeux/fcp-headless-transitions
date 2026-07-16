@@ -66,7 +66,9 @@ For each eligible task the orchestrator spawns a navi sub-agent whose task brief
 to: (1) set up its worktree via `bash fct/swarm/setup_worktree.sh <id>`, (2) follow
 `agent_brief.md` (decode-first census → build → gate green vs GUI GT → rebase → re-freeze
 baseline), (3) land its work via `bash fct/swarm/push_helper.sh <id> <msgfile>` with a
-commit subject `<id> DONE: …`, and (4) print `SWARM_RESULT`. The orchestrator locks the
+commit subject `<id> DONE: …`, (4) CLEAN UP after itself once the work has landed via
+`bash fct/swarm/setup_worktree.sh cleanup <id>` (removes worktree + branch + frames + lock;
+refuses + salvages if unlanded work remains), and (5) print `SWARM_RESULT`. The orchestrator locks the
 sub-agent to `cli:vjeux-mac` and passes `FCT_ISOLATION_ID=swarm-<id>`.
 
 ## Why the isolation
@@ -90,8 +92,9 @@ non-interactive runs in that tree) never fires.
 ## Contract
 Each agent follows `agent_brief.md`: decode-first (census), build, gate green (one truth
 vs GUI GT), rebase onto main, re-freeze baseline, commit `<id> DONE: ...`, push via
-`push_helper.sh` (retry on reject), print `SWARM_RESULT`. Completion is detected by that
-commit subject.
+`push_helper.sh` (retry on reject), CLEAN UP its worktree via `setup_worktree.sh cleanup
+<id>` (only after the work has landed), and print `SWARM_RESULT`. Completion is detected by
+that commit subject.
 
 ## Operational limits (verified 2026-07-15)
 - **RAM is the hard ceiling, NOT CPU.** Each agent runs `gen engine --all` (65 slugs) +

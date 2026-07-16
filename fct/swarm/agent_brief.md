@@ -71,7 +71,14 @@ of decode work) each re-confirmed the same DROPPED verdict and quit — pure was
      origin/main, redo your edit on top, re-gate, and call the helper again.
    - Do NOT stage your own `/tmp/swarm-*-apply/apply.sh` workaround — that pattern has
      been superseded by push_helper.sh and skipping it leaves work stranded on disk.
-6. STOP. Print a final line: `SWARM_RESULT {{TASK_ID}} <DONE|BLOCKED|NOCHANGE> <one-line summary>`.
+6. CLEAN UP after yourself — ONLY after your work has LANDED (push_helper exit 0, or the
+   task was NOCHANGE/already-on-main). Tear down your worktree so they never accumulate:
+      bash fct/swarm/setup_worktree.sh cleanup {{TASK_ID}}
+   This removes your worktree + branch + frames dir + lock. It is SAFE: if you still have
+   unlanded, non-harness changes vs origin/main it REFUSES (exit 3) and salvages a patch
+   instead of deleting — so it never eats work. Do NOT run cleanup if you are BLOCKED with
+   an unpushed decode you want preserved in the worktree; report BLOCKED and leave it.
+7. STOP. Print a final line: `SWARM_RESULT {{TASK_ID}} <DONE|BLOCKED|NOCHANGE> <one-line summary>`.
 
 ## If the task is a false premise or not achievable
 Do NOT invent work. Print `SWARM_RESULT {{TASK_ID}} BLOCKED <reason>` and stop. It is

@@ -1,23 +1,66 @@
 #!/usr/bin/env bash
 # Create a fully-isolated git worktree for one swarm agent.
 #
-# Isolation is mandatory: 8 agents sharing one working tree / frames dir / render lock
-# corrupt each other (two builds' frames interleave under one baseline — observed live).
-# Each agent gets:
+# Isolation is mandatory: multiple agents sharing one working tree / frames dir / render
+# lock corrupt each other (two builds' frames interleave under one baseline — observed live).
+# Each navi sub-agent gets:
 #   - own git worktree  (~/fct-swarm/worktrees/<id>) on branch swarm/<id> off main
 #   - own frames dir      (~/fct-swarm/frames/<id>)      via $FCT_FRAMES_DIR
 #   - own render lock      (~/fct-swarm/locks/<id>.lock)  via $FCT_LOCK
 #   - node_modules symlinked from the main repo (61M; no 8x reinstall)
 #   - GUI GT (~/fct-gui-gt) shared READ-ONLY
 #
-# Usage: setup_worktree.sh <agent-id>
-# Prints the worktree path on stdout (last line).
+# Usage:
+#   setup_worktree.sh [setup] <agent-id>   create the isolated worktree (prints path)
+#   setup_worktree.sh cleanup  <agent-id>   tear it down (worktree + branch + frames +
+#                                           locks) — a sub-agent MUST call this after its
+#                                           work has LANDED on origin/main (push_helper
+#                                           exit 0), so the swarm cleans up after itself
+#                                           and worktrees never accumulate. SAFETY: cleanup
+#                                           refuses if the worktree has uncommitted, not-yet-
+#                                           landed engine/doc changes (salvages them first).
 set -euo pipefail
-ID="${1:?usage: setup_worktree.sh <agent-id>}"
+
+# Subcommand dispatch. Back-compat: a bare id (no subcommand) means "setup".
+MODE="setup"
+case "${1:-}" in
+  setup|cleanup) MODE="$1"; shift ;;
+esac
+ID="${1:?usage: setup_worktree.sh [setup|cleanup] <agent-id>}"
 MAIN="$HOME/random/final-cut-pro-transitions"
 ROOT="$HOME/fct-swarm"
 WT="$ROOT/worktrees/$ID"
 FRAMES="$ROOT/frames/$ID"
+
+if [ "$MODE" = "cleanup" ]; then
+  # Tear down this agent's worktree once its work is on origin/main. Do NOT destroy
+  # unlanded work: if the worktree still has non-harness changes vs origin/main, salvage
+  # a patch first (same exclude rules as setup) and refuse to delete silently.
+  cd "$MAIN"
+  if [ -d "$WT" ]; then
+    git -C "$WT" fetch origin --quiet 2>/dev/null || true
+    PENDING="$(cd "$WT" && git add -A -- . ':(exclude)fct/swarm/*' >/dev/null 2>&1; \
+               git -C "$WT" diff --cached origin/main -- . ':(exclude)fct/swarm/*' 2>/dev/null; \
+               git -C "$WT" reset -q >/dev/null 2>&1 || true)"
+    if [ -n "$PENDING" ]; then
+      mkdir -p "$ROOT/salvage"
+      STAMP="$(date +%Y%m%d-%H%M%S)"
+      PATCHF="$ROOT/salvage/CLEANUP-UNLANDED-$ID.$STAMP.patch"
+      ( cd "$WT" && git add -A -- . ':(exclude)fct/swarm/*' >/dev/null 2>&1 && \
+        git diff --cached origin/main -- . ':(exclude)fct/swarm/*' > "$PATCHF" 2>/dev/null; \
+        git reset -q >/dev/null 2>&1 || true ) || true
+      echo "cleanup: $ID has UNLANDED changes vs origin/main — SALVAGED to $PATCHF, NOT deleting." >&2
+      echo "cleanup: push your work (bash fct/swarm/push_helper.sh $ID <msg>) before cleanup." >&2
+      exit 3
+    fi
+    git worktree remove --force "$WT" 2>/dev/null || rm -rf "$WT"
+  fi
+  git worktree prune 2>/dev/null || true
+  git branch -D "swarm/$ID" 2>/dev/null || true
+  rm -rf "$FRAMES" "$ROOT/locks/$ID.lock" 2>/dev/null || true
+  echo "cleanup: removed worktree + branch + frames + lock for $ID"
+  exit 0
+fi
 
 mkdir -p "$ROOT/worktrees" "$ROOT/frames" "$ROOT/locks" "$ROOT/logs"
 
