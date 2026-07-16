@@ -228,6 +228,33 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clip: ClipI
     filters.push({ id: filterId, name: nodeName, pluginName, pluginUUID, parameters: filterParams, timingOffsetSec });
   }
 
+  // FILTER APPLY ORDER (decoded 2026-07-16 via Objects__Curtains empirical match).
+  // FCP applies a layer's filters in REVERSE XML order (bottom-up): the LAST <filter>
+  // listed in the .motr is the FIRST filter applied to the image, and the FIRST listed
+  // is the LAST applied. This matches Motion's Filters Inspector convention (top of the
+  // stack = last applied). EVIDENCE (before / after this reverse):
+  //   • Objects/Curtains .motr filter list [Colorize, Brightness, Mono]. GUI GT mid-band
+  //     f05-f17 = red curtains ~(80,9,1). Engine applying top-down produced the sequence
+  //     Colorize→Brightness→Mono, ending in the ChannelMixer Mono step that DESATURATED
+  //     the curtain back to grey ~(75,75,75) — engine output was dark grey. Reversing to
+  //     bottom-up (Mono→Brightness→Colorize) matches the intuitive image-processing
+  //     pipeline (desaturate to luma → brighten mono → remap luma to the RED target
+  //     color = (0.7255, 0.1021, 0)) and produces engine mid-band ~(76,11,1), matching
+  //     GT to +4.76 dB (16.53 → 21.29). See the .motr filter block at Curtains.motr:655
+  //     (Colorize Remap White To=RED, Brightness 2.91×, Mono/ChannelMixer Monochrome=1
+  //     with Red-row = Rec.601 luma 0.30/0.59/0.11). Filter constants read via
+  //     tools/re/read_const.py + the params directly in the .motr XML.
+  //   • Movements/Pinwheel and Objects/Leaves also improved on the gate (net +0.71 and
+  //     +0.41 dB) though these are secondary — the primary effect is on stacked chains.
+  //   • Stylized/Color_Panels regressed −0.83 dB (the HueSat then Colorize chain gets
+  //     re-ordered too, and HueSat's Saturation=1 oversaturates the pre-colorize
+  //     mountain photo). Understood: the pre-fix engine was "wrong for the wrong
+  //     reasons" — reverse-order fires the correct chain but exposes an underlying
+  //     filter-fidelity gap in HueSat/Colorize interaction. Follow-up filed.
+  // One reverse here so every consumer (compositor apply loops, tests) sees filters in
+  // APPLY order.
+  filters.reverse();
+
   // Parse children (nested scenenodes)
   const children: Layer[] = [];
   for (const childNode of directChildren(el, 'scenenode')) {
@@ -427,6 +454,11 @@ function parseLayerElement(el: Element, factories: Map<number, string>, clip: Cl
       filters.push({ id: filterId, pluginName, pluginUUID, parameters: filterParams });
     }
   }
+
+  // FILTER APPLY ORDER: reverse XML→apply order (bottom-up). See the identical block
+  // in parseSceneNode above for the empirical Curtains decode (+4.76 dB) and evidence.
+  // One reverse here so parseLayerElement produces filters in APPLY order too.
+  filters.reverse();
 
   // PROCEDURAL (source-less) SHAPE MASK — S8. A `<mask>` authored as a DIRECT CHILD
   // of a <layer>/<group> (a sibling of the content it clips) is a layer-level mask

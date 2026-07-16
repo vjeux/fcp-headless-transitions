@@ -150,14 +150,17 @@ export function levelsFilter(input: ImageData, params: LevelsParams): ImageData 
  *
  * ⚠️ BUT the brighten-encode is a PER-FILTER encode, and FCP keeps the WHOLE node
  * graph in linear working space and encodes ONCE at readback. The only shipping
- * PAEBrightness user (Objects__Curtains, amount=2.91) STACKS Brightness → Mono
- * (PAEChannelMixer), so a per-filter sRGB-encode between them diverges from FCP's
- * single-encode chain and REGRESSED the GUI-GT gate (Curtains 14.31 -> 13.85, -0.46).
- * The one truth is the GUI GT (ROADMAP rule 1), so the shipped code keeps the plain
- * code-multiply for BOTH legs: it is what the GUI GT prefers for the stacked chain,
- * and correctly reduces to the darken leg for amount<=1. Closing the brighten leg
- * requires a linear-working-space FILTER CHAIN (encode once after all filters), which
- * is an engine-architecture change tracked separately — NOT a per-filter encode.
+ * PAEBrightness user (Objects__Curtains, amount=2.91) STACKS Mono (PAEChannelMixer)
+ * → Brightness → Colorize (the .motr lists them Colorize/Brightness/Mono but FCP
+ * applies filters in REVERSE XML order — decoded 2026-07-16 via two-filter headless
+ * probe, see parser/index.ts). A per-filter sRGB-encode between Mono and Colorize
+ * would diverge from FCP's single-encode chain (an earlier attempt with the wrong
+ * apply order regressed Curtains 14.31 -> 13.85, -0.46). The one truth is the GUI
+ * GT (ROADMAP rule 1), so the shipped code keeps the plain code-multiply for BOTH
+ * legs: it is what the GUI GT prefers for the stacked chain, and correctly reduces
+ * to the darken leg for amount<=1. Closing the brighten leg requires a linear-
+ * working-space FILTER CHAIN (encode once after all filters), which is an
+ * engine-architecture change tracked separately — NOT a per-filter encode.
  */
 export function brightnessFilter(input: ImageData, amount: number): ImageData {
   if (amount === 1) return input;

@@ -1,0 +1,14 @@
+{
+  "id": "T-qba9797b8",
+  "title": "Color_Panels HueSat+Colorize fidelity (post-order-fix)",
+  "project": "fct",
+  "goal": "After T-qb697c0d4 reversed filter apply order to correct bottom-up (Curtains 16.53->21.29), Stylized__Color_Panels regressed 19.05->18.22 dB (-0.83). The 4 panel layers each have [Hue/Saturation, PAEColorize] filters; with the new order Colorize runs FIRST then HueSat (Saturation=1 = 2x oversaturate). Engine at f10 = (95.5, 55.9, 35.7), GUI GT = (52.7, 49.1, 42.3), headless FCP = (30.7, 22.8, 20.5). Engine is too bright + too red. Root cause candidates: (1) HueSat Saturation=1 apply on the Colorize output oversaturates because our HueSat's satFactor=1+saturation=2 while FCP's shader may be gated differently, (2) Colorize+HueSat linear-space chain (FCP works in linear ExtendedSRGB, our engine encodes per-filter), (3) colorize Intensity=1 stacked chain vs single-encode. Small collateral regression shipped with T-qb697c0d4 (net-positive). DoD: recover >=19 dB on Color_Panels without regressing Curtains.",
+  "slugs": [
+    "Stylized__Color_Panels"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qb697c0d4",
+  "created_at": "2026-07-16T18:01:47+00:00",
+  "notes": ""
+}

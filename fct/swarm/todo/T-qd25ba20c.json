@@ -1,0 +1,14 @@
+{
+  "id": "T-qd25ba20c",
+  "title": "Curtains tail collapse f18-f23 (10-16 dB)",
+  "project": "fct",
+  "goal": "After the FCP-reverse-filter-order fix (T-qb697c0d4: 16.53->21.29 dB), Curtains mid-band is red curtains matching GT. Remaining error is the TAIL (f18-f23): f18=16.35, f19=13.80, f20=12.12, f21=10.95, f22=10.35, f23=10.23. In the GT the curtains open to reveal photo B, but the engine holds curtain graphic/wrong content. Decode: is the retime-wrap maskedSwapSettleB structural signature still firing correctly with the new filter order? (Curtains carries an overlay-masked A->B swap - see T-qcurtains01 commit 0393730 for the wrap structure.) DoD: mid-band unchanged, tail improves; gate net positive.",
+  "slugs": [
+    "Objects__Curtains"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qb697c0d4",
+  "created_at": "2026-07-16T16:58:40+00:00",
+  "notes": ""
+}

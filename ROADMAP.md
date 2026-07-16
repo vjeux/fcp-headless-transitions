@@ -672,6 +672,25 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16g  ✅ FILTER APPLY ORDER (T-qb697c0d4) — parser now reverses the per-layer <filter> list so
+              filters apply in bottom-up XML order (LAST listed first, matching Motion's Inspector
+              stack: top = last applied). Objects/Curtains 16.53 → 21.29 (+4.76 dB): the .motr's
+              [Colorize, Brightness, Mono] chain was being applied top-down, so the final ChannelMixer
+              Mono step DESATURATED the just-colorized red curtain back to grey (engine mid-band
+              ~(75,75,75) vs GT red ~(80,9,1)). Applied bottom-up (Mono→Brightness→Colorize) it's the
+              intuitive image-processing pipeline: desaturate photo to luma → brighten 2.91× → remap
+              luma to the target red (Remap White To=(0.7255, 0.1021, 0)). Mid-band f05-f17 now scores
+              23–26 dB. Filter constants read via tools/re/read_const.py + Curtains.motr:655 XML.
+              Gate: NET +5.05 dB across 4 slugs — Curtains +4.76, Movements/Pinwheel +0.71, Objects/
+              Leaves +0.41; Stylized/Color_Panels regressed −0.83 (HueSat Sat=1 + Colorize interaction
+              on the 4 panel layers — an underlying filter-fidelity gap now unmasked by the correct
+              order; follow-up T-qba9797b8 filed). Baseline refrozen mean 16.87 → 16.95 dB. Curtains
+              tail collapse f18-f23 (10-16 dB, GT reveals photo B under opening curtains) is a
+              SEPARATE bug — follow-up T-qd25ba20c filed. Files: engine/src/parser/index.ts (two
+              filter-list reverse() sites, both with the empirical decode + Curtains cite),
+              engine/src/compositor/filters/levels.ts (docstring corrected — chain is Mono→Brightness→
+              Colorize, not Brightness→Mono).
+
 - 2026-07-16f  📝 VIDEO_WALL DECODE-3 (T-qd1814800 WIP, docs-only, gate 0/0) — restored the 4 WIP diffs
               (they were deleted by an unrelated Smear-fix commit 86b8489); re-verified they apply
               cleanly against current origin/main and land Video_Wall 10.16→10.18 (+0.02, still
