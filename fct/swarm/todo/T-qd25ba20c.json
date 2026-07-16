@@ -7,8 +7,9 @@
     "Objects__Curtains"
   ],
   "after": null,
-  "status": "open",
+  "status": "dropped",
   "created_by": "T-qb697c0d4",
   "created_at": "2026-07-16T16:58:40+00:00",
-  "notes": ""
+  "notes": "NOCHANGE: fresh render + per-frame verified tail already healthy under current filter order (post-T-qb697c0d4/T-qff1b6de2). MEAN 23.18 dB (baseline says stale 21.29). Tail: f18=17.90 f19=18.30 f20=19.39 f21=20.89 f22=26.79 f23=30.03 \u2014 settles cleanly on photo B. Brief phantom numbers (f18=16.35..f23=10.23) predate other landed fixes. maskedSwapSettleB/pureCrossfadeSettleB wrap-cancel is firing correctly for Curtains. No code change needed; baseline_engine.json will refresh on next global rebaseline.",
+  "updated_at": "2026-07-16T22:15:31+00:00"
 }
