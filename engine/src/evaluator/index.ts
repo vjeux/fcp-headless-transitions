@@ -319,8 +319,14 @@ function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: nu
   // A Spin behavior contributes an extra in-plane Z rotation (RADIANS), added to the
   // authored rotationZ so it pivots about the layer's own anchor origin. tx.__spinRadians
   // is set by applySpinBehaviors and is 0/undefined for non-spinning layers.
-  const rotZ = (resolveWithRetime(tx.rotationZ, timeSec, 0, retimeProgress, ov?.has('rotZ'), hasRetime)
-    + (tx.__spinRadians ?? 0)) * RAD2DEG;
+  // rotZ sign: when the value is LINK-DRIVEN (ov.has('rotZ')), Motion's link resolver
+  // produces a value whose sign is inverted relative to our matrix convention (verified
+  // against Movements__Switch GUI GT: link-driven -π/2 must rotate the outgoing layer +90°
+  // in our matrix, not -90°). Directly-authored rotationZ curves and __spinRadians already
+  // use our convention, so they stay unnegated.
+  const rawRotZ = resolveWithRetime(tx.rotationZ, timeSec, 0, retimeProgress, ov?.has('rotZ'), hasRetime);
+  const linkRotZ = ov?.has('rotZ') ? -rawRotZ : rawRotZ;
+  const rotZ = (linkRotZ + (tx.__spinRadians ?? 0)) * RAD2DEG;
   // Scale is FRACTIONAL (1.0 = 100%) in every .motr template (all 108 Scale curves have
   // default="1"). Used as-is — never divided by 100.
   const scX = resolveWithRetime(tx.scaleX, timeSec, 1, retimeProgress, ov?.has('scaleX'), hasRetime);

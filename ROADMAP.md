@@ -697,6 +697,26 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16l  ✅ SWITCH ROTZ SIGN (T-qff1b6de2 DONE) — Movements__Switch **12.31 → 14.67 (+2.36 dB)**,
+              Movements__Clothesline **19.31 → 21.61 (+2.30 dB)**, Movements__Reflection 14.32 → 14.23
+              (−0.09, within tol). Root cause: Motion authors rotationZ in Y-UP mathematical
+              convention (positive = CCW when viewed from +Z), but the compositor pipeline is
+              Y-DOWN (screen coords, +Y = down; see blit.ts). For LINK-driven rotZ (Switch's
+              book-fold rig Link-copies driver rotZ onto Trans A rigScale=+1 / Trans B rigScale=−1),
+              rendering the raw numeric rotZ under Y-DOWN inverts the visual rotation — the fold
+              runs the wrong way (Switch f12 rendered A on-canvas + B off, GT is A sepia
+              top-right + B blue bottom-right). SCOPED fix: negate rotZ ONLY when it comes from
+              a Link (`ov?.has('rotZ')`, set exclusively by applyLinks/links.ts:281). Directly
+              -authored rotZ (Spin/Pinwheel/Rotate/Flip/Combo_Spin/Clone_Spin/Twirl) and
+              __spinRadians are left alone — they already render at the correct visual direction
+              in the current baseline. Global negation was tried first and regressed 7 slugs
+              (Earthquake −4.47, Arrows −8.09, Curtains −2.52, …) because those slugs' rotation
+              chains use directly-authored rotZ that was already correct; scoping to Link-driven
+              rotZ zeroed those regressions. LinkRot census: only 3/65 slugs have LinkRot
+              behaviors (Switch, Clothesline, Reflection); every other slug's `ov?.has('rotZ')`
+              is false so buildTransformMatrix's rotZ path is identical to baseline for them.
+              Files: engine/src/evaluator/index.ts (+8/−2 in buildTransformMatrix).
+
 - 2026-07-16k  ⛔ MULTI RE-CONFIRMED DEGENERATE (T-qmulti00001 DROPPED, docs-only, no engine change) —
               visual + pixel-level re-verification of `~/fct-gui-gt/Replicator-Clones__Multi`:
               f0 = photo A (sepia mountain lake, RGB dominant ~(230,150,80)), f23 = photo B
