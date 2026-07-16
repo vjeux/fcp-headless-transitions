@@ -672,6 +672,14 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16i  ✅ EARTHQUAKE (T-qca011a65 DONE, gate 0/0, +3 improved) — restored the overlay-dust
+              pureCrossfadeSettleB extension in timemap.ts that had been silently reverted by
+              a stale-base rebase in the Smear commit (86b8489). Earthquake 16.51→21.26 dB
+              (+4.75), Curtains 21.29→23.81 dB (+2.52), engine mean 16.89→17.07 dB. Filed
+              follow-up T-q7f6795d6 for the residual mid-crossfade dip f10-f16 (~10-13 dB)
+              that remains after the tail fix — a separate crossfade-timing problem
+              (engine crossfade midpoint ~f10, GUI GT midpoint ~f12-f13).
+
 - 2026-07-16h  🔧 SWING (T-qswing00001 WIP, gate 0/0) — landed the reusable per-pixel Z-BUFFERED
               perspective rasterizer (perspective.ts::projectQuadWithWorldZ +
               renderPerspectiveQuadDepth + CAMERA_Z_DEFAULT export). Motion depth convention
