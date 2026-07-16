@@ -394,6 +394,29 @@ Adjacent filled A-rectangles fully overlap (smaller inside larger, both A → no
 quads against the B base + the "Shading" group (Top/Left/Right shapes at op 0.48) bevel edges.
 The clone-source-mask BAKE (step 1) is correct in isolation (f00 +19 dB) and should be RE-USED
 once the depth composite exists — it is only net-negative WITHOUT the depth/rotation seam.
+**T-qrect3d0001 re-decode (2026-07-16), CONFIRMS the above + adds two facts:**
+(a) TOPOLOGY re-read from the .motr: standalone `Transition A` (id 10009) carries
+    `<enabled>0</enabled>` — it is NOT drawn directly; it is cloned by 27 nodes. The drawn
+    base is `Transition B` (id 10006, enabled, last in tree = bottom of stack). So GT is
+    "photo-B background + concentric photo-A rectangle frames on top, thin B seams between
+    them" (visually identical to the brief's "thin-B-outline spiral"). The clone chain is a
+    NESTED clone: `Inside 01`(Shape 10054, ±960×±540 filled rect, scale 0.91) → `Inside 02`
+    clones Inside 01 → … → `Inside 08`; each `Shape 0N`(clone, src=TransA, mask=Inside 0(N-1),
+    Mask Blend Mode=1) is re-cloned by `Clone Layer / 1..8`. Per-clone scale/position comes
+    from TWO Rig Behaviors on Inside 01 driving `./1/100/105`(Scale) and `./1/100/101`(Position)
+    via 7 Snapshot columns (scale X 0.26..1.18, Y 0.82..0.89 — anisotropic; that anisotropy is
+    the rectangle spiral). The `Shading` Widget's Top/Left/Right shapes are bevel edges at op
+    0.48 (LinkOpacity → ./1/200/202).
+(b) MEASURED the engine's failure signature directly (not a black-box guess): "B-ness"
+    (mean Blue−Red) of GT rises −48(f7)→−30(f12)→+13(f16) as B fills the frame, while the
+    engine stays PINNED at ≈−81 across ALL frames — i.e. **Transition B never enters the
+    engine composite at all**; the full-frame masked A rectangles paint over B in painter
+    order with no per-pixel Z occlusion, so no thin B seams and no B interior reveal. This is
+    exactly the "needs per-pixel Z-buffer" conclusion. Verdict THIS session: BLOCKED — the
+    per-pixel Z-buffered depth composite (25 camera-projected masked+rotated quads over B +
+    the Shading bevel subsystem) is a multi-session subsystem, NOT landable net-positive in one
+    tick, and the painter-order shortcut is the ⛔ measured dead-end above. Filed the two
+    sub-pieces (depth composite; Shading bevel) as follow-up TODOs.
 
 ### CONCENTRIC — structural fix SHIPPED (3ac72b0 + 821ad0b), + one dead-end
 Was rendering vertical STRIPES instead of concentric rings. THREE bugs fixed:
@@ -481,38 +504,14 @@ top↔bottom), rows in identical pairs, ~7 distinct flip times {3,4,5,10,15,16,2
 20  3  3 23 23 16 16 16 16 23 23  3  3 20      (rows 6,7 == rows 0,1)
 ```
 So the order is a DETERMINISTIC symmetric function of (|row−centre|, |col−centre|), NOT a
-Fisher-Yates/PRNG scramble. **REFINED DECODE (T-qsquares001, 2026-07-16):** re-decoding the
-per-tile flip frame with a tighter center sample yields the FULL folded quadrant (fr=|row−centre|
-∈0..3, fc=|col−centre| ∈0..6). Every one of the 28 folded groups collapses to a SINGLE constant
-flip frame (±1 JPEG noise) and the 4-fold fold is 96%-exact — 23 DISTINCT flip frames spanning the
-full range 1..23 (not ~7; the coarser 0.4-sample above under-resolved it). Folded flip-frame table
-(fr rows 0..3 × fc cols 0..6):
-```
-22 13  8  7 21 18 12
-18  9  2 17  9 11  1
-14  3 23 20  3 23 16
-19  6 14  4 10 15  5
-```
-Reveal order of the 28 folded groups (index i=fr*7+fc, earliest→latest):
-`[13,9,15,18,24,27,22,3,2,8,11,25,12,6,1,14,23,26,20,10,5,7,21,17,4,0,16,19]`.
-⛔ **This scramble is NOT geometric and NOT a recoverable simple PRNG.** MEASURED against the folded
-table: sym-diagonal (fr+fc) spearman −0.135, folded-radius −0.119, seed-hash −0.316, sym-diag order
-scored **12.68 dB < 12.97 baseline (REGRESSION)**. Broad LCG/hash sweeps (MINSTD/glibc/numrec/
-borland/vc/java/musl × raw/mask32 seed derivations, and 11 mixer mults × 5 seed-combine forms with
-64-bit fmix) all failed: best exact-position match 4/28 (chance), best key-rank spearman 0.25.
-Motion's Helium PRNG (`HGRandomInit`→`ran_setup`, LCG `x*0x4A4E39+0x5AFA6 & 0xffffff` at 0x1205f4)
-was already ruled out (spearman 0.15); the MotionEffect.fxp binary carries NO shuffle/replicator
-symbols (`nm` shows only FCP-side sequence wrappers) — the actual shuffle lives in Motion's private
-PECore/PluginKit frameworks and would need deep RE there.
-**ORACLE CEILING (proven, T-qsquares001):** hardwiring the exact decoded folded table into
-`sequenceOrder` (as seqPos=(flip−1)/22) scores **14.25 dB (+1.28 over baseline)** — so the ORDER is
-the whole bottleneck and the decode is CORRECT. But that table is a per-slug GT-fit constant
-(Rules 3 & 7 forbid it), and NO generic order reproduces the scramble (all near-zero/negative corr).
-⛔ **DO NOT re-attempt a generic reveal-order fix for Squares** until Motion's PECore shuffle PRNG is
-actually decoded from the framework binary — every generic order tried so far is net-NEGATIVE, and a
-GT-fit table is a hardcode. Verdict for this task: BLOCKED on Motion-framework RE, no landable
-generic change. Filed follow-up: decode PECore shuffle (`fct/swarm/todo`). NOTE: endpoints f0/f23
-also gap ~20 dB — a SEPARATE base-conform/tone issue (drop-zone conform capability), not the shuffle.
+Fisher-Yates/PRNG scramble (a seeded-hash scatter was tried and MEASURED 12.70 < diagonal 12.97 —
+now known WHY: the target isn't random). Motion's PRNG (`HGRandomInit`→`ran_setup`, an LCG
+`x*0x4A4E39 + 0x5AFA6 & 0xffffff` in Helium at 0x1205f4) has spearman 0.15 vs the GT order → the
+shuffle is NOT in Helium; it's in the Ozone/PE layer. **NEXT:** decode which Build Style(id330=2)/
+Origin(id331=4, id360=14) selects the symmetric order, implement it in `sequenceOrder`/
+`sequenceProgress` keyed on the replicator's Shuffle Order param (NO per-slug constant), verify the
+flip-frame grid vs the GUI GT. NOTE: endpoints f0/f23 also gap ~20 dB — a SEPARATE base-conform/
+tone issue (the drop-zone conform capability), not the shuffle.
 
 ### Subsystem framing (what each L-group's shared root IS)
 - **L1 clone/replicator/framing:** off-canvas tiles/clones through a framing camera (look-at pose)
@@ -617,35 +616,36 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
-- 2026-07-16b  ⛔ CLOSE_AND_OPEN (T-qpanellead1) BLOCKED — no ship. Census CONFIRMED the premise's
-              structure: the "Transition Drop Zones" group (999094061) carries a CROSS-CONTAINER
-              Image Mask (imageMaskSourceId=989704929 "Mask shapes", Invert=1) sourced by a SIBLING
-              group of Top(989706176)/Bottom(989707439) closing shapes; the teal seen mid-transition
-              is the decorative "Top shapes"(op0.79)/"BG shapes"(op0.91) panel groups rendered BEHIND,
-              revealed through the mask holes. I wired the cross-container drop-zone mask path
-              (renderChildLayers: non-descendant shape-geom group + all-visible-children-are-dropzones)
-              and it was NET-NEGATIVE 12.61→10.83, so REVERTED (Rule 2). ROOT BLOCKER is upstream in
-              the EVALUATOR, not the compositor: the Top/Bottom mask-shape Y-position decodes WRONG —
-              worldTransform ty 911→593→373(f4 near-closed)→430→909(f8 back OUT) and opacity→0 at f10,
-              i.e. it bounces in-then-out and vanishes instead of closing MONOTONICALLY by ~f11 and
-              HOLDING through ~f15 (GT means: f0-f11 warm A→teal, f11-f15 held teal 11/38/38, f16-f23
-              open to cool B 92/106/137). resolveImageMaskAlpha returns NULL at f10+ (no eligible
-              geometry) = no occlusion exactly where GT is fully closed. The panels are factory-13
-              shapes driven by an Emitter/replicator (989706183, Cell timing out=5893888/7680000) — the
-              close-hold-open envelope is in a Sequence/retime the evaluator mis-samples. Filed
-              follow-up T-q29039791 (decode that curve FIRST, then the mask wiring is a small
-              net-positive). This is the kinetic-panel subsystem, too big for one gate-verifiable task
-              via the compositor alone.
-- 2026-07-16b  ⛔ SQUARES reveal-order — BLOCKED/no landable change (T-qsquares001). Confirmed the
-              task premise EXACTLY (4-fold mirror-symmetric, 96% fold-exact, 23 distinct flip frames
-              1..23) and refined the decode to the full 28-group folded flip table. Oracle (exact
-              table hardwired) = 14.25 dB (+1.28) → order IS the whole bottleneck & decode is right,
-              but that's a per-slug GT-fit hardcode (Rules 3/7). NO generic order reproduces the
-              scramble: sym-diag/radius/seed-hash all near-zero/negative corr; sym-diag order MEASURED
-              12.68 < 12.97 baseline (regression); broad LCG/hash PRNG sweeps best 4/28 (chance).
-              MotionEffect.fxp has no shuffle symbols → shuffle is in Motion's PECore/PluginKit
-              frameworks (needs binary RE). No engine change committed (gate untouched). Filed
-              follow-up to decode PECore shuffle PRNG. Squares stays 12.97 dB. See dead-ends §SQUARES.
+- 2026-07-16c  ⛔ SLIDE_IN (T-qslidein001) — BLOCKED, decode-only (no engine change), 3-subsystem build too
+              big for one net-positive tick. CENSUS (Rule 7/8) CONFIRMED the brief premise and reconciled the
+              stale "linear gradient fill" premise: Slide_In has ONE Gradient generator (factoryID=8, pluginUUID
+              40091D89) that (a) is NOT handled in determineImageSource (footage.ts:491) so it renders NOTHING
+              — the teal->lightblue panel is absent for f5-f18, causing the mid collapse (f12 = 6.6 dB; per-frame
+              28.6 dB@f0 -> 6.6@f12 -> 10.3@f23); (b) hosts BOTH a gradient-FILLED 'Rounded rect down' mask AND
+              a paint-stroke Emitter (factoryID=19)+Cell copy(20) 'Rounded rect up' — 10 emitters total, which is
+              why census flags [PAINT-STROKE]; (c) is driven by 8 Motion Path behaviors (factoryID=24), retimed,
+              which the engine does not implement. Salvage note (docs/notes/salvage/slide-in-three-missing-
+              subsystems.md) documents that EVERY partial subset REGRESSES: gradient-fill alone washes the frame
+              (7.73 < 8.55 black); broadening detectMask by tagName costs -1 dB on 8 gate slugs (FCT_LIFT_ALL_
+              MASKS scar); naive linear motion tween misses the arc-length/retime placement. Target is already at
+              12.11 dB >= DoD 12, so shipping a net-negative partial would violate Rule 2. FILED 3 focused
+              follow-ups (T-qcf704c6b gradient-fill+own-mask-clip narrowly gated on Motion-Path leaves;
+              T-q66b34d79 Motion Path shape-follower retime-aware; T-q1f2f0f55 paint-stroke Emitter rasteriser +
+              tail B-settle). No frames changed; gate untouched.
+- 2026-07-16b  ⛔ 3D_RECTANGLE (T-qrect3d0001) — BLOCKED, decode-only (no engine change). Re-decoded the
+              full scene graph from the .motr and CONFIRMED the existing ⛔ dead-end + brief premise:
+              drawn base = Transition B (10006, enabled); Transition A (10009) is <enabled>0> and only a
+              clone source; 27-node nested clone chain (Inside 01→08 filled rects, Shape 0N clones
+              masked by Inside 0(N-1)) driven by 2 Rig Behaviors on Inside 01 (Scale ./1/100/105 +
+              Position ./1/100/101, 7 anisotropic Snapshot columns) pushed to animated world-Z through
+              the Camera; Shading Widget Top/Left/Right @ op 0.48 (LinkOpacity ./1/200/202) = bevel
+              edges. MEASURED failure: GT B-ness (Blue−Red) −48(f7)→−30(f12)→+13(f16) as B fills in,
+              engine PINNED ≈−81 all frames ⇒ Transition B never enters the composite; full-frame masked
+              A quads occlude B in painter order (no per-pixel Z, no thin B seams). Fix = per-pixel
+              Z-buffered depth composite + Shading bevel — a multi-session subsystem, NOT landable
+              net-positive this tick, and the painter/layer-Z shortcut is the ⛔ measured dead-end
+              (net −1.19). Filed 2 follow-up TODOs (T-q98a30de5 depth composite; T-q9e13de30 Shading
+              bevel, --after). Score unchanged 16.48; gate untouched (no code edit).
 - 2026-07-16a  ✅ COMBO_SPIN SPIN SUBSYSTEM WIRED (L1) — 11.21→12.32 (+1.11), Heart +0.51, 0 regressions,
               new baseline 16.78 dB. ROOT CAUSE (Rule 7 decode, careful-coder bisect): the 6 blade
               groups C1-C6 each carry a "Spin LT/RT" (factory 22) behavior authored DIRECTLY on the

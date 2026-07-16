@@ -1,0 +1,14 @@
+{
+  "id": "T-qcf704c6b",
+  "title": "Slide_In: linear Gradient generator fill + own rounded-rect mask clip (subsystem 1+2)",
+  "project": "fct",
+  "goal": "CONFIRMED DECODE (T-qslidein001 census): Slide_In's ONE Gradient generator (factoryID=8, pluginUUID 40091D89-9517-4344-9CB5-18436B1542D1, pluginName='Gradient') is NOT handled in determineImageSource (footage.ts:491) -> returns undefined -> renders NOTHING (engine is near-passthrough A; the teal->lightblue panel is absent for f5-f18, driving the 6.6 dB mid collapse at f12). It has TWO <mask factoryID=13> children ('Rounded rect up' = paint-stroke Emitter host, 'Rounded rect down' = a gradient-FILLED rounded rect). The fill gradient stops are authored RED(1,0,0)@loc0 -> BLUE(0,0,1)@loc1 but are REMAPPED by 6 COLOUR links (colorizeRemap) to the observed teal(72,141,144)->lightblue(223,241,242) (salvage note). STEP: implement determineImageSource for this generator (renderLinearGradient: t = proj onto Start(id4)->End(id5) axis / |axis|^2, read curve.value NOT default -> parseParameter mirrors default onto value, salvage GOTCHA), applying the colour-link stop overrides. CRITICAL: gradient-fill ALONE washes the FULL frame (salvage: 7.73 dB < 8.55 black) because it does not clip. So you MUST clip to the generator's own rounded-rect mask shape in the SAME change. Do it via a NARROW clip on generator/image leaves that carry a Motion Path behavior (factoryID=24) ONLY -- do NOT broaden detectMask/liftProceduralMasks by tagName (salvage: that regresses 8 gate slugs Center/Center_Reveal/Glide/Heart/Light_Sweep/Lower/3D_Rectangle/full Slide_In = the FCT_LIFT_ALL_MASKS -1 dB scar). Gate net-positive vs GUI GT.",
+  "slugs": [
+    "Stylized__Slide_In"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qslidein001",
+  "created_at": "2026-07-16T11:30:04+00:00",
+  "notes": ""
+}
