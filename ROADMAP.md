@@ -406,7 +406,7 @@ FINDABLE engine gap. L1 ranking (decoded 2026-07-15):
 | slug | headless | engine | gap | note |
 |---|---|---|---|---|
 | 3D_Rectangle | 32.25 | 16.79 | **15.46** | biggest gap; engine renders ~flat A (reveal missing) |
-| Multi | 19.48 | 11.85 | 7.63 | ⚠️ **DEGENERATE GT** — do NOT target (below) |
+| Multi | 19.48 | 11.85 | 7.63 | ⛔ **DEGENERATE GT — DROPPED** (T-qmulti00001, 2026-07-16); do NOT target (below) |
 | Squares | 17.70 | 13.11 | 4.59 | ⚠️ headless order does NOT match GT (corr 0.102) — NOT a valid oracle |
 | Combo_Spin | 14.54 | 11.21 | 3.33 | 6-blade replicator spiral |
 | Clone_Spin | 13.54 | 10.32 | 3.22 | framing camera |
@@ -417,13 +417,22 @@ smallest findable headroom of the L1 group. **Exception: Squares** — headless 
 reproduce the GT reveal order (correlation 0.102), so for Squares the GUI GT is the ONLY
 oracle (the symmetric-order decode below is from the GUI GT, not headless).
 
-### ⛔ MULTI — DEGENERATE GUI GT, not a real target (decoded 2026-07-15)
+### ⛔ MULTI — DEGENERATE GUI GT, DROPPED (decoded 2026-07-15, re-verified + swarm-dropped 2026-07-16 T-qmulti00001)
 Multi's `~/fct-gui-gt` capture shows FCP's EMPTY-DROP-ZONE PLACEHOLDER graphic (uniform gray
 R=G=B≈106 with down-arrow glyphs; f10 meanRGB=[106,106,106] std 58) for the inner tiles, NOT
 real photo content — captured with unfilled drop zones. Headless renders the same gray (mean
 60). The TS engine CORRECTLY fills the tiles with the A/B photos, so it "diverges" from a
 placeholder. Matching placeholder arrows is not reverse-engineering; the 7.63 "gap" is a
 capture artifact. SKIP until the GT is re-captured with real media.
+
+**Re-verified 2026-07-16 (T-qmulti00001 DROPPED, docs-only).** Frame-by-frame + pixel-sample
+check of `~/fct-gui-gt/Replicator-Clones__Multi/frame_00{00,12,23}.jpg` confirms the
+diagnosis: f0 = photo A (sepia mountain lake), f23 = photo B (blue mountain lake), but the
+transition body (f12) is a synthetic 4-panel 2×2 grid — pure-black gutter RGB(0,0,0) between
+four gray plates with uniform RGB≈(140,140,140) (R=G=B, std≈0), each plate containing a
+darker-gray stylized ↓ down-arrow glyph. If Multi were rendering real transition content
+those tiles would carry the sepia/blue photo tint; they don't. The placeholder-arrow
+signature is unambiguous. Marking DROPPED in the swarm queue with no engine change.
 
 ### ⛔ 3D_RECTANGLE — clone-source Image-Mask + Z-painter-order is NET-NEGATIVE (measured + reverted 2026-07-15)
 Root cause CORRECTLY decoded: a "Pieces" group of 9 "Clone Layer" nodes, each cloning a hidden
@@ -672,6 +681,23 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16k  ⛔ MULTI RE-CONFIRMED DEGENERATE (T-qmulti00001 DROPPED, docs-only, no engine change) —
+              visual + pixel-level re-verification of `~/fct-gui-gt/Replicator-Clones__Multi`:
+              f0 = photo A (sepia mountain lake, RGB dominant ~(230,150,80)), f23 = photo B
+              (blue mountain lake, RGB dominant ~(60,90,140)), but mid-transition **f12 is a
+              4-panel 2×2 grid of gray plates (RGB uniform ~(140,140,140), R=G=B, std ≈0)
+              with a stylized ↓ arrow glyph centered in each plate, on a pure-black gutter
+              RGB(0,0,0)**. Sampled pixels at f12: gutter (20,20)=(0,0,0), gutter (960,540)=
+              (0,0,0), TL plate interior (480,210)=(141,141,141), TR (1440,210)=(139,139,139),
+              BL (480,750)=(140,140,140), BR (1440,750)=(139,139,139). These are FCP's UI
+              empty-drop-zone placeholder graphics — synthetic gray plates with drop-arrow
+              icons — NOT the real Multi replicator applied to photos A/B (which would carry
+              sepia/blue tint, not pure-desaturated gray). Matching placeholder arrows is
+              not reverse-engineering; the 7.63 dB "gap" is a GT capture artifact. Marking
+              Multi DROPPED per the standing ⛔ decision (already documented 2026-07-15 in
+              the ⛔ MULTI section below; this tick formalizes it as a swarm-queue DROP).
+              Multi row in the L1 leverage table stays annotated ⚠️ DEGENERATE GT. Zero
+              engine diff — commit is ROADMAP.md only, gate impossible to regress.
 - 2026-07-16i  ✅ EARTHQUAKE (T-qca011a65 DONE, gate 0/0, +3 improved) — restored the overlay-dust
               pureCrossfadeSettleB extension in timemap.ts that had been silently reverted by
               a stale-base rebase in the Smear commit (86b8489). Earthquake 16.51→21.26 dB
