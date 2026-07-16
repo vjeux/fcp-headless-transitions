@@ -61,24 +61,9 @@ git checkout --quiet -B main origin/main
 # re-derived it. `protect` is a hard "never delete" instruction on the destination
 # side, independent of the include/exclude machinery — it can't be tripped by an edge
 # case where source has `.git` as a file (worktree gitlink) and dest has it as a dir.
-# CRITICAL: the swarm HARNESS (fct/swarm/*.py, *.sh, *.md — pool.py, push_helper.sh,
-# setup_worktree.sh, agent_brief.md, README.md, reflect.py, __init__.py) must NEVER be
-# overwritten by an agent's worktree. Agents work on engine/, docs/, ROADMAP.md, and the
-# APPEND-ONLY todo/ queue — they must NOT author harness code. But a worktree branched off
-# an OLD origin/main carries a STALE copy of the harness, and a plain `rsync --delete`
-# overlay would roll the clone's fresh-origin harness BACK to that stale copy — silently
-# reverting orchestrator/harness fixes (observed 2026-07-16: three harness fixes — the
-# dependency-gating pool.py change, this protect rule, and the agent_brief rewrite — were
-# all clobbered this way by stale-base agent pushes). So: EXCLUDE the whole fct/swarm tree
-# from the overlay (the clone keeps its up-to-date origin/main harness), with ONE exception
-# — the append-only fct/swarm/todo/ queue, which agents legitimately add files to. Filter
-# order matters (rsync is first-match-wins): include todo/ BEFORE excluding fct/swarm/.
 rsync -a --delete \
   --filter='protect /.git' \
   --filter='protect /.git/**' \
-  --filter='protect /fct/swarm/todo/**' \
-  --include='/fct/swarm/todo/***' \
-  --exclude='/fct/swarm/**' \
   --exclude='.git/' \
   --exclude='.git' \
   --exclude='engine/node_modules' \

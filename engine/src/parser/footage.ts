@@ -163,6 +163,11 @@ export function parseFootageClipAB(sceneEl: Element, factories: Map<number, stri
     // Which referenced drop-zone nodes carry a direct-child Image Mask. When BOTH
     // do, the document-order override below is SUPPRESSED (see comment there).
     const maskedClips = new Set<number>();
+    // Subset of maskedClips whose Image Mask is NON-INVERTED (a positive matte that
+    // GROWS to reveal the masked layer's own source). The single-non-inverted-masked
+    // reveal (Wipes/Mask, Stylized/Center Reveal) must keep its NAME-based binding
+    // (see the SINGLE-MASKED-REVEAL SUPPRESSION below).
+    const nonInvertedMaskClips = new Set<number>();
     const seen = new Set<number>();
     for (const node of Array.from(sceneEl.getElementsByTagName('scenenode'))) {
       // Only real drawable image elements carry a Source Media clip reference.
@@ -172,9 +177,23 @@ export function parseFootageClipAB(sceneEl: Element, factories: Map<number, stri
       if (cid !== undefined && map.has(cid) && !seen.has(cid)) {
         seen.add(cid);
         referenced.push(cid);
-        // Record a direct-child <mask name="Image Mask"> on this drop-zone node.
+        // Record a direct-child <mask name="Image Mask"> on this drop-zone node,
+        // and whether that mask is NON-INVERTED (Invert Mask != 1 AND Mask Blend
+        // Mode != 1/SUBTRACT). A non-inverted mask is a positive matte that grows
+        // to reveal the masked node's OWN source (Wipes/Mask, Center Reveal); an
+        // inverted mask CUTS the masked node away to reveal the sibling base
+        // (Objects/Arrows, Vertigo). The distinction drives the single-masked-reveal
+        // binding suppression below.
         for (const maskEl of directChildren(node, 'mask')) {
-          if (maskEl.getAttribute('name') === 'Image Mask') { maskedClips.add(cid); break; }
+          if (maskEl.getAttribute('name') !== 'Image Mask') continue;
+          maskedClips.add(cid);
+          let inv = false;
+          for (const mp of Array.from(maskEl.getElementsByTagName('parameter'))) {
+            if (mp.getAttribute('name') === 'Invert Mask' && parseInt(mp.getAttribute('value') || '0', 10) === 1) inv = true;
+            if (mp.getAttribute('name') === 'Mask Blend Mode' && mp.getAttribute('id') === '103' && parseInt(mp.getAttribute('value') || '0', 10) === 1) inv = true;
+          }
+          if (!inv) nonInvertedMaskClips.add(cid);
+          break;
         }
         // Detect a direct-child "Fade In/Fade Out" behavior on this node.
         for (const b of directChildren(node, 'behavior')) {
@@ -217,6 +236,29 @@ export function parseFootageClipAB(sceneEl: Element, factories: Map<number, stri
       // (fires on "both referenced drop zones carry an Image Mask"), no names.
       if (referenced.length === 2 && maskedClips.has(c0) && maskedClips.has(c1)) {
         // leave name-based A/B binding untouched
+      } else if (referenced.length === 2
+          && ((nonInvertedMaskClips.has(c0) && !maskedClips.has(c1))
+           || (nonInvertedMaskClips.has(c1) && !maskedClips.has(c0)))) {
+        // SINGLE-MASKED-REVEAL SUPPRESSION (Wipes/Mask, Stylized/Center Reveal).
+        // Exactly ONE of the two full-frame Transition drop zones carries a
+        // NON-INVERTED Image Mask; the sibling is the UNMASKED base. Here the
+        // headless FCP renderer binds each source to its NAME-matched clip: the
+        // masked node reveals its OWN incoming source (clip "Transition B" → image
+        // B) growing through the sweeping/growing matte over the unmasked outgoing
+        // base (clip "Transition A" → image A). But these templates author the
+        // masked "Transition B" node BEFORE the base "Transition A" node, so the
+        // document-order re-key below would INVERT them (masked→A, base→B),
+        // rendering the mask revealing the OUTGOING photo over an incoming base —
+        // the reverse of GUI GT. Keeping the name-based binding fixes it.
+        //
+        // Discriminator (structural, no transition names): the masked clip's mask
+        // is NON-INVERTED. This EXCLUDES the inverted-mask single-mask family
+        // (Objects/Arrows, Replicator-Clones/Vertigo), where the masked node is
+        // "Transition A" (INV mask) CUTTING A away to reveal the sibling B — those
+        // are already name-correct (masked node "Transition A" → image A) and this
+        // branch must not touch them (a naive unconditional swap here regressed
+        // Arrows −16.7 and Vertigo −8.36). It also differs from the BOTH-masked
+        // two-sided split above. Leave the name-based A/B binding in `map`.
       } else if (d0 !== undefined && d1 !== undefined && Math.sign(d0) !== Math.sign(d1)
           && d0 !== 0 && d1 !== 0) {
         // Assign by fade: negative (fade-out) → A, positive (fade-in) → B.

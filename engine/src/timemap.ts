@@ -155,61 +155,6 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
     pureCrossfadeSettleB = wrapZoneCount === 2 && !nonDropZoneWrap && bOutSec >= endSec - frameSec;
   }
 
-  // OVERLAY-MASKED SEQUENTIAL A→B SWAP that SETTLES on B (cancel the wrap).
-  // Objects/Curtains: the two drop zones do NOT crossfade — they SWAP sequentially,
-  // hidden behind a full-frame foreground graphic. The outgoing Transition A times
-  // out at 0.701s (= wrapSec) while the curtains are closing; the incoming
-  // Transition B is not born until 2.102s — a ~1.4s GAP during which a full-frame
-  // curtain graphic (`Media/Sequence 3.mov`, a 96-frame yuvA clip on the "Curtains
-  // Close/Open/Curtains" media leaves, alive 0→endSec) covers the whole frame. FCP
-  // swaps A→B behind the closed curtains, then OPENS them to reveal B (verified vs
-  // GUI GT 2026-07-16: f05–f17 are full-frame red curtain ≈(80,9,1); f18–f23 open to
-  // reveal photo B ≈(92,106,137) in the center — NOT the sepia photo A the wrap
-  // re-shows). Transition B outlives the wrap to the animation end (B.out=3.103=endSec).
-  //
-  // The wrap-to-frame-0 is WRONG here: it freezes the scene to 0.701s (curtains still
-  // OPEN on photo A) for the whole tail, so the engine holds A and never reveals B
-  // (tail collapsed 14.4→10.2 dB). Cancelling the wrap lets scene time advance through
-  // the full close→swap→open cycle so the tail settles on B behind opening curtains.
-  //
-  // Structural signature (no slug names), DISTINCT from pureCrossfadeSettleB (which is
-  // an OVERLAPPING 2-zone crossfade with no other wrapping media): a SEQUENTIAL swap —
-  //   • the outgoing drop zone (A) dies at/near wrapSec (A.out ≈ wrapSec),
-  //   • the incoming drop zone (B) is born WELL AFTER A dies (B.in > A.out + 2 frames)
-  //     — a genuine sequential swap, not a crossfade (Leaves/Drop_In/Pinwheel all have
-  //     B.in ≈ 0, i.e. B coexists with A, so they do NOT match),
-  //   • B outlives the wrap to the animation end (B.out ≥ endSec − frame), AND
-  //   • a full-frame-scale normal-blend MEDIA overlay leaf lives across the whole
-  //     transition (out ≥ endSec − frame) to mask the swap.
-  let maskedSwapSettleB = false;
-  if (wrapSec !== undefined) {
-    let aOut = -1, bIn = -1, bOut = -1, overlayToEnd = 0;
-    (function scanSwap(layers: readonly Layer[]) {
-      for (const l of layers) {
-        const st = l.source?.type;
-        if (l.timing) {
-          const outSec = t2s(l.timing.out);
-          const inSec = t2s(l.timing.in);
-          if (st === 'transitionA') aOut = Math.max(aOut, outSec);
-          if (st === 'transitionB') { bIn = inSec; bOut = Math.max(bOut, outSec); }
-          // A full-frame foreground graphic that plays across the whole transition
-          // (normal blend, media, alive to the animation end) masks the A→B swap.
-          if (l.type === 'image' && st === 'media'
-              && (l.blendMode === 'normal' || l.blendMode === undefined)
-              && outSec >= endSec - frameSec) {
-            overlayToEnd++;
-          }
-        }
-        scanSwap(l.children);
-      }
-    })(scene.layers);
-    maskedSwapSettleB =
-      aOut > 0 && Math.abs(aOut - wrapSec) < 2 * frameSec
-      && bIn > aOut + 2 * frameSec
-      && bOut >= endSec - frameSec
-      && overlayToEnd >= 1;
-  }
-
   // FILTER-ANIMATION OUTLIVES CONTENT (Lights/Bloom): a plain 2-drop-zone crossfade
   // whose drop zones BOTH time out early (A.out 0.200, B.out 0.534) but whose scene
   // animationEnd is pushed WAY past that (1.270s) by a KEYFRAMED FILTER curve on a drop
@@ -401,7 +346,7 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
     // clamp (which requires wrapSec !== undefined). So gate the filteredMaskReveal
     // cancel on NOT strokedMaskShape — a stroked reveal takes the clamp path instead.
     const nonStrokedFilteredReveal = filteredMaskReveal && !strokedMaskShape;
-    if (wrapSec !== undefined && (filledShapeOverlay || blendedMediaOverlay || replicatorMaskReveal || kineticPanelMontage || nonStrokedFilteredReveal || pureCrossfadeSettleB || maskedSwapSettleB) && endSec > wrapSec + frameSec) {
+    if (wrapSec !== undefined && (filledShapeOverlay || blendedMediaOverlay || replicatorMaskReveal || kineticPanelMontage || nonStrokedFilteredReveal || pureCrossfadeSettleB) && endSec > wrapSec + frameSec) {
       wrapSec = undefined;
     }
     // Stroked-mask reveal (Objects/Arrows): the growing arrow arcs cut A away to

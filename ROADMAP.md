@@ -122,6 +122,24 @@ future tick picks it up as a concrete target instead of the regression being los
 Format: `<slug> <before>→<after> (caused by <commit/fix>) — why it was already imperfect / hypothesis`.
 
 - _(none yet — populate as Rule 11 fires)_
+- Stylized/Center_Reveal 15.24→14.55 (caused by T-qwipemask01 masked-reveal A/B binding fix)
+  — the binding flip is CORRECT (f00=38.42 confirms the right start photo), but Center_Reveal
+  ALSO has an independent endSec inflation: its "Grad middle"/"Grad ends" generator Z-Position
+  (id 206/axis Z) curves key to 3.000s while its scene/playRange duration is only 0.634s (~4.7×).
+  With the reveal now bound correctly it plays at ~1/5 speed → tail f17-f23 collapse to ~9 dB.
+  NOT the media-fit 313/314/318 padding (that IS capped now); this is a generator-Z padding cap.
+  Queued as follow-up T-q11397f86.
+
+- **T-qwipemask01 progress (2026-07-16):** Wipes/Mask 14.30→16.49 (+2.19), gate GREEN (0 reg,
+  Arrows/Vertigo/Slide all unchanged). TWO coupled bugs fixed in the PARSER (no per-transition
+  code): (1) doc-order A/B override SWAPPED the single-masked-reveal binding — masked node
+  "Transition B" (authored FIRST) got re-keyed to source A, base "Transition A"→B, so the mask
+  revealed the OUTGOING photo over an incoming base (reverse of GT). Fix: SUPPRESS the doc-order
+  swap when exactly one drop zone carries a NON-INVERTED Image Mask and the sibling is unmasked
+  (keep name-based binding → masked→B, base→A). (2) animationEndSec inflated 5.038s vs 1.30s span
+  from drop-zone media-fit conform keyframes (Object-block Width id313 / Height id314 / Fit-Factor
+  id318). Fix: CAP those conform curves at the scene duration (same as the NO-OP CURVE GUARD) — a
+  conform that stays in-clip (Slide 1.001<1.068) is untouched, only over-run padding is clamped.
 
 ## The workflow, concretely (EFFICIENCY-FIRST — updated 2026-07-15 on vjeux's instruction)
 
@@ -342,6 +360,27 @@ These are the measured-negative attempts and non-obvious decode facts a worker n
 starting a slug. A todo may point here ("DO NOT re-attempt X — see ROADMAP dead-ends"); the
 full measured record lives here, once.
 
+### ⛔ WIPES/MASK masked-reveal A/B binding — the discriminator (SHIPPED T-qwipemask01)
+DO NOT re-attempt an UNCONDITIONAL "swap A/B on any single-masked reveal" — that naive fix
+CATASTROPHICALLY regressed Objects/Arrows −16.7 and Replicator-Clones/Vertigo −8.36 (both are
+single Image Mask but NOT the same family). The decoded distinction (all 4 slugs verified via
+`_trace_layers.ts` + Source Media id-300 dump):
+- **Wipes/Mask + Center_Reveal**: masked node is "Transition B", mask NON-INVERTED, sibling
+  base "Transition A" UNMASKED. The masked layer REVEALS its own incoming photo (B) growing in
+  over the outgoing base (A). Their masked node is authored FIRST, so the doc-order override
+  wrongly re-keyed masked→A / base→B (the swap). FIX = SUPPRESS the doc-order swap, keep the
+  name-based binding (parser/footage.ts, `nonInvertedMaskClips` + single-masked suppression).
+- **Arrows + Vertigo**: masked node is "Transition A", mask **INVERTED**, sibling base
+  "Transition B" UNMASKED. The inverted mask CUTS A away to reveal the sibling B. These are
+  already NAME-CORRECT (masked node "Transition A" → source A) and their doc order already
+  matches names, so the suppression is a NO-OP for them. **The discriminator is the mask INVERT
+  flag** (non-inverted → suppress/keep-name; inverted → leave alone).
+Also fixed (coupled): Wipes/Mask animationEndSec inflated 5.038s vs 1.30s span by drop-zone
+media-fit conform keyframes (Object-block ids 313 Width / 314 Height / 318 Fit-Factor). CAP them
+at the scene duration (parser/index.ts, alongside the NO-OP CURVE GUARD) — a conform that stays
+in-clip (Slide 1.001<1.068) is UNTOUCHED (do NOT blanket-skip these ids — that regressed Slide
+−0.6); only over-run padding is clamped.
+
 ### Oracle validity per slug (pick your method before you start)
 Headless FCP (`fct score <slug> --source headless`) is a TRUSTWORTHY per-slug oracle for most
 clone/replicator slugs (it scores 13–32 dB vs the GUI GT), so `headless − engine` measures the
@@ -394,29 +433,6 @@ Adjacent filled A-rectangles fully overlap (smaller inside larger, both A → no
 quads against the B base + the "Shading" group (Top/Left/Right shapes at op 0.48) bevel edges.
 The clone-source-mask BAKE (step 1) is correct in isolation (f00 +19 dB) and should be RE-USED
 once the depth composite exists — it is only net-negative WITHOUT the depth/rotation seam.
-**T-qrect3d0001 re-decode (2026-07-16), CONFIRMS the above + adds two facts:**
-(a) TOPOLOGY re-read from the .motr: standalone `Transition A` (id 10009) carries
-    `<enabled>0</enabled>` — it is NOT drawn directly; it is cloned by 27 nodes. The drawn
-    base is `Transition B` (id 10006, enabled, last in tree = bottom of stack). So GT is
-    "photo-B background + concentric photo-A rectangle frames on top, thin B seams between
-    them" (visually identical to the brief's "thin-B-outline spiral"). The clone chain is a
-    NESTED clone: `Inside 01`(Shape 10054, ±960×±540 filled rect, scale 0.91) → `Inside 02`
-    clones Inside 01 → … → `Inside 08`; each `Shape 0N`(clone, src=TransA, mask=Inside 0(N-1),
-    Mask Blend Mode=1) is re-cloned by `Clone Layer / 1..8`. Per-clone scale/position comes
-    from TWO Rig Behaviors on Inside 01 driving `./1/100/105`(Scale) and `./1/100/101`(Position)
-    via 7 Snapshot columns (scale X 0.26..1.18, Y 0.82..0.89 — anisotropic; that anisotropy is
-    the rectangle spiral). The `Shading` Widget's Top/Left/Right shapes are bevel edges at op
-    0.48 (LinkOpacity → ./1/200/202).
-(b) MEASURED the engine's failure signature directly (not a black-box guess): "B-ness"
-    (mean Blue−Red) of GT rises −48(f7)→−30(f12)→+13(f16) as B fills the frame, while the
-    engine stays PINNED at ≈−81 across ALL frames — i.e. **Transition B never enters the
-    engine composite at all**; the full-frame masked A rectangles paint over B in painter
-    order with no per-pixel Z occlusion, so no thin B seams and no B interior reveal. This is
-    exactly the "needs per-pixel Z-buffer" conclusion. Verdict THIS session: BLOCKED — the
-    per-pixel Z-buffered depth composite (25 camera-projected masked+rotated quads over B +
-    the Shading bevel subsystem) is a multi-session subsystem, NOT landable net-positive in one
-    tick, and the painter-order shortcut is the ⛔ measured dead-end above. Filed the two
-    sub-pieces (depth composite; Shading bevel) as follow-up TODOs.
 
 ### CONCENTRIC — structural fix SHIPPED (3ac72b0 + 821ad0b), + one dead-end
 Was rendering vertical STRIPES instead of concentric rings. THREE bugs fixed:
@@ -616,49 +632,6 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
-- 2026-07-16d  ✅ CURTAINS (T-qcurtains01) — DONE, +2.34 dB (16.53 -> 18.87), gate 0 regressions / 1 improvement.
-              Root cause = retime-wrap TAIL collapse (f18-f23 held sepia photo A ≈(140,90,60), GT reveals blue
-              photo B ≈(92,106,137) as curtains open). Objects/Curtains is a SEQUENTIAL A→B swap MASKED by a
-              full-frame curtain graphic (Media/Sequence 3.mov, 96-frame yuvA clip on 3 media leaves alive
-              0->endSec): Transition A dies at 0.701s (=wrapSec) while curtains close, B is born LATE at 2.102s
-              (~1.4s gap) then lives to endSec, curtains open on B. The wrap-to-frame-0 froze the whole tail to
-              0.701s (curtains OPEN on A) so B never revealed. FIX (timemap.ts): new local `maskedSwapSettleB`
-              wrap-CANCEL — signature A.out≈wrapSec, B.in > A.out+2fr (sequential, NOT crossfade), B.out≥endSec-1fr,
-              ≥1 normal-blend media leaf alive to endSec. Distinct from pureCrossfadeSettleB (overlapping 2-zone).
-              Verified fires ONLY on Curtains (Leaves/Drop_In/Pinwheel all have B.in≈0 = overlapping, excluded).
-              REMAINING (filed follow-up): curtain graphic renders BLACK not RED (~15.6 dB mid plateau) — the
-              PAEColorize/tint on "Curtains Group" isn't reaching the .mov media (separate compositor issue).
-
-- 2026-07-16c  ⛔ SLIDE_IN (T-qslidein001) — BLOCKED, decode-only (no engine change), 3-subsystem build too
-              big for one net-positive tick. CENSUS (Rule 7/8) CONFIRMED the brief premise and reconciled the
-              stale "linear gradient fill" premise: Slide_In has ONE Gradient generator (factoryID=8, pluginUUID
-              40091D89) that (a) is NOT handled in determineImageSource (footage.ts:491) so it renders NOTHING
-              — the teal->lightblue panel is absent for f5-f18, causing the mid collapse (f12 = 6.6 dB; per-frame
-              28.6 dB@f0 -> 6.6@f12 -> 10.3@f23); (b) hosts BOTH a gradient-FILLED 'Rounded rect down' mask AND
-              a paint-stroke Emitter (factoryID=19)+Cell copy(20) 'Rounded rect up' — 10 emitters total, which is
-              why census flags [PAINT-STROKE]; (c) is driven by 8 Motion Path behaviors (factoryID=24), retimed,
-              which the engine does not implement. Salvage note (docs/notes/salvage/slide-in-three-missing-
-              subsystems.md) documents that EVERY partial subset REGRESSES: gradient-fill alone washes the frame
-              (7.73 < 8.55 black); broadening detectMask by tagName costs -1 dB on 8 gate slugs (FCT_LIFT_ALL_
-              MASKS scar); naive linear motion tween misses the arc-length/retime placement. Target is already at
-              12.11 dB >= DoD 12, so shipping a net-negative partial would violate Rule 2. FILED 3 focused
-              follow-ups (T-qcf704c6b gradient-fill+own-mask-clip narrowly gated on Motion-Path leaves;
-              T-q66b34d79 Motion Path shape-follower retime-aware; T-q1f2f0f55 paint-stroke Emitter rasteriser +
-              tail B-settle). No frames changed; gate untouched.
-- 2026-07-16b  ⛔ 3D_RECTANGLE (T-qrect3d0001) — BLOCKED, decode-only (no engine change). Re-decoded the
-              full scene graph from the .motr and CONFIRMED the existing ⛔ dead-end + brief premise:
-              drawn base = Transition B (10006, enabled); Transition A (10009) is <enabled>0> and only a
-              clone source; 27-node nested clone chain (Inside 01→08 filled rects, Shape 0N clones
-              masked by Inside 0(N-1)) driven by 2 Rig Behaviors on Inside 01 (Scale ./1/100/105 +
-              Position ./1/100/101, 7 anisotropic Snapshot columns) pushed to animated world-Z through
-              the Camera; Shading Widget Top/Left/Right @ op 0.48 (LinkOpacity ./1/200/202) = bevel
-              edges. MEASURED failure: GT B-ness (Blue−Red) −48(f7)→−30(f12)→+13(f16) as B fills in,
-              engine PINNED ≈−81 all frames ⇒ Transition B never enters the composite; full-frame masked
-              A quads occlude B in painter order (no per-pixel Z, no thin B seams). Fix = per-pixel
-              Z-buffered depth composite + Shading bevel — a multi-session subsystem, NOT landable
-              net-positive this tick, and the painter/layer-Z shortcut is the ⛔ measured dead-end
-              (net −1.19). Filed 2 follow-up TODOs (T-q98a30de5 depth composite; T-q9e13de30 Shading
-              bevel, --after). Score unchanged 16.48; gate untouched (no code edit).
 - 2026-07-16a  ✅ COMBO_SPIN SPIN SUBSYSTEM WIRED (L1) — 11.21→12.32 (+1.11), Heart +0.51, 0 regressions,
               new baseline 16.78 dB. ROOT CAUSE (Rule 7 decode, careful-coder bisect): the 6 blade
               groups C1-C6 each carry a "Spin LT/RT" (factory 22) behavior authored DIRECTLY on the

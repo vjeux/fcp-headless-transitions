@@ -1,0 +1,14 @@
+{
+  "id": "T-q11397f86",
+  "title": "Center Reveal generator-Z endSec inflation (3.0s vs 0.634s span)",
+  "project": "fct",
+  "goal": "Stylized/Center_Reveal's animationEndSec is 3.000s but its scene/playRange duration is 4868864/7680000=0.634s \u2014 a ~4.7x inflation. The inflation comes from the 'Grad middle'/'Grad ends' generator nodes' Z-Position (param id 206, axis Z) curves keyed to 3.0s (decode: fct census + curve walk). With the A/B binding now correct (T-qwipemask01 flipped masked 'Transition B'->transitionB, base 'Transition A'->transitionA; f00=38.42 confirms correct start), the reveal now plays over the 3.0s window at ~1/5 speed so the gradient-mask reveal barely progresses -> tail frames f17-f23 collapse to ~9 dB. FIX: cap/re-anchor the generator Z-Position-driven endSec to the true span (like the media-fit 313/314/318 exclusion and the generator-negOffset re-anchor already in parser/index.ts). The 'Grad middle' Z drives the gradient mask reveal; its 3.0s keyframe span is a padded generator timeline, not the visible transition. Gate: Center_Reveal up from 14.54, 0 reg. Was net -0.70 collateral of the correct binding flip (ROADMAP Rule 11).",
+  "slugs": [
+    "Stylized__Center_Reveal"
+  ],
+  "after": "T-qwipemask01",
+  "status": "open",
+  "created_by": "T-qwipemask01",
+  "created_at": "2026-07-16T11:34:06+00:00",
+  "notes": ""
+}

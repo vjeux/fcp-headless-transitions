@@ -691,6 +691,11 @@ export function parseMotr(xmlText: string): MotrScene {
       let node: any = (curve as any).parentNode;
       let ownerName = '';
       let skip = false;
+      // Set when the curve is a drop-zone media-fit conform curve (Object-block
+      // Width/Height/Fit-Factor, ids 313/314/318). Such a curve's keyframe time is
+      // CAPPED at the scene duration below (padding beyond the clip is not visible
+      // motion), while conform curves that stay inside the clip are unchanged.
+      let isConformCurve = false;
       let nodeOffsetSec = 0;
       // Camera-node local-frame re-anchor: a Camera scenenode with a LARGE-NEGATIVE
       // timeline offset authors its dolly/orientation curves in its own local time
@@ -733,6 +738,26 @@ export function parseMotr(xmlText: string): MotrScene {
           const nm = node.getAttribute('name') || '';
           if (!ownerName) ownerName = nm; // nearest enclosing parameter
           if (EXCLUDE_ANCESTORS.has(nm)) { skip = true; break; }
+          // DROP-ZONE MEDIA-FIT CONFORM params — the OZImageElement's media-sizing
+          // metadata under its <parameter name="Object" id="2"> block: Width (id 313),
+          // Height (id 314), Fit Factor (id 318). Motion keys them to CONFORM the
+          // drop-zone source into the media box (an editor/import-time fit). Those
+          // keyframes can run FAR past the true visible motion — Wipes/Mask keys
+          // Width/Height/Fit-Factor to 5.038s while its real wipe (the mask shapes'
+          // Scale) ends at the 1.301s scene span, a ~4× inflation that (with the
+          // corrected A/B binding) plays the reveal at ¼ speed so every rendered frame
+          // sits at the very start of the sweep. But some templates legitimately
+          // animate the conform WITHIN their clip (Stylized/Slide keys Width to 1.001s
+          // < its 1.068s duration; Dissolves/Divide likewise) — those are real media
+          // motion and must be kept. So do NOT skip the curve outright (that regressed
+          // Slide −0.6): mark it and CAP its keyframe time at the scene duration, the
+          // same treatment the NO-OP CURVE GUARD uses. A conform curve that stays
+          // inside the clip is unchanged; one that over-runs (padding) is clamped to
+          // the span. Keyed by the stable Object-block param IDs (never shape geometry
+          // — verified across the fleet: their parent is always the id=2 "Object" of an
+          // image/media factory node). Structural, not per-transition.
+          const pid = node.getAttribute('id') || '';
+          if (pid === '313' || pid === '314' || pid === '318') isConformCurve = true;
           // Any "* Over Stroke" ANCESTOR parametrises along the shape's STROKE
           // LENGTH (normalized 0..1), NOT along scene time — keypoints live at
           // time 0 and 1 and would wrongly inflate the animation end to 1.0s. This
@@ -975,7 +1000,12 @@ export function parseMotr(xmlText: string): MotrScene {
                   : (rawSec >= 0 ? rawSec + shiftAmt : rawSec);
           // A no-op curve (no value change) may only extend the window up to the
           // authored scene duration — never past it (see NO-OP CURVE GUARD above).
-          const secCapped = isNoOpCurve ? Math.min(sec, sceneDurSec) : sec;
+          // A drop-zone media-fit CONFORM curve (Object Width/Height/Fit-Factor, ids
+          // 313/314/318) is capped the same way: its keyframes CONFORM the source
+          // media box and can be authored far past the clip (Wipes/Mask → 5.038s vs
+          // 1.301s span); clamping to the span keeps a legitimately-in-clip conform
+          // (Slide's 1.001s < 1.068s) intact while discarding the over-run padding.
+          const secCapped = (isNoOpCurve || isConformCurve) ? Math.min(sec, sceneDurSec) : sec;
           if (secCapped > maxT) maxT = secCapped;
         }
       }
