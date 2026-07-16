@@ -672,6 +672,30 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16h  🔧 SWING (T-qswing00001 WIP, gate 0/0) — landed the reusable per-pixel Z-BUFFERED
+              perspective rasterizer (perspective.ts::projectQuadWithWorldZ +
+              renderPerspectiveQuadDepth + CAMERA_Z_DEFAULT export). Motion depth convention
+              pinned by unit test: smaller world-Z = closer to camera; a near quad WINS pixels
+              over a farther overlapping quad regardless of paint order (perspective.test.ts
+              +4 cases). NOT WIRED into renderChildLayers yet — the WIRING requires an upstream
+              anchor/rotation-sign decode per family (see below). Filed follow-ups so the
+              plumbing can be consumed once the decode lands:
+                • T-q98a30de5 (already open) — 3D_Rectangle Z-buffer over B, reuses these helpers
+                • T-qswinganchor (NEW) — Swing rig-widget decode (anchor picks Bottom for
+                  Anchor=2 "Top"; `-rotX` negation calibrated for Fall inverts Swing's wedge)
+              REPRODUCED the empirical dead-end from the T-qrect3d0001 write-up (whole-quad
+              z-sort net-negative): the naive "compare each clone's origin wz once, paint back
+              then front" branch regressed Swing 12.89→12.58 (−0.31 dB); depth-buffering the
+              clones with the CURRENT engine worldTransforms landed at 12.89→12.63 (still net
+              negative) because the two projected quads share BOTTOM-anchor origin (world y=540,
+              z=−9 vs +297) — NOT the top-hinge the task-brief decode assumed — and rotate in
+              matching (not opposite) directions once `-rotX` is applied to both. i.e. the
+              per-pixel depth math is CORRECT, the geometry FEEDING it is wrong. Ship the
+              helpers + tests only, so the downstream tick can hook without re-deriving the
+              rasterizer. Files: engine/src/compositor/perspective.ts (+154 lines),
+              engine/test/perspective.test.ts (+4 test cases). Baseline untouched. Task
+              status: open; queued after T-qswinganchor.
+
 - 2026-07-16g  ✅ FILTER APPLY ORDER (T-qb697c0d4) — parser now reverses the per-layer <filter> list so
               filters apply in bottom-up XML order (LAST listed first, matching Motion's Inspector
               stack: top = last applied). Objects/Curtains 16.53 → 21.29 (+4.76 dB): the .motr's

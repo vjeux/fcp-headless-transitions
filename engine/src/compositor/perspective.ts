@@ -60,6 +60,12 @@ function blendPixel(
   data[di + 3] = Math.round(outA * 255);
 }
 
+/** Public — the reference camera distance used across the compositor. Exposed
+ * so downstream depth-composite paths (e.g. the two-sided-card / 3D_Rectangle
+ * z-buffer builds) can translate a per-pixel projective scale back to world-Z.
+ */
+export const CAMERA_Z_DEFAULT = DEFAULT_CAMERA_Z;
+
 /**
  * Project a 3D point (in Motion centered coords) to 2D screen coords with perspective.
  * @param x, y, z - 3D point (centered, Y-up, Z toward viewer)
@@ -321,6 +327,173 @@ function rasterizeTriangle(
         dst.data[dIdx + 2] = Math.round((sb * sa + dst.data[dIdx + 2] * da * (1 - sa)) / outA);
         dst.data[dIdx + 3] = Math.round(outA * 255);
       }
+    }
+  }
+}
+
+// ============================================================================
+// PER-PIXEL Z-BUFFERED PERSPECTIVE RASTERIZER
+// (shared infrastructure for Movements/Swing + Replicator-Clones/3D_Rectangle
+// families — both need per-pixel depth to composite overlapping camera-projected
+// quads whose ORDER doesn't uniquely determine visibility.)
+// ============================================================================
+//
+// WHY THIS EXISTS. Painter's-order (draw farthest-to-nearest) only produces the
+// correct composite when the quads are FULLY orderable by their world-Z origin —
+// i.e. every pixel of quad A is either uniformly closer or uniformly farther than
+// every pixel of quad B. Two families in FCP's built-in transitions violate that:
+//   • Movements/Swing: two clone children share an anchor with π/2-apart static
+//     rotationX (0 vs ±π/2) and rotate together via a parent Ramp. Mid-swing
+//     BOTH projected quads span the frame and their surfaces INTERSECT — no
+//     single global order paints the two-sided-card reveal correctly.
+//   • Replicator-Clones/3D_Rectangle: 27-node nested clone chain of camera-
+//     projected masked A-rectangles over a B base; adjacent A quads overlap and
+//     leave THIN B seams that only appear when depth is resolved per pixel.
+// A whole-quad z-sort (compare origin wz once, paint back-then-front) is the
+// measured dead-end for both scenes: 3D_Rectangle net −1.19 (ROADMAP ⛔ block),
+// Swing 12.89 → 12.58 on a T-qswing00001 experiment.
+//
+// DEPTH CONVENTION. `projectPoint(x, y, z, cameraZ) = (x·s, y·s, s)` where
+// `s = cameraZ / (cameraZ + wz)` ⇒ `wz = cameraZ · (1/s − 1)`. Motion's rule
+// (verified against camera-less Fall + Rotate): SMALLER world-Z = CLOSER to
+// camera; positive Z recedes. We interpolate `wz/s` per pixel with the SAME
+// perspective-correct trick used for UV: divide by w at each corner, interpolate
+// linearly across the triangle, divide by the interpolated `1/s`.
+//
+// STATUS. Ready to hook. Not yet wired into `renderChildLayers` — the WIRING
+// requires an upstream ANCHOR / ROTATION-SIGN decode per family (Swing's rig
+// widget selects "Top" but the engine's worldTransform anchors the pair at
+// frame_y≈630, and `-rotX` negation in evaluator/index.ts was calibrated for
+// Fall; 3D_Rectangle needs the clone-source Image-Mask BAKE to feed the depth
+// pass its 25 masked rectangles). Unit-tested here (perspective.test.ts) to
+// pin the projection + depth-compare semantics so those upstream ticks can
+// consume this infrastructure without re-deriving the math.
+
+/** Project a quad and also return world-Z per corner. Same order as projectQuad. */
+export function projectQuadWithWorldZ(
+  worldTransform: Float64Array,
+  srcWidth: number,
+  srcHeight: number,
+  cameraZ: number = DEFAULT_CAMERA_Z
+): Array<[number, number, number, number]> {
+  const hw = srcWidth / 2;
+  const hh = srcHeight / 2;
+  const localCorners: Array<[number, number]> = [
+    [-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh],
+  ];
+  const out: Array<[number, number, number, number]> = [];
+  for (const [lx, ly] of localCorners) {
+    const wx = worldTransform[0] * lx + worldTransform[4] * ly + worldTransform[12];
+    const wy = worldTransform[1] * lx + worldTransform[5] * ly + worldTransform[13];
+    const wz = worldTransform[2] * lx + worldTransform[6] * ly + worldTransform[14];
+    const [sx, sy, s] = projectPoint(wx, wy, wz, cameraZ);
+    out.push([sx, sy, s, wz]);
+  }
+  return out;
+}
+
+/** Rasterize ONE clone of a two-sided card into `dst`, updating a shared per-pixel
+ * `zbuf` (world-Z; smaller = closer). A pixel is written iff the interpolated
+ * world-Z at that pixel is <= the current zbuf entry (Motion's near-wins rule).
+ * Same perspective-correct UV interpolation as renderPerspectiveQuad. `zbuf`
+ * is Float64Array of length dst.width*dst.height, initialised by the caller
+ * (Infinity = "no coverage yet"). Only used for the two-sided-card depth pass. */
+export function renderPerspectiveQuadDepth(
+  dst: ImageData,
+  zbuf: Float64Array,
+  src: ImageData,
+  cornersWithZ: Array<[number, number, number, number]>,
+  opacity: number,
+): void {
+  const dw = dst.width, dh = dst.height;
+  // Screen-pixel corners: same Y-DOWN convention as renderPerspectiveQuad.
+  const pts = cornersWithZ.map(([x, y, w, wz]) =>
+    [x + dw / 2, dh / 2 + y, w, wz] as [number, number, number, number]);
+  const [TL, TR, BR, BL] = pts;
+  const uvs: Array<[number, number]> = [[0, 0], [1, 0], [1, 1], [0, 1]];
+  const tris = [
+    [0, 1, 2], // TL, TR, BR
+    [0, 2, 3], // TL, BR, BL
+  ];
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const [px, py] of pts) {
+    minX = Math.min(minX, px); maxX = Math.max(maxX, px);
+    minY = Math.min(minY, py); maxY = Math.max(maxY, py);
+  }
+  const x0 = Math.max(0, Math.floor(minX)), x1 = Math.min(dw - 1, Math.ceil(maxX));
+  const y0 = Math.max(0, Math.floor(minY)), y1 = Math.min(dh - 1, Math.ceil(maxY));
+  for (const [ia, ib, ic] of tris) {
+    rasterizeDepthTri(dst, zbuf, src,
+      pts[ia], pts[ib], pts[ic],
+      uvs[ia], uvs[ib], uvs[ic],
+      opacity, x0, x1, y0, y1);
+  }
+}
+
+function rasterizeDepthTri(
+  dst: ImageData, zbuf: Float64Array, src: ImageData,
+  pa: [number, number, number, number],
+  pb: [number, number, number, number],
+  pc: [number, number, number, number],
+  uva: [number, number], uvb: [number, number], uvc: [number, number],
+  opacity: number, bx0: number, bx1: number, by0: number, by1: number,
+): void {
+  const dw = dst.width;
+  const sw = src.width, sh = src.height;
+  const [ax, ay, aw, awz] = pa, [bx, by, bw, bwz] = pb, [cx, cy, cw, cwz] = pc;
+  const area = (bx - ax) * (cy - ay) - (cx - ax) * (by - ay);
+  if (Math.abs(area) < 1e-9) return;
+  const invArea = 1 / area;
+  // Perspective-correct: divide (u,v,wz) by w, interpolate, then multiply back by 1/(sum w0/w).
+  const iwa = 1 / aw, iwb = 1 / bw, iwc = 1 / cw;
+  const ua = uva[0] * iwa, va = uva[1] * iwa;
+  const ub = uvb[0] * iwb, vb = uvb[1] * iwb;
+  const uc = uvc[0] * iwc, vc = uvc[1] * iwc;
+  const za = awz * iwa, zb = bwz * iwb, zc = cwz * iwc;
+  const triMinX = Math.max(bx0, Math.floor(Math.min(ax, bx, cx)));
+  const triMaxX = Math.min(bx1, Math.ceil(Math.max(ax, bx, cx)));
+  const triMinY = Math.max(by0, Math.floor(Math.min(ay, by, cy)));
+  const triMaxY = Math.min(by1, Math.ceil(Math.max(ay, by, cy)));
+  for (let y = triMinY; y <= triMaxY; y++) {
+    for (let x = triMinX; x <= triMaxX; x++) {
+      const px = x + 0.5, py = y + 0.5;
+      const w0 = ((bx - px) * (cy - py) - (cx - px) * (by - py)) * invArea;
+      const w1 = ((cx - px) * (ay - py) - (ax - px) * (cy - py)) * invArea;
+      const w2 = 1 - w0 - w1;
+      if (w0 < 0 || w1 < 0 || w2 < 0) continue;
+      const iw = w0 * iwa + w1 * iwb + w2 * iwc;
+      const invIw = 1 / iw;
+      const u = (w0 * ua + w1 * ub + w2 * uc) * invIw;
+      const v = (w0 * va + w1 * vb + w2 * vc) * invIw;
+      const wz = (w0 * za + w1 * zb + w2 * zc) * invIw;
+      // Depth compare: smaller world-Z = closer to camera (Motion convention).
+      const zi = y * dw + x;
+      if (wz >= zbuf[zi]) continue; // farther than existing coverage: skip
+      // Sample source texture (bilinear).
+      const sx = u * sw - 0.5, sy = v * sh - 0.5;
+      const fx = sx - Math.floor(sx), fy = sy - Math.floor(sy);
+      const sx0 = Math.max(0, Math.min(sw - 1, Math.floor(sx)));
+      const sy0 = Math.max(0, Math.min(sh - 1, Math.floor(sy)));
+      const sx1 = Math.min(sw - 1, sx0 + 1), sy1 = Math.min(sh - 1, sy0 + 1);
+      const i00 = (sy0 * sw + sx0) * 4, i10 = (sy0 * sw + sx1) * 4;
+      const i01 = (sy1 * sw + sx0) * 4, i11 = (sy1 * sw + sx1) * 4;
+      const gx = 1 - fx, gy = 1 - fy;
+      const w00b = gx * gy, w10b = fx * gy, w01b = gx * fy, w11b = fx * fy;
+      const sr = src.data[i00]   * w00b + src.data[i10]   * w10b + src.data[i01]   * w01b + src.data[i11]   * w11b;
+      const sg = src.data[i00+1] * w00b + src.data[i10+1] * w10b + src.data[i01+1] * w01b + src.data[i11+1] * w11b;
+      const sb = src.data[i00+2] * w00b + src.data[i10+2] * w10b + src.data[i01+2] * w01b + src.data[i11+2] * w11b;
+      const salpha = src.data[i00+3] * w00b + src.data[i10+3] * w10b + src.data[i01+3] * w01b + src.data[i11+3] * w11b;
+      const sa = salpha / 255 * opacity;
+      if (sa <= 0) continue;
+      // Winner: overwrite dst pixel (both clones own their own pixel outputs — no
+      // blend, because the DEPTH decides which surface owns the pixel; the loser
+      // would leak through if we source-over'd instead).
+      const di = zi * 4;
+      dst.data[di]     = Math.round(sr);
+      dst.data[di + 1] = Math.round(sg);
+      dst.data[di + 2] = Math.round(sb);
+      dst.data[di + 3] = Math.round(sa * 255);
+      zbuf[zi] = wz;
     }
   }
 }

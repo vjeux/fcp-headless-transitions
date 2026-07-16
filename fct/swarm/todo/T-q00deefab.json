@@ -1,0 +1,14 @@
+{
+  "id": "T-q00deefab",
+  "title": "Swing anchor + rotation-sign decode (must land before per-pixel Z hook)",
+  "project": "fct",
+  "goal": "Movements/Swing 12.89 dB. The per-pixel Z-buffer plumbing is ALREADY LANDED (perspective.ts::projectQuadWithWorldZ + renderPerspectiveQuadDepth + CAMERA_Z_DEFAULT, unit-tested by perspective.test.ts). Depth math is verified: smaller world-Z wins pixels. What BLOCKS hooking it in Swing's render path (renderChildLayers) is upstream geometry \u2014 reproduced empirically on T-qswing00001: with the CURRENT engine worldTransforms, a per-pixel depth composite of the 2 clone children lands at 12.63 dB (\u22120.26 vs 12.89 baseline), and a whole-quad z-sort lands at 12.58 (\u22120.31). The FEED to the depth pass is wrong, not the compositor. TWO specific decode bugs to resolve here: (a) ANCHOR SELECTION \u2014 Swing.motr Anchor widget stores value=2 with menu tags [Right=0, Left=1, Top=2, Bottom=3], so 2 means \"Top\". But my probe of Movements__Swing f10 shows BOTH clones with anchor=(0, 540, 0), which in Motion Y-DOWN is frame BOTTOM (not Top). Verify the rig-widget path: parser/rig.ts + evaluator/index.ts anchor resolution, and whether the value-remap analogous to Push's factoryID-13 tag-vs-index bug applies here. (b) ROTATION-SIGN \u2014 evaluator/index.ts:311 negates  (calibrated for Fall/top-back tilt). On Swing this makes both clones matrix-rotate in the SAME direction as the Ramp progresses (not opposite as the two-sided-card pattern requires). At f10 my probe measured Clone A matrix \u03b8 \u2248 -33\u00b0 and Clone B \u2248 +57\u00b0; the difference IS \u03c0/2 (correct) but the relationship to camera-facing is inverted vs the GUI GT (GT shows Photo B occupying top ~55% of frame at f10; engine renders A almost fully covering the frame). Once these decodes ship, hook the pair in renderChildLayers by (i) restoring detectTwoSidedCard in geometry.ts (2 clone children, static perpendicular rotationX, distinct cloneSourceIds \u2014 see prior WIP commit) and (ii) calling projectQuadWithWorldZ + renderPerspectiveQuadDepth on a shared Float64Array zbuf initialised to Infinity, in place of the current painter's-order children loop. DoD: Swing measurably up (>0.3 dB target), gate 0 regressions, no-hardcode.test.ts registers the detector (fires on \u22652 built-ins \u2014 the two-sided-card pattern MUST be corpus-searched first).",
+  "slugs": [
+    "Movements__Swing"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qswing00001",
+  "created_at": "2026-07-16T18:55:35+00:00",
+  "notes": ""
+}
