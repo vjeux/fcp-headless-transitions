@@ -40,7 +40,7 @@
  */
 import type { MotrScene, Layer, Curve, RationalTime } from '../types.js';
 
-export type Reveal360 = 'push' | 'slide' | 'crossfade' | 'wipe' | 'divide' | 'circle';
+export type Reveal360 = 'push' | 'slide' | 'crossfade' | 'wipe' | 'wipe360h' | 'divide' | 'circle';
 
 export interface Band360Config {
   mode: Reveal360;
@@ -128,7 +128,7 @@ export function detect360Band(scene: MotrScene): Band360Config | null {
     || scene.rigWidgets.some(w => w.name === 'Slices');
   if (hasWipeRig) {
     if (wnames.has('Slices')) return { mode: 'divide', dir, w0: 0.26, w1: 0.42 };
-    if (wnames.has('Direction')) return { mode: 'wipe', dir, w0: 0.26, w1: 0.48 };
+    if (wnames.has('Direction')) return { mode: 'wipe360h', dir, w0: 0.057, w1: 0.186 };
     if (wnames.has('Soften Edges')) return { mode: 'wipe', dir, w0: 0.26, w1: 0.42 };
     return { mode: 'circle', dir, w0: 0.30, w1: 0.48 };
   }
@@ -315,6 +315,45 @@ export function render360Band(
     const aOp = crossfadeAlphaA(cfg, progress);
     drawFull(out, imageB, 0, outW, outH, 1, null);
     drawFull(out, imageA, 0, outW, outH, aOp, null);
+    return out;
+  }
+
+  if (cfg.mode === 'wipe360h') {
+    // EQUIRECT 360° WIPE (Direction rig) — decoded 2026-07-16 from the GUI GT
+    // per-column A/B classifier (W=1920). Unlike a generic full-frame wipe, the
+    // 360° Wipe splits the frame at CENTRE and reveals B only in the RIGHT HALF
+    // (for dir=+1 / East), with A holding at home in the complement:
+    //   - LEFT half  (x < W/2): source A at HOME (identity), stays put.
+    //   - RIGHT half (x >= W/2): source B at HOME, uncovered by an edge that
+    //     sweeps from the frame CENTRE (c0 = W/2) outward toward the right edge.
+    // DECODED EDGE ADVANCE (rightmost B column − c0, per frame f, N=24):
+    //     f01 p=0.042 width=0     f02 p=0.083 width=209   f03 p=0.125 width=479
+    //     f04 p=0.167 width=829   f05 p=0.208 width=959(=W/2, SATURATED, holds).
+    //   A least-squares line through the unsaturated frames (f2..f4) gives
+    //     width = 7440·p − 424  (px), i.e. width crosses 0 at p0≈0.057 and reaches
+    //     W/2 at p≈0.186 — hence w0=0.057, w1=0.186 with width = t·(W/2). The
+    //     wedge SATURATES at half-frame (B never covers the left half until the
+    //     final settle at progress 1, where the whole frame is B). Both panoramas
+    //     stay at HOME (no yaw) — verified: the left half's per-column best model
+    //     is A@home and the right half's is B@home to within JPEG noise.
+    const c0 = 0.5 * outW;                       // wipe boundary anchor = frame centre
+    let t = (progress - (cfg.w0 ?? 0.057)) / ((cfg.w1 ?? 0.186) - (cfg.w0 ?? 0.057));
+    if (t < 0) t = 0; if (t > 1) t = 1;
+    // The wipe SATURATES at half-frame from f05 (p≈0.208) through f22 (p≈0.917),
+    // then FCP SNAPS to the full B panorama on the final frame f23 (p≈0.958,
+    // fracB=1.000 in the GT). fct samples the half-open grid p=i/24, so the last
+    // frame lands at 23/24≈0.958; a settle threshold of 0.94 (between f22=0.917 and
+    // f23=0.958) reproduces the terminal snap to full B without touching the hold.
+    const settled = progress >= 0.94;
+    const halfWidth = t * (0.5 * outW);          // covered span from centre, ≤ W/2
+    const bMask: Mask = (x) => {
+      if (settled) return 1;
+      // dir=+1: B fills [c0, c0+halfWidth); dir=−1: B fills (c0−halfWidth, c0].
+      const d = (x - c0) * cfg.dir;              // signed distance from centre
+      return (d >= 0 && d < halfWidth) ? 1 : 0;
+    };
+    drawFull(out, imageA, 0, outW, outH, 1, null);
+    drawFull(out, imageB, 0, outW, outH, 1, bMask);
     return out;
   }
 

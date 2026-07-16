@@ -704,6 +704,20 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16q  ✅ 360° WIPE CENTRE-HALF SWEEP (T-qwipe360001 DONE) — **360°__360°_Wipe 14.23 → 16.45
+              (+2.22 dB)**, gate net-positive (0 real regressions; Leaves −0.42/Switch/Color_Panels
+              are pre-existing stale-baseline phantoms, re-render confirms Leaves 22.36≈22.44). New
+              360°-only reveal mode `wipe360h` in transition360.ts, routed from the `Direction` wipe
+              rig (the same structural slot that used to return generic `mode:'wipe'`). Decoded from
+              the GUI GT per-column A/B classifier (W=1920): the 360° Wipe is NOT a full-frame wipe —
+              it splits at frame CENTRE and reveals B only in the RIGHT HALF (A holds home in the
+              left complement). Boundary sweeps from c0=W/2 outward: f01 width=0, f02=209, f03=479,
+              f04=829, f05=959(=W/2 SATURATED, holds f05-f22), then f23 SNAPS to full B (fracB=1.000).
+              LSQ line through unsaturated f2-f4 → width=7440·p−424 ⇒ w0=0.057, w1=0.186, width=t·(W/2);
+              terminal snap via settle threshold p≥0.94 (between f22=0.917 and f23=0.958 on the i/24
+              half-open grid). Both panoramas stay at HOME (best B yaw ≈ 0). Reveal_Wipe (Soften Edges)
+              and Circle/Divide untouched — verified 18.73 / 23.04 unchanged. tsc + no-hardcode green.
+
 - 2026-07-16p  📝 SWITCH A/B INVERSION DECODE (T-q7b464494 WIP, docs-only, gate 0/0) — deep decode of
               Movements__Switch's remaining inversion after T-qff1b6de2 landed 12.31→14.67. Empirical
               symptom: engine f01-f06 render only Trans B (heavily rotated), Trans A is COMPLETELY
