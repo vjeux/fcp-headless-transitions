@@ -509,6 +509,22 @@ tone issue (the drop-zone conform capability), not the shuffle.
   family-by-family, gate all 65 after each, never commit red. Bloom-float is decoded but its
   threshold TEMPORAL ONSET over-blooms (FCT_BLOOM_FLOAT ON regresses Lights_Bloom −1.0, 360°_Bloom
   −1.1) — stays OFF until the onset is decoded.
+  **⛔ 360°_Bloom is NOT a colour-space slug — REFUTED 2026-07-16 (T-qbloomlin01).** Census +
+  measurement: the three filters (Gaussian Blur, Glow, Bloom) sit on the GROUP wrapping A+B;
+  the A/B split is a HARD CUT at t=0.1333s (A timing out=20480/153600=0.1333s; B in=0.1333s
+  out=0.25s — NO crossfade). GUI-GT peak f13–14 = warm-white (255,227,199) i.e. bloomed A HELD
+  across the cut; the engine (any bloom path) shows bloomed **B** (cool) there because content-time
+  has already switched to B at f13. So the peak collapse (f13–17 ≈6–8 dB) is the documented
+  **BLOCKER-B content-time hold**, not colour space. A LINEAR-light bloom (extract/blur/add in
+  linear, encode once — implemented + MEASURED on 360°_Bloom GUI GT) is WORSE than the sRGB float
+  path: MEAN 9.04 (linear) < 10.48 (sRGB float) < 11.51 (shipping OFF), and it collapses the
+  darkening tail f18–23 to 1.8–6.4 dB (the ×10 extract on small linear values over-blooms residual
+  highlights). Warm-ratio hypothesis (linear add clips R first, keeps warm) is FALSE here — linear
+  peak f13 = (215,222,223), even LESS warm than sRGB. Net: the L4 colour-space fix does not apply
+  to 360°_Bloom; it needs (1) the threshold-onset curve decode AND (2) the content-time hold
+  (hold bloomed-A across the A→B hard cut while the filter time plays through). Both are separate,
+  already-documented undecoded subsystems. Do NOT re-attempt a linear/float bloom flip on this
+  slug expecting a colour-space win — it regresses. See queue item for the content-time-hold work.
 - **L5 gradient generator (coupled to masks):** all 3 (Slide_In/Center_Reveal/Light_Sweep) have a
   `<mask>` sibling clipping the gradient. Census: Slide_In gradient is a PAINT-STROKE emitter (NOT
   a fill); Center_Reveal has two Gradient fills + Gaussian + 2 Image Masks + 6 colour Links.
@@ -593,25 +609,18 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
-- 2026-07-16b  ⛔ CLOSE_AND_OPEN (T-qpanellead1) BLOCKED — no ship. Census CONFIRMED the premise's
-              structure: the "Transition Drop Zones" group (999094061) carries a CROSS-CONTAINER
-              Image Mask (imageMaskSourceId=989704929 "Mask shapes", Invert=1) sourced by a SIBLING
-              group of Top(989706176)/Bottom(989707439) closing shapes; the teal seen mid-transition
-              is the decorative "Top shapes"(op0.79)/"BG shapes"(op0.91) panel groups rendered BEHIND,
-              revealed through the mask holes. I wired the cross-container drop-zone mask path
-              (renderChildLayers: non-descendant shape-geom group + all-visible-children-are-dropzones)
-              and it was NET-NEGATIVE 12.61→10.83, so REVERTED (Rule 2). ROOT BLOCKER is upstream in
-              the EVALUATOR, not the compositor: the Top/Bottom mask-shape Y-position decodes WRONG —
-              worldTransform ty 911→593→373(f4 near-closed)→430→909(f8 back OUT) and opacity→0 at f10,
-              i.e. it bounces in-then-out and vanishes instead of closing MONOTONICALLY by ~f11 and
-              HOLDING through ~f15 (GT means: f0-f11 warm A→teal, f11-f15 held teal 11/38/38, f16-f23
-              open to cool B 92/106/137). resolveImageMaskAlpha returns NULL at f10+ (no eligible
-              geometry) = no occlusion exactly where GT is fully closed. The panels are factory-13
-              shapes driven by an Emitter/replicator (989706183, Cell timing out=5893888/7680000) — the
-              close-hold-open envelope is in a Sequence/retime the evaluator mis-samples. Filed
-              follow-up T-q29039791 (decode that curve FIRST, then the mask wiring is a small
-              net-positive). This is the kinetic-panel subsystem, too big for one gate-verifiable task
-              via the compositor alone.
+- 2026-07-16b  ⛔ 360°_Bloom (11.51 dB, L4 LEAD) — LINEAR-CHAIN PREMISE REFUTED (T-qbloomlin01, BLOCKED).
+              Decode-first census: 3 filters (Gaussian Blur/Glow/Bloom) on the GROUP over A+B; A/B is a
+              HARD CUT at t=0.1333s (A out=20480/153600, B in=0.1333 out=0.25, NO crossfade). GUI-GT peak
+              f13–14=(255,227,199) warm-white = bloomed **A held across the cut**; engine shows bloomed
+              **B** (cool) there → the f13–17 collapse (~6–8 dB) is the documented BLOCKER-B content-time
+              hold, NOT colour space. Implemented + MEASURED a full LINEAR-light bloom (extract/blur/add in
+              linear, encode once): MEAN 9.04 < 10.48 (sRGB float) < 11.51 (shipping OFF), tail f18–23
+              collapses to 1.8–6.4 (×10 extract on small linear values over-blooms residuals). Warm-ratio
+              hypothesis FALSE (linear peak (215,222,223) is LESS warm). Reverted the dead-end code (no
+              gate-neutral no-op shipped). Recorded in dead-ends; filed follow-up for the content-time hold.
+              Gate untouched (default path byte-identical). NET: no colour-space win exists on this slug.
+
 - 2026-07-16a  ✅ COMBO_SPIN SPIN SUBSYSTEM WIRED (L1) — 11.21→12.32 (+1.11), Heart +0.51, 0 regressions,
               new baseline 16.78 dB. ROOT CAUSE (Rule 7 decode, careful-coder bisect): the 6 blade
               groups C1-C6 each carry a "Spin LT/RT" (factory 22) behavior authored DIRECTLY on the
