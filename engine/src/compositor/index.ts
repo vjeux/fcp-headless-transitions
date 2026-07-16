@@ -467,7 +467,28 @@ function renderCloneLayer(rctx: RenderContext, output: ImageData, evalLayer: Eva
       const cloneMasks = evalLayer.children
         .filter(c => c.layer.type === 'shape' && c.layer.shape?.isMask && c.visible)
         .map(c => rasterizeShape(c.layer.shape!, output.width, output.height, c.worldTransform));
-      if (cloneMasks.length > 0) {
+      // A clone may reference a rig-selected Image Mask via `imageMaskSourceId`
+      // (mirrors renderMedia's imageMaskSourceId branch above). Decoded from
+      // Replicator-Clones/Concentric: each "Clone B copy N" ring has an
+      // imageMaskSourceId pointing at a ring-shaped shape/group, which clips the
+      // cloned B pixels into rings woven with A. Without this branch the clone
+      // renders full-frame B and the ring geometry is invisible. Generic:
+      // mirrors exactly what renderMedia does (blit to temp, apply mask, direct
+      // composite) — no per-transition hardcoding.
+      const cloneMaskAlpha = layer.imageMaskSourceId !== undefined
+        ? resolveImageMaskAlpha(rctx, layer.imageMaskSourceId, output.width, output.height, layer.imageMaskInvert)
+        : null;
+      if (cloneMaskAlpha) {
+        const temp = createBuffer(output.width, output.height);
+        if (needsPerspective(worldTransform)) {
+          const corners = projectQuad(worldTransform, src.width, src.height, rctx.cameraZ ?? 2000);
+          renderPerspectiveQuad(temp, src, corners, 1.0, 'normal');
+        } else {
+          blitTransformed(temp, src, worldTransform, 1.0, crop, 'normal', blitDstBBox(temp, src, worldTransform, crop));
+        }
+        applyMask(temp, cloneMaskAlpha);
+        blitDirect(output, temp, opacity, layer.blendMode);
+      } else if (cloneMasks.length > 0) {
         const temp = createBuffer(output.width, output.height);
         if (needsPerspective(worldTransform)) {
           const corners = projectQuad(worldTransform, src.width, src.height, rctx.cameraZ ?? 2000);

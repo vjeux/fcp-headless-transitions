@@ -697,6 +697,29 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16o  ✅ CONCENTRIC CLONE IMAGE-MASK (T-qconcentric1 DONE) — **Replicator-Clones__Concentric
+              12.67 → 13.38 (+0.71 dB)**. `renderCloneLayer` now honors a clone layer's own
+              `imageMaskSourceId` (rig-selected Image Mask) — mirroring exactly what `renderMedia`
+              already does for regular layers. Decoded: each "Clone B copy N" ring in Concentric
+              has an `imageMaskSourceId` pointing at a ring-shaped mask shape/group; the previous
+              code only handled shape-geometry `isMask` children, so ring clones rendered full-frame
+              B and the woven bullseye was invisible. Additive branch: if the clone has an
+              `imageMaskSourceId`, blit source through worldTransform to a temp, `applyMask` with
+              `resolveImageMaskAlpha`, then composite — otherwise fall through to the pre-existing
+              shape-mask / perspective / direct-blit paths (byte-identical for all other clones).
+              Generic (fires on any clone with `imageMaskSourceId` — no per-transition hardcoding).
+              3D_Rectangle 16.79→16.48 (−0.31, small/acceptable — a clone in that scene picks up a
+              mask it did not previously honor; net +0.40 across the two affected slugs).
+- 2026-07-16o  ✅ CONCENTRIC CLONE IMAGEMASKSOURCEID (T-qconcentric1 DONE) — **Replicator-Clones__Concentric
+              12.67 → 13.38 dB (+0.71)**. `renderCloneLayer` now honors a clone's own
+              `imageMaskSourceId` (mirrors what `renderMedia` already does) — before this fix a
+              clone's Image Mask was silently ignored because the clone path only handled
+              shape-geometry `isMask` children. Decoded from Concentric: each "Clone B copy N"
+              ring references a ring-shaped shape/group via `imageMaskSourceId`; without the fix
+              every ring clone rendered full-frame B and the woven bullseye was invisible. Fix is
+              purely additive (new `cloneMaskAlpha` branch inserted before the existing
+              `cloneMasks` shape-mask branch — no changes to any other branch). Generic: fires on
+              any clone that carries an `imageMaskSourceId`. tsc + no-hardcode green.
 - 2026-07-16n  ✅ CENTER WRAP-TO-A NARROW GATE (T-qcenter0001 DONE) — **6 slugs improved, 0 regressions
               caused**. Narrowed the wrapToA `bDropZoneAliveAtEnd` disable-gate so it only fires
               when the alive-at-end transitionB has its curves anchored at scene time (retime shift
