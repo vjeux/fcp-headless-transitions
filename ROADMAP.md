@@ -412,7 +412,9 @@ STRIPES instead of concentric rings. THREE bugs, all now fixed:
 
 The wall dolly currently frames ~1 tile where GT reveals the full grid; the framing-camera
 pose (`compositor/geometry.ts` + `evaluator/framing.ts`, `FRAMING_VIEW_ENABLED`) is partial.
-Combo_Spin renders only flat B (its 6-blade replicator spiral doesn't render at all).
+Combo_Spin's 6-blade counter-rotating pinwheel NOW RENDERS (spin subsystem shipped 2026-07-16a,
+11.21→12.32); its remaining gap is the per-blade A/B fade-crossfade timing (reveals B too early
+mid-transition), not the spin geometry.
 
 **VIDEO_WALL — DEEPER ROOT CAUSE DECODED 2026-07-15 (the recorded "framing pose" diagnosis was
 incomplete).** The engine's `timeMap.remap()` COLLAPSES ALL scene times to 0 for Video_Wall:
@@ -700,6 +702,69 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
+
+- 2026-07-16a  ✅ COMBO_SPIN SPIN SUBSYSTEM WIRED (L1) — 11.21→12.32 (+1.11), Heart +0.51, 0 regressions,
+              new baseline 16.78 dB. ROOT CAUSE (Rule 7 decode, careful-coder bisect): the 6 blade
+              groups C1-C6 each carry a "Spin LT/RT" (factory 22) behavior authored DIRECTLY on the
+              <group> element, but `parseLayerElement` (which parses <group>/<layer>) OMITTED
+              `behaviors:` from its returned Layer — only `parseSceneNode` (for <scenenode>) parsed
+              them. So every group-level Spin (and Fade/Ramp) was silently DROPPED: the blades never
+              rotated, and the engine rendered a hard A→B CUT at f05 (frozen A f00-04, frozen B
+              f05-23, per-frame diff 0.00 except one 73.2 jump) — NOT a timemap freeze (wrapSec=none,
+              time advanced fine), the CONTENT was static because the spin transform was missing.
+              FIX (2 parts, generic, no per-transition constant): (1) parser/index.ts — add
+              `behaviors: parseLayerBehaviors(el, factories)` to parseLayerElement's return (also
+              surfaced Heart's group Fade → +0.51 free); (2) evaluator applySpinBehaviors — decoded
+              from OZTransformNode::computeSpin (Spin Rate id=400 is RAD/SEC): angleZ(t)=rate*(clamp
+              (t,in,out)-in), radians, held after `out`, composed as a local-space Z rotation via
+              tx.__spinRadians (added to rotationZ in buildTransformMatrix so the blade pivots about
+              its own anchor). SCOPED to layers carrying a type='spin' behavior (PLAYBOOK: a GLOBAL
+              spin regresses Vertigo/Leaves). Combo rate 3.2468 rad/s × 0.9676s = exactly π (the
+              counter-rotating LT/RT blade flip). METHOD NOTE: the contended `gen --all` first
+              reported Squares −2.09 / Veil −6.8 — both FALSE (transient JPEG/contention artifacts:
+              re-rendered in isolation at 12.97 / 21.43, unchanged). The Video_Wall −0.93 in a
+              mid-gen regress was the same racing-read artifact (isolation = 10.24). Clean uncontended
+              gate = 0 reg / 2 imp. REMAINING (Combo_Spin, next): mid-transition f08-f12 still ~9 dB
+              (engine reveals B too early) — the per-blade A/B Fade-crossfade timing, a separate
+              pre-existing issue (blade-clone Fades were always parsed). New reusable tools:
+              engine/test/_trace_behaviors.ts (dump parsed layer behaviors+timing),
+              engine/test/_trace_timemap.ts (dump endSec/wrapSec/remap + frozen-frame detection),
+              tools/re/decode_reveal_order.py (extract per-tile A→B flip order from GUI GT — Rule 1,
+              since headless is NOT a valid oracle for Squares' shuffle). SQUARES side-decode: the GT
+              reveal order pulled DIRECTLY from GUI GT (not headless) is 4-fold quadrant-symmetric
+              (±1 JPEG jitter) with 23 distinct flip frames over 28 quadrant cells — a full PRNG
+              permutation, REFUTING the ROADMAP's headless-derived "~7 radial values". The documented
+              Helium LCG (seed 987639852) does NOT reproduce it (spearman 0.15 argsort / −0.08
+              row-major) → Motion's replicator-shuffle PRNG remains undecoded; Squares deferred.
+
+- 2026-07-16a ✅ COMBO_SPIN SPIN SUBSYSTEM SHIPPED (L1, 11.21→12.32 +1.11, +Heart 17.73→18.24, 0 reg,
+              baseline re-frozen 16.76→16.78). ROOT CAUSE (Rule 7 decode, `fct census` + new
+              `_trace_behaviors.ts`): Combo_Spin's 6 blade groups C1-C6 each carry a "Spin LT/RT"
+              (factory 22) behavior authored DIRECTLY on the <group> element — but `parseLayerElement`
+              (which parses <group>/<layer>) OMITTED `behaviors` from its returned Layer (only
+              `parseSceneNode`, for <scenenode>, parsed them). So EVERY group-level Spin/Fade/Ramp was
+              silently DROPPED: the blades never rotated → engine rendered a hard A→B cut at f05
+              (frozen A f00-04, frozen B f05-23, `_trace_timemap` confirmed wrapSec=none so NOT a
+              timemap freeze — the content itself wasn't animating) vs GT's smooth counter-rotating
+              pinwheel. FIX (2 parts, both generic, no per-transition constant): (1) parser/index.ts —
+              `parseLayerElement` now includes `behaviors: parseLayerBehaviors(el)` (also correctly
+              surfaces Heart's group Fade → +0.51 free); (2) evaluator — `applySpinBehaviors` reads
+              type='spin' behaviors and adds an accumulating in-plane Z rotation, decoded from
+              OZTransformNode::computeSpin (Spin Rate id=400 is RAD/SEC): angleZ(t)=rate·(clamp(t,in,out)
+              −in), radians, held after out, composed about the layer's own anchor origin via
+              transform.__spinRadians (added to rotationZ in buildTransformMatrix). SCOPED to layers
+              carrying a Spin — no-op for every other layer (PLAYBOOK: a global spin regresses
+              Vertigo/Leaves). Combo rate 3.2468 rad/s over 0.9676s = exactly π. Remaining Combo gap
+              is the per-blade A/B fade-crossfade TIMING (engine reveals B too early mid-transition,
+              f08-f12 ~9 dB) — a separate pre-existing issue, not the spin. NEW reusable RE tools:
+              engine/test/_trace_behaviors.ts (dump parsed layer behaviors + timing), _trace_timemap.ts
+              (dump timemap wrap/freeze remap), tools/re/decode_reveal_order.py (extract per-tile A→B
+              flip order from GUI GT — Rule 1, since headless is not a valid oracle for Squares' shuffle).
+              LESSON: the "Squares/Veil −2/−6" seen in a CONTENDED `gen --all` (load 9-24, 8 workers)
+              were TRANSIENT render-corruption false-regressions — both re-render at 12.97/21.43 in
+              isolation, unchanged. Always re-verify a flagged regression in isolation on a quiet box
+              before trusting it (Rule 2c). commit 321b927.
+
 
 - 2026-07-15zz CONCENTRIC (12.62 dB, L1) ROOT-CAUSE fully diagnosed — 2-part bug, fix is scoped for a
               focused next tick. VISUAL (GT vs engine f12): engine renders FLAT B, none of the
