@@ -203,12 +203,66 @@ def cmd_status():
     return 0
 
 
+def _task_by_id(tid):
+    """Return the full task dict for an id (queue item preferred), or None."""
+    for t in all_tasks():
+        if t["id"] == tid:
+            return t
+    return None
+
+
+def _queue_item(tid):
+    """Read the raw todo JSON item (authoritative goal + slugs) for an id, or None."""
+    try:
+        from fct.swarm import todo as _todo
+    except Exception:
+        import importlib.util as _ilu
+        spec = _ilu.spec_from_file_location(
+            "_swarm_todo", os.path.join(MAIN, "fct", "swarm", "todo.py"))
+        _todo = _ilu.module_from_spec(spec); spec.loader.exec_module(_todo)
+    for it in _todo.all_items(from_origin=True):
+        if it.get("id") == tid:
+            return it
+    return None
+
+
+def cmd_brief(tid):
+    """Emit the fully-filled agent brief for one task id, ready to hand to a navi
+    sub-agent via spawn_agent. Fills {{TASK_ID}}/{{AGENT_ID}}/{{TASK_GOAL}}/{{TASK_SLUGS}}
+    in agent_brief.md from the authoritative TODO-queue JSON (goal + slugs), so the
+    orchestrator never hand-assembles a brief. AGENT_ID == TASK_ID (branch swarm/<id>)."""
+    tmpl_path = os.path.join(MAIN, "fct", "swarm", "agent_brief.md")
+    tmpl = open(tmpl_path).read()
+    item = _queue_item(tid)
+    if item:
+        goal = item.get("goal") or item.get("title") or ""
+        slugs = " ".join(item.get("slugs") or []) or "(see goal)"
+    else:
+        t = _task_by_id(tid)
+        if not t:
+            print(f"pool brief: no such task id {tid} (not in queue or ROADMAP)",
+                  file=sys.stderr)
+            return 2
+        goal = t.get("desc", "")
+        slugs = " ".join(slugs_for(t)) or "(see goal)"
+    filled = (tmpl.replace("{{TASK_ID}}", tid)
+                  .replace("{{AGENT_ID}}", tid)
+                  .replace("{{TASK_GOAL}}", goal)
+                  .replace("{{TASK_SLUGS}}", slugs))
+    sys.stdout.write(filled)
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description="FCP swarm scheduling core (read-only).")
     sub = ap.add_subparsers(dest="cmd")
     sub.add_parser("status", help="show eligible + done tasks")
     sub.add_parser("eligible", help="alias for status")
+    b = sub.add_parser("brief", help="print the filled agent brief for a task id")
+    b.add_argument("id")
     args = ap.parse_args()
+    if args.cmd == "brief":
+        return cmd_brief(args.id)
     if args.cmd in (None, "status", "eligible"):
         return cmd_status()
     ap.print_help()

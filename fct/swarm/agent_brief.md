@@ -22,7 +22,23 @@ of decode work) each re-confirmed the same DROPPED verdict and quit — pure was
     git -C ~/random/final-cut-pro-transitions show origin/main:ROADMAP.md \
       | grep -E "^{{TASK_ID}} +(DONE|DROPPED)" && exit 0
 
-## Environment (already set for you — do NOT change)
+## First step: create your isolated worktree
+Set up your private worktree + frames dir + render lock (idempotent; safe if it already
+exists — it salvages any prior uncommitted work first):
+
+    cd ~/random/final-cut-pro-transitions
+    WT="$(bash fct/swarm/setup_worktree.sh setup {{TASK_ID}})"   # prints the worktree path
+    cd "$WT"
+
+From here ALL your work happens in `$WT` (branch `swarm/{{AGENT_ID}}` off origin/main).
+Export your private render env so you never collide with a concurrent sub-agent:
+
+    export FCT_FRAMES_DIR="$HOME/fct-swarm/frames/{{TASK_ID}}"
+    export FCT_LOCK="$HOME/fct-swarm/locks/{{TASK_ID}}.lock"
+    export FCT_ISOLATION_ID="swarm-{{TASK_ID}}"
+    export FCT_JOBS=2
+
+## Environment (after the setup above)
 - CWD: your private worktree (branch swarm/{{AGENT_ID}} off origin/main)
 - FCT_FRAMES_DIR / FCT_LOCK: your private render dir + lock (isolated from other agents)
 - GUI GT at ~/fct-gui-gt is the ONE TRUTH — read-only.
@@ -46,8 +62,12 @@ of decode work) each re-confirmed the same DROPPED verdict and quit — pure was
 1. Do the work in this worktree. Keep the blast radius small.
 2. Gate green locally: `./fct.sh gen engine <target slugs>` then `./fct.sh regress engine`.
    Also run `npm --prefix engine test` (no-hardcode + unit tests).
-3. Update ROADMAP.md: mark your task row DONE (or DROPPED) + add a one-line progress-log
-   entry (newest first) with your per-slug before->after PSNR and gate result.
+3. Mark your queue item done + record the outcome: `python3 -m fct.swarm.todo done
+   {{TASK_ID}} --status done` (or `dropped`/`blocked`). Add a one-line progress-log entry
+   to ROADMAP.md (newest first) with your per-slug before->after PSNR + gate result, and if
+   your fix regressed an already-imperfect slug (Rule 11) record it in the ROADMAP's
+   "Durable findings & dead-ends" section. (The commit SUBJECT is the real completion
+   signal; the queue-status flip is best-effort bookkeeping in the same commit.)
 4. Write your commit message to a file. **The subject line MUST start with
    `{{TASK_ID}}` followed by either a colon or a status keyword (DONE/DROPPED/BLOCKED/
    NOOP)** — the scheduler scans commit subjects to detect completion, and a subject that

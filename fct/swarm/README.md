@@ -62,14 +62,24 @@ is pushed. Completion is detected by the commit subject (`<id> DONE: …`) — t
 just an appendable task SOURCE.
 
 ## Spawning a sub-agent (orchestrator)
-For each eligible task the orchestrator spawns a navi sub-agent whose task brief tells it
-to: (1) set up its worktree via `bash fct/swarm/setup_worktree.sh <id>`, (2) follow
-`agent_brief.md` (decode-first census → build → gate green vs GUI GT → rebase → re-freeze
-baseline), (3) land its work via `bash fct/swarm/push_helper.sh <id> <msgfile>` with a
-commit subject `<id> DONE: …`, (4) CLEAN UP after itself once the work has landed via
+The orchestrator picks an eligible task, gets its FULLY-FILLED brief, and spawns a navi
+sub-agent with that brief as its task:
+```bash
+python3 -m fct.swarm.pool status          # 1. which task ids are eligible
+python3 -m fct.swarm.pool brief <id>      # 2. the ready-to-spawn brief (placeholders
+                                          #    {{TASK_ID}}/{{AGENT_ID}}/{{TASK_GOAL}}/
+                                          #    {{TASK_SLUGS}} filled from the todo JSON)
+# 3. spawn_agent(task=<that brief text>, locked_nodes=["cli:vjeux-mac"], label="<id>")
+```
+The brief tells the sub-agent to: (1) set up its worktree via
+`bash fct/swarm/setup_worktree.sh setup <id>`, (2) follow the merge protocol (decode-first
+census → build → gate green vs GUI GT → rebase → re-freeze baseline), (3) land its work
+via `bash fct/swarm/push_helper.sh <id> <msgfile>` with a commit subject `<id> DONE: …`,
+(4) CLEAN UP after itself once the work has landed via
 `bash fct/swarm/setup_worktree.sh cleanup <id>` (removes worktree + branch + frames + lock;
-refuses + salvages if unlanded work remains), and (5) print `SWARM_RESULT`. The orchestrator locks the
-sub-agent to `cli:vjeux-mac` and passes `FCT_ISOLATION_ID=swarm-<id>`.
+refuses + salvages if unlanded work remains), and (5) print `SWARM_RESULT`. The orchestrator
+sets `FCT_ISOLATION_ID=swarm-<id>` and keeps the pool full by spawning a replacement when a
+sub-agent finishes (detected by its `<id> DONE|DROPPED|BLOCKED` commit on origin/main).
 
 ## Why the isolation
 Multiple agents sharing one working tree / frames dir / render lock corrupt each other (two
