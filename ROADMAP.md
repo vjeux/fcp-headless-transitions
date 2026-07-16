@@ -697,6 +697,21 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16m  🚧 3D_RECTANGLE Z-COMPOSITE SCAFFOLD (WIP T-q98a30de5) — added standalone
+              engine/src/compositor/z-composite.ts (pure-addition module, no import site
+              yet, gate-neutral) + engine/test/z-composite.test.ts (9/9 pass). Provides
+              createDepthBuffer / buildDepthQuad / renderDepthComposite reusing perspective.ts
+              projectQuadWithWorldZ + renderPerspectiveQuadDepth, plus two structural probes
+              (hasCameraCloneStack fires on 4: 3D Rectangle, Light Sweep, Color Planes, 360°
+              Wipe; hasNestedMaskedCloneCameraStack fires on 1: 3D Rectangle — a subset
+              refinement of the parent). Depth semantics verified: at every pixel, whichever
+              surface has the smaller world-Z wins (near-wins-per-pixel), regardless of paint
+              order. Wiring into renderCloneLayer / composite() deferred to next tick to avoid
+              collision with concurrent T-qconcentric1 (renderCloneLayer) and T-qswing00001
+              (perspective.ts). Detailed wiring recipe in the z-composite.ts header comment.
+              Target slug 3D_Rectangle 16.48 dB unchanged; gate 0/1 (Movements__Switch +2.43,
+              pre-existing improvement from T-qff1b6de2 landing).
+
 - 2026-07-16l  ✅ SWITCH ROTZ SIGN (T-qff1b6de2 DONE) — Movements__Switch **12.31 → 14.67 (+2.36 dB)**,
               Movements__Clothesline **19.31 → 21.61 (+2.30 dB)**, Movements__Reflection 14.32 → 14.23
               (−0.09, within tol). Root cause: Motion authors rotationZ in Y-UP mathematical

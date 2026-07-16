@@ -21,6 +21,10 @@ import {
   isEquirectScene,
 } from '../src/capabilities.js';
 import { hasSimulatableEmitter } from '../src/compositor/emitter-sim.js';
+import {
+  hasNestedMaskedCloneCameraStack,
+  hasCameraCloneStack,
+} from '../src/compositor/z-composite.js';
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 
@@ -40,6 +44,8 @@ const DETECTORS: Record<string, (scene: any) => unknown> = {
   needsFilterRevealForceHoldB,
   hasSimulatableEmitter,
   isEquirectScene,
+  hasCameraCloneStack,
+  hasNestedMaskedCloneCameraStack,
 };
 
 // PARAM-DRIVEN SUBSET REFINEMENTS. These are NOT structural dispatch probes — each is a
@@ -55,6 +61,16 @@ const DETECTORS: Record<string, (scene: any) => unknown> = {
 //     that needs the force-hold. The others settle on B via the drop-zone crossfade.
 const SUBSET_REFINEMENTS: Record<string, string> = {
   needsFilterRevealForceHoldB: 'hasFilterRevealSettleB',
+  // hasNestedMaskedCloneCameraStack (T-q98a30de5) — the Z-buffered clone composite
+  //   subsystem detector. Fires on 3D_Rectangle only because it is the ONLY built-in
+  //   whose reveal is a NESTED masked clone chain (a Clone Layer whose ImageMask source
+  //   is another Clone Layer AND whose CloneSource is another Clone Layer). The
+  //   generic family (structural parent) is hasCameraCloneStack — any scene with a
+  //   Camera + ≥ 2 Clone Layers (fires on 4: 3D_Rectangle, Light_Sweep, Color_Planes,
+  //   360° Wipe). This is a `<param>` refinement (the nested-through-clone chain is
+  //   the .motr STRUCTURE param that selects the family member which needs per-pixel
+  //   Z-buffering; the other 3 members composite fine by painter order).
+  hasNestedMaskedCloneCameraStack: 'hasCameraCloneStack',
 };
 
 const MIN_FIRES = 2; // a detector firing on <2 transitions is a per-transition hardcode
