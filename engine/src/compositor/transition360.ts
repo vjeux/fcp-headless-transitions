@@ -158,16 +158,10 @@ type Mask = (x: number, y: number) => number;
 /** Cover-fit `src` to the FULL output frame and sample at output (x,y) shifted by `left`.
  *  Returns false if the shifted sample falls outside the source card (transparent gap).
  *  The 360° panoramas fill the ENTIRE frame in the current GUI GT (not a bottom band):
- *  a 16:9-ish equirect image is cover-scaled to outW×outH and translated horizontally.
- *  With `wrap` set, the horizontal axis WRAPS mod outW — an equirectangular panorama is a
- *  360° cylinder, so a yaw shift re-enters from the opposite edge instead of clipping. */
-function sampleFull(src: ImageData, x: number, y: number, left: number, outW: number, outH: number, px: number[], wrap = false): boolean {
-  let tx = x - left;
-  if (wrap) {
-    tx = ((tx % outW) + outW) % outW;   // 360° cylinder: yaw wraps mod frame width
-  } else if (tx < 0 || tx >= outW) {
-    return false;
-  }
+ *  a 16:9-ish equirect image is cover-scaled to outW×outH and translated horizontally. */
+function sampleFull(src: ImageData, x: number, y: number, left: number, outW: number, outH: number, px: number[]): boolean {
+  const tx = x - left;
+  if (tx < 0 || tx >= outW) return false;
   const scale = Math.max(outW / src.width, outH / src.height);
   const dispW = src.width * scale, dispH = src.height * scale;
   const offX = (dispW - outW) / 2, offY = (dispH - outH) / 2;
@@ -176,19 +170,17 @@ function sampleFull(src: ImageData, x: number, y: number, left: number, outW: nu
   return bilinear(src, sx, sy, px);
 }
 
-/** Draw a full-frame cover-fit card of `src` translated by `left`, alpha·mask.
- *  With `wrap`, the card wraps horizontally (360° cylinder) so every output column
- *  is covered — used by the equirect push where a yaw shift re-enters from the edge. */
+/** Draw a full-frame cover-fit card of `src` translated by `left`, alpha·mask. */
 function drawFull(
   out: ImageData, src: ImageData, left: number, outW: number, outH: number,
-  alpha: number, mask: Mask | null, wrap = false,
+  alpha: number, mask: Mask | null,
 ): void {
   const px: number[] = [0, 0, 0, 0];
-  const xs = wrap ? 0 : Math.max(0, Math.floor(left));
-  const xe = wrap ? outW - 1 : Math.min(outW - 1, Math.ceil(left + outW));
+  const xs = Math.max(0, Math.floor(left));
+  const xe = Math.min(outW - 1, Math.ceil(left + outW));
   for (let y = 0; y < outH; y++) {
     for (let x = xs; x <= xe; x++) {
-      if (!sampleFull(src, x, y, left, outW, outH, px, wrap) || px[3] < 1) continue;
+      if (!sampleFull(src, x, y, left, outW, outH, px) || px[3] < 1) continue;
       let a = alpha;
       if (mask) { a *= mask(x, y); if (a <= 0) continue; }
       const o = (y * outW + x) * 4;
@@ -245,33 +237,12 @@ export function render360Band(
   const sweepPx = outW * cfg.dir;   // one full frame width, signed by Direction
 
   if (cfg.mode === 'push') {
-    // EQUIRECT 360° PUSH (decoded 2026-07-16 from the GUI GT seam geometry — see
-    // below). The two panoramas sit on a 360° cylinder; the transition YAWS the whole
-    // sphere by exactly one frame width (both A and B roll by progress·outW·dir with
-    // horizontal WRAP), and the incoming panorama B is revealed in a growing wedge
-    // whose LEADING edge is anchored at frame CENTRE (0.5·outW) and whose trailing edge
-    // sweeps a full frame width. A wraps around B in the complement.
-    //
-    // Decoded from GUI GT column-hue seams (A=orange, B=blue) across all 24 frames:
-    //   f02 B-band 50→60%   f06 50→79%   f10 50→98%   f12 50→100%
-    //   f14 (50→100%)+(0→4%)  f18 …+(0→23%)  f22 …+(0→42%)   [B left edge FIXED at 50%,
-    //   right edge sweeps rightward with wrap]. A full-frame-shift search over the raw
-    //   GT (both A and B rolled by k·progress·outW, B in the wedge) peaked cleanly at
-    //   k=1.0 for BOTH cards (mean 20.5 dB on f1..f22 vs the old two-card translate's
-    //   ~14.6), i.e. a single unit-width yaw of the whole cylinder. This replaces the
-    //   earlier non-wrapping two-card translate (leftA=+p·W, leftB=(p−1)·W) which put
-    //   the wrong panorama halves on each side and produced the mid-transition U-dip.
-    const yaw = outW * progress * cfg.dir;   // one full frame width over the transition
-    const c0 = 0.5 * outW;                    // reveal wedge leading edge = frame centre
-    const width = outW * progress;            // wedge grows to a full width at progress 1
-    // B visible where the signed distance from the centre seam lies in the wedge.
-    const bMask: Mask = (x) => {
-      const d = (((x - c0) * cfg.dir) % outW + outW) % outW;
-      return d < width ? 1 : 0;
-    };
-    // A everywhere (rolled by the yaw), then B over the wedge (same yaw, wraps too).
-    drawFull(out, imageA, yaw, outW, outH, 1, null, true);
-    drawFull(out, imageB, yaw, outW, outH, 1, bMask, true);
+    // A translates by sweep·progress and exits; B trails by one full sweep so it enters
+    // from the opposite edge as A leaves and lands home at progress 1.
+    const leftA = sweepPx * progress;
+    const leftB = sweepPx * (progress - 1);
+    drawFull(out, imageB, leftB, outW, outH, 1, null);
+    drawFull(out, imageA, leftA, outW, outH, 1, null);
     return out;
   }
 

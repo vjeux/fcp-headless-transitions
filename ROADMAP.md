@@ -241,6 +241,26 @@ engine correctness; the leverage table says which SLUGS the wins should target f
 
 ## Status snapshot (2026-07-15, rebuilt)
 
+### Progress log (newest first)
+- **2026-07-16 (T-qfoldlead01, L3 3D-fold LEAD): SHIPPED anchor-link retime bypass — Switch
+  12.27→12.62 dB, 0 family regressions.** Decode: Movements/Switch's Transition A/B link BOTH
+  their `position` (→2388, a Link override that bypasses the Retime static-position ramp) AND
+  their `anchor` off the shared far-right pivot (anchor←position self-link on the hidden Color
+  Solid driver = 2388). But the anchor's Retime bypass was HARDCODED off in buildTransformMatrix
+  (`resolveWithRetime(tx.anchorX,…,false,hasRetime)`), so while A carries a Retime curve (frames
+  1→53) the anchor was ramped `2388·retimeProgress` while position stayed full 2388 — the
+  mismatch left a 1651→2189px lever arm that flung photo A entirely off the RIGHT edge by frame 2
+  (GT f02 still shows A full-frame). FIX (evaluator/links.ts + index.ts): mark anchor Link targets
+  as overrides (`ancX/ancY/ancZ`) and pass `ov?.has('ancX')` to the anchor `resolveWithRetime`
+  calls so a linked anchor uses its FULL value (bypassing the ramp), tracking position so they
+  cancel every frame → only the intended pivot rotation remains. STRUCTURALLY NARROW: a census of
+  all 17 Movements slugs shows Switch is the ONLY one with a layer carrying BOTH a Retime curve
+  AND an anchor link (`retime+anchorLink=2`); Reflection's anchor links sit on non-retimed layers
+  (already full-value via the `!hasRetime` path), so this is a no-op for the other 11 family
+  members and the other 53 slugs. Follow-ups filed: (a) the A/B swing DIRECTION is swapped
+  (engine settles on A in the tail; GT settles on B) — pre-existing, unaffected by this fix.
+
+
 - **Engine mean: 14.59 dB** across 65 slugs (median 14.30). Distribution: 5 broken (<11),
   12 weak (11–13), 23 ok (13–15), 23 good (15–20), 2 great (≥20).
 - **Phase 1 (reverse-engineer + document every filter): COMPLETE.** All 24 transition-filter
@@ -592,23 +612,6 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 ---
 
 ## Progress log  (newest first — one line per completed chunk)
-
-- 2026-07-16b  ✅ 360°_PUSH EQUIRECT WRAP GEOMETRY (L7 LEAD) — 14.28→20.05 (+5.77), 0 regressions,
-              U-dip CLOSED (f12 10.27→18.93). ROOT CAUSE (Rule 7 decode): the `push` branch of
-              render360Band did a NON-wrapping two-card translate (leftA=+p·W, leftB=(p−1)·W) that put
-              the wrong panorama halves on each side → symmetric mid-transition U-dip bottoming at f12.
-              DECODE: the two panoramas are a 360° cylinder; the transition YAWS the whole sphere by
-              exactly ONE frame width (both A and B roll by progress·outW·dir with horizontal WRAP) and
-              incoming B is revealed in a wedge whose LEADING edge is anchored at frame CENTRE (0.5·outW)
-              and whose trailing edge sweeps a full width. Decoded from the GUI-GT column-hue seams
-              (A=orange/B=blue) across all 24 frames: B-band left edge FIXED at 50%, right edge sweeps
-              50→100% then wraps 0→42% (f14 (50→100)+(0→4)%). A full-frame roll-search over the raw GT
-              (both cards rolled by k·p·W, B in the wedge) peaked cleanly at k=1.0 for BOTH (mean 20.5 dB
-              on f1..f22 vs the old translate's ~14.6) — a single unit-width yaw. FIX: added horizontal
-              WRAP to sampleFull/drawFull (360° cylinder) + rewrote the push branch to roll+wedge-reveal.
-              Generic (fires on any 360 scene with A.hasAlignTo; no-hardcode green, 9/9 detectors ≥2).
-              Sibling family members Slide/Divide/Wipe still ~14 dB — separate modes, queued as
-              T-qslide36001/T-qdivide3601/T-qwipe360001 (share the equirect geometry, different reveals).
 
 - 2026-07-16a  ✅ COMBO_SPIN SPIN SUBSYSTEM WIRED (L1) — 11.21→12.32 (+1.11), Heart +0.51, 0 regressions,
               new baseline 16.78 dB. ROOT CAUSE (Rule 7 decode, careful-coder bisect): the 6 blade

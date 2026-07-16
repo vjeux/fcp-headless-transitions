@@ -297,6 +297,19 @@ export function applyLinks(
       const chan = link.targetChannel === 'X' ? 'anchorX' : link.targetChannel === 'Y' ? 'anchorY' : 'anchorZ';
       const base = resolveValue(result[chan], timeSec, 0);
       result[chan] = base * (1 - mix) + v * mix;
+      // Mark the anchor channel as a Link override so buildTransformMatrix uses the
+      // FULL linked anchor (bypass) instead of ramping it from 0 by the Retime
+      // static-position heuristic. Movements/Switch: Transition A links BOTH its
+      // position (→2388, bypassed) AND its anchor (→2388, from the driver's
+      // anchor←position self-link) off the shared far-right pivot. When A also
+      // carries a Retime curve (frames 1→53), the anchor was being ramped
+      // anchor=2388·retimeProgress while position stayed 2388 — the mismatch left a
+      // 1651→2189px lever arm that shoved A entirely off the right edge by frame 2
+      // (GT f02 still shows A full-frame). Bypassing the anchor's retime ramp makes
+      // position and anchor track together so they cancel at every frame, leaving
+      // only the intended pivot rotation. Key ('ancX'/'ancY'/'ancZ') read below.
+      const ovKey = link.targetChannel === 'X' ? 'ancX' : link.targetChannel === 'Y' ? 'ancY' : 'ancZ';
+      overrides.add(ovKey);
     } else if (link.targetProp === 'scale') {
       // Scale is uniform on these nodes; drive all axes. Scale default is 1.
       const base = resolveValue(result.scaleX, timeSec, 1);
