@@ -25,7 +25,7 @@ done_task_ids() to know what has already landed.
 Usage (read-only inspection):
     python3 -m fct.swarm.pool status
 """
-import os, re, sys, json, subprocess, argparse
+import os, re, sys, json, time, subprocess, argparse
 
 HOME = os.path.expanduser("~")
 MAIN = os.path.join(HOME, "random", "final-cut-pro-transitions")
@@ -271,6 +271,44 @@ def cmd_status():
 
 
 POOL_TARGET = 8  # RAM-safe concurrency on the 10-core box (see README "Why the isolation")
+SPAWN_GRACE_SEC = 900  # a freshly-spawned agent that is still reading its brief / reasoning
+                       # has NO live shell subprocess yet, so process-based liveness would
+                       # wrongly call it DEAD and the reconciler would spawn a DUPLICATE into
+                       # the same worktree (corruption). Treat a slot spawned within this
+                       # window as occupied even without a live process. Healthy agents shell
+                       # out (census/gen/score) within a minute or two, so this only covers
+                       # the startup/think gap. 15min matches the reconcile cadence.
+_SPAWN_LOG = os.path.expanduser("~/fct-swarm/spawned.json")
+
+
+def _load_spawn_log():
+    try:
+        with open(_SPAWN_LOG) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def mark_spawned(tid):
+    """Record that the orchestrator just spawned/relaunched a sub-agent for <tid>.
+    The reconciler treats a recently-marked slot as occupied during SPAWN_GRACE_SEC so it
+    never double-spawns an agent that is still starting up (no live shell process yet).
+    The orchestrator MUST call this immediately after each spawn_agent."""
+    log = _load_spawn_log()
+    log[tid] = int(time.time())
+    os.makedirs(os.path.dirname(_SPAWN_LOG), exist_ok=True)
+    tmp = _SPAWN_LOG + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(log, f, indent=2, sort_keys=True)
+    os.replace(tmp, _SPAWN_LOG)
+    return log[tid]
+
+
+def _recently_spawned():
+    """Ids marked spawned within SPAWN_GRACE_SEC (still in startup/think window)."""
+    now = int(time.time())
+    return {tid for tid, ts in _load_spawn_log().items()
+            if now - int(ts) < SPAWN_GRACE_SEC}
 
 
 def _worktrees_on_disk():
@@ -288,7 +326,11 @@ def _live_ids():
     sub-agent is one-shot: spawn -> run -> report -> exit. When it exits (finished,
     errored, or ran out of budget) WITHOUT a terminal SWARM_RESULT, no announcement
     reaches the orchestrator, so the slot silently empties. This is how we DETECT that
-    (a worktree with no live process = a dead slot to reclaim/relaunch)."""
+    (a worktree with no live process = a dead slot to reclaim/relaunch).
+
+    NOTE: a freshly-spawned agent that is still reading its brief / reasoning has no live
+    shell subprocess yet, so it would NOT be detected here — callers must union this with
+    _recently_spawned() (the SPAWN_GRACE_SEC window) to avoid double-spawning startups."""
     try:
         ps = subprocess.check_output(["ps", "axww", "-o", "command"],
                                      text=True, timeout=15, stderr=subprocess.DEVNULL)
@@ -304,6 +346,7 @@ def _live_ids():
                 live.add(wt)
                 break
     return live
+
 
 
 def _unlanded(wt_id):
@@ -334,15 +377,20 @@ def cmd_reconcile():
     nothing (spawning is the orchestrator agent's job via spawn_agent)."""
     _fetch_origin_once()
     wts = _worktrees_on_disk()
-    live = _live_ids()
+    live_proc = _live_ids()
+    starting = _recently_spawned()          # spawned within SPAWN_GRACE_SEC, still booting
+    occupied = live_proc | (starting & set(wts))  # a slot is OCCUPIED if it has a live
+                                                  # process OR was just (re)spawned
     elig, done = eligible_tasks()
-    live_wts = [w for w in wts if w in live]
-    dead_wts = [w for w in wts if w not in live]
+    live_wts = [w for w in wts if w in occupied]
+    dead_wts = [w for w in wts if w not in occupied]
     print("=== fct swarm pool reconcile ===")
-    print(f"  target concurrency: {POOL_TARGET}")
-    print(f"  worktrees on disk : {len(wts)}")
-    print(f"  RUNNING (live proc): {len(live_wts)}  {sorted(live_wts)}")
-    print(f"  DEAD (no process)  : {len(dead_wts)}")
+    print(f"  target concurrency : {POOL_TARGET}")
+    print(f"  worktrees on disk  : {len(wts)}")
+    print(f"  OCCUPIED           : {len(live_wts)}  {sorted(live_wts)}")
+    print(f"      (live process  : {sorted(w for w in live_wts if w in live_proc)})")
+    print(f"      (booting <{SPAWN_GRACE_SEC//60}min : {sorted(w for w in live_wts if w in starting and w not in live_proc)})")
+    print(f"  DEAD (reclaim/resume): {len(dead_wts)}")
     resume, reclaim = [], []
     for w in dead_wts:
         dirty, unpushed = _unlanded(w)
@@ -351,7 +399,7 @@ def cmd_reconcile():
         print(f"      {w:16s} {tag}  dirty={dirty} unpushed={unpushed}")
     running_ct = len(live_wts)
     need = max(0, POOL_TARGET - running_ct)
-    print(f"  --> running={running_ct}  need {need} more to reach {POOL_TARGET}")
+    print(f"  --> occupied={running_ct}  need {need} more to reach {POOL_TARGET}")
     print(f"  DEAD-with-unlanded-work (RELAUNCH same id, worktree resumes): {sorted(resume)}")
     print(f"  DEAD-clean-base (reclaim slot; can spawn a NEW eligible task): {sorted(reclaim)}")
     # eligible tasks NOT already represented by a worktree (fresh work for empty slots)
@@ -361,7 +409,9 @@ def cmd_reconcile():
         slugs = " ".join(slugs_for(t)) or "-"
         dep = f"  after:{t['after']}" if t.get("after") else ""
         print(f"      {t['id']:14s} [{slugs}]{dep}")
+    print("  REMEMBER: call `python3 -m fct.swarm.pool mark <id>` right after each spawn_agent.")
     return 0
+
 
 
 def _task_by_id(tid):
@@ -420,11 +470,17 @@ def main():
     sub.add_parser("status", help="show eligible + done tasks")
     sub.add_parser("eligible", help="alias for status")
     sub.add_parser("reconcile", help="pool health: running vs dead worktrees + refill plan")
+    m = sub.add_parser("mark", help="record a just-spawned agent id (grace window vs double-spawn)")
+    m.add_argument("id")
     b = sub.add_parser("brief", help="print the filled agent brief for a task id")
     b.add_argument("id")
     args = ap.parse_args()
     if args.cmd == "brief":
         return cmd_brief(args.id)
+    if args.cmd == "mark":
+        ts = mark_spawned(args.id)
+        print(f"marked {args.id} spawned @ {ts} (grace {SPAWN_GRACE_SEC}s)")
+        return 0
     if args.cmd == "reconcile":
         return cmd_reconcile()
     if args.cmd in (None, "status", "eligible"):
