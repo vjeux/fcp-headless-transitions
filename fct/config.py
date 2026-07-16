@@ -31,6 +31,22 @@ FRAMES_DIR = os.environ.get("FCT_FRAMES_DIR") or os.path.join(HOME, "fct-frames"
 HEADLESS_DIR = os.path.join(FRAMES_DIR, "headless")
 ENGINE_DIR = os.path.join(FRAMES_DIR, "engine")
 
+# --- ISOLATION ID: the token that scopes a `gen` batch's processes to THIS worktree/
+#     agent so parallel workers never clobber each other. It flows two ways:
+#       (1) it is appended to every render-worker argv as `--fct-iso <ID>` (the tsx
+#           scripts ignore extra args, but it makes each worker self-identifying in
+#           `ps`), and
+#       (2) gen.sweep_orphaned_renderers() only kills render workers / gen drivers whose
+#           argv carries the SAME `--fct-iso <ID>`.
+#     So Agent A's pre-batch kill-sweep can NEVER reap Agent B's live workers/driver.
+#     Default = a short stable hash of the REPO path, so each git worktree is isolated
+#     automatically with no config; override with $FCT_ISOLATION_ID for finer scoping
+#     (e.g. one id per swarm agent sharing a worktree). Single-agent behavior unchanged.
+import hashlib as _hashlib
+ISOLATION_ID = os.environ.get("FCT_ISOLATION_ID") or (
+    "wt-" + _hashlib.sha1(REPO.encode()).hexdigest()[:12]
+)
+
 # --- FCP source images fed to every renderer ---
 IMG_A = os.path.join(REPO, "images", "start.jpg")
 IMG_B = os.path.join(REPO, "images", "end.jpg")

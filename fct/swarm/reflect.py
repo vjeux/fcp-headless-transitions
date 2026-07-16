@@ -199,7 +199,7 @@ def dispatch_reflection(metrics_md):
     lock = os.path.join(ROOT, "locks", "reflect.lock")
     inner = (
         f"{BREW_PATH_EXPORT}"
-        f"cd {wt} && export FCT_FRAMES_DIR={frames} FCT_LOCK={lock} FCT_JOBS=2 && "
+        f"cd {wt} && export FCT_FRAMES_DIR={frames} FCT_LOCK={lock} FCT_JOBS=2 FCT_ISOLATION_ID=swarm-reflect && "
         f"env -u META_AGENT_ROLE -u AGENT_ROLE -u CLAUDECODE "
         f"claude -p --model 'claude-opus-4-7' --dangerously-skip-permissions "
         f'"$(cat {ppath})" < /dev/null 2>&1 | tee {log}; echo SWARM_SLOT_EXIT $? >> {log}'

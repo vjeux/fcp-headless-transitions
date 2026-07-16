@@ -208,6 +208,12 @@ def launch(slot, task):
             'export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"\n'
             f"cd {wt}\n"
             f"export FCT_FRAMES_DIR={frames} FCT_LOCK={lock} FCT_JOBS=2\n"
+            # Explicit per-agent isolation id so `fct gen`'s pre-batch kill-sweep only
+            # reaps THIS agent's leftover render workers/driver, never a sibling's, even
+            # if two agents ever share a worktree. (Each agent already has its own
+            # worktree, so the default REPO-hash id would isolate too — this is belt +
+            # suspenders and makes the scope legible in `ps`.)
+            f"export FCT_ISOLATION_ID=swarm-{agent_id}\n"
             f"export _FCT_REEXEC=1\n"  # avoid the DYLD re-exec dance for non-headless
             "env -u META_AGENT_ROLE -u AGENT_ROLE -u CLAUDECODE \\\n"
             "  claude -p --model 'claude-opus-4-7' --dangerously-skip-permissions \\\n"

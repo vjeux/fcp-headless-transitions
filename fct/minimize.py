@@ -188,7 +188,10 @@ def _render_engine(motr_path, out_path, frame_i, nframes):
     json.dump({"_min": os.path.abspath(motr_path)}, open(smap, "w"))
     env = dict(os.environ, FCT_SLUG="_min", FCT_FRAME=str(frame_i), FCT_N=str(nframes),
                FCT_OUT=os.path.abspath(out_path), FCT_SLUGMAP=smap)
-    r = subprocess.run(["node_modules/.bin/tsx", "test/_fct_render_one.ts"],
+    # Tag the worker with this worktree's isolation id (same scheme as gen.py) so the
+    # gen pre-batch kill-sweep only reaps OUR render workers, never a parallel agent's.
+    from fct.config import ISOLATION_ID
+    r = subprocess.run(["node_modules/.bin/tsx", "test/_fct_render_one.ts", "--fct-iso", ISOLATION_ID],
                        cwd=os.path.join(REPO, "engine"), env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return r.returncode == 0 and os.path.exists(out_path)

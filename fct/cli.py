@@ -234,7 +234,12 @@ def main():
         import time, subprocess
         source = rest[0] if rest and not rest[0].startswith("--") else "engine"
         slug_args = [a for a in rest[1:] if not a.startswith("--")]
-        lock = os.environ.get("FCT_LOCK") or "/tmp/fct_render.lock"
+        # Gate render lock. Default is scoped to THIS worktree/agent by ISOLATION_ID so
+        # two isolated worktrees running `fct gate` never block on one shared lock (they
+        # write to different FRAMES_DIRs, so serializing them would be a false conflict).
+        # $FCT_LOCK still overrides (the swarm sets a per-agent lock explicitly).
+        from fct.config import ISOLATION_ID
+        lock = os.environ.get("FCT_LOCK") or f"/tmp/fct_render.{ISOLATION_ID}.lock"
         if "--no-render" not in rest:
             try:
                 os.mkdir(lock)

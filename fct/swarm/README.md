@@ -10,6 +10,13 @@ builds' frames interleave under one baseline — observed). So each agent gets:
 - its own git **worktree** (`~/fct-swarm/worktrees/<id>`, branch `swarm/<id>` off main)
 - its own **frames dir** (`$FCT_FRAMES_DIR=~/fct-swarm/frames/<id>`)
 - its own **render lock** (`$FCT_LOCK=~/fct-swarm/locks/<id>.lock`)
+- its own **isolation id** for the pre-batch process kill-sweep — `$FCT_ISOLATION_ID`
+  (defaults to a hash of the worktree REPO path if unset). `fct gen` kills leftover
+  render workers / gen drivers from a *previous* batch before starting, but ONLY those
+  in its OWN isolation scope: every render worker carries `--fct-iso <id>` in its argv,
+  and a gen/min-gen driver is matched by its cwd == this worktree. So Agent A's sweep
+  can NEVER reap Agent B's live workers/driver. (See fct/config.py ISOLATION_ID and
+  fct/gen.py sweep_orphaned_renderers.)
 - `node_modules` **symlinked** from the main repo (no 8x install)
 - **GUI GT** shared read-only
 Worktrees live OUTSIDE `~/random` so Claude Code's internet-mode security prompt (which
