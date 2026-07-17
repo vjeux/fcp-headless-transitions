@@ -731,6 +731,58 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               composite() flag hook changed (index.ts diff = 11 insertions, Close_and_Open block
               untouched).
 
+- 2026-07-16q-sw  🔬 SWITCH A/B INVERSION — LINK-REROUTE HYPOTHESIS DISPROVEN BY MEASUREMENT
+              (T-q7b464494 WIP, docs-only, gate 0/0). Resumed from d40a3ca decode +
+              T-qff1b6de2 salvage notes and IMPLEMENTED the descendant-vs-sibling link-routing
+              fix the decode proposed, then MEASURED it on the full render. Result: it REGRESSES
+              Switch 14.67 → 9.72 dB (per-frame: the previously-CORRECT peak-swing band collapses,
+              f10 20.38→7.19, f08-f16 all fall to ~7 dB; only the very tail f22-f23 improve
+              slightly). So the salvage/d40a3ca hypothesis — "route Transition B's cross-sibling
+              LinkRot (Affecting Object = Transition A) onto Transition A so A accumulates both
+              rotation links" — is EMPIRICALLY WRONG. Reverted; baseline restored to 14.67.
+              .motr FACTS (re-verified against Switch.motr, all correct as-decoded):
+                • Direction widget (id 1999871392, factoryID 12) stored value=1 →
+                  resolveDiscreteWidgetOrdinal → ordinal 0 (first snapshot Value==1). CORRECT.
+                • Trans A LinkRot 1999871280: inlineScale=+1, rigScale=[+1,-1] → index0=+1 → +driver.
+                • Trans B LinkRot 1999871312: inlineScale=-1, rigScale=[-1,+1] → index0=-1 → +driver.
+                  (readSnapshots skips the leading <flags> child, so rigScale = [+1,-1]/[−1,+1],
+                  NOT [0,…]; the "rigScale[0]<0" discriminator I built to separate Switch from
+                  Clothesline IS well-formed — Switch flipped, Clothesline [+1,-1] not — but it's
+                  moot because the reroute itself is the wrong fix.)
+                • ⇒ BOTH Trans A and Trans B get +1×driver rotation (SAME sign), as the WIP decode
+                  claimed. The OPPOSITE on-screen shear the engine renders (A m[1]=+0.19 vs B
+                  m[1]=−0.19 at f04) is NOT a rotation-sign difference — it is the TIMING OFFSET:
+                  Trans B carries offset=-108108 so it reads the driver rotZ curve ~108108 ahead
+                  (near its −0.42 rad peak) while Trans A reads near 0. Same-sign rotation, wildly
+                  different phase.
+              REAL ROOT CAUSE (traced via test/_trace_layers.ts world transforms):
+                Trans A/B carry IDENTICAL LinkPos+LinkAnchor (X/Y/Z from the Color-Solid driver,
+                scale=1 mix=1 clamp ±100). At f04 (t≈0.302) Trans A world tx=(2083,−85) — swung
+                OFF the right edge (frame ≈1920 wide) — while Trans B world tx=(47,486) sits near
+                centre. So "Trans A invisible, only B rendered" is A being ROTATED OFF-FRAME about
+                the far anchor pivot, driven by the timing-offset phase gap, NOT an A/B rotation
+                inversion and NOT a link-routing mis-target. The peak f10 is already ≈GT (20.38),
+                so the swing END pose is correct; only the RAMP phase (f01-f06, 8-13 dB) is wrong,
+                and it's wrong because Trans A's rotation-about-far-anchor over-translates it out
+                of frame far earlier than FCP's.
+              WHY IT IS OUT OF THIS TASK'S SCOPE: the fix must slow/re-phase Trans A's swing
+              during the ramp (a timemap/retime-offset change, timemap.ts) or change how the far
+              anchor pivot maps rotation→world translation (geometry.ts / matrix.ts / framing.ts),
+              all OUTSIDE the behaviors.ts + evaluator/index.ts lane this task is fenced to. Both
+              in-scope levers were tried and rejected: (1) link reroute → 9.72 (measured, reverted);
+              (2) rigScale tag-vs-ordinal indexing → index 1 flips BOTH cards' rotation sign
+              (equivalent to negating the driver), which would undo the landed rotZ-sign fix
+              (e31dc61, 12.31→14.67) and regress the rotation family — rejected without render.
+              EXACT NEXT STEP for a future timemap/geometry-lane tick: read Trans A's timing
+              (in=0,out=204204,offset=0) vs Trans B (in=4004,out=108108,offset=-108108); the
+              per-card driver-read phase is the discriminator. Either (a) compress Trans A's
+              early ramp so its rotation-about-anchor keeps it on-frame through f06 (match GT's
+              slower A swing-out), or (b) verify the anchor-pivot→world-translation is using the
+              clamped anchor (±100 ≈ near-centre) vs the far self-linked anchor (~2363) — if the
+              engine uses the far pivot for A but FCP uses near-centre, that alone over-throws A.
+              DELTA: ROADMAP.md only (this entry). No engine code change; gate 0/0 by construction.
+              Frozen baseline for Switch stays 12.31; current code renders 14.67 (post e31dc61).
+
 - 2026-07-16q  ✅ 360° DIVIDE SLICES (T-qdivide3601 DONE) — **360°__360°_Divide 14.47 → 16.05
               (+1.58 dB), gate 0 regressions / 5 improvements.** DECODE (GUI GT per-column A/B
               classifier, W=1920 N=24): "360° Divide" (Slices replicator rig) is NOT a centre
