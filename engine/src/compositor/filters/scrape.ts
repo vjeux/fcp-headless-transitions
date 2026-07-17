@@ -104,13 +104,31 @@
 import { registerFilter } from './registry.js';
 import { evaluateCurve } from '../../evaluator/curves.js';
 
-/** Read a child param (X/Y) of a named group param, honoring curves. */
+/**
+ * Read a child param (X/Y) of a named group param, honoring curves.
+ *
+ * NAMED-CHILD CURVE TIME (T-q91bc5e37). Keyframed CHILD parameters are evaluated
+ * on the filter's OWN local timeline — same convention `ctx.param`/`ctx.blurAmount`
+ * already use (registry.makeContext computes `curveTime = time - timingOffsetSec`).
+ * The Center child curves on Movements/Smear are keyed at 0.767→0.867s with the
+ * filter's `<timing offset="-0.767s">`; without the offset, mid-transition frames
+ * (scene t = 0..0.7s under the drop-zone retime-wrap) sample the curve at raw
+ * `ctx.time` — a BEFORE-first-keyframe read that holds cxRel=1.043 (center off
+ * the right edge → nothing to smear inside the visible frame). WITH the offset
+ * the sample lands PAST the last keyframe → cxRel=0 (center on the LEFT edge)
+ * → the streak wipe fires over the visible frame, matching GT (was ~11 dB on
+ * Smear f01–f18, GT shows a directional streak revealing B from the LEFT).
+ *
+ * Purely FIXES the child-curve time source; no scrape math changed. Filters
+ * without a `<timing offset>` see `timingOffsetSec = 0` and this is a no-op.
+ */
 function childValue(ctx: import('./registry.js').FilterContext, group: string, childName: string, childId: number, fallback: number): number {
   const g = ctx.filter.parameters.find(p => p.name === group);
   if (g?.children) {
+    const curveTime = ctx.time - (ctx.filter.timingOffsetSec ?? 0);
     for (const c of g.children) {
       if (c.name === childName || c.id === childId) {
-        if (c.curve) return evaluateCurve(c.curve, ctx.time);
+        if (c.curve) return evaluateCurve(c.curve, curveTime);
         if (typeof c.value === 'number') return c.value;
       }
     }
