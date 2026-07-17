@@ -484,6 +484,47 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
     particleLifeInflatedScale = durationSec / endSec;
   }
 
+  // ANIMATED-MASK-VERTEX INFLATION — decode of Stylized__Center_Reveal (T-q11397f86).
+  // NOT fixable from timemap alone; documented here (the scene-time authority) so the
+  // next agent with parser/evaluator access can build it. Full decode:
+  //
+  //   census: Center_Reveal playRange = 76000/120000 = 0.6333s but animationEndSec =
+  //   3.000s (ratio 4.74×). The 3.0s comes from 48 keypoints keyed at LOCAL 3.0s that
+  //   all live inside a `<vertex_folder name="Vertex">` under the Image Mask shape
+  //   "Rounded rect up" (the mask on the "Grad middle" Gradient generator, id
+  //   989221759). That mask is the imageMaskSource for BOTH Transition B (invert=false)
+  //   and the "Grad ends" generator (invert=true) — i.e. B is REVEALED where the
+  //   rounded-rect mask (a growing center rect) covers the frame. The vertex Value
+  //   curves ARE the reveal: the rect's control points sweep outward from center over
+  //   the mask's scene window [in 0.033s, out 0.601s], and FCP RETIMES the mask's own
+  //   local 0→3.0s vertex animation into that ~0.567s window.
+  //
+  //   Two independent gaps, BOTH outside timemap's reach (it only remaps scene time,
+  //   it cannot inject the missing vertex motion or a per-shape local→scene retime):
+  //     (1) PARSER: engine/src/parser/shapes.ts `extractAxisVertices()` reads only each
+  //         vertex's STATIC `value` ATTRIBUTE (id=2). It ignores the `<curve>` keypoints
+  //         inside the vertex Value parameter, so an ANIMATED shape vertex is flattened
+  //         to one static point. Result: the mask never sweeps → the reveal is an
+  //         all-or-nothing flip, not a gradual A→B blend. (Verified: at t=0–0.2 the
+  //         frame reads B (100,116,147), at t=0.25–0.55 it reads A (141,91,60), never
+  //         a partial blend; GT is a smooth per-frame A→B gradient.)
+  //     (2) EVALUATOR: even once the vertex curves are parsed, the mask's local 0→3.0s
+  //         animation must be RETIMED into its scene window [0.033s, 0.601s] (the drop-
+  //         zone lifetime) — a per-shape/per-mask local→scene time compression, not the
+  //         global render-time compression this file does. Also, the Gradient generator
+  //         fill itself is currently unparsed (source == {}), so the mask-alpha content
+  //         has no gradient to reveal through.
+  //
+  //   Why timemap CANNOT fix it (measured, env-gated probe): compressing render time by
+  //   durationSec/endSec (the particleLifeInflatedScale trick) + cancelling the wrap
+  //   made Center_Reveal WORSE (15.24 → 10.82 dB): with a STATIC mask, changing WHEN we
+  //   sample only reorders the same two flat states (A-flip / B-flip / black past the
+  //   drop-zone out). The reveal needs the mask to MOVE, which is (1)+(2) above.
+  //
+  //   Follow-up filed as T-qe28315c5. The parser dependency is `extractAxisVertices` returning animated vertices (a
+  //   Curve per vertex Value) + Shape/Layer carrying them + evaluator sampling them at a
+  //   mask-local-retimed time. Filed as follow-up work; NOT achievable in timemap.ts.
+
   const remap = (tSec: number): number => {
     let timeSec = tSec;
     // Particle-life-inflated animationEndSec compression: bring engine sampling

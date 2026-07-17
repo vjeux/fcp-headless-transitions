@@ -1,0 +1,14 @@
+{
+  "id": "T-qe28315c5",
+  "title": "Animated shape-vertex parse + mask local->scene retime (Center_Reveal reveal sweep)",
+  "project": "fct",
+  "goal": "Stylized__Center_Reveal's reveal is driven by an ANIMATED Image Mask shape 'Rounded rect up' (on the 'Grad middle' Gradient generator, id 989221759; the imageMaskSource for Transition B invert=false AND 'Grad ends' invert=true). Its 48 vertex Value curves are keyed at LOCAL 0->3.0s inside <vertex_folder name='Vertex'> and sweep the rounded-rect outward from center = the A->B reveal. TWO gaps: (1) PARSER engine/src/parser/shapes.ts extractAxisVertices() reads only the STATIC vertex 'value' attribute (id=2) and IGNORES the <curve> keypoints inside vertex Value -> animated vertices flatten to a static point -> mask never sweeps -> reveal is an all-or-nothing A/B flip (verified: t=0-0.2 reads B(100,116,147), t=0.25-0.55 reads A(141,91,60), never a partial blend; GT is a smooth per-frame A->B gradient). FIX: parse a Curve per vertex Value (like other axis curves), carry animated vertices on Shape/Layer, and sample them at time. (2) EVALUATOR: the mask's local 0->3.0s vertex anim must be RETIMED into its scene window [0.033s,0.601s] (per-mask local->scene compression, NOT the global render-time compression). Also the Gradient generator fill is currently unparsed (source=={}). Timemap render-time compression was MEASURED to make it WORSE (15.24->10.82). Baseline 15.24 dB; goal >15.24 with the reveal sweeping. See timemap.ts doc-comment + ROADMAP 2026-07-16crgenmask for full decode. Touches parser/shapes.ts + evaluator, NOT timemap.",
+  "slugs": [
+    "Stylized__Center_Reveal"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-q11397f86",
+  "created_at": "2026-07-17T02:35:41+00:00",
+  "notes": ""
+}

@@ -761,6 +761,31 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16crgenmask  📝 CENTER_REVEAL ANIMATED-MASK-VERTEX DECODE (WIP T-q11397f86, doc-only
+              in timemap.ts, gate 0/0 — Center_Reveal 15.24 UNCHANGED, byte-identical render).
+              DECODE (Center Reveal.motr, verified via census + curve-walk + evaluator probe):
+              playRange 0.6333s but animationEndSec = 3.000s (ratio 4.74×). The 3.0s inflation is
+              NOT a generator Z-Position curve (as the brief guessed) — it is 48 keypoints keyed at
+              LOCAL 3.0s that all live inside `<vertex_folder name="Vertex">` under the Image Mask
+              shape "Rounded rect up" (the mask on the "Grad middle" Gradient generator, id
+              989221759). That mask is the imageMaskSource for Transition B (invert=false) AND
+              "Grad ends" (invert=true) — B is REVEALED where the rounded-rect mask covers the
+              frame; the vertex Value curves ARE the reveal (rect control points sweep outward from
+              center over the mask's scene window [0.033s, 0.601s], FCP retiming its local 0→3.0s
+              vertex animation into that ~0.567s window). Two gaps, BOTH outside timemap's reach:
+              (1) PARSER — engine/src/parser/shapes.ts `extractAxisVertices()` reads only the STATIC
+              vertex `value` attribute (id=2), ignoring the `<curve>` keypoints inside vertex Value,
+              so animated vertices flatten to one static point → mask never sweeps → reveal is an
+              all-or-nothing A/B flip (measured: t=0–0.2 reads B(100,116,147), t=0.25–0.55 reads
+              A(141,91,60), never a partial blend; GT is a smooth per-frame A→B gradient).
+              (2) EVALUATOR — even once parsed, the mask's local 0→3.0s vertex anim must be RETIMED
+              into its scene window (a per-mask local→scene compression, not the global render-time
+              compression timemap does); also the Gradient generator fill is unparsed (source=={}).
+              REJECTED via env-gated probe: timemap render-time compression (durationSec/endSec) +
+              wrap-cancel made Center_Reveal WORSE 15.24→10.82 — a STATIC mask just reorders flat
+              states, the reveal needs the mask to MOVE. Filed follow-up T-qe28315c5 (animated-shape-vertex
+              parser + mask local→scene retime). Was ROADMAP Rule 11 collateral of the correct
+              A/B binding flip (T-qwipemask01); recovering it needs the parser build, not timemap.
 - 2026-07-16pw2  🔎 PINWHEEL premise REFUTED by measurement (T-qfcdfc30f, evaluator-scope). Movements__
               Pinwheel stays 13.8 dB — no evaluator change (gate unchanged, 0 regressions). DECODE:
               the brief's two levers are BOTH inert in the evaluator. (a) Fold SENSE has ZERO render
