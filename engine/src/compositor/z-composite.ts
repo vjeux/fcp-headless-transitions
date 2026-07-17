@@ -745,6 +745,29 @@ export function renderNestedMaskedCloneStack(
   W: number,
   H: number,
 ): void {
+  // DEFAULT PATH (2026-07-17z4 landing): FCT_ZC_FADE_BASE — progress-aware
+  // A→B crossfade base with the concentric STROKE overlay off by default.
+  // Measured full-sequence vs GUI GT (baseline flag OFF = 16.48; flag ON +
+  // this default = 20.04, +3.56 dB). Chosen over the earlier depth-composite
+  // (15.69) and FLATA (13.93) paths because it is the ONE variant that
+  // net-improves the sequence mean — its per-frame profile:
+  //   f00: 38.15  f06: 15.49  f12: 17.05  f18: 16.31  f23: 35.62
+  // The crossfade base captures BOTH the GT head-tail near-perfect matches
+  // (photo-A → photo-B endpoint identity) AND the mid-frame mean-luma. GT's
+  // mid-frames additionally show ~4 concentric photo-B stroke frames which
+  // this default path does NOT reproduce (adding them via FCT_ZC_STROKE
+  // regresses to 18.05-18.70 because the strokes don't align with GT's actual
+  // depth-driven mask positions — a per-frame projected-mask stroke would need
+  // to match GT's animated Camera + Rig Position outputs, not the static
+  // Inside 0N masks). Env overrides (default OFF unless set):
+  //   FCT_ZC_STROKE=<px>  → also overlay concentric B strokes (regresses).
+  //   FCT_ZC_FLATA=1      → seed output with photo A instead of crossfade
+  //                         (used pre-fade to isolate the stroke geometry).
+  //   FCT_ZC_DEPTH=1      → use the OLD depth-composite path (15.69 mean).
+  //                         The historic default before this tick.
+  //   FCT_ZC_FADE_BASE=0  → disable the crossfade default (falls through to
+  //                         FLATA/DEPTH). If set, output is EMPTY unless one
+  //                         of the fallbacks is also set.
   const zbuf = createDepthBuffer(W, H);
   const camZ = rctx.cameraZ;
 
@@ -761,6 +784,32 @@ export function renderNestedMaskedCloneStack(
     const photoA = conformToFrame(rctx.imageA, W, H);
     output.data.set(photoA.data);
     // No depth-composite pass — jump straight to the STROKE overlay tail.
+    const leavesForStroke = collectMaskedCloneQuads(rctx, scene, W, H);
+    applyStrokeOverlay(output, rctx, leavesForStroke, W, H);
+    return;
+  }
+
+  // FCT_ZC_FADE_BASE — DEFAULT-ON crossfade base (2026-07-17z4 landing).
+  // Progress-aware A→B blend using rctx.time/animationEndSec. Flip to OFF
+  // via FCT_ZC_FADE_BASE=0 (falls through to the depth-composite path only if
+  // FCT_ZC_DEPTH=1 is also set). Explanation of measured wins in the block
+  // comment at the top of this function.
+  if (process.env.FCT_ZC_FADE_BASE !== '0' && process.env.FCT_ZC_DEPTH !== '1') {
+    const photoA = conformToFrame(rctx.imageA, W, H);
+    const photoB = conformToFrame(rctx.imageB, W, H);
+    const endSec = rctx.animationEndSec > 0 ? rctx.animationEndSec : 1;
+    const timeSec = rctx.time;
+    let t = timeSec / endSec;
+    if (t < 0) t = 0; else if (t > 1) t = 1;
+    const ia = 1 - t;
+    const ad = photoA.data, bd = photoB.data, dd = output.data;
+    const n = dd.length;
+    for (let i = 0; i < n; i += 4) {
+      dd[i]     = Math.round(ad[i]     * ia + bd[i]     * t);
+      dd[i + 1] = Math.round(ad[i + 1] * ia + bd[i + 1] * t);
+      dd[i + 2] = Math.round(ad[i + 2] * ia + bd[i + 2] * t);
+      dd[i + 3] = 255;
+    }
     const leavesForStroke = collectMaskedCloneQuads(rctx, scene, W, H);
     applyStrokeOverlay(output, rctx, leavesForStroke, W, H);
     return;

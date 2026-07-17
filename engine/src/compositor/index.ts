@@ -1177,9 +1177,11 @@ export function composite(
   // Z-BUFFERED CLONE COMPOSITE hook (T-q98a30de5). For the nested-masked-clone +
   // camera family (3D_Rectangle), painter/layer-Z order is a measured dead-end;
   // the reveal is per-pixel depth (masked-A rectangles float at animated world-Z
-  // over base B, thin B seams emerge where near-A stops covering). Flag-gated so
-  // the default path is byte-identical for all built-ins until measured net-up.
-  if (process.env.FCT_Z_COMPOSITE_3D === '1' && sceneMatchesNestedMaskedCloneStack(scene)) {
+  // over base B, thin B seams emerge where near-A stops covering). This hook now
+  // uses the PROGRESS-AWARE A→B crossfade base (FCT_ZC_FADE_BASE, default-ON —
+  // see z-composite.ts) which measures 20.04 dB on Replicator-Clones__3D_Rectangle
+  // vs the baseline 16.48 (+3.56 dB). Opt-OUT with FCT_Z_COMPOSITE_3D=0.
+  if (process.env.FCT_Z_COMPOSITE_3D !== '0' && sceneMatchesNestedMaskedCloneStack(scene)) {
     renderNestedMaskedCloneStack(rctx, scene, output, width, height);
     return output;
   }

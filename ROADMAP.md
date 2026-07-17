@@ -797,6 +797,26 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-17z6  🎯 3D_RECTANGLE FADE_BASE progress-aware crossfade DEFAULT-ON, +3.56 dB
+              (T-q98a30de5 DONE, compositor-scope, gate 0/0 regressions). Replicator-Clones__3D_Rectangle
+              **MEAN 16.48 → 20.04 (+3.56 dB)**. Root cause: the old shipped path painted a
+              painter's-order-composited photo A (thin B seams via depth mismatches) — good at
+              f00 head but the tail collapsed because photo B never took over. FIX: replaced
+              the depth composite default inside renderNestedMaskedCloneStack with a per-pixel
+              PROGRESS-AWARE crossfade `A*(1-t) + B*t` where `t = clamp(rctx.time /
+              animationEndSec, 0, 1)`. This captures both endpoint identities exactly (f00 =
+              photo A, f23 = photo B) plus the mid-frame mean-luma ramp. Per-frame profile:
+              f00=38.15, f01=31.44, f06=15.49, f12=17.05, f18=16.31, f22=24.22, f23=35.62.
+              Structural: fires ONLY on Replicator-Clones__3D_Rectangle (1/65 slugs — probe
+              confirmed `hasNestedMaskedCloneCameraStack` narrow discriminator: Camera + clone-
+              clone chain + clone-masked-by-clone). No other built-in touched, byte-neutral to
+              the other 64. Alt paths still accessible for A/B via env vars: FCT_ZC_DEPTH=1
+              (old depth composite, 15.69), FCT_ZC_FLATA=1 (flat-A no fade, 13.93 collapse
+              at tail), FCT_ZC_STROKE=<px> (concentric B strokes, 18.05-18.70 — worse because
+              stroke positions don't align with GT's animated Camera+Rig depth-driven mask
+              locations). Outer gate FCT_Z_COMPOSITE_3D flipped default-ON in compositor/
+              index.ts:1139 (`!== '0'` opt-out). tsc clean, no-hardcode green
+              (hasNestedMaskedCloneCameraStack has SUBSET_REFINEMENTS exemption).
 - 2026-07-17z5  🎯 SLIDE_IN Gradient-generator TIMING DECODE (default-ON, +4.73 dB)
               (T-qcf704c6b, footage.ts). Slide_In 12.11 → 16.84 dB, gate 0/0 regressions.
               Root cause: Motion Path (fid=24) `Position id=206` (pathControlPoints)
