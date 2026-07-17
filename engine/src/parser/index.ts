@@ -23,7 +23,7 @@ import {
   getTextContent, getIntContent, getFloatContent,
   parseTime, parseTiming, parseKeyframe, parseCurve, parseParameter, findDescendant,
 } from './xml.js';
-import { parseShape, findObjectSource } from './shapes.js';
+import { parseShape, findObjectSource, shapeVertexAnimations } from './shapes.js';
 import { parseLayerBehaviors, parseLinkBehaviors } from './behaviors.js';
 import { parseEmitterParams, parseParticleCellParams } from './emitter.js';
 import { parseReplicator } from './replicator.js';
@@ -116,6 +116,29 @@ function liftProceduralMasks(
       });
       if (hasMotionPath) effectiveIsMask = true;
     }
+
+    // NARROW ANIMATED-VERTEX MASK LIFT (T-q11397f86, default ON — the FCT_PROCMASK
+    // env gate above already covers disable). A `<mask>` inside a generator/image
+    // leaf whose CONTROL POINTS themselves animate (a `<curve>` inside a vertex
+    // Value parameter — Stylized/Center_Reveal's Arrow left/right shapes on the
+    // "Grad middle" Gradient generator: 8 of 12 vertices per arrow key at scene
+    // t=0.467s→0.567s, sweeping the arrow tail outward from center) is a REVEAL-
+    // GEOMETRY mask, not decoration: without it, the Image Mask that resolves
+    // through this generator to Transition B rasterizes ONLY the static outer
+    // Gradient (no sub-shape geometry) so the reveal never actually reveals.
+    // This gate is STRUCTURALLY tight — it fires ONLY on masks whose vertices
+    // are authored as `<curve>` keypoint tracks in the .motr (the parser's
+    // extractAxisVertices marks each such vertex on `axisX[i].valueCurve` /
+    // `axisY[i].valueCurve`). No slug in the built-in transition corpus animates
+    // vertex Values except Center_Reveal's Arrow masks (verified via
+    // `<parameter name="Value" id="2">` + `<curve>` scan), so this can't lift a
+    // decorative shape and regress a static-vertex slug. Follow-up T-qe28315c5.
+    if (!effectiveIsMask
+        && (hostType === 'generator' || hostType === 'image')) {
+      const hasAnimatedVertex = shapeVertexAnimations.has(mshape.verticesX);
+      if (hasAnimatedVertex) effectiveIsMask = true;
+    }
+
     if (!effectiveIsMask) continue;
 
     const maskParams: Parameter[] = [];

@@ -23,6 +23,7 @@ import { evaluateCurve, resolveValue, timeToSeconds } from './curves.js';
 import { evaluateFade, evaluateRampAtProgress, evaluateOscillate, evaluateSpin } from './behaviors/index.js';
 import { resolveFramedPose, resolveFramedWallPose } from './framing.js';
 import { generateInstances } from '../compositor/replicator.js';
+import { shapeVertexAnimations } from '../parser/shapes.js';
 import {
   mat4Identity, mat4Multiply, mat4Translate, mat4Scale, mat4RotateZ, mat4RotateX, mat4RotateY,
 } from './matrix.js';
@@ -868,6 +869,39 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   }
   const localTransform = buildTransformMatrix(riggedTransform, curveTime, retimeProgress, hasRetime);
   const worldTransform = mat4Multiply(parentTransform, localTransform);
+
+  // ANIMATED MASK VERTICES (T-q11397f86 — Stylized/Center_Reveal). A shape mask
+  // can key its per-vertex Value parameters as a `<curve>`, letting the mask's
+  // control points sweep over time (Center_Reveal's Arrow left/right shapes
+  // extend outward from center — the reveal itself). The parser publishes those
+  // Curves into `shapeVertexAnimations` (WeakMap keyed on the shape's
+  // verticesX array, so the `{...shape, isMask:true}` lifted-mask clone sees
+  // the same entry as the original). Here we sample each animated vertex at
+  // the mask's `curveTime` (the same local-frame time authority used above for
+  // Position/Scale/Rotation curves — for Center_Reveal's Arrow masks
+  // offset==in==0.033s so curveTime==timeSec and the scene-time keypoints
+  // 0.467s→0.567s fire directly) and MUTATE `layer.shape.verticesX/Y[i]` in
+  // place. The compositor (compositor/shapes.ts rasterizeShape) reads plain
+  // number arrays and needs no changes; the mutation lives on the shared array
+  // so the same shape drawn multiple times per frame stays consistent (only
+  // one animated vertex sample per shape per frame). Shapes with no animated
+  // vertices are absent from the WeakMap and take the byte-neutral fast path.
+  if (layer.type === 'shape' && layer.shape && layer.shape.verticesX.length > 0) {
+    const anim = shapeVertexAnimations.get(layer.shape.verticesX);
+    if (anim) {
+      const vx = layer.shape.verticesX;
+      const vy = layer.shape.verticesY;
+      const xc = anim.xCurves;
+      const yc = anim.yCurves;
+      const n = vx.length;
+      for (let i = 0; i < n; i++) {
+        const cx = xc ? xc[i] : undefined;
+        const cy = yc ? yc[i] : undefined;
+        if (cx) vx[i] = evaluateCurve(cx, curveTime);
+        if (cy) vy[i] = evaluateCurve(cy, curveTime);
+      }
+    }
+  }
 
   // WRITE-ON envelope (S8, default ON; FCT_PROCMASK=0 disables): a procedural shape
   // mask (Wipes/Diagonal's "Animated mask") sweeps a finite feathered quad diagonally

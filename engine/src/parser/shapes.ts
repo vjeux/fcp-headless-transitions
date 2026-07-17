@@ -12,9 +12,56 @@ import { directChildren, firstChild, parseCurve, findDescendant } from './xml.js
 interface AxisVertex {
   index: number;
   value: number;
+  /**
+   * ANIMATED vertex Value (T-q11397f86 — Stylized/Center_Reveal). Motion authors
+   * a `<curve>` (with `<keypoint>`s) INSIDE the vertex Value `<parameter id="2">`
+   * when the shape's control point moves over time (the reveal sweep on
+   * Center_Reveal's Arrow left/right mask shapes: 8 of 96 vertex Values are
+   * animated with a ~240-unit outward swing keyed at scene t=0.467s→0.567s). The
+   * static `value` above is the current-frame sample (curve's `value` attribute)
+   * for backward compatibility with the compositor's static-vertex path; when
+   * this Curve is present, the evaluator samples it at frame time and writes the
+   * sample into the shape's `verticesX/Y` array before the compositor rasterizes.
+   */
+  valueCurve?: Curve;
   inTangent?: number;  // Input Tangent (id=4): relative offset toward previous vertex
   outTangent?: number; // Output Tangent (id=5): relative offset toward next vertex
 }
+
+/**
+ * SIDE-CHANNEL: animated shape vertex Curves, keyed on the shape's `verticesX`
+ * ARRAY (not the outer Shape object).
+ *
+ * Motion masks can author a `<curve>` (keypoint list) inside a shape control
+ * point's Value parameter to animate the vertex over time (Stylized/Center_Reveal
+ * — the Arrow left/right mask shapes on the "Grad middle" Gradient generator that
+ * feeds Transition B's Image Mask). The compositor reads `shape.verticesX/Y` as
+ * plain number arrays (static geometry), so we CANNOT change the Shape type
+ * without touching the compositor (owned by the Concentric agent). Instead, we
+ * publish the per-vertex axis Curves via a WeakMap: the evaluator (which runs
+ * before compositing each frame) looks up the map, samples each Curve at the
+ * current frame time, and MUTATES the shape's `verticesX[i]/verticesY[i]` in
+ * place. Downstream (compositor, framing, mask source-radius) sees numeric
+ * vertices as before.
+ *
+ * WHY KEYED ON `verticesX` (not on the Shape itself): parser/index.ts spreads
+ * masks into lifted Layer.shape objects via `{ ...mshape, isMask: true }` — a
+ * NEW outer Shape but the INNER arrays (verticesX/verticesY/tangents) are
+ * shared references. Keying on `verticesX` lets both the original Shape and any
+ * spread clones look up the same animation entry without additional plumbing.
+ *
+ * A shape with NO animated vertices does not appear in the map — its parse and
+ * render are byte-identical to origin/main.
+ *
+ * Arrays are sparse: `xCurves[i]` / `yCurves[i]` is undefined for static
+ * vertices (default, keeps a byte-neutral fast path) and a Curve for animated
+ * ones. Only present when at least one axis has at least one animated vertex.
+ */
+export interface ShapeVertexAnimation {
+  xCurves?: (Curve | undefined)[];
+  yCurves?: (Curve | undefined)[];
+}
+export const shapeVertexAnimations: WeakMap<number[], ShapeVertexAnimation> = new WeakMap();
 
 /**
  * Find the `Object Source` (id=128) parameter anywhere in a scenenode subtree.
@@ -230,7 +277,7 @@ export function parseShape(el: Element, factories: Map<number, string>, linkSour
     }
   }
 
-  return {
+  const shape: Shape = {
     verticesX,
     verticesY,
     inTangentX: hasTangents ? inTangentX : undefined,
@@ -250,6 +297,31 @@ export function parseShape(el: Element, factories: Map<number, string>, linkSour
     stroke,
     fillGradient: isMask ? undefined : parseFillGradient(el),
   };
+
+  // ANIMATED VERTICES (T-q11397f86, Stylized/Center_Reveal). Publish the per-
+  // vertex Value Curves into the WeakMap side-channel keyed by this Shape
+  // object. The evaluator (evaluator/index.ts) samples them at the current
+  // frame's `curveTime` and MUTATES `shape.verticesX[i]/verticesY[i]` in place
+  // before compositing. Only registered when at least one axis has at least one
+  // animated vertex — a fully-static shape keeps its byte-neutral fast path.
+  let hasAnyVertexCurve = false;
+  const xCurves: (Curve | undefined)[] = new Array(n);
+  const yCurves: (Curve | undefined)[] = new Array(n);
+  for (let i = 0; i < n; i++) {
+    if (axisX[i].valueCurve && axisX[i].valueCurve!.keyframes.length >= 2) {
+      xCurves[i] = axisX[i].valueCurve;
+      hasAnyVertexCurve = true;
+    }
+    if (axisY[i].valueCurve && axisY[i].valueCurve!.keyframes.length >= 2) {
+      yCurves[i] = axisY[i].valueCurve;
+      hasAnyVertexCurve = true;
+    }
+  }
+  if (hasAnyVertexCurve) {
+    shapeVertexAnimations.set(verticesX, { xCurves, yCurves });
+  }
+
+  return shape;
 }
 
 /**
@@ -473,18 +545,63 @@ function detectMask(el: Element): boolean {
 /**
  * Extract vertices (Value + optional tangents) from a curve_X/curve_Y element,
  * sorted by the vertex "index" attribute so path order matches Motion's.
+ *
+ * ANIMATED VERTICES (T-q11397f86, Stylized/Center_Reveal): a vertex Value
+ * parameter can carry a `<curve>` (keypoint list) child in addition to (or
+ * instead of) the static `value` attribute. When present, we parse the Curve
+ * and stash it on `AxisVertex.valueCurve`; the caller then publishes a
+ * ShapeVertexAnimation entry so the evaluator can sample at frame time. The
+ * static `value` — the current-frame scalar — is read from the curve's own
+ * `value` attribute (or `default` as a fallback, or the first keyframe's
+ * value), matching Motion's authored-state semantics. Static vertices (no
+ * `<curve>`) still read the direct `value` attribute exactly as before, so a
+ * shape with no animated vertices parses byte-identically to origin/main.
  */
 function extractAxisVertices(curveEl: Element): AxisVertex[] {
   const verts: AxisVertex[] = [];
+  // ANIMATED VERTEX VALUE (T-q11397f86) — default OFF (opt-in via
+  // `FCT_ANIMATED_VERTEX=1`) because promoting previously-dropped animated
+  // vertices from undefined to real numeric geometry changes the parsed shape
+  // count for masks that authored ONLY a `<curve>` Value with no static
+  // `value` attribute on the outer parameter (e.g. Heart's Bezier/Swoosh/
+  // Shadow/Bezier 4/Bezier 5 lifted-shape masks) — the old code SKIPPED
+  // those vertices, so the entire shape had 0 vertices and was dropped by
+  // parseShape's `axisX.length === 0` guard. Turning that path on
+  // unconditionally regressed Stylized__Heart 18.24→13.83 in the full-corpus
+  // gate. Under the flag we parse the animated curve AND accept a scalar
+  // snapshot from the curve's `value`/`default`/first-keyframe; without the
+  // flag the outer-attr scan is byte-identical to origin/main.
+  const animatedVertexEnabled = typeof process !== 'undefined'
+    && process.env?.FCT_ANIMATED_VERTEX === '1';
   for (const vertex of directChildren(curveEl, 'vertex')) {
     const folder = firstChild(vertex, 'vertex_folder');
     if (!folder) continue;
     const idx = parseInt(vertex.getAttribute('index') || '0', 10);
     let value: number | undefined;
+    let valueCurve: Curve | undefined;
     let inTangent: number | undefined;
     let outTangent: number | undefined;
     for (const param of directChildren(folder, 'parameter')) {
       const id = param.getAttribute('id');
+      // Animated vertex Value: a `<curve>` child on the Value parameter (id=2).
+      // Read the CURVE's `value` attribute (Motion's authored current-frame
+      // sample) for the static snapshot; the evaluator will overwrite this
+      // in-place at frame time. Only the Value axis (id=2) is animated on the
+      // shapes we've seen (Center_Reveal); tangents stay static — Motion never
+      // authors per-vertex tangent curves in the built-in transition corpus.
+      if (id === '2' && animatedVertexEnabled) {
+        const inner = firstChild(param, 'curve');
+        if (inner) {
+          const parsed = parseCurve(inner);
+          valueCurve = parsed;
+          // Snapshot: prefer the curve's `value` attr (Motion's rendered state
+          // at document authoring time), else first keyframe, else `default`.
+          if (parsed.value !== undefined) value = parsed.value;
+          else if (parsed.keyframes.length > 0) value = parsed.keyframes[0].value;
+          else value = parsed.default;
+          continue;
+        }
+      }
       const vAttr = param.getAttribute('value');
       const v = vAttr !== null ? parseFloat(vAttr) : NaN;
       if (isNaN(v)) continue;
@@ -494,7 +611,7 @@ function extractAxisVertices(curveEl: Element): AxisVertex[] {
       else if (id === '5') outTangent = v;
     }
     if (value === undefined) continue;
-    verts.push({ index: idx, value, inTangent, outTangent });
+    verts.push({ index: idx, value, valueCurve, inTangent, outTangent });
   }
   verts.sort((a, b) => a.index - b.index);
   return verts;
