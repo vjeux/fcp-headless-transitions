@@ -18,6 +18,7 @@ import {
 } from './geometry.js';
 import { resample } from './resample.js';
 import { detectFieldTexture, applyParticleFieldProxy, detectParticleGroupTint } from './field-texture.js';
+import { sceneMatchesNestedMaskedCloneStack, renderNestedMaskedCloneStack } from './z-composite.js';
 import { applyEmitterSim } from './emitter-sim.js';
 import { generateInstances, sequenceProgress, sequenceOrder } from './replicator.js';
 import { lookupFilter, makeContext } from './filters/registry.js';
@@ -1068,6 +1069,16 @@ export function composite(
   // avoiding a double-composite that washed the early frames too gray.
   const field = detectFieldTexture(scene, mediaResolver);
   if (field) rctx.fieldTextureLayerId = field.layerId;
+
+  // Z-BUFFERED CLONE COMPOSITE hook (T-q98a30de5). For the nested-masked-clone +
+  // camera family (3D_Rectangle), painter/layer-Z order is a measured dead-end;
+  // the reveal is per-pixel depth (masked-A rectangles float at animated world-Z
+  // over base B, thin B seams emerge where near-A stops covering). Flag-gated so
+  // the default path is byte-identical for all built-ins until measured net-up.
+  if (process.env.FCT_Z_COMPOSITE_3D === '1' && sceneMatchesNestedMaskedCloneStack(scene)) {
+    renderNestedMaskedCloneStack(rctx, scene, output, width, height);
+    return output;
+  }
 
   // Render layers back-to-front (Motion: first in list = top/foreground, last = bottom/background)
   for (let i = scene.layers.length - 1; i >= 0; i--) {

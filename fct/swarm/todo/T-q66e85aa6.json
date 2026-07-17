@@ -1,0 +1,14 @@
+{
+  "id": "T-q66e85aa6",
+  "title": "3D_Rectangle rig-snapshot anisotropic Scale/Position on Inside 01",
+  "project": "fct",
+  "goal": "The z-composite subsystem (T-q98a30de5, landed WIP) renders the concentric-B-seam spiral correctly (f00 18.59->34.65) but MID-transition frames (f04-f18) regress vs flat-A baseline because the 9 nested rectangles are concentric-ALIGNED instead of the GT's offset/rotated spiral. Root cause: the evaluator does NOT apply the two Rig SNAPSHOT behaviors on Inside 01 (Shape 10054): Rig Behavior 3001325829 drives Scale via channel ./1/100/105 (7 anisotropic snapshot columns: e.g. col 9 X=1.499 Y=1.816, col 10 X=1.187 Y=1.290 \u2014 the X/Y mismatch is the rectangle-spiral wobble) and Rig Behavior 3001966583 drives Position via ./1/100/101, both morphed by Rig Widget 10001's slider over time. The evaluator currently emits uniform S=(0.91,0.91) rot=0 for Inside 01 (verified via tree dump at f12). Implement Rig-snapshot (factoryID=23, Snapshots param id=202) interpolation in the evaluator (Switch owns evaluator rig/links) so Inside 01's transform gets the animated anisotropic scale+position; the nested Inside 02..08 clones inherit it, and the z-composite depth pass will then land the rectangles at the GT-matching offsets. DoD: 3D_Rectangle FCT_Z_COMPOSITE_3D=1 render beats flat-A baseline 16.48 net across f1-f18; then flip the flag default ON in composite() (the hook already exists). This is a pure evaluator addition \u2014 the compositor side is DONE.",
+  "slugs": [
+    "Replicator-Clones__3D_Rectangle"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-q98a30de5",
+  "created_at": "2026-07-17T00:18:12+00:00",
+  "notes": ""
+}

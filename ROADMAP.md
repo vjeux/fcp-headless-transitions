@@ -704,6 +704,33 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16z1  🚧 3D_RECTANGLE Z-COMPOSITE WORKS END-TO-END (WIP T-q98a30de5, gate 0 regressions) —
+              wired the Z-buffered clone composite into composite() behind FCT_Z_COMPOSITE_3D
+              (default OFF ⇒ byte-neutral, target 16.48 unchanged on the shipped path). With the
+              flag ON the subsystem renders the concentric photo-B-seam rectangle spiral over base B
+              (verified f12 visually + f00 **18.59 → 34.65**, the all-A head frame near-perfect).
+              Three real bugs fixed in the z-composite MODULE (never the shared rasterizer, never
+              renderCloneLayer): (1) the resolved clone-source A media (1854×1042) sheared into
+              horizontal streaks when applyMask indexed it at the 1920×1080 frame stride — now
+              conformToFrame() resamples it first; (2) the perspective triangle rasterizer left 1px
+              scanline gaps on near-full-frame magnified quads — replaced with a screen-space
+              center-scaled depth blit (depthBlitCenterScaled) since every clone is axis-aligned at
+              constant Z; (3) B is the drawn BACKDROP not a depth peer — seed B then reset zbuf to
+              +Inf so every masked-A piece wins over it and B shows only in the inter-rectangle
+              seams. collectMaskedCloneQuads honours parent-group visibility (skips the hidden
+              clone-SOURCE "Clones" group; composites only the 9 visible "Pieces" re-clones).
+              REMAINING GAP (queued as **T-q66e85aa6**): mid-transition f04-f18 still < flat-A
+              baseline because the evaluator doesn't apply Inside 01's two Rig SNAPSHOT behaviors
+              (3001325829 Scale via ./1/100/105, 3001966583 Position via ./1/100/101 — 7 anisotropic
+              snapshot columns morphed by Rig Widget 10001), so the 9 rectangles are concentric-
+              ALIGNED instead of the GT's offset/anisotropic spiral. Pure evaluator addition
+              (Switch's domain); the compositor side is DONE. Detector hasNestedMaskedCloneCamera
+              Stack fires on 3D_Rectangle only (subset refinement of hasCameraCloneStack which fires
+              on 4 — registered + exempt in no-hardcode.test.ts). Gate 0 regressions; tsc + 12
+              z-composite + no-hardcode green. SCOPE: only z-composite.ts + its test + the single
+              composite() flag hook changed (index.ts diff = 11 insertions, Close_and_Open block
+              untouched).
+
 - 2026-07-16q  ✅ 360° DIVIDE SLICES (T-qdivide3601 DONE) — **360°__360°_Divide 14.47 → 16.05
               (+1.58 dB), gate 0 regressions / 5 improvements.** DECODE (GUI GT per-column A/B
               classifier, W=1920 N=24): "360° Divide" (Slices replicator rig) is NOT a centre

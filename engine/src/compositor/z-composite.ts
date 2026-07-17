@@ -123,6 +123,97 @@ import {
 } from './perspective.js';
 import { resolveCloneImage, resolveImageMaskAlpha } from './masks.js';
 import { applyMask } from './shapes.js';
+import { resample } from './resample.js';
+
+/** Conform a source image to (W, H) if it isn't already — the drop-zone media
+ *  (Transition A/B) is authored at its own native resolution (e.g. 1854×1042)
+ *  while the compositor works at the scene frame size (1920×1080). applyMask +
+ *  the depth blit both index by the frame stride, so a mismatched source shears
+ *  into horizontal streaks. Resample once, up front. No-op when already sized. */
+function conformToFrame(img: ImageData, W: number, H: number): ImageData {
+  if (img.width === W && img.height === H) return img;
+  return resample(img, W, H);
+}
+
+/** Depth-blit a full-frame masked source, uniformly scaled about the screen
+ *  centre by `scale` (the Motion perspective factor camZ/(camZ+worldZ) for a
+ *  flat quad at constant world-Z), competing per pixel in `zbuf` at that flat
+ *  `worldZ`. Motion convention (perspective.ts::projectPoint): NEGATIVE world-Z
+ *  comes toward the viewer (larger, nearer) — so a pixel WINS when its worldZ is
+ *  LESS than the current buffer entry. Transparent source pixels never write, so
+ *  the farther surface (ultimately base B) shows through the mask gaps — that is
+ *  what paints the thin B seams at each rectangle-edge misalignment.
+ *
+ *  We scale about centre in SCREEN space instead of re-projecting the quad
+ *  through renderPerspectiveQuadDepth: every clone here is axis-aligned (rot=0)
+ *  at a single constant Z, so the projection is a pure uniform magnification —
+ *  a triangle rasterizer would only add its scanline-seam aliasing (measured:
+ *  1px horizontal gaps every ~15 rows) with no geometric benefit. */
+export function depthBlitCenterScaled(
+  dst: ImageData,
+  zbuf: Float64Array,
+  src: ImageData,
+  scale: number,
+  worldZ: number,
+  opacity: number,
+): void {
+  const W = dst.width, H = dst.height;
+  const sw = src.width, sh = src.height;
+  const cx = W / 2, cy = H / 2;
+  const inv = scale > 1e-6 ? 1 / scale : 0;
+  const sd = src.data, dd = dst.data;
+  for (let y = 0; y < H; y++) {
+    // Inverse-map the destination pixel centre back into source space.
+    const syf = (y + 0.5 - cy) * inv + sh / 2 - 0.5;
+    const sy0 = Math.floor(syf);
+    if (sy0 < -1 || sy0 >= sh) continue;
+    const fy = syf - sy0;
+    const sy0c = Math.max(0, Math.min(sh - 1, sy0));
+    const sy1c = Math.max(0, Math.min(sh - 1, sy0 + 1));
+    for (let x = 0; x < W; x++) {
+      const sxf = (x + 0.5 - cx) * inv + sw / 2 - 0.5;
+      const sx0 = Math.floor(sxf);
+      if (sx0 < -1 || sx0 >= sw) continue;
+      const fx = sxf - sx0;
+      const sx0c = Math.max(0, Math.min(sw - 1, sx0));
+      const sx1c = Math.max(0, Math.min(sw - 1, sx0 + 1));
+      const gx = 1 - fx, gy = 1 - fy;
+      const i00 = (sy0c * sw + sx0c) * 4, i10 = (sy0c * sw + sx1c) * 4;
+      const i01 = (sy1c * sw + sx0c) * 4, i11 = (sy1c * sw + sx1c) * 4;
+      const w00 = gx * gy, w10 = fx * gy, w01 = gx * fy, w11 = fx * fy;
+      const sa = (sd[i00 + 3] * w00 + sd[i10 + 3] * w10 + sd[i01 + 3] * w01 + sd[i11 + 3] * w11) / 255 * opacity;
+      if (sa <= 0) continue;                     // masked-out: let farther surface show
+      const di = (y * W + x);
+      if ((process.env.FCT_ZC_FLIP === '1' ? (worldZ <= zbuf[di]) : (worldZ >= zbuf[di]))) continue; // depth test (flip for experiments)
+      const sr = sd[i00] * w00 + sd[i10] * w10 + sd[i01] * w01 + sd[i11] * w11;
+      const sg = sd[i00 + 1] * w00 + sd[i10 + 1] * w10 + sd[i01 + 1] * w01 + sd[i11 + 1] * w11;
+      const sb = sd[i00 + 2] * w00 + sd[i10 + 2] * w10 + sd[i01 + 2] * w01 + sd[i11 + 2] * w11;
+      const o = di * 4;
+      if (sa >= 1) {
+        dd[o] = Math.round(sr); dd[o + 1] = Math.round(sg); dd[o + 2] = Math.round(sb); dd[o + 3] = 255;
+      } else {
+        const ia = 1 - sa;
+        dd[o] = Math.round(sr * sa + dd[o] * ia);
+        dd[o + 1] = Math.round(sg * sa + dd[o + 1] * ia);
+        dd[o + 2] = Math.round(sb * sa + dd[o + 2] * ia);
+        dd[o + 3] = 255;
+      }
+      zbuf[di] = worldZ;
+    }
+  }
+}
+
+/** A masked-A clone leaf ready for the depth composite: its baked full-frame
+ *  masked pixels, the flat world-Z of the clone (occlusion depth), and the
+ *  screen-centre perspective magnification for that Z. */
+export interface MaskedCloneLeaf {
+  readonly layerId: number;
+  readonly src: ImageData;
+  readonly worldZ: number;
+  readonly scale: number;
+  readonly opacity: number;
+  readonly label?: string;
+}
 
 /** A projected quad ready to depth-composite: source pixels + per-corner
  *  screen-space (x, y, w, worldZ). Corners are in the same order as
@@ -178,6 +269,54 @@ export function hasNestedMaskedCloneCameraStack(scene: MotrScene): boolean {
     }
   };
   walkChains(scene.layers);
+  return maskChain && cloneChain;
+}
+
+/** EvaluatedScene-based front door for hasNestedMaskedCloneCameraStack. The
+ *  compositor's composite() only receives an EvaluatedScene (not the raw
+ *  MotrScene), but scene.layerById is the flat Map<id, Layer> of EVERY raw
+ *  layer node (buildLayerById recurses the whole tree). So we reconstruct the
+ *  structural triple (Camera + clone-clone chain + clone-masked-by-clone)
+ *  from that flat map — same predicate, no api.ts plumbing needed, keeping the
+ *  composite() hook to a single import + single call. */
+export function sceneMatchesNestedMaskedCloneStack(scene: EvaluatedScene): boolean {
+  const all = [...scene.layerById.values()];
+  let hasCamera = scene.camera !== undefined;
+  const cloneIds = new Set<number>();
+  for (const l of all) {
+    if (l.type === 'camera') hasCamera = true;
+    if (l.type === 'clone') cloneIds.add(l.id);
+  }
+  if (!hasCamera || cloneIds.size < 2) return false;
+  let maskChain = false, cloneChain = false;
+  for (const l of all) {
+    if (l.type !== 'clone') continue;
+    if (l.imageMaskSourceId !== undefined && cloneIds.has(l.imageMaskSourceId)) maskChain = true;
+    if (l.cloneSourceId !== undefined && cloneIds.has(l.cloneSourceId)) cloneChain = true;
+  }
+  return maskChain && cloneChain;
+}
+
+/** EvaluatedScene-based twin of `hasNestedMaskedCloneCameraStack`. composite()
+ *  only receives an EvaluatedScene (never the raw MotrScene), but its
+ *  `layerById` map holds every raw Layer node (buildLayerById recurses the whole
+ *  tree — evaluator/links.ts), so the SAME structural triple can be evaluated
+ *  there without plumbing MotrScene through api.ts. Reuses the identical
+ *  Camera + mask-chain + clone-chain triple. */
+export function hasNestedMaskedCloneCameraStackEval(scene: EvaluatedScene): boolean {
+  let hasCamera = false;
+  const cloneIds = new Set<number>();
+  for (const l of scene.layerById.values()) {
+    if (l.type === 'camera') hasCamera = true;
+    if (l.type === 'clone') cloneIds.add(l.id);
+  }
+  if (!hasCamera || cloneIds.size < 2) return false;
+  let maskChain = false, cloneChain = false;
+  for (const l of scene.layerById.values()) {
+    if (l.type !== 'clone') continue;
+    if (l.imageMaskSourceId !== undefined && cloneIds.has(l.imageMaskSourceId)) maskChain = true;
+    if (l.cloneSourceId !== undefined && cloneIds.has(l.cloneSourceId)) cloneChain = true;
+  }
   return maskChain && cloneChain;
 }
 
@@ -318,60 +457,70 @@ function effectiveImageMaskSourceId(rctx: RenderContext, el: EvaluatedLayer): { 
   return undefined;
 }
 
-/** Walk the evaluated tree and collect every masked-clone-leaf as a
- *  DepthQuad. Each leaf gets its own owned ImageData (masked A pixels).
- *  Order does NOT matter for the depth composite (near-wins-pixel is
+
+/** Walk the evaluated tree and collect every VISIBLE masked-clone leaf as a
+ *  MaskedCloneLeaf: baked masked-A pixels + the flat occlusion world-Z + the
+ *  screen-centre perspective magnification for that Z. Parent-group visibility
+ *  is honoured — the hidden "Clones" group (opacity 0) that holds the Shape 0N
+ *  clone SOURCES must NOT draw directly; only the visible re-clones in the
+ *  "Pieces" group are composited. Order does NOT matter (near-wins per pixel is
  *  paint-order-independent — pinned by z-composite.test.ts). */
 export function collectMaskedCloneQuads(
   rctx: RenderContext,
   scene: EvaluatedScene,
   W: number,
   H: number,
-): DepthQuad[] {
-  const quads: DepthQuad[] = [];
+): MaskedCloneLeaf[] {
+  const leaves: MaskedCloneLeaf[] = [];
+  const camZ = rctx.cameraZ;
   const debug = process.env.FCT_DEBUG_ZCOMPOSITE === '1';
-  const walk = (els: readonly EvaluatedLayer[]): void => {
+  const noscale = process.env.FCT_ZC_NOSCALE === '1';
+  const walk = (els: readonly EvaluatedLayer[], parentVisible: boolean): void => {
     for (const el of els) {
-      if (el.visible && isMaskedCloneChainLeaf(rctx, el) && el.layer.cloneSourceId !== undefined) {
+      const vis = parentVisible && el.visible && el.opacity > 0;
+      if (vis && isMaskedCloneChainLeaf(rctx, el) && el.layer.cloneSourceId !== undefined) {
         const pixels = resolveCloneImage(rctx, el.layer.cloneSourceId);
-        if (pixels !== null) {
-          const mask = effectiveImageMaskSourceId(rctx, el);
-          if (mask !== undefined) {
-            const alpha = resolveImageMaskAlpha(rctx, mask.id, W, H, mask.invert);
-            if (alpha !== null) {
-              // Own copy of the source pixels so applyMask doesn't stomp the
-              // shared imageA/imageB. Pixels are full-frame at this scene's
-              // (W, H) resolution — same convention as the rest of the compositor.
-              const owned = new ImageData(new Uint8ClampedArray(pixels.data), pixels.width, pixels.height);
-              applyMask(owned, alpha, false);
-              quads.push(buildDepthQuad(el, owned, rctx.cameraZ, `clone#${el.layer.id}`));
-              if (debug) {
-                const wt = el.worldTransform;
-                console.error(`[zcomp] leaf id=${el.layer.id} mask=${mask.id} invert=${mask.invert} worldXYZ=(${wt[12].toFixed(1)},${wt[13].toFixed(1)},${wt[14].toFixed(1)}) op=${el.opacity.toFixed(2)}`);
-              }
-            }
+        const mask = pixels !== null ? effectiveImageMaskSourceId(rctx, el) : undefined;
+        if (pixels !== null && mask !== undefined) {
+          const alpha = resolveImageMaskAlpha(rctx, mask.id, W, H, mask.invert);
+          if (alpha !== null) {
+            // Own copy of the source pixels, conformed to the frame so the
+            // per-pixel mask (frame-strided) lines up (fixes the 1854×1042 A
+            // media sheared into horizontal streaks over a 1920×1080 frame).
+            const conformed = conformToFrame(pixels, W, H);
+            const owned = new ImageData(new Uint8ClampedArray(conformed.data), conformed.width, conformed.height);
+            applyMask(owned, alpha, false);
+            const worldZ = el.worldTransform[14];
+            // Motion perspective magnification for a flat quad at this Z
+            // (perspective.ts::projectPoint: scale = camZ / (camZ + z)).
+            const denom = camZ + worldZ;
+            const scale = noscale ? 1 : (isFinite(camZ) && Math.abs(denom) > 1e-6 ? camZ / denom : 1);
+            leaves.push({ layerId: el.layer.id, src: owned, worldZ, scale, opacity: el.opacity, label: `clone#${el.layer.id}` });
+            if (debug) console.error(`[zcomp] leaf id=${el.layer.id} mask=${mask.id}${mask.invert ? '(inv)' : ''} worldZ=${worldZ.toFixed(1)} scale=${scale.toFixed(3)} op=${el.opacity.toFixed(2)}`);
           }
         }
       }
-      walk(el.children);
+      // A group with opacity 0 (the hidden clone-SOURCE "Clones" group) hides its
+      // whole subtree from the direct composite — only the visible re-clones draw.
+      walk(el.children, parentVisible && (el.layer.type !== 'group' || el.opacity > 0));
     }
   };
-  walk(scene.layers);
-  return quads;
+  walk(scene.layers, true);
+  return leaves;
 }
 
-/** Full pipeline: return a freshly-rendered ImageData with the base B seeded
- *  at z=0, plus every masked-A clone leaf composited by per-pixel depth. The
- *  caller passes the (already sized) output buffer; this fills it. The base
- *  seed is a full-frame quad using imageB at world Z = 0 (the 3D_Rectangle
- *  scene has no camera pushback in its Transition B parent, per the
- *  T-qrect3d0001 decode — Transition B world matrix is identity).
+/** Full pipeline: fill `output` with the per-pixel Z-buffered composite of the
+ *  nested-masked-clone stack over base Transition B. B is seeded first at its
+ *  own scene world-Z (3D_Rectangle pushes B to Z=-300 per the T-qrect3d0001
+ *  decode — B lives BEHIND the Z=0 plane), then every masked-A clone leaf
+ *  competes per pixel: whichever surface is NEAREST (least world-Z, Motion
+ *  convention) owns the pixel, and masked-out A pixels fall through to the
+ *  farther surface. The thin photo-B seams around each rectangle boundary emerge
+ *  where a near masked-A rectangle stops covering and the farther B (or a farther
+ *  A rectangle) takes the pixel.
  *
- *  Currently the ONLY consumer is a flag-gated hook at the top of composite()
- *  (FCT_Z_COMPOSITE_3D=1). Because the flag is default-OFF and the caller
- *  falls through to the standard pipeline when disabled or when the scene
- *  doesn't match `hasNestedMaskedCloneCameraStack`, this WIP is byte-neutral
- *  to the shipped gate. */
+ *  Only consumer: the flag-gated hook at the top of composite()
+ *  (FCT_Z_COMPOSITE_3D=1). Default-OFF => byte-neutral to the shipped gate. */
 export function renderNestedMaskedCloneStack(
   rctx: RenderContext,
   scene: EvaluatedScene,
@@ -379,22 +528,41 @@ export function renderNestedMaskedCloneStack(
   W: number,
   H: number,
 ): void {
-  // Seed the depth buffer with the full-frame B base at world Z = 0.
   const zbuf = createDepthBuffer(W, H);
-  const baseCorners: Array<[number, number, number, number]> = [
-    [-W / 2, -H / 2, 1, 0], [W / 2, -H / 2, 1, 0],
-    [W / 2, H / 2, 1, 0], [-W / 2, H / 2, 1, 0],
-  ];
-  const baseQuad: DepthQuad = {
-    layerId: -1,
-    src: rctx.imageB,
-    cornersWithZ: baseCorners,
-    opacity: 1,
-    label: 'base:transitionB',
+  const camZ = rctx.cameraZ;
+
+  // Base Transition B: the deepest (most background) visible non-clone image
+  // layer. Seed it first at its scene world-Z, perspective-scaled by the same
+  // projectPoint factor so B foreshortens consistently with the A clones.
+  let baseZ = 0;
+  const findBaseZ = (els: readonly EvaluatedLayer[]): void => {
+    for (const el of els) {
+      if (el.layer.type === 'image' && el.visible && el.layer.cloneSourceId === undefined) {
+        if (el.worldTransform[14] < baseZ) baseZ = el.worldTransform[14];
+      }
+      findBaseZ(el.children);
+    }
   };
-  renderDepthComposite(output, zbuf, [baseQuad]);
+  findBaseZ(scene.layers);
+  if (process.env.FCT_DEBUG_ZCOMPOSITE === '1') console.error(`[zcomp] baseZ=${baseZ}`);
+  const baseDenom = camZ + baseZ;
+  const baseScale = isFinite(camZ) && Math.abs(baseDenom) > 1e-6 ? camZ / baseDenom : 1;
+  const baseB = conformToFrame(rctx.imageB, W, H);
+  depthBlitCenterScaled(output, zbuf, baseB, baseScale, baseZ, 1);
+
+  // The base B is a BACKDROP, not a depth competitor: FCP draws the 27-clone
+  // "Pieces" tree ON TOP of the enabled Transition-B base (B is the bottom of
+  // the layer tree). So after painting B we RESET the depth buffer to +Infinity
+  // — every masked-A piece then wins over B wherever it has coverage, and B only
+  // survives in the gaps no A piece covers. Among themselves the A pieces still
+  // depth-sort per pixel (nearest of the overlapping rectangles owns the pixel),
+  // which is what stacks the concentric rectangles. (FCT_ZC_BDEPTH=1 keeps B in
+  // the depth race for A/B comparison experiments.)
+  if (process.env.FCT_ZC_BDEPTH !== '1') zbuf.fill(Infinity);
 
   // Composite every masked-A clone leaf into the shared depth buffer.
-  const quads = collectMaskedCloneQuads(rctx, scene, W, H);
-  renderDepthComposite(output, zbuf, quads);
+  const leaves = collectMaskedCloneQuads(rctx, scene, W, H);
+  for (const lf of leaves) {
+    depthBlitCenterScaled(output, zbuf, lf.src, lf.scale, lf.worldZ, lf.opacity);
+  }
 }

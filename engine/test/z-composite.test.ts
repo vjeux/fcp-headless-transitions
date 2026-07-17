@@ -212,7 +212,14 @@ function runTests() {
     console.log(`    (3D_Rectangle f≈mid collected ${quads.length} masked-clone quads)`);
     assert(quads.length >= 1, `expected ≥1 quad, got ${quads.length}`);
     for (const q of quads) {
-      assert(q.cornersWithZ.length === 4, 'quad has 4 corners');
+      // MaskedCloneLeaf: baked masked-A pixels (frame-sized) + flat occlusion
+      // world-Z + the perspective magnification for that Z. (In this heavily
+      // downscaled test scene camZ is tiny while worldZ stays in full-scene
+      // units, so the perspective scale can be degenerate/negative — we only
+      // require it to be a finite number here; the real 1920×1080 render keeps
+      // camZ+worldZ positive.)
+      assert(Number.isFinite(q.worldZ), 'leaf has a finite worldZ');
+      assert(Number.isFinite(q.scale), 'leaf has a finite perspective scale');
       assert(q.src.width === W && q.src.height === H, 'quad src matches frame size');
     }
   });
