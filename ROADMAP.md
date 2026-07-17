@@ -875,6 +875,80 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-17swng2  🔎 SWING mid-transition GT-vs-headless FUNDAMENTAL MISMATCH (T-q00deefab WIP,
+              docs-only, gate 0/0, Movements__Swing 14.44 unchanged). **KEY FINDING:
+              `fct.sh minimize Movements__Swing` reports engine already matches FCP HEADLESS at
+              PSNR >= 25 dB — the entire remaining gap is engine-vs-GUI, NOT engine-vs-headless.**
+              This means the Motion .motr engine IS producing the same pixels FCP headless does;
+              the GUI GT captures something structurally different (likely a GUI-only compositor
+              path or GUI-specific timing remap that the .motr does not encode). Any local fix in
+              perspective.ts/geometry.ts/framing.ts that would improve GT-match would have to
+              DEVIATE from headless — measurable trade-off if pursued.
+              **FRESH DECODE (2026-07-17, .motr + evaluator probe, tick T-q00deefab):**
+              After the T-qswng1 anchor-flip, the ACTIVE branch is `Bottom` (parent group at
+              posY=+188.34) → `Bottom away` (posY=-728.34, anchorY=-540) → 2 clones:
+              • **Clone A** (Transition A source): position=(0,-540,0), anchor=(0,-540,0),
+                static rotationX=0. Its local transform collapses to identity (T(pos)·T(-anc) = I).
+                At f0 world = (0,0,0) face-on, fills frame. As the Ramp on Bottom-away rotates X
+                from 0 → -π/2 (evaluator negates → 0 → +π/2 in Y-DOWN), Clone A's TOP corner
+                stays anchored at screen y=0 (top of screen) while its BOTTOM corner recedes in
+                Z and moves upward. Projected corners at f14: TL=(0,0) TR=(1920,0) BR=(1619,563)
+                BL=(301,563). **Clone A's hinge is at the TOP edge of the screen (y=0).**
+              • **Clone B** (Transition B source): position=(0,-540,0), anchor=(0,-540,0), and a
+                STATIC rotationX=+π/2 (90° pre-fold — the "back face" of the fold). Marked as
+                overrideChannels rotX (evaluator/index.ts:672 clone-layer block), so the static
+                90° applies at its full authored value (does NOT ramp from 0 via the retime
+                heuristic). As the Ramp reduces the parent Bottom-away's rotX from 90° toward 0°,
+                Clone B swings into view from behind. At f14 Clone B projected: TL=(129,11)
+                TR=(1791,11) BR=(2065,890) BL=(-145,890). **Clone B's projected top edge is at
+                ≈y=11 (top of screen), NOT the mid-screen hinge GT shows.**
+              **WHY THE OVER-OCCLUSION (roadmap 07-16swng1 note):** BOTH clones' top edges land
+              at screen y=0 (both share the same hinge geometry via the shared `Bottom away`
+              parent rotation about screen center). In painter's order (child declaration = A
+              then B), B is drawn LAST → B should win overlaps, but rendered engine f14 shows
+              Clone A on top of Clone B in the middle strip. Explanation: Clone B's rotationX
+              stays near 90° across most frames — its projected quad has huge Z spread (wz=-263
+              at BR to +311 at TL at f14), making the rasterized texture very sparse/degenerate
+              in the middle band. A over-occludes because B's coverage is thin, not because of
+              draw order.
+              **WHY GT LOOKS DIFFERENT** (per-frame comparison, this session):
+              • GT f8: fold advanced — top-third is Clone B (blue), thin dark line hinge at
+                y≈310, bottom-2/3 is Clone A (orange) with mild perspective foreshortening. Fold
+                hinge is at screen y≈310.
+              • GT f10: hinge at y≈600, B fills TOP half, A hangs as narrow strip below hinge.
+              • GT f14: essentially fully settled B (small letterbox).
+              • Engine f8: still nearly full-frame Clone A face-on (Bottom-away rotX≈+23° at
+                t=0.667s; ramp is Curvature=1 → slow start). No visible B yet.
+              • Engine f14: Clone A occupies top half y=0..563, Clone B occupies bottom strip
+                y=590..790 (with painter's order + Clone B's thin coverage explaining the gap).
+                Hinge line at y≈563 (roughly screen center, driven by A's projected BR/BL).
+              **STRUCTURAL A/B/HINGE MISMATCH:**
+              1. GT has **photo B on TOP, photo A on BOTTOM** of the hinge.
+                 Engine has **photo A on TOP, photo B on BOTTOM** of the hinge.
+              2. GT's fold hinge migrates from screen top (y≈310 at f8) DOWNWARD to y≈600 at
+                 f10, i.e. moves DOWN as B pushes A down. Engine's hinge is fixed at the
+                 rotation pivot near screen center throughout.
+              3. GT's fold completes by f14 (24-frame span at 30fps = 0.8s in the GT movie).
+                 Engine's fold takes the full 2.0s (.motr sceneDur) — Ramp only reaches ≈+58° at
+                 f14 out of the 90° target.
+              **TIMING EVIDENCE:** GT settle-window (fct/gt_settle_windows.json:
+              Movements__Swing) spans only 23 GT frames = 0.767s from the recorded FCP GUI movie.
+              The .motr's authored sceneDur is 2.0s. So the GUI compresses the animation ~2.6×
+              relative to headless. Other Movements slugs (Fall 1.73s, Flip 2.0s, Switch 1.77s)
+              have similar .motr durs but render fine — because their compositor path doesn't
+              require a two-sided perpendicular fold that the .motr expresses as two clones.
+              **REAL FIX IS OUT OF SCOPE:** Correcting Swing requires (a) making Clone B's own
+              anchor/position deliver its top edge to the fold hinge line, and (b) either wiring
+              the per-pixel Z-buffer in `renderChildLayers` (compositor/index.ts, LOCKED by
+              concurrent editors per the collision map) OR building a broader two-sided-fold
+              detector that fires on ≥2 slugs to satisfy the no-hardcode ≥2 bar. Neither is
+              cleanly expressible via edits scoped to perspective.ts/geometry.ts/framing.ts
+              alone. Structural work continues as T-qswng3 (compositor path wiring, in a future
+              tick when index.ts is free) or as a rig-level anchor rewrite in evaluator/index.ts
+              (owned by Center_Reveal's LOCKED lane this cycle). STOP.
+              **DoD**: gate-green docs-WIP with precise decode + exact call-site + STOP-because-
+              real-fix-out-of-lane. Verdict: SWARM_RESULT T-q00deefab NOCHANGE docs-decode-only.
+
 - 2026-07-17q1  🔎 CLONE_SPIN framing decode — Framing param id=203 value=4 (unique to
               Clone_Spin in the corpus, "Object Space" pose mode) + tile-grid image-wall
               structure. Docs-only, gate 0/0 (Clone_Spin 10.75 unchanged). Sub-agent
