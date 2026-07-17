@@ -919,6 +919,31 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               never re-baselined). Earthquake/Leaves gate flags are the known stochastic-emitter
               phantoms (Earthquake re-renders to exactly 21.79; Leaves swings 15.9↔22.4↔19.5 across
               identical renders) — NOT caused by this inert change.
+- 2026-07-16r  ✅ UP-OVER SCENEDUR-CAP FOR DECORATIVE SELF-RETIMED BG (T-qupover0001 DONE) —
+              **Stylized__Up-Over 11.64 → 15.38 (+3.74 dB)**, gate net-positive, 0 real regressions.
+              Root cause (Rule 8/10 decode): Up-Over's animationEndSec inflated to 9.977s (3.18×
+              sceneDur 3.133s) because the T-q29039791 loop-container exemption was too broad. The
+              `Background` layer's decorative `bg base`/`bg overlay` <scenenode> IMAGE leaves each
+              carry their OWN retimingExtrapolation=1 Retime (a bundled-media parallax retime, NOT
+              A/B content) and trailing Position/Scale keys at 9.977s; the old subtree-re=1 test
+              exempted those self-retimes from the cap, so the whole progress→time map compressed
+              3× and every mask-reveal envelope (Shapes for A/B/Drop-Well) read opacity-0 mid-
+              transition → the drop-zone reveal never fired and the engine held photo A static the
+              whole transition (per-frame flat ~11-12 dB; probe: all 3 leaf image-masks resolved
+              maskCov=NONE at the inflated time). FIX (parser/index.ts only): narrow the loop-
+              container exemption — a curve is loop-exempt only when (a) a PROPER-DESCENDANT node
+              carries the re=1 loop (subtreeHasLoopingCurveOnDescendant; excludes a leaf's own
+              self-retime) AND (b) the curve's own node is NOT a decorative self-retimed leaf
+              (nodeDirectlyHasRetime, which returns true ONLY for a self-retimed node whose
+              `Source Media` id=300 is NOT bound to an A/B footage well). This caps Up-Over's
+              bg base/bg overlay (animEnd 9.977 → 3.133) while keeping the REAL A/B drop-zone
+              self-retimes exempt — Wipes__Mask (Transition A/B Width to 5.0s, 17.51 unchanged) and
+              Movements__Smear (A/Drop-Zone, 14.00 unchanged) verified byte-identical. Loop 15.63
+              and Heart exempt (re=1 on child drop zones, no direct self-retime). Full anim scan:
+              only Up-Over changes materially (+3 sub-frame ≤0.003s clamps on Light_Noise/Pinwheel/
+              Curtains, no render effect). No new detector (no-hardcode green, 13/13). The
+              compositor group-mask path was NOT needed — Up-Over's masks are per-leaf image masks
+              that resolve correctly once the time domain is right.
 
 - 2026-07-16swng1  ✅ SWING FOLD DIRECTION — factoryID-16 "Anchor" widget Top↔Bottom Y-UP→Y-DOWN
               flip (T-q00deefab, **Movements__Swing 12.89 → 14.60 dB, +1.71** (per-slug re-render

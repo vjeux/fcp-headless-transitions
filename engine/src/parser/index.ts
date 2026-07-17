@@ -749,17 +749,102 @@ export function parseMotr(xmlText: string): MotrScene {
     // scenenode/layer/group element, does its subtree contain ANY <curve
     // retimingExtrapolation="1">? Cached because the outer loop walks every curve
     // in the file and each curve queries every ancestor.
-    const loopContainerCache = new WeakMap<Element, boolean>();
-    function subtreeHasLoopingCurve(el: Element): boolean {
-      const cached = loopContainerCache.get(el);
+    // STRICT-DESCENDANT variant (T-qupover0001). A GENUINE loop container is a
+    // GROUP/LAYER whose *child* nodes carry the retimingExtrapolation=1 loop and
+    // whose sibling decorations (Ornaments) legitimately move in-sync past
+    // sceneDur (Stylized__Loop's `Transition loop`/`Ornament`, Heart's
+    // `Group 2 copy 3`: re=1 on descendant `arc`/`arc 3` drop zones, transform
+    // curves on the enclosing group). A leaf IMAGE `scenenode` whose OWN
+    // Retime Value is the ONLY re=1 in its subtree is NOT a loop — its re=1 is a
+    // per-clip parallax retime, and its trailing Position/Scale keys (bg base /
+    // bg overlay at 9.977s vs sceneDur 3.133s in Up-Over) are editor-leftover
+    // artifacts that inflate animationEndSec ~3× and collapse the mid-transition
+    // render (every mask envelope reads opacity-0 → drop-zone reveal never fires,
+    // photo A held static the whole transition). So a node only qualifies as a
+    // loop container for its OWN transform curves when a re=1 curve lives on a
+    // PROPER DESCENDANT node (nearest enclosing scenenode/layer/group ≠ el),
+    // never when the only re=1 is el's own self-retime. Verified: Loop/Heart keep
+    // the exemption (re=1 on child drop zones); Up-Over's bg base/bg overlay lose
+    // it (re=1 only on themselves) and get capped to sceneDur.
+    const strictDescCache = new WeakMap<Element, boolean>();
+    function subtreeHasLoopingCurveOnDescendant(el: Element): boolean {
+      const cached = strictDescCache.get(el);
       if (cached !== undefined) return cached;
       const cs = (el as any).getElementsByTagName('curve') as HTMLCollectionOf<Element>;
       let has = false;
       for (let i = 0; i < cs.length; i++) {
-        if (cs.item(i)?.getAttribute('retimingExtrapolation') === '1') { has = true; break; }
+        const c = cs.item(i);
+        if (c?.getAttribute('retimingExtrapolation') !== '1') continue;
+        // Climb from this re=1 curve to its nearest enclosing scenenode/layer/group.
+        // If that owner is a PROPER descendant of el (i.e. not el itself), el is a
+        // real loop container. If the owner IS el, this is el's own self-retime.
+        let p: any = (c as any).parentNode;
+        while (p && p.nodeType === 1) {
+          if (p.tagName === 'scenenode' || p.tagName === 'layer' || p.tagName === 'group') {
+            if (p !== el) has = true;
+            break;
+          }
+          p = p.parentNode;
+        }
+        if (has) break;
       }
-      loopContainerCache.set(el, has);
+      strictDescCache.set(el, has);
       return has;
+    }
+    // Does `el` DIRECTLY carry a retimingExtrapolation=1 curve (the re=1 curve's
+    // nearest enclosing scenenode/layer/group is el itself)? A leaf node that is
+    // itself self-retimed — a background/media clip with its OWN Retime Value
+    // (Up-Over's bg base / bg overlay, each a decorative <scenenode> image with a
+    // re=1 Retime and trailing Position/Scale keys at 9.977s) — is NOT a loop
+    // element that moves in sync with a container loop; its own transform curves
+    // are editor-leftover artifacts and MUST be capped even though an ancestor
+    // (the Background layer, which holds several such self-retimed siblings) looks
+    // like a loop container. By contrast Loop's `Ornament` / Heart's
+    // `Group 2 copy 3` carry NO direct re=1 (the re=1 lives on child drop zones)
+    // and legitimately move with the loop → they stay exempt.
+    const directRetimeCache = new WeakMap<Element, boolean>();
+    function nodeDirectlyHasRetime(el: Element): boolean {
+      const cached = directRetimeCache.get(el);
+      if (cached !== undefined) return cached;
+      // First: is this node itself directly self-retimed?
+      let selfRetime = false;
+      const cs = (el as any).getElementsByTagName('curve') as HTMLCollectionOf<Element>;
+      for (let i = 0; i < cs.length; i++) {
+        const c = cs.item(i);
+        if (c?.getAttribute('retimingExtrapolation') !== '1') continue;
+        let p: any = (c as any).parentNode;
+        while (p && p.nodeType === 1) {
+          if (p.tagName === 'scenenode' || p.tagName === 'layer' || p.tagName === 'group') {
+            if (p === el) selfRetime = true;
+            break;
+          }
+          p = p.parentNode;
+        }
+        if (selfRetime) break;
+      }
+      if (!selfRetime) { directRetimeCache.set(el, false); return false; }
+      // CRUCIAL NARROWING (T-qupover0001): a self-retimed leaf that IS a Transition
+      // A/B DROP ZONE (its `Source Media`, param id=300, resolves to an A/B footage
+      // well) is the actual transition CONTENT — its self-retime + transform curves
+      // are the real wipe/mask animation and legitimately extend past sceneDur
+      // (Wipes__Mask's Transition A/B Width curves to 5.0s; Movements__Smear's
+      // A/Drop-Zone). Those must STAY loop-exempt (return false). Only a DECORATIVE
+      // self-retimed media leaf whose source is NOT an A/B well (Up-Over's bg
+      // base/bg overlay — bundled background media) is a real artifact and returns
+      // true (→ its transform curves get capped at sceneDur). The clip id lives in
+      // the `value` attribute: <parameter name="Source Media" id="300" value="…"/>.
+      let isABDropZone = false;
+      const params = (el as any).getElementsByTagName('parameter') as HTMLCollectionOf<Element>;
+      for (let i = 0; i < params.length; i++) {
+        const pn = params.item(i);
+        if (pn?.getAttribute('name') !== 'Source Media' || pn.getAttribute('id') !== '300') continue;
+        const raw = pn.getAttribute('value') ?? pn.getAttribute('default') ?? '';
+        const cid = parseInt(raw.trim().split(/\s+/)[0], 10);
+        if (isFinite(cid) && clip.ab.has(cid)) { isABDropZone = true; break; }
+      }
+      const decorativeSelfRetime = !isABDropZone;
+      directRetimeCache.set(el, decorativeSelfRetime);
+      return decorativeSelfRetime;
     }
 
     const curves = Array.from(sceneEl.getElementsByTagName('curve'));
@@ -793,6 +878,11 @@ export function parseMotr(xmlText: string): MotrScene {
       // (Camera Z, Top shapes X/Y/Z). This is the T-q29039791 fix per the task
       // brief; the earlier Camera-only variant missed the `Top shapes` inflation.
       let insideLoopContainer = false;
+      // T-qupover0001: does the curve's OWN nearest-enclosing node directly carry a
+      // re=1 (self-retimed leaf, e.g. a background media clip)? Such a node's own
+      // transform curves are never loop-exempt (see nodeDirectlyHasRetime). Set on
+      // the first scenenode/layer/group the ancestor walk encounters.
+      let curveOwnNodeSelfRetimed: boolean | undefined = undefined;
       // Camera-node local-frame re-anchor: a Camera scenenode with a LARGE-NEGATIVE
       // timeline offset authors its dolly/orientation curves in its own local time
       // frame (Motion places local-frame zero at `offset`). Light Sweep's Camera has
@@ -830,14 +920,28 @@ export function parseMotr(xmlText: string): MotrScene {
       // offset). Recorded when the ancestor walk climbs into a <filter> (see below).
       let filterOffsetSec = 0;
       while (node && node.nodeType === 1) {
-        // Loop-container detection for the broad scene-duration cap (T-q29039791).
-        // The ancestor is a scenenode/layer/group whose subtree contains at least
-        // one retimingExtrapolation=1 curve → this curve is part of a legitimate
-        // Retime-wrap loop and must NOT be capped at sceneDur.
+        // Loop-container detection for the broad scene-duration cap (T-q29039791,
+        // narrowed T-qupover0001). The ancestor is a scenenode/layer/group whose
+        // subtree contains a retimingExtrapolation=1 curve on a PROPER DESCENDANT
+        // node → this curve is part of a legitimate Retime-wrap loop and must NOT
+        // be capped at sceneDur. The strict-descendant form (see
+        // subtreeHasLoopingCurveOnDescendant) excludes a leaf image scenenode's
+        // OWN self-retime from exempting its OWN transform curves — that pattern
+        // (Up-Over's bg base/bg overlay: only re=1 is the node's own Retime Value,
+        // trailing Position/Scale keys at 9.977s vs sceneDur 3.133s) is an editor
+        // artifact, not a loop. Loop/Heart keep the exemption (re=1 on child drop
+        // zones under the enclosing group).
         if (!insideLoopContainer
             && (node.tagName === 'scenenode' || node.tagName === 'layer' || node.tagName === 'group')
-            && subtreeHasLoopingCurve(node as Element)) {
+            && subtreeHasLoopingCurveOnDescendant(node as Element)) {
           insideLoopContainer = true;
+        }
+        // Record whether the curve's OWN owning node (first named node up the walk)
+        // is a self-retimed leaf. A self-retimed node is never loop-exempt for its
+        // own transform curves (T-qupover0001).
+        if (curveOwnNodeSelfRetimed === undefined
+            && (node.tagName === 'scenenode' || node.tagName === 'layer' || node.tagName === 'group')) {
+          curveOwnNodeSelfRetimed = nodeDirectlyHasRetime(node as Element);
         }
         if (node.tagName === 'parameter') {
           const nm = node.getAttribute('name') || '';
@@ -1095,7 +1199,16 @@ export function parseMotr(xmlText: string): MotrScene {
           // retimingExtrapolation=1 curve — e.g. Stylized__Loop's `Transition
           // loop`) are exempted: their Retime-wrap semantics let them legitimately
           // run past sceneDur.
-          const secCapped = (isNoOpCurve || !insideLoopContainer)
+          // T-q29039791 / T-qupover0001: apply the sceneDur cap to any REAL animating
+          // curve that is NOT genuinely loop-exempt. A curve is loop-exempt only when
+          // (a) an ancestor is a real loop container (re=1 on a proper descendant) AND
+          // (b) the curve's OWN owning node is NOT a self-retimed leaf. Condition (b)
+          // caps Up-Over's bg base/bg overlay (self-retimed background scenenodes whose
+          // trailing Position/Scale keys hit 9.977s vs sceneDur 3.133s) while keeping
+          // Loop's Ornament / Heart's Group-2-copy-3 exempt (no direct re=1; they move
+          // with a container loop).
+          const loopExempt = insideLoopContainer && curveOwnNodeSelfRetimed !== true;
+          const secCapped = (isNoOpCurve || !loopExempt)
             ? Math.min(sec, sceneDurSec)
             : sec;
           if (secCapped > maxT) maxT = secCapped;
