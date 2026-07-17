@@ -1013,6 +1013,30 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               transfer needs either the branchless HgcHSVAdjust ladder transcribed cleanly or a
               chain-level linear working buffer (T-qlinchain01). Filed as follow-up.
 
+- 2026-07-16z2  🚧 3D_RECTANGLE Z-COMPOSITE — SOLUTION SPACE MAPPED, ring-frame mechanism FOUND
+              (WIP T-q98a30de5, gate 0 regressions, flag OFF ⇒ byte-neutral, 3D_Rectangle 16.48
+              unchanged on shipped path). Measured the flag-ON subsystem end-to-end vs GUI GT
+              (--source engine): f00 **34.65** (huge, vs flat-A baseline 18.59) but full MEAN 15.69
+              < baseline 16.48 — the mid-frames f04-f18 drag it net-negative, so the flag stays OFF.
+              DECODED the mid-frame gap: (1) the 8 Inside 0N masks are STATIC concentric rects and
+              that is CORRECT — Widget 10001 (factoryID 9) is an ASPECT-RATIO selector (columns
+              "9:16".."1.8:1"), NOT a time morph; the brief's "morph f1-f8 via 7 snapshot columns"
+              premise is refuted by the .motr (verified: evaluate() worldTransform of Inside 0N
+              identical f0 vs f6). (2) The animation is all in world-Z (Rig Position + Camera dolly):
+              leaf wz spans −251..+197 at f6, −335..+263 at f8. (3) The real gap is depth-composite
+              GEOMETRY: GUI GT f06 is MOSTLY sepia-A with THIN (~15-20px) photo-B rectangle STROKE-
+              frames; the engine's center-scale seams are hairline (~1-2px). Built + MEASURED 4
+              variants (all as default-inert env flags in z-composite.ts): filled center-scale
+              (shipped) MEAN 15.69 = best; FCT_ZC_PERSP=1 (per-corner camera projection) 13.26;
+              FCT_ZC_RING=1 (annulus = InsideN − next-inner InsideN+1) 13.46 — this one VISUALLY
+              produces GT's concentric frames but the B bands are too THICK (over-reveals, f01-08
+              crash to ~9.5); FCT_ZC_BDEPTH=1 (B in depth race) 15.52. Also added FCT_ZC_ERODE=<px>
+              (constant mask erosion) + FCT_ZC_BZ (base-B Z sweep) hooks for the next tick. NEXT
+              LEAD: RING is the right mechanism but needs a THIN B stroke, not a thick band — subtract
+              only a narrow inset of the next-inner mask (RING + inner-erode) to leave mostly A with
+              ~15px B frames. tsc + 12 z-composite unit tests + no-hardcode all green; fresh flag-OFF
+              re-render confirmed 3D_Rectangle == baseline 16.48 (0 regressions across the gate).
+
 - 2026-07-16z1  🚧 3D_RECTANGLE Z-COMPOSITE WORKS END-TO-END (WIP T-q98a30de5, gate 0 regressions) —
               wired the Z-buffered clone composite into composite() behind FCT_Z_COMPOSITE_3D
               (default OFF ⇒ byte-neutral, target 16.48 unchanged on the shipped path). With the

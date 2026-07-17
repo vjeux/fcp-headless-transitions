@@ -102,9 +102,70 @@
 // photo-B seams around each rectangle boundary — the ROADMAP dead-end note
 // pins this as the only path to a measurable win.
 //
+// ── RESUME DECODE (2026-07-16 tick, T-q98a30de5) — measured state + the real
+//    mid-frame gap. The subsystem now WORKS end-to-end when FCT_Z_COMPOSITE_3D=1
+//    (wired at compositor/index.ts:1078). Measured vs GUI GT, --source engine:
+//      • flag OFF (shipped baseline): MEAN 16.48 dB. f00=18.59.
+//      • flag ON  (this z-composite): MEAN 15.69 dB. f00=34.65 (+16! the depth
+//        composite is CORRECT at f00), but f04..f18 each 1-3 dB WORSE than the
+//        flat-A baseline (f06 12.68 vs 15.25; f18 9.75). Net −0.79 → still gate-
+//        NEGATIVE, so the flag stays OFF (byte-neutral). The task is now purely
+//        the MID-FRAME morph.
+//
+//    WHY f00 wins but f1-f8 lose (decoded this tick, cite these — probes deleted):
+//    1. THE MASKS ARE STATIC — and that is CORRECT. Inside 01..08 evaluate to a
+//       fixed concentric-rectangle set (sx=sy = 0.91,0.81,0.71,…,0.21; pos (0,0,0))
+//       at EVERY frame (verified: evaluate() worldTransform identical f0 vs f6).
+//       Widget 10001 (factoryID 9) is an ASPECT-RATIO selector — its 7 snapshot
+//       columns are named "9:16","1:1","4:3","16:9","1.8:1",… (NOT a time ramp).
+//       value=0 → the aspect column; the columns carry the anisotropic scale
+//       (Scale id=2 X0.66/Y0.85, id=6 X0.926/Y0.895, …) but only ONE is selected
+//       per project aspect, statically. So there is NO rig-snapshot TIME morph to
+//       add — the earlier brief's "morph f1-f8" premise is refuted by the .motr.
+//    2. THE ANIMATION IS ALL IN Z. The leaf world-Z DOES animate (Rig Position
+//       snapshots + Camera dolly): at f6 leaves span wz −251..+197, scale 0.81..1.42;
+//       at f8 wz −335..+263 (verified via FCT_DEBUG_ZCOMPOSITE leaf trace). baseZ
+//       (B) dollies −600→−400 over f0→f8.
+//    3. THE ACTUAL GAP is the DEPTH-COMPOSITE GEOMETRY, not the morph. In GUI GT
+//       f06 the reveal is ~5 THICK photo-B concentric FRAMES (interior sepia-A,
+//       ~40-60px blue-B bands between rings). The engine renders near-full A with
+//       only HAIRLINE seams: depthBlitCenterScaled scales each masked-A rect about
+//       SCREEN CENTRE, and since the nearer (scaled-up) rects win everywhere they
+//       cover, they fill the interior and B only survives at 1px edge misalignments.
+//       Tested (single-frame f6, all worse or neutral): FCT_ZC_NOSCALE=1 → pure
+//       nested A, zero seams; FCT_ZC_BDEPTH=1 (B stays in depth race) → MEAN 15.52
+//       (worse); FCT_ZC_BZ={0,60,120} with BDEPTH → B at higher Z rarely wins, even
+//       fewer seams. So neither "B in race" nor base-Z is the lever.
+//    NEXT LEAD (for the resume) — CORRECTED with GT re-inspection + 4 measured
+//       full-sequence variants this tick. GT f06 is a MOSTLY-SEPIA-A frame with
+//       THIN (~15-20px) photo-B rectangle-OUTLINE seams (like nested picture
+//       frames), NOT thick B bands. So the reveal is "A fills, B shows only in the
+//       narrow gaps where consecutive concentric rect EDGES misalign". Measured
+//       full-sequence means vs GUI GT (flag ON, --source engine; baseline OFF=16.48):
+//         • depthBlitCenterScaled (filled, DEFAULT)      MEAN 15.69  ← best, seams
+//           just too THIN/faint (1-2px vs GT's 15-20px).
+//         • FCT_ZC_BDEPTH=1 (B stays in depth race)      MEAN 15.52
+//         • FCT_ZC_PERSP=1 (per-corner camera projection) MEAN 13.26  ← worse
+//         • FCT_ZC_RING=1 (annulus subtract)             MEAN 13.46  ← worse
+//           (RING makes thick B BANDS — the WRONG direction; f01-08 crash to ~9.5).
+//       CONCLUSION: the filled center-scale is directionally correct; the mid-frame
+//       loss is that its B seams are far too thin. The lead is NOT ring-subtract nor
+//       re-projection — it is making the concentric filled rects land at screen
+//       positions whose EDGES are ~15-20px apart (GT's frame stroke width). Likely
+//       levers to build+measure next: (a) the per-leaf depth-scale magnitude/pivot
+//       (the rects may need to pivot about their own center-of-mask, not screen
+//       centre, so a near rect grows AWAY from the shared centre and widens the gap
+//       to its neighbour); (b) a thin B-stroke overlay at each mask boundary; (c)
+//       verify the Camera Angle-Of-View rig column (Widget 10001 drives AoV on
+//       Camera 16580 — 7 snapshot cols) feeds cameraZ so the projection spread
+//       matches FCP. FCT_ZC_BZ / FCT_ZC_PERSP / FCT_ZC_RING env hooks all remain
+//       (default-inert) to support that measurement work.
+//
 // GATE-GREEN STATUS (this tick): tsc clean, 12 z-composite unit tests green,
 // no-hardcode registers both probes with the SUBSET_REFINEMENTS exemption,
-// module has ZERO import sites → 65 built-ins byte-identical to baseline.
+// FCT_Z_COMPOSITE_3D default-OFF → 65 built-ins byte-identical to baseline
+// (code deltas are the FCT_ZC_BZ + FCT_ZC_PERSP + FCT_ZC_RING experiment hooks,
+// all default-inert — the leaf loop takes the unchanged depthBlitCenterScaled path).
 //
 // DECODE CITATION: 3D_Rectangle.motr scenenode enumeration confirmed 2026-07-16:
 //   Camera (id 16580), Inside 01..08 (nested clone chain), Shape 01..09
@@ -112,6 +173,14 @@
 //   (re-clones of Shape 0N), Transition B enabled, Transition A disabled.
 //   Rig Behavior 3001325829 drives Inside 01 Scale via ./1/100/105 (7 snapshot
 //   columns), Rig Behavior 3001966583 drives Position via ./1/100/101.
+//
+// ── 2026-07-16z2 MEASURED RESUME (WIP T-q98a30de5) ──
+// See the "NEXT LEAD" + variant table above — that block is the authoritative,
+// current measured summary (filled center-scale 15.69 best; RING/PERSP/BDEPTH all
+// worse; flat-A baseline 16.48). f00 is a huge win (34.65). The remaining gap is
+// mid-frame B-seam THICKNESS (GT ~15-20px stroke-frames vs engine ~1-2px). The
+// unbuilt lead is a fixed mask EROSION per leaf (constant-width B stroke). All
+// three FCT_ZC_* env hooks are default-inert (gate-neutral); the flag stays OFF.
 
 import type { EvaluatedLayer, EvaluatedScene } from '../evaluator/index.js';
 import type { MotrScene, Layer } from '../types.js';
@@ -133,6 +202,38 @@ import { resample } from './resample.js';
 function conformToFrame(img: ImageData, W: number, H: number): ImageData {
   if (img.width === W && img.height === H) return img;
   return resample(img, W, H);
+}
+
+/** EROSION experiment helper (FCT_ZC_ERODE=<px>): shrink a full-frame alpha
+ *  matte inward by `radius` pixels via a separable min-filter (erode). For the
+ *  axis-aligned concentric rectangle masks of 3D_Rectangle this is exact — it
+ *  pulls every rect edge inward by `radius`, so consecutive filled rects leave a
+ *  uniform-width photo-B stroke between them (GT's ~15-20px constant frame
+ *  strokes, which the variable depth-scale seam can't reproduce). Mutates
+ *  `alpha` in place. Only ever called under the FCT_ZC_ERODE env flag (the
+ *  default path never invokes it → byte-neutral to the shipped gate). */
+function erodeAlpha(alpha: Uint8Array, W: number, H: number, radius: number): void {
+  if (radius <= 0) return;
+  const tmp = new Uint8Array(alpha.length);
+  // Horizontal min pass.
+  for (let y = 0; y < H; y++) {
+    const row = y * W;
+    for (let x = 0; x < W; x++) {
+      let m = 255;
+      const x0 = Math.max(0, x - radius), x1 = Math.min(W - 1, x + radius);
+      for (let xx = x0; xx <= x1; xx++) { const v = alpha[row + xx]; if (v < m) m = v; }
+      tmp[row + x] = m;
+    }
+  }
+  // Vertical min pass (write back into alpha).
+  for (let x = 0; x < W; x++) {
+    for (let y = 0; y < H; y++) {
+      let m = 255;
+      const y0 = Math.max(0, y - radius), y1 = Math.min(H - 1, y + radius);
+      for (let yy = y0; yy <= y1; yy++) { const v = tmp[yy * W + x]; if (v < m) m = v; }
+      alpha[y * W + x] = m;
+    }
+  }
 }
 
 /** Depth-blit a full-frame masked source, uniformly scaled about the screen
@@ -212,6 +313,10 @@ export interface MaskedCloneLeaf {
   readonly worldZ: number;
   readonly scale: number;
   readonly opacity: number;
+  /** Full evaluated world transform of the clone leaf — used by the
+   *  FCT_ZC_PERSP experiment path to project the masked-A quad's 4 corners
+   *  through the real camera (instead of the screen-centre scale shortcut). */
+  readonly worldTransform?: Float64Array;
   readonly label?: string;
 }
 
@@ -475,6 +580,22 @@ export function collectMaskedCloneQuads(
   const camZ = rctx.cameraZ;
   const debug = process.env.FCT_DEBUG_ZCOMPOSITE === '1';
   const noscale = process.env.FCT_ZC_NOSCALE === '1';
+  const ring = process.env.FCT_ZC_RING === '1';
+  // RING-SUBTRACT map (FCT_ZC_RING): each concentric Inside mask N is CLONED by a
+  // smaller Inside (N+1) one hop down the Inside chain. For a leaf masked by
+  // Inside N, subtracting the alpha of the Inside that clones it (the next-inner,
+  // smaller rect) turns the filled rect into an ANNULUS — so photo-B shows in the
+  // band between consecutive rings (GT's thick concentric B-frames). Built from
+  // the raw clone-source links so it is fully structural (no per-slug constant):
+  // nextInnerMaskId[maskId] = id of the clone whose cloneSourceId === maskId.
+  const nextInnerMaskId = new Map<number, number>();
+  if (ring) {
+    for (const l of scene.layerById.values()) {
+      if (l.type === 'clone' && l.cloneSourceId !== undefined) {
+        nextInnerMaskId.set(l.cloneSourceId, l.id);
+      }
+    }
+  }
   const walk = (els: readonly EvaluatedLayer[], parentVisible: boolean): void => {
     for (const el of els) {
       const vis = parentVisible && el.visible && el.opacity > 0;
@@ -484,18 +605,40 @@ export function collectMaskedCloneQuads(
         if (pixels !== null && mask !== undefined) {
           const alpha = resolveImageMaskAlpha(rctx, mask.id, W, H, mask.invert);
           if (alpha !== null) {
+            // RING: subtract the next-inner concentric mask so this leaf paints
+            // only the annulus (Inside N − Inside N+1) → photo-B band between rings.
+            if (ring && !mask.invert) {
+              const innerId = nextInnerMaskId.get(mask.id);
+              if (innerId !== undefined) {
+                const innerAlpha = resolveImageMaskAlpha(rctx, innerId, W, H, false);
+                if (innerAlpha !== null) {
+                  for (let i = 0; i < alpha.length; i++) {
+                    const sub = alpha[i] - innerAlpha[i];
+                    alpha[i] = sub > 0 ? sub : 0;
+                  }
+                }
+              }
+            }
             // Own copy of the source pixels, conformed to the frame so the
             // per-pixel mask (frame-strided) lines up (fixes the 1854×1042 A
             // media sheared into horizontal streaks over a 1920×1080 frame).
             const conformed = conformToFrame(pixels, W, H);
             const owned = new ImageData(new Uint8ClampedArray(conformed.data), conformed.width, conformed.height);
+            // EROSION experiment (FCT_ZC_ERODE=<px>): shrink each leaf's filled
+            // mask inward by a constant border so consecutive concentric rects
+            // leave a uniform-width photo-B stroke between them — GT's f06 shows
+            // ~15-20px constant blue frame strokes, which the depth-scale seam
+            // (1-2px, variable) cannot reproduce. Separable min-filter (axis-aligned
+            // rect masks → exact). Default OFF (er<=0 → no-op, byte-neutral).
+            const er = process.env.FCT_ZC_ERODE ? parseInt(process.env.FCT_ZC_ERODE, 10) : 0;
+            if (er > 0) erodeAlpha(alpha, W, H, er);
             applyMask(owned, alpha, false);
             const worldZ = el.worldTransform[14];
             // Motion perspective magnification for a flat quad at this Z
             // (perspective.ts::projectPoint: scale = camZ / (camZ + z)).
             const denom = camZ + worldZ;
             const scale = noscale ? 1 : (isFinite(camZ) && Math.abs(denom) > 1e-6 ? camZ / denom : 1);
-            leaves.push({ layerId: el.layer.id, src: owned, worldZ, scale, opacity: el.opacity, label: `clone#${el.layer.id}` });
+            leaves.push({ layerId: el.layer.id, src: owned, worldZ, scale, opacity: el.opacity, worldTransform: el.worldTransform, label: `clone#${el.layer.id}` });
             if (debug) console.error(`[zcomp] leaf id=${el.layer.id} mask=${mask.id}${mask.invert ? '(inv)' : ''} worldZ=${worldZ.toFixed(1)} scale=${scale.toFixed(3)} op=${el.opacity.toFixed(2)}`);
           }
         }
@@ -544,6 +687,7 @@ export function renderNestedMaskedCloneStack(
     }
   };
   findBaseZ(scene.layers);
+  if (process.env.FCT_ZC_BZ !== undefined) baseZ = parseFloat(process.env.FCT_ZC_BZ);
   if (process.env.FCT_DEBUG_ZCOMPOSITE === '1') console.error(`[zcomp] baseZ=${baseZ}`);
   const baseDenom = camZ + baseZ;
   const baseScale = isFinite(camZ) && Math.abs(baseDenom) > 1e-6 ? camZ / baseDenom : 1;
@@ -563,6 +707,18 @@ export function renderNestedMaskedCloneStack(
   // Composite every masked-A clone leaf into the shared depth buffer.
   const leaves = collectMaskedCloneQuads(rctx, scene, W, H);
   for (const lf of leaves) {
-    depthBlitCenterScaled(output, zbuf, lf.src, lf.scale, lf.worldZ, lf.opacity);
+    // FCT_ZC_PERSP experiment: project each masked-A quad's 4 corners through the
+    // SAME camera used to rasterize its mask (renderPerspectiveQuadDepth), instead
+    // of the screen-centre uniform-scale shortcut (depthBlitCenterScaled). This
+    // shares one projection between mask-alpha and quad-scale, so adjacent rings at
+    // distinct world-Z leave genuine photo-B bands (the GT thick-frame appearance)
+    // rather than the near-rect filling the interior. Default OFF (byte-neutral).
+    if (process.env.FCT_ZC_PERSP === '1' && lf.worldTransform !== undefined) {
+      const corners = projectQuadWithWorldZ(lf.worldTransform, lf.src.width, lf.src.height, camZ);
+      renderPerspectiveQuadDepth(output, zbuf, lf.src,
+        corners.map(c => [c[0], c[1], c[2], c[3]] as [number, number, number, number]), lf.opacity);
+    } else {
+      depthBlitCenterScaled(output, zbuf, lf.src, lf.scale, lf.worldZ, lf.opacity);
+    }
   }
 }
