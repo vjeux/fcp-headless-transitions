@@ -1,0 +1,96 @@
+{
+  "primitive": "PAEBrightness",
+  "plugin": "PAEBrightness",
+  "hosts": [
+    "Objects__Curtains"
+  ],
+  "times": [
+    0.35,
+    0.65
+  ],
+  "signal_floor": 2.0,
+  "n_scored": 10,
+  "worst_ddb": 8.947,
+  "results": [
+    {
+      "host": "Objects__Curtains",
+      "param": "brightness",
+      "theta": 100.0,
+      "t": 0.65,
+      "oracle_signal": 134.365,
+      "ddb": 8.947
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "brightness",
+      "theta": 50.0,
+      "t": 0.65,
+      "oracle_signal": 114.669,
+      "ddb": 10.884
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "brightness",
+      "theta": 100.0,
+      "t": 0.35,
+      "oracle_signal": 100.161,
+      "ddb": 11.56
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "brightness",
+      "theta": 50.0,
+      "t": 0.35,
+      "oracle_signal": 86.815,
+      "ddb": 12.654
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "brightness",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 10.42,
+      "ddb": 14.47
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "brightness",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 22.866,
+      "ddb": 16.929
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 13.312,
+      "ddb": 25.646
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 6.487,
+      "ddb": 31.889
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 5.904,
+      "ddb": 32.708
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 2.862,
+      "ddb": 38.998
+    }
+  ]
+}

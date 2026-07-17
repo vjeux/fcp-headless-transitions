@@ -1,0 +1,145 @@
+{
+  "primitive": "PAEFlop",
+  "plugin": "PAEFlop",
+  "hosts": [
+    "Movements__Flip",
+    "Replicator-Clones__Concentric"
+  ],
+  "times": [
+    0.35,
+    0.65
+  ],
+  "signal_floor": 2.0,
+  "n_scored": 4,
+  "worst_ddb": 9.787,
+  "results": [
+    {
+      "host": "Replicator-Clones__Concentric",
+      "param": "flop",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 28.25,
+      "ddb": 9.787
+    },
+    {
+      "host": "Replicator-Clones__Concentric",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 20.657,
+      "ddb": 21.83
+    },
+    {
+      "host": "Replicator-Clones__Concentric",
+      "param": "flop",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 3.929,
+      "ddb": 27.284
+    },
+    {
+      "host": "Replicator-Clones__Concentric",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 10.332,
+      "ddb": 27.847
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "flop",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "flop",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "flop",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "flop",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Concentric",
+      "param": "flop",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Concentric",
+      "param": "flop",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Concentric",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 1.938,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Concentric",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.968,
+      "note": "no oracle signal (param inert here)"
+    }
+  ]
+}

@@ -140,6 +140,23 @@ def step():
     if nxt is None: print("ALL VERIFIED — nothing to do"); return None
     print("stepping:", nxt); return sweep_one(nxt)
 
+def sweepall(force=False):
+    """Sweep EVERY primitive in one run (the full ranked-divergence worklist). Runs the
+    harness selftest ONCE up front (not per primitive) for speed, then sweeps each with
+    skip_selftest=True. Skips already-VERIFIED unless force=True."""
+    cat = _catalog()
+    if not _selftest_ok():
+        print("ABORT: harness self-test FAILED — no sweep run"); return
+    for p in cat['primitives']:
+        st = _state()
+        if not force and _stt(st, p['id']) == 'VERIFIED':
+            print("skip (VERIFIED):", p['id']); continue
+        try:
+            sweep_one(p['id'], skip_selftest=True)
+        except Exception as ex:
+            print("%s -> EXC %s" % (p['id'], str(ex)[:200]))
+    status()
+
 def reset(pid):
     st = _state(); st['primitives'].pop(pid, None); _save(st); print("reset", pid)
 
@@ -151,5 +168,6 @@ def selftest_cmd():
 if __name__ == '__main__':
     cmd = sys.argv[1] if len(sys.argv) > 1 else 'status'
     {'status': lambda: status(), 'step': lambda: step(), 'selftest': lambda: selftest_cmd(),
+     'sweepall': lambda: sweepall('--force' in sys.argv),
      'sweep': lambda: sweep_one(sys.argv[2]), 'reset': lambda: reset(sys.argv[2])}.get(
-        cmd, lambda: print("usage: driver.py [status|step|sweep <PRIM>|reset <PRIM>|selftest]"))()
+        cmd, lambda: print("usage: driver.py [status|step|sweep <PRIM>|sweepall [--force]|reset <PRIM>|selftest]"))()

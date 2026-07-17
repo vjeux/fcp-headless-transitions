@@ -1,0 +1,224 @@
+{
+  "primitive": "PAETint",
+  "plugin": "PAETint",
+  "hosts": [
+    "Objects__Leaves"
+  ],
+  "times": [
+    0.35,
+    0.65
+  ],
+  "signal_floor": 2.0,
+  "n_scored": 0,
+  "worst_ddb": null,
+  "results": [
+    {
+      "host": "Objects__Leaves",
+      "param": "color/red",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "color/red",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "color/red",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "color/red",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "color/red",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "color/red",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "color/green",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "color/green",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "color/green",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "color/green",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "color/green",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "color/green",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "color/blue",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "color/blue",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "color/blue",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "color/blue",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "color/blue",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "color/blue",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "intensity",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "intensity",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "intensity",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "intensity",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    }
+  ]
+}

@@ -1,0 +1,144 @@
+{
+  "primitive": "PAEZoomBlur",
+  "plugin": "PAEZoomBlur",
+  "hosts": [
+    "Blurs__Zoom"
+  ],
+  "times": [
+    0.35,
+    0.65
+  ],
+  "signal_floor": 2.0,
+  "n_scored": 4,
+  "worst_ddb": 17.37,
+  "results": [
+    {
+      "host": "Blurs__Zoom",
+      "param": "mix",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 20.009,
+      "ddb": 17.37
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "amount",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 31.617,
+      "ddb": 18.132
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 10.063,
+      "ddb": 18.659
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "amount",
+      "theta": 200.0,
+      "t": 0.35,
+      "oracle_signal": 16.352,
+      "ddb": 23.859
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "look",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "look",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "look",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "look",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "amount",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "amount",
+      "theta": 200.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "swirl",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "swirl",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "swirl",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "swirl",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "mix",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "T-faithful-paeearthquake",
+  "title": "Faithful: PAEEarthquake param-response diverges from headless FCP (worst ddb 18.1 dB)",
+  "project": "fct",
+  "goal": "FAITHFUL-REIMPL (ROADMAP Rule 13): the TS engine impl of PAEEarthquake must match REAL headless FCP across its ENTIRE parameter space, not just values the 65 fixed transitions use. The DELTA oracle (fct/faithful) set each continuous param of PAEEarthquake to range extremes across hosts ['Movements__Earthquake'] and compared how the oracle vs the engine RESPOND: ddb=PSNR(oracle(theta)-oracle(theta0), engine(theta)-engine(theta0)). worst ddb=18.10 < pass 40 means the engine responds WRONGLY to a real parameter change (a faithful engine scores ~99 dB; the identity/noise floor is 99). Fix the PAEEarthquake implementation so its parameter response matches FCP. NO scene-signature dispatch, NO env flags (Rule 12/13): behavior = f(filter params) only. Re-verify: `python3 -m fct.faithful.driver sweep PAEEarthquake` must reach >= pass_db worst-ddb across all hosts. Worst diverging (host/param/theta -> ddb): [{\"host\": \"Movements__Earthquake\", \"param\": \"randomseed\", \"theta\": 1.0, \"t\": 0.35, \"oracle_signal\": 13.496, \"ddb\": 18.1}, {\"host\": \"Movements__Earthquake\", \"param\": \"randomseed\", \"theta\": 1.0, \"t\": 0.65, \"oracle_signal\": 23.304, \"ddb\": 20.782}, {\"host\": \"Movements__Earthquake\", \"param\": \"mix\", \"theta\": 0.0, \"t\": 0.65, \"oracle_signal\": 19.67, \"ddb\": 22.255}, {\"host\": \"Movements__Earthquake\", \"param\": \"layers\", \"theta\": 2.0, \"t\": 0.35, \"oracle_signal\": 9.097, \"ddb\": 24.977}, {\"host\": \"Movements__Earthquake\", \"param\": \"layers\", \"theta\": 2.0, \"t\": 0.65, \"oracle_signal\": 13.777, \"ddb\": 25.348}, {\"host\": \"Movements__Earthquake\", \"param\": \"mix\", \"theta\": 0.0, \"t\": 0.35, \"oracle_signal\": 13.057, \"ddb\": 25.814}]",
+  "slugs": [],
+  "after": null,
+  "status": "open",
+  "created_by": "faithful-driver",
+  "created_at": "2026-07-17T12:01:54Z",
+  "notes": "Auto-filed by fct/faithful/driver.py. Evidence: fct/faithful/reports/PAEEarthquake.json"
+}

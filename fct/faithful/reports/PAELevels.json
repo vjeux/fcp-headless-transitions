@@ -1,0 +1,468 @@
+{
+  "primitive": "PAELevels",
+  "plugin": "PAELevels",
+  "hosts": [
+    "Objects__Leaves",
+    "Stylized__Diagonal",
+    "Stylized__Light_Sweep",
+    "Stylized__Up-Over",
+    "Wipes__Diagonal"
+  ],
+  "times": [
+    0.35,
+    0.65
+  ],
+  "signal_floor": 2.0,
+  "n_scored": 26,
+  "worst_ddb": 7.233,
+  "results": [
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/blackin",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 134.155,
+      "ddb": 7.233
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/whitein",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 33.891,
+      "ddb": 7.999
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/gamma",
+      "theta": 0.1,
+      "t": 0.35,
+      "oracle_signal": 33.891,
+      "ddb": 8.032
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/blackin",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 33.823,
+      "ddb": 8.233
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/blackin",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 149.124,
+      "ddb": 8.261
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/whitein",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 39.595,
+      "ddb": 8.519
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/gamma",
+      "theta": 0.1,
+      "t": 0.65,
+      "oracle_signal": 39.593,
+      "ddb": 8.552
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/blackin",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 39.042,
+      "ddb": 8.772
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/gamma",
+      "theta": 4.0,
+      "t": 0.35,
+      "oracle_signal": 66.106,
+      "ddb": 12.195
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 56.241,
+      "ddb": 13.251
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 56.469,
+      "ddb": 13.278
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/gamma",
+      "theta": 4.0,
+      "t": 0.65,
+      "oracle_signal": 73.156,
+      "ddb": 13.49
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/whitein",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 41.331,
+      "ddb": 14.364
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/whitein",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 47.253,
+      "ddb": 15.129
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 44.553,
+      "ddb": 16.177
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 45.656,
+      "ddb": 16.753
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/gamma",
+      "theta": 2.05,
+      "t": 0.35,
+      "oracle_signal": 28.182,
+      "ddb": 18.344
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/gamma",
+      "theta": 2.05,
+      "t": 0.65,
+      "oracle_signal": 31.174,
+      "ddb": 19.641
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 15.224,
+      "ddb": 20.154
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 17.657,
+      "ddb": 20.917
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/whitein",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 10.859,
+      "ddb": 23.346
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/whitein",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 12.689,
+      "ddb": 24.067
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 8.173,
+      "ddb": 26.314
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 9.469,
+      "ddb": 27.092
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/blackin",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 6.983,
+      "ddb": 29.359
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/blackin",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 7.713,
+      "ddb": 30.505
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "histogram/rgb/gamma",
+      "theta": 0.1,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "histogram/rgb/gamma",
+      "theta": 0.1,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "histogram/rgb/gamma",
+      "theta": 4.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "histogram/rgb/gamma",
+      "theta": 4.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "histogram/rgb/gamma",
+      "theta": 2.05,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "histogram/rgb/gamma",
+      "theta": 2.05,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.313,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.167,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.035,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.055,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.168,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.14,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.131,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.188,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.103,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.168,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.14,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.131,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.188,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.103,
+      "note": "no oracle signal (param inert here)"
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "primitive": "PAEUnderwater",
+  "plugin": "PAEUnderwater",
+  "hosts": [
+    "Movements__Flashback"
+  ],
+  "times": [
+    0.35,
+    0.65
+  ],
+  "signal_floor": 2.0,
+  "n_scored": 6,
+  "worst_ddb": 16.851,
+  "results": [
+    {
+      "host": "Movements__Flashback",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 36.644,
+      "ddb": 16.851
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 34.541,
+      "ddb": 17.364
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 18.333,
+      "ddb": 22.866
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 17.291,
+      "ddb": 23.374
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "repeatedges",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 6.678,
+      "ddb": 31.638
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "repeatedges",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 5.806,
+      "ddb": 32.853
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "repeatedges",
+      "theta": 2.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "repeatedges",
+      "theta": 2.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    }
+  ]
+}

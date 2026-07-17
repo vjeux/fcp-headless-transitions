@@ -1,0 +1,12 @@
+{
+  "id": "T-faithful-paehsvadjust",
+  "title": "Faithful: PAEHSVAdjust param-response diverges from headless FCP (worst ddb 7.3 dB)",
+  "project": "fct",
+  "goal": "FAITHFUL-REIMPL (ROADMAP Rule 13): the TS engine impl of PAEHSVAdjust must match REAL headless FCP across its ENTIRE parameter space, not just values the 65 fixed transitions use. The DELTA oracle (fct/faithful) set each continuous param of PAEHSVAdjust to range extremes across hosts ['Objects__Leaves', 'Stylized__Center', 'Stylized__Light_Sweep', 'Stylized__Lower'] and compared how the oracle vs the engine RESPOND: ddb=PSNR(oracle(theta)-oracle(theta0), engine(theta)-engine(theta0)). worst ddb=7.27 < pass 40 means the engine responds WRONGLY to a real parameter change (a faithful engine scores ~99 dB; the identity/noise floor is 99). Fix the PAEHSVAdjust implementation so its parameter response matches FCP. NO scene-signature dispatch, NO env flags (Rule 12/13): behavior = f(filter params) only. Re-verify: `python3 -m fct.faithful.driver sweep PAEHSVAdjust` must reach >= pass_db worst-ddb across all hosts. Worst diverging (host/param/theta -> ddb): [{\"host\": \"Stylized__Light_Sweep\", \"param\": \"value\", \"theta\": -1.0, \"t\": 0.65, \"oracle_signal\": 110.43, \"ddb\": 7.269}, {\"host\": \"Stylized__Light_Sweep\", \"param\": \"value\", \"theta\": 2.0, \"t\": 0.65, \"oracle_signal\": 47.398, \"ddb\": 10.272}, {\"host\": \"Stylized__Light_Sweep\", \"param\": \"value\", \"theta\": 0.5, \"t\": 0.65, \"oracle_signal\": 65.985, \"ddb\": 10.36}, {\"host\": \"Stylized__Lower\", \"param\": \"value\", \"theta\": 2.0, \"t\": 0.65, \"oracle_signal\": 68.15, \"ddb\": 11.332}, {\"host\": \"Stylized__Center\", \"param\": \"value\", \"theta\": 2.0, \"t\": 0.35, \"oracle_signal\": 67.683, \"ddb\": 11.521}, {\"host\": \"Stylized__Light_Sweep\", \"param\": \"saturation\", \"theta\": 1.0, \"t\": 0.65, \"oracle_signal\": 46.027, \"ddb\": 11.596}]",
+  "slugs": [],
+  "after": null,
+  "status": "open",
+  "created_by": "faithful-driver",
+  "created_at": "2026-07-17T11:49:15Z",
+  "notes": "Auto-filed by fct/faithful/driver.py. Evidence: fct/faithful/reports/PAEHSVAdjust.json"
+}

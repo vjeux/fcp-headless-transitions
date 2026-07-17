@@ -1,0 +1,112 @@
+{
+  "primitive": "PAEEarthquake",
+  "plugin": "PAEEarthquake",
+  "hosts": [
+    "Movements__Earthquake"
+  ],
+  "times": [
+    0.35,
+    0.65
+  ],
+  "signal_floor": 2.0,
+  "n_scored": 8,
+  "worst_ddb": 18.1,
+  "results": [
+    {
+      "host": "Movements__Earthquake",
+      "param": "randomseed",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 13.496,
+      "ddb": 18.1
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "randomseed",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 23.304,
+      "ddb": 20.782
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 19.67,
+      "ddb": 22.255
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "layers",
+      "theta": 2.0,
+      "t": 0.35,
+      "oracle_signal": 9.097,
+      "ddb": 24.977
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "layers",
+      "theta": 2.0,
+      "t": 0.65,
+      "oracle_signal": 13.777,
+      "ddb": 25.348
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 13.057,
+      "ddb": 25.814
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 9.853,
+      "ddb": 28.26
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 6.556,
+      "ddb": 31.799
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "layers",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "layers",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "randomseed",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "randomseed",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    }
+  ]
+}

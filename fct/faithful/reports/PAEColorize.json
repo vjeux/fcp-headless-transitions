@@ -1,0 +1,2134 @@
+{
+  "primitive": "PAEColorize",
+  "plugin": "PAEColorize",
+  "hosts": [
+    "Objects__Curtains",
+    "Objects__Veil",
+    "Stylized__Close_and_Open",
+    "Stylized__Color_Panels",
+    "Stylized__Loop",
+    "Stylized__Slide",
+    "Stylized__Up-Over"
+  ],
+  "times": [
+    0.35,
+    0.65
+  ],
+  "signal_floor": 2.0,
+  "n_scored": 166,
+  "worst_ddb": 9.023,
+  "results": [
+    {
+      "host": "Objects__Curtains",
+      "param": "intensity",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 26.489,
+      "ddb": 9.023
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 26.489,
+      "ddb": 9.023
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "remapwhiteto/blue",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 18.054,
+      "ddb": 11.772
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "intensity",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 63.944,
+      "ddb": 11.789
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 63.944,
+      "ddb": 11.789
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 116.282,
+      "ddb": 12.319
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "intensity",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 116.246,
+      "ddb": 12.323
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapwhiteto/blue",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 41.3,
+      "ddb": 12.38
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapwhiteto/green",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 40.71,
+      "ddb": 12.433
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapwhiteto/red",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 40.238,
+      "ddb": 12.479
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "remapwhiteto/green",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 17.892,
+      "ddb": 12.726
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapblackto/red",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 57.382,
+      "ddb": 12.955
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapblackto/red",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 57.333,
+      "ddb": 12.963
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapwhiteto/red",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 57.327,
+      "ddb": 12.964
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapwhiteto/red",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 57.25,
+      "ddb": 12.975
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapwhiteto/blue",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 61.738,
+      "ddb": 13.068
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapwhiteto/green",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 60.922,
+      "ddb": 13.157
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapwhiteto/red",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 60.26,
+      "ddb": 13.229
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapwhiteto/green",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 52.551,
+      "ddb": 13.574
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapwhiteto/blue",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 49.0,
+      "ddb": 13.676
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapwhiteto/red",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 95.853,
+      "ddb": 14.101
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 69.908,
+      "ddb": 14.221
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "intensity",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 69.882,
+      "ddb": 14.224
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "remapwhiteto/blue",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 43.172,
+      "ddb": 14.578
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "remapwhiteto/red",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 10.803,
+      "ddb": 14.58
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "intensity",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 7.947,
+      "ddb": 14.894
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 7.947,
+      "ddb": 14.894
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapblackto/green",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 52.261,
+      "ddb": 15.21
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapblackto/blue",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 51.066,
+      "ddb": 15.407
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapwhiteto/red",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 57.69,
+      "ddb": 15.471
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapwhiteto/green",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 31.65,
+      "ddb": 15.615
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "remapwhiteto/green",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 42.745,
+      "ddb": 15.628
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapwhiteto/blue",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 48.04,
+      "ddb": 15.65
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapwhiteto/green",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 47.625,
+      "ddb": 15.727
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapwhiteto/blue",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 29.517,
+      "ddb": 15.788
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapwhiteto/red",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 47.262,
+      "ddb": 15.792
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapblackto/red",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 40.381,
+      "ddb": 16.007
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapblackto/red",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 39.619,
+      "ddb": 16.173
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapwhiteto/blue",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 32.115,
+      "ddb": 16.242
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapwhiteto/red",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 39.242,
+      "ddb": 16.256
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapwhiteto/green",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 31.809,
+      "ddb": 16.297
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapwhiteto/red",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 31.559,
+      "ddb": 16.342
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapwhiteto/red",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 37.761,
+      "ddb": 16.59
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "intensity",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 19.355,
+      "ddb": 16.736
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 19.355,
+      "ddb": 16.736
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapblackto/red",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 29.202,
+      "ddb": 16.854
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapblackto/red",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 29.324,
+      "ddb": 16.892
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapblackto/green",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 29.575,
+      "ddb": 16.967
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapblackto/green",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 29.698,
+      "ddb": 17.006
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapwhiteto/green",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 35.278,
+      "ddb": 17.181
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapwhiteto/blue",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 35.262,
+      "ddb": 17.185
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "remapwhiteto/red",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 23.526,
+      "ddb": 17.186
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapwhiteto/red",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 35.253,
+      "ddb": 17.187
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "remapwhiteto/blue",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 3.881,
+      "ddb": 17.575
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "intensity",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 42.962,
+      "ddb": 17.695
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 42.962,
+      "ddb": 17.695
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapblackto/green",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 35.585,
+      "ddb": 17.946
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapblackto/blue",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 34.73,
+      "ddb": 18.095
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapblackto/red",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 25.366,
+      "ddb": 18.758
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "remapwhiteto/blue",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 9.269,
+      "ddb": 18.967
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapwhiteto/red",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 19.068,
+      "ddb": 19.31
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "intensity",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 27.099,
+      "ddb": 19.472
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 27.099,
+      "ddb": 19.472
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapblackto/blue",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 38.147,
+      "ddb": 19.597
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "remapwhiteto/green",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 3.707,
+      "ddb": 19.605
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapblackto/blue",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 38.3,
+      "ddb": 19.65
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "intensity",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 25.857,
+      "ddb": 19.854
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 25.857,
+      "ddb": 19.854
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapblackto/red",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 17.01,
+      "ddb": 19.902
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapwhiteto/blue",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 48.897,
+      "ddb": 19.938
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapwhiteto/blue",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 24.334,
+      "ddb": 20.406
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapwhiteto/red",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 24.319,
+      "ddb": 20.412
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapwhiteto/green",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 24.298,
+      "ddb": 20.419
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapwhiteto/green",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 45.364,
+      "ddb": 20.498
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "intensity",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 23.513,
+      "ddb": 20.704
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 23.514,
+      "ddb": 20.704
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "remapwhiteto/green",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 8.828,
+      "ddb": 21.26
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapwhiteto/red",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 11.494,
+      "ddb": 21.759
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "intensity",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 40.094,
+      "ddb": 22.101
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 40.094,
+      "ddb": 22.101
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "intensity",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 40.042,
+      "ddb": 22.179
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 40.042,
+      "ddb": 22.179
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapblackto/red",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 7.524,
+      "ddb": 22.226
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapblackto/red",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 7.555,
+      "ddb": 22.243
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapblackto/green",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 7.672,
+      "ddb": 22.351
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapblackto/green",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 7.703,
+      "ddb": 22.369
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "remapwhiteto/red",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 10.117,
+      "ddb": 22.949
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapwhiteto/blue",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 29.438,
+      "ddb": 22.978
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapwhiteto/red",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 2.059,
+      "ddb": 23.539
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapwhiteto/green",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 27.291,
+      "ddb": 23.613
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapblackto/green",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 19.459,
+      "ddb": 23.698
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapblackto/blue",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 18.926,
+      "ddb": 23.922
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapwhiteto/green",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 31.404,
+      "ddb": 24.223
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapwhiteto/blue",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 15.615,
+      "ddb": 24.26
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapwhiteto/green",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 15.608,
+      "ddb": 24.264
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapwhiteto/red",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 15.606,
+      "ddb": 24.265
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "remapwhiteto/red",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 23.222,
+      "ddb": 24.577
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapblackto/red",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 2.648,
+      "ddb": 24.794
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "remapwhiteto/red",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 5.555,
+      "ddb": 24.808
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapwhiteto/blue",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 27.901,
+      "ddb": 25.137
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapblackto/blue",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 11.267,
+      "ddb": 25.63
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapblackto/blue",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 11.311,
+      "ddb": 25.66
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapblackto/green",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 13.324,
+      "ddb": 25.661
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapwhiteto/green",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 18.917,
+      "ddb": 25.704
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapblackto/blue",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 12.925,
+      "ddb": 25.782
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapblackto/red",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 7.026,
+      "ddb": 25.847
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "intensity",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 12.978,
+      "ddb": 25.867
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 12.978,
+      "ddb": 25.867
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapblackto/red",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 4.737,
+      "ddb": 26.181
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapwhiteto/red",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 24.757,
+      "ddb": 26.537
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapwhiteto/green",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 24.576,
+      "ddb": 26.555
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapwhiteto/blue",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 16.787,
+      "ddb": 26.586
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapwhiteto/red",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 24.727,
+      "ddb": 26.615
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapwhiteto/green",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 24.547,
+      "ddb": 26.632
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "intensity",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 11.807,
+      "ddb": 26.688
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 11.807,
+      "ddb": 26.688
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapblackto/green",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 2.011,
+      "ddb": 28.083
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "remapwhiteto/red",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 12.522,
+      "ddb": 28.109
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapwhiteto/blue",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 18.008,
+      "ddb": 28.173
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "intensity",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 14.294,
+      "ddb": 28.179
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 14.294,
+      "ddb": 28.179
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "intensity",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 14.275,
+      "ddb": 28.227
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 14.275,
+      "ddb": 28.227
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapwhiteto/blue",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 17.987,
+      "ddb": 28.234
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapwhiteto/green",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 8.866,
+      "ddb": 29.176
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapwhiteto/blue",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 8.625,
+      "ddb": 29.415
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "intensity",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 8.105,
+      "ddb": 29.955
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 8.105,
+      "ddb": 29.955
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapwhiteto/green",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 6.618,
+      "ddb": 31.716
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapwhiteto/blue",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 6.347,
+      "ddb": 32.08
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapwhiteto/green",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 5.812,
+      "ddb": 32.845
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapwhiteto/blue",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 5.812,
+      "ddb": 32.845
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapwhiteto/red",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 5.806,
+      "ddb": 32.853
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapblackto/blue",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 5.493,
+      "ddb": 33.335
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapwhiteto/blue",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 8.61,
+      "ddb": 33.458
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapwhiteto/blue",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 8.599,
+      "ddb": 33.487
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapblackto/green",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 5.339,
+      "ddb": 33.582
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "intensity",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 5.009,
+      "ddb": 34.135
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 5.009,
+      "ddb": 34.135
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "intensity",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 4.454,
+      "ddb": 35.155
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 4.454,
+      "ddb": 35.155
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapwhiteto/blue",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 4.008,
+      "ddb": 36.072
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapwhiteto/red",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 4.007,
+      "ddb": 36.075
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapwhiteto/green",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 4.005,
+      "ddb": 36.08
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapblackto/blue",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 3.56,
+      "ddb": 37.101
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapblackto/green",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 3.496,
+      "ddb": 37.259
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "intensity",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 3.017,
+      "ddb": 38.54
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 3.017,
+      "ddb": 38.54
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapwhiteto/red",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 2.943,
+      "ddb": 38.754
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapwhiteto/green",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 2.05,
+      "ddb": 39.802
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapwhiteto/green",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 2.054,
+      "ddb": 39.808
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapwhiteto/blue",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 2.568,
+      "ddb": 39.939
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapwhiteto/red",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 2.565,
+      "ddb": 39.95
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapwhiteto/green",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 2.564,
+      "ddb": 39.952
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapwhiteto/red",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 4.406,
+      "ddb": 40.211
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapwhiteto/red",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 4.4,
+      "ddb": 40.262
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapwhiteto/green",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 4.219,
+      "ddb": 40.757
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapwhiteto/green",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 4.213,
+      "ddb": 40.804
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapwhiteto/green",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 2.293,
+      "ddb": 40.921
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapwhiteto/blue",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 2.252,
+      "ddb": 41.081
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "intensity",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 2.134,
+      "ddb": 41.547
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 2.134,
+      "ddb": 41.547
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapblackto/blue",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 2.112,
+      "ddb": 41.639
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapblackto/green",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 2.088,
+      "ddb": 41.737
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapwhiteto/blue",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 2.366,
+      "ddb": 47.529
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapwhiteto/blue",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 2.363,
+      "ddb": 47.647
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "remapwhiteto/green",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.242,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "remapwhiteto/green",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.529,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapblackto/red",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.303,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapblackto/red",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.429,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapblackto/red",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 1.937,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapblackto/red",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.851,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapblackto/red",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 1.168,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapblackto/green",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.749,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapblackto/green",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 1.026,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapblackto/green",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 1.473,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapblackto/green",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.449,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapblackto/green",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.63,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapblackto/blue",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 1.319,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapblackto/blue",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 1.802,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapblackto/blue",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.789,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapblackto/blue",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 1.093,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapblackto/blue",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.457,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapblackto/blue",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.644,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapwhiteto/blue",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.083,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "remapwhiteto/blue",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.125,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "intensity",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 1.053,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "intensity",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 1.444,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "intensity",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.657,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "intensity",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.922,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 1.053,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 1.444,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.657,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Veil",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.922,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapblackto/red",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 1.854,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapblackto/red",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.741,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapblackto/green",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.49,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapblackto/green",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.182,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapblackto/green",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 1.379,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapblackto/blue",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.616,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapblackto/blue",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.23,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapblackto/blue",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 1.379,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapwhiteto/red",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.701,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapwhiteto/green",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.232,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapwhiteto/green",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.062,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapwhiteto/green",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 1.642,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapwhiteto/blue",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.556,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapwhiteto/blue",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.137,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "remapwhiteto/blue",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 1.589,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "intensity",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 1.91,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 1.91,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapblackto/red",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.732,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapblackto/red",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.735,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapblackto/green",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.777,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapblackto/green",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.78,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapblackto/blue",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 1.509,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapblackto/blue",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 1.515,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapwhiteto/red",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 1.86,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Color_Panels",
+      "param": "remapwhiteto/red",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 1.863,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapblackto/red",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapblackto/red",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapblackto/red",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapblackto/red",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapblackto/red",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapblackto/red",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapblackto/green",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapblackto/green",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapblackto/green",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapblackto/green",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapblackto/blue",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapblackto/blue",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapblackto/blue",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapblackto/blue",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapwhiteto/red",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapwhiteto/red",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapwhiteto/red",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapwhiteto/red",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapwhiteto/green",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapwhiteto/green",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapwhiteto/green",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapwhiteto/green",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapwhiteto/green",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapwhiteto/green",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapwhiteto/blue",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapwhiteto/blue",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapwhiteto/blue",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapwhiteto/blue",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapwhiteto/blue",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "remapwhiteto/blue",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "intensity",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "intensity",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Loop",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapblackto/red",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.171,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapblackto/red",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.229,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapblackto/green",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.412,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapblackto/green",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.604,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapblackto/blue",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.382,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapblackto/blue",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.547,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Slide",
+      "param": "remapwhiteto/red",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 1.253,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapblackto/red",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapblackto/red",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapblackto/red",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "remapblackto/red",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    }
+  ]
+}

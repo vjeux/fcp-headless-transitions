@@ -1,0 +1,161 @@
+{
+  "primitive": "PAEDirectionalBlur",
+  "plugin": "PAEDirectionalBlur",
+  "hosts": [
+    "Blurs__Directional",
+    "Stylized__Light_Sweep"
+  ],
+  "times": [
+    0.35,
+    0.65
+  ],
+  "signal_floor": 2.0,
+  "n_scored": 7,
+  "worst_ddb": 26.616,
+  "results": [
+    {
+      "host": "Blurs__Directional",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 9.242,
+      "ddb": 26.616
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 5.248,
+      "ddb": 33.731
+    },
+    {
+      "host": "Blurs__Directional",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 4.741,
+      "ddb": 34.613
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "angle",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 3.619,
+      "ddb": 36.96
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "angle",
+      "theta": 6.2832,
+      "t": 0.65,
+      "oracle_signal": 3.619,
+      "ddb": 36.96
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "angle",
+      "theta": 3.1416,
+      "t": 0.65,
+      "oracle_signal": 3.619,
+      "ddb": 36.96
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 2.39,
+      "ddb": 40.563
+    },
+    {
+      "host": "Blurs__Directional",
+      "param": "angle",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Directional",
+      "param": "angle",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Directional",
+      "param": "angle",
+      "theta": 3.1416,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Directional",
+      "param": "angle",
+      "theta": 3.1416,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Directional",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Directional",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "angle",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "angle",
+      "theta": 6.2832,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "angle",
+      "theta": 3.1416,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    }
+  ]
+}

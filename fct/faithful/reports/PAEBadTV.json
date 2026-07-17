@@ -1,0 +1,48 @@
+{
+  "primitive": "PAEBadTV",
+  "plugin": "PAEBadTV",
+  "hosts": [
+    "Lights__Static"
+  ],
+  "times": [
+    0.35,
+    0.65
+  ],
+  "signal_floor": 2.0,
+  "n_scored": 0,
+  "worst_ddb": null,
+  "results": [
+    {
+      "host": "Lights__Static",
+      "param": "colorsynch",
+      "theta": 1.0,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "colorsynch",
+      "theta": 1.0,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "colorsynch",
+      "theta": 0.5,
+      "t": 0.35,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "colorsynch",
+      "theta": 0.5,
+      "t": 0.65,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    }
+  ]
+}
