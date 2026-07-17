@@ -10,6 +10,7 @@ if (typeof globalThis.ImageData === "undefined") {
   };
 }
 import { projectPoint, projectQuad, needsPerspective, renderPerspectiveQuad, projectQuadWithWorldZ, renderPerspectiveQuadDepth } from '../src/compositor/perspective.js';
+import { reflectionPlaneMatrix, falloffAttenuation, REFLECTION_FLOOR } from '../src/compositor/geometry.js';
 import { mat4Identity, mat4RotateY, mat4Translate } from '../src/evaluator/index.js';
 
 function assertClose(a: number, b: number, tol: number, msg: string) {
@@ -267,6 +268,55 @@ function runTests() {
     const cIdx = (100 * 200 + 100) * 4;
     assert(dst.data[cIdx + 2] > 200 && dst.data[cIdx] < 20,
       `centre should be B (blue) at face-on wz=0 vs A's wz=+40, got r=${dst.data[cIdx]} b=${dst.data[cIdx+2]}`);
+  });
+
+  // --- Planar floor-reflection primitive (Movements/Reflection, T-qa7694deb) ---
+
+  test('reflectionPlaneMatrix: mirrors y across the plane, leaves x/z', () => {
+    // Reflect across the decoded floor plane y=-540. A point at world (x,y,z)
+    // must map to (x, 2·planeY − y, z). Apply the column-major matrix by hand:
+    //   x' = m0·x + m4·y + m8·z + m12
+    //   y' = m1·x + m5·y + m9·z + m13
+    const m = reflectionPlaneMatrix(REFLECTION_FLOOR.planeY);
+    const apply = (x: number, y: number, z: number) => ({
+      x: m[0] * x + m[4] * y + m[8] * z + m[12],
+      y: m[1] * x + m[5] * y + m[9] * z + m[13],
+      z: m[2] * x + m[6] * y + m[10] * z + m[14],
+    });
+    // A panel-bottom point at y=0 reflects to y = 2·(-540) − 0 = -1080.
+    let p = apply(100, 0, 960);
+    assertClose(p.x, 100, 1e-9, 'x preserved');
+    assertClose(p.y, -1080, 1e-9, 'y=0 mirrors to 2·planeY');
+    assertClose(p.z, 960, 1e-9, 'z preserved');
+    // A point ON the plane is a fixed point.
+    p = apply(-30, REFLECTION_FLOOR.planeY, 12);
+    assertClose(p.y, REFLECTION_FLOOR.planeY, 1e-9, 'on-plane point is fixed');
+  });
+
+  test('reflectionPlaneMatrix: applying twice is identity (involution)', () => {
+    const m = reflectionPlaneMatrix(REFLECTION_FLOOR.planeY);
+    const applyY = (x: number, y: number, z: number) =>
+      m[1] * x + m[5] * y + m[9] * z + m[13];
+    const y0 = 321;
+    const y1 = applyY(0, y0, 0);
+    const y2 = applyY(0, y1, 0);
+    assertClose(y2, y0, 1e-9, 'reflect∘reflect = identity');
+  });
+
+  test('falloffAttenuation: linear ramp full→zero over End Distance, clamped', () => {
+    const end = REFLECTION_FLOOR.falloffEndDistance; // 248
+    assertClose(falloffAttenuation(0, end), 1, 1e-9, 'at the plane → full');
+    assertClose(falloffAttenuation(end, end), 0, 1e-9, 'at End Distance → zero');
+    assertClose(falloffAttenuation(end / 2, end), 0.5, 1e-9, 'midway → half');
+    assertClose(falloffAttenuation(end * 2, end), 0, 1e-9, 'beyond → clamped 0');
+    assertClose(falloffAttenuation(-10, end), 1, 1e-9, 'before plane → clamped 1');
+    assertClose(falloffAttenuation(10, 0), 0, 1e-9, 'degenerate end=0 → 0');
+  });
+
+  test('REFLECTION_FLOOR: carries the decoded Reflection.motr constants', () => {
+    assert(REFLECTION_FLOOR.planeY === -540, 'Color Solid 1 Position.Y = -540');
+    assert(REFLECTION_FLOOR.reflectivity === 0.2, 'Reflectivity id=228 = 0.20');
+    assert(REFLECTION_FLOOR.falloffEndDistance === 248, 'Falloff End Distance id=226 = 248');
   });
 
   console.log(`\n${pass} passed, ${fail} failed`);

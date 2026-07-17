@@ -282,3 +282,110 @@ export function retimedClipTime(evalLayer: EvaluatedLayer, rctx: RenderContext):
   // time the host resolver seeks with: clipTime = (frame - 1) / fps.
   return Math.max(0, (frame - 1) / fps);
 }
+
+
+// ============================================================================
+// Planar floor-reflection primitive  (Movements/Reflection — T-qa7694deb decode)
+// ============================================================================
+//
+// DECODE (Reflection.motr, verified 2026-07-16):
+//
+// The tail-difference vs the GUI GT on Movements/Reflection is NOT a perspective
+// error (that whole line is a MEASURED dead-end — ROADMAP T-qreflect001 +
+// T-q50a7f2e6: every camera-distance / hinge-relative variant is monotonic toward
+// orthographic). The residual is a DIM MIRRORED COPY of the two folded panels on a
+// reflective floor plane, which the engine does not render at all.
+//
+// The floor is the scenenode **"Color Solid 1"** (id 1999871095), a sibling of the
+// two `Transition A/B` panels under the Project. Its Object is a BLACK 1920×1080
+// Color Solid (`<Blue value=0/>`, R/G absent = default 0 → black; this is the
+// footage.ts::"Reflection's Floor Color Solid" exception, which correctly returns
+// {r:0,g:0,b:0}). Its Properties place it as a laid-flat mirror below the scene:
+//   Position.Y = -540        (below the frame centre)
+//   Rotation.X = +π/2        (tilted flat, normal pointing up: the "floor")
+//   Scale      = 4× (X=Y=Z)  (a 4× oversized sheet so the reflection covers frame)
+// and — the decisive signal — its Properties carry an ENABLED **Reflection** folder:
+//   Reflectivity  = 0.20     (id 228)
+//   Falloff.End Distance = 248 (id 226)
+//
+// GENERIC DISCRIMINATOR (why this is not a per-transition hardcode): EVERY Motion
+// object serialises a Reflection folder, but it is DISABLED by default and left at
+// Reflectivity=0.80 with the inactive-param flag class 0x3_0000_0010 (e.g.
+// 12884901904) plus inert Blur Amount / Blend Mode children. Reflection's floor is
+// the ONLY corpus layer whose Reflectivity is a NON-default value (0.20) carried on
+// the ENABLED-param flag class 0x2_0000_0010 (8589934608, the same class as its live
+// Position/Rotation params) AND accompanied by a Falloff→End Distance child. So
+// "reflection is actually ON" is read from the flag class + non-default value +
+// Falloff child, never from a slug name. (Scan: fct — 0.80 default fires on ~30
+// slugs as an inert default; 0.20-enabled fires on Reflection alone today, but the
+// test is structural so it generalises to any future template that turns it on.)
+//
+// SEMANTICS (a) screen-space vs re-render: Motion's object Reflection is a PLANAR
+// mirror — it reflects the OTHER 3D objects in the scene across the plane of the
+// reflective object, in world space, then re-projects through the SAME camera. So
+// the reflection re-renders the panel subtree through a mirror transform (a Y-flip
+// about the floor plane baked into the world matrix), NOT a 2D screen-space flip of
+// the already-composited frame. reflectionPlaneMatrix() below builds exactly that
+// world-space mirror: reflect across the horizontal plane y = planeY, so a world
+// point (x,y,z) → (x, 2·planeY − y, z), which the existing projectFramed() then
+// renders. Compose it with each panel's worldTransform to get the mirrored quad.
+//   (b) retime/opacity tie: the reflection is the SAME panels re-rendered, so it is
+// inherently locked to the panels' retime + fold — no separate driver. Its VISIBLE
+// opacity is Reflectivity (0.20) times the distance-falloff attenuation.
+//   (c) fade/glow: Falloff.End Distance=248 is a linear distance fade — reflectivity
+// ramps 1→0 over 0..248 world-units from the mirror plane, so far parts of the
+// panels barely reflect (the reflection darkens toward the horizon). No additive
+// glow (Blend Mode is absent on the enabled folder → default Normal/over blend).
+//
+// STATUS: this is a pure geometry PRIMITIVE (matrix + attenuation math). It is
+// INERT — nothing calls it yet, so it changes NO render output and the gate stays
+// green. Wiring it is a compositor-lane job (see the cross-lane note in ROADMAP):
+// the reflective-floor scene node must be detected in compositor/index.ts, the panel
+// subtree re-rendered under reflectionPlaneMatrix(planeY) with its per-pixel alpha
+// scaled by reflectivity·falloffAttenuation(depth), and composited UNDER the panels.
+// Kept here (a SHARED perspective/fold primitive file) so the fold-rig family can
+// reuse it and so this decode is not lost.
+
+/** Decoded floor-reflection constants for Movements/Reflection (Reflection.motr). */
+export const REFLECTION_FLOOR = {
+  /** Color Solid 1 Position.Y — the mirror plane's world Y (below frame centre). */
+  planeY: -540,
+  /** Reflection.Reflectivity (id 228) — base mirror opacity. Default is 0.80. */
+  reflectivity: 0.2,
+  /** Reflection.Falloff.End Distance (id 226) — linear fade-out distance (world u). */
+  falloffEndDistance: 248,
+} as const;
+
+/**
+ * Build a 4×4 (column-major, matching mat4* in the evaluator) WORLD-SPACE mirror
+ * matrix that reflects a point across the horizontal plane y = planeY. Composing
+ * this on the LEFT of a panel's worldTransform yields the mirrored panel geometry,
+ * which projectFramed() then renders through the unchanged camera — Motion's planar
+ * object-Reflection, not a 2D screen flip. Mirror across y=planeY:
+ *   x' = x,  y' = 2·planeY − y,  z' = z.
+ * As a column-major 4×4 that is diag(1,-1,1,1) with a +2·planeY translation in the
+ * Y column's w-row (m13). Pure, allocation-cheap, no scene access.
+ */
+export function reflectionPlaneMatrix(planeY: number): Float64Array {
+  const m = new Float64Array(16);
+  m[0] = 1;             // x' = x
+  m[5] = -1;            // y' = -y ...
+  m[10] = 1;            // z' = z
+  m[15] = 1;
+  m[13] = 2 * planeY;   // ... + 2·planeY   (column-major translation row)
+  return m;
+}
+
+/**
+ * Linear distance-falloff attenuation for the reflection, decoded from
+ * Reflection.Falloff.End Distance. Reflectivity ramps from full at the mirror plane
+ * (distance 0) to zero at `endDistance`, clamped to [0,1]. `distance` is the
+ * world-space separation of the reflected surface point from the mirror plane
+ * (|y − planeY|); the compositor multiplies this by REFLECTION_FLOOR.reflectivity to
+ * get each reflected pixel's final opacity.
+ */
+export function falloffAttenuation(distance: number, endDistance: number): number {
+  if (endDistance <= 0) return 0;
+  const t = 1 - distance / endDistance;
+  return t < 0 ? 0 : t > 1 ? 1 : t;
+}

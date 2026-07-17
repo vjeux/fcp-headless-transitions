@@ -1,0 +1,14 @@
+{
+  "id": "T-q5c86a129",
+  "title": "Wire planar floor-reflection into compositor (Movements/Reflection)",
+  "project": "fct",
+  "goal": "The planar-mirror geometry primitives are LANDED + unit-tested in compositor/geometry.ts (REFLECTION_FLOOR, reflectionPlaneMatrix(planeY), falloffAttenuation(dist,end)) but INERT. Finish the floor reflection (COMPOSITOR LANE \u2014 touches LOCKED files, so this is a separate owner from the geometry lane): (1) parser (footage.ts/index.ts) must read the ENABLED Reflection folder onto a floor Layer \u2014 discriminate the ACTIVE reflection generically by the enabled-param flag class 0x2...10 (8589934608) + non-default Reflectivity + a Falloff.End Distance child (the DISABLED default is Reflectivity=0.80 on flag class 0x3...10 / 12884901904 with Blur Amount/Blend Mode children; fires on ~30 slugs, so gate on the ENABLED signal). (2) compositor/index.ts must detect the reflective floor scenenode (Color Solid 1: black solid, Rotation.X=pi/2, Position.Y=-540, Scale 4x) and re-render the panel subtree (Transition A/B) under reflectionPlaneMatrix(-540), scaling each reflected pixel's alpha by 0.20 * falloffAttenuation(|y-(-540)|, 248), composited UNDER the panels (Normal blend, no glow). Verify vs GUI GT: GT panels end ~y=920 with a dim mirrored fade below; engine currently draws full-bright panel to y=1060. DoD: Reflection measurably improves above its fresh 14.82 baseline, 0 regressions. Cite Reflection.motr Reflectivity id=228=0.20, Falloff End Distance id=226=248, footage.ts::Reflection Floor color exception.",
+  "slugs": [
+    "Movements__Reflection"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qa7694deb",
+  "created_at": "2026-07-17T01:48:20+00:00",
+  "notes": ""
+}

@@ -761,6 +761,44 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16reflfloor  📝 REFLECTION FLOOR-REFLECTION DECODE + planar-mirror geometry primitive
+              (WIP T-qa7694deb, additive/inert, gate 0/0 — Reflection 14.82 UNCHANGED, byte-identical
+              render). DECODE (Reflection.motr, verified): the residual tail-difference vs GT on
+              Movements/Reflection is NOT perspective (that whole line is dead — T-qreflect001/
+              T-q50a7f2e6). Per-frame + bottom-strip pixel probe: the GT panels END ~y=920 and BELOW
+              them sits a DIM (~15–20% lum), VERTICALLY-MIRRORED, distance-faded copy of the panels;
+              the engine currently draws the panel content full-brightness down to y=1060 with a hard
+              black edge and NO reflection. Source: scenenode **"Color Solid 1"** (id 1999871095), a
+              sibling of Transition A/B — a BLACK 1920×1080 Color Solid (footage.ts::Reflection Floor
+              exception, r=g=b=0) laid flat as a mirror: Position.Y=-540, Rotation.X=+π/2, Scale=4×,
+              with an ENABLED Reflection folder Reflectivity(id228)=0.20, Falloff.End Distance(id226)=248.
+              GENERIC DISCRIMINATOR: every Motion object serialises a Reflection folder, but it is
+              DISABLED at the default Reflectivity=0.80 on the inactive-param flag class 0x3…10
+              (12884901904) with inert Blur Amount/Blend Mode children (scan: ~30 slugs). Reflection's
+              floor is the ONLY corpus layer whose Reflectivity is a NON-default 0.20 on the ENABLED
+              flag class 0x2…10 (8589934608 — same class as its live Position/Rotation) WITH a Falloff
+              child → "reflection is ON" is read structurally, not by name. SEMANTICS: (a) Motion's
+              object Reflection is a WORLD-SPACE PLANAR mirror — it reflects the OTHER 3D objects across
+              the reflective object's plane and re-projects through the SAME camera (re-render with a
+              Y-flip baked into the world matrix, NOT a 2D screen-space flip of the composited frame);
+              (b) retime/opacity are inherently locked to the panels (it's the same panels re-rendered
+              — no separate driver); visible opacity = Reflectivity·falloff; (c) no additive glow
+              (Blend Mode absent on the enabled folder → Normal/over). LANDED: pure geometry primitives
+              in compositor/geometry.ts — REFLECTION_FLOOR constants, reflectionPlaneMatrix(planeY)
+              (column-major diag(1,-1,1,1)+2·planeY, an involution), falloffAttenuation(dist,end)
+              (linear 1→0, clamped), + 4 unit tests in perspective.test.ts (20/20 pass). INERT: nothing
+              in src imports them → render byte-identical, gate green (no-hardcode 13/13, the primitive
+              is math not a detector). ⚠️ CROSS-LANE NOTE (compositor lane, NOT geometry): finishing the
+              feature needs LOCKED files — parser must read the enabled-Reflection folder (parser/
+              footage.ts or index.ts) onto the floor Layer, and compositor/index.ts must detect the
+              reflective floor node, re-render the panel subtree under reflectionPlaneMatrix(-540) with
+              per-pixel alpha × 0.20 × falloffAttenuation(|y−(-540)|, 248), and composite it UNDER the
+              panels. Filed as follow-up (see fct/swarm/todo). Reflection baseline row is STALE in
+              baseline_engine (14.32); fresh origin/main render is 14.82 (T-q7529db51 static-B-fold was
+              never re-baselined). Earthquake/Leaves gate flags are the known stochastic-emitter
+              phantoms (Earthquake re-renders to exactly 21.79; Leaves swings 15.9↔22.4↔19.5 across
+              identical renders) — NOT caused by this inert change.
+
 - 2026-07-16swng1  ✅ SWING FOLD DIRECTION — factoryID-16 "Anchor" widget Top↔Bottom Y-UP→Y-DOWN
               flip (T-q00deefab, **Movements__Swing 12.89 → 14.60 dB, +1.71** (per-slug re-render
               14.44), gate 0 regressions). DECODE: Swing folds two Clone children (source A + B)
