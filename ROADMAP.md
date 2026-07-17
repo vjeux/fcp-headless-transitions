@@ -761,6 +761,36 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-17z4  🔎 CONCENTRIC A/B PHASE decode landed — gate-green WIP, docs-only in
+              renderCloneLayer (T-qconcentric1, compositor-scope, WIP). Baseline
+              Concentric 13.38 dB unchanged, 0 regressions. Decoded from .motr:
+              each of Concentric's 12 ring GROUPS ("Nth right/left copy") holds
+              (1) a disabled mask-shape clone (Clone Layer 20/21/22/24/25 → Circle 1,
+              or Circle 1..6 direct) at scale 1.27/1.0/0.75/0.5/0.26/0.15 with
+              a CROP that clips to a horizontal HALF (Left=900 or Right=900);
+              (2) Clone A copy N (cloneSourceId=10008, Transition A) with
+              per-ring timing.out ∈ [0.30,1.33s]; (3) Clone B copy N
+              (cloneSourceId=10006, Transition B, timing.out=1.90s). Each ring
+              group also carries a Rotation.Y 0→−π at a STAGGERED start time
+              (the 180° "door flip"). The per-ring A/B phase mechanism = each
+              Clone A's `timing.out` gate (verified: at f12 Aviz=5 in rings
+              6L/4R/4L/2R/1R, matches GT's woven bullseye pattern; engine's
+              isLayerVisible fires generically per ring). REMAINING GAP: the
+              mask's `Crop { Left:900 }` / `Crop { Right:900 }` — creating
+              LEFT-half or RIGHT-half sub-rings — is IGNORED by
+              resolveImageMaskAlpha (compositor/masks.ts, LOCKED by concurrent
+              Pinwheel/T-qfcdfc30f owner). Every ring rasterizes as a FULL disc,
+              so paired L/R half-rings collapse into a full ring and only ~2
+              sepia rings survive visibly. FIX: masks.ts must apply
+              `EvaluatedLayer.crop` on the mask-source clone before/during
+              rasterization. REFUTED alternative (fresh gate 2026-07-17): a
+              `rehydrateConcentricRingClones` walk that revives dead Clone A
+              regressed Concentric to 11.78 dB (−1.60) — forcing A visible past
+              its timing.out fills more rings with sepia A while GT wants many
+              rings to show B; the timing.out gate IS the correct phase.
+              Docs-only comment in renderCloneLayer captures the decode + points
+              future agent (masks.ts owner) at the correct lever.
+
 - 2026-07-17z3  🔎 3D_RECTANGLE stroke-overlay experiment MEASURED, structural GT match found
               but progress-aware base needed (T-q98a30de5, compositor-scope, WIP). Baseline
               MEAN 16.48 (flag OFF) unchanged, 0 regressions. NEW EXPERIMENTS (all
@@ -1710,27 +1740,6 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               sub-canvas A/B cards up to the render buffer. settleBSec=endSec*0.72 confirmed already-optimal (0.80
               tested worse 11.47<11.69) — NOT a time fix. Residual mid-band (f01-18 ~11-12 dB) is the outgoing-A
               Scrape/DirBlur streak-over-B (S4 content-persistence) filed as follow-up T-q91bc5e37. Commit: HEAD.
-
-- 2026-07-17a  ✅ SMEAR MID-TRANSITION (T-q91bc5e37) — Scrape filter's CHILD-param curve time now
-              honors the filter's `<timing offset>` (was ignoring it). Movements__Smear 13.98->18.07
-              (+4.09), gate net-positive (0 real regressions, 5 improvements — Push/Slide/Divide/Panels
-              baseline rebases). DECODE (Rule 1) traced the residual mid-band f01-f18 collapse to a
-              single-line bug in scrape.ts::childValue: it read the Center.X curve at raw `ctx.time`
-              instead of `ctx.time - filter.timingOffsetSec`. Movements/Smear authors the Scrape's
-              Center.X curve at scene-absolute t=0.767->0.867s (val 1.043->0) with the filter's
-              `<timing offset="-0.767s">` re-anchoring — the same convention already applied by
-              `ctx.param`/`ctx.blurAmount` for top-level params (registry.makeContext line 73). Under
-              the drop-zone retime-wrap, mid-transition frames sample at wrapped scene time
-              t=0..0.7s, so without the offset the Center.X read holds the BEFORE-first-keyframe
-              value 1.043 — center off the right edge of the frame, nothing to smear in the visible
-              area. WITH the offset the sample lands at t+0.767 = 0.767..1.467s = PAST the last kf
-              -> cxRel=0 -> center on the LEFT edge -> the streak/wipe fires over the visible frame,
-              matching GT (warm-A streaks off the right revealing cool-B underneath from the left).
-              F09-f16 jumped from ~11-12 dB to 19-23 dB. Fix is one arithmetic term inside a helper
-              named `childValue`; DirectionalBlur was already correct (uses ctx.blurAmount which
-              honors the offset). Filters without a `<timing offset>` see `timingOffsetSec = 0`
-              and this is a no-op — no risk to unrelated slugs (full gate confirms).
-
 
 
 - 2026-07-16c  ⛔ SLIDE_IN (T-qslidein001) — BLOCKED, decode-only (no engine change), 3-subsystem build too

@@ -1,0 +1,14 @@
+{
+  "id": "T-q96c6c2a6",
+  "title": "Concentric ring half-plane crop on mask clone (masks.ts)",
+  "project": "fct",
+  "goal": "DECODED (T-qconcentric1 WIP 2026-07-17): Concentric's per-ring A/B phase is correct (Clone A per-ring timing.out \u2208 [0.30,1.33s]; Clone B out=1.90s; evaluator's isLayerVisible fires per ring). GAP: each ring group's mask-source is a Clone Layer XX (cloneSourceId \u2192 Circle N) with a Crop { Left:900 } or Crop { Right:900 } param that CLIPS the disc to a horizontal HALF (LEFT-half or RIGHT-half sub-ring \u2014 see 'Nth right/left copy' group naming). resolveImageMaskAlpha in compositor/masks.ts rasterizes the disc geometry through its worldTransform but IGNORES the mask scenenode's own crop param \u2014 so paired L/R half-rings collapse into full discs; only ~2 rings survive visibly (baseline 13.38 dB). FIX: in resolveImageMaskAlpha (masks.ts) apply EvaluatedLayer.crop as a rectangular alpha clip on the rasterized shape BEFORE (or during) the perspective/orthographic rasterize; must also walk the mask-source clone chain and multiply per-hop crop (Clone Layer 20's Crop.Left=900 applies over the Circle 1 shape geometry it clones). Verify structurally: 6th-right/5th-right/4th-right/2nd-right/1st-right use Crop.Left=900 (right half only); 6th-left/5th-left/4th-left/1st-left use Crop.Right=900 (left half only); fractional rings 935.5/1014.1/1144.9/1150.5/811.6/802.0. REFUTED alternative: reviving dead Clone A via rehydrateConcentricRingClones regressed to 11.78 dB (\u22121.60) \u2014 timing.out IS the correct A\u2192B phase, don't override. DoD: Concentric \u226514 dB, 0 real regressions on the clone family (Video_Wall, 3D_Rectangle, Combo_Spin, Clone_Spin) and group-mask family (Up-Over, Wipes__Mask, Center).",
+  "slugs": [
+    "Replicator-Clones__Concentric"
+  ],
+  "after": "T-qconcentric1",
+  "status": "open",
+  "created_by": "T-qconcentric1",
+  "created_at": "2026-07-17T03:42:42+00:00",
+  "notes": ""
+}

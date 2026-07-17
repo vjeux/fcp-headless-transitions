@@ -424,6 +424,49 @@ function renderReplicatorLayer(rctx: RenderContext, output: ImageData, evalLayer
 
 function renderCloneLayer(rctx: RenderContext, output: ImageData, evalLayer: EvaluatedLayer, imageA: ImageData, imageB: ImageData, time: number, filterOverrides: Map<number, Map<string, number>>): RenderOutcome {
   const { layer, worldTransform, opacity, crop } = evalLayer;
+    // CONCENTRIC A/B PHASE DECODE (T-qconcentric1, 2026-07-17 gate-green WIP,
+    // decode-only — no behavior change here). Each of Concentric's 12 ring GROUPS
+    // ("Nth right/left copy") holds THREE scenenodes:
+    //   (1) a DISABLED mask-shape clone (Clone Layer 20/21/22/24/25 → Circle 1;
+    //       Circle 1..6 direct) at Scale 1.27/1.0/0.75/0.5/0.26/0.15 with a
+    //       CROP that clips to a horizontal HALF (Left=900 OR Right=900).
+    //       This is the ring's half-plane mask (the group's imageMaskSourceId).
+    //   (2) Clone A copy N  cloneSourceId=10008 (Transition A), timing.out ∈ [0.30,1.33s]
+    //   (3) Clone B copy N  cloneSourceId=10006 (Transition B), timing.out=1.90s
+    // Every ring group ALSO carries a Rotation.Y animating 0→−π over ~1s at a
+    // STAGGERED start time — the 180° "door flip". The per-ring PHASE that
+    // produces GT's woven bullseye = the Clone-A `timing.out` per ring (verified:
+    // f12 Aviz=5/12 in the CORRECT rings 6L/4R/4L/2R/1R; the evaluator gate at
+    // isLayerVisible fires generically). So the crossfade timing is RIGHT.
+    //
+    // REMAINING GAP (why engine 13.38 vs GT ~15+ dB woven bullseye): the mask
+    // on (1) carries `Crop { Left:900 }` or `Crop { Right:900 }` — cropping the
+    // mask disc to a HALF-plane so each ring is a LEFT or RIGHT semicircle. GT
+    // f12 clearly shows each ring is split VERTICALLY into left-half/right-half
+    // sub-rings (see `6th right copy` vs `6th left copy` group naming and the
+    // per-clone Crop.Left=900/Crop.Right=900 in the .motr). But
+    // resolveImageMaskAlpha (compositor/masks.ts — LOCKED by concurrent
+    // Pinwheel/T-qfcdfc30f owner) rasterizes the disc geometry WITHOUT applying
+    // the mask scenenode's own crop param, so every ring rasterizes as a FULL
+    // disc; paired L/R half-rings collapse into a full ring; only ~2 sepia rings
+    // survive visibly on a plain B background (verified). Fix requires
+    // masks.ts: in resolveImageMaskAlpha, apply the mask source's
+    // `EvaluatedLayer.crop` as a rectangular clip on the rasterized alpha
+    // (zero the left crop.left pixels, right crop.right pixels, etc.) BEFORE
+    // the perspective/orthographic rasterizer runs. Verified structurally in
+    // the .motr: 6th-right/5th-right/4th-right/2nd-right/1st-right rings use
+    // Crop.Left=900 (right half only); 6th-left/5th-left/4th-left/1st-left
+    // use Crop.Right=900 (left half only), with fractional-crop rings for
+    // radii mid (935.5, 1014.1, 1144.9, 1150.5, 811.6, 802.0). Fires on
+    // Concentric only among built-ins (Crop-on-mask-clone is Concentric-
+    // specific pattern in the current corpus).
+    //
+    // Prior attempt REFUTED (fresh gate 2026-07-17): reviving dead Clone A via
+    // a `rehydrateConcentricRingClones` walk on renderChildLayers regressed
+    // Concentric to 11.78 dB (-1.60). Reason: forcing A visible past its
+    // timing.out fills MORE rings with sepia A while GT wants many rings to
+    // show B. The `timing.out` gate IS the correct A→B phase — the mask crop
+    // is the missing lever, not the A visibility.
     // Clone Layer: draw the image of the object it mirrors, at this layer's transform.
     let src = resolveCloneImage(rctx, layer.cloneSourceId);
     if (src) {
