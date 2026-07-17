@@ -371,6 +371,70 @@ both halves — DO NOT chase this in timemap.ts.**
   slug (full `gen headless` also **segfaults** after writing frames). Trust full-res
   `gen headless` + `score` (8.5 dB engine-vs-headless), NOT minimize, for replicator slugs.
 
+### 🔬 Combo_Spin residual gap is a DISABLED-BASE-GROUP visibility bug, NOT a per-blade fade bug (2026-07-16b, T-qcombospin1 WIP-decode)
+
+After the 2026-07-16a spin-geometry ship (commit `321b927`, `11.21→12.32` dB), Combo_Spin still
+sits at 12.25 dB with a mid-transition bathtub (`f05–f14` at 9.0–10.9 dB). The T-qcombospin1
+brief hypothesised this was the per-blade **A/B fade** in `compositor/replicator.ts`. **Decode
+refutes that hypothesis — the per-blade fade is already correct end-to-end, the residual is a
+base-visibility bug that lives OUTSIDE this task's edit scope.**
+
+**What the parser+evaluator already do correctly:**
+- `parseLayerElement` (post-321b927) parses group-level behaviours, so every blade group C1..C6
+  correctly surfaces `fade [0.000..0.667s] {Fade In Time: 0, Fade Out Time: 10}` on its clone
+  child. Dumped via `engine/test/_trace_behaviors.ts` — 13 fade/spin behaviors present.
+- `applyFadeBehaviors` (`evaluator/ramp.ts:100`) already multiplies the clone opacity by the
+  fade ramp: opacity=1 from `f0..f6`, ramps 1→0 over `f6..f16` (10 frames), stays 0 through
+  `f16..f23`. Wired at `evaluator/index.ts:938`. Verified: the blade clones DO fade correctly.
+
+**What's actually broken (call-site + evidence):**
+The `.motr` has a top-level `<layer name="Group" id="1701242955">` at line 3939 that holds the
+two **canonical drop-zone photo nodes** — `Transition A` (id 1701242962, `dropZone.type=1`,
+`source.type=transitionA`, timing `[0..0.667s]`) and `Transition B` (id 1701242959,
+`dropZone.type=2`, `source.type=transitionB`, timing `[0.167..0.968s]`). Both are the base
+crossfade under the pinwheel blades. **This wrapper Group carries `<enabled>0</enabled>`**
+(verified via `_probe_combo.ts`: `[group] "Group" id=1701242955 timing=[0.000..0.968]
+enabled=false ...`).
+
+- `evaluator/index.ts:967` sets `drawn = layer.enabled !== false || isContentReplicator`, so
+  the wrapper group gets `drawn=false, visible=false`.
+- `compositor/index.ts:1112` — `renderLayer` starts with `if (!evalLayer.visible) return;` —
+  which **skips the entire subtree**, including the two real photo drop zones. The blades
+  correctly fade toward 0, but the base A→B they should be fading INTO is NEVER COMPOSITED, so
+  the gaps between fading blades show pure black.
+
+**Pixel evidence at f10 (mid-bathtub):**
+- Engine: **38.2% of pixels are black** (`mean<10`) — vs GT **0%**.
+- Column brightness at f10: GT ~110 across the frame, engine ~156 in blade centres AND 0 at
+  the corners/gaps. Corners (`TL/TR`): GT ~86/133, engine `0/0`.
+- Blade behaviour itself is right: `f00 col100..1800` engine tracks GT within ~5%, no black
+  outside a 30 px JPEG-edge border → the fade START state is correct.
+
+**Solution-space (out of scope for T-qcombospin1's brief-scope of `replicator.ts`):**
+Two orthogonal fixes both live in files this task was told NOT to touch:
+1. `evaluator/index.ts` — add the same "group-visible-passthrough" pattern already used at
+   line 986 for `forceSourceA/heldIncomingB/filled-shape-overlay` cases: when a disabled group
+   holds an `image` child whose `layer.source.type === 'transitionA' || 'transitionB'` AND
+   `dropZone.type` is set, force `visible=true, effectiveOpacity=1`. This is the closest
+   analogue to the existing overrides (all group-level "keep base visible" cases).
+2. `compositor/index.ts:1112` — relax the pure `!visible` skip so a group with drop-zone photo
+   children still recurses. Less clean (bypasses the evaluator contract).
+
+**Ecosystem risk:** the disabled-wrapper pattern is present on many `.motr`s (`Group` around
+`Transition A/B` is standard when the transition supplies its own base compositing layer). A
+narrow fix that gates on `child.layer.source?.type ∈ {transitionA, transitionB}` should be
+low-blast but MUST be re-scored across the whole Replicator-Clones family (Concentric, 3D_Rect,
+Video_Wall, Clone_Spin, Multi) plus any transition whose base A/B lives inside a `Group`.
+
+**Not in this task's scope.** Per T-qcombospin1's anti-fratricide brief (only
+`replicator.ts` + tests + ROADMAP), this decode is landed as a WIP checkpoint. Fix belongs in a
+new task **T-qcomboGrpBase** targeting `evaluator/index.ts` (owner of the group-visibility
+overrides) once the concurrent `evaluator/index.ts` lanes clear.
+
+**Reusable RE probe:** `engine/test/_trace_behaviors.ts` (already shipped) proves the fade
+parses/evaluates correctly. Additional one-off `_probe_combo.ts` (deleted) dumped the enabled
+flag on every layer — pattern is `walk(scene.layers, print type/name/id/timing/enabled)`.
+
 ### 🔬 VIDEO_WALL OZReplicator STAMP-SIZING DECODE — cell size is AUTHORED, not pitch-fit (2026-07-16, T-q7fd2fef0)
 
 Decoded how Motion's OZReplicator sizes per-instance stamps, from the real `Video Wall.motr`
