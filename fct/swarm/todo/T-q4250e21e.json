@@ -1,0 +1,14 @@
+{
+  "id": "T-q4250e21e",
+  "title": "360\u00b0 Push mid-band: feather wedge seam + model panorama Gaussian-blur rig",
+  "project": "fct",
+  "goal": "360\u00b0 Push landed at 21.85 dB (T-q360zoom01) via a hard centre-anchored B-reveal wedge over a \u221286px/frame panning A + static-home B. The mid-band f8\u2013f18 sits at ~14\u201316 dB. Two unmodelled effects remain: (1) the A/B seam in the GT is SOFT/feathered, not the hard step the current wedge draws \u2014 add a few-px alpha ramp at the wedge edge and re-fit the edge position; (2) the .motr equirect group has a 'Gaussian Blur' filter (360\u00b0 Aware=1) whose Rig-Behavior Amount curve ramps 0\u2192100 across the transition \u2014 the panoramas are progressively blurred mid-transition (GT lapvar 79\u219252), which the model does not apply. Apply the decoded blur ramp to both A and B (or to the incoming/outgoing card) and re-measure per-frame. Target: lift f8\u2013f18 above 16 dB without regressing the perfect endpoints (f00/f23 \u2248 41 dB). Cite the .motr Rig-Behavior Amount curve and the wedge-edge feather width in a comment.",
+  "slugs": [
+    "360\u00b0__360\u00b0_Push"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-q360zoom01",
+  "created_at": "2026-07-17T01:02:37+00:00",
+  "notes": ""
+}

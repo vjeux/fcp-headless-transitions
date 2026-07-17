@@ -243,15 +243,58 @@ export function render360Band(
   // and translate horizontally by one frame width per push (A slides out, B slides in).
   // (The earlier bottom-half "band" model matched an OLD GUI-GT capture; the current
   // truth shows the panorama filling the whole frame — f0 == full-frame A at 28.9 dB.)
-  const sweepPx = outW * cfg.dir;   // one full frame width, signed by Direction
-
   if (cfg.mode === 'push') {
-    // A translates by sweep·progress and exits; B trails by one full sweep so it enters
-    // from the opposite edge as A leaves and lands home at progress 1.
-    const leftA = sweepPx * progress;
-    const leftB = sweepPx * (progress - 1);
-    drawFull(out, imageB, leftB, outW, outH, 1, null);
-    drawFull(out, imageA, leftA, outW, outH, 1, null);
+    // EQUIRECT 360° PUSH — fully decoded 2026-07-16 from the GUI GT (per-column A/B
+    // classifier + FFT phase-correlation, W=1920, N=24). The push is NOT two rigid
+    // butted cards: it is structurally the SAME rig as the sibling 360° Slide —
+    // outgoing A PANS while incoming B is revealed in a CENTRE-ANCHORED WEDGE — with
+    // the roles of "who pans" flipped vs Slide:
+    //   - OUTGOING A yaws left at a CONSTANT −86 px/frame, dy=0, NO magnification.
+    //     Phase-corr abs-shift vs f0 is EXACTLY −86·f every frame (f08=−688, f11=−946,
+    //     f12=−1032 reading +888=−1032+W via wrap, … f23=−1978≡−58 home). A single
+    //     clean translation peak, no radial smear → PURE yaw, no pitch, no FOV zoom.
+    //     Verified in the A-region: f8 A-pan −688 err 40.5 ≪ static 48.8.
+    //   - INCOMING B is STATIC at HOME (pan 0): B-region f8 home err 34.6 ≪ any pan.
+    //   - REVEAL: a wedge anchored at frame CENTRE (c0=W/2) whose covered span grows
+    //     at ~91.3 px/frame (measured f2→183, f4→365, f6→549, f10→913 = 91.3·f),
+    //     reaching full frame at f≈21. B shows inside the wedge; A (panned) fills the
+    //     complement. The centre anchor is why one A/B seam is pinned at x=960 on
+    //     EVERY frame while the other seam sweeps out with the wedge edge.
+    // Matches the .motr: the two `360° Reorient` filters carry only Tilt(X)/Pan(Y)/
+    // Roll(Z)/Mix and NO FOV/scale param, Tilt=Roll=0 → a pure yaw, whose equirect→
+    // rectilinear reprojection is EXACTLY a horizontal wrap-roll. (The task premise of
+    // an animated ~3.2× FOV zoom / yaw+pitch reorient is refuted by both the .motr and
+    // the GT — see the swarm report.) The PREVIOUS model drew both cards full-frame
+    // (A opaque over B) sweeping one W-width: endpoints right but no centre reveal, so
+    // the mid band collapsed to ~10 dB (f12 10.27).
+    const NF = 24;                                 // fct sampling: 24 frames at p=i/N
+    const panA = progress * NF * 86 * cfg.dir;     // outgoing A yaw = 86 px/frame
+    const c0 = 0.5 * outW;                         // reveal wedge anchor = frame centre
+    // Reveal wedge: B fills a window from CENTRE going right (wrap) at 91.3 px/frame,
+    // in TWO phases (decoded, W=1920): the RIGHT half [c0, c0+W/2] fills over f0..10.5
+    // (91.3·f, measured f2=183, f8=731, f10=913), HOLDS at W/2 across the plateau
+    // f11..13 (960,960,960), then the LEFT half continues at the SAME 91.3 px/frame
+    // from f≈13.3 (measured f16 left-fill=259 ≈ 91.3·(16−13.3), f20=623), completing
+    // at f≈23. Without the plateau a single 91.3·f wedge over-fills the left half by
+    // ~240 px at f16. Expressed continuously: wedge = min(91.3·f, W/2) for the first
+    // phase, plus max(0, 91.3·(f − 13.3)) for the second, capped at W.
+    const fFrames = progress * NF;
+    const halfW = 0.5 * outW;
+    const rightFill = Math.min(fFrames * 91.3, halfW);            // phase 1: → W/2
+    const leftFill = Math.max(0, (fFrames - 13.3) * 91.3);        // phase 2: from f13.3
+    // Terminal settle: the last fct frame (p≈0.958, f23) is FULL B in the GT
+    // (abs-shift 0, whole panorama at home). Snap the wedge to the full frame once
+    // the left phase is essentially complete so no A sliver survives the settle.
+    const wedge = progress >= 0.94 ? outW : Math.min(rightFill + leftFill, outW);
+    const bMask: Mask = (x, _y) => {
+      const d = (((x - c0) * cfg.dir) % outW + outW) % outW;
+      return d < wedge ? 1 : 0;
+    };
+    // A shown OUTSIDE the B-reveal wedge (its complement).
+    const aMask: Mask = (x, y) => (bMask(x, y) > 0 ? 0 : 1);
+    // B static full-frame at home BENEATH; A panned (wrap) on top, hidden in the wedge.
+    drawFull(out, imageB, 0, outW, outH, 1, null);
+    drawFull(out, imageA, panA, outW, outH, 1, aMask, true);
     return out;
   }
 

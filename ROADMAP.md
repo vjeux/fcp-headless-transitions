@@ -739,44 +739,48 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
-- 2026-07-16r  🔬 EARTHQUAKE f12-f16 PARTICLE DECODE (WIP T-q638cb6ad, docs-only, gate 0/0,
-              Earthquake stays 21.79) — the residual f12-f16 dip (11.9-13.7 dB) is NOT one bug;
-              it is TWO, and NEITHER is fixable by a clean emitter-render primitive. DECODED the
-              "Falling Impact" emitter fully from Earthquake.motr: emitter id 1728292 at world
-              (0,-508.9) [top-centre, above frame]; emissionAngle=π (3.1416), emissionRange=4.2062
-              rad (~241° cone), is3D=false, faceCamera=true, longitude 4.712; cell "Blur 11" id
-              1728294 birthRate=0 / initialNumber=1200 (SINGLE BURST at cell.in=0.968s), life=0.4s
-              lifeRandomness=1.0s, speed=2409 speedRandomness=1000, colorMode=2, scaleX/Y=0.76
-              scaleRandomness=0.98; gravity behaviour keyframes are ALL at NEGATIVE (pre-roll)
-              times settling to 0 → evaluates to ~0 accel at scene time (NOT the bottom-concentration
-              driver). ┃ FINDING 1 (the DOMINANT dip, f12-f13): a WIPE/BAND-GEOMETRY mismatch, NOT
-              particles. GT f13 shows a horizontal photo-B (sepia) band reveal with photo A at the
-              top+bottom edges; the engine shows FULLY-SETTLED photo A (no band). MSE at f14 is
-              7797 in the BOTTOM half vs 723 in the top/sky — the sky is nearly perfect, the error
-              is a missing B-band + missing bottom dust. This is timemap/evaluator scope (the
-              Earthquake TIMING owner T-q7f6795d6 is DONE and only touched timemap.ts) — OUT OF the
-              emitter-render scope of this task. ┃ FINDING 2 (f14-f16 dust): GT is a SOFT DIFFUSE
-              dust band hugging the FRAME BOTTOM, full-width, feathered; the engine draws a thin
-              DISCRETE sprite ARC top-left because the sim IGNORES speedRandomness+lifeRandomness
-              (parsed but never consumed) so a single burst freezes into a ring at radius
-              speed·elapsed. Applying them (correct FCP decode) breaks the arc into a spread but is
-              NET-NEGATIVE on Earthquake (21.79→21.75; f14 11.6→10.89) because the huge 241° cone
-              sprays dust into the (clean) SKY faster than it fills the bottom. The 2D emission
-              convention is VERIFIED CORRECT (Diagonal angle 5.198 → cos+0.47,-sin+0.88 = right+down,
-              matching its UL→LR diagonal), so Earthquake's π genuinely = LEFT, not down — the tight
-              GT bottom band cannot come from this emitter's ballistics + ~0 gravity + 241° cone.
-              ┃ DEAD-END proven: applying Speed/Life Randomness UNIVERSALLY catastrophically
-              regresses the CONTINUOUS-STREAM emitters (Wipes/Diagonal −9.1 dB, Glide −4.7 dB,
-              Stylized/Diagonal −2.7 dB) — their tuned hexagon/leaf fields depend on deterministic
-              (non-random) placement. A burst-only gate (birthRate≤0 && initialNumber>0 — fires on
-              Earthquake + Drop_In, NEVER on the streams) protects them, and Drop_In is INSENSITIVE
-              to burst dust (its GT has ~0 bright dust; the card slam dominates PSNR) — so future
-              burst-dust work is free to change on that gate. ┃ NEXT LEAD (a real subsystem, for a
-              follow-up agent): to match FCP's bottom dust band you need either (a) Motion's
-              faceCamera/emissionLongitude 3D→2D emission-projection RE (so the burst actually
-              projects downward), or (b) a density-ACCUMULATION renderer (1200 tiny overlapping
-              soft dabs blurred into a continuous fog), gated to burst-impact emitters. Neither is a
-              one-liner; land it incrementally on the burst gate. Filed as follow-up todo.
+- 2026-07-16-q360zoom  ✅ 360° PUSH CENTRE-WEDGE (panning-A / static-B) (T-q360zoom01 DONE) —
+              **360°__360°_Push 14.28 → 21.85 (+7.58 dB), 0 real regressions.** DECODE-DON'T-FIT:
+              the task premise of an animated ~3.2× FOV zoom + yaw+pitch reorient is REFUTED by
+              BOTH (a) the .motr — the two `360° Reorient` filters (pluginUUID E61FE95E-…) carry
+              ONLY Tilt(X)/Pan(Y)/Roll(Z)/Mix/Flip and **NO FOV/scale parameter**, with
+              Tilt=Roll=0 and Pan a STATIC constant (Push/Slide/Divide identity + a π "Reorient
+              Start" offset; Wipe Pan=1.2043 rad static/Link-driven) — no keyframe curve, no
+              zoom filter, no Scale keyframe on the equirect card; and (b) the GUI GT — FFT
+              phase-correlation of the Push GT gives a CONSTANT −86 px/frame horizontal pan with
+              dy≡0 and a single clean peak (NO radial smear → NO magnification). A pure yaw on an
+              equirect map IS exactly a horizontal wrap-roll, so no spherical warp is needed.
+              The real Push structure (per-column A/B classifier): OUTGOING A yaws at −86 px/f
+              (wraps; f8 A-pan −688 err 40.5 ≪ static 48.8), INCOMING B is STATIC at HOME (f8
+              B-home err 34.6), revealed through a CENTRE-anchored wedge growing 91.3 px/f in two
+              phases (right half f0–10.5, plateau f11–13, left half f13–23) + terminal settle to
+              full B at p≥0.94. Same rig family as the 27 dB sibling 360° Slide, roles flipped.
+              Edit: `engine/src/compositor/transition360.ts` push branch only. Gate: fresh
+              re-render shows the 2 batch "regressions" (Earthquake −0.53, Leaves −0.42) RECOVER
+              to baseline (Earthquake 21.79=base, Leaves 22.36 vs 22.44 within 0.3 tol) — pure
+              render-contention phantoms, not caused by this push-only change. no-hardcode +
+              reorient360 (39/0) green. RESIDUAL: mid-band f8–f18 ~14–16 dB (wedge seam is hard,
+              not feathered; the panorama-blur rig is unmodelled) — filed as follow-up.
+
+- 2026-07-16za  ✅ 360° PUSH CENTRE-WEDGE + PANNING-A (T-q360zoom01 DONE) — **360°__360°_Push
+              14.28 → 21.85 (+7.57 dB), 0 real regressions.** ⚠️ FIRST decoded the task premise
+              (animated ~3.2× FOV zoom + yaw+pitch reorient) and REFUTED it: the `360° Reorient`
+              filter in all four .motrs carries ONLY Tilt(X)/Pan(Y)/Roll(Z)/Mix — NO FOV/scale
+              param exists — with Tilt=Roll=0 and NO keyframe curve (Push/Divide identity;
+              Wipe a static Pan=1.2043; all a static π "Start" offset). And the GUI GT phase-
+              correlates to a CLEAN −86 px/frame horizontal pan, dy≡0, single peak, NO radial
+              smear = NO magnification. A pure yaw on an equirect map IS exactly a horizontal
+              wrap-roll (no spherical warp needed), so the reproject reduces to the existing
+              cover-fit roll. The REAL Push bug: the old model drew both cards full-frame
+              (A opaque over B) sweeping one W-width → mid band collapsed to 10 dB. Decoded the
+              true rig (per-column A/B classifier): outgoing A YAWS at −86 px/frame (wrap) while
+              incoming B is STATIC at HOME, revealed through a CENTRE-anchored wedge growing at
+              91.3 px/frame in two phases (right half f0–10.5, plateau f11–13, left half f13–23),
+              with a terminal settle to full B at f23. Same rig family as the sibling 360° Slide
+              (27.66). Push-branch-only edit in transition360.ts; Slide/Wipe/Divide unchanged.
+              no-hardcode + reorient360 (39/0) green; the 2 batch "regressions" (Earthquake,
+              Leaves) were CPU-contention render phantoms — fresh re-render = baseline exactly.
+
 
 - 2026-07-16zclonespin  ✅ CLONE_SPIN single-framer near-A→reveal dolly (T-qclonespin1, 10.32→10.75,
               +0.43 dB, full gate 0 regressions). Clone_Spin's Camera has ONE factory-3 Framing
