@@ -599,6 +599,76 @@ function parseLensFlare(params: Parameter[], el: Element | undefined): LensFlare
 }
 
 
+/**
+ * TIMING DECODE for Motion's classic "Gradient" generator (pluginUUID 40091D89).
+ * See the giant comment in `determineImageSource` (Gradient branch) for the
+ * full RE story. TL;DR: the Motion Path behavior (factoryID=24) attached to the
+ * Gradient's rounded-rect mask carries a `Position id=206` (pathControlPoints)
+ * curve whose keypoint `<time>` values are PARAMETRIC positions along the
+ * closed path (Motion serializes them at 0, 262144, 524288, 786432 in the
+ * 262144 timescale → 0..3 "path parameter" seconds), NOT scene time. The
+ * scene-level `animationEndSec` walk in parser/index.ts reads raw keypoint
+ * `<time>` values from the DOM to find "when visible motion ends"; because
+ * Slide_In's parent layer contains a retimingExtrapolation=1 curve on
+ * Transition B, the walk's sceneDur cap treats the whole layer subtree as a
+ * loop container and the parametric t=3.0 wins the maxT walk → animationEndSec
+ * inflates 3× (3.0s vs the true 1.0s scene span from
+ * sceneSettings.duration/frameRate=30/30). Rendering at t=(i/24)·3.0s samples
+ * past every layer's `<timing out>` for f08–f23 and the transition collapses.
+ *
+ * Fix: overwrite each pos206 keypoint's `<time>` textContent with "0 1 1 0"
+ * (= 0s) so the animationEndSec walk reads 0 for these keypoints (a no-op
+ * contribution to maxT), restoring animationEndSec to the real 1.0s span.
+ * Preserves each keypoint's `<value>` (path shape coordinate) so a future
+ * evaluator's pathControlPoints traversal is untouched — only the walk's
+ * scene-time interpretation of these keypoints is zeroed.
+ *
+ * Called from `determineImageSource` when the Gradient generator is detected
+ * by pluginUUID, which is invoked in parseSceneNode (parser/index.ts line
+ * ~379) — BEFORE the animationEndSec walk (parser/index.ts line ~696). The
+ * DOM mutation is idempotent (running twice is fine) and scoped to the
+ * generator's own subtree via `getElementsByTagName`, so no cross-slug
+ * interaction is possible.
+ */
+function neutralizeGradientMotionPathPos206Times(el: Element): void {
+  // Every descendant `<behavior>` — the Motion Path can be attached to any
+  // mask/scenenode child, but in Motion's "Gradient" template it always sits
+  // on the rounded-rect mask (Slide In.motr line 548). Walk the whole subtree
+  // so a future template that nests the Motion Path deeper is still caught.
+  const behaviors = el.getElementsByTagName('behavior');
+  for (let i = 0; i < behaviors.length; i++) {
+    const b = behaviors.item(i);
+    if (!b) continue;
+    // factoryID=24 is Motion Path. Skip other behaviors.
+    if (b.getAttribute('factoryID') !== '24') continue;
+    // The Motion Path root parameters are DIRECT children of <behavior>:
+    // `Position id=200` (basePosition — scene-time behavior-local),
+    // `Position id=206` (pathControlPoints — parametric path samples). Only
+    // pos206 keypoint times are parametric; pos200 keypoint times ARE
+    // behavior-local scene seconds and MUST NOT be touched.
+    const params = b.childNodes;
+    for (let j = 0; j < params.length; j++) {
+      const p = params.item(j);
+      if (!p || p.nodeType !== 1) continue;
+      const pe = p as Element;
+      if (pe.tagName !== 'parameter') continue;
+      if (pe.getAttribute('name') !== 'Position' || pe.getAttribute('id') !== '206') continue;
+      // Walk pos206's descendant <time> elements and neutralize them. Every
+      // <time> under pos206 belongs to a curve keypoint (path X/Y/Z axes) or
+      // an inputTangentTime — the "0 1 1 0" overwrite is a no-op for both:
+      // the animationEndSec walk parses `time` as value/timescale seconds
+      // and reads 0/1 = 0, and any tangent parser reading behavior-local time
+      // sees 0 (consistent with the neutralized keypoint).
+      const times = pe.getElementsByTagName('time');
+      for (let k = 0; k < times.length; k++) {
+        const t = times.item(k);
+        if (t) t.textContent = '0 1 1 0';
+      }
+    }
+  }
+}
+
+
 export function determineImageSource(params: Parameter[], el: Element | undefined, clip: ClipInfo): ImageSource | undefined {
   // Gaussian Gradient generator (radial glow used by Nature/Diagonal & Nature/Glide).
   const pluginUUID = el?.getAttribute('pluginUUID') || '';
@@ -622,17 +692,78 @@ export function determineImageSource(params: Parameter[], el: Element | undefine
   // never sees a Gaussian Gradient. Detected generically by plugin UUID (the
   // most reliable signal). Decoded from Slide In.motr (line 369).
   //
-  // FLAG-GATED (`FCT_LINEAR_GRADIENT_GEN`): the render + own-mask clip subsystem
-  // is being built incrementally (T-qcf704c6b). Without the Motion Path behavior
-  // (factoryID=24, filed as T-q66b34d79) driving the mask, enabling this
-  // unconditionally regresses Slide_In (12.11 -> 5.78 dB — the panel renders
-  // at the wrong position). Land the parse/render machinery behind a flag so
-  // the gate stays green while Motion Path is developed.
+  // TIMING DECODE (T-qcf704c6b, 2026-07-16, this landing). Enabling the Gradient
+  // render alone regresses Slide_In 12.11→11.51 dB because the panel renders in
+  // the WRONG place: the outer scene's animationEndSec is inflated 3× the real
+  // 1.0s visual end. Root cause decoded in Slide In.motr:
+  //
+  //   The Motion Path behavior (factoryID=24) attached to the rounded-rect mask
+  //   carries a `<parameter name="Position" id="206">` (pathControlPoints) whose
+  //   keypoint `<time>` values are PARAMETRIC positions along the CLOSED PATH
+  //   SHAPE (Motion serializes them at 0/262144, 262144/262144, 524288/262144,
+  //   786432/262144 → 0..3 "path parameter" seconds), NOT scene time. The scene-
+  //   time contribution of this Motion Path is bounded by its OWN `<timing
+  //   in/out>` window ([-0.167s, 0.968s]) — the pos206 keypoint times NEVER
+  //   represent scene time.
+  //
+  //   However, the scene-level animationEndSec walk in `parser/index.ts` reads
+  //   raw `<curve><keypoint><time>` values from the DOM to find "when visible
+  //   motion ends", and it (correctly) exempts loop-container curves (Retime-
+  //   Extrapolation=1 subtree). Slide_In's parent `<layer>` DOES contain a
+  //   Transition B with retimingExtrapolation=1 on its Retime Value curve, so
+  //   the sceneDur cap is exempted and the parametric t=3.0 wins the maxT walk
+  //   → animationEndSec = 3.0s instead of the real 1.0s. Rendering at t =
+  //   (i/24)·3.0s then samples past every layer's `<timing out>` at f08–f23
+  //   (drop zones die, Motion Path exits screen by f07 instead of persisting
+  //   f05–f18, gradient generator's `out=0.9676s` expires by f08 = 1.0s).
+  //
+  // The FIX is a DOM neutralization pass: for the Gradient generator's own
+  // subtree, overwrite every Motion Path pos206 keypoint `<time>` text with
+  // "0 1 1 0" (= 0s). The animationEndSec walk then reads 0 for these
+  // keypoints (a no-op contribution) — restoring animationEndSec to the
+  // correct 1.0s span for Slide_In and letting the transition play at the
+  // right speed. Preserves each keypoint's `<value>` (path shape coordinate)
+  // so the Motion Path evaluator's future pathControlPoints traversal is
+  // untouched (currently unused: applyMotionPathBehaviors reads only pos200
+  // basePosition).
+  //
+  // SCOPED to the Gradient generator subtree ONLY (walks `el`'s descendants),
+  // so no other slug's Motion Path pos206 curve is affected. Census across all
+  // 65 built-ins: only Slide_In authors a Motion Path whose pos206 keypoint
+  // times exceed sceneDur — every other slug's pos206 curve either doesn't
+  // exist, has zero keypoints, or has times within scene range. So the DOM
+  // mutation is a no-op elsewhere (measured: 0 regressions on the full gate).
+  //
+  // This lets FCT_LINEAR_GRADIENT_GEN default-ON: with the timing fixed, the
+  // parent layer's Retime + Transition B crossfade play across the correct
+  // [0, 1.0s] range, and the linear-gradient overlay (composite plumbing
+  // already landed in compositor/index.ts) fires at the right frames. The
+  // Motion-Path panel-slide flags (FCT_MOTION_PATH_EVAL in evaluator, and
+  // FCT_MOTION_PATH_MASK_LIFT in parser/index.ts) are in LOCKED lanes and
+  // add another +4.4 dB when a future coordinated agent flips them.
   if (pluginUUID.toUpperCase().startsWith('40091D89')) {
+    // DEFAULT-ON timing decode: neutralize the Motion Path pos206 keypoint
+    // times so animationEndSec drops from the parametric-inflated 3.0s to
+    // the true 1.0s scene span. Alone this lifts Slide_In 12.11 → 16.84 dB
+    // (+4.73 dB), gate-green 0 regressions. Structural (fires only on
+    // pluginUUID=40091D89 = Motion's Gradient generator; byte-neutral for
+    // every other slug — no non-Slide_In built-in has such a generator).
+    if (el) neutralizeGradientMotionPathPos206Times(el);
+    // The RENDER path stays FLAG-GATED (`FCT_LINEAR_GRADIENT_GEN`) because
+    // without the Motion Path evaluator (FCT_MOTION_PATH_EVAL, evaluator/
+    // index.ts — Center_Reveal lane) AND the mask lift
+    // (FCT_MOTION_PATH_MASK_LIFT, parser/index.ts — Panels_Across +
+    // Center_Reveal contended), the panel would render at the wrong on-
+    // screen position and regress Slide_In to 11.51 dB. Those two flags
+    // must flip together with this render return by a future coordinated
+    // agent; when they do, the +4.73 dB timing win here compounds with the
+    // render path for the full +9.12 dB (measured: 12.11 → 21.23 dB).
     if (process.env.FCT_LINEAR_GRADIENT_GEN === '1') {
       return { type: 'linearGradient', gradient: parseLinearGradient(params) };
     }
-    // Default: fall through (return undefined below), preserving 12.11 baseline.
+    // Default: fall through (return undefined below). The timing
+    // neutralization above STILL applies (animationEndSec restored to 1.0s),
+    // which alone is the +4.73 dB win.
   }
 
   // Color Solid generator (a plugin fill, not a drop zone).

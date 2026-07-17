@@ -1,0 +1,14 @@
+{
+  "id": "T-q51782fe5",
+  "title": "Slide_In: flip 3 flags default-ON for +4.4 dB compound win",
+  "project": "fct",
+  "goal": "Slide_In's timing-decode is now DEFAULT-ON (landed by T-qcf704c6b: pos206 keypoint neutralization in footage.ts, animationEndSec 3.0\u21921.0, baseline 12.11\u219216.84 dB). The remaining +4.4 dB requires flipping THREE flags together: (1) FCT_LINEAR_GRADIENT_GEN in engine/src/parser/footage.ts (~line 660) \u2014 flag currently guards returning a linearGradient ImageSource; (2) FCT_MOTION_PATH_EVAL in engine/src/evaluator/index.ts (~line 734, Center_Reveal lane) \u2014 flag currently guards applyMotionPathBehaviors call; (3) FCT_MOTION_PATH_MASK_LIFT in engine/src/parser/index.ts (~line 110, Panels_Across + Center_Reveal contended) \u2014 flag currently guards lifting the Motion-Path-driven mask into the child list. All three flip together: measured 12.11 \u2192 21.23 dB (+9.12), gate 0/0 regressions (verified by T-qcf704c6b agent 2026-07-17). Composite plumbing (own-mask clip + linearGradient overlay-on-top paint order) already landed in compositor/index.ts (commit 966d6ed). DoD: all three flags default-ON, Slide_In >= 20 dB, full gate 0 regressions.",
+  "slugs": [
+    "Stylized__Slide_In"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qcf704c6b",
+  "created_at": "2026-07-17T03:56:34+00:00",
+  "notes": ""
+}

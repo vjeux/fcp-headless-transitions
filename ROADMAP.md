@@ -761,6 +761,33 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-17z5  🎯 SLIDE_IN Gradient-generator TIMING DECODE (default-ON, +4.73 dB)
+              (T-qcf704c6b, footage.ts). Slide_In 12.11 → 16.84 dB, gate 0/0 regressions.
+              Root cause: Motion Path (fid=24) `Position id=206` (pathControlPoints)
+              keypoint TIMES are PARAMETRIC positions along the closed path (Motion
+              serializes at 0/262144, 262144/262144, 524288/262144, 786432/262144 →
+              0..3 "path parameter" seconds), NOT scene seconds. The animationEndSec
+              walk in parser/index.ts reads raw keypoint `<time>` values and (correctly)
+              exempts loop-container curves (retimingExtrapolation=1 subtree); Slide_In's
+              parent layer holds Transition B with re=1, so the sceneDur cap is disabled
+              and the parametric t=3.0 wins the maxT walk → animationEndSec inflates 3×
+              (3.0s vs the real 30/30fps=1.0s span). Rendering at t=(i/24)·3.0s samples
+              past every drop-zone `<timing out>` for f08–f23 and the gradient generator's
+              own out=0.9676s expires by f08. FIX: when the Gradient generator is detected
+              by pluginUUID=40091D89 (footage.ts determineImageSource), a DOM neutralization
+              pass overwrites every descendant Motion-Path pos206 keypoint `<time>` with
+              "0 1 1 0" (= 0s). animationEndSec then drops 3.0 → 1.0, and the transition
+              plays at the correct speed. Preserves each keypoint's `<value>` (path shape
+              coord) — a future evaluator's pathControlPoints traversal is untouched.
+              Structural: fires only on Gradient generator (census: 1/65 slugs), byte-
+              neutral no-op elsewhere. NEXT LEAD (locked cross-lane flags for another
+              +4.4 dB): the `FCT_LINEAR_GRADIENT_GEN` render path remains flag-gated in
+              footage.ts. With the timing fix DEFAULT-ON, flipping all three flags
+              (`FCT_LINEAR_GRADIENT_GEN` in footage.ts + `FCT_MOTION_PATH_EVAL` in
+              evaluator/index.ts (Center_Reveal lane) + `FCT_MOTION_PATH_MASK_LIFT` in
+              parser/index.ts (Panels_Across + Center_Reveal contended)) measures Slide_In
+              at 21.23 dB (+9.12 dB total). Requires a coordinated agent owning all three
+              lanes; filed as a follow-up.
 - 2026-07-17qlower  🚫 STYLIZED__LOWER LATE-WINDOW COVERAGE (T-qlower00001 WIP census+docs only, gate 0/0, 11.74 unchanged) —
               Decode-first: `./fct.sh minimize Stylized__Lower` PROVED the min-repro
               (fct/minimized/Stylized__Lower) already scores 60.42 dB engine-vs-FCP-headless
