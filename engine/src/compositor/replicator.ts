@@ -211,6 +211,129 @@ export function cellStampScale(cfg: {
 }
 
 /**
+ * Grid pitch = the world distance between adjacent instances along each axis.
+ *
+ * DECODED (Rectangle grid, arrangement=1, cols>1 or rows>1):
+ *   pitchX = sizeWidth  / (columns - 1)   for columns >= 2, else 0
+ *   pitchY = sizeHeight / (rows    - 1)   for rows    >= 2, else 0
+ *
+ * This is the SAME formula used by `generateInstances` to place the instances
+ * on the centered grid (spacingX/spacingY there). It is the natural denominator
+ * for any "fit the cell to the grid" scale.
+ *
+ * Semantics of the .motr `Size` (id=347) parameter (2026-07-16, verified across
+ * Video Wall's 14 replicators): the (Width,Height) is the TOTAL SPAN of the
+ * outer-instance centers (not per-cell size). For a 3-col Pin-1 grid with
+ * sizeWidth=8200 that yields pitchX=4100; for a 1-row Pin-2 copy the sizeWidth
+ * still equals the total span but rows=1 so pitchY collapses to 0 (single row).
+ *
+ * The `Size` id=337 param on the Replicator Cell is a SEPARATE percentage that
+ * scales the stamp content (see `cellStampScale`); do not confuse it with grid
+ * pitch. Grid pitch = SPACING only, cell size = STAMP scale.
+ */
+export function replicatorPitch(cfg: {
+  columns: number;
+  rows: number;
+  sizeWidth: number;
+  sizeHeight: number;
+}): { pitchX: number; pitchY: number } {
+  const cols = Math.max(1, Math.round(cfg.columns));
+  const rowCount = Math.max(1, Math.round(cfg.rows));
+  const pitchX = cols > 1 ? cfg.sizeWidth / (cols - 1) : 0;
+  const pitchY = rowCount > 1 ? cfg.sizeHeight / (rowCount - 1) : 0;
+  return { pitchX, pitchY };
+}
+
+/**
+ * Current-engine PITCH-FILL scale (aspect-BREAKING horizontal fill), returned as
+ * a pure function of grid geometry and source tile width.
+ *
+ * ⚠️ This DOCUMENTS the current fill-hack in `compositor/index.ts` (2026-07-16):
+ *
+ *     cellFill = max(1, pitchX / tileWidth)      // horizontal-only stretch
+ *
+ * It scales the cell so its WIDTH fills the grid pitch. Adjacent tiles meet
+ * horizontally with a thin seam. BUT it BREAKS the tile aspect ratio: at
+ * Video Wall's Pin-1 grid (pitchX=4100, pitchY=1200, tile 1920×1080) it stretches
+ * every tile to 4110×2313 — vertical overlap = 1113 px per pitchY.
+ *
+ * WHY IT SHIPS ANYWAY: at the current mis-posed dolly camera + retime-wrap-frozen
+ * playhead, over-covering the frame with brown tiles that OVERLAP the GUI-GT's
+ * brown wall out-scores a correctly-sized (smaller) tile. The 10.18 dB Video_Wall
+ * baseline sits on this accident. See ROADMAP "MEASURED DEAD-ENDS".
+ *
+ * Exposed here so a coordinated integrated tick can (a) reference the exact
+ * current-hack formula, (b) A/B-test against the aspect-preserving and authored
+ * alternatives below, and (c) migrate index.ts atomically once the camera and
+ * timemap halves are ready. Not called from index.ts today — index.ts inlines
+ * the same formula; migrating that call site is a separate integrated tick.
+ */
+export function cellFillPitchHackScale(cfg: {
+  pitchX: number;
+  tileWidth: number;
+}): number {
+  if (!(cfg.tileWidth > 0)) return 1;
+  const fill = cfg.pitchX / cfg.tileWidth;
+  return fill > 1 ? fill : 1;
+}
+
+/**
+ * ASPECT-PRESERVING cover fit — the tile keeps its native aspect and covers the
+ * grid cell along BOTH axes: `max(pitchX/tileW, pitchY/tileH)`.
+ *
+ * At Video Wall Pin-1 (pitchX=4100, pitchY=1200, tile 1920×1080): max(2.14, 1.11)
+ * = 2.14 → tile 4110×2313, same as the horizontal fill hack (X-axis dominates
+ * because Pin-1 sizeW/sizeH aspect 3.42 > tile aspect 1.78). At a grid whose
+ * pitchY-aspect exceeds tile aspect the vertical axis instead dominates.
+ *
+ * ASPECT-PRESERVING contain fit — the counterpart that FITS inside the pitch
+ * without cropping/stretching: `min(pitchX/tileW, pitchY/tileH)`.
+ *
+ * MEASURED (T-qvidwall01, isolation): the `min` variant on Video Wall gives 9.69
+ * dB (< 10.18 baseline). NOT a fix in isolation; the correct camera pose is the
+ * missing half. Documented here so the integrated tick can call these without
+ * re-deriving them.
+ */
+export function cellFillAspectFit(cfg: {
+  pitchX: number;
+  pitchY: number;
+  tileWidth: number;
+  tileHeight: number;
+  /** 'cover' = max (fill both axes, tile aspect preserved, crop overflow). 'contain' = min. */
+  mode: 'cover' | 'contain';
+}): number {
+  if (!(cfg.tileWidth > 0) || !(cfg.tileHeight > 0)) return 1;
+  const rx = cfg.pitchX > 0 ? cfg.pitchX / cfg.tileWidth : Infinity;
+  const ry = cfg.pitchY > 0 ? cfg.pitchY / cfg.tileHeight : Infinity;
+  const finiteXY = [rx, ry].filter(v => Number.isFinite(v));
+  if (finiteXY.length === 0) return 1;
+  return cfg.mode === 'cover' ? Math.max(...finiteXY) : Math.min(...finiteXY);
+}
+
+/**
+ * AUTHORED-SIZE resolver — returns the stamp scale that matches Motion's
+ * OZReplicator per-instance sizing, honoring `cellStampScale` (Scale% × Size%).
+ *
+ * This is the CORRECT rule per the decoded .motr semantics. On Video Wall it
+ * returns 2.0 (Scale=100%, Size=200%) for EVERY replicator cell, pitch-agnostic
+ * — every tile in the scene is the same on-screen size, regardless of its host
+ * replicator's grid pitch.
+ *
+ * ⚠️ Cannot ship in isolation on Video Wall: the current camera dolly frames a
+ * region derived from the current pitch-fill tile size; authored size 2.0 alone
+ * puts 3840×2160 tiles in a camera framed for 4110×2313 (or 1920×1080) stamps,
+ * so they escape the framing and the wall goes empty. Ships once parser reads
+ * cell Size id=337 into `layer.replicator` AND compositor/index.ts sizes by this
+ * AND framing.ts places the resulting wall correctly.
+ */
+export function resolveAuthoredStampScale(cfg: {
+  cellScalePct?: number;
+  cellSizePct?: number;
+}): number {
+  return cellStampScale(cfg);
+}
+
+/**
  * Sequence Replicator: compute a per-instance animation progress (0-1).
  *
  * Motion's Sequence Replicator plays the SAME per-instance curve on every

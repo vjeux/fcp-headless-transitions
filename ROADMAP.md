@@ -406,6 +406,42 @@ the blit by `cellStampScale()` instead of `cellFill=pitchX/tileW` in `index.ts`,
 dolly pose puts the 200%-sized wall on the GT tiles, all in one gate-measured commit. Filed as a
 follow-up todo.
 
+### 🔬 VIDEO_WALL STAMP-SIZE HELPERS + TESTS (2026-07-16q, T-q7fd2fef0 WIP-decode)
+
+Follow-up to the T-q7fd2fef0 decode above. The prior tick landed `cellStampScale({Scale%,Size%})`
+in `compositor/replicator.ts` but nothing else — the wire-up into `compositor/index.ts` is BLOCKED
+by the "4-parts-must-land-together" trap (measured: authored size alone drops Video_Wall 10.18 →
+~9.7). This tick strengthens the decode surface WITHOUT touching the blocked lanes:
+
+- `replicatorPitch({columns,rows,sizeW,sizeH})` — the pitch formula used by `generateInstances`,
+  exposed as a pure helper so consumers stop re-deriving `sizeW/(cols-1)`.
+- `cellFillPitchHackScale({pitchX,tileWidth})` — DOCUMENTS the aspect-BREAKING horizontal fill
+  hack currently inlined at `compositor/index.ts:355-360` (the `pitchX/tileWidth` formula that
+  ships Video Wall's 10.18 baseline). Callable so a coordinated integrated tick can migrate the
+  call site by wrapping this + logging deltas.
+- `cellFillAspectFit({pitchX,pitchY,tileW,tileH,mode:'cover'|'contain'})` — the aspect-preserving
+  alternatives, cover=max(rx,ry) and contain=min(rx,ry). Contain measured @ 9.69 dB isolated (dead
+  end per ROADMAP); cover matches the current X-hack on Pin-1 (X dominates).
+- `resolveAuthoredStampScale()` — alias for `cellStampScale` naming the "correct rule when the
+  camera+parser+timemap lanes are ready" intent site.
+- 11 new unit tests in `engine/test/replicator.test.ts` covering all four helpers + edge cases
+  (single-column, single-row rows=1 → pitchY=0, degenerate cols=1 & rows=1). All 22/22 pass.
+
+Zero call-site changes — helpers are pure, index.ts still uses its inline `pitchX/tileWidth` hack.
+Gate: **Video_Wall 10.18 → 10.18 (unchanged)**, tsc clean, tests 22/22.
+
+⏭️ **NEXT** (BLOCKED on `compositor/index.ts` lane freeing — the concurrent Concentric agent's
+session is still technically alive on that file so it stayed off-limits this tick):
+1. Extend `parser/replicator.ts` to read cell Scale id=327 + Size id=337 into `layer.replicator`
+   (new fields `cellScalePct`, `cellSizePct`). Uniform 100%/200% on Video Wall, defaults elsewhere.
+2. In `compositor/index.ts:355-380`, replace the inline `cellFill = pitchX/stampImg.width` with
+   `cellStampScale({cellScalePct, cellSizePct})` when the parser provides them; keep the pitch-hack
+   as an env-gated fallback for legacy renders during the migration.
+3. Verify against `evaluator/framing.ts resolveFramedWallPose` — the 3-key dolly must frame the
+   authored-size wall (200% Size → 3840×2160 tiles) not the pitch-hack wall. Sweep FARK to fit.
+4. Gate the whole family: Video_Wall + Clone_Spin + Combo_Spin + Multi + Concentric + 3D_Rectangle.
+   All 6 share `replicator.ts` and the `cellFill` line — a bad wire-up regresses the family.
+
 ### 🔬 REFLECTION Z-CONVENTION DECODE — sign is INVERTED in perspective.ts (2026-07-16, T-qreflect001)
 
 Investigating Movements/Reflection (14.23 dB, currently orthographic-forced by the S6 discriminator)
