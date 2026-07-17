@@ -131,6 +131,13 @@ import {
   linearChannelToSrgb,
   srgbChannelToLinear,
 } from '../linear.js';
+import {
+  hasLinearInput,
+  getLinearInput,
+  publishLinear,
+  encodeLinearBuf,
+  colorizeLinearInPlace,
+} from './linear-chain.js';
 
 export interface ChannelMixerParams {
   matrix: number[]; // 4x4 row-major [RR,RG,RB,RA, GR,GG,GB,GA, BR,BG,BB,BA, AR,AG,AB,AA]
@@ -392,6 +399,16 @@ registerFilter({
   names: ['tint'],
   label: 'Tint',
   apply(input, ctx) {
+    // Tint deliberately does NOT participate in the chain-level linear handoff
+    // (T-qlinchain01). The only built-in >=2-colour-adjust chain that stacks Tint is
+    // Objects__Leaves (HSVAdjust->Tint->Tint, Saturation=-1 grayscale), and routing its
+    // Tint through the linear buffer REGRESSED Leaves 22.44->20.17 (measured). Motion's
+    // HgcTint hard-light two-leg transfer (see channel-mixer.ts header) is not the
+    // simple luma.tint lerp the linear helper models, so a faithful Tint-in-linear needs
+    // the hard-light shader decoded first (filed as follow-up). Until then Tint stays on
+    // its shipped path, and because it neither consumes nor publishes a linear buffer it
+    // BREAKS the chain: Leaves' HSVAdjust is then a chain entry (legacy emit) and Leaves
+    // stays byte-identical. CP's Colorize->HueSat chain is unaffected (no Tint).
     return tintFilter(input, ctx.param('Red', 1), ctx.param('Green', 1), ctx.param('Blue', 1),
                       ctx.param('Intensity', 1), ctx.param('Mix', 1),
                       isLinearCompositeEnabled());
@@ -450,6 +467,37 @@ registerFilter({
     };
     const intensity = readScalar('Intensity', 1);  // hg_Params[2]: colorize amount
     const mix = readScalar('Mix', 1);               // hg_Params[3]: final blend
-    return colorizeRemapFilter(input, black, white, intensity, mix);
+
+    // Chain-level LINEAR working-space path (T-qlinchain01). See linear-chain.ts.
+    // This is a STRUCTURAL primitive (not gated on the per-filter isLinearComposite
+    // flag): it engages ONLY when this Colorize is the 2nd+ colour-adjust filter on
+    // a layer (its input carries a cached linear buffer from a prior colour filter —
+    // hasLinearInput). Then it resumes from that EXACT linear buffer, runs the remap
+    // in linear, and encodes ONCE — the FCP single-readback model. A CHAIN ENTRY
+    // (no cached input) still emits the LEGACY sRGB output so a lone Colorize
+    // (Slide/Up-Over) is BYTE-IDENTICAL, and publishes the linear-space computation
+    // so a FOLLOWING colour filter (Color_Panels' HueSat) resumes losslessly in
+    // linear. Firing needs ≥2 consecutive colour-adjust filters — verified generic
+    // (Color_Panels Colorize→HueSat, Curtains ChannelMixer→Brightness→Colorize,
+    // Leaves HSVAdjust→Tint→Tint), never a per-transition hardcode.
+    {
+      const k = intensity * mix;
+      const bLin = { r: srgbChannelToLinear(black.r * 255), g: srgbChannelToLinear(black.g * 255), b: srgbChannelToLinear(black.b * 255) };
+      const wLin = { r: srgbChannelToLinear(white.r * 255), g: srgbChannelToLinear(white.g * 255), b: srgbChannelToLinear(white.b * 255) };
+      if (hasLinearInput(input)) {
+        // MID-chain: resume from the prior filter's exact linear buffer, encode ONCE.
+        const lin = getLinearInput(input);
+        colorizeLinearInPlace(lin, bLin, wLin, k);
+        const out = encodeLinearBuf(lin, input.width, input.height);
+        publishLinear(out, lin);
+        return out;
+      }
+      // ENTRY: emit legacy sRGB (gate-neutral for a lone Colorize) + publish linear.
+      const legacy = colorizeRemapFilter(input, black, white, intensity, mix);
+      const lin = getLinearInput(input);
+      colorizeLinearInPlace(lin, bLin, wLin, k);
+      publishLinear(legacy, lin);
+      return legacy;
+    }
   },
 });

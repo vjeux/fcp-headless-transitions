@@ -761,6 +761,54 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16q  ✅ CHAIN-LEVEL LINEAR WORKING BUFFER (T-qlinchain01 DONE) — **Stylized__Color_Panels
+              17.95 → 18.92 dB (+0.97, past the ≥18.5 DoD), full engine gate 0 regressions**. The
+              colour-adjust chain (Colorize→HueSat) now keeps an EXACT Float32 LINEAR working buffer
+              across the chain, reproducing FCP's single-readback working-space model WITHOUT the
+              per-filter sRGB re-encode that regressed Curtains/Slide/Up-Over (channel-mixer.ts:315).
+              New `compositor/filters/linear-chain.ts` holds a `WeakMap<ImageData,Float32Array>`
+              side-channel: a colour filter publishes its exact linear result keyed on the ImageData
+              it emits; the NEXT colour filter, finding its input cached, resumes from that EXACT
+              linear buffer (no sRGB re-decode). STRUCTURAL — only engages when ≥2 consecutive
+              colour-adjust filters run (CP Colorize→HueSat). A LONE colour filter publishes a buffer
+              nobody consumes and emits legacy sRGB = BYTE-IDENTICAL (Slide/Up-Over/Lower/Center/
+              Light_Sweep neutral). TINT stays OUT (its only ≥2-chain is Leaves HSVAdjust→Tint→Tint,
+              Sat=-1; routing Tint through linear regressed Leaves 22.44→20.17 — HgcTint's hard-light
+              transfer ≠ the luma-lerp helper; excluding Tint keeps Leaves byte-identical 22.36).
+              No compositor/index.ts edit. DECODE (cited in linear-chain.ts): Ozone SDRWorkingSpace/
+              HDRWorkingSpace, getPreferredWorkingSpaceForColorSpace:, getFloatFormatForWorkingSpace:,
+              newHGNodeInFormat:withPT:workingSpace: + OZFxPlugRenderContextManager{_workingColor
+              Description,_blendingGamma}; ProAppsFxSupport blendingGamma/getBlendingGamma. SATURATION
+              decode (GUI-GT probe): satFactor = min(1,1+S) (S=1 identity, not 1+S=2 which crushed the
+              CP red panel G/B to 0 vs GT (94,37,26) = Colorize-linear alone).
+
+- 2026-07-16q  Durable finding (Rule 11 follow-up): a faithful LINEAR Tint (HgcTint) needs the
+              hard-light two-leg shader decoded — the current luma·tint lerp diverges in linear on
+              Objects__Leaves (Sat=-1 grayscale → Tint). Filed so a future agent can bring Tint into
+              the chain-linear path once the hard-light transfer is decoded. See linear-chain.ts + the
+              Tint apply comment in channel-mixer.ts.
+
+- 2026-07-16q  ✅ CHAIN-LEVEL LINEAR WORKING BUFFER (T-qlinchain01 DONE) — **Stylized__Color_Panels
+              17.95 → 18.92 dB (+0.97, past the ≥18.5 DoD), full engine gate 0 regressions**. The
+              colour-adjust chain (Colorize/HueSat) now keeps an EXACT Float32 LINEAR working buffer
+              across the chain, reproducing FCP's single-readback working-space model WITHOUT the
+              per-filter sRGB re-encode that regressed Curtains/Slide/Up-Over (channel-mixer.ts:315).
+              New `compositor/filters/linear-chain.ts` holds a `WeakMap<ImageData,Float32Array>`
+              side-channel: a colour filter publishes its exact linear result keyed on the ImageData
+              it emits; the NEXT colour filter, finding its input cached, resumes from that EXACT
+              linear buffer (no sRGB re-decode). STRUCTURAL — only engages when ≥2 consecutive
+              colour-adjust filters run (CP Colorize→HueSat). A LONE colour filter publishes a buffer
+              nobody consumes and emits legacy sRGB = BYTE-IDENTICAL (Slide/Up-Over/Lower/Center/
+              Light_Sweep neutral). TINT stays OUT (its only ≥2-chain is Leaves HSVAdjust→Tint→Tint,
+              Sat=-1; routing Tint through linear regressed Leaves 22.44→20.17 — HgcTint's hard-light
+              transfer ≠ the luma-lerp helper; excluding Tint keeps Leaves byte-identical 22.36).
+              No compositor/index.ts edit. DECODE (cited in linear-chain.ts): Ozone SDRWorkingSpace/
+              HDRWorkingSpace, getPreferredWorkingSpaceForColorSpace:, getFloatFormatForWorkingSpace:,
+              newHGNodeInFormat:withPT:workingSpace: + OZFxPlugRenderContextManager{_workingColor
+              Description,_blendingGamma}; ProAppsFxSupport blendingGamma/getBlendingGamma. SATURATION
+              decode (GUI-GT probe): satFactor = min(1,1+S) (S=1 identity, not 1+S=2 which crushed the
+              CP red panel G/B to 0 vs GT (94,37,26) = Colorize-linear alone).
+
 - 2026-07-16reflfloor  📝 REFLECTION FLOOR-REFLECTION DECODE + planar-mirror geometry primitive
               (WIP T-qa7694deb, additive/inert, gate 0/0 — Reflection 14.82 UNCHANGED, byte-identical
               render). DECODE (Reflection.motr, verified): the residual tail-difference vs GT on

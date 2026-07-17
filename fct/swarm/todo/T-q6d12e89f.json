@@ -1,0 +1,14 @@
+{
+  "id": "T-q6d12e89f",
+  "title": "Bring Tint into the chain-linear working buffer (decode HgcTint hard-light)",
+  "project": "fct",
+  "goal": "linear-chain.ts (T-qlinchain01) keeps a Float32 linear buffer across the colour-adjust chain, but TINT is deliberately excluded: routing Leaves' HSVAdjust->Tint->Tint through the linear luma-lerp helper (tintLinearInPlace) REGRESSED Leaves 22.44->20.17. Root cause: HgcTint is a HARD-LIGHT two-leg transfer about luma 0.5 (channel-mixer.ts:44-91 decode), NOT the simple luma*tintColor lerp tintLinearInPlace implements. STEP 1: decode HgcTint's exact linear transfer from the shader (extract_shader.py) + a flat-input sweep (filter_sweep.py) vs headless FCP. STEP 2: replace tintLinearInPlace's luma-lerp with the decoded hard-light form. STEP 3: re-enable Tint's chain participation in channel-mixer.ts Tint apply (mirror the Colorize/HueSat hasLinearInput/getLinearInput/publishLinear pattern). DoD: Objects__Leaves stays >= 22.14 (within tol of 22.44 baseline) or IMPROVES, gate 0 regressions. Cite the decoded hard-light constants.",
+  "slugs": [
+    "Objects__Leaves"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qlinchain01",
+  "created_at": "2026-07-17T02:07:03+00:00",
+  "notes": ""
+}
