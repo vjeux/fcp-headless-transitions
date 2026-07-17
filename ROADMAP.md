@@ -797,6 +797,42 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-17z7  🎯 PANELS_ACROSS + PANELS_RANDOM + COLOR_PANELS scale-authored accent
+              shapes rendered (T-qpanelacr01 DONE, parser-scope, gate 0/0 regressions).
+              **Stylized__Panels_Across 15.15 → 18.33 (+3.18 dB)**,
+              **Stylized__Panels_Random 18.02 → 19.60 (+1.58 dB)**,
+              **Stylized__Color_Panels 17.95 → 19.05 (+1.10 dB)** — 3 slugs improve,
+              zero regressions on the full 65-slug gate. Root cause: `parseSceneNode`'s
+              `isSolidPanel` promotion only fired for offset-authored SWEEPING panels (the
+              R1–R7 white sliding rectangles) — an offset>in + negative-time-Position gate
+              that correctly identifies the sweep, but MISSED five decorative accent shapes
+              that FCP GUI GT does render solid: Panels_Across's `Red bar` (RGB 188/18/36,
+              12×854 vertical bar) + `White line` (255/255/255 thin horizontal edge),
+              Panels_Random's `Red bar` + `White line 1`/`White line 6`. All five carry a
+              real Fill Color (Fill Mode=0, Fill Opacity=1) but with the `Fill Color` flag's
+              solid-fill bit CLEAR (flags 0x2xxxxxxxx), which `findFillColor` rejects and
+              the panel-gate above also rejects (Red bar has offset=0.367 < in=0.534 → not
+              offset-authored; White line has no Position curve at all). Old parser dropped
+              their panelFill candidate at the "clear panelFill on non-isSolidPanel shapes"
+              step, so the compositor drew nothing → engine mid-transition missing GT's
+              prominent red vertical accent + white edge lines from ~f11 onward. Decoded
+              structural discriminator vs the R8-class stray flash (which GT does NOT
+              render): these accent shapes carry an animated Scale curve shaped
+              `[0, peak, peak, 0]` (grow-to-peak-hold-shrink accent envelope), while
+              Rectangle 8 has NO scale-animation (opacity-animated flash only). FIX: added
+              `isAnimatedZeroPeakZeroCurve(scaleX)` helper + second isSolidPanel promotion
+              path in parser/index.ts — if a shape carries panelFill AND scaleX has ≥3
+              keyframes with first=0, last=0, and a middle key >0, promote to isSolidPanel.
+              The compositor's existing panelFill path draws them; the evaluator's
+              isSolidPanel curveTime retime (rate=(out−in)/endSec) samples the wide flat
+              peak-plateau correctly. Verified: no other slug in the 65-slug corpus has a
+              Fill Mode 0 + bit-clear + `[0, peak, peak, 0]` Scale shape (scanned all
+              motrs); Rectangle 8 correctly stays unpromoted. Structural (parses ≥2 slugs
+              — Panels_Across + Panels_Random), no per-transition constants. Remaining
+              deficit on Panels_Across (~18 dB not ~25): mid-transition f09-f18 photo-B
+              reveal fires too late (Transition B timing.in=0.634s → not visible until
+              f19), a drop-zone-B crossfade timing issue that lives in the evaluator's
+              visibility gate (Center_Reveal's owned lane).
 - 2026-07-17z6  🎯 3D_RECTANGLE FADE_BASE progress-aware crossfade DEFAULT-ON, +3.56 dB
               (T-q98a30de5 DONE, compositor-scope, gate 0/0 regressions). Replicator-Clones__3D_Rectangle
               **MEAN 16.48 → 20.04 (+3.56 dB)**. Root cause: the old shipped path painted a

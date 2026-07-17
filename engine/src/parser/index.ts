@@ -186,6 +186,32 @@ function extractImageMask(el: Element): { sourceId?: number; invert: boolean } {
 }
 
 
+/**
+ * Detect a "grow-and-shrink accent" scale envelope: an animated Scale curve whose
+ * first and last keyframes have value ≈ 0 (or ≈1×default) and at least one middle
+ * keyframe has value strictly greater than either endpoint (a peak). This is the
+ * hallmark of a Motion accent element that scales up from zero to a visible peak
+ * and back to zero (Stylized/Panels_Across's Red bar / White line, Panels_Random's
+ * accent shapes — all with 4 Scale keys shaped [0, peak, peak, 0]). Distinguishes
+ * such accent shapes from static-scale flash rectangles (Rectangle 8, no scale
+ * animation) and from continuously-growing scales (never returning to 0). Kept
+ * strict to avoid false positives outside the Stylized/Panels_* family.
+ */
+function isAnimatedZeroPeakZeroCurve(c: Curve | number | undefined): boolean {
+  if (!c || typeof c === 'number' || !c.keyframes || c.keyframes.length < 3) return false;
+  const kps = c.keyframes;
+  const first = kps[0].value;
+  const last = kps[kps.length - 1].value;
+  if (Math.abs(first) > 1e-3 || Math.abs(last) > 1e-3) return false;
+  // At least one middle key must peak > 0.
+  let peaks = false;
+  for (let i = 1; i < kps.length - 1; i++) {
+    if (kps[i].value > Math.max(first, last) + 1e-3) { peaks = true; break; }
+  }
+  return peaks;
+}
+
+
 function parseSceneNode(el: Element, factories: Map<number, string>, clip: ClipInfo, linkSourceIds: Set<number>, filtersById?: Map<number, { pluginName?: string; name?: string }>): Layer {
   const factoryID = parseInt(el.getAttribute('factoryID') || '0', 10);
   const factoryType = factories.get(factoryID) || '';
@@ -419,6 +445,36 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clip: ClipI
       return k.time.timescale > 0 && k.time.value / k.time.timescale < -1e-3;
     };
     if (off - inn > 1e-3 && (negKey(layer.transform.positionX) || negKey(layer.transform.positionY))) {
+      layer.shape.isSolidPanel = true;
+    }
+    // T-qpanelacr01 (2026-07-16): SCALE-AUTHORED ACCENT SHAPES.
+    // Stylized/Panels_Across authors a "Red bar" (RGB 188/18/36) + "White line"
+    // (RGB 255/255/255) that FCP GUI GT renders solid (verified: f12+ shows a
+    // thin vertical red bar near screen-right and thin white edge lines at the
+    // panel margins). Both carry a candidate panelFill from findPanelFillColor
+    // (Fill Mode 0, Fill Color rgb, Fill Opacity 1) but FAIL the offset>in +
+    // negative-time-Position sweeping-panel gate above (Red bar offset=0.367 <
+    // in=0.534; White line has no Position curve). They differ from Rectangle 8
+    // (a stray full-screen white shape that GT does NOT render) by having an
+    // animated Scale curve (grow 0→peak→hold→0 back-to-0 — a decorative accent
+    // envelope), which R8 lacks (R8 has no scale keyframes). The animated-Scale
+    // signature also fires on Panels_Random's Red bar + White line 1/6 with the
+    // same grow/shrink pattern (5 shapes total across the two Panels_* slugs).
+    // Verified: no other slug in the corpus has a Fill Mode 0 + bit-clear +
+    // animated-Scale shape (scanned via /tmp/scan_shapes.ts against all 65
+    // slug .motr files); every other Fill Mode 0 + bit-clear shape is either a
+    // gradient-mode-flagged shape rejected by findFillColor or the R8-class
+    // flash rectangle without scale animation.
+    // Promote to isSolidPanel so the compositor's panelFill path draws them;
+    // this keeps them off the fillColor evaluator path (which would offset-shift
+    // curveTime and mis-anchor Red bar whose Scale keys are in POSITIVE local
+    // time). The panel-retime rate=(out-in)/endSec applied by the evaluator's
+    // isSolidPanel curveTime shift is benign for these shapes: their Scale keys
+    // hit a flat 1.3/2.83 plateau across the transition-visible window (curveTime
+    // 0.334→0.667 for Red bar), so retime rate ≈0.79× at Panels_Across still
+    // samples the plateau and yields the correct grow/hold envelope.
+    if (!layer.shape.isSolidPanel && layer.shape.panelFill
+        && isAnimatedZeroPeakZeroCurve(layer.transform.scaleX)) {
       layer.shape.isSolidPanel = true;
     }
   }
