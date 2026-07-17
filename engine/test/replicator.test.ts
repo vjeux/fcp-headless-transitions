@@ -10,6 +10,7 @@ import {
   cellFillPitchHackScale,
   cellFillAspectFit,
   resolveAuthoredStampScale,
+  shouldHoldReplicatorPastTiming,
 } from '../src/compositor/replicator.js';
 
 function assert(cond: boolean, msg: string) { if (!cond) throw new Error(`FAIL: ${msg}`); }
@@ -193,6 +194,65 @@ function runTests() {
     // Fully degenerate (point-arrangement style) — no scaling can be derived.
     const s = cellFillAspectFit({ pitchX: 0, pitchY: 0, tileWidth: 1920, tileHeight: 1080, mode: 'cover' });
     assertClose(s, 1, 1e-9, 'default 1');
+  });
+
+  // ==========================================================================
+  // shouldHoldReplicatorPastTiming (T-q7fd2fef0)
+  // ==========================================================================
+
+  test('shouldHoldReplicatorPastTiming: fires past timing.out in framed scene with cellSource', () => {
+    // Video_Wall's main wall: framed, has Pin cell, out=1.101s, current time 1.2s → HELD.
+    assert(shouldHoldReplicatorPastTiming({
+      framed: true, hasCellSource: true, hasTiming: true, time: 1.2, outSec: 1.101,
+    }), 'main wall past out should hold');
+  });
+
+  test('shouldHoldReplicatorPastTiming: does NOT fire before timing.out', () => {
+    // Same replicator, current time 0.9s (before out=1.101s) → NOT held.
+    assert(!shouldHoldReplicatorPastTiming({
+      framed: true, hasCellSource: true, hasTiming: true, time: 0.9, outSec: 1.101,
+    }), 'before out should not hold');
+  });
+
+  test('shouldHoldReplicatorPastTiming: does NOT fire in origin-camera scene', () => {
+    // Duplicate/Squares/Concentric have origin cameras (framed=false) — never held.
+    assert(!shouldHoldReplicatorPastTiming({
+      framed: false, hasCellSource: true, hasTiming: true, time: 1.5, outSec: 1.0,
+    }), 'origin camera should not hold');
+  });
+
+  test('shouldHoldReplicatorPastTiming: does NOT fire when replicator has no cell source', () => {
+    // Shape/panel/particle replicator (no cellSourceId) — respects timing.
+    assert(!shouldHoldReplicatorPastTiming({
+      framed: true, hasCellSource: false, hasTiming: true, time: 1.5, outSec: 1.0,
+    }), 'no cell source should not hold');
+  });
+
+  test('shouldHoldReplicatorPastTiming: does NOT fire when replicator has no timing', () => {
+    // A replicator without a <timing> element has no lifetime to hold past.
+    assert(!shouldHoldReplicatorPastTiming({
+      framed: true, hasCellSource: true, hasTiming: false, time: 1.5, outSec: 0,
+    }), 'no timing should not hold');
+  });
+
+  test('shouldHoldReplicatorPastTiming: exactly at out is NOT held (strict >)', () => {
+    // Edge case: at time = outSec, the layer is still in its authored window.
+    assert(!shouldHoldReplicatorPastTiming({
+      framed: true, hasCellSource: true, hasTiming: true, time: 1.101, outSec: 1.101,
+    }), 'at out should not hold (strict >)');
+  });
+
+  test('shouldHoldReplicatorPastTiming: Video_Wall decorative replicators also held past their out', () => {
+    // Decorative line replicators (Pin 2 copy 4/5/8/9/10, etc.) have their own
+    // staggered timing.out ∈ [0.367, 1.869]. At the tail frame f22 (t=1.921s),
+    // all held replicators contribute to the wall through the framing camera —
+    // measured: broad-gate 10.53 dB vs 2D-only-gate 10.38 dB (2D-only excludes
+    // the decoratives and loses composition).
+    for (const outSec of [0.367, 0.534, 0.767, 0.968, 1.101, 1.134, 1.768, 1.835, 1.869]) {
+      assert(shouldHoldReplicatorPastTiming({
+        framed: true, hasCellSource: true, hasTiming: true, time: 1.921, outSec,
+      }), `held at t=1.921 with out=${outSec}`);
+    }
   });
 
   console.log(`\n${pass} passed, ${fail} failed`);

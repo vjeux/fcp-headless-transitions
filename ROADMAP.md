@@ -875,6 +875,32 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-17vidwall2  ✅ VIDEO_WALL HOLD-PAST-TIMING content-replicator (T-q7fd2fef0 DONE) —
+              **Replicator-Clones__Video_Wall 10.24 → 10.62 dB (+0.38)**, 0 regressions, gate green.
+              **Bug**: Motion holds a Replicator's rendered cell content on-screen PAST its own
+              `<timing out=...>` when the scene has a framing camera and the cell is bound to a
+              Type=3 Pin drop-zone. Video_Wall's main 3x3 wall `Replicator Pin 1` authors
+              timing.out=1.101s (parsed correctly — the tag sits AFTER the inner cell scenenode
+              close in the .motr, not before, which is unusual XML), yet GUI GT shows the wall
+              persisting through f22 (t=1.921s). The engine's `isLayerVisible` correctly returned
+              false past out=1.101s, so f14-f22 collapsed to just one lone standalone-B tile
+              projected through the framing camera (mean 8.29-9.82 dB, the worst frames).
+              **Fix** (compositor/index.ts + compositor/replicator.ts, no evaluator change): new
+              helper `shouldHoldReplicatorPastTiming({framed,hasCellSource,hasTiming,time,outSec})`
+              gates the visibility bypass in `renderLayer` and forces opacity=1 in
+              `renderReplicatorLayer` for the same held replicators. Structural gate — fires only
+              when (a) framing camera resolved (`rctx.framed`), (b) `cellSourceId` defined (rules
+              out shape/panel/particle replicators that legitimately fade out), (c) `time > outSec`
+              (never hides a pre-in replicator). Applies to ALL content replicators in a framed
+              scene (both the main 2D wall and the decorative 1D line replicators) — 2D-only gate
+              (cols≥2 AND rows≥2) measured 10.38 dB vs broad-gate 10.53 dB in isolated scoring;
+              the decorative Pin-2-copy line replicators contribute to the wall through the
+              framing camera at late t, so holding them past their own staggered timing.out
+              (∈ [0.367, 1.869]) helps overall composition. Per-frame: f14 8.29→10.53,
+              f15 8.68→10.39, f22 9.82→11.20. 7 new unit tests (29/29 total pass), tsc clean.
+              Framing-camera family untouched by the visibility check (origin-camera replicators
+              — Duplicate/Squares/Concentric — take the standard timing.out gate).
+
 - 2026-07-17swng2  🔎 SWING mid-transition GT-vs-headless FUNDAMENTAL MISMATCH (T-q00deefab WIP,
               docs-only, gate 0/0, Movements__Swing 14.44 unchanged). **KEY FINDING:
               `fct.sh minimize Movements__Swing` reports engine already matches FCP HEADLESS at

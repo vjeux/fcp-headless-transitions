@@ -20,7 +20,7 @@ import { resample } from './resample.js';
 import { detectFieldTexture, applyParticleFieldProxy, detectParticleGroupTint } from './field-texture.js';
 import { sceneMatchesNestedMaskedCloneStack, renderNestedMaskedCloneStack } from './z-composite.js';
 import { applyEmitterSim } from './emitter-sim.js';
-import { generateInstances, sequenceProgress, sequenceOrder } from './replicator.js';
+import { generateInstances, sequenceProgress, sequenceOrder, shouldHoldReplicatorPastTiming } from './replicator.js';
 import { lookupFilter, makeContext } from './filters/registry.js';
 import './filters/index.js'; // side-effect: registers all UUID-keyed filter modules
 
@@ -304,8 +304,23 @@ const FLIP_CAMERA_Z = 7000;
 type RenderOutcome = 'stop' | 'children';
 
 function renderReplicatorLayer(rctx: RenderContext, output: ImageData, evalLayer: EvaluatedLayer, imageA: ImageData, imageB: ImageData, time: number, filterOverrides: Map<number, Map<string, number>>): RenderOutcome {
-  const { layer, worldTransform, opacity, crop } = evalLayer;
+  const { layer, worldTransform, crop } = evalLayer;
   if (!(layer.type === 'replicator' && layer.replicator)) return 'children';
+  // HELD-PAST-TIMING content replicator (T-q7fd2fef0). See renderLayer for full
+  // decode. When the replicator's own timing.out has fired but a cell source is
+  // still bound (framed scene), force opacity=1 so the held instances render
+  // (evalLayer.opacity was zeroed by the isLayerVisible check the same tick).
+  let opacity = evalLayer.opacity;
+  if (!evalLayer.visible && layer.timing) {
+    const outSec = layer.timing.out.timescale > 0 ? layer.timing.out.value / layer.timing.out.timescale : 0;
+    if (shouldHoldReplicatorPastTiming({
+      framed: !!rctx.framed,
+      hasCellSource: layer.cellSourceId !== undefined,
+      hasTiming: true,
+      time,
+      outSec,
+    })) opacity = 1;
+  }
     // A replicator that is an Image Mask `Mask Source` is HIDDEN geometry — it
     // provides the reveal matte to the layer that references it (Transition B),
     // rasterized there via resolveImageMaskAlpha → replicatorMaskAlpha. It must
@@ -1109,7 +1124,52 @@ const LAYER_RENDERERS: Record<string, Array<(rctx: RenderContext, output: ImageD
 };
 
 function renderLayer(rctx: RenderContext, output: ImageData, evalLayer: EvaluatedLayer, imageA: ImageData, imageB: ImageData, time: number, filterOverrides: Map<number, Map<string, number>>): void {
-  if (!evalLayer.visible) return;
+  // HELD-PAST-TIMING content replicator (T-q7fd2fef0, 2026-07-16). Motion holds a
+  // Replicator's rendered cell content on-screen PAST its own `timing.out` when the
+  // cell resolves to real drawable content (a Type=3 drop-zone Pin bound to imageA/B
+  // or a direct Transition A/B image). Decoded from Replicator-Clones · Video_Wall:
+  // the main 3x3 wall `Replicator Pin 1` (id=987627999) has its own <timing>
+  // out=1.101s (parsed correctly — the tag sits AFTER the inner cell scenenode
+  // close in the .motr), yet GUI GT shows the 3x3 wall persisting all the way
+  // through f22 (t=1.921s). The evaluator's `isLayerVisible` correctly returns
+  // FALSE past out=1.101s, so the replicator layer is skipped and engine f14-f22
+  // collapses to just one lone standalone-B tile (mean 8.29-9.82 dB, the worst
+  // frames). Motion's semantics: for a content replicator (cellSourceId set), the
+  // `timing.out` gates the layer's ANIMATION curves (Position/Rotation staggers)
+  // but the LAST-EVALUATED tile geometry stays composited — a "held-tail" mirror of
+  // `heldIncomingB` for drop zones. Overriding the visibility gate here (compositor
+  // layer, no evaluator change) lets the replicator's still-computed instances +
+  // last-alive world transform continue to project through the framing camera and
+  // fill the frame.
+  //
+  // SCOPE (framing-camera scenes only): fires ONLY when the scene resolves a
+  // framing pose (rctx.framed) — origin-camera replicators (Duplicate/Squares/
+  // Concentric) use the standard timing.out gate. Also gated on cellSourceId so
+  // shape/panel/particle replicators that legitimately fade out are unaffected.
+  // Applies to ALL content replicators in a framed scene (both the main 2D wall
+  // and the decorative 1D line replicators) — Video_Wall's overall composition
+  // needs the WHOLE authored stagger held (measured: 2D-only gate = 10.38 dB
+  // < broad gate 10.53 dB, since the decorative line replicators actually cover
+  // the frame edges through the framing camera at late t).
+  if (!evalLayer.visible) {
+    const l = evalLayer.layer;
+    if (l.type === 'replicator' && l.timing) {
+      const outSec = l.timing.out.timescale > 0 ? l.timing.out.value / l.timing.out.timescale : 0;
+      if (shouldHoldReplicatorPastTiming({
+        framed: !!rctx.framed,
+        hasCellSource: l.cellSourceId !== undefined,
+        hasTiming: true,
+        time,
+        outSec,
+      })) {
+        // fall through to render the replicator with its (held) opacity=1
+      } else {
+        return;
+      }
+    } else {
+      return;
+    }
+  }
   const { layer } = evalLayer;
 
   // A group that is an Image Mask `Mask Source` is hidden geometry — it provides

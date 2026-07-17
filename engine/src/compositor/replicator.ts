@@ -399,4 +399,40 @@ export function sequenceOrder(inst: ReplicatorInstance, cols: number, rows: numb
   return rank / maxDiag;
 }
 
+/**
+ * "Held past timing.out" gate for a framed-scene content replicator.
+ *
+ * Motion holds a Replicator's rendered cell content on-screen PAST its own
+ * `timing.out` when (a) the scene has a framing camera, (b) the replicator has a
+ * bound cellSourceId (Pin drop-zone or direct Transition A/B), and (c) the current
+ * `time` is past `timing.out`. Decoded from Replicator-Clones · Video_Wall
+ * (T-q7fd2fef0, 2026-07-16): the main 3x3 wall `Replicator Pin 1` has its own
+ * timing.out=1.101s, yet GUI GT shows the tile wall persisting to t=1.921s. The
+ * evaluator's isLayerVisible correctly returns false past out, so the replicator
+ * layer is skipped and engine f14-f22 collapses to ~black. Overriding at the
+ * compositor level (no evaluator change) lets the replicator's still-computed
+ * instances continue projecting through the framing camera. This is the "held-tail"
+ * mirror of `heldIncomingB` for drop zones.
+ *
+ * Called from renderLayer to gate the visibility bypass, and from
+ * renderReplicatorLayer to force opacity=1 for the same held replicators.
+ * Kept as a pure helper for unit testing.
+ *
+ * Fires ONLY when:
+ *   - framed === true (scene has factory-3 Framing behaviors)
+ *   - cellSourceId !== undefined (content replicator, not decorative dot grid)
+ *   - hasTiming === true (there IS a timing.out to be past)
+ *   - time > outSec (we are past the authored lifetime)
+ */
+export function shouldHoldReplicatorPastTiming({
+  framed, hasCellSource, hasTiming, time, outSec,
+}: {
+  framed: boolean;
+  hasCellSource: boolean;
+  hasTiming: boolean;
+  time: number;
+  outSec: number;
+}): boolean {
+  return framed && hasCellSource && hasTiming && time > outSec;
+}
 
