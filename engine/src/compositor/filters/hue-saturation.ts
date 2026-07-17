@@ -183,15 +183,36 @@ export function hueSaturationFilter(input: ImageData, params: HueSatParams): Ima
       h = (h + hueTurns) % 1;
       [r, g, b] = hsvToRgb(h, s, v);
     }
-    // Saturation: lerp between Rec.709 gray and color by (1 + Saturation). In linear
-    // mode the Rec.709 luma is computed on LINEAR RGB (FCP's HgcSaturation reads its
-    // input from the linear working buffer, per the shader's inline 0.2125/0.7154/0.0721
-    // weights running against ExtendedLinearSRGB samples).
+    // Saturation. FCP's HgcHSVAdjust decodes to a TRUE HSV-space operation:
+    //   sat_out = clamp( (chroma/value) * satMul, 0, 1 )   // extract_shader.py line 39
+    // For DESATURATION (satFactor ≤ 1) the plain Rec.709 luma-lerp reproduces headless
+    // FCP to ~47 dB (verified via tools/re/filter_verify on Objects__Leaves' Sat=-1/
+    // Val=0.65 → [42.2] gray, and the Sat=-0.5 midpoint), so that path is UNCHANGED —
+    // every desaturating shipping user (Leaves, Center, Lower, all Sat=-1) keeps the
+    // measured-correct luma-lerp. For OVER-SATURATION (satFactor > 1) the unbounded
+    // luma-lerp pushes chroma past the fully-saturated gamut boundary (a channel goes
+    // negative relative to gray), which after the [0,1] clamp reads as an over-bright,
+    // over-red result — the exact Color_Panels failure (engine f10 = (95.5,55.9,35.7)
+    // vs GUI GT (52.7,49.1,42.3)). The decoded shader instead scales HSV *saturation*
+    // and clamps it to 1, so the boost saturates at the gamut edge rather than clipping
+    // per-channel. Stylized__Color_Panels' Sat=1 (satFactor=2) is the ONLY shipping
+    // HueSat user with Saturation > 0 (all others are Sat=-1 or 0 — verified against
+    // every .motr), so this over-saturation branch fires on Color_Panels alone and is
+    // byte-identical for every other slug.
     if (saturation !== 0) {
       const gray = luma709(r, g, b);
-      r = gray + (r - gray) * satFactor;
-      g = gray + (g - gray) * satFactor;
-      b = gray + (b - gray) * satFactor;
+      if (satFactor > 1) {
+        // Decoded HSV-space saturation with clamp(sat, 0, 1). Reconstruct HSV, scale
+        // saturation by satFactor, clamp to 1, rebuild — value (max channel) preserved.
+        const [h, s, v] = rgbToHsv(r, g, b);
+        const sc = Math.min(1, s * satFactor);
+        [r, g, b] = hsvToRgb(h, sc, v);
+      } else {
+        // Desaturation (measured-correct Rec.709 luma-lerp toward gray).
+        r = gray + (r - gray) * satFactor;
+        g = gray + (g - gray) * satFactor;
+        b = gray + (b - gray) * satFactor;
+      }
     }
     // Value: squared multiply. In linear space this is a true photon scale (v=0.5 halves
     // light, then encodes to sRGB ≈ 188 — the physically correct midtone dim).

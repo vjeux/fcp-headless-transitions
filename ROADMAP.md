@@ -704,6 +704,27 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16p  ✅ HUESAT OVER-SATURATION CLAMP (T-qba9797b8 DONE) — **Stylized__Color_Panels
+              17.95 → 18.11 (+0.16 dB), 0 regressions.** Decoded HgcHSVAdjust (extract_shader.py
+              line 39): `sat = clamp((chroma/value)*satMul, 0, 1)` — FCP scales HSV *saturation*
+              and CLAMPS it to 1 before the HSV→RGB rebuild. The TS HueSat used an UNBOUNDED
+              Rec.709 luma-lerp (`gray+(c-gray)*satFactor`), which for over-saturation
+              (satFactor>1) pushes chroma past the gamut edge → per-channel clip → over-bright
+              over-red panels (Color_Panels engine f10 (95.5,55.9,35.7) vs GUI GT (52.7,49.1,42.3)).
+              FIX: route saturation>1 through the decoded true-HSV path (rebuild with sat clamped
+              to 1); keep the measured-correct luma-lerp for desaturation (satFactor≤1, verified
+              ~47 dB vs headless on Leaves Sat=-1/Val=0.65). Color_Panels' Sat=1 is the ONLY
+              shipping HueSat user with Saturation>0 (Leaves/Center/Lower are Sat=-1, Light_Sweep
+              Sat=0 — verified every .motr), so the branch is byte-identical for every other slug;
+              Leaves 22.44→22.36 / Lower 11.76→11.74 deltas are within tol (0.30) render noise on
+              the unchanged path. Isolated filter_verify PAEHSVAdjust Sat=1 confirmed the old
+              luma-lerp*2 was only 11.7 dB vs headless. REMAINING CEILING: FCP's v1 (pluginVersion=1)
+              Hue/Saturation path (HGColorMatrix YCbCr, canThrowRenderOutput @0x373a0) produces a
+              genuinely bright+desaturated Sat=1 output that matches NEITHER standard HSV nor
+              YCbCr-chroma-scale nor linear-YCbCr (best isolated model ~11.7 dB) — the exact
+              transfer needs either the branchless HgcHSVAdjust ladder transcribed cleanly or a
+              chain-level linear working buffer (T-qlinchain01). Filed as follow-up.
+
 - 2026-07-16z1  🚧 3D_RECTANGLE Z-COMPOSITE WORKS END-TO-END (WIP T-q98a30de5, gate 0 regressions) —
               wired the Z-buffered clone composite into composite() behind FCT_Z_COMPOSITE_3D
               (default OFF ⇒ byte-neutral, target 16.48 unchanged on the shipped path). With the

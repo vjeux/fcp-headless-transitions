@@ -1,0 +1,14 @@
+{
+  "id": "T-q5f7873ee",
+  "title": "Decode FCP v1 Hue/Saturation (HGColorMatrix YCbCr) exact Sat>0 transfer",
+  "project": "fct",
+  "goal": "Color_Panels' HueSat is pluginVersion=1 -> the HGColorMatrix YCbCr path (-[PAEHSVAdjust canThrowRenderOutput] @0x373a0), NOT the HgcHSVAdjust shader (@0x372d8, used by Leaves' pluginVersion=0). filter_verify PAEHSVAdjust Sat=1 on start.png gives headless (212,150,102) = BRIGHT + slightly DESATURATED, which matches NEITHER standard HSV (S*2 -> 140,58,5, 9dB) NOR YCbCr chroma*2 (181,82,21, 11.7dB) NOR linear-YCbCr (10dB). The disasm builds RGB->YCbCr . hueRotate . diag(Value, Value*(Sat+1), Value*(Sat+1)) . YCbCr->RGB via colorMatrixFromDesiredRGBToYCbCr + LoadMatrix (0x268c10 offset col = (0,0,0,1)), but the naive composition = chroma*2 which does NOT reproduce the brightening. NEXT STEP: (1) dump the actual 3x4 matrices returned by desiredRGBToYCbCrMatrix/desiredYCbCrToRGBMatrix at 0xd4afc/0xd4b88 (they depend on OMColorPrimaries + the working color space) and the LoadMatrix flag(w2=1) semantics; (2) OR transcribe the branchless HgcHSVAdjust ladder cleanly (my numpy port failed identity \u2014 the sextant select chain / value-renormalization is subtle). Current shipped fix routes Sat>0 through true-HSV-clamp (+0.16). The genuine remaining gain needs the exact v1 transfer OR the chain-level linear buffer (T-qlinchain01).",
+  "slugs": [
+    "Stylized__Color_Panels"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qba9797b8",
+  "created_at": "2026-07-17T00:26:39+00:00",
+  "notes": ""
+}
