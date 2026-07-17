@@ -861,6 +861,57 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-17q1  🔎 CLONE_SPIN framing decode — Framing param id=203 value=4 (unique to
+              Clone_Spin in the corpus, "Object Space" pose mode) + tile-grid image-wall
+              structure. Docs-only, gate 0/0 (Clone_Spin 10.75 unchanged). Sub-agent
+              T-qclonespin1 (2026-07-17).
+              DECODE (parsed Clone Spin.motr + evaluator probe): Clone_Spin has NO Motion
+              Replicator layer — the "Replicators" group parses empty. Its 9-tile spinning
+              wall is 9 INDIVIDUAL image drop-zone tiles named Timeline Pin 1..9, each with
+              dropZone.type=0 (custom) and source=transitionA, placed in the "Comp" group at
+              fixed world positions in a 3×3 grid at Z ≈ [-1192, -992, -842] (Y-rows −1592 /
+              −132 / +1437; X-cols 1489 / 3081 / 4737 approx). Camera has ONE Framing
+              behavior (factory 1) targeting Transition B (id 987618479) with pathOffset
+              (1450, 980, 5332), apex=0.29, Framing id=203 value=4 (all 62 other slugs use
+              default value=2 or omit the param — Framing=4 is Clone_Spin ONLY).
+              MEASURED GAP: engine 10.69 dB vs GT (WIP f73365a landed the near-A→far-oblique
+              dolly, +0.37 from bare-static 10.32). Fresh headless-FCP oracle: 13.41 dB.
+              Engine-vs-headless: 11.4 dB. Achievable ceiling: ~13.4 (headless), target
+              ≥13 reachable IF the framing camera keeps the tile grid in frame.
+              ROOT CAUSE: the framer's pathOffset (Y=980 in B's oblique local basis → world
+              Y+2200-2900) pulls the camera TARGET well above the tile grid Y-centroid
+              (~-100). At all t>0.1 the tiles project OFF-frame BELOW (sy=-1500..-2100 in a
+              1080 frame). GT/headless render 9+ tiles filling the frame; engine renders 0
+              tiles (only the standalone Transition B card visible — see
+              /tmp/qclonespin1-preview/eng_0012.jpg vs gt_0012.jpg).
+              WHAT THE FIX NEEDS (cross-lane): `resolveFramedWallPose` (framing.ts) already
+              accepts a `wallCenter?: [x,y,z]` argument for the 2-behavior wall path
+              (Video_Wall). For Clone_Spin's SINGLE-framer case, the fix is: (a) generalize
+              `computeWallCenter` in evaluator/index.ts to recognize a "photo-tile wall" (≥4
+              image DZ tiles clustered in Z, spread ≥1000 in X or Y — structural, no slug
+              hardcode); (b) in the single-framer branch, use `wallCenter` as the FAR
+              camera target (instead of the framer's B target + pathOffset which points
+              off-wall). Distance: fit wall XY half-extent into AOV. The near-A pose (WIP)
+              stays; the far pose becomes tile-grid centered — a full oblique-wide dolly
+              that keeps the wall in frame f01-f22.
+              LANE CONSTRAINT (why WIP, not DONE): `computeWallCenter` lives in
+              evaluator/index.ts which is OWNED by the concurrent Center_Reveal agent this
+              session. Extending it (adding an image-tile-wall branch) is the correct fix
+              but crosses lanes. This task's brief explicitly says: "If the fix genuinely
+              needs a locked file, land a gate-green WIP documenting the framing decode +
+              exact cross-lane dependency and STOP." So this entry documents the decode +
+              exact code change; the follow-up task can land the ~30-line addition to
+              `computeWallCenter` + a 1-line change in `resolveFramedWallPose`'s single-
+              framer branch (use `wallCenter` when present).
+              MEASURED OFF-SCOPE TRIALS: (i) using target=B.center directly (no offset) in
+              far pose — tile grid still projects sy=-800 below frame; (ii) hold near-A
+              pose for the whole clip — f00 stays 22 dB but f12+ same as baseline; (iii)
+              pulling nearDist closer — crops photo A. Confirmed: only wall-centered
+              targeting fixes it.
+              FOLLOW-UP QUEUED T-qb1febf25: computeWallCenter photo-tile-wall pattern +
+              apply in framing.ts single-framer far pose. Expected: Clone_Spin 10.75 →
+              ~12.5-13 dB (closes ~half the engine-vs-headless gap).
+
 - 2026-07-17z7  🎯 PANELS_ACROSS + PANELS_RANDOM + COLOR_PANELS scale-authored accent
               shapes rendered (T-qpanelacr01 DONE, parser-scope, gate 0/0 regressions).
               **Stylized__Panels_Across 15.15 → 18.33 (+3.18 dB)**,

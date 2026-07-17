@@ -1,0 +1,14 @@
+{
+  "id": "T-qb1febf25",
+  "title": "Clone_Spin photo-tile-wall centroid \u2192 framing FAR pose",
+  "project": "fct",
+  "goal": "Clone_Spin 10.75 dB \u2192 target \u226512.5 (headless oracle 13.41, gap 2.66). DECODED (T-qclonespin1 2026-07-17): Clone_Spin has NO Motion Replicator layer; its 9-tile wall is 9 INDIVIDUAL image DZ tiles named 'Timeline Pin N' (dropZone.type=0, source=transitionA) at world Z=[-1192,-992,-842], X-spread 1489\u21924737, Y-spread -1592\u2192+1437. Camera has ONE Framing behavior with 'Framing' param id=203 VALUE=4 (unique to Clone_Spin \u2014 every other slug uses default 2). The current single-framer WIP dollies near-A \u2192 framePose(B), but framePose(B)'s target = B.center + pathOffset in B's oblique local basis pulls target Y up to ~2200 (well ABOVE the tile grid Y-centroid ~-100). Result: all 9 tiles project sy=-1500..-2100 in a 1080 frame (OFF-frame below). Fix: (1) generalize computeWallCenter() in engine/src/evaluator/index.ts to recognize the photo-tile-wall pattern (\u22654 image DZ tiles, Z-spread <500, XY-spread >1000 \u2014 structural, no slug hardcode), returning the tile bbox centroid; (2) in engine/src/evaluator/framing.ts resolveFramedWallPose single-framer branch (framing.length===1), when wallCenter is defined use it as the FAR camera target (instead of the framer's framePose which points off-wall) \u2014 eye stays at framePose(B).pos, target = wallCenter, distance recomputed to fit the wall XY extent into AOV. Guardrails: gate green over Concentric (13.38), Combo_Spin, Video_Wall (2-behavior path \u2014 must stay untouched), Duplicate. Expected: Clone_Spin 10.75 \u2192 12-13. Full decode + measured off-scope trials in ROADMAP 2026-07-17q1.",
+  "slugs": [
+    "Replicator-Clones__Clone_Spin"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qclonespin1",
+  "created_at": "2026-07-17T04:56:52+00:00",
+  "notes": ""
+}
