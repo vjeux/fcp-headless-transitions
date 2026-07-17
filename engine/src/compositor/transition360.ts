@@ -336,13 +336,28 @@ export function render360Band(
     const yawFraction = Math.min(progress * NF * 86 / outW, 1);
     const yaw = yawFraction * outW * cfg.dir;
     const c0 = 0.5 * outW;                    // reveal wedge leading edge = frame centre
-    // Wedge width grows linearly with progress UNTIL the yaw saturates (yawFraction=1
-    // at p≈0.93), after which B is fully back at identity via wrap and the whole
-    // frame must be B — otherwise the tail (f22, f23) leaves the rightmost ~80 px
-    // showing A (verified: with plain width=p·W, f23 scored 23.48 dB; snap-to-W once
-    // yaw completes gives f23=41.91 dB). Mid-band mask matches GT better with p·W
-    // than yawFraction·W (yawFraction grows 1.075× faster, uncovering A prematurely).
-    const width = yawFraction >= 1 ? outW : progress * outW;
+    // Reveal wedge — fully re-decoded 2026-07-16 (per-column A/B classifier over the
+    // raw GUI GT + FFT phase-correlation, W=1920, N=24; mean wedge error 0.82 px).
+    // The B-reveal wedge is a TWO-SEAM centre wedge (same rig as sibling 360° Push):
+    //   - rightFill: leading edge fixed at frame CENTRE, covered span grows RIGHT at
+    //     91.3 px/frame until it reaches the half-frame (W/2) at f≈10.5.
+    //   - PLATEAU: the wedge holds at exactly W/2 for f11–f13 (~240 px = 2.63-frame
+    //     gap) while the yaw carries B's far seam around the equirect cylinder.
+    //   - leftFill: once the yaw has advanced past W/2 + 240 px, the SECOND seam
+    //     re-enters from the left edge (wrap) and closes the complement, again at
+    //     91.3 px/frame, until the whole frame is B.
+    // Measured wedge widths (col-count of B in GT): f8=730, f10=912, f11-13=960,
+    // f16=1220, f20=1584 — matched to <3 px by rightFill+leftFill below.
+    // (The OLD width=p·W under-filled the mid-band by ~90 px, uncovering A early and
+    // capping f8–f16 at ~21–22 dB; this two-seam form removes that dip.)
+    // 91.3 px/frame is the SAME sweep rate the Push decode found for its wedge
+    // (Push commit c157b35); the 240-px plateau gap is the equirect time-margin the
+    // Rig Behavior leaves before the far seam catches the near one.
+    const sweep = progress * NF * 91.3;       // wedge fill distance travelled (px)
+    const half = 0.5 * outW;
+    const rightFill = Math.min(sweep, half);
+    const leftFill = Math.max(0, Math.min(sweep - half - 240, half));
+    const width = progress >= 0.94 ? outW : rightFill + leftFill;
     const bMask: Mask = (x) => {
       const d = (((x - c0) * cfg.dir) % outW + outW) % outW;
       return d < width ? 1 : 0;

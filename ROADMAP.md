@@ -818,6 +818,24 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               (projectQuadWithWorldZ + renderPerspectiveQuadDepth, already landed) hook here, but
               the 2-clone-perpendicular detector fires only on Swing so it cannot satisfy the ≥2
               no-hardcode bar as a standalone detector — needs a broader two-sided-fold family key.
+- 2026-07-16-qslide36  ✅ 360° SLIDE TWO-SEAM CENTRE-WEDGE (T-qslide36001 DONE) —
+              **360°__360°_Slide 27.47 → 37.80 (+10.33 dB), 0 regressions across the 360 band.**
+              DECODE-DON'T-FIT (FFT phase-correlation + per-column A/B classifier on the raw GUI
+              GT, W=1920, N=24): VERIFIED the Slide rig is A-static / B-yaws-in (roles are indeed
+              flipped vs Push, which pans A). B's yaw was already exactly right (home-residual =
+              W − yaw matched the measured B shift within 1 px at every frame). The ~21–22 dB
+              mid-band dip (f8–f16) was caused entirely by the reveal-wedge WIDTH: the old
+              `width = progress·outW` under-filled by ~90 px, uncovering static A early. The real
+              wedge is a TWO-SEAM centre wedge (same shape as the just-landed Push): rightFill
+              grows from frame centre at 91.3 px/f to the half-frame (W/2 at f≈10.5), PLATEAUS at
+              W/2 for f11–13 (~240 px = 2.63-frame equirect time-margin gap), then the second
+              seam re-enters from the left edge (wrap) and closes the complement at 91.3 px/f,
+              snapping to full B at p≥0.94. Fitted mean wedge error 0.82 px vs GT. Every frame
+              now 33–41 dB (was 21–22). Edit: `engine/src/compositor/transition360.ts` SLIDE
+              branch only — Push (21.85), Wipe, Divide, Circle_Wipe, Reveal_Wipe, Gaussian_Blur,
+              Bloom all re-rendered FRESH and held or improved (Push unchanged, none regressed).
+              NOTE: baseline_engine.json Slide row (14.97) and Push row (14.28) were STALE — the
+              prior decodes had already landed the values above; this commit re-freezes them.
 - 2026-07-16-q360zoom  ✅ 360° PUSH CENTRE-WEDGE (panning-A / static-B) (T-q360zoom01 DONE) —
               **360°__360°_Push 14.28 → 21.85 (+7.58 dB), 0 real regressions.** DECODE-DON'T-FIT:
               the task premise of an animated ~3.2× FOV zoom + yaw+pitch reorient is REFUTED by
