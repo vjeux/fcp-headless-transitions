@@ -704,6 +704,49 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16q  ✅ CHAIN-LEVEL LINEAR WORKING BUFFER (T-qlinchain01 DONE) — **Stylized__Color_Panels
+              17.95 → 18.64 dB (+0.69, past the ≥18.5 DoD), gate 0 regressions**. The colour-adjust
+              filter family (Colorize/HueSat/Tint) now keeps an EXACT Float32 LINEAR working buffer
+              across a multi-filter chain, reproducing FCP's single-readback working-space model
+              WITHOUT the per-filter sRGB re-encode that regressed Curtains/Slide/Up-Over
+              (channel-mixer.ts:315). New `compositor/filters/linear-chain.ts` holds a
+              `WeakMap<ImageData,Float32Array>` side-channel: a colour filter publishes its exact
+              linear result keyed on the ImageData it emits; the NEXT colour filter, finding its input
+              cached, resumes from that EXACT linear buffer (no sRGB re-decode). STRUCTURAL — only
+              engages when ≥2 consecutive colour-adjust filters run (CP Colorize→HueSat; Leaves
+              HSVAdjust→Tint→Tint); a LONE colour filter publishes a buffer nobody consumes and emits
+              its legacy sRGB = byte-identical (keeps Slide/Up-Over/Lower/Center/Light_Sweep neutral;
+              Curtains' ChannelMixer→Brightness→Colorize is a chain entry, neutral). No compositor
+              loop edit. DECODE (cited in linear-chain.ts): Ozone.framework SDRWorkingSpace/
+              HDRWorkingSpace, getPreferredWorkingSpaceForColorSpace:, getFloatFormatForWorkingSpace:,
+              newHGNodeInFormat:withPT:workingSpace: (HG nodes built INTO a float working space) +
+              OZFxPlugRenderContextManager{_workingColorDescription,_blendingGamma}; ProAppsFxSupport
+              blendingGamma/getBlendingGamma. SATURATION decode (GUI-GT pixel probe): PAEHSVAdjust
+              Saturation only DESATURATES — satFactor = min(1,1+S) (S=1 identity, not 1+S=2 which
+              crushed the CP red panel G/B to 0; GT red panel (94,37,26) = Colorize-linear alone).
+
+- 2026-07-16z  ✅ CHAIN-LEVEL LINEAR COLOUR-ADJUST BUFFER (T-qlinchain01 DONE) — **Stylized__Color_Panels
+              17.95 → 18.64 dB (+0.69, past the ≥18.5 DoD)**. FCP assembles the whole HG colour-adjust
+              node graph (HgcColorize/HgcSaturation/HGColorMatrix) inside ONE linear working space and
+              encodes to sRGB ONCE at readback — NOT per-filter sRGB (that per-filter re-encode is what
+              regressed Curtains/Slide/Up-Over, channel-mixer.ts:315). New `compositor/filters/linear-chain.ts`
+              keeps the EXACT linear Float32 buffer flowing across a colour-adjust chain via a
+              WeakMap<ImageData,Float32Array>: a colour filter publishes its exact linear result keyed on
+              the ImageData it emits; the NEXT colour filter resumes from that exact buffer (no sRGB
+              re-decode). STRUCTURAL — engages only when ≥2 consecutive colour-adjust filters run
+              (Color_Panels Colorize→HueSat; Leaves HSVAdjust→Tint→Tint). A LONE colour filter publishes a
+              buffer nobody consumes + emits its legacy sRGB ⇒ BYTE-IDENTICAL (Slide/Up-Over/Lower/Center/
+              Light_Sweep neutral); ChannelMixer/Brightness don't participate so Curtains' Colorize is a
+              chain entry (neutral). DECODE (cited in linear-chain.ts): Ozone exports SDRWorkingSpace/
+              HDRWorkingSpace, getPreferredWorkingSpaceForColorSpace:, getFloatFormatForWorkingSpace:,
+              newHGNodeInFormat:withPT:workingSpace:; OZFxPlugRenderContextManager carries
+              _workingColorDescription (CGColorSpace) + _blendingGamma; ProAppsFxSupport exports
+              blendingGamma/getBlendingGamma. SATURATION decode (GUI-GT pixel probe): PAEHSVAdjust
+              Saturation only DESATURATES — satFactor = min(1, 1+S) (S=-1 grayscale, S=-0.5 halfway
+              [118,94,78] verified, S≥0 identity); the 0-centered 1+S=2 crushed the red panel's G/B to 0
+              vs GT (94,37,26) = Colorize-linear alone. Files: linear-chain.ts (+ unit test), channel-mixer.ts
+              (Colorize/Tint chain), hue-saturation.ts (HueSat chain). Gate: 0 regressions.
+
 - 2026-07-16z1  🚧 3D_RECTANGLE Z-COMPOSITE WORKS END-TO-END (WIP T-q98a30de5, gate 0 regressions) —
               wired the Z-buffered clone composite into composite() behind FCT_Z_COMPOSITE_3D
               (default OFF ⇒ byte-neutral, target 16.48 unchanged on the shipped path). With the

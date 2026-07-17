@@ -240,6 +240,13 @@ import {
   LUT_SRGB_TO_LINEAR,
   linearChannelToSrgb,
 } from '../linear.js';
+import {
+  hasLinearInput,
+  getLinearInput,
+  publishLinear,
+  encodeLinearBuf,
+  hsvLinearInPlace,
+} from './linear-chain.js';
 
 // HSV Adjust (PAEHSVAdjust, UUID D23AF030-…). PHASE-2 CORRECTED semantics (measured
 // vs headless FCP): Hue in TURNS (default 0), Saturation 0-CENTERED (default 0,
@@ -256,6 +263,37 @@ registerFilter({
     const saturation = ctx.rawParam('Saturation', 0);
     const value = ctx.rawParam('Value', 1);
     const mix = ctx.rawParam('Mix', 1);
+
+    // Chain-level LINEAR working-space path (T-qlinchain01). See linear-chain.ts.
+    // STRUCTURAL primitive (not gated on the per-filter isLinearComposite flag): it
+    // engages ONLY when this HSV filter is the 2nd+ colour-adjust filter on a layer
+    // (its input carries a prior filter's exact linear buffer — hasLinearInput; e.g.
+    // Color_Panels' Colorize→HueSat, or Leaves' HSVAdjust→Tint→Tint). It then resumes
+    // from that EXACT linear buffer, runs the HSV math in linear, and encodes ONCE —
+    // the FCP single-readback model, no per-filter re-encode. A CHAIN ENTRY (no
+    // cached input) still emits the LEGACY sRGB output so a lone HSV filter
+    // (Lower/Center/Light_Sweep) is BYTE-IDENTICAL, and publishes the linear
+    // computation so a following colour filter resumes losslessly.
+    if (hue !== 0 || saturation !== 0 || value !== 1) {
+      const cl = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x);
+      const hueTurns = (((hue / 360) % 1) + 1) % 1;
+      if (hasLinearInput(input)) {
+        // MID-chain: resume from the prior filter's exact linear buffer, encode ONCE.
+        const lin = getLinearInput(input);
+        hsvLinearInPlace(lin, hueTurns, saturation, value);
+        for (let i = 0; i < lin.length; i += 4) { lin[i] = cl(lin[i]); lin[i + 1] = cl(lin[i + 1]); lin[i + 2] = cl(lin[i + 2]); }
+        const out = encodeLinearBuf(lin, input.width, input.height);
+        publishLinear(out, lin);
+        return out;
+      }
+      // ENTRY: emit legacy sRGB (gate-neutral for a lone HSV) + publish linear.
+      const legacy = hueSaturationFilter(input, { hue, saturation, value, mix });
+      const lin = getLinearInput(input);
+      hsvLinearInPlace(lin, hueTurns, saturation, value);
+      for (let i = 0; i < lin.length; i += 4) { lin[i] = cl(lin[i]); lin[i + 1] = cl(lin[i + 1]); lin[i + 2] = cl(lin[i + 2]); }
+      publishLinear(legacy, lin);
+      return legacy;
+    }
     return hueSaturationFilter(input, { hue, saturation, value, mix });
   },
 });

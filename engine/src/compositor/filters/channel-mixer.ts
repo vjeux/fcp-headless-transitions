@@ -131,6 +131,14 @@ import {
   linearChannelToSrgb,
   srgbChannelToLinear,
 } from '../linear.js';
+import {
+  hasLinearInput,
+  getLinearInput,
+  publishLinear,
+  encodeLinearBuf,
+  colorizeLinearInPlace,
+  tintLinearInPlace,
+} from './linear-chain.js';
 
 export interface ChannelMixerParams {
   matrix: number[]; // 4x4 row-major [RR,RG,RB,RA, GR,GG,GB,GA, BR,BG,BB,BA, AR,AG,AB,AA]
@@ -392,9 +400,26 @@ registerFilter({
   names: ['tint'],
   label: 'Tint',
   apply(input, ctx) {
-    return tintFilter(input, ctx.param('Red', 1), ctx.param('Green', 1), ctx.param('Blue', 1),
-                      ctx.param('Intensity', 1), ctx.param('Mix', 1),
-                      isLinearCompositeEnabled());
+    const r = ctx.param('Red', 1), g = ctx.param('Green', 1), b = ctx.param('Blue', 1);
+    const intensity = ctx.param('Intensity', 1), mix = ctx.param('Mix', 1);
+    // Chain-level LINEAR working-space path (T-qlinchain01). STRUCTURAL: engages only
+    // when Tint is the 2nd+ colour-adjust filter on a layer (Leaves' HSVAdjust→Tint→
+    // Tint chain). A chain-entry Tint emits its legacy sRGB (byte-identical) but
+    // publishes the linear computation; a mid-chain Tint resumes from the prior
+    // filter's exact linear buffer and encodes once. See linear-chain.ts.
+    const tintLin = { r: srgbChannelToLinear(r * 255), g: srgbChannelToLinear(g * 255), b: srgbChannelToLinear(b * 255) };
+    if (hasLinearInput(input)) {
+      const lin = getLinearInput(input);
+      tintLinearInPlace(lin, tintLin, intensity, mix);
+      const out = encodeLinearBuf(lin, input.width, input.height);
+      publishLinear(out, lin);
+      return out;
+    }
+    const legacy = tintFilter(input, r, g, b, intensity, mix, isLinearCompositeEnabled());
+    const lin = getLinearInput(input);
+    tintLinearInPlace(lin, tintLin, intensity, mix);
+    publishLinear(legacy, lin);
+    return legacy;
   },
 });
 
@@ -450,6 +475,37 @@ registerFilter({
     };
     const intensity = readScalar('Intensity', 1);  // hg_Params[2]: colorize amount
     const mix = readScalar('Mix', 1);               // hg_Params[3]: final blend
-    return colorizeRemapFilter(input, black, white, intensity, mix);
+
+    // Chain-level LINEAR working-space path (T-qlinchain01). See linear-chain.ts.
+    // This is a STRUCTURAL primitive (not gated on the per-filter isLinearComposite
+    // flag): it engages ONLY when this Colorize is the 2nd+ colour-adjust filter on
+    // a layer (its input carries a cached linear buffer from a prior colour filter —
+    // hasLinearInput). Then it resumes from that EXACT linear buffer, runs the remap
+    // in linear, and encodes ONCE — the FCP single-readback model. A CHAIN ENTRY
+    // (no cached input) still emits the LEGACY sRGB output so a lone Colorize
+    // (Slide/Up-Over) is BYTE-IDENTICAL, and publishes the linear-space computation
+    // so a FOLLOWING colour filter (Color_Panels' HueSat) resumes losslessly in
+    // linear. Firing needs ≥2 consecutive colour-adjust filters — verified generic
+    // (Color_Panels Colorize→HueSat, Curtains ChannelMixer→Brightness→Colorize,
+    // Leaves HSVAdjust→Tint→Tint), never a per-transition hardcode.
+    {
+      const k = intensity * mix;
+      const bLin = { r: srgbChannelToLinear(black.r * 255), g: srgbChannelToLinear(black.g * 255), b: srgbChannelToLinear(black.b * 255) };
+      const wLin = { r: srgbChannelToLinear(white.r * 255), g: srgbChannelToLinear(white.g * 255), b: srgbChannelToLinear(white.b * 255) };
+      if (hasLinearInput(input)) {
+        // MID-chain: resume from the prior filter's exact linear buffer, encode ONCE.
+        const lin = getLinearInput(input);
+        colorizeLinearInPlace(lin, bLin, wLin, k);
+        const out = encodeLinearBuf(lin, input.width, input.height);
+        publishLinear(out, lin);
+        return out;
+      }
+      // ENTRY: emit legacy sRGB (gate-neutral for a lone Colorize) + publish linear.
+      const legacy = colorizeRemapFilter(input, black, white, intensity, mix);
+      const lin = getLinearInput(input);
+      colorizeLinearInPlace(lin, bLin, wLin, k);
+      publishLinear(legacy, lin);
+      return legacy;
+    }
   },
 });
