@@ -739,6 +739,45 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16r  🔬 EARTHQUAKE f12-f16 PARTICLE DECODE (WIP T-q638cb6ad, docs-only, gate 0/0,
+              Earthquake stays 21.79) — the residual f12-f16 dip (11.9-13.7 dB) is NOT one bug;
+              it is TWO, and NEITHER is fixable by a clean emitter-render primitive. DECODED the
+              "Falling Impact" emitter fully from Earthquake.motr: emitter id 1728292 at world
+              (0,-508.9) [top-centre, above frame]; emissionAngle=π (3.1416), emissionRange=4.2062
+              rad (~241° cone), is3D=false, faceCamera=true, longitude 4.712; cell "Blur 11" id
+              1728294 birthRate=0 / initialNumber=1200 (SINGLE BURST at cell.in=0.968s), life=0.4s
+              lifeRandomness=1.0s, speed=2409 speedRandomness=1000, colorMode=2, scaleX/Y=0.76
+              scaleRandomness=0.98; gravity behaviour keyframes are ALL at NEGATIVE (pre-roll)
+              times settling to 0 → evaluates to ~0 accel at scene time (NOT the bottom-concentration
+              driver). ┃ FINDING 1 (the DOMINANT dip, f12-f13): a WIPE/BAND-GEOMETRY mismatch, NOT
+              particles. GT f13 shows a horizontal photo-B (sepia) band reveal with photo A at the
+              top+bottom edges; the engine shows FULLY-SETTLED photo A (no band). MSE at f14 is
+              7797 in the BOTTOM half vs 723 in the top/sky — the sky is nearly perfect, the error
+              is a missing B-band + missing bottom dust. This is timemap/evaluator scope (the
+              Earthquake TIMING owner T-q7f6795d6 is DONE and only touched timemap.ts) — OUT OF the
+              emitter-render scope of this task. ┃ FINDING 2 (f14-f16 dust): GT is a SOFT DIFFUSE
+              dust band hugging the FRAME BOTTOM, full-width, feathered; the engine draws a thin
+              DISCRETE sprite ARC top-left because the sim IGNORES speedRandomness+lifeRandomness
+              (parsed but never consumed) so a single burst freezes into a ring at radius
+              speed·elapsed. Applying them (correct FCP decode) breaks the arc into a spread but is
+              NET-NEGATIVE on Earthquake (21.79→21.75; f14 11.6→10.89) because the huge 241° cone
+              sprays dust into the (clean) SKY faster than it fills the bottom. The 2D emission
+              convention is VERIFIED CORRECT (Diagonal angle 5.198 → cos+0.47,-sin+0.88 = right+down,
+              matching its UL→LR diagonal), so Earthquake's π genuinely = LEFT, not down — the tight
+              GT bottom band cannot come from this emitter's ballistics + ~0 gravity + 241° cone.
+              ┃ DEAD-END proven: applying Speed/Life Randomness UNIVERSALLY catastrophically
+              regresses the CONTINUOUS-STREAM emitters (Wipes/Diagonal −9.1 dB, Glide −4.7 dB,
+              Stylized/Diagonal −2.7 dB) — their tuned hexagon/leaf fields depend on deterministic
+              (non-random) placement. A burst-only gate (birthRate≤0 && initialNumber>0 — fires on
+              Earthquake + Drop_In, NEVER on the streams) protects them, and Drop_In is INSENSITIVE
+              to burst dust (its GT has ~0 bright dust; the card slam dominates PSNR) — so future
+              burst-dust work is free to change on that gate. ┃ NEXT LEAD (a real subsystem, for a
+              follow-up agent): to match FCP's bottom dust band you need either (a) Motion's
+              faceCamera/emissionLongitude 3D→2D emission-projection RE (so the burst actually
+              projects downward), or (b) a density-ACCUMULATION renderer (1200 tiny overlapping
+              soft dabs blurred into a continuous fog), gated to burst-impact emitters. Neither is a
+              one-liner; land it incrementally on the burst gate. Filed as follow-up todo.
+
 - 2026-07-16zclonespin  ✅ CLONE_SPIN single-framer near-A→reveal dolly (T-qclonespin1, 10.32→10.75,
               +0.43 dB, full gate 0 regressions). Clone_Spin's Camera has ONE factory-3 Framing
               behavior (transition type 1) targeting the "Transition B" tile, in=0 out≈endSec

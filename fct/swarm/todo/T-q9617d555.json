@@ -1,0 +1,14 @@
+{
+  "id": "T-q9617d555",
+  "title": "Earthquake bottom dust band \u2014 emission-projection or density-accumulation",
+  "project": "fct",
+  "goal": "Earthquake f14-f16 GT shows a SOFT DIFFUSE dust band hugging the FRAME BOTTOM (full-width, feathered); the engine draws a thin DISCRETE sprite arc TOP-LEFT. Root: the 'Falling Impact' emitter (Earthquake.motr id 1728292, world (0,-509)=top-centre, emissionAngle=pi, emissionRange 4.206rad~241deg cone, is3D=false faceCam=true longitude 4.712; cell id 1728294 birthRate=0 initialNumber=1200 SINGLE BURST at 0.968s, life 0.4s lifeRand 1.0, speed 2409 speedRand 1000, gravity~0 at scene time). The 2D angle convention is VERIFIED (Diagonal 5.198->right+down), so pi genuinely=LEFT; ballistics + 241deg cone + ~0 gravity cannot make a tight BOTTOM band. Applying the (currently-ignored) Speed/Life Randomness breaks the frozen arc into a spread but is NET-NEG on Earthquake (21.79->21.75) because it sprays dust into the clean sky. GATE all work on the BURST-ONLY discriminator birthRate<=0 && initialNumber>0 (fires on Earthquake+Drop_In, NEVER on the continuous-stream Diagonal/Glide which regress -9/-4.7dB under jitter; Drop_In is dust-insensitive so free to change). TWO viable subsystems, land incrementally gate-green: (a) decode Motion faceCamera/emissionLongitude 3D->2D emission-projection so the burst projects DOWNWARD; (b) a density-ACCUMULATION renderer: 1200 tiny overlapping soft dabs blurred into a continuous bottom fog. EDIT ONLY compositor/emitter-sim.ts. NOTE the f12-f13 half of the dip is a SEPARATE wipe/band-geometry issue (engine shows settled photo A, GT shows a horizontal photo-B band reveal) that is timemap/evaluator scope, NOT emitter.",
+  "slugs": [
+    "Movements__Earthquake"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-q638cb6ad",
+  "created_at": "2026-07-17T01:01:08+00:00",
+  "notes": ""
+}
