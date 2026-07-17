@@ -349,6 +349,28 @@ These are the measured-negative attempts and non-obvious decode facts a worker n
 starting a slug. A todo may point here ("DO NOT re-attempt X — see ROADMAP dead-ends"); the
 full measured record lives here, once.
 
+### ⛔ Combo_Spin is NOT a timemap/fade-timing bug — it is a MISSING-REPLICATOR geometry gap (2026-07-16, T-qcombospin1 BLOCKED census-refutes)
+
+The T-qcombospin1 brief claimed "the 6-blade pinwheel renders correctly; only the per-blade
+A/B fade TIMING (in timemap.ts) is off (f08–f12 ~9 dB)." **Render + decode evidence refutes
+both halves — DO NOT chase this in timemap.ts.**
+- `buildTimeMap` for Combo_Spin returns `wrapSec=undefined, clampSec=undefined` → the timemap
+  is the **IDENTITY** map (remap(t)==t on every frame). No edit to timemap.ts can change ANY
+  Combo_Spin output. Fade timing does not flow through timemap here.
+- Fresh full-res `gen headless` + `score` = **MEAN 14.45 dB** (matches the "reachable 14.54"),
+  with f08–f12 at 11.4/13.2/14.7/15.6/15.9. Headless FCP renders the full 6-blade concentric-
+  ring **replicator pinwheel** across the whole transition (4 Replicators + 12 Clone Layers +
+  6 Image Masks per census). The **TS engine renders only a broken single-tile spin on a black
+  background** — the replicator/clone pinwheel is NOT composited. engine-vs-headless-FCP at
+  f10 = **8.5 dB** (headless warm [145,112,91] vs engine cold [66,77,96] — geom-broken AND
+  A/B-inverted). So the pinwheel does NOT "render correctly"; it barely renders.
+- The real fix lives in **replicator.ts / compositor / geometry.ts** (forbidden to
+  T-qcombospin1's timemap-only scope). Filed as follow-up **T-qa840dfe1**.
+- ⚠️ `fct minimize Combo_Spin` reports a FALSE **99 dB "engine matches headless"** and "nothing
+  to minimize". Its isolated 480×270 `_headless-frame` render is UNRELIABLE for this replicator
+  slug (full `gen headless` also **segfaults** after writing frames). Trust full-res
+  `gen headless` + `score` (8.5 dB engine-vs-headless), NOT minimize, for replicator slugs.
+
 ### 🔬 VIDEO_WALL OZReplicator STAMP-SIZING DECODE — cell size is AUTHORED, not pitch-fit (2026-07-16, T-q7fd2fef0)
 
 Decoded how Motion's OZReplicator sizes per-instance stamps, from the real `Video Wall.motr`

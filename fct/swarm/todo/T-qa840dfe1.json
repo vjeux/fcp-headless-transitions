@@ -1,0 +1,14 @@
+{
+  "id": "T-qa840dfe1",
+  "title": "Combo_Spin: engine misses the replicator/clone pinwheel in mid-transition (geometry gap, ~8.5dB vs headless FCP)",
+  "project": "fct",
+  "goal": "Combo_Spin baseline 12.25 dB. VERIFIED via fresh full-res gen headless (14.45 dB, matches 'reachable 14.54') that headless FCP renders the full 6-blade concentric-ring replicator pinwheel throughout the transition, but the TS ENGINE renders only a broken single-tile spin on a black background (engine-vs-headless-FCP = 8.5 dB at f10; means: headless [145,112,91] warm vs engine [66,77,96] cold \u2014 engine is geom-broken AND A/B-inverted). The scene = 4 Replicators + 12 Clone Layers + 6 Image Masks; census confirms. The engine is NOT compositing the replicator clones during the transition. timemap.ts is the IDENTITY map here (wrapSec/clampSec both undefined) so it is NOT the lever \u2014 the T-qcombospin1 scope was wrong. FIX LIVES IN replicator.ts / compositor / geometry.ts (NOT timemap). First step: probe why replicator.ts produces no visible concentric clones for this scene in [f01..f22] (do the 4 replicators evaluate? do the 12 clones render? is the cell count/radius/rotation wrong?). Also note the FADE timing (headless holds A longer than GUI, ~11->16 dB residual) is a SEPARATE smaller gap on top of the geometry fix. WARNING: fct minimize gives a FALSE 99dB 'engine matches headless' for this slug \u2014 its isolated 480x270 headless render is unreliable (full gen headless segfaults after writing frames); trust the full-res gen headless + score instead.",
+  "slugs": [
+    "Replicator-Clones__Combo_Spin"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qcombospin1",
+  "created_at": "2026-07-17T01:40:33+00:00",
+  "notes": ""
+}
