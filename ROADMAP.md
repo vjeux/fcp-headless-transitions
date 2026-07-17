@@ -761,6 +761,29 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16slidein2  🔧 SLIDE_IN gradient-panel COMPOSITE plumbing landed (WIP T-qcf704c6b,
+              flag-gated OFF, gate 0/0 — Slide_In 12.11 UNCHANGED at default). Built the two pieces
+              the panel needs downstream of the already-landed gradient parser+render+Motion-Path:
+              (1) NARROW motion-path OWN-MASK CLIP in renderDrawableLayer — a generator/image leaf
+              whose VISIBLE mask-shape children carry a Motion Path behavior (type='motionPath')
+              gets its own fill clipped to the UNION of those animated rounded-rect masks (fixes
+              salvage GOTCHA #1: gradient-fill ALONE washes the full frame; verified coverage
+              55%/73%/90% at f3/f6/f9 tracks the GT panel's left-edge slide). Keyed on the
+              motionPath BEHAVIOR + generator/image leaf — NOT a tagName broaden, so the 8-slug
+              FCT_LIFT_ALL_MASKS scar stays clear. (2) LINEAR-GRADIENT OVERLAY ON TOP — in a flat
+              coplanar stack (all cards at frame centre → centre-dist tie-break degenerates to DOM
+              order) the Gradient scenenode (first-declared = Motion's topmost) was drawn FIRST
+              (bottom) so Transition B painted OVER the panel and it never showed. Now any
+              linearGradient overlay paints LAST (on top), preserving the A/B card order (Switch
+              untouched, verified 14.67 with change vs 14.67 clean). ROOT CAUSE of the residual
+              regression with all 3 flags ON (Slide_In 11.72, f01-f03 hurt, f05-f18 still flat):
+              the GENERATOR TIMING/OPACITY ENVELOPE is mis-phased — the leaf only renders f3/f6/f9
+              (op ramp 0.27→0.54→0.80 then GONE), but the GT panel is present f5-f18. NEXT LEAD:
+              decode the Gradient node timing (in=0 out=7431424 offset=-1281280 /7680000) + the
+              generator's own Opacity envelope so the panel persists f5-f18 at the right opacity;
+              the composite plumbing above is then correct and should flip net-positive.
+              Files: engine/src/compositor/index.ts only (+61). tsc + no-hardcode green.
+
 - 2026-07-16q  ✅ CHAIN-LEVEL LINEAR WORKING BUFFER (T-qlinchain01 DONE) — **Stylized__Color_Panels
               17.95 → 18.92 dB (+0.97, past the ≥18.5 DoD), full engine gate 0 regressions**. The
               colour-adjust chain (Colorize→HueSat) now keeps an EXACT Float32 LINEAR working buffer

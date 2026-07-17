@@ -693,6 +693,39 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
       const maskAlpha = layer.imageMaskSourceId !== undefined
         ? resolveImageMaskAlpha(rctx, layer.imageMaskSourceId, output.width, output.height, layer.imageMaskInvert)
         : null;
+      // NARROW MOTION-PATH OWN-MASK CLIP (T-qcf704c6b). A procedural GENERATOR/IMAGE
+      // leaf can carry its OWN `<mask>` children (factoryID=13) that are MOTION-DRIVEN
+      // (each carries a `<behavior factoryID=24>` Motion Path — see footage/index.ts
+      // decode of Slide In.motr line 548). Motion clips the generator's fill to the
+      // UNION of those moving rounded-rect masks — WITHOUT the clip the fill washes
+      // the whole frame (salvage: 7.73 dB < 8.55 black). The leaf renders its output
+      // directly (blitTransformed) BEFORE the sibling-mask clip path in
+      // renderChildLayers, so those lifted masks never touched this leaf's own fill.
+      // Here we rasterize the union of the leaf's VISIBLE motion-path mask children
+      // (through their animated world transforms) and multiply it into the fill's
+      // alpha, exactly like the Image-Mask path below.
+      //
+      // NARROW BY CONSTRUCTION (avoids the FCT_LIFT_ALL_MASKS -1 dB scar that
+      // regressed Center/Glide/Heart/Light_Sweep/etc.): fires ONLY when (a) this is a
+      // generator/image leaf, (b) it has >=1 VISIBLE mask-shape child whose behaviors
+      // include a Motion Path (type='motionPath'), and (c) that child has real closed
+      // geometry (>=3 verts). Non-motion-path masks and every other slug are untouched.
+      let ownMaskAlpha: Uint8Array | null = null;
+      if ((layer.type === 'generator' || layer.type === 'image') && !maskAlpha) {
+        const motionMaskChildren = evalLayer.children.filter(c =>
+          c.visible
+          && c.layer.type === 'shape'
+          && c.layer.shape?.isMask
+          && (c.layer.shape.verticesX?.length ?? 0) >= 3
+          && (c.layer.behaviors ?? []).some(b => b.type === 'motionPath'));
+        if (motionMaskChildren.length > 0) {
+          const parts: Uint8Array[] = [];
+          for (const mc of motionMaskChildren) {
+            parts.push(rasterizeShape(mc.layer.shape!, output.width, output.height, mc.worldTransform, rctx.cameraZ, rctx.cameraPosZ));
+          }
+          ownMaskAlpha = parts.length === 1 ? parts[0] : unionMasks(parts, output.width, output.height);
+        }
+      }
       if (maskAlpha) {
         const temp = createBuffer(output.width, output.height);
         blitTransformed(temp, drawSrc, worldTransform, 1.0, effCrop, 'normal', blitDstBBox(temp, drawSrc, worldTransform, effCrop));
@@ -701,6 +734,17 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
           filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
         }
         applyMask(filtered, maskAlpha);
+        blitDirect(output, filtered, opacity, layer.blendMode);
+      } else if (ownMaskAlpha) {
+        // Narrow motion-path own-mask clip: rasterize the fill, apply filters, then
+        // multiply by the union of the leaf's moving mask shapes and composite.
+        const temp = createBuffer(output.width, output.height);
+        blitTransformed(temp, drawSrc, worldTransform, 1.0, effCrop, 'normal', blitDstBBox(temp, drawSrc, worldTransform, effCrop));
+        let filtered = temp;
+        for (const filter of layer.filters) {
+          filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
+        }
+        applyMask(filtered, ownMaskAlpha);
         blitDirect(output, filtered, opacity, layer.blendMode);
       } else if (layer.filters.length > 0) {
         // Render to temp buffer, apply filters, then composite onto output
@@ -903,6 +947,23 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
         return dx * dx + dy * dy;
       };
       const sorted = [...visibleChildren].sort((a, b) => centreDist(b) - centreDist(a));
+      // LINEAR-GRADIENT OVERLAY ON TOP (T-qcf704c6b). Motion's classic "Gradient"
+      // generator (source.type 'linearGradient') authored as a SIBLING of the A/B
+      // drop-zone cards is a translucent PANEL overlay that Motion paints ON TOP of
+      // the photos (it is the FIRST-declared scenenode = topmost in Motion's
+      // first-declared-on-top convention). When every card sits at frame centre the
+      // flat-stack centre-distance tie-break degenerates to DOM order (Gradient
+      // first = BOTTOM), so Transition B paints over the panel and it never shows
+      // (Slide_In: the teal→lightblue panel was absent, driving the f12 mid
+      // collapse). Force any linearGradient overlay to the END of the paint order
+      // (drawn last = on top), preserving the relative order of the A/B cards.
+      // Generic: keyed on the linearGradient SOURCE TYPE, never a slug; a flat
+      // stack with no gradient overlay is unchanged (Switch et al. untouched).
+      const gradIdx = sorted.findIndex(c => c.layer.source?.type === 'linearGradient');
+      if (gradIdx >= 0) {
+        const [grad] = sorted.splice(gradIdx, 1);
+        sorted.push(grad);
+      }
       order = (idx: number): EvaluatedLayer => sorted[idx];
     } else {
       order = (idx: number): EvaluatedLayer => visibleChildren[visibleChildren.length - 1 - idx];
