@@ -761,6 +761,29 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-17z3  🔎 3D_RECTANGLE stroke-overlay experiment MEASURED, structural GT match found
+              but progress-aware base needed (T-q98a30de5, compositor-scope, WIP). Baseline
+              MEAN 16.48 (flag OFF) unchanged, 0 regressions. NEW EXPERIMENTS (all
+              env-gated, default-INERT — z-composite.ts): FCT_ZC_STROKE=<px> post-composite
+              B-stroke overlay pass (walks each Inside mask, computes mask − erode(mask,px)
+              edge, blits photo-B along that edge at the leaf's screen-centre scale, de-
+              dupes by maskId). FCT_ZC_FLATA=1 seeds output with photo-A INSTEAD of running
+              the depth composite (used as base for STROKE-only paths). Measured full-
+              sequence vs baseline 16.48: STROKE=8 alone (flag ON, depth composite + strokes)
+              MEAN 14.65; FLATA=1 STROKE=8 (flat-A base + strokes, no depth composite) MEAN
+              13.93. VISUAL BREAKTHROUGH: FLATA+STROKE f06 is a STRUCTURAL MATCH to GT —
+              full sepia-A background with 8 concentric blue B stroke frames (vs GT's 4-5),
+              but the SCORE regresses because FLATA always paints A regardless of transition
+              time so f18-f23 crash to 10-11 dB (GT is nearly full B). NEXT LEAD in
+              z-composite.ts header (2026-07-17z3): FCT_ZC_FADE_BASE=1 → seed output with a
+              PROGRESS-AWARE crossfade A*(1-t) + B*t using rctx.time/animationEndSec, then
+              STROKE overlay on top. Expected: f0..f5 near-A + faint strokes (match GT
+              16-20 dB), f6..f14 mid-mix + concentric strokes (match GT frame-strokes),
+              f15..f23 near-B + faint strokes (match GT all-B tail). Full-sequence expected
+              MEAN > 16.48 if strokes align with GT mask positions. Flip
+              FCT_Z_COMPOSITE_3D+FCT_ZC_FADE_BASE+FCT_ZC_STROKE defaults ON if net-positive.
+              Gate green (0 regressions, 1 improvement — Color_Panels 17.95→19.05 env drift
+              from T-qlinchain01 landing). tsc clean, 13 no-hardcode detectors green.
 - 2026-07-16dof  🚫 REFLECTION CINEMATIC DoF (T-qe59c7f31 DROPPED census-refutes) — task premised
               on a Reflection-narrow discriminator: id=346 "Depth of Field" value=2 (default
               1.3999999) supposedly firing only on Reflection while Color_Planes stays default.

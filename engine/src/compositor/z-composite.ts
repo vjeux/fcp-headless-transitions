@@ -181,6 +181,61 @@
 // mid-frame B-seam THICKNESS (GT ~15-20px stroke-frames vs engine ~1-2px). The
 // unbuilt lead is a fixed mask EROSION per leaf (constant-width B stroke). All
 // three FCT_ZC_* env hooks are default-inert (gate-neutral); the flag stays OFF.
+//
+// ── 2026-07-17 tick T-q98a30de5 — STROKE OVERLAY + FLATA experiments (WIP) ──
+// Re-inspected GT f06 with the flag-ON default render side-by-side. GT is
+// mostly-photo-A with 4-5 concentric THIN (~10-15px) photo-B rectangle-outline
+// strokes; the engine default paints one big sepia rect (nearest leaf) fully
+// covering all inner concentric leaves so only 2 boundaries emerge (outer +
+// innermost hairline). MEASURED FULL-SEQUENCE means vs GUI GT
+// (--source engine; baseline flag OFF = 16.48; flag ON default = 15.69):
+//   • FCT_Z_COMPOSITE_3D=1 FCT_ZC_ERODE=8  MEAN 14.87  (worse — shrinks masks but nearest still hides all)
+//   • FCT_Z_COMPOSITE_3D=1 FCT_ZC_ERODE=4  MEAN 15.08  (worse — same reason)
+//   • FCT_Z_COMPOSITE_3D=1 FCT_ZC_RING=1 FCT_ZC_ERODE=8  MEAN 13.76  (much worse — ANNULUS
+//     mode paints B on the interior and A only in thin rings, i.e. STRUCTURALLY
+//     INVERTED from GT which is A-fill with B-stroke frames).
+//   • FCT_Z_COMPOSITE_3D=1 FCT_ZC_STROKE=8  MEAN 14.65  (worse — adds concentric B
+//     strokes on top of the depth composite; visually 8 strokes vs GT's 4-5,
+//     and the depth composite's LEAK OF BASE-B AROUND THE OUTER MARGIN gives a
+//     wrong outer background colour, which the strokes can't compensate for).
+//   • FCT_Z_COMPOSITE_3D=1 FCT_ZC_FLATA=1 FCT_ZC_STROKE=8  MEAN 13.93 (worse —
+//     structurally the CLOSEST match to GT f06 by eye: full sepia-A background
+//     with concentric blue B strokes. But FLATA always paints A regardless of
+//     transition progress, so late-frames f18-f23 crash to 10-11 dB where GT
+//     is nearly full B → mean collapses. A PROGRESS-AWARE base (mix A→B by
+//     time) is the correct fix but requires reading rctx.time/animationEndSec
+//     to compute a fade weight; not built this tick).
+// KEY DECODED INSIGHT (this tick): the leaves' near-scale gains (biggest
+// wz-negative leaf projects at ~1.33x screen-centre scale) mean the FRONT
+// leaf's alpha ALREADY covers everything the back leaves would show. Ring/erode
+// ALONE cannot make intermediate concentric rects visible under this depth
+// ordering — the near leaf's filled alpha wins pixel-by-pixel. The correct
+// mid-frame structure IS mostly-A with concentric B strokes (validated by the
+// FLATA+STROKE visual match), but ANY approach needs a progress-aware A→B
+// base to avoid the late-frame collapse.
+//
+// NEXT LEAD (WIP handoff): FCT_ZC_FLATA with a PROGRESS-AWARE base. Build a
+// linear crossfade base = A*(1-t) + B*t where t = rctx.time / animationEndSec,
+// then apply STROKE overlay on top. This should:
+//   - f0..f5: near-A base + faint strokes → matches GT (already 16-20 dB range).
+//   - f6..f14: mid-mix base + concentric B strokes → matches GT's frame-strokes.
+//   - f15..f23: near-B base + faint strokes → matches GT (all-B tail).
+// Full-sequence expected MEAN > 16.48 if the strokes align with GT's mask
+// positions. Implementation is entirely inside z-composite.ts (add
+// FCT_ZC_FADE_BASE=1 branch that fills output with mixed pixels using
+// rctx.time), plus flip FCT_Z_COMPOSITE_3D + FCT_ZC_FADE_BASE + FCT_ZC_STROKE
+// defaults ON if measurably net-positive.
+//
+// All experiment env hooks (FCT_ZC_BZ, FCT_ZC_PERSP, FCT_ZC_RING, FCT_ZC_ERODE,
+// FCT_ZC_STROKE, FCT_ZC_FLATA) remain default-INERT this tick. FCT_Z_COMPOSITE_3D
+// stays OFF by default → byte-neutral to the shipped gate. This WIP lands the
+// stroke-overlay + flat-A infrastructure + the measured decision table above.
+//
+// SIBLING SLUGS. z-composite is a shared primitive; hasNestedMaskedCloneCameraStack
+// fires on 3D_Rectangle alone but hasCameraCloneStack (structural parent) also
+// covers Light_Sweep, Color_Planes, 360°_Wipe. Since FCT_Z_COMPOSITE_3D stays
+// OFF this tick, all four remain byte-identical to baseline (verified via
+// full regress: 0 regressions).
 
 import type { EvaluatedLayer, EvaluatedScene } from '../evaluator/index.js';
 import type { MotrScene, Layer } from '../types.js';
@@ -318,6 +373,16 @@ export interface MaskedCloneLeaf {
    *  through the real camera (instead of the screen-centre scale shortcut). */
   readonly worldTransform?: Float64Array;
   readonly label?: string;
+  /** RAW (un-eroded, un-ring-subtracted) full-frame mask alpha for this leaf.
+   *  Retained for the post-composite B-stroke overlay pass (FCT_ZC_STROKE=<px>)
+   *  which paints a thin photo-B outline at each leaf's mask edge on top of
+   *  the mostly-A depth composite. Populated only when the STROKE env flag is
+   *  set (kept undefined otherwise → no memory cost for the default path). */
+  readonly rawMask?: Uint8Array;
+  /** ID of the Inside mask this leaf uses (used to DE-DUPLICATE the stroke
+   *  pass — Shape 0N + Clone Layer N re-clones share masks; we only want to
+   *  stroke each concentric-mask boundary once). */
+  readonly maskId?: number;
 }
 
 /** A projected quad ready to depth-composite: source pixels + per-corner
@@ -581,6 +646,10 @@ export function collectMaskedCloneQuads(
   const debug = process.env.FCT_DEBUG_ZCOMPOSITE === '1';
   const noscale = process.env.FCT_ZC_NOSCALE === '1';
   const ring = process.env.FCT_ZC_RING === '1';
+  // FCT_ZC_STROKE=<px>: retain the raw pre-erode/pre-ring mask alpha on each
+  // leaf so the post-composite B-stroke overlay pass can compute per-leaf edge
+  // strokes without redoing resolveImageMaskAlpha. Value=0 → no retention.
+  const strokePx = process.env.FCT_ZC_STROKE ? parseInt(process.env.FCT_ZC_STROKE, 10) : 0;
   // RING-SUBTRACT map (FCT_ZC_RING): each concentric Inside mask N is CLONED by a
   // smaller Inside (N+1) one hop down the Inside chain. For a leaf masked by
   // Inside N, subtracting the alpha of the Inside that clones it (the next-inner,
@@ -624,6 +693,11 @@ export function collectMaskedCloneQuads(
             // media sheared into horizontal streaks over a 1920×1080 frame).
             const conformed = conformToFrame(pixels, W, H);
             const owned = new ImageData(new Uint8ClampedArray(conformed.data), conformed.width, conformed.height);
+            // FCT_ZC_STROKE: snapshot the raw pre-erode mask (used later by the
+            // B-stroke overlay pass). We snapshot BEFORE erodeAlpha so the stroke
+            // edge is computed off the original rectangle boundary.
+            let rawMask: Uint8Array | undefined;
+            if (strokePx > 0 && !mask.invert) rawMask = new Uint8Array(alpha);
             // EROSION experiment (FCT_ZC_ERODE=<px>): shrink each leaf's filled
             // mask inward by a constant border so consecutive concentric rects
             // leave a uniform-width photo-B stroke between them — GT's f06 shows
@@ -638,7 +712,7 @@ export function collectMaskedCloneQuads(
             // (perspective.ts::projectPoint: scale = camZ / (camZ + z)).
             const denom = camZ + worldZ;
             const scale = noscale ? 1 : (isFinite(camZ) && Math.abs(denom) > 1e-6 ? camZ / denom : 1);
-            leaves.push({ layerId: el.layer.id, src: owned, worldZ, scale, opacity: el.opacity, worldTransform: el.worldTransform, label: `clone#${el.layer.id}` });
+            leaves.push({ layerId: el.layer.id, src: owned, worldZ, scale, opacity: el.opacity, worldTransform: el.worldTransform, label: `clone#${el.layer.id}`, rawMask, maskId: mask.id });
             if (debug) console.error(`[zcomp] leaf id=${el.layer.id} mask=${mask.id}${mask.invert ? '(inv)' : ''} worldZ=${worldZ.toFixed(1)} scale=${scale.toFixed(3)} op=${el.opacity.toFixed(2)}`);
           }
         }
@@ -673,6 +747,24 @@ export function renderNestedMaskedCloneStack(
 ): void {
   const zbuf = createDepthBuffer(W, H);
   const camZ = rctx.cameraZ;
+
+  // FCT_ZC_FLATA=1 experimental path: instead of running the depth composite
+  // (which achieves f00=34.65 dB but nets worse on mid-frames because its scale-
+  // and-cover dynamics let the nearest leaf hide all intermediate concentric
+  // leaves), seed the output with a FLAT COPY OF PHOTO A. This matches the
+  // shipped OFF-baseline (mostly-A, no strokes) mid-frame appearance (which
+  // scores 16.48 overall — actually BETTER than the depth composite's 15.69).
+  // The STROKE overlay pass below then stamps the missing photo-B concentric
+  // outlines on top. Combined, this is (shipped-baseline pixels) + (concentric
+  // B stroke frames matching GT) — the direct structural GT match. Default OFF.
+  if (process.env.FCT_ZC_FLATA === '1') {
+    const photoA = conformToFrame(rctx.imageA, W, H);
+    output.data.set(photoA.data);
+    // No depth-composite pass — jump straight to the STROKE overlay tail.
+    const leavesForStroke = collectMaskedCloneQuads(rctx, scene, W, H);
+    applyStrokeOverlay(output, rctx, leavesForStroke, W, H);
+    return;
+  }
 
   // Base Transition B: the deepest (most background) visible non-clone image
   // layer. Seed it first at its scene world-Z, perspective-scaled by the same
@@ -719,6 +811,102 @@ export function renderNestedMaskedCloneStack(
         corners.map(c => [c[0], c[1], c[2], c[3]] as [number, number, number, number]), lf.opacity);
     } else {
       depthBlitCenterScaled(output, zbuf, lf.src, lf.scale, lf.worldZ, lf.opacity);
+    }
+  }
+
+  // FCT_ZC_STROKE=<px>: POST-COMPOSITE B-STROKE OVERLAY. GT f06 shows 4-5 THIN
+  // (~10-15px) photo-B rectangle-outline strokes concentrically over the mostly-
+  // sepia-A frame — a "nested picture-frame" look. The depth composite above
+  // paints the correct mostly-A canvas (f00=34.65 dB) but its scale-and-cover
+  // dynamics let the nearest leaf hide all intermediate leaves, so only 2 mask
+  // boundaries emerge (outer+innermost hairline) instead of GT's 5. This pass
+  // stamps a photo-B edge outline at EACH unique Inside-mask boundary, at the
+  // corresponding leaf's screen-centre projected scale, so all concentric
+  // frames become visible on top of the depth composite's A canvas — direct
+  // structural match to the GT frame pattern. De-dupes by maskId (Shape 0N +
+  // Clone Layer N re-clones share masks; each concentric boundary strokes once,
+  // using the smallest-scale leaf for that mask to keep the stroke thickness
+  // constant in screen space). Default OFF (strokePx<=0 → skipped, byte-neutral).
+  applyStrokeOverlay(output, rctx, leaves, W, H);
+}
+
+/** Reusable STROKE overlay pass — see FCT_ZC_STROKE comment at the call sites.
+ *  Walks each collected leaf's raw Inside mask and stamps a thin photo-B outline
+ *  at the leaf's screen-centre projected scale, on top of `output`. No-op when
+ *  FCT_ZC_STROKE is unset or ≤ 0 (byte-neutral). De-duplicates by maskId. */
+function applyStrokeOverlay(
+  output: ImageData,
+  rctx: RenderContext,
+  leaves: readonly MaskedCloneLeaf[],
+  W: number,
+  H: number,
+): void {
+  const strokePx = process.env.FCT_ZC_STROKE ? parseInt(process.env.FCT_ZC_STROKE, 10) : 0;
+  if (strokePx <= 0) return;
+  const seen = new Set<number>();
+  const photoB = conformToFrame(rctx.imageB, W, H);
+  for (const lf of leaves) {
+    if (lf.rawMask === undefined || lf.maskId === undefined) continue;
+    if (seen.has(lf.maskId)) continue;
+    seen.add(lf.maskId);
+    const eroded = new Uint8Array(lf.rawMask);
+    erodeAlpha(eroded, W, H, strokePx);
+    const edge = new Uint8Array(lf.rawMask.length);
+    for (let i = 0; i < edge.length; i++) {
+      const e = lf.rawMask[i] - eroded[i];
+      edge[i] = e > 0 ? e : 0;
+    }
+    overlayEdgeBlit(output, photoB, edge, lf.scale);
+  }
+}
+
+/** Blit a photo-B edge overlay: for each destination pixel, inverse-map through
+ *  a uniform screen-centre scale to look up (a) the edge alpha (the thin outer
+ *  ring of the leaf's mask) and (b) the photo-B colour, then alpha-blend that
+ *  colour on top of the destination frame. Used by the FCT_ZC_STROKE overlay
+ *  pass to stamp thin photo-B rectangle outlines at each concentric Inside-mask
+ *  boundary, matching GT's "nested picture frame" look. */
+function overlayEdgeBlit(
+  dst: ImageData,
+  photoB: ImageData,
+  edgeAlpha: Uint8Array,
+  scale: number,
+): void {
+  const W = dst.width, H = dst.height;
+  const cx = W / 2, cy = H / 2;
+  const inv = scale > 1e-6 ? 1 / scale : 0;
+  const bd = photoB.data, dd = dst.data;
+  for (let y = 0; y < H; y++) {
+    const syf = (y + 0.5 - cy) * inv + H / 2 - 0.5;
+    const sy0 = Math.floor(syf);
+    if (sy0 < -1 || sy0 >= H) continue;
+    const fy = syf - sy0;
+    const sy0c = Math.max(0, Math.min(H - 1, sy0));
+    const sy1c = Math.max(0, Math.min(H - 1, sy0 + 1));
+    for (let x = 0; x < W; x++) {
+      const sxf = (x + 0.5 - cx) * inv + W / 2 - 0.5;
+      const sx0 = Math.floor(sxf);
+      if (sx0 < -1 || sx0 >= W) continue;
+      const fx = sxf - sx0;
+      const sx0c = Math.max(0, Math.min(W - 1, sx0));
+      const sx1c = Math.max(0, Math.min(W - 1, sx0 + 1));
+      const gx = 1 - fx, gy = 1 - fy;
+      const w00 = gx * gy, w10 = fx * gy, w01 = gx * fy, w11 = fx * fy;
+      const i00 = sy0c * W + sx0c, i10 = sy0c * W + sx1c;
+      const i01 = sy1c * W + sx0c, i11 = sy1c * W + sx1c;
+      const ea = edgeAlpha[i00] * w00 + edgeAlpha[i10] * w10 + edgeAlpha[i01] * w01 + edgeAlpha[i11] * w11;
+      if (ea <= 0) continue;
+      const sa = ea / 255;
+      const b00 = i00 * 4, b10 = i10 * 4, b01 = i01 * 4, b11 = i11 * 4;
+      const br = bd[b00] * w00 + bd[b10] * w10 + bd[b01] * w01 + bd[b11] * w11;
+      const bg = bd[b00 + 1] * w00 + bd[b10 + 1] * w10 + bd[b01 + 1] * w01 + bd[b11 + 1] * w11;
+      const bb = bd[b00 + 2] * w00 + bd[b10 + 2] * w10 + bd[b01 + 2] * w01 + bd[b11 + 2] * w11;
+      const o = (y * W + x) * 4;
+      const ia = 1 - sa;
+      dd[o] = Math.round(br * sa + dd[o] * ia);
+      dd[o + 1] = Math.round(bg * sa + dd[o + 1] * ia);
+      dd[o + 2] = Math.round(bb * sa + dd[o + 2] * ia);
+      dd[o + 3] = 255;
     }
   }
 }
