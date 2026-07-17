@@ -704,6 +704,13 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16q-eq  ✅ EARTHQUAKE TIMEMAP COMPRESSION FIX (T-q7f6795d6 DONE) — Earthquake timemap
+              compression fix: mean 20.99→21.79 (+0.80), f10-f11 dip 11→20 dB, endpoints held.
+              Residual f12-f16 = missing impact-dust/flash which is an EMITTER/COMPOSITOR issue
+              (Falling Impact particle system renders as wrong-location arc vs GT's bottom
+              impact-dust band) — OUT of timemap scope, cross-lane note for emitter-render.ts owner.
+              Gate 0 regressions; Switch +2.43 collateral.
+
 - 2026-07-16q  ✅ REFLECTION STATIC B-FOLD (T-q7529db51 DONE) — **Movements__Reflection 14.23 → 14.82
               (+0.59 dB), 0 real regressions.** DECODE (Reflection.motr, verified — the prior "candidate
               #3 = Transition A own rotY ~+45°→0°" hypothesis is REFUTED): Transition A carries NO

@@ -449,8 +449,48 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
     settleBSec = endSec * 0.72;
   }
 
+  // PARTICLE-LIFE INFLATED animationEndSec (Movements/Earthquake). The parser's
+  // animation-end walk lands on the MAX scene keyframe time; for most slugs that is
+  // the last VISIBLE-motion keyframe and ≈ scene.settings.duration (playRange). But
+  // if a scene carries a particle Cell whose OWN parametric curves (Color Over Life,
+  // Opacity Over Life, Scale Over Life — indexed by particle LIFE ∈ [0,1], NOT by
+  // scene time) get included in the walk, the parser records their per-life
+  // endpoint (~endSec-worth of "1.0" values) as a scene keyframe and animationEndSec
+  // inflates past the true playRange. Earthquake: playRange 1.767s but end 2.252s
+  // (ratio 1.275) — engine's `render(progress) = renderInstant(progress·endSec)`
+  // then samples 24 frames spanning [0, 2.252s], while FCP renders 24 frames over
+  // [0, 1.767s]. Every engine frame lands ~0.20s AHEAD of its GT counterpart —
+  // Transition A's Position keyframes (Y=0→-283→-477 at scene t=0.868/0.901/0.934s)
+  // fire mid-frame in the engine while GT still shows A at rest, and the crossfade
+  // midpoint slips from GT f12–13 to engine f10–11 (verified: engine f10 = solid B,
+  // GT f10 = solid A; mid-frames f10–f16 dip to ~10–13 dB vs endpoints ≥ 23 dB).
+  //
+  // Structural signature (no slug names): pureCrossfadeSettleB fires (the same gate
+  // as the overlay-dust wrap-cancel above — a 2-drop-zone A→B crossfade with 1–4
+  // static full-frame image-media overlays that composite on top and B alive to
+  // endSec) AND endSec is MATERIALLY larger than the scene's playRange duration
+  // (`scene.settings.duration`, i.e., the "correct" transition span FCP renders
+  // over). The other overlay-dust slugs (Drop_In, Leaves, Veil, Curtains, Light
+  // Noise, Panels_Across/Random, Light_Sweep) all have ratio ≈ 1.00, so this branch
+  // is a NO-OP on them (measured: ratio ≤ 1.004 across the whole family; only
+  // Earthquake reaches 1.275). Compress the render time by durationSec/endSec so
+  // progress·endSec sampling matches FCP's over-playRange sampling; downstream
+  // curves then evaluate at the CORRECT scene time and the position/rotation/etc.
+  // keyframes fire on the same frames as GT.
+  const durationSec = scene.settings.duration.value / scene.settings.duration.timescale;
+  let particleLifeInflatedScale: number | undefined;
+  if (pureCrossfadeSettleB && wrapSec === undefined
+      && durationSec > 0 && endSec > durationSec + frameSec * 0.5) {
+    particleLifeInflatedScale = durationSec / endSec;
+  }
+
   const remap = (tSec: number): number => {
     let timeSec = tSec;
+    // Particle-life-inflated animationEndSec compression: bring engine sampling
+    // back in step with FCP's over-playRange sampling (see block above).
+    if (particleLifeInflatedScale !== undefined) {
+      timeSec = timeSec * particleLifeInflatedScale;
+    }
     // Retime extrapolation (mode 1 = wrap): once the wrapping drop zone has
     // timed out by this frame (within a half-frame tolerance — FCP samples the
     // frame centre), the transition loops back to the start and re-shows A.
