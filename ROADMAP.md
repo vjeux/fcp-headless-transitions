@@ -739,6 +739,19 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16zclonespin  ✅ CLONE_SPIN single-framer near-A→reveal dolly (T-qclonespin1, 10.32→10.75,
+              +0.43 dB, full gate 0 regressions). Clone_Spin's Camera has ONE factory-3 Framing
+              behavior (transition type 1) targeting the "Transition B" tile, in=0 out≈endSec
+              (wrapSec≈1.869 near-negligible retime). Decoded from Clone Spin.motr: oblique B pose
+              (rotX=0.309, rotY=0.529), Path Offset (1450,980,5332), Offset Path Apex=0.2925. BUG: the
+              single-framer path returned framePose(B) STATICALLY (never opened on A → f00 14.29). FIX
+              (framing.ts resolveFramedWallPose single-behavior branch, framing.length===1 so it fires
+              ONLY on Clone_Spin — sole 1-framer built-in; ≥2-framer wall path byte-identical): near-A
+              (full-frame A at world origin z=0) → oblique framePose(B) far reveal over [0, apex·end],
+              then HOLD. f00 14.29→22.14, f01 8.8→11.86, f02-f20 up ~0.5-1, f21-23 unchanged. FOLLOW-UP
+              T-qb6a721a6: grid-centroid far fit (needs full layer list in index.ts) + B retime-wrap
+              tail settle (timemap) — both out of framing.ts scope.
+
 - 2026-07-16p  ✅ HUESAT OVER-SATURATION CLAMP (T-qba9797b8 DONE) — **Stylized__Color_Panels
               17.95 → 18.11 (+0.16 dB), 0 regressions.** Decoded HgcHSVAdjust (extract_shader.py
               line 39): `sat = clamp((chroma/value)*satMul, 0, 1)` — FCP scales HSV *saturation*
