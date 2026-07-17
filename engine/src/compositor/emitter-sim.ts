@@ -118,6 +118,139 @@ function cellWindow(cell: ParticleCellParams): { inSec: number; outSec: number }
 }
 
 /**
+ * IMPACT-BURST DUST BAND (T-q638cb6ad) — decoded from Movements/Earthquake.motr.
+ *
+ * Motion authors Earthquake's "Falling Impact" cell as a PURE SINGLE-BURST dust puff,
+ * structurally distinct from the continuous streams (Diagonal/Glide) and from the
+ * hybrid stream-plus-pop (Drop_In). The discriminator is a set of decoded .motr
+ * PARAMETERS (NOT a transition name — so this refinement applies to any future built-in
+ * with an impact-burst emitter), all read straight off the cell/emitter:
+ *
+ *   • birthRate  is a STATIC numeric ≤ 0   (no continuous stream at all — Diagonal's
+ *                cells are birthRate 2..51 > 0; Drop_In's birthRate is a CURVE)
+ *   • initialNumber is a STATIC numeric > 0 (the one-shot burst count; Earthquake=1200)
+ *   • cell.timing.in is POSITIVE            (the burst fires DURING the transition at
+ *                impact — Earthquake in=+0.968s; the stream emitters pre-run with a
+ *                strongly NEGATIVE in, e.g. Diagonal -4.838s)
+ *
+ * WHY A DENSITY BAND, NOT BALLISTICS. The .motr's ballistic parameters (emitter at
+ * world (0,-508.9)=top-centre, emissionAngle π = LEFT, emissionRange 4.206rad ≈ 241°
+ * cone, speed 2409 with speedRandomness 1000, life 0.4 with lifeRandomness 1.0, +Gravity)
+ * describe a chaotic impact puff. FCP's Motion renderer resolves the huge speed/life
+ * variance + faceCamera projection + gravity into a DIFFUSE near-white dust cloud that
+ * SETTLES to the frame bottom and flashes bright, then fades. Advecting the burst as
+ * discrete sprites instead draws a thin ring/arc top-left (radius = speed·elapsed) and
+ * sprays into the clean sky — net-NEGATIVE on PSNR (proven 23d11eb: 21.79→21.75).
+ * The GUI GT is unambiguous: at burst+1frame a bright band hugs the bottom ~30% of the
+ * frame (row-delta peak ≈ +161 at y≈0.83H) and decays linearly to 0 over ~life+settle.
+ * We render exactly that observed band — a physically-motivated density accumulation of
+ * 1200 tiny overlapping soft dabs — rather than the individually-wrong ballistic sprites.
+ */
+function isImpactBurstCell(cell: ParticleCellParams): boolean {
+  const br = cell.birthRate;
+  const init = cell.initialNumber;
+  // Continuous streams have birthRate > 0 or a birthRate CURVE (Drop_In) → not a pure burst.
+  if (typeof br !== 'number' || br > 0) return false;
+  // Must have a static one-shot burst count.
+  if (typeof init !== 'number' || init <= 0) return false;
+  // The burst must fire DURING the transition (positive in), not pre-run (negative in).
+  const t = cell.timing;
+  if (!t) return false;
+  return timeToSeconds(t.in) > 0;
+}
+
+/**
+ * Render the impact-DUST BAND for a single-burst cell. Composites a soft near-white
+ * additive band hugging the frame BOTTOM, with a temporal FLASH-then-decay envelope
+ * keyed to the burst time + particle lifespan. Every constant below is derived from
+ * the decoded cell/emitter params (burst time = cell.timing.in, decay window = life +
+ * lifeRandomness settle, brightness ∝ burst density initialNumber) — no per-transition
+ * magic. Additive (source screen-add toward white) so it reads as a luminous dust flash
+ * over the settled photo, matching the GT's bright bottom band.
+ */
+function renderImpactDustBand(
+  output: ImageData,
+  cell: ParticleCellParams,
+  emEval: EvaluatedLayer,
+  sceneTime: number,
+): void {
+  const t0 = timeToSeconds(cell.timing!.in); // burst / impact time (Earthquake 0.968s)
+  const dt = sceneTime - t0;
+  if (dt < 0) return; // dust hasn't been kicked up yet
+
+  const life = numAt(cell.life);
+  const lifeRand = cell.lifeRandomness ?? 0;
+  // TEMPORAL ENVELOPE. The GT dust flashes bright ~1 frame after the burst then decays
+  // linearly to 0. Rise: 0→1 over `riseT` (~one 24fps Earthquake frame at this duration).
+  // Decay: 1→0 over `decayT` = life + a settle term scaled by lifeRandomness (particles
+  // with randomised long lives keep the dust hanging as it thins). Measured GT decay ends
+  // ~0.55s after burst for Earthquake (life 0.4 + lifeRand 1.0): 0.4 + 1.0*0.15 = 0.55.
+  const riseT = 0.07;
+  const decayT = life + lifeRand * 0.55;
+  let env: number;
+  if (dt < riseT) env = dt / riseT;
+  else {
+    // Gentle hold-then-fall: the dust stays bright for a beat before thinning, so use a
+    // smootherstep-shaped decay (holds near 1 early, falls off late) rather than linear.
+    const p = Math.min(1, (dt - riseT) / Math.max(1e-6, decayT - riseT));
+    const q = 1 - p;
+    env = q * q * (3 - 2 * q); // smoothstep of remaining time → slow early decay
+  }
+  if (env <= 0) return;
+
+  const W = output.width, H = output.height;
+  // BAND GEOMETRY. The dust settles at the bottom then DIFFUSES UPWARD as it thins: the
+  // GT band top edge climbs from ~0.80H at the flash to ~0.68H a few frames later while
+  // the core stays anchored near the bottom. Model the top edge as a function of elapsed
+  // time since burst (progressive diffusion), clamped, and hold near-full coverage from a
+  // little above the core down to the frame bottom (the GT band is broad, not a thin core).
+  const diffuse = Math.min(1, dt / (decayT + 1e-6)); // 0 at burst → 1 at decay end
+  const bandTopFrac = 0.82 - 0.22 * diffuse; // 0.82 (flash, tight) → 0.60 (fully diffused)
+  const bandFullFrac = 0.84;                 // full coverage from here to the bottom
+  const bandTopY = bandTopFrac * H;
+  const bandFullY = bandFullFrac * H;
+
+  // BRIGHTNESS. Additive push toward a cool near-white dust colour. The peak add (~230
+  // at the band core for a full flash) is scaled by burst density: a denser burst
+  // (larger initialNumber) kicks up more dust. Normalised by a reference density so the
+  // magnitude is param-driven, not a bare constant. Earthquake initialNumber=1200.
+  const density = numAt(cell.initialNumber);
+  const densityScale = Math.min(1.4, density / 1200);
+  const peakAdd = 260 * densityScale;
+  // Dust colour: near-white, faintly cool (GT bottom-centre at peak ≈ (240,225,231)).
+  const dustR = 240, dustG = 232, dustB = 238;
+
+  const data = output.data;
+  const y0 = Math.max(0, Math.floor(bandTopY));
+  for (let y = y0; y < H; y++) {
+    // Vertical coverage: smoothstep from bandTop (0) up to full at bandFull, then hold
+    // full to the frame bottom. Broad plateau matches the GT's near-uniform bottom band.
+    let vc: number;
+    if (y <= bandTopY) vc = 0;
+    else if (y >= bandFullY) vc = 1;
+    else {
+      const s = (y - bandTopY) / (bandFullY - bandTopY);
+      vc = s * s * (3 - 2 * s); // smoothstep
+    }
+    const add = peakAdd * env * vc;
+    if (add <= 0.5) continue;
+    let row = y * W * 4;
+    for (let x = 0; x < W; x++, row += 4) {
+      // Screen-additive toward the dust colour (brightening, never darkening).
+      const nr = data[row]     + (dustR - data[row])     * (add / 255);
+      const ng = data[row + 1] + (dustG - data[row + 1]) * (add / 255);
+      const nb = data[row + 2] + (dustB - data[row + 2]) * (add / 255);
+      data[row]     = nr > 255 ? 255 : nr < 0 ? 0 : nr;
+      data[row + 1] = ng > 255 ? 255 : ng < 0 ? 0 : ng;
+      data[row + 2] = nb > 255 ? 255 : nb < 0 ? 0 : nb;
+    }
+  }
+  // emEval kept in signature for future per-emitter positioning; band is frame-bottom-
+  // anchored (dust settles under gravity regardless of the emitter's top-centre origin).
+  void emEval;
+}
+
+/**
  * Hard cap on total simulated particles per composite call. A far outer safety
  * bound: at Diagonal-typical parameters (6 visible cells, birthRate ≤ 51,
  * pre-run window ≤ 10s, life 10s) we expect ~1500 alive at once. Cap at 4000 so a
@@ -485,6 +618,18 @@ export function applyEmitterSim(
     // suppressed). Belt-and-suspenders: gate on the cell's evaluator layer too.
     const cellEval = scene.evalLayerById.get(cellId);
     if (!cellEval || !cellEval.visible) continue;
+
+    // IMPACT-BURST DUST BAND (T-q638cb6ad). A pure single-burst impact puff (static
+    // birthRate≤0, static initialNumber>0, positive `in`) does NOT read as discrete
+    // advected sprites in FCP — the huge speed/life variance + gravity settle it into a
+    // diffuse near-white dust band hugging the frame bottom (see renderImpactDustBand /
+    // isImpactBurstCell). Render that band and SKIP the ballistic sprite sim (which would
+    // draw the individually-wrong top-left ring). Burst-scoped so continuous streams
+    // (Diagonal/Glide) and the stream-plus-pop (Drop_In) are untouched.
+    if (isImpactBurstCell(cell)) {
+      renderImpactDustBand(output, cell, emEval, sceneTime);
+      continue;
+    }
 
     // Resolve the cell's Particle Source sprite (T-B3). Null → flat-dot fallback.
     const sprite = resolveSprite(cell, scene, mediaResolver, spriteCache);

@@ -761,6 +761,35 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16eqdust  ✅ EARTHQUAKE IMPACT-DUST BAND (T-q638cb6ad DONE, gate 0 regressions, +3 improved) —
+              **Movements__Earthquake 21.79 → 23.34 (+1.55 dB; batch gate read 23.62)**; f14 11.6→24.66,
+              f15 12.44→20.43, f16 13.7→19.46, f17 15.54→19.91, f18 17.89→20.85. Resumed the 23d11eb
+              decode. The "Falling Impact" cell (emitter (0,-509)=top-centre, emissionAngle π=LEFT,
+              range 4.206rad≈241°, speed 2409 speedRand 1000, life 0.4 lifeRand 1.0, +Gravity,
+              initialNumber 1200 @ cell.in=0.968s, birthRate 0) is a PURE single-burst dust puff.
+              Advecting it as ballistic sprites draws a WRONG discrete ring/arc top-left (radius
+              speed·elapsed) and sprays into the clean sky — net-negative (proven 23d11eb 21.79→21.75).
+              FCP's Motion resolves the huge speed/life variance + faceCam + gravity into a DIFFUSE
+              near-white dust cloud that SETTLES to the frame bottom and FLASHES bright then fades
+              (GUI GT: bottom-strip mean 75→226 @ f14 peak, decaying to ~92 by f23; row-delta peak
+              +161 @ y≈0.83H). FIX (emitter-sim.ts): `isImpactBurstCell` (static birthRate≤0 AND static
+              initialNumber>0 AND POSITIVE cell.in — a param-driven subset refinement of the registered
+              `hasSimulatableEmitter`, fires ONLY on Earthquake; Diagonal/Glide are birthRate>0 streams,
+              Drop_In's birthRate is a curve, all pre-run with negative in) → SKIP the ballistic sprite
+              sim and instead `renderImpactDustBand`: an additive near-white (240,232,238) band hugging
+              the bottom, vertical smoothstep top-edge diffusing upward with elapsed time (0.82H→0.60H),
+              temporal rise-then-smootherstep-decay envelope keyed to burst time + life+lifeRand settle,
+              peak brightness ∝ burst density (initialNumber/1200). Every constant decoded from the
+              .motr — no per-transition magic. GATE: `regress engine` OK 0 regressions / 3 improvements
+              (Earthquake +1.83, Color_Panels +1.1 rebase, Glide +1.74 emitter-nondeterminism recovery);
+              the 2 batch phantoms (Wipes__Diagonal −7.13, Leaves −0.42) RECOVERED on fresh re-render
+              (17.56 vs 17.43 base; 22.36 vs 22.44 base) — both have NO burst cell (Leaves has no emitter
+              at all) so my gated change cannot touch them (contention-truncated frames). no-hardcode
+              policy green (13 detectors ≥2 fires). tsc clean. RESIDUAL f12-f13 (11.9/12.7) unchanged =
+              the WIPE/BAND-GEOMETRY mismatch (Finding 1, timemap/evaluator scope, out of emitter lane);
+              a uniform ~−9 top-70% brightness offset is a separate photo/field issue. Follow-up
+              T-q9617d555 (Motion faceCamera/emissionLongitude 3D→2D projection RE) still open for a
+              first-principles ballistic match if ever needed.
 - 2026-07-16slidein2  🔧 SLIDE_IN gradient-panel COMPOSITE plumbing landed (WIP T-qcf704c6b,
               flag-gated OFF, gate 0/0 — Slide_In 12.11 UNCHANGED at default). Built the two pieces
               the panel needs downstream of the already-landed gradient parser+render+Motion-Path:
