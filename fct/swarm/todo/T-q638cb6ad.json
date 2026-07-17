@@ -1,0 +1,14 @@
+{
+  "id": "T-q638cb6ad",
+  "title": "Earthquake Falling Impact particle emitter render \u2014 sprite arc vs diffuse dust band",
+  "project": "fct",
+  "goal": "After timemap compression landed (b3accbf, Earthquake 21.26->22.06), residual f12-f16 dip 11-13 dB is a PARTICLE EMITTER rendering bug NOT timing. Engine draws 'Falling Impact' emitter (1200 particles, posY=-509, emission angle pi=down, range 4.206rad, speed 2409, life 0.4s, +Gravity) as a DISCRETE SPRITE ARC top-left; GT shows a DIFFUSE impact-DUST BAND at frame BOTTOM + brightness FLASH f14-f16. Decode Falling Impact + Random Motion + Gravity + Scale-Over-Life + Angle-Range from Earthquake.motr; match FCP particle render. SCOPE: emitter-render.ts / emitter-sim path, NOT timemap.ts. Target f12-f16 up, gate net-positive 0 reg.",
+  "slugs": [
+    "Movements__Earthquake"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-q7f6795d6",
+  "created_at": "2026-07-17T00:09:44+00:00",
+  "notes": ""
+}
