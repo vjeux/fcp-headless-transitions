@@ -115,6 +115,20 @@ pick it up, and each cleans up its own worktree once its work has landed. See
     supersedes the old reflex of reverting on ANY regression — that reflex caused several
     correct fixes to be discarded, e.g. the Wipes/Mask binding.)
 
+12. **NO BEHAVIOR-FLAG GATING — implement ONE flow (added 2026-07-17, vjeux mandate).**
+    This project is self-contained with NO customers — there is nobody to protect with an
+    opt-in/opt-out env flag. Every behavior must be implemented in a SINGLE, unconditional
+    flow. Do NOT land `process.env.FCT_*`-gated behavior branches (e.g. the old
+    `FCT_ANIMATED_VERTEX`, `FCT_MOTION_PATH_EVAL`, `FCT_Z_COMPOSITE_3D` pattern). A flag is
+    not a way to "land a decode safely" — if a branch is correct against GUI GT, inline it
+    and delete the flag + the losing branch; if it is NOT correct (regresses the gate), it is
+    NOT done — keep iterating or leave the decode in a comment/ROADMAP, but do NOT commit a
+    dead flag-gated branch. Rationale: flag-gated dead code is exactly the drift/complication
+    Rule 8 forbids ("do not hide behind gate-neutral no-ops"). The ONLY permitted env reads
+    are DIAGNOSTIC (`FCT_*_DEBUG`, `FCT_MP_DEBUG` — print-only, no behavior change) and
+    render-harness plumbing (`FCT_FRAMES_DIR`/`FCT_LOCK`/`FCT_ISOLATION_ID`/`FCT_JOBS`).
+    Everything else is a bug to be removed. Tracked cleanup task: **T-qdeflag0001**.
+
 ## Regression follow-ups — slugs knocked down by a correct fix, to investigate next
 
 Log every slug a shipped-but-net-positive fix regressed here (Rule 11), newest first, so a
