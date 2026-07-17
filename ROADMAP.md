@@ -761,6 +761,26 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16dof  🚫 REFLECTION CINEMATIC DoF (T-qe59c7f31 DROPPED census-refutes) — task premised
+              on a Reflection-narrow discriminator: id=346 "Depth of Field" value=2 (default
+              1.3999999) supposedly firing only on Reflection while Color_Planes stays default.
+              **Census refutes both halves.** 65/65 slugs across the corpus (all Movements +
+              360°/Blurs/Lights/Objects/Stylized/Wipes/Replicator-Clones/Dissolves) carry the
+              SAME `id=346 flags=8589934608 default=1.3999999999999999 value=2` on Transition
+              A/B, byte-identical foldFlags=131076 and enclosing factoryID=6 (or 3 for Fall).
+              Color_Planes specifically DOES carry value=2 — task's claim to the contrary is
+              false. **No id=346-based gate can be Reflection-narrow** (would either fire on
+              all 65 or on nothing → no-hardcode red). Empirical check: cross-slug gradient
+              magnitude vs GT shows GT slightly softer than engine on every fold-rig slug
+              (Push -0.21, Fall -0.48, Flip -0.29, Reflection -0.16 luma-gradient units) —
+              Reflection is the LEAST blurred, so a DoF fix would help Fall/Flip ~3× more,
+              and Reflection's 14.82 dB residual is NOT dominated by blur anyway (peak per-
+              frame diffs at x=500 mid-frame are structural ±120 luma, whole-panel-off, not
+              soft-edge). Reflection's real remaining subsystem — the planar-mirror floor
+              reflection — is already decoded and inert-landed by T-qa7694deb (0700c0a) and
+              its compositor wiring lives on T-q5c86a129 (LOCKED files). No code change
+              here: pure census-refutes + queue-status flip. Gate untouched (Reflection
+              14.82 unchanged, 0 regressions).
 - 2026-07-16crgenmask  📝 CENTER_REVEAL ANIMATED-MASK-VERTEX DECODE (WIP T-q11397f86, doc-only
               in timemap.ts, gate 0/0 — Center_Reveal 15.24 UNCHANGED, byte-identical render).
               DECODE (Center Reveal.motr, verified via census + curve-walk + evaluator probe):
