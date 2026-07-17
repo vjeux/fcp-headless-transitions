@@ -35,8 +35,95 @@ def make_mirror(orig_motr_path, mutated_text, workdir):
 def render_oracle(motr_path, tsec, out):
     ozengine.render_frame(ozengine.load_doc(motr_path), IMG_A, IMG_B, tsec, out)
 
+
+# --- Persistent TS-engine render worker -------------------------------------------------
+# A one-shot `tsx test/_fct_render_motr.ts` per render pays ~2s of node/tsx cold-start; a
+# full delta sweep is ~640 renders/primitive, so that startup dominated (~14 min/primitive).
+# A persistent stdin-loop worker boots node + the A/B images ONCE and serves many renders,
+# cutting engine cost ~10x. Crash-isolated: a malformed .motr replies "ERR" (worker
+# survives); a hard crash (closed pipe / no reply) triggers a transparent respawn + retry,
+# so a bad doc never poisons subsequent renders. Same pattern as fct/minimize.py's worker.
+class EngineWorker:
+    def __init__(self):
+        self.proc = None
+
+    def _spawn(self):
+        self.proc = subprocess.Popen(
+            ['node_modules/.bin/tsx', 'test/_fct_render_motr_worker.ts'], cwd='engine',
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            env=dict(os.environ), text=True, bufsize=1)
+        if (self.proc.stdout.readline() or '').strip() != 'READY':
+            self._kill()
+
+    def _kill(self):
+        if self.proc is not None:
+            try: self.proc.kill()
+            except Exception: pass
+            try: self.proc.wait(timeout=5)
+            except Exception: pass
+            self.proc = None
+
+    def render(self, motr_path, tsec, out):
+        if os.path.exists(out):
+            try: os.remove(out)
+            except OSError: pass
+        for _attempt in range(2):
+            if self.proc is None or self.proc.poll() is not None:
+                self._spawn()
+            if self.proc is None:
+                raise RuntimeError('engine worker failed to boot')
+            req = '\t'.join([os.path.abspath(motr_path), str(tsec), os.path.abspath(out)]) + '\n'
+            try:
+                self.proc.stdin.write(req); self.proc.stdin.flush()
+                reply = self.proc.stdout.readline()
+            except (BrokenPipeError, ValueError, OSError):
+                reply = ''
+            if reply.startswith('OK'):
+                if os.path.exists(out):
+                    return
+                raise RuntimeError('engine worker said OK but wrote no file')
+            if reply.startswith('ERR'):
+                raise RuntimeError('engine render error: %s' % reply[3:].strip()[:400])
+            # No valid reply -> worker crashed on this request. Reap + respawn + retry once.
+            self._kill()
+        raise RuntimeError('engine worker crashed rendering %s' % motr_path)
+
+    def close(self):
+        if self.proc is not None and self.proc.poll() is None:
+            try:
+                self.proc.stdin.write('QUIT\n'); self.proc.stdin.flush()
+                self.proc.wait(timeout=5)
+            except Exception:
+                self._kill()
+        self.proc = None
+
+
+# Module-level shared worker so callers (sweep, selftest) reuse ONE booted engine.
+_worker = None
+def _get_worker():
+    global _worker
+    if _worker is None:
+        _worker = EngineWorker()
+    return _worker
+
 def render_engine(motr_path, tsec, out):
+    """Render one engine frame via the shared persistent worker (fast path). Falls back to
+    a one-shot subprocess only if the worker cannot boot."""
+    try:
+        _get_worker().render(motr_path, tsec, out)
+        return
+    except RuntimeError as e:
+        if 'failed to boot' not in str(e):
+            raise  # a real render error must propagate, not be masked by the fallback
+    render_engine_oneshot(motr_path, tsec, out)
+
+def render_engine_oneshot(motr_path, tsec, out):
     env = dict(os.environ, FCT_RENDER_MOTR=os.path.abspath(motr_path),
                FCT_RENDER_T=str(tsec), FCT_RENDER_OUT=os.path.abspath(out))
-    subprocess.run(['node_modules/.bin/tsx', 'test/_fct_render_motr.ts'], cwd='engine',
-                   env=env, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    r = subprocess.run(['node_modules/.bin/tsx', 'test/_fct_render_motr.ts'], cwd='engine',
+                       env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if r.returncode != 0 or not os.path.exists(out):
+        # Surface the engine error (was swallowed to DEVNULL — R5). A silent engine crash
+        # otherwise looked like a divergence with no cause.
+        raise RuntimeError('engine render failed (rc=%d): %s' % (
+            r.returncode, (r.stderr or b'').decode('utf-8', 'replace')[-500:]))

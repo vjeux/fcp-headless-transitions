@@ -1,11 +1,15 @@
 {
-  "version": 1,
+  "version": 2,
+  "metric": "delta_ddb",
   "pass_db": 40.0,
-  "sweep_samples": 24,
-  "note": "PASS_DB=40 headless-vs-TS PSNR per fuzzed param sample. status: UNTESTED|DIVERGED|VERIFIED. Priority = host-count desc (leverage). Driven from disk by driver.py; survives compaction.",
+  "note": "DELTA-RESPONSE per-primitive gate. worst_ddb = min over (host,continuous-param,theta-extreme,time) of PSNR(oracle(theta)-oracle(theta0), engine(theta)-engine(theta0)). A faithful engine scores ~99 dB (identity/determinism noise floor = 99 dB, measured). pass_db=40 flags only REAL parameter-response divergence, never quantization. status: UNTESTED|VERIFIED|DIVERGED|NO_SIGNAL|HARNESS_BROKEN. Priority=host-count desc (leverage + structural coverage: >1 host exposes scene-signature overfitting). Driven from disk by driver.py; survives compaction. Every sweep runs selftest T1..T5 first.",
   "primitives": [
     {
       "priority": 0,
+      "id": "PAEColorize",
+      "plugin_name": "PAEColorize",
+      "node_type": "filter",
+      "host_count": 7,
       "host_slugs": [
         "Objects__Curtains",
         "Objects__Veil",
@@ -15,30 +19,14 @@
         "Stylized__Slide",
         "Stylized__Up-Over"
       ],
-      "host_count": 7,
-      "params": {
-        "Intensity": [
-          0,
-          1
-        ],
-        "RemapBlack": [
-          0,
-          1
-        ],
-        "RemapWhite": [
-          0,
-          1
-        ]
-      },
-      "status": "PENDING",
-      "last_sweep": null,
-      "worst_db": null,
-      "todo": null,
-      "id": "PAEColorize",
-      "engine_module": "engine/src/compositor/filters/colorize"
+      "status": "UNTESTED"
     },
     {
       "priority": 1,
+      "id": "PAELevels",
+      "plugin_name": "PAELevels",
+      "node_type": "filter",
+      "host_count": 5,
       "host_slugs": [
         "Objects__Leaves",
         "Stylized__Diagonal",
@@ -46,438 +34,216 @@
         "Stylized__Up-Over",
         "Wipes__Diagonal"
       ],
-      "host_count": 5,
-      "params": {
-        "Brightness": [
-          0,
-          2
-        ],
-        "Amount": [
-          0,
-          2
-        ],
-        "Mix": [
-          0,
-          1
-        ]
-      },
-      "status": "PENDING",
-      "last_sweep": null,
-      "worst_db": null,
-      "todo": null,
-      "id": "PAELevels",
-      "engine_module": "engine/src/compositor/filters/levels"
+      "status": "UNTESTED"
     },
     {
       "priority": 2,
+      "id": "PAEGaussianBlur",
+      "plugin_name": "PAEGaussianBlur",
+      "node_type": "filter",
+      "host_count": 4,
       "host_slugs": [
         "Blurs__Gaussian",
         "Lights__Bloom",
         "Stylized__Center_Reveal",
         "Stylized__Close_and_Open"
       ],
-      "host_count": 4,
-      "params": {
-        "Amount": [
-          0,
-          200
-        ],
-        "Mix": [
-          0,
-          1
-        ]
-      },
-      "status": "PENDING",
-      "last_sweep": null,
-      "worst_db": null,
-      "todo": null,
-      "id": "PAEGaussianBlur",
-      "engine_module": "engine/src/compositor/filters/gaussian-blur"
+      "status": "UNTESTED"
     },
     {
       "priority": 3,
+      "id": "PAEHSVAdjust",
+      "plugin_name": "PAEHSVAdjust",
+      "node_type": "filter",
+      "host_count": 4,
       "host_slugs": [
         "Objects__Leaves",
         "Stylized__Center",
         "Stylized__Light_Sweep",
         "Stylized__Lower"
       ],
-      "host_count": 4,
-      "params": {
-        "Hue": [
-          -180,
-          180
-        ],
-        "Saturation": [
-          0,
-          2
-        ],
-        "Value": [
-          0,
-          2
-        ]
-      },
-      "status": "PENDING",
-      "last_sweep": null,
-      "worst_db": null,
-      "todo": null,
-      "id": "PAEHSVAdjust",
-      "engine_module": "engine/src/compositor/filters/hue-saturation"
+      "status": "UNTESTED"
     },
     {
       "priority": 4,
+      "id": "PAEColorSolid",
+      "plugin_name": "PAEColorSolid",
+      "node_type": "scenenode",
+      "host_count": 3,
       "host_slugs": [
         "Movements__Flip",
         "Movements__Multi-flip",
         "Stylized__Light_Sweep"
       ],
-      "host_count": 3,
-      "params": {},
-      "status": "PENDING",
-      "last_sweep": null,
-      "worst_db": null,
-      "todo": null,
-      "id": "PAEColorSolid",
-      "engine_module": "engine/src/compositor/filters/fill"
+      "status": "UNTESTED"
     },
     {
       "priority": 5,
+      "id": "PAEDirectionalBlur",
+      "plugin_name": "PAEDirectionalBlur",
+      "node_type": "filter",
+      "host_count": 2,
       "host_slugs": [
         "Blurs__Directional",
         "Stylized__Light_Sweep"
       ],
-      "host_count": 2,
-      "params": {
-        "Amount": [
-          0,
-          200
-        ],
-        "Angle": [
-          0,
-          360
-        ],
-        "Mix": [
-          0,
-          1
-        ]
-      },
-      "status": "PENDING",
-      "last_sweep": null,
-      "worst_db": null,
-      "todo": null,
-      "id": "PAEDirectionalBlur",
-      "engine_module": "engine/src/compositor/filters/directional-blur"
+      "status": "UNTESTED"
     },
     {
       "priority": 6,
+      "id": "PAEFlop",
+      "plugin_name": "PAEFlop",
+      "node_type": "filter",
+      "host_count": 2,
       "host_slugs": [
         "Movements__Flip",
         "Replicator-Clones__Concentric"
       ],
-      "host_count": 2,
-      "params": {},
-      "status": "PENDING",
-      "last_sweep": null,
-      "worst_db": null,
-      "todo": null,
-      "id": "PAEFlop",
-      "engine_module": "engine/src/compositor/filters/flop"
+      "status": "UNTESTED"
     },
     {
       "priority": 7,
+      "id": "PAERadialBlur",
+      "plugin_name": "PAERadialBlur",
+      "node_type": "filter",
+      "host_count": 2,
       "host_slugs": [
         "Blurs__Radial",
         "Replicator-Clones__Combo_Spin"
       ],
-      "host_count": 2,
-      "params": {
-        "Amount": [
-          0,
-          100
-        ],
-        "Mix": [
-          0,
-          1
-        ]
-      },
-      "status": "PENDING",
-      "last_sweep": null,
-      "worst_db": null,
-      "todo": null,
-      "id": "PAERadialBlur",
-      "engine_module": "engine/src/compositor/filters/directional-blur"
+      "status": "UNTESTED"
     },
     {
       "priority": 8,
+      "id": "PAEBadTV",
+      "plugin_name": "PAEBadTV",
+      "node_type": "filter",
+      "host_count": 1,
       "host_slugs": [
         "Lights__Static"
       ],
-      "host_count": 1,
-      "params": {
-        "Amount": [
-          0,
-          100
-        ]
-      },
-      "status": "PENDING",
-      "last_sweep": null,
-      "worst_db": null,
-      "todo": null,
-      "id": "PAEBadTV",
-      "engine_module": "engine/src/compositor/filters/badtv"
+      "status": "UNTESTED"
     },
     {
       "priority": 9,
+      "id": "PAEBlackHole",
+      "plugin_name": "PAEBlackHole",
+      "node_type": "filter",
+      "host_count": 1,
       "host_slugs": [
         "Movements__Black_Hole"
       ],
-      "host_count": 1,
-      "params": {
-        "Amount": [
-          0,
-          100
-        ]
-      },
-      "status": "PENDING",
-      "last_sweep": null,
-      "worst_db": null,
-      "todo": null,
-      "id": "PAEBlackHole",
-      "engine_module": "engine/src/compositor/filters/blackhole"
+      "status": "UNTESTED"
     },
     {
       "priority": 10,
+      "id": "PAEBloom",
+      "plugin_name": "PAEBloom",
+      "node_type": "filter",
+      "host_count": 1,
       "host_slugs": [
         "Lights__Bloom"
       ],
-      "host_count": 1,
-      "params": {
-        "Amount": [
-          0,
-          64
-        ],
-        "Brightness": [
-          0,
-          100
-        ],
-        "Threshold": [
-          0,
-          100
-        ]
-      },
-      "status": "PENDING",
-      "last_sweep": null,
-      "worst_db": null,
-      "todo": null,
-      "id": "PAEBloom",
-      "engine_module": "engine/src/compositor/filters/glow"
+      "status": "UNTESTED"
     },
     {
       "priority": 11,
+      "id": "PAEBrightness",
+      "plugin_name": "PAEBrightness",
+      "node_type": "filter",
+      "host_count": 1,
       "host_slugs": [
         "Objects__Curtains"
       ],
-      "host_count": 1,
-      "params": {
-        "Brightness": [
-          0,
-          2
-        ]
-      },
-      "status": "PENDING",
-      "last_sweep": null,
-      "worst_db": null,
-      "todo": null,
-      "id": "PAEBrightness",
-      "engine_module": "engine/src/compositor/filters/levels"
+      "status": "UNTESTED"
     },
     {
       "priority": 12,
+      "id": "PAEChannelMixer",
+      "plugin_name": "PAEChannelMixer",
+      "node_type": "filter",
+      "host_count": 1,
       "host_slugs": [
         "Objects__Curtains"
       ],
-      "host_count": 1,
-      "params": {
-        "RedRed": [
-          -2,
-          2
-        ],
-        "GreenGreen": [
-          -2,
-          2
-        ],
-        "BlueBlue": [
-          -2,
-          2
-        ]
-      },
-      "status": "PENDING",
-      "last_sweep": null,
-      "worst_db": null,
-      "todo": null,
-      "id": "PAEChannelMixer",
-      "engine_module": "engine/src/compositor/filters/channel-mixer"
+      "status": "UNTESTED"
     },
     {
       "priority": 13,
+      "id": "PAECloudsV",
+      "plugin_name": "PAECloudsV2",
+      "node_type": "scenenode",
+      "host_count": 1,
       "host_slugs": [
         "Stylized__Close_and_Open"
       ],
-      "host_count": 1,
-      "params": {
-        "Amount": [
-          0,
-          100
-        ]
-      },
-      "status": "PENDING",
-      "last_sweep": null,
-      "worst_db": null,
-      "todo": null,
-      "id": "PAECloudsV",
-      "engine_module": "engine/src/compositor/filters/noise"
+      "status": "UNTESTED"
     },
     {
       "priority": 14,
+      "id": "PAEEarthquake",
+      "plugin_name": "PAEEarthquake",
+      "node_type": "filter",
+      "host_count": 1,
       "host_slugs": [
         "Movements__Earthquake"
       ],
-      "host_count": 1,
-      "params": {
-        "Amount": [
-          0,
-          100
-        ]
-      },
-      "status": "PENDING",
-      "last_sweep": null,
-      "worst_db": null,
-      "todo": null,
-      "id": "PAEEarthquake",
-      "engine_module": "engine/src/compositor/filters/earthquake"
+      "status": "UNTESTED"
     },
     {
       "priority": 15,
+      "id": "PAEGlow",
+      "plugin_name": "PAEGlow",
+      "node_type": "filter",
+      "host_count": 1,
       "host_slugs": [
         "Lights__Bloom"
       ],
-      "host_count": 1,
-      "params": {
-        "Radius": [
-          0,
-          64
-        ],
-        "Threshold": [
-          0,
-          100
-        ],
-        "Softness": [
-          0,
-          1
-        ],
-        "Opacity": [
-          0,
-          1
-        ],
-        "Intensity": [
-          0,
-          4
-        ],
-        "Amount": [
-          0,
-          64
-        ],
-        "Brightness": [
-          0,
-          100
-        ]
-      },
-      "status": "PENDING",
-      "last_sweep": null,
-      "worst_db": null,
-      "todo": null,
-      "id": "PAEGlow",
-      "engine_module": "engine/src/compositor/filters/glow"
+      "status": "UNTESTED"
     },
     {
       "priority": 16,
+      "id": "PAENoise",
+      "plugin_name": "PAENoise",
+      "node_type": "scenenode",
+      "host_count": 1,
       "host_slugs": [
         "Lights__Static"
       ],
-      "host_count": 1,
-      "params": {
-        "Amount": [
-          0,
-          100
-        ]
-      },
-      "status": "PENDING",
-      "last_sweep": null,
-      "worst_db": null,
-      "todo": null,
-      "id": "PAENoise",
-      "engine_module": "engine/src/compositor/filters/noise"
+      "status": "UNTESTED"
     },
     {
       "priority": 17,
+      "id": "PAETint",
+      "plugin_name": "PAETint",
+      "node_type": "filter",
+      "host_count": 1,
       "host_slugs": [
         "Objects__Leaves"
       ],
-      "host_count": 1,
-      "params": {
-        "Amount": [
-          0,
-          1
-        ]
-      },
-      "status": "PENDING",
-      "last_sweep": null,
-      "worst_db": null,
-      "todo": null,
-      "id": "PAETint",
-      "engine_module": "engine/src/compositor/filters/hue-saturation"
+      "status": "UNTESTED"
     },
     {
       "priority": 18,
+      "id": "PAEUnderwater",
+      "plugin_name": "PAEUnderwater",
+      "node_type": "filter",
+      "host_count": 1,
       "host_slugs": [
         "Movements__Flashback"
       ],
-      "host_count": 1,
-      "params": {
-        "Amount": [
-          0,
-          100
-        ]
-      },
-      "status": "PENDING",
-      "last_sweep": null,
-      "worst_db": null,
-      "todo": null,
-      "id": "PAEUnderwater",
-      "engine_module": "engine/src/compositor/filters/underwater"
+      "status": "UNTESTED"
     },
     {
       "priority": 19,
+      "id": "PAEZoomBlur",
+      "plugin_name": "PAEZoomBlur",
+      "node_type": "filter",
+      "host_count": 1,
       "host_slugs": [
         "Blurs__Zoom"
       ],
-      "host_count": 1,
-      "params": {
-        "Amount": [
-          0,
-          100
-        ],
-        "Mix": [
-          0,
-          1
-        ]
-      },
-      "status": "PENDING",
-      "last_sweep": null,
-      "worst_db": null,
-      "todo": null,
-      "id": "PAEZoomBlur",
-      "engine_module": "engine/src/compositor/filters/directional-blur"
+      "status": "UNTESTED"
     }
   ]
 }

@@ -18,15 +18,26 @@ highest-priority primitive with status != VERIFIED; (3) fuzz-sweeps it (oracle v
 import os, sys, json, time, pathlib
 REPO = pathlib.Path(__file__).resolve().parents[2]
 
-# Headless FCP needs DYLD_FRAMEWORK_PATH set AT LAUNCH (SIP strips it from children,
-# so we exec, never spawn) + the venv python (numpy/PIL/objc). Re-exec once, exactly
-# like fct/cli.py. This makes the driver runnable standalone AND from a scheduled clock
-# without a wrapper — critical for compaction-proof unattended operation.
+# Headless FCP needs DYLD_FRAMEWORK_PATH honored by dyld AND the venv python
+# (numpy/PIL/objc). SUBTLE dyld trap (root-caused 2026-07-17): when bash launches the
+# adhoc-signed Homebrew python directly, dyld STRIPS DYLD_* from the loader BEFORE python
+# starts — even though `os.environ["DYLD_FRAMEWORK_PATH"]` still SHOWS the value (bash
+# passed it in the env array; dyld just ignored it for THIS process's library search).
+# The value is only honored on a launch that comes from an `os.execv` of ANOTHER running
+# python. So we MUST re-exec exactly once, from python, with DYLD set — and we must NOT
+# gate that on realpath(sys.executable) (venv python and base Homebrew python share the
+# SAME realpath, so that guard never fires) nor on DYLD already being in environ (it's in
+# environ but NOT honored). The ONLY correct gate is a private sentinel: bootstrap once,
+# unconditionally, into the venv python with DYLD set. This makes the driver work from any
+# launcher (bash, base python, venv python, a scheduled clock) with no wrapper.
 _FW = "/Applications/Final Cut Pro.app/Contents/Frameworks"
 _VENV_PY = str(REPO / "venv" / "bin" / "python3")
-if (os.environ.get("DYLD_FRAMEWORK_PATH") != _FW or os.path.realpath(sys.executable) != os.path.realpath(_VENV_PY)) \
-        and not os.environ.get("_FCT_FAITHFUL_REEXEC") and os.path.exists(_VENV_PY):
+if not os.environ.get("_FCT_FAITHFUL_REEXEC"):
+    if not os.path.exists(_VENV_PY):
+        sys.stderr.write("FATAL: venv python missing at %s — cannot boot FCP headless engine\n" % _VENV_PY)
+        sys.exit(3)
     os.environ["DYLD_FRAMEWORK_PATH"] = _FW
+    os.environ["FXPLUG_USE_PLUGINKIT"] = "1"
     os.environ["_FCT_FAITHFUL_REEXEC"] = "1"
     os.environ["PYTHONPATH"] = str(REPO) + os.pathsep + os.environ.get("PYTHONPATH", "")
     os.chdir(str(REPO))
@@ -47,54 +58,80 @@ def _stt(st, pid): return st['primitives'].get(pid, {}).get('status', 'UNTESTED'
 
 def status():
     cat = _catalog(); st = _state(); prims = cat['primitives']
-    v = [p['id'] for p in prims if _stt(st, p['id']) == 'VERIFIED']
-    d = [p['id'] for p in prims if _stt(st, p['id']) == 'DIVERGED']
-    u = [p['id'] for p in prims if _stt(st, p['id']) not in ('VERIFIED', 'DIVERGED')]
-    print("FAITHFUL — %d primitives | VERIFIED %d  DIVERGED %d  UNTESTED %d | pass_db=%.0f samples=%d"
-          % (len(prims), len(v), len(d), len(u), cat['pass_db'], cat['sweep_samples']))
+    def cnt(s): return len([p for p in prims if _stt(st, p['id']) == s])
+    u = [p['id'] for p in prims if _stt(st, p['id']) not in ('VERIFIED', 'DIVERGED', 'ERROR')]
+    print("FAITHFUL — %d primitives | VERIFIED %d  DIVERGED %d  ERROR %d  UNTESTED %d | pass_db=%.0f"
+          % (len(prims), cnt('VERIFIED'), cnt('DIVERGED'), cnt('ERROR'), len(u), cat['pass_db']))
     for p in prims:
         s = st['primitives'].get(p['id'], {})
-        print("  #%2d %-20s %-9s hosts=%d worst_db=%s" % (p['priority'], p['id'], _stt(st, p['id']), p['host_count'], s.get('worst_db', '-')))
+        print("  #%2d %-20s %-9s hosts=%d worst_ddb=%s n=%s" % (
+            p['priority'], p['id'], _stt(st, p['id']), p['host_count'],
+            s.get('worst_ddb', '-'), s.get('n_scored', '-')))
     nxt = next((p['id'] for p in prims if _stt(st, p['id']) != 'VERIFIED'), None)
     print("NEXT:", nxt or "ALL VERIFIED")
     return nxt
 
+def _selftest_ok():
+    """Run the harness self-test (T1..T5). MANDATORY gate: a broken harness must NEVER
+    record a primitive verdict or file a todo. Returns True only if HARNESS TRUSTWORTHY."""
+    from fct.faithful import selftest
+    try:
+        return selftest.main(pass_db=_catalog()['pass_db']) == 0
+    except Exception as ex:
+        print("SELFTEST CRASHED:", str(ex)[:300]); return False
+
 def _file_todo(prim, rep, cat):
     TODO.mkdir(parents=True, exist_ok=True)
-    worst = [r for r in rep.get('results', []) if 'db' in r][:5]
-    mod = next((p['engine_module'] for p in cat['primitives'] if p['id'] == prim), '?')
+    worst = [r for r in rep.get('results', []) if 'ddb' in r][:6]
     tid = 'T-faithful-%s' % prim.lower()
     body = {'id': tid,
-      'title': 'Faithful: %s diverges from headless FCP across fuzzed params (worst %.1f dB)' % (prim, rep['worst_db']),
+      'title': 'Faithful: %s param-response diverges from headless FCP (worst ddb %.1f dB)' % (prim, rep['worst_ddb']),
       'project': 'fct',
       'goal': ('FAITHFUL-REIMPL (ROADMAP Rule 13): the TS engine impl of %s must match REAL headless FCP '
-               'across its ENTIRE parameter space, not just values the 65 fixed transitions use. The fuzz '
-               'oracle (fct/faithful) rendered random-param synthetic .motr (host %s) through headless FCP '
-               'vs the TS engine; worst PSNR=%.2f dB < pass %.0f. Fix %s so the sweep passes. NO scene-signature '
-               'dispatch, NO env flags (Rule 12/13): behavior = f(filter params) only. Re-verify: '
-               '`python3 -m fct.faithful.driver sweep %s` must reach >= pass_db across all samples. '
-               'Worst diverging samples (params->db): %s'
-               % (prim, rep['host'], rep['worst_db'], cat['pass_db'], mod, prim, json.dumps(worst))),
+               'across its ENTIRE parameter space, not just values the 65 fixed transitions use. The DELTA '
+               'oracle (fct/faithful) set each continuous param of %s to range extremes across hosts %s and '
+               'compared how the oracle vs the engine RESPOND: ddb=PSNR(oracle(theta)-oracle(theta0), '
+               'engine(theta)-engine(theta0)). worst ddb=%.2f < pass %.0f means the engine responds WRONGLY '
+               'to a real parameter change (a faithful engine scores ~99 dB; the identity/noise floor is 99). '
+               'Fix the %s implementation so its parameter response matches FCP. NO scene-signature dispatch, '
+               'NO env flags (Rule 12/13): behavior = f(filter params) only. Re-verify: '
+               '`python3 -m fct.faithful.driver sweep %s` must reach >= pass_db worst-ddb across all hosts. '
+               'Worst diverging (host/param/theta -> ddb): %s'
+               % (prim, prim, rep['hosts'], rep['worst_ddb'], cat['pass_db'], prim, prim, json.dumps(worst))),
       'slugs': [], 'after': None, 'status': 'open', 'created_by': 'faithful-driver',
       'created_at': time.strftime('%Y-%m-%dT%H:%M:%SZ'),
       'notes': 'Auto-filed by fct/faithful/driver.py. Evidence: fct/faithful/reports/%s.json' % prim}
     json.dump(body, open(TODO / (tid + '.json'), 'w'), indent=2)
     return tid
 
-def sweep_one(prim_id):
+def sweep_one(prim_id, skip_selftest=False):
+    cat = _catalog()
+    # MANDATORY selftest gate (R1). Never record a verdict from a broken harness.
+    if not skip_selftest and not _selftest_ok():
+        print("%s -> ABORT: harness self-test FAILED (no verdict recorded)" % prim_id)
+        st = _state()
+        st['primitives'][prim_id] = {'status': 'HARNESS_BROKEN',
+                                     'swept': time.strftime('%Y-%m-%dT%H:%M:%SZ')}
+        _save(st); return {'status': 'HARNESS_BROKEN'}
     from fct.faithful import fuzz
-    cat = _catalog(); rep = fuzz.sweep(prim_id, cat)
+    rep = fuzz.sweep(prim_id, cat)
     REPORTS.mkdir(exist_ok=True)
     json.dump(rep, open(REPORTS / ('%s.json' % prim_id), 'w'), indent=2)
     st = _state()
-    e = {'worst_db': rep.get('worst_db'), 'host': rep.get('host'), 'swept': time.strftime('%Y-%m-%dT%H:%M:%SZ'), 'error': rep.get('error')}
-    if rep.get('error'): e['status'] = 'ERROR'
-    elif rep['worst_db'] >= cat['pass_db']: e['status'] = 'VERIFIED'
-    else: e['status'] = 'DIVERGED'; e['todo'] = _file_todo(prim_id, rep, cat)
+    e = {'worst_ddb': rep.get('worst_ddb'), 'n_scored': rep.get('n_scored'),
+         'hosts': rep.get('hosts'), 'swept': time.strftime('%Y-%m-%dT%H:%M:%SZ')}
+    wd = rep.get('worst_ddb')
+    if rep.get('n_scored', 0) == 0 or wd is None:
+        # No host produced an oracle signal for any continuous param — cannot verify.
+        e['status'] = 'NO_SIGNAL'
+    elif wd >= cat['pass_db']:
+        e['status'] = 'VERIFIED'
+    else:
+        e['status'] = 'DIVERGED'; e['todo'] = _file_todo(prim_id, rep, cat)
     st['primitives'][prim_id] = e
-    st['history'].append({'prim': prim_id, 't': e['swept'], 'status': e['status'], 'worst_db': e.get('worst_db')})
+    st['history'].append({'prim': prim_id, 't': e['swept'], 'status': e['status'], 'worst_ddb': wd})
     _save(st)
-    print("%s -> %s (worst_db=%s)" % (prim_id, e['status'], e.get('worst_db')))
+    print("%s -> %s (worst_ddb=%s, n_scored=%s)" % (prim_id, e['status'], wd, rep.get('n_scored')))
     return e
 
 def step():
@@ -106,8 +143,13 @@ def step():
 def reset(pid):
     st = _state(); st['primitives'].pop(pid, None); _save(st); print("reset", pid)
 
+def selftest_cmd():
+    ok = _selftest_ok()
+    print("HARNESS TRUSTWORTHY" if ok else "HARNESS INVALID")
+    sys.exit(0 if ok else 1)
+
 if __name__ == '__main__':
     cmd = sys.argv[1] if len(sys.argv) > 1 else 'status'
-    {'status': lambda: status(), 'step': lambda: step(),
+    {'status': lambda: status(), 'step': lambda: step(), 'selftest': lambda: selftest_cmd(),
      'sweep': lambda: sweep_one(sys.argv[2]), 'reset': lambda: reset(sys.argv[2])}.get(
-        cmd, lambda: print("usage: driver.py [status|step|sweep <PRIM>|reset <PRIM>]"))()
+        cmd, lambda: print("usage: driver.py [status|step|sweep <PRIM>|reset <PRIM>|selftest]"))()
