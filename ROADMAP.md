@@ -129,6 +129,31 @@ pick it up, and each cleans up its own worktree once its work has landed. See
     render-harness plumbing (`FCT_FRAMES_DIR`/`FCT_LOCK`/`FCT_ISOLATION_ID`/`FCT_JOBS`).
     Everything else is a bug to be removed. Tracked cleanup task: **T-qdeflag0001**.
 
+13. **FAITHFUL, NOT FITTED — the oracle is per-primitive, not per-slug (added 2026-07-17,
+    vjeux mandate).** The 65 fixed GUI-GT transitions are a FINITE test set; optimizing per-slug
+    dB against them structurally rewards overfitting — scene-signature discriminators
+    (`isAnimatedZeroPeakZeroCurve`, `hasNestedMaskedCloneCameraStack`, the whole
+    `capabilities.ts` genre) that separate "the 1-2 slugs I'm assigned" from the rest and
+    call themselves "structural." The REAL Motion engine has none of these; it runs ~20
+    generic filter plugins driven by their published parameters. Therefore:
+    (a) **Behavior may depend ONLY on node type + filter type + parameter values.** NO
+        predicate that gates behavior on a combination of unrelated scene attributes (a
+        scene-signature). If you're writing `has*Family` / `is*Curve` / `matches*Stack`, stop.
+    (b) **The truth is the per-primitive fuzz oracle** (`fct/faithful/`): synthetic
+        single-filter .motr with RANDOM params rendered through REAL headless FCP vs the TS
+        engine. A primitive is VERIFIED only when it matches the oracle across its whole
+        parameter space (>= pass_db), not when 1-2 fixed slugs go green.
+    (c) **"Done" is every primitive VERIFIED**, not "65 slugs green." The 65 GUI-GT
+        transitions demote to acceptance tests. headless FCP (not the GUI GT) is the
+        mechanism oracle; a residual engine-vs-GUI gap that is byte-identical to headless is
+        a capture/color-space artifact, NOT an engine bug (do not fit to it).
+    (d) The program is driven from disk (`fct/faithful/driver.py`, state in `state.json`) so
+        it survives context compaction: `driver.py status` shows where things stand,
+        `driver.py step` advances one primitive, divergences auto-file `T-faithful-*` todos.
+    (e) The old `MIN_FIRES=2` no-hardcode gate is necessary but NOT sufficient (2 sibling
+        slugs from one preset is still overfitting). New detectors are discouraged entirely;
+        prefer a parameterized primitive that needs no scene dispatch.
+
 ## Regression follow-ups — slugs knocked down by a correct fix, to investigate next
 
 Log every slug a shipped-but-net-positive fix regressed here (Rule 11), newest first, so a
