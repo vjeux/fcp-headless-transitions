@@ -761,6 +761,27 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16pw2  🔎 PINWHEEL premise REFUTED by measurement (T-qfcdfc30f, evaluator-scope). Movements__
+              Pinwheel stays 13.8 dB — no evaluator change (gate unchanged, 0 regressions). DECODE:
+              the brief's two levers are BOTH inert in the evaluator. (a) Fold SENSE has ZERO render
+              effect — negating the disabled-media drivers' rotX or rotY yields BYTE-IDENTICAL frames:
+              a center-anchored square tile folding ±π/2 has a SYMMETRIC silhouette, so the mask matte
+              (the only thing the fold feeds) is unchanged by sense; the .motr has NO negative/signed
+              rotations — every tile rotates 0→+π on X or Y. (b) The A→B clone flip already fires at
+              ~π/2 edge-on (Clone A 10008 opacity 1→0 between t=0.43–0.57 for the [0,0.97] X-tile fold
+              — correct). The REAL gap is a COMPOSITOR mask-rasterization coverage bug in engine/src/
+              compositor/masks.ts (OUT of the evaluator-only scope): engine renders a ~33px BLACK
+              BORDER on all 4 edges at EVERY frame incl f0 where GT is 0% black (eng f0 black=6.8%,
+              GT=0.0%; center scanline dark ONLY at x[0–32]+[1887–1919]). Yet the 17 tile
+              worldTransforms are CORRECT — projected dropZone quads (576² × scale 1.35) union to 100%
+              frame coverage at t=0 (0.0000 uncovered), and square_fix.png is a DISC (alpha>128 max
+              radius=288 inscribed in 576, rounded transparent corners) whose scaled discs (r=389,
+              centers ~290px) ALSO cover 100%. So masks.ts under-covers the border/seams despite
+              geometrically-full coverage. Per-frame sim (fill engine-black with GT) shows +1.6…+5.3
+              dB/frame (f16 +5.3), ~+3 dB mean → the ~17 dB target. Filed T-qee5f1f34 (masks.ts
+              coverage fix) as the correct lever. X-tiles fold [0,0.97s] (clip offset=1.602,
+              curveTime=t−1.602); Y-tiles fold [0.13,1.70s] (offset=0). Retime scene→frame 30fps (1×).
+
 - 2026-07-16eqdust  ✅ EARTHQUAKE IMPACT-DUST BAND (T-q638cb6ad DONE, gate 0 regressions, +3 improved) —
               **Movements__Earthquake 21.79 → 23.34 (+1.55 dB; batch gate read 23.62)**; f14 11.6→24.66,
               f15 12.44→20.43, f16 13.7→19.46, f17 15.54→19.91, f18 17.89→20.85. Resumed the 23d11eb
