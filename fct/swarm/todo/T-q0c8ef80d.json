@@ -1,0 +1,14 @@
+{
+  "id": "T-q0c8ef80d",
+  "title": "360\u00b0 Divide/Wipe/Push panorama REORIENT (yaw+pitch) during transition",
+  "project": "fct",
+  "goal": "360\u00b0_Divide strip GEOMETRY is now correct (divide360slices, +1.58 dB -> 16.05). Remaining gap: the equirect panorama CONTENT inside/outside the A-strips does NOT match GT at home. Best-global-yaw search on GT mid-frames (f2..f20) shows B wants roll~-240..-340px and A wants roll~-40..-80px, and even at best-roll the residual is ~28-38 (>> JPEG noise ~5) => a pure horizontal roll cannot explain it: both panoramas undergo a 3D REORIENT (yaw+pitch, likely the '360\u00b0 Reorient'/'360\u00b0 Reorient Start' filters seen in census) that peaks mid-transition and settles home at f0/f23. f01 already differs from A(home) by 42.5 (reorient starts immediately). Build an equirect reorient sampler (yaw+pitch rotation of the lat/long sphere) driven by the Reorient filter curves; apply to A and B before the strip mask. This is shared with 360_Push/Wipe which have the same ~14 dB content-limited ceiling. Cite the decoded Reorient curve from the .motr.",
+  "slugs": [
+    "360\u00b0__360\u00b0_Divide"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qdivide3601",
+  "created_at": "2026-07-17T00:05:25+00:00",
+  "notes": ""
+}

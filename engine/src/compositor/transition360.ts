@@ -40,7 +40,7 @@
  */
 import type { MotrScene, Layer, Curve, RationalTime } from '../types.js';
 
-export type Reveal360 = 'push' | 'slide' | 'crossfade' | 'wipe' | 'wipe360h' | 'divide' | 'circle';
+export type Reveal360 = 'push' | 'slide' | 'crossfade' | 'wipe' | 'wipe360h' | 'divide' | 'divide360slices' | 'circle';
 
 export interface Band360Config {
   mode: Reveal360;
@@ -127,7 +127,7 @@ export function detect360Band(scene: MotrScene): Band360Config | null {
   const hasWipeRig = scene.rigWidgets.some(w => w.name === 'Border')
     || scene.rigWidgets.some(w => w.name === 'Slices');
   if (hasWipeRig) {
-    if (wnames.has('Slices')) return { mode: 'divide', dir, w0: 0.26, w1: 0.42 };
+    if (wnames.has('Slices')) return { mode: 'divide360slices', dir, w0: 0.667, w1: 0.87 };
     if (wnames.has('Direction')) return { mode: 'wipe360h', dir, w0: 0.057, w1: 0.186 };
     if (wnames.has('Soften Edges')) return { mode: 'wipe', dir, w0: 0.26, w1: 0.42 };
     return { mode: 'circle', dir, w0: 0.30, w1: 0.48 };
@@ -354,6 +354,63 @@ export function render360Band(
     };
     drawFull(out, imageA, 0, outW, outH, 1, null);
     drawFull(out, imageB, 0, outW, outH, 1, bMask);
+    return out;
+  }
+
+  if (cfg.mode === 'divide360slices') {
+    // EQUIRECT 360° DIVIDE (Slices replicator rig) — decoded 2026-07-16 from the
+    // GUI GT per-column A/B classifier (W=1920, N=24 frames). "Divide" here is NOT
+    // a single centre barn-door: it is a 3-cell REPLICATOR of vertical A-STRIPS that
+    // hold, then SHRINK to nothing, uncovering B (both panoramas stay at HOME — no
+    // yaw; the per-column dominant source is A@home inside a strip, B@home outside).
+    //
+    // DECODED A-STRIP GEOMETRY (per-frame contiguous A-runs, is_A = |img−A|<|img−B|):
+    //   f00-f01 (p<0.083)            : FULL A (transition not yet begun / build-in).
+    //   f02-f04 (p 0.083..0.167)     : strips appear. A-strip runs (start,end):
+    //        [   0, 256] c≈128  [ 896,1024] c=960  [1662,1919] c≈1790
+    //        i.e. centres at x≈{128, 960, 1790} = W·{0.0667, 0.5, 0.9333}; the outer
+    //        two are the SEAM strip split by the equirect wrap (256+258≈514 spans 0).
+    //        Initial full widths ≈ {257, 129, 258}.
+    //   f05-f16 (p 0.208..0.667)     : STEADY HOLD — outer strips settle 257→217,
+    //        centre strip holds 129. (long static "divided" plateau.)
+    //   f17-f20 (p 0.708..0.833)     : strips SHRINK LINEARLY to 0. Measured widths
+    //        centre {109,79,52,26}, outer {186,134,86,44}; a LSQ line through these
+    //        crosses width=0 at p≈0.87 for BOTH strips (0.871 centre, 0.870 outer).
+    //   f21-f23 (p≥0.875)            : FULL B.
+    // The shrink is modelled as holdWidth·(p1−p)/(p1−p0) with p0=0.667 (hold ends,
+    // last full-width frame) and p1=0.87 (decoded zero-crossing). Verified: centre
+    // at p=0.708 → 129·(0.87−0.708)/(0.87−0.667)=103 (GT 109); p=0.750 → 76 (GT 79).
+    const p0 = cfg.w0 ?? 0.667;   // hold ends here (last steady frame f16)
+    const p1 = cfg.w1 ?? 0.87;    // decoded strip-width zero-crossing (both strips)
+    // Strip centres (fraction of W) and their HOLD full-widths (px @ W=1920), decoded
+    // above. Centre strip at W/2; the outer pair is the seam strip (wrap-split).
+    const cW = outW / 1920;                       // px→current-width scale
+    const strips: Array<{ cx: number; hw: number }> = [
+      { cx: 128 * cW,  hw: 0.5 * 217 * cW },      // left  (seam, right lobe)  hold w≈217
+      { cx: 960 * cW,  hw: 0.5 * 129 * cW },      // centre                    hold w≈129
+      { cx: 1790 * cW, hw: 0.5 * 218 * cW },      // right (seam, left lobe)   hold w≈218
+    ];
+    // Shrink factor: 1 during the hold, ramps to 0 at p1, then A gone.
+    let shrink = 1;
+    if (progress > p0) shrink = (p1 - progress) / (p1 - p0);
+    if (shrink < 0) shrink = 0; if (shrink > 1) shrink = 1;
+    const started = progress >= 0.0625;           // f01→f02 edge (strips appear at f02)
+    const aMask: Mask = (x) => {
+      if (!started) return 1;                     // full A before the divide begins
+      if (shrink <= 0) return 0;                  // strips gone → all B
+      for (const s of strips) {
+        const hw = s.hw * shrink;
+        // signed distance on the equirect cylinder (seam wrap so the seam strip joins)
+        let d = x - s.cx;
+        if (d > 0.5 * outW) d -= outW;
+        else if (d < -0.5 * outW) d += outW;
+        if (Math.abs(d) < hw) return 1;           // inside an A-strip
+      }
+      return 0;
+    };
+    // B fills the whole frame at home; A-strips painted on top where the mask is 1.
+    drawFull(out, imageB, 0, outW, outH, 1, null);
+    drawFull(out, imageA, 0, outW, outH, 1, aMask);
     return out;
   }
 

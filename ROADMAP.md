@@ -704,12 +704,27 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16q  ✅ 360° DIVIDE SLICES (T-qdivide3601 DONE) — **360°__360°_Divide 14.47 → 16.05
+              (+1.58 dB), gate 0 regressions / 5 improvements.** DECODE (GUI GT per-column A/B
+              classifier, W=1920 N=24): "360° Divide" (Slices replicator rig) is NOT a centre
+              barn-door — it is a 3-cell replicator of vertical A-STRIPS at centres x≈{128,960,1790}
+              (=W·{0.067,0.5,0.933}; the outer pair is the seam strip split by the equirect wrap)
+              that HOLD then SHRINK to 0. Phases: p<0.083 full A; f02-f16 strips hold (outer w 257→217,
+              centre w 129); f17-f20 shrink LINEARLY, LSQ zero-crossing p≈0.87 for both strips
+              (0.871 centre / 0.870 outer); p≥0.875 full B. New `divide360slices` mode in
+              transition360.ts (routed from the existing `Slices` structural slot that previously
+              returned generic `divide` — no new detector, no-hardcode green). Remaining ~14 dB
+              content ceiling = panorama REORIENT (yaw+pitch) not yet modelled: best-global-yaw
+              residual ~28-38 >> noise, so A/B undergo a 3D reorient peaking mid-transition (filed
+              follow-up T-q0c8ef80d, shared with Push/Wipe). tsc clean; Leaves -0.42 is emitter
+              nondeterminism phantom (fresh re-render 22.36 ≈ 22.44 baseline).
 - 2026-07-16q-eq  ✅ EARTHQUAKE TIMEMAP COMPRESSION FIX (T-q7f6795d6 DONE) — Earthquake timemap
               compression fix: mean 20.99→21.79 (+0.80), f10-f11 dip 11→20 dB, endpoints held.
               Residual f12-f16 = missing impact-dust/flash which is an EMITTER/COMPOSITOR issue
               (Falling Impact particle system renders as wrong-location arc vs GT's bottom
               impact-dust band) — OUT of timemap scope, cross-lane note for emitter-render.ts owner.
               Gate 0 regressions; Switch +2.43 collateral.
+
 
 - 2026-07-16q  ✅ REFLECTION STATIC B-FOLD (T-q7529db51 DONE) — **Movements__Reflection 14.23 → 14.82
               (+0.59 dB), 0 real regressions.** DECODE (Reflection.motr, verified — the prior "candidate
