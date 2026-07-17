@@ -55,13 +55,21 @@ def _sample_values(rng_lo, rng_hi, authored, n_extremes=2):
             out.append(v)
     return out[:max(1, n_extremes + 1)]
 
-def sweep(primitive, catalog, times=(0.35, 0.65), max_params=None, max_hosts=None):
+def sweep(primitive, catalog, times=(0.1, 0.25, 0.5, 0.75, 0.9), max_params=None, max_hosts=None):
+    # TIME COVERAGE (hardening, 2026-07-17): a sparse 2-time default (0.35,0.65) produced
+    # FALSE NO_SIGNAL verdicts that HID real divergence — PAEBloom (ddb 7.0) and PAEGlow
+    # (ddb 13.5) are inert at 0.35/0.65 but strongly active at 0.1/0.9. A filter's effect is
+    # often time-localized (a light-sweep/bloom only blooms at the peak), so we must scan
+    # ACROSS the transition. 5 evenly-spread times catch time-localized activity; a genuinely
+    # occluded filter (PAETint/PAENoise/PAEBadTV: max_oracle_signal==0 at ALL times) is then
+    # correctly NO_SIGNAL and needs a synthetic single-filter scene, not a wider time set.
     prim = next(p for p in catalog['primitives'] if p['id'] == primitive)
     plugin = prim.get('plugin_name', primitive)   # catalog may override (PAECloudsV -> PAECloudsV2)
     hosts = prim['host_slugs'][:max_hosts] if max_hosts else prim['host_slugs']
     rows = []           # per (host,param,theta,t) delta measurement
     worst = 999.0
     n_signal = 0
+    max_sig = 0.0       # strongest oracle response seen anywhere (diagnoses NO_SIGNAL)
     with tempfile.TemporaryDirectory() as tmp:
         for hi, host in enumerate(hosts):
             src = config.slug_motr(host)
@@ -99,6 +107,7 @@ def sweep(primitive, catalog, times=(0.35, 0.65), max_params=None, max_hosts=Non
                             rows.append({'host': host, 'param': name_path, 'theta': round(theta, 4),
                                          't': t, 'error': str(ex)[:160]}); continue
                         sig = float(np.sqrt((do ** 2).mean()))
+                        max_sig = max(max_sig, sig)
                         row = {'host': host, 'param': name_path, 'theta': round(theta, 4), 't': t,
                                'oracle_signal': round(sig, 3)}
                         if sig < SIGNAL_FLOOR:
@@ -116,6 +125,7 @@ def sweep(primitive, catalog, times=(0.35, 0.65), max_params=None, max_hosts=Non
         pass
     return {'primitive': primitive, 'plugin': plugin, 'hosts': hosts, 'times': list(times),
             'signal_floor': SIGNAL_FLOOR, 'n_scored': n_signal,
+            'max_oracle_signal': round(max_sig, 3),
             'worst_ddb': None if worst == 999.0 else round(worst, 3),
             'results': rows}
 
