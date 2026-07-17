@@ -349,6 +349,41 @@ These are the measured-negative attempts and non-obvious decode facts a worker n
 starting a slug. A todo may point here ("DO NOT re-attempt X — see ROADMAP dead-ends"); the
 full measured record lives here, once.
 
+### 🔬 VIDEO_WALL OZReplicator STAMP-SIZING DECODE — cell size is AUTHORED, not pitch-fit (2026-07-16, T-q7fd2fef0)
+
+Decoded how Motion's OZReplicator sizes per-instance stamps, from the real `Video Wall.motr`
+(Replicator Cell scenenodes, factoryID 19/20) + `Ozone.framework`:
+
+- The stamp size is set by the CELL's own authored params, **pitch-INDEPENDENT**:
+  - `Scale` (id=327) — cell transform scale; **empty in Video Wall → 100%**.
+  - `Size`  (id=337) — cell size PERCENTAGE; **=200 on ALL 14 replicator cells** (main 3×3 wall
+    AND every decorative 1×2 / 8260-pitch replicator — uniform, no per-grid value).
+  - Grid pitch (`Size` id=347 Width/Height → `sizeWidth`/`sizeHeight`) sets only instance
+    SPACING; it does NOT scale the stamp. Every tile is the SAME on-screen size (cellSize% ·
+    source, shared-camera projected) regardless of its replicator's pitch. Wide decorative
+    pitches push equal-sized tiles mostly off-canvas — they must NOT grow into frame-filling
+    plates. The "giant blue plate at f11" = `Replicator Pin 2 copy` (2×1, pitchX 8260) whose
+    `cellFill = pitchX/tileW = 4.30×` inflates its imageB tile to a full-frame plate.
+- The decoded rule now lives as `cellStampScale({cellScalePct,cellSizePct})` in
+  `compositor/replicator.ts` (returns Scale%·Size%, pitch-independent). It is NOT yet wired
+  into the blit path (that is `compositor/index.ts`, owned by another lane).
+
+⛔ **MEASURED DEAD-ENDS (do NOT re-attempt in isolation):** switching the stamp size off the
+current `cellFill = pitchX/tileW` fill-hack REGRESSES Video_Wall when done ALONE:
+  - `min(pitchX/tileW, pitchY/tileH)` aspect cover-fit → **9.69 dB** (< 10.18 baseline; shrinks
+    the main wall into black gaps AND the blue plate persists — the plate's pitchY dominates).
+  - cap-at-authored-cellSize (2.0) → **9.76 dB**.
+Reason: the pitch-fill hack accidentally OVER-COVERS the frame with brown tiles that overlap the
+GUI-GT's brown wall, out-scoring a correctly-sized (smaller) tile UNTIL the interlocking
+camera-dolly geometry (`evaluator/framing.ts resolveFramedWallPose`) + retime-wrap timing
+(`timemap.ts`) are co-tuned to place the correctly-sized tiles where the GT wall actually is.
+This is the ROADMAP's documented "4 parts must land together" trap — the stamp-SIZING lane
+cannot show a positive dB in isolation. **NEXT LEAD:** an INTEGRATED tick owning parser +
+index.ts + framing/timemap must (1) parse cell `Size` id=337 in `parser/replicator.ts`, (2) size
+the blit by `cellStampScale()` instead of `cellFill=pitchX/tileW` in `index.ts`, (3) verify the
+dolly pose puts the 200%-sized wall on the GT tiles, all in one gate-measured commit. Filed as a
+follow-up todo.
+
 ### 🔬 REFLECTION Z-CONVENTION DECODE — sign is INVERTED in perspective.ts (2026-07-16, T-qreflect001)
 
 Investigating Movements/Reflection (14.23 dB, currently orthographic-forced by the S6 discriminator)

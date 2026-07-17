@@ -1,0 +1,14 @@
+{
+  "id": "T-q430128b6",
+  "title": "Wire OZReplicator authored cell-size (Size id=337) into the stamp blit + co-tune dolly",
+  "project": "fct",
+  "goal": "INTEGRATED multi-file tick (parser + compositor/index.ts + evaluator/framing.ts + timemap.ts) \u2014 the stamp-SIZING lane (T-q7fd2fef0) proved the decode but CANNOT show +dB in isolation. DECODED FACT (see ROADMAP dead-ends, T-q7fd2fef0): Motion's Replicator Cell sizes each stamp by its AUTHORED cell size (Scale id=327 \u00b7 Size id=337; Video Wall = 100%\u00b7200% = 2.0, uniform on all 14 cells), PITCH-INDEPENDENT. Grid pitch (sizeWidth/Height) sets only spacing. The current compositor/index.ts hack 'cellFill = pitchX/tileW' overshoots wide-pitch decorative replicators (2x1 pitch 8260 -> 4.30x -> giant blue plate at f11). STEPS: (1) parser/replicator.ts \u2014 parse cell Size id=337 (percentage) into Replicator.cellSizePct (already parses cellScale id=116; add id=337 read); (2) compositor/index.ts \u2014 replace cellFill=pitchX/tileW with cellStampScale({cellScalePct,cellSizePct}) already exported from compositor/replicator.ts (pitch-independent Scale%*Size%); (3) verify evaluator/framing.ts resolveFramedWallPose dolly places the 200%-sized wall on the GT tiles, adjust eye distance if needed. MEASURED DEAD-ENDS to avoid: min(pitchX/tileW,pitchY/tileH)=9.69dB, cap-at-2.0=9.76dB (both < 10.18 baseline in isolation). Gate the whole replicator family (Video_Wall/Concentric/Duplicate/Clone_Spin/Combo_Spin/Squares). Target: Video_Wall 10.24 -> higher.",
+  "slugs": [
+    "Replicator-Clones__Video_Wall"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-q7fd2fef0",
+  "created_at": "2026-07-17T00:13:12+00:00",
+  "notes": ""
+}

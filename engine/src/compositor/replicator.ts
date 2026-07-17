@@ -164,6 +164,53 @@ export function generateInstances(config: ReplicatorConfig): ReplicatorInstance[
 
 
 /**
+ * Per-instance CELL STAMP SCALE — how Motion's OZReplicator sizes each cell's
+ * content against the grid.
+ *
+ * DECODED (2026-07-16, T-q7fd2fef0, from the real Video Wall.motr + Ozone.framework):
+ * Motion sizes a Replicator Cell's stamp by the cell's OWN authored size, NOT by
+ * fitting it to the grid pitch. Two params drive it on the "Replicator Cell"
+ * scenenode (factoryID 19/20 in Video Wall):
+ *   • "Scale"  (id=327)  — the cell's uniform transform scale (default 100%). Empty
+ *                          in Video Wall → 100%.
+ *   • "Size"   (id=337)  — the cell size PERCENTAGE. Video Wall authors 200% on ALL
+ *                          14 replicator cells (main 3×3 wall AND every decorative
+ *                          1×2 / 8260-pitch replicator — uniform, no per-grid value).
+ * The grid pitch ("Size" id=347 Width/Height → sizeWidth/sizeHeight) sets only the
+ * SPACING between instances; it does NOT scale the stamp. So every tile in the scene
+ * is the SAME on-screen size (cellSize% × source, projected by the shared camera),
+ * regardless of how wide its replicator's pitch is. Wide decorative pitches simply
+ * push their (equal-sized) tiles mostly off-canvas — they must NOT grow into
+ * frame-filling plates.
+ *
+ * `stampScale` returns the pitch-INDEPENDENT cell scale = (Scale% · Size%). Callers
+ * multiply the cell's source-native transform by this. This is the correct generic
+ * OZReplicator rule (no per-transition constant; reads the two authored cell params).
+ *
+ * ⚠️ WHY THE CURRENT ENGINE STILL USES A pitchX/tileWidth FILL HACK (compositor/
+ * index.ts): switching to this authored-size rule in isolation REGRESSES Video_Wall
+ * (measured: pitch-fill baseline 10.18 dB → min(pitchX/tileW,pitchY/tileH) 9.69 →
+ * cap-at-200% 9.76). The pitch-fill hack accidentally over-covers the frame with
+ * brown tiles that overlap the GUI-GT's brown wall, scoring higher than a correctly
+ * sized (smaller) tile does UNTIL the interlocking camera-dolly geometry
+ * (evaluator/framing.ts resolveFramedWallPose) and retime-wrap timing (timemap.ts)
+ * are co-tuned to place those correctly-sized tiles where the GT wall actually is.
+ * Those files are owned by other lanes; this helper lands the decoded rule so the
+ * integrated tick can wire parser (read Size id=337) + index.ts (size by this) + the
+ * camera lane together. See ROADMAP "Durable findings & dead-ends".
+ */
+export function cellStampScale(cfg: {
+  /** Cell "Scale" (id=327) as a fraction (1 = 100%). Default 1. */
+  cellScalePct?: number;
+  /** Cell "Size" (id=337) as a fraction (1 = 100%; Video Wall = 2.0). Default 1. */
+  cellSizePct?: number;
+}): number {
+  const s = cfg.cellScalePct ?? 1;
+  const z = cfg.cellSizePct ?? 1;
+  return s * z;
+}
+
+/**
  * Sequence Replicator: compute a per-instance animation progress (0-1).
  *
  * Motion's Sequence Replicator plays the SAME per-instance curve on every
