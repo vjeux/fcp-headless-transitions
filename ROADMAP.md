@@ -761,6 +761,39 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-17qlower  🚫 STYLIZED__LOWER LATE-WINDOW COVERAGE (T-qlower00001 WIP census+docs only, gate 0/0, 11.74 unchanged) —
+              Decode-first: `./fct.sh minimize Stylized__Lower` PROVED the min-repro
+              (fct/minimized/Stylized__Lower) already scores 60.42 dB engine-vs-FCP-headless
+              (the earlier +1.15 fix for "Panel right 1" LATE-WINDOW visibility landed). So
+              the remaining 11.74-dB deficit vs the GUI GT is NOT the min-repro bug: it's the
+              full-scene coverage bug documented below. Per-frame profile (score --frames):
+              f00=38, f01-f09 mid (11-24 dB), f10-f19 = 6.5-9.3 dB (MID coverage collapse),
+              f20-f23 = 9-11 dB (tail — engine shows photo A, GT is settled photo B).
+              **Two structural issues, BOTH beyond timemap+blit scope:**
+              (1) Lower's scene has 8+ FILLED shapes with raw `in > animationEndSec=2.336s`
+              that are NOT `isSolidPanel` (parser only promotes shapes with a negative-time
+              position keyframe; Panel right 1 is the ONE such shape). These 8 shapes
+              (Panel right 2, White panel right 3, 2nd/3rd cyan panel left, Shape 1/2/3 in
+              '2nd half elements', plus 5+ mask shapes) all fail isLayerVisible for every
+              rendered frame → invisible → engine mid-transition collapses to photo A + one
+              lone right-third white panel, GT is white/pale panels covering both halves.
+              (2) Transition B drop zone: `in=3.604 > endSec=2.336` → B never enters the
+              rendered range → engine tail shows photo A instead of settled B.
+              **Timemap sourceStretchScale WAS TESTED and failed (-0.47 dB, 11.74→11.27):**
+              a scene-wide time stretch by `durationSec/endSec=2.91×` (structurally gated on
+              `transitionB.in > endSec`, which is UNIQUE to Lower across all 65 slugs per
+              probe /tmp/bpast.log) DOES make transitionB visible (engine f22-f23 becomes
+              photo B, matching GT) BUT breaks the existing evaluator LATE-WINDOW
+              isSolidPanel curveTime formula `(out/endSec)*(t - endSec/2)` for "Panel right
+              1": that formula was tuned for un-stretched t, and its own visibility check
+              `t ∈ [in-off, out-off]=[-0.467, 3.436]` excludes stretched t past f13 → the
+              ONE panel that WAS rendering correctly disappears at exactly the wrong frames,
+              net regression. Filed T-q80ee148c for the coordinated evaluator+timemap fix
+              (widen LATE-WINDOW visibility to all fillColor+off>0+in>endSec shapes AND
+              replace the fitted isSolidPanel curveTime formula with a proper source-time
+              mapping that is idempotent under both stretched and un-stretched t). Owned
+              by the Center_Reveal lane (evaluator/index.ts + parser/shapes.ts). Gate 0/0.
+
 - 2026-07-17z4  🔎 CONCENTRIC A/B PHASE decode landed — gate-green WIP, docs-only in
               renderCloneLayer (T-qconcentric1, compositor-scope, WIP). Baseline
               Concentric 13.38 dB unchanged, 0 regressions. Decoded from .motr:

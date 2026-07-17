@@ -1,0 +1,14 @@
+{
+  "id": "T-q80ee148c",
+  "title": "Lower late-window visibility+curve: widen isSolidPanel path in evaluator",
+  "project": "fct",
+  "goal": "Stylized__Lower (11.74 dB) needs the LATE-WINDOW visibility re-anchor in engine/src/evaluator/index.ts line 541 to widen from isSolidPanel to ALL non-mask filled shapes with (off > 0 || in > endSec). Decoded from _probe_kf/_probe_render (Lower's scene): parser flagged only 'Panel right 1' (id 554451109) as isSolidPanel \u2014 the ONLY shape whose position kf\u2080 is negative-time. But the full scene has 8+ OTHER filled shapes with in > endSec (Panel right 2, White panel right 3, 3rd/2nd cyan panel left, Shape 1/2/3 in '2nd half elements') that all fail isLayerVisible (raw in > endSec so t is never in [in,out]) \u2192 invisible at every render frame \u2192 engine collapses to photo A + only Panel right 1 covering the right third, while GT shows white/pale coverage over LEFT and RIGHT halves + tiny thumbnails at f10\u2013f19 (deficit 6.5\u20139.3 dB there). Also, transitionB drop zone has in=3.604 > endSec=2.336 \u2192 B never enters and engine's tail (f20\u2013f23) shows photo A while GT is fully-settled B (deficit 9-11 dB there). Also known: timemap.ts CANNOT fix this alone \u2014 a source-timeline stretch (durationSec/endSec=2.91\u00d7) WAS TESTED (measured: -0.47 dB, engine f13 \u2192 photo B, engine f23 \u2192 mostly B with panels) but the stretch feeds stretched-t into the existing evaluator LATE-WINDOW isSolidPanel curveTime formula (out/endSec)*(t - endSec/2), which was tuned for un-stretched t; the panel's visibility check [in-off, out-off] = [-0.467, 3.436] excludes stretched t past 3.436 (fires f13+), so Panel right 1 disappears exactly when it should be at peak coverage. Fix requires COORDINATED changes: (a) widen LATE-WINDOW visibility in evaluator/index.ts to include all fillColor shapes with off>0 && in>endSec, and (b) either land the timemap sourceStretchScale gate (durationSec/endSec when transitionB.in > endSec \u2014 UNIQUE to Lower in the 65-slug corpus, /tmp/bpast.log) or REPLACE the isSolidPanel late-window curveTime formula with a proper source-time mapping (curveTime = mediaTime - off where mediaTime = in + (t/endSec)*(out - in)) that is IDEMPOTENT under both stretched and un-stretched t. See ROADMAP T-qlower00001 WIP for full decode.",
+  "slugs": [
+    "Stylized__Lower"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qlower00001",
+  "created_at": "2026-07-17T03:40:37+00:00",
+  "notes": ""
+}
