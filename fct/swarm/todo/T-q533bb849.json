@@ -1,0 +1,14 @@
+{
+  "id": "T-q533bb849",
+  "title": "Swing z-buffer occlusion: two-sided-fold family detector + depth hook",
+  "project": "fct",
+  "goal": "Swing's fold DIRECTION is now correct (14.44 dB, T-q00deefab anchor Top<->Bottom flip). REMAINING: mid-transition f12-f16 (~10.5-11.4 dB) over-occlude \u2014 the outgoing Clone A (Transition A) is painted OVER the incoming Clone B in painter's/reverse order, but at those frames B should win the upper pixels (it has smaller world-Z / is more face-on). The per-pixel Z-buffer helpers projectQuadWithWorldZ + renderPerspectiveQuadDepth (engine/src/compositor/perspective.ts, unit-tested) are ready to hook in renderChildLayers: allocate a shared Float64Array zbuf=Infinity for a group whose visible children are all perspective clones, render each via renderPerspectiveQuadDepth in place of the reverse-list painter loop. BLOCKER for no-hardcode: the naive detector '2 clone children, one perpendicular rotationX' fires ONLY on Swing (corpus-verified: no other built-in has a static-perpendicular 2-clone group). Must generalize the two-sided-fold key to fire on >=2 built-ins BEFORE hooking \u2014 candidates: broaden to any group whose visible children are >=2 perspective quads with real world-Z spread (would also catch Reflection/Rotate/3D_Rectangle depth stacks). Then gate: the depth composite must NET-improve Swing (prior WIP measured a NAIVE center-Z paint at 12.58 and per-pixel at 12.63 on the OLD wrong geometry; re-measure on the NEW correct-direction geometry \u2014 it should now help since B genuinely occupies the near/top region). Cite: perspective.ts SWING DECODE block + evaluator adjustAnchorFoldDirection.",
+  "slugs": [
+    "Movements__Swing"
+  ],
+  "after": "T-q00deefab",
+  "status": "open",
+  "created_by": "T-q00deefab",
+  "created_at": "2026-07-17T01:09:04+00:00",
+  "notes": ""
+}

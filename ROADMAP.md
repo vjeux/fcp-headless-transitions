@@ -739,6 +739,25 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-16swng1  ✅ SWING FOLD DIRECTION — factoryID-16 "Anchor" widget Top↔Bottom Y-UP→Y-DOWN
+              flip (T-q00deefab, **Movements__Swing 12.89 → 14.60 dB, +1.71** (per-slug re-render
+              14.44), gate 0 regressions). DECODE: Swing folds two Clone children (source A + B)
+              hinge chosen by a factoryID-16 "Anchor" popup [Right=0,Left=1,Top=2,Bottom=3]; value=2
+              ("Top"). Motion authors the branches in Y-UP, but the compositor is Y-DOWN, so the
+              branch NAMED "Top" renders its hinge at the screen BOTTOM (mirror of the GUI GT which
+              folds A down, reveals B from the top). Fix = `adjustAnchorFoldDirection` in
+              evaluator/index.ts: swap the vertical selections (Top↔Bottom, 2↔3) for factoryID-16
+              Anchor widgets — same Y-UP→Y-DOWN class as the existing rotZ (Switch) / rotX (Fall)
+              negations, scoped by widget factoryID+name exactly like adjustDegenerateDirection
+              (factoryID-12). Fires ONLY on Swing (the sole factoryID-16 Anchor transition in the
+              corpus) so it cannot touch the fold-rig family (Fall/Clothesline/Rotate/Flip/Push/
+              Reflection use factoryID-12/13 Direction) — verified. no-hardcode green (it is a
+              widget-value NORMALIZER, not a registered dispatch detector). REMAINING (follow-up):
+              mid-transition f12-f16 (~10.5-11.4 dB) still over-occlude — both clones painted in
+              painter's order, outgoing A covers incoming B. The per-pixel Z-buffer helpers
+              (projectQuadWithWorldZ + renderPerspectiveQuadDepth, already landed) hook here, but
+              the 2-clone-perpendicular detector fires only on Swing so it cannot satisfy the ≥2
+              no-hardcode bar as a standalone detector — needs a broader two-sided-fold family key.
 - 2026-07-16-q360zoom  ✅ 360° PUSH CENTRE-WEDGE (panning-A / static-B) (T-q360zoom01 DONE) —
               **360°__360°_Push 14.28 → 21.85 (+7.58 dB), 0 real regressions.** DECODE-DON'T-FIT:
               the task premise of an animated ~3.2× FOV zoom + yaw+pitch reorient is REFUTED by

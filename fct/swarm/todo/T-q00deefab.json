@@ -10,5 +10,6 @@
   "status": "open",
   "created_by": "T-qswing00001",
   "created_at": "2026-07-16T18:55:35+00:00",
-  "notes": ""
+  "notes": "WIP: anchor Top<->Bottom Y-flip landed (Swing 12.89->14.60, +1.71, gate 0 reg). Z-buffer occlusion remains -> follow-up T-q533bb849.",
+  "updated_at": "2026-07-17T01:14:55+00:00"
 }

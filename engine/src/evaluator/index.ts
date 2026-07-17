@@ -173,6 +173,55 @@ function buildWidgetValueMap(widgets: RigWidget[]): Map<number, number> {
 }
 
 /**
+ * factoryID-16 "Anchor" direction widget — Y-axis (Top/Bottom) invert.
+ *
+ * Movements/Swing folds two Clone children (source A + source B) about a shared
+ * hinge edge. The direction is chosen by a factoryID-16 "Anchor" popup whose menu
+ * is [Right=0, Left=1, Top=2, Bottom=3] (verified in Swing.motr, Anchor widget
+ * id=987619295, parameter id=100, value=2). Each menu value activates one of the
+ * four sibling branch groups named "Right"/"Left"/"Top"/"Bottom" (via per-group
+ * Opacity rig snapshots) and its matching fold geometry.
+ *
+ * Motion authors those groups in its NATIVE Y-UP coordinate frame: the branch
+ * NAMED "Top" hinges the fold at Motion +Y (=+540, the top edge in Y-UP), and the
+ * branch NAMED "Bottom" hinges at Motion −Y (=−540). But the compositor pipeline
+ * is Y-DOWN (screen coords; blit.ts: Motion +Y renders DOWNWARD, Motion −Y = top
+ * of frame). So the group Motion calls "Top" renders its hinge at the screen
+ * BOTTOM, and vice-versa — the vertical fold is upside-down vs the FCP GUI.
+ *
+ * Decoded against the GUI GT (Movements__Swing, Anchor value=2 "Top"): the GT
+ * folds source A DOWN with source B revealed from the TOP and a black gap growing
+ * at the BOTTOM (per-row analysis: A content band y=0→340→652 shrinking from top,
+ * content max y=1047→922→818, B fills from y=0 down). That is the "Bottom"-named
+ * branch geometry in the engine (Clone A hinged at y≈0, bottom edge shrinking
+ * 1040→795→690), NOT the "Top"-named branch (Clone A at y=[285..1080], hinged at
+ * the frame bottom — the mirror image).
+ *
+ * FIX: swap the two VERTICAL selections (Top↔Bottom) for a factoryID-16 Anchor
+ * widget, mapping Motion's Y-UP fold names onto the engine's Y-DOWN render. The
+ * horizontal pair (Left/Right, X-axis) is unaffected — only the Y axis flips
+ * between Y-UP and Y-DOWN. This mirrors the same Y-UP→Y-DOWN convention the Switch
+ * rotZ negation (evaluator buildTransformMatrix) and the Fall/Swing rotX negation
+ * (line ~316) already apply, but at the rig branch-selection level.
+ *
+ * Structural, not slug-keyed: keyed on the widget factoryID (16) + name ("Anchor")
+ * + the vertical snapshot ordinals, exactly like adjustDegenerateDirection is
+ * scoped to factoryID-12 Direction widgets. Measured: Movements__Swing 12.76 →
+ * 14.44 dB (+1.68) from correcting the fold hinge alone (painter's order still
+ * leaves the outgoing clone over-occluding — see follow-up z-buffer hookup).
+ */
+function adjustAnchorFoldDirection(scene: MotrScene, widgetValues: Map<number, number>): void {
+  for (const w of scene.rigWidgets) {
+    if (w.factoryID !== 16 || w.name !== 'Anchor') continue;
+    const v = widgetValues.get(w.id) ?? w.value;
+    // Swap the two vertical (Y-axis) selections: Top(2) <-> Bottom(3). Horizontal
+    // Left/Right (0/1) are unaffected by the Y-UP→Y-DOWN flip.
+    if (v === 2) widgetValues.set(w.id, 3);
+    else if (v === 3) widgetValues.set(w.id, 2);
+  }
+}
+
+/**
  * factoryID-12 Direction default advancement (Movements/Scale).
  *
  * The Scale transition's .motr authors Direction = 0 ("Up"), but the ground-truth
@@ -1059,6 +1108,7 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
   const parentTransform = mat4Identity();
   const widgetValues = buildWidgetValueMap(scene.rigWidgets);
   adjustDegenerateDirection(scene, widgetValues);
+  adjustAnchorFoldDirection(scene, widgetValues);
   const behaviors = scene.rigBehaviors;
   const sceneBehaviors = scene.sceneBehaviors;
   const layerById = buildLayerById(scene.layers, new Map());
