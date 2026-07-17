@@ -44,17 +44,6 @@ def _delta_psnr(delta_o, delta_e):
 def _read(p):
     return read_frame(p).astype(np.float64)
 
-def _sample_values(rng_lo, rng_hi, authored, n_extremes=2):
-    """Values to probe: the range extremes (strongest signal, furthest from theta0) plus the
-    midpoint. Skip any value ~= authored (delta would be ~0). Deterministic (no RNG) so a
-    sweep is reproducible and a fix can be re-verified against the SAME probe values."""
-    cands = [rng_lo, rng_hi, 0.5 * (rng_lo + rng_hi)]
-    out = []
-    for v in cands:
-        if abs(v - authored) > 1e-4 and v not in out:
-            out.append(v)
-    return out[:max(1, n_extremes + 1)]
-
 def sweep(primitive, catalog, times=(0.1, 0.25, 0.5, 0.75, 0.9), max_params=None, max_hosts=None):
     # TIME COVERAGE (hardening, 2026-07-17): a sparse 2-time default (0.35,0.65) produced
     # FALSE NO_SIGNAL verdicts that HID real divergence — PAEBloom (ddb 7.0) and PAEGlow
@@ -74,9 +63,9 @@ def sweep(primitive, catalog, times=(0.1, 0.25, 0.5, 0.75, 0.9), max_params=None
         for hi, host in enumerate(hosts):
             src = config.slug_motr(host)
             base = open(src, encoding='utf-8').read()
-            sch = schema.extract(src, plugin, continuous_only=True)
+            sch = schema.extract(src, plugin, fuzzable_only=True)
             if not sch:
-                rows.append({'host': host, 'note': 'no continuous params located'}); continue
+                rows.append({'host': host, 'note': 'no fuzzable params located'}); continue
             params = list(sch.items())
             if max_params:
                 params = params[:max_params]
@@ -89,8 +78,10 @@ def sweep(primitive, catalog, times=(0.1, 0.25, 0.5, 0.75, 0.9), max_params=None
                 render.render_oracle(mp0, t, op); render.render_engine(mp0, t, ep)
                 o0[t] = _read(op); e0[t] = _read(ep)
             for name_path, meta in params:
-                lo, hi_ = meta['range']
-                for k, theta in enumerate(_sample_values(lo, hi_, meta['authored'])):
+                # probes come from schema (range extremes for CONTINUOUS, {0,1} for FLAG);
+                # skip any probe ~= authored (θ0, zero delta).
+                probes = [pv for pv in meta.get('probes', []) if abs(pv - meta['authored']) > 1e-4]
+                for k, theta in enumerate(probes):
                     mtxt, applied = mutate.set_params(base, plugin, {name_path: theta})
                     if not applied:
                         rows.append({'host': host, 'param': name_path, 'theta': theta,

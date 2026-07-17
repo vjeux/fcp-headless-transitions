@@ -9,12 +9,14 @@ NOT continuous and fuzzing them samples meaningless regions (an earlier fuzz sam
 
 Classes:
   CONTINUOUS  — real scalar the filter math reads (blur amount, hue, saturation, gamma,
-                mix, color channels, angle, radius...). FUZZABLE.
-  FLAG        — boolean toggle stored as 0/1 (flip, crop, publishosc, 360 aware,
-                hdrinrec.709, prescaleinput). NOT fuzzed (would need discrete 0/1 handling
-                and mostly gate plumbing, not filter math).
-  ENUM        — discrete selector (histogram/channel, *colorspace, inputpoints). NOT fuzzed.
-Ranges (for CONTINUOUS only) come from the param's semantic name + authored value.
+                mix, color channels, angle, radius...). Fuzzed across its range.
+  FLAG        — boolean toggle stored as 0/1 (flip, flop, crop, publishosc, 360 aware,
+                hdrinrec.709, prescaleinput). Fuzzed DISCRETELY at 0 and 1 (it IS real
+                filter behavior — a flip/crop toggle changes the output — so we verify it,
+                but probe the two boolean states, never a nonsense 0.5).
+  ENUM        — discrete non-ordinal selector (histogram/channel, *colorspace, inputpoints).
+                NOT fuzzed yet (needs per-value handling); reported so the gap is explicit.
+Ranges (for CONTINUOUS) come from the param's semantic name + authored value.
 """
 import xml.etree.ElementTree as ET
 import re, json
@@ -24,7 +26,7 @@ _NUM = re.compile(r'^-?\d+(\.\d+)?([eE][-+]?\d+)?$')
 
 # name_path substrings that mark a NON-continuous param (flags/enums/selectors). Matched
 # against the normalized name_path. These are structural/gate params, not filter math.
-_FLAG_KEYS = ('flip', 'crop', 'publishosc', 'aware', 'hdrinrec.709', 'prescaleinput',
+_FLAG_KEYS = ('flip', 'flop', 'crop', 'publishosc', 'aware', 'hdrinrec.709', 'prescaleinput',
               'inputpoints', 'colorspace', 'histogram/channel', 'usealpha', 'invert',
               'premultiply', 'antialias', 'clamp')
 
@@ -66,9 +68,29 @@ def _range_for(name_path, authored):
         return [2.0 * a, -2.0 * a]
     return [0.0, 2.0 * a]
 
-def extract(host_motr_path, plugin_name, continuous_only=False):
-    """Return {name_path: {authored, animated, cls, range}} for the primitive's numeric
-    leaves. continuous_only=True filters to fuzzable CONTINUOUS params (what the sweep uses)."""
+def probe_values(cls, name_path, authored):
+    """Values the sweep sets the param to (skipping ~authored=θ0 baseline). Unifies
+    continuous + discrete-flag testing:
+      CONTINUOUS -> range extremes + midpoint (wide span, strong signal far from θ0)
+      FLAG       -> the two discrete states 0.0 and 1.0 (a horizontal flip / crop / 360-aware
+                    toggle IS real filter behavior a faithful engine must match; sampling it
+                    at 0.5 is nonsense, so probe the actual boolean states)
+      ENUM       -> [] (discrete non-ordinal selector; needs per-value handling; excluded and
+                    reported so the gap is explicit, never silently 'passed')."""
+    if cls == 'FLAG':
+        return [0.0, 1.0]
+    if cls == 'ENUM':
+        return []
+    lo, hi = _range_for(name_path, authored)
+    return [lo, hi, 0.5 * (lo + hi)]
+
+def extract(host_motr_path, plugin_name, continuous_only=False, fuzzable_only=False):
+    """Return {name_path: {authored, animated, cls, range?, probes}} for the primitive's
+    numeric leaves.
+      continuous_only=True -> only CONTINUOUS params (legacy callers).
+      fuzzable_only=True   -> CONTINUOUS + FLAG (everything with probe values); the sweep uses
+                              this so discrete flags (flip/flop/crop/360-aware) ARE verified,
+                              not silently skipped."""
     root = ET.parse(host_motr_path).getroot()
     pelem = mutate.find_primitive_elem(root, plugin_name)
     if pelem is None:
@@ -82,8 +104,12 @@ def extract(host_motr_path, plugin_name, continuous_only=False):
         cls = classify(name_path, authored)
         if continuous_only and cls != 'CONTINUOUS':
             continue
+        probes = probe_values(cls, name_path, authored)
+        if fuzzable_only and not probes:
+            continue
         entry = {'authored': round(authored, 5),
-                 'animated': pel.find('curve') is not None, 'cls': cls}
+                 'animated': pel.find('curve') is not None, 'cls': cls,
+                 'probes': [round(x, 6) for x in probes]}
         if cls == 'CONTINUOUS':
             entry['range'] = _range_for(name_path, authored)
         out[name_path] = entry

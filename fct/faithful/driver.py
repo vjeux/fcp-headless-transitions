@@ -143,16 +143,30 @@ def step():
     if nxt is None: print("ALL VERIFIED — nothing to do"); return None
     print("stepping:", nxt); return sweep_one(nxt)
 
-def sweepall(force=False):
+def sweepall(force=False, resume=False):
     """Sweep EVERY primitive in one run (the full ranked-divergence worklist). Runs the
     harness selftest ONCE up front (not per primitive) for speed, then sweeps each with
-    skip_selftest=True. Skips already-VERIFIED unless force=True."""
+    skip_selftest=True.
+
+    - default: skip already-VERIFIED (re-measures DIVERGED/NO_SIGNAL/UNTESTED — right after
+      an engine fix).
+    - resume=True: skip ANY primitive already measured this campaign (VERIFIED/DIVERGED/
+      NO_SIGNAL/ERROR); only run UNTESTED. This makes a run RESUMABLE after a mid-sweep node
+      disconnect — re-invoking with resume continues from where it stopped instead of
+      restarting from primitive #0 (a real cost on the 7-host Colorize). state.json is the
+      resume ledger (persisted after every primitive), so resume survives compaction/death.
+    - force=True: re-sweep everything (ignore all prior status)."""
     cat = _catalog()
     if not _selftest_ok():
         print("ABORT: harness self-test FAILED — no sweep run"); return
+    measured = ('VERIFIED', 'DIVERGED', 'NO_SIGNAL', 'ERROR')
     for p in cat['primitives']:
-        st = _state()
-        if not force and _stt(st, p['id']) == 'VERIFIED':
+        st = _state(); cur = _stt(st, p['id'])
+        if force:
+            pass
+        elif resume and cur in measured:
+            print("skip (resume, already %s):" % cur, p['id']); continue
+        elif cur == 'VERIFIED':
             print("skip (VERIFIED):", p['id']); continue
         try:
             sweep_one(p['id'], skip_selftest=True)
@@ -171,6 +185,6 @@ def selftest_cmd():
 if __name__ == '__main__':
     cmd = sys.argv[1] if len(sys.argv) > 1 else 'status'
     {'status': lambda: status(), 'step': lambda: step(), 'selftest': lambda: selftest_cmd(),
-     'sweepall': lambda: sweepall('--force' in sys.argv),
+     'sweepall': lambda: sweepall('--force' in sys.argv, '--resume' in sys.argv),
      'sweep': lambda: sweep_one(sys.argv[2]), 'reset': lambda: reset(sys.argv[2])}.get(
-        cmd, lambda: print("usage: driver.py [status|step|sweep <PRIM>|sweepall [--force]|reset <PRIM>|selftest]"))()
+        cmd, lambda: print("usage: driver.py [status|step|sweep <PRIM>|sweepall [--force|--resume]|reset <PRIM>|selftest]"))()
