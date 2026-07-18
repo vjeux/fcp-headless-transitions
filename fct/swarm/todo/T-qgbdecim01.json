@@ -5,8 +5,9 @@
   "goal": "decimatedGaussianBlur over-blurs at every decimated amount (level too aggressive + single large-factor bilinear resample aliases and adds 0.324*F variance + inner radius rounding). Reverse-engineer FCP's exact HGBlur fastDecimateDown/Up (successive 2x box/mip reduction, variance-correct \u2014 FCP holds a/sigma=6.09 at all amounts). Implement successive-2x decimate + variance-compensated inner sigma. Gate-verify on Bloom/Center_Reveal/360_Gaussian_Blur (use real Gaussian amounts) with 0 regression. Do NOT ship an unverified variance hack (naive comp lands a/sigma~4.7-5.7). Evidence: engine step-edge a/sigma = 5.79(amt20) 4.50(amt50) 5.45(amt75) 4.50(amt100) 4.59(amt600) vs headless 6.09 all. See gaussian-blur.ts [P2-GB4].",
   "slugs": [],
   "after": null,
-  "status": "open",
+  "status": "done",
   "created_by": "orchestrator",
   "created_at": "2026-07-18T20:05:32+00:00",
-  "notes": ""
+  "notes": "",
+  "updated_at": "2026-07-18T20:22:30+00:00"
 }
