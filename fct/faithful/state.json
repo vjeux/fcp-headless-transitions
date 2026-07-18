@@ -33,16 +33,16 @@
       "todo": "T-faithful-paelevels"
     },
     "PAEGaussianBlur": {
-      "worst_ddb": 26.567,
-      "n_scored": 7,
-      "max_oracle_signal": 11.972,
+      "worst_ddb": 15.707,
+      "n_scored": 11,
+      "max_oracle_signal": 57.225,
       "hosts": [
         "Blurs__Gaussian",
         "Lights__Bloom",
         "Stylized__Center_Reveal",
         "Stylized__Close_and_Open"
       ],
-      "swept": "2026-07-17T18:40:07Z",
+      "swept": "2026-07-18T19:44:05Z",
       "status": "DIVERGED",
       "todo": "T-faithful-paegaussianblur"
     },
@@ -439,8 +439,14 @@
       "t": "2026-07-18T19:29:53Z",
       "status": "DIVERGED",
       "worst_ddb": 7.397
+    },
+    {
+      "prim": "PAEGaussianBlur",
+      "t": "2026-07-18T19:44:05Z",
+      "status": "DIVERGED",
+      "worst_ddb": 15.707
     }
   ],
   "started": "2026-07-17T18:24:32Z",
-  "updated": "2026-07-18T19:29:53Z"
+  "updated": "2026-07-18T19:44:05Z"
 }
