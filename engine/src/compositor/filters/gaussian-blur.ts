@@ -409,11 +409,17 @@ export function decimatedBlurFloatRGB(src: Float32Array, width: number, height: 
 
 import { registerFilter } from './registry.js';
 
-// Gaussian Blur (UUID E472D646-…). Faithful to the legacy branch: Mix gates the
-// effect (0 = bypass); Amount via blurAmount (honors overrides + static-value=0
-// inactive rule); rendered radius = Amount * min(Mix,1). Rendered through FCP's
+// Gaussian Blur (UUID E472D646-…). Mix gates the effect (0 = bypass); Amount via
+// blurAmount (honors overrides + static-value=0 inactive rule). Rendered through FCP's
 // decimate→blur→upsample HGBlur (decimatedGaussianBlur) so a large radius is O(pixels),
 // not O(pixels·radius) — matches FCP and is dramatically faster on big canvases.
+// MIX IS A BLEND, NOT A RADIUS SCALE (DECODED 2026-07-18 vs headless FCP, step-edge
+// probe): FCP's Mix=0.5 output == 0.5·orig + 0.5·fullBlur (matches within ±2 codes),
+// NOT a blur at half the radius (which the old `amount * min(Mix,1)` did — that was
+// measurably wrong: at Mix=0.5 the radius-scaled prediction diverged by 20-60 codes).
+// This is the decoded HgcChannelBlur combine `r1.xyz = mix(orig, blurred, params[0])`.
+// Byte-identical for shipping (all Gaussian users author Mix∈{0,1}): Mix=1 → pure
+// blurred, Mix=0 → bypass; the blend only changes the un-shipped Mix∈(0,1) regime.
 registerFilter({
   uuid: 'E472D646-2C92-464E-98A1-91CF8F162AD8',
   names: ['gaussian'],
@@ -421,7 +427,13 @@ registerFilter({
   apply(input, ctx) {
     const mix = ctx.param('Mix', 1);
     const amount = ctx.blurAmount('Amount', 0);
-    if (mix > 0 && amount > 0) return decimatedGaussianBlur(input, amount * (mix < 1 ? mix : 1));
-    return input;
+    if (mix <= 0 || amount <= 0) return input;
+    const blurred = decimatedGaussianBlur(input, amount);
+    if (mix >= 1) return blurred;
+    // Blend orig -> blurred by Mix (the HgcChannelBlur combine).
+    const a = input.data, b = blurred.data;
+    const out = new Uint8ClampedArray(a.length);
+    for (let i = 0; i < a.length; i++) out[i] = Math.round(a[i] * (1 - mix) + b[i] * mix);
+    return new ImageData(out, input.width, input.height);
   },
 });

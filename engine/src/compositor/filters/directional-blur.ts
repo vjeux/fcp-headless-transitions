@@ -442,6 +442,26 @@ function gaussianClampAxisRadius(polar: Float64Array, rows: number, cols: number
 
 import { registerFilter } from './registry.js';
 
+/**
+ * Mix blend for the blur family (the decoded HgcChannelBlur combine
+ * `r1.xyz = mix(orig, blurred, Mix)`). DECODED 2026-07-18 vs headless FCP on a
+ * step-edge: FCP's Gaussian Mix=0.5 output == 0.5·orig + 0.5·fullBlur (±2 codes),
+ * NOT a blur at reduced radius. Directional/Radial/Zoom share the same host-level Mix
+ * slot and the same combine. `blur` computes the FULL-strength blurred image; this
+ * lerps it back toward the original by (1-Mix). Byte-identical at Mix>=1 (pure blur)
+ * and short-circuited at Mix<=0 (bypass) so every shipping user (Mix∈{0,1}) is
+ * unchanged; only the un-shipped Mix∈(0,1) regime gains the correct blend.
+ */
+function blurWithMix(input: ImageData, mix: number, blur: (img: ImageData) => ImageData): ImageData {
+  if (mix <= 0) return input;
+  const blurred = blur(input);
+  if (mix >= 1) return blurred;
+  const a = input.data, b = blurred.data;
+  const out = new Uint8ClampedArray(a.length);
+  for (let i = 0; i < a.length; i++) out[i] = Math.round(a[i] * (1 - mix) + b[i] * mix);
+  return new ImageData(out, input.width, input.height);
+}
+
 // Directional Blur (PAEDirectionalBlur, UUID 2E7B1340-…). Faithful to the legacy
 // branch: Mix gate; Amount (fallback Distance) via blurAmount; Angle via param.
 registerFilter({
@@ -452,8 +472,8 @@ registerFilter({
     const mix = ctx.param('Mix', 1);
     const amount = ctx.blurAmount('Amount', ctx.blurAmount('Distance', 0));
     const angle = ctx.param('Angle', 0);
-    if (mix > 0 && amount > 0) return directionalBlur(input, amount, angle);
-    return input;
+    if (mix <= 0 || amount <= 0) return input;
+    return blurWithMix(input, mix, img => directionalBlur(img, amount, angle));
   },
 });
 
@@ -466,8 +486,8 @@ registerFilter({
   apply(input, ctx) {
     const mix = ctx.param('Mix', 1);
     const amount = ctx.blurAmount('Amount', ctx.blurAmount('Angle', 0));
-    if (mix > 0 && amount > 0) return radialBlur(input, amount, 0.5, 0.5, 'spin');
-    return input;
+    if (mix <= 0 || amount <= 0) return input;
+    return blurWithMix(input, mix, img => radialBlur(img, amount, 0.5, 0.5, 'spin'));
   },
 });
 
@@ -481,7 +501,7 @@ registerFilter({
   apply(input, ctx) {
     const mix = ctx.param('Mix', 1);
     const amount = ctx.blurAmount('Amount', 0);
-    if (mix > 0 && amount > 0) return zoomBlur(input, amount, 0.5, 0.5);
-    return input;
+    if (mix <= 0 || amount <= 0) return input;
+    return blurWithMix(input, mix, img => zoomBlur(img, amount, 0.5, 0.5));
   },
 });
