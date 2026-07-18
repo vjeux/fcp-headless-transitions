@@ -13,20 +13,41 @@
   ],
   "signal_floor": 2.0,
   "n_scored": 12,
+  "used_synthetic": false,
   "max_oracle_signal": 39.478,
-  "worst_ddb": 16.122,
+  "worst_ddb": 15.765,
   "results": [
     {
       "host": "Blurs__Zoom",
       "param": "mix",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.1,
       "oracle_signal": 32.633,
-      "ddb": 16.122
+      "ddb": 15.765
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "mix",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 21.192,
+      "ddb": 16.06
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "mix",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 34.301,
+      "ddb": 16.167
     },
     {
       "host": "Blurs__Zoom",
       "param": "amount",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.25,
       "oracle_signal": 39.478,
@@ -34,15 +55,8 @@
     },
     {
       "host": "Blurs__Zoom",
-      "param": "mix",
-      "theta": 1.0,
-      "t": 0.5,
-      "oracle_signal": 34.301,
-      "ddb": 16.713
-    },
-    {
-      "host": "Blurs__Zoom",
       "param": "amount",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.1,
       "oracle_signal": 37.098,
@@ -50,31 +64,8 @@
     },
     {
       "host": "Blurs__Zoom",
-      "param": "mix",
-      "theta": 1.0,
-      "t": 0.25,
-      "oracle_signal": 21.192,
-      "ddb": 16.914
-    },
-    {
-      "host": "Blurs__Zoom",
-      "param": "mix",
-      "theta": 0.5,
-      "t": 0.25,
-      "oracle_signal": 10.657,
-      "ddb": 18.213
-    },
-    {
-      "host": "Blurs__Zoom",
-      "param": "mix",
-      "theta": 0.5,
-      "t": 0.1,
-      "oracle_signal": 16.326,
-      "ddb": 18.313
-    },
-    {
-      "host": "Blurs__Zoom",
       "param": "amount",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.5,
       "oracle_signal": 29.022,
@@ -83,14 +74,34 @@
     {
       "host": "Blurs__Zoom",
       "param": "mix",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 16.326,
+      "ddb": 21.801
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "mix",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 10.657,
+      "ddb": 22.116
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 17.151,
-      "ddb": 20.519
+      "ddb": 22.241
     },
     {
       "host": "Blurs__Zoom",
       "param": "amount",
+      "kind": "scalar",
       "theta": 200.0,
       "t": 0.25,
       "oracle_signal": 17.169,
@@ -99,6 +110,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "amount",
+      "kind": "scalar",
       "theta": 200.0,
       "t": 0.1,
       "oracle_signal": 17.075,
@@ -107,6 +119,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "amount",
+      "kind": "scalar",
       "theta": 200.0,
       "t": 0.5,
       "oracle_signal": 16.111,
@@ -115,6 +128,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "look",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -123,6 +137,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "look",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -131,6 +146,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "look",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -139,6 +155,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "look",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -147,6 +164,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "look",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -155,6 +173,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "look",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -163,6 +182,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "look",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -171,6 +191,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "look",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -179,6 +200,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "look",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -187,6 +209,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "look",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -195,6 +218,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "amount",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -203,6 +227,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "amount",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -211,6 +236,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "amount",
+      "kind": "scalar",
       "theta": 200.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -219,6 +245,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "amount",
+      "kind": "scalar",
       "theta": 200.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -227,6 +254,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "swirl",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -235,6 +263,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "swirl",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -243,6 +272,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "swirl",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -251,6 +281,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "swirl",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -259,6 +290,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "swirl",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -267,6 +299,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "swirl",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -275,6 +308,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "swirl",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -283,6 +317,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "swirl",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -291,6 +326,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "swirl",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -299,6 +335,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "swirl",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -307,6 +344,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "crop",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -315,6 +353,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "crop",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -323,6 +362,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "crop",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -331,6 +371,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "crop",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -339,6 +380,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "crop",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -347,6 +389,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "mix",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -355,6 +398,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "mix",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -363,6 +407,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -371,6 +416,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -379,6 +425,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -387,6 +434,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -395,6 +443,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -403,6 +452,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -411,6 +461,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -419,6 +470,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "publishosc",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -427,6 +479,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "publishosc",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -435,6 +488,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "publishosc",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -443,6 +497,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "publishosc",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -451,6 +506,7 @@
     {
       "host": "Blurs__Zoom",
       "param": "publishosc",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.9,
       "oracle_signal": 0.0,

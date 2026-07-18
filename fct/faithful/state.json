@@ -197,13 +197,13 @@
       "todo": "T-faithful-paeunderwater"
     },
     "PAEZoomBlur": {
-      "worst_ddb": 16.122,
+      "worst_ddb": 15.765,
       "n_scored": 12,
       "max_oracle_signal": 39.478,
       "hosts": [
         "Blurs__Zoom"
       ],
-      "swept": "2026-07-18T12:11:12Z",
+      "swept": "2026-07-18T20:03:39Z",
       "status": "DIVERGED",
       "todo": "T-faithful-paezoomblur"
     },
@@ -445,8 +445,14 @@
       "t": "2026-07-18T19:44:05Z",
       "status": "DIVERGED",
       "worst_ddb": 15.707
+    },
+    {
+      "prim": "PAEZoomBlur",
+      "t": "2026-07-18T20:03:39Z",
+      "status": "DIVERGED",
+      "worst_ddb": 15.765
     }
   ],
   "started": "2026-07-17T18:24:32Z",
-  "updated": "2026-07-18T19:44:05Z"
+  "updated": "2026-07-18T20:03:39Z"
 }
