@@ -18,7 +18,7 @@
   "n_scored": 11,
   "used_synthetic": false,
   "max_oracle_signal": 57.225,
-  "worst_ddb": 15.707,
+  "worst_ddb": 16.071,
   "results": [
     {
       "host": "Lights__Bloom",
@@ -27,7 +27,7 @@
       "theta": 600.0,
       "t": 0.1,
       "oracle_signal": 57.225,
-      "ddb": 15.707
+      "ddb": 16.071
     },
     {
       "host": "Stylized__Center_Reveal",
@@ -36,7 +36,7 @@
       "theta": 600.0,
       "t": 0.5,
       "oracle_signal": 12.88,
-      "ddb": 16.087
+      "ddb": 17.294
     },
     {
       "host": "Lights__Bloom",
@@ -45,7 +45,7 @@
       "theta": 300.0,
       "t": 0.1,
       "oracle_signal": 44.159,
-      "ddb": 17.591
+      "ddb": 17.707
     },
     {
       "host": "Stylized__Center_Reveal",
@@ -54,7 +54,7 @@
       "theta": 300.0,
       "t": 0.5,
       "oracle_signal": 9.906,
-      "ddb": 19.08
+      "ddb": 19.549
     },
     {
       "host": "Blurs__Gaussian",
