@@ -1,10 +1,25 @@
 """Synthetic single-filter scene generator — verify OCCLUDED primitives.
 
-WHY: some filters (PAETint/PAENoise/PAEBadTV) live in a host transition where their layer is
-NEVER composited into the visible frame at any time (max_oracle_signal==0 across all t). They
-cannot be verified through the embedded host. This builds a MINIMAL .motr where the target
-filter is the SOLE operation on a static, full-frame source image, so its parameter response
-always drives the output.
+⚠️ FILTER-SYNTH IS UNFAITHFUL (learned 2026-07-18, PAELevels). For a GENERATOR (produces its
+own image, e.g. PAEColorSolid) the synth scene is a FAITHFUL oracle — ColorSolid was VERIFIED
+this way (interior 54-70 dB). But for a FILTER (transforms the layer below), the static
+full-frame source-A synth scene triggers DIFFERENT behavior than the real animated, stacked
+transition: the PAELevels synth showed a two-stage/WhiteIn-square response that does NOT occur
+in the real Up-Over (single-stage was closer to BOTH headless and GUI in the full transition —
+9.62/14.17 two-stage vs 12.43/15.99 single). A filter's response depends on its REAL input
+pipeline (animated source, upstream filters, working color space) which the static-source
+synth does not reproduce. THEREFORE: never TRUST a filter's synth verdict on its own — always
+cross-validate against the FULL-TRANSITION headless oracle (`fct gen headless <slug>` then
+engine-vs-headless PSNR on the filter's real host) before changing the engine. If synth and
+full-transition disagree, the full transition (real mechanism) wins. The synth remains useful
+only to (a) verify GENERATORS and (b) confirm a filter is truly occluded (max signal ~0); it
+must NOT be the sole basis for a filter's VERIFIED verdict.
+
+WHY (original): some filters (PAETint/PAENoise/PAEBadTV) live in a host transition where their
+layer is NEVER composited into the visible frame at any time (max_oracle_signal==0 across all
+t). They cannot be verified through the embedded host. This builds a MINIMAL .motr where the
+target filter is the SOLE operation on a static, full-frame source image, so its parameter
+response always drives the output.
 
 APPROACH (byte-preserving, DOCTYPE-safe — ElementTree re-serialize breaks the oracle):
   scaffold = Movements__Fall (smallest host: DOCTYPE + factory table + Project/Widget + a

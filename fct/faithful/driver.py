@@ -122,13 +122,25 @@ def sweep_one(prim_id, skip_selftest=False):
          'max_oracle_signal': rep.get('max_oracle_signal'),
          'hosts': rep.get('hosts'), 'swept': time.strftime('%Y-%m-%dT%H:%M:%SZ')}
     wd = rep.get('worst_ddb')
+    prim = next((p for p in cat['primitives'] if p['id'] == prim_id), {})
+    is_filter = prim.get('node_type') == 'filter'
     if rep.get('n_scored', 0) == 0 or wd is None:
         # No host produced a scorable oracle signal for any continuous param — cannot verify.
         # max_oracle_signal disambiguates the fix: >floor somewhere means "widen the time set";
         # ~0 everywhere means the filter is occluded in every host and needs a SYNTHETIC scene.
         e['status'] = 'NO_SIGNAL'
     elif wd >= cat['pass_db']:
-        e['status'] = 'VERIFIED'
+        # A FILTER verified purely from the SYNTHETIC scene is NOT trustworthy: the filter synth
+        # (static full-frame source A) triggers different behavior than the real animated/stacked
+        # transition (PAELevels two-stage synth artifact, 2026-07-18 — see synth.py). Require a
+        # full-transition headless cross-check before trusting it. GENERATORS are exempt (their
+        # synth IS faithful — they produce their own image, e.g. ColorSolid VERIFIED).
+        if is_filter and rep.get('used_synthetic'):
+            e['status'] = 'NEEDS_FULLXCHECK'
+            e['note'] = ('filter verified via synth only — filter-synth is unfaithful; '
+                         'cross-validate vs full-transition headless before trusting')
+        else:
+            e['status'] = 'VERIFIED'
     else:
         e['status'] = 'DIVERGED'; e['todo'] = _file_todo(prim_id, rep, cat)
     st['primitives'][prim_id] = e
