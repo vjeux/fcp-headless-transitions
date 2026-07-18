@@ -900,6 +900,22 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-18faithful4  ✅ BLUR Mix IS A BLEND (all 4 blur filters, commit 98f55da). DECODED vs
+              headless FCP step-edge: PAEGaussianBlur Mix=0.5 == 0.5·orig+0.5·fullBlur (±2 codes),
+              NOT a blur at reduced radius. Old code: Gaussian scaled the RADIUS by Mix; Directional/
+              Radial/Zoom treated any Mix>0 as full blur (no blend). Fix: shared blurWithMix() helper
+              (the decoded HgcChannelBlur combine mix(orig,blurred,Mix)). Byte-identical for shipping
+              (all authors Mix∈{0,1}) — 0 gate regression on 8 blur slugs. ZoomBlur 16.12→15.77 (its
+              worst is now the core log-polar warp/ZOOM_LOG_K sigma at mix=1, a separate decode).
+              PAEFlop divergence is Concentric-ONLY (replicator-cell mirror-axis context), never in
+              Movements__Flip — a replicator geometry interaction, not the Flop primitive (categorized
+              COMPLEX-SPATIAL/scene-interaction). PAELevels probe: FCP's BI≥WI (degenerate range) →
+              WHITE not black (worst fuzz case blackin=1); shipping never uses BI≥WI so gate-neutral,
+              deferred (Levels two-stage was REFUTED by the gate, commit cac1d5b). PAEColorize probe:
+              ascending remap (black<white, what shipping uses) is EXACT (mae 0.8) but the DESCENDING
+              remap (white<black) is steeply non-linear and unmatched by any lerp/premult model — an
+              anomaly, but shipping Colorize is all-ascending so it's an unexercised edge.
+
 - 2026-07-18faithful3  ✅ FAITHFUL-ORACLE ENGINE FIXES — two clean decoded wins from the
               per-primitive fuzz oracle (Rule 13), both step-edge/gradient-probed vs REAL
               headless FCP (decode-don't-fit), gate net-positive/neutral:
