@@ -73,14 +73,14 @@
       "status": "VERIFIED"
     },
     "PAEDirectionalBlur": {
-      "worst_ddb": 5.349,
-      "n_scored": 31,
-      "max_oracle_signal": 137.308,
+      "worst_ddb": 26.296,
+      "n_scored": 21,
+      "max_oracle_signal": 12.246,
       "hosts": [
         "Blurs__Directional",
         "Stylized__Light_Sweep"
       ],
-      "swept": "2026-07-17T19:01:07Z",
+      "swept": "2026-07-18T19:13:07Z",
       "status": "DIVERGED",
       "todo": "T-faithful-paedirectionalblur"
     },
@@ -427,8 +427,14 @@
       "t": "2026-07-18T15:16:18Z",
       "status": "VERIFIED",
       "worst_ddb": 51.799
+    },
+    {
+      "prim": "PAEDirectionalBlur",
+      "t": "2026-07-18T19:13:07Z",
+      "status": "DIVERGED",
+      "worst_ddb": 26.296
     }
   ],
   "started": "2026-07-17T18:24:32Z",
-  "updated": "2026-07-18T15:16:18Z"
+  "updated": "2026-07-18T19:13:07Z"
 }
