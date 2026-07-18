@@ -332,21 +332,31 @@ export function colorizeRemapFilter(
 ): ImageData {
   const src = input.data;
   const out = new Uint8ClampedArray(src.length);
-  // DECODED 2026-07-12: FCP renders in a LINEAR sRGB working space (see
-  // docs/FILTER_RE_PHASE2.md "RESOLVED"). On an ISOLATED probe, FCP sRGB->linear
-  // DECODES the "Remap Black/White To" colours before the luma lerp and emits the
-  // result to the linear framebuffer as-is, so the net gradient transfer is
+  // DECODED 2026-07-12, RECONFIRMED 2026-07-18 (isolated headless flat-white + photo
+  // probes): FCP renders in a LINEAR sRGB working space. On an ISOLATED probe, FCP
+  // sRGB->linear DECODES the "Remap Black/White To" colours before the luma lerp and
+  // emits the result to the linear framebuffer as-is, so the net gradient transfer is
   //   out_code = 255·( s2l(black) + luma·(s2l(white) − s2l(black)) )   (luma from sRGB codes)
-  // and linearising the endpoints lands the ISOLATED sepia probe at mad 3.88 (vs 18.5
-  // with raw endpoints). HOWEVER shipping the endpoint-linearisation PER-FILTER
-  // REGRESSED the GUI-GT gate on the real Colorize transitions (Curtains −0.42,
-  // Stylized__Slide −0.76, Up-Over −0.52), because those STACK Colorize with other
-  // filters and FCP keeps the whole chain in linear + encodes ONCE at readback (a
-  // per-filter re-encode diverges — the same architecture limit that keeps
-  // Brightness>1 on the plain-multiply, see levels.ts). Per ROADMAP rule 1 (GUI GT is
-  // the one truth) the shipped code keeps the RAW sRGB endpoints: it is what the GUI
-  // GT prefers for the stacked chain. Closing the isolated gap needs a linear
-  // filter-chain (encode once after all filters), tracked as an engine-architecture item.
+  // NAILED DOWN (flat-white input, luma=1, sweep white endpoint -> read output code):
+  //   endpoint 0.10->2.0  0.25->13.0  0.50->54.0  0.60->81.0  0.75->132.0  0.90->199.0
+  //   which is EXACTLY srgb_to_linear(v)*255 (piecewise IEC-61966 EOTF), NOT v*255 (raw)
+  //   and NOT a plain gamma. And the LUMA is Rec.709 on the sRGB CODE values (grayscale
+  //   remap white=(1,1,1) matches headless 43.8 dB with 709-codes vs 35 for 601, 33.6 for
+  //   709-on-linear). This faithful formula matches headless at 47-56 dB on real endpoints
+  //   (Curtains/Slide/Veil-like: 55.7/47.9/53.2 dB; only a DESCENDING remap where
+  //   black.ch>white.ch — e.g. white.B=0<black.B — stays anomalous at ~19 dB, and no
+  //   built-in exercises a descending channel). i.e. the faithful (headless) Colorize IS
+  //   s2l(endpoints) + 709-code luma + direct linear output.
+  // HOWEVER shipping the endpoint-linearisation PER-FILTER REGRESSED the GUI-GT gate on
+  // the real Colorize transitions (Curtains −0.42, Stylized__Slide −0.76, Up-Over −0.52),
+  // because those STACK Colorize with other filters and FCP keeps the whole chain in
+  // linear + encodes ONCE at readback (a per-filter re-encode diverges — the same
+  // architecture limit that keeps Brightness>1 on the plain-multiply, see levels.ts). Per
+  // ROADMAP rule 1 (GUI GT is the one truth for SCORING) the shipped code keeps the RAW
+  // sRGB endpoints: it is what the GUI GT prefers for the stacked chain. The faithful
+  // headless formula is fully decoded above; realising it on the gate needs the linear
+  // filter-CHAIN (encode once after ALL colour filters — T-qlinchain01), NOT a per-filter
+  // s2l which the gate rejects. (This is the headless≠GUI split, documented, not a bug.)
   const bR = black.r * 255, bG = black.g * 255, bB = black.b * 255;
   const wR = white.r * 255, wG = white.g * 255, wB = white.b * 255;
   // total blend from original toward the remapped color = intensity * mix (both
