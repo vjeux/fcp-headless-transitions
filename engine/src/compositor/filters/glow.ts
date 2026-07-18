@@ -294,6 +294,21 @@ registerFilter({
 //       proxy) and re-verified against BOTH Bloom slugs' GUI GT. NEXT: (1) float-buffer blur
 //       so >1 cores survive without the HEADROOM hack; (2) content-persist + filter-time-
 //       through for the wrap/black-tail coupling; (3) gate-verify Lights__Bloom AND 360° Bloom.
+//
+//   SHARPENED 2026-07-18 (isolated Bloom probe, PAEBloom injected into the Directional
+//   skeleton at factoryID=7, rendered source-A at t=0): with the FLOAT blur now in place
+//   (decimatedBlurFloatRGB), the FLOAT bloomFilter is the FAITHFUL filter — at the
+//   360°_Bloom shipping params (Amount=32, Brightness=100, Threshold=0) it matches HEADLESS
+//   at 50.4 dB isolated (mean 255 = full white), while the shipping 8-bit glowFilter path is
+//   BROKEN at 3.7 dB (mean 97 — it barely blooms; the ×10 extract amplification is dropped).
+//   So the MAGNITUDE is correct in float. The residual 360°_Bloom GUI-gate regression
+//   (11.52→10.74, still net −0.49 with Lights +0.29) is NOT magnitude but ONSET TIMING: the
+//   engine's bloom peaks TOO EARLY (engine f09 mean 194.9 vs GUI GT f09 118.7; both reach the
+//   correct ~223-227 at the f14 peak). The Threshold CURVE (100→3 at 0.117-0.15s→100 at 0.25s)
+//   is evaluated at a different scene-time than FCP for this 360-aware/retime host — the same
+//   BLOCKER-A curve-time coupling. So the float bloom is the correct FILTER; shipping it
+//   unconditionally (removing the FCT_BLOOM_FLOAT Rule-12 flag) is gated ONLY by aligning the
+//   Bloom Threshold curve-time mapping on the retime host, tracked T-qbloomlin01.
 
 export interface BloomParams {
   /** FCP Amount (blur spread). The blur radius fed to HGaussianBlur is 0.5·Amount. */
