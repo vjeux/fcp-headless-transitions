@@ -900,6 +900,31 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-18faithful8  ✅ BLACKHOLE VERIFIED + FULL PRIMITIVE CLASSIFICATION (6/20 verified; every
+              primitive now has an evidence-backed verdict). Commits e12e111, a7a3418.
+              • PAEBlackHole VERIFIED-via-isolation: the radial gravity-lens WARP (verbatim
+                HgcBlackHole shader + HBlackHole::TransformPoint + CPU mip-pyramid, all in
+                blackhole.ts) matches headless 32-33 dB isolated at Amount 100/300/600 (fresh
+                faithful-harness measure); residual <40 is the documented sub-pixel resample halo,
+                not a warp error. Mix (embedded worst) blends INSIDE the mip-pipeline + always 1 in
+                the host, unexercised.
+              • Classified ALL 20 primitives in state.json (verified_via + note):
+                  6 VERIFIED (isolation/synth): ColorSolid, DirectionalBlur, Flop, RadialBlur,
+                    GaussianBlur, BlackHole — deterministic geometric/warp/generator, headless-matched.
+                  6 blocked-headless≠GUI (COLOR: Colorize/Levels/HSVAdjust/Brightness/ChannelMixer/
+                    Tint) — faithful headless math DECODED but regresses the GUI gate (PROVEN
+                    fundamental: lone-Colorize Slide s2l −0.80); ships GUI-gate-preferred form.
+                  4 blocked-stochastic (Noise/Earthquake/BadTV + Underwater GPU-texture) —
+                    unrecoverable RNG/texture state, PSNR-unmatchable; deterministic parts matched.
+                  2 blocked-pipeline (Bloom/Glow) — blur core VERIFIED; residual is the composite
+                    threshold/additive stages (P2-glow-4/5 TODO) in the bloom-pipeline host.
+                  1 documented-unmatchable (CloudsV) — CPU value-noise lattice (HgcClouds decoded).
+                  1 blocked-resample-ceiling (ZoomBlur) — log-polar centre singularity; filter is
+                    Amount=0 in its only host (near-zero gate ROI).
+              NET: Phase-1 RE COMPLETE for every filter; Phase-2 = 6 headless-verified + 14 with a
+              concrete evidence-backed blocker. The only remaining DETERMINISTIC-and-closable gap is
+              Bloom/Glow's multi-pass combine model (blur sub-component already verified).
+
 - 2026-07-18faithful7  ✅ COLORIZE COLOR-SPACE FULLY DECODED + PAECloudsV2 Phase-1 RE (commits
               9f78fe6, c7eb7bb, e9c7f43, 28f6fd1). Cracked the Colorize working-space that stalled
               prior sessions, via an isolated flat-white endpoint-sweep through headless FCP:
