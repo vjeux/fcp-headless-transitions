@@ -1,37 +1,42 @@
 """Per-primitive DELTA-RESPONSE fuzz sweep — the ungameable per-primitive gate.
 
 WHY DELTA, NOT ABSOLUTE PSNR (the core hardening, 2026-07-17):
-The old sweep compared PSNR(oracle(theta), engine(theta)) on a FULL transition. That
-measures the WHOLE pipeline (masks/retime/compositor/JPEG-vs-PNG source offset), NOT the
-one filter — so a pre-existing bug ANYWHERE pins the primitive to DIVERGED forever and the
-number is unattributable. Instead we measure how each engine RESPONDS to a parameter change:
+The old sweep compared PSNR(oracle(theta), engine(theta)) on a FULL transition. That measures
+the WHOLE pipeline (masks/retime/compositor/JPEG-vs-PNG offset), NOT the one filter — so a bug
+ANYWHERE pins the primitive DIVERGED and the number is unattributable. Instead we measure how
+each engine RESPONDS to a parameter change:
 
     delta_o = oracle(theta) - oracle(theta0)      # how FCP's output moves when the param moves
     delta_e = engine(theta) - engine(theta0)      # how our output moves
     ddb     = PSNR(delta_o, delta_e)              # do the two responses agree?
 
-theta0 = authored params. Any pipeline error that is CONSTANT across theta (background
-render error, source offset) CANCELS in the delta, so ddb isolates the FILTER's parameter
-response even when it lives inside a full transition. Properties (why it's ungameable):
-  * engine ignores the param  -> delta_e~=0, delta_o large -> ddb LOW  -> FAIL (catches no-ops)
-  * engine overfit to theta0   -> fuzz theta far away -> engine wrong -> ddb LOW -> FAIL
-  * engine faithful to P(theta) -> delta_e ~= delta_o -> ddb HIGH -> PASS (regardless of const bg)
+theta0 = authored params. Constant background error CANCELS in the delta, so ddb isolates the
+FILTER's parameter response even inside a full transition. Ungameable: no-op params, overfit-
+to-theta0, and wrong math all score LOW; only faithful P(theta) scores HIGH (~99 = floor).
 
-STRUCTURAL VARIATION (the second, orthogonal anti-overfitting lever):
-We sweep each primitive across ALL its host slugs, not one. A scene-signature discriminator
-keyed to slug X's structure won't fire on host Y, so a faithful engine passes on every host
-while an overfit one diverges on the others. Cross-host worst ddb is the primitive verdict.
+STRUCTURAL VARIATION: sweep each primitive across ALL its host slugs. A scene-signature
+discriminator won't fire on the other hosts -> a faithful engine passes everywhere. Cross-host
+worst ddb is the verdict.
+
+CURVE PARAMS (2026-07-18): many filters' meaningful knobs live on an animated <curve>, not a
+value= attr (BadTV Waviness/Static, Noise dims). schema(include_curves=True) surfaces them as
+kind='curve'; we drive them via mutate.set_curve_params (flatten the curve to a constant).
+
+SYNTHETIC-SCENE FALLBACK (2026-07-18): some filters are OCCLUDED in every host — their layer is
+never composited into the visible frame at any time (max_oracle_signal==0), so nothing can be
+verified (PAETint/PAENoise/PAEBadTV). When a primitive shows no signal across all hosts, we fall
+back to a SYNTHETIC single-filter scene (synth.build) where the filter is the sole op on a
+static full-frame image, so its parameter response always drives the output.
 
 SIGNAL GATING: only score a (host,param,theta) sample where the ORACLE actually responded
-(rms(delta_o) >= SIGNAL_FLOOR). If FCP's output doesn't move, the param is inert in that
-host at that time and there's nothing to verify — skip it (don't reward or punish).
+(rms(delta_o) >= SIGNAL_FLOOR). No oracle movement -> nothing to verify -> skip.
 """
 import os, sys, json, tempfile
 sys.path.insert(0, 'tools'); sys.path.insert(0, '.')
 import numpy as np
 from fct import config
 from fct.read import read_frame
-from fct.faithful import mutate, render, schema
+from fct.faithful import mutate, render, schema, synth
 
 SIGNAL_FLOOR = 2.0     # min rms(delta_o) in 8-bit levels for the oracle response to count
 PEAK = 255.0
@@ -44,78 +49,104 @@ def _delta_psnr(delta_o, delta_e):
 def _read(p):
     return read_frame(p).astype(np.float64)
 
-def sweep(primitive, catalog, times=(0.1, 0.25, 0.5, 0.75, 0.9), max_params=None, max_hosts=None):
-    # TIME COVERAGE (hardening, 2026-07-17): a sparse 2-time default (0.35,0.65) produced
-    # FALSE NO_SIGNAL verdicts that HID real divergence — PAEBloom (ddb 7.0) and PAEGlow
-    # (ddb 13.5) are inert at 0.35/0.65 but strongly active at 0.1/0.9. A filter's effect is
-    # often time-localized (a light-sweep/bloom only blooms at the peak), so we must scan
-    # ACROSS the transition. 5 evenly-spread times catch time-localized activity; a genuinely
-    # occluded filter (PAETint/PAENoise/PAEBadTV: max_oracle_signal==0 at ALL times) is then
-    # correctly NO_SIGNAL and needs a synthetic single-filter scene, not a wider time set.
+def _mutate(base_text, plugin, name_path, kind, theta):
+    """Byte-preserving mutator dispatch by param kind: scalar leaves via set_params (value=
+    attr), animated CURVE params via set_curve_params (flatten the curve to a constant)."""
+    if kind == 'curve':
+        return mutate.set_curve_params(base_text, plugin, {name_path: theta})
+    return mutate.set_params(base_text, plugin, {name_path: theta})
+
+def _sweep_scene(base_text, resource_path, plugin, params, times, tmp, tag, host_label, rows):
+    """Delta-sweep ONE scene (a real host OR a synthetic scaffold). Renders theta0 + every
+    param probe through oracle+engine, appends per-sample rows, returns (n_scored, worst_ddb,
+    max_sig). resource_path is the dir make_mirror mirrors sibling resources from (the real
+    host's dir, or — for a synthetic scene — the scaffold host's dir)."""
+    worst = 999.0; n_signal = 0; max_sig = 0.0
+    wd0 = os.path.join(tmp, '%s_base' % tag); os.makedirs(wd0, exist_ok=True)
+    mp0 = render.make_mirror(resource_path, base_text, wd0)
+    o0 = {}; e0 = {}
+    for t in times:
+        op = os.path.join(wd0, 'o_%s.png' % t); ep = os.path.join(wd0, 'e_%s.png' % t)
+        render.render_oracle(mp0, t, op); render.render_engine(mp0, t, ep)
+        o0[t] = _read(op); e0[t] = _read(ep)
+    for name_path, meta in params:
+        kind = meta.get('kind', 'scalar')
+        probes = [pv for pv in meta.get('probes', []) if abs(pv - meta['authored']) > 1e-4]
+        for k, theta in enumerate(probes):
+            mtxt, applied = _mutate(base_text, plugin, name_path, kind, theta)
+            if not applied:
+                rows.append({'host': host_label, 'param': name_path, 'kind': kind,
+                             'theta': theta, 'note': 'mutator matched nothing'}); continue
+            wd = os.path.join(tmp, '%s_%s_%d' % (tag, name_path.replace('/', '.'), k))
+            os.makedirs(wd, exist_ok=True)
+            mp = render.make_mirror(resource_path, mtxt, wd)
+            for t in times:
+                op = os.path.join(wd, 'o_%s.png' % t); ep = os.path.join(wd, 'e_%s.png' % t)
+                try:
+                    render.render_oracle(mp, t, op); render.render_engine(mp, t, ep)
+                    do = _read(op) - o0[t]; de = _read(ep) - e0[t]
+                except Exception as ex:
+                    rows.append({'host': host_label, 'param': name_path, 'kind': kind,
+                                 'theta': round(theta, 4), 't': t, 'error': str(ex)[:160]}); continue
+                sig = float(np.sqrt((do ** 2).mean()))
+                max_sig = max(max_sig, sig)
+                row = {'host': host_label, 'param': name_path, 'kind': kind,
+                       'theta': round(theta, 4), 't': t, 'oracle_signal': round(sig, 3)}
+                if sig < SIGNAL_FLOOR:
+                    row['note'] = 'no oracle signal (param inert here)'; rows.append(row); continue
+                ddb = round(_delta_psnr(do, de), 3)
+                row['ddb'] = ddb; n_signal += 1; worst = min(worst, ddb)
+                rows.append(row)
+    return n_signal, worst, max_sig
+
+def sweep(primitive, catalog, times=(0.1, 0.25, 0.5, 0.75, 0.9), max_params=None, max_hosts=None,
+          allow_synth=True):
+    # TIME COVERAGE (2026-07-17): sparse 2-time (0.35,0.65) produced FALSE NO_SIGNAL that HID
+    # real divergence (Bloom/Glow inert mid-transition, active at 0.1/0.9). 5 spread times
+    # catch time-localized filter activity.
     prim = next(p for p in catalog['primitives'] if p['id'] == primitive)
     plugin = prim.get('plugin_name', primitive)   # catalog may override (PAECloudsV -> PAECloudsV2)
     hosts = prim['host_slugs'][:max_hosts] if max_hosts else prim['host_slugs']
-    rows = []           # per (host,param,theta,t) delta measurement
-    worst = 999.0
-    n_signal = 0
-    max_sig = 0.0       # strongest oracle response seen anywhere (diagnoses NO_SIGNAL)
+    rows = []; worst = 999.0; n_signal = 0; max_sig = 0.0; used_synth = False
     with tempfile.TemporaryDirectory() as tmp:
         for hi, host in enumerate(hosts):
             src = config.slug_motr(host)
             base = open(src, encoding='utf-8').read()
-            sch = schema.extract(src, plugin, fuzzable_only=True)
+            sch = schema.extract(src, plugin, fuzzable_only=True, include_curves=True)
             if not sch:
                 rows.append({'host': host, 'note': 'no fuzzable params located'}); continue
             params = list(sch.items())
             if max_params:
                 params = params[:max_params]
-            # theta0 renders (authored) — one per time, oracle+engine
-            wd0 = os.path.join(tmp, 'h%d_base' % hi); os.makedirs(wd0, exist_ok=True)
-            mp0 = render.make_mirror(src, base, wd0)
-            o0 = {}; e0 = {}
-            for t in times:
-                op = os.path.join(wd0, 'o_%s.png' % t); ep = os.path.join(wd0, 'e_%s.png' % t)
-                render.render_oracle(mp0, t, op); render.render_engine(mp0, t, ep)
-                o0[t] = _read(op); e0[t] = _read(ep)
-            for name_path, meta in params:
-                # probes come from schema (range extremes for CONTINUOUS, {0,1} for FLAG);
-                # skip any probe ~= authored (θ0, zero delta).
-                probes = [pv for pv in meta.get('probes', []) if abs(pv - meta['authored']) > 1e-4]
-                for k, theta in enumerate(probes):
-                    mtxt, applied = mutate.set_params(base, plugin, {name_path: theta})
-                    if not applied:
-                        rows.append({'host': host, 'param': name_path, 'theta': theta,
-                                     'note': 'set_params matched nothing'}); continue
-                    wd = os.path.join(tmp, 'h%d_%s_%d' % (hi, name_path.replace('/', '.'), k))
-                    os.makedirs(wd, exist_ok=True)
-                    mp = render.make_mirror(src, mtxt, wd)
-                    for t in times:
-                        op = os.path.join(wd, 'o_%s.png' % t); ep = os.path.join(wd, 'e_%s.png' % t)
-                        try:
-                            render.render_oracle(mp, t, op); render.render_engine(mp, t, ep)
-                            do = _read(op) - o0[t]; de = _read(ep) - e0[t]
-                        except Exception as ex:
-                            rows.append({'host': host, 'param': name_path, 'theta': round(theta, 4),
-                                         't': t, 'error': str(ex)[:160]}); continue
-                        sig = float(np.sqrt((do ** 2).mean()))
-                        max_sig = max(max_sig, sig)
-                        row = {'host': host, 'param': name_path, 'theta': round(theta, 4), 't': t,
-                               'oracle_signal': round(sig, 3)}
-                        if sig < SIGNAL_FLOOR:
-                            row['note'] = 'no oracle signal (param inert here)'; rows.append(row); continue
-                        ddb = round(_delta_psnr(do, de), 3)
-                        row['ddb'] = ddb; n_signal += 1; worst = min(worst, ddb)
-                        rows.append(row)
+            ns, wd, ms = _sweep_scene(base, src, plugin, params, times, tmp, 'h%d' % hi, host, rows)
+            n_signal += ns; worst = min(worst, wd); max_sig = max(max_sig, ms)
+        # SYNTHETIC FALLBACK: the filter is occluded in EVERY host (no oracle signal anywhere)
+        # -> build a synthetic single-filter scene where it drives the output, and sweep THAT.
+        # This is the ONLY way to verify a filter never composited into any host's visible
+        # frame (PAETint/PAENoise/PAEBadTV). synth.build grafts the authentic filter block +
+        # its factory into a minimal static full-frame scaffold (Movements__Fall).
+        if allow_synth and max_sig < SIGNAL_FLOOR:
+            host0 = hosts[0]
+            sbase = synth.build(plugin, config.slug_motr(host0))
+            if sbase is not None:
+                used_synth = True
+                sch = schema.extract(config.slug_motr(host0), plugin, fuzzable_only=True, include_curves=True)
+                params = list(sch.items())
+                if max_params:
+                    params = params[:max_params]
+                scaf_res = config.slug_motr(synth.SCAFFOLD_SLUG)
+                ns, wd, ms = _sweep_scene(sbase, scaf_res, plugin, params, times, tmp,
+                                          'synth', 'SYNTH', rows)
+                n_signal += ns; worst = min(worst, wd); max_sig = max(max_sig, ms)
     rows.sort(key=lambda r: r.get('ddb', 999))
-    # Release the shared engine worker so a long unattended driver doesn't leak node procs
-    # across many primitive sweeps.
+    # Release the shared engine worker so a long unattended driver doesn't leak node procs.
     try:
         if render._worker is not None:
             render._worker.close(); render._worker = None
     except Exception:
         pass
     return {'primitive': primitive, 'plugin': plugin, 'hosts': hosts, 'times': list(times),
-            'signal_floor': SIGNAL_FLOOR, 'n_scored': n_signal,
+            'signal_floor': SIGNAL_FLOOR, 'n_scored': n_signal, 'used_synthetic': used_synth,
             'max_oracle_signal': round(max_sig, 3),
             'worst_ddb': None if worst == 999.0 else round(worst, 3),
             'results': rows}

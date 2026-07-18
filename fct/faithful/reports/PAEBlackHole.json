@@ -5,76 +5,256 @@
     "Movements__Black_Hole"
   ],
   "times": [
-    0.35,
-    0.65
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    0.9
   ],
   "signal_floor": 2.0,
-  "n_scored": 8,
-  "worst_ddb": 9.997,
+  "n_scored": 15,
+  "max_oracle_signal": 77.126,
+  "worst_ddb": 10.387,
   "results": [
     {
       "host": "Movements__Black_Hole",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 80.667,
-      "ddb": 9.997
+      "t": 0.5,
+      "oracle_signal": 77.126,
+      "ddb": 10.387
     },
     {
       "host": "Movements__Black_Hole",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 68.444,
-      "ddb": 11.424
-    },
-    {
-      "host": "Movements__Black_Hole",
-      "param": "center/y",
-      "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 21.534,
-      "ddb": 14.873
+      "t": 0.25,
+      "oracle_signal": 61.386,
+      "ddb": 12.369
     },
     {
       "host": "Movements__Black_Hole",
       "param": "center/y",
       "theta": 1.0586,
-      "t": 0.65,
-      "oracle_signal": 20.77,
-      "ddb": 15.404
-    },
-    {
-      "host": "Movements__Black_Hole",
-      "param": "mix",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 40.344,
-      "ddb": 16.015
-    },
-    {
-      "host": "Movements__Black_Hole",
-      "param": "mix",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 34.232,
-      "ddb": 17.442
-    },
-    {
-      "host": "Movements__Black_Hole",
-      "param": "center/y",
-      "theta": 1.0586,
-      "t": 0.35,
-      "oracle_signal": 49.011,
-      "ddb": 19.238
+      "t": 0.1,
+      "oracle_signal": 40.289,
+      "ddb": 14.382
     },
     {
       "host": "Movements__Black_Hole",
       "param": "center/y",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 53.721,
-      "ddb": 19.361
+      "t": 0.1,
+      "oracle_signal": 39.877,
+      "ddb": 14.445
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "center/y",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 52.558,
+      "ddb": 14.824
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "center/y",
+      "theta": 1.0586,
+      "t": 0.25,
+      "oracle_signal": 49.579,
+      "ddb": 14.888
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "center/y",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 50.647,
+      "ddb": 15.917
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 39.364,
+      "ddb": 16.229
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 38.572,
+      "ddb": 16.405
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "center/y",
+      "theta": 1.0586,
+      "t": 0.5,
+      "oracle_signal": 47.312,
+      "ddb": 16.708
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 30.704,
+      "ddb": 18.387
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 25.198,
+      "ddb": 20.104
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 21.97,
+      "ddb": 21.294
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 19.702,
+      "ddb": 22.241
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 17.151,
+      "ddb": 23.445
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "center/y",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "center/y",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "center/y",
+      "theta": 1.0586,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "center/y",
+      "theta": 1.0586,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "publishosc",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "publishosc",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "publishosc",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "publishosc",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Black_Hole",
+      "param": "publishosc",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
     }
   ]
 }

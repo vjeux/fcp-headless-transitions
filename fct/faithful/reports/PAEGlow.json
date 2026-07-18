@@ -5,18 +5,86 @@
     "Lights__Bloom"
   ],
   "times": [
-    0.35,
-    0.65
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    0.9
   ],
   "signal_floor": 2.0,
-  "n_scored": 0,
-  "worst_ddb": null,
+  "n_scored": 8,
+  "max_oracle_signal": 52.987,
+  "worst_ddb": 13.469,
   "results": [
     {
       "host": "Lights__Bloom",
       "param": "opacity",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.1,
+      "oracle_signal": 52.987,
+      "ddb": 13.469
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "softness",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 52.987,
+      "ddb": 13.608
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 52.987,
+      "ddb": 13.647
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "cliptowhite",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 51.833,
+      "ddb": 13.839
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 26.527,
+      "ddb": 19.657
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 17.38,
+      "ddb": 23.33
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "softness",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 14.186,
+      "ddb": 23.371
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "softness",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 5.859,
+      "ddb": 31.143
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "opacity",
+      "theta": 0.0,
+      "t": 0.25,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -24,7 +92,23 @@
       "host": "Lights__Bloom",
       "param": "opacity",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "opacity",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "opacity",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -32,7 +116,7 @@
       "host": "Lights__Bloom",
       "param": "opacity",
       "theta": 6.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -40,7 +124,31 @@
       "host": "Lights__Bloom",
       "param": "opacity",
       "theta": 6.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "opacity",
+      "theta": 6.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "opacity",
+      "theta": 6.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "opacity",
+      "theta": 6.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -48,7 +156,7 @@
       "host": "Lights__Bloom",
       "param": "softness",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.25,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -56,7 +164,23 @@
       "host": "Lights__Bloom",
       "param": "softness",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "softness",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "softness",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -64,7 +188,7 @@
       "host": "Lights__Bloom",
       "param": "softness",
       "theta": 1.0,
-      "t": 0.35,
+      "t": 0.25,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -72,7 +196,23 @@
       "host": "Lights__Bloom",
       "param": "softness",
       "theta": 1.0,
-      "t": 0.65,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "softness",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "softness",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -80,7 +220,7 @@
       "host": "Lights__Bloom",
       "param": "softness",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.25,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -88,7 +228,23 @@
       "host": "Lights__Bloom",
       "param": "softness",
       "theta": 0.5,
-      "t": 0.65,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "softness",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "softness",
+      "theta": 0.5,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -96,7 +252,7 @@
       "host": "Lights__Bloom",
       "param": "cliptowhite",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.25,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -104,7 +260,23 @@
       "host": "Lights__Bloom",
       "param": "cliptowhite",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "cliptowhite",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "cliptowhite",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -112,7 +284,7 @@
       "host": "Lights__Bloom",
       "param": "cliptowhite",
       "theta": 2.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -120,7 +292,63 @@
       "host": "Lights__Bloom",
       "param": "cliptowhite",
       "theta": 2.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "cliptowhite",
+      "theta": 2.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "cliptowhite",
+      "theta": 2.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "cliptowhite",
+      "theta": 2.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -128,7 +356,7 @@
       "host": "Lights__Bloom",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.25,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -136,7 +364,23 @@
       "host": "Lights__Bloom",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -144,7 +388,7 @@
       "host": "Lights__Bloom",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.25,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -152,7 +396,63 @@
       "host": "Lights__Bloom",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.65,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     }

@@ -84,13 +84,20 @@ def probe_values(cls, name_path, authored):
     lo, hi = _range_for(name_path, authored)
     return [lo, hi, 0.5 * (lo + hi)]
 
-def extract(host_motr_path, plugin_name, continuous_only=False, fuzzable_only=False):
-    """Return {name_path: {authored, animated, cls, range?, probes}} for the primitive's
-    numeric leaves.
-      continuous_only=True -> only CONTINUOUS params (legacy callers).
+def extract(host_motr_path, plugin_name, continuous_only=False, fuzzable_only=False,
+            include_curves=False):
+    """Return {name_path: {authored, animated, cls, range?, probes, kind}} for the primitive's
+    numeric params.
+      continuous_only=True -> only CONTINUOUS scalar leaves (legacy callers).
       fuzzable_only=True   -> CONTINUOUS + FLAG (everything with probe values); the sweep uses
                               this so discrete flags (flip/flop/crop/360-aware) ARE verified,
-                              not silently skipped."""
+                              not silently skipped.
+      include_curves=True  -> ALSO include CURVE-driven (animated) params that have NO scalar
+                              value= (BadTV Waviness/Static, Noise dimensions, ...). These are
+                              driven via mutate.set_curve_params (flatten to a constant), NOT
+                              set_params. Marked kind='curve' (vs kind='scalar') so the sweep
+                              picks the right mutator. Without this, the meaningful params of
+                              curve-only filters are invisible to the fuzzer (a real gap)."""
     root = ET.parse(host_motr_path).getroot()
     pelem = mutate.find_primitive_elem(root, plugin_name)
     if pelem is None:
@@ -108,11 +115,35 @@ def extract(host_motr_path, plugin_name, continuous_only=False, fuzzable_only=Fa
         if fuzzable_only and not probes:
             continue
         entry = {'authored': round(authored, 5),
-                 'animated': pel.find('curve') is not None, 'cls': cls,
+                 'animated': pel.find('curve') is not None, 'cls': cls, 'kind': 'scalar',
                  'probes': [round(x, 6) for x in probes]}
         if cls == 'CONTINUOUS':
             entry['range'] = _range_for(name_path, authored)
         out[name_path] = entry
+    if include_curves and not continuous_only:
+        for pel, name_path, curve in mutate.curve_params(pelem):
+            if name_path in out:
+                continue
+            # range from the curve's own <min>/<max> when present, else name heuristic
+            try:
+                cmin = float(curve.findtext('min')); cmax = float(curve.findtext('max'))
+            except (TypeError, ValueError):
+                cmin, cmax = None, None
+            try:
+                authored = float(curve.get('default'))
+            except (TypeError, ValueError):
+                authored = 0.0
+            if cmin is not None and cmax is not None and cmax > cmin:
+                rng = [cmin, cmax]
+            else:
+                rng = _range_for(name_path, authored)
+            lo, hi = rng
+            probes = [lo, hi, 0.5 * (lo + hi)]
+            if fuzzable_only and not probes:
+                continue
+            out[name_path] = {'authored': round(authored, 5), 'animated': True,
+                              'cls': 'CONTINUOUS', 'kind': 'curve', 'range': rng,
+                              'probes': [round(x, 6) for x in probes]}
     return out
 
 if __name__ == '__main__':

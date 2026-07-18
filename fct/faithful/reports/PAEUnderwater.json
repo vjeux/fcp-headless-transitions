@@ -5,66 +5,142 @@
     "Movements__Flashback"
   ],
   "times": [
-    0.35,
-    0.65
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    0.9
   ],
   "signal_floor": 2.0,
-  "n_scored": 6,
-  "worst_ddb": 16.851,
+  "n_scored": 14,
+  "max_oracle_signal": 38.04,
+  "worst_ddb": 16.526,
   "results": [
     {
       "host": "Movements__Flashback",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 36.644,
-      "ddb": 16.851
+      "t": 0.5,
+      "oracle_signal": 38.04,
+      "ddb": 16.526
     },
     {
       "host": "Movements__Flashback",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 34.541,
-      "ddb": 17.364
+      "t": 0.25,
+      "oracle_signal": 34.631,
+      "ddb": 17.342
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 29.044,
+      "ddb": 18.87
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 23.892,
+      "ddb": 20.566
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 22.103,
+      "ddb": 21.242
     },
     {
       "host": "Movements__Flashback",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 18.333,
-      "ddb": 22.866
+      "t": 0.5,
+      "oracle_signal": 19.032,
+      "ddb": 22.541
     },
     {
       "host": "Movements__Flashback",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 17.291,
-      "ddb": 23.374
+      "t": 0.25,
+      "oracle_signal": 17.325,
+      "ddb": 23.357
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 14.551,
+      "ddb": 24.873
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 11.977,
+      "ddb": 26.564
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 11.07,
+      "ddb": 27.248
     },
     {
       "host": "Movements__Flashback",
       "param": "repeatedges",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 6.678,
-      "ddb": 31.638
+      "t": 0.9,
+      "oracle_signal": 5.55,
+      "ddb": 33.245
     },
     {
       "host": "Movements__Flashback",
       "param": "repeatedges",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 5.806,
-      "ddb": 32.853
+      "t": 0.75,
+      "oracle_signal": 4.72,
+      "ddb": 34.652
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "repeatedges",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 4.453,
+      "ddb": 35.158
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "repeatedges",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 3.397,
+      "ddb": 37.508
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "repeatedges",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 1.906,
+      "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Movements__Flashback",
       "param": "repeatedges",
       "theta": 2.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -72,7 +148,71 @@
       "host": "Movements__Flashback",
       "param": "repeatedges",
       "theta": 2.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "repeatedges",
+      "theta": 2.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "repeatedges",
+      "theta": 2.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "repeatedges",
+      "theta": 2.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flashback",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     }

@@ -6,50 +6,158 @@
     "Replicator-Clones__Combo_Spin"
   ],
   "times": [
-    0.35,
-    0.65
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    0.9
   ],
   "signal_floor": 2.0,
-  "n_scored": 4,
-  "worst_ddb": 21.5,
+  "n_scored": 11,
+  "max_oracle_signal": 28.638,
+  "worst_ddb": 18.992,
   "results": [
     {
       "host": "Blurs__Radial",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 21.455,
-      "ddb": 21.5
-    },
-    {
-      "host": "Replicator-Clones__Combo_Spin",
-      "param": "mix",
-      "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 20.299,
-      "ddb": 21.981
-    },
-    {
-      "host": "Blurs__Radial",
-      "param": "mix",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 12.849,
-      "ddb": 25.953
-    },
-    {
-      "host": "Replicator-Clones__Combo_Spin",
-      "param": "mix",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 10.286,
-      "ddb": 27.886
+      "t": 0.25,
+      "oracle_signal": 28.638,
+      "ddb": 18.992
     },
     {
       "host": "Blurs__Radial",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.1,
+      "oracle_signal": 28.516,
+      "ddb": 19.029
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "mix",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 18.246,
+      "ddb": 22.908
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 17.074,
+      "ddb": 23.484
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 15.152,
+      "ddb": 24.521
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "mix",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 11.956,
+      "ddb": 26.579
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "mix",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 11.486,
+      "ddb": 26.927
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 9.188,
+      "ddb": 28.866
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 6.147,
+      "ddb": 32.357
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 5.776,
+      "ddb": 32.898
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 2.467,
+      "ddb": 40.286
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "crop",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "crop",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "crop",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "crop",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "crop",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -57,7 +165,143 @@
       "host": "Blurs__Radial",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.65,
+      "t": 0.5,
+      "oracle_signal": 1.334,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "publishosc",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "publishosc",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "publishosc",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "publishosc",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "publishosc",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "crop",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "crop",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "crop",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "crop",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "crop",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -65,16 +309,112 @@
       "host": "Replicator-Clones__Combo_Spin",
       "param": "mix",
       "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 1.438,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "mix",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Replicator-Clones__Combo_Spin",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.941,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "publishosc",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "publishosc",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "publishosc",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "publishosc",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Replicator-Clones__Combo_Spin",
+      "param": "publishosc",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     }
   ]

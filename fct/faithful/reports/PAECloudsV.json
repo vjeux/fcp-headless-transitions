@@ -5,258 +5,806 @@
     "Stylized__Close_and_Open"
   ],
   "times": [
-    0.35,
-    0.65
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    0.9
   ],
   "signal_floor": 2.0,
-  "n_scored": 28,
-  "worst_ddb": 10.177,
+  "n_scored": 95,
+  "max_oracle_signal": 79.206,
+  "worst_ddb": 10.156,
   "results": [
     {
       "host": "Stylized__Close_and_Open",
       "param": "properties/transform/scale/x",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 79.012,
-      "ddb": 10.177
+      "t": 0.9,
+      "oracle_signal": 79.206,
+      "ddb": 10.156
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "properties/transform/scale/y",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 79.012,
-      "ddb": 10.177
+      "t": 0.9,
+      "oracle_signal": 79.206,
+      "ddb": 10.156
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/width",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 78.993,
-      "ddb": 10.179
+      "t": 0.9,
+      "oracle_signal": 79.185,
+      "ddb": 10.158
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/height",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 78.947,
-      "ddb": 10.184
+      "t": 0.9,
+      "oracle_signal": 79.142,
+      "ddb": 10.163
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/height",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 16.403,
-      "ddb": 23.833
+      "t": 0.25,
+      "oracle_signal": 74.74,
+      "ddb": 10.66
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "properties/transform/scale/x",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 16.4,
-      "ddb": 23.834
+      "t": 0.25,
+      "oracle_signal": 74.724,
+      "ddb": 10.662
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "properties/transform/scale/y",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 16.4,
-      "ddb": 23.834
+      "t": 0.25,
+      "oracle_signal": 74.724,
+      "ddb": 10.662
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/width",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 16.395,
-      "ddb": 23.837
+      "t": 0.25,
+      "oracle_signal": 74.706,
+      "ddb": 10.664
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/height",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 74.227,
+      "ddb": 10.72
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/x",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 74.211,
+      "ddb": 10.721
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/y",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 74.211,
+      "ddb": 10.721
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/width",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 74.193,
+      "ddb": 10.724
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/height",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 35.869,
+      "ddb": 17.036
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/x",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 35.861,
+      "ddb": 17.038
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/y",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 35.861,
+      "ddb": 17.038
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/width",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 35.852,
+      "ddb": 17.04
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/4thlayerstrength",
       "theta": 1.06,
-      "t": 0.35,
-      "oracle_signal": 14.227,
-      "ddb": 25.068
+      "t": 0.9,
+      "oracle_signal": 16.434,
+      "ddb": 23.816
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/4thlayerstrength",
+      "theta": 1.06,
+      "t": 0.5,
+      "oracle_signal": 14.515,
+      "ddb": 24.895
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/4thlayerstrength",
+      "theta": 1.06,
+      "t": 0.25,
+      "oracle_signal": 13.808,
+      "ddb": 25.328
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "crop",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 13.412,
+      "ddb": 25.581
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "crop",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 12.366,
+      "ddb": 26.286
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "crop",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 12.35,
+      "ddb": 26.298
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/2ndlayerstrength",
       "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 10.631,
-      "ddb": 27.599
+      "t": 0.5,
+      "oracle_signal": 10.914,
+      "ddb": 27.371
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/2ndlayerstrength",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 10.874,
+      "ddb": 27.403
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/2ndlayerstrength",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 10.287,
+      "ddb": 27.885
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "crop",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 9.856,
+      "ddb": 28.257
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/4thlayerstrength",
+      "theta": 1.06,
+      "t": 0.1,
+      "oracle_signal": 9.151,
+      "ddb": 28.901
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "vertical",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 7.024,
-      "ddb": 31.199
+      "t": 0.9,
+      "oracle_signal": 7.889,
+      "ddb": 30.19
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/method",
       "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 7.019,
-      "ddb": 31.205
+      "t": 0.9,
+      "oracle_signal": 7.605,
+      "ddb": 30.509
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 7.605,
+      "ddb": 30.509
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "vertical",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 7.114,
+      "ddb": 31.088
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "horizontal",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 6.59,
-      "ddb": 31.753
+      "t": 0.9,
+      "oracle_signal": 6.99,
+      "ddb": 31.241
     },
     {
       "host": "Stylized__Close_and_Open",
-      "param": "object/clouds/verticalscale",
+      "param": "object/clouds/method",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 6.975,
+      "ddb": 31.26
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 6.975,
+      "ddb": 31.26
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/method",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 6.768,
+      "ddb": 31.521
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 6.768,
+      "ddb": 31.521
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "vertical",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 5.916,
-      "ddb": 32.69
+      "t": 0.25,
+      "oracle_signal": 6.681,
+      "ddb": 31.634
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "horizontal",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 6.492,
+      "ddb": 31.883
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "horizontal",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 6.34,
+      "ddb": 32.089
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/horizontalscale",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 5.532,
-      "ddb": 33.273
+      "t": 0.9,
+      "oracle_signal": 6.335,
+      "ddb": 32.096
     },
     {
       "host": "Stylized__Close_and_Open",
-      "param": "object/clouds/4thlayerstrength",
+      "param": "object/clouds/verticalscale",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 5.441,
-      "ddb": 33.417
-    },
-    {
-      "host": "Stylized__Close_and_Open",
-      "param": "properties/transform/scale/x",
-      "theta": 2.0,
-      "t": 0.35,
-      "oracle_signal": 5.435,
-      "ddb": 33.427
+      "t": 0.9,
+      "oracle_signal": 6.238,
+      "ddb": 32.23
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/3rdlayerstrength",
       "theta": 0.52,
-      "t": 0.35,
-      "oracle_signal": 5.28,
-      "ddb": 33.678
-    },
-    {
-      "host": "Stylized__Close_and_Open",
-      "param": "object/clouds/2ndlayerstrength",
-      "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 4.513,
-      "ddb": 35.041
+      "t": 0.9,
+      "oracle_signal": 6.135,
+      "ddb": 32.375
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/4thlayerstrength",
-      "theta": 1.06,
-      "t": 0.65,
-      "oracle_signal": 4.345,
-      "ddb": 35.371
-    },
-    {
-      "host": "Stylized__Close_and_Open",
-      "param": "horizontal",
-      "theta": 200.0,
-      "t": 0.35,
-      "oracle_signal": 3.949,
-      "ddb": 36.202
-    },
-    {
-      "host": "Stylized__Close_and_Open",
-      "param": "properties/transform/scale/y",
-      "theta": 2.0,
-      "t": 0.35,
-      "oracle_signal": 3.44,
-      "ddb": 37.399
-    },
-    {
-      "host": "Stylized__Close_and_Open",
-      "param": "object/clouds/3rdlayerstrength",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 3.087,
-      "ddb": 38.34
+      "t": 0.9,
+      "oracle_signal": 5.973,
+      "ddb": 32.607
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/2ndlayerstrength",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 2.918,
-      "ddb": 38.828
-    },
-    {
-      "host": "Stylized__Close_and_Open",
-      "param": "amount",
-      "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 2.534,
-      "ddb": 40.055
-    },
-    {
-      "host": "Stylized__Close_and_Open",
-      "param": "mix",
-      "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 2.534,
-      "ddb": 40.055
-    },
-    {
-      "host": "Stylized__Close_and_Open",
-      "param": "object/clouds/1stlayerstrength",
-      "theta": 0.34,
-      "t": 0.35,
-      "oracle_signal": 2.4,
-      "ddb": 40.526
-    },
-    {
-      "host": "Stylized__Close_and_Open",
-      "param": "amount",
-      "theta": 1000.0,
-      "t": 0.35,
-      "oracle_signal": 2.036,
-      "ddb": 41.954
+      "t": 0.1,
+      "oracle_signal": 5.962,
+      "ddb": 32.623
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "properties/transform/scale/x",
       "theta": 2.0,
-      "t": 0.65,
-      "oracle_signal": 1.3,
+      "t": 0.9,
+      "oracle_signal": 5.915,
+      "ddb": 32.691
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/verticalscale",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 5.834,
+      "ddb": 32.811
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/verticalscale",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 5.816,
+      "ddb": 32.838
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/horizontalscale",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 5.586,
+      "ddb": 33.189
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/4thlayerstrength",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 5.464,
+      "ddb": 33.38
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/x",
+      "theta": 2.0,
+      "t": 0.5,
+      "oracle_signal": 5.38,
+      "ddb": 33.515
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/horizontalscale",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 5.285,
+      "ddb": 33.669
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/4thlayerstrength",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 5.275,
+      "ddb": 33.686
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/x",
+      "theta": 2.0,
+      "t": 0.25,
+      "oracle_signal": 5.243,
+      "ddb": 33.739
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/3rdlayerstrength",
+      "theta": 0.52,
+      "t": 0.5,
+      "oracle_signal": 5.075,
+      "ddb": 34.021
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/3rdlayerstrength",
+      "theta": 0.52,
+      "t": 0.25,
+      "oracle_signal": 5.069,
+      "ddb": 34.032
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/2ndlayerstrength",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 4.526,
+      "ddb": 35.017
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/2ndlayerstrength",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 4.484,
+      "ddb": 35.097
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/2ndlayerstrength",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 4.412,
+      "ddb": 35.238
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/method",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 4.197,
+      "ddb": 35.673
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 4.197,
+      "ddb": 35.673
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "horizontal",
+      "theta": 200.0,
+      "t": 0.9,
+      "oracle_signal": 4.088,
+      "ddb": 35.9
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "horizontal",
+      "theta": 200.0,
+      "t": 0.5,
+      "oracle_signal": 3.904,
+      "ddb": 36.301
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/verticalscale",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 3.858,
+      "ddb": 36.404
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "horizontal",
+      "theta": 200.0,
+      "t": 0.25,
+      "oracle_signal": 3.822,
+      "ddb": 36.485
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "horizontal",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 3.811,
+      "ddb": 36.51
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "vertical",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 3.786,
+      "ddb": 36.567
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/y",
+      "theta": 2.0,
+      "t": 0.25,
+      "oracle_signal": 3.506,
+      "ddb": 37.235
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/3rdlayerstrength",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 3.37,
+      "ddb": 37.579
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/4thlayerstrength",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 3.34,
+      "ddb": 37.657
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/horizontalscale",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 3.338,
+      "ddb": 37.661
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/y",
+      "theta": 2.0,
+      "t": 0.5,
+      "oracle_signal": 3.253,
+      "ddb": 37.886
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/1stlayerstrength",
+      "theta": 0.34,
+      "t": 0.9,
+      "oracle_signal": 3.237,
+      "ddb": 37.927
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/y",
+      "theta": 2.0,
+      "t": 0.9,
+      "oracle_signal": 3.139,
+      "ddb": 38.196
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 3.046,
+      "ddb": 38.456
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/3rdlayerstrength",
+      "theta": 0.52,
+      "t": 0.1,
+      "oracle_signal": 3.044,
+      "ddb": 38.462
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/3rdlayerstrength",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 3.001,
+      "ddb": 38.585
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/speed",
+      "theta": 0.4,
+      "t": 0.9,
+      "oracle_signal": 2.979,
+      "ddb": 38.649
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/3rdlayerstrength",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 2.972,
+      "ddb": 38.671
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/x",
+      "theta": 2.0,
+      "t": 0.1,
+      "oracle_signal": 2.97,
+      "ddb": 38.676
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/2ndlayerstrength",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 2.679,
+      "ddb": 39.573
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 2.645,
+      "ddb": 39.682
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "amount",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 2.493,
+      "ddb": 40.196
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 2.493,
+      "ddb": 40.196
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 2.488,
+      "ddb": 40.213
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/speed",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 2.35,
+      "ddb": 40.709
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "amount",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 2.314,
+      "ddb": 40.844
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 2.314,
+      "ddb": 40.844
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/1stlayerstrength",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 2.193,
+      "ddb": 41.31
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "horizontal",
+      "theta": 200.0,
+      "t": 0.1,
+      "oracle_signal": 2.183,
+      "ddb": 41.349
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/1stlayerstrength",
+      "theta": 0.34,
+      "t": 0.5,
+      "oracle_signal": 2.149,
+      "ddb": 41.488
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/y",
+      "theta": 2.0,
+      "t": 0.1,
+      "oracle_signal": 2.101,
+      "ddb": 41.684
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 2.064,
+      "ddb": 41.836
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "vertical",
+      "theta": 200.0,
+      "t": 0.25,
+      "oracle_signal": 2.05,
+      "ddb": 41.898
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "amount",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 2.001,
+      "ddb": 42.105
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 2.001,
+      "ddb": 42.105
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/x",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/x",
+      "theta": 2.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/y",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "properties/transform/scale/y",
       "theta": 2.0,
-      "t": 0.65,
-      "oracle_signal": 1.005,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Stylized__Close_and_Open",
-      "param": "properties/transform/scale/z",
-      "theta": 0.0,
-      "t": 0.35,
+      "t": 0.75,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -264,7 +812,39 @@
       "host": "Stylized__Close_and_Open",
       "param": "properties/transform/scale/z",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/z",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/z",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/z",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/z",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -272,7 +852,7 @@
       "host": "Stylized__Close_and_Open",
       "param": "properties/transform/scale/z",
       "theta": 2.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -280,7 +860,39 @@
       "host": "Stylized__Close_and_Open",
       "param": "properties/transform/scale/z",
       "theta": 2.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/z",
+      "theta": 2.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/z",
+      "theta": 2.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "properties/transform/scale/z",
+      "theta": 2.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/width",
+      "theta": 0.0,
+      "t": 0.75,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -288,127 +900,255 @@
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/width",
       "theta": 3840.0,
-      "t": 0.35,
-      "oracle_signal": 0.152,
+      "t": 0.1,
+      "oracle_signal": 0.115,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/width",
       "theta": 3840.0,
-      "t": 0.65,
-      "oracle_signal": 0.046,
+      "t": 0.25,
+      "oracle_signal": 0.156,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/width",
+      "theta": 3840.0,
+      "t": 0.5,
+      "oracle_signal": 0.151,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/width",
+      "theta": 3840.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/width",
+      "theta": 3840.0,
+      "t": 0.9,
+      "oracle_signal": 0.167,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/height",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/height",
       "theta": 2160.0,
-      "t": 0.35,
-      "oracle_signal": 0.205,
+      "t": 0.1,
+      "oracle_signal": 0.185,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/height",
       "theta": 2160.0,
-      "t": 0.65,
-      "oracle_signal": 0.16,
+      "t": 0.25,
+      "oracle_signal": 0.199,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/height",
+      "theta": 2160.0,
+      "t": 0.5,
+      "oracle_signal": 0.212,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/height",
+      "theta": 2160.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/height",
+      "theta": 2160.0,
+      "t": 0.9,
+      "oracle_signal": 0.318,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/horizontalscale",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 1.688,
+      "t": 0.75,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/horizontalscale",
       "theta": 500.0,
-      "t": 0.35,
-      "oracle_signal": 0.533,
+      "t": 0.1,
+      "oracle_signal": 0.256,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/horizontalscale",
       "theta": 500.0,
-      "t": 0.65,
-      "oracle_signal": 0.109,
+      "t": 0.25,
+      "oracle_signal": 0.501,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/horizontalscale",
+      "theta": 500.0,
+      "t": 0.5,
+      "oracle_signal": 0.528,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/horizontalscale",
+      "theta": 500.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/horizontalscale",
+      "theta": 500.0,
+      "t": 0.9,
+      "oracle_signal": 0.567,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/verticalscale",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 1.827,
+      "t": 0.75,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/verticalscale",
       "theta": 500.0,
-      "t": 0.35,
-      "oracle_signal": 0.333,
+      "t": 0.1,
+      "oracle_signal": 0.269,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/verticalscale",
       "theta": 500.0,
-      "t": 0.65,
-      "oracle_signal": 0.107,
+      "t": 0.25,
+      "oracle_signal": 0.341,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/verticalscale",
+      "theta": 500.0,
+      "t": 0.5,
+      "oracle_signal": 0.316,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/verticalscale",
+      "theta": 500.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/verticalscale",
+      "theta": 500.0,
+      "t": 0.9,
+      "oracle_signal": 0.277,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/speed",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 1.138,
+      "t": 0.1,
+      "oracle_signal": 0.284,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/speed",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.446,
+      "t": 0.25,
+      "oracle_signal": 0.858,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/speed",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 1.414,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/speed",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/speed",
       "theta": 0.4,
-      "t": 0.35,
-      "oracle_signal": 1.067,
+      "t": 0.1,
+      "oracle_signal": 0.273,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/speed",
       "theta": 0.4,
-      "t": 0.65,
-      "oracle_signal": 1.061,
+      "t": 0.25,
+      "oracle_signal": 0.725,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/speed",
+      "theta": 0.4,
+      "t": 0.5,
+      "oracle_signal": 1.962,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/speed",
+      "theta": 0.4,
+      "t": 0.75,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/method",
       "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 1.949,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Stylized__Close_and_Open",
-      "param": "object/clouds/method",
-      "theta": 0.5,
-      "t": 0.35,
+      "t": 0.75,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -416,7 +1156,39 @@
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/method",
       "theta": 0.5,
-      "t": 0.65,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/method",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/method",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/method",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/method",
+      "theta": 0.5,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -424,143 +1196,423 @@
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/1stlayerstrength",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 1.745,
+      "t": 0.1,
+      "oracle_signal": 0.796,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/1stlayerstrength",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.561,
+      "t": 0.25,
+      "oracle_signal": 1.469,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/1stlayerstrength",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 1.85,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/1stlayerstrength",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/1stlayerstrength",
       "theta": 0.34,
-      "t": 0.65,
-      "oracle_signal": 0.656,
+      "t": 0.1,
+      "oracle_signal": 1.256,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/1stlayerstrength",
+      "theta": 0.34,
+      "t": 0.25,
+      "oracle_signal": 1.982,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/1stlayerstrength",
+      "theta": 0.34,
+      "t": 0.75,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/2ndlayerstrength",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 1.207,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/2ndlayerstrength",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/3rdlayerstrength",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.827,
+      "t": 0.1,
+      "oracle_signal": 1.866,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/3rdlayerstrength",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/3rdlayerstrength",
       "theta": 0.52,
-      "t": 0.65,
-      "oracle_signal": 1.548,
+      "t": 0.75,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "object/clouds/4thlayerstrength",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 1.532,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/4thlayerstrength",
+      "theta": 1.06,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/flip",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/publishosc",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/publishosc",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/publishosc",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/publishosc",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "object/clouds/publishosc",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "amount",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.313,
+      "t": 0.1,
+      "oracle_signal": 1.326,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "amount",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "amount",
       "theta": 1000.0,
-      "t": 0.65,
-      "oracle_signal": 0.346,
+      "t": 0.1,
+      "oracle_signal": 1.099,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "amount",
+      "theta": 1000.0,
+      "t": 0.25,
+      "oracle_signal": 1.992,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "amount",
+      "theta": 1000.0,
+      "t": 0.5,
+      "oracle_signal": 1.926,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "amount",
+      "theta": 1000.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "amount",
+      "theta": 1000.0,
+      "t": 0.9,
+      "oracle_signal": 1.832,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "horizontal",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 1.783,
+      "t": 0.75,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "horizontal",
       "theta": 200.0,
-      "t": 0.65,
-      "oracle_signal": 0.828,
+      "t": 0.75,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "vertical",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 1.906,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Stylized__Close_and_Open",
-      "param": "vertical",
-      "theta": 200.0,
-      "t": 0.35,
-      "oracle_signal": 1.96,
+      "t": 0.75,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "vertical",
       "theta": 200.0,
-      "t": 0.65,
-      "oracle_signal": 0.575,
+      "t": 0.1,
+      "oracle_signal": 1.635,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "vertical",
+      "theta": 200.0,
+      "t": 0.5,
+      "oracle_signal": 1.797,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "vertical",
+      "theta": 200.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "vertical",
+      "theta": 200.0,
+      "t": 0.9,
+      "oracle_signal": 1.672,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "crop",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.313,
+      "t": 0.1,
+      "oracle_signal": 1.326,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "mix",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 1.291,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Stylized__Close_and_Open",
-      "param": "mix",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.17,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Stylized__Close_and_Open",
-      "param": "affectingobject(hidden)",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.673,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 1.267,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 1.18,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 1.035,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -568,7 +1620,39 @@
       "host": "Stylized__Close_and_Open",
       "param": "affectingobject(hidden)",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "affectingobject(hidden)",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "affectingobject(hidden)",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "affectingobject(hidden)",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "affectingobject(hidden)",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -576,7 +1660,7 @@
       "host": "Stylized__Close_and_Open",
       "param": "affectingobject(hidden)",
       "theta": 1978321984.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -584,7 +1668,31 @@
       "host": "Stylized__Close_and_Open",
       "param": "affectingobject(hidden)",
       "theta": 1978321984.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "affectingobject(hidden)",
+      "theta": 1978321984.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "affectingobject(hidden)",
+      "theta": 1978321984.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "affectingobject(hidden)",
+      "theta": 1978321984.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -592,7 +1700,7 @@
       "host": "Stylized__Close_and_Open",
       "param": "widget",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -600,7 +1708,31 @@
       "host": "Stylized__Close_and_Open",
       "param": "widget",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "widget",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "widget",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "widget",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -608,7 +1740,7 @@
       "host": "Stylized__Close_and_Open",
       "param": "widget",
       "theta": 1978305462.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -616,7 +1748,31 @@
       "host": "Stylized__Close_and_Open",
       "param": "widget",
       "theta": 1978305462.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "widget",
+      "theta": 1978305462.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "widget",
+      "theta": 1978305462.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "widget",
+      "theta": 1978305462.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     }

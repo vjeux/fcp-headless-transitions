@@ -5,92 +5,256 @@
     "Objects__Curtains"
   ],
   "times": [
-    0.35,
-    0.65
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    0.9
   ],
   "signal_floor": 2.0,
-  "n_scored": 10,
-  "worst_ddb": 8.947,
+  "n_scored": 21,
+  "max_oracle_signal": 134.118,
+  "worst_ddb": 6.004,
   "results": [
     {
       "host": "Objects__Curtains",
       "param": "brightness",
       "theta": 100.0,
-      "t": 0.65,
-      "oracle_signal": 134.365,
-      "ddb": 8.947
+      "t": 0.9,
+      "oracle_signal": 134.118,
+      "ddb": 6.004
     },
     {
       "host": "Objects__Curtains",
       "param": "brightness",
       "theta": 50.0,
-      "t": 0.65,
-      "oracle_signal": 114.669,
-      "ddb": 10.884
+      "t": 0.9,
+      "oracle_signal": 114.194,
+      "ddb": 7.333
     },
     {
       "host": "Objects__Curtains",
       "param": "brightness",
       "theta": 100.0,
-      "t": 0.35,
-      "oracle_signal": 100.161,
-      "ddb": 11.56
+      "t": 0.75,
+      "oracle_signal": 134.118,
+      "ddb": 8.739
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "brightness",
+      "theta": 100.0,
+      "t": 0.5,
+      "oracle_signal": 122.01,
+      "ddb": 10.111
     },
     {
       "host": "Objects__Curtains",
       "param": "brightness",
       "theta": 50.0,
-      "t": 0.35,
-      "oracle_signal": 86.815,
-      "ddb": 12.654
+      "t": 0.75,
+      "oracle_signal": 114.343,
+      "ddb": 10.576
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "brightness",
+      "theta": 100.0,
+      "t": 0.25,
+      "oracle_signal": 84.326,
+      "ddb": 11.77
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "brightness",
+      "theta": 50.0,
+      "t": 0.5,
+      "oracle_signal": 104.123,
+      "ddb": 11.906
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "brightness",
+      "theta": 100.0,
+      "t": 0.1,
+      "oracle_signal": 63.286,
+      "ddb": 11.949
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "brightness",
+      "theta": 50.0,
+      "t": 0.1,
+      "oracle_signal": 62.806,
+      "ddb": 11.982
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "brightness",
+      "theta": 50.0,
+      "t": 0.25,
+      "oracle_signal": 75.369,
+      "ddb": 12.313
     },
     {
       "host": "Objects__Curtains",
       "param": "brightness",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 10.42,
-      "ddb": 14.47
+      "t": 0.25,
+      "oracle_signal": 5.822,
+      "ddb": 14.184
     },
     {
       "host": "Objects__Curtains",
       "param": "brightness",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 22.866,
-      "ddb": 16.929
+      "t": 0.5,
+      "oracle_signal": 18.518,
+      "ddb": 15.387
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "brightness",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 22.566,
+      "ddb": 16.787
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "brightness",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 22.473,
+      "ddb": 20.346
     },
     {
       "host": "Objects__Curtains",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 13.312,
-      "ddb": 25.646
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "mix",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 6.487,
-      "ddb": 31.889
+      "t": 0.75,
+      "oracle_signal": 13.129,
+      "ddb": 25.766
     },
     {
       "host": "Objects__Curtains",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 5.904,
-      "ddb": 32.708
+      "t": 0.9,
+      "oracle_signal": 13.067,
+      "ddb": 25.807
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 10.735,
+      "ddb": 27.515
     },
     {
       "host": "Objects__Curtains",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 2.862,
-      "ddb": 38.998
+      "t": 0.75,
+      "oracle_signal": 6.397,
+      "ddb": 32.011
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 6.365,
+      "ddb": 32.055
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 5.226,
+      "ddb": 33.768
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 3.205,
+      "ddb": 38.016
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "brightness",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.819,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.434,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.208,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 1.546,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
     }
   ]
 }

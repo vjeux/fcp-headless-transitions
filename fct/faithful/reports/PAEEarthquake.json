@@ -5,82 +5,182 @@
     "Movements__Earthquake"
   ],
   "times": [
-    0.35,
-    0.65
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    0.9
   ],
   "signal_floor": 2.0,
-  "n_scored": 8,
-  "worst_ddb": 18.1,
+  "n_scored": 20,
+  "max_oracle_signal": 25.175,
+  "worst_ddb": 16.253,
   "results": [
     {
       "host": "Movements__Earthquake",
       "param": "randomseed",
       "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 13.496,
-      "ddb": 18.1
+      "t": 0.5,
+      "oracle_signal": 20.795,
+      "ddb": 16.253
     },
     {
       "host": "Movements__Earthquake",
       "param": "randomseed",
       "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 23.304,
-      "ddb": 20.782
+      "t": 0.75,
+      "oracle_signal": 25.175,
+      "ddb": 20.111
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "randomseed",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 13.692,
+      "ddb": 20.515
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "randomseed",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 23.712,
+      "ddb": 20.632
     },
     {
       "host": "Movements__Earthquake",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 19.67,
-      "ddb": 22.255
+      "t": 0.75,
+      "oracle_signal": 23.426,
+      "ddb": 20.737
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 22.893,
+      "ddb": 20.937
     },
     {
       "host": "Movements__Earthquake",
       "param": "layers",
       "theta": 2.0,
-      "t": 0.35,
-      "oracle_signal": 9.097,
-      "ddb": 24.977
+      "t": 0.5,
+      "oracle_signal": 8.646,
+      "ddb": 23.421
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "randomseed",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 11.372,
+      "ddb": 23.479
     },
     {
       "host": "Movements__Earthquake",
       "param": "layers",
       "theta": 2.0,
-      "t": 0.65,
-      "oracle_signal": 13.777,
-      "ddb": 25.348
+      "t": 0.25,
+      "oracle_signal": 7.178,
+      "ddb": 23.658
     },
     {
       "host": "Movements__Earthquake",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 13.057,
-      "ddb": 25.814
+      "t": 0.1,
+      "oracle_signal": 13.616,
+      "ddb": 25.45
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "layers",
+      "theta": 2.0,
+      "t": 0.1,
+      "oracle_signal": 7.904,
+      "ddb": 25.784
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 12.312,
+      "ddb": 26.324
     },
     {
       "host": "Movements__Earthquake",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 9.853,
-      "ddb": 28.26
+      "t": 0.75,
+      "oracle_signal": 11.729,
+      "ddb": 26.746
     },
     {
       "host": "Movements__Earthquake",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 6.556,
-      "ddb": 31.799
+      "t": 0.9,
+      "oracle_signal": 11.393,
+      "ddb": 26.998
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "layers",
+      "theta": 2.0,
+      "t": 0.75,
+      "oracle_signal": 10.485,
+      "ddb": 27.719
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 10.267,
+      "ddb": 27.902
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "layers",
+      "theta": 2.0,
+      "t": 0.9,
+      "oracle_signal": 9.57,
+      "ddb": 28.512
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 6.834,
+      "ddb": 31.438
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 6.184,
+      "ddb": 32.306
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 5.165,
+      "ddb": 33.869
     },
     {
       "host": "Movements__Earthquake",
       "param": "layers",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -88,7 +188,31 @@
       "host": "Movements__Earthquake",
       "param": "layers",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "layers",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "layers",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "layers",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -96,7 +220,7 @@
       "host": "Movements__Earthquake",
       "param": "randomseed",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -104,7 +228,111 @@
       "host": "Movements__Earthquake",
       "param": "randomseed",
       "theta": 0.5,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "randomseed",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "randomseed",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "randomseed",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "publishosc",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "publishosc",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "publishosc",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "publishosc",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Earthquake",
+      "param": "publishosc",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     }

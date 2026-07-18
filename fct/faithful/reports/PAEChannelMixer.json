@@ -5,642 +5,1526 @@
     "Objects__Curtains"
   ],
   "times": [
-    0.35,
-    0.65
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    0.9
   ],
   "signal_floor": 2.0,
-  "n_scored": 20,
-  "worst_ddb": 8.067,
+  "n_scored": 41,
+  "max_oracle_signal": 139.802,
+  "worst_ddb": 5.893,
   "results": [
     {
       "host": "Objects__Curtains",
-      "param": "alphaoutput/alpha-alpha",
-      "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 100.735,
-      "ddb": 8.067
-    },
-    {
-      "host": "Objects__Curtains",
       "param": "redoutput/red-alpha",
       "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 139.587,
-      "ddb": 9.791
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "redoutput/red-alpha",
-      "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 112.325,
-      "ddb": 11.239
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "alphaoutput/alpha-alpha",
-      "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 67.668,
-      "ddb": 11.523
+      "t": 0.9,
+      "oracle_signal": 139.802,
+      "ddb": 5.893
     },
     {
       "host": "Objects__Curtains",
       "param": "redoutput/red-alpha",
       "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 90.798,
-      "ddb": 13.324
+      "t": 0.9,
+      "oracle_signal": 108.658,
+      "ddb": 8.173
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-alpha",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 90.264,
+      "ddb": 9.021
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-alpha",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 139.792,
+      "ddb": 9.406
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-alpha",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 130.418,
+      "ddb": 10.512
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-alpha",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 93.349,
+      "ddb": 11.486
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-alpha",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 63.936,
+      "ddb": 11.936
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-red",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 62.155,
+      "ddb": 12.473
     },
     {
       "host": "Objects__Curtains",
       "param": "redoutput/red-alpha",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 108.509,
-      "ddb": 13.45
+      "t": 0.75,
+      "oracle_signal": 108.645,
+      "ddb": 12.834
     },
     {
       "host": "Objects__Curtains",
-      "param": "alphaoutput/alpha-alpha",
+      "param": "redoutput/red-alpha",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 50.345,
-      "ddb": 14.092
+      "t": 0.25,
+      "oracle_signal": 49.885,
+      "ddb": 13.365
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-alpha",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 102.478,
+      "ddb": 13.793
     },
     {
       "host": "Objects__Curtains",
       "param": "redoutput/red-red",
       "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 57.539,
-      "ddb": 14.898
+      "t": 0.25,
+      "oracle_signal": 9.756,
+      "ddb": 14.971
     },
     {
       "host": "Objects__Curtains",
-      "param": "redoutput/red-red",
-      "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 9.939,
-      "ddb": 15.799
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "redoutput/red-red",
-      "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 62.473,
-      "ddb": 16.75
+      "param": "redoutput/red-alpha",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 9.594,
+      "ddb": 14.994
     },
     {
       "host": "Objects__Curtains",
       "param": "alphaoutput/alpha-alpha",
       "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 33.82,
-      "ddb": 17.547
+      "t": 0.5,
+      "oracle_signal": 45.112,
+      "ddb": 15.045
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-alpha",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 43.057,
+      "ddb": 15.45
     },
     {
       "host": "Objects__Curtains",
       "param": "redoutput/red-red",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 21.71,
-      "ddb": 18.363
+      "t": 0.25,
+      "oracle_signal": 5.524,
+      "ddb": 15.481
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-red",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 62.143,
+      "ddb": 15.97
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-red",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 60.061,
+      "ddb": 16.066
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-red",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 17.619,
+      "ddb": 16.759
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-red",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 21.423,
+      "ddb": 18.107
     },
     {
       "host": "Objects__Curtains",
       "param": "monochrome",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 8.978,
-      "ddb": 19.291
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "mix",
-      "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 7.132,
-      "ddb": 20.082
+      "t": 0.25,
+      "oracle_signal": 4.782,
+      "ddb": 18.593
     },
     {
       "host": "Objects__Curtains",
       "param": "monochrome",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 20.487,
-      "ddb": 20.108
+      "t": 0.75,
+      "oracle_signal": 20.198,
+      "ddb": 19.783
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "monochrome",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 16.5,
+      "ddb": 19.848
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 3.914,
+      "ddb": 19.888
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-alpha",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 23.444,
+      "ddb": 20.73
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-alpha",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 23.353,
+      "ddb": 20.764
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-red",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 21.332,
+      "ddb": 20.893
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 12.605,
+      "ddb": 20.932
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "monochrome",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 20.1,
+      "ddb": 20.937
     },
     {
       "host": "Objects__Curtains",
       "param": "redoutput/red-red",
       "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 5.469,
-      "ddb": 21.749
+      "t": 0.25,
+      "oracle_signal": 2.925,
+      "ddb": 21.313
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-alpha",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 21.52,
+      "ddb": 21.474
     },
     {
       "host": "Objects__Curtains",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 15.483,
-      "ddb": 22.783
+      "t": 0.75,
+      "oracle_signal": 15.278,
+      "ddb": 22.415
     },
     {
       "host": "Objects__Curtains",
       "param": "redoutput/red-red",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 12.416,
-      "ddb": 23.27
+      "t": 0.5,
+      "oracle_signal": 10.007,
+      "ddb": 22.684
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-red",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 12.24,
+      "ddb": 22.986
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 15.212,
+      "ddb": 24.385
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-red",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 12.182,
+      "ddb": 25.386
     },
     {
       "host": "Objects__Curtains",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 2.07,
-      "ddb": 27.276
+      "t": 0.5,
+      "oracle_signal": 3.748,
+      "ddb": 27.863
     },
     {
       "host": "Objects__Curtains",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 4.638,
-      "ddb": 29.261
+      "t": 0.75,
+      "oracle_signal": 4.577,
+      "ddb": 29.311
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-alpha",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 6.275,
+      "ddb": 32.178
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 4.552,
+      "ddb": 34.674
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-alpha",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 3.136,
+      "ddb": 38.204
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-red",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.767,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-red",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 1.278,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-red",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.389,
+      "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Objects__Curtains",
       "param": "redoutput/red-green",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 0.109,
+      "t": 0.1,
+      "oracle_signal": 0.011,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Objects__Curtains",
       "param": "redoutput/red-green",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.294,
+      "t": 0.25,
+      "oracle_signal": 0.066,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Objects__Curtains",
       "param": "redoutput/red-green",
-      "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 0.091,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "redoutput/red-green",
-      "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 0.241,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "redoutput/red-green",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 0.044,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "redoutput/red-green",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.115,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "redoutput/red-blue",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 0.126,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "redoutput/red-blue",
-      "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.274,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "redoutput/red-blue",
-      "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 0.44,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "redoutput/red-blue",
-      "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 1.204,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "redoutput/red-blue",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 0.241,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "redoutput/red-blue",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.585,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "greenoutput/green-red",
-      "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "greenoutput/green-red",
-      "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "greenoutput/green-red",
-      "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "greenoutput/green-red",
-      "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "greenoutput/green-red",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "greenoutput/green-red",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "greenoutput/green-green",
-      "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "greenoutput/green-green",
-      "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "greenoutput/green-green",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "greenoutput/green-green",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "greenoutput/green-blue",
-      "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "greenoutput/green-blue",
-      "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "greenoutput/green-blue",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "greenoutput/green-blue",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "greenoutput/green-alpha",
-      "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "greenoutput/green-alpha",
-      "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "greenoutput/green-alpha",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "greenoutput/green-alpha",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "blueoutput/blue-red",
-      "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "blueoutput/blue-red",
-      "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "blueoutput/blue-red",
-      "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "blueoutput/blue-red",
-      "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "blueoutput/blue-red",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "blueoutput/blue-red",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "blueoutput/blue-green",
-      "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "blueoutput/blue-green",
-      "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "blueoutput/blue-green",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "blueoutput/blue-green",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "blueoutput/blue-blue",
-      "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "blueoutput/blue-blue",
-      "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "blueoutput/blue-blue",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "blueoutput/blue-blue",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "blueoutput/blue-alpha",
-      "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "blueoutput/blue-alpha",
-      "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "blueoutput/blue-alpha",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "blueoutput/blue-alpha",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "alphaoutput/alpha-red",
-      "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 0.866,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Curtains",
-      "param": "alphaoutput/alpha-red",
-      "theta": 1.0,
-      "t": 0.65,
+      "t": 0.5,
       "oracle_signal": 0.223,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Objects__Curtains",
-      "param": "alphaoutput/alpha-red",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 0.535,
+      "param": "redoutput/red-green",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.292,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Objects__Curtains",
-      "param": "alphaoutput/alpha-red",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.214,
+      "param": "redoutput/red-green",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.29,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Objects__Curtains",
-      "param": "alphaoutput/alpha-green",
+      "param": "redoutput/red-green",
       "theta": 1.0,
-      "t": 0.35,
+      "t": 0.1,
+      "oracle_signal": 0.01,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-green",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.055,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-green",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.182,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-green",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.238,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-green",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.238,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-green",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.005,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-green",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.026,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-green",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.088,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-green",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.113,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-green",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.113,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-blue",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.013,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-blue",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.08,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-blue",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.219,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-blue",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.271,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-blue",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.27,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-blue",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.039,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-blue",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.248,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-blue",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.921,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-blue",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 1.186,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-blue",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 1.178,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-blue",
+      "theta": 0.5,
+      "t": 0.1,
       "oracle_signal": 0.025,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Objects__Curtains",
-      "param": "alphaoutput/alpha-green",
+      "param": "redoutput/red-blue",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.15,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-blue",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.456,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-blue",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.577,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "redoutput/red-blue",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.573,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-red",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-red",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-red",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-red",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-red",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-red",
       "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 0.065,
+      "t": 0.1,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Objects__Curtains",
-      "param": "alphaoutput/alpha-green",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 0.018,
+      "param": "greenoutput/green-red",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Objects__Curtains",
-      "param": "alphaoutput/alpha-green",
+      "param": "greenoutput/green-red",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-red",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-red",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-red",
       "theta": 0.5,
-      "t": 0.65,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-red",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-red",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-red",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-red",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-green",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-green",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-green",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-green",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-green",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-green",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-green",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-green",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-green",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-green",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-blue",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-blue",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-blue",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-blue",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-blue",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-blue",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-blue",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-blue",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-blue",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-blue",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-alpha",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-alpha",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-alpha",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-alpha",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-alpha",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-alpha",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-alpha",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-alpha",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-alpha",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "greenoutput/green-alpha",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-red",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-red",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-red",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-red",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-red",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-red",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-red",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-red",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-red",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-red",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-red",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-red",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-red",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-red",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-red",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-green",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-green",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-green",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-green",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-green",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-green",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-green",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-green",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-green",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-green",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-blue",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-blue",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-blue",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-blue",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-blue",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-blue",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-blue",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-blue",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-blue",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-blue",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-alpha",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-alpha",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-alpha",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-alpha",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-alpha",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-alpha",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-alpha",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-alpha",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-alpha",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "blueoutput/blue-alpha",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-red",
+      "theta": 1.0,
+      "t": 0.1,
       "oracle_signal": 0.05,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Objects__Curtains",
-      "param": "alphaoutput/alpha-blue",
+      "param": "alphaoutput/alpha-red",
       "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 0.047,
+      "t": 0.25,
+      "oracle_signal": 0.455,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Objects__Curtains",
-      "param": "alphaoutput/alpha-blue",
+      "param": "alphaoutput/alpha-red",
       "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 0.107,
+      "t": 0.5,
+      "oracle_signal": 1.229,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Objects__Curtains",
-      "param": "alphaoutput/alpha-blue",
+      "param": "alphaoutput/alpha-red",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.066,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-red",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.035,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-red",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.1,
+      "oracle_signal": 0.032,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-red",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.274,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-red",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.809,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-red",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.066,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-red",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.035,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-green",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.003,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-green",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.015,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-green",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.037,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-green",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.048,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-green",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.029,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-green",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.002,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-green",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.011,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-green",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.027,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-green",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.038,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-green",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.025,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-blue",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.007,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-blue",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.029,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-blue",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.071,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-blue",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.062,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-blue",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.034,
       "note": "no oracle signal (param inert here)"
     },
@@ -648,15 +1532,71 @@
       "host": "Objects__Curtains",
       "param": "alphaoutput/alpha-blue",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.085,
+      "t": 0.1,
+      "oracle_signal": 0.005,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-blue",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.021,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-blue",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.051,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-blue",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.058,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-blue",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.033,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-alpha",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.649,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "alphaoutput/alpha-alpha",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.648,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "monochrome",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.633,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Objects__Curtains",
       "param": "monochrome",
       "theta": 2.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -664,7 +1604,31 @@
       "host": "Objects__Curtains",
       "param": "monochrome",
       "theta": 2.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "monochrome",
+      "theta": 2.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "monochrome",
+      "theta": 2.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "monochrome",
+      "theta": 2.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -672,7 +1636,7 @@
       "host": "Objects__Curtains",
       "param": "allowmono>1",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -680,7 +1644,31 @@
       "host": "Objects__Curtains",
       "param": "allowmono>1",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "allowmono>1",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "allowmono>1",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "allowmono>1",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -688,7 +1676,7 @@
       "host": "Objects__Curtains",
       "param": "allowmono>1",
       "theta": 2.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -696,7 +1684,31 @@
       "host": "Objects__Curtains",
       "param": "allowmono>1",
       "theta": 2.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "allowmono>1",
+      "theta": 2.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "allowmono>1",
+      "theta": 2.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "allowmono>1",
+      "theta": 2.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -704,7 +1716,7 @@
       "host": "Objects__Curtains",
       "param": "includealpha",
       "theta": 1.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -712,7 +1724,31 @@
       "host": "Objects__Curtains",
       "param": "includealpha",
       "theta": 1.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "includealpha",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "includealpha",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "includealpha",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -720,7 +1756,7 @@
       "host": "Objects__Curtains",
       "param": "includealpha",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -728,7 +1764,95 @@
       "host": "Objects__Curtains",
       "param": "includealpha",
       "theta": 0.5,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "includealpha",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "includealpha",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "includealpha",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.533,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.15,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 1.121,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Curtains",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     }

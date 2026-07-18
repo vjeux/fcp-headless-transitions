@@ -66,6 +66,91 @@ def leaf_scalar_params(prim_elem):
 # Back-compat alias (old private name used inside this module + tests).
 _leaf_name_paths = leaf_scalar_params
 
+def curve_params(prim_elem):
+    """(elem, name_path, curve_elem) for CURVE-DRIVEN (animated) numeric params.
+
+    Many filters store their MEANINGFUL parameter on a <curve> child, not a value= attr
+    (PAEBadTV Waviness/Static/Scan Line*, PAENoise dimensions, PAEGaussianBlur Amount, …).
+    leaf_scalar_params SKIPS these (the <parameter> has value=None), so the scalar-only
+    fuzzer can't drive them — a real coverage gap. This enumerates them so set_curve_params
+    can flatten a curve to a constant fuzzable value. name_path is the same '/'-joined
+    normalized-name key. A <parameter> that has BOTH a value= and a <curve> is NOT returned
+    here (it's already a scalar leaf); only value-less curve params are."""
+    def walk(el, path):
+        for child in el:
+            if child.tag != 'parameter':
+                yield from walk(child, path); continue
+            nm = _norm(child.get('name'))
+            cpath = path + [nm] if nm else path
+            child_params = [g for g in child if g.tag == 'parameter']
+            curve = child.find('curve')
+            if curve is not None and child.get('value') is None and not child_params:
+                yield child, '/'.join(cpath), curve
+            if child_params:
+                yield from walk(child, cpath)
+    yield from walk(prim_elem, [])
+
+def set_curve_params(motr_text, plugin_name, values):
+    """Flatten animated CURVE params to constant values (byte-preserving) for the delta sweep.
+
+    For each curve param whose name_path matches a `values` key, rewrite its <curve
+    default="..." value="..."> AND every nested <keypoint>...<value>X</value> to the target,
+    so the param holds that CONSTANT value at ALL times (no interpolation). This is what lets
+    the fuzzer drive animated params (BadTV/Noise) that the scalar-leaf path can't reach.
+    Returns (mutated_text, applied)."""
+    root = ET.fromstring(motr_text)
+    pelem = find_primitive_elem(root, plugin_name)
+    if pelem is None:
+        return None, {}
+    # decide targets from the DOM (param id + which value keys match)
+    targets = []; applied = {}
+    for pel, name_path, _curve in curve_params(pelem):
+        for key, val in values.items():
+            if _norm(key) == name_path or _norm(key) in name_path:
+                targets.append((pel.get('id'), name_path, float(val)))
+                applied[name_path] = float(val)
+                break
+    if not targets:
+        return motr_text, {}
+    fstart, fend = _prim_byte_span(motr_text, plugin_name)
+    if fstart is None:
+        return motr_text, {}
+    head, body, tail = motr_text[:fstart], motr_text[fstart:fend], motr_text[fend:]
+
+    def _rewrite_one_curve(param_body, newval):
+        vs = '%.6f' % newval
+        # <curve ... default="X" value="Y"> -> set both to newval
+        param_body = re.sub(r'(<curve\b[^>]*\bdefault=")[^"]*(")', r'\g<1>%s\g<2>' % vs, param_body, count=1)
+        param_body = re.sub(r'(<curve\b[^>]*\bvalue=")[^"]*(")', r'\g<1>%s\g<2>' % vs, param_body, count=1)
+        # every keypoint <value>...</value> -> newval (constant across time)
+        param_body = re.sub(r'(<value>)[^<]*(</value>)', r'\g<1>%s\g<2>' % vs, param_body)
+        return param_body
+
+    for pid, _np, newval in targets:
+        # isolate this <parameter id="pid" ...> ... </parameter> span within body
+        m = re.search(r'<parameter\b[^>]*\bid="%s"[^>]*>' % re.escape(pid), body)
+        if not m:
+            continue
+        pstart = m.start()
+        # find matching </parameter> accounting for nested <parameter> (curve params have none,
+        # but be safe): scan with depth.
+        depth = 0; i = pstart; pend = None
+        for mm in re.finditer(r'<(/?)parameter\b', body[pstart:]):
+            if mm.group(1) == '':
+                depth += 1
+            else:
+                depth -= 1
+                if depth == 0:
+                    pend = pstart + mm.end() + len('>')  # include up to '>' of </parameter>
+                    # find the actual '>' after </parameter
+                    gt = body.find('>', pstart + mm.start())
+                    pend = gt + 1
+                    break
+        if pend is None:
+            continue
+        body = body[:pstart] + _rewrite_one_curve(body[pstart:pend], newval) + body[pend:]
+    return head + body + tail, applied
+
 def _prim_byte_span(motr_text, plugin_name):
     """(fstart, fend) byte span of the primitive element in the raw text, or (None,None).
     Spans by the ACTUAL enclosing tag (filter OR scenenode), not a hardcoded </filter>."""

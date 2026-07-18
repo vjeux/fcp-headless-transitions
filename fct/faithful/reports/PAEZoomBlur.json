@@ -5,50 +5,118 @@
     "Blurs__Zoom"
   ],
   "times": [
-    0.35,
-    0.65
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    0.9
   ],
   "signal_floor": 2.0,
-  "n_scored": 4,
-  "worst_ddb": 17.37,
+  "n_scored": 12,
+  "max_oracle_signal": 39.478,
+  "worst_ddb": 16.122,
   "results": [
     {
       "host": "Blurs__Zoom",
       "param": "mix",
       "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 20.009,
-      "ddb": 17.37
+      "t": 0.1,
+      "oracle_signal": 32.633,
+      "ddb": 16.122
     },
     {
       "host": "Blurs__Zoom",
       "param": "amount",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 31.617,
-      "ddb": 18.132
+      "t": 0.25,
+      "oracle_signal": 39.478,
+      "ddb": 16.204
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "mix",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 34.301,
+      "ddb": 16.713
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "amount",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 37.098,
+      "ddb": 16.744
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "mix",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 21.192,
+      "ddb": 16.914
     },
     {
       "host": "Blurs__Zoom",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 10.063,
-      "ddb": 18.659
+      "t": 0.25,
+      "oracle_signal": 10.657,
+      "ddb": 18.213
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 16.326,
+      "ddb": 18.313
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "amount",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 29.022,
+      "ddb": 18.876
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 17.151,
+      "ddb": 20.519
     },
     {
       "host": "Blurs__Zoom",
       "param": "amount",
       "theta": 200.0,
-      "t": 0.35,
-      "oracle_signal": 16.352,
-      "ddb": 23.859
+      "t": 0.25,
+      "oracle_signal": 17.169,
+      "ddb": 23.436
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "amount",
+      "theta": 200.0,
+      "t": 0.1,
+      "oracle_signal": 17.075,
+      "ddb": 23.484
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "amount",
+      "theta": 200.0,
+      "t": 0.5,
+      "oracle_signal": 16.111,
+      "ddb": 23.988
     },
     {
       "host": "Blurs__Zoom",
       "param": "look",
       "theta": 1.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -56,7 +124,31 @@
       "host": "Blurs__Zoom",
       "param": "look",
       "theta": 1.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "look",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "look",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "look",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -64,7 +156,7 @@
       "host": "Blurs__Zoom",
       "param": "look",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -72,7 +164,31 @@
       "host": "Blurs__Zoom",
       "param": "look",
       "theta": 0.5,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "look",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "look",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "look",
+      "theta": 0.5,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -80,7 +196,15 @@
       "host": "Blurs__Zoom",
       "param": "amount",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "amount",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -88,7 +212,15 @@
       "host": "Blurs__Zoom",
       "param": "amount",
       "theta": 200.0,
-      "t": 0.65,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "amount",
+      "theta": 200.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -96,7 +228,7 @@
       "host": "Blurs__Zoom",
       "param": "swirl",
       "theta": 1.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -104,7 +236,31 @@
       "host": "Blurs__Zoom",
       "param": "swirl",
       "theta": 1.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "swirl",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "swirl",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "swirl",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -112,7 +268,7 @@
       "host": "Blurs__Zoom",
       "param": "swirl",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -120,7 +276,71 @@
       "host": "Blurs__Zoom",
       "param": "swirl",
       "theta": 0.5,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "swirl",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "swirl",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "swirl",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "crop",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "crop",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "crop",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "crop",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "crop",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -128,7 +348,15 @@
       "host": "Blurs__Zoom",
       "param": "mix",
       "theta": 1.0,
-      "t": 0.65,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "mix",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -136,7 +364,95 @@
       "host": "Blurs__Zoom",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.65,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "publishosc",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "publishosc",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "publishosc",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "publishosc",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Zoom",
+      "param": "publishosc",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     }

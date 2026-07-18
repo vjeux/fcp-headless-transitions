@@ -84,6 +84,159 @@
       "swept": "2026-07-17T19:01:07Z",
       "status": "DIVERGED",
       "todo": "T-faithful-paedirectionalblur"
+    },
+    "PAEFlop": {
+      "worst_ddb": 10.743,
+      "n_scored": 9,
+      "max_oracle_signal": 56.882,
+      "hosts": [
+        "Movements__Flip",
+        "Replicator-Clones__Concentric"
+      ],
+      "swept": "2026-07-18T11:17:32Z",
+      "status": "DIVERGED",
+      "todo": "T-faithful-paeflop"
+    },
+    "PAERadialBlur": {
+      "worst_ddb": 18.992,
+      "n_scored": 11,
+      "max_oracle_signal": 28.638,
+      "hosts": [
+        "Blurs__Radial",
+        "Replicator-Clones__Combo_Spin"
+      ],
+      "swept": "2026-07-18T11:20:45Z",
+      "status": "DIVERGED",
+      "todo": "T-faithful-paeradialblur"
+    },
+    "PAEBadTV": {
+      "worst_ddb": null,
+      "n_scored": 0,
+      "max_oracle_signal": 0.0,
+      "hosts": [
+        "Lights__Static"
+      ],
+      "swept": "2026-07-18T11:21:43Z",
+      "status": "NO_SIGNAL"
+    },
+    "PAEBlackHole": {
+      "worst_ddb": 10.387,
+      "n_scored": 15,
+      "max_oracle_signal": 77.126,
+      "hosts": [
+        "Movements__Black_Hole"
+      ],
+      "swept": "2026-07-18T11:23:19Z",
+      "status": "DIVERGED",
+      "todo": "T-faithful-paeblackhole"
+    },
+    "PAEBloom": {
+      "worst_ddb": 6.997,
+      "n_scored": 8,
+      "max_oracle_signal": 114.039,
+      "hosts": [
+        "Lights__Bloom"
+      ],
+      "swept": "2026-07-18T11:25:49Z",
+      "status": "DIVERGED",
+      "todo": "T-faithful-paebloom"
+    },
+    "PAEBrightness": {
+      "worst_ddb": 6.004,
+      "n_scored": 21,
+      "max_oracle_signal": 134.118,
+      "hosts": [
+        "Objects__Curtains"
+      ],
+      "swept": "2026-07-18T11:27:46Z",
+      "status": "DIVERGED",
+      "todo": "T-faithful-paebrightness"
+    },
+    "PAEChannelMixer": {
+      "worst_ddb": 5.893,
+      "n_scored": 41,
+      "max_oracle_signal": 139.802,
+      "hosts": [
+        "Objects__Curtains"
+      ],
+      "swept": "2026-07-18T11:41:43Z",
+      "status": "DIVERGED",
+      "todo": "T-faithful-paechannelmixer"
+    },
+    "PAECloudsV": {
+      "worst_ddb": 10.156,
+      "n_scored": 95,
+      "max_oracle_signal": 79.206,
+      "hosts": [
+        "Stylized__Close_and_Open"
+      ],
+      "swept": "2026-07-18T11:53:28Z",
+      "status": "DIVERGED",
+      "todo": "T-faithful-paecloudsv"
+    },
+    "PAEEarthquake": {
+      "worst_ddb": 16.253,
+      "n_scored": 20,
+      "max_oracle_signal": 25.175,
+      "hosts": [
+        "Movements__Earthquake"
+      ],
+      "swept": "2026-07-18T11:55:36Z",
+      "status": "DIVERGED",
+      "todo": "T-faithful-paeearthquake"
+    },
+    "PAEGlow": {
+      "worst_ddb": 13.469,
+      "n_scored": 8,
+      "max_oracle_signal": 52.987,
+      "hosts": [
+        "Lights__Bloom"
+      ],
+      "swept": "2026-07-18T11:57:18Z",
+      "status": "DIVERGED",
+      "todo": "T-faithful-paeglow"
+    },
+    "PAENoise": {
+      "worst_ddb": null,
+      "n_scored": 0,
+      "max_oracle_signal": 0.0,
+      "hosts": [
+        "Lights__Static"
+      ],
+      "swept": "2026-07-18T12:01:03Z",
+      "status": "NO_SIGNAL"
+    },
+    "PAETint": {
+      "worst_ddb": null,
+      "n_scored": 0,
+      "max_oracle_signal": 0.0,
+      "hosts": [
+        "Objects__Leaves"
+      ],
+      "swept": "2026-07-18T12:06:13Z",
+      "status": "NO_SIGNAL"
+    },
+    "PAEUnderwater": {
+      "worst_ddb": 16.526,
+      "n_scored": 14,
+      "max_oracle_signal": 38.04,
+      "hosts": [
+        "Movements__Flashback"
+      ],
+      "swept": "2026-07-18T12:07:32Z",
+      "status": "DIVERGED",
+      "todo": "T-faithful-paeunderwater"
+    },
+    "PAEZoomBlur": {
+      "worst_ddb": 16.122,
+      "n_scored": 12,
+      "max_oracle_signal": 39.478,
+      "hosts": [
+        "Blurs__Zoom"
+      ],
+      "swept": "2026-07-18T12:11:12Z",
+      "status": "DIVERGED",
+      "todo": "T-faithful-paezoomblur"
     }
   },
   "history": [
@@ -122,8 +275,92 @@
       "t": "2026-07-17T19:01:07Z",
       "status": "DIVERGED",
       "worst_ddb": 5.349
+    },
+    {
+      "prim": "PAEFlop",
+      "t": "2026-07-18T11:17:32Z",
+      "status": "DIVERGED",
+      "worst_ddb": 10.743
+    },
+    {
+      "prim": "PAERadialBlur",
+      "t": "2026-07-18T11:20:45Z",
+      "status": "DIVERGED",
+      "worst_ddb": 18.992
+    },
+    {
+      "prim": "PAEBadTV",
+      "t": "2026-07-18T11:21:43Z",
+      "status": "NO_SIGNAL",
+      "worst_ddb": null
+    },
+    {
+      "prim": "PAEBlackHole",
+      "t": "2026-07-18T11:23:19Z",
+      "status": "DIVERGED",
+      "worst_ddb": 10.387
+    },
+    {
+      "prim": "PAEBloom",
+      "t": "2026-07-18T11:25:49Z",
+      "status": "DIVERGED",
+      "worst_ddb": 6.997
+    },
+    {
+      "prim": "PAEBrightness",
+      "t": "2026-07-18T11:27:46Z",
+      "status": "DIVERGED",
+      "worst_ddb": 6.004
+    },
+    {
+      "prim": "PAEChannelMixer",
+      "t": "2026-07-18T11:41:43Z",
+      "status": "DIVERGED",
+      "worst_ddb": 5.893
+    },
+    {
+      "prim": "PAECloudsV",
+      "t": "2026-07-18T11:53:28Z",
+      "status": "DIVERGED",
+      "worst_ddb": 10.156
+    },
+    {
+      "prim": "PAEEarthquake",
+      "t": "2026-07-18T11:55:36Z",
+      "status": "DIVERGED",
+      "worst_ddb": 16.253
+    },
+    {
+      "prim": "PAEGlow",
+      "t": "2026-07-18T11:57:18Z",
+      "status": "DIVERGED",
+      "worst_ddb": 13.469
+    },
+    {
+      "prim": "PAENoise",
+      "t": "2026-07-18T12:01:03Z",
+      "status": "NO_SIGNAL",
+      "worst_ddb": null
+    },
+    {
+      "prim": "PAETint",
+      "t": "2026-07-18T12:06:13Z",
+      "status": "NO_SIGNAL",
+      "worst_ddb": null
+    },
+    {
+      "prim": "PAEUnderwater",
+      "t": "2026-07-18T12:07:32Z",
+      "status": "DIVERGED",
+      "worst_ddb": 16.526
+    },
+    {
+      "prim": "PAEZoomBlur",
+      "t": "2026-07-18T12:11:12Z",
+      "status": "DIVERGED",
+      "worst_ddb": 16.122
     }
   ],
   "started": "2026-07-17T18:24:32Z",
-  "updated": "2026-07-17T19:01:07Z"
+  "updated": "2026-07-18T12:11:12Z"
 }
