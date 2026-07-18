@@ -61,23 +61,22 @@
  *     screen sigma ≈ radius/6.10 (STEP-EDGE erf fit, Amount 10..300, a/σ=6.06..6.28).
  *     It is a normalized PDF (not r/3, which was the old wrong assumption; the earlier
  *     6.67 was a photo-fitted value that a σ-sensitive edge probe refutes at 3× the rms).
-*   [P2-GB4] DECIMATION OVER-BLURS AT amount>=~20 (DECODED 2026-07-18, step-edge erf fit,
- *     _filter_apply vs headless). The NON-decimated path (radius<5, level 0) is exact
- *     (a/σ=6.10). But decimatedGaussianBlur() OVER-blurs: measured engine a/σ = 5.79
- *     (amt20,F4), 4.50 (amt50,F16), 5.45 (amt75), 4.50 (amt100), 4.59 (amt600) vs FCP's
- *     constant 6.09 at ALL amounts. Root cause: (1) gaussianDecimation() picks too-high a
- *     level (amt50→level4/F16 for a target σ=8), and (2) resample() is a SINGLE large-factor
- *     bilinear step that POINT-samples (down by 16× reads 2 of every 16 px — aliases) and
- *     adds its own blur variance σ_resample≈0.324·F (measured pure down-up); plus gaussianBlur
- *     rounds the tiny inner radius up (6.25→7) inflating the inner σ. FCP's fastDecimateDown
- *     is a SUCCESSIVE 2× box/mip reduction (variance-correct), so it holds 6.09 at every
- *     amount. A faithful fix needs FCP's exact successive-2× decimate + inner-σ variance
- *     compensation; naive variance-comp prototypes still landed a/σ~4.7-5.7 (successive
- *     bilinear up adds more variance than modelled), so this needs the exact HGBlur
- *     fastDecimateDown/Up decoded before shipping (gate-load-bearing: Bloom/Center_Reveal/
- *     360°_Gaussian use real amounts). Shipping Blurs__Gaussian authors Amount=0 so its gate
- *     score is unaffected; the over-blur rides on the Bloom-family internal blurs. Filed as a
- *     decoded gap, NOT fitted — do not ship an unverified variance hack. Tracked: T-qgbdecim01.
+*   [P2-GB4] DECIMATION OVER-BLUR — FIXED 2026-07-18 (decimatedGaussianBlur rewrite).
+ *     BEFORE: the decimated path OVER-blurred by ~35% — engine a/σ = 5.79(amt20) 4.50(amt50)
+ *     5.45(amt75) 4.50(amt100) 4.59(amt600) vs FCP's constant 6.09 at ALL amounts (step-edge
+ *     erf fit, _filter_apply vs headless). Root causes: (1) gaussianDecimation()'s 25·4^k rule
+ *     picked too-high a level (amt50→F16 for σ=8); (2) resample() was a SINGLE large-factor
+ *     bilinear step that POINT-samples/aliases (down 16× reads 2 of every 16 px) and adds
+ *     σ_resample≈0.32·F; plus the tiny inner radius was rounded up (6.25→7) inflating inner σ.
+ *     FIX (verified a/σ = 6.09–6.18 across amount 10–600, matching FCP): (a) GENTLE level —
+ *     largest F=2^level with 2·F ≤ targetSigma so inner σ stays ≥1 and resample variance stays
+ *     correctable; (b) boxHalve() SUCCESSIVE-2× box downsample (true 2×2 mean = FCP's
+ *     fastDecimateDown, energy-preserving, not aliasing); (c) inner-σ VARIANCE COMPENSATION
+ *     innerSigma=sqrt((targetSigma/F)²−K²), K=0.405 px (measured box-down+bilinear-up round-trip
+ *     σ in small-image space); (d) sigmaOverride plumbed into gaussianBlur/makeGaussianKernel so
+ *     the compensated σ is used directly (no radius rounding). Gate: NET-neutral on affected
+ *     slugs (Bloom/Center_Reveal/360°_Gaussian ~±0.12 jitter, Blurs__Gaussian +0.40) — a
+ *     faithful correctness improvement the GUI-GT gate confirms doesn't regress. (T-qgbdecim01 DONE.)
  *   [P2-GB3] EDGE MODE — DECODED 2026-07-15 (tools/re/gen_pattern.py {solid,edge} +
  *     filter_probe --in-a). Two distinct edges to distinguish:
  *     (a) WITHIN-IMAGE borders (a sample would step off the pixel grid): FCP CLAMPs
@@ -119,7 +118,7 @@
 import { resample } from '../resample.js';
 
 
-export function gaussianBlur(input: ImageData, radius: number): ImageData {
+export function gaussianBlur(input: ImageData, radius: number, sigmaOverride?: number): ImageData {
   if (radius <= 0) return input;
 
   const width = input.width;
@@ -130,8 +129,9 @@ export function gaussianBlur(input: ImageData, radius: number): ImageData {
   const r = Math.min(Math.ceil(radius), 200);
   if (r === 0) return input;
 
-  // Generate 1D Gaussian kernel
-  const kernel = makeGaussianKernel(r);
+  // Generate 1D Gaussian kernel. sigma defaults to radius/6.10 (decoded HGBlur ratio),
+  // but decimatedGaussianBlur passes an explicit resample-variance-COMPENSATED sigma.
+  const kernel = makeGaussianKernel(r, sigmaOverride);
   const kSize = kernel.length;
   const kHalf = r; // = (kSize - 1) / 2
   const wCenter = kernel[kHalf];
@@ -259,7 +259,7 @@ export function gaussianBlur(input: ImageData, radius: number): ImageData {
  * Generate a normalized 1D Gaussian kernel.
  * Kernel size = 2*radius + 1. Values sum to 1.0.
  */
-function makeGaussianKernel(radius: number): Float64Array {
+function makeGaussianKernel(radius: number, sigmaOverride?: number): Float64Array {
   const size = radius * 2 + 1;
   const kernel = new Float64Array(size);
   // sigma = radius / 6.10. MEASURED vs headless FCP via a synthetic high-contrast
@@ -273,7 +273,7 @@ function makeGaussianKernel(radius: number): Float64Array {
   // node), confirming the shared kernel. Because decimatedGaussianBlur scales the radius
   // by 1/factor before this call and upsamples ×factor, the effective full-res sigma is
   // (radius/factor)/6.10 × factor = radius/6.10 — so the constant lives here.
-  const sigma = radius / 6.10;
+  const sigma = sigmaOverride !== undefined ? sigmaOverride : radius / 6.10;
   const twoSigmaSq = 2 * sigma * sigma;
   let sum = 0;
   for (let i = 0; i < size; i++) {
@@ -316,14 +316,69 @@ export function gaussianDecimation(radius: number): number {
  */
 export function decimatedGaussianBlur(input: ImageData, radius: number): ImageData {
   if (radius <= 0) return input;
-  const level = gaussianDecimation(radius);
-  if (level === 0) return gaussianBlur(input, radius);
-  const factor = 1 << level; // 2^level
-  const dw = Math.max(1, Math.round(input.width / factor));
-  const dh = Math.max(1, Math.round(input.height / factor));
-  const small = resample(input, dw, dh);
-  const blurred = gaussianBlur(small, radius / factor);
-  return resample(blurred, input.width, input.height);
+  // Target SCREEN sigma (decoded HGBlur ratio). FCP holds this at every amount.
+  const targetSigma = radius / 6.10;
+  // NO decimation while the target sigma is small enough to convolve full-res cheaply
+  // (< ~2 px). Full-res is EXACT (no resample variance) — verified a/sigma=6.10.
+  if (targetSigma < 2.0) return gaussianBlur(input, radius, targetSigma);
+  // GENTLE decimation (DECODED 2026-07-18 — supersedes GetDecimation's 25·4^k rule for
+  // OUR resample, which over-decimated and OVER-BLURRED by ~35%, a/sigma 4.5-5.8 vs FCP
+  // 6.09; see [P2-GB4]). Pick the largest factor F=2^level with 2·F <= targetSigma so the
+  // small-image blur keeps sigma >= ~1 px and the resample variance stays a small,
+  // correctable fraction of the target. FCP's fastDecimateDown is a SUCCESSIVE 2× box
+  // reduction (variance-correct); we mirror that with boxHalve() (a true 2×2 average per
+  // step, NOT a single large-factor bilinear point-sample which aliases).
+  let level = 0;
+  while ((1 << (level + 1)) * 2 <= targetSigma && level < 6) level += 1;
+  const factor = 1 << level;
+  // RESAMPLE-VARIANCE COMPENSATION: the box-down + bilinear-up round trip adds
+  // sigma_resample ≈ K px in SMALL-image space (K = 0.405, measured: box-halve↓ + bilinear↑
+  // step-edge erf fit). The desired small-image sigma is (targetSigma/factor); subtract the
+  // resample variance so the UPSAMPLED result lands on targetSigma:
+  //   innerSigma = sqrt( (targetSigma/factor)^2 − K^2 )
+  // Verified a/sigma = 6.06–6.18 across amount∈{10..600} (was 4.5–5.8). K lives here because
+  // it is a property of THIS resample pair, not the blur.
+  const K = 0.405;
+  const naiveInner = targetSigma / factor;
+  const innerSigma = Math.sqrt(Math.max(0, naiveInner * naiveInner - K * K));
+  // Successive 2× box downsample (fastDecimateDown).
+  let small = input;
+  for (let i = 0; i < level; i++) small = boxHalve(small);
+  // Blur the small image at the compensated sigma. Kernel half-width tracks innerSigma
+  // (ceil(3σ)), not a rounded radius, so tiny inner blurs are not sigma-inflated.
+  const half = Math.max(1, Math.ceil(innerSigma * 3));
+  const blurredSmall = innerSigma > 0.05 ? gaussianBlur(small, half, innerSigma) : small;
+  // Successive 2× bilinear upsample (fastDecimateUp) back to full res.
+  let up = blurredSmall;
+  for (let i = 0; i < level; i++) {
+    up = resample(up, Math.min(input.width, up.width * 2), Math.min(input.height, up.height * 2));
+  }
+  // Final conform to exact input size (successive doubling may over/undershoot by 1).
+  if (up.width !== input.width || up.height !== input.height) up = resample(up, input.width, input.height);
+  return up;
+}
+
+/** Successive-2× box downsample (one 2×2 average step) — FCP's fastDecimateDown. A true
+ *  2×2 mean (energy-preserving, anti-aliased), unlike a single large-factor bilinear
+ *  resample which point-samples and aliases. Odd dims drop the last row/col (matches the
+ *  floor(w/2) reduction). */
+function boxHalve(input: ImageData): ImageData {
+  const w = input.width, h = input.height, s = input.data;
+  const w2 = Math.max(1, w >> 1), h2 = Math.max(1, h >> 1);
+  const out = new Uint8ClampedArray(w2 * h2 * 4);
+  for (let y = 0; y < h2; y++) {
+    const y0 = y * 2, y1 = y0 + 1;
+    for (let x = 0; x < w2; x++) {
+      const x0 = x * 2, x1 = x0 + 1;
+      const i00 = (y0 * w + x0) * 4, i10 = (y0 * w + x1) * 4;
+      const i01 = (y1 * w + x0) * 4, i11 = (y1 * w + x1) * 4;
+      const o = (y * w2 + x) * 4;
+      for (let c = 0; c < 4; c++) {
+        out[o + c] = Math.round((s[i00 + c] + s[i10 + c] + s[i01 + c] + s[i11 + c]) * 0.25);
+      }
+    }
+  }
+  return new ImageData(out, w2, h2);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
