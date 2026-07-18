@@ -61,6 +61,23 @@
  *     screen sigma ≈ radius/6.10 (STEP-EDGE erf fit, Amount 10..300, a/σ=6.06..6.28).
  *     It is a normalized PDF (not r/3, which was the old wrong assumption; the earlier
  *     6.67 was a photo-fitted value that a σ-sensitive edge probe refutes at 3× the rms).
+*   [P2-GB4] DECIMATION OVER-BLURS AT amount>=~20 (DECODED 2026-07-18, step-edge erf fit,
+ *     _filter_apply vs headless). The NON-decimated path (radius<5, level 0) is exact
+ *     (a/σ=6.10). But decimatedGaussianBlur() OVER-blurs: measured engine a/σ = 5.79
+ *     (amt20,F4), 4.50 (amt50,F16), 5.45 (amt75), 4.50 (amt100), 4.59 (amt600) vs FCP's
+ *     constant 6.09 at ALL amounts. Root cause: (1) gaussianDecimation() picks too-high a
+ *     level (amt50→level4/F16 for a target σ=8), and (2) resample() is a SINGLE large-factor
+ *     bilinear step that POINT-samples (down by 16× reads 2 of every 16 px — aliases) and
+ *     adds its own blur variance σ_resample≈0.324·F (measured pure down-up); plus gaussianBlur
+ *     rounds the tiny inner radius up (6.25→7) inflating the inner σ. FCP's fastDecimateDown
+ *     is a SUCCESSIVE 2× box/mip reduction (variance-correct), so it holds 6.09 at every
+ *     amount. A faithful fix needs FCP's exact successive-2× decimate + inner-σ variance
+ *     compensation; naive variance-comp prototypes still landed a/σ~4.7-5.7 (successive
+ *     bilinear up adds more variance than modelled), so this needs the exact HGBlur
+ *     fastDecimateDown/Up decoded before shipping (gate-load-bearing: Bloom/Center_Reveal/
+ *     360°_Gaussian use real amounts). Shipping Blurs__Gaussian authors Amount=0 so its gate
+ *     score is unaffected; the over-blur rides on the Bloom-family internal blurs. Filed as a
+ *     decoded gap, NOT fitted — do not ship an unverified variance hack. Tracked: T-qgbdecim01.
  *   [P2-GB3] EDGE MODE — DECODED 2026-07-15 (tools/re/gen_pattern.py {solid,edge} +
  *     filter_probe --in-a). Two distinct edges to distinguish:
  *     (a) WITHIN-IMAGE borders (a sample would step off the pixel grid): FCP CLAMPs
