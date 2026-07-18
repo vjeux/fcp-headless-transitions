@@ -10,5 +10,5 @@
   "status": "open",
   "created_by": "human",
   "created_at": "2026-07-16T09:53:07+00:00",
-  "notes": ""
+  "notes": " | MEASURED 2026-07-18: the decode-faithful FLOAT bloom (FCT_BLOOM_FLOAT path in glow.ts, now using decimatedBlurFloatRGB) scores Lights__Bloom 18.60->18.89 (+0.29) but 360_Bloom 11.52->10.74 (-0.78) = NET -0.49 on the GUI gate. So the float bloom is still NOT gate-ready: the x10 extract + additive-Brightness/50 combine energy diverges from GT on the LIVE-evaluating 360 host (Lights__Bloom retime-wraps so its bloom barely fires). The FCT_BLOOM_FLOAT flag is a Rule-12 violation (tracked T-qdeflag0001) \u2014 but the default-OFF 8-bit path is the gate-correct one until the extract/combine energy is re-decoded to match BOTH Bloom slugs' GUI GT. Blur sub-kernel is already VERIFIED (PAEGaussianBlur). NEXT: re-decode the bloomHeliumRender combine gain/threshold against 360_Bloom GT specifically (it evaluates live, no wrap confound)."
 }
