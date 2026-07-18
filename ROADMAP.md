@@ -900,6 +900,26 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-18faithful7  ✅ COLORIZE COLOR-SPACE FULLY DECODED + PAECloudsV2 Phase-1 RE (commits
+              9f78fe6, c7eb7bb, e9c7f43, 28f6fd1). Cracked the Colorize working-space that stalled
+              prior sessions, via an isolated flat-white endpoint-sweep through headless FCP:
+                out_code = 255·( s2l(black) + luma·(s2l(white) − s2l(black)) )
+              where endpoints are sRGB→LINEAR (flat-white sweep: 0.25→13.0, 0.50→54.0, 0.75→132.0 =
+              EXACTLY srgb_to_linear(v)·255, not v·255 nor plain gamma) and LUMA is Rec.709 on the
+              sRGB CODE values, NOT linearised (grayscale remap 43.8 dB with 709-codes vs 33.6 for
+              709-on-linear vs 35 for 601). Result written directly to the linear framebuffer (no
+              re-encode). This faithful formula matches headless 47-56 dB on the REAL transition
+              endpoints (Curtains/Slide/Veil-like); only DESCENDING remaps (black.ch>white.ch) stay
+              anomalous ~19 dB and NONE are exercised. Shipping still uses RAW endpoints because
+              per-filter s2l regresses the GUI gate (the stacked chain needs encode-once); the full
+              decode + the CRITICAL luma-space subtlety (a linear-buffer chain must read the sRGB
+              CODES for the luma dot, not the linear buffer) is captured in T-qlinchain01 for the
+              chain work. Also completed Phase-1 RE for PAECloudsV2 (the last undocumented filter):
+              verbatim HgcClouds shader → 4-octave QUINTIC-fade VALUE-NOISE fBm (hg_Params[1] octave
+              weights) → contrast/brightness → |value|·256 gradient-LUT index → authored RGBA
+              gradient → premult; Speed animates the field. NOT pixel-matchable (CPU-side RNG lattice,
+              same class as PAENoise) — documented. PHASE-1 RE IS NOW COMPLETE FOR EVERY FCP FILTER.
+
 - 2026-07-18faithful6  ✅ GEOMETRIC/KERNEL FAMILY VERIFIED (5/20 primitives: ColorSolid,
               DirectionalBlur, Flop, RadialBlur, GaussianBlur). This session established, with
               ISOLATED headless step-edge/photo probes (PAE* injected into the Directional
