@@ -900,6 +900,36 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-18faithful6  ✅ GEOMETRIC/KERNEL FAMILY VERIFIED (5/20 primitives: ColorSolid,
+              DirectionalBlur, Flop, RadialBlur, GaussianBlur). This session established, with
+              ISOLATED headless step-edge/photo probes (PAE* injected into the Directional
+              skeleton at factoryID=7), that every deterministic geometric filter's math is
+              FAITHFUL across its full param space; the residual per-primitive ddb is provably
+              host/pipeline contamination, NOT the filter:
+                • PAEGaussianBlur: a/σ = 6.11/6.11/6.08/6.07 at Amount 50/100/300/600 (headless
+                  erf fit); engine matches headless 43.0/40.8/38.5 dB at 100/300/600 INCLUDING
+                  the sweep's worst point Amount=600 → the 16.07 ddb in Lights__Bloom is
+                  BLOOM-PIPELINE contamination, not the kernel.
+                • PAEDirectionalBlur: K=Amount/σ EXACTLY 6.10-6.12 at amt 100/200/300; engine
+                  47-48 dB in isolation → the 26.3 ddb is transition-context compositing.
+                • PAERadialBlur: spin K=arcPx/6.0, 38.6/34.3/30.5 dB at Angle 0.5/1.0/2.0; the
+                  ~24 dB ddb ceiling is the shared polar-resample discretization + timing frames.
+                • PAEFlop: mirror exact (gradient 46.3 dB); Mix-blend FIXED (e183b34); the 10.7
+                  ddb is Concentric replicator-cell geometry (split → T-qflopreplic1).
+                • PAEColorSolid: already VERIFIED (generator solo synth).
+              TWO real engine fixes landed, both gate-neutral (0/0) + faithful across param space:
+              (1) RadialBlur/ZoomBlur Center param wired via new FilterContext.nestedParam (was
+              hardcoded 0.5,0.5); (2) Flop Mix is a linear blend (was ignored). ZoomBlur's
+              log-polar model documented at its ~20 dB isolation ceiling (center singularity;
+              filter authored Amount=0 in the only host so near-zero gate ROI). Commits c32cc54,
+              e183b34, cabf047, 453fe7c, 510133a, 5435559, 1e2cbaf.
+              METHOD: the isolated step-edge/photo probe (inject filter into the Directional
+              skeleton, render source-A-only at t=0 through headless) is the DEFINITIVE
+              per-primitive fidelity test for deterministic filters — it removes ALL host
+              contamination the embedded delta-sweep conflates in. "Worst param = Mix at
+              mix=0/0.5" reliably flags a filter that ignores its host Mix (clean fix for simple
+              per-pixel ops; for WARP filters Mix blends inside the warp pipeline — don't chase).
+
 - 2026-07-18faithful5  ✅ FLOP VERIFIED + Radial/Zoom Center wired (3 commits: c32cc54, e183b34,
               cabf047). Two clean faithful decoded wins, both gate-neutral (all shipping users at the
               default param), both make the primitive faithful across its FULL param space (Rule 13):
