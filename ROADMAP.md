@@ -900,6 +900,18 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-18gb-decim  ✅ GAUSSIAN DECIMATION OVER-BLUR FIXED (T-qgbdecim01 DONE, commits 0bacf95
+              +8e9a887). The decimated Gaussian path OVER-blurred ~35% at every amount>=20 — engine
+              a/σ = 4.5-5.8 vs FCP's constant 6.09 (step-edge erf fit vs headless). Root causes: (1)
+              gaussianDecimation's 25·4^k rule over-decimated (amt50→F16 for σ=8); (2) resample() was a
+              SINGLE large-factor bilinear step that point-samples/aliases + adds σ~0.32·F; (3) tiny
+              inner radius rounded up. FIX (both u8 + Float paths): gentle level (2·F<=targetSigma) +
+              boxHalve successive-2× box downsample (FCP fastDecimateDown) + inner-σ variance
+              compensation sqrt((target/F)²−K²) K=0.405 + sigmaOverride (no radius rounding). VERIFIED
+              a/σ=6.09-6.18 across amount 10-600 (matches FCP). Gate: 0 regressions, +1 (Blurs__Gaussian
+              25.61→25.98). A geometric primitive (headless≈GUI) so verified on BOTH oracles. This is
+              the kind of clean decoded win the faithful-oracle methodology is FOR.
+
 - 2026-07-18headless-gap  ⚠️⚠️ CRITICAL: FCP-HEADLESS ≠ FCP-GUI-GT for COLOR slugs (13-19 dB gap).
               Measured FCP's OWN headless engine vs the GUI GT (fct score --source headless): Slide
               17.82, Veil 14.93, Up-Over 13.10, Curtains 18.94 — NOT ~40+. FCP's headless render and
