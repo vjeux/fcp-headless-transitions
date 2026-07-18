@@ -1,0 +1,14 @@
+{
+  "id": "T-qflopreplic1",
+  "title": "Concentric replicator-cell geometry gap (surfaces as PAEFlop ddb 10.7)",
+  "project": "fct",
+  "goal": "PAEFlop's mirror math is VERIFIED faithful in isolation (gradient probe 46.3 dB, synth solo flop-param delta 32.5 dB, Mix-blend fixed e183b34). Its faithful-sweep DIVERGED (worst ddb 10.7 at flop=1 in Replicator-Clones__Concentric) is ENTIRELY replicator-cell geometry contamination: Flop mirrors a replicator layer whose per-cell placement already differs engine-vs-FCP. Fix the Concentric replicator geometry (cell centers/mirror-axis), which will simultaneously lift the Flop-in-Concentric ddb. This is the replicator primitive, not Flop. DoD: fct census + engine-vs-headless on Concentric replicator cells; Concentric 13.55 dB up; PAEFlop sweep flop-param ddb up (no Flop code change needed).",
+  "slugs": [
+    "Replicator-Clones__Concentric"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "faithful-flop",
+  "created_at": "2026-07-18T21:53:43+00:00",
+  "notes": "Split out from T-faithful-paeflop 2026-07-18. Flop filter code is correct+faithful."
+}

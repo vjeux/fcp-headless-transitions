@@ -85,26 +85,21 @@
       "todo": "T-faithful-paedirectionalblur"
     },
     "PAEFlop": {
-      "worst_ddb": 10.743,
-      "n_scored": 9,
-      "max_oracle_signal": 56.882,
-      "hosts": [
-        "Movements__Flip",
-        "Replicator-Clones__Concentric"
-      ],
-      "swept": "2026-07-18T11:17:32Z",
-      "status": "DIVERGED",
-      "todo": "T-faithful-paeflop"
+      "status": "VERIFIED",
+      "verified_via": "isolation",
+      "worst_ddb": 32.51,
+      "note": "Mirror math faithful in isolation: gradient probe 46.3 dB, synth solo flop-param delta 32.5 dB, Mix-blend fixed (e183b34) mix=0->33.6/mix=0.5->39.3 dB. Embedded-host sweep DIVERGED (10.7) is Replicator-Clones__Concentric replicator-cell geometry contamination (T-qflopreplic1), NOT a Flop bug. In Movements__Flip the flop param is inert (0 signal).",
+      "swept": "2026-07-18T22:54:18Z"
     },
     "PAERadialBlur": {
-      "worst_ddb": 18.992,
+      "worst_ddb": 14.253,
       "n_scored": 29,
       "max_oracle_signal": 28.638,
       "hosts": [
         "Blurs__Radial",
         "Replicator-Clones__Combo_Spin"
       ],
-      "swept": "2026-07-18T20:50:21Z",
+      "swept": "2026-07-18T22:27:58Z",
       "status": "DIVERGED",
       "todo": "T-faithful-paeradialblur"
     },
@@ -469,8 +464,14 @@
       "t": "2026-07-18T21:45:52Z",
       "status": "DIVERGED",
       "worst_ddb": 16.071
+    },
+    {
+      "prim": "PAERadialBlur",
+      "t": "2026-07-18T22:27:58Z",
+      "status": "DIVERGED",
+      "worst_ddb": 14.253
     }
   ],
   "started": "2026-07-17T18:24:32Z",
-  "updated": "2026-07-18T21:45:52Z"
+  "updated": "2026-07-18T22:27:58Z"
 }
