@@ -15,7 +15,9 @@
       ],
       "swept": "2026-07-17T18:24:32Z",
       "status": "DIVERGED",
-      "todo": "T-faithful-paecolorize"
+      "todo": "T-faithful-paecolorize",
+      "verified_via": "blocked-headless-neq-gui",
+      "note": "Faithful headless formula DECODED EXACT (s2l endpoints + Rec709-sRGB-code luma, 47-56 dB isolated) but shipping it regresses the GUI gate NET -11.4 dB incl LONE-Colorize Slide -0.80 -> the GUI export != headless colour management is FUNDAMENTAL (not a chain artifact). Engine ships RAW endpoints = what the GUI GT (Rule 1 scoring truth) prefers. Match-verified against the GATE truth, not the headless oracle. See channel-mixer.ts."
     },
     "PAELevels": {
       "worst_ddb": 5.004,
@@ -30,7 +32,9 @@
       ],
       "swept": "2026-07-17T18:35:06Z",
       "status": "DIVERGED",
-      "todo": "T-faithful-paelevels"
+      "todo": "T-faithful-paelevels",
+      "verified_via": "blocked-headless-neq-gui",
+      "note": "HgcLevels shader documented (levels.ts); two-stage form REFUTED by GUI gate (cac1d5b). Same color-family headless!=GUI split as Colorize: the linear/working-space math that matches headless regresses the GUI gate. Ships the GUI-gate-preferred form. Degenerate BI>=WI -> white (unshipped)."
     },
     "PAEGaussianBlur": {
       "status": "VERIFIED",
@@ -51,7 +55,9 @@
       ],
       "swept": "2026-07-18T19:29:53Z",
       "status": "DIVERGED",
-      "todo": "T-faithful-paehsvadjust"
+      "todo": "T-faithful-paehsvadjust",
+      "verified_via": "blocked-headless-neq-gui",
+      "note": "HgcHSVAdjust/Saturation documented (hue-saturation.ts). Value darken leg out=in*Value^2 sRGB EXACT; Saturation desaturate-only clamp verified. Brighten leg V>1 not a squared mult (unshipped). Color-family headless!=GUI: linear-space match regresses the GUI gate; ships GUI-preferred sRGB form."
     },
     "PAEColorSolid": {
       "worst_ddb": 51.799,
@@ -63,7 +69,9 @@
         "Stylized__Light_Sweep"
       ],
       "swept": "2026-07-18T15:16:18Z",
-      "status": "VERIFIED"
+      "status": "VERIFIED",
+      "note": "Generator solo-synth VERIFIED (interior 54-70 dB): Color Solid emits authored colour as srgb_to_linear(param)*255 into the linear framebuffer (6-point sweep 0.10->2.5 0.5->54.4 1.0->254.6 = s2l exact). footage.ts color branch. Embedded-host is host geometry (tracked separately).",
+      "verified_via": "solo-synth"
     },
     "PAEDirectionalBlur": {
       "status": "VERIFIED",
@@ -102,7 +110,9 @@
       ],
       "swept": "2026-07-18T11:25:49Z",
       "status": "DIVERGED",
-      "todo": "T-faithful-paebloom"
+      "todo": "T-faithful-paebloom",
+      "verified_via": "blocked-pipeline",
+      "note": "Bloom = threshold + Gaussian (kernel VERIFIED, see PAEGaussianBlur) + composite. The embedded ddb (7.0) is the threshold/bloom COMPOSITE stages (glow.ts), and the worst points are t=0.1 across ALL params = whole-bloom-output offset, not one param. Blur sub-component is faithful; the composite pipeline (threshold curve, additive blend, clip-to-white ordering) is the residual + it feeds a multi-stage host."
     },
     "PAEBrightness": {
       "worst_ddb": 6.004,
@@ -113,7 +123,9 @@
       ],
       "swept": "2026-07-18T11:27:46Z",
       "status": "DIVERGED",
-      "todo": "T-faithful-paebrightness"
+      "todo": "T-faithful-paebrightness",
+      "verified_via": "blocked-headless-neq-gui",
+      "note": "Isolated transfer DECODED EXACT (levels.ts): darken out=amount*v (mad 0.24), brighten out=srgbEncode(amount*v/255) (mad 0.12). Ships plain code-multiply because the one user (Curtains) STACKS Mono->Brightness->Colorize and a per-filter brighten-encode regresses the GUI gate (encode-once chain needed, but that is measured-refuted to help the gate per T-qlinchain01). GUI-gate-verified on plain multiply."
     },
     "PAEChannelMixer": {
       "worst_ddb": 5.893,
@@ -124,7 +136,9 @@
       ],
       "swept": "2026-07-18T11:41:43Z",
       "status": "DIVERGED",
-      "todo": "T-faithful-paechannelmixer"
+      "todo": "T-faithful-paechannelmixer",
+      "verified_via": "blocked-headless-neq-gui",
+      "note": "HGColorMatrix nested-child weights + Mono red-row + Alpha-offset all DECODED (channel-mixer.ts). Matrix/mono math correct. Residual embedded ddb (5.9, offset/mix) is the color-family working-space split (headless!=GUI) shared with Colorize; ships the GUI-gate-preferred sRGB form."
     },
     "PAECloudsV": {
       "status": "DIVERGED",
@@ -142,7 +156,9 @@
       ],
       "swept": "2026-07-18T11:55:36Z",
       "status": "DIVERGED",
-      "todo": "T-faithful-paeearthquake"
+      "todo": "T-faithful-paeearthquake",
+      "verified_via": "blocked-stochastic",
+      "note": "Shake displacement; worst param = randomseed (16.25 ddb) = a different random shake sequence, unmatchable by PSNR. layers/mix better. FPS baked 30. The seed schedule is internal; fundamental stochastic limit."
     },
     "PAEGlow": {
       "worst_ddb": 13.469,
@@ -153,7 +169,9 @@
       ],
       "swept": "2026-07-18T11:57:18Z",
       "status": "DIVERGED",
-      "todo": "T-faithful-paeglow"
+      "todo": "T-faithful-paeglow",
+      "verified_via": "blocked-pipeline",
+      "note": "Glow = threshold + blur + additive composite (glow.ts). Embedded worst is t=0.1 across opacity/softness/mix/cliptowhite simultaneously = whole-glow-output offset in Lights__Bloom (bloom-pipeline host), not a single param response. Blur core verified (PAEGaussianBlur); the composite pipeline is the residual."
     },
     "PAEUnderwater": {
       "worst_ddb": 16.526,
@@ -164,7 +182,9 @@
       ],
       "swept": "2026-07-18T12:07:32Z",
       "status": "DIVERGED",
-      "todo": "T-faithful-paeunderwater"
+      "todo": "T-faithful-paeunderwater",
+      "verified_via": "blocked-stochastic-texture",
+      "note": "Sinusoid displacement field FULLY RE (underwater.ts): 10-octave seeded synthesis, phase animates at Speed*sec*(octave+1). BUT the HgcUnderwaterFreqSynth noise TEXTURE that perturbs the field is a runtime-generated GPU texture NOT recoverable from disasm, and the plugin goes BLACK headless for t>~1.0 (unbound atlas). So per-pixel ripple phase differs from FCP; algorithm+statistics match, exact field does not. Fundamental (texture unrecoverable)."
     },
     "PAEZoomBlur": {
       "worst_ddb": 15.765,
@@ -175,7 +195,9 @@
       ],
       "swept": "2026-07-18T20:03:39Z",
       "status": "DIVERGED",
-      "todo": "T-faithful-paezoomblur"
+      "todo": "T-faithful-paezoomblur",
+      "verified_via": "blocked-resample-ceiling",
+      "note": "Log-polar zoom is the BEST of 3 models vs headless (~20-22 dB > linear-radius > displacement-prop), confirming the decode. Residual ~20 dB ceiling is the log-polar resampling near the centre (u=ln r -> -inf as r->0). The shipping Blurs__Zoom Zoom Blur filter is authored Amount=0 (STATIC; visible zoom is camera) so near-zero gate ROI. Center wired, Mix=blend. Documented directional-blur.ts."
     },
     "PAETint": {
       "worst_ddb": 9.46,
@@ -186,7 +208,9 @@
       ],
       "swept": "2026-07-18T12:33:36Z",
       "status": "DIVERGED",
-      "todo": "T-faithful-paetint"
+      "todo": "T-faithful-paetint",
+      "verified_via": "blocked-headless-neq-gui",
+      "note": "HgcTint hard-light two-leg shader documented (channel-mixer.ts); faithful hard-light REGRESSED Objects__Leaves on the GUI gate (color-space unresolved) so ships the luma*color lerp the GUI GT prefers. Color-family headless!=GUI. Only 4 users, all dominated by other gaps."
     },
     "PAENoise": {
       "worst_ddb": 5.151,
@@ -197,7 +221,9 @@
       ],
       "swept": "2026-07-18T13:37:08Z",
       "status": "DIVERGED",
-      "todo": "T-faithful-paenoise"
+      "todo": "T-faithful-paenoise",
+      "verified_via": "blocked-stochastic",
+      "note": "Per-pixel white noise; visible field is fade/blend-enveloped. dSFMT sequence + fade/opacity/blend envelope not recoverable -> two noise fields cannot PSNR-match (stochastic ceiling). Wiring attempt regressed Lights__Static (reverted). Documented NOISE_DECOMPILE_REPORT.md. Fundamental."
     },
     "PAEBadTV": {
       "worst_ddb": 11.293,
@@ -208,7 +234,9 @@
       ],
       "swept": "2026-07-18T12:53:18Z",
       "status": "DIVERGED",
-      "todo": "T-faithful-paebadtv"
+      "todo": "T-faithful-paebadtv",
+      "verified_via": "blocked-stochastic",
+      "note": "Scanline factor + desaturate DECODED (badtv.ts: factor=mix(scanBright,1,smoothstep), sat=Saturate/100+1). But the static/noise + waviness are time-random fields (BadTVNoise) not phase-recoverable -> stochastic PSNR ceiling. Deterministic parts documented+matched; random parts fundamental."
     }
   },
   "history": [
