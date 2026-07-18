@@ -154,11 +154,11 @@
       "hosts": [
         "Movements__Earthquake"
       ],
-      "swept": "2026-07-18T11:55:36Z",
+      "swept": "2026-07-19T00:56:48Z",
       "status": "DIVERGED",
       "todo": "T-faithful-paeearthquake",
-      "verified_via": "blocked-stochastic",
-      "note": "Shake displacement; worst param = randomseed (16.25 ddb) = a different random shake sequence, unmatchable by PSNR. layers/mix better. FPS baked 30. The seed schedule is internal; fundamental stochastic limit."
+      "verified_via": "blocked-frame-index",
+      "note": "RNG is FULLY DECODED + deterministic (LCG a=4096 c=150889 m=714025 + Bays-Durham shuffle NTAB=101, seed=randomSeed+0x232323+trunc(frame*1000); earthquake.ts implements it exactly). NOT fundamentally stochastic. The authored transition scores 23.62 on the gate and matches headless 23.55 dB at t=0.25. The divergence at t=0.5/0.75 (12.4/9.96 dB) is the RNG FRAME-INDEX: frameScaled=trunc(ctx.time*30*1000), but if ctx.time is not frame-quantized exactly as FCP quantizes secs=frameN/fps, the RNG picks a different shake POSE (means match ~98 vs 92, but the shake DIRECTION differs). TRACTABLE: align the frame-index to FCP frame-quantized time. The randomseed sweep divergence (16.25) is the same frame-index issue at a changed seed. NOT a fundamental limit \u2014 a frame-time-quantization fix."
     },
     "PAEGlow": {
       "worst_ddb": 13.469,
