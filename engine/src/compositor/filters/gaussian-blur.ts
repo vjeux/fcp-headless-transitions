@@ -422,10 +422,10 @@ function resampleFloatRGB(src: Float32Array, sw: number, sh: number, tw: number,
 }
 
 /** Separable full-res Gaussian on a Float32 RGB buffer (mirrors gaussianBlur, no clamp). */
-function gaussianBlurFloatRGB(src: Float32Array, width: number, height: number, radius: number): Float32Array {
+function gaussianBlurFloatRGB(src: Float32Array, width: number, height: number, radius: number, sigmaOverride?: number): Float32Array {
   const r = Math.min(Math.ceil(radius), 200);
   if (r === 0) return src;
-  const kernel = makeGaussianKernel(r);
+  const kernel = makeGaussianKernel(r, sigmaOverride);
   const kSize = kernel.length;
   const kHalf = r;
   const temp = new Float32Array(width * height * 3);
@@ -469,14 +469,49 @@ function gaussianBlurFloatRGB(src: Float32Array, width: number, height: number, 
  */
 export function decimatedBlurFloatRGB(src: Float32Array, width: number, height: number, radius: number): Float32Array {
   if (radius <= 0) return src;
-  const level = gaussianDecimation(radius);
-  if (level === 0) return gaussianBlurFloatRGB(src, width, height, radius);
+  // Same variance-correct decimation as the u8 decimatedGaussianBlur (see [P2-GB4]) —
+  // gentle level + successive-2× box downsample + inner-σ resample-variance compensation —
+  // so the Float bloom blur ALSO holds a/σ = 6.09 at every amount instead of over-blurring
+  // ~35% (the old single-large-factor bilinear + 25·4^k level over-decimated here too).
+  const targetSigma = radius / 6.10;
+  if (targetSigma < 2.0) return gaussianBlurFloatRGB(src, width, height, radius, targetSigma);
+  let level = 0;
+  while ((1 << (level + 1)) * 2 <= targetSigma && level < 6) level += 1;
   const factor = 1 << level;
-  const dw = Math.max(1, Math.round(width / factor));
-  const dh = Math.max(1, Math.round(height / factor));
-  const small = resampleFloatRGB(src, width, height, dw, dh);
-  const blurred = gaussianBlurFloatRGB(small, dw, dh, radius / factor);
-  return resampleFloatRGB(blurred, dw, dh, width, height);
+  const K = 0.405;
+  const naiveInner = targetSigma / factor;
+  const innerSigma = Math.sqrt(Math.max(0, naiveInner * naiveInner - K * K));
+  // Successive 2× box downsample (fastDecimateDown).
+  let cw = width, ch = height, cur = src;
+  for (let i = 0; i < level; i++) { const nw = Math.max(1, cw >> 1), nh = Math.max(1, ch >> 1); cur = boxHalveFloatRGB(cur, cw, ch); cw = nw; ch = nh; }
+  // Blur the small buffer at the compensated sigma (kernel half-width tracks σ, no rounding).
+  const half = Math.max(1, Math.ceil(innerSigma * 3));
+  const blurredSmall = innerSigma > 0.05 ? gaussianBlurFloatRGB(cur, cw, ch, half, innerSigma) : cur;
+  // Successive 2× bilinear upsample (fastDecimateUp) back to full res.
+  let uw = cw, uh = ch, up = blurredSmall;
+  for (let i = 0; i < level; i++) {
+    const nw = Math.min(width, uw * 2), nh = Math.min(height, uh * 2);
+    up = resampleFloatRGB(up, uw, uh, nw, nh); uw = nw; uh = nh;
+  }
+  if (uw !== width || uh !== height) up = resampleFloatRGB(up, uw, uh, width, height);
+  return up;
+}
+
+/** Successive-2× box downsample for a Float32 RGB buffer (FCP fastDecimateDown, Float). */
+function boxHalveFloatRGB(src: Float32Array, w: number, h: number): Float32Array {
+  const w2 = Math.max(1, w >> 1), h2 = Math.max(1, h >> 1);
+  const out = new Float32Array(w2 * h2 * 3);
+  for (let y = 0; y < h2; y++) {
+    const y0 = y * 2, y1 = y0 + 1;
+    for (let x = 0; x < w2; x++) {
+      const x0 = x * 2, x1 = x0 + 1;
+      const i00 = (y0 * w + x0) * 3, i10 = (y0 * w + x1) * 3;
+      const i01 = (y1 * w + x0) * 3, i11 = (y1 * w + x1) * 3;
+      const o = (y * w2 + x) * 3;
+      for (let c = 0; c < 3; c++) out[o + c] = (src[i00 + c] + src[i10 + c] + src[i01 + c] + src[i11 + c]) * 0.25;
+    }
+  }
+  return out;
 }
 
 import { registerFilter } from './registry.js';
