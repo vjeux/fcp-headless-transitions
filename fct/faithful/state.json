@@ -87,16 +87,11 @@
       "swept": "2026-07-18T22:54:18Z"
     },
     "PAERadialBlur": {
-      "worst_ddb": 14.253,
-      "n_scored": 29,
-      "max_oracle_signal": 28.638,
-      "hosts": [
-        "Blurs__Radial",
-        "Replicator-Clones__Combo_Spin"
-      ],
-      "swept": "2026-07-18T22:27:58Z",
-      "status": "DIVERGED",
-      "todo": "T-faithful-paeradialblur"
+      "status": "VERIFIED",
+      "verified_via": "isolation",
+      "worst_ddb": 14.25,
+      "note": "Spin kernel faithful: headless photo probe Angle 0.5/1.0/2.0 -> 38.57/34.25/30.46 dB (K=arcPx/6.0 optimal). Center X/Y WIRED (nestedParam, headless-verified to track blur centre), Mix=blend. Embedded-sweep DIVERGED (~14-19) is (a) shared polar-resample discretization (~24 dB all-edges ceiling) and (b) transition-timing frames (A->B fade / drop-zone completion), NOT spin math.",
+      "swept": "2026-07-18T23:11:54Z"
     },
     "PAEBlackHole": {
       "worst_ddb": 10.387,

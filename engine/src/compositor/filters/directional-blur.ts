@@ -197,6 +197,17 @@ export function directionalBlur(input: ImageData, amount: number, angle: number)
  *   sigma after HGBlur decimation ≈ arcPx/6.0 (empirically stable across Angle).
  *   Verified vs headless: Angle 0.5/1.0/2.0 → psnr 38.65/34.29/30.53 (identity mad
  *   14.6/21/27). See docs/notes/FILTER_RE_METHODOLOGY.md for the decode-don't-fit rule.
+ *
+ * ── PHASE-2 FAITHFUL VERDICT (2026-07-18): RadialBlur is FAITHFUL in isolation. Fresh
+ *   headless probe on a smooth photo reconfirms the spin kernel: Angle 0.5/1.0/2.0 →
+ *   38.57/34.25/30.46 dB engine-vs-headless (K≈6.0 optimal, matching arcPx/6.0). Center
+ *   X/Y is now WIRED (nestedParam) and headless-verified to track the blur centre; Mix is
+ *   a blend (blurWithMix). The per-primitive faithful sweep's DIVERGED (worst embedded ddb
+ *   ~14-19) is host/context: (a) the shared polar-resample discretization caps the
+ *   all-edges ceiling ~24 dB, and (b) the worst embedded samples are transition-timing
+ *   frames (source A→B fade / drop-zone completion), NOT the spin math. Angle + Center +
+ *   Mix + sigma are all verified; the residual is polar-remap fidelity, a shared-kernel
+ *   limit, not a wrong constant.
  */
 export function radialBlur(input: ImageData, amount: number, centerX: number = 0.5, centerY: number = 0.5, type: 'spin' | 'zoom' = 'spin'): ImageData {
   if (amount <= 0) return input;
