@@ -42,7 +42,7 @@
         "Stylized__Center_Reveal",
         "Stylized__Close_and_Open"
       ],
-      "swept": "2026-07-18T21:32:46Z",
+      "swept": "2026-07-18T21:45:52Z",
       "status": "DIVERGED",
       "todo": "T-faithful-paegaussianblur"
     },
@@ -463,8 +463,14 @@
       "t": "2026-07-18T21:32:46Z",
       "status": "DIVERGED",
       "worst_ddb": 16.071
+    },
+    {
+      "prim": "PAEGaussianBlur",
+      "t": "2026-07-18T21:45:52Z",
+      "status": "DIVERGED",
+      "worst_ddb": 16.071
     }
   ],
   "started": "2026-07-17T18:24:32Z",
-  "updated": "2026-07-18T21:32:46Z"
+  "updated": "2026-07-18T21:45:52Z"
 }

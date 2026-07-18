@@ -63,7 +63,7 @@
       "theta": 0.0,
       "t": 0.25,
       "oracle_signal": 11.972,
-      "ddb": 26.567
+      "ddb": 30.349
     },
     {
       "host": "Blurs__Gaussian",
@@ -72,7 +72,7 @@
       "theta": 0.0,
       "t": 0.1,
       "oracle_signal": 9.433,
-      "ddb": 28.638
+      "ddb": 31.819
     },
     {
       "host": "Blurs__Gaussian",
@@ -97,18 +97,18 @@
       "param": "horizontal",
       "kind": "scalar",
       "theta": 0.0,
-      "t": 0.1,
-      "oracle_signal": 4.303,
-      "ddb": 35.455
+      "t": 0.25,
+      "oracle_signal": 3.887,
+      "ddb": 34.993
     },
     {
       "host": "Blurs__Gaussian",
       "param": "horizontal",
       "kind": "scalar",
       "theta": 0.0,
-      "t": 0.25,
-      "oracle_signal": 3.887,
-      "ddb": 36.338
+      "t": 0.1,
+      "oracle_signal": 4.303,
+      "ddb": 38.148
     },
     {
       "host": "Stylized__Close_and_Open",
