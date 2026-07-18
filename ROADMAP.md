@@ -900,6 +900,24 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-18cz-reconfirm  ✗ COLORIZE per-filter s2l-endpoint RE-TESTED and RE-REVERTED (Rule 1
+              truth). The isolated headless gradient probe UNAMBIGUOUSLY shows FCP linearizes the
+              Remap Black/White endpoints: out_code = 255·(s2l(black)+luma·(s2l(white)−s2l(black))),
+              luma in code, NO output encode — proven by the constant test (black=white=0.5 → FCP
+              B=55=s2l(0.5)·255, not 128/188) and Slide's real remap (in=128 → FCP (2,69,63) matches
+              s2l (3,69,64), raw-code lerp gives (21,98,95), off by 20). YET shipping s2l-endpoints
+              PER-FILTER REGRESSED the GUI GT by NET −12.04 (Slide −1.48, Up-Over −6.68, Curtains
+              −2.47, Veil −0.78) — even the LONE-Colorize slugs (Slide/Veil/Loop, no filter stacking)
+              regress. CONCLUSION: the isolated-headless truth and the GUI-GT truth genuinely DISAGREE
+              for Colorize, because the GUI GT is FCP's full composite where the Colorize output feeds
+              downstream compositing (drop-zone conform, masks, blends) in FCP's single-linear-readback
+              graph; a per-filter linear emit diverges from that. Colorize is CONFIRMED blocked by the
+              linear working-space CHAIN architecture (T-qlinchain01) — the only correct fix is
+              linearize-once-at-entry / all-filters-in-linear / encode-once-at-readback across the WHOLE
+              layer, NOT a per-filter endpoint linearization. DO NOT re-try per-filter s2l endpoints.
+              Kept raw-code endpoints (what the GUI GT prefers). The DESCENDING remap (white<black) is
+              additionally anomalous (steeper than any lerp) but shipping is all-ascending so unexercised.
+
 - 2026-07-18faithful4  ✅ BLUR Mix IS A BLEND (all 4 blur filters, commit 98f55da). DECODED vs
               headless FCP step-edge: PAEGaussianBlur Mix=0.5 == 0.5·orig+0.5·fullBlur (±2 codes),
               NOT a blur at reduced radius. Old code: Gaussian scaled the RADIUS by Mix; Directional/
