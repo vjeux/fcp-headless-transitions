@@ -55,11 +55,12 @@
  *     the SAME PDF as HGLinearFilter::gaussian, just at full res instead of on the
  *     decimated image. Verified vs headless FCP at psnr 43-46 (isolated Amount sweep),
  *     so the effective kernel matches; the decimation is a perf detail, not a look diff.
- *   [P2-GB2] sigma = radius/6.67 is the DECODED effective ratio: HGaussianBlur::init
+ *   [P2-GB2] sigma = radius/6.10 is the DECODED effective ratio: HGaussianBlur::init
  *     (ProAppsFxSupport @0xa1d40) feeds radius = Amount·blurScale directly to HGBlur;
- *     the decimate→PDF→upsample chain yields an effective screen sigma ≈ radius/6.67
- *     (verified: Amount 10→σ1.5 … 80→σ11.3). It is a normalized PDF (not r/3, which was
- *     the old wrong assumption).
+ *     the decimate→normalized-Gaussian-PDF→bilinear-upsample chain yields an effective
+ *     screen sigma ≈ radius/6.10 (STEP-EDGE erf fit, Amount 10..300, a/σ=6.06..6.28).
+ *     It is a normalized PDF (not r/3, which was the old wrong assumption; the earlier
+ *     6.67 was a photo-fitted value that a σ-sensitive edge probe refutes at 3× the rms).
  *   [P2-GB3] EDGE MODE — DECODED 2026-07-15 (tools/re/gen_pattern.py {solid,edge} +
  *     filter_probe --in-a). Two distinct edges to distinguish:
  *     (a) WITHIN-IMAGE borders (a sample would step off the pixel grid): FCP CLAMPs
@@ -244,14 +245,18 @@ export function gaussianBlur(input: ImageData, radius: number): ImageData {
 function makeGaussianKernel(radius: number): Float64Array {
   const size = radius * 2 + 1;
   const kernel = new Float64Array(size);
-  // sigma = radius / 6.67. MEASURED vs headless FCP (2026-07-11): probed PAEGaussianBlur
-  // at Amount ∈ {10,20,40,80} and fitted the sigma that best matches FCP's output —
-  // sigma = Amount/6.67 (Amount10→σ1.5, 20→3.0, 40→5.8, 80→11.3; ratio ~6.7–7.1).
-  // The old sigma = radius/3 produced ~2.2× TOO MUCH blur (Amount=20: TS 34.0 dB vs
-  // FCP, over-blurred mad 6.49 vs FCP's 4.51). Because decimatedGaussianBlur scales the
-  // radius by 1/factor before this call and upsamples ×factor, the effective full-res
-  // sigma is (radius/factor)/6.67 × factor = radius/6.67 — so the constant lives here.
-  const sigma = radius / 6.67;
+  // sigma = radius / 6.10. MEASURED vs headless FCP via a synthetic high-contrast
+  // STEP-EDGE probe (erf-CDF fit, rms residual <0.7 code levels) across Amount ∈
+  // {10,20,30,50,75,100,150,200,300} — spanning EVERY decimation level: FCP's effective
+  // screen sigma = Amount/6.10 at every amount (a/σ = 6.06–6.28, pooled 6.10). The
+  // earlier 6.67 was fitted on a LOW-FREQUENCY PHOTO where PSNR is nearly insensitive to
+  // σ (±10% σ barely moves the number); a step edge is far more σ-sensitive and shows
+  // 6.67 gives edge rms ~1.8 vs 6.10's ~0.6 (3× worse). The identical 6.10 ratio was
+  // independently measured on PAEDirectionalBlur (which wraps the same HGaussianBlur
+  // node), confirming the shared kernel. Because decimatedGaussianBlur scales the radius
+  // by 1/factor before this call and upsamples ×factor, the effective full-res sigma is
+  // (radius/factor)/6.10 × factor = radius/6.10 — so the constant lives here.
+  const sigma = radius / 6.10;
   const twoSigmaSq = 2 * sigma * sigma;
   let sum = 0;
   for (let i = 0; i < size; i++) {

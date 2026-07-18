@@ -66,19 +66,30 @@ export function directionalBlur(input: ImageData, amount: number, angle: number)
   const src = input.data;
   const out = new Uint8ClampedArray(src.length);
 
-  // Compute direction vector from angle
-  const rad = angle * Math.PI / 180;
+  // Compute direction vector from angle. ⚠️ ANGLE IS IN RADIANS, not degrees. The .motr
+  // stores the "Angle" param directly in radians (Blurs/Directional authors 6.2831853 =
+  // 2π ≡ 0°; Light_Sweep authors 1.5707963 = π/2). HDirectionalBlur::init(f,f,f,f)
+  // (Filters @0xdd7e4) does sincosf(angle) on the raw radian value — no deg→rad. The old
+  // `angle * Math.PI/180` treated the radian value as degrees, blurring at the wrong axis
+  // (6.28 rad → read as 6.28° ≈ nearly-horizontal-but-tilted instead of true horizontal).
+  // Verified vs headless FCP step-edge probe: angle=0 → horizontal blur, angle=π/2 →
+  // vertical blur.
+  const rad = angle;
   const dx = Math.cos(rad);
   const dy = -Math.sin(rad); // Y-up → screen Y-down
 
-  // 1-D GAUSSIAN along the blur axis (NOT a uniform box). MEASURED vs headless FCP
-  // (tools/re/filter_probe PAEDirectionalBlur Amount=50/100, Angle=0): FCP's blur is a
-  // Gaussian with sigma = Amount/6.67 — the SAME constant as the planar Gaussian blur
-  // (HDirectionalBlur = rotate → HGaussianBlur 1-D → un-rotate). Fit: Amount=50 σ=7.5
-  // PSNR 46.4, Amount=100 σ=15 PSNR 45.8, vs the old box average's 33.5/32.2. The box
-  // both under-weighted the center and over-reached the tails, so activating it
-  // regressed Blurs/Directional; the Gaussian matches FCP.
-  const sigma = amount / 6.67;
+  // 1-D GAUSSIAN along the blur axis (NOT a uniform box). MEASURED vs headless FCP via a
+  // synthetic high-contrast STEP-EDGE probe (erf-CDF fit, rms residual <0.7 code levels)
+  // across Amount∈{20,30,50,75,100,150,200,300}: FCP's blur is a Gaussian with
+  //   sigma = Amount / 6.10
+  // — the SAME constant as the planar Gaussian blur (HDirectionalBlur = rotate →
+  // HGaussianBlur 1-D → un-rotate; the plain PAEGaussianBlur step-edge fits the identical
+  // 6.10 ratio). The prior 6.67 was fitted on a low-frequency PHOTO where PSNR is nearly
+  // insensitive to σ; a step edge is far more sensitive and shows 6.67 gives edge rms
+  // ~1.8 vs 6.10's ~0.6 (3× worse) at every amount. 6.10 is the effective screen sigma of
+  // FCP's decimate→normalized-Gaussian-PDF→bilinear-upsample chain (the bilinear
+  // resample widens the effective kernel slightly beyond the r/2π ideal).
+  const sigma = amount / 6.10;
   const half = Math.max(1, Math.min(Math.ceil(sigma * 3), 150)); // ±3σ, capped
   const twoSigmaSq = 2 * sigma * sigma;
   const weights = new Float64Array(2 * half + 1);
