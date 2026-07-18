@@ -9,226 +9,510 @@
     "Wipes__Diagonal"
   ],
   "times": [
-    0.35,
-    0.65
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    0.9
   ],
   "signal_floor": 2.0,
-  "n_scored": 26,
-  "worst_ddb": 7.233,
+  "n_scored": 61,
+  "max_oracle_signal": 151.716,
+  "worst_ddb": 5.004,
   "results": [
     {
       "host": "Stylized__Up-Over",
       "param": "histogram/rgb/blackin",
       "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 134.155,
-      "ddb": 7.233
-    },
-    {
-      "host": "Stylized__Up-Over",
-      "param": "histogram/rgb/whitein",
-      "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 33.891,
-      "ddb": 7.999
-    },
-    {
-      "host": "Stylized__Up-Over",
-      "param": "histogram/rgb/gamma",
-      "theta": 0.1,
-      "t": 0.35,
-      "oracle_signal": 33.891,
-      "ddb": 8.032
-    },
-    {
-      "host": "Stylized__Up-Over",
-      "param": "histogram/rgb/blackin",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 33.823,
-      "ddb": 8.233
+      "t": 0.1,
+      "oracle_signal": 30.608,
+      "ddb": 5.004
     },
     {
       "host": "Stylized__Up-Over",
       "param": "histogram/rgb/blackin",
       "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 149.124,
-      "ddb": 8.261
+      "t": 0.25,
+      "oracle_signal": 104.651,
+      "ddb": 6.075
     },
     {
       "host": "Stylized__Up-Over",
       "param": "histogram/rgb/whitein",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 39.595,
-      "ddb": 8.519
+      "t": 0.1,
+      "oracle_signal": 7.865,
+      "ddb": 6.839
     },
     {
       "host": "Stylized__Up-Over",
       "param": "histogram/rgb/gamma",
       "theta": 0.1,
-      "t": 0.65,
-      "oracle_signal": 39.593,
-      "ddb": 8.552
+      "t": 0.1,
+      "oracle_signal": 7.865,
+      "ddb": 6.914
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/blackin",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 151.55,
+      "ddb": 7.174
     },
     {
       "host": "Stylized__Up-Over",
       "param": "histogram/rgb/blackin",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 39.042,
-      "ddb": 8.772
+      "t": 0.1,
+      "oracle_signal": 7.865,
+      "ddb": 7.179
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/blackin",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 151.716,
+      "ddb": 7.512
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/whitein",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 26.949,
+      "ddb": 7.561
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/gamma",
+      "theta": 0.1,
+      "t": 0.25,
+      "oracle_signal": 26.949,
+      "ddb": 7.609
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/blackin",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 26.949,
+      "ddb": 7.818
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/blackin",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 148.495,
+      "ddb": 7.94
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/whitein",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 39.063,
+      "ddb": 8.549
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/gamma",
+      "theta": 0.1,
+      "t": 0.5,
+      "oracle_signal": 39.062,
+      "ddb": 8.589
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/blackin",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 38.55,
+      "ddb": 8.83
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/whitein",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 42.872,
+      "ddb": 8.974
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/gamma",
+      "theta": 0.1,
+      "t": 0.75,
+      "oracle_signal": 42.87,
+      "ddb": 9.0
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/whitein",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 42.931,
+      "ddb": 9.027
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/gamma",
+      "theta": 0.1,
+      "t": 0.9,
+      "oracle_signal": 42.921,
+      "ddb": 9.047
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/blackin",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 42.17,
+      "ddb": 9.15
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/blackin",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 41.504,
+      "ddb": 9.161
     },
     {
       "host": "Stylized__Up-Over",
       "param": "histogram/rgb/gamma",
       "theta": 4.0,
-      "t": 0.35,
-      "oracle_signal": 66.106,
-      "ddb": 12.195
-    },
-    {
-      "host": "Stylized__Light_Sweep",
-      "param": "mix",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 56.241,
-      "ddb": 13.251
-    },
-    {
-      "host": "Stylized__Light_Sweep",
-      "param": "mix",
-      "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 56.469,
-      "ddb": 13.278
+      "t": 0.1,
+      "oracle_signal": 15.44,
+      "ddb": 9.676
     },
     {
       "host": "Stylized__Up-Over",
       "param": "histogram/rgb/gamma",
       "theta": 4.0,
-      "t": 0.65,
-      "oracle_signal": 73.156,
-      "ddb": 13.49
+      "t": 0.25,
+      "oracle_signal": 52.207,
+      "ddb": 10.903
     },
     {
       "host": "Stylized__Up-Over",
-      "param": "histogram/rgb/whitein",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 41.331,
-      "ddb": 14.364
-    },
-    {
-      "host": "Stylized__Up-Over",
-      "param": "histogram/rgb/whitein",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 47.253,
-      "ddb": 15.129
+      "param": "histogram/rgb/gamma",
+      "theta": 4.0,
+      "t": 0.9,
+      "oracle_signal": 74.584,
+      "ddb": 12.563
     },
     {
       "host": "Stylized__Light_Sweep",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 44.553,
-      "ddb": 16.177
+      "t": 0.25,
+      "oracle_signal": 59.932,
+      "ddb": 12.666
     },
     {
       "host": "Stylized__Light_Sweep",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 45.656,
-      "ddb": 16.753
+      "t": 0.25,
+      "oracle_signal": 60.102,
+      "ddb": 12.682
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/gamma",
+      "theta": 4.0,
+      "t": 0.75,
+      "oracle_signal": 74.942,
+      "ddb": 12.847
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/whitein",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 9.654,
+      "ddb": 13.102
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/gamma",
+      "theta": 4.0,
+      "t": 0.5,
+      "oracle_signal": 72.675,
+      "ddb": 13.222
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 61.261,
+      "ddb": 13.518
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/whitein",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 33.073,
+      "ddb": 13.921
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 48.377,
+      "ddb": 14.692
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 48.701,
+      "ddb": 14.841
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 58.398,
+      "ddb": 14.95
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/whitein",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 46.68,
+      "ddb": 15.406
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/whitein",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 50.872,
+      "ddb": 15.656
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/whitein",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 49.472,
+      "ddb": 15.757
     },
     {
       "host": "Stylized__Up-Over",
       "param": "histogram/rgb/gamma",
       "theta": 2.05,
-      "t": 0.35,
-      "oracle_signal": 28.182,
-      "ddb": 18.344
+      "t": 0.1,
+      "oracle_signal": 6.677,
+      "ddb": 15.834
     },
     {
       "host": "Stylized__Up-Over",
       "param": "histogram/rgb/gamma",
       "theta": 2.05,
-      "t": 0.65,
-      "oracle_signal": 31.174,
-      "ddb": 19.641
+      "t": 0.25,
+      "oracle_signal": 22.456,
+      "ddb": 17.089
     },
     {
       "host": "Stylized__Up-Over",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 15.224,
-      "ddb": 20.154
+      "t": 0.1,
+      "oracle_signal": 3.566,
+      "ddb": 18.599
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/gamma",
+      "theta": 2.05,
+      "t": 0.9,
+      "oracle_signal": 31.876,
+      "ddb": 18.936
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/gamma",
+      "theta": 2.05,
+      "t": 0.75,
+      "oracle_signal": 32.142,
+      "ddb": 19.164
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/gamma",
+      "theta": 2.05,
+      "t": 0.5,
+      "oracle_signal": 30.908,
+      "ddb": 19.44
     },
     {
       "host": "Stylized__Up-Over",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 17.657,
-      "ddb": 20.917
+      "t": 0.25,
+      "oracle_signal": 12.169,
+      "ddb": 19.559
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 17.425,
+      "ddb": 21.061
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 18.962,
+      "ddb": 21.467
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 19.036,
+      "ddb": 21.484
     },
     {
       "host": "Stylized__Up-Over",
       "param": "histogram/rgb/whitein",
       "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 10.859,
-      "ddb": 23.346
+      "t": 0.1,
+      "oracle_signal": 2.522,
+      "ddb": 21.831
     },
     {
       "host": "Stylized__Up-Over",
       "param": "histogram/rgb/whitein",
       "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 12.689,
-      "ddb": 24.067
+      "t": 0.25,
+      "oracle_signal": 8.633,
+      "ddb": 22.79
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/whitein",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 12.522,
+      "ddb": 24.228
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/whitein",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 13.755,
+      "ddb": 24.693
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/whitein",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 13.734,
+      "ddb": 24.71
     },
     {
       "host": "Stylized__Up-Over",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 8.173,
-      "ddb": 26.314
+      "t": 0.25,
+      "oracle_signal": 6.532,
+      "ddb": 25.721
     },
     {
       "host": "Stylized__Up-Over",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 9.469,
-      "ddb": 27.092
+      "t": 0.5,
+      "oracle_signal": 9.348,
+      "ddb": 27.266
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 10.16,
+      "ddb": 27.648
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 10.206,
+      "ddb": 27.668
     },
     {
       "host": "Stylized__Up-Over",
       "param": "histogram/rgb/blackin",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 6.983,
-      "ddb": 29.359
+      "t": 0.25,
+      "oracle_signal": 5.513,
+      "ddb": 28.019
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 12.542,
+      "ddb": 29.531
     },
     {
       "host": "Stylized__Up-Over",
       "param": "histogram/rgb/blackin",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 7.713,
-      "ddb": 30.505
+      "t": 0.9,
+      "oracle_signal": 7.859,
+      "ddb": 29.683
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/blackin",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 7.896,
+      "ddb": 29.943
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/blackin",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 7.658,
+      "ddb": 30.204
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 11.194,
+      "ddb": 34.008
     },
     {
       "host": "Objects__Leaves",
       "param": "histogram/rgb/gamma",
       "theta": 0.1,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -236,7 +520,31 @@
       "host": "Objects__Leaves",
       "param": "histogram/rgb/gamma",
       "theta": 0.1,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "histogram/rgb/gamma",
+      "theta": 0.1,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "histogram/rgb/gamma",
+      "theta": 0.1,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "histogram/rgb/gamma",
+      "theta": 0.1,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -244,7 +552,7 @@
       "host": "Objects__Leaves",
       "param": "histogram/rgb/gamma",
       "theta": 4.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -252,7 +560,31 @@
       "host": "Objects__Leaves",
       "param": "histogram/rgb/gamma",
       "theta": 4.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "histogram/rgb/gamma",
+      "theta": 4.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "histogram/rgb/gamma",
+      "theta": 4.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "histogram/rgb/gamma",
+      "theta": 4.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -260,7 +592,7 @@
       "host": "Objects__Leaves",
       "param": "histogram/rgb/gamma",
       "theta": 2.05,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -268,7 +600,71 @@
       "host": "Objects__Leaves",
       "param": "histogram/rgb/gamma",
       "theta": 2.05,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "histogram/rgb/gamma",
+      "theta": 2.05,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "histogram/rgb/gamma",
+      "theta": 2.05,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "histogram/rgb/gamma",
+      "theta": 2.05,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -276,55 +672,167 @@
       "host": "Objects__Leaves",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 0.313,
+      "t": 0.1,
+      "oracle_signal": 0.38,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Objects__Leaves",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.345,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.247,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.12,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.251,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.008,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.026,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.045,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.06,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.056,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.144,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.169,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.167,
       "note": "no oracle signal (param inert here)"
     },
     {
-      "host": "Objects__Leaves",
-      "param": "mix",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 0.035,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Objects__Leaves",
-      "param": "mix",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.055,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Stylized__Diagonal",
-      "param": "histogram/rgb/whiteout",
-      "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 0.0,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Stylized__Diagonal",
-      "param": "histogram/rgb/whiteout",
-      "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.168,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
       "host": "Stylized__Diagonal",
       "param": "histogram/rgb/whiteout",
       "theta": 1.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -332,31 +840,111 @@
       "host": "Stylized__Diagonal",
       "param": "histogram/rgb/whiteout",
       "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 0.14,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Stylized__Diagonal",
-      "param": "histogram/rgb/whiteout",
-      "theta": 0.5,
-      "t": 0.35,
+      "t": 0.25,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Diagonal",
       "param": "histogram/rgb/whiteout",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.131,
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.107,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Diagonal",
-      "param": "mix",
-      "theta": 0.0,
-      "t": 0.35,
+      "param": "histogram/rgb/whiteout",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.142,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.142,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.116,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.138,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.137,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -364,15 +952,47 @@
       "host": "Stylized__Diagonal",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.188,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.163,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.191,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.194,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Diagonal",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -380,15 +1000,271 @@
       "host": "Stylized__Diagonal",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.103,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.078,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.099,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.102,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Diagonal",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.43,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.31,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "histogram/rgb/blackin",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 1.639,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 1.919,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Up-Over",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Wipes__Diagonal",
       "param": "histogram/rgb/whiteout",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -396,15 +1272,39 @@
       "host": "Wipes__Diagonal",
       "param": "histogram/rgb/whiteout",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.168,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.144,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.169,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.167,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Wipes__Diagonal",
       "param": "histogram/rgb/whiteout",
       "theta": 1.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -412,31 +1312,111 @@
       "host": "Wipes__Diagonal",
       "param": "histogram/rgb/whiteout",
       "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 0.14,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Wipes__Diagonal",
-      "param": "histogram/rgb/whiteout",
-      "theta": 0.5,
-      "t": 0.35,
+      "t": 0.25,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Wipes__Diagonal",
       "param": "histogram/rgb/whiteout",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.131,
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.107,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Wipes__Diagonal",
-      "param": "mix",
-      "theta": 0.0,
-      "t": 0.35,
+      "param": "histogram/rgb/whiteout",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.142,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.142,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.116,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.138,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "histogram/rgb/whiteout",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.137,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "levels::hdrinrec.709",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -444,15 +1424,47 @@
       "host": "Wipes__Diagonal",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.188,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.163,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.191,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.194,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Wipes__Diagonal",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -460,8 +1472,72 @@
       "host": "Wipes__Diagonal",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.103,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.078,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.099,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.102,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Wipes__Diagonal",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     }
   ]

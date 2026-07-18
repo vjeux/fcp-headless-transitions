@@ -7,194 +7,534 @@
     "Stylized__Light_Sweep"
   ],
   "times": [
-    0.35,
-    0.65
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    0.9
   ],
   "signal_floor": 2.0,
-  "n_scored": 22,
-  "worst_ddb": 8.839,
+  "n_scored": 64,
+  "max_oracle_signal": 137.308,
+  "worst_ddb": 2.3,
   "results": [
     {
       "host": "Movements__Flip",
-      "param": "object/colorsolid/color/red",
+      "param": "object/colorsolid/color/green",
       "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 62.991,
-      "ddb": 8.839
+      "t": 0.5,
+      "oracle_signal": 91.068,
+      "ddb": 2.3
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/blue",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 91.068,
+      "ddb": 2.69
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/red",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 91.068,
+      "ddb": 4.871
     },
     {
       "host": "Movements__Flip",
       "param": "object/colorsolid/color/green",
       "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 62.862,
-      "ddb": 8.84
+      "t": 0.25,
+      "oracle_signal": 104.312,
+      "ddb": 5.359
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/blue",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 137.308,
+      "ddb": 5.377
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/blue",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 137.308,
+      "ddb": 5.377
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/blue",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 137.308,
+      "ddb": 5.377
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/blue",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 137.308,
+      "ddb": 5.377
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/blue",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 137.308,
+      "ddb": 5.377
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/blue",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 137.308,
+      "ddb": 5.377
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 137.308,
+      "ddb": 5.377
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 137.308,
+      "ddb": 5.377
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 137.308,
+      "ddb": 5.377
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 137.308,
+      "ddb": 5.377
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/flip",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 137.308,
+      "ddb": 5.377
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/green",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 91.068,
+      "ddb": 5.51
     },
     {
       "host": "Movements__Flip",
       "param": "object/colorsolid/color/blue",
       "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 62.917,
-      "ddb": 8.84
+      "t": 0.25,
+      "oracle_signal": 104.312,
+      "ddb": 5.519
     },
     {
       "host": "Movements__Flip",
       "param": "object/colorsolid/color/red",
       "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 97.728,
-      "ddb": 9.565
+      "t": 0.9,
+      "oracle_signal": 135.182,
+      "ddb": 5.785
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/blue",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 91.068,
+      "ddb": 5.92
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/red",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 75.708,
+      "ddb": 6.11
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/red",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 104.312,
+      "ddb": 6.625
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/green",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 109.819,
+      "ddb": 6.79
     },
     {
       "host": "Movements__Flip",
       "param": "object/colorsolid/color/blue",
       "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 97.614,
+      "t": 0.1,
+      "oracle_signal": 109.819,
+      "ddb": 6.838
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/green",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 104.312,
+      "ddb": 6.86
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/blue",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 104.312,
+      "ddb": 6.972
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/red",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 109.819,
+      "ddb": 7.097
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/green",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 109.819,
+      "ddb": 7.142
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/blue",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 109.819,
+      "ddb": 7.168
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 109.819,
+      "ddb": 7.317
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/green",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 109.819,
+      "ddb": 7.318
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/blue",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 109.819,
+      "ddb": 7.318
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 104.312,
+      "ddb": 7.764
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/blue",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 104.312,
+      "ddb": 7.766
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/green",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 104.312,
+      "ddb": 7.767
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/green",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 66.334,
+      "ddb": 7.901
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/blue",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 66.334,
+      "ddb": 7.917
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 91.068,
+      "ddb": 8.943
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/blue",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 91.068,
+      "ddb": 8.957
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/green",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 91.068,
+      "ddb": 8.964
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/red",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 112.848,
       "ddb": 9.569
     },
     {
       "host": "Movements__Flip",
-      "param": "object/colorsolid/color/green",
-      "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 97.529,
-      "ddb": 9.571
-    },
-    {
-      "host": "Movements__Multi-flip",
-      "param": "object/colorsolid/color/blue",
-      "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 129.669,
-      "ddb": 10.346
-    },
-    {
-      "host": "Movements__Multi-flip",
-      "param": "object/colorsolid/color/blue",
+      "param": "object/colorsolid/color/red",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 27.62,
-      "ddb": 14.089
+      "t": 0.75,
+      "oracle_signal": 66.334,
+      "ddb": 10.341
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/green",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 66.334,
+      "ddb": 10.375
     },
     {
       "host": "Movements__Flip",
       "param": "object/colorsolid/color/blue",
       "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 13.391,
-      "ddb": 14.617
+      "t": 0.75,
+      "oracle_signal": 66.334,
+      "ddb": 10.389
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/red",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 53.141,
+      "ddb": 11.499
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/green",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 66.334,
+      "ddb": 11.696
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/blue",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 66.334,
+      "ddb": 11.696
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 66.334,
+      "ddb": 11.696
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/green",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 40.35,
+      "ddb": 13.715
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/blue",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 40.35,
+      "ddb": 13.718
     },
     {
       "host": "Movements__Flip",
       "param": "object/colorsolid/color/red",
       "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 13.457,
-      "ddb": 14.62
+      "t": 0.9,
+      "oracle_signal": 40.35,
+      "ddb": 15.307
     },
     {
       "host": "Movements__Flip",
       "param": "object/colorsolid/color/green",
       "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 13.489,
-      "ddb": 14.622
-    },
-    {
-      "host": "Movements__Multi-flip",
-      "param": "object/colorsolid/color/blue",
-      "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 146.202,
-      "ddb": 14.632
+      "t": 0.9,
+      "oracle_signal": 40.35,
+      "ddb": 15.312
     },
     {
       "host": "Movements__Flip",
       "param": "object/colorsolid/color/blue",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 20.776,
-      "ddb": 15.661
+      "t": 0.9,
+      "oracle_signal": 40.35,
+      "ddb": 15.314
     },
     {
-      "host": "Movements__Multi-flip",
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/green",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 40.35,
+      "ddb": 16.014
+    },
+    {
+      "host": "Movements__Flip",
       "param": "object/colorsolid/color/blue",
-      "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 31.141,
-      "ddb": 15.664
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 40.35,
+      "ddb": 16.014
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/flip",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 40.35,
+      "ddb": 16.014
     },
     {
       "host": "Movements__Flip",
       "param": "object/colorsolid/color/red",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 20.879,
-      "ddb": 15.668
-    },
-    {
-      "host": "Movements__Flip",
-      "param": "object/colorsolid/color/green",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 20.928,
-      "ddb": 15.671
-    },
-    {
-      "host": "Movements__Flip",
-      "param": "object/colorsolid/height",
-      "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 2.396,
-      "ddb": 40.54
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 33.253,
+      "ddb": 16.999
     },
     {
       "host": "Movements__Flip",
       "param": "object/colorsolid/width",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 2.395,
-      "ddb": 40.543
+      "t": 0.25,
+      "oracle_signal": 2.994,
+      "ddb": 38.607
     },
     {
-      "host": "Movements__Multi-flip",
-      "param": "object/colorsolid/width",
-      "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 2.365,
-      "ddb": 40.655
-    },
-    {
-      "host": "Movements__Multi-flip",
+      "host": "Movements__Flip",
       "param": "object/colorsolid/height",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 2.301,
-      "ddb": 40.891
+      "t": 0.25,
+      "oracle_signal": 2.994,
+      "ddb": 38.607
     },
     {
-      "host": "Movements__Multi-flip",
-      "param": "object/colorsolid/width",
-      "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 2.299,
-      "ddb": 40.9
-    },
-    {
-      "host": "Movements__Multi-flip",
+      "host": "Movements__Flip",
       "param": "object/colorsolid/height",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 2.296,
-      "ddb": 40.913
+      "t": 0.1,
+      "oracle_signal": 2.859,
+      "ddb": 39.006
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/width",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 2.859,
+      "ddb": 39.007
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/height",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 2.736,
+      "ddb": 39.388
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/width",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 2.736,
+      "ddb": 39.389
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/height",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 2.221,
+      "ddb": 41.198
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/width",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 2.221,
+      "ddb": 41.2
     },
     {
       "host": "Movements__Flip",
       "param": "properties/shadows/castshadows",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -202,7 +542,31 @@
       "host": "Movements__Flip",
       "param": "properties/shadows/castshadows",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "properties/shadows/castshadows",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "properties/shadows/castshadows",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "properties/shadows/castshadows",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -210,7 +574,7 @@
       "host": "Movements__Flip",
       "param": "properties/shadows/castshadows",
       "theta": 2.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -218,7 +582,31 @@
       "host": "Movements__Flip",
       "param": "properties/shadows/castshadows",
       "theta": 2.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "properties/shadows/castshadows",
+      "theta": 2.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "properties/shadows/castshadows",
+      "theta": 2.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "properties/shadows/castshadows",
+      "theta": 2.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -226,15 +614,15 @@
       "host": "Movements__Flip",
       "param": "object/colorsolid/width",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 1.734,
+      "t": 0.9,
+      "oracle_signal": 1.8,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Movements__Flip",
       "param": "object/colorsolid/width",
       "theta": 3840.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -242,7 +630,31 @@
       "host": "Movements__Flip",
       "param": "object/colorsolid/width",
       "theta": 3840.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/width",
+      "theta": 3840.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/width",
+      "theta": 3840.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/width",
+      "theta": 3840.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -250,15 +662,15 @@
       "host": "Movements__Flip",
       "param": "object/colorsolid/height",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 1.735,
+      "t": 0.9,
+      "oracle_signal": 1.803,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Movements__Flip",
       "param": "object/colorsolid/height",
       "theta": 2160.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -266,7 +678,31 @@
       "host": "Movements__Flip",
       "param": "object/colorsolid/height",
       "theta": 2160.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/height",
+      "theta": 2160.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/height",
+      "theta": 2160.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/height",
+      "theta": 2160.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -274,7 +710,15 @@
       "host": "Movements__Flip",
       "param": "object/colorsolid/color/red",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.1,
+      "oracle_signal": 0.006,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Flip",
+      "param": "object/colorsolid/color/red",
+      "theta": 0.0,
+      "t": 0.25,
       "oracle_signal": 0.005,
       "note": "no oracle signal (param inert here)"
     },
@@ -282,47 +726,63 @@
       "host": "Movements__Flip",
       "param": "object/colorsolid/color/red",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.005,
+      "t": 0.5,
+      "oracle_signal": 0.009,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Movements__Flip",
-      "param": "object/colorsolid/color/green",
+      "param": "object/colorsolid/color/red",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 0.006,
+      "t": 0.75,
+      "oracle_signal": 0.01,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Movements__Flip",
-      "param": "object/colorsolid/color/green",
+      "param": "object/colorsolid/color/red",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.006,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Movements__Flip",
-      "param": "object/colorsolid/color/blue",
-      "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 0.005,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Movements__Flip",
-      "param": "object/colorsolid/color/blue",
-      "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.005,
+      "t": 0.9,
+      "oracle_signal": 0.004,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Movements__Multi-flip",
       "param": "object/colorsolid/width",
-      "theta": 3840.0,
-      "t": 0.35,
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/width",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/width",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/width",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/width",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -330,7 +790,79 @@
       "host": "Movements__Multi-flip",
       "param": "object/colorsolid/width",
       "theta": 3840.0,
-      "t": 0.65,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/width",
+      "theta": 3840.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/width",
+      "theta": 3840.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/width",
+      "theta": 3840.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/width",
+      "theta": 3840.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/height",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/height",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/height",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/height",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/height",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -338,7 +870,7 @@
       "host": "Movements__Multi-flip",
       "param": "object/colorsolid/height",
       "theta": 2160.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -346,7 +878,151 @@
       "host": "Movements__Multi-flip",
       "param": "object/colorsolid/height",
       "theta": 2160.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/height",
+      "theta": 2160.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/height",
+      "theta": 2160.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/height",
+      "theta": 2160.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/color/blue",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/color/blue",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/color/blue",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/color/blue",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/color/blue",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/color/blue",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/color/blue",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/color/blue",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/color/blue",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/color/blue",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "object/colorsolid/flip",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -354,7 +1030,7 @@
       "host": "Movements__Multi-flip",
       "param": "affectingobject(hidden)",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -362,7 +1038,31 @@
       "host": "Movements__Multi-flip",
       "param": "affectingobject(hidden)",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "affectingobject(hidden)",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "affectingobject(hidden)",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "affectingobject(hidden)",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -370,7 +1070,7 @@
       "host": "Movements__Multi-flip",
       "param": "affectingobject(hidden)",
       "theta": 1975278232.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -378,7 +1078,31 @@
       "host": "Movements__Multi-flip",
       "param": "affectingobject(hidden)",
       "theta": 1975278232.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "affectingobject(hidden)",
+      "theta": 1975278232.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "affectingobject(hidden)",
+      "theta": 1975278232.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "affectingobject(hidden)",
+      "theta": 1975278232.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -386,7 +1110,7 @@
       "host": "Movements__Multi-flip",
       "param": "widget",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -394,7 +1118,31 @@
       "host": "Movements__Multi-flip",
       "param": "widget",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "widget",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "widget",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "widget",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -402,7 +1150,7 @@
       "host": "Movements__Multi-flip",
       "param": "widget",
       "theta": 1973768202.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -410,7 +1158,31 @@
       "host": "Movements__Multi-flip",
       "param": "widget",
       "theta": 1973768202.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "widget",
+      "theta": 1973768202.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "widget",
+      "theta": 1973768202.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Movements__Multi-flip",
+      "param": "widget",
+      "theta": 1973768202.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -418,7 +1190,7 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/width",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -426,7 +1198,31 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/width",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/width",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/width",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/width",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -434,7 +1230,7 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/width",
       "theta": 3934.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -442,7 +1238,31 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/width",
       "theta": 3934.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/width",
+      "theta": 3934.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/width",
+      "theta": 3934.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/width",
+      "theta": 3934.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -450,7 +1270,7 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/height",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -458,7 +1278,31 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/height",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/height",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/height",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/height",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -466,7 +1310,7 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/height",
       "theta": 2160.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -474,7 +1318,31 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/height",
       "theta": 2160.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/height",
+      "theta": 2160.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/height",
+      "theta": 2160.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/height",
+      "theta": 2160.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -482,7 +1350,7 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/color/red",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -490,7 +1358,31 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/color/red",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/red",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/red",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/red",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -498,7 +1390,7 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/color/red",
       "theta": 1.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -506,7 +1398,31 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/color/red",
       "theta": 1.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/red",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/red",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/red",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -514,7 +1430,7 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/color/red",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -522,7 +1438,31 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/color/red",
       "theta": 0.5,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/red",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/red",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/red",
+      "theta": 0.5,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -530,7 +1470,7 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/color/green",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -538,7 +1478,31 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/color/green",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/green",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/green",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/green",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -546,7 +1510,7 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/color/green",
       "theta": 1.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -554,7 +1518,31 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/color/green",
       "theta": 1.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/green",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/green",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/green",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -562,7 +1550,7 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/color/green",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -570,7 +1558,31 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/color/green",
       "theta": 0.5,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/green",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/green",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/green",
+      "theta": 0.5,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -578,7 +1590,7 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/color/blue",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -586,7 +1598,31 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/color/blue",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/blue",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/blue",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "object/colorsolid/color/blue",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -594,7 +1630,7 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/color/blue",
       "theta": 1.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -602,23 +1638,23 @@
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/color/blue",
       "theta": 1.0,
-      "t": 0.65,
+      "t": 0.25,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/color/blue",
-      "theta": 0.5,
-      "t": 0.35,
+      "theta": 1.0,
+      "t": 0.5,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Light_Sweep",
       "param": "object/colorsolid/color/blue",
-      "theta": 0.5,
-      "t": 0.65,
+      "theta": 1.0,
+      "t": 0.75,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     }

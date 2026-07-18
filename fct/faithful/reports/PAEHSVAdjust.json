@@ -8,194 +8,414 @@
     "Stylized__Lower"
   ],
   "times": [
-    0.35,
-    0.65
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    0.9
   ],
   "signal_floor": 2.0,
-  "n_scored": 25,
-  "worst_ddb": 7.269,
+  "n_scored": 59,
+  "max_oracle_signal": 114.561,
+  "worst_ddb": 6.95,
   "results": [
     {
       "host": "Stylized__Light_Sweep",
       "param": "value",
       "theta": -1.0,
-      "t": 0.65,
-      "oracle_signal": 110.43,
-      "ddb": 7.269
-    },
-    {
-      "host": "Stylized__Light_Sweep",
-      "param": "value",
-      "theta": 2.0,
-      "t": 0.65,
-      "oracle_signal": 47.398,
-      "ddb": 10.272
-    },
-    {
-      "host": "Stylized__Light_Sweep",
-      "param": "value",
-      "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 65.985,
-      "ddb": 10.36
-    },
-    {
-      "host": "Stylized__Lower",
-      "param": "value",
-      "theta": 2.0,
-      "t": 0.65,
-      "oracle_signal": 68.15,
-      "ddb": 11.332
-    },
-    {
-      "host": "Stylized__Center",
-      "param": "value",
-      "theta": 2.0,
-      "t": 0.35,
-      "oracle_signal": 67.683,
-      "ddb": 11.521
-    },
-    {
-      "host": "Stylized__Light_Sweep",
-      "param": "saturation",
-      "theta": 1.0,
-      "t": 0.65,
-      "oracle_signal": 46.027,
-      "ddb": 11.596
+      "t": 0.9,
+      "oracle_signal": 114.561,
+      "ddb": 6.95
     },
     {
       "host": "Stylized__Light_Sweep",
       "param": "value",
       "theta": -1.0,
-      "t": 0.35,
-      "oracle_signal": 65.543,
-      "ddb": 11.8
+      "t": 0.75,
+      "oracle_signal": 112.326,
+      "ddb": 7.121
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "value",
+      "theta": -1.0,
+      "t": 0.5,
+      "oracle_signal": 94.367,
+      "ddb": 8.634
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "value",
+      "theta": 2.0,
+      "t": 0.9,
+      "oracle_signal": 102.404,
+      "ddb": 10.417
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "saturation",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 52.091,
+      "ddb": 10.523
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "value",
+      "theta": 2.0,
+      "t": 0.75,
+      "oracle_signal": 68.527,
+      "ddb": 11.378
     },
     {
       "host": "Stylized__Center",
       "param": "value",
       "theta": 2.0,
-      "t": 0.65,
-      "oracle_signal": 64.796,
-      "ddb": 11.9
+      "t": 0.5,
+      "oracle_signal": 66.967,
+      "ddb": 11.614
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "value",
+      "theta": 2.0,
+      "t": 0.9,
+      "oracle_signal": 68.126,
+      "ddb": 11.828
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "value",
+      "theta": 2.0,
+      "t": 0.5,
+      "oracle_signal": 64.046,
+      "ddb": 11.849
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "saturation",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 52.436,
+      "ddb": 11.86
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "saturation",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 51.033,
+      "ddb": 12.211
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "value",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 92.775,
+      "ddb": 12.335
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "value",
+      "theta": 2.0,
+      "t": 0.25,
+      "oracle_signal": 64.071,
+      "ddb": 12.366
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "value",
+      "theta": 2.0,
+      "t": 0.75,
+      "oracle_signal": 60.144,
+      "ddb": 12.547
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "hue",
+      "theta": 3.1416,
+      "t": 0.25,
+      "oracle_signal": 57.899,
+      "ddb": 12.833
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "saturation",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 51.634,
+      "ddb": 12.886
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "value",
+      "theta": 2.0,
+      "t": 0.9,
+      "oracle_signal": 57.68,
+      "ddb": 12.91
     },
     {
       "host": "Stylized__Light_Sweep",
       "param": "value",
       "theta": 2.0,
-      "t": 0.35,
-      "oracle_signal": 40.744,
-      "ddb": 12.501
+      "t": 0.75,
+      "oracle_signal": 94.611,
+      "ddb": 12.93
     },
     {
       "host": "Stylized__Light_Sweep",
       "param": "hue",
       "theta": 3.1416,
-      "t": 0.35,
-      "oracle_signal": 53.983,
-      "ddb": 13.429
+      "t": 0.75,
+      "oracle_signal": 56.373,
+      "ddb": 13.013
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "value",
+      "theta": 2.0,
+      "t": 0.5,
+      "oracle_signal": 47.126,
+      "ddb": 13.017
     },
     {
       "host": "Stylized__Light_Sweep",
       "param": "value",
       "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 38.534,
-      "ddb": 14.738
+      "t": 0.9,
+      "oracle_signal": 96.682,
+      "ddb": 13.649
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "value",
+      "theta": 2.0,
+      "t": 0.25,
+      "oracle_signal": 34.827,
+      "ddb": 13.933
     },
     {
       "host": "Stylized__Light_Sweep",
       "param": "hue",
       "theta": 3.1416,
-      "t": 0.65,
-      "oracle_signal": 43.408,
-      "ddb": 15.24
+      "t": 0.5,
+      "oracle_signal": 46.993,
+      "ddb": 14.603
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "hue",
+      "theta": 3.1416,
+      "t": 0.9,
+      "oracle_signal": 45.408,
+      "ddb": 14.996
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "value",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 24.845,
+      "ddb": 15.053
     },
     {
       "host": "Objects__Leaves",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 31.366,
-      "ddb": 15.938
+      "t": 0.5,
+      "oracle_signal": 24.495,
+      "ddb": 15.313
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "value",
+      "theta": 2.0,
+      "t": 0.1,
+      "oracle_signal": 13.204,
+      "ddb": 15.396
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "value",
+      "theta": -1.0,
+      "t": 0.25,
+      "oracle_signal": 42.737,
+      "ddb": 15.515
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "value",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 55.902,
+      "ddb": 15.887
     },
     {
       "host": "Objects__Leaves",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 21.023,
-      "ddb": 17.547
+      "t": 0.75,
+      "oracle_signal": 34.509,
+      "ddb": 16.92
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 16.405,
+      "ddb": 17.332
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 32.113,
+      "ddb": 17.9
     },
     {
       "host": "Objects__Leaves",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 15.428,
-      "ddb": 21.185
+      "t": 0.5,
+      "oracle_signal": 11.826,
+      "ddb": 20.544
     },
     {
       "host": "Objects__Leaves",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 10.349,
+      "t": 0.75,
+      "oracle_signal": 17.003,
+      "ddb": 22.422
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "saturation",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 13.228,
       "ddb": 22.751
     },
     {
-      "host": "Stylized__Lower",
-      "param": "value",
+      "host": "Objects__Leaves",
+      "param": "mix",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 10.994,
-      "ddb": 23.972
+      "t": 0.25,
+      "oracle_signal": 8.151,
+      "ddb": 22.802
     },
     {
       "host": "Stylized__Light_Sweep",
-      "param": "saturation",
+      "param": "value",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 7.641,
-      "ddb": 24.157
+      "t": 0.1,
+      "oracle_signal": 5.425,
+      "ddb": 23.205
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 16.056,
+      "ddb": 23.812
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "value",
+      "theta": -1.0,
+      "t": 0.9,
+      "oracle_signal": 15.377,
+      "ddb": 24.393
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "value",
+      "theta": -1.0,
+      "t": 0.75,
+      "oracle_signal": 15.362,
+      "ddb": 24.402
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "value",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 11.44,
+      "ddb": 24.428
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "value",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 6.624,
+      "ddb": 24.928
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "value",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 6.7,
+      "ddb": 25.055
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 4.693,
+      "ddb": 25.344
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "value",
+      "theta": -1.0,
+      "t": 0.5,
+      "oracle_signal": 13.743,
+      "ddb": 25.369
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "value",
+      "theta": -1.0,
+      "t": 0.75,
+      "oracle_signal": 13.743,
+      "ddb": 25.369
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "value",
+      "theta": -1.0,
+      "t": 0.9,
+      "oracle_signal": 13.743,
+      "ddb": 25.369
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "value",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 11.452,
+      "ddb": 25.599
     },
     {
       "host": "Stylized__Light_Sweep",
       "param": "saturation",
       "theta": 1.0,
-      "t": 0.35,
-      "oracle_signal": 9.941,
-      "ddb": 24.291
-    },
-    {
-      "host": "Stylized__Lower",
-      "param": "value",
-      "theta": -1.0,
-      "t": 0.65,
-      "oracle_signal": 14.763,
-      "ddb": 24.747
-    },
-    {
-      "host": "Stylized__Center",
-      "param": "value",
-      "theta": -1.0,
-      "t": 0.35,
-      "oracle_signal": 13.743,
-      "ddb": 25.369
-    },
-    {
-      "host": "Stylized__Center",
-      "param": "value",
-      "theta": -1.0,
-      "t": 0.65,
-      "oracle_signal": 13.743,
-      "ddb": 25.369
+      "t": 0.25,
+      "oracle_signal": 7.205,
+      "ddb": 26.466
     },
     {
       "host": "Stylized__Center",
       "param": "value",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.5,
       "oracle_signal": 10.234,
       "ddb": 27.93
     },
@@ -203,23 +423,79 @@
       "host": "Stylized__Center",
       "param": "value",
       "theta": 0.5,
-      "t": 0.65,
+      "t": 0.75,
+      "oracle_signal": 10.234,
+      "ddb": 27.93
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "value",
+      "theta": 0.5,
+      "t": 0.9,
       "oracle_signal": 10.234,
       "ddb": 27.93
     },
     {
       "host": "Stylized__Light_Sweep",
+      "param": "value",
+      "theta": -1.0,
+      "t": 0.1,
+      "oracle_signal": 10.0,
+      "ddb": 28.13
+    },
+    {
+      "host": "Stylized__Light_Sweep",
       "param": "saturation",
       "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 5.217,
-      "ddb": 30.244
+      "t": 0.5,
+      "oracle_signal": 7.09,
+      "ddb": 28.571
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "value",
+      "theta": -1.0,
+      "t": 0.5,
+      "oracle_signal": 8.997,
+      "ddb": 29.049
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "value",
+      "theta": -1.0,
+      "t": 0.25,
+      "oracle_signal": 8.895,
+      "ddb": 29.148
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 2.318,
+      "ddb": 30.739
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "saturation",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 3.702,
+      "ddb": 32.513
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "hue",
+      "theta": 3.1416,
+      "t": 0.1,
+      "oracle_signal": 3.494,
+      "ddb": 37.254
     },
     {
       "host": "Objects__Leaves",
       "param": "hue",
       "theta": -3.1416,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -227,7 +503,31 @@
       "host": "Objects__Leaves",
       "param": "hue",
       "theta": -3.1416,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "hue",
+      "theta": -3.1416,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "hue",
+      "theta": -3.1416,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "hue",
+      "theta": -3.1416,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -235,7 +535,7 @@
       "host": "Objects__Leaves",
       "param": "hue",
       "theta": 3.1416,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -243,7 +543,31 @@
       "host": "Objects__Leaves",
       "param": "hue",
       "theta": 3.1416,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "hue",
+      "theta": 3.1416,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "hue",
+      "theta": 3.1416,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "hue",
+      "theta": 3.1416,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -251,7 +575,7 @@
       "host": "Objects__Leaves",
       "param": "saturation",
       "theta": 2.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -259,7 +583,31 @@
       "host": "Objects__Leaves",
       "param": "saturation",
       "theta": 2.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "saturation",
+      "theta": 2.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "saturation",
+      "theta": 2.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "saturation",
+      "theta": 2.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -267,7 +615,7 @@
       "host": "Objects__Leaves",
       "param": "saturation",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -275,7 +623,31 @@
       "host": "Objects__Leaves",
       "param": "saturation",
       "theta": 0.5,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "saturation",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "saturation",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "saturation",
+      "theta": 0.5,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -283,7 +655,7 @@
       "host": "Objects__Leaves",
       "param": "value",
       "theta": -1.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -291,7 +663,31 @@
       "host": "Objects__Leaves",
       "param": "value",
       "theta": -1.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "value",
+      "theta": -1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "value",
+      "theta": -1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "value",
+      "theta": -1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -299,7 +695,7 @@
       "host": "Objects__Leaves",
       "param": "value",
       "theta": 2.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -307,7 +703,31 @@
       "host": "Objects__Leaves",
       "param": "value",
       "theta": 2.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "value",
+      "theta": 2.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "value",
+      "theta": 2.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "value",
+      "theta": 2.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -315,7 +735,7 @@
       "host": "Objects__Leaves",
       "param": "value",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -323,7 +743,71 @@
       "host": "Objects__Leaves",
       "param": "value",
       "theta": 0.5,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "value",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "value",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "value",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Objects__Leaves",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -331,7 +815,7 @@
       "host": "Stylized__Center",
       "param": "hue",
       "theta": -3.1416,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -339,7 +823,31 @@
       "host": "Stylized__Center",
       "param": "hue",
       "theta": -3.1416,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "hue",
+      "theta": -3.1416,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "hue",
+      "theta": -3.1416,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "hue",
+      "theta": -3.1416,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -347,7 +855,7 @@
       "host": "Stylized__Center",
       "param": "hue",
       "theta": 3.1416,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -355,7 +863,31 @@
       "host": "Stylized__Center",
       "param": "hue",
       "theta": 3.1416,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "hue",
+      "theta": 3.1416,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "hue",
+      "theta": 3.1416,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "hue",
+      "theta": 3.1416,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -363,7 +895,23 @@
       "host": "Stylized__Center",
       "param": "saturation",
       "theta": 2.0,
-      "t": 0.35,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "saturation",
+      "theta": 2.0,
+      "t": 0.25,
+      "oracle_signal": 0.01,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "saturation",
+      "theta": 2.0,
+      "t": 0.5,
       "oracle_signal": 0.015,
       "note": "no oracle signal (param inert here)"
     },
@@ -371,7 +919,15 @@
       "host": "Stylized__Center",
       "param": "saturation",
       "theta": 2.0,
-      "t": 0.65,
+      "t": 0.75,
+      "oracle_signal": 0.015,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "saturation",
+      "theta": 2.0,
+      "t": 0.9,
       "oracle_signal": 0.015,
       "note": "no oracle signal (param inert here)"
     },
@@ -379,7 +935,23 @@
       "host": "Stylized__Center",
       "param": "saturation",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "saturation",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.008,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "saturation",
+      "theta": 0.5,
+      "t": 0.5,
       "oracle_signal": 0.013,
       "note": "no oracle signal (param inert here)"
     },
@@ -387,15 +959,63 @@
       "host": "Stylized__Center",
       "param": "saturation",
       "theta": 0.5,
-      "t": 0.65,
+      "t": 0.75,
       "oracle_signal": 0.013,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Center",
+      "param": "saturation",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.013,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "value",
+      "theta": -1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "value",
+      "theta": 2.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "value",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.007,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.5,
       "oracle_signal": 0.012,
       "note": "no oracle signal (param inert here)"
     },
@@ -403,7 +1023,15 @@
       "host": "Stylized__Center",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.75,
+      "oracle_signal": 0.012,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.012,
       "note": "no oracle signal (param inert here)"
     },
@@ -411,7 +1039,23 @@
       "host": "Stylized__Center",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.029,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.5,
       "oracle_signal": 0.045,
       "note": "no oracle signal (param inert here)"
     },
@@ -419,15 +1063,55 @@
       "host": "Stylized__Center",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.65,
+      "t": 0.75,
       "oracle_signal": 0.045,
       "note": "no oracle signal (param inert here)"
     },
     {
-      "host": "Stylized__Light_Sweep",
-      "param": "hue",
-      "theta": -3.1416,
-      "t": 0.35,
+      "host": "Stylized__Center",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.045,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -435,7 +1119,63 @@
       "host": "Stylized__Light_Sweep",
       "param": "hue",
       "theta": -3.1416,
-      "t": 0.65,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "hue",
+      "theta": -3.1416,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "hue",
+      "theta": -3.1416,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "hue",
+      "theta": -3.1416,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "hue",
+      "theta": -3.1416,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "saturation",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 1.753,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "saturation",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.966,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -443,7 +1183,7 @@
       "host": "Stylized__Light_Sweep",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.25,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -451,7 +1191,23 @@
       "host": "Stylized__Light_Sweep",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -459,23 +1215,79 @@
       "host": "Stylized__Light_Sweep",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 0.21,
+      "t": 0.1,
+      "oracle_signal": 0.07,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Light_Sweep",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.284,
+      "t": 0.25,
+      "oracle_signal": 0.164,
       "note": "no oracle signal (param inert here)"
     },
     {
-      "host": "Stylized__Lower",
-      "param": "hue",
-      "theta": -3.1416,
-      "t": 0.35,
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.262,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.345,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.335,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -483,7 +1295,39 @@
       "host": "Stylized__Lower",
       "param": "hue",
       "theta": -3.1416,
-      "t": 0.65,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "hue",
+      "theta": -3.1416,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "hue",
+      "theta": -3.1416,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "hue",
+      "theta": -3.1416,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "hue",
+      "theta": -3.1416,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -491,7 +1335,7 @@
       "host": "Stylized__Lower",
       "param": "hue",
       "theta": 3.1416,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -499,7 +1343,31 @@
       "host": "Stylized__Lower",
       "param": "hue",
       "theta": 3.1416,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "hue",
+      "theta": 3.1416,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "hue",
+      "theta": 3.1416,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "hue",
+      "theta": 3.1416,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -507,7 +1375,7 @@
       "host": "Stylized__Lower",
       "param": "saturation",
       "theta": 2.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -515,7 +1383,31 @@
       "host": "Stylized__Lower",
       "param": "saturation",
       "theta": 2.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "saturation",
+      "theta": 2.0,
+      "t": 0.5,
+      "oracle_signal": 0.01,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "saturation",
+      "theta": 2.0,
+      "t": 0.75,
+      "oracle_signal": 0.017,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "saturation",
+      "theta": 2.0,
+      "t": 0.9,
       "oracle_signal": 0.017,
       "note": "no oracle signal (param inert here)"
     },
@@ -523,7 +1415,7 @@
       "host": "Stylized__Lower",
       "param": "saturation",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -531,15 +1423,47 @@
       "host": "Stylized__Lower",
       "param": "saturation",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.013,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "saturation",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.008,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "saturation",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.014,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "saturation",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.014,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Lower",
       "param": "value",
       "theta": -1.0,
-      "t": 0.35,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "value",
+      "theta": -1.0,
+      "t": 0.25,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -547,7 +1471,15 @@
       "host": "Stylized__Lower",
       "param": "value",
       "theta": 2.0,
-      "t": 0.35,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "value",
+      "theta": 2.0,
+      "t": 0.25,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -555,7 +1487,15 @@
       "host": "Stylized__Lower",
       "param": "value",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "value",
+      "theta": 0.5,
+      "t": 0.25,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -563,7 +1503,7 @@
       "host": "Stylized__Lower",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -571,7 +1511,31 @@
       "host": "Stylized__Lower",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.008,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.012,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.012,
       "note": "no oracle signal (param inert here)"
     },
@@ -579,7 +1543,7 @@
       "host": "Stylized__Lower",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -587,8 +1551,72 @@
       "host": "Stylized__Lower",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.048,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.029,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.051,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.051,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     }
   ]

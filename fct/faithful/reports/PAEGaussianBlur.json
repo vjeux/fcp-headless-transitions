@@ -8,42 +8,94 @@
     "Stylized__Close_and_Open"
   ],
   "times": [
-    0.35,
-    0.65
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    0.9
   ],
   "signal_floor": 2.0,
-  "n_scored": 3,
-  "worst_ddb": 31.534,
+  "n_scored": 7,
+  "max_oracle_signal": 11.972,
+  "worst_ddb": 26.567,
   "results": [
     {
       "host": "Blurs__Gaussian",
       "param": "vertical",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 6.759,
-      "ddb": 31.534
+      "t": 0.25,
+      "oracle_signal": 11.972,
+      "ddb": 26.567
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "vertical",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 9.433,
+      "ddb": 28.638
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 6.487,
+      "ddb": 31.889
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 5.348,
+      "ddb": 33.567
     },
     {
       "host": "Blurs__Gaussian",
       "param": "horizontal",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 3.16,
-      "ddb": 38.137
+      "t": 0.1,
+      "oracle_signal": 4.303,
+      "ddb": 35.455
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "horizontal",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 3.887,
+      "ddb": 36.338
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "amount",
       "theta": 100.0,
-      "t": 0.35,
-      "oracle_signal": 2.063,
-      "ddb": 41.841
+      "t": 0.9,
+      "oracle_signal": 2.145,
+      "ddb": 41.503
     },
     {
       "host": "Blurs__Gaussian",
       "param": "horizontal",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "horizontal",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "horizontal",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -51,7 +103,7 @@
       "host": "Blurs__Gaussian",
       "param": "horizontal",
       "theta": 200.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -59,7 +111,31 @@
       "host": "Blurs__Gaussian",
       "param": "horizontal",
       "theta": 200.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "horizontal",
+      "theta": 200.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "horizontal",
+      "theta": 200.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "horizontal",
+      "theta": 200.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -67,7 +143,23 @@
       "host": "Blurs__Gaussian",
       "param": "vertical",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "vertical",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "vertical",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -75,7 +167,7 @@
       "host": "Blurs__Gaussian",
       "param": "vertical",
       "theta": 200.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -83,7 +175,135 @@
       "host": "Blurs__Gaussian",
       "param": "vertical",
       "theta": 200.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "vertical",
+      "theta": 200.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "vertical",
+      "theta": 200.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "vertical",
+      "theta": 200.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "crop",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.624,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "crop",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 1.375,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "crop",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "crop",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "crop",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 1.593,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -91,7 +311,7 @@
       "host": "Blurs__Gaussian",
       "param": "mix",
       "theta": 1.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -99,7 +319,31 @@
       "host": "Blurs__Gaussian",
       "param": "mix",
       "theta": 1.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "mix",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "mix",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "mix",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -107,7 +351,7 @@
       "host": "Blurs__Gaussian",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -115,7 +359,71 @@
       "host": "Blurs__Gaussian",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Blurs__Gaussian",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -123,7 +431,15 @@
       "host": "Lights__Bloom",
       "param": "horizontal",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.1,
+      "oracle_signal": 0.889,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "horizontal",
+      "theta": 0.0,
+      "t": 0.25,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -131,7 +447,23 @@
       "host": "Lights__Bloom",
       "param": "horizontal",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "horizontal",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "horizontal",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -139,7 +471,7 @@
       "host": "Lights__Bloom",
       "param": "horizontal",
       "theta": 200.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -147,7 +479,31 @@
       "host": "Lights__Bloom",
       "param": "horizontal",
       "theta": 200.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "horizontal",
+      "theta": 200.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "horizontal",
+      "theta": 200.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "horizontal",
+      "theta": 200.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -155,7 +511,15 @@
       "host": "Lights__Bloom",
       "param": "vertical",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.1,
+      "oracle_signal": 1.167,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "vertical",
+      "theta": 0.0,
+      "t": 0.25,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -163,7 +527,23 @@
       "host": "Lights__Bloom",
       "param": "vertical",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "vertical",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "vertical",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -171,7 +551,7 @@
       "host": "Lights__Bloom",
       "param": "vertical",
       "theta": 200.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -179,7 +559,151 @@
       "host": "Lights__Bloom",
       "param": "vertical",
       "theta": 200.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "vertical",
+      "theta": 200.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "vertical",
+      "theta": 200.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "vertical",
+      "theta": 200.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "crop",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "crop",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "crop",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "crop",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "crop",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.59,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -187,7 +711,15 @@
       "host": "Lights__Bloom",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.1,
+      "oracle_signal": 1.66,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.25,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -195,7 +727,23 @@
       "host": "Lights__Bloom",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -203,7 +751,15 @@
       "host": "Lights__Bloom",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.35,
+      "t": 0.1,
+      "oracle_signal": 0.914,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.25,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -211,7 +767,63 @@
       "host": "Lights__Bloom",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.65,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Bloom",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -219,23 +831,39 @@
       "host": "Stylized__Center_Reveal",
       "param": "horizontal",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 0.203,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Stylized__Center_Reveal",
-      "param": "horizontal",
-      "theta": 0.0,
-      "t": 0.65,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Center_Reveal",
       "param": "horizontal",
-      "theta": 200.0,
-      "t": 0.35,
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "horizontal",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.299,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "horizontal",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "horizontal",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -243,7 +871,39 @@
       "host": "Stylized__Center_Reveal",
       "param": "horizontal",
       "theta": 200.0,
-      "t": 0.65,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "horizontal",
+      "theta": 200.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "horizontal",
+      "theta": 200.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "horizontal",
+      "theta": 200.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "horizontal",
+      "theta": 200.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -251,15 +911,39 @@
       "host": "Stylized__Center_Reveal",
       "param": "vertical",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 0.267,
+      "t": 0.1,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Center_Reveal",
       "param": "vertical",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "vertical",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.313,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "vertical",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "vertical",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -267,7 +951,7 @@
       "host": "Stylized__Center_Reveal",
       "param": "vertical",
       "theta": 200.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -275,7 +959,151 @@
       "host": "Stylized__Center_Reveal",
       "param": "vertical",
       "theta": 200.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "vertical",
+      "theta": 200.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "vertical",
+      "theta": 200.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "vertical",
+      "theta": 200.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "crop",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "crop",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "crop",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "crop",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "crop",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.758,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -283,15 +1111,39 @@
       "host": "Stylized__Center_Reveal",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 0.409,
+      "t": 0.1,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Center_Reveal",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.444,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -299,15 +1151,79 @@
       "host": "Stylized__Center_Reveal",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 0.21,
+      "t": 0.1,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Center_Reveal",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.275,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Center_Reveal",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -315,63 +1231,159 @@
       "host": "Stylized__Close_and_Open",
       "param": "amount",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 0.172,
+      "t": 0.1,
+      "oracle_signal": 0.038,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "amount",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.055,
+      "t": 0.25,
+      "oracle_signal": 0.135,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "amount",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.153,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "amount",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "amount",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.179,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "amount",
       "theta": 100.0,
-      "t": 0.65,
-      "oracle_signal": 0.578,
+      "t": 0.1,
+      "oracle_signal": 0.475,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "amount",
+      "theta": 100.0,
+      "t": 0.25,
+      "oracle_signal": 1.729,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "amount",
+      "theta": 100.0,
+      "t": 0.5,
+      "oracle_signal": 1.948,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "amount",
+      "theta": 100.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "amount",
       "theta": 50.0,
-      "t": 0.35,
-      "oracle_signal": 1.319,
+      "t": 0.1,
+      "oracle_signal": 0.288,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "amount",
       "theta": 50.0,
-      "t": 0.65,
-      "oracle_signal": 0.392,
+      "t": 0.25,
+      "oracle_signal": 1.058,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "amount",
+      "theta": 50.0,
+      "t": 0.5,
+      "oracle_signal": 1.231,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "amount",
+      "theta": 50.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "amount",
+      "theta": 50.0,
+      "t": 0.9,
+      "oracle_signal": 1.351,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "horizontal",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 0.107,
+      "t": 0.1,
+      "oracle_signal": 0.035,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "horizontal",
       "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.022,
+      "t": 0.25,
+      "oracle_signal": 0.099,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "horizontal",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.091,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "horizontal",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "horizontal",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.114,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "horizontal",
       "theta": 200.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -379,7 +1391,31 @@
       "host": "Stylized__Close_and_Open",
       "param": "horizontal",
       "theta": 200.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "horizontal",
+      "theta": 200.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "horizontal",
+      "theta": 200.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "horizontal",
+      "theta": 200.0,
+      "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -387,23 +1423,47 @@
       "host": "Stylized__Close_and_Open",
       "param": "vertical",
       "theta": 0.0,
-      "t": 0.35,
+      "t": 0.1,
+      "oracle_signal": 0.009,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "vertical",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.09,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "vertical",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.12,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "vertical",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "vertical",
+      "theta": 0.0,
+      "t": 0.9,
       "oracle_signal": 0.132,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "vertical",
-      "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.047,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Stylized__Close_and_Open",
-      "param": "vertical",
       "theta": 200.0,
-      "t": 0.35,
+      "t": 0.1,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -411,7 +1471,183 @@
       "host": "Stylized__Close_and_Open",
       "param": "vertical",
       "theta": 200.0,
-      "t": 0.65,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "vertical",
+      "theta": 200.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "vertical",
+      "theta": 200.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "vertical",
+      "theta": 200.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "crop",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.004,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "crop",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.005,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "crop",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.002,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "crop",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "crop",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.004,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "prescaleinput",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.308,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.406,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.638,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "360\u00b0aware",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.771,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.038,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.135,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.153,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "mix",
+      "theta": 0.0,
+      "t": 0.75,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     },
@@ -419,32 +1655,88 @@
       "host": "Stylized__Close_and_Open",
       "param": "mix",
       "theta": 0.0,
-      "t": 0.35,
-      "oracle_signal": 0.172,
-      "note": "no oracle signal (param inert here)"
-    },
-    {
-      "host": "Stylized__Close_and_Open",
-      "param": "mix",
-      "theta": 0.0,
-      "t": 0.65,
-      "oracle_signal": 0.055,
+      "t": 0.9,
+      "oracle_signal": 0.179,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.35,
-      "oracle_signal": 0.095,
+      "t": 0.1,
+      "oracle_signal": 0.02,
       "note": "no oracle signal (param inert here)"
     },
     {
       "host": "Stylized__Close_and_Open",
       "param": "mix",
       "theta": 0.5,
-      "t": 0.65,
-      "oracle_signal": 0.028,
+      "t": 0.25,
+      "oracle_signal": 0.075,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.085,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "mix",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.098,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Stylized__Close_and_Open",
+      "param": "flip",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"
     }
   ]
