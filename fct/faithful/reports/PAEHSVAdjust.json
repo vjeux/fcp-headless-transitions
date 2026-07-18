@@ -16,60 +16,59 @@
   ],
   "signal_floor": 2.0,
   "n_scored": 59,
+  "used_synthetic": false,
   "max_oracle_signal": 114.561,
-  "worst_ddb": 6.95,
+  "worst_ddb": 7.397,
   "results": [
     {
       "host": "Stylized__Light_Sweep",
       "param": "value",
-      "theta": -1.0,
-      "t": 0.9,
-      "oracle_signal": 114.561,
-      "ddb": 6.95
-    },
-    {
-      "host": "Stylized__Light_Sweep",
-      "param": "value",
+      "kind": "scalar",
       "theta": -1.0,
       "t": 0.75,
       "oracle_signal": 112.326,
-      "ddb": 7.121
+      "ddb": 7.397
     },
     {
       "host": "Stylized__Light_Sweep",
       "param": "value",
-      "theta": -1.0,
-      "t": 0.5,
-      "oracle_signal": 94.367,
-      "ddb": 8.634
-    },
-    {
-      "host": "Stylized__Light_Sweep",
-      "param": "value",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.9,
       "oracle_signal": 102.404,
-      "ddb": 10.417
+      "ddb": 10.415
     },
     {
       "host": "Stylized__Light_Sweep",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.75,
       "oracle_signal": 52.091,
       "ddb": 10.523
     },
     {
+      "host": "Stylized__Light_Sweep",
+      "param": "value",
+      "kind": "scalar",
+      "theta": -1.0,
+      "t": 0.9,
+      "oracle_signal": 114.561,
+      "ddb": 10.923
+    },
+    {
       "host": "Stylized__Lower",
       "param": "value",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.75,
       "oracle_signal": 68.527,
-      "ddb": 11.378
+      "ddb": 11.37
     },
     {
       "host": "Stylized__Center",
       "param": "value",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.5,
       "oracle_signal": 66.967,
@@ -78,30 +77,34 @@
     {
       "host": "Stylized__Lower",
       "param": "value",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.9,
       "oracle_signal": 68.126,
-      "ddb": 11.828
+      "ddb": 11.832
     },
     {
       "host": "Stylized__Lower",
       "param": "value",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.5,
       "oracle_signal": 64.046,
-      "ddb": 11.849
+      "ddb": 11.839
     },
     {
       "host": "Stylized__Light_Sweep",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.9,
       "oracle_signal": 52.436,
-      "ddb": 11.86
+      "ddb": 11.862
     },
     {
       "host": "Stylized__Light_Sweep",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 51.033,
@@ -110,6 +113,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "value",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 92.775,
@@ -118,14 +122,16 @@
     {
       "host": "Stylized__Center",
       "param": "value",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.25,
       "oracle_signal": 64.071,
-      "ddb": 12.366
+      "ddb": 12.381
     },
     {
       "host": "Stylized__Center",
       "param": "value",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.75,
       "oracle_signal": 60.144,
@@ -133,7 +139,17 @@
     },
     {
       "host": "Stylized__Light_Sweep",
+      "param": "value",
+      "kind": "scalar",
+      "theta": -1.0,
+      "t": 0.25,
+      "oracle_signal": 42.737,
+      "ddb": 12.583
+    },
+    {
+      "host": "Stylized__Light_Sweep",
       "param": "hue",
+      "kind": "scalar",
       "theta": 3.1416,
       "t": 0.25,
       "oracle_signal": 57.899,
@@ -142,14 +158,16 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 51.634,
-      "ddb": 12.886
+      "ddb": 12.887
     },
     {
       "host": "Stylized__Center",
       "param": "value",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.9,
       "oracle_signal": 57.68,
@@ -158,6 +176,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "value",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.75,
       "oracle_signal": 94.611,
@@ -166,6 +185,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "hue",
+      "kind": "scalar",
       "theta": 3.1416,
       "t": 0.75,
       "oracle_signal": 56.373,
@@ -174,6 +194,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "value",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.5,
       "oracle_signal": 47.126,
@@ -182,22 +203,25 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "value",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 96.682,
-      "ddb": 13.649
+      "ddb": 13.646
     },
     {
       "host": "Stylized__Light_Sweep",
       "param": "value",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.25,
       "oracle_signal": 34.827,
-      "ddb": 13.933
+      "ddb": 13.935
     },
     {
       "host": "Stylized__Light_Sweep",
       "param": "hue",
+      "kind": "scalar",
       "theta": 3.1416,
       "t": 0.5,
       "oracle_signal": 46.993,
@@ -206,6 +230,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "hue",
+      "kind": "scalar",
       "theta": 3.1416,
       "t": 0.9,
       "oracle_signal": 45.408,
@@ -214,14 +239,16 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "value",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 24.845,
-      "ddb": 15.053
+      "ddb": 15.054
     },
     {
       "host": "Objects__Leaves",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.5,
       "oracle_signal": 24.495,
@@ -230,30 +257,34 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "value",
+      "kind": "scalar",
+      "theta": -1.0,
+      "t": 0.5,
+      "oracle_signal": 94.367,
+      "ddb": 15.32
+    },
+    {
+      "host": "Stylized__Light_Sweep",
+      "param": "value",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.1,
       "oracle_signal": 13.204,
-      "ddb": 15.396
+      "ddb": 15.397
     },
     {
       "host": "Stylized__Light_Sweep",
       "param": "value",
-      "theta": -1.0,
-      "t": 0.25,
-      "oracle_signal": 42.737,
-      "ddb": 15.515
-    },
-    {
-      "host": "Stylized__Light_Sweep",
-      "param": "value",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 55.902,
-      "ddb": 15.887
+      "ddb": 15.885
     },
     {
       "host": "Objects__Leaves",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.75,
       "oracle_signal": 34.509,
@@ -262,6 +293,7 @@
     {
       "host": "Objects__Leaves",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.25,
       "oracle_signal": 16.405,
@@ -270,6 +302,7 @@
     {
       "host": "Objects__Leaves",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.9,
       "oracle_signal": 32.113,
@@ -278,14 +311,52 @@
     {
       "host": "Objects__Leaves",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 11.826,
       "ddb": 20.544
     },
     {
+      "host": "Stylized__Light_Sweep",
+      "param": "value",
+      "kind": "scalar",
+      "theta": -1.0,
+      "t": 0.1,
+      "oracle_signal": 10.0,
+      "ddb": 20.637
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "value",
+      "kind": "scalar",
+      "theta": -1.0,
+      "t": 0.75,
+      "oracle_signal": 15.362,
+      "ddb": 21.716
+    },
+    {
+      "host": "Stylized__Center",
+      "param": "value",
+      "kind": "scalar",
+      "theta": -1.0,
+      "t": 0.25,
+      "oracle_signal": 8.895,
+      "ddb": 22.137
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "value",
+      "kind": "scalar",
+      "theta": -1.0,
+      "t": 0.5,
+      "oracle_signal": 8.997,
+      "ddb": 22.289
+    },
+    {
       "host": "Objects__Leaves",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 17.003,
@@ -294,30 +365,43 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.5,
       "oracle_signal": 13.228,
-      "ddb": 22.751
+      "ddb": 22.753
     },
     {
       "host": "Objects__Leaves",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 8.151,
       "ddb": 22.802
     },
     {
+      "host": "Stylized__Lower",
+      "param": "value",
+      "kind": "scalar",
+      "theta": -1.0,
+      "t": 0.9,
+      "oracle_signal": 15.377,
+      "ddb": 22.815
+    },
+    {
       "host": "Stylized__Light_Sweep",
       "param": "value",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 5.425,
-      "ddb": 23.205
+      "ddb": 23.207
     },
     {
       "host": "Objects__Leaves",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 16.056,
@@ -326,46 +410,43 @@
     {
       "host": "Stylized__Lower",
       "param": "value",
-      "theta": -1.0,
-      "t": 0.9,
-      "oracle_signal": 15.377,
-      "ddb": 24.393
-    },
-    {
-      "host": "Stylized__Lower",
-      "param": "value",
-      "theta": -1.0,
-      "t": 0.75,
-      "oracle_signal": 15.362,
-      "ddb": 24.402
-    },
-    {
-      "host": "Stylized__Lower",
-      "param": "value",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 11.44,
-      "ddb": 24.428
+      "ddb": 24.228
     },
     {
       "host": "Stylized__Center",
       "param": "value",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 6.624,
-      "ddb": 24.928
+      "ddb": 24.63
     },
     {
       "host": "Stylized__Lower",
       "param": "value",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 6.7,
-      "ddb": 25.055
+      "ddb": 24.8
+    },
+    {
+      "host": "Stylized__Lower",
+      "param": "value",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 11.452,
+      "ddb": 25.335
     },
     {
       "host": "Objects__Leaves",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.1,
       "oracle_signal": 4.693,
@@ -374,6 +455,7 @@
     {
       "host": "Stylized__Center",
       "param": "value",
+      "kind": "scalar",
       "theta": -1.0,
       "t": 0.5,
       "oracle_signal": 13.743,
@@ -382,6 +464,7 @@
     {
       "host": "Stylized__Center",
       "param": "value",
+      "kind": "scalar",
       "theta": -1.0,
       "t": 0.75,
       "oracle_signal": 13.743,
@@ -390,30 +473,25 @@
     {
       "host": "Stylized__Center",
       "param": "value",
+      "kind": "scalar",
       "theta": -1.0,
       "t": 0.9,
       "oracle_signal": 13.743,
       "ddb": 25.369
     },
     {
-      "host": "Stylized__Lower",
-      "param": "value",
-      "theta": 0.5,
-      "t": 0.9,
-      "oracle_signal": 11.452,
-      "ddb": 25.599
-    },
-    {
       "host": "Stylized__Light_Sweep",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.25,
       "oracle_signal": 7.205,
-      "ddb": 26.466
+      "ddb": 26.471
     },
     {
       "host": "Stylized__Center",
       "param": "value",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 10.234,
@@ -422,6 +500,7 @@
     {
       "host": "Stylized__Center",
       "param": "value",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 10.234,
@@ -430,6 +509,7 @@
     {
       "host": "Stylized__Center",
       "param": "value",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 10.234,
@@ -437,39 +517,17 @@
     },
     {
       "host": "Stylized__Light_Sweep",
-      "param": "value",
-      "theta": -1.0,
-      "t": 0.1,
-      "oracle_signal": 10.0,
-      "ddb": 28.13
-    },
-    {
-      "host": "Stylized__Light_Sweep",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 7.09,
-      "ddb": 28.571
-    },
-    {
-      "host": "Stylized__Lower",
-      "param": "value",
-      "theta": -1.0,
-      "t": 0.5,
-      "oracle_signal": 8.997,
-      "ddb": 29.049
-    },
-    {
-      "host": "Stylized__Center",
-      "param": "value",
-      "theta": -1.0,
-      "t": 0.25,
-      "oracle_signal": 8.895,
-      "ddb": 29.148
+      "ddb": 28.572
     },
     {
       "host": "Objects__Leaves",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 2.318,
@@ -478,22 +536,25 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 3.702,
-      "ddb": 32.513
+      "ddb": 32.518
     },
     {
       "host": "Stylized__Light_Sweep",
       "param": "hue",
+      "kind": "scalar",
       "theta": 3.1416,
       "t": 0.1,
       "oracle_signal": 3.494,
-      "ddb": 37.254
+      "ddb": 37.253
     },
     {
       "host": "Objects__Leaves",
       "param": "hue",
+      "kind": "scalar",
       "theta": -3.1416,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -502,6 +563,7 @@
     {
       "host": "Objects__Leaves",
       "param": "hue",
+      "kind": "scalar",
       "theta": -3.1416,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -510,6 +572,7 @@
     {
       "host": "Objects__Leaves",
       "param": "hue",
+      "kind": "scalar",
       "theta": -3.1416,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -518,6 +581,7 @@
     {
       "host": "Objects__Leaves",
       "param": "hue",
+      "kind": "scalar",
       "theta": -3.1416,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -526,6 +590,7 @@
     {
       "host": "Objects__Leaves",
       "param": "hue",
+      "kind": "scalar",
       "theta": -3.1416,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -534,6 +599,7 @@
     {
       "host": "Objects__Leaves",
       "param": "hue",
+      "kind": "scalar",
       "theta": 3.1416,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -542,6 +608,7 @@
     {
       "host": "Objects__Leaves",
       "param": "hue",
+      "kind": "scalar",
       "theta": 3.1416,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -550,6 +617,7 @@
     {
       "host": "Objects__Leaves",
       "param": "hue",
+      "kind": "scalar",
       "theta": 3.1416,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -558,6 +626,7 @@
     {
       "host": "Objects__Leaves",
       "param": "hue",
+      "kind": "scalar",
       "theta": 3.1416,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -566,6 +635,7 @@
     {
       "host": "Objects__Leaves",
       "param": "hue",
+      "kind": "scalar",
       "theta": 3.1416,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -574,6 +644,7 @@
     {
       "host": "Objects__Leaves",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -582,6 +653,7 @@
     {
       "host": "Objects__Leaves",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -590,6 +662,7 @@
     {
       "host": "Objects__Leaves",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -598,6 +671,7 @@
     {
       "host": "Objects__Leaves",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -606,6 +680,7 @@
     {
       "host": "Objects__Leaves",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -614,6 +689,7 @@
     {
       "host": "Objects__Leaves",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -622,6 +698,7 @@
     {
       "host": "Objects__Leaves",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -630,6 +707,7 @@
     {
       "host": "Objects__Leaves",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -638,6 +716,7 @@
     {
       "host": "Objects__Leaves",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -646,6 +725,7 @@
     {
       "host": "Objects__Leaves",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -654,6 +734,7 @@
     {
       "host": "Objects__Leaves",
       "param": "value",
+      "kind": "scalar",
       "theta": -1.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -662,6 +743,7 @@
     {
       "host": "Objects__Leaves",
       "param": "value",
+      "kind": "scalar",
       "theta": -1.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -670,6 +752,7 @@
     {
       "host": "Objects__Leaves",
       "param": "value",
+      "kind": "scalar",
       "theta": -1.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -678,6 +761,7 @@
     {
       "host": "Objects__Leaves",
       "param": "value",
+      "kind": "scalar",
       "theta": -1.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -686,6 +770,7 @@
     {
       "host": "Objects__Leaves",
       "param": "value",
+      "kind": "scalar",
       "theta": -1.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -694,6 +779,7 @@
     {
       "host": "Objects__Leaves",
       "param": "value",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -702,6 +788,7 @@
     {
       "host": "Objects__Leaves",
       "param": "value",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -710,6 +797,7 @@
     {
       "host": "Objects__Leaves",
       "param": "value",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -718,6 +806,7 @@
     {
       "host": "Objects__Leaves",
       "param": "value",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -726,6 +815,7 @@
     {
       "host": "Objects__Leaves",
       "param": "value",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -734,6 +824,7 @@
     {
       "host": "Objects__Leaves",
       "param": "value",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -742,6 +833,7 @@
     {
       "host": "Objects__Leaves",
       "param": "value",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -750,6 +842,7 @@
     {
       "host": "Objects__Leaves",
       "param": "value",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -758,6 +851,7 @@
     {
       "host": "Objects__Leaves",
       "param": "value",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -766,6 +860,7 @@
     {
       "host": "Objects__Leaves",
       "param": "value",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -774,6 +869,7 @@
     {
       "host": "Objects__Leaves",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -782,6 +878,7 @@
     {
       "host": "Objects__Leaves",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -790,6 +887,7 @@
     {
       "host": "Objects__Leaves",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -798,6 +896,7 @@
     {
       "host": "Objects__Leaves",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -806,6 +905,7 @@
     {
       "host": "Objects__Leaves",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -814,6 +914,7 @@
     {
       "host": "Stylized__Center",
       "param": "hue",
+      "kind": "scalar",
       "theta": -3.1416,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -822,6 +923,7 @@
     {
       "host": "Stylized__Center",
       "param": "hue",
+      "kind": "scalar",
       "theta": -3.1416,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -830,6 +932,7 @@
     {
       "host": "Stylized__Center",
       "param": "hue",
+      "kind": "scalar",
       "theta": -3.1416,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -838,6 +941,7 @@
     {
       "host": "Stylized__Center",
       "param": "hue",
+      "kind": "scalar",
       "theta": -3.1416,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -846,6 +950,7 @@
     {
       "host": "Stylized__Center",
       "param": "hue",
+      "kind": "scalar",
       "theta": -3.1416,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -854,6 +959,7 @@
     {
       "host": "Stylized__Center",
       "param": "hue",
+      "kind": "scalar",
       "theta": 3.1416,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -862,6 +968,7 @@
     {
       "host": "Stylized__Center",
       "param": "hue",
+      "kind": "scalar",
       "theta": 3.1416,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -870,6 +977,7 @@
     {
       "host": "Stylized__Center",
       "param": "hue",
+      "kind": "scalar",
       "theta": 3.1416,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -878,6 +986,7 @@
     {
       "host": "Stylized__Center",
       "param": "hue",
+      "kind": "scalar",
       "theta": 3.1416,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -886,6 +995,7 @@
     {
       "host": "Stylized__Center",
       "param": "hue",
+      "kind": "scalar",
       "theta": 3.1416,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -894,6 +1004,7 @@
     {
       "host": "Stylized__Center",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -902,6 +1013,7 @@
     {
       "host": "Stylized__Center",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.25,
       "oracle_signal": 0.01,
@@ -910,6 +1022,7 @@
     {
       "host": "Stylized__Center",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.5,
       "oracle_signal": 0.015,
@@ -918,6 +1031,7 @@
     {
       "host": "Stylized__Center",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.75,
       "oracle_signal": 0.015,
@@ -926,6 +1040,7 @@
     {
       "host": "Stylized__Center",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.9,
       "oracle_signal": 0.015,
@@ -934,6 +1049,7 @@
     {
       "host": "Stylized__Center",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -942,6 +1058,7 @@
     {
       "host": "Stylized__Center",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 0.008,
@@ -950,6 +1067,7 @@
     {
       "host": "Stylized__Center",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 0.013,
@@ -958,6 +1076,7 @@
     {
       "host": "Stylized__Center",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 0.013,
@@ -966,6 +1085,7 @@
     {
       "host": "Stylized__Center",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.013,
@@ -974,6 +1094,7 @@
     {
       "host": "Stylized__Center",
       "param": "value",
+      "kind": "scalar",
       "theta": -1.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -982,6 +1103,7 @@
     {
       "host": "Stylized__Center",
       "param": "value",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -990,6 +1112,7 @@
     {
       "host": "Stylized__Center",
       "param": "value",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -998,6 +1121,7 @@
     {
       "host": "Stylized__Center",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -1006,6 +1130,7 @@
     {
       "host": "Stylized__Center",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.25,
       "oracle_signal": 0.007,
@@ -1014,6 +1139,7 @@
     {
       "host": "Stylized__Center",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.5,
       "oracle_signal": 0.012,
@@ -1022,6 +1148,7 @@
     {
       "host": "Stylized__Center",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.75,
       "oracle_signal": 0.012,
@@ -1030,6 +1157,7 @@
     {
       "host": "Stylized__Center",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.9,
       "oracle_signal": 0.012,
@@ -1038,6 +1166,7 @@
     {
       "host": "Stylized__Center",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -1046,6 +1175,7 @@
     {
       "host": "Stylized__Center",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 0.029,
@@ -1054,6 +1184,7 @@
     {
       "host": "Stylized__Center",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 0.045,
@@ -1062,6 +1193,7 @@
     {
       "host": "Stylized__Center",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 0.045,
@@ -1070,6 +1202,7 @@
     {
       "host": "Stylized__Center",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.045,
@@ -1078,6 +1211,7 @@
     {
       "host": "Stylized__Center",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -1086,6 +1220,7 @@
     {
       "host": "Stylized__Center",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -1094,6 +1229,7 @@
     {
       "host": "Stylized__Center",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -1102,6 +1238,7 @@
     {
       "host": "Stylized__Center",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -1110,6 +1247,7 @@
     {
       "host": "Stylized__Center",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -1118,6 +1256,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "hue",
+      "kind": "scalar",
       "theta": -3.1416,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -1126,6 +1265,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "hue",
+      "kind": "scalar",
       "theta": -3.1416,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -1134,6 +1274,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "hue",
+      "kind": "scalar",
       "theta": -3.1416,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -1142,6 +1283,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "hue",
+      "kind": "scalar",
       "theta": -3.1416,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -1150,6 +1292,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "hue",
+      "kind": "scalar",
       "theta": -3.1416,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -1158,6 +1301,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.1,
       "oracle_signal": 1.753,
@@ -1166,6 +1310,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.966,
@@ -1174,6 +1319,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -1182,6 +1328,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -1190,6 +1337,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -1198,6 +1346,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -1206,6 +1355,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -1214,6 +1364,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.07,
@@ -1222,6 +1373,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 0.164,
@@ -1230,6 +1382,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 0.262,
@@ -1238,6 +1391,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 0.345,
@@ -1246,6 +1400,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.335,
@@ -1254,6 +1409,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -1262,6 +1418,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -1270,6 +1427,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -1278,6 +1436,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -1286,6 +1445,7 @@
     {
       "host": "Stylized__Light_Sweep",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -1294,6 +1454,7 @@
     {
       "host": "Stylized__Lower",
       "param": "hue",
+      "kind": "scalar",
       "theta": -3.1416,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -1302,6 +1463,7 @@
     {
       "host": "Stylized__Lower",
       "param": "hue",
+      "kind": "scalar",
       "theta": -3.1416,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -1310,6 +1472,7 @@
     {
       "host": "Stylized__Lower",
       "param": "hue",
+      "kind": "scalar",
       "theta": -3.1416,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -1318,6 +1481,7 @@
     {
       "host": "Stylized__Lower",
       "param": "hue",
+      "kind": "scalar",
       "theta": -3.1416,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -1326,6 +1490,7 @@
     {
       "host": "Stylized__Lower",
       "param": "hue",
+      "kind": "scalar",
       "theta": -3.1416,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -1334,6 +1499,7 @@
     {
       "host": "Stylized__Lower",
       "param": "hue",
+      "kind": "scalar",
       "theta": 3.1416,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -1342,6 +1508,7 @@
     {
       "host": "Stylized__Lower",
       "param": "hue",
+      "kind": "scalar",
       "theta": 3.1416,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -1350,6 +1517,7 @@
     {
       "host": "Stylized__Lower",
       "param": "hue",
+      "kind": "scalar",
       "theta": 3.1416,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -1358,6 +1526,7 @@
     {
       "host": "Stylized__Lower",
       "param": "hue",
+      "kind": "scalar",
       "theta": 3.1416,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -1366,6 +1535,7 @@
     {
       "host": "Stylized__Lower",
       "param": "hue",
+      "kind": "scalar",
       "theta": 3.1416,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -1374,6 +1544,7 @@
     {
       "host": "Stylized__Lower",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -1382,6 +1553,7 @@
     {
       "host": "Stylized__Lower",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -1390,6 +1562,7 @@
     {
       "host": "Stylized__Lower",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.5,
       "oracle_signal": 0.01,
@@ -1398,6 +1571,7 @@
     {
       "host": "Stylized__Lower",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.75,
       "oracle_signal": 0.017,
@@ -1406,6 +1580,7 @@
     {
       "host": "Stylized__Lower",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.9,
       "oracle_signal": 0.017,
@@ -1414,6 +1589,7 @@
     {
       "host": "Stylized__Lower",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -1422,6 +1598,7 @@
     {
       "host": "Stylized__Lower",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -1430,6 +1607,7 @@
     {
       "host": "Stylized__Lower",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 0.008,
@@ -1438,6 +1616,7 @@
     {
       "host": "Stylized__Lower",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 0.014,
@@ -1446,6 +1625,7 @@
     {
       "host": "Stylized__Lower",
       "param": "saturation",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.014,
@@ -1454,6 +1634,7 @@
     {
       "host": "Stylized__Lower",
       "param": "value",
+      "kind": "scalar",
       "theta": -1.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -1462,6 +1643,7 @@
     {
       "host": "Stylized__Lower",
       "param": "value",
+      "kind": "scalar",
       "theta": -1.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -1470,6 +1652,7 @@
     {
       "host": "Stylized__Lower",
       "param": "value",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -1478,6 +1661,7 @@
     {
       "host": "Stylized__Lower",
       "param": "value",
+      "kind": "scalar",
       "theta": 2.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -1486,6 +1670,7 @@
     {
       "host": "Stylized__Lower",
       "param": "value",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -1494,6 +1679,7 @@
     {
       "host": "Stylized__Lower",
       "param": "value",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -1502,6 +1688,7 @@
     {
       "host": "Stylized__Lower",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -1510,6 +1697,7 @@
     {
       "host": "Stylized__Lower",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -1518,6 +1706,7 @@
     {
       "host": "Stylized__Lower",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.5,
       "oracle_signal": 0.008,
@@ -1526,6 +1715,7 @@
     {
       "host": "Stylized__Lower",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.75,
       "oracle_signal": 0.012,
@@ -1534,6 +1724,7 @@
     {
       "host": "Stylized__Lower",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.9,
       "oracle_signal": 0.012,
@@ -1542,6 +1733,7 @@
     {
       "host": "Stylized__Lower",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -1550,6 +1742,7 @@
     {
       "host": "Stylized__Lower",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -1558,6 +1751,7 @@
     {
       "host": "Stylized__Lower",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 0.029,
@@ -1566,6 +1760,7 @@
     {
       "host": "Stylized__Lower",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 0.051,
@@ -1574,6 +1769,7 @@
     {
       "host": "Stylized__Lower",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.051,
@@ -1582,6 +1778,7 @@
     {
       "host": "Stylized__Lower",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -1590,6 +1787,7 @@
     {
       "host": "Stylized__Lower",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -1598,6 +1796,7 @@
     {
       "host": "Stylized__Lower",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -1606,6 +1805,7 @@
     {
       "host": "Stylized__Lower",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -1614,6 +1814,7 @@
     {
       "host": "Stylized__Lower",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.9,
       "oracle_signal": 0.0,
