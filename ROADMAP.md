@@ -917,9 +917,11 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               NOT fully cancel. CONCLUSION: for the color family the GUI GT (Rule 1) overrides the
               headless oracle; those primitives are "verified" when they match the GUI GT, and the
               headless-oracle ddb is only a secondary signal. Geometric/kernel primitives (blur) do NOT
-              have this gap (headless≈GUI for pure spatial ops) — which is why the blur fixes verified
-              cleanly on BOTH. This is the deep reason color primitives are "blocked": not just the
-              chain architecture, but that headless itself isn't the gate's truth for them.
+              have this gap: MEASURED FCP-headless-vs-GUI = Blurs__Directional 31.42, Gaussian 29.85,
+              Zoom 29.17, Movements__Push 35.12 (vs color's 13-19) — headless≈GUI for pure spatial ops,
+              which is why the blur fixes verified cleanly on BOTH oracles. This is the deep reason color
+              primitives are "blocked": not just the chain architecture, but that headless itself isn't
+              the gate's truth for them (a ~2x-wider headless↔GUI gap than any geometric slug).
 
 - 2026-07-18cz-reconfirm  ✗ COLORIZE per-filter s2l-endpoint RE-TESTED and RE-REVERTED (Rule 1
               truth). The isolated headless gradient probe UNAMBIGUOUSLY shows FCP linearizes the
