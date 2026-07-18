@@ -302,13 +302,17 @@ registerFilter({
 //   at 50.4 dB isolated (mean 255 = full white), while the shipping 8-bit glowFilter path is
 //   BROKEN at 3.7 dB (mean 97 — it barely blooms; the ×10 extract amplification is dropped).
 //   So the MAGNITUDE is correct in float. The residual 360°_Bloom GUI-gate regression
-//   (11.52→10.74, still net −0.49 with Lights +0.29) is NOT magnitude but ONSET TIMING: the
-//   engine's bloom peaks TOO EARLY (engine f09 mean 194.9 vs GUI GT f09 118.7; both reach the
-//   correct ~223-227 at the f14 peak). The Threshold CURVE (100→3 at 0.117-0.15s→100 at 0.25s)
-//   is evaluated at a different scene-time than FCP for this 360-aware/retime host — the same
-//   BLOCKER-A curve-time coupling. So the float bloom is the correct FILTER; shipping it
-//   unconditionally (removing the FCT_BLOOM_FLOAT Rule-12 flag) is gated ONLY by aligning the
-//   Bloom Threshold curve-time mapping on the retime host, tracked T-qbloomlin01.
+//   (11.52→10.74, still net −0.49 with Lights +0.29) is NOT the bloom filter: the isolated
+//   threshold→brightness LAW matches headless to <2 codes across the whole range (thr
+//   100/75/50/25/15/3 → 97.2/103.1/128.7/189.7/214.2/255.0 vs FCP 97.3/102.8/127.2/187.8/
+//   212.8/254.7). Nor is it a time-phase: frame-shifting the float renders vs GT is OPTIMAL
+//   at shift 0 (10.13 dB; ±1..3 all score lower), so it is NOT a ~2-frame onset offset. The
+//   transition-level divergence (mid-ramp mean eng>GT while the peak means match) is SPATIAL/
+//   structural at the HOST level — 360°_Bloom composits the bloom over an A→B crossfade +
+//   equirect content, and that host composition (crossfade/geometry) is where it diverges,
+//   NOT the bloom filter's per-pixel math. So the float bloom is the correct FILTER; shipping
+//   it unconditionally (removing the FCT_BLOOM_FLOAT Rule-12 flag) is gated by the 360°_Bloom
+//   HOST composition, a separate concern, tracked T-qbloomlin01.
 
 export interface BloomParams {
   /** FCP Amount (blur spread). The blur radius fed to HGaussianBlur is 0.5·Amount. */
