@@ -98,13 +98,13 @@
     },
     "PAERadialBlur": {
       "worst_ddb": 18.992,
-      "n_scored": 11,
+      "n_scored": 29,
       "max_oracle_signal": 28.638,
       "hosts": [
         "Blurs__Radial",
         "Replicator-Clones__Combo_Spin"
       ],
-      "swept": "2026-07-18T11:20:45Z",
+      "swept": "2026-07-18T20:50:21Z",
       "status": "DIVERGED",
       "todo": "T-faithful-paeradialblur"
     },
@@ -451,8 +451,14 @@
       "t": "2026-07-18T20:03:39Z",
       "status": "DIVERGED",
       "worst_ddb": 15.765
+    },
+    {
+      "prim": "PAERadialBlur",
+      "t": "2026-07-18T20:50:21Z",
+      "status": "DIVERGED",
+      "worst_ddb": 18.992
     }
   ],
   "started": "2026-07-17T18:24:32Z",
-  "updated": "2026-07-18T20:03:39Z"
+  "updated": "2026-07-18T20:50:21Z"
 }
