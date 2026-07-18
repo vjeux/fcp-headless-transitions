@@ -73,14 +73,22 @@ class EngineWorker:
         self.proc = subprocess.Popen(
             ['node_modules/.bin/tsx', 'test/_fct_render_motr_worker.ts'], cwd='engine',
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            env=env, text=True, bufsize=1)
+            env=env, text=True, bufsize=1, start_new_session=True)
         if (self.proc.stdout.readline() or '').strip() != 'READY':
             self._kill()
 
     def _kill(self):
         if self.proc is not None:
-            try: self.proc.kill()
-            except Exception: pass
+            # Kill the whole PROCESS GROUP, not just the tsx wrapper: `tsx` spawns a child
+            # `node` that does the actual rendering. Killing only self.proc (the tsx parent)
+            # ORPHANS that node child, which — if it was mid-hang — keeps spinning CPU forever
+            # (observed a stuck node at 6+ min CPU after a watchdog respawn). start_new_session
+            # puts the worker in its own group so killpg reaps tsx + node together.
+            import signal
+            try: os.killpg(os.getpgid(self.proc.pid), signal.SIGKILL)
+            except Exception:
+                try: self.proc.kill()
+                except Exception: pass
             try: self.proc.wait(timeout=5)
             except Exception: pass
             self.proc = None
