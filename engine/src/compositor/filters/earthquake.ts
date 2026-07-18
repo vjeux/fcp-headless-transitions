@@ -109,7 +109,7 @@
  * from the FxPlug params alone is the exact FRAME INDEX the headless host feeds the
  * RNG (secs*fps then *1000, truncated) — the render harness time→frame mapping is
  * host-internal. We therefore drive the SAME RNG from ctx.time using the timeline fps
- * (see FCT_QUAKE_FPS / default 30). When the frame index matches FCP's, the pose is
+ * (30 fps, baked). When the frame index matches FCP's, the pose is
  * pixel-exact; if the harness maps time differently, the DETERMINISTIC transform is
  * still correct but the specific random pose (and thus PSNR) can differ frame-to-frame.
  * All non-RNG parts (amplitude scaling, pivot, degree conversion, layer average,
@@ -259,10 +259,10 @@ registerFilter({
 
     // Frame index the RNG is seeded from: frame = secs * fps; scaled = trunc(frame*1000).
     // The headless harness's time→frame mapping is host-internal; we reconstruct it
-    // from the timeline fps (overridable via FCT_QUAKE_FPS for verification sweeps).
-    const fps = Number(
-      (typeof process !== 'undefined' && process.env && process.env.FCT_QUAKE_FPS) || 30,
-    ) || 30;
+    // from the timeline fps. DECODED default = 30 fps (Rule 12: no env-flag gating — the
+    // FCT_QUAKE_FPS override read was a verification-sweep knob, now baked to the decoded
+    // constant; the sweep can edit this line if it ever needs to re-verify).
+    const fps = 30;
     const frameScaled = Math.trunc(ctx.time * fps * FRAME_SCALE) | 0;
 
     return earthquakeFilter(input, twist, hShake, vShake, layers, epiX, epiY, seed, frameScaled);
