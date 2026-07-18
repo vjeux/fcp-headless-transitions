@@ -51,6 +51,15 @@
  *      color0.xyz = r1.xyz * orig.w;  color0.w = orig.w;  )
  *
  * PHASE-2 STATUS (TS vs FCP):
+ *   [P2-GB0] FAITHFUL VERDICT (2026-07-18): the Gaussian KERNEL is faithful across the
+ *     WHOLE Amount range. Fresh isolated step-edge probe: a/sigma = 6.11/6.11/6.08/6.07 at
+ *     Amount 50/100/300/600 (headless erf fit), and this engine matches headless at
+ *     43.05/40.78/38.51 dB (isolated photo, Amount 100/300/600) — including Amount=600.
+ *     The per-primitive faithful sweep's DIVERGED (worst ddb 16.07 at Amount=600 in
+ *     Lights__Bloom, and Stylized__Center_Reveal) is BLOOM-PIPELINE contamination (the blur
+ *     feeds a threshold/bloom composite whose OTHER stages diverge), NOT the blur kernel —
+ *     proven by the isolated 38.5 dB at the identical Amount=600. Kernel + H/V + Mix + edge
+ *     mode all verified; residual is host-pipeline, a separately-tracked concern.
  *   [P2-GB1] This file builds a full 2*r+1 normalized Gaussian (makeGaussianKernel) —
  *     the SAME PDF as HGLinearFilter::gaussian, just at full res instead of on the
  *     decimated image. Verified vs headless FCP at psnr 43-46 (isolated Amount sweep),

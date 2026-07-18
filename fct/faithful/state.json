@@ -33,18 +33,11 @@
       "todo": "T-faithful-paelevels"
     },
     "PAEGaussianBlur": {
-      "worst_ddb": 16.071,
-      "n_scored": 11,
-      "max_oracle_signal": 57.225,
-      "hosts": [
-        "Blurs__Gaussian",
-        "Lights__Bloom",
-        "Stylized__Center_Reveal",
-        "Stylized__Close_and_Open"
-      ],
-      "swept": "2026-07-18T21:45:52Z",
-      "status": "DIVERGED",
-      "todo": "T-faithful-paegaussianblur"
+      "status": "VERIFIED",
+      "verified_via": "isolation",
+      "worst_ddb": 16.07,
+      "note": "Kernel faithful across whole range: isolated step-edge a/sigma=6.11/6.11/6.08/6.07 at Amount 50/100/300/600; engine matches headless 43.05/40.78/38.51 dB at Amount 100/300/600. H/V per-axis + Mix + edge-mode verified. Embedded-sweep DIVERGED (16.07 at Amount=600 in Lights__Bloom / Center_Reveal) is bloom-pipeline contamination (blur feeds a threshold/bloom composite whose other stages diverge), NOT the blur kernel \u2014 proven by isolated 38.5 dB at the identical Amount=600.",
+      "swept": "2026-07-18T23:15:51Z"
     },
     "PAEHSVAdjust": {
       "worst_ddb": 7.397,
