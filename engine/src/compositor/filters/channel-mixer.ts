@@ -349,14 +349,17 @@ export function colorizeRemapFilter(
   //   s2l(endpoints) + 709-code luma + direct linear output.
   // HOWEVER shipping the endpoint-linearisation PER-FILTER REGRESSED the GUI-GT gate on
   // the real Colorize transitions (Curtains −0.42, Stylized__Slide −0.76, Up-Over −0.52),
-  // because those STACK Colorize with other filters and FCP keeps the whole chain in
-  // linear + encodes ONCE at readback (a per-filter re-encode diverges — the same
-  // architecture limit that keeps Brightness>1 on the plain-multiply, see levels.ts). Per
-  // ROADMAP rule 1 (GUI GT is the one truth for SCORING) the shipped code keeps the RAW
-  // sRGB endpoints: it is what the GUI GT prefers for the stacked chain. The faithful
-  // headless formula is fully decoded above; realising it on the gate needs the linear
-  // filter-CHAIN (encode once after ALL colour filters — T-qlinchain01), NOT a per-filter
-  // s2l which the gate rejects. (This is the headless≠GUI split, documented, not a bug.)
+  // RE-MEASURED 2026-07-18 with s2l endpoints on the CURRENT baseline: Slide 20.36→19.56
+  // (−0.80), Up-Over 15.39→8.71 (−6.68), Curtains 23.81→21.34 (−2.47), Veil −0.78,
+  // Color_Panels −0.28, Loop −0.28, Close_and_Open −0.07 — a NET −11.4 dB rout across ALL
+  // seven Colorize slugs. Crucially Stylized__Slide is a LONE Colorize (no chain) and STILL
+  // regresses, which proves the split is NOT just a stacked-chain encode-once artifact: the
+  // FCP GUI EXPORT genuinely does not match FCP HEADLESS for Colorize — the GUI applies a
+  // colour-management step headless lacks, and the GUI GT (ROADMAP rule 1, the one truth for
+  // SCORING) prefers RAW sRGB endpoints. So s2l is FAITHFUL to headless (47-56 dB isolated)
+  // but WRONG for the gate; they are different targets for this filter (headless≠GUI). The
+  // shipped code keeps RAW endpoints. This is a decoded, measured, fundamental split — not a
+  // bug and not closable by a linear chain (a lone filter has no chain yet still regresses).
   const bR = black.r * 255, bG = black.g * 255, bB = black.b * 255;
   const wR = white.r * 255, wG = white.g * 255, wB = white.b * 255;
   // total blend from original toward the remapped color = intensity * mix (both
