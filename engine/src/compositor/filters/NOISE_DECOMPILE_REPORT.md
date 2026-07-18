@@ -2,6 +2,34 @@
 
 Binary: `Final Cut Pro.app/Contents/PlugIns/InternalFiltersXPC.pluginkit/Contents/PlugIns/Filters.bundle/Contents/MacOS/Filters` (arm64 slice @ file 0x66c000). Tools: `nm`, `otool -arch arm64 -tV`, custom Mach-O const reader.
 
+## ⚠️ CORRECTION (2026-07-18, faithful oracle) — visible output is PER-PIXEL WHITE NOISE
+The faithful solo-synth oracle (fct/faithful, generator scene) shows PAENoise's VISIBLE output
+is **per-pixel white noise**, NOT the smooth low-frequency simplex the Stage-2 section below
+describes. Measured on the real Lights/Static Noise scenenode through headless FCP: lag-1
+neighbour correlation ≈ **-0.006 horizontal AND vertical** (pure white noise; a smooth simplex
+field would be ~+0.9). Per-channel mean ≈ 127.5, std ≈ 60. A raw 8×8 R block is fully
+decorrelated static.
+
+Implications for a faithful engine:
+ - The current `filters/noise.ts` snoise-with-jitter path produces SMOOTH correlated blobs
+   (TC_SCALE ≈ 0.04/px makes huge simplex cells) — QUALITATIVELY WRONG vs the per-pixel static.
+ - The visible field is effectively the **Stage-1 dSFMT seeded white texture sampled per-pixel**
+   (the Stage-2 jitter fully decorrelates neighbours → white). To match, emit per-pixel dSFMT
+   bytes directly (R,G,B per pixel) rather than a coarse simplex.
+ - PIXEL-EXACT match additionally needs FCP's exact dSFMT fill order + the generator's blend
+   (Lights/Static wraps the Noise scenenode in a `Fade In/Fade Out` behavior with an authored
+   opacity envelope + a blend mode over the transition — it is NOT a full-opacity overlay), so a
+   PSNR match is inherently bounded for a stochastic primitive.
+
+WIRING STATUS: PAENoise is a **Generator scenenode** (factory "Generator", not a filter). The
+parser's `determineImageSource` had NO PAENoise branch → the scenenode rendered BLACK. A wiring
+attempt (footage.ts `{type:'noise'}` + masks.ts `applyNoiseGenerator` at frame size) was TRIED
+2026-07-18 and REVERTED: the current smooth-simplex field REGRESSED Lights/Static 17.66→17.07
+(uncorrelated wrong-noise adds high-freq error; black scored higher because the noise is
+blended/faded in the GUI GT and PSNR cannot match two different noise fields anyway). Re-wire
+only once the field is per-pixel white AND the fade/blend envelope is modeled. Tracked:
+T-faithful-paenoise.
+
 ## 1. PAENoise (Lights/Static) — UUID 30911E49-2043-4EEC-88A8-2E4AAA835D59
 
 ### Evidence (symbols, verbatim from `nm`)
