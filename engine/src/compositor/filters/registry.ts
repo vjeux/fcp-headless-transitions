@@ -32,6 +32,12 @@ export interface FilterContext {
    * current time; it's treated as inactive (->0) only when it does NOT animate AND its
    * static value is 0 (an animated 0->N->0 ramp is a real blur). */
   blurAmount(name: string, fallback: number): number;
+  /** Resolve a NESTED child param (e.g. a point's X/Y under a "Center" group, or a
+   * colour's Red/Green/Blue). Curve-aware at the filter-local curveTime, so an animated
+   * child (Motion authors point coords as curves) reads correctly. Ignores rig overrides
+   * (nested children are not override targets). Returns fallback when the group/child is
+   * absent, so a filter whose Center is at its default stays byte-identical. */
+  nestedParam(group: string, child: string, fallback: number): number;
 }
 
 export interface FilterModule {
@@ -128,5 +134,19 @@ export function makeContext(filter: Filter, time: number, width: number, height:
     }
     return fallback;
   };
-  return { filter, time, overrides, width, height, param, has, rawParam, hasRaw, blurAmount };
+  // Resolve a nested child param (curve-aware at curveTime). Motion nests a point's
+  // X/Y under a group param ("Center") and a colour's R/G/B under "Remap Black To" etc.;
+  // a flat ctx.param never finds them. This walks group->child and evaluates a child
+  // curve at the filter-local curveTime (so an animated centre reads correctly). Nested
+  // children are not rig-override targets, so overrides are intentionally ignored here.
+  const nestedParam = (group: string, child: string, fallback: number): number => {
+    const g = filter.parameters.find(p => p.name === group);
+    if (!g || !g.children) return fallback;
+    const c = g.children.find(cc => cc.name === child);
+    if (!c) return fallback;
+    if (c.curve) return evaluateCurve(c.curve, curveTime);
+    if (typeof c.value === 'number') return c.value;
+    return fallback;
+  };
+  return { filter, time, overrides, width, height, param, has, rawParam, hasRaw, blurAmount, nestedParam };
 }

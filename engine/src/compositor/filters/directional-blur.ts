@@ -478,7 +478,10 @@ registerFilter({
 });
 
 // Radial Blur (PAERadialBlur, UUID 8F9F88CF-…). Faithful: Mix gate; Amount (fallback
-// Angle) via blurAmount; spin about the frame center.
+// Angle) via blurAmount; spin about the filter's Center param (nested X/Y in [0,1] frame
+// coords, 0.5,0.5 = frame centre). All 65 shipping users author Center=(0.5,0.5) so this
+// is gate-neutral, but reading it makes the primitive faithful across the param space
+// (headless FCP's spin centre tracks Center X/Y — verified via a spin-response fit).
 registerFilter({
   uuid: '8F9F88CF-F1DC-4C7E-8946-1A8B53B4F53A',
   names: ['radial'],
@@ -487,13 +490,17 @@ registerFilter({
     const mix = ctx.param('Mix', 1);
     const amount = ctx.blurAmount('Amount', ctx.blurAmount('Angle', 0));
     if (mix <= 0 || amount <= 0) return input;
-    return blurWithMix(input, mix, img => radialBlur(img, amount, 0.5, 0.5, 'spin'));
+    const cx = ctx.nestedParam('Center', 'X', 0.5);
+    const cy = ctx.nestedParam('Center', 'Y', 0.5);
+    return blurWithMix(input, mix, img => radialBlur(img, amount, cx, cy, 'spin'));
   },
 });
 
 // Zoom Blur (PAEZoomBlur, UUID 11C0E095-…). Faithful: Mix gate; Amount via blurAmount;
-// zoom about the frame center. (The "(for OSC)" preview variant shares this UUID but is
-// skipped by the OSC check in applyFilter before the registry lookup.)
+// zoom about the filter's Center param (nested X/Y, default 0.5,0.5 = frame centre). (The
+// "(for OSC)" preview variant shares this UUID but is skipped by the OSC check in
+// applyFilter before the registry lookup.) All shipping users author Center=(0.5,0.5) so
+// wiring it is gate-neutral; it makes the primitive faithful across the Center param space.
 registerFilter({
   uuid: '11C0E095-5F4F-46E2-AE28-F56ED7D38D7E',
   names: ['zoom'],
@@ -502,6 +509,8 @@ registerFilter({
     const mix = ctx.param('Mix', 1);
     const amount = ctx.blurAmount('Amount', 0);
     if (mix <= 0 || amount <= 0) return input;
-    return blurWithMix(input, mix, img => zoomBlur(img, amount, 0.5, 0.5));
+    const cx = ctx.nestedParam('Center', 'X', 0.5);
+    const cy = ctx.nestedParam('Center', 'Y', 0.5);
+    return blurWithMix(input, mix, img => zoomBlur(img, amount, cx, cy));
   },
 });
