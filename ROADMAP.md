@@ -900,6 +900,40 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-18faithful3  ✅ FAITHFUL-ORACLE ENGINE FIXES — two clean decoded wins from the
+              per-primitive fuzz oracle (Rule 13), both step-edge/gradient-probed vs REAL
+              headless FCP (decode-don't-fit), gate net-positive/neutral:
+              (1) **HGaussianBlur sigma 6.67→6.10** (gaussian-blur.ts + directional-blur.ts).
+              The shared HGaussianBlur kernel's effective screen sigma is Amount/6.10, not
+              Amount/6.67 — measured via a synthetic STEP-EDGE (erf-CDF fit, rms<0.7) across
+              Amount∈{10..300}, all decimation levels, for BOTH PAEGaussianBlur AND
+              PAEDirectionalBlur (independently fit identical 6.10). Old 6.67 was PHOTO-fitted
+              (σ-insensitive); edge rms 1.8 vs 6.10's 0.6 (3× worse). Gate: Blurs__Directional
+              26.83→27.2, 0 reg. Faithful: PAEDirectionalBlur worst_ddb 5.35→26.30.
+              (2) **PAEDirectionalBlur Angle is RADIANS not degrees** (.motr stores 2π/π-2;
+              HDirectionalBlur::init does sincosf on the raw radian). Old `angle*π/180` blurred
+              the wrong axis. Verified: angle=0→horizontal, π/2→vertical.
+              (3) **PAEHSVAdjust Value clamp** (hue-saturation.ts). Value darken leg is EXACTLY
+              out=in·Value² in sRGB code space (0<V≤1, FCP matches ±2 codes on a gradient
+              probe); Value≤0 → BLACK. Old `value*value` gave V=-1→valMul=1=IDENTITY (worst
+              divergence). Fix: max(0,value)². Byte-identical for V≥0 (gate-neutral on all 4
+              shipping users, all dim). Brighten leg V>1 is NOT a squared mult (FCP brightens
+              far harder, in=32→141 at V=1.5, no clean model) — unexercised, documented gap.
+              Commits e8669fd, 98ab436, f27716f, d38ffd0.
+              STRATEGIC CATEGORIZATION of the 19 remaining DIVERGED primitives (durable):
+                • GEOMETRIC/KERNEL (cleanly decodable in isolation): DirectionalBlur✓, Gaussian✓,
+                  Radial/Zoom (polar sigma constants worth an edge-probe like Gaussian), Flop.
+                • COLOR-CHAIN (blocked by architecture): Colorize, HSV-brighten, Brightness-brighten,
+                  ChannelMixer-offset, Tint. FCP keeps the whole color-adjust chain in ONE linear
+                  working space + encodes ONCE + premult/matte interactions; matching any of these
+                  PER-FILTER regresses the GUI GT (documented repeatedly). Needs the linear-chain
+                  architecture (linear-chain.ts) finished before per-filter fidelity is reachable.
+                • PROCEDURAL GENERATORS (PSNR-unmatchable): Noise, CloudsV — different random fields;
+                  the per-frame seed schedule is not in the XPC binary. Deferred (documented).
+                • COMPLEX SPATIAL (1-host, moderate): BlackHole (MIP-pyramid warp), Earthquake,
+                  Underwater (displacement), BadTV. Diverge on the core warp/displacement field.
+
+
 - 2026-07-17vidwall2  ✅ VIDEO_WALL HOLD-PAST-TIMING content-replicator (T-q7fd2fef0 DONE) —
               **Replicator-Clones__Video_Wall 10.24 → 10.62 dB (+0.38)**, 0 regressions, gate green.
               **Bug**: Motion holds a Replicator's rendered cell content on-screen PAST its own
