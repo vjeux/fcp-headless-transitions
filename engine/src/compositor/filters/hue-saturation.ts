@@ -148,7 +148,20 @@ function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
 export function hueSaturationFilter(input: ImageData, params: HueSatParams): ImageData {
   const { hue, saturation, value, mix } = params;
   const satFactor = 1 + saturation;   // 0-centered -> lerp weight toward color
-  const valMul = value * value;       // FCP applies Value as a squared multiply
+  // Value (brightness) transfer, DECODED vs headless FCP on a 0..255 gray gradient
+  // (PAEHSVAdjust Value sweep, gradient probe): for the DARKEN leg 0 <= Value <= 1 the
+  // output is EXACTLY out = in * Value^2 in sRGB CODE space (FCP matches srgb*v^2 within
+  // +-2 codes at Value=0.25/0.5/0.65/0.8 across the whole gradient). Value <= 0 clamps to
+  // BLACK (Value=-1 and Value=0 both render out=0 — NOT identity). The old `value*value`
+  // without the clamp made Value=-1 -> valMul=1 -> IDENTITY, the worst faithful-oracle
+  // divergence (ddb 6.95 at Value=-1). Clamp the multiplier at 0.
+  // ⚠️ The BRIGHTEN leg Value > 1 is NOT a simple squared multiply (FCP brightens far
+  // harder than srgb*v^2 / lin*v / HSV-V*v — in=32 -> 141 at Value=1.5; no standard
+  // model fits and the exponent is inconsistent). No built-in transition authors
+  // Value > 1 (all shipping users dim: Light_Sweep/Lower/Center), so the brighten leg
+  // stays a documented gap; the clamp below keeps the correct darken behavior and does
+  // not regress it. For Value > 1 we keep value^2 (over-bright but unexercised).
+  const valMul = Math.max(0, value) * Math.max(0, value);
   if (hue === 0 && saturation === 0 && value === 1) return input;
 
   const width = input.width;
