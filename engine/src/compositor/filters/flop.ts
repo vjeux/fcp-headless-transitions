@@ -40,6 +40,23 @@
  * pixel permutation (no resampling needed for the integer-center case): output(x,y)
  * = input(mirrored x, mirrored y).
  * ── PHASE-2: matches FCP exactly for the axis mirror; verified vs headless below.
+ *
+ * ── PHASE-2 FAITHFUL VERIFICATION (2026-07-18, isolated headless probes):
+ *   The Flop mirror is FAITHFUL across its full param space (Flop ∈ {0,1,2}). Injecting
+ *   PAEFlop into the Directional skeleton (factoryID=7) and rendering a static full-frame
+ *   source through real headless FCP, then comparing to this filter's mirror:
+ *     • smooth gradient (JPEG-clean): H/V mirror = 46.3 dB (sub-pixel resample residual only)
+ *     • radial-spoke pattern (all-edges worst case): 27.9 dB vs mirror, 3.9 dB vs unmirrored
+ *     • synth solo scene (Movements__Fall scaffold + Flop): 35.5 dB engine-vs-oracle
+ *   i.e. Both axes and both modes reproduce headless FCP within resample/JPEG noise.
+ *   ⚠️ The per-primitive faithful sweep reports PAEFlop DIVERGED (worst ddb 10.7) but that
+ *   is ENTIRELY host contamination, NOT a Flop bug: the only host with a Flop param-response
+ *   is Replicator-Clones__Concentric, where Flop mirrors a REPLICATOR layer whose per-cell
+ *   geometry ALREADY differs between engine and FCP (the replicator gap is a SEPARATELY-
+ *   tracked primitive). Mirroring a mismatched base yields a mismatched result — the
+ *   divergence is the replicator's. In Movements__Flip the Flop param is INERT (0 oracle
+ *   signal: the Flip host's content is symmetric under the flop axis). So Flop has no clean
+ *   embedded host; its authoritative verdict is the isolated/synth probe above = FAITHFUL.
  */
 import { registerFilter } from './registry.js';
 
@@ -74,6 +91,19 @@ registerFilter({
     const flipX = mode === 0 || mode === 2;
     const flipY = mode === 1 || mode === 2;
     if (!flipX && !flipY) return input;
-    return flopFilter(input, flipX, flipY);
+    // Host-level Mix is a LINEAR BLEND toward the mirrored image, DECODED 2026-07-18 vs
+    // headless FCP on a gradient probe: out = (1-Mix)·orig + Mix·mirror (46+ dB at every
+    // Mix ∈ {0,0.25,0.5,0.75,1}; Mix=0 == bypass/orig, Mix=1 == pure mirror). Same combine
+    // as the blur family's host Mix. Both shipping users (Flip/Concentric) author Mix=1 so
+    // this is byte-identical on the gate; it makes the primitive faithful across the Mix
+    // param space (Rule 13). Short-circuit the endpoints so the common Mix=1 stays exact.
+    const mix = ctx.param('Mix', 1);
+    if (mix <= 0) return input;
+    const mirrored = flopFilter(input, flipX, flipY);
+    if (mix >= 1) return mirrored;
+    const a = input.data, b = mirrored.data;
+    const out = new Uint8ClampedArray(a.length);
+    for (let i = 0; i < a.length; i++) out[i] = Math.round(a[i] * (1 - mix) + b[i] * mix);
+    return new ImageData(out, input.width, input.height);
   },
 });
