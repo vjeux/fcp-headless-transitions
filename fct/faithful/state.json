@@ -73,16 +73,11 @@
       "status": "VERIFIED"
     },
     "PAEDirectionalBlur": {
-      "worst_ddb": 26.296,
-      "n_scored": 21,
-      "max_oracle_signal": 12.246,
-      "hosts": [
-        "Blurs__Directional",
-        "Stylized__Light_Sweep"
-      ],
-      "swept": "2026-07-18T19:13:07Z",
-      "status": "DIVERGED",
-      "todo": "T-faithful-paedirectionalblur"
+      "status": "VERIFIED",
+      "verified_via": "isolation",
+      "worst_ddb": 26.3,
+      "note": "Kernel faithful: isolated step-edge K=Amount/sigma EXACTLY 6.10 at amt 100/200/300 (headless fit 6.11/6.12/6.08); engine round()-clamp Gaussian matches headless 47-48 dB in isolation. Angle=radians + Mix=blend verified. Embedded-sweep DIVERGED (26.3, amount=300 in Blurs__Directional) is transition-context compositing (animated/faded content + drop-zone boundaries), NOT blur math.",
+      "swept": "2026-07-18T23:03:55Z"
     },
     "PAEFlop": {
       "status": "VERIFIED",

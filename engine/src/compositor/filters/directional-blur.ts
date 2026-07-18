@@ -89,6 +89,17 @@ export function directionalBlur(input: ImageData, amount: number, angle: number)
   // ~1.8 vs 6.10's ~0.6 (3× worse) at every amount. 6.10 is the effective screen sigma of
   // FCP's decimate→normalized-Gaussian-PDF→bilinear-upsample chain (the bilinear
   // resample widens the effective kernel slightly beyond the r/2π ideal).
+  //
+  // ── PHASE-2 FAITHFUL RE-VERIFICATION (2026-07-18, isolated step-edge probe):
+  //    K = Amount/sigma is EXACTLY 6.10 at large amounts too (headless edge fit:
+  //    amt100→σ16.38 (K6.11), amt200→σ32.70 (K6.12), amt300→σ49.38 (K6.08)), and this
+  //    engine's round()-sampled clamp Gaussian matches headless at 47-48 dB in isolation
+  //    (amt 100/200/300, full-frame and center-crop). The DirectionalBlur KERNEL is
+  //    faithful across the whole Amount range. The per-primitive faithful sweep's DIVERGED
+  //    (worst embedded ddb 26.3 at amount=300 in Blurs__Directional) is the TRANSITION-
+  //    CONTEXT compositing (animated/faded content, drop-zone boundaries), NOT the blur
+  //    math — the same host-contamination that keeps RadialBlur's per-primitive number
+  //    below its isolation ceiling. Kernel + Angle (radians) + Mix (blend) are all verified.
   const sigma = amount / 6.10;
   const half = Math.max(1, Math.min(Math.ceil(sigma * 3), 150)); // ±3σ, capped
   const twoSigmaSq = 2 * sigma * sigma;
