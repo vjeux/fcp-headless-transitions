@@ -514,6 +514,55 @@ function boxHalveFloatRGB(src: Float32Array, w: number, h: number): Float32Array
   return out;
 }
 
+/** Anisotropic separable Gaussian: independent horizontal (sigmaX) and vertical (sigmaY)
+ *  screen sigmas, full-res (no decimation). DECODED 2026-07-18 vs headless FCP (cross
+ *  probe): PAEGaussianBlur's Horizontal/Vertical params (0..100, default 100) LINEARLY
+ *  scale the per-axis blur amount — Vertical=0 leaves the vertical axis SHARP (V-spread
+ *  8px = line width), Horizontal=50 halves the horizontal spread (26 vs 50px). So
+ *  sigmaX = (Amount/6.10)·(Horizontal/100), sigmaY = (Amount/6.10)·(Vertical/100). Used
+ *  only for the ANISOTROPIC case (H≠V); the isotropic shipping case (H=V=100) keeps the
+ *  fast decimatedGaussianBlur. Full-res is fine here — anisotropic blur is unexercised by
+ *  the 65 built-ins (all author H=V=100) so it is never on the perf-critical path. */
+function anisotropicGaussianBlur(input: ImageData, sigmaX: number, sigmaY: number): ImageData {
+  const width = input.width, height = input.height, src = input.data;
+  const halfX = Math.max(0, Math.min(Math.ceil(sigmaX * 3), 400));
+  const halfY = Math.max(0, Math.min(Math.ceil(sigmaY * 3), 400));
+  const kx = makeGaussianKernel(halfX, sigmaX > 0.05 ? sigmaX : undefined);
+  const ky = makeGaussianKernel(halfY, sigmaY > 0.05 ? sigmaY : undefined);
+  const temp = new Uint8ClampedArray(width * height * 4);
+  const out = new Uint8ClampedArray(width * height * 4);
+  // Horizontal pass (src -> temp)
+  for (let y = 0; y < height; y++) {
+    const rowBase = y * width;
+    for (let x = 0; x < width; x++) {
+      let rA = 0, gA = 0, bA = 0, aA = 0;
+      if (sigmaX <= 0.05) { const i = (rowBase + x) * 4; rA = src[i]; gA = src[i+1]; bA = src[i+2]; aA = src[i+3]; }
+      else for (let k = -halfX; k <= halfX; k++) {
+        let sx = x + k; sx = sx < 0 ? 0 : sx >= width ? width - 1 : sx;
+        const idx = (rowBase + sx) * 4; const w = kx[k + halfX];
+        rA += src[idx]*w; gA += src[idx+1]*w; bA += src[idx+2]*w; aA += src[idx+3]*w;
+      }
+      const d = (rowBase + x) * 4;
+      temp[d] = Math.round(rA); temp[d+1] = Math.round(gA); temp[d+2] = Math.round(bA); temp[d+3] = Math.round(aA);
+    }
+  }
+  // Vertical pass (temp -> out)
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let rA = 0, gA = 0, bA = 0, aA = 0;
+      if (sigmaY <= 0.05) { const i = (y * width + x) * 4; rA = temp[i]; gA = temp[i+1]; bA = temp[i+2]; aA = temp[i+3]; }
+      else for (let k = -halfY; k <= halfY; k++) {
+        let sy = y + k; sy = sy < 0 ? 0 : sy >= height ? height - 1 : sy;
+        const idx = (sy * width + x) * 4; const w = ky[k + halfY];
+        rA += temp[idx]*w; gA += temp[idx+1]*w; bA += temp[idx+2]*w; aA += temp[idx+3]*w;
+      }
+      const d = (y * width + x) * 4;
+      out[d] = Math.round(rA); out[d+1] = Math.round(gA); out[d+2] = Math.round(bA); out[d+3] = Math.round(aA);
+    }
+  }
+  return new ImageData(out, width, height);
+}
+
 import { registerFilter } from './registry.js';
 
 // Gaussian Blur (UUID E472D646-…). Mix gates the effect (0 = bypass); Amount via
@@ -535,7 +584,19 @@ registerFilter({
     const mix = ctx.param('Mix', 1);
     const amount = ctx.blurAmount('Amount', 0);
     if (mix <= 0 || amount <= 0) return input;
-    const blurred = decimatedGaussianBlur(input, amount);
+    // Horizontal/Vertical (0..100, default 100) LINEARLY scale the per-axis blur (DECODED
+    // vs headless: Vertical=0 -> no vertical blur, Horizontal=50 -> half horizontal spread).
+    const hScale = ctx.param('Horizontal', 100) / 100;
+    const vScale = ctx.param('Vertical', 100) / 100;
+    let blurred: ImageData;
+    if (Math.abs(hScale - 1) < 1e-4 && Math.abs(vScale - 1) < 1e-4) {
+      // ISOTROPIC (the shipping case, H=V=100): fast decimated path.
+      blurred = decimatedGaussianBlur(input, amount);
+    } else {
+      // ANISOTROPIC: full-res separable with per-axis sigma = (amount/6.10)*(scale).
+      const base = amount / 6.10;
+      blurred = anisotropicGaussianBlur(input, base * hScale, base * vScale);
+    }
     if (mix >= 1) return blurred;
     // Blend orig -> blurred by Mix (the HgcChannelBlur combine).
     const a = input.data, b = blurred.data;
