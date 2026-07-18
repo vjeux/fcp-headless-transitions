@@ -1,249 +1,269 @@
 {
-  "version": 2,
-  "metric": "delta_ddb",
-  "pass_db": 40.0,
-  "note": "DELTA-RESPONSE per-primitive gate. worst_ddb = min over (host,continuous-param,theta-extreme,time) of PSNR(oracle(theta)-oracle(theta0), engine(theta)-engine(theta0)). A faithful engine scores ~99 dB (identity/determinism noise floor = 99 dB, measured). pass_db=40 flags only REAL parameter-response divergence, never quantization. status: UNTESTED|VERIFIED|DIVERGED|NO_SIGNAL|HARNESS_BROKEN. Priority=host-count desc (leverage + structural coverage: >1 host exposes scene-signature overfitting). Driven from disk by driver.py; survives compaction. Every sweep runs selftest T1..T5 first.",
-  "primitives": [
-    {
-      "priority": 0,
-      "id": "PAEColorize",
-      "plugin_name": "PAEColorize",
-      "node_type": "filter",
-      "host_count": 7,
-      "host_slugs": [
-        "Objects__Curtains",
-        "Objects__Veil",
-        "Stylized__Close_and_Open",
-        "Stylized__Color_Panels",
-        "Stylized__Loop",
-        "Stylized__Slide",
-        "Stylized__Up-Over"
-      ],
-      "status": "UNTESTED"
-    },
-    {
-      "priority": 1,
-      "id": "PAELevels",
-      "plugin_name": "PAELevels",
-      "node_type": "filter",
-      "host_count": 5,
-      "host_slugs": [
-        "Objects__Leaves",
-        "Stylized__Diagonal",
-        "Stylized__Light_Sweep",
-        "Stylized__Up-Over",
-        "Wipes__Diagonal"
-      ],
-      "status": "UNTESTED"
-    },
-    {
-      "priority": 2,
-      "id": "PAEGaussianBlur",
-      "plugin_name": "PAEGaussianBlur",
-      "node_type": "filter",
-      "host_count": 4,
-      "host_slugs": [
-        "Blurs__Gaussian",
-        "Lights__Bloom",
-        "Stylized__Center_Reveal",
-        "Stylized__Close_and_Open"
-      ],
-      "status": "UNTESTED"
-    },
-    {
-      "priority": 3,
-      "id": "PAEHSVAdjust",
-      "plugin_name": "PAEHSVAdjust",
-      "node_type": "filter",
-      "host_count": 4,
-      "host_slugs": [
-        "Objects__Leaves",
-        "Stylized__Center",
-        "Stylized__Light_Sweep",
-        "Stylized__Lower"
-      ],
-      "status": "UNTESTED"
-    },
-    {
-      "priority": 4,
-      "id": "PAEColorSolid",
-      "plugin_name": "PAEColorSolid",
-      "node_type": "scenenode",
-      "host_count": 3,
-      "host_slugs": [
-        "Movements__Flip",
-        "Movements__Multi-flip",
-        "Stylized__Light_Sweep"
-      ],
-      "status": "UNTESTED"
-    },
-    {
-      "priority": 5,
-      "id": "PAEDirectionalBlur",
-      "plugin_name": "PAEDirectionalBlur",
-      "node_type": "filter",
-      "host_count": 2,
-      "host_slugs": [
-        "Blurs__Directional",
-        "Stylized__Light_Sweep"
-      ],
-      "status": "UNTESTED"
-    },
-    {
-      "priority": 6,
-      "id": "PAEFlop",
-      "plugin_name": "PAEFlop",
-      "node_type": "filter",
-      "host_count": 2,
-      "host_slugs": [
-        "Movements__Flip",
-        "Replicator-Clones__Concentric"
-      ],
-      "status": "UNTESTED"
-    },
-    {
-      "priority": 7,
-      "id": "PAERadialBlur",
-      "plugin_name": "PAERadialBlur",
-      "node_type": "filter",
-      "host_count": 2,
-      "host_slugs": [
-        "Blurs__Radial",
-        "Replicator-Clones__Combo_Spin"
-      ],
-      "status": "UNTESTED"
-    },
-    {
-      "priority": 8,
-      "id": "PAEBadTV",
-      "plugin_name": "PAEBadTV",
-      "node_type": "filter",
-      "host_count": 1,
-      "host_slugs": [
-        "Lights__Static"
-      ],
-      "status": "UNTESTED"
-    },
-    {
-      "priority": 9,
-      "id": "PAEBlackHole",
-      "plugin_name": "PAEBlackHole",
-      "node_type": "filter",
-      "host_count": 1,
-      "host_slugs": [
-        "Movements__Black_Hole"
-      ],
-      "status": "UNTESTED"
-    },
-    {
-      "priority": 10,
-      "id": "PAEBloom",
-      "plugin_name": "PAEBloom",
-      "node_type": "filter",
-      "host_count": 1,
-      "host_slugs": [
-        "Lights__Bloom"
-      ],
-      "status": "UNTESTED"
-    },
-    {
-      "priority": 11,
-      "id": "PAEBrightness",
-      "plugin_name": "PAEBrightness",
-      "node_type": "filter",
-      "host_count": 1,
-      "host_slugs": [
-        "Objects__Curtains"
-      ],
-      "status": "UNTESTED"
-    },
-    {
-      "priority": 12,
-      "id": "PAEChannelMixer",
-      "plugin_name": "PAEChannelMixer",
-      "node_type": "filter",
-      "host_count": 1,
-      "host_slugs": [
-        "Objects__Curtains"
-      ],
-      "status": "UNTESTED"
-    },
-    {
-      "priority": 13,
-      "id": "PAECloudsV",
-      "plugin_name": "PAECloudsV2",
-      "node_type": "scenenode",
-      "host_count": 1,
-      "host_slugs": [
-        "Stylized__Close_and_Open"
-      ],
-      "status": "UNTESTED"
-    },
-    {
-      "priority": 14,
-      "id": "PAEEarthquake",
-      "plugin_name": "PAEEarthquake",
-      "node_type": "filter",
-      "host_count": 1,
-      "host_slugs": [
-        "Movements__Earthquake"
-      ],
-      "status": "UNTESTED"
-    },
-    {
-      "priority": 15,
-      "id": "PAEGlow",
-      "plugin_name": "PAEGlow",
-      "node_type": "filter",
-      "host_count": 1,
-      "host_slugs": [
-        "Lights__Bloom"
-      ],
-      "status": "UNTESTED"
-    },
-    {
-      "priority": 16,
-      "id": "PAENoise",
-      "plugin_name": "PAENoise",
-      "node_type": "scenenode",
-      "host_count": 1,
-      "host_slugs": [
-        "Lights__Static"
-      ],
-      "status": "UNTESTED"
-    },
-    {
-      "priority": 17,
-      "id": "PAETint",
-      "plugin_name": "PAETint",
-      "node_type": "filter",
-      "host_count": 1,
-      "host_slugs": [
-        "Objects__Leaves"
-      ],
-      "status": "UNTESTED"
-    },
-    {
-      "priority": 18,
-      "id": "PAEUnderwater",
-      "plugin_name": "PAEUnderwater",
-      "node_type": "filter",
-      "host_count": 1,
-      "host_slugs": [
-        "Movements__Flashback"
-      ],
-      "status": "UNTESTED"
-    },
-    {
-      "priority": 19,
-      "id": "PAEZoomBlur",
-      "plugin_name": "PAEZoomBlur",
-      "node_type": "filter",
-      "host_count": 1,
-      "host_slugs": [
-        "Blurs__Zoom"
-      ],
-      "status": "UNTESTED"
-    }
-  ]
+ "version": 2,
+ "metric": "delta_ddb",
+ "pass_db": 40.0,
+ "note": "DELTA-RESPONSE per-primitive gate. worst_ddb = min over (host,continuous-param,theta-extreme,time) of PSNR(oracle(theta)-oracle(theta0), engine(theta)-engine(theta0)). A faithful engine scores ~99 dB (identity/determinism noise floor = 99 dB, measured). pass_db=40 flags only REAL parameter-response divergence, never quantization. status: UNTESTED|VERIFIED|DIVERGED|NO_SIGNAL|HARNESS_BROKEN. Priority=host-count desc (leverage + structural coverage: >1 host exposes scene-signature overfitting). Driven from disk by driver.py; survives compaction. Every sweep runs selftest T1..T5 first. | ORACLE_TRUTH TAG (2026-07-18): color-family primitives (Colorize/Levels/HSVAdjust/Brightness/ChannelMixer/Tint/ColorSolid) have a MEASURED 13-19 dB FCP-headless-vs-GUI-GT gap (GUI color-management on export), so their headless ddb is NOT the gate truth \u2014 chasing it moves the engine AWAY from the GUI GT (proven: colorize per-filter s2l = headless-correct but -12 NET on the gate). For these, GUI GT (Rule 1) overrides; headless ddb is a secondary signal only. Geometric/kernel primitives (blur family) have headless~=GUI (29-35 dB ceiling) so their headless ddb IS a faithful gate proxy (blur sigma/angle/mix fixes verified on BOTH). oracle_truth field on each primitive records which.",
+ "primitives": [
+  {
+   "priority": 0,
+   "id": "PAEColorize",
+   "plugin_name": "PAEColorize",
+   "node_type": "filter",
+   "host_count": 7,
+   "host_slugs": [
+    "Objects__Curtains",
+    "Objects__Veil",
+    "Stylized__Close_and_Open",
+    "Stylized__Color_Panels",
+    "Stylized__Loop",
+    "Stylized__Slide",
+    "Stylized__Up-Over"
+   ],
+   "status": "UNTESTED",
+   "oracle_truth": "gui"
+  },
+  {
+   "priority": 1,
+   "id": "PAELevels",
+   "plugin_name": "PAELevels",
+   "node_type": "filter",
+   "host_count": 5,
+   "host_slugs": [
+    "Objects__Leaves",
+    "Stylized__Diagonal",
+    "Stylized__Light_Sweep",
+    "Stylized__Up-Over",
+    "Wipes__Diagonal"
+   ],
+   "status": "UNTESTED",
+   "oracle_truth": "gui"
+  },
+  {
+   "priority": 2,
+   "id": "PAEGaussianBlur",
+   "plugin_name": "PAEGaussianBlur",
+   "node_type": "filter",
+   "host_count": 4,
+   "host_slugs": [
+    "Blurs__Gaussian",
+    "Lights__Bloom",
+    "Stylized__Center_Reveal",
+    "Stylized__Close_and_Open"
+   ],
+   "status": "UNTESTED",
+   "oracle_truth": "headless"
+  },
+  {
+   "priority": 3,
+   "id": "PAEHSVAdjust",
+   "plugin_name": "PAEHSVAdjust",
+   "node_type": "filter",
+   "host_count": 4,
+   "host_slugs": [
+    "Objects__Leaves",
+    "Stylized__Center",
+    "Stylized__Light_Sweep",
+    "Stylized__Lower"
+   ],
+   "status": "UNTESTED",
+   "oracle_truth": "gui"
+  },
+  {
+   "priority": 4,
+   "id": "PAEColorSolid",
+   "plugin_name": "PAEColorSolid",
+   "node_type": "scenenode",
+   "host_count": 3,
+   "host_slugs": [
+    "Movements__Flip",
+    "Movements__Multi-flip",
+    "Stylized__Light_Sweep"
+   ],
+   "status": "UNTESTED",
+   "oracle_truth": "gui"
+  },
+  {
+   "priority": 5,
+   "id": "PAEDirectionalBlur",
+   "plugin_name": "PAEDirectionalBlur",
+   "node_type": "filter",
+   "host_count": 2,
+   "host_slugs": [
+    "Blurs__Directional",
+    "Stylized__Light_Sweep"
+   ],
+   "status": "UNTESTED",
+   "oracle_truth": "headless"
+  },
+  {
+   "priority": 6,
+   "id": "PAEFlop",
+   "plugin_name": "PAEFlop",
+   "node_type": "filter",
+   "host_count": 2,
+   "host_slugs": [
+    "Movements__Flip",
+    "Replicator-Clones__Concentric"
+   ],
+   "status": "UNTESTED",
+   "oracle_truth": "headless"
+  },
+  {
+   "priority": 7,
+   "id": "PAERadialBlur",
+   "plugin_name": "PAERadialBlur",
+   "node_type": "filter",
+   "host_count": 2,
+   "host_slugs": [
+    "Blurs__Radial",
+    "Replicator-Clones__Combo_Spin"
+   ],
+   "status": "UNTESTED",
+   "oracle_truth": "headless"
+  },
+  {
+   "priority": 8,
+   "id": "PAEBadTV",
+   "plugin_name": "PAEBadTV",
+   "node_type": "filter",
+   "host_count": 1,
+   "host_slugs": [
+    "Lights__Static"
+   ],
+   "status": "UNTESTED",
+   "oracle_truth": "headless"
+  },
+  {
+   "priority": 9,
+   "id": "PAEBlackHole",
+   "plugin_name": "PAEBlackHole",
+   "node_type": "filter",
+   "host_count": 1,
+   "host_slugs": [
+    "Movements__Black_Hole"
+   ],
+   "status": "UNTESTED",
+   "oracle_truth": "headless"
+  },
+  {
+   "priority": 10,
+   "id": "PAEBloom",
+   "plugin_name": "PAEBloom",
+   "node_type": "filter",
+   "host_count": 1,
+   "host_slugs": [
+    "Lights__Bloom"
+   ],
+   "status": "UNTESTED",
+   "oracle_truth": "headless"
+  },
+  {
+   "priority": 11,
+   "id": "PAEBrightness",
+   "plugin_name": "PAEBrightness",
+   "node_type": "filter",
+   "host_count": 1,
+   "host_slugs": [
+    "Objects__Curtains"
+   ],
+   "status": "UNTESTED",
+   "oracle_truth": "gui"
+  },
+  {
+   "priority": 12,
+   "id": "PAEChannelMixer",
+   "plugin_name": "PAEChannelMixer",
+   "node_type": "filter",
+   "host_count": 1,
+   "host_slugs": [
+    "Objects__Curtains"
+   ],
+   "status": "UNTESTED",
+   "oracle_truth": "gui"
+  },
+  {
+   "priority": 13,
+   "id": "PAECloudsV",
+   "plugin_name": "PAECloudsV2",
+   "node_type": "scenenode",
+   "host_count": 1,
+   "host_slugs": [
+    "Stylized__Close_and_Open"
+   ],
+   "status": "UNTESTED",
+   "oracle_truth": "headless"
+  },
+  {
+   "priority": 14,
+   "id": "PAEEarthquake",
+   "plugin_name": "PAEEarthquake",
+   "node_type": "filter",
+   "host_count": 1,
+   "host_slugs": [
+    "Movements__Earthquake"
+   ],
+   "status": "UNTESTED",
+   "oracle_truth": "headless"
+  },
+  {
+   "priority": 15,
+   "id": "PAEGlow",
+   "plugin_name": "PAEGlow",
+   "node_type": "filter",
+   "host_count": 1,
+   "host_slugs": [
+    "Lights__Bloom"
+   ],
+   "status": "UNTESTED",
+   "oracle_truth": "headless"
+  },
+  {
+   "priority": 16,
+   "id": "PAENoise",
+   "plugin_name": "PAENoise",
+   "node_type": "scenenode",
+   "host_count": 1,
+   "host_slugs": [
+    "Lights__Static"
+   ],
+   "status": "UNTESTED",
+   "oracle_truth": "headless"
+  },
+  {
+   "priority": 17,
+   "id": "PAETint",
+   "plugin_name": "PAETint",
+   "node_type": "filter",
+   "host_count": 1,
+   "host_slugs": [
+    "Objects__Leaves"
+   ],
+   "status": "UNTESTED",
+   "oracle_truth": "gui"
+  },
+  {
+   "priority": 18,
+   "id": "PAEUnderwater",
+   "plugin_name": "PAEUnderwater",
+   "node_type": "filter",
+   "host_count": 1,
+   "host_slugs": [
+    "Movements__Flashback"
+   ],
+   "status": "UNTESTED",
+   "oracle_truth": "headless"
+  },
+  {
+   "priority": 19,
+   "id": "PAEZoomBlur",
+   "plugin_name": "PAEZoomBlur",
+   "node_type": "filter",
+   "host_count": 1,
+   "host_slugs": [
+    "Blurs__Zoom"
+   ],
+   "status": "UNTESTED",
+   "oracle_truth": "headless"
+  }
+ ]
 }
