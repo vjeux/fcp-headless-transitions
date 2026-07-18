@@ -104,7 +104,14 @@ def _graft_factories(scaf, fblock, host_txt):
 # OFFSET timing window (e.g. PAENoise: offset="-4612608 7680000 1 0", a sliver near the host's
 # transition midpoint) so at the sweep's sample times it is faded out / outside its window ->
 # ~0 oracle response (the PAENoise NO_SIGNAL root cause). Matches PAETint's working full-span.
-_FULL_TIMING = '<timing in="0 7680000 1 0" out="9993984 7680000 1 0" offset="0 7680000 1 0"/>'
+# OUT VALUE (fixed 2026-07-18): must clearly EXCEED the scaffold's scene span. The scaffold
+# (Movements__Fall) playRange is ~1.735s and its layer.out is ~1.70s; the transition maps
+# sweep t in [0,1] onto that span, so t=0.9 -> ~1.56s. The previous out=9993984/7680000 = 1.30s
+# was SHORTER than the span, so the injected node TIMED OUT for the engine at t>=~0.77 (engine
+# rendered black past its out) while the oracle held it — a pure SCAFFOLD artifact that made
+# the generator sweep falsely diverge (ColorSolid t=0.9 ddb 4.78 vs 16.4 elsewhere). Use 4.0s
+# (30720000/7680000) so the node outlasts the whole timeline at every sweep time.
+_FULL_TIMING = '<timing in="0 7680000 1 0" out="30720000 7680000 1 0" offset="0 7680000 1 0"/>'
 _TIMING_RE = re.compile(r'<timing\b[^>]*/>')
 _FADE_RE = re.compile(r'\s*<behavior name="Fade In/Fade Out"[^>]*>.*?</behavior>', re.S)
 

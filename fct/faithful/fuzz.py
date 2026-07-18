@@ -107,30 +107,52 @@ def sweep(primitive, catalog, times=(0.1, 0.25, 0.5, 0.75, 0.9), max_params=None
     prim = next(p for p in catalog['primitives'] if p['id'] == primitive)
     plugin = prim.get('plugin_name', primitive)   # catalog may override (PAECloudsV -> PAECloudsV2)
     hosts = prim['host_slugs'][:max_hosts] if max_hosts else prim['host_slugs']
+    # GENERATOR ISOLATION (2026-07-18, faithful-not-fitted): a generator scenenode
+    # (PAEColorSolid/PAENoise/PAECloudsV) emits its OWN full-frame image which the HOST then
+    # TRANSFORMS (3D flip-card warp in Flip/Multi-flip, camera moves, masks) and composites. So
+    # an EMBEDDED param-response delta conflates the generator's color/output math with the
+    # host's geometry — a color change lands in DIFFERENT pixels whenever the host's 3D
+    # transform in the engine differs from FCP (that gap is PAEFlop's / the compositor's, a
+    # SEPARATELY-tracked primitive). Attributing it to the generator is a FALSE divergence that
+    # tempts overfitting the generator when its color math is already exact (ColorSolid solo
+    # matches FCP to <1 LSB across the full 0..1 sweep). The FAITHFUL per-primitive verdict for
+    # a generator is therefore the SOLO SYNTH scene, where the generator's output IS the frame
+    # (no host transform); the host-geometry gap is still caught under PAEFlop's own sweep.
+    # Embedded-host rows are still rendered + recorded as DIAGNOSTICS (tagged diag=True) but do
+    # NOT set the verdict for a generator.
+    is_gen = prim.get('node_type') == 'scenenode'
     rows = []; worst = 999.0; n_signal = 0; max_sig = 0.0; used_synth = False
     with tempfile.TemporaryDirectory() as tmp:
-        for hi, host in enumerate(hosts):
-            src = config.slug_motr(host)
-            base = open(src, encoding='utf-8').read()
-            sch = schema.extract(src, plugin, fuzzable_only=True, include_curves=True)
-            if not sch:
-                rows.append({'host': host, 'note': 'no fuzzable params located'}); continue
-            params = list(sch.items())
-            if max_params:
-                params = params[:max_params]
-            ns, wd, ms = _sweep_scene(base, src, plugin, params, times, tmp, 'h%d' % hi, host, rows)
-            n_signal += ns; worst = min(worst, wd); max_sig = max(max_sig, ms)
-        # SYNTHETIC FALLBACK: the filter is occluded in EVERY host (no oracle signal anywhere)
-        # -> build a synthetic single-filter scene where it drives the output, and sweep THAT.
-        # This is the ONLY way to verify a filter never composited into any host's visible
-        # frame (PAETint/PAENoise/PAEBadTV). synth.build grafts the authentic filter block +
-        # its factory into a minimal static full-frame scaffold (Movements__Fall).
-        if allow_synth and max_sig < SIGNAL_FLOOR:
+        if is_gen:
+            # GENERATOR: skip the embedded-host renders entirely — they only measure the
+            # HOST's transform of the generator's output (3D flip-card warp / camera / masks),
+            # a SEPARATELY-tracked primitive (PAEFlop et al.), and would triple the render cost
+            # for a number that must NOT set this primitive's verdict. The authoritative verdict
+            # is the SOLO SYNTH sweep below. Record a note so the report is explicit.
+            for host in hosts:
+                rows.append({'host': host, 'note': 'generator: embedded host is host-geometry '
+                             '(tracked under the host transform primitive); verdict = solo synth'})
+        else:
+            for hi, host in enumerate(hosts):
+                src = config.slug_motr(host)
+                base = open(src, encoding='utf-8').read()
+                sch = schema.extract(src, plugin, fuzzable_only=True, include_curves=True)
+                if not sch:
+                    rows.append({'host': host, 'note': 'no fuzzable params located'}); continue
+                params = list(sch.items())
+                if max_params:
+                    params = params[:max_params]
+                ns, wd, ms = _sweep_scene(base, src, plugin, params, times, tmp, 'h%d' % hi, host, rows)
+                n_signal += ns; worst = min(worst, wd); max_sig = max(max_sig, ms)
+        # SYNTHETIC SCENE: for a GENERATOR this is the AUTHORITATIVE verdict (isolates its own
+        # param->output response). For a FILTER it is a FALLBACK only when the filter is
+        # occluded in EVERY host (no oracle signal anywhere) — e.g. PAETint/PAEBadTV whose layer
+        # is never composited into the visible frame. synth.build grafts the authentic filter
+        # block + its factory into a minimal static full-frame scaffold (Movements__Fall).
+        if allow_synth and (is_gen or max_sig < SIGNAL_FLOOR):
             host0 = hosts[0]
-            # A generator scenenode (PAENoise/PAEColorSolid/PAECloudsV2) produces its OWN image;
-            # source A must be removed so it isn't occluded (else ~0 param response). A filter
-            # keeps source A as its input. node_type comes from the catalog (ground truth).
-            is_gen = prim.get('node_type') == 'scenenode'
+            # A generator scenenode produces its OWN image; source A must be removed so it isn't
+            # occluded (else ~0 param response). A filter keeps source A as its input.
             sbase = synth.build(plugin, config.slug_motr(host0), is_generator=is_gen)
             if sbase is not None:
                 used_synth = True

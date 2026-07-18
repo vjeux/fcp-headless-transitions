@@ -10,6 +10,7 @@
  */
 import type { ImageSource, GaussianGradientConfig, LensFlareConfig, LinearGradientConfig, Parameter } from '../types.js';
 import { directChildren, getTextContent, parseParameter } from './xml.js';
+import { srgbChannelToLinear } from '../compositor/linear.js';
 
 /**
  * Parse the scene's <footage> block into a map of clip-id → 'A' | 'B'.
@@ -782,7 +783,21 @@ export function determineImageSource(params: Parameter[], el: Element | undefine
         if (p.children) findColor(p.children);
       }
     })(params);
-    return { type: 'color', r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255), a: 1 };
+    // COLOR-SPACE (decoded 2026-07-18 via the faithful per-primitive oracle,
+    // fct/faithful — PAEColorSolid solo-synth sweep): Motion's Color Solid
+    // generator emits its authored color as a LINEAR-LIGHT value into the
+    // Extended-Linear-sRGB working buffer, which the readback then re-encodes to
+    // sRGB. Net transfer measured against real headless FCP over a 6-point sweep
+    // (param → readback u8): 0.10→2.5, 0.25→13.0, 0.50→54.4, 0.75→133.4, 1.0→254.6.
+    // That is EXACTLY srgb_to_linear(param)*255 (piecewise IEC-61966 EOTF — a plain
+    // γ2.2 would give 1.6/12.1, not 2.5/13.0). Photos pass through as identity sRGB
+    // (228→228 verified), so this transfer is generator-color-emission specific, NOT
+    // a global linear-pipeline change: the authored sRGB color param is decoded to
+    // linear, and since the rest of the engine works in sRGB byte space we bake the
+    // linear value straight into the 0..255 fill. Prior naive `param*255` gave
+    // 0.5→128 (oracle 54) — the single worst faithful divergence (ddb 2.3).
+    const enc = (c: number) => Math.round(srgbChannelToLinear(Math.max(0, Math.min(1, c)) * 255) * 255);
+    return { type: 'color', r: enc(r), g: enc(g), b: enc(b), a: 1 };
   }
 
   // Resolve by footage clip reference (the authoritative signal).

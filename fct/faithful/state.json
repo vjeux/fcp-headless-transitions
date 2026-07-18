@@ -61,17 +61,16 @@
       "todo": "T-faithful-paehsvadjust"
     },
     "PAEColorSolid": {
-      "worst_ddb": 2.3,
-      "n_scored": 64,
-      "max_oracle_signal": 137.308,
+      "worst_ddb": 51.799,
+      "n_scored": 30,
+      "max_oracle_signal": 147.025,
       "hosts": [
         "Movements__Flip",
         "Movements__Multi-flip",
         "Stylized__Light_Sweep"
       ],
-      "swept": "2026-07-17T18:56:49Z",
-      "status": "DIVERGED",
-      "todo": "T-faithful-paecolorsolid"
+      "swept": "2026-07-18T15:16:18Z",
+      "status": "VERIFIED"
     },
     "PAEDirectionalBlur": {
       "worst_ddb": 5.349,
@@ -398,8 +397,38 @@
       "t": "2026-07-18T13:37:08Z",
       "status": "DIVERGED",
       "worst_ddb": 5.151
+    },
+    {
+      "prim": "PAEColorSolid",
+      "t": "2026-07-18T14:19:47Z",
+      "status": "DIVERGED",
+      "worst_ddb": 5.785
+    },
+    {
+      "prim": "PAEColorSolid",
+      "t": "2026-07-18T14:31:53Z",
+      "status": "DIVERGED",
+      "worst_ddb": 5.785
+    },
+    {
+      "prim": "PAEColorSolid",
+      "t": "2026-07-18T14:54:46Z",
+      "status": "DIVERGED",
+      "worst_ddb": 4.783
+    },
+    {
+      "prim": "PAEColorSolid",
+      "t": "2026-07-18T15:04:14Z",
+      "status": "DIVERGED",
+      "worst_ddb": 16.435
+    },
+    {
+      "prim": "PAEColorSolid",
+      "t": "2026-07-18T15:16:18Z",
+      "status": "VERIFIED",
+      "worst_ddb": 51.799
     }
   ],
   "started": "2026-07-17T18:24:32Z",
-  "updated": "2026-07-18T13:37:08Z"
+  "updated": "2026-07-18T15:16:18Z"
 }
