@@ -900,6 +900,27 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-18headless-gap  ⚠️⚠️ CRITICAL: FCP-HEADLESS ≠ FCP-GUI-GT for COLOR slugs (13-19 dB gap).
+              Measured FCP's OWN headless engine vs the GUI GT (fct score --source headless): Slide
+              17.82, Veil 14.93, Up-Over 13.10, Curtains 18.94 — NOT ~40+. FCP's headless render and
+              its GUI export DIFFER systematically (color management on GUI export, or a different
+              readback color space). The TS engine (raw-endpoint Colorize) scores HIGHER vs GUI GT
+              than FCP-headless does: Slide 20.36 (>17.82), Veil 21.52 (>14.93), Up-Over 15.39
+              (>13.10), Curtains 23.81 (>18.94) — i.e. the engine tuned to the GUI GT BEATS FCP's own
+              headless-vs-GUI ceiling. IMPLICATION FOR THE FAITHFUL ORACLE (Rule 13): the per-primitive
+              fuzz oracle uses HEADLESS as truth, but the GATE uses GUI GT — for COLOR filters these are
+              DIFFERENT TARGETS (13-19 dB apart), so a color primitive's headless-DIVERGED verdict does
+              NOT mean an engine bug, and chasing headless to 40 dB moves the engine AWAY from the GUI
+              GT (proven: per-filter s2l = headless-correct but −12 NET on the gate). The delta-response
+              metric cancels a CONSTANT background gap, but the headless↔GUI gap is PARAMETER-DEPENDENT
+              for color (it rides on the same linear-vs-code transfer the endpoints exercise), so it does
+              NOT fully cancel. CONCLUSION: for the color family the GUI GT (Rule 1) overrides the
+              headless oracle; those primitives are "verified" when they match the GUI GT, and the
+              headless-oracle ddb is only a secondary signal. Geometric/kernel primitives (blur) do NOT
+              have this gap (headless≈GUI for pure spatial ops) — which is why the blur fixes verified
+              cleanly on BOTH. This is the deep reason color primitives are "blocked": not just the
+              chain architecture, but that headless itself isn't the gate's truth for them.
+
 - 2026-07-18cz-reconfirm  ✗ COLORIZE per-filter s2l-endpoint RE-TESTED and RE-REVERTED (Rule 1
               truth). The isolated headless gradient probe UNAMBIGUOUSLY shows FCP linearizes the
               Remap Black/White endpoints: out_code = 255·(s2l(black)+luma·(s2l(white)−s2l(black))),
