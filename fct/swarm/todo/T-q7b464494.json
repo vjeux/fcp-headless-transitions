@@ -1,0 +1,14 @@
+{
+  "id": "T-q7b464494",
+  "title": "Switch A/B swing direction (rot\u0417 sign) \u2014 relaunch when links.ts/rig lane free",
+  "project": "fct",
+  "goal": "Resume from ~/fct-swarm/salvage/T-qff1b6de2.decode-notes.md. Fix rotZ swing inversion: GT f04 A(sepia)TOP/B(blue)BOT, engine inverted. Hypothesis: factoryID=12 discrete widget should index rigScale col by TAG(=1) not ordinal(=0), OR ortho-fold rotZ Y-convention flip. Gate --all (rotation slugs at risk). COLLISION: touches links.ts::applyLinks+evaluator rig \u2014 do NOT run concurrent with Reflection(links anchor-Z) or Swing(evaluator/rig).",
+  "slugs": [
+    "Movements__Switch"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qff1b6de2",
+  "created_at": "2026-07-16T18:45:07+00:00",
+  "notes": ""
+}

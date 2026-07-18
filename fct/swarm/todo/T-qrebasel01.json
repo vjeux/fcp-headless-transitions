@@ -1,0 +1,12 @@
+{
+  "id": "T-qrebasel01",
+  "title": "Global rebaseline at quiescence \u2014 correct CP=19.05 and Curtains=21.29 stale phantoms",
+  "project": "fct",
+  "goal": "ORCHESTRATOR-ONLY task, run at a FULLY-QUIESCENT moment (0 agents rendering). baseline_engine.json holds STALE phantom values that make push_helper's gate red for every agent, forcing manual pushes: (1) Stylized__Color_Panels=19.05 but honest post-filter-reversal value is ~17.95-18.22 \u2014 the 19.05 was re-frozen by 3ba7b5e (T-qca011a65, a timemap-only Earthquake fix that CANNOT affect CP's filter render) on cached pre-reversal frames. (2) Objects__Curtains=21.29 but actual fresh ~23.18. (3) Movements__Smear/Wipes__Mask known stale-store. PROCEDURE: with 0 agents active, fresh full `gen engine --all` (FCT_JOBS default), then `fct baseline` re-freeze, commit 'baseline: global re-freeze \u2014 correct CP/Curtains/Smear stale phantoms (Rule 11: correct filter-order reversal T-qb697c0d4 regressed already-imperfect Color_Panels 19.05->~18)'. Record the CP regression in ROADMAP per Rule 11. DoD: fresh gen==baseline for all 65, gate green with 0 phantom flags.",
+  "slugs": [],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qba9797b8",
+  "created_at": "2026-07-16T22:55:51+00:00",
+  "notes": "Must run at quiescence. Unblocks clean gate for every future task."
+}

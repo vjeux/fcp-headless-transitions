@@ -1,0 +1,14 @@
+{
+  "id": "T-qlinchain01",
+  "title": "Chain-level linear working buffer for stacked color filters (REAL Color_Panels fix)",
+  "project": "fct",
+  "goal": "Teach the layer render loop (renderCloneLayer, renderDrawableLayer in compositor/index.ts) to keep a Float32 LINEAR working buffer across a multi-filter chain when ALL filters in that chain support linear (Colorize + HueSat + Tint + ChannelMixer + Brightness already have partial linear branches). Linearize ONCE at chain entry, all filters operate in linear light, encode ONCE at chain exit \u2014 NOT per-filter re-encode (the per-filter version REGRESSED Curtains -0.42/Slide -0.76/Up-Over -0.52, documented in filters/channel-mixer.ts:315-322). Gate behind isLinearCompositeEnabled(). DECODE CONFIRMED by T-qba9797b8: CP chain is Colorize->HueSat (post-reverse); sRGB-Colorize gives red-panel pixel (109,46,29)->HueSat sf=2->(160,33,0)=engine; linear-Colorize alone gives (103,40,26) matching GT ratio (72,33,24). DoD: Color_Panels moves toward GT (>=18.5) with 0 regressions on Curtains/Slide/Up-Over (the per-filter failure mode). This is a compositor architecture change (T-D1+T-D2a-d subsystem), not a filter-file fix \u2014 full lifecycle, may span multiple gate-green WIP increments. COLLISION: touches compositor/index.ts render loop \u2014 coordinate; ideally run when the 4 current compositor editors (Concentric/Close_and_Open/Video_Wall/3D_Rect) have landed.",
+  "slugs": [
+    "Stylized__Color_Panels"
+  ],
+  "after": null,
+  "status": "open",
+  "created_by": "T-qba9797b8",
+  "created_at": "2026-07-16T22:55:51+00:00",
+  "notes": "Surfaced by T-qba9797b8 NOCHANGE. The genuine Color_Panels fix. High leverage: likely helps all Colorize-stack slugs."
+}

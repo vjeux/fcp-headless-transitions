@@ -1,0 +1,11 @@
+{
+  "id": "T-q360zoom01",
+  "title": "360 equirect->rectilinear reprojection: animated ~3.2x FOV zoom (shared Push/Slide/Wipe/Divide)",
+  "slugs": ["360°__360°_Wipe", "360°__360°_Push", "360°__360°_Slide", "360°__360°_Divide"],
+  "source": "Decoded by T-qwipe360001 agent (ca08b8a) as a genuinely-separate follow-up",
+  "decode": "All 360-equirect slugs display both panoramas at ~3.2x center zoom (FOV narrowing) for the ENTIRE transition body. Per-frame: f00 z=1.0 (exact, d=0.0), then f02-f22 jump to z~=3.2 (residual d~=14 = true equirect->rectilinear perspective warp + JPEG). Current wipe360h/slide/push composite A/B at home (z=1) so reveal GEOMETRY is right but FRAMING/ZOOM is off in the mid-band. Census confirms '360° Reorient' + '360° Reorient Start' filters drive this. Closing needs an equirect->rectilinear reprojection subsystem with animated ~3.2x zoom in the camera/perspective path (NOT transition360's reveal-mode branches). This is why Wipe capped at 16.45 and Slide/Push cap in the ~20s despite correct reveal geometry.",
+  "scope_hint": "camera/perspective path (perspective.ts or a new equirect-reproject module) + transition360.ts consuming it. Decode the 3.2x zoom curve + the 360 Reorient filter params from the .motr and Motion binary (read_const.py). Shared primitive across all 4 slugs — gate the whole 360 family.",
+  "priority": "high (unblocks the mid-band ceiling on the entire 360 family, ~3-5 dB each)",
+  "status": "queued",
+  "created": "2026-07-16"
+}

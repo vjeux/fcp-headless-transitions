@@ -16,8 +16,35 @@
   "n_scored": 29,
   "used_synthetic": false,
   "max_oracle_signal": 28.638,
-  "worst_ddb": 18.992,
+  "worst_ddb": 14.253,
   "results": [
+    {
+      "host": "Blurs__Radial",
+      "param": "angle",
+      "kind": "curve",
+      "theta": 6.2832,
+      "t": 0.5,
+      "oracle_signal": 9.109,
+      "ddb": 14.253
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "angle",
+      "kind": "curve",
+      "theta": 6.2832,
+      "t": 0.25,
+      "oracle_signal": 25.806,
+      "ddb": 17.629
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "angle",
+      "kind": "curve",
+      "theta": 3.1416,
+      "t": 0.5,
+      "oracle_signal": 6.272,
+      "ddb": 18.062
+    },
     {
       "host": "Blurs__Radial",
       "param": "mix",
@@ -40,46 +67,10 @@
       "host": "Blurs__Radial",
       "param": "angle",
       "kind": "curve",
-      "theta": 6.2832,
-      "t": 0.1,
-      "oracle_signal": 26.194,
-      "ddb": 19.767
-    },
-    {
-      "host": "Blurs__Radial",
-      "param": "angle",
-      "kind": "curve",
-      "theta": 6.2832,
-      "t": 0.25,
-      "oracle_signal": 25.806,
-      "ddb": 19.896
-    },
-    {
-      "host": "Blurs__Radial",
-      "param": "angle",
-      "kind": "curve",
       "theta": 3.1416,
       "t": 0.25,
       "oracle_signal": 24.641,
-      "ddb": 20.298
-    },
-    {
-      "host": "Blurs__Radial",
-      "param": "angle",
-      "kind": "curve",
-      "theta": 3.1416,
-      "t": 0.1,
-      "oracle_signal": 23.105,
-      "ddb": 20.857
-    },
-    {
-      "host": "Blurs__Radial",
-      "param": "center/x",
-      "kind": "curve",
-      "theta": 1.0,
-      "t": 0.1,
-      "oracle_signal": 20.171,
-      "ddb": 22.036
+      "ddb": 20.908
     },
     {
       "host": "Blurs__Radial",
@@ -88,7 +79,43 @@
       "theta": 1.0,
       "t": 0.25,
       "oracle_signal": 19.106,
-      "ddb": 22.508
+      "ddb": 21.301
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "angle",
+      "kind": "curve",
+      "theta": 6.2832,
+      "t": 0.1,
+      "oracle_signal": 26.194,
+      "ddb": 21.695
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "center/x",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 17.11,
+      "ddb": 22.17
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "center/x",
+      "kind": "curve",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 2.941,
+      "ddb": 22.463
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "angle",
+      "kind": "curve",
+      "theta": 3.1416,
+      "t": 0.1,
+      "oracle_signal": 23.105,
+      "ddb": 22.762
     },
     {
       "host": "Replicator-Clones__Combo_Spin",
@@ -104,18 +131,9 @@
       "param": "center/x",
       "kind": "curve",
       "theta": 0.0,
-      "t": 0.1,
-      "oracle_signal": 18.012,
-      "ddb": 23.02
-    },
-    {
-      "host": "Blurs__Radial",
-      "param": "center/x",
-      "kind": "curve",
-      "theta": 0.0,
-      "t": 0.25,
-      "oracle_signal": 17.11,
-      "ddb": 23.466
+      "t": 0.5,
+      "oracle_signal": 3.54,
+      "ddb": 23.46
     },
     {
       "host": "Blurs__Radial",
@@ -137,30 +155,30 @@
     },
     {
       "host": "Blurs__Radial",
+      "param": "center/x",
+      "kind": "curve",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 20.171,
+      "ddb": 25.014
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "center/x",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 18.012,
+      "ddb": 25.315
+    },
+    {
+      "host": "Blurs__Radial",
       "param": "center/y",
       "kind": "curve",
       "theta": 1.0,
       "t": 0.25,
       "oracle_signal": 14.253,
-      "ddb": 25.053
-    },
-    {
-      "host": "Blurs__Radial",
-      "param": "center/y",
-      "kind": "curve",
-      "theta": 0.0,
-      "t": 0.25,
-      "oracle_signal": 12.061,
-      "ddb": 26.503
-    },
-    {
-      "host": "Blurs__Radial",
-      "param": "angle",
-      "kind": "curve",
-      "theta": 0.0,
-      "t": 0.25,
-      "oracle_signal": 12.061,
-      "ddb": 26.503
+      "ddb": 25.6
     },
     {
       "host": "Replicator-Clones__Combo_Spin",
@@ -185,27 +203,18 @@
       "param": "center/y",
       "kind": "curve",
       "theta": 0.0,
-      "t": 0.1,
-      "oracle_signal": 9.887,
-      "ddb": 28.229
+      "t": 0.25,
+      "oracle_signal": 12.061,
+      "ddb": 27.252
     },
     {
       "host": "Blurs__Radial",
       "param": "angle",
       "kind": "curve",
       "theta": 0.0,
-      "t": 0.1,
-      "oracle_signal": 9.887,
-      "ddb": 28.229
-    },
-    {
-      "host": "Blurs__Radial",
-      "param": "center/y",
-      "kind": "curve",
-      "theta": 1.0,
-      "t": 0.1,
-      "oracle_signal": 9.881,
-      "ddb": 28.235
+      "t": 0.25,
+      "oracle_signal": 12.061,
+      "ddb": 27.252
     },
     {
       "host": "Replicator-Clones__Combo_Spin",
@@ -218,21 +227,30 @@
     },
     {
       "host": "Blurs__Radial",
-      "param": "angle",
+      "param": "center/y",
       "kind": "curve",
-      "theta": 6.2832,
-      "t": 0.5,
-      "oracle_signal": 9.109,
-      "ddb": 28.941
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 9.881,
+      "ddb": 29.783
+    },
+    {
+      "host": "Blurs__Radial",
+      "param": "center/y",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 9.887,
+      "ddb": 29.932
     },
     {
       "host": "Blurs__Radial",
       "param": "angle",
       "kind": "curve",
-      "theta": 3.1416,
-      "t": 0.5,
-      "oracle_signal": 6.272,
-      "ddb": 32.182
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 9.887,
+      "ddb": 29.932
     },
     {
       "host": "Replicator-Clones__Combo_Spin",
@@ -251,24 +269,6 @@
       "t": 0.1,
       "oracle_signal": 5.776,
       "ddb": 32.898
-    },
-    {
-      "host": "Blurs__Radial",
-      "param": "center/x",
-      "kind": "curve",
-      "theta": 0.0,
-      "t": 0.5,
-      "oracle_signal": 3.54,
-      "ddb": 37.15
-    },
-    {
-      "host": "Blurs__Radial",
-      "param": "center/x",
-      "kind": "curve",
-      "theta": 1.0,
-      "t": 0.5,
-      "oracle_signal": 2.941,
-      "ddb": 38.761
     },
     {
       "host": "Blurs__Radial",
