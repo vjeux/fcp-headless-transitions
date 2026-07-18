@@ -109,16 +109,6 @@
       "status": "DIVERGED",
       "todo": "T-faithful-paeradialblur"
     },
-    "PAEBadTV": {
-      "worst_ddb": null,
-      "n_scored": 0,
-      "max_oracle_signal": 0.0,
-      "hosts": [
-        "Lights__Static"
-      ],
-      "swept": "2026-07-18T11:21:43Z",
-      "status": "NO_SIGNAL"
-    },
     "PAEBlackHole": {
       "worst_ddb": 10.387,
       "n_scored": 15,
@@ -196,26 +186,6 @@
       "status": "DIVERGED",
       "todo": "T-faithful-paeglow"
     },
-    "PAENoise": {
-      "worst_ddb": null,
-      "n_scored": 0,
-      "max_oracle_signal": 0.0,
-      "hosts": [
-        "Lights__Static"
-      ],
-      "swept": "2026-07-18T12:01:03Z",
-      "status": "NO_SIGNAL"
-    },
-    "PAETint": {
-      "worst_ddb": null,
-      "n_scored": 0,
-      "max_oracle_signal": 0.0,
-      "hosts": [
-        "Objects__Leaves"
-      ],
-      "swept": "2026-07-18T12:06:13Z",
-      "status": "NO_SIGNAL"
-    },
     "PAEUnderwater": {
       "worst_ddb": 16.526,
       "n_scored": 14,
@@ -237,6 +207,38 @@
       "swept": "2026-07-18T12:11:12Z",
       "status": "DIVERGED",
       "todo": "T-faithful-paezoomblur"
+    },
+    "PAETint": {
+      "worst_ddb": 9.46,
+      "n_scored": 65,
+      "max_oracle_signal": 85.806,
+      "hosts": [
+        "Objects__Leaves"
+      ],
+      "swept": "2026-07-18T12:33:36Z",
+      "status": "DIVERGED",
+      "todo": "T-faithful-paetint"
+    },
+    "PAENoise": {
+      "worst_ddb": null,
+      "n_scored": 0,
+      "max_oracle_signal": 1.732,
+      "hosts": [
+        "Lights__Static"
+      ],
+      "swept": "2026-07-18T12:41:45Z",
+      "status": "NO_SIGNAL"
+    },
+    "PAEBadTV": {
+      "worst_ddb": 11.293,
+      "n_scored": 2,
+      "max_oracle_signal": 69.483,
+      "hosts": [
+        "Lights__Static"
+      ],
+      "swept": "2026-07-18T12:53:18Z",
+      "status": "DIVERGED",
+      "todo": "T-faithful-paebadtv"
     }
   },
   "history": [
@@ -359,8 +361,32 @@
       "t": "2026-07-18T12:11:12Z",
       "status": "DIVERGED",
       "worst_ddb": 16.122
+    },
+    {
+      "prim": "PAETint",
+      "t": "2026-07-18T12:23:52Z",
+      "status": "DIVERGED",
+      "worst_ddb": 9.46
+    },
+    {
+      "prim": "PAETint",
+      "t": "2026-07-18T12:33:36Z",
+      "status": "DIVERGED",
+      "worst_ddb": 9.46
+    },
+    {
+      "prim": "PAENoise",
+      "t": "2026-07-18T12:41:45Z",
+      "status": "NO_SIGNAL",
+      "worst_ddb": null
+    },
+    {
+      "prim": "PAEBadTV",
+      "t": "2026-07-18T12:53:18Z",
+      "status": "DIVERGED",
+      "worst_ddb": 11.293
     }
   ],
   "started": "2026-07-17T18:24:32Z",
-  "updated": "2026-07-18T12:11:12Z"
+  "updated": "2026-07-18T12:53:19Z"
 }

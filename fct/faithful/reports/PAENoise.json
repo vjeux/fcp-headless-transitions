@@ -13,12 +13,14 @@
   ],
   "signal_floor": 2.0,
   "n_scored": 0,
-  "max_oracle_signal": 0.0,
+  "used_synthetic": true,
+  "max_oracle_signal": 1.732,
   "worst_ddb": null,
   "results": [
     {
       "host": "Lights__Static",
       "param": "properties/blending/opacity",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -27,6 +29,7 @@
     {
       "host": "Lights__Static",
       "param": "properties/blending/opacity",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -35,6 +38,7 @@
     {
       "host": "Lights__Static",
       "param": "properties/blending/opacity",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -43,6 +47,7 @@
     {
       "host": "Lights__Static",
       "param": "properties/blending/opacity",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -51,6 +56,7 @@
     {
       "host": "Lights__Static",
       "param": "properties/blending/opacity",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -59,6 +65,7 @@
     {
       "host": "Lights__Static",
       "param": "properties/blending/opacity",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -67,6 +74,7 @@
     {
       "host": "Lights__Static",
       "param": "properties/blending/opacity",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -75,6 +83,7 @@
     {
       "host": "Lights__Static",
       "param": "properties/blending/opacity",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -83,6 +92,7 @@
     {
       "host": "Lights__Static",
       "param": "properties/blending/opacity",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -91,6 +101,7 @@
     {
       "host": "Lights__Static",
       "param": "properties/blending/opacity",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -99,6 +110,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/width",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -107,6 +119,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/width",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -115,6 +128,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/width",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -123,6 +137,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/width",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -131,6 +146,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/width",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -139,6 +155,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/width",
+      "kind": "scalar",
       "theta": 3950.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -147,6 +164,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/width",
+      "kind": "scalar",
       "theta": 3950.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -155,6 +173,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/width",
+      "kind": "scalar",
       "theta": 3950.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -163,6 +182,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/width",
+      "kind": "scalar",
       "theta": 3950.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -171,6 +191,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/width",
+      "kind": "scalar",
       "theta": 3950.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -179,6 +200,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/height",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -187,6 +209,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/height",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -195,6 +218,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/height",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -203,6 +227,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/height",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -211,6 +236,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/height",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -219,6 +245,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/height",
+      "kind": "scalar",
       "theta": 2280.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -227,6 +254,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/height",
+      "kind": "scalar",
       "theta": 2280.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -235,6 +263,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/height",
+      "kind": "scalar",
       "theta": 2280.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -243,6 +272,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/height",
+      "kind": "scalar",
       "theta": 2280.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -251,6 +281,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/height",
+      "kind": "scalar",
       "theta": 2280.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -259,6 +290,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/randomseed",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -267,6 +299,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/randomseed",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -275,6 +308,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/randomseed",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -283,6 +317,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/randomseed",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -291,6 +326,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/randomseed",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -299,6 +335,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/randomseed",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -307,6 +344,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/randomseed",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -315,6 +353,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/randomseed",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -323,6 +362,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/randomseed",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -331,6 +371,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/randomseed",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -339,6 +380,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -347,6 +389,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -355,6 +398,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -363,6 +407,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -371,6 +416,7 @@
     {
       "host": "Lights__Static",
       "param": "object/noise/flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -379,6 +425,7 @@
     {
       "host": "Lights__Static",
       "param": "fadeintime",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -387,6 +434,7 @@
     {
       "host": "Lights__Static",
       "param": "fadeintime",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -395,6 +443,7 @@
     {
       "host": "Lights__Static",
       "param": "fadeintime",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -403,6 +452,7 @@
     {
       "host": "Lights__Static",
       "param": "fadeintime",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -411,6 +461,7 @@
     {
       "host": "Lights__Static",
       "param": "fadeintime",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -419,6 +470,7 @@
     {
       "host": "Lights__Static",
       "param": "fadeintime",
+      "kind": "scalar",
       "theta": 14.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -427,6 +479,7 @@
     {
       "host": "Lights__Static",
       "param": "fadeintime",
+      "kind": "scalar",
       "theta": 14.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -435,6 +488,7 @@
     {
       "host": "Lights__Static",
       "param": "fadeintime",
+      "kind": "scalar",
       "theta": 14.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -443,6 +497,7 @@
     {
       "host": "Lights__Static",
       "param": "fadeintime",
+      "kind": "scalar",
       "theta": 14.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -451,6 +506,7 @@
     {
       "host": "Lights__Static",
       "param": "fadeintime",
+      "kind": "scalar",
       "theta": 14.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -459,6 +515,7 @@
     {
       "host": "Lights__Static",
       "param": "fadeouttime",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -467,6 +524,7 @@
     {
       "host": "Lights__Static",
       "param": "fadeouttime",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -475,6 +533,7 @@
     {
       "host": "Lights__Static",
       "param": "fadeouttime",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -483,6 +542,7 @@
     {
       "host": "Lights__Static",
       "param": "fadeouttime",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -491,6 +551,7 @@
     {
       "host": "Lights__Static",
       "param": "fadeouttime",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -499,6 +560,7 @@
     {
       "host": "Lights__Static",
       "param": "fadeouttime",
+      "kind": "scalar",
       "theta": 14.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -507,6 +569,7 @@
     {
       "host": "Lights__Static",
       "param": "fadeouttime",
+      "kind": "scalar",
       "theta": 14.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -515,6 +578,7 @@
     {
       "host": "Lights__Static",
       "param": "fadeouttime",
+      "kind": "scalar",
       "theta": 14.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -523,6 +587,7 @@
     {
       "host": "Lights__Static",
       "param": "fadeouttime",
+      "kind": "scalar",
       "theta": 14.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -531,6 +596,7 @@
     {
       "host": "Lights__Static",
       "param": "fadeouttime",
+      "kind": "scalar",
       "theta": 14.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -539,6 +605,7 @@
     {
       "host": "Lights__Static",
       "param": "startoffset",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -547,6 +614,7 @@
     {
       "host": "Lights__Static",
       "param": "startoffset",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -555,6 +623,7 @@
     {
       "host": "Lights__Static",
       "param": "startoffset",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -563,6 +632,7 @@
     {
       "host": "Lights__Static",
       "param": "startoffset",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -571,6 +641,7 @@
     {
       "host": "Lights__Static",
       "param": "startoffset",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -579,6 +650,7 @@
     {
       "host": "Lights__Static",
       "param": "startoffset",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -587,6 +659,7 @@
     {
       "host": "Lights__Static",
       "param": "startoffset",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -595,6 +668,7 @@
     {
       "host": "Lights__Static",
       "param": "startoffset",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -603,6 +677,7 @@
     {
       "host": "Lights__Static",
       "param": "startoffset",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -611,6 +686,7 @@
     {
       "host": "Lights__Static",
       "param": "startoffset",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -619,6 +695,7 @@
     {
       "host": "Lights__Static",
       "param": "endoffset",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -627,6 +704,7 @@
     {
       "host": "Lights__Static",
       "param": "endoffset",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -635,6 +713,7 @@
     {
       "host": "Lights__Static",
       "param": "endoffset",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -643,6 +722,7 @@
     {
       "host": "Lights__Static",
       "param": "endoffset",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -651,6 +731,7 @@
     {
       "host": "Lights__Static",
       "param": "endoffset",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -659,6 +740,7 @@
     {
       "host": "Lights__Static",
       "param": "endoffset",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -667,6 +749,7 @@
     {
       "host": "Lights__Static",
       "param": "endoffset",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -675,6 +758,7 @@
     {
       "host": "Lights__Static",
       "param": "endoffset",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -683,6 +767,7 @@
     {
       "host": "Lights__Static",
       "param": "endoffset",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -691,6 +776,772 @@
     {
       "host": "Lights__Static",
       "param": "endoffset",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "properties/blending/opacity",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "properties/blending/opacity",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 1.732,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "properties/blending/opacity",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 1.732,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "properties/blending/opacity",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "properties/blending/opacity",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "properties/blending/opacity",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "properties/blending/opacity",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.602,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "properties/blending/opacity",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.602,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "properties/blending/opacity",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "properties/blending/opacity",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/width",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/width",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 1.687,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/width",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 1.687,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/width",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/width",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/width",
+      "kind": "scalar",
+      "theta": 3950.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/width",
+      "kind": "scalar",
+      "theta": 3950.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/width",
+      "kind": "scalar",
+      "theta": 3950.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/width",
+      "kind": "scalar",
+      "theta": 3950.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/width",
+      "kind": "scalar",
+      "theta": 3950.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/height",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/height",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 1.687,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/height",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 1.687,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/height",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/height",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/height",
+      "kind": "scalar",
+      "theta": 2280.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/height",
+      "kind": "scalar",
+      "theta": 2280.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/height",
+      "kind": "scalar",
+      "theta": 2280.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/height",
+      "kind": "scalar",
+      "theta": 2280.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/height",
+      "kind": "scalar",
+      "theta": 2280.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/randomseed",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/randomseed",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 1.612,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/randomseed",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 1.612,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/randomseed",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/randomseed",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/randomseed",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/randomseed",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/randomseed",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/randomseed",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/randomseed",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/flip",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/flip",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/flip",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/flip",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "object/noise/flip",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "fadeintime",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "fadeintime",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "fadeintime",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "fadeintime",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "fadeintime",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "fadeintime",
+      "kind": "scalar",
+      "theta": 14.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "fadeintime",
+      "kind": "scalar",
+      "theta": 14.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "fadeintime",
+      "kind": "scalar",
+      "theta": 14.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "fadeintime",
+      "kind": "scalar",
+      "theta": 14.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "fadeintime",
+      "kind": "scalar",
+      "theta": 14.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "fadeouttime",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "fadeouttime",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "fadeouttime",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "fadeouttime",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "fadeouttime",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "fadeouttime",
+      "kind": "scalar",
+      "theta": 14.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "fadeouttime",
+      "kind": "scalar",
+      "theta": 14.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "fadeouttime",
+      "kind": "scalar",
+      "theta": 14.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "fadeouttime",
+      "kind": "scalar",
+      "theta": 14.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "fadeouttime",
+      "kind": "scalar",
+      "theta": 14.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "startoffset",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "startoffset",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "startoffset",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "startoffset",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "startoffset",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "startoffset",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "startoffset",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "startoffset",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "startoffset",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "startoffset",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "endoffset",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "endoffset",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "endoffset",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "endoffset",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "endoffset",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "endoffset",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "endoffset",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "endoffset",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "endoffset",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "endoffset",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.0,

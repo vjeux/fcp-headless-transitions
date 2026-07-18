@@ -12,13 +12,33 @@
     0.9
   ],
   "signal_floor": 2.0,
-  "n_scored": 0,
-  "max_oracle_signal": 0.0,
-  "worst_ddb": null,
+  "n_scored": 2,
+  "used_synthetic": false,
+  "max_oracle_signal": 69.483,
+  "worst_ddb": 11.293,
   "results": [
     {
       "host": "Lights__Static",
+      "param": "mix",
+      "kind": "curve",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 69.483,
+      "ddb": 11.293
+    },
+    {
+      "host": "Lights__Static",
+      "param": "mix",
+      "kind": "curve",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 5.86,
+      "ddb": 32.773
+    },
+    {
+      "host": "Lights__Static",
       "param": "colorsynch",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -27,6 +47,7 @@
     {
       "host": "Lights__Static",
       "param": "colorsynch",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -35,6 +56,7 @@
     {
       "host": "Lights__Static",
       "param": "colorsynch",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -43,6 +65,7 @@
     {
       "host": "Lights__Static",
       "param": "colorsynch",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -51,6 +74,7 @@
     {
       "host": "Lights__Static",
       "param": "colorsynch",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -59,6 +83,7 @@
     {
       "host": "Lights__Static",
       "param": "colorsynch",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -67,6 +92,7 @@
     {
       "host": "Lights__Static",
       "param": "colorsynch",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -75,6 +101,7 @@
     {
       "host": "Lights__Static",
       "param": "colorsynch",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -83,6 +110,7 @@
     {
       "host": "Lights__Static",
       "param": "colorsynch",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -91,6 +119,7 @@
     {
       "host": "Lights__Static",
       "param": "colorsynch",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -99,6 +128,7 @@
     {
       "host": "Lights__Static",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -107,6 +137,7 @@
     {
       "host": "Lights__Static",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -115,6 +146,7 @@
     {
       "host": "Lights__Static",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -123,6 +155,7 @@
     {
       "host": "Lights__Static",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -131,7 +164,980 @@
     {
       "host": "Lights__Static",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "waviness",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "waviness",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "waviness",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "waviness",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "waviness",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "waviness",
+      "kind": "curve",
+      "theta": 200.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "waviness",
+      "kind": "curve",
+      "theta": 200.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "waviness",
+      "kind": "curve",
+      "theta": 200.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "waviness",
+      "kind": "curve",
+      "theta": 200.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "waviness",
+      "kind": "curve",
+      "theta": 200.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "waviness",
+      "kind": "curve",
+      "theta": 100.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "waviness",
+      "kind": "curve",
+      "theta": 100.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "waviness",
+      "kind": "curve",
+      "theta": 100.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "waviness",
+      "kind": "curve",
+      "theta": 100.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "waviness",
+      "kind": "curve",
+      "theta": 100.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "roll",
+      "kind": "curve",
+      "theta": -1000.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "roll",
+      "kind": "curve",
+      "theta": -1000.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "roll",
+      "kind": "curve",
+      "theta": -1000.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "roll",
+      "kind": "curve",
+      "theta": -1000.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "roll",
+      "kind": "curve",
+      "theta": -1000.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "roll",
+      "kind": "curve",
+      "theta": 1000.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "roll",
+      "kind": "curve",
+      "theta": 1000.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "roll",
+      "kind": "curve",
+      "theta": 1000.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "roll",
+      "kind": "curve",
+      "theta": 1000.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "roll",
+      "kind": "curve",
+      "theta": 1000.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "roll",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "roll",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "roll",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "roll",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "roll",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "static",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "static",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "static",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "static",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "static",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "static",
+      "kind": "curve",
+      "theta": 4.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "static",
+      "kind": "curve",
+      "theta": 4.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "static",
+      "kind": "curve",
+      "theta": 4.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "static",
+      "kind": "curve",
+      "theta": 4.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "static",
+      "kind": "curve",
+      "theta": 4.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "static",
+      "kind": "curve",
+      "theta": 2.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "static",
+      "kind": "curve",
+      "theta": 2.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "static",
+      "kind": "curve",
+      "theta": 2.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "static",
+      "kind": "curve",
+      "theta": 2.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "static",
+      "kind": "curve",
+      "theta": 2.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "saturate",
+      "kind": "curve",
+      "theta": -100.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "saturate",
+      "kind": "curve",
+      "theta": -100.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "saturate",
+      "kind": "curve",
+      "theta": -100.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "saturate",
+      "kind": "curve",
+      "theta": -100.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "saturate",
+      "kind": "curve",
+      "theta": -100.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "saturate",
+      "kind": "curve",
+      "theta": 100.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "saturate",
+      "kind": "curve",
+      "theta": 100.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "saturate",
+      "kind": "curve",
+      "theta": 100.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "saturate",
+      "kind": "curve",
+      "theta": 100.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "saturate",
+      "kind": "curve",
+      "theta": 100.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "saturate",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "saturate",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "saturate",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "saturate",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "saturate",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinebrightness",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinebrightness",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinebrightness",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinebrightness",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinebrightness",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinebrightness",
+      "kind": "curve",
+      "theta": 5.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinebrightness",
+      "kind": "curve",
+      "theta": 5.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinebrightness",
+      "kind": "curve",
+      "theta": 5.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinebrightness",
+      "kind": "curve",
+      "theta": 5.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinebrightness",
+      "kind": "curve",
+      "theta": 5.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinebrightness",
+      "kind": "curve",
+      "theta": 2.5,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinebrightness",
+      "kind": "curve",
+      "theta": 2.5,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinebrightness",
+      "kind": "curve",
+      "theta": 2.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinebrightness",
+      "kind": "curve",
+      "theta": 2.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinebrightness",
+      "kind": "curve",
+      "theta": 2.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinethickness",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinethickness",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinethickness",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinethickness",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinethickness",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinethickness",
+      "kind": "curve",
+      "theta": 100.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinethickness",
+      "kind": "curve",
+      "theta": 100.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinethickness",
+      "kind": "curve",
+      "theta": 100.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinethickness",
+      "kind": "curve",
+      "theta": 100.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinethickness",
+      "kind": "curve",
+      "theta": 100.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinethickness",
+      "kind": "curve",
+      "theta": 50.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinethickness",
+      "kind": "curve",
+      "theta": 50.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinethickness",
+      "kind": "curve",
+      "theta": 50.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinethickness",
+      "kind": "curve",
+      "theta": 50.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinethickness",
+      "kind": "curve",
+      "theta": 50.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinedistance",
+      "kind": "curve",
+      "theta": 100.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinedistance",
+      "kind": "curve",
+      "theta": 100.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinedistance",
+      "kind": "curve",
+      "theta": 100.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinedistance",
+      "kind": "curve",
+      "theta": 100.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinedistance",
+      "kind": "curve",
+      "theta": 100.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinedistance",
+      "kind": "curve",
+      "theta": 50.5,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinedistance",
+      "kind": "curve",
+      "theta": 50.5,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinedistance",
+      "kind": "curve",
+      "theta": 50.5,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinedistance",
+      "kind": "curve",
+      "theta": 50.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "scanlinedistance",
+      "kind": "curve",
+      "theta": 50.5,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "mix",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "mix",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "mix",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "mix",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "mix",
+      "kind": "curve",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "mix",
+      "kind": "curve",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "mix",
+      "kind": "curve",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "Lights__Static",
+      "param": "mix",
+      "kind": "curve",
+      "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.0,
       "note": "no oracle signal (param inert here)"

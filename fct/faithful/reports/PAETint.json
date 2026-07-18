@@ -12,13 +12,600 @@
     0.9
   ],
   "signal_floor": 2.0,
-  "n_scored": 0,
-  "max_oracle_signal": 0.0,
-  "worst_ddb": null,
+  "n_scored": 65,
+  "used_synthetic": true,
+  "max_oracle_signal": 85.806,
+  "worst_ddb": 9.46,
   "results": [
     {
+      "host": "SYNTH",
+      "param": "color/green",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 85.806,
+      "ddb": 9.46
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/green",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 85.806,
+      "ddb": 9.46
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/green",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 85.806,
+      "ddb": 9.46
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/green",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 85.806,
+      "ddb": 9.46
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/green",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 85.806,
+      "ddb": 9.46
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/blue",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 85.78,
+      "ddb": 9.463
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/blue",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 85.78,
+      "ddb": 9.463
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/blue",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 85.78,
+      "ddb": 9.463
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/blue",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 85.78,
+      "ddb": 9.463
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/blue",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 85.78,
+      "ddb": 9.463
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/red",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 85.755,
+      "ddb": 9.466
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/red",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 85.755,
+      "ddb": 9.466
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/red",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 85.755,
+      "ddb": 9.466
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/red",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 85.755,
+      "ddb": 9.466
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/red",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 85.755,
+      "ddb": 9.466
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/blue",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 28.468,
+      "ddb": 19.044
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/blue",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 28.468,
+      "ddb": 19.044
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/blue",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 28.468,
+      "ddb": 19.044
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/blue",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 28.468,
+      "ddb": 19.044
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/blue",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 28.468,
+      "ddb": 19.044
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/green",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 28.465,
+      "ddb": 19.045
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/green",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 28.465,
+      "ddb": 19.045
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/green",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 28.465,
+      "ddb": 19.045
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/green",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 28.465,
+      "ddb": 19.045
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/green",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 28.465,
+      "ddb": 19.045
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/red",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 28.459,
+      "ddb": 19.046
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/red",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 28.459,
+      "ddb": 19.046
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/red",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 28.459,
+      "ddb": 19.046
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/red",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 28.459,
+      "ddb": 19.046
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/red",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 28.459,
+      "ddb": 19.046
+    },
+    {
+      "host": "SYNTH",
+      "param": "mix",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 38.925,
+      "ddb": 20.937
+    },
+    {
+      "host": "SYNTH",
+      "param": "mix",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 38.925,
+      "ddb": 20.937
+    },
+    {
+      "host": "SYNTH",
+      "param": "mix",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 38.925,
+      "ddb": 20.937
+    },
+    {
+      "host": "SYNTH",
+      "param": "mix",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 38.925,
+      "ddb": 20.937
+    },
+    {
+      "host": "SYNTH",
+      "param": "mix",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 38.925,
+      "ddb": 20.937
+    },
+    {
+      "host": "SYNTH",
+      "param": "intensity",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.1,
+      "oracle_signal": 38.917,
+      "ddb": 20.939
+    },
+    {
+      "host": "SYNTH",
+      "param": "intensity",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.25,
+      "oracle_signal": 38.917,
+      "ddb": 20.939
+    },
+    {
+      "host": "SYNTH",
+      "param": "intensity",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.5,
+      "oracle_signal": 38.917,
+      "ddb": 20.939
+    },
+    {
+      "host": "SYNTH",
+      "param": "intensity",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.75,
+      "oracle_signal": 38.917,
+      "ddb": 20.939
+    },
+    {
+      "host": "SYNTH",
+      "param": "intensity",
+      "kind": "scalar",
+      "theta": 0.0,
+      "t": 0.9,
+      "oracle_signal": 38.917,
+      "ddb": 20.939
+    },
+    {
+      "host": "SYNTH",
+      "param": "intensity",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 18.27,
+      "ddb": 27.696
+    },
+    {
+      "host": "SYNTH",
+      "param": "intensity",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 18.27,
+      "ddb": 27.696
+    },
+    {
+      "host": "SYNTH",
+      "param": "intensity",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 18.27,
+      "ddb": 27.696
+    },
+    {
+      "host": "SYNTH",
+      "param": "intensity",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 18.27,
+      "ddb": 27.696
+    },
+    {
+      "host": "SYNTH",
+      "param": "intensity",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 18.27,
+      "ddb": 27.696
+    },
+    {
+      "host": "SYNTH",
+      "param": "mix",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 18.24,
+      "ddb": 27.749
+    },
+    {
+      "host": "SYNTH",
+      "param": "mix",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 18.24,
+      "ddb": 27.749
+    },
+    {
+      "host": "SYNTH",
+      "param": "mix",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 18.24,
+      "ddb": 27.749
+    },
+    {
+      "host": "SYNTH",
+      "param": "mix",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 18.24,
+      "ddb": 27.749
+    },
+    {
+      "host": "SYNTH",
+      "param": "mix",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 18.24,
+      "ddb": 27.749
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/red",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 5.827,
+      "ddb": 32.822
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/red",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 5.827,
+      "ddb": 32.822
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/red",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 5.827,
+      "ddb": 32.822
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/red",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 5.827,
+      "ddb": 32.822
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/red",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 5.827,
+      "ddb": 32.822
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/green",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 5.821,
+      "ddb": 32.831
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/green",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 5.821,
+      "ddb": 32.831
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/green",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 5.821,
+      "ddb": 32.831
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/green",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 5.821,
+      "ddb": 32.831
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/green",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 5.821,
+      "ddb": 32.831
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/blue",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 5.81,
+      "ddb": 32.848
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/blue",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.25,
+      "oracle_signal": 5.81,
+      "ddb": 32.848
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/blue",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 5.81,
+      "ddb": 32.848
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/blue",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.75,
+      "oracle_signal": 5.81,
+      "ddb": 32.848
+    },
+    {
+      "host": "SYNTH",
+      "param": "color/blue",
+      "kind": "scalar",
+      "theta": 0.5,
+      "t": 0.9,
+      "oracle_signal": 5.81,
+      "ddb": 32.848
+    },
+    {
       "host": "Objects__Leaves",
       "param": "color/red",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -27,6 +614,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/red",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -35,6 +623,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/red",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -43,6 +632,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/red",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -51,6 +641,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/red",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -59,6 +650,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/red",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -67,6 +659,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/red",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -75,6 +668,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/red",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -83,6 +677,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/red",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -91,6 +686,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/red",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -99,6 +695,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/red",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -107,6 +704,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/red",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -115,6 +713,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/red",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -123,6 +722,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/red",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -131,6 +731,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/red",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -139,6 +740,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/green",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -147,6 +749,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/green",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -155,6 +758,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/green",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -163,6 +767,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/green",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -171,6 +776,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/green",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -179,6 +785,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/green",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -187,6 +794,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/green",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -195,6 +803,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/green",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -203,6 +812,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/green",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -211,6 +821,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/green",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -219,6 +830,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/green",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -227,6 +839,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/green",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -235,6 +848,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/green",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -243,6 +857,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/green",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -251,6 +866,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/green",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -259,6 +875,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/blue",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -267,6 +884,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/blue",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -275,6 +893,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/blue",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -283,6 +902,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/blue",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -291,6 +911,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/blue",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -299,6 +920,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/blue",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -307,6 +929,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/blue",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -315,6 +938,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/blue",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -323,6 +947,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/blue",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -331,6 +956,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/blue",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -339,6 +965,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/blue",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -347,6 +974,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/blue",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -355,6 +983,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/blue",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -363,6 +992,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/blue",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -371,6 +1001,7 @@
     {
       "host": "Objects__Leaves",
       "param": "color/blue",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -379,6 +1010,7 @@
     {
       "host": "Objects__Leaves",
       "param": "intensity",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -387,6 +1019,7 @@
     {
       "host": "Objects__Leaves",
       "param": "intensity",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -395,6 +1028,7 @@
     {
       "host": "Objects__Leaves",
       "param": "intensity",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -403,6 +1037,7 @@
     {
       "host": "Objects__Leaves",
       "param": "intensity",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -411,6 +1046,7 @@
     {
       "host": "Objects__Leaves",
       "param": "intensity",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -419,6 +1055,7 @@
     {
       "host": "Objects__Leaves",
       "param": "intensity",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -427,6 +1064,7 @@
     {
       "host": "Objects__Leaves",
       "param": "intensity",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -435,6 +1073,7 @@
     {
       "host": "Objects__Leaves",
       "param": "intensity",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -443,6 +1082,7 @@
     {
       "host": "Objects__Leaves",
       "param": "intensity",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -451,6 +1091,7 @@
     {
       "host": "Objects__Leaves",
       "param": "intensity",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -459,6 +1100,7 @@
     {
       "host": "Objects__Leaves",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -467,6 +1109,7 @@
     {
       "host": "Objects__Leaves",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -475,6 +1118,7 @@
     {
       "host": "Objects__Leaves",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -483,6 +1127,7 @@
     {
       "host": "Objects__Leaves",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -491,6 +1136,7 @@
     {
       "host": "Objects__Leaves",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.0,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -499,6 +1145,7 @@
     {
       "host": "Objects__Leaves",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -507,6 +1154,7 @@
     {
       "host": "Objects__Leaves",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -515,6 +1163,7 @@
     {
       "host": "Objects__Leaves",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -523,6 +1172,7 @@
     {
       "host": "Objects__Leaves",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -531,6 +1181,7 @@
     {
       "host": "Objects__Leaves",
       "param": "mix",
+      "kind": "scalar",
       "theta": 0.5,
       "t": 0.9,
       "oracle_signal": 0.0,
@@ -539,6 +1190,7 @@
     {
       "host": "Objects__Leaves",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.1,
       "oracle_signal": 0.0,
@@ -547,6 +1199,7 @@
     {
       "host": "Objects__Leaves",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.25,
       "oracle_signal": 0.0,
@@ -555,6 +1208,7 @@
     {
       "host": "Objects__Leaves",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.5,
       "oracle_signal": 0.0,
@@ -563,6 +1217,7 @@
     {
       "host": "Objects__Leaves",
       "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.75,
       "oracle_signal": 0.0,
@@ -571,6 +1226,52 @@
     {
       "host": "Objects__Leaves",
       "param": "flip",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.9,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "flip",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.1,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "flip",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.25,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "flip",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.5,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "flip",
+      "kind": "scalar",
+      "theta": 1.0,
+      "t": 0.75,
+      "oracle_signal": 0.0,
+      "note": "no oracle signal (param inert here)"
+    },
+    {
+      "host": "SYNTH",
+      "param": "flip",
+      "kind": "scalar",
       "theta": 1.0,
       "t": 0.9,
       "oracle_signal": 0.0,
