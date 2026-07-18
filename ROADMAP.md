@@ -1008,6 +1008,14 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
               which is why the blur fixes verified cleanly on BOTH oracles. This is the deep reason color
               primitives are "blocked": not just the chain architecture, but that headless itself isn't
               the gate's truth for them (a ~2x-wider headless↔GUI gap than any geometric slug).
+              PROOF the chain can't fix it (measured 2026-07-18, faithful7): shipping the faithful
+              headless Colorize (s2l endpoints — decoded EXACT: flat-white sweep 0.25->13.0=s2l*255,
+              luma=Rec709 on sRGB codes, 47-56 dB isolated) regressed ALL 7 Colorize slugs NET -11.4 dB
+              on the GUI gate, and CRUCIALLY Stylized__Slide — a LONE Colorize with NO chain — still
+              regressed -0.80. A lone filter has no encode-once chain to get wrong, so the regression is
+              purely FCP-GUI-export != FCP-headless colour management. => T-qlinchain01 (linear chain)
+              will NOT close the color gap on the gate (it would still emit the s2l values the gate
+              rejects) — measured-refuted, recommend DROP unless the scoring truth changes to headless.
 
 - 2026-07-18cz-reconfirm  ✗ COLORIZE per-filter s2l-endpoint RE-TESTED and RE-REVERTED (Rule 1
               truth). The isolated headless gradient probe UNAMBIGUOUSLY shows FCP linearizes the
