@@ -302,6 +302,26 @@ export function tintFilter(input: ImageData, r: number, g: number, b: number, in
  * .motr carries a "Colorize::HDR In Rec. 709" param). Needs a flat-input luma-curve
  * probe to pin before changing the remap; the Intensity plumbing above is correct and
  * shipped independently.
+ *
+ * ── PHASE-2 PROBE UPDATE (2026-07-18, isolated headless remap on a smooth photo): the
+ *   HgcColorize shader (extract_shader.py, VERBATIM) is exactly
+ *     r1.xyz = color/max(a,1e-6);  Y = dot(r1.xyz, hg_Params[4]);
+ *     r2 = mix(black, white, Y);  r1 = mix(r1, r2, hg_Params[2]);  r1 *= a;
+ *     out = mix(color, r1, hg_Params[3])
+ *   The luma vector hg_Params[4] is Rec.709 on the sRGB CODE values (NOT linearised):
+ *   a pure grayscale remap (black=0,white=1) matches headless at 43.8 dB with 709-sRGB
+ *   luma vs 35 dB for 601 and 33.6 dB for 709-on-LINEAR. So the CURRENT engine (luma()=
+ *   709 on codes) is RIGHT for the luma. The unresolved gap is the ENDPOINT colours:
+ *     • endpoints whose channels are 0 or 1 (e.g. white=(1,1,0)) match RAW-sRGB at 45.5 dB
+ *     • endpoints with INTERMEDIATE channels (e.g. white=(1,0.6,0.2)) match NEITHER raw
+ *       (21.6 dB) NOR s2l-linearised endpoints (linlum 22.1, sRGBlum 13.4) — no single
+ *       endpoint transfer (identity / sRGB→linear) explains BOTH the 0/1 case (raw wins)
+ *       AND the intermediate case (raw+linear both ~22). This is self-consistent only if
+ *       the endpoint colours carry their OWN per-channel transfer/gamut op (the
+ *       "Colorize::HDR In Rec.709" param) applied before the mix — undecoded. All built-in
+ *       Colorize users author endpoints at 0/1 (grayscale/single-hue), where RAW is exact
+ *       (43-45 dB), so shipping RAW is correct for the gate; the intermediate-endpoint
+ *       regime is unexercised and awaits decoding the endpoint transfer.
  */
 export function colorizeRemapFilter(
   input: ImageData,
