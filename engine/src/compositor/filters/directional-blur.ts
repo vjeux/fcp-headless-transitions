@@ -355,6 +355,18 @@ function gaussianWrapAxisAngle(polar: Float64Array, rows: number, cols: number, 
  *   (the getInversePixelTransformForImage output is not statically decodable); its value
  *   is verified against headless, not fit to any transition. Blurs/Zoom (Mix=1, Amount
  *   keyframed from 0) + 360°/Circle_Wipe are re-checked against the GUI-GT gate.
+ *
+ *   ── PHASE-2 CEILING NOTE (2026-07-18): the LOG-POLAR model is the BEST of the three
+ *   candidates measured against headless on a smooth PHOTO (isolated probe, PAEZoomBlur
+ *   injected into the Directional skeleton): LOG-POLAR ~20-22 dB > LINEAR-radius ~17-18 dB
+ *   > displacement∝r ~16 dB. K≈1.2 edges out K=1.0 on the photo but K=1.0 matches the
+ *   rings probe and the decode ideal, so it stays. The residual ~20 dB isolation ceiling is
+ *   the LOG-POLAR RESAMPLING near the centre (u=ln r → −∞ as r→0, so the log-radius buffer
+ *   is extremely non-uniform at small r; bilinear resampling there loses fidelity that no
+ *   sigma tune recovers). CONTEXT: the shipping Blurs__Zoom's real "Zoom Blur" filter is
+ *   authored Amount=0 (STATIC) — the visible zoom is a camera/transform, not this filter —
+ *   so the ZoomBlur primitive is barely exercised on the gate; closing the isolation ceiling
+ *   would need a super-sampled / center-refined log-polar buffer (deep, near-zero gate ROI).
  */
 export function zoomBlur(input: ImageData, amount: number, centerX: number = 0.5, centerY: number = 0.5): ImageData {
   return radialBlur(input, amount, centerX, centerY, 'zoom');
