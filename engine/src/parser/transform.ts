@@ -81,9 +81,6 @@ export function extractBlendMode(params: Parameter[]): BlendMode {
   }
   const v = find(params);
   if (v === undefined) return 'normal';
-  // Test/ablation hook: FCT_DISABLE_BLEND forces source-over to measure the
-  // blend-mode delta. Never set in normal operation.
-  if (typeof process !== 'undefined' && process.env?.FCT_DISABLE_BLEND) return 'normal';
   return BLEND_MODE_ENUM[v] ?? 'normal';
 }
 
