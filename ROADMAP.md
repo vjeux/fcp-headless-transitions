@@ -900,6 +900,30 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-18faithful5  ✅ FLOP VERIFIED + Radial/Zoom Center wired (3 commits: c32cc54, e183b34,
+              cabf047). Two clean faithful decoded wins, both gate-neutral (all shipping users at the
+              default param), both make the primitive faithful across its FULL param space (Rule 13):
+              (1) PAERadialBlur/PAEZoomBlur HARDCODED the blur centre to (0.5,0.5) — never read the
+              Center param. Headless FCP's spin/zoom centre TRACKS Center X/Y (spin-response fit:
+              authored 0.25/0.75 move the low-response centroid toward 0.4/0.6 in [0,1] frame coords).
+              Added generic FilterContext.nestedParam(group,child,fallback) (curve-aware nested reader)
+              + wired Center. All 65 users author (0.5,0.5) → byte-identical (gate 0/0). RadialBlur's
+              residual ceiling (~24 dB on all-edges) is the shared polar-resample discretization, NOT
+              the centre or sigma (spin sigma arcPx/6.0 headless-verified 30-38 dB; box kernel refuted).
+              (2) PAEFlop host Mix was IGNORED (always pure mirror). DECODED vs headless (gradient
+              probe): Mix is a LINEAR BLEND out=(1-Mix)·orig+Mix·mirror, 46+ dB at every Mix∈{0..1}.
+              Fixed → mix=0 14.7→33.6, mix=0.5 20.7→39.3 dB. Both users author Mix=1 → gate 0/0.
+              PAEFlop now VERIFIED (via isolation): mirror math faithful (gradient 46.3, synth solo
+              flop-param delta 32.5 dB); its embedded-sweep DIVERGED (10.7) was ENTIRELY Concentric
+              replicator-cell geometry contamination (split to T-qflopreplic1, a replicator primitive),
+              and in Movements__Flip the flop param is inert. 2/20 primitives VERIFIED.
+              METHOD LESSON: the "worst param is Mix at mix=0/0.5" signature reliably flags a filter
+              that IGNORES its host Mix — a clean, gate-neutral, faithful fix for SIMPLE per-pixel ops
+              (Flop✓). For WARP filters (BlackHole/Underwater) Mix is NOT a simple pixel blend (probed:
+              BlackHole mix=0.5 is neither (1-m)orig+m·warp nor amount-scaled — it blends inside the
+              MIP-warp pipeline) and the residual is the warp-field/phase mismatch, not Mix — do not
+              chase those to 40 dB (same class as the procedural generators).
+
 - 2026-07-18gb-decim  ✅ GAUSSIAN DECIMATION OVER-BLUR FIXED (T-qgbdecim01 DONE, commits 0bacf95
               +8e9a887). The decimated Gaussian path OVER-blurred ~35% at every amount>=20 — engine
               a/σ = 4.5-5.8 vs FCP's constant 6.09 (step-edge erf fit vs headless). Root causes: (1)
