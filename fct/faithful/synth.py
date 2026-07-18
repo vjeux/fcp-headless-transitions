@@ -99,6 +99,24 @@ def _graft_factories(scaf, fblock, host_txt):
         scaf = scaf[:last] + '\n\n' + '\n\n'.join(new_factory_blocks) + scaf[last:]
     return scaf, fblock2
 
+# Full-span timing: in=0, offset=0, out=large — so the inserted node is ALIVE for the whole
+# scaffold timeline. A generator/filter copied from its host carries the host's narrow,
+# OFFSET timing window (e.g. PAENoise: offset="-4612608 7680000 1 0", a sliver near the host's
+# transition midpoint) so at the sweep's sample times it is faded out / outside its window ->
+# ~0 oracle response (the PAENoise NO_SIGNAL root cause). Matches PAETint's working full-span.
+_FULL_TIMING = '<timing in="0 7680000 1 0" out="9993984 7680000 1 0" offset="0 7680000 1 0"/>'
+_TIMING_RE = re.compile(r'<timing\b[^>]*/>')
+_FADE_RE = re.compile(r'\s*<behavior name="Fade In/Fade Out"[^>]*>.*?</behavior>', re.S)
+
+def _normalize_block_timing(fblock):
+    """Make an inserted filter/generator block ALWAYS-ON: full-span its FIRST (top-level)
+    <timing> and strip any Fade In/Fade Out behavior. Only the block's own timing is touched;
+    nested child <timing> (behaviors we keep, if any) are left alone by replacing just the
+    first occurrence — the node's own timing appears before any child's."""
+    fblock = _FADE_RE.sub('', fblock)
+    fblock = _TIMING_RE.sub(_FULL_TIMING, fblock, count=1)
+    return fblock
+
 def _filter_block(host_path, plugin):
     """Verbatim <filter ...>...</filter> (or generator <scenenode ...>) byte-block from its
     real host, so the synthetic scene uses the authentic parameter tree + ids."""
@@ -110,11 +128,18 @@ def _filter_block(host_path, plugin):
     lt = txt.rfind('<', 0, txt.find('pluginName="%s"' % plugin))
     tagname = txt[lt + 1:].split(None, 1)[0].split('>', 1)[0]
     fend2 = txt.find('</%s>' % tagname, fstart) + len('</%s>' % tagname)
-    return txt[fstart:fend2]
+    return _normalize_block_timing(txt[fstart:fend2])
 
-def build(plugin, host_path):
+def build(plugin, host_path, is_generator=False):
     """Return synthetic .motr text (str) for `plugin`, or None if it can't be located.
-    The scene renders from the SCAFFOLD's resource dir (mirror-dir handles relative paths)."""
+    The scene renders from the SCAFFOLD's resource dir (mirror-dir handles relative paths).
+
+    is_generator: the primitive is a GENERATOR scenenode (PAENoise/PAEColorSolid/PAECloudsV2),
+    not a filter. A generator produces its OWN image rather than filtering the layer below, so
+    if source A (Transition A) is left in the Group it OCCLUDES the generator and its param
+    response is ~0 (PAENoise sibling scene: randomseed signal 1.5, opacity 1.7 — below floor).
+    Removing source A makes the generator the SOLE visible content (solo scene: randomseed 82,
+    opacity 141 — well above floor). A filter, by contrast, NEEDS source A as its input."""
     scaf = open(config.slug_motr(SCAFFOLD_SLUG), encoding='utf-8').read()
     fblock = _filter_block(host_path, plugin)
     if fblock is None:
@@ -144,6 +169,13 @@ def build(plugin, host_path):
     if bStart is not None:
         pre = scaf3.rfind('\n', 0, bStart)
         scaf3 = scaf3[:pre] + scaf3[bEnd:]
+    # 4. for a GENERATOR, also delete Transition A so the generator is the sole visible layer
+    #    (otherwise source A occludes it -> ~0 param response). A filter KEEPS source A as input.
+    if is_generator:
+        aStart, aEnd = _scenenode_span(scaf3, 'Transition A')
+        if aStart is not None:
+            pre = scaf3.rfind('\n', 0, aStart)
+            scaf3 = scaf3[:pre] + scaf3[aEnd:]
     return scaf3
 
 if __name__ == '__main__':

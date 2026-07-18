@@ -127,7 +127,11 @@ def sweep(primitive, catalog, times=(0.1, 0.25, 0.5, 0.75, 0.9), max_params=None
         # its factory into a minimal static full-frame scaffold (Movements__Fall).
         if allow_synth and max_sig < SIGNAL_FLOOR:
             host0 = hosts[0]
-            sbase = synth.build(plugin, config.slug_motr(host0))
+            # A generator scenenode (PAENoise/PAEColorSolid/PAECloudsV2) produces its OWN image;
+            # source A must be removed so it isn't occluded (else ~0 param response). A filter
+            # keeps source A as its input. node_type comes from the catalog (ground truth).
+            is_gen = prim.get('node_type') == 'scenenode'
+            sbase = synth.build(plugin, config.slug_motr(host0), is_generator=is_gen)
             if sbase is not None:
                 used_synth = True
                 sch = schema.extract(config.slug_motr(host0), plugin, fuzzable_only=True, include_curves=True)
