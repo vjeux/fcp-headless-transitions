@@ -10,5 +10,5 @@
   "status": "open",
   "created_by": "T-qba9797b8",
   "created_at": "2026-07-16T22:55:51+00:00",
-  "notes": "Surfaced by T-qba9797b8 NOCHANGE. The genuine Color_Panels fix. High leverage: likely helps all Colorize-stack slugs."
+  "notes": "Surfaced by T-qba9797b8 NOCHANGE. The genuine Color_Panels fix. High leverage: likely helps all Colorize-stack slugs. | DECODE COMPLETE 2026-07-18: (1) Colorize faithful headless = out=255*(s2l(black)+luma*(s2l(white)-s2l(black))), luma=Rec709 on sRGB CODE values (grayscale 43.8 dB vs 33.6 for 709-on-linear); 47-56 dB isolated (flat-white endpoint sweep: 0.25->13.0 = s2l exact). CRITICAL: a linear-buffer chain must compute Colorize luma from the sRGB-ENCODED codes, not the linear buffer. (2) Brightness faithful = linear multiply (encode-once). (3) ChannelMixer Mono = red-row weighted sum. Curtains apply-order ChannelMixer->Brightness->Colorize needs ChannelMixer SEED, Brightness RESUME, Colorize RESUME+encode-once. RISK: per-filter s2l historically regressed GUI gate (Curtains -0.42 / Slide -0.76 / Up-Over -0.52); the encode-once CHAIN may fix that but MUST be gate-measured; the headless!=GUI split means GUI GT may still prefer raw. Build+measure, revert if net-neg."
 }
