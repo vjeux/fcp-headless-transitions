@@ -900,6 +900,31 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-18faithful9  ✅ DEEP RE-CLASSIFICATION + BLOOM/QUAKE/BADTV DIAGNOSES (commits e12e111→
+              db2f8b0). Corrected several over-pessimistic "fundamental" labels through measurement:
+              • PAEBloom/PAEGlow: the FLOAT bloom is the FAITHFUL filter — isolated threshold→
+                brightness LAW matches headless to <2 codes across the whole range (100/75/50/25/15/3
+                → 97/103/129/190/214/255 vs FCP 97/103/127/188/213/255). The 8-bit shipping path is
+                BROKEN (3.7 dB, barely blooms). The 360°_Bloom gate regression is NOT the filter and
+                NOT a time-phase (frame-shift is optimal at shift 0, MEASURED) — it is HOST COMPOSITION
+                (bloom over the A→B crossfade + equirect). Filter is correct; host integration diverges.
+              • PAEEarthquake: NOT fundamental stochastic — its RNG is fully decoded + deterministic
+                (LCG + Bays-Durham shuffle). Authored transition scores 23.62 (matches headless 23.55
+                at t=0.25); the t=0.5/0.75 divergence (12.4/9.96) is the RNG FRAME-INDEX (means match,
+                shake POSE differs) — a tractable frame-time-quantization alignment.
+              • PAEBadTV + PAENoise: also NOT fundamental — the waviness/static are dSFMT (Mersenne
+                MEXP=19937) fields reseeded per frame (seed=2*frame+1), deterministic given the frame.
+                BadTV's deterministic parts (scanlines MSE 2.4e-6, desaturate, roll, chroma) already
+                matched; only the dSFMT tables differ.
+              KEY INSIGHT: 3 primitives (Earthquake, BadTV, Noise) share ONE tractable infrastructure
+              lever — a faithful dSFMT reimplementation + the exact frameFromFxTime→seed schedule —
+              rather than being 3 separate fundamental dead-ends. Reclassified verified_via labels in
+              state.json accordingly. The genuinely-fundamental blockers are now just: color family
+              (headless≠GUI, 6) + CloudsV/Underwater texture-RNG (2) + ZoomBlur resample ceiling (1).
+              Method: measured every hypothesis before recording it (refuted my own bloom time-phase
+              hypothesis via a frame-shift sweep) — "if you did not verify it, you did not fix it"
+              applies to DIAGNOSES too.
+
 - 2026-07-18faithful8  ✅ BLACKHOLE VERIFIED + FULL PRIMITIVE CLASSIFICATION (6/20 verified; every
               primitive now has an evidence-backed verdict). Commits e12e111, a7a3418.
               • PAEBlackHole VERIFIED-via-isolation: the radial gravity-lens WARP (verbatim
