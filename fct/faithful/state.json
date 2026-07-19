@@ -219,11 +219,11 @@
       "hosts": [
         "Lights__Static"
       ],
-      "swept": "2026-07-19T00:59:53Z",
+      "swept": "2026-07-19T01:12:07Z",
       "status": "DIVERGED",
       "todo": "T-faithful-paenoise",
       "verified_via": "blocked-dsfmt-frameindex",
-      "note": "Per-pixel dSFMT white-noise field (NOISE_DECOMPILE_REPORT.md). Deterministic given the frame seed, but requires (a) faithful dSFMT reimplementation and (b) the exact frame->seed schedule, PLUS modelling the fade/opacity/blend envelope the host applies (a wiring attempt regressed Lights__Static and was reverted). Same shared dSFMT+frame-index infra as PAEBadTV. Stochastic FIELD is reproducible in principle (deterministic PRNG) but the blend-envelope + PSNR sensitivity to any per-pixel phase difference make an exact byte-match low-ROI. Reclassified from pure stochastic to dsfmt-frameindex (the field IS deterministic)."
+      "note": "Per-pixel dSFMT white-noise field (NOISE_DECOMPILE_REPORT.md). Deterministic given the frame seed, but requires (a) faithful dSFMT reimplementation and (b) the exact frame->seed schedule, PLUS modelling the fade/opacity/blend envelope the host applies (a wiring attempt regressed Lights__Static and was reverted). Same shared dSFMT+frame-index infra as PAEBadTV. Stochastic FIELD is reproducible in principle (deterministic PRNG) but the blend-envelope + PSNR sensitivity to any per-pixel phase difference make an exact byte-match low-ROI. Reclassified from pure stochastic to dsfmt-frameindex (the field IS deterministic). | CAVEAT 2026-07-18: the shared dSFMT+frame-index lever is likely ALSO GUI-gated \u2014 PAEEarthquake proved that even a fully-decoded RNG frame-index, when made headless-faithful (trunc(frame)*1000), REGRESSES the GUI gate (-0.37). So the fine per-frame RNG pose is a headless!=GUI target for the whole dSFMT family, not just color. The dSFMT reimpl would be verifiable against HEADLESS but may not improve the GUI GATE. Reduces the ROI of the shared lever for the gate (still valid for headless faithfulness)."
     },
     "PAEBadTV": {
       "worst_ddb": 11.293,
@@ -232,11 +232,11 @@
       "hosts": [
         "Lights__Static"
       ],
-      "swept": "2026-07-19T00:59:53Z",
+      "swept": "2026-07-19T01:12:07Z",
       "status": "DIVERGED",
       "todo": "T-faithful-paebadtv",
       "verified_via": "blocked-dsfmt-frameindex",
-      "note": "DETERMINISTIC parts VERIFIED+matched (badtv.ts): scan lines (period H/100, smoothstep fit MSE 2.4e-6), desaturate (sat=Saturate/100+1, luma coeffs recovered), roll phase, chromatic split. NOT fundamentally stochastic: the WAVINESS displacement is a dSFMT (Mersenne MEXP=19937) per-scanline random walk RESEEDED per frame (seed=2*frame+1), and STATIC is the PAENoise dSFMT field \u2014 BOTH deterministic given the frame number. Blocked on (a) a faithful dSFMT reimplementation and (b) the exact frameFromFxTime->seed schedule (same frame-index issue as PAEEarthquake). TRACTABLE with shared dSFMT+frame-index infra; deterministic-only path (Waviness=0,Static=0) already matches headless. Not a fundamental limit."
+      "note": "DETERMINISTIC parts VERIFIED+matched (badtv.ts): scan lines (period H/100, smoothstep fit MSE 2.4e-6), desaturate (sat=Saturate/100+1, luma coeffs recovered), roll phase, chromatic split. NOT fundamentally stochastic: the WAVINESS displacement is a dSFMT (Mersenne MEXP=19937) per-scanline random walk RESEEDED per frame (seed=2*frame+1), and STATIC is the PAENoise dSFMT field \u2014 BOTH deterministic given the frame number. Blocked on (a) a faithful dSFMT reimplementation and (b) the exact frameFromFxTime->seed schedule (same frame-index issue as PAEEarthquake). TRACTABLE with shared dSFMT+frame-index infra; deterministic-only path (Waviness=0,Static=0) already matches headless. Not a fundamental limit. | CAVEAT 2026-07-18: the shared dSFMT+frame-index lever is likely ALSO GUI-gated \u2014 PAEEarthquake proved that even a fully-decoded RNG frame-index, when made headless-faithful (trunc(frame)*1000), REGRESSES the GUI gate (-0.37). So the fine per-frame RNG pose is a headless!=GUI target for the whole dSFMT family, not just color. The dSFMT reimpl would be verifiable against HEADLESS but may not improve the GUI GATE. Reduces the ROI of the shared lever for the gate (still valid for headless faithfulness)."
     }
   },
   "history": [
