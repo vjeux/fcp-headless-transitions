@@ -29,10 +29,6 @@ import './badtv.js';          // registers Bad TV (scanlines + desaturate; roll/
 import './vignette.js';       // registers Vignette (radial smoothstep darken; HgcVignette)
 import './threshold.js';      // registers Threshold (soft luma binarize; HgcThreshold, split=Threshold verified)
 import './pixellate.js';      // registers Pixellate (Scale-px mosaic; HgcPixellate coord-quantize)
-// NOTE: fisheye.ts (HgcFisheye radial warp) is NOT registered — a pure power-law Rsrc=Rout·
-// (Rout/N)^(Amount/k) is only an APPROXIMATION (dense oracle fit maxresid 23-27px → 16 dB, not
-// faithful). The exact warp needs the shader's coordinate normalization (hg_Params[5] scale +
-// the [0..3] affine matrices) decoded from the binary, not a fitted power. See evidence/
-// FISHEYE_RE.md. Register once the exact radial law verifies >=30 dB.
+import './fisheye.js';        // registers Fisheye (anisotropic radial power warp; HgcFisheye, exp=Amount/30+1)
 
 export {};

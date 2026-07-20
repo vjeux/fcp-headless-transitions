@@ -63,3 +63,12 @@ NEXT: read hg_Params[5] scale + the affine matrices exactly from -[PAEFisheye fr
 canThrowRenderOutput disasm (the constants that build hg_Params from Radius+frame dims), OR fit a
 2-parameter model r_src = a·r_out + b·r_out^n per-radius that hits <2px everywhere. fisheye.ts
 removed (was a 16-dB approximation — fitted-not-faithful); the shader + this analysis are preserved.
+
+## SOLVED + VERIFIED (2026-07-20): anisotropic W/H normalization was the missing piece
+The power-law was wrong because the warp is ANISOTROPIC: hg_Params[5]=(1/(W·R)², 1/(H·R)²), so
+the normalized radius is nd=sqrt((dx/W)² + (dy/H)²), NOT a circular |d|/N. Per-axis oracle
+measurement (rampx/rampy sources) gave sx≈W (1972 vs 1920), sy≈H (1095 vs 1080). Exponent from
+the binary fcsel: Amount>0 → exp=Amount/30+1; Amount<0 → 1/(1-Amount/30). factor=nd^(exp-1)=
+nd^(Amount/30). Implemented → verified vs headless FCP: Amount 10/15/30/45 → abs PSNR
+35.6/34.9/33.9/33.8 dB (non-edge 34-36), up from the 16 dB circular-power version. VERIFIED,
+shipped + registered. Byte-neutral to the GUI gate (no slug uses it).
