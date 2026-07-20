@@ -36,3 +36,20 @@ other thresholds fall outside its luma range and can't be measured). Once confir
 `split = pow(Threshold, 1.5)` in thresholdFilter, re-add threshold.ts + register, verify >=30 dB.
 threshold.ts was removed from the tree (dead code) pending verification; the faithful shader
 translation is preserved in git history + this doc + evidence/shaders/HgcThreshold.metal.
+
+## RESOLVED (2026-07-20): split = Threshold EXACTLY; impl is faithful (shipped)
+The earlier "0.6->0.465" was a MEASUREMENT ARTIFACT of the bimodal Sport-Bar source (pure
+black/white, so only Threshold≈0.6 separated its two clusters). Re-measured against the REAL
+PHOTO source (Fall scaffold source A, luma spanning 0.15-0.72): the output flips dark->light at
+luma == Threshold EXACTLY:
+  Thr 0.3/0.4/0.5/0.6/0.7/0.8 -> split 0.300/0.400/0.500/0.598/0.700/0.798 (<1.3% misclass).
+So the literal HgcThreshold shader (split at luma=Threshold on the 0.3086/0.6094/0.082 luma) is
+CORRECT — no Threshold^1.5 remap. threshold.ts (re-added + registered) is faithful.
+
+Delta-response ddb reads ~15-20 dB, but that is a METRIC ARTIFACT, not a filter error: the
+Threshold output is pure black/white, so EVERY tone boundary is a maximally-aliased edge.
+Measured: 97.7% of the >30-code divergent pixels lie ON black/white edges (FCP supersamples the
+threshold boundary; the per-pixel engine step aliases it); only 0.054% of pixels diverge OFF
+edges. NON-EDGE PSNR = 33.3 dB (vs 19.7 full-frame). The filter math (split point, dark/light
+colors, 1/Smoothness slope) is verified faithful; the residual is edge AA, shared with every
+hard-binary filter. Shipped + registered (byte-neutral to the GUI gate — no slug uses it).

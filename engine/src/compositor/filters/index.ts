@@ -27,9 +27,6 @@ import './earthquake.js';     // registers Earthquake (seeded RNG shake/twist tr
 import './blackhole.js';      // registers Black Hole (radial gravity-lens warp, mip pyramid)
 import './badtv.js';          // registers Bad TV (scanlines + desaturate; roll/wave/static RNG)
 import './vignette.js';       // registers Vignette (radial smoothstep darken; HgcVignette)
-// NOTE: threshold.ts holds the faithful HgcThreshold shader translation but is NOT registered
-// yet — its Threshold->split-luma transfer is unverified (measured 0.6->0.465 ≈ Threshold^1.5,
-// needs a gradient test source to confirm). Shipping it now would be diverged (~15 dB). See
-// evidence/THRESHOLD_RE.md. Register once verified >=30 dB against headless FCP.
+import './threshold.js';      // registers Threshold (soft luma binarize; HgcThreshold, split=Threshold verified)
 
 export {};

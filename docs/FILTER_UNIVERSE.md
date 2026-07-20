@@ -43,7 +43,7 @@ Verbatim shader sources for the corpus-discovered filters are checked in under
 | PAELightRays | B074E0A5-BE6F-43B4-898A-AB0A44189CD9 | 3 | — | 📄 |
 | PAEBadFilm | 9B5C17D9-1AC3-4B04-B8F3-59C1420963BF | 3 | HgcBadFilm | 📄 |
 | PAELumaKeyer | 7E9178C5-7B0F-4B86-884D-FE79F568B6CE | 3 | HgcLumaKeyer | ✅ |
-| PAEThreshold | 96AFC322-287E-4014-9EFD-763CD9813E17 | 2 | HgcBloomThreshold | 📄 |
+| PAEThreshold | 96AFC322-287E-4014-9EFD-763CD9813E17 | 2 | HgcThreshold | ✅ verified (split=Thr; non-edge 33dB) |
 | PAEFisheye | C1278154-B061-453F-8BDE-9F70AB2E6066 | 2 | HgcFisheye | 📄 |
 | PAESimpleBorder | 8777A5DD-CDDA-4707-8454-D648943210D9 | 2 | — | 📄 |
 | PAEHighPass | 44CB7A9A-4E16-4B32-9567-C1EAD1C0693A | 2 | HgcHighPass | 📄 |
