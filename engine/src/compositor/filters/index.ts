@@ -26,5 +26,6 @@ import './scrape.js';         // registers Smear/Scrape (directional inverse-map
 import './earthquake.js';     // registers Earthquake (seeded RNG shake/twist transform)
 import './blackhole.js';      // registers Black Hole (radial gravity-lens warp, mip pyramid)
 import './badtv.js';          // registers Bad TV (scanlines + desaturate; roll/wave/static RNG)
+import './vignette.js';       // registers Vignette (radial smoothstep darken; HgcVignette)
 
 export {};

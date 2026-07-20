@@ -34,7 +34,7 @@ Verbatim shader sources for the corpus-discovered filters are checked in under
 | PAEPoke | 70471B0A-5D9D-4699-AEEE-CCFC84045B4B | 14 | HgcPoke | 📄 |
 | PAEGradientColorize | FB917FD2-68DF-4BE7-A313-82124F6DE776 | 12 | HgcGradientColorize | 📄 |
 | PAETarget | 220963F2-8E3F-4642-A080-C064CA0B487E | 12 | HgcTarget | 📄 |
-| PAEVignette | EB96FF9E-5863-4770-B7B5-65CB9BBF8E3B | 11 | HgcVignette | 📄 |
+| PAEVignette | EB96FF9E-5863-4770-B7B5-65CB9BBF8E3B | 11 | HgcVignette | ✅ verified 32-44dB |
 | PAEHSVAdjust | D23AF030-B0BF-44DF-B622-7C9EA0DF5744 | 10 | HgcHSVAdjust | ✅ |
 | PAEAddNoise | C423A28F-C016-4133-B120-22FF2E9A7862 | 8 | HgcAddNoise | 📄 |
 | PAEColorize | D995BBCF-F766-4950-89D5-7A4828CD9B6F | 8 | HgcColorize | ✅ |
