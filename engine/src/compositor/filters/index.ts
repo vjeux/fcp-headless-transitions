@@ -28,5 +28,6 @@ import './blackhole.js';      // registers Black Hole (radial gravity-lens warp,
 import './badtv.js';          // registers Bad TV (scanlines + desaturate; roll/wave/static RNG)
 import './vignette.js';       // registers Vignette (radial smoothstep darken; HgcVignette)
 import './threshold.js';      // registers Threshold (soft luma binarize; HgcThreshold, split=Threshold verified)
+import './pixellate.js';      // registers Pixellate (Scale-px mosaic; HgcPixellate coord-quantize)
 
 export {};

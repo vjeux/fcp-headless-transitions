@@ -58,7 +58,7 @@ Verbatim shader sources for the corpus-discovered filters are checked in under
 | PAESphere | 1E78D3E3-63AC-46E3-99F4-014129B9ECCC | 1 | HgcSphere | 📄 |
 | PAEUnderwater | 9FA1F483-1E09-4DD0-870F-C32777D7F1B0 | 1 | HgcUnderwaterFreqSynth | ✅ |
 | PAEMinMax | D2342006-51C4-4439-8E89-E970F135E21C | 1 | — | ✅ |
-| PAEPixellate | 5E7CA164-3AAF-4C70-A377-567E5796528A | 1 | HgcPixellate | 📄 |
+| PAEPixellate | 5E7CA164-3AAF-4C70-A377-567E5796528A | 1 | HgcPixellate | ✅ verified (block=Scale, 28-32dB) |
 | PAEInsectEye | 62A7EF56-178A-4D81-AF6A-C1B77A7D9519 | 1 | HgcInsectEye | 📄 |
 | PAECircleScreen | 46396CAD-950B-4EA3-92F3-0CC54DF53AC9 | 1 | — | 📄 |
 | PAEBumpMap | 1E6F3535-CAD6-4F4A-8EFE-24C402488000 | 1 | HgcBumpMap | 📄 |

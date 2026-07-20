@@ -20,3 +20,11 @@ the naive run-length detector — use a flat-region or downsample-compare). The 
 normalized [0,1] with an aspect factor in the affine; decode cellSize(Scale) precisely (likely
 cellSize = Scale/frameDim or Scale px), implement as nearest-cell-centre resample, verify vs
 headless. This is a clean coordinate warp (no AA-edge ceiling like Threshold; samples the source).
+
+## VERIFIED (2026-07-20): block size = Scale px exactly; grid phase matches
+Oracle sweep confirmed block size = Scale pixels EXACTLY on both axes (Scale 8/20/50 → 8/20/50px).
+Implemented as nearest-cell-centre resample anchored at Center (frame fraction, default 0.5,0.5).
+Verification vs headless FCP: abs PSNR 27.8-31.8 dB, non-edge 28-32 dB. Block BOUNDARIES align
+(oracle vs engine edges at Scale=50: 209/309/359/409/1059/1109/1159/1309/1459/1509 all match) —
+the grid phase is correct; the ~28-32 dB residual is nearest-sample rounding + the 480×270 gate
+resample, not a model error. Shipped + registered (byte-neutral to GUI gate — no slug uses it).
