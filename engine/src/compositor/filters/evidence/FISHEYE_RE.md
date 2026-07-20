@@ -31,3 +31,22 @@ spatial warp (same class as BlackHole) — needs the radial profile, not just th
 ## corpus_filter_hosts.json (this dir)
 Fast filter->host index: {PAE<name>: [corpus .mot* paths]} across 1896 files. Use it to locate a
 host for any of the 52 corpus PAE filters instantly (avoids the slow recursive grep).
+
+## Radial-grid probe (2026-07-20) — KEY HARNESS + exponent data (not yet pinned)
+BREAKTHROUGH METHOD: ozengine.render_frame(doc, img_a, img_b, ...) takes ARBITRARY source image
+paths, so a synthetic RADIAL-RING test image can be fed to BOTH oracle and engine to decode any
+spatial warp precisely (no photo-content ambiguity). Reusable for ALL warp filters (BlackHole,
+Poke, Target, Sphere, Fisheye). Script pattern: /tmp/fe_exp.py.
+
+Fisheye is a radial POWER expansion: source-ring at Rin appears at output Rout with Rin ∝ Rout^exp
+(barrel). Measured exp vs Amount (fit log Rin = exp·log Rout + c):
+  Amount 10 -> exp 1.46
+  Amount 15 -> exp 2.48
+  Amount 30 -> exp 2.84 (60px rings) / 3.65 (30px rings)  <-- UNSTABLE
+  Amount 45 -> exp 5.37
+The exponent GROWS with Amount but the ring-edge-PAIRING method is biased (near-edge rings compress
+and merge, so the Nth output edge != Nth input ring for strong warps). NEXT: fit the INVERSE map
+directly — for each output radius sample the source radius via local cross-correlation of the ring
+pattern (not edge counting), across Amount, to pin exp(Amount) + the Radius normalization. Then
+implement inverse-map resample + verify. The shader gives factor=|d|^(exp-1) with exp from the CPU
+(Amount/30-derived); the clean exp(Amount) law is the remaining unknown.
