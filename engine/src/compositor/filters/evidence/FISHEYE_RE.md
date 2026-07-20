@@ -50,3 +50,16 @@ directly — for each output radius sample the source radius via local cross-cor
 pattern (not edge counting), across Amount, to pin exp(Amount) + the Radius normalization. Then
 implement inverse-map resample + verify. The shader gives factor=|d|^(exp-1) with exp from the CPU
 (Amount/30-derived); the clean exp(Amount) law is the remaining unknown.
+
+## POWER-LAW REFUTED (2026-07-20) — exact shader normalization needed
+Dense radial-ramp fit (source-radius from a monotonic brightness ramp, 850 radii): the map is
+NOT a clean power law. Best power fit Rsrc = Rout^(1+p)/N^p has maxresid 23-27px (p=Amount/~26.7,
+N≈1700) — good mid-radius, badly off in the tails → a shipped power-law impl scored only 16 dB
+(identity Amount=0 was 35 dB, confirming the harness + centre are right; the WARP shape is wrong).
+So the shader's `factor = |d|_norm^(exponent-1)` uses a normalization (hg_Params[5] = 1/scale²,
+plus the hg_Params[0..3] affine matrices) that does NOT reduce to Rout^const in pixel space —
+likely the norm scale mixes x/y aspect differently, or the exponent applies to a rescaled radius.
+NEXT: read hg_Params[5] scale + the affine matrices exactly from -[PAEFisheye frameSetup:] /
+canThrowRenderOutput disasm (the constants that build hg_Params from Radius+frame dims), OR fit a
+2-parameter model r_src = a·r_out + b·r_out^n per-radius that hits <2px everywhere. fisheye.ts
+removed (was a 16-dB approximation — fitted-not-faithful); the shader + this analysis are preserved.
