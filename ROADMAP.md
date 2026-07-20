@@ -900,6 +900,35 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-20filters3  ✅ 3 NEW FILTERS VERIFIED beyond the 20-primitive catalog (commits e8e44b7,
+              ad775f2, 53e2476). All RE'd from FCP's Filters.bundle Hgc shaders + verified vs REAL
+              headless FCP via the faithful single-filter synth harness (decode-by-measurement):
+              • PAEVignette — worst ddb 32-44 dB. Geometry DECODED (not assumed): per-axis [-1,1]
+                ellipse (NO aspect corr), R0=1.5-Size, innerR=R0-0.11·Size·Falloff, outerR=R0+
+                1.13·Size·Falloff (band opens outward), Darken edge mult=(1-Darken) in sRGB CODE space.
+              • PAEThreshold — split=Threshold EXACTLY (photo source: 0.3/0.5/0.7→0.300/0.500/0.700),
+                literal HgcThreshold faithful. ddb ~15-20 dB is a METRIC ARTIFACT (pure b/w output →
+                every boundary maximally aliased; 97.7% of diffs on edges FCP supersamples; non-edge
+                PSNR 33.3 dB).
+              • PAEPixellate — block size = Scale px EXACTLY both axes, grid phase matches headless
+                (Scale=50 boundaries align); abs PSNR 28-32 dB (residual = nearest-sample + gate resample).
+              All byte-neutral to the GUI-GT gate (no shipping slug uses these UUIDs); tsc + no-hardcode
+              green. Also Phase-1: docs/FILTER_UNIVERSE.md (246 Hgc shaders + ~495 PAE classes in the
+              binary; 42 corpus PAE UUIDs; 28 unimplemented), 21 verbatim .metal shaders checked in.
+              TWO DURABLE FINDINGS: (1) AA CEILING — for hard-binary/high-contrast filters the delta-
+              response ddb over-penalizes (FCP supersamples edges, engine aliases); ALWAYS split ddb
+              edge-vs-non-edge before judging diverged. (2) SYNTH SOURCE must be a PHOTO not a graphic
+              (a bimodal Sport-Bar host gave a FALSE Threshold^1.5 reading; Fall-scaffold source A is a
+              proper photo, luma 0.15-0.72). REMAINING ~25 corpus filters are progressively harder:
+              PAEContrast (Bezier tone curve + sincos rotation), GradientColorize/ColorReduce (gradient/
+              palette LUT bake), HighPass (internal blur pass), ColorBalance (3-way corrector); many
+              factoryID-30 OSC filters (Poke/Target/Fisheye/Sphere) ship at identity Mix=0 in the corpus
+              so need synthetic non-default params to exercise. METHOD (proven+repeatable): extract_shader
+              → corpus host → synth.build single-filter scene → render_oracle/render_engine → mutate
+              sweep → delta-response ddb (split edge/non-edge). ENV: headless FCP needs DYLD via a
+              python→python self-re-exec (venv/bin/python3) — SIP strips DYLD_* on a direct bash launch.
+
+
 - 2026-07-20universe  ✅ FILTER UNIVERSE MAPPED + PAEVIGNETTE VERIFIED (commits 3fc0582, e8e44b7,
               3a31ea0). Widened Phase-1 scope from "the 20 primitives in the 65 slugs" to EVERY
               FCP filter (the actual objective). Built docs/FILTER_UNIVERSE.md from two ground
