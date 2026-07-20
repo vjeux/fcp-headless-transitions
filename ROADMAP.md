@@ -900,6 +900,32 @@ minimize a low slug → fix its minimal repro → verify on the GUI-GT gate.
 
 ## Progress log  (newest first — one line per completed chunk)
 
+- 2026-07-20universe  ✅ FILTER UNIVERSE MAPPED + PAEVIGNETTE VERIFIED (commits 3fc0582, e8e44b7,
+              3a31ea0). Widened Phase-1 scope from "the 20 primitives in the 65 slugs" to EVERY
+              FCP filter (the actual objective). Built docs/FILTER_UNIVERSE.md from two ground
+              truths: FCP's Filters.bundle Mach-O (246 embedded Hgc fragment shaders + ~495 PAE
+              Obj-C classes) and a 1434-file third-party .motr corpus (~/motr-collection) that
+              references 42 distinct PAE filter UUIDs with real params — 28 of them NOT implemented
+              in the TS engine (Contrast, Vignette, Poke, Defocus, LightRays, GradientColorize,
+              Target, AddNoise, BadFilm, Fisheye, ColorBalance, HighPass, Threshold, Pixellate,
+              InsectEye, CircleScreen, BumpMap, ColorReduce, LineScreen, …). Checked in 21 verbatim
+              Hgc shaders (evidence/shaders/*.metal) as the Phase-1 ground-truth algorithms.
+              FIRST new filter shipped: **PAEVignette** (vignette.ts) — faithful HgcVignette
+              translation, geometry DECODED via an oracle radius sweep through REAL headless FCP
+              (not assumed): per-axis [-1,1] ellipse (NO aspect corr), R0=1.5-Size, innerR=R0-
+              0.11·Size·Falloff, outerR=R0+1.13·Size·Falloff (band opens outward), Darken edge
+              multiplier=(1-Darken) in sRGB CODE space (linear refuted, 25 codes off). Faithful
+              delta-response verification: worst ddb 11.4→32.4 dB after the decode ("good" band;
+              residual is sub-code smoothstep-edge AA — FCP supersamples). No shipping slug uses
+              these UUIDs → byte-neutral to the GUI-GT gate; tsc + no-hardcode green. PAEContrast
+              structure decoded (Bezier-LUT contrast-around-pivot; affine-around-128 REFUTED by
+              measurement) + oracle transfer captured (evidence/CONTRAST_RE.md) for the next tick.
+              REUSABLE METHOD for the remaining 27: extract_shader.py → corpus host → synth.build →
+              faithful render_oracle/render_engine → mutate sweep → delta-response ddb. ENV GOTCHA:
+              headless FCP needs DYLD_FRAMEWORK_PATH but SIP strips DYLD_* on a direct bash→python
+              launch; must python→python self-re-exec (venv/bin/python3) or use run_tick.sh.
+
+
 - 2026-07-18faithful9  ✅ DEEP RE-CLASSIFICATION + BLOOM/QUAKE/BADTV DIAGNOSES (commits e12e111→
               db2f8b0). Corrected several over-pessimistic "fundamental" labels through measurement:
               • PAEBloom/PAEGlow: the FLOAT bloom is the FAITHFUL filter — isolated threshold→
