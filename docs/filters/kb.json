@@ -1,0 +1,579 @@
+{
+"Colorize": {
+ "what": "Colorize is a two-point duotone / gradient-map. It remaps the image's tonal range so the darkest pixels take one target color (\"Remap Black To\") and the brightest take another (\"Remap White To\"), interpolating every intermediate luminance between them. It is the classic way to tint footage into a single-hue look (sepia, cyan-orange, monochrome washes) while preserving contrast. In this engine it shares the channel-mixer module because both are per-pixel linear color remaps.",
+ "params": {
+   "Remap Black To": [null, "The color assigned to the darkest (black-point) pixels. Its `Color Space` child selects how the RGB triple is interpreted; Red/Green/Blue are 0-1 floats."],
+   "Remap White To": [null, "The color assigned to the brightest (white-point) pixels. With Remap Black To it defines the two ends of the tonal gradient every pixel maps onto."],
+   "Intensity": ["float", "Strength of the recolor, 0-1. 0 leaves the image untouched, 1 applies the full black->white remap. Continuous float despite only 0/1 being sampled."],
+   "Mix": ["float", "Wet/dry blend of the colorized result over the original, 0-1 continuous. 0 = bypass, 1 = full effect. Frequently keyframed to animate the tint in/out."],
+   "Colorize::HDR In Rec. 709": ["bool", "Working-space toggle: treat the input as Rec.709 HDR when computing the remap. Not a creative control."]
+ }
+},
+"Hue/Saturation": {
+ "what": "Hue/Saturation (PAEHSVAdjust) converts each pixel to HSV, rotates its hue, scales its saturation and value, then converts back. It is the standard tool for shifting color casts, boosting/killing saturation, or driving animated color cycles. The engine implements it as a branchless in-place RGB<->HSV round-trip matching FCP's shader.",
+ "note": "RE finding: FCP's `Hue` param is authored in DEGREES internally (fed to the shader as `hue/360` turns); the corpus stores it in RADIANS (0..2pi). `Saturation` is 0-centered (0 = unchanged, -1 = grayscale). `Value` and `Saturation` are both MULTIPLIERS in FCP, not additive offsets.",
+ "params": {
+   "Hue": ["float (radians)", "Hue rotation around the color wheel. Stored 0..2pi (pi = 180 deg). 0 = no shift. Rotates every pixel's hue by this angle."],
+   "Saturation": ["float", "Saturation adjustment, 0-centered: 0 = unchanged, -1 = fully desaturated (grayscale), positive = more saturated (up to +3 observed)."],
+   "Value": ["float", "Brightness/value multiplier: 1 = unchanged, 0 = black, up to 2 = doubled. Continuous float."],
+   "Mix": ["float", "Wet/dry blend of the adjusted result over the original, 0-1 continuous. Often keyframed to animate color shifts."]
+ }
+},
+"Gaussian Blur": {
+ "what": "A separable two-pass Gaussian blur. Each output pixel is a Gaussian-weighted average of its neighbors, softening detail with a smooth symmetric falloff. FCP's real implementation decimates the image, convolves a small normalized-Gaussian kernel, then upsamples; the effective screen sigma is approximately radius/6.1. The Horizontal/Vertical percentages let the blur be anisotropic (e.g. a purely vertical smear).",
+ "params": {
+   "Amount": ["float (pixels)", "Blur radius in pixels. 0 = no blur; larger values spread each pixel over a wider Gaussian. The dominant creative knob; often keyframed for focus pulls."],
+   "Horizontal": ["float (percent)", "Horizontal blur weighting, 0-100%. 100 = full blur on the X axis, 0 = none. Combined with Vertical to make the blur directional."],
+   "Vertical": ["float (percent)", "Vertical blur weighting, 0-100%. 100 = full blur on the Y axis, 0 = none."],
+   "Mix": ["float", "Wet/dry blend of the blurred result over the sharp original, 0-1 continuous."]
+ }
+},
+"Prism": {
+ "what": "Prism simulates chromatic dispersion: it splits the image into red, green and blue components and offsets them along an axis, as light does passing through a glass prism. The result is colored fringing / rainbow edges scaled by Amount and oriented by Angle. Templates use it for glitchy, refractive, light-bending transition looks.",
+ "uncertain": true,
+ "note": "Not implemented in the TS engine and no checked-in shader; description is from the standard Apple Motion \"Prism\" filter. The exact per-channel offset geometry (linear vs radial dispersion) is unverified here.",
+ "params": {
+   "Amount": ["float", "Magnitude of the chromatic separation. 0 = no split (identity); larger = wider color fringing. Default 7 to pulse the dispersion."],
+   "Angle": ["float (radians)", "Direction of the RGB dispersion axis, 0..2pi. Rotates which way the red/blue fringes fan out."],
+   "Mix": ["float", "Wet/dry blend of the dispersed result over the original, 0-1 continuous."]
+ }
+},
+"Fill": {
+ "what": "Fill replaces every visible pixel's RGB with a single solid Color (or a gradient, unused by the shipping transitions) while preserving the layer's alpha, so it recolors the shape without painting over the transparent surround. Blended by Mix, it is used to flat-color a layer that a downstream keyer or wipe then reveals. Verified faithful to FCP's HgcFillColor shader (recolor + re-premultiply by original alpha).",
+ "params": {
+   "Fill With": ["enum(int)", "Mode: 0 = solid Color, 1 = Gradient. The shipping transitions always use Color mode."],
+   "Color": [null, "The solid fill color (nested Red/Green/Blue 0-1 floats) applied to every visible pixel when Fill With = Color."],
+   "Gradient": [null, "Gradient definition (RGB stops, Opacity, Start/End points, Type) used when Fill With = Gradient. Empty in the corpus templates."],
+   "Mix": ["float", "Blend of the fill toward the original per channel: out.rgb = input + (fill - input) * Mix. 0 = untouched, 1 = fully the fill color. Continuous."]
+ }
+},
+"Twirl": {
+ "what": "Twirl applies a swirling rotational distortion around a center point: pixels near the center are rotated most and the rotation falls off with radius, spiraling the image like water down a drain. The `Twirl` angle sets how many radians of spin at the core and `Amount` scales the effect radius/strength. Used for vortex, dizzy, and dissolve-into-a-whirl transition effects.",
+ "note": "Not implemented in the TS engine; description is the standard Apple Motion \"Twirl\" filter. The exact radial falloff curve is unverified here.",
+ "params": {
+   "Twirl": ["float (radians)", "Swirl angle at the center in radians (default pi ~= 3.1416, a half-turn). Negative values swirl the opposite direction; the twist decreases toward the edges."],
+   "Amount": ["float", "Scales the strength / falloff radius of the swirl, 0-1. 0 = no distortion. (Corpus mis-sampled the type; this is a continuous float.)"],
+   "Mix": ["float", "Wet/dry blend of the twirled result over the original, 0-1 continuous. NOT a boolean despite only 0/1 being sampled."],
+   "Center": ["point2D", "Center of the swirl (X,Y) in Motion's normalized frame coordinates, (0.5,0.5) = frame center."]
+ }
+},
+"Levels": {
+ "what": "Levels is a tonal remap: it takes input black/white points and gamma and maps them to output black/white points, per channel or on RGB together, exactly like the Levels control in a photo editor. In the corpus the built-in transitions almost always drive only Gamma (via the Histogram > RGB > Gamma sub-parameter) to brighten or darken midtones. FCP internally runs a two-stage affine + power curve (HgcLevels); the TS engine implements the common single-stage form.",
+ "note": "RE finding: the Motion UI `Gamma` is fed to the shader as its reciprocal, so a UI Gamma > 1 brightens midtones (net pow(x, 1/gamma)). The input/output black+white points are exposed as children of `Histogram` and are largely unexercised by the shipping transitions.",
+ "params": {
+   "Histogram": [null, "The tonal-mapping controls, nested: Channel selects RGB or a single channel; RGB/Red/Green/Blue hold the black-in, white-in, gamma, black-out, white-out sub-parameters; Opacity blends. Gamma is the dominant driven knob."],
+   "Mix": ["float", "Wet/dry blend of the remapped result over the original, 0-1 continuous."],
+   "Levels::HDR In Rec. 709": ["bool", "Working-space toggle: interpret input as Rec.709 HDR. Not a creative control."]
+ }
+},
+"Brightness": {
+ "what": "Brightness applies a simple per-channel brightness scale/offset to the image (in this engine it maps onto the Levels path; PAEBrightness has no dedicated shader and does an additive/multiplicative lift of RGB with alpha preserved). It is the plain \"make it brighter/darker\" knob, frequently keyframed to flash or fade a layer.",
+ "params": {
+   "Brightness": ["float", "Brightness amount. Default 1 (identity). Values above 1 brighten, below 1 darken; a very wide range (up to ~54) is observed for blown-out flash effects."],
+   "Mix": ["float", "Wet/dry blend of the brightened result over the original, 0-1 continuous."]
+ }
+},
+"Bump Map": {
+ "what": "Bump Map treats a second image (the Map Image) as a height field and refracts the source through it: brightness gradients in the map become surface slopes that displace the sampled source texcoord, giving the source the illusion of being embossed onto the map's relief. Direction and the Horizontal/Vertical scales control the lighting angle and displacement strength. Verified against the HgcBumpMap shader, which reads the map, builds a per-pixel offset, and resamples the source.",
+ "note": "HgcBumpMap shader is checked in (evidence/shaders/HgcBumpMap.metal) but the filter is not yet implemented in TS.",
+ "params": {
+   "Map Image": ["source ref", "Reference to the layer used as the height/bump map (stored as a large source-ID integer, not a numeric value). The relief of this image drives the displacement."],
+   "Direction": ["float (radians)", "Lighting / displacement direction in radians (default ~0.1745 = 10 deg). Rotates which way the bump slopes push the source samples."],
+   "Amount": ["float", "Displacement strength / bump depth. 0 = flat (no displacement); negative inverts the relief; positive exaggerates it (range -4..10 observed). Heavily keyframed."],
+   "Horizontal Scale": ["float", "Horizontal component of the displacement gain, -10..10. Scales how far map slopes push samples on X."],
+   "Vertical Scale": ["float", "Vertical component of the displacement gain, -10..10. Scales the push on Y."],
+   "Mix": ["float", "Wet/dry blend of the bump-mapped result over the original, 0-1 continuous. NOT a boolean."],
+   "Repeat Edges": ["bool", "When on, sample coordinates that fall outside the frame wrap/repeat rather than clamp."]
+ }
+},
+"Gradient Blur": {
+ "what": "Gradient Blur varies blur strength across the frame along a line defined by two points: the image is sharp at one end of the Point 1 -> Point 2 gradient and progressively blurred toward the other, with Amount setting the maximum blur radius. It is the tool for tilt-shift / depth-of-field looks where focus falls off across the frame. FCP's HgcGradientBlur2 shader is checked in.",
+ "note": "HgcGradientBlur2 shader is checked in (evidence/shaders/HgcGradientBlur2.metal) but the filter is not yet implemented in TS.",
+ "params": {
+   "Point 1": ["point2D", "Start of the blur gradient (X,Y, normalized frame coords). Defines the sharp (or fully-blurred) end of the falloff line."],
+   "Point 2": ["point2D", "End of the blur gradient (X,Y). Blur ramps between Point 1 and Point 2."],
+   "Amount": ["float (pixels)", "Maximum blur radius reached at the blurred end of the gradient, 0-100. 0 = no blur anywhere."],
+   "Mix": ["float", "Wet/dry blend of the gradient-blurred result over the original, 0-1 continuous. NOT a boolean."]
+ }
+},
+"Bad Film": {
+ "what": "Bad Film emulates aged/damaged film: it adds dust, hairs, scratches, random per-frame brightness and saturation flicker, focus wobble, and frame jitter to make clean footage look like a scratched print. It is a heavily-parameterized \"vintage projector\" effect with independent Amount and Variance controls for each artifact type. FCP's HgcBadFilm shader (a brightness/saturation/tint pass over the source) is checked in; the dust/scratch/hair layers are generated separately.",
+ "note": "HgcBadFilm shader is checked in but the full filter (procedural dust/scratch/hair generation) is not implemented in TS. Corpus dropped 13 localized (non-English) parameter duplicates. Descriptions of the artifact knobs follow the standard Motion \"Bad Film\" filter.",
+ "params": {
+   "Focus Amount": ["float", "Maximum defocus/blur applied by the wobble, 0-64. 0 = always sharp."],
+   "Focus Variance": ["float", "How much the focus randomly varies frame to frame, 0-100."],
+   "Brightness Amount": ["float", "Base brightness multiplier of the aged look, 0.5-5."],
+   "Brightness Variance": ["float", "Random per-frame brightness flicker amount, 0-2.5."],
+   "Saturate Amount": ["float", "Base saturation shift, -100..58 (negative desaturates toward a faded print)."],
+   "Saturate Variance": ["float", "Random per-frame saturation flicker, 0-100."],
+   "Scratches": ["float", "Density of vertical scratch lines, 0-20."],
+   "Scratch Color": [null, "Color of the scratches (nested Red/Green/Blue/Opacity)."],
+   "Hairs": ["enum(int)", "Number of stray hair/fiber artifacts overlaid, 0-10."],
+   "Dust": ["float", "Density of dust specks, 0-100."],
+   "Jitter Amount": ["float", "Amount of frame position jitter (gate weave), 0-1."],
+   "Jitter Variance": ["float", "How much the jitter magnitude varies, 0-0.5."],
+   "Frequency of Change": ["float", "How often the random artifacts re-roll, 0-100 (higher = more frantic flicker)."],
+   "Grain": ["float", "Film-grain noise amount, 0-1. Continuous float, heavily keyframed."],
+   "Random Seed": ["float (int seed)", "Seed for the artifact RNG; changing it reshuffles the dust/scratch/jitter pattern."],
+   "Mix": ["float", "Wet/dry blend of the aged result over the clean original, 0-1 continuous."]
+ }
+},
+"Offset": {
+ "what": "Offset scrolls the image by a horizontal and vertical pixel amount, wrapping it around the frame edges (a torus roll). It is the simplest positional filter, used to slide or wrap content for scrolling backgrounds and roll transitions.",
+ "uncertain": true,
+ "note": "Not implemented in the TS engine and no checked-in shader; described as the standard Motion \"Offset\" scroll/wrap. Whether the shipping filter wraps or clamps at the edge is unverified here (the wide negative observed range suggests large scrolls).",
+ "params": {
+   "Horizontal Offset": ["float (pixels)", "Pixels to shift the image on X. Negative = left, positive = right. Content wraps around. Heavily keyframed for scrolls."],
+   "Vertical Offset": ["float (pixels)", "Pixels to shift the image on Y. Negative = up, positive = down. Content wraps around."],
+   "Mix": ["float", "Wet/dry blend of the offset result over the original, 0-1 continuous."]
+ }
+},
+"Disc Warp": {
+ "what": "Disc Warp wraps the image around a disc/tube: pixels within a Radius of the Center are bent onto a circular surface, producing a bulging cylindrical/spherical warp inside the disc and leaving the outside untouched. It is used for lens-like, orb, and tunnel transition looks.",
+ "uncertain": true,
+ "note": "Not implemented in the TS engine and no checked-in shader; described from the standard Motion \"Disc Warp\". The exact mapping (cylinder vs sphere) is unverified here.",
+ "params": {
+   "Center": ["point2D", "Center of the disc (X,Y) in normalized frame coordinates, (0.5,0.5) = frame center."],
+   "Radius": ["float (pixels)", "Radius of the warped disc in pixels (default 150). Pixels inside this radius are warped; outside is unaffected."],
+   "Mix": ["float", "Wet/dry blend of the warped result over the original, 0-1 continuous. NOT a boolean (only 1 sampled in corpus)."]
+ }
+},
+"Flop": {
+ "what": "Flop mirrors the layer about its center: horizontally (left<->right), vertically (top<->bottom), or both (a 180 deg point reflection). It is a lossless axis-aligned pixel permutation with no resampling. Implemented and verified faithful to FCP's pure geometric transform (there is no shader).",
+ "params": {
+   "Flop": ["enum(int)", "Mirror axis: 0 = Horizontal (mirror left/right), 1 = Vertical (mirror top/bottom), 2 = Both (180 deg point reflection)."],
+   "Mix": ["float", "Host-level wet/dry blend, 0-1 continuous. Always 1 in the corpus; the filter itself is a hard mirror."]
+ }
+},
+"Bulge Source": {
+ "what": "Bulge (Bulge Source) pushes pixels radially outward from a center point to create a convex, lens-like magnification bump (or, with negative Scale, a concave pinch). Amount sets the pixel radius of the affected region and Scale the strength/sign of the bulge. Used for fisheye pops, magnifier, and elastic-pop transitions.",
+ "uncertain": true,
+ "note": "Not implemented in the TS engine and no checked-in shader; described from the standard Motion \"Bulge\" filter. The exact radial displacement curve is unverified here.",
+ "params": {
+   "Amount": ["float (pixels)", "Radius of the bulge region in pixels (default 300). Larger = a wider area is distorted."],
+   "Center": ["point2D", "Center of the bulge (X,Y) in normalized frame coordinates."],
+   "Scale": ["float", "Strength and sign of the bulge, roughly -1.3..4.4. Positive = convex outward bulge, negative = concave pinch, 0 = no distortion."],
+   "Mix": ["float", "Wet/dry blend of the bulged result over the original, 0-1 continuous. NOT a boolean."]
+ }
+},
+"Color Balance": {
+ "what": "Color Balance shifts the color in three tonal ranges independently -- Shadows, Midtones and Highlights -- letting you warm the shadows and cool the highlights (or any combination) for color grading. Boost controls overall intensity and Clip Color Values sets clamping behavior. It is the classic three-way color-grade control.",
+ "uncertain": true,
+ "note": "Not implemented in the TS engine and no checked-in shader; described from the standard Motion \"Color Balance\". The exact luminance masks that separate shadows/mids/highlights are unverified here.",
+ "params": {
+   "Shadows": [null, "Color shift applied to the darkest tones (nested Red/Green/Blue + Color Space)."],
+   "Midtones": [null, "Color shift applied to the mid tones (nested RGB + Color Space)."],
+   "Highlights": [null, "Color shift applied to the brightest tones (nested RGB + Color Space)."],
+   "Boost": ["float", "Overall strength of the three-way balance, 0-1."],
+   "Clip Color Values": ["enum(int)", "How out-of-range values are clamped, 0-3."],
+   "Mix": ["float", "Wet/dry blend of the graded result over the original, 0-1 continuous."],
+   "ColorBalance::HDR In Rec. 709": ["bool", "Working-space toggle (Rec.709 HDR). Not a creative control."]
+ }
+},
+"Directional Blur": {
+ "what": "Directional Blur smears the image along a single axis: FCP rotates the frame so the blur axis is horizontal, applies a 1-D Gaussian, then rotates back. Amount is the blur distance and Angle the direction, giving a motion-streak look. Implemented in TS (the current impl uses a uniform box average rather than FCP's Gaussian falloff -- a documented Phase-2 gap).",
+ "params": {
+   "Amount": ["float (pixels)", "Blur distance in pixels along the axis. 0 = no blur. The primary streak-length knob."],
+   "Angle": ["float (radians)", "Direction of the blur streak, 0..2pi (0 = horizontal). Rotates the smear axis."],
+   "Mix": ["float", "Wet/dry blend of the streaked result over the sharp original, 0-1 continuous."]
+ }
+},
+"Channel Blur": {
+ "what": "Channel Blur blurs the R, G, B and alpha channels independently: you can blur, say, only the red channel while keeping green sharp, producing controllable chromatic softening or selective-channel effects. Amount sets the radius and per-channel toggles select which channels get blurred; Horizontal/Vertical weight the blur axis.",
+ "uncertain": true,
+ "note": "Not implemented in the TS engine and no checked-in shader; described from the standard Motion \"Channel Blur\" (per-channel Gaussian). Behavior follows Gaussian Blur applied selectively.",
+ "params": {
+   "Amount": ["float (pixels)", "Blur radius in pixels applied to the enabled channels, 0-750. 0 = no blur."],
+   "Blur Red": ["bool", "Toggle: blur the red channel."],
+   "Blur Green": ["bool", "Toggle: blur the green channel."],
+   "Blur Blue": ["bool", "Toggle: blur the blue channel."],
+   "Blur Alpha": ["bool", "Toggle: blur the alpha channel."],
+   "Horizontal": ["float (percent)", "Horizontal blur weighting, 0-100%."],
+   "Vertical": ["float (percent)", "Vertical blur weighting, 0-100%."],
+   "Mix": ["float", "Wet/dry blend, 0-1 continuous."]
+ }
+},
+"Poke": {
+ "what": "Poke pushes the image outward from a center point as if a finger poked the surface: pixels within the effect are displaced radially, scaled by Scale, over a region set by Radius, sampling the source at the poked coordinate. The HgcPoke shader is a per-pixel inverse radial remap (normalize position, scale by distance, resample). The shader is checked in.",
+ "note": "HgcPoke shader is checked in (evidence/shaders/HgcPoke.metal) but the filter is not yet implemented in TS.",
+ "params": {
+   "Center": ["point2D", "Center of the poke (X,Y) in normalized frame coordinates. Often keyframed to drive the poke around the frame."],
+   "Scale": ["float", "Strength of the radial push, 0-1. 0 = no distortion."],
+   "Radius": ["float (pixels)", "Radius of the affected region in pixels (default 300)."],
+   "Mix": ["float", "Wet/dry blend of the poked result over the original, 0-1 continuous. NOT a boolean."]
+ }
+},
+"Glint": {
+ "what": "Glint adds anamorphic star/streak highlights to bright areas: it thresholds the highlights, blooms them, and casts radial streaks (like the star filter on a camera lens) with controllable number, size, softness and color fringing. It is the sparkle/lens-flare-star effect used on speculars and light sources. Not implemented and no checked-in shader.",
+ "uncertain": true,
+ "note": "Not implemented in the TS engine and no checked-in shader; described from the standard Motion \"Glint\" filter. Exact bloom/streak math unverified here.",
+ "params": {
+   "Exposure": ["float", "Highlight threshold / exposure that controls which pixels glint (higher = only the brightest streak)."],
+   "Intensity": ["float", "Overall strength of the glint overlay, 0-3.2. Continuous float."],
+   "Glint Size": ["float", "Length of the star streaks, 0-25."],
+   "Streaks": ["enum(int)", "Number of radial streak arms, 1-10."],
+   "Glint Softness": ["float", "Softness/feather of the streaks, 0-1."],
+   "Glint Angle": ["float (radians)", "Rotation of the streak pattern in radians."],
+   "Glow Amount": ["float", "Strength of the soft bloom halo added under the streaks, 0-40."],
+   "Tint": ["float", "How much the Tint Color is applied to the glint, 0-1."],
+   "Tint Color": [null, "Color of the glint tint (nested Red/Green/Blue + Color Space)."],
+   "Color Fringing": ["float", "Chromatic dispersion along the streaks, 0-28 (rainbow edges)."],
+   "Mix": ["float", "Wet/dry blend of the glint over the original, 0-1 continuous."]
+ }
+},
+"Pixellate": {
+ "what": "Pixellate snaps each output pixel to the center of a Scale x Scale-pixel grid cell and nearest-samples the source there, producing a blocky mosaic. Scale is the block size in pixels exactly (verified on both axes) and Center anchors the grid. Implemented and verified against headless FCP via the HgcPixellate shader (a coordinate quantize).",
+ "params": {
+   "Scale": ["float (pixels)", "Mosaic block size in pixels (default 8). 1 = no pixelation; larger = coarser blocks. Verified as an exact block size on both axes."],
+   "Center": ["point2D", "Grid origin (X,Y) as a fraction of the frame; shifts where the block boundaries fall."],
+   "Mix": ["float", "Wet/dry blend of the mosaic over the original, 0-1 continuous."]
+ }
+},
+"Contrast": {
+ "what": "Contrast applies an S-shaped tone curve around a Pivot point: for Contrast < 1 it compresses tones toward the pivot (flatter), for Contrast > 1 it expands them (punchier). FCP builds the curve as a cubic Bezier (a rotation of the y=x line by an angle derived from Contrast), so it is NOT a simple scale-around-mid. Reverse-engineered (CONTRAST_RE.md) but not yet shipped, because an affine approximation is faithful only for Contrast < 1.",
+ "note": "Reverse-engineered in evidence/CONTRAST_RE.md; not implemented (the Bezier LUT must be reproduced exactly rather than fitted). For Contrast < 1 the transfer is nearly affine with a fixed point around code 61-62 (NOT 128); for Contrast > 1 it is a genuine S-curve.",
+ "params": {
+   "Contrast": ["float", "Contrast strength, 0.3-3. 1 = identity, <1 flattens (compress toward pivot), >1 punches up (expand). The primary knob."],
+   "Pivot": ["float", "The tonal fixed point the curve rotates around, 0-1 (default 0.5). Pixels at the pivot luminance are unchanged."],
+   "Smooth Contrast": ["bool", "Toggle: use the smoother Bezier ease vs a harder curve."],
+   "Luminance Only": ["bool", "Toggle: apply the contrast to luminance only (preserve chroma) rather than per-channel RGB."],
+   "Clip Color Values": ["enum(int)", "Out-of-range clamping mode, 0-3."],
+   "Mix": ["float", "Wet/dry blend of the contrasted result over the original, 0-1 continuous. NOT a boolean (only 1 sampled)."]
+ }
+},
+"Earthquake": {
+ "what": "Earthquake shakes and twists the frame with a per-frame pseudo-random rigid transform: a small rotation about an Epicenter plus horizontal/vertical translation, optionally composited across several jittered Layers for a blurred multi-exposure shake. Amplitudes are deterministic functions of Twist/Shake and a seeded RNG. Implemented and RE'd (twist is +/- Twist*0.1 radians, shakes are +/- amount*25 pixels).",
+ "params": {
+   "Twist": ["float (radians scale)", "Rotational shake amplitude. Per-frame rotation is +/- Twist*0.1 radians about the epicenter. 0 = no rotation."],
+   "Horizontal Shake": ["float (pixels scale)", "Horizontal translation amplitude. Per-frame shift is +/- Shake*25 pixels. Keyframed."],
+   "Vertical Shake": ["float (pixels scale)", "Vertical translation amplitude. Per-frame shift is +/- Shake*25 pixels. Keyframed."],
+   "Layers": ["enum(int)", "Number of jittered copies blended together, 1-8. >1 blurs the shake into a multi-exposure smear."],
+   "Epicenter": ["point2D", "Center of the rotational shake (X,Y) in normalized frame coordinates."],
+   "Random Seed": ["float (int seed)", "Seed for the shake RNG; changing it reshuffles the jitter pattern."],
+   "Mix": ["float", "Wet/dry blend of the shaken result over the original, 0-1 continuous. NOT a boolean."]
+ }
+},
+"Add Noise": {
+ "what": "Add Noise overlays procedural random noise onto the image, blended by Amount and a chosen Blend Mode, optionally monochrome and auto-animated over time. It is the grain/static generator used for film-grain, TV-static and texture effects. FCP's HgcAddNoise shader is a simple per-pixel scale+abs blend of a noise field; the shader is checked in.",
+ "note": "HgcAddNoise shader is checked in (evidence/shaders/HgcAddNoise.metal) but the filter is not yet implemented in TS.",
+ "params": {
+   "Amount": ["float", "Strength of the noise added, 0-4. 0 = no noise; the primary knob."],
+   "Type": ["enum(int)", "Noise distribution/type, 0-4 (e.g. uniform vs gaussian variants)."],
+   "Blend Mode": ["enum(int)", "How the noise composites over the image, 0-17 (add, screen, overlay, etc.)."],
+   "Monochrome": ["bool", "Toggle: single-channel gray noise vs independent per-channel color noise."],
+   "Autoanimate": ["bool", "Toggle: re-roll the noise field every frame (animated static) vs a static pattern."],
+   "Random Seed": ["float (int seed)", "Seed for the noise RNG."],
+   "Mix": ["float", "Wet/dry blend of the noisy result over the original, 0-1 continuous."]
+ }
+},
+"MinMax": {
+ "what": "MinMax is a morphological erode/dilate: in Minimum mode it shrinks (erodes) light areas by replacing each pixel with the minimum in a Radius window, in Maximum mode it grows (dilates) them with the maximum. It runs a separable X-then-Y pass over the full 2R+1 window on premultiplied RGBA. Implemented and verified against headless FCP.",
+ "params": {
+   "Radius": ["float (pixels)", "Window half-width in pixels (0-250 nominal). 0 = identity (passthrough). Larger = more aggressive erode/dilate."],
+   "Mode": ["bool/enum", "0 = Minimum (erode: shrink light areas), 1 = Maximum (dilate: grow light areas)."],
+   "Mix": ["float", "Wet/dry blend of the morphed result over the original, 0-1 continuous."]
+ }
+},
+"Underwater": {
+ "what": "Underwater applies a sinusoidal refraction wobble: the source is resampled through a smoothly space-varying displacement field that is the sum of ten sine waves of decreasing frequency and time-drifting phase -- exactly the look of light refracting through a rippling water surface. Size sets wave scale, Speed the animation rate, Refraction the displacement gain. Implemented and RE'd from the HgcUnderwaterFreqSynth + RefractV2 shaders.",
+ "params": {
+   "Size": ["float", "Spatial scale of the wave field (default 2). Larger = broader, gentler ripples; smaller = tighter wobble."],
+   "Speed": ["float", "Animation rate of the wave phases (default 0.5). Only the phase advances over time; 0 = a static frozen ripple."],
+   "Refraction": ["float", "Displacement gain -- how far pixels are pushed by the waves (default 100). 0 = passthrough (identity)."],
+   "Repeat Edges": ["bool", "When on, samples outside the frame wrap/repeat rather than clamp."],
+   "Mix": ["float", "Wet/dry blend of the refracted result over the original, 0-1 continuous. NOT a boolean."]
+ }
+},
+"Bad TV": {
+ "what": "Bad TV emulates analog-TV glitch: horizontal roll, wavy random-walk horizontal displacement, static/noise overlay, dark scan lines, chromatic aberration and desaturation. It is the CRT/VHS-breakup effect. Implemented and RE'd verbatim from the HgcBadTV / HgcBadTVNoise Metal shaders.",
+ "params": {
+   "Roll": ["float", "Vertical roll/scroll speed of the picture (the classic hold-vertical breakup)."],
+   "Waviness": ["float", "Amplitude of the wavy horizontal displacement (random-walk per scanline), 0-200."],
+   "Static": ["float", "Amount of noise/static overlaid, 0-1. When >0 the noise-variant shader (HgcBadTVNoise) runs."],
+   "Saturate": ["float", "Saturation shift, -100..100 (negative bleeds color toward gray)."],
+   "Color Synch": ["float", "Chromatic aberration / color-sync error, 0-1 (higher = more RGB split)."],
+   "Number of Scan Lines": ["float", "How many dark scan lines are drawn across the frame, 1-1035."],
+   "Scan Line Brightness": ["float", "Brightness floor of the dark scan-line bands, 0-5 (lower = darker lines)."],
+   "Scan Line Percentage": ["float", "Duty cycle / thickness of the scan lines, 0-1."],
+   "Mix": ["float", "Wet/dry blend of the glitched result over the clean original, 0-1 continuous."]
+ }
+},
+"Channel Mixer": {
+ "what": "Channel Mixer recomputes each output channel as a weighted sum of the input R, G, B (and optionally alpha) channels plus an offset -- a full per-channel linear color matrix. It is used for creative channel swaps, custom monochrome mixes, and color-space corrections. Implemented and RE'd from the HgcChannelMixer shader (a 4-wide dot per channel, un-premultiply then re-premultiply).",
+ "note": "RE gap: the '...-Alpha' offset column does not behave as a clean per-channel add in real FCP, but every shipping transition sets those offsets to 0, so the exercised path is exact.",
+ "params": {
+   "Red Output": [null, "Weights that build the output red channel: Red-Red, Red-Green, Red-Blue (channel mix) and Red-Alpha (offset)."],
+   "Green Output": [null, "Weights that build the output green channel (Green-Red/Green/Blue mix + Green-Alpha offset)."],
+   "Blue Output": [null, "Weights that build the output blue channel (Blue-Red/Green/Blue mix + Blue-Alpha offset)."],
+   "Alpha Output": [null, "Weights that build the output alpha channel (only used when Include Alpha is on)."],
+   "Monochrome": ["bool", "Toggle: set all three RGB rows to the same luma weights for a custom grayscale mix."],
+   "Include Alpha": ["bool", "Toggle: also mix the alpha channel."],
+   "Allow Mono > 1": ["bool", "Toggle: permit monochrome weights that sum above 1 (brighter gray mix)."],
+   "Mix": ["float", "Wet/dry blend of the mixed result over the original, 0-1 continuous."]
+ }
+},
+"Light Rays": {
+ "what": "Light Rays casts volumetric god-rays from a Center point: bright areas are streaked radially outward (a zoom-blur of the highlights) and glowed, simulating light shafts bursting from a source. Amount sets ray length, Expansion the spread, Glow the bloom. Not implemented and no checked-in shader; described from the standard Motion \"Light Rays\".",
+ "uncertain": true,
+ "note": "Not implemented in the TS engine and no checked-in shader; described from the standard Motion \"Light Rays\" filter. Exact radial-streak math unverified here.",
+ "params": {
+   "Amount": ["float", "Length/strength of the rays, 9-200. Often keyframed to shoot the rays out."],
+   "Expansion": ["float", "How far the rays spread from the center, 0-2."],
+   "Glow": ["float", "Strength of the bloom/glow on the rays, 0.66-8."],
+   "Center": ["point2D", "Origin point of the rays (X,Y) in normalized frame coordinates."],
+   "Mix": ["float", "Wet/dry blend of the rays over the original, 0-1 continuous."]
+ }
+},
+"Tint": {
+ "what": "Tint recolors the image toward a single Color using a hard-light-style two-leg curve about luma 0.5 (NOT a simple luma*color lerp), blended by Intensity. It gives a monochrome/duotone wash keyed to a target color. Implemented (shares the channel-mixer module) and RE'd from the HgcTint shader.",
+ "params": {
+   "Color": [null, "The tint target color (nested Red/Green/Blue 0-1). The image is pushed toward this hue."],
+   "Intensity": ["float", "How strongly the tint is applied, 0-1. 0 = untinted, 1 = full tint."],
+   "Mix": ["float", "Wet/dry blend of the tinted result over the original, 0-1 continuous."]
+ }
+},
+"Compound Blur": {
+ "what": "Compound Blur uses a second image (the Blur Map) to drive blur strength per pixel: bright areas of the map get more blur, dark areas stay sharp, so an arbitrary mask controls where focus falls. Amount is the max radius, Map Channel selects which channel of the map to read, and Invert/Stretch adjust the mask. It is the general depth-of-field-from-a-matte tool.",
+ "uncertain": true,
+ "note": "Not implemented in the TS engine and no checked-in shader; described from the standard Motion \"Compound Blur\". Behavior follows a variable Gaussian driven by the map channel.",
+ "params": {
+   "Amount": ["float (pixels)", "Maximum blur radius reached where the map is fully bright, 0-300. 0 = no blur."],
+   "Blur Map": ["source ref", "Reference to the layer used as the per-pixel blur-strength map (stored as a source-ID integer)."],
+   "Map Channel": ["enum(int)", "Which channel of the map drives blur, 3-4 (e.g. alpha vs luminance)."],
+   "Invert Map": ["bool", "Toggle: invert the map so dark areas blur instead of bright."],
+   "Stretch Map": ["bool", "Toggle: stretch/fit the map to the frame."],
+   "Horizontal": ["float (percent)", "Horizontal blur weighting, 10-100%."],
+   "Vertical": ["float (percent)", "Vertical blur weighting, 10-100%."],
+   "Mix": ["float", "Wet/dry blend, 0-1 continuous. NOT a boolean."]
+ }
+},
+"Threshold": {
+ "what": "Threshold posterizes luma into two colors: pixels with luminance above the Threshold become the Light Color, below become the Dark Color, with a Smoothness ramp softening the transition. It is a high-contrast two-tone / cutout effect. Implemented and RE'd verbatim from the HgcThreshold shader (luma dot, offset by Threshold, smoothstep by Smoothness, mix dark->light).",
+ "params": {
+   "Threshold": ["float", "Luminance cutoff, 0-1 (default 0.5). Pixels brighter than this go to Light Color, darker to Dark Color."],
+   "Smoothness": ["float", "Width of the soft transition band around the threshold, 0-1. 0 = a hard two-tone edge; larger = a smooth ramp."],
+   "Light Color": [null, "Color assigned to pixels above the threshold (nested RGB + Color Space)."],
+   "Dark Color": [null, "Color assigned to pixels below the threshold (nested RGB + Color Space)."],
+   "Correct For Alpha": ["bool", "Toggle: account for the source alpha (un-premultiply) when computing luma."],
+   "Mix": ["float", "Wet/dry blend of the two-tone result over the original, 0-1 continuous."]
+ }
+},
+"Glow": {
+ "what": "Glow blooms the bright areas: it soft-thresholds the highlights, Gaussian-blurs them by Radius, and screen-composites the blurred glow back over the original. Threshold/Softness set which pixels glow, Opacity the glow gain. Implemented (shares the glow module) and RE'd from the three-pass HgcGlow / HgcGlowCombineFx shaders.",
+ "params": {
+   "Radius": ["float (pixels)", "Blur radius of the glow spread, 7-100. Larger = a softer, wider halo."],
+   "Threshold": ["float", "Brightness threshold, 0-1 (default 0.75). Pixels below this don't glow; the mask ramps up around it."],
+   "Softness": ["float", "Width of the threshold ramp, 0-1 (default 0.2). 0 = a hard glow cutoff, larger = a gradual glow onset."],
+   "Opacity": ["float", "Gain/opacity of the glow overlay, 0-3 (default 1.5). Higher = a brighter bloom."],
+   "Mix": ["float", "Wet/dry blend of the glowing result over the original, 0-1 continuous."]
+ }
+},
+"Variable Blur": {
+ "what": "Variable Blur blurs the frame by an amount that increases with distance from a Center, between an Inner Radius (sharp) and an Outer Radius (fully blurred) -- a radial tilt-shift / focus-ring. Amount is the maximum blur. Not implemented and no checked-in shader; described from the standard Motion \"Variable Blur\".",
+ "uncertain": true,
+ "note": "Not implemented in the TS engine and no checked-in shader; described from the standard Motion \"Variable Blur\" (radial focus falloff).",
+ "params": {
+   "Amount": ["float (pixels)", "Maximum blur radius reached beyond the outer radius, 0-100. 0 = no blur."],
+   "Inner Radius": ["float (pixels)", "Radius of the fully-sharp central region, 0-665. Inside this, no blur."],
+   "Outer Radius": ["float (pixels)", "Radius at which blur reaches maximum, 0-1000. Blur ramps between inner and outer."],
+   "Center": ["point2D", "Center of the focus ring (X,Y) in normalized frame coordinates."],
+   "Mix": ["float", "Wet/dry blend of the blurred result over the sharp original, 0-1 continuous. NOT a boolean."]
+ }
+},
+"Negative": {
+ "what": "Negative inverts the image colors (out = 1 - in per channel), producing a photographic negative. It is a single-purpose invert with only a blend control. Not implemented and no checked-in shader, but the operation is unambiguous.",
+ "params": {
+   "Mix": ["float", "Wet/dry blend of the inverted result over the original, 0-1 continuous. Fractional values give a partial-invert wash."]
+ }
+},
+"Soft Focus": {
+ "what": "Soft Focus blends the sharp image with a blurred copy to give a dreamy, glowing softness (a diffusion/glamour look) without fully losing detail. Amount sets the blur radius and Strength how much of the blurred layer is mixed in. Not implemented and no checked-in shader; described from the standard Motion \"Soft Focus\".",
+ "uncertain": true,
+ "note": "Not implemented in the TS engine and no checked-in shader; described from the standard Motion \"Soft Focus\" (sharp/blurred diffusion blend).",
+ "params": {
+   "Amount": ["float (pixels)", "Blur radius of the soft layer, 2-330. Larger = a broader, dreamier halo."],
+   "Strength": ["float", "How much of the blurred layer is blended into the sharp image, 0-1. 0 = fully sharp."],
+   "Horizontal": ["float (percent)", "Horizontal blur weighting, 0-100%."],
+   "Vertical": ["float (percent)", "Vertical blur weighting, 0-100%."],
+   "Mix": ["float", "Wet/dry blend of the soft-focused result over the original, 0-1 continuous."]
+ }
+},
+"Defocus": {
+ "what": "Defocus simulates a camera's out-of-focus lens: instead of a Gaussian, it blurs with a polygonal aperture (bokeh) whose shape has a chosen number of Sides and Rotation, so bright points bloom into hexagons/pentagons. Amount is the defocus radius, Gain boosts highlight bokeh. FCP uses the HgcConvolvePass7tapDefocus shader (checked in); the filter is not yet implemented.",
+ "note": "HgcConvolvePass7tapDefocus shader is checked in but the filter is not implemented in TS.",
+ "params": {
+   "Amount": ["float (pixels)", "Defocus / blur-circle radius, 0-80. 0 = in focus. Heavily keyframed for rack-focus pulls."],
+   "Sides": ["enum(int)", "Number of aperture-blade sides shaping the bokeh, 3-8 (3 = triangular bokeh, higher = rounder)."],
+   "Rotation": ["float (radians)", "Rotation of the aperture polygon, 0..~1.75 radians."],
+   "Gain": ["float", "Highlight bokeh gain, 0.05-4 (default 2). Higher = brighter, more defined bokeh discs."],
+   "Shape": ["bool", "Toggle between aperture shape modes."],
+   "Aspect Ratio": ["bool/float", "Aspect stretch of the bokeh (anamorphic bokeh when non-square)."],
+   "Mix": ["float", "Wet/dry blend of the defocused result over the sharp original, 0-1 continuous. NOT a boolean."]
+ }
+},
+"Luma Keyer": {
+ "what": "Luma Keyer makes pixels transparent based on their luminance: it keeps a band of luma (shadows+mids by default) and keys out the rest via a 4-control-point trapezoid tolerance curve baked into a 256-entry LUT. It is the standard brightness-based matte for luma reveals. Implemented and RE'd from the HgcLumaKeyer LUT shader; the vast majority of its 30 parameters are internal keyer state (matte tools, spill suppression) that the shipping templates leave at defaults.",
+ "note": "Of the 30 exposed parameters, only a handful are creative knobs; the rest (MinGreen/MaxGreen/Spill*/Chroma*, Matte Tools sub-params, KeyerIsInitialized, etc.) are internal keyer engine state persisted in the .motr and are left at their defaults by every corpus user. The measured default curve keeps shadows+mids and keys out highlights.",
+ "params": {
+   "Luma": [null, "The luma key definition (threshold band / graph). Static keyer blob in the corpus -- both shipping users get the default curve (keep shadows+mids, key out highlights)."],
+   "Invert": ["bool", "Toggle: flip which side of the luma band is kept vs keyed out."],
+   "Luma Rolloff": ["float", "Softness of the key edge, 0-1. Higher = a gentler transparency ramp."],
+   "Preserve RGB": ["bool", "Toggle: replace only alpha and pass RGB through unchanged (vs also premultiplying)."],
+   "Matte Tools": [null, "Post-key matte cleanup group: Edge Distance, Levels, Shrink/Expand, Erode, Fill Holes, Soften. Left at defaults in the corpus."],
+   "Mix": ["float", "Wet/dry blend of the keyed result over the original, 0-1 continuous."]
+ }
+},
+"Color Curves": {
+ "what": "Color Curves adjusts tone via editable per-channel and luma curves (Curve 1/2/3 + Luma), the classic curves grade for shaping shadows, mids and highlights independently. Preserve Luma keeps overall brightness while shifting color. Not implemented; the curve data is stored as opaque graph blobs in the .motr.",
+ "uncertain": true,
+ "note": "Not implemented in the TS engine and no checked-in shader; the Curve/Luma parameters are stored as opaque graph blobs (their control points are not decoded here). Described from the standard Motion \"Color Curves\".",
+ "params": {
+   "Curve 1": [null, "Editable tone curve for the first channel (opaque graph blob)."],
+   "Curve 2": [null, "Editable tone curve for the second channel (opaque graph blob)."],
+   "Curve 3": [null, "Editable tone curve for the third channel (opaque graph blob)."],
+   "Luma": [null, "Editable luma (brightness) curve (opaque graph blob)."],
+   "Preserve Luma": ["bool", "Toggle: keep overall luminance constant while the color curves shift chroma."],
+   "Mix": ["float", "Wet/dry blend of the graded result over the original, 0-1 continuous. NOT a boolean."]
+ }
+},
+"Stroke": {
+ "what": "Stroke draws an outline around the alpha edge of a layer, with a chosen Width, Color (or Gradient), and Position (inside/outside/center of the edge), plus fade controls to feather it. It is the standard edge-outline effect for titles and shapes. Not implemented; described from the standard Motion \"Stroke\".",
+ "uncertain": true,
+ "note": "Not implemented in the TS engine and no checked-in shader; described from the standard Motion \"Stroke\" filter.",
+ "params": {
+   "Stroke Type": ["enum(int)", "Fill type of the stroke, 0-2 (e.g. color vs gradient vs texture)."],
+   "Color": [null, "Stroke color (nested Red/Green/Blue/Opacity)."],
+   "Gradient": [null, "Stroke gradient (RGB stops, Opacity, Start/End) when Stroke Type is gradient."],
+   "Width": ["float (pixels)", "Thickness of the outline in pixels, 1-300 (default 10)."],
+   "Position": ["enum(int)", "Where the stroke sits relative to the alpha edge, 0-2 (inside / center / outside)."],
+   "Offset": ["float (pixels)", "Shifts the stroke in/out from the edge, -12..40."],
+   "Threshold": ["float", "Alpha threshold that defines the edge to stroke, 0-1."],
+   "Fade Inside": ["float", "Feather of the stroke's inner edge, 0-1."],
+   "Fade Outside": ["float", "Feather of the stroke's outer edge, 0-1."],
+   "Fade Width": ["float", "Overall feather width, 0-1."],
+   "Fade Falloff": ["float", "Curve of the fade, -100..100."],
+   "Hide Source": ["bool", "Toggle: show only the stroke, hiding the original layer content."],
+   "Blend Mode": ["enum(int)", "How the stroke composites, 0-16."],
+   "Mix": ["float", "Wet/dry blend of the stroked result over the original, 0-1 continuous. NOT a boolean."]
+ }
+},
+"Extrude": {
+ "what": "Extrude gives a 2D layer a faux-3D extruded depth: it projects the alpha shape back along an Angle by a Distance, shading the extruded sides between Front and Back brightness for a beveled/3D-text look. Not implemented; described from the standard Motion \"Extrude\".",
+ "uncertain": true,
+ "note": "Not implemented in the TS engine and no checked-in shader; described from the standard Motion \"Extrude\" filter.",
+ "params": {
+   "Distance": ["float (pixels)", "Depth of the extrusion, 0-500 (default 50). 0 = flat."],
+   "Angle": ["float (radians)", "Direction the shape is extruded toward, 0..2pi (default pi/4 = 45 deg)."],
+   "Extrude Style": ["bool/enum", "Style of the extrusion (e.g. solid vs gradient sides)."],
+   "Gradient": [null, "Gradient applied along the extruded depth (RGB, Opacity)."],
+   "Face Brightness": ["float", "Brightness of the front face, 0-8 (default 1)."],
+   "Front Brightness": ["float", "Brightness at the near end of the extruded sides, 0-1.42."],
+   "Back Brightness": ["float", "Brightness at the far end of the extruded sides, 0-2."],
+   "Back Size": ["float", "Scale of the far face relative to the front, 0.78-1 (perspective taper)."],
+   "Clipping": ["float", "Clips the extrusion depth, 0-99."],
+   "Mix": ["float", "Wet/dry blend of the extruded result over the original, 0-1 continuous."]
+ }
+},
+"Zoom Blur": {
+ "what": "Zoom Blur streaks the image radially from a Center point (a dolly-zoom / speed-warp blur), optionally adding a rotational Swirl. Amount sets the streak length. Implemented in TS (shares the directional-blur module's radial mode).",
+ "params": {
+   "Amount": ["float", "Length/strength of the radial streak, 0-50. 0 = no blur. Heavily keyframed for punch-in bursts."],
+   "Swirl": ["float", "Adds a rotational component to the zoom, -0.03..1. 0 = pure radial zoom; positive = spiral streaks."],
+   "Center": ["point2D", "Focus point the blur streaks away from (X,Y) in normalized frame coordinates."],
+   "Look": ["bool/enum", "Selects a blur look/quality variant."],
+   "Mix": ["float", "Wet/dry blend of the streaked result over the sharp original, 0-1 continuous. NOT a boolean."]
+ }
+},
+"Unsharp Mask": {
+ "what": "Unsharp Mask sharpens by subtracting a blurred copy from the original and adding the difference back, boosting edge contrast. Radius sets the blur scale (edge size), Amount the sharpening strength, and Threshold suppresses sharpening of low-contrast (noise) areas. Not implemented, but the algorithm is standard and unambiguous.",
+ "params": {
+   "Radius": ["float (pixels)", "Blur radius of the unsharp kernel, 2-32 (default 7). Larger = sharpens broader edges / halos."],
+   "Amount": ["float", "Sharpening strength, 0-2 (default 1). 0 = no sharpening."],
+   "Threshold": ["float", "Minimum local contrast before sharpening applies, 0-0.57. Higher = leaves flat/noisy areas untouched."],
+   "Horizontal": ["float (percent)", "Horizontal weighting, 0-100%."],
+   "Vertical": ["float (percent)", "Vertical weighting, 0-100%."],
+   "Mix": ["float", "Wet/dry blend of the sharpened result over the original, 0-1 continuous. NOT a boolean (only 1 sampled)."]
+ }
+},
+"Kaleidotile": {
+ "what": "Kaleidotile tiles the frame into a repeating kaleidoscopic pattern: it takes a Width x Height cell of the image, mirrors/rotates it and tiles it across the frame with a rotation Angle, producing a symmetric mandala/mosaic. FCP's HgcKaleidaTile shader exists in the binary. Not implemented; described from the standard Motion \"Kaleidotile\".",
+ "uncertain": true,
+ "note": "Not implemented in the TS engine and no checked-in shader (HgcKaleidaTile exists in the binary but is not extracted here). Described from the standard Motion \"Kaleidotile\".",
+ "params": {
+   "Width": ["float (pixels)", "Width of the source tile cell, 28-4072 (default 64)."],
+   "Height": ["float (pixels)", "Height of the source tile cell, 64-4000 (default 64)."],
+   "Angle": ["float (radians)", "Rotation of the tiling pattern, 0..2pi."],
+   "Center": ["point2D", "Center/origin of the kaleidoscope (X,Y) in normalized frame coordinates."],
+   "Mix": ["float", "Wet/dry blend of the kaleidoscoped result over the original, 0-1 continuous."]
+ }
+},
+"Page Curl": {
+ "what": "Page Curl peels the layer back like turning a page: a corner/edge set by Angle and Rotation lifts and curls with a given Radius, revealing a Back Color behind it, animated by Percent from flat to fully turned. It is the classic page-turn transition. Not implemented; described from the standard Motion \"Page Curl\".",
+ "uncertain": true,
+ "note": "Not implemented in the TS engine and no checked-in shader; described from the standard Motion \"Page Curl\" filter.",
+ "params": {
+   "Percent": ["float (percent)", "How far the page is turned, 12-100 (default 50). Animated (87 keyframe curves) to drive the turn."],
+   "Angle": ["float (radians)", "Direction the curl travels across the page."],
+   "Rotation": ["float (radians)", "Orientation of the curl axis / which corner lifts."],
+   "Radius": ["float (pixels)", "Tightness of the curl roll, 1-100 (default 20). Smaller = a tighter roll."],
+   "Animate": ["bool", "Toggle: drive the curl by the built-in animation vs the Percent param directly."],
+   "Direction": ["bool", "Toggle: which way the page turns."],
+   "Highlight Color": [null, "Color of the specular highlight along the curl (nested RGB)."],
+   "Back Color": [null, "Color revealed on the back of the curled page (nested RGB + Opacity)."],
+   "Shadow": ["float", "Strength of the shadow cast by the lifted page, 0-100."],
+   "Fade Out": ["float", "Fade of the curled-away area, 0-41."],
+   "Mix": ["float", "Wet/dry blend, 0-1 continuous. NOT a boolean (only 1 sampled)."]
+ }
+},
+"mCallouts Simple 2": {
+ "what": "This is a third-party callout template (MotionVFX 'mCallouts'), not a built-in FCP image filter -- it is a published effect/generator that draws an animated callout line + title that tracks a point on screen. Its parameters are template rig controls (Track/Title/Image position groups and OSC settings), not image-processing knobs.",
+ "uncertain": true,
+ "note": "This is a third-party MotionVFX callout template, NOT a built-in Apple filter. It appears in the corpus purely because templates embed it; its parameters are animation-rig groups (position/scale/angle tracks) rather than pixel operations. No image-processing behavior to reverse-engineer.",
+ "params": {
+   "Track": [null, "Rig group positioning/scaling the tracked callout endpoint (Position X/Y, Scale X/Y, Z Angle)."],
+   "Title": [null, "Rig group positioning the title card (Movement, Far/Close, Position X/Y)."],
+   "Image": [null, "Rig group binding the title/track/line elements together."],
+   "OSC": [null, "On-screen-control settings group (Magnification, Settings)."],
+   "Mix": ["float", "Host-level blend, 0-1. Always 1 in the corpus."]
+ }
+},
+"Radial Blur": {
+ "what": "Radial Blur applies a rotational blur about a Center point: pixels are smeared along circular arcs, as if the camera spun during exposure. Angle is the arc of the blur sweep. Implemented in TS (shares the directional-blur module's radial mode).",
+ "params": {
+   "Center": ["point2D", "Center of rotation the blur sweeps around (X,Y) in normalized frame coordinates."],
+   "Angle": ["float (radians)", "Arc of the rotational blur sweep in radians (default ~0.524 = 30 deg, max ~0.524 observed). Larger = a longer spin streak."],
+   "Mix": ["float", "Wet/dry blend of the spun result over the sharp original, 0-1 continuous. NOT a boolean."]
+ }
+},
+"Scrape": {
+ "what": "Scrape (FCP UI: 'Smear', PAEScrape) smears the layer along an axis: pixels past a threshold line (set by Amount, oriented by Rotation, anchored at Center) are dragged/streaked in the axis direction, an inverse-map geometric warp with no blur. Implemented and RE'd verbatim from the HgcScrape shader.",
+ "note": "Corpus dropped 2 localized (non-English) parameter duplicates. FCP calls this 'Smear'; the PAE class is PAEScrape.",
+ "params": {
+   "Center": ["point2D", "Anchor of the smear (X,Y) in normalized frame coordinates."],
+   "Rotation": ["float (radians)", "Orientation of the smear axis in radians, 0..2pi."],
+   "Amount": ["float", "Smear strength, 0-200 (default 50). Controls the threshold line position -- how much of the layer past the center gets dragged. 0 = no smear."],
+   "Mix": ["float", "Wet/dry blend of the smeared result over the original, 0-1 continuous."]
+ }
+},
+"Vignette": {
+ "what": "Vignette darkens (and optionally desaturates) the frame toward the corners using a radial smoothstep mask: the center stays clear out to a Size radius, then falls off over a Falloff band to a darkened edge set by Darken. Implemented and verified faithful (32-44 dB) to the HgcVignette shader.",
+ "params": {
+   "Size": ["float", "Radius of the clear (unvignetted) center, ~0.48-1.35 (default 0.6). Larger = the clear area reaches farther out."],
+   "Darken": ["float", "How dark the vignetted edge gets, 0-1 (default 0.3). 0 = no darkening, 1 = edge goes to black."],
+   "Falloff": ["float", "Softness of the inner->outer transition band, ~0.21-1 (default 0.5). Larger = a wider, softer gradient."],
+   "Saturation": ["float", "Desaturation toward the edge, -0.27..1 (default 0.3). Continuous float; pulls edge color toward gray."],
+   "Blur Amount": ["float (pixels)", "Optional blur of the vignetted edge, 0-47."],
+   "Center": ["point2D", "Center of the vignette (X,Y) in normalized frame coordinates."],
+   "Mix": ["float", "Wet/dry blend of the vignetted result over the original, 0-1 continuous."]
+ }
+},
+"Fisheye": {
+ "what": "Fisheye applies an anisotropic radial power warp (barrel/fisheye bulge or pinch) about a Center: the sample offset scales with normalized radius raised to a power derived from Amount, normalized per-axis by frame width and height. Radius scales the effect extent. Implemented and verified (34-36 dB) with the exact model from the HgcFisheye shader.",
+ "params": {
+   "Amount": ["enum(int)/float", "Strength (and sign) of the fisheye. Internally exponent = (Amount/30 <= 0) ? 1/(1-Amount/30) : (Amount/30 + 1). Amount 0 = identity; positive = barrel bulge, negative = pincushion. Default 15."],
+   "Radius": ["float", "Scales the normalization radius, 0.23-2 (default 1). Larger = a broader, gentler warp."],
+   "Center": ["point2D", "Center of the fisheye (X,Y) in normalized frame coordinates."],
+   "Mix": ["float", "Wet/dry blend of the warped result over the original, 0-1 continuous. NOT a boolean."]
+ }
+}
+}

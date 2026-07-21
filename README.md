@@ -108,6 +108,8 @@ by-pointer passing of `shared_ptr`/`CMTime`/matrices).
 | `tools/`        | Low-level engine binding: `ozengine.py` (FCP engine boot + `render_frame`), `fcp_constants.py` (canonical timescale), `bootstrap_worktree.sh`. `fct` drives these. |
 | `docs/GALLERY.md`  | Animated previews of all supported transitions. |
 | `docs/DEBUGGING.md` | **How to validate the browser engine against real FCP, pixel-for-pixel.** Read this first if you're working on `engine/`. |
+| `docs/types/`   | **Type reference** — human-authored docs for the Motion type system (filters, components, behaviors) built from a 5,300-file template corpus. Start at [docs/types/README.md](docs/types/README.md). |
+| `docs/filters/` | Per-filter parameter reference: the top 50 filters by corpus usage, each with what it does, its real (de-plumbed) parameters, correct types, and implementation status. |
 
 ## The browser engine (`engine/`)
 
