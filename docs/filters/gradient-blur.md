@@ -28,6 +28,6 @@ Non-creative host parameters on this filter: `Crop`, `Publish OSC`, `Flip`, `Inp
 
 ## Implementation status
 
-**Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+**Not implemented** — 📄 shader available: `evidence/shaders/HgcGradientBlur2.metal` (verbatim FCP source; TS port pending).
 
 > 2 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.

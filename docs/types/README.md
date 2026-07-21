@@ -5,13 +5,14 @@ reproduce, built from a **5,365-file** corpus of real `.motr/.moti/.moef/.motn` 
 (`~/motr-collection`) fused with the repo's own reverse-engineering ground truth (decoded TS
 modules, `Hgc*` shaders, RE write-ups). Corpus usage counts are empirical.
 
-Motion scenes are built from three kinds of typed nodes:
+Motion scenes are built from these kinds of typed nodes and cross-cutting constructs:
 
 | Type family | Reference | What it is |
 |---|---|---|
-| **Filters** (FxPlug effects) | [`../filters/README.md`](../filters/README.md) | Per-pixel image effects hosted on `ProPlugin Filter` nodes — blurs, color, distortions, stylize. Top 50 (by corpus usage) documented with per-parameter meaning, correct types, and implementation status. |
-| **Components** (factory node types) | [`COMPONENTS.md`](COMPONENTS.md) | The 134 `<factory>` node types — Channel, Widget, Replicator, Shape, Generator, Camera, Text, Image Mask, Clone Layer, … — with corpus-scale usage. Extends `../CATALOG.md §2`. |
-| **Behaviors** (procedural animation) | [`BEHAVIORS.md`](BEHAVIORS.md) | Motion's behavior system — Link, Rig Behavior, Clamp, Ramp, Oscillate, … — that computes parameter values each frame instead of keyframing. |
+| **Filters** (FxPlug effects) | [`../filters/README.md`](../filters/README.md) | Per-pixel image effects hosted on `ProPlugin Filter` nodes — blurs, color, distortions, stylize. **All 141** filters seen in the corpus documented, each with per-parameter meaning, correct types, and implementation status. |
+| **Components** (factory node types) | [`COMPONENTS.md`](COMPONENTS.md) | The `<factory>` scene-graph node types — Shape, Replicator, Text, Generator, Camera, Emitter, Light, Clone Layer, Image, Widget, Project, Rig, … — each with a per-type parameter table, plus the **shared object-property block** (Transform/Blending/Crop/Drop Shadow/…) and the `sceneSettings` document settings, documented once. Extends `../CATALOG.md §2` (status) and `§3` (Transform IDs). |
+| **Behaviors** (procedural animation) | [`BEHAVIORS.md`](BEHAVIORS.md) | All **34** behaviors — Link, Rig Behavior, Clamp, Ramp, Oscillate, Throw, Gravity, Spring, Motion Path, … — that compute parameter values each frame instead of keyframing, with per-parameter tables and a Parameter/Motion family split. |
+| **Constructs** (cross-cutting systems) | [`CONSTRUCTS.md`](CONSTRUCTS.md) | The foundational systems inside every file — the parameter/channel value model, keyframe curves + the full interpolation-type table, rational time, shapes/vertices, gradients, styles/text, the channel-link/expression substrate, and document `sceneSettings`. |
 
 ### How this relates to the other docs
 - `../CATALOG.md` — the authoritative implementation status, tallied against the **65 shipping FCP

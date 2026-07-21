@@ -31,4 +31,4 @@ Non-creative host parameters on this filter: `Crop`, `Flip`, `Input Points`. The
 
 ## Implementation status
 
-**Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+**Not implemented** — 📄 shader available: `evidence/shaders/HgcConvolvePass7tapDefocus.metal` (verbatim FCP source, per-pixel math decoded; TS port pending).
