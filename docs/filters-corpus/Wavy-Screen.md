@@ -1,0 +1,22 @@
+# Wavy Screen
+
+- **pluginUUID:** `3C4B5F14-3D6B-4C35-8314-24077F0CB276`
+- **PAE class:** `Wavy Screen`
+- **Display names seen:** Wavy Screen (4), Wavy Screen copy (2)
+- **Engine status:** ❌ not implemented
+- **Corpus usage:** 6 instances across 4 files
+
+## Parameters
+
+| Parameter | Type | Default | Observed range | Keyframed | Seen |
+|---|---|---|---|---|---|
+| Amplitude | float | `40` | [0 … 40] | — | 6 |
+| Wavelength | float | `125` | [0 … 394] | — | 6 |
+| Scale | menu/enum (int) | `10` | [8 … 10] | — | 6 |
+| Contrast | float | `0.5` | [0.5 … 1] | — | 6 |
+| Mix | float | `1` | [0.4195 … 1] | 1 | 6 |
+| Flip | float | `0` | [0 … 0] | — | 5 |
+| Input Points | menu/enum (int) | `1` | [1 … 1] | — | 5 |
+
+---
+_Auto-generated from the Motion corpus (`~/motr-collection`) by `docs/filters-corpus/gen_fct_filter_docs.py`. Ranges/defaults are EMPIRICAL (observed in real templates), not Apple-documented limits. Keyed by FxPlug pluginUUID per `engine/src/compositor/filters/registry.ts`._

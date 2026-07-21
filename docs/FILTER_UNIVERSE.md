@@ -20,6 +20,11 @@ Verbatim shader sources for the corpus-discovered filters are checked in under
 - 📄 shader extracted + documented, NOT yet implemented (Phase-1 done, Phase-2 open)
 - 🔬 corpus-exercised (appears in real templates → concrete Phase-2 verification target)
 
+> **Full per-parameter reference:** [`docs/filters-corpus/`](filters-corpus/README.md) documents
+> every filter UUID seen in the (now ~5,300-file) corpus — **141 distinct filters, 25 implemented** —
+> with each parameter's inferred type, default, empirical value range, and keyframe frequency.
+> This section is the RE/shader map; that directory is the exhaustive parameter surface.
+
 ## Corpus filters — the concrete "every filter" work list
 
 | PAE class | UUID | corpus files | shader | engine |
