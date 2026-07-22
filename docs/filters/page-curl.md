@@ -36,3 +36,28 @@ Non-creative host parameters on this filter: `Publish OSC`, `Flip`, `Input Point
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcPageCurl` embedded shader. Decoded functional form:_
+
+Page Curl simulates **peeling a page off a cylinder**: distance across a diagonal fold line maps to
+an angle on a cylinder of radius `hg_Params[4].x`; pixels on the curling side are wrapped around the
+cylinder (front face), pixels past it show the back/underside or the layer beneath.
+
+```
+p     = texCoord*scale + offset                      // hg_Params[1]
+s     = dot(p - Origin, foldDir) / Radius            // signed distance across the fold, in radians
+                                                     //   foldDir=hg_Params[3], Radius=hg_Params[4].x
+if s <= 0:            out = sample(source, p)         // flat, un-curled part
+elif s < π:          // on the cylinder front face — wrap the coord around it
+     wrap = Origin + foldDir * (Radius * sin(s))      // projected position of the curled point
+     out  = sample(source, wrap) · shade(cos(s))      // shade by facing angle (self-shadow)
+else:                 out = backOrBelow               // past the curl: page back or lower layer
+```
+
+The constants `1.5708≈π/2`, `3.1416≈π`, `−3.1416≈−π` and the minimax polynomial `c1` are an
+`acos`/`asin` approximation for the cylinder wrap angle. `hg_Params[3]` = **fold direction/angle**,
+`hg_Params[4].x` = **curl Radius** (tightness), `hg_Params[2]` = fold Origin (animate → the page
+peels). Head-start: parametrize the fold line, map crossing distance→cylinder angle, wrap the front
+face with `sin` and shade by `cos`, reveal back/below past `s=π`.
