@@ -30,6 +30,7 @@ VERIFIED = {
     "transfer.PAEColorize", "transfer.PAETint", "transfer.PAEHSVAdjust_valsat",
     "transfer.PAELevels", "transfer.PAELevels_remap", "transfer.PAEChannelMixer",
     "transfer.PAEBrightness_darken",
+    "transfer.PAEThreshold",
 }
 
 out = {}

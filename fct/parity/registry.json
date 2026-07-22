@@ -1502,6 +1502,329 @@
    "characterized_reason": "Diagonal-1.5x ChannelMixer == Brightness x1.5 bit-identical in FCP \u2014 confirms Brightness=HGColorMatrix + unifies the divergence to the shared HGColorMatrix over-1.0 CLAMP (lifts non-clipped channels). Non-clip matrices VERIFIED exact. Decode = HGColorMatrix render disasm; gate-blocked."
   },
   {
+   "id": "transfer.PAEThreshold",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAEThreshold per-pixel transfer: luma (0.3086/0.6094/0.082 \u2014 NOT Rec.709) -> smoothstep(threshold, smoothness) -> lerp(Dark,Light). Pointwise; EXACT isolation via uniform inputs. Feeds Bloom/Glow threshold masks.",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "96AFC322-287E-4014-9EFD-763CD9813E17",
+    "pluginName": "PAEThreshold"
+   },
+   "param_cases": [
+    {
+     "label": "t0.5_s0.15_bw",
+     "params": [
+      {
+       "name": "Threshold",
+       "id": 1,
+       "value": 0.5
+      },
+      {
+       "name": "Smoothness",
+       "id": 2,
+       "value": 0.15
+      },
+      {
+       "name": "Dark Color",
+       "id": 3,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 0
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 0
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Light Color",
+       "id": 4,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 1
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 1
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 1
+        }
+       ]
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "t0.3_s0.2_bw",
+     "params": [
+      {
+       "name": "Threshold",
+       "id": 1,
+       "value": 0.3
+      },
+      {
+       "name": "Smoothness",
+       "id": 2,
+       "value": 0.2
+      },
+      {
+       "name": "Dark Color",
+       "id": 3,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 0
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 0
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Light Color",
+       "id": 4,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 1
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 1
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 1
+        }
+       ]
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "t0.7_s0.1_bw",
+     "params": [
+      {
+       "name": "Threshold",
+       "id": 1,
+       "value": 0.7
+      },
+      {
+       "name": "Smoothness",
+       "id": 2,
+       "value": 0.1
+      },
+      {
+       "name": "Dark Color",
+       "id": 3,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 0
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 0
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Light Color",
+       "id": 4,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 1
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 1
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 1
+        }
+       ]
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "t0.5_s0_hardstep",
+     "params": [
+      {
+       "name": "Threshold",
+       "id": 1,
+       "value": 0.5
+      },
+      {
+       "name": "Smoothness",
+       "id": 2,
+       "value": 0.0
+      },
+      {
+       "name": "Dark Color",
+       "id": 3,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 0
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 0
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Light Color",
+       "id": 4,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 1
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 1
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 1
+        }
+       ]
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "t0.5_s0.3_darkblue_lightyellow",
+     "params": [
+      {
+       "name": "Threshold",
+       "id": 1,
+       "value": 0.5
+      },
+      {
+       "name": "Smoothness",
+       "id": 2,
+       "value": 0.3
+      },
+      {
+       "name": "Dark Color",
+       "id": 3,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 0
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 0
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 1
+        }
+       ]
+      },
+      {
+       "name": "Light Color",
+       "id": 4,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 1
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 1
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "filter.PAEColorize",
    "subsystem": "color",
    "kind": "filter",

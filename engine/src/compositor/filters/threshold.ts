@@ -84,7 +84,7 @@ export function thresholdFilter(
 function clamp255(v: number): number { return v < 0 ? 0 : v > 255 ? 255 : v; }
 
 registerFilter({
-  uuid: '96AFC322-287E-4014-9EFD-763CD9813C67',
+  uuid: '96AFC322-287E-4014-9EFD-763CD9813E17',
   names: ['paethreshold'],
   label: 'Threshold',
   apply(input, ctx) {

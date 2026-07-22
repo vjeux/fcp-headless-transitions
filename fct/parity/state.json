@@ -1068,6 +1068,96 @@
       "tol_abs": 1e-06,
       "tol_rel": 1e-06,
       "swept": "2026-07-22T16:15:57Z"
+    },
+    "transfer.PAEThreshold": {
+      "id": "transfer.PAEThreshold",
+      "kind": "transfer",
+      "status": "VERIFIED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 0.6699999999999875,
+      "n_samples": 135,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "label": "t0.5_s0.3_darkblue_lightyellow",
+          "params": [
+            {
+              "name": "Threshold",
+              "id": 1,
+              "value": 0.5
+            },
+            {
+              "name": "Smoothness",
+              "id": 2,
+              "value": 0.3
+            },
+            {
+              "name": "Dark Color",
+              "id": 3,
+              "children": [
+                {
+                  "name": "Red",
+                  "id": 1,
+                  "value": 0
+                },
+                {
+                  "name": "Green",
+                  "id": 2,
+                  "value": 0
+                },
+                {
+                  "name": "Blue",
+                  "id": 3,
+                  "value": 1
+                }
+              ]
+            },
+            {
+              "name": "Light Color",
+              "id": 4,
+              "children": [
+                {
+                  "name": "Red",
+                  "id": 1,
+                  "value": 1
+                },
+                {
+                  "name": "Green",
+                  "id": 2,
+                  "value": 1
+                },
+                {
+                  "name": "Blue",
+                  "id": 3,
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "name": "Mix",
+              "id": 10001,
+              "value": 1.0
+            }
+          ]
+        },
+        "input": [
+          200,
+          50,
+          50
+        ],
+        "oracle": [
+          23.4,
+          23.4,
+          231.33
+        ],
+        "engine": [
+          23.0,
+          23.0,
+          232.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
     }
   },
   "history": [
@@ -1445,8 +1535,18 @@
       "id": "curve.color.luma709",
       "status": "VERIFIED",
       "at": "2026-07-22T16:15:57Z"
+    },
+    {
+      "id": "transfer.PAEThreshold",
+      "status": "DIVERGED",
+      "at": "2026-07-23T00:21:38Z"
+    },
+    {
+      "id": "transfer.PAEThreshold",
+      "status": "VERIFIED",
+      "at": "2026-07-23T00:30:33Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-22T16:15:57Z"
+  "updated": "2026-07-23T00:30:33Z"
 }
