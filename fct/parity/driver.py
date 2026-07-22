@@ -131,7 +131,7 @@ def _sweep_filter(node, metrics):
 
 def _record(st, report):
     nid = report["id"]
-    st["nodes"][nid] = {k: v for k, v in report.items() if k not in ("failures", "per_case", "worst_rows")}
+    st["nodes"][nid] = {k: v for k, v in report.items() if k not in ("failures", "per_case", "worst_rows", "rows")}
     REPORTS.mkdir(exist_ok=True)
     json.dump(report, open(REPORTS / (nid + ".json"), "w"), indent=2)  # full report (incl worst_rows) on disk
     st.setdefault("history", []).append(
@@ -151,6 +151,8 @@ def status():
         s = st["nodes"].get(n["id"], {})
         if n["kind"] == "curve":
             m = s.get("max_abs_err"); ms = ("abs=%.1e" % m) if isinstance(m, (int, float)) else "-"
+        elif n["kind"] == "transfer":
+            m = s.get("max_abs_levels"); ms = ("lvl=%.1f" % m) if isinstance(m, (int, float)) else "-"
         else:
             m = s.get("worst_ddb"); ms = ("ddb=%.1f" % m) if isinstance(m, (int, float)) else "-"
         print("  %-32s %-9s %-7s %-10s %s"
@@ -163,7 +165,7 @@ def status():
         if _stt(st, n["id"]) == "VERIFIED":
             bysub[n.get("subsystem", "?")][0] += 1
     print("  subsystems: " + "  ".join("%s %d/%d" % (k, v[0], v[1]) for k, v in sorted(bysub.items())))
-    owned_next = next((n["id"] for n in nodes if n["kind"] == "curve" and _stt(st, n["id"]) != "VERIFIED"), None)
+    owned_next = next((n["id"] for n in nodes if n["kind"] in ("curve", "transfer") and _stt(st, n["id"]) != "VERIFIED"), None)
     div_img = [n["id"] for n in nodes if n["kind"] in ("filter", "generator") and _stt(st, n["id"]) == "DIVERGED"]
     print("  next parity-owned:", owned_next or "(all curve/value VERIFIED)")
     if div_img:
@@ -204,6 +206,16 @@ def sweep(ids):
                       % (report["status"], report.get("worst_ddb"),
                          report.get("n_scored", 0), report.get("max_oracle_signal"),
                          ("  [%s]" % report["error"]) if report.get("error") else ""))
+            elif node["kind"] == "transfer":
+                from fct.parity import transfer
+                report = transfer.sweep_transfer(node)
+                _record(st, report)
+                w = report.get("worst") or {}
+                print("    -> %-9s max_abs_levels=%.2f n=%d%s"
+                      % (report["status"], report.get("max_abs_levels", -1), report.get("n_samples", 0),
+                         ("  worst in=%s oracle=%s engine=%s @%s"
+                          % (w.get("input"), w.get("oracle"), w.get("engine"), w.get("case")))
+                         if report["status"] == "DIVERGED" else ""))
             else:
                 print("    -> kind %r not yet implemented" % node["kind"])
     finally:
@@ -247,7 +259,7 @@ def step():
     their expensive sweeps. If all curve nodes are VERIFIED, remind the user to sync/step
     faithful for image work."""
     reg = _registry(); st = _state()
-    owned = [n for n in reg["nodes"] if n["kind"] == "curve"]
+    owned = [n for n in reg["nodes"] if n["kind"] in ("curve", "transfer")]
     nxt = next((n["id"] for n in owned if _stt(st, n["id"]) != "VERIFIED"), None)
     if nxt is None:
         print("  all parity-owned (curve/value) nodes VERIFIED. Image nodes delegate to "

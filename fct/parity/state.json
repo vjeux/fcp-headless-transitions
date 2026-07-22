@@ -407,6 +407,39 @@
       "tol_abs": 1e-06,
       "tol_rel": 1e-06,
       "swept": "2026-07-22T10:55:16Z"
+    },
+    "transfer.PAEBrightness": {
+      "id": "transfer.PAEBrightness",
+      "kind": "transfer",
+      "status": "DIVERGED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 104.0,
+      "n_samples": 108,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "name": "Brightness",
+          "id": 1,
+          "value": 1.5
+        },
+        "input": [
+          50,
+          200,
+          50
+        ],
+        "oracle": [
+          179.0,
+          255.0,
+          161.0
+        ],
+        "engine": [
+          75.0,
+          255.0,
+          75.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
     }
   },
   "history": [
@@ -664,8 +697,13 @@
       "id": "blur.decimation",
       "status": "VERIFIED",
       "at": "2026-07-22T10:55:16Z"
+    },
+    {
+      "id": "transfer.PAEBrightness",
+      "status": "DIVERGED",
+      "at": "2026-07-22T11:08:44Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-22T10:55:16Z"
+  "updated": "2026-07-22T11:08:44Z"
 }

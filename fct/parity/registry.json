@@ -23,6 +23,11 @@
    "kind": "error",
    "tol_abs": 1e-09,
    "tol_rel": 1e-09
+  },
+  "transfer": {
+   "kind": "max_abs_levels",
+   "tol_levels": 2.0,
+   "note": "EXACT per-pixel transfer via uniform-colour inputs (conform-invariant). VERIFIED when max abs channel error <= tol_levels (quantisation). Sidesteps pipeline coupling + headless-vs-GUI for pointwise colour nodes."
   }
  },
  "nodes": [
@@ -187,6 +192,41 @@
    ],
    "cases": "grid:blurDecimation",
    "oracle_truth": "headless",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "transfer.PAEBrightness",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAEBrightness per-pixel transfer function (out=clamp(in*amount)). EXACT isolation via uniform-colour inputs (conform-invariant), sidestepping the pipeline coupling that makes the delta-response verdict unattributable for pointwise colour nodes.",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "2E4DBB0A-A950-4896-BC2D-A5B0CFF7FAC6",
+    "pluginName": "PAEBrightness"
+   },
+   "param_cases": [
+    {
+     "name": "Brightness",
+     "id": 1,
+     "value": 1.0
+    },
+    {
+     "name": "Brightness",
+     "id": 1,
+     "value": 0.5
+    },
+    {
+     "name": "Brightness",
+     "id": 1,
+     "value": 1.5
+    },
+    {
+     "name": "Brightness",
+     "id": 1,
+     "value": 2.0
+    }
+   ],
+   "oracle_truth": "transfer",
    "status": "UNTESTED"
   },
   {

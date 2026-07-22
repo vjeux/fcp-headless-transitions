@@ -45,7 +45,24 @@ isolates THIS node's parameter response even inside the full transition. So pari
 re-implement an image oracle — for filter/generator nodes it DELEGATES to fct/faithful and
 surfaces that verdict under the single node registry.
 
-## Why this is faithful AND ungameable
+## ⚡ transfer kind: EXACT isolation for pointwise colour nodes (the colour-subsystem crack)
+
+A per-pixel colour node (Brightness/Levels/Colorize/HSV/Tint/ChannelMixer) computes
+`out_pixel = f(in_pixel, params)` with NO spatial/neighbourhood dependence. So its
+computation can be isolated EXACTLY — independent of the pipeline that made the delta-response
+verdicts unattributable — by feeding UNIFORM-COLOUR input images (conform-invariant: every
+pixel identical, so scaling/positioning can't change the value) through REAL FCP and reading
+the single output colour. Sweeping input colours builds the exact transfer function.
+
+Validated 2026-07-22: PAEBrightness read DIVERGED at delta-ddb=6.0 (unattributable), but the
+transfer test shows it matches FCP EXACTLY on gray inputs and diverges HARD on saturated
+colours (in=(50,200,50)×1.5 → FCP=[179,255,161] vs TS per-channel-sRGB=[75,255,75]). That
+104-level error is a precise, actionable RE lead: FCP's Brightness is cross-channel (working-
+space / luma-coupled), not the per-channel multiply the engine ships. The transfer kind turns
+"colour is a blind spot" into an exact per-input divergence table, and sidesteps the
+headless-vs-GUI colour-management gap for the identity case (bright=1 returns input unchanged).
+
+
 - The oracle is REAL FCP computing the SAME node the .motr declares — not a symbol we
   guessed maps to it. If our TS node-computation matches FCP's across the param space, the
   node is faithful BY CONSTRUCTION at the boundary the engine actually consumes.
