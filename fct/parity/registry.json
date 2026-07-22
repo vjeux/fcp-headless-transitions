@@ -279,6 +279,147 @@
    "characterized_reason": "Hue UNIT bug FIXED (degrees->radians, commit d5840c2, gate-neutral). Residual 107 levels is the linear-working-space sat/value coupling (FCP does HSV sat/value in linear light) \u2014 same class as PAEBrightness's cross-channel/working-space issue, gate-blocked (a per-filter linear encode regresses the GUI gate; needs the chain-level linear pipeline). Not an open unit bug."
   },
   {
+   "id": "transfer.PAETint",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAETint per-pixel transfer (tint toward Color by Intensity). Nested Color group. EXACT isolation via uniform inputs.",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "717D6E01-83F4-4A4B-AF92-42AABA4B176C",
+    "pluginName": "PAETint"
+   },
+   "param_cases": [
+    {
+     "label": "gray_tint_full",
+     "params": [
+      {
+       "name": "Color",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 0.5
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 0.5
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 0.5
+        }
+       ]
+      },
+      {
+       "name": "Intensity",
+       "id": 2,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "red_tint_full",
+     "params": [
+      {
+       "name": "Color",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 1.0
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 0.0
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 0.0
+        }
+       ]
+      },
+      {
+       "name": "Intensity",
+       "id": 2,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "blue_tint_half",
+     "params": [
+      {
+       "name": "Color",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 0.0
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 0.0
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 1.0
+        }
+       ]
+      },
+      {
+       "name": "Intensity",
+       "id": 2,
+       "value": 0.5
+      }
+     ]
+    },
+    {
+     "label": "green_tint_full",
+     "params": [
+      {
+       "name": "Color",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 0.0
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 1.0
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 0.0
+        }
+       ]
+      },
+      {
+       "name": "Intensity",
+       "id": 2,
+       "value": 1.0
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "transfer",
+   "status": "UNTESTED",
+   "characterized": true,
+   "characterized_reason": "Compound bug (param-location nested Color + hard-light tint-math), GATE-BLOCKED: fixing param-location alone regresses Leaves 22.44->19.29 (the white-tint bug compensates the tint-math bug). Must decode HgcTint hard-light shader + fix both together. See report."
+  },
+  {
    "id": "filter.PAEColorize",
    "subsystem": "color",
    "kind": "filter",

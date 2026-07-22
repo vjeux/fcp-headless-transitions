@@ -1,0 +1,1798 @@
+{
+  "id": "transfer.PAETint",
+  "kind": "transfer",
+  "status": "DIVERGED",
+  "metric": "max_abs_levels",
+  "max_abs_levels": 184.61,
+  "n_samples": 108,
+  "tol_levels": 2.0,
+  "worst": {
+    "case": {
+      "label": "green_tint_full",
+      "params": [
+        {
+          "name": "Color",
+          "id": 1,
+          "children": [
+            {
+              "name": "Red",
+              "id": 1,
+              "value": 0.0
+            },
+            {
+              "name": "Green",
+              "id": 2,
+              "value": 1.0
+            },
+            {
+              "name": "Blue",
+              "id": 3,
+              "value": 0.0
+            }
+          ]
+        },
+        {
+          "name": "Intensity",
+          "id": 2,
+          "value": 1.0
+        }
+      ]
+    },
+    "input": [
+      64,
+      64,
+      64
+    ],
+    "oracle": [
+      0.27,
+      248.61,
+      0.13
+    ],
+    "engine": [
+      64.0,
+      64.0,
+      64.0
+    ]
+  },
+  "oracle_truth": "transfer",
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "gray_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.5
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.5
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.5
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        13.63,
+        13.64,
+        13.66
+      ],
+      "engine": [
+        16.0,
+        16.0,
+        16.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gray_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.5
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.5
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.5
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        26.89,
+        26.89,
+        26.88
+      ],
+      "engine": [
+        32.0,
+        32.0,
+        32.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gray_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.5
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.5
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.5
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        53.24,
+        53.23,
+        53.22
+      ],
+      "engine": [
+        64.0,
+        64.0,
+        64.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gray_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.5
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.5
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.5
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        118.92,
+        118.71,
+        118.72
+      ],
+      "engine": [
+        128.0,
+        128.0,
+        128.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gray_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.5
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.5
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.5
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        195.14,
+        195.38,
+        195.4
+      ],
+      "engine": [
+        200.0,
+        200.0,
+        200.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gray_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.5
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.5
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.5
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        238.62,
+        238.39,
+        238.65
+      ],
+      "engine": [
+        240.0,
+        240.0,
+        240.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gray_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.5
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.5
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.5
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        62.91,
+        62.93,
+        62.92
+      ],
+      "engine": [
+        95.0,
+        95.0,
+        95.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gray_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.5
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.5
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.5
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        139.01,
+        139.01,
+        138.87
+      ],
+      "engine": [
+        138.0,
+        138.0,
+        138.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gray_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.5
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.5
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.5
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        48.03,
+        48.03,
+        48.02
+      ],
+      "engine": [
+        67.0,
+        67.0,
+        67.0
+      ]
+    },
+    {
+      "param": {
+        "label": "red_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        62.16,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        16.0,
+        16.0,
+        16.0
+      ]
+    },
+    {
+      "param": {
+        "label": "red_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        124.34,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        32.0,
+        32.0,
+        32.0
+      ]
+    },
+    {
+      "param": {
+        "label": "red_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        248.36,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        64.0,
+        64.0,
+        64.0
+      ]
+    },
+    {
+      "param": {
+        "label": "red_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        254.31,
+        43.64,
+        43.36
+      ],
+      "engine": [
+        128.0,
+        128.0,
+        128.0
+      ]
+    },
+    {
+      "param": {
+        "label": "red_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        254.5,
+        151.22,
+        151.18
+      ],
+      "engine": [
+        200.0,
+        200.0,
+        200.0
+      ]
+    },
+    {
+      "param": {
+        "label": "red_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        254.37,
+        224.95,
+        225.37
+      ],
+      "engine": [
+        240.0,
+        240.0,
+        240.0
+      ]
+    },
+    {
+      "param": {
+        "label": "red_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        254.69,
+        1.0,
+        1.0
+      ],
+      "engine": [
+        95.0,
+        95.0,
+        95.0
+      ]
+    },
+    {
+      "param": {
+        "label": "red_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        254.5,
+        68.31,
+        68.56
+      ],
+      "engine": [
+        138.0,
+        138.0,
+        138.0
+      ]
+    },
+    {
+      "param": {
+        "label": "red_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        223.1,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        67.0,
+        67.0,
+        67.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blue_tint_half",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 0.5
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        4.0,
+        4.0,
+        35.16
+      ],
+      "engine": [
+        16.0,
+        16.0,
+        16.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blue_tint_half",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 0.5
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        8.24,
+        8.0,
+        70.66
+      ],
+      "engine": [
+        32.0,
+        32.0,
+        32.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blue_tint_half",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 0.5
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        16.23,
+        16.08,
+        141.89
+      ],
+      "engine": [
+        64.0,
+        64.0,
+        64.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blue_tint_half",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 0.5
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        80.32,
+        80.31,
+        185.91
+      ],
+      "engine": [
+        128.0,
+        128.0,
+        128.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blue_tint_half",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 0.5
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        175.05,
+        174.6,
+        226.72
+      ],
+      "engine": [
+        200.0,
+        200.0,
+        200.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blue_tint_half",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 0.5
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        232.47,
+        232.59,
+        247.26
+      ],
+      "engine": [
+        240.0,
+        240.0,
+        240.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blue_tint_half",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 0.5
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        58.71,
+        16.4,
+        132.88
+      ],
+      "engine": [
+        147.0,
+        72.0,
+        72.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blue_tint_half",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 0.5
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        58.82,
+        125.8,
+        133.1
+      ],
+      "engine": [
+        94.0,
+        169.0,
+        94.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blue_tint_half",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 0.5
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        13.0,
+        13.0,
+        211.64
+      ],
+      "engine": [
+        59.0,
+        59.0,
+        134.0
+      ]
+    },
+    {
+      "param": {
+        "label": "green_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        0.01,
+        62.19,
+        0.0
+      ],
+      "engine": [
+        16.0,
+        16.0,
+        16.0
+      ]
+    },
+    {
+      "param": {
+        "label": "green_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        0.05,
+        124.12,
+        0.0
+      ],
+      "engine": [
+        32.0,
+        32.0,
+        32.0
+      ]
+    },
+    {
+      "param": {
+        "label": "green_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        0.27,
+        248.61,
+        0.13
+      ],
+      "engine": [
+        64.0,
+        64.0,
+        64.0
+      ]
+    },
+    {
+      "param": {
+        "label": "green_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        43.93,
+        254.67,
+        43.95
+      ],
+      "engine": [
+        128.0,
+        128.0,
+        128.0
+      ]
+    },
+    {
+      "param": {
+        "label": "green_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        151.2,
+        254.56,
+        151.81
+      ],
+      "engine": [
+        200.0,
+        200.0,
+        200.0
+      ]
+    },
+    {
+      "param": {
+        "label": "green_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        225.21,
+        254.67,
+        225.03
+      ],
+      "engine": [
+        240.0,
+        240.0,
+        240.0
+      ]
+    },
+    {
+      "param": {
+        "label": "green_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        0.91,
+        254.29,
+        1.06
+      ],
+      "engine": [
+        95.0,
+        95.0,
+        95.0
+      ]
+    },
+    {
+      "param": {
+        "label": "green_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        68.55,
+        254.29,
+        68.7
+      ],
+      "engine": [
+        138.0,
+        138.0,
+        138.0
+      ]
+    },
+    {
+      "param": {
+        "label": "green_tint_full",
+        "params": [
+          {
+            "name": "Color",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0.0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1.0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0.0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 2,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        0.19,
+        222.88,
+        0.01
+      ],
+      "engine": [
+        67.0,
+        67.0,
+        67.0
+      ]
+    }
+  ],
+  "characterized": true,
+  "findings": [
+    {
+      "kind": "compound_bug_gate_blocked",
+      "summary": "PAETint transfer DIVERGED 184 levels: a green tint (Color=[0,1,0],Intensity=1) leaves the TS output UNCHANGED while FCP tints green. TWO bugs compound: (1) PARAM-LOCATION \u2014 the TS registration reads top-level ctx.param('Red') but the real PAETint nests RGB under a `Color` group (id=1), so it silently uses a WHITE (1,1,1) tint (documented as known in channel-mixer.ts:73). (2) TINT-MATH \u2014 tintFilter is a simple luma*color lerp, but FCP's HgcTint is a HARD-LIGHT two-leg select about luma 0.5.",
+      "gate_blocked": "Fixing ONLY the param-location (read nested Color) REGRESSES the sole Tint host Objects__Leaves 22.44->19.29 dB (measured 2026-07-22, then reverted per ROADMAP Rule 2). The buggy white-tint COMPENSATES for the wrong tint-math on Leaves' near-gray tint (Color~0.443). So the two bugs must be fixed TOGETHER: decode + implement the hard-light HgcTint shader FIRST, then switch to the nested Color read. Neither fix alone is net-positive.",
+      "next": "Decode HgcTint hard-light two-leg transfer (shader source is in channel-mixer.ts header + docs/FILTER_RE_PHASE2.md 'Tint'), implement in tintFilter, THEN read nested Color, and verify Leaves stays >=22.44 on the GUI gate + the transfer test goes to <=2 levels."
+    }
+  ]
+}

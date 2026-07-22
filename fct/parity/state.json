@@ -473,6 +473,65 @@
       },
       "oracle_truth": "transfer",
       "n_failures": 0
+    },
+    "transfer.PAETint": {
+      "id": "transfer.PAETint",
+      "kind": "transfer",
+      "status": "DIVERGED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 184.61,
+      "n_samples": 108,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "label": "green_tint_full",
+          "params": [
+            {
+              "name": "Color",
+              "id": 1,
+              "children": [
+                {
+                  "name": "Red",
+                  "id": 1,
+                  "value": 0.0
+                },
+                {
+                  "name": "Green",
+                  "id": 2,
+                  "value": 1.0
+                },
+                {
+                  "name": "Blue",
+                  "id": 3,
+                  "value": 0.0
+                }
+              ]
+            },
+            {
+              "name": "Intensity",
+              "id": 2,
+              "value": 1.0
+            }
+          ]
+        },
+        "input": [
+          64,
+          64,
+          64
+        ],
+        "oracle": [
+          0.27,
+          248.61,
+          0.13
+        ],
+        "engine": [
+          64.0,
+          64.0,
+          64.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
     }
   },
   "history": [
@@ -750,8 +809,13 @@
       "id": "transfer.PAEHSVAdjust",
       "status": "DIVERGED",
       "at": "2026-07-22T11:32:32Z"
+    },
+    {
+      "id": "transfer.PAETint",
+      "status": "DIVERGED",
+      "at": "2026-07-22T11:39:22Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-22T11:32:32Z"
+  "updated": "2026-07-22T11:39:22Z"
 }
