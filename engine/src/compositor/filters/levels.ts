@@ -144,10 +144,16 @@ export function levelsFilter(input: ImageData, params: LevelsParams): ImageData 
  *     clips, the OTHER channels are lifted far beyond v·amount. (200,50,50)·1.5 → FCP
  *     [255,154,151] (lows 50→~152), vs per-channel [255,75,75]; (50,200,50)·1.5 → [179,255,161].
  *     amount≤1 (darken) is exact per-channel (no coupling: (200,50,50)·0.5 → [100,25,25]).
- *   • Neither plain-linear nor plain-sRGB per-channel reproduces the brighten coupling; it is
- *     consistent with FCP's non-sRGB working space (a YCbCr/HGColorGamma stage — cf. PAETint,
- *     whose luma weights are the dynamic RGB→YCbCr Y-row). Full model still open (the exact
- *     coupling law isn't yet fit); this is the shared colour-subsystem working-space ceiling.
+ *   • Neither plain-linear nor plain-sRGB per-channel reproduces the brighten coupling ON ITS
+ *     OWN — because the coupling is NOT in the operation. BINARY-DECODED 2026-07-22
+ *     (disasm_pae.py PAEBrightness): PAEBrightness constructs an HGColorMatrix and sets 4 rows
+ *     SetParameter(0,(amount,0,0,0)) (1,(0,amount,0,0)) (2,(0,0,amount,0)) (3,(0,0,0,1)) — a
+ *     DIAGONAL matrix = PLAIN per-channel multiply out=amount·channel, EXACTLY what
+ *     brightnessFilter does. So the cross-channel coupling on saturated colour is 100% the
+ *     HGColorMatrix RENDER's working-space + clamp stage (ExtendedLinearSRGB half-float
+ *     readback), NOT the op. The shipped per-channel multiply IS the correct matrix; closing
+ *     the coupling needs the chain-level linear working-space/clamp (shared colour-subsystem
+ *     fix), NOT a different Brightness formula. See fct/parity evidence.
  *
  * The shipped code keeps the plain per-channel sRGB multiply: it is EXACT for gray + the
  * darken leg, it is what the GUI GT prefers for the stacked Curtains chain (a per-filter
