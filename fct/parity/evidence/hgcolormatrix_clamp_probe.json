@@ -394,5 +394,13 @@
   "ParameterizeMatrix": "just copies the 4 matrix rows into the param buffer (Helium @0x201b58) -- no clamp setup.",
   "conclusion": "The over-1.0 cross-channel LIFT is NOT in the Brightness/ChannelMixer OPERATION (the matrix shader is unclamped and per-channel-exact). It is 100%% in the OZ compositor TILE READBACK: the unclamped float matrix output is stored in a half-float ExtendedLinearSRGB tile, and the lift + frozen asymptote + discontinuity appear when that HDR tile is colour-managed down to the 8-bit display output. The transfer probe reads FCP AFTER this readback, so it sees the lift; the engine _filter_apply does the matrix in 8-bit code space and does not replicate the readback. NOT a matrix-function bug -- a chain-level GUI colour-pipeline (readback) effect. Candidate readback shaders exist (HgcGamutMap/HgcColorClamp/HgcOutputClamp) but the actual path is the tile-format conversion, not one fragment shader.",
   "implication": "For the NODE-BOUNDARY function, the engine per-channel multiply IS the correct HGColorMatrix op (VERIFIED for darken/gray/non-amplifying). The brighten-on-saturated divergence belongs to the same chain-level working-space readback that blocks the GUI promotion of Tint/HSV/Colorize -- ONE shared fix, not per-filter."
+ },
+ "models_ruled_out_2026_07_22b": {
+  "note": "Re-tested against the 342-case golden set with the confirmed Rec.709/gamma-1.961 WS.",
+  "linear-multiply+sRGB-clip": "66 rms (breaks darken leg too)",
+  "luma-preserving-desat-to-gamut (code & WS)": "18-20 rms, undershoots (G 87 vs 154)",
+  "hue-preserving-scale-to-max-1": "undershoots (255,64,64 vs 255,176,172)",
+  "constant-overflow-bleed k=0.654": "13.45 rms, non-constant bleed (over+undershoots)",
+  "CONCLUSION": "No pointwise model fits. Confirms the HGColorMatrix fragment shader is a pure unclamped dot product (disassembled) \u2014 the lift is the OZ tile READBACK (unclamped ExtendedLinearSRGB half-float -> display), a non-pointwise pipeline stage. Same mechanism blocks the HSV saturated-clip case. NOT closable by transfer-probe fitting; needs the HGColorMatrix RenderTile / tile-format-conversion disasm. Documented dead-end for pointwise decode."
  }
 }
