@@ -35,3 +35,21 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
 > 4 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
+
+## Algorithm (decoded)
+
+_PAECompoundBlur — a map-driven varying blur (blur amount comes from a second "map" image)._
+
+Each pixel is blurred by a radius read from a **blur map** (a grayscale control image), so you can
+paint where the image is sharp vs blurred (depth-of-field masks).
+
+```
+m      = luma(sample(blurMap, p))           // 0..1 control value at this pixel
+radius = m * Amount                          // local radius from the map
+sigma  = radius / 6.10                         // shared HGBlur ratio
+out    = varyingGaussian(source, sigma)      // approximated by blending fixed Gaussian levels by m
+```
+
+`Amount` = max radius, **map channel** selects which channel of the map = height. Same varying-blur
+engine as Gradient/Circle Blur, but the `t` is sampled from an arbitrary image. Head-start: blend
+precomputed Gaussian mip levels by the map value.

@@ -26,3 +26,22 @@ Non-creative host parameters on this filter: `Crop`, `Flip`, `Input Points`, `Pu
 ## Implementation status
 
 **Implemented.** TS module: [`engine/src/compositor/filters/directional-blur.ts`](../../engine/src/compositor/filters/directional-blur.ts).
+
+## Algorithm (decoded)
+
+_PAERadialBlur — angular (spin) blur via `HGBlur` in polar space._
+
+Blurs along **circular arcs** around a center (spin/rotational blur), distinct from Zoom Blur's
+radial streaks:
+
+```
+d      = p - Center;  r = |d|;  θ = atan2(d.y, d.x)
+arcLen = Amount * r                           // blur span grows with radius (constant angle)
+sigma  = arcLen / 6.10                          // SAME HGBlur ratio (per methodology; not a new fit)
+// average samples along the arc at angles θ ± k, radius r:
+out    = Σ_k gaussian(k,sigma) · sample(Center + r·(cos(θ+kΔ), sin(θ+kΔ)))
+```
+
+`Amount` = spin angle, `Center` = pivot. The earlier "arcPx/6.0" fit was rejected — it's the same
+`radius/6.10` primitive in polar coordinates (see `FILTER_RE_METHODOLOGY.md`). Head-start: polar
+warp → 1-D Gaussian along θ → back. Shipped variant exists; confirm angle→arc mapping via disasm.

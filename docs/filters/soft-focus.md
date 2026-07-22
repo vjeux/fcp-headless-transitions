@@ -30,3 +30,18 @@ Non-creative host parameters on this filter: `Crop`, `360° Aware`, `Flip`, `Inp
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_PAESoftFocus — bloom-style diffusion: screen a blurred copy over the sharp original._
+
+Softens while keeping edge definition (dreamy portrait glow):
+
+```
+blur   = gaussianBlur(source, Amount/6.10)     // shared HGBlur
+out    = screen(source, blur · Intensity)       // 1-(1-a)(1-b): lifts highlights, softens
+out    = mix(source, out, Mix)
+```
+
+`Amount` = blur radius, **Intensity** = strength of the soft overlay, `Mix` = blend. Distinct from a
+plain blur: the screen keeps darks sharp and blooms lights. Head-start: blur + screen composite.

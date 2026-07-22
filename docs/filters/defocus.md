@@ -32,3 +32,23 @@ Non-creative host parameters on this filter: `Crop`, `Flip`, `Input Points`. The
 ## Implementation status
 
 **Not implemented** — 📄 shader available: `evidence/shaders/HgcConvolvePass7tapDefocus.metal` (verbatim FCP source, per-pixel math decoded; TS port pending).
+
+## Algorithm (decoded)
+
+_PAEDefocus — bokeh blur via the checked-in `HgcConvolvePass7tapDefocus` shader (evidence/shaders/)._
+
+Unlike Gaussian, Defocus convolves with a **polygonal-aperture disc** so out-of-focus highlights
+bloom into hexagons/pentagons (real lens bokeh):
+
+```
+// 7-tap disc kernel (HgcConvolvePass7tapDefocus): taps arranged on the aperture polygon,
+// equal-ish weights (a disc, not a bell), radius = Amount:
+out = Σ_{k=0..6} w_k · sample(p + radius · tap_k)
+// tap_k positions define the aperture SHAPE (Sides), rotated by Rotation.
+// Gain boosts the brightest taps so highlights blow into bokeh discs.
+```
+
+`Amount` = defocus radius, **Sides** = aperture polygon (5=pentagon…), **Rotation** = aperture
+angle, **Gain** = highlight bokeh boost. The disc (flat) kernel vs Gaussian (bell) is the whole
+difference. 📄 shader in `evidence/shaders/HgcConvolvePass7tapDefocus.metal`; head-start: disc-tap
+convolution at the aperture vertices, with a highlight-gain pre-pass.

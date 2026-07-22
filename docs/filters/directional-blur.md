@@ -26,3 +26,24 @@ Non-creative host parameters on this filter: `Crop`, `OSC Center`, `Publish OSC`
 ## Implementation status
 
 **Implemented.** TS module: [`engine/src/compositor/filters/directional-blur.ts`](../../engine/src/compositor/filters/directional-blur.ts).
+
+## Algorithm (decoded)
+
+_PAEDirectionalBlur — delegates to the shared Helium `HGBlur` primitive (decoded in
+`gaussian-blur.ts`; same `sigma = radius/6.10` kernel, independently confirmed on this filter)._
+
+A **1-D Gaussian along a chosen angle**: it blurs only in the direction of `Angle`, leaving the
+perpendicular axis sharp — motion-blur look.
+
+```
+dir    = (cos(Angle), sin(Angle))
+sigma  = Amount / 6.10                       // SAME decoded ratio as Gaussian Blur (measured)
+// separable 1-D Gaussian convolution along `dir` only:
+out    = Σ_k  gaussian(k, sigma) · sample(p + k·dir)
+out    = mix(src, out, Mix)
+```
+
+`Amount` = blur length (px), `Angle` = blur direction (radians), `Mix` = blend. Because it reuses
+`HGBlur`, the kernel is the normalized Gaussian PDF `(1/σ)·exp(−½(x/σ)²)·0.39894` — no separate
+constant to fit. Head-start: project onto `dir`, run the shared 1-D Gaussian; shipped in
+`directional-blur.ts`.

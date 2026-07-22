@@ -31,3 +31,21 @@ Non-creative host parameters on this filter: `Crop`, `Publish OSC`, `Flip`, `Inp
 **Not implemented** — 📄 shader available: `evidence/shaders/HgcGradientBlur2.metal` (verbatim FCP source; TS port pending).
 
 > 2 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
+
+## Algorithm (decoded)
+
+_PAEGradientBlur (shader `HgcGradientBlur2` checked in) — spatially-varying `HGBlur`._
+
+The blur **radius varies across the frame along a gradient** defined by two points: sharp at
+`Point 1`, maximally blurred (`Amount`) toward `Point 2`.
+
+```
+t       = clamp( dot(p - Point1, Point2-Point1) / |Point2-Point1|² , 0, 1)   // position along gradient
+radius  = t * Amount                                   // local blur radius
+sigma   = radius / 6.10                                // shared HGBlur ratio
+out     = gaussianBlur(source, sigma_at_p)             // per-pixel-varying blur (tiled/mip approx)
+```
+
+`Amount` = max radius, `Point 1/2` = the gradient line. FCP approximates the varying blur by
+blending a few fixed-radius `HGBlur` levels by `t` (compound-blur style). Head-start: precompute a
+handful of Gaussian levels, lerp by the gradient `t`. See `HgcGradientBlur2.metal`.

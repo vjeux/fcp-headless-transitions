@@ -30,3 +30,19 @@ Non-creative host parameters on this filter: `Crop`, `Flip`, `Input Points`, `Pu
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_PAEVariableBlur — same varying-`HGBlur` family as Compound/Gradient Blur._
+
+A blur whose radius is driven by a control (map or gradient); functionally identical engine to
+Compound Blur:
+
+```
+radius = control(p) * Amount        // control = map luma or gradient position
+sigma  = radius / 6.10
+out    = varyingGaussian(source, sigma)
+```
+
+Head-start: reuse the Compound/Gradient varying-blur (blend fixed Gaussian levels by the control).
+`Amount` = max radius; the control source is the distinguishing param.

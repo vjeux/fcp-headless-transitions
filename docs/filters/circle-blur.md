@@ -29,3 +29,18 @@ Non-creative host parameters on this filter: `Crop`, `Publish OSC`, `Flip`, `Inp
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_PAECircleBlur — radially-varying `HGBlur` (sharp inside a circle, blurred outside, or vice-versa)._
+
+```
+r      = distance(p, Center) / Radius
+t      = clamp(r, 0, 1)                     // 0 at center → 1 at/after Radius
+radius = t * Amount                          // (or (1-t)*Amount for inside-blur)
+sigma  = radius / 6.10                        // shared HGBlur ratio
+out    = varyingGaussian(source, sigma)
+```
+
+`Center`, `Radius` (sharp zone), `Amount` (max blur). Same varying-blur approximation as Gradient
+Blur but with a radial `t`. Head-start: radial `t` → per-pixel sigma via blended Gaussian levels.
