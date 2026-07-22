@@ -26,3 +26,25 @@ No extra plumbing parameters recorded. These are standard FxPlug/host boilerplat
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcYIQAdjust` embedded shader. Decoded functional form:_
+
+YIQ Adjust adds a **YIQ-space offset** to the image — you specify a shift in the Y (luma), I, and Q
+(chroma) axes, and it's converted to an RGB offset and added:
+
+```
+c    = clamp(rgb / max(a,1e-6), 0, 1)
+// YIQ→RGB matrix (the shader's baked constants, standard NTSC YIQ):
+//   R = Y + 0.956·I + 0.621·Q
+//   G = Y − 0.272·I − 0.647·Q
+//   B = Y − 1.105·I + 1.702·Q
+offset = YIQtoRGB( hg_Params[0].xyz )     // hg_Params[0] = (ΔY, ΔI, ΔQ) user adjustment
+out.rgb= clamp(c + offset, 0, 1) * a
+```
+
+The matrix rows `(1, 0.956, 0.621)`, `(1, −0.272, −0.647)`, `(1, −1.105, 1.702)` are the textbook
+NTSC YIQ→RGB transform. `hg_Params[0]` = the **Y/I/Q offsets**. Head-start: convert the YIQ
+adjustment to an RGB bias via that matrix, add. (YUV Adjust is the same idea with the YUV/Rec.601
+matrix; no dedicated shader — same additive-offset structure.)

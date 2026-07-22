@@ -27,3 +27,16 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 **Implemented.** TS module: [`engine/src/compositor/filters/levels.ts`](../../engine/src/compositor/filters/levels.ts).
 
 > 1 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
+
+## Algorithm (decoded)
+
+_PAEBrightness — no dedicated shader; a trivial per-pixel scale/offset (shipped in the color path)._
+
+```
+c    = rgb / max(a,1e-6)
+out  = clamp(c * (1 + Brightness), 0, 1) * a     // or additive c + Brightness, per the Amount param
+```
+
+`Brightness` (fractional, corpus range ~[0, 0.4]) scales/offsets luminance. The disasm shows a
+single `getFloatValue(Amount)` feeding a multiply-add — no primitive delegation. Head-start: one
+multiply-add in un-premultiplied space.

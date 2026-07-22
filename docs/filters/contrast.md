@@ -33,3 +33,16 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
 > 4 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
+
+## Algorithm (decoded)
+
+_PAEContrast — per-pixel contrast about a mid-gray pivot (RE notes in `evidence/CONTRAST_RE.md`)._
+
+```
+c    = rgb / max(a,1e-6)
+out  = clamp( (c - 0.5) * (1 + Contrast) + 0.5, 0, 1 ) * a    // expand/compress around 0.5
+```
+
+`Contrast` (corpus ~[0, 0.43]) is the gain about the 0.5 pivot; >0 increases contrast. See
+`evidence/CONTRAST_RE.md` for the exact pivot/gain mapping decoded from `-[PAEContrast ...]`.
+Head-start: the pivot-scale line above.
