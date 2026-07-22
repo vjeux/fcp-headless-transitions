@@ -512,3 +512,33 @@ rotation + gamut desat) is now PROVEN, converting this from "non-standard unknow
 characterized operator with a bounded remaining unknown. Still gate-neutral (shipping Hue=0).
 
 State: 35 nodes | VERIFIED 17  CHARACTERIZED 4  DIVERGED 14.
+
+
+## UPDATE 2026-07-22 (session 2) — WORKING-SPACE GAMMA + LUMA CONFIRMED FROM FCP's OWN CODE
+
+Closed the loop on the gamma-1.958 decode by calling FCP's OWN colour functions via dlsym
+(ProCore, pure — no engine boot). Two authoritative confirmations + one new exact node:
+
+1. `PCGetGamutColorSpaceLuminanceCoefficients(0)` → (0.212639, 0.715169, 0.072192) = Rec.709.
+   Added as EXACT parity node curve.color.luma709 (VERIFIED 3.5e-7 vs engine LUMA709_COEFFS_FCP).
+   Independently proves the Rec.709 luma used across the decoded colour subsystem is FCP's real
+   working-space luma — not a fit.
+
+2. `PCEstimateGamma(CGColorSpace*)` (ProCore) via CoreGraphics-constructed spaces:
+     sRGB → 2.200,  linearSRGB → 1.000,  extendedLinearSRGB → 1.000,
+     ITUR_709 → 1.961,  displayP3 → 2.200
+   FCP's Rec.709 (ITU-R BT.709) working space has gamma 1.961 — EXACTLY the working-space gamma
+   decoded empirically (1.956-1.961) for Tint/HSV/Colorize/Levels. This is the smoking gun: the
+   colour working space is FCP's Rec.709 space (Rec.709 primaries + 1.961 gamma + Rec.709 luma),
+   NOT sRGB (2.2) and NOT scene-linear/ExtendedLinearSRGB (1.0 — the engine's linear-chain
+   assumption). Evidence: evidence/working_space_gamma.json + pcestimategamma_probe.py.
+
+3. Best Tint fit refined with the exact luma + tint decoded via true sRGB EOTF → gamma-1.956
+   working encode: 0.259 rms / 0.71 worst (physically coherent: tint UI colour is sRGB-authored,
+   decoded to linear, re-encoded into the Rec.709 working space). Empirical 1.956 = effective
+   power over the tested code range; nominal FCP value 1.961.
+
+This CONVERTS the unified gamma-1.958 finding from "rigorous fit" to "confirmed from FCP's
+authoritative binary". The colour working space is now KNOWN, not inferred.
+
+State: 36 nodes | VERIFIED 18  CHARACTERIZED 4  DIVERGED 14. colour 8/18, curves exact frontier +1.

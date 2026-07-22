@@ -1,0 +1,17 @@
+{
+ "desc": "FCP ProCore PCEstimateGamma(CGColorSpace*) results via dlsym \u2014 authoritative working-space gamma.",
+ "symbol": "_Z15PCEstimateGammaP12CGColorSpace framework=ProCore",
+ "results": {
+  "sRGB": 2.2,
+  "linearSRGB": 1.0,
+  "extendedLinearSRGB": 1.0,
+  "ITUR_709": 1.961,
+  "displayP3": 2.2
+ },
+ "luma_coeffs_gamut0_rec709": [
+  0.212639,
+  0.715169,
+  0.072192
+ ],
+ "finding": "FCP Rec.709 (ITU-R BT.709) working space has gamma 1.961 (NOT sRGB 2.2, NOT scene-linear 1.0). This authoritatively confirms the gamma-1.958 working space decoded for Tint/HSV/Colorize/Levels is FCP real Rec.709 gamma. Empirical best-fit 1.956 = effective power over the tested code range; nominal FCP value 1.961. Working colour space = Rec.709 primaries + 1.961 gamma + Rec.709 luma."
+}
