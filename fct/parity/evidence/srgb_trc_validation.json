@@ -1,0 +1,6 @@
+{
+  "what": "Validation of FCP's sRGB transfer-function constants via PCIssRGBTransferFunction(g,a,b,c,d).",
+  "result": "PCIssRGBTransferFunction returns True for the canonical sRGB TRC (g=2.4, a=1/1.055=0.9479, b=0.055/1.055=0.0521, c=1/12.92=0.0774, d=0.04045) and False for pure-power 2.2/2.22. Confirms FCP uses the STANDARD piecewise sRGB curve, matching the engine's LUT_SRGB_TO_LINEAR constants.",
+  "relevance": "Anchors the colour working-space work: when the chain-level linear pipeline is built to fix the cross-channel/mix divergence (Brightness/Colorize/Tint/HSV), the sRGB<->linear transform is the STANDARD sRGB curve (verified here), not a pure 2.2 gamma. Removes one unknown from the working-space fix.",
+  "also_available": "PCIs709TransferFunction (Rec709 TRC test), PCEstimateGammaFromTransferFunction, HGPQ::EOTF/InverseEOTF (HDR PQ) \u2014 all exported, for future HDR/colour-space parity."
+}
