@@ -36,14 +36,17 @@ oracle) and in the TS engine (the port), then sweeps the node's params:
 | Node kind (XML) | Computation | REAL FCP isolation | TS isolation | Metric |
 |---|---|---|---|---|
 | `curve` — a `<curve interp=N>` segment | (keyframes, t) → value | the exact FCP fn that segment triggers, called via **dlsym** (`easeInOut`, `OZBezierEval`, `OZBezierFindParameter`) | the engine's `curves.ts` port (via a tsx worker) | max abs/rel error — **exact** (value domain) |
-| `filter` — `<filter pluginName=X>` | image, params → image | inject as the scene `<filter>` on the Blurs/Directional skeleton at t=0 (A covers frame ⇒ output = filter(imageA)); `tools/re/filter_probe.py` | the registered filter's `.apply` (`engine/test/_filter_apply.ts`) | worst-case PSNR over the sweep (signal-gated) |
+| `filter` — `<filter pluginName=X>` | image, params → image | FAITHFUL delta-response in the node's REAL host — `delta_o=oracle(θ)−oracle(θ0)`, `delta_e=engine(θ)−engine(θ0)`, `ddb=PSNR(delta_o,delta_e)` (delegated to `fct/faithful`) | the registered filter's `.apply` | worst-case ddb over the sweep (signal-gated) |
 | `generator` — a generator `<scenenode>` | params → image | inject + render | generator `.render` | PSNR (future) |
 | `transform` — a layer `<transform>` | params → 4×4 matrix / placement | inject + render placement | `buildTransformMatrix` / `mat4*` | error — exact (future) |
 
 The `curve` kind reuses the **dlsym oracle** (`oracle.py`): the value a keyframe segment
 produces for a given interp type IS a single exported FCP function, so we verify it
-bit-for-bit. The `filter` kind reuses the existing **filter_probe / _filter_apply** pair so
-there is ONE isolation path (no duplicate skeleton/injection logic).
+bit-for-bit — parity's unique contribution. The `filter`/`generator` kinds **delegate to the
+FAITHFUL delta-response** in `fct/faithful/` (the node's real-host param response), because a
+static-source injection is UNFAITHFUL (a filter's response depends on its real input pipeline
+— see `fct/faithful/synth.py`). So parity is the single NODE registry across all kinds, each
+using the correct oracle; it does not re-implement a static image oracle.
 
 ## Why it's faithful AND ungameable
 - The oracle is REAL FCP computing the SAME node the `.motr` declares — not a symbol we
@@ -101,14 +104,16 @@ Enumerate every node kind each subsystem uses, port it, `VERIFY` it here.
    `ts_fn` (exposed in `engine/test/_parity_worker.ts` as a thin wrapper over `../src`).
 3. Add a case generator in `cases.py`. `./fct.sh parity sweep <id>`.
 
-**A filter node** (image→image):
-1. Find its real `uuid` + `pluginName` (from the TS `registerFilter` call, or a real `.motr`).
-2. Add a registry `node` with `kind:"filter"`, `oracle:{type:"filter_probe",uuid,pluginName}`,
-   and `params:[{name,id,range,class}]`. Set `oracle_truth` (`gui` for color, `headless` for
-   geometric/kernel).
-3. `./fct.sh parity sweep <id>`. When it DIVERGES: first check the `oracle_truth` caveat and
-   the `identity_warning`; decode-don't-fit (ROADMAP Rule 7) — read the node's real math from
-   the binary before touching engine code.
+**A filter/generator node** (image→image, delegated):
+1. Ensure the primitive exists in `fct/faithful/catalog.json` (real `plugin_name` + host
+   slugs). If not, add it there first (that program already extracts its param schema from
+   real hosts).
+2. Add a registry `node` with `kind:"filter"` (or `"generator"`),
+   `oracle:{type:"faithful_delta","faithful_id":"PAEX"}`, `faithful_id:"PAEX"`, and set
+   `oracle_truth` (`gui` for color, `headless` for geometric/kernel).
+3. `./fct.sh parity sweep <id>` runs the faithful delta-response and surfaces the ddb verdict.
+   When it DIVERGES: first check the `oracle_truth` caveat; decode-don't-fit (ROADMAP Rule 7)
+   — read the node's real math from the binary before touching engine code.
 
 ## Rules (from the ROADMAP, specialized)
 - The oracle is REAL FCP computing the DECLARED node, not a guess.

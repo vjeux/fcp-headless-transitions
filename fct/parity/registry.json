@@ -4,13 +4,14 @@
  "note": "NODE-BOUNDARY parity: the unit of truth is ONE .motr node + its params -> ONE isolated computation, verified faithful (TS port == REAL FCP) across the node's param space. NOT a hand-picked C++ symbol, NOT whole-frame PSNR through the full pipeline. See DESIGN.md. kinds: filter(image->image, isolate via filter_probe.py+_filter_apply.ts), curve(value->value, the computation a <curve interp=N> segment triggers \u2014 the exact interpolation, verified bit-exact via the dlsym oracle), transform(params->matrix), generator(params->image). status: UNTESTED|VERIFIED|DIVERGED|NO_SIGNAL|NO_ORACLE.",
  "metrics": {
   "filter": {
-   "kind": "psnr",
+   "kind": "delta_ddb",
    "pass_db": 40.0,
-   "note": "worst-case headless-vs-TS PSNR over the param sweep; signal-gated (skip inert params)."
+   "note": "FAITHFUL delta-response ddb in the node's real host (delegated to fct/faithful). Static-source injection is unfaithful (synth.py lesson). Signal-gated."
   },
   "generator": {
-   "kind": "psnr",
-   "pass_db": 40.0
+   "kind": "delta_ddb",
+   "pass_db": 40.0,
+   "note": "FAITHFUL delta-response ddb in the node's real host (delegated to fct/faithful). Static-source injection is unfaithful (synth.py lesson). Signal-gated."
   },
   "curve": {
    "kind": "error",
@@ -161,26 +162,14 @@
    "id": "filter.PAEBrightness",
    "subsystem": "filters",
    "kind": "filter",
-   "desc": "PAEBrightness node: per-channel multiply. image,params->image.",
+   "desc": "PAEBrightness node: per-channel multiply. Verified via the FAITHFUL delta-response sweep in its real host (static-source injection is unfaithful \u2014 see filter_node.py).",
    "oracle": {
-    "type": "filter_probe",
-    "uuid": "2E4DBB0A-A950-4896-BC2D-A5B0CFF7FAC6",
-    "pluginName": "PAEBrightness"
+    "type": "faithful_delta",
+    "faithful_id": "PAEBrightness"
    },
-   "params": [
-    {
-     "name": "Brightness",
-     "id": 1,
-     "range": [
-      0.0,
-      3.0
-     ],
-     "class": "continuous"
-    }
-   ],
-   "cases": "filter:PAEBrightness",
    "oracle_truth": "gui",
-   "status": "UNTESTED"
+   "status": "UNTESTED",
+   "faithful_id": "PAEBrightness"
   }
  ]
 }

@@ -74,19 +74,14 @@
       "id": "filter.PAEBrightness",
       "kind": "filter",
       "status": "DIVERGED",
-      "n_scored": 6,
-      "n_gated": 2,
-      "worst_psnr": 13.32,
-      "worst": {
-        "case": {
-          "Brightness": 1.5
-        },
-        "hvi": 67.55
-      },
+      "metric": "delta_ddb",
+      "worst_ddb": 6.004,
+      "n_scored": 21,
+      "max_oracle_signal": 134.118,
       "pass_db": 40.0,
       "oracle_truth": "gui",
-      "n_failures": 0,
-      "swept": "2026-07-22T10:31:06Z"
+      "faithful_id": "PAEBrightness",
+      "used_synthetic": false
     }
   },
   "history": [
@@ -129,8 +124,13 @@
       "id": "filter.PAEBrightness",
       "status": "DIVERGED",
       "at": "2026-07-22T10:31:06Z"
+    },
+    {
+      "id": "filter.PAEBrightness",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:39:32Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-22T10:31:06Z"
+  "updated": "2026-07-22T10:39:32Z"
 }

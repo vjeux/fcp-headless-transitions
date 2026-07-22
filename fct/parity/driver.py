@@ -119,50 +119,21 @@ def _sweep_curve(node, worker, metrics):
 
 
 # ---------------------------------------------------------------------------------------
-# FILTER kind: image->image. filter_probe (REAL FCP) vs _filter_apply (TS), PSNR over sweep.
+# FILTER/GENERATOR kind: image node. DELEGATE to the FAITHFUL delta-response sweep (the
+# proven in-host isolation). A static-source injection would be UNFAITHFUL (synth.py lesson),
+# so parity does not re-implement it — it surfaces the faithful verdict under the node view.
 # ---------------------------------------------------------------------------------------
 def _sweep_filter(node, metrics):
     from fct.parity import filter_node
-    pass_db = metrics["filter"]["pass_db"]
-    case_list = cases_mod.generate(node["cases"], node=node)
-    worst = {"psnr": 1e9, "case": None, "hvi": None}
-    scored = 0; skipped = 0; failures = []
-    per_case = []
-    for pv in case_list:
-        try:
-            r = filter_node.compare(node, pv)
-        except Exception as ex:
-            failures.append({"case": pv, "error": str(ex)[:200]}); continue
-        # SIGNAL GATING: skip a param setting where the node was INERT (headless == input)
-        # — nothing to verify there (identity_warning flags it).
-        hvi = r.get("headless_vs_input_mad", 0.0)
-        if "identity_warning" in r or hvi < 1.5:
-            skipped += 1
-            per_case.append({"case": pv, "psnr": r["psnr"], "hvi": hvi, "gated": True})
-            continue
-        scored += 1
-        per_case.append({"case": pv, "psnr": r["psnr"], "hvi": hvi})
-        if r["psnr"] < worst["psnr"]:
-            worst.update(psnr=r["psnr"], case=pv, hvi=hvi)
-    if scored == 0:
-        status = "NO_SIGNAL"
-    else:
-        status = "VERIFIED" if worst["psnr"] >= pass_db else "DIVERGED"
-    return {"id": node["id"], "kind": "filter", "status": status,
-            "n_scored": scored, "n_gated": skipped,
-            "worst_psnr": (None if scored == 0 else worst["psnr"]),
-            "worst": {"case": worst["case"], "hvi": worst["hvi"]},
-            "pass_db": pass_db, "oracle_truth": node.get("oracle_truth", "headless"),
-            "n_failures": len(failures), "failures": failures[:5],
-            "per_case": per_case,
-            "swept": time.strftime("%Y-%m-%dT%H:%M:%SZ")}
+    pass_db = metrics[node["kind"]]["pass_db"]
+    return filter_node.sweep_filter_node(node, pass_db)
 
 
 def _record(st, report):
     nid = report["id"]
-    st["nodes"][nid] = {k: v for k, v in report.items() if k not in ("failures", "per_case")}
+    st["nodes"][nid] = {k: v for k, v in report.items() if k not in ("failures", "per_case", "worst_rows")}
     REPORTS.mkdir(exist_ok=True)
-    json.dump(report, open(REPORTS / (nid + ".json"), "w"), indent=2)
+    json.dump(report, open(REPORTS / (nid + ".json"), "w"), indent=2)  # full report (incl worst_rows) on disk
     st.setdefault("history", []).append(
         {"id": nid, "status": report["status"], "at": time.strftime("%Y-%m-%dT%H:%M:%SZ")})
     _save(st)
@@ -181,7 +152,7 @@ def status():
         if n["kind"] == "curve":
             m = s.get("max_abs_err"); ms = ("abs=%.1e" % m) if isinstance(m, (int, float)) else "-"
         else:
-            m = s.get("worst_psnr"); ms = ("psnr=%.1f" % m) if isinstance(m, (int, float)) else "-"
+            m = s.get("worst_ddb"); ms = ("ddb=%.1f" % m) if isinstance(m, (int, float)) else "-"
         print("  %-32s %-9s %-7s %-10s %s"
               % (n["id"], n.get("subsystem", "?"), n["kind"], _stt(st, n["id"]), ms))
     nxt = next((n["id"] for n in nodes if _stt(st, n["id"]) not in ("VERIFIED",)), None)
@@ -215,14 +186,13 @@ def sweep(ids):
                 _record(st, report)
                 print("    -> %-9s max_abs_err=%.3e n=%d"
                       % (report["status"], report.get("max_abs_err", -1), report.get("n_cases", 0)))
-            elif node["kind"] == "filter":
+            elif node["kind"] in ("filter", "generator"):
                 report = _sweep_filter(node, metrics)
                 _record(st, report)
-                w = report.get("worst") or {}
-                print("    -> %-9s worst_psnr=%s scored=%d gated=%d%s"
-                      % (report["status"], report.get("worst_psnr"),
-                         report.get("n_scored", 0), report.get("n_gated", 0),
-                         ("  worst@%s" % (w.get("case"))) if report["status"] == "DIVERGED" else ""))
+                print("    -> %-9s worst_ddb=%s n_scored=%s max_sig=%s%s"
+                      % (report["status"], report.get("worst_ddb"),
+                         report.get("n_scored", 0), report.get("max_oracle_signal"),
+                         ("  [%s]" % report["error"]) if report.get("error") else ""))
             else:
                 print("    -> kind %r not yet implemented" % node["kind"])
     finally:

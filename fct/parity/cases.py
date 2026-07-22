@@ -109,35 +109,20 @@ _GENERATORS = {
 }
 
 
-def filter_param_sweep(node, n_per_param=7):
-    """FILTER node: sweep each continuous param across its range (others at authored/1).
-    Returns a list of {param_name: value} dicts. One param varies at a time (isolates the
-    node's response to THAT param), plus the all-default point."""
-    params = [p for p in node.get("params", []) if p.get("class", "continuous") == "continuous"]
-    defaults = {p["name"]: p.get("default", 1.0) for p in node.get("params", [])}
-    cases = [dict(defaults)]  # authored/default center point
-    for p in params:
-        lo, hi = p.get("range", [0.0, 1.0])
-        for v in _linspace(lo, hi, n_per_param):
-            c = dict(defaults)
-            c[p["name"]] = v
-            cases.append(c)
-    return cases
-
-
 def generate(spec, node=None):
-    """spec like 'grid:easeInOut' -> list of args dicts (curve/value nodes), or
-    'filter:<id>' -> list of param-value dicts (filter nodes; needs `node`)."""
+    """spec like 'grid:easeInOut' -> list of args dicts (curve/value nodes).
+
+    NOTE: filter/generator (image) nodes do NOT use this — they delegate to the FAITHFUL
+    delta-response sweep (fct.parity.filter_node), which drives params from the real host's
+    extracted schema. A static-source param grid would be UNFAITHFUL (synth.py lesson). So
+    this generator serves only the exact curve/value kinds.
+    """
     if spec.startswith("grid:"):
         name = spec.split(":", 1)[1]
         gen = _GENERATORS.get(name)
         if gen is None:
             raise ValueError("no case generator named %r (add to cases._GENERATORS)" % name)
         return gen()
-    if spec.startswith("filter:"):
-        if node is None:
-            raise ValueError("filter case spec %r needs the node entry" % spec)
-        return filter_param_sweep(node)
     raise ValueError("unknown case spec %r" % spec)
 
 
