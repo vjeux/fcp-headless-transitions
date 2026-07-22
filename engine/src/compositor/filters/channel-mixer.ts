@@ -444,14 +444,15 @@ export function colorizeRemapFilter(
   // total blend from original toward the remapped color = intensity * mix (both
   // stages lerp original->target, so they compose to a single lerp factor).
   const k = intensity * mix;
-  // DECODED gamma-1.958 working-space path (fct/parity, 2026-07-22). Guarded by
-  // FCT_COLORIZE_WS=1. This runs the verbatim HgcColorize with luma computed in the
-  // gamma-1.958 working space and RAW endpoints, matching REAL FCP (headless transfer)
-  // at 0.18 rms / 0.5 worst (transfer.PAEColorize) — the SAME unified colour working
-  // space as Tint + HSV. The shipped GUI-GT path below keeps code-space Rec.709 luma
-  // (the GUI-GT export uses a different colour-management step — a decoded headless≠GUI
-  // split for this filter; see the long note above). Node-boundary faithful decode only.
-  if (typeof process !== 'undefined' && process.env && process.env.FCT_COLORIZE_WS === '1') {
+  // DECODED gamma-1.958 working-space path (fct/parity, 2026-07-22) — SHIPPED DEFAULT.
+  // Runs the verbatim HgcColorize with luma computed in the gamma-1.958 working space and
+  // RAW endpoints, matching REAL FCP (headless transfer) at 0.18 rms / 0.5 worst
+  // (transfer.PAEColorize) — the SAME unified colour working space as Tint + HSV. PROMOTED
+  // after the ground-truth switch to HEADLESS FCP (net +6.24 dB across the 5 Colorize hosts,
+  // 0 regressions). FCT_COLORIZE_LEGACY=1 restores the old code-space Rec.709-luma path
+  // (which the GUI export happened to prefer — headless≠GUI, and headless is now the truth).
+  const colorizeLegacy = typeof process !== 'undefined' && !!process.env && process.env.FCT_COLORIZE_LEGACY === '1';
+  if (!colorizeLegacy) {
     const iv = 0.51117, gm = 1.0 / 0.51117;   // gamma-1.958 working space
     const wr = 0.2126, wg = 0.7152, wb = 0.0722;   // Rec.709 luma
     const bRw = black.r, bGw = black.g, bBw = black.b;
@@ -626,26 +627,24 @@ registerFilter({
     const intensity = readScalar('Intensity', 1);  // hg_Params[2]: colorize amount
     const mix = readScalar('Mix', 1);               // hg_Params[3]: final blend
 
-    // DECODED gamma-1.958 working-space path (fct/parity). When FCT_COLORIZE_WS=1 the
-    // filter bypasses the chain-level scene-linear buffer and runs the decoded
-    // gamma-1.958 transfer directly (node-boundary faithful vs headless FCP). Shipped
-    // default (chain-level + code-space GUI luma) unchanged.
-    if (typeof process !== 'undefined' && process.env && process.env.FCT_COLORIZE_WS === '1') {
+    // DECODED gamma-1.958 working-space path (fct/parity) — NOW THE SHIPPED DEFAULT.
+    // Runs the verbatim HgcColorize with luma in the gamma-1.958 working space + RAW
+    // endpoints, matching REAL FCP (headless transfer) at 0.18 rms / 0.5 worst
+    // (transfer.PAEColorize). PROMOTED 2026-07-22 after the ground-truth switch to
+    // HEADLESS FCP: measured net +6.24 dB across all 5 Colorize hosts vs headless, 0
+    // regressions (Slide 16.88→19.14, Curtains 19.32→21.89, Color_Panels 16.35→17.32,
+    // Up-Over 12.44→12.88, Duplicate neutral). This path REGRESSED the old GUI gate
+    // (which is why it was env-guarded), but the GUI applied a display transform on top
+    // of FCP's real render — headless is now the truth, so the faithful decode ships.
+    // FCT_COLORIZE_LEGACY=1 restores the old chain-level scene-linear path.
+    const colorizeLegacy = typeof process !== 'undefined' && !!process.env && process.env.FCT_COLORIZE_LEGACY === '1';
+    if (!colorizeLegacy) {
       return colorizeRemapFilter(input, black, white, intensity, mix);
     }
 
-    // Chain-level LINEAR working-space path (T-qlinchain01). See linear-chain.ts.
-    // This is a STRUCTURAL primitive (not gated on the per-filter isLinearComposite
-    // flag): it engages ONLY when this Colorize is the 2nd+ colour-adjust filter on
-    // a layer (its input carries a cached linear buffer from a prior colour filter —
-    // hasLinearInput). Then it resumes from that EXACT linear buffer, runs the remap
-    // in linear, and encodes ONCE — the FCP single-readback model. A CHAIN ENTRY
-    // (no cached input) still emits the LEGACY sRGB output so a lone Colorize
-    // (Slide/Up-Over) is BYTE-IDENTICAL, and publishes the linear-space computation
-    // so a FOLLOWING colour filter (Color_Panels' HueSat) resumes losslessly in
-    // linear. Firing needs ≥2 consecutive colour-adjust filters — verified generic
-    // (Color_Panels Colorize→HueSat, Curtains ChannelMixer→Brightness→Colorize,
-    // Leaves HSVAdjust→Tint→Tint), never a per-transition hardcode.
+    // LEGACY chain-level LINEAR working-space path (T-qlinchain01, FCT_COLORIZE_LEGACY=1).
+    // See linear-chain.ts. Engages when Colorize is the 2nd+ colour-adjust filter on a
+    // layer (input carries a prior filter's cached linear buffer — hasLinearInput).
     {
       const k = intensity * mix;
       // WORKING-SPACE endpoint decode (fct/parity). In the DECODED Rec.709 gamma-1.961

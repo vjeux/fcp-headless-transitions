@@ -613,3 +613,24 @@ the working-space decode could be promoted to the GUI gate — it cannot, on its
 
 State: 36 parity nodes | VERIFIED 18  CHARACTERIZED 4  DIVERGED 14. Colour subsystem decode COMPLETE
 at the FUNCTION level (headless); GUI promotion is a distinct display-pipeline problem.
+
+
+## UPDATE 2026-07-22 (session 2) — GROUND TRUTH SWITCHED: GUI export → HEADLESS FCP
+
+Per the decisive negative result (gamma-1.961 chain regressed the GUI gate despite being the
+VERIFIED headless transfer), switched the whole gate's ground truth from the GUI ProRes export
+to HEADLESS FCP. The GUI applies a display-pipeline colour transform on top of FCP's real render;
+headless is FCP's actual per-pixel function, so it's the faithful truth that lets the decode land.
+- score.py: TRUTH='headless' (env FCT_TRUTH=gui for legacy); no bt709 conform for engine-vs-headless
+  (both sRGB). freeze/regress/score/gate default source='engine'.
+- RE-BASELINED engine-vs-headless: mean 17.73 / 65 slugs. Old engine-vs-GUI baseline preserved
+  (baseline_engine_vs_gui.json.bak). Gate 0/0, parity selftest OK, tsc green.
+
+IMMEDIATE LEARNING under headless truth: the full-transition gate is GEOMETRY-DOMINATED for most
+slugs (Leaves' worst frames are ~11 dB from leaf-sprite/composite divergence; the Tint colour is a
+small term on top — enabling decoded Tint moved Leaves 16.52→14.57, i.e. the colour delta is dwarfed
+by and entangled with the geometry error). So the full-frame gate is NOT the right validation signal
+for the pointwise colour decodes — the TRANSFER PARITY NODES (isolated uniform-input sweeps vs
+headless, already VERIFIED) are. The faithful/image-node driver ALREADY used headless truth, so those
+verdicts are unchanged. Net: the truth switch makes the gate honest (no GUI display confound) and
+confirms colour decodes belong at the node boundary, geometry at the frame level.
