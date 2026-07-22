@@ -783,6 +783,56 @@
       },
       "oracle_truth": "transfer",
       "n_failures": 0
+    },
+    "transfer.PAELevels_remap": {
+      "id": "transfer.PAELevels_remap",
+      "kind": "transfer",
+      "status": "DIVERGED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 71.80000000000001,
+      "n_samples": 81,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "label": "whiteIn_0.7",
+          "params": [
+            {
+              "name": "Histogram",
+              "id": 1,
+              "children": [
+                {
+                  "name": "RGB",
+                  "id": 2,
+                  "children": [
+                    {
+                      "name": "White In",
+                      "id": 3,
+                      "value": 0.7
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "input": [
+          128,
+          128,
+          128
+        ],
+        "oracle": [
+          254.69,
+          254.8,
+          254.78
+        ],
+        "engine": [
+          183.0,
+          183.0,
+          183.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
     }
   },
   "history": [
@@ -1100,8 +1150,18 @@
       "id": "transfer.PAEChannelMixer",
       "status": "VERIFIED",
       "at": "2026-07-22T13:22:57Z"
+    },
+    {
+      "id": "transfer.PAELevels_remap",
+      "status": "DIVERGED",
+      "at": "2026-07-22T13:30:29Z"
+    },
+    {
+      "id": "transfer.PAELevels",
+      "status": "VERIFIED",
+      "at": "2026-07-22T13:32:16Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-22T13:22:57Z"
+  "updated": "2026-07-22T13:32:16Z"
 }

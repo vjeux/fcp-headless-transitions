@@ -218,3 +218,27 @@ dots. This meaningfully NARROWS the eventual chain-level linear pipeline's scope
 
 State: 30 nodes | VERIFIED 12 (curves 3, blur.decimation, ColorSolid, 4 blur/geom delegated,
 Levels+ChannelMixer transfer) CHARACTERIZED 4 (Brightness/HSV/Tint/Colorize) DIVERGED 14.
+
+
+## UPDATE 2026-07-22 (session 2) — Levels remap DIVERGES, refines the colour rule further
+
+Split PAELevels into two transfer nodes: GAMMA (VERIFIED 0.71 lvl — per-channel power curve
+faithful in sRGB) and Black/White In REMAP (transfer.PAELevels_remap, CHARACTERIZED — diverges
+72 lvl: FCP's endpoint stretch is GENTLER than TS's sRGB stretch; whiteIn=0.7 in=64 -> FCP 128
+vs TS 91).
+
+SHARPENED colour rule (now well-supported across 6 colour nodes):
+  FAITHFUL in sRGB:
+    - per-channel GAMMA power curve (Levels Gamma) ✓
+    - fixed-weight LINEAR COMBINATION / matrix dot incl. luma-weighted (ChannelMixer) ✓
+    - identity / darken legs everywhere ✓
+  DIVERGES (needs linear working space):
+    - ENDPOINT-relative REMAP: Levels Black/White In stretch, Colorize Black->White mix
+    - MULTIPLY + clip coupling: Brightness
+    - hard-light: Tint
+    - saturation/value: HSV
+=> The chain-level linear-working-space fix targets ENDPOINT-remaps + multiplies + luma-mix +
+hard-light + saturation. It does NOT need to touch matrix dots or gamma curves (already exact
+in sRGB). This is a precise, bounded spec for the eventual fix.
+
+State: 31 nodes | VERIFIED 12  CHARACTERIZED 5  DIVERGED 14.

@@ -611,7 +611,7 @@
    "id": "transfer.PAELevels",
    "subsystem": "color",
    "kind": "transfer",
-   "desc": "PAELevels gamma transfer on grayscale (Histogram>RGB>Gamma). Clean 1D curve; tests the gamma convention + working space.",
+   "desc": "PAELevels GAMMA transfer (Histogram>RGB>Gamma) on grayscale. Per-channel power curve \u2014 faithful in sRGB.",
    "oracle": {
     "type": "transfer",
     "uuid": "2B221FA1-08A2-416E-998C-D7559E5509B5",
@@ -1076,6 +1076,94 @@
    ],
    "oracle_truth": "transfer",
    "status": "UNTESTED"
+  },
+  {
+   "id": "transfer.PAELevels_remap",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAELevels Black/White In REMAP (per-channel linear stretch toward endpoints). Tests whether the endpoint remap is faithful in sRGB (like ChannelMixer) or needs linear space (like Colorize).",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "2B221FA1-08A2-416E-998C-D7559E5509B5",
+    "pluginName": "PAELevels"
+   },
+   "param_cases": [
+    {
+     "label": "blackIn_0.3",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "RGB",
+         "id": 2,
+         "children": [
+          {
+           "name": "Black In",
+           "id": 1,
+           "value": 0.3
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "whiteIn_0.7",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "RGB",
+         "id": 2,
+         "children": [
+          {
+           "name": "White In",
+           "id": 3,
+           "value": 0.7
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "blackIn0.2_whiteIn0.8",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "RGB",
+         "id": 2,
+         "children": [
+          {
+           "name": "Black In",
+           "id": 1,
+           "value": 0.2
+          },
+          {
+           "name": "White In",
+           "id": 3,
+           "value": 0.8
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "transfer",
+   "status": "UNTESTED",
+   "characterized": true,
+   "characterized_reason": "Black/White In endpoint remap diverges (working-space); FCP stretches gentler than TS sRGB. Same gate-blocked linear-working-space root cause as Colorize/Brightness. Gamma (separate node) stays VERIFIED \u2014 only endpoint-relative remaps diverge."
   },
   {
    "id": "filter.PAEColorize",
