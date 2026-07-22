@@ -1,0 +1,16 @@
+{
+  "id": "filter.PAELevels",
+  "kind": "filter",
+  "status": "DIVERGED",
+  "metric": "delta_ddb",
+  "worst_ddb": 5.004,
+  "n_scored": 61,
+  "max_oracle_signal": 151.716,
+  "pass_db": 40.0,
+  "oracle_truth": "gui",
+  "faithful_id": "PAELevels",
+  "synced_from": "fct/faithful/state.json",
+  "faithful_note": "HgcLevels shader documented (levels.ts); two-stage form REFUTED by GUI gate (cac1d5b). Same color-family headless!=GUI split as Colorize: the linear/working-space math that matches headless regresses the GUI gate. Ships the GUI-gate-preferred form. Degenerate BI>=WI -> white (unshipped).",
+  "faithful_verified_via": "blocked-headless-neq-gui",
+  "swept": "2026-07-17T18:35:06Z"
+}

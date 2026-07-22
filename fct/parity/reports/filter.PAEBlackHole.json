@@ -1,0 +1,16 @@
+{
+  "id": "filter.PAEBlackHole",
+  "kind": "filter",
+  "status": "VERIFIED",
+  "metric": "delta_ddb",
+  "worst_ddb": 10.387,
+  "n_scored": null,
+  "max_oracle_signal": null,
+  "pass_db": 40.0,
+  "oracle_truth": "headless",
+  "faithful_id": "PAEBlackHole",
+  "synced_from": "fct/faithful/state.json",
+  "faithful_note": "Radial gravity-lens WARP fully RE (verbatim HgcBlackHole shader + HBlackHole::TransformPoint + CPU mip-pyramid wiring, blackhole.ts). Warp math faithful: engine-vs-headless 32-33 dB isolated at Amount 100/300/600 (fresh faithful-harness measure; residual is the documented ~1-2px sub-pixel halo from the 1920->input resample, NOT a warp error). numLevels=max(1,round(log2(Amount/8))) mip pyramid, per-level radius/edge from disasm. Embedded-sweep DIVERGED (10.4 at mix=0) is the unimplemented host Mix, which for a WARP blends INSIDE the mip-pipeline (probed: mix=0.5 != pixel-blend nor amount-scale) \u2014 complex + always Mix=1 in the only host (Movements__Black_Hole), so unexercised. Center reads .value (static in host); Amount curve read via blurAmount.",
+  "faithful_verified_via": "isolation",
+  "swept": "2026-07-19T00:04:11Z"
+}

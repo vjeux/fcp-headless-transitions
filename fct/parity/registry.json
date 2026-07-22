@@ -159,17 +159,264 @@
    "status": "UNTESTED"
   },
   {
-   "id": "filter.PAEBrightness",
-   "subsystem": "filters",
+   "id": "filter.PAEColorize",
+   "subsystem": "color",
    "kind": "filter",
-   "desc": "PAEBrightness node: per-channel multiply. Verified via the FAITHFUL delta-response sweep in its real host (static-source injection is unfaithful \u2014 see filter_node.py).",
+   "desc": "PAEColorize node (filter). Verified via the FAITHFUL delta-response in its real host (delegated to fct/faithful).",
+   "oracle": {
+    "type": "faithful_delta",
+    "faithful_id": "PAEColorize"
+   },
+   "faithful_id": "PAEColorize",
+   "oracle_truth": "gui",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "filter.PAELevels",
+   "subsystem": "color",
+   "kind": "filter",
+   "desc": "PAELevels node (filter). Verified via the FAITHFUL delta-response in its real host (delegated to fct/faithful).",
+   "oracle": {
+    "type": "faithful_delta",
+    "faithful_id": "PAELevels"
+   },
+   "faithful_id": "PAELevels",
+   "oracle_truth": "gui",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "filter.PAEGaussianBlur",
+   "subsystem": "blur",
+   "kind": "filter",
+   "desc": "PAEGaussianBlur node (filter). Verified via the FAITHFUL delta-response in its real host (delegated to fct/faithful).",
+   "oracle": {
+    "type": "faithful_delta",
+    "faithful_id": "PAEGaussianBlur"
+   },
+   "faithful_id": "PAEGaussianBlur",
+   "oracle_truth": "headless",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "filter.PAEHSVAdjust",
+   "subsystem": "color",
+   "kind": "filter",
+   "desc": "PAEHSVAdjust node (filter). Verified via the FAITHFUL delta-response in its real host (delegated to fct/faithful).",
+   "oracle": {
+    "type": "faithful_delta",
+    "faithful_id": "PAEHSVAdjust"
+   },
+   "faithful_id": "PAEHSVAdjust",
+   "oracle_truth": "gui",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "generator.PAEColorSolid",
+   "subsystem": "generators",
+   "kind": "generator",
+   "desc": "PAEColorSolid node (scenenode). Verified via the FAITHFUL delta-response in its real host (delegated to fct/faithful).",
+   "oracle": {
+    "type": "faithful_delta",
+    "faithful_id": "PAEColorSolid"
+   },
+   "faithful_id": "PAEColorSolid",
+   "oracle_truth": "gui",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "filter.PAEDirectionalBlur",
+   "subsystem": "blur",
+   "kind": "filter",
+   "desc": "PAEDirectionalBlur node (filter). Verified via the FAITHFUL delta-response in its real host (delegated to fct/faithful).",
+   "oracle": {
+    "type": "faithful_delta",
+    "faithful_id": "PAEDirectionalBlur"
+   },
+   "faithful_id": "PAEDirectionalBlur",
+   "oracle_truth": "headless",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "filter.PAEFlop",
+   "subsystem": "geometry",
+   "kind": "filter",
+   "desc": "PAEFlop node (filter). Verified via the FAITHFUL delta-response in its real host (delegated to fct/faithful).",
+   "oracle": {
+    "type": "faithful_delta",
+    "faithful_id": "PAEFlop"
+   },
+   "faithful_id": "PAEFlop",
+   "oracle_truth": "headless",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "filter.PAERadialBlur",
+   "subsystem": "blur",
+   "kind": "filter",
+   "desc": "PAERadialBlur node (filter). Verified via the FAITHFUL delta-response in its real host (delegated to fct/faithful).",
+   "oracle": {
+    "type": "faithful_delta",
+    "faithful_id": "PAERadialBlur"
+   },
+   "faithful_id": "PAERadialBlur",
+   "oracle_truth": "headless",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "filter.PAEBadTV",
+   "subsystem": "stylize",
+   "kind": "filter",
+   "desc": "PAEBadTV node (filter). Verified via the FAITHFUL delta-response in its real host (delegated to fct/faithful).",
+   "oracle": {
+    "type": "faithful_delta",
+    "faithful_id": "PAEBadTV"
+   },
+   "faithful_id": "PAEBadTV",
+   "oracle_truth": "headless",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "filter.PAEBlackHole",
+   "subsystem": "geometry",
+   "kind": "filter",
+   "desc": "PAEBlackHole node (filter). Verified via the FAITHFUL delta-response in its real host (delegated to fct/faithful).",
+   "oracle": {
+    "type": "faithful_delta",
+    "faithful_id": "PAEBlackHole"
+   },
+   "faithful_id": "PAEBlackHole",
+   "oracle_truth": "headless",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "filter.PAEBloom",
+   "subsystem": "blur",
+   "kind": "filter",
+   "desc": "PAEBloom node (filter). Verified via the FAITHFUL delta-response in its real host (delegated to fct/faithful).",
+   "oracle": {
+    "type": "faithful_delta",
+    "faithful_id": "PAEBloom"
+   },
+   "faithful_id": "PAEBloom",
+   "oracle_truth": "headless",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "filter.PAEBrightness",
+   "subsystem": "color",
+   "kind": "filter",
+   "desc": "PAEBrightness node (filter). Verified via the FAITHFUL delta-response in its real host (delegated to fct/faithful).",
    "oracle": {
     "type": "faithful_delta",
     "faithful_id": "PAEBrightness"
    },
+   "faithful_id": "PAEBrightness",
    "oracle_truth": "gui",
-   "status": "UNTESTED",
-   "faithful_id": "PAEBrightness"
+   "status": "UNTESTED"
+  },
+  {
+   "id": "filter.PAEChannelMixer",
+   "subsystem": "color",
+   "kind": "filter",
+   "desc": "PAEChannelMixer node (filter). Verified via the FAITHFUL delta-response in its real host (delegated to fct/faithful).",
+   "oracle": {
+    "type": "faithful_delta",
+    "faithful_id": "PAEChannelMixer"
+   },
+   "faithful_id": "PAEChannelMixer",
+   "oracle_truth": "gui",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "generator.PAECloudsV",
+   "subsystem": "generators",
+   "kind": "generator",
+   "desc": "PAECloudsV node (scenenode). Verified via the FAITHFUL delta-response in its real host (delegated to fct/faithful).",
+   "oracle": {
+    "type": "faithful_delta",
+    "faithful_id": "PAECloudsV"
+   },
+   "faithful_id": "PAECloudsV",
+   "oracle_truth": "headless",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "filter.PAEEarthquake",
+   "subsystem": "geometry",
+   "kind": "filter",
+   "desc": "PAEEarthquake node (filter). Verified via the FAITHFUL delta-response in its real host (delegated to fct/faithful).",
+   "oracle": {
+    "type": "faithful_delta",
+    "faithful_id": "PAEEarthquake"
+   },
+   "faithful_id": "PAEEarthquake",
+   "oracle_truth": "headless",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "filter.PAEGlow",
+   "subsystem": "stylize",
+   "kind": "filter",
+   "desc": "PAEGlow node (filter). Verified via the FAITHFUL delta-response in its real host (delegated to fct/faithful).",
+   "oracle": {
+    "type": "faithful_delta",
+    "faithful_id": "PAEGlow"
+   },
+   "faithful_id": "PAEGlow",
+   "oracle_truth": "headless",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "generator.PAENoise",
+   "subsystem": "generators",
+   "kind": "generator",
+   "desc": "PAENoise node (scenenode). Verified via the FAITHFUL delta-response in its real host (delegated to fct/faithful).",
+   "oracle": {
+    "type": "faithful_delta",
+    "faithful_id": "PAENoise"
+   },
+   "faithful_id": "PAENoise",
+   "oracle_truth": "headless",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "filter.PAETint",
+   "subsystem": "color",
+   "kind": "filter",
+   "desc": "PAETint node (filter). Verified via the FAITHFUL delta-response in its real host (delegated to fct/faithful).",
+   "oracle": {
+    "type": "faithful_delta",
+    "faithful_id": "PAETint"
+   },
+   "faithful_id": "PAETint",
+   "oracle_truth": "gui",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "filter.PAEUnderwater",
+   "subsystem": "geometry",
+   "kind": "filter",
+   "desc": "PAEUnderwater node (filter). Verified via the FAITHFUL delta-response in its real host (delegated to fct/faithful).",
+   "oracle": {
+    "type": "faithful_delta",
+    "faithful_id": "PAEUnderwater"
+   },
+   "faithful_id": "PAEUnderwater",
+   "oracle_truth": "headless",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "filter.PAEZoomBlur",
+   "subsystem": "blur",
+   "kind": "filter",
+   "desc": "PAEZoomBlur node (filter). Verified via the FAITHFUL delta-response in its real host (delegated to fct/faithful).",
+   "oracle": {
+    "type": "faithful_delta",
+    "faithful_id": "PAEZoomBlur"
+   },
+   "faithful_id": "PAEZoomBlur",
+   "oracle_truth": "headless",
+   "status": "UNTESTED"
   }
  ]
 }

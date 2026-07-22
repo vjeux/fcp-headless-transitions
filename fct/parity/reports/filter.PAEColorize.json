@@ -1,0 +1,16 @@
+{
+  "id": "filter.PAEColorize",
+  "kind": "filter",
+  "status": "DIVERGED",
+  "metric": "delta_ddb",
+  "worst_ddb": 8.742,
+  "n_scored": 362,
+  "max_oracle_signal": 122.254,
+  "pass_db": 40.0,
+  "oracle_truth": "gui",
+  "faithful_id": "PAEColorize",
+  "synced_from": "fct/faithful/state.json",
+  "faithful_note": "Faithful headless formula DECODED EXACT (s2l endpoints + Rec709-sRGB-code luma, 47-56 dB isolated) but shipping it regresses the GUI gate NET -11.4 dB incl LONE-Colorize Slide -0.80 -> the GUI export != headless colour management is FUNDAMENTAL (not a chain artifact). Engine ships RAW endpoints = what the GUI GT (Rule 1 scoring truth) prefers. Match-verified against the GATE truth, not the headless oracle. See channel-mixer.ts.",
+  "faithful_verified_via": "blocked-headless-neq-gui",
+  "swept": "2026-07-17T18:24:32Z"
+}

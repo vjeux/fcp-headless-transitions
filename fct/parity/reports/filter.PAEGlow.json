@@ -1,0 +1,16 @@
+{
+  "id": "filter.PAEGlow",
+  "kind": "filter",
+  "status": "DIVERGED",
+  "metric": "delta_ddb",
+  "worst_ddb": 13.469,
+  "n_scored": 8,
+  "max_oracle_signal": 52.987,
+  "pass_db": 40.0,
+  "oracle_truth": "headless",
+  "faithful_id": "PAEGlow",
+  "synced_from": "fct/faithful/state.json",
+  "faithful_note": "Glow = threshold + blur + additive composite (glow.ts). Embedded worst is t=0.1 across opacity/softness/mix/cliptowhite simultaneously = whole-glow-output offset in Lights__Bloom (bloom-pipeline host), not a single param response. Blur core verified (PAEGaussianBlur); the composite pipeline is the residual.",
+  "faithful_verified_via": "blocked-pipeline",
+  "swept": "2026-07-18T11:57:18Z"
+}

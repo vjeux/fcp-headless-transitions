@@ -1,0 +1,16 @@
+{
+  "id": "filter.PAEUnderwater",
+  "kind": "filter",
+  "status": "DIVERGED",
+  "metric": "delta_ddb",
+  "worst_ddb": 16.526,
+  "n_scored": 14,
+  "max_oracle_signal": 38.04,
+  "pass_db": 40.0,
+  "oracle_truth": "headless",
+  "faithful_id": "PAEUnderwater",
+  "synced_from": "fct/faithful/state.json",
+  "faithful_note": "Sinusoid displacement field FULLY RE (underwater.ts): 10-octave seeded synthesis, phase animates at Speed*sec*(octave+1). BUT the HgcUnderwaterFreqSynth noise TEXTURE that perturbs the field is a runtime-generated GPU texture NOT recoverable from disasm, and the plugin goes BLACK headless for t>~1.0 (unbound atlas). So per-pixel ripple phase differs from FCP; algorithm+statistics match, exact field does not. Fundamental (texture unrecoverable).",
+  "faithful_verified_via": "blocked-stochastic-texture",
+  "swept": "2026-07-18T12:07:32Z"
+}

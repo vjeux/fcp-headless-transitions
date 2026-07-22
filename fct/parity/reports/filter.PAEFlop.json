@@ -1,0 +1,16 @@
+{
+  "id": "filter.PAEFlop",
+  "kind": "filter",
+  "status": "VERIFIED",
+  "metric": "delta_ddb",
+  "worst_ddb": 32.51,
+  "n_scored": null,
+  "max_oracle_signal": null,
+  "pass_db": 40.0,
+  "oracle_truth": "headless",
+  "faithful_id": "PAEFlop",
+  "synced_from": "fct/faithful/state.json",
+  "faithful_note": "Mirror math faithful in isolation: gradient probe 46.3 dB, synth solo flop-param delta 32.5 dB, Mix-blend fixed (e183b34) mix=0->33.6/mix=0.5->39.3 dB. Embedded-host sweep DIVERGED (10.7) is Replicator-Clones__Concentric replicator-cell geometry contamination (T-qflopreplic1), NOT a Flop bug. In Movements__Flip the flop param is inert (0 signal).",
+  "faithful_verified_via": "isolation",
+  "swept": "2026-07-18T22:54:18Z"
+}

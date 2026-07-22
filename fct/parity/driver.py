@@ -155,9 +155,20 @@ def status():
             m = s.get("worst_ddb"); ms = ("ddb=%.1f" % m) if isinstance(m, (int, float)) else "-"
         print("  %-32s %-9s %-7s %-10s %s"
               % (n["id"], n.get("subsystem", "?"), n["kind"], _stt(st, n["id"]), ms))
-    nxt = next((n["id"] for n in nodes if _stt(st, n["id"]) not in ("VERIFIED",)), None)
-    print("  next:", nxt or "(all VERIFIED)")
-    return nxt
+    # group the status line by subsystem for the journey view
+    from collections import defaultdict
+    bysub = defaultdict(lambda: [0, 0])  # subsystem -> [verified, total]
+    for n in nodes:
+        bysub[n.get("subsystem", "?")][1] += 1
+        if _stt(st, n["id"]) == "VERIFIED":
+            bysub[n.get("subsystem", "?")][0] += 1
+    print("  subsystems: " + "  ".join("%s %d/%d" % (k, v[0], v[1]) for k, v in sorted(bysub.items())))
+    owned_next = next((n["id"] for n in nodes if n["kind"] == "curve" and _stt(st, n["id"]) != "VERIFIED"), None)
+    div_img = [n["id"] for n in nodes if n["kind"] in ("filter", "generator") and _stt(st, n["id"]) == "DIVERGED"]
+    print("  next parity-owned:", owned_next or "(all curve/value VERIFIED)")
+    if div_img:
+        print("  delegated (faithful) DIVERGED:", ", ".join(div_img[:6]) + (" ..." if len(div_img) > 6 else ""))
+    return owned_next
 
 
 def sweep(ids):
@@ -200,11 +211,49 @@ def sweep(ids):
             worker.close()
 
 
-def step():
+def sync_from_faithful():
+    """Image (filter/generator) nodes DELEGATE to fct/faithful, which already sweeps them.
+    Import faithful's current verdicts into the parity node view WITHOUT re-running the
+    (expensive) sweeps — parity and faithful share the exact same oracle for these nodes, so
+    faithful/state.json IS the authoritative image-node verdict. Curve nodes are unaffected
+    (parity owns those exactly). Idempotent; safe to run any time."""
     reg = _registry(); st = _state()
-    nxt = next((n["id"] for n in reg["nodes"] if _stt(st, n["id"]) not in ("VERIFIED",)), None)
+    fstate = json.load(open(REPO / "fct" / "faithful" / "state.json"))
+    fp = fstate.get("primitives", {})
+    n = 0
+    for node in reg["nodes"]:
+        if node["kind"] not in ("filter", "generator"):
+            continue
+        fid = node.get("faithful_id")
+        fv = fp.get(fid)
+        if not fv:
+            continue
+        report = {"id": node["id"], "kind": node["kind"], "status": fv.get("status", "UNTESTED"),
+                  "metric": "delta_ddb", "worst_ddb": fv.get("worst_ddb"),
+                  "n_scored": fv.get("n_scored"), "max_oracle_signal": fv.get("max_oracle_signal"),
+                  "pass_db": reg["metrics"][node["kind"]]["pass_db"],
+                  "oracle_truth": node.get("oracle_truth", "headless"),
+                  "faithful_id": fid, "synced_from": "fct/faithful/state.json",
+                  "faithful_note": fv.get("note"), "faithful_verified_via": fv.get("verified_via"),
+                  "swept": fv.get("swept")}
+        _record(st, report)
+        n += 1
+    print("  synced %d image nodes from fct/faithful/state.json" % n)
+
+
+def step():
+    """Advance ONE parity-OWNED node (curve/value kind). Image (filter/generator) nodes are
+    driven by the faithful driver — parity mirrors them via `sync`, so step does NOT re-run
+    their expensive sweeps. If all curve nodes are VERIFIED, remind the user to sync/step
+    faithful for image work."""
+    reg = _registry(); st = _state()
+    owned = [n for n in reg["nodes"] if n["kind"] == "curve"]
+    nxt = next((n["id"] for n in owned if _stt(st, n["id"]) != "VERIFIED"), None)
     if nxt is None:
-        print("  all nodes VERIFIED"); return
+        print("  all parity-owned (curve/value) nodes VERIFIED. Image nodes delegate to "
+              "fct/faithful — run `fct parity sync` to refresh, or advance them via the "
+              "faithful driver.")
+        return
     sweep([nxt])
 
 
@@ -231,6 +280,8 @@ def main():
             sweep([n["id"] for n in _registry()["nodes"]])
         else:
             sweep(args[1:])
+    elif cmd == "sync":
+        sync_from_faithful()
     elif cmd == "reset":
         reset(args[1:])
     else:

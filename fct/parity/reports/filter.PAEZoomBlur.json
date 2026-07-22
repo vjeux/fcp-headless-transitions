@@ -1,0 +1,16 @@
+{
+  "id": "filter.PAEZoomBlur",
+  "kind": "filter",
+  "status": "DIVERGED",
+  "metric": "delta_ddb",
+  "worst_ddb": 15.765,
+  "n_scored": 12,
+  "max_oracle_signal": 39.478,
+  "pass_db": 40.0,
+  "oracle_truth": "headless",
+  "faithful_id": "PAEZoomBlur",
+  "synced_from": "fct/faithful/state.json",
+  "faithful_note": "Log-polar zoom is the BEST of 3 models vs headless (~20-22 dB > linear-radius > displacement-prop), confirming the decode. Residual ~20 dB ceiling is the log-polar resampling near the centre (u=ln r -> -inf as r->0). The shipping Blurs__Zoom Zoom Blur filter is authored Amount=0 (STATIC; visible zoom is camera) so near-zero gate ROI. Center wired, Mix=blend. Documented directional-blur.ts.",
+  "faithful_verified_via": "blocked-resample-ceiling",
+  "swept": "2026-07-18T20:03:39Z"
+}

@@ -299,11 +299,11 @@ def main():
         # fct/parity/README.md. No DYLD/engine boot needed (pure-math frameworks self-load).
         import subprocess
         sub = rest[0] if rest else "status"
-        if sub in ("status", "step", "sweep", "reset", "selftest"):
+        if sub in ("status", "step", "sweep", "reset", "selftest", "sync"):
             mod = "fct.parity.selftest" if sub == "selftest" else "fct.parity.driver"
             args = [] if sub == "selftest" else rest
             return subprocess.call([sys.executable, "-m", mod] + args, cwd=REPO)
-        print("usage: fct parity [status|step|sweep <id>|sweep --all|reset [id]|selftest]")
+        print("usage: fct parity [status|step|sweep <id>|sweep --all|sync|reset [id]|selftest]")
         return 1
 
     if cmd == "caps":

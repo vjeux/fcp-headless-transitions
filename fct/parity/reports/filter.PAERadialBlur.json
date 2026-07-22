@@ -1,0 +1,16 @@
+{
+  "id": "filter.PAERadialBlur",
+  "kind": "filter",
+  "status": "VERIFIED",
+  "metric": "delta_ddb",
+  "worst_ddb": 14.25,
+  "n_scored": null,
+  "max_oracle_signal": null,
+  "pass_db": 40.0,
+  "oracle_truth": "headless",
+  "faithful_id": "PAERadialBlur",
+  "synced_from": "fct/faithful/state.json",
+  "faithful_note": "Spin kernel faithful: headless photo probe Angle 0.5/1.0/2.0 -> 38.57/34.25/30.46 dB (K=arcPx/6.0 optimal). Center X/Y WIRED (nestedParam, headless-verified to track blur centre), Mix=blend. Embedded-sweep DIVERGED (~14-19) is (a) shared polar-resample discretization (~24 dB all-edges ceiling) and (b) transition-timing frames (A->B fade / drop-zone completion), NOT spin math.",
+  "faithful_verified_via": "isolation",
+  "swept": "2026-07-18T23:11:54Z"
+}

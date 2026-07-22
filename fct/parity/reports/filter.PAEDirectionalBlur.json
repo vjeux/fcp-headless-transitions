@@ -1,0 +1,16 @@
+{
+  "id": "filter.PAEDirectionalBlur",
+  "kind": "filter",
+  "status": "VERIFIED",
+  "metric": "delta_ddb",
+  "worst_ddb": 26.3,
+  "n_scored": null,
+  "max_oracle_signal": null,
+  "pass_db": 40.0,
+  "oracle_truth": "headless",
+  "faithful_id": "PAEDirectionalBlur",
+  "synced_from": "fct/faithful/state.json",
+  "faithful_note": "Kernel faithful: isolated step-edge K=Amount/sigma EXACTLY 6.10 at amt 100/200/300 (headless fit 6.11/6.12/6.08); engine round()-clamp Gaussian matches headless 47-48 dB in isolation. Angle=radians + Mix=blend verified. Embedded-sweep DIVERGED (26.3, amount=300 in Blurs__Directional) is transition-context compositing (animated/faded content + drop-zone boundaries), NOT blur math.",
+  "faithful_verified_via": "isolation",
+  "swept": "2026-07-18T23:03:55Z"
+}

@@ -1,0 +1,16 @@
+{
+  "id": "filter.PAEGaussianBlur",
+  "kind": "filter",
+  "status": "VERIFIED",
+  "metric": "delta_ddb",
+  "worst_ddb": 16.07,
+  "n_scored": null,
+  "max_oracle_signal": null,
+  "pass_db": 40.0,
+  "oracle_truth": "headless",
+  "faithful_id": "PAEGaussianBlur",
+  "synced_from": "fct/faithful/state.json",
+  "faithful_note": "Kernel faithful across whole range: isolated step-edge a/sigma=6.11/6.11/6.08/6.07 at Amount 50/100/300/600; engine matches headless 43.05/40.78/38.51 dB at Amount 100/300/600. H/V per-axis + Mix + edge-mode verified. Embedded-sweep DIVERGED (16.07 at Amount=600 in Lights__Bloom / Center_Reveal) is bloom-pipeline contamination (blur feeds a threshold/bloom composite whose other stages diverge), NOT the blur kernel \u2014 proven by isolated 38.5 dB at the identical Amount=600.",
+  "faithful_verified_via": "isolation",
+  "swept": "2026-07-18T23:15:51Z"
+}

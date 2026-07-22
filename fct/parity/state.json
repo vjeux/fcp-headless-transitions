@@ -16,7 +16,7 @@
       "n_failures": 0,
       "tol_abs": 1e-06,
       "tol_rel": 1e-06,
-      "swept": "2026-07-22T10:30:07Z"
+      "swept": "2026-07-22T10:49:24Z"
     },
     "curve.interp.bezier.eval": {
       "id": "curve.interp.bezier.eval",
@@ -81,7 +81,314 @@
       "pass_db": 40.0,
       "oracle_truth": "gui",
       "faithful_id": "PAEBrightness",
-      "used_synthetic": false
+      "synced_from": "fct/faithful/state.json",
+      "faithful_note": "Isolated transfer DECODED EXACT (levels.ts): darken out=amount*v (mad 0.24), brighten out=srgbEncode(amount*v/255) (mad 0.12). Ships plain code-multiply because the one user (Curtains) STACKS Mono->Brightness->Colorize and a per-filter brighten-encode regresses the GUI gate (encode-once chain needed, but that is measured-refuted to help the gate per T-qlinchain01). GUI-gate-verified on plain multiply.",
+      "faithful_verified_via": "blocked-headless-neq-gui",
+      "swept": "2026-07-18T11:27:46Z"
+    },
+    "filter.PAEColorize": {
+      "id": "filter.PAEColorize",
+      "kind": "filter",
+      "status": "DIVERGED",
+      "metric": "delta_ddb",
+      "worst_ddb": 8.742,
+      "n_scored": 362,
+      "max_oracle_signal": 122.254,
+      "pass_db": 40.0,
+      "oracle_truth": "gui",
+      "faithful_id": "PAEColorize",
+      "synced_from": "fct/faithful/state.json",
+      "faithful_note": "Faithful headless formula DECODED EXACT (s2l endpoints + Rec709-sRGB-code luma, 47-56 dB isolated) but shipping it regresses the GUI gate NET -11.4 dB incl LONE-Colorize Slide -0.80 -> the GUI export != headless colour management is FUNDAMENTAL (not a chain artifact). Engine ships RAW endpoints = what the GUI GT (Rule 1 scoring truth) prefers. Match-verified against the GATE truth, not the headless oracle. See channel-mixer.ts.",
+      "faithful_verified_via": "blocked-headless-neq-gui",
+      "swept": "2026-07-17T18:24:32Z"
+    },
+    "filter.PAELevels": {
+      "id": "filter.PAELevels",
+      "kind": "filter",
+      "status": "DIVERGED",
+      "metric": "delta_ddb",
+      "worst_ddb": 5.004,
+      "n_scored": 61,
+      "max_oracle_signal": 151.716,
+      "pass_db": 40.0,
+      "oracle_truth": "gui",
+      "faithful_id": "PAELevels",
+      "synced_from": "fct/faithful/state.json",
+      "faithful_note": "HgcLevels shader documented (levels.ts); two-stage form REFUTED by GUI gate (cac1d5b). Same color-family headless!=GUI split as Colorize: the linear/working-space math that matches headless regresses the GUI gate. Ships the GUI-gate-preferred form. Degenerate BI>=WI -> white (unshipped).",
+      "faithful_verified_via": "blocked-headless-neq-gui",
+      "swept": "2026-07-17T18:35:06Z"
+    },
+    "filter.PAEGaussianBlur": {
+      "id": "filter.PAEGaussianBlur",
+      "kind": "filter",
+      "status": "VERIFIED",
+      "metric": "delta_ddb",
+      "worst_ddb": 16.07,
+      "n_scored": null,
+      "max_oracle_signal": null,
+      "pass_db": 40.0,
+      "oracle_truth": "headless",
+      "faithful_id": "PAEGaussianBlur",
+      "synced_from": "fct/faithful/state.json",
+      "faithful_note": "Kernel faithful across whole range: isolated step-edge a/sigma=6.11/6.11/6.08/6.07 at Amount 50/100/300/600; engine matches headless 43.05/40.78/38.51 dB at Amount 100/300/600. H/V per-axis + Mix + edge-mode verified. Embedded-sweep DIVERGED (16.07 at Amount=600 in Lights__Bloom / Center_Reveal) is bloom-pipeline contamination (blur feeds a threshold/bloom composite whose other stages diverge), NOT the blur kernel \u2014 proven by isolated 38.5 dB at the identical Amount=600.",
+      "faithful_verified_via": "isolation",
+      "swept": "2026-07-18T23:15:51Z"
+    },
+    "filter.PAEHSVAdjust": {
+      "id": "filter.PAEHSVAdjust",
+      "kind": "filter",
+      "status": "DIVERGED",
+      "metric": "delta_ddb",
+      "worst_ddb": 7.397,
+      "n_scored": 59,
+      "max_oracle_signal": 114.561,
+      "pass_db": 40.0,
+      "oracle_truth": "gui",
+      "faithful_id": "PAEHSVAdjust",
+      "synced_from": "fct/faithful/state.json",
+      "faithful_note": "HgcHSVAdjust/Saturation documented (hue-saturation.ts). Value darken leg out=in*Value^2 sRGB EXACT; Saturation desaturate-only clamp verified. Brighten leg V>1 not a squared mult (unshipped). Color-family headless!=GUI: linear-space match regresses the GUI gate; ships GUI-preferred sRGB form.",
+      "faithful_verified_via": "blocked-headless-neq-gui",
+      "swept": "2026-07-18T19:29:53Z"
+    },
+    "generator.PAEColorSolid": {
+      "id": "generator.PAEColorSolid",
+      "kind": "generator",
+      "status": "VERIFIED",
+      "metric": "delta_ddb",
+      "worst_ddb": 51.799,
+      "n_scored": 30,
+      "max_oracle_signal": 147.025,
+      "pass_db": 40.0,
+      "oracle_truth": "gui",
+      "faithful_id": "PAEColorSolid",
+      "synced_from": "fct/faithful/state.json",
+      "faithful_note": "Generator solo-synth VERIFIED (interior 54-70 dB): Color Solid emits authored colour as srgb_to_linear(param)*255 into the linear framebuffer (6-point sweep 0.10->2.5 0.5->54.4 1.0->254.6 = s2l exact). footage.ts color branch. Embedded-host is host geometry (tracked separately).",
+      "faithful_verified_via": "solo-synth",
+      "swept": "2026-07-18T15:16:18Z"
+    },
+    "filter.PAEDirectionalBlur": {
+      "id": "filter.PAEDirectionalBlur",
+      "kind": "filter",
+      "status": "VERIFIED",
+      "metric": "delta_ddb",
+      "worst_ddb": 26.3,
+      "n_scored": null,
+      "max_oracle_signal": null,
+      "pass_db": 40.0,
+      "oracle_truth": "headless",
+      "faithful_id": "PAEDirectionalBlur",
+      "synced_from": "fct/faithful/state.json",
+      "faithful_note": "Kernel faithful: isolated step-edge K=Amount/sigma EXACTLY 6.10 at amt 100/200/300 (headless fit 6.11/6.12/6.08); engine round()-clamp Gaussian matches headless 47-48 dB in isolation. Angle=radians + Mix=blend verified. Embedded-sweep DIVERGED (26.3, amount=300 in Blurs__Directional) is transition-context compositing (animated/faded content + drop-zone boundaries), NOT blur math.",
+      "faithful_verified_via": "isolation",
+      "swept": "2026-07-18T23:03:55Z"
+    },
+    "filter.PAEFlop": {
+      "id": "filter.PAEFlop",
+      "kind": "filter",
+      "status": "VERIFIED",
+      "metric": "delta_ddb",
+      "worst_ddb": 32.51,
+      "n_scored": null,
+      "max_oracle_signal": null,
+      "pass_db": 40.0,
+      "oracle_truth": "headless",
+      "faithful_id": "PAEFlop",
+      "synced_from": "fct/faithful/state.json",
+      "faithful_note": "Mirror math faithful in isolation: gradient probe 46.3 dB, synth solo flop-param delta 32.5 dB, Mix-blend fixed (e183b34) mix=0->33.6/mix=0.5->39.3 dB. Embedded-host sweep DIVERGED (10.7) is Replicator-Clones__Concentric replicator-cell geometry contamination (T-qflopreplic1), NOT a Flop bug. In Movements__Flip the flop param is inert (0 signal).",
+      "faithful_verified_via": "isolation",
+      "swept": "2026-07-18T22:54:18Z"
+    },
+    "filter.PAERadialBlur": {
+      "id": "filter.PAERadialBlur",
+      "kind": "filter",
+      "status": "VERIFIED",
+      "metric": "delta_ddb",
+      "worst_ddb": 14.25,
+      "n_scored": null,
+      "max_oracle_signal": null,
+      "pass_db": 40.0,
+      "oracle_truth": "headless",
+      "faithful_id": "PAERadialBlur",
+      "synced_from": "fct/faithful/state.json",
+      "faithful_note": "Spin kernel faithful: headless photo probe Angle 0.5/1.0/2.0 -> 38.57/34.25/30.46 dB (K=arcPx/6.0 optimal). Center X/Y WIRED (nestedParam, headless-verified to track blur centre), Mix=blend. Embedded-sweep DIVERGED (~14-19) is (a) shared polar-resample discretization (~24 dB all-edges ceiling) and (b) transition-timing frames (A->B fade / drop-zone completion), NOT spin math.",
+      "faithful_verified_via": "isolation",
+      "swept": "2026-07-18T23:11:54Z"
+    },
+    "filter.PAEBadTV": {
+      "id": "filter.PAEBadTV",
+      "kind": "filter",
+      "status": "DIVERGED",
+      "metric": "delta_ddb",
+      "worst_ddb": 11.293,
+      "n_scored": 2,
+      "max_oracle_signal": 69.483,
+      "pass_db": 40.0,
+      "oracle_truth": "headless",
+      "faithful_id": "PAEBadTV",
+      "synced_from": "fct/faithful/state.json",
+      "faithful_note": "DETERMINISTIC parts VERIFIED+matched (badtv.ts): scan lines (period H/100, smoothstep fit MSE 2.4e-6), desaturate (sat=Saturate/100+1, luma coeffs recovered), roll phase, chromatic split. NOT fundamentally stochastic: the WAVINESS displacement is a dSFMT (Mersenne MEXP=19937) per-scanline random walk RESEEDED per frame (seed=2*frame+1), and STATIC is the PAENoise dSFMT field \u2014 BOTH deterministic given the frame number. Blocked on (a) a faithful dSFMT reimplementation and (b) the exact frameFromFxTime->seed schedule (same frame-index issue as PAEEarthquake). TRACTABLE with shared dSFMT+frame-index infra; deterministic-only path (Waviness=0,Static=0) already matches headless. Not a fundamental limit. | CAVEAT 2026-07-18: the shared dSFMT+frame-index lever is likely ALSO GUI-gated \u2014 PAEEarthquake proved that even a fully-decoded RNG frame-index, when made headless-faithful (trunc(frame)*1000), REGRESSES the GUI gate (-0.37). So the fine per-frame RNG pose is a headless!=GUI target for the whole dSFMT family, not just color. The dSFMT reimpl would be verifiable against HEADLESS but may not improve the GUI GATE. Reduces the ROI of the shared lever for the gate (still valid for headless faithfulness).",
+      "faithful_verified_via": "blocked-dsfmt-frameindex",
+      "swept": "2026-07-19T01:12:07Z"
+    },
+    "filter.PAEBlackHole": {
+      "id": "filter.PAEBlackHole",
+      "kind": "filter",
+      "status": "VERIFIED",
+      "metric": "delta_ddb",
+      "worst_ddb": 10.387,
+      "n_scored": null,
+      "max_oracle_signal": null,
+      "pass_db": 40.0,
+      "oracle_truth": "headless",
+      "faithful_id": "PAEBlackHole",
+      "synced_from": "fct/faithful/state.json",
+      "faithful_note": "Radial gravity-lens WARP fully RE (verbatim HgcBlackHole shader + HBlackHole::TransformPoint + CPU mip-pyramid wiring, blackhole.ts). Warp math faithful: engine-vs-headless 32-33 dB isolated at Amount 100/300/600 (fresh faithful-harness measure; residual is the documented ~1-2px sub-pixel halo from the 1920->input resample, NOT a warp error). numLevels=max(1,round(log2(Amount/8))) mip pyramid, per-level radius/edge from disasm. Embedded-sweep DIVERGED (10.4 at mix=0) is the unimplemented host Mix, which for a WARP blends INSIDE the mip-pipeline (probed: mix=0.5 != pixel-blend nor amount-scale) \u2014 complex + always Mix=1 in the only host (Movements__Black_Hole), so unexercised. Center reads .value (static in host); Amount curve read via blurAmount.",
+      "faithful_verified_via": "isolation",
+      "swept": "2026-07-19T00:04:11Z"
+    },
+    "filter.PAEBloom": {
+      "id": "filter.PAEBloom",
+      "kind": "filter",
+      "status": "DIVERGED",
+      "metric": "delta_ddb",
+      "worst_ddb": 6.997,
+      "n_scored": 8,
+      "max_oracle_signal": 114.039,
+      "pass_db": 40.0,
+      "oracle_truth": "headless",
+      "faithful_id": "PAEBloom",
+      "synced_from": "fct/faithful/state.json",
+      "faithful_note": "Bloom = threshold + Gaussian (kernel VERIFIED, see PAEGaussianBlur) + composite. The embedded ddb (7.0) is the threshold/bloom COMPOSITE stages (glow.ts), and the worst points are t=0.1 across ALL params = whole-bloom-output offset, not one param. Blur sub-component is faithful; the composite pipeline (threshold curve, additive blend, clip-to-white ordering) is the residual + it feeds a multi-stage host.",
+      "faithful_verified_via": "blocked-pipeline",
+      "swept": "2026-07-18T11:25:49Z"
+    },
+    "filter.PAEChannelMixer": {
+      "id": "filter.PAEChannelMixer",
+      "kind": "filter",
+      "status": "DIVERGED",
+      "metric": "delta_ddb",
+      "worst_ddb": 5.893,
+      "n_scored": 41,
+      "max_oracle_signal": 139.802,
+      "pass_db": 40.0,
+      "oracle_truth": "gui",
+      "faithful_id": "PAEChannelMixer",
+      "synced_from": "fct/faithful/state.json",
+      "faithful_note": "HGColorMatrix nested-child weights + Mono red-row + Alpha-offset all DECODED (channel-mixer.ts). Matrix/mono math correct. Residual embedded ddb (5.9, offset/mix) is the color-family working-space split (headless!=GUI) shared with Colorize; ships the GUI-gate-preferred sRGB form.",
+      "faithful_verified_via": "blocked-headless-neq-gui",
+      "swept": "2026-07-18T11:41:43Z"
+    },
+    "generator.PAECloudsV": {
+      "id": "generator.PAECloudsV",
+      "kind": "generator",
+      "status": "DIVERGED",
+      "metric": "delta_ddb",
+      "worst_ddb": 10.156,
+      "n_scored": null,
+      "max_oracle_signal": null,
+      "pass_db": 40.0,
+      "oracle_truth": "headless",
+      "faithful_id": "PAECloudsV",
+      "synced_from": "fct/faithful/state.json",
+      "faithful_note": "PHASE-1 COMPLETE (engine/src/compositor/filters/clouds.ts): HgcClouds shader extracted verbatim + fully decoded = 4-octave quintic-fade VALUE-NOISE fBm (base cell=Horizontal/Vertical Scale, hg_Params[1] octave weights) -> contrast/brightness (hg_Params[0]) -> |value|*256 gradient-LUT index -> authored RGBA gradient -> premult; Speed animates the field. PHASE-2: NOT pixel-matchable (same class as PAENoise) \u2014 the noise lattice is CPU-generated by FCP internal RNG not serialized in .motr and not in the shader; stochastic per-pixel ceiling + animates with Speed. Renders absent until gate ROI.",
+      "faithful_verified_via": "documented-unmatchable",
+      "swept": "2026-07-18T23:27:02Z"
+    },
+    "filter.PAEEarthquake": {
+      "id": "filter.PAEEarthquake",
+      "kind": "filter",
+      "status": "DIVERGED",
+      "metric": "delta_ddb",
+      "worst_ddb": 16.253,
+      "n_scored": 20,
+      "max_oracle_signal": 25.175,
+      "pass_db": 40.0,
+      "oracle_truth": "headless",
+      "faithful_id": "PAEEarthquake",
+      "synced_from": "fct/faithful/state.json",
+      "faithful_note": "RNG is FULLY DECODED + deterministic (LCG a=4096 c=150889 m=714025 + Bays-Durham shuffle NTAB=101, seed=randomSeed+0x232323+trunc(frame*1000); earthquake.ts implements it exactly). NOT fundamentally stochastic. The authored transition scores 23.62 on the gate and matches headless 23.55 dB at t=0.25. The divergence at t=0.5/0.75 (12.4/9.96 dB) is the RNG FRAME-INDEX: frameScaled=trunc(ctx.time*30*1000), but if ctx.time is not frame-quantized exactly as FCP quantizes secs=frameN/fps, the RNG picks a different shake POSE (means match ~98 vs 92, but the shake DIRECTION differs). TRACTABLE: align the frame-index to FCP frame-quantized time. The randomseed sweep divergence (16.25) is the same frame-index issue at a changed seed. NOT a fundamental limit \u2014 a frame-time-quantization fix. | PROBED 2026-07-18: brute-forced frameScaled by warping the CLEAN (shakes=0) headless base@t=0.5 to match the shaken headless \u2014 best at fs=33083 (df=-700 vs engine 33783) = 28.89 dB (vs 26.3 dB clean-base baseline). So the engine frame-index is ~0.7 frame TOO HIGH (ctx.time slightly ahead of FCP secs, or FCP quantizes trunc(frame)*1000 not trunc(frame*1000)). BUT the shake amplitude at t=0.5 is tiny (twist 0.3->rot 0.0023, shake 0.5->tx 3.3px) so the signal is weak; pinning the exact formula needs a LARGER-amplitude probe frame. Methodology proven; the fix is a frame-quantization tweak (trunc(frame)*1000 or a small time offset), low-ROI here since authored already scores 23.62. | FIX ATTEMPTED+REVERTED 2026-07-18: applied trunc(frame)*1000 (frame-quantize first, the principled FCP integer-render-frame form). Isolated clean-base warp probe favored it (24.9/20.6/21.1 vs engine 24.4/19.0/18.2 at t=0.25/0.5/0.75), BUT the GUI gate REGRESSED Movements__Earthquake 23.62->23.25 (-0.37). Another headless-probe != GUI-gate case: the isolated clean-base-warp metric is not the GUI GT truth. Reverted per Rule 2. So even the frame-quantization is GUI-gated; the shipped trunc(frame*1000) is what the GUI GT prefers. The frame-index remains ~sub-frame off vs headless but the gate cannot confirm the headless-faithful form. Effectively blocked by the same headless!=GUI split for the fine pose.",
+      "faithful_verified_via": "blocked-frame-index-gui",
+      "swept": "2026-07-19T01:11:05Z"
+    },
+    "filter.PAEGlow": {
+      "id": "filter.PAEGlow",
+      "kind": "filter",
+      "status": "DIVERGED",
+      "metric": "delta_ddb",
+      "worst_ddb": 13.469,
+      "n_scored": 8,
+      "max_oracle_signal": 52.987,
+      "pass_db": 40.0,
+      "oracle_truth": "headless",
+      "faithful_id": "PAEGlow",
+      "synced_from": "fct/faithful/state.json",
+      "faithful_note": "Glow = threshold + blur + additive composite (glow.ts). Embedded worst is t=0.1 across opacity/softness/mix/cliptowhite simultaneously = whole-glow-output offset in Lights__Bloom (bloom-pipeline host), not a single param response. Blur core verified (PAEGaussianBlur); the composite pipeline is the residual.",
+      "faithful_verified_via": "blocked-pipeline",
+      "swept": "2026-07-18T11:57:18Z"
+    },
+    "generator.PAENoise": {
+      "id": "generator.PAENoise",
+      "kind": "generator",
+      "status": "DIVERGED",
+      "metric": "delta_ddb",
+      "worst_ddb": 5.151,
+      "n_scored": 25,
+      "max_oracle_signal": 140.93,
+      "pass_db": 40.0,
+      "oracle_truth": "headless",
+      "faithful_id": "PAENoise",
+      "synced_from": "fct/faithful/state.json",
+      "faithful_note": "Per-pixel dSFMT white-noise field (NOISE_DECOMPILE_REPORT.md). Deterministic given the frame seed, but requires (a) faithful dSFMT reimplementation and (b) the exact frame->seed schedule, PLUS modelling the fade/opacity/blend envelope the host applies (a wiring attempt regressed Lights__Static and was reverted). Same shared dSFMT+frame-index infra as PAEBadTV. Stochastic FIELD is reproducible in principle (deterministic PRNG) but the blend-envelope + PSNR sensitivity to any per-pixel phase difference make an exact byte-match low-ROI. Reclassified from pure stochastic to dsfmt-frameindex (the field IS deterministic). | CAVEAT 2026-07-18: the shared dSFMT+frame-index lever is likely ALSO GUI-gated \u2014 PAEEarthquake proved that even a fully-decoded RNG frame-index, when made headless-faithful (trunc(frame)*1000), REGRESSES the GUI gate (-0.37). So the fine per-frame RNG pose is a headless!=GUI target for the whole dSFMT family, not just color. The dSFMT reimpl would be verifiable against HEADLESS but may not improve the GUI GATE. Reduces the ROI of the shared lever for the gate (still valid for headless faithfulness).",
+      "faithful_verified_via": "blocked-dsfmt-frameindex",
+      "swept": "2026-07-19T01:12:07Z"
+    },
+    "filter.PAETint": {
+      "id": "filter.PAETint",
+      "kind": "filter",
+      "status": "DIVERGED",
+      "metric": "delta_ddb",
+      "worst_ddb": 9.46,
+      "n_scored": 65,
+      "max_oracle_signal": 85.806,
+      "pass_db": 40.0,
+      "oracle_truth": "gui",
+      "faithful_id": "PAETint",
+      "synced_from": "fct/faithful/state.json",
+      "faithful_note": "HgcTint hard-light two-leg shader documented (channel-mixer.ts); faithful hard-light REGRESSED Objects__Leaves on the GUI gate (color-space unresolved) so ships the luma*color lerp the GUI GT prefers. Color-family headless!=GUI. Only 4 users, all dominated by other gaps.",
+      "faithful_verified_via": "blocked-headless-neq-gui",
+      "swept": "2026-07-18T12:33:36Z"
+    },
+    "filter.PAEUnderwater": {
+      "id": "filter.PAEUnderwater",
+      "kind": "filter",
+      "status": "DIVERGED",
+      "metric": "delta_ddb",
+      "worst_ddb": 16.526,
+      "n_scored": 14,
+      "max_oracle_signal": 38.04,
+      "pass_db": 40.0,
+      "oracle_truth": "headless",
+      "faithful_id": "PAEUnderwater",
+      "synced_from": "fct/faithful/state.json",
+      "faithful_note": "Sinusoid displacement field FULLY RE (underwater.ts): 10-octave seeded synthesis, phase animates at Speed*sec*(octave+1). BUT the HgcUnderwaterFreqSynth noise TEXTURE that perturbs the field is a runtime-generated GPU texture NOT recoverable from disasm, and the plugin goes BLACK headless for t>~1.0 (unbound atlas). So per-pixel ripple phase differs from FCP; algorithm+statistics match, exact field does not. Fundamental (texture unrecoverable).",
+      "faithful_verified_via": "blocked-stochastic-texture",
+      "swept": "2026-07-18T12:07:32Z"
+    },
+    "filter.PAEZoomBlur": {
+      "id": "filter.PAEZoomBlur",
+      "kind": "filter",
+      "status": "DIVERGED",
+      "metric": "delta_ddb",
+      "worst_ddb": 15.765,
+      "n_scored": 12,
+      "max_oracle_signal": 39.478,
+      "pass_db": 40.0,
+      "oracle_truth": "headless",
+      "faithful_id": "PAEZoomBlur",
+      "synced_from": "fct/faithful/state.json",
+      "faithful_note": "Log-polar zoom is the BEST of 3 models vs headless (~20-22 dB > linear-radius > displacement-prop), confirming the decode. Residual ~20 dB ceiling is the log-polar resampling near the centre (u=ln r -> -inf as r->0). The shipping Blurs__Zoom Zoom Blur filter is authored Amount=0 (STATIC; visible zoom is camera) so near-zero gate ROI. Center wired, Mix=blend. Documented directional-blur.ts.",
+      "faithful_verified_via": "blocked-resample-ceiling",
+      "swept": "2026-07-18T20:03:39Z"
     }
   },
   "history": [
@@ -129,8 +436,213 @@
       "id": "filter.PAEBrightness",
       "status": "DIVERGED",
       "at": "2026-07-22T10:39:32Z"
+    },
+    {
+      "id": "filter.PAEColorize",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:28Z"
+    },
+    {
+      "id": "filter.PAELevels",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:28Z"
+    },
+    {
+      "id": "filter.PAEGaussianBlur",
+      "status": "VERIFIED",
+      "at": "2026-07-22T10:45:28Z"
+    },
+    {
+      "id": "filter.PAEHSVAdjust",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:28Z"
+    },
+    {
+      "id": "generator.PAEColorSolid",
+      "status": "VERIFIED",
+      "at": "2026-07-22T10:45:28Z"
+    },
+    {
+      "id": "filter.PAEDirectionalBlur",
+      "status": "VERIFIED",
+      "at": "2026-07-22T10:45:28Z"
+    },
+    {
+      "id": "filter.PAEFlop",
+      "status": "VERIFIED",
+      "at": "2026-07-22T10:45:28Z"
+    },
+    {
+      "id": "filter.PAERadialBlur",
+      "status": "VERIFIED",
+      "at": "2026-07-22T10:45:28Z"
+    },
+    {
+      "id": "filter.PAEBadTV",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:28Z"
+    },
+    {
+      "id": "filter.PAEBlackHole",
+      "status": "VERIFIED",
+      "at": "2026-07-22T10:45:28Z"
+    },
+    {
+      "id": "filter.PAEBloom",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:28Z"
+    },
+    {
+      "id": "filter.PAEBrightness",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:28Z"
+    },
+    {
+      "id": "filter.PAEChannelMixer",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:28Z"
+    },
+    {
+      "id": "generator.PAECloudsV",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:28Z"
+    },
+    {
+      "id": "filter.PAEEarthquake",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:28Z"
+    },
+    {
+      "id": "filter.PAEGlow",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:28Z"
+    },
+    {
+      "id": "generator.PAENoise",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:28Z"
+    },
+    {
+      "id": "filter.PAETint",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:28Z"
+    },
+    {
+      "id": "filter.PAEUnderwater",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:28Z"
+    },
+    {
+      "id": "filter.PAEZoomBlur",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:28Z"
+    },
+    {
+      "id": "filter.PAEColorize",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:51Z"
+    },
+    {
+      "id": "filter.PAELevels",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:51Z"
+    },
+    {
+      "id": "filter.PAEGaussianBlur",
+      "status": "VERIFIED",
+      "at": "2026-07-22T10:45:51Z"
+    },
+    {
+      "id": "filter.PAEHSVAdjust",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:51Z"
+    },
+    {
+      "id": "generator.PAEColorSolid",
+      "status": "VERIFIED",
+      "at": "2026-07-22T10:45:51Z"
+    },
+    {
+      "id": "filter.PAEDirectionalBlur",
+      "status": "VERIFIED",
+      "at": "2026-07-22T10:45:51Z"
+    },
+    {
+      "id": "filter.PAEFlop",
+      "status": "VERIFIED",
+      "at": "2026-07-22T10:45:51Z"
+    },
+    {
+      "id": "filter.PAERadialBlur",
+      "status": "VERIFIED",
+      "at": "2026-07-22T10:45:51Z"
+    },
+    {
+      "id": "filter.PAEBadTV",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:51Z"
+    },
+    {
+      "id": "filter.PAEBlackHole",
+      "status": "VERIFIED",
+      "at": "2026-07-22T10:45:51Z"
+    },
+    {
+      "id": "filter.PAEBloom",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:51Z"
+    },
+    {
+      "id": "filter.PAEBrightness",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:51Z"
+    },
+    {
+      "id": "filter.PAEChannelMixer",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:51Z"
+    },
+    {
+      "id": "generator.PAECloudsV",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:51Z"
+    },
+    {
+      "id": "filter.PAEEarthquake",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:51Z"
+    },
+    {
+      "id": "filter.PAEGlow",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:51Z"
+    },
+    {
+      "id": "generator.PAENoise",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:51Z"
+    },
+    {
+      "id": "filter.PAETint",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:51Z"
+    },
+    {
+      "id": "filter.PAEUnderwater",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:51Z"
+    },
+    {
+      "id": "filter.PAEZoomBlur",
+      "status": "DIVERGED",
+      "at": "2026-07-22T10:45:51Z"
+    },
+    {
+      "id": "curve.interp.ease",
+      "status": "VERIFIED",
+      "at": "2026-07-22T10:49:24Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-22T10:39:32Z"
+  "updated": "2026-07-22T10:49:24Z"
 }

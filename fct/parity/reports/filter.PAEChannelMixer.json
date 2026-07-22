@@ -1,0 +1,16 @@
+{
+  "id": "filter.PAEChannelMixer",
+  "kind": "filter",
+  "status": "DIVERGED",
+  "metric": "delta_ddb",
+  "worst_ddb": 5.893,
+  "n_scored": 41,
+  "max_oracle_signal": 139.802,
+  "pass_db": 40.0,
+  "oracle_truth": "gui",
+  "faithful_id": "PAEChannelMixer",
+  "synced_from": "fct/faithful/state.json",
+  "faithful_note": "HGColorMatrix nested-child weights + Mono red-row + Alpha-offset all DECODED (channel-mixer.ts). Matrix/mono math correct. Residual embedded ddb (5.9, offset/mix) is the color-family working-space split (headless!=GUI) shared with Colorize; ships the GUI-gate-preferred sRGB form.",
+  "faithful_verified_via": "blocked-headless-neq-gui",
+  "swept": "2026-07-18T11:41:43Z"
+}

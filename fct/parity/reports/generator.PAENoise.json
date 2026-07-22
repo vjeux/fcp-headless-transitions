@@ -1,0 +1,16 @@
+{
+  "id": "generator.PAENoise",
+  "kind": "generator",
+  "status": "DIVERGED",
+  "metric": "delta_ddb",
+  "worst_ddb": 5.151,
+  "n_scored": 25,
+  "max_oracle_signal": 140.93,
+  "pass_db": 40.0,
+  "oracle_truth": "headless",
+  "faithful_id": "PAENoise",
+  "synced_from": "fct/faithful/state.json",
+  "faithful_note": "Per-pixel dSFMT white-noise field (NOISE_DECOMPILE_REPORT.md). Deterministic given the frame seed, but requires (a) faithful dSFMT reimplementation and (b) the exact frame->seed schedule, PLUS modelling the fade/opacity/blend envelope the host applies (a wiring attempt regressed Lights__Static and was reverted). Same shared dSFMT+frame-index infra as PAEBadTV. Stochastic FIELD is reproducible in principle (deterministic PRNG) but the blend-envelope + PSNR sensitivity to any per-pixel phase difference make an exact byte-match low-ROI. Reclassified from pure stochastic to dsfmt-frameindex (the field IS deterministic). | CAVEAT 2026-07-18: the shared dSFMT+frame-index lever is likely ALSO GUI-gated \u2014 PAEEarthquake proved that even a fully-decoded RNG frame-index, when made headless-faithful (trunc(frame)*1000), REGRESSES the GUI gate (-0.37). So the fine per-frame RNG pose is a headless!=GUI target for the whole dSFMT family, not just color. The dSFMT reimpl would be verifiable against HEADLESS but may not improve the GUI GATE. Reduces the ROI of the shared lever for the gate (still valid for headless faithfulness).",
+  "faithful_verified_via": "blocked-dsfmt-frameindex",
+  "swept": "2026-07-19T01:12:07Z"
+}

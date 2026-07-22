@@ -1,0 +1,16 @@
+{
+  "id": "filter.PAETint",
+  "kind": "filter",
+  "status": "DIVERGED",
+  "metric": "delta_ddb",
+  "worst_ddb": 9.46,
+  "n_scored": 65,
+  "max_oracle_signal": 85.806,
+  "pass_db": 40.0,
+  "oracle_truth": "gui",
+  "faithful_id": "PAETint",
+  "synced_from": "fct/faithful/state.json",
+  "faithful_note": "HgcTint hard-light two-leg shader documented (channel-mixer.ts); faithful hard-light REGRESSED Objects__Leaves on the GUI gate (color-space unresolved) so ships the luma*color lerp the GUI GT prefers. Color-family headless!=GUI. Only 4 users, all dominated by other gaps.",
+  "faithful_verified_via": "blocked-headless-neq-gui",
+  "swept": "2026-07-18T12:33:36Z"
+}

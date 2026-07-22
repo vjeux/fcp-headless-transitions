@@ -1,0 +1,16 @@
+{
+  "id": "filter.PAEBloom",
+  "kind": "filter",
+  "status": "DIVERGED",
+  "metric": "delta_ddb",
+  "worst_ddb": 6.997,
+  "n_scored": 8,
+  "max_oracle_signal": 114.039,
+  "pass_db": 40.0,
+  "oracle_truth": "headless",
+  "faithful_id": "PAEBloom",
+  "synced_from": "fct/faithful/state.json",
+  "faithful_note": "Bloom = threshold + Gaussian (kernel VERIFIED, see PAEGaussianBlur) + composite. The embedded ddb (7.0) is the threshold/bloom COMPOSITE stages (glow.ts), and the worst points are t=0.1 across ALL params = whole-bloom-output offset, not one param. Blur sub-component is faithful; the composite pipeline (threshold curve, additive blend, clip-to-white ordering) is the residual + it feeds a multi-stage host.",
+  "faithful_verified_via": "blocked-pipeline",
+  "swept": "2026-07-18T11:25:49Z"
+}

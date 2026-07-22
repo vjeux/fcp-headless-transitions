@@ -1,0 +1,16 @@
+{
+  "id": "generator.PAEColorSolid",
+  "kind": "generator",
+  "status": "VERIFIED",
+  "metric": "delta_ddb",
+  "worst_ddb": 51.799,
+  "n_scored": 30,
+  "max_oracle_signal": 147.025,
+  "pass_db": 40.0,
+  "oracle_truth": "gui",
+  "faithful_id": "PAEColorSolid",
+  "synced_from": "fct/faithful/state.json",
+  "faithful_note": "Generator solo-synth VERIFIED (interior 54-70 dB): Color Solid emits authored colour as srgb_to_linear(param)*255 into the linear framebuffer (6-point sweep 0.10->2.5 0.5->54.4 1.0->254.6 = s2l exact). footage.ts color branch. Embedded-host is host geometry (tracked separately).",
+  "faithful_verified_via": "solo-synth",
+  "swept": "2026-07-18T15:16:18Z"
+}

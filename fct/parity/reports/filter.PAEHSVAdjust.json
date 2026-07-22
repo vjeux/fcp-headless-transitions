@@ -1,0 +1,16 @@
+{
+  "id": "filter.PAEHSVAdjust",
+  "kind": "filter",
+  "status": "DIVERGED",
+  "metric": "delta_ddb",
+  "worst_ddb": 7.397,
+  "n_scored": 59,
+  "max_oracle_signal": 114.561,
+  "pass_db": 40.0,
+  "oracle_truth": "gui",
+  "faithful_id": "PAEHSVAdjust",
+  "synced_from": "fct/faithful/state.json",
+  "faithful_note": "HgcHSVAdjust/Saturation documented (hue-saturation.ts). Value darken leg out=in*Value^2 sRGB EXACT; Saturation desaturate-only clamp verified. Brighten leg V>1 not a squared mult (unshipped). Color-family headless!=GUI: linear-space match regresses the GUI gate; ships GUI-preferred sRGB form.",
+  "faithful_verified_via": "blocked-headless-neq-gui",
+  "swept": "2026-07-18T19:29:53Z"
+}
