@@ -2078,9 +2078,11 @@
   "uuid": "37C59CC3-8FD8-4460-A17E-71B32254FAD7"
  },
  "paecicimotionblur": {
-  "category": "cifilter",
+  "category": "fxsupport",
   "files": 1,
   "final_shaders": [],
+  "fxsupport_binary": "/Applications/Final Cut Pro.app/Contents/Frameworks/ProAppsFxSupport.framework/Versions/A/ProAppsFxSupport",
+  "fxsupport_symbol": "__ZN12_GLOBAL__N_122makeMotionBlurInternalERK5HGRefI6HGNodeEPK6PCRectIdERK14PCMatrix44TmplIdESC_SC_bb",
   "helium": [],
   "impl": false,
   "mod": null,

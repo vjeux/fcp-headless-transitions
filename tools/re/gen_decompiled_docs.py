@@ -396,7 +396,44 @@ def section_photos_lut(slug, b):
     return "\n".join(out).rstrip()+"\n"
 
 
+def section_fxsupport(slug, b):
+    """Filters whose real algorithm is a shared FxSupport primitive in
+    ProAppsFxSupport (e.g. Motion Blur = FxSupport::makeMotionBlur), NOT an opaque
+    CIFilter. Embeds the verbatim disassembly of that primitive."""
+    import subprocess as _sp
+    sym=b.get("fxsupport_symbol"); binp=b.get("fxsupport_binary")
+    out=["## Decompiled code (ground truth)",""]
+    out.append("This filter is **not** an opaque Core Image wrapper as a first pass assumed: the "
+               "actual per-pixel algorithm Apple ships is a shared **FxSupport** primitive in "
+               "`ProAppsFxSupport.framework`, driven from the host. The code below is the "
+               "**verbatim ARM64 disassembly** of that primitive from the user's licensed FCP "
+               "install; nothing is paraphrased.\n")
+    body=None
+    if sym and binp:
+        txt=_sp.run(["otool","-arch","arm64","-tV",binp],capture_output=True,text=True).stdout
+        cap=[]; f=False
+        for ln in txt.split("\n"):
+            if not f and (ln.startswith(sym+":") or ln.rstrip()==sym+":"): f=True
+            if f:
+                cap.append(ln)
+                if ln.rstrip().endswith("\tret"): break
+        body="\n".join(cap) if cap else None
+    dem=_sp.run(["c++filt"],input=sym or "",capture_output=True,text=True).stdout.strip()
+    if body:
+        out.append(f"### FxSupport primitive — `{dem}`")
+        out.append("Velocity/transform motion blur: accumulates the source along the per-frame "
+                   "transform delta (built from the in/out matrices). Regenerate: `otool -arch "
+                   "arm64 -tV \"…/ProAppsFxSupport.framework/Versions/A/ProAppsFxSupport\" | "
+                   "grep -A400 makeMotionBlurInternal`\n")
+        out.append("```asm"); out.append(body.rstrip()); out.append("```\n")
+    else:
+        out.append("> (`"+dem+"` is present in ProAppsFxSupport; disassemble with the otool command above.)")
+    return "\n".join(out).rstrip()+"\n"
+
+
 def build_section(slug,b):
+    if b["category"]=="fxsupport":
+        return section_fxsupport(slug,b)
     if b["category"]=="photos_lut":
         return section_photos_lut(slug,b)
     if b["final_shaders"]:
