@@ -63,9 +63,15 @@ def _render_ts(node, params_list, in_png, out_png):
             "in": in_png, "out": out_png, "time": 0.0, "params": params_list}
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
         json.dump(spec, f); spec_file = f.name
+    env = dict(os.environ, FCT_FILTER_SPEC=spec_file)
+    # A node may declare engine env flags that select a decoded (faithful) code path
+    # the shipped GUI-GT default keeps guarded (e.g. FCT_TINT_HARDLIGHT for the decoded
+    # HgcTint hard-light transfer). The parity harness tests the DECODED computation.
+    for k, v in (node.get("engine_env") or {}).items():
+        env[k] = str(v)
     subprocess.run(["node_modules/.bin/tsx", "test/_filter_apply.ts"],
                    cwd=str(REPO / "engine"),
-                   env=dict(os.environ, FCT_FILTER_SPEC=spec_file), check=True,
+                   env=env, check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     os.remove(spec_file)
 

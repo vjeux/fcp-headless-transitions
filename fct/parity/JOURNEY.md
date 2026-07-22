@@ -285,3 +285,46 @@ projection vs homography, inline Newton vs OZBezierGetRoots, its own RNG-field s
 those are DELEGATED (faithful frame-PSNR) not exact. The exact frontier is COMPLETE for the
 current engine factoring; growing it needs the engine to factor out a function matching an
 exported FCP symbol, OR the stateful-object harness (OZSpline/LiCamera), OR GPU instrumentation.
+
+
+## UPDATE 2026-07-22 (session 2) — HgcTint FULLY DECODED + node-boundary VERIFIED (0.89 lvl)
+
+Decoded the HgcTint hard-light shader END-TO-END and VERIFIED it at the transfer node
+boundary against REAL FCP (transfer.PAETint: max_abs 0.89 levels across 108 samples incl.
+all clipped channels — up from CHARACTERIZED 184.6). This unblocks the objective's #1 item.
+
+METHOD (measure-twice):
+1. Read the VERBATIM shader (evidence/shaders/HgcTint.metal). Reduced `sel*highLeg + r2`
+   algebraically: it IS `hardLight(base=tint, blend=luma)` (luma<0.5 → 2·tint·luma;
+   luma≥0.5 → 1−2(1−tint)(1−luma)). Then `mix(rgb, tinted, Intensity)`.
+2. The shape alone fit the ORIGINAL 108-sample transfer at only ~29 rms (code space) / ~41
+   (true-linear) — the working space was the missing piece (this is EXACTLY why the
+   2026-07-11 raw-sRGB hard-light rewrite regressed Leaves).
+3. Captured TWO orthogonal FCP probes via transfer_batch (one engine boot each):
+   (a) gray-tint-0.5 across an 18-step input ramp → isolates the input/output transfer;
+   (b) tint-value sweep on fixed in={64,192} → isolates the tint→base transfer + both
+       hard-light legs.
+4. Numerically fit (scipy least_squares) → a SINGLE physically-coherent model:
+     • input & output in a POWER-LAW gamma-1.956 working space (v_ws = (code/255)^0.5112);
+       NOT scene-linear (true sRGB/2.4 → 33 rms; g=2.0 → 1.5 rms; g≈1.956 wins at 0.25).
+     • luma = Rec.709 (0.2126,0.7152,0.0722) — fitted 0.2134/0.7150/0.0713.
+     • tint colour decoded from ~sRGB(2.22) authoring into the working space via ^1.134
+       (= sRGB→gamma1.956 re-encode; 2.22/1.956 = 1.134). Coherent, not ad-hoc.
+   Cross-validated on the FULL colored-tint dataset: 0.166 rms (non-clip) / 0.26 rms
+   (incl. clip) / 0.74 worst — essentially exact. The earlier green_tint "contradiction"
+   (in=64 → G=248 vs gray in=64 → 53) is FULLY explained by the model (different tint).
+
+PORT: `tintHardLightFilter` in channel-mixer.ts (exported). Registry Tint reads the REAL
+nested Color group {Red,Green,Blue}+Intensity+Mix and uses the hard-light path under
+FCT_TINT_HARDLIGHT=1. transfer.PAETint carries engine_env={FCT_TINT_HARDLIGHT:1} so the
+parity harness tests the DECODED computation. Shipped GUI-GT default stays byte-identical.
+
+GUI GAP CONFIRMED (not a decode error): promoting the decoded path to the shipped GUI-GT
+render REGRESSES Objects__Leaves 22.44 → 16.47 (−5.97, gate FAIL), while the SAME transfer
+matches HEADLESS FCP at 0.89 levels. This is the known headless-vs-GUI colour-management
+gap: FCP's GUI composites Tint through different colour management than headless, and the
+shipped `lum*color` lerp happens to sit closer to Leaves' GUI pixels. So the decode is
+faithful to the FCP FUNCTION (node boundary), but the GUI-GT gate needs the chain-level
+GUI colour pipeline before the faithful transfer can be promoted. Gate restored 0/0.
+
+State: 32 nodes | VERIFIED 13  CHARACTERIZED 5  DIVERGED 14. tsc clean.

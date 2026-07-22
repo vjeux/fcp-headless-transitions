@@ -282,7 +282,7 @@
    "id": "transfer.PAETint",
    "subsystem": "color",
    "kind": "transfer",
-   "desc": "PAETint per-pixel transfer (tint toward Color by Intensity). Nested Color group. EXACT isolation via uniform inputs.",
+   "desc": "PAETint per-pixel transfer (HgcTint hard-light in gamma-1.956 working space, Rec.709 luma, tint decoded from ~sRGB). DECODED+VERIFIED 2026-07-22. Nested Color group. EXACT isolation via uniform inputs.",
    "oracle": {
     "type": "transfer",
     "uuid": "717D6E01-83F4-4A4B-AF92-42AABA4B176C",
@@ -417,7 +417,10 @@
    "oracle_truth": "transfer",
    "status": "UNTESTED",
    "characterized": true,
-   "characterized_reason": "DECODED (2026-07-22, near-complete \u2014 see evidence/tint_transfer_r1g0b0_i1.json FULL_TWO_LEG_DECODE): highlight leg = K*luma_sRGB*s2l(tint) K=3.878 (fits ~0.1 lvl, tint colour LINEARIZED); shadow leg ~2*luma-1 smoothstepped near 0.5; Intensity mix ~sRGB. The documented ceiling is cracked structurally. REMAINING to ship: pin K exactly (read SetParameter scale in disasm) + the smoothstep edges, implement in tintFilter + nested-Color read, then verify Objects__Leaves >=22.44 on the GUI gate (the compound fix, now with decoded math)."
+   "characterized_reason": "DECODED (2026-07-22, near-complete \u2014 see evidence/tint_transfer_r1g0b0_i1.json FULL_TWO_LEG_DECODE): highlight leg = K*luma_sRGB*s2l(tint) K=3.878 (fits ~0.1 lvl, tint colour LINEARIZED); shadow leg ~2*luma-1 smoothstepped near 0.5; Intensity mix ~sRGB. The documented ceiling is cracked structurally. REMAINING to ship: pin K exactly (read SetParameter scale in disasm) + the smoothstep edges, implement in tintFilter + nested-Color read, then verify Objects__Leaves >=22.44 on the GUI gate (the compound fix, now with decoded math).",
+   "engine_env": {
+    "FCT_TINT_HARDLIGHT": "1"
+   }
   },
   {
    "id": "transfer.PAEColorize",

@@ -477,14 +477,14 @@
     "transfer.PAETint": {
       "id": "transfer.PAETint",
       "kind": "transfer",
-      "status": "DIVERGED",
+      "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 184.61,
+      "max_abs_levels": 0.8899999999999864,
       "n_samples": 108,
       "tol_levels": 2.0,
       "worst": {
         "case": {
-          "label": "green_tint_full",
+          "label": "blue_tint_half",
           "params": [
             {
               "name": "Color",
@@ -498,19 +498,19 @@
                 {
                   "name": "Green",
                   "id": 2,
-                  "value": 1.0
+                  "value": 0.0
                 },
                 {
                   "name": "Blue",
                   "id": 3,
-                  "value": 0.0
+                  "value": 1.0
                 }
               ]
             },
             {
               "name": "Intensity",
               "id": 2,
-              "value": 1.0
+              "value": 0.5
             }
           ]
         },
@@ -520,14 +520,14 @@
           64
         ],
         "oracle": [
-          0.27,
-          248.61,
-          0.13
+          16.23,
+          16.08,
+          141.89
         ],
         "engine": [
-          64.0,
-          64.0,
-          64.0
+          16.0,
+          16.0,
+          141.0
         ]
       },
       "oracle_truth": "transfer",
@@ -1281,8 +1281,13 @@
       "id": "transfer.PAEChannelMixer_clip",
       "status": "DIVERGED",
       "at": "2026-07-22T13:56:21Z"
+    },
+    {
+      "id": "transfer.PAETint",
+      "status": "VERIFIED",
+      "at": "2026-07-22T14:48:35Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-22T13:56:21Z"
+  "updated": "2026-07-22T14:48:35Z"
 }

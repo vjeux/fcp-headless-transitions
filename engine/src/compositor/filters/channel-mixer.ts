@@ -283,6 +283,85 @@ export function tintFilter(input: ImageData, r: number, g: number, b: number, in
 }
 
 /**
+ * FCP HgcTint hard-light tint — DECODED & VERIFIED (2026-07-22, fct/parity).
+ *
+ * The verbatim HgcTint.metal shader (evidence/shaders/HgcTint.metal) is a per-pixel
+ * hard-light blend of the (per-channel) tint colour over the image LUMA:
+ *   r0        = color/max(a,1e-6)                 // un-premultiply
+ *   luma      = dot(rgb, hg_Params[2])            // luma weights
+ *   shadowLeg = (1-luma)*tint - (1-luma)          // r1 = r2.x*tint - r2.x, r2.x=(1-luma)
+ *   r2        = shadowLeg*2 + 1                    // r2 = r1*2 + 1
+ *   highLeg   = 2*luma*tint - r2                   // r1 = (luma*tint)*2 - r2
+ *   sel       = (luma < 0.5) ? 1 : 0
+ *   tinted    = sel*highLeg + r2                   // == hardLight(base=tint, blend=luma)
+ *   out       = mix(rgb, tinted, hg_Params[1])     // hg_Params[1] = Intensity
+ *
+ * Algebraically `sel*highLeg + r2` IS the hard-light function with base=tint, blend=luma:
+ *   luma<0.5:  2*tint*luma
+ *   luma>=0.5: 1 - 2*(1-tint)*(1-luma)
+ *
+ * WORKING SPACE — the piece the 2026-07-11 rewrite was missing (it regressed Leaves
+ * because it ran the shape in raw sRGB code space). fct/parity fitted the REAL FCP
+ * transfer (transfer.PAETint, 108 samples incl. clipped channels) to 0.26 rms / 0.74
+ * worst level with:
+ *   • input & output in a POWER-LAW gamma-1.956 working space  (v_ws = (code/255)^0.5112)
+ *     — NOT scene-linear (true sRGB/2.4 fits at 33 rms; g=2.0 at 1.5 rms; g≈1.956 wins).
+ *   • luma vector = Rec.709 (0.2126, 0.7152, 0.0722)  (fitted 0.2134/0.7150/0.0713).
+ *   • tint colour decoded from its ~sRGB authoring into the working space via an extra
+ *     ^1.134 curve  (i.e. tint_ws = tintUI^(2.22/1.956) ≈ sRGB→gamma1.956 re-encode).
+ * The result is essentially exact at the node boundary. See fct/parity/JOURNEY.md.
+ *
+ * Kept as its own exported function so the parity harness can VERIFY it at the transfer
+ * node boundary (FCT_TINT_HARDLIGHT=1) before it is wired into the shipped GUI-GT path
+ * (which is gate-guarded — see the Tint registry note).
+ */
+const TINT_WS_INV_GAMMA = 0.51117;         // v_ws = (v/255)^0.51117  (gamma ≈ 1.9563)
+const TINT_WS_GAMMA = 1.0 / TINT_WS_INV_GAMMA;
+const TINT_TINT_CURVE = 1.13409;           // tint_ws = tintUI^1.134  (sRGB→working re-encode)
+const TINT_LW = [0.2126, 0.7152, 0.0722];  // Rec.709 luma weights
+
+function hardLight(base: number, blend: number): number {
+  return blend < 0.5 ? 2 * base * blend : 1 - 2 * (1 - base) * (1 - blend);
+}
+
+export function tintHardLightFilter(
+  input: ImageData, r: number, g: number, b: number,
+  intensity: number, mix: number = 1,
+): ImageData {
+  const width = input.width, height = input.height;
+  const src = input.data;
+  const out = new Uint8ClampedArray(src.length);
+  const iv = TINT_WS_INV_GAMMA, gm = TINT_WS_GAMMA;
+  // Tint colour → working space (decode from ~sRGB authoring).
+  const tR = Math.pow(Math.max(0, Math.min(1, r)), TINT_TINT_CURVE);
+  const tG = Math.pow(Math.max(0, Math.min(1, g)), TINT_TINT_CURVE);
+  const tB = Math.pow(Math.max(0, Math.min(1, b)), TINT_TINT_CURVE);
+  const [wr, wg, wb] = TINT_LW;
+  for (let i = 0; i < src.length; i += 4) {
+    // Input → working space (gamma 1.956).
+    const wR = Math.pow(src[i] / 255, iv);
+    const wG = Math.pow(src[i + 1] / 255, iv);
+    const wB = Math.pow(src[i + 2] / 255, iv);
+    const luma = wr * wR + wg * wG + wb * wB;
+    // Hard-light tint per channel, then intensity mix — all in working space.
+    let oR = wR * (1 - intensity) + hardLight(tR, luma) * intensity;
+    let oG = wG * (1 - intensity) + hardLight(tG, luma) * intensity;
+    let oB = wB * (1 - intensity) + hardLight(tB, luma) * intensity;
+    if (mix < 1) {
+      oR = wR * (1 - mix) + oR * mix;
+      oG = wG * (1 - mix) + oG * mix;
+      oB = wB * (1 - mix) + oB * mix;
+    }
+    // Working space → output code.
+    out[i]     = Math.round(Math.pow(Math.max(0, Math.min(1, oR)), gm) * 255);
+    out[i + 1] = Math.round(Math.pow(Math.max(0, Math.min(1, oG)), gm) * 255);
+    out[i + 2] = Math.round(Math.pow(Math.max(0, Math.min(1, oB)), gm) * 255);
+    out[i + 3] = src[i + 3];
+  }
+  return new ImageData(out, width, height);
+}
+
+/**
  * Motion "Colorize" — a luminance remap from `black` (luma 0) to `white` (luma 1),
  * blended over the original by `intensity` (the colorize AMOUNT), then cross-faded
  * with the original by `mix` (the final blend). Verbatim HgcColorize:
@@ -437,9 +516,24 @@ registerFilter({
     // Objects__Leaves (HSVAdjust->Tint->Tint, Saturation=-1 grayscale), and routing its
     // Tint through the linear buffer REGRESSED Leaves 22.44->20.17 (measured). Motion's
     // HgcTint hard-light two-leg transfer (see channel-mixer.ts header) is not the
-    // simple luma.tint lerp the linear helper models, so a faithful Tint-in-linear needs
-    // the hard-light shader decoded first (filed as follow-up). Until then Tint stays on
-    // its shipped path, and because it neither consumes nor publishes a linear buffer it
+    // simple luma.tint lerp the linear helper models.
+    //
+    // DECODED 2026-07-22 (fct/parity, transfer.PAETint @ 0.26 rms): the faithful
+    // hard-light-in-gamma-1.956-working-space transfer is `tintHardLightFilter`. It is
+    // node-boundary VERIFIED but not yet promoted to the shipped GUI-GT path — the
+    // 2026-07-11 hard-light rewrite REGRESSED Leaves because the working space was raw
+    // sRGB; the decoded gamma-1.956 space must be gate-checked on Leaves before promotion.
+    // FCT_TINT_HARDLIGHT=1 opts into the faithful path (used by the parity harness and
+    // for the gate A/B check); shipped default stays byte-identical.
+    const useHL = typeof process !== 'undefined' && process.env && process.env.FCT_TINT_HARDLIGHT === '1';
+    if (useHL) {
+      // Read the REAL param set: nested Color group {Red,Green,Blue}, Intensity, Mix.
+      const r = ctx.nestedParam('Color', 'Red', ctx.param('Red', 1));
+      const g = ctx.nestedParam('Color', 'Green', ctx.param('Green', 1));
+      const b = ctx.nestedParam('Color', 'Blue', ctx.param('Blue', 1));
+      return tintHardLightFilter(input, r, g, b, ctx.param('Intensity', 1), ctx.param('Mix', 1));
+    }
+    // Shipped path: because it neither consumes nor publishes a linear buffer it
     // BREAKS the chain: Leaves' HSVAdjust is then a chain entry (legacy emit) and Leaves
     // stays byte-identical. CP's Colorize->HueSat chain is unaffected (no Tint).
     return tintFilter(input, ctx.param('Red', 1), ctx.param('Green', 1), ctx.param('Blue', 1),

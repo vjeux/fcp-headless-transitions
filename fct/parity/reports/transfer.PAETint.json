@@ -1,14 +1,14 @@
 {
   "id": "transfer.PAETint",
   "kind": "transfer",
-  "status": "DIVERGED",
+  "status": "VERIFIED",
   "metric": "max_abs_levels",
-  "max_abs_levels": 184.61,
+  "max_abs_levels": 0.8899999999999864,
   "n_samples": 108,
   "tol_levels": 2.0,
   "worst": {
     "case": {
-      "label": "green_tint_full",
+      "label": "blue_tint_half",
       "params": [
         {
           "name": "Color",
@@ -22,19 +22,19 @@
             {
               "name": "Green",
               "id": 2,
-              "value": 1.0
+              "value": 0.0
             },
             {
               "name": "Blue",
               "id": 3,
-              "value": 0.0
+              "value": 1.0
             }
           ]
         },
         {
           "name": "Intensity",
           "id": 2,
-          "value": 1.0
+          "value": 0.5
         }
       ]
     },
@@ -44,14 +44,14 @@
       64
     ],
     "oracle": [
-      0.27,
-      248.61,
-      0.13
+      16.23,
+      16.08,
+      141.89
     ],
     "engine": [
-      64.0,
-      64.0,
-      64.0
+      16.0,
+      16.0,
+      141.0
     ]
   },
   "oracle_truth": "transfer",
@@ -100,9 +100,9 @@
         13.66
       ],
       "engine": [
-        16.0,
-        16.0,
-        16.0
+        13.0,
+        13.0,
+        13.0
       ]
     },
     {
@@ -148,9 +148,9 @@
         26.88
       ],
       "engine": [
-        32.0,
-        32.0,
-        32.0
+        27.0,
+        27.0,
+        27.0
       ]
     },
     {
@@ -196,9 +196,9 @@
         53.22
       ],
       "engine": [
-        64.0,
-        64.0,
-        64.0
+        53.0,
+        53.0,
+        53.0
       ]
     },
     {
@@ -244,9 +244,9 @@
         118.72
       ],
       "engine": [
-        128.0,
-        128.0,
-        128.0
+        119.0,
+        119.0,
+        119.0
       ]
     },
     {
@@ -292,9 +292,9 @@
         195.4
       ],
       "engine": [
-        200.0,
-        200.0,
-        200.0
+        195.0,
+        195.0,
+        195.0
       ]
     },
     {
@@ -340,9 +340,9 @@
         238.65
       ],
       "engine": [
-        240.0,
-        240.0,
-        240.0
+        239.0,
+        239.0,
+        239.0
       ]
     },
     {
@@ -388,9 +388,9 @@
         62.92
       ],
       "engine": [
-        95.0,
-        95.0,
-        95.0
+        63.0,
+        63.0,
+        63.0
       ]
     },
     {
@@ -436,9 +436,9 @@
         138.87
       ],
       "engine": [
-        138.0,
-        138.0,
-        138.0
+        139.0,
+        139.0,
+        139.0
       ]
     },
     {
@@ -484,9 +484,9 @@
         48.02
       ],
       "engine": [
-        67.0,
-        67.0,
-        67.0
+        48.0,
+        48.0,
+        48.0
       ]
     },
     {
@@ -532,9 +532,9 @@
         0.0
       ],
       "engine": [
-        16.0,
-        16.0,
-        16.0
+        62.0,
+        0.0,
+        0.0
       ]
     },
     {
@@ -580,9 +580,9 @@
         0.0
       ],
       "engine": [
-        32.0,
-        32.0,
-        32.0
+        124.0,
+        0.0,
+        0.0
       ]
     },
     {
@@ -628,9 +628,9 @@
         0.0
       ],
       "engine": [
-        64.0,
-        64.0,
-        64.0
+        248.0,
+        0.0,
+        0.0
       ]
     },
     {
@@ -676,9 +676,9 @@
         43.36
       ],
       "engine": [
-        128.0,
-        128.0,
-        128.0
+        255.0,
+        44.0,
+        44.0
       ]
     },
     {
@@ -724,9 +724,9 @@
         151.18
       ],
       "engine": [
-        200.0,
-        200.0,
-        200.0
+        255.0,
+        152.0,
+        152.0
       ]
     },
     {
@@ -772,9 +772,9 @@
         225.37
       ],
       "engine": [
-        240.0,
-        240.0,
-        240.0
+        255.0,
+        225.0,
+        225.0
       ]
     },
     {
@@ -820,9 +820,9 @@
         1.0
       ],
       "engine": [
-        95.0,
-        95.0,
-        95.0
+        255.0,
+        1.0,
+        1.0
       ]
     },
     {
@@ -868,9 +868,9 @@
         68.56
       ],
       "engine": [
-        138.0,
-        138.0,
-        138.0
+        255.0,
+        69.0,
+        69.0
       ]
     },
     {
@@ -916,9 +916,9 @@
         0.0
       ],
       "engine": [
-        67.0,
-        67.0,
-        67.0
+        223.0,
+        0.0,
+        0.0
       ]
     },
     {
@@ -964,9 +964,9 @@
         35.16
       ],
       "engine": [
-        16.0,
-        16.0,
-        16.0
+        4.0,
+        4.0,
+        35.0
       ]
     },
     {
@@ -1012,9 +1012,9 @@
         70.66
       ],
       "engine": [
-        32.0,
-        32.0,
-        32.0
+        8.0,
+        8.0,
+        71.0
       ]
     },
     {
@@ -1060,9 +1060,9 @@
         141.89
       ],
       "engine": [
-        64.0,
-        64.0,
-        64.0
+        16.0,
+        16.0,
+        141.0
       ]
     },
     {
@@ -1108,9 +1108,9 @@
         185.91
       ],
       "engine": [
-        128.0,
-        128.0,
-        128.0
+        80.0,
+        80.0,
+        186.0
       ]
     },
     {
@@ -1156,9 +1156,9 @@
         226.72
       ],
       "engine": [
-        200.0,
-        200.0,
-        200.0
+        175.0,
+        175.0,
+        227.0
       ]
     },
     {
@@ -1204,9 +1204,9 @@
         247.26
       ],
       "engine": [
-        240.0,
-        240.0,
-        240.0
+        233.0,
+        233.0,
+        247.0
       ]
     },
     {
@@ -1252,9 +1252,9 @@
         132.88
       ],
       "engine": [
-        147.0,
-        72.0,
-        72.0
+        59.0,
+        17.0,
+        133.0
       ]
     },
     {
@@ -1300,9 +1300,9 @@
         133.1
       ],
       "engine": [
-        94.0,
-        169.0,
-        94.0
+        59.0,
+        126.0,
+        133.0
       ]
     },
     {
@@ -1348,9 +1348,9 @@
         211.64
       ],
       "engine": [
-        59.0,
-        59.0,
-        134.0
+        13.0,
+        13.0,
+        211.0
       ]
     },
     {
@@ -1396,9 +1396,9 @@
         0.0
       ],
       "engine": [
-        16.0,
-        16.0,
-        16.0
+        0.0,
+        62.0,
+        0.0
       ]
     },
     {
@@ -1444,9 +1444,9 @@
         0.0
       ],
       "engine": [
-        32.0,
-        32.0,
-        32.0
+        0.0,
+        124.0,
+        0.0
       ]
     },
     {
@@ -1492,9 +1492,9 @@
         0.13
       ],
       "engine": [
-        64.0,
-        64.0,
-        64.0
+        0.0,
+        248.0,
+        0.0
       ]
     },
     {
@@ -1540,9 +1540,9 @@
         43.95
       ],
       "engine": [
-        128.0,
-        128.0,
-        128.0
+        44.0,
+        255.0,
+        44.0
       ]
     },
     {
@@ -1588,9 +1588,9 @@
         151.81
       ],
       "engine": [
-        200.0,
-        200.0,
-        200.0
+        152.0,
+        255.0,
+        152.0
       ]
     },
     {
@@ -1636,9 +1636,9 @@
         225.03
       ],
       "engine": [
-        240.0,
-        240.0,
-        240.0
+        225.0,
+        255.0,
+        225.0
       ]
     },
     {
@@ -1684,9 +1684,9 @@
         1.06
       ],
       "engine": [
-        95.0,
-        95.0,
-        95.0
+        1.0,
+        255.0,
+        1.0
       ]
     },
     {
@@ -1732,9 +1732,9 @@
         68.7
       ],
       "engine": [
-        138.0,
-        138.0,
-        138.0
+        69.0,
+        255.0,
+        69.0
       ]
     },
     {
@@ -1780,19 +1780,10 @@
         0.01
       ],
       "engine": [
-        67.0,
-        67.0,
-        67.0
+        0.0,
+        223.0,
+        0.0
       ]
-    }
-  ],
-  "characterized": true,
-  "findings": [
-    {
-      "kind": "compound_bug_gate_blocked",
-      "summary": "PAETint transfer DIVERGED 184 levels: a green tint (Color=[0,1,0],Intensity=1) leaves the TS output UNCHANGED while FCP tints green. TWO bugs compound: (1) PARAM-LOCATION \u2014 the TS registration reads top-level ctx.param('Red') but the real PAETint nests RGB under a `Color` group (id=1), so it silently uses a WHITE (1,1,1) tint (documented as known in channel-mixer.ts:73). (2) TINT-MATH \u2014 tintFilter is a simple luma*color lerp, but FCP's HgcTint is a HARD-LIGHT two-leg select about luma 0.5.",
-      "gate_blocked": "Fixing ONLY the param-location (read nested Color) REGRESSES the sole Tint host Objects__Leaves 22.44->19.29 dB (measured 2026-07-22, then reverted per ROADMAP Rule 2). The buggy white-tint COMPENSATES for the wrong tint-math on Leaves' near-gray tint (Color~0.443). So the two bugs must be fixed TOGETHER: decode + implement the hard-light HgcTint shader FIRST, then switch to the nested Color read. Neither fix alone is net-positive.",
-      "next": "Decode HgcTint hard-light two-leg transfer (shader source is in channel-mixer.ts header + docs/FILTER_RE_PHASE2.md 'Tint'), implement in tintFilter, THEN read nested Color, and verify Leaves stays >=22.44 on the GUI gate + the transfer test goes to <=2 levels."
     }
   ]
 }
