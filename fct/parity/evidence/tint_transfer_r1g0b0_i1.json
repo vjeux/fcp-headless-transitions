@@ -126,6 +126,16 @@
       "G/B channels (tint=0): ~0 until luma~0.4, then out\u22482*luma-1 for luma>0.5 (sRGB shadow leg), with a smoothstep softening near the 0.5 threshold (matches prior RE note smoothstep(~0.27,~1.22,luma)).",
       "Neither pure-sRGB nor pure-linear two-leg fit is exact; G matches sRGB 2*luma-1 well, R slope 3.88 needs leg-by-leg reconstruction."
     ],
-    "next": "Reconstruct each leg (shadow/highlight) with the correct sel/smoothstep in sRGB; the G(tint=0) shadow leg = 2*luma-1 is confirmed. Then fix tintFilter + nested Color read TOGETHER and verify Leaves stays >=22.44 on the GUI gate."
+    "next": "Reconstruct each leg (shadow/highlight) with the correct sel/smoothstep in sRGB; the G(tint=0) shadow leg = 2*luma-1 is confirmed. Then fix tintFilter + nested Color read TOGETHER and verify Leaves stays >=22.44 on the GUI gate.",
+    "decode_progress": {
+      "disasm_formula_tested": "luma=v/255; A=(1-luma)*(tint-1); shadow=2A+1; highl=2*luma*tint-shadow; sel=(luma<0.5); tinted=sel*highl+shadow (sRGB).",
+      "result": "G channel (tint=0) matches for luma>0.5 (shadow leg=2*luma-1) but the <0.5 transition is SHARPER than FCP (needs the smoothstep the prior RE note found). R channel (tint=1) is ~2x too LOW in shadows (32->pred 64 vs FCP 124.3; factor ~1.94).",
+      "hypotheses_for_R_2x": [
+        "The tinted RGB may be re-premultiplied AND the grayscale luma path double-counts (r0.xyz*=r0.w with a non-1 alpha).",
+        "sel/leg selection for tint=1,luma<0.5 may pick a DIFFERENT leg than tint=0 (the highlight leg 2*luma*tint dominates, not shadow).",
+        "luma weights: for a pure grayscale input luma=v/255 regardless of 601/709, so it's NOT a luma-weight issue."
+      ],
+      "status": "OPEN \u2014 G shadow leg pinned (sRGB 2*luma-1 + smoothstep); R leg + threshold smoothstep still to reconstruct. Full HgcTint decode remains the prerequisite to unblock the Tint fix."
+    }
   }
 }
