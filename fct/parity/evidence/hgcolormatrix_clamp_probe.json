@@ -378,5 +378,15 @@
    255.0,
    255.0
   ]
+ },
+ "asymptote_analysis": {
+  "note": "At high gain the output FREEZES (r200 a>=2 -> (255,176,172); y a>=1.5 -> (255,255,197)). The frozen non-max channels encode the input chroma compressed. In-code ratio G/R=0.25 -> asymptote 0.69; 0.9->1.0(clip); 0.3->0.77.",
+  "models_ruled_out": [
+   "linear excess-redistribution toward white (28 rms, keeps growing past freeze)",
+   "linear(1,ratio,ratio)->sRGB readback: (255,137,137), too dark vs FCP (255,176,172)",
+   "gamma-1.961(1,ratio,ratio) readback: (255,126,126), too dark",
+   "Rec.709 luma-preserving desaturation (undershoots the lift)"
+  ],
+  "conclusion": "The clamp is a working-space HDR readback: the diagonal matrix output overflows a bounded ExtendedLinearSRGB/Rec709 buffer, the max channel clips to 1, and the non-max channels are read back at a value BRIGHTER than a simple linear or gamma-1.961 clip of the pre-clip ratio. Needs the HGColorMatrix RenderTile disasm (clamp order + which colour space the readback clamps in) to pin exactly. The discontinuity at clip onset (a=1.28->1.30: R 254->242 DROPS) indicates a path switch, not a smooth curve."
  }
 }
