@@ -1,117 +1,119 @@
 #!/usr/bin/env python3
 """tools/re/gen_behavior_decomp.py — inject a "Decompiled code (ground truth)"
-subsection under each decodable *simulation* behavior in docs/types/BEHAVIORS.md.
+subsection under EVERY behavior in docs/types/BEHAVIORS.md that has a decodable
+per-frame method in FCP's Ozone binaries.
 
-FCP's physics behaviors live in Ozone's Behaviors.ozp. Each one implements a C++
-accumForces(OZSimulationState*, OZTransformNode*) — and some an accumInitialValues(...)
-— that the shared Ozone integrator calls per sub-step to add that behavior's force /
-initial velocity to the object's motion state. That method IS the per-frame algorithm,
-and it disassembles cleanly. This tool embeds the verbatim ARM64 disassembly (via
-disasm_behavior.py) under the matching behavior heading. Nothing is paraphrased.
+Behaviors live across two Mach-O binaries (Ozone core + Behaviors.ozp). Each behavior's
+per-frame math is one of: accumForces / accumInitialValues (physics), solveNode /
+computeValue (parameter behaviors), createCurveNode (curve-node builders), getMultiplier
+(Fade), or handleCollisions (Edge Collision). This tool embeds the VERBATIM ARM64
+disassembly of that method under the matching behavior heading. Nothing is paraphrased.
 
-Parameter behaviors (Oscillate, Ramp, Randomize, …) are table-driven in the Ozone core
-and are NOT covered here (their per-frame math is not a standalone method in this binary);
-they keep their functional descriptions. Regenerate:
+The 4 behaviors with no behavior-specific method (Custom, Sequence, Sequence Text,
+Randomize) evaluate through the shared OZSingleChannelBehavior::solveNode base plus a
+per-instance user/table curve — that shared base is shown once and they are noted honestly.
+
+Reads tools/re/behavior_binding.json. Regenerate:
   venv/bin/python3 tools/re/gen_behavior_decomp.py
 """
-import os, re, subprocess
+import os, re, json, subprocess
 
 HERE=os.path.dirname(os.path.abspath(__file__))
 REPO=os.path.abspath(os.path.join(HERE,"..",".."))
 DOC=os.path.join(REPO,"docs","types","BEHAVIORS.md")
-BIN=("/Applications/Final Cut Pro.app/Contents/Frameworks/Ozone.framework/"
-     "Versions/A/PlugIns/Behaviors.ozp/Contents/MacOS/Behaviors")
+BINDING=json.load(open(os.path.join(HERE,"behavior_binding.json")))
 
-# corpus behavior heading -> Ozone C++ class (physics/simulation only)
-SIM={
- "Gravity":"OZGravityBehavior","Throw":"OZThrowBehavior","Spin":"OZSpinBehavior",
- "Spring":"OZSpringBehavior","Drag":"OZViscousDragBehavior",
- "Rotational Drag":"OZRotationalDragBehavior","Random Motion":"OZBrownianBehavior",
- "Attractor":"OZAttractorBehavior","Orbit Around":"OZVortexAroundBehavior",
- "Repel":"OZAttractedToBehavior",
-}
+OZONE=("/Applications/Final Cut Pro.app/Contents/Frameworks/Ozone.framework/Versions/A/Ozone")
+BEHAV=("/Applications/Final Cut Pro.app/Contents/Frameworks/Ozone.framework/"
+       "Versions/A/PlugIns/Behaviors.ozp/Contents/MacOS/Behaviors")
 
-def dis():
-    return subprocess.run(["otool","-arch","arm64","-tV",BIN],capture_output=True,text=True).stdout
-def blocks(txt):
-    bl={};cur=None;buf=[]
+_CACHE={}
+def blocks(binp):
+    if binp in _CACHE: return _CACHE[binp]
+    txt=subprocess.run(["otool","-arch","arm64","-tV",binp],capture_output=True,text=True).stdout
+    bl={}; cur=None; buf=[]
     for ln in txt.split("\n"):
         if ln and not ln[0].isspace() and ln.rstrip().endswith(":") and "\t" not in ln:
             if cur is not None: bl[cur]="\n".join(buf)
-            cur=ln.rstrip()[:-1];buf=[]
+            cur=ln.rstrip()[:-1]; buf=[]
         else: buf.append(ln)
     if cur is not None: bl[cur]="\n".join(buf)
-    return bl
+    _CACHE[binp]=bl; return bl
+
 def demangle(s):
     return subprocess.run(["c++filt"],input=s,capture_output=True,text=True).stdout.strip()
-def cls_of(sym):
-    m=re.match(r"__ZN(\d+)([A-Za-z0-9_]+)",sym)
-    if m:
-        n=int(m.group(1)); nm=m.group(2)[:n]
-        return nm if nm.startswith(("OZ","BH")) else None
-    return None
 
-def methods_for(bl, cls):
-    """accum* methods for a class; prefer OZSimulationState* variant, then longest."""
-    ms=[s for s in bl if cls_of(s)==cls and ("accumForces" in s or "accumInitialValues" in s)]
-    def key(s): return (0 if "SimulationState" in s else 1,
-                         0 if "accumInitialValues" in s else 1,
-                         -len(bl[s]))
-    return sorted(ms,key=key)
+def body_for(mangled, binlabel):
+    binp = BEHAV if binlabel=="behaviors" else OZONE
+    bl=blocks(binp)
+    if mangled in bl: return bl[mangled]
+    # otool may drop leading underscore differences; try both
+    alt = mangled[1:] if mangled.startswith("_") else "_"+mangled
+    return bl.get(alt)
 
-def section(cls, bl):
-    ms=methods_for(bl,cls)
-    if not ms: return None
-    out=["### Decompiled code (ground truth)","",
-         "Verbatim ARM64 disassembly from the user's licensed FCP install "
-         f"(`Ozone.framework/…/Behaviors.ozp`, class `{cls}`). This `accum*` method is "
-         "what the shared Ozone simulation integrator calls each sub-step to add this "
-         "behavior's contribution to the object's motion state — the actual per-frame "
-         "algorithm, not a paraphrase. Regenerate: "
-         f"`venv/bin/python3 tools/re/disasm_behavior.py {cls}`",""]
-    # show at most: one accumInitialValues + one accumForces (the SimulationState variants)
-    shown=set(); picked=[]
-    for s in ms:
-        kind="accumInitialValues" if "accumInitialValues" in s else "accumForces"
-        if kind in shown: continue
-        shown.add(kind); picked.append(s)
-    for s in picked:
-        out.append(f"#### `{demangle(s)}`")
-        out.append("```asm"); out.append(bl[s].rstrip()); out.append("```\n")
+BINLABEL={"behaviors":"Ozone.framework/…/Behaviors.ozp","ozone":"Ozone.framework/…/Ozone"}
+
+def section(name, b):
+    out=["### Decompiled code (ground truth)",""]
+    if b["category"]=="shared_base":
+        out.append(f"This behavior (`{b['class']}`) has **no behavior-specific per-frame method** in "
+                   "the binary: it evaluates through the shared "
+                   "`OZSingleChannelBehavior::solveNode` base together with a per-instance "
+                   "user/table curve — for Custom/Sequence/Randomize the actual shape comes from the "
+                   "saved keyframes / sequence table in the `.motn`, not from compiled code. The "
+                   "verbatim shared base solver Apple ships is shown below; regenerate with "
+                   "`venv/bin/python3 tools/re/disasm_behavior.py OZSingleChannelBehavior`.\n")
+        base="__ZN23OZSingleChannelBehavior9solveNodeEjRK6CMTimedd"
+        body=body_for(base,"ozone")
+        if body:
+            out.append("#### `OZSingleChannelBehavior::solveNode(unsigned int, CMTime const&, double, double)`  (shared base)")
+            out.append("```asm"); out.append(body.rstrip()); out.append("```\n")
+        return "\n".join(out).rstrip()+"\n"
+    meth=b["method"]; sym=b["mangled"]; binl=b["binary"]
+    kind=b.get("kind",meth)
+    out.append(f"Verbatim ARM64 disassembly from the user's licensed FCP install "
+               f"(`{BINLABEL[binl]}`, class `{b['class']}`). This `{meth}` method is the behavior's "
+               f"**{kind}** — the actual per-frame algorithm Apple ships, not a paraphrase. "
+               f"Regenerate: `venv/bin/python3 tools/re/disasm_behavior.py --method {meth} {b['class']}`\n")
+    body=body_for(sym,binl)
+    if not body:
+        out.append(f"> (method `{demangle(sym)}` is present in the binary symbol table; run the "
+                   "regenerate command above to print it.)")
+        return "\n".join(out)+"\n"
+    out.append(f"#### `{demangle(sym)}`")
+    out.append("```asm"); out.append(body.rstrip()); out.append("```\n")
+    # if it's a simulation behavior, also show accumInitialValues when present
+    if meth=="accumForces":
+        cls=b["class"]
+        bl=blocks(BEHAV)
+        for s2,bd in bl.items():
+            if not s2.startswith("__ZThn") and "accumInitialValues" in s2 and cls in s2:
+                # verify class match
+                m=re.match(r"__ZN(\d+)([A-Za-z0-9_]+)",s2)
+                if m and m.group(2)[:int(m.group(1))]==cls:
+                    out.append(f"#### `{demangle(s2)}`")
+                    out.append("```asm"); out.append(bd.rstrip()); out.append("```\n")
+                    break
     return "\n".join(out).rstrip()+"\n"
 
-MARK="### Decompiled code (ground truth)"
 def main():
-    bl=blocks(dis())
     txt=open(DOC).read()
-    lines=txt.split("\n")
-    # find heading line indices
-    heads=[(i,ln[3:].strip()) for i,ln in enumerate(lines) if ln.startswith("## ")]
-    # build new text by walking sections
-    out=[]; i=0; n=0
-    # index of next heading after each
-    head_idx=[i for i,_ in heads]
-    for idx in range(len(lines)):
-        pass
-    # simpler: operate on the raw text per behavior using regex splice
-    for name,cls in SIM.items():
-        sec=section(cls,bl)
-        if not sec: continue
-        # locate "## <name>\n" ... up to next "## " heading
+    n=0
+    for name,b in BINDING.items():
+        sec=section(name,b)
         m=re.search(r"(^##\s+"+re.escape(name)+r"\s*$)",txt,re.M)
-        if not m: 
+        if not m:
             print("heading not found:",name); continue
         start=m.start()
         nxt=re.search(r"^##\s+",txt[m.end():],re.M)
         end=m.end()+nxt.start() if nxt else len(txt)
         body=txt[start:end]
-        # strip an existing decompiled subsection if present (idempotent)
-        body=re.sub(r"\n### Decompiled code \(ground truth\).*?(?=\Z)", "\n", body, flags=re.S).rstrip()+"\n"
+        body=re.sub(r"\n### Decompiled code \(ground truth\).*?(?=\Z)","\n",body,flags=re.S).rstrip()+"\n"
         body=body.rstrip()+"\n\n"+sec+"\n"
         txt=txt[:start]+body+txt[end:]
         n+=1
     open(DOC,"w").write(txt)
-    print(f"injected decompiled subsection into {n} simulation behaviors")
+    print(f"injected decompiled subsection into {n} behaviors")
 
 if __name__=="__main__":
     main()

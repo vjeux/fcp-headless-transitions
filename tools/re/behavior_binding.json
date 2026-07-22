@@ -1,0 +1,274 @@
+{
+ "Align To": {
+  "binary": "ozone",
+  "category": "decodable",
+  "class": "OZAlignToBehavior",
+  "kind": "per-frame channel value solver",
+  "mangled": "__ZN17OZAlignToBehavior9solveNodeEjRK6CMTimedd",
+  "method": "solveNode"
+ },
+ "Attractor": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZAttractorBehavior",
+  "kind": "simulation force accumulator (per sub-step)",
+  "mangled": "__ZN19OZAttractorBehavior11accumForcesEP17OZSimulationStateP15OZTransformNode",
+  "method": "accumForces"
+ },
+ "Clamp": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZClampBehavior",
+  "kind": "per-frame channel value solver",
+  "mangled": "__ZN15OZClampBehavior9solveNodeEjRK6CMTimedd",
+  "method": "solveNode"
+ },
+ "Custom": {
+  "binary": null,
+  "category": "shared_base",
+  "class": "OZReflexiveBehavior",
+  "mangled": null,
+  "method": null,
+  "note": "evaluates through the shared OZSingleChannelBehavior::solveNode base plus a per-instance user/table curve; no behavior-specific value method in the binary"
+ },
+ "Drag": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZViscousDragBehavior",
+  "kind": "simulation force accumulator (per sub-step)",
+  "mangled": "__ZN21OZViscousDragBehavior11accumForcesEP17OZSimulationStateP15OZTransformNode",
+  "method": "accumForces"
+ },
+ "Edge Collision": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZBoundsCollisionBehavior",
+  "kind": "collision resolver (per sub-step)",
+  "mangled": "__ZN25OZBoundsCollisionBehavior16handleCollisionsEP15OZTransformNodeP17OZSimulationStateS3_bPb",
+  "method": "handleCollisions"
+ },
+ "Fade In/Fade Out": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZFadeInOutBehavior",
+  "kind": "per-frame fade multiplier",
+  "mangled": "__ZN19OZFadeInOutBehavior13getMultiplierE6CMTime",
+  "method": "getMultiplier"
+ },
+ "Gravity": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZGravityBehavior",
+  "kind": "simulation force accumulator (per sub-step)",
+  "mangled": "__ZN17OZGravityBehavior11accumForcesEP17OZSimulationStateP15OZTransformNode",
+  "method": "accumForces"
+ },
+ "Grow/Shrink": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZGrowShrinkBehavior",
+  "kind": "curve-node factory (per-frame value node)",
+  "mangled": "__ZN20OZGrowShrinkBehavior15createCurveNodeEP9OZChannel",
+  "method": "createCurveNode"
+ },
+ "Link": {
+  "binary": "ozone",
+  "category": "decodable",
+  "class": "OZLinkBehavior",
+  "kind": "per-frame channel value solver",
+  "mangled": "__ZN14OZLinkBehavior9solveNodeEjRK6CMTimedd",
+  "method": "solveNode"
+ },
+ "Motion Path": {
+  "binary": "ozone",
+  "category": "decodable",
+  "class": "OZMotionPathBehavior",
+  "kind": "curve-node factory (per-frame value node)",
+  "mangled": "__ZN20OZMotionPathBehavior15createCurveNodeEP9OZChannel",
+  "method": "createCurveNode"
+ },
+ "Negate": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZNegateBehavior",
+  "kind": "per-frame channel value solver",
+  "mangled": "__ZN16OZNegateBehavior9solveNodeEjRK6CMTimedd",
+  "method": "solveNode"
+ },
+ "Orbit Around": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZVortexAroundBehavior",
+  "kind": "simulation initial-value seeder",
+  "mangled": "__ZN22OZVortexAroundBehavior18accumInitialValuesEP17OZSimulationStateP15OZTransformNode",
+  "method": "accumInitialValues"
+ },
+ "Oscillate": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZOscillateBehavior",
+  "kind": "per-frame channel value solver",
+  "mangled": "__ZN19OZOscillateBehavior9solveNodeEjRK6CMTimedd",
+  "method": "solveNode"
+ },
+ "Overshoot": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "BHOvershootBehavior",
+  "kind": "per-frame channel value solver",
+  "mangled": "__ZN19BHOvershootBehavior9solveNodeEjRK6CMTimedd",
+  "method": "solveNode"
+ },
+ "Point": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZPointAtBehavior",
+  "kind": "per-frame channel value solver",
+  "mangled": "__ZN17OZPointAtBehavior9solveNodeEjRK6CMTimedd",
+  "method": "solveNode"
+ },
+ "Ramp": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZRampBehavior",
+  "kind": "per-frame channel value solver",
+  "mangled": "__ZN14OZRampBehavior9solveNodeEjRK6CMTimedd",
+  "method": "solveNode"
+ },
+ "Random Motion": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZBrownianBehavior",
+  "kind": "simulation force accumulator (per sub-step)",
+  "mangled": "__ZN18OZBrownianBehavior11accumForcesEP17OZSimulationStateP15OZTransformNode",
+  "method": "accumForces"
+ },
+ "Randomize": {
+  "binary": null,
+  "category": "shared_base",
+  "class": "OZRandomizeBehavior",
+  "mangled": null,
+  "method": null,
+  "note": "evaluates through the shared OZSingleChannelBehavior::solveNode base plus a per-instance user/table curve; no behavior-specific value method in the binary"
+ },
+ "Rate": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZRateBehavior",
+  "kind": "per-frame channel value solver",
+  "mangled": "__ZN14OZRateBehavior9solveNodeEjRK6CMTimedd",
+  "method": "solveNode"
+ },
+ "Repel": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZAttractedToBehavior",
+  "kind": "simulation force accumulator (per sub-step)",
+  "mangled": "__ZN21OZAttractedToBehavior11accumForcesEP17OZSimulationStateP15OZTransformNode",
+  "method": "accumForces"
+ },
+ "Reverse": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZReverseBehavior",
+  "kind": "per-frame channel value solver",
+  "mangled": "__ZN17OZReverseBehavior9solveNodeEjRK6CMTimedd",
+  "method": "solveNode"
+ },
+ "Rig Behavior": {
+  "binary": "ozone",
+  "category": "decodable",
+  "class": "OZRigBehavior",
+  "kind": "per-frame channel value solver",
+  "mangled": "__ZN13OZRigBehavior9solveNodeEjRK6CMTimedd",
+  "method": "solveNode"
+ },
+ "Rotational Drag": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZRotationalDragBehavior",
+  "kind": "simulation force accumulator (per sub-step)",
+  "mangled": "__ZN24OZRotationalDragBehavior11accumForcesEP17OZSimulationStateP15OZTransformNode",
+  "method": "accumForces"
+ },
+ "Sequence": {
+  "binary": null,
+  "category": "shared_base",
+  "class": "OZSequenceBehavior",
+  "mangled": null,
+  "method": null,
+  "note": "evaluates through the shared OZSingleChannelBehavior::solveNode base plus a per-instance user/table curve; no behavior-specific value method in the binary"
+ },
+ "Sequence Text": {
+  "binary": null,
+  "category": "shared_base",
+  "class": "OZSequenceTextBehavior",
+  "mangled": null,
+  "method": null,
+  "note": "evaluates through the shared OZSingleChannelBehavior::solveNode base plus a per-instance user/table curve; no behavior-specific value method in the binary"
+ },
+ "Snap Alignment": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZSnapAlignBehavior",
+  "kind": "per-frame channel value solver",
+  "mangled": "__ZN19OZSnapAlignBehavior9solveNodeEjRK6CMTimedd",
+  "method": "solveNode"
+ },
+ "Spin": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZSpinBehavior",
+  "kind": "simulation force accumulator (per sub-step)",
+  "mangled": "__ZN14OZSpinBehavior11accumForcesEP17OZSimulationStateP15OZTransformNode",
+  "method": "accumForces"
+ },
+ "Spring": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZSpringBehavior",
+  "kind": "simulation force accumulator (per sub-step)",
+  "mangled": "__ZN16OZSpringBehavior11accumForcesEP17OZSimulationStateP15OZTransformNode",
+  "method": "accumForces"
+ },
+ "Stop": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZStopBehavior",
+  "kind": "per-frame channel value solver",
+  "mangled": "__ZN14OZStopBehavior9solveNodeEjRK6CMTimedd",
+  "method": "solveNode"
+ },
+ "Throw": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZThrowBehavior",
+  "kind": "simulation force accumulator (per sub-step)",
+  "mangled": "__ZN15OZThrowBehavior11accumForcesEP17OZSimulationStateP15OZTransformNode",
+  "method": "accumForces"
+ },
+ "Track": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZTrackerBehavior",
+  "kind": "tracker setup (analysis-time)",
+  "mangled": "__ZN17OZTrackerBehavior14createTrackersEj",
+  "method": "createTrackers"
+ },
+ "Type On": {
+  "binary": "ozone",
+  "category": "decodable",
+  "class": "OZWriteOnBehavior",
+  "kind": "curve-node factory (per-frame value node)",
+  "mangled": "__ZN17OZWriteOnBehavior15createCurveNodeEP9OZChannel",
+  "method": "createCurveNode"
+ },
+ "Wriggle": {
+  "binary": "behaviors",
+  "category": "decodable",
+  "class": "OZWriggleBehavior",
+  "kind": "per-frame channel value solver",
+  "mangled": "__ZN17OZWriggleBehavior9solveNodeEjRK6CMTimedd",
+  "method": "solveNode"
+ }
+}
