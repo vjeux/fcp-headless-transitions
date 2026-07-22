@@ -68,6 +68,68 @@ function luma709(r: number, g: number, b: number): number {
   return 0.2125 * r + 0.7154 * g + 0.0721 * b;
 }
 
+// DECODED FCP HSV working space (fct/parity 2026-07-22): power-law gamma ≈ 1.958.
+const HSV_WS_INV_GAMMA = 0.51117;              // v_ws = (code/255)^0.51117 (gamma 1.9563)
+const HSV_WS_GAMMA = 1.0 / HSV_WS_INV_GAMMA;
+
+/**
+ * FCP HgcHSVAdjust in the DECODED gamma-1.958 working space (fct/parity, 2026-07-22).
+ * Same working space + Rec.709 luma as the decoded HgcTint. Verified at the transfer
+ * node boundary (transfer.PAEHSVAdjust). Hue rotates in HSV built on the working-space
+ * RGB; Saturation lerps toward the Rec.709 luma of the working-space RGB; Value is a
+ * LINEAR multiply in the working space (out = ws_inv(ws(in)*value), NOT value²).
+ */
+function hueSaturationFilterWS(input: ImageData, params: HueSatParams): ImageData {
+  const { hue, saturation, value, mix } = params;
+  const satFactor = 1 + saturation;
+  const valMul = Math.max(0, value);   // Value = linear multiply in working space
+  if (hue === 0 && saturation === 0 && value === 1) return input;
+  const width = input.width, height = input.height;
+  const src = input.data;
+  const out = new Uint8ClampedArray(src.length);
+  const hueTurns = (((hue / (2 * Math.PI)) % 1) + 1) % 1;
+  const doHue = hueTurns !== 0;
+  const iv = HSV_WS_INV_GAMMA, gm = HSV_WS_GAMMA;
+  const cl = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x);
+  for (let i = 0; i < src.length; i += 4) {
+    // sRGB code → gamma-1.958 working space.
+    let r = Math.pow(src[i] / 255, iv);
+    let g = Math.pow(src[i + 1] / 255, iv);
+    let b = Math.pow(src[i + 2] / 255, iv);
+    if (doHue) {
+      let [h, s, v] = rgbToHsv(r, g, b);
+      h = (h + hueTurns) % 1;
+      [r, g, b] = hsvToRgb(h, s, v);
+    }
+    if (saturation !== 0) {
+      const gray = luma709(r, g, b);
+      if (satFactor > 1) {
+        const [h, s, v] = rgbToHsv(r, g, b);
+        [r, g, b] = hsvToRgb(h, Math.min(1, s * satFactor), v);
+      } else {
+        r = gray + (r - gray) * satFactor;
+        g = gray + (g - gray) * satFactor;
+        b = gray + (b - gray) * satFactor;
+      }
+    }
+    if (value !== 1) { r *= valMul; g *= valMul; b *= valMul; }
+    let oR = cl(r), oG = cl(g), oB = cl(b);
+    if (mix < 1) {
+      const sr = Math.pow(src[i] / 255, iv), sg = Math.pow(src[i + 1] / 255, iv), sb = Math.pow(src[i + 2] / 255, iv);
+      oR = sr * (1 - mix) + oR * mix;
+      oG = sg * (1 - mix) + oG * mix;
+      oB = sb * (1 - mix) + oB * mix;
+    }
+    // Working space → sRGB code.
+    out[i]     = Math.round(Math.pow(oR, gm) * 255);
+    out[i + 1] = Math.round(Math.pow(oG, gm) * 255);
+    out[i + 2] = Math.round(Math.pow(oB, gm) * 255);
+    out[i + 3] = src[i + 3];
+  }
+  return new ImageData(out, width, height);
+}
+
+
 /** Convert RGB (0-1) to HSV. */
 function rgbToHsv(r: number, g: number, b: number): [number, number, number] {
   const max = Math.max(r, g, b);
@@ -147,6 +209,16 @@ function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
  */
 export function hueSaturationFilter(input: ImageData, params: HueSatParams): ImageData {
   const { hue, saturation, value, mix } = params;
+  // DECODED gamma-1.958 working space (fct/parity, 2026-07-22). FCP's HgcHSVAdjust /
+  // HgcSaturation run in a POWER-LAW gamma-1.958 space (NOT scene-linear): fitting the
+  // REAL FCP transfer gives Value = ws_inv(ws(in)*value) at 0.22 rms (gamma 1.9605),
+  // and full Saturation-desaturate = ws_inv(Rec709·ws(rgb)) matching (200,50,50)→73.5
+  // vs measured 73.5 (scene-linear gives 84.6, code space 94.8). Same working space as
+  // the decoded HgcTint. Guarded by FCT_HSV_WORKINGSPACE=1 so the shipped GUI-GT path
+  // (which the chain-level linear buffer feeds) stays byte-identical until the chain-
+  // level GUI colour pipeline is decided; the parity harness tests the decoded model.
+  const useWS = typeof process !== 'undefined' && process.env && process.env.FCT_HSV_WORKINGSPACE === '1';
+  if (useWS) return hueSaturationFilterWS(input, params);
   const satFactor = 1 + saturation;   // 0-centered -> lerp weight toward color
   // Value (brightness) transfer, DECODED vs headless FCP on a 0..255 gray gradient
   // (PAEHSVAdjust Value sweep, gradient probe): for the DARKEN leg 0 <= Value <= 1 the
@@ -301,6 +373,13 @@ registerFilter({
     const saturation = ctx.rawParam('Saturation', 0);
     const value = ctx.rawParam('Value', 1);
     const mix = ctx.rawParam('Mix', 1);
+
+    // DECODED gamma-1.958 working-space path (fct/parity). When FCT_HSV_WORKINGSPACE=1
+    // the filter bypasses the chain-level scene-linear buffer and runs the decoded
+    // gamma-1.958 transfer directly (node-boundary faithful). Shipped default unchanged.
+    if (typeof process !== 'undefined' && process.env && process.env.FCT_HSV_WORKINGSPACE === '1') {
+      return hueSaturationFilter(input, { hue, saturation, value, mix });
+    }
 
     // Chain-level LINEAR working-space path (T-qlinchain01). See linear-chain.ts.
     // STRUCTURAL primitive (not gated on the per-filter isLinearComposite flag): it

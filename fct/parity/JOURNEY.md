@@ -328,3 +328,39 @@ faithful to the FCP FUNCTION (node boundary), but the GUI-GT gate needs the chai
 GUI colour pipeline before the faithful transfer can be promoted. Gate restored 0/0.
 
 State: 32 nodes | VERIFIED 13  CHARACTERIZED 5  DIVERGED 14. tsc clean.
+
+
+## UPDATE 2026-07-22 (session 2) — HSV Value+Saturation DECODED in gamma-1.958 WS + VERIFIED
+
+Applied the Tint working-space finding to HSV and it TRANSFERS: the colour subsystem
+UNIFIES on ONE working space. transfer.PAEHSVAdjust_valsat VERIFIED (0.87 lvl, n=108).
+
+DECODED (fct/parity, orthogonal FCP probes):
+  • Working space = POWER-LAW gamma-1.958 (fitted 1.9605 on the Value leg independently —
+    matches Tint's 1.956). NOT scene-linear: full-desaturate of (200,50,50) → 73.5 in
+    real FCP; gamma-1.958+Rec709 predicts 73.7, scene-linear 84.6, code space 94.8.
+  • Luma = Rec.709 (the HgcSaturation shader carries 0.2125/0.7154/0.0721 inline — CONFIRMS).
+  • Value = ws_inv(ws(in) · value)  — a LINEAR multiply in the working space, NOT value²
+    (fit: mult=0.5001 for Value=0.5 @ 0.22 rms). The engine's shipped value² was a
+    code-space approximation that only coincidentally tracked the darken leg.
+  • Saturation = ws lerp toward Rec.709 luma of the working-space RGB (clamped) — the
+    decoded HgcSaturation shader, but run in the gamma-1.958 space.
+
+PORT: hueSaturationFilterWS in hue-saturation.ts (gamma-1.958 encode → HSV/Sat/Value math
+→ decode). Guarded by FCT_HSV_WORKINGSPACE=1; shipped chain-level scene-linear path stays
+byte-identical. Split the parity node: _valsat VERIFIED, _hue CHARACTERIZED.
+
+HUE leg — CHARACTERIZED (open): FCP's hue rotation is NOT a plain HSV-hextant rotation
+(it does NOT preserve S/V — at red@90° V drops 0.78→0.36, S rises 0.75→0.96), NOR a
+standard NTSC/YIQ/Rodrigues chroma-plane rotation (all fit >26 rms, wrong direction or
+warp). Captured a 5-hue × 7-angle FCP probe (/tmp/tintws/out_hue.json) for the eventual
+decode. GATE-NEUTRAL: all 4 shipping HSV hosts author Hue=0, so this blocks nothing.
+
+UNIFIED COLOUR MODEL (now well-supported across Tint + HSV Value/Sat):
+  FCP's per-pixel colour ops run in a POWER-LAW gamma≈1.958 working space with Rec.709
+  luma. Tint = hardlight(tint_ws, luma); HSV Value = ws multiply; HSV Sat = ws luma-lerp;
+  HgcSaturation/Colorize luma = Rec.709. This is display-referred (~1.96 video gamma),
+  NOT the scene-linear ExtendedLinearSRGB the engine's linear-chain assumed — which is
+  why the scene-linear migration never cleanly matched these ops.
+
+State: 34 nodes | VERIFIED 14  CHARACTERIZED 6  DIVERGED 14. tsc clean.

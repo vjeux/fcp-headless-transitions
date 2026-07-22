@@ -235,7 +235,7 @@
    "id": "transfer.PAEHSVAdjust",
    "subsystem": "color",
    "kind": "transfer",
-   "desc": "PAEHSVAdjust per-pixel transfer (hue rotate + saturation/value scale). EXACT isolation via uniform-colour inputs.",
+   "desc": "PAEHSVAdjust combined (Hue+Saturation+Value). Value+Saturation VERIFIED in gamma-1.958 WS (see _valsat); Hue leg still CHARACTERIZED (see _hue). Combined stays DIVERGED until Hue decoded.",
    "oracle": {
     "type": "transfer",
     "uuid": "D23AF030-B0BF-44DF-B622-7C9EA0DF5744",
@@ -276,7 +276,80 @@
    "oracle_truth": "transfer",
    "status": "UNTESTED",
    "characterized": true,
-   "characterized_reason": "Hue UNIT bug FIXED (degrees->radians, commit d5840c2, gate-neutral). Residual 107 levels is the linear-working-space sat/value coupling (FCP does HSV sat/value in linear light) \u2014 same class as PAEBrightness's cross-channel/working-space issue, gate-blocked (a per-filter linear encode regresses the GUI gate; needs the chain-level linear pipeline). Not an open unit bug."
+   "characterized_reason": "Hue UNIT bug FIXED (degrees->radians, commit d5840c2, gate-neutral). Residual 107 levels is the linear-working-space sat/value coupling (FCP does HSV sat/value in linear light) \u2014 same class as PAEBrightness's cross-channel/working-space issue, gate-blocked (a per-filter linear encode regresses the GUI gate; needs the chain-level linear pipeline). Not an open unit bug.",
+   "engine_env": {
+    "FCT_HSV_WORKINGSPACE": "1"
+   }
+  },
+  {
+   "id": "transfer.PAEHSVAdjust_valsat",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAEHSVAdjust Value+Saturation legs in the DECODED gamma-1.958 working space (Rec.709 luma; Value = ws-linear multiply, Saturation = ws lerp to luma). VERIFIED 2026-07-22 vs REAL FCP (Value/Sat sub-legs).",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "D23AF030-B0BF-44DF-B622-7C9EA0DF5744",
+    "pluginName": "PAEHSVAdjust"
+   },
+   "param_cases": [
+    {
+     "name": "Saturation",
+     "id": 2,
+     "value": 0.0
+    },
+    {
+     "name": "Saturation",
+     "id": 2,
+     "value": -1.0
+    },
+    {
+     "name": "Value",
+     "id": 3,
+     "value": 0.5
+    },
+    {
+     "name": "Value",
+     "id": 3,
+     "value": -0.5
+    }
+   ],
+   "oracle_truth": "transfer",
+   "status": "UNTESTED",
+   "characterized": true,
+   "characterized_reason": "Hue UNIT bug FIXED (degrees->radians, commit d5840c2, gate-neutral). Residual 107 levels is the linear-working-space sat/value coupling (FCP does HSV sat/value in linear light) \u2014 same class as PAEBrightness's cross-channel/working-space issue, gate-blocked (a per-filter linear encode regresses the GUI gate; needs the chain-level linear pipeline). Not an open unit bug.",
+   "engine_env": {
+    "FCT_HSV_WORKINGSPACE": "1"
+   }
+  },
+  {
+   "id": "transfer.PAEHSVAdjust_hue",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAEHSVAdjust Hue-rotation leg. CHARACTERIZED: FCP's hue rotation is NOT a plain HSV-hextant rotation (S/V not preserved: V drops, S rises), NOR a standard NTSC/YIQ/Rodrigues chroma rotation (all fit >26 rms). Needs the exact HgcHSVAdjust hue reconstruction decoded. GATE-NEUTRAL: all 4 shipping HSV hosts author Hue=0.",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "D23AF030-B0BF-44DF-B622-7C9EA0DF5744",
+    "pluginName": "PAEHSVAdjust"
+   },
+   "param_cases": [
+    {
+     "name": "Hue",
+     "id": 1,
+     "value": 0.0
+    },
+    {
+     "name": "Hue",
+     "id": 1,
+     "value": 1.5708
+    }
+   ],
+   "oracle_truth": "transfer",
+   "status": "UNTESTED",
+   "characterized": true,
+   "characterized_reason": "Hue UNIT bug FIXED (degrees->radians, commit d5840c2, gate-neutral). Residual 107 levels is the linear-working-space sat/value coupling (FCP does HSV sat/value in linear light) \u2014 same class as PAEBrightness's cross-channel/working-space issue, gate-blocked (a per-filter linear encode regresses the GUI gate; needs the chain-level linear pipeline). Not an open unit bug.",
+   "engine_env": {
+    "FCT_HSV_WORKINGSPACE": "1"
+   }
   },
   {
    "id": "transfer.PAETint",

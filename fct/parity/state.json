@@ -466,7 +466,7 @@
           3.45
         ],
         "engine": [
-          125.0,
+          113.0,
           200.0,
           50.0
         ]
@@ -949,6 +949,72 @@
       },
       "oracle_truth": "transfer",
       "n_failures": 0
+    },
+    "transfer.PAEHSVAdjust_valsat": {
+      "id": "transfer.PAEHSVAdjust_valsat",
+      "kind": "transfer",
+      "status": "VERIFIED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 0.8699999999999974,
+      "n_samples": 108,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "name": "Value",
+          "id": 3,
+          "value": 0.5
+        },
+        "input": [
+          200,
+          200,
+          200
+        ],
+        "oracle": [
+          51.22,
+          51.13,
+          51.15
+        ],
+        "engine": [
+          52.0,
+          52.0,
+          52.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
+    },
+    "transfer.PAEHSVAdjust_hue": {
+      "id": "transfer.PAEHSVAdjust_hue",
+      "kind": "transfer",
+      "status": "DIVERGED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 107.49,
+      "n_samples": 54,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "name": "Hue",
+          "id": 1,
+          "value": 1.5708
+        },
+        "input": [
+          200,
+          50,
+          50
+        ],
+        "oracle": [
+          53.42,
+          92.51,
+          3.45
+        ],
+        "engine": [
+          113.0,
+          200.0,
+          50.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
     }
   },
   "history": [
@@ -1286,8 +1352,23 @@
       "id": "transfer.PAETint",
       "status": "VERIFIED",
       "at": "2026-07-22T14:48:35Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust",
+      "status": "DIVERGED",
+      "at": "2026-07-22T14:59:49Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_valsat",
+      "status": "VERIFIED",
+      "at": "2026-07-22T15:06:10Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_hue",
+      "status": "DIVERGED",
+      "at": "2026-07-22T15:06:19Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-22T14:48:35Z"
+  "updated": "2026-07-22T15:06:19Z"
 }
