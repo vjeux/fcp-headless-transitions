@@ -29,6 +29,7 @@ REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 DOCDIR = os.path.join(REPO, "docs", "filters")
 SHDIR = os.path.join(REPO, "engine", "src", "compositor", "filters", "evidence", "shaders")
 BINDING = json.load(open(os.path.join(HERE, "filter_binding.json")))
+SUPER = {b["resolved_cls"]: b.get("superclass") for b in BINDING.values() if b.get("resolved_cls")}
 
 FBIN = ("/Applications/Final Cut Pro.app/Contents/PlugIns/InternalFiltersXPC.pluginkit/"
         "Contents/PlugIns/Filters.bundle/Contents/MacOS/Filters")
@@ -50,16 +51,31 @@ def disasm_blocks():
 def class_of(sym):
     m=re.match(r"[-+]\[(PAE[A-Za-z0-9_]+)\s",sym); return m.group(1) if m else None
 
-def render_body(cls):
+RENDER_SELECTORS=("canThrowRenderOutput","overrideRender:","renderOutput:","Render:")
+def _render_in(cls):
     bl=disasm_blocks()
     ms={s:b for s,b in bl.items() if class_of(s)==cls}
-    for key in ("canThrowRenderOutput",):
+    for key in RENDER_SELECTORS:
         for s,b in ms.items():
-            if key in s: return s,b
-    for s,b in ms.items():
-        if "Render:" in s and "canThrow" not in s: return s,b
+            if key in s and ".cold." not in s: return s,b
     for s,b in ms.items():
         if "frameSetup" in s: return s,b
+    return None,None
+
+def render_body(cls, follow_super=True):
+    """Return (sym,body) for the class's render method. If the class has none of its
+    own (a thin PAEPhotosFilters/PAEFilterDefaultBase subclass), follow the superclass
+    chain to the base renderer that actually does the work."""
+    sym,body=_render_in(cls)
+    if body or not follow_super: return sym,body
+    seen=set(); cur=cls
+    while cur and cur not in seen:
+        seen.add(cur)
+        sup=SUPER.get(cur)
+        if not sup: break
+        sym,body=_render_in(sup)
+        if body: return sym,body
+        cur=sup
     return None,None
 
 def wiring_window(body):
@@ -272,20 +288,19 @@ def section_shader(slug, b):
     if cls:
         sym,rb=render_body(cls)
         if rb:
-            win=wiring_window(rb)
-            if win:
-                out.append(f"### CPU parameter wiring — `{sym}`")
-                out.append("How each UI parameter is read and pushed into the shader's `hg_Params[]` "
-                           "slots. Regenerate: "
-                           f"`venv/bin/python3 tools/re/disasm_pae.py {cls}`\n")
-                out.append("```asm")
-                out.append(win)
+            win=wiring_window(rb) or rb
+            out.append(f"### CPU parameter wiring — `{sym}`")
+            out.append("How each UI parameter is read and pushed into the shader's `hg_Params[]` "
+                       "slots. Regenerate: "
+                       f"`venv/bin/python3 tools/re/disasm_pae.py {cls}`\n")
+            out.append("```asm")
+            out.append(win)
+            out.append("```\n")
+            tbl=fmt_slotmap(cls)
+            if tbl:
+                out.append("```")
+                out.append(tbl)
                 out.append("```\n")
-                tbl=fmt_slotmap(cls)
-                if tbl:
-                    out.append("```")
-                    out.append(tbl)
-                    out.append("```\n")
     return "\n".join(out).rstrip()+"\n"
 
 def section_helium_cpu(slug, b):
@@ -344,7 +359,46 @@ def section_nonre(slug,b):
     out.append(NONRE_TEXT.get(cat,"No Apple algorithm to decompile for this entry."))
     return "\n".join(out)+"\n"
 
+
+def section_photos_lut(slug, b):
+    cls=b["resolved_cls"]; pid=b.get("preset_id")
+    out=["## Decompiled code (ground truth)",""]
+    out.append("This is one of Final Cut Pro's built-in **Photos-style colour presets**. It is NOT a "
+               "`· KF` template: it is a real `"+ (cls or "") +"` class that subclasses "
+               "`PAEPhotosFilters` and applies a baked **3-D colour LUT** (cube file) through the "
+               "shared base renderer. The code below is **verbatim** from the user's licensed FCP "
+               "install; nothing is paraphrased.\n")
+    if pid is not None:
+        out.append(f"**Preset selector.** `-[{cls} initWithAPIManager:]` stores preset id "
+                   f"**{pid}** (`0x{pid:x}`) into the instance; `PAEPhotosFilters` uses it to pick "
+                   f"which LUT to load (`lutBitmapForFilter:` / `LUTFromCache:atPath:`).\n")
+    # the subclass init (shows the preset id being set)
+    bl=disasm_blocks()
+    for sym,body in bl.items():
+        if class_of(sym)==cls and "initWithAPIManager" in sym:
+            out.append(f"### Subclass initialiser — `{sym}`")
+            out.append(f"Regenerate: `venv/bin/python3 tools/re/disasm_pae.py --method initWithAPIManager {cls}`\n")
+            out.append("```asm"); out.append(body.strip()); out.append("```\n")
+            break
+    # the shared base renderer (the actual per-pixel LUT application)
+    sym,rb=render_body(cls)
+    if rb:
+        win=wiring_window(rb) or rb
+        out.append(f"### Shared base renderer — `{sym}`")
+        out.append("The per-pixel work: builds/loads the LUT bitmap and applies it via the Helium "
+                   "`HGApply3DLUT` primitive (with an `HGColorMatrix` for the working-space "
+                   "transform). Regenerate: `venv/bin/python3 tools/re/disasm_pae.py PAEPhotosFilters`\n")
+        out.append("```asm"); out.append(win); out.append("```\n")
+    out.append("**How to extract the actual colour table:** the LUT cube is loaded by "
+               "`-[PAEPhotosFilters lutBitmapForFilter:lutDimensions:]` from a bundled resource; "
+               "dump it by breakpointing that method, or read the `.cube`/`.scube` resources in the "
+               "Filters bundle. `HGApply3DLUT` then does a straight trilinear 3-D texture lookup.")
+    return "\n".join(out).rstrip()+"\n"
+
+
 def build_section(slug,b):
+    if b["category"]=="photos_lut":
+        return section_photos_lut(slug,b)
     if b["final_shaders"]:
         return section_shader(slug,b)
     if b["category"] in ("helium_cpu","helium_shader"):

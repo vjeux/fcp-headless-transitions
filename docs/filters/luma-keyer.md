@@ -65,3 +65,27 @@ Per-pixel math. Regenerate: `venv/bin/python3 tools/re/extract_shader.py HgcLuma
     return output;
 }
 ```
+
+### CPU parameter wiring — `-[PAELumaKeyer canThrowRenderOutput:withInput:withInfo:]`
+How each UI parameter is read and pushed into the shader's `hg_Params[]` slots. Regenerate: `venv/bin/python3 tools/re/disasm_pae.py PAELumaKeyer`
+
+```asm
+000000000005b060	sub	sp, sp, #0x50
+000000000005b064	stp	x29, x30, [sp, #0x40]
+000000000005b068	add	x29, sp, #0x40
+000000000005b06c	ldp	q0, q1, [x4]
+000000000005b070	stp	q0, q1, [sp, #0x10]
+000000000005b074	ldr	q0, [x4, #0x20]
+000000000005b078	str	q0, [sp, #0x30]
+000000000005b07c	adrp	x8, 889 ; 0x3d4000
+000000000005b080	ldr	x8, [x8, #0x980] ; Objc class ref: bad class ref
+000000000005b084	stp	x0, x8, [sp]
+000000000005b088	adrp	x8, 1023 ; 0x45a000
+000000000005b08c	ldr	x1, [x8, #0xe40]
+000000000005b090	mov	x0, sp
+000000000005b094	add	x4, sp, #0x10
+000000000005b098	bl	0x252308 ; Objc message: _objc_msgSendSuper2
+000000000005b09c	ldp	x29, x30, [sp, #0x40]
+000000000005b0a0	add	sp, sp, #0x50
+000000000005b0a4	ret
+```

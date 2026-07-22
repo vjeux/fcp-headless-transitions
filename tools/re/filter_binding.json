@@ -27,6 +27,7 @@
   ],
   "resolved_cls": "PAEEquirectReorient",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "E61FE95E-0108-47DA-8F29-3CB3C47428EF"
  },
@@ -58,6 +59,7 @@
    "HgcAddNoise",
    "HgcAddNoiseNormal"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "C423A28F-C016-4133-B120-22FF2E9A7862"
  },
@@ -96,6 +98,7 @@
   "shaders": [
    "HgcAura"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "2E01612E-7A80-42B5-8767-9F3E58679DDD"
  },
@@ -124,6 +127,7 @@
    "HgcBadFilm",
    "HgcBadFilmGrain"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "9B5C17D9-1AC3-4B04-B8F3-59C1420963BF"
  },
@@ -156,6 +160,7 @@
    "HgcBadTV",
    "HgcBadTVNoise"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "32AB5EE1-BACB-4B81-B44E-6D1E643C8D00"
  },
@@ -178,6 +183,7 @@
   ],
   "resolved_cls": "PAEBlackHole",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [
    [
     "HBlackHole",
@@ -187,16 +193,18 @@
   "uuid": "1A32EFEF-6687-401B-A078-300A7AE8F621"
  },
  "bleach": {
-  "category": "helium_cpu",
+  "category": "photos_lut",
   "files": 4,
   "final_shaders": [],
   "helium": [],
   "impl": false,
   "mod": null,
   "pae": "Bleach",
+  "preset_id": 9,
   "prims": [],
   "resolved_cls": "PAEBleach",
   "shaders": [],
+  "superclass": "PAEPhotosFilters",
   "traced_shaders": [],
   "uuid": "2DCA84A9-B341-4818-8EC1-D55E33D06CBD"
  },
@@ -227,6 +235,7 @@
    "HgcBloomThreshold",
    "HgcEchoScaleAndAdd"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "5599C557-CDC0-4112-B2C4-355E9A1A902E"
  },
@@ -247,6 +256,7 @@
   ],
   "resolved_cls": "PAEBrightness",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "2E4DBB0A-A950-4896-BC2D-A5B0CFF7FAC6"
  },
@@ -269,6 +279,7 @@
   "shaders": [
    "HgcBulge"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "6AFD20E9-70D0-48F2-A5DD-97FC7B3E2BC4"
  },
@@ -290,6 +301,7 @@
   "shaders": [
    "HgcBumpMap"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "1E6F3535-CAD6-4F4A-8EFE-24C402488000"
  },
@@ -331,6 +343,7 @@
    "HgcChannelBlur",
    "HgcChannelBlurNoPremult"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "6C0F1215-6017-44F0-82C8-1B265FDC16CB"
  },
@@ -352,6 +365,7 @@
   ],
   "resolved_cls": "PAEChannelMixer",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [
    [
     "HChannelMixer",
@@ -361,16 +375,18 @@
   "uuid": "B2E0DE39-119F-4AD6-8796-C18BF8FE27B8"
  },
  "chrome": {
-  "category": "helium_cpu",
+  "category": "photos_lut",
   "files": 4,
   "final_shaders": [],
   "helium": [],
   "impl": false,
   "mod": null,
   "pae": "Chrome",
+  "preset_id": 4,
   "prims": [],
   "resolved_cls": "PAEChrome",
   "shaders": [],
+  "superclass": "PAEPhotosFilters",
   "traced_shaders": [],
   "uuid": "0A69EDEE-4A75-4685-930F-8A649BB0C7ED"
  },
@@ -395,6 +411,7 @@
   "shaders": [
    "HgcCircleBlur2"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "8B8B4934-BD85-43BC-A63B-D7A01C4C0191"
  },
@@ -416,6 +433,7 @@
   "shaders": [
    "HgcChannelBalance"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "E9B93275-A56D-4012-BEF6-5DD59A74B344"
  },
@@ -437,6 +455,7 @@
   "shaders": [
    "HgcColorCurves"
   ],
+  "superclass": "PAEBaseCorrectorEffect",
   "traced_shaders": [],
   "uuid": "920273EF-948C-4556-8EB8-8EFEF7A34111"
  },
@@ -459,6 +478,7 @@
   "shaders": [
    "HgcColorEmboss"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "4C36AECF-53D9-42A8-AD43-9578B00AE01C"
  },
@@ -494,6 +514,7 @@
   "shaders": [
    "HgcColorize"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "D995BBCF-F766-4950-89D5-7A4828CD9B6F"
  },
@@ -519,6 +540,7 @@
   "shaders": [
    "HgcColorize"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "3C6550FA-14A0-45A3-8CD7-C70C58F7B330"
  },
@@ -544,6 +566,7 @@
   ],
   "resolved_cls": "PAECompoundBlur",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "000BAA25-418E-412B-8649-CF5C7C2771E3"
  },
@@ -566,20 +589,23 @@
   ],
   "resolved_cls": "PAEContrast",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "B13B57AC-811B-4A24-BB5A-2167A3C66F5F"
  },
  "cool": {
-  "category": "helium_cpu",
+  "category": "photos_lut",
   "files": 2,
   "final_shaders": [],
   "helium": [],
   "impl": false,
   "mod": null,
   "pae": "Cool",
+  "preset_id": 28,
   "prims": [],
   "resolved_cls": "PAECool",
   "shaders": [],
+  "superclass": "PAEPhotosFilters",
   "traced_shaders": [],
   "uuid": "9B01A4D7-9B46-4BE0-8074-EB3F7A5CEDDB"
  },
@@ -624,6 +650,7 @@
   ],
   "resolved_cls": "PAECrystallize",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "9D6E32F9-7C04-4207-B1B5-A480780B2B9D"
  },
@@ -671,6 +698,7 @@
    "HgcBloomThreshold",
    "HgcScaleAndAddClampDazzle"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "E92A99A6-A2E5-44A0-B29C-80674F4003D0"
  },
@@ -693,6 +721,7 @@
   ],
   "resolved_cls": "PAEDefocus",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [
    [
     "HGammaDefocus",
@@ -717,6 +746,7 @@
   ],
   "resolved_cls": "PAEDirectionalBlur",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "2E7B1340-5D4F-4015-8AA0-53BEB9F2CA52"
  },
@@ -738,6 +768,7 @@
   ],
   "resolved_cls": "PAEDiscWarp",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [
    [
     "HDiscWarp",
@@ -764,6 +795,7 @@
   ],
   "resolved_cls": "PAEDroplet",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [
    [
     "HDroplet",
@@ -798,6 +830,7 @@
   ],
   "resolved_cls": "PAEEarthquake",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "DEB7CD03-0C92-416A-B42A-656FB37530A1"
  },
@@ -826,6 +859,7 @@
    "HgcEchoBlend",
    "HgcEchoScaleAndAdd"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "EA4CD041-900C-4D48-90A6-E64CA1EB60CA"
  },
@@ -847,6 +881,7 @@
   "shaders": [
    "HgcEdges"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "824B3514-C6DF-465A-99B9-D60CA063D6CF"
  },
@@ -883,20 +918,23 @@
   "shaders": [
    "HgcExtrudeGradient"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "85C01B33-3560-45E5-959E-5C265B0A8977"
  },
  "fade": {
-  "category": "helium_cpu",
+  "category": "photos_lut",
   "files": 3,
   "final_shaders": [],
   "helium": [],
   "impl": false,
   "mod": null,
   "pae": "Fade",
+  "preset_id": 3,
   "prims": [],
   "resolved_cls": "PAEFade",
   "shaders": [],
+  "superclass": "PAEPhotosFilters",
   "traced_shaders": [],
   "uuid": "8154D0DA-C99B-4EF8-8FF8-006FE5ED57F1"
  },
@@ -923,6 +961,7 @@
   "shaders": [
    "HgcFillColor"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "47D6B897-5749-4A6A-B93B-00FABCF72B25"
  },
@@ -944,6 +983,7 @@
   "shaders": [
    "HgcFisheye"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "C1278154-B061-453F-8BDE-9F70AB2E6066"
  },
@@ -958,6 +998,7 @@
   "prims": [],
   "resolved_cls": "PAEFlop",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "2FF8887B-E673-4727-9601-1B3353531C10"
  },
@@ -979,6 +1020,7 @@
   ],
   "resolved_cls": "PAEFunHouse",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [
    [
     "HFunHouse",
@@ -1021,6 +1063,7 @@
   ],
   "resolved_cls": "PAEGamma",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "9F2DAEB8-1875-4E0E-B62F-DF1E28C1999B"
  },
@@ -1050,6 +1093,7 @@
   ],
   "resolved_cls": "PAEGaussianBlur",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "E472D646-2C92-464E-98A1-91CF8F162AD8"
  },
@@ -1071,6 +1115,7 @@
   "shaders": [
    "HgcGlassBlock"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "E8018079-D8E9-45B0-9A29-6B2BFC356AFB"
  },
@@ -1101,6 +1146,7 @@
   "shaders": [
    "HgcGlassDistort"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "ACDB3E3B-DEEA-4973-B918-2E355750B995"
  },
@@ -1124,6 +1170,7 @@
   ],
   "resolved_cls": "PAEGlint",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [
    [
     "HHDRBloom",
@@ -1162,6 +1209,7 @@
   "shaders": [
    "HgcGloom"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "50387134-338C-42A2-8078-7DF9D7DB36EE"
  },
@@ -1192,6 +1240,7 @@
    "HgcGlow",
    "HgcGlowCombineFx"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "73F69C87-7226-4F7A-81F2-F5E378501423"
  },
@@ -1230,6 +1279,7 @@
   "shaders": [
    "HgcGradientBlur2"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "7C7405BB-1B00-4811-A507-CB9F619CA522"
  },
@@ -1256,6 +1306,7 @@
   ],
   "resolved_cls": "PAEGradientColorize",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [
    [
     "HGradientColorize",
@@ -1298,6 +1349,7 @@
   "shaders": [
    "HgcHalftone"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "10A46FDA-13E9-4167-B8AE-1A7204EB5139"
  },
@@ -1320,6 +1372,7 @@
   "shaders": [
    "HgcHatchedScreen"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "5A65EC34-AA97-4A6E-B40D-DFEFD46364C5"
  },
@@ -1343,6 +1396,7 @@
   "shaders": [
    "HgcHighPass"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "44CB7A9A-4E16-4B32-9567-C1EAD1C0693A"
  },
@@ -1364,6 +1418,7 @@
   "shaders": [
    "HgcSaturation"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "D23AF030-B0BF-44DF-B622-7C9EA0DF5744"
  },
@@ -1385,6 +1440,7 @@
   "shaders": [
    "HgcColorCurves"
   ],
+  "superclass": "PAEBaseCorrectorEffect",
   "traced_shaders": [],
   "uuid": "23723AD7-62C4-4ED0-A8C6-FA5A2D7162E4"
  },
@@ -1409,6 +1465,7 @@
    "HgcConvolvePass8tapIndent",
    "HgcIndent"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "F7F4A6D4-09A3-493F-A345-3AA779595838"
  },
@@ -1431,6 +1488,7 @@
   "shaders": [
    "HgcInsectEyeBorder"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "62A7EF56-178A-4D81-AF6A-C1B77A7D9519"
  },
@@ -1453,6 +1511,7 @@
   ],
   "resolved_cls": "PAEKaleidaTile",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [
    [
     "HKaleidaTile",
@@ -1489,6 +1548,7 @@
    "HgcSpillRemoval",
    "HgcSpillRemovalDarkEdges"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "41122549-B8A6-470E-94DA-211294D20B62"
  },
@@ -1510,6 +1570,7 @@
   ],
   "resolved_cls": "PAELevels",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [
    [
     "HLevels",
@@ -1543,6 +1604,7 @@
    "HgcConvolvePass8tapPoint",
    "HgcScaleAndAddClampDazzle"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "B074E0A5-BE6F-43B4-898A-AB0A44189CD9"
  },
@@ -1568,6 +1630,7 @@
   "shaders": [
    "HgcLineArtThreshold"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "3286E661-A40D-40BE-82AB-1852FFAF91E0"
  },
@@ -1590,6 +1653,7 @@
   "shaders": [
    "HgcLineScreen"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "57174A04-8434-4179-A8EB-66C88B63F308"
  },
@@ -1620,6 +1684,7 @@
   ],
   "resolved_cls": "PAELumaKeyer",
   "shaders": [],
+  "superclass": "PAEKeyer",
   "traced_shaders": [
    [
     "HLumaKeyer",
@@ -1646,6 +1711,7 @@
   "shaders": [
    "HgcLumaKey"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "A0CE702C-9875-4C9F-9A9A-F0968C4F4A90"
  },
@@ -1692,6 +1758,7 @@
    "HgcCopyAlpha",
    "HgcShrinkAndFeatherMatteMagic"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "01D6BDCE-4E12-11D9-9271-000A95AFC10A"
  },
@@ -1731,6 +1798,7 @@
   ],
   "resolved_cls": "PAEMinMax",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "D2342006-51C4-4439-8E89-E970F135E21C"
  },
@@ -1752,6 +1820,7 @@
   ],
   "resolved_cls": "PAEMirror",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [
    [
     "HMirror",
@@ -1761,7 +1830,7 @@
   "uuid": "E1134541-27A1-45CD-972B-AD61D9528316"
  },
  "mono": {
-  "category": "helium_cpu",
+  "category": "photos_lut",
   "files": 3,
   "final_shaders": [],
   "helium": [],
@@ -1771,6 +1840,7 @@
   "prims": [],
   "resolved_cls": "PAEMono",
   "shaders": [],
+  "superclass": "PAEPhotosFilters",
   "traced_shaders": [],
   "uuid": "8997E1CD-18F4-48F5-A406-4E244DC8BCB8"
  },
@@ -1794,6 +1864,7 @@
   "shaders": [
    "HgcNegative"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "9A527DF8-790C-4FD7-B800-116A41B91E24"
  },
@@ -1819,34 +1890,39 @@
   ],
   "resolved_cls": "PAENeon",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "176021CD-2DFB-40FF-B3D4-9399F25C36C4"
  },
  "new-york": {
-  "category": "helium_cpu",
+  "category": "photos_lut",
   "files": 1,
   "final_shaders": [],
   "helium": [],
   "impl": false,
   "mod": null,
   "pae": "New York",
+  "preset_id": 13,
   "prims": [],
   "resolved_cls": "PAENewYork",
   "shaders": [],
+  "superclass": "PAEPhotosFilters",
   "traced_shaders": [],
   "uuid": "6E61328D-0355-41B3-AD0C-7CAC8D9B6F8C"
  },
  "noir": {
-  "category": "helium_cpu",
+  "category": "photos_lut",
   "files": 9,
   "final_shaders": [],
   "helium": [],
   "impl": false,
   "mod": null,
   "pae": "Noir",
+  "preset_id": 2,
   "prims": [],
   "resolved_cls": "PAENoir",
   "shaders": [],
+  "superclass": "PAEPhotosFilters",
   "traced_shaders": [],
   "uuid": "CFA2D547-3560-437A-A7E3-15228E78DD29"
  },
@@ -1870,6 +1946,7 @@
   "shaders": [
    "HgcNoiseDissolve"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "ABFED81E-35D9-429C-AB47-438C1FB5D9DE"
  },
@@ -1893,6 +1970,7 @@
   "shaders": [
    "HgcNoise"
   ],
+  "superclass": "PAEGeneratorDefaultBase",
   "traced_shaders": [],
   "uuid": "1AF9D5FE-EC69-4021-BA8C-39F9BE738AF1"
  },
@@ -1907,6 +1985,7 @@
   "prims": [],
   "resolved_cls": "PAEOffset",
   "shaders": [],
+  "superclass": "PAETile",
   "traced_shaders": [],
   "uuid": "D6245DC0-5D17-4847-ABB0-C4D01C3FA3F7"
  },
@@ -1936,6 +2015,7 @@
   ],
   "resolved_cls": "PAEOpenEXRToneMap",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "ECA5A044-91D9-46F2-B03A-A4D411EA1D16"
  },
@@ -1961,6 +2041,7 @@
    "HgcOuterGlowColorize",
    "HgcOuterGlowLumaWeight"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "A7077089-AA05-44F8-98E8-0C90E446F447"
  },
@@ -1984,6 +2065,7 @@
   "shaders": [
    "HgcPremultToStraight"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "37C59CC3-8FD8-4460-A17E-71B32254FAD7"
  },
@@ -2023,6 +2105,7 @@
   "shaders": [
    "HgcSharpen"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "1386B4FC-1BBF-11D9-94CD-000A95DF1816"
  },
@@ -2045,6 +2128,7 @@
   "shaders": [
    "HgcCircularScreen"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "46396CAD-950B-4EA3-92F3-0CC54DF53AC9"
  },
@@ -2066,6 +2150,7 @@
   "shaders": [
    "HgcColorReduce"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "3168D40C-AF34-401F-81DA-CB50EC5DD5D0"
  },
@@ -2087,6 +2172,7 @@
   "shaders": [
    "HgcTarget"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "220963F2-8E3F-4642-A080-C064CA0B487E"
  },
@@ -2108,6 +2194,7 @@
   "shaders": [
    "HgcYIQAdjust"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "CECECA09-7686-4EBA-A9AA-585A3F5B322E"
  },
@@ -2129,6 +2216,7 @@
   "shaders": [
    "HgcYUVRGBAdjust"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "409AA5EF-5327-48C6-A650-DE16A7923DD8"
  },
@@ -2143,6 +2231,7 @@
   "prims": [],
   "resolved_cls": "PAEPageCurlFilter",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "BA8D0B63-2F01-4DA6-9751-56D308A28F98"
  },
@@ -2164,6 +2253,7 @@
   ],
   "resolved_cls": "PAEParallelogramTile",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [
    [
     "HParallelogramTile",
@@ -2203,6 +2293,7 @@
    "HgcPerspectiveTile",
    "HgcSolidColor"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "A4519C66-916B-470E-B21F-9898EBEAE560"
  },
@@ -2224,6 +2315,7 @@
   "shaders": [
    "HgcPixellate"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "5E7CA164-3AAF-4C70-A377-567E5796528A"
  },
@@ -2245,6 +2337,7 @@
   ],
   "resolved_cls": "PAEPoke",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [
    [
     "HPoke",
@@ -2277,6 +2370,7 @@
    "HgcPolarToRect",
    "HgcRectToPolar"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "937A3262-A691-4F18-9DB9-36B88D0A0FF7"
  },
@@ -2298,6 +2392,7 @@
   "shaders": [
    "HgcPosterize"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "2AC86D66-BBD2-467B-B257-6C5E182488F4"
  },
@@ -2319,6 +2414,7 @@
   ],
   "resolved_cls": "PAEPrism",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [
    [
     "HPrism",
@@ -2328,16 +2424,18 @@
   "uuid": "5A913CA7-CA5C-4EB5-951C-DDF4EDEC5B65"
  },
  "process": {
-  "category": "helium_cpu",
+  "category": "photos_lut",
   "files": 1,
   "final_shaders": [],
   "helium": [],
   "impl": false,
   "mod": null,
   "pae": "Process",
+  "preset_id": 5,
   "prims": [],
   "resolved_cls": "PAEProcess",
   "shaders": [],
+  "superclass": "PAEPhotosFilters",
   "traced_shaders": [],
   "uuid": "FA2255DA-D88C-489C-A4B4-D33AAB97A8E8"
  },
@@ -2371,6 +2469,7 @@
    "HgcRadialMask",
    "HgcRectToPolar"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "8F9F88CF-F1DC-4C7E-8946-1A8B53B4F53A"
  },
@@ -2406,6 +2505,7 @@
   "shaders": [
    "HgcRandomTile"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "F63A2C1A-551A-4061-8DEF-F20183056ABA"
  },
@@ -2430,6 +2530,7 @@
    "HgcRefraction",
    "HgcRefractionHeightMap"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "F6CC79AD-7C35-4AB0-BF10-527994BCD143"
  },
@@ -2445,9 +2546,11 @@
   "impl": false,
   "mod": null,
   "pae": "Relief",
+  "preset_id": 1,
   "prims": [],
   "resolved_cls": "PAERelief",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "267EDBAB-297C-4BF4-B741-A166B5997C9B"
  },
@@ -2471,6 +2574,7 @@
   ],
   "resolved_cls": "PAERingLens",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [
    [
     "HRingLens",
@@ -2516,6 +2620,7 @@
   ],
   "resolved_cls": "PAERipple",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "F6D546C6-5F27-4E9D-9814-960565D6F403"
  },
@@ -2551,6 +2656,7 @@
   "shaders": [
    "HgcScrape"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "0D6E968B-0291-43E2-A8DA-88EB80E9C4B2"
  },
@@ -2576,6 +2682,7 @@
   "shaders": [
    "HgcEchoBlend"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "3A359CB1-0572-48AD-8623-4D5A681466F5"
  },
@@ -2597,6 +2704,7 @@
   "shaders": [
    "HgcSepia"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "2CA36FA3-FE92-4E46-B68F-FDB242831254"
  },
@@ -2622,6 +2730,7 @@
   "shaders": [
    "HgcSharpen"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "6EFE2B74-1702-4829-B98E-E619501D1F16"
  },
@@ -2636,20 +2745,23 @@
   "prims": [],
   "resolved_cls": "PAESimpleBorder",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "8777A5DD-CDDA-4707-8454-D648943210D9"
  },
  "sixties": {
-  "category": "helium_cpu",
+  "category": "photos_lut",
   "files": 3,
   "final_shaders": [],
   "helium": [],
   "impl": false,
   "mod": null,
   "pae": "Sixties",
+  "preset_id": 14,
   "prims": [],
   "resolved_cls": "PAESixties",
   "shaders": [],
+  "superclass": "PAEPhotosFilters",
   "traced_shaders": [],
   "uuid": "67DF2D7D-BE87-437E-BE8D-8E989FA7E803"
  },
@@ -2680,6 +2792,7 @@
    "HgcSlicedScale",
    "HgcSlicedTile"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "546352EB-956A-4DDA-9071-C82CC50B7F73"
  },
@@ -2703,6 +2816,7 @@
   "shaders": [
    "HgcSlitTunnel"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "D7186443-2103-465D-A035-40C390F236EB"
  },
@@ -2733,6 +2847,7 @@
   ],
   "resolved_cls": "PAESoftFocus",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "BE1A5748-322A-4D25-8107-F3961E0BC21A"
  },
@@ -2769,6 +2884,7 @@
   ],
   "resolved_cls": "PAESphere",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [
    [
     "HSphere",
@@ -2797,6 +2913,7 @@
    "HgcSpillRemoval",
    "HgcSpillRemovalDarkEdges"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "4CE35227-69BA-4F0B-AF5E-299526610307"
  },
@@ -2818,6 +2935,7 @@
   "shaders": [
    "HgcStarburst"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "2D69D3F6-6145-428B-905B-249A76E70830"
  },
@@ -2851,6 +2969,7 @@
   ],
   "resolved_cls": "PAEStripesFilter",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "6968E691-88C2-4FAC-8864-674BD75C777F"
  },
@@ -2894,6 +3013,7 @@
    "HgcReconstructDT",
    "HgcSimpleAdd"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "0CB21C8A-7983-418D-B7EC-EDBB20AF4732"
  },
@@ -2921,6 +3041,7 @@
   "shaders": [
    "HgcTextureScreen"
   ],
+  "superclass": "PAETile",
   "traced_shaders": [],
   "uuid": "FBED5D89-8D51-451E-8331-D02F15DE3FA1"
  },
@@ -2944,6 +3065,7 @@
    "HgcThreshold",
    "HgcThresholdNoPremult"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "96AFC322-287E-4014-9EFD-763CD9813E17"
  },
@@ -2965,6 +3087,7 @@
   ],
   "resolved_cls": "PAEParallelogramTile",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [
    [
     "HParallelogramTile",
@@ -2991,6 +3114,7 @@
   "shaders": [
    "HgcTint"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "717D6E01-83F4-4A4B-AF92-42AABA4B176C"
  },
@@ -3016,20 +3140,23 @@
   ],
   "resolved_cls": "PAEEquirectTinyPlanet",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "AAC5D840-7379-4B49-941A-DAE7F6882AEE"
  },
  "tonal": {
-  "category": "helium_cpu",
+  "category": "photos_lut",
   "files": 1,
   "final_shaders": [],
   "helium": [],
   "impl": false,
   "mod": null,
   "pae": "Tonal",
+  "preset_id": 1,
   "prims": [],
   "resolved_cls": "PAETonal",
   "shaders": [],
+  "superclass": "PAEPhotosFilters",
   "traced_shaders": [],
   "uuid": "0962EB7B-F32A-42E6-B2B3-C5F4C02AEEAF"
  },
@@ -3059,20 +3186,23 @@
    "HgcTrailsMaxBlend",
    "HgcTrailsMinBlend"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "2DB30B44-28E5-4A3C-BCBA-6B8D3966F4C6"
  },
  "transfer": {
-  "category": "helium_cpu",
+  "category": "photos_lut",
   "files": 2,
   "final_shaders": [],
   "helium": [],
   "impl": false,
   "mod": null,
   "pae": "Transfer",
+  "preset_id": 6,
   "prims": [],
   "resolved_cls": "PAETransfer",
   "shaders": [],
+  "superclass": "PAEPhotosFilters",
   "traced_shaders": [],
   "uuid": "AE4C894E-F2A9-4CD1-B620-DAC46EB87805"
  },
@@ -3096,6 +3226,7 @@
   ],
   "resolved_cls": "PAETwirl",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [
    [
     "HTwirl",
@@ -3122,6 +3253,7 @@
   ],
   "resolved_cls": "PAEUnderwater",
   "shaders": [],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [
    [
     "HUnderwaterRefractV2",
@@ -3153,6 +3285,7 @@
   "shaders": [
    "HgcUnsharpMask"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "710CFB1F-16B3-48A2-8366-67BE752695CF"
  },
@@ -3180,6 +3313,7 @@
   "shaders": [
    "HgcVariableBlurIntensity"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "05DB4F81-7C57-4F33-A5B3-763C913ACAA3"
  },
@@ -3208,6 +3342,7 @@
   "shaders": [
    "HgcVignette"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "EB96FF9E-5863-4770-B7B5-65CB9BBF8E3B"
  },
@@ -3229,6 +3364,7 @@
   "shaders": [
    "HgcWave"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "C67E6AD5-C16B-40CE-AA72-A4F88EDDD990"
  },
@@ -3251,6 +3387,7 @@
   "shaders": [
    "HgcWavyScreen"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "3C4B5F14-3D6B-4C35-8314-24077F0CB276"
  },
@@ -3279,6 +3416,7 @@
    "HgcEchoBlend",
    "HgcEchoScaleAndAdd"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "5C96D4F9-16FC-4D7F-A4DE-F73D5D0E83BA"
  },
@@ -3311,6 +3449,7 @@
    "HgcPolarToRect",
    "HgcRectToPolar"
   ],
+  "superclass": "PAEFilterDefaultBase",
   "traced_shaders": [],
   "uuid": "11C0E095-5F4F-46E2-AE28-F56ED7D38D7E"
  }

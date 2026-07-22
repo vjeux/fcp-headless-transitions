@@ -40,9 +40,16 @@ regenerate it. Nothing is paraphrased or invented.
 - **shader (76):** PAE class constructs a dedicated `Hgc*` shader directly.
 - **helium_shader (27):** PAE class drives a Helium primitive that constructs a named `Hgc*` shader
   (Prism→HgcPrism, Twirl→HgcTwirl, DiscWarp→HgcDiscWarp, Gamma→HgcGamma, …).
-- **helium_cpu (25):** PAE class drives a Helium primitive with no name-matching shader (blurs,
-  color-matrix ops, warps whose math is in the primitive binary).
-- **non-RE-able (13):** preset(5) / cifilter(3) / 3rdparty(2) / osc(1) / dangling(1) / structural(1).
+- **helium_cpu (14):** PAE class drives a Helium primitive with no name-matching shader (blurs,
+  color-matrix ops, warps whose math is in the primitive binary); render disasm + primitive shown.
+- **photos_lut (11):** built-in Photos-style colour presets (Bleach, Chrome, Cool, Fade, Mono, New
+  York, Noir, Process, Sixties, Tonal, Transfer) — real `PAEPhotosFilters` subclasses that set a
+  preset id and apply a baked 3-D LUT via Helium `HGApply3DLUT`; subclass init + base renderer shown.
+- **non-RE-able (13):** preset(5, genuine `· KF` templates) / cifilter(3) / 3rdparty(2) / osc(1) /
+  dangling(1) / structural(1).
+
+**128 of 141 filters carry real decompiled code** (verbatim shader and/or ARM64 disasm); the other
+13 have no Apple `Hgc*` code and say so, pointing to where their real code lives.
 
 ## Tools
 - `tools/re/extract_shader.py Hgc<Name>` — verbatim Metal shader source (Filters + Helium binaries).
