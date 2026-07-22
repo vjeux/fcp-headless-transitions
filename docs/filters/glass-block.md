@@ -30,3 +30,28 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcGlassBlock` embedded shader. Decoded functional form:_
+
+Glass Block **mosaics the image into rectangular blocks that each show a shifted/rotated view** —
+like looking through glass brick. Coords are quantized to a block grid, and each block's content is
+offset by a per-block transform.
+
+```
+d      = texCoord - Center                          // hg_Params[0]
+cell   = floor(d * hg_Params[1].xy) * hg_Params[1].zw   // which block (grid index → block origin)
+local  = d - cell                                    // position within the block
+// per-block offset via a 2x2 transform of the cell index (hg_Params[2] rows):
+shift.x= dot(cell, hg_Params[2].xy)
+shift.y= dot(cell, hg_Params[2].zw)
+uv     = shift + local + Center                      // sample the shifted view inside each block
+uv     = clamp(uv, hg_Params[3].xy, hg_Params[4].xy) // clamp to crop; outside → transparent
+out    = sample(source, uv)
+```
+
+`hg_Params[1]` = **block size** (xy = 1/size grid, zw = size), `hg_Params[2]` = the per-block
+shift/rotation matrix (the "refraction" each brick applies), `hg_Params[3]/[4]` = crop bounds.
+Head-start: quantize to blocks, sample each block from a per-block-offset location. Larger blocks +
+bigger shift = chunkier glass.

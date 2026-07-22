@@ -30,3 +30,25 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcWavyScreen` embedded shader. Decoded functional form:_
+
+Wavy Screen is a **line screen whose lines wobble** — a halftone line pattern modulated by a sine so
+the hatching ripples across the frame.
+
+```
+uv    = (texCoord + 0.5·offset) * Scale               // hg_Params[1],[2]
+wob   = fract(Freq1 * uv.x)*(-2)+1                     // a wave along x (hg_Params[0].x = Freq1)
+row   = (offset.y - uv.y) + |wob| * hg_Params[0].z     // displace the line coordinate by the wave
+line  = fract(row * hg_Params[0].y)*(-2)+1             // line-screen triangle wave (hg_Params[0].y = line freq)
+line  = |line|
+lum   = dot(color0, hg_Params[3])                      // image luma
+out   = clamp((lum - line) * hg_Params[0].w + 0.5, 0, 1) * color0.a
+```
+
+`hg_Params[0]` packs **(wobble freq, line freq, wobble amplitude, contrast)**, `hg_Params[3]` = luma
+weights. The `|fract·(−2)+1|` idiom is the triangle-wave line profile; the extra sine (`wob`) bends
+the lines. Head-start: line screen (as in `line-screen.md`) but add a sinusoidal offset to the line
+coordinate before thresholding.

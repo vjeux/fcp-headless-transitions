@@ -32,3 +32,25 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcHatchedScreen` embedded shader. Decoded functional form:_
+
+Hatched Screen is a **cross-hatch** engraving: two perpendicular triangle-wave line sets are combined
+and thresholded against the image luma (darker → denser hatching).
+
+```
+uv    = (texCoord + offset - Center) * Scale          // hg_Params[4],[0],[5]
+u     = fract(dot(uv, hg_Params[1]))                  // line set 1 phase (Angle+Freq in slot 1)
+v     = fract(dot(uv, hg_Params[2]))                  // line set 2 phase (perpendicular)
+tu    = 2*min(u, 1-u)                                  // triangle wave → line profile
+tv    = 2*min(v, 1-v)*0.5 + 0.5                        // second set, biased
+hatch = min(tu, tv)                                    // crossing of the two hatch directions
+lum   = dot(color0, hg_Params[6])                      // image luma
+out   = clamp((lum - hatch)*hg_Params[3] + 0.5, 0, 1) * color0.a
+```
+
+`hg_Params[1]/[2]` = the two hatch directions (Angle) + frequencies, `hg_Params[3]` = contrast,
+`hg_Params[6]` = luma weights. `min(tu,tv)` overlays the two line sets into a cross-hatch. Head-start:
+two triangle screens at ±Angle, combine, threshold against luma.

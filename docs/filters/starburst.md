@@ -28,3 +28,23 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcStarburst` embedded shader. Decoded functional form:_
+
+Starburst is a **radial reciprocal warp** (`1/r` along the ray) — it stretches content into rays
+shooting out from a center, giving a star/burst streak.
+
+```
+d    = (texCoord - Center) * asp.xy      // Center=hg_Params[0], asp=hg_Params[2]
+r    = length(d);  dir = d/r
+push = 1 / (r * hg_Params[1].x)          // reciprocal radial map (Amount = hg_Params[1].x)
+uv   = dir * push * asp.zw + Center       // back through aspect/center
+out  = sample(source, (uv+hg_Params[3].xy)*hg_Params[3].zw)
+```
+
+The `1/(r·Amount)` map means points near the center map far out (and vice-versa) → radial streaks.
+`hg_Params[1].x` = **Amount** (ray length/strength), `hg_Params[0]` = **Center**. Head-start: radial
+backward warp with reciprocal radius. (Very similar to Disc Warp; Starburst uses pure `1/r` without
+the `−r` term, so it's a clean inversion burst.)
