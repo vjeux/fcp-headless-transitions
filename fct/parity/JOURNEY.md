@@ -51,3 +51,31 @@ different formulation, e.g. camera-Z projectPoint vs an explicit homography):
 - Image nodes: advance via the faithful driver (RE the DIVERGED node), then `fct parity sync`.
 - The color subsystem needs the GUI-vs-headless resolution (Rule 1) before its parity verdict
   is actionable — tracked in faithful/ as the ORACLE_TRUTH split.
+
+
+## UPDATE 2026-07-22 (session 2 cont.) — transfer-function kind + first real fix
+
+Added a THIRD verification regime for pointwise colour nodes:
+3. **EXACT transfer (parity-owned)** — a per-pixel colour node computes out=f(in,params) with
+   no spatial dependence, so it isolates EXACTLY via UNIFORM-COLOUR inputs (conform-invariant),
+   sidestepping the pipeline coupling AND the headless-vs-GUI gap. Warm batched oracle
+   (transfer_batch.py boots FCP once, ~10x faster). Nodes: transfer.PAEBrightness (CHARACTERIZED
+   — cross-channel HGColorMatrix working-space, gate-blocked), transfer.PAEHSVAdjust.
+
+### FIRST REAL BUG FOUND + FIXED via parity: PAEHSVAdjust hue unit
+- The transfer probe caught hue rotation DIVERGED 201 levels. Decoded against REAL FCP: Hue is
+  RADIANS (turns=hue/(2π)), engine did hue/360 (degrees). Only correct at Hue=0 — survived
+  because all 4 shipping HSV hosts author Hue=0 (GATE-NEUTRAL fix, confirmed <0.15 dB).
+- Fixed both sites + the 2 tests that encoded the wrong convention. HSV worst 201->107 (residual
+  = separate linear-working-space sat/value issue). Commit d5840c2.
+- THIS IS THE HARNESS WORKING: an exact node oracle found a param-space bug invisible to the
+  65-slug gate (all Hue=0) and the coupled delta-response (unattributable), driving a verified fix.
+
+### Node kinds now: curve (exact dlsym), transfer (exact per-pixel colour), filter/generator
+    (delegated faithful delta-response). CHARACTERIZED status = decoded/understood divergence
+    that is NOT an open bug (working-space/gate-blocked).
+
+### Transfer-kind TODO (actionable, real bugs likely — NOT gate-blocked like Brightness):
+- transfer.PAEHSVAdjust residual 107 levels = linear-working-space sat/value (decode HgcHSVAdjust).
+- Add transfer nodes for PAETint / PAEColorize / PAELevels / PAEChannelMixer (need nested-colour
+  param plumbing: pass pre-built {'params':[{name,id,children:[...]}]} in param_cases).

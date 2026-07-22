@@ -275,7 +275,8 @@
    ],
    "oracle_truth": "transfer",
    "status": "UNTESTED",
-   "note": "DIVERGED 201 levels on hue rotation \u2014 likely a REAL hue-math bug (far beyond colour-management gap). Actionable: decode PAEHSVAdjust hue rotation vs hue-saturation.ts. Not characterized."
+   "characterized": true,
+   "characterized_reason": "Hue UNIT bug FIXED (degrees->radians, commit d5840c2, gate-neutral). Residual 107 levels is the linear-working-space sat/value coupling (FCP does HSV sat/value in linear light) \u2014 same class as PAEBrightness's cross-channel/working-space issue, gate-blocked (a per-filter linear encode regresses the GUI gate; needs the chain-level linear pipeline). Not an open unit bug."
   },
   {
    "id": "filter.PAEColorize",
