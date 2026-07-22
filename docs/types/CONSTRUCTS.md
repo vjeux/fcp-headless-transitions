@@ -83,6 +83,109 @@ arbitrary corpus templates can use. Engine status: ✅ implemented (curves.ts).
 
 ---
 
+
+### Interpolation primitives — decompiled code (ground truth)
+
+The interpolation table above is not hand-tuned prose: the time-warp eases (Ease, Accelerate, Decelerate, S-Curve, Ease In/Out) are computed by **`PCMath::easeInOut`** in ProCore, and Bezier/Catmull-Rom keyframes evaluate through `PCAlgorithm::BezierSubdivide`. Below is the **verbatim ARM64 disassembly** from the user's licensed FCP install (`ProCore.framework/…/ProCore`). Regenerate: `venv/bin/python3 tools/re/gen_constructs_decomp.py` (or disassemble `PCMath::easeInOut` / `PCMath::inverseEaseInOut` directly with `otool -tV`).
+
+#### `PCMath::easeInOut(double t, double easeIn, double easeOut, double v0, double v1, double* outValue, double* outDeriv)`
+The parametric ease: two parabolic segments (accelerate over the first `easeIn` fraction, decelerate over the last `easeOut` fraction, linear between). Ease=both, Accelerate=easeIn only, Decelerate=easeOut only, S-Curve=symmetric. Returns the eased value and its derivative.
+```asm
+__ZN6PCMath9easeInOutEdddddPdS0_:
+0000000000011f14	fcmp	d1, #0.0
+0000000000011f18	movi.2d	v5, #0000000000000000
+0000000000011f1c	fcsel	d1, d5, d1, mi
+0000000000011f20	fcmp	d2, #0.0
+0000000000011f24	fmov	d6, #1.00000000
+0000000000011f28	fcsel	d2, d6, d2, mi
+0000000000011f2c	fadd	d7, d1, d2
+0000000000011f30	fabs	d16, d7
+0000000000011f34	adrp	x8, 266 ; 0x11b000
+0000000000011f38	ldr	d17, [x8, #0xc18]
+0000000000011f3c	fcmp	d16, d17
+0000000000011f40	b.pl	0x11f54
+0000000000011f44	cbz	x0, 0x11f4c
+0000000000011f48	str	d0, [x0]
+0000000000011f4c	fmov	d5, #1.00000000
+0000000000011f50	b	0x12010
+0000000000011f54	fsub	d16, d0, d3
+0000000000011f58	fsub	d0, d4, d3
+0000000000011f5c	fcmp	d7, d6
+0000000000011f60	fdiv	d17, d1, d7
+0000000000011f64	fdiv	d18, d2, d7
+0000000000011f68	fcsel	d4, d7, d6, le
+0000000000011f6c	fcsel	d6, d2, d18, le
+0000000000011f70	fcsel	d7, d1, d17, le
+0000000000011f74	fdiv	d2, d16, d0
+0000000000011f78	fcmp	d2, #0.0
+0000000000011f7c	b.pl	0x11f88
+0000000000011f80	movi.2d	v1, #0000000000000000
+0000000000011f84	b	0x12000
+0000000000011f88	fmov	d1, #-2.00000000
+0000000000011f8c	fadd	d4, d4, d1
+0000000000011f90	fcmp	d2, d7
+0000000000011f94	b.pl	0x11fb0
+0000000000011f98	fnmul	d1, d2, d2
+0000000000011f9c	fmul	d4, d4, d7
+0000000000011fa0	fdiv	d1, d1, d4
+0000000000011fa4	fmov	d5, #-2.00000000
+0000000000011fa8	fmul	d2, d2, d5
+0000000000011fac	b	0x11ffc
+0000000000011fb0	fmov	d1, #1.00000000
+0000000000011fb4	fsub	d16, d1, d6
+0000000000011fb8	fcmp	d2, d16
+0000000000011fbc	b.ls	0x11fec
+0000000000011fc0	fcmp	d2, d1
+0000000000011fc4	b.pl	0x12000
+0000000000011fc8	fsub	d5, d1, d2
+0000000000011fcc	fmul	d5, d5, d5
+0000000000011fd0	fmul	d4, d4, d6
+0000000000011fd4	fdiv	d5, d5, d4
+0000000000011fd8	fadd	d1, d5, d1
+0000000000011fdc	fmov	d5, #-1.00000000
+0000000000011fe0	fadd	d2, d2, d5
+0000000000011fe4	fadd	d2, d2, d2
+0000000000011fe8	b	0x11ffc
+0000000000011fec	fadd	d1, d2, d2
+0000000000011ff0	fsub	d1, d7, d1
+0000000000011ff4	fdiv	d1, d1, d4
+0000000000011ff8	fmov	d2, #-2.00000000
+0000000000011ffc	fdiv	d5, d2, d4
+0000000000012000	cbz	x0, 0x12010
+0000000000012004	fmul	d0, d0, d1
+0000000000012008	fadd	d0, d3, d0
+000000000001200c	str	d0, [x0]
+0000000000012010	cbz	x1, 0x12018
+0000000000012014	str	d5, [x1]
+0000000000012018	ret
+```
+
+#### `PCMath::inverseEaseInOut(...)`  — value → normalized time (the inverse)
+```asm
+__ZN6PCMath16inverseEaseInOutEdddddPd:
+000000000001201c	fadd	d6, d1, d2
+0000000000012020	fabs	d5, d6
+0000000000012024	adrp	x8, 265 ; 0x11b000
+0000000000012028	ldr	d7, [x8, #0xc18]
+000000000001202c	fcmp	d5, d7
+0000000000012030	b.pl	0x1203c
+0000000000012034	cbnz	x0, 0x1211c
+0000000000012038	b	0x12120
+000000000001203c	fsub	d5, d0, d3
+0000000000012040	fsub	d0, d4, d3
+0000000000012044	fdiv	d4, d5, d0
+0000000000012048	fcmp	d4, #0.0
+000000000001204c	fmov	d16, #1.00000000
+0000000000012050	fccmp	d4, d16, #0x0, pl
+0000000000012054	b.le	0x12060
+0000000000012058	mov	w0, #0x0
+000000000001205c	ret
+```
+
+Bezier / Catmull-Rom keyframes call `PCAlgorithm::BezierSubdivide(PCVector4<double> p0, p1, p2, p3, int depth, double, double, PCMatrix44 const*, vector<double>&, …)` in ProCore to flatten the cubic into samples; disassemble it with `otool -arch arm64 -tV "…/ProCore.framework/Versions/A/ProCore" | grep -A400 BezierSubdivide`.
+
+---
+
 ## 3. Time encoding
 
 Motion stores time as a **rational** 4-tuple `VALUE TIMESCALE FLAGS EPOCH`:
