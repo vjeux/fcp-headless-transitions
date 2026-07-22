@@ -79,6 +79,47 @@ const HSV_WS_GAMMA = 1.0 / HSV_WS_INV_GAMMA;
  * RGB; Saturation lerps toward the Rec.709 luma of the working-space RGB; Value is a
  * LINEAR multiply in the working space (out = ws_inv(ws(in)*value), NOT value²).
  */
+// DECODED FCP hue rotation basis: FCP's EXACT Rec.709 RGB→YCbCr matrix, pulled from the
+// binary via dlsym (ProCore PCGetRec709YCbCrMatrix — fct/parity 2026-07-22). FCP's HSV Hue
+// rotates the (Cb,Cr) chroma vector about the luma axis (luma-PRESERVING), NOT an HSV-hextant
+// rotation (which preserves value=max and diverged). Row 0 = Rec.709 luma (== luma709 exact).
+const RGB2YCBCR = [
+  [0.212639, 0.715169, 0.072192],
+  [-0.114592, -0.385408, 0.5],
+  [0.5, -0.454156, -0.045844],
+];
+// Inverse (YCbCr→RGB), precomputed from the exact matrix above.
+const YCBCR2RGB = (() => {
+  const m = RGB2YCBCR;
+  const det =
+    m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) -
+    m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
+    m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+  const inv = (a: number, b: number, c: number, d: number) => (a * d - b * c) / det;
+  return [
+    [inv(m[1][1], m[1][2], m[2][1], m[2][2]), inv(m[0][2], m[0][1], m[2][2], m[2][1]), inv(m[0][1], m[0][2], m[1][1], m[1][2])],
+    [inv(m[1][2], m[1][0], m[2][2], m[2][0]), inv(m[0][0], m[0][2], m[2][0], m[2][2]), inv(m[0][2], m[0][0], m[1][2], m[1][0])],
+    [inv(m[1][0], m[1][1], m[2][0], m[2][1]), inv(m[0][1], m[0][0], m[2][1], m[2][0]), inv(m[0][0], m[0][1], m[1][0], m[1][1])],
+  ];
+})();
+
+/** Rotate an RGB triple's hue by `turns` about the luma axis, in FCP's exact Rec.709 YCbCr
+ * space (luma-preserving). Returns the rotated RGB (may be out of [0,1] before gamut clamp). */
+function rotateHueYCbCr(r: number, g: number, b: number, turns: number): [number, number, number] {
+  const Y = RGB2YCBCR[0][0] * r + RGB2YCBCR[0][1] * g + RGB2YCBCR[0][2] * b;
+  const cb = RGB2YCBCR[1][0] * r + RGB2YCBCR[1][1] * g + RGB2YCBCR[1][2] * b;
+  const cr = RGB2YCBCR[2][0] * r + RGB2YCBCR[2][1] * g + RGB2YCBCR[2][2] * b;
+  const ang = turns * 2 * Math.PI;
+  const c = Math.cos(ang), s = Math.sin(ang);
+  const cb2 = c * cb - s * cr;
+  const cr2 = s * cb + c * cr;
+  return [
+    YCBCR2RGB[0][0] * Y + YCBCR2RGB[0][1] * cb2 + YCBCR2RGB[0][2] * cr2,
+    YCBCR2RGB[1][0] * Y + YCBCR2RGB[1][1] * cb2 + YCBCR2RGB[1][2] * cr2,
+    YCBCR2RGB[2][0] * Y + YCBCR2RGB[2][1] * cb2 + YCBCR2RGB[2][2] * cr2,
+  ];
+}
+
 function hueSaturationFilterWS(input: ImageData, params: HueSatParams): ImageData {
   const { hue, saturation, value, mix } = params;
   const satFactor = 1 + saturation;
@@ -97,9 +138,21 @@ function hueSaturationFilterWS(input: ImageData, params: HueSatParams): ImageDat
     let g = Math.pow(src[i + 1] / 255, iv);
     let b = Math.pow(src[i + 2] / 255, iv);
     if (doHue) {
-      let [h, s, v] = rgbToHsv(r, g, b);
-      h = (h + hueTurns) % 1;
-      [r, g, b] = hsvToRgb(h, s, v);
+      // DECODED (fct/parity): luma-preserving rotation in FCP's exact Rec.709 YCbCr space,
+      // then gamut-desaturate toward luma-gray (FCP lifts the min channel rather than hard-
+      // clipping to 0). NOT the HSV-hextant rotation (which diverged: it preserves max, not
+      // luma). ~20 rms residual vs headless (exact gamut curve pending), far closer than the
+      // hextant rotation. Gate-neutral: all shipping HSV hosts author Hue=0.
+      [r, g, b] = rotateHueYCbCr(r, g, b, hueTurns);
+      const lo = Math.min(r, g, b), hi = Math.max(r, g, b);
+      if (lo < 0 || hi > 1) {
+        const Y = luma709(r, g, b);
+        let t = 1;
+        if (lo < 0 && lo < Y) t = Math.min(t, (0 - Y) / (lo - Y));
+        if (hi > 1 && hi > Y) t = Math.min(t, (1 - Y) / (hi - Y));
+        t = t < 0 ? 0 : t > 1 ? 1 : t;
+        r = Y + (r - Y) * t; g = Y + (g - Y) * t; b = Y + (b - Y) * t;
+      }
     }
     if (saturation !== 0) {
       const gray = luma709(r, g, b);
