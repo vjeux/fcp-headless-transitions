@@ -37,9 +37,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 > 1 non-creative internal/hidden state parameter(s) (persisted engine state, not user knobs) were omitted from the table above.
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcBumpMap` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcBumpMap.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcBumpMap.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcBumpMap
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Bump Map **displaces the source using a second image as a height/normal field** — it reads the R/G
 of a bump texture (`color0` here is the pre-sampled bump), scales it into a 2-D displacement, and
@@ -60,3 +69,4 @@ out  = sample(source, uv)                    // hg_Texture1 = the image being di
 orientation matrix is used (Direction), `hg_Params[6]` = final offset+scale. The `255` constant
 shows the bump is read in 0–255 units before scaling. Head-start: sample bump→(dx,dy), gather source
 at `uv + Amount·(dx,dy)`; the Map Channel param (see doc) selects which bump channel supplies height.
+

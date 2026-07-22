@@ -31,9 +31,19 @@ Non-creative host parameters on this filter: `Crop`, `360° Aware`, `Flip`, `Inp
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Algorithm — NOT YET REVERSE-ENGINEERED
 
-_PAESoftFocus — bloom-style diffusion: screen a blurred copy over the sharp original._
+> ⚠️ **Unverified.** This filter has **no dedicated embedded `Hgc*` shader** to extract, so there is
+> no ground-truth per-pixel source yet. The notes below are an *inferred sketch* from general
+> Motion knowledge — they are **likely wrong in detail and must not be implemented as-is**.
+>
+> **To reverse-engineer it:** disassemble the CPU class with
+> `otool -arch arm64 -tV` on `-[PAESoftFocus canThrowRenderOutput:withInput:withInfo:]` and `frameSetup:`
+> in `Filters.bundle`, and chase the Helium/ProAppsFxSupport primitive it calls
+> (e.g. `HGaussianBlur`, `HGLinearFilter::gaussian`). Blur-family filters delegate to the shared
+> `HGBlur` primitive already decoded in `engine/src/compositor/filters/gaussian-blur.ts`.
+
+### Inferred sketch (UNVERIFIED — do not treat as decoded)
 
 Softens while keeping edge definition (dreamy portrait glow):
 
@@ -45,3 +55,4 @@ out    = mix(source, out, Mix)
 
 `Amount` = blur radius, **Intensity** = strength of the soft overlay, `Mix` = blend. Distinct from a
 plain blur: the screen keeps darks sharp and blooms lights. Head-start: blur + screen composite.
+

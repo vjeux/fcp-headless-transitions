@@ -29,9 +29,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcNoiseDissolve` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcNoiseDissolve.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcNoiseDissolve.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcNoiseDissolve
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Noise Dissolve is a **threshold-on-noise reveal** — a per-pixel noise field (`color1`, upstream) is
 compared to a threshold; pixels whose noise is below the threshold become transparent, so raising
@@ -47,3 +56,4 @@ out.a   = a·keep
 `hg_Params[0]` = **Threshold / progress** (animatable → the dissolve). The noise *pattern* (grain
 size, seed) is set by the upstream generator. Head-start: `out = (noise >= t) ? src : transparent`;
 drive `t` over the transition. A soft edge can be added by `smoothstep(t-w, t+w, noise)` on alpha.
+

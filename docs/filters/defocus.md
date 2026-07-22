@@ -33,9 +33,18 @@ Non-creative host parameters on this filter: `Crop`, `Flip`, `Input Points`. The
 
 **Not implemented** — 📄 shader available: `evidence/shaders/HgcConvolvePass7tapDefocus.metal` (verbatim FCP source, per-pixel math decoded; TS port pending).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_PAEDefocus — bokeh blur via the checked-in `HgcConvolvePass7tapDefocus` shader (evidence/shaders/)._
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcConvolvePass7tapDefocus.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcConvolvePass7tapDefocus.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcConvolvePass7tapDefocus
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Unlike Gaussian, Defocus convolves with a **polygonal-aperture disc** so out-of-focus highlights
 bloom into hexagons/pentagons (real lens bokeh):
@@ -52,3 +61,4 @@ out = Σ_{k=0..6} w_k · sample(p + radius · tap_k)
 angle, **Gain** = highlight bokeh boost. The disc (flat) kernel vs Gaussian (bell) is the whole
 difference. 📄 shader in `evidence/shaders/HgcConvolvePass7tapDefocus.metal`; head-start: disc-tap
 convolution at the aperture vertices, with a highlight-gain pre-pass.
+

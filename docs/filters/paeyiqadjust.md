@@ -27,9 +27,18 @@ No extra plumbing parameters recorded. These are standard FxPlug/host boilerplat
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcYIQAdjust` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcYIQAdjust.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcYIQAdjust.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcYIQAdjust
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 YIQ Adjust adds a **YIQ-space offset** to the image — you specify a shift in the Y (luma), I, and Q
 (chroma) axes, and it's converted to an RGB offset and added:
@@ -48,3 +57,4 @@ The matrix rows `(1, 0.956, 0.621)`, `(1, −0.272, −0.647)`, `(1, −1.105, 1
 NTSC YIQ→RGB transform. `hg_Params[0]` = the **Y/I/Q offsets**. Head-start: convert the YIQ
 adjustment to an RGB bias via that matrix, add. (YUV Adjust is the same idea with the YUV/Rec.601
 matrix; no dedicated shader — same additive-offset structure.)
+

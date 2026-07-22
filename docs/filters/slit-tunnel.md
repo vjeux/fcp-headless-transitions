@@ -31,9 +31,18 @@ No extra plumbing parameters recorded. These are standard FxPlug/host boilerplat
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcSlitTunnel` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcSlitTunnel.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcSlitTunnel.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcSlitTunnel
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Slit Tunnel maps the image into an infinite **perspective tunnel** using polar coordinates: the
 angle around the center picks a column of the source, and `1/radius` gives depth (so content
@@ -55,3 +64,4 @@ The constants `0.15915≈1/2π`, `1.5708≈π/2`, `3.1416≈π` and the small po
 minimax **atan2** — the tell for a polar/tunnel mapping. `hg_Params[9]/[10]` = orientation,
 `hg_Params[0]` = center. Head-start: polar transform (angle→u, 1/r→v), scroll v over time for the
 fly-through; tile the source as the tunnel wall.
+

@@ -33,9 +33,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 
 **Not implemented.** A verbatim `HgcLineScreen` Metal shader is checked in under `engine/src/compositor/filters/evidence/shaders/HgcLineScreen.metal` (Phase-1 done, Phase-2 open).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcLineScreen` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcLineScreen.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcLineScreen.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcLineScreen
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Line Screen is a **halftone line pattern**: it builds a periodic triangle wave across the frame at a
 chosen angle/frequency, and thresholds the image's luma against it so dark areas fill with thicker
@@ -55,3 +64,4 @@ lines-per-unit); `hg_Params[2]` = **contrast/hardness** of the lines; `hg_Params
 The `2·min(t,1−t)` is the triangle wave that gives symmetric line thickness. Head-start: generate
 the triangle screen procedurally, threshold against luma; map Angle→direction of `hg_Params[1]`,
 Frequency→its length.
+

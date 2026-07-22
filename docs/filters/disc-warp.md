@@ -29,9 +29,18 @@ Non-creative host parameters on this filter: `Crop`, `Publish OSC`, `Flip`, `Inp
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcDiscWarp` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcDiscWarp.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcDiscWarp.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcDiscWarp
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Disc Warp is a **radial reciprocal warp** — it bends the image around a center as if projected onto
 a disc/dome, pushing pixels outward with an inverse-radius term so content near the center balloons
@@ -54,3 +63,4 @@ The `r − 1/r` reciprocal is the signature of the disc/dome bulge (vs Bulge's p
 rotation). `hg_Params[0].x/.y` = **Amount / rim strength**. Head-start: backward-warp gather with a
 reciprocal radial map centered on the disc; decode `-[PAEDiscWarp ...]` for the exact
 Amount→scale constants. (Corpus display name is often "Controller".)
+

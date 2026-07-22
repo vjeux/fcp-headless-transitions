@@ -31,9 +31,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcGlassBlock` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcGlassBlock.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcGlassBlock.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcGlassBlock
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Glass Block **mosaics the image into rectangular blocks that each show a shifted/rotated view** —
 like looking through glass brick. Coords are quantized to a block grid, and each block's content is
@@ -55,3 +64,4 @@ out    = sample(source, uv)
 shift/rotation matrix (the "refraction" each brick applies), `hg_Params[3]/[4]` = crop bounds.
 Head-start: quantize to blocks, sample each block from a per-block-offset location. Larger blocks +
 bigger shift = chunkier glass.
+

@@ -31,9 +31,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 > 1 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcLevels` embedded shader (confirms the shipped `levels.ts`)._
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcLevels.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcLevels.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcLevels
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Levels is the classic **input/output remap with gamma**, done twice (an RGB pass then a luma/master
 pass), all per-channel:
@@ -54,3 +63,4 @@ out  = mix(src, v·a, hg_Params[10])                          // Mix
 Slots: `[0]`inBlack `[1]`outBlack `[2]`inWhite `[3]`outWhite `[4]`gamma (RGB pass); `[5..9]` the
 master pass; `[10]` **Mix**. `eps=1e-5` guards divide-by-zero. Matches `levels.ts`; the two-pass
 structure (RGB then master) is the detail to preserve.
+

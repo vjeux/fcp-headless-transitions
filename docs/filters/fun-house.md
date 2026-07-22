@@ -31,9 +31,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcFunHouse` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcFunHouse.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcFunHouse.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcFunHouse
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Fun House is a **1-D carnival-mirror stretch** — it magnifies/compresses the image along one axis
 based on distance from a center line, like a funhouse mirror.
@@ -52,3 +61,4 @@ out  = sample(source, (uv + hg_Params[6].xy)*hg_Params[6].zw)
 `hg_Params[1]` = the stretch-axis orientation (Angle), `hg_Params[3].x` = **Amount** (bulge >1
 magnifies center, <1 pinches), smoothstep gives the smooth funhouse falloff. Head-start: backward
 warp, magnify one axis by a smoothstep-weighted factor centered on the line.
+

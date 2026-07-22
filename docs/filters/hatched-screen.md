@@ -33,9 +33,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcHatchedScreen` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcHatchedScreen.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcHatchedScreen.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcHatchedScreen
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Hatched Screen is a **cross-hatch** engraving: two perpendicular triangle-wave line sets are combined
 and thresholded against the image luma (darker → denser hatching).
@@ -54,3 +63,4 @@ out   = clamp((lum - hatch)*hg_Params[3] + 0.5, 0, 1) * color0.a
 `hg_Params[1]/[2]` = the two hatch directions (Angle) + frequencies, `hg_Params[3]` = contrast,
 `hg_Params[6]` = luma weights. `min(tu,tv)` overlays the two line sets into a cross-hatch. Head-start:
 two triangle screens at ±Angle, combine, threshold against luma.
+

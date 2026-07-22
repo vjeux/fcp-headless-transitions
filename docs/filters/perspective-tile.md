@@ -33,9 +33,19 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcPerspectiveTile` embedded shader — a homographic variant of the mirror tiler
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcPerspectiveTile.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcPerspectiveTile.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcPerspectiveTile
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
+
 (see `parallelogram-tile.md`)._ The image is tiled (fract + mirror-fold), then each tile's
 coordinates are pushed through a **perspective (homography) transform** so the tiled plane recedes
 in 3-D (floor/wall vanishing-point look).
@@ -50,3 +60,4 @@ out  = sample(source, uvToTexture(uv))
 
 The `/w` perspective divide is the only addition over Parallelogram Tile. Head-start: tile, then
 apply a 3×3 homography with a real w-divide; the matrix comes from a Perspective/Angle param.
+

@@ -32,9 +32,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcLineArt` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcLineArt.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcLineArt.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcLineArt
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Line Art is a **morphological edge detector** (dilation minus original) — it finds outlines by
 taking the brightest of a pixel and its 4 neighbors, then subtracting the center. Flat regions
@@ -50,3 +59,4 @@ No parameters in the shader itself — the neighbor **offset distance** (line th
 is baked into the tap coordinates upstream (from a Radius/Amount param). It's a per-channel morphological
 gradient, so colored edges keep their color. Head-start: `out = maxNeighborhood(src) − src`; expose
 tap distance as the line-width control. (Compare `edges.md` which uses a symmetric difference.)
+

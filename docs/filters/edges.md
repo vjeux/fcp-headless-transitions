@@ -28,9 +28,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcEdges` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcEdges.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcEdges.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcEdges
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Edges is a **gradient-magnitude edge detector** (Sobel-like): it takes horizontal and vertical
 differences from 4 neighbor taps, sums their squares, and scales — bright where the image changes.
@@ -46,3 +55,4 @@ Per-channel (so colored edges keep hue). `hg_Params[0]` = **Amount**; neighbor t
 (from a Radius param) sets edge scale. Note it uses squared magnitude (no sqrt) — brighter, more
 contrasty edges than a true gradient norm. Head-start: 4-tap central differences, sum of squares,
 scale.
+

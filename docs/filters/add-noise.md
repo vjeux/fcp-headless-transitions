@@ -33,9 +33,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 **Not implemented.** A verbatim `HgcAddNoise` Metal shader is checked in under `engine/src/compositor/filters/evidence/shaders/HgcAddNoise.metal` (Phase-1 done, Phase-2 open).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcAddNoise` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcAddNoise.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcAddNoise.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcAddNoise
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 The noise field itself (`color0`) is generated upstream (a hash/random pass — see the existing
 `HgcNoise` RE in `NOISE_DECOMPILE_REPORT.md` for the dSFMT-seeded generator). `HgcAddNoise` is the
@@ -52,3 +61,4 @@ out  = n * color1.a                   // premultiply against alpha
 between bipolar and rectified noise. The actual noise *character* (monochrome vs color, grain size,
 seed) lives in the upstream generator params. Head-start: generate per-pixel noise, then apply the
 4 lines above; combine with the source in the host (Add/Screen blend) per the Apply Mode param.
+

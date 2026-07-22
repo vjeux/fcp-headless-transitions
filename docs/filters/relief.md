@@ -34,9 +34,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcRelief` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcRelief.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcRelief.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcRelief
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Relief is a **directional emboss lit by a height difference** — it reads a height/luma from a second
 texture, subtracts a shifted copy along the light direction, and shades the source with the result
@@ -54,3 +63,4 @@ out   = sample(hg_Texture0, texCoord0) * shade               // multiply source 
 = light direction (Angle). The subtraction of a direction-shifted height is what makes ridges catch
 "light" on one side and shadow on the other. Head-start: height field → directional derivative →
 multiply source; expose Angle + Amount + Contrast.
+

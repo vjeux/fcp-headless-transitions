@@ -31,9 +31,18 @@ Non-creative host parameters on this filter: `Prescale Input`, `Flip`, `Input Po
 
 **Implemented.** TS module: [`engine/src/compositor/filters/vignette.ts`](../../engine/src/compositor/filters/vignette.ts). Reverse-engineered against the verbatim `HgcVignette` Metal shader.
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from `HgcVignette` (verification in `../../engine/src/compositor/filters/evidence/VIGNETTE_VERIFICATION.md`; shipped in `vignette.ts`, verified 32–44 dB)._
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcVignette.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcVignette.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcVignette
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Radial darkening mask with a smooth falloff band:
 
@@ -47,3 +56,4 @@ out.rgb= mix(src.rgb, src.rgb*Darken, mask)               // darken toward the e
 
 `hg_Params[0]` = Center, `[1]` = radius/falloff (Size, Falloff), Darken = edge brightness. Optional
 desaturation toward the rim uses the same mask.
+

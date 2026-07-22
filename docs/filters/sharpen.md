@@ -29,9 +29,18 @@ Non-creative host parameters on this filter: `360° Aware`, `Flip`, `Input Point
 
 **Not implemented.** A verbatim `HgcSharpen` Metal shader is checked in under `engine/src/compositor/filters/evidence/shaders/HgcSharpen.metal` (Phase-1 done, Phase-2 open).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcSharpen` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcSharpen.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcSharpen.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcSharpen
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Sharpen is a classic **unsharp mask**: it amplifies the difference between the image and a blurred
 copy. The blurred copy (`color1`) is produced upstream by a Gaussian pass; this shader does the
@@ -52,3 +61,4 @@ Gaussian used by `gaussian-blur.ts`, then `out = clamp(orig + amount·(orig−bl
 Highpass is the same idea but keeps *only* the detail, centered at gray:
 `out = max( (orig − blur)·Amount + 0.5, 0 )` (un/re-premultiplied). It's the isolated high-pass
 band (mid-gray where flat), whereas Sharpen adds that band back onto the original.
+

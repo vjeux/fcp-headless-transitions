@@ -32,9 +32,18 @@ Non-creative host parameters on this filter: `Publish OSC`, `Flip`, `Input Point
 
 > 1 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcPoke` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcPoke.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcPoke.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcPoke
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Poke is a **localized radial push/pull** centered on a point — it displaces pixels within a radius
 toward or away from the center (like poking a finger into the image). Two homography transforms
@@ -57,3 +66,4 @@ out  = sample(source, uv2)
 reshaping concentrates the distortion near the center and eases out — the poke bulge. See the
 existing `HgcPoke.metal` evidence; head-start is a backward-warp gather with the radial reshape
 above, `Center`+`Amount` mapped from the disasm.
+

@@ -31,9 +31,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 **Not implemented.** A verbatim `HgcInsectEye` Metal shader is checked in under `engine/src/compositor/filters/evidence/shaders/HgcInsectEye.metal` (Phase-1 done, Phase-2 open).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from `HgcInsectEye` (+ `HgcInsectEyeBorder`) embedded shaders. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcInsectEye.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcInsectEye.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcInsectEye
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Insect Eye tiles the frame into a **hexagonal grid of facets**, each facet sampling the source at
 its own center — a compound-eye/honeycomb look. The shader does hex-grid coordinate rounding.
@@ -56,3 +65,4 @@ of the sample). `hg_Params[3]` = **facet size**, `hg_Params[5]` = **Center/offse
 and the `fract`/`floor` cascade are the hexagonal-lattice nearest-cell rounding. Head-start:
 implement axial hex rounding at the chosen facet size; each output pixel = its hex cell's center
 sample; overlay borders from InsectEyeBorder.
+

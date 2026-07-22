@@ -34,9 +34,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 **Not implemented.** A verbatim `HgcColorReduce` Metal shader is checked in under `engine/src/compositor/filters/evidence/shaders/HgcColorReduce.metal` (Phase-1 done, Phase-2 open).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcColorReduce` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcColorReduce.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcColorReduce.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcColorReduce
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Color Reduce **snaps each pixel to its nearest color from a small palette** (a hard nearest-centroid
 quantizer, giving a poster/paint-by-numbers look). The shader carries up to 4 palette colors in
@@ -55,3 +64,4 @@ The cascade of `select(... < 0)` comparisons in the shader is an unrolled `argmi
 distances (with the `+ hg_Params[5..8]` acting as per-centroid bias). To finish: decode
 `-[PAEColorReduce ...]` to see how the **palette entries** are derived (fixed N-color quantization
 grid vs sampled from the image) and how many centroids per pass.
+

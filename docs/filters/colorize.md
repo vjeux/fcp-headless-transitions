@@ -33,9 +33,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 > 3 non-creative internal/hidden state parameter(s) (persisted engine state, not user knobs) were omitted from the table above.
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcColorize` embedded shader. Confirms the two-point duotone described above:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcColorize.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcColorize.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcColorize
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 ```
 c    = rgb / max(a,1e-6)                          // un-premultiply
@@ -48,3 +57,4 @@ out  = mix(src, c'·a, hg_Params[3])               // Mix: blend the colorized r
 `hg_Params[0]` = **Remap Black To**, `[1]` = **Remap White To**, `[2]` = **Intensity** (per-channel),
 `[3]` = **Mix**, `[4]` = luma weights. So it's a luma-keyed gradient between two colors, then blended
 back — matching the TS implementation (`channel-mixer.ts` shares the linear-remap machinery).
+

@@ -29,9 +29,18 @@ Non-creative host parameters on this filter: `Publish OSC`, `Crop`, `Flip`, `Inp
 
 **Not implemented.** A verbatim `HgcTarget` Metal shader is checked in under `engine/src/compositor/filters/evidence/shaders/HgcTarget.metal` (Phase-1 done, Phase-2 open).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcTarget` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcTarget.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcTarget.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcTarget
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Target is a **radial coordinate warp** — it displaces each pixel along the ray from a center point
 by an amount proportional to its distance, producing a concentric zoom/target-ring distortion.
@@ -51,3 +60,4 @@ centered on `Center`. `hg_Params[1]` is the **Amount/Size** knob (how strong the
 `hg_Params[2]` the aspect correction, `hg_Params[3..4]` center/crop transforms. Head-start:
 backward-warp gather with `uv = center + (p−center)·(1 + k·|p−center|)`-style radial map; decode
 `-[PAETarget ...]` for the exact `k(Amount)`.
+

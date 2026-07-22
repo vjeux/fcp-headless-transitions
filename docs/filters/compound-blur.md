@@ -36,9 +36,19 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 > 4 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
-## Algorithm (decoded)
+## Algorithm — NOT YET REVERSE-ENGINEERED
 
-_PAECompoundBlur — a map-driven varying blur (blur amount comes from a second "map" image)._
+> ⚠️ **Unverified.** This filter has **no dedicated embedded `Hgc*` shader** to extract, so there is
+> no ground-truth per-pixel source yet. The notes below are an *inferred sketch* from general
+> Motion knowledge — they are **likely wrong in detail and must not be implemented as-is**.
+>
+> **To reverse-engineer it:** disassemble the CPU class with
+> `otool -arch arm64 -tV` on `-[PAECompoundBlur canThrowRenderOutput:withInput:withInfo:]` and `frameSetup:`
+> in `Filters.bundle`, and chase the Helium/ProAppsFxSupport primitive it calls
+> (e.g. `HGaussianBlur`, `HGLinearFilter::gaussian`). Blur-family filters delegate to the shared
+> `HGBlur` primitive already decoded in `engine/src/compositor/filters/gaussian-blur.ts`.
+
+### Inferred sketch (UNVERIFIED — do not treat as decoded)
 
 Each pixel is blurred by a radius read from a **blur map** (a grayscale control image), so you can
 paint where the image is sharp vs blurred (depth-of-field masks).
@@ -53,3 +63,4 @@ out    = varyingGaussian(source, sigma)      // approximated by blending fixed G
 `Amount` = max radius, **map channel** selects which channel of the map = height. Same varying-blur
 engine as Gradient/Circle Blur, but the `t` is sampled from an arbitrary image. Head-start: blend
 precomputed Gaussian mip levels by the map value.
+

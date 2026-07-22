@@ -28,9 +28,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 
 **Implemented.** TS module: [`engine/src/compositor/filters/fisheye.ts`](../../engine/src/compositor/filters/fisheye.ts). Reverse-engineered against the verbatim `HgcFisheye` Metal shader.
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from `HgcFisheye` (write-up in `../../engine/src/compositor/filters/evidence/FISHEYE_RE.md`; shipped in `fisheye.ts`, verified 34–36 dB)._
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcFisheye.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcFisheye.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcFisheye
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Power-law radial lens distortion with **anisotropic (per-axis) radius normalization** — that W/H
 normalization was the key fix that took it from 16→34 dB:
@@ -46,3 +55,4 @@ out   = sample(source, uv)
 
 `hg_Params[4].x` = **Amount** (+ = bulge/convex, − = pinch/concave), `hg_Params[5].xy` = the per-axis
 normalization that keeps the distortion circular on 16:9. See FISHEYE_RE.md for the power-law decode.
+

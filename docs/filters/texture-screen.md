@@ -37,9 +37,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcTextureScreen` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcTextureScreen.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcTextureScreen.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcTextureScreen
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Texture Screen thresholds the image's luma against a **screen texture** (`color1`, a pattern
 generated/sampled upstream) to produce a patterned monochrome output — like printing through a mesh.
@@ -55,3 +64,4 @@ out.rgb= v * color1.a                              // (monochrome, premultiplied
 `hg_Params[0]` = **(screen gain, image gain, screen offset)** — how the pattern and image mix,
 `hg_Params[1]` = luma weights. The `color0²` is a perceptual weighting. Head-start: supply a screen
 pattern, combine `image_luma·k + screen`, threshold. The pattern is the creative input.
+

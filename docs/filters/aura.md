@@ -30,9 +30,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Clip to Wh
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcAura` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcAura.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcAura.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcAura
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Aura is the **combine stage of a glow/aura**: it adds a blurred, brightened copy of the image
 (`color0`, produced upstream) on top of the original (`color1`), clamped to a ceiling color.
@@ -48,3 +57,4 @@ out    = max(out, 0)
 `hg_Params[0]` = **Intensity** (aura brightness, per-channel), `hg_Params[1]` = the **aura color
 ceiling** (caps and tints the glow). The blur radius that builds `color0` = **Radius/Size**. So Aura
 = additive bloom with a colored clamp. Head-start: blur+brighten source → add → clamp to aura color.
+

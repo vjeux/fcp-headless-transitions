@@ -31,9 +31,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcParallelogramTile` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcParallelogramTile.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcParallelogramTile.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcParallelogramTile
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Parallelogram Tile **kaleidoscope-tiles** the image into mirrored parallelogram cells: coordinates
 are projected onto two (non-orthogonal) axes, folded with a `min(frac, 1-frac)` mirror, then mapped
@@ -54,3 +63,4 @@ out  = sample(source, (uv+hg_Params[4].xy)*hg_Params[4].zw)
 tiles mirror seamlessly. Head-start: project onto two skew axes, mirror-fold, sample. (Random Tile
 and Perspective Tile are variants: Random Tile adds a per-cell random offset/rotation; Perspective
 Tile applies a homography per tile.)
+

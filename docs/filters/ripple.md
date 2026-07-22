@@ -28,3 +28,30 @@ Non-creative host parameters on this filter: `Publish OSC`, `Crop`, `Flip`, `Inp
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm — NOT YET REVERSE-ENGINEERED
+
+> ⚠️ **Unverified.** This filter has **no dedicated embedded `Hgc*` shader** to extract, so there is
+> no ground-truth per-pixel source yet. The notes below are an *inferred sketch* from general
+> Motion knowledge — they are **likely wrong in detail and must not be implemented as-is**.
+>
+> **To reverse-engineer it:** disassemble the CPU class with
+> `otool -arch arm64 -tV` on `-[PAERipple canThrowRenderOutput:withInput:withInfo:]` and `frameSetup:`
+> in `Filters.bundle`, and chase the Helium/ProAppsFxSupport primitive it calls
+> (e.g. `HGaussianBlur`, `HGLinearFilter::gaussian`). Blur-family filters delegate to the shared
+> `HGBlur` primitive already decoded in `engine/src/compositor/filters/gaussian-blur.ts`.
+
+### Inferred sketch (UNVERIFIED — do not treat as decoded)
+
+```
+d      = texCoord - Center
+r      = length(d);  dir = d/r
+wave   = Amplitude · sin(r · Frequency·2π - Phase)   // concentric sine of radius
+uv     = Center + dir · (r + wave)                    // push samples along the radius
+out    = sample(source, uv)
+```
+
+Params: **Amplitude** (ripple height), **Frequency/Wavelength** (rings), **Phase** (animate →
+expanding ripples), **Center**. Simpler cousin of Droplet (pure sine vs Droplet's piecewise
+profile). Head-start: radial backward-warp with the sine-of-radius displacement.
+

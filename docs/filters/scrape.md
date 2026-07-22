@@ -32,9 +32,18 @@ Non-creative host parameters on this filter: `Crop`, `Flip`, `Input Points`, `Pu
 
 > 2 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcScrape` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcScrape.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcScrape.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcScrape
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Scrape **smears the image along a direction past a moving line** — like dragging wet paint. Pixels on
 one side of a directional threshold line are displaced along the scrape axis by an amount that grows
@@ -57,3 +66,4 @@ out    = sample(source, uv)
 (**Amount/progress**, animatable → the line sweeps), `hg_Params[3].w` = smear falloff. The effect is
 a leading hard edge (everything past the line collapses onto it) with a trailing stretch. Head-start:
 directional threshold + axis-aligned displacement as above.
+

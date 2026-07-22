@@ -27,9 +27,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 **Implemented.** TS module: [`engine/src/compositor/filters/channel-mixer.ts`](../../engine/src/compositor/filters/channel-mixer.ts).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcTint` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcTint.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcTint.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcTint
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Tint maps the image's luminance onto a **tint color**, effectively a sepia/monochrome-toward-color
 transform with a soft two-sided ramp around mid-gray:
@@ -48,3 +57,4 @@ out.rgb = mix(c, tinted, hg_Params[1].xyz) * a  // Amount/Intensity blend, re-pr
 `hg_Params[0]` = **tint Color**, `hg_Params[1]` = **Intensity** (per-channel blend toward tinted),
 `hg_Params[2]` = luma weights. The `2·lum` / `2·(lum−0.5)` split is the tell for the midpoint-anchored
 tint ramp (dark→color→white). Matches the shipped `tint.ts`; head-start above is the exact combine.
+

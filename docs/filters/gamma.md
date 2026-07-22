@@ -28,9 +28,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcGamma` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcGamma.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcGamma.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcGamma
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Gamma is a straightforward per-channel power curve, applied in un-premultiplied space:
 
@@ -44,3 +53,4 @@ out = c * a                             // re-premultiply
 applied to RGB). Values <1 brighten mids, >1 darken. The `select(... r0<0)` guard leaves negative
 (super-black/HDR) values untouched to avoid NaNs from `pow` of a negative base. Head-start: exactly
 `out = pow(unpremult(src), gamma)` re-premultiplied.
+

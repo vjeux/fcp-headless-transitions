@@ -29,9 +29,18 @@ Non-creative host parameters on this filter: `Prescale Input`, `360° Aware`, `F
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcGloom` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcGloom.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcGloom.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcGloom
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Gloom is the **inverse of Glow** — a "dark glow" that spreads shadows. It takes the darker of the
 original and a blurred copy, blended by Amount:
@@ -45,3 +54,4 @@ out  = premultiply-preserve(out)    // keep straight rgb where alpha is 0
 `color1` (the blur that builds the gloom) is produced upstream by the shared `HGBlur`; `hg_Params[0]`
 = **Amount**. Head-start: blur the source, `out = mix(src, min(src,blur), Amount)`. The blur radius
 = gloom **Size**.
+

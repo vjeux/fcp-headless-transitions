@@ -30,9 +30,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcStripes` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcStripes.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcStripes.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcStripes
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Stripes is a **procedural two-color stripe generator** (it ignores the source image; `texCoord0` is
 the only input). It builds a smoothstepped triangle wave along one axis and mixes two colors:
@@ -50,3 +59,4 @@ out.rgb *= out.a                                         // premultiply
 `hg_Params[1]/[2]` = the two **stripe colors**, `hg_Params[3]` = **width/softness/phase**,
 `hg_Params[4].x` = **Frequency** (stripes per unit). The `t*t*(3−2t)` is the classic smoothstep for
 anti-aliased edges. Head-start: pure generator — no source sampling; emit smoothstepped stripes.
+

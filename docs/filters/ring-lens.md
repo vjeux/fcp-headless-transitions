@@ -31,9 +31,18 @@ Non-creative host parameters on this filter: `Crop`, `Flip`, `Input Points`, `Pu
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcRingLens` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcRingLens.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcRingLens.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcRingLens
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Ring Lens magnifies the image inside an **annulus** (a ring-shaped lens): pixels whose radius falls
 within a band are pushed/pulled radially (magnified), with smooth falloff at both edges of the ring.
@@ -54,3 +63,4 @@ out   = sample(source, uv)
 `hg_Params[0]` = **magnification** slope/offset, `hg_Params[2].x/.y` = **inner/outer ring radius**.
 The two `x²·(3−2x)` smoothsteps are the soft ring edges. Head-start: radial warp gated by a ring
 mask; only the annulus is magnified, giving the loupe-ring look.
+

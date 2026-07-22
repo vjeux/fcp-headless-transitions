@@ -31,9 +31,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcHalftone` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcHalftone.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcHalftone.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcHalftone
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Halftone is a **dot-screen** — it tiles a rotated grid of round dots whose size tracks the image's
 luma, giving the classic newsprint/comic look.
@@ -56,3 +65,4 @@ out.rgb = v * color0.a
 `hg_Params[3]` = **contrast/hardness** of the dots, `hg_Params[5]` = luma weights. The `fract`
 tiles the grid; the smoothstep makes round anti-aliased dots. Head-start: rotate+tile coords,
 dot-coverage from cell-centre distance, threshold against luma.
+

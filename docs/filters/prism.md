@@ -31,10 +31,18 @@ Non-creative host parameters on this filter: `Crop`, `OSC Center`, `Publish OSC`
 
 > 1 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcPrism` embedded fragment shader (`tools/re/extract_shader.py HgcPrism`).
-Decoded functional form below._
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcPrism.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcPrism.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcPrism
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Prism is a **chromatic-aberration / RGB-split**. The dispersion is done *upstream*: the compositor
 samples the source three times at chromatically-offset texture coordinates and feeds the results in
@@ -56,3 +64,4 @@ offset_G ≈ 0, with `k` from Amount and `dir` from an Angle/Center param).
 **Implementation head-start:** implement as three shifted gathers of the source (bilinear), then
 compose `(R from shiftA, G from shiftB, B from shiftC)`; alpha = max. Matches the shader exactly
 once the three offsets are known.
+

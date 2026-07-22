@@ -34,9 +34,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 > 24 non-creative internal/hidden state parameter(s) (persisted engine state, not user knobs) were omitted from the table above.
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from `HgcLumaKeyer` (shipped in `luma-keyer.ts`)._
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcLumaKeyer.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcLumaKeyer.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcLumaKeyer
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Luma Keyer makes pixels transparent based on their luminance, with soft rolloff and matte controls:
 
@@ -53,3 +62,4 @@ out    = (PreserveRGB ? c : c) * alpha    // matte tools (shrink/grow/blur) appl
 The corpus exposes user knobs **Luma, Luma Rolloff, Invert, Preserve RGB, Matte Tools**; the many
 persisted `Chroma*/MinGreen/Spill*` params are the shared keyer-engine's internal state (Luma Keyer
 uses the luma path only). See `luma-keyer.ts`. `Luma` = threshold, `Luma Rolloff` = softness.
+

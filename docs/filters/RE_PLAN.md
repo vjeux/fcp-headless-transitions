@@ -13,11 +13,19 @@ the TS engine implementation gets a head start. Follows `docs/notes/FILTER_RE_ME
 - **Helium / ProAppsFxSupport** — named primitives (HGaussianBlur, HGLinearFilter::gaussian, …)
   the shaders delegate to; decode once, reuse across the blur family.
 
-## What each doc's "Algorithm (decoded)" section captures
-The **functional algorithm** — per-pixel math as pseudocode/formulas, the param→slot mapping, and
-pointers to the checked-in shader-evidence file — i.e. the implementation head-start. (Verbatim
-Apple source stays in `engine/src/compositor/filters/evidence/shaders/*.metal` where the repo
-already keeps it; docs describe the decoded math, matching the existing `*_RE.md` style.)
+## What each doc's RE section captures
+**The verbatim extracted shader is the ground truth.** Each shader-backed filter's doc has a
+`## Ground-truth shader source` section that points to the checked-in
+`engine/src/compositor/filters/evidence/shaders/<Hgc*>.metal` (the single authoritative copy,
+regenerable with `extract_shader.py`) and says: implement against that file. Any prose beneath is
+clearly labelled **"Decoded notes (annotation — verify against the shader)"**, never a substitute
+for the real source.
+
+Filters with **no dedicated `Hgc*` shader** (PAE-only: blurs delegating to Helium `HGBlur`, CPU
+color ops, CIFilter wrappers) get a `## Algorithm — NOT YET REVERSE-ENGINEERED` section that is
+honest about this: it gives the exact disasm command to recover the real math and marks any
+inferred sketch **UNVERIFIED — do not implement as-is**. No invented algorithm is presented as
+decoded fact.
 
 ## Categories (by RE tractability)
 - **Shader-backed (64):** clearest — extract shader, decode `hg_Params`, write math.

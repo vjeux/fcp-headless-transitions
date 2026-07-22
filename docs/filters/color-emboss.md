@@ -29,9 +29,18 @@ Non-creative host parameters on this filter: `Crop`, `Flip`, `Input Points`. The
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcColorEmboss` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcColorEmboss.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcColorEmboss.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcColorEmboss
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Color Emboss is a **directional gradient** that keeps color (unlike a gray emboss): it samples the
 source at two opposite offsets (`+d` and `−d`), subtracts them, and adds the center — giving a
@@ -50,3 +59,4 @@ out.rgb = (a - b + c) * a_alpha     // directional difference + center, re-premu
 `a − b` is a finite-difference derivative along `d`; adding `c` (the center) keeps the base image so
 it reads as embossed color rather than pure edges. Head-start: two offset gathers + center, combine
 as above; map **Direction**→`d` angle and **Amount**→`|d|`.
+

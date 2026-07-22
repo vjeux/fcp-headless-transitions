@@ -29,9 +29,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcStarburst` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcStarburst.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcStarburst.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcStarburst
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Starburst is a **radial reciprocal warp** (`1/r` along the ray) — it stretches content into rays
 shooting out from a center, giving a star/burst streak.
@@ -48,3 +57,4 @@ The `1/(r·Amount)` map means points near the center map far out (and vice-versa
 `hg_Params[1].x` = **Amount** (ray length/strength), `hg_Params[0]` = **Center**. Head-start: radial
 backward warp with reciprocal radius. (Very similar to Disc Warp; Starburst uses pure `1/r` without
 the `−r` term, so it's a clean inversion burst.)
+

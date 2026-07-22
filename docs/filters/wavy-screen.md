@@ -31,9 +31,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcWavyScreen` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcWavyScreen.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcWavyScreen.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcWavyScreen
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Wavy Screen is a **line screen whose lines wobble** — a halftone line pattern modulated by a sine so
 the hatching ripples across the frame.
@@ -52,3 +61,4 @@ out   = clamp((lum - line) * hg_Params[0].w + 0.5, 0, 1) * color0.a
 weights. The `|fract·(−2)+1|` idiom is the triangle-wave line profile; the extra sine (`wob`) bends
 the lines. Head-start: line screen (as in `line-screen.md`) but add a sinusoidal offset to the line
 coordinate before thresholding.
+

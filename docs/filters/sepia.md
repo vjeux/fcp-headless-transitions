@@ -28,9 +28,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcSepia` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcSepia.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcSepia.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcSepia
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Sepia converts to luma, then maps that single value through a fixed sepia tint, blended by Amount:
 
@@ -48,3 +57,4 @@ out.rgb = mix(c, sepia, hg_Params[0].rgb) * a   // Amount blend, re-premultiply
 The tint coefficients `(0.956, −0.272, −1.105)` are the YIQ I-axis-style warm chroma Apple bakes in
 (these are the shader's literal constants). `hg_Params[0]` = **Amount/Intensity** (blend toward
 sepia). Head-start: `out = mix(src, sepiaTint(luma), Amount)` with the constants above.
+

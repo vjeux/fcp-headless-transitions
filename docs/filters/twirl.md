@@ -32,10 +32,18 @@ Non-creative host parameters on this filter: `Publish OSC`, `Crop`, `Flip`, `Inp
 
 > 2 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcTwirl` embedded fragment shader (via `tools/re/extract_shader.py HgcTwirl`).
-The math below is the decoded functional form; verbatim Apple source is not reproduced here._
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcTwirl.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcTwirl.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcTwirl
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Per output pixel at texture coord `p`, with center `C = hg_Params[0].xy`, aspect scale
 `asp = hg_Params[2]` (`.xy` forward, `.zw` inverse), max radius `Rmax = hg_Params[1].x`, and peak
@@ -65,3 +73,4 @@ giving the characteristic soft whirlpool (a naive `angle·(1−r/Rmax)` looks vi
 
 **Implementation note:** sample with clamp-to-transparent outside `[0,1]`; the falloff makes this a
 pure backward-warp (gather), so it parallelizes trivially and needs no accumulation buffer.
+

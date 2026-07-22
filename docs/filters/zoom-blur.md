@@ -29,9 +29,18 @@ Non-creative host parameters on this filter: `Crop`, `Flip`, `Input Points`, `Pu
 
 **Implemented.** TS module: [`engine/src/compositor/filters/directional-blur.ts`](../../engine/src/compositor/filters/directional-blur.ts).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcZoomBlur` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcZoomBlur.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcZoomBlur.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcZoomBlur
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Zoom Blur streaks the image radially outward from a center (motion-toward-camera look). This shader
 is the **weighted tap accumulation**; the tap coordinates (`texCoord1..4`) are pre-computed upstream
@@ -51,3 +60,4 @@ controls how far apart the tap coordinates spread along the radial line (compute
 **Center** sets the zoom origin. This is a cheap 5-tap approximation of a continuous radial blur —
 for more taps FCP scales the spread. Head-start: for each pixel, sample the source at 5 points
 `center + (p−center)·s_k` with the fixed weights above; `s_k` spread from Amount.
+

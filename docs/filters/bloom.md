@@ -32,9 +32,19 @@ Non-creative host parameters on this filter: `Clip to White`, `Crop`, `Flip`, `I
 
 > 2 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
-## Algorithm (decoded)
+## Algorithm — NOT YET REVERSE-ENGINEERED
 
-_PAEBloom — HDR highlight bloom (shipped in `glow.ts` `bloomFilter`, float path)._
+> ⚠️ **Unverified.** This filter has **no dedicated embedded `Hgc*` shader** to extract, so there is
+> no ground-truth per-pixel source yet. The notes below are an *inferred sketch* from general
+> Motion knowledge — they are **likely wrong in detail and must not be implemented as-is**.
+>
+> **To reverse-engineer it:** disassemble the CPU class with
+> `otool -arch arm64 -tV` on `-[PAEBloom canThrowRenderOutput:withInput:withInfo:]` and `frameSetup:`
+> in `Filters.bundle`, and chase the Helium/ProAppsFxSupport primitive it calls
+> (e.g. `HGaussianBlur`, `HGLinearFilter::gaussian`). Blur-family filters delegate to the shared
+> `HGBlur` primitive already decoded in `engine/src/compositor/filters/gaussian-blur.ts`.
+
+### Inferred sketch (UNVERIFIED — do not treat as decoded)
 
 ```
 hi     = max(src·GainMultiplier - Threshold, 0)     // ×N highlight extract in FLOAT (keeps >1.0)
@@ -46,3 +56,4 @@ The **float buffer** is essential: an 8-bit store would clip the ×10 highlight 
 lose the energy that blooms the frame to white (see `gaussian-blur.ts` float path). Params:
 **Amount** (bloom radius), **Threshold**, **Intensity/Brightness**. Head-start: extract highlights
 in float, decimated float Gaussian, add back. Shipped + verified.
+

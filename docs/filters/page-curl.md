@@ -37,9 +37,18 @@ Non-creative host parameters on this filter: `Publish OSC`, `Flip`, `Input Point
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcPageCurl` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcPageCurl.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcPageCurl.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcPageCurl
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Page Curl simulates **peeling a page off a cylinder**: distance across a diagonal fold line maps to
 an angle on a cylinder of radius `hg_Params[4].x`; pixels on the curling side are wrapped around the
@@ -61,3 +70,4 @@ The constants `1.5708≈π/2`, `3.1416≈π`, `−3.1416≈−π` and the minima
 `hg_Params[4].x` = **curl Radius** (tightness), `hg_Params[2]` = fold Origin (animate → the page
 peels). Head-start: parametrize the fold line, map crossing distance→cylinder angle, wrap the front
 face with `sin` and shade by `cos`, reveal back/below past `s=π`.
+

@@ -33,9 +33,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 **Not implemented.** A verbatim `HgcGradientColorize` Metal shader is checked in under `engine/src/compositor/filters/evidence/shaders/HgcGradientColorize.metal` (Phase-1 done, Phase-2 open).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcGradientColorize` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcGradientColorize.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcGradientColorize.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcGradientColorize
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Gradient Colorize is a **luma→gradient lookup** (gradient map): it computes a scalar from each pixel
 (via a weighted dot over RGBA, `hg_Params[0]`), maps that scalar through a 1-D gradient **texture**
@@ -60,3 +69,4 @@ out    = mix(color0, gcol_premult, hg_Params[7].x)  // Mix back over source
 quantization; `hg_Params[4]` = saturation of the mapped color; `hg_Params[7].x` = **Mix**. The
 constant `(0.299,0.587,0.114)` confirms Rec.601 luma. Head-start: build the gradient into a 256×1
 LUT, key = weighted luma, `out = mix(src, LUT[key], Mix)`.
+

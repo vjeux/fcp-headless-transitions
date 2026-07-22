@@ -34,9 +34,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 **Implemented.** TS module: [`engine/src/compositor/filters/channel-mixer.ts`](../../engine/src/compositor/filters/channel-mixer.ts).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcChannelMixer` embedded shader (confirms the shipped `channel-mixer.ts`):_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcChannelMixer.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcChannelMixer.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcChannelMixer
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 A 4×4 matrix mix — each output channel is a dot product of the (un-premultiplied) input with a row
 of coefficients:
@@ -53,3 +62,4 @@ out    = mix(src, out, hg_Params[4])   // Mix
 
 `hg_Params[0..3]` = the four mixer rows (R/G/B/A output = weighted sum of inputs + constant),
 `hg_Params[4]` = **Mix**. This is exactly a color matrix; head-start is the 4×4 apply above.
+

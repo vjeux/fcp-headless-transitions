@@ -32,9 +32,19 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Algorithm — NOT YET REVERSE-ENGINEERED
 
-_PAENeon — edge detection + colored glow (edges → blur → tint)._
+> ⚠️ **Unverified.** This filter has **no dedicated embedded `Hgc*` shader** to extract, so there is
+> no ground-truth per-pixel source yet. The notes below are an *inferred sketch* from general
+> Motion knowledge — they are **likely wrong in detail and must not be implemented as-is**.
+>
+> **To reverse-engineer it:** disassemble the CPU class with
+> `otool -arch arm64 -tV` on `-[PAENeon canThrowRenderOutput:withInput:withInfo:]` and `frameSetup:`
+> in `Filters.bundle`, and chase the Helium/ProAppsFxSupport primitive it calls
+> (e.g. `HGaussianBlur`, `HGLinearFilter::gaussian`). Blur-family filters delegate to the shared
+> `HGBlur` primitive already decoded in `engine/src/compositor/filters/gaussian-blur.ts`.
+
+### Inferred sketch (UNVERIFIED — do not treat as decoded)
 
 ```
 edges  = gradientMagnitude(src)                 // as in Edges filter (4-tap)
@@ -45,3 +55,4 @@ out    = composite(src or black, edges·CoreColor + glow·GlowColor·Intensity)
 Params: **Amount** (glow radius), **Intensity**, core/glow **Color**s, **Threshold**. Bright neon
 tubes = sharp edges; the halo = blurred edges, tinted. Head-start: detect edges, blur+tint for the
 glow, add sharp edges on top.
+

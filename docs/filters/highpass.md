@@ -29,9 +29,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 **Not implemented.** A verbatim `HgcHighPass` Metal shader is checked in under `engine/src/compositor/filters/evidence/shaders/HgcHighPass.metal` (Phase-1 done, Phase-2 open).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcHighPass` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcHighPass.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcHighPass.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcHighPass
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Highpass keeps only the high-frequency detail, biased to mid-gray (the classic Photoshop High Pass):
 
@@ -47,3 +56,4 @@ out.a   = color0.a
 blur radius (which builds `color1`) is the frequency-cutoff knob. Head-start: Gaussian blur (shared
 `HGBlur`), then the one-line combine above. Differs from Sharpen only in that Sharpen adds the band
 back to the original instead of centering on gray.
+

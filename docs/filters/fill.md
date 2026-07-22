@@ -30,9 +30,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 > 1 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_PAEFill — solid/gradient fill blended by Mix (shipped in `fill.ts`, decoded from its shader)._
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcFillColor.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcFillColor.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcFillColor
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 ```
 fill.rgb = hg_Params[0].xyz        // Fill Color
@@ -43,3 +52,4 @@ out      = mix(src, fill, hg_Params[1]) * src.a   // lerp toward fill by Mix, RE
 `hg_Params[0]` = **Color**, `hg_Params[1]` = **Mix**. When "Fill With" = gradient it fills with a
 Gradient generator instead of a solid (unused by the 65 built-ins). The re-premultiply by the
 *original* alpha is the subtle correctness point (keeps edges). Head-start: the 3 lines above.
+

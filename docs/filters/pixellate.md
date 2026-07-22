@@ -29,9 +29,18 @@ Non-creative host parameters on this filter: `Publish OSC`, `Flip`, `Input Point
 
 > 1 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from `HgcPixellate` (full write-up in `../../engine/src/compositor/filters/evidence/PIXELLATE_RE.md`; shipped in `pixellate.ts`)._
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcPixellate.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcPixellate.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcPixellate
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Pixellate is a **coordinate quantizer** — it snaps each output pixel's sample coordinate to the
 centre of a `Scale`-sized grid cell (nearest-neighbour block):
@@ -46,3 +55,4 @@ out  = sample(source, uv)
 
 **Verified:** block size = `Scale` pixels exactly on both axes (oracle sweep Scale 8/20/50 → 8/20/50 px);
 grid anchored at `Center` (default 0.5,0.5). `Scale` = block size; `Center` = grid origin.
+

@@ -30,9 +30,19 @@ Non-creative host parameters on this filter: `Crop`, `Publish OSC`, `Flip`, `Inp
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Algorithm — NOT YET REVERSE-ENGINEERED
 
-_PAECircleBlur — radially-varying `HGBlur` (sharp inside a circle, blurred outside, or vice-versa)._
+> ⚠️ **Unverified.** This filter has **no dedicated embedded `Hgc*` shader** to extract, so there is
+> no ground-truth per-pixel source yet. The notes below are an *inferred sketch* from general
+> Motion knowledge — they are **likely wrong in detail and must not be implemented as-is**.
+>
+> **To reverse-engineer it:** disassemble the CPU class with
+> `otool -arch arm64 -tV` on `-[PAECircleBlur canThrowRenderOutput:withInput:withInfo:]` and `frameSetup:`
+> in `Filters.bundle`, and chase the Helium/ProAppsFxSupport primitive it calls
+> (e.g. `HGaussianBlur`, `HGLinearFilter::gaussian`). Blur-family filters delegate to the shared
+> `HGBlur` primitive already decoded in `engine/src/compositor/filters/gaussian-blur.ts`.
+
+### Inferred sketch (UNVERIFIED — do not treat as decoded)
 
 ```
 r      = distance(p, Center) / Radius
@@ -44,3 +54,4 @@ out    = varyingGaussian(source, sigma)
 
 `Center`, `Radius` (sharp zone), `Amount` (max blur). Same varying-blur approximation as Gradient
 Blur but with a radial `t`. Head-start: radial `t` → per-pixel sigma via blended Gaussian levels.
+

@@ -34,9 +34,18 @@ Non-creative host parameters on this filter: `Crop`, `360° Aware`, `Flip`, `Inp
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcChannelBlur` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcChannelBlur.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcChannelBlur.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcChannelBlur
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 `HgcChannelBlur` is **not** the blur convolution itself — it is the per-channel *un/re-premultiply +
 mix* combine that FCP wraps around a blurred copy. The actual blur (per-channel radii) is a
@@ -58,3 +67,4 @@ plain Gaussian. The per-channel blur **radii** are the creative params (Red/Gree
 amounts); they drive the upstream `HGBlur` passes, and this shader's `hg_Params[0]` selects how much
 of each blurred channel to keep. To finish: decode `-[PAEChannelBlur ...]` to confirm each channel's
 radius→HGBlur mapping (expected identical to Gaussian's `sigma = radius/6.10`).
+

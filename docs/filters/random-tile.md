@@ -31,9 +31,19 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcRandomTile` embedded shader — a variant of the Parallelogram/mirror tiler
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcRandomTile.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcRandomTile.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcRandomTile
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
+
 (see `parallelogram-tile.md`)._ Coordinates are quantized to a tile grid; each tile is given a
 **pseudo-random offset (and/or flip)** keyed by its grid index before sampling the source, so the
 frame fills with randomly-shuffled tiles of the image.
@@ -47,3 +57,4 @@ out    = sample(source, uvToTexture(uv))
 ```
 
 Head-start: same tiler as Parallelogram Tile but add `hash(cell)`-driven offset/flip per cell.
+

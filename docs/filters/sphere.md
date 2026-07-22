@@ -29,9 +29,18 @@ Non-creative host parameters on this filter: `Crop`, `Publish OSC`, `Flip`, `Inp
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcSphere` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcSphere.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcSphere.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcSphere
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Sphere maps the image onto a **hemisphere/ball** — a fisheye-like spherical bulge with a hard
 circular boundary (outside the sphere → transparent).
@@ -52,3 +61,4 @@ out *= coverage
 center+radius. The `z = 1 − r²·k` then `1/sqrt(z)` is the sphere-height → refraction mapping; the
 final coverage term clips to the sphere's circular silhouette. Head-start: fisheye-style backward
 warp with the spherical z-map, masked to the disc.
+

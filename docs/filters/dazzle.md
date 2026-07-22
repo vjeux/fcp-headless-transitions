@@ -34,9 +34,19 @@ Non-creative host parameters on this filter: `Clip to White`, `Crop`, `Flip`, `I
 
 > 3 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
-## Algorithm (decoded)
+## Algorithm — NOT YET REVERSE-ENGINEERED
 
-_PAEDazzle — animated sparkle/glitter (thresholded noise → glint bursts)._
+> ⚠️ **Unverified.** This filter has **no dedicated embedded `Hgc*` shader** to extract, so there is
+> no ground-truth per-pixel source yet. The notes below are an *inferred sketch* from general
+> Motion knowledge — they are **likely wrong in detail and must not be implemented as-is**.
+>
+> **To reverse-engineer it:** disassemble the CPU class with
+> `otool -arch arm64 -tV` on `-[PAEDazzle canThrowRenderOutput:withInput:withInfo:]` and `frameSetup:`
+> in `Filters.bundle`, and chase the Helium/ProAppsFxSupport primitive it calls
+> (e.g. `HGaussianBlur`, `HGLinearFilter::gaussian`). Blur-family filters delegate to the shared
+> `HGBlur` primitive already decoded in `engine/src/compositor/filters/gaussian-blur.ts`.
+
+### Inferred sketch (UNVERIFIED — do not treat as decoded)
 
 ```
 hi     = max(luma(src) - Threshold, 0)         // bright spots that can sparkle
@@ -48,3 +58,4 @@ out    = src + star · Intensity · Color
 Params: **Threshold**, **Density/Amount**, **Speed** (animation), **Intensity**, **Color**. It's an
 animated variant of Glint — random highlight points burst into little stars over time. Head-start:
 animated sparse sparkle mask × small streaks on the highlights.
+

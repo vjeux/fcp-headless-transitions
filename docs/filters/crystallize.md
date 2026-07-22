@@ -34,9 +34,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 > 2 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcCrystallize` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcCrystallize.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcCrystallize.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcCrystallize
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 `HgcCrystallize` is a **Voronoi/depth pass**: it passes the source color through but writes a
 **depth** equal to the distance from each pixel to its cell's feature point. The actual crystallize
@@ -54,3 +63,4 @@ depth-testing, the fragment nearest each Voronoi seed survives → the frame is 
 polygonal crystal cells, each filled from its seed pixel. **Cell Size** = the seed spacing.
 Head-start: compute a Voronoi diagram at the chosen cell size; fill each cell with the color at its
 seed. (This one needs a Voronoi pass, not a pure per-pixel gather.)
+

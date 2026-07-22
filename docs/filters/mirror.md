@@ -30,9 +30,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcMirror` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcMirror.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcMirror.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcMirror
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Mirror reflects the image across a line through a center point: it rotates into the mirror-line
 frame, takes the absolute value of one axis (the fold), then rotates back.
@@ -51,3 +60,4 @@ out = sample(source, (uv + hg_Params[3].xy)*hg_Params[3].zw)
 param), `hg_Params[0]` = **Center** of the mirror line, `hg_Params[2]` = inverse basis. The single
 `abs()` is the whole trick. Head-start: rotate coords by −Angle about Center, `x = |x|`, rotate back,
 gather.
+

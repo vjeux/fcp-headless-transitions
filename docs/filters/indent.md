@@ -45,9 +45,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 > 1 non-creative internal/hidden state parameter(s) (persisted engine state, not user knobs) were omitted from the table above.
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcIndent` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcIndent.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcIndent.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcIndent
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Indent is an **emboss/bevel lighting** filter: it derives a surface normal from the alpha/luma
 gradient (via 4 neighbor taps), then shades it with a directional light — giving the image a raised,
@@ -69,3 +78,4 @@ out.rgb = (src·diff + spec) * a                        // shade the source, re-
 gain**, `[3].x` = **shininess/hardness**, `[4].x` = **specular intensity**, `[6].z` = normal-z
 (bevel softness), `[7].x` = ambient. Classic Blinn-ish bump-lighting off the image's own gradient.
 Head-start: Sobel-ish gradient → normal → Lambert diffuse + power specular.
+

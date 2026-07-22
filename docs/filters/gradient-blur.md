@@ -32,9 +32,18 @@ Non-creative host parameters on this filter: `Crop`, `Publish OSC`, `Flip`, `Inp
 
 > 2 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_PAEGradientBlur (shader `HgcGradientBlur2` checked in) — spatially-varying `HGBlur`._
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcGradientBlur2.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcGradientBlur2.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcGradientBlur2
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 The blur **radius varies across the frame along a gradient** defined by two points: sharp at
 `Point 1`, maximally blurred (`Amount`) toward `Point 2`.
@@ -49,3 +58,4 @@ out     = gaussianBlur(source, sigma_at_p)             // per-pixel-varying blur
 `Amount` = max radius, `Point 1/2` = the gradient line. FCP approximates the varying blur by
 blending a few fixed-radius `HGBlur` levels by `t` (compound-blur style). Head-start: precompute a
 handful of Gaussian levels, lerp by the gradient `t`. See `HgcGradientBlur2.metal`.
+

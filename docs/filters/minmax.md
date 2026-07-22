@@ -27,9 +27,19 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 **Implemented.** TS module: [`engine/src/compositor/filters/minmax.ts`](../../engine/src/compositor/filters/minmax.ts).
 
-## Algorithm (decoded)
+## Algorithm — NOT YET REVERSE-ENGINEERED
 
-_PAEMinMax — morphological erode/dilate (shipped in `minmax.ts`, decoded from its shader)._
+> ⚠️ **Unverified.** This filter has **no dedicated embedded `Hgc*` shader** to extract, so there is
+> no ground-truth per-pixel source yet. The notes below are an *inferred sketch* from general
+> Motion knowledge — they are **likely wrong in detail and must not be implemented as-is**.
+>
+> **To reverse-engineer it:** disassemble the CPU class with
+> `otool -arch arm64 -tV` on `-[PAEMinMax canThrowRenderOutput:withInput:withInfo:]` and `frameSetup:`
+> in `Filters.bundle`, and chase the Helium/ProAppsFxSupport primitive it calls
+> (e.g. `HGaussianBlur`, `HGLinearFilter::gaussian`). Blur-family filters delegate to the shared
+> `HGBlur` primitive already decoded in `engine/src/compositor/filters/gaussian-blur.ts`.
+
+### Inferred sketch (UNVERIFIED — do not treat as decoded)
 
 A separable min/max window filter — the classic morphology that erodes or dilates light/dark areas:
 
@@ -44,3 +54,4 @@ out[p]   = min|max over k∈[-R,R] of horiz(p.x, p.y+k)
 `Mode` picks min (shrinks bright regions / grows dark) vs max (opposite); `Radius` = structuring
 element half-width. Separable two-pass like a box filter but with min/max instead of sum. Head-start
 is exactly the two passes above; shipped in `minmax.ts`.
+

@@ -27,9 +27,18 @@ Non-creative host parameters on this filter: `Publish OSC`, `Flip`, `Input Point
 
 **Implemented.** TS module: [`engine/src/compositor/filters/blackhole.ts`](../../engine/src/compositor/filters/blackhole.ts).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from `HgcBlackHole` (shipped in `blackhole.ts`)._
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcBlackHole.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcBlackHole.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcBlackHole
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Black Hole is a **gravitational-lens radial warp**: near a center, space is pulled inward with a
 `1/r`-weighted displacement, so content spirals/sucks into the hole with a soft event-horizon edge.
@@ -48,3 +57,4 @@ out  = sample(source, uvToTexture(uv))
 `hg_Params[0]` = **Center**. The `clamp(r/Radius)·Strength + r` mapping is the lens profile — strong
 near the center, fading to identity past the radius. Shipped in `blackhole.ts`; head-start is the
 radial backward-warp above bracketed by the two homographies.
+

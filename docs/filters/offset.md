@@ -29,9 +29,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcOffset` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcOffset.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcOffset.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcOffset
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Offset is a **homographic (perspective-matrix) coordinate warp with integer-cell snapping** — used
 for tiling/scrolling with optional perspective. Two 3×3-style transforms (rows in
@@ -61,3 +70,4 @@ not just axis-aligned translation.
 Offset** params → the `hg_Params[0].zw` / `hg_Params[1].xy` translation+integer-step slots, and the
 Offset **mode** enum → whether the homography rows are identity (pure translate) or perspective.
 The wide negative ranges observed in the corpus (`Offset` down to −147) are large multi-cell scrolls.
+

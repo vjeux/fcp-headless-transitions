@@ -34,3 +34,34 @@ Non-creative host parameters on this filter: `Publish OSC`, `Flip`, `Input Point
 > 5 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
 > 8 non-creative internal/hidden state parameter(s) (persisted engine state, not user knobs) were omitted from the table above.
+
+## Algorithm — NOT YET REVERSE-ENGINEERED
+
+> ⚠️ **Unverified.** This filter has **no dedicated embedded `Hgc*` shader** to extract, so there is
+> no ground-truth per-pixel source yet. The notes below are an *inferred sketch* from general
+> Motion knowledge — they are **likely wrong in detail and must not be implemented as-is**.
+>
+> **To reverse-engineer it:** disassemble the CPU class with
+> `otool -arch arm64 -tV` on `-[PAEEarthquake canThrowRenderOutput:withInput:withInfo:]` and `frameSetup:`
+> in `Filters.bundle`, and chase the Helium/ProAppsFxSupport primitive it calls
+> (e.g. `HGaussianBlur`, `HGLinearFilter::gaussian`). Blur-family filters delegate to the shared
+> `HGBlur` primitive already decoded in `engine/src/compositor/filters/gaussian-blur.ts`.
+
+### Inferred sketch (UNVERIFIED — do not treat as decoded)
+
+Applies a whole-frame jitter that changes each frame — translation + rotation + optional multi-layer:
+
+```
+seed_t = hash(frame, Random Seed)
+shakeX = rand(seed_t)   · Horizontal Shake · 25       // px  (decoded scale ×25)
+shakeY = rand(seed_t+1) · Vertical Shake   · 25
+rot    = rand(seed_t+2) · Twist · 0.1                  // radians (decoded scale ×0.1)
+// apply as an affine transform about Epicenter:
+out    = sampleAffine(source, translate(shakeX,shakeY) ∘ rotate(rot, Epicenter))
+// Layers>1: blend N independently-jittered copies (multi-exposure smear)
+```
+
+Params: **Horizontal/Vertical Shake** (× 25 px), **Twist** (× 0.1 rad), **Layers** (1–8 jittered
+copies blended), **Epicenter** (rotation pivot), **Random Seed**. It's a *temporal* transform (needs
+frame index). Shipped in `earthquake.ts`; head-start is the per-frame affine above.
+

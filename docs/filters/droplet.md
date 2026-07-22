@@ -31,9 +31,18 @@ Non-creative host parameters on this filter: `Crop`, `Flip`, `Input Points`, `Pu
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcDroplet` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcDroplet.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcDroplet.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcDroplet
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Droplet is a **concentric ripple warp** — like a water drop hitting the surface, it displaces pixels
 radially by a periodic (piecewise-polynomial) wave of the radius.
@@ -53,3 +62,4 @@ out    = sample(source, uv)
 this → expanding ripples), `hg_Params[0]` = center+scale. The piecewise polynomial (the
 `clamp(...)²·(3−2·)` chain) is a smooth repeating ring profile. Head-start: radial backward warp with
 a periodic displacement of `r`; animate phase for the drop spreading outward.
+

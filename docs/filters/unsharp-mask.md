@@ -30,9 +30,18 @@ Non-creative host parameters on this filter: `360° Aware`, `Flip`, `Input Point
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcUnsharpMask` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcUnsharpMask.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcUnsharpMask.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcUnsharpMask
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Unsharp Mask sharpens with a **threshold** (unlike plain Sharpen): only differences larger than a
 threshold are amplified, so flat noise isn't boosted.
@@ -50,3 +59,4 @@ out.a  = clamp(out.a, 0, 1)
 `hg_Params[0]` = **Amount** (sharpening strength), `hg_Params[1].x` = **Threshold** (dead-zone; edges
 below it aren't sharpened). The blur radius that builds `color1` = **Radius** (edge scale). This is
 the textbook unsharp-mask-with-threshold; head-start is the 4 lines above over a shared Gaussian.
+

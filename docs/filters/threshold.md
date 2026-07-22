@@ -34,9 +34,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 > 2 non-creative internal/hidden state parameter(s) (persisted engine state, not user knobs) were omitted from the table above.
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcThreshold` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcThreshold.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcThreshold.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcThreshold
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Threshold reduces the image to two colors by comparing a luma value against a cutoff, with a soft
 transition band:
@@ -54,3 +63,4 @@ Ground-truth constants worth keeping: the luma weights are **(0.3086, 0.6094, 0.
 **Threshold** cutoff, `hg_Params[1].x` = **Softness/Sharpness** (larger = harder edge), `hg_Params[2]`
 = **low/dark color**, `hg_Params[3]` = **high/light color** (default black/white). See also the
 existing `THRESHOLD_RE.md` evidence for the premult-edge (`HgcThresholdNoPremult`) variant.
+

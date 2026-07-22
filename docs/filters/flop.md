@@ -28,9 +28,19 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 > 1 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
-## Algorithm (decoded)
+## Algorithm — NOT YET REVERSE-ENGINEERED
 
-_PAEFlop — geometric flip/rotate (shipped in `flop.ts`; full decode in `evidence/PAEFlop_DECOMPILE.md`)._
+> ⚠️ **Unverified.** This filter has **no dedicated embedded `Hgc*` shader** to extract, so there is
+> no ground-truth per-pixel source yet. The notes below are an *inferred sketch* from general
+> Motion knowledge — they are **likely wrong in detail and must not be implemented as-is**.
+>
+> **To reverse-engineer it:** disassemble the CPU class with
+> `otool -arch arm64 -tV` on `-[PAEFlop canThrowRenderOutput:withInput:withInfo:]` and `frameSetup:`
+> in `Filters.bundle`, and chase the Helium/ProAppsFxSupport primitive it calls
+> (e.g. `HGaussianBlur`, `HGLinearFilter::gaussian`). Blur-family filters delegate to the shared
+> `HGBlur` primitive already decoded in `engine/src/compositor/filters/gaussian-blur.ts`.
+
+### Inferred sketch (UNVERIFIED — do not treat as decoded)
 
 A discrete **flip / 90°-rotate** selected by a mode enum — pure coordinate remap, no resampling
 math beyond the axis swap/negate:
@@ -43,3 +53,4 @@ out = sample(source, remap(texCoord))
 The `Flip`/`Input Points` params (id 10002/10003) are host plumbing, unused by the filter. `Flop`
 (the mode enum) is the only creative control. See `evidence/PAEFlop_DECOMPILE.md` for the full mode
 table. Head-start: a switch over the 8 axis-aligned remaps.
+

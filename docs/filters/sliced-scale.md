@@ -35,9 +35,18 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Algorithm (decoded)
+## Ground-truth shader source
 
-_RE'd from the `HgcSlicedScale` embedded shader. Decoded functional form:_
+The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
+[`../../engine/src/compositor/filters/evidence/shaders/HgcSlicedScale.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcSlicedScale.metal). Regenerate/print it with:
+
+```
+venv/bin/python3 tools/re/extract_shader.py HgcSlicedScale
+```
+
+That `.metal` file is the ground truth — implement against it, not against the notes below.
+
+### Decoded notes (annotation of the shader above — verify against it)
 
 Sliced Scale is a **9-slice (scale-9) resize**: two guides split an axis into three regions — the
 outer two are kept at 1:1 while only the **middle** region is stretched by the Scale factor. Used to
@@ -58,3 +67,4 @@ out    = sample(source, along axis at src_p)     // (other axis passes through)
 (where the fixed edges end). The chain of `float(a<b)` comparisons is the branchless region select.
 Head-start: piecewise inverse map along the scaled axis — identity in the caps, `1/Scale` in the
 middle. Extend to both axes for full 9-slice.
+
