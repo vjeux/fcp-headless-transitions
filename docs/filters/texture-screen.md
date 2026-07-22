@@ -36,3 +36,22 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcTextureScreen` embedded shader. Decoded functional form:_
+
+Texture Screen thresholds the image's luma against a **screen texture** (`color1`, a pattern
+generated/sampled upstream) to produce a patterned monochrome output — like printing through a mesh.
+
+```
+imgLum = dot(color0², weights)                     // hg_Params[1]; note luma of SQUARED color (gamma-ish)
+scr    = dot(color1, weights)                      // luma of the screen pattern texture
+scr    = scr*hg_Params[0].x + hg_Params[0].z       // screen scale+offset
+v      = clamp(imgLum*hg_Params[0].y + scr, 0, 1)   // combine image luma with screen, threshold
+out.rgb= v * color1.a                              // (monochrome, premultiplied)
+```
+
+`hg_Params[0]` = **(screen gain, image gain, screen offset)** — how the pattern and image mix,
+`hg_Params[1]` = luma weights. The `color0²` is a perceptual weighting. Head-start: supply a screen
+pattern, combine `image_luma·k + screen`, threshold. The pattern is the creative input.

@@ -30,3 +30,27 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcParallelogramTile` embedded shader. Decoded functional form:_
+
+Parallelogram Tile **kaleidoscope-tiles** the image into mirrored parallelogram cells: coordinates
+are projected onto two (non-orthogonal) axes, folded with a `min(frac, 1-frac)` mirror, then mapped
+back — so the frame fills with a repeating, edge-mirrored parallelogram pattern.
+
+```
+u    = fract(dot((texCoord,1), hg_Params[0].xyz))   // axis 1 (slanted → parallelogram)
+v    = fract(dot((texCoord,1), hg_Params[1].xyz))   // axis 2
+u    = min(u, 1-u)                                   // mirror-fold within the cell (seamless tiling)
+v    = min(v, 1-v)
+uv.x = dot((u,v,1), hg_Params[2].xyz)                // map folded coords back to texture space
+uv.y = dot((u,v,1), hg_Params[3].xyz)
+out  = sample(source, (uv+hg_Params[4].xy)*hg_Params[4].zw)
+```
+
+`hg_Params[0]/[1]` = the two tiling axes (their skew makes parallelograms rather than squares; Angle
++ Size params), `hg_Params[2]/[3]` = the inverse map. The `min(f,1-f)` fold is what makes adjacent
+tiles mirror seamlessly. Head-start: project onto two skew axes, mirror-fold, sample. (Random Tile
+and Perspective Tile are variants: Random Tile adds a per-cell random offset/rotation; Perspective
+Tile applies a homography per tile.)

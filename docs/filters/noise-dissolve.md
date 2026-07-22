@@ -28,3 +28,22 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcNoiseDissolve` embedded shader. Decoded functional form:_
+
+Noise Dissolve is a **threshold-on-noise reveal** — a per-pixel noise field (`color1`, upstream) is
+compared to a threshold; pixels whose noise is below the threshold become transparent, so raising
+the threshold dissolves the image away in a random speckle (a transition wipe).
+
+```
+n    = color1.x                              // noise value at this pixel (0..1)
+keep = (n >= hg_Params[0])                   // hg_Params[0] = dissolve Threshold (animate 0→1)
+out.rgb = (color0.rgb/max(a,1e-6)) * (a·keep)   // pass through where kept, transparent where not
+out.a   = a·keep
+```
+
+`hg_Params[0]` = **Threshold / progress** (animatable → the dissolve). The noise *pattern* (grain
+size, seed) is set by the upstream generator. Head-start: `out = (noise >= t) ? src : transparent`;
+drive `t` over the transition. A soft edge can be added by `smoothstep(t-w, t+w, noise)` on alpha.
