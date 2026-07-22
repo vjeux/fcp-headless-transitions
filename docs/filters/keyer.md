@@ -888,7 +888,60 @@ Parameter -> shader-slot mapping, decoded from the dataflow above
 (parm N = the getter's fromParm: index; slot K = the primitive/shader
  SetParameter index that feeds hg_Params[K]):
 
-  parameters read, in program order:
+  parm-id legend (from addParameters — parmId : UI control type):
+    parm35 : IntSlider
+    parm1 : FloatSlider
+    parm5 : CustomParameter
+    parm50 : ToggleButton
+    parm14 : PercentSlider
+    parm19 : CustomParameter
+    parm36 : PercentSlider
+    parm27 : IntSlider
+    parm37 : CustomParameter
+    parm34 : CustomParameter
+    parm34 : Parameters
+    parm20 : PercentSlider
+    parm50 : ToggleButton
+    parm3 : CustomParameter
+    parm4 : CustomParameter
+    parm45 : CustomParameter
+    parm6 : CustomParameter
+    parm5 : CustomParameter
+    parm9 : CustomParameter
+    parm16 : PercentSlider
+    parm17 : FloatSlider
+    parm14 : PercentSlider
+    parm14 : AdvancedParameters
+    parm0 : Parameters
+    parm0 : LevelsParameters
+    parm0 : AdvancedParameters
+    parm38 : FloatSlider
+    parm39 : FloatSlider
+    parm40 : FloatSlider
+    parm41 : FloatSlider
+    parm42 : FloatSlider
+    parm43 : FloatSlider
+    parm11 : ToggleButton
+    parm12 : ToggleButton
+    parm26 : Levels
+    parm23 : PercentSlider
+    parm24 : PercentSlider
+    parm26 : Levels
+    parm23 : PercentSlider
+    parm24 : PercentSlider
+    parm29 : FloatSlider
+    parm30 : PercentSlider
+    parm31 : PercentSlider
+    parm32 : PopupMenu
+    parm15 : FloatSlider
+    parm13 : ToggleButton
+    parm7 : ToggleButton
+    parm8 : ToggleButton
+    parm9000 : FloatSlider
+  (match these to the named controls in the Parameters table above,
+   in the same order; host Mix is parmId 10001.)
+
+  parameters read by the render method, in program order:
     - parm50 (bool)
     - parm27 (int)
     - parm20 (float)
@@ -896,30 +949,18 @@ Parameter -> shader-slot mapping, decoded from the dataflow above
     - parm24 (float)
     - parm7 (bool)
 
-  SetParameter slots (source decoded by stack/register dataflow):
+  SetParameter slots (source decoded by stack/register dataflow;
+  only unambiguous single-source slots are asserted):
     slot 0  <-  parm7 (bool)
-    slot 0  <-  (constant / computed)
-    slot 5  <-  (constant / computed)
-    slot 0  <-  parm7 (bool)
-    slot 1  <-  (constant / computed)
-    slot 2  <-  (constant / computed)
-    slot 3  <-  (constant / computed)
-    slot 4  <-  (constant / computed)
-    slot 5  <-  (constant / computed)
+    slot 5  <-  (constant / computed / multi-pass — read the disasm)
+    slot 1  <-  (constant / computed / multi-pass — read the disasm)
+    slot 2  <-  (constant / computed / multi-pass — read the disasm)
+    slot 3  <-  parm50 (bool)
+    slot 4  <-  (constant / computed / multi-pass — read the disasm)
     slot 6  <-  parm7 (bool)
-    slot 7  <-  (constant / computed)
-    slot 8  <-  (constant / computed)
-    slot 9  <-  (constant / computed)
+    slot 7  <-  (constant / computed / multi-pass — read the disasm)
+    slot 8  <-  (constant / computed / multi-pass — read the disasm)
+    slot 9  <-  (constant / computed / multi-pass — read the disasm)
     slot 10  <-  parm7 (bool)
-    slot 11  <-  (constant / computed)
-    slot 0  <-  parm7 (bool)
-    slot 1  <-  (constant / computed)
-    slot 2  <-  (constant / computed)
-    slot 3  <-  (constant / computed)
-    slot 4  <-  (constant / computed)
-    slot 5  <-  (constant / computed)
-    slot 6  <-  parm7 (bool)
-    slot 7  <-  (constant / computed)
-    slot 8  <-  (constant / computed)
-    slot 9  <-  (constant / computed)
+    slot 11  <-  (constant / computed / multi-pass — read the disasm)
 ```

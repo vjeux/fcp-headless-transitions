@@ -340,7 +340,22 @@ Parameter -> shader-slot mapping, decoded from the dataflow above
 (parm N = the getter's fromParm: index; slot K = the primitive/shader
  SetParameter index that feeds hg_Params[K]):
 
-  parameters read, in program order:
+  parm-id legend (from addParameters — parmId : UI control type):
+    parm1 : FloatSlider
+    parm5 : FloatSlider
+    parm11 : ColorParameter
+    parm2 : FloatSlider
+    parm9 : IntSlider
+    parm10 : PercentSlider
+    parm3 : FloatSlider
+    parm8 : AngleSlider
+    parm4 : FloatSlider
+    parm6 : FloatSlider
+    parm7 : ToggleButton
+  (match these to the named controls in the Parameters table above,
+   in the same order; host Mix is parmId 10001.)
+
+  parameters read by the render method, in program order:
     - parm1 (float)
     - parm2 (float)
     - parm3 (float)

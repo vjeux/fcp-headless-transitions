@@ -99,77 +99,96 @@ def wiring_events(body):
 
 
 def trace_slot_sources(cls):
-    """Deterministically map each shader SetParameter(slot K) to its data source by
-    dataflow: colour/point getters write to [sp,#off] out-pointers; float getters and
-    mixAmountAtTime: return in d0 (often copied to a callee-saved dN); SetParameter
-    then loads from those offsets/registers. Pure disasm dataflow — no guessing.
-    Returns (sym, getters, slotmap)."""
+    """Deterministically map each shader SetParameter(slot K) to its UI parameter by
+    dataflow through the disassembly: getters (getFloatValue:fromParm: etc.) write to
+    an out-pointer on the stack (sp- or x29-relative) or return in d0 (then copied to a
+    callee-saved dN / stored to the stack); SetParameter later loads from those exact
+    locations. Stack locations are keyed by their textual base+offset so sp+N and x29-N
+    both resolve. A slot mapping is asserted ONLY when it is unambiguous (the same single
+    source every time that slot index is written); multi-pass / computed slots are left
+    as unknown rather than guessed. Pure disasm dataflow — nothing invented.
+    Returns (sym, getters, consolidated_slotmap[list of (slot, source_or_None)])."""
     bl=disasm_blocks()
     ms={s:b for s,b in bl.items() if class_of(s)==cls}
     sym=body=None
-    for key in ("canThrowRenderOutput",):
-        for s2,b2 in ms.items():
-            if key in s2: sym,body=s2,b2; break
-        if sym: break
+    for s2,b2 in ms.items():
+        if "canThrowRenderOutput" in s2: sym,body=s2,b2; break
     if not body:
         for s2,b2 in ms.items():
             if "Render:" in s2 and "canThrow" not in s2: sym,body=s2,b2; break
     if not body: return None,[],[]
-    lines=body.split("\n"); reg={}; off2src={}; getters=[]; pend=[]; last_ret=None; ret_reg={}
+    lines=body.split("\n")
+    loc2src={}; getters=[]; reg={}; pend=[]; last_ret=None; retreg={}
+    def norm(base,sign,off): return "%s%s%s"%(base,"+" if sign>0 else "-",off)
     for ln in lines:
         m=re.search(r"\bmov\s+w(\d+),\s+#(0x[0-9a-f]+|\d+)",ln)
         if m: reg["w"+m.group(1)]=int(m.group(2),0)
-        mp=re.search(r"add\s+x[2-7], sp, #(0x[0-9a-f]+)",ln)
-        if mp: pend.append(int(mp.group(1),0))
+        mp=re.search(r"\b(add|sub)\s+x([2-7]), (sp|x29), #(0x[0-9a-f]+)",ln)
+        if mp:
+            sign=1 if mp.group(1)=="add" else -1
+            pend.append(norm(mp.group(3),sign,mp.group(4)))
         if "getRedValue:greenValue:blueValue:fromParm:" in ln:
             lbl="parm%s (colour)"%reg.get("w5")
-            for o in pend: off2src[o]=lbl
+            for l in pend: loc2src[l]=lbl
             getters.append(lbl); pend=[]; last_ret=None
         elif "getXValue:yValue:fromParm:" in ln:
             lbl="parm%s (point)"%(reg.get("w4") or reg.get("w5"))
-            for o in pend: off2src[o]=lbl
+            for l in pend: loc2src[l]=lbl
             getters.append(lbl); pend=[]; last_ret=None
         elif "getFloatValue:fromParm:" in ln:
-            last_ret="parm%s (float)"%reg.get("w3"); getters.append(last_ret)
-            for o in pend: off2src[o]=last_ret
-            pend=[]
+            lbl="parm%s (float)"%reg.get("w3")
+            for l in pend: loc2src[l]=lbl
+            getters.append(lbl); last_ret=lbl; pend=[]
         elif "getIntValue:fromParm:" in ln:
-            last_ret="parm%s (int)"%reg.get("w3"); getters.append(last_ret)
-            for o in pend: off2src[o]=last_ret
-            pend=[]
+            lbl="parm%s (int)"%reg.get("w3")
+            for l in pend: loc2src[l]=lbl
+            getters.append(lbl); last_ret=lbl; pend=[]
         elif "getBoolValue:fromParm:" in ln:
-            last_ret="parm%s (bool)"%reg.get("w3"); getters.append(last_ret)
-            for o in pend: off2src[o]=last_ret
-            pend=[]
+            lbl="parm%s (bool)"%reg.get("w3")
+            for l in pend: loc2src[l]=lbl
+            getters.append(lbl); last_ret=lbl; pend=[]
         elif "mixAmountAtTime:" in ln:
-            last_ret="host Mix"; getters.append(last_ret)
-        # float return copied to callee-saved reg: mov.16b vN, v0  /  fmov dN,d0
+            lbl="host Mix"; getters.append(lbl); last_ret=lbl
         mo=re.search(r"mov\.16b\s+v(\d+), v0",ln)
-        if mo and last_ret: ret_reg["d"+mo.group(1)]=last_ret
-        ms_=re.search(r"str\s+d0, \[sp, #(0x[0-9a-f]+)\]",ln)
-        if ms_ and last_ret: off2src[int(ms_.group(1),0)]=last_ret
-    # pass 2: slot loads
-    reg={}; offs=[]; regs=[]; slotmap=[]
+        if mo and last_ret: retreg["d"+mo.group(1)]=last_ret
+        mo=re.search(r"fmov\s+d(\d+), d0",ln)
+        if mo and last_ret: retreg["d"+mo.group(1)]=last_ret
+        mo=re.search(r"st(?:r|ur)\s+[dsq]0, \[(sp|x29), #(-?0x[0-9a-f]+)\]",ln)
+        if mo and last_ret:
+            off=mo.group(2); sign=-1 if off.startswith("-") else 1
+            loc2src[norm(mo.group(1),sign,off.lstrip("-"))]=last_ret
+    reg={}; recent=[]; recentreg=[]; raw=[]
     for ln in lines:
         m=re.search(r"\bmov\s+w(\d+),\s+#(0x[0-9a-f]+|\d+)",ln)
         if m: reg["w"+m.group(1)]=int(m.group(2),0)
         m2=re.search(r"ldr\s+x8, \[x8, #(0x[0-9a-f]+)\]",ln)
         if m2: reg["vtslot"]=int(m2.group(1),0)
-        for mo in re.finditer(r"ld[rp]\s+[dsq]\d+(?:, [dsq]\d+)?, \[sp, #(0x[0-9a-f]+)\]",ln):
-            offs.append(int(mo.group(1),0))
-        for mo in re.finditer(r"fcvt\s+s\d+, (d\d+)",ln): regs.append(mo.group(1))
-        for mo in re.finditer(r"fmov\s+s\d+, (d\d+)",ln): regs.append(mo.group(1))
+        for mo in re.finditer(r"ld(?:r|ur|p)\s+[dsq]\d+(?:, [dsq]\d+)?, \[(sp|x29), #(-?0x[0-9a-f]+)\]",ln):
+            off=mo.group(2); sign=-1 if off.startswith("-") else 1
+            recent.append("%s%s%s"%(mo.group(1),"+" if sign>0 else "-",off.lstrip("-")))
+        for mo in re.finditer(r"fcvt\s+s\d+, (d\d+)",ln): recentreg.append(mo.group(1))
+        for mo in re.finditer(r"fmov\s+s\d+, (d\d+)",ln): recentreg.append(mo.group(1))
         if re.search(r"\bblr\s+x8\b",ln) and reg.get("vtslot") in (0x58,0x60,0x68):
             srcs=[]
-            for o in offs:
-                if o in off2src: srcs.append(off2src[o])
-            for r in regs:
-                if r in ret_reg: srcs.append(ret_reg[r])
+            for l in recent:
+                if l in loc2src: srcs.append(loc2src[l])
+            for r in recentreg:
+                if r in retreg: srcs.append(retreg[r])
             seen=set(); srcs=[x for x in srcs if not (x in seen or seen.add(x))]
-            slotmap.append((reg.get("w1"),srcs))
-            offs=[]; regs=[]; reg.pop("vtslot",None)
+            raw.append((reg.get("w1"),srcs))
+            recent=[]; recentreg=[]; reg.pop("vtslot",None)
+    # consolidate: assert a slot only if unambiguous single-source across all occurrences
+    order=[]; occ={}
+    for slot,srcs in raw:
+        if slot not in occ: occ[slot]=[]; order.append(slot)
+        occ[slot].append(srcs)
+    slotmap=[]
+    for slot in order:
+        uniq=set()
+        for o in occ[slot]:
+            uniq|=set(o)
+        slotmap.append((slot, next(iter(uniq)) if len(uniq)==1 else None))
     return sym, getters, slotmap
-
 
 def read_shader(name):
     p=os.path.join(SHDIR,name+".metal")
@@ -184,6 +203,27 @@ def param_names_ordered(uuid):
     """Best-effort creative-param list for slot annotation (from doc_payload)."""
     return None  # slot names are annotated from the disasm evidence itself
 
+
+_ADD_RE = re.compile(r"_objc_msgSend\$add(\w+?)With")
+def declared_params(cls):
+    """Parm-id -> UI control type, read verbatim from -[PAE<Name> addParameters].
+    The parmId (the integer the render method later passes to getFloatValue:fromParm:)
+    is the immediate in w3 at each add*Parameter call. Ground truth, not guessed."""
+    bl=disasm_blocks()
+    body=None
+    for s2,b2 in bl.items():
+        if class_of(s2)==cls and "addParameters" in s2: body=b2; break
+    if not body: return []
+    out=[]; reg={}
+    for ln in body.split("\n"):
+        m=re.search(r"\bmov\s+w(\d+),\s+#(0x[0-9a-f]+|\d+)",ln)
+        if m: reg["w"+m.group(1)]=int(m.group(2),0)
+        mm=_ADD_RE.search(ln)
+        if mm:
+            out.append((reg.get("w3"), mm.group(1)))
+    return out
+
+
 def fmt_slotmap(cls):
     """Decoded parameter->shader-slot mapping, derived from the dataflow in the
     disassembly above (NOT invented): which UI parm feeds each SetParameter slot."""
@@ -192,15 +232,23 @@ def fmt_slotmap(cls):
     out=["Parameter -> shader-slot mapping, decoded from the dataflow above",
          "(parm N = the getter's fromParm: index; slot K = the primitive/shader",
          " SetParameter index that feeds hg_Params[K]):",""]
+    decl=declared_params(cls)
+    if decl:
+        out.append("  parm-id legend (from addParameters — parmId : UI control type):")
+        for pid,kind in decl:
+            out.append(f"    parm{pid} : {kind}")
+        out.append("  (match these to the named controls in the Parameters table above,")
+        out.append("   in the same order; host Mix is parmId 10001.)")
+        out.append("")
     if getters:
-        out.append("  parameters read, in program order:")
+        out.append("  parameters read by the render method, in program order:")
         for g in getters: out.append("    - "+g)
         out.append("")
     if slotmap:
-        out.append("  SetParameter slots (source decoded by stack/register dataflow):")
-        for slot,srcs in slotmap:
-            src=", ".join(srcs) if srcs else "(constant / computed)"
-            out.append(f"    slot {slot}  <-  {src}")
+        out.append("  SetParameter slots (source decoded by stack/register dataflow;")
+        out.append("  only unambiguous single-source slots are asserted):")
+        for slot,src in slotmap:
+            out.append(f"    slot {slot}  <-  {src if src else '(constant / computed / multi-pass — read the disasm)'}")
     return "\n".join(out)
 
 def section_shader(slug, b):

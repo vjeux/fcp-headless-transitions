@@ -421,7 +421,20 @@ Parameter -> shader-slot mapping, decoded from the dataflow above
 (parm N = the getter's fromParm: index; slot K = the primitive/shader
  SetParameter index that feeds hg_Params[K]):
 
-  parameters read, in program order:
+  parm-id legend (from addParameters — parmId : UI control type):
+    parm1 : PopupMenu
+    parm2 : ColorParameter
+    parm3 : ColorParameter
+    parm4 : PercentSlider
+    parm5 : PercentSlider
+    parm6 : PercentSlider
+    parm7 : PercentSlider
+    parm8 : IntSlider
+    parm9 : ToggleButton
+  (match these to the named controls in the Parameters table above,
+   in the same order; host Mix is parmId 10001.)
+
+  parameters read by the render method, in program order:
     - parm1 (int)
     - parm4 (float)
     - parm5 (float)
@@ -430,25 +443,19 @@ Parameter -> shader-slot mapping, decoded from the dataflow above
     - parm7 (float)
     - parm9 (bool)
 
-  SetParameter slots (source decoded by stack/register dataflow):
-    slot 0  <-  (constant / computed)
-    slot 1  <-  parm5 (float)
+  SetParameter slots (source decoded by stack/register dataflow;
+  only unambiguous single-source slots are asserted):
+    slot 0  <-  parm9 (bool)
+    slot 1  <-  (constant / computed / multi-pass — read the disasm)
     slot 2  <-  parm6 (float)
     slot 4  <-  parm8 (int)
-    slot 5  <-  (constant / computed)
+    slot 5  <-  (constant / computed / multi-pass — read the disasm)
     slot 7  <-  parm7 (float)
-    slot 3  <-  (constant / computed)
-    slot 11  <-  (constant / computed)
-    slot 12  <-  (constant / computed)
-    slot 10  <-  (constant / computed)
-    slot 8  <-  (constant / computed)
-    slot 9  <-  (constant / computed)
-    slot 6  <-  (constant / computed)
-    slot 10  <-  (constant / computed)
-    slot 0  <-  parm9 (bool)
-    slot 1  <-  parm9 (bool)
-    slot 2  <-  (constant / computed)
-    slot 3  <-  (constant / computed)
-    slot 4  <-  (constant / computed)
-    slot 6  <-  (constant / computed)
+    slot 3  <-  (constant / computed / multi-pass — read the disasm)
+    slot 11  <-  (constant / computed / multi-pass — read the disasm)
+    slot 12  <-  (constant / computed / multi-pass — read the disasm)
+    slot 10  <-  (constant / computed / multi-pass — read the disasm)
+    slot 8  <-  (constant / computed / multi-pass — read the disasm)
+    slot 9  <-  (constant / computed / multi-pass — read the disasm)
+    slot 6  <-  (constant / computed / multi-pass — read the disasm)
 ```

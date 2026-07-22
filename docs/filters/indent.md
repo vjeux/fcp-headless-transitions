@@ -851,7 +851,25 @@ Parameter -> shader-slot mapping, decoded from the dataflow above
 (parm N = the getter's fromParm: index; slot K = the primitive/shader
  SetParameter index that feeds hg_Params[K]):
 
-  parameters read, in program order:
+  parm-id legend (from addParameters — parmId : UI control type):
+    parm1 : FloatSlider
+    parm2 : FloatSlider
+    parm3 : FloatSlider
+    parm4 : FloatSlider
+    parm5 : FloatSlider
+    parm6 : AngleSlider
+    parm9 : FloatSlider
+    parm7 : ImageReference
+    parm8 : PopupMenu
+    parm10 : ToggleButton
+    parm11 : FloatSlider
+    parm12 : FloatSlider
+    parm13 : FloatSlider
+    parm14 : FloatSlider
+  (match these to the named controls in the Parameters table above,
+   in the same order; host Mix is parmId 10001.)
+
+  parameters read by the render method, in program order:
     - parm1 (float)
     - parm2 (float)
     - parm4 (float)
@@ -866,24 +884,18 @@ Parameter -> shader-slot mapping, decoded from the dataflow above
     - parm13 (float)
     - parm14 (float)
 
-  SetParameter slots (source decoded by stack/register dataflow):
-    slot 0  <-  parm10 (bool), parm11 (float), parm13 (float)
-    slot 8  <-  (constant / computed)
-    slot 9  <-  (constant / computed)
-    slot 10  <-  (constant / computed)
-    slot 11  <-  (constant / computed)
-    slot 0  <-  parm10 (bool)
-    slot 8  <-  (constant / computed)
-    slot 9  <-  (constant / computed)
-    slot 10  <-  (constant / computed)
-    slot 11  <-  (constant / computed)
-    slot 0  <-  parm10 (bool)
-    slot 1  <-  (constant / computed)
+  SetParameter slots (source decoded by stack/register dataflow;
+  only unambiguous single-source slots are asserted):
+    slot 0  <-  (constant / computed / multi-pass — read the disasm)
+    slot 8  <-  (constant / computed / multi-pass — read the disasm)
+    slot 9  <-  (constant / computed / multi-pass — read the disasm)
+    slot 10  <-  (constant / computed / multi-pass — read the disasm)
+    slot 11  <-  (constant / computed / multi-pass — read the disasm)
+    slot 1  <-  (constant / computed / multi-pass — read the disasm)
     slot 2  <-  parm2 (float)
     slot 3  <-  parm5 (float)
     slot 4  <-  parm4 (float)
-    slot 5  <-  (constant / computed)
+    slot 5  <-  (constant / computed / multi-pass — read the disasm)
     slot 6  <-  parm9 (float)
     slot 7  <-  parm3 (float)
-    slot 8  <-  (constant / computed)
 ```

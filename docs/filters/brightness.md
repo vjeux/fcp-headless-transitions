@@ -119,12 +119,18 @@ Parameter -> shader-slot mapping, decoded from the dataflow above
 (parm N = the getter's fromParm: index; slot K = the primitive/shader
  SetParameter index that feeds hg_Params[K]):
 
-  parameters read, in program order:
+  parm-id legend (from addParameters — parmId : UI control type):
+    parm1 : FloatSlider
+  (match these to the named controls in the Parameters table above,
+   in the same order; host Mix is parmId 10001.)
+
+  parameters read by the render method, in program order:
     - parm1 (float)
 
-  SetParameter slots (source decoded by stack/register dataflow):
+  SetParameter slots (source decoded by stack/register dataflow;
+  only unambiguous single-source slots are asserted):
     slot 0  <-  parm1 (float)
     slot 1  <-  parm1 (float)
     slot 2  <-  parm1 (float)
-    slot 3  <-  (constant / computed)
+    slot 3  <-  (constant / computed / multi-pass — read the disasm)
 ```
