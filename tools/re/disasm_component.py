@@ -17,7 +17,9 @@ import sys, re, subprocess
 
 OZONE=("/Applications/Final Cut Pro.app/Contents/Frameworks/Ozone.framework/Versions/A/Ozone")
 LITH =("/Applications/Final Cut Pro.app/Contents/Frameworks/Lithium.framework/Versions/A/Lithium")
-BINS=[("ozone",OZONE),("lithium",LITH)]
+PART =("/Applications/Final Cut Pro.app/Contents/Frameworks/Ozone.framework/"
+       "Versions/A/PlugIns/Particles.ozp/Contents/MacOS/Particles")
+BINS=[("ozone",OZONE),("lithium",LITH),("particles",PART)]
 
 def _dis(binp):
     return subprocess.run(["otool","-arch","arm64","-tV",binp],capture_output=True,text=True).stdout
@@ -36,11 +38,13 @@ def demangle(s):
     return subprocess.run(["c++filt"],input=s,capture_output=True,text=True).stdout.strip()
 
 def cls_of(sym):
+    m=re.match(r"[-+]\[([A-Za-z_][A-Za-z0-9_]+)\s",sym)
+    if m: return m.group(1)
     ss=sym.replace("__ZNK","__ZN")
     m=re.match(r"__ZN(\d+)([A-Za-z0-9_]+)",ss)
     if m:
         n=int(m.group(1)); nm=m.group(2)[:n]
-        return nm if nm.startswith(("OZ","Li")) else None
+        return nm if nm.startswith(("OZ","Li","PS","TX","PC")) else None
     return None
 
 def main(argv):

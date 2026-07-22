@@ -30,7 +30,10 @@ CB=json.load(open(os.path.join(HERE,"component_binding.json")))
 
 OZONE=("/Applications/Final Cut Pro.app/Contents/Frameworks/Ozone.framework/Versions/A/Ozone")
 LITH =("/Applications/Final Cut Pro.app/Contents/Frameworks/Lithium.framework/Versions/A/Lithium")
-LABEL={"ozone":"Ozone.framework/…/Ozone","lithium":"Lithium.framework/…/Lithium"}
+PART =("/Applications/Final Cut Pro.app/Contents/Frameworks/Ozone.framework/"
+       "Versions/A/PlugIns/Particles.ozp/Contents/MacOS/Particles")
+LABEL={"ozone":"Ozone.framework/…/Ozone","lithium":"Lithium.framework/…/Lithium",
+       "particles":"Ozone.framework/…/Particles.ozp"}
 
 _C={}
 def blocks(binp):
@@ -49,7 +52,7 @@ def demangle(s):
     return subprocess.run(["c++filt"],input=s,capture_output=True,text=True).stdout.strip()
 
 def body_for(mangled, binl):
-    binp = LITH if binl=="lithium" else OZONE
+    binp = {"lithium":LITH,"particles":PART}.get(binl,OZONE)
     bl=blocks(binp)
     if mangled in bl: return bl[mangled]
     alt=mangled[1:] if mangled.startswith("_") else "_"+mangled
@@ -57,9 +60,10 @@ def body_for(mangled, binl):
 
 def section_decodable(name,b):
     out=["#### Decompiled code (ground truth)",""]
+    kind=b['kind'].rstrip('.')
     out.append(f"Verbatim ARM64 disassembly from the user's licensed FCP install "
-               f"(`{LABEL[b['binary']]}`, class `{b['class']}`). `{b['method']}` "
-               f"{b['kind']} — the actual code Apple ships, not a paraphrase. Regenerate: "
+               f"(`{LABEL[b['binary']]}`, class `{b['class']}`). `{b['method']}` — {kind}. "
+               f"The actual code Apple ships, not a paraphrase. Regenerate: "
                f"`venv/bin/python3 tools/re/disasm_component.py --method {b['method']} {b['class']}`\n")
     body=body_for(b["mangled"],b["binary"])
     if not body:
@@ -67,6 +71,11 @@ def section_decodable(name,b):
         return "\n".join(out)+"\n"
     out.append(f"##### `{demangle(b['mangled'])}`")
     out.append("```asm"); out.append(body.rstrip()); out.append("```\n")
+    for extra in b.get("extra_mangled",[]):
+        eb=body_for(extra,b["binary"])
+        if eb:
+            out.append(f"##### `{demangle(extra)}`  (sibling shape generator)")
+            out.append("```asm"); out.append(eb.rstrip()); out.append("```\n")
     return "\n".join(out).rstrip()+"\n"
 
 def section_nondec(name):

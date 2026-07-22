@@ -16,6 +16,17 @@
    "mangled": "__ZN16OZCloneGenerator13getDimensionsEPfS0_RK13OZRenderState",
    "method": "getDimensions"
   },
+  "Emitter": {
+   "binary": "particles",
+   "class": "PSEmitter",
+   "decodable": true,
+   "extra_mangled": [
+    "__ZN9PSEmitter12genPosSpiralEddRK6CMTimeR9PCVector3IdES5_"
+   ],
+   "kind": "emission-shape generator that places newborn particles on the emitter shape. Its sibling genPos* methods cover every Emitter/Replicator \"Shape\" enum value: Point, Line, Rect, Circle, Radial, Spiral, Wave, Geometry, Filled Box, Filled Rect. Per-frame birth+advance is PSParticleType::simAddObjects.",
+   "mangled": "__ZN9PSEmitter12genPosCircleEdRK6CMTimeR9PCVector3IdES5_",
+   "method": "genPosCircle"
+  },
   "Generator": {
    "binary": "ozone",
    "class": "OZSoftGradientGenerator",
@@ -39,6 +50,38 @@
    "kind": "spot-light surface-shading node: cone/attenuation falloff applied to lit surfaces",
    "mangled": "__ZNK7LiLight18getSpotNodeSurfaceERKNS_10NodeParamsE",
    "method": "getSpotNodeSurface"
+  },
+  "Master": {
+   "binary": "ozone",
+   "class": "OZAudioMasterTrack",
+   "decodable": true,
+   "kind": "the only compiled Master node is the audio master track \u2014 this pulls mixed sample data through the OZAudioMixer. (A visual Master / published-clip node is a pure reference container with no per-frame math of its own.)",
+   "mangled": "__ZN18OZAudioMasterTrack13getSampleDataEyjjdjP12OZAudioMixerb",
+   "method": "getSampleData"
+  },
+  "Particle Cell": {
+   "binary": "particles",
+   "class": "PSParticleType",
+   "decodable": true,
+   "kind": "the per-frame particle simulation step: births/advances particles into the OZSimStateArray each sub-step (particle motion runs through the same OZSimulationBehavior force system as the physics behaviors), and buildParticleRenderGraph then emits the GPU sprites",
+   "mangled": "__ZN14PSParticleType13simAddObjectsEP17OZSystemSimulatorR15OZSimStateArrayd",
+   "method": "simAddObjects"
+  },
+  "Replicator": {
+   "binary": "particles",
+   "class": "PSReplicator",
+   "decodable": true,
+   "kind": "the Replicator is a PSEmitter subclass \u2014 it reuses the emitter genPos* shape math to lay out cells; this selects the layout shape (Rectangle/Circle/Burst/Spiral/Wave/Geometry/Image)",
+   "mangled": "__ZN12PSReplicator25updateReplicatorShapeEnumEb",
+   "method": "updateReplicatorShapeEnum"
+  },
+  "Replicator Cell": {
+   "binary": "particles",
+   "class": "PSReplicatorPType",
+   "decodable": true,
+   "kind": "places each replicated instance using the emitter shape math (the replicator analogue of the particle sim step)",
+   "mangled": "__ZN17PSReplicatorPType13simAddObjectsEP17OZSystemSimulatorR15OZSimStateArrayd",
+   "method": "simAddObjects"
   },
   "Rig": {
    "binary": "ozone",
@@ -64,6 +107,14 @@
    "mangled": "__ZN12OZTextLayout7setTextE6CMTimeRK8PCString",
    "method": "setText"
   },
+  "Text Generator": {
+   "binary": "ozone",
+   "class": "OZMoTimecodeFormatter",
+   "decodable": true,
+   "kind": "numeric/timecode Text-Generator formatting: the Motion timecode NSFormatter that turns the frame/number value into the displayed string (then laid out via TextFramework TXTextLayout)",
+   "mangled": "-[OZMoTimecodeFormatter stringForObjectValue:]",
+   "method": "stringForObjectValue:"
+  },
   "Widget": {
    "binary": "ozone",
    "class": "OZRigWidget",
@@ -74,12 +125,6 @@
   }
  },
  "nondecodable": {
-  "Emitter": "the particle simulation runs on the GPU render graph; no single CPU per-frame method to disassemble",
-  "Master": "a container/reference node (master clip); no per-pixel or per-frame math of its own",
-  "Particle Cell": "particle content descriptor consumed by the GPU emitter; no standalone CPU method",
-  "Project": "the scene root; its \"algorithm\" is the document settings + the evaluation of its children (documented in Document settings)",
-  "Replicator": "pattern layout is built on the GPU render graph (no single decodable CPU layout method); the arrangement enums (Shape/Origin/etc.) are documented from the corpus",
-  "Replicator Cell": "a data holder for the replicator; rendered instances are GPU-built",
-  "Text Generator": "numeric/date/timecode formatting is string-building over OZTextLayout; the format is a per-instance template, not compiled math"
+  "Project": "the scene root; its \"algorithm\" is the document settings + the evaluation of its children (documented in Document settings)"
  }
 }

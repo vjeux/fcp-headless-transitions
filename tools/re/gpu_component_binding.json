@@ -1,0 +1,44 @@
+{
+ "Emitter": {
+  "binary": "particles",
+  "class": "PSEmitter",
+  "kind": "emission-shape generator that places newborn particles on the emitter shape. Its sibling genPos* methods cover every Emitter/Replicator \"Shape\" enum value: Point, Line, Rect, Circle, Radial, Spiral, Wave, Geometry, Filled Box, Filled Rect. Per-frame birth+advance is PSParticleType::simAddObjects.",
+  "mangled": "__ZN9PSEmitter12genPosCircleEdRK6CMTimeR9PCVector3IdES5_",
+  "method": "genPosCircle"
+ },
+ "Master": {
+  "binary": "ozone",
+  "class": "OZAudioMasterTrack",
+  "kind": "the only compiled Master node is the audio master track \u2014 this pulls mixed sample data through the OZAudioMixer. (A visual Master / published-clip node is a pure reference container with no per-frame math of its own.)",
+  "mangled": "__ZN18OZAudioMasterTrack13getSampleDataEyjjdjP12OZAudioMixerb",
+  "method": "getSampleData"
+ },
+ "Particle Cell": {
+  "binary": "particles",
+  "class": "PSParticleType",
+  "kind": "the per-frame particle simulation step: births/advances particles into the OZSimStateArray each sub-step (particle motion runs through the same OZSimulationBehavior force system as the physics behaviors), and buildParticleRenderGraph then emits the GPU sprites",
+  "mangled": "__ZN14PSParticleType13simAddObjectsEP17OZSystemSimulatorR15OZSimStateArrayd",
+  "method": "simAddObjects"
+ },
+ "Replicator": {
+  "binary": "particles",
+  "class": "PSReplicator",
+  "kind": "the Replicator is a PSEmitter subclass \u2014 it reuses the emitter genPos* shape math to lay out cells; this selects the layout shape (Rectangle/Circle/Burst/Spiral/Wave/Geometry/Image)",
+  "mangled": "__ZN12PSReplicator25updateReplicatorShapeEnumEb",
+  "method": "updateReplicatorShapeEnum"
+ },
+ "Replicator Cell": {
+  "binary": "particles",
+  "class": "PSReplicatorPType",
+  "kind": "places each replicated instance using the emitter shape math (the replicator analogue of the particle sim step)",
+  "mangled": "__ZN17PSReplicatorPType13simAddObjectsEP17OZSystemSimulatorR15OZSimStateArrayd",
+  "method": "simAddObjects"
+ },
+ "Text Generator": {
+  "binary": "ozone",
+  "class": "OZMoTimecodeFormatter",
+  "kind": "numeric/timecode Text-Generator formatting: the Motion timecode NSFormatter that turns the frame/number value into the displayed string (then laid out via TextFramework TXTextLayout)",
+  "mangled": "-[OZMoTimecodeFormatter stringForObjectValue:]",
+  "method": "stringForObjectValue:"
+ }
+}
