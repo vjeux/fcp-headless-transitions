@@ -1,0 +1,6 @@
+{
+  "node": "PAEGlow (delegated, DIVERGED ddb=13.5, headless-truth, host Lights__Bloom)",
+  "analysis_2026_07_22": "Glow = threshold-mask (HgcGlow luma ramp) + gaussian blur + composite (HgcGlowCombineFx). CHECKED: the COMPOSITE is decoded verbatim AND faithfully implemented (glow.ts step 3: out=(1-glowA)*orig + glowRGB, glowA=clamp(a*gain), matches HgcGlowCombineFx). The BLUR is the shared HGBlur (PAEGaussianBlur kernel VERIFIED). So the divergence is in the THRESHOLD MASK (HgcGlow: a=clamp((luma709-Threshold)/Softness+0.5,0,1), glow=rgb*a) \u2014 likely its luma space (sRGB vs linear) or the threshold/softness param mapping, same working-space family as the rest of colour.",
+  "next_step": "Run the faithful delta-sweep on PAEGlow's host (Lights__Bloom) to attribute the ddb to the threshold vs blur-feeding vs composite per-param/per-time (the note says worst at t=0.1). Then isolate the threshold mask (pointwise luma->a->rgb*a) with the transfer/uniform-input oracle to check if its luma is sRGB or linear. If linear-luma, it's the same working-space fix; if a param-mapping bug (like the HSV hue units), it may be a clean gate-neutral fix.",
+  "method": "Same decompose-and-isolate as bloom: composite verified, blur verified, so target the threshold mask. This is the faithful driver's core loop \u2014 a focused multi-render session, not single-turn."
+}
