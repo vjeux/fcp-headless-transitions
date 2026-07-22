@@ -1,0 +1,12 @@
+{
+  "node": "PAEBrightness cross-channel decode attempts (2026-07-22)",
+  "data": "(200,50,50)*1.5 -> FCP [255,154,151]; (50,200,50)*1.5 -> [179,255,161]; (50,50,200)*1.5 -> [147,147,255].",
+  "models_refuted": [
+    "per-channel sRGB multiply (TS current): [255,75,75] \u2014 low channels too dark",
+    "per-channel linear multiply+encode: [239,62,62] \u2014 worse",
+    "YCbCr scale-all (Y+chroma *1.5): [255,75,75]",
+    "YCbCr scale-Y-only: [241,91,91] \u2014 low channels between per-channel and FCP but not matching"
+  ],
+  "conclusion": "FCP's Brightness cross-channel coupling (low channels lifted to ~152 when high channel clips) is NOT reproduced by per-channel sRGB, per-channel linear, or YCbCr Y/all scaling. Like the HgcTint K-constant, this needs FCP's actual working-space pixel-path (the ExtendedLinearSRGB half-float readback + whatever HGColorMatrix/clamp it applies) read from the binary \u2014 black-box probing has exhausted the plausible closed forms. Same class of documented ceiling; gate-blocked anyway (oracle_truth=gui).",
+  "method_note": "This confirms the color decode's remaining work is BINARY pixel-path RE (read oz_render.mm OZ_WS_DEBUG working space + the HGColorMatrix/readback stage), not more transfer probing. Documented so future sessions go straight to the binary."
+}
