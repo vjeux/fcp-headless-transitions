@@ -102,10 +102,28 @@ def bezierFind():
     return cases
 
 
+def blurDecimation():
+    # HGBlur::GetDecimation(radius) — dense integer-boundary coverage. The level steps at
+    # radius^2 clearing 25*4^k bands: <5->0, >=5->1, >=13->2, >=32->3, >=90->4, ... Sample
+    # densely around each boundary (4.9/5, 12/13, 31/32, 89/90) + a broad range.
+    cases = []
+    xs = set()
+    for b in (5, 13, 32, 90, 200, 400):
+        for d in (-1.1, -0.1, -0.01, 0.0, 0.01, 0.1, 1.0):
+            xs.add(round(b + d, 3))
+    for v in _linspace(0.0, 500.0, 60):
+        xs.add(round(v, 3))
+    for x in sorted(xs):
+        if x >= 0:
+            cases.append({"radius": x})
+    return cases
+
+
 _GENERATORS = {
     "easeInOut": easeInOut,
     "bezierEval": bezierEval,
     "bezierFind": bezierFind,
+    "blurDecimation": blurDecimation,
 }
 
 

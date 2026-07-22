@@ -389,6 +389,24 @@
       "faithful_note": "Log-polar zoom is the BEST of 3 models vs headless (~20-22 dB > linear-radius > displacement-prop), confirming the decode. Residual ~20 dB ceiling is the log-polar resampling near the centre (u=ln r -> -inf as r->0). The shipping Blurs__Zoom Zoom Blur filter is authored Amount=0 (STATIC; visible zoom is camera) so near-zero gate ROI. Center wired, Mix=blend. Documented directional-blur.ts.",
       "faithful_verified_via": "blocked-resample-ceiling",
       "swept": "2026-07-18T20:03:39Z"
+    },
+    "blur.decimation": {
+      "id": "blur.decimation",
+      "kind": "curve",
+      "status": "VERIFIED",
+      "n_cases": 102,
+      "max_abs_err": 0.0,
+      "max_rel_err": 0.0,
+      "worst": {
+        "case": null,
+        "output": null,
+        "oracle": null,
+        "engine": null
+      },
+      "n_failures": 0,
+      "tol_abs": 1e-06,
+      "tol_rel": 1e-06,
+      "swept": "2026-07-22T10:55:16Z"
     }
   },
   "history": [
@@ -641,8 +659,13 @@
       "id": "curve.interp.ease",
       "status": "VERIFIED",
       "at": "2026-07-22T10:49:24Z"
+    },
+    {
+      "id": "blur.decimation",
+      "status": "VERIFIED",
+      "at": "2026-07-22T10:55:16Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-22T10:49:24Z"
+  "updated": "2026-07-22T10:55:16Z"
 }

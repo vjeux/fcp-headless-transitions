@@ -16,6 +16,7 @@
 
 import readline from 'node:readline';
 import { easeInOut, cubicBezier, solveBezierParam } from '../src/evaluator/curves.js';
+import { gaussianDecimation } from '../src/compositor/filters/gaussian-blur.js';
 
 type Args = Record<string, number | number[]>;
 type Outputs = Record<string, number>;
@@ -53,6 +54,13 @@ const FUNCTIONS: Record<string, Fn> = {
   'OZBezierFindParameter': (a) => {
     const c = a.tctrl as number[]; const t = a.t as number;
     return { ret: solveBezierParam(t, c[0], c[1], c[2], c[3]) };
+  },
+
+  // HGBlur::GetDecimation(radius) -> decimation level. TS: gaussianDecimation(radius).
+  // The blur subsystem's decimation-level choice (a large blur is decimated 2^level,
+  // blurred small, upsampled). Exact integer function; verified vs the real Helium symbol.
+  'HGBlur_GetDecimation': (a) => {
+    return { ret: gaussianDecimation(a.radius as number) };
   },
 };
 

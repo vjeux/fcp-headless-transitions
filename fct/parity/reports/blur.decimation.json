@@ -1,0 +1,19 @@
+{
+  "id": "blur.decimation",
+  "kind": "curve",
+  "status": "VERIFIED",
+  "n_cases": 102,
+  "max_abs_err": 0.0,
+  "max_rel_err": 0.0,
+  "worst": {
+    "case": null,
+    "output": null,
+    "oracle": null,
+    "engine": null
+  },
+  "n_failures": 0,
+  "failures": [],
+  "tol_abs": 1e-06,
+  "tol_rel": 1e-06,
+  "swept": "2026-07-22T10:55:16Z"
+}

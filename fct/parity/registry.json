@@ -159,6 +159,37 @@
    "status": "UNTESTED"
   },
   {
+   "id": "blur.decimation",
+   "subsystem": "blur",
+   "kind": "curve",
+   "desc": "HGBlur::GetDecimation(radius): the blur decimation-level choice (large blur -> decimate 2^level, blur small, upsample). Exact integer function the engine ports as gaussianDecimation.",
+   "oracle": {
+    "type": "dlsym",
+    "framework": "Helium",
+    "symbol": "__ZN6HGBlur13GetDecimationEf",
+    "signature": {
+     "args": [
+      {
+       "kind": "in",
+       "ctype": "float",
+       "name": "radius"
+      }
+     ],
+     "ret": "int"
+    },
+    "outputs": [
+     "ret"
+    ]
+   },
+   "ts_fn": "HGBlur_GetDecimation",
+   "compare_outputs": [
+    "ret"
+   ],
+   "cases": "grid:blurDecimation",
+   "oracle_truth": "headless",
+   "status": "UNTESTED"
+  },
+  {
    "id": "filter.PAEColorize",
    "subsystem": "color",
    "kind": "filter",
