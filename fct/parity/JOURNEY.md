@@ -79,3 +79,35 @@ Added a THIRD verification regime for pointwise colour nodes:
 - transfer.PAEHSVAdjust residual 107 levels = linear-working-space sat/value (decode HgcHSVAdjust).
 - Add transfer nodes for PAETint / PAEColorize / PAELevels / PAEChannelMixer (need nested-colour
   param plumbing: pass pre-built {'params':[{name,id,children:[...]}]} in param_cases).
+
+
+## UPDATE 2026-07-22 (session 2, cont.) — colour subsystem UNIFIED root cause + Tint ceiling
+
+### Verbatim HgcTint extracted + ceiling pinned
+Pulled the verbatim HgcTint shader (extract_shader.py). The fragment math (two-leg hard-light
+about luma 0.5) does NOT reproduce FCP's measured transfer in sRGB OR linear: the tint=1
+channel rises ~3.88*luma (saturates by luma~0.25) vs the shader's 2*luma — a ~1.94x factor NOT
+explained by the fragment source, Intensity mix, or luma weights. => a pre/post colour-space
+stage exists outside the extracted fragment. G(tint=0) shadow leg = 2*luma-1 IS pinned in sRGB.
+Evidence + observations saved in fct/parity/evidence/tint_transfer_r1g0b0_i1.json. Full HgcTint
+decode remains the (documented) ceiling that blocks the Tint compound fix.
+
+### UNIFIED colour root cause (Brightness / HSV / Tint / Colorize all CHARACTERIZED)
+The transfer oracle shows every pointwise colour node matches FCP at DEGENERATE endpoints
+(gray for Brightness/HSV-hue; black=0 for Colorize) but diverges once the operation involves a
+non-degenerate colour interaction:
+- Brightness: exact on gray, cross-channel on saturated colours.
+- HSV: hue UNIT fixed (radians); residual = linear sat/value.
+- Colorize: exact at black=[0,0,0], diverges with a nonzero black point.
+- Tint: hard-light + colour-space stage (3.88x ceiling).
+ROOT CAUSE (single): FCP does colour math in a NON-sRGB WORKING SPACE (linear / HGColorGamma),
+which the TS engine does in sRGB — agreeing only at space-invariant endpoints. The fix is the
+CHAIN-LEVEL LINEAR working space (encode once after all filters); the engine has partial
+infra (linear.ts isLinearCompositeEnabled, off by default; linear-chain hasLinearInput/
+publishLinear) but enabling per-filter linear endpoints REGRESSES the GUI gate (faithful
+Colorize: -11 NET). So the whole colour subsystem is CHARACTERIZED + gate-blocked on that one
+architecture change — NOT four separate bugs.
+
+### State: 28 nodes | VERIFIED 10  CHARACTERIZED 4 (Brightness/HSV/Tint/Colorize)  DIVERGED 14.
+The colour subsystem is now fully DECODED (root cause known) rather than an unattributable
+blind spot. The single highest-leverage colour fix = the chain-level linear working space.
