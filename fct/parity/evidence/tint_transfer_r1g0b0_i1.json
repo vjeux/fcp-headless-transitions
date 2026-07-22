@@ -136,6 +136,8 @@
         "luma weights: for a pure grayscale input luma=v/255 regardless of 601/709, so it's NOT a luma-weight issue."
       ],
       "status": "OPEN \u2014 G shadow leg pinned (sRGB 2*luma-1 + smoothstep); R leg + threshold smoothstep still to reconstruct. Full HgcTint decode remains the prerequisite to unblock the Tint fix."
-    }
+    },
+    "verbatim_shader": "HgcTint_hgc_visible (extracted): r0=color0/alpha; luma=dot(rgb,hgP[2]); A=(1-luma)*(tint-1); shadow=2A+1; highl=2*luma*tint-shadow; sel=(luma<0.5); tinted=sel*highl+shadow; out=mix(rgb,tinted,hgP[1]); out*=alpha.",
+    "ceiling_pinned": "The VERBATIM shader in sRGB gives R(tint=1,luma<0.5)=2*luma, but REAL FCP gives ~3.88*luma (32->124 not 64; 64->248 not 128) \u2014 a constant ~1.94x MORE than the shader predicts, and it saturates R by luma~0.25. Neither sRGB nor linear space resolves it (linear worse). The 3.88 slope is NOT explained by the verbatim per-pixel math, the Intensity mix (=1, no-op), or the luma weights (grayscale => weight-invariant). Candidates for the missing 2x: (a) the re-premultiply r0*=alpha with a conformed alpha != 1; (b) a colour-space/gamma stage applied to hg_Params[0] (the tint colour) or to the shader in/out that the extracted fragment doesn't show; (c) the shader runs on values in a scaled range. This is the SAME unresolved colour-space step channel-mixer.ts documents as the Tint ceiling. G(tint=0) shadow leg 2*luma-1 IS pinned in sRGB. Full decode still blocked on the R-channel 2x / colour-space stage."
   }
 }
