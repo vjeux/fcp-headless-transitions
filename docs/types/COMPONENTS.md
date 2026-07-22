@@ -23,6 +23,8 @@ is to render arbitrary Motion content, not just the 65 transitions.
 > **Status legend** (mirrors CATALOG.md; see it for the authoritative per-type engine status):
 > ✅ done · 🟡 partial · ❌ not implemented.
 
+> **Decompiled code (ground truth).** Each component type below carries a `#### Decompiled code (ground truth)` subsection. Where a type concentrates its render/eval math in a single decodable CPU method, that subsection embeds the **verbatim ARM64 disassembly** from the user's licensed FCP install (via [`tools/re/disasm_component.py`](../../tools/re/disasm_component.py)): Camera (`LiCamera::localToClipMatrix`, the 3D→2D projection), Light (`LiLight::getSpotNodeSurface`, cone/attenuation shading), Shape (`OZShapeBehavior::solveNode`, contour solver), Clone Layer, Text, Widget, Rig, Generator, Image. The remaining types (Replicator, Replicator Cell, Emitter, Particle Cell, Text Generator, Master, Project) build their result on the GPU render graph or from per-instance templates — they have no single decodable CPU method and are noted as such rather than faked. The Camera/Light/Emitter/Particle-Cell parameter tables that were previously flagged *(unverified)* now have their real code anchored where it exists.
+
 ## Corpus inventory
 
 Every component carries the [shared object-property block](#shared-object-properties)
@@ -222,6 +224,16 @@ Its geometry is decoded in `engine/src/parser/shapes.ts`.
 > only a handful of files. The `Fill`/`Outline`/`Shape`/`Completed`/`Animation` groups (seen ≈28k)
 > are near-universal structural containers, not creative scalars.
 
+#### Decompiled code (ground truth)
+
+Verbatim ARM64 disassembly from the user's licensed FCP install (`Ozone.framework/…/Ozone`, class `OZShapeBehavior`). `solveNode` per-frame vector-contour solver (control-point → rendered path) — the actual code Apple ships, not a paraphrase. Regenerate: `venv/bin/python3 tools/re/disasm_component.py --method solveNode OZShapeBehavior`
+
+##### `OZShapeBehavior::solveNode(OZChannelBase*, CMTime const&, double, double)`
+```asm
+0000000000352c4c	mov.16b	v0, v1
+0000000000352c50	ret
+```
+
 ### Replicator
 `1,089 files / 3,567 instances` · 🟡 (basic grid + shape arrangements) — tiles a
 [Replicator Cell](#replicator-cell) across a pattern (grid / circle / spiral / wave / image), with
@@ -255,6 +267,10 @@ latter.
 | 3D / Face Camera | — | bool | 0 | — | Lay the pattern out in 3D; billboard cells toward the camera. |
 | Emit At Points / Render Particles | — | bool | 1 | — | Particle-style emission along the pattern. |
 
+#### Decompiled code (ground truth)
+
+No single decodable CPU method: pattern layout is built on the GPU render graph (no single decodable CPU layout method); the arrangement enums (Shape/Origin/etc.) are documented from the corpus.
+
 ### Replicator Cell
 `1,089 files / 3,632 instances` · 🟡 — the element content a Replicator instances, plus the
 **per-instance ramps** that vary each element across the pattern. Note that the same factory
@@ -281,6 +297,10 @@ the pattern.
 > cell (Motion shares one cell type across replicator, paint stroke, and emitter). For a plain
 > image/shape replicator only the Scale/Angle/Opacity/Color ramps above are relevant.
 
+#### Decompiled code (ground truth)
+
+No single decodable CPU method: a data holder for the replicator; rendered instances are GPU-built.
+
 ### Image
 `4,621 files / 13,544 instances` · ✅ — an image layer. In FCP transitions these are the
 **drop zones** (Transition A / Transition B, i.e. the outgoing / incoming clips); in templates they
@@ -299,6 +319,17 @@ are the user's media wells. Decoded via `engine/src/parser/footage.ts`.
 | Clear | — | 0 | Clear-to-transparent flag. |
 | Use Display Aspect Ratio | bool | 0 | Honour the source's display aspect ratio. |
 | Replaced | bool | 0 | Whether the placeholder media has been replaced by the user. |
+
+#### Decompiled code (ground truth)
+
+Verbatim ARM64 disassembly from the user's licensed FCP install (`Ozone.framework/…/Ozone`, class `OZImageNode`). `getImageBounds` image / drop-zone geometry (native bounds → placed rect) — the actual code Apple ships, not a paraphrase. Regenerate: `venv/bin/python3 tools/re/disasm_component.py --method getImageBounds OZImageNode`
+
+##### `OZImageNode::getImageBounds(PCRect<double>*, OZRenderState const&)`
+```asm
+00000000000ab0a8	ldr	x8, [x0]
+00000000000ab0ac	ldr	x3, [x8, #0x10]
+00000000000ab0b0	br	x3
+```
 
 ### Text
 `2,433 files / 9,944 instances` · 🟡 — a text layer: glyph content, layout, and (via
@@ -325,6 +356,15 @@ layout**.
 | Face Camera | bool | 0 | Billboard 3D text toward the camera. |
 | Flatten | bool | 0 | Rasterise the text to a flat layer. |
 
+#### Decompiled code (ground truth)
+
+Verbatim ARM64 disassembly from the user's licensed FCP install (`Ozone.framework/…/Ozone`, class `OZTextLayout`). `setText` text layout entry (builds the glyph run from the string) — the actual code Apple ships, not a paraphrase. Regenerate: `venv/bin/python3 tools/re/disasm_component.py --method setText OZTextLayout`
+
+##### `OZTextLayout::setText(CMTime, PCString const&)`
+```asm
+0000000000557de4	ret
+```
+
 ### Text Generator
 `385 files / 1,664 instances` · 🟡 — a specialised Text layer that generates its content
 **procedurally**: numbers (counters), timecode, or the current date/time. Shares the Text layout
@@ -343,6 +383,10 @@ params above, plus:
 | Time Date / Date Format / Time Format / Time Units | enum | — | Date/time display and formatting. |
 | Random / Random Seed / Random Hold Frame | mixed | — | Randomised (slot-machine) number display. |
 
+#### Decompiled code (ground truth)
+
+No single decodable CPU method: numeric/date/timecode formatting is string-building over OZTextLayout; the format is a per-instance template, not compiled math.
+
 ### Camera
 `650 files / 671 instances` · ❌ (not implemented) — a 3D camera. Almost absent from the 65
 built-ins but common in third-party templates. The engine reads only `Angle Of View` today
@@ -360,6 +404,96 @@ built-ins but common in third-party templates. The engine reads only `Angle Of V
 | Focus Offset | — | float | 0 | Shift the focus plane. |
 | Infinite Focus | — | bool | — | Everything in focus (disable DoF). |
 | Filter Shape / Sides | — | enum/int | 0 / 3 | Bokeh aperture shape (polygon sides 3–6). |
+
+#### Decompiled code (ground truth)
+
+Verbatim ARM64 disassembly from the user's licensed FCP install (`Lithium.framework/…/Lithium`, class `LiCamera`). `localToClipMatrix` builds the local→clip projection matrix — the actual 3D→2D camera transform (FOV/near/far → clip space) — the actual code Apple ships, not a paraphrase. Regenerate: `venv/bin/python3 tools/re/disasm_component.py --method localToClipMatrix LiCamera`
+
+##### `LiCamera::localToClipMatrix() const`
+```asm
+00000000000469c4	sub	sp, sp, #0xe0
+00000000000469c8	stp	d9, d8, [sp, #0xa0]
+00000000000469cc	stp	x22, x21, [sp, #0xb0]
+00000000000469d0	stp	x20, x19, [sp, #0xc0]
+00000000000469d4	stp	x29, x30, [sp, #0xd0]
+00000000000469d8	add	x29, sp, #0xd0
+00000000000469dc	mov	x20, x0
+00000000000469e0	mov	x19, x8
+00000000000469e4	mov	x22, #0x3ff0000000000000
+00000000000469e8	str	x22, [sp, #0x98]
+00000000000469ec	str	x22, [sp, #0x70]
+00000000000469f0	str	x22, [sp, #0x48]
+00000000000469f4	str	x22, [sp, #0x20]
+00000000000469f8	movi.2d	v0, #0000000000000000
+00000000000469fc	stur	q0, [sp, #0x28]
+0000000000046a00	stur	q0, [sp, #0x38]
+0000000000046a04	stp	q0, q0, [sp, #0x50]
+0000000000046a08	stur	q0, [sp, #0x78]
+0000000000046a0c	stur	q0, [sp, #0x88]
+0000000000046a10	ldr	x8, [x0]
+0000000000046a14	ldr	x8, [x8, #0x108]
+0000000000046a18	mov	x1, sp
+0000000000046a1c	blr	x8
+0000000000046a20	ldr	x8, [x20]
+0000000000046a24	ldr	x8, [x8, #0x278]
+0000000000046a28	mov	x0, x20
+0000000000046a2c	blr	x8
+0000000000046a30	mov	x21, x0
+0000000000046a34	ldr	x8, [x20]
+0000000000046a38	ldr	x8, [x8, #0x70]
+0000000000046a3c	mov	x0, x20
+0000000000046a40	blr	x8
+0000000000046a44	mov.16b	v8, v0
+0000000000046a48	ldr	x8, [x20]
+0000000000046a4c	ldr	x8, [x8, #0x78]
+0000000000046a50	mov	x0, x20
+0000000000046a54	blr	x8
+0000000000046a58	mov.16b	v9, v0
+0000000000046a5c	str	x22, [x19, #0x78]
+0000000000046a60	str	x22, [x19, #0x50]
+0000000000046a64	str	x22, [x19, #0x28]
+0000000000046a68	str	x22, [x19]
+0000000000046a6c	movi.2d	v0, #0000000000000000
+0000000000046a70	stur	q0, [x19, #0x8]
+0000000000046a74	stur	q0, [x19, #0x18]
+0000000000046a78	stp	q0, q0, [x19, #0x30]
+0000000000046a7c	stur	q0, [x19, #0x58]
+0000000000046a80	stur	q0, [x19, #0x68]
+0000000000046a84	cmp	w21, #0x1
+0000000000046a88	b.eq	0x46ad8
+0000000000046a8c	cbnz	w21, 0x46af4
+0000000000046a90	ldr	x8, [x20]
+0000000000046a94	ldr	x8, [x8, #0x208]
+0000000000046a98	mov	x0, x20
+0000000000046a9c	blr	x8
+0000000000046aa0	cmp	w0, #0x0
+0000000000046aa4	adrp	x8, 343 ; 0x19d000
+0000000000046aa8	ldr	d0, [x8, #0x300]
+0000000000046aac	fmov	d1, #1.00000000
+0000000000046ab0	fcsel	d0, d1, d0, ne
+0000000000046ab4	ldp	d1, d2, [sp]
+0000000000046ab8	fcmp	d2, d0
+0000000000046abc	fcsel	d0, d0, d2, mi
+0000000000046ac0	str	d0, [sp, #0x8]
+0000000000046ac4	mov	x0, x19
+0000000000046ac8	mov.16b	v2, v8
+0000000000046acc	mov.16b	v3, v9
+0000000000046ad0	bl	__ZN14PCMatrix44TmplIdE16setGLPerspectiveEdddd
+0000000000046ad4	b	0x46af4
+0000000000046ad8	ldp	d0, d1, [sp, #0x10]
+0000000000046adc	ldr	d2, [sp, #0x8]
+0000000000046ae0	mov	x0, x19
+0000000000046ae4	mov.16b	v3, v9
+0000000000046ae8	mov.16b	v4, v9
+0000000000046aec	mov.16b	v5, v8
+0000000000046af0	bl	__ZN14PCMatrix44TmplIdE21rightFramePerspectiveEdddddd
+0000000000046af4	ldp	x29, x30, [sp, #0xd0]
+0000000000046af8	ldp	x20, x19, [sp, #0xc0]
+0000000000046afc	ldp	x22, x21, [sp, #0xb0]
+0000000000046b00	ldp	d9, d8, [sp, #0xa0]
+0000000000046b04	add	sp, sp, #0xe0
+0000000000046b08	ret
+```
 
 ### Emitter
 `144 files / 342 instances` · ❌ (not implemented) — a **particle emitter**. Emits
@@ -383,6 +517,10 @@ domain knowledge (**unverified** against a decoder — the engine has no emitter
 | Depth Ordered / Face Camera / Render Order | bool/enum | — | 3D compositing order and billboarding. |
 | (arrangement: Shape / Points / Radius / Number of Arms / Amplitude / Frequency / …) | — | — | The emission **source shape** — same semantics as the Replicator's shape arrangement. |
 
+#### Decompiled code (ground truth)
+
+No single decodable CPU method: the particle simulation runs on the GPU render graph; no single CPU per-frame method to disassemble.
+
 ### Particle Cell
 `144 files / 369 instances` · ❌ (not implemented) — the content and **per-particle dynamics** an
 Emitter spawns. Shares the paint/replicator cell base, plus particle-physics params. Descriptions
@@ -405,6 +543,10 @@ from Motion domain knowledge (**unverified**).
 | Attach To Emitter | float | — | Bind particles to the emitter's motion. |
 | X / Y / Z | float | 1 | Per-particle scale channels (heavily keyframed — size-over-life). |
 
+#### Decompiled code (ground truth)
+
+No single decodable CPU method: particle content descriptor consumed by the GPU emitter; no standalone CPU method.
+
 ### Light
 `146 files / 324 instances` · ❌ (not implemented) — a 3D light source. Descriptions from Motion
 domain knowledge (**unverified** — the engine has no light parser).
@@ -422,6 +564,238 @@ domain knowledge (**unverified** — the engine has no light parser).
 | Shadows (group) | — | — | Whether/how this light casts shadows. |
 | Softness / Uniform Softness | float / bool | 0 | Shadow-edge softness. |
 | Opacity | float | 1 | Light contribution opacity. |
+
+#### Decompiled code (ground truth)
+
+Verbatim ARM64 disassembly from the user's licensed FCP install (`Lithium.framework/…/Lithium`, class `LiLight`). `getSpotNodeSurface` spot-light surface-shading node: cone/attenuation falloff applied to lit surfaces — the actual code Apple ships, not a paraphrase. Regenerate: `venv/bin/python3 tools/re/disasm_component.py --method getSpotNodeSurface LiLight`
+
+##### `LiLight::getSpotNodeSurface(LiLight::NodeParams const&) const`
+```asm
+0000000000085794	sub	sp, sp, #0x110
+0000000000085798	stp	d13, d12, [sp, #0x80]
+000000000008579c	stp	d11, d10, [sp, #0x90]
+00000000000857a0	stp	d9, d8, [sp, #0xa0]
+00000000000857a4	stp	x28, x27, [sp, #0xb0]
+00000000000857a8	stp	x26, x25, [sp, #0xc0]
+00000000000857ac	stp	x24, x23, [sp, #0xd0]
+00000000000857b0	stp	x22, x21, [sp, #0xe0]
+00000000000857b4	stp	x20, x19, [sp, #0xf0]
+00000000000857b8	stp	x29, x30, [sp, #0x100]
+00000000000857bc	add	x29, sp, #0x100
+00000000000857c0	mov	x21, x1
+00000000000857c4	mov	x20, x0
+00000000000857c8	mov	x19, x8
+00000000000857cc	ldr	x8, [x1, #0x8]
+00000000000857d0	ldrb	w22, [x8, #0x61]
+00000000000857d4	ldr	d2, [x0, #0x288]
+00000000000857d8	ldr	s0, [x0, #0x260]
+00000000000857dc	fcvt	d0, s0
+00000000000857e0	fmul	d0, d2, d0
+00000000000857e4	fcvt	s0, d0
+00000000000857e8	ldr	s1, [x0, #0x264]
+00000000000857ec	fcvt	d1, s1
+00000000000857f0	fmul	d1, d2, d1
+00000000000857f4	fcvt	s1, d1
+00000000000857f8	ldr	s3, [x0, #0x268]
+00000000000857fc	fcvt	d3, s3
+0000000000085800	fmul	d2, d2, d3
+0000000000085804	fcvt	s2, d2
+0000000000085808	ldr	s3, [x0, #0x26c]
+000000000008580c	add	x0, sp, #0x70
+0000000000085810	bl	0x199e6c ; symbol stub for: __ZN20PCWorkingColorVectorC1Effff
+0000000000085814	add	x8, x20, #0x298
+0000000000085818	ldr	q0, [x8]
+000000000008581c	str	q0, [sp, #0x50]
+0000000000085820	ldr	d0, [x20, #0x2a8]
+0000000000085824	str	d0, [sp, #0x60]
+0000000000085828	ldr	d0, [x20, #0x280]
+000000000008582c	fneg	d0, d0
+0000000000085830	ldr	q1, [x20, #0x270]
+0000000000085834	fneg.2d	v1, v1
+0000000000085838	str	q1, [sp, #0x30]
+000000000008583c	str	d0, [sp, #0x40]
+0000000000085840	str	xzr, [x19]
+0000000000085844	cmp	w22, #0x1
+0000000000085848	b.ne	0x85960
+000000000008584c	ldr	x22, [x21]
+0000000000085850	str	x22, [sp, #0x28]
+0000000000085854	cbz	x22, 0x85868
+0000000000085858	ldr	x8, [x22]
+000000000008585c	ldr	x8, [x8, #0x10]
+0000000000085860	mov	x0, x22
+0000000000085864	blr	x8
+0000000000085868	ldr	x0, [x21, #0x20]
+000000000008586c	add	x1, sp, #0x50
+0000000000085870	add	x2, sp, #0x50
+0000000000085874	bl	__ZNK14PCMatrix44TmplIdE9transformIdEER9PCVector3IT_ERKS4_S5_
+0000000000085878	mov	x23, x0
+000000000008587c	ldr	x0, [x21, #0x20]
+0000000000085880	add	x1, sp, #0x30
+0000000000085884	add	x2, sp, #0x30
+0000000000085888	bl	__ZNK14PCMatrix44TmplIdE16transform_vectorIdEER9PCVector3IT_ERKS4_S5_
+000000000008588c	ldr	d0, [x0, #0x10]
+0000000000085890	fmul	d1, d0, d0
+0000000000085894	ldr	q2, [x0]
+0000000000085898	fmul.2d	v3, v2, v2
+000000000008589c	faddp.2d	d3, v3
+00000000000858a0	fadd	d1, d3, d1
+00000000000858a4	fsqrt	d1, d1
+00000000000858a8	fabs	d3, d1
+00000000000858ac	adrp	x8, 280 ; 0x19d000
+00000000000858b0	ldr	d4, [x8, #0x1c8]
+00000000000858b4	fcmp	d3, d4
+00000000000858b8	fmov	d3, #1.00000000
+00000000000858bc	fcsel	d1, d3, d1, mi
+00000000000858c0	dup.2d	v3, v1[0]
+00000000000858c4	fdiv.2d	v2, v2, v3
+00000000000858c8	fdiv	d0, d0, d1
+00000000000858cc	str	q2, [sp, #0x10]
+00000000000858d0	str	d0, [sp, #0x20]
+00000000000858d4	ldp	x26, x24, [x21, #0x8]
+00000000000858d8	ldr	d8, [x26, #0x58]
+00000000000858dc	ldr	x25, [x21, #0x18]
+00000000000858e0	ldr	d9, [x20, #0x258]
+00000000000858e4	ldr	d10, [x20, #0x2b8]
+00000000000858e8	ldr	d12, [x20, #0x2c0]
+00000000000858ec	ldr	d11, [x20, #0x2c8]
+00000000000858f0	ldr	x27, [x21, #0x28]
+00000000000858f4	mov	w0, #0x1a0
+00000000000858f8	bl	0x19a37c ; symbol stub for: __ZN8HGObjectnwEm
+00000000000858fc	mov	x21, x0
+0000000000085900	fadd	d3, d10, d12
+0000000000085904	add	x8, x20, #0x240
+0000000000085908	fcvt	s0, d8
+000000000008590c	fcvt	s1, d9
+0000000000085910	fcvt	s2, d10
+0000000000085914	fcvt	s3, d3
+0000000000085918	fcvt	s4, d11
+000000000008591c	stp	x8, x27, [sp]
+0000000000085920	add	x1, sp, #0x28
+0000000000085924	add	x3, sp, #0x10
+0000000000085928	add	x4, sp, #0x70
+000000000008592c	add	x5, x26, #0x40
+0000000000085930	mov	x2, x23
+0000000000085934	mov	x6, x24
+0000000000085938	mov	x7, x25
+000000000008593c	bl	__ZN20LiHeLightSpotSurfaceC1ERK5HGRefI6HGNodeERK9PCVector3IdES8_RK20PCWorkingColorVectorSB_fS8_RK9PCVector4IdES8_ffffRK14PCMatrix44TmplIdE
+0000000000085940	cbz	x21, 0x85948
+0000000000085944	str	x21, [x19]
+0000000000085948	ldr	x0, [sp, #0x28]
+000000000008594c	cbz	x0, 0x85a60
+0000000000085950	ldr	x8, [x0]
+0000000000085954	ldr	x8, [x8, #0x18]
+0000000000085958	blr	x8
+000000000008595c	b	0x85a60
+0000000000085960	ldr	x22, [x21]
+0000000000085964	str	x22, [sp, #0x28]
+0000000000085968	cbz	x22, 0x8597c
+000000000008596c	ldr	x8, [x22]
+0000000000085970	ldr	x8, [x8, #0x10]
+0000000000085974	mov	x0, x22
+0000000000085978	blr	x8
+000000000008597c	ldr	x0, [x21, #0x20]
+0000000000085980	add	x1, sp, #0x50
+0000000000085984	add	x2, sp, #0x50
+0000000000085988	bl	__ZNK14PCMatrix44TmplIdE9transformIdEER9PCVector3IT_ERKS4_S5_
+000000000008598c	mov	x23, x0
+0000000000085990	ldr	x0, [x21, #0x20]
+0000000000085994	add	x1, sp, #0x30
+0000000000085998	add	x2, sp, #0x30
+000000000008599c	bl	__ZNK14PCMatrix44TmplIdE16transform_vectorIdEER9PCVector3IT_ERKS4_S5_
+00000000000859a0	ldr	d0, [x0, #0x10]
+00000000000859a4	fmul	d1, d0, d0
+00000000000859a8	ldr	q2, [x0]
+00000000000859ac	fmul.2d	v3, v2, v2
+00000000000859b0	faddp.2d	d3, v3
+00000000000859b4	fadd	d1, d3, d1
+00000000000859b8	fsqrt	d1, d1
+00000000000859bc	fabs	d3, d1
+00000000000859c0	adrp	x8, 280 ; 0x19d000
+00000000000859c4	ldr	d4, [x8, #0x1c8]
+00000000000859c8	fcmp	d3, d4
+00000000000859cc	fmov	d3, #1.00000000
+00000000000859d0	fcsel	d1, d3, d1, mi
+00000000000859d4	dup.2d	v3, v1[0]
+00000000000859d8	fdiv.2d	v2, v2, v3
+00000000000859dc	str	q2, [sp, #0x10]
+00000000000859e0	fdiv	d0, d0, d1
+00000000000859e4	str	d0, [sp, #0x20]
+00000000000859e8	ldp	x24, x25, [x21, #0x10]
+00000000000859ec	ldr	d8, [x20, #0x258]
+00000000000859f0	ldr	d9, [x20, #0x2b8]
+00000000000859f4	ldr	d11, [x20, #0x2c0]
+00000000000859f8	ldr	d10, [x20, #0x2c8]
+00000000000859fc	ldr	x26, [x21, #0x28]
+0000000000085a00	mov	w0, #0x1a0
+0000000000085a04	bl	0x19a37c ; symbol stub for: __ZN8HGObjectnwEm
+0000000000085a08	mov	x21, x0
+0000000000085a0c	fadd	d2, d9, d11
+0000000000085a10	fcvt	s0, d8
+0000000000085a14	fcvt	s1, d9
+0000000000085a18	fcvt	s2, d2
+0000000000085a1c	fcvt	s3, d10
+0000000000085a20	str	x26, [sp]
+0000000000085a24	add	x1, sp, #0x28
+0000000000085a28	add	x3, sp, #0x10
+0000000000085a2c	add	x4, sp, #0x70
+0000000000085a30	add	x7, x20, #0x240
+0000000000085a34	mov	x2, x23
+0000000000085a38	mov	x5, x24
+0000000000085a3c	mov	x6, x25
+0000000000085a40	bl	__ZN27LiHeLightSpotSurfaceDiffuseC1ERK5HGRefI6HGNodeERK9PCVector3IdES8_RK20PCWorkingColorVectorS8_RK9PCVector4IdES8_ffffRK14PCMatrix44TmplIdE
+0000000000085a44	cbz	x21, 0x85a4c
+0000000000085a48	str	x21, [x19]
+0000000000085a4c	ldr	x0, [sp, #0x28]
+0000000000085a50	cbz	x0, 0x85a60
+0000000000085a54	ldr	x8, [x0]
+0000000000085a58	ldr	x8, [x8, #0x18]
+0000000000085a5c	blr	x8
+0000000000085a60	ldp	x29, x30, [sp, #0x100]
+0000000000085a64	ldp	x20, x19, [sp, #0xf0]
+0000000000085a68	ldp	x22, x21, [sp, #0xe0]
+0000000000085a6c	ldp	x24, x23, [sp, #0xd0]
+0000000000085a70	ldp	x26, x25, [sp, #0xc0]
+0000000000085a74	ldp	x28, x27, [sp, #0xb0]
+0000000000085a78	ldp	d9, d8, [sp, #0xa0]
+0000000000085a7c	ldp	d11, d10, [sp, #0x90]
+0000000000085a80	ldp	d13, d12, [sp, #0x80]
+0000000000085a84	add	sp, sp, #0x110
+0000000000085a88	ret
+0000000000085a8c	bl	___clang_call_terminate
+0000000000085a90	bl	___clang_call_terminate
+0000000000085a94	b	0x85a98
+0000000000085a98	mov	x19, x0
+0000000000085a9c	b	0x85b08
+0000000000085aa0	mov	x19, x0
+0000000000085aa4	mov	x0, x21
+0000000000085aa8	bl	0x19a370 ; symbol stub for: __ZN8HGObjectdlEPv
+0000000000085aac	ldr	x22, [sp, #0x28]
+0000000000085ab0	b	0x85ad4
+0000000000085ab4	mov	x19, x0
+0000000000085ab8	mov	x0, x21
+0000000000085abc	bl	0x19a370 ; symbol stub for: __ZN8HGObjectdlEPv
+0000000000085ac0	ldr	x22, [sp, #0x28]
+0000000000085ac4	b	0x85af4
+0000000000085ac8	b	0x85ad0
+0000000000085acc	b	0x85af0
+0000000000085ad0	mov	x19, x0
+0000000000085ad4	cbz	x22, 0x85b08
+0000000000085ad8	ldr	x8, [x22]
+0000000000085adc	ldr	x8, [x8, #0x18]
+0000000000085ae0	mov	x0, x22
+0000000000085ae4	blr	x8
+0000000000085ae8	b	0x85b08
+0000000000085aec	bl	___clang_call_terminate
+0000000000085af0	mov	x19, x0
+0000000000085af4	cbz	x22, 0x85b08
+0000000000085af8	ldr	x8, [x22]
+0000000000085afc	ldr	x8, [x8, #0x18]
+0000000000085b00	mov	x0, x22
+0000000000085b04	blr	x8
+0000000000085b08	mov	x0, x19
+0000000000085b0c	bl	0x199590 ; symbol stub for: __Unwind_Resume
+0000000000085b10	bl	___clang_call_terminate
+```
 
 ### Master
 `84 files / 84 instances` · n/a — the project's **audio master track** (present in `.motn`
@@ -442,6 +816,10 @@ projects with sound). Not a visual node.
 These four types have huge object-param counts **not because they have huge fixed schemas**, but
 because the corpus survey folds **user-authored names** into the count. Their real structure is a
 small set of params plus a container of user-defined content.
+
+#### Decompiled code (ground truth)
+
+No single decodable CPU method: a container/reference node (master clip); no per-pixel or per-frame math of its own.
 
 ### Widget
 `5,344 files / 20,150 instances` · ✅ — a **published rig control**: the slider, pop-up, or
@@ -468,6 +846,51 @@ The other ~4,000 "params" are **user-authored control names and pop-up menu item
 inspector labels the template author typed. A Widget is defined by its *kind* (slider / pop-up /
 checkbox) + range/initial + its snapshots, not by a fixed parameter list.
 
+#### Decompiled code (ground truth)
+
+Verbatim ARM64 disassembly from the user's licensed FCP install (`Ozone.framework/…/Ozone`, class `OZRigWidget`). `getSnapshotForValue` rig-widget snapshot lookup/interpolation (which snapshot a slider value maps to) — the actual code Apple ships, not a paraphrase. Regenerate: `venv/bin/python3 tools/re/disasm_component.py --method getSnapshotForValue OZRigWidget`
+
+##### `OZRigWidget::getSnapshotForValue(double, double)`
+```asm
+00000000004aa28c	stp	d9, d8, [sp, #-0x40]!
+00000000004aa290	stp	x22, x21, [sp, #0x10]
+00000000004aa294	stp	x20, x19, [sp, #0x20]
+00000000004aa298	stp	x29, x30, [sp, #0x30]
+00000000004aa29c	add	x29, sp, #0x30
+00000000004aa2a0	ldr	x21, [x0, #0x5f0]
+00000000004aa2a4	ldr	x22, [x0, #0x5f8]
+00000000004aa2a8	cmp	x21, x22
+00000000004aa2ac	b.eq	0x4aa304
+00000000004aa2b0	mov.16b	v8, v1
+00000000004aa2b4	mov.16b	v9, v0
+00000000004aa2b8	adrp	x19, 698 ; 0x764000
+00000000004aa2bc	ldr	x19, [x19, #0x508] ; literal pool symbol address: _kCMTimeZero
+00000000004aa2c0	ldr	x20, [x21], #0x8
+00000000004aa2c4	add	x0, x20, #0x88
+00000000004aa2c8	movi.2d	v0, #0000000000000000
+00000000004aa2cc	mov	x1, x19
+00000000004aa2d0	bl	0x5e9450 ; symbol stub for: __ZNK9OZChannel16getValueAsDoubleERK6CMTimed
+00000000004aa2d4	fabd	d0, d0, d9
+00000000004aa2d8	fcmp	d0, d8
+00000000004aa2dc	b.mi	0x4aa2ec
+00000000004aa2e0	cmp	x21, x22
+00000000004aa2e4	b.ne	0x4aa2c0
+00000000004aa2e8	mov	x20, #0x0
+00000000004aa2ec	mov	x0, x20
+00000000004aa2f0	ldp	x29, x30, [sp, #0x30]
+00000000004aa2f4	ldp	x20, x19, [sp, #0x20]
+00000000004aa2f8	ldp	x22, x21, [sp, #0x10]
+00000000004aa2fc	ldp	d9, d8, [sp], #0x40
+00000000004aa300	ret
+00000000004aa304	mov	x20, #0x0
+00000000004aa308	mov	x0, x20
+00000000004aa30c	ldp	x29, x30, [sp, #0x30]
+00000000004aa310	ldp	x20, x19, [sp, #0x20]
+00000000004aa314	ldp	x22, x21, [sp, #0x10]
+00000000004aa318	ldp	d9, d8, [sp], #0x40
+00000000004aa31c	ret
+```
+
 ### Clone Layer
 `2,377 files / 16,422 instances` · ✅ — renders another object's image without duplicating the
 source (instancing). Decoded generically by the engine.
@@ -481,6 +904,83 @@ Its **only real** param is:
 Every other "param" (`Clone Layer 1`, `Clone Layer 02`, `Left A`, `Right B`, …) is a **user layer
 name** — the corpus survey keyed by the node's display name. The Clone Layer schema is just
 `Source` + the [shared object properties](#shared-object-properties).
+
+#### Decompiled code (ground truth)
+
+Verbatim ARM64 disassembly from the user's licensed FCP install (`Ozone.framework/…/Ozone`, class `OZCloneGenerator`). `getDimensions` output-dimension + time-remap computation for the cloned source — the actual code Apple ships, not a paraphrase. Regenerate: `venv/bin/python3 tools/re/disasm_component.py --method getDimensions OZCloneGenerator`
+
+##### `OZCloneGenerator::getDimensions(float*, float*, OZRenderState const&)`
+```asm
+0000000000339aa8	sub	sp, sp, #0x190
+0000000000339aac	stp	x28, x27, [sp, #0x140]
+0000000000339ab0	stp	x24, x23, [sp, #0x150]
+0000000000339ab4	stp	x22, x21, [sp, #0x160]
+0000000000339ab8	stp	x20, x19, [sp, #0x170]
+0000000000339abc	stp	x29, x30, [sp, #0x180]
+0000000000339ac0	add	x29, sp, #0x180
+0000000000339ac4	mov	x22, x3
+0000000000339ac8	mov	x19, x2
+0000000000339acc	mov	x20, x1
+0000000000339ad0	mov	x21, x0
+0000000000339ad4	mov	w24, #0x49d0
+0000000000339ad8	adrp	x1, 1067 ; 0x764000
+0000000000339adc	ldr	x1, [x1, #0x508] ; literal pool symbol address: _kCMTimeZero
+0000000000339ae0	add	x0, x0, x24
+0000000000339ae4	movi.2d	v0, #0000000000000000
+0000000000339ae8	bl	0x5e942c ; symbol stub for: __ZNK9OZChannel14getValueAsUintERK6CMTimed
+0000000000339aec	mov	x23, x0
+0000000000339af0	add	x0, x21, x24
+0000000000339af4	bl	0x5e89d0 ; symbol stub for: __ZNK13OZChannelBase20getObjectManipulatorEv
+0000000000339af8	ldr	x8, [x0]
+0000000000339afc	ldr	x8, [x8, #0x100]
+0000000000339b00	blr	x8
+0000000000339b04	cbz	x0, 0x339b34
+0000000000339b08	mov	x1, x23
+0000000000339b0c	bl	__ZN7OZScene7getNodeEj
+0000000000339b10	cbz	x0, 0x339b34
+0000000000339b14	adrp	x1, 1083 ; 0x774000
+0000000000339b18	add	x1, x1, #0x928
+0000000000339b1c	adrp	x2, 1095 ; 0x780000
+0000000000339b20	add	x2, x2, #0xf18
+0000000000339b24	mov	x3, #-0x2
+0000000000339b28	bl	0x5e9918 ; symbol stub for: ___dynamic_cast
+0000000000339b2c	mov	x23, x0
+0000000000339b30	b	0x339b38
+0000000000339b34	mov	x23, #0x0
+0000000000339b38	str	wzr, [x19]
+0000000000339b3c	str	wzr, [x20]
+0000000000339b40	add	x0, sp, #0x30
+0000000000339b44	mov	x1, x22
+0000000000339b48	bl	__ZN13OZRenderStateC1ERKS_
+0000000000339b4c	ldr	q0, [x22]
+0000000000339b50	str	q0, [sp]
+0000000000339b54	ldr	x8, [x22, #0x10]
+0000000000339b58	str	x8, [sp, #0x10]
+0000000000339b5c	add	x8, sp, #0x18
+0000000000339b60	mov	x1, sp
+0000000000339b64	mov	x0, x21
+0000000000339b68	bl	__ZN16OZCloneGenerator20getTimeRemappedFrameE6CMTime
+0000000000339b6c	ldur	q0, [sp, #0x18]
+0000000000339b70	str	q0, [sp, #0x30]
+0000000000339b74	ldr	x8, [sp, #0x28]
+0000000000339b78	str	x8, [sp, #0x40]
+0000000000339b7c	strh	wzr, [sp, #0x118]
+0000000000339b80	cbz	x23, 0x339ba0
+0000000000339b84	ldr	x8, [x23]
+0000000000339b88	ldr	x8, [x8, #0x60]
+0000000000339b8c	add	x3, sp, #0x30
+0000000000339b90	mov	x0, x23
+0000000000339b94	mov	x1, x20
+0000000000339b98	mov	x2, x19
+0000000000339b9c	blr	x8
+0000000000339ba0	ldp	x29, x30, [sp, #0x180]
+0000000000339ba4	ldp	x20, x19, [sp, #0x170]
+0000000000339ba8	ldp	x22, x21, [sp, #0x160]
+0000000000339bac	ldp	x24, x23, [sp, #0x150]
+0000000000339bb0	ldp	x28, x27, [sp, #0x140]
+0000000000339bb4	add	sp, sp, #0x190
+0000000000339bb8	ret
+```
 
 ### Generator
 `3,076 files / 9,406 instances` · 🟡 (Color Solid, Gradient) — a procedural image source. Unlike
@@ -507,6 +1007,213 @@ Common structural params (across sub-types):
 To document a *specific* generator, identify its sub-type from the group that's present
 (`Color Solid`, `Gradient`, `Radial Controls`, …) rather than reading the merged list.
 
+#### Decompiled code (ground truth)
+
+Verbatim ARM64 disassembly from the user's licensed FCP install (`Ozone.framework/…/Ozone`, class `OZSoftGradientGenerator`). `getHelium` soft-gradient generator: builds its Helium shader node (representative procedural generator) — the actual code Apple ships, not a paraphrase. Regenerate: `venv/bin/python3 tools/re/disasm_component.py --method getHelium OZSoftGradientGenerator`
+
+##### `OZSoftGradientGenerator::getHelium(LiAgent&, OZRenderParams const&)`
+```asm
+000000000042818c	sub	sp, sp, #0x180
+0000000000428190	stp	d9, d8, [sp, #0x130]
+0000000000428194	stp	x28, x27, [sp, #0x140]
+0000000000428198	stp	x22, x21, [sp, #0x150]
+000000000042819c	stp	x20, x19, [sp, #0x160]
+00000000004281a0	stp	x29, x30, [sp, #0x170]
+00000000004281a4	add	x29, sp, #0x170
+00000000004281a8	mov	x20, x2
+00000000004281ac	mov	x21, x1
+00000000004281b0	mov	x22, x0
+00000000004281b4	mov	x19, x8
+00000000004281b8	ldr	q0, [x2]
+00000000004281bc	stur	q0, [x29, #-0x60]
+00000000004281c0	ldr	x8, [x2, #0x10]
+00000000004281c4	stur	x8, [x29, #-0x50]
+00000000004281c8	mov	w8, #0x5038
+00000000004281cc	add	x0, x0, x8
+00000000004281d0	sub	x1, x29, #0x60
+00000000004281d4	movi.2d	v0, #0000000000000000
+00000000004281d8	bl	0x5e9450 ; symbol stub for: __ZNK9OZChannel16getValueAsDoubleERK6CMTimed
+00000000004281dc	mov.16b	v8, v0
+00000000004281e0	sub	x0, x29, #0x98
+00000000004281e4	bl	0x5e7c80 ; symbol stub for: __ZN7PCColorC1Ev
+00000000004281e8	mov	w8, #0x4bb0
+00000000004281ec	add	x0, x22, x8
+00000000004281f0	sub	x1, x29, #0x60
+00000000004281f4	sub	x2, x29, #0x98
+00000000004281f8	bl	0x5e8af0 ; symbol stub for: __ZNK14OZChannelColor8getColorERK6CMTimeR7PCColor
+00000000004281fc	mov	x0, x20
+0000000000428200	bl	__ZNK14OZRenderParams20getWorkingColorSpaceEv
+0000000000428204	mov	x2, x0
+0000000000428208	add	x0, sp, #0xb0
+000000000042820c	sub	x1, x29, #0x98
+0000000000428210	bl	0x5e5ae4 ; symbol stub for: __ZN14PCWorkingColorC1ERK7PCColorP12CGColorSpace
+0000000000428214	add	x8, sp, #0x30
+0000000000428218	movi.2d	v0, #0000000000000000
+000000000042821c	mov	x0, x21
+0000000000428220	bl	0x5e915c ; symbol stub for: __ZNK7LiAgent24getInversePixelTransformEd
+0000000000428224	mov	w0, #0x1b0
+0000000000428228	bl	0x5e7e00 ; symbol stub for: __ZN8HGObjectnwEm
+000000000042822c	mov	x20, x0
+0000000000428230	bl	__ZN25OZHeSoftGradientGeneratorC1Ev
+0000000000428234	ldp	d0, d1, [sp, #0x30]
+0000000000428238	fcvt	s0, d0
+000000000042823c	fcvt	s1, d1
+0000000000428240	ldr	d2, [sp, #0x48]
+0000000000428244	fcvt	s3, d2
+0000000000428248	ldr	x8, [x20]
+000000000042824c	ldr	x8, [x8, #0x60]
+0000000000428250	movi.2d	v2, #0000000000000000
+0000000000428254	mov	x0, x20
+0000000000428258	mov	w1, #0x0
+000000000042825c	blr	x8
+0000000000428260	ldp	d0, d1, [sp, #0x50]
+0000000000428264	fcvt	s0, d0
+0000000000428268	fcvt	s1, d1
+000000000042826c	ldr	d2, [sp, #0x68]
+0000000000428270	fcvt	s3, d2
+0000000000428274	ldr	x8, [x20]
+0000000000428278	ldr	x8, [x8, #0x60]
+000000000042827c	movi.2d	v2, #0000000000000000
+0000000000428280	mov	x0, x20
+0000000000428284	mov	w1, #0x1
+0000000000428288	blr	x8
+000000000042828c	ldp	d0, d1, [sp, #0x90]
+0000000000428290	fcvt	s0, d0
+0000000000428294	fcvt	s1, d1
+0000000000428298	ldr	d2, [sp, #0xa8]
+000000000042829c	fcvt	s3, d2
+00000000004282a0	ldr	x8, [x20]
+00000000004282a4	ldr	x8, [x8, #0x60]
+00000000004282a8	movi.2d	v2, #0000000000000000
+00000000004282ac	mov	x0, x20
+00000000004282b0	mov	w1, #0x2
+00000000004282b4	blr	x8
+00000000004282b8	ldp	s0, s1, [sp, #0xb0]
+00000000004282bc	ldp	s2, s3, [sp, #0xb8]
+00000000004282c0	ldr	x8, [x20]
+00000000004282c4	ldr	x8, [x8, #0x60]
+00000000004282c8	mov	x0, x20
+00000000004282cc	mov	w1, #0x3
+00000000004282d0	blr	x8
+00000000004282d4	fmov	d0, #1.00000000
+00000000004282d8	fdiv	d0, d0, d8
+00000000004282dc	fcvt	s0, d0
+00000000004282e0	ldr	x8, [x20]
+00000000004282e4	ldr	x8, [x8, #0x60]
+00000000004282e8	movi.2d	v1, #0000000000000000
+00000000004282ec	movi.2d	v2, #0000000000000000
+00000000004282f0	movi.2d	v3, #0000000000000000
+00000000004282f4	mov	x0, x20
+00000000004282f8	mov	w1, #0x4
+00000000004282fc	blr	x8
+0000000000428300	fneg	d0, d8
+0000000000428304	fadd	d1, d8, d8
+0000000000428308	stp	d0, d0, [sp, #0x10]
+000000000042830c	stp	d1, d1, [sp, #0x20]
+0000000000428310	ldr	x0, [x21, #0xa0]
+0000000000428314	add	x1, sp, #0x10
+0000000000428318	add	x2, sp, #0x10
+000000000042831c	bl	__ZNK14PCMatrix44TmplIdE13transformRectIdEEbRK6PCRectIT_ERS4_
+0000000000428320	cbz	w0, 0x42836c
+0000000000428324	mov	x8, #0xaf48
+0000000000428328	movk	x8, #0x9abc, lsl #16
+000000000042832c	movk	x8, #0xd7f2, lsl #32
+0000000000428330	movk	x8, #0x3e7a, lsl #48
+0000000000428334	fmov	d0, x8
+0000000000428338	ldp	d1, d2, [sp, #0x10]
+000000000042833c	fadd	d3, d1, d0
+0000000000428340	fcvtms	w0, d3
+0000000000428344	fadd	d0, d2, d0
+0000000000428348	fcvtms	w1, d0
+000000000042834c	ldp	d0, d3, [sp, #0x20]
+0000000000428350	fadd	d0, d1, d0
+0000000000428354	fcvtps	w8, d0
+0000000000428358	fadd	d0, d2, d3
+000000000042835c	fcvtps	w9, d0
+0000000000428360	sub	w8, w8, w0
+0000000000428364	sub	w9, w9, w1
+0000000000428368	b	0x42838c
+000000000042836c	mov	x0, x21
+0000000000428370	bl	0x5e91d4 ; symbol stub for: __ZNK7LiAgent7haveROIEv
+0000000000428374	cbz	w0, 0x4283ac
+0000000000428378	mov	x8, sp
+000000000042837c	mov	x0, x21
+0000000000428380	bl	0x5e91bc ; symbol stub for: __ZNK7LiAgent6getROIEv
+0000000000428384	ldp	w0, w1, [sp]
+0000000000428388	ldp	w8, w9, [sp, #0x8]
+000000000042838c	add	w2, w8, w0
+0000000000428390	add	w3, w9, w1
+0000000000428394	bl	0x5e3870 ; symbol stub for: _HGRectMake4i
+0000000000428398	stp	x0, x1, [sp]
+000000000042839c	mov	x1, sp
+00000000004283a0	mov	x0, x20
+00000000004283a4	bl	__ZN25OZHeSoftGradientGenerator6setDODERK6HGRect
+00000000004283a8	b	0x4283bc
+00000000004283ac	adrp	x1, 824 ; 0x760000
+00000000004283b0	ldr	x1, [x1, #0xcf0] ; literal pool symbol address: _HGRectInfinite
+00000000004283b4	mov	x0, x20
+00000000004283b8	bl	__ZN25OZHeSoftGradientGenerator6setDODERK6HGRect
+00000000004283bc	str	x20, [x19]
+00000000004283c0	ldr	x0, [sp, #0xc0]
+00000000004283c4	cbz	x0, 0x4283cc
+00000000004283c8	bl	0x5e5454 ; symbol stub for: __ZN13PCCFRefTraitsIP12CGColorSpaceE7releaseES1_
+00000000004283cc	ldur	x0, [x29, #-0x68]
+00000000004283d0	cbz	x0, 0x4283d8
+00000000004283d4	bl	0x5e5454 ; symbol stub for: __ZN13PCCFRefTraitsIP12CGColorSpaceE7releaseES1_
+00000000004283d8	ldp	x29, x30, [sp, #0x170]
+00000000004283dc	ldp	x20, x19, [sp, #0x160]
+00000000004283e0	ldp	x22, x21, [sp, #0x150]
+00000000004283e4	ldp	x28, x27, [sp, #0x140]
+00000000004283e8	ldp	d9, d8, [sp, #0x130]
+00000000004283ec	add	sp, sp, #0x180
+00000000004283f0	ret
+00000000004283f4	b	0x428478
+00000000004283f8	bl	___clang_call_terminate
+00000000004283fc	bl	___clang_call_terminate
+0000000000428400	b	0x428478
+0000000000428404	b	0x428478
+0000000000428408	mov	x19, x0
+000000000042840c	mov	x0, x20
+0000000000428410	bl	0x5e7df4 ; symbol stub for: __ZN8HGObjectdlEPv
+0000000000428414	add	x0, sp, #0xb0
+0000000000428418	bl	__ZN14PCWorkingColorD1Ev
+000000000042841c	sub	x0, x29, #0x98
+0000000000428420	bl	__ZN7PCColorD1Ev
+0000000000428424	mov	x0, x19
+0000000000428428	bl	0x5e4014 ; symbol stub for: __Unwind_Resume
+000000000042842c	b	0x428430
+0000000000428430	mov	x19, x0
+0000000000428434	add	x0, sp, #0xb0
+0000000000428438	bl	__ZN14PCWorkingColorD1Ev
+000000000042843c	sub	x0, x29, #0x98
+0000000000428440	bl	__ZN7PCColorD1Ev
+0000000000428444	mov	x0, x19
+0000000000428448	bl	0x5e4014 ; symbol stub for: __Unwind_Resume
+000000000042844c	mov	x19, x0
+0000000000428450	sub	x0, x29, #0x98
+0000000000428454	bl	__ZN7PCColorD1Ev
+0000000000428458	mov	x0, x19
+000000000042845c	bl	0x5e4014 ; symbol stub for: __Unwind_Resume
+0000000000428460	b	0x428478
+0000000000428464	mov	x19, x0
+0000000000428468	sub	x0, x29, #0x98
+000000000042846c	bl	__ZN7PCColorD1Ev
+0000000000428470	mov	x0, x19
+0000000000428474	bl	0x5e4014 ; symbol stub for: __Unwind_Resume
+0000000000428478	mov	x19, x0
+000000000042847c	ldr	x8, [x20]
+0000000000428480	ldr	x8, [x8, #0x18]
+0000000000428484	mov	x0, x20
+0000000000428488	blr	x8
+000000000042848c	add	x0, sp, #0xb0
+0000000000428490	bl	__ZN14PCWorkingColorD1Ev
+0000000000428494	sub	x0, x29, #0x98
+0000000000428498	bl	__ZN7PCColorD1Ev
+000000000042849c	mov	x0, x19
+00000000004284a0	bl	0x5e4014 ; symbol stub for: __Unwind_Resume
+00000000004284a4	bl	___clang_call_terminate
+```
+
 ### Project
 `5,344 files / 5,344 instances` · ✅ — the root node (exactly one per file). It is a **container**,
 not a parameterised object: its handful of high-`seen` "params" are the project's **published
@@ -521,6 +1228,10 @@ The Project's real job is structural: it owns the scene graph and the `<sceneSet
 (see [Document settings](#document-settings-scenesettings)) and the [`publishSettings`](../CATALOG.md)
 target list. `Build In` / `Build Out` are the standard FCP transition build-phase flags.
 
+#### Decompiled code (ground truth)
+
+No single decodable CPU method: the scene root; its "algorithm" is the document settings + the evaluation of its children (documented in Document settings).
+
 ### Rig
 `3,292 files / 4,212 instances` · ✅ — a **container that groups published Widgets** and their Rig
 Behaviors. It has **no object params of its own** (object_params = 0); it exists purely to organise
@@ -534,3 +1245,95 @@ _Corpus-derived (`~/motr-collection`, 5,365 files parsed; 5 failed). Usage count
 Apple-documented limits. Parameter meanings reflect standard Apple Motion semantics; verify against
 `engine/src/parser/` for the engine's decoded implementation and against `docs/CATALOG.md` for the
 authoritative per-type engine status. This file is the corpus-scale companion to CATALOG.md §2/§3._
+
+#### Decompiled code (ground truth)
+
+Verbatim ARM64 disassembly from the user's licensed FCP install (`Ozone.framework/…/Ozone`, class `OZRigBehavior`). `solveNode` rig fan-out solver (one master control → many driven params) — the actual code Apple ships, not a paraphrase. Regenerate: `venv/bin/python3 tools/re/disasm_component.py --method solveNode OZRigBehavior`
+
+##### `OZRigBehavior::solveNode(unsigned int, CMTime const&, double, double)`
+```asm
+00000000004af718	sub	sp, sp, #0x90
+00000000004af71c	stp	d9, d8, [sp, #0x30]
+00000000004af720	stp	x26, x25, [sp, #0x40]
+00000000004af724	stp	x24, x23, [sp, #0x50]
+00000000004af728	stp	x22, x21, [sp, #0x60]
+00000000004af72c	stp	x20, x19, [sp, #0x70]
+00000000004af730	stp	x29, x30, [sp, #0x80]
+00000000004af734	add	x29, sp, #0x80
+00000000004af738	mov.16b	v8, v1
+00000000004af73c	mov	x21, x2
+00000000004af740	mov	x19, x1
+00000000004af744	mov	x20, x0
+00000000004af748	add	x0, x0, #0x3e0
+00000000004af74c	bl	__ZNK20OZChanObjectManipRef9getObjectEv
+00000000004af750	cbz	x0, 0x4af83c
+00000000004af754	adrp	x1, 719 ; 0x77e000
+00000000004af758	add	x1, x1, #0x998
+00000000004af75c	adrp	x2, 783 ; 0x7be000
+00000000004af760	add	x2, x2, #0xf18
+00000000004af764	mov	w3, #0x10
+00000000004af768	bl	0x5e9918 ; symbol stub for: ___dynamic_cast
+00000000004af76c	cbz	x0, 0x4af83c
+00000000004af770	ldr	x8, [x20, #0x520]
+00000000004af774	cbz	x8, 0x4af83c
+00000000004af778	ldp	x8, x9, [x8]
+00000000004af77c	sub	x8, x9, x8
+00000000004af780	tst	x8, #0x7fffffff8
+00000000004af784	b.eq	0x4af83c
+00000000004af788	mov	x23, x0
+00000000004af78c	add	x0, x20, #0x378
+00000000004af790	bl	0x5e5514 ; symbol stub for: __ZN13PCSharedMutex11lock_sharedEv
+00000000004af794	ldrb	w25, [x20, #0x370]
+00000000004af798	cmp	w25, #0x1
+00000000004af79c	b.ne	0x4af7b4
+00000000004af7a0	ldr	w22, [x20, #0x358]
+00000000004af7a4	ldr	w24, [x20, #0x35c]
+00000000004af7a8	ldr	d9, [x20, #0x360]
+00000000004af7ac	ldrb	w26, [x20, #0x368]
+00000000004af7b0	b	0x4af7b4
+00000000004af7b4	add	x0, x20, #0x378
+00000000004af7b8	bl	0x5e5520 ; symbol stub for: __ZN13PCSharedMutex13unlock_sharedEv
+00000000004af7bc	ldr	x8, [x20, #0x170]
+00000000004af7c0	ldr	x0, [x8, #0x20]
+00000000004af7c4	ldr	x8, [x0]
+00000000004af7c8	ldr	x9, [x8, #0x150]
+00000000004af7cc	add	x8, sp, #0x18
+00000000004af7d0	mov	x1, x21
+00000000004af7d4	blr	x9
+00000000004af7d8	cbz	w25, 0x4af7ec
+00000000004af7dc	tbnz	w26, #0x0, 0x4af83c
+00000000004af7e0	stp	w24, w22, [sp, #0x10]
+00000000004af7e4	str	d9, [sp, #0x8]
+00000000004af7e8	b	0x4af81c
+00000000004af7ec	mov	x0, x23
+00000000004af7f0	mov	x1, x21
+00000000004af7f4	bl	__ZN11OZRigWidget13doPassThroughERK6CMTime
+00000000004af7f8	tbnz	w0, #0x0, 0x4af83c
+00000000004af7fc	add	x1, sp, #0x18
+00000000004af800	add	x2, sp, #0x14
+00000000004af804	add	x3, sp, #0x10
+00000000004af808	add	x4, sp, #0x8
+00000000004af80c	mov	x0, x23
+00000000004af810	bl	__ZN11OZRigWidget21getCurrentSnapshotIDsERK6CMTimePjS3_Pd
+00000000004af814	ldp	w24, w22, [sp, #0x10]
+00000000004af818	ldr	d9, [sp, #0x8]
+00000000004af81c	add	x4, sp, #0x18
+00000000004af820	mov	x0, x20
+00000000004af824	mov	x1, x19
+00000000004af828	mov	x2, x22
+00000000004af82c	mov	x3, x24
+00000000004af830	mov.16b	v0, v9
+00000000004af834	bl	__ZN13OZRigBehavior14getRiggedValueEjjjdRK6CMTime
+00000000004af838	mov.16b	v8, v0
+00000000004af83c	mov.16b	v0, v8
+00000000004af840	ldp	x29, x30, [sp, #0x80]
+00000000004af844	ldp	x20, x19, [sp, #0x70]
+00000000004af848	ldp	x22, x21, [sp, #0x60]
+00000000004af84c	ldp	x24, x23, [sp, #0x50]
+00000000004af850	ldp	x26, x25, [sp, #0x40]
+00000000004af854	ldp	d9, d8, [sp, #0x30]
+00000000004af858	add	sp, sp, #0x90
+00000000004af85c	ret
+00000000004af860	bl	___clang_call_terminate
+```
+

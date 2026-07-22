@@ -1,0 +1,85 @@
+{
+ "decodable": {
+  "Camera": {
+   "binary": "lithium",
+   "class": "LiCamera",
+   "decodable": true,
+   "kind": "builds the local\u2192clip projection matrix \u2014 the actual 3D\u21922D camera transform (FOV/near/far \u2192 clip space)",
+   "mangled": "__ZNK8LiCamera17localToClipMatrixEv",
+   "method": "localToClipMatrix"
+  },
+  "Clone Layer": {
+   "binary": "ozone",
+   "class": "OZCloneGenerator",
+   "decodable": true,
+   "kind": "output-dimension + time-remap computation for the cloned source",
+   "mangled": "__ZN16OZCloneGenerator13getDimensionsEPfS0_RK13OZRenderState",
+   "method": "getDimensions"
+  },
+  "Generator": {
+   "binary": "ozone",
+   "class": "OZSoftGradientGenerator",
+   "decodable": true,
+   "kind": "soft-gradient generator: builds its Helium shader node (representative procedural generator)",
+   "mangled": "__ZN23OZSoftGradientGenerator9getHeliumER7LiAgentRK14OZRenderParams",
+   "method": "getHelium"
+  },
+  "Image": {
+   "binary": "ozone",
+   "class": "OZImageNode",
+   "decodable": true,
+   "kind": "image / drop-zone geometry (native bounds \u2192 placed rect)",
+   "mangled": "__ZN11OZImageNode14getImageBoundsEP6PCRectIdERK13OZRenderState",
+   "method": "getImageBounds"
+  },
+  "Light": {
+   "binary": "lithium",
+   "class": "LiLight",
+   "decodable": true,
+   "kind": "spot-light surface-shading node: cone/attenuation falloff applied to lit surfaces",
+   "mangled": "__ZNK7LiLight18getSpotNodeSurfaceERKNS_10NodeParamsE",
+   "method": "getSpotNodeSurface"
+  },
+  "Rig": {
+   "binary": "ozone",
+   "class": "OZRigBehavior",
+   "decodable": true,
+   "kind": "rig fan-out solver (one master control \u2192 many driven params)",
+   "mangled": "__ZN13OZRigBehavior9solveNodeEjRK6CMTimedd",
+   "method": "solveNode"
+  },
+  "Shape": {
+   "binary": "ozone",
+   "class": "OZShapeBehavior",
+   "decodable": true,
+   "kind": "per-frame vector-contour solver (control-point \u2192 rendered path)",
+   "mangled": "__ZN15OZShapeBehavior9solveNodeEP13OZChannelBaseRK6CMTimedd",
+   "method": "solveNode"
+  },
+  "Text": {
+   "binary": "ozone",
+   "class": "OZTextLayout",
+   "decodable": true,
+   "kind": "text layout entry (builds the glyph run from the string)",
+   "mangled": "__ZN12OZTextLayout7setTextE6CMTimeRK8PCString",
+   "method": "setText"
+  },
+  "Widget": {
+   "binary": "ozone",
+   "class": "OZRigWidget",
+   "decodable": true,
+   "kind": "rig-widget snapshot lookup/interpolation (which snapshot a slider value maps to)",
+   "mangled": "__ZN11OZRigWidget19getSnapshotForValueEdd",
+   "method": "getSnapshotForValue"
+  }
+ },
+ "nondecodable": {
+  "Emitter": "the particle simulation runs on the GPU render graph; no single CPU per-frame method to disassemble",
+  "Master": "a container/reference node (master clip); no per-pixel or per-frame math of its own",
+  "Particle Cell": "particle content descriptor consumed by the GPU emitter; no standalone CPU method",
+  "Project": "the scene root; its \"algorithm\" is the document settings + the evaluation of its children (documented in Document settings)",
+  "Replicator": "pattern layout is built on the GPU render graph (no single decodable CPU layout method); the arrangement enums (Shape/Origin/etc.) are documented from the corpus",
+  "Replicator Cell": "a data holder for the replicator; rendered instances are GPU-built",
+  "Text Generator": "numeric/date/timecode formatting is string-building over OZTextLayout; the format is a per-instance template, not compiled math"
+ }
+}
