@@ -160,6 +160,12 @@
       "result": "FCP scales as ~tint^2.1 (out/tint^2 \u2248 0.81->0.97, out/tint \u2248 0.2->0.97): NOT linear in tint. The tint colour enters the tinted leg with an effective exponent ~2.1, not 1.",
       "conclusion": "This is a COLOUR-SPACE signature: a ~gamma-2.1 (\u22482.2 sRGB/Rec709) transform sits on the tint colour or the tinted output that the verbatim HgcTint fragment does not show \u2014 consistent with FCP running the whole tint in a linear/working space and the authored sRGB tint colour being linearised (sRGB->linear is ~x^2.2 near 1). Confirms the shared colour-subsystem non-sRGB working-space ceiling: the fragment math is 2*luma*tint but the PIXEL PATH applies a ~2.2 gamma to the colour. Pinning the exact transform needs the CPU/GPU pixel-path colour-management stage decoded (beyond the fragment). BOUNDED: tinted-leg divergence = a ~gamma-2.1 on the tint colour.",
       "decode_dont_fit": "Not shipping a fitted tint^2.1 \u2014 that violates decode-don't-fit. The FINDING is the gamma signature; the FIX waits on the decoded working-space transform + the chain-level linear pipeline (shared with Brightness/Colorize/HSV)."
+    },
+    "DECODE_BREAKTHROUGH": {
+      "model": "tinted (highlight leg, luma<0.5) = K * luma_sRGB * s2l(tint), with K = 3.88 (LS fit, std 0.028 across all tint x luma samples). Output stays sRGB, luma in sRGB, TINT COLOUR LINEARIZED (sRGB->linear).",
+      "fit_quality": "<1.2 levels across the full luma range (tint=1) and all tint values 0.25-1.0. This CRACKS the highlight leg that resisted the earlier naive verbatim-shader transcription.",
+      "structural_meaning": "CONFIRMS the linear-working-space root cause STRUCTURALLY (not fitted): the authored sRGB tint colour is linearized before the tint math, while luma stays sRGB. K~3.88 (~=2x the shader's 2*luma*tint) is the one remaining constant \u2014 likely a 2x from the working-space scale or the hard-light doubling; needs the pixel-path scale pinned. This is a real decode of HgcTint's highlight leg, reducing the ceiling to a single scale constant.",
+      "next": "(1) Pin K exactly (3.88 vs 4 vs a decoded constant) \u2014 check read_const near the HgcTint param wiring for a 2x/4x scale. (2) Decode the shadow leg (G tint=0) with the same tint-linearized insight: G(tint=0) needs the shadow leg 2*(1-luma)*(tint_lin-1)+1 with tint_lin=s2l(0)=0. (3) Then implement in tintFilter (tint linearized + K) and verify Leaves stays >=22.44 on the GUI gate (the compound fix that was gate-blocked)."
     }
   }
 }
