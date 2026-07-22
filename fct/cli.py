@@ -179,6 +179,11 @@ def main():
 
     if cmd == "score":
         from fct.score import score, GATE_SIZE
+        if os.environ.get("FCT_ALLOW_FULLFRAME") != "1":
+            print("full-frame `score` DISABLED (geometry-dominated, misleads node decode).\n"
+                  "  → use `./fct.sh parity` for isolated per-node headless-FCP verdicts.\n"
+                  "  (set FCT_ALLOW_FULLFRAME=1 to force full-frame scoring)", flush=True)
+            return 2
         source = _opt(rest, "--source") or "engine"
         show_frames = "--frames" in rest
         gs = GATE_SIZE if "--fast" in rest else None
@@ -230,6 +235,11 @@ def main():
 
     if cmd == "regress":
         from fct.baseline import regress
+        if os.environ.get("FCT_ALLOW_FULLFRAME") != "1":
+            print("full-frame `regress` DISABLED (geometry-dominated, misleads node decode).\n"
+                  "  → use `./fct.sh parity` for isolated per-node headless-FCP verdicts.\n"
+                  "  (set FCT_ALLOW_FULLFRAME=1 to force full-frame regression)", flush=True)
+            return 2
         source = rest[0] if rest and not rest[0].startswith("--") else "engine"
         r = regress(source, verbose="--verbose" in rest)
         for s, (b, c, d) in sorted(r["improvements"].items()):
@@ -245,6 +255,21 @@ def main():
         return 0 if r["ok"] else 1
 
     if cmd == "gate":
+        # ⚠️ DISABLED 2026-07-22 (vjeux): the 65-slug full-frame PSNR gate is GEOMETRY-
+        # DOMINATED and conflates independent effects — it misled node-level colour decode
+        # work (e.g. enabling the transfer-VERIFIED Tint moved a geometry-heavy host the
+        # WRONG way because the colour delta is dwarfed by/entangled with sprite-geometry
+        # error). Validate ONE node at a time instead: `fct parity` (isolated uniform-input
+        # transfer/curve nodes vs REAL headless FCP) and the focused `*.node.test.ts` suite.
+        # Set FCT_ALLOW_FULLFRAME=1 to run the legacy full-frame gate anyway (rarely useful).
+        if os.environ.get("FCT_ALLOW_FULLFRAME") != "1":
+            print("full-frame gate DISABLED (geometry-dominated, misleads node decode).\n"
+                  "  → validate one node at a time:\n"
+                  "      ./fct.sh parity status         # per-node headless-FCP verdicts\n"
+                  "      ./fct.sh parity sweep <id>      # re-verify one node\n"
+                  "      npm --prefix engine run test:node   # focused per-node tests\n"
+                  "  (set FCT_ALLOW_FULLFRAME=1 to force the legacy 65-slug gate)", flush=True)
+            return 2
         # The recurring "re-render a source then run the regression gate" workflow,
         # as ONE committed command (previously re-created as throwaway /tmp scripts).
         # Guarded by a lockfile so a double-launch (the bg tool sometimes fires twice)

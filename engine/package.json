@@ -9,7 +9,8 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "test": "tsx test/run.ts",
-    "test:visual": "tsx test/visual.ts"
+    "test:visual": "tsx test/visual.ts",
+    "test:node": "tsx test/colour-nodes.node.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
