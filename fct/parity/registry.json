@@ -227,7 +227,9 @@
     }
    ],
    "oracle_truth": "transfer",
-   "status": "UNTESTED"
+   "status": "UNTESTED",
+   "characterized": true,
+   "characterized_reason": "Cross-channel HGColorMatrix in a non-sRGB working space (see report). Isolated headless transfer != GUI-gate truth; closing needs a linear-working-space filter CHAIN (encode once), an engine-arch change tracked separately. Per-channel multiply shipped intentionally (GUI GT prefers it for the stacked chain)."
   },
   {
    "id": "filter.PAEColorize",

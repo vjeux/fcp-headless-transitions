@@ -68,8 +68,16 @@ def _save(st):
     json.dump(st, open(STATE, "w"), indent=2)
 
 
-def _stt(st, nid):
-    return st["nodes"].get(nid, {}).get("status", "UNTESTED")
+def _stt(st, nid, reg=None):
+    s = st["nodes"].get(nid, {}).get("status", "UNTESTED")
+    # A node the registry marks `characterized` (a decoded, understood divergence that is NOT
+    # a simple bug — e.g. a working-space/matrix issue whose per-filter fix would regress the
+    # GUI gate) shows as CHARACTERIZED, not DIVERGED, so `next`/step don't keep flagging it.
+    if s == "DIVERGED" and reg is not None:
+        node = next((n for n in reg.get("nodes", []) if n["id"] == nid), None)
+        if node and node.get("characterized"):
+            return "CHARACTERIZED"
+    return s
 
 
 def _err(a, b):
@@ -141,11 +149,11 @@ def _record(st, report):
 
 def status():
     reg = _registry(); st = _state(); nodes = reg["nodes"]
-    def cnt(s): return len([n for n in nodes if _stt(st, n["id"]) == s])
-    print("PARITY (node-boundary) — %d nodes | VERIFIED %d  DIVERGED %d  NO_SIGNAL %d  "
-          "NO_ORACLE %d  UNTESTED %d"
-          % (len(nodes), cnt("VERIFIED"), cnt("DIVERGED"), cnt("NO_SIGNAL"),
-             cnt("NO_ORACLE"), cnt("UNTESTED")))
+    def cnt(s): return len([n for n in nodes if _stt(st, n["id"], reg) == s])
+    print("PARITY (node-boundary) — %d nodes | VERIFIED %d  DIVERGED %d  CHARACTERIZED %d  "
+          "NO_SIGNAL %d  NO_ORACLE %d  UNTESTED %d"
+          % (len(nodes), cnt("VERIFIED"), cnt("DIVERGED"), cnt("CHARACTERIZED"),
+             cnt("NO_SIGNAL"), cnt("NO_ORACLE"), cnt("UNTESTED")))
     print("  %-32s %-9s %-7s %-10s %s" % ("NODE", "SUBSYS", "KIND", "STATUS", "metric"))
     for n in nodes:
         s = st["nodes"].get(n["id"], {})
@@ -156,17 +164,17 @@ def status():
         else:
             m = s.get("worst_ddb"); ms = ("ddb=%.1f" % m) if isinstance(m, (int, float)) else "-"
         print("  %-32s %-9s %-7s %-10s %s"
-              % (n["id"], n.get("subsystem", "?"), n["kind"], _stt(st, n["id"]), ms))
+              % (n["id"], n.get("subsystem", "?"), n["kind"], _stt(st, n["id"], reg), ms))
     # group the status line by subsystem for the journey view
     from collections import defaultdict
     bysub = defaultdict(lambda: [0, 0])  # subsystem -> [verified, total]
     for n in nodes:
         bysub[n.get("subsystem", "?")][1] += 1
-        if _stt(st, n["id"]) == "VERIFIED":
+        if _stt(st, n["id"], reg) == "VERIFIED":
             bysub[n.get("subsystem", "?")][0] += 1
     print("  subsystems: " + "  ".join("%s %d/%d" % (k, v[0], v[1]) for k, v in sorted(bysub.items())))
-    owned_next = next((n["id"] for n in nodes if n["kind"] in ("curve", "transfer") and _stt(st, n["id"]) != "VERIFIED"), None)
-    div_img = [n["id"] for n in nodes if n["kind"] in ("filter", "generator") and _stt(st, n["id"]) == "DIVERGED"]
+    owned_next = next((n["id"] for n in nodes if n["kind"] in ("curve", "transfer") and _stt(st, n["id"], reg) not in ("VERIFIED", "CHARACTERIZED")), None)
+    div_img = [n["id"] for n in nodes if n["kind"] in ("filter", "generator") and _stt(st, n["id"], reg) == "DIVERGED"]
     print("  next parity-owned:", owned_next or "(all curve/value VERIFIED)")
     if div_img:
         print("  delegated (faithful) DIVERGED:", ", ".join(div_img[:6]) + (" ..." if len(div_img) > 6 else ""))
@@ -260,7 +268,7 @@ def step():
     faithful for image work."""
     reg = _registry(); st = _state()
     owned = [n for n in reg["nodes"] if n["kind"] in ("curve", "transfer")]
-    nxt = next((n["id"] for n in owned if _stt(st, n["id"]) != "VERIFIED"), None)
+    nxt = next((n["id"] for n in owned if _stt(st, n["id"], reg) not in ("VERIFIED", "CHARACTERIZED")), None)
     if nxt is None:
         print("  all parity-owned (curve/value) nodes VERIFIED. Image nodes delegate to "
               "fct/faithful — run `fct parity sync` to refresh, or advance them via the "
