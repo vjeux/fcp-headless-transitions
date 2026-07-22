@@ -30,3 +30,20 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcRandomTile` embedded shader — a variant of the Parallelogram/mirror tiler
+(see `parallelogram-tile.md`)._ Coordinates are quantized to a tile grid; each tile is given a
+**pseudo-random offset (and/or flip)** keyed by its grid index before sampling the source, so the
+frame fills with randomly-shuffled tiles of the image.
+
+```
+cell   = floor(texCoord * gridFreq)            // which tile (hg_Params sets frequency)
+rnd    = hash(cell)                            // per-tile random (baked/looked-up)
+local  = fract(texCoord * gridFreq)            // position within tile
+uv     = (cell + local) shifted by rnd·offset  // random per-tile displacement (+ optional mirror)
+out    = sample(source, uvToTexture(uv))
+```
+
+Head-start: same tiler as Parallelogram Tile but add `hash(cell)`-driven offset/flip per cell.

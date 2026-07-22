@@ -32,3 +32,21 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcPerspectiveTile` embedded shader — a homographic variant of the mirror tiler
+(see `parallelogram-tile.md`)._ The image is tiled (fract + mirror-fold), then each tile's
+coordinates are pushed through a **perspective (homography) transform** so the tiled plane recedes
+in 3-D (floor/wall vanishing-point look).
+
+```
+u,v  = mirror-fold(fract(project(texCoord)))   // seamless tiling (as Parallelogram Tile)
+// homogeneous perspective map:
+w    = dot((u,v,1), Hrow2)
+uv   = ( dot((u,v,1), Hrow0)/w , dot((u,v,1), Hrow1)/w )
+out  = sample(source, uvToTexture(uv))
+```
+
+The `/w` perspective divide is the only addition over Parallelogram Tile. Head-start: tile, then
+apply a 3×3 homography with a real w-divide; the matrix comes from a Perspective/Angle param.
