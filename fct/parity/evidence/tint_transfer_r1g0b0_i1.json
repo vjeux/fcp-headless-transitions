@@ -147,6 +147,12 @@
         "SetParameter slot 2 = LUMA WEIGHTS, and they are DYNAMIC: taken from colorMatrixFromDesiredRGBToYCbCrAtTime: -> matrix (the Y row of the working colour space's RGB->YCbCr matrix). So the luma vector is COLOUR-SPACE dependent (BT.601/709/2020), not a baked constant."
       ],
       "implication": "For a GRAYSCALE input any luma vector summing to 1 gives luma=v/255, so the dynamic YCbCr weights do NOT explain the measured 3.88*luma R-slope. The residual ~1.94x on the tinted channel (grayscale) is still unexplained by the verbatim fragment + this CPU wiring \u2014 pointing to a premultiply/alpha or an additional colour-space (YCbCr round-trip) stage on the pixel path not captured in HgcTint_hgc_visible. Ceiling remains, but the param wiring is now decoded (0.78 is legacy-only; luma is YCbCr-dynamic)."
+    },
+    "intensity_sweep_finding": {
+      "test": "tint=[1,0,0], gray inputs v=32/64/128, Intensity swept 0..1; back out 'tinted' from out=mix(rgb,tinted,I).",
+      "result": "The backed-out tinted value DRIFTS with Intensity in BOTH sRGB and linear space (v=64: tinted_R sRGB 205->219->233->248 as I 0.25->1.0; linear 159->248). If the shader computed `tinted` once and did mix(rgb,tinted,I) in a single space, the backed-out tinted would be CONSTANT across I. It isn't in either space.",
+      "implication": "The Intensity blend is NOT a simple single-space mix(rgb,tinted,I). Either (a) hg_Params[1] passed to the shader is not raw Intensity (a curve/scale), (b) the mix runs in a space that's neither sRGB nor linear (e.g. the YCbCr working space the luma weights come from), or (c) there's an Intensity-dependent stage. Combined with the ~1.94x grayscale R-slope at I=1, the HgcTint transfer has an Intensity-coupled colour-space blend not captured by the verbatim fragment + naive mix. This is the crux of the documented ceiling.",
+      "next": "Disassemble how hg_Params[1] (Intensity slot) is computed in canThrowRenderOutput (is it raw, or scaled/curved?), and whether the pixel path applies an RGB<->YCbCr round-trip around the shader (the luma weights are the YCbCr Y-row \u2014 the whole tint may run in YCbCr)."
     }
   }
 }
