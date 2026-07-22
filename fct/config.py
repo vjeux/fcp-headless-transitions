@@ -68,8 +68,14 @@ GAM = {"R": (1.095, 0.977), "G": (1.070, 0.963), "B": (1.074, 0.966)}
 # --- the three frame sources, in ONE place. `color` is the frame's native color
 #     space: "bt709" (the GUI GT, matches FCP's ProRes export) or "srgb" (what the
 #     headless shim + TS engine emit). To compare an srgb source to the bt709 GUI GT,
-#     the sRGB->bt709 model is applied (see fct.color). This is the single source of
-#     truth for "which sources need color-conforming" — do not re-decide it elsewhere. ---
+#     the sRGB->bt709 model is applied (see fct.color).
+#
+#     GROUND TRUTH = "headless" FCP (changed 2026-07-22; see fct.score.TRUTH). Headless
+#     is FCP's REAL per-pixel render; the GUI ProRes export applies an extra display
+#     colour-pipeline transform on top (proven in fct/parity: decoded, node-boundary-
+#     VERIFIED colour transfers match HEADLESS but REGRESS the GUI gate — headless≠GUI).
+#     Scoring engine-vs-headless (both sRGB) needs NO bt709 conform, so the decode work
+#     can actually land. "gui" is kept as an optional legacy reference (FCT_TRUTH=gui). ---
 SOURCES = {
     "gui":      {"dir": GUI_GT_DIR,   "color": "bt709"},
     "headless": {"dir": HEADLESS_DIR, "color": "srgb"},

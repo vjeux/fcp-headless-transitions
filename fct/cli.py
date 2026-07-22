@@ -179,7 +179,7 @@ def main():
 
     if cmd == "score":
         from fct.score import score, GATE_SIZE
-        source = _opt(rest, "--source") or "headless"
+        source = _opt(rest, "--source") or "engine"
         show_frames = "--frames" in rest
         gs = GATE_SIZE if "--fast" in rest else None
         import time
@@ -230,7 +230,7 @@ def main():
 
     if cmd == "regress":
         from fct.baseline import regress
-        source = rest[0] if rest and not rest[0].startswith("--") else "headless"
+        source = rest[0] if rest and not rest[0].startswith("--") else "engine"
         r = regress(source, verbose="--verbose" in rest)
         for s, (b, c, d) in sorted(r["improvements"].items()):
             print(f"  IMPROVED  {s}: {b} -> {c} (+{d})")

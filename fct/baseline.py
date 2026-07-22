@@ -21,14 +21,16 @@ TOL = 0.30  # dB a slug may drop below baseline before it counts as a regression
 def _baseline_path(source: str) -> str:
     return os.path.join(REPO, "fct", f"baseline_{source}.json")
 
-def freeze(source: str = "headless") -> dict:
-    """Score every slug at GATE_SIZE and write the baseline file. Returns {slug: mean}."""
+def freeze(source: str = "engine") -> dict:
+    """Score every slug at GATE_SIZE and write the baseline file. Returns {slug: mean}.
+    Default source is "engine" (scored against the ground-truth reference = headless FCP;
+    see fct.score.TRUTH). Freezing "headless" against a headless truth is degenerate."""
     data = {s: score(s, source, gate_size=GATE_SIZE)["mean"] for s in SLUGS}
     with open(_baseline_path(source), "w") as f:
         json.dump(data, f, indent=2, sort_keys=True)
     return data
 
-def regress(source: str = "headless", verbose: bool = False) -> dict:
+def regress(source: str = "engine", verbose: bool = False) -> dict:
     """Re-score every slug vs the frozen baseline (at GATE_SIZE). Returns a report
     with 'regressions' (slug -> (baseline, current, delta)), 'improvements', 'ok',
     and per-slug 'timings' (seconds). Set verbose to print each slug's time live."""
