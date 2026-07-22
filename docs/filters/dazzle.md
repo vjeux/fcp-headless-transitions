@@ -33,3 +33,18 @@ Non-creative host parameters on this filter: `Clip to White`, `Crop`, `Flip`, `I
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
 > 3 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
+
+## Algorithm (decoded)
+
+_PAEDazzle — animated sparkle/glitter (thresholded noise → glint bursts)._
+
+```
+hi     = max(luma(src) - Threshold, 0)         // bright spots that can sparkle
+sparkle= noise(p, time·Speed) > (1-Density)    // animated random sparkle mask
+star   = sparkle · multiDirectionalStreak(hi)  // small glint-style rays at sparkle points
+out    = src + star · Intensity · Color
+```
+
+Params: **Threshold**, **Density/Amount**, **Speed** (animation), **Intensity**, **Color**. It's an
+animated variant of Glint — random highlight points burst into little stars over time. Head-start:
+animated sparse sparkle mask × small streaks on the highlights.

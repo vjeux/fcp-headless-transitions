@@ -30,3 +30,19 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_PAETrails — temporal echo/feedback (accumulates previous frames)._
+
+```
+// feedback buffer F persists across frames:
+F_new = max(current, F_prev · Decay)      // or lerp: mix(current, F_prev, Persistence)
+out   = mix(current, F_new, Amount)
+F_prev = F_new                             // store for next frame
+```
+
+Params: **Amount/Persistence** (how long trails last = Decay), **Mix**. This is a *temporal* filter —
+it needs a persistent frame buffer (unlike the per-pixel filters). Head-start: keep a decaying
+accumulation of prior frames; composite over the current. Note: requires frame-to-frame state in the
+engine (most filters are stateless).

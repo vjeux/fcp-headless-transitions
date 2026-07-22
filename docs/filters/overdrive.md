@@ -31,3 +31,18 @@ Non-creative host parameters on this filter: `Clip to White`, `Crop`, `Flip`, `I
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_PAEOverdrive — saturated contrast/clip look (per-pixel color op)._
+
+```
+c    = rgb / max(a,1e-6)
+c    = (c - 0.5) * Drive + 0.5        // hard contrast about mid (Drive = Amount)
+c    = clamp(c, 0, 1)                  // clip → the "overdriven" crushed look
+c    = mix(luma(c), c, Saturation)     // push saturation
+out  = mix(src, c·a, Mix)
+```
+
+Params: **Drive/Amount** (contrast gain), **Saturation**, **Mix**. A crushed high-contrast,
+high-saturation stylize. Head-start: pivot-contrast + clip + saturate.
