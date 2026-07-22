@@ -28,3 +28,26 @@ Non-creative host parameters on this filter: `Crop`, `Flip`, `Input Points`, `Pu
 ## Implementation status
 
 **Implemented.** TS module: [`engine/src/compositor/filters/directional-blur.ts`](../../engine/src/compositor/filters/directional-blur.ts).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcZoomBlur` embedded shader. Decoded functional form:_
+
+Zoom Blur streaks the image radially outward from a center (motion-toward-camera look). This shader
+is the **weighted tap accumulation**; the tap coordinates (`texCoord1..4`) are pre-computed upstream
+as points along the ray from center to the pixel, at increasing scale.
+
+```
+// 5 taps along the zoom ray, fixed normalized weights:
+out = 0.30*sample(uv0)          // center tap (texCoord0)
+    + 0.15*sample(uv1)          // taps 1..4 = points scaled toward/away from center
+    + 0.10*sample(uv2)
+    + 0.20*sample(uv3)
+    + 0.25*sample(uv4)
+```
+
+The weights `{0.30, 0.15, 0.10, 0.20, 0.25}` are baked into the shader (sum = 1.0). The **Amount**
+controls how far apart the tap coordinates spread along the radial line (computed CPU-side), and
+**Center** sets the zoom origin. This is a cheap 5-tap approximation of a continuous radial blur —
+for more taps FCP scales the spread. Head-start: for each pixel, sample the source at 5 points
+`center + (p−center)·s_k` with the fixed weights above; `s_k` spread from Amount.

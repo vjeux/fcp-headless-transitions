@@ -28,3 +28,22 @@ Non-creative host parameters on this filter: `Clip to White`, `Flip`, `Input Poi
 ## Implementation status
 
 **Implemented.** TS module: [`engine/src/compositor/filters/glow.ts`](../../engine/src/compositor/filters/glow.ts).
+
+## Algorithm (decoded — HgcGlow highlight extract)
+
+_RE'd from the `HgcGlow` embedded shader (complements the shipped `glow.ts` Bloom pipeline)._
+
+`HgcGlow` itself is just the **highlight-extraction** stage that feeds the glow blur: it computes a
+weighted luma, clamps to [0,1], and premultiplies — isolating the bright regions that will be
+blurred and added back.
+
+```
+key   = clamp(dot(color0, hg_Params[0]), 0, 1)   // weighted luma/threshold key (RGBA weights)
+out.a = key
+out.rgb = color0.rgb * key                        // keep only the bright parts, weighted by key
+```
+
+`hg_Params[0]` = the extraction weights/threshold (which tones count as "glowing"). Downstream the
+result is Gaussian-blurred (the `HGBlur` primitive, float path for >1.0 headroom — see `glow.ts`
+`bloomFilter`) and screened back over the original. Head-start: `extract = src·clamp(dot(src,w))`,
+blur, then add/screen with Intensity. The multi-radius blur + composite is the rest of the glow.

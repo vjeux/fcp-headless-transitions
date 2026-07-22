@@ -31,3 +31,29 @@ Non-creative host parameters on this filter: `Crop`, `Flip`, `Input Points`, `Pu
 **Implemented.** TS module: [`engine/src/compositor/filters/scrape.ts`](../../engine/src/compositor/filters/scrape.ts).
 
 > 2 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcScrape` embedded shader. Decoded functional form:_
+
+Scrape **smears the image along a direction past a moving line** — like dragging wet paint. Pixels on
+one side of a directional threshold line are displaced along the scrape axis by an amount that grows
+with distance from the line.
+
+```
+d      = (texCoord - Origin) / aspect          // Origin = hg_Params[0], aspect = hg_Params[4]
+axis   = hg_Params[1].xy                        // scrape direction (unit)
+proj   = dot(d, axis)                           // signed distance along the scrape axis
+side   = (dot(d,axis) >= 0)  &&  (proj >= hg_Params[2].x)   // past the scrape line?
+// on the scraped side, push the sample back along the axis proportional to proj:
+shift  = side ? (0.5*Threshold - proj)          // pull leading edge back to the line (the "scrape")
+              : (-proj * hg_Params[3].w * 0.5)  // trailing smear ∝ distance
+uv     = d + shift*axis
+uv     = uv / aspect_inv + Origin
+out    = sample(source, uv)
+```
+
+`hg_Params[1]` = **Direction** of the scrape, `hg_Params[2].x` = the scrape-line position
+(**Amount/progress**, animatable → the line sweeps), `hg_Params[3].w` = smear falloff. The effect is
+a leading hard edge (everything past the line collapses onto it) with a trailing stretch. Head-start:
+directional threshold + axis-aligned displacement as above.

@@ -29,3 +29,24 @@ Non-creative host parameters on this filter: `360° Aware`, `Flip`, `Input Point
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcUnsharpMask` embedded shader. Decoded functional form:_
+
+Unsharp Mask sharpens with a **threshold** (unlike plain Sharpen): only differences larger than a
+threshold are amplified, so flat noise isn't boosted.
+
+```
+detail = color0 - color1                      // orig − blurred (high freq); color1 = Gaussian copy
+// threshold: subtract Threshold from |detail|, clamp — small differences → 0
+pos    = max(detail - Threshold, 0)           // hg_Params[1].x = Threshold
+neg    = min(detail + Threshold, 0)
+detail = (detail < 0) ? neg : pos             // dead-zone of width ±Threshold around 0
+out    = max(detail * Amount + color0, 0)     // hg_Params[0] = Amount, add back, clamp≥0
+out.a  = clamp(out.a, 0, 1)
+```
+
+`hg_Params[0]` = **Amount** (sharpening strength), `hg_Params[1].x` = **Threshold** (dead-zone; edges
+below it aren't sharpened). The blur radius that builds `color1` = **Radius** (edge scale). This is
+the textbook unsharp-mask-with-threshold; head-start is the 4 lines above over a shared Gaussian.

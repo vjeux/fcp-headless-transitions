@@ -29,3 +29,22 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Clip to Wh
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcAura` embedded shader. Decoded functional form:_
+
+Aura is the **combine stage of a glow/aura**: it adds a blurred, brightened copy of the image
+(`color0`, produced upstream) on top of the original (`color1`), clamped to a ceiling color.
+
+```
+aura   = color0 * hg_Params[0]            // blurred copy × Intensity (per-channel)
+out    = color1 + aura                    // add the aura over the original
+out.a  = min(out.a, 1)
+out.rgb= min(out.rgb, hg_Params[1].rgb)   // clamp to a max color (prevents blowout / tints the aura ceiling)
+out    = max(out, 0)
+```
+
+`hg_Params[0]` = **Intensity** (aura brightness, per-channel), `hg_Params[1]` = the **aura color
+ceiling** (caps and tints the glow). The blur radius that builds `color0` = **Radius/Size**. So Aura
+= additive bloom with a colored clamp. Head-start: blur+brighten source → add → clamp to aura color.

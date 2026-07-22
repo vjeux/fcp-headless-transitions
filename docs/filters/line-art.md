@@ -31,3 +31,22 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcLineArt` embedded shader. Decoded functional form:_
+
+Line Art is a **morphological edge detector** (dilation minus original) — it finds outlines by
+taking the brightest of a pixel and its 4 neighbors, then subtracting the center. Flat regions
+cancel to 0 (black); edges leave a bright outline.
+
+```
+c    = sample(center)                     // texCoord0
+mx   = max(c, sample(±dx), sample(±dy))   // texCoord1..4 = the 4 neighbor taps (dilate)
+out  = mx - c                             // dilation − original = edge magnitude
+```
+
+No parameters in the shader itself — the neighbor **offset distance** (line thickness / edge scale)
+is baked into the tap coordinates upstream (from a Radius/Amount param). It's a per-channel morphological
+gradient, so colored edges keep their color. Head-start: `out = maxNeighborhood(src) − src`; expose
+tap distance as the line-width control. (Compare `edges.md` which uses a symmetric difference.)
