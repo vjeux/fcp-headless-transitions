@@ -132,33 +132,39 @@ export function levelsFilter(input: ImageData, params: LevelsParams): ImageData 
 }
 
 /**
- * PAEBrightness — per-channel MULTIPLY. FCP renders in a LINEAR working space
- * (decoded below), which makes the ISOLATED transfer curve piecewise on `amount`:
+ * PAEBrightness — per-channel MULTIPLY (sRGB) for GRAY; cross-channel on saturated colour.
  *
- * DECODED 2026-07-12 (tools/re/filter_probe.py + a synthetic 0..255 gradient through
- * the real headless FCP engine, and oz_render.mm OZ_WS_DEBUG confirming the working
- * color space is kCGColorSpaceLinearSRGB / 16-bit half-float ExtendedLinearSRGB
- * readback). The 8-bit source node is UNTAGGED, so FCP treats its code values AS
- * linear working values; HGColorMatrix multiplies by `amount` in that space, and the
- * readback sRGB-encodes the result. Measured ISOLATED transfer (gradient, code v):
+ * ⚠️ CORRECTED 2026-07-22 (fct/parity transfer oracle, UNIFORM-colour inputs — which are
+ * conform-invariant, unlike the 2026-07-12 "gradient" probe below that was pipeline-coupled).
+ * The clean isolated transfer refutes the old srgbEncode brighten model:
+ *   • GRAY inputs, ALL amounts: out = clip(v · amount) EXACTLY (16·2→32, 64·2→128, 64·0.5→32).
+ *     NOT srgbEncode(amount·v/255) (that predicts 64·2→188, measured 128). So the engine's
+ *     plain per-channel sRGB multiply is CORRECT for gray at both legs.
+ *   • SATURATED-colour inputs, amount>1 (brighten): FCP is CROSS-CHANNEL — when one channel
+ *     clips, the OTHER channels are lifted far beyond v·amount. (200,50,50)·1.5 → FCP
+ *     [255,154,151] (lows 50→~152), vs per-channel [255,75,75]; (50,200,50)·1.5 → [179,255,161].
+ *     amount≤1 (darken) is exact per-channel (no coupling: (200,50,50)·0.5 → [100,25,25]).
+ *   • Neither plain-linear nor plain-sRGB per-channel reproduces the brighten coupling; it is
+ *     consistent with FCP's non-sRGB working space (a YCbCr/HGColorGamma stage — cf. PAETint,
+ *     whose luma weights are the dynamic RGB→YCbCr Y-row). Full model still open (the exact
+ *     coupling law isn't yet fit); this is the shared colour-subsystem working-space ceiling.
  *
- *   • amount <= 1 (darken):   out = clip(amount · v)          — exact, mad 0.24
- *   • amount  > 1 (brighten): out = srgbEncode(amount · v/255) — exact, mad 0.12
+ * The shipped code keeps the plain per-channel sRGB multiply: it is EXACT for gray + the
+ * darken leg, it is what the GUI GT prefers for the stacked Curtains chain (a per-filter
+ * working-space encode regressed Curtains 14.31→13.85), and the brighten cross-channel coupling
+ * needs the chain-level linear/working-space pipeline (encode once after all filters) — an
+ * engine-architecture change tracked with the rest of the colour subsystem, NOT a per-filter fix.
  *
- * with a hard discontinuity at amount == 1 (verified: b=0.95 code-mult leg, b=1.01
- * linear-encode leg). This matches the isolated headless probe (brighten PSNR 13->34).
- *
- * ⚠️ BUT the brighten-encode is a PER-FILTER encode, and FCP keeps the WHOLE node
- * graph in linear working space and encodes ONCE at readback. The only shipping
- * PAEBrightness user (Objects__Curtains, amount=2.91) STACKS Mono (PAEChannelMixer)
- * → Brightness → Colorize (the .motr lists them Colorize/Brightness/Mono but FCP
- * applies filters in REVERSE XML order — decoded 2026-07-16 via two-filter headless
- * probe, see parser/index.ts). A per-filter sRGB-encode between Mono and Colorize
- * would diverge from FCP's single-encode chain (an earlier attempt with the wrong
- * apply order regressed Curtains 14.31 -> 13.85, -0.46). The one truth is the GUI
- * GT (ROADMAP rule 1), so the shipped code keeps the plain code-multiply for BOTH
- * legs: it is what the GUI GT prefers for the stacked chain, and correctly reduces
- * to the darken leg for amount<=1. Closing the brighten leg requires a linear-
+ * ── SUPERSEDED (kept for provenance) 2026-07-12 gradient probe ──
+ * The earlier probe (a 0..255 GRADIENT through the coupled pipeline, oz_render.mm OZ_WS_DEBUG
+ * reporting kCGColorSpaceLinearSRGB working space) fit `out=srgbEncode(amount·v/255)` for the
+ * brighten leg — but that was a pipeline artifact of the non-uniform gradient input; the
+ * conform-invariant uniform-input transfer above shows gray brighten is plain v·amount. Treat
+ * the srgbEncode brighten model as REFUTED.
+ * ── original note continues ──
+ * The only shipping PAEBrightness user (Objects__Curtains, amount=2.91) STACKS Mono
+ * (PAEChannelMixer) → Brightness → Colorize (FCP applies filters in REVERSE XML order —
+ * decoded 2026-07-16, see parser/index.ts). Closing the brighten leg requires a linear-
  * working-space FILTER CHAIN (encode once after all filters), which is an
  * engine-architecture change tracked separately — NOT a per-filter encode.
  */
