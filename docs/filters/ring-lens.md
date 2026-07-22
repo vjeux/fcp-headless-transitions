@@ -30,3 +30,27 @@ Non-creative host parameters on this filter: `Crop`, `Flip`, `Input Points`, `Pu
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcRingLens` embedded shader. Decoded functional form:_
+
+Ring Lens magnifies the image inside an **annulus** (a ring-shaped lens): pixels whose radius falls
+within a band are pushed/pulled radially (magnified), with smooth falloff at both edges of the ring.
+
+```
+d     = texCoord * hg_Params[4].xy + hg_Params[4].zw    // recentre+scale
+r     = length(d);  dir = d/r
+mag   = r * hg_Params[0].x + hg_Params[0].y             // lens magnification mapping of radius
+// two smoothstep bands define the ring's inner and outer soft edges (hg_Params[2].x/.y):
+inner = smoothstep-fade(r around hg_Params[2].x)
+outer = smoothstep-fade(r around hg_Params[2].y)
+lensAmt = inner * outer                                 // 1 inside the ring, 0 outside
+r'    = mix(r, mag, lensAmt)                            // apply magnification only within the ring
+uv    = dir * r' → back through center/scale
+out   = sample(source, uv)
+```
+
+`hg_Params[0]` = **magnification** slope/offset, `hg_Params[2].x/.y` = **inner/outer ring radius**.
+The two `x²·(3−2x)` smoothsteps are the soft ring edges. Head-start: radial warp gated by a ring
+mask; only the annulus is magnified, giving the loupe-ring look.

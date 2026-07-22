@@ -28,3 +28,20 @@ Non-creative host parameters on this filter: `Prescale Input`, `360° Aware`, `F
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcGloom` embedded shader. Decoded functional form:_
+
+Gloom is the **inverse of Glow** — a "dark glow" that spreads shadows. It takes the darker of the
+original and a blurred copy, blended by Amount:
+
+```
+dark = min(color0, color1)          // color1 = blurred copy; min → shadows bloom into neighbours
+out  = mix(color0, dark, hg_Params[0])   // Amount: how much gloom
+out  = premultiply-preserve(out)    // keep straight rgb where alpha is 0
+```
+
+`color1` (the blur that builds the gloom) is produced upstream by the shared `HGBlur`; `hg_Params[0]`
+= **Amount**. Head-start: blur the source, `out = mix(src, min(src,blur), Amount)`. The blur radius
+= gloom **Size**.

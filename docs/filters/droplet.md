@@ -30,3 +30,26 @@ Non-creative host parameters on this filter: `Crop`, `Flip`, `Input Points`, `Pu
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcDroplet` embedded shader. Decoded functional form:_
+
+Droplet is a **concentric ripple warp** — like a water drop hitting the surface, it displaces pixels
+radially by a periodic (piecewise-polynomial) wave of the radius.
+
+```
+d      = texCoord * hg_Params[0].xy + hg_Params[0].zw   // recentre+scale
+r      = length(d);  dir = d / r
+phase  = r * hg_Params[2].x + hg_Params[2].y            // ripple frequency + phase offset
+w      = phase - floor(phase)  →  piecewise smooth wave  // (the cascade of clamp/select builds a
+         // smooth triangular/cubic ripple profile repeating every cycle)
+disp   = wave(w)                                         // signed radial displacement per ring
+uv     = (r + disp)*dir → back through center+scale
+out    = sample(source, uv)
+```
+
+`hg_Params[2].x` = **ripple frequency** (rings per unit = Amount/Wavelength), `.y` = **phase** (animate
+this → expanding ripples), `hg_Params[0]` = center+scale. The piecewise polynomial (the
+`clamp(...)²·(3−2·)` chain) is a smooth repeating ring profile. Head-start: radial backward warp with
+a periodic displacement of `r`; animate phase for the drop spreading outward.

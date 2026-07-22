@@ -30,3 +30,28 @@ No extra plumbing parameters recorded. These are standard FxPlug/host boilerplat
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcSlitTunnel` embedded shader. Decoded functional form:_
+
+Slit Tunnel maps the image into an infinite **perspective tunnel** using polar coordinates: the
+angle around the center picks a column of the source, and `1/radius` gives depth (so content
+recedes to a vanishing point).
+
+```
+d      = texCoord - Center + offset          // hg_Params[0], [7]
+x      = dot(d, hg_Params[9].xy)             // rotated coords
+z      = dot(d, hg_Params[10].xy)
+// fast atan2 approximation (the c0/c1 polynomial constants are a minimax atan):
+angle  = atan2_approx(z, x)                  // → tunnel "around" coordinate
+depth  = 1 / max(|x|,|z|)                    // → tunnel "into" coordinate (1/r perspective)
+u      = angle * (1/2π) + 0.5                // wrap angle to [0,1]  (c2.x = 0.15915 = 1/2π)
+v      = depth * Speed + scroll              // move down the tunnel (animate scroll)
+out    = sample(tunnelTexture, (u, v))       // hg_Texture1 = the wall texture / source tiled
+```
+
+The constants `0.15915≈1/2π`, `1.5708≈π/2`, `3.1416≈π` and the small polynomial `c0` are a
+minimax **atan2** — the tell for a polar/tunnel mapping. `hg_Params[9]/[10]` = orientation,
+`hg_Params[0]` = center. Head-start: polar transform (angle→u, 1/r→v), scroll v over time for the
+fly-through; tile the source as the tunnel wall.
