@@ -418,3 +418,25 @@ mechanisms remain CHARACTERIZED, all needing GPU disasm not WS gamma:
   - HSV hue rotation (non-standard; not HSV-hextant/NTSC/YIQ/Rodrigues). Gate-neutral.
 
 State: 34 nodes | VERIFIED 16  CHARACTERIZED 4  DIVERGED 14. tsc clean.
+
+
+## UPDATE 2026-07-22 (session 2) — HGColorMatrix over-1.0 clamp: richer probe + sharpened characterization
+
+Captured a 5-input × 13-gain diagonal-ChannelMixer probe (evidence/hgcolormatrix_clamp_probe.json)
+to decode the last shared colour mechanism (blocks Brightness + ChannelMixer-clip). Sharpened
+characterization (NOT fitted — held to decode-don't-fit; needs GPU disasm):
+  • GRAY has NO cross-channel lift — clamps smoothly (all channels clip together, no chroma).
+  • SATURATED colours: a DISCONTINUITY exactly when the FIRST channel saturates (r200 a=1.28→1.30:
+    R 254→242 DROPS, lows 64→144 JUMP). The clip onset flips the render to a different path.
+  • FROZEN asymptote at high gain (r200 a≥2 → (255,176,172); y(200,180,60) → (255,255,197)).
+  • The asymptote is NOT hue-preserving max-normalization (that gives (255,64,64); FCP lifts the
+    lows ~3× more to (255,176,172)) — it's an aggressive desaturation-toward-white.
+  • Refuted models: code/linear/WS-gamma multiply, plain per-channel clamp, Rec.709 luma-preserving
+    desaturation. The discontinuity + frozen asymptote + gray-exemption point to a clamp+overflow-
+    redistribution in the HGColorMatrix GPU render (ExtendedLinearSRGB half-float readback), a
+    focused binary read — consistent with the prior characterization. Probe is now rich enough to
+    VALIDATE that disasm when done.
+
+This is one of only THREE remaining CHARACTERIZED colour mechanisms (with HSV-hue and — shared —
+this clamp covering Brightness + ChannelMixer-clip). The gamma-1.958 WS decode does NOT explain it
+(Brightness multiply is code-space below clip), so it is genuinely a separate GPU-render stage.
