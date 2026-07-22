@@ -267,3 +267,21 @@ The colour subsystem's divergences now reduce to a small set of shared, decoded 
 All gate-blocked on the chain-level working-space pipeline; all structurally decoded.
 
 State: 33 nodes | VERIFIED 12  CHARACTERIZED 6  DIVERGED 15.
+
+
+## UPDATE 2026-07-22 (session 2) — shapes checked: engine uses heuristic flattening, not BezierSubdivide
+
+Checked the shapes subsystem for a clean exact node: PCAlgorithm::BezierSubdivide is exported
+(adaptive cubic flattening), but the engine's shapes.ts flattens with a FIXED-STEP heuristic
+(8-64 steps by chord spread), NOT FCP's adaptive algorithm. So there's no 1:1 exact node — the
+engine deliberately uses its own rasterization approximation (the pixel result can still match
+within tolerance, but that's a delegated frame-PSNR check, not an exact function parity).
+
+This CONFIRMS the exact-node frontier conclusion across yet another subsystem: exact function-
+level parity exists ONLY where the engine deliberately ported a specific discrete FCP function
+(curves interp, blur decimation, pointwise colour transfers). Everywhere else the engine is a
+from-scratch reimplementation with its own algorithms (heuristic bezier flattening, camera-Z
+projection vs homography, inline Newton vs OZBezierGetRoots, its own RNG-field synthesis), so
+those are DELEGATED (faithful frame-PSNR) not exact. The exact frontier is COMPLETE for the
+current engine factoring; growing it needs the engine to factor out a function matching an
+exported FCP symbol, OR the stateful-object harness (OZSpline/LiCamera), OR GPU instrumentation.
