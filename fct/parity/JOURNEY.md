@@ -364,3 +364,33 @@ UNIFIED COLOUR MODEL (now well-supported across Tint + HSV Value/Sat):
   why the scene-linear migration never cleanly matched these ops.
 
 State: 34 nodes | VERIFIED 14  CHARACTERIZED 6  DIVERGED 14. tsc clean.
+
+
+## UPDATE 2026-07-22 (session 2) — Colorize DECODED in gamma-1.958 WS + VERIFIED (0.70 lvl)
+
+Third colour node decoded via the UNIFIED gamma-1.958 working space. transfer.PAEColorize
+VERIFIED (0.70 lvl, n=81 — was CHARACTERIZED 123.8).
+
+The HgcColorize shader is verbatim `mix(rgb, mix(black, white, luma), amount)`. Run in the
+gamma-1.958 WS with Rec.709 luma and RAW endpoints, it matches REAL FCP (headless transfer)
+at 0.18 rms / 0.5 worst. The prior "endpoint gap" (B channel: FCP 67 vs engine 191 for a
+black=(0,0,1)/white=(1,1,0) remap on gray 64) was ENTIRELY the wrong luma space — the
+engine used code-space Rec.709; FCP uses gamma-1.958-WS Rec.709. Endpoints go in RAW
+(0/1 endpoints are gamma-invariant so raw==decoded on the tested cases). This is the SAME
+73.5 grayscale-luma of (200,50,50) that Tint and HSV-desaturate produce — the colour
+subsystem's luma is one shared WS quantity.
+
+PORT: FCT_COLORIZE_WS=1 path in colorizeRemapFilter (gamma-1.958 luma + raw endpoints).
+Shipped GUI-GT path (chain-level scene-linear + code-space luma) byte-identical; this is
+the documented headless≠GUI split (shipping s2l endpoints regressed the GUI gate -11.4 dB
+across 7 Colorize slugs, so GUI keeps code-space). Node-boundary faithful decode only.
+Gate 0/0 over all 5 Colorize hosts (Slide/Curtains/Up-Over/Color_Panels/Duplicate).
+
+COLOUR SUBSYSTEM STATUS: 5/16 transfer nodes now VERIFIED (Levels-gamma, ChannelMixer,
+Tint, HSV-valsat, Colorize). All decoded on ONE unified model: per-pixel colour ops run in
+a display-referred POWER-LAW gamma-1.958 working space with Rec.709 luma. Remaining
+CHARACTERIZED: Brightness/ChannelMixer-clip (HGColorMatrix over-1.0 clamp — a separate
+highlight-rolloff mechanism, not the WS gamma), Levels_remap (endpoint stretch), HSV-hue
+(non-standard hue rotation). Each has a captured probe + decoded structure.
+
+State: 34 nodes | VERIFIED 15  CHARACTERIZED 5  DIVERGED 14. tsc + gate green.

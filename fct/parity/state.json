@@ -536,9 +536,9 @@
     "transfer.PAEColorize": {
       "id": "transfer.PAEColorize",
       "kind": "transfer",
-      "status": "DIVERGED",
+      "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 123.83,
+      "max_abs_levels": 0.7000000000000028,
       "n_samples": 81,
       "tol_levels": 2.0,
       "worst": {
@@ -600,19 +600,19 @@
           ]
         },
         "input": [
-          64,
-          64,
-          64
+          50,
+          50,
+          200
         ],
         "oracle": [
-          64.19,
-          64.19,
-          67.17
+          57.55,
+          57.56,
+          74.7
         ],
         "engine": [
-          64.0,
-          64.0,
-          191.0
+          58.0,
+          58.0,
+          74.0
         ]
       },
       "oracle_truth": "transfer",
@@ -1367,8 +1367,13 @@
       "id": "transfer.PAEHSVAdjust_hue",
       "status": "DIVERGED",
       "at": "2026-07-22T15:06:19Z"
+    },
+    {
+      "id": "transfer.PAEColorize",
+      "status": "VERIFIED",
+      "at": "2026-07-22T15:13:24Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-22T15:06:19Z"
+  "updated": "2026-07-22T15:13:24Z"
 }

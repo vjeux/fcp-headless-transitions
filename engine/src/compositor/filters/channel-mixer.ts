@@ -444,6 +444,37 @@ export function colorizeRemapFilter(
   // total blend from original toward the remapped color = intensity * mix (both
   // stages lerp original->target, so they compose to a single lerp factor).
   const k = intensity * mix;
+  // DECODED gamma-1.958 working-space path (fct/parity, 2026-07-22). Guarded by
+  // FCT_COLORIZE_WS=1. This runs the verbatim HgcColorize with luma computed in the
+  // gamma-1.958 working space and RAW endpoints, matching REAL FCP (headless transfer)
+  // at 0.18 rms / 0.5 worst (transfer.PAEColorize) — the SAME unified colour working
+  // space as Tint + HSV. The shipped GUI-GT path below keeps code-space Rec.709 luma
+  // (the GUI-GT export uses a different colour-management step — a decoded headless≠GUI
+  // split for this filter; see the long note above). Node-boundary faithful decode only.
+  if (typeof process !== 'undefined' && process.env && process.env.FCT_COLORIZE_WS === '1') {
+    const iv = 0.51117, gm = 1.0 / 0.51117;   // gamma-1.958 working space
+    const wr = 0.2126, wg = 0.7152, wb = 0.0722;   // Rec.709 luma
+    const bRw = black.r, bGw = black.g, bBw = black.b;
+    const wRw = white.r, wGw = white.g, wBw = white.b;
+    for (let i = 0; i < src.length; i += 4) {
+      const rws = Math.pow(src[i] / 255, iv);
+      const gws = Math.pow(src[i + 1] / 255, iv);
+      const bws = Math.pow(src[i + 2] / 255, iv);
+      const lum = wr * rws + wg * gws + wb * bws;
+      let oR = bRw + lum * (wRw - bRw);
+      let oG = bGw + lum * (wGw - bGw);
+      let oB = bBw + lum * (wBw - bBw);
+      // lerp original(ws) -> remapped by k, then decode.
+      oR = rws * (1 - k) + oR * k;
+      oG = gws * (1 - k) + oG * k;
+      oB = bws * (1 - k) + oB * k;
+      out[i]     = Math.round(Math.pow(Math.max(0, Math.min(1, oR)), gm) * 255);
+      out[i + 1] = Math.round(Math.pow(Math.max(0, Math.min(1, oG)), gm) * 255);
+      out[i + 2] = Math.round(Math.pow(Math.max(0, Math.min(1, oB)), gm) * 255);
+      out[i + 3] = src[i + 3];
+    }
+    return new ImageData(out, input.width, input.height);
+  }
   for (let i = 0; i < src.length; i += 4) {
     // DECODED: HgcColorize dots against slot4 = the Y row of
     // colorMatrixFromDesiredRGBToYCbCr (PAEColorize @0x1b1f4). For HD that is the
@@ -594,6 +625,14 @@ registerFilter({
     };
     const intensity = readScalar('Intensity', 1);  // hg_Params[2]: colorize amount
     const mix = readScalar('Mix', 1);               // hg_Params[3]: final blend
+
+    // DECODED gamma-1.958 working-space path (fct/parity). When FCT_COLORIZE_WS=1 the
+    // filter bypasses the chain-level scene-linear buffer and runs the decoded
+    // gamma-1.958 transfer directly (node-boundary faithful vs headless FCP). Shipped
+    // default (chain-level + code-space GUI luma) unchanged.
+    if (typeof process !== 'undefined' && process.env && process.env.FCT_COLORIZE_WS === '1') {
+      return colorizeRemapFilter(input, black, white, intensity, mix);
+    }
 
     // Chain-level LINEAR working-space path (T-qlinchain01). See linear-chain.ts.
     // This is a STRUCTURAL primitive (not gated on the per-filter isLinearComposite

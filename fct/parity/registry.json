@@ -681,7 +681,10 @@
    "oracle_truth": "transfer",
    "status": "UNTESTED",
    "characterized": true,
-   "characterized_reason": "Luma-remap matches FCP at black=[0,0,0] but diverges with a nonzero black point (working-space mix, not sRGB). Same gate-blocked working-space root cause as Brightness/Tint + the faithful Colorize note (s2l endpoints match headless but regress the GUI gate)."
+   "characterized_reason": "Luma-remap matches FCP at black=[0,0,0] but diverges with a nonzero black point (working-space mix, not sRGB). Same gate-blocked working-space root cause as Brightness/Tint + the faithful Colorize note (s2l endpoints match headless but regress the GUI gate).",
+   "engine_env": {
+    "FCT_COLORIZE_WS": "1"
+   }
   },
   {
    "id": "transfer.PAELevels",
