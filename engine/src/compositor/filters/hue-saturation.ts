@@ -123,7 +123,14 @@ function rotateHueYCbCr(r: number, g: number, b: number, turns: number): [number
 function hueSaturationFilterWS(input: ImageData, params: HueSatParams): ImageData {
   const { hue, saturation, value, mix } = params;
   const satFactor = 1 + saturation;
-  const valMul = Math.max(0, value);   // Value = linear multiply in working space
+  const valMul = Math.max(0, value);   // Value = linear multiply in the gamma-1.958 working
+  // space: out = ws_inv(ws(in) * value). DECODED + VERIFIED for BOTH legs (fct/parity golden,
+  // transfer.PAEHSVAdjust_value_brighten): darken (value<=1) AND brighten (value>1) match REAL
+  // headless FCP within 1 level on grays (e.g. Value=2, gray 64 -> 248.2; ws_mul 249.2). This
+  // supersedes the legacy sRGB-code `value²` model (see the hueSaturationFilter header, which
+  // correctly noted value² fails for brighten) — in the WS the single ws-multiply is exact.
+  // The only residual is brighten on SATURATED colours where a channel over-clips (>1): that is
+  // the shared HGColorMatrix over-1.0 GPU-readback lift, not the Value op (same as Brightness).
   if (hue === 0 && saturation === 0 && value === 1) return input;
   const width = input.width, height = input.height;
   const src = input.data;

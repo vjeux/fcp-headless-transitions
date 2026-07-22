@@ -13656,5 +13656,359 @@
     ]
    }
   ]
+ },
+ "transfer.PAEHSVAdjust_value_brighten": {
+  "uuid": "D23AF030-B0BF-44DF-B622-7C9EA0DF5744",
+  "pluginName": "PAEHSVAdjust",
+  "engine_env": {
+   "FCT_HSV_WORKINGSPACE": "1"
+  },
+  "tol_levels": 2.0,
+  "verified": true,
+  "n": 18,
+  "cases": [
+   {
+    "params": [
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 1.25
+     }
+    ],
+    "input": [
+     16,
+     16,
+     16
+    ],
+    "oracle": [
+     24.78,
+     24.75,
+     24.79
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 1.25
+     }
+    ],
+    "input": [
+     32,
+     32,
+     32
+    ],
+    "oracle": [
+     49.77,
+     49.83,
+     49.84
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 1.25
+     }
+    ],
+    "input": [
+     64,
+     64,
+     64
+    ],
+    "oracle": [
+     99.09,
+     99.07,
+     98.94
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 1.25
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     197.93,
+     198.11,
+     198.09
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 1.25
+     }
+    ],
+    "input": [
+     200,
+     200,
+     200
+    ],
+    "oracle": [
+     255.0,
+     255.0,
+     255.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 1.25
+     }
+    ],
+    "input": [
+     240,
+     240,
+     240
+    ],
+    "oracle": [
+     255.0,
+     255.0,
+     255.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 1.5
+     }
+    ],
+    "input": [
+     16,
+     16,
+     16
+    ],
+    "oracle": [
+     35.12,
+     35.17,
+     35.16
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 1.5
+     }
+    ],
+    "input": [
+     32,
+     32,
+     32
+    ],
+    "oracle": [
+     70.69,
+     70.69,
+     70.7
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 1.5
+     }
+    ],
+    "input": [
+     64,
+     64,
+     64
+    ],
+    "oracle": [
+     141.4,
+     141.44,
+     141.68
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 1.5
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     255.0,
+     255.0,
+     255.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 1.5
+     }
+    ],
+    "input": [
+     200,
+     200,
+     200
+    ],
+    "oracle": [
+     255.0,
+     255.0,
+     255.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 1.5
+     }
+    ],
+    "input": [
+     240,
+     240,
+     240
+    ],
+    "oracle": [
+     255.0,
+     255.0,
+     255.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 2.0
+     }
+    ],
+    "input": [
+     16,
+     16,
+     16
+    ],
+    "oracle": [
+     62.31,
+     62.31,
+     62.32
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 2.0
+     }
+    ],
+    "input": [
+     32,
+     32,
+     32
+    ],
+    "oracle": [
+     124.32,
+     124.3,
+     124.3
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 2.0
+     }
+    ],
+    "input": [
+     64,
+     64,
+     64
+    ],
+    "oracle": [
+     248.25,
+     248.24,
+     248.24
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 2.0
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     255.0,
+     255.0,
+     255.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 2.0
+     }
+    ],
+    "input": [
+     200,
+     200,
+     200
+    ],
+    "oracle": [
+     255.0,
+     255.0,
+     255.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 2.0
+     }
+    ],
+    "input": [
+     240,
+     240,
+     240
+    ],
+    "oracle": [
+     255.0,
+     255.0,
+     255.0
+    ]
+   }
+  ]
  }
 }
