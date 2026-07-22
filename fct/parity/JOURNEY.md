@@ -394,3 +394,27 @@ highlight-rolloff mechanism, not the WS gamma), Levels_remap (endpoint stretch),
 (non-standard hue rotation). Each has a captured probe + decoded structure.
 
 State: 34 nodes | VERIFIED 15  CHARACTERIZED 5  DIVERGED 14. tsc + gate green.
+
+
+## UPDATE 2026-07-22 (session 2) — Levels Black/White-In remap DECODED in gamma-1.958 WS + VERIFIED
+
+Fourth mechanism on the unified working space. transfer.PAELevels_remap VERIFIED (0.81 lvl,
+n=81 — was CHARACTERIZED 71.8). The Black/White-In endpoint AFFINE stretch runs in the
+gamma-1.958 WS with the black/white-in points applied RAW (not re-encoded):
+  norm = clamp((ws(x) - blackIn)/(whiteIn - blackIn), 0, 1); out = ws_inv(norm^(1/gamma))
+Fit: 0.22 rms / 0.6 worst. The prior "FCP stretch is gentler than TS sRGB stretch" gap
+(whiteIn=0.7, in=64 → FCP 128 vs TS 91) was the affine space — code space clips harder than
+the gamma-1.958 WS. Levels GAMMA leg stays VERIFIED (0.71) in sRGB (unaffected — the WS path
+is env-guarded FCT_LEVELS_WS=1, set only on the remap node).
+
+COLOUR MODEL now supported across FIVE transfer nodes (Tint, HSV-valsat, Colorize,
+Levels-remap + Levels-gamma-in-sRGB / ChannelMixer): FCP's per-pixel colour ops run in a
+display-referred POWER-LAW gamma-1.958 working space with Rec.709 luma. Only THREE colour
+mechanisms remain CHARACTERIZED, all needing GPU disasm not WS gamma:
+  - HGColorMatrix over-1.0 clamp (Brightness/ChannelMixer-clip): a highlight-rolloff with a
+    DISCONTINUITY at the clip point (a=1.27→1.30: R 254→242, G 64→144) + a FROZEN asymptote
+    (a≥2 → (255,176,172) for (200,50,50)·a). Refuted: linear, WS-gamma multiply, plain clamp,
+    Rec.709 luma-preserving desaturation. Needs the HGColorMatrix render disasm.
+  - HSV hue rotation (non-standard; not HSV-hextant/NTSC/YIQ/Rodrigues). Gate-neutral.
+
+State: 34 nodes | VERIFIED 16  CHARACTERIZED 4  DIVERGED 14. tsc clean.

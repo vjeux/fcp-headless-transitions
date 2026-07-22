@@ -100,6 +100,40 @@ export function levelsFilter(input: ImageData, params: LevelsParams): ImageData 
   const range = whiteIn - blackIn;
   const invGamma = gamma !== 0 ? 1 / gamma : 1;
 
+  // DECODED gamma-1.958 working-space Black/White-In stretch (fct/parity, 2026-07-22).
+  // Guarded by FCT_LEVELS_WS=1. transfer.PAELevels_remap VERIFIED at 0.22 rms with the
+  // endpoint AFFINE run in the gamma-1.958 working space and the black/white-in points
+  // applied RAW (NOT re-encoded): norm = (ws(x) - blackIn)/(whiteIn - blackIn), then the
+  // gamma power + output remap, then decode. This is the SAME unified colour working
+  // space as Tint/HSV/Colorize — the prior "gentler stretch" gap was the luma/affine
+  // space. The Levels GAMMA leg is already VERIFIED in sRGB (transfer.PAELevels); here
+  // the gamma power is applied in WS after the affine, which is identity when gamma=1
+  // (the remap node's case). Shipped GUI-GT path (code-space LUT below) byte-identical.
+  const useWS = typeof process !== 'undefined' && process.env && process.env.FCT_LEVELS_WS === '1';
+  if (useWS) {
+    const iv = 0.51117, gm = 1.0 / 0.51117;   // gamma-1.958 working space
+    const rng = range || 0.001;
+    const lutWS = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) {
+      const xw = Math.pow(i / 255, iv);
+      const normalized = Math.max(0, Math.min(1, (xw - blackIn) / rng));
+      const gammaCorrected = Math.pow(normalized, invGamma);
+      const outWS = gammaCorrected * (whiteOut - blackOut) + blackOut;
+      lutWS[i] = Math.round(Math.pow(Math.max(0, Math.min(1, outWS)), gm) * 255);
+    }
+    for (let i = 0; i < src.length; i += 4) {
+      if (mix >= 1) {
+        out[i] = lutWS[src[i]]; out[i + 1] = lutWS[src[i + 1]]; out[i + 2] = lutWS[src[i + 2]];
+      } else {
+        out[i] = Math.round(src[i] * (1 - mix) + lutWS[src[i]] * mix);
+        out[i + 1] = Math.round(src[i + 1] * (1 - mix) + lutWS[src[i + 1]] * mix);
+        out[i + 2] = Math.round(src[i + 2] * (1 - mix) + lutWS[src[i + 2]] * mix);
+      }
+      out[i + 3] = src[i + 3];
+    }
+    return new ImageData(out, width, height);
+  }
+
   // Build lookup table for speed (256 entries per channel):
   //   norm = clamp((x - blackIn)/(whiteIn - blackIn), 0, 1)
   //   out  = pow(norm, 1/gamma) * (whiteOut - blackOut) + blackOut

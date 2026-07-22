@@ -1452,11 +1452,5 @@
         228.0
       ]
     }
-  ],
-  "findings": [
-    {
-      "kind": "verified",
-      "summary": "PAELevels GAMMA transfer VERIFIED 0.71 lvl across gamma 0.5-2.2 on grayscale. Per-channel power curve pow(v, 1/gamma) is faithful in sRGB. (Black/White In endpoint remap is a SEPARATE node transfer.PAELevels_remap \u2014 CHARACTERIZED/diverges.)"
-    }
   ]
 }
