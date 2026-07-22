@@ -242,3 +242,28 @@ hard-light + saturation. It does NOT need to touch matrix dots or gamma curves (
 in sRGB). This is a precise, bounded spec for the eventual fix.
 
 State: 31 nodes | VERIFIED 12  CHARACTERIZED 5  DIVERGED 14.
+
+
+## UPDATE 2026-07-22 (session 2) — UNIFYING: Brightness == diagonal ChannelMixer (HGColorMatrix clamp)
+
+Decisive experiment collapses the colour-multiply divergence to ONE mechanism. Routing a
+DIAGONAL 1.5x matrix through PAEChannelMixer produces BIT-IDENTICAL FCP output to
+PAEBrightness x1.5 ((200,50,50)->[255,154,151], (50,200,50)->[179,255,161]). This:
+1. EXPERIMENTALLY CONFIRMS the binary decode (PAEBrightness = diagonal HGColorMatrix).
+2. UNIFIES Brightness + ChannelMixer(clip) into the SHARED HGColorMatrix OVER-1.0 CLAMP:
+   when a channel's matrix output exceeds 1.0, FCP lifts the NON-clipped channels far beyond
+   the linear result (low 50->154 as high 200 clips). Non-amplifying matrices (all outputs
+   <=1) are VERIFIED exact in sRGB (transfer.PAEChannelMixer).
+3. Refuted linear/Reinhard/YCbCr models for the clamp — the ~3x low lift needs the
+   HGColorMatrix RENDER disasm (clamp + ExtendedLinearSRGB readback), a focused binary read.
+
+IMPACT: decoding that ONE HGColorMatrix over-1.0 clamp fixes Brightness AND ChannelMixer(clip)
+AND any HGColorMatrix-based filter — a large reduction in the remaining colour-decode surface.
+The colour subsystem's divergences now reduce to a small set of shared, decoded mechanisms:
+  - HGColorMatrix over-1.0 clamp (Brightness, ChannelMixer-clip)
+  - endpoint-relative remap in working space (Levels Black/White In, Colorize)
+  - HgcTint hard-light + linearized tint (K*luma*s2l(tint), K~3.88)
+  - HSV saturation/value in linear (hue unit FIXED)
+All gate-blocked on the chain-level working-space pipeline; all structurally decoded.
+
+State: 33 nodes | VERIFIED 12  CHARACTERIZED 6  DIVERGED 15.
