@@ -417,7 +417,7 @@
    "oracle_truth": "transfer",
    "status": "UNTESTED",
    "characterized": true,
-   "characterized_reason": "Compound bug (param-location nested Color + hard-light tint-math), GATE-BLOCKED: fixing param-location alone regresses Leaves 22.44->19.29 (the white-tint bug compensates the tint-math bug). Must decode HgcTint hard-light shader + fix both together. See report."
+   "characterized_reason": "DECODED (2026-07-22, near-complete \u2014 see evidence/tint_transfer_r1g0b0_i1.json FULL_TWO_LEG_DECODE): highlight leg = K*luma_sRGB*s2l(tint) K=3.878 (fits ~0.1 lvl, tint colour LINEARIZED); shadow leg ~2*luma-1 smoothstepped near 0.5; Intensity mix ~sRGB. The documented ceiling is cracked structurally. REMAINING to ship: pin K exactly (read SetParameter scale in disasm) + the smoothstep edges, implement in tintFilter + nested-Color read, then verify Objects__Leaves >=22.44 on the GUI gate (the compound fix, now with decoded math)."
   },
   {
    "id": "transfer.PAEColorize",
