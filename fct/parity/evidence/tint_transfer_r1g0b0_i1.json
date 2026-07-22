@@ -166,6 +166,18 @@
       "fit_quality": "<1.2 levels across the full luma range (tint=1) and all tint values 0.25-1.0. This CRACKS the highlight leg that resisted the earlier naive verbatim-shader transcription.",
       "structural_meaning": "CONFIRMS the linear-working-space root cause STRUCTURALLY (not fitted): the authored sRGB tint colour is linearized before the tint math, while luma stays sRGB. K~3.88 (~=2x the shader's 2*luma*tint) is the one remaining constant \u2014 likely a 2x from the working-space scale or the hard-light doubling; needs the pixel-path scale pinned. This is a real decode of HgcTint's highlight leg, reducing the ceiling to a single scale constant.",
       "next": "(1) Pin K exactly (3.88 vs 4 vs a decoded constant) \u2014 check read_const near the HgcTint param wiring for a 2x/4x scale. (2) Decode the shadow leg (G tint=0) with the same tint-linearized insight: G(tint=0) needs the shadow leg 2*(1-luma)*(tint_lin-1)+1 with tint_lin=s2l(0)=0. (3) Then implement in tintFilter (tint linearized + K) and verify Leaves stays >=22.44 on the GUI gate (the compound fix that was gate-blocked)."
+    },
+    "FULL_TWO_LEG_DECODE": {
+      "status": "NEAR-COMPLETE \u2014 the documented HgcTint ceiling is substantially cracked.",
+      "highlight_leg": "tinted (tinted channel, e.g. R for tint_R=1) = K * luma_sRGB * s2l(tint), K = 3.878 (constant to ~0.1 lvl across luma 0.03-0.25, all tint 0.25-1.0). Tint colour LINEARIZED (sRGB->linear); luma & output stay sRGB. K=3.878 = 2 * 1.939 (the shader's 2*luma with an effective ~1.94 scale on tint=1; exact constant TBD \u2014 1/0.2578=3.879).",
+      "shadow_leg": "zero-tint channel (e.g. G for tint_R=1) \u2248 2*luma_sRGB - 1 for luma>~0.6, but SMOOTHED near the luma=0.5 threshold (0.502->0.171 vs hard 0.004) \u2014 the SMOOTHSTEP the prior RE note (channel-mixer.ts) identified, replacing the disasm's hard sel=(luma<0.5). Rises 0.048(luma .376)->1.0(luma 1.0).",
+      "tint_linearized": "CONFIRMED: s2l(tint) fits K constant across all tint values; a raw-tint or tint^2 model does not.",
+      "remaining": [
+        "Pin K exactly (3.878; candidates 2*1.939, 1/0.2578) \u2014 read_const near HgcTint SetParameter wiring for a scale.",
+        "Pin the shadow-leg smoothstep edges (prior note: smoothstep(~0.27,~1.22,luma)).",
+        "The Intensity mix is ~sRGB-linear (established). Compose: out = mix(rgb_srgb, tinted_two_leg, Intensity)."
+      ],
+      "then": "Implement in tintFilter (tint linearized + K highlight + smoothstep shadow) AND read the nested Color group, then verify the sole host Objects__Leaves stays >=22.44 on the GUI gate \u2014 the compound fix that was gate-blocked now has the decoded math."
     }
   }
 }
