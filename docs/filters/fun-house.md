@@ -30,3 +30,25 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcFunHouse` embedded shader. Decoded functional form:_
+
+Fun House is a **1-D carnival-mirror stretch** — it magnifies/compresses the image along one axis
+based on distance from a center line, like a funhouse mirror.
+
+```
+d    = (texCoord - Center) * aspect            // hg_Params[0]=Center, [4].zw=aspect
+u    = dot(d, hg_Params[1].xy)                 // project onto the stretch axis
+w    = clamp(1 - |u|, 0, 1)                     // 0 at edges → 1 at center
+bulge= mix(1, hg_Params[3].x, w*w*(3 - 2*w))   // smoothstep magnification (Amount = hg_Params[3].x)
+u'   = u * bulge                                // stretch that axis by the bulge factor
+uv   = rotateBack((u', v)) * hg_Params[4].xy + Center
+// clamp to bounds; pixels outside → transparent (the select at the end)
+out  = sample(source, (uv + hg_Params[6].xy)*hg_Params[6].zw)
+```
+
+`hg_Params[1]` = the stretch-axis orientation (Angle), `hg_Params[3].x` = **Amount** (bulge >1
+magnifies center, <1 pinches), smoothstep gives the smooth funhouse falloff. Head-start: backward
+warp, magnify one axis by a smoothstep-weighted factor centered on the line.

@@ -29,3 +29,25 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcMirror` embedded shader. Decoded functional form:_
+
+Mirror reflects the image across a line through a center point: it rotates into the mirror-line
+frame, takes the absolute value of one axis (the fold), then rotates back.
+
+```
+d   = texCoord - Center                     // Center = hg_Params[0]
+u   = dot(d, hg_Params[1].xy)               // project onto the mirror axis (rotation into line frame)
+v   = dot(d, hg_Params[1].zw)               // perpendicular axis
+u   = abs(u)                                // THE FOLD — everything mirrors onto one side
+uv.x= dot((u,v), hg_Params[2].xy) + Center  // rotate back (inverse basis)
+uv.y= dot((u,v), hg_Params[2].zw) + Center
+out = sample(source, (uv + hg_Params[3].xy)*hg_Params[3].zw)
+```
+
+`hg_Params[1]` = the mirror-line orientation (its angle = the reflection axis, from a **Angle**
+param), `hg_Params[0]` = **Center** of the mirror line, `hg_Params[2]` = inverse basis. The single
+`abs()` is the whole trick. Head-start: rotate coords by −Angle about Center, `x = |x|`, rotate back,
+gather.

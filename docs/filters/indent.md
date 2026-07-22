@@ -44,3 +44,28 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 > 10 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
 > 1 non-creative internal/hidden state parameter(s) (persisted engine state, not user knobs) were omitted from the table above.
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcIndent` embedded shader. Decoded functional form:_
+
+Indent is an **emboss/bevel lighting** filter: it derives a surface normal from the alpha/luma
+gradient (via 4 neighbor taps), then shades it with a directional light — giving the image a raised,
+carved-into-a-surface look.
+
+```
+// 4 neighbor samples of a height source (texCoord1..4 = ±dx, ±dy taps)
+gx   = dot(hg_Params[1], sampleRight - sampleLeft)     // x gradient
+gy   = dot(hg_Params[1], sampleDown  - sampleUp)       // y gradient
+N    = normalize( (gx, gy, hg_Params[6].z) )           // surface normal (z = flatness)
+diff = clamp(dot(N, hg_Params[0].xyz), 0, 1)           // diffuse: N·lightDir
+diff = diff * hg_Params[2].x + hg_Params[7].x          // gain + ambient
+spec = clamp(dot(N, hg_Params[5].xyz), 0, 1)           // specular direction
+spec = clamp(pow(spec, hg_Params[3].x) * hg_Params[4].x, 0, 1)   // shininess^power · intensity
+out.rgb = (src·diff + spec) * a                        // shade the source, re-premultiply
+```
+
+`hg_Params[0]` = **light direction** (diffuse), `[5]` = specular direction, `[2].x` = **diffuse
+gain**, `[3].x` = **shininess/hardness**, `[4].x` = **specular intensity**, `[6].z` = normal-z
+(bevel softness), `[7].x` = ambient. Classic Blinn-ish bump-lighting off the image's own gradient.
+Head-start: Sobel-ish gradient → normal → Lambert diffuse + power specular.

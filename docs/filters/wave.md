@@ -31,3 +31,26 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcWave` embedded shader. Decoded functional form:_
+
+Wave is a **sinusoidal displacement** — it offsets each pixel's sample position by a sine of the
+opposite coordinate, giving a rippling flag/water wobble.
+
+```
+d      = texCoord - Center                       // Center = hg_Params[2]
+offX   = Amplitude * sin(Frequency * d.x)        // hg_Params[0].x = Amplitude, [1].x = Frequency
+offY   = Amplitude * sin(Frequency * d.y)
+uv     = texCoord*aspect + (offX, offY)*aspect*hg_Params[3].xy   // apply, scaled per-axis
+// optional clamp to crop bounds (hg_Params[4]) gated by hg_Params[5]
+uv     = (uv + hg_Params[7].xy) * hg_Params[7].zw
+out    = sample(source, uv)
+```
+
+`hg_Params[0]` = **Amplitude**, `hg_Params[1]` = **Frequency** (wavelength⁻¹), `hg_Params[2]` =
+**Center**, `hg_Params[3]` = per-axis weighting (lets you do horizontal-only or vertical-only waves),
+`hg_Params[6]` = aspect. Note the sine of `d.x` drives the *x* offset here (a longitudinal wave);
+Direction params choose which axis modulates which. Head-start: backward-warp gather with the sine
+offsets above.

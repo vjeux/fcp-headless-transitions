@@ -30,3 +30,29 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded — HgcRefraction)
+
+_RE'd from the `HgcRefraction` embedded shader (supersedes the earlier estimate in this doc)._
+
+Refraction bends the image using the **gradient of a height map** as a displacement — light passing
+through a bumpy glass surface. It reads a height texture (`hg_Texture0`) via 4 neighbor taps, forms
+a 2-D gradient, scales it, and offsets where the source (`hg_Texture1`) is sampled.
+
+```
+base = (dot(texCoord1, hg_Params[2]), dot(texCoord1, hg_Params[3]))   // base coords (matrix rows)
+gy   = dot(hg_Params[4], sampleDown  - sampleUp)     // height-map y gradient (taps texCoord2/…)
+gx   = dot(hg_Params[4], sampleRight - sampleLeft)   // height-map x gradient
+grad = (gx, gy, 0)
+disp = grad * hg_Params[9] + base                    // hg_Params[9] = Refraction strength (index)
+uv.x = dot(disp, hg_Params[0])                       // through the output matrix rows
+uv.y = dot(disp, hg_Params[1])
+out  = sample(source, (uv + hg_Params[26].xy)*hg_Params[26].zw)
+```
+
+`hg_Params[9]` = **Refraction** (displacement strength ∝ IOR), `hg_Params[4]` = the channel weights
+that turn the height texture into a scalar height, the neighbor taps form the gradient. **Softness**
+(this filter's other knob) blurs the height map before the gradient — a smoother glass. Head-start:
+build/blur a height field, take its gradient, gather source at `uv + strength·grad`. (Note: the TS
+engine's `underwater.ts` currently backs this UUID; a dedicated refraction implementation would use
+the height-gradient warp above.)

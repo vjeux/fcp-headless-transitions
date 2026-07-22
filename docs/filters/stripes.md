@@ -29,3 +29,24 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcStripes` embedded shader. Decoded functional form:_
+
+Stripes is a **procedural two-color stripe generator** (it ignores the source image; `texCoord0` is
+the only input). It builds a smoothstepped triangle wave along one axis and mixes two colors:
+
+```
+x   = (texCoord.x - Offset) * Scale * Frequency - 0.25   // hg_Params[0].x, [4].x, [3].x
+t   = fract(x)
+tri = min(t, 1-t)                                        // triangle wave 0..0.5
+t   = clamp(tri * hg_Params[3].y + hg_Params[3].z, 0, 1) // width/phase controls
+s   = t*t*(3 - 2*t)                                      // smoothstep (soft stripe edges)
+out = mix(Color2, Color1, s)                             // hg_Params[2], hg_Params[1]
+out.rgb *= out.a                                         // premultiply
+```
+
+`hg_Params[1]/[2]` = the two **stripe colors**, `hg_Params[3]` = **width/softness/phase**,
+`hg_Params[4].x` = **Frequency** (stripes per unit). The `t*t*(3−2t)` is the classic smoothstep for
+anti-aliased edges. Head-start: pure generator — no source sampling; emit smoothstepped stripes.

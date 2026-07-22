@@ -28,3 +28,27 @@ Non-creative host parameters on this filter: `Crop`, `Publish OSC`, `Flip`, `Inp
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcSphere` embedded shader. Decoded functional form:_
+
+Sphere maps the image onto a **hemisphere/ball** — a fisheye-like spherical bulge with a hard
+circular boundary (outside the sphere → transparent).
+
+```
+d    = texCoord * hg_Params[1].xy + hg_Params[1].zw    // recentre + normalize to unit disc
+r2   = dot(d, d)                                        // squared radius
+z    = 1 - r2*Amount                                    // hg_Params[0].x = curvature; z = height on sphere
+h    = (1 - z*rsqrt(z)) * hg_Params[0].y                // spherical displacement magnitude
+uv   = normalize(d) * (r·h)                             // push outward by the sphere mapping
+uv   = uv * hg_Params[2].xy + hg_Params[2].zw           // undo center/scale
+out  = sample(source, (uv+hg_Params[3].xy)*hg_Params[3].zw)
+coverage = clamp(z*hg_Params[0].y / |d|·aspect, 0, 1)   // circular mask → transparent past the rim
+out *= coverage
+```
+
+`hg_Params[0].x` = **Amount/curvature** (how bulged), `.y` = displacement scale, `hg_Params[1]` =
+center+radius. The `z = 1 − r²·k` then `1/sqrt(z)` is the sphere-height → refraction mapping; the
+final coverage term clips to the sphere's circular silhouette. Head-start: fisheye-style backward
+warp with the spherical z-map, masked to the disc.
