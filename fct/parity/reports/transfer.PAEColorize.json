@@ -1,0 +1,2095 @@
+{
+  "id": "transfer.PAEColorize",
+  "kind": "transfer",
+  "status": "DIVERGED",
+  "metric": "max_abs_levels",
+  "max_abs_levels": 123.83,
+  "n_samples": 81,
+  "tol_levels": 2.0,
+  "worst": {
+    "case": {
+      "label": "black_blue_white_yellow",
+      "params": [
+        {
+          "name": "Remap Black To",
+          "id": 1,
+          "children": [
+            {
+              "name": "Red",
+              "id": 1,
+              "value": 0
+            },
+            {
+              "name": "Green",
+              "id": 2,
+              "value": 0
+            },
+            {
+              "name": "Blue",
+              "id": 3,
+              "value": 1
+            }
+          ]
+        },
+        {
+          "name": "Remap White To",
+          "id": 2,
+          "children": [
+            {
+              "name": "Red",
+              "id": 1,
+              "value": 1
+            },
+            {
+              "name": "Green",
+              "id": 2,
+              "value": 1
+            },
+            {
+              "name": "Blue",
+              "id": 3,
+              "value": 0
+            }
+          ]
+        },
+        {
+          "name": "Intensity",
+          "id": 3,
+          "value": 1.0
+        },
+        {
+          "name": "Mix",
+          "id": 10001,
+          "value": 1.0
+        }
+      ]
+    },
+    "input": [
+      64,
+      64,
+      64
+    ],
+    "oracle": [
+      64.19,
+      64.19,
+      67.17
+    ],
+    "engine": [
+      64.0,
+      64.0,
+      191.0
+    ]
+  },
+  "oracle_truth": "transfer",
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "black0_white_red",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        15.96,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        16.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black0_white_red",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        32.0,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        32.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black0_white_red",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        64.4,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        64.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black0_white_red",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        128.13,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        128.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black0_white_red",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        200.13,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        200.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black0_white_red",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        240.03,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        240.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black0_white_red",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        73.69,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        82.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black0_white_red",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        147.64,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        157.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black0_white_red",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        57.34,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        61.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black_blue_white_yellow",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        16.05,
+        16.01,
+        148.09
+      ],
+      "engine": [
+        16.0,
+        16.0,
+        239.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black_blue_white_yellow",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        32.2,
+        31.99,
+        111.0
+      ],
+      "engine": [
+        32.0,
+        32.0,
+        223.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black_blue_white_yellow",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        64.19,
+        64.19,
+        67.17
+      ],
+      "engine": [
+        64.0,
+        64.0,
+        191.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black_blue_white_yellow",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        128.01,
+        128.02,
+        23.79
+      ],
+      "engine": [
+        128.0,
+        128.0,
+        127.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black_blue_white_yellow",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        199.93,
+        200.11,
+        3.75
+      ],
+      "engine": [
+        200.0,
+        200.0,
+        55.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black_blue_white_yellow",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        239.68,
+        239.61,
+        0.28
+      ],
+      "engine": [
+        240.0,
+        240.0,
+        15.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black_blue_white_yellow",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        73.56,
+        73.31,
+        58.01
+      ],
+      "engine": [
+        82.0,
+        82.0,
+        173.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black_blue_white_yellow",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        147.02,
+        147.01,
+        16.16
+      ],
+      "engine": [
+        157.0,
+        157.0,
+        98.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black_blue_white_yellow",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        57.55,
+        57.56,
+        74.7
+      ],
+      "engine": [
+        61.0,
+        61.0,
+        194.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black0_white1",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        16.05,
+        16.01,
+        16.06
+      ],
+      "engine": [
+        16.0,
+        16.0,
+        16.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black0_white1",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        32.2,
+        31.99,
+        32.2
+      ],
+      "engine": [
+        32.0,
+        32.0,
+        32.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black0_white1",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        64.19,
+        64.19,
+        64.17
+      ],
+      "engine": [
+        64.0,
+        64.0,
+        64.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black0_white1",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        128.01,
+        128.02,
+        128.0
+      ],
+      "engine": [
+        128.0,
+        128.0,
+        128.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black0_white1",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        199.93,
+        200.11,
+        200.09
+      ],
+      "engine": [
+        200.0,
+        200.0,
+        200.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black0_white1",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        239.68,
+        239.61,
+        239.61
+      ],
+      "engine": [
+        240.0,
+        240.0,
+        240.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black0_white1",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        73.56,
+        73.31,
+        73.47
+      ],
+      "engine": [
+        82.0,
+        82.0,
+        82.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black0_white1",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        147.02,
+        147.01,
+        146.87
+      ],
+      "engine": [
+        157.0,
+        157.0,
+        157.0
+      ]
+    },
+    {
+      "param": {
+        "label": "black0_white1",
+        "params": [
+          {
+            "name": "Remap Black To",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 0
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 0
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Remap White To",
+            "id": 2,
+            "children": [
+              {
+                "name": "Red",
+                "id": 1,
+                "value": 1
+              },
+              {
+                "name": "Green",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Blue",
+                "id": 3,
+                "value": 1
+              }
+            ]
+          },
+          {
+            "name": "Intensity",
+            "id": 3,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        57.55,
+        57.56,
+        57.56
+      ],
+      "engine": [
+        61.0,
+        61.0,
+        61.0
+      ]
+    }
+  ],
+  "characterized": true,
+  "findings": [
+    {
+      "kind": "working_space_divergence",
+      "summary": "PAEColorize luma-remap: matches FCP EXACTLY when Remap Black=[0,0,0] (black0_white_red, black0_white1 \u2014 both <0.5 level), but DIVERGES when the black point is NONZERO (black_blue_white_yellow: gray(64)->FCP[64,64,67] vs TS[64,64,191], up to 124 levels). The B channel (black_B=1,white_B=0 => remap=1-luma) decays FAR faster in FCP than the sRGB 1-luma mix, and neither sRGB nor linear luma/mix reproduces it.",
+      "diagnosis": "Same working-space root cause as Brightness/Tint: the black->white luma mix is computed in a NON-sRGB working space (linear or an HGColorGamma stage), so it only agrees with the TS sRGB mix at the degenerate black=0 endpoint (where mix=luma*white is space-invariant at 0). A nonzero black point exposes the space mismatch. The TS colorizeRemapFilter does the mix in sRGB.",
+      "oracle_truth_caveat": "oracle_truth=gui: colour family, headless!=GUI. The linear-working-space form that matches this headless transfer may regress the GUI gate (same class as Colorize's faithful/state.json DIVERGED note: 's2l endpoints matched headless but -11 NET on the GUI gate'). So this is CHARACTERIZED (working-space, gate-blocked), consistent with the faithful program's Colorize finding.",
+      "value": "The transfer test PINPOINTED the divergence to the nonzero-black-point/working-space interaction with exact per-input data \u2014 far sharper than the coupled ddb=8.7."
+    }
+  ]
+}

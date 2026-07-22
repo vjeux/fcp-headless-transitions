@@ -420,6 +420,194 @@
    "characterized_reason": "Compound bug (param-location nested Color + hard-light tint-math), GATE-BLOCKED: fixing param-location alone regresses Leaves 22.44->19.29 (the white-tint bug compensates the tint-math bug). Must decode HgcTint hard-light shader + fix both together. See report."
   },
   {
+   "id": "transfer.PAEColorize",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAEColorize per-pixel luma remap: out = mix(in, mix(Black,White,luma), Amount). EXACT isolation via uniform inputs.",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "D995BBCF-F766-4950-89D5-7A4828CD9B6F",
+    "pluginName": "PAEColorize"
+   },
+   "param_cases": [
+    {
+     "label": "black0_white_red",
+     "params": [
+      {
+       "name": "Remap Black To",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 0
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 0
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Remap White To",
+       "id": 2,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 1
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 0
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Intensity",
+       "id": 3,
+       "value": 1.0
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "black_blue_white_yellow",
+     "params": [
+      {
+       "name": "Remap Black To",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 0
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 0
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 1
+        }
+       ]
+      },
+      {
+       "name": "Remap White To",
+       "id": 2,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 1
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 1
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Intensity",
+       "id": 3,
+       "value": 1.0
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "black0_white1",
+     "params": [
+      {
+       "name": "Remap Black To",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 0
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 0
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Remap White To",
+       "id": 2,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 1
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 1
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 1
+        }
+       ]
+      },
+      {
+       "name": "Intensity",
+       "id": 3,
+       "value": 1.0
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "transfer",
+   "status": "UNTESTED",
+   "characterized": true,
+   "characterized_reason": "Luma-remap matches FCP at black=[0,0,0] but diverges with a nonzero black point (working-space mix, not sRGB). Same gate-blocked working-space root cause as Brightness/Tint + the faithful Colorize note (s2l endpoints match headless but regress the GUI gate)."
+  },
+  {
    "id": "filter.PAEColorize",
    "subsystem": "color",
    "kind": "filter",

@@ -532,6 +532,91 @@
       },
       "oracle_truth": "transfer",
       "n_failures": 0
+    },
+    "transfer.PAEColorize": {
+      "id": "transfer.PAEColorize",
+      "kind": "transfer",
+      "status": "DIVERGED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 123.83,
+      "n_samples": 81,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "label": "black_blue_white_yellow",
+          "params": [
+            {
+              "name": "Remap Black To",
+              "id": 1,
+              "children": [
+                {
+                  "name": "Red",
+                  "id": 1,
+                  "value": 0
+                },
+                {
+                  "name": "Green",
+                  "id": 2,
+                  "value": 0
+                },
+                {
+                  "name": "Blue",
+                  "id": 3,
+                  "value": 1
+                }
+              ]
+            },
+            {
+              "name": "Remap White To",
+              "id": 2,
+              "children": [
+                {
+                  "name": "Red",
+                  "id": 1,
+                  "value": 1
+                },
+                {
+                  "name": "Green",
+                  "id": 2,
+                  "value": 1
+                },
+                {
+                  "name": "Blue",
+                  "id": 3,
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "name": "Intensity",
+              "id": 3,
+              "value": 1.0
+            },
+            {
+              "name": "Mix",
+              "id": 10001,
+              "value": 1.0
+            }
+          ]
+        },
+        "input": [
+          64,
+          64,
+          64
+        ],
+        "oracle": [
+          64.19,
+          64.19,
+          67.17
+        ],
+        "engine": [
+          64.0,
+          64.0,
+          191.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
     }
   },
   "history": [
@@ -834,8 +919,13 @@
       "id": "blur.decimation",
       "status": "VERIFIED",
       "at": "2026-07-22T11:48:19Z"
+    },
+    {
+      "id": "transfer.PAEColorize",
+      "status": "DIVERGED",
+      "at": "2026-07-22T12:01:30Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-22T11:48:19Z"
+  "updated": "2026-07-22T12:01:30Z"
 }
