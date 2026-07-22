@@ -1,0 +1,1464 @@
+{
+  "id": "transfer.PAELevels",
+  "kind": "transfer",
+  "status": "VERIFIED",
+  "metric": "max_abs_levels",
+  "max_abs_levels": 0.710000000000008,
+  "n_samples": 108,
+  "tol_levels": 2.0,
+  "worst": {
+    "case": {
+      "label": "gamma_1.73",
+      "params": [
+        {
+          "name": "Histogram",
+          "id": 1,
+          "children": [
+            {
+              "name": "RGB",
+              "id": 2,
+              "children": [
+                {
+                  "name": "Gamma",
+                  "id": 5,
+                  "value": 1.7264349266740369
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "input": [
+      200,
+      50,
+      50
+    ],
+    "oracle": [
+      221.29,
+      99.12,
+      99.2
+    ],
+    "engine": [
+      222.0,
+      99.0,
+      99.0
+    ]
+  },
+  "oracle_truth": "transfer",
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "gamma_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "engine": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        4.0,
+        4.0,
+        4.0
+      ],
+      "engine": [
+        4.0,
+        4.0,
+        4.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        16.09,
+        16.02,
+        16.1
+      ],
+      "engine": [
+        16.0,
+        16.0,
+        16.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        64.42,
+        64.44,
+        64.44
+      ],
+      "engine": [
+        64.0,
+        64.0,
+        64.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        156.71,
+        156.71,
+        156.94
+      ],
+      "engine": [
+        157.0,
+        157.0,
+        157.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        225.61,
+        225.39,
+        225.65
+      ],
+      "engine": [
+        226.0,
+        226.0,
+        226.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        157.31,
+        9.78,
+        9.9
+      ],
+      "engine": [
+        157.0,
+        10.0,
+        10.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        9.83,
+        156.38,
+        9.89
+      ],
+      "engine": [
+        10.0,
+        157.0,
+        10.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        9.95,
+        9.94,
+        156.4
+      ],
+      "engine": [
+        10.0,
+        10.0,
+        157.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_1.0",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        16.05,
+        16.01,
+        16.06
+      ],
+      "engine": [
+        16.0,
+        16.0,
+        16.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_1.0",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        32.2,
+        31.99,
+        32.2
+      ],
+      "engine": [
+        32.0,
+        32.0,
+        32.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_1.0",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        64.19,
+        64.19,
+        64.17
+      ],
+      "engine": [
+        64.0,
+        64.0,
+        64.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_1.0",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        128.01,
+        128.02,
+        128.0
+      ],
+      "engine": [
+        128.0,
+        128.0,
+        128.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_1.0",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        199.93,
+        200.11,
+        200.09
+      ],
+      "engine": [
+        200.0,
+        200.0,
+        200.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_1.0",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        239.99,
+        239.96,
+        239.98
+      ],
+      "engine": [
+        240.0,
+        240.0,
+        240.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_1.0",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        200.12,
+        49.87,
+        50.28
+      ],
+      "engine": [
+        200.0,
+        50.0,
+        50.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_1.0",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        50.12,
+        199.88,
+        50.05
+      ],
+      "engine": [
+        50.0,
+        200.0,
+        50.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_1.0",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        49.99,
+        50.23,
+        200.35
+      ],
+      "engine": [
+        50.0,
+        50.0,
+        200.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_1.73",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.7264349266740369
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        51.04,
+        50.9,
+        50.89
+      ],
+      "engine": [
+        51.0,
+        51.0,
+        51.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_1.73",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.7264349266740369
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        76.86,
+        76.97,
+        76.96
+      ],
+      "engine": [
+        77.0,
+        77.0,
+        77.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_1.73",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.7264349266740369
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        114.48,
+        114.46,
+        114.43
+      ],
+      "engine": [
+        114.0,
+        114.0,
+        114.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_1.73",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.7264349266740369
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        170.73,
+        170.93,
+        170.82
+      ],
+      "engine": [
+        171.0,
+        171.0,
+        171.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_1.73",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.7264349266740369
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        221.61,
+        221.38,
+        221.42
+      ],
+      "engine": [
+        222.0,
+        222.0,
+        222.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_1.73",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.7264349266740369
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        246.06,
+        246.11,
+        246.11
+      ],
+      "engine": [
+        246.0,
+        246.0,
+        246.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_1.73",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.7264349266740369
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        221.29,
+        99.12,
+        99.2
+      ],
+      "engine": [
+        222.0,
+        99.0,
+        99.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_1.73",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.7264349266740369
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        99.4,
+        221.38,
+        99.19
+      ],
+      "engine": [
+        99.0,
+        222.0,
+        99.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_1.73",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.7264349266740369
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        99.36,
+        99.14,
+        221.62
+      ],
+      "engine": [
+        99.0,
+        99.0,
+        222.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_2.2",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 2.2
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        72.38,
+        72.19,
+        72.17
+      ],
+      "engine": [
+        72.0,
+        72.0,
+        72.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_2.2",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 2.2
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        99.3,
+        99.32,
+        99.22
+      ],
+      "engine": [
+        99.0,
+        99.0,
+        99.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_2.2",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 2.2
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        135.85,
+        135.86,
+        135.85
+      ],
+      "engine": [
+        136.0,
+        136.0,
+        136.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_2.2",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 2.2
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        186.62,
+        186.37,
+        186.35
+      ],
+      "engine": [
+        186.0,
+        186.0,
+        186.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_2.2",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 2.2
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        228.35,
+        228.31,
+        228.34
+      ],
+      "engine": [
+        228.0,
+        228.0,
+        228.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_2.2",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 2.2
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        247.93,
+        247.94,
+        247.94
+      ],
+      "engine": [
+        248.0,
+        248.0,
+        248.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_2.2",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 2.2
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        228.03,
+        121.76,
+        121.63
+      ],
+      "engine": [
+        228.0,
+        122.0,
+        122.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_2.2",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 2.2
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        121.45,
+        228.37,
+        121.65
+      ],
+      "engine": [
+        122.0,
+        228.0,
+        122.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma_2.2",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 2.2
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        121.54,
+        121.56,
+        228.26
+      ],
+      "engine": [
+        122.0,
+        122.0,
+        228.0
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "verified_refines_root_cause",
+      "summary": "PAELevels gamma transfer VERIFIED at 0.71 levels (quantisation) across gamma 0.5-2.2 on grayscale \u2014 FCP and the TS levelsFilter match exactly (16->51, 128->171 at gamma 1.73).",
+      "significance": "FIRST colour node VERIFIED. Proves the transfer harness can VERIFY colour nodes, not only characterise failures, AND refines the unified colour root cause: a PER-CHANNEL gamma CURVE (Levels) is faithful in sRGB, so the working-space divergence is specific to CROSS-CHANNEL / colour-MIX operations (Brightness multiply, Colorize black->white mix, Tint hard-light, HSV saturation) \u2014 NOT to all colour math. Levels applies its curve per-channel independently in the space the engine uses, and it happens to match FCP there.",
+      "scope_caveat": "SCOPE: this verifies the GAMMA transfer on GRAYSCALE only (the node's authored use). The full PAELevels also has Black/White In/Out; those aren't swept here. The faithful program's PAELevels DIVERGED (ddb 5.0, oracle_truth=gui) reflects the FULL filter in-host + GUI colour management \u2014 not contradicted: the gamma sub-operation is faithful vs HEADLESS on grayscale, while other params or the GUI export can still differ. This VERIFIED is the gamma-curve computation specifically."
+    }
+  ]
+}

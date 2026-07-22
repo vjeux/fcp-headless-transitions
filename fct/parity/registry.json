@@ -608,6 +608,109 @@
    "characterized_reason": "Luma-remap matches FCP at black=[0,0,0] but diverges with a nonzero black point (working-space mix, not sRGB). Same gate-blocked working-space root cause as Brightness/Tint + the faithful Colorize note (s2l endpoints match headless but regress the GUI gate)."
   },
   {
+   "id": "transfer.PAELevels",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAELevels gamma transfer on grayscale (Histogram>RGB>Gamma). Clean 1D curve; tests the gamma convention + working space.",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "2B221FA1-08A2-416E-998C-D7559E5509B5",
+    "pluginName": "PAELevels"
+   },
+   "param_cases": [
+    {
+     "label": "gamma_0.5",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "RGB",
+         "id": 2,
+         "children": [
+          {
+           "name": "Gamma",
+           "id": 5,
+           "value": 0.5
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "gamma_1.0",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "RGB",
+         "id": 2,
+         "children": [
+          {
+           "name": "Gamma",
+           "id": 5,
+           "value": 1.0
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "gamma_1.73",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "RGB",
+         "id": 2,
+         "children": [
+          {
+           "name": "Gamma",
+           "id": 5,
+           "value": 1.7264349266740369
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "gamma_2.2",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "RGB",
+         "id": 2,
+         "children": [
+          {
+           "name": "Gamma",
+           "id": 5,
+           "value": 2.2
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "transfer",
+   "status": "UNTESTED"
+  },
+  {
    "id": "filter.PAEColorize",
    "subsystem": "color",
    "kind": "filter",
