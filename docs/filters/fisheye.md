@@ -27,3 +27,22 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 ## Implementation status
 
 **Implemented.** TS module: [`engine/src/compositor/filters/fisheye.ts`](../../engine/src/compositor/filters/fisheye.ts). Reverse-engineered against the verbatim `HgcFisheye` Metal shader.
+
+## Algorithm (decoded)
+
+_RE'd from `HgcFisheye` (write-up in `../../engine/src/compositor/filters/evidence/FISHEYE_RE.md`; shipped in `fisheye.ts`, verified 34–36 dB)._
+
+Power-law radial lens distortion with **anisotropic (per-axis) radius normalization** — that W/H
+normalization was the key fix that took it from 16→34 dB:
+
+```
+d     = (matrix·texCoord) - Center                  // hg_Params[2..3] rows, Center=hg_Params[6]
+r2    = dot(d*d, hg_Params[5].xy)                    // ANISOTROPIC squared radius (per-axis weights)
+rn    = rsqrt(r2)
+scale = rn * pow(rn, -Amount)                        // hg_Params[4].x = Amount (bulge power)
+uv    = d * scale + Center → back through output matrix (hg_Params[0..1]) + offset (hg_Params[7])
+out   = sample(source, uv)
+```
+
+`hg_Params[4].x` = **Amount** (+ = bulge/convex, − = pinch/concave), `hg_Params[5].xy` = the per-axis
+normalization that keeps the distortion circular on 16:9. See FISHEYE_RE.md for the power-law decode.

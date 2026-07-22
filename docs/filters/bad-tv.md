@@ -36,3 +36,24 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 > 5 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
 > 3 non-creative internal/hidden state parameter(s) (persisted engine state, not user knobs) were omitted from the table above.
+
+## Algorithm (decoded)
+
+_RE'd from `HgcBadTV` (shipped in `bad-tv.ts`)._
+
+Bad TV composites several analog-TV artifacts driven by scanline position and a noise texture:
+
+```
+row     = dot(texCoord, hg_Params[3])                     // scanline coordinate (rotated)
+band    = fract(row / bandHeight) * bandHeight            // hg_Params[9].x = roll band height
+noiseR  = sample(noiseTex, (0.5, band·scale))             // per-row horizontal jitter from noise
+shift   = noiseR*2 - 1                                     // signed row displacement
+u       = dot(texCoord, hg_Params[2]) + shift·Amount      // horizontal tear per scanline
+// chroma split: sample the source at u±chromaOffset through the two matrix rows [0],[1]
+r_uv, g_uv, b_uv = u shifted by hg_Params[8].x (RGB desync)
+out     = combine(sample_r, sample_g, sample_b) + scanline_darkening
+```
+
+`hg_Params[3]` = scanline direction, `hg_Params[9].x` = roll speed/height, `hg_Params[8].x` = chroma
+desync, plus a noise texture for the static. It layers horizontal tearing + RGB split + rolling band
++ scanlines. See `bad-tv.ts` for the shipped combine.

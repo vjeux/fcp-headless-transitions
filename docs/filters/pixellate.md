@@ -28,3 +28,21 @@ Non-creative host parameters on this filter: `Publish OSC`, `Flip`, `Input Point
 **Implemented.** TS module: [`engine/src/compositor/filters/pixellate.ts`](../../engine/src/compositor/filters/pixellate.ts). Reverse-engineered against the verbatim `HgcPixellate` Metal shader.
 
 > 1 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
+
+## Algorithm (decoded)
+
+_RE'd from `HgcPixellate` (full write-up in `../../engine/src/compositor/filters/evidence/PIXELLATE_RE.md`; shipped in `pixellate.ts`)._
+
+Pixellate is a **coordinate quantizer** — it snaps each output pixel's sample coordinate to the
+centre of a `Scale`-sized grid cell (nearest-neighbour block):
+
+```
+p    = affine(texCoord, hg_Params[0..1])                 // to working space (identity if axis-aligned)
+cell = floor((p - Center) * density)                     // density = 1/cellSize (hg_Params[5].x)
+c    = (cell + 0.5) * cellSize + Center                  // sample the CELL CENTRE
+uv   = affine(c, hg_Params[2..3]) * hg_Params[6]         // back to texture space
+out  = sample(source, uv)
+```
+
+**Verified:** block size = `Scale` pixels exactly on both axes (oracle sweep Scale 8/20/50 → 8/20/50 px);
+grid anchored at `Center` (default 0.5,0.5). `Scale` = block size; `Center` = grid origin.

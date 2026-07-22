@@ -33,3 +33,23 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 **Implemented.** TS module: [`engine/src/compositor/filters/luma-keyer.ts`](../../engine/src/compositor/filters/luma-keyer.ts).
 
 > 24 non-creative internal/hidden state parameter(s) (persisted engine state, not user knobs) were omitted from the table above.
+
+## Algorithm (decoded)
+
+_RE'd from `HgcLumaKeyer` (shipped in `luma-keyer.ts`)._
+
+Luma Keyer makes pixels transparent based on their luminance, with soft rolloff and matte controls:
+
+```
+c      = rgb / max(a,1e-6)
+lum    = dot(c, lumaWeights)
+// two-sided soft key: fully keyed below Low, opaque above High, smooth between
+k      = smoothstep(Low, Low+Rolloff, lum) * (1 - smoothstep(High-Rolloff, High, lum))  // band, or one-sided
+k      = Invert ? 1-k : k
+alpha  = a * k
+out    = (PreserveRGB ? c : c) * alpha    // matte tools (shrink/grow/blur) applied to alpha
+```
+
+The corpus exposes user knobs **Luma, Luma Rolloff, Invert, Preserve RGB, Matte Tools**; the many
+persisted `Chroma*/MinGreen/Spill*` params are the shared keyer-engine's internal state (Luma Keyer
+uses the luma path only). See `luma-keyer.ts`. `Luma` = threshold, `Luma Rolloff` = softness.

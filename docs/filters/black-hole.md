@@ -26,3 +26,25 @@ Non-creative host parameters on this filter: `Publish OSC`, `Flip`, `Input Point
 ## Implementation status
 
 **Implemented.** TS module: [`engine/src/compositor/filters/blackhole.ts`](../../engine/src/compositor/filters/blackhole.ts).
+
+## Algorithm (decoded)
+
+_RE'd from `HgcBlackHole` (shipped in `blackhole.ts`)._
+
+Black Hole is a **gravitational-lens radial warp**: near a center, space is pulled inward with a
+`1/r`-weighted displacement, so content spirals/sucks into the hole with a soft event-horizon edge.
+
+```
+p    = homography(texCoord, hg_Params[2..4])       // perspective-correct to working space (w-divide)
+d    = p - Center                                   // Center = hg_Params[0]
+r    = length(d);  dir = d/r
+pull = clamp(r / Radius, 0, 1) * Strength + r       // hg_Params[1] = (Strength, Radius)
+uv   = dir * (r_norm · pull) + Center               // displace inward, scaled by the 1/r term
+uv   = homography(uv, hg_Params[5..7])              // back through inverse transform
+out  = sample(source, uvToTexture(uv))
+```
+
+`hg_Params[1].x` = **Strength** (how hard it sucks), `.y` = **Radius** (event-horizon size),
+`hg_Params[0]` = **Center**. The `clamp(r/Radius)·Strength + r` mapping is the lens profile — strong
+near the center, fading to identity past the radius. Shipped in `blackhole.ts`; head-start is the
+radial backward-warp above bracketed by the two homographies.

@@ -30,3 +30,29 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Not implemented.** A verbatim `HgcInsectEye` Metal shader is checked in under `engine/src/compositor/filters/evidence/shaders/HgcInsectEye.metal` (Phase-1 done, Phase-2 open).
+
+## Algorithm (decoded)
+
+_RE'd from `HgcInsectEye` (+ `HgcInsectEyeBorder`) embedded shaders. Decoded functional form:_
+
+Insect Eye tiles the frame into a **hexagonal grid of facets**, each facet sampling the source at
+its own center — a compound-eye/honeycomb look. The shader does hex-grid coordinate rounding.
+
+```
+// Convert pixel coords to a hex grid using the classic axial→cube rounding.
+// The constant 1.7321 ≈ sqrt(3) is the hex geometry factor.
+q      = texCoord * hg_Params[3].xy + hg_Params[3].zw       // scale to facet size + offset
+// two skewed axes (·sqrt3) give hex rows:
+a      = q.x*sqrt3 + q.y
+b      = q.x*sqrt3 - q.y
+// round both to nearest integer (floor + fract compare) → nearest hex cell center:
+cell   = hexRound(floor(a), floor(b), q)                    // pick nearest of the 3 candidate centers
+center = cellToXY(cell)                                     // facet center in texture space
+out    = sample(source, center)                             // whole facet shows its center pixel
+```
+
+`HgcInsectEyeBorder` draws the dark seams between facets (same hex math, emits edge coverage instead
+of the sample). `hg_Params[3]` = **facet size**, `hg_Params[5]` = **Center/offset**. The `sqrt(3)`
+and the `fract`/`floor` cascade are the hexagonal-lattice nearest-cell rounding. Head-start:
+implement axial hex rounding at the chosen facet size; each output pixel = its hex cell's center
+sample; overlay borders from InsectEyeBorder.

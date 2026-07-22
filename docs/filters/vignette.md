@@ -30,3 +30,20 @@ Non-creative host parameters on this filter: `Prescale Input`, `Flip`, `Input Po
 ## Implementation status
 
 **Implemented.** TS module: [`engine/src/compositor/filters/vignette.ts`](../../engine/src/compositor/filters/vignette.ts). Reverse-engineered against the verbatim `HgcVignette` Metal shader.
+
+## Algorithm (decoded)
+
+_RE'd from `HgcVignette` (verification in `../../engine/src/compositor/filters/evidence/VIGNETTE_VERIFICATION.md`; shipped in `vignette.ts`, verified 32–44 dB)._
+
+Radial darkening mask with a smooth falloff band:
+
+```
+d      = (texCoord*2 - 1 - Center) · aspect     // centred, aspect-corrected coords
+r      = length(d)
+t      = clamp((r - (Size - Falloff)) / Falloff, 0, 1)   // 0 inside Size, →1 across the Falloff band
+mask   = smoothstep(t)                                    // soft ring
+out.rgb= mix(src.rgb, src.rgb*Darken, mask)               // darken toward the edges
+```
+
+`hg_Params[0]` = Center, `[1]` = radius/falloff (Size, Falloff), Darken = edge brightness. Optional
+desaturation toward the rim uses the same mask.
