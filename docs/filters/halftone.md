@@ -30,3 +30,29 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcHalftone` embedded shader. Decoded functional form:_
+
+Halftone is a **dot-screen** — it tiles a rotated grid of round dots whose size tracks the image's
+luma, giving the classic newsprint/comic look.
+
+```
+uv    = (texCoord - Center) * Scale                    // hg_Params[0], [4]
+// rotate into the screen grid (Angle) via two matrix rows [1],[2]:
+g     = ( dot(uv, hg_Params[1]), dot(uv, hg_Params[2]) ) + Center
+cell  = fract(g)                                        // position within a dot cell [0,1)²
+// distance from cell centre → smooth round dot profile (smoothstep on both axes):
+dx    = smoothstep-of(cell.x around 0.5)
+dy    = smoothstep-of(cell.y around 0.5)
+dot_  = dx * dy                                         // radial-ish dot coverage
+lum   = dot(color0, hg_Params[5])                       // image luma (weights slot 5)
+v     = clamp((lum - dot_) * hg_Params[3] + 0.5, 0, 1)  // luma thresholds the dot: dark→big dot
+out.rgb = v * color0.a
+```
+
+`hg_Params[1]/[2]` encode **Angle** (grid rotation) + **Frequency** (dots per unit, via Scale),
+`hg_Params[3]` = **contrast/hardness** of the dots, `hg_Params[5]` = luma weights. The `fract`
+tiles the grid; the smoothstep makes round anti-aliased dots. Head-start: rotate+tile coords,
+dot-coverage from cell-centre distance, threshold against luma.

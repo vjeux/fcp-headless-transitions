@@ -33,3 +33,24 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
 > 2 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcCrystallize` embedded shader. Decoded functional form:_
+
+`HgcCrystallize` is a **Voronoi/depth pass**: it passes the source color through but writes a
+**depth** equal to the distance from each pixel to its cell's feature point. The actual crystallize
+(snapping each cell to one color) is resolved by the depth-buffer min upstream — the pixel closest
+to each Voronoi seed "wins" the cell.
+
+```
+out.color = sample(source, texCoord0)          // color passthrough
+d         = (texCoord2 - texCoord1) * hg_Params[1].xy   // vector to the cell's feature point
+out.depth = length(d) * hg_Params[0].z         // depth = distance to seed (× scale)
+```
+
+`hg_Params[1]` = cell size / aspect, `hg_Params[0].z` = depth scale. Because FCP renders this with
+depth-testing, the fragment nearest each Voronoi seed survives → the frame is partitioned into
+polygonal crystal cells, each filled from its seed pixel. **Cell Size** = the seed spacing.
+Head-start: compute a Voronoi diagram at the chosen cell size; fill each cell with the color at its
+seed. (This one needs a Voronoi pass, not a pure per-pixel gather.)

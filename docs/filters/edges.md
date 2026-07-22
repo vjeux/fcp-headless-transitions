@@ -27,3 +27,22 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcEdges` embedded shader. Decoded functional form:_
+
+Edges is a **gradient-magnitude edge detector** (Sobel-like): it takes horizontal and vertical
+differences from 4 neighbor taps, sums their squares, and scales — bright where the image changes.
+
+```
+gx   = sample(texCoord0) - sample(texCoord2)   // center − left  (horizontal difference)
+gy   = sample(texCoord1) - sample(texCoord3)   // up − down      (vertical difference)
+mag  = gx*gx + gy*gy                            // squared gradient magnitude (per channel, RGB)
+out.rgb = mag * hg_Params[0].rgb                // Amount/Intensity gain per channel
+```
+
+Per-channel (so colored edges keep hue). `hg_Params[0]` = **Amount**; neighbor tap distance
+(from a Radius param) sets edge scale. Note it uses squared magnitude (no sqrt) — brighter, more
+contrasty edges than a true gradient norm. Head-start: 4-tap central differences, sum of squares,
+scale.

@@ -33,3 +33,24 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcRelief` embedded shader. Decoded functional form:_
+
+Relief is a **directional emboss lit by a height difference** — it reads a height/luma from a second
+texture, subtracts a shifted copy along the light direction, and shades the source with the result
+(carved-stone relief).
+
+```
+h     = dot(sample(hg_Texture1, texCoord1), hg_Params[0])   // height (weighted luma of the map)
+lightY= color.y*2 - 1                                        // light-direction term (from a param)
+shade = h - Amount * lightY                                 // difference along light dir
+shade = clamp(shade * hg_Params[1], 0, 1)                    // gain → [0,1] relief coefficient
+out   = sample(hg_Texture0, texCoord0) * shade               // multiply source by the relief shade
+```
+
+`hg_Params[0]` = height-map channel weights, `hg_Params[1]` = **contrast/gain**, `hg_Params[2]/[3]`
+= light direction (Angle). The subtraction of a direction-shifted height is what makes ridges catch
+"light" on one side and shadow on the other. Head-start: height field → directional derivative →
+multiply source; expose Angle + Amount + Contrast.
