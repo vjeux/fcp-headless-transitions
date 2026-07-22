@@ -111,3 +111,20 @@ architecture change — NOT four separate bugs.
 ### State: 28 nodes | VERIFIED 10  CHARACTERIZED 4 (Brightness/HSV/Tint/Colorize)  DIVERGED 14.
 The colour subsystem is now fully DECODED (root cause known) rather than an unattributable
 blind spot. The single highest-leverage colour fix = the chain-level linear working space.
+
+
+## UPDATE 2026-07-22 (session 2, final) — PAELevels VERIFIED refines the colour root cause
+
+transfer.PAELevels (gamma on grayscale) VERIFIED at 0.71 levels — the FIRST colour node to
+pass the exact transfer oracle. This SHARPENS the unified colour root cause into a precise
+dividing line:
+- PER-CHANNEL CURVE ops (Levels gamma) ARE faithful in sRGB — VERIFIED exact.
+- CROSS-CHANNEL / colour-MIX ops (Brightness multiply, Colorize black->white mix, Tint
+  hard-light, HSV saturation) diverge — they need FCP's non-sRGB working space.
+So the eventual chain-level linear-working-space fix only needs to touch the MIX operations,
+not per-channel curves. The transfer harness both VERIFIES and CHARACTERISES colour nodes.
+
+### FINAL session state: 29 nodes | VERIFIED 11  CHARACTERIZED 4  DIVERGED 14 (delegated).
+  subsystems: blur 4/6  color 1/11  curves 3/3  generators 1/3  geometry 2/4  stylize 0/2
+  Colour: transfer.PAELevels VERIFIED; Brightness/HSV/Tint/Colorize CHARACTERIZED (working-space,
+  one arch fix); the *filter.* duplicates are the delegated faithful in-host verdicts.
