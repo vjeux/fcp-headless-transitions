@@ -27,3 +27,7 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Decompiled code (ground truth)
+
+This is a **dangling parser record** — a corpus artifact that does not correspond to a real registered plug-in class. There is no code to decompile.

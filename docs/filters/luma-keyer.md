@@ -34,32 +34,34 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 > 24 non-creative internal/hidden state parameter(s) (persisted engine state, not user knobs) were omitted from the table above.
 
-## Ground-truth shader source
+## Decompiled code (ground truth)
 
-The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
-[`../../engine/src/compositor/filters/evidence/shaders/HgcLumaKeyer.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcLumaKeyer.metal). Regenerate/print it with:
+The code below is **verbatim** from the user's licensed Final Cut Pro install — the embedded Metal shader source and the ARM64 disassembly of the plug-in class, extracted with the repo's `tools/re` toolkit. It is the actual algorithm Apple shipped, not a paraphrase. Implement against this.
 
+### Metal fragment shader — `HgcLumaKeyer`
+Per-pixel math. Regenerate: `venv/bin/python3 tools/re/extract_shader.py HgcLumaKeyer` → [`HgcLumaKeyer.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcLumaKeyer.metal)
+
+```metal
+//Metal1.0     
+//LEN=00000002b2
+[[ visible ]] FragmentOut HgcLumaKeyer_hgc_visible(const constant float4* hg_Params,
+    float4 color0, 
+    texture2d< float > hg_Texture1, 
+    sampler hg_Sampler1)
+{
+    const float4 c0 = float4(0.000000000, 255.0000000, 0.5000000000, 0.000000000);
+    float4 r0;
+    FragmentOut output;
+
+    r0.x = color0.x;
+    r0.x = fmax(r0.x, c0.x);
+    r0.x = fmin(r0.x, hg_Params[2].x);
+    r0.x = r0.x*c0.y + c0.z;
+    r0.y = c0.z;
+    r0.xy = r0.xy + hg_Params[3].xy;
+    r0.xy = r0.xy*hg_Params[3].zw;
+    r0.x = hg_Texture1.sample(hg_Sampler1, r0.xy).x;
+    output.color0 = clamp(r0.xxxx*hg_Params[1] + hg_Params[0], 0.00000f, 1.00000f);
+    return output;
+}
 ```
-venv/bin/python3 tools/re/extract_shader.py HgcLumaKeyer
-```
-
-That `.metal` file is the ground truth — implement against it, not against the notes below.
-
-### Decoded notes (annotation of the shader above — verify against it)
-
-Luma Keyer makes pixels transparent based on their luminance, with soft rolloff and matte controls:
-
-```
-c      = rgb / max(a,1e-6)
-lum    = dot(c, lumaWeights)
-// two-sided soft key: fully keyed below Low, opaque above High, smooth between
-k      = smoothstep(Low, Low+Rolloff, lum) * (1 - smoothstep(High-Rolloff, High, lum))  // band, or one-sided
-k      = Invert ? 1-k : k
-alpha  = a * k
-out    = (PreserveRGB ? c : c) * alpha    // matte tools (shrink/grow/blur) applied to alpha
-```
-
-The corpus exposes user knobs **Luma, Luma Rolloff, Invert, Preserve RGB, Matte Tools**; the many
-persisted `Chroma*/MinGreen/Spill*` params are the shared keyer-engine's internal state (Luma Keyer
-uses the luma path only). See `luma-keyer.ts`. `Luma` = threshold, `Luma Rolloff` = softness.
-

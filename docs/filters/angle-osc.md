@@ -30,3 +30,7 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Decompiled code (ground truth)
+
+This is an **on-screen-control helper** (drag handles / gizmo), not a render filter. It has no per-pixel algorithm to decompile — it only feeds geometry back into the real filter's parameters.

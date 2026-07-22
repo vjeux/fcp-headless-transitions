@@ -36,3 +36,7 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
 > 1 non-creative internal/hidden state parameter(s) (persisted engine state, not user knobs) were omitted from the table above.
+
+## Decompiled code (ground truth)
+
+This is a **third-party plug-in**, not an Apple filter — its code ships in the vendor's own bundle, so there is nothing in FCP's binaries to decompile. Reverse-engineer it from the vendor bundle if an interoperable implementation is needed.

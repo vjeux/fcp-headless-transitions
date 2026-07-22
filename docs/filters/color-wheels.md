@@ -34,3 +34,7 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Decompiled code (ground truth)
+
+This filter is a thin **Core Image (`CIFilter`) wrapper**: the per-pixel math lives in Apple's private CoreImage kernels (`/System/Library/Frameworks/CoreImage.framework`), not in FCP's Filters binary, so there is no `Hgc*` shader to extract here. The FCP class only marshals parameters into the CI filter. To recover the exact kernel, dump the CI kernel source (e.g. `CIKernel`/`.cikernel` in CoreImage) for the named filter.

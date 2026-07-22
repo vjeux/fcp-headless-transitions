@@ -30,31 +30,54 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Clip to Wh
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Ground-truth shader source
+## Decompiled code (ground truth)
 
-The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
-[`../../engine/src/compositor/filters/evidence/shaders/HgcAura.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcAura.metal). Regenerate/print it with:
+The code below is **verbatim** from the user's licensed Final Cut Pro install — the embedded Metal shader source and the ARM64 disassembly of the plug-in class, extracted with the repo's `tools/re` toolkit. It is the actual algorithm Apple shipped, not a paraphrase. Implement against this.
+
+### Metal fragment shader — `HgcAura`
+Per-pixel math. Regenerate: `venv/bin/python3 tools/re/extract_shader.py HgcAura` → [`HgcAura.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcAura.metal)
+
+```metal
+//Metal1.0     
+//LEN=00000001de
+[[ visible ]] FragmentOut HgcAura_hgc_visible(const constant float4* hg_Params,
+    float4 color0,
+    float4 color1)
+{
+    const float4 c0 = float4(0.000000000, 0.000000000, 0.000000000, 1.000000000);
+    float4 r0, r1;
+    FragmentOut output;
+
+    r0 = color1;
+    r1 = color0;
+    r1 = r1*hg_Params[0] + r0;
+    r1.w = fmin(r1.w, c0.w);
+    r1.xyz = fmin(r1.xyz, hg_Params[1].xyz);
+    output.color0 = fmax(r1, c0.xxxx);
+    return output;
+}
+```
+
+### CPU parameter wiring — `-[PAEAura canThrowRenderOutput:withInput:withInfo:]`
+How each UI parameter is read and pushed into the shader's `hg_Params[]` slots. Regenerate: `venv/bin/python3 tools/re/disasm_pae.py PAEAura`
+
+```asm
+00000000000ea34c	mov	w3, #0x1
+00000000000ea350	bl	"_objc_msgSend$getFloatValue:fromParm:atFxTime:"
+00000000000ea354	ldr	d0, [sp, #0x18]
+```
 
 ```
-venv/bin/python3 tools/re/extract_shader.py HgcAura
+Parameter -> shader-slot mapping, decoded from the dataflow above
+(parm N = the getter's fromParm: index; slot K = the primitive/shader
+ SetParameter index that feeds hg_Params[K]):
+
+  parameters read, in program order:
+    - parm1 (float)
+    - parm2 (float)
+    - parm3 (float)
+    - parm4 (bool)
+    - parm5 (bool)
+    - parm6 (bool)
+
 ```
-
-That `.metal` file is the ground truth — implement against it, not against the notes below.
-
-### Decoded notes (annotation of the shader above — verify against it)
-
-Aura is the **combine stage of a glow/aura**: it adds a blurred, brightened copy of the image
-(`color0`, produced upstream) on top of the original (`color1`), clamped to a ceiling color.
-
-```
-aura   = color0 * hg_Params[0]            // blurred copy × Intensity (per-channel)
-out    = color1 + aura                    // add the aura over the original
-out.a  = min(out.a, 1)
-out.rgb= min(out.rgb, hg_Params[1].rgb)   // clamp to a max color (prevents blowout / tints the aura ceiling)
-out    = max(out, 0)
-```
-
-`hg_Params[0]` = **Intensity** (aura brightness, per-channel), `hg_Params[1]` = the **aura color
-ceiling** (caps and tints the glow). The blur radius that builds `color0` = **Radius/Size**. So Aura
-= additive bloom with a colored clamp. Head-start: blur+brighten source → add → clamp to aura color.
-

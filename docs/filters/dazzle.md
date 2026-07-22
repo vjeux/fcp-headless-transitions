@@ -34,28 +34,81 @@ Non-creative host parameters on this filter: `Clip to White`, `Crop`, `Flip`, `I
 
 > 3 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
-## Algorithm — NOT YET REVERSE-ENGINEERED
+## Decompiled code (ground truth)
 
-> ⚠️ **Unverified.** This filter has **no dedicated embedded `Hgc*` shader** to extract, so there is
-> no ground-truth per-pixel source yet. The notes below are an *inferred sketch* from general
-> Motion knowledge — they are **likely wrong in detail and must not be implemented as-is**.
->
-> **To reverse-engineer it:** disassemble the CPU class with
-> `otool -arch arm64 -tV` on `-[PAEDazzle canThrowRenderOutput:withInput:withInfo:]` and `frameSetup:`
-> in `Filters.bundle`, and chase the Helium/ProAppsFxSupport primitive it calls
-> (e.g. `HGaussianBlur`, `HGLinearFilter::gaussian`). Blur-family filters delegate to the shared
-> `HGBlur` primitive already decoded in `engine/src/compositor/filters/gaussian-blur.ts`.
+The code below is **verbatim** from the user's licensed Final Cut Pro install — the embedded Metal shader source and the ARM64 disassembly of the plug-in class, extracted with the repo's `tools/re` toolkit. It is the actual algorithm Apple shipped, not a paraphrase. Implement against this.
 
-### Inferred sketch (UNVERIFIED — do not treat as decoded)
+### Metal fragment shader — `HgcBloomThreshold`
+Per-pixel math. Regenerate: `venv/bin/python3 tools/re/extract_shader.py HgcBloomThreshold` → [`HgcBloomThreshold.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcBloomThreshold.metal)
+
+```metal
+//Metal1.0     
+//LEN=0000000266
+[[ visible ]] FragmentOut HgcBloomThreshold_hgc_visible(const constant float4* hg_Params,
+    float4 color0)
+{
+    const float4 c0 = float4(0.000000000, 0.000000000, 0.000000000, 0.000000000);
+    float4 r0, r1;
+    FragmentOut output;
+
+    r0 = color0;
+    r0 = r0*hg_Params[1] + hg_Params[0];
+    r0 = fmax(r0, c0.xxxx);
+    r1.x = fmax(r0.x, r0.y);
+    r1.x = fmax(r1.x, r0.z);
+    r0.w = select(r0.w, r1.x, hg_Params[3].w < 0.00000f);
+    r0.w = fmin(r0.w, hg_Params[2].y);
+    output.color0.w = fmax(r0.w, hg_Params[2].x);
+    output.color0.xyz = r0.xyz;
+    return output;
+}
+```
+
+### Metal fragment shader — `HgcScaleAndAddClampDazzle`
+Per-pixel math. Regenerate: `venv/bin/python3 tools/re/extract_shader.py HgcScaleAndAddClampDazzle` → [`HgcScaleAndAddClampDazzle.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcScaleAndAddClampDazzle.metal)
+
+```metal
+//Metal1.0     
+//LEN=00000001f0
+[[ visible ]] FragmentOut HgcScaleAndAddClampDazzle_hgc_visible(const constant float4* hg_Params,
+    float4 color0,
+    float4 color1)
+{
+    const float4 c0 = float4(0.000000000, 0.000000000, 0.000000000, 1.000000000);
+    float4 r0, r1;
+    FragmentOut output;
+
+    r0 = color1;
+    r1 = color0;
+    r1 = r1*hg_Params[0] + r0;
+    r1.w = fmin(r1.w, c0.w);
+    r1.xyz = fmin(r1.xyz, hg_Params[1].xyz);
+    output.color0 = fmax(r1, c0.xxxx);
+    return output;
+}
+```
+
+### CPU parameter wiring — `-[PAEDazzle canThrowRenderOutput:withInput:withInfo:]`
+How each UI parameter is read and pushed into the shader's `hg_Params[]` slots. Regenerate: `venv/bin/python3 tools/re/disasm_pae.py PAEDazzle`
+
+```asm
+00000000000320d0	mov	w3, #0x1
+00000000000320d4	bl	"_objc_msgSend$getFloatValue:fromParm:atFxTime:"
+00000000000320d8	ldr	x4, [x22]
+```
 
 ```
-hi     = max(luma(src) - Threshold, 0)         // bright spots that can sparkle
-sparkle= noise(p, time·Speed) > (1-Density)    // animated random sparkle mask
-star   = sparkle · multiDirectionalStreak(hi)  // small glint-style rays at sparkle points
-out    = src + star · Intensity · Color
+Parameter -> shader-slot mapping, decoded from the dataflow above
+(parm N = the getter's fromParm: index; slot K = the primitive/shader
+ SetParameter index that feeds hg_Params[K]):
+
+  parameters read, in program order:
+    - parm1 (float)
+    - parm3 (float)
+    - parm4 (float)
+    - parm2 (float)
+    - parm5 (int)
+    - parm7 (bool)
+    - parm6 (bool)
+
 ```
-
-Params: **Threshold**, **Density/Amount**, **Speed** (animation), **Intensity**, **Color**. It's an
-animated variant of Glint — random highlight points burst into little stars over time. Head-start:
-animated sparse sparkle mask × small streaks on the highlights.
-

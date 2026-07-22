@@ -28,29 +28,122 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Ground-truth shader source
+## Decompiled code (ground truth)
 
-The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
-[`../../engine/src/compositor/filters/evidence/shaders/HgcGamma.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcGamma.metal). Regenerate/print it with:
+The code below is **verbatim** from the user's licensed Final Cut Pro install — the embedded Metal shader source and the ARM64 disassembly of the plug-in class, extracted with the repo's `tools/re` toolkit. It is the actual algorithm Apple shipped, not a paraphrase. Implement against this.
+
+### Metal fragment shader — `HgcGamma`
+Per-pixel math. Regenerate: `venv/bin/python3 tools/re/extract_shader.py HgcGamma` → [`HgcGamma.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcGamma.metal)
+
+```metal
+//Metal1.0     
+//LEN=000000018b
+[[ visible ]] FragmentOut HgcGamma_hgc_visible(const constant float4* hg_Params,
+    float4 color0)
+{
+    float4 r0, r1;
+    FragmentOut output;
+
+    r0 = color0;
+    r0 = r0 / float4(fmax(r0.www, 1.00000e-06f), 1.);
+    r1 = pow(r0, hg_Params[0]);
+    r0 = select(r1, r0, r0 < 0.00000f);
+    r0.xyz = r0.xyz*r0.www;
+    output.color0 = r0;
+    return output;
+}
+```
+
+### Metal fragment shader — `HgcGammaNoPremult`
+Per-pixel math. Regenerate: `venv/bin/python3 tools/re/extract_shader.py HgcGammaNoPremult` → [`HgcGammaNoPremult.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcGammaNoPremult.metal)
+
+```metal
+//Metal1.0     
+//LEN=0000000169
+[[ visible ]] FragmentOut HgcGammaNoPremult_hgc_visible(const constant float4* hg_Params,
+    float4 color0)
+{
+    float4 r0, r1, r2;
+    FragmentOut output;
+
+    r0 = color0;
+    r1 = abs(r0);
+    r2.xyz = pow(r1.xyz, hg_Params[0].xyz);
+    r2.w = r1.w;
+    output.color0 = select(r2, -r2, r0 < 0.00000f);
+    return output;
+}
+```
+
+### CPU parameter wiring — `-[PAEGamma canThrowRenderOutput:withInput:withInfo:]`
+How each UI parameter is read and pushed into the shader's `hg_Params[]` slots. Regenerate: `venv/bin/python3 tools/re/disasm_pae.py PAEGamma`
+
+```asm
+000000000002fc40	mov	w3, #0x1
+000000000002fc44	bl	"_objc_msgSend$getFloatValue:fromParm:atFxTime:"
+000000000002fc48	ldr	d0, [sp, #0x18]
+000000000002fc4c	adrp	x8, 570 ; 0x269000
+000000000002fc50	ldr	d1, [x8, #0x830]
+000000000002fc54	fcmp	d0, d1
+000000000002fc58	fcsel	d0, d1, d0, mi
+000000000002fc5c	fmov	d1, #1.00000000
+000000000002fc60	fdiv	d0, d1, d0
+000000000002fc64	str	d0, [sp, #0x18]
+000000000002fc68	ldr	x2, [x21]
+000000000002fc6c	mov	x0, x22
+000000000002fc70	bl	"_objc_msgSend$getRenderMode:"
+000000000002fc74	cbz	w0, 0x2fd54
+000000000002fc78	mov	x0, x19
+000000000002fc7c	bl	_objc_msgSend$imageType
+000000000002fc80	cmp	x0, #0x3
+000000000002fc84	b.ne	0x2fc9c
+000000000002fc88	cbz	x19, 0x2fca4
+000000000002fc8c	add	x8, sp, #0x10
+000000000002fc90	mov	x0, x19
+000000000002fc94	bl	_objc_msgSend$heliumRef
+000000000002fc98	b	0x2fca8
+000000000002fc9c	mov	w0, #0x0
+000000000002fca0	b	0x2fd54
+000000000002fca4	str	xzr, [sp, #0x10]
+000000000002fca8	mov	w0, #0x1b0
+000000000002fcac	bl	0x251b58 ; symbol stub for: __ZN8HGObjectnwEm
+000000000002fcb0	mov	x19, x0
+000000000002fcb4	bl	0x251894 ; symbol stub for: __ZN7HGGammaC1Ev
+000000000002fcb8	ldr	d0, [sp, #0x18]
+000000000002fcbc	fcvt	s0, d0
+000000000002fcc0	ldr	x8, [x19]
+000000000002fcc4	ldr	x8, [x8, #0x60]
+000000000002fcc8	fmov	s3, #1.00000000
+000000000002fccc	mov	x0, x19
+000000000002fcd0	mov	w1, #0x0
+000000000002fcd4	mov.16b	v1, v0
+000000000002fcd8	mov.16b	v2, v0
+000000000002fcdc	blr	x8
+000000000002fce0	ldr	x2, [sp, #0x10]
+000000000002fce4	ldr	x8, [x19]
+000000000002fce8	ldr	x8, [x8, #0x78]
+000000000002fcec	mov	x0, x19
+000000000002fcf0	mov	w1, #0x0
+000000000002fcf4	blr	x8
+000000000002fcf8	str	x19, [sp, #0x8]
+000000000002fcfc	ldr	x8, [x19]
+000000000002fd00	ldr	x8, [x8, #0x10]
+000000000002fd04	mov	x0, x19
+000000000002fd08	blr	x8
+000000000002fd0c	add	x2, sp, #0x8
+000000000002fd10	mov	x0, x20
+000000000002fd14	bl	"_objc_msgSend$setHeliumRef:"
+000000000002fd18	ldr	x0, [sp, #0x8]
+```
 
 ```
-venv/bin/python3 tools/re/extract_shader.py HgcGamma
+Parameter -> shader-slot mapping, decoded from the dataflow above
+(parm N = the getter's fromParm: index; slot K = the primitive/shader
+ SetParameter index that feeds hg_Params[K]):
+
+  parameters read, in program order:
+    - parm1 (float)
+
+  SetParameter slots (source decoded by stack/register dataflow):
+    slot 0  <-  parm1 (float)
 ```
-
-That `.metal` file is the ground truth — implement against it, not against the notes below.
-
-### Decoded notes (annotation of the shader above — verify against it)
-
-Gamma is a straightforward per-channel power curve, applied in un-premultiplied space:
-
-```
-c   = rgb / max(a,1e-6)                 // un-premultiply
-c   = (c >= 0) ? pow(c, hg_Params[0]) : c   // per-channel gamma exponent (negatives passed through)
-out = c * a                             // re-premultiply
-```
-
-`hg_Params[0]` is the per-channel **Gamma** exponent (RGBA float4; UI usually exposes one value
-applied to RGB). Values <1 brighten mids, >1 darken. The `select(... r0<0)` guard leaves negative
-(super-black/HDR) values untouched to avoid NaNs from `pow` of a negative base. Head-start: exactly
-`out = pow(unpremult(src), gamma)` re-premultiplied.
-

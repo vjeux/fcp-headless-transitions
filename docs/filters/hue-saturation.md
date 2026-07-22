@@ -31,3 +31,96 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 **Implemented.** TS module: [`engine/src/compositor/filters/hue-saturation.ts`](../../engine/src/compositor/filters/hue-saturation.ts).
 
 > 1 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
+
+## Decompiled code (ground truth)
+
+The code below is **verbatim** from the user's licensed Final Cut Pro install — the embedded Metal shader source and the ARM64 disassembly of the plug-in class, extracted with the repo's `tools/re` toolkit. It is the actual algorithm Apple shipped, not a paraphrase. Implement against this.
+
+### Metal fragment shader — `HgcSaturation`
+Per-pixel math. Regenerate: `venv/bin/python3 tools/re/extract_shader.py HgcSaturation` → [`HgcSaturation.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcSaturation.metal)
+
+```metal
+//Metal1.0     
+//LEN=0000000217
+[[ visible ]] FragmentOut HgcSaturation_hgc_visible(const constant float4* hg_Params,
+    float4 color0)
+{
+    const float4 c0 = float4(0.2125000060, 0.7153999805, 0.07209999859, 0.000000000);
+    float4 r0, r1;
+    FragmentOut output;
+
+    r0 = color0;
+    r0 = r0 / float4(fmax(r0.www, 1.00000e-06f), 1.);
+    r1.xyz = float3(dot(r0.xyz, c0.xyz));
+    r0.xyz = clamp(mix(r1.xyz, r0.xyz, hg_Params[0].xyz), 0.00000f, 1.00000f);
+    r0.xyz = r0.xyz*r0.www;
+    output.color0 = r0;
+    return output;
+}
+```
+
+### CPU parameter wiring — `-[PAESaturation canThrowRenderOutput:withInput:withInfo:]`
+How each UI parameter is read and pushed into the shader's `hg_Params[]` slots. Regenerate: `venv/bin/python3 tools/re/disasm_pae.py PAESaturation`
+
+```asm
+0000000000089278	mov	w3, #0x1
+000000000008927c	bl	"_objc_msgSend$getFloatValue:fromParm:atFxTime:"
+0000000000089280	ldr	x2, [x20]
+0000000000089284	mov	x0, x22
+0000000000089288	bl	"_objc_msgSend$getRenderMode:"
+000000000008928c	ldr	d0, [sp, #0x18]
+0000000000089290	fmov	d1, #1.00000000
+0000000000089294	fadd	d0, d0, d1
+0000000000089298	movi.2d	v1, #0000000000000000
+000000000008929c	fmaxnm	d0, d0, d1
+00000000000892a0	str	d0, [sp, #0x18]
+00000000000892a4	cmp	w0, #0x0
+00000000000892a8	ccmp	w24, #0x3, #0x0, ne
+00000000000892ac	cset	w20, eq
+00000000000892b0	b.ne	0x8935c
+00000000000892b4	cbz	x21, 0x892d0
+00000000000892b8	add	x8, sp, #0x10
+00000000000892bc	mov	x0, x21
+00000000000892c0	bl	_objc_msgSend$heliumRef
+00000000000892c4	b	0x892d4
+00000000000892c8	mov	w20, #0x0
+00000000000892cc	b	0x8935c
+00000000000892d0	str	xzr, [sp, #0x10]
+00000000000892d4	mov	w0, #0x1a0
+00000000000892d8	bl	0x251b58 ; symbol stub for: __ZN8HGObjectnwEm
+00000000000892dc	mov	x21, x0
+00000000000892e0	bl	__ZN13HgcSaturationC1Ev
+00000000000892e4	str	x21, [sp, #0x8]
+00000000000892e8	ldr	x2, [sp, #0x10]
+00000000000892ec	ldr	x8, [x21]
+00000000000892f0	ldr	x8, [x8, #0x78]
+00000000000892f4	mov	x0, x21
+00000000000892f8	mov	w1, #0x0
+00000000000892fc	blr	x8
+0000000000089300	ldr	d0, [sp, #0x18]
+0000000000089304	fcvt	s0, d0
+0000000000089308	ldr	x8, [x21]
+000000000008930c	ldr	x8, [x8, #0x60]
+0000000000089310	movi.2d	v1, #0000000000000000
+0000000000089314	movi.2d	v2, #0000000000000000
+0000000000089318	movi.2d	v3, #0000000000000000
+000000000008931c	mov	x0, x21
+0000000000089320	mov	w1, #0x0
+0000000000089324	blr	x8
+0000000000089328	add	x2, sp, #0x8
+000000000008932c	mov	x0, x19
+0000000000089330	bl	"_objc_msgSend$setHeliumRef:"
+0000000000089334	ldr	x0, [sp, #0x8]
+```
+
+```
+Parameter -> shader-slot mapping, decoded from the dataflow above
+(parm N = the getter's fromParm: index; slot K = the primitive/shader
+ SetParameter index that feeds hg_Params[K]):
+
+  parameters read, in program order:
+    - parm1 (float)
+
+  SetParameter slots (source decoded by stack/register dataflow):
+    slot 0  <-  parm1 (float)
+```

@@ -33,31 +33,51 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
-## Ground-truth shader source
+## Decompiled code (ground truth)
 
-The authoritative per-pixel algorithm is the **verbatim extracted Metal fragment shader**, checked in at
-[`../../engine/src/compositor/filters/evidence/shaders/HgcPerspectiveTile.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcPerspectiveTile.metal). Regenerate/print it with:
+The code below is **verbatim** from the user's licensed Final Cut Pro install — the embedded Metal shader source and the ARM64 disassembly of the plug-in class, extracted with the repo's `tools/re` toolkit. It is the actual algorithm Apple shipped, not a paraphrase. Implement against this.
 
+### Metal fragment shader — `HgcPerspectiveTile`
+Per-pixel math. Regenerate: `venv/bin/python3 tools/re/extract_shader.py HgcPerspectiveTile` → [`HgcPerspectiveTile.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcPerspectiveTile.metal)
+
+```metal
+//Metal1.0     
+//LEN=00000002ff
+[[ visible ]] FragmentOut HgcPerspectiveTile_hgc_visible(const constant float4* hg_Params, 
+    texture2d< float > hg_Texture0, 
+    sampler hg_Sampler0,
+    float4 texCoord0)
+{
+    float4 r0, r1;
+    FragmentOut output;
+
+    r0.x = dot(texCoord0, hg_Params[3]);
+    r1.y = dot(texCoord0, hg_Params[2]);
+    r1.x = dot(texCoord0, hg_Params[1]);
+    r1.zw = r1.xy/r0.xx;
+    r1.xy = select(r1.xy, r1.zw, -fabs(r0.xx) < 0.00000f);
+    r1.zw = r1.xy + hg_Params[0].zw;
+    r1.xy = r1.zw/hg_Params[0].xy;
+    r1.xy = fract(r1.xy);
+    r1.xy = r1.xy*hg_Params[0].xy + -hg_Params[0].zw;
+    r1.xy = r1.xy + hg_Params[4].xy;
+    r1.xy = r1.xy*hg_Params[4].zw;
+    output.color0 = hg_Texture0.sample(hg_Sampler0, r1.xy);
+    return output;
+}
 ```
-venv/bin/python3 tools/re/extract_shader.py HgcPerspectiveTile
+
+### Metal fragment shader — `HgcSolidColor`
+Per-pixel math. Regenerate: `venv/bin/python3 tools/re/extract_shader.py HgcSolidColor` → [`HgcSolidColor.metal`](../../engine/src/compositor/filters/evidence/shaders/HgcSolidColor.metal)
+
+```metal
+//Metal1.0     
+//LEN=00000000c9
+[[ visible ]] FragmentOut HgcSolidColor_hgc_visible(const constant float4* hg_Params)
+{
+    FragmentOut output;
+
+    output.color0 = hg_Params[0];
+    return output;
+}
 ```
-
-That `.metal` file is the ground truth — implement against it, not against the notes below.
-
-### Decoded notes (annotation of the shader above — verify against it)
-
-(see `parallelogram-tile.md`)._ The image is tiled (fract + mirror-fold), then each tile's
-coordinates are pushed through a **perspective (homography) transform** so the tiled plane recedes
-in 3-D (floor/wall vanishing-point look).
-
-```
-u,v  = mirror-fold(fract(project(texCoord)))   // seamless tiling (as Parallelogram Tile)
-// homogeneous perspective map:
-w    = dot((u,v,1), Hrow2)
-uv   = ( dot((u,v,1), Hrow0)/w , dot((u,v,1), Hrow1)/w )
-out  = sample(source, uvToTexture(uv))
-```
-
-The `/w` perspective divide is the only addition over Parallelogram Tile. Head-start: tile, then
-apply a 3×3 homography with a real w-divide; the matrix comes from a Perspective/Angle param.
-

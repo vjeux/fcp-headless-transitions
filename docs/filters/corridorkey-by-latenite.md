@@ -34,3 +34,7 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Decompiled code (ground truth)
+
+This is a **third-party plug-in**, not an Apple filter — its code ships in the vendor's own bundle, so there is nothing in FCP's binaries to decompile. Reverse-engineer it from the vendor bundle if an interoperable implementation is needed.

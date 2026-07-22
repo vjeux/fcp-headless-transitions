@@ -6,6 +6,8 @@ This directory documents **all 141 Apple Motion / Final Cut Pro filters** found 
 
 **Status legend** — ✅ implemented (verified against FCP in the TS engine) · 📄 shader only (verbatim `Hgc*` source checked in, TS port pending) · 🔬 not impl (corpus-exercised; no shader extracted). Current: **26 ✅ · 14 📄 · 102 🔬** (of 141). A handful of entries are third-party plugins / preset templates rather than built-in Apple filters, or descriptions rely on standard Motion knowledge — these are flagged *(unverified)* in-page.
 
+**Decompiled code (ground truth).** Every filter page now ends with a `## Decompiled code (ground truth)` section containing the **actual code Apple shipped**, extracted from the user's licensed FCP install — verbatim `Hgc*` Metal fragment shaders (the per-pixel math) and the ARM64 disassembly of the plug-in's render method (the CPU parameter wiring), plus a parameter→shader-slot mapping *decoded from that disassembly by dataflow*, not paraphrased or invented. 103 of 141 filters have shader-level ground truth; 25 more are Helium-primitive-driven (disassembly + the primitive they construct); the remaining 13 are third-party / preset / CIFilter / OSC / structural entries with no Apple `Hgc*` code, documented as such. See [`RE_PLAN.md`](RE_PLAN.md) for the methodology and [`../../tools/re/`](../../tools/re/) for the regenerator (`gen_decompiled_docs.py`).
+
 ## Index
 
 | # | Filter | PAE class | Files | Creative params | Status |

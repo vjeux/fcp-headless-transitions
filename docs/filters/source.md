@@ -26,3 +26,7 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Decompiled code (ground truth)
+
+This is a **structural/source node** (an image source, not a per-pixel filter). It has no filtering algorithm to decompile; it supplies pixels for downstream filters.

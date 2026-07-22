@@ -28,3 +28,7 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
 > 1 non-creative internal/hidden state parameter(s) (persisted engine state, not user knobs) were omitted from the table above.
+
+## Decompiled code (ground truth)
+
+This is a **Motion template preset** (a `· KF` / packaged template), not a filter class with its own compiled algorithm. There is no Apple per-pixel code to decompile — it is a composition of other primitives with saved keyframes. The decompilable pieces are whatever built-in filters/behaviors the preset instantiates (documented in their own pages).
