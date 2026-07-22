@@ -484,3 +484,31 @@ PAEHSVAdjust CPU param mapping (like the Hue-degrees→turns decode was found in
 Still GATE-NEUTRAL (all shipping HSV hosts author Hue=0).
 
 State: 35 nodes | VERIFIED 17  CHARACTERIZED 4  DIVERGED 14.
+
+
+## UPDATE 2026-07-22 (session 2) — HSV-hue: proven LUMA-PRESERVING chroma rotation (not HSV-hextant)
+
+Decisive experiment on the hue leg (controlled probe: Hue swept WITH explicit Saturation=0,
+Value=1 — confirmed identical to the hue-only probe, so the value-drop is REAL shader behavior
+not uncontrolled defaults). KEY FINDING via luma bookkeeping: FCP's hue rotation PRESERVES
+Rec.709 luma, NOT HSV value. red@180°: in luma_code 81.9 → out 82.1 (preserved!); blu@180°:
+60.8 → 61.0 (preserved). The standard HSV-hextant rotation (what the engine + the decoded
+HgcHSVAdjust shader-shape do) preserves VALUE=max(rgb) instead, which is why it diverged.
+
+Model progression (rms vs REAL FCP, 35 hue samples):
+  • HSV-hextant rotation (value-preserving): far off (channel-cycling, wrong values)
+  • rotation about gray axis (1,1,1) — preserves RGB SUM: 67 rms (wrong invariant)
+  • rotation about LUMA axis (preserves w·v) in the null(w) chroma plane: 25.7 rms — RIGHT
+    invariant, directionally correct across all 5 hues × 7 angles
+  • + gamut-aware desaturation (pull chroma toward luma-gray until in [0,1] instead of hard
+    per-channel clip): 21.9 rms (WS) — FCP lifts the min channel where hard-clip would hit 0
+    (red@90° FCP B=3.4 vs hard-clip 0), i.e. it desaturates to stay in gamut.
+
+So the hue leg is a LUMA-PRESERVING Rec.709 chroma-plane rotation with gamut-aware desaturation
+— a fundamentally different (and now correctly-identified) operator than the HSV-hextant path.
+The residual ~22 rms is the exact gamut-mapping curve (soft-clip shape), which needs the
+register-level HgcHSVAdjust replay to pin — but the core structure (luma preservation + chroma
+rotation + gamut desat) is now PROVEN, converting this from "non-standard unknown" to a
+characterized operator with a bounded remaining unknown. Still gate-neutral (shipping Hue=0).
+
+State: 35 nodes | VERIFIED 17  CHARACTERIZED 4  DIVERGED 14.
