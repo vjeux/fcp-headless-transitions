@@ -31,3 +31,18 @@ Non-creative host parameters on this filter: `Clip to White`, `Crop`, `Flip`, `I
 **Implemented.** TS module: [`engine/src/compositor/filters/glow.ts`](../../engine/src/compositor/filters/glow.ts).
 
 > 2 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
+
+## Algorithm (decoded)
+
+_PAEBloom — HDR highlight bloom (shipped in `glow.ts` `bloomFilter`, float path)._
+
+```
+hi     = max(src·GainMultiplier - Threshold, 0)     // ×N highlight extract in FLOAT (keeps >1.0)
+blur   = decimatedBlurFloatRGB(hi, Amount/6.10)      // multi-level HGBlur in Float32 (headroom!)
+out    = src + blur · Intensity                       // add the bloom (screen/add)
+```
+
+The **float buffer** is essential: an 8-bit store would clip the ×10 highlight extract to 1.0 and
+lose the energy that blooms the frame to white (see `gaussian-blur.ts` float path). Params:
+**Amount** (bloom radius), **Threshold**, **Intensity/Brightness**. Head-start: extract highlights
+in float, decimated float Gaussian, add back. Shipped + verified.

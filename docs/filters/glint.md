@@ -40,3 +40,22 @@ Non-creative host parameters on this filter: `Crop`, `Flip`, `Input Points`. The
 > 6 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
 > 2 non-creative internal/hidden state parameter(s) (persisted engine state, not user knobs) were omitted from the table above.
+
+## Algorithm (decoded)
+
+_PAEGlint — highlight extraction + multi-directional streak blur (glow/streak family; delegates to HGBlur)._
+
+Glint extracts bright pixels and smears them into **star/streak rays** (anamorphic lens flare look):
+
+```
+hi     = max(luma(src) - Threshold, 0)              // highlight mask (Threshold param)
+streak = 0
+for i in 0..(Streaks-1):                            // N rays at evenly-spaced angles + Rotation
+    dir = angle(i·2π/Streaks + Rotation)
+    streak += directionalBlur(hi·src, dir, Length)  // 1-D HGBlur along each ray (sigma=Length/6.10)
+out    = src + streak · Intensity · GlintColor      // add the rays back, tinted
+```
+
+Params: **Threshold** (what glints), **Streaks/Points** (number of rays), **Length** (ray reach),
+**Rotation** (ray angle), **Intensity**, **Color**. Each ray is the already-decoded directional
+`HGBlur`. Head-start: threshold → N directional blurs of the highlights → additive tinted composite.

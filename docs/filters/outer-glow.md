@@ -33,3 +33,17 @@ Non-creative host parameters on this filter: `Crop`, `Flip`, `Input Points`. The
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_PAEOuterGlow — glow confined to outside the alpha edge (glow family, HGBlur)._
+
+```
+blur   = gaussianBlur(alphaOrHighlights, Amount/6.10)   // shared HGBlur
+outer  = max(blur - originalAlpha, 0)                    // keep only the part OUTSIDE the object
+out    = composite(src, outer · Intensity · Color)       // add glow around the silhouette
+```
+
+Params: **Amount** (glow radius), **Intensity**, **Color**. Differs from Glow by masking the blur to
+the region *outside* the source's alpha (a halo, not an internal bloom). Head-start: blur the alpha,
+subtract the original alpha, tint and composite behind/around.

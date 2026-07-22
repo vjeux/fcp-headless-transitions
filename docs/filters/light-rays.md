@@ -30,3 +30,21 @@ Non-creative host parameters on this filter: `Publish OSC`, `Clip to White`, `Fl
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_PAELightRays — radial "god rays" from a center (highlight extract + radial-blur accumulation)._
+
+```
+hi     = max(luma(src) - Threshold, 0)              // bright source of the rays
+// iterative radial (zoom) blur from Center — successive scaled accumulation:
+rays   = 0;  c = hi
+for k in 0..N:
+    c   = sample(c, lerpTowardCenter(p, Center, decay^k))   // shrink toward center each step
+    rays += c · weight^k                                     // accumulate with falloff
+out    = src + rays · Intensity · Color             // add glowing rays back
+```
+
+Params: **Center** (ray origin), **Amount/Length** (ray reach → decay), **Threshold**, **Intensity**,
+**Color**. This is the classic iterative radial-blur god-ray algorithm; each step samples toward the
+center and accumulates. Head-start: radial accumulation of thresholded highlights from Center.
