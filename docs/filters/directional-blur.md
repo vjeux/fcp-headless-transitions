@@ -31,7 +31,7 @@ Non-creative host parameters on this filter: `Crop`, `OSC Center`, `Publish OSC`
 
 This filter has **no dedicated `Hgc*` fragment shader**: its per-pixel work is done by a Helium primitive (a compiled C++ image node) driven from the CPU class. The code below is **verbatim** from the user's licensed FCP install — the ARM64 disassembly of the plug-in's render method, extracted with `tools/re/disasm_pae.py`. It shows exactly which parameters are read and which primitive is constructed. Nothing is paraphrased.
 
-**Helium primitive(s) constructed:** `HDirectionalBlur`. The primitive's math lives in the Helium framework binary; disassemble it with `otool -arch arm64 -tV "…/Helium.framework/Versions/A/Helium" | grep -A400 '<primitive>'`.
+**Helium primitive(s) constructed:** `HDirectionalBlur`.
 
 ### CPU render method — `-[PAEDirectionalBlur canThrowRenderOutput:withInput:withInfo:]`
 Regenerate: `venv/bin/python3 tools/re/disasm_pae.py PAEDirectionalBlur`
@@ -153,4 +153,29 @@ Parameter -> shader-slot mapping, decoded from the dataflow above
     - parm2 (float)
     - parm3 (bool)
 
+```
+
+### Helium primitive — `HDirectionalBlur::GetOutput(HGRenderer*)`
+The primitive's own output builder (its per-pixel/tile work). Regenerate: `venv/bin/python3 tools/re/disasm_primitive.py HDirectionalBlur`
+
+```asm
+00000000000ddc9c	stp	x20, x19, [sp, #-0x20]!
+00000000000ddca0	stp	x29, x30, [sp, #0x10]
+00000000000ddca4	add	x29, sp, #0x10
+00000000000ddca8	mov	x19, x0
+00000000000ddcac	ldr	x20, [x0, #0x198]
+00000000000ddcb0	mov	x0, x1
+00000000000ddcb4	mov	x1, x19
+00000000000ddcb8	mov	w2, #0x0
+00000000000ddcbc	bl	0x250eec ; symbol stub for: __ZN10HGRenderer8GetInputEP6HGNodei
+00000000000ddcc0	mov	x2, x0
+00000000000ddcc4	ldr	x8, [x20]
+00000000000ddcc8	ldr	x8, [x8, #0x78]
+00000000000ddccc	mov	x0, x20
+00000000000ddcd0	mov	w1, #0x0
+00000000000ddcd4	blr	x8
+00000000000ddcd8	ldr	x0, [x19, #0x1a0]
+00000000000ddcdc	ldp	x29, x30, [sp, #0x10]
+00000000000ddce0	ldp	x20, x19, [sp], #0x20
+00000000000ddce4	ret
 ```

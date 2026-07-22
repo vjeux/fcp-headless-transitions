@@ -33,7 +33,7 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 
 This filter has **no dedicated `Hgc*` fragment shader**: its per-pixel work is done by a Helium primitive (a compiled C++ image node) driven from the CPU class. The code below is **verbatim** from the user's licensed FCP install — the ARM64 disassembly of the plug-in's render method, extracted with `tools/re/disasm_pae.py`. It shows exactly which parameters are read and which primitive is constructed. Nothing is paraphrased.
 
-**Helium primitive(s) constructed:** `HGColorConform`, `HGColorGamma`, `HGTransform`. The primitive's math lives in the Helium framework binary; disassemble it with `otool -arch arm64 -tV "…/Helium.framework/Versions/A/Helium" | grep -A400 '<primitive>'`.
+**Helium primitive(s) constructed:** `HGColorConform`, `HGColorGamma`, `HGTransform`.
 
 ### CPU render method — `-[PAELUTEffect overrideRender:withOutputImage:inputImage:input:withInfo:]`
 Regenerate: `venv/bin/python3 tools/re/disasm_pae.py PAELUTEffect`
@@ -327,4 +327,101 @@ Regenerate: `venv/bin/python3 tools/re/disasm_pae.py PAELUTEffect`
 000000000004c8f8	mov	x0, x19
 000000000004c8fc	bl	"_objc_msgSend$setHeliumRef:"
 000000000004c900	ldur	x0, [x29, #-0xa8]
+```
+
+### Helium primitive — `HGColorConform::GetOutput(HGRenderer*)`
+The primitive's own output builder (its per-pixel/tile work). Regenerate: `venv/bin/python3 tools/re/disasm_primitive.py HGColorConform`
+
+```asm
+000000000019f184	stp	x22, x21, [sp, #-0x30]!
+000000000019f188	stp	x20, x19, [sp, #0x10]
+000000000019f18c	stp	x29, x30, [sp, #0x20]
+000000000019f190	add	x29, sp, #0x20
+000000000019f194	mov	x21, x1
+000000000019f198	mov	x19, x0
+000000000019f19c	ldr	w2, [x0, #0x1e4]
+000000000019f1a0	cmn	w2, #0x1
+000000000019f1a4	b.eq	0x19f1f4
+000000000019f1a8	bl	__ZN14HGColorConform29CreateColorConformHeliumGraphEP10HGRendererNS_30hgColorConformConversionPresetE
+000000000019f1ac	tbz	w0, #0x0, 0x19f1fc
+000000000019f1b0	ldr	x20, [x19, #0x198]
+000000000019f1b4	mov	x0, x21
+000000000019f1b8	mov	x1, x19
+000000000019f1bc	mov	w2, #0x0
+000000000019f1c0	bl	__ZN10HGRenderer8GetInputEP6HGNodei
+000000000019f1c4	mov	x2, x0
+000000000019f1c8	ldr	x8, [x20]
+000000000019f1cc	ldr	x8, [x8, #0x78]
+000000000019f1d0	mov	x0, x20
+000000000019f1d4	mov	w1, #0x0
+000000000019f1d8	blr	x8
+000000000019f1dc	ldr	x20, [x19, #0x1a0]
+000000000019f1e0	mov	x0, x20
+000000000019f1e4	ldp	x29, x30, [sp, #0x20]
+000000000019f1e8	ldp	x20, x19, [sp, #0x10]
+000000000019f1ec	ldp	x22, x21, [sp], #0x30
+000000000019f1f0	ret
+000000000019f1f4	bl	__ZN14HGColorConform29CreateColorConformHeliumGraphEP10HGRenderer
+000000000019f1f8	cbnz	w0, 0x19f1b0
+000000000019f1fc	mov	w0, #0x4a0
+000000000019f200	bl	__ZN8HGObjectnwEm
+000000000019f204	mov	x20, x0
+000000000019f208	bl	__ZN12HGColorGammaC1Ev
+000000000019f20c	ldrb	w1, [x19, #0x1da]
+000000000019f210	mov	x0, x20
+000000000019f214	bl	__ZN12HGColorGamma26SetAntiSymmetricToneCurvesEb
+000000000019f218	mov	x0, x21
+000000000019f21c	mov	x1, x19
+000000000019f220	mov	w2, #0x0
+000000000019f224	bl	__ZN10HGRenderer8GetInputEP6HGNodei
+000000000019f228	mov	x2, x0
+000000000019f22c	ldr	x8, [x20]
+000000000019f230	ldr	x8, [x8, #0x78]
+000000000019f234	mov	x0, x20
+000000000019f238	mov	w1, #0x0
+000000000019f23c	blr	x8
+000000000019f240	mov	x0, x20
+000000000019f244	mov	w1, #0x0
+000000000019f248	bl	__ZN12HGColorGamma19SetConversionPresetENS_28hgColorGammaConversionPresetE
+000000000019f24c	ldrb	w1, [x19, #0x1b0]
+000000000019f250	mov	x0, x20
+000000000019f254	bl	__ZN12HGColorGamma15SetFallbackModeEb
+000000000019f258	ldrb	w1, [x19, #0x1b1]
+000000000019f25c	mov	x0, x20
+000000000019f260	bl	__ZN12HGColorGamma13SetDitherModeEb
+000000000019f264	ldr	w1, [x19, #0x1bc]
+000000000019f268	mov	x0, x20
+000000000019f26c	bl	__ZN12HGColorGamma19SetInputPixelFormatE13HGYCbCrFormat
+000000000019f270	ldr	w1, [x19, #0x1b8]
+000000000019f274	ldr	w2, [x19, #0x1c0]
+000000000019f278	mov	x0, x20
+000000000019f27c	bl	__ZN12HGColorGamma20SetOutputPixelFormatE8HGFormat13HGYCbCrFormat
+000000000019f280	ldr	w1, [x19, #0x1c4]
+000000000019f284	mov	x0, x20
+000000000019f288	bl	__ZN12HGColorGamma21SetInOut422FilterModeENS_30hgColorGammaInOut422FilterModeE
+000000000019f28c	ldp	x1, x2, [x19, #0x1c8]
+000000000019f290	mov	x0, x20
+000000000019f294	bl	__ZN12HGColorGamma21SetInOut422FilterRectE6HGRect
+000000000019f298	ldrb	w1, [x19, #0x1b2]
+000000000019f29c	mov	x0, x20
+000000000019f2a0	bl	__ZN12HGColorGamma26SetFixedPointPrecisionModeEb
+000000000019f2a4	ldrb	w1, [x19, #0x1d8]
+000000000019f2a8	ldrb	w2, [x19, #0x1d9]
+000000000019f2ac	mov	x0, x20
+000000000019f2b0	bl	__ZN12HGColorGamma19SetPremultiplyStateEbb
+000000000019f2b4	ldr	s0, [x19, #0x1dc]
+000000000019f2b8	ldr	s1, [x19, #0x1e0]
+000000000019f2bc	mov	x0, x20
+000000000019f2c0	bl	__ZN12HGColorGamma22Set1DLutScaleAndOffsetEff
+000000000019f2c4	stp	x20, x20, [x19, #0x198]
+000000000019f2c8	mov	x0, x20
+000000000019f2cc	ldp	x29, x30, [sp, #0x20]
+000000000019f2d0	ldp	x20, x19, [sp, #0x10]
+000000000019f2d4	ldp	x22, x21, [sp], #0x30
+000000000019f2d8	ret
+000000000019f2dc	mov	x19, x0
+000000000019f2e0	mov	x0, x20
+000000000019f2e4	bl	__ZN8HGObjectdlEPv
+000000000019f2e8	mov	x0, x19
+000000000019f2ec	bl	0x319314 ; symbol stub for: __Unwind_Resume
 ```

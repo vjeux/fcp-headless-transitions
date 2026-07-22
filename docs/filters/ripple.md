@@ -33,7 +33,7 @@ Non-creative host parameters on this filter: `Publish OSC`, `Crop`, `Flip`, `Inp
 
 This filter has **no dedicated `Hgc*` fragment shader**: its per-pixel work is done by a Helium primitive (a compiled C++ image node) driven from the CPU class. The code below is **verbatim** from the user's licensed FCP install — the ARM64 disassembly of the plug-in's render method, extracted with `tools/re/disasm_pae.py`. It shows exactly which parameters are read and which primitive is constructed. Nothing is paraphrased.
 
-**Helium primitive(s) constructed:** `HGArrayI13SRippleVertexL8HGFormat0EE`, `HGArrayI7HGVec2fL8HGFormat13EE`, `HGArrayI7HGVec3fL8HGFormat21EE`, `HGCrop`, `HGGLNode`. The primitive's math lives in the Helium framework binary; disassemble it with `otool -arch arm64 -tV "…/Helium.framework/Versions/A/Helium" | grep -A400 '<primitive>'`.
+**Helium primitive(s) constructed:** `HGArrayI13SRippleVertexL8HGFormat0EE`, `HGArrayI7HGVec2fL8HGFormat13EE`, `HGArrayI7HGVec3fL8HGFormat21EE`, `HGCrop`, `HGGLNode`.
 
 ### CPU render method — `-[PAERipple canThrowRenderOutputHe:withInput:withInfo:]`
 Regenerate: `venv/bin/python3 tools/re/disasm_pae.py PAERipple`
@@ -473,4 +473,53 @@ Parameter -> shader-slot mapping, decoded from the dataflow above
   SetParameter slots (source decoded by stack/register dataflow;
   only unambiguous single-source slots are asserted):
     slot 0  <-  (constant / computed / multi-pass — read the disasm)
+```
+
+### Helium primitive — `HGCrop::GetOutput(HGRenderer*)`
+The primitive's own output builder (its per-pixel/tile work). Regenerate: `venv/bin/python3 tools/re/disasm_primitive.py HGCrop`
+
+```asm
+0000000000202838	stp	x20, x19, [sp, #-0x20]!
+000000000020283c	stp	x29, x30, [sp, #0x10]
+0000000000202840	add	x29, sp, #0x10
+0000000000202844	mov	x19, x0
+0000000000202848	ldr	x20, [x0, #0x198]
+000000000020284c	mov	x0, x1
+0000000000202850	mov	x1, x19
+0000000000202854	mov	w2, #0x0
+0000000000202858	bl	__ZN10HGRenderer8GetInputEP6HGNodei
+000000000020285c	mov	x2, x0
+0000000000202860	ldr	x8, [x20]
+0000000000202864	ldr	x8, [x8, #0x78]
+0000000000202868	mov	x0, x20
+000000000020286c	mov	w1, #0x0
+0000000000202870	blr	x8
+0000000000202874	ldr	x20, [x19, #0x198]
+0000000000202878	ldr	x8, [x19]
+000000000020287c	ldr	x8, [x8, #0x98]
+0000000000202880	mov	x0, x19
+0000000000202884	mov	w1, #0x0
+0000000000202888	blr	x8
+000000000020288c	mov	x2, x0
+0000000000202890	ldr	x8, [x20]
+0000000000202894	ldr	x8, [x8, #0x88]
+0000000000202898	mov	x0, x20
+000000000020289c	mov	w1, #0x0
+00000000002028a0	blr	x8
+00000000002028a4	ldr	x20, [x19, #0x198]
+00000000002028a8	ldr	x8, [x19]
+00000000002028ac	ldr	x8, [x8, #0x98]
+00000000002028b0	mov	x0, x19
+00000000002028b4	mov	w1, #-0x1
+00000000002028b8	blr	x8
+00000000002028bc	mov	x2, x0
+00000000002028c0	ldr	x8, [x20]
+00000000002028c4	ldr	x8, [x8, #0x88]
+00000000002028c8	mov	x0, x20
+00000000002028cc	mov	w1, #-0x1
+00000000002028d0	blr	x8
+00000000002028d4	ldr	x0, [x19, #0x198]
+00000000002028d8	ldp	x29, x30, [sp, #0x10]
+00000000002028dc	ldp	x20, x19, [sp], #0x20
+00000000002028e0	ret
 ```

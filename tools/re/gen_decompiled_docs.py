@@ -303,6 +303,27 @@ def section_shader(slug, b):
                 out.append("```\n")
     return "\n".join(out).rstrip()+"\n"
 
+
+_PRIM_BINS={"Filters":("/Applications/Final Cut Pro.app/Contents/PlugIns/InternalFiltersXPC.pluginkit/"
+                        "Contents/PlugIns/Filters.bundle/Contents/MacOS/Filters"),
+            "Helium":("/Applications/Final Cut Pro.app/Contents/Frameworks/Helium.framework/Versions/A/Helium")}
+_PRIM_CACHE={}
+def _prim_blocks(binlabel):
+    if binlabel in _PRIM_CACHE: return _PRIM_CACHE[binlabel]
+    import subprocess as _sp
+    txt=_sp.run(["otool","-arch","arm64","-tV",_PRIM_BINS[binlabel]],capture_output=True,text=True).stdout
+    bl={}; cur=None; buf=[]
+    for ln in txt.split("\n"):
+        if ln and not ln[0].isspace() and ln.rstrip().endswith(":") and "\t" not in ln:
+            if cur is not None: bl[cur]="\n".join(buf)
+            cur=ln.rstrip()[:-1]; buf=[]
+        else: buf.append(ln)
+    if cur is not None: bl[cur]="\n".join(buf)
+    _PRIM_CACHE[binlabel]=bl; return bl
+
+def primitive_getoutput(sym, binlabel):
+    bl=_prim_blocks(binlabel); return bl.get(sym)
+
 def section_helium_cpu(slug, b):
     cls=b["resolved_cls"]; prims=b.get("prims",[])
     out=["## Decompiled code (ground truth)",""]
@@ -312,10 +333,7 @@ def section_helium_cpu(slug, b):
                "the plug-in's render method, extracted with `tools/re/disasm_pae.py`. It shows exactly "
                "which parameters are read and which primitive is constructed. Nothing is paraphrased.\n")
     if prims:
-        out.append(f"**Helium primitive(s) constructed:** {', '.join('`'+p+'`' for p in prims)}. "
-                   "The primitive's math lives in the Helium framework binary; disassemble it with "
-                   "`otool -arch arm64 -tV \"…/Helium.framework/Versions/A/Helium\" | "
-                   "grep -A400 '<primitive>'`.\n")
+        out.append(f"**Helium primitive(s) constructed:** {', '.join('`'+p+'`' for p in prims)}.\n")
     if cls:
         sym,rb=render_body(cls)
         if rb:
@@ -328,6 +346,17 @@ def section_helium_cpu(slug, b):
             tbl=fmt_slotmap(cls)
             if tbl:
                 out.append("```"); out.append(tbl); out.append("```\n")
+    # embed the delegated primitive's actual per-pixel/output code where decodable
+    psym=b.get("primitive_getoutput"); pbin=b.get("primitive_binary"); pname=b.get("primitive")
+    if psym and pbin:
+        pbody=primitive_getoutput(psym,pbin)
+        if pbody:
+            import subprocess as _sp
+            dem=_sp.run(["c++filt"],input=psym,capture_output=True,text=True).stdout.strip()
+            out.append(f"### Helium primitive — `{dem}`")
+            out.append(f"The primitive's own output builder (its per-pixel/tile work). Regenerate: "
+                       f"`venv/bin/python3 tools/re/disasm_primitive.py {pname}`\n")
+            out.append("```asm"); out.append(pbody.rstrip()); out.append("```\n")
     return "\n".join(out).rstrip()+"\n"
 
 NONRE_TEXT={

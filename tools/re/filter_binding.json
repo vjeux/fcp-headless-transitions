@@ -251,6 +251,9 @@
   "impl": true,
   "mod": "levels.ts",
   "pae": "Brightness",
+  "primitive": "HGColorMatrix",
+  "primitive_binary": "Helium",
+  "primitive_getoutput": "__ZN13HGColorMatrix9GetOutputEP10HGRenderer",
   "prims": [
    "HGColorMatrix"
   ],
@@ -490,6 +493,9 @@
   "impl": false,
   "mod": null,
   "pae": "Color Wheels",
+  "primitive": "HGColorMatrix",
+  "primitive_binary": "Helium",
+  "primitive_getoutput": "__ZN13HGColorMatrix9GetOutputEP10HGRenderer",
   "prims": [
    "HGColorMatrix"
   ],
@@ -563,6 +569,9 @@
   "impl": false,
   "mod": null,
   "pae": "Compound Blur",
+  "primitive": "HGColorMatrix",
+  "primitive_binary": "Helium",
+  "primitive_getoutput": "__ZN13HGColorMatrix9GetOutputEP10HGRenderer",
   "prims": [
    "HGColorMatrix",
    "HGModulatedBlur"
@@ -665,6 +674,9 @@
   "impl": false,
   "mod": null,
   "pae": "Custom LUT",
+  "primitive": "HGColorConform",
+  "primitive_binary": "Helium",
+  "primitive_getoutput": "__ZN14HGColorConform9GetOutputEP10HGRenderer",
   "prims": [
    "HGColorConform",
    "HGColorGamma",
@@ -749,6 +761,9 @@
   "impl": true,
   "mod": "directional-blur.ts",
   "pae": "Directional Blur",
+  "primitive": "HDirectionalBlur",
+  "primitive_binary": "Filters",
+  "primitive_getoutput": "__ZN16HDirectionalBlur9GetOutputEP10HGRenderer",
   "prims": [
    "HDirectionalBlur"
   ],
@@ -1891,6 +1906,9 @@
   "impl": false,
   "mod": null,
   "pae": "Neon",
+  "primitive": "HGColorMatrix",
+  "primitive_binary": "Helium",
+  "primitive_getoutput": "__ZN13HGColorMatrix9GetOutputEP10HGRenderer",
   "prims": [
    "HGColorMatrix",
    "HGHWMultiBlend",
@@ -2621,6 +2639,9 @@
   "impl": false,
   "mod": null,
   "pae": "Ripple",
+  "primitive": "HGCrop",
+  "primitive_binary": "Helium",
+  "primitive_getoutput": "__ZN6HGCrop9GetOutputEP10HGRenderer",
   "prims": [
    "HGArrayI13SRippleVertexL8HGFormat0EE",
    "HGArrayI7HGVec2fL8HGFormat13EE",

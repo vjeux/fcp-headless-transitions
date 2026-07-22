@@ -32,7 +32,7 @@ Non-creative host parameters on this filter: `Prescale Input`, `Crop`, `360° Aw
 
 This filter has **no dedicated `Hgc*` fragment shader**: its per-pixel work is done by a Helium primitive (a compiled C++ image node) driven from the CPU class. The code below is **verbatim** from the user's licensed FCP install — the ARM64 disassembly of the plug-in's render method, extracted with `tools/re/disasm_pae.py`. It shows exactly which parameters are read and which primitive is constructed. Nothing is paraphrased.
 
-**Helium primitive(s) constructed:** `HGTransform`, `HGXForm`, `HGaussianBlur`. The primitive's math lives in the Helium framework binary; disassemble it with `otool -arch arm64 -tV "…/Helium.framework/Versions/A/Helium" | grep -A400 '<primitive>'`.
+**Helium primitive(s) constructed:** `HGTransform`, `HGXForm`, `HGaussianBlur`.
 
 ### CPU render method — `-[PAEGaussianBlur canThrowRenderOutput:withInput:withInfo:]`
 Regenerate: `venv/bin/python3 tools/re/disasm_pae.py PAEGaussianBlur`
