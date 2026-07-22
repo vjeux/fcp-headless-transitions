@@ -179,3 +179,20 @@ Growing VERIFIED count further requires either (a) the deep RE above, or (b) ref
 engine to expose more discrete functions that map 1:1 to exported FCP symbols, or (c) a
 stateful-object harness (construct OZSpline/LiCamera and call their methods). All are multi-
 session. The harness makes each an isolated, attributable target.
+
+
+## NEXT EXACT TARGET (scoped feasible) — OZSpline stateful curve harness
+
+The single highest-value remaining EXACT node: verify the FULL evaluateCurve node (Catmull-Rom
+auto-tangents — the common, richest keyframe computation) against REAL FCP, not just the leaf
+OZBezierEval/FindParameter. FEASIBLE (symbols confirmed callable this session):
+  OZSpline::OZSplineC1(OZSplineState*)            — construct a spline
+  OZSpline::addVertexNoTangents(CMTime, double, double, bool)  — add a keyframe
+  OZSpline::addVertex(CMTime, double, double, bool)
+  OZBezierInterpolator::interpolate(OZSpline&, CMTime, ...)    — evaluate (the oracle)
+Build: a small ctypes harness (in oracle.py or a new spline_oracle.py) that constructs an
+OZSpline, adds a keyframe set, evaluates at query times via OZBezierInterpolator, and compares
+to engine curves.ts evaluateCurve on the SAME keyframes. This verifies the Catmull-Rom tangent
++ time-reparameterization math (currently only measured to 0.26px vs ruler-decode) EXACTLY.
+Effort: marshal OZSplineState (struct — read its size/ctor), and the interpolate ABI (out-ptrs).
+This is the recommended next session's exact-node work; everything else exact is covered.
