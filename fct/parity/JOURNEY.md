@@ -542,3 +542,18 @@ This CONVERTS the unified gamma-1.958 finding from "rigorous fit" to "confirmed 
 authoritative binary". The colour working space is now KNOWN, not inferred.
 
 State: 36 nodes | VERIFIED 18  CHARACTERIZED 4  DIVERGED 14. colour 8/18, curves exact frontier +1.
+
+
+## UPDATE 2026-07-22 (session 2) — HSV-hue basis = FCP's EXACT Rec.709 YCbCr matrix (from binary)
+
+Pulled FCP's exact Rec.709 RGB→YCbCr matrix via dlsym (ProCore PCGetRec709YCbCrMatrix, sret
+PCMatrix33<float>): row0 = (0.212639,0.715169,0.072192) [= luma709 exactly], rows1-2 = standard
+Cb/Cr. Rotating (Cb,Cr) by the hue angle in THIS exact matrix fits the hue probe at 23.7 rms
+(code) / 20.7 rms (ws + gamut-desat) — the BEST hue model, directionally correct across all
+5 hues × 7 angles. This CONFIRMS the hue leg is a luma-preserving rotation in FCP's own Rec.709
+YCbCr space (not HSV-hextant, not generic YUV/YIQ — those were 36-76 rms). Residual ~20 rms is
+the exact GAMUT-MAPPING step (FCP lifts the min channel vs hard-clip). Evidence:
+evidence/hsv_hue_ycbcr.json. Still gate-neutral (shipping Hue=0); closing needs the HgcHSVAdjust
+gamut-clip disasm, but the ROTATION BASIS is now KNOWN from the binary.
+
+State: 36 nodes | VERIFIED 18  CHARACTERIZED 4  DIVERGED 14.

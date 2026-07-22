@@ -1,0 +1,29 @@
+{
+ "desc": "FCP HSV-hue rotation basis: exact Rec.709 RGB->YCbCr matrix from ProCore PCGetRec709YCbCrMatrix (dlsym).",
+ "symbol": "_Z22PCGetRec709YCbCrMatrixv framework=ProCore (sret PCMatrix33<float>)",
+ "rec709_rgb_to_ycbcr": [
+  [
+   0.212639,
+   0.715169,
+   0.072192
+  ],
+  [
+   -0.114592,
+   -0.385408,
+   0.5
+  ],
+  [
+   0.5,
+   -0.454156,
+   -0.045844
+  ]
+ ],
+ "finding": "FCP HSV-hue rotates Cb/Cr in ITS OWN exact Rec.709 YCbCr space (row0=luma matches PCGetGamutColorSpaceLuminanceCoefficients(0) exactly). Rotating (Cb,Cr) by the hue angle in this exact matrix fits 23.7 rms (code) / +gamut-desat 20.7 rms (ws) vs REAL FCP -- best hue model, directionally correct across 5 hues x 7 angles. Residual is the exact GAMUT-MAPPING step (FCP lifts the min channel where hard-clip would hit 0 = desaturates toward luma-gray, but not by the simple ratio I tried). Needs the PAEHSVAdjust/HgcHSVAdjust gamut-clip disasm to close. CONFIRMS: hue is luma-preserving Rec.709 YCbCr rotation, NOT HSV-hextant (shader shape) NOR generic YUV/YIQ.",
+ "rms_progression": {
+  "HSV-hextant": "far off",
+  "gray-axis-rotation": 67,
+  "generic-YUV": 36,
+  "FCP-YCbCr-code": 23.7,
+  "FCP-YCbCr-ws+gamutdesat": 20.7
+ }
+}
