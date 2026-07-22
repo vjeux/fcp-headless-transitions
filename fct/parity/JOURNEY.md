@@ -463,3 +463,24 @@ Colour subsystem transfer decode — 7/17 VERIFIED via the unified gamma-1.958 W
     correct — red→cyan at 180° — but value drops + saturation rises inconsistently vs HSV/YIQ/YUV).
 The gamma-1.958 WS is the durable root-cause; the remaining colour gaps are a single GPU-render
 clamp stage + the hue reconstruction, both needing binary disasm not further transfer probing.
+
+
+## UPDATE 2026-07-22 (session 2) — HgcHSVAdjust shader EXTRACTED; hue gap localized to CPU param mapping
+
+Extracted the full verbatim HgcHSVAdjust shader (evidence/shaders/HgcHSVAdjust.metal — was
+in the inventory but never dumped) and transcribed it register-by-register in numpy. KEY
+FINDING: the shader is a STANDARD HSV rotation — normalize by V=max(rgb), reconstruct hue via
+the max-channel sextant, hue' = hue/6 + hg_Params[0].x, S' = clamp(S·hg_Params[0].y), V' =
+clamp(V·hg_Params[0].z), rebuild, re-multiply by V. With satMul=valMul=1 it produces the
+value-PRESERVING HSV rotation (red@90° → (125,200,50)).
+
+But REAL FCP's hue-only probe output DROPS value + RAISES saturation (red@90° → (53,92,3)),
+and NO constant (satMul,valMul) fits (best 72 rms). So the hue DIRECTION + shader shape are
+correct, but the plugin's CPU frameSetup feeds hg_Params[0].yz (sat/val multipliers) values
+that are NOT the UI identity for a Hue-only change — the gap is now localized to the
+PAEHSVAdjust CPU param mapping (like the Hue-degrees→turns decode was found in
+-[PAEHSVAdjust canThrowRenderOutput]), a focused binary read. This CONVERTS the hue leg from
+"unknown rotation" to "known shader + unknown param scale" — a much sharper, bounded target.
+Still GATE-NEUTRAL (all shipping HSV hosts author Hue=0).
+
+State: 35 nodes | VERIFIED 17  CHARACTERIZED 4  DIVERGED 14.
