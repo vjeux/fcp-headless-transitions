@@ -1,0 +1,13 @@
+{
+  "what": "OZSpline stateful-harness feasibility probe (toward verifying the full Catmull-Rom evaluateCurve vs OZBezierInterpolator::interpolate).",
+  "proven_working": [
+    "OZSplineState::OZSplineState() [C1] constructs into a 512-byte buffer (real size ~48B) without crash.",
+    "OZSpline::OZSpline(OZSplineState*) [C1] constructs into a 512-byte buffer (real size ~200B, internally new's an OZInterpolators) without crash.",
+    "OZSpline::addVertex(CMTime const&, double value, CMTime const& tangent, bool) adds keyframes without crash. CMTime = {int64 value; int32 timescale; uint32 flags=1; int64 epoch} (24 bytes)."
+  ],
+  "remaining_to_call_interpolate": [
+    "OZBezierInterpolator::interpolate(OZSpline&, CMTime const& t, void* outA, void* outB, CMTime const& , bool, bool) \u2014 the disasm calls getControlPoints internally then CMTime math, writing to the void* outputs (args x5/x6). Need to: (1) set the per-vertex INTERPOLATION TYPE to Catmull-Rom (type 6) \u2014 addVertex used a default; find the OZSpline setInterpolation / per-vertex interp setter (OZChannelImpl::setInterpolation(uint) exists); (2) map the two void* output pointers (likely value + derivative or control-point struct) by reading where interpolate stores its result; (3) confirm the ABI by reproducing a KNOWN 2-keyframe answer (e.g. linear 0->100 at t=0.5 => 50) BEFORE trusting any verdict."
+  ],
+  "go_no_go": "GO on construction (proven). NO-GO on shipping until interpolate reproduces a known-answer case (S1-style harness gate). This is the next focused session's task; do NOT ship a spline harness whose interpolate output isn't first validated on a known value.",
+  "engine_side": "engine/src/evaluator/curves.ts evaluateCurve (Catmull-Rom branch, interp 6) is the port to compare; it's already measured to 0.26px vs ruler-decode, so this harness would tighten that to exact."
+}
