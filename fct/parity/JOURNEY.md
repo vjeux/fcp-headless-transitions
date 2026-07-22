@@ -557,3 +557,34 @@ evidence/hsv_hue_ycbcr.json. Still gate-neutral (shipping Hue=0); closing needs 
 gamut-clip disasm, but the ROTATION BASIS is now KNOWN from the binary.
 
 State: 36 nodes | VERIFIED 18  CHARACTERIZED 4  DIVERGED 14.
+
+
+## UPDATE 2026-07-22 (session 2) — HGColorMatrix clamp: DISASSEMBLED the shader — lift is a READBACK effect, not the op
+
+Extracted the actual HGColorMatrix Metal fragment shader (extract_shader.py "ColorMatrix"):
+    output.color0.{x,y,z,w} = dot(hg_Params[{0..3}], color0)
+A PURE 4×4 matrix multiply — NO CLAMP, NO working-space conversion in the shader. And
+ParameterizeMatrix (Helium @0x201b58) just copies the 4 rows into the param buffer. So the
+over-1.0 cross-channel LIFT (Brightness/ChannelMixer brighten-on-saturated) is NOT in the
+Brightness/ChannelMixer OPERATION at all — the matrix op is unclamped and per-channel-exact
+(which is why the engine's per-channel multiply is VERIFIED for darken/gray/non-amplifying).
+
+The lift + frozen asymptote + discontinuity are 100% the OZ compositor TILE READBACK: the
+unclamped float matrix output goes into a half-float ExtendedLinearSRGB tile, and the effect
+appears when that HDR tile is colour-managed down to 8-bit display. The transfer probe reads FCP
+AFTER readback (sees the lift); the engine _filter_apply does the matrix in 8-bit code space and
+doesn't replicate the readback. Analysis of the asymptote shows it's a HUE-AWARE gamut
+compression BETWEEN per-channel-clip (255,255,255) and hue-preserving-scale (255,64,64) — FCP
+lands at (255,176,172), blend factor ~0.41 (r200) but ~0.32 (y), so not a constant blend; the
+exact operator is the tile-format conversion, not a single extractable fragment shader (candidates
+HgcGamutMap/HgcColorClamp/HgcOutputClamp all exist but none is the standalone match).
+
+UNIFIES THE LAST COLOUR MECHANISM: the HGColorMatrix clamp is the SAME chain-level working-space
+readback that blocks GUI promotion of Tint/HSV/Colorize — ONE shared fix (a Rec.709-working-space
+HDR buffer + FCP's readback gamut-map across the whole filter chain), NOT a per-filter Brightness
+formula. For the NODE-BOUNDARY function, the engine matrix op is already correct.
+
+State: 36 nodes | VERIFIED 18  CHARACTERIZED 4  DIVERGED 14. All colour mechanisms now decoded to
+their root: 6 VERIFIED transfers in the Rec.709 gamma-1.961 WS; the 2 "clamp"/"hue" remainders are
+localized to (a) the chain-level HDR readback gamut-map [shader proven unclamped] and (b) the
+HgcHSVAdjust gamut step [rotation basis = FCP's exact Rec.709 YCbCr matrix].
