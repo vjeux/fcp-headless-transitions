@@ -1,5 +1,6 @@
 {
-  "id": "OZBezierEval",
+  "id": "curve.interp.bezier.eval",
+  "kind": "curve",
   "status": "VERIFIED",
   "n_cases": 166,
   "max_abs_err": 3.197442310920451e-14,
@@ -22,5 +23,5 @@
   "failures": [],
   "tol_abs": 1e-06,
   "tol_rel": 1e-06,
-  "swept": "2026-07-22T10:08:06Z"
+  "swept": "2026-07-22T10:30:07Z"
 }

@@ -109,15 +109,36 @@ _GENERATORS = {
 }
 
 
-def generate(spec):
-    """spec like 'grid:easeInOut' -> list of args dicts."""
-    if not spec.startswith("grid:"):
-        raise ValueError("unknown case spec %r" % spec)
-    name = spec.split(":", 1)[1]
-    gen = _GENERATORS.get(name)
-    if gen is None:
-        raise ValueError("no case generator named %r (add to cases._GENERATORS)" % name)
-    return gen()
+def filter_param_sweep(node, n_per_param=7):
+    """FILTER node: sweep each continuous param across its range (others at authored/1).
+    Returns a list of {param_name: value} dicts. One param varies at a time (isolates the
+    node's response to THAT param), plus the all-default point."""
+    params = [p for p in node.get("params", []) if p.get("class", "continuous") == "continuous"]
+    defaults = {p["name"]: p.get("default", 1.0) for p in node.get("params", [])}
+    cases = [dict(defaults)]  # authored/default center point
+    for p in params:
+        lo, hi = p.get("range", [0.0, 1.0])
+        for v in _linspace(lo, hi, n_per_param):
+            c = dict(defaults)
+            c[p["name"]] = v
+            cases.append(c)
+    return cases
+
+
+def generate(spec, node=None):
+    """spec like 'grid:easeInOut' -> list of args dicts (curve/value nodes), or
+    'filter:<id>' -> list of param-value dicts (filter nodes; needs `node`)."""
+    if spec.startswith("grid:"):
+        name = spec.split(":", 1)[1]
+        gen = _GENERATORS.get(name)
+        if gen is None:
+            raise ValueError("no case generator named %r (add to cases._GENERATORS)" % name)
+        return gen()
+    if spec.startswith("filter:"):
+        if node is None:
+            raise ValueError("filter case spec %r needs the node entry" % spec)
+        return filter_param_sweep(node)
+    raise ValueError("unknown case spec %r" % spec)
 
 
 if __name__ == "__main__":

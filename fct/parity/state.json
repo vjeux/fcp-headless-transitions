@@ -1,7 +1,8 @@
 {
-  "functions": {
-    "PCMath_easeInOut": {
-      "id": "PCMath_easeInOut",
+  "nodes": {
+    "curve.interp.ease": {
+      "id": "curve.interp.ease",
+      "kind": "curve",
       "status": "VERIFIED",
       "n_cases": 201,
       "max_abs_err": 0.0,
@@ -15,10 +16,11 @@
       "n_failures": 0,
       "tol_abs": 1e-06,
       "tol_rel": 1e-06,
-      "swept": "2026-07-22T10:08:06Z"
+      "swept": "2026-07-22T10:30:07Z"
     },
-    "OZBezierEval": {
-      "id": "OZBezierEval",
+    "curve.interp.bezier.eval": {
+      "id": "curve.interp.bezier.eval",
+      "kind": "curve",
       "status": "VERIFIED",
       "n_cases": 166,
       "max_abs_err": 3.197442310920451e-14,
@@ -40,10 +42,11 @@
       "n_failures": 0,
       "tol_abs": 1e-06,
       "tol_rel": 1e-06,
-      "swept": "2026-07-22T10:08:06Z"
+      "swept": "2026-07-22T10:30:07Z"
     },
-    "OZBezierFindParameter": {
-      "id": "OZBezierFindParameter",
+    "curve.interp.bezier.findparam": {
+      "id": "curve.interp.bezier.findparam",
+      "kind": "curve",
       "status": "VERIFIED",
       "n_cases": 135,
       "max_abs_err": 4.293831956658778e-10,
@@ -65,101 +68,69 @@
       "n_failures": 0,
       "tol_abs": 1e-06,
       "tol_rel": 1e-06,
-      "swept": "2026-07-22T10:08:06Z"
+      "swept": "2026-07-22T10:30:07Z"
+    },
+    "filter.PAEBrightness": {
+      "id": "filter.PAEBrightness",
+      "kind": "filter",
+      "status": "DIVERGED",
+      "n_scored": 6,
+      "n_gated": 2,
+      "worst_psnr": 13.32,
+      "worst": {
+        "case": {
+          "Brightness": 1.5
+        },
+        "hvi": 67.55
+      },
+      "pass_db": 40.0,
+      "oracle_truth": "gui",
+      "n_failures": 0,
+      "swept": "2026-07-22T10:31:06Z"
     }
   },
   "history": [
     {
-      "id": "PCMath_easeInOut",
+      "id": "curve.interp.ease",
+      "status": "VERIFIED",
+      "at": "2026-07-22T10:26:27Z"
+    },
+    {
+      "id": "curve.interp.bezier.eval",
+      "status": "VERIFIED",
+      "at": "2026-07-22T10:26:27Z"
+    },
+    {
+      "id": "curve.interp.bezier.findparam",
+      "status": "VERIFIED",
+      "at": "2026-07-22T10:26:27Z"
+    },
+    {
+      "id": "filter.PAEBrightness",
       "status": "DIVERGED",
-      "max_abs_err": 100.0,
-      "at": "2026-07-22T09:55:12Z"
+      "at": "2026-07-22T10:27:19Z"
     },
     {
-      "id": "OZBezierEval",
+      "id": "curve.interp.ease",
       "status": "VERIFIED",
-      "max_abs_err": 3.197442310920451e-14,
-      "at": "2026-07-22T09:55:12Z"
+      "at": "2026-07-22T10:30:07Z"
     },
     {
-      "id": "OZBezierFindParameter",
+      "id": "curve.interp.bezier.eval",
+      "status": "VERIFIED",
+      "at": "2026-07-22T10:30:07Z"
+    },
+    {
+      "id": "curve.interp.bezier.findparam",
+      "status": "VERIFIED",
+      "at": "2026-07-22T10:30:07Z"
+    },
+    {
+      "id": "filter.PAEBrightness",
       "status": "DIVERGED",
-      "max_abs_err": 1.0,
-      "at": "2026-07-22T09:55:12Z"
-    },
-    {
-      "id": "PCMath_easeInOut",
-      "status": "VERIFIED",
-      "max_abs_err": 0.0,
-      "at": "2026-07-22T09:58:47Z"
-    },
-    {
-      "id": "OZBezierEval",
-      "status": "VERIFIED",
-      "max_abs_err": 3.197442310920451e-14,
-      "at": "2026-07-22T09:58:47Z"
-    },
-    {
-      "id": "OZBezierFindParameter",
-      "status": "DIVERGED",
-      "max_abs_err": 1.0,
-      "at": "2026-07-22T09:58:47Z"
-    },
-    {
-      "id": "PCMath_easeInOut",
-      "status": "VERIFIED",
-      "max_abs_err": 0.0,
-      "at": "2026-07-22T10:00:42Z"
-    },
-    {
-      "id": "OZBezierEval",
-      "status": "VERIFIED",
-      "max_abs_err": 3.197442310920451e-14,
-      "at": "2026-07-22T10:00:42Z"
-    },
-    {
-      "id": "OZBezierFindParameter",
-      "status": "VERIFIED",
-      "max_abs_err": 4.293831956658778e-10,
-      "at": "2026-07-22T10:00:42Z"
-    },
-    {
-      "id": "PCMath_easeInOut",
-      "status": "VERIFIED",
-      "max_abs_err": 0.0,
-      "at": "2026-07-22T10:01:53Z"
-    },
-    {
-      "id": "OZBezierEval",
-      "status": "VERIFIED",
-      "max_abs_err": 3.197442310920451e-14,
-      "at": "2026-07-22T10:01:53Z"
-    },
-    {
-      "id": "OZBezierFindParameter",
-      "status": "VERIFIED",
-      "max_abs_err": 4.293831956658778e-10,
-      "at": "2026-07-22T10:01:53Z"
-    },
-    {
-      "id": "PCMath_easeInOut",
-      "status": "VERIFIED",
-      "max_abs_err": 0.0,
-      "at": "2026-07-22T10:08:06Z"
-    },
-    {
-      "id": "OZBezierEval",
-      "status": "VERIFIED",
-      "max_abs_err": 3.197442310920451e-14,
-      "at": "2026-07-22T10:08:06Z"
-    },
-    {
-      "id": "OZBezierFindParameter",
-      "status": "VERIFIED",
-      "max_abs_err": 4.293831956658778e-10,
-      "at": "2026-07-22T10:08:06Z"
+      "at": "2026-07-22T10:31:06Z"
     }
   ],
-  "started": "2026-07-22T09:55:12Z",
-  "updated": "2026-07-22T10:08:06Z"
+  "started": "2026-07-22T10:26:26Z",
+  "updated": "2026-07-22T10:31:06Z"
 }

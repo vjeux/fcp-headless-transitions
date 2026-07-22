@@ -8,11 +8,11 @@
   fct probe   <slug> [frame=12]                     fast: render+PSNR ONE engine frame vs GUI GT
   fct caps    [cap ...]                             capability catalog: ONE FCP primitive vs headless
   fct parity  [status|step|sweep <id>|sweep --all|selftest]
-                                                    FUNCTION-LEVEL parity: call an INDIVIDUAL real FCP
-                                                    function (dlsym into ProCore/ProChannel/Helium/...)
-                                                    and the TS port with identical inputs, compare exact
-                                                    numeric output. Proves ONE ported function is
-                                                    bit-for-bit equivalent to Apple's. Disk-driven +
+                                                    NODE-BOUNDARY parity: one .motr XML node + its
+                                                    params triggers ONE computation; isolate it and
+                                                    verify the TS port == REAL FCP across the param
+                                                    space (curve nodes exact via dlsym; filter nodes
+                                                    image-PSNR via filter_probe). Disk-driven +
                                                     compaction-proof; see fct/parity/README.md.
   fct census  [slug ...|--all]                      decode a slug's REAL scene graph
                                                     (filters/links/emitters/generators) from its

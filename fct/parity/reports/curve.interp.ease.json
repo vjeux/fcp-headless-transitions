@@ -1,5 +1,6 @@
 {
-  "id": "PCMath_easeInOut",
+  "id": "curve.interp.ease",
+  "kind": "curve",
   "status": "VERIFIED",
   "n_cases": 201,
   "max_abs_err": 0.0,
@@ -14,5 +15,5 @@
   "failures": [],
   "tol_abs": 1e-06,
   "tol_rel": 1e-06,
-  "swept": "2026-07-22T10:08:06Z"
+  "swept": "2026-07-22T10:30:07Z"
 }

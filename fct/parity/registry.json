@@ -1,59 +1,84 @@
 {
- "version": 1,
- "note": "SUBSYSTEM PARITY registry \u2014 durable brain for the function-level oracle. Each entry declares one FCP function (framework + mangled symbol + typed signature) and the TS 'fn' id its port is exposed under in engine/test/_parity_worker.ts. driver.py sweeps each across its 'cases' (input vectors), calls the REAL FCP fn (oracle.py) and the TS port (bridge.py), and records max abs/rel error. status: UNTESTED|VERIFIED|DIVERGED|NO_SYMBOL. A function is VERIFIED when max_abs_err <= tol_abs (or max_rel_err <= tol_rel) across ALL cases. Only EXPORTED (nm 'T') symbols are dlsym-able.",
- "tol_abs": 1e-06,
- "tol_rel": 1e-06,
- "functions": [
+ "version": 2,
+ "boundary": "xml-node",
+ "note": "NODE-BOUNDARY parity: the unit of truth is ONE .motr node + its params -> ONE isolated computation, verified faithful (TS port == REAL FCP) across the node's param space. NOT a hand-picked C++ symbol, NOT whole-frame PSNR through the full pipeline. See DESIGN.md. kinds: filter(image->image, isolate via filter_probe.py+_filter_apply.ts), curve(value->value, the computation a <curve interp=N> segment triggers \u2014 the exact interpolation, verified bit-exact via the dlsym oracle), transform(params->matrix), generator(params->image). status: UNTESTED|VERIFIED|DIVERGED|NO_SIGNAL|NO_ORACLE.",
+ "metrics": {
+  "filter": {
+   "kind": "psnr",
+   "pass_db": 40.0,
+   "note": "worst-case headless-vs-TS PSNR over the param sweep; signal-gated (skip inert params)."
+  },
+  "generator": {
+   "kind": "psnr",
+   "pass_db": 40.0
+  },
+  "curve": {
+   "kind": "error",
+   "tol_abs": 1e-06,
+   "tol_rel": 1e-06,
+   "note": "value-domain, can be exact"
+  },
+  "transform": {
+   "kind": "error",
+   "tol_abs": 1e-09,
+   "tol_rel": 1e-09
+  }
+ },
+ "nodes": [
   {
-   "id": "PCMath_easeInOut",
+   "id": "curve.interp.ease",
    "subsystem": "curves",
-   "framework": "ProCore",
-   "symbol": "__ZN6PCMath9easeInOutEdddddPdS0_",
-   "ts_source": "engine/src/evaluator/curves.ts:easeInOut",
-   "desc": "Parametric ease (accel/linear/decel). Ease/Accelerate/Decelerate/S-Curve interpolators.",
-   "signature": {
-    "args": [
-     {
-      "kind": "in",
-      "ctype": "double",
-      "name": "t"
-     },
-     {
-      "kind": "in",
-      "ctype": "double",
-      "name": "easeIn"
-     },
-     {
-      "kind": "in",
-      "ctype": "double",
-      "name": "easeOut"
-     },
-     {
-      "kind": "in",
-      "ctype": "double",
-      "name": "v0"
-     },
-     {
-      "kind": "in",
-      "ctype": "double",
-      "name": "v1"
-     },
-     {
-      "kind": "out",
-      "ctype": "double",
-      "name": "outVal"
-     },
-     {
-      "kind": "out",
-      "ctype": "double",
-      "name": "outDeriv"
-     }
-    ],
-    "ret": "double"
+   "kind": "curve",
+   "desc": "Keyframe segment interp=15/16/17 (Ease/Accelerate/Decelerate): value shaped by PCMath::easeInOut over normalized time.",
+   "oracle": {
+    "type": "dlsym",
+    "framework": "ProCore",
+    "symbol": "__ZN6PCMath9easeInOutEdddddPdS0_",
+    "signature": {
+     "args": [
+      {
+       "kind": "in",
+       "ctype": "double",
+       "name": "t"
+      },
+      {
+       "kind": "in",
+       "ctype": "double",
+       "name": "easeIn"
+      },
+      {
+       "kind": "in",
+       "ctype": "double",
+       "name": "easeOut"
+      },
+      {
+       "kind": "in",
+       "ctype": "double",
+       "name": "v0"
+      },
+      {
+       "kind": "in",
+       "ctype": "double",
+       "name": "v1"
+      },
+      {
+       "kind": "out",
+       "ctype": "double",
+       "name": "outVal"
+      },
+      {
+       "kind": "out",
+       "ctype": "double",
+       "name": "outDeriv"
+      }
+     ],
+     "ret": "double"
+    },
+    "outputs": [
+     "outVal"
+    ]
    },
-   "outputs": [
-    "outVal"
-   ],
+   "ts_fn": "PCMath_easeInOut",
    "compare_outputs": [
     "outVal"
    ],
@@ -61,31 +86,35 @@
    "status": "UNTESTED"
   },
   {
-   "id": "OZBezierEval",
+   "id": "curve.interp.bezier.eval",
    "subsystem": "curves",
-   "framework": "ProChannel",
-   "symbol": "__Z12OZBezierEvalPKdd",
-   "ts_source": "engine/src/evaluator/curves.ts:cubicBezier",
-   "desc": "Evaluate a cubic Bezier value control-polygon at parameter u.",
-   "signature": {
-    "args": [
-     {
-      "kind": "in_array",
-      "ctype": "double",
-      "name": "ctrl",
-      "len": 4
-     },
-     {
-      "kind": "in",
-      "ctype": "double",
-      "name": "u"
-     }
-    ],
-    "ret": "double"
+   "kind": "curve",
+   "desc": "Stored-tangent bezier segment value evaluation (OZBezierEval): the value-domain cubic the engine's cubicBezier ports.",
+   "oracle": {
+    "type": "dlsym",
+    "framework": "ProChannel",
+    "symbol": "__Z12OZBezierEvalPKdd",
+    "signature": {
+     "args": [
+      {
+       "kind": "in_array",
+       "ctype": "double",
+       "name": "ctrl",
+       "len": 4
+      },
+      {
+       "kind": "in",
+       "ctype": "double",
+       "name": "u"
+      }
+     ],
+     "ret": "double"
+    },
+    "outputs": [
+     "ret"
+    ]
    },
-   "outputs": [
-    "ret"
-   ],
+   "ts_fn": "OZBezierEval",
    "compare_outputs": [
     "ret"
    ],
@@ -93,35 +122,64 @@
    "status": "UNTESTED"
   },
   {
-   "id": "OZBezierFindParameter",
+   "id": "curve.interp.bezier.findparam",
    "subsystem": "curves",
-   "framework": "ProChannel",
-   "symbol": "__Z21OZBezierFindParameterPKdd",
-   "ts_source": "engine/src/evaluator/curves.ts:solveBezierParam",
-   "desc": "Invert a cubic time-Bezier: find parameter u for a target time.",
-   "signature": {
-    "args": [
-     {
-      "kind": "in_array",
-      "ctype": "double",
-      "name": "tctrl",
-      "len": 4
-     },
-     {
-      "kind": "in",
-      "ctype": "double",
-      "name": "t"
-     }
-    ],
-    "ret": "double"
+   "kind": "curve",
+   "desc": "Bezier time reparameterization (OZBezierFindParameter): invert the time-bezier for u, the engine's solveBezierParam.",
+   "oracle": {
+    "type": "dlsym",
+    "framework": "ProChannel",
+    "symbol": "__Z21OZBezierFindParameterPKdd",
+    "signature": {
+     "args": [
+      {
+       "kind": "in_array",
+       "ctype": "double",
+       "name": "tctrl",
+       "len": 4
+      },
+      {
+       "kind": "in",
+       "ctype": "double",
+       "name": "t"
+      }
+     ],
+     "ret": "double"
+    },
+    "outputs": [
+     "ret"
+    ]
    },
-   "outputs": [
-    "ret"
-   ],
+   "ts_fn": "OZBezierFindParameter",
    "compare_outputs": [
     "ret"
    ],
    "cases": "grid:bezierFind",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "filter.PAEBrightness",
+   "subsystem": "filters",
+   "kind": "filter",
+   "desc": "PAEBrightness node: per-channel multiply. image,params->image.",
+   "oracle": {
+    "type": "filter_probe",
+    "uuid": "2E4DBB0A-A950-4896-BC2D-A5B0CFF7FAC6",
+    "pluginName": "PAEBrightness"
+   },
+   "params": [
+    {
+     "name": "Brightness",
+     "id": 1,
+     "range": [
+      0.0,
+      3.0
+     ],
+     "class": "continuous"
+    }
+   ],
+   "cases": "filter:PAEBrightness",
+   "oracle_truth": "gui",
    "status": "UNTESTED"
   }
  ]

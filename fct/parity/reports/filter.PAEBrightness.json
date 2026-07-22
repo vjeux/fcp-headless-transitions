@@ -1,0 +1,87 @@
+{
+  "id": "filter.PAEBrightness",
+  "kind": "filter",
+  "status": "DIVERGED",
+  "n_scored": 6,
+  "n_gated": 2,
+  "worst_psnr": 13.32,
+  "worst": {
+    "case": {
+      "Brightness": 1.5
+    },
+    "hvi": 67.55
+  },
+  "pass_db": 40.0,
+  "oracle_truth": "gui",
+  "n_failures": 0,
+  "failures": [],
+  "per_case": [
+    {
+      "case": {
+        "Brightness": 1.0
+      },
+      "psnr": 42.23,
+      "hvi": 0.9,
+      "gated": true
+    },
+    {
+      "case": {
+        "Brightness": 0.0
+      },
+      "psnr": 99.0,
+      "hvi": 73.02
+    },
+    {
+      "case": {
+        "Brightness": 0.5
+      },
+      "psnr": 47.04,
+      "hvi": 36.56
+    },
+    {
+      "case": {
+        "Brightness": 1.0
+      },
+      "psnr": 42.23,
+      "hvi": 0.9,
+      "gated": true
+    },
+    {
+      "case": {
+        "Brightness": 1.5
+      },
+      "psnr": 13.32,
+      "hvi": 67.55
+    },
+    {
+      "case": {
+        "Brightness": 2.0
+      },
+      "psnr": 14.35,
+      "hvi": 81.34
+    },
+    {
+      "case": {
+        "Brightness": 2.5
+      },
+      "psnr": 15.32,
+      "hvi": 90.57
+    },
+    {
+      "case": {
+        "Brightness": 3.0
+      },
+      "psnr": 16.18,
+      "hvi": 97.19
+    }
+  ],
+  "swept": "2026-07-22T10:31:06Z",
+  "findings": [
+    {
+      "kind": "directional_divergence",
+      "summary": "PAEBrightness node parity: FAITHFUL darkening (Brightness<=1: 47-99 dB) but DIVERGED brightening (Brightness 1.5-3.0: 13-16 dB, worsening with amount). Signature = FCP multiplies in LINEAR working space, TS in sRGB (see levels.ts) \u2014 sRGB multiply over-saturates brightened tones.",
+      "oracle_truth_caveat": "oracle_truth=gui: COLOR-family node; headless FCP has a MEASURED 13-19 dB headless-vs-GUI-export gap. The linear form that matches HEADLESS regresses the GUI gate (the one truth). Do NOT fix TS to match headless without confirming net-positive on the GUI GT (fct score). Engine ships the GUI-gate-preferred sRGB form on purpose.",
+      "next": "Render a Brightness host slug's GUI GT; confirm whether TS-sRGB or TS-linear scores higher vs the GUI (not headless). Adopt linear only if it wins the GUI gate; else mark CHARACTERIZED (headless-neq-gui) like Colorize/Levels."
+    }
+  ]
+}
