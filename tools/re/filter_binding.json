@@ -483,16 +483,19 @@
   "uuid": "4C36AECF-53D9-42A8-AD43-9578B00AE01C"
  },
  "color-wheels": {
-  "category": "cifilter",
+  "category": "helium_cpu",
   "files": 4,
   "final_shaders": [],
   "helium": [],
   "impl": false,
   "mod": null,
   "pae": "Color Wheels",
-  "prims": [],
-  "resolved_cls": null,
+  "prims": [
+   "HGColorMatrix"
+  ],
+  "resolved_cls": "PAECorrectorEffect",
   "shaders": [],
+  "superclass": "PAEBaseCorrectorEffect",
   "traced_shaders": [],
   "uuid": "52A68C6D-B49C-41AA-B3EA-03945D0C8EB4"
  },
@@ -655,16 +658,21 @@
   "uuid": "9D6E32F9-7C04-4207-B1B5-A480780B2B9D"
  },
  "custom-lut": {
-  "category": "cifilter",
+  "category": "helium_cpu",
   "files": 2,
   "final_shaders": [],
   "helium": [],
   "impl": false,
   "mod": null,
   "pae": "Custom LUT",
-  "prims": [],
-  "resolved_cls": null,
+  "prims": [
+   "HGColorConform",
+   "HGColorGamma",
+   "HGTransform"
+  ],
+  "resolved_cls": "PAELUTEffect",
   "shaders": [],
+  "superclass": "PAEBaseCorrectorEffect",
   "traced_shaders": [],
   "uuid": "14B39AEF-607D-42DF-98DD-DB3DD345E925"
  },
