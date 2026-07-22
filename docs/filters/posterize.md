@@ -27,3 +27,21 @@ No extra plumbing parameters recorded. These are standard FxPlug/host boilerplat
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcPosterize` embedded shader. Decoded functional form:_
+
+Posterize quantizes each channel to a fixed number of **Levels**:
+
+```
+c   = rgb / max(a,1e-6)
+q   = floor(c * Levels)                 // hg_Params[0] = number of levels (per channel)
+q   = min(q, Levels - 1)                // clamp top bin
+q   = max(q, 0)
+out = q * hg_Params[1]                    // hg_Params[1] = 1/(Levels-1) → remap bins back to [0,1]
+out.rgb *= a
+```
+
+`hg_Params[0]` = **Levels** (bins per channel), `hg_Params[1]` = `1/(Levels−1)` reconstruction scale.
+Straight uniform quantization; head-start is the three lines above.

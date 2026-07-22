@@ -33,3 +33,24 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
 > 1 non-creative internal/hidden state parameter(s) (persisted engine state, not user knobs) were omitted from the table above.
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcColorCurves` embedded shader. Decoded functional form:_
+
+Color Curves applies a **per-channel lookup curve** (like Photoshop Curves) — each channel's value
+indexes a 1-D curve **texture** (`hg_Texture1..4` = the R/G/B/luma curve LUTs) between a
+low/high clamp, and the looked-up value replaces it.
+
+```
+for channel in {luma or R, G, B}:
+    v    = dot(rgb, weights)                         // channel value (hg_Params[4] = luma weights for master)
+    v    = clamp(v, Lo, Hi)                          // per-curve black/white points (hg_Params[10],[11])
+    idx  = clamp(v * (LUTsize) , 0, LUTsize-1)       // hg_Params[18] = LUT width
+    out_channel = sample(curveTex, (idx+0.5)/LUTsize)  // curve lookup
+```
+
+There are 4 curve textures (master/luma + R + G + B), each a baked 1-D LUT of the user's curve.
+`hg_Params[10]/[11]` = per-curve input clamp (black/white point), `hg_Params[18]` = LUT resolution.
+Head-start: bake each editable curve into a 256-entry LUT and do 4 lookups (apply master then per-
+channel). The curve *shape* is entirely in the textures — the shader is just the indexed lookup.

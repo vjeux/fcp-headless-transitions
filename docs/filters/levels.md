@@ -30,3 +30,27 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 **Implemented.** TS module: [`engine/src/compositor/filters/levels.ts`](../../engine/src/compositor/filters/levels.ts).
 
 > 1 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcLevels` embedded shader (confirms the shipped `levels.ts`)._
+
+Levels is the classic **input/output remap with gamma**, done twice (an RGB pass then a luma/master
+pass), all per-channel:
+
+```
+c    = rgb / max(a,1e-6)
+// pass 1 — per-channel:  inBlack/inWhite → outBlack/outWhite, then gamma
+slope= (outWhite - outBlack) / (inWhite - inBlack + eps)     // hg_Params[1],[3] out; [0],[2] in
+v    = clamp(c*slope + (outBlack - inBlack*slope), 0, 1)
+v    = pow(v, gamma1)                                        // hg_Params[4]
+// pass 2 — master:  second in/out remap + gamma (hg_Params[5..9])
+slope2 = (outWhite2 - outBlack2)/(inWhite2 - inBlack2 + eps)
+v    = clamp(v*slope2 + (outBlack2 - inBlack2*slope2), 0, 1)
+v    = pow(v, gamma2)                                        // hg_Params[9]
+out  = mix(src, v·a, hg_Params[10])                          // Mix
+```
+
+Slots: `[0]`inBlack `[1]`outBlack `[2]`inWhite `[3]`outWhite `[4]`gamma (RGB pass); `[5..9]` the
+master pass; `[10]` **Mix**. `eps=1e-5` guards divide-by-zero. Matches `levels.ts`; the two-pass
+structure (RGB then master) is the detail to preserve.

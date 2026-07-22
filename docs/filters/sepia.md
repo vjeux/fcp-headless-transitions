@@ -27,3 +27,24 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcSepia` embedded shader. Decoded functional form:_
+
+Sepia converts to luma, then maps that single value through a fixed sepia tint, blended by Amount:
+
+```
+c     = rgb / max(a,1e-6)
+lum   = dot(c, (0.299, 0.587, 0.114))       // Rec.601 luma
+// map (lum, alpha*0.2) through a fixed 2-vector → RGB using constants
+//   c1 = (1.0, 0.956, -0.272, -1.105)
+sepia.r = lum*1.0   + (a*0.2)*0.956
+sepia.g = lum*1.0   + (a*0.2)*(-0.272)
+sepia.b = lum*1.0   + (a*0.2)*(-1.105)
+out.rgb = mix(c, sepia, hg_Params[0].rgb) * a   // Amount blend, re-premultiply
+```
+
+The tint coefficients `(0.956, −0.272, −1.105)` are the YIQ I-axis-style warm chroma Apple bakes in
+(these are the shader's literal constants). `hg_Params[0]` = **Amount/Intensity** (blend toward
+sepia). Head-start: `out = mix(src, sepiaTint(luma), Amount)` with the constants above.
