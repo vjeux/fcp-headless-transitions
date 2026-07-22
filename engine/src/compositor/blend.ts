@@ -16,6 +16,17 @@ export function luma(r: number, g: number, b: number): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
+/**
+ * EXACT Rec.709 luminance coefficients as FCP's own ProCore returns them
+ * (PCGetGamutColorSpaceLuminanceCoefficients(0), verified 2026-07-22 via dlsym —
+ * fct/parity node curve.color.luma709). These are the ITU-R BT.709 derived weights
+ * to full float precision; the shipped `luma()` above uses the 4-decimal rounding
+ * (0.2126/0.7152/0.0722) that every built-in blend/filter was tuned against, so it is
+ * kept byte-identical. This constant exposes the exact FCP values for the parity oracle
+ * and for any future colour path that needs to match FCP to sub-1e-4 precision. */
+export const LUMA709_COEFFS_FCP: readonly [number, number, number] =
+  [0.212639, 0.715169, 0.072192];
+
 /** Rec.601 luma (0.299/0.587/0.114) of a straight RGB color in [0..255].
  * Motion's filters (Colorize/Tint/luma-key/glow) use Rec.601, distinct from the
  * Rec.709 `luma` above — keep both; do NOT collapse them (different outputs). */

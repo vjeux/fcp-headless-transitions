@@ -195,6 +195,40 @@
    "status": "UNTESTED"
   },
   {
+   "id": "curve.color.luma709",
+   "subsystem": "color",
+   "kind": "curve",
+   "desc": "Rec.709 luminance coefficients \u2014 engine LUMA709_COEFFS_FCP (blend.ts) vs FCP's own ProCore PCGetGamutColorSpaceLuminanceCoefficients(0). EXACT vector match; independently confirms the Rec.709 luma used across the decoded colour subsystem (Tint/HSV/Colorize) is FCP's authoritative working-space luma.",
+   "oracle": {
+    "framework": "ProCore",
+    "symbol": "_PCGetGamutColorSpaceLuminanceCoefficients",
+    "signature": {
+     "args": [
+      {
+       "kind": "in",
+       "ctype": "int",
+       "name": "gamut"
+      },
+      {
+       "kind": "out_array",
+       "ctype": "float",
+       "name": "coeffs",
+       "len": 3
+      }
+     ],
+     "ret": "void"
+    },
+    "outputs": [
+     "coeffs"
+    ]
+   },
+   "ts_fn": "PCGetGamutLuma",
+   "compare_outputs": [
+    "coeffs"
+   ],
+   "cases": "grid:lumaCoeffs"
+  },
+  {
    "id": "transfer.PAEBrightness",
    "subsystem": "color",
    "kind": "transfer",

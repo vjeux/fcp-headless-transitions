@@ -17,9 +17,10 @@
 import readline from 'node:readline';
 import { easeInOut, cubicBezier, solveBezierParam } from '../src/evaluator/curves.js';
 import { gaussianDecimation } from '../src/compositor/filters/gaussian-blur.js';
+import { LUMA709_COEFFS_FCP } from '../src/compositor/blend.js';
 
 type Args = Record<string, number | number[]>;
-type Outputs = Record<string, number>;
+type Outputs = Record<string, number | number[]>;
 type Fn = (a: Args) => Outputs;
 
 // ---------------------------------------------------------------------------------------
@@ -61,6 +62,14 @@ const FUNCTIONS: Record<string, Fn> = {
   // blurred small, upsampled). Exact integer function; verified vs the real Helium symbol.
   'HGBlur_GetDecimation': (a) => {
     return { ret: gaussianDecimation(a.radius as number) };
+  },
+
+  // PCGetGamutColorSpaceLuminanceCoefficients(gamut) -> float[3] luma weights.
+  // The engine's exact Rec.709 luminance coefficients (LUMA709_COEFFS_FCP in blend.ts)
+  // vs FCP's own ProCore table. gamut=0 is the Rec.709 working space. Exact vector match.
+  'PCGetGamutLuma': (a) => {
+    void a; // gamut arg is consumed by the oracle; the engine constant is Rec.709 (gamut 0)
+    return { coeffs: [LUMA709_COEFFS_FCP[0], LUMA709_COEFFS_FCP[1], LUMA709_COEFFS_FCP[2]] };
   },
 };
 

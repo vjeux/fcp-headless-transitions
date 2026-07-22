@@ -1048,6 +1048,26 @@
       },
       "oracle_truth": "transfer",
       "n_failures": 0
+    },
+    "curve.color.luma709": {
+      "id": "curve.color.luma709",
+      "kind": "curve",
+      "status": "VERIFIED",
+      "n_cases": 3,
+      "max_abs_err": 3.450813294003652e-07,
+      "max_rel_err": 4.825171804152097e-07,
+      "worst": {
+        "case": {
+          "gamut": 0
+        },
+        "output": "coeffs",
+        "oracle": 0.7151686549186707,
+        "engine": 0.715169
+      },
+      "n_failures": 0,
+      "tol_abs": 1e-06,
+      "tol_rel": 1e-06,
+      "swept": "2026-07-22T16:15:57Z"
     }
   },
   "history": [
@@ -1420,8 +1440,13 @@
       "id": "transfer.PAEBrightness_darken",
       "status": "VERIFIED",
       "at": "2026-07-22T15:40:45Z"
+    },
+    {
+      "id": "curve.color.luma709",
+      "status": "VERIFIED",
+      "at": "2026-07-22T16:15:57Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-22T15:40:45Z"
+  "updated": "2026-07-22T16:15:57Z"
 }

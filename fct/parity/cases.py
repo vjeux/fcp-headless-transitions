@@ -119,11 +119,19 @@ def blurDecimation():
     return cases
 
 
+def lumaCoeffs():
+    # PCGetGamutColorSpaceLuminanceCoefficients(gamut): gamut 0 = the Rec.709 working space
+    # (the one the decoded colour subsystem uses). One case suffices — the fn reads a fixed
+    # table row and writes 3 floats; the vector compare checks all 3 coefficients.
+    return [{"gamut": 0}]
+
+
 _GENERATORS = {
     "easeInOut": easeInOut,
     "bezierEval": bezierEval,
     "bezierFind": bezierFind,
     "blurDecimation": blurDecimation,
+    "lumaCoeffs": lumaCoeffs,
 }
 
 
