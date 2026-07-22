@@ -588,3 +588,28 @@ State: 36 nodes | VERIFIED 18  CHARACTERIZED 4  DIVERGED 14. All colour mechanis
 their root: 6 VERIFIED transfers in the Rec.709 gamma-1.961 WS; the 2 "clamp"/"hue" remainders are
 localized to (a) the chain-level HDR readback gamut-map [shader proven unclamped] and (b) the
 HgcHSVAdjust gamut step [rotation basis = FCP's exact Rec.709 YCbCr matrix].
+
+
+## UPDATE 2026-07-22 (session 2) — NEGATIVE RESULT: gamma-1.961 chain does NOT close the GUI gap
+
+Built the Rec.709 gamma-1.961 working-space chain (swappable seed/encode + raw-endpoint
+Colorize, all env-guarded FCT_WS_GAMMA) and A/B tested it on the GUI gate. RESULT: running the
+full colour chain in the CONFIRMED gamma-1.961 working space REGRESSES Color_Panels 18.92→16.9,
+even though gamma-1.961 is the VERIFIED HEADLESS transfer (PCEstimateGamma + 6 transfer decodes).
+
+This is a decisive negative result that SHARPENS the headless≠GUI split: the GUI-GT export
+applies colour management BEYOND the per-pixel working-space transfer. Matching FCP's headless
+colour FUNCTION (which the transfer nodes VERIFY) does NOT improve the GUI score — so the
+scene-linear-vs-gamma-1.961 working-space choice is NOT what closes the GUI gap. Whatever the GUI
+does extra (a display transform / ICC / output tone-map on top of the working-space math)
+dominates the residual. Closing the GUI gate needs that GUI DISPLAY pipeline modelled, which is a
+separate, larger effort and CANNOT be reached by refining the working-space transfer alone.
+
+Kept the gamma-1.961 primitives (linear.ts srgbChannelToWorking/LUT_SRGB_TO_WORKING) + swappable
+chain as documented, env-guarded infrastructure (shipped default byte-identical, gate 0/0). The
+durable value is: (1) the confirmed working-space constants, (2) the proof that the GUI gap is a
+display-pipeline effect, not a working-space-transfer error. This CLOSES the question of whether
+the working-space decode could be promoted to the GUI gate — it cannot, on its own.
+
+State: 36 parity nodes | VERIFIED 18  CHARACTERIZED 4  DIVERGED 14. Colour subsystem decode COMPLETE
+at the FUNCTION level (headless); GUI promotion is a distinct display-pipeline problem.

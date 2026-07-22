@@ -648,8 +648,28 @@ registerFilter({
     // Leaves HSVAdjust→Tint→Tint), never a per-transition hardcode.
     {
       const k = intensity * mix;
-      const bLin = { r: srgbChannelToLinear(black.r * 255), g: srgbChannelToLinear(black.g * 255), b: srgbChannelToLinear(black.b * 255) };
-      const wLin = { r: srgbChannelToLinear(white.r * 255), g: srgbChannelToLinear(white.g * 255), b: srgbChannelToLinear(white.b * 255) };
+      // WORKING-SPACE endpoint decode (fct/parity). In the DECODED Rec.709 gamma-1.961
+      // working space the Colorize endpoints go in RAW (the VERIFIED transfer.PAEColorize
+      // decode: 0/1 endpoints are gamma-invariant, raw wins). In the legacy scene-linear
+      // chain the endpoints are sRGB-decoded. Select by the same FCT_WS_GAMMA flag the
+      // chain seed/encode uses, so the whole chain stays in ONE consistent space.
+      //
+      // ⚠️ NEGATIVE RESULT (2026-07-22): running the FULL chain in the confirmed Rec.709
+      // gamma-1.961 working space REGRESSES Color_Panels on the GUI gate (18.92 → 16.9),
+      // even though gamma-1.961 is the VERIFIED HEADLESS transfer. This re-confirms
+      // headless≠GUI: the GUI-GT export applies colour management BEYOND the per-pixel
+      // working-space transfer, so matching FCP's headless colour FUNCTION does not improve
+      // the GUI score — the scene-linear-vs-gamma-1.961 choice is not what closes the GUI
+      // gap. Kept env-guarded (FCT_WS_GAMMA, default OFF, shipped byte-identical) as decoded
+      // infrastructure; do NOT ship it as default without also modelling the GUI display
+      // pipeline (a separate, larger effort).
+      const wsGamma = typeof process !== 'undefined' && !!process.env && process.env.FCT_WS_GAMMA === '1';
+      const bLin = wsGamma
+        ? { r: black.r, g: black.g, b: black.b }
+        : { r: srgbChannelToLinear(black.r * 255), g: srgbChannelToLinear(black.g * 255), b: srgbChannelToLinear(black.b * 255) };
+      const wLin = wsGamma
+        ? { r: white.r, g: white.g, b: white.b }
+        : { r: srgbChannelToLinear(white.r * 255), g: srgbChannelToLinear(white.g * 255), b: srgbChannelToLinear(white.b * 255) };
       if (hasLinearInput(input)) {
         // MID-chain: resume from the prior filter's exact linear buffer, encode ONCE.
         const lin = getLinearInput(input);
