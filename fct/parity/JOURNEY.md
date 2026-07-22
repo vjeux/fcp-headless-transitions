@@ -128,3 +128,26 @@ not per-channel curves. The transfer harness both VERIFIES and CHARACTERISES col
   subsystems: blur 4/6  color 1/11  curves 3/3  generators 1/3  geometry 2/4  stylize 0/2
   Colour: transfer.PAELevels VERIFIED; Brightness/HSV/Tint/Colorize CHARACTERIZED (working-space,
   one arch fix); the *filter.* duplicates are the delegated faithful in-host verdicts.
+
+
+## UPDATE 2026-07-22 (session 2, breakthrough) — HgcTint ceiling CRACKED structurally
+
+The documented HgcTint hard ceiling (prior RE + my earlier turns couldn't fit it) is now
+DECODED structurally via the transfer oracle's tint-value + Intensity sweeps:
+- HIGHLIGHT leg (tinted channel): out = K * luma_sRGB * s2l(tint), K = 3.878 (constant to ~0.1
+  lvl across luma 0.03-0.25 x tint 0.25-1.0). The KEY structural insight: the authored sRGB TINT
+  COLOUR is LINEARIZED (sRGB->linear) before the tint math; luma & output stay sRGB. This is a
+  genuine mechanism (s2l(tint) fits; raw-tint and tint^2 do NOT), CONFIRMING the linear-working-
+  space root cause structurally rather than by fitting.
+- SHADOW leg (zero-tint channel): ~2*luma-1 for luma>0.6, SMOOTHSTEPPED near luma=0.5 (the smooth
+  blend the prior RE note found, replacing the disasm's hard sel=(luma<0.5)).
+- Intensity mix is ~sRGB-linear (established via I-sweep).
+REMAINING (bounded): pin K exactly (empirical 3.878 = 2*1.939; read the SetParameter scale in the
+HgcTint disasm) + the smoothstep edges, then implement in tintFilter (tint linearized + K highlight
++ smoothstep shadow + nested-Color read) and verify Objects__Leaves >=22.44 on the GUI gate — the
+compound fix that was gate-blocked now has the decoded math. Evidence: evidence/tint_transfer_r1g0b0_i1.json.
+
+This also VALIDATES the unified colour root cause with a concrete mechanism: FCP linearizes
+colour inputs (sRGB->linear, standard sRGB TRC confirmed via PCIssRGBTransferFunction) and does
+the mix/leg math in that space. The chain-level linear working space is the shared fix for
+Brightness/Colorize/Tint/HSV, and Tint's decode shows exactly the linearize-colour step it needs.
