@@ -654,3 +654,25 @@ This is the fast inner loop for node decode; `fct parity` stays the authoritativ
 re-verification. The Colorize WS decode was PROMOTED to shipped default this session (the first
 decoded transfer to land, +6.24 dB vs headless on its hosts) — now guarded by test:node, not
 the misleading full-frame gate.
+
+
+## UPDATE 2026-07-22 (session 2) — per-node coverage to 13 colour nodes; ALL divergence = ONE clamp
+
+With the fast FCP-free per-node test (npm run test:node), expanded colour coverage to 13 nodes /
+375 real-headless-FCP golden cases (352 pass). Decoded 2 new regions this pass:
+- HSV Value>1 BRIGHTEN: ws multiply out=ws_inv(ws(in)*value) — VERIFIED 18/18 (supersedes the old
+  code-space value² model, which failed only because it was in the wrong space).
+- HSV Saturation UNIFIED: a single WS luma-lerp about Rec.709 gray by satFactor=1+S for BOTH legs
+  (replaced the broken HSV-hextant over-sat rebuild). Exact for in-gamut colours; over-sat 3→6/15.
+- HSV HUE: luma-preserving rotation in FCP's exact Rec.709 YCbCr matrix (from the binary) — 15→17/18.
+
+STRIKING UNIFIED RESULT: every remaining colour divergence — Brightness (30/36), ChannelMixer_clip
+(12/18), HSVAdjust hue (17/18) and oversaturate (6/15) — has the IDENTICAL worst case in=[50,200,50]
+(and kin): a saturated input where a channel exits [0,1]. ALL the pointwise math is decoded and
+correct (darken/gray/in-gamut all VERIFIED). The ONLY residual is the shared HGColorMatrix over-1.0/
+under-0 GPU-readback gamut clamp (fragment shader disassembled = pure unclamped dot; lift is the OZ
+tile ExtendedLinearSRGB→display readback). Cracking that ONE mechanism fixes 4 nodes at once; it
+needs the RenderTile/tile-conversion disasm (pointwise fitting exhaustively ruled out — 5+ models).
+
+Workflow: `npm run test:node <substr>` runs one node (fast); golden regen via
+`python3 -m fct.parity.export_golden`. The 65-slug full-frame gate stays DISABLED (geometry-dominated).
