@@ -1166,6 +1166,199 @@
    "characterized_reason": "Black/White In endpoint remap diverges (working-space); FCP stretches gentler than TS sRGB. Same gate-blocked linear-working-space root cause as Colorize/Brightness. Gamma (separate node) stays VERIFIED \u2014 only endpoint-relative remaps diverge."
   },
   {
+   "id": "transfer.PAEChannelMixer_clip",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "ChannelMixer with amplifying diagonal (Red-Red=2 etc) = same as Brightness x2 via the SAME HGColorMatrix primitive, but through ChannelMixer. Tests whether HGColorMatrix CLAMP couples cross-channel.",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "B2E0DE39-119F-4AD6-8796-C18BF8FE27B8",
+    "pluginName": "PAEChannelMixer"
+   },
+   "param_cases": [
+    {
+     "label": "diag_2x",
+     "params": [
+      {
+       "name": "Red Output",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red - Red",
+         "id": 2,
+         "value": 2
+        },
+        {
+         "name": "Red - Green",
+         "id": 3,
+         "value": 0
+        },
+        {
+         "name": "Red - Blue",
+         "id": 4,
+         "value": 0
+        },
+        {
+         "name": "Red - Alpha",
+         "id": 5,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Green Output",
+       "id": 6,
+       "children": [
+        {
+         "name": "Green - Red",
+         "id": 7,
+         "value": 0
+        },
+        {
+         "name": "Green - Green",
+         "id": 8,
+         "value": 2
+        },
+        {
+         "name": "Green - Blue",
+         "id": 9,
+         "value": 0
+        },
+        {
+         "name": "Green - Alpha",
+         "id": 10,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Blue Output",
+       "id": 11,
+       "children": [
+        {
+         "name": "Blue - Red",
+         "id": 12,
+         "value": 0
+        },
+        {
+         "name": "Blue - Green",
+         "id": 13,
+         "value": 0
+        },
+        {
+         "name": "Blue - Blue",
+         "id": 14,
+         "value": 2
+        },
+        {
+         "name": "Blue - Alpha",
+         "id": 15,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Monochrome",
+       "id": 21,
+       "value": 0
+      }
+     ]
+    },
+    {
+     "label": "diag_1.5x",
+     "params": [
+      {
+       "name": "Red Output",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red - Red",
+         "id": 2,
+         "value": 1.5
+        },
+        {
+         "name": "Red - Green",
+         "id": 3,
+         "value": 0
+        },
+        {
+         "name": "Red - Blue",
+         "id": 4,
+         "value": 0
+        },
+        {
+         "name": "Red - Alpha",
+         "id": 5,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Green Output",
+       "id": 6,
+       "children": [
+        {
+         "name": "Green - Red",
+         "id": 7,
+         "value": 0
+        },
+        {
+         "name": "Green - Green",
+         "id": 8,
+         "value": 1.5
+        },
+        {
+         "name": "Green - Blue",
+         "id": 9,
+         "value": 0
+        },
+        {
+         "name": "Green - Alpha",
+         "id": 10,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Blue Output",
+       "id": 11,
+       "children": [
+        {
+         "name": "Blue - Red",
+         "id": 12,
+         "value": 0
+        },
+        {
+         "name": "Blue - Green",
+         "id": 13,
+         "value": 0
+        },
+        {
+         "name": "Blue - Blue",
+         "id": 14,
+         "value": 1.5
+        },
+        {
+         "name": "Blue - Alpha",
+         "id": 15,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Monochrome",
+       "id": 21,
+       "value": 0
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "transfer",
+   "status": "UNTESTED",
+   "characterized": true,
+   "characterized_reason": "Diagonal-1.5x ChannelMixer == Brightness x1.5 bit-identical in FCP \u2014 confirms Brightness=HGColorMatrix + unifies the divergence to the shared HGColorMatrix over-1.0 CLAMP (lifts non-clipped channels). Non-clip matrices VERIFIED exact. Decode = HGColorMatrix render disasm; gate-blocked."
+  },
+  {
    "id": "filter.PAEColorize",
    "subsystem": "color",
    "kind": "filter",
