@@ -711,6 +711,373 @@
    "status": "UNTESTED"
   },
   {
+   "id": "transfer.PAEChannelMixer",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAEChannelMixer per-pixel 3x3 matrix multiply. EXACT isolation via uniform inputs \u2014 tests whether the channel dot is done in sRGB (engine) or linear (FCP).",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "B2E0DE39-119F-4AD6-8796-C18BF8FE27B8",
+    "pluginName": "PAEChannelMixer"
+   },
+   "param_cases": [
+    {
+     "label": "identity",
+     "params": [
+      {
+       "name": "Red Output",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red - Red",
+         "id": 2,
+         "value": 1
+        },
+        {
+         "name": "Red - Green",
+         "id": 3,
+         "value": 0
+        },
+        {
+         "name": "Red - Blue",
+         "id": 4,
+         "value": 0
+        },
+        {
+         "name": "Red - Alpha",
+         "id": 5,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Green Output",
+       "id": 6,
+       "children": [
+        {
+         "name": "Green - Red",
+         "id": 7,
+         "value": 0
+        },
+        {
+         "name": "Green - Green",
+         "id": 8,
+         "value": 1
+        },
+        {
+         "name": "Green - Blue",
+         "id": 9,
+         "value": 0
+        },
+        {
+         "name": "Green - Alpha",
+         "id": 10,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Blue Output",
+       "id": 11,
+       "children": [
+        {
+         "name": "Blue - Red",
+         "id": 12,
+         "value": 0
+        },
+        {
+         "name": "Blue - Green",
+         "id": 13,
+         "value": 0
+        },
+        {
+         "name": "Blue - Blue",
+         "id": 14,
+         "value": 1
+        },
+        {
+         "name": "Blue - Alpha",
+         "id": 15,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Monochrome",
+       "id": 21,
+       "value": 0
+      }
+     ]
+    },
+    {
+     "label": "swap_RG",
+     "params": [
+      {
+       "name": "Red Output",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red - Red",
+         "id": 2,
+         "value": 0
+        },
+        {
+         "name": "Red - Green",
+         "id": 3,
+         "value": 1
+        },
+        {
+         "name": "Red - Blue",
+         "id": 4,
+         "value": 0
+        },
+        {
+         "name": "Red - Alpha",
+         "id": 5,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Green Output",
+       "id": 6,
+       "children": [
+        {
+         "name": "Green - Red",
+         "id": 7,
+         "value": 1
+        },
+        {
+         "name": "Green - Green",
+         "id": 8,
+         "value": 0
+        },
+        {
+         "name": "Green - Blue",
+         "id": 9,
+         "value": 0
+        },
+        {
+         "name": "Green - Alpha",
+         "id": 10,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Blue Output",
+       "id": 11,
+       "children": [
+        {
+         "name": "Blue - Red",
+         "id": 12,
+         "value": 0
+        },
+        {
+         "name": "Blue - Green",
+         "id": 13,
+         "value": 0
+        },
+        {
+         "name": "Blue - Blue",
+         "id": 14,
+         "value": 1
+        },
+        {
+         "name": "Blue - Alpha",
+         "id": 15,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Monochrome",
+       "id": 21,
+       "value": 0
+      }
+     ]
+    },
+    {
+     "label": "red_luma601",
+     "params": [
+      {
+       "name": "Red Output",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red - Red",
+         "id": 2,
+         "value": 0.3
+        },
+        {
+         "name": "Red - Green",
+         "id": 3,
+         "value": 0.59
+        },
+        {
+         "name": "Red - Blue",
+         "id": 4,
+         "value": 0.11
+        },
+        {
+         "name": "Red - Alpha",
+         "id": 5,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Green Output",
+       "id": 6,
+       "children": [
+        {
+         "name": "Green - Red",
+         "id": 7,
+         "value": 0
+        },
+        {
+         "name": "Green - Green",
+         "id": 8,
+         "value": 1
+        },
+        {
+         "name": "Green - Blue",
+         "id": 9,
+         "value": 0
+        },
+        {
+         "name": "Green - Alpha",
+         "id": 10,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Blue Output",
+       "id": 11,
+       "children": [
+        {
+         "name": "Blue - Red",
+         "id": 12,
+         "value": 0
+        },
+        {
+         "name": "Blue - Green",
+         "id": 13,
+         "value": 0
+        },
+        {
+         "name": "Blue - Blue",
+         "id": 14,
+         "value": 1
+        },
+        {
+         "name": "Blue - Alpha",
+         "id": 15,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Monochrome",
+       "id": 21,
+       "value": 0
+      }
+     ]
+    },
+    {
+     "label": "halfR_plus_halfG",
+     "params": [
+      {
+       "name": "Red Output",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red - Red",
+         "id": 2,
+         "value": 0.5
+        },
+        {
+         "name": "Red - Green",
+         "id": 3,
+         "value": 0.5
+        },
+        {
+         "name": "Red - Blue",
+         "id": 4,
+         "value": 0
+        },
+        {
+         "name": "Red - Alpha",
+         "id": 5,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Green Output",
+       "id": 6,
+       "children": [
+        {
+         "name": "Green - Red",
+         "id": 7,
+         "value": 0
+        },
+        {
+         "name": "Green - Green",
+         "id": 8,
+         "value": 1
+        },
+        {
+         "name": "Green - Blue",
+         "id": 9,
+         "value": 0
+        },
+        {
+         "name": "Green - Alpha",
+         "id": 10,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Blue Output",
+       "id": 11,
+       "children": [
+        {
+         "name": "Blue - Red",
+         "id": 12,
+         "value": 0
+        },
+        {
+         "name": "Blue - Green",
+         "id": 13,
+         "value": 0
+        },
+        {
+         "name": "Blue - Blue",
+         "id": 14,
+         "value": 1
+        },
+        {
+         "name": "Blue - Alpha",
+         "id": 15,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Monochrome",
+       "id": 21,
+       "value": 0
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "transfer",
+   "status": "UNTESTED"
+  },
+  {
    "id": "filter.PAEColorize",
    "subsystem": "color",
    "kind": "filter",

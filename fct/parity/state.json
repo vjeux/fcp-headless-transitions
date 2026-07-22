@@ -667,6 +667,122 @@
       },
       "oracle_truth": "transfer",
       "n_failures": 0
+    },
+    "transfer.PAEChannelMixer": {
+      "id": "transfer.PAEChannelMixer",
+      "kind": "transfer",
+      "status": "VERIFIED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 0.710000000000008,
+      "n_samples": 108,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "label": "red_luma601",
+          "params": [
+            {
+              "name": "Red Output",
+              "id": 1,
+              "children": [
+                {
+                  "name": "Red - Red",
+                  "id": 2,
+                  "value": 0.3
+                },
+                {
+                  "name": "Red - Green",
+                  "id": 3,
+                  "value": 0.59
+                },
+                {
+                  "name": "Red - Blue",
+                  "id": 4,
+                  "value": 0.11
+                },
+                {
+                  "name": "Red - Alpha",
+                  "id": 5,
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "name": "Green Output",
+              "id": 6,
+              "children": [
+                {
+                  "name": "Green - Red",
+                  "id": 7,
+                  "value": 0
+                },
+                {
+                  "name": "Green - Green",
+                  "id": 8,
+                  "value": 1
+                },
+                {
+                  "name": "Green - Blue",
+                  "id": 9,
+                  "value": 0
+                },
+                {
+                  "name": "Green - Alpha",
+                  "id": 10,
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "name": "Blue Output",
+              "id": 11,
+              "children": [
+                {
+                  "name": "Blue - Red",
+                  "id": 12,
+                  "value": 0
+                },
+                {
+                  "name": "Blue - Green",
+                  "id": 13,
+                  "value": 0
+                },
+                {
+                  "name": "Blue - Blue",
+                  "id": 14,
+                  "value": 1
+                },
+                {
+                  "name": "Blue - Alpha",
+                  "id": 15,
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "name": "Monochrome",
+              "id": 21,
+              "value": 0
+            }
+          ]
+        },
+        "input": [
+          50,
+          200,
+          50
+        ],
+        "oracle": [
+          138.29,
+          200.11,
+          49.62
+        ],
+        "engine": [
+          139.0,
+          200.0,
+          50.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
     }
   },
   "history": [
@@ -979,8 +1095,13 @@
       "id": "transfer.PAELevels",
       "status": "VERIFIED",
       "at": "2026-07-22T12:16:18Z"
+    },
+    {
+      "id": "transfer.PAEChannelMixer",
+      "status": "VERIFIED",
+      "at": "2026-07-22T13:22:57Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-22T12:16:18Z"
+  "updated": "2026-07-22T13:22:57Z"
 }
