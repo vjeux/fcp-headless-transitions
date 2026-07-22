@@ -34,3 +34,24 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
 > 1 non-creative internal/hidden state parameter(s) (persisted engine state, not user knobs) were omitted from the table above.
+
+## Algorithm (decoded)
+
+_PAEColorBalance — 3-way (shadows/mids/highlights) RGB balance; no dedicated shader (CPU color op)._
+
+Adjusts color separately in three tonal ranges, weighted by luminance masks:
+
+```
+c      = rgb / max(a,1e-6)
+lum    = luma(c)
+wS     = shadowMask(lum)       // ≈ 1 in darks, → 0 in lights  (smooth luminance weight)
+wH     = highlightMask(lum)    // ≈ 1 in lights
+wM     = 1 - wS - wH            // midtones
+out    = c + wS·ShadowBalance + wM·MidBalance + wH·HighlightBalance   // per-range RGB offsets
+out    = clamp(out,0,1) * a
+```
+
+Params = **Shadow / Midtone / Highlight** RGB balance vectors (each a small ±color push), gated by
+smooth luminance masks. "Preserve Luminosity" (if set) renormalizes luma after. Head-start: build
+the 3 luminance weights, add the 3 balance offsets. The exact mask curves come from
+`-[PAEColorBalance ...]` (expected smoothstep splits around ~0.33/0.66 luma).

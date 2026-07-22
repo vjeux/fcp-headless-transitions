@@ -27,3 +27,19 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 **Implemented.** TS module: [`engine/src/compositor/filters/flop.ts`](../../engine/src/compositor/filters/flop.ts).
 
 > 1 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
+
+## Algorithm (decoded)
+
+_PAEFlop — geometric flip/rotate (shipped in `flop.ts`; full decode in `evidence/PAEFlop_DECOMPILE.md`)._
+
+A discrete **flip / 90°-rotate** selected by a mode enum — pure coordinate remap, no resampling
+math beyond the axis swap/negate:
+
+```
+Flop mode → one of: identity | flip-H (x→1-x) | flip-V (y→1-y) | rotate 90/180/270 | transpose
+out = sample(source, remap(texCoord))
+```
+
+The `Flip`/`Input Points` params (id 10002/10003) are host plumbing, unused by the filter. `Flop`
+(the mode enum) is the only creative control. See `evidence/PAEFlop_DECOMPILE.md` for the full mode
+table. Head-start: a switch over the 8 axis-aligned remaps.

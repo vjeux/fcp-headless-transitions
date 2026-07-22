@@ -29,3 +29,17 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 **Implemented.** TS module: [`engine/src/compositor/filters/fill.ts`](../../engine/src/compositor/filters/fill.ts).
 
 > 1 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
+
+## Algorithm (decoded)
+
+_PAEFill — solid/gradient fill blended by Mix (shipped in `fill.ts`, decoded from its shader)._
+
+```
+fill.rgb = hg_Params[0].xyz        // Fill Color
+fill.a   = 1.0                      // fill alpha forced opaque
+out      = mix(src, fill, hg_Params[1]) * src.a   // lerp toward fill by Mix, RE-PREMULTIPLY by ORIGINAL alpha
+```
+
+`hg_Params[0]` = **Color**, `hg_Params[1]` = **Mix**. When "Fill With" = gradient it fills with a
+Gradient generator instead of a solid (unused by the 65 built-ins). The re-premultiply by the
+*original* alpha is the subtle correctness point (keeps edges). Head-start: the 3 lines above.

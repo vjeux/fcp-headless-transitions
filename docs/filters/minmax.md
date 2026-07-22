@@ -26,3 +26,21 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Implemented.** TS module: [`engine/src/compositor/filters/minmax.ts`](../../engine/src/compositor/filters/minmax.ts).
+
+## Algorithm (decoded)
+
+_PAEMinMax — morphological erode/dilate (shipped in `minmax.ts`, decoded from its shader)._
+
+A separable min/max window filter — the classic morphology that erodes or dilates light/dark areas:
+
+```
+Mode (id 1): 0 = Minimum (erode), 1 = Maximum (dilate)
+Radius (id 2): window half-width in pixels
+// separable, per channel:
+horiz[p] = min|max over k∈[-R,R] of sample(p.x+k, p.y)
+out[p]   = min|max over k∈[-R,R] of horiz(p.x, p.y+k)
+```
+
+`Mode` picks min (shrinks bright regions / grows dark) vs max (opposite); `Radius` = structuring
+element half-width. Separable two-pass like a box filter but with min/max instead of sum. Head-start
+is exactly the two passes above; shipped in `minmax.ts`.
