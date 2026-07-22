@@ -16,10 +16,19 @@ import sys, re
 
 BIN = ("/Applications/Final Cut Pro.app/Contents/PlugIns/InternalFiltersXPC.pluginkit/"
        "Contents/PlugIns/Filters.bundle/Contents/MacOS/Filters")
+# Some shaders driven by Helium primitives (Gamma, OpenEXR, EquirectReorient, the
+# premultiply helpers) are embedded in the Helium framework binary, not Filters.
+HELIUM = ("/Applications/Final Cut Pro.app/Contents/Frameworks/"
+          "Helium.framework/Versions/A/Helium")
 
 
 def _data():
-    return open(BIN, "rb").read()
+    d = open(BIN, "rb").read()
+    try:
+        d += b"\x00" + open(HELIUM, "rb").read()
+    except OSError:
+        pass
+    return d
 
 
 def list_shaders(data, substr=None):

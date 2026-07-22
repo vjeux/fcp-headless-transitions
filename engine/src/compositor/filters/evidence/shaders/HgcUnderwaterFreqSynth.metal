@@ -86,5 +86,3 @@
     output.color0.y = c2.y;
     return output;
 }
-
-
