@@ -59,7 +59,7 @@
  * ============================================================================
  */
 
-import { LUT_SRGB_TO_LINEAR, linearChannelToSrgb } from '../linear.js';
+import { LUT_SRGB_TO_LINEAR, linearChannelToSrgb, LUT_SRGB_TO_WORKING, workingChannelToSrgb } from '../linear.js';
 
 /**
  * Maps a filter's OUTPUT ImageData -> the EXACT linear-light RGBA Float32 buffer
@@ -77,6 +77,19 @@ export function hasLinearInput(input: ImageData): boolean {
 }
 
 /**
+ * WORKING-SPACE SELECTOR (fct/parity 2026-07-22). The chain's "linear" buffer can use
+ * EITHER the legacy scene-linear sRGB EOTF (shipped default) OR the DECODED Rec.709
+ * gamma-1.961 working space (FCT_WS_GAMMA=1). The gamma-1.961 space is what FCP's colour
+ * ops actually use (confirmed from ProCore PCEstimateGamma(ITUR_709)=1.961 + the 6 VERIFIED
+ * transfer decodes). The scene-linear seed was decoding colours too dark, which is why
+ * shipping the chain regressed the GUI gate — this flag lets us A/B that hypothesis and,
+ * if it wins, becomes the shared colour-chain fix. Default OFF = byte-identical.
+ */
+function _useWorkingGamma(): boolean {
+  return typeof process !== 'undefined' && !!process.env && process.env.FCT_WS_GAMMA === '1';
+}
+
+/**
  * Get the linear-light RGBA buffer to start this filter's work from. If `input` is
  * a cached prior colour-adjust output, returns a COPY of its EXACT linear buffer (no
  * sRGB round-trip — the whole point). Otherwise (chain entry) decodes `input`'s sRGB
@@ -88,7 +101,7 @@ export function getLinearInput(input: ImageData): Float32Array {
   const src = input.data;
   const n = src.length;
   const lin = new Float32Array(n);
-  const lut = LUT_SRGB_TO_LINEAR;
+  const lut = _useWorkingGamma() ? LUT_SRGB_TO_WORKING : LUT_SRGB_TO_LINEAR;
   for (let i = 0; i < n; i += 4) {
     lin[i]     = lut[src[i]];
     lin[i + 1] = lut[src[i + 1]];
@@ -109,10 +122,11 @@ export function publishLinear(output: ImageData, lin: Float32Array): void {
 export function encodeLinearBuf(lin: Float32Array, width: number, height: number): ImageData {
   const n = lin.length;
   const out = new Uint8ClampedArray(n);
+  const enc = _useWorkingGamma() ? workingChannelToSrgb : linearChannelToSrgb;
   for (let i = 0; i < n; i += 4) {
-    out[i]     = linearChannelToSrgb(lin[i]);
-    out[i + 1] = linearChannelToSrgb(lin[i + 1]);
-    out[i + 2] = linearChannelToSrgb(lin[i + 2]);
+    out[i]     = enc(lin[i]);
+    out[i + 1] = enc(lin[i + 1]);
+    out[i + 2] = enc(lin[i + 2]);
     const a = lin[i + 3];
     out[i + 3] = a <= 0 ? 0 : a >= 1 ? 255 : Math.round(a * 255);
   }

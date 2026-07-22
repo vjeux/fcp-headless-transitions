@@ -97,6 +97,49 @@ export function linearChannelToSrgb(x: number): number {
   return Math.round(s * 255);
 }
 
+// ---------------------------------------------------------------------------
+// Rec.709 WORKING SPACE transfer (gamma 1.961) — the DECODED colour working space.
+// ---------------------------------------------------------------------------
+/**
+ * FCP's per-pixel colour ops (Tint/HSV/Colorize/Levels/ChannelMixer) run in the
+ * Rec.709 WORKING SPACE, NOT scene-linear ExtendedLinearSRGB. CONFIRMED 2026-07-22
+ * from FCP's OWN ProCore via dlsym (fct/parity):
+ *   PCEstimateGamma(ITUR_709)                    = 1.961   (sRGB=2.2, linearSRGB=1.0)
+ *   PCGetGamutColorSpaceLuminanceCoefficients(0) = Rec.709 (0.212639,0.715169,0.072192)
+ * and independently by fitting isolated FCP transfer sweeps for 6 colour nodes
+ * (Tint 0.26 rms, HSV/Colorize/Levels-remap all < 1 level) — see fct/parity/JOURNEY.md.
+ *
+ * This is a pure power-law gamma-1.961 (display-referred), distinct from the sRGB EOTF
+ * (~2.4 with a linear toe) used by `srgbChannelToLinear` above. The earlier scene-linear
+ * chain regressed the GUI gate precisely because it decoded colours into the too-dark
+ * scene-linear space instead of this Rec.709 working gamma.
+ *
+ * WORKING_GAMMA is FCP's nominal 1.961; the effective power measured over the 0–255 code
+ * range fits ~1.956 (the small difference is the Rec.709 OETF's linear toe), but the
+ * authoritative nominal value is used here.
+ */
+export const WORKING_GAMMA = 1.961;
+const _INV_WORKING_GAMMA = 1 / WORKING_GAMMA;
+
+/** sRGB u8 (0..255) → Rec.709 gamma-1.961 working-space value in [0,1]. */
+export function srgbChannelToWorking(v: number): number {
+  const s = v <= 0 ? 0 : v >= 255 ? 1 : v / 255;
+  return Math.pow(s, WORKING_GAMMA);
+}
+
+/** Rec.709 gamma-1.961 working-space value in [0,1] → sRGB u8 (0..255). */
+export function workingChannelToSrgb(x: number): number {
+  const v = x <= 0 ? 0 : x >= 1 ? 1 : x;
+  return Math.round(Math.pow(v, _INV_WORKING_GAMMA) * 255);
+}
+
+/** 256-entry LUT of the sRGB→Rec.709-working decode (indexed by sRGB u8). */
+export const LUT_SRGB_TO_WORKING: Float32Array = (() => {
+  const t = new Float32Array(256);
+  for (let i = 0; i < 256; i++) t[i] = srgbChannelToWorking(i);
+  return t;
+})();
+
 /**
  * 256-entry LUT of the sRGB→linear decode. Indexed by an sRGB u8 pixel value.
  * Frozen at module load: sRGB→linear→sRGB round-trips to the exact same u8
