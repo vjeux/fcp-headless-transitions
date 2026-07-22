@@ -13,12 +13,24 @@ REPORTS = REPO / "fct/parity/reports"
 REG = json.load(open(REPO / "fct/parity/registry.json"))
 by_id = {n["id"]: n for n in REG["nodes"]}
 
-# The colour transfer nodes whose decode we validate at the node boundary.
-NODES = [
+# All colour transfer nodes with captured headless-FCP oracle rows. Nodes known to still
+# DIVERGE (a decoded-but-unshipped mechanism, e.g. the HGColorMatrix over-1.0 clamp or the
+# HSV hue rotation) are still frozen for COVERAGE — the test records each node's current
+# per-node parity vs REAL headless FCP and flags expected-divergent ones instead of failing
+# the run. Autodiscovered from the reports dir so new sweeps get coverage automatically.
+import glob
+NODES = sorted(
+    pathlib.Path(p).stem
+    for p in glob.glob(str(REPORTS / "transfer.*.json"))
+)
+
+# Nodes whose decode is VERIFIED and SHOULD match headless within tol (a regression here is
+# a real break). Everything else is coverage-only (expected to diverge until decoded/shipped).
+VERIFIED = {
     "transfer.PAEColorize", "transfer.PAETint", "transfer.PAEHSVAdjust_valsat",
     "transfer.PAELevels", "transfer.PAELevels_remap", "transfer.PAEChannelMixer",
     "transfer.PAEBrightness_darken",
-]
+}
 
 out = {}
 for nid in NODES:
@@ -42,6 +54,7 @@ for nid in NODES:
         "pluginName": oracle_spec.get("pluginName"),
         "engine_env": node.get("engine_env", {}),
         "tol_levels": rep.get("tol_levels", 2.0),
+        "verified": nid in VERIFIED,
         "n": len(cases),
         "cases": cases,
     }

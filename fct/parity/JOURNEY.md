@@ -634,3 +634,23 @@ for the pointwise colour decodes — the TRANSFER PARITY NODES (isolated uniform
 headless, already VERIFIED) are. The faithful/image-node driver ALREADY used headless truth, so those
 verdicts are unchanged. Net: the truth switch makes the gate honest (no GUI display confound) and
 confirms colour decodes belong at the node boundary, geometry at the frame level.
+
+
+## UPDATE 2026-07-22 (session 2) — WORKFLOW PIVOT: per-node tests, full-frame gate disabled
+
+vjeux directive: the 65-slug full-frame PSNR gate is geometry-dominated and misleads node
+decode work — disable it, validate ONE node at a time.
+- DISABLED `fct gate`/`score`/`regress` (exit 2 + redirect; FCT_ALLOW_FULLFRAME=1 to force).
+- ADDED `npm run test:node` (engine/test/colour-nodes.node.test.ts): validates each colour
+  node IN ISOLATION vs REAL HEADLESS FCP, FCP-free + fast. Golden = 216 real-headless-FCP
+  oracle samples frozen from the transfer reports (test/fixtures/headless_colour_golden.json,
+  regen via `python3 -m fct.parity.export_golden`). Feeds uniform inputs through the engine's
+  registered filter, reads the center pixel, asserts match within node tol. Auto-applies each
+  node's decoded-path env flags.
+- ALL 216 pass (Colorize/Tint/HSV-valsat/Levels/Levels-remap/ChannelMixer/Brightness-darken).
+  Discrimination proven: FCT_COLORIZE_LEGACY=1 FAILS 15/27 (Δ123.8) — catches a broken decode.
+
+This is the fast inner loop for node decode; `fct parity` stays the authoritative live-FCP
+re-verification. The Colorize WS decode was PROMOTED to shipped default this session (the first
+decoded transfer to land, +6.24 dB vs headless on its hosts) — now guarded by test:node, not
+the misleading full-frame gate.
