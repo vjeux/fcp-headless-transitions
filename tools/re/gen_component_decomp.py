@@ -76,6 +76,8 @@ def section_decodable(name,b):
         if eb:
             out.append(f"##### `{demangle(extra)}`  (sibling shape generator)")
             out.append("```asm"); out.append(eb.rstrip()); out.append("```\n")
+    if b.get("shader_note"):
+        out.append(b["shader_note"])
     return "\n".join(out).rstrip()+"\n"
 
 def section_nondec(name):

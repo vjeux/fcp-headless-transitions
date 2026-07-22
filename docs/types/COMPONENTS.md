@@ -1390,6 +1390,8 @@ Verbatim ARM64 disassembly from the user's licensed FCP install (`Ozone.framewor
 000000000003f7f4	ret
 ```
 
+Particle sprites are tinted by the embedded HgcPSImageTint fragment shader (checked in at engine/src/compositor/filters/evidence/shaders/HgcPSImageTint.metal); the sprite geometry is drawn through the shared Lithium render graph.
+
 ### Light
 `146 files / 324 instances` · ❌ (not implemented) — a 3D light source. Descriptions from Motion
 domain knowledge (**unverified** — the engine has no light parser).

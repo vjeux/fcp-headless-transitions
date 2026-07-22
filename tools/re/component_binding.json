@@ -65,7 +65,8 @@
    "decodable": true,
    "kind": "the per-frame particle simulation step: births/advances particles into the OZSimStateArray each sub-step (particle motion runs through the same OZSimulationBehavior force system as the physics behaviors), and buildParticleRenderGraph then emits the GPU sprites",
    "mangled": "__ZN14PSParticleType13simAddObjectsEP17OZSystemSimulatorR15OZSimStateArrayd",
-   "method": "simAddObjects"
+   "method": "simAddObjects",
+   "shader_note": "Particle sprites are tinted by the embedded HgcPSImageTint fragment shader (checked in at engine/src/compositor/filters/evidence/shaders/HgcPSImageTint.metal); the sprite geometry is drawn through the shared Lithium render graph."
   },
   "Replicator": {
    "binary": "particles",
