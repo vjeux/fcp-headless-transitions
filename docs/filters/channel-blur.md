@@ -33,3 +33,28 @@ Non-creative host parameters on this filter: `Crop`, `360° Aware`, `Flip`, `Inp
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcChannelBlur` embedded shader. Decoded functional form:_
+
+`HgcChannelBlur` is **not** the blur convolution itself — it is the per-channel *un/re-premultiply +
+mix* combine that FCP wraps around a blurred copy. The actual blur (per-channel radii) is a
+Gaussian pass run upstream (the Helium `HGBlur` primitive, same one decoded in
+`gaussian-blur.ts`); this shader blends the blurred result back per channel:
+
+```
+orig    = color0                      // original (premultiplied)
+blurred = color1                      // blurred copy (premultiplied)
+b_str   = blurred.rgb / max(blurred.a, 1e-6)      // un-premultiply the blurred rgb
+mixed   = mix(orig.rgb, b_str, hg_Params[0].rgb)  // per-channel blend factor (R,G,B independent!)
+out.rgb = mixed * orig.a              // re-premultiply against ORIGINAL alpha
+out.a   = orig.a
+```
+
+**Key insight:** the blend factor is a *per-channel float3* (`hg_Params[0].xyz`), so Channel Blur
+can blur the red channel fully while leaving blue sharp — that's the whole point of the filter vs a
+plain Gaussian. The per-channel blur **radii** are the creative params (Red/Green/Blue/Alpha
+amounts); they drive the upstream `HGBlur` passes, and this shader's `hg_Params[0]` selects how much
+of each blurred channel to keep. To finish: decode `-[PAEChannelBlur ...]` to confirm each channel's
+radius→HGBlur mapping (expected identical to Gaussian's `sigma = radius/6.10`).

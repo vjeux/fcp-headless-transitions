@@ -32,3 +32,26 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`, `Publish OS
 ## Implementation status
 
 **Not implemented.** A verbatim `HgcLineScreen` Metal shader is checked in under `engine/src/compositor/filters/evidence/shaders/HgcLineScreen.metal` (Phase-1 done, Phase-2 open).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcLineScreen` embedded shader. Decoded functional form:_
+
+Line Screen is a **halftone line pattern**: it builds a periodic triangle wave across the frame at a
+chosen angle/frequency, and thresholds the image's luma against it so dark areas fill with thicker
+lines (classic newsprint/engraving look).
+
+```
+uv   = (texCoord + offset - Center) * scale                 // hg_Params[3],[0],[4]
+phase= dot(uv, hg_Params[1])                                // project onto the line direction+freq
+tri  = fract(phase);  tri = 2*min(tri, 1-tri)               // triangle wave 0..1 (line profile)
+lum  = dot(color0, hg_Params[5])                            // image luma (weights in slot 5)
+v    = clamp((lum - tri) * hg_Params[2] + 0.5, 0, 1)        // threshold luma against the line wave
+out.rgb = v * color0.a                                      // (re-premultiplied)
+```
+
+`hg_Params[1]` encodes **Angle + Frequency** (its direction sets the line angle, its magnitude the
+lines-per-unit); `hg_Params[2]` = **contrast/hardness** of the lines; `hg_Params[5]` = luma weights.
+The `2·min(t,1−t)` is the triangle wave that gives symmetric line thickness. Head-start: generate
+the triangle screen procedurally, threshold against luma; map Angle→direction of `hg_Params[1]`,
+Frequency→its length.

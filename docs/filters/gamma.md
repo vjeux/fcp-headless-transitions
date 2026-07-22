@@ -27,3 +27,20 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcGamma` embedded shader. Decoded functional form:_
+
+Gamma is a straightforward per-channel power curve, applied in un-premultiplied space:
+
+```
+c   = rgb / max(a,1e-6)                 // un-premultiply
+c   = (c >= 0) ? pow(c, hg_Params[0]) : c   // per-channel gamma exponent (negatives passed through)
+out = c * a                             // re-premultiply
+```
+
+`hg_Params[0]` is the per-channel **Gamma** exponent (RGBA float4; UI usually exposes one value
+applied to RGB). Values <1 brighten mids, >1 darken. The `select(... r0<0)` guard leaves negative
+(super-black/HDR) values untouched to avoid NaNs from `pow` of a negative base. Head-start: exactly
+`out = pow(unpremult(src), gamma)` re-premultiplied.

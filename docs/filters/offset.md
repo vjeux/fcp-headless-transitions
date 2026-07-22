@@ -28,3 +28,36 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcOffset` embedded shader. Decoded functional form:_
+
+Offset is a **homographic (perspective-matrix) coordinate warp with integer-cell snapping** — used
+for tiling/scrolling with optional perspective. Two 3×3-style transforms (rows in
+`hg_Params[5..7]` forward and `hg_Params[2..4]` inverse) are applied around a `floor()` that snaps
+to a cell grid:
+
+```
+p    = (texCoord.x, texCoord.y, 1)
+// forward homography (params 5,6,7 are the three matrix rows; row 7 = w-divide)
+u    = dot(p, P5)/dot(p, P7)              // pre-snap coords in cell space
+v    = dot(p, P6)/dot(p, P7)
+uv   = (u,v) + hg_Params[0].zw            // offset
+// conditional integer offset per axis (P1.x, P1.y) gated by sign tests, then:
+uv   = floor(uv) + 0.5                    // snap to cell centre
+// inverse homography (params 2,3,4) back to texture space
+s    = dot((uv,1), P2)/dot((uv,1), P4)
+t    = dot((uv,1), P3)/dot((uv,1), P4)
+st   = (s,t)*hg_Params[8].zw + hg_Params[8].xy   // final scale+bias to UV
+out  = sample(source, st)
+```
+
+The `floor(...)+0.5` is the tell: Offset quantizes to a grid of cells (like a coarse tile/scroll)
+rather than a smooth shift. The two homography matrices allow a perspective/parallelogram offset,
+not just axis-aligned translation.
+
+**To finish:** decode `-[PAEOffset canThrowRenderOutput:]` to map the **Horizontal/Vertical
+Offset** params → the `hg_Params[0].zw` / `hg_Params[1].xy` translation+integer-step slots, and the
+Offset **mode** enum → whether the homography rows are identity (pure translate) or perspective.
+The wide negative ranges observed in the corpus (`Offset` down to −147) are large multi-cell scrolls.

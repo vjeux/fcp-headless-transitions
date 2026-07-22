@@ -36,3 +36,27 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 > 5 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
 > 1 non-creative internal/hidden state parameter(s) (persisted engine state, not user knobs) were omitted from the table above.
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcBumpMap` embedded shader. Decoded functional form:_
+
+Bump Map **displaces the source using a second image as a height/normal field** — it reads the R/G
+of a bump texture (`color0` here is the pre-sampled bump), scales it into a 2-D displacement, and
+uses that to offset where the source (`hg_Texture1`) is sampled. An optional 2×2 matrix
+(`hg_Params[1..4]`, gated by `hg_Params[5]`) rotates/reorients the displacement basis.
+
+```
+b    = clamp(bump.xy, 0, 1) * 255            // bump map R,G as a vector (0..255 scale, c0.z=255)
+disp = b * hg_Params[0].xy                   // scale by Amount (per-axis)
+// optional oriented basis: project texCoord through hg_Params[1..4] rows when hg_Params[5] set
+uv.x = dot((disp, 1), basisRow0) 
+uv.y = dot((disp, 1), basisRow1)
+uv   = (uv + hg_Params[6].xy) * hg_Params[6].zw
+out  = sample(source, uv)                    // hg_Texture1 = the image being distorted
+```
+
+`hg_Params[0].xy` = **Amount** (displacement strength per axis), `hg_Params[5]` = whether a custom
+orientation matrix is used (Direction), `hg_Params[6]` = final offset+scale. The `255` constant
+shows the bump is read in 0–255 units before scaling. Head-start: sample bump→(dx,dy), gather source
+at `uv + Amount·(dx,dy)`; the Map Channel param (see doc) selects which bump channel supplies height.

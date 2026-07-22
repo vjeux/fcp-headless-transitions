@@ -33,3 +33,25 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Not implemented.** A verbatim `HgcColorReduce` Metal shader is checked in under `engine/src/compositor/filters/evidence/shaders/HgcColorReduce.metal` (Phase-1 done, Phase-2 open).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcColorReduce` embedded shader. Decoded functional form:_
+
+Color Reduce **snaps each pixel to its nearest color from a small palette** (a hard nearest-centroid
+quantizer, giving a poster/paint-by-numbers look). The shader carries up to 4 palette colors in
+`hg_Params[1..4]` (with paired weights/bias in `hg_Params[5..8]`) and, per pixel, picks the closest:
+
+```
+c = rgb / max(a,1e-6)                       // un-premultiply
+for k in 0..N-1:                            // N palette entries (≤4 per pass)
+    d[k] = dot(c - palette[k], c - palette[k])   // squared distance to each centroid
+winner = argmin_k (d[k] + bias[k])          // nearest centroid (bias lets some colors "win" ties)
+out.rgb = palette[winner] * a               // replace with the palette color, re-premultiply
+out.a   = a
+```
+
+The cascade of `select(... < 0)` comparisons in the shader is an unrolled `argmin` over the squared
+distances (with the `+ hg_Params[5..8]` acting as per-centroid bias). To finish: decode
+`-[PAEColorReduce ...]` to see how the **palette entries** are derived (fixed N-color quantization
+grid vs sampled from the image) and how many centroids per pass.

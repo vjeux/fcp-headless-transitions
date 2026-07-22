@@ -32,3 +32,23 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Not implemented.** A verbatim `HgcAddNoise` Metal shader is checked in under `engine/src/compositor/filters/evidence/shaders/HgcAddNoise.metal` (Phase-1 done, Phase-2 open).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcAddNoise` embedded shader. Decoded functional form:_
+
+The noise field itself (`color0`) is generated upstream (a hash/random pass — see the existing
+`HgcNoise` RE in `NOISE_DECOMPILE_REPORT.md` for the dSFMT-seeded generator). `HgcAddNoise` is the
+combine that maps that raw noise into a signed, scaled, optionally-rectified perturbation:
+
+```
+n    = color0 * 2 - 1                 // remap noise [0,1] → [-1,1] (signed), alpha untouched
+n    = n * hg_Params[0]               // Amount (per-channel gain)
+n    = mix(n, abs(n), hg_Params[1])   // "Type": 0 = signed noise, 1 = rectified (|n|, one-sided)
+out  = n * color1.a                   // premultiply against alpha
+```
+
+`hg_Params[0]` = **Amount** (how much noise, per channel), `hg_Params[1]` = a **noise-type** blend
+between bipolar and rectified noise. The actual noise *character* (monochrome vs color, grain size,
+seed) lives in the upstream generator params. Head-start: generate per-pixel noise, then apply the
+4 lines above; combine with the source in the host (Add/Screen blend) per the Apply Mode param.

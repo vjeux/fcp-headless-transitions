@@ -28,3 +28,26 @@ Non-creative host parameters on this filter: `Publish OSC`, `Crop`, `Flip`, `Inp
 ## Implementation status
 
 **Not implemented.** A verbatim `HgcTarget` Metal shader is checked in under `engine/src/compositor/filters/evidence/shaders/HgcTarget.metal` (Phase-1 done, Phase-2 open).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcTarget` embedded shader. Decoded functional form:_
+
+Target is a **radial coordinate warp** — it displaces each pixel along the ray from a center point
+by an amount proportional to its distance, producing a concentric zoom/target-ring distortion.
+
+```
+d    = (texCoord - Center) * asp.xy        // recentre + aspect-correct (Center=hg_Params[0])
+r    = length(d)                           // radius from center
+disp = hg_Params[1].xy * r                 // displacement magnitude ∝ radius (the "target" strength)
+uv   = disp * asp.zw                        // undo aspect
+     + Center * hg_Params[3].xy             // center-relative term
+uv   = (uv + hg_Params[4].xy) * hg_Params[4].zw   // final offset+scale to texture space
+out  = sample(source, uv)
+```
+
+Because the displacement grows linearly with `r`, the effect is a smooth radial stretch/compress
+centered on `Center`. `hg_Params[1]` is the **Amount/Size** knob (how strong the radial push),
+`hg_Params[2]` the aspect correction, `hg_Params[3..4]` center/crop transforms. Head-start:
+backward-warp gather with `uv = center + (p−center)·(1 + k·|p−center|)`-style radial map; decode
+`-[PAETarget ...]` for the exact `k(Amount)`.

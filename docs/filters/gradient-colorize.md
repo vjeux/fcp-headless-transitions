@@ -32,3 +32,31 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Not implemented.** A verbatim `HgcGradientColorize` Metal shader is checked in under `engine/src/compositor/filters/evidence/shaders/HgcGradientColorize.metal` (Phase-1 done, Phase-2 open).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcGradientColorize` embedded shader. Decoded functional form:_
+
+Gradient Colorize is a **luma→gradient lookup** (gradient map): it computes a scalar from each pixel
+(via a weighted dot over RGBA, `hg_Params[0]`), maps that scalar through a 1-D gradient **texture**
+(`hg_Texture1`), and blends the looked-up color back over the source.
+
+```
+c      = color0 / max(color0.a,1e-6)               // un-premultiply
+key    = 1 - dot(c, hg_Params[0])                  // scalar key (weighted luma-like), inverted
+key    = key * hg_Params[1].x + hg_Params[1].y     // scale+offset into gradient space
+// optional triangle/ping-pong wrap (hg_Params[2] selects wrap mode) via fract()/reflect
+idx    = clamp(floor(key * hg_Params[3].x), 0, hg_Params[3].y)   // quantized stop index
+uv_grad= (idx+0.5, 0.5) * hg_Params[8].zw + hg_Params[8].xy      // → gradient texture coords
+gcol   = sample(gradientTex, uv_grad)              // the mapped color
+// optional desaturate toward luma (0.299,0.587,0.114) by hg_Params[4], gated by hg_Params[6]
+lum    = dot(gcol.rgb, (0.299,0.587,0.114))
+gcol   = mix(lum, gcol, hg_Params[4])
+out    = mix(color0, gcol_premult, hg_Params[7].x)  // Mix back over source
+```
+
+`hg_Params[0]` = the channel weights that form the **key** (default luma); the **gradient** is the
+`hg_Texture1` ramp (the filter's main creative control); `hg_Params[3]` = number of stops /
+quantization; `hg_Params[4]` = saturation of the mapped color; `hg_Params[7].x` = **Mix**. The
+constant `(0.299,0.587,0.114)` confirms Rec.601 luma. Head-start: build the gradient into a 256×1
+LUT, key = weighted luma, `out = mix(src, LUT[key], Mix)`.

@@ -32,3 +32,19 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 > 2 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
 > 3 non-creative internal/hidden state parameter(s) (persisted engine state, not user knobs) were omitted from the table above.
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcColorize` embedded shader. Confirms the two-point duotone described above:_
+
+```
+c    = rgb / max(a,1e-6)                          // un-premultiply
+key  = dot(c, hg_Params[4].xyz)                   // luminance key (weights in slot 4)
+ramp = mix(RemapBlackTo, RemapWhiteTo, key)       // hg_Params[0]→dark color, [1]→light color
+c'   = mix(c, ramp, hg_Params[2].xyz)             // Intensity: per-channel blend toward the ramp
+out  = mix(src, c'·a, hg_Params[3])               // Mix: blend the colorized result over original
+```
+
+`hg_Params[0]` = **Remap Black To**, `[1]` = **Remap White To**, `[2]` = **Intensity** (per-channel),
+`[3]` = **Mix**, `[4]` = luma weights. So it's a luma-keyed gradient between two colors, then blended
+back — matching the TS implementation (`channel-mixer.ts` shares the linear-remap machinery).

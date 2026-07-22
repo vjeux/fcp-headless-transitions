@@ -33,3 +33,23 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Implemented.** TS module: [`engine/src/compositor/filters/channel-mixer.ts`](../../engine/src/compositor/filters/channel-mixer.ts).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcChannelMixer` embedded shader (confirms the shipped `channel-mixer.ts`):_
+
+A 4×4 matrix mix — each output channel is a dot product of the (un-premultiplied) input with a row
+of coefficients:
+
+```
+c      = rgb / max(a,1e-6)
+out.r  = dot(c_rgba, hg_Params[0])     // Red row   (Red-from-R/G/B/const)
+out.g  = dot(c_rgba, hg_Params[1])     // Green row
+out.b  = dot(c_rgba, hg_Params[2])     // Blue row
+out.a  = clamp(dot(c_rgba, hg_Params[3]), 0, 1)   // Alpha/Output row
+out.rgb *= out.a
+out    = mix(src, out, hg_Params[4])   // Mix
+```
+
+`hg_Params[0..3]` = the four mixer rows (R/G/B/A output = weighted sum of inputs + constant),
+`hg_Params[4]` = **Mix**. This is exactly a color matrix; head-start is the 4×4 apply above.

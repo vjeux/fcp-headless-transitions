@@ -28,3 +28,22 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Not implemented.** A verbatim `HgcHighPass` Metal shader is checked in under `engine/src/compositor/filters/evidence/shaders/HgcHighPass.metal` (Phase-1 done, Phase-2 open).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcHighPass` embedded shader. Decoded functional form:_
+
+Highpass keeps only the high-frequency detail, biased to mid-gray (the classic Photoshop High Pass):
+
+```
+orig = color0.rgb / max(color0.a,1e-6)     // un-premultiply
+blur = color1.rgb / max(color1.a,1e-6)     // un-premultiply the upstream Gaussian copy
+hp   = (orig - blur) * hg_Params[0].rgb + 0.5   // detail, centered at 0.5 gray
+out.rgb = max(hp, 0) * color0.a            // clamp≥0, re-premultiply
+out.a   = color0.a
+```
+
+`hg_Params[0]` = **Amount** (per-channel). Flat regions → 0.5 gray; edges deviate from gray. The
+blur radius (which builds `color1`) is the frequency-cutoff knob. Head-start: Gaussian blur (shared
+`HGBlur`), then the one-line combine above. Differs from Sharpen only in that Sharpen adds the band
+back to the original instead of centering on gray.

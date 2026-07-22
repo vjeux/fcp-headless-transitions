@@ -31,3 +31,37 @@ Non-creative host parameters on this filter: `Publish OSC`, `Crop`, `Flip`, `Inp
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
 
 > 2 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcTwirl` embedded fragment shader (via `tools/re/extract_shader.py HgcTwirl`).
+The math below is the decoded functional form; verbatim Apple source is not reproduced here._
+
+Per output pixel at texture coord `p`, with center `C = hg_Params[0].xy`, aspect scale
+`asp = hg_Params[2]` (`.xy` forward, `.zw` inverse), max radius `Rmax = hg_Params[1].x`, and peak
+angle `A = hg_Params[1].y` (radians):
+
+```
+d      = (p - C) * asp.xy              // recentre + aspect-correct
+r      = length(d)                     // radius from center
+t      = clamp(r / Rmax, 0, 1)         // normalized radius, 0 at center → 1 at Rmax
+falloff = 2*t^3 - 3*t^2 + 1            // smoothstep(1→0): full twist at center, 0 past Rmax
+angle  = A * falloff                   // this pixel's rotation
+d'     = rotate(d, angle)              // 2D rotation by angle
+uv     = d' * asp.zw + C               // undo aspect, re-centre
+out    = sample(source, uv)            // (pixels sampled outside the frame → transparent)
+```
+
+**Key insight:** the twist is *not* linear in radius — it uses the Hermite smoothstep polynomial
+`2t³−3t²+1` so the rotation is strongest at the center and eases smoothly to zero at `Rmax`,
+giving the characteristic soft whirlpool (a naive `angle·(1−r/Rmax)` looks visibly conical/wrong).
+
+**Parameter → slot mapping** (to confirm against `-[PAETwirl canThrowRenderOutput:]` disasm):
+- `hg_Params[0].xy` ← **Center** (point2D, frame-normalized).
+- `hg_Params[1].x`  ← **Amount**-derived max radius `Rmax`.
+- `hg_Params[1].y`  ← **Twirl** angle in radians (the corpus default π ≈ half-turn at center).
+- `hg_Params[2]`    ← aspect-ratio correction (`.xy` forward, `.zw` inverse) so the twirl stays circular on non-square frames.
+- `hg_Params[3]`, `hg_Params[4]` ← crop/offset bounds (the trailing `fmin` chain clamps to the valid region → transparent outside).
+
+**Implementation note:** sample with clamp-to-transparent outside `[0,1]`; the falloff makes this a
+pure backward-warp (gather), so it parallelizes trivially and needs no accumulation buffer.

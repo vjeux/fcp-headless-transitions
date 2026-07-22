@@ -24,3 +24,21 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcNegative` embedded shader. Decoded functional form:_
+
+Negative inverts RGB **in un-premultiplied space**, then re-premultiplies — so the alpha edge
+stays clean (a naive `1−rgb` on premultiplied data would invert the transparent border to white):
+
+```
+straight = rgb / max(a, 1e-6)      // un-premultiply
+inv      = 1 - straight            // invert each channel
+out.rgb  = inv * a                 // re-premultiply
+out.a    = a                       // alpha unchanged
+```
+
+Implementation head-start: exactly the four lines above; no parameters (Negative has no creative
+knobs — it's a fixed color inversion). Do the divide guarded by `max(a,1e-6)` to avoid div-by-zero
+on fully-transparent pixels.

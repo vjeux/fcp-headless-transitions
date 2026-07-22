@@ -31,3 +31,29 @@ Non-creative host parameters on this filter: `Publish OSC`, `Flip`, `Input Point
 **Not implemented.** A verbatim `HgcPoke` Metal shader is checked in under `engine/src/compositor/filters/evidence/shaders/HgcPoke.metal` (Phase-1 done, Phase-2 open).
 
 > 1 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcPoke` embedded shader. Decoded functional form:_
+
+Poke is a **localized radial push/pull** centered on a point — it displaces pixels within a radius
+toward or away from the center (like poking a finger into the image). Two homography transforms
+bracket a normalize-and-rescale of the radius:
+
+```
+p    = homography(texCoord, hg_Params[1..3])       // to working space (perspective-correct)
+d    = p - Center                                  // Center = hg_Params[0].xy
+r    = length(d)
+push = r * hg_Params[0].z                           // Amount scales the radial push
+d'   = d / sqrt(push)                               // reciprocal-sqrt reshaping of the radius
+uv   = Center + d'
+uv2  = homography(uv, hg_Params[4..6])             // back through inverse transform
+uv2  = mix(texCoord, uv2, hg_Params[0].w)          // hg_Params[0].w = blend/falloff of the poke
+uv2  = (uv2 + hg_Params[7].xy) * hg_Params[7].zw
+out  = sample(source, uv2)
+```
+
+`hg_Params[0]` packs **Center (xy), Amount (z), and blend/extent (w)**. The `1/sqrt(r·Amount)`
+reshaping concentrates the distortion near the center and eases out — the poke bulge. See the
+existing `HgcPoke.metal` evidence; head-start is a backward-warp gather with the radial reshape
+above, `Center`+`Amount` mapped from the disasm.

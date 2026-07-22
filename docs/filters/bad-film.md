@@ -43,3 +43,26 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 **Not implemented.** A verbatim `HgcBadFilm` Metal shader is checked in under `engine/src/compositor/filters/evidence/shaders/HgcBadFilm.metal` (Phase-1 done, Phase-2 open).
 
 > 13 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcBadFilm` embedded shader. Decoded functional form:_
+
+`HgcBadFilm` is the **tint + fade + desaturate** combine of the Bad Film look (the dust/scratches/
+grain overlays are separate passes — see `HgcBadFilmGrain`). It fades the image toward an overlay,
+tints it, then partially desaturates:
+
+```
+src  = color0.rgb / max(color0.a,1e-6)              // un-premultiply
+ov   = color1                                        // overlay/vignette pass (rgb + coverage in .w)
+faded= src * (1 - ov.a) + ov.rgb                     // composite overlay over source
+tint = faded * hg_Params[0].rgb                      // color cast (sepia/age tint)
+lum  = dot((tint,1), hg_Params[2])                   // luma (weights in slot 2)
+out.rgb = mix(lum, tint.rgb, hg_Params[1].rgb) * color0.a   // desaturate toward luma by (1-Amount), re-premult
+out.a   = color0.a
+```
+
+`hg_Params[0]` = **tint color** (the aged-film cast), `hg_Params[1]` = per-channel **saturation**
+(mix toward luma), `hg_Params[2]` = luma weights, `color1` = the overlay/vignette layer. The grain,
+dust and scratch animation come from `HgcBadFilmGrain` and the noise generator composited on top.
+Head-start: implement tint+desaturate here; layer the animated grain/scratches as a second pass.

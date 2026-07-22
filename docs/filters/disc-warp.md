@@ -28,3 +28,29 @@ Non-creative host parameters on this filter: `Crop`, `Publish OSC`, `Flip`, `Inp
 ## Implementation status
 
 **Not implemented** (corpus-exercised; no dedicated shader extracted yet).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcDiscWarp` embedded shader. Decoded functional form:_
+
+Disc Warp is a **radial reciprocal warp** — it bends the image around a center as if projected onto
+a disc/dome, pushing pixels outward with an inverse-radius term so content near the center balloons
+outward and the rim compresses.
+
+```
+d    = texCoord * hg_Params[1].xy + hg_Params[1].zw   // recentre+scale into disc space
+r    = length(d)
+dir  = d / r                                           // unit direction (guarded when r≈0)
+// reciprocal warp: new radius = r - 1/(r·Amount), clamped to ≥0 past the disc edge
+warp = (r*Amount) - 1/(r*Amount)
+warp = max(warp, 0) * Amount2                          // hg_Params[0].x = Amount, .y = strength
+uv   = dir * warp
+uv   = uv * hg_Params[2].xy + hg_Params[2].zw          // undo center/scale
+uv   = (uv + hg_Params[3].xy) * hg_Params[3].zw        // final offset+scale
+out  = sample(source, uv)
+```
+
+The `r − 1/r` reciprocal is the signature of the disc/dome bulge (vs Bulge's polynomial or Twirl's
+rotation). `hg_Params[0].x/.y` = **Amount / rim strength**. Head-start: backward-warp gather with a
+reciprocal radial map centered on the disc; decode `-[PAEDiscWarp ...]` for the exact
+Amount→scale constants. (Corpus display name is often "Controller".)

@@ -28,3 +28,27 @@ Non-creative host parameters on this filter: `360° Aware`, `Flip`, `Input Point
 ## Implementation status
 
 **Not implemented.** A verbatim `HgcSharpen` Metal shader is checked in under `engine/src/compositor/filters/evidence/shaders/HgcSharpen.metal` (Phase-1 done, Phase-2 open).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcSharpen` embedded shader. Decoded functional form:_
+
+Sharpen is a classic **unsharp mask**: it amplifies the difference between the image and a blurred
+copy. The blurred copy (`color1`) is produced upstream by a Gaussian pass; this shader does the
+amplify-and-add:
+
+```
+orig    = color0
+blurred = color1
+out     = max( orig + (orig - blurred) * hg_Params[0], 0 )
+```
+
+`hg_Params[0]` is the **Amount/Intensity** (per-channel float4). `orig − blurred` is the high-
+frequency detail; scaling it and adding back boosts edges. Negative-clamp at 0. The blur *radius*
+that makes `color1` is the other creative knob (edge scale). Head-start: run the same `HGBlur`
+Gaussian used by `gaussian-blur.ts`, then `out = clamp(orig + amount·(orig−blur), 0, ∞)`.
+
+## See also: `HgcHighPass` (the "Highpass" filter)
+Highpass is the same idea but keeps *only* the detail, centered at gray:
+`out = max( (orig − blur)·Amount + 0.5, 0 )` (un/re-premultiplied). It's the isolated high-pass
+band (mid-gray where flat), whereas Sharpen adds that band back onto the original.

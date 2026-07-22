@@ -26,3 +26,25 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 ## Implementation status
 
 **Implemented.** TS module: [`engine/src/compositor/filters/channel-mixer.ts`](../../engine/src/compositor/filters/channel-mixer.ts).
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcTint` embedded shader. Decoded functional form:_
+
+Tint maps the image's luminance onto a **tint color**, effectively a sepia/monochrome-toward-color
+transform with a soft two-sided ramp around mid-gray:
+
+```
+c     = rgb / max(a,1e-6)                       // un-premultiply
+lum   = dot(c, hg_Params[2].xyz)                // luminance (weights in slot 2)
+tcol  = hg_Params[0].xyz                        // tint color
+// two-sided ramp: below 0.5 lum interpolate black→tint, above 0.5 tint→white
+lo    = lum * (2·tcol)                          // dark half maps toward the tint
+hi    = (2·(lum-0.5))·(1-tcol) + tcol           // light half maps tint→white
+tinted= (lum < 0.5) ? lo : hi
+out.rgb = mix(c, tinted, hg_Params[1].xyz) * a  // Amount/Intensity blend, re-premultiply
+```
+
+`hg_Params[0]` = **tint Color**, `hg_Params[1]` = **Intensity** (per-channel blend toward tinted),
+`hg_Params[2]` = luma weights. The `2·lum` / `2·(lum−0.5)` split is the tell for the midpoint-anchored
+tint ramp (dark→color→white). Matches the shipped `tint.ts`; head-start above is the exact combine.

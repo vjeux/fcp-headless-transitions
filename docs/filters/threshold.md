@@ -33,3 +33,24 @@ Non-creative host parameters on this filter: `Flip`, `Input Points`. These are s
 > 3 localized (non-English) parameter duplicate(s) were merged/omitted from the parameter table above.
 
 > 2 non-creative internal/hidden state parameter(s) (persisted engine state, not user knobs) were omitted from the table above.
+
+## Algorithm (decoded)
+
+_RE'd from the `HgcThreshold` embedded shader. Decoded functional form:_
+
+Threshold reduces the image to two colors by comparing a luma value against a cutoff, with a soft
+transition band:
+
+```
+c    = rgb / max(a,1e-6)                         // un-premultiply
+lum  = dot(c, (0.3086, 0.6094, 0.082))           // Apple's luma weights (NOT Rec.601/709)
+t    = clamp((lum - Threshold) * Softness + 0.5, 0, 1)   // soft step around the cutoff
+out.rgb = mix(LowColor, HighColor, t) * a        // two-color map, re-premultiply
+out.a   = a
+```
+
+Ground-truth constants worth keeping: the luma weights are **(0.3086, 0.6094, 0.082)** (Apple's
+"luminance" weighting, distinct from Rec.601 0.299/0.587/0.114 and Rec.709). `hg_Params[0].x` =
+**Threshold** cutoff, `hg_Params[1].x` = **Softness/Sharpness** (larger = harder edge), `hg_Params[2]`
+= **low/dark color**, `hg_Params[3]` = **high/light color** (default black/white). See also the
+existing `THRESHOLD_RE.md` evidence for the premult-edge (`HgcThresholdNoPremult`) variant.
