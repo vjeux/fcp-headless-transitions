@@ -16,7 +16,7 @@
       "n_failures": 0,
       "tol_abs": 1e-06,
       "tol_rel": 1e-06,
-      "swept": "2026-07-22T10:49:24Z"
+      "swept": "2026-07-22T11:48:19Z"
     },
     "curve.interp.bezier.eval": {
       "id": "curve.interp.bezier.eval",
@@ -42,7 +42,7 @@
       "n_failures": 0,
       "tol_abs": 1e-06,
       "tol_rel": 1e-06,
-      "swept": "2026-07-22T10:30:07Z"
+      "swept": "2026-07-22T11:48:19Z"
     },
     "curve.interp.bezier.findparam": {
       "id": "curve.interp.bezier.findparam",
@@ -68,7 +68,7 @@
       "n_failures": 0,
       "tol_abs": 1e-06,
       "tol_rel": 1e-06,
-      "swept": "2026-07-22T10:30:07Z"
+      "swept": "2026-07-22T11:48:19Z"
     },
     "filter.PAEBrightness": {
       "id": "filter.PAEBrightness",
@@ -406,7 +406,7 @@
       "n_failures": 0,
       "tol_abs": 1e-06,
       "tol_rel": 1e-06,
-      "swept": "2026-07-22T10:55:16Z"
+      "swept": "2026-07-22T11:48:19Z"
     },
     "transfer.PAEBrightness": {
       "id": "transfer.PAEBrightness",
@@ -814,8 +814,28 @@
       "id": "transfer.PAETint",
       "status": "DIVERGED",
       "at": "2026-07-22T11:39:22Z"
+    },
+    {
+      "id": "curve.interp.ease",
+      "status": "VERIFIED",
+      "at": "2026-07-22T11:48:19Z"
+    },
+    {
+      "id": "curve.interp.bezier.eval",
+      "status": "VERIFIED",
+      "at": "2026-07-22T11:48:19Z"
+    },
+    {
+      "id": "curve.interp.bezier.findparam",
+      "status": "VERIFIED",
+      "at": "2026-07-22T11:48:19Z"
+    },
+    {
+      "id": "blur.decimation",
+      "status": "VERIFIED",
+      "at": "2026-07-22T11:48:19Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-22T11:39:22Z"
+  "updated": "2026-07-22T11:48:19Z"
 }

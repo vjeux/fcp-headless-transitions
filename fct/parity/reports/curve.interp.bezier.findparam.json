@@ -23,13 +23,12 @@
   "failures": [],
   "tol_abs": 1e-06,
   "tol_rel": 1e-06,
-  "swept": "2026-07-22T10:30:07Z",
+  "swept": "2026-07-22T11:48:19Z",
   "findings": [
     {
       "kind": "characterized_edge_case",
-      "summary": "Fully-degenerate time-Bezier polygon [0,0,1,1] (interior handles collapsed onto the endpoints) at exactly t=t0 or t=t3: FCP's root-finder returns the OPPOSITE endpoint (u(0)=1.0, u(1)=0.0), while the engine returns the natural root. Every INTERIOR t and every strictly-increasing polygon matches to ~1e-9.",
-      "not_a_bug": "This input never occurs in real Motion: a stored time-Bezier's interior control points are keyframe HANDLE TIMES, kept strictly increasing (t0<t1<t2<t3). cases.bezierFind tests the faithful domain (strictly-increasing handles); we do NOT fit the engine to this FCP boundary artifact.",
-      "revisit_if": "A future .motr decode shows Motion CAN emit a collapsed/equal interior handle time."
+      "summary": "Degenerate time-Bezier [0,0,1,1] at exact endpoints: FCP returns the opposite root (u(0)=1, u(1)=0); engine returns the natural root. Interior + all strictly-increasing polygons match to ~1e-9.",
+      "not_a_bug": "Real Motion time-Beziers keep interior handle times strictly increasing; cases.bezierFind tests that faithful domain. Not fitted to the FCP boundary artifact."
     }
   ]
 }
