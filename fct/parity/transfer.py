@@ -86,6 +86,11 @@ def _params_for(pc):
 
 def sweep_transfer(node, inputs=None, tol_levels=2.0):
     """Measure the per-pixel transfer of a pointwise colour node: REAL FCP (batched) vs TS."""
+    # A node may pin its own input swatch set (e.g. a sub-node that isolates the
+    # exact-verified regime — Brightness darken/gray only — from the CHARACTERIZED
+    # brighten-clip regime). node["inputs"] overrides the default swatch sweep.
+    if inputs is None and node.get("inputs"):
+        inputs = [tuple(c) for c in node["inputs"]]
     inputs = inputs or [(16, 16, 16), (32, 32, 32), (64, 64, 64), (128, 128, 128),
                         (200, 200, 200), (240, 240, 240),
                         (200, 50, 50), (50, 200, 50), (50, 50, 200)]

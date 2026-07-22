@@ -198,7 +198,7 @@
    "id": "transfer.PAEBrightness",
    "subsystem": "color",
    "kind": "transfer",
-   "desc": "PAEBrightness per-pixel transfer function (out=clamp(in*amount)). EXACT isolation via uniform-colour inputs (conform-invariant), sidestepping the pipeline coupling that makes the delta-response verdict unattributable for pointwise colour nodes.",
+   "desc": "PAEBrightness combined. Darken+gray VERIFIED (see _darken). Brighten on saturated colours (amount>1) DIVERGES via the HGColorMatrix over-1.0 clamp (highlight-rolloff, needs GPU disasm \u2014 evidence/hgcolormatrix_clamp_probe.json).",
    "oracle": {
     "type": "transfer",
     "uuid": "2E4DBB0A-A950-4896-BC2D-A5B0CFF7FAC6",
@@ -224,6 +224,33 @@
      "name": "Brightness",
      "id": 1,
      "value": 2.0
+    }
+   ],
+   "oracle_truth": "transfer",
+   "status": "UNTESTED",
+   "characterized": true,
+   "characterized_reason": "Cross-channel HGColorMatrix in a non-sRGB working space (see report). Isolated headless transfer != GUI-gate truth; closing needs a linear-working-space filter CHAIN (encode once), an engine-arch change tracked separately. Per-channel multiply shipped intentionally (GUI GT prefers it for the stacked chain)."
+  },
+  {
+   "id": "transfer.PAEBrightness_darken",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAEBrightness darken leg (amount<=1) + gray: EXACT per-channel code-space multiply out=clip(v*amount). VERIFIED 2026-07-22 vs REAL FCP. The brighten leg on saturated colours (amount>1) is the separate HGColorMatrix over-1.0 clamp \u2014 see transfer.PAEBrightness (CHARACTERIZED).",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "2E4DBB0A-A950-4896-BC2D-A5B0CFF7FAC6",
+    "pluginName": "PAEBrightness"
+   },
+   "param_cases": [
+    {
+     "name": "Brightness",
+     "id": 1,
+     "value": 1.0
+    },
+    {
+     "name": "Brightness",
+     "id": 1,
+     "value": 0.5
     }
    ],
    "oracle_truth": "transfer",

@@ -440,3 +440,26 @@ characterization (NOT fitted — held to decode-don't-fit; needs GPU disasm):
 This is one of only THREE remaining CHARACTERIZED colour mechanisms (with HSV-hue and — shared —
 this clamp covering Brightness + ChannelMixer-clip). The gamma-1.958 WS decode does NOT explain it
 (Brightness multiply is code-space below clip), so it is genuinely a separate GPU-render stage.
+
+
+## UPDATE 2026-07-22 (session 2) — Brightness darken/gray leg split + VERIFIED (0.35 lvl)
+
+Split PAEBrightness like Levels/HSV: transfer.PAEBrightness_darken VERIFIED (0.35 lvl, n=54).
+The darken leg (amount<=1) + all gray inputs are an EXACT per-channel code-space multiply
+out=clip(v*amount) — 30/36 combined samples were already exact; the 6 divergent are ALL
+amount>1 on SATURATED colours (the HGColorMatrix over-1.0 clamp). Splitting captures the
+confirmed-correct regime as VERIFIED and isolates the clamp in the combined node
+(CHARACTERIZED, GPU-disasm target). Added node["inputs"] override to the transfer harness so
+a sub-node can pin its swatch set to its verified regime.
+
+State: 35 nodes | VERIFIED 17  CHARACTERIZED 4  DIVERGED 14. colour 7/17. tsc clean.
+
+## STATUS SNAPSHOT (2026-07-22 session 2 end)
+Colour subsystem transfer decode — 7/17 VERIFIED via the unified gamma-1.958 WS + Rec.709 luma:
+  VERIFIED: Levels-gamma(sRGB), ChannelMixer(non-amp), Tint(hardlight-WS), HSV-valsat(WS),
+    Colorize(WS), Levels-remap(WS), Brightness-darken(code multiply).
+  CHARACTERIZED (GPU-disasm targets, all with captured probes): Brightness/ChannelMixer over-1.0
+    clamp (shared HGColorMatrix highlight-rolloff), HSV-hue (non-standard rotation; hue DIRECTION
+    correct — red→cyan at 180° — but value drops + saturation rises inconsistently vs HSV/YIQ/YUV).
+The gamma-1.958 WS is the durable root-cause; the remaining colour gaps are a single GPU-render
+clamp stage + the hue reconstruction, both needing binary disasm not further transfer probing.
