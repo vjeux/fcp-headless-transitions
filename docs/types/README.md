@@ -14,6 +14,15 @@ Motion scenes are built from these kinds of typed nodes and cross-cutting constr
 | **Behaviors** (procedural animation) | [`BEHAVIORS.md`](BEHAVIORS.md) | All **34** behaviors — Link, Rig Behavior, Clamp, Ramp, Oscillate, Throw, Gravity, Spring, Motion Path, … — that compute parameter values each frame instead of keyframing, with per-parameter tables and a Parameter/Motion family split. |
 | **Constructs** (cross-cutting systems) | [`CONSTRUCTS.md`](CONSTRUCTS.md) | The foundational systems inside every file — the parameter/channel value model, keyframe curves + the full interpolation-type table, rational time, shapes/vertices, gradients, styles/text, the channel-link/expression substrate, and document `sceneSettings`. |
 
+### Decompiled code (ground truth)
+Every type doc embeds the **actual code Apple ships**, extracted from the user's licensed FCP install — not paraphrase:
+- **Filters** — verbatim `Hgc*` Metal shader source + ARM64 disasm of the PAE render method (see `../filters/`).
+- **Behaviors** — all 34 carry a `Decompiled code (ground truth)` subsection with the verbatim ARM64 disasm of their per-frame method (`accumForces`/`accumInitialValues` for physics; `solveNode`/`computeValue`/`createCurveNode`/`getMultiplier`/`handleCollisions` for parameter behaviors), from Ozone's core + `Behaviors.ozp`.
+- **Components** — 9 of 16 types with a decodable CPU method carry verbatim disasm (Camera `LiCamera::localToClipMatrix`, Light `LiLight::getSpotNodeSurface`, Shape, Clone, Text, Widget, Rig, Generator, Image); the 7 GPU-render-graph / template types are noted honestly.
+- **Constructs** — the keyframe interpolation table is anchored to verbatim `PCMath::easeInOut` + `inverseEaseInOut` (ProCore) and `PCAlgorithm::BezierSubdivide`.
+
+The regenerators live in [`../../tools/re/`](../../tools/re/): `gen_decompiled_docs.py` (filters), `gen_behavior_decomp.py`, `gen_component_decomp.py`, `gen_constructs_decomp.py`, with `disasm_pae.py` / `disasm_behavior.py` / `disasm_component.py` / `extract_shader.py` as the extractors.
+
 ### How this relates to the other docs
 - `../CATALOG.md` — the authoritative implementation status, tallied against the **65 shipping FCP
   transitions**. These type docs give the **corpus-scale** picture (1–2 orders of magnitude more
