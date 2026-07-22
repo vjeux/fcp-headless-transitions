@@ -178,6 +178,12 @@
         "The Intensity mix is ~sRGB-linear (established). Compose: out = mix(rgb_srgb, tinted_two_leg, Intensity)."
       ],
       "then": "Implement in tintFilter (tint linearized + K highlight + smoothstep shadow) AND read the nested Color group, then verify the sole host Objects__Leaves stays >=22.44 on the GUI gate \u2014 the compound fix that was gate-blocked now has the decoded math."
+    },
+    "white_tint_luma_probe": {
+      "test": "White tint (Color=[1,1,1]), I=1, on PURE-channel inputs (R/G/B at 64,128) \u2014 out=K*luma reads the luma model directly.",
+      "result": "Pure-channel v=64 outputs: R64=12.0, G64=128.9, B64=1.3. Ratios G/R=10.75, G/B=102. These are ~the SQUARE of the Rec709 linear weight ratios (wG/wR=3.36 -> 3.36^2=11.3; wG/wB=9.9 -> 98). So the luma contribution scales ~ w_ch^2 (or luma is computed then the tinted leg squares the low-luma region).",
+      "implication": "The tinted-leg luma is NOT a simple sRGB dot(w,rgb): pure-channel weight ratios come out SQUARED. Combined with the earlier gray fit K=3.878*luma_gray (gray = all channels, weights sum to 1 so luma=v/255 there), this means the per-channel luma path has an extra ~quadratic/gamma that cancels for gray. Consistent with a linear-working-space dot (w * s2l(channel)) where s2l(64/255)=0.0513 makes pure-channel luma tiny and the ratios reflect w*s2l \u2014 but s2l cancels at equal v, so the SQUARED weight ratio points to the WEIGHTS being applied in a gamma space or a dot-then-encode. Needs the exact YCbCr matrix (colorMatrixFromDesiredRGBToYCbCr) values read from the binary to close.",
+      "status": "Structural decode (tint linearized, K*luma*s2l(tint) highlight) STANDS for gray/tinted-channel; the exact per-channel luma model for saturated colour needs the YCbCr matrix constants. Held to decode-don't-fit."
     }
   }
 }
