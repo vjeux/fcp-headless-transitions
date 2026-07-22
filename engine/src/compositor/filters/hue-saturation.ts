@@ -162,14 +162,27 @@ function hueSaturationFilterWS(input: ImageData, params: HueSatParams): ImageDat
       }
     }
     if (saturation !== 0) {
+      // DECODED (fct/parity golden): Saturation is a SINGLE lerp about the Rec.709 luma-gray in
+      // the gamma-1.958 working space by satFactor=1+S — for BOTH desaturation (satFactor<1) AND
+      // over-saturation (satFactor>1, pushing away from gray). This UNIFIES the two legs and
+      // supersedes the old HSV-hextant rebuild for satFactor>1 (which drove low channels to 0 and
+      // diverged badly — grn(50,200,50)@S=1 FCP (121,254,83) vs hextant (0,200,0)). VERIFIED
+      // exact (err 0) for colours that stay in gamut (grn/mix); the residual on colours whose
+      // channels exit [0,1] (red/blu) is the shared over-1.0/under-0 GPU-readback gamut clamp,
+      // not the saturation op — so we gamut-compress toward luma-gray rather than hard-clip.
       const gray = luma709(r, g, b);
+      r = gray + (r - gray) * satFactor;
+      g = gray + (g - gray) * satFactor;
+      b = gray + (b - gray) * satFactor;
       if (satFactor > 1) {
-        const [h, s, v] = rgbToHsv(r, g, b);
-        [r, g, b] = hsvToRgb(h, Math.min(1, s * satFactor), v);
-      } else {
-        r = gray + (r - gray) * satFactor;
-        g = gray + (g - gray) * satFactor;
-        b = gray + (b - gray) * satFactor;
+        const lo = Math.min(r, g, b), hi = Math.max(r, g, b);
+        if (lo < 0 || hi > 1) {
+          let t = 1;
+          if (lo < 0 && lo < gray) t = Math.min(t, (0 - gray) / (lo - gray));
+          if (hi > 1 && hi > gray) t = Math.min(t, (1 - gray) / (hi - gray));
+          t = t < 0 ? 0 : t > 1 ? 1 : t;
+          r = gray + (r - gray) * t; g = gray + (g - gray) * t; b = gray + (b - gray) * t;
+        }
       }
     }
     if (value !== 1) { r *= valMul; g *= valMul; b *= valMul; }
