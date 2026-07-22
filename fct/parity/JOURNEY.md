@@ -151,3 +151,31 @@ This also VALIDATES the unified colour root cause with a concrete mechanism: FCP
 colour inputs (sRGB->linear, standard sRGB TRC confirmed via PCIssRGBTransferFunction) and does
 the mix/leg math in that space. The chain-level linear working space is the shared fix for
 Brightness/Colorize/Tint/HSV, and Tint's decode shows exactly the linearize-colour step it needs.
+
+
+## UPDATE 2026-07-22 (session 2, frontier assessment) — exact-node frontier mapped
+
+Systematically surveyed which FCP functions are cleanly parity-verifiable (exported + callable
++ have a 1:1 engine counterpart + non-stateful). VERIFIED the exact frontier is now covered:
+- curves: easeInOut, OZBezierEval, OZBezierFindParameter (dlsym) ✓
+- blur: HGBlur::GetDecimation (dlsym) ✓
+- colour: PAELevels gamma transfer ✓ (per-channel curve faithful in sRGB)
+
+NOT cleanly verifiable (documented so future sessions don't re-survey):
+- STATEFUL member fns need a constructed object (OZSpline for OZBezierInterpolator::interpolate/
+  getControlPoints; LiCamera for eyeToFilmMatrix/worldToEyeMatrix; HGColorGamma for colour
+  conversion). Verifying these needs an object-construction harness — a separate build.
+- NO 1:1 engine counterpart: PCComputeQuadToQuadProjectionMatrix (engine uses camera-Z
+  projectPoint, not homography), getScaleTranslateRotate (decompose vs engine's compose),
+  PCMath::cubic/quadratic/OZBezierGetRoots (engine uses inline Newton), ramp (timing arithmetic,
+  no FCP fn), gaussianPDF/ciToHGBlurRadius (engine inlines, not discrete units).
+- COLOUR mix ops (Brightness/Colorize/Tint/HSV-sat): decoded to the linear-working-space root
+  cause but gate-blocked (headless!=GUI); fixing needs the chain-level linear pipeline.
+- RNG image nodes (Noise/Clouds) + geometry (Earthquake/Underwater/ZoomBlur): deep per-node RE,
+  owned by the faithful delta-response driver; parity mirrors via `fct parity sync`.
+
+CONCLUSION: the exact-verification foundation is COMPLETE for the engine's current factoring.
+Growing VERIFIED count further requires either (a) the deep RE above, or (b) refactoring the
+engine to expose more discrete functions that map 1:1 to exported FCP symbols, or (c) a
+stateful-object harness (construct OZSpline/LiCamera and call their methods). All are multi-
+session. The harness makes each an isolated, attributable target.
