@@ -196,3 +196,25 @@ to engine curves.ts evaluateCurve on the SAME keyframes. This verifies the Catmu
 + time-reparameterization math (currently only measured to 0.26px vs ruler-decode) EXACTLY.
 Effort: marshal OZSplineState (struct — read its size/ctor), and the interpolate ABI (out-ptrs).
 This is the recommended next session's exact-node work; everything else exact is covered.
+
+
+## UPDATE 2026-07-22 (session 2) — ChannelMixer VERIFIED exonerates the coupled verdict
+
+transfer.PAEChannelMixer VERIFIED at 0.71 levels (matrix 3x3 dot exact in sRGB across
+identity/swap/luma601/half-mix). CRUCIAL: filter.PAEChannelMixer (the DELEGATED faithful
+in-host delta-response) reads DIVERGED at ddb=5.9 — but the isolated transfer proves the
+node's MATH is exact. So the faithful DIVERGED verdict for ChannelMixer is PIPELINE COUPLING
+(the host stacks it with other filters / animated source), NOT a ChannelMixer bug. The
+transfer test EXONERATES it.
+
+This sharpens the colour root cause DECISIVELY:
+- FAITHFUL in sRGB (VERIFIED): curve interp, blur decimation, per-channel gamma (Levels),
+  channel MATRIX-DOT incl. luma-weighted (ChannelMixer), all identity/darken.
+- DIVERGES (needs linear working space): brightness MULTIPLY x amount + clip coupling;
+  luma->colour MIX (Colorize); hard-light TINT; HSV saturation/value.
+=> A cross-channel LINEAR COMBINATION is faithful in sRGB. The linear-working-space fix must
+target only the multiply/mix/hard-light/saturation ops — NOT channel-mix, gamma, or matrix
+dots. This meaningfully NARROWS the eventual chain-level linear pipeline's scope.
+
+State: 30 nodes | VERIFIED 12 (curves 3, blur.decimation, ColorSolid, 4 blur/geom delegated,
+Levels+ChannelMixer transfer) CHARACTERIZED 4 (Brightness/HSV/Tint/Colorize) DIVERGED 14.
