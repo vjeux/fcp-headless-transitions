@@ -60,7 +60,7 @@ function isStoredBezier(interp: number): boolean {
  * Solve a cubic bezier for parameter t given control points in one dimension.
  * Uses the parametric cubic: B(t) = (1-t)³P0 + 3(1-t)²tP1 + 3(1-t)t²P2 + t³P3
  */
-function cubicBezier(t: number, p0: number, p1: number, p2: number, p3: number): number {
+export function cubicBezier(t: number, p0: number, p1: number, p2: number, p3: number): number {
   const mt = 1 - t;
   return mt * mt * mt * p0
     + 3 * mt * mt * t * p1
@@ -75,7 +75,7 @@ function cubicBezier(t: number, p0: number, p1: number, p2: number, p3: number):
  * whose control points sit at the keyframes' handle times, so the value must be
  * sampled at this solved u, not at normalized time.
  */
-function solveBezierParam(target: number, t0: number, t1: number, t2: number, t3: number): number {
+export function solveBezierParam(target: number, t0: number, t1: number, t2: number, t3: number): number {
   let u = (t3 - t0) !== 0 ? (target - t0) / (t3 - t0) : 0.5;
   u = Math.max(0, Math.min(1, u));
   for (let i = 0; i < 24; i++) {
@@ -265,7 +265,7 @@ export function evaluateCurve(curve: Curve, timeSec: number): number {
  *   Accelerate accelIn=0.50 accelOut=0      (interp 16)
  *   Decelerate accelIn=0    accelOut=0.50   (interp 17)
  */
-function easeInOut(u: number, accelIn: number, accelOut: number): number {
+export function easeInOut(u: number, accelIn: number, accelOut: number): number {
   let ai = accelIn < 0 ? 0 : accelIn;
   let ao = accelOut < 0 ? 1 : accelOut;
   const s = ai + ao;

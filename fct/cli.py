@@ -6,6 +6,14 @@
   fct cmp  <a.png> <b.png> [--color-b bt709] [--out diff.png]   compare two files
   fct score   [slug ...|--all] [--source headless|engine] [--frames] [--fast]   score vs GUI GT
   fct probe   <slug> [frame=12]                     fast: render+PSNR ONE engine frame vs GUI GT
+  fct caps    [cap ...]                             capability catalog: ONE FCP primitive vs headless
+  fct parity  [status|step|sweep <id>|sweep --all|selftest]
+                                                    FUNCTION-LEVEL parity: call an INDIVIDUAL real FCP
+                                                    function (dlsym into ProCore/ProChannel/Helium/...)
+                                                    and the TS port with identical inputs, compare exact
+                                                    numeric output. Proves ONE ported function is
+                                                    bit-for-bit equivalent to Apple's. Disk-driven +
+                                                    compaction-proof; see fct/parity/README.md.
   fct census  [slug ...|--all]                      decode a slug's REAL scene graph
                                                     (filters/links/emitters/generators) from its
                                                     .motr — VERIFY a task premise BEFORE writing
@@ -281,6 +289,22 @@ def main():
               f"{len(r['improvements'])} improvements vs baseline_{source} "
               f"(tol {r['tol']}dB) — gate {r['total_sec']}s", flush=True)
         return 0 if r["ok"] else 1
+
+    if cmd == "parity":
+        # FUNCTION-LEVEL parity oracle: call an INDIVIDUAL real FCP function (dlsym into
+        # ProCore/ProChannel/Helium/...) and the corresponding TS port, feed both identical
+        # input vectors, compare exact numeric output. Proves our reimplementation of ONE
+        # function is bit-for-bit equivalent to Apple's, in isolation (vs. `caps`/faithful
+        # which score whole-primitive frame PSNR). Disk-driven + compaction-proof; see
+        # fct/parity/README.md. No DYLD/engine boot needed (pure-math frameworks self-load).
+        import subprocess
+        sub = rest[0] if rest else "status"
+        if sub in ("status", "step", "sweep", "reset", "selftest"):
+            mod = "fct.parity.selftest" if sub == "selftest" else "fct.parity.driver"
+            args = [] if sub == "selftest" else rest
+            return subprocess.call([sys.executable, "-m", mod] + args, cwd=REPO)
+        print("usage: fct parity [status|step|sweep <id>|sweep --all|reset [id]|selftest]")
+        return 1
 
     if cmd == "caps":
         # Capability catalog: run tools/re/probe_scene.py (each entry isolates ONE FCP

@@ -1,0 +1,165 @@
+{
+  "functions": {
+    "PCMath_easeInOut": {
+      "id": "PCMath_easeInOut",
+      "status": "VERIFIED",
+      "n_cases": 201,
+      "max_abs_err": 0.0,
+      "max_rel_err": 0.0,
+      "worst": {
+        "case": null,
+        "output": null,
+        "oracle": null,
+        "engine": null
+      },
+      "n_failures": 0,
+      "tol_abs": 1e-06,
+      "tol_rel": 1e-06,
+      "swept": "2026-07-22T10:08:06Z"
+    },
+    "OZBezierEval": {
+      "id": "OZBezierEval",
+      "status": "VERIFIED",
+      "n_cases": 166,
+      "max_abs_err": 3.197442310920451e-14,
+      "max_rel_err": 1.7793109999639577e-15,
+      "worst": {
+        "case": {
+          "ctrl": [
+            -46.39266018350674,
+            47.267435921232405,
+            17.408996307659947,
+            0.3140483766658235
+          ],
+          "u": 0.6143553481173157
+        },
+        "output": "ret",
+        "oracle": 17.970114898324205,
+        "engine": 17.970114898324237
+      },
+      "n_failures": 0,
+      "tol_abs": 1e-06,
+      "tol_rel": 1e-06,
+      "swept": "2026-07-22T10:08:06Z"
+    },
+    "OZBezierFindParameter": {
+      "id": "OZBezierFindParameter",
+      "status": "VERIFIED",
+      "n_cases": 135,
+      "max_abs_err": 4.293831956658778e-10,
+      "max_rel_err": 1.1745022423449324e-09,
+      "worst": {
+        "case": {
+          "tctrl": [
+            2.0,
+            2.5,
+            3.5,
+            4.0
+          ],
+          "t": 2.7
+        },
+        "output": "ret",
+        "oracle": 0.3655873779383244,
+        "engine": 0.3655873783677076
+      },
+      "n_failures": 0,
+      "tol_abs": 1e-06,
+      "tol_rel": 1e-06,
+      "swept": "2026-07-22T10:08:06Z"
+    }
+  },
+  "history": [
+    {
+      "id": "PCMath_easeInOut",
+      "status": "DIVERGED",
+      "max_abs_err": 100.0,
+      "at": "2026-07-22T09:55:12Z"
+    },
+    {
+      "id": "OZBezierEval",
+      "status": "VERIFIED",
+      "max_abs_err": 3.197442310920451e-14,
+      "at": "2026-07-22T09:55:12Z"
+    },
+    {
+      "id": "OZBezierFindParameter",
+      "status": "DIVERGED",
+      "max_abs_err": 1.0,
+      "at": "2026-07-22T09:55:12Z"
+    },
+    {
+      "id": "PCMath_easeInOut",
+      "status": "VERIFIED",
+      "max_abs_err": 0.0,
+      "at": "2026-07-22T09:58:47Z"
+    },
+    {
+      "id": "OZBezierEval",
+      "status": "VERIFIED",
+      "max_abs_err": 3.197442310920451e-14,
+      "at": "2026-07-22T09:58:47Z"
+    },
+    {
+      "id": "OZBezierFindParameter",
+      "status": "DIVERGED",
+      "max_abs_err": 1.0,
+      "at": "2026-07-22T09:58:47Z"
+    },
+    {
+      "id": "PCMath_easeInOut",
+      "status": "VERIFIED",
+      "max_abs_err": 0.0,
+      "at": "2026-07-22T10:00:42Z"
+    },
+    {
+      "id": "OZBezierEval",
+      "status": "VERIFIED",
+      "max_abs_err": 3.197442310920451e-14,
+      "at": "2026-07-22T10:00:42Z"
+    },
+    {
+      "id": "OZBezierFindParameter",
+      "status": "VERIFIED",
+      "max_abs_err": 4.293831956658778e-10,
+      "at": "2026-07-22T10:00:42Z"
+    },
+    {
+      "id": "PCMath_easeInOut",
+      "status": "VERIFIED",
+      "max_abs_err": 0.0,
+      "at": "2026-07-22T10:01:53Z"
+    },
+    {
+      "id": "OZBezierEval",
+      "status": "VERIFIED",
+      "max_abs_err": 3.197442310920451e-14,
+      "at": "2026-07-22T10:01:53Z"
+    },
+    {
+      "id": "OZBezierFindParameter",
+      "status": "VERIFIED",
+      "max_abs_err": 4.293831956658778e-10,
+      "at": "2026-07-22T10:01:53Z"
+    },
+    {
+      "id": "PCMath_easeInOut",
+      "status": "VERIFIED",
+      "max_abs_err": 0.0,
+      "at": "2026-07-22T10:08:06Z"
+    },
+    {
+      "id": "OZBezierEval",
+      "status": "VERIFIED",
+      "max_abs_err": 3.197442310920451e-14,
+      "at": "2026-07-22T10:08:06Z"
+    },
+    {
+      "id": "OZBezierFindParameter",
+      "status": "VERIFIED",
+      "max_abs_err": 4.293831956658778e-10,
+      "at": "2026-07-22T10:08:06Z"
+    }
+  ],
+  "started": "2026-07-22T09:55:12Z",
+  "updated": "2026-07-22T10:08:06Z"
+}
