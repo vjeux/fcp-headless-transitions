@@ -168,13 +168,17 @@ export function hueSaturationFilter(input: ImageData, params: HueSatParams): Ima
   const height = input.height;
   const src = input.data;
   const out = new Uint8ClampedArray(src.length);
-  // DECODED 2026-07-12 (-[PAEHSVAdjust canThrowRenderOutput] @0x37294): the Hue param
-  // is in DEGREES (not turns). FCP wraps it into [0, 360] then divides by 360 to feed
-  // hg_Params[0].x as turns; the +1.0 inside frac() is a no-op. So turns = hue/360.
-  // (Prior TS docstring said "turns" — that was wrong. All 4 shipping users set Hue=0,
-  // so this is gate-neutral, but the isolated sweep exercised Hue=0.25 which is
-  // 0.25 DEGREES ≈ 0.000694 turns — a tiny rotation, exactly what headless produces.)
-  const hueTurns = (((hue / 360) % 1) + 1) % 1;
+  // HUE UNIT = RADIANS (corrected 2026-07-22 via fct/parity transfer probe). The .motr
+  // stores Hue in RADIANS (schema range [-π, π]); FCP feeds hg_Params[0].x = hue/(2π) turns.
+  // PROVEN with the node-boundary transfer oracle on a red input (230,30,30): Hue=2π/3
+  // (=2.0944 rad = 120°) rotates red→GREEN in real FCP ([4.6,96,0] — a clean +120° hue
+  // shift), while Hue=120 read as degrees is ~identity. The prior code did hue/360 (treating
+  // the param as DEGREES), which is only correct at Hue=0 — so it looked fine because all 4
+  // shipping HSVAdjust hosts (Objects__Leaves, Stylized__Center/Light_Sweep/Lower) author
+  // Hue=0 (this fix is GATE-NEUTRAL on the 65 slugs) but was WRONG across the param space.
+  // turns = hue_radians / (2π). (Residual value/saturation darkening vs FCP is the separate
+  // linear-working-space issue tracked below, not the hue unit.)
+  const hueTurns = (((hue / (2 * Math.PI)) % 1) + 1) % 1;
   const doHue = hueTurns !== 0;
   // Linear working-space migration (T-D2d / S2). Off by default; flip the master flag
   // (setLinearCompositeEnabled) to opt into the physically-correct pipeline. See the
@@ -310,7 +314,10 @@ registerFilter({
     // computation so a following colour filter resumes losslessly.
     if (hue !== 0 || saturation !== 0 || value !== 1) {
       const cl = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x);
-      const hueTurns = (((hue / 360) % 1) + 1) % 1;
+      // Hue is RADIANS in the .motr -> turns = hue/(2π). See hueSaturationFilter (corrected
+      // 2026-07-22 via fct/parity transfer probe: Hue=2π/3 rotates red→green in real FCP).
+      // Gate-neutral: all shipping HSV hosts author Hue=0.
+      const hueTurns = (((hue / (2 * Math.PI)) % 1) + 1) % 1;
       if (hasLinearInput(input)) {
         // MID-chain: resume from the prior filter's exact linear buffer, encode ONCE.
         const lin = getLinearInput(input);

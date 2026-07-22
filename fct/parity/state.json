@@ -440,6 +440,39 @@
       },
       "oracle_truth": "transfer",
       "n_failures": 0
+    },
+    "transfer.PAEHSVAdjust": {
+      "id": "transfer.PAEHSVAdjust",
+      "kind": "transfer",
+      "status": "DIVERGED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 107.49,
+      "n_samples": 162,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "name": "Hue",
+          "id": 1,
+          "value": 1.5708
+        },
+        "input": [
+          200,
+          50,
+          50
+        ],
+        "oracle": [
+          53.42,
+          92.51,
+          3.45
+        ],
+        "engine": [
+          125.0,
+          200.0,
+          50.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
     }
   },
   "history": [
@@ -702,8 +735,23 @@
       "id": "transfer.PAEBrightness",
       "status": "DIVERGED",
       "at": "2026-07-22T11:08:44Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust",
+      "status": "DIVERGED",
+      "at": "2026-07-22T11:22:12Z"
+    },
+    {
+      "id": "transfer.PAEBrightness",
+      "status": "DIVERGED",
+      "at": "2026-07-22T11:23:47Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust",
+      "status": "DIVERGED",
+      "at": "2026-07-22T11:32:32Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-22T11:08:44Z"
+  "updated": "2026-07-22T11:32:32Z"
 }

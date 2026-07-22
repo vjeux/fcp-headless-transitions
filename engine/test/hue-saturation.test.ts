@@ -68,21 +68,25 @@ function runTests() {
     for (let i = 0; i < out.data.length; i++) assert(out.data[i] === img.data[i], 'identity');
   });
 
-  test('Hue is in DEGREES: Hue=360 is a full turn = identity', () => {
-    const out = hueSaturationFilter(solid(200, 50, 50), { hue: 360, saturation: 0, value: 1, mix: 1 });
+  // HUE UNIT = RADIANS (corrected 2026-07-22 via fct/parity transfer probe against REAL FCP:
+  // a red input Hue=2π/3 rad rotates to GREEN, while Hue=120 read as degrees is ~identity —
+  // 120 rad mod 2π ≈ 0.09 rad. So turns = hue/(2π).). These tests were previously asserting a
+  // DEGREES convention that the node-boundary oracle refuted.
+  test('Hue is in RADIANS: Hue=2π is a full turn = identity', () => {
+    const out = hueSaturationFilter(solid(200, 50, 50), { hue: 2 * Math.PI, saturation: 0, value: 1, mix: 1 });
     assert(Math.abs(px(out, 0) - 200) <= 1 && Math.abs(px(out, 1) - 50) <= 1 && Math.abs(px(out, 2) - 50) <= 1,
-      `Hue=360 identity (got ${px(out,0)},${px(out,1)},${px(out,2)})`);
+      `Hue=2π identity (got ${px(out,0)},${px(out,1)},${px(out,2)})`);
   });
 
-  test('Hue=120 degrees rotates red -> green (RGB cycle by 1/3 turn)', () => {
-    const out = hueSaturationFilter(solid(255, 0, 0), { hue: 120, saturation: 0, value: 1, mix: 1 });
+  test('Hue=2π/3 rad rotates red -> green (RGB cycle by 1/3 turn)', () => {
+    const out = hueSaturationFilter(solid(255, 0, 0), { hue: 2 * Math.PI / 3, saturation: 0, value: 1, mix: 1 });
     assert(px(out, 0) < 20 && px(out, 1) > 235 && px(out, 2) < 20,
-      `red+120deg -> green (got ${px(out,0)},${px(out,1)},${px(out,2)})`);
+      `red+2π/3 rad -> green (got ${px(out,0)},${px(out,1)},${px(out,2)})`);
   });
 
-  test('Hue=0.25 (degrees) is a TINY rotation, NOT 90deg', () => {
+  test('Hue=0.25 rad is a modest rotation (keeps red dominant, NOT a full swing)', () => {
     const out = hueSaturationFilter(solid(200, 50, 50), { hue: 0.25, saturation: 0, value: 1, mix: 1 });
-    assert(px(out, 0) > 190, `0.25deg keeps red dominant (got R=${px(out,0)}; turns-bug would drop it)`);
+    assert(px(out, 0) > 150, `0.25 rad keeps red dominant (got R=${px(out,0)})`);
   });
 
   test('Saturation=-1 = grayscale (Rec.709 luma on all channels)', () => {

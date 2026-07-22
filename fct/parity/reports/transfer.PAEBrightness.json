@@ -43,9 +43,9 @@
         16
       ],
       "oracle": [
-        16.0,
-        16.0,
-        16.1
+        16.05,
+        16.01,
+        16.06
       ],
       "engine": [
         16.0,
@@ -66,7 +66,7 @@
       ],
       "oracle": [
         32.2,
-        32.0,
+        31.99,
         32.2
       ],
       "engine": [
@@ -87,9 +87,9 @@
         64
       ],
       "oracle": [
-        64.2,
-        64.2,
-        64.2
+        64.19,
+        64.19,
+        64.17
       ],
       "engine": [
         64.0,
@@ -109,8 +109,8 @@
         128
       ],
       "oracle": [
-        128.0,
-        128.0,
+        128.01,
+        128.02,
         128.0
       ],
       "engine": [
@@ -131,9 +131,9 @@
         200
       ],
       "oracle": [
-        199.9,
-        200.1,
-        200.1
+        199.93,
+        200.11,
+        200.09
       ],
       "engine": [
         200.0,
@@ -153,9 +153,9 @@
         240
       ],
       "oracle": [
-        240.0,
-        240.0,
-        240.0
+        239.99,
+        239.96,
+        239.98
       ],
       "engine": [
         240.0,
@@ -175,9 +175,9 @@
         50
       ],
       "oracle": [
-        200.1,
-        49.9,
-        50.3
+        200.12,
+        49.87,
+        50.28
       ],
       "engine": [
         200.0,
@@ -197,9 +197,9 @@
         50
       ],
       "oracle": [
-        50.1,
-        199.9,
-        50.1
+        50.12,
+        199.88,
+        50.05
       ],
       "engine": [
         50.0,
@@ -219,9 +219,9 @@
         200
       ],
       "oracle": [
-        50.0,
-        50.2,
-        200.3
+        49.99,
+        50.23,
+        200.35
       ],
       "engine": [
         50.0,
@@ -263,9 +263,9 @@
         32
       ],
       "oracle": [
-        16.0,
-        16.0,
-        16.1
+        16.05,
+        16.01,
+        16.06
       ],
       "engine": [
         16.0,
@@ -286,7 +286,7 @@
       ],
       "oracle": [
         32.2,
-        32.0,
+        31.99,
         32.2
       ],
       "engine": [
@@ -307,9 +307,9 @@
         128
       ],
       "oracle": [
-        64.2,
-        64.2,
-        64.2
+        64.19,
+        64.19,
+        64.17
       ],
       "engine": [
         64.0,
@@ -329,9 +329,9 @@
         200
       ],
       "oracle": [
-        100.0,
-        100.0,
-        99.9
+        99.98,
+        99.97,
+        99.95
       ],
       "engine": [
         100.0,
@@ -351,9 +351,9 @@
         240
       ],
       "oracle": [
-        119.8,
-        119.9,
-        119.9
+        119.84,
+        119.89,
+        119.89
       ],
       "engine": [
         120.0,
@@ -373,9 +373,9 @@
         50
       ],
       "oracle": [
-        100.1,
-        25.0,
-        25.1
+        100.12,
+        24.99,
+        25.05
       ],
       "engine": [
         100.0,
@@ -395,9 +395,9 @@
         50
       ],
       "oracle": [
-        25.1,
-        100.1,
-        24.9
+        25.11,
+        100.14,
+        24.89
       ],
       "engine": [
         25.0,
@@ -417,9 +417,9 @@
         200
       ],
       "oracle": [
-        25.2,
-        25.0,
-        99.9
+        25.16,
+        24.97,
+        99.87
       ],
       "engine": [
         25.0,
@@ -461,9 +461,9 @@
         32
       ],
       "oracle": [
-        48.1,
-        48.1,
-        48.1
+        48.11,
+        48.09,
+        48.09
       ],
       "engine": [
         48.0,
@@ -483,9 +483,9 @@
         64
       ],
       "oracle": [
-        95.9,
-        95.9,
-        95.9
+        95.87,
+        95.93,
+        95.91
       ],
       "engine": [
         96.0,
@@ -505,9 +505,9 @@
         128
       ],
       "oracle": [
-        191.8,
-        191.9,
-        191.8
+        191.85,
+        191.86,
+        191.85
       ],
       "engine": [
         192.0,
@@ -638,7 +638,7 @@
       ],
       "oracle": [
         32.2,
-        32.0,
+        31.99,
         32.2
       ],
       "engine": [
@@ -659,9 +659,9 @@
         32
       ],
       "oracle": [
-        64.2,
-        64.2,
-        64.2
+        64.19,
+        64.19,
+        64.17
       ],
       "engine": [
         64.0,
@@ -681,8 +681,8 @@
         64
       ],
       "oracle": [
-        128.0,
-        128.0,
+        128.01,
+        128.02,
         128.0
       ],
       "engine": [
@@ -824,15 +824,12 @@
       ]
     }
   ],
+  "characterized": true,
   "findings": [
     {
       "kind": "exact_transfer_divergence",
-      "summary": "PAEBrightness per-pixel transfer: TS (per-channel sRGB multiply) matches FCP EXACTLY on GRAY inputs (<=0.2 level, quantisation) at all amounts, but DIVERGES HARD on SATURATED-COLOUR inputs. E.g. in=(50,200,50) amt=1.5: FCP=[179,255,161] vs TS=[75,255,75] (104-level error on R).",
-      "diagnosis": "FCP's Brightness is CROSS-CHANNEL, not per-channel. Identity preserves colour exactly. Brightening a saturated colour lifts the LOW channels far more than xamount, and the low-channel output depends on WHICH other channel is high: (200,50,50)x1.5->[255,154,151], (50,200,50)x1.5->[179,255,161], (50,50,200)x1.5->[147,147,255] \u2014 the same input 50 maps to 154/151, 179/161, 147/147 respectively. Gray is unaffected (per-channel-equivalent). This cross-channel coupling is consistent with the levels.ts note that PAEBrightness multiplies via HGColorMatrix in a NON-sRGB working space (matrix has off-diagonal/gamut terms), then sRGB-encodes at readback. Neither plain sRGB nor plain linear per-channel multiply fits.",
-      "why_this_matters": "The TRANSFER-FUNCTION node kind isolates a pointwise colour node EXACTLY (uniform-colour inputs are conform-invariant), sidestepping the pipeline coupling AND the headless-vs-GUI colour-management gap that made colour nodes read as unattributable 5-13 dB DIVERGED. It converts 'colour subsystem is a blind spot' into a precise per-input divergence table.",
-      "next": "Decode PAEBrightness's real per-pixel math from the binary (levels.ts cites HGColorMatrix / a working-space multiply). Sweep more inputs (full sat/hue grid) to fit the exact transfer, then correct brightnessFilter. VERIFY here (tol 2 levels) and cross-check the GUI gate (fct score) net-positive before shipping (oracle_truth caveat still applies to the ABSOLUTE level, but the COLOUR-COUPLING divergence is real regardless of gamma).",
-      "status_note": "CHARACTERIZED, not fixed. levels.ts explicitly ships the per-channel code-multiply because it is what the GUI GT prefers for the real stacked chain (Colorize/Brightness/Mono in Objects__Curtains) \u2014 a per-filter working-space encode regressed Curtains 14.31->13.85. So the isolated headless transfer here is NOT the gate truth (oracle_truth caveat): matching it per-filter would regress the GUI GT. Closing it needs a LINEAR-WORKING-SPACE FILTER CHAIN (encode once after all filters) \u2014 an engine-architecture change tracked separately, NOT a per-filter fix. The transfer test's VALUE here is the exact characterization + the proof that the divergence is a working-space/matrix issue, not a bug in the multiply."
+      "summary": "PAEBrightness transfer: matches FCP EXACTLY on gray, diverges CROSS-CHANNEL on saturated colours. (200,50,50)x1.5->FCP[255,154,151] vs TS[255,75,75]; (50,200,50)x1.5->FCP[179,255,161] vs TS[75,255,75]. Same input 50 maps differently by partner channel => cross-channel, consistent with HGColorMatrix in a non-sRGB working space (levels.ts).",
+      "status_note": "CHARACTERIZED not fixed: levels.ts ships per-channel multiply because the GUI GT prefers it for the real stacked chain (per-filter working-space encode regressed Curtains). Closing needs a linear-working-space filter CHAIN (encode once), an engine-arch change. oracle_truth caveat applies."
     }
-  ],
-  "characterized": true
+  ]
 }

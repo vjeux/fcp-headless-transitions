@@ -232,6 +232,52 @@
    "characterized_reason": "Cross-channel HGColorMatrix in a non-sRGB working space (see report). Isolated headless transfer != GUI-gate truth; closing needs a linear-working-space filter CHAIN (encode once), an engine-arch change tracked separately. Per-channel multiply shipped intentionally (GUI GT prefers it for the stacked chain)."
   },
   {
+   "id": "transfer.PAEHSVAdjust",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAEHSVAdjust per-pixel transfer (hue rotate + saturation/value scale). EXACT isolation via uniform-colour inputs.",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "D23AF030-B0BF-44DF-B622-7C9EA0DF5744",
+    "pluginName": "PAEHSVAdjust"
+   },
+   "param_cases": [
+    {
+     "name": "Hue",
+     "id": 1,
+     "value": 0.0
+    },
+    {
+     "name": "Hue",
+     "id": 1,
+     "value": 1.5708
+    },
+    {
+     "name": "Saturation",
+     "id": 2,
+     "value": 0.0
+    },
+    {
+     "name": "Saturation",
+     "id": 2,
+     "value": -1.0
+    },
+    {
+     "name": "Value",
+     "id": 3,
+     "value": 0.5
+    },
+    {
+     "name": "Value",
+     "id": 3,
+     "value": -0.5
+    }
+   ],
+   "oracle_truth": "transfer",
+   "status": "UNTESTED",
+   "note": "DIVERGED 201 levels on hue rotation \u2014 likely a REAL hue-math bug (far beyond colour-management gap). Actionable: decode PAEHSVAdjust hue rotation vs hue-saturation.ts. Not characterized."
+  },
+  {
    "id": "filter.PAEColorize",
    "subsystem": "color",
    "kind": "filter",
