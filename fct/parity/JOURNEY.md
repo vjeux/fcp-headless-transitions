@@ -7,25 +7,48 @@ The unit of truth is the **XML node**: one .motr node + its params -> one isolat
 computation, verified faithful (TS == REAL FCP) across the param space. NOT a hand-picked
 C++ symbol, NOT whole-frame PSNR. See DESIGN.md.
 
-## Two verification regimes (each node uses the RIGHT oracle)
+## Three verification regimes (each node uses the RIGHT oracle)
 1. **Exact (parity-owned)** — value->value nodes whose computation IS an exported FCP
    function, called via dlsym and compared bit-for-bit:
    - curve.interp.ease            PCMath::easeInOut          VERIFIED 0.0
    - curve.interp.bezier.eval     OZBezierEval               VERIFIED 3.2e-14
    - curve.interp.bezier.findparam OZBezierFindParameter     VERIFIED 4.3e-10
-2. **Delegated (faithful)** — image nodes (filter/generator). A static-source injection is
-   UNFAITHFUL (synth.py lesson), so parity delegates to the faithful DELTA-RESPONSE in the
-   node's real host and mirrors the verdict (`fct parity sync`). 20 nodes across
-   blur/color/generators/geometry/stylize.
+2. **Transfer (parity-owned, pointwise colour)** — a per-pixel colour node computes
+   out=f(in,params) with NO spatial dependence, so it isolates EXACTLY by feeding
+   uniform-colour swatches through REAL headless FCP and reading the center colour.
+   Sweeping input colours builds the exact transfer. 19 golden colour nodes.
+3. **Spatial (parity-owned, kernel filters)** — a spatial filter (Glow/blur family) has a
+   neighbourhood dependence, so the transfer probe's center read is insufficient. This
+   regime injects ONE filter into a single-filter .motr, renders it through REAL headless
+   FCP at the NATIVE canvas (1920x1080 — a non-matching input forces a LANCZOS resize that
+   dominates the residual), renders the SAME synthetic input through the TS filter, and
+   scores full-frame PSNR. Same FCP isolation as the transfer probe, read full-frame not
+   center. Per-node synth ('smooth' for radial/threshold filters, 'textured' for local
+   kernels) + per-node pass_db (polar filters ceiling at ~24 dB). fct/parity/spatial.py +
+   spatial_batch.py (WARM batched renderer, boots FCP once).
+   - spatial.PAEGlow           VERIFIED 40.4 dB  (mask ramp + decimated blur + combine)
+   - spatial.PAEGaussianBlur   VERIFIED 49.2 dB  (decimated Gaussian)
+   - spatial.PAEDirectionalBlur VERIFIED 26.3 dB (at polar-resample ceiling; signed~0)
+   - spatial.PAEZoomBlur       CHARACTERIZED 13.9 dB (log-polar centre-resample ceiling)
+4. **Delegated (faithful)** — image nodes whose real host is a multi-stage pipeline. A
+   static-source injection is UNFAITHFUL for pointwise colour (synth.py lesson), so parity
+   delegates to the faithful DELTA-RESPONSE in the node's real host and mirrors the verdict
+   (`fct parity sync`). NOTE: the SPATIAL regime (3) now SUPERSEDES delegation for isolatable
+   spatial kernel filters — e.g. PAEGlow reads 13.5 dB DIVERGED delegated inside Lights__Bloom
+   (a Bloom-pipeline artifact) but 40.4 dB VERIFIED at its own node boundary, proving the
+   decode is faithful and the divergence lives in the HOST, not the Glow node.
 
-## Current subsystem map (23 nodes)
+
+## Current subsystem map (48 nodes) — run `fct parity status` for live
   curves      3/3  VERIFIED (exact)
-  blur        3/5  (Gaussian/Directional/Radial VERIFIED; Bloom/Zoom DIVERGED)
-  color       0/6  ALL DIVERGED — but oracle_truth=gui (headless!=GUI 13-19dB); the
-                   GUI GT overrides, so these are CHARACTERIZED, not simple bugs
+  blur        6/9  (Gaussian/Directional/Radial VERIFIED via delta; spatial.Gaussian 49dB +
+                   spatial.Directional 26dB VERIFIED at node boundary; spatial.Zoom
+                   CHARACTERIZED = log-polar centre-resample ceiling; Bloom DIVERGED)
+  color      13/26 (transfer regime: 13 pointwise colour transfers VERIFIED; the rest are
+                   CHARACTERIZED shared-clamp over-1.0 / HSV-hue CPU-map, need GPU disasm)
   generators  1/3  (ColorSolid VERIFIED; Clouds/Noise DIVERGED — RNG fields)
   geometry    2/4  (Flop/BlackHole VERIFIED; Earthquake/Underwater DIVERGED)
-  stylize     0/2  (Glow/BadTV DIVERGED)
+  stylize     1/3  (spatial.Glow VERIFIED 40.4dB at node boundary; BadTV DIVERGED)
 
 ## What "faithful/DIVERGED" means here
 These are the SAME verdicts the faithful program tracks; parity gives them the node-boundary
