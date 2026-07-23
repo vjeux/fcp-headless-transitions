@@ -5751,6 +5751,53 @@
    ],
    "oracle_truth": "transfer",
    "status": "UNTESTED"
+  },
+  {
+   "id": "spatial.PAEFlop",
+   "subsystem": "geometry",
+   "kind": "spatial",
+   "desc": "PAEFlop (axis-aligned +/-1 mirror about the image center via Helium XForm; NO shader). Node-boundary full-frame PSNR over Flop in {0:H,1:V,2:Both}. Textured synth (asymmetric diagonal stripes) so the mirror is actually exercised (a symmetric smooth synth would give a false-high PSNR). Lossless pixel permutation for the integer-center case.",
+   "oracle": {
+    "type": "spatial",
+    "uuid": "2FF8887B-E673-4727-9601-1B3353531C10",
+    "pluginName": "PAEFlop"
+   },
+   "param_cases": [
+    {
+     "label": "horizontal",
+     "params": [
+      {
+       "name": "Flop",
+       "id": 1,
+       "value": 0
+      }
+     ]
+    },
+    {
+     "label": "vertical",
+     "params": [
+      {
+       "name": "Flop",
+       "id": 1,
+       "value": 1
+      }
+     ]
+    },
+    {
+     "label": "both",
+     "params": [
+      {
+       "name": "Flop",
+       "id": 1,
+       "value": 2
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "headless",
+   "status": "UNTESTED",
+   "synth": "textured",
+   "pass_db": 30.0
   }
  ]
 }

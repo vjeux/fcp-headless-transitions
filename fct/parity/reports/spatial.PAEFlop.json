@@ -1,0 +1,98 @@
+{
+  "id": "spatial.PAEFlop",
+  "kind": "spatial",
+  "status": "VERIFIED",
+  "metric": "frame_psnr_db",
+  "worst_psnr_db": 50.85,
+  "pass_db": 30.0,
+  "n_scored": 3,
+  "oracle_truth": "headless",
+  "worst_case": {
+    "param": {
+      "label": "horizontal",
+      "params": [
+        {
+          "name": "Flop",
+          "id": 1,
+          "value": 0
+        }
+      ]
+    },
+    "psnr": 50.85,
+    "mad": 0.427,
+    "signed": [
+      -0.254,
+      -0.235,
+      -0.248
+    ],
+    "resized": false,
+    "head_vs_input_mad": 53.18
+  },
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "horizontal",
+        "params": [
+          {
+            "name": "Flop",
+            "id": 1,
+            "value": 0
+          }
+        ]
+      },
+      "psnr": 50.85,
+      "mad": 0.427,
+      "signed": [
+        -0.254,
+        -0.235,
+        -0.248
+      ],
+      "resized": false,
+      "head_vs_input_mad": 53.18
+    },
+    {
+      "param": {
+        "label": "vertical",
+        "params": [
+          {
+            "name": "Flop",
+            "id": 1,
+            "value": 1
+          }
+        ]
+      },
+      "psnr": 50.86,
+      "mad": 0.427,
+      "signed": [
+        -0.253,
+        -0.235,
+        -0.247
+      ],
+      "resized": false,
+      "head_vs_input_mad": 37.03
+    },
+    {
+      "param": {
+        "label": "both",
+        "params": [
+          {
+            "name": "Flop",
+            "id": 1,
+            "value": 2
+          }
+        ]
+      },
+      "psnr": 50.86,
+      "mad": 0.427,
+      "signed": [
+        -0.253,
+        -0.234,
+        -0.249
+      ],
+      "resized": false,
+      "head_vs_input_mad": 51.32
+    }
+  ],
+  "note": ""
+}
