@@ -2893,6 +2893,81 @@
    ]
   },
   {
+   "id": "transfer.PAEHSVAdjust_combined_ingamut",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAEHSVAdjust multi-param composition, IN-GAMUT regime (dim/desaturate \u2014 no over-1.0 highlight). Isolates the VERIFIED HSV leg composition (Hue+Sat+Value compose exactly in the gamma-1.958 working space) from the CHARACTERIZED oversaturate_bright case, which hits the shared HGColorMatrix over-1.0 clamp. Mirrors the Brightness_darken/Brightness split.",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "D23AF030-B0BF-44DF-B622-7C9EA0DF5744",
+    "pluginName": "PAEHSVAdjust"
+   },
+   "inputs": [
+    [
+     200,
+     50,
+     50
+    ],
+    [
+     128,
+     128,
+     128
+    ],
+    [
+     160,
+     100,
+     60
+    ]
+   ],
+   "engine_env": {
+    "FCT_HSV_WORKINGSPACE": "1"
+   },
+   "param_cases": [
+    {
+     "label": "desat_dim",
+     "params": [
+      {
+       "name": "Hue",
+       "id": 1,
+       "value": 0.0
+      },
+      {
+       "name": "Saturation",
+       "id": 2,
+       "value": -0.5
+      },
+      {
+       "name": "Value",
+       "id": 3,
+       "value": 0.8
+      }
+     ]
+    },
+    {
+     "label": "hue_desat_dim",
+     "params": [
+      {
+       "name": "Hue",
+       "id": 1,
+       "value": 0.523599
+      },
+      {
+       "name": "Saturation",
+       "id": 2,
+       "value": -0.3
+      },
+      {
+       "name": "Value",
+       "id": 3,
+       "value": 0.9
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "transfer",
+   "status": "UNTESTED"
+  },
+  {
    "id": "filter.PAEColorize",
    "subsystem": "color",
    "kind": "filter",

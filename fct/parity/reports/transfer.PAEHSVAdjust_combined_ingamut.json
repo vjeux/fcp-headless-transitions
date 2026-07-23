@@ -1,0 +1,272 @@
+{
+  "id": "transfer.PAEHSVAdjust_combined_ingamut",
+  "kind": "transfer",
+  "status": "VERIFIED",
+  "metric": "max_abs_levels",
+  "max_abs_levels": 0.7199999999999989,
+  "n_samples": 18,
+  "tol_levels": 2.0,
+  "worst": {
+    "case": {
+      "label": "hue_desat_dim",
+      "params": [
+        {
+          "name": "Hue",
+          "id": 1,
+          "value": 0.523599
+        },
+        {
+          "name": "Saturation",
+          "id": 2,
+          "value": -0.3
+        },
+        {
+          "name": "Value",
+          "id": 3,
+          "value": 0.9
+        }
+      ]
+    },
+    "input": [
+      200,
+      50,
+      50
+    ],
+    "oracle": [
+      107.93,
+      52.28,
+      23.22
+    ],
+    "engine": [
+      108.0,
+      53.0,
+      23.0
+    ]
+  },
+  "oracle_truth": "transfer",
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.5
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.8
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        83.44,
+        39.7,
+        39.79
+      ],
+      "engine": [
+        84.0,
+        40.0,
+        40.0
+      ]
+    },
+    {
+      "param": {
+        "label": "desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.5
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.8
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        82.67,
+        82.64,
+        82.66
+      ],
+      "engine": [
+        83.0,
+        83.0,
+        83.0
+      ]
+    },
+    {
+      "param": {
+        "label": "desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.5
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.8
+          }
+        ]
+      },
+      "input": [
+        160,
+        100,
+        60
+      ],
+      "oracle": [
+        86.09,
+        66.93,
+        52.93
+      ],
+      "engine": [
+        86.0,
+        67.0,
+        53.0
+      ]
+    },
+    {
+      "param": {
+        "label": "hue_desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.523599
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.3
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.9
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        107.93,
+        52.28,
+        23.22
+      ],
+      "engine": [
+        108.0,
+        53.0,
+        23.0
+      ]
+    },
+    {
+      "param": {
+        "label": "hue_desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.523599
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.3
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.9
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        104.34,
+        104.14,
+        104.11
+      ],
+      "engine": [
+        104.0,
+        104.0,
+        104.0
+      ]
+    },
+    {
+      "param": {
+        "label": "hue_desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.523599
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.3
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.9
+          }
+        ]
+      },
+      "input": [
+        160,
+        100,
+        60
+      ],
+      "oracle": [
+        97.89,
+        89.21,
+        49.89
+      ],
+      "engine": [
+        98.0,
+        89.0,
+        50.0
+      ]
+    }
+  ]
+}

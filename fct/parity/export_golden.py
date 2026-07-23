@@ -32,6 +32,8 @@ VERIFIED = {
     "transfer.PAEBrightness_darken",
     "transfer.PAEThreshold", "transfer.PAEFill",
     "transfer.PAEContrast_gray",
+    "transfer.PAEHSVAdjust_combined_ingamut",
+    "transfer.PAEHSVAdjust_combined_ingamut",
 }
 
 out = {}

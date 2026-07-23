@@ -1791,6 +1791,54 @@
       },
       "n_failures": 0,
       "note": ""
+    },
+    "transfer.PAEHSVAdjust_combined_ingamut": {
+      "id": "transfer.PAEHSVAdjust_combined_ingamut",
+      "kind": "transfer",
+      "status": "VERIFIED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 0.7199999999999989,
+      "n_samples": 18,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "label": "hue_desat_dim",
+          "params": [
+            {
+              "name": "Hue",
+              "id": 1,
+              "value": 0.523599
+            },
+            {
+              "name": "Saturation",
+              "id": 2,
+              "value": -0.3
+            },
+            {
+              "name": "Value",
+              "id": 3,
+              "value": 0.9
+            }
+          ]
+        },
+        "input": [
+          200,
+          50,
+          50
+        ],
+        "oracle": [
+          107.93,
+          52.28,
+          23.22
+        ],
+        "engine": [
+          108.0,
+          53.0,
+          23.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
     }
   },
   "history": [
@@ -2378,8 +2426,13 @@
       "id": "transfer.PAELevels",
       "status": "VERIFIED",
       "at": "2026-07-23T03:56:03Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_combined_ingamut",
+      "status": "VERIFIED",
+      "at": "2026-07-23T04:37:57Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T03:56:03Z"
+  "updated": "2026-07-23T04:37:57Z"
 }
