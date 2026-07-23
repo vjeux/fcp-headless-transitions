@@ -1,9 +1,9 @@
 {
   "id": "spatial.PAEBevel",
   "kind": "spatial",
-  "status": "DIVERGED",
+  "status": "VERIFIED",
   "metric": "frame_psnr_db",
-  "worst_psnr_db": 9.51,
+  "worst_psnr_db": 47.28,
   "pass_db": 30.0,
   "n_scored": 3,
   "oracle_truth": "headless",
@@ -18,12 +18,12 @@
         }
       ]
     },
-    "psnr": 9.51,
-    "mad": 42.613,
+    "psnr": 47.28,
+    "mad": 0.547,
     "signed": [
-      -9.479,
-      -9.472,
-      -9.47
+      -0.119,
+      -0.111,
+      -0.11
     ],
     "resized": false,
     "head_vs_input_mad": 29.99
@@ -41,12 +41,12 @@
           }
         ]
       },
-      "psnr": 15.33,
-      "mad": 11.452,
+      "psnr": 49.84,
+      "mad": 0.45,
       "signed": [
-        -2.767,
-        -2.759,
-        -2.768
+        -0.226,
+        -0.218,
+        -0.228
       ],
       "resized": false,
       "head_vs_input_mad": 8.22
@@ -62,12 +62,12 @@
           }
         ]
       },
-      "psnr": 12.38,
-      "mad": 22.164,
+      "psnr": 48.8,
+      "mad": 0.484,
       "signed": [
-        -5.136,
-        -5.128,
-        -5.134
+        -0.189,
+        -0.181,
+        -0.186
       ],
       "resized": false,
       "head_vs_input_mad": 15.75
@@ -83,12 +83,12 @@
           }
         ]
       },
-      "psnr": 9.51,
-      "mad": 42.613,
+      "psnr": 47.28,
+      "mad": 0.547,
       "signed": [
-        -9.479,
-        -9.472,
-        -9.47
+        -0.119,
+        -0.111,
+        -0.11
       ],
       "resized": false,
       "head_vs_input_mad": 29.99

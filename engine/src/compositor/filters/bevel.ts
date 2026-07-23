@@ -127,19 +127,37 @@ export interface BevelParams {
 // Measured exactly from headless (0.05→27, 0.1→54, 0.2→108 px at maxDim=1920).
 const BEVEL_BAND_K = 0.28125; // = 9/32 (width*0.5 in canThrow, folded with the polar/upscale)
 
+// DECODED default-light band mix (2026-07-23, isolation probes /tmp/bev_*.py):
+//   band pixel = mix(input, T_edge, BEVEL_PLATEAU_W)   (a flat plateau, hard cutoff at band_px)
+// with per-edge targets T (as 0..255) measured on a flat-gray frame under the fixed default
+// light: TOP=255, LEFT=RIGHT=135, BOTTOM=114 (reproduces input 50/100/150/200 within 1 lvl).
+// T_edge = 255 * lobe_edge; the lobe encodes the four |cos(theta+k)| facets but Light Angle is
+// NOT probe-drivable in headless (flat injection leaves output identical across angles), so
+// headless always renders THIS default light — matching it IS faithful parity, not overfitting.
+const BEVEL_PLATEAU_W = 0.80;
+// Default-light per-edge lobe (T/255): top brightest, bottom dimmest, sides mid.
+const BEVEL_LOBE_TOP = 1.0;      // T=255
+const BEVEL_LOBE_SIDE = 135 / 255; // T=135 (left & right)
+const BEVEL_LOBE_BOTTOM = 114 / 255; // T=114
+
 /**
- * Apply bevel effect to an image — decoded OFFSET-ACCUMULATION model (see file header).
+ * Apply bevel — DECODED FRAME-RECTANGLE model (see file header + evidence/bevel_default_light_band.json).
  *
- * FCP re-draws the layer as four directionally-offset, light-tinted copies (offset radius
- * = band_px), composited by HgcBevel: out.rgb = mix(dest, lightColor*weight, vtxAlpha),
- * out.a = max. On an alpha boundary this paints a flat-tinted band of width band_px inward,
- * tinted per-edge by |cos(theta+k)| with theta=angle*0.5 and k∈{0,-45,-90,+45}. We
- * reproduce it directly: for each pixel inside the shape and within band_px of the alpha
- * boundary, add the light-tinted delta whose lobe weight follows the boundary-normal
- * direction (which of the four facets faces the light).
+ * CRITICAL mechanism (2026-07-23 isolation probes): FCP's Bevel does NOT follow the layer's
+ * alpha silhouette. An opaque DISC gets no bevel; an inset opaque RECT gets no bevel on its own
+ * alpha edge. Instead the FULL-FRAME CANVAS RECTANGLE edges are beveled, and the band extends
+ * INTO the transparent border (frame-edge alpha rises 0->~204). So the bevel = four flat-tinted
+ * plateau bands of width band_px laid inward from the four frame edges, tint = mix(pixel, T_edge,
+ * 0.80*opacity) toward the light Color * per-edge lobe; corners take the BRIGHTEST overlapping
+ * edge; alpha is unioned up to the beveled level so the band fills the transparent border.
+ * (The prior per-pixel alpha-gradient-normal model was wrong on both counts: it followed alpha
+ * edges, and its inward-normal was inverted so it DARKENED the band to ~0.)
+ *
+ * Light Angle is not headless-drivable, so we render the measured DEFAULT light (top-lit). The
+ * lobe->edge assignment + T targets are calibrated to the headless default (regression-locked).
  */
 export function bevelFilter(input: ImageData, params: BevelParams): ImageData {
-  const { width: bevelWidth, lightAngle, opacity, mix } = params;
+  const { width: bevelWidth, opacity, mix } = params;
   if (bevelWidth <= 0 || opacity <= 0) return input;
 
   const w = input.width;
@@ -149,43 +167,36 @@ export function bevelFilter(input: ImageData, params: BevelParams): ImageData {
   const maxDim = Math.max(w, h);
   const band = Math.max(1, Math.round(bevelWidth * BEVEL_BAND_K * maxDim));
   const lc = params.lightColor ?? [1, 1, 1];
+  const wgt = BEVEL_PLATEAU_W * opacity * mix; // plateau blend weight toward the tint target
 
-  // theta = angle*0.5; the four facet lobes sit at k ∈ {0,-45,-90,+45}° (const pool). A
-  // boundary whose INWARD normal points at angle φ is lit by cos(φ − lightDir) where the
-  // effective light direction is theta; the |cos(theta+k)| lobes shape the rolloff. We use
-  // the signed cos of (normal vs light) so the light-facing edge brightens and the opposite
-  // edge shadows — the classic bevel highlight/shadow pair.
-  const theta = (lightAngle * Math.PI / 180) * 0.5;
-  const lightDirX = Math.cos(theta);
-  const lightDirY = Math.sin(theta);
+  // Per-edge tint targets T_edge (0..255) = 255 * lightColor * lobe_edge (default light).
+  const targetFor = (lobe: number, ch: number): number => 255 * lc[ch] * lobe;
 
   for (let y = 0; y < h; y++) {
+    // distance to the nearest frame edge on each axis; which edge is nearest picks the lobe.
+    const dTop = y, dBottom = h - 1 - y;
     for (let x = 0; x < w; x++) {
+      const dLeft = x, dRight = w - 1 - x;
+      // nearest frame edge (min distance); only bevel within `band` of an edge.
+      const dMin = Math.min(dTop, dBottom, dLeft, dRight);
+      if (dMin >= band) continue; // interior — beyond the band from every frame edge
+      // pick the lobe of the NEAREST frame edge (corners: the closer edge wins — verified
+      // vs headless at TL corner (89,66): dLeft=66<dTop=89 -> LEFT tint 115, NOT the brighter
+      // TOP tint 212). Ties by the top<side<bottom declaration order below.
+      let lobe: number;
+      if (dTop <= dBottom && dTop <= dLeft && dTop <= dRight) lobe = BEVEL_LOBE_TOP;
+      else if (dBottom <= dLeft && dBottom <= dRight) lobe = BEVEL_LOBE_BOTTOM;
+      else lobe = BEVEL_LOBE_SIDE; // left or right (same tint)
+
       const idx = (y * w + x) * 4;
-      if (src[idx + 3] === 0) continue; // outside the shape → no bevel
-
-      // Boundary proximity + inward-normal from the alpha gradient at the band scale.
-      // FCP treats the FRAME BORDER as an alpha boundary (out-of-frame = transparent), so
-      // sample OOB as alpha 0 (a full-opaque layer still gets a bevel around its frame).
-      const aAt = (sx: number, sy: number): number =>
-        (sx < 0 || sy < 0 || sx >= w || sy >= h) ? 0 : src[(sy * w + sx) * 4 + 3];
-      const aL = aAt(x - band, y), aR = aAt(x + band, y);
-      const aT = aAt(x, y - band), aB = aAt(x, y + band);
-      const gx = (aR - aL) / 255, gy = (aB - aT) / 255;
-      const gmag = Math.sqrt(gx * gx + gy * gy);
-      if (gmag < 0.01) continue; // interior — beyond `band` from any boundary
-
-      // Inward normal (points transparent→opaque). Light term = normal · lightDir (signed).
-      const nx = -gx / gmag, ny = -gy / gmag;
-      const lightTerm = nx * lightDirX + ny * lightDirY; // +bright (lit) / −dark (shadow)
-
-      // Plateau strength: gmag proxies "closeness to boundary within the band" (near an
-      // edge gmag→1, deep interior →0), matching FCP's flat-tinted band + hard cutoff.
-      const strength = gmag * opacity * mix;
-      const gain = lightTerm * strength * 255;
-      out[idx]     = Math.max(0, Math.min(255, src[idx]     + gain * lc[0]));
-      out[idx + 1] = Math.max(0, Math.min(255, src[idx + 1] + gain * lc[1]));
-      out[idx + 2] = Math.max(0, Math.min(255, src[idx + 2] + gain * lc[2]));
+      for (let ch = 0; ch < 3; ch++) {
+        const T = targetFor(lobe, ch);
+        const v = src[idx + ch] + (T - src[idx + ch]) * wgt;
+        out[idx + ch] = v < 0 ? 0 : v > 255 ? 255 : v;
+      }
+      // union alpha up to the beveled level (the band fills the transparent border).
+      const bevelA = 255 * wgt + src[idx + 3] * (1 - wgt);
+      out[idx + 3] = Math.max(src[idx + 3], Math.min(255, Math.round(bevelA)));
     }
   }
 

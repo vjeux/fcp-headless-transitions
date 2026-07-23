@@ -2326,9 +2326,9 @@
     "spatial.PAEBevel": {
       "id": "spatial.PAEBevel",
       "kind": "spatial",
-      "status": "DIVERGED",
+      "status": "VERIFIED",
       "metric": "frame_psnr_db",
-      "worst_psnr_db": 9.51,
+      "worst_psnr_db": 47.28,
       "pass_db": 30.0,
       "n_scored": 3,
       "oracle_truth": "headless",
@@ -2343,12 +2343,12 @@
             }
           ]
         },
-        "psnr": 9.51,
-        "mad": 42.613,
+        "psnr": 47.28,
+        "mad": 0.547,
         "signed": [
-          -9.479,
-          -9.472,
-          -9.47
+          -0.119,
+          -0.111,
+          -0.11
         ],
         "resized": false,
         "head_vs_input_mad": 29.99
@@ -3162,8 +3162,18 @@
       "id": "transfer.PAEContrast_ingamut",
       "status": "VERIFIED",
       "at": "2026-07-23T10:51:21Z"
+    },
+    {
+      "id": "spatial.PAEBevel",
+      "status": "VERIFIED",
+      "at": "2026-07-23T11:18:04Z"
+    },
+    {
+      "id": "spatial.PAEBevel",
+      "status": "VERIFIED",
+      "at": "2026-07-23T11:20:54Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T10:51:21Z"
+  "updated": "2026-07-23T11:20:54Z"
 }

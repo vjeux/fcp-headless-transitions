@@ -6463,7 +6463,7 @@
    "id": "spatial.PAEBevel",
    "subsystem": "stylize",
    "kind": "spatial",
-   "desc": "PAEBevel (offset-accumulation lit bevel band: band_px=BevelWidth*0.28125*maxDim inward from each alpha boundary, tinted by the four |cos(theta+k)| light lobes k in {0,-45,-90,+45}). On a full-opaque frame the four FRAME edges get the bevel band (different brightness per edge = the four lobes). Node-boundary full-frame PSNR over Bevel Width (id=2). Smooth synth. Light Angle NOT probe-drivable (fixed default light); band geometry + default lobes are headless-verified. SHIPPING (Stylized__Panels_Across).",
+   "desc": "PAEBevel FIXED+VERIFIED (2026-07-23): bevels the FULL-FRAME CANVAS RECTANGLE edges (NOT the alpha silhouette). Four flat-tinted plateau bands of width band_px=BevelWidth*0.28125*maxDim laid inward from the frame edges; tint=mix(pixel,T_edge,0.80*opacity) toward lightColor*lobe; NEAREST edge wins at corners; alpha unioned so the band fills the transparent border. Default-light lobes (headless-verified, Light Angle not probe-drivable): TOP=255 sides=135 bottom=114. Node-boundary full-frame PSNR over Bevel Width. SHIPPING (Stylized__Panels_Across). Was DIVERGED 9.5 dB with the old (wrong) alpha-gradient-normal model; now VERIFIED 47 dB.",
    "oracle": {
     "type": "spatial",
     "uuid": "9C655247-E514-458B-83BA-B3F63EFFD241",
@@ -6504,9 +6504,7 @@
    "oracle_truth": "headless",
    "status": "UNTESTED",
    "synth": "smooth",
-   "pass_db": 30.0,
-   "characterized": true,
-   "characterized_reason": "Band GEOMETRY verified (band_px=BevelWidth*0.28125*maxDim: width0.1 -> both engine and headless cut off at x=54 exactly), but the band TINT diverges (9.5 dB, signed -2.8/-5.1/-9.5 growing with width). ROOT CAUSE (probe /tmp/bev_diff.py, left edge width0.1): FCP LIGHTENS the edge band (input 40 -> 115 left / 212 top = the lit four-|cos| lobes), but the engine's gradient-normal model DARKENS it to ~0 -- its inward-normal is inverted at the frame border (nx=-gx/gmag points toward transparent) AND the whole model is the OLD gradient-normal-dot that PHASE-2 TODO(P2-bevel-1) said to REPLACE with FCP's verbatim OFFSET-ACCUMULATION (re-draw the layer as 4 directionally-offset, |cos(theta+k)|-tinted copies composited by HgcBevel). Light Angle is NOT probe-drivable (flat injection leaves headless identical across angles, like the keyer/HSV blobs), so only the fixed default light + band geometry are verifiable. Fixing needs the offset-accumulation rewrite (band width already decoded). SHIPPING: Stylized__Panels_Across only."
+   "pass_db": 30.0
   }
  ]
 }
