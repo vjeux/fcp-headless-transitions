@@ -32649,7 +32649,7 @@
   },
   "tol_levels": 2.0,
   "verified": true,
-  "n": 35,
+  "n": 84,
   "cases": [
    {
     "params": [
@@ -33664,6 +33664,1427 @@
      41.44,
      40.46,
      38.34
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     200,
+     50,
+     50
+    ],
+    "oracle": [
+     70.55,
+     29.29,
+     29.3
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     50,
+     200,
+     50
+    ],
+    "oracle": [
+     41.06,
+     88.77,
+     41.15
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     50,
+     50,
+     200
+    ],
+    "oracle": [
+     26.45,
+     26.47,
+     65.7
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     63.8,
+     63.8,
+     63.82
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     160,
+     100,
+     60
+    ],
+    "oracle": [
+     68.81,
+     51.59,
+     38.41
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     120,
+     180,
+     200
+    ],
+    "oracle": [
+     68.71,
+     87.44,
+     92.92
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     180,
+     160,
+     80
+    ],
+    "oracle": [
+     85.09,
+     79.31,
+     53.94
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.2
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.85
+     }
+    ],
+    "input": [
+     200,
+     50,
+     50
+    ],
+    "oracle": [
+     123.56,
+     39.3,
+     39.59
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.2
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.85
+     }
+    ],
+    "input": [
+     50,
+     200,
+     50
+    ],
+    "oracle": [
+     47.65,
+     137.02,
+     47.95
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.2
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.85
+     }
+    ],
+    "input": [
+     50,
+     50,
+     200
+    ],
+    "oracle": [
+     37.22,
+     37.08,
+     119.76
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.2
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.85
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     92.93,
+     92.71,
+     92.79
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.2
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.85
+     }
+    ],
+    "input": [
+     160,
+     100,
+     60
+    ],
+    "oracle": [
+     108.34,
+     73.56,
+     49.85
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.2
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.85
+     }
+    ],
+    "input": [
+     120,
+     180,
+     200
+    ],
+    "oracle": [
+     93.41,
+     128.85,
+     140.63
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.2
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.85
+     }
+    ],
+    "input": [
+     180,
+     160,
+     80
+    ],
+    "oracle": [
+     127.48,
+     116.07,
+     68.3
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.1309
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.6
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     200,
+     50,
+     50
+    ],
+    "oracle": [
+     57.57,
+     32.03,
+     28.9
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.1309
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.6
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     50,
+     200,
+     50
+    ],
+    "oracle": [
+     48.96,
+     84.14,
+     54.32
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.1309
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.6
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     50,
+     50,
+     200
+    ],
+    "oracle": [
+     29.4,
+     26.74,
+     52.22
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.1309
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.6
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     63.8,
+     63.8,
+     63.82
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.1309
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.6
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     160,
+     100,
+     60
+    ],
+    "oracle": [
+     61.93,
+     52.84,
+     42.47
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.1309
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.6
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     120,
+     180,
+     200
+    ],
+    "oracle": [
+     74.11,
+     85.31,
+     91.38
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.1309
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.6
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     180,
+     160,
+     80
+    ],
+    "oracle": [
+     80.47,
+     79.56,
+     60.82
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -1.0
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.6
+     }
+    ],
+    "input": [
+     200,
+     50,
+     50
+    ],
+    "oracle": [
+     27.02,
+     27.03,
+     27.03
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -1.0
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.6
+     }
+    ],
+    "input": [
+     50,
+     200,
+     50
+    ],
+    "oracle": [
+     54.16,
+     54.13,
+     54.15
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -1.0
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.6
+     }
+    ],
+    "input": [
+     50,
+     50,
+     200
+    ],
+    "oracle": [
+     21.34,
+     21.34,
+     21.34
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -1.0
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.6
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     47.11,
+     47.09,
+     47.09
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -1.0
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.6
+     }
+    ],
+    "input": [
+     160,
+     100,
+     60
+    ],
+    "oracle": [
+     40.11,
+     40.09,
+     40.09
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -1.0
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.6
+     }
+    ],
+    "input": [
+     120,
+     180,
+     200
+    ],
+    "oracle": [
+     61.8,
+     61.8,
+     61.82
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.0
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -1.0
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.6
+     }
+    ],
+    "input": [
+     180,
+     160,
+     80
+    ],
+    "oracle": [
+     58.05,
+     58.05,
+     58.05
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.3927
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.8
+     }
+    ],
+    "input": [
+     200,
+     50,
+     50
+    ],
+    "oracle": [
+     83.55,
+     41.27,
+     24.97
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.3927
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.8
+     }
+    ],
+    "input": [
+     50,
+     200,
+     50
+    ],
+    "oracle": [
+     44.78,
+     115.96,
+     73.92
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.3927
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.8
+     }
+    ],
+    "input": [
+     50,
+     50,
+     200
+    ],
+    "oracle": [
+     47.81,
+     30.98,
+     83.41
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.3927
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.8
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     82.67,
+     82.64,
+     82.66
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.3927
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.8
+     }
+    ],
+    "input": [
+     160,
+     100,
+     60
+    ],
+    "oracle": [
+     80.34,
+     70.06,
+     45.07
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.3927
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.8
+     }
+    ],
+    "input": [
+     120,
+     180,
+     200
+    ],
+    "oracle": [
+     94.2,
+     110.56,
+     129.22
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": 0.3927
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.8
+     }
+    ],
+    "input": [
+     180,
+     160,
+     80
+    ],
+    "oracle": [
+     98.11,
+     106.36,
+     68.82
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": -0.2618
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.8
+     }
+    ],
+    "input": [
+     200,
+     50,
+     50
+    ],
+    "oracle": [
+     91.89,
+     38.13,
+     38.02
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": -0.2618
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.8
+     }
+    ],
+    "input": [
+     50,
+     200,
+     50
+    ],
+    "oracle": [
+     53.69,
+     115.12,
+     53.23
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": -0.2618
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.8
+     }
+    ],
+    "input": [
+     50,
+     50,
+     200
+    ],
+    "oracle": [
+     34.45,
+     34.47,
+     86.05
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": -0.2618
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.8
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     82.67,
+     82.64,
+     82.66
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": -0.2618
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.8
+     }
+    ],
+    "input": [
+     160,
+     100,
+     60
+    ],
+    "oracle": [
+     89.42,
+     66.56,
+     49.87
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": -0.2618
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.8
+     }
+    ],
+    "input": [
+     120,
+     180,
+     200
+    ],
+    "oracle": [
+     88.99,
+     112.96,
+     120.41
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": -0.2618
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.4
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.8
+     }
+    ],
+    "input": [
+     180,
+     160,
+     80
+    ],
+    "oracle": [
+     110.35,
+     102.64,
+     69.56
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": -0.5236
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.5
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     200,
+     50,
+     50
+    ],
+    "oracle": [
+     64.42,
+     30.64,
+     30.77
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": -0.5236
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.5
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     50,
+     200,
+     50
+    ],
+    "oracle": [
+     45.9,
+     85.93,
+     46.15
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": -0.5236
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.5
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     50,
+     50,
+     200
+    ],
+    "oracle": [
+     26.93,
+     26.92,
+     58.92
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": -0.5236
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.5
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     63.8,
+     63.8,
+     63.82
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": -0.5236
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.5
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     160,
+     100,
+     60
+    ],
+    "oracle": [
+     65.97,
+     51.97,
+     41.09
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": -0.5236
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.5
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     120,
+     180,
+     200
+    ],
+    "oracle": [
+     70.93,
+     86.45,
+     91.38
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Hue",
+      "id": 1,
+      "value": -0.5236
+     },
+     {
+      "name": "Saturation",
+      "id": 2,
+      "value": -0.5
+     },
+     {
+      "name": "Value",
+      "id": 3,
+      "value": 0.7
+     }
+    ],
+    "input": [
+     180,
+     160,
+     80
+    ],
+    "oracle": [
+     83.74,
+     79.19,
+     57.7
     ]
    }
   ]

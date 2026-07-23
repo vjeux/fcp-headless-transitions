@@ -1798,7 +1798,7 @@
       "status": "VERIFIED",
       "metric": "max_abs_levels",
       "max_abs_levels": 0.8099999999999987,
-      "n_samples": 105,
+      "n_samples": 252,
       "tol_levels": 2.0,
       "worst": {
         "case": {
@@ -3222,8 +3222,23 @@
       "id": "transfer.PAEChannelMixer_offset",
       "status": "VERIFIED",
       "at": "2026-07-23T12:14:20Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_combined_ingamut",
+      "status": "DIVERGED",
+      "at": "2026-07-23T12:23:19Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_combined_ingamut",
+      "status": "VERIFIED",
+      "at": "2026-07-23T12:24:42Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_combined_ingamut",
+      "status": "VERIFIED",
+      "at": "2026-07-23T12:31:25Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T12:14:20Z"
+  "updated": "2026-07-23T12:31:25Z"
 }

@@ -121,7 +121,13 @@ function rotateHueYCbCr(r: number, g: number, b: number, turns: number): [number
 }
 
 function hueSaturationFilterWS(input: ImageData, params: HueSatParams): ImageData {
-  const { hue, saturation, value, mix } = params;
+  const { saturation, value, mix } = params;
+  // DECODED 2026-07-23 (fct/parity hue-sign probe): FCP CLAMPS the Hue param at 0 in the
+  // headless render path — every NEGATIVE hue (-8°/-15°/-30°/-90°/-180°) leaves the input
+  // BYTE-IDENTICAL (no rotation), while positive hue rotates progressively. So negative hue
+  // is a no-op, not a wrap. The engine previously wrapped negatives (frac) and rotated the
+  // wrong way (up to 62 lvl off at -30° on saturated red). Matches FCP: hue = max(0, hue).
+  const hue = params.hue > 0 ? params.hue : 0;
   const satFactor = 1 + saturation;
   const valMul = Math.max(0, value);   // Value = linear multiply in the gamma-1.958 working
   // space: out = ws_inv(ws(in) * value). DECODED + VERIFIED for BOTH legs (fct/parity golden,
