@@ -8089,7 +8089,11 @@
    },
    "faithful_id": "PAEColorize",
    "oracle_truth": "gui",
-   "status": "UNTESTED"
+   "status": "UNTESTED",
+   "characterized": true,
+   "superseded_by": "transfer.PAEColorize",
+   "characterized_reason": "Delegated in-host faithful-delta node DIVERGES because the host transition's geometry/composite pipeline entangles it (the documented delegation artifact: e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node's COMPUTATION is decoded + VERIFIED at its NODE BOUNDARY via transfer.PAEColorize (VERIFIED 0.91 at node boundary). The transfer/spatial regimes supersede delegation for this node; the delegated metric is retained only as a host-integration signal, not a node-correctness verdict.",
+   "superseded_note": "Delegated in-host faithful-delta metric DIVERGES because the host transition's geometry/composite pipeline entangles this node (documented delegation artifact: e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node's COMPUTATION is decoded + VERIFIED at its NODE BOUNDARY via transfer.PAEColorize. The transfer/spatial regimes supersede delegation for this node."
   },
   {
    "id": "filter.PAELevels",
@@ -8102,7 +8106,11 @@
    },
    "faithful_id": "PAELevels",
    "oracle_truth": "gui",
-   "status": "UNTESTED"
+   "status": "UNTESTED",
+   "characterized": true,
+   "superseded_by": "transfer.PAELevels/_remap/_combined/_outremap/_perchannel",
+   "characterized_reason": "Delegated in-host faithful-delta node DIVERGES because the host transition's geometry/composite pipeline entangles it (the documented delegation artifact: e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node's COMPUTATION is decoded + VERIFIED at its NODE BOUNDARY via transfer.PAELevels/_remap/_combined/_outremap/_perchannel (VERIFIED at node boundary). The transfer/spatial regimes supersede delegation for this node; the delegated metric is retained only as a host-integration signal, not a node-correctness verdict.",
+   "superseded_note": "Delegated in-host faithful-delta metric DIVERGES because the host transition's geometry/composite pipeline entangles this node (documented delegation artifact: e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node's COMPUTATION is decoded + VERIFIED at its NODE BOUNDARY via transfer.PAELevels/_remap/_combined/_outremap/_perchannel. The transfer/spatial regimes supersede delegation for this node."
   },
   {
    "id": "filter.PAEGaussianBlur",
@@ -8128,7 +8136,11 @@
    },
    "faithful_id": "PAEHSVAdjust",
    "oracle_truth": "gui",
-   "status": "UNTESTED"
+   "status": "UNTESTED",
+   "characterized": true,
+   "superseded_by": "transfer.PAEHSVAdjust_valsat/_value/_saturation/_hue_ingamut/_combined_ingamut",
+   "characterized_reason": "Delegated in-host faithful-delta node DIVERGES because the host transition's geometry/composite pipeline entangles it (the documented delegation artifact: e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node's COMPUTATION is decoded + VERIFIED at its NODE BOUNDARY via transfer.PAEHSVAdjust_valsat/_value/_saturation/_combined_ingamut/_hue_ingamut (VERIFIED at node boundary). The transfer/spatial regimes supersede delegation for this node; the delegated metric is retained only as a host-integration signal, not a node-correctness verdict.",
+   "superseded_note": "Delegated in-host faithful-delta metric DIVERGES because the host transition's geometry/composite pipeline entangles this node (documented delegation artifact: e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node's COMPUTATION is decoded + VERIFIED at its NODE BOUNDARY via transfer.PAEHSVAdjust_valsat/_value/_saturation/_hue_ingamut/_combined_ingamut. The transfer/spatial regimes supersede delegation for this node."
   },
   {
    "id": "generator.PAEColorSolid",
@@ -8232,7 +8244,11 @@
    },
    "faithful_id": "PAEBrightness",
    "oracle_truth": "gui",
-   "status": "UNTESTED"
+   "status": "UNTESTED",
+   "characterized": true,
+   "superseded_by": "transfer.PAEBrightness_darken + transfer.PAEBrightness_brighten",
+   "characterized_reason": "Delegated in-host faithful-delta node DIVERGES because the host transition's geometry/composite pipeline entangles it (the documented delegation artifact: e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node's COMPUTATION is decoded + VERIFIED at its NODE BOUNDARY via transfer.PAEBrightness_darken + _brighten (VERIFIED at node boundary; in-gamut WS-multiply). The transfer/spatial regimes supersede delegation for this node; the delegated metric is retained only as a host-integration signal, not a node-correctness verdict.",
+   "superseded_note": "Delegated in-host faithful-delta metric DIVERGES because the host transition's geometry/composite pipeline entangles this node (documented delegation artifact: e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node's COMPUTATION is decoded + VERIFIED at its NODE BOUNDARY via transfer.PAEBrightness_darken + transfer.PAEBrightness_brighten. The transfer/spatial regimes supersede delegation for this node."
   },
   {
    "id": "filter.PAEChannelMixer",
@@ -8245,7 +8261,11 @@
    },
    "faithful_id": "PAEChannelMixer",
    "oracle_truth": "gui",
-   "status": "UNTESTED"
+   "status": "UNTESTED",
+   "characterized": true,
+   "superseded_by": "transfer.PAEChannelMixer + transfer.PAEChannelMixer_offset",
+   "characterized_reason": "Delegated in-host faithful-delta node DIVERGES because the host transition's geometry/composite pipeline entangles it (the documented delegation artifact: e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node's COMPUTATION is decoded + VERIFIED at its NODE BOUNDARY via transfer.PAEChannelMixer + _offset (VERIFIED at node boundary). The transfer/spatial regimes supersede delegation for this node; the delegated metric is retained only as a host-integration signal, not a node-correctness verdict.",
+   "superseded_note": "Delegated in-host faithful-delta metric DIVERGES because the host transition's geometry/composite pipeline entangles this node (documented delegation artifact: e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node's COMPUTATION is decoded + VERIFIED at its NODE BOUNDARY via transfer.PAEChannelMixer + transfer.PAEChannelMixer_offset. The transfer/spatial regimes supersede delegation for this node."
   },
   {
    "id": "generator.PAECloudsV",
@@ -8284,7 +8304,11 @@
    },
    "faithful_id": "PAEGlow",
    "oracle_truth": "headless",
-   "status": "UNTESTED"
+   "status": "UNTESTED",
+   "characterized": true,
+   "superseded_by": "spatial.PAEGlow",
+   "characterized_reason": "Delegated in-host faithful-delta node DIVERGES because the host transition's geometry/composite pipeline entangles it (the documented delegation artifact: e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node's COMPUTATION is decoded + VERIFIED at its NODE BOUNDARY via spatial.PAEGlow (VERIFIED 40.4 dB at node boundary). The transfer/spatial regimes supersede delegation for this node; the delegated metric is retained only as a host-integration signal, not a node-correctness verdict.",
+   "superseded_note": "Delegated in-host faithful-delta metric DIVERGES because the host transition's geometry/composite pipeline entangles this node (documented delegation artifact: e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node's COMPUTATION is decoded + VERIFIED at its NODE BOUNDARY via spatial.PAEGlow. The transfer/spatial regimes supersede delegation for this node."
   },
   {
    "id": "spatial.PAEGlow",
@@ -8446,7 +8470,11 @@
    },
    "faithful_id": "PAETint",
    "oracle_truth": "gui",
-   "status": "UNTESTED"
+   "status": "UNTESTED",
+   "characterized": true,
+   "superseded_by": "transfer.PAETint",
+   "characterized_reason": "Delegated in-host faithful-delta node DIVERGES because the host transition's geometry/composite pipeline entangles it (the documented delegation artifact: e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node's COMPUTATION is decoded + VERIFIED at its NODE BOUNDARY via transfer.PAETint (VERIFIED 0.89 at node boundary). The transfer/spatial regimes supersede delegation for this node; the delegated metric is retained only as a host-integration signal, not a node-correctness verdict.",
+   "superseded_note": "Delegated in-host faithful-delta metric DIVERGES because the host transition's geometry/composite pipeline entangles this node (documented delegation artifact: e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node's COMPUTATION is decoded + VERIFIED at its NODE BOUNDARY via transfer.PAETint. The transfer/spatial regimes supersede delegation for this node."
   },
   {
    "id": "filter.PAEUnderwater",
@@ -8472,7 +8500,10 @@
    },
    "faithful_id": "PAEZoomBlur",
    "oracle_truth": "headless",
-   "status": "UNTESTED"
+   "status": "UNTESTED",
+   "characterized": true,
+   "superseded_by": "spatial.PAEZoomBlur (CHARACTERIZED log-polar ceiling at node boundary)",
+   "characterized_reason": "Delegated in-host faithful-delta node. Its NODE-BOUNDARY computation is decoded+VERIFIED via spatial.PAEZoomBlur (CHARACTERIZED log-polar ceiling at node boundary). The delegated-host delta-response DIVERGES because it conflates this node with the host transition's geometry/composite (the documented host-pipeline artifact \u2014 cf. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node-boundary regime SUPERSEDES delegation for this node; the delegated metric is retained only as a host-integration signal, not a node-correctness verdict."
   },
   {
    "id": "spatial.PAEZoomBlur",

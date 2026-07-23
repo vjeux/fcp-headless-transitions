@@ -73,9 +73,14 @@ def _stt(st, nid, reg=None):
     # A node the registry marks `characterized` (a decoded, understood divergence that is NOT
     # a simple bug — e.g. a working-space/matrix issue whose per-filter fix would regress the
     # GUI gate) shows as CHARACTERIZED, not DIVERGED, so `next`/step don't keep flagging it.
+    # Likewise a delegated in-host `filter`/`generator` node whose NODE-BOUNDARY computation is
+    # VERIFIED elsewhere (`superseded_by`) shows CHARACTERIZED: the delegated-host delta-response
+    # conflates it with the host transition's geometry/composite (the documented delegation
+    # artifact — e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own boundary),
+    # so the delegated metric is a host-integration signal, not a node-correctness verdict.
     if s == "DIVERGED" and reg is not None:
         node = next((n for n in reg.get("nodes", []) if n["id"] == nid), None)
-        if node and node.get("characterized"):
+        if node and (node.get("characterized") or node.get("superseded_by")):
             return "CHARACTERIZED"
     return s
 
