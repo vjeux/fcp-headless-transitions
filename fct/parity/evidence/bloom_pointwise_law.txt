@@ -22,3 +22,16 @@ SPATIAL residual at Threshold>0 (why the full-frame PSNR is 27-30 dB not >40):
 => uniform flat-field deficit = the shared decimated FLOAT blur's slightly lighter tail vs
    FCP's Gaussian on a SPARSE high-contrast extract layer. NOT a decode error (law exact);
    same blur-tail ceiling family as Glow/Zoom. Shipping regime (Threshold=0) VERIFIES 42.7 dB.
+
+## RE-AUDIT 2026-07-23w — Bloom divergence is NOT the CoreGraphics readback artifact
+After proving the over-1.0 "clamp" and BadTV "AGC" were both the shim's CoreGraphics
+ExtendedLinearSRGB->sRGB readback, re-audited Bloom (a prime suspect — its additive glow pushes
+highlights over 1.0). Ran spatial.PAEBloom with and without OZ_CLAMP_UNIT (per-channel clamp before
+the CG write): IDENTICAL result 26.99 dB, worst signed offset [-1.856,-1.219,-1.238]. The offset is
+NEGATIVE (engine DARKER than FCP), the opposite sign of the readback lift, and OZ_CLAMP_UNIT does
+not change it. So Bloom's divergence is the GENUINE documented blur-tail flat-field ceiling (FCP's
+GaussianBlur deposits slightly more low-amplitude tail energy on sparse high-contrast features than
+the engine's radius/6.10 kernel); it is correctly CHARACTERIZED, not a readback artifact. Retuning
+the blur to close the ~1.5-lvl flat-field deficit risks the VERIFIED spatial.PAEGaussianBlur (46.9
+dB) — decode-don't-fit holds. Added the oracle_env plumbing to spatial.py (mirrors transfer.py) so
+future spatial nodes can request OZ_CLAMP_UNIT; Bloom itself needs none (no-op).

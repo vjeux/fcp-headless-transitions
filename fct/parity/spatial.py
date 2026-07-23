@@ -67,8 +67,14 @@ def _render_oracle_batch(node, jobs, in_png, tmp):
     job = {"uuid": uuid, "pluginName": name, "in": in_png, "jobs": jobs}
     jf = os.path.join(tmp, "job.json"); of = os.path.join(tmp, "out.json")
     json.dump(job, open(jf, "w"))
+    # Honor a node-declared SHIM env for the ORACLE render (e.g. OZ_CLAMP_UNIT to strip the
+    # CoreGraphics ExtendedLinearSRGB->sRGB over-1.0 readback lift — a proven readback artifact,
+    # no-op in-gamut). See fct/parity/evidence/shared_clamp_overflow_analysis.txt.
+    env = dict(os.environ)
+    for k, v in (node.get("oracle_env") or {}).items():
+        env[k] = str(v)
     subprocess.run([str(REPO / "venv/bin/python3"), str(REPO / "fct/parity/spatial_batch.py"), jf, of],
-                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                   env=env, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     res = json.load(open(of))["results"]
     return {r["tag"]: r.get("out") for r in res if "out" in r}
 
