@@ -30,3 +30,22 @@ P7 (saturation vector), P12 (luma coeffs), and the brightness/scanline constants
 Until then BadTV stays DIVERGED (delegated faithful ddb=11.3); the deterministic desaturate
 leg is a documented, reproducible lead but not a clean node-boundary verify (stochastic
 Waviness/Static + spatial scanlines + entangled brightness make the transfer confounded).
+
+## UPDATE 2026-07-23t — desaturate leg partially decoded; confirmed entangled (needs isolated rig)
+After completing the colour subsystem (all transfers VERIFIED), revisited BadTV's desaturate leg
+with the scanF-normalization trick: gray 128 -> 163.1 (constant for Saturate<=0) gives a per-patch
+scanline-average factor scanF=1.274 (the patch spans dark+bright scan bands, so this is the MEAN
+band factor, not a pointwise lift). Dividing every colour output by scanF backs out the pre-scanline
+desaturate result:
+  green (50,200,50) @Saturate=0 -> premix (129.9, 190.5, 116.9)
+Solving out_c = L + (in_c - L)*sat on the R,G channels gives sat=0.404, L=184.1 — i.e. Saturate=0
+is NOT identity (sat=1); FCP's Saturate->sat CPU map is NOT v/100+1 (that gives 1.0). BUT the model
+BREAKS on the B channel: R and B share input 50 yet map to 129.9 vs 116.9 — equal inputs, unequal
+outputs. So a scalar mix(luma,rgb,sat) cannot be the whole story: there is an ADDITIONAL per-channel
+term (chromatic-aberration P11 splits R/G/B sampling even at Waviness=0, and/or the scanF is not
+perfectly uniform across the R/B sample positions). CONCLUSION: BadTV's "pointwise" desaturate is
+irreducibly entangled with chromatic aberration + scanline banding in the current uniform-patch
+probe. To decode cleanly needs an ISOLATED rig: P11 aberration=0, single pinned scanline phase (read
+ONE scanline row, not a patch average), then solve sat(Saturate) + luma coeffs P12 from equal-input
+colours. Until that rig exists BadTV stays DIVERGED (delegated faithful, ddb=11.3). The scanF=1.274
+mean-band factor and sat≈0.4-at-Saturate=0 are concrete, reproducible leads for that rig.
