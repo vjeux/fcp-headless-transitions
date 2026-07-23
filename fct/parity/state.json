@@ -1839,6 +1839,49 @@
       },
       "oracle_truth": "transfer",
       "n_failures": 0
+    },
+    "transfer.PAEContrast_ingamut": {
+      "id": "transfer.PAEContrast_ingamut",
+      "kind": "transfer",
+      "status": "VERIFIED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 0.7700000000000031,
+      "n_samples": 108,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "label": "c1.25",
+          "params": [
+            {
+              "name": "Contrast",
+              "id": 1,
+              "value": 1.25
+            },
+            {
+              "name": "Mix",
+              "id": 10001,
+              "value": 1.0
+            }
+          ]
+        },
+        "input": [
+          200,
+          50,
+          50
+        ],
+        "oracle": [
+          244.68,
+          46.77,
+          46.15
+        ],
+        "engine": [
+          245.0,
+          46.0,
+          46.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
     }
   },
   "history": [
@@ -2431,8 +2474,13 @@
       "id": "transfer.PAEHSVAdjust_combined_ingamut",
       "status": "VERIFIED",
       "at": "2026-07-23T04:37:57Z"
+    },
+    {
+      "id": "transfer.PAEContrast_ingamut",
+      "status": "VERIFIED",
+      "at": "2026-07-23T04:43:07Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T04:37:57Z"
+  "updated": "2026-07-23T04:43:07Z"
 }

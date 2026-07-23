@@ -1934,6 +1934,82 @@
    "characterized": true
   },
   {
+   "id": "transfer.PAEContrast_ingamut",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAEContrast IN-GAMUT regime (contrast c<=1.25) across the full swatch set incl. saturated primaries. Isolates the VERIFIED gamma-1.958 WS affine-about-0.5-pivot contrast (matches FCP on gray AND saturated colours until a channel exceeds 1.0) from the CHARACTERIZED c=1.5/2.0-on-saturated cases that hit the shared HGColorMatrix over-1.0 clamp. Mirrors the Brightness_darken / HSVAdjust_combined_ingamut splits.",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "B13B57AC-811B-4A24-BB5A-2167A3C66F5F",
+    "pluginName": "PAEContrast"
+   },
+   "engine_env": {},
+   "param_cases": [
+    {
+     "label": "c0.5",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 0.5
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "c0.75",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 0.75
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "c1.0",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 1.0
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "c1.25",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 1.25
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "transfer",
+   "status": "UNTESTED"
+  },
+  {
    "id": "transfer.PAEContrast_gray",
    "subsystem": "color",
    "kind": "transfer",
