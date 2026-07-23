@@ -926,7 +926,32 @@
         {
           "name": "Hue",
           "id": 1,
-          "value": 1.5708
+          "value": 0.523599
+        },
+        {
+          "name": "Hue",
+          "id": 1,
+          "value": 0.785398
+        },
+        {
+          "name": "Hue",
+          "id": 1,
+          "value": 1.570796
+        },
+        {
+          "name": "Hue",
+          "id": 1,
+          "value": 2.356194
+        },
+        {
+          "name": "Hue",
+          "id": 1,
+          "value": 3.141593
+        },
+        {
+          "name": "Hue",
+          "id": 1,
+          "value": 4.712389
         }
       ],
       "oracle_truth": "transfer",

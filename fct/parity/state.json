@@ -985,14 +985,14 @@
       "kind": "transfer",
       "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 0.5499999999999998,
-      "n_samples": 54,
+      "max_abs_levels": 0.6899999999999977,
+      "n_samples": 189,
       "tol_levels": 2.0,
       "worst": {
         "case": {
           "name": "Hue",
           "id": 1,
-          "value": 1.5708
+          "value": 0.523599
         },
         "input": [
           200,
@@ -1000,14 +1000,14 @@
           50
         ],
         "oracle": [
-          53.42,
-          92.51,
-          3.45
+          162.84,
+          60.31,
+          15.66
         ],
         "engine": [
-          53.0,
-          93.0,
-          4.0
+          163.0,
+          61.0,
+          16.0
         ]
       },
       "oracle_truth": "transfer",
@@ -3741,8 +3741,13 @@
       "id": "constant.color.ycbcr_rec709",
       "status": "VERIFIED",
       "at": "2026-07-23T23:49:08Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_hue",
+      "status": "VERIFIED",
+      "at": "2026-07-24T00:23:19Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T23:49:08Z"
+  "updated": "2026-07-24T00:23:19Z"
 }
