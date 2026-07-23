@@ -37,3 +37,19 @@ not a pointwise function of (pre-clip vector, c). It matches the long-standing c
 this is an OZ tile-conversion / Metal readback effect (ExtendedLinearSRGB -> display) that
 must be read from the GPU shader, NOT fit from transfer probes. All affected nodes stay
 CHARACTERIZED (VERIFIED on their in-gamut regions). decode-don't-fit holds.
+
+## UPDATE 2026-07-23e — YCbCr(WS) decomposition of the over-1.0 clamp
+Decomposed the Contrast c=2 over-1.0 clamp into Rec.709 YCbCr in the gamma-1.958 WS
+(pre-clip -> FCP-out):
+  in=(50,50,200): Y 0.434->0.662 (x1.52 UP), chroma (Cb,Cr) both x0.407 (UNIFORM) — hue-preserving.
+  in=(200,50,50): Y 0.560->0.749 (x1.34 UP), Cb x0.453 Cr x0.355.
+  in=(50,200,50): Y 1.011->0.940 (x0.93 down), Cb x0.335 Cr x0.202.
+KEY: the clamp LIFTS luma (Y up) while COMPRESSING chroma (~0.4x), i.e. it desaturates toward a
+BRIGHTER gray, not the original luma. The (50,50,200) case compresses Cb,Cr by the SAME 0.407
+(clean hue-preserving desaturation) — but the chroma scale (~0.4) is FAR more aggressive than a
+minimal gamut projection needs (a "scale chroma just until max channel=1" model leaves 64-119 dR;
+desaturate-toward-luma leaves 119 dR; Y-lift+max-chroma leaves 119 dR). So FCP over-desaturates
+past the gamut boundary — a SOFT rolloff, consistent with an ExtendedLinearSRGB->display GPU
+tile-readback tone curve, NOT a geometric clamp. 13 pointwise/geometric models now ruled out.
+Still needs the Metal readback disasm; the YCbCr chroma-scale (~0.4, hue-preserving for pure
+primaries) + Y-lift is the sharpest characterization to date for that capture.
