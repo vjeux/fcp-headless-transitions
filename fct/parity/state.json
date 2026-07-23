@@ -789,12 +789,12 @@
       "kind": "transfer",
       "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 0.8099999999999987,
-      "n_samples": 81,
+      "max_abs_levels": 0.9000000000000057,
+      "n_samples": 216,
       "tol_levels": 2.0,
       "worst": {
         "case": {
-          "label": "blackIn_0.3",
+          "label": "blackIn_0.5",
           "params": [
             {
               "name": "Histogram",
@@ -807,7 +807,7 @@
                     {
                       "name": "Black In",
                       "id": 1,
-                      "value": 0.3
+                      "value": 0.5
                     }
                   ]
                 }
@@ -816,19 +816,19 @@
           ]
         },
         "input": [
-          64,
-          64,
-          64
+          200,
+          50,
+          50
         ],
         "oracle": [
-          20.26,
-          20.19,
-          20.25
+          151.1,
+          0.0,
+          0.0
         ],
         "engine": [
-          21.0,
-          21.0,
-          21.0
+          152.0,
+          0.0,
+          0.0
         ]
       },
       "oracle_truth": "transfer",
@@ -2721,8 +2721,13 @@
       "id": "transfer.PAEHSVAdjust_value",
       "status": "VERIFIED",
       "at": "2026-07-23T08:40:25Z"
+    },
+    {
+      "id": "transfer.PAELevels_remap",
+      "status": "VERIFIED",
+      "at": "2026-07-23T08:45:52Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T08:40:25Z"
+  "updated": "2026-07-23T08:45:52Z"
 }

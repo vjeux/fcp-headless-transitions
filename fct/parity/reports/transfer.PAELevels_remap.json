@@ -3,12 +3,12 @@
   "kind": "transfer",
   "status": "VERIFIED",
   "metric": "max_abs_levels",
-  "max_abs_levels": 0.8099999999999987,
-  "n_samples": 81,
+  "max_abs_levels": 0.9000000000000057,
+  "n_samples": 216,
   "tol_levels": 2.0,
   "worst": {
     "case": {
-      "label": "blackIn_0.3",
+      "label": "blackIn_0.5",
       "params": [
         {
           "name": "Histogram",
@@ -21,7 +21,7 @@
                 {
                   "name": "Black In",
                   "id": 1,
-                  "value": 0.3
+                  "value": 0.5
                 }
               ]
             }
@@ -30,19 +30,19 @@
       ]
     },
     "input": [
-      64,
-      64,
-      64
+      200,
+      50,
+      50
     ],
     "oracle": [
-      20.26,
-      20.19,
-      20.25
+      151.1,
+      0.0,
+      0.0
     ],
     "engine": [
-      21.0,
-      21.0,
-      21.0
+      152.0,
+      0.0,
+      0.0
     ]
   },
   "oracle_truth": "transfer",
@@ -1143,6 +1143,1896 @@
       "engine": [
         41.0,
         41.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn0.1_whiteIn0.6",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.6
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        21.88,
+        22.05,
+        21.89
+      ],
+      "engine": [
+        22.0,
+        22.0,
+        22.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn0.1_whiteIn0.6",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.6
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        63.91,
+        63.93,
+        63.92
+      ],
+      "engine": [
+        64.0,
+        64.0,
+        64.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn0.1_whiteIn0.6",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.6
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        159.41,
+        159.37,
+        159.35
+      ],
+      "engine": [
+        159.0,
+        159.0,
+        159.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn0.1_whiteIn0.6",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.6
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        254.69,
+        254.8,
+        254.78
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn0.1_whiteIn0.6",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.6
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        254.69,
+        254.8,
+        254.78
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn0.1_whiteIn0.6",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.6
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        254.69,
+        254.8,
+        254.78
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn0.1_whiteIn0.6",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.6
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        254.44,
+        116.42,
+        116.13
+      ],
+      "engine": [
+        255.0,
+        116.0,
+        116.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn0.1_whiteIn0.6",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.6
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        116.23,
+        254.8,
+        116.48
+      ],
+      "engine": [
+        116.0,
+        255.0,
+        116.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn0.1_whiteIn0.6",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.6
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        116.16,
+        116.02,
+        254.56
+      ],
+      "engine": [
+        116.0,
+        116.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn0.4_whiteIn0.9",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.4
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.9
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn0.4_whiteIn0.9",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.4
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.9
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn0.4_whiteIn0.9",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.4
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.9
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        9.41,
+        9.43,
+        9.43
+      ],
+      "engine": [
+        10.0,
+        10.0,
+        10.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn0.4_whiteIn0.9",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.4
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.9
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        95.68,
+        95.8,
+        95.81
+      ],
+      "engine": [
+        96.0,
+        96.0,
+        96.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn0.4_whiteIn0.9",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.4
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.9
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        238.34,
+        238.12,
+        238.38
+      ],
+      "engine": [
+        239.0,
+        239.0,
+        239.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn0.4_whiteIn0.9",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.4
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.9
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        254.69,
+        254.8,
+        254.78
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn0.4_whiteIn0.9",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.4
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.9
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        238.38,
+        1.41,
+        1.17
+      ],
+      "engine": [
+        239.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn0.4_whiteIn0.9",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.4
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.9
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        1.56,
+        238.69,
+        1.27
+      ],
+      "engine": [
+        1.0,
+        239.0,
+        1.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn0.4_whiteIn0.9",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.4
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.9
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        1.01,
+        1.0,
+        238.13
+      ],
+      "engine": [
+        1.0,
+        1.0,
+        239.0
+      ]
+    },
+    {
+      "param": {
+        "label": "narrow_0.35_0.65",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.35
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.65
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "narrow_0.35_0.65",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.35
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.65
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "narrow_0.35_0.65",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.35
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.65
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        60.19,
+        60.19,
+        60.17
+      ],
+      "engine": [
+        60.0,
+        60.0,
+        60.0
+      ]
+    },
+    {
+      "param": {
+        "label": "narrow_0.35_0.65",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.35
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.65
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        254.69,
+        254.8,
+        254.78
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "narrow_0.35_0.65",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.35
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.65
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        254.69,
+        254.8,
+        254.78
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "narrow_0.35_0.65",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.35
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.65
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        254.69,
+        254.8,
+        254.78
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "narrow_0.35_0.65",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.35
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.65
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        254.5,
+        21.19,
+        21.18
+      ],
+      "engine": [
+        255.0,
+        22.0,
+        22.0
+      ]
+    },
+    {
+      "param": {
+        "label": "narrow_0.35_0.65",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.35
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.65
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        21.62,
+        254.56,
+        21.24
+      ],
+      "engine": [
+        22.0,
+        255.0,
+        22.0
+      ]
+    },
+    {
+      "param": {
+        "label": "narrow_0.35_0.65",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.35
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.65
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        21.78,
+        21.82,
+        254.56
+      ],
+      "engine": [
+        22.0,
+        22.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        44.03,
+        44.03,
+        44.02
+      ],
+      "engine": [
+        44.0,
+        44.0,
+        44.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        151.4,
+        151.44,
+        151.21
+      ],
+      "engine": [
+        152.0,
+        152.0,
+        152.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        225.07,
+        224.88,
+        225.13
+      ],
+      "engine": [
+        225.0,
+        225.0,
+        225.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        151.1,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        152.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        0.19,
+        151.44,
+        0.0
+      ],
+      "engine": [
+        0.0,
+        152.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "blackIn_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        0.0,
+        0.0,
+        151.35
+      ],
+      "engine": [
+        0.0,
+        0.0,
+        152.0
+      ]
+    },
+    {
+      "param": {
+        "label": "whiteIn_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        62.31,
+        62.31,
+        62.32
+      ],
+      "engine": [
+        62.0,
+        62.0,
+        62.0
+      ]
+    },
+    {
+      "param": {
+        "label": "whiteIn_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        124.32,
+        124.3,
+        124.3
+      ],
+      "engine": [
+        124.0,
+        124.0,
+        124.0
+      ]
+    },
+    {
+      "param": {
+        "label": "whiteIn_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        248.25,
+        248.24,
+        248.24
+      ],
+      "engine": [
+        248.0,
+        248.0,
+        248.0
+      ]
+    },
+    {
+      "param": {
+        "label": "whiteIn_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        254.69,
+        254.8,
+        254.78
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "whiteIn_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        254.69,
+        254.8,
+        254.78
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "whiteIn_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        254.69,
+        254.8,
+        254.78
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "whiteIn_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        254.79,
+        193.86,
+        193.88
+      ],
+      "engine": [
+        255.0,
+        194.0,
+        194.0
+      ]
+    },
+    {
+      "param": {
+        "label": "whiteIn_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        193.72,
+        254.85,
+        193.5
+      ],
+      "engine": [
+        194.0,
+        255.0,
+        194.0
+      ]
+    },
+    {
+      "param": {
+        "label": "whiteIn_0.5",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        193.78,
+        193.86,
+        254.65
+      ],
+      "engine": [
+        194.0,
+        194.0,
         255.0
       ]
     }
