@@ -315,5 +315,14 @@
   "fBm_weights": "hg_Params[1]",
   "tail": "|value|*contrast(hgP0.x)+brightness(hgP0.y) -> 256-entry gradient LUT -> premult",
   "z_axis": "Speed*CMTimeGetSeconds (0 at t=0 => byte-recoverable; disasm shows z=Speed*seconds so even t!=0 is deterministic)",
-  "status": "ALGORITHM + RNG fully decoded; unimplemented in engine (renders absent). REMAINING: port the Perlin evaluator + Scale->frequency cell mapping + gradient-LUT tail, verify at t=0 via spatial harness (Underwater method)."
+  "status": "ALGORITHM + RNG fully decoded; unimplemented in engine (renders absent). REMAINING: port the Perlin evaluator + Scale->frequency cell mapping + gradient-LUT tail, verify at t=0 via spatial harness (Underwater method).",
+  "node_boundary_verification": {
+    "status": "BLOCKED by FCP headless renderer instability (NOT the decode, NOT the harness)",
+    "evidence": [
+      "Built the generator solo-render path (synth.build is_generator=True + make_mirror scaffold resources + render_oracle, with the driver's unconditional python->python re-exec that makes dyld honor DYLD_FRAMEWORK_PATH).",
+      "PAECloudsV2 solo render SEGFAULTS FCP's headless engine (exit 139) -- reproducible; matches the reports' documented 'CloudsV renders black/unstable headless' + FreqSynth-texture-not-bound-headless note.",
+      "Control: PAEColorSolid (a VERIFIED generator) renders WITHOUT segfault via the identical path, but the frame is all-zero at t=0 (the scaffold's generator is not visible at t=0; the faithful driver uses times=(0.5,)). So generator solo-render needs a visible time AND CloudsV is headless-unstable regardless."
+    ],
+    "conclusion": "The CloudsV decode is complete + unit-tested (7 tests, incl. integer-lattice-zero Perlin property). A pixel-exact node-boundary PSNR is blocked EXTERNALLY by FCP's headless renderer crashing on this scenenode -- the same class of headless-instability the reports flagged for Noise/reorient360. This is a genuine external block, not a decode gap. The delegated in-host faithful verdict (ddb 10.16) is the documented generator-isolation artifact (conflates with the host transition)."
+  }
 }
