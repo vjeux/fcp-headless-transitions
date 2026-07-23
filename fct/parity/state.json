@@ -2185,6 +2185,39 @@
       },
       "n_failures": 0,
       "note": ""
+    },
+    "spatial.PAEFisheye": {
+      "id": "spatial.PAEFisheye",
+      "kind": "spatial",
+      "status": "VERIFIED",
+      "metric": "frame_psnr_db",
+      "worst_psnr_db": 39.22,
+      "pass_db": 30.0,
+      "n_scored": 5,
+      "oracle_truth": "headless",
+      "worst_case": {
+        "param": {
+          "label": "amt_neg40",
+          "params": [
+            {
+              "name": "Amount",
+              "id": 2,
+              "value": -40
+            }
+          ]
+        },
+        "psnr": 39.22,
+        "mad": 0.205,
+        "signed": [
+          -0.092,
+          -0.091,
+          -0.093
+        ],
+        "resized": false,
+        "head_vs_input_mad": 63.0
+      },
+      "n_failures": 0,
+      "note": ""
     }
   },
   "history": [
@@ -2932,8 +2965,23 @@
       "id": "spatial.PAEMinMax",
       "status": "VERIFIED",
       "at": "2026-07-23T09:43:44Z"
+    },
+    {
+      "id": "spatial.PAEFisheye",
+      "status": "DIVERGED",
+      "at": "2026-07-23T09:45:31Z"
+    },
+    {
+      "id": "spatial.PAEFisheye",
+      "status": "VERIFIED",
+      "at": "2026-07-23T09:48:33Z"
+    },
+    {
+      "id": "spatial.PAEFisheye",
+      "status": "VERIFIED",
+      "at": "2026-07-23T09:54:49Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T09:43:44Z"
+  "updated": "2026-07-23T09:54:49Z"
 }

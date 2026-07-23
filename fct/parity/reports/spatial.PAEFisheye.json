@@ -1,0 +1,140 @@
+{
+  "id": "spatial.PAEFisheye",
+  "kind": "spatial",
+  "status": "VERIFIED",
+  "metric": "frame_psnr_db",
+  "worst_psnr_db": 39.22,
+  "pass_db": 30.0,
+  "n_scored": 5,
+  "oracle_truth": "headless",
+  "worst_case": {
+    "param": {
+      "label": "amt_neg40",
+      "params": [
+        {
+          "name": "Amount",
+          "id": 2,
+          "value": -40
+        }
+      ]
+    },
+    "psnr": 39.22,
+    "mad": 0.205,
+    "signed": [
+      -0.092,
+      -0.091,
+      -0.093
+    ],
+    "resized": false,
+    "head_vs_input_mad": 63.0
+  },
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "amt15",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 2,
+            "value": 15
+          }
+        ]
+      },
+      "psnr": 43.14,
+      "mad": 0.547,
+      "signed": [
+        -0.24,
+        -0.22,
+        -0.236
+      ],
+      "resized": false,
+      "head_vs_input_mad": 52.49
+    },
+    {
+      "param": {
+        "label": "amt30",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 2,
+            "value": 30
+          }
+        ]
+      },
+      "psnr": 40.48,
+      "mad": 0.572,
+      "signed": [
+        -0.293,
+        -0.272,
+        -0.287
+      ],
+      "resized": false,
+      "head_vs_input_mad": 60.04
+    },
+    {
+      "param": {
+        "label": "amt45",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 2,
+            "value": 45
+          }
+        ]
+      },
+      "psnr": 39.45,
+      "mad": 0.565,
+      "signed": [
+        -0.344,
+        -0.326,
+        -0.337
+      ],
+      "resized": false,
+      "head_vs_input_mad": 56.11
+    },
+    {
+      "param": {
+        "label": "amt_neg20",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 2,
+            "value": -20
+          }
+        ]
+      },
+      "psnr": 40.36,
+      "mad": 0.318,
+      "signed": [
+        -0.168,
+        -0.163,
+        -0.168
+      ],
+      "resized": false,
+      "head_vs_input_mad": 55.6
+    },
+    {
+      "param": {
+        "label": "amt_neg40",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 2,
+            "value": -40
+          }
+        ]
+      },
+      "psnr": 39.22,
+      "mad": 0.205,
+      "signed": [
+        -0.092,
+        -0.091,
+        -0.093
+      ],
+      "resized": false,
+      "head_vs_input_mad": 63.0
+    }
+  ],
+  "note": ""
+}

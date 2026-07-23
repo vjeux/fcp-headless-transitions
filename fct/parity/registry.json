@@ -5978,6 +5978,73 @@
    "status": "UNTESTED",
    "synth": "textured",
    "pass_db": 34.0
+  },
+  {
+   "id": "spatial.PAEFisheye",
+   "subsystem": "geometry",
+   "kind": "spatial",
+   "desc": "PAEFisheye barrel/pincushion warp (exponent=Amount/30<=0 ? 1/(1-Amount/30) : Amount/30+1; per-axis anisotropic src_d = d*|d|_norm^(exponent-1), bilinear resample, BORDER/zero address mode for out-of-bounds -> black borders in the pincushion regime). Node-boundary full-frame PSNR over positive (barrel) AND negative (pincushion) Amount. Textured synth. Amount 0 = identity. Decoded 2026-07-23: negative branch exponent matches 1/(1-a) (rms 1.2px on a line-grid probe); the pincushion divergence was the CLAMP-vs-BORDER address mode.",
+   "oracle": {
+    "type": "spatial",
+    "uuid": "C1278154-B061-453F-8BDE-9F70AB2E6066",
+    "pluginName": "PAEFisheye"
+   },
+   "param_cases": [
+    {
+     "label": "amt15",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 2,
+       "value": 15
+      }
+     ]
+    },
+    {
+     "label": "amt30",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 2,
+       "value": 30
+      }
+     ]
+    },
+    {
+     "label": "amt45",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 2,
+       "value": 45
+      }
+     ]
+    },
+    {
+     "label": "amt_neg20",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 2,
+       "value": -20
+      }
+     ]
+    },
+    {
+     "label": "amt_neg40",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 2,
+       "value": -40
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "headless",
+   "status": "UNTESTED",
+   "synth": "textured",
+   "pass_db": 30.0
   }
  ]
 }
