@@ -403,23 +403,26 @@ function fieldOffset(comps: WaveComponent[], u: number, v: number, timeVal: numb
  * ∝1/Size. REMAINING for boot-free bit-exactness: pin (kU0,kU1,kV0,kV1)=f(M) from the host
  * pixel-transform. Behind FCT_UNDERWATER_EXACT; shipped apply() stays passthrough. */
 interface UwCoeff { kU0: number; kU1: number; kV0: number; kV1: number; gain: number; }
-const UW_COEFF_S50: UwCoeff = { kU0: 0.2098, kU1: -0.178, kV0: -0.111, kV1: 0.3584, gain: 47.2 };
+// Corner-lerp endpoint scalars at Size=50 (kU/kV ∝ 1/Size) + gain, JOINTLY fit to the headless
+// ground-truth flow at BOTH Size=50 AND Size=100 (evidence/underwater_refract_decode.json). The
+// joint constraint prevents single-Size overfit: rms50=0.490px, rms100=0.607px (both near the
+// ~0.5px centroid-measurement floor).
+const UW_COEFF_S50: UwCoeff = { kU0: 0.3711, kU1: -0.0268, kV0: -0.0992, kV1: 0.2532, gain: 49.6 };
+// Affine (skewed, no perspective — a flat conform is affine) U,V mapping decoded as the host
+// pixel-transform M: Xc=x/W-0.5, Yc=y/H-0.5; U=aU0·Xc+aU1·Yc+aU2; V=aV0·Xc+aV1·Yc+aV2. The
+// off-diagonal aU1/aV0 (skew) are real — U/V axes are rotated relative to X/Y. Size-independent
+// (jointly fit across Size=50 & 100). See evidence.underwater_refract_decode.affine_uv.
+const UW_AFFINE = { aU0: 1.0029, aU1: -0.4509, aU2: 0.7022, aV0: 0.3961, aV1: 0.9966, aV2: 0.4179 };
 
-// Exact corner-lerp displacement scalars at Size=50 (the FCT_UNDERWATER_EXACT path). These
-// are the VALIDATED values from evidence/underwater_refract_decode.json → validation.s50r50
-// (scale 0.2098, px -0.111, py -0.178, mm 0.3584, gain 47.22; rms 0.638px vs headless flow).
-// They were referenced (lines ~400-412) but the definition was dropped when the exact path
-// was added, breaking the build on origin/main — restored here from the committed evidence
-// (not fitted anew). Behind FCT_UNDERWATER_EXACT, so restoring the const only fixes
-// compilation; it does not change the shipped default behaviour.
-interface UwCornerScalars { scale: number; px: number; py: number; mm: number; gain: number; }
-const UW_CORNER_S50: UwCornerScalars = { scale: 0.2098, px: -0.111, py: -0.178, mm: 0.3584, gain: 47.22 };
-
-/** Exact corner-lerp displacement at normalized coords (u,v)∈[0,1]² for the given Size. */
-function fieldOffsetExact(comps: WaveComponent[], u: number, v: number, size: number): [number, number] {
+/** Exact corner-lerp displacement at pixel (x,y) on a W×H canvas for the given Size.
+ *  Uses the affine (skewed) U,V mapping (host pixel-transform M) + the corner-lerp endpoints. */
+function fieldOffsetExact(comps: WaveComponent[], x: number, y: number, w: number, h: number, size: number): [number, number] {
   const sk = size / 50; // U/V endpoint span ∝ 1/Size (larger Size = lower spatial freq)
   const kU0 = UW_COEFF_S50.kU0 / sk, kU1 = UW_COEFF_S50.kU1 / sk;
   const kV0 = UW_COEFF_S50.kV0 / sk, kV1 = UW_COEFF_S50.kV1 / sk;
+  const Xc = x / w - 0.5, Yc = y / h - 0.5;
+  const u = UW_AFFINE.aU0 * Xc + UW_AFFINE.aU1 * Yc + UW_AFFINE.aU2;
+  const v = UW_AFFINE.aV0 * Xc + UW_AFFINE.aV1 * Yc + UW_AFFINE.aV2;
   let ox = 0, oy = 0;
   for (const c of comps) {
     const ax = c.fy; // ampX = w·sin(angle) (WaveComponent stores fx=w·cos, fy=w·sin)
@@ -476,7 +479,7 @@ export function underwater(
     const v = (y + 0.5) / h;
     for (let x = 0; x < w; x++) {
       const u = (x + 0.5) / w;
-      const [ox, oy] = exact ? fieldOffsetExact(comps, u, v, size)
+      const [ox, oy] = exact ? fieldOffsetExact(comps, x, y, w, h, size)
                              : fieldOffset(comps, u, v, timeVal);
       // displaced SOURCE sample position (inverse map): sample where the water
       // "bends" this pixel from. The exact path already folds the Refraction gain
