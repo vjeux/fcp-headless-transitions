@@ -1369,12 +1369,12 @@
       "kind": "transfer",
       "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 0.7300000000000004,
-      "n_samples": 216,
+      "max_abs_levels": 0.7899999999999991,
+      "n_samples": 324,
       "tol_levels": 2.0,
       "worst": {
         "case": {
-          "label": "in+gammaLT1",
+          "label": "narrowin0.3_0.7_gamma0.6",
           "params": [
             {
               "name": "Histogram",
@@ -1387,27 +1387,27 @@
                     {
                       "name": "Black In",
                       "id": 1,
-                      "value": 0.2
+                      "value": 0.3
                     },
                     {
                       "name": "White In",
                       "id": 3,
-                      "value": 0.8
+                      "value": 0.7
                     },
                     {
                       "name": "Gamma",
                       "id": 5,
-                      "value": 0.7
+                      "value": 0.6
                     },
                     {
                       "name": "Black Out",
                       "id": 2,
-                      "value": 0.0
+                      "value": 0.1
                     },
                     {
                       "name": "White Out",
                       "id": 4,
-                      "value": 1.0
+                      "value": 0.95
                     }
                   ]
                 }
@@ -1421,13 +1421,13 @@
           200
         ],
         "oracle": [
-          18.29,
-          18.27,
-          254.44
+          11.75,
+          11.79,
+          254.81
         ],
         "engine": [
-          19.0,
-          19.0,
+          11.0,
+          11.0,
           255.0
         ]
       },
@@ -1650,30 +1650,30 @@
       "kind": "spatial",
       "status": "VERIFIED",
       "metric": "frame_psnr_db",
-      "worst_psnr_db": 49.17,
+      "worst_psnr_db": 46.9,
       "pass_db": 40.0,
-      "n_scored": 3,
+      "n_scored": 7,
       "oracle_truth": "headless",
       "worst_case": {
         "param": {
-          "label": "amt90",
+          "label": "amt120",
           "params": [
             {
               "name": "Amount",
               "id": 1,
-              "value": 90
+              "value": 120
             }
           ]
         },
-        "psnr": 49.17,
-        "mad": 0.563,
+        "psnr": 46.9,
+        "mad": 0.766,
         "signed": [
-          0.101,
-          0.106,
-          0.099
+          0.227,
+          0.217,
+          0.213
         ],
         "resized": false,
-        "head_vs_input_mad": 10.95
+        "head_vs_input_mad": 13.57
       },
       "n_failures": 0,
       "note": ""
@@ -3340,8 +3340,23 @@
       "id": "transfer.PAEContrast_ingamut",
       "status": "VERIFIED",
       "at": "2026-07-23T13:15:29Z"
+    },
+    {
+      "id": "transfer.PAELevels_combined",
+      "status": "VERIFIED",
+      "at": "2026-07-23T13:18:04Z"
+    },
+    {
+      "id": "spatial.PAEGaussianBlur",
+      "status": "VERIFIED",
+      "at": "2026-07-23T13:18:16Z"
+    },
+    {
+      "id": "spatial.PAEGaussianBlur",
+      "status": "VERIFIED",
+      "at": "2026-07-23T13:20:22Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T13:15:29Z"
+  "updated": "2026-07-23T13:20:22Z"
 }
