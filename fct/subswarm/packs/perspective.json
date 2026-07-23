@@ -1,0 +1,44 @@
+[
+  {
+    "cap": "persp.camera.identity",
+    "inject": { "kind": "transform", "camera": true, "position": { "x": 0 } },
+    "time": 0.0, "min_psnr": 30, "expect_identity": true,
+    "note": "Camera node present, identity transform. Floor: with a perspective Camera the base drop-zone must still render == imageA in BOTH engines. If this FAILs, the camera insertion itself perturbs the projection and every other persp.* node is unreliable."
+  },
+  {
+    "cap": "persp.rot.y.30",
+    "inject": { "kind": "transform", "camera": true, "rotation": { "y": 30 } },
+    "time": 0.0, "min_psnr": 26,
+    "note": "Y-rotation 30deg WITH a camera (perspective fold). This is the core 3D-fold projection (perspective.ts). Camera-less would be a FALSE FAIL (headless folds, GUI orthographic); with a camera GUI+headless agree, so headless is a valid oracle."
+  },
+  {
+    "cap": "persp.rot.y.60",
+    "inject": { "kind": "transform", "camera": true, "rotation": { "y": 60 } },
+    "time": 0.0, "min_psnr": 24,
+    "note": "Y-rotation 60deg — steeper fold, larger foreshortening. Stresses the perspective divide (w-clip) more than 30deg."
+  },
+  {
+    "cap": "persp.rot.x.40",
+    "inject": { "kind": "transform", "camera": true, "rotation": { "x": 40 } },
+    "time": 0.0, "min_psnr": 24,
+    "note": "X-rotation 40deg (vertical fold about horizontal axis). Verifies the X-axis of the 3D rotation matrix + perspective, distinct from Y."
+  },
+  {
+    "cap": "persp.pos.z.push",
+    "inject": { "kind": "transform", "camera": true, "position": { "z": -400 } },
+    "time": 0.0, "min_psnr": 26,
+    "note": "Z push -400 (card recedes from camera, shrinks under perspective). Verifies the Z translate + perspective scale (z-composite depth), NOT an in-plane scale. Camera required (camera-less GUI = orthographic = no shrink)."
+  },
+  {
+    "cap": "persp.pos.z.pull",
+    "inject": { "kind": "transform", "camera": true, "position": { "z": 300 } },
+    "time": 0.0, "min_psnr": 26,
+    "note": "Z pull +300 (card approaches camera, enlarges). Sign + magnitude of the perspective depth scale in the opposite direction from push."
+  },
+  {
+    "cap": "persp.rot.y.combo.pos",
+    "inject": { "kind": "transform", "camera": true, "rotation": { "y": 45 }, "position": { "x": 200 } },
+    "time": 0.0, "min_psnr": 24,
+    "note": "Y-fold 45deg + off-center X translate. Verifies the compose order (rotate about anchor then translate) under perspective — the exact composition the fold Movements use."
+  }
+]

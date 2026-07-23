@@ -1,0 +1,8 @@
+[
+  {
+    "cap": "replicator.identity",
+    "inject": { "kind": "transform", "position": { "x": 0 } },
+    "time": 0.0, "min_psnr": 30, "expect_identity": true,
+    "note": "Floor: drop-zone base renders == imageA in both engines. Guards the replicator harness (the replicator agent's primary oracle is the minimized Clone_Spin/Concentric/Video_Wall cases + the real-slug gate; synthetic Replicator-node injection is a follow-up)."
+  }
+]

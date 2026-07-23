@@ -1,0 +1,20 @@
+[
+  {
+    "cap": "panels.identity",
+    "inject": { "kind": "transform", "position": { "x": 0 } },
+    "time": 0.0, "min_psnr": 30, "expect_identity": true,
+    "note": "Floor: drop-zone base renders == imageA in both engines (shared with baseline.identity). Guards the panels harness."
+  },
+  {
+    "cap": "panels.opacity.half",
+    "inject": { "kind": "opacity", "value": 0.5 },
+    "time": 0.0, "min_psnr": 34,
+    "note": "Transition A opacity 0.5 over B — the source-over composite fraction the panel reveals use. Fast sanity that the panels agent's blit/composite path is intact."
+  },
+  {
+    "cap": "panels.opacity.quarter",
+    "inject": { "kind": "opacity", "value": 0.25 },
+    "time": 0.0, "min_psnr": 34,
+    "note": "Opacity 0.25 — a second composite fraction to catch a non-linear opacity bug (gamma-space vs linear blend)."
+  }
+]

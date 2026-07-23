@@ -7,6 +7,10 @@
   fct score   [slug ...|--all] [--source headless|engine] [--frames] [--fast]   score vs GUI GT
   fct probe   <slug> [frame=12]                     fast: render+PSNR ONE engine frame vs GUI GT
   fct caps    [cap ...]                             capability catalog: ONE FCP primitive vs headless
+  fct subswarm test <subsystem> [cap...]            per-SUBSYSTEM FCP-oracle tests (caps pack + minimized
+                                                    repros) for the parallel improvement swarm — NO 65-slug
+                                                    suite. Subsystems: perspective|replicator|panels.
+                                                    Also: subswarm list|caps|status|brief.
   fct parity  [status|step|sweep <id>|sweep --all|selftest]
                                                     NODE-BOUNDARY parity: one .motr XML node + its
                                                     params triggers ONE computation; isolate it and
@@ -64,7 +68,7 @@ def main():
     # command must re-exec under the venv python. `gen engine` is pure node (no numpy
     # import) so it's exempt; `gen headless` re-execs below for the DYLD framework path.
     if cmd in ("score", "regress", "gate", "cmp", "probe", "baseline", "census", "montage", "read",
-               "minimize", "min-gen", "min-score", "min-regress", "min-baseline", "caps"):
+               "minimize", "min-gen", "min-score", "min-regress", "min-baseline", "caps", "subswarm"):
         _reexec_under_venv_if_needed()
 
     if cmd == "gen":
@@ -460,6 +464,10 @@ def main():
     if cmd in ("min-gen", "min-score", "min-regress", "min-baseline"):
         from fct.minimize_gate import run as min_gate_run
         return min_gate_run(cmd, rest)
+
+    if cmd == "subswarm":
+        from fct.subswarm.cli import run as subswarm_run
+        return subswarm_run(rest)
 
     print(f"unknown command {cmd}\n{__doc__}"); return 1
 

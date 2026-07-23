@@ -1,0 +1,35 @@
+{
+  "subsystem": "panels",
+  "ran_at": "2026-07-23T14:15:26",
+  "nodes": [
+    {
+      "cap": "panels.identity",
+      "min_psnr": 30,
+      "psnr": 43.31,
+      "mean_abs_err": 1.04,
+      "headless_vs_input_mad": 0.93,
+      "status": "PASS",
+      "applied": true
+    },
+    {
+      "cap": "panels.opacity.half",
+      "min_psnr": 34,
+      "psnr": 39.96,
+      "mean_abs_err": 1.72,
+      "headless_vs_input_mad": 33.26,
+      "status": "PASS",
+      "applied": true
+    },
+    {
+      "cap": "panels.opacity.quarter",
+      "min_psnr": 34,
+      "psnr": 36.2,
+      "mean_abs_err": 2.77,
+      "headless_vs_input_mad": 49.76,
+      "status": "PASS",
+      "applied": true
+    }
+  ],
+  "pass": 3,
+  "fail": 0
+}
