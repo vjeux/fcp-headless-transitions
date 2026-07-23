@@ -8,8 +8,18 @@
       "engine/src/compositor/geometry.ts"
     ],
     "caps_pack": "perspective",
-    "minimized_cases": ["Movements__Switch", "Movements__Smear"],
-    "target_slugs": ["Movements__Switch", "Movements__Drop_In", "Movements__Swing", "Movements__Reflection", "Movements__Color_Planes", "Movements__Smear"],
+    "minimized_cases": [
+      "Movements__Switch",
+      "Movements__Smear"
+    ],
+    "target_slugs": [
+      "Movements__Switch",
+      "Movements__Drop_In",
+      "Movements__Swing",
+      "Movements__Reflection",
+      "Movements__Color_Planes",
+      "Movements__Smear"
+    ],
     "note": "Camera-bearing caps isolate the perspective projection (Y/X fold, Z push) vs FCP. Camera-less would be a FALSE FAIL (headless!=GUI); every persp.* cap inserts a real Camera so headless is a valid oracle. Minimized Switch/Smear are node-level real-slug repros."
   },
   "replicator": {
@@ -20,9 +30,21 @@
       "engine/src/parser/replicator.ts"
     ],
     "caps_pack": "replicator",
-    "minimized_cases": ["Replicator-Clones__Clone_Spin", "Replicator-Clones__Concentric", "Replicator-Clones__Video_Wall"],
-    "target_slugs": ["Replicator-Clones__Clone_Spin", "Replicator-Clones__Video_Wall", "Replicator-Clones__Combo_Spin", "Replicator-Clones__Concentric", "Replicator-Clones__Multi"],
-    "note": "The replicator pinwheel/grid is barely composited (ROADMAP: 'broken single-tile spin on black' vs FCP's full multi-blade replicator). Minimized Clone_Spin/Concentric/Video_Wall are the node-level FCP repros. Caps pack builds a minimal Replicator grid vs FCP."
+    "minimized_cases": [
+      "Replicator-Clones__Clone_Spin",
+      "Replicator-Clones__Concentric",
+      "Replicator-Clones__Video_Wall"
+    ],
+    "target_slugs": [
+      "Replicator-Clones__Clone_Spin",
+      "Replicator-Clones__Video_Wall",
+      "Replicator-Clones__Combo_Spin",
+      "Replicator-Clones__Concentric",
+      "Replicator-Clones__Multi"
+    ],
+    "note": "The replicator pinwheel/grid is barely composited (ROADMAP: 'broken single-tile spin on black' vs FCP's full multi-blade replicator). Minimized Clone_Spin/Concentric/Video_Wall are the node-level FCP repros. Caps pack builds a minimal Replicator grid vs FCP.",
+    "oracle_status": "DEGRADED",
+    "oracle_note": "ORACLE GAP (found 2026-07-23): the minimized Video_Wall/Clone_Spin/Concentric cases have their Replicator scenenodes STRIPPED by `fct minimize` (the <factory> 'Replicator' description remains but the scenenode is gone), so they parse to camera/group/image with ZERO replicator layers \u2014 replicator.ts (generateInstances / renderReplicatorLayer) is never exercised and min-score cannot measure a change. AND the pinwheel/grid fix is CROSS-LANE: the decoded generateInstances bug (Shape branch ignores `arrangement`, stacking grid cells at origin \u2014 commit 674f98a) regresses Video_Wall in isolation because the mis-posed dolly camera + retime-wrap playhead (framing.ts / timemap.ts, OTHER files) frame a region derived from the current stacked geometry. A faithful replicator fix needs (a) a re-minimized case that RETAINS a live Replicator node, and (b) the camera-framing lane co-tuned. Single-subsystem isolation is insufficient for this subsystem."
   },
   "panels": {
     "title": "kinetic-panel / gradient / mask",
@@ -33,8 +55,16 @@
       "engine/src/compositor/filters/gradient.ts"
     ],
     "caps_pack": "panels",
-    "minimized_cases": ["Stylized__Lower", "Stylized__Slide_In"],
-    "target_slugs": ["Stylized__Center", "Stylized__Lower", "Stylized__Up-Over", "Stylized__Light_Sweep"],
-    "note": "Panel layout + image-mask reveal + gradient generator. Minimized Lower/Slide_In are node-level FCP repros. NOTE: Light_Sweep/Up-Over crash headless FCP (SIGSEGV) so those lack a headless oracle — use the minimized cases + caps, not those slugs directly."
+    "minimized_cases": [
+      "Stylized__Lower",
+      "Stylized__Slide_In"
+    ],
+    "target_slugs": [
+      "Stylized__Center",
+      "Stylized__Lower",
+      "Stylized__Up-Over",
+      "Stylized__Light_Sweep"
+    ],
+    "note": "Panel layout + image-mask reveal + gradient generator. Minimized Lower/Slide_In are node-level FCP repros. NOTE: Light_Sweep/Up-Over crash headless FCP (SIGSEGV) so those lack a headless oracle \u2014 use the minimized cases + caps, not those slugs directly."
   }
 }
