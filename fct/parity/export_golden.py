@@ -24,6 +24,15 @@ NODES = sorted(
     for p in glob.glob(str(REPORTS / "transfer.*.json"))
 )
 
+# ALPHA-channel transfer nodes (e.g. the luma keyer, whose entire signal is the keyed alpha,
+# not RGB) are EXCLUDED from this RGB colour-nodes golden — the colour-nodes.node.test.ts
+# reader compares 3-vector RGB oracles and cannot consume a scalar-alpha oracle. Those nodes
+# are verified via their own live `fct parity` sweep (channel=="alpha" path) PLUS a dedicated
+# node-boundary golden in their filter test (e.g. engine/test/luma-keyer.test.ts, 88 real
+# headless-FCP alpha samples). Filtered by the registry's channel flag so it stays automatic.
+_ALPHA_NODES = {n["id"] for n in REG["nodes"] if n.get("channel") == "alpha"}
+NODES = [nid for nid in NODES if nid not in _ALPHA_NODES]
+
 # Nodes whose decode is VERIFIED and SHOULD match headless within tol (a regression here is
 # a real break). Everything else is coverage-only (expected to diverge until decoded/shipped).
 VERIFIED = {

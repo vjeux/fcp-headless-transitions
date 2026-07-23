@@ -1370,7 +1370,7 @@
       "status": "VERIFIED",
       "metric": "max_abs_levels",
       "max_abs_levels": 0.7300000000000004,
-      "n_samples": 81,
+      "n_samples": 216,
       "tol_levels": 2.0,
       "worst": {
         "case": {
@@ -3109,8 +3109,13 @@
       "id": "spatial.PAERadialBlur",
       "status": "DIVERGED",
       "at": "2026-07-23T10:14:18Z"
+    },
+    {
+      "id": "transfer.PAELevels_combined",
+      "status": "VERIFIED",
+      "at": "2026-07-23T10:22:33Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T10:14:18Z"
+  "updated": "2026-07-23T10:22:33Z"
 }

@@ -4,7 +4,7 @@
   "status": "VERIFIED",
   "metric": "max_abs_levels",
   "max_abs_levels": 0.7300000000000004,
-  "n_samples": 81,
+  "n_samples": 216,
   "tol_levels": 2.0,
   "worst": {
     "case": {
@@ -1659,6 +1659,2661 @@
         116.0,
         116.0,
         207.0
+      ]
+    },
+    {
+      "param": {
+        "label": "narrowin_gamma1.2",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.25
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.75
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.2
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.0
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "narrowin_gamma1.2",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.25
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.75
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.2
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.0
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        17.23,
+        17.03,
+        17.03
+      ],
+      "engine": [
+        17.0,
+        17.0,
+        17.0
+      ]
+    },
+    {
+      "param": {
+        "label": "narrowin_gamma1.2",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.25
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.75
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.2
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.0
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        78.92,
+        78.93,
+        78.92
+      ],
+      "engine": [
+        79.0,
+        79.0,
+        79.0
+      ]
+    },
+    {
+      "param": {
+        "label": "narrowin_gamma1.2",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.25
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.75
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.2
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.0
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        217.1,
+        217.12,
+        217.13
+      ],
+      "engine": [
+        217.0,
+        217.0,
+        217.0
+      ]
+    },
+    {
+      "param": {
+        "label": "narrowin_gamma1.2",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.25
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.75
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.2
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.0
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        254.69,
+        254.8,
+        254.78
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "narrowin_gamma1.2",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.25
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.75
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.2
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.0
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        254.69,
+        254.8,
+        254.78
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "narrowin_gamma1.2",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.25
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.75
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.2
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.0
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        254.33,
+        50.19,
+        50.67
+      ],
+      "engine": [
+        255.0,
+        50.0,
+        50.0
+      ]
+    },
+    {
+      "param": {
+        "label": "narrowin_gamma1.2",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.25
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.75
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.2
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.0
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        50.06,
+        254.8,
+        50.32
+      ],
+      "engine": [
+        50.0,
+        255.0,
+        50.0
+      ]
+    },
+    {
+      "param": {
+        "label": "narrowin_gamma1.2",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.25
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.75
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.2
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.0
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        50.08,
+        50.23,
+        254.52
+      ],
+      "engine": [
+        50.0,
+        50.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "in+gamma0.5+out",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.15
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.85
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 0.5
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.9
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        0.75,
+        0.77,
+        0.76
+      ],
+      "engine": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "param": {
+        "label": "in+gamma0.5+out",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.15
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.85
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 0.5
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.9
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        3.0,
+        3.0,
+        3.0
+      ],
+      "engine": [
+        3.0,
+        3.0,
+        3.0
+      ]
+    },
+    {
+      "param": {
+        "label": "in+gamma0.5+out",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.15
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.85
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 0.5
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.9
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        16.02,
+        16.01,
+        16.03
+      ],
+      "engine": [
+        16.0,
+        16.0,
+        16.0
+      ]
+    },
+    {
+      "param": {
+        "label": "in+gamma0.5+out",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.15
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.85
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 0.5
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.9
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        75.54,
+        75.51,
+        75.55
+      ],
+      "engine": [
+        75.0,
+        75.0,
+        75.0
+      ]
+    },
+    {
+      "param": {
+        "label": "in+gamma0.5+out",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.15
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.85
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 0.5
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.9
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        198.21,
+        198.37,
+        198.34
+      ],
+      "engine": [
+        198.0,
+        198.0,
+        198.0
+      ]
+    },
+    {
+      "param": {
+        "label": "in+gamma0.5+out",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.15
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.85
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 0.5
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.9
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        254.69,
+        254.8,
+        254.78
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "in+gamma0.5+out",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.15
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.85
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 0.5
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.9
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        198.4,
+        8.98,
+        9.05
+      ],
+      "engine": [
+        198.0,
+        9.0,
+        9.0
+      ]
+    },
+    {
+      "param": {
+        "label": "in+gamma0.5+out",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.15
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.85
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 0.5
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.9
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        8.75,
+        197.86,
+        9.13
+      ],
+      "engine": [
+        9.0,
+        198.0,
+        9.0
+      ]
+    },
+    {
+      "param": {
+        "label": "in+gamma0.5+out",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.15
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.85
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 0.5
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.9
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        9.01,
+        9.0,
+        198.61
+      ],
+      "engine": [
+        9.0,
+        9.0,
+        198.0
+      ]
+    },
+    {
+      "param": {
+        "label": "wide_gamma3_out",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.05
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.95
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 3.0
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.15
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.85
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        116.16,
+        116.02,
+        116.02
+      ],
+      "engine": [
+        116.0,
+        116.0,
+        116.0
+      ]
+    },
+    {
+      "param": {
+        "label": "wide_gamma3_out",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.05
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.95
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 3.0
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.15
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.85
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        135.63,
+        135.6,
+        135.64
+      ],
+      "engine": [
+        136.0,
+        136.0,
+        136.0
+      ]
+    },
+    {
+      "param": {
+        "label": "wide_gamma3_out",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.05
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.95
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 3.0
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.15
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.85
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        161.23,
+        161.37,
+        161.35
+      ],
+      "engine": [
+        161.0,
+        161.0,
+        161.0
+      ]
+    },
+    {
+      "param": {
+        "label": "wide_gamma3_out",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.05
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.95
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 3.0
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.15
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.85
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        193.78,
+        193.86,
+        193.85
+      ],
+      "engine": [
+        194.0,
+        194.0,
+        194.0
+      ]
+    },
+    {
+      "param": {
+        "label": "wide_gamma3_out",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.05
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.95
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 3.0
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.15
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.85
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        220.06,
+        219.86,
+        219.87
+      ],
+      "engine": [
+        220.0,
+        220.0,
+        220.0
+      ]
+    },
+    {
+      "param": {
+        "label": "wide_gamma3_out",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.05
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.95
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 3.0
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.15
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.85
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        231.85,
+        232.12,
+        231.88
+      ],
+      "engine": [
+        232.0,
+        232.0,
+        232.0
+      ]
+    },
+    {
+      "param": {
+        "label": "wide_gamma3_out",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.05
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.95
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 3.0
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.15
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.85
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        219.76,
+        151.37,
+        151.1
+      ],
+      "engine": [
+        220.0,
+        151.0,
+        151.0
+      ]
+    },
+    {
+      "param": {
+        "label": "wide_gamma3_out",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.05
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.95
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 3.0
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.15
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.85
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        151.35,
+        219.63,
+        151.45
+      ],
+      "engine": [
+        151.0,
+        220.0,
+        151.0
+      ]
+    },
+    {
+      "param": {
+        "label": "wide_gamma3_out",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.05
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.95
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 3.0
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.15
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.85
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        151.4,
+        151.44,
+        219.85
+      ],
+      "engine": [
+        151.0,
+        151.0,
+        220.0
+      ]
+    },
+    {
+      "param": {
+        "label": "in+out_g1",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.2
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.9
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.0
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.8
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        5.89,
+        5.9,
+        5.89
+      ],
+      "engine": [
+        6.0,
+        6.0,
+        6.0
+      ]
+    },
+    {
+      "param": {
+        "label": "in+out_g1",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.2
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.9
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.0
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.8
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        16.23,
+        16.04,
+        16.22
+      ],
+      "engine": [
+        16.0,
+        16.0,
+        16.0
+      ]
+    },
+    {
+      "param": {
+        "label": "in+out_g1",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.2
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.9
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.0
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.8
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        41.0,
+        40.8,
+        40.8
+      ],
+      "engine": [
+        41.0,
+        41.0,
+        41.0
+      ]
+    },
+    {
+      "param": {
+        "label": "in+out_g1",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.2
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.9
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.0
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.8
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        94.85,
+        94.96,
+        94.94
+      ],
+      "engine": [
+        95.0,
+        95.0,
+        95.0
+      ]
+    },
+    {
+      "param": {
+        "label": "in+out_g1",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.2
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.9
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.0
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.8
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        157.66,
+        157.64,
+        157.66
+      ],
+      "engine": [
+        158.0,
+        158.0,
+        158.0
+      ]
+    },
+    {
+      "param": {
+        "label": "in+out_g1",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.2
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.9
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.0
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.8
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        193.78,
+        193.86,
+        193.85
+      ],
+      "engine": [
+        194.0,
+        194.0,
+        194.0
+      ]
+    },
+    {
+      "param": {
+        "label": "in+out_g1",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.2
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.9
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.0
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.8
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        157.84,
+        30.0,
+        30.0
+      ],
+      "engine": [
+        158.0,
+        30.0,
+        30.0
+      ]
+    },
+    {
+      "param": {
+        "label": "in+out_g1",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.2
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.9
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.0
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.8
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        30.01,
+        157.6,
+        30.33
+      ],
+      "engine": [
+        30.0,
+        158.0,
+        30.0
+      ]
+    },
+    {
+      "param": {
+        "label": "in+out_g1",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.2
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.9
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.0
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.8
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        30.24,
+        30.24,
+        158.13
+      ],
+      "engine": [
+        30.0,
+        30.0,
+        158.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma1.8_tightout",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.8
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.8
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.2
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.7
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        69.42,
+        69.44,
+        69.44
+      ],
+      "engine": [
+        69.0,
+        69.0,
+        69.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma1.8_tightout",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.8
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.8
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.2
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.7
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        87.88,
+        87.67,
+        87.75
+      ],
+      "engine": [
+        88.0,
+        88.0,
+        88.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma1.8_tightout",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.8
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.8
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.2
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.7
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        115.11,
+        114.97,
+        114.98
+      ],
+      "engine": [
+        115.0,
+        115.0,
+        115.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma1.8_tightout",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.8
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.8
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.2
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.7
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        154.64,
+        154.63,
+        154.63
+      ],
+      "engine": [
+        155.0,
+        155.0,
+        155.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma1.8_tightout",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.8
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.8
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.2
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.7
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        189.07,
+        188.89,
+        188.89
+      ],
+      "engine": [
+        189.0,
+        189.0,
+        189.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma1.8_tightout",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.8
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.8
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.2
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.7
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        205.65,
+        205.86,
+        205.83
+      ],
+      "engine": [
+        206.0,
+        206.0,
+        206.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma1.8_tightout",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.8
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.8
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.2
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.7
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        189.13,
+        104.3,
+        104.3
+      ],
+      "engine": [
+        189.0,
+        104.0,
+        104.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma1.8_tightout",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.8
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.8
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.2
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.7
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        104.21,
+        189.11,
+        104.29
+      ],
+      "engine": [
+        104.0,
+        189.0,
+        104.0
+      ]
+    },
+    {
+      "param": {
+        "label": "gamma1.8_tightout",
+        "params": [
+          {
+            "name": "Histogram",
+            "id": 1,
+            "children": [
+              {
+                "name": "RGB",
+                "id": 2,
+                "children": [
+                  {
+                    "name": "Black In",
+                    "id": 1,
+                    "value": 0.1
+                  },
+                  {
+                    "name": "White In",
+                    "id": 3,
+                    "value": 0.8
+                  },
+                  {
+                    "name": "Gamma",
+                    "id": 5,
+                    "value": 1.8
+                  },
+                  {
+                    "name": "Black Out",
+                    "id": 2,
+                    "value": 0.2
+                  },
+                  {
+                    "name": "White Out",
+                    "id": 4,
+                    "value": 0.7
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        104.53,
+        104.3,
+        188.89
+      ],
+      "engine": [
+        104.0,
+        104.0,
+        189.0
       ]
     }
   ]
