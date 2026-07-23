@@ -67,6 +67,68 @@
  *   field is unrecoverable. If a visually-plausible (not byte-exact) clouds fill is ever wanted
  *   for the gate, implement the decoded pipeline with any value-noise lattice — but it will NOT
  *   raise the headless PSNR, so it stays unimplemented (renders absent) until there is gate ROI.
+ *
+ * ════════════ CORRECTION (2026-07-23): THE LATTICE RNG IS FULLY RECOVERABLE ════════════
+ * The "NOT recoverable" verdict above is WRONG — it was the same mistaken assumption disproven
+ * for PAEUnderwater. Disassembly of the CPU noise path proves PAECloudsV2 is DETERMINISTIC
+ * PERLIN GRADIENT NOISE with a FIXED (constant-seeded) permutation table and the canonical 12
+ * Perlin gradients — nothing per-frame-random, nothing unserialized:
+ *
+ *   -[PAECloudsV2 canThrowRenderOutput] @0x51b48 calls getPermTable() @0x511b4 (a function-local
+ *   static, computed ONCE and cached) → makePermTable() @0x5313c and calculateCellValues() @0x5123c.
+ *
+ *   makePermTable() @0x5313c (DECODED, bit-exact — tools/re + /tmp/clouds_perm.py):
+ *     1. perm[0..255] = identity 0,1,2,…,255  (SIMD init, seed vec (0,1,2,3)@0x269a60, +4/step).
+ *     2. Fill a 102-entry shuffle table with the SAME LCG as Underwater/Earthquake:
+ *          X ← (4096·X + 150889) mod 714025   (0x24d69, 0xae529; magic 0x5dfc998781872319),
+ *          seeded from the fixed constant 0x23232323.
+ *     3. Bays–Durham shuffle (iy init = 0x6f638, NTAB=101), and Fisher-Yates over perm[0..255]:
+ *          for i in 0..255:  j=iy%101; d=table[1+j]; table[1+j]=(4096·d+150889)%714025; iy=d;
+ *                            swap perm[i] ↔ perm[d & 0xff].
+ *     ⇒ perm[0:16] = [208,84,188,177,134,131,38,36,22,178,41,146,241,63,219,137] (valid 256-perm).
+ *
+ *   calculateCellValues() @0x5123c = textbook Ken-Perlin improved gradient noise:
+ *     hash = perm[(perm[(perm[z&0xff]+y)&0xff]+x)&0xff]  (nested perm), gi = hash % 12,
+ *     grad = GRAD12[gi] (canonical 12 gradients @0x467218, stride 0xc:
+ *       (1,1),(-1,1),(1,-1),(-1,-1),(1,0),(-1,0),(1,0),(-1,0),(0,1),(0,-1),(0,1),(0,-1)),
+ *     dot with the offset, quintic fade 6t⁵−15t⁴+10t³, bilinear-mixed per cell (the SCellValues
+ *     the shader's texCoord{2k+1} carry).  The z index = Speed·seconds·(scale) → 0 at t=0.
+ *
+ *   ⇒ PAECloudsV2 IS byte-recoverable at t=0 (z=0): deterministic Perlin noise over the fixed
+ *     perm+GRAD12, base cell = Horizontal/Vertical Scale, 4 octaves doubling, fBm-summed by
+ *     hg_Params[1], through the gradient LUT (hg_Params[0] contrast/bright), premultiplied. The
+ *     perm generator is IDENTICAL to underwater.ts buildFieldExact's LCG+Bays–Durham (shared
+ *     ProCore noise core). REMAINING to port: wire the decoded perm+GRAD12 Perlin evaluator +
+ *     the exact octave cell-coordinate setup (Scale→cell, ×2/octave) + gradient-LUT map; then
+ *     verify at the node boundary at t=0 like PAEUnderwater. This overturns the "stochastic
+ *     ceiling" verdict — CloudsV2 (and by extension the PAENoise/CloudsV1 family, which share
+ *     getPermTable) are recoverable, not fundamentally unmatchable.
+
+ *
+ * ── ⚠️ CORRECTION (2026-07-23): the "unrecoverable RNG" claim above is WRONG. ──────────────
+ *   Disassembling the CPU path proves the CloudsV2 noise is STANDARD 2D PERLIN GRADIENT NOISE
+ *   with a FULLY DETERMINISTIC, RECOVERABLE generator — the same seeded LCG+Bays-Durham as
+ *   PAEUnderwater (whose "unrecoverable noise texture" claim was likewise disproven). Decode:
+ *   • -[PAECloudsV2 canThrowRenderOutput] @0x51b48 calls getPermTable() @0x511b4 (a cached
+ *     function-local static — NO per-frame seed) and calculateCellValues() @0x5123c per octave.
+ *   • makePermTable() @0x5313c: perm[0..255] = identity (SIMD fill from 0x269a60=(0,1,2,3)+4),
+ *     then FISHER-YATES shuffled by the shared generator: fill a 102-entry table via the LCG
+ *     X←(4096·X+150889) mod 714025 (0x24d69/0xae529, magic 0x5dfc998781872319) seeded 0x23232323;
+ *     Bays-Durham shuffle (iy seed 0x6f638, NTAB=101); for i in 0..255: draw d; swap
+ *     perm[i]↔perm[d&0xff]. The result is a FIXED 256-entry permutation (decoded, 256/256 unique;
+ *     perm[0:8]=[208,84,188,177,134,131,38,36]).
+ *   • calculateCellValues: classic Perlin hash gi = perm[(perm[(perm[z&0xff]+y)&0xff]+x)&0xff] % 12
+ *     indexing a 12-entry GRADIENT table @0x467218 = the canonical improved-noise 2D gradients
+ *     {(±1,±1),(±1,0)×2,(0,±1)×2}; dot with the fractional offset; quintic fade 6t⁵−15t⁴+10t³;
+ *     bilinear-mix the 4 corner gradient-dots → the octave value. 4 octaves, doubling frequency,
+ *     fBm-summed by hg_Params[1]. The z (3rd) cell index is Speed·seconds (0 at t=0), so at t=0
+ *     the field is FULLY determined by the fixed perm+gradient tables → byte-recoverable.
+ *   ⇒ Like PAEUnderwater, CloudsV2 is decodable at t=0 (deterministic). REMAINING to a node-
+ *     boundary match: port the Perlin evaluator (perm+gradients above) + the exact cell-index /
+ *     Scale→frequency mapping + the gradient-LUT/contrast-brightness tail, then verify at t=0
+ *     through the spatial harness (same method that took Underwater 17→30 dB). The per-frame
+ *     "unrecoverable" verdict only holds for t≠0 IF the z-evolution schedule differs from
+ *     Speed·seconds — but the disasm shows it IS Speed·seconds, so even t≠0 is recoverable.
  * ========================================================================================
  */
 export {};
