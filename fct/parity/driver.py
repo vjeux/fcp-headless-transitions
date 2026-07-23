@@ -159,6 +159,43 @@ def _sweep_constant(node):
 
 
 # ---------------------------------------------------------------------------------------
+# SEQUENCE kind: verify an engine RNG/sequence generator against an FCP function that emits
+# a deterministic sequence (seed -> array). Used for the dSFMT (Mersenne-Twister) RNG behind
+# PAENoise/PAECloudsV Stage-1: FCP RandMersenne::SetSeed + dsfmt_gen_rand_all vs the engine's
+# bit-exact DSFMT port. Compares the first N close1_open2 doubles across several seeds.
+# ---------------------------------------------------------------------------------------
+def _sweep_sequence(node, worker):
+    oc = node["oracle"]
+    kind = oc.get("type")
+    if kind != "dsfmt":
+        return {"id": node["id"], "kind": "sequence", "status": "NO_ORACLE",
+                "error": "unknown sequence oracle type %r" % kind}
+    seeds = oc.get("seeds", [0, 1, 42, 12345])
+    n = int(oc.get("n", 16))
+    tol = float(node.get("tol", 0.0))
+    worst = {"abs": 0.0, "seed": None, "i": None, "oracle": None, "engine": None}
+    n_cmp = 0; failures = []
+    for seed in seeds:
+        try:
+            o_seq = oracle.dsfmt_sequence(seed, n)
+            e_out = worker.eval(node["ts_fn"], {"seed": seed, "n": n})
+            e_seq = e_out["seq"]
+        except Exception as ex:
+            failures.append({"seed": seed, "error": str(ex)}); continue
+        for i, (a, b) in enumerate(zip(o_seq, e_seq)):
+            ae = abs(float(a) - float(b)); n_cmp += 1
+            if ae > worst["abs"]:
+                worst.update(abs=ae, seed=seed, i=i, oracle=a, engine=b)
+    status = "VERIFIED" if (worst["abs"] <= tol and not failures and n_cmp) else \
+             ("NO_ORACLE" if not n_cmp else "DIVERGED")
+    return {"id": node["id"], "kind": "sequence", "status": status, "n_cases": n_cmp,
+            "max_abs_err": worst["abs"], "tol": tol, "seeds": seeds, "n": n,
+            "worst": {k: worst[k] for k in ("seed", "i", "oracle", "engine")},
+            "n_failures": len(failures), "failures": failures[:5],
+            "swept": time.strftime("%Y-%m-%dT%H:%M:%SZ")}
+
+
+# ---------------------------------------------------------------------------------------
 # FILTER/GENERATOR kind: image node. DELEGATE to the FAITHFUL delta-response sweep (the
 # proven in-host isolation). A static-source injection would be UNFAITHFUL (synth.py lesson),
 # so parity does not re-implement it — it surfaces the faithful verdict under the node view.
@@ -192,6 +229,8 @@ def status():
         s = st["nodes"].get(n["id"], {})
         if n["kind"] == "curve":
             m = s.get("max_abs_err"); ms = ("abs=%.1e" % m) if isinstance(m, (int, float)) else "-"
+        elif n["kind"] == "sequence":
+            m = s.get("max_abs_err"); ms = ("abs=%.1e" % m) if isinstance(m, (int, float)) else "-"
         elif n["kind"] == "constant":
             m = s.get("max_abs_err"); ms = ("d=%.4f" % m) if isinstance(m, (int, float)) else "-"
         elif n["kind"] == "transfer":
@@ -210,7 +249,7 @@ def status():
         if _stt(st, n["id"], reg) == "VERIFIED":
             bysub[n.get("subsystem", "?")][0] += 1
     print("  subsystems: " + "  ".join("%s %d/%d" % (k, v[0], v[1]) for k, v in sorted(bysub.items())))
-    owned_next = next((n["id"] for n in nodes if n["kind"] in ("curve", "transfer", "spatial", "constant") and _stt(st, n["id"], reg) not in ("VERIFIED", "CHARACTERIZED")), None)
+    owned_next = next((n["id"] for n in nodes if n["kind"] in ("curve", "sequence", "transfer", "spatial", "constant") and _stt(st, n["id"], reg) not in ("VERIFIED", "CHARACTERIZED")), None)
     div_img = [n["id"] for n in nodes if n["kind"] in ("filter", "generator") and _stt(st, n["id"], reg) == "DIVERGED"]
     print("  next parity-owned:", owned_next or "(all curve/value VERIFIED)")
     if div_img:
@@ -250,6 +289,25 @@ def sweep(ids):
                 _record(st, report)
                 print("    -> %-9s max_abs_err=%.3e n=%d"
                       % (report["status"], report.get("max_abs_err", -1), report.get("n_cases", 0)))
+            elif node["kind"] == "sequence":
+                if worker is None:
+                    worker = TSWorker()
+                    from fct.parity import selftest
+                    ok, results = selftest.run(worker)
+                    if not ok:
+                        print("  HARNESS_BROKEN — refusing to record:")
+                        for name, passed, detail in results:
+                            if not passed: print("    FAIL %s: %s" % (name, detail))
+                        return
+                report = _sweep_sequence(node, worker)
+                _record(st, report)
+                print("    -> %-9s max_abs_err=%.3e n=%d%s"
+                      % (report["status"], report.get("max_abs_err", -1), report.get("n_cases", 0),
+                         ("  worst seed=%s i=%s oracle=%s engine=%s"
+                          % (report["worst"].get("seed"), report["worst"].get("i"),
+                             report["worst"].get("oracle"), report["worst"].get("engine")))
+                         if report["status"] == "DIVERGED" else ""))
+
             elif node["kind"] in ("filter", "generator"):
                 report = _sweep_filter(node, metrics)
                 _record(st, report)

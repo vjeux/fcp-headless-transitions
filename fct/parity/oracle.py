@@ -80,6 +80,73 @@ def estimate_working_gamma(gamut=0):
     return float(est(cs))
 
 
+def dsfmt_sequence(seed=0, n=16):
+    """Return the first `n` close1_open2 doubles (in [1,2)) of FCP's OWN dSFMT (MEXP=19937)
+    seeded with `seed`, via ProCore's RandMersenne. This is the exact RNG that PAENoise's
+    Stage-1 white-noise gradient texture is filled from (byte = trunc((raw-1)*255)).
+
+    RandMersenne is a C++ object; from the SetSeed disasm (ProCore 0x3388) the dsfmt_t lives
+    at instance offset +0x8 and SetSeed(this,seed) calls dsfmt_chk_init_gen_rand(this+8, seed,
+    19937). After seeding, idx==N64 (382) so the first draw regenerates; dsfmt_gen_rand_all
+    fills status[0..381] which, reinterpreted as f64, IS the close1_open2 sequence (psfmt64).
+    We drive it directly: allocate a >=0xc28-byte object, SetSeed, gen_rand_all, read doubles.
+    Load-order-independent (ProCore only). No engine boot, no DYLD.
+    """
+    lib = load_framework("ProCore")
+    set_seed = lib["_ZN12RandMersenne7SetSeedEm"]     # nm __ZN.. -> dlsym one fewer underscore
+    set_seed.argtypes = [ctypes.c_void_p, ctypes.c_ulong]; set_seed.restype = None
+    gen_all = lib["dsfmt_gen_rand_all"]                # nm _dsfmt.. -> dlsym drops one underscore
+    gen_all.argtypes = [ctypes.c_void_p]; gen_all.restype = None
+    obj = (ctypes.c_char * 0x2000)()                   # RandMersenne is ~0xc28 bytes; over-allocate
+    base = ctypes.addressof(obj)
+    set_seed(base, int(seed) & 0xffffffffffffffff)
+    out = []
+    dsfmt = base + 0x8                                 # dsfmt_t at instance +0x8
+    # status[] holds N64=382 doubles per generation; regenerate as needed for n>382.
+    while len(out) < n:
+        gen_all(dsfmt)
+        block = (ctypes.c_double * 382).from_address(dsfmt)
+        out.extend(block[i] for i in range(min(382, n - len(out))))
+    return out[:n]
+
+
+
+def dsfmt_sequence(seed, n):
+    """Return the first `n` close1_open2 doubles [1,2) of FCP's OWN dSFMT (the RNG behind
+    PAENoise / PAECloudsV) seeded with `seed`, via ProCore's RandMersenne.
+
+    This is the deterministic Stage-1 white-noise generator: -[PAENoise canThrowRenderOutput]
+    calls RandMersenne::SetSeed(seed) then pulls dsfmt_gen_rand_all() to fill an RGBA texture
+    with byte = trunc((raw-1.0)*255). Verifying our TS DSFMT port against this proves the
+    seeded byte sequence is bit-exact (the per-FRAME reseed schedule is a separate, host-side,
+    unrecoverable concern; this oracle covers the reproducible core).
+
+    ABI (from -[RandMersenne::SetSeed] disasm @ ProCore 0x3388): the RandMersenne object holds
+    its dsfmt_t at offset +0x8; SetSeed calls dsfmt_chk_init_gen_rand(this+8, seed, mexp=19937)
+    and zeroes the cached-double cursor. dsfmt_t = { w128_t status[N+1]; int idx; } with N=191,
+    so status is 192*16=3072 bytes at +0x8 and the [1,2) doubles alias status[0..N64-1] (N64=382)
+    after a gen_rand_all pass. We allocate a generous buffer, SetSeed, gen_rand_all, then read
+    the leading `n` doubles. (n must be <= 382, the block size.)
+    """
+    if n > 382:
+        raise OracleError("dsfmt_sequence: n must be <= 382 (one gen_rand_all block); got %d" % n)
+    lib = load_framework("ProCore")
+    set_seed = lib["_ZN12RandMersenne7SetSeedEm"]  # RandMersenne::SetSeed(unsigned long)
+    set_seed.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+    set_seed.restype = None
+    gen_all = lib["dsfmt_gen_rand_all"]            # dsfmt_gen_rand_all(dsfmt_t*)
+    gen_all.argtypes = [ctypes.c_void_p]
+    gen_all.restype = None
+    obj = (ctypes.c_char * 0x2000)()               # >= sizeof(RandMersenne) ~0xc28
+    base = ctypes.addressof(obj)
+    dsfmt_ptr = base + 0x8                          # dsfmt_t lives at +0x8
+    set_seed(base, int(seed) & 0xFFFFFFFFFFFFFFFF)
+    gen_all(dsfmt_ptr)                              # fill one block of 382 close1_open2 doubles
+    arr = (ctypes.c_double * n).from_address(dsfmt_ptr)
+    return [float(arr[i]) for i in range(n)]
+
+
+
 _loaded = {}  # framework short-name -> ctypes.CDLL (cached; process-global, idempotent)
 
 

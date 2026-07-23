@@ -200,6 +200,31 @@
    "status": "UNTESTED"
   },
   {
+   "id": "curve.rng.dsfmt",
+   "subsystem": "curves",
+   "kind": "sequence",
+   "desc": "dSFMT (MEXP=19937) close1_open2 RNG \u2014 the deterministic Stage-1 white-noise generator behind PAENoise + PAECloudsV. Engine's bit-exact TS DSFMT port (noise.ts) vs FCP's real ProCore RandMersenne (SetSeed + dsfmt_gen_rand_all via dlsym). Proves the seeded byte sequence is bit-for-bit identical to Apple's; the per-FRAME reseed schedule remains host-side/unrecoverable (separate concern).",
+   "oracle": {
+    "type": "dsfmt",
+    "framework": "ProCore",
+    "seeds": [
+     0,
+     1,
+     42,
+     12345,
+     12648430,
+     3735928559,
+     7,
+     255
+    ],
+    "n": 16
+   },
+   "ts_fn": "DSFMT_sequence",
+   "tol": 0.0,
+   "oracle_truth": "dlsym",
+   "status": "UNTESTED"
+  },
+  {
    "id": "curve.color.luma709",
    "subsystem": "color",
    "kind": "curve",

@@ -18,6 +18,8 @@ import readline from 'node:readline';
 import { easeInOut, cubicBezier, solveBezierParam } from '../src/evaluator/curves.js';
 import { gaussianDecimation } from '../src/compositor/filters/gaussian-blur.js';
 import { LUMA709_COEFFS_FCP } from '../src/compositor/blend.js';
+import { DSFMT } from '../src/compositor/filters/noise.js';
+import { DSFMT } from '../src/compositor/filters/noise.js';
 
 type Args = Record<string, number | number[]>;
 type Outputs = Record<string, number | number[]>;
@@ -70,6 +72,19 @@ const FUNCTIONS: Record<string, Fn> = {
   'PCGetGamutLuma': (a) => {
     void a; // gamut arg is consumed by the oracle; the engine constant is Rec.709 (gamut 0)
     return { coeffs: [LUMA709_COEFFS_FCP[0], LUMA709_COEFFS_FCP[1], LUMA709_COEFFS_FCP[2]] };
+  },
+
+  // RandMersenne/dSFMT (MEXP=19937) close1_open2 sequence — the RNG behind PAENoise/PAECloudsV
+  // Stage-1 white-noise texture. Verifies the engine's bit-exact dSFMT port (noise.ts DSFMT)
+  // against FCP's real ProCore RandMersenne (dsfmt_sequence oracle). Returns the first `n`
+  // doubles in [1,2) for the given seed as a vector output `seq`.
+  'DSFMT_sequence': (a) => {
+    const seed = (a.seed as number) >>> 0;
+    const n = a.n as number;
+    const d = new DSFMT(seed);
+    const seq: number[] = [];
+    for (let i = 0; i < n; i++) seq.push(d.next());
+    return { seq };
   },
 };
 

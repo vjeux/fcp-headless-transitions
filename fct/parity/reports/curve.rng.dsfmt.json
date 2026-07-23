@@ -1,0 +1,28 @@
+{
+  "id": "curve.rng.dsfmt",
+  "kind": "sequence",
+  "status": "VERIFIED",
+  "n_cases": 128,
+  "max_abs_err": 0.0,
+  "tol": 0.0,
+  "seeds": [
+    0,
+    1,
+    42,
+    12345,
+    12648430,
+    3735928559,
+    7,
+    255
+  ],
+  "n": 16,
+  "worst": {
+    "seed": null,
+    "i": null,
+    "oracle": null,
+    "engine": null
+  },
+  "n_failures": 0,
+  "failures": [],
+  "swept": "2026-07-23T14:03:10Z"
+}
