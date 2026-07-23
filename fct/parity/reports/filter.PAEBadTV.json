@@ -9,8 +9,25 @@
   "pass_db": 40.0,
   "oracle_truth": "headless",
   "faithful_id": "PAEBadTV",
-  "synced_from": "fct/faithful/state.json",
-  "faithful_note": "DETERMINISTIC parts VERIFIED+matched (badtv.ts): scan lines (period H/100, smoothstep fit MSE 2.4e-6), desaturate (sat=Saturate/100+1, luma coeffs recovered), roll phase, chromatic split. NOT fundamentally stochastic: the WAVINESS displacement is a dSFMT (Mersenne MEXP=19937) per-scanline random walk RESEEDED per frame (seed=2*frame+1), and STATIC is the PAENoise dSFMT field \u2014 BOTH deterministic given the frame number. Blocked on (a) a faithful dSFMT reimplementation and (b) the exact frameFromFxTime->seed schedule (same frame-index issue as PAEEarthquake). TRACTABLE with shared dSFMT+frame-index infra; deterministic-only path (Waviness=0,Static=0) already matches headless. Not a fundamental limit. | CAVEAT 2026-07-18: the shared dSFMT+frame-index lever is likely ALSO GUI-gated \u2014 PAEEarthquake proved that even a fully-decoded RNG frame-index, when made headless-faithful (trunc(frame)*1000), REGRESSES the GUI gate (-0.37). So the fine per-frame RNG pose is a headless!=GUI target for the whole dSFMT family, not just color. The dSFMT reimpl would be verifiable against HEADLESS but may not improve the GUI GATE. Reduces the ROI of the shared lever for the gate (still valid for headless faithfulness).",
-  "faithful_verified_via": "blocked-dsfmt-frameindex",
-  "swept": "2026-07-19T01:12:07Z"
+  "used_synthetic": false,
+  "worst_rows": [
+    {
+      "host": "Lights__Static",
+      "param": "mix",
+      "kind": "curve",
+      "theta": 0.5,
+      "t": 0.1,
+      "oracle_signal": 69.483,
+      "ddb": 11.293
+    },
+    {
+      "host": "Lights__Static",
+      "param": "mix",
+      "kind": "curve",
+      "theta": 0.5,
+      "t": 0.5,
+      "oracle_signal": 5.86,
+      "ddb": 32.773
+    }
+  ]
 }

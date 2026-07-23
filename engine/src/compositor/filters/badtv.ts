@@ -170,8 +170,16 @@
 import { registerFilter, type FilterContext } from './registry.js';
 import { applyNoiseGenerator, DSFMT } from './noise.js';
 
-// Measured RGB->luma coefficients (headless full-desaturate least-squares, sum≈1).
-const LUMA_R = 0.2581, LUMA_G = 0.5856, LUMA_B = 0.1611;
+// FCP HgcBadTV desaturate luma = Rec.709 on sRGB CODE values (P12 = the Y row of
+// colorMatrixFromDesiredRGBToYCbCr). DECODED + VERIFIED 2026-07-23 (fct/parity, isolated rig:
+// Waviness=Static=Roll=0, Scan Line Brightness=1 so the scanline band factor is 1 everywhere —
+// this removes the scanline confound that made an earlier probe read a fake ~1.27x lift and fit
+// wrong coeffs). On the clean rig the desaturation leg (Saturate<=0) is EXACTLY
+// mix(luma709, rgb, sat) in CODE space, worst 0.4 lvl across 7 colours × 3 sat levels; the old
+// fitted coeffs (0.2581,0.5856,0.1611) were 18.9 lvl off. (The OVER-saturation leg Saturate>0
+// still needs the working-space/gamut treatment — but BadTV's default Saturate=-25 is a
+// DESATURATION, so the shipped path is now faithful for the built-in Lights/Static host.)
+const LUMA_R = 0.2126, LUMA_G = 0.7152, LUMA_B = 0.0722;
 
 // smoothstep(0,1,t) with t already the clamped edge coordinate.
 function smoothstep01(t: number): number {
