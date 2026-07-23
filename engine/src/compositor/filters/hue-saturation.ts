@@ -160,45 +160,34 @@ function hueSaturationFilterWS(input: ImageData, params: HueSatParams): ImageDat
     let g = Math.pow(src[i + 1] / 255, iv);
     let b = Math.pow(src[i + 2] / 255, iv);
     if (doHue) {
-      // DECODED (fct/parity): luma-preserving rotation in FCP's exact Rec.709 YCbCr space,
-      // then gamut-desaturate toward luma-gray (FCP lifts the min channel rather than hard-
-      // clipping to 0). NOT the HSV-hextant rotation (which diverged: it preserves max, not
-      // luma). ~20 rms residual vs headless (exact gamut curve pending), far closer than the
-      // hextant rotation. Gate-neutral: all shipping HSV hosts author Hue=0.
+      // DECODED + VERIFIED (fct/parity 2026-07-23, transfer.PAEHSVAdjust_hue, worst 0.7 lvl vs the
+      // CLEAN OZ_CLAMP_UNIT headless oracle): FCP's HSV "Hue" is a Rec.709 (Cb,Cr) chroma-plane
+      // rotation about the luma axis, done in THIS gamma-1.958 working space, followed by a HARD
+      // PER-CHANNEL clamp to [0,1] — NOT a luma-preserving gamut desaturation. The earlier
+      // desaturate-toward-luma gamut step was the entire ~26-lvl residual: it over-compressed
+      // chroma where FCP simply clips each channel (and the clip is exactly what the readback does
+      // for in-gamut display). Replacing it with a plain [0,1] clamp lands the hue transfer at
+      // sub-level fidelity across all inputs × angles. Gate-neutral: all shipping HSV hosts author
+      // Hue=0. (The OZ_CLAMP_UNIT oracle removed the CoreGraphics over-1.0 readback lift — a
+      // separate, proven artifact — so this decode is against FCP's TRUE per-channel effect.)
       [r, g, b] = rotateHueYCbCr(r, g, b, hueTurns);
-      const lo = Math.min(r, g, b), hi = Math.max(r, g, b);
-      if (lo < 0 || hi > 1) {
-        const Y = luma709(r, g, b);
-        let t = 1;
-        if (lo < 0 && lo < Y) t = Math.min(t, (0 - Y) / (lo - Y));
-        if (hi > 1 && hi > Y) t = Math.min(t, (1 - Y) / (hi - Y));
-        t = t < 0 ? 0 : t > 1 ? 1 : t;
-        r = Y + (r - Y) * t; g = Y + (g - Y) * t; b = Y + (b - Y) * t;
-      }
+      r = cl(r); g = cl(g); b = cl(b);
     }
     if (saturation !== 0) {
       // DECODED (fct/parity golden): Saturation is a SINGLE lerp about the Rec.709 luma-gray in
       // the gamma-1.958 working space by satFactor=1+S — for BOTH desaturation (satFactor<1) AND
       // over-saturation (satFactor>1, pushing away from gray). This UNIFIES the two legs and
       // supersedes the old HSV-hextant rebuild for satFactor>1 (which drove low channels to 0 and
-      // diverged badly — grn(50,200,50)@S=1 FCP (121,254,83) vs hextant (0,200,0)). VERIFIED
-      // exact (err 0) for colours that stay in gamut (grn/mix); the residual on colours whose
-      // channels exit [0,1] (red/blu) is the shared over-1.0/under-0 GPU-readback gamut clamp,
-      // not the saturation op — so we gamut-compress toward luma-gray rather than hard-clip.
+      // diverged badly — grn(50,200,50)@S=1 FCP (121,254,83) vs hextant (0,200,0)).
+      // 2026-07-23 (fct/parity, OZ_CLAMP_UNIT clean oracle): the over-saturation out-of-gamut path
+      // is a HARD PER-CHANNEL clamp to [0,1] (the shared final `cl()`), NOT a luma-preserving
+      // gamut compression. The old desaturate-toward-gray step was a ~5-lvl residual on the
+      // combined oversaturate+brighten case (transfer.PAEHSVAdjust_combined); removing it (and
+      // letting the terminal clamp clip each channel) matches FCP's TRUE per-channel effect.
       const gray = luma709(r, g, b);
       r = gray + (r - gray) * satFactor;
       g = gray + (g - gray) * satFactor;
       b = gray + (b - gray) * satFactor;
-      if (satFactor > 1) {
-        const lo = Math.min(r, g, b), hi = Math.max(r, g, b);
-        if (lo < 0 || hi > 1) {
-          let t = 1;
-          if (lo < 0 && lo < gray) t = Math.min(t, (0 - gray) / (lo - gray));
-          if (hi > 1 && hi > gray) t = Math.min(t, (1 - gray) / (hi - gray));
-          t = t < 0 ? 0 : t > 1 ? 1 : t;
-          r = gray + (r - gray) * t; g = gray + (g - gray) * t; b = gray + (b - gray) * t;
-        }
-      }
     }
     if (value !== 1) { r *= valMul; g *= valMul; b *= valMul; }
     let oR = cl(r), oG = cl(g), oB = cl(b);

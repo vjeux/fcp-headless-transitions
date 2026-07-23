@@ -1,29 +1,29 @@
 {
   "id": "transfer.PAEHSVAdjust_combined",
   "kind": "transfer",
-  "status": "DIVERGED",
+  "status": "VERIFIED",
   "metric": "max_abs_levels",
-  "max_abs_levels": 5.520000000000003,
+  "max_abs_levels": 0.7199999999999989,
   "n_samples": 27,
   "tol_levels": 2.0,
   "worst": {
     "case": {
-      "label": "oversaturate_bright",
+      "label": "hue_desat_dim",
       "params": [
         {
           "name": "Hue",
           "id": 1,
-          "value": 0.0
+          "value": 0.523599
         },
         {
           "name": "Saturation",
           "id": 2,
-          "value": 0.5
+          "value": -0.3
         },
         {
           "name": "Value",
           "id": 3,
-          "value": 1.2
+          "value": 0.9
         }
       ]
     },
@@ -33,14 +33,14 @@
       50
     ],
     "oracle": [
-      254.5,
-      56.69,
-      56.48
+      107.93,
+      52.28,
+      23.22
     ],
     "engine": [
-      255.0,
-      62.0,
-      62.0
+      108.0,
+      53.0,
+      23.0
     ]
   },
   "oracle_truth": "transfer",
@@ -190,8 +190,8 @@
       ],
       "engine": [
         255.0,
-        62.0,
-        62.0
+        57.0,
+        57.0
       ]
     },
     {

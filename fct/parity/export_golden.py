@@ -52,6 +52,13 @@ VERIFIED = {
     "transfer.PAEBrightness",
     "transfer.PAEContrast",
     "transfer.PAEChannelMixer_clip",
+    # HSV hue DECODED 2026-07-23 (fct/parity): FCP's "Hue" is a Rec.709 (Cb,Cr) chroma-plane
+    # rotation in the gamma-1.958 working space + HARD per-channel clamp (NOT HSV-hextant, NOT
+    # luma-preserving gamut desat). VERIFIED 0.5-0.9 lvl vs the clean OZ_CLAMP_UNIT oracle. The
+    # combined node also drops the over-sat gamut-desat step for the same hard-clamp reason.
+    "transfer.PAEHSVAdjust",
+    "transfer.PAEHSVAdjust_hue",
+    "transfer.PAEHSVAdjust_combined",
 }
 
 out = {}

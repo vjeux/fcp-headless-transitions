@@ -444,31 +444,31 @@
     "transfer.PAEHSVAdjust": {
       "id": "transfer.PAEHSVAdjust",
       "kind": "transfer",
-      "status": "DIVERGED",
+      "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 26.33,
+      "max_abs_levels": 0.8699999999999974,
       "n_samples": 162,
       "tol_levels": 2.0,
       "worst": {
         "case": {
-          "name": "Hue",
-          "id": 1,
-          "value": 1.5708
+          "name": "Value",
+          "id": 3,
+          "value": 0.5
         },
         "input": [
-          50,
           200,
-          50
+          200,
+          200
         ],
         "oracle": [
-          61.67,
-          163.6,
-          254.66
+          51.22,
+          51.13,
+          51.15
         ],
         "engine": [
-          88.0,
-          158.0,
-          255.0
+          52.0,
+          52.0,
+          52.0
         ]
       },
       "oracle_truth": "transfer",
@@ -986,9 +986,9 @@
     "transfer.PAEHSVAdjust_hue": {
       "id": "transfer.PAEHSVAdjust_hue",
       "kind": "transfer",
-      "status": "DIVERGED",
+      "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 26.33,
+      "max_abs_levels": 0.5499999999999998,
       "n_samples": 54,
       "tol_levels": 2.0,
       "worst": {
@@ -998,19 +998,19 @@
           "value": 1.5708
         },
         "input": [
-          50,
           200,
+          50,
           50
         ],
         "oracle": [
-          61.67,
-          163.6,
-          254.66
+          53.42,
+          92.51,
+          3.45
         ],
         "engine": [
-          88.0,
-          158.0,
-          255.0
+          53.0,
+          93.0,
+          4.0
         ]
       },
       "oracle_truth": "transfer",
@@ -1553,29 +1553,29 @@
     "transfer.PAEHSVAdjust_combined": {
       "id": "transfer.PAEHSVAdjust_combined",
       "kind": "transfer",
-      "status": "DIVERGED",
+      "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 5.520000000000003,
+      "max_abs_levels": 0.7199999999999989,
       "n_samples": 27,
       "tol_levels": 2.0,
       "worst": {
         "case": {
-          "label": "oversaturate_bright",
+          "label": "hue_desat_dim",
           "params": [
             {
               "name": "Hue",
               "id": 1,
-              "value": 0.0
+              "value": 0.523599
             },
             {
               "name": "Saturation",
               "id": 2,
-              "value": 0.5
+              "value": -0.3
             },
             {
               "name": "Value",
               "id": 3,
-              "value": 1.2
+              "value": 0.9
             }
           ]
         },
@@ -1585,14 +1585,14 @@
           50
         ],
         "oracle": [
-          254.5,
-          56.69,
-          56.48
+          107.93,
+          52.28,
+          23.22
         ],
         "engine": [
-          255.0,
-          62.0,
-          62.0
+          108.0,
+          53.0,
+          23.0
         ]
       },
       "oracle_truth": "transfer",
@@ -3646,8 +3646,43 @@
       "id": "transfer.PAEHSVAdjust_combined",
       "status": "DIVERGED",
       "at": "2026-07-23T22:22:52Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_hue",
+      "status": "VERIFIED",
+      "at": "2026-07-23T22:43:37Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust",
+      "status": "VERIFIED",
+      "at": "2026-07-23T22:43:58Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_combined",
+      "status": "DIVERGED",
+      "at": "2026-07-23T22:44:05Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_saturation",
+      "status": "VERIFIED",
+      "at": "2026-07-23T22:46:58Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_valsat",
+      "status": "VERIFIED",
+      "at": "2026-07-23T22:47:42Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_combined_ingamut",
+      "status": "VERIFIED",
+      "at": "2026-07-23T22:48:22Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_combined",
+      "status": "VERIFIED",
+      "at": "2026-07-23T22:48:30Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T22:22:52Z"
+  "updated": "2026-07-23T22:48:30Z"
 }

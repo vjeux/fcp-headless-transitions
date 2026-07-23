@@ -1,31 +1,31 @@
 {
   "id": "transfer.PAEHSVAdjust",
   "kind": "transfer",
-  "status": "DIVERGED",
+  "status": "VERIFIED",
   "metric": "max_abs_levels",
-  "max_abs_levels": 26.33,
+  "max_abs_levels": 0.8699999999999974,
   "n_samples": 162,
   "tol_levels": 2.0,
   "worst": {
     "case": {
-      "name": "Hue",
-      "id": 1,
-      "value": 1.5708
+      "name": "Value",
+      "id": 3,
+      "value": 0.5
     },
     "input": [
-      50,
       200,
-      50
+      200,
+      200
     ],
     "oracle": [
-      61.67,
-      163.6,
-      254.66
+      51.22,
+      51.13,
+      51.15
     ],
     "engine": [
-      88.0,
-      158.0,
-      255.0
+      52.0,
+      52.0,
+      52.0
     ]
   },
   "oracle_truth": "transfer",
@@ -400,8 +400,8 @@
         254.66
       ],
       "engine": [
-        88.0,
-        158.0,
+        62.0,
+        164.0,
         255.0
       ]
     },
