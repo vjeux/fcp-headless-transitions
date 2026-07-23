@@ -30,13 +30,10 @@ VERIFIED = {
     "transfer.PAEColorize", "transfer.PAETint", "transfer.PAEHSVAdjust_valsat",
     "transfer.PAELevels", "transfer.PAELevels_remap", "transfer.PAELevels_outremap", "transfer.PAELevels_combined", "transfer.PAEChannelMixer", "transfer.PAEChannelMixer_offset",
     "transfer.PAEBrightness_darken",
-    "transfer.PAEBrightness_brighten_ingamut",
-    "transfer.PAEBrightness_brighten_ingamut",
-    "transfer.PAEBrightness_brighten_ingamut",
+    "transfer.PAEBrightness_brighten",
     "transfer.PAEThreshold", "transfer.PAEFill",
     "transfer.PAEContrast_gray",
     "transfer.PAEContrast_ingamut",
-    "transfer.PAEHSVAdjust_combined_ingamut",
     "transfer.PAEHSVAdjust_combined_ingamut",
 }
 
