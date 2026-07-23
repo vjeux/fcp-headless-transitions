@@ -27739,7 +27739,7 @@
   },
   "tol_levels": 2.0,
   "verified": true,
-  "n": 36,
+  "n": 60,
   "cases": [
    {
     "params": [
@@ -29179,6 +29179,966 @@
      0.19,
      222.88,
      0.01
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     16,
+     16,
+     16
+    ],
+    "oracle": [
+     0.01,
+     62.19,
+     62.17
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     32,
+     32,
+     32
+    ],
+    "oracle": [
+     0.05,
+     124.12,
+     124.02
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     64,
+     64,
+     64
+    ],
+    "oracle": [
+     0.3,
+     248.61,
+     248.33
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     43.93,
+     254.67,
+     254.44
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     200,
+     200,
+     200
+    ],
+    "oracle": [
+     151.2,
+     254.56,
+     254.58
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     240,
+     240,
+     240
+    ],
+    "oracle": [
+     225.21,
+     254.67,
+     254.52
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     200,
+     50,
+     50
+    ],
+    "oracle": [
+     0.91,
+     254.29,
+     254.81
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     50,
+     200,
+     50
+    ],
+    "oracle": [
+     68.55,
+     254.29,
+     254.57
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     50,
+     50,
+     200
+    ],
+    "oracle": [
+     0.19,
+     222.88,
+     223.13
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     16,
+     16,
+     16
+    ],
+    "oracle": [
+     62.29,
+     0.0,
+     61.7
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     32,
+     32,
+     32
+    ],
+    "oracle": [
+     124.34,
+     0.0,
+     124.11
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     64,
+     64,
+     64
+    ],
+    "oracle": [
+     248.36,
+     0.0,
+     248.4
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     254.31,
+     43.64,
+     254.81
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     200,
+     200,
+     200
+    ],
+    "oracle": [
+     254.5,
+     151.22,
+     254.36
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     240,
+     240,
+     240
+    ],
+    "oracle": [
+     254.37,
+     224.95,
+     254.7
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     200,
+     50,
+     50
+    ],
+    "oracle": [
+     254.69,
+     1.0,
+     254.52
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     50,
+     200,
+     50
+    ],
+    "oracle": [
+     254.5,
+     68.31,
+     254.78
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     50,
+     50,
+     200
+    ],
+    "oracle": [
+     223.1,
+     0.0,
+     223.13
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     16,
+     16,
+     16
+    ],
+    "oracle": [
+     62.31,
+     62.31,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     32,
+     32,
+     32
+    ],
+    "oracle": [
+     124.32,
+     124.3,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     64,
+     64,
+     64
+    ],
+    "oracle": [
+     248.25,
+     248.24,
+     0.03
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     254.69,
+     254.8,
+     43.82
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     200,
+     200,
+     200
+    ],
+    "oracle": [
+     254.69,
+     254.8,
+     151.85
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Color",
+      "id": 1,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Intensity",
+      "id": 2,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     240,
+     240,
+     240
+    ],
+    "oracle": [
+     254.69,
+     254.8,
+     225.4
     ]
    }
   ]

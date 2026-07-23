@@ -480,7 +480,7 @@
       "status": "VERIFIED",
       "metric": "max_abs_levels",
       "max_abs_levels": 0.8899999999999864,
-      "n_samples": 108,
+      "n_samples": 243,
       "tol_levels": 2.0,
       "worst": {
         "case": {
@@ -2578,8 +2578,18 @@
       "id": "transfer.PAEColorize",
       "status": "VERIFIED",
       "at": "2026-07-23T07:00:33Z"
+    },
+    {
+      "id": "transfer.PAETint",
+      "status": "DIVERGED",
+      "at": "2026-07-23T07:28:40Z"
+    },
+    {
+      "id": "transfer.PAETint",
+      "status": "VERIFIED",
+      "at": "2026-07-23T07:30:56Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T07:00:33Z"
+  "updated": "2026-07-23T07:30:56Z"
 }

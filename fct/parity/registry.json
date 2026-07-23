@@ -688,6 +688,161 @@
        "value": 1.0
       }
      ]
+    },
+    {
+     "label": "cyan_full",
+     "params": [
+      {
+       "name": "Color",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 0
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 1
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 1
+        }
+       ]
+      },
+      {
+       "name": "Intensity",
+       "id": 2,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "magenta_full",
+     "params": [
+      {
+       "name": "Color",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 1
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 0
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 1
+        }
+       ]
+      },
+      {
+       "name": "Intensity",
+       "id": 2,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "yellow_full",
+     "params": [
+      {
+       "name": "Color",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 1
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 1
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Intensity",
+       "id": 2,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "red_int0.25",
+     "params": [
+      {
+       "name": "Color",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 1
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 0
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Intensity",
+       "id": 2,
+       "value": 0.25
+      }
+     ]
+    },
+    {
+     "label": "red_int0.75",
+     "params": [
+      {
+       "name": "Color",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 1
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 0
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Intensity",
+       "id": 2,
+       "value": 0.75
+      }
+     ]
     }
    ],
    "oracle_truth": "transfer",
