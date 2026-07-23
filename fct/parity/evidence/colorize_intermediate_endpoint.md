@@ -50,3 +50,17 @@ sits BETWEEN direct-linear and raw — a partial encode not yet pinned. Endpoint
 this interpolation curve for non-0/1 endpoints needs a dense luma sweep at a FIXED intermediate
 endpoint pair to isolate its shape (separate targeted probe). Gate-inert (built-ins use 0/1).
 Evidence: colorize_luma_sweep.json (0/1 identity), colorize_endpoint_sweep.json (s2l endpoints).
+
+## UPDATE 2026-07-23i — interpolation is ENDPOINT-DEPENDENT (not a fixed luma curve)
+Dense luma sweep at TWO fixed endpoint pairs (0.5->1.0 and 0.2->0.85), output confirmed
+DIRECT-linear (in=0 -> s2l(black)*255 exact: 54.8 vs s2l(0.5)*255=54.6; re-encode models all
+overshoot 72.7 dR). Solved the interp param t=(out_lin - s2l(bk))/(s2l(wt)-s2l(bk)) per pair:
+    Yc=0.063: t=0.177 (0.5->1.0) vs t=0.129 (0.2->0.85)
+    Yc=0.502: t=0.629 (0.5->1.0) vs t=0.574 (0.2->0.85)
+The two pairs give DIFFERENT t(Yc) — so the luma->mix interpolation is NOT an endpoint-independent
+curve; it depends on the endpoints. Combined with 0/1 endpoints giving pure identity, this means
+the mix is more than lerp(s2l(bk), s2l(wt), f(Yc)) — likely the luma is recomputed from the
+s2l-decoded *blended* value, or a per-channel gamut interaction. DECODED: endpoints = s2l (exact),
+output = direct-linear (exact at luma extremes), 0/1-endpoint path = identity (exact, all built-ins).
+REMAINING: the endpoint-dependent mid-luma interpolation (a coupled, not separable, curve) — needs
+a 2-D (luma x endpoint) probe + likely the HgcColorize premult/HDR path re-examined. Gate-inert.
