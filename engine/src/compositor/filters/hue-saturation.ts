@@ -128,7 +128,11 @@ function hueSaturationFilterWS(input: ImageData, params: HueSatParams): ImageDat
   // is a no-op, not a wrap. The engine previously wrapped negatives (frac) and rotated the
   // wrong way (up to 62 lvl off at -30° on saturated red). Matches FCP: hue = max(0, hue).
   const hue = params.hue > 0 ? params.hue : 0;
-  const satFactor = 1 + saturation;
+  // DECODED 2026-07-23 (fct/parity sat-sweep probe): FCP clamps the Saturation factor at 0 (its
+  // lower bound). On saturated red, Sat=-1.0/-1.5/-2.0 all give the SAME fully-desaturated gray
+  // (73.5) — Sat below -1 does NOT invert the chroma. The engine's raw satFactor=1+S went
+  // negative for S<-1 (inverting chroma), diverging from FCP. So satFactor = max(0, 1+S).
+  const satFactor = Math.max(0, 1 + saturation);
   // DECODED 2026-07-23 (fct/parity value-sweep probe): FCP CLAMPS the Value multiplier at 2.0.
   // On gray 32, Value 1.0/1.5/2.0 give effective ws-mult 1.0/1.5/2.0, but Value 2.5/3/4/5 all
   // saturate at mult 2.0 (out stays 124.3) — NOT unbounded. So effectiveMult = min(max(0,V),2).

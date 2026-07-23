@@ -589,6 +589,26 @@
      "name": "Value",
      "id": 3,
      "value": -0.5
+    },
+    {
+     "name": "Saturation",
+     "id": 2,
+     "value": -1.5
+    },
+    {
+     "name": "Saturation",
+     "id": 2,
+     "value": -2.0
+    },
+    {
+     "name": "Saturation",
+     "id": 2,
+     "value": -1.5
+    },
+    {
+     "name": "Saturation",
+     "id": 2,
+     "value": -2.0
     }
    ],
    "oracle_truth": "transfer",
@@ -598,6 +618,96 @@
    "engine_env": {
     "FCT_HSV_WORKINGSPACE": "1"
    }
+  },
+  {
+   "id": "transfer.PAEHSVAdjust_saturation",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAEHSVAdjust Saturation leg (WS luma-lerp; satFactor=max(0,1+Sat)). Covers the DESATURATION range incl. the LOWER CLAMP: FCP clamps satFactor at 0, so Sat<=-1 all give full gray (decoded 2026-07-23). Saturated inputs (desaturation stays in-gamut). Oversaturation (Sat>0) hits the shared over-1.0 clamp, tested elsewhere.",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "D23AF030-B0BF-44DF-B622-7C9EA0DF5744",
+    "pluginName": "PAEHSVAdjust"
+   },
+   "engine_env": {
+    "FCT_HSV_WORKINGSPACE": "1"
+   },
+   "inputs": [
+    [
+     200,
+     50,
+     50
+    ],
+    [
+     50,
+     200,
+     50
+    ],
+    [
+     50,
+     50,
+     200
+    ],
+    [
+     160,
+     100,
+     60
+    ],
+    [
+     120,
+     180,
+     200
+    ],
+    [
+     180,
+     160,
+     80
+    ],
+    [
+     100,
+     100,
+     100
+    ]
+   ],
+   "param_cases": [
+    {
+     "name": "Saturation",
+     "id": 2,
+     "value": 0.0
+    },
+    {
+     "name": "Saturation",
+     "id": 2,
+     "value": -0.25
+    },
+    {
+     "name": "Saturation",
+     "id": 2,
+     "value": -0.5
+    },
+    {
+     "name": "Saturation",
+     "id": 2,
+     "value": -0.75
+    },
+    {
+     "name": "Saturation",
+     "id": 2,
+     "value": -1.0
+    },
+    {
+     "name": "Saturation",
+     "id": 2,
+     "value": -1.5
+    },
+    {
+     "name": "Saturation",
+     "id": 2,
+     "value": -2.0
+    }
+   ],
+   "oracle_truth": "transfer",
+   "status": "UNTESTED"
   },
   {
    "id": "transfer.PAEHSVAdjust_value",
