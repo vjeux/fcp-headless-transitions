@@ -31,3 +31,21 @@ select ladder) AND the -[PAEHSVAdjust canThrowRenderOutput] frameSetup that maps
 param into hg_Params[0].x — decode-don't-fit. Node stays CHARACTERIZED; Hue≠0 never ships.
 The in-gamut Value+Saturation composition IS verified (transfer.PAEHSVAdjust_valsat 0.87 lvl,
 transfer.PAEHSVAdjust_combined_ingamut 0.72 lvl incl. a small in-gamut hue).
+
+## UPDATE 2026-07-23b — verbatim HgcHSVAdjust shader FOUND + ported; blocker narrowed
+The filter_binding listed HgcSaturation as the only shader, but `extract_shader.py HgcHSVAdjust`
+yields the REAL hue+sat+value shader (LEN=0x9bb). It is a hand-rolled RGB->HSV (max/min sextant)
+-> hue=frac(hue6/6 + hg_Params[0].x) -> HSV->RGB via a select ladder, *V. A verbatim register-
+level Python port (evidence/hgc_hsvadjust_shader_sim.py) RUNS and produces clean hue rotations.
+
+Residual vs the Hue-only probe: 165 dR. Root cause is NOT the shader math — it is the frameSetup
+PARAM-PREP + defaults:
+  - hg_Params[0] = (hueOffset, satMul, valMul). The shader is exact given these.
+  - The UI Hue (radians) -> hueOffset (turns) mapping and, crucially, the DEFAULTS of Sat/Value
+    when only Hue is authored are non-neutral: the Hue-only probe shows FCP DESATURATES
+    ((200,200,50)@pi -> (215,215,255) not a clean (50,50,200)), and explicitly setting
+    Value=0 -> BLACK (so Value's neutral is NOT 0 in hg_Params; the transfer-node Value offset
+    convention differs from the shader's valMul slot).
+  - So closing hue needs -[PAEHSVAdjust canThrowRenderOutput]/frameSetup register trace to
+    recover: hueOffset(Hue), satMul(Saturation, default), valMul(Value, default). The shader
+    itself is now DECODED and ported; only the CPU param-prep remains. decode-don't-fit.
