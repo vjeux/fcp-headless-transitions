@@ -1,0 +1,118 @@
+{
+  "id": "spatial.PAEScrape",
+  "kind": "spatial",
+  "status": "VERIFIED",
+  "metric": "frame_psnr_db",
+  "worst_psnr_db": 31.11,
+  "pass_db": 30.0,
+  "n_scored": 3,
+  "oracle_truth": "headless",
+  "worst_case": {
+    "param": {
+      "label": "amt80_rot0",
+      "params": [
+        {
+          "name": "Amount",
+          "id": 3,
+          "value": 80
+        },
+        {
+          "name": "Rotation",
+          "id": 2,
+          "value": 0
+        }
+      ]
+    },
+    "psnr": 31.11,
+    "mad": 0.692,
+    "signed": [
+      -0.521,
+      -0.499,
+      -0.514
+    ],
+    "resized": false,
+    "head_vs_input_mad": 21.47
+  },
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "amt80_rot0",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 3,
+            "value": 80
+          },
+          {
+            "name": "Rotation",
+            "id": 2,
+            "value": 0
+          }
+        ]
+      },
+      "psnr": 31.11,
+      "mad": 0.692,
+      "signed": [
+        -0.521,
+        -0.499,
+        -0.514
+      ],
+      "resized": false,
+      "head_vs_input_mad": 21.47
+    },
+    {
+      "param": {
+        "label": "amt150_rot0",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 3,
+            "value": 150
+          },
+          {
+            "name": "Rotation",
+            "id": 2,
+            "value": 0
+          }
+        ]
+      },
+      "psnr": 42.72,
+      "mad": 0.449,
+      "signed": [
+        -0.273,
+        -0.251,
+        -0.267
+      ],
+      "resized": false,
+      "head_vs_input_mad": 22.21
+    },
+    {
+      "param": {
+        "label": "amt150_rot1.57",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 3,
+            "value": 150
+          },
+          {
+            "name": "Rotation",
+            "id": 2,
+            "value": 1.5708
+          }
+        ]
+      },
+      "psnr": 47.5,
+      "mad": 0.418,
+      "signed": [
+        -0.318,
+        -0.309,
+        -0.321
+      ],
+      "resized": false,
+      "head_vs_input_mad": 22.2
+    }
+  ],
+  "note": ""
+}

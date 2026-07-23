@@ -6045,6 +6045,68 @@
    "status": "UNTESTED",
    "synth": "textured",
    "pass_db": 30.0
+  },
+  {
+   "id": "spatial.PAEScrape",
+   "subsystem": "geometry",
+   "kind": "spatial",
+   "desc": "PAEScrape/Smear (HgcScrape verbatim inverse-map directional smear: for pixels past a threshold along the rotated axis, displace source sampling by (0.5*thr - d) along the axis; threshold=200-Amount). Node-boundary full-frame PSNR over Amount x Rotation. Textured synth. SHIPPING node (Movements/Smear).",
+   "oracle": {
+    "type": "spatial",
+    "uuid": "0D6E968B-0291-43E2-A8DA-88EB80E9C4B2",
+    "pluginName": "PAEScrape"
+   },
+   "param_cases": [
+    {
+     "label": "amt80_rot0",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 3,
+       "value": 80
+      },
+      {
+       "name": "Rotation",
+       "id": 2,
+       "value": 0
+      }
+     ]
+    },
+    {
+     "label": "amt150_rot0",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 3,
+       "value": 150
+      },
+      {
+       "name": "Rotation",
+       "id": 2,
+       "value": 0
+      }
+     ]
+    },
+    {
+     "label": "amt150_rot1.57",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 3,
+       "value": 150
+      },
+      {
+       "name": "Rotation",
+       "id": 2,
+       "value": 1.5708
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "headless",
+   "status": "UNTESTED",
+   "synth": "textured",
+   "pass_db": 30.0
   }
  ]
 }
