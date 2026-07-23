@@ -168,7 +168,7 @@
  *   STATIC = mt19937 2-D field. The mt19937 decode is correct but applies to STATIC, not waviness.
  */
 import { registerFilter, type FilterContext } from './registry.js';
-import { applyNoiseGenerator } from './noise.js';
+import { applyNoiseGenerator, DSFMT } from './noise.js';
 
 // Measured RGB->luma coefficients (headless full-desaturate least-squares, sum≈1).
 const LUMA_R = 0.2581, LUMA_G = 0.5856, LUMA_B = 0.1611;
@@ -201,11 +201,26 @@ function scanlineFactor(y: number, height: number, scanBright: number, rollPhase
  * Deterministic for a fixed frame; we key the seed off ctx.time*fps like the host
  * (seed = 2*frame+1). Returns a length-`height` array of displacements in [-1,1]. */
 function buildWavyTable(height: number, frame: number): Float32Array {
-  // Lightweight LCG stand-in keyed to the per-frame seed. (Exact FCP parity would use
-  // the dSFMT port in noise.ts; the roll/wave table's frame->seed schedule is host-side
-  // and not byte-reproducible here, so we match the random-walk STRUCTURE + amplitude.)
-  let s = ((2 * frame + 1) >>> 0) || 1;
-  const rnd = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+  // EXACT dSFMT waviness walk (decoded + PER-ROW validated vs headless FCP, 2026-07-23):
+  // createWavyTableOfHeight @0x7df38 seeds RandMersenne (= the parity-VERIFIED dSFMT MEXP=19937,
+  // curve.rng.dsfmt=0.0) with (uint)(2*frame)+1, then builds the per-scanline cumulative walk
+  //   tmp[0]=close1_open2()-1;  tmp[i]=tmp[i-1]+(close1_open2()-1 - 0.5)
+  // normalize by 2*max|tmp|, +0.5, 3-tap smooth. Reproducing this from DSFMT(seed=2*frame+1)
+  // matched the headless field per-row to ~0.5px (std 12.71 vs 12.76, autocorr 0.9995 vs 0.996)
+  // — see evidence/badtv_waviness_probe.json. Gated behind FCT_BADTV_WAVINESS_EXACT; the LCG
+  // stand-in below stays the shipped default (the exact walk needs the real host frame index for
+  // t≠0, but at t=0 frame=0 → seed=1 is exact).
+  const exact = typeof process !== 'undefined' && !!process.env?.FCT_BADTV_WAVINESS_EXACT;
+  const seed = ((2 * frame + 1) >>> 0) || 1;
+  let rnd: () => number;
+  if (exact) {
+    const d = new DSFMT(seed);
+    rnd = () => d.next() - 1.0; // close1_open2() - 1.0 ∈ [0,1)
+  } else {
+    // Lightweight LCG stand-in keyed to the per-frame seed (prior shipped behaviour).
+    let s = seed;
+    rnd = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+  }
   const tmp = new Float32Array(height);
   tmp[0] = rnd();
   let maxAbs = Math.abs(tmp[0]);
@@ -262,10 +277,13 @@ registerFilter({
     // the day the RNG schedule is recovered. Setting them null here is a filter-wide
     // "cannot verify identical → don't inject wrong-phase noise" decision, NOT
     // per-transition hardcoding.
-    const wavy: Float64Array | null = null;
+    const wavy: Float64Array | Float32Array | null =
+      (typeof process !== 'undefined' && process.env?.FCT_BADTV_WAVINESS_EXACT && waviness > 0)
+        ? buildWavyTable(h, Math.round(ctx.time * 30) * 1) // frame = round(t*fps); t=0 → frame 0 → seed 1
+        : null;
     const noiseField: Uint8ClampedArray | null = null;
     const noiseScale = 0;
-    void waviness; void staticAmt; // (read above; intentionally not applied — see note)
+    void staticAmt; // Static overlay (mt19937 2-D field) intentionally not applied — see note.
 
     for (let y = 0; y < h; y++) {
       // Horizontal displacement from the wavy table (waviness) — sample coord shift in px.
