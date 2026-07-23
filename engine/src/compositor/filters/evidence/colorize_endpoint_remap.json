@@ -1,0 +1,152 @@
+{
+ "source": "REAL headless FCP PAEColorize (FCT_COLORIZE_WS), gray endpoints (bk,wt) x luma ramp -> center RGB",
+ "goal": "decode the intermediate-endpoint luma-remap coupling (the documented Colorize/Tint gap)",
+ "confirmed_exact": {
+  "bk=0 case": "out_code = in_code * s2l(wt)  (white endpoint = a code-space MULTIPLY by its LINEAR value; maxerr 0.35 lvl for wt=0.5 and wt=1.0)",
+  "bk=0,wt=1": "identity (out=input) \u2014 the shipped/verified case"
+ },
+ "best_partial_model_Hyp_G": {
+  "formula": "out_code = 255*( (in/255)*s2l(wt) + (1 - in/255)*s2l(bk) )  [code-space linear blend, endpoints as LINEAR values]",
+  "fit": "EXACT for bk=0 (maxerr 0.22); 13.4 lvl max error for bk!=0 (mid-tone curvature unresolved)",
+  "meaning": "white contributes in*L(wt), black contributes (1-in)*L(bk), both in code space with linear-valued endpoints; the residual is a mid-tone curvature coupling still to decode"
+ },
+ "probe_data_gray_endpoints": {
+  "bk0.2_wt0.8": [
+   [
+    0,
+    8.3
+   ],
+   [
+    32,
+    38.9
+   ],
+   [
+    64,
+    58.4
+   ],
+   [
+    96,
+    76.0
+   ],
+   [
+    128,
+    92.5
+   ],
+   [
+    160,
+    108.8
+   ],
+   [
+    192,
+    124.4
+   ],
+   [
+    224,
+    139.4
+   ],
+   [
+    255,
+    154.1
+   ]
+  ],
+  "bk0.3_wt0.7": [
+   [
+    0,
+    18.7
+   ],
+   [
+    32,
+    42.9
+   ],
+   [
+    64,
+    56.0
+   ],
+   [
+    96,
+    67.5
+   ],
+   [
+    128,
+    77.9
+   ],
+   [
+    160,
+    87.7
+   ],
+   [
+    192,
+    96.9
+   ],
+   [
+    224,
+    106.0
+   ],
+   [
+    255,
+    114.4
+   ]
+  ],
+  "bk0.0_wt0.5": [
+   [
+    0,
+    0
+   ],
+   [
+    32,
+    7.0
+   ],
+   [
+    64,
+    13.8
+   ],
+   [
+    96,
+    20.3
+   ],
+   [
+    128,
+    27.3
+   ],
+   [
+    160,
+    34.6
+   ],
+   [
+    192,
+    41.1
+   ],
+   [
+    224,
+    48.3
+   ],
+   [
+    255,
+    54.8
+   ]
+  ],
+  "bk0.0_wt1.0": [
+   [
+    0,
+    0
+   ],
+   [
+    64,
+    64.1
+   ],
+   [
+    128,
+    128.0
+   ],
+   [
+    192,
+    191.8
+   ],
+   [
+    255,
+    254.6
+   ]
+  ]
+ },
+ "verified_regime": "Remap Black To=(0,0,0) + Remap White To in {any primary, white, gray}; intermediate-VALUE black endpoints (bk>0) hit the mid-tone coupling. Shipping Colorize users author bk=0 so the shipped path is verified."
+}
