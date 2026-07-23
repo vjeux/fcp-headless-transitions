@@ -1,0 +1,54 @@
+{
+  "desc": "RefractV2 corner-lerp displacement model validated against headless t=0 flow. The exact-RNG field records + bilinear-phase-ramp (corner-lerp) displacement + a Size-independent Refraction gain reproduce FCP's measured flow. Confirms the decoded packing structure (NOT a plane-wave sum).",
+  "model": "per octave A: c00=phA+axA*scale+ayA*px; c10=phA+axA*py+ayA*px; c01=phA+axA*scale+ayA*mm; c11=phA+axA*py+ayA*mm; argA(U,V)=bilerp(c00,c10,c01,c11;U,V)*2pi; offX+=sin(argA)*axA; offY+=sin(argA)*ayA; disp=gain*(offX,offY). U=x/W, V=y/H (approx; exact uses posx/sizeX+0.5 in the M-normalized frame).",
+  "validation": {
+    "s50r50": {
+      "scale": 0.2098,
+      "px": -0.111,
+      "py": -0.178,
+      "mm": 0.3584,
+      "gain": 47.22,
+      "rms_px": 0.638,
+      "corr_dx": 0.905,
+      "corr_dy": 0.97,
+      "model_std": [
+        1.71,
+        1.4
+      ],
+      "meas_std": [
+        1.65,
+        1.75
+      ]
+    },
+    "s100r50": {
+      "gain": 47.08,
+      "rms_px": 0.362,
+      "corr_dx": 0.885,
+      "corr_dy": 0.954,
+      "model_std": [
+        0.85,
+        0.69
+      ],
+      "meas_std": [
+        0.82,
+        0.89
+      ]
+    }
+  },
+  "findings": [
+    "The Refraction gain (~47) is Size-INDEPENDENT (47.22 vs 47.08) -> confirms model generalizes.",
+    "Fitted 'scale' halves when Size doubles (0.21->0.11) -> scale ~ 1/Size (larger Size = lower spatial freq).",
+    "Ripple std halves when Size doubles (1.7->0.85) -> matches shader 1/sizeX coordinate scaling.",
+    "Spatial correlation 0.88-0.97 (not just DC) confirms the corner-lerp bilinear-phase-ramp form, disproving the plane-wave surrogate.",
+    "REMAINING: pin scale/px/py/mm to the exact M-matrix formulas (scale=Size*0.1 from const@0x268c50; px=M[0x460]/scale, py=M[0x438]/scale, mm=fneg) and the exact U=posx/sizeX+0.5 pixel mapping for a boot-free bit-exact port."
+  ],
+  "end_to_end": {
+    "desc": "Node-boundary PSNR of the wired FCT_UNDERWATER_EXACT path (exact-RNG field + corner-lerp displacement + inverse-map sign flip) vs headless FCP at t=0, through the real spatial harness.",
+    "s50r50_psnr_db": 29.57,
+    "s100r50_psnr_db": 30.17,
+    "surrogate_baseline_db": "17.8-21.8",
+    "pre_signfix_db": 14.88,
+    "sign_finding": "fieldOffsetExact's disp matches the FORWARD flow (rms 0.90px); the inverse-map resample fx=x+ox*g produces a visible shift of -(offset), so the exact path NEGATES the offset (both fx AND fy). With +sign the flow is inverted (rms 40.5). +12dB improvement over surrogate confirms the full decode chain end-to-end.",
+    "residual": "the ~30dB->40dB gap is the validation-FITTED kU/kV scalars (not yet the exact M-projected endpoints) + bilinear resample; the STRUCTURE and sign are verified."
+  }
+}

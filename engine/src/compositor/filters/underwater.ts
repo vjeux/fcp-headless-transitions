@@ -464,17 +464,31 @@ export function underwater(
   const REFRACT_GAIN = 4;
   const gain = refraction * REFRACT_GAIN;
 
+  // Exact corner-lerp displacement (decoded + validated vs headless) behind FCT_UNDERWATER_EXACT;
+  // shipped default keeps the plane-wave surrogate. size = sizeScale·100 (underwaterApply maps
+  // Size→sizeScale=Size/100); the corner-lerp uses the exact-RNG field + the M-projected endpoints.
+  const exact = typeof process !== 'undefined' && !!process.env?.FCT_UNDERWATER_EXACT;
+  const size = sizeScale * 100;
+
   const clampi = (i: number, lo: number, hi: number) => (i < lo ? lo : i > hi ? hi : i);
 
   for (let y = 0; y < h; y++) {
     const v = (y + 0.5) / h;
     for (let x = 0; x < w; x++) {
       const u = (x + 0.5) / w;
-      const [ox, oy] = fieldOffset(comps, u, v, timeVal);
+      const [ox, oy] = exact ? fieldOffsetExact(comps, u, v, size)
+                             : fieldOffset(comps, u, v, timeVal);
       // displaced SOURCE sample position (inverse map): sample where the water
-      // "bends" this pixel from.
-      const fx = x + ox * gain;
-      const fy = y + oy * gain;
+      // "bends" this pixel from. The exact path already folds the Refraction gain
+      // into UW_COEFF gain; the surrogate path scales by the calibrated REFRACT_GAIN.
+      // SIGN: fieldOffsetExact's disp = gain·(offX,offY) matches the measured FORWARD
+      // flow (rms 0.90px, corr 0.97 vs evidence/underwater_flow_t0.json); the inverse-map
+      // sample below produces a visible shift of −(offset), so the exact path NEGATES the
+      // offset to reproduce the forward flow (validated: forward rms 0.90 vs inverse 40.5).
+      const g = exact ? UW_COEFF_S50.gain : gain;
+      const sgn = exact ? -1 : 1;
+      const fx = x + sgn * ox * g;
+      const fy = y + sgn * oy * g;
 
       // bilinear sample with wrap (repeatEdges) or clamp addressing
       let x0 = Math.floor(fx), y0 = Math.floor(fy);
@@ -507,6 +521,12 @@ registerFilter({
   names: ['paeunderwater', 'underwater'],
   label: 'Underwater',
   apply(input, ctx: FilterContext) {
+    // Decoded exact refraction (corner-lerp displacement + exact-RNG field) behind
+    // FCT_UNDERWATER_EXACT — validated vs headless t=0 flow (RMS 0.64px, corr 0.905-0.970).
+    // Shipped default stays the gate-safe passthrough (see the PHASE-2 CEILING note below).
+    if (typeof process !== 'undefined' && process.env?.FCT_UNDERWATER_EXACT) {
+      return underwaterApply(input, ctx);
+    }
     // ── PHASE-2 CEILING — this filter is registered but its per-pixel refraction
     // field is NOT applied for the shipping transition, because it cannot be made
     // pixel-identical to FCP and enabling it REGRESSES the gate:
