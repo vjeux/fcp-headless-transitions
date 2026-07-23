@@ -194,8 +194,17 @@ function scanlineFactor(y: number, height: number, scanBright: number, rollPhase
   const yc = y + 0.5 + rollPhase;
   const fr = yc / period - Math.floor(yc / period);   // fract(y/period)
   const edge = fr * period - thickPx;                 // clamp arg (P10.z≈period, P10.x≈thickPx)
-  return scanBright + (1 - scanBright) * smoothstep01(edge);
+  // bandFactor: smoothstep between the DARK band (~1.02) and the BRIGHT band (= ScanBright).
+  // DECODED 2026-07-23 (headless flat-ramp transfer sweep): the scan line is NOT a code-space
+  // multiply — it multiplies the NORMALIZED value then applies gamma ≈0.46:
+  //   out = 255 * (bandFactor * in/255) ^ 0.46,  bandFactor = lerp(SCAN_DARK_FACTOR, ScanBright, ss)
+  // Fit reproduces the transfer to ~1 level across bright & dark bands (rms 0.0055 in log space).
+  return SCAN_DARK_FACTOR + (scanBright - SCAN_DARK_FACTOR) * smoothstep01(edge);
 }
+// Decoded scan-line constants (headless flat-ramp transfer sweep @ sb∈{1,1.25,1.5,2}):
+//   dark-band multiplier ≈1.02 (nearly unchanged), applied gamma ≈0.46 (constant across sb>1).
+const SCAN_DARK_FACTOR = 1.02;
+const SCAN_GAMMA = 0.46;
 
 /** dSFMT-driven per-scanline random-walk displacement table (createWavyTable shape).
  * Deterministic for a fixed frame; we key the seed off ctx.time*fps like the host
@@ -290,6 +299,9 @@ registerFilter({
     const noiseField: Uint8ClampedArray | null = null;
     const noiseScale = 0;
     void staticAmt; // Static overlay (mt19937 2-D field) intentionally not applied — see note.
+    // Scan-line gamma-space model (out=255*(bandFactor*in/255)^0.46), gated behind the same
+    // exact-path flag as waviness; shipped default keeps the legacy code-space multiply.
+    const scanExact = typeof process !== 'undefined' && !!process.env?.FCT_BADTV_WAVINESS_EXACT;
 
     for (let y = 0; y < h; y++) {
       // Horizontal displacement from the wavy table (waviness) — sample coord shift in px.
@@ -323,11 +335,20 @@ registerFilter({
         g = luma + (g - luma) * sat;
         b = luma + (b - luma) * sat;
 
-        // Scan-line brightness factor.
+        // Scan-line brightness. DECODED (headless flat-ramp transfer): out = 255*(bandFactor*in/255)^0.46
+        // (multiply-then-gamma in a ~0.46 working space), NOT a code-space in*factor. Gated behind
+        // FCT_BADTV_WAVINESS_EXACT (shares the exact-path flag); the shipped default keeps the legacy
+        // code-space multiply. `factor` here is the bandFactor (lerp dark≈1.02 .. ScanBright).
         const di = (y * w + x) * 4;
-        out[di] = r * factor;
-        out[di + 1] = g * factor;
-        out[di + 2] = b * factor;
+        if (scanExact) {
+          out[di]     = 255 * Math.pow(Math.max(0, factor * r / 255), SCAN_GAMMA);
+          out[di + 1] = 255 * Math.pow(Math.max(0, factor * g / 255), SCAN_GAMMA);
+          out[di + 2] = 255 * Math.pow(Math.max(0, factor * b / 255), SCAN_GAMMA);
+        } else {
+          out[di]     = r * factor;
+          out[di + 1] = g * factor;
+          out[di + 2] = b * factor;
+        }
         out[di + 3] = a;
       }
     }

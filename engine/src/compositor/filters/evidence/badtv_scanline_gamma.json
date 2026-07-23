@@ -1,0 +1,10 @@
+{
+  "desc": "BadTV scan-line brightness DECODED as a multiply-then-gamma model (headless flat-value-ramp transfer sweep, 2026-07-23). Supersedes the code-space in*factor multiply.",
+  "model": "out = 255 * (bandFactor(y) * in/255) ^ 0.46  (per channel, clamp 0..255); bandFactor smoothsteps between dark band ~1.02 and bright band = ScanBright.",
+  "transfer_sb1.5_bright": [[16,86],[32,120],[64,165],[128,225],[160,249]],
+  "transfer_sb1.5_dark":   [[16,71],[64,137],[128,188],[240,249]],
+  "fit": {"gamma": 0.46, "dark_bandfactor": 1.02, "bright_bandfactor": "= ScanBright (A_bright = sb^0.46 in the pooled fit)", "log_rms": 0.0055},
+  "sb_sweep": {"1.0":{"g":1.0,"A_bright":1.0,"note":"identity"},"1.25":{"g":0.460,"A_bright":1.118},"1.5":{"g":0.459,"A_bright":1.214},"2.0":{"g":0.457,"A_bright":1.383}},
+  "validation": "Node-boundary PSNR vs headless at t=0 (textured synth): the gamma model reads 20-21 dB vs the old code-space multiply's 10-11 dB (+10 dB); signed offset dropped from ~-60 to ~-2.5. Confirms the model. Residual ~-2.5 is gamma/dark-bandfactor fine-tune + exact working space.",
+  "why_multiply_looked_right": "The code-space in*factor only matched at in=128 (128*1.5=192 = the gamma value coincidentally); dark_bg 40 was 60 (engine) vs 133 (headless) = 73 off. Flat-gray-128 probes hid this."
+}
