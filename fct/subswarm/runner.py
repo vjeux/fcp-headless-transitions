@@ -87,6 +87,16 @@ def run(subsystem, only=None, keep=False, quiet=False):
     out = {"subsystem": subsystem, "ran_at": time.strftime("%Y-%m-%dT%H:%M:%S"), "nodes": []}
     npass = nfail = 0
     for c in caps:
+        # Skip caps whose oracle is documented-invalid (e.g. headless != GUI for a
+        # bare-camera plane fold — the GUI, the ONE truth, composites orthographically
+        # while headless folds perspectively; matching headless would regress the real
+        # GUI slugs). These are recorded, not run, so an agent never chases a phantom.
+        if c.get("oracle", "").startswith("INVALID"):
+            rec = {"cap": c["cap"], "status": "SKIP", "oracle": c["oracle"]}
+            out["nodes"].append(rec)
+            if not quiet:
+                print(f"  {c['cap']:34s} [SKIP] oracle={c['oracle']} (see pack note)")
+            continue
         res = run_case(c, keep=keep)
         mp = c.get("min_psnr", 34)
         rec = {"cap": c["cap"], "min_psnr": mp, **res}

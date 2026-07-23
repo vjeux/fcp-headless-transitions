@@ -3,42 +3,30 @@
     "cap": "persp.camera.identity",
     "inject": { "kind": "transform", "camera": true, "position": { "x": 0 } },
     "time": 0.0, "min_psnr": 30, "expect_identity": true,
-    "note": "Camera node present, identity transform. Floor: with a perspective Camera the base drop-zone must still render == imageA in BOTH engines. If this FAILs, the camera insertion itself perturbs the projection and every other persp.* node is unreliable."
+    "note": "Camera node present, identity transform. Floor: with a perspective Camera the base drop-zone must still render == imageA in BOTH engines. VALID oracle (no fold, so headless==GUI). PASS 43.3."
   },
   {
     "cap": "persp.rot.y.30",
     "inject": { "kind": "transform", "camera": true, "rotation": { "y": 30 } },
-    "time": 0.0, "min_psnr": 26,
-    "note": "Y-rotation 30deg WITH a camera (perspective fold). This is the core 3D-fold projection (perspective.ts). Camera-less would be a FALSE FAIL (headless folds, GUI orthographic); with a camera GUI+headless agree, so headless is a valid oracle."
-  },
-  {
-    "cap": "persp.rot.y.60",
-    "inject": { "kind": "transform", "camera": true, "rotation": { "y": 60 } },
-    "time": 0.0, "min_psnr": 24,
-    "note": "Y-rotation 60deg — steeper fold, larger foreshortening. Stresses the perspective divide (w-clip) more than 30deg."
+    "time": 0.0, "min_psnr": 26, "oracle": "INVALID_HEADLESS_NE_GUI",
+    "note": "⛔ INVALID ORACLE (found 2026-07-23, orchestrator): I built this cap believing 'a real Camera makes headless==GUI for a 3D fold'. That is FALSE for a plane-fold scene. Decompiled OZViewer::viewIsOrthographic + the exhaustive ROADMAP measurement (Reflection/Color_Planes) prove the GUI (the ONE truth) composites a Camera+NO-Replicator plane-fold ORTHOGRAPHICALLY — perspective in ANY form (raw/hinge/either sign/any D) is a MEASURED DEAD-END vs GUI GT (Reflection 14.23 ortho beats every perspective variant; Color_Planes +3.0/Reflection +0.91 for forcing ortho). Headless FCP DOES fold perspectively here, so headless != GUI. The TS engine is CORRECTLY orthographic (resolveCamera forces distance=Infinity for !hasFraming && !sceneHasReplicator). Making this cap PASS = regressing the real GUI slugs. The perspective agent's decode (finite d=width/2/tan(AOV/2), z-sign, projectPoint math) is CORRECT for headless and preserved in ROADMAP, but headless is the wrong truth for a bare-camera fold. DO NOT 'fix' the engine to this cap. A valid 3D-fold oracle needs a scene where GUI==headless (genuine 3D content: a Replicator/clone grid), which this synthetic skeleton lacks."
   },
   {
     "cap": "persp.rot.x.40",
     "inject": { "kind": "transform", "camera": true, "rotation": { "x": 40 } },
-    "time": 0.0, "min_psnr": 24,
-    "note": "X-rotation 40deg (vertical fold about horizontal axis). Verifies the X-axis of the 3D rotation matrix + perspective, distinct from Y."
+    "time": 0.0, "min_psnr": 24, "oracle": "INVALID_HEADLESS_NE_GUI",
+    "note": "⛔ INVALID ORACLE — same as persp.rot.y.30: bare-Camera plane-fold, GUI composites orthographically (headless folds). Engine correctly orthographic. See persp.rot.y.30 note + ROADMAP 'REFLECTION perspective ALL variants DEAD-END'."
   },
   {
     "cap": "persp.pos.z.push",
     "inject": { "kind": "transform", "camera": true, "position": { "z": -400 } },
-    "time": 0.0, "min_psnr": 26,
-    "note": "Z push -400 (card recedes from camera, shrinks under perspective). Verifies the Z translate + perspective scale (z-composite depth), NOT an in-plane scale. Camera required (camera-less GUI = orthographic = no shrink)."
+    "time": 0.0, "min_psnr": 26, "oracle": "INVALID_HEADLESS_NE_GUI",
+    "note": "⛔ INVALID ORACLE — a Camera+NO-Replicator scene is orthographic in the GUI (OZViewer::viewIsOrthographic fires on the whole scene regardless of the transform type), so a Z-push does NOT shrink under the GUI truth even though headless applies perspective (z-push→45 dB vs headless). The engine is correctly orthographic. Same headless!=GUI split as the rotation folds. A valid Z-depth oracle needs genuine-3D scene content (replicator), not this skeleton."
   },
   {
     "cap": "persp.pos.z.pull",
     "inject": { "kind": "transform", "camera": true, "position": { "z": 300 } },
-    "time": 0.0, "min_psnr": 26,
-    "note": "Z pull +300 (card approaches camera, enlarges). Sign + magnitude of the perspective depth scale in the opposite direction from push."
-  },
-  {
-    "cap": "persp.rot.y.combo.pos",
-    "inject": { "kind": "transform", "camera": true, "rotation": { "y": 45 }, "position": { "x": 200 } },
-    "time": 0.0, "min_psnr": 24,
-    "note": "Y-fold 45deg + off-center X translate. Verifies the compose order (rotate about anchor then translate) under perspective — the exact composition the fold Movements use."
+    "time": 0.0, "min_psnr": 26, "oracle": "INVALID_HEADLESS_NE_GUI",
+    "note": "⛔ INVALID ORACLE — same as persp.pos.z.push (bare-camera scene is GUI-orthographic; headless applies perspective; engine correctly matches GUI)."
   }
 ]
