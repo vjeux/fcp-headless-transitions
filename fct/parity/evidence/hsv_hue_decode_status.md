@@ -120,3 +120,22 @@ is genuinely the frameSetup PARAM-PREP (radian Hue -> hueOffset, plus a non-neut
 collapse) AND/OR a non-HSV opponent-space rotation — needs the -[PAEHSVAdjust canThrowRenderOutput]
 register trace. This is now the CLEANEST remaining colour frontier (26.3 lvl, correctly isolated
 from the clamp). All 4 shipping HSV users author Hue=0 (gate-neutral). decode-don't-fit holds.
+
+## UPDATE 2026-07-23r — shader re-transcribed faithfully (v2); proves FCP hue ≠ the HgcHSVAdjust shader alone
+Re-transcribed HgcHSVAdjust register-by-register from a fresh extract_shader.py dump
+(evidence/hgc_hsvadjust_shader_sim_v2.py), tracking the tricky r2 register reuse (r2.x starts as
+1/V, is OVERWRITTEN by fmax(normalized)=~1, then becomes saturation=chroma/max; r2.y stays the
+valmul-scaled max). The v2 sim is IDENTITY-EXACT (hue=0 returns input) and reproduces the original
+sim's 134 dR — confirming the transcription is FAITHFUL, not buggy.
+DECISIVE: the verbatim HgcHSVAdjust shader is a STANDARD HSV hue rotation that PRESERVES V
+(output = r0.xyz * V at the end; the only V modifier is a uniform valmul). But FCP's headless hue
+transfer DROPS V hard and RAISES S in a hue-target-dependent way (measured against the CLEAN
+OZ_CLAMP_UNIT oracle): (200,50,50)@90° V 0.78->0.36, S 0.75->0.97, hue delta 0.24 turns (correct
+angle). NO scalar hg_Params (hueoff, satmul, valmul) can make the shader drop V per-hue. Therefore
+FCP's HSV "hue" result is produced by MORE than HgcHSVAdjust_hgc_visible alone — there is a
+surrounding COLOUR-MANAGEMENT transform (the frameSetup references colorMatrixFromDesiredRGBToYCbCr;
+likely a YCbCr/opponent-space step where the rotation happens, so preserving that space's magnitude
+does NOT preserve HSV V). Luma-preserving HSV rotation gets 61 dR (closer but not exact);
+Rodrigues about (1,1,1) in code/linear/WS all 112-255 dR. This is a genuine multi-turn decode of
+FCP's full HSV colour pipeline (YCbCr detour + the frameSetup register trace via
+overrideFrameSetupForRenderMode), NOT closable by the per-pixel shader. Gate-neutral (Hue=0 ships).
