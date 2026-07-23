@@ -1,6 +1,8 @@
 {
-  "desc": "PAECloudsV2 (HgcClouds) is STANDARD 2D Perlin gradient noise with a DETERMINISTIC, recoverable generator (disproves the prior unrecoverable-RNG claim). Decoded from Filters.bundle arm64.",
-  "perm_table_256": [
+  "desc": "PAECloudsV2 fully-decoded Perlin-noise generator, from Filters.bundle arm64 (makePermTable @0x5313c, calculateCellValues @0x5123c, getPermTable @0x511b4). DISPROVES the prior unrecoverable-RNG claim: the lattice is standard 2D Perlin gradient noise with a DETERMINISTIC recoverable perm+gradient table.",
+  "generator": "perm[0..255]=identity; Fisher-Yates shuffle using the shared LCG X<-(4096X+150889) mod 714025 (fill seed 0x23232323, 102-entry table) + Bays-Durham (iy seed 0x6f638, NTAB=101); for i: draw d; swap perm[i]<->perm[d&0xff]. SAME generator as PAEUnderwater buildFieldExact.",
+  "hash": "gi = perm[(perm[(perm[z&255]+y)&255]+x)&255] % 12",
+  "perm_table": [
     208,
     84,
     188,
@@ -258,7 +260,7 @@
     8,
     220
   ],
-  "gradient_table_12": [
+  "gradient_table_0x467218": [
     [
       1,
       1
@@ -308,11 +310,10 @@
       -1
     ]
   ],
-  "generator": "makePermTable @0x5313c: identity perm[0..255] then Fisher-Yates swap perm[i]<->perm[draw&0xff], draws from the shared LCG X<-(4096X+150889) mod 714025 (fill seed 0x23232323) + Bays-Durham shuffle (iy seed 0x6f638, NTAB=101) -- IDENTICAL generator to PAEUnderwater buildFieldExact.",
-  "hash": "gi = perm[(perm[(perm[z&0xff]+y)&0xff]+x)&0xff] %% 12  (calculateCellValues @0x5123c)",
-  "fade": "6t^5-15t^4+10t^3 (quintic)",
+  "fade": "quintic 6t^5-15t^4+10t^3",
   "octaves": 4,
-  "z_axis": "Speed*seconds (0 at t=0 => deterministic/byte-recoverable)",
-  "grad_addr": "0x467218",
-  "perm_static": "getPermTable @0x511b4 (cached function-local static, no per-frame seed)"
+  "fBm_weights": "hg_Params[1]",
+  "tail": "|value|*contrast(hgP0.x)+brightness(hgP0.y) -> 256-entry gradient LUT -> premult",
+  "z_axis": "Speed*CMTimeGetSeconds (0 at t=0 => byte-recoverable; disasm shows z=Speed*seconds so even t!=0 is deterministic)",
+  "status": "ALGORITHM + RNG fully decoded; unimplemented in engine (renders absent). REMAINING: port the Perlin evaluator + Scale->frequency cell mapping + gradient-LUT tail, verify at t=0 via spatial harness (Underwater method)."
 }
