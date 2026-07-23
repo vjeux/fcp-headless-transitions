@@ -43,6 +43,13 @@ def _center(path):
     return [round(float(x), 2) for x in patch.mean(0)]
 
 
+def _center_alpha(path):
+    a = np.asarray(Image.open(path).convert("RGBA"))
+    H, W = a.shape[:2]
+    patch = a[H // 2 - 20:H // 2 + 20, W // 2 - 20:W // 2 + 20, 3]
+    return round(float(patch.mean()), 3)
+
+
 def main():
     job = json.load(open(sys.argv[1]))
     out_path = sys.argv[2]
@@ -60,6 +67,7 @@ def main():
         except Exception as e:
             results.append({"tag": j.get("tag"), "error": str(e)[:160]}); continue
         results.append({"tag": j.get("tag"), "center": center,
+                        "center_alpha": _center_alpha(op),
                         "in_center": _center(j["in"])})
     json.dump({"results": results}, open(out_path, "w"))
 

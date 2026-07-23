@@ -44,9 +44,19 @@ def _center_color(path):
     return [round(float(x), 2) for x in patch.mean(0)]
 
 
+def _center_alpha(path):
+    import numpy as np
+    from PIL import Image
+    a = np.asarray(Image.open(path).convert("RGBA"))
+    H, W = a.shape[:2]
+    patch = a[H // 2 - 20:H // 2 + 20, W // 2 - 20:W // 2 + 20, 3]
+    return round(float(patch.mean()), 3)
+
+
 def _render_oracle_batch(node, combos, tmp):
     """Render ALL (input,params) combos through REAL FCP in ONE engine boot. combos is a
-    list of (tag, in_png, params_list). Returns {tag: center_rgb}."""
+    list of (tag, in_png, params_list). Returns {tag: center_rgb} (or {tag: alpha} when the
+    node declares channel=='alpha' — e.g. the luma keyer, whose entire signal is alpha)."""
     uuid = node["oracle"]["uuid"]; name = node["oracle"]["pluginName"]
     jobs = [{"tag": tag, "in": in_png, "params": params} for (tag, in_png, params) in combos]
     job = {"uuid": uuid, "pluginName": name, "jobs": jobs}
@@ -55,6 +65,8 @@ def _render_oracle_batch(node, combos, tmp):
     subprocess.run([str(REPO / "venv/bin/python3"), str(REPO / "fct/parity/transfer_batch.py"), jf, of],
                    check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     res = json.load(open(of))["results"]
+    if node.get("channel") == "alpha":
+        return {r["tag"]: r.get("center_alpha") for r in res if "center_alpha" in r}
     return {r["tag"]: r.get("center") for r in res if "center" in r}
 
 
@@ -112,6 +124,7 @@ def sweep_transfer(node, inputs=None, tol_levels=2.0):
                 "error": "oracle batch failed: %s" % str(ex)[:200]}
     worst = {"abs": 0.0, "case": None, "input": None, "oracle": None, "engine": None}
     n = 0; rows = []; failures = []
+    is_alpha = node.get("channel") == "alpha"
     for (tag, pc, col, params, in_png) in combo_meta:
         oc = oracle_out.get(tag)
         if oc is None:
@@ -119,13 +132,18 @@ def sweep_transfer(node, inputs=None, tol_levels=2.0):
         ep = os.path.join(tmp, "e_%s.png" % tag)
         try:
             _render_ts(node, params, in_png, ep)
-            ec = _center_color(ep)
+            ec = _center_alpha(ep) if is_alpha else _center_color(ep)
         except Exception as ex:
             failures.append({"tag": tag, "param": pc, "input": col, "error": str(ex)[:160]}); continue
-        for ch in range(3):
-            ae = abs(float(oc[ch]) - float(ec[ch])); n += 1
+        if is_alpha:
+            ae = abs(float(oc) - float(ec)); n += 1
             if ae > worst["abs"]:
                 worst.update(abs=ae, case=pc, input=list(col), oracle=oc, engine=ec)
+        else:
+            for ch in range(3):
+                ae = abs(float(oc[ch]) - float(ec[ch])); n += 1
+                if ae > worst["abs"]:
+                    worst.update(abs=ae, case=pc, input=list(col), oracle=oc, engine=ec)
         rows.append({"param": pc, "input": list(col), "oracle": oc, "engine": ec})
     status = "DIVERGED" if worst["abs"] > tol_levels else ("VERIFIED" if n else "NO_SIGNAL")
     if failures and n == 0:

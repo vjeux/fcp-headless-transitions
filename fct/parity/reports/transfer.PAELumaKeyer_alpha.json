@@ -1,0 +1,286 @@
+{
+  "id": "transfer.PAELumaKeyer_alpha",
+  "kind": "transfer",
+  "status": "VERIFIED",
+  "metric": "max_abs_levels",
+  "max_abs_levels": 1.1189999999999998,
+  "n_samples": 20,
+  "tol_levels": 2.0,
+  "worst": {
+    "case": {
+      "label": "default_keyer_blob",
+      "params": []
+    },
+    "input": [
+      224,
+      224,
+      224
+    ],
+    "oracle": 66.119,
+    "engine": 65.0
+  },
+  "oracle_truth": "transfer",
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "default_keyer_blob",
+        "params": []
+      },
+      "input": [
+        0,
+        0,
+        0
+      ],
+      "oracle": 0.0,
+      "engine": 0.0
+    },
+    {
+      "param": {
+        "label": "default_keyer_blob",
+        "params": []
+      },
+      "input": [
+        4,
+        4,
+        4
+      ],
+      "oracle": 121.849,
+      "engine": 122.0
+    },
+    {
+      "param": {
+        "label": "default_keyer_blob",
+        "params": []
+      },
+      "input": [
+        8,
+        8,
+        8
+      ],
+      "oracle": 173.577,
+      "engine": 174.0
+    },
+    {
+      "param": {
+        "label": "default_keyer_blob",
+        "params": []
+      },
+      "input": [
+        12,
+        12,
+        12
+      ],
+      "oracle": 213.71,
+      "engine": 214.0
+    },
+    {
+      "param": {
+        "label": "default_keyer_blob",
+        "params": []
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": 247.71,
+      "engine": 248.0
+    },
+    {
+      "param": {
+        "label": "default_keyer_blob",
+        "params": []
+      },
+      "input": [
+        24,
+        24,
+        24
+      ],
+      "oracle": 255.0,
+      "engine": 255.0
+    },
+    {
+      "param": {
+        "label": "default_keyer_blob",
+        "params": []
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": 255.0,
+      "engine": 255.0
+    },
+    {
+      "param": {
+        "label": "default_keyer_blob",
+        "params": []
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": 255.0,
+      "engine": 255.0
+    },
+    {
+      "param": {
+        "label": "default_keyer_blob",
+        "params": []
+      },
+      "input": [
+        96,
+        96,
+        96
+      ],
+      "oracle": 255.0,
+      "engine": 255.0
+    },
+    {
+      "param": {
+        "label": "default_keyer_blob",
+        "params": []
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": 255.0,
+      "engine": 255.0
+    },
+    {
+      "param": {
+        "label": "default_keyer_blob",
+        "params": []
+      },
+      "input": [
+        144,
+        144,
+        144
+      ],
+      "oracle": 255.0,
+      "engine": 255.0
+    },
+    {
+      "param": {
+        "label": "default_keyer_blob",
+        "params": []
+      },
+      "input": [
+        150,
+        150,
+        150
+      ],
+      "oracle": 243.034,
+      "engine": 242.0
+    },
+    {
+      "param": {
+        "label": "default_keyer_blob",
+        "params": []
+      },
+      "input": [
+        160,
+        160,
+        160
+      ],
+      "oracle": 217.032,
+      "engine": 216.0
+    },
+    {
+      "param": {
+        "label": "default_keyer_blob",
+        "params": []
+      },
+      "input": [
+        176,
+        176,
+        176
+      ],
+      "oracle": 176.312,
+      "engine": 176.0
+    },
+    {
+      "param": {
+        "label": "default_keyer_blob",
+        "params": []
+      },
+      "input": [
+        192,
+        192,
+        192
+      ],
+      "oracle": 138.312,
+      "engine": 138.0
+    },
+    {
+      "param": {
+        "label": "default_keyer_blob",
+        "params": []
+      },
+      "input": [
+        208,
+        208,
+        208
+      ],
+      "oracle": 101.058,
+      "engine": 101.0
+    },
+    {
+      "param": {
+        "label": "default_keyer_blob",
+        "params": []
+      },
+      "input": [
+        224,
+        224,
+        224
+      ],
+      "oracle": 66.119,
+      "engine": 65.0
+    },
+    {
+      "param": {
+        "label": "default_keyer_blob",
+        "params": []
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": 31.371,
+      "engine": 31.0
+    },
+    {
+      "param": {
+        "label": "default_keyer_blob",
+        "params": []
+      },
+      "input": [
+        248,
+        248,
+        248
+      ],
+      "oracle": 14.926,
+      "engine": 14.0
+    },
+    {
+      "param": {
+        "label": "default_keyer_blob",
+        "params": []
+      },
+      "input": [
+        255,
+        255,
+        255
+      ],
+      "oracle": 0.0,
+      "engine": 0.0
+    }
+  ]
+}

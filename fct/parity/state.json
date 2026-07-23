@@ -2014,6 +2014,30 @@
       },
       "oracle_truth": "transfer",
       "n_failures": 0
+    },
+    "transfer.PAELumaKeyer_alpha": {
+      "id": "transfer.PAELumaKeyer_alpha",
+      "kind": "transfer",
+      "status": "VERIFIED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 1.1189999999999998,
+      "n_samples": 20,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "label": "default_keyer_blob",
+          "params": []
+        },
+        "input": [
+          224,
+          224,
+          224
+        ],
+        "oracle": 66.119,
+        "engine": 65.0
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
     }
   },
   "history": [
@@ -2726,8 +2750,18 @@
       "id": "transfer.PAELevels_remap",
       "status": "VERIFIED",
       "at": "2026-07-23T08:45:52Z"
+    },
+    {
+      "id": "transfer.PAELumaKeyer_alpha",
+      "status": "VERIFIED",
+      "at": "2026-07-23T09:18:15Z"
+    },
+    {
+      "id": "transfer.PAEColorize",
+      "status": "VERIFIED",
+      "at": "2026-07-23T09:19:06Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T08:45:52Z"
+  "updated": "2026-07-23T09:19:06Z"
 }

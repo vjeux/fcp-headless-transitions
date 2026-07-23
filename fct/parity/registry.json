@@ -5629,6 +5629,128 @@
    "characterized": true,
    "pass_db": 40.0,
    "characterized_reason": "Pointwise extract+combine LAW verified EXACT vs headless FCP across the full (input v in {60,97,128,190,255}) x (Threshold in {0,15,30,50,75,100}) grid at max |dR|=0.3 levels (HgcBloomThreshold x10-Thr/10 extract + HgcEchoScaleAndAdd additive orig+blur*(|Bright-50|*4/50), clip-to-white \u2014 all register-decoded). At the SHIPPING regime (Threshold=0, full-frame bloom to white) the spatial render VERIFIES at 42.7 dB. The Threshold>0 spatial divergence (27-30 dB) is NOT the decode: the residual is a uniform ~-1.5 level flat-field deficit (99.4% of pixels; edges match at MAD 0.5) = the shared decimated FLOAT blur spreads the sparse high-contrast extracted-highlight layer with a slightly lighter tail than FCP's Gaussian (disc energy: FCP reaches +7.6 more just outside the disc and +1.8 more in the far field). Same blur-tail ceiling family as Glow's dark-tail and Zoom's log-polar spread; retuning the shared sigma/truncation risks the VERIFIED PAEGaussianBlur (49 dB), so decode-don't-fit holds. Gate-inert: shipping Bloom slugs author Threshold->0 with full-frame bloom, the VERIFIED regime. Float path guarded by FCT_BLOOM_FLOAT (shipped default still 8-bit, gated on 360deg_Bloom host composition)."
+  },
+  {
+   "id": "transfer.PAELumaKeyer_alpha",
+   "subsystem": "stylize",
+   "kind": "transfer",
+   "channel": "alpha",
+   "desc": "PAELumaKeyer (HgcLumaKeyer, UUID 7E9178C5-\u2026) default keyer blob: the keyed ALPHA is a LINEAR band-pass TRAPEZOID in the gamma-1.958 WORKING SPACE (xw=luma^0.51117), control points B=1/4 C=3/4 D=1. DECODED 2026-07-23 from a fine headless-FCP alpha ramp; the engine previously used a code-space SMOOTHSTEP rising edge (rms 12.82 / max 71 lvl WRONG in alpha \u2014 gate-invisible, RGB-only PSNR gate never checks alpha). RGB passes through unchanged; only alpha is keyed. Grays give a clean luma ramp.",
+   "oracle": {
+    "uuid": "7E9178C5-7B0F-4B86-884D-FE79F568B6CE",
+    "pluginName": "PAELumaKeyer"
+   },
+   "engine_env": null,
+   "inputs": [
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     4,
+     4,
+     4
+    ],
+    [
+     8,
+     8,
+     8
+    ],
+    [
+     12,
+     12,
+     12
+    ],
+    [
+     16,
+     16,
+     16
+    ],
+    [
+     24,
+     24,
+     24
+    ],
+    [
+     32,
+     32,
+     32
+    ],
+    [
+     64,
+     64,
+     64
+    ],
+    [
+     96,
+     96,
+     96
+    ],
+    [
+     128,
+     128,
+     128
+    ],
+    [
+     144,
+     144,
+     144
+    ],
+    [
+     150,
+     150,
+     150
+    ],
+    [
+     160,
+     160,
+     160
+    ],
+    [
+     176,
+     176,
+     176
+    ],
+    [
+     192,
+     192,
+     192
+    ],
+    [
+     208,
+     208,
+     208
+    ],
+    [
+     224,
+     224,
+     224
+    ],
+    [
+     240,
+     240,
+     240
+    ],
+    [
+     248,
+     248,
+     248
+    ],
+    [
+     255,
+     255,
+     255
+    ]
+   ],
+   "param_cases": [
+    {
+     "label": "default_keyer_blob",
+     "params": []
+    }
+   ],
+   "oracle_truth": "transfer",
+   "status": "UNTESTED"
   }
  ]
 }
