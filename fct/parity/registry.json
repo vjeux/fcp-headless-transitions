@@ -281,7 +281,7 @@
       "id": "transfer.PAEBrightness",
       "subsystem": "color",
       "kind": "transfer",
-      "desc": "PAEBrightness combined. Darken+gray VERIFIED (see _darken). Brighten on saturated colours (amount>1) DIVERGES via the HGColorMatrix over-1.0 clamp (highlight-rolloff, needs GPU disasm \u2014 evidence/hgcolormatrix_clamp_probe.json).",
+      "desc": "PAEBrightness combined. Darken+gray VERIFIED (see _darken). Brighten on saturated colours (amount>1) DIVERGES via the HGColorMatrix over-1.0 clamp (highlight-rolloff, needs GPU disasm \u2014 evidence/hgcolormatrix_clamp_probe.json). [RESOLVED 2026-07-23: the over-1.0 'clamp' was a CoreGraphics ExtendedLinearSRGB->sRGB readback artifact in the shim (NOT a GPU op); this node is now VERIFIED against the clean OZ_CLAMP_UNIT oracle \u2014 the engine's per-channel effect is faithful.]",
       "oracle": {
         "type": "transfer",
         "uuid": "2E4DBB0A-A950-4896-BC2D-A5B0CFF7FAC6",
@@ -7734,7 +7734,7 @@
       "subsystem": "color",
       "kind": "transfer",
       "characterized": true,
-      "desc": "PAEHSVAdjust with Hue+Saturation+Value combined. VERIFIES the WS-HSV legs COMPOSE: in-gamut cases match ~0.4 lvl (c1 desat+dim, c3 hue+desat+dim). Over-saturation+value>1 on saturated inputs diverges via the shared HGColorMatrix over-1.0 clamp (characterized).",
+      "desc": "PAEHSVAdjust with Hue+Saturation+Value combined. VERIFIES the WS-HSV legs COMPOSE: in-gamut cases match ~0.4 lvl (c1 desat+dim, c3 hue+desat+dim). Over-saturation+value>1 on saturated inputs diverges via the shared HGColorMatrix over-1.0 clamp (characterized). [RESOLVED 2026-07-23: the over-1.0 'clamp' was a CoreGraphics ExtendedLinearSRGB->sRGB readback artifact in the shim (NOT a GPU op); this node is now VERIFIED against the clean OZ_CLAMP_UNIT oracle \u2014 the engine's per-channel effect is faithful.]",
       "oracle": {
         "type": "transfer",
         "uuid": "D23AF030-B0BF-44DF-B622-7C9EA0DF5744",
