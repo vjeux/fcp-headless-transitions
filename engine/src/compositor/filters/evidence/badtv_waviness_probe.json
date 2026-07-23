@@ -2,12 +2,46 @@
   "desc": "BadTV per-scanline horizontal displacement (waviness) field measured at t=0 through headless FCP via a vertical-line centroid probe. Validates the decode direction (MT19937 -> per-row random walk).",
   "method": "vertical bright line at x=960 on black, rendered through PAEBadTV (Static=0, Roll=0, Saturate=0, ScanBright=1) at t=0; per-row line-centroid x minus 960 = that row's horizontal displacement.",
   "findings": {
-    "waviness_0": {"disp_std": 0.0, "note": "Waviness=0 => zero displacement (the deterministic scan-line-only exact path)"},
-    "waviness_20": {"disp_std": 5.10, "disp_range": [-20.0, 0.2]},
-    "waviness_50": {"disp_std": 12.76, "disp_range": [-49.5, 1.0], "row_autocorr": 0.996},
+    "waviness_0": {
+      "disp_std": 0.0,
+      "note": "Waviness=0 => zero displacement (the deterministic scan-line-only exact path)"
+    },
+    "waviness_20": {
+      "disp_std": 5.1,
+      "disp_range": [
+        -20.0,
+        0.2
+      ]
+    },
+    "waviness_50": {
+      "disp_std": 12.76,
+      "disp_range": [
+        -49.5,
+        1.0
+      ],
+      "row_autocorr": 0.996
+    },
     "linearity": "displacement std scales ~linearly with Waviness (20->5.1, 50->12.76)",
     "structure": "row-to-row displacement autocorrelation = 0.996 => a VERY SMOOTH 1-D RANDOM WALK per scanline, NOT white noise. Low-dimensional and MATCHABLE (unlike PAENoise's 2-D per-pixel white field)."
   },
   "decode_status": "RNG identified as std::mt19937 (PAEGenerateNoise @ProAppsFxSupport 0xa783c, verified canonical constants). At t=0 the seed is fixed => the walk is byte-recoverable in principle. This probe confirms the field is a smooth low-dim random walk = the structure MT19937->cumulative-increment produces.",
-  "remaining_for_match": "port MT19937 + the exact per-row increment draw + normalization + the Waviness->pixel-displacement scale + the HgcBadTV scanline-index sampling, then verify at t=0 via the spatial harness (BadTV is a FILTER = node-boundary testable)."
+  "remaining_for_match": "port MT19937 + the exact per-row increment draw + normalization + the Waviness->pixel-displacement scale + the HgcBadTV scanline-index sampling, then verify at t=0 via the spatial harness (BadTV is a FILTER = node-boundary testable).",
+  "generation_chain_decoded": {
+    "1_seed": "seed = (autoAnimate ? frameNum*0x3021(=12321) + randomSeed : randomSeed) XOR sign-mask(isMono). At t=0 frame=0 -> seed = randomSeed (^isMono mask).",
+    "2_mt19937_init": "std::mt19937 seeded via the CANONICAL recurrence mt[0]=seed; mt[i]=(mt[i-1]^(mt[i-1]>>30))*1812433253(=0x6C078965)+i for i=1..623 (loop @0xa7a44, count 0x270=624).",
+    "3_permutation": "a 256-entry identity byte array (strb i @0xa7a18) is std::shuffle'd via PCRandomShuffle @0xa857c = libc++ std::shuffle: for i=n-1..1 draw j=uniform_int_distribution(0,i)(mt), swap [i]<->[j].",
+    "4_bitmap": "PCCreateBitmap(256,1,ChannelOrder=5,1) -> the shuffled perm becomes a 256x1 noise LUT (HSampleTiledNoise).",
+    "5_shader": "HgcBadTV samples this 1-D LUT at a scanline-derived coord (floor(row-proj/P9.x)); the notes' normalize + 3-tap smooth yields the smooth per-row displacement * Waviness (measured autocorr 0.996).",
+    "bit_exact_caveat": "steps 2-3 are libc++-implementation-specific: std::mt19937 is portable/canonical (exact), but std::uniform_int_distribution's rejection sampling AND std::shuffle's iteration direction are libc++-specific -- a byte-exact port must mirror libc++ (not just 'an' MT+shuffle). Decoded to identity; the port must replicate libc++ semantics.",
+    "status": "FULL generation chain decoded to the algorithm+identity level. Remaining = a libc++-faithful port (mt19937 canonical + libc++ uniform_int_distribution + libc++ std::shuffle + HSampleTiledNoise tiling + 3-tap smooth + Waviness scale), then verify at t=0."
+  },
+  "rng_full_spec": {
+    "desc": "Complete deterministic spec of PAEGenerateNoise NoiseType=0's noise field, decoded from ProAppsFxSupport @0xa783c/@0xa857c.",
+    "seed": "seedBase = frameNum*0x3021 (12321) + randomSeed; seed = autoAnimate ? seedBase : randomSeed; then seed ^= (isMono ? -1 : 0) sign-extended mask. At t=0 frame 0 => seed = randomSeed (XOR mono mask).",
+    "mt19937": "canonical std::mt19937: mt[0]=seed&0xffffffff; mt[i]=(1812433253*(mt[i-1]^(mt[i-1]>>30))+i)&0xffffffff for i=1..623; tempering u^=u>>11; u^=(u<<7)&0x9d2c5680; u^=(u<<15)&0xefc60000; u^=u>>18.",
+    "shuffle": "libc++ std::shuffle FORWARD: identity byte array a[0..255]; for i=1..255: j=uniform_int_distribution(0,i)(mt); swap a[i],a[j]. (verified forward direction + growing range from the disasm loop @0xa85c4.)",
+    "fill": "256x1 RGBA bitmap: per pixel i, R,G = nested perm-hash lookups (perm[perm[..]+..]), B = i, A = from a SECOND re-seeded MT (madd w9*0x6c078965+.. then uniform draws). Then HSampleTiledNoise samples this tiled.",
+    "shader": "HgcBadTV samples hg_Texture0 at a coord from ONE texCoord projection (floor(row/P9.x)) => 1-D per-scanline row index; 3-tap smoothed; * Waviness => horizontal displacement (measured smooth walk, autocorr 0.996).",
+    "caveat": "libc++ uniform_int_distribution mask width must match libc++'s exact __independent_bits_engine formula for a bit-exact perm; validate the reproduced perm against a headless probe before trusting the full port."
+  }
 }
