@@ -36,7 +36,7 @@ NODES = [nid for nid in NODES if nid not in _ALPHA_NODES]
 # Nodes whose decode is VERIFIED and SHOULD match headless within tol (a regression here is
 # a real break). Everything else is coverage-only (expected to diverge until decoded/shipped).
 VERIFIED = {
-    "transfer.PAEColorize", "transfer.PAETint", "transfer.PAEHSVAdjust_valsat", "transfer.PAEHSVAdjust_value", "transfer.PAEHSVAdjust_saturation", "transfer.PAEHSVAdjust_saturation",
+    "transfer.PAEColorize", "transfer.PAETint", "transfer.PAEHSVAdjust_valsat", "transfer.PAEHSVAdjust_value", "transfer.PAEHSVAdjust_saturation", "transfer.PAEHSVAdjust_hue_ingamut",
     "transfer.PAELevels", "transfer.PAELevels_remap", "transfer.PAELevels_outremap", "transfer.PAELevels_combined", "transfer.PAELevels_perchannel", "transfer.PAEChannelMixer", "transfer.PAEChannelMixer_offset",
     "transfer.PAEBrightness_darken",
     "transfer.PAEBrightness_brighten",

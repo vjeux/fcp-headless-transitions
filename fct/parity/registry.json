@@ -875,6 +875,86 @@
    }
   },
   {
+   "id": "transfer.PAEHSVAdjust_hue_ingamut",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAEHSVAdjust Hue rotation, IN-GAMUT small-to-moderate regime (6-30 deg). DECODED+VERIFIED 2026-07-23: the luma-preserving Rec.709-YCbCr hue rotation matches REAL headless FCP within 1 lvl for rotations up to ~30 deg on both in-gamut and saturated colours (the previously-DIVERGED transfer.PAEHSVAdjust_hue hit 107 lvl only at 90 deg, where colours rotate far out of gamut into the shared HGColorMatrix clamp). Split mirrors Contrast/Brightness in-gamut nodes. Positive hue only (negative hue is the decoded no-op clamp).",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "D23AF030-B0BF-44DF-B622-7C9EA0DF5744",
+    "pluginName": "PAEHSVAdjust"
+   },
+   "engine_env": {
+    "FCT_HSV_WORKINGSPACE": "1"
+   },
+   "inputs": [
+    [
+     150,
+     120,
+     100
+    ],
+    [
+     120,
+     140,
+     150
+    ],
+    [
+     200,
+     50,
+     50
+    ],
+    [
+     50,
+     200,
+     50
+    ],
+    [
+     50,
+     50,
+     200
+    ],
+    [
+     160,
+     100,
+     60
+    ],
+    [
+     180,
+     160,
+     80
+    ],
+    [
+     120,
+     180,
+     200
+    ]
+   ],
+   "param_cases": [
+    {
+     "name": "Hue",
+     "id": 1,
+     "value": 0.1
+    },
+    {
+     "name": "Hue",
+     "id": 1,
+     "value": 0.2
+    },
+    {
+     "name": "Hue",
+     "id": 1,
+     "value": 0.35
+    },
+    {
+     "name": "Hue",
+     "id": 1,
+     "value": 0.52
+    }
+   ],
+   "oracle_truth": "transfer",
+   "status": "UNTESTED"
+  },
+  {
    "id": "transfer.PAETint",
    "subsystem": "color",
    "kind": "transfer",
