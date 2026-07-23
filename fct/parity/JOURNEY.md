@@ -60,19 +60,24 @@ C++ symbol, NOT whole-frame PSNR. See DESIGN.md.
    decode is faithful and the divergence lives in the HOST, not the Glow node.
 
 
-## Current subsystem map (50 nodes; 28 VERIFIED) — run `fct parity status` for live
+## Current subsystem map (52 nodes; 30 VERIFIED) — run `fct parity status` for live
   curves      3/3  VERIFIED (exact)
   blur        6/10 (Gaussian/Directional/Radial VERIFIED via delta; spatial.Gaussian 49dB +
                    spatial.Directional 26dB VERIFIED at node boundary; spatial.Zoom + spatial.Bloom
                    CHARACTERIZED (log-polar / blur-tail ceilings — Bloom pointwise LAW is EXACT,
                    shipping regime 42.7dB); Bloom-via-host DIVERGED)
-  color      15/27 (transfer regime: 15 pointwise colour transfers VERIFIED incl. the 4th
-                   Levels leg PAELevels_combined (WS stage-1 clamp drop, 16.7->0.71 lvl) and
+  color      17/29 (transfer regime. VERIFIED incl. the 4th Levels leg PAELevels_combined (WS
+                   stage-1 clamp drop, 16.7->0.71 lvl) + THREE in-gamut regime splits that
+                   isolate the proven-faithful math from the shared over-1.0 clamp:
                    PAEHSVAdjust_combined_ingamut (HSV legs compose exactly in-gamut incl. small
-                   nonzero Hue, 0.72 lvl); the rest are CHARACTERIZED shared-clamp over-1.0 /
-                   large-hue CPU-map, need GPU/frameSetup disasm. NEW evidence: the over-1.0
-                   clamp lift is cross-channel + non-pointwise (lift==overflow only at the
-                   symmetric c=2 point; 4 more models ruled out — shared_clamp_overflow_analysis.txt))
+                   nonzero Hue, 0.72), PAEContrast_ingamut (WS contrast faithful on SATURATED
+                   colours too, c<=1.25, 0.77), PAEBrightness_brighten (per-channel multiply
+                   gain>1 exact on neutral inputs, 0.88). The remaining DIVERGED colour nodes
+                   (Brightness/ChannelMixer_clip/Contrast/HSV_combined saturated-over-1.0 +
+                   standalone large-hue) ALL reduce to the shared HGColorMatrix over-1.0 clamp
+                   (cross-channel, non-pointwise: 12 models ruled out) or the PAEHSVAdjust
+                   frameSetup hue matrix — both need GPU/CPU binary disasm, NOT probe-fitting.
+                   Evidence: shared_clamp_overflow_analysis.txt.)
   generators  1/3  (ColorSolid VERIFIED; Clouds/Noise DIVERGED — RNG fields)
   geometry    2/4  (Flop/BlackHole VERIFIED; Earthquake/Underwater DIVERGED — RNG/time warps)
   stylize     1/3  (spatial.Glow VERIFIED 40.4dB at node boundary; BadTV DIVERGED = entangled
