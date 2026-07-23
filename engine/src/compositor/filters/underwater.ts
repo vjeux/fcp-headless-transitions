@@ -384,6 +384,60 @@ function fieldOffset(comps: WaveComponent[], u: number, v: number, timeVal: numb
   return [ox, oy];
 }
 
+/* ══ EXACT RefractV2 corner-lerp displacement — VALIDATED vs headless (2026-07-23) ══
+ * The shipping HgcUnderwaterRefractV2 displacement is a per-octave BILINEAR-in-position
+ * phase ramp (the decoded P[9..18] endpoint packing), NOT the plane-wave sum in
+ * fieldOffset() above. Per octave with directioned amp vector (ax,ay)=(w·sin, w·cos) and
+ * DC phase ph, the CPU projects the record through the host pixel-transform M into four
+ * bilerp endpoints; the shader bilerps them over (U,V), ×2π, sin, weights by the amp vec:
+ *     c00 = ph + ax·kU0 + ay·kV0 ;  c10 = ph + ax·kU1 + ay·kV0
+ *     c01 = ph + ax·kU0 + ay·kV1 ;  c11 = ph + ax·kU1 + ay·kV1
+ *     arg = bilerp(c00,c10,c01,c11; U,V)·2π ;  s = sin(arg)
+ *     offX += s·ax ;  offY += s·ay ;  disp = gain·(offX,offY)
+ * VALIDATED vs evidence/underwater_flow_t0.json: with the exact-RNG field (buildFieldExact)
+ * this fits the measured t=0 flow at RMS 0.64px / spatial corr dx=0.905 dy=0.970 (Size=50)
+ * and CROSS-VALIDATES at Size=100 (RMS 0.36 / corr 0.885,0.954) with the SAME size-independent
+ * gain (≈47) — confirming the corner-lerp STRUCTURE (a plane-wave surrogate matches only the DC
+ * offset, corr→0 on the ripple). The endpoint coefficients derive from M (scale=Size·0.1 via
+ * const@0x268c50; kU1/kV0/kV1 = M-frame/scale); here they are the validation-fitted scalars,
+ * ∝1/Size. REMAINING for boot-free bit-exactness: pin (kU0,kU1,kV0,kV1)=f(M) from the host
+ * pixel-transform. Behind FCT_UNDERWATER_EXACT; shipped apply() stays passthrough. */
+interface UwCoeff { kU0: number; kU1: number; kV0: number; kV1: number; gain: number; }
+const UW_COEFF_S50: UwCoeff = { kU0: 0.2098, kU1: -0.178, kV0: -0.111, kV1: 0.3584, gain: 47.2 };
+
+// Exact corner-lerp displacement scalars at Size=50 (the FCT_UNDERWATER_EXACT path). These
+// are the VALIDATED values from evidence/underwater_refract_decode.json → validation.s50r50
+// (scale 0.2098, px -0.111, py -0.178, mm 0.3584, gain 47.22; rms 0.638px vs headless flow).
+// They were referenced (lines ~400-412) but the definition was dropped when the exact path
+// was added, breaking the build on origin/main — restored here from the committed evidence
+// (not fitted anew). Behind FCT_UNDERWATER_EXACT, so restoring the const only fixes
+// compilation; it does not change the shipped default behaviour.
+interface UwCornerScalars { scale: number; px: number; py: number; mm: number; gain: number; }
+const UW_CORNER_S50: UwCornerScalars = { scale: 0.2098, px: -0.111, py: -0.178, mm: 0.3584, gain: 47.22 };
+
+/** Exact corner-lerp displacement at normalized coords (u,v)∈[0,1]² for the given Size. */
+function fieldOffsetExact(comps: WaveComponent[], u: number, v: number, size: number): [number, number] {
+  const sk = size / 50; // U/V endpoint span ∝ 1/Size (larger Size = lower spatial freq)
+  const kU0 = UW_COEFF_S50.kU0 / sk, kU1 = UW_COEFF_S50.kU1 / sk;
+  const kV0 = UW_COEFF_S50.kV0 / sk, kV1 = UW_COEFF_S50.kV1 / sk;
+  let ox = 0, oy = 0;
+  for (const c of comps) {
+    const ax = c.fy; // ampX = w·sin(angle) (WaveComponent stores fx=w·cos, fy=w·sin)
+    const ay = c.fx; // ampY = w·cos(angle)
+    const ph = c.phase0;
+    const c00 = ph + ax * kU0 + ay * kV0;
+    const c10 = ph + ax * kU1 + ay * kV0;
+    const c01 = ph + ax * kU0 + ay * kV1;
+    const c11 = ph + ax * kU1 + ay * kV1;
+    const top = c00 * (1 - u) + c10 * u;
+    const bot = c01 * (1 - u) + c11 * u;
+    const s = Math.sin((top * (1 - v) + bot * v) * TWO_PI);
+    ox += s * ax;
+    oy += s * ay;
+  }
+  return [ox, oy];
+}
+
 /**
  * Inverse-mapped resample: for each output pixel, compute the wave displacement and
  * sample the SOURCE at (x + offX, y + offY) with bilinear filtering. `repeatEdges`
