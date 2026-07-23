@@ -107,3 +107,16 @@ a Rec.709 chroma rotation. Closing it needs the true PAEHSVAdjust render-path sh
 frameSetup (the HgcSaturation-in-WS pipeline with the exact hue-rotation primitive), captured
 live — NOT HgcHSVAdjust. Node stays CHARACTERIZED (gate-inert; Hue!=0 never ships). The in-gamut
 Value+Saturation legs ARE verified (transfer.PAEHSVAdjust_valsat 0.87, ..._combined_ingamut 0.72).
+
+## UPDATE 2026-07-23q — re-probed with the CLEAN (OZ_CLAMP_UNIT) hue oracle; shader still off
+After PROVING the over-1.0 lift is a CoreGraphics readback artifact (see shared_clamp_overflow_
+analysis.txt 2026-07-23p), re-captured the Hue transfer with OZ_CLAMP_UNIT (per-channel clamp
+before the CG write) to remove that confound. The verbatim HgcHSVAdjust shader port
+(hgc_hsvadjust_shader_sim.py) with hueOffset=param/2π still lands worst 134 dR vs the CLEAN
+oracle — so the readback artifact was NOT what blocked the hue decode. FCP's hue op DARKENS far
+more than an HSV-preserving rotation: (200,50,50)@90° -> FCP [53,93,3] but shader [125,200,50]
+(HSV rotation keeps V). Best-fit HSV rotation (free offset) still leaves 44-82 dR. So the residual
+is genuinely the frameSetup PARAM-PREP (radian Hue -> hueOffset, plus a non-neutral value/sat
+collapse) AND/OR a non-HSV opponent-space rotation — needs the -[PAEHSVAdjust canThrowRenderOutput]
+register trace. This is now the CLEANEST remaining colour frontier (26.3 lvl, correctly isolated
+from the clamp). All 4 shipping HSV users author Hue=0 (gate-neutral). decode-don't-fit holds.
