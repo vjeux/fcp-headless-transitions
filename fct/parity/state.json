@@ -1306,7 +1306,7 @@
       "status": "VERIFIED",
       "metric": "max_abs_levels",
       "max_abs_levels": 1.1399999999999864,
-      "n_samples": 243,
+      "n_samples": 432,
       "tol_levels": 2.0,
       "worst": {
         "case": {
@@ -3320,8 +3320,13 @@
       "id": "transfer.PAETint",
       "status": "VERIFIED",
       "at": "2026-07-23T13:05:36Z"
+    },
+    {
+      "id": "transfer.PAEFill",
+      "status": "VERIFIED",
+      "at": "2026-07-23T13:08:35Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T13:05:36Z"
+  "updated": "2026-07-23T13:08:35Z"
 }
