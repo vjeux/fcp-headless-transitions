@@ -2485,6 +2485,315 @@
    ]
   },
   {
+   "id": "transfer.PAEChannelMixer_offset",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAEChannelMixer output OFFSET (the 'Red - Alpha' constant column): out_ch += offset*255 in code space. DECODED 2026-07-22 (delta exactly offset*255). Resolves the prior 'non-converged offset' gap \u2014 that was the shared over-1.0 clamp on clipping inputs, not the offset op. Gray/non-clip inputs only.",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "B2E0DE39-119F-4AD6-8796-C18BF8FE27B8",
+    "pluginName": "PAEChannelMixer"
+   },
+   "inputs": [
+    [
+     16,
+     16,
+     16
+    ],
+    [
+     32,
+     32,
+     32
+    ],
+    [
+     64,
+     64,
+     64
+    ],
+    [
+     96,
+     96,
+     96
+    ],
+    [
+     128,
+     128,
+     128
+    ],
+    [
+     160,
+     160,
+     160
+    ]
+   ],
+   "param_cases": [
+    {
+     "label": "redoff0.1",
+     "params": [
+      {
+       "name": "Red Output",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red - Red",
+         "id": 2,
+         "value": 1
+        },
+        {
+         "name": "Red - Green",
+         "id": 3,
+         "value": 0
+        },
+        {
+         "name": "Red - Blue",
+         "id": 4,
+         "value": 0
+        },
+        {
+         "name": "Red - Alpha",
+         "id": 5,
+         "value": 0.1
+        }
+       ]
+      },
+      {
+       "name": "Green Output",
+       "id": 6,
+       "children": [
+        {
+         "name": "Green - Red",
+         "id": 7,
+         "value": 0
+        },
+        {
+         "name": "Green - Green",
+         "id": 8,
+         "value": 1
+        },
+        {
+         "name": "Green - Blue",
+         "id": 9,
+         "value": 0
+        },
+        {
+         "name": "Green - Alpha",
+         "id": 10,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Blue Output",
+       "id": 11,
+       "children": [
+        {
+         "name": "Blue - Red",
+         "id": 12,
+         "value": 0
+        },
+        {
+         "name": "Blue - Green",
+         "id": 13,
+         "value": 0
+        },
+        {
+         "name": "Blue - Blue",
+         "id": 14,
+         "value": 1
+        },
+        {
+         "name": "Blue - Alpha",
+         "id": 15,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1
+      }
+     ]
+    },
+    {
+     "label": "redoff0.2",
+     "params": [
+      {
+       "name": "Red Output",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red - Red",
+         "id": 2,
+         "value": 1
+        },
+        {
+         "name": "Red - Green",
+         "id": 3,
+         "value": 0
+        },
+        {
+         "name": "Red - Blue",
+         "id": 4,
+         "value": 0
+        },
+        {
+         "name": "Red - Alpha",
+         "id": 5,
+         "value": 0.2
+        }
+       ]
+      },
+      {
+       "name": "Green Output",
+       "id": 6,
+       "children": [
+        {
+         "name": "Green - Red",
+         "id": 7,
+         "value": 0
+        },
+        {
+         "name": "Green - Green",
+         "id": 8,
+         "value": 1
+        },
+        {
+         "name": "Green - Blue",
+         "id": 9,
+         "value": 0
+        },
+        {
+         "name": "Green - Alpha",
+         "id": 10,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Blue Output",
+       "id": 11,
+       "children": [
+        {
+         "name": "Blue - Red",
+         "id": 12,
+         "value": 0
+        },
+        {
+         "name": "Blue - Green",
+         "id": 13,
+         "value": 0
+        },
+        {
+         "name": "Blue - Blue",
+         "id": 14,
+         "value": 1
+        },
+        {
+         "name": "Blue - Alpha",
+         "id": 15,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1
+      }
+     ]
+    },
+    {
+     "label": "redoff0.3",
+     "params": [
+      {
+       "name": "Red Output",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red - Red",
+         "id": 2,
+         "value": 1
+        },
+        {
+         "name": "Red - Green",
+         "id": 3,
+         "value": 0
+        },
+        {
+         "name": "Red - Blue",
+         "id": 4,
+         "value": 0
+        },
+        {
+         "name": "Red - Alpha",
+         "id": 5,
+         "value": 0.3
+        }
+       ]
+      },
+      {
+       "name": "Green Output",
+       "id": 6,
+       "children": [
+        {
+         "name": "Green - Red",
+         "id": 7,
+         "value": 0
+        },
+        {
+         "name": "Green - Green",
+         "id": 8,
+         "value": 1
+        },
+        {
+         "name": "Green - Blue",
+         "id": 9,
+         "value": 0
+        },
+        {
+         "name": "Green - Alpha",
+         "id": 10,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Blue Output",
+       "id": 11,
+       "children": [
+        {
+         "name": "Blue - Red",
+         "id": 12,
+         "value": 0
+        },
+        {
+         "name": "Blue - Green",
+         "id": 13,
+         "value": 0
+        },
+        {
+         "name": "Blue - Blue",
+         "id": 14,
+         "value": 1
+        },
+        {
+         "name": "Blue - Alpha",
+         "id": 15,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "filter.PAEColorize",
    "subsystem": "color",
    "kind": "filter",

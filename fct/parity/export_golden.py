@@ -28,7 +28,7 @@ NODES = sorted(
 # a real break). Everything else is coverage-only (expected to diverge until decoded/shipped).
 VERIFIED = {
     "transfer.PAEColorize", "transfer.PAETint", "transfer.PAEHSVAdjust_valsat",
-    "transfer.PAELevels", "transfer.PAELevels_remap", "transfer.PAELevels_outremap", "transfer.PAEChannelMixer",
+    "transfer.PAELevels", "transfer.PAELevels_remap", "transfer.PAELevels_outremap", "transfer.PAEChannelMixer", "transfer.PAEChannelMixer_offset",
     "transfer.PAEBrightness_darken",
     "transfer.PAEThreshold", "transfer.PAEFill",
     "transfer.PAEContrast_gray",

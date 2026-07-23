@@ -1,0 +1,2008 @@
+{
+  "id": "transfer.PAEChannelMixer_offset",
+  "kind": "transfer",
+  "status": "VERIFIED",
+  "metric": "max_abs_levels",
+  "max_abs_levels": 0.769999999999996,
+  "n_samples": 54,
+  "tol_levels": 2.0,
+  "worst": {
+    "case": {
+      "label": "redoff0.3",
+      "params": [
+        {
+          "name": "Red Output",
+          "id": 1,
+          "children": [
+            {
+              "name": "Red - Red",
+              "id": 2,
+              "value": 1
+            },
+            {
+              "name": "Red - Green",
+              "id": 3,
+              "value": 0
+            },
+            {
+              "name": "Red - Blue",
+              "id": 4,
+              "value": 0
+            },
+            {
+              "name": "Red - Alpha",
+              "id": 5,
+              "value": 0.3
+            }
+          ]
+        },
+        {
+          "name": "Green Output",
+          "id": 6,
+          "children": [
+            {
+              "name": "Green - Red",
+              "id": 7,
+              "value": 0
+            },
+            {
+              "name": "Green - Green",
+              "id": 8,
+              "value": 1
+            },
+            {
+              "name": "Green - Blue",
+              "id": 9,
+              "value": 0
+            },
+            {
+              "name": "Green - Alpha",
+              "id": 10,
+              "value": 0
+            }
+          ]
+        },
+        {
+          "name": "Blue Output",
+          "id": 11,
+          "children": [
+            {
+              "name": "Blue - Red",
+              "id": 12,
+              "value": 0
+            },
+            {
+              "name": "Blue - Green",
+              "id": 13,
+              "value": 0
+            },
+            {
+              "name": "Blue - Blue",
+              "id": 14,
+              "value": 1
+            },
+            {
+              "name": "Blue - Alpha",
+              "id": 15,
+              "value": 0
+            }
+          ]
+        },
+        {
+          "name": "Mix",
+          "id": 10001,
+          "value": 1
+        }
+      ]
+    },
+    "input": [
+      32,
+      32,
+      32
+    ],
+    "oracle": [
+      108.23,
+      31.9,
+      32.15
+    ],
+    "engine": [
+      109.0,
+      32.0,
+      32.0
+    ]
+  },
+  "oracle_truth": "transfer",
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "redoff0.1",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 0
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0.1
+              }
+            ]
+          },
+          {
+            "name": "Green Output",
+            "id": 6,
+            "children": [
+              {
+                "name": "Green - Red",
+                "id": 7,
+                "value": 0
+              },
+              {
+                "name": "Green - Green",
+                "id": 8,
+                "value": 1
+              },
+              {
+                "name": "Green - Blue",
+                "id": 9,
+                "value": 0
+              },
+              {
+                "name": "Green - Alpha",
+                "id": 10,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Blue Output",
+            "id": 11,
+            "children": [
+              {
+                "name": "Blue - Red",
+                "id": 12,
+                "value": 0
+              },
+              {
+                "name": "Blue - Green",
+                "id": 13,
+                "value": 0
+              },
+              {
+                "name": "Blue - Blue",
+                "id": 14,
+                "value": 1
+              },
+              {
+                "name": "Blue - Alpha",
+                "id": 15,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        41.3,
+        16.03,
+        16.05
+      ],
+      "engine": [
+        42.0,
+        16.0,
+        16.0
+      ]
+    },
+    {
+      "param": {
+        "label": "redoff0.1",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 0
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0.1
+              }
+            ]
+          },
+          {
+            "name": "Green Output",
+            "id": 6,
+            "children": [
+              {
+                "name": "Green - Red",
+                "id": 7,
+                "value": 0
+              },
+              {
+                "name": "Green - Green",
+                "id": 8,
+                "value": 1
+              },
+              {
+                "name": "Green - Blue",
+                "id": 9,
+                "value": 0
+              },
+              {
+                "name": "Green - Alpha",
+                "id": 10,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Blue Output",
+            "id": 11,
+            "children": [
+              {
+                "name": "Blue - Red",
+                "id": 12,
+                "value": 0
+              },
+              {
+                "name": "Blue - Green",
+                "id": 13,
+                "value": 0
+              },
+              {
+                "name": "Blue - Blue",
+                "id": 14,
+                "value": 1
+              },
+              {
+                "name": "Blue - Alpha",
+                "id": 15,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        57.78,
+        32.0,
+        31.89
+      ],
+      "engine": [
+        58.0,
+        32.0,
+        32.0
+      ]
+    },
+    {
+      "param": {
+        "label": "redoff0.1",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 0
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0.1
+              }
+            ]
+          },
+          {
+            "name": "Green Output",
+            "id": 6,
+            "children": [
+              {
+                "name": "Green - Red",
+                "id": 7,
+                "value": 0
+              },
+              {
+                "name": "Green - Green",
+                "id": 8,
+                "value": 1
+              },
+              {
+                "name": "Green - Blue",
+                "id": 9,
+                "value": 0
+              },
+              {
+                "name": "Green - Alpha",
+                "id": 10,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Blue Output",
+            "id": 11,
+            "children": [
+              {
+                "name": "Blue - Red",
+                "id": 12,
+                "value": 0
+              },
+              {
+                "name": "Blue - Green",
+                "id": 13,
+                "value": 0
+              },
+              {
+                "name": "Blue - Blue",
+                "id": 14,
+                "value": 1
+              },
+              {
+                "name": "Blue - Alpha",
+                "id": 15,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        89.52,
+        64.06,
+        63.56
+      ],
+      "engine": [
+        90.0,
+        64.0,
+        64.0
+      ]
+    },
+    {
+      "param": {
+        "label": "redoff0.1",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 0
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0.1
+              }
+            ]
+          },
+          {
+            "name": "Green Output",
+            "id": 6,
+            "children": [
+              {
+                "name": "Green - Red",
+                "id": 7,
+                "value": 0
+              },
+              {
+                "name": "Green - Green",
+                "id": 8,
+                "value": 1
+              },
+              {
+                "name": "Green - Blue",
+                "id": 9,
+                "value": 0
+              },
+              {
+                "name": "Green - Alpha",
+                "id": 10,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Blue Output",
+            "id": 11,
+            "children": [
+              {
+                "name": "Blue - Red",
+                "id": 12,
+                "value": 0
+              },
+              {
+                "name": "Blue - Green",
+                "id": 13,
+                "value": 0
+              },
+              {
+                "name": "Blue - Blue",
+                "id": 14,
+                "value": 1
+              },
+              {
+                "name": "Blue - Alpha",
+                "id": 15,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      "input": [
+        96,
+        96,
+        96
+      ],
+      "oracle": [
+        121.55,
+        95.71,
+        95.87
+      ],
+      "engine": [
+        122.0,
+        96.0,
+        96.0
+      ]
+    },
+    {
+      "param": {
+        "label": "redoff0.1",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 0
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0.1
+              }
+            ]
+          },
+          {
+            "name": "Green Output",
+            "id": 6,
+            "children": [
+              {
+                "name": "Green - Red",
+                "id": 7,
+                "value": 0
+              },
+              {
+                "name": "Green - Green",
+                "id": 8,
+                "value": 1
+              },
+              {
+                "name": "Green - Blue",
+                "id": 9,
+                "value": 0
+              },
+              {
+                "name": "Green - Alpha",
+                "id": 10,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Blue Output",
+            "id": 11,
+            "children": [
+              {
+                "name": "Blue - Red",
+                "id": 12,
+                "value": 0
+              },
+              {
+                "name": "Blue - Green",
+                "id": 13,
+                "value": 0
+              },
+              {
+                "name": "Blue - Blue",
+                "id": 14,
+                "value": 1
+              },
+              {
+                "name": "Blue - Alpha",
+                "id": 15,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        153.41,
+        127.89,
+        128.11
+      ],
+      "engine": [
+        154.0,
+        128.0,
+        128.0
+      ]
+    },
+    {
+      "param": {
+        "label": "redoff0.1",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 0
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0.1
+              }
+            ]
+          },
+          {
+            "name": "Green Output",
+            "id": 6,
+            "children": [
+              {
+                "name": "Green - Red",
+                "id": 7,
+                "value": 0
+              },
+              {
+                "name": "Green - Green",
+                "id": 8,
+                "value": 1
+              },
+              {
+                "name": "Green - Blue",
+                "id": 9,
+                "value": 0
+              },
+              {
+                "name": "Green - Alpha",
+                "id": 10,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Blue Output",
+            "id": 11,
+            "children": [
+              {
+                "name": "Blue - Red",
+                "id": 12,
+                "value": 0
+              },
+              {
+                "name": "Blue - Green",
+                "id": 13,
+                "value": 0
+              },
+              {
+                "name": "Blue - Blue",
+                "id": 14,
+                "value": 1
+              },
+              {
+                "name": "Blue - Alpha",
+                "id": 15,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      "input": [
+        160,
+        160,
+        160
+      ],
+      "oracle": [
+        185.49,
+        160.11,
+        159.91
+      ],
+      "engine": [
+        186.0,
+        160.0,
+        160.0
+      ]
+    },
+    {
+      "param": {
+        "label": "redoff0.2",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 0
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0.2
+              }
+            ]
+          },
+          {
+            "name": "Green Output",
+            "id": 6,
+            "children": [
+              {
+                "name": "Green - Red",
+                "id": 7,
+                "value": 0
+              },
+              {
+                "name": "Green - Green",
+                "id": 8,
+                "value": 1
+              },
+              {
+                "name": "Green - Blue",
+                "id": 9,
+                "value": 0
+              },
+              {
+                "name": "Green - Alpha",
+                "id": 10,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Blue Output",
+            "id": 11,
+            "children": [
+              {
+                "name": "Blue - Red",
+                "id": 12,
+                "value": 0
+              },
+              {
+                "name": "Blue - Green",
+                "id": 13,
+                "value": 0
+              },
+              {
+                "name": "Blue - Blue",
+                "id": 14,
+                "value": 1
+              },
+              {
+                "name": "Blue - Alpha",
+                "id": 15,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        67.06,
+        16.0,
+        16.03
+      ],
+      "engine": [
+        67.0,
+        16.0,
+        16.0
+      ]
+    },
+    {
+      "param": {
+        "label": "redoff0.2",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 0
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0.2
+              }
+            ]
+          },
+          {
+            "name": "Green Output",
+            "id": 6,
+            "children": [
+              {
+                "name": "Green - Red",
+                "id": 7,
+                "value": 0
+              },
+              {
+                "name": "Green - Green",
+                "id": 8,
+                "value": 1
+              },
+              {
+                "name": "Green - Blue",
+                "id": 9,
+                "value": 0
+              },
+              {
+                "name": "Green - Alpha",
+                "id": 10,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Blue Output",
+            "id": 11,
+            "children": [
+              {
+                "name": "Blue - Red",
+                "id": 12,
+                "value": 0
+              },
+              {
+                "name": "Blue - Green",
+                "id": 13,
+                "value": 0
+              },
+              {
+                "name": "Blue - Blue",
+                "id": 14,
+                "value": 1
+              },
+              {
+                "name": "Blue - Alpha",
+                "id": 15,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        82.72,
+        31.86,
+        32.0
+      ],
+      "engine": [
+        83.0,
+        32.0,
+        32.0
+      ]
+    },
+    {
+      "param": {
+        "label": "redoff0.2",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 0
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0.2
+              }
+            ]
+          },
+          {
+            "name": "Green Output",
+            "id": 6,
+            "children": [
+              {
+                "name": "Green - Red",
+                "id": 7,
+                "value": 0
+              },
+              {
+                "name": "Green - Green",
+                "id": 8,
+                "value": 1
+              },
+              {
+                "name": "Green - Blue",
+                "id": 9,
+                "value": 0
+              },
+              {
+                "name": "Green - Alpha",
+                "id": 10,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Blue Output",
+            "id": 11,
+            "children": [
+              {
+                "name": "Blue - Red",
+                "id": 12,
+                "value": 0
+              },
+              {
+                "name": "Blue - Green",
+                "id": 13,
+                "value": 0
+              },
+              {
+                "name": "Blue - Blue",
+                "id": 14,
+                "value": 1
+              },
+              {
+                "name": "Blue - Alpha",
+                "id": 15,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        115.1,
+        63.8,
+        64.05
+      ],
+      "engine": [
+        115.0,
+        64.0,
+        64.0
+      ]
+    },
+    {
+      "param": {
+        "label": "redoff0.2",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 0
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0.2
+              }
+            ]
+          },
+          {
+            "name": "Green Output",
+            "id": 6,
+            "children": [
+              {
+                "name": "Green - Red",
+                "id": 7,
+                "value": 0
+              },
+              {
+                "name": "Green - Green",
+                "id": 8,
+                "value": 1
+              },
+              {
+                "name": "Green - Blue",
+                "id": 9,
+                "value": 0
+              },
+              {
+                "name": "Green - Alpha",
+                "id": 10,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Blue Output",
+            "id": 11,
+            "children": [
+              {
+                "name": "Blue - Red",
+                "id": 12,
+                "value": 0
+              },
+              {
+                "name": "Blue - Green",
+                "id": 13,
+                "value": 0
+              },
+              {
+                "name": "Blue - Blue",
+                "id": 14,
+                "value": 1
+              },
+              {
+                "name": "Blue - Alpha",
+                "id": 15,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      "input": [
+        96,
+        96,
+        96
+      ],
+      "oracle": [
+        147.07,
+        96.3,
+        95.73
+      ],
+      "engine": [
+        147.0,
+        96.0,
+        96.0
+      ]
+    },
+    {
+      "param": {
+        "label": "redoff0.2",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 0
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0.2
+              }
+            ]
+          },
+          {
+            "name": "Green Output",
+            "id": 6,
+            "children": [
+              {
+                "name": "Green - Red",
+                "id": 7,
+                "value": 0
+              },
+              {
+                "name": "Green - Green",
+                "id": 8,
+                "value": 1
+              },
+              {
+                "name": "Green - Blue",
+                "id": 9,
+                "value": 0
+              },
+              {
+                "name": "Green - Alpha",
+                "id": 10,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Blue Output",
+            "id": 11,
+            "children": [
+              {
+                "name": "Blue - Red",
+                "id": 12,
+                "value": 0
+              },
+              {
+                "name": "Blue - Green",
+                "id": 13,
+                "value": 0
+              },
+              {
+                "name": "Blue - Blue",
+                "id": 14,
+                "value": 1
+              },
+              {
+                "name": "Blue - Alpha",
+                "id": 15,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        179.22,
+        128.19,
+        127.89
+      ],
+      "engine": [
+        179.0,
+        128.0,
+        128.0
+      ]
+    },
+    {
+      "param": {
+        "label": "redoff0.2",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 0
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0.2
+              }
+            ]
+          },
+          {
+            "name": "Green Output",
+            "id": 6,
+            "children": [
+              {
+                "name": "Green - Red",
+                "id": 7,
+                "value": 0
+              },
+              {
+                "name": "Green - Green",
+                "id": 8,
+                "value": 1
+              },
+              {
+                "name": "Green - Blue",
+                "id": 9,
+                "value": 0
+              },
+              {
+                "name": "Green - Alpha",
+                "id": 10,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Blue Output",
+            "id": 11,
+            "children": [
+              {
+                "name": "Blue - Red",
+                "id": 12,
+                "value": 0
+              },
+              {
+                "name": "Blue - Green",
+                "id": 13,
+                "value": 0
+              },
+              {
+                "name": "Blue - Blue",
+                "id": 14,
+                "value": 1
+              },
+              {
+                "name": "Blue - Alpha",
+                "id": 15,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      "input": [
+        160,
+        160,
+        160
+      ],
+      "oracle": [
+        211.08,
+        159.88,
+        160.1
+      ],
+      "engine": [
+        211.0,
+        160.0,
+        160.0
+      ]
+    },
+    {
+      "param": {
+        "label": "redoff0.3",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 0
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0.3
+              }
+            ]
+          },
+          {
+            "name": "Green Output",
+            "id": 6,
+            "children": [
+              {
+                "name": "Green - Red",
+                "id": 7,
+                "value": 0
+              },
+              {
+                "name": "Green - Green",
+                "id": 8,
+                "value": 1
+              },
+              {
+                "name": "Green - Blue",
+                "id": 9,
+                "value": 0
+              },
+              {
+                "name": "Green - Alpha",
+                "id": 10,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Blue Output",
+            "id": 11,
+            "children": [
+              {
+                "name": "Blue - Red",
+                "id": 12,
+                "value": 0
+              },
+              {
+                "name": "Blue - Green",
+                "id": 13,
+                "value": 0
+              },
+              {
+                "name": "Blue - Blue",
+                "id": 14,
+                "value": 1
+              },
+              {
+                "name": "Blue - Alpha",
+                "id": 15,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        92.57,
+        15.96,
+        16.02
+      ],
+      "engine": [
+        93.0,
+        16.0,
+        16.0
+      ]
+    },
+    {
+      "param": {
+        "label": "redoff0.3",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 0
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0.3
+              }
+            ]
+          },
+          {
+            "name": "Green Output",
+            "id": 6,
+            "children": [
+              {
+                "name": "Green - Red",
+                "id": 7,
+                "value": 0
+              },
+              {
+                "name": "Green - Green",
+                "id": 8,
+                "value": 1
+              },
+              {
+                "name": "Green - Blue",
+                "id": 9,
+                "value": 0
+              },
+              {
+                "name": "Green - Alpha",
+                "id": 10,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Blue Output",
+            "id": 11,
+            "children": [
+              {
+                "name": "Blue - Red",
+                "id": 12,
+                "value": 0
+              },
+              {
+                "name": "Blue - Green",
+                "id": 13,
+                "value": 0
+              },
+              {
+                "name": "Blue - Blue",
+                "id": 14,
+                "value": 1
+              },
+              {
+                "name": "Blue - Alpha",
+                "id": 15,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        108.23,
+        31.9,
+        32.15
+      ],
+      "engine": [
+        109.0,
+        32.0,
+        32.0
+      ]
+    },
+    {
+      "param": {
+        "label": "redoff0.3",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 0
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0.3
+              }
+            ]
+          },
+          {
+            "name": "Green Output",
+            "id": 6,
+            "children": [
+              {
+                "name": "Green - Red",
+                "id": 7,
+                "value": 0
+              },
+              {
+                "name": "Green - Green",
+                "id": 8,
+                "value": 1
+              },
+              {
+                "name": "Green - Blue",
+                "id": 9,
+                "value": 0
+              },
+              {
+                "name": "Green - Alpha",
+                "id": 10,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Blue Output",
+            "id": 11,
+            "children": [
+              {
+                "name": "Blue - Red",
+                "id": 12,
+                "value": 0
+              },
+              {
+                "name": "Blue - Green",
+                "id": 13,
+                "value": 0
+              },
+              {
+                "name": "Blue - Blue",
+                "id": 14,
+                "value": 1
+              },
+              {
+                "name": "Blue - Alpha",
+                "id": 15,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        140.42,
+        63.69,
+        64.07
+      ],
+      "engine": [
+        141.0,
+        64.0,
+        64.0
+      ]
+    },
+    {
+      "param": {
+        "label": "redoff0.3",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 0
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0.3
+              }
+            ]
+          },
+          {
+            "name": "Green Output",
+            "id": 6,
+            "children": [
+              {
+                "name": "Green - Red",
+                "id": 7,
+                "value": 0
+              },
+              {
+                "name": "Green - Green",
+                "id": 8,
+                "value": 1
+              },
+              {
+                "name": "Green - Blue",
+                "id": 9,
+                "value": 0
+              },
+              {
+                "name": "Green - Alpha",
+                "id": 10,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Blue Output",
+            "id": 11,
+            "children": [
+              {
+                "name": "Blue - Red",
+                "id": 12,
+                "value": 0
+              },
+              {
+                "name": "Blue - Green",
+                "id": 13,
+                "value": 0
+              },
+              {
+                "name": "Blue - Blue",
+                "id": 14,
+                "value": 1
+              },
+              {
+                "name": "Blue - Alpha",
+                "id": 15,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      "input": [
+        96,
+        96,
+        96
+      ],
+      "oracle": [
+        172.54,
+        95.93,
+        96.03
+      ],
+      "engine": [
+        173.0,
+        96.0,
+        96.0
+      ]
+    },
+    {
+      "param": {
+        "label": "redoff0.3",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 0
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0.3
+              }
+            ]
+          },
+          {
+            "name": "Green Output",
+            "id": 6,
+            "children": [
+              {
+                "name": "Green - Red",
+                "id": 7,
+                "value": 0
+              },
+              {
+                "name": "Green - Green",
+                "id": 8,
+                "value": 1
+              },
+              {
+                "name": "Green - Blue",
+                "id": 9,
+                "value": 0
+              },
+              {
+                "name": "Green - Alpha",
+                "id": 10,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Blue Output",
+            "id": 11,
+            "children": [
+              {
+                "name": "Blue - Red",
+                "id": 12,
+                "value": 0
+              },
+              {
+                "name": "Blue - Green",
+                "id": 13,
+                "value": 0
+              },
+              {
+                "name": "Blue - Blue",
+                "id": 14,
+                "value": 1
+              },
+              {
+                "name": "Blue - Alpha",
+                "id": 15,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        204.27,
+        128.12,
+        128.08
+      ],
+      "engine": [
+        205.0,
+        128.0,
+        128.0
+      ]
+    },
+    {
+      "param": {
+        "label": "redoff0.3",
+        "params": [
+          {
+            "name": "Red Output",
+            "id": 1,
+            "children": [
+              {
+                "name": "Red - Red",
+                "id": 2,
+                "value": 1
+              },
+              {
+                "name": "Red - Green",
+                "id": 3,
+                "value": 0
+              },
+              {
+                "name": "Red - Blue",
+                "id": 4,
+                "value": 0
+              },
+              {
+                "name": "Red - Alpha",
+                "id": 5,
+                "value": 0.3
+              }
+            ]
+          },
+          {
+            "name": "Green Output",
+            "id": 6,
+            "children": [
+              {
+                "name": "Green - Red",
+                "id": 7,
+                "value": 0
+              },
+              {
+                "name": "Green - Green",
+                "id": 8,
+                "value": 1
+              },
+              {
+                "name": "Green - Blue",
+                "id": 9,
+                "value": 0
+              },
+              {
+                "name": "Green - Alpha",
+                "id": 10,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Blue Output",
+            "id": 11,
+            "children": [
+              {
+                "name": "Blue - Red",
+                "id": 12,
+                "value": 0
+              },
+              {
+                "name": "Blue - Green",
+                "id": 13,
+                "value": 0
+              },
+              {
+                "name": "Blue - Blue",
+                "id": 14,
+                "value": 1
+              },
+              {
+                "name": "Blue - Alpha",
+                "id": 15,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1
+          }
+        ]
+      },
+      "input": [
+        160,
+        160,
+        160
+      ],
+      "oracle": [
+        236.63,
+        159.86,
+        159.82
+      ],
+      "engine": [
+        237.0,
+        160.0,
+        160.0
+      ]
+    }
+  ]
+}
