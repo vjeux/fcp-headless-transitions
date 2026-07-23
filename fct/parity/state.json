@@ -2147,6 +2147,44 @@
       },
       "n_failures": 0,
       "note": ""
+    },
+    "spatial.PAEMinMax": {
+      "id": "spatial.PAEMinMax",
+      "kind": "spatial",
+      "status": "VERIFIED",
+      "metric": "frame_psnr_db",
+      "worst_psnr_db": 50.07,
+      "pass_db": 34.0,
+      "n_scored": 3,
+      "oracle_truth": "headless",
+      "worst_case": {
+        "param": {
+          "label": "max_r20",
+          "params": [
+            {
+              "name": "Mode",
+              "id": 1,
+              "value": 1
+            },
+            {
+              "name": "Radius",
+              "id": 2,
+              "value": 20
+            }
+          ]
+        },
+        "psnr": 50.07,
+        "mad": 0.462,
+        "signed": [
+          -0.21,
+          -0.179,
+          -0.195
+        ],
+        "resized": false,
+        "head_vs_input_mad": 19.94
+      },
+      "n_failures": 0,
+      "note": ""
     }
   },
   "history": [
@@ -2889,8 +2927,13 @@
       "id": "spatial.PAEVignette",
       "status": "VERIFIED",
       "at": "2026-07-23T09:42:10Z"
+    },
+    {
+      "id": "spatial.PAEMinMax",
+      "status": "VERIFIED",
+      "at": "2026-07-23T09:43:44Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T09:42:10Z"
+  "updated": "2026-07-23T09:43:44Z"
 }

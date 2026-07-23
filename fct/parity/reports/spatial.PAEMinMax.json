@@ -1,0 +1,118 @@
+{
+  "id": "spatial.PAEMinMax",
+  "kind": "spatial",
+  "status": "VERIFIED",
+  "metric": "frame_psnr_db",
+  "worst_psnr_db": 50.07,
+  "pass_db": 34.0,
+  "n_scored": 3,
+  "oracle_truth": "headless",
+  "worst_case": {
+    "param": {
+      "label": "max_r20",
+      "params": [
+        {
+          "name": "Mode",
+          "id": 1,
+          "value": 1
+        },
+        {
+          "name": "Radius",
+          "id": 2,
+          "value": 20
+        }
+      ]
+    },
+    "psnr": 50.07,
+    "mad": 0.462,
+    "signed": [
+      -0.21,
+      -0.179,
+      -0.195
+    ],
+    "resized": false,
+    "head_vs_input_mad": 19.94
+  },
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "min_r8",
+        "params": [
+          {
+            "name": "Mode",
+            "id": 1,
+            "value": 0
+          },
+          {
+            "name": "Radius",
+            "id": 2,
+            "value": 8
+          }
+        ]
+      },
+      "psnr": 51.27,
+      "mad": 0.412,
+      "signed": [
+        -0.273,
+        -0.26,
+        -0.273
+      ],
+      "resized": false,
+      "head_vs_input_mad": 9.59
+    },
+    {
+      "param": {
+        "label": "max_r8",
+        "params": [
+          {
+            "name": "Mode",
+            "id": 1,
+            "value": 1
+          },
+          {
+            "name": "Radius",
+            "id": 2,
+            "value": 8
+          }
+        ]
+      },
+      "psnr": 50.44,
+      "mad": 0.444,
+      "signed": [
+        -0.233,
+        -0.207,
+        -0.221
+      ],
+      "resized": false,
+      "head_vs_input_mad": 10.22
+    },
+    {
+      "param": {
+        "label": "max_r20",
+        "params": [
+          {
+            "name": "Mode",
+            "id": 1,
+            "value": 1
+          },
+          {
+            "name": "Radius",
+            "id": 2,
+            "value": 20
+          }
+        ]
+      },
+      "psnr": 50.07,
+      "mad": 0.462,
+      "signed": [
+        -0.21,
+        -0.179,
+        -0.195
+      ],
+      "resized": false,
+      "head_vs_input_mad": 19.94
+    }
+  ],
+  "note": ""
+}

@@ -5916,6 +5916,68 @@
    "status": "UNTESTED",
    "synth": "smooth",
    "pass_db": 34.0
+  },
+  {
+   "id": "spatial.PAEMinMax",
+   "subsystem": "stylize",
+   "kind": "spatial",
+   "desc": "PAEMinMax (Helium HGMinMax separable morphological erode/dilate: X-pass then Y-pass, full [-R,+R] (2R+1) window, integer pixel offsets, clamp-at-edge, on premult RGBA). Node-boundary full-frame PSNR over Mode in {0:Min/erode,1:Max/dilate} x Radius. Textured synth. Used by Dissolves/Divide (shipping).",
+   "oracle": {
+    "type": "spatial",
+    "uuid": "D2342006-51C4-4439-8E89-E970F135E21C",
+    "pluginName": "PAEMinMax"
+   },
+   "param_cases": [
+    {
+     "label": "min_r8",
+     "params": [
+      {
+       "name": "Mode",
+       "id": 1,
+       "value": 0
+      },
+      {
+       "name": "Radius",
+       "id": 2,
+       "value": 8
+      }
+     ]
+    },
+    {
+     "label": "max_r8",
+     "params": [
+      {
+       "name": "Mode",
+       "id": 1,
+       "value": 1
+      },
+      {
+       "name": "Radius",
+       "id": 2,
+       "value": 8
+      }
+     ]
+    },
+    {
+     "label": "max_r20",
+     "params": [
+      {
+       "name": "Mode",
+       "id": 1,
+       "value": 1
+      },
+      {
+       "name": "Radius",
+       "id": 2,
+       "value": 20
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "headless",
+   "status": "UNTESTED",
+   "synth": "textured",
+   "pass_db": 34.0
   }
  ]
 }
