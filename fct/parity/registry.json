@@ -5419,6 +5419,187 @@
        ]
       }
      ]
+    },
+    {
+     "label": "green_whitein0.75",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "Green",
+         "id": 4,
+         "children": [
+          {
+           "name": "White In",
+           "id": 3,
+           "value": 0.75
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "blue_gamma1.8",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "Blue",
+         "id": 5,
+         "children": [
+          {
+           "name": "Gamma",
+           "id": 5,
+           "value": 1.8
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "red_blackin0.15_green_whitein0.85",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red",
+         "id": 3,
+         "children": [
+          {
+           "name": "Black In",
+           "id": 1,
+           "value": 0.15
+          }
+         ]
+        },
+        {
+         "name": "Green",
+         "id": 4,
+         "children": [
+          {
+           "name": "White In",
+           "id": 3,
+           "value": 0.85
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "all3_gamma",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red",
+         "id": 3,
+         "children": [
+          {
+           "name": "Gamma",
+           "id": 5,
+           "value": 1.3
+          }
+         ]
+        },
+        {
+         "name": "Green",
+         "id": 4,
+         "children": [
+          {
+           "name": "Gamma",
+           "id": 5,
+           "value": 0.8
+          }
+         ]
+        },
+        {
+         "name": "Blue",
+         "id": 5,
+         "children": [
+          {
+           "name": "Gamma",
+           "id": 5,
+           "value": 1.6
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "blue_blackout0.1_whiteout0.9",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "Blue",
+         "id": 5,
+         "children": [
+          {
+           "name": "Black Out",
+           "id": 2,
+           "value": 0.1
+          },
+          {
+           "name": "White Out",
+           "id": 4,
+           "value": 0.9
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "red_gamma0.5_blue_blackin0.25",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red",
+         "id": 3,
+         "children": [
+          {
+           "name": "Gamma",
+           "id": 5,
+           "value": 0.5
+          }
+         ]
+        },
+        {
+         "name": "Blue",
+         "id": 5,
+         "children": [
+          {
+           "name": "Black In",
+           "id": 1,
+           "value": 0.25
+          }
+         ]
+        }
+       ]
+      }
+     ]
     }
    ],
    "oracle_truth": "transfer",

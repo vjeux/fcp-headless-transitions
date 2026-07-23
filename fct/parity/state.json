@@ -1938,7 +1938,7 @@
       "status": "VERIFIED",
       "metric": "max_abs_levels",
       "max_abs_levels": 0.7700000000000031,
-      "n_samples": 162,
+      "n_samples": 324,
       "tol_levels": 2.0,
       "worst": {
         "case": {
@@ -3310,8 +3310,13 @@
       "id": "transfer.PAEContrast_gray",
       "status": "VERIFIED",
       "at": "2026-07-23T12:57:27Z"
+    },
+    {
+      "id": "transfer.PAELevels_perchannel",
+      "status": "VERIFIED",
+      "at": "2026-07-23T13:02:46Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T12:57:27Z"
+  "updated": "2026-07-23T13:02:46Z"
 }
