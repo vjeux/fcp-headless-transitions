@@ -741,3 +741,27 @@ _outremap 0.63) but COMBINED they diverge to 12 rms / 24 worst. Added transfer.P
 
 Colour nodes: 17 (16 + combined-characterized). The 3 Levels legs remain VERIFIED (the shipping
 case — most transitions author only one of {gamma, in-remap, out-remap}).
+
+
+## UPDATE 2026-07-22 (session 2 cont.) — Levels stages do NOT naively compose (characterized)
+
+Captured a COMBINED Levels sweep (Black In + White In + Gamma + Black Out + White Out all
+non-default, 3 combos × 9 grays) — the first time all stages are exercised together. FINDING:
+each leg is VERIFIED alone (transfer.PAELevels gamma 0.7 lvl, _remap 0.8, _outremap 0.6) but
+they do NOT naively compose — the combined transfer diverges up to 24 levels (12 rms) from the
+engine's all-in-WS model.
+
+Sharp CONTRADICTION isolated (blocks a clean fix):
+  • output-remap ALONE (gamma=1): matches ONLY the gamma-1.958 WS lerp — out=ws_inv(bo+ws(in)*(wo-bo)).
+    Code-space out-remap fails it (16 rms).
+  • output-remap WITH gamma≠1 (combo3: gamma2, bo0.1/wo0.9): matches ONLY the CODE-space out-remap —
+    out=code*(wo-bo)+bo*255 (0.6 rms). The WS out-remap fails it (12-22 rms).
+These are mutually exclusive under any single ordered {in-remap, gamma, out-remap} pipeline in one
+space — so FCP's Levels has a subtler stage structure (the header's two-stage HgcLevels hint, or a
+gamma/out-remap that shares an intermediate space differently). Recorded transfer.PAELevels_combined
+as CHARACTERIZED. Did NOT ship a fix — the code-space out-remap that fixes the combined case REGRESSES
+the verified out-remap-alone node, so shipping it would trade one correct node for another. The
+shipping legs (used individually by the 27 Levels transitions) stay VERIFIED. Needs the two-stage
+HgcLevels param-split decoded to resolve.
+
+Colour node coverage unchanged at 16 golden nodes; +1 characterized registry node (combined Levels).

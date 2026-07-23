@@ -1363,6 +1363,76 @@
       },
       "oracle_truth": "transfer",
       "n_failures": 0
+    },
+    "transfer.PAELevels_combined": {
+      "id": "transfer.PAELevels_combined",
+      "kind": "transfer",
+      "status": "DIVERGED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 23.80000000000001,
+      "n_samples": 81,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "label": "in+gamma+out",
+          "params": [
+            {
+              "name": "Histogram",
+              "id": 1,
+              "children": [
+                {
+                  "name": "RGB",
+                  "id": 2,
+                  "children": [
+                    {
+                      "name": "Black In",
+                      "id": 1,
+                      "value": 0.1
+                    },
+                    {
+                      "name": "White In",
+                      "id": 3,
+                      "value": 0.9
+                    },
+                    {
+                      "name": "Gamma",
+                      "id": 5,
+                      "value": 1.5
+                    },
+                    {
+                      "name": "Black Out",
+                      "id": 2,
+                      "value": 0.05
+                    },
+                    {
+                      "name": "White Out",
+                      "id": 4,
+                      "value": 0.95
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "input": [
+          240,
+          240,
+          240
+        ],
+        "oracle": [
+          254.69,
+          254.8,
+          254.78
+        ],
+        "engine": [
+          231.0,
+          231.0,
+          231.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
     }
   },
   "history": [
@@ -1785,8 +1855,13 @@
       "id": "transfer.PAEFill",
       "status": "VERIFIED",
       "at": "2026-07-23T01:38:01Z"
+    },
+    {
+      "id": "transfer.PAELevels_combined",
+      "status": "DIVERGED",
+      "at": "2026-07-23T02:07:25Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T01:38:01Z"
+  "updated": "2026-07-23T02:07:25Z"
 }
