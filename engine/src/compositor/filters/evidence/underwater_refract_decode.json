@@ -50,5 +50,20 @@
     "pre_signfix_db": 14.9,
     "sign_fix": "fieldOffsetExact disp matches FORWARD flow; the inverse-map resample negates it (fx=x-ox*g, fy=y-oy*g) -> +12 dB.",
     "residual_to_40dB": "validation-fitted kU/kV scalars (not yet exact M-projected) + bilinear resample; structure verified (corr 0.905-0.970)."
+  },
+  "residual_diagnosis": {
+    "flow_fit_residual_px": 0.902,
+    "node_boundary_psnr_db": {
+      "s50": 29.57,
+      "s100": 30.17
+    },
+    "resample_order_test": "bicubic (26.18) does NOT beat bilinear (26.58) -> residual is NOT resample-order-bound",
+    "residual_structure": "80-90% of the 0.9px flow residual is explained by a QUADRATIC-in-(X,Y) term",
+    "ruled_out": [
+      "projective/perspective UV divide (0.902->0.862, negligible)",
+      "anisotropic UV scale (no help)"
+    ],
+    "hypothesis": "The RefractV2 shader has CROSS-FREQUENCY terms (lines 48-69: one octave's sin() feeds another octave's amplitude accumulation via P23-P28), producing products of octave sines = a quadratic spatial residual. The current model treats octaves independently. Decoding the exact P19-P28 amplitude cross-term wiring is the next refinement toward the 40 dB gate.",
+    "status": "displacement STRUCTURE + endpoint packing verified (corr 0.905-0.970, +12 dB e2e); cross-term amplitude wiring is the last refinement."
   }
 }
