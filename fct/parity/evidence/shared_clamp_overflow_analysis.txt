@@ -53,3 +53,23 @@ past the gamut boundary — a SOFT rolloff, consistent with an ExtendedLinearSRG
 tile-readback tone curve, NOT a geometric clamp. 13 pointwise/geometric models now ruled out.
 Still needs the Metal readback disasm; the YCbCr chroma-scale (~0.4, hue-preserving for pure
 primaries) + Y-lift is the sharpest characterization to date for that capture.
+
+## UPDATE 2026-07-23f — ChannelMixer diagonal-gain grid (8 colours x 5 gains), the cleanest probe
+Pure per-channel diagonal gain g (no cross terms) over 8 saturated colours, gains 1.5-3.0.
+Two EXACT constraints found:
+  1. The clipped (max) output channel is ALWAYS exactly 1.0 (255) — hard clip, no rolloff on IT.
+  2. Yout SATURATES to a per-hue ceiling once maxOvf is large (red 0.795, green 0.948, blue 0.738
+     in code-YCbCr) — i.e. the OTHER channels stop rising past a point.
+Chroma (Cb,Cr) compresses monotonically with maxOvf (~0.49 at ovf 1.18 -> ~0.16 at ovf 2.35),
+hue-preserving for symmetric inputs (Cb scale == Cr scale when the two low channels are equal).
+But NO single-variable fit closes it: CbScl vs 1/maxOvf leaves 0.14 maxerr (CbScl also depends on
+hue, not just overflow).
+GAIN-SPACE REFUTATIONS (gain-then-clip in each space, worst dR vs FCP):
+  code-space:    97 dR   |   scene-linear (sRGB EOTF): 128 dR   |   gamma-1.958 WS: 72 dR
+All lift the non-clipped channels FAR less than FCP (green-clip g=1.5: every model R~74-90, FCP
+R=187). So the dramatic cross-channel lift toward white is NOT gain-in-any-space + clip; it is the
+ExtendedLinearSRGB->display tile readback redistributing the clipped energy across channels.
+SHARPEST MODEL TO DATE for the Metal disasm: clipped channel -> 1.0 (exact); remaining channels
+lifted so the pixel desaturates toward white with a hue-dependent chroma rolloff (~1/maxOvf) and a
+per-hue Y ceiling. 15 pointwise/geometric/gain-space models now ruled out. Grid saved:
+shared_clamp_channelmixer_grid.json.
