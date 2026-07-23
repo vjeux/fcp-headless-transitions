@@ -1440,7 +1440,7 @@
       "status": "VERIFIED",
       "metric": "max_abs_levels",
       "max_abs_levels": 0.769999999999996,
-      "n_samples": 54,
+      "n_samples": 126,
       "tol_levels": 2.0,
       "worst": {
         "case": {
@@ -1525,9 +1525,9 @@
               ]
             },
             {
-              "name": "Mix",
-              "id": 10001,
-              "value": 1
+              "name": "Monochrome",
+              "id": 21,
+              "value": 0
             }
           ]
         },
@@ -2588,8 +2588,18 @@
       "id": "transfer.PAETint",
       "status": "VERIFIED",
       "at": "2026-07-23T07:30:56Z"
+    },
+    {
+      "id": "transfer.PAEChannelMixer_offset",
+      "status": "DIVERGED",
+      "at": "2026-07-23T07:34:27Z"
+    },
+    {
+      "id": "transfer.PAEChannelMixer_offset",
+      "status": "VERIFIED",
+      "at": "2026-07-23T07:36:00Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T07:30:56Z"
+  "updated": "2026-07-23T07:36:00Z"
 }

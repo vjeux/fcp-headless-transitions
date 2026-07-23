@@ -73,3 +73,14 @@ SHARPEST MODEL TO DATE for the Metal disasm: clipped channel -> 1.0 (exact); rem
 lifted so the pixel desaturates toward white with a hue-dependent chroma rolloff (~1/maxOvf) and a
 per-hue Y ceiling. 15 pointwise/geometric/gain-space models now ruled out. Grid saved:
 shared_clamp_channelmixer_grid.json.
+
+## UPDATE 2026-07-23j — the UNDER-0 clamp mirrors the over-1.0 clamp (ChannelMixer offset)
+Broadening ChannelMixer_offset (constant per-channel offset on gray inputs) surfaced the NEGATIVE
+side of the shared clamp: red offset -0.1 on input (16,16,16) [red -> 16/255-0.1 < 0] gives FCP
+(0, 69, 70) — the GREEN and BLUE channels are LIFTED to ~70 when RED underflows below 0, exactly
+mirroring the over-1.0 case where the non-clipped channels lift when one channel exceeds 1. So the
+shared HGColorMatrix readback is SYMMETRIC: a channel clipping at EITHER bound (0 or 1) redistributes
+cross-channel toward the opposite extreme (under-0 -> lift others toward white; over-1 -> lift others
+toward white too). Same GPU tile-readback blocker, both directions. Positive small offsets on any
+channel (r/g/b) stay in gamut and VERIFY exactly (0.77 lvl, 126 samples). Gate-inert (built-in
+ChannelMixer users don't drive channels out of [0,1]).
