@@ -523,12 +523,37 @@
     {
      "name": "Saturation",
      "id": 2,
+     "value": -0.25
+    },
+    {
+     "name": "Saturation",
+     "id": 2,
+     "value": -0.5
+    },
+    {
+     "name": "Saturation",
+     "id": 2,
+     "value": -0.75
+    },
+    {
+     "name": "Saturation",
+     "id": 2,
      "value": -1.0
     },
     {
      "name": "Value",
      "id": 3,
+     "value": 0.75
+    },
+    {
+     "name": "Value",
+     "id": 3,
      "value": 0.5
+    },
+    {
+     "name": "Value",
+     "id": 3,
+     "value": 0.25
     },
     {
      "name": "Value",

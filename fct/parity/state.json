@@ -956,7 +956,7 @@
       "status": "VERIFIED",
       "metric": "max_abs_levels",
       "max_abs_levels": 0.8699999999999974,
-      "n_samples": 108,
+      "n_samples": 243,
       "tol_levels": 2.0,
       "worst": {
         "case": {
@@ -3202,8 +3202,13 @@
       "id": "transfer.PAEBrightness_darken",
       "status": "VERIFIED",
       "at": "2026-07-23T12:06:53Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_valsat",
+      "status": "VERIFIED",
+      "at": "2026-07-23T12:08:59Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T12:06:53Z"
+  "updated": "2026-07-23T12:08:59Z"
 }
