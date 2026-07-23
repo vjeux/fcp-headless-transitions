@@ -35,5 +35,10 @@
   },
   "model": "factor = mix(1.0, ScanBright, smoothstep(band));  out = in * factor  (code space). dark band=identity, bright band=*ScanBright.",
   "bug_fixed": "The prior scanlineFactor returned scanBright+(1-scanBright)*ss = INVERTED bands (dark band got *sb, bright band got *1.0). flat-gray-128 coincidentally matched (128*1.5=192 either way at the midpoint) hiding the bug. Corrected to 1+(scanBright-1)*ss.",
-  "textured_synth_confound": "On the TEXTURED synth, headless brightens dark_bg 40->133 (not the flat-40 result of 61) \u2014 a content-dependent effect (likely a Mix/composite or frame-adaptive op in the synth render path), NOT the scan-line transfer. The textured-synth PSNR is therefore an unreliable metric for BadTV; the clean FLAT-value probe (matches to ~1 level) is authoritative."
+  "textured_synth_confound": "On the TEXTURED synth, headless brightens dark_bg 40->133 (not the flat-40 result of 61) \u2014 a content-dependent effect (likely a Mix/composite or frame-adaptive op in the synth render path), NOT the scan-line transfer. The textured-synth PSNR is therefore an unreliable metric for BadTV; the clean FLAT-value probe (matches to ~1 level) is authoritative.",
+  "content_dependence": {
+    "finding": "BadTV scan-line BRIGHTNESS is CONTENT-DEPENDENT (spatial/adaptive), not purely per-pixel. Same input value 40 at sb=1.5 gives headless 61 on a FLAT-40 frame but 133 on the textured synth (surrounded by the bright disc/gradient). At sb=1.0 both are identity (MAD 1.1), ruling out a Mix/composite confound \u2014 the effect is in the scanline brightness itself.",
+    "implication": "The bright-band lift scales with a LOCAL or GLOBAL average luma (auto-exposure-like), so a per-pixel in*ScanBright model is exact ONLY for flat/low-variance content. The textured-synth PSNR (~11 dB) reflects this adaptive behavior, not a per-pixel decode error. Fully matching needs decoding the (local/global) luma statistic that modulates ScanBright \u2014 a deeper spatial probe (vary surround brightness, measure the lift).",
+    "validated_so_far": "band polarity (bright=*ScanBright, dark=identity) + the per-pixel multiply are correct on flat inputs (~1 level). The content-adaptive brightness gain is the remaining, separately-scoped piece."
+  }
 }
