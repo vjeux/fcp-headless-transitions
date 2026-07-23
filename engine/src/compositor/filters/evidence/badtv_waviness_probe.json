@@ -1,0 +1,13 @@
+{
+  "desc": "BadTV per-scanline horizontal displacement (waviness) field measured at t=0 through headless FCP via a vertical-line centroid probe. Validates the decode direction (MT19937 -> per-row random walk).",
+  "method": "vertical bright line at x=960 on black, rendered through PAEBadTV (Static=0, Roll=0, Saturate=0, ScanBright=1) at t=0; per-row line-centroid x minus 960 = that row's horizontal displacement.",
+  "findings": {
+    "waviness_0": {"disp_std": 0.0, "note": "Waviness=0 => zero displacement (the deterministic scan-line-only exact path)"},
+    "waviness_20": {"disp_std": 5.10, "disp_range": [-20.0, 0.2]},
+    "waviness_50": {"disp_std": 12.76, "disp_range": [-49.5, 1.0], "row_autocorr": 0.996},
+    "linearity": "displacement std scales ~linearly with Waviness (20->5.1, 50->12.76)",
+    "structure": "row-to-row displacement autocorrelation = 0.996 => a VERY SMOOTH 1-D RANDOM WALK per scanline, NOT white noise. Low-dimensional and MATCHABLE (unlike PAENoise's 2-D per-pixel white field)."
+  },
+  "decode_status": "RNG identified as std::mt19937 (PAEGenerateNoise @ProAppsFxSupport 0xa783c, verified canonical constants). At t=0 the seed is fixed => the walk is byte-recoverable in principle. This probe confirms the field is a smooth low-dim random walk = the structure MT19937->cumulative-increment produces.",
+  "remaining_for_match": "port MT19937 + the exact per-row increment draw + normalization + the Waviness->pixel-displacement scale + the HgcBadTV scanline-index sampling, then verify at t=0 via the spatial harness (BadTV is a FILTER = node-boundary testable)."
+}
