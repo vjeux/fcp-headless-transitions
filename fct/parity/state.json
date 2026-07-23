@@ -1162,7 +1162,7 @@
       "status": "VERIFIED",
       "metric": "max_abs_levels",
       "max_abs_levels": 0.7700000000000031,
-      "n_samples": 162,
+      "n_samples": 216,
       "tol_levels": 2.0,
       "worst": {
         "case": {
@@ -3771,8 +3771,13 @@
       "id": "transfer.PAEChannelMixer_offset",
       "status": "VERIFIED",
       "at": "2026-07-24T00:32:26Z"
+    },
+    {
+      "id": "transfer.PAEContrast",
+      "status": "VERIFIED",
+      "at": "2026-07-24T00:35:08Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-24T00:32:26Z"
+  "updated": "2026-07-24T00:35:08Z"
 }

@@ -4569,6 +4569,36 @@
               "value": 1.0
             }
           ]
+        },
+        {
+          "label": "c3.0",
+          "params": [
+            {
+              "name": "Contrast",
+              "id": 1,
+              "value": 3.0
+            },
+            {
+              "name": "Mix",
+              "id": 10001,
+              "value": 1.0
+            }
+          ]
+        },
+        {
+          "label": "c5.0",
+          "params": [
+            {
+              "name": "Contrast",
+              "id": 1,
+              "value": 5.0
+            },
+            {
+              "name": "Mix",
+              "id": 10001,
+              "value": 1.0
+            }
+          ]
         }
       ],
       "characterized": true,
