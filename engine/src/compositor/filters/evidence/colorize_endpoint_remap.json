@@ -148,5 +148,10 @@
    ]
   ]
  },
- "verified_regime": "Remap Black To=(0,0,0) + Remap White To in {any primary, white, gray}; intermediate-VALUE black endpoints (bk>0) hit the mid-tone coupling. Shipping Colorize users author bk=0 so the shipped path is verified."
+ "verified_regime": "Remap Black To=(0,0,0) + Remap White To in {any primary, white, gray}; intermediate-VALUE black endpoints (bk>0) hit the mid-tone coupling. Shipping Colorize users author bk=0 so the shipped path is verified.",
+ "interp_param_finding": {
+  "residual_shape": "Hyp G residual is EXACTLY 0 at Y=0 and Y=255, bulging +13 lvl in the mid-tones (peak ~Y=64), IDENTICAL shape for both (0.2,0.8) and (0.3,0.7) pairs -> the bulge is an input-luma interp-param curve, not an endpoint tint error.",
+  "recovered_t": "solving out=255*(t*L(wt)+(1-t)*L(bk)) for t gives t(Y) monotonic 0->1, slightly ABOVE Y/255 (t=0.33 vs 0.25 @Y=64), but t DIFFERS across pairs for bk>0 (Y=64: 0.343/0.391/0.253 for (0.2,0.8)/(0.3,0.7)/(0,0.5)) -> the interp param COUPLES to the endpoint pair when bk>0.",
+  "clean_boundary": "bk=0 -> t is exactly the code-space multiply (out=in*L(wt)); bk>0 -> the black (1-t) term couples the interp param. Needs a denser (bk,wt) grid to close. Shipping authors bk=0 (verified/shipped path clean)."
+ }
 }
