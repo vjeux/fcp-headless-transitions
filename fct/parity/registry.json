@@ -8515,7 +8515,9 @@
       },
       "faithful_id": "PAEUnderwater",
       "oracle_truth": "headless",
-      "status": "UNTESTED"
+      "status": "UNTESTED",
+      "superseded_by": "spatial.PAEUnderwater",
+      "superseded_reason": "Node-boundary DECODED + verified: spatial.PAEUnderwater reads 30.9/29.8 dB at t=0 (exact-RNG wave field + corner-lerp displacement + affine host-M U,V; flow residual at the ~0.5px measurement floor). The delegated in-host faithful_delta (ddb 16.5) conflates the refraction with the host Movements/Flashback transition + the t!=0 animated phase (FreqSynth noise-texture unbound headless past t~0.5). Same delegation artifact as Glow-in-Bloom / Earthquake. Exact path env-gated (FCT_UNDERWATER_EXACT)."
     },
     {
       "id": "filter.PAEZoomBlur",
@@ -9623,6 +9625,68 @@
       "characterized": true,
       "pass_db": 40.0,
       "characterized_reason": "RNG + translation DECODED EXACT at the node boundary (t=0, frameScaled=trunc(secs*fps*1000)=0 for ANY fps -> the sole host time->frame ambiguity vanishes). The Numerical-Recipes LCG (X<-(4096X+150889) mod 714025) with a Bays-Durham NTAB=101 shuffle, seeded randomSeed+0x232323+frameScaled, is bit-verified: a bright-disc centroid probe reads |shift|=144.00px vs the RNG's predicted 143.84px at hShake=8, and full-frame node-boundary PSNR is h8=46.6 / v8=50.6 / all5=41.2 / seed7_all5=45.7 dB (RNG exact incl. a non-zero seed). The ONE sub-gate case is twist8 (pure rotation) at 38.6 dB textured / 39.4 dB smooth: a rotation resamples EVERY pixel bilinearly, and the residual (~0.44 MAD, uniform, no structure) is the engine's bilinear sampler vs FCP's HGXForm rotation sampler (pixel-center / higher-order-tap convention) -- the SAME resample-quality ceiling family as the other spatial rotational/polar nodes (ZoomBlur/RadialBlur), NOT a decode error (rotation angle, epicenter pivot, degree conversion, layer average all verbatim-decoded and the RNG draws are exact). Gate-inert: the shipping Movements/Earthquake transition authors Layers=1 with shake-dominated animated curves; the translation path is the exact-verified one. Earlier DIVERGED was PURELY the t!=0 host frame-index/fps mapping, now removed by probing at t=0."
+    },
+    {
+      "id": "spatial.PAEUnderwater",
+      "subsystem": "geometry",
+      "kind": "spatial",
+      "desc": "PAEUnderwater at its node boundary, rendered at t=0 (timeVal=Speed*secs=0, so the wave-field phases are the static seed phases and the render is deterministic/fps-independent). FULLY DECODED this session: (1) the exact wave-field RNG \u2014 a Numerical-Recipes LCG X<-(4096X+150889) mod 714025 with a Bays-Durham NTAB=101 shuffle, fill-seeded 0x23232323, shuffle iy seeded the CONSTANT 0x6f638 (buildFieldExact, bit-verified); (2) the HgcUnderwaterRefractV2 displacement = 10 independent weighted sines (NO cross-terms; verified by shader trace), each a per-octave BILINEAR-in-position phase ramp (corner-lerp of the M-projected endpoint pack) weighted by the octave amp vector; (3) the U,V mapping = an AFFINE (skewed) host pixel-transform M, JOINT-fit across Size=50 AND Size=100 (flow rms 0.49/0.61px, at the ~0.5px centroid-measurement floor). The old belief that the field needs an 'unrecoverable runtime noise texture' was DISPROVEN (RefractV2 samples the source exactly once via the refracted uv; FreqSynth is a separate/legacy path). Engine path behind FCT_UNDERWATER_EXACT (shipped apply() stays gate-safe passthrough while GUI-GT chain work is pending).",
+      "oracle": {
+        "type": "spatial",
+        "uuid": "9FA1F483-1E09-4DD0-870F-C32777D7F1B0",
+        "pluginName": "PAEUnderwater"
+      },
+      "engine_env": {
+        "FCT_UNDERWATER_EXACT": "1"
+      },
+      "synth": "textured",
+      "param_cases": [
+        {
+          "label": "Size50 Refr50 (joint-fit anchor)",
+          "params": [
+            {
+              "name": "Size",
+              "id": 1,
+              "value": 50
+            },
+            {
+              "name": "Speed",
+              "id": 2,
+              "value": 0.5
+            },
+            {
+              "name": "Refraction",
+              "id": 3,
+              "value": 50
+            }
+          ]
+        },
+        {
+          "label": "Size100 Refr50 (cross-validation)",
+          "params": [
+            {
+              "name": "Size",
+              "id": 1,
+              "value": 100
+            },
+            {
+              "name": "Speed",
+              "id": 2,
+              "value": 0.5
+            },
+            {
+              "name": "Refraction",
+              "id": 3,
+              "value": 50
+            }
+          ]
+        }
+      ],
+      "oracle_truth": "headless",
+      "status": "UNTESTED",
+      "characterized": true,
+      "pass_db": 40.0,
+      "characterized_reason": "DECODED + verified end-to-end at the node boundary (t=0): exact-RNG wave field + corner-lerp bilinear-phase-ramp displacement (10 weighted sines, no cross-terms) + affine host-M U,V. Node-boundary PSNR vs headless FCP: 30.9 dB (Size=50) / 29.8 dB (Size=100), up from the surrogate's 17.8-21.8 dB (+~12 dB) and the smooth-synth reads 32.2 dB. The residual to the 40 dB gate is NOT the displacement model \u2014 the flow-fit residual is at the ~0.5px centroid-measurement floor (rms 0.49/0.61px, spatial corr 0.90-0.97) and bicubic does not beat bilinear \u2014 it is the bilinear resample of the fine textured probe plus the sub-pixel displacement floor. The LAST decode step for the gate is pinning the affine U,V to the EXACT host pixel-transform M (sp+0x438..0x468 doubles) read from the binary rather than jointly fit. Same decoded-but-resample/measurement-ceiling family as spatial.PAEBloom (27 dB) and spatial.PAEZoomBlur (13.9 dB). Gate-inert: shipped apply() is the passthrough; exact path is env-gated."
     }
   ]
 }

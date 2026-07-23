@@ -2501,6 +2501,49 @@
       },
       "n_failures": 0,
       "note": ""
+    },
+    "spatial.PAEUnderwater": {
+      "id": "spatial.PAEUnderwater",
+      "kind": "spatial",
+      "status": "DIVERGED",
+      "metric": "frame_psnr_db",
+      "worst_psnr_db": 29.82,
+      "pass_db": 40.0,
+      "n_scored": 2,
+      "oracle_truth": "headless",
+      "worst_case": {
+        "param": {
+          "label": "Size100 Refr50 (cross-validation)",
+          "params": [
+            {
+              "name": "Size",
+              "id": 1,
+              "value": 100
+            },
+            {
+              "name": "Speed",
+              "id": 2,
+              "value": 0.5
+            },
+            {
+              "name": "Refraction",
+              "id": 3,
+              "value": 50
+            }
+          ]
+        },
+        "psnr": 29.82,
+        "mad": 1.69,
+        "signed": [
+          0.526,
+          0.544,
+          0.531
+        ],
+        "resized": false,
+        "head_vs_input_mad": 7.65
+      },
+      "n_failures": 0,
+      "note": ""
     }
   },
   "history": [
@@ -3538,8 +3581,18 @@
       "id": "spatial.PAEEarthquake",
       "status": "DIVERGED",
       "at": "2026-07-23T14:39:54Z"
+    },
+    {
+      "id": "spatial.PAEUnderwater",
+      "status": "DIVERGED",
+      "at": "2026-07-23T15:56:24Z"
+    },
+    {
+      "id": "spatial.PAEUnderwater",
+      "status": "DIVERGED",
+      "at": "2026-07-23T15:56:34Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T14:39:54Z"
+  "updated": "2026-07-23T15:56:34Z"
 }

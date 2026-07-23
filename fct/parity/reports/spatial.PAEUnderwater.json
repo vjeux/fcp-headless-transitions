@@ -1,0 +1,107 @@
+{
+  "id": "spatial.PAEUnderwater",
+  "kind": "spatial",
+  "status": "DIVERGED",
+  "metric": "frame_psnr_db",
+  "worst_psnr_db": 29.82,
+  "pass_db": 40.0,
+  "n_scored": 2,
+  "oracle_truth": "headless",
+  "worst_case": {
+    "param": {
+      "label": "Size100 Refr50 (cross-validation)",
+      "params": [
+        {
+          "name": "Size",
+          "id": 1,
+          "value": 100
+        },
+        {
+          "name": "Speed",
+          "id": 2,
+          "value": 0.5
+        },
+        {
+          "name": "Refraction",
+          "id": 3,
+          "value": 50
+        }
+      ]
+    },
+    "psnr": 29.82,
+    "mad": 1.69,
+    "signed": [
+      0.526,
+      0.544,
+      0.531
+    ],
+    "resized": false,
+    "head_vs_input_mad": 7.65
+  },
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "Size50 Refr50 (joint-fit anchor)",
+        "params": [
+          {
+            "name": "Size",
+            "id": 1,
+            "value": 50
+          },
+          {
+            "name": "Speed",
+            "id": 2,
+            "value": 0.5
+          },
+          {
+            "name": "Refraction",
+            "id": 3,
+            "value": 50
+          }
+        ]
+      },
+      "psnr": 30.94,
+      "mad": 1.537,
+      "signed": [
+        0.533,
+        0.554,
+        0.54
+      ],
+      "resized": false,
+      "head_vs_input_mad": 7.6
+    },
+    {
+      "param": {
+        "label": "Size100 Refr50 (cross-validation)",
+        "params": [
+          {
+            "name": "Size",
+            "id": 1,
+            "value": 100
+          },
+          {
+            "name": "Speed",
+            "id": 2,
+            "value": 0.5
+          },
+          {
+            "name": "Refraction",
+            "id": 3,
+            "value": 50
+          }
+        ]
+      },
+      "psnr": 29.82,
+      "mad": 1.69,
+      "signed": [
+        0.526,
+        0.544,
+        0.531
+      ],
+      "resized": false,
+      "head_vs_input_mad": 7.65
+    }
+  ],
+  "note": ""
+}
