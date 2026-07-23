@@ -1981,6 +1981,39 @@
       },
       "oracle_truth": "transfer",
       "n_failures": 0
+    },
+    "transfer.PAEHSVAdjust_value": {
+      "id": "transfer.PAEHSVAdjust_value",
+      "kind": "transfer",
+      "status": "VERIFIED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 0.8699999999999974,
+      "n_samples": 120,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "name": "Value",
+          "id": 3,
+          "value": 0.5
+        },
+        "input": [
+          200,
+          200,
+          200
+        ],
+        "oracle": [
+          51.22,
+          51.13,
+          51.15
+        ],
+        "engine": [
+          52.0,
+          52.0,
+          52.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
     }
   },
   "history": [
@@ -2678,8 +2711,18 @@
       "id": "transfer.PAELevels_outremap",
       "status": "VERIFIED",
       "at": "2026-07-23T08:30:40Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_value",
+      "status": "DIVERGED",
+      "at": "2026-07-23T08:39:11Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_value",
+      "status": "VERIFIED",
+      "at": "2026-07-23T08:40:25Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T08:30:40Z"
+  "updated": "2026-07-23T08:40:25Z"
 }

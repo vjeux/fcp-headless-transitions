@@ -525,6 +525,91 @@
    }
   },
   {
+   "id": "transfer.PAEHSVAdjust_value",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAEHSVAdjust Value = linear MULTIPLY in the gamma-1.958 working space (neutral=1.0, Value=0->black, decoded S0V0 probe). Covers the multiplier range on NEUTRAL inputs where the WS multiply is exact (uniform clip, no cross-channel coupling; saturated over-clip is the shared HGColorMatrix clamp, tested separately). Complements valsat's 2 Value points.",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "D23AF030-B0BF-44DF-B622-7C9EA0DF5744",
+    "pluginName": "PAEHSVAdjust"
+   },
+   "engine_env": {
+    "FCT_HSV_WORKINGSPACE": "1"
+   },
+   "inputs": [
+    [
+     16,
+     16,
+     16
+    ],
+    [
+     32,
+     32,
+     32
+    ],
+    [
+     64,
+     64,
+     64
+    ],
+    [
+     96,
+     96,
+     96
+    ],
+    [
+     128,
+     128,
+     128
+    ],
+    [
+     160,
+     160,
+     160
+    ],
+    [
+     200,
+     200,
+     200
+    ],
+    [
+     240,
+     240,
+     240
+    ]
+   ],
+   "param_cases": [
+    {
+     "name": "Value",
+     "id": 3,
+     "value": 0.25
+    },
+    {
+     "name": "Value",
+     "id": 3,
+     "value": 0.5
+    },
+    {
+     "name": "Value",
+     "id": 3,
+     "value": 0.75
+    },
+    {
+     "name": "Value",
+     "id": 3,
+     "value": 1.5
+    },
+    {
+     "name": "Value",
+     "id": 3,
+     "value": 2.0
+    }
+   ],
+   "oracle_truth": "transfer",
+   "status": "UNTESTED"
+  },
+  {
    "id": "transfer.PAEHSVAdjust_hue",
    "subsystem": "color",
    "kind": "transfer",
