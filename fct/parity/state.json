@@ -2362,7 +2362,7 @@
       "status": "VERIFIED",
       "metric": "max_abs_levels",
       "max_abs_levels": 0.8799999999999955,
-      "n_samples": 147,
+      "n_samples": 252,
       "tol_levels": 2.0,
       "worst": {
         "case": {
@@ -3325,8 +3325,13 @@
       "id": "transfer.PAEFill",
       "status": "VERIFIED",
       "at": "2026-07-23T13:08:35Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_saturation",
+      "status": "VERIFIED",
+      "at": "2026-07-23T13:10:36Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T13:08:35Z"
+  "updated": "2026-07-23T13:10:36Z"
 }
