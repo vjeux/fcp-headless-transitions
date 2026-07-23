@@ -497,14 +497,24 @@ registerFilter({
   apply(input, ctx) {
     const t = ctx.time;
     // Read a weight that lives EITHER as a nested child of `group` OR as a flat param.
+    // FCP CLAMP: -[PAEChannelMixer addParameters] declares every weight slider with
+    // parameterMin=-2.0, parameterMax=+2.0 (fmov d1,#-2.0 d2,#+2.0 @0x76598.. in the
+    // addFloatSliderWithName:...parameterMin:parameterMax: calls). FCP bounds each weight to
+    // [-2,2] at the parameter level, so a diagonal gain of 3.0 acts as 2.0. VERIFIED 2026-07-23
+    // vs headless: gray 64 @gain{2.0,2.5,3.0} all -> 128 (=64*2), i.e. code=clamp(v*min(g,2)).
+    // The engine previously applied the raw value (3.0 -> 192 vs FCP 128, 64 lvl off). Clamp to
+    // the binary-declared parameterMin/Max. (Same class as the HSV Value multiplier clamp at 2.0.)
+    const CM_MIN = -2.0, CM_MAX = 2.0;
     const w = (group: string, child: string, def: number): number => {
       const g = ctx.filter.parameters.find(p => p.name === group);
       const c = g?.children?.find(cc => cc.name === child);
+      let v: number | undefined;
       if (c) {
-        if (c.curve) return evaluateCurve(c.curve, t);
-        if (typeof c.value === 'number') return c.value;
+        if (c.curve) v = evaluateCurve(c.curve, t);
+        else if (typeof c.value === 'number') v = c.value;
       }
-      return ctx.param(child, def);  // flat fallback (+ rig overrides)
+      if (v === undefined) v = ctx.param(child, def);  // flat fallback (+ rig overrides)
+      return v < CM_MIN ? CM_MIN : v > CM_MAX ? CM_MAX : v;
     };
     const matrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
     matrix[0] = w('Red Output', 'Red - Red', 1);    matrix[1] = w('Red Output', 'Red - Green', 0);    matrix[2] = w('Red Output', 'Red - Blue', 0);

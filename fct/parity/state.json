@@ -410,14 +410,14 @@
       "kind": "transfer",
       "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 0.5800000000000125,
-      "n_samples": 108,
+      "max_abs_levels": 0.75,
+      "n_samples": 189,
       "tol_levels": 2.0,
       "worst": {
         "case": {
           "name": "Brightness",
           "id": 1,
-          "value": 1.5
+          "value": 2.5
         },
         "input": [
           200,
@@ -425,14 +425,14 @@
           50
         ],
         "oracle": [
-          254.42,
-          74.83,
-          75.3
+          254.25,
+          125.0,
+          124.75
         ],
         "engine": [
           255.0,
-          75.0,
-          75.0
+          125.0,
+          125.0
         ]
       },
       "oracle_truth": "transfer",
@@ -837,7 +837,7 @@
       "status": "VERIFIED",
       "metric": "max_abs_levels",
       "max_abs_levels": 0.5800000000000125,
-      "n_samples": 54,
+      "n_samples": 108,
       "tol_levels": 2.0,
       "worst": {
         "case": {
@@ -3746,8 +3746,33 @@
       "id": "transfer.PAEHSVAdjust_hue",
       "status": "VERIFIED",
       "at": "2026-07-24T00:23:19Z"
+    },
+    {
+      "id": "transfer.PAEBrightness",
+      "status": "VERIFIED",
+      "at": "2026-07-24T00:26:00Z"
+    },
+    {
+      "id": "transfer.PAEChannelMixer_clip",
+      "status": "DIVERGED",
+      "at": "2026-07-24T00:26:16Z"
+    },
+    {
+      "id": "transfer.PAEChannelMixer_clip",
+      "status": "VERIFIED",
+      "at": "2026-07-24T00:31:15Z"
+    },
+    {
+      "id": "transfer.PAEChannelMixer",
+      "status": "VERIFIED",
+      "at": "2026-07-24T00:31:51Z"
+    },
+    {
+      "id": "transfer.PAEChannelMixer_offset",
+      "status": "VERIFIED",
+      "at": "2026-07-24T00:32:26Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-24T00:23:19Z"
+  "updated": "2026-07-24T00:32:26Z"
 }

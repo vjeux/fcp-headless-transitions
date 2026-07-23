@@ -339,6 +339,21 @@
           "name": "Brightness",
           "id": 1,
           "value": 2.0
+        },
+        {
+          "name": "Brightness",
+          "id": 1,
+          "value": 2.5
+        },
+        {
+          "name": "Brightness",
+          "id": 1,
+          "value": 3.0
+        },
+        {
+          "name": "Brightness",
+          "id": 1,
+          "value": 0.25
         }
       ],
       "oracle_truth": "transfer",
@@ -3621,6 +3636,182 @@
                   "name": "Blue - Blue",
                   "id": 14,
                   "value": 1.5
+                },
+                {
+                  "name": "Blue - Alpha",
+                  "id": 15,
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "name": "Monochrome",
+              "id": 21,
+              "value": 0
+            }
+          ]
+        },
+        {
+          "label": "diag_1.25x",
+          "params": [
+            {
+              "name": "Red Output",
+              "id": 1,
+              "children": [
+                {
+                  "name": "Red - Red",
+                  "id": 2,
+                  "value": 1.25
+                },
+                {
+                  "name": "Red - Green",
+                  "id": 3,
+                  "value": 0
+                },
+                {
+                  "name": "Red - Blue",
+                  "id": 4,
+                  "value": 0
+                },
+                {
+                  "name": "Red - Alpha",
+                  "id": 5,
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "name": "Green Output",
+              "id": 6,
+              "children": [
+                {
+                  "name": "Green - Red",
+                  "id": 7,
+                  "value": 0
+                },
+                {
+                  "name": "Green - Green",
+                  "id": 8,
+                  "value": 1.25
+                },
+                {
+                  "name": "Green - Blue",
+                  "id": 9,
+                  "value": 0
+                },
+                {
+                  "name": "Green - Alpha",
+                  "id": 10,
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "name": "Blue Output",
+              "id": 11,
+              "children": [
+                {
+                  "name": "Blue - Red",
+                  "id": 12,
+                  "value": 0
+                },
+                {
+                  "name": "Blue - Green",
+                  "id": 13,
+                  "value": 0
+                },
+                {
+                  "name": "Blue - Blue",
+                  "id": 14,
+                  "value": 1.25
+                },
+                {
+                  "name": "Blue - Alpha",
+                  "id": 15,
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "name": "Monochrome",
+              "id": 21,
+              "value": 0
+            }
+          ]
+        },
+        {
+          "label": "diag_3.0x",
+          "params": [
+            {
+              "name": "Red Output",
+              "id": 1,
+              "children": [
+                {
+                  "name": "Red - Red",
+                  "id": 2,
+                  "value": 3.0
+                },
+                {
+                  "name": "Red - Green",
+                  "id": 3,
+                  "value": 0
+                },
+                {
+                  "name": "Red - Blue",
+                  "id": 4,
+                  "value": 0
+                },
+                {
+                  "name": "Red - Alpha",
+                  "id": 5,
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "name": "Green Output",
+              "id": 6,
+              "children": [
+                {
+                  "name": "Green - Red",
+                  "id": 7,
+                  "value": 0
+                },
+                {
+                  "name": "Green - Green",
+                  "id": 8,
+                  "value": 3.0
+                },
+                {
+                  "name": "Green - Blue",
+                  "id": 9,
+                  "value": 0
+                },
+                {
+                  "name": "Green - Alpha",
+                  "id": 10,
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "name": "Blue Output",
+              "id": 11,
+              "children": [
+                {
+                  "name": "Blue - Red",
+                  "id": 12,
+                  "value": 0
+                },
+                {
+                  "name": "Blue - Green",
+                  "id": 13,
+                  "value": 0
+                },
+                {
+                  "name": "Blue - Blue",
+                  "id": 14,
+                  "value": 3.0
                 },
                 {
                   "name": "Blue - Alpha",
