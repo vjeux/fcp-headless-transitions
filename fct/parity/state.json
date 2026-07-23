@@ -1367,14 +1367,14 @@
     "transfer.PAELevels_combined": {
       "id": "transfer.PAELevels_combined",
       "kind": "transfer",
-      "status": "DIVERGED",
+      "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 16.80000000000001,
+      "max_abs_levels": 0.7300000000000004,
       "n_samples": 81,
       "tol_levels": 2.0,
       "worst": {
         "case": {
-          "label": "in+gamma+out",
+          "label": "in+gammaLT1",
           "params": [
             {
               "name": "Histogram",
@@ -1387,27 +1387,27 @@
                     {
                       "name": "Black In",
                       "id": 1,
-                      "value": 0.1
+                      "value": 0.2
                     },
                     {
                       "name": "White In",
                       "id": 3,
-                      "value": 0.9
+                      "value": 0.8
                     },
                     {
                       "name": "Gamma",
                       "id": 5,
-                      "value": 1.5
+                      "value": 0.7
                     },
                     {
                       "name": "Black Out",
                       "id": 2,
-                      "value": 0.05
+                      "value": 0.0
                     },
                     {
                       "name": "White Out",
                       "id": 4,
-                      "value": 0.95
+                      "value": 1.0
                     }
                   ]
                 }
@@ -1416,19 +1416,19 @@
           ]
         },
         "input": [
-          240,
-          240,
-          240
+          50,
+          50,
+          200
         ],
         "oracle": [
-          254.69,
-          254.8,
-          254.78
+          18.29,
+          18.27,
+          254.44
         ],
         "engine": [
-          238.0,
-          238.0,
-          238.0
+          19.0,
+          19.0,
+          255.0
         ]
       },
       "oracle_truth": "transfer",
@@ -2358,8 +2358,28 @@
       "id": "spatial.PAEBloom",
       "status": "DIVERGED",
       "at": "2026-07-23T03:42:47Z"
+    },
+    {
+      "id": "transfer.PAELevels_combined",
+      "status": "VERIFIED",
+      "at": "2026-07-23T03:55:25Z"
+    },
+    {
+      "id": "transfer.PAELevels_remap",
+      "status": "VERIFIED",
+      "at": "2026-07-23T03:55:37Z"
+    },
+    {
+      "id": "transfer.PAELevels_outremap",
+      "status": "VERIFIED",
+      "at": "2026-07-23T03:55:49Z"
+    },
+    {
+      "id": "transfer.PAELevels",
+      "status": "VERIFIED",
+      "at": "2026-07-23T03:56:03Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T03:42:47Z"
+  "updated": "2026-07-23T03:56:03Z"
 }

@@ -123,12 +123,20 @@ export function levelsFilter(input: ImageData, params: LevelsParams): ImageData 
     const lutWS = new Uint8Array(256);
     for (let i = 0; i < 256; i++) {
       let x = Math.pow(i / 255, iv);                        // encode to WS
-      // stage 1: input remap [blackIn, whiteIn] -> [0, 1]
-      x = cl01((x - blackIn) / rng);
+      // stage 1: input remap [blackIn, whiteIn] -> [0, 1]. NO intermediate clamp: the
+      // WS-wrapped HgcLevels composition lets an above-whiteIn value overshoot [0,1] and
+      // flow through the output remap, so a bright pixel past whiteIn resolves ABOVE
+      // whiteOut (near white) rather than being capped at whiteOut. DECODED 2026-07-23
+      // from the FCP ramp at (BlackIn .1, WhiteIn .9, Gamma 1.5, BlackOut .05, WhiteOut .95):
+      // in=229..255 -> 254.7 (NOT 242=whiteOut*255) and in=0 -> 0.0 (NOT blackOut-lifted).
+      // Removing the stage-1 clamp fixes the combined case (16.7 -> 0.71 lvl) with ZERO
+      // regression on the 3 VERIFIED legs (input/output/gamma alone, still 0.6-0.74 lvl).
+      // Only the final WS->code decode clamps (and the pow domain guard x>0).
+      x = (x - blackIn) / rng;
       // stage 2: output remap [0,1] -> [blackOut, whiteOut], then gamma pow(1/gamma)
-      x = cl01(x * (whiteOut - blackOut) + blackOut);
-      x = Math.pow(x, invGamma);
-      lutWS[i] = Math.round(Math.pow(cl01(x), gm) * 255);   // decode WS -> code
+      x = x * (whiteOut - blackOut) + blackOut;
+      x = x > 0 ? Math.pow(x, invGamma) : 0;
+      lutWS[i] = Math.round(Math.pow(cl01(x), gm) * 255);   // decode WS -> code (final clamp)
     }
     for (let i = 0; i < src.length; i += 4) {
       if (mix >= 1) {
