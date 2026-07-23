@@ -30,6 +30,27 @@ C++ symbol, NOT whole-frame PSNR. See DESIGN.md.
    - spatial.PAEGaussianBlur   VERIFIED 49.2 dB  (decimated Gaussian)
    - spatial.PAEDirectionalBlur VERIFIED 26.3 dB (at polar-resample ceiling; signed~0)
    - spatial.PAEZoomBlur       CHARACTERIZED 13.9 dB (log-polar centre-resample ceiling)
+   - spatial.PAEBloom          CHARACTERIZED 27 dB (pointwise extract+combine EXACT on the
+     full (v x Threshold) grid, |dR|<=0.3; SHIPPING regime Threshold=0 VERIFIES 42.7 dB;
+     Threshold>0 residual = shared blur-tail spread on the sparse extract layer, gate-inert;
+     FLOAT path FCT_BLOOM_FLOAT. Evidence: evidence/bloom_pointwise_law.txt)
+   - PAEBadTV — probed, NOT verifiable at the node boundary: stochastic (dSFMT Waviness/Static
+     RNG) + spatial scanlines + an ENTANGLED desaturate leg (Saturate=0 is not identity in FCP;
+     a 1.274x gray lift; channel-inconsistent under a scalar-sat mix). The HgcBadTV shader
+     (extract_shader) desaturates chromatically-ABERRATED samples (r2 via P14 offsets) —
+     mix(luma, r2, P7-vector) — so a uniform-patch transfer can't reproduce it. Needs the
+     P0-P14 param-buffer register trace (decode-don't-fit). Evidence: badtv_saturate_divergence.txt.
+   - spatial.PAEBloom          CHARACTERIZED 27 dB (pointwise extract+combine LAW EXACT vs
+       headless across the full (v x Threshold) grid |dR|<=0.3; shipping regime Threshold=0
+       VERIFIES 42.7 dB; the Threshold>0 residual is the shared decimated-blur tail-spread on
+       a sparse high-contrast extract layer, NOT a decode error. FLOAT path via FCT_BLOOM_FLOAT;
+       8-bit shipped path under-blooms at 3.7 dB. Evidence: bloom_pointwise_law.txt.)
+   NOT node-boundary-verifiable by this regime (documented, left DIVERGED):
+   - PAEBadTV: stochastic (dSFMT Waviness/Static RNG) + entangled deterministic legs. The
+       desaturate leg probe diverges up to 109 lvl vs FCP (Saturate=0 is NOT identity in FCP;
+       gray gets a ~1.27x lift; the HgcBadTV shader mixes luma(P12) with CHROMATIC-ABERRATION-
+       sampled colour(P14) weighted by a P7 VECTOR, not a scalar sat). Needs the shader
+       param-buffer register trace to decode. Evidence: badtv_saturate_divergence.txt.
 4. **Delegated (faithful)** — image nodes whose real host is a multi-stage pipeline. A
    static-source injection is UNFAITHFUL for pointwise colour (synth.py lesson), so parity
    delegates to the faithful DELTA-RESPONSE in the node's real host and mirrors the verdict
@@ -39,16 +60,18 @@ C++ symbol, NOT whole-frame PSNR. See DESIGN.md.
    decode is faithful and the divergence lives in the HOST, not the Glow node.
 
 
-## Current subsystem map (48 nodes) — run `fct parity status` for live
+## Current subsystem map (49 nodes) — run `fct parity status` for live
   curves      3/3  VERIFIED (exact)
-  blur        6/9  (Gaussian/Directional/Radial VERIFIED via delta; spatial.Gaussian 49dB +
-                   spatial.Directional 26dB VERIFIED at node boundary; spatial.Zoom
-                   CHARACTERIZED = log-polar centre-resample ceiling; Bloom DIVERGED)
+  blur        6/10 (Gaussian/Directional/Radial VERIFIED via delta; spatial.Gaussian 49dB +
+                   spatial.Directional 26dB VERIFIED at node boundary; spatial.Zoom + spatial.Bloom
+                   CHARACTERIZED (log-polar / blur-tail ceilings — Bloom pointwise LAW is EXACT,
+                   shipping regime 42.7dB); Bloom-via-host DIVERGED)
   color      13/26 (transfer regime: 13 pointwise colour transfers VERIFIED; the rest are
                    CHARACTERIZED shared-clamp over-1.0 / HSV-hue CPU-map, need GPU disasm)
   generators  1/3  (ColorSolid VERIFIED; Clouds/Noise DIVERGED — RNG fields)
-  geometry    2/4  (Flop/BlackHole VERIFIED; Earthquake/Underwater DIVERGED)
-  stylize     1/3  (spatial.Glow VERIFIED 40.4dB at node boundary; BadTV DIVERGED)
+  geometry    2/4  (Flop/BlackHole VERIFIED; Earthquake/Underwater DIVERGED — RNG/time warps)
+  stylize     1/3  (spatial.Glow VERIFIED 40.4dB at node boundary; BadTV DIVERGED = entangled
+                   stochastic + chromatic-aberration desaturate, needs shader trace)
 
 ## What "faithful/DIVERGED" means here
 These are the SAME verdicts the faithful program tracks; parity gives them the node-boundary
