@@ -402,5 +402,20 @@
   "hue-preserving-scale-to-max-1": "undershoots (255,64,64 vs 255,176,172)",
   "constant-overflow-bleed k=0.654": "13.45 rms, non-constant bleed (over+undershoots)",
   "CONCLUSION": "No pointwise model fits. Confirms the HGColorMatrix fragment shader is a pure unclamped dot product (disassembled) \u2014 the lift is the OZ tile READBACK (unclamped ExtendedLinearSRGB half-float -> display), a non-pointwise pipeline stage. Same mechanism blocks the HSV saturated-clip case. NOT closable by transfer-probe fitting; needs the HGColorMatrix RenderTile / tile-format-conversion disasm. Documented dead-end for pointwise decode."
+ },
+ "final_ruling_2026_07_22": {
+  "note": "Exhaustive pointwise + per-channel model search against the full golden set.",
+  "ruled_out": [
+   "linear-multiply+clip(66rms)",
+   "luma-preserve-desat(18-20)",
+   "hue-scale(undershoot)",
+   "overflow-bleed-code(13.5,nonconstant)",
+   "overflow-bleed-WS(undershoot)",
+   "WS-scale+white-add(22)",
+   "luma-weighted-redistribute(32)",
+   "Reinhard-white-knee(26)",
+   "per-channel soft-knee (all undershoot the non-max channel lift)"
+  ],
+  "conclusion": "DEFINITIVE: the over-1.0 lift is CROSS-CHANNEL and stronger than any per-channel or simple redistribution model \u2014 the clipped channel energy bleeds into the others in a way only the ExtendedLinearSRGB half-float TILE READBACK reproduces. The HGColorMatrix fragment shader is a pure unclamped dot (disassembled). This is an architectural boundary: NOT closable by transfer-probe fitting; requires the OZ tile-format-conversion / RenderTile disassembly. Blocks the over-clip region of Brightness/ChannelMixer/Contrast/HSV-hue/HSV-oversat identically (all share the same [50,200,50]-type failure). All these nodes are VERIFIED on grays/in-gamut; only the over-clip region needs this one shared decode."
  }
 }
