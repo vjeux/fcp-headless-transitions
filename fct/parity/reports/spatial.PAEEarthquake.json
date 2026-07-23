@@ -1,25 +1,25 @@
 {
   "id": "spatial.PAEEarthquake",
   "kind": "spatial",
-  "status": "DIVERGED",
+  "status": "VERIFIED",
   "metric": "frame_psnr_db",
-  "worst_psnr_db": 38.6,
+  "worst_psnr_db": 46.65,
   "pass_db": 40.0,
   "n_scored": 5,
   "oracle_truth": "headless",
   "worst_case": {
     "param": {
-      "label": "twist8 seed0",
+      "label": "h8 seed0",
       "params": [
         {
           "name": "Twist",
           "id": 1,
-          "value": 8
+          "value": 0
         },
         {
           "name": "Horizontal Shake",
           "id": 2,
-          "value": 0
+          "value": 8
         },
         {
           "name": "Vertical Shake",
@@ -38,15 +38,15 @@
         }
       ]
     },
-    "psnr": 38.6,
-    "mad": 0.476,
+    "psnr": 46.65,
+    "mad": 0.416,
     "signed": [
-      -0.21,
-      -0.199,
-      -0.211
+      -0.251,
+      -0.234,
+      -0.246
     ],
     "resized": false,
-    "head_vs_input_mad": 50.77
+    "head_vs_input_mad": 32.3
   },
   "n_failures": 0,
   "rows": [
@@ -163,12 +163,12 @@
           }
         ]
       },
-      "psnr": 41.21,
-      "mad": 0.472,
+      "psnr": 48.02,
+      "mad": 0.353,
       "signed": [
-        -0.221,
-        -0.205,
-        -0.217
+        -0.219,
+        -0.203,
+        -0.215
       ],
       "resized": false,
       "head_vs_input_mad": 46.82
@@ -204,12 +204,12 @@
           }
         ]
       },
-      "psnr": 45.72,
-      "mad": 0.452,
+      "psnr": 47.57,
+      "mad": 0.402,
       "signed": [
-        -0.233,
-        -0.216,
-        -0.228
+        -0.236,
+        -0.219,
+        -0.231
       ],
       "resized": false,
       "head_vs_input_mad": 39.32
@@ -245,12 +245,12 @@
           }
         ]
       },
-      "psnr": 38.6,
-      "mad": 0.476,
+      "psnr": 48.29,
+      "mad": 0.327,
       "signed": [
-        -0.21,
-        -0.199,
-        -0.211
+        -0.204,
+        -0.193,
+        -0.205
       ],
       "resized": false,
       "head_vs_input_mad": 50.77

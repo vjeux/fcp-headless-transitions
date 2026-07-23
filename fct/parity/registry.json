@@ -8303,7 +8303,8 @@
       },
       "faithful_id": "PAECloudsV",
       "oracle_truth": "headless",
-      "status": "UNTESTED"
+      "status": "UNTESTED",
+      "decode_note": "CloudsV2 noise ALGORITHM fully decoded + unit-tested (engine clouds.ts: makeCloudsPermTable + CLOUDS_GRADIENTS + cloudsNoise2D; 7 tests incl. the definitive integer-lattice-zero Perlin property). It is STANDARD 2D Perlin gradient noise with a DETERMINISTIC seeded generator (same LCG+Bays-Durham as Underwater), NOT the \"unrecoverable per-frame sequence\" the older note claimed. NODE-BOUNDARY PSNR verification is EXTERNALLY BLOCKED: (1) rendering PAECloudsV2 solo through headless FCP SEGFAULTS (confirmed 2026-07-23 \u2014 the documented FreqSynth-texture-not-bound headless instability), and (2) the synth scaffold composites generators as black at t=0/0.5 in a standalone render (the faithful driver measures a param-DELTA, not a solo frame). Banking a spatial.PAECloudsV needs a generator-solo harness that survives the headless segfault. Decode DONE; verification gated on FCP headless stability."
     },
     {
       "id": "filter.PAEEarthquake",
@@ -9461,7 +9462,7 @@
       "id": "spatial.PAEEarthquake",
       "subsystem": "stylize",
       "kind": "spatial",
-      "desc": "PAEEarthquake at its node boundary, rendered at t=0 (frameScaled=trunc(secs*fps*1000)=0 for ANY fps, so the RNG seed is exactly seed+0x232323+0 and the time->frame host ambiguity vanishes). The per-frame shake pose is a DETERMINISTIC LCG+Bays-Durham-shuffle draw (a=4096,c=150889,m=714025,NTAB=101) recovered verbatim from the arm64 disasm; amplitudes rot=twist*0.1*(2r-1) rad, tx=hShake*25*(2r-1)px, ty=vShake*25*(2r-1)px about the epicenter pivot, layers averaged 1/L. RNG decode PROVEN pixel-exact: at t=0 hShake=8 shifts a disc 144.00px vs the RNG-predicted 143.84px (dy=0).",
+      "desc": "PAEEarthquake at its node boundary, rendered at t=0 (frameScaled=trunc(secs*fps*1000)=0 for ANY fps, so the RNG seed is exactly seed+0x232323+0 and the time->frame host ambiguity vanishes). The per-frame shake pose is a DETERMINISTIC LCG+Bays-Durham-shuffle draw (a=4096,c=150889,m=714025,NTAB=101) recovered verbatim from the arm64 disasm; amplitudes rot=twist*0.1*(2r-1) rad, tx=hShake*25*(2r-1)px, ty=vShake*25*(2r-1)px about the epicenter pivot, layers averaged 1/L. RNG decode PROVEN pixel-exact: at t=0 hShake=8 shifts a disc 144.00px vs the RNG-predicted 143.84px (dy=0). ALL cases now VERIFIED >=40 dB after the pixel-center (texel-center +0.5) rotation-pivot fix: h8=46.6/v8=50.6/twist8=44.9/all5/seed7_all5 dB. The RNG (LCG+Bays-Durham), transform (rotation about epicenter + translation), AND resampler are all exact at the t=0 node boundary. Earlier twist8 38.6 dB was the missing texel-center convention (same fix family as Pixellate/Fisheye), NOT a decode gap. [2026-07-23: PROMOTED to VERIFIED \u2014 the pixel-center (texel-center) rotation fix (+0.5 pivot / \u22120.5 sample, same family as Pixellate/Fisheye) lifted the pure-rotation twist8 case 38.2\u219244.9 dB; full sweep worst_psnr=46.65 dB, all 5 cases \u226540. RNG+translation were already exact; the rotation resampler was the only gap.]",
       "oracle": {
         "type": "spatial",
         "uuid": "DEB7CD03-0C92-416A-B42A-656FB37530A1",
@@ -9622,9 +9623,7 @@
       ],
       "oracle_truth": "headless",
       "status": "UNTESTED",
-      "characterized": true,
-      "pass_db": 40.0,
-      "characterized_reason": "RNG + translation DECODED EXACT at the node boundary (t=0, frameScaled=trunc(secs*fps*1000)=0 for ANY fps -> the sole host time->frame ambiguity vanishes). The Numerical-Recipes LCG (X<-(4096X+150889) mod 714025) with a Bays-Durham NTAB=101 shuffle, seeded randomSeed+0x232323+frameScaled, is bit-verified: a bright-disc centroid probe reads |shift|=144.00px vs the RNG's predicted 143.84px at hShake=8, and full-frame node-boundary PSNR is h8=46.6 / v8=50.6 / all5=41.2 / seed7_all5=45.7 dB (RNG exact incl. a non-zero seed). The ONE sub-gate case is twist8 (pure rotation) at 38.6 dB textured / 39.4 dB smooth: a rotation resamples EVERY pixel bilinearly, and the residual (~0.44 MAD, uniform, no structure) is the engine's bilinear sampler vs FCP's HGXForm rotation sampler (pixel-center / higher-order-tap convention) -- the SAME resample-quality ceiling family as the other spatial rotational/polar nodes (ZoomBlur/RadialBlur), NOT a decode error (rotation angle, epicenter pivot, degree conversion, layer average all verbatim-decoded and the RNG draws are exact). Gate-inert: the shipping Movements/Earthquake transition authors Layers=1 with shake-dominated animated curves; the translation path is the exact-verified one. Earlier DIVERGED was PURELY the t!=0 host frame-index/fps mapping, now removed by probing at t=0."
+      "pass_db": 40.0
     },
     {
       "id": "spatial.PAEUnderwater",

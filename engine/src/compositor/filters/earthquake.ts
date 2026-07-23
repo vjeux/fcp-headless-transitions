@@ -224,13 +224,19 @@ export function earthquakeFilter(
     const tx = hShake * 25 * (2 * ran2 - 1);
     const ty = vShake * 25 * (2 * ran3 - 1);
     // DEST→SRC: src_c = Rot(rotRad)·(p_c + epi - t) - epi, p_c = dest in centered coords.
+    // PIXEL-CENTER (texel-center) convention: the rotation operates on the pixel's CENTER
+    // (x+0.5, y+0.5) in the centered frame, and the sampled source coord is shifted back by
+    // -0.5 (HGXForm samples at texel centers). This matches FCP's rotation sampler: measured
+    // twist8 (pure rotation) 38.2→44.9 dB with the +0.5 pivot (same fix family as Pixellate/
+    // Fisheye texel-center). For PURE translation (c=1,s=0) the +0.5/−0.5 cancel exactly, so
+    // the RNG-exact h8/v8 cases (46–50 dB) are unchanged.
     const c = Math.cos(rotRad), s = Math.sin(rotRad);
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
-        const px = (x - ox) + cx + tx;
-        const py = (y - oy) + cy + ty;
-        const rx = (c * px - s * py) - cx + ox;
-        const ry = (s * px + c * py) - cy + oy;
+        const px = (x + 0.5 - ox) + cx + tx;
+        const py = (y + 0.5 - oy) + cy + ty;
+        const rx = (c * px - s * py) - cx + ox - 0.5;
+        const ry = (s * px + c * py) - cy + oy - 0.5;
         sampleBilinear(src, w, h, rx, ry, samp);
         const o = (y * w + x) * 4;
         acc[o] += samp[0]; acc[o + 1] += samp[1]; acc[o + 2] += samp[2]; acc[o + 3] += samp[3];

@@ -2452,25 +2452,25 @@
     "spatial.PAEEarthquake": {
       "id": "spatial.PAEEarthquake",
       "kind": "spatial",
-      "status": "DIVERGED",
+      "status": "VERIFIED",
       "metric": "frame_psnr_db",
-      "worst_psnr_db": 38.6,
+      "worst_psnr_db": 46.65,
       "pass_db": 40.0,
       "n_scored": 5,
       "oracle_truth": "headless",
       "worst_case": {
         "param": {
-          "label": "twist8 seed0",
+          "label": "h8 seed0",
           "params": [
             {
               "name": "Twist",
               "id": 1,
-              "value": 8
+              "value": 0
             },
             {
               "name": "Horizontal Shake",
               "id": 2,
-              "value": 0
+              "value": 8
             },
             {
               "name": "Vertical Shake",
@@ -2489,15 +2489,15 @@
             }
           ]
         },
-        "psnr": 38.6,
-        "mad": 0.476,
+        "psnr": 46.65,
+        "mad": 0.416,
         "signed": [
-          -0.21,
-          -0.199,
-          -0.211
+          -0.251,
+          -0.234,
+          -0.246
         ],
         "resized": false,
-        "head_vs_input_mad": 50.77
+        "head_vs_input_mad": 32.3
       },
       "n_failures": 0,
       "note": ""
@@ -3591,8 +3591,23 @@
       "id": "spatial.PAEUnderwater",
       "status": "DIVERGED",
       "at": "2026-07-23T15:56:34Z"
+    },
+    {
+      "id": "spatial.PAEEarthquake",
+      "status": "VERIFIED",
+      "at": "2026-07-23T16:59:57Z"
+    },
+    {
+      "id": "spatial.PAEEarthquake",
+      "status": "VERIFIED",
+      "at": "2026-07-23T17:00:08Z"
+    },
+    {
+      "id": "spatial.PAEEarthquake",
+      "status": "VERIFIED",
+      "at": "2026-07-23T17:01:29Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T15:56:34Z"
+  "updated": "2026-07-23T17:01:29Z"
 }
