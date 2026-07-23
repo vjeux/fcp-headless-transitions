@@ -1,0 +1,98 @@
+{
+  "id": "spatial.PAEPixellate",
+  "kind": "spatial",
+  "status": "VERIFIED",
+  "metric": "frame_psnr_db",
+  "worst_psnr_db": 30.21,
+  "pass_db": 30.0,
+  "n_scored": 3,
+  "oracle_truth": "headless",
+  "worst_case": {
+    "param": {
+      "label": "scale50",
+      "params": [
+        {
+          "name": "Scale",
+          "id": 2,
+          "value": 50
+        }
+      ]
+    },
+    "psnr": 30.21,
+    "mad": 0.978,
+    "signed": [
+      0.299,
+      0.315,
+      0.305
+    ],
+    "resized": false,
+    "head_vs_input_mad": 12.81
+  },
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "scale8",
+        "params": [
+          {
+            "name": "Scale",
+            "id": 2,
+            "value": 8
+          }
+        ]
+      },
+      "psnr": 50.87,
+      "mad": 0.426,
+      "signed": [
+        -0.252,
+        -0.233,
+        -0.246
+      ],
+      "resized": false,
+      "head_vs_input_mad": 1.98
+    },
+    {
+      "param": {
+        "label": "scale20",
+        "params": [
+          {
+            "name": "Scale",
+            "id": 2,
+            "value": 20
+          }
+        ]
+      },
+      "psnr": 50.82,
+      "mad": 0.431,
+      "signed": [
+        -0.247,
+        -0.23,
+        -0.241
+      ],
+      "resized": false,
+      "head_vs_input_mad": 5.01
+    },
+    {
+      "param": {
+        "label": "scale50",
+        "params": [
+          {
+            "name": "Scale",
+            "id": 2,
+            "value": 50
+          }
+        ]
+      },
+      "psnr": 30.21,
+      "mad": 0.978,
+      "signed": [
+        0.299,
+        0.315,
+        0.305
+      ],
+      "resized": false,
+      "head_vs_input_mad": 12.81
+    }
+  ],
+  "note": ""
+}

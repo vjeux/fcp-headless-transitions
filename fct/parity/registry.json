@@ -5798,6 +5798,53 @@
    "status": "UNTESTED",
    "synth": "textured",
    "pass_db": 30.0
+  },
+  {
+   "id": "spatial.PAEPixellate",
+   "subsystem": "stylize",
+   "kind": "spatial",
+   "desc": "PAEPixellate (HgcPixellate coordinate-quantize: snap each output pixel to the centre of a Scale x Scale grid cell, nearest-sample). Node-boundary full-frame PSNR over Scale in {8,20,50}. Textured synth so the mosaic is exercised. Deterministic, no shipping transition uses it (byte-neutral to GUI gate).",
+   "oracle": {
+    "type": "spatial",
+    "uuid": "5E7CA164-3AAF-4C70-A377-567E5796528A",
+    "pluginName": "PAEPixellate"
+   },
+   "param_cases": [
+    {
+     "label": "scale8",
+     "params": [
+      {
+       "name": "Scale",
+       "id": 2,
+       "value": 8
+      }
+     ]
+    },
+    {
+     "label": "scale20",
+     "params": [
+      {
+       "name": "Scale",
+       "id": 2,
+       "value": 20
+      }
+     ]
+    },
+    {
+     "label": "scale50",
+     "params": [
+      {
+       "name": "Scale",
+       "id": 2,
+       "value": 50
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "headless",
+   "status": "UNTESTED",
+   "synth": "textured",
+   "pass_db": 30.0
   }
  ]
 }

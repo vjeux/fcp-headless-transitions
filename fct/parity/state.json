@@ -2071,6 +2071,39 @@
       },
       "n_failures": 0,
       "note": ""
+    },
+    "spatial.PAEPixellate": {
+      "id": "spatial.PAEPixellate",
+      "kind": "spatial",
+      "status": "VERIFIED",
+      "metric": "frame_psnr_db",
+      "worst_psnr_db": 30.21,
+      "pass_db": 30.0,
+      "n_scored": 3,
+      "oracle_truth": "headless",
+      "worst_case": {
+        "param": {
+          "label": "scale50",
+          "params": [
+            {
+              "name": "Scale",
+              "id": 2,
+              "value": 50
+            }
+          ]
+        },
+        "psnr": 30.21,
+        "mad": 0.978,
+        "signed": [
+          0.299,
+          0.315,
+          0.305
+        ],
+        "resized": false,
+        "head_vs_input_mad": 12.81
+      },
+      "n_failures": 0,
+      "note": ""
     }
   },
   "history": [
@@ -2798,8 +2831,18 @@
       "id": "spatial.PAEFlop",
       "status": "VERIFIED",
       "at": "2026-07-23T09:29:02Z"
+    },
+    {
+      "id": "spatial.PAEPixellate",
+      "status": "DIVERGED",
+      "at": "2026-07-23T09:30:37Z"
+    },
+    {
+      "id": "spatial.PAEPixellate",
+      "status": "VERIFIED",
+      "at": "2026-07-23T09:38:11Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T09:29:02Z"
+  "updated": "2026-07-23T09:38:11Z"
 }
