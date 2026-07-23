@@ -3,30 +3,12 @@
     "cap": "persp.camera.identity",
     "inject": { "kind": "transform", "camera": true, "position": { "x": 0 } },
     "time": 0.0, "min_psnr": 30, "expect_identity": true,
-    "note": "Camera node present, identity transform. Floor: with a perspective Camera the base drop-zone must still render == imageA in BOTH engines. VALID oracle (no fold, so headless==GUI). PASS 43.3."
+    "note": "Floor only: with a perspective Camera the base drop-zone must still render == imageA in BOTH engines (no fold => headless==GUI here, VALID). Guards the harness. PASS 43.3."
   },
   {
-    "cap": "persp.rot.y.30",
-    "inject": { "kind": "transform", "camera": true, "rotation": { "y": 30 } },
-    "time": 0.0, "min_psnr": 26, "oracle": "INVALID_HEADLESS_NE_GUI",
-    "note": "⛔ INVALID ORACLE (found 2026-07-23, orchestrator): I built this cap believing 'a real Camera makes headless==GUI for a 3D fold'. That is FALSE for a plane-fold scene. Decompiled OZViewer::viewIsOrthographic + the exhaustive ROADMAP measurement (Reflection/Color_Planes) prove the GUI (the ONE truth) composites a Camera+NO-Replicator plane-fold ORTHOGRAPHICALLY — perspective in ANY form (raw/hinge/either sign/any D) is a MEASURED DEAD-END vs GUI GT (Reflection 14.23 ortho beats every perspective variant; Color_Planes +3.0/Reflection +0.91 for forcing ortho). Headless FCP DOES fold perspectively here, so headless != GUI. The TS engine is CORRECTLY orthographic (resolveCamera forces distance=Infinity for !hasFraming && !sceneHasReplicator). Making this cap PASS = regressing the real GUI slugs. The perspective agent's decode (finite d=width/2/tan(AOV/2), z-sign, projectPoint math) is CORRECT for headless and preserved in ROADMAP, but headless is the wrong truth for a bare-camera fold. DO NOT 'fix' the engine to this cap. A valid 3D-fold oracle needs a scene where GUI==headless (genuine 3D content: a Replicator/clone grid), which this synthetic skeleton lacks."
-  },
-  {
-    "cap": "persp.rot.x.40",
-    "inject": { "kind": "transform", "camera": true, "rotation": { "x": 40 } },
-    "time": 0.0, "min_psnr": 24, "oracle": "INVALID_HEADLESS_NE_GUI",
-    "note": "⛔ INVALID ORACLE — same as persp.rot.y.30: bare-Camera plane-fold, GUI composites orthographically (headless folds). Engine correctly orthographic. See persp.rot.y.30 note + ROADMAP 'REFLECTION perspective ALL variants DEAD-END'."
-  },
-  {
-    "cap": "persp.pos.z.push",
-    "inject": { "kind": "transform", "camera": true, "position": { "z": -400 } },
-    "time": 0.0, "min_psnr": 26, "oracle": "INVALID_HEADLESS_NE_GUI",
-    "note": "⛔ INVALID ORACLE — a Camera+NO-Replicator scene is orthographic in the GUI (OZViewer::viewIsOrthographic fires on the whole scene regardless of the transform type), so a Z-push does NOT shrink under the GUI truth even though headless applies perspective (z-push→45 dB vs headless). The engine is correctly orthographic. Same headless!=GUI split as the rotation folds. A valid Z-depth oracle needs genuine-3D scene content (replicator), not this skeleton."
-  },
-  {
-    "cap": "persp.pos.z.pull",
-    "inject": { "kind": "transform", "camera": true, "position": { "z": 300 } },
-    "time": 0.0, "min_psnr": 26, "oracle": "INVALID_HEADLESS_NE_GUI",
-    "note": "⛔ INVALID ORACLE — same as persp.pos.z.push (bare-camera scene is GUI-orthographic; headless applies perspective; engine correctly matches GUI)."
+    "cap": "persp.NOTE.no_synthetic_fold_caps",
+    "inject": { "kind": "transform", "position": { "x": 0 } },
+    "time": 0.0, "min_psnr": 0, "oracle": "INVALID_HEADLESS_NE_GUI",
+    "note": "⛔ NO synthetic bare-camera FOLD caps here (removed 2026-07-23). A Camera + NO-Replicator plane-fold is composited ORTHOGRAPHICALLY by the GUI (the ONE truth) while headless FCP folds perspectively — proven by OZViewer::viewIsOrthographic + the exhaustive ROADMAP Reflection/Color_Planes measurement (perspective is a DEAD-END vs GUI for those slugs). So a synthetic bare-camera fold cap tests against the WRONG truth. A VALID perspective oracle needs GENUINELY-3D content where GUI==headless: the camera+clone slug 3D_Rectangle (headless 32 dB vs GUI = trustworthy). That is wired as the perspective subsystem's minimized oracle (Perspective__3D_Rectangle_cam), NOT a synthetic cap. This entry is a documentation marker (SKIPped by the runner)."
   }
 ]

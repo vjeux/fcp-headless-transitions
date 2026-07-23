@@ -1,0 +1,17 @@
+{
+  "slug": "Replicator-Clones__Video_Wall",
+  "source_motr": "/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized/Replicator:Clones.localized/Video Wall.localized/Video Wall.motr",
+  "worst_frame": 19,
+  "baseline_psnr": 10.272,
+  "final_psnr": 9.668,
+  "struct_before": 18,
+  "struct_after": 6,
+  "removed": 12,
+  "nframes": 24,
+  "slack": 0.12,
+  "protect": [
+    "Replicator",
+    "Replicator Cell",
+    "Sequence Replicator"
+  ]
+}

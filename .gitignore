@@ -44,3 +44,4 @@ engine/node_modules
 # frames are re-rendered by `fct min-gen`, and _slugmap.json is scratch → ignore both.
 fct/minimized/*/engine/
 fct/minimized/*/_slugmap.json
+fct/subswarm/results/*.json

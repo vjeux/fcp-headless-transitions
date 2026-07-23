@@ -9,8 +9,8 @@
     ],
     "caps_pack": "perspective",
     "minimized_cases": [
-      "Movements__Switch",
-      "Movements__Smear"
+      "Perspective__3D_Rectangle_cam",
+      "Movements__Switch"
     ],
     "target_slugs": [
       "Movements__Switch",
@@ -20,7 +20,9 @@
       "Movements__Color_Planes",
       "Movements__Smear"
     ],
-    "note": "Camera-bearing caps isolate the perspective projection (Y/X fold, Z push) vs FCP. Camera-less would be a FALSE FAIL (headless!=GUI); every persp.* cap inserts a real Camera so headless is a valid oracle. Minimized Switch/Smear are node-level real-slug repros."
+    "note": "Camera-bearing caps isolate the perspective projection (Y/X fold, Z push) vs FCP. Camera-less would be a FALSE FAIL (headless!=GUI); every persp.* cap inserts a real Camera so headless is a valid oracle. Minimized Switch/Smear are node-level real-slug repros.",
+    "oracle_status": "LIVE",
+    "oracle_note": "FIXED 2026-07-23: the synthetic bare-camera FOLD caps were an INVALID oracle (Camera+NO-Replicator plane-fold is GUI-orthographic while headless folds \u2014 headless!=GUI, proven by OZViewer::viewIsOrthographic + the ROADMAP Reflection/Color_Planes dead-end). Removed them. The VALID perspective-projection oracle is a GENUINELY-3D scene where headless~GUI: 3D_Rectangle (camera + 25 clone layers; headless 32 dB vs GUI = trustworthy per ROADMAP). Re-minimized with `--protect Camera,Clone Layer` (+ ancestor-chain protection) -> Perspective__3D_Rectangle_cam RETAINS the camera + 25 clone layers (exercises perspective.ts/z-composite.ts; 13.68 dB mean / 8.89 worst vs headless FCP). This is where the perspective subsystem's dB deficit is measurable against a real oracle. Movements__Switch (Rig/Link) is kept as a secondary node-level repro."
   },
   "replicator": {
     "title": "Replicator / clone-grid",
@@ -31,9 +33,7 @@
     ],
     "caps_pack": "replicator",
     "minimized_cases": [
-      "Replicator-Clones__Clone_Spin",
-      "Replicator-Clones__Concentric",
-      "Replicator-Clones__Video_Wall"
+      "Replicator-Clones__Video_Wall_rep"
     ],
     "target_slugs": [
       "Replicator-Clones__Clone_Spin",
@@ -43,8 +43,8 @@
       "Replicator-Clones__Multi"
     ],
     "note": "The replicator pinwheel/grid is barely composited (ROADMAP: 'broken single-tile spin on black' vs FCP's full multi-blade replicator). Minimized Clone_Spin/Concentric/Video_Wall are the node-level FCP repros. Caps pack builds a minimal Replicator grid vs FCP.",
-    "oracle_status": "DEGRADED",
-    "oracle_note": "ORACLE GAP (found 2026-07-23): the minimized Video_Wall/Clone_Spin/Concentric cases have their Replicator scenenodes STRIPPED by `fct minimize` (the <factory> 'Replicator' description remains but the scenenode is gone), so they parse to camera/group/image with ZERO replicator layers \u2014 replicator.ts (generateInstances / renderReplicatorLayer) is never exercised and min-score cannot measure a change. AND the pinwheel/grid fix is CROSS-LANE: the decoded generateInstances bug (Shape branch ignores `arrangement`, stacking grid cells at origin \u2014 commit 674f98a) regresses Video_Wall in isolation because the mis-posed dolly camera + retime-wrap playhead (framing.ts / timemap.ts, OTHER files) frame a region derived from the current stacked geometry. A faithful replicator fix needs (a) a re-minimized case that RETAINS a live Replicator node, and (b) the camera-framing lane co-tuned. Single-subsystem isolation is insufficient for this subsystem."
+    "oracle_status": "LIVE",
+    "oracle_note": "FIXED 2026-07-23: the old minimized Video_Wall/Clone_Spin/Concentric cases had their Replicator scenenodes STRIPPED by `fct minimize` (parsed to 0 replicator layers). Re-minimized with `--protect Replicator,Sequence Replicator,Replicator Cell` -> Video_Wall_rep RETAINS 14 live replicator layers (engine replicator.ts IS exercised; 9.39 dB mean / 7.04 worst vs headless FCP). NOTE: Clone_Spin is a FRAMING-CAMERA slug (0 replicators \u2014 11 image drop-zones + framing camera) and Concentric is a CLONE-LAYER slug (0 replicators) \u2014 neither exercises replicator.ts; they belong to the perspective/framing path. So the single true replicator-node oracle is Video_Wall_rep. The pinwheel fix may still be cross-lane (camera framing), but replicator.ts changes are now MEASURABLE."
   },
   "panels": {
     "title": "kinetic-panel / gradient / mask",

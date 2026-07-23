@@ -242,18 +242,84 @@ def _find_worst_frame(motr_path, tmp, nframes, worker=None):
     return best_i, best_mse
 
 
-def _iter_struct(root):
-    """(parent, child) for removable STRUCTURAL child elements, deepest-first."""
+def _factory_desc_map(root):
+    """Map factory-id (int) -> description string from the .motr's <factory> table, so a
+    scenenode's factoryID can be resolved to its Motion type (e.g. "Replicator"). Robust
+    across files (ids are per-document; descriptions are stable Motion type names)."""
+    m = {}
+    for f in root.iter():
+        if _localname(f.tag) != "factory":
+            continue
+        fid = f.get("id")
+        if fid is None:
+            continue
+        desc_el = next((c for c in f if _localname(c.tag) == "description"), None)
+        if desc_el is not None and desc_el.text:
+            try:
+                m[int(fid)] = desc_el.text.strip()
+            except ValueError:
+                pass
+    return m
+
+
+def _is_protected(el, factory_desc, protect):
+    """A structural element is protected (never stripped) when its factoryID resolves to a
+    Motion type in `protect` (e.g. {"Replicator","Sequence Replicator","Replicator Cell"}),
+    so a re-minimized repro RETAINS the node that exercises the target subsystem. Also
+    protects any structural descendant of a protected node (the cell/source must survive
+    with its replicator) — checked by the caller via the ancestor set."""
+    if not protect:
+        return False
+    fid = el.get("factoryID")
+    if fid is None:
+        return False
+    try:
+        return factory_desc.get(int(fid), "") in protect
+    except ValueError:
+        return False
+
+
+def _iter_struct(root, protect=None, factory_desc=None):
+    """(parent, child) for removable STRUCTURAL child elements, deepest-first.
+
+    When `protect` is given (a set of Motion factory-description type names), any node
+    whose factoryID resolves to a protected type — AND every structural descendant of such
+    a node — is EXCLUDED from removal. This lets a re-minimize keep a live Replicator (and
+    its cell/source subtree) so the reduced repro still exercises replicator.ts, instead of
+    delta-debug stripping the replicator because the divergence has other contributors too.
+    """
+    factory_desc = factory_desc if factory_desc is not None else (_factory_desc_map(root) if protect else {})
     parent = {}
     order = []
+    # Mark protected roots and all their descendants.
+    protected = set()
+    def mark(e, under_protected):
+        p = under_protected or _is_protected(e, factory_desc, protect)
+        if p:
+            protected.add(e)
+        for c in list(e):
+            mark(c, p)
+    if protect:
+        mark(root, False)
     def walk(e):
         for c in list(e):
             parent[c] = e
             walk(c)
             order.append(c)
     walk(root)
+    # Also protect the ANCESTOR CHAIN of every protected node: you cannot strip a container
+    # (e.g. the plain <layer>/<group> holding the Clone Layers) without taking the protected
+    # nodes with it. Without this, the minimizer removed the un-typed parent group and every
+    # protected clone inside it (3D_Rectangle went 25 clones -> 0 despite --protect "Clone
+    # Layer"). Walk each protected node up to the root and protect every ancestor.
+    if protect:
+        for c in list(protected):
+            a = parent.get(c)
+            while a is not None:
+                protected.add(a)
+                a = parent.get(a)
     for c in order:
-        if _localname(c.tag) in _STRUCT_TAGS:
+        if _localname(c.tag) in _STRUCT_TAGS and c not in protected:
             yield parent[c], c
 
 
@@ -274,7 +340,7 @@ def _iter_params(root):
 
 
 def minimize(slug, nframes=None, keep_above=25.0, slack=0.12, max_passes=6,
-             out_name=None, do_params=False, probe_frame=None):
+             out_name=None, do_params=False, probe_frame=None, protect=None):
     from fct.config import N_FRAMES, slug_motr
     # The ddmin hot loop drives every headless render through a SINGLE persistent worker
     # (_HeadlessWorker) that boots the FCP Ozone engine once and respawns only on an
@@ -301,14 +367,20 @@ def minimize(slug, nframes=None, keep_above=25.0, slack=0.12, max_passes=6,
         return _minimize_body(slug, tree, root, work, cur, src, fi_probe=probe_frame,
                               nframes=nframes, keep_above=keep_above, slack=slack,
                               max_passes=max_passes, out_name=out_name,
-                              do_params=do_params, worker=worker)
+                              do_params=do_params, worker=worker, protect=protect)
     finally:
         worker.close()
         shutil.rmtree(work, ignore_errors=True)
 
 
 def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_above,
-                   slack, max_passes, out_name, do_params, worker):
+                   slack, max_passes, out_name, do_params, worker, protect=None):
+    # Resolve the protect set (Motion factory-description type names) to the factory map
+    # ONCE — nodes of these types (+ their structural descendants) are never stripped, so
+    # a re-minimize retains a live Replicator subtree (see _iter_struct docstring).
+    protect = set(protect) if protect else None
+    factory_desc = _factory_desc_map(root) if protect else {}
+    def _struct_iter(r): return _iter_struct(r, protect=protect, factory_desc=factory_desc)
     # 1. worst frame + baseline divergence (skip the scan if --frame was given).
     if fi_probe is not None:
         fi = fi_probe
@@ -324,7 +396,7 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
     target = d0 * (1.0 - slack)
 
     def _count(it): return sum(1 for _ in it(root))
-    n_struct0 = _count(_iter_struct)
+    n_struct0 = _count(_struct_iter)
     removed = 0
 
     def _run_pass(iter_fn, label):
@@ -350,8 +422,8 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
 
     # 2. coarse structural passes
     for p in range(max_passes):
-        changed = _run_pass(_iter_struct, "struct")
-        rem = _count(_iter_struct)
+        changed = _run_pass(_struct_iter, "struct")
+        rem = _count(_struct_iter)
         print(f"[minimize] struct pass {p+1}: removed {removed}/{n_struct0}, remaining {rem}", flush=True)
         if not changed:
             break
@@ -376,8 +448,9 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
     man = {
         "slug": slug, "source_motr": src, "worst_frame": fi,
         "baseline_psnr": round(psnr0, 3), "final_psnr": round(psnr_f, 3),
-        "struct_before": n_struct0, "struct_after": _count(_iter_struct),
+        "struct_before": n_struct0, "struct_after": _count(_struct_iter),
         "removed": removed, "nframes": nframes, "slack": slack,
+        "protect": sorted(protect) if protect else None,
     }
     json.dump(man, open(os.path.join(case, "manifest.json"), "w"), indent=2)
     print(f"[minimize] DONE {slug}: struct {n_struct0}->{man['struct_after']}, "
@@ -406,7 +479,7 @@ def _render_case_frames(motr_path, case_dir, nframes, worker=None):
 def run(argv):
     if not argv:
         print("usage: fct minimize <slug> [--frames N] [--frame I] [--keep-above dB] "
-              "[--slack F] [--name NAME] [--params]")
+              "[--slack F] [--name NAME] [--params] [--protect TYPE[,TYPE...]]")
         return 1
     slug = argv[0]
     def opt(name, default=None, cast=str):
@@ -414,11 +487,17 @@ def run(argv):
             i = argv.index(name)
             if i + 1 < len(argv): return cast(argv[i + 1])
         return default
+    # --protect keeps nodes of the named Motion factory types (and their subtrees) from
+    # being stripped, so the reduced repro still EXERCISES that subsystem. Comma-separated
+    # Motion type descriptions, e.g. --protect Replicator,Sequence Replicator,Replicator Cell.
+    protect_arg = opt("--protect", None, str)
+    protect = [t.strip() for t in protect_arg.split(",") if t.strip()] if protect_arg else None
     minimize(slug,
              nframes=opt("--frames", None, int),
              keep_above=opt("--keep-above", 25.0, float),
              slack=opt("--slack", 0.12, float),
              out_name=opt("--name", None, str),
              do_params="--params" in argv,
-             probe_frame=opt("--frame", None, int))
+             probe_frame=opt("--frame", None, int),
+             protect=protect)
     return 0

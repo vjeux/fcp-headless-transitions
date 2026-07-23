@@ -1,0 +1,16 @@
+{
+  "slug": "Replicator-Clones__3D_Rectangle",
+  "source_motr": "/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized/Replicator:Clones.localized/3D Rectangle.localized/3D Rectangle.motr",
+  "worst_frame": 7,
+  "baseline_psnr": 14.309,
+  "final_psnr": 10.331,
+  "struct_before": 30,
+  "struct_after": 2,
+  "removed": 28,
+  "nframes": 24,
+  "slack": 0.12,
+  "protect": [
+    "Camera",
+    "Clone Layer"
+  ]
+}
