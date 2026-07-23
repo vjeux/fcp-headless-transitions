@@ -31,6 +31,7 @@ VERIFIED = {
     "transfer.PAELevels", "transfer.PAELevels_remap", "transfer.PAEChannelMixer",
     "transfer.PAEBrightness_darken",
     "transfer.PAEThreshold",
+    "transfer.PAEContrast_gray",
 }
 
 out = {}

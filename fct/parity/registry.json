@@ -1825,6 +1825,266 @@
    ]
   },
   {
+   "id": "transfer.PAEContrast",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAEContrast per-pixel transfer: affine scale about a 0.5 pivot in the gamma-1.958 working space (out_ws = 0.5 + (ws(in)-0.5)*Contrast). DECODED+VERIFIED 2026-07-22 (0.18 rms). Same unified colour WS as Tint/HSV/Colorize/Levels. 12+ shipping hosts.",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "B13B57AC-811B-4A24-BB5A-2167A3C66F5F",
+    "pluginName": "PAEContrast"
+   },
+   "param_cases": [
+    {
+     "label": "c0.5",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 0.5
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "c0.75",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 0.75
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "c1.0",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 1.0
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "c1.25",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 1.25
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "c1.5",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 1.5
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "c2.0",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 2.0
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    }
+   ],
+   "characterized": true
+  },
+  {
+   "id": "transfer.PAEContrast_gray",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAEContrast on GRAY/neutral inputs \u2014 the pointwise decode (affine about 0.5 in gamma-1.958 WS) VERIFIED exact (0.18 rms). Saturated-colour over-clip is the shared HGColorMatrix GPU-readback lift, isolated in transfer.PAEContrast (characterized).",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "B13B57AC-811B-4A24-BB5A-2167A3C66F5F",
+    "pluginName": "PAEContrast"
+   },
+   "param_cases": [
+    {
+     "label": "c0.5",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 0.5
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "c0.75",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 0.75
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "c1.0",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 1.0
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "c1.25",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 1.25
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "c1.5",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 1.5
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "c2.0",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 2.0
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    }
+   ],
+   "characterized": true,
+   "inputs": [
+    [
+     8,
+     8,
+     8
+    ],
+    [
+     16,
+     16,
+     16
+    ],
+    [
+     32,
+     32,
+     32
+    ],
+    [
+     64,
+     64,
+     64
+    ],
+    [
+     96,
+     96,
+     96
+    ],
+    [
+     128,
+     128,
+     128
+    ],
+    [
+     160,
+     160,
+     160
+    ],
+    [
+     192,
+     192,
+     192
+    ],
+    [
+     224,
+     224,
+     224
+    ],
+    [
+     248,
+     248,
+     248
+    ]
+   ]
+  },
+  {
    "id": "filter.PAEColorize",
    "subsystem": "color",
    "kind": "filter",

@@ -1,0 +1,1965 @@
+{
+  "id": "transfer.PAEContrast_gray",
+  "kind": "transfer",
+  "status": "VERIFIED",
+  "metric": "max_abs_levels",
+  "max_abs_levels": 0.789999999999992,
+  "n_samples": 180,
+  "tol_levels": 2.0,
+  "worst": {
+    "case": {
+      "label": "c0.5",
+      "params": [
+        {
+          "name": "Contrast",
+          "id": 1,
+          "value": 0.5
+        },
+        {
+          "name": "Mix",
+          "id": 10001,
+          "value": 1.0
+        }
+      ]
+    },
+    "input": [
+      248,
+      248,
+      248
+    ],
+    "oracle": [
+      142.23,
+      142.21,
+      142.25
+    ],
+    "engine": [
+      143.0,
+      143.0,
+      143.0
+    ]
+  },
+  "oracle_truth": "transfer",
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "c0.5",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 0.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        8,
+        8,
+        8
+      ],
+      "oracle": [
+        30.35,
+        30.35,
+        30.35
+      ],
+      "engine": [
+        30.0,
+        30.0,
+        30.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c0.5",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 0.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        36.95,
+        36.88,
+        36.95
+      ],
+      "engine": [
+        37.0,
+        37.0,
+        37.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c0.5",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 0.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        47.4,
+        47.4,
+        47.41
+      ],
+      "engine": [
+        47.0,
+        47.0,
+        47.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c0.5",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 0.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        64.91,
+        64.93,
+        64.92
+      ],
+      "engine": [
+        65.0,
+        65.0,
+        65.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c0.5",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 0.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        96,
+        96,
+        96
+      ],
+      "oracle": [
+        80.06,
+        80.06,
+        80.05
+      ],
+      "engine": [
+        80.0,
+        80.0,
+        80.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c0.5",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 0.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        94.33,
+        94.36,
+        94.38
+      ],
+      "engine": [
+        94.0,
+        94.0,
+        94.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c0.5",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 0.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        160,
+        160,
+        160
+      ],
+      "oracle": [
+        107.68,
+        107.79,
+        107.66
+      ],
+      "engine": [
+        108.0,
+        108.0,
+        108.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c0.5",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 0.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        192,
+        192,
+        192
+      ],
+      "oracle": [
+        120.99,
+        120.96,
+        120.94
+      ],
+      "engine": [
+        121.0,
+        121.0,
+        121.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c0.5",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 0.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        224,
+        224,
+        224
+      ],
+      "oracle": [
+        133.34,
+        133.33,
+        133.57
+      ],
+      "engine": [
+        133.0,
+        133.0,
+        133.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c0.5",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 0.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        248,
+        248,
+        248
+      ],
+      "oracle": [
+        142.23,
+        142.21,
+        142.25
+      ],
+      "engine": [
+        143.0,
+        143.0,
+        143.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c0.75",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 0.75
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        8,
+        8,
+        8
+      ],
+      "oracle": [
+        17.25,
+        17.01,
+        17.02
+      ],
+      "engine": [
+        17.0,
+        17.0,
+        17.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c0.75",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 0.75
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        25.23,
+        25.03,
+        25.23
+      ],
+      "engine": [
+        25.0,
+        25.0,
+        25.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c0.75",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 0.75
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        39.45,
+        39.47,
+        39.47
+      ],
+      "engine": [
+        39.0,
+        39.0,
+        39.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c0.75",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 0.75
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        64.55,
+        64.56,
+        64.56
+      ],
+      "engine": [
+        64.0,
+        64.0,
+        64.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c0.75",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 0.75
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        96,
+        96,
+        96
+      ],
+      "oracle": [
+        87.88,
+        87.67,
+        87.75
+      ],
+      "engine": [
+        88.0,
+        88.0,
+        88.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c0.75",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 0.75
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        110.55,
+        110.56,
+        110.58
+      ],
+      "engine": [
+        111.0,
+        111.0,
+        111.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c0.75",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 0.75
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        160,
+        160,
+        160
+      ],
+      "oracle": [
+        132.74,
+        132.72,
+        132.77
+      ],
+      "engine": [
+        133.0,
+        133.0,
+        133.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c0.75",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 0.75
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        192,
+        192,
+        192
+      ],
+      "oracle": [
+        154.4,
+        154.37,
+        154.35
+      ],
+      "engine": [
+        154.0,
+        154.0,
+        154.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c0.75",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 0.75
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        224,
+        224,
+        224
+      ],
+      "oracle": [
+        175.84,
+        175.88,
+        175.89
+      ],
+      "engine": [
+        176.0,
+        176.0,
+        176.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c0.75",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 0.75
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        248,
+        248,
+        248
+      ],
+      "oracle": [
+        191.37,
+        191.38,
+        191.4
+      ],
+      "engine": [
+        192.0,
+        192.0,
+        192.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.0",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        8,
+        8,
+        8
+      ],
+      "oracle": [
+        8.0,
+        8.0,
+        8.0
+      ],
+      "engine": [
+        8.0,
+        8.0,
+        8.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.0",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        16.05,
+        16.01,
+        16.06
+      ],
+      "engine": [
+        16.0,
+        16.0,
+        16.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.0",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        32.2,
+        31.99,
+        32.2
+      ],
+      "engine": [
+        32.0,
+        32.0,
+        32.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.0",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        64.19,
+        64.19,
+        64.17
+      ],
+      "engine": [
+        64.0,
+        64.0,
+        64.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.0",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        96,
+        96,
+        96
+      ],
+      "oracle": [
+        95.87,
+        95.93,
+        95.91
+      ],
+      "engine": [
+        96.0,
+        96.0,
+        96.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.0",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        128.01,
+        128.02,
+        128.0
+      ],
+      "engine": [
+        128.0,
+        128.0,
+        128.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.0",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        160,
+        160,
+        160
+      ],
+      "oracle": [
+        160.1,
+        160.12,
+        160.13
+      ],
+      "engine": [
+        160.0,
+        160.0,
+        160.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.0",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        192,
+        192,
+        192
+      ],
+      "oracle": [
+        191.85,
+        191.86,
+        191.85
+      ],
+      "engine": [
+        192.0,
+        192.0,
+        192.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.0",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        224,
+        224,
+        224
+      ],
+      "oracle": [
+        223.85,
+        223.62,
+        223.69
+      ],
+      "engine": [
+        224.0,
+        224.0,
+        224.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.0",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        248,
+        248,
+        248
+      ],
+      "oracle": [
+        247.93,
+        247.94,
+        247.94
+      ],
+      "engine": [
+        248.0,
+        248.0,
+        248.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.25",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.25
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        8,
+        8,
+        8
+      ],
+      "oracle": [
+        2.0,
+        2.0,
+        2.0
+      ],
+      "engine": [
+        2.0,
+        2.0,
+        2.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.25",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.25
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        8.88,
+        8.88,
+        8.88
+      ],
+      "engine": [
+        9.0,
+        9.0,
+        9.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.25",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.25
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        25.23,
+        25.08,
+        25.2
+      ],
+      "engine": [
+        25.0,
+        25.0,
+        25.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.25",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.25
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        63.68,
+        63.69,
+        63.7
+      ],
+      "engine": [
+        64.0,
+        64.0,
+        64.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.25",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.25
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        96,
+        96,
+        96
+      ],
+      "oracle": [
+        104.65,
+        104.44,
+        104.44
+      ],
+      "engine": [
+        104.0,
+        104.0,
+        104.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.25",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.25
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        146.54,
+        146.56,
+        146.32
+      ],
+      "engine": [
+        147.0,
+        147.0,
+        147.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.25",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.25
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        160,
+        160,
+        160
+      ],
+      "oracle": [
+        189.8,
+        189.6,
+        189.64
+      ],
+      "engine": [
+        190.0,
+        190.0,
+        190.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.25",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.25
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        192,
+        192,
+        192
+      ],
+      "oracle": [
+        233.64,
+        233.62,
+        233.61
+      ],
+      "engine": [
+        234.0,
+        234.0,
+        234.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.25",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.25
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        224,
+        224,
+        224
+      ],
+      "oracle": [
+        255.0,
+        255.0,
+        255.0
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.25",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.25
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        248,
+        248,
+        248
+      ],
+      "oracle": [
+        255.0,
+        255.0,
+        255.0
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.5",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        8,
+        8,
+        8
+      ],
+      "oracle": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.5",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        3.79,
+        3.81,
+        3.8
+      ],
+      "engine": [
+        4.0,
+        4.0,
+        4.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.5",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        19.33,
+        19.31,
+        19.32
+      ],
+      "engine": [
+        20.0,
+        20.0,
+        20.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.5",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        63.31,
+        63.31,
+        63.32
+      ],
+      "engine": [
+        63.0,
+        63.0,
+        63.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.5",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        96,
+        96,
+        96
+      ],
+      "oracle": [
+        113.55,
+        113.51,
+        113.52
+      ],
+      "engine": [
+        113.0,
+        113.0,
+        113.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.5",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        166.65,
+        166.63,
+        166.63
+      ],
+      "engine": [
+        167.0,
+        167.0,
+        167.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.5",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        160,
+        160,
+        160
+      ],
+      "oracle": [
+        222.06,
+        221.86,
+        221.88
+      ],
+      "engine": [
+        222.0,
+        222.0,
+        222.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.5",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        192,
+        192,
+        192
+      ],
+      "oracle": [
+        255.0,
+        255.0,
+        255.0
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.5",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        224,
+        224,
+        224
+      ],
+      "oracle": [
+        255.0,
+        255.0,
+        255.0
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c1.5",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 1.5
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        248,
+        248,
+        248
+      ],
+      "oracle": [
+        255.0,
+        255.0,
+        255.0
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c2.0",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 2.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        8,
+        8,
+        8
+      ],
+      "oracle": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c2.0",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 2.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "engine": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c2.0",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 2.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        10.16,
+        10.0,
+        10.11
+      ],
+      "engine": [
+        10.0,
+        10.0,
+        10.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c2.0",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 2.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        62.42,
+        62.44,
+        62.44
+      ],
+      "engine": [
+        62.0,
+        62.0,
+        62.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c2.0",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 2.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        96,
+        96,
+        96
+      ],
+      "oracle": [
+        131.66,
+        131.64,
+        131.65
+      ],
+      "engine": [
+        132.0,
+        132.0,
+        132.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c2.0",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 2.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        210.21,
+        210.37,
+        210.34
+      ],
+      "engine": [
+        210.0,
+        210.0,
+        210.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c2.0",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 2.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        160,
+        160,
+        160
+      ],
+      "oracle": [
+        255.0,
+        255.0,
+        255.0
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c2.0",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 2.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        192,
+        192,
+        192
+      ],
+      "oracle": [
+        255.0,
+        255.0,
+        255.0
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c2.0",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 2.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        224,
+        224,
+        224
+      ],
+      "oracle": [
+        255.0,
+        255.0,
+        255.0
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    },
+    {
+      "param": {
+        "label": "c2.0",
+        "params": [
+          {
+            "name": "Contrast",
+            "id": 1,
+            "value": 2.0
+          },
+          {
+            "name": "Mix",
+            "id": 10001,
+            "value": 1.0
+          }
+        ]
+      },
+      "input": [
+        248,
+        248,
+        248
+      ],
+      "oracle": [
+        255.0,
+        255.0,
+        255.0
+      ],
+      "engine": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    }
+  ]
+}

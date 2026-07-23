@@ -1158,6 +1158,92 @@
       },
       "oracle_truth": "transfer",
       "n_failures": 0
+    },
+    "transfer.PAEContrast": {
+      "id": "transfer.PAEContrast",
+      "kind": "transfer",
+      "status": "DIVERGED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 133.0,
+      "n_samples": 162,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "label": "c2.0",
+          "params": [
+            {
+              "name": "Contrast",
+              "id": 1,
+              "value": 2.0
+            },
+            {
+              "name": "Mix",
+              "id": 10001,
+              "value": 1.0
+            }
+          ]
+        },
+        "input": [
+          50,
+          200,
+          50
+        ],
+        "oracle": [
+          169.0,
+          255.0,
+          136.0
+        ],
+        "engine": [
+          36.0,
+          255.0,
+          36.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
+    },
+    "transfer.PAEContrast_gray": {
+      "id": "transfer.PAEContrast_gray",
+      "kind": "transfer",
+      "status": "VERIFIED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 0.789999999999992,
+      "n_samples": 180,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "label": "c0.5",
+          "params": [
+            {
+              "name": "Contrast",
+              "id": 1,
+              "value": 0.5
+            },
+            {
+              "name": "Mix",
+              "id": 10001,
+              "value": 1.0
+            }
+          ]
+        },
+        "input": [
+          248,
+          248,
+          248
+        ],
+        "oracle": [
+          142.23,
+          142.21,
+          142.25
+        ],
+        "engine": [
+          143.0,
+          143.0,
+          143.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
     }
   },
   "history": [
@@ -1545,8 +1631,23 @@
       "id": "transfer.PAEThreshold",
       "status": "VERIFIED",
       "at": "2026-07-23T00:30:33Z"
+    },
+    {
+      "id": "transfer.PAEContrast",
+      "status": "DIVERGED",
+      "at": "2026-07-23T00:56:26Z"
+    },
+    {
+      "id": "transfer.PAEContrast",
+      "status": "DIVERGED",
+      "at": "2026-07-23T00:56:56Z"
+    },
+    {
+      "id": "transfer.PAEContrast_gray",
+      "status": "VERIFIED",
+      "at": "2026-07-23T01:00:22Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T00:30:33Z"
+  "updated": "2026-07-23T01:00:22Z"
 }

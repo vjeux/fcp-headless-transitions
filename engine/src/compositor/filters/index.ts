@@ -28,6 +28,7 @@ import './blackhole.js';      // registers Black Hole (radial gravity-lens warp,
 import './badtv.js';          // registers Bad TV (scanlines + desaturate; roll/wave/static RNG)
 import './vignette.js';       // registers Vignette (radial smoothstep darken; HgcVignette)
 import './threshold.js';      // registers Threshold (soft luma binarize; HgcThreshold, split=Threshold verified)
+import './contrast.js';       // registers Contrast (PAEContrast; affine-about-0.5 in gamma-1.958 WS, decoded 2026-07-22)
 import './pixellate.js';      // registers Pixellate (Scale-px mosaic; HgcPixellate coord-quantize)
 import './fisheye.js';        // registers Fisheye (anisotropic radial power warp; HgcFisheye, exp=Amount/30+1)
 
