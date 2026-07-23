@@ -203,8 +203,8 @@ function scanlineFactor(y: number, height: number, scanBright: number, rollPhase
 }
 // Decoded scan-line constants (headless flat-ramp transfer sweep @ sb∈{1,1.25,1.5,2}):
 //   dark-band multiplier ≈1.02 (nearly unchanged), applied gamma ≈0.46 (constant across sb>1).
-const SCAN_DARK_FACTOR = 1.02;
-const SCAN_GAMMA = 0.46;
+const SCAN_DARK_FACTOR = 1.013;
+const SCAN_GAMMA = 0.455;
 
 /** dSFMT-driven per-scanline random-walk displacement table (createWavyTable shape).
  * Deterministic for a fixed frame; we key the seed off ctx.time*fps like the host
