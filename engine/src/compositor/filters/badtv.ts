@@ -129,8 +129,28 @@
  *       noise.ts) which is itself RNG-seeded per frame — same caveat. We add a
  *       structurally-faithful noise overlay but do not claim RNG parity.
  *
- * Best headless-vs-TS on engine/test/start.png (deterministic-only, Static=0,
- * Waviness=0, Roll=0): see the accompanying verify run in the task report.
+ *   ── ⚠️ CORRECTION (2026-07-23): the noise RNG is std::mt19937, NOT dSFMT, and it
+ *   is DETERMINISTIC + recoverable (same theme as Earthquake/Underwater/CloudsV). Decode:
+ *     • -[PAEBadTV canThrowRenderOutput] @0x7e230 calls frameFromFxTime: then
+ *       PAEGenerateNoise(width, height, NoiseType=0, ..., autoAnimate, randomSeed, Minv)
+ *       @ProAppsFxSupport 0xa783c.
+ *     • PAEGenerateNoise seeds a C++ std::mersenne_twister_engine (MT19937 — the canonical
+ *       params Lm624/Lm397/1812433253/2567483615/2636928640/4022730752 are in the mangled
+ *       uniform_int_distribution<mersenne_twister_engine<...>> symbol), draws via
+ *       uniform_int_distribution + PCRandomShuffle, and fills an HSampleTiledNoise. The
+ *       SEED is  csel w20, (int)(2*frameParam), randomSeed, autoAnimate  — i.e.
+ *       autoAnimate ? 2*frame(+bias) : Random Seed. Per-(seed,NoiseType) the noise field is
+ *       CACHED (function-local statics @0x381xxx), so it is deterministic per frame.
+ *     • The HgcBadTV shader samples hg_Texture0 with a coordinate derived from a SINGLE
+ *       texCoord projection (r0.x=dot(texCoord0,P3); floor(r0.y/P9.x)…) → the waviness/roll
+ *       noise is a 1-D PER-SCANLINE field (a row-indexed displacement), NOT a 2-D per-pixel
+ *       white field like PAENoise. A 1-D scanline field is LOW-DIMENSIONAL and matchable.
+ *   ⇒ At t=0 (frame 0) the MT seed is fixed, so BadTV's waviness/roll is byte-recoverable in
+ *     principle. Since BadTV is a FILTER (real input frame), it is node-boundary testable
+ *     (unlike the generators). REMAINING to a match: port MT19937 + the HSampleTiledNoise
+ *     tiling + the 1-D scanline index + the shader's luma/chroma-aberration mix, then verify
+ *     at t=0 via the spatial harness. The dSFMT claim above is superseded (that was PAENoise's
+ *     generator; BadTV's is MT19937). Static overlay = the separate HgcBadTVNoise 2-D field.
  */
 import { registerFilter, type FilterContext } from './registry.js';
 import { applyNoiseGenerator } from './noise.js';
