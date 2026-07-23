@@ -721,3 +721,23 @@ of 5 nodes identically — all VERIFIED on grays/in-gamut.
 
 Colour node coverage: 16 nodes / 564 REAL-headless-FCP golden cases, 544 pass, 0 VERIFIED regressions.
 Session decodes: Threshold(bugfix), Contrast(new), Levels-outremap(new+IDs), Fill(new).
+
+
+## UPDATE 2026-07-22 (session 2 cont.) — Levels stages do NOT naively compose (characterized)
+
+Captured a COMBINED Levels sweep (Black In + White In + Gamma + Black Out + White Out all
+non-default, 3 combos × 9 grays) — each leg is VERIFIED alone (Levels gamma 0.71, _remap 0.81,
+_outremap 0.63) but COMBINED they diverge to 12 rms / 24 worst. Added transfer.PAELevels_combined
+(CHARACTERIZED). Key contradiction found:
+  - transfer.PAELevels_outremap (gamma=1): output-remap matches a WS lerp — out=ws_inv(bo+ws(in)*(wo-bo)).
+  - combo3 (gamma=2 + out-remap 0.1-0.9): the SAME output-remap matches a CODE-space lerp
+    (out=code*(wo-bo)+bo*255) — model B, 76.6 vs oracle 77.2 — and the WS lerp is 13 off.
+  These two are MUTUALLY EXCLUSIVE under a simple ordered pipeline, so FCP's HgcLevels composes
+  its stages in a way not captured by {in-remap → gamma → out-remap} in one space. The header
+  already noted a possible TWO-STAGE HgcLevels structure; this sweep is the evidence. NOT shipping
+  a code-space output-remap (it would break the VERIFIED outremap-alone node 0.6→16 rms). Left the
+  engine's per-leg-verified WS path unchanged; combined composition needs the 2-stage HgcLevels
+  disasm. Evidence: evidence/levels_combined_probe.json.
+
+Colour nodes: 17 (16 + combined-characterized). The 3 Levels legs remain VERIFIED (the shipping
+case — most transitions author only one of {gamma, in-remap, out-remap}).

@@ -2342,6 +2342,149 @@
    }
   },
   {
+   "id": "transfer.PAELevels_combined",
+   "subsystem": "color",
+   "kind": "transfer",
+   "characterized": true,
+   "desc": "PAELevels ALL stages together (in-remap + gamma + out-remap). CHARACTERIZED 2026-07-22: the stages do NOT naively compose in one WS pass. DECODED order = in-remap+gamma in the gamma-1.958 WS, DECODE to code, then output-remap in CODE space (out=code*(wo-bo)+bo*255). This brings the combined error 12->3.4 rms; a ~3-level mid offset + ~12 at the white-in clip edge remain (clip-interaction, further decode). Each leg VERIFIED alone (Levels/_remap/_outremap).",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "2B221FA1-08A2-416E-998C-D7559E5509B5",
+    "pluginName": "PAELevels"
+   },
+   "engine_env": {
+    "FCT_LEVELS_WS": "1"
+   },
+   "param_cases": [
+    {
+     "label": "in+gamma+out",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "RGB",
+         "id": 2,
+         "children": [
+          {
+           "name": "Black In",
+           "id": 1,
+           "value": 0.1
+          },
+          {
+           "name": "White In",
+           "id": 3,
+           "value": 0.9
+          },
+          {
+           "name": "Gamma",
+           "id": 5,
+           "value": 1.5
+          },
+          {
+           "name": "Black Out",
+           "id": 2,
+           "value": 0.05
+          },
+          {
+           "name": "White Out",
+           "id": 4,
+           "value": 0.95
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "in+gammaLT1",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "RGB",
+         "id": 2,
+         "children": [
+          {
+           "name": "Black In",
+           "id": 1,
+           "value": 0.2
+          },
+          {
+           "name": "White In",
+           "id": 3,
+           "value": 0.8
+          },
+          {
+           "name": "Gamma",
+           "id": 5,
+           "value": 0.7
+          },
+          {
+           "name": "Black Out",
+           "id": 2,
+           "value": 0.0
+          },
+          {
+           "name": "White Out",
+           "id": 4,
+           "value": 1.0
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "gamma2+out",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "RGB",
+         "id": 2,
+         "children": [
+          {
+           "name": "Black In",
+           "id": 1,
+           "value": 0.0
+          },
+          {
+           "name": "White In",
+           "id": 3,
+           "value": 1.0
+          },
+          {
+           "name": "Gamma",
+           "id": 5,
+           "value": 2.0
+          },
+          {
+           "name": "Black Out",
+           "id": 2,
+           "value": 0.1
+          },
+          {
+           "name": "White Out",
+           "id": 4,
+           "value": 0.9
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "filter.PAEColorize",
    "subsystem": "color",
    "kind": "filter",
