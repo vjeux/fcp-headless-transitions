@@ -69,6 +69,29 @@ export function generateInstances(config: ReplicatorConfig): ReplicatorInstance[
   // large outer one). Fully param-driven; no per-transition constant. shape 1 =
   // Circle, 3 = Spiral. (Grid shapes 0/5 and image shape 6 fall through to the
   // legacy grid/point path below.)
+  //
+  // ⚠️ DECODED BUG + MEASURED DEAD-END (2026-07-23, subsw-replicator lane):
+  // This branch fires on ANY replicator with shape∈{1,3} & points>0, regardless of
+  // `arrangement`. That is WRONG for Video Wall's grid replicators, which author a
+  // RECTANGLE grid (arrangement=1, cols=3/rows=1) AND a leftover shape=1,points=2.
+  // They take this circle path with radius=0, stacking all N cells at the origin —
+  // `generateInstances({arr:1,cols:3,rows:1,sw:8254,shape:1,points:2})` returns
+  // 2 coincident stamps at (0,0) instead of a 3-wide row (-4127,0,+4127). That IS
+  // the "broken single-tile" symptom. The FAITHFUL guard is to gate this branch on
+  // `arrangement === 0` (Motion applies the Shape layout only to a Point
+  // arrangement; a real grid/line keeps its grid). Combo_Spin & Vertigo circles are
+  // arr=0 (correctly unaffected); Video Wall grids are arr=1.
+  //   HOWEVER — gating on arr===0 REGRESSES Video_Wall on GUI-GT (measured, this
+  // lane, 3 frames each): f6 11.04→9.28, f12 9.85→9.19, f18 10.07→9.40 (Combo_Spin
+  // & Vertigo unchanged). Same accident the ROADMAP records for the pitch-fill hack:
+  // the mis-posed dolly camera + retime-wrap playhead (framing.ts / timemap.ts,
+  // OTHER lanes) frame a region derived from the current stacked-tile geometry, so
+  // the correctly-placed 3-wide row lands where the camera isn't looking and the
+  // wall goes emptier. My per-node oracle CANNOT measure this fix: `fct minimize`
+  // stripped the Replicator node out of the minimized Video_Wall/Clone_Spin/
+  // Concentric cases (they parse to camera/clone/shape layers, zero replicator
+  // layers), so min-score never exercises this code. Left as a documented decode +
+  // dead-end; the arr===0 gate ships only once the camera-framing lane is co-tuned.
   if ((config.shape === 1 || config.shape === 3) && config.points && config.points > 0) {
     const n = Math.max(1, Math.round(config.points));
     const radius = config.radius ?? 0;
