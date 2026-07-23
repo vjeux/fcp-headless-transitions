@@ -1022,7 +1022,7 @@
       "status": "VERIFIED",
       "metric": "max_abs_levels",
       "max_abs_levels": 0.8900000000000006,
-      "n_samples": 108,
+      "n_samples": 216,
       "tol_levels": 2.0,
       "worst": {
         "case": {
@@ -3197,8 +3197,13 @@
       "id": "transfer.PAELevels",
       "status": "VERIFIED",
       "at": "2026-07-23T12:04:33Z"
+    },
+    {
+      "id": "transfer.PAEBrightness_darken",
+      "status": "VERIFIED",
+      "at": "2026-07-23T12:06:53Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T12:04:33Z"
+  "updated": "2026-07-23T12:06:53Z"
 }
