@@ -2355,6 +2355,39 @@
       },
       "n_failures": 0,
       "note": ""
+    },
+    "transfer.PAEHSVAdjust_saturation": {
+      "id": "transfer.PAEHSVAdjust_saturation",
+      "kind": "transfer",
+      "status": "VERIFIED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 0.8799999999999955,
+      "n_samples": 147,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "name": "Saturation",
+          "id": 2,
+          "value": -0.5
+        },
+        "input": [
+          120,
+          180,
+          200
+        ],
+        "oracle": [
+          142.54,
+          173.12,
+          183.4
+        ],
+        "engine": [
+          143.0,
+          174.0,
+          183.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
     }
   },
   "history": [
@@ -3267,8 +3300,13 @@
       "id": "transfer.PAELevels_outremap",
       "status": "VERIFIED",
       "at": "2026-07-23T12:51:20Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_saturation",
+      "status": "VERIFIED",
+      "at": "2026-07-23T12:52:51Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T12:51:20Z"
+  "updated": "2026-07-23T12:52:51Z"
 }
