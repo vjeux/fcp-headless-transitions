@@ -151,6 +151,21 @@
  *     tiling + the 1-D scanline index + the shader's luma/chroma-aberration mix, then verify
  *     at t=0 via the spatial harness. The dSFMT claim above is superseded (that was PAENoise's
  *     generator; BadTV's is MT19937). Static overlay = the separate HgcBadTVNoise 2-D field.
+ *
+ *   ── ⚠️ RE-CORRECTION (2026-07-23, verified against disasm): the note just above conflated
+ *   TWO SEPARATE noise paths. There are two:
+ *     (A) WAVINESS / ROLL table = -[PAEBadTV createWavyTableOfHeight:...] @0x7df38. This uses
+ *         RandMersenne (dSFMT MEXP=19937) — the SAME dSFMT the engine already VERIFIED bit-exact
+ *         (parity curve.rng.dsfmt = 0.0). SEED = (uint)(2*frame) + 1 (confirmed @0x7dfa0-0x7dfa4:
+ *         frameFromFxTime → fadd d0,d0,d0 → fcvtzu → +1). At t=0 frame=0 → SEED=1. It builds the
+ *         per-scanline CUMULATIVE random walk (tmp[i]=tmp[i-1]+(dsfmt_close1_open2()-1-0.5)),
+ *         normalizes to ~[0,1], and 3-tap smooths — matching the measured smooth walk
+ *         (autocorr 0.996, evidence/badtv_waviness_probe.json). The measured Waviness probe
+ *         (Static=0, Waviness>0) exercised THIS dSFMT path, NOT mt19937.
+ *     (B) STATIC overlay = PAEGenerateNoise @0xa783c, which is the std::mt19937 path decoded in
+ *         the note above — that is a SEPARATE 2-D field for the HgcBadTVNoise (Static>0) variant.
+ *   So: WAVINESS = dSFMT (already-verified generator, seed=2*frame+1, byte-recoverable at t=0);
+ *   STATIC = mt19937 2-D field. The mt19937 decode is correct but applies to STATIC, not waviness.
  */
 import { registerFilter, type FilterContext } from './registry.js';
 import { applyNoiseGenerator } from './noise.js';

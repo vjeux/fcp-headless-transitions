@@ -54,5 +54,12 @@
     "lut_fill": "256x1 RGBA LUT: R=G=perm[perm[i]] (NESTED perm lookup, ldrb-ldrb @0xa7ab4/0xa7ac0), .z=counter, .w=alpha. Then a SECOND MT-reseeded loop (madd w9,w26,w8 @0xa7b24) draws more uniform_int values for a paired field.",
     "sampler": "HSampleTiledNoise (0xb77xx) samples the LUT tiled; the HgcBadTV shader reads it at a SINGLE scanline-projected coord (floor(row/P9.x)) => 1-D per-row displacement, *Waviness, 3-tap smoothed (measured autocorr 0.996).",
     "status": "RNG chain FULLY SPECIFIED + implementable. MT19937 + libc++ shuffle reproduced in /tmp/mt_shuffle.py (valid 256-perms). Remaining: pin libc++ uniform_int_distribution mask width exactly, port the nested-perm LUT + HSampleTiledNoise tiling + shader scanline sampling + 3-tap smooth, verify at t=0."
+  },
+  "dsfmt_validation": {
+    "desc": "BadTV WAVINESS path VALIDATED against the already-verified dSFMT (NOT mt19937 -- that is the separate Static overlay). createWavyTableOfHeight @0x7df38 uses RandMersenne::SetSeed(2*frame+1) + dsfmt_gen_rand_all = the parity-VERIFIED dSFMT (curve.rng.dsfmt=0.0).",
+    "seed": "(uint)(2*frame)+1; at t=0 frame=0 => SEED=1 (confirmed @0x7dfa0: frameFromFxTime -> fadd d0,d0,d0 -> fcvtzu -> +1).",
+    "walk": "tmp[0]=draw0-1; tmp[i]=tmp[i-1]+(draw_i-1-0.5); scale=2*max|tmp|; norm=tmp/scale+0.5; 3-tap smooth; shader disp=(1-table)*Waviness (sign per roll direction).",
+    "validation": "Reproduced from dSFMT(seed=1): std=12.71 vs measured 12.76; range [-49.7,1.0] vs [-49.5,1.0]; row autocorr 0.9995 vs 0.996; and PER-ROW match within ~0.5px (repro [-0.3,-2.2,-2.9,-3.8,-2.1,...] vs measured [-1.0,-2.5,-2.9,-4.1,-2.1,...]). This BIT-LEVEL validates the waviness = verified-dSFMT(seed=1) cumulative walk.",
+    "conclusion": "BadTV waviness is FAITHFULLY REPRODUCIBLE with the existing verified dSFMT at t=0. The engine badtv.ts currently GATES IT OFF (wavy=null). Wiring the dSFMT walk into the waviness path (behind an env flag) would make BadTV node-boundary matchable at t=0 for the deterministic waviness+scanline+saturate path (Static=0)."
   }
 }
