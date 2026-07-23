@@ -237,6 +237,12 @@ function buildWavyTable(height: number, frame: number): Float32Array {
     const b = tmp[i] / scale + 0.5;
     const c = tmp[Math.min(height - 1, i + 1)] / scale + 0.5;
     const v = (a + b + c) / 3;
+    // Shader maps table.x -> (x*2-1), scaled by Waviness, ADDED to the source sample coord
+    // (r1.x = table*P8.x + coord). The engine's apply() does sx = x + dx (inverse-map SOURCE
+    // sample), so the visible feature shifts by -dx — i.e. the source-offset sign here is +(v*2-1).
+    // (A vertical-line CENTROID probe reads the VISIBLE shift = -source-offset, so it appeared to
+    // want a negated sign at rms 0.191px; but the full-frame render confirms +(v*2-1) is correct
+    // for the source-sample convention: 24.4 dB with +, 12.8 dB with -. Keep +.)
     out[i] = v * 2 - 1;
   }
   return out;
