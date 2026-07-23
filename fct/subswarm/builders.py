@@ -16,7 +16,13 @@ import os, re, sys, tempfile, math
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if REPO not in sys.path:
     sys.path.insert(0, REPO)
-# reuse probe_scene's proven skeleton + Transform/opacity injectors
+# reuse probe_scene's proven skeleton + Transform/opacity injectors.
+# probe_scene.py has a MODULE-LEVEL re-exec guard: on import it will os.execv the whole
+# process back into itself-as-__main__ (hijacking us) unless _PROBE_SCENE_REEXEC is set OR
+# it is already running under the venv python with DYLD. The runner has already re-exec'd
+# us under venv+DYLD, but venv is a symlink so `sys.executable != _VENV_PY` can still be
+# true — set the guard explicitly so `import probe_scene` is a clean library import.
+os.environ.setdefault("_PROBE_SCENE_REEXEC", "1")
 sys.path.insert(0, os.path.join(REPO, "tools", "re"))
 import probe_scene as PS
 
