@@ -1392,7 +1392,7 @@
      ]
     },
     {
-     "label": "red_luma601",
+     "label": "rotate_RGB",
      "params": [
       {
        "name": "Red Output",
@@ -1401,17 +1401,17 @@
         {
          "name": "Red - Red",
          "id": 2,
-         "value": 0.3
+         "value": 0
         },
         {
          "name": "Red - Green",
          "id": 3,
-         "value": 0.59
+         "value": 1
         },
         {
          "name": "Red - Blue",
          "id": 4,
-         "value": 0.11
+         "value": 0
         },
         {
          "name": "Red - Alpha",
@@ -1432,12 +1432,12 @@
         {
          "name": "Green - Green",
          "id": 8,
-         "value": 1
+         "value": 0
         },
         {
          "name": "Green - Blue",
          "id": 9,
-         "value": 0
+         "value": 1
         },
         {
          "name": "Green - Alpha",
@@ -1453,7 +1453,7 @@
         {
          "name": "Blue - Red",
          "id": 12,
-         "value": 0
+         "value": 1
         },
         {
          "name": "Blue - Green",
@@ -1463,7 +1463,7 @@
         {
          "name": "Blue - Blue",
          "id": 14,
-         "value": 1
+         "value": 0
         },
         {
          "name": "Blue - Alpha",
@@ -1552,6 +1552,358 @@
          "name": "Blue - Blue",
          "id": 14,
          "value": 1
+        },
+        {
+         "name": "Blue - Alpha",
+         "id": 15,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Monochrome",
+       "id": 21,
+       "value": 0
+      }
+     ]
+    },
+    {
+     "label": "luma601_to_R",
+     "params": [
+      {
+       "name": "Red Output",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red - Red",
+         "id": 2,
+         "value": 0.299
+        },
+        {
+         "name": "Red - Green",
+         "id": 3,
+         "value": 0.587
+        },
+        {
+         "name": "Red - Blue",
+         "id": 4,
+         "value": 0.114
+        },
+        {
+         "name": "Red - Alpha",
+         "id": 5,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Green Output",
+       "id": 6,
+       "children": [
+        {
+         "name": "Green - Red",
+         "id": 7,
+         "value": 0
+        },
+        {
+         "name": "Green - Green",
+         "id": 8,
+         "value": 1
+        },
+        {
+         "name": "Green - Blue",
+         "id": 9,
+         "value": 0
+        },
+        {
+         "name": "Green - Alpha",
+         "id": 10,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Blue Output",
+       "id": 11,
+       "children": [
+        {
+         "name": "Blue - Red",
+         "id": 12,
+         "value": 0
+        },
+        {
+         "name": "Blue - Green",
+         "id": 13,
+         "value": 0
+        },
+        {
+         "name": "Blue - Blue",
+         "id": 14,
+         "value": 1
+        },
+        {
+         "name": "Blue - Alpha",
+         "id": 15,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Monochrome",
+       "id": 21,
+       "value": 0
+      }
+     ]
+    },
+    {
+     "label": "luma709_all",
+     "params": [
+      {
+       "name": "Red Output",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red - Red",
+         "id": 2,
+         "value": 0.2126
+        },
+        {
+         "name": "Red - Green",
+         "id": 3,
+         "value": 0.7152
+        },
+        {
+         "name": "Red - Blue",
+         "id": 4,
+         "value": 0.0722
+        },
+        {
+         "name": "Red - Alpha",
+         "id": 5,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Green Output",
+       "id": 6,
+       "children": [
+        {
+         "name": "Green - Red",
+         "id": 7,
+         "value": 0.2126
+        },
+        {
+         "name": "Green - Green",
+         "id": 8,
+         "value": 0.7152
+        },
+        {
+         "name": "Green - Blue",
+         "id": 9,
+         "value": 0.0722
+        },
+        {
+         "name": "Green - Alpha",
+         "id": 10,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Blue Output",
+       "id": 11,
+       "children": [
+        {
+         "name": "Blue - Red",
+         "id": 12,
+         "value": 0.2126
+        },
+        {
+         "name": "Blue - Green",
+         "id": 13,
+         "value": 0.7152
+        },
+        {
+         "name": "Blue - Blue",
+         "id": 14,
+         "value": 0.0722
+        },
+        {
+         "name": "Blue - Alpha",
+         "id": 15,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Monochrome",
+       "id": 21,
+       "value": 0
+      }
+     ]
+    },
+    {
+     "label": "desat_partial",
+     "params": [
+      {
+       "name": "Red Output",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red - Red",
+         "id": 2,
+         "value": 0.6
+        },
+        {
+         "name": "Red - Green",
+         "id": 3,
+         "value": 0.3
+        },
+        {
+         "name": "Red - Blue",
+         "id": 4,
+         "value": 0.1
+        },
+        {
+         "name": "Red - Alpha",
+         "id": 5,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Green Output",
+       "id": 6,
+       "children": [
+        {
+         "name": "Green - Red",
+         "id": 7,
+         "value": 0.3
+        },
+        {
+         "name": "Green - Green",
+         "id": 8,
+         "value": 0.6
+        },
+        {
+         "name": "Green - Blue",
+         "id": 9,
+         "value": 0.1
+        },
+        {
+         "name": "Green - Alpha",
+         "id": 10,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Blue Output",
+       "id": 11,
+       "children": [
+        {
+         "name": "Blue - Red",
+         "id": 12,
+         "value": 0.1
+        },
+        {
+         "name": "Blue - Green",
+         "id": 13,
+         "value": 0.3
+        },
+        {
+         "name": "Blue - Blue",
+         "id": 14,
+         "value": 0.6
+        },
+        {
+         "name": "Blue - Alpha",
+         "id": 15,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Monochrome",
+       "id": 21,
+       "value": 0
+      }
+     ]
+    },
+    {
+     "label": "scaledown_0.7",
+     "params": [
+      {
+       "name": "Red Output",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red - Red",
+         "id": 2,
+         "value": 0.7
+        },
+        {
+         "name": "Red - Green",
+         "id": 3,
+         "value": 0
+        },
+        {
+         "name": "Red - Blue",
+         "id": 4,
+         "value": 0
+        },
+        {
+         "name": "Red - Alpha",
+         "id": 5,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Green Output",
+       "id": 6,
+       "children": [
+        {
+         "name": "Green - Red",
+         "id": 7,
+         "value": 0
+        },
+        {
+         "name": "Green - Green",
+         "id": 8,
+         "value": 0.7
+        },
+        {
+         "name": "Green - Blue",
+         "id": 9,
+         "value": 0
+        },
+        {
+         "name": "Green - Alpha",
+         "id": 10,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Blue Output",
+       "id": 11,
+       "children": [
+        {
+         "name": "Blue - Red",
+         "id": 12,
+         "value": 0
+        },
+        {
+         "name": "Blue - Green",
+         "id": 13,
+         "value": 0
+        },
+        {
+         "name": "Blue - Blue",
+         "id": 14,
+         "value": 0.7
         },
         {
          "name": "Blue - Alpha",

@@ -673,12 +673,12 @@
       "kind": "transfer",
       "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 0.710000000000008,
-      "n_samples": 108,
+      "max_abs_levels": 0.5899999999999999,
+      "n_samples": 216,
       "tol_levels": 2.0,
       "worst": {
         "case": {
-          "label": "red_luma601",
+          "label": "scaledown_0.7",
           "params": [
             {
               "name": "Red Output",
@@ -687,17 +687,17 @@
                 {
                   "name": "Red - Red",
                   "id": 2,
-                  "value": 0.3
+                  "value": 0.7
                 },
                 {
                   "name": "Red - Green",
                   "id": 3,
-                  "value": 0.59
+                  "value": 0
                 },
                 {
                   "name": "Red - Blue",
                   "id": 4,
-                  "value": 0.11
+                  "value": 0
                 },
                 {
                   "name": "Red - Alpha",
@@ -718,7 +718,7 @@
                 {
                   "name": "Green - Green",
                   "id": 8,
-                  "value": 1
+                  "value": 0.7
                 },
                 {
                   "name": "Green - Blue",
@@ -749,7 +749,7 @@
                 {
                   "name": "Blue - Blue",
                   "id": 14,
-                  "value": 1
+                  "value": 0.7
                 },
                 {
                   "name": "Blue - Alpha",
@@ -766,19 +766,19 @@
           ]
         },
         "input": [
-          50,
-          200,
-          50
+          32,
+          32,
+          32
         ],
         "oracle": [
-          138.29,
-          200.11,
-          49.62
+          22.57,
+          22.59,
+          22.59
         ],
         "engine": [
-          139.0,
-          200.0,
-          50.0
+          22.0,
+          22.0,
+          22.0
         ]
       },
       "oracle_truth": "transfer",
@@ -2598,8 +2598,13 @@
       "id": "transfer.PAEChannelMixer_offset",
       "status": "VERIFIED",
       "at": "2026-07-23T07:36:00Z"
+    },
+    {
+      "id": "transfer.PAEChannelMixer",
+      "status": "VERIFIED",
+      "at": "2026-07-23T07:44:58Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T07:36:00Z"
+  "updated": "2026-07-23T07:44:58Z"
 }
