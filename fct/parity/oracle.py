@@ -80,6 +80,63 @@ def estimate_working_gamma(gamut=0):
     return float(est(cs))
 
 
+def read_helium_const_matrix(symbol, framework="Helium"):
+    """Read a 4x4 float32 colour-space matrix stored as a DATA symbol in an FCP framework's
+    __TEXT,__const (e.g. HGColorMatrix::sRGBtoYCbCr). These are BINARY CONSTANTS (the authoritative
+    values FCP's colour ops use), not callable functions — so we resolve the symbol's file offset
+    from the Mach-O arm64 slice and unpack 16 little-endian float32s. Returns the 4x4 as a list of
+    4 rows. This is the exact-oracle equivalent of estimate_working_gamma for a matrix constant.
+
+    Used to VERIFY the engine's hardcoded Rec.709 sRGB<->YCbCr matrix (the HSV-hue rotation basis,
+    decoded 2026-07-23) against FCP's OWN stored matrix, bit-for-bit at the binary level."""
+    import subprocess, struct
+    binpath = FRAMEWORKS.get(framework)
+    if not binpath or not os.path.exists(binpath):
+        raise OracleError("framework binary not found for %s" % framework)
+    # nm -> vmaddr of the demangled symbol
+    out = subprocess.check_output(["nm", "-n", binpath], text=True, stderr=subprocess.DEVNULL)
+    dem = subprocess.check_output(["c++filt"], input="\n".join(
+        l.split()[2] for l in out.splitlines() if len(l.split()) >= 3), text=True).splitlines()
+    addr = None
+    for line, name in zip([l for l in out.splitlines() if len(l.split()) >= 3], dem):
+        if name == symbol:
+            try: addr = int(line.split()[0], 16)
+            except Exception: pass
+            break
+    if addr is None:
+        raise OracleError("symbol %r not found in %s" % (symbol, framework))
+    # arm64 slice offset (fat binary) + section mapping
+    lipo = subprocess.check_output(["lipo", "-detailed_info", binpath], text=True, stderr=subprocess.DEVNULL)
+    arm_off = None
+    cur_arm = False
+    for l in lipo.splitlines():
+        s = l.strip()
+        if s.startswith("architecture arm64"): cur_arm = True
+        elif s.startswith("architecture "): cur_arm = False
+        elif cur_arm and s.startswith("offset "): arm_off = int(s.split()[1]); break
+    if arm_off is None:
+        raise OracleError("no arm64 slice in %s" % framework)
+    otool = subprocess.check_output(["otool", "-arch", "arm64", "-l", binpath], text=True, stderr=subprocess.DEVNULL)
+    secs = []; cur = {}
+    for l in otool.splitlines():
+        s = l.strip()
+        if s.startswith("sectname"): cur = {"sect": s.split()[1]}
+        elif s.startswith("addr "): cur["addr"] = int(s.split()[1], 16)
+        elif s.startswith("size "): cur["size"] = int(s.split()[1], 16)
+        elif s.startswith("offset ") and "addr" in cur:
+            cur["offset"] = int(s.split()[1]); secs.append(cur); cur = {}
+    foff = None
+    for sec in secs:
+        if "addr" in sec and sec["addr"] <= addr < sec["addr"] + sec.get("size", 0):
+            foff = arm_off + sec["offset"] + (addr - sec["addr"]); break
+    if foff is None:
+        raise OracleError("could not map vmaddr %#x to file offset" % addr)
+    with open(binpath, "rb") as f:
+        f.seek(foff); raw = f.read(64)
+    vals = struct.unpack_from("<16f", raw, 0)
+    return [[vals[r * 4 + c] for c in range(4)] for r in range(4)]
+
+
 def dsfmt_sequence(seed=0, n=16):
     """Return the first `n` close1_open2 doubles (in [1,2)) of FCP's OWN dSFMT (MEXP=19937)
     seeded with `seed`, via ProCore's RandMersenne. This is the exact RNG that PAENoise's

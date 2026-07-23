@@ -278,6 +278,38 @@
       "status": "UNTESTED"
     },
     {
+      "id": "constant.color.ycbcr_rec709",
+      "subsystem": "color",
+      "kind": "constant",
+      "desc": "Rec.709 sRGB->YCbCr matrix \u2014 the HSV-hue rotation basis (decoded 2026-07-23: FCP's HSV Hue is a Cb/Cr chroma-plane rotation in the gamma-1.958 working space). Verifies the engine's hardcoded RGB2YCBCR (hue-saturation.ts) against FCP's OWN stored matrix HGColorMatrix::sRGBtoYCbCr, read bit-for-bit from Helium __TEXT,__const. Turns the engine's matrix from a hardcoded triple into a binary-VERIFIED constant.",
+      "oracle": {
+        "type": "helium_const_matrix",
+        "framework": "Helium",
+        "symbol": "HGColorMatrix::sRGBtoYCbCr",
+        "column_major": true,
+        "dim": 3
+      },
+      "engine_matrix": [
+        [
+          0.212639,
+          0.715169,
+          0.072192
+        ],
+        [
+          -0.114592,
+          -0.385408,
+          0.5
+        ],
+        [
+          0.5,
+          -0.454156,
+          -0.045844
+        ]
+      ],
+      "tol": 0.001,
+      "const_note": "engine RGB2YCBCR vs FCP HGColorMatrix::sRGBtoYCbCr (Helium binary); agree within ~3.2e-5 (sub-8-bit-quantisation). Rec.709 luma row (0.2126,0.7152,0.0722)."
+    },
+    {
       "id": "transfer.PAEBrightness",
       "subsystem": "color",
       "kind": "transfer",

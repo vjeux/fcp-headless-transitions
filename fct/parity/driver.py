@@ -142,6 +142,25 @@ def _sweep_constant(node):
     try:
         if kind == "colorspace_gamma":
             oracle_val = oracle.estimate_working_gamma(oc.get("gamut", 0))
+        elif kind == "helium_const_matrix":
+            # Read a binary colour-space matrix constant from an FCP framework and compare the
+            # engine's hardcoded matrix (node["engine_matrix"]) element-by-element. The oracle
+            # matrix is column-major as stored; oc["column_major"] (default True) transposes it
+            # so both are compared row-major. Reports the max abs element error as the metric.
+            om = oracle.read_helium_const_matrix(oc["symbol"], oc.get("framework", "Helium"))
+            colmaj = oc.get("column_major", True)
+            n = oc.get("dim", 3)
+            # extract the top-left n×n; transpose if column-major
+            omat = [[om[c][r] if colmaj else om[r][c] for c in range(n)] for r in range(n)]
+            emat = node["engine_matrix"]
+            tol = float(node.get("tol", 0.001))
+            ae = max(abs(omat[r][c] - emat[r][c]) for r in range(n) for c in range(n))
+            status = "VERIFIED" if ae <= tol else "DIVERGED"
+            return {"id": node["id"], "kind": "constant", "status": status,
+                    "oracle_value": [[round(v, 6) for v in row] for row in omat],
+                    "engine_value": emat, "max_abs_err": round(ae, 8), "tol": tol,
+                    "note": node.get("const_note", ""),
+                    "swept": time.strftime("%Y-%m-%dT%H:%M:%SZ")}
         else:
             return {"id": node["id"], "kind": "constant", "status": "NO_ORACLE",
                     "error": "unknown constant oracle type %r" % kind}

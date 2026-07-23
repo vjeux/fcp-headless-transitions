@@ -1,0 +1,43 @@
+{
+  "id": "constant.color.ycbcr_rec709",
+  "kind": "constant",
+  "status": "VERIFIED",
+  "oracle_value": [
+    [
+      0.212671,
+      0.71516,
+      0.072169
+    ],
+    [
+      -0.114572,
+      -0.385428,
+      0.5
+    ],
+    [
+      0.5,
+      -0.454153,
+      -0.045847
+    ]
+  ],
+  "engine_value": [
+    [
+      0.212639,
+      0.715169,
+      0.072192
+    ],
+    [
+      -0.114592,
+      -0.385408,
+      0.5
+    ],
+    [
+      0.5,
+      -0.454156,
+      -0.045844
+    ]
+  ],
+  "max_abs_err": 3.2e-05,
+  "tol": 0.001,
+  "note": "engine RGB2YCBCR vs FCP HGColorMatrix::sRGBtoYCbCr (Helium binary); agree within ~3.2e-5 (sub-8-bit-quantisation). Rec.709 luma row (0.2126,0.7152,0.0722).",
+  "swept": "2026-07-23T23:49:08Z"
+}
