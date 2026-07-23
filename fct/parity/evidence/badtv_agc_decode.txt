@@ -1,0 +1,36 @@
+PAEBadTV frame-peak AGC — DECODED MECHANISM (2026-07-23, isolated rig)
+================================================================================
+Isolated rig: Waviness=Static=Roll=0, Saturate=0; vary the frame's bright content and read the
+DARK-field center (far from any bright patch) through REAL headless FCP.
+
+FINDING 1 — the "frame-peak AGC" IS a boost of the SCAN-LINE-BRIGHTNESS dark-band floor.
+With Scan Line Brightness=1 (dark floor = 1.0 => scanF=mix(1,1,·)=1 everywhere), a bright patch
+does NOT lift the dark field until it is huge (bf<=0.15 -> no lift, dark stays 40; bf=0.25 -> 94).
+With the DEFAULT Scan Line Brightness=1.5, a TINY bright patch lifts the whole dark field:
+  bf=0     -> 51
+  bf=0.005..0.15 -> 123   (STEP: constant across two orders of magnitude of bright area)
+  bf=0.25  -> 157
+  bf>=0.5  -> 255
+So the AGC scales the DARK-BAND FLOOR (Scan Line Brightness), not a separate global gain. If the
+floor is already 1.0 (no dark bands), there is nothing to boost -> no AGC. This is why Scan Line
+Brightness=1 is a clean rig for the desaturate/pointwise decode.
+
+FINDING 2 — TRIGGER is a THRESHOLD on the frame MAX (peak), not the mean/area.
+Fixed small patch (5% area), vary patch VALUE:
+  patch<=128 -> NO lift (dark stays 51);  patch>=180 -> lift (123). Threshold in (128,180].
+Area barely matters above a tiny floor (bf 0.005 already fully triggers) => it is a PEAK detector.
+
+FINDING 3 — the boosted floor maps like a higher Scan Line Brightness.
+Uniform dark dv=40, sweep Scan Line Brightness -> code factor (out/40):
+  SLB 1.0/1.25/1.5/2.0/3.0/4.0/5.0 -> 40/46/51/62/84/106/128  =>  factor ≈ 0.5488*SLB + 0.4547
+The triggered dark field (dv=40 -> 123, factor 3.075) corresponds to an EFFECTIVE Scan Line
+Brightness ≈ 4.77. i.e. when a >~128-peak pixel appears anywhere, FCP boosts the dark-band floor
+from the authored 1.5 to ≈4.8 (a fixed boosted level for a saturated 255 peak); bigger/brighter
+frames push it further (bf=0.25 -> 157 => higher still; full white -> 255 => floor saturates).
+
+REMAINING (needs the -[PAEBadTV canThrowRenderOutput] P-buffer luma-stat trace, decode-don't-fit):
+the exact map frame_peak (and/or bright-area) -> boosted Scan Line Brightness. The BEHAVIOUR is now
+precisely characterized (peak-threshold ~in (128,180], floor boost 1.5->~4.8 at 255 peak, floor
+factor ≈0.549*SLB+0.455). The delegated filter.PAEBadTV stays DIVERGED until that stat->floor curve
+is read from the binary; but the desaturate leg is FIXED (Rec.709, commit dbb38d2) and the AGC is no
+longer a mystery — it is a peak-triggered scan-line-floor boost.
