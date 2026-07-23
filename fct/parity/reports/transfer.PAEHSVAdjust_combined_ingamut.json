@@ -3,44 +3,44 @@
   "kind": "transfer",
   "status": "VERIFIED",
   "metric": "max_abs_levels",
-  "max_abs_levels": 0.7199999999999989,
-  "n_samples": 18,
+  "max_abs_levels": 0.8099999999999987,
+  "n_samples": 105,
   "tol_levels": 2.0,
   "worst": {
     "case": {
-      "label": "hue_desat_dim",
+      "label": "strong_desat_dim",
       "params": [
         {
           "name": "Hue",
           "id": 1,
-          "value": 0.523599
+          "value": 0.0
         },
         {
           "name": "Saturation",
           "id": 2,
-          "value": -0.3
+          "value": -0.9
         },
         {
           "name": "Value",
           "id": 3,
-          "value": 0.9
+          "value": 0.5
         }
       ]
     },
     "input": [
-      200,
-      50,
-      50
+      160,
+      100,
+      60
     ],
     "oracle": [
-      107.93,
-      52.28,
-      23.22
+      29.51,
+      27.65,
+      26.81
     ],
     "engine": [
-      108.0,
-      53.0,
-      23.0
+      29.0,
+      28.0,
+      26.0
     ]
   },
   "oracle_truth": "transfer",
@@ -81,6 +81,80 @@
         84.0,
         40.0,
         40.0
+      ]
+    },
+    {
+      "param": {
+        "label": "desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.5
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.8
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        59.84,
+        111.44,
+        59.7
+      ],
+      "engine": [
+        60.0,
+        112.0,
+        60.0
+      ]
+    },
+    {
+      "param": {
+        "label": "desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.5
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.8
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        34.84,
+        34.92,
+        76.44
+      ],
+      "engine": [
+        35.0,
+        35.0,
+        76.0
       ]
     },
     {
@@ -159,6 +233,339 @@
     },
     {
       "param": {
+        "label": "desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.5
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.8
+          }
+        ]
+      },
+      "input": [
+        120,
+        180,
+        200
+      ],
+      "oracle": [
+        92.11,
+        112.36,
+        118.75
+      ],
+      "engine": [
+        92.0,
+        112.0,
+        119.0
+      ]
+    },
+    {
+      "param": {
+        "label": "desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.5
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.8
+          }
+        ]
+      },
+      "input": [
+        180,
+        160,
+        80
+      ],
+      "oracle": [
+        108.86,
+        102.42,
+        74.56
+      ],
+      "engine": [
+        109.0,
+        103.0,
+        75.0
+      ]
+    },
+    {
+      "param": {
+        "label": "desat_dim2",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.7
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.6
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        38.98,
+        24.06,
+        24.47
+      ],
+      "engine": [
+        39.0,
+        24.0,
+        24.0
+      ]
+    },
+    {
+      "param": {
+        "label": "desat_dim2",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.7
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.6
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        41.31,
+        59.32,
+        41.85
+      ],
+      "engine": [
+        42.0,
+        60.0,
+        42.0
+      ]
+    },
+    {
+      "param": {
+        "label": "desat_dim2",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.7
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.6
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        20.22,
+        20.03,
+        33.81
+      ],
+      "engine": [
+        20.0,
+        20.0,
+        34.0
+      ]
+    },
+    {
+      "param": {
+        "label": "desat_dim2",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.7
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.6
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        47.11,
+        47.09,
+        47.09
+      ],
+      "engine": [
+        47.0,
+        47.0,
+        47.0
+      ]
+    },
+    {
+      "param": {
+        "label": "desat_dim2",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.7
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.6
+          }
+        ]
+      },
+      "input": [
+        160,
+        100,
+        60
+      ],
+      "oracle": [
+        45.4,
+        39.13,
+        33.89
+      ],
+      "engine": [
+        45.0,
+        39.0,
+        34.0
+      ]
+    },
+    {
+      "param": {
+        "label": "desat_dim2",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.7
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.6
+          }
+        ]
+      },
+      "input": [
+        120,
+        180,
+        200
+      ],
+      "oracle": [
+        56.37,
+        62.93,
+        64.92
+      ],
+      "engine": [
+        56.0,
+        63.0,
+        65.0
+      ]
+    },
+    {
+      "param": {
+        "label": "desat_dim2",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.7
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.6
+          }
+        ]
+      },
+      "input": [
+        180,
+        160,
+        80
+      ],
+      "oracle": [
+        60.22,
+        58.31,
+        48.67
+      ],
+      "engine": [
+        60.0,
+        58.0,
+        48.0
+      ]
+    },
+    {
+      "param": {
         "label": "hue_desat_dim",
         "params": [
           {
@@ -192,6 +599,80 @@
         108.0,
         53.0,
         23.0
+      ]
+    },
+    {
+      "param": {
+        "label": "hue_desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.523599
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.3
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.9
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        46.47,
+        150.36,
+        101.21
+      ],
+      "engine": [
+        47.0,
+        150.0,
+        101.0
+      ]
+    },
+    {
+      "param": {
+        "label": "hue_desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.523599
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.3
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.9
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        69.45,
+        36.03,
+        112.94
+      ],
+      "engine": [
+        69.0,
+        36.0,
+        113.0
       ]
     },
     {
@@ -266,6 +747,598 @@
         98.0,
         89.0,
         50.0
+      ]
+    },
+    {
+      "param": {
+        "label": "hue_desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.523599
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.3
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.9
+          }
+        ]
+      },
+      "input": [
+        120,
+        180,
+        200
+      ],
+      "oracle": [
+        119.26,
+        138.19,
+        170.64
+      ],
+      "engine": [
+        119.0,
+        138.0,
+        171.0
+      ]
+    },
+    {
+      "param": {
+        "label": "hue_desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.523599
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.3
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.9
+          }
+        ]
+      },
+      "input": [
+        180,
+        160,
+        80
+      ],
+      "oracle": [
+        117.35,
+        136.76,
+        81.21
+      ],
+      "engine": [
+        117.0,
+        137.0,
+        81.0
+      ]
+    },
+    {
+      "param": {
+        "label": "hue_desat_dim2",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.2618
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.5
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.75
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        70.42,
+        36.14,
+        28.08
+      ],
+      "engine": [
+        70.0,
+        36.0,
+        28.0
+      ]
+    },
+    {
+      "param": {
+        "label": "hue_desat_dim2",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.2618
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.5
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.75
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        47.78,
+        99.06,
+        62.07
+      ],
+      "engine": [
+        48.0,
+        99.0,
+        62.0
+      ]
+    },
+    {
+      "param": {
+        "label": "hue_desat_dim2",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.2618
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.5
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.75
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        37.32,
+        28.84,
+        66.82
+      ],
+      "engine": [
+        37.0,
+        29.0,
+        67.0
+      ]
+    },
+    {
+      "param": {
+        "label": "hue_desat_dim2",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.2618
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.5
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.75
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        72.93,
+        72.69,
+        72.72
+      ],
+      "engine": [
+        73.0,
+        73.0,
+        73.0
+      ]
+    },
+    {
+      "param": {
+        "label": "hue_desat_dim2",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.2618
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.5
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.75
+          }
+        ]
+      },
+      "input": [
+        160,
+        100,
+        60
+      ],
+      "oracle": [
+        71.55,
+        60.31,
+        44.22
+      ],
+      "engine": [
+        71.0,
+        61.0,
+        44.0
+      ]
+    },
+    {
+      "param": {
+        "label": "hue_desat_dim2",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.2618
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.5
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.75
+          }
+        ]
+      },
+      "input": [
+        120,
+        180,
+        200
+      ],
+      "oracle": [
+        83.56,
+        97.76,
+        108.72
+      ],
+      "engine": [
+        84.0,
+        98.0,
+        109.0
+      ]
+    },
+    {
+      "param": {
+        "label": "hue_desat_dim2",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.2618
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.5
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.75
+          }
+        ]
+      },
+      "input": [
+        180,
+        160,
+        80
+      ],
+      "oracle": [
+        90.05,
+        92.02,
+        64.86
+      ],
+      "engine": [
+        90.0,
+        92.0,
+        65.0
+      ]
+    },
+    {
+      "param": {
+        "label": "strong_desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.9
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.5
+          }
+        ]
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        21.74,
+        18.14,
+        18.08
+      ],
+      "engine": [
+        22.0,
+        18.0,
+        18.0
+      ]
+    },
+    {
+      "param": {
+        "label": "strong_desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.9
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.5
+          }
+        ]
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        34.51,
+        39.13,
+        34.84
+      ],
+      "engine": [
+        35.0,
+        39.0,
+        35.0
+      ]
+    },
+    {
+      "param": {
+        "label": "strong_desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.9
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.5
+          }
+        ]
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        14.68,
+        14.69,
+        17.59
+      ],
+      "engine": [
+        15.0,
+        15.0,
+        18.0
+      ]
+    },
+    {
+      "param": {
+        "label": "strong_desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.9
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.5
+          }
+        ]
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        32.66,
+        32.65,
+        32.67
+      ],
+      "engine": [
+        33.0,
+        33.0,
+        33.0
+      ]
+    },
+    {
+      "param": {
+        "label": "strong_desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.9
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.5
+          }
+        ]
+      },
+      "input": [
+        160,
+        100,
+        60
+      ],
+      "oracle": [
+        29.51,
+        27.65,
+        26.81
+      ],
+      "engine": [
+        29.0,
+        28.0,
+        26.0
+      ]
+    },
+    {
+      "param": {
+        "label": "strong_desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.9
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.5
+          }
+        ]
+      },
+      "input": [
+        120,
+        180,
+        200
+      ],
+      "oracle": [
+        41.96,
+        43.65,
+        44.22
+      ],
+      "engine": [
+        42.0,
+        44.0,
+        44.0
+      ]
+    },
+    {
+      "param": {
+        "label": "strong_desat_dim",
+        "params": [
+          {
+            "name": "Hue",
+            "id": 1,
+            "value": 0.0
+          },
+          {
+            "name": "Saturation",
+            "id": 2,
+            "value": -0.9
+          },
+          {
+            "name": "Value",
+            "id": 3,
+            "value": 0.5
+          }
+        ]
+      },
+      "input": [
+        180,
+        160,
+        80
+      ],
+      "oracle": [
+        41.44,
+        40.46,
+        38.34
+      ],
+      "engine": [
+        41.0,
+        41.0,
+        38.0
       ]
     }
   ]

@@ -1797,44 +1797,44 @@
       "kind": "transfer",
       "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 0.7199999999999989,
-      "n_samples": 18,
+      "max_abs_levels": 0.8099999999999987,
+      "n_samples": 105,
       "tol_levels": 2.0,
       "worst": {
         "case": {
-          "label": "hue_desat_dim",
+          "label": "strong_desat_dim",
           "params": [
             {
               "name": "Hue",
               "id": 1,
-              "value": 0.523599
+              "value": 0.0
             },
             {
               "name": "Saturation",
               "id": 2,
-              "value": -0.3
+              "value": -0.9
             },
             {
               "name": "Value",
               "id": 3,
-              "value": 0.9
+              "value": 0.5
             }
           ]
         },
         "input": [
-          200,
-          50,
-          50
+          160,
+          100,
+          60
         ],
         "oracle": [
-          107.93,
-          52.28,
-          23.22
+          29.51,
+          27.65,
+          26.81
         ],
         "engine": [
-          108.0,
-          53.0,
-          23.0
+          29.0,
+          28.0,
+          26.0
         ]
       },
       "oracle_truth": "transfer",
@@ -2558,8 +2558,13 @@
       "id": "curve.color.luma709",
       "status": "VERIFIED",
       "at": "2026-07-23T05:22:15Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_combined_ingamut",
+      "status": "VERIFIED",
+      "at": "2026-07-23T06:39:56Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T05:22:15Z"
+  "updated": "2026-07-23T06:39:56Z"
 }
