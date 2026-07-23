@@ -1,0 +1,98 @@
+{
+  "id": "spatial.PAEGaussianBlur",
+  "kind": "spatial",
+  "status": "VERIFIED",
+  "metric": "frame_psnr_db",
+  "worst_psnr_db": 49.17,
+  "pass_db": 40.0,
+  "n_scored": 3,
+  "oracle_truth": "headless",
+  "worst_case": {
+    "param": {
+      "label": "amt90",
+      "params": [
+        {
+          "name": "Amount",
+          "id": 1,
+          "value": 90
+        }
+      ]
+    },
+    "psnr": 49.17,
+    "mad": 0.563,
+    "signed": [
+      0.101,
+      0.106,
+      0.099
+    ],
+    "resized": false,
+    "head_vs_input_mad": 10.95
+  },
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "amt10",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 10
+          }
+        ]
+      },
+      "psnr": 50.67,
+      "mad": 0.446,
+      "signed": [
+        -0.231,
+        -0.216,
+        -0.229
+      ],
+      "resized": false,
+      "head_vs_input_mad": 1.62
+    },
+    {
+      "param": {
+        "label": "amt40",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 40
+          }
+        ]
+      },
+      "psnr": 50.04,
+      "mad": 0.495,
+      "signed": [
+        -0.092,
+        -0.09,
+        -0.102
+      ],
+      "resized": false,
+      "head_vs_input_mad": 5.25
+    },
+    {
+      "param": {
+        "label": "amt90",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 90
+          }
+        ]
+      },
+      "psnr": 49.17,
+      "mad": 0.563,
+      "signed": [
+        0.101,
+        0.106,
+        0.099
+      ],
+      "resized": false,
+      "head_vs_input_mad": 10.95
+    }
+  ],
+  "note": ""
+}

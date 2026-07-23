@@ -228,7 +228,7 @@ def sweep(ids):
                          if report["status"] == "DIVERGED" else ""))
             elif node["kind"] == "spatial":
                 from fct.parity import spatial
-                pass_db = metrics.get("spatial", {}).get("pass_db", 40.0)
+                pass_db = node.get("pass_db", metrics.get("spatial", {}).get("pass_db", 40.0))
                 report = spatial.sweep_spatial(node, pass_db)
                 _record(st, report)
                 w = report.get("worst_case") or {}

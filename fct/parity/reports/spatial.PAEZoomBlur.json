@@ -1,0 +1,98 @@
+{
+  "id": "spatial.PAEZoomBlur",
+  "kind": "spatial",
+  "status": "DIVERGED",
+  "metric": "frame_psnr_db",
+  "worst_psnr_db": 13.93,
+  "pass_db": 24.0,
+  "n_scored": 3,
+  "oracle_truth": "headless",
+  "worst_case": {
+    "param": {
+      "label": "amt60",
+      "params": [
+        {
+          "name": "Amount",
+          "id": 1,
+          "value": 60
+        }
+      ]
+    },
+    "psnr": 13.93,
+    "mad": 33.226,
+    "signed": [
+      -17.537,
+      -17.897,
+      -17.896
+    ],
+    "resized": false,
+    "head_vs_input_mad": 48.6
+  },
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "amt10",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 10
+          }
+        ]
+      },
+      "psnr": 18.81,
+      "mad": 12.628,
+      "signed": [
+        -5.677,
+        -4.21,
+        -4.223
+      ],
+      "resized": false,
+      "head_vs_input_mad": 13.55
+    },
+    {
+      "param": {
+        "label": "amt30",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 30
+          }
+        ]
+      },
+      "psnr": 15.74,
+      "mad": 26.385,
+      "signed": [
+        -14.392,
+        -12.322,
+        -12.336
+      ],
+      "resized": false,
+      "head_vs_input_mad": 34.13
+    },
+    {
+      "param": {
+        "label": "amt60",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 60
+          }
+        ]
+      },
+      "psnr": 13.93,
+      "mad": 33.226,
+      "signed": [
+        -17.537,
+        -17.897,
+        -17.896
+      ],
+      "resized": false,
+      "head_vs_input_mad": 48.6
+    }
+  ],
+  "note": ""
+}

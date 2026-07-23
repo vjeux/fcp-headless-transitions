@@ -23,13 +23,23 @@ REPO = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 FW = "/Applications/Final Cut Pro.app/Contents/Frameworks"
 SYNTH = REPO / "fct" / "parity" / "evidence" / "spatial_synth_1920x1080.png"
+SYNTH_TEX = REPO / "fct" / "parity" / "evidence" / "spatial_synth_tex_1920x1080.png"
 
 
-def _ensure_synth():
-    """A fixed 1920x1080 structured probe: dark field + bright disc + colour bar + gradient
-    strip. Committed to disk so the sweep is deterministic and compaction-proof."""
-    if SYNTH.exists():
-        return str(SYNTH)
+def _ensure_synth(variant="smooth"):
+    """Fixed 1920x1080 structured probes, committed to disk (deterministic, compaction-proof).
+
+    Two variants selected per node via node['synth'] (default 'smooth'):
+      - 'smooth'   : dark field + bright disc + colour bar + gradient strip. NO fine texture,
+                     so a faithful radial/threshold filter's edge resampling is not misread as
+                     a decode error. Used by Glow (mask ramp + blur) and Zoom (radial spread).
+      - 'textured' : the smooth content PLUS a mid-frequency diagonal-stripe block (~48px, well
+                     below the blur Nyquist), giving LOCAL kernel filters (Directional) enough
+                     signal to exceed the identity guard without the aliasing a fine checker
+                     injects. (A 16px checker was rejected: it dropped a faithful Glow 40.4->38.)"""
+    target = SYNTH_TEX if variant == "textured" else SYNTH
+    if target.exists():
+        return str(target)
     import numpy as np
     from PIL import Image
     W, H = 1920, 1080
@@ -41,9 +51,15 @@ def _ensure_synth():
     grad = np.linspace(0, 255, W).astype(np.uint8)
     a[int(H * 0.75):int(H * 0.85)] = np.stack([grad] * 3, -1)[None].repeat(
         int(H * 0.85) - int(H * 0.75), 0)
-    SYNTH.parent.mkdir(parents=True, exist_ok=True)
-    Image.fromarray(a).save(SYNTH)
-    return str(SYNTH)
+    if variant == "textured":
+        cb_y0, cb_y1, cb_x0, cb_x1 = int(H * 0.05), int(H * 0.45), int(W * 0.05), int(W * 0.30)
+        stripes = ((((xx + yy) // 48) % 2).astype(np.uint8)) * 180 + 40
+        block = np.zeros((H, W), bool); block[cb_y0:cb_y1, cb_x0:cb_x1] = True
+        for c in range(3):
+            a[..., c] = np.where(block, stripes, a[..., c])
+    target.parent.mkdir(parents=True, exist_ok=True)
+    Image.fromarray(a).save(target)
+    return str(target)
 
 
 def _render_oracle_batch(node, jobs, in_png, tmp):
@@ -70,7 +86,7 @@ def _render_ts(node, params_list, in_png, out_png):
     os.remove(spec_file)
 
 
-def _psnr(head_png, ts_png):
+def _psnr(head_png, ts_png, in_png):
     import numpy as np
     from PIL import Image
     h = np.asarray(Image.open(head_png).convert("RGB")).astype(float)
@@ -86,15 +102,16 @@ def _psnr(head_png, ts_png):
     mad = float(np.abs(d).mean())
     signed = [round(float(d[:, :, c].mean()), 3) for c in range(3)]
     # identity guard: did the filter actually change the input?
-    a_in = np.asarray(Image.open(SYNTH).convert("RGB")).astype(float)
+    a_in = np.asarray(Image.open(in_png).convert("RGB")).astype(float)
     head_vs_in = float(np.abs(h - a_in).mean()) if h.shape == a_in.shape else -1.0
     return {"psnr": round(psnr, 2), "mad": round(mad, 3), "signed": signed,
             "resized": resized, "head_vs_input_mad": round(head_vs_in, 2)}
 
 
 def sweep_spatial(node, pass_db=40.0):
-    """Full-frame PSNR sweep of a spatial filter at its native node boundary."""
-    in_png = _ensure_synth()
+    """Full-frame PSNR sweep of a spatial filter at its native node boundary. node['synth']
+    selects the probe input ('smooth' default | 'textured' for local kernel filters)."""
+    in_png = _ensure_synth(node.get("synth", "smooth"))
     param_cases = node["param_cases"]
     jobs = [{"tag": "p%d" % i, "params": pc["params"] if "params" in pc else pc, "time": 0.0}
             for i, pc in enumerate(param_cases)]
@@ -114,7 +131,7 @@ def sweep_spatial(node, pass_db=40.0):
         ep = os.path.join(tmp, "ts_%s.png" % tag)
         try:
             _render_ts(node, jobs[i]["params"], in_png, ep)
-            m = _psnr(hp, ep)
+            m = _psnr(hp, ep, in_png)
         except Exception as ex:
             failures.append({"tag": tag, "param": pc, "error": str(ex)[:160]}); continue
         n += 1

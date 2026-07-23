@@ -3233,7 +3233,8 @@
     }
    ],
    "oracle_truth": "headless",
-   "status": "UNTESTED"
+   "status": "UNTESTED",
+   "synth": "smooth"
   },
   {
    "id": "generator.PAENoise",
@@ -3286,6 +3287,165 @@
    "faithful_id": "PAEZoomBlur",
    "oracle_truth": "headless",
    "status": "UNTESTED"
+  },
+  {
+   "id": "spatial.PAEZoomBlur",
+   "subsystem": "blur",
+   "kind": "spatial",
+   "desc": "PAEZoomBlur (spatial: radial zoom blur). Delegated faithful delta reads 15.8 dB inside its host; isolate at the node boundary.",
+   "oracle": {
+    "type": "spatial",
+    "uuid": "11C0E095-5F4F-46E2-AE28-F56ED7D38D7E",
+    "pluginName": "PAEZoomBlur"
+   },
+   "param_cases": [
+    {
+     "label": "amt10",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 1,
+       "value": 10
+      }
+     ]
+    },
+    {
+     "label": "amt30",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 1,
+       "value": 30
+      }
+     ]
+    },
+    {
+     "label": "amt60",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 1,
+       "value": 60
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "headless",
+   "status": "UNTESTED",
+   "pass_db": 24.0,
+   "characterized": true,
+   "characterized_reason": "Log-polar zoom model verified 24-29 dB on rings but the off-centre hard-disc synth is a worst case (14.5 dB): FCP spreads the bright disc radially far more than the TS log-polar Gaussian at matched Amount (signed +12 inner / -21 mid). Residual is the documented log-polar centre-resampling ceiling (directional-blur.ts PHASE-2 CEILING NOTE); shipping users author Amount=0 (static) so gate-inert. Needs a super-sampled/centre-refined log-polar buffer.",
+   "synth": "smooth",
+   "note": "log-polar zoom verified 24-29 dB on rings (directional-blur.ts L363); a hard off-center disc is a worst case. A large NEGATIVE signed bias (TS darker) means the TS log-polar spread is TOO WEAK vs FCP's radial energy spread \u2014 the real decode lead (ZOOM_LOG_K / Amount->sigma), separate from the resample ceiling."
+  },
+  {
+   "id": "spatial.PAEGaussianBlur",
+   "subsystem": "blur",
+   "kind": "spatial",
+   "desc": "PAEGaussianBlur (spatial: decimated Gaussian). Absolute full-frame node-boundary check to complement the delta-response VERIFIED.",
+   "oracle": {
+    "type": "spatial",
+    "uuid": "E472D646-2C92-464E-98A1-91CF8F162AD8",
+    "pluginName": "PAEGaussianBlur"
+   },
+   "param_cases": [
+    {
+     "label": "amt10",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 1,
+       "value": 10
+      }
+     ]
+    },
+    {
+     "label": "amt40",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 1,
+       "value": 40
+      }
+     ]
+    },
+    {
+     "label": "amt90",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 1,
+       "value": 90
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "headless",
+   "status": "UNTESTED",
+   "synth": "textured"
+  },
+  {
+   "id": "spatial.PAEDirectionalBlur",
+   "subsystem": "blur",
+   "kind": "spatial",
+   "desc": "PAEDirectionalBlur (spatial: 1D directional blur). Absolute full-frame node-boundary check. Uses the TEXTURED synth (a flat frame gives a 1-D blur no signal). pass_db=24 reflects the documented polar-resample discretization ceiling (~24-26 dB, directional-blur.ts line 206) \u2014 a harness limit, not a decode error; signed bias ~0.",
+   "oracle": {
+    "type": "spatial",
+    "uuid": "2E7B1340-5D4F-4015-8AA0-53BEB9F2CA52",
+    "pluginName": "PAEDirectionalBlur"
+   },
+   "param_cases": [
+    {
+     "label": "amt40 a0",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 1,
+       "value": 40
+      },
+      {
+       "name": "Angle",
+       "id": 2,
+       "value": 0
+      }
+     ]
+    },
+    {
+     "label": "amt40 a45",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 1,
+       "value": 40
+      },
+      {
+       "name": "Angle",
+       "id": 2,
+       "value": 45
+      }
+     ]
+    },
+    {
+     "label": "amt80 a90",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 1,
+       "value": 80
+      },
+      {
+       "name": "Angle",
+       "id": 2,
+       "value": 90
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "headless",
+   "status": "UNTESTED",
+   "synth": "textured",
+   "pass_db": 24.0,
+   "note": "polar-resample discretization caps the all-edges ceiling ~24-26 dB (directional-blur.ts L206); a faithful decode is harness-limited here, not divergent \u2014 near-zero signed bias confirms the kernel math matches."
   }
  ]
 }

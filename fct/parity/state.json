@@ -1644,6 +1644,110 @@
       },
       "n_failures": 0,
       "note": ""
+    },
+    "spatial.PAEGaussianBlur": {
+      "id": "spatial.PAEGaussianBlur",
+      "kind": "spatial",
+      "status": "VERIFIED",
+      "metric": "frame_psnr_db",
+      "worst_psnr_db": 49.17,
+      "pass_db": 40.0,
+      "n_scored": 3,
+      "oracle_truth": "headless",
+      "worst_case": {
+        "param": {
+          "label": "amt90",
+          "params": [
+            {
+              "name": "Amount",
+              "id": 1,
+              "value": 90
+            }
+          ]
+        },
+        "psnr": 49.17,
+        "mad": 0.563,
+        "signed": [
+          0.101,
+          0.106,
+          0.099
+        ],
+        "resized": false,
+        "head_vs_input_mad": 10.95
+      },
+      "n_failures": 0,
+      "note": ""
+    },
+    "spatial.PAEDirectionalBlur": {
+      "id": "spatial.PAEDirectionalBlur",
+      "kind": "spatial",
+      "status": "VERIFIED",
+      "metric": "frame_psnr_db",
+      "worst_psnr_db": 26.32,
+      "pass_db": 24.0,
+      "n_scored": 3,
+      "oracle_truth": "headless",
+      "worst_case": {
+        "param": {
+          "label": "amt80 a90",
+          "params": [
+            {
+              "name": "Amount",
+              "id": 1,
+              "value": 80
+            },
+            {
+              "name": "Angle",
+              "id": 2,
+              "value": 90
+            }
+          ]
+        },
+        "psnr": 26.32,
+        "mad": 4.66,
+        "signed": [
+          -0.153,
+          -0.152,
+          -0.163
+        ],
+        "resized": false,
+        "head_vs_input_mad": 5.33
+      },
+      "n_failures": 0,
+      "note": ""
+    },
+    "spatial.PAEZoomBlur": {
+      "id": "spatial.PAEZoomBlur",
+      "kind": "spatial",
+      "status": "DIVERGED",
+      "metric": "frame_psnr_db",
+      "worst_psnr_db": 13.93,
+      "pass_db": 24.0,
+      "n_scored": 3,
+      "oracle_truth": "headless",
+      "worst_case": {
+        "param": {
+          "label": "amt60",
+          "params": [
+            {
+              "name": "Amount",
+              "id": 1,
+              "value": 60
+            }
+          ]
+        },
+        "psnr": 13.93,
+        "mad": 33.226,
+        "signed": [
+          -17.537,
+          -17.897,
+          -17.896
+        ],
+        "resized": false,
+        "head_vs_input_mad": 48.6
+      },
+      "n_failures": 0,
+      "note": ""
     }
   },
   "history": [
@@ -2111,8 +2215,93 @@
       "id": "spatial.PAEGlow",
       "status": "VERIFIED",
       "at": "2026-07-23T03:05:00Z"
+    },
+    {
+      "id": "spatial.PAEGaussianBlur",
+      "status": "VERIFIED",
+      "at": "2026-07-23T03:09:04Z"
+    },
+    {
+      "id": "spatial.PAEDirectionalBlur",
+      "status": "NO_SIGNAL",
+      "at": "2026-07-23T03:09:11Z"
+    },
+    {
+      "id": "spatial.PAEZoomBlur",
+      "status": "DIVERGED",
+      "at": "2026-07-23T03:09:19Z"
+    },
+    {
+      "id": "spatial.PAEGlow",
+      "status": "DIVERGED",
+      "at": "2026-07-23T03:13:48Z"
+    },
+    {
+      "id": "spatial.PAEGaussianBlur",
+      "status": "VERIFIED",
+      "at": "2026-07-23T03:13:54Z"
+    },
+    {
+      "id": "spatial.PAEDirectionalBlur",
+      "status": "DIVERGED",
+      "at": "2026-07-23T03:14:01Z"
+    },
+    {
+      "id": "spatial.PAEZoomBlur",
+      "status": "DIVERGED",
+      "at": "2026-07-23T03:14:08Z"
+    },
+    {
+      "id": "spatial.PAEGlow",
+      "status": "DIVERGED",
+      "at": "2026-07-23T03:15:41Z"
+    },
+    {
+      "id": "spatial.PAEGaussianBlur",
+      "status": "VERIFIED",
+      "at": "2026-07-23T03:15:46Z"
+    },
+    {
+      "id": "spatial.PAEDirectionalBlur",
+      "status": "DIVERGED",
+      "at": "2026-07-23T03:15:53Z"
+    },
+    {
+      "id": "spatial.PAEZoomBlur",
+      "status": "DIVERGED",
+      "at": "2026-07-23T03:16:01Z"
+    },
+    {
+      "id": "spatial.PAEGlow",
+      "status": "VERIFIED",
+      "at": "2026-07-23T03:19:37Z"
+    },
+    {
+      "id": "spatial.PAEGaussianBlur",
+      "status": "VERIFIED",
+      "at": "2026-07-23T03:19:42Z"
+    },
+    {
+      "id": "spatial.PAEGlow",
+      "status": "VERIFIED",
+      "at": "2026-07-23T03:19:52Z"
+    },
+    {
+      "id": "spatial.PAEGaussianBlur",
+      "status": "VERIFIED",
+      "at": "2026-07-23T03:19:57Z"
+    },
+    {
+      "id": "spatial.PAEDirectionalBlur",
+      "status": "VERIFIED",
+      "at": "2026-07-23T03:20:04Z"
+    },
+    {
+      "id": "spatial.PAEZoomBlur",
+      "status": "DIVERGED",
+      "at": "2026-07-23T03:20:12Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T03:05:00Z"
+  "updated": "2026-07-23T03:20:12Z"
 }
