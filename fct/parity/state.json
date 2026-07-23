@@ -538,12 +538,12 @@
       "kind": "transfer",
       "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 0.7000000000000028,
-      "n_samples": 108,
+      "max_abs_levels": 0.9099999999999966,
+      "n_samples": 216,
       "tol_levels": 2.0,
       "worst": {
         "case": {
-          "label": "black_blue_white_yellow",
+          "label": "black0_white_blue",
           "params": [
             {
               "name": "Remap Black To",
@@ -562,7 +562,7 @@
                 {
                   "name": "Blue",
                   "id": 3,
-                  "value": 1
+                  "value": 0
                 }
               ]
             },
@@ -573,17 +573,17 @@
                 {
                   "name": "Red",
                   "id": 1,
-                  "value": 1
+                  "value": 0
                 },
                 {
                   "name": "Green",
                   "id": 2,
-                  "value": 1
+                  "value": 0
                 },
                 {
                   "name": "Blue",
                   "id": 3,
-                  "value": 0
+                  "value": 1
                 }
               ]
             },
@@ -605,14 +605,14 @@
           200
         ],
         "oracle": [
-          57.55,
-          57.56,
-          74.7
+          0.0,
+          0.0,
+          57.09
         ],
         "engine": [
-          58.0,
-          58.0,
-          74.0
+          0.0,
+          0.0,
+          58.0
         ]
       },
       "oracle_truth": "transfer",
@@ -3172,8 +3172,18 @@
       "id": "spatial.PAEBevel",
       "status": "VERIFIED",
       "at": "2026-07-23T11:20:54Z"
+    },
+    {
+      "id": "transfer.PAEColorize",
+      "status": "DIVERGED",
+      "at": "2026-07-23T11:29:07Z"
+    },
+    {
+      "id": "transfer.PAEColorize",
+      "status": "VERIFIED",
+      "at": "2026-07-23T11:30:09Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T11:20:54Z"
+  "updated": "2026-07-23T11:30:09Z"
 }
