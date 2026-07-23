@@ -55,6 +55,31 @@ _CTYPES = {
     "void":   None,
 }
 
+
+def estimate_working_gamma(gamut=0):
+    """Return FCP's OWN working-space gamma for a gamut via chained ProCore calls:
+    PCGetWorkingColorSpaceGammaEquivalent(gamut) -> CGColorSpace*, then
+    PCEstimateGamma(CGColorSpace*) -> float. gamut 0 = Rec.709, 1 = Rec.2020.
+
+    This is a two-call oracle (the gamma function needs a colorspace OBJECT, not an enum),
+    so it lives here rather than in the generic single-symbol build_callable. Verified: the
+    Rec.709 working gamma is 1.9609375 — the authoritative source for the colour subsystem's
+    gamma-1.958 working space (engine iv=0.51117 -> 1.9563, equal within 8-bit quantisation).
+    PCEstimateGamma returns FLOAT (s0), not double.
+    """
+    lib = load_framework("ProCore")
+    getcs = lib["PCGetWorkingColorSpaceGammaEquivalent"]
+    getcs.restype = ctypes.c_void_p
+    getcs.argtypes = [ctypes.c_int]
+    cs = getcs(int(gamut))
+    if not cs:
+        raise OracleError("PCGetWorkingColorSpaceGammaEquivalent(%d) returned NULL" % gamut)
+    est = lib["_Z15PCEstimateGammaP12CGColorSpace"]  # nm __Z... -> dlsym one underscore fewer
+    est.restype = ctypes.c_float
+    est.argtypes = [ctypes.c_void_p]
+    return float(est(cs))
+
+
 _loaded = {}  # framework short-name -> ctypes.CDLL (cached; process-global, idempotent)
 
 

@@ -1067,7 +1067,7 @@
       "n_failures": 0,
       "tol_abs": 1e-06,
       "tol_rel": 1e-06,
-      "swept": "2026-07-22T16:15:57Z"
+      "swept": "2026-07-23T05:22:15Z"
     },
     "transfer.PAEThreshold": {
       "id": "transfer.PAEThreshold",
@@ -1920,6 +1920,17 @@
       },
       "oracle_truth": "transfer",
       "n_failures": 0
+    },
+    "constant.color.working_gamma": {
+      "id": "constant.color.working_gamma",
+      "kind": "constant",
+      "status": "VERIFIED",
+      "oracle_value": 1.960938,
+      "engine_value": 1.956296,
+      "max_abs_err": 0.004641,
+      "tol": 0.01,
+      "note": "engine iv=0.51117; FCP Rec709 working gamma=1.9609375; delta 0.0046 (sub-quantisation)",
+      "swept": "2026-07-23T05:21:14Z"
     }
   },
   "history": [
@@ -2537,8 +2548,18 @@
       "id": "transfer.PAEBrightness_brighten",
       "status": "VERIFIED",
       "at": "2026-07-23T04:51:25Z"
+    },
+    {
+      "id": "constant.color.working_gamma",
+      "status": "VERIFIED",
+      "at": "2026-07-23T05:21:14Z"
+    },
+    {
+      "id": "curve.color.luma709",
+      "status": "VERIFIED",
+      "at": "2026-07-23T05:22:15Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T04:51:25Z"
+  "updated": "2026-07-23T05:22:15Z"
 }

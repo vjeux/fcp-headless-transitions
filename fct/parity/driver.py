@@ -127,6 +127,33 @@ def _sweep_curve(node, worker, metrics):
 
 
 # ---------------------------------------------------------------------------------------
+# CONSTANT kind: verify an engine CONSTANT against an FCP function's exact output. No TS
+# worker (there is no value->value fn — it's a scalar the engine hardcodes). Used for the
+# colour working-space gamma: engine iv=0.51117 -> 1.9563 vs FCP PCEstimateGamma(Rec709).
+# ---------------------------------------------------------------------------------------
+def _sweep_constant(node):
+    oc = node["oracle"]
+    kind = oc.get("type")
+    try:
+        if kind == "colorspace_gamma":
+            oracle_val = oracle.estimate_working_gamma(oc.get("gamut", 0))
+        else:
+            return {"id": node["id"], "kind": "constant", "status": "NO_ORACLE",
+                    "error": "unknown constant oracle type %r" % kind}
+    except oracle.OracleError as e:
+        return {"id": node["id"], "kind": "constant", "status": "NO_ORACLE", "error": str(e)}
+    engine_val = float(node["engine_value"])
+    tol = float(node.get("tol", 0.01))
+    ae = abs(oracle_val - engine_val)
+    status = "VERIFIED" if ae <= tol else "DIVERGED"
+    return {"id": node["id"], "kind": "constant", "status": status,
+            "oracle_value": round(oracle_val, 6), "engine_value": round(engine_val, 6),
+            "max_abs_err": round(ae, 6), "tol": tol,
+            "note": node.get("const_note", ""),
+            "swept": time.strftime("%Y-%m-%dT%H:%M:%SZ")}
+
+
+# ---------------------------------------------------------------------------------------
 # FILTER/GENERATOR kind: image node. DELEGATE to the FAITHFUL delta-response sweep (the
 # proven in-host isolation). A static-source injection would be UNFAITHFUL (synth.py lesson),
 # so parity does not re-implement it — it surfaces the faithful verdict under the node view.
@@ -135,6 +162,7 @@ def _sweep_filter(node, metrics):
     from fct.parity import filter_node
     pass_db = metrics[node["kind"]]["pass_db"]
     return filter_node.sweep_filter_node(node, pass_db)
+
 
 
 def _record(st, report):
@@ -159,6 +187,8 @@ def status():
         s = st["nodes"].get(n["id"], {})
         if n["kind"] == "curve":
             m = s.get("max_abs_err"); ms = ("abs=%.1e" % m) if isinstance(m, (int, float)) else "-"
+        elif n["kind"] == "constant":
+            m = s.get("max_abs_err"); ms = ("d=%.4f" % m) if isinstance(m, (int, float)) else "-"
         elif n["kind"] == "transfer":
             m = s.get("max_abs_levels"); ms = ("lvl=%.1f" % m) if isinstance(m, (int, float)) else "-"
         elif n["kind"] == "spatial":
@@ -175,7 +205,7 @@ def status():
         if _stt(st, n["id"], reg) == "VERIFIED":
             bysub[n.get("subsystem", "?")][0] += 1
     print("  subsystems: " + "  ".join("%s %d/%d" % (k, v[0], v[1]) for k, v in sorted(bysub.items())))
-    owned_next = next((n["id"] for n in nodes if n["kind"] in ("curve", "transfer", "spatial") and _stt(st, n["id"], reg) not in ("VERIFIED", "CHARACTERIZED")), None)
+    owned_next = next((n["id"] for n in nodes if n["kind"] in ("curve", "transfer", "spatial", "constant") and _stt(st, n["id"], reg) not in ("VERIFIED", "CHARACTERIZED")), None)
     div_img = [n["id"] for n in nodes if n["kind"] in ("filter", "generator") and _stt(st, n["id"], reg) == "DIVERGED"]
     print("  next parity-owned:", owned_next or "(all curve/value VERIFIED)")
     if div_img:
@@ -195,7 +225,13 @@ def sweep(ids):
             if node is None:
                 print("  ?? unknown node id:", nid); continue
             print("  sweeping %s (%s)..." % (nid, node["kind"]), flush=True)
-            if node["kind"] == "curve":
+            if node["kind"] == "constant":
+                report = _sweep_constant(node)
+                _record(st, report)
+                print("    -> %-9s oracle=%s engine=%s |err|=%s"
+                      % (report["status"], report.get("oracle_value"),
+                         report.get("engine_value"), report.get("max_abs_err")))
+            elif node["kind"] == "curve":
                 if worker is None:
                     worker = TSWorker()
                     from fct.parity import selftest
@@ -280,7 +316,7 @@ def step():
     their expensive sweeps. If all curve nodes are VERIFIED, remind the user to sync/step
     faithful for image work."""
     reg = _registry(); st = _state()
-    owned = [n for n in reg["nodes"] if n["kind"] in ("curve", "transfer", "spatial")]
+    owned = [n for n in reg["nodes"] if n["kind"] in ("curve", "transfer", "spatial", "constant")]
     nxt = next((n["id"] for n in owned if _stt(st, n["id"], reg) not in ("VERIFIED", "CHARACTERIZED")), None)
     if nxt is None:
         print("  all parity-owned (curve/value) nodes VERIFIED. Image nodes delegate to "

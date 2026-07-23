@@ -234,6 +234,25 @@
    "cases": "grid:lumaCoeffs"
   },
   {
+   "id": "constant.color.working_gamma",
+   "subsystem": "color",
+   "kind": "constant",
+   "desc": "Colour working-space GAMMA \u2014 engine's magic constant (iv=0.51117 -> gamma 1.9563, used by Levels/Contrast/HSV/ChannelMixer WS paths) vs FCP's OWN PCEstimateGamma(PCGetWorkingColorSpaceGammaEquivalent(Rec709)) = 1.9609375. Turns the fitted magic number into a function-VERIFIED constant. They agree within 8-bit quantisation (0.005 gamma delta -> <=0.3 code levels on every colour transfer), confirming the fitted WS gamma is faithful to FCP's authoritative value.",
+   "oracle": {
+    "type": "colorspace_gamma",
+    "gamut": 0,
+    "framework": "ProCore",
+    "symbols": [
+     "PCGetWorkingColorSpaceGammaEquivalent",
+     "_Z15PCEstimateGammaP12CGColorSpace"
+    ]
+   },
+   "engine_value": 1.9562963397695483,
+   "tol": 0.01,
+   "const_note": "engine iv=0.51117; FCP Rec709 working gamma=1.9609375; delta 0.0046 (sub-quantisation)",
+   "status": "UNTESTED"
+  },
+  {
    "id": "transfer.PAEBrightness",
    "subsystem": "color",
    "kind": "transfer",

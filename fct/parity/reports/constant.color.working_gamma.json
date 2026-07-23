@@ -1,0 +1,11 @@
+{
+  "id": "constant.color.working_gamma",
+  "kind": "constant",
+  "status": "VERIFIED",
+  "oracle_value": 1.960938,
+  "engine_value": 1.956296,
+  "max_abs_err": 0.004641,
+  "tol": 0.01,
+  "note": "engine iv=0.51117; FCP Rec709 working gamma=1.9609375; delta 0.0046 (sub-quantisation)",
+  "swept": "2026-07-23T05:21:14Z"
+}
