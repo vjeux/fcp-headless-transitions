@@ -1393,7 +1393,7 @@
   "engine_env": {},
   "tol_levels": 2.0,
   "verified": true,
-  "n": 18,
+  "n": 36,
   "cases": [
    {
     "params": [
@@ -1571,6 +1571,177 @@
      {
       "name": "Brightness",
       "id": 1,
+      "value": 0.75
+     }
+    ],
+    "input": [
+     16,
+     16,
+     16
+    ],
+    "oracle": [
+     11.97,
+     11.99,
+     11.97
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Brightness",
+      "id": 1,
+      "value": 0.75
+     }
+    ],
+    "input": [
+     32,
+     32,
+     32
+    ],
+    "oracle": [
+     24.0,
+     24.0,
+     24.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Brightness",
+      "id": 1,
+      "value": 0.75
+     }
+    ],
+    "input": [
+     64,
+     64,
+     64
+    ],
+    "oracle": [
+     48.11,
+     48.09,
+     48.09
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Brightness",
+      "id": 1,
+      "value": 0.75
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     95.87,
+     95.93,
+     95.91
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Brightness",
+      "id": 1,
+      "value": 0.75
+     }
+    ],
+    "input": [
+     200,
+     200,
+     200
+    ],
+    "oracle": [
+     150.1,
+     150.12,
+     150.12
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Brightness",
+      "id": 1,
+      "value": 0.75
+     }
+    ],
+    "input": [
+     240,
+     240,
+     240
+    ],
+    "oracle": [
+     180.13,
+     180.38,
+     180.4
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Brightness",
+      "id": 1,
+      "value": 0.75
+     }
+    ],
+    "input": [
+     200,
+     50,
+     50
+    ],
+    "oracle": [
+     150.35,
+     37.82,
+     37.54
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Brightness",
+      "id": 1,
+      "value": 0.75
+     }
+    ],
+    "input": [
+     50,
+     200,
+     50
+    ],
+    "oracle": [
+     37.42,
+     149.64,
+     37.28
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Brightness",
+      "id": 1,
+      "value": 0.75
+     }
+    ],
+    "input": [
+     50,
+     50,
+     200
+    ],
+    "oracle": [
+     37.22,
+     37.11,
+     149.89
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Brightness",
+      "id": 1,
       "value": 0.5
      }
     ],
@@ -1735,6 +1906,177 @@
      25.16,
      24.97,
      99.87
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Brightness",
+      "id": 1,
+      "value": 0.25
+     }
+    ],
+    "input": [
+     16,
+     16,
+     16
+    ],
+    "oracle": [
+     4.0,
+     4.0,
+     4.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Brightness",
+      "id": 1,
+      "value": 0.25
+     }
+    ],
+    "input": [
+     32,
+     32,
+     32
+    ],
+    "oracle": [
+     8.0,
+     8.0,
+     8.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Brightness",
+      "id": 1,
+      "value": 0.25
+     }
+    ],
+    "input": [
+     64,
+     64,
+     64
+    ],
+    "oracle": [
+     16.05,
+     16.01,
+     16.06
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Brightness",
+      "id": 1,
+      "value": 0.25
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     32.2,
+     31.99,
+     32.2
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Brightness",
+      "id": 1,
+      "value": 0.25
+     }
+    ],
+    "input": [
+     200,
+     200,
+     200
+    ],
+    "oracle": [
+     49.99,
+     50.23,
+     50.24
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Brightness",
+      "id": 1,
+      "value": 0.25
+     }
+    ],
+    "input": [
+     240,
+     240,
+     240
+    ],
+    "oracle": [
+     60.19,
+     60.19,
+     60.17
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Brightness",
+      "id": 1,
+      "value": 0.25
+     }
+    ],
+    "input": [
+     200,
+     50,
+     50
+    ],
+    "oracle": [
+     49.52,
+     12.59,
+     12.22
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Brightness",
+      "id": 1,
+      "value": 0.25
+     }
+    ],
+    "input": [
+     50,
+     200,
+     50
+    ],
+    "oracle": [
+     12.45,
+     49.97,
+     12.27
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Brightness",
+      "id": 1,
+      "value": 0.25
+     }
+    ],
+    "input": [
+     50,
+     50,
+     200
+    ],
+    "oracle": [
+     12.53,
+     12.54,
+     49.64
     ]
    }
   ]

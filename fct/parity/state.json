@@ -1021,14 +1021,14 @@
       "kind": "transfer",
       "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 0.3499999999999943,
-      "n_samples": 54,
+      "max_abs_levels": 0.8900000000000006,
+      "n_samples": 108,
       "tol_levels": 2.0,
       "worst": {
         "case": {
           "name": "Brightness",
           "id": 1,
-          "value": 1.0
+          "value": 0.75
         },
         "input": [
           50,
@@ -1036,14 +1036,14 @@
           200
         ],
         "oracle": [
-          49.99,
-          50.23,
-          200.35
+          37.22,
+          37.11,
+          149.89
         ],
         "engine": [
-          50.0,
-          50.0,
-          200.0
+          38.0,
+          38.0,
+          150.0
         ]
       },
       "oracle_truth": "transfer",
@@ -2563,8 +2563,13 @@
       "id": "transfer.PAEHSVAdjust_combined_ingamut",
       "status": "VERIFIED",
       "at": "2026-07-23T06:39:56Z"
+    },
+    {
+      "id": "transfer.PAEBrightness_darken",
+      "status": "VERIFIED",
+      "at": "2026-07-23T06:42:51Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T06:39:56Z"
+  "updated": "2026-07-23T06:42:51Z"
 }

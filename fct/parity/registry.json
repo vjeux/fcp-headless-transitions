@@ -308,7 +308,17 @@
     {
      "name": "Brightness",
      "id": 1,
+     "value": 0.75
+    },
+    {
+     "name": "Brightness",
+     "id": 1,
      "value": 0.5
+    },
+    {
+     "name": "Brightness",
+     "id": 1,
+     "value": 0.25
     }
    ],
    "oracle_truth": "transfer",

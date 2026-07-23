@@ -3,14 +3,14 @@
   "kind": "transfer",
   "status": "VERIFIED",
   "metric": "max_abs_levels",
-  "max_abs_levels": 0.3499999999999943,
-  "n_samples": 54,
+  "max_abs_levels": 0.8900000000000006,
+  "n_samples": 108,
   "tol_levels": 2.0,
   "worst": {
     "case": {
       "name": "Brightness",
       "id": 1,
-      "value": 1.0
+      "value": 0.75
     },
     "input": [
       50,
@@ -18,14 +18,14 @@
       200
     ],
     "oracle": [
-      49.99,
-      50.23,
-      200.35
+      37.22,
+      37.11,
+      149.89
     ],
     "engine": [
-      50.0,
-      50.0,
-      200.0
+      38.0,
+      38.0,
+      150.0
     ]
   },
   "oracle_truth": "transfer",
@@ -233,6 +233,204 @@
       "param": {
         "name": "Brightness",
         "id": 1,
+        "value": 0.75
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        11.97,
+        11.99,
+        11.97
+      ],
+      "engine": [
+        12.0,
+        12.0,
+        12.0
+      ]
+    },
+    {
+      "param": {
+        "name": "Brightness",
+        "id": 1,
+        "value": 0.75
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        24.0,
+        24.0,
+        24.0
+      ],
+      "engine": [
+        24.0,
+        24.0,
+        24.0
+      ]
+    },
+    {
+      "param": {
+        "name": "Brightness",
+        "id": 1,
+        "value": 0.75
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        48.11,
+        48.09,
+        48.09
+      ],
+      "engine": [
+        48.0,
+        48.0,
+        48.0
+      ]
+    },
+    {
+      "param": {
+        "name": "Brightness",
+        "id": 1,
+        "value": 0.75
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        95.87,
+        95.93,
+        95.91
+      ],
+      "engine": [
+        96.0,
+        96.0,
+        96.0
+      ]
+    },
+    {
+      "param": {
+        "name": "Brightness",
+        "id": 1,
+        "value": 0.75
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        150.1,
+        150.12,
+        150.12
+      ],
+      "engine": [
+        150.0,
+        150.0,
+        150.0
+      ]
+    },
+    {
+      "param": {
+        "name": "Brightness",
+        "id": 1,
+        "value": 0.75
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        180.13,
+        180.38,
+        180.4
+      ],
+      "engine": [
+        180.0,
+        180.0,
+        180.0
+      ]
+    },
+    {
+      "param": {
+        "name": "Brightness",
+        "id": 1,
+        "value": 0.75
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        150.35,
+        37.82,
+        37.54
+      ],
+      "engine": [
+        150.0,
+        38.0,
+        38.0
+      ]
+    },
+    {
+      "param": {
+        "name": "Brightness",
+        "id": 1,
+        "value": 0.75
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        37.42,
+        149.64,
+        37.28
+      ],
+      "engine": [
+        38.0,
+        150.0,
+        38.0
+      ]
+    },
+    {
+      "param": {
+        "name": "Brightness",
+        "id": 1,
+        "value": 0.75
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        37.22,
+        37.11,
+        149.89
+      ],
+      "engine": [
+        38.0,
+        38.0,
+        150.0
+      ]
+    },
+    {
+      "param": {
+        "name": "Brightness",
+        "id": 1,
         "value": 0.5
       },
       "input": [
@@ -425,6 +623,204 @@
         25.0,
         25.0,
         100.0
+      ]
+    },
+    {
+      "param": {
+        "name": "Brightness",
+        "id": 1,
+        "value": 0.25
+      },
+      "input": [
+        16,
+        16,
+        16
+      ],
+      "oracle": [
+        4.0,
+        4.0,
+        4.0
+      ],
+      "engine": [
+        4.0,
+        4.0,
+        4.0
+      ]
+    },
+    {
+      "param": {
+        "name": "Brightness",
+        "id": 1,
+        "value": 0.25
+      },
+      "input": [
+        32,
+        32,
+        32
+      ],
+      "oracle": [
+        8.0,
+        8.0,
+        8.0
+      ],
+      "engine": [
+        8.0,
+        8.0,
+        8.0
+      ]
+    },
+    {
+      "param": {
+        "name": "Brightness",
+        "id": 1,
+        "value": 0.25
+      },
+      "input": [
+        64,
+        64,
+        64
+      ],
+      "oracle": [
+        16.05,
+        16.01,
+        16.06
+      ],
+      "engine": [
+        16.0,
+        16.0,
+        16.0
+      ]
+    },
+    {
+      "param": {
+        "name": "Brightness",
+        "id": 1,
+        "value": 0.25
+      },
+      "input": [
+        128,
+        128,
+        128
+      ],
+      "oracle": [
+        32.2,
+        31.99,
+        32.2
+      ],
+      "engine": [
+        32.0,
+        32.0,
+        32.0
+      ]
+    },
+    {
+      "param": {
+        "name": "Brightness",
+        "id": 1,
+        "value": 0.25
+      },
+      "input": [
+        200,
+        200,
+        200
+      ],
+      "oracle": [
+        49.99,
+        50.23,
+        50.24
+      ],
+      "engine": [
+        50.0,
+        50.0,
+        50.0
+      ]
+    },
+    {
+      "param": {
+        "name": "Brightness",
+        "id": 1,
+        "value": 0.25
+      },
+      "input": [
+        240,
+        240,
+        240
+      ],
+      "oracle": [
+        60.19,
+        60.19,
+        60.17
+      ],
+      "engine": [
+        60.0,
+        60.0,
+        60.0
+      ]
+    },
+    {
+      "param": {
+        "name": "Brightness",
+        "id": 1,
+        "value": 0.25
+      },
+      "input": [
+        200,
+        50,
+        50
+      ],
+      "oracle": [
+        49.52,
+        12.59,
+        12.22
+      ],
+      "engine": [
+        50.0,
+        12.0,
+        12.0
+      ]
+    },
+    {
+      "param": {
+        "name": "Brightness",
+        "id": 1,
+        "value": 0.25
+      },
+      "input": [
+        50,
+        200,
+        50
+      ],
+      "oracle": [
+        12.45,
+        49.97,
+        12.27
+      ],
+      "engine": [
+        12.0,
+        50.0,
+        12.0
+      ]
+    },
+    {
+      "param": {
+        "name": "Brightness",
+        "id": 1,
+        "value": 0.25
+      },
+      "input": [
+        50,
+        50,
+        200
+      ],
+      "oracle": [
+        12.53,
+        12.54,
+        49.64
+      ],
+      "engine": [
+        12.0,
+        12.0,
+        50.0
       ]
     }
   ]
