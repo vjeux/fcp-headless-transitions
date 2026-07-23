@@ -1,0 +1,11 @@
+{
+ "source": "REAL headless FCP PAEHSVAdjust (FCT_HSV_WORKINGSPACE), param-bound sweeps 2026-07-23",
+ "finding": "FCP's HSV CPU wiring CLAMPS all three params before the shader:",
+ "clamps": {
+  "Hue": "max(0, Hue) \u2014 NEGATIVE hue is a NO-OP (input unchanged); positive rotates. Verified -pi..2pi on saturated red.",
+  "Value": "min(2, max(0, Value)) \u2014 the ws-multiply saturates at 2.0. Gray 32: Value 1/1.5/2 -> mult 1/1.5/2, but 2.5/3/4/5 all -> mult 2.0 (out 124.3).",
+  "Saturation": "satFactor = max(0, 1+Sat) \u2014 Sat<=-1 all give full-gray desaturation (73.5 on red); Sat below -1 does NOT invert chroma."
+ },
+ "engine_fix": "hueSaturationFilterWS: hue=max(0,hue); valMul=min(2,max(0,value)); satFactor=max(0,1+saturation). All three were gate-invisible (shipping HSV hosts author Hue=0 and moderate Sat/Value).",
+ "impact": "negative hue was up to 62 lvl off; Value>2 up to 130 lvl; Sat<-1 inverted chroma."
+}
