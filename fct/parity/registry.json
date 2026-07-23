@@ -6107,6 +6107,53 @@
    "status": "UNTESTED",
    "synth": "textured",
    "pass_db": 30.0
+  },
+  {
+   "id": "spatial.PAEBlackHole",
+   "subsystem": "geometry",
+   "kind": "spatial",
+   "desc": "PAEBlackHole (HBlackHole radial gravity lens: MIP pyramid of numLevels=max(1,round(log2(Amount/8))) radial warp nodes, each re-warping the original and composited via edge-falloff; per-level radius=Amount/(2/2^w21-1)). Node-boundary full-frame PSNR over Amount. Textured synth. SHIPPING node (Movements/Black_Hole).",
+   "oracle": {
+    "type": "spatial",
+    "uuid": "1A32EFEF-6687-401B-A078-300A7AE8F621",
+    "pluginName": "PAEBlackHole"
+   },
+   "param_cases": [
+    {
+     "label": "amt150",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 2,
+       "value": 150
+      }
+     ]
+    },
+    {
+     "label": "amt400",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 2,
+       "value": 400
+      }
+     ]
+    },
+    {
+     "label": "amt800",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 2,
+       "value": 800
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "headless",
+   "status": "UNTESTED",
+   "synth": "textured",
+   "pass_db": 30.0
   }
  ]
 }

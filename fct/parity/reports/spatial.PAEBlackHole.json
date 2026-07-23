@@ -1,0 +1,98 @@
+{
+  "id": "spatial.PAEBlackHole",
+  "kind": "spatial",
+  "status": "VERIFIED",
+  "metric": "frame_psnr_db",
+  "worst_psnr_db": 34.5,
+  "pass_db": 30.0,
+  "n_scored": 3,
+  "oracle_truth": "headless",
+  "worst_case": {
+    "param": {
+      "label": "amt400",
+      "params": [
+        {
+          "name": "Amount",
+          "id": 2,
+          "value": 400
+        }
+      ]
+    },
+    "psnr": 34.5,
+    "mad": 0.586,
+    "signed": [
+      -0.224,
+      -0.218,
+      -0.221
+    ],
+    "resized": false,
+    "head_vs_input_mad": 61.23
+  },
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "amt150",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 2,
+            "value": 150
+          }
+        ]
+      },
+      "psnr": 36.63,
+      "mad": 0.65,
+      "signed": [
+        -0.287,
+        -0.277,
+        -0.286
+      ],
+      "resized": false,
+      "head_vs_input_mad": 43.49
+    },
+    {
+      "param": {
+        "label": "amt400",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 2,
+            "value": 400
+          }
+        ]
+      },
+      "psnr": 34.5,
+      "mad": 0.586,
+      "signed": [
+        -0.224,
+        -0.218,
+        -0.221
+      ],
+      "resized": false,
+      "head_vs_input_mad": 61.23
+    },
+    {
+      "param": {
+        "label": "amt800",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 2,
+            "value": 800
+          }
+        ]
+      },
+      "psnr": 37.51,
+      "mad": 0.182,
+      "signed": [
+        -0.082,
+        -0.081,
+        -0.081
+      ],
+      "resized": false,
+      "head_vs_input_mad": 69.28
+    }
+  ],
+  "note": ""
+}

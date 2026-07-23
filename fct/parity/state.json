@@ -2256,6 +2256,39 @@
       },
       "n_failures": 0,
       "note": ""
+    },
+    "spatial.PAEBlackHole": {
+      "id": "spatial.PAEBlackHole",
+      "kind": "spatial",
+      "status": "VERIFIED",
+      "metric": "frame_psnr_db",
+      "worst_psnr_db": 34.5,
+      "pass_db": 30.0,
+      "n_scored": 3,
+      "oracle_truth": "headless",
+      "worst_case": {
+        "param": {
+          "label": "amt400",
+          "params": [
+            {
+              "name": "Amount",
+              "id": 2,
+              "value": 400
+            }
+          ]
+        },
+        "psnr": 34.5,
+        "mad": 0.586,
+        "signed": [
+          -0.224,
+          -0.218,
+          -0.221
+        ],
+        "resized": false,
+        "head_vs_input_mad": 61.23
+      },
+      "n_failures": 0,
+      "note": ""
     }
   },
   "history": [
@@ -3023,8 +3056,13 @@
       "id": "spatial.PAEScrape",
       "status": "VERIFIED",
       "at": "2026-07-23T10:04:13Z"
+    },
+    {
+      "id": "spatial.PAEBlackHole",
+      "status": "VERIFIED",
+      "at": "2026-07-23T10:06:03Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T10:04:13Z"
+  "updated": "2026-07-23T10:06:03Z"
 }
