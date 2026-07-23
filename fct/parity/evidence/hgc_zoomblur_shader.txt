@@ -48,3 +48,19 @@ CONSEQUENCE: the engine's current spatial.PAEZoomBlur model (a log-polar GAUSSIA
   upscaleFactor + centre; (3) iterate the 5-tap kernel N passes. Gate-inert (shipping users author
   Amount=0). This REPLACES the "log-polar centre-resampling ceiling" characterization: the ceiling
   wasn't resampling precision, it was the WRONG KERNEL (Gaussian vs 5-tap-polar-multipass).
+
+## CORRECTION 2026-07-23x — the previous "5-tap is the render path" claim was WRONG (retracted)
+Verified against -[PAEZoomBlur canThrowRenderOutput] @0x75718: the render path binds
+__ZN16HDirectionalBlur (HDirectionalBlur, at 0x75aa0/0x75aec) — the LOG-POLAR GAUSSIAN — NOT the
+5-tap HgcZoomBlur shader. The 5-tap HgcZoomBlur_hgc_visible is the OSC PREVIEW / fast path (the
+engine's directional-blur.ts note already documented this correctly; my commit 31a1b6d claimed the
+opposite and was mistaken). So:
+  * The engine's spatial.PAEZoomBlur model (log-polar remap -> 1-D Gaussian on ln(r) -> inverse) is
+    STRUCTURALLY CORRECT and matches the render pipeline (rectToPolar/polarToRect + HDirectionalBlur).
+  * The 14.5 dB on the off-centre hard-disc synth IS the documented log-polar CENTRE-RESAMPLING
+    ceiling (u=ln r -> -inf as r->0; bilinear resampling loses fidelity at small r that no sigma tune
+    recovers), NOT a wrong-kernel error. Closing it needs a super-sampled/centre-refined log-polar
+    buffer (deep, near-zero gate ROI since shipping users author Amount=0).
+LESSON REINFORCED (self-correcting): before claiming a shader IS the render path, confirm which
+program the CPU render (canThrowRenderOutput) actually BINDS — many Hgc*_hgc_visible shaders are OSC
+previews. Here the bind is HDirectionalBlur, confirming the existing log-polar decode.
