@@ -139,3 +139,19 @@ does NOT preserve HSV V). Luma-preserving HSV rotation gets 61 dR (closer but no
 Rodrigues about (1,1,1) in code/linear/WS all 112-255 dR. This is a genuine multi-turn decode of
 FCP's full HSV colour pipeline (YCbCr detour + the frameSetup register trace via
 overrideFrameSetupForRenderMode), NOT closable by the per-pixel shader. Gate-neutral (Hue=0 ships).
+
+## RESOLVED 2026-07-23s — FCP HSV Hue = Rec.709 (Cb,Cr) chroma rotation in the gamma-1.958 WS + hard clamp
+The frameSetup's colorMatrixFromDesiredRGBToYCbCr reference was the tell. FCP's "Hue" rotates the
+Rec.709 chroma vector (Cb,Cr) about the luma axis by the param angle (radians->turns = param/2π),
+performed in the SAME unified gamma-1.958 working space as every other colour transfer, then HARD
+PER-CHANNEL clamps to [0,1]. Fitted against the CLEAN OZ_CLAMP_UNIT oracle:
+  space=code:   worst 16 lvl
+  space=linear: worst 80 lvl
+  space=WS(gamma 1.958, iv=0.51117): worst 0.69 lvl   <- EXACT
+So it is NOT V-preserving (HSV-hextant), NOT luma-preserving-with-gamut-desaturation (that was the
+engine's ~26-lvl error), NOT Rodrigues. It is a plain chroma-plane rotation in WS + clip. The
+engine's hueSaturationFilterWS already had rotateHueYCbCr; the fix was replacing the post-rotation
+luma-preserving gamut compression with the shared terminal per-channel clamp (and likewise dropping
+the satFactor>1 desaturate-toward-gray step). All 8 HSVAdjust transfer nodes now VERIFIED (0.5-0.9
+lvl); golden node test 2015/0. This completes the pointwise-colour decode: every colour transfer
+node is VERIFIED bit-faithful vs REAL headless FCP.
