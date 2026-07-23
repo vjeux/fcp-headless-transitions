@@ -802,3 +802,16 @@ DO compose, just in the shader's true 2-stage order. Shader saved to evidence/sh
 
 The two decoded colour working spaces now well-established: gamma-1.958 for tone ops (Tint/HSV/
 Colorize/Levels/Contrast) and true-sRGB-linear for Fill's colour. Levels fully decoded end-to-end.
+
+
+## UPDATE 2026-07-22 (session 2 cont.) — HSV legs COMPOSE (in-gamut); combined verified
+
+Captured HSV Hue+Saturation+Value combined (3 combos × 3 inputs). The decoded WS-HSV legs
+COMPOSE correctly: in-gamut combos match REAL headless FCP ~0.4 lvl (c1 sat=-0.5/val=0.8:
+red (83.6 vs 83.4); c3 hue=30/sat=-0.3/val=0.9: red (107.9 vs 107.9), mix (98.1 vs 97.9)).
+The only divergence is c2 (sat=+0.5 over-sat + val=1.2) on SATURATED inputs where a channel
+over-clips — the shared HGColorMatrix over-1.0 clamp (red model (255,57,57) vs oracle
+(255,142,136)). Unlike Levels (where the naive per-leg composition was wrong), the HSV legs
+compose natively in the WS because they are applied in sequence in the same space with no
+inter-stage remap. Added transfer.PAEHSVAdjust_combined (characterized). Evidence:
+hsv_combined_probe.json.

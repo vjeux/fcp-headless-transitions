@@ -2794,6 +2794,100 @@
    ]
   },
   {
+   "id": "transfer.PAEHSVAdjust_combined",
+   "subsystem": "color",
+   "kind": "transfer",
+   "characterized": true,
+   "desc": "PAEHSVAdjust with Hue+Saturation+Value combined. VERIFIES the WS-HSV legs COMPOSE: in-gamut cases match ~0.4 lvl (c1 desat+dim, c3 hue+desat+dim). Over-saturation+value>1 on saturated inputs diverges via the shared HGColorMatrix over-1.0 clamp (characterized).",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "D23AF030-B0BF-44DF-B622-7C9EA0DF5744",
+    "pluginName": "PAEHSVAdjust"
+   },
+   "engine_env": {
+    "FCT_HSV_WORKINGSPACE": "1"
+   },
+   "inputs": [
+    [
+     200,
+     50,
+     50
+    ],
+    [
+     128,
+     128,
+     128
+    ],
+    [
+     160,
+     100,
+     60
+    ]
+   ],
+   "param_cases": [
+    {
+     "label": "desat_dim",
+     "params": [
+      {
+       "name": "Hue",
+       "id": 1,
+       "value": 0.0
+      },
+      {
+       "name": "Saturation",
+       "id": 2,
+       "value": -0.5
+      },
+      {
+       "name": "Value",
+       "id": 3,
+       "value": 0.8
+      }
+     ]
+    },
+    {
+     "label": "oversaturate_bright",
+     "params": [
+      {
+       "name": "Hue",
+       "id": 1,
+       "value": 0.0
+      },
+      {
+       "name": "Saturation",
+       "id": 2,
+       "value": 0.5
+      },
+      {
+       "name": "Value",
+       "id": 3,
+       "value": 1.2
+      }
+     ]
+    },
+    {
+     "label": "hue_desat_dim",
+     "params": [
+      {
+       "name": "Hue",
+       "id": 1,
+       "value": 0.523599
+      },
+      {
+       "name": "Saturation",
+       "id": 2,
+       "value": -0.3
+      },
+      {
+       "name": "Value",
+       "id": 3,
+       "value": 0.9
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "filter.PAEColorize",
    "subsystem": "color",
    "kind": "filter",
