@@ -43,5 +43,14 @@
     "fill": "256x1 RGBA bitmap: per pixel i, R,G = nested perm-hash lookups (perm[perm[..]+..]), B = i, A = from a SECOND re-seeded MT (madd w9*0x6c078965+.. then uniform draws). Then HSampleTiledNoise samples this tiled.",
     "shader": "HgcBadTV samples hg_Texture0 at a coord from ONE texCoord projection (floor(row/P9.x)) => 1-D per-scanline row index; 3-tap smoothed; * Waviness => horizontal displacement (measured smooth walk, autocorr 0.996).",
     "caveat": "libc++ uniform_int_distribution mask width must match libc++'s exact __independent_bits_engine formula for a bit-exact perm; validate the reproduced perm against a headless probe before trusting the full port."
+  },
+  "rng_chain_decode": {
+    "desc": "Full RNG chain for PAEGenerateNoise NoiseType=0, decoded from ProAppsFxSupport 0xa783c+.",
+    "seed": "seed = autoAnimate ? (frameNum*0x3021 + randomSeed) : randomSeed, then XOR sbfx(isMono). 0x3021=12321. At t=0 frame=0 => seed=randomSeed (XOR isMono mask).",
+    "mt19937": "canonical MT19937: mt[0]=seed; mt[i]=(1812433253*(mt[i-1]^(mt[i-1]>>30))+i)&0xffffffff for i=1..623. (init multiplier 0x6C078965=1812433253 confirmed in disasm @0xa7a2c.)",
+    "shuffle": "libc++ std::shuffle FORWARD of a 256-entry identity byte array: for i=1..255: j=uniform_int_distribution(0,i)(mt); swap a[i],a[j]. (loop @0xa85a4 iterates first+1..last, range grows +1 each step.)",
+    "lut_fill": "256x1 RGBA LUT: R=G=perm[perm[i]] (NESTED perm lookup, ldrb-ldrb @0xa7ab4/0xa7ac0), .z=counter, .w=alpha. Then a SECOND MT-reseeded loop (madd w9,w26,w8 @0xa7b24) draws more uniform_int values for a paired field.",
+    "sampler": "HSampleTiledNoise (0xb77xx) samples the LUT tiled; the HgcBadTV shader reads it at a SINGLE scanline-projected coord (floor(row/P9.x)) => 1-D per-row displacement, *Waviness, 3-tap smoothed (measured autocorr 0.996).",
+    "status": "RNG chain FULLY SPECIFIED + implementable. MT19937 + libc++ shuffle reproduced in /tmp/mt_shuffle.py (valid 256-perms). Remaining: pin libc++ uniform_int_distribution mask width exactly, port the nested-perm LUT + HSampleTiledNoise tiling + shader scanline sampling + 3-tap smooth, verify at t=0."
   }
 }
