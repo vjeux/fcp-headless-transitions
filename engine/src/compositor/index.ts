@@ -574,7 +574,7 @@ function renderCloneLayer(rctx: RenderContext, output: ImageData, evalLayer: Eva
 
 function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: EvaluatedLayer, imageA: ImageData, imageB: ImageData, time: number, filterOverrides: Map<number, Map<string, number>>): RenderOutcome {
   const { layer, worldTransform, opacity, crop } = evalLayer;
-  if (layer.type === 'shape' && layer.shape && !layer.shape.isMask
+  if (layer.type === 'shape' && layer.shape && !layer.shape.isMask && !layer.shape.isSolidPanel
       && (layer.shape.fillColor || evalLayer.fillColorOverride) && opacity > 0) {
     const alpha = rasterizeShape(layer.shape, output.width, output.height, worldTransform, rctx.cameraZ, rctx.cameraPosZ);
     // A colour-channel Link (ROADMAP S1/T-A1) may drive this shape's Fill Color
@@ -610,7 +610,16 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
 
   if (layer.type === 'shape' && layer.shape && layer.shape.isSolidPanel && layer.shape.panelFill && opacity > 0) {
     const shp = layer.shape;
-    const { r, g, b } = shp.panelFill!;
+    // A colour-channel Link may drive this panel's fill (Panels_Across "Red bar"): the
+    // linked colour is authoritative over the static panelFill, exactly as in the generic
+    // fillColor path below. Honour it here so the solid-panel path is the SINGLE place a
+    // panel is drawn (the generic path is now gated off for isSolidPanel to avoid the
+    // panel being composited TWICE — which over-brightened faded panels, e.g.
+    // Stylized__Lower's 0.40-opacity white panel rendered ~163 instead of 102).
+    const linked = evalLayer.fillColorOverride;
+    const r = linked ? linked.r : shp.panelFill!.r;
+    const g = linked ? linked.g : shp.panelFill!.g;
+    const b = linked ? linked.b : shp.panelFill!.b;
     const mask = rasterizeShape(shp, output.width, output.height, worldTransform);
     const fillBuf = createBuffer(output.width, output.height);
     const fd = fillBuf.data;
