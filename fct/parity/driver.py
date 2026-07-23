@@ -161,6 +161,8 @@ def status():
             m = s.get("max_abs_err"); ms = ("abs=%.1e" % m) if isinstance(m, (int, float)) else "-"
         elif n["kind"] == "transfer":
             m = s.get("max_abs_levels"); ms = ("lvl=%.1f" % m) if isinstance(m, (int, float)) else "-"
+        elif n["kind"] == "spatial":
+            m = s.get("worst_psnr_db"); ms = ("psnr=%.1f" % m) if isinstance(m, (int, float)) else "-"
         else:
             m = s.get("worst_ddb"); ms = ("ddb=%.1f" % m) if isinstance(m, (int, float)) else "-"
         print("  %-32s %-9s %-7s %-10s %s"
@@ -173,7 +175,7 @@ def status():
         if _stt(st, n["id"], reg) == "VERIFIED":
             bysub[n.get("subsystem", "?")][0] += 1
     print("  subsystems: " + "  ".join("%s %d/%d" % (k, v[0], v[1]) for k, v in sorted(bysub.items())))
-    owned_next = next((n["id"] for n in nodes if n["kind"] in ("curve", "transfer") and _stt(st, n["id"], reg) not in ("VERIFIED", "CHARACTERIZED")), None)
+    owned_next = next((n["id"] for n in nodes if n["kind"] in ("curve", "transfer", "spatial") and _stt(st, n["id"], reg) not in ("VERIFIED", "CHARACTERIZED")), None)
     div_img = [n["id"] for n in nodes if n["kind"] in ("filter", "generator") and _stt(st, n["id"], reg) == "DIVERGED"]
     print("  next parity-owned:", owned_next or "(all curve/value VERIFIED)")
     if div_img:
@@ -224,6 +226,17 @@ def sweep(ids):
                          ("  worst in=%s oracle=%s engine=%s @%s"
                           % (w.get("input"), w.get("oracle"), w.get("engine"), w.get("case")))
                          if report["status"] == "DIVERGED" else ""))
+            elif node["kind"] == "spatial":
+                from fct.parity import spatial
+                pass_db = metrics.get("spatial", {}).get("pass_db", 40.0)
+                report = spatial.sweep_spatial(node, pass_db)
+                _record(st, report)
+                w = report.get("worst_case") or {}
+                print("    -> %-9s worst_psnr=%s n=%d%s"
+                      % (report["status"], report.get("worst_psnr_db"), report.get("n_scored", 0),
+                         ("  worst mad=%s signed=%s"
+                          % (w.get("mad"), w.get("signed")))
+                         if report["status"] == "DIVERGED" else ""))
             else:
                 print("    -> kind %r not yet implemented" % node["kind"])
     finally:
@@ -267,7 +280,7 @@ def step():
     their expensive sweeps. If all curve nodes are VERIFIED, remind the user to sync/step
     faithful for image work."""
     reg = _registry(); st = _state()
-    owned = [n for n in reg["nodes"] if n["kind"] in ("curve", "transfer")]
+    owned = [n for n in reg["nodes"] if n["kind"] in ("curve", "transfer", "spatial")]
     nxt = next((n["id"] for n in owned if _stt(st, n["id"], reg) not in ("VERIFIED", "CHARACTERIZED")), None)
     if nxt is None:
         print("  all parity-owned (curve/value) nodes VERIFIED. Image nodes delegate to "

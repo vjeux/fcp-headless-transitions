@@ -1597,6 +1597,53 @@
       },
       "oracle_truth": "transfer",
       "n_failures": 0
+    },
+    "spatial.PAEGlow": {
+      "id": "spatial.PAEGlow",
+      "kind": "spatial",
+      "status": "VERIFIED",
+      "metric": "frame_psnr_db",
+      "worst_psnr_db": 40.4,
+      "pass_db": 40.0,
+      "n_scored": 5,
+      "oracle_truth": "headless",
+      "worst_case": {
+        "param": {
+          "params": [
+            {
+              "name": "Radius",
+              "id": 1,
+              "value": 50
+            },
+            {
+              "name": "Opacity",
+              "id": 2,
+              "value": 3.0
+            },
+            {
+              "name": "Threshold",
+              "id": 3,
+              "value": 0.2
+            },
+            {
+              "name": "Softness",
+              "id": 4,
+              "value": 0.5
+            }
+          ]
+        },
+        "psnr": 40.4,
+        "mad": 1.464,
+        "signed": [
+          1.491,
+          1.371,
+          1.386
+        ],
+        "resized": false,
+        "head_vs_input_mad": 19.84
+      },
+      "n_failures": 0,
+      "note": ""
     }
   },
   "history": [
@@ -2059,8 +2106,13 @@
       "id": "transfer.PAEHSVAdjust_combined",
       "status": "DIVERGED",
       "at": "2026-07-23T02:45:08Z"
+    },
+    {
+      "id": "spatial.PAEGlow",
+      "status": "VERIFIED",
+      "at": "2026-07-23T03:05:00Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T02:45:08Z"
+  "updated": "2026-07-23T03:05:00Z"
 }

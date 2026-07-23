@@ -1,0 +1,225 @@
+{
+  "id": "spatial.PAEGlow",
+  "kind": "spatial",
+  "status": "VERIFIED",
+  "metric": "frame_psnr_db",
+  "worst_psnr_db": 40.4,
+  "pass_db": 40.0,
+  "n_scored": 5,
+  "oracle_truth": "headless",
+  "worst_case": {
+    "param": {
+      "params": [
+        {
+          "name": "Radius",
+          "id": 1,
+          "value": 50
+        },
+        {
+          "name": "Opacity",
+          "id": 2,
+          "value": 3.0
+        },
+        {
+          "name": "Threshold",
+          "id": 3,
+          "value": 0.2
+        },
+        {
+          "name": "Softness",
+          "id": 4,
+          "value": 0.5
+        }
+      ]
+    },
+    "psnr": 40.4,
+    "mad": 1.464,
+    "signed": [
+      1.491,
+      1.371,
+      1.386
+    ],
+    "resized": false,
+    "head_vs_input_mad": 19.84
+  },
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "params": [
+          {
+            "name": "Radius",
+            "id": 1,
+            "value": 30
+          },
+          {
+            "name": "Opacity",
+            "id": 2,
+            "value": 1.0
+          },
+          {
+            "name": "Threshold",
+            "id": 3,
+            "value": 0.5
+          },
+          {
+            "name": "Softness",
+            "id": 4,
+            "value": 0.5
+          }
+        ]
+      },
+      "psnr": 50.18,
+      "mad": 0.463,
+      "signed": [
+        -0.298,
+        -0.257,
+        -0.272
+      ],
+      "resized": false,
+      "head_vs_input_mad": 0.96,
+      "identity_warning": "filter ignored by host (output==input)"
+    },
+    {
+      "param": {
+        "params": [
+          {
+            "name": "Radius",
+            "id": 1,
+            "value": 50
+          },
+          {
+            "name": "Opacity",
+            "id": 2,
+            "value": 3.0
+          },
+          {
+            "name": "Threshold",
+            "id": 3,
+            "value": 0.2
+          },
+          {
+            "name": "Softness",
+            "id": 4,
+            "value": 0.5
+          }
+        ]
+      },
+      "psnr": 40.4,
+      "mad": 1.464,
+      "signed": [
+        1.491,
+        1.371,
+        1.386
+      ],
+      "resized": false,
+      "head_vs_input_mad": 19.84
+    },
+    {
+      "param": {
+        "params": [
+          {
+            "name": "Radius",
+            "id": 1,
+            "value": 40
+          },
+          {
+            "name": "Opacity",
+            "id": 2,
+            "value": 2.0
+          },
+          {
+            "name": "Threshold",
+            "id": 3,
+            "value": 0.1
+          },
+          {
+            "name": "Softness",
+            "id": 4,
+            "value": 0.3
+          }
+        ]
+      },
+      "psnr": 40.52,
+      "mad": 1.181,
+      "signed": [
+        1.09,
+        1.093,
+        1.106
+      ],
+      "resized": false,
+      "head_vs_input_mad": 21.38
+    },
+    {
+      "param": {
+        "params": [
+          {
+            "name": "Radius",
+            "id": 1,
+            "value": 25
+          },
+          {
+            "name": "Opacity",
+            "id": 2,
+            "value": 1.5
+          },
+          {
+            "name": "Threshold",
+            "id": 3,
+            "value": 0.0
+          },
+          {
+            "name": "Softness",
+            "id": 4,
+            "value": 0.1
+          }
+        ]
+      },
+      "psnr": 40.99,
+      "mad": 0.73,
+      "signed": [
+        0.123,
+        0.135,
+        0.138
+      ],
+      "resized": false,
+      "head_vs_input_mad": 22.28
+    },
+    {
+      "param": {
+        "params": [
+          {
+            "name": "Radius",
+            "id": 1,
+            "value": 60
+          },
+          {
+            "name": "Opacity",
+            "id": 2,
+            "value": 1.0
+          },
+          {
+            "name": "Threshold",
+            "id": 3,
+            "value": 0.3
+          },
+          {
+            "name": "Softness",
+            "id": 4,
+            "value": 0.5
+          }
+        ]
+      },
+      "psnr": 47.63,
+      "mad": 0.785,
+      "signed": [
+        0.659,
+        0.676,
+        0.662
+      ],
+      "resized": false,
+      "head_vs_input_mad": 1.8
+    }
+  ],
+  "note": ""
+}

@@ -28,6 +28,11 @@
    "kind": "max_abs_levels",
    "tol_levels": 2.0,
    "note": "EXACT per-pixel transfer via uniform-colour inputs (conform-invariant). VERIFIED when max abs channel error <= tol_levels (quantisation). Sidesteps pipeline coupling + headless-vs-GUI for pointwise colour nodes."
+  },
+  "spatial": {
+   "kind": "fullframe_psnr",
+   "pass_db": 40.0,
+   "note": "FULL-FRAME node-boundary PSNR: one injected spatial filter over a native-canvas synthetic input through REAL headless FCP vs the TS filter (_filter_apply). The SPATIAL analog of the transfer probe \u2014 for kernel filters whose neighbourhood dependence a center-pixel read can't capture. VERIFIED when worst-case full-frame RGB PSNR >= pass_db. Closes the gap left by the faithful delta-response, which only measures a spatial node's PARAM RESPONSE inside its real (often multi-stage) host."
   }
  },
  "nodes": [
@@ -3092,6 +3097,141 @@
     "faithful_id": "PAEGlow"
    },
    "faithful_id": "PAEGlow",
+   "oracle_truth": "headless",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "spatial.PAEGlow",
+   "subsystem": "stylize",
+   "kind": "spatial",
+   "desc": "PAEGlow at its own node boundary: full-frame PSNR of the isolated single-filter render (mask ramp + decimated Gaussian blur + HgcGlowCombineFx) vs REAL headless FCP at native 1920x1080. filter.PAEGlow delegates to the faithful delta INSIDE Lights__Bloom and reads 13.5 dB (a Bloom-pipeline artifact); isolated here PAEGlow matches at 40+ dB, proving the decode is faithful and the divergence lives in the Bloom host, not the Glow node.",
+   "oracle": {
+    "type": "spatial",
+    "uuid": "73F69C87-7226-4F7A-81F2-F5E378501423",
+    "pluginName": "PAEGlow"
+   },
+   "param_cases": [
+    {
+     "params": [
+      {
+       "name": "Radius",
+       "id": 1,
+       "value": 30
+      },
+      {
+       "name": "Opacity",
+       "id": 2,
+       "value": 1.0
+      },
+      {
+       "name": "Threshold",
+       "id": 3,
+       "value": 0.5
+      },
+      {
+       "name": "Softness",
+       "id": 4,
+       "value": 0.5
+      }
+     ]
+    },
+    {
+     "params": [
+      {
+       "name": "Radius",
+       "id": 1,
+       "value": 50
+      },
+      {
+       "name": "Opacity",
+       "id": 2,
+       "value": 3.0
+      },
+      {
+       "name": "Threshold",
+       "id": 3,
+       "value": 0.2
+      },
+      {
+       "name": "Softness",
+       "id": 4,
+       "value": 0.5
+      }
+     ]
+    },
+    {
+     "params": [
+      {
+       "name": "Radius",
+       "id": 1,
+       "value": 40
+      },
+      {
+       "name": "Opacity",
+       "id": 2,
+       "value": 2.0
+      },
+      {
+       "name": "Threshold",
+       "id": 3,
+       "value": 0.1
+      },
+      {
+       "name": "Softness",
+       "id": 4,
+       "value": 0.3
+      }
+     ]
+    },
+    {
+     "params": [
+      {
+       "name": "Radius",
+       "id": 1,
+       "value": 25
+      },
+      {
+       "name": "Opacity",
+       "id": 2,
+       "value": 1.5
+      },
+      {
+       "name": "Threshold",
+       "id": 3,
+       "value": 0.0
+      },
+      {
+       "name": "Softness",
+       "id": 4,
+       "value": 0.1
+      }
+     ]
+    },
+    {
+     "params": [
+      {
+       "name": "Radius",
+       "id": 1,
+       "value": 60
+      },
+      {
+       "name": "Opacity",
+       "id": 2,
+       "value": 1.0
+      },
+      {
+       "name": "Threshold",
+       "id": 3,
+       "value": 0.3
+      },
+      {
+       "name": "Softness",
+       "id": 4,
+       "value": 0.5
+      }
+     ]
+    }
+   ],
    "oracle_truth": "headless",
    "status": "UNTESTED"
   },
