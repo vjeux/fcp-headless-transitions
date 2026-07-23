@@ -49,3 +49,18 @@ PARAM-PREP + defaults:
   - So closing hue needs -[PAEHSVAdjust canThrowRenderOutput]/frameSetup register trace to
     recover: hueOffset(Hue), satMul(Saturation, default), valMul(Value, default). The shader
     itself is now DECODED and ported; only the CPU param-prep remains. decode-don't-fit.
+
+## UPDATE 2026-07-23c — ported shader is identity-correct but does NOT match off-identity
+The verbatim port (hgc_hsvadjust_shader_sim.py) is EXACT at Hue=0 (returns input for all test
+colours) — so the RGB->HSV->RGB round-trip + reconstruction ladder is faithfully transcribed.
+BUT even with a FREE per-case hueOffset brute-searched to best-match FCP, the residual is
+17-165 dR (saturated inputs worst). So FCP's hue result is NOT reproduced by HgcHSVAdjust +
+any scalar hue offset. Value confirmed a MULTIPLIER (param Value=0 -> pure black output;
+neutral=1), Saturation an offset (satMul=Sat+1, neutral 0).
+
+Implication: either (a) FCP dispatches a DIFFERENT shader than HgcHSVAdjust for PAEHSVAdjust
+hue, (b) there is a working-space (gamma-1.958) encode/decode wrapping the shader that the
+identity case is blind to, or (c) the frameSetup builds a non-scalar hg_Params (e.g. a per-
+octant hue remap table). Distinguishing these needs live GPU capture of hg_Params during a
+Hue!=0 render (Metal frame capture) — beyond static disasm + transfer probing. Node stays
+CHARACTERIZED; the ported shader + this residual map are the starting point for that capture.
