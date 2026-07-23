@@ -456,6 +456,37 @@ registerFilter({
   uuid: 'D23AF030-B0BF-44DF-B622-7C9EA0DF5744',
   names: ['hsv', 'hue', 'saturation'],
   label: 'HSV Adjust',
+  // FLOAT WORKING-SPACE path (architectural, 2026-07-23): the fused buffer is ALREADY in the
+  // gamma-0.51117 working space HSV's decoded transfer uses, so we run Hue(luma-preserving YCbCr)
+  // + Saturation(lerp about Rec.709 luma) + Value(linear multiply) DIRECTLY on the buffer with NO
+  // terminal [0,1] clamp — the >1.0 headroom from brighten/over-saturate survives to the terminal
+  // encode (matching FCP's float readback). In-gamut this equals the decoded WS transfer; the
+  // over-1.0 residual is the shared coupled GPU soft-clip (see compositor/evidence).
+  applyWorking(fimg: import('../working-space.js').FloatImage, ctx): import('../working-space.js').FloatImage {
+    const hueRaw = ctx.hasRaw('Hue') ? ctx.rawParam('Hue', 0) : ctx.rawParam('Hue Rotation', 0);
+    const saturation = ctx.rawParam('Saturation', 0);
+    const value = ctx.rawParam('Value', 1);
+    if ((hueRaw <= 0 || hueRaw === 0) && saturation === 0 && value === 1) return fimg;
+    const hue = hueRaw > 0 ? hueRaw : 0;                 // FCP clamps Hue at 0 (decoded)
+    const satFactor = Math.max(0, 1 + saturation);       // FCP clamps sat factor at 0
+    const valMul = Math.min(2, Math.max(0, value));      // FCP clamps Value multiplier at 2.0
+    const hueTurns = (((hue / (2 * Math.PI)) % 1) + 1) % 1;
+    const doHue = hueTurns !== 0;
+    const d = fimg.data;
+    for (let i = 0; i < d.length; i += 4) {
+      let r = d[i], g = d[i + 1], b = d[i + 2]; // already in gamma-0.51117 working space
+      if (doHue) [r, g, b] = rotateHueYCbCr(r, g, b, hueTurns);
+      if (saturation !== 0) {
+        const gray = luma709(r, g, b);
+        r = gray + (r - gray) * satFactor;
+        g = gray + (g - gray) * satFactor;
+        b = gray + (b - gray) * satFactor;
+      }
+      if (value !== 1) { r *= valMul; g *= valMul; b *= valMul; }
+      d[i] = r; d[i + 1] = g; d[i + 2] = b; // UNCLAMPED — headroom preserved
+    }
+    return fimg;
+  },
   apply(input, ctx) {
     const hue = ctx.hasRaw('Hue') ? ctx.rawParam('Hue', 0) : ctx.rawParam('Hue Rotation', 0);
     const saturation = ctx.rawParam('Saturation', 0);
