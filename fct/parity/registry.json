@@ -421,6 +421,16 @@
    ],
    "param_cases": [
     {
+     "label": "g1.1",
+     "params": [
+      {
+       "name": "Brightness",
+       "id": 1,
+       "value": 1.1
+      }
+     ]
+    },
+    {
      "label": "g1.25",
      "params": [
       {
@@ -431,12 +441,32 @@
      ]
     },
     {
+     "label": "g1.4",
+     "params": [
+      {
+       "name": "Brightness",
+       "id": 1,
+       "value": 1.4
+      }
+     ]
+    },
+    {
      "label": "g1.5",
      "params": [
       {
        "name": "Brightness",
        "id": 1,
        "value": 1.5
+      }
+     ]
+    },
+    {
+     "label": "g1.75",
+     "params": [
+      {
+       "name": "Brightness",
+       "id": 1,
+       "value": 1.75
       }
      ]
     },
