@@ -1,0 +1,260 @@
+{
+  "id": "spatial.PAEEarthquake",
+  "kind": "spatial",
+  "status": "DIVERGED",
+  "metric": "frame_psnr_db",
+  "worst_psnr_db": 38.6,
+  "pass_db": 40.0,
+  "n_scored": 5,
+  "oracle_truth": "headless",
+  "worst_case": {
+    "param": {
+      "label": "twist8 seed0",
+      "params": [
+        {
+          "name": "Twist",
+          "id": 1,
+          "value": 8
+        },
+        {
+          "name": "Horizontal Shake",
+          "id": 2,
+          "value": 0
+        },
+        {
+          "name": "Vertical Shake",
+          "id": 3,
+          "value": 0
+        },
+        {
+          "name": "Layers",
+          "id": 4,
+          "value": 1
+        },
+        {
+          "name": "Random Seed",
+          "id": 6,
+          "value": 0
+        }
+      ]
+    },
+    "psnr": 38.6,
+    "mad": 0.476,
+    "signed": [
+      -0.21,
+      -0.199,
+      -0.211
+    ],
+    "resized": false,
+    "head_vs_input_mad": 50.77
+  },
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "h8 seed0",
+        "params": [
+          {
+            "name": "Twist",
+            "id": 1,
+            "value": 0
+          },
+          {
+            "name": "Horizontal Shake",
+            "id": 2,
+            "value": 8
+          },
+          {
+            "name": "Vertical Shake",
+            "id": 3,
+            "value": 0
+          },
+          {
+            "name": "Layers",
+            "id": 4,
+            "value": 1
+          },
+          {
+            "name": "Random Seed",
+            "id": 6,
+            "value": 0
+          }
+        ]
+      },
+      "psnr": 46.65,
+      "mad": 0.416,
+      "signed": [
+        -0.251,
+        -0.234,
+        -0.246
+      ],
+      "resized": false,
+      "head_vs_input_mad": 32.3
+    },
+    {
+      "param": {
+        "label": "v8 seed0",
+        "params": [
+          {
+            "name": "Twist",
+            "id": 1,
+            "value": 0
+          },
+          {
+            "name": "Horizontal Shake",
+            "id": 2,
+            "value": 0
+          },
+          {
+            "name": "Vertical Shake",
+            "id": 3,
+            "value": 8
+          },
+          {
+            "name": "Layers",
+            "id": 4,
+            "value": 1
+          },
+          {
+            "name": "Random Seed",
+            "id": 6,
+            "value": 0
+          }
+        ]
+      },
+      "psnr": 50.62,
+      "mad": 0.399,
+      "signed": [
+        -0.225,
+        -0.206,
+        -0.219
+      ],
+      "resized": false,
+      "head_vs_input_mad": 44.15
+    },
+    {
+      "param": {
+        "label": "all5 seed0",
+        "params": [
+          {
+            "name": "Twist",
+            "id": 1,
+            "value": 5
+          },
+          {
+            "name": "Horizontal Shake",
+            "id": 2,
+            "value": 5
+          },
+          {
+            "name": "Vertical Shake",
+            "id": 3,
+            "value": 5
+          },
+          {
+            "name": "Layers",
+            "id": 4,
+            "value": 1
+          },
+          {
+            "name": "Random Seed",
+            "id": 6,
+            "value": 0
+          }
+        ]
+      },
+      "psnr": 41.21,
+      "mad": 0.472,
+      "signed": [
+        -0.221,
+        -0.205,
+        -0.217
+      ],
+      "resized": false,
+      "head_vs_input_mad": 46.82
+    },
+    {
+      "param": {
+        "label": "all5 seed7",
+        "params": [
+          {
+            "name": "Twist",
+            "id": 1,
+            "value": 5
+          },
+          {
+            "name": "Horizontal Shake",
+            "id": 2,
+            "value": 5
+          },
+          {
+            "name": "Vertical Shake",
+            "id": 3,
+            "value": 5
+          },
+          {
+            "name": "Layers",
+            "id": 4,
+            "value": 1
+          },
+          {
+            "name": "Random Seed",
+            "id": 6,
+            "value": 7
+          }
+        ]
+      },
+      "psnr": 45.72,
+      "mad": 0.452,
+      "signed": [
+        -0.233,
+        -0.216,
+        -0.228
+      ],
+      "resized": false,
+      "head_vs_input_mad": 39.32
+    },
+    {
+      "param": {
+        "label": "twist8 seed0",
+        "params": [
+          {
+            "name": "Twist",
+            "id": 1,
+            "value": 8
+          },
+          {
+            "name": "Horizontal Shake",
+            "id": 2,
+            "value": 0
+          },
+          {
+            "name": "Vertical Shake",
+            "id": 3,
+            "value": 0
+          },
+          {
+            "name": "Layers",
+            "id": 4,
+            "value": 1
+          },
+          {
+            "name": "Random Seed",
+            "id": 6,
+            "value": 0
+          }
+        ]
+      },
+      "psnr": 38.6,
+      "mad": 0.476,
+      "signed": [
+        -0.21,
+        -0.199,
+        -0.211
+      ],
+      "resized": false,
+      "head_vs_input_mad": 50.77
+    }
+  ],
+  "note": ""
+}

@@ -2448,6 +2448,59 @@
       },
       "n_failures": 0,
       "swept": "2026-07-23T14:03:10Z"
+    },
+    "spatial.PAEEarthquake": {
+      "id": "spatial.PAEEarthquake",
+      "kind": "spatial",
+      "status": "DIVERGED",
+      "metric": "frame_psnr_db",
+      "worst_psnr_db": 38.6,
+      "pass_db": 40.0,
+      "n_scored": 5,
+      "oracle_truth": "headless",
+      "worst_case": {
+        "param": {
+          "label": "twist8 seed0",
+          "params": [
+            {
+              "name": "Twist",
+              "id": 1,
+              "value": 8
+            },
+            {
+              "name": "Horizontal Shake",
+              "id": 2,
+              "value": 0
+            },
+            {
+              "name": "Vertical Shake",
+              "id": 3,
+              "value": 0
+            },
+            {
+              "name": "Layers",
+              "id": 4,
+              "value": 1
+            },
+            {
+              "name": "Random Seed",
+              "id": 6,
+              "value": 0
+            }
+          ]
+        },
+        "psnr": 38.6,
+        "mad": 0.476,
+        "signed": [
+          -0.21,
+          -0.199,
+          -0.211
+        ],
+        "resized": false,
+        "head_vs_input_mad": 50.77
+      },
+      "n_failures": 0,
+      "note": ""
     }
   },
   "history": [
@@ -3465,8 +3518,28 @@
       "id": "curve.interp.ease",
       "status": "VERIFIED",
       "at": "2026-07-23T14:04:36Z"
+    },
+    {
+      "id": "spatial.PAEEarthquake",
+      "status": "DIVERGED",
+      "at": "2026-07-23T14:39:15Z"
+    },
+    {
+      "id": "spatial.PAEEarthquake",
+      "status": "DIVERGED",
+      "at": "2026-07-23T14:39:29Z"
+    },
+    {
+      "id": "spatial.PAEEarthquake",
+      "status": "DIVERGED",
+      "at": "2026-07-23T14:39:43Z"
+    },
+    {
+      "id": "spatial.PAEEarthquake",
+      "status": "DIVERGED",
+      "at": "2026-07-23T14:39:54Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T14:04:36Z"
+  "updated": "2026-07-23T14:39:54Z"
 }

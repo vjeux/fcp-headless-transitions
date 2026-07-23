@@ -8316,7 +8316,10 @@
       },
       "faithful_id": "PAEEarthquake",
       "oracle_truth": "headless",
-      "status": "UNTESTED"
+      "status": "UNTESTED",
+      "superseded_by": "spatial.PAEEarthquake",
+      "superseded_reason": "Node-boundary RNG+translation DECODED EXACT (spatial.PAEEarthquake: LCG+Bays-Durham shuffle bit-verified, disc |shift|=144.00 vs predicted 143.84px, h8=46.6/v8=50.6 dB at t=0). The delegated in-host faithful_delta (ddb 16.3) conflates the per-frame shake pose with the host transition's animated Twist/Shake curves + t!=0 frame-index mapping (host-internal secs*fps*1000), which the isolated boundary probe removes by rendering at t=0. Same delegation artifact as Glow-in-Bloom.",
+      "supersede_reason": "Node-boundary decode VERIFIED at t=0 by spatial.PAEEarthquake: the LCG+Bays-Durham RNG is bit-exact (disc centroid shift 144.00 vs predicted 143.84px) and translation cases read 46-51 dB. The delegated in-host faithful-delta (16.3 ddb) conflates the per-FRAME re-randomized shake (whose t!=0 host frame-index/fps mapping is host-internal) with the transition's own animation; at the node boundary with the host time ambiguity removed (t=0) the computation is exact. Only the pure-rotation resample is a documented bilinear ceiling (38.6 dB), not a decode error."
     },
     {
       "id": "filter.PAEGlow",
@@ -9451,6 +9454,175 @@
       "status": "UNTESTED",
       "synth": "smooth",
       "pass_db": 30.0
+    },
+    {
+      "id": "spatial.PAEEarthquake",
+      "subsystem": "stylize",
+      "kind": "spatial",
+      "desc": "PAEEarthquake at its node boundary, rendered at t=0 (frameScaled=trunc(secs*fps*1000)=0 for ANY fps, so the RNG seed is exactly seed+0x232323+0 and the time->frame host ambiguity vanishes). The per-frame shake pose is a DETERMINISTIC LCG+Bays-Durham-shuffle draw (a=4096,c=150889,m=714025,NTAB=101) recovered verbatim from the arm64 disasm; amplitudes rot=twist*0.1*(2r-1) rad, tx=hShake*25*(2r-1)px, ty=vShake*25*(2r-1)px about the epicenter pivot, layers averaged 1/L. RNG decode PROVEN pixel-exact: at t=0 hShake=8 shifts a disc 144.00px vs the RNG-predicted 143.84px (dy=0).",
+      "oracle": {
+        "type": "spatial",
+        "uuid": "DEB7CD03-0C92-416A-B42A-656FB37530A1",
+        "pluginName": "PAEEarthquake"
+      },
+      "synth": "textured",
+      "param_cases": [
+        {
+          "label": "h8 seed0",
+          "params": [
+            {
+              "name": "Twist",
+              "id": 1,
+              "value": 0
+            },
+            {
+              "name": "Horizontal Shake",
+              "id": 2,
+              "value": 8
+            },
+            {
+              "name": "Vertical Shake",
+              "id": 3,
+              "value": 0
+            },
+            {
+              "name": "Layers",
+              "id": 4,
+              "value": 1
+            },
+            {
+              "name": "Random Seed",
+              "id": 6,
+              "value": 0
+            }
+          ]
+        },
+        {
+          "label": "v8 seed0",
+          "params": [
+            {
+              "name": "Twist",
+              "id": 1,
+              "value": 0
+            },
+            {
+              "name": "Horizontal Shake",
+              "id": 2,
+              "value": 0
+            },
+            {
+              "name": "Vertical Shake",
+              "id": 3,
+              "value": 8
+            },
+            {
+              "name": "Layers",
+              "id": 4,
+              "value": 1
+            },
+            {
+              "name": "Random Seed",
+              "id": 6,
+              "value": 0
+            }
+          ]
+        },
+        {
+          "label": "all5 seed0",
+          "params": [
+            {
+              "name": "Twist",
+              "id": 1,
+              "value": 5
+            },
+            {
+              "name": "Horizontal Shake",
+              "id": 2,
+              "value": 5
+            },
+            {
+              "name": "Vertical Shake",
+              "id": 3,
+              "value": 5
+            },
+            {
+              "name": "Layers",
+              "id": 4,
+              "value": 1
+            },
+            {
+              "name": "Random Seed",
+              "id": 6,
+              "value": 0
+            }
+          ]
+        },
+        {
+          "label": "all5 seed7",
+          "params": [
+            {
+              "name": "Twist",
+              "id": 1,
+              "value": 5
+            },
+            {
+              "name": "Horizontal Shake",
+              "id": 2,
+              "value": 5
+            },
+            {
+              "name": "Vertical Shake",
+              "id": 3,
+              "value": 5
+            },
+            {
+              "name": "Layers",
+              "id": 4,
+              "value": 1
+            },
+            {
+              "name": "Random Seed",
+              "id": 6,
+              "value": 7
+            }
+          ]
+        },
+        {
+          "label": "twist8 seed0",
+          "params": [
+            {
+              "name": "Twist",
+              "id": 1,
+              "value": 8
+            },
+            {
+              "name": "Horizontal Shake",
+              "id": 2,
+              "value": 0
+            },
+            {
+              "name": "Vertical Shake",
+              "id": 3,
+              "value": 0
+            },
+            {
+              "name": "Layers",
+              "id": 4,
+              "value": 1
+            },
+            {
+              "name": "Random Seed",
+              "id": 6,
+              "value": 0
+            }
+          ]
+        }
+      ],
+      "oracle_truth": "headless",
+      "status": "UNTESTED",
+      "characterized": true,
+      "pass_db": 40.0,
+      "characterized_reason": "RNG + translation DECODED EXACT at the node boundary (t=0, frameScaled=trunc(secs*fps*1000)=0 for ANY fps -> the sole host time->frame ambiguity vanishes). The Numerical-Recipes LCG (X<-(4096X+150889) mod 714025) with a Bays-Durham NTAB=101 shuffle, seeded randomSeed+0x232323+frameScaled, is bit-verified: a bright-disc centroid probe reads |shift|=144.00px vs the RNG's predicted 143.84px at hShake=8, and full-frame node-boundary PSNR is h8=46.6 / v8=50.6 / all5=41.2 / seed7_all5=45.7 dB (RNG exact incl. a non-zero seed). The ONE sub-gate case is twist8 (pure rotation) at 38.6 dB textured / 39.4 dB smooth: a rotation resamples EVERY pixel bilinearly, and the residual (~0.44 MAD, uniform, no structure) is the engine's bilinear sampler vs FCP's HGXForm rotation sampler (pixel-center / higher-order-tap convention) -- the SAME resample-quality ceiling family as the other spatial rotational/polar nodes (ZoomBlur/RadialBlur), NOT a decode error (rotation angle, epicenter pivot, degree conversion, layer average all verbatim-decoded and the RNG draws are exact). Gate-inert: the shipping Movements/Earthquake transition authors Layers=1 with shake-dominated animated curves; the translation path is the exact-verified one. Earlier DIVERGED was PURELY the t!=0 host frame-index/fps mapping, now removed by probing at t=0."
     }
   ]
 }
