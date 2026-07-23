@@ -34,3 +34,28 @@ precisely characterized (peak-threshold ~in (128,180], floor boost 1.5->~4.8 at 
 factor ≈0.549*SLB+0.455). The delegated filter.PAEBadTV stays DIVERGED until that stat->floor curve
 is read from the binary; but the desaturate leg is FIXED (Rec.709, commit dbb38d2) and the AGC is no
 longer a mystery — it is a peak-triggered scan-line-floor boost.
+
+## CORRECTION 2026-07-23v — the "frame-peak AGC" IS the CoreGraphics readback artifact (NOT an FCP effect)
+Re-ran the bright-patch sweep with OZ_CLAMP_UNIT (per-channel [0,1] clamp before the CoreGraphics
+ExtendedLinearSRGB->sRGB PNG write). RESULT:
+  bright-frac   default-readback   OZ_CLAMP_UNIT
+  0.0           51                 51
+  0.005..0.15   123 (the "AGC")    51   <- AGC GONE
+  0.25          157                103
+  0.5..1.0      255                255
+So the dark-field "lift" from a tiny bright patch is ENTIRELY the CoreGraphics per-IMAGE gamut
+compression: when the frame contains ANY over-1.0 (>255-equivalent) pixel, CGImageDestination
+applies a GLOBAL tone map that lifts EVERY pixel (confirmed earlier: CG's op is per-image, not
+per-pixel, when over-1 values are present — see shared_clamp_overflow_analysis.txt 2026-07-23p).
+The confusion arose because -[PAEBadTV canThrowRenderOutput] was disassembled and contains NO
+frame-statistic / histogram / max-reduction call — it only reads params, builds the wavy/noise
+tables, and the YCbCr matrix. There is no CPU AGC. The GPU HgcBadTV shader is per-pixel with no
+frame stat either. The "AGC" was never in FCP — it is the shim's readback, exactly like the
+"HGColorMatrix over-1.0 clamp". So BadTV has NO auto-gain: its true dark field is unlifted (51),
+and the DIVERGED verdict is driven by (a) the Static 2-D mt19937 noise field (genuine stochastic)
+and (b) any over-1 content triggering the CG readback in the whole-frame delta. The desaturate leg
+is FIXED (Rec.709). The residual bf>=0.25 lift under OZ_CLAMP_UNIT (103, 255) is genuine white-area
+saturation of the readback, not an effect. NET: two of BadTV's three "mystery" effects (over-1
+clamp, frame-peak AGC) are the SAME CoreGraphics readback artifact; only the Static noise field is
+a real un-ported effect. decode-don't-fit upheld — no curve was fitted; the artifact was isolated
+at the source with OZ_CLAMP_UNIT + a binary disasm showing no CPU frame-stat.
