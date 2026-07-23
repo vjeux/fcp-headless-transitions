@@ -60,14 +60,17 @@ C++ symbol, NOT whole-frame PSNR. See DESIGN.md.
    decode is faithful and the divergence lives in the HOST, not the Glow node.
 
 
-## Current subsystem map (49 nodes) — run `fct parity status` for live
+## Current subsystem map (49 nodes; 27 VERIFIED) — run `fct parity status` for live
   curves      3/3  VERIFIED (exact)
   blur        6/10 (Gaussian/Directional/Radial VERIFIED via delta; spatial.Gaussian 49dB +
                    spatial.Directional 26dB VERIFIED at node boundary; spatial.Zoom + spatial.Bloom
                    CHARACTERIZED (log-polar / blur-tail ceilings — Bloom pointwise LAW is EXACT,
                    shipping regime 42.7dB); Bloom-via-host DIVERGED)
-  color      13/26 (transfer regime: 13 pointwise colour transfers VERIFIED; the rest are
-                   CHARACTERIZED shared-clamp over-1.0 / HSV-hue CPU-map, need GPU disasm)
+  color      14/26 (transfer regime: 14 pointwise colour transfers VERIFIED incl. the 4th
+                   Levels leg PAELevels_combined — dropping the WS stage-1 clamp lets an
+                   above-whiteIn pixel overshoot past whiteOut to near-white as FCP does
+                   (16.7->0.71 lvl); the rest are CHARACTERIZED shared-clamp over-1.0 /
+                   HSV-hue CPU-map, need GPU disasm)
   generators  1/3  (ColorSolid VERIFIED; Clouds/Noise DIVERGED — RNG fields)
   geometry    2/4  (Flop/BlackHole VERIFIED; Earthquake/Underwater DIVERGED — RNG/time warps)
   stylize     1/3  (spatial.Glow VERIFIED 40.4dB at node boundary; BadTV DIVERGED = entangled
