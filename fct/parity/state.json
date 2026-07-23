@@ -2104,6 +2104,49 @@
       },
       "n_failures": 0,
       "note": ""
+    },
+    "spatial.PAEVignette": {
+      "id": "spatial.PAEVignette",
+      "kind": "spatial",
+      "status": "VERIFIED",
+      "metric": "frame_psnr_db",
+      "worst_psnr_db": 43.22,
+      "pass_db": 34.0,
+      "n_scored": 4,
+      "oracle_truth": "headless",
+      "worst_case": {
+        "param": {
+          "label": "size0.8_dark0.3_fall0.5",
+          "params": [
+            {
+              "name": "Size",
+              "id": 1,
+              "value": 0.8
+            },
+            {
+              "name": "Darken",
+              "id": 3,
+              "value": 0.3
+            },
+            {
+              "name": "Falloff",
+              "id": 5,
+              "value": 0.5
+            }
+          ]
+        },
+        "psnr": 43.22,
+        "mad": 0.655,
+        "signed": [
+          -0.219,
+          -0.04,
+          -0.049
+        ],
+        "resized": false,
+        "head_vs_input_mad": 5.44
+      },
+      "n_failures": 0,
+      "note": ""
     }
   },
   "history": [
@@ -2841,8 +2884,13 @@
       "id": "spatial.PAEPixellate",
       "status": "VERIFIED",
       "at": "2026-07-23T09:38:11Z"
+    },
+    {
+      "id": "spatial.PAEVignette",
+      "status": "VERIFIED",
+      "at": "2026-07-23T09:42:10Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T09:38:11Z"
+  "updated": "2026-07-23T09:42:10Z"
 }

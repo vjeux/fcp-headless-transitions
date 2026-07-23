@@ -1,0 +1,143 @@
+{
+  "id": "spatial.PAEVignette",
+  "kind": "spatial",
+  "status": "VERIFIED",
+  "metric": "frame_psnr_db",
+  "worst_psnr_db": 43.22,
+  "pass_db": 34.0,
+  "n_scored": 4,
+  "oracle_truth": "headless",
+  "worst_case": {
+    "param": {
+      "label": "size0.8_dark0.3_fall0.5",
+      "params": [
+        {
+          "name": "Size",
+          "id": 1,
+          "value": 0.8
+        },
+        {
+          "name": "Darken",
+          "id": 3,
+          "value": 0.3
+        },
+        {
+          "name": "Falloff",
+          "id": 5,
+          "value": 0.5
+        }
+      ]
+    },
+    "psnr": 43.22,
+    "mad": 0.655,
+    "signed": [
+      -0.219,
+      -0.04,
+      -0.049
+    ],
+    "resized": false,
+    "head_vs_input_mad": 5.44
+  },
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "default",
+        "params": []
+      },
+      "psnr": 46.66,
+      "mad": 0.519,
+      "signed": [
+        -0.234,
+        -0.214,
+        -0.229
+      ],
+      "resized": false,
+      "head_vs_input_mad": 2.66
+    },
+    {
+      "param": {
+        "label": "size0.4_dark0.6",
+        "params": [
+          {
+            "name": "Size",
+            "id": 1,
+            "value": 0.4
+          },
+          {
+            "name": "Darken",
+            "id": 3,
+            "value": 0.6
+          }
+        ]
+      },
+      "psnr": 49.11,
+      "mad": 0.494,
+      "signed": [
+        -0.286,
+        -0.275,
+        -0.291
+      ],
+      "resized": false,
+      "head_vs_input_mad": 1.65
+    },
+    {
+      "param": {
+        "label": "size0.8_dark0.3_fall0.5",
+        "params": [
+          {
+            "name": "Size",
+            "id": 1,
+            "value": 0.8
+          },
+          {
+            "name": "Darken",
+            "id": 3,
+            "value": 0.3
+          },
+          {
+            "name": "Falloff",
+            "id": 5,
+            "value": 0.5
+          }
+        ]
+      },
+      "psnr": 43.22,
+      "mad": 0.655,
+      "signed": [
+        -0.219,
+        -0.04,
+        -0.049
+      ],
+      "resized": false,
+      "head_vs_input_mad": 5.44
+    },
+    {
+      "param": {
+        "label": "dark0.9_fall0",
+        "params": [
+          {
+            "name": "Darken",
+            "id": 3,
+            "value": 0.9
+          },
+          {
+            "name": "Falloff",
+            "id": 5,
+            "value": 0.0
+          }
+        ]
+      },
+      "psnr": 47.23,
+      "mad": 0.31,
+      "signed": [
+        -0.184,
+        -0.16,
+        -0.172
+      ],
+      "resized": false,
+      "head_vs_input_mad": 16.15
+    }
+  ],
+  "note": ""
+}

@@ -5845,6 +5845,77 @@
    "status": "UNTESTED",
    "synth": "textured",
    "pass_db": 30.0
+  },
+  {
+   "id": "spatial.PAEVignette",
+   "subsystem": "stylize",
+   "kind": "spatial",
+   "desc": "PAEVignette (HgcVignette radial smoothstep darkening; fully decoded shader + oracle-verified band model R0=1.5-Size, inner/outer from Size*Falloff). Node-boundary full-frame PSNR over Size/Darken/Falloff. Smooth synth (radial darkening shows on the disc+gradient without texture aliasing).",
+   "oracle": {
+    "type": "spatial",
+    "uuid": "EB96FF9E-5863-4770-B7B5-65CB9BBF8E3B",
+    "pluginName": "PAEVignette"
+   },
+   "param_cases": [
+    {
+     "label": "default",
+     "params": []
+    },
+    {
+     "label": "size0.4_dark0.6",
+     "params": [
+      {
+       "name": "Size",
+       "id": 1,
+       "value": 0.4
+      },
+      {
+       "name": "Darken",
+       "id": 3,
+       "value": 0.6
+      }
+     ]
+    },
+    {
+     "label": "size0.8_dark0.3_fall0.5",
+     "params": [
+      {
+       "name": "Size",
+       "id": 1,
+       "value": 0.8
+      },
+      {
+       "name": "Darken",
+       "id": 3,
+       "value": 0.3
+      },
+      {
+       "name": "Falloff",
+       "id": 5,
+       "value": 0.5
+      }
+     ]
+    },
+    {
+     "label": "dark0.9_fall0",
+     "params": [
+      {
+       "name": "Darken",
+       "id": 3,
+       "value": 0.9
+      },
+      {
+       "name": "Falloff",
+       "id": 5,
+       "value": 0.0
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "headless",
+   "status": "UNTESTED",
+   "synth": "smooth",
+   "pass_db": 34.0
   }
  ]
 }
