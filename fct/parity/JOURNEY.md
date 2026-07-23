@@ -784,3 +784,21 @@ Two remaining CHARACTERIZED structural items, both needing binary disasm (not tr
 (1) the shared HGColorMatrix over-1.0 GPU-readback clamp (blocks the over-clip region of 6 nodes,
 all VERIFIED on grays/in-gamut); (2) the 2-stage HgcLevels composition (legs verified alone, diverge
 combined). Everything else in the pointwise colour subsystem is decoded + verified.
+
+
+## UPDATE 2026-07-22 (session 2 cont.) — HgcLevels 2-stage shader DECODED; combined composes
+
+Extracted the verbatim HgcLevels fragment shader — it is TWO affine+gamma stages (not the
+single in-remap/gamma/out-remap the per-leg LUT assumed). Wrapped in the gamma-1.958 WS with
+RAW endpoints:
+   ws(in) -> stage1 affine [blackIn,whiteIn]->[0,1] (no gamma) -> stage2 affine [0,1]->
+   [blackOut,whiteOut] then pow(1/gamma) -> ws_inv -> code   (each stage clamps [0,1])
+This UNIFIES all Levels legs: gamma 0.17, in-remap 0.24, out-remap 0.16 rms (still VERIFIED),
+and fixes the composition — combined (in+gamma+out) 23.8->16.8 worst, golden 15/27 -> 26/27.
+The prior LUT applied gamma BETWEEN the remaps; the shader shows gamma is in stage 2 after the
+output affine. The 1 remaining combined divergence is the in=240/white-in=0.9 clip boundary =
+the shared over-1.0 clamp. This resolves the earlier 'stages don't compose' contradiction: they
+DO compose, just in the shader's true 2-stage order. Shader saved to evidence/shaders/HgcLevels.metal.
+
+The two decoded colour working spaces now well-established: gamma-1.958 for tone ops (Tint/HSV/
+Colorize/Levels/Contrast) and true-sRGB-linear for Fill's colour. Levels fully decoded end-to-end.
