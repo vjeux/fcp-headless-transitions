@@ -1439,12 +1439,12 @@
       "kind": "transfer",
       "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 0.8100000000000023,
-      "n_samples": 168,
+      "max_abs_levels": 0.9200000000000017,
+      "n_samples": 294,
       "tol_levels": 2.0,
       "worst": {
         "case": {
-          "label": "greenoff0.1",
+          "label": "blueoff0.1",
           "params": [
             {
               "name": "Red Output",
@@ -1494,7 +1494,7 @@
                 {
                   "name": "Green - Alpha",
                   "id": 10,
-                  "value": 0.1
+                  "value": 0.0
                 }
               ]
             },
@@ -1520,7 +1520,7 @@
                 {
                   "name": "Blue - Alpha",
                   "id": 15,
-                  "value": 0.0
+                  "value": 0.1
                 }
               ]
             },
@@ -1532,19 +1532,19 @@
           ]
         },
         "input": [
-          16,
-          16,
-          16
+          32,
+          32,
+          32
         ],
         "oracle": [
-          16.1,
-          41.19,
-          16.05
+          32.2,
+          31.99,
+          57.08
         ],
         "engine": [
-          16.0,
-          42.0,
-          16.0
+          32.0,
+          32.0,
+          58.0
         ]
       },
       "oracle_truth": "transfer",
@@ -3330,8 +3330,13 @@
       "id": "transfer.PAEHSVAdjust_saturation",
       "status": "VERIFIED",
       "at": "2026-07-23T13:10:36Z"
+    },
+    {
+      "id": "transfer.PAEChannelMixer_offset",
+      "status": "VERIFIED",
+      "at": "2026-07-23T13:13:23Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T13:10:36Z"
+  "updated": "2026-07-23T13:13:23Z"
 }
