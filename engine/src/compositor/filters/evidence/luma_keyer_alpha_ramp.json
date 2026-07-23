@@ -1,0 +1,363 @@
+{
+ "source": "REAL headless FCP HgcLumaKeyer (PAELumaKeyer, UUID 7E9178C5-\u2026), default keyer blob (DefaultSoftness=9, Strength=1, Invert=0)",
+ "probe": "uniform gray luma ramp -> RGBA center readback; RGB passes through unchanged, alpha = keyer trapezoid",
+ "decode": "LINEAR band-pass trapezoid in gamma-1.958 WORKING SPACE (xw=luma^0.51117), control points B=1/4 C=3/4 D=1, rms 0.37 / max 1.04 lvl. Prev code-space smoothstep model was rms 12.82 / max 71 lvl WRONG.",
+ "iv": 0.51117,
+ "B": 0.25,
+ "C": 0.75,
+ "D": 1.0,
+ "rows": [
+  {
+   "luma_in": 0,
+   "alpha_out": 0.0
+  },
+  {
+   "luma_in": 1,
+   "alpha_out": 59.99
+  },
+  {
+   "luma_in": 2,
+   "alpha_out": 85.409
+  },
+  {
+   "luma_in": 3,
+   "alpha_out": 105.197
+  },
+  {
+   "luma_in": 4,
+   "alpha_out": 121.849
+  },
+  {
+   "luma_in": 5,
+   "alpha_out": 136.577
+  },
+  {
+   "luma_in": 6,
+   "alpha_out": 149.817
+  },
+  {
+   "luma_in": 7,
+   "alpha_out": 162.034
+  },
+  {
+   "luma_in": 8,
+   "alpha_out": 173.577
+  },
+  {
+   "luma_in": 9,
+   "alpha_out": 184.455
+  },
+  {
+   "luma_in": 10,
+   "alpha_out": 194.577
+  },
+  {
+   "luma_in": 11,
+   "alpha_out": 204.455
+  },
+  {
+   "luma_in": 12,
+   "alpha_out": 213.71
+  },
+  {
+   "luma_in": 13,
+   "alpha_out": 222.577
+  },
+  {
+   "luma_in": 14,
+   "alpha_out": 231.162
+  },
+  {
+   "luma_in": 15,
+   "alpha_out": 239.577
+  },
+  {
+   "luma_in": 16,
+   "alpha_out": 247.71
+  },
+  {
+   "luma_in": 17,
+   "alpha_out": 254.455
+  },
+  {
+   "luma_in": 18,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 19,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 20,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 21,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 22,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 23,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 24,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 32,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 40,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 48,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 56,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 64,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 72,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 80,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 88,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 96,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 104,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 112,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 120,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 128,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 136,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 138,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 141,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 144,
+   "alpha_out": 255.0
+  },
+  {
+   "luma_in": 147,
+   "alpha_out": 251.034
+  },
+  {
+   "luma_in": 150,
+   "alpha_out": 243.034
+  },
+  {
+   "luma_in": 152,
+   "alpha_out": 237.46
+  },
+  {
+   "luma_in": 153,
+   "alpha_out": 235.034
+  },
+  {
+   "luma_in": 156,
+   "alpha_out": 227.034
+  },
+  {
+   "luma_in": 159,
+   "alpha_out": 219.71
+  },
+  {
+   "luma_in": 160,
+   "alpha_out": 217.03
+  },
+  {
+   "luma_in": 162,
+   "alpha_out": 211.162
+  },
+  {
+   "luma_in": 165,
+   "alpha_out": 203.71
+  },
+  {
+   "luma_in": 168,
+   "alpha_out": 196.162
+  },
+  {
+   "luma_in": 171,
+   "alpha_out": 188.817
+  },
+  {
+   "luma_in": 174,
+   "alpha_out": 181.162
+  },
+  {
+   "luma_in": 176,
+   "alpha_out": 176.31
+  },
+  {
+   "luma_in": 177,
+   "alpha_out": 174.162
+  },
+  {
+   "luma_in": 180,
+   "alpha_out": 166.71
+  },
+  {
+   "luma_in": 183,
+   "alpha_out": 159.336
+  },
+  {
+   "luma_in": 184,
+   "alpha_out": 157.31
+  },
+  {
+   "luma_in": 186,
+   "alpha_out": 152.455
+  },
+  {
+   "luma_in": 189,
+   "alpha_out": 145.817
+  },
+  {
+   "luma_in": 192,
+   "alpha_out": 138.312
+  },
+  {
+   "luma_in": 195,
+   "alpha_out": 130.817
+  },
+  {
+   "luma_in": 198,
+   "alpha_out": 124.002
+  },
+  {
+   "luma_in": 200,
+   "alpha_out": 119.49
+  },
+  {
+   "luma_in": 201,
+   "alpha_out": 117.002
+  },
+  {
+   "luma_in": 204,
+   "alpha_out": 110.999
+  },
+  {
+   "luma_in": 207,
+   "alpha_out": 103.556
+  },
+  {
+   "luma_in": 208,
+   "alpha_out": 101.06
+  },
+  {
+   "luma_in": 210,
+   "alpha_out": 96.607
+  },
+  {
+   "luma_in": 213,
+   "alpha_out": 90.058
+  },
+  {
+   "luma_in": 216,
+   "alpha_out": 83.607
+  },
+  {
+   "luma_in": 219,
+   "alpha_out": 76.734
+  },
+  {
+   "luma_in": 222,
+   "alpha_out": 70.119
+  },
+  {
+   "luma_in": 224,
+   "alpha_out": 66.12
+  },
+  {
+   "luma_in": 225,
+   "alpha_out": 63.741
+  },
+  {
+   "luma_in": 228,
+   "alpha_out": 56.781
+  },
+  {
+   "luma_in": 231,
+   "alpha_out": 50.781
+  },
+  {
+   "luma_in": 232,
+   "alpha_out": 48.3
+  },
+  {
+   "luma_in": 234,
+   "alpha_out": 44.331
+  },
+  {
+   "luma_in": 237,
+   "alpha_out": 37.835
+  },
+  {
+   "luma_in": 240,
+   "alpha_out": 31.371
+  },
+  {
+   "luma_in": 243,
+   "alpha_out": 25.407
+  },
+  {
+   "luma_in": 246,
+   "alpha_out": 18.909
+  },
+  {
+   "luma_in": 248,
+   "alpha_out": 14.93
+  },
+  {
+   "luma_in": 249,
+   "alpha_out": 12.935
+  },
+  {
+   "luma_in": 252,
+   "alpha_out": 6.494
+  },
+  {
+   "luma_in": 255,
+   "alpha_out": 0.0
+  }
+ ]
+}

@@ -44,11 +44,21 @@
  *
  *   MEASURED default keyer curve (tools/re/gen_pattern.py ramp → filter_probe → read a
  *   row of the RGBA output; the filter's Luma param is a static non-keyframed keyer blob
- *   so both shipping users get this DEFAULT curve; DefaultSoftness=9, Strength=1,
- *   Invert=0): alpha rises 0→1 across luma≈[0.004, 0.067], plateaus 1 through luma≈0.56,
- *   then falls LINEARLY to 0 at luma=1.0 (slope −1/(1−0.56)). i.e. it KEEPS shadows+mids
- *   and keys out highlights (and pure black). RGB output == input (verified vs headless:
- *   headless RGB = input, alpha = this trapezoid). LUMA_KEYER_A/B/C/D below encode this.
+ *   so both shipping users get this DEFAULT curve; DefaultSoftness=9, Strength=1, Invert=0).
+ *   DECODED 2026-07-23 via a FINE headless-FCP alpha ramp (0..255 step 1 on both edges,
+ *   /tmp/keyer_fine.json → scipy fit): the trapezoid is a straight-line band-pass in the
+ *   gamma-1.958 WORKING SPACE (xw = luma^iv, iv=0.51117), NOT a smoothstep in code space.
+ *   In WS coords the control points are clean rationals B=1/4, C=3/4, D=1 (rms 0.37 /
+ *   max 1.04 lvl):  xw<1/4 → xw/(1/4) rising ramp;  1/4≤xw<3/4 → 1 plateau (fully KEPT);
+ *   3/4≤xw<1 → (1-xw)/(1/4) falling ramp;  xw≥1 → 0.  The earlier "measured" code-space
+ *   edges (0.004/0.067/0.56/1.0) were exactly these WS ¼/¾ warped by ^(1/iv); modelling them
+ *   with a code-space SMOOTHSTEP rising edge was rms 12.82 / max 71 lvl WRONG in ALPHA — a
+ *   gate-invisible bug (the 65-slug PSNR gate is RGB-only). i.e. it KEEPS shadows+mids and
+ *   keys out highlights (and pure black). RGB output == input (verified vs headless).
+ *   The keyer node feeds color0.x = luma Y (desiredRGBToYCbCrMatrix Y-row, Rec.709, seen in
+ *   -[PAELumaKeyer getKeyerNode:] building an HGColorMatrix from desiredRGBToYCbCrMatrix).
+ *   RGB is UN-premultiplied and passes through UNCHANGED; only ALPHA is replaced by out
+ *   (then re-premultiplied at composite time). LUMA_KEYER_B/C/D below encode this (WS space).
  * ============================================================================
  *
  * Makes pixels transparent based on their luminance (brightness).
@@ -69,28 +79,35 @@ export interface LumaKeyerParams {
   invert: boolean;
 }
 
-// FCP default keyer control points (A'/B'/C'/D' in luma 0..1), decoded from
-// OMKeyer2D::getAlphaLuma + MEASURED from a headless ramp probe (see file header).
+// FCP default keyer control points — DECODED (2026-07-23) as a LINEAR band-pass trapezoid
+// in the gamma-1.958 WORKING SPACE (xw = luma^iv, iv=0.51117), NOT a smoothstep in code
+// space. A fine headless-FCP luma-ramp alpha probe (0..255 step 1 on both edges, /tmp/
+// keyer_fine.json) fit a clean linear trapezoid in xw with rational control points
+// B=1/4, C=3/4, D=1 at rms 0.37 / max 1.04 lvl. The previous smoothstep-in-code-space model
+// was rms 12.82 / max 71 lvl off in ALPHA (a gate-invisible bug — the 65-slug PSNR gate is
+// RGB-only and never checks alpha). The old code-space edge points (A'=0.004, B'=0.067,
+// C'=0.56, D'=1.0) are exactly these WS rationals viewed through ^(1/iv):
+//   0.25^(1/iv)=0.062, 0.75^(1/iv)=0.564 — i.e. the "measured" 0.067/0.56 were the WS ¼/¾.
 // Band-pass: KEEP shadows+mids, key out highlights and pure black.
-const LUMA_KEYER_A = 0.004;  // low edge start  (below → alpha 0)
-const LUMA_KEYER_B = 0.067;  // low edge end    (rising soft-in reaches 1)
-const LUMA_KEYER_C = 0.56;   // high edge start (plateau ends)
-const LUMA_KEYER_D = 1.0;    // high edge end   (above → alpha 0)
+const WS_INV_GAMMA = 0.51117;      // working-space inverse gamma (gamma≈1.9563, Rec.709)
+const LUMA_KEYER_B = 0.25;   // rising edge end   (WS space; ramp 0→1 across [0,B])
+const LUMA_KEYER_C = 0.75;   // plateau end       (WS space; fully kept [B,C])
+const LUMA_KEYER_D = 1.0;    // falling edge end  (WS space; ramp 1→0 across [C,D])
 
-/** FCP OMKeyer2D::getAlphaLuma(x) — the 4-control-point trapezoid keyer transfer.
- *  Rising edge uses a smoothstep (matches the measured steep soft-in); falling edge is
- *  linear (measured slope −1/(D−C)). Returns alpha in [0,1] for a luma x in [0,1]. */
-function getAlphaLuma(x: number, A: number, B: number, C: number, D: number): number {
+/** FCP OMKeyer2D::getAlphaLuma — DECODED as a LINEAR trapezoid band-pass in the WS-gamma
+ *  space. Input `x` is code-space luma in [0,1]; it is raised to the working-space inverse
+ *  gamma (xw = x^iv) and passed through a straight-line trapezoid with control points
+ *  B, C, D (in WS coords). Both edges are LINEAR in WS — the rising edge only LOOKED like a
+ *  steep soft-in in code space because of the gamma warp. Returns alpha in [0,1]. */
+function getAlphaLuma(x: number, B: number, C: number, D: number): number {
+  const xw = Math.pow(x < 0 ? 0 : x > 1 ? 1 : x, WS_INV_GAMMA); // to working space
   let a: number;
-  if (x < A) {
-    a = 0;
-  } else if (x < B) {
-    const t = (x - A) / (B - A);
-    a = t * t * (3 - 2 * t);        // smoothstep soft-in (spline rising edge)
-  } else if (x < C) {
+  if (xw < B) {
+    a = xw / B;                     // rising ramp (linear in WS; sqrt-like in code space)
+  } else if (xw < C) {
     a = 1;                          // plateau — fully kept
-  } else if (x < D) {
-    a = (D - x) / (D - C);          // linear soft-out (measured)
+  } else if (xw < D) {
+    a = (D - xw) / (D - C);         // falling ramp (linear in WS)
   } else {
     a = 0;
   }
@@ -114,7 +131,7 @@ export function lumaKeyerFilter(input: ImageData, params: LumaKeyerParams): Imag
 
   for (let i = 0; i < src.length; i += 4) {
     const lum = luma(src[i], src[i + 1], src[i + 2]) / 255;
-    let key = getAlphaLuma(lum, LUMA_KEYER_A, LUMA_KEYER_B, LUMA_KEYER_C, LUMA_KEYER_D);
+    let key = getAlphaLuma(lum, LUMA_KEYER_B, LUMA_KEYER_C, LUMA_KEYER_D);
     if (invert) key = 1 - key;
     // RGB passes through unchanged; only alpha is keyed (re-premultiplied at composite).
     const origAlpha = src[i + 3];

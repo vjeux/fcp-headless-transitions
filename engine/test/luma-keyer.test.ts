@@ -7,6 +7,8 @@ if (typeof globalThis.ImageData === "undefined") {
   };
 }
 import { lumaKeyerFilter } from '../src/compositor/filters/luma-keyer.js';
+import fs from 'node:fs';
+import path from 'node:path';
 
 function assert(cond: boolean, msg: string) { if (!cond) throw new Error(`FAIL: ${msg}`); }
 
@@ -25,10 +27,10 @@ function runTests() {
     return img;
   }
 
-  // FCP's HgcLumaKeyer default curve (decoded getAlphaLuma + measured from a headless ramp
-  // probe): a TRAPEZOID BAND-PASS over luma. It KEEPS shadows+mids and keys out highlights
-  // AND pure black — the opposite of a simple "dark→transparent" threshold. Control points
-  // A'=0.004, B'=0.067, C'=0.56, D'=1.0. RGB passes through unchanged.
+  // FCP's HgcLumaKeyer default curve — DECODED (2026-07-23) as a LINEAR band-pass TRAPEZOID
+  // in the gamma-1.958 WORKING SPACE (xw = luma^0.51117), NOT a smoothstep in code space.
+  // WS control points B=1/4, C=3/4, D=1 (rms 0.37 vs headless FCP). It KEEPS shadows+mids
+  // and keys out highlights AND pure black. RGB passes through unchanged.
 
   test('pure black (luma<A′) → keyed transparent', () => {
     const img = makeImg(0.0);
@@ -45,7 +47,7 @@ function runTests() {
   test('bright highlight (luma>C′) → partially/fully keyed', () => {
     const img = makeImg(0.9);
     const out = lumaKeyerFilter(img, { luma: 0.5, rolloff: 0.1, strength: 1, invert: false });
-    // luma 0.9 on the falling edge: alpha = (1-0.9)/(1-0.56) ≈ 0.227 → ~58/255
+    // luma 0.9 → xw=0.9^0.51117=0.949, falling edge: alpha=(1-0.949)/0.25≈0.21 → ~53/255
     assert(out.data[3] < 90, `highlight should be keyed down, alpha=${out.data[3]}`);
   });
 
@@ -73,6 +75,24 @@ function runTests() {
     const img = makeImg(0.9);
     const out = lumaKeyerFilter(img, { luma: 0.5, rolloff: 0.1, strength: 0, invert: false });
     assert(out.data[3] === 255, `strength=0 should preserve alpha, got ${out.data[3]}`);
+  });
+
+  // NODE-BOUNDARY golden: the engine's keyed alpha must match REAL headless FCP across the
+  // full luma ramp (evidence/luma_keyer_alpha_ramp.json — 88 samples captured from the
+  // shipping default keyer blob). This is the alpha analogue of the colour-node golden and
+  // catches the gate-invisible alpha bug the RGB-only 65-slug PSNR gate can never see.
+  test('alpha ramp matches REAL headless FCP (node-boundary, ≤2 levels)', () => {
+    const ev = JSON.parse(fs.readFileSync(
+      path.resolve(import.meta.dirname, '../src/compositor/filters/evidence/luma_keyer_alpha_ramp.json'), 'utf-8'));
+    let worst = 0, worstAt = -1;
+    for (const { luma_in, alpha_out } of ev.rows as { luma_in: number; alpha_out: number }[]) {
+      const img = makeImg(luma_in / 255);
+      const out = lumaKeyerFilter(img, { luma: 0.5, rolloff: 0.1, strength: 1, invert: false });
+      const err = Math.abs(out.data[3] - alpha_out);
+      if (err > worst) { worst = err; worstAt = luma_in; }
+    }
+    assert(worst <= 2, `keyed alpha diverges from headless FCP by ${worst.toFixed(2)} levels at luma_in=${worstAt} (want ≤2)`);
+    console.log(`    (alpha ramp: worst ${worst.toFixed(2)} lvl vs headless FCP over ${ev.rows.length} samples)`);
   });
 
   console.log(`\n${pass} passed, ${fail} failed`);
