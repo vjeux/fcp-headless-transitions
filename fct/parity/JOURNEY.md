@@ -697,3 +697,27 @@ Colour node coverage: 14 nodes / 501 REAL-headless-FCP golden cases, 481 pass. E
 STILL the one shared HGColorMatrix over-1.0/under-0 GPU-readback gamut clamp (same [50,200,50]-type
 over-clip input across Brightness/ChannelMixer-clip/HSV-hue/HSV-oversat/Contrast). All pointwise
 colour math is decoded + correct; the clamp needs the OZ tile-conversion disasm.
+
+
+## UPDATE 2026-07-22 (session 2 cont.) — coverage push: +Levels-outremap +Fill. 16 nodes/564 cases
+
+Continuing the fast per-node loop (headless-FCP golden). Two more nodes decoded+verified:
+- LEVELS OUTPUT-REMAP (Black Out/White Out): out=ws_inv(bo+ws(in)*(wo-bo)) in the gamma-1.958
+  WS, raw endpoints. transfer.PAELevels_outremap VERIFIED 0.63 lvl (n=81), golden 27/27. Also
+  CONFIRMED the param IDs Black Out=2 / White Out=4 (were 'unverified by convention'). Levels is
+  now fully decoded end-to-end: gamma + input-remap + output-remap, all in the unified WS.
+- FILL (PAEFill, Color mode): out = in*(1-Mix) + sRGBtoLinear(fill)*255*Mix. FCP decodes the fill
+  colour via the TRUE sRGB EOTF to scene-linear (input stays code); an authored 0.5 contributes
+  effective code 54.5, NOT 127.5 (why in=fill=128,Mix=0.5 -> 91.3 not 128). transfer.PAEFill
+  VERIFIED 1.14 lvl (n=108), golden 36/36. NOTE: Fill uses TRUE-linear for its colour, DISTINCT
+  from the gamma-1.958 WS the tone ops use — a useful data point (not every colour op is in the
+  same space; the tone/contrast ops are gamma-1.958, the fill/composite ops decode to true linear).
+
+HGColorMatrix over-1.0 clamp: FINAL RULING recorded — exhaustive pointwise + per-channel model
+search (linear/luma-desat/overflow-bleed/Reinhard/soft-knee, all undershoot the non-max lift).
+It is CROSS-CHANNEL (clipped energy bleeds into others), only the ExtendedLinearSRGB tile readback
+reproduces it. Architectural boundary; needs OZ tile-conversion disasm. Blocks the over-clip region
+of 5 nodes identically — all VERIFIED on grays/in-gamut.
+
+Colour node coverage: 16 nodes / 564 REAL-headless-FCP golden cases, 544 pass, 0 VERIFIED regressions.
+Session decodes: Threshold(bugfix), Contrast(new), Levels-outremap(new+IDs), Fill(new).
