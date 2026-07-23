@@ -6413,6 +6413,55 @@
    "pass_db": 30.0,
    "characterized": true,
    "characterized_reason": "Engine implements FCP's polar-space spin pipeline (rect->polar, 1-D wrap-Gaussian on the angle axis, polar->rect; sigma=arcPx/6.0) and now reads the CORRECT Amount param (id=2, not id=1 -- the initial probe used id=1 which FCP ignored, a probe bug found+fixed this session). With id=2 the spin responds but carries a systematic signed bias (~-2 to -3 lvl, growing with Amount: 33.6 dB @amt3 -> 29.4 dB @amt8 -> 22.8 dB @amt30) -- the engine's angular kernel width vs FCP's differs, on top of the shared polar-resample discretization ceiling (~24 dB on all-edges content, documented in directional-blur.ts PHASE-2 CEILING NOTE). The Amount->arc scaling (FCP amount'=Amount*1.5) and the sigma constant need a clean spin-arc decode (a non-wrapping off-centre wedge probe -- the disc/spoke synths wrap +/-pi around the spin centre and can't measure the arc FWHM). Shipping users author Amount static so gate-inert. Small-amount regime {3,5,8} registered."
+  },
+  {
+   "id": "spatial.PAEBevel",
+   "subsystem": "stylize",
+   "kind": "spatial",
+   "desc": "PAEBevel (offset-accumulation lit bevel band: band_px=BevelWidth*0.28125*maxDim inward from each alpha boundary, tinted by the four |cos(theta+k)| light lobes k in {0,-45,-90,+45}). On a full-opaque frame the four FRAME edges get the bevel band (different brightness per edge = the four lobes). Node-boundary full-frame PSNR over Bevel Width (id=2). Smooth synth. Light Angle NOT probe-drivable (fixed default light); band geometry + default lobes are headless-verified. SHIPPING (Stylized__Panels_Across).",
+   "oracle": {
+    "type": "spatial",
+    "uuid": "9C655247-E514-458B-83BA-B3F63EFFD241",
+    "pluginName": "PAEBevel"
+   },
+   "param_cases": [
+    {
+     "label": "width0.05",
+     "params": [
+      {
+       "name": "Bevel Width",
+       "id": 2,
+       "value": 0.05
+      }
+     ]
+    },
+    {
+     "label": "width0.1",
+     "params": [
+      {
+       "name": "Bevel Width",
+       "id": 2,
+       "value": 0.1
+      }
+     ]
+    },
+    {
+     "label": "width0.2",
+     "params": [
+      {
+       "name": "Bevel Width",
+       "id": 2,
+       "value": 0.2
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "headless",
+   "status": "UNTESTED",
+   "synth": "smooth",
+   "pass_db": 30.0,
+   "characterized": true,
+   "characterized_reason": "Band GEOMETRY verified (band_px=BevelWidth*0.28125*maxDim: width0.1 -> both engine and headless cut off at x=54 exactly), but the band TINT diverges (9.5 dB, signed -2.8/-5.1/-9.5 growing with width). ROOT CAUSE (probe /tmp/bev_diff.py, left edge width0.1): FCP LIGHTENS the edge band (input 40 -> 115 left / 212 top = the lit four-|cos| lobes), but the engine's gradient-normal model DARKENS it to ~0 -- its inward-normal is inverted at the frame border (nx=-gx/gmag points toward transparent) AND the whole model is the OLD gradient-normal-dot that PHASE-2 TODO(P2-bevel-1) said to REPLACE with FCP's verbatim OFFSET-ACCUMULATION (re-draw the layer as 4 directionally-offset, |cos(theta+k)|-tinted copies composited by HgcBevel). Light Angle is NOT probe-drivable (flat injection leaves headless identical across angles, like the keyer/HSV blobs), so only the fixed default light + band geometry are verifiable. Fixing needs the offset-accumulation rewrite (band width already decoded). SHIPPING: Stylized__Panels_Across only."
   }
  ]
 }

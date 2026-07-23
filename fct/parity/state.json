@@ -2322,6 +2322,39 @@
       },
       "n_failures": 0,
       "note": ""
+    },
+    "spatial.PAEBevel": {
+      "id": "spatial.PAEBevel",
+      "kind": "spatial",
+      "status": "DIVERGED",
+      "metric": "frame_psnr_db",
+      "worst_psnr_db": 9.51,
+      "pass_db": 30.0,
+      "n_scored": 3,
+      "oracle_truth": "headless",
+      "worst_case": {
+        "param": {
+          "label": "width0.2",
+          "params": [
+            {
+              "name": "Bevel Width",
+              "id": 2,
+              "value": 0.2
+            }
+          ]
+        },
+        "psnr": 9.51,
+        "mad": 42.613,
+        "signed": [
+          -9.479,
+          -9.472,
+          -9.47
+        ],
+        "resized": false,
+        "head_vs_input_mad": 29.99
+      },
+      "n_failures": 0,
+      "note": ""
     }
   },
   "history": [
@@ -3114,8 +3147,13 @@
       "id": "transfer.PAELevels_combined",
       "status": "VERIFIED",
       "at": "2026-07-23T10:22:33Z"
+    },
+    {
+      "id": "spatial.PAEBevel",
+      "status": "DIVERGED",
+      "at": "2026-07-23T10:40:05Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T10:22:33Z"
+  "updated": "2026-07-23T10:40:05Z"
 }

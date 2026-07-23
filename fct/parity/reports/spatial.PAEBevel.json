@@ -1,0 +1,98 @@
+{
+  "id": "spatial.PAEBevel",
+  "kind": "spatial",
+  "status": "DIVERGED",
+  "metric": "frame_psnr_db",
+  "worst_psnr_db": 9.51,
+  "pass_db": 30.0,
+  "n_scored": 3,
+  "oracle_truth": "headless",
+  "worst_case": {
+    "param": {
+      "label": "width0.2",
+      "params": [
+        {
+          "name": "Bevel Width",
+          "id": 2,
+          "value": 0.2
+        }
+      ]
+    },
+    "psnr": 9.51,
+    "mad": 42.613,
+    "signed": [
+      -9.479,
+      -9.472,
+      -9.47
+    ],
+    "resized": false,
+    "head_vs_input_mad": 29.99
+  },
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "width0.05",
+        "params": [
+          {
+            "name": "Bevel Width",
+            "id": 2,
+            "value": 0.05
+          }
+        ]
+      },
+      "psnr": 15.33,
+      "mad": 11.452,
+      "signed": [
+        -2.767,
+        -2.759,
+        -2.768
+      ],
+      "resized": false,
+      "head_vs_input_mad": 8.22
+    },
+    {
+      "param": {
+        "label": "width0.1",
+        "params": [
+          {
+            "name": "Bevel Width",
+            "id": 2,
+            "value": 0.1
+          }
+        ]
+      },
+      "psnr": 12.38,
+      "mad": 22.164,
+      "signed": [
+        -5.136,
+        -5.128,
+        -5.134
+      ],
+      "resized": false,
+      "head_vs_input_mad": 15.75
+    },
+    {
+      "param": {
+        "label": "width0.2",
+        "params": [
+          {
+            "name": "Bevel Width",
+            "id": 2,
+            "value": 0.2
+          }
+        ]
+      },
+      "psnr": 9.51,
+      "mad": 42.613,
+      "signed": [
+        -9.479,
+        -9.472,
+        -9.47
+      ],
+      "resized": false,
+      "head_vs_input_mad": 29.99
+    }
+  ],
+  "note": ""
+}

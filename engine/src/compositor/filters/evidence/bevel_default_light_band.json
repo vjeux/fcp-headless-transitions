@@ -1,0 +1,45 @@
+{
+ "source": "REAL headless FCP PAEBevel (UUID 9C655247-\u2026), default light (Light Angle NOT probe-drivable \u2014 flat injection leaves output identical across angles).",
+ "probe": "flat gray input=100, uniform RGBA, Bevel Width=0.1 (band=54px); read the tinted band value ~10px in from each frame edge",
+ "band_width_law": "band_px = BevelWidth * 0.28125 * maxDim (verified: width0.1 -> cutoff at x=54 exactly, both engine and headless)",
+ "default_light_band_tints_input100": {
+  "TOP": [
+   224,
+   224,
+   222
+  ],
+  "BOTTOM": [
+   111,
+   111,
+   112
+  ],
+  "LEFT": [
+   129,
+   127,
+   127
+  ],
+  "RIGHT": [
+   129,
+   127,
+   127
+  ],
+  "TL_corner": [
+   222,
+   224,
+   224
+  ],
+  "CENTER_interior": [
+   100,
+   100,
+   100
+  ]
+ },
+ "deltas_from_input100": {
+  "TOP": 124,
+  "LEFT": 28,
+  "RIGHT": 28,
+  "BOTTOM": 11
+ },
+ "engine_bug": "engine bevelFilter uses the OLD gradient-normal-dot model (PHASE-2 TODO P2-bevel-1 said to replace) and its inward-normal is INVERTED at the frame border (nx=-gx/gmag points toward transparent), so it DARKENS the band to ~0 instead of lightening. Band GEOMETRY (width/cutoff) is correct; TINT is wrong (9.5 dB, signed -2.8/-5.1/-9.5 growing with width).",
+ "fix_needed": "port FCP's verbatim OFFSET-ACCUMULATION: re-draw the layer as 4 directionally-offset (offset=halfWidth), |cos(theta+k)|-tinted (k in {0,-45,-90,+45}) copies composited by HgcBevel (out=mix(dest,color,color.a); a=max). The flat additive band toward the light Color matches the measured plateau. Rotation unverifiable (angle not drivable) but the default-light tints above pin the k-to-edge assignment for a regression check."
+}
