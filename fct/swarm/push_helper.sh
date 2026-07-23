@@ -47,7 +47,25 @@ for attempt in 1 2 3 4 5; do
     cat /tmp/fct-swarm-rebase-$ID.err >&2 || true
     exit 6
   fi
-  ./fct.sh regress engine || { echo "push_helper: GATE RED after rebase — refusing to push" >&2; exit 5; }
+  # GATE (updated 2026-07-23): the 65-slug full-frame `regress engine` gate was DISABLED
+  # by vjeux on 2026-07-22 (geometry-dominated, misleads node decode) — it now exits 2
+  # unconditionally, which the old `|| exit 5` mis-read as "gate red", so NO agent could
+  # ever push (swarm-wide blocker, hit by every subswarm agent). The sanctioned truth is
+  # now per-node (each agent verifies with its own subsystem/parity tests BEFORE calling
+  # this helper). Here we gate on the two things a push must never break globally:
+  #   (1) the TS build compiles (tsc --noEmit) — a broken build breaks every agent;
+  #   (2) the function-level parity self-test still passes (the pure-math node oracle).
+  # A subsystem correctness change is validated by the agent's `fct subswarm test <s>` /
+  # `fct min-score`, not re-run here (that would be the slow, race-prone full suite).
+  echo "push_helper: gate — tsc --noEmit"
+  if ! ( cd engine && node_modules/.bin/tsc --noEmit ); then
+    echo "push_helper: GATE RED — tsc errors after rebase, refusing to push" >&2; exit 5
+  fi
+  echo "push_helper: gate — fct parity selftest"
+  if ! ./fct.sh parity selftest >/tmp/fct-swarm-parity-$ID.log 2>&1; then
+    echo "push_helper: GATE RED — parity selftest failed after rebase, refusing to push" >&2
+    tail -20 /tmp/fct-swarm-parity-$ID.log >&2 || true; exit 5
+  fi
   if git push --quiet origin HEAD:main 2>/tmp/fct-swarm-push-$ID.err; then
     echo "push_helper: pushed $(git rev-parse --short HEAD) to origin/main (attempt $attempt)"
     exit 0
