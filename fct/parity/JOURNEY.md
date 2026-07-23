@@ -765,3 +765,22 @@ shipping legs (used individually by the 27 Levels transitions) stay VERIFIED. Ne
 HgcLevels param-split decoded to resolve.
 
 Colour node coverage unchanged at 16 golden nodes; +1 characterized registry node (combined Levels).
+
+
+## UPDATE 2026-07-22 (session 2 cont.) — ChannelMixer offset gap RESOLVED; 18 nodes/609 cases
+
+- CHANNELMIXER OFFSET (T-M4 gap): RESOLVED. Isolated gray-input sweep shows the Red-Alpha offset
+  is exactly +offset*255 in sRGB code space (G/B unchanged). The old 'lifts all 3 channels /
+  non-converged linear +0.27' finding was a COLORED input over-clipping (191+76>255) firing the
+  SHARED over-1.0 clamp, misattributed to the offset (and measured vs GUI truth). Engine offsets[]
+  path is correct. transfer.PAEChannelMixer_offset VERIFIED 0.77 lvl; header updated.
+
+Colour node coverage this session reached 18 nodes / 609 REAL-headless-FCP golden cases (571 pass,
+0 VERIFIED regressions). Session node work: Threshold(UUID bugfix→VERIFIED), Contrast(new decode,
+gamma-1.958 WS→VERIFIED), Levels-outremap(new, param IDs verified), Fill(new, true-sRGB fill decode),
+combined-Levels(characterized: stages don't naively compose), ChannelMixer-offset(gap resolved).
+
+Two remaining CHARACTERIZED structural items, both needing binary disasm (not transfer-fittable):
+(1) the shared HGColorMatrix over-1.0 GPU-readback clamp (blocks the over-clip region of 6 nodes,
+all VERIFIED on grays/in-gamut); (2) the 2-stage HgcLevels composition (legs verified alone, diverge
+combined). Everything else in the pointwise colour subsystem is decoded + verified.
