@@ -5193,7 +5193,7 @@
         {
          "name": "Green - Alpha",
          "id": 10,
-         "value": 0
+         "value": 0.0
         }
        ]
       },
@@ -5219,7 +5219,7 @@
         {
          "name": "Blue - Alpha",
          "id": 15,
-         "value": 0
+         "value": 0.0
         }
        ]
       },
@@ -5281,7 +5281,7 @@
         {
          "name": "Green - Alpha",
          "id": 10,
-         "value": 0
+         "value": 0.0
         }
        ]
       },
@@ -5307,7 +5307,7 @@
         {
          "name": "Blue - Alpha",
          "id": 15,
-         "value": 0
+         "value": 0.0
         }
        ]
       },
@@ -5319,7 +5319,7 @@
      ]
     },
     {
-     "label": "redoff0.3",
+     "label": "redoff0.25",
      "params": [
       {
        "name": "Red Output",
@@ -5343,7 +5343,7 @@
         {
          "name": "Red - Alpha",
          "id": 5,
-         "value": 0.3
+         "value": 0.25
         }
        ]
       },
@@ -5369,7 +5369,7 @@
         {
          "name": "Green - Alpha",
          "id": 10,
-         "value": 0
+         "value": 0.0
         }
        ]
       },
@@ -5395,7 +5395,7 @@
         {
          "name": "Blue - Alpha",
          "id": 15,
-         "value": 0
+         "value": 0.0
         }
        ]
       },
@@ -5431,7 +5431,7 @@
         {
          "name": "Red - Alpha",
          "id": 5,
-         "value": 0
+         "value": 0.0
         }
        ]
       },
@@ -5483,7 +5483,7 @@
         {
          "name": "Blue - Alpha",
          "id": 15,
-         "value": 0
+         "value": 0.0
         }
        ]
       },
@@ -5519,7 +5519,7 @@
         {
          "name": "Red - Alpha",
          "id": 5,
-         "value": 0
+         "value": 0.0
         }
        ]
       },
@@ -5545,7 +5545,7 @@
         {
          "name": "Green - Alpha",
          "id": 10,
-         "value": 0
+         "value": 0.0
         }
        ]
       },
@@ -5572,6 +5572,94 @@
          "name": "Blue - Alpha",
          "id": 15,
          "value": 0.2
+        }
+       ]
+      },
+      {
+       "name": "Monochrome",
+       "id": 21,
+       "value": 0
+      }
+     ]
+    },
+    {
+     "label": "greenoff0.1",
+     "params": [
+      {
+       "name": "Red Output",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red - Red",
+         "id": 2,
+         "value": 1
+        },
+        {
+         "name": "Red - Green",
+         "id": 3,
+         "value": 0
+        },
+        {
+         "name": "Red - Blue",
+         "id": 4,
+         "value": 0
+        },
+        {
+         "name": "Red - Alpha",
+         "id": 5,
+         "value": 0.0
+        }
+       ]
+      },
+      {
+       "name": "Green Output",
+       "id": 6,
+       "children": [
+        {
+         "name": "Green - Red",
+         "id": 7,
+         "value": 0
+        },
+        {
+         "name": "Green - Green",
+         "id": 8,
+         "value": 1
+        },
+        {
+         "name": "Green - Blue",
+         "id": 9,
+         "value": 0
+        },
+        {
+         "name": "Green - Alpha",
+         "id": 10,
+         "value": 0.1
+        }
+       ]
+      },
+      {
+       "name": "Blue Output",
+       "id": 11,
+       "children": [
+        {
+         "name": "Blue - Red",
+         "id": 12,
+         "value": 0
+        },
+        {
+         "name": "Blue - Green",
+         "id": 13,
+         "value": 0
+        },
+        {
+         "name": "Blue - Blue",
+         "id": 14,
+         "value": 1
+        },
+        {
+         "name": "Blue - Alpha",
+         "id": 15,
+         "value": 0.0
         }
        ]
       },
@@ -5660,6 +5748,94 @@
          "name": "Blue - Alpha",
          "id": 15,
          "value": 0.15
+        }
+       ]
+      },
+      {
+       "name": "Monochrome",
+       "id": 21,
+       "value": 0
+      }
+     ]
+    },
+    {
+     "label": "rgb_off0.05",
+     "params": [
+      {
+       "name": "Red Output",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red - Red",
+         "id": 2,
+         "value": 1
+        },
+        {
+         "name": "Red - Green",
+         "id": 3,
+         "value": 0
+        },
+        {
+         "name": "Red - Blue",
+         "id": 4,
+         "value": 0
+        },
+        {
+         "name": "Red - Alpha",
+         "id": 5,
+         "value": 0.05
+        }
+       ]
+      },
+      {
+       "name": "Green Output",
+       "id": 6,
+       "children": [
+        {
+         "name": "Green - Red",
+         "id": 7,
+         "value": 0
+        },
+        {
+         "name": "Green - Green",
+         "id": 8,
+         "value": 1
+        },
+        {
+         "name": "Green - Blue",
+         "id": 9,
+         "value": 0
+        },
+        {
+         "name": "Green - Alpha",
+         "id": 10,
+         "value": 0.05
+        }
+       ]
+      },
+      {
+       "name": "Blue Output",
+       "id": 11,
+       "children": [
+        {
+         "name": "Blue - Red",
+         "id": 12,
+         "value": 0
+        },
+        {
+         "name": "Blue - Green",
+         "id": 13,
+         "value": 0
+        },
+        {
+         "name": "Blue - Blue",
+         "id": 14,
+         "value": 1
+        },
+        {
+         "name": "Blue - Alpha",
+         "id": 15,
+         "value": 0.05
         }
        ]
       },
