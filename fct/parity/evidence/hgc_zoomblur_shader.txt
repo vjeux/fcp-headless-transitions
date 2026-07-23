@@ -1,0 +1,50 @@
+===== HgcZoomBlur =====
+//Metal1.0     
+//LEN=00000003ae
+[[ visible ]] FragmentOut HgcZoomBlur_hgc_visible(const constant float4* hg_Params, 
+    texture2d< float > hg_Texture0, 
+    sampler hg_Sampler0,
+    float4 texCoord0,
+    float4 texCoord1,
+    float4 texCoord2,
+    float4 texCoord3,
+    float4 texCoord4)
+{
+    const float4 c0 = float4(0.1500000060, 0.1000000015, 0.2000000030, 0.2500000000);
+    const float4 c1 = float4(0.3000000119, 0.000000000, 0.000000000, 0.000000000);
+    float4 r0, r1;
+    FragmentOut output;
+
+    r0 = hg_Texture0.sample(hg_Sampler0, texCoord1.xy);
+    r0 = r0*c0.xxxx;
+    r1 = hg_Texture0.sample(hg_Sampler0, texCoord2.xy);
+    r1 = r1*c0.yyyy + r0;
+    r0 = hg_Texture0.sample(hg_Sampler0, texCoord3.xy);
+    r1 = r0*c0.zzzz + r1;
+    r0 = hg_Texture0.sample(hg_Sampler0, texCoord4.xy);
+    r0 = r0*c0.wwww + r1;
+    r1 = hg_Texture0.sample(hg_Sampler0, texCoord0.xy);
+    output.color0 = r1*c1.xxxx + r0;
+    return output;
+}
+
+
+
+## ZoomBlur STRUCTURE DECODED (2026-07-23) — it's a 5-tap POLAR kernel, NOT a log-polar Gaussian
+The verbatim HgcZoomBlur shader (above) is a fixed 5-TAP weighted blur:
+  out = 0.30*sample(tc0) + 0.15*sample(tc1) + 0.10*sample(tc2) + 0.20*sample(tc3) + 0.25*sample(tc4)
+  (weights c0=(0.15,0.10,0.20,0.25), c1.x=0.30; sum=1.0). The 5 texCoords tc0..tc4 are radial
+  offsets set per-vertex/frameSetup.
+PIPELINE (from -[PAEZoomBlur canThrowRenderOutput] @0x75718): rectToPolar(center, upscaleFactor)
+  -> apply the 5-tap kernel IN POLAR SPACE (so the taps are RADIAL steps) -> polarToRect. Uses
+  HGTransform::Scale + getInversePixelTransformForImage; getIntValue reads a pass/quality count and
+  getFloatValue reads Amount + the X/Y centre (getXValue:YValue:).
+CONSEQUENCE: the engine's current spatial.PAEZoomBlur model (a log-polar GAUSSIAN, directional-blur.ts)
+  is STRUCTURALLY WRONG — FCP uses a small fixed 5-tap kernel in polar space, applied over N passes
+  (the multi-pass accumulation is what spreads the bright disc radially "far more than the TS
+  log-polar Gaussian" — the documented +12 inner / -21 mid signed residual at 14.5 dB). To decode:
+  (1) read the tap radial offsets (the texCoord0..4 deltas) and the Amount->offset map + pass count
+  from canThrowRenderOutput's texcoord/SetParameter math; (2) port rectToPolar/polarToRect with FCP's
+  upscaleFactor + centre; (3) iterate the 5-tap kernel N passes. Gate-inert (shipping users author
+  Amount=0). This REPLACES the "log-polar centre-resampling ceiling" characterization: the ceiling
+  wasn't resampling precision, it was the WRONG KERNEL (Gaussian vs 5-tap-polar-multipass).
