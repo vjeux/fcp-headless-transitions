@@ -623,12 +623,12 @@
       "kind": "transfer",
       "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 0.710000000000008,
-      "n_samples": 108,
+      "max_abs_levels": 1.1200000000000045,
+      "n_samples": 243,
       "tol_levels": 2.0,
       "worst": {
         "case": {
-          "label": "gamma_1.73",
+          "label": "gamma_1.3",
           "params": [
             {
               "name": "Histogram",
@@ -641,7 +641,7 @@
                     {
                       "name": "Gamma",
                       "id": 5,
-                      "value": 1.7264349266740369
+                      "value": 1.3
                     }
                   ]
                 }
@@ -650,19 +650,19 @@
           ]
         },
         "input": [
-          200,
           50,
+          200,
           50
         ],
         "oracle": [
-          221.29,
-          99.12,
-          99.2
+          72.64,
+          210.88,
+          72.89
         ],
         "engine": [
-          222.0,
-          99.0,
-          99.0
+          73.0,
+          212.0,
+          73.0
         ]
       },
       "oracle_truth": "transfer",
@@ -3192,8 +3192,13 @@
       "id": "transfer.PAEThreshold",
       "status": "VERIFIED",
       "at": "2026-07-23T11:50:04Z"
+    },
+    {
+      "id": "transfer.PAELevels",
+      "status": "VERIFIED",
+      "at": "2026-07-23T12:04:33Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T11:50:04Z"
+  "updated": "2026-07-23T12:04:33Z"
 }
