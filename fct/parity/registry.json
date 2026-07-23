@@ -879,6 +879,63 @@
        "value": 1.0
       }
      ]
+    },
+    {
+     "label": "black0_white_red_int0.5",
+     "params": [
+      {
+       "name": "Remap Black To",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 0
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 0
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Remap White To",
+       "id": 2,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 1
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 0
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Intensity",
+       "id": 3,
+       "value": 0.5
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
     }
    ],
    "oracle_truth": "transfer",
