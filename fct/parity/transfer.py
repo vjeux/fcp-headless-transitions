@@ -134,7 +134,7 @@ def sweep_transfer(node, inputs=None, tol_levels=2.0):
             "max_abs_levels": worst["abs"], "n_samples": n, "tol_levels": tol_levels,
             "worst": {k: worst[k] for k in ("case", "input", "oracle", "engine")},
             "oracle_truth": node.get("oracle_truth", "transfer"),
-            "n_failures": len(failures), "rows": rows[:60]}
+            "n_failures": len(failures), "rows": rows[:400]}
 
 
 if __name__ == "__main__":
