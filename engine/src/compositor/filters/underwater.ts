@@ -253,7 +253,28 @@ interface WaveComponent {
   amp: number;
 }
 
-/**
+/* ── RefractV2 DISPLACEMENT decode progress (2026-07-23) — the remaining port step ──
+ * Shader structure (HgcUnderwaterRefractV2, decoded): per output pixel the shader forms
+ * normalized coords U = posx/sizeX + 0.5, V = posy/sizeY + 0.5 (P6.z=sizeX, P7.z=sizeY),
+ * then for each octave i∈0..4 BILERPS a packed record over (U,V):
+ *     A = mix(P[9+i].xy, P[9+i].zw, U);  B = mix(P[14+i].xy, P[14+i].zw, U);
+ *     arg = mix(A, B, V) · 2π;   s = sin(arg);   // arg is BILINEAR in (U,V)
+ * so each octave's phase is a bilinear-in-position ramp a+b·U+c·V+d·UV: the (b,c) gradient
+ * IS the octave's wavevector and 'a' its DC phase. The sin() results are then weighted by
+ * the SEPARATE amplitude slots P[19..28] (.x→offX, .y→offY, plus cross terms P23..P28) and
+ * summed; offX·P8.x, offY·P8.y (Refraction gain) are ADDED to (posx,posy); the displaced
+ * pos is projected through Minv (P3..P5) to the source uv and sampled ONCE.
+ * GROUND TRUTH captured: evidence/underwater_flow_t0.json — headless dot-grid centroid flow
+ * at t=0. The field is a LARGE near-uniform warp: mean (dx,dy)≈(-14.8,13.7)px with std only
+ * 1.65px (Size=50) → 0.82px (Size=100). Doubling Size HALVES the std, confirming the 1/Size
+ * coordinate scaling (spatial frequency ∝ 1/Size). So the visible t=0 look is dominated by
+ * the octaves' DC phase sum (a nearly constant offset) plus a very low-freq ripple — NOT the
+ * high-freq plane-wave noise the surrogate fieldOffset() below produces. REMAINING to port:
+ * the exact P[9..28] endpoint packing (CPU loops @0x66300 amp-slots 19-28 = ampVec; @0x6636c
+ * phase-endpoint banks 9-18 = octave record projected through the host pixel-transform M),
+ * then the bilerp+sin+weighted-sum above. buildFieldExact (above) supplies the exact octave
+ * records; wiring them through this displacement model is the next decode step.
+ *
  * Build the fixed 10-octave sinusoid field, matching the CPU synthesis loop:
  *   freq_n  ∈ [0.75,1.0) · 1/(n/4+1) · 0.25   (base spatial freq, per-octave shrink)
  *   w_n     = (n/4+1) · freq_n                 (angular)
@@ -263,6 +284,48 @@ interface WaveComponent {
  * `sizeScale` maps the Size param to the spatial-frequency of the field: larger
  * Size = larger ripples = LOWER frequency (freq divided by size).
  */
+
+/* ========== RefractV2 displacement decode -- PROGRESS (2026-07-23) ==========
+ * DECODED the HgcUnderwaterRefractV2 displacement STRUCTURE (per-pixel resample):
+ *   pos = M*texCoord (homogeneous) -> U = posx/sizeX + 0.5, V = posy/sizeY + 0.5.
+ *   Per octave i, the shader bilerps a packed record over (U,V):
+ *     arg_i = 2pi * mix( mix(P[9+i].xy,P[9+i].zw,U), mix(P[14+i].xy,P[14+i].zw,U), V )
+ *   i.e. arg_i is a BILINEAR function of position a+b*U+c*V+d*UV; sin(arg_i) is then
+ *   weighted by the separate amplitude slots P[19+i] and summed into (offX,offY),
+ *   added to pos via Refraction gain P[8], inverse-mapped through Minv (P3..P5) + atlas
+ *   (P29) to the final source uv. Each octave is a LOW-FREQUENCY ripple: wavevector =
+ *   2pi*(dU,dV of the bilerp), DC phase = the bilerp constant.
+ * GROUND TRUTH: evidence/underwater_flow_t0.json -- headless t=0 displacement flow
+ *   (dot-grid centroid tracking, 1296 samples) for Size=50 and Size=100 at Refraction=50.
+ *   MEASURED: a large NEAR-UNIFORM offset (mean ~(-14.8,+13.7)px) plus a low-frequency
+ *   ripple whose amplitude HALVES when Size doubles (std 1.65->0.82) -- exactly the
+ *   shader 1/sizeX coordinate scaling. DISPROVES the old high-frequency-noise surrogate
+ *   (the real field is smooth/low-freq, not per-pixel noise).
+ * REMAINING for pixel-exact: the exact P[9..28] packing -- the CPU projects each octave's
+ *   (ampVec,phase,freq) record through the host pixel-transform M (loop @0x6636c -> slots
+ *   9..13 & 14..18; loop @0x66300 -> amplitude slots 19..28) into the bilerp endpoints.
+ *   That projection + the host M for the 1920x1080 canvas is the last decode step; the RNG
+ *   field (buildFieldExact) and the shader displacement law above are done. fieldOffset()
+ *   below is still the interim plane-wave surrogate. */
+
+/* RefractV2 displacement decode PROGRESS (2026-07-23):
+ * DECODED the HgcUnderwaterRefractV2 displacement STRUCTURE: pos = M*texCoord (homog) ->
+ *   U = posx/sizeX + 0.5, V = posy/sizeY + 0.5. Per octave i the shader bilerps a packed
+ *   record over (U,V):  arg_i = 2pi * mix( mix(P[9+i].xy,P[9+i].zw,U), mix(P[14+i].xy,P[14+i].zw,U), V ).
+ *   arg_i is thus a BILINEAR function of position (a + b*U + c*V + d*UV); sin(arg_i) is weighted
+ *   by the separate amplitude slots P[19+i] and summed into (offX,offY), added to pos via the
+ *   Refraction gain P[8], then inverse-mapped through Minv (P3..P5) + atlas (P29) to source uv.
+ *   Each octave is a LOW-FREQUENCY ripple (wavevector = 2pi*(dU,dV of the bilerp)).
+ * GROUND TRUTH: evidence/underwater_flow_t0.json — headless t=0 flow (dot-grid centroid, 1296
+ *   samples, Size=50 & 100 at Refraction=50). MEASURED: a large NEAR-UNIFORM offset (mean ~
+ *   (-14.8,+13.7)px) plus a low-freq ripple whose amplitude HALVES when Size doubles (std
+ *   1.65->0.82) — matching the shader's 1/sizeX coord scaling. DISPROVES the old high-frequency
+ *   noise surrogate: the real field is SMOOTH/low-freq, not per-pixel noise.
+ * REMAINING for pixel-exact: the exact P[9..28] packing (CPU projects each octave record through
+ *   the host pixel-transform M @0x6636c into the bilerp endpoints; amps @0x66300). The RNG field
+ *   (buildFieldExact) + the shader displacement law above are done; fieldOffset() below is still
+ *   the interim plane-wave surrogate. */
+
 function buildField(sizeScale: number): WaveComponent[] {
   // Exact decoded generator (LCG+Bays–Durham, seed 0x6f638) behind FCT_UNDERWATER_EXACT;
   // shipped default keeps the surrogate. The exact path removes the guessed RNG — the
