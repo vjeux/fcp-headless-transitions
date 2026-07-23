@@ -480,7 +480,7 @@
       "status": "VERIFIED",
       "metric": "max_abs_levels",
       "max_abs_levels": 0.8899999999999864,
-      "n_samples": 243,
+      "n_samples": 432,
       "tol_levels": 2.0,
       "worst": {
         "case": {
@@ -493,17 +493,17 @@
                 {
                   "name": "Red",
                   "id": 1,
-                  "value": 0.0
+                  "value": 0
                 },
                 {
                   "name": "Green",
                   "id": 2,
-                  "value": 0.0
+                  "value": 0
                 },
                 {
                   "name": "Blue",
                   "id": 3,
-                  "value": 1.0
+                  "value": 1
                 }
               ]
             },
@@ -3315,8 +3315,13 @@
       "id": "transfer.PAELevels_perchannel",
       "status": "VERIFIED",
       "at": "2026-07-23T13:02:46Z"
+    },
+    {
+      "id": "transfer.PAETint",
+      "status": "VERIFIED",
+      "at": "2026-07-23T13:05:36Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T13:02:46Z"
+  "updated": "2026-07-23T13:05:36Z"
 }
