@@ -64,3 +64,17 @@ opposite and was mistaken). So:
 LESSON REINFORCED (self-correcting): before claiming a shader IS the render path, confirm which
 program the CPU render (canThrowRenderOutput) actually BINDS — many Hgc*_hgc_visible shaders are OSC
 previews. Here the bind is HDirectionalBlur, confirming the existing log-polar decode.
+
+## ZOOM_LOG_K probe 2026-07-23 (INCONCLUSIVE — recorded, no change made)
+Tried the radial analog of the spin wedge: a single sharp centered RING edge (r=300), measure the
+radial 10-90 width in ln(r) space vs Amount to decode ZOOM_LOG_K. RESULT: the ln-width was CONSTANT
+(0.0433) across Amount=10/30/60 — i.e. the centered ring barely spreads even at Amount=60, giving
+K≈0.27/0.089/0.044 (∝1/Amount, not a stable constant). This means either (a) a centered ring is a
+poor probe for zoom blur (the radial displacement at these Amounts is small relative to the edge),
+or (b) the Amount->radial-displacement law is much gentler than the sigma≈0.0075·Amount the current
+ZOOM_LOG_K=1.0 assumes. Per decode-don't-fit, NO change made — the signal is too weak/ambiguous to
+re-derive K. The rings-probe verification (24-29 dB) that fixed K=1.0 stands. ZoomBlur remains at its
+documented log-polar centre-resampling ceiling; the off-centre-disc 14.5 dB is synth worst-case.
+The clean-wedge technique that worked for the SPIN arc (angular) does not transfer cleanly to the
+ZOOM radial axis with a centered ring — a proper zoom probe needs an off-centre feature at known
+radius with a large-enough Amount to produce a measurable, non-clipping radial streak.
