@@ -61,4 +61,23 @@ registerFilter({
   apply(input, ctx) {
     return contrastFilter(input, ctx.param('Contrast', 1), ctx.param('Mix', 1));
   },
+  // FLOAT WORKING-SPACE path (architectural, 2026-07-23): Contrast is an affine scale about the
+  // working-space pivot 0.5 — and the fused buffer is ALREADY in gamma-1.961 working space, so we
+  // apply it DIRECTLY with no code↔working round-trip and NO clamp. The unclamped result carries
+  // over-1.0 / under-0 excursions to the terminal encode (or a following filter), matching FCP's
+  // float HGColorMatrix. This is the fix for transfer.PAEContrast's over-1.0 clamp divergence.
+  applyWorking(fimg: import('../working-space.js').FloatImage, ctx): import('../working-space.js').FloatImage {
+    const contrast = ctx.param('Contrast', 1);
+    const mix = ctx.param('Mix', 1);
+    if (contrast === 1 || mix <= 0) return fimg;
+    const d = fimg.data;
+    for (let i = 0; i < d.length; i += 4) {
+      for (let c = 0; c < 3; c++) {
+        const ws = d[i + c];
+        const ows = WS_PIVOT + (ws - WS_PIVOT) * contrast; // unclamped affine-about-0.5
+        d[i + c] = mix >= 1 ? ows : ws + (ows - ws) * mix;
+      }
+    }
+    return fimg;
+  },
 });

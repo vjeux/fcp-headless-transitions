@@ -48,6 +48,15 @@ export interface FilterModule {
   /** Human label for logs/catalog. */
   label?: string;
   apply(input: ImageData, ctx: FilterContext): ImageData;
+  /**
+   * OPTIONAL float working-space entry point (architectural, 2026-07-23). A pure pointwise /
+   * tone filter implements this to run in the UNCLAMPED Rec.709 gamma-1.961 working space so a
+   * contiguous run of such filters composites with NO inter-filter 8-bit clamp (FCP quantises
+   * only once at the end of the chain — this is the fix for the over-1.0 HGColorMatrix clamp
+   * family). Signature is imported lazily to avoid a cycle; see compositor/working-space.ts.
+   * When present AND the pipeline is enabled, the compositor prefers this over `apply`.
+   */
+  applyWorking?(fimg: import('../working-space.js').FloatImage, ctx: FilterContext): import('../working-space.js').FloatImage;
 }
 
 const byUuid = new Map<string, FilterModule>();

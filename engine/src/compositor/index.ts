@@ -22,6 +22,10 @@ import { sceneMatchesNestedMaskedCloneStack, renderNestedMaskedCloneStack } from
 import { applyEmitterSim } from './emitter-sim.js';
 import { generateInstances, sequenceProgress, sequenceOrder, shouldHoldReplicatorPastTiming } from './replicator.js';
 import { lookupFilter, makeContext } from './filters/registry.js';
+import {
+  isWorkingSpacePipelineEnabled, decodeToWorking, encodeFromWorking,
+  type FloatImage,
+} from './working-space.js';
 import './filters/index.js'; // side-effect: registers all UUID-keyed filter modules
 
 /**
@@ -501,9 +505,7 @@ function renderCloneLayer(rctx: RenderContext, output: ImageData, evalLayer: Eva
       const leaf = leafId !== undefined ? rctx.layerById.get(leafId) : undefined;
       if (leaf && leaf.filters && leaf.filters.length > 0) {
         if (process.env.FCT_DEBUG_CLONE_FILT) console.error(`[clone-filt] layer=${layer.id} type=${layer.type} name=${layer.name} leafId=${leafId} leafName=${leaf.name} filters=${leaf.filters.map(f=>(f as any).kind||(f as any).type||'?').join(',')}`);
-        for (const filter of leaf.filters) {
-          src = applyFilter(src, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
-        }
+        src = applyFilterChain(src, leaf.filters, evalLayer, time, filterOverrides, rctx);
       }
       // A clone may carry its OWN filters (e.g. Color Planes stacks 6 clones of the
       // same source, each with a Channel Mixer isolating one R/G/B channel, then
@@ -512,9 +514,7 @@ function renderCloneLayer(rctx: RenderContext, output: ImageData, evalLayer: Eva
       // is projected/blitted — otherwise every clone renders the full-color source
       // and the additive stack blows out (too bright) or collapses (too dark).
       if (layer.filters.length > 0) {
-        for (const filter of layer.filters) {
-          src = applyFilter(src, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
-        }
+        src = applyFilterChain(src, layer.filters, evalLayer, time, filterOverrides, rctx);
       }
       // A clone may carry its OWN mask shapes (e.g. Stylized/Color Panels clones a
       // hue/sat-shifted copy of a drop zone and clips it to a vertical "Rectangle
@@ -600,9 +600,7 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
       fd[di + 3] = Math.round(av * a);
     }
     let filtered = fillBuf;
-    for (const filter of layer.filters) {
-      filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
-    }
+    filtered = applyFilterChain(filtered, layer.filters, evalLayer, time, filterOverrides, rctx);
     blitDirect(output, filtered, opacity, layer.blendMode);
     // A filled shape may still have children (e.g. a replicator emitter); fall
     // through so they render on top.
@@ -631,9 +629,7 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
       fd[di + 3] = Math.round(av * fillA);
     }
     let filtered = fillBuf;
-    for (const filter of layer.filters) {
-      filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
-    }
+    filtered = applyFilterChain(filtered, layer.filters, evalLayer, time, filterOverrides, rctx);
     blitDirect(output, filtered, opacity, layer.blendMode);
     // Panels can still have children; fall through.
   }
@@ -704,9 +700,7 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
       // TYPE, never the slug.)
       if (layer.source?.type === 'lensFlare') {
         let filtered = src;
-        for (const filter of layer.filters) {
-          filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
-        }
+        filtered = applyFilterChain(filtered, layer.filters, evalLayer, time, filterOverrides, rctx);
         blitDirect(output, filtered, opacity, layer.blendMode);
         return 'children';
       }
@@ -797,9 +791,7 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
         const temp = createBuffer(output.width, output.height);
         blitTransformed(temp, drawSrc, worldTransform, 1.0, effCrop, 'normal', blitDstBBox(temp, drawSrc, worldTransform, effCrop));
         let filtered = temp;
-        for (const filter of layer.filters) {
-          filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
-        }
+        filtered = applyFilterChain(filtered, layer.filters, evalLayer, time, filterOverrides, rctx);
         applyMask(filtered, maskAlpha);
         blitDirect(output, filtered, opacity, layer.blendMode);
       } else if (ownMaskAlpha) {
@@ -808,9 +800,7 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
         const temp = createBuffer(output.width, output.height);
         blitTransformed(temp, drawSrc, worldTransform, 1.0, effCrop, 'normal', blitDstBBox(temp, drawSrc, worldTransform, effCrop));
         let filtered = temp;
-        for (const filter of layer.filters) {
-          filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
-        }
+        filtered = applyFilterChain(filtered, layer.filters, evalLayer, time, filterOverrides, rctx);
         applyMask(filtered, ownMaskAlpha);
         blitDirect(output, filtered, opacity, layer.blendMode);
       } else if (layer.filters.length > 0) {
@@ -818,9 +808,7 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
         const temp = createBuffer(output.width, output.height);
         blitTransformed(temp, drawSrc, worldTransform, 1.0, effCrop); // full opacity to temp
         let filtered = temp;
-        for (const filter of layer.filters) {
-          filtered = applyFilter(filtered, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
-        }
+        filtered = applyFilterChain(filtered, layer.filters, evalLayer, time, filterOverrides, rctx);
         blitDirect(output, filtered, opacity, layer.blendMode);
       } else if (needsPerspective(worldTransform)) {
         // 3D perspective: project the source quad and rasterize
@@ -1098,9 +1086,7 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
 
       // Apply filters
       let processed = groupBuffer;
-      for (const filter of layer.filters) {
-        processed = applyFilter(processed, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
-      }
+      processed = applyFilterChain(processed, layer.filters, evalLayer, time, filterOverrides, rctx);
 
       // Composite onto output
       blitDirect(output, processed, opacity, layer.blendMode);
@@ -1344,5 +1330,55 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
     }
   }
   return input;
+}
+
+/**
+ * Apply an ORDERED filter chain to an image (architectural, 2026-07-23).
+ *
+ * This is the single entry point every filter-chain loop in the compositor delegates to. When
+ * the float working-space pipeline is enabled (FCT_WORKING_SPACE_PIPELINE) it groups CONTIGUOUS
+ * runs of working-space-capable filters (those whose module exposes `applyWorking`) and runs
+ * each such run on a shared UNCLAMPED float buffer: decode sRGB→working ONCE at the run start,
+ * chain the `applyWorking` ops with NO inter-filter 8-bit clamp, encode working→sRGB ONCE at the
+ * run end. A filter without `applyWorking` (or when the pipeline is off) uses the legacy 8-bit
+ * `applyFilter` and breaks the run. Byte-identical to the old per-filter loop when the pipeline
+ * is off OR no filter in the chain implements `applyWorking`.
+ */
+function applyFilterChain(
+  input: ImageData,
+  filters: readonly import('../types.js').Filter[],
+  evalLayer: EvaluatedLayer, time: number,
+  filterOverrides: Map<number, Map<string, number>>, rctx?: RenderContext,
+): ImageData {
+  if (filters.length === 0) return input;
+  if (!isWorkingSpacePipelineEnabled()) {
+    let img = input;
+    for (const filter of filters) {
+      img = applyFilter(img, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
+    }
+    return img;
+  }
+  // Working-space pipeline: fuse contiguous applyWorking-capable runs on one float buffer.
+  let img = input;
+  let fbuf: FloatImage | null = null; // active unclamped working-space buffer, or null when in 8-bit
+  const flush = () => { if (fbuf) { img = encodeFromWorking(fbuf); fbuf = null; } };
+  for (const filter of filters) {
+    const fTime = rctx?.filterTime ?? time;
+    const nodeName = (filter.name || '').toLowerCase();
+    const name = filter.pluginName.toLowerCase();
+    const isOsc = (s: string) => s.includes('for osc') || s.includes('(osc)') || s.endsWith(' osc');
+    if (isOsc(name) || isOsc(nodeName)) continue; // OSC preview filter — skip (matches applyFilter)
+    const mod = lookupFilter(filter);
+    if (mod && mod.applyWorking) {
+      const ctx = makeContext(filter, fTime, img.width, img.height, filterOverrides.get(filter.id));
+      if (!fbuf) fbuf = decodeToWorking(img);
+      fbuf = mod.applyWorking(fbuf, ctx);
+    } else {
+      flush(); // encode the accumulated working-space buffer before an 8-bit filter
+      img = applyFilter(img, filter, evalLayer, time, filterOverrides.get(filter.id), rctx);
+    }
+  }
+  flush();
+  return img;
 }
 

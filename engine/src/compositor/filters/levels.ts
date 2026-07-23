@@ -307,6 +307,7 @@ export function brightnessFilter(input: ImageData, amount: number): ImageData {
 
 import { registerFilter } from './registry.js';
 import { evaluateCurve } from '../../evaluator/curves.js';
+import { srgbToWorkingUnclamped, workingToSrgbUnclamped, type FloatImage } from '../working-space.js';
 
 // PAEBrightness — sRGB per-channel MULTIPLY (out = in * amount; identity at 1).
 // Phase-2 verified against headless FCP (see brightnessFilter). Param default is 1
@@ -318,6 +319,25 @@ registerFilter({
   apply(input, ctx) {
     const amount = ctx.has('Brightness') ? ctx.param('Brightness', 1) : ctx.param('Amount', 1);
     return brightnessFilter(input, amount);
+  },
+  // FLOAT WORKING-SPACE path (architectural, 2026-07-23): PAEBrightness is a code-space
+  // per-channel MULTIPLY. In the fused pipeline the buffer is UNCLAMPED working-space, so we
+  // convert working→code, multiply by amount, and convert back WITHOUT clamping — the >1.0
+  // headroom survives to the terminal encode (or a following filter), matching FCP's float
+  // ExtendedLinearSRGB HGColorMatrix (which does NOT hard-clamp per channel between ops). This
+  // is the fix for transfer.PAEBrightness's over-1.0 clamp divergence.
+  applyWorking(fimg: FloatImage, ctx): FloatImage {
+    const amount = ctx.has('Brightness') ? ctx.param('Brightness', 1) : ctx.param('Amount', 1);
+    if (amount === 1) return fimg;
+    const d = fimg.data;
+    for (let i = 0; i < d.length; i += 4) {
+      // working → sRGB code (unclamped) → ×amount → working (unclamped). No [0,255] clamp.
+      d[i]     = srgbToWorkingUnclamped(workingToSrgbUnclamped(d[i]) * amount);
+      d[i + 1] = srgbToWorkingUnclamped(workingToSrgbUnclamped(d[i + 1]) * amount);
+      d[i + 2] = srgbToWorkingUnclamped(workingToSrgbUnclamped(d[i + 2]) * amount);
+      // alpha unchanged
+    }
+    return fimg;
   },
 });
 
