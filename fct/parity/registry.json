@@ -3447,6 +3447,178 @@
    ]
   },
   {
+   "id": "transfer.PAELevels_perchannel",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAELevels PER-CHANNEL histogram (Histogram > Red/Green/Blue groups, ids 3/4/5). FCP applies the same WS HgcLevels transfer to an individual channel (master RGB=id2 composes first). The engine previously read ONLY the RGB master and ignored per-channel groups (no-op); levelsFilterPerChannel now composes master + per-channel. env FCT_LEVELS_WS.",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "2B221FA1-08A2-416E-998C-D7559E5509B5",
+    "pluginName": "PAELevels"
+   },
+   "engine_env": {
+    "FCT_LEVELS_WS": "1"
+   },
+   "param_cases": [
+    {
+     "label": "red_gamma2",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red",
+         "id": 3,
+         "children": [
+          {
+           "name": "Gamma",
+           "id": 5,
+           "value": 2.0
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "green_gamma0.6",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "Green",
+         "id": 4,
+         "children": [
+          {
+           "name": "Gamma",
+           "id": 5,
+           "value": 0.6
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "blue_blackin0.2",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "Blue",
+         "id": 5,
+         "children": [
+          {
+           "name": "Black In",
+           "id": 1,
+           "value": 0.2
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "red_whitein0.8",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red",
+         "id": 3,
+         "children": [
+          {
+           "name": "White In",
+           "id": 3,
+           "value": 0.8
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "red_gamma1.5_green_gamma0.7",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "Red",
+         "id": 3,
+         "children": [
+          {
+           "name": "Gamma",
+           "id": 5,
+           "value": 1.5
+          }
+         ]
+        },
+        {
+         "name": "Green",
+         "id": 4,
+         "children": [
+          {
+           "name": "Gamma",
+           "id": 5,
+           "value": 0.7
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "master_gamma1.4_plus_blue_gamma0.8",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "RGB",
+         "id": 2,
+         "children": [
+          {
+           "name": "Gamma",
+           "id": 5,
+           "value": 1.4
+          }
+         ]
+        },
+        {
+         "name": "Blue",
+         "id": 5,
+         "children": [
+          {
+           "name": "Gamma",
+           "id": 5,
+           "value": 0.8
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "transfer",
+   "status": "UNTESTED"
+  },
+  {
    "id": "transfer.PAEChannelMixer_offset",
    "subsystem": "color",
    "kind": "transfer",

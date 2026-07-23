@@ -85,6 +85,68 @@ export interface LevelsParams {
   mix: number;       // 0-1, default 1
 }
 
+/** Levels params for ONE channel group (no mix — mix is applied once at the end). */
+export interface LevelsChannel {
+  blackIn: number; whiteIn: number; gamma: number; blackOut: number; whiteOut: number;
+}
+
+function levelsChannelIsIdentity(c: LevelsChannel): boolean {
+  return c.blackIn === 0 && c.whiteIn === 1 && c.gamma === 1 && c.blackOut === 0 && c.whiteOut === 1;
+}
+
+/** Build a 256-entry code->code LUT for ONE channel's Levels params, in the decoded
+ *  gamma-1.958 WORKING SPACE (the FCT_LEVELS_WS 2-stage HgcLevels model): encode to WS,
+ *  input-affine (NO intermediate clamp), output-affine, pow(1/gamma), decode WS->code.
+ *  Same math the RGB-master path uses; reused so per-channel Red/Green/Blue groups apply
+ *  the IDENTICAL transfer to their own channel (verified: Red gamma=2 on R=160 -> 202.0
+ *  vs FCP 202.4, matches the master model within quantisation). */
+export function buildLevelsWSLUT(c: LevelsChannel): Uint8Array {
+  const iv = 0.51117, gm = 1.0 / 0.51117;
+  const rng = (c.whiteIn - c.blackIn) || 0.001;
+  const invGamma = c.gamma !== 0 ? 1 / c.gamma : 1;
+  const cl01 = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x);
+  const lut = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) {
+    let x = Math.pow(i / 255, iv);
+    x = (x - c.blackIn) / rng;
+    x = x * (c.whiteOut - c.blackOut) + c.blackOut;
+    x = x > 0 ? Math.pow(x, invGamma) : 0;
+    lut[i] = Math.round(Math.pow(cl01(x), gm) * 255);
+  }
+  return lut;
+}
+
+/** Per-channel Levels: apply the RGB-master transfer to all channels, THEN the per-channel
+ *  Red/Green/Blue transfer to its own channel (FCP composes master∘channel). Each of the
+ *  four groups uses the decoded WS HgcLevels model. `mix` cross-fades the whole result with
+ *  the original. This is the functionality FCP exposes via Histogram > {RGB,Red,Green,Blue}
+ *  that the single-RGB path could not represent. */
+export function levelsFilterPerChannel(
+  input: ImageData,
+  rgb: LevelsChannel, red: LevelsChannel, green: LevelsChannel, blue: LevelsChannel,
+  mix: number,
+): ImageData {
+  const src = input.data;
+  const out = new Uint8ClampedArray(src.length);
+  const perCh = [red, green, blue];
+  const masterId = levelsChannelIsIdentity(rgb);
+  const chId = perCh.map(levelsChannelIsIdentity);
+  if (masterId && chId[0] && chId[1] && chId[2]) return input;
+  const mLut = masterId ? null : buildLevelsWSLUT(rgb);
+  const cLut = perCh.map((c, i) => (chId[i] ? null : buildLevelsWSLUT(c)));
+  for (let i = 0; i < src.length; i += 4) {
+    for (let ch = 0; ch < 3; ch++) {
+      let v = src[i + ch];
+      if (mLut) v = mLut[v];
+      const cl = cLut[ch];
+      if (cl) v = cl[v];
+      out[i + ch] = mix >= 1 ? v : Math.round(src[i + ch] * (1 - mix) + v * mix);
+    }
+    out[i + 3] = src[i + 3];
+  }
+  return new ImageData(out, input.width, input.height);
+}
+
 /**
  * Apply levels adjustment to an image.
  */
@@ -270,24 +332,40 @@ registerFilter({
   label: 'Levels',
   apply(input, ctx) {
     const t = ctx.time;
-    // Resolve a value nested under Histogram > RGB > <name>, else flat.
-    const nested = (name: string, def: number): number => {
-      const hist = ctx.filter.parameters.find(p => p.name === 'Histogram');
-      const rgb = hist?.children?.find(c => c.name === 'RGB');
-      const c = rgb?.children?.find(cc => cc.name === name);
+    const hist = ctx.filter.parameters.find(p => p.name === 'Histogram');
+    // Resolve a value nested under Histogram > <group> > <name>, else flat.
+    const grp = (group: string, name: string, def: number): number => {
+      const g = hist?.children?.find(c => c.name === group);
+      const c = g?.children?.find(cc => cc.name === name);
       if (c) {
         if (c.curve) return evaluateCurve(c.curve, t);
         if (typeof c.value === 'number') return c.value;
       }
-      return ctx.param(name, def);
+      if (group === 'RGB') return ctx.param(name, def);  // flat fallback for the master
+      return def;
     };
+    const chan = (group: string): LevelsChannel => ({
+      blackIn: grp(group, 'Black In', 0), whiteIn: grp(group, 'White In', 1),
+      gamma: grp(group, 'Gamma', 1), blackOut: grp(group, 'Black Out', 0),
+      whiteOut: grp(group, 'White Out', 1),
+    });
+    const mix = ctx.param('Mix', 1);
+    // Per-channel path: FCP's Histogram exposes RGB (master) + Red/Green/Blue groups. If any
+    // per-channel group is authored (and the WS decode is active), compose master∘channel via
+    // the per-channel filter. DECODED (fct/parity): a per-channel group applies the IDENTICAL
+    // WS HgcLevels transfer to its own channel only (Red gamma=2 on R=160 -> 202 vs FCP 202.4).
+    const useWS = typeof process !== 'undefined' && process.env && process.env.FCT_LEVELS_WS === '1';
+    const hasPerChannel = !!hist?.children?.some(c => c.name === 'Red' || c.name === 'Green' || c.name === 'Blue');
+    if (useWS && hasPerChannel) {
+      return levelsFilterPerChannel(input, chan('RGB'), chan('Red'), chan('Green'), chan('Blue'), mix);
+    }
     return levelsFilter(input, {
-      blackIn: nested('Black In', 0),
-      whiteIn: nested('White In', 1),
-      gamma: nested('Gamma', 1),
-      blackOut: nested('Black Out', 0),
-      whiteOut: nested('White Out', 1),
-      mix: ctx.param('Mix', 1),
+      blackIn: grp('RGB', 'Black In', 0),
+      whiteIn: grp('RGB', 'White In', 1),
+      gamma: grp('RGB', 'Gamma', 1),
+      blackOut: grp('RGB', 'Black Out', 0),
+      whiteOut: grp('RGB', 'White Out', 1),
+      mix,
     });
   },
 });

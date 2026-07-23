@@ -1931,6 +1931,56 @@
       "tol": 0.01,
       "note": "engine iv=0.51117; FCP Rec709 working gamma=1.9609375; delta 0.0046 (sub-quantisation)",
       "swept": "2026-07-23T05:21:14Z"
+    },
+    "transfer.PAELevels_perchannel": {
+      "id": "transfer.PAELevels_perchannel",
+      "kind": "transfer",
+      "status": "VERIFIED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 0.7700000000000031,
+      "n_samples": 162,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "label": "red_whitein0.8",
+          "params": [
+            {
+              "name": "Histogram",
+              "id": 1,
+              "children": [
+                {
+                  "name": "Red",
+                  "id": 3,
+                  "children": [
+                    {
+                      "name": "White In",
+                      "id": 3,
+                      "value": 0.8
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "input": [
+          32,
+          32,
+          32
+        ],
+        "oracle": [
+          49.23,
+          32.09,
+          31.92
+        ],
+        "engine": [
+          50.0,
+          32.0,
+          32.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
     }
   },
   "history": [
@@ -2608,8 +2658,13 @@
       "id": "transfer.PAEFill",
       "status": "VERIFIED",
       "at": "2026-07-23T07:48:48Z"
+    },
+    {
+      "id": "transfer.PAELevels_perchannel",
+      "status": "VERIFIED",
+      "at": "2026-07-23T08:10:51Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T07:48:48Z"
+  "updated": "2026-07-23T08:10:51Z"
 }
