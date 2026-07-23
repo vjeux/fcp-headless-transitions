@@ -7,12 +7,16 @@ The unit of truth is the **XML node**: one .motr node + its params -> one isolat
 computation, verified faithful (TS == REAL FCP) across the param space. NOT a hand-picked
 C++ symbol, NOT whole-frame PSNR. See DESIGN.md.
 
-## Three verification regimes (each node uses the RIGHT oracle)
+## Four verification regimes (each node uses the RIGHT oracle)
 1. **Exact (parity-owned)** — value->value nodes whose computation IS an exported FCP
    function, called via dlsym and compared bit-for-bit:
    - curve.interp.ease            PCMath::easeInOut          VERIFIED 0.0
    - curve.interp.bezier.eval     OZBezierEval               VERIFIED 3.2e-14
    - curve.interp.bezier.findparam OZBezierFindParameter     VERIFIED 4.3e-10
+   - curve.color.luma709          PCGetGamutColorSpaceLuminanceCoefficients VERIFIED 3.5e-7
+   - constant.color.working_gamma PCEstimateGamma(Rec709)=1.9609 vs engine 1.9563 VERIFIED
+     (the CONSTANT kind: grounds a fitted engine magic-number against an FCP function's exact
+     output — no TS worker, scalar compare; two-call oracle via oracle.estimate_working_gamma)
 2. **Transfer (parity-owned, pointwise colour)** — a per-pixel colour node computes
    out=f(in,params) with NO spatial dependence, so it isolates EXACTLY by feeding
    uniform-colour swatches through REAL headless FCP and reading the center colour.
@@ -60,7 +64,7 @@ C++ symbol, NOT whole-frame PSNR. See DESIGN.md.
    decode is faithful and the divergence lives in the HOST, not the Glow node.
 
 
-## Current subsystem map (52 nodes; 30 VERIFIED) — run `fct parity status` for live
+## Current subsystem map (53 nodes; 31 VERIFIED) — run `fct parity status` for live
   curves      3/3  VERIFIED (exact)
   blur        6/10 (Gaussian/Directional/Radial VERIFIED via delta; spatial.Gaussian 49dB +
                    spatial.Directional 26dB VERIFIED at node boundary; spatial.Zoom + spatial.Bloom
