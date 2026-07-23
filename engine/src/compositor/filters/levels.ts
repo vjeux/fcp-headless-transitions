@@ -103,26 +103,32 @@ export function levelsFilter(input: ImageData, params: LevelsParams): ImageData 
   const range = whiteIn - blackIn;
   const invGamma = gamma !== 0 ? 1 / gamma : 1;
 
-  // DECODED gamma-1.958 working-space Black/White-In stretch (fct/parity, 2026-07-22).
-  // Guarded by FCT_LEVELS_WS=1. transfer.PAELevels_remap VERIFIED at 0.22 rms with the
-  // endpoint AFFINE run in the gamma-1.958 working space and the black/white-in points
-  // applied RAW (NOT re-encoded): norm = (ws(x) - blackIn)/(whiteIn - blackIn), then the
-  // gamma power + output remap, then decode. This is the SAME unified colour working
-  // space as Tint/HSV/Colorize — the prior "gentler stretch" gap was the luma/affine
-  // space. The Levels GAMMA leg is already VERIFIED in sRGB (transfer.PAELevels); here
-  // the gamma power is applied in WS after the affine, which is identity when gamma=1
-  // (the remap node's case). Shipped GUI-GT path (code-space LUT below) byte-identical.
+  // DECODED HgcLevels — UNIFIED 2-stage model (fct/parity, 2026-07-22). Guarded by
+  // FCT_LEVELS_WS=1. Extracted the verbatim HgcLevels fragment shader: it is TWO affine+gamma
+  // stages. Wrapped in the gamma-1.958 working space (encode in / decode out), with RAW
+  // endpoints, it fits ALL Levels legs vs REAL headless FCP: gamma-alone 0.17, input-remap 0.24,
+  // output-remap 0.16 rms — AND the previously-diverging COMBINED case (in+gamma+out together)
+  // drops from 12 rms to ~4 (residual is the clip-boundary shared clamp). The prior per-leg LUT
+  // (gamma applied between the in- and out-remap, all in WS) matched each leg alone but mis-
+  // composed them; the shader shows the true order:
+  //   ws(in) -> stage1: affine [blackIn,whiteIn]->[0,1]  (NO gamma here)
+  //          -> stage2: affine [0,1]->[blackOut,whiteOut], THEN pow(1/gamma)
+  //          -> ws_inv -> code
+  // (each stage clamps to [0,1]). Shipped GUI-GT path (code-space LUT below) byte-identical.
   const useWS = typeof process !== 'undefined' && process.env && process.env.FCT_LEVELS_WS === '1';
   if (useWS) {
     const iv = 0.51117, gm = 1.0 / 0.51117;   // gamma-1.958 working space
     const rng = range || 0.001;
+    const cl01 = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x);
     const lutWS = new Uint8Array(256);
     for (let i = 0; i < 256; i++) {
-      const xw = Math.pow(i / 255, iv);
-      const normalized = Math.max(0, Math.min(1, (xw - blackIn) / rng));
-      const gammaCorrected = Math.pow(normalized, invGamma);
-      const outWS = gammaCorrected * (whiteOut - blackOut) + blackOut;
-      lutWS[i] = Math.round(Math.pow(Math.max(0, Math.min(1, outWS)), gm) * 255);
+      let x = Math.pow(i / 255, iv);                        // encode to WS
+      // stage 1: input remap [blackIn, whiteIn] -> [0, 1]
+      x = cl01((x - blackIn) / rng);
+      // stage 2: output remap [0,1] -> [blackOut, whiteOut], then gamma pow(1/gamma)
+      x = cl01(x * (whiteOut - blackOut) + blackOut);
+      x = Math.pow(x, invGamma);
+      lutWS[i] = Math.round(Math.pow(cl01(x), gm) * 255);   // decode WS -> code
     }
     for (let i = 0; i < src.length; i += 4) {
       if (mix >= 1) {

@@ -1369,7 +1369,7 @@
       "kind": "transfer",
       "status": "DIVERGED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 23.80000000000001,
+      "max_abs_levels": 16.80000000000001,
       "n_samples": 81,
       "tol_levels": 2.0,
       "worst": {
@@ -1426,9 +1426,9 @@
           254.78
         ],
         "engine": [
-          231.0,
-          231.0,
-          231.0
+          238.0,
+          238.0,
+          238.0
         ]
       },
       "oracle_truth": "transfer",
@@ -1986,8 +1986,28 @@
       "id": "transfer.PAEChannelMixer_offset",
       "status": "VERIFIED",
       "at": "2026-07-23T02:15:41Z"
+    },
+    {
+      "id": "transfer.PAELevels",
+      "status": "VERIFIED",
+      "at": "2026-07-23T02:37:14Z"
+    },
+    {
+      "id": "transfer.PAELevels_remap",
+      "status": "VERIFIED",
+      "at": "2026-07-23T02:37:26Z"
+    },
+    {
+      "id": "transfer.PAELevels_outremap",
+      "status": "VERIFIED",
+      "at": "2026-07-23T02:37:38Z"
+    },
+    {
+      "id": "transfer.PAELevels_combined",
+      "status": "DIVERGED",
+      "at": "2026-07-23T02:37:49Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T02:15:41Z"
+  "updated": "2026-07-23T02:37:49Z"
 }
