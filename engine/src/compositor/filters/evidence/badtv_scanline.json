@@ -1,0 +1,39 @@
+{
+  "desc": "BadTV scan-line brightness CORRECTED (2026-07-23): it is a PURE CODE-SPACE MULTIPLY with the correct band polarity \u2014 bright band = input*ScanBright, dark band = IDENTITY. The earlier gamma model was fit to a CORRUPTED horizontal-block-ramp probe and was WRONG.",
+  "clean_flat_probe_sb1.5": {
+    "in40": {
+      "headless": [
+        61,
+        40
+      ],
+      "engine": [
+        60,
+        40
+      ]
+    },
+    "in100": {
+      "headless": [
+        151,
+        100
+      ],
+      "engine": [
+        150,
+        100
+      ]
+    },
+    "in160": {
+      "headless": [
+        242,
+        159
+      ],
+      "engine": [
+        240,
+        160
+      ]
+    },
+    "format": "[bright_band, dark_band]"
+  },
+  "model": "factor = mix(1.0, ScanBright, smoothstep(band));  out = in * factor  (code space). dark band=identity, bright band=*ScanBright.",
+  "bug_fixed": "The prior scanlineFactor returned scanBright+(1-scanBright)*ss = INVERTED bands (dark band got *sb, bright band got *1.0). flat-gray-128 coincidentally matched (128*1.5=192 either way at the midpoint) hiding the bug. Corrected to 1+(scanBright-1)*ss.",
+  "textured_synth_confound": "On the TEXTURED synth, headless brightens dark_bg 40->133 (not the flat-40 result of 61) \u2014 a content-dependent effect (likely a Mix/composite or frame-adaptive op in the synth render path), NOT the scan-line transfer. The textured-synth PSNR is therefore an unreliable metric for BadTV; the clean FLAT-value probe (matches to ~1 level) is authoritative."
+}
