@@ -8230,7 +8230,8 @@
       },
       "faithful_id": "PAEBadTV",
       "oracle_truth": "headless",
-      "status": "UNTESTED"
+      "status": "UNTESTED",
+      "badtv_decode_note": "2026-07-23: waviness=verified dSFMT(seed=2*frame+1) cumulative walk (per-row validated ~0.5px); scan-line band polarity FIXED (bright=*ScanBright, dark=identity, validated ~1lvl on flat inputs) \u2014 a real gate-invisible bug. Remaining DIVERGED cause: scan-line brightness is a FRAME-PEAK AGC (a 2%-area white square lifts the whole dark field 61->133), which the per-pixel model cannot capture; + the Static overlay is the separate mt19937 2-D white field. Both need frame-statistic decode (deep). The per-pixel deterministic path (waviness+scanline+saturate) is decoded+wired behind FCT_BADTV_WAVINESS_EXACT."
     },
     {
       "id": "filter.PAEBlackHole",
