@@ -58,8 +58,17 @@ export function thresholdFilter(
   // slope = 1/Smoothness (hard step when Smoothness->0). Cap to a large finite value so
   // Smoothness=0 yields an exact step without NaN/inf.
   const slope = opts.smoothness > 1e-6 ? 1 / opts.smoothness : 1e6;
-  const dr = opts.dark[0] * 255, dg = opts.dark[1] * 255, db = opts.dark[2] * 255;
-  const lr = opts.light[0] * 255, lg = opts.light[1] * 255, lb = opts.light[2] * 255;
+  // DECODED 2026-07-23: the Dark/Light Colors go through the sRGB->linear (s2l) EOTF before
+  // the (code-space) lerp — exactly like Fill's fill colour. Verified vs headless: a Dark
+  // Color (0.5,0.3,0.8) emits code (54.3,18.8,153.8) = s2l(c)*255 (NOT 0.5*255=127.5), and the
+  // smooth-blend mid interpolates the s2l-linearized endpoints in code space (31.2/110.8/93.3
+  // at input 128 = mix(s2l(dark)*255, s2l(light)*255, t)). The prior raw-code endpoints were
+  // invisible to the old cases (black/white/pure-primary have s2l(0)=0, s2l(1)=1) but wrong for
+  // fractional colours (up to 73 lvl). s2l matches srgbChannelToLinear / Fill's fill transfer.
+  const s2l = (c01: number): number => (c01 <= 0.04045 ? c01 / 12.92 : Math.pow((c01 + 0.055) / 1.055, 2.4));
+  const dr = s2l(opts.dark[0]) * 255, dg = s2l(opts.dark[1]) * 255, db = s2l(opts.dark[2]) * 255;
+  const lr = s2l(opts.light[0]) * 255, lg = s2l(opts.light[1]) * 255, lb = s2l(opts.light[2]) * 255;
+
   const mix = opts.mix;
   for (let i = 0; i < src.length; i += 4) {
     const a = src[i + 3];

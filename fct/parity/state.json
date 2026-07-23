@@ -1074,22 +1074,22 @@
       "kind": "transfer",
       "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 0.6699999999999875,
-      "n_samples": 135,
+      "max_abs_levels": 0.8799999999999955,
+      "n_samples": 270,
       "tol_levels": 2.0,
       "worst": {
         "case": {
-          "label": "t0.5_s0.3_darkblue_lightyellow",
+          "label": "t0.4_s0.25_bw",
           "params": [
             {
               "name": "Threshold",
               "id": 1,
-              "value": 0.5
+              "value": 0.4
             },
             {
               "name": "Smoothness",
               "id": 2,
-              "value": 0.3
+              "value": 0.25
             },
             {
               "name": "Dark Color",
@@ -1108,7 +1108,7 @@
                 {
                   "name": "Blue",
                   "id": 3,
-                  "value": 1
+                  "value": 0
                 }
               ]
             },
@@ -1129,7 +1129,7 @@
                 {
                   "name": "Blue",
                   "id": 3,
-                  "value": 0
+                  "value": 1
                 }
               ]
             },
@@ -1141,19 +1141,19 @@
           ]
         },
         "input": [
-          200,
-          50,
-          50
+          128,
+          128,
+          128
         ],
         "oracle": [
-          23.4,
-          23.4,
-          231.33
+          231.59,
+          231.88,
+          231.65
         ],
         "engine": [
-          23.0,
-          23.0,
-          232.0
+          231.0,
+          231.0,
+          231.0
         ]
       },
       "oracle_truth": "transfer",
@@ -3182,8 +3182,18 @@
       "id": "transfer.PAEColorize",
       "status": "VERIFIED",
       "at": "2026-07-23T11:30:09Z"
+    },
+    {
+      "id": "transfer.PAEThreshold",
+      "status": "DIVERGED",
+      "at": "2026-07-23T11:45:53Z"
+    },
+    {
+      "id": "transfer.PAEThreshold",
+      "status": "VERIFIED",
+      "at": "2026-07-23T11:50:04Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T11:30:09Z"
+  "updated": "2026-07-23T11:50:04Z"
 }

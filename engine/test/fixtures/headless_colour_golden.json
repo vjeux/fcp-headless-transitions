@@ -44204,7 +44204,7 @@
   "engine_env": {},
   "tol_levels": 2.0,
   "verified": true,
-  "n": 45,
+  "n": 90,
   "cases": [
    {
     "params": [
@@ -47399,6 +47399,3201 @@
      0.0,
      0.0,
      254.36
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.4
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.25
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     16,
+     16,
+     16
+    ],
+    "oracle": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.4
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.25
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     32,
+     32,
+     32
+    ],
+    "oracle": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.4
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.25
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     64,
+     64,
+     64
+    ],
+    "oracle": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.4
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.25
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     231.59,
+     231.88,
+     231.65
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.4
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.25
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     200,
+     200,
+     200
+    ],
+    "oracle": [
+     254.69,
+     254.8,
+     254.78
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.4
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.25
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     240,
+     240,
+     240
+    ],
+    "oracle": [
+     254.69,
+     254.8,
+     254.78
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.4
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.25
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     200,
+     50,
+     50
+    ],
+    "oracle": [
+     104.79,
+     104.56,
+     104.56
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.4
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.25
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     50,
+     200,
+     50
+    ],
+    "oracle": [
+     254.69,
+     254.8,
+     254.78
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.4
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.25
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     50,
+     50,
+     200
+    ],
+    "oracle": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.6
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.4
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     16,
+     16,
+     16
+    ],
+    "oracle": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.6
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.4
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     32,
+     32,
+     32
+    ],
+    "oracle": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.6
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.4
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     64,
+     64,
+     64
+    ],
+    "oracle": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.6
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.4
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     65.05,
+     65.06,
+     65.05
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.6
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.4
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     200,
+     200,
+     200
+    ],
+    "oracle": [
+     244.85,
+     245.12,
+     245.13
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.6
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.4
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     240,
+     240,
+     240
+    ],
+    "oracle": [
+     254.69,
+     254.8,
+     254.78
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.6
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.4
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     200,
+     50,
+     50
+    ],
+    "oracle": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.6
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.4
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     50,
+     200,
+     50
+    ],
+    "oracle": [
+     98.68,
+     98.68,
+     98.62
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.6
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.4
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     50,
+     50,
+     200
+    ],
+    "oracle": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.5
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.2
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0.8
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     16,
+     16,
+     16
+    ],
+    "oracle": [
+     153.85,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.5
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.2
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0.8
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     32,
+     32,
+     32
+    ],
+    "oracle": [
+     153.85,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.5
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.2
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0.8
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     64,
+     64,
+     64
+    ],
+    "oracle": [
+     153.85,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.5
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.2
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0.8
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     75.35,
+     130.11,
+     130.13
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.5
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.2
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0.8
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     200,
+     200,
+     200
+    ],
+    "oracle": [
+     0.11,
+     254.29,
+     254.81
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.5
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.2
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0.8
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     240,
+     240,
+     240
+    ],
+    "oracle": [
+     0.11,
+     254.29,
+     254.81
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.5
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.2
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0.8
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     200,
+     50,
+     50
+    ],
+    "oracle": [
+     153.85,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.5
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.2
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0.8
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     50,
+     200,
+     50
+    ],
+    "oracle": [
+     34.95,
+     196.38,
+     197.03
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.5
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.2
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0.8
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     50,
+     50,
+     200
+    ],
+    "oracle": [
+     153.85,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.35
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.15
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0.5
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     16,
+     16,
+     16
+    ],
+    "oracle": [
+     0.03,
+     54.53,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.35
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.15
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0.5
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     32,
+     32,
+     32
+    ],
+    "oracle": [
+     0.03,
+     54.53,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.35
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.15
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0.5
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     64,
+     64,
+     64
+    ],
+    "oracle": [
+     0.03,
+     54.53,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.35
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.15
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0.5
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     254.64,
+     0.0,
+     254.36
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.35
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.15
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0.5
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     200,
+     200,
+     200
+    ],
+    "oracle": [
+     254.64,
+     0.0,
+     254.36
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.35
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.15
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0.5
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     240,
+     240,
+     240
+    ],
+    "oracle": [
+     254.64,
+     0.0,
+     254.36
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.35
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.15
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0.5
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     200,
+     50,
+     50
+    ],
+    "oracle": [
+     173.84,
+     17.03,
+     174.35
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.35
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.15
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0.5
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     50,
+     200,
+     50
+    ],
+    "oracle": [
+     254.64,
+     0.0,
+     254.36
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.35
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.15
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0.5
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     50,
+     50,
+     200
+    ],
+    "oracle": [
+     0.03,
+     54.53,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.5
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.5
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     16,
+     16,
+     16
+    ],
+    "oracle": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.5
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.5
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     32,
+     32,
+     32
+    ],
+    "oracle": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.5
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.5
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     64,
+     64,
+     64
+    ],
+    "oracle": [
+     0.42,
+     0.44,
+     0.45
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.5
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.5
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     128.44,
+     128.43,
+     128.4
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.5
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.5
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     200,
+     200,
+     200
+    ],
+    "oracle": [
+     254.69,
+     254.8,
+     254.78
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.5
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.5
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     240,
+     240,
+     240
+    ],
+    "oracle": [
+     254.69,
+     254.8,
+     254.78
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.5
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.5
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     200,
+     50,
+     50
+    ],
+    "oracle": [
+     65.19,
+     65.19,
+     65.17
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.5
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.5
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     50,
+     200,
+     50
+    ],
+    "oracle": [
+     155.35,
+     155.36,
+     155.4
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Threshold",
+      "id": 1,
+      "value": 0.5
+     },
+     {
+      "name": "Smoothness",
+      "id": 2,
+      "value": 0.5
+     },
+     {
+      "name": "Dark Color",
+      "id": 3,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Light Color",
+      "id": 4,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     50,
+     50,
+     200
+    ],
+    "oracle": [
+     0.0,
+     0.0,
+     0.0
     ]
    }
   ]
