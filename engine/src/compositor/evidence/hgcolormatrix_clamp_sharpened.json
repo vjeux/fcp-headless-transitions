@@ -1,0 +1,13 @@
+{
+  "desc": "SHARPENED characterization (2026-07-23) of the over-1.0 HGColorMatrix cross-channel clamp, via a dense PAEContrast c=2.0 probe where G overflows. This is the model on TOP of the (now-built) float working-space pipeline needed to fully close Brightness/HSV/Contrast/ChannelMixer over-1.0.",
+  "probe": "PAEContrast c=2.0, B=50 fixed, R in {20,50,80,110}, G in {160,200,240}. per-channel contrast-about-0.5 in gamma-0.51117 WS overflows G past 1.0.",
+  "findings": [
+    "When the max channel (G) overflows, the NON-clipped channels (R,B) are LIFTED toward white — a highlight desaturation / soft-clip, NOT a hard per-channel clamp.",
+    "For FIXED G overflow (G=200, exc=0.27 in WS), the B output ws is CONSTANT ~0.73 regardless of R (0.37->0.73 always). B's lift depends only on G's overflow, not on R.",
+    "R's output rises with input R: R ws 0.04->0.75, 0.37->0.81, 0.61->0.89, 0.80->0.95 (all at G=200). So each channel has its OWN soft-clip curve parameterized by the peak overflow.",
+    "Luma is NOT preserved (L_ows 0.94..1.10 -> L_oracle 0.93..0.97).",
+    "The lift GROWS with G's overflow: R=20 output 125->145->162 as G 160->200->240."
+  ],
+  "model_hypothesis": "A peak-parameterized per-channel highlight soft-clip / gamut compression in FCP's ExtendedLinearSRGB HGColorMatrix readback: out_c = softclip(ows_c ; peak=max_c ows_c). Each channel rolls off toward 1.0 as the frame/pixel peak exceeds 1.0, with lower channels lifted more (desaturation). Exact curve needs the Metal tile-readback disasm (the GPU tone map) — confirmed NOT a simple redistribution/luma-preserve/scale-to-max (all ruled out here).",
+  "architecture_note": "The float working-space pipeline (compositor/working-space.ts) is the PREREQUISITE substrate: it preserves the unclamped >1.0 ows values this soft-clip needs as input. With the pipeline, adding a per-channel peak-soft-clip as a terminal (or ChannelMixer/Contrast) step would close these — but the exact curve is the remaining GPU-disasm piece."
+}
