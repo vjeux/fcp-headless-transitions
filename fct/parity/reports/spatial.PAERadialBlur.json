@@ -3,7 +3,7 @@
   "kind": "spatial",
   "status": "DIVERGED",
   "metric": "frame_psnr_db",
-  "worst_psnr_db": 29.39,
+  "worst_psnr_db": 29.61,
   "pass_db": 30.0,
   "n_scored": 3,
   "oracle_truth": "headless",
@@ -18,12 +18,12 @@
         }
       ]
     },
-    "psnr": 29.39,
-    "mad": 6.148,
+    "psnr": 29.61,
+    "mad": 5.946,
     "signed": [
-      -2.838,
-      -2.039,
-      -2.064
+      -2.827,
+      -2.029,
+      -2.055
     ],
     "resized": false,
     "head_vs_input_mad": 28.43
@@ -41,12 +41,12 @@
           }
         ]
       },
-      "psnr": 33.61,
-      "mad": 2.372,
+      "psnr": 33.7,
+      "mad": 2.326,
       "signed": [
-        -1.589,
-        -1.157,
-        -1.173
+        -1.56,
+        -1.137,
+        -1.152
       ],
       "resized": false,
       "head_vs_input_mad": 23.77
@@ -62,12 +62,12 @@
           }
         ]
       },
-      "psnr": 32.6,
-      "mad": 3.124,
+      "psnr": 32.67,
+      "mad": 3.085,
       "signed": [
-        -2.361,
-        -1.696,
-        -1.719
+        -2.331,
+        -1.675,
+        -1.698
       ],
       "resized": false,
       "head_vs_input_mad": 27.37
@@ -83,12 +83,12 @@
           }
         ]
       },
-      "psnr": 29.39,
-      "mad": 6.148,
+      "psnr": 29.61,
+      "mad": 5.946,
       "signed": [
-        -2.838,
-        -2.039,
-        -2.064
+        -2.827,
+        -2.029,
+        -2.055
       ],
       "resized": false,
       "head_vs_input_mad": 28.43

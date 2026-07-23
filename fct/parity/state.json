@@ -2292,7 +2292,7 @@
       "kind": "spatial",
       "status": "DIVERGED",
       "metric": "frame_psnr_db",
-      "worst_psnr_db": 29.39,
+      "worst_psnr_db": 29.61,
       "pass_db": 30.0,
       "n_scored": 3,
       "oracle_truth": "headless",
@@ -2307,12 +2307,12 @@
             }
           ]
         },
-        "psnr": 29.39,
-        "mad": 6.148,
+        "psnr": 29.61,
+        "mad": 5.946,
         "signed": [
-          -2.838,
-          -2.039,
-          -2.064
+          -2.827,
+          -2.029,
+          -2.055
         ],
         "resized": false,
         "head_vs_input_mad": 28.43
@@ -3776,8 +3776,18 @@
       "id": "transfer.PAEContrast",
       "status": "VERIFIED",
       "at": "2026-07-24T00:35:08Z"
+    },
+    {
+      "id": "spatial.PAERadialBlur",
+      "status": "DIVERGED",
+      "at": "2026-07-24T00:42:26Z"
+    },
+    {
+      "id": "spatial.PAEDirectionalBlur",
+      "status": "VERIFIED",
+      "at": "2026-07-24T00:45:02Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-24T00:35:08Z"
+  "updated": "2026-07-24T00:45:02Z"
 }

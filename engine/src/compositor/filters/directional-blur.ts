@@ -253,9 +253,15 @@ function spinBlurPolar(input: ImageData, angle: number, cxf: number, cyf: number
       polar[pi] = tmp[0]; polar[pi + 1] = tmp[1]; polar[pi + 2] = tmp[2]; polar[pi + 3] = tmp[3];
     }
   }
-  // 1-D Gaussian along the ANGLE axis (wrap). arc(px) = angle/(2π)*Abins; sigma = arc/6.
+  // 1-D Gaussian along the ANGLE axis (wrap). arc(px) = angle/(2π)*Abins; sigma = arc/6.10.
+  // DECODED 2026-07-23 via a clean NON-WRAPPING wedge probe (a single radial half-plane edge far
+  // from centre, so the spin smears it along the angle axis without wrapping — the exact probe the
+  // prior characterization said was needed). Measured the 10-90 angular transition width at R=400
+  // through headless FCP: K=angle/sigma = 6.11/6.11/6.24 at Angle=0.1/0.2/0.4, i.e. sigma=angle/6.10
+  // — the SAME constant as the VERIFIED HDirectionalBlur (sigma=Amount/6.10). The prior /6.0 was
+  // slightly too wide (the documented systematic ~-2..-3 lvl negative bias growing with Amount).
   const arcPx = (angle / (2 * Math.PI)) * Abins;
-  const sigma = arcPx / 6.0;
+  const sigma = arcPx / 6.10;
   const blurred = sigma > 0.3 ? gaussianWrapAxisAngle(polar, maxr, Abins, sigma) : polar;
   // Inverse: for each screen pixel, (r,θ) → bilinear-sample the blurred polar image.
   const out = new Uint8ClampedArray(src.length);
