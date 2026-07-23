@@ -53,5 +53,11 @@
   },
   "verified": "reproduces all measured points (input 50/100/150/200 x TOP/BOT/LEFT) within 1 level",
   "note": "T_edge = 255 * lightColor * lobe_edge. The four |cos(theta+k)| lobes (k in {0,-45,-90,+45}) don't cleanly fit a single-cosine (resid 0.097), so the exact facet->edge mapping needs the bevelHe vertex-color disasm. Light Angle is NOT probe-drivable so a general angle-driven rewrite is UNVERIFIABLE against headless \u2014 only this default-light band is measurable. A future fix should port the verbatim offset-accumulation and CALIBRATE the default to these T targets (regression check)."
+ },
+ "CRITICAL_mechanism_finding_2026-07-23": {
+  "probe": "/tmp/bev_circle.py (opaque disc) + /tmp/bev_rect.py (inset opaque rect)",
+  "finding": "FCP Bevel does NOT follow the layer's ALPHA boundary. A bright opaque DISC gets NO bevel (all edges ~100 unchanged). An INSET opaque RECT gets NO bevel on its own alpha edge (inside-top stays 100) \u2014 instead the FRAME RECTANGLE border is beveled, and the band extends INTO the transparent frame border (frame edge alpha went 0->204, rgb->255).",
+  "implication": "Bevel bevels the FULL-FRAME RECTANGLE edges (the render DOD/canvas rect), not the alpha silhouette. The engine's per-pixel ALPHA-GRADIENT normal model is architecturally wrong on BOTH counts: (1) it follows alpha edges (FCP follows the frame rect), (2) its inward-normal is inverted so it darkens. The band tint law mix(input,T_edge,0.80) with T={TOP255,sides135,bot114} is measured for the frame-rect edges under the default light.",
+  "fix": "Rewrite as a frame-rectangle bevel: for each of the 4 canvas edges, lay a band_px-wide band (band_px=Width*0.28125*maxDim) inward, tint = mix(pixel, T_edge, 0.80*opacity) where T_edge=255*lightColor*lobe_edge, and EXTEND the band into the transparent border (alpha rises). Corners blend two edges. Only Stylized__Panels_Across ships it (opaque full-frame layer -> the frame-rect bevel is exactly what shows)."
  }
 }
