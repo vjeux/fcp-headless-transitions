@@ -509,6 +509,48 @@ extern "C" int oz_render_frame(void* cppDoc, unsigned int idA, unsigned int idB,
             }
         }
     }
+    // DEBUG: dump the center pixel's RAW linear values (half-float, ExtendedLinearSRGB) BEFORE
+    // the CoreGraphics sRGB conversion. This isolates the effect's float output from the
+    // ExtendedLinearSRGB->8bit-sRGB readback clamp (which is what CoreGraphics applies on PNG write).
+    if(getenv("OZ_DUMP_CENTER_LINEAR")){
+        const unsigned long W=vb.width, H=vb.height, RB=vb.rowBytes;
+        unsigned long cy=H/2, cx=W/2;
+        if(bpp==8){
+            uint16_t* row=(uint16_t*)((char*)vb.data + cy*RB);
+            // decode half -> float
+            auto h2f=[](uint16_t h)->float{
+                uint32_t s=(h>>15)&1,e=(h>>10)&0x1F,m=h&0x3FF; uint32_t out;
+                if(e==0){ if(m==0) out=s<<31; else { e=127-15+1; while(!(m&0x400)){m<<=1;e--;} m&=0x3FF; out=(s<<31)|(e<<23)|(m<<13);} }
+                else if(e==0x1F){ out=(s<<31)|(0xFF<<23)|(m<<13);} 
+                else { out=(s<<31)|((e-15+127)<<23)|(m<<13);} 
+                float f; memcpy(&f,&out,4); return f; };
+            float r=h2f(row[cx*4+0]),g=h2f(row[cx*4+1]),b=h2f(row[cx*4+2]),a=h2f(row[cx*4+3]);
+            fprintf(stderr,"[oz-linear] center HALF-FLOAT ExtLinearSRGB rgba = %.6f %.6f %.6f %.6f\n",r,g,b,a);
+        } else {
+            unsigned char* row=(unsigned char*)((char*)vb.data + cy*RB);
+            fprintf(stderr,"[oz-linear] center 8bit rgba = %d %d %d %d\n",row[cx*4+0],row[cx*4+1],row[cx*4+2],row[cx*4+3]);
+        }
+    }
+    // DEBUG/PROBE: OZ_CLAMP_UNIT clamps each RGB channel of the half-float buffer to [0,1]
+    // BEFORE the CoreGraphics ExtendedLinearSRGB->sRGB conversion. The CG conversion applies a
+    // proprietary extended-range gamut compression (cross-channel highlight lift) ONLY when a
+    // channel exceeds 1.0; pre-clamping to [0,1] makes the readback a clean per-channel encode
+    // (identity*255), isolating the FCP EFFECT math from the CoreGraphics readback quirk. Used to
+    // prove the over-1.0 "clamp" divergence is a readback artifact, not an FCP effect.
+    if(getenv("OZ_CLAMP_UNIT") && bpp==8){
+        const unsigned long W=vb.width, H=vb.height, RB=vb.rowBytes;
+        const uint16_t ONE=0x3C00;   // half-float 1.0
+        for(unsigned long y=0;y<H;y++){
+            uint16_t* row=(uint16_t*)((char*)vb.data + y*RB);
+            for(unsigned long x=0;x<W;x++){
+                for(int ch=0;ch<3;ch++){
+                    uint16_t h=row[x*4+ch];
+                    if(h & 0x8000) row[x*4+ch]=0;                 // negative -> 0
+                    else if(h > ONE) row[x*4+ch]=ONE;            // >1 -> 1.0
+                }
+            }
+        }
+    }
     CGImageRef cim=NULL;
     CGColorSpaceRef cs=NULL; CGContextRef c=NULL;
     if(bpp==8){

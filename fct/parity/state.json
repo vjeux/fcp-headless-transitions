@@ -411,9 +411,9 @@
     "transfer.PAEBrightness": {
       "id": "transfer.PAEBrightness",
       "kind": "transfer",
-      "status": "DIVERGED",
+      "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 104.0,
+      "max_abs_levels": 0.5800000000000125,
       "n_samples": 108,
       "tol_levels": 2.0,
       "worst": {
@@ -423,18 +423,18 @@
           "value": 1.5
         },
         "input": [
-          50,
           200,
+          50,
           50
         ],
         "oracle": [
-          179.0,
-          255.0,
-          161.0
+          254.42,
+          74.83,
+          75.3
         ],
         "engine": [
-          75.0,
           255.0,
+          75.0,
           75.0
         ]
       },
@@ -446,7 +446,7 @@
       "kind": "transfer",
       "status": "DIVERGED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 107.49,
+      "max_abs_levels": 26.33,
       "n_samples": 162,
       "tol_levels": 2.0,
       "worst": {
@@ -456,19 +456,19 @@
           "value": 1.5708
         },
         "input": [
-          200,
           50,
+          200,
           50
         ],
         "oracle": [
-          53.42,
-          92.51,
-          3.45
+          61.67,
+          163.6,
+          254.66
         ],
         "engine": [
-          113.0,
-          200.0,
-          50.0
+          88.0,
+          158.0,
+          255.0
         ]
       },
       "oracle_truth": "transfer",
@@ -837,14 +837,14 @@
     "transfer.PAEChannelMixer_clip": {
       "id": "transfer.PAEChannelMixer_clip",
       "kind": "transfer",
-      "status": "DIVERGED",
+      "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 104.0,
+      "max_abs_levels": 0.5800000000000125,
       "n_samples": 54,
       "tol_levels": 2.0,
       "worst": {
         "case": {
-          "label": "diag_2x",
+          "label": "diag_1.5x",
           "params": [
             {
               "name": "Red Output",
@@ -853,7 +853,7 @@
                 {
                   "name": "Red - Red",
                   "id": 2,
-                  "value": 2
+                  "value": 1.5
                 },
                 {
                   "name": "Red - Green",
@@ -884,7 +884,7 @@
                 {
                   "name": "Green - Green",
                   "id": 8,
-                  "value": 2
+                  "value": 1.5
                 },
                 {
                   "name": "Green - Blue",
@@ -915,7 +915,7 @@
                 {
                   "name": "Blue - Blue",
                   "id": 14,
-                  "value": 2
+                  "value": 1.5
                 },
                 {
                   "name": "Blue - Alpha",
@@ -932,19 +932,19 @@
           ]
         },
         "input": [
-          50,
           200,
+          50,
           50
         ],
         "oracle": [
-          204.0,
-          255.0,
-          184.0
+          254.42,
+          74.83,
+          75.3
         ],
         "engine": [
-          100.0,
           255.0,
-          100.0
+          75.0,
+          75.0
         ]
       },
       "oracle_truth": "transfer",
@@ -988,7 +988,7 @@
       "kind": "transfer",
       "status": "DIVERGED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 107.49,
+      "max_abs_levels": 26.33,
       "n_samples": 54,
       "tol_levels": 2.0,
       "worst": {
@@ -998,19 +998,19 @@
           "value": 1.5708
         },
         "input": [
-          200,
           50,
+          200,
           50
         ],
         "oracle": [
-          53.42,
-          92.51,
-          3.45
+          61.67,
+          163.6,
+          254.66
         ],
         "engine": [
-          113.0,
-          200.0,
-          50.0
+          88.0,
+          158.0,
+          255.0
         ]
       },
       "oracle_truth": "transfer",
@@ -1162,19 +1162,19 @@
     "transfer.PAEContrast": {
       "id": "transfer.PAEContrast",
       "kind": "transfer",
-      "status": "DIVERGED",
+      "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 133.0,
+      "max_abs_levels": 0.7700000000000031,
       "n_samples": 162,
       "tol_levels": 2.0,
       "worst": {
         "case": {
-          "label": "c2.0",
+          "label": "c1.25",
           "params": [
             {
               "name": "Contrast",
               "id": 1,
-              "value": 2.0
+              "value": 1.25
             },
             {
               "name": "Mix",
@@ -1184,19 +1184,19 @@
           ]
         },
         "input": [
-          50,
           200,
+          50,
           50
         ],
         "oracle": [
-          169.0,
-          255.0,
-          136.0
+          244.68,
+          46.77,
+          46.15
         ],
         "engine": [
-          36.0,
-          255.0,
-          36.0
+          245.0,
+          46.0,
+          46.0
         ]
       },
       "oracle_truth": "transfer",
@@ -1555,7 +1555,7 @@
       "kind": "transfer",
       "status": "DIVERGED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 82.0,
+      "max_abs_levels": 5.520000000000003,
       "n_samples": 27,
       "tol_levels": 2.0,
       "worst": {
@@ -1580,19 +1580,19 @@
           ]
         },
         "input": [
-          160,
-          100,
-          60
+          200,
+          50,
+          50
         ],
         "oracle": [
-          252.0,
-          197.0,
-          141.0
+          254.5,
+          56.69,
+          56.48
         ],
         "engine": [
           255.0,
-          137.0,
-          59.0
+          62.0,
+          62.0
         ]
       },
       "oracle_truth": "transfer",
@@ -3606,8 +3606,48 @@
       "id": "spatial.PAEEarthquake",
       "status": "VERIFIED",
       "at": "2026-07-23T17:01:29Z"
+    },
+    {
+      "id": "transfer.PAEChannelMixer_clip",
+      "status": "VERIFIED",
+      "at": "2026-07-23T22:19:14Z"
+    },
+    {
+      "id": "transfer.PAEBrightness",
+      "status": "VERIFIED",
+      "at": "2026-07-23T22:19:51Z"
+    },
+    {
+      "id": "transfer.PAEContrast",
+      "status": "VERIFIED",
+      "at": "2026-07-23T22:20:30Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust",
+      "status": "DIVERGED",
+      "at": "2026-07-23T22:21:09Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_hue",
+      "status": "DIVERGED",
+      "at": "2026-07-23T22:21:19Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust",
+      "status": "DIVERGED",
+      "at": "2026-07-23T22:22:01Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_hue",
+      "status": "DIVERGED",
+      "at": "2026-07-23T22:22:45Z"
+    },
+    {
+      "id": "transfer.PAEHSVAdjust_combined",
+      "status": "DIVERGED",
+      "at": "2026-07-23T22:22:52Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T17:01:29Z"
+  "updated": "2026-07-23T22:22:52Z"
 }

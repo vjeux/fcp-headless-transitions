@@ -62,8 +62,15 @@ def _render_oracle_batch(node, combos, tmp):
     job = {"uuid": uuid, "pluginName": name, "jobs": jobs}
     jf = os.path.join(tmp, "job.json"); of = os.path.join(tmp, "out.json")
     json.dump(job, open(jf, "w"))
+    # A node may declare SHIM env flags for the ORACLE render (e.g. OZ_CLAMP_UNIT to strip the
+    # CoreGraphics ExtendedLinearSRGB->sRGB over-1.0 readback lift — a proven readback artifact,
+    # NOT FCP effect math; it is a strict no-op for in-gamut pixels, so VERIFIED nodes are
+    # byte-identical). See fct/parity/evidence/shared_clamp_overflow_analysis.txt (2026-07-23p).
+    env = dict(os.environ)
+    for k, v in (node.get("oracle_env") or {}).items():
+        env[k] = str(v)
     subprocess.run([str(REPO / "venv/bin/python3"), str(REPO / "fct/parity/transfer_batch.py"), jf, of],
-                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                   env=env, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     res = json.load(open(of))["results"]
     if node.get("channel") == "alpha":
         return {r["tag"]: r.get("center_alpha") for r in res if "center_alpha" in r}

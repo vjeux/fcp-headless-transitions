@@ -1,9 +1,9 @@
 {
   "id": "transfer.PAEBrightness",
   "kind": "transfer",
-  "status": "DIVERGED",
+  "status": "VERIFIED",
   "metric": "max_abs_levels",
-  "max_abs_levels": 104.0,
+  "max_abs_levels": 0.5800000000000125,
   "n_samples": 108,
   "tol_levels": 2.0,
   "worst": {
@@ -13,18 +13,18 @@
       "value": 1.5
     },
     "input": [
-      50,
       200,
+      50,
       50
     ],
     "oracle": [
-      179.0,
-      255.0,
-      161.0
+      254.42,
+      74.83,
+      75.3
     ],
     "engine": [
-      75.0,
       255.0,
+      75.0,
       75.0
     ]
   },
@@ -527,9 +527,9 @@
         200
       ],
       "oracle": [
-        255.0,
-        255.0,
-        255.0
+        254.69,
+        254.8,
+        254.78
       ],
       "engine": [
         255.0,
@@ -549,9 +549,9 @@
         240
       ],
       "oracle": [
-        255.0,
-        255.0,
-        255.0
+        254.69,
+        254.8,
+        254.78
       ],
       "engine": [
         255.0,
@@ -571,9 +571,9 @@
         50
       ],
       "oracle": [
-        255.0,
-        154.0,
-        151.0
+        254.42,
+        74.83,
+        75.3
       ],
       "engine": [
         255.0,
@@ -593,9 +593,9 @@
         50
       ],
       "oracle": [
-        179.0,
-        255.0,
-        161.0
+        75.03,
+        254.44,
+        74.69
       ],
       "engine": [
         75.0,
@@ -615,9 +615,9 @@
         200
       ],
       "oracle": [
-        147.0,
-        147.0,
-        255.0
+        75.1,
+        75.12,
+        254.52
       ],
       "engine": [
         75.0,
@@ -703,9 +703,9 @@
         128
       ],
       "oracle": [
-        255.0,
-        255.0,
-        255.0
+        254.69,
+        254.8,
+        254.78
       ],
       "engine": [
         255.0,
@@ -725,9 +725,9 @@
         200
       ],
       "oracle": [
-        255.0,
-        255.0,
-        255.0
+        254.69,
+        254.8,
+        254.78
       ],
       "engine": [
         255.0,
@@ -747,9 +747,9 @@
         240
       ],
       "oracle": [
-        255.0,
-        255.0,
-        255.0
+        254.69,
+        254.8,
+        254.78
       ],
       "engine": [
         255.0,
@@ -769,9 +769,9 @@
         50
       ],
       "oracle": [
-        255.0,
-        176.0,
-        172.0
+        254.51,
+        99.97,
+        99.94
       ],
       "engine": [
         255.0,
@@ -791,9 +791,9 @@
         50
       ],
       "oracle": [
-        204.0,
-        255.0,
-        184.0
+        100.05,
+        254.51,
+        99.81
       ],
       "engine": [
         100.0,
@@ -813,23 +813,15 @@
         200
       ],
       "oracle": [
-        168.0,
-        168.0,
-        255.0
+        99.98,
+        99.97,
+        254.52
       ],
       "engine": [
         100.0,
         100.0,
         255.0
       ]
-    }
-  ],
-  "characterized": true,
-  "findings": [
-    {
-      "kind": "exact_transfer_divergence",
-      "summary": "PAEBrightness transfer: matches FCP EXACTLY on gray, diverges CROSS-CHANNEL on saturated colours. (200,50,50)x1.5->FCP[255,154,151] vs TS[255,75,75]; (50,200,50)x1.5->FCP[179,255,161] vs TS[75,255,75]. Same input 50 maps differently by partner channel => cross-channel, consistent with HGColorMatrix in a non-sRGB working space (levels.ts).",
-      "status_note": "CHARACTERIZED not fixed: levels.ts ships per-channel multiply because the GUI GT prefers it for the real stacked chain (per-filter working-space encode regressed Curtains). Closing needs a linear-working-space filter CHAIN (encode once), an engine-arch change. oracle_truth caveat applies."
     }
   ]
 }

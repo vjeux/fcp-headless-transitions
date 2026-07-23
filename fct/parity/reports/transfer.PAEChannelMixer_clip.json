@@ -1,14 +1,14 @@
 {
   "id": "transfer.PAEChannelMixer_clip",
   "kind": "transfer",
-  "status": "DIVERGED",
+  "status": "VERIFIED",
   "metric": "max_abs_levels",
-  "max_abs_levels": 104.0,
+  "max_abs_levels": 0.5800000000000125,
   "n_samples": 54,
   "tol_levels": 2.0,
   "worst": {
     "case": {
-      "label": "diag_2x",
+      "label": "diag_1.5x",
       "params": [
         {
           "name": "Red Output",
@@ -17,7 +17,7 @@
             {
               "name": "Red - Red",
               "id": 2,
-              "value": 2
+              "value": 1.5
             },
             {
               "name": "Red - Green",
@@ -48,7 +48,7 @@
             {
               "name": "Green - Green",
               "id": 8,
-              "value": 2
+              "value": 1.5
             },
             {
               "name": "Green - Blue",
@@ -79,7 +79,7 @@
             {
               "name": "Blue - Blue",
               "id": 14,
-              "value": 2
+              "value": 1.5
             },
             {
               "name": "Blue - Alpha",
@@ -96,19 +96,19 @@
       ]
     },
     "input": [
-      50,
       200,
+      50,
       50
     ],
     "oracle": [
-      204.0,
-      255.0,
-      184.0
+      254.42,
+      74.83,
+      75.3
     ],
     "engine": [
-      100.0,
       255.0,
-      100.0
+      75.0,
+      75.0
     ]
   },
   "oracle_truth": "transfer",
@@ -524,9 +524,9 @@
         128
       ],
       "oracle": [
-        255.0,
-        255.0,
-        255.0
+        254.69,
+        254.8,
+        254.78
       ],
       "engine": [
         255.0,
@@ -629,9 +629,9 @@
         200
       ],
       "oracle": [
-        255.0,
-        255.0,
-        255.0
+        254.69,
+        254.8,
+        254.78
       ],
       "engine": [
         255.0,
@@ -734,9 +734,9 @@
         240
       ],
       "oracle": [
-        255.0,
-        255.0,
-        255.0
+        254.69,
+        254.8,
+        254.78
       ],
       "engine": [
         255.0,
@@ -839,9 +839,9 @@
         50
       ],
       "oracle": [
-        255.0,
-        176.0,
-        172.0
+        254.51,
+        99.97,
+        99.94
       ],
       "engine": [
         255.0,
@@ -944,9 +944,9 @@
         50
       ],
       "oracle": [
-        204.0,
-        255.0,
-        184.0
+        100.05,
+        254.51,
+        99.81
       ],
       "engine": [
         100.0,
@@ -1049,9 +1049,9 @@
         200
       ],
       "oracle": [
-        168.0,
-        168.0,
-        255.0
+        99.98,
+        99.97,
+        254.52
       ],
       "engine": [
         100.0,
@@ -1574,9 +1574,9 @@
         200
       ],
       "oracle": [
-        255.0,
-        255.0,
-        255.0
+        254.69,
+        254.8,
+        254.78
       ],
       "engine": [
         255.0,
@@ -1679,9 +1679,9 @@
         240
       ],
       "oracle": [
-        255.0,
-        255.0,
-        255.0
+        254.69,
+        254.8,
+        254.78
       ],
       "engine": [
         255.0,
@@ -1784,9 +1784,9 @@
         50
       ],
       "oracle": [
-        255.0,
-        154.0,
-        151.0
+        254.42,
+        74.83,
+        75.3
       ],
       "engine": [
         255.0,
@@ -1889,9 +1889,9 @@
         50
       ],
       "oracle": [
-        179.0,
-        255.0,
-        161.0
+        75.03,
+        254.44,
+        74.69
       ],
       "engine": [
         75.0,
@@ -1994,26 +1994,15 @@
         200
       ],
       "oracle": [
-        147.0,
-        147.0,
-        255.0
+        75.1,
+        75.12,
+        254.52
       ],
       "engine": [
         75.0,
         75.0,
         255.0
       ]
-    }
-  ],
-  "characterized": true,
-  "findings": [
-    {
-      "kind": "UNIFYING_DISCOVERY",
-      "summary": "ChannelMixer with a diagonal 1.5x matrix produces BIT-IDENTICAL FCP output to PAEBrightness x1.5: (200,50,50)->[255,154,151] and (50,200,50)->[179,255,161] match Brightness exactly. This EXPERIMENTALLY CONFIRMS the binary decode (Brightness = diagonal HGColorMatrix) AND unifies two 'separate' divergences into ONE mechanism.",
-      "mechanism": "HGColorMatrix, when a channel's output exceeds 1.0 (amount>1 / amplifying matrix), applies a cross-channel CLAMP/rolloff in its working space that LIFTS the non-clipped channels far beyond the linear result (low 50->154 when high 200 clips). Non-amplifying matrices (all outputs <=1) are VERIFIED exact in sRGB (transfer.PAEChannelMixer). So the divergence is EXACTLY the HGColorMatrix over-1.0 clamp behavior, shared by ALL HGColorMatrix filters (Brightness, ChannelMixer, and likely the matrix stage of others).",
-      "models_refuted": "Not linear-space multiply ([239,62,62]), not Reinhard/Reinhard-extended, not YCbCr scale. The low-channel lift (50->154, ~3x) is larger than any standard highlight rolloff \u2014 needs the HGColorMatrix render disasm (clamp/ExtendedLinearSRGB readback stage) read from the binary.",
-      "value": "Collapses Brightness + ChannelMixer(clip) into a SINGLE decodable HGColorMatrix-clamp mechanism. Decoding that one clamp fixes both (and any other HGColorMatrix filter). Gate-blocked (oracle_truth=gui) but structurally unified.",
-      "clamp_localized": "LOCALIZED the over-1.0 clamp: HGColorMatrix has NO named Hgc shader (HgcColorMatrix not found); ParameterizeMatrix just uploads the 4 matrix rows (offsets 0x1b0-0x1e0), no clamp. The clamp is a GPU FRAMEBUFFER/readback behavior \u2014 the ExtendedLinearSRGB half-float working space allows >1 during compute, and the cross-channel lift happens at the sRGB READBACK/tone stage (oz_render.mm working space, not a readable CPU function or embedded shader source). This is the GPU colour-management readback \u2014 the same working-space stage the whole colour subsystem's divergence traces to. Decoding it requires instrumenting the GPU readback (capture the half-float working buffer before encode), not static disasm. Confirms (3rd independent route) the colour fix = the chain-level working-space/readback pipeline, gate-blocked. The MECHANISM is unified + localized; the exact readback transform is the remaining deep GPU-pipeline RE."
     }
   ]
 }

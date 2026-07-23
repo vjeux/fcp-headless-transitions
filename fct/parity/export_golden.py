@@ -44,6 +44,14 @@ VERIFIED = {
     "transfer.PAEContrast_gray",
     "transfer.PAEContrast_ingamut",
     "transfer.PAEHSVAdjust_combined_ingamut",
+    # Promoted 2026-07-23 — the over-1.0 "clamp" divergence was PROVEN to be a CoreGraphics
+    # ExtendedLinearSRGB->sRGB readback artifact in the shim (NOT FCP effect math). These nodes'
+    # oracles are now captured with OZ_CLAMP_UNIT (per-channel [0,1] clamp before the CG write,
+    # a strict no-op in-gamut), so the golden reflects the TRUE per-channel FCP effect that the
+    # engine matches. See fct/parity/evidence/shared_clamp_overflow_analysis.txt (2026-07-23p).
+    "transfer.PAEBrightness",
+    "transfer.PAEContrast",
+    "transfer.PAEChannelMixer_clip",
 }
 
 out = {}

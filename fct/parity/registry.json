@@ -312,7 +312,10 @@
       "oracle_truth": "transfer",
       "status": "UNTESTED",
       "characterized": true,
-      "characterized_reason": "Cross-channel HGColorMatrix in a non-sRGB working space (see report). Isolated headless transfer != GUI-gate truth; closing needs a linear-working-space filter CHAIN (encode once), an engine-arch change tracked separately. Per-channel multiply shipped intentionally (GUI GT prefers it for the stacked chain)."
+      "characterized_reason": "Cross-channel HGColorMatrix in a non-sRGB working space (see report). Isolated headless transfer != GUI-gate truth; closing needs a linear-working-space filter CHAIN (encode once), an engine-arch change tracked separately. Per-channel multiply shipped intentionally (GUI GT prefers it for the stacked chain).",
+      "oracle_env": {
+        "OZ_CLAMP_UNIT": "1"
+      }
     },
     {
       "id": "transfer.PAEBrightness_darken",
@@ -557,6 +560,9 @@
       "characterized_reason": "Hue UNIT bug FIXED (degrees->radians, commit d5840c2, gate-neutral). Residual 107 levels is the linear-working-space sat/value coupling (FCP does HSV sat/value in linear light) \u2014 same class as PAEBrightness's cross-channel/working-space issue, gate-blocked (a per-filter linear encode regresses the GUI gate; needs the chain-level linear pipeline). Not an open unit bug.",
       "engine_env": {
         "FCT_HSV_WORKINGSPACE": "1"
+      },
+      "oracle_env": {
+        "OZ_CLAMP_UNIT": "1"
       }
     },
     {
@@ -897,6 +903,9 @@
       "characterized_reason": "Hue UNIT bug FIXED (degrees->radians, commit d5840c2, gate-neutral). Residual 107 levels is the linear-working-space sat/value coupling (FCP does HSV sat/value in linear light) \u2014 same class as PAEBrightness's cross-channel/working-space issue, gate-blocked (a per-filter linear encode regresses the GUI gate; needs the chain-level linear pipeline). Not an open unit bug.",
       "engine_env": {
         "FCT_HSV_WORKINGSPACE": "1"
+      },
+      "oracle_env": {
+        "OZ_CLAMP_UNIT": "1"
       }
     },
     {
@@ -3574,7 +3583,10 @@
       "oracle_truth": "transfer",
       "status": "UNTESTED",
       "characterized": true,
-      "characterized_reason": "Diagonal-1.5x ChannelMixer == Brightness x1.5 bit-identical in FCP \u2014 confirms Brightness=HGColorMatrix + unifies the divergence to the shared HGColorMatrix over-1.0 CLAMP (lifts non-clipped channels). Non-clip matrices VERIFIED exact. Decode = HGColorMatrix render disasm; gate-blocked."
+      "characterized_reason": "Diagonal-1.5x ChannelMixer == Brightness x1.5 bit-identical in FCP \u2014 confirms Brightness=HGColorMatrix + unifies the divergence to the shared HGColorMatrix over-1.0 CLAMP (lifts non-clipped channels). Non-clip matrices VERIFIED exact. Decode = HGColorMatrix render disasm; gate-blocked.",
+      "oracle_env": {
+        "OZ_CLAMP_UNIT": "1"
+      }
     },
     {
       "id": "transfer.PAEThreshold",
@@ -4311,7 +4323,10 @@
           ]
         }
       ],
-      "characterized": true
+      "characterized": true,
+      "oracle_env": {
+        "OZ_CLAMP_UNIT": "1"
+      }
     },
     {
       "id": "transfer.PAEContrast_ingamut",
@@ -7806,7 +7821,10 @@
             }
           ]
         }
-      ]
+      ],
+      "oracle_env": {
+        "OZ_CLAMP_UNIT": "1"
+      }
     },
     {
       "id": "transfer.PAEHSVAdjust_combined_ingamut",

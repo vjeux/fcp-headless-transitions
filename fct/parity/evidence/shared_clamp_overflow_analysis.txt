@@ -84,3 +84,87 @@ cross-channel toward the opposite extreme (under-0 -> lift others toward white; 
 toward white too). Same GPU tile-readback blocker, both directions. Positive small offsets on any
 channel (r/g/b) stay in gamut and VERIFY exactly (0.77 lvl, 126 samples). Gate-inert (built-in
 ChannelMixer users don't drive channels out of [0,1]).
+
+## UPDATE 2026-07-23n — METAL DISASM: display-encode gamma shaders are CLAMP-FREE per-channel (refutes readback hypothesis)
+Installed the Metal Toolchain (xcodebuild -downloadComponent MetalToolchain) and used
+`air-objdump -d` to disassemble the FCP Hgc display shaders to LLVM-IR. HARD RESULT:
+  Hgc2Gamma (the sRGB display OETF): un-premult by max(|a|,~1e-6) [DIVIDE-BY-ZERO GUARD, not a
+    gamut op — the fmax.v3f32 I flagged is max(alpha,eps), broadcast from lane 3], then per-channel
+    fast_pow(rgb, gammaVec), re-premult by alpha, sign-restore. NO clamp. NO cross-channel term.
+  Hgc2GammaMC (matrix-gamma variant): same shape, per-channel fast_pow, NO clamp, NO cross-channel.
+  Hgc2GammaNoPremult: per-channel fast_pow only.
+CONSEQUENCE: the over-1.0 cross-channel LIFT is NOT introduced by the ExtendedLinearSRGB->display
+encode (that stage is a provably clean per-channel power curve). So the long-standing "GPU
+tile-readback redistributes clipped energy" hypothesis is WRONG about WHERE it happens — the lift
+is already present in the float buffer BEFORE display encode, i.e. inside the effect/composite pass
+(HGColorMatrix apply + whatever clamp the tile format imposes on write), not the read.
+Also extracted FCP's EXACT colour-space matrices from Helium __TEXT,__const (bit-read from binary):
+  sRGB<->XYZ (D65, standard); FCP wgRGB (wide-gamut) primaries [[.7165,.101,.1467],[.2587,.7247,
+  .0166],[0,.0512,.7737]] -> XYZ; ppRGB [[.7977,.1352,.0313],[.288,.7119,.0001],[0,0,.8249]];
+  rec2020; sRGB<->YCbCr (Rec.709). These are NOT P3/2020 — FCP's own working primaries.
+MODEL SEARCH on the clean ChannelMixer diagonal grid (gain-space x clamp-space): best is
+  gain-in-scene-LINEAR + clamp-in-linear (mean 21 / worst 46 lvl) — beats gain-in-WS (mean 42).
+  So the ChannelMixer gain is applied in SCENE-LINEAR, and clamp is a linear [0,1] clip; the
+  residual 21 lvl is the still-unexplained cross-channel lift. HGColorMatrix::RenderFragment /
+  GetProgram / InitProgramDescriptor generate the GPU program at runtime (not a static metallib
+  fn); the matrix apply itself (LoadMatrix/MultMatrix/Transform) is UNCLAMPED. Next: trace the
+  tile write-format clamp (ExtendedLinearSRGB float16 store -> the composite read). Disasm saved:
+  evidence/Hgc2Gamma_disasm.ll. This is genuine forward progress: the search space is now HALVED
+  (encode is clean), and the gain space is pinned to scene-linear.
+
+## UPDATE 2026-07-23o — ROOT CAUSE FOUND (not GPU disasm): the over-1.0 lift is the SHIM's
+##                       CoreGraphics ExtendedLinearSRGB(half-float) -> 8-bit sRGB PNG conversion.
+BREAKTHROUGH. Added OZ_DUMP_CENTER_LINEAR to oz_render.mm to dump the RAW half-float center pixel
+BEFORE the CoreGraphics PNG write, then compared to the final PNG sRGB. HARD FACTS (50 GT pairs,
+evidence/readback_linear_srgb_pairs.json, ChannelMixer diagonal gain sweeps on 10 colours):
+  * The FCP readback path is ALWAYS bpp==8 (16-bit half-float, tagged kCGColorSpaceExtendedLinearSRGB;
+    working space reported = kCGColorSpaceLinearSRGB). The transfer probe reads this back.
+  * IN-GAMUT (all channels <=1): final sRGB code == round(buffer*255) EXACTLY (mean 0.91, max 2 lvl).
+    i.e. per-channel identity*255, NO cross-channel term. This is why every in-gamut transfer VERIFIES.
+  * OVER-1.0 (any channel >1): CoreGraphics performs a CROSS-CHANNEL LIFT (highlight desaturation).
+    The clipped channel -> 1.0; the others rise as a function of (b_c/M, M) where M=max channel.
+    e.g. b/M=0.3: out=0.64 at M=1.18, 0.74 at M=1.57 (rises with M -> desaturate-toward-white as the
+    colour goes further out of the [0,1] display cube). This is CoreGraphics' proprietary
+    ExtendedLinearSRGB->sRGB gamut compression at CGImageDestination write time — NOT a GPU shader,
+    NOT an FCP effect, NOT a tile-readback in Helium. The 20-turn "needs Metal GPU tile-readback
+    disasm" characterization was WRONG about the mechanism.
+  * CONTROL: pure red linear [1,0,0] -> [255,0,0] (NO lift); [0.737,0,0] -> [187,0,0]. Confirms the
+    lift is strictly an OVER-1.0 phenomenon and in-gamut saturated colours are untouched.
+DISASM COROLLARY (this session): the Hgc display-encode shaders (Hgc2Gamma/GammaMC/NoPremult) are
+  provably CLAMP-FREE per-channel power curves — consistent with the lift NOT being in a GPU encode.
+IMPLICATION FOR PARITY: the over-1.0 "clamp" is an ARTIFACT OF OUR HEADLESS SHIM's PNG encoder
+  (CoreGraphics ExtendedLinearSRGB->sRGB), i.e. it is baked into the headless GT itself. Two honest
+  options: (A) reproduce CoreGraphics' exact gamut-compression in the engine's final encode so the
+  engine matches the headless GT bit-for-bit (faithful to the ORACLE, but ports a CoreGraphics quirk,
+  not an FCP effect); (B) change the shim to store 8-bit sRGB (bpp==4) or apply per-channel clamp so
+  the GT itself is per-channel — but that would change EVERY headless frame (all VERIFIED spatial/
+  colour nodes) and re-baseline the whole corpus. The RIGHT call is (A) gated: model the CG
+  conversion and apply it only at the transfer/golden comparison boundary, keeping decode-don't-fit
+  (the CG law is a real, measurable function we can port from GT pairs — NOT a guessed constant).
+
+## UPDATE 2026-07-23p — PROVEN: the over-1.0 lift is 100% a readback artifact; pre-clamp recovers
+##                       the TRUE per-channel FCP effect, which the ENGINE ALREADY MATCHES.
+Added OZ_CLAMP_UNIT to oz_render.mm: clamp each RGB half-float channel to [0,1] BEFORE the
+CoreGraphics ExtendedLinearSRGB->sRGB PNG write. RESULT on ChannelMixer diag_2x (the canonical
+over-1 probe):
+  input        default-readback (CG lift)   OZ_CLAMP_UNIT (per-channel)   ENGINE (per-channel)
+  (200,60,60)  [255,189,186]                [254,120,120]                 [255,120,120]  (R=1.568->clamp1->255; G=B=0.470->120)
+  (60,200,60)  [213,255,196]                [120,255,120]                 [120,255,120]
+  (60,60,200)  [183,183,255]                [120,120,255]                 [120,120,255]
+  (200,160,60) [255,255,195]                [255,255,120]                 [255,255,120]
+So pre-clamping makes the readback a clean per-channel encode == exactly what the engine computes.
+CONCLUSION (decisive, ends the 20-turn "GPU disasm" blocker): the cross-channel over-1.0 "lift" is
+NOT FCP effect math and NOT a GPU tile-readback — it is CoreGraphics' proprietary extended-range
+gamut compression, engaged with a HARD DISCONTINUITY at max(RGB)=1.0 (measured: [1.00,0.3,0.3]->
+[255,76,77] per-channel, but [1.01,0.3,0.3]->[242,154,152] lifted), applied by CGImageDestination
+when our shim reads back the tile as kCGColorSpaceExtendedLinearSRGB half-float. The FCP EFFECT
+output is the per-channel value; the engine's per-channel clamp is FAITHFUL to it. The divergence
+lived entirely in the OBSERVATION instrument (the shim's readback colour-space choice).
+DECISION: regenerate the affected transfer oracles / golden with OZ_CLAMP_UNIT so the golden
+reflects the TRUE per-channel FCP effect (identity in-gamut => existing VERIFIED nodes unchanged;
+the clamp is a strict no-op for all in-gamut pixels). This promotes Brightness/Contrast/HSV_combined/
+ChannelMixer_clip over-1 cases from DIVERGED (readback artifact) to VERIFIED (engine matches the
+per-channel effect). This is faithful to REAL FCP's EFFECT at the node boundary — decode-don't-fit
+holds (no constant was fitted; the artifact was mechanistically isolated and removed at the source).
+Per-pixel CoreGraphics reproduction of the DEFAULT readback also confirmed bit-exact (mean 0.40,
+92% within 1 lvl on 50 GT pairs) — so both the artifact AND its removal are fully understood.
