@@ -152,6 +152,7 @@ const TWO_PI = 6.281380177; // c0.x from the shader (FCP's 2π constant)
  * animates. (The exact LCG constants are documented above; a bit-identical field
  * is unreachable without the runtime noise texture, so we use a stable surrogate.)
  */
+
 function makeRng(seed: number): () => number {
   let s = seed >>> 0;
   return () => {
@@ -161,6 +162,83 @@ function makeRng(seed: number): () => number {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+/* ═══════════════ EXACT decoded wave-field generator (2026-07-23) ═══════════════
+ * SUPERSEDES the mulberry32 surrogate above. Decoded verbatim from Filters.bundle
+ * arm64 (@0x660b8 fill loop + @0x66194 synthesis loop). The prior "unrecoverable
+ * runtime noise texture" belief was WRONG for the SHIPPING render path: the
+ * HgcUnderwaterRefractV2 shader computes the displacement PURELY from sin() of the
+ * uploaded sinusoid records (hg_Params[9..28]) — it samples the source image exactly
+ * ONCE at the end via the refracted uv, and NEVER samples an external noise texture
+ * for the displacement. (HgcUnderwaterFreqSynth — which DOES sample a noise texture —
+ * is a separate/legacy synthesis path not on the shipping RefractV2 chain.) So the
+ * field is fully determined by this deterministic generator seeded from the CONSTANT
+ * seed 0x6f638, and it is recoverable bit-for-bit.
+ *
+ * THE GENERATOR (exact):
+ *   - A 102-entry shuffle table is filled by an LCG X<-(4096·X+150889) mod 714025
+ *     ('m'=0xae529=714025, verified = const@0x269614 the normalizer; 4096=1<<12;
+ *     150889=0x24d69), seeded from the fixed constant 0x23232323:
+ *       X = 0x23232323; for k in 1..102: X = (4096·X+150889) mod 714025; table[k]=X
+ *   - The Bays–Durham shuffle state 'iy' starts at seed 0x6f638 (the wave-field seed).
+ *   - Each DRAW: j = iy mod 101; out = table[1+j]; table[1+j] = (4096·out+150889) mod
+ *     714025; iy = out; value = out/714025.
+ *   - Per octave n=0..9: draw ang, ph, fr (three draws). angle = ang·2π (2π=const
+ *     @0x269820=6.2831854820251465); phase0 = ph·2π; freq = (fr·0.25+0.75)·(1/(n/4+1))
+ *     ·0.25; w = (n/4+1)·freq; ampVec = w·(cos angle, sin angle); rate = n/4+1.
+ * Gate-safe: only the RNG draws differ from the surrogate; the downstream field/offset
+ * math is unchanged, and the whole path stays behind FCT_UNDERWATER_EXACT (shipped
+ * apply() is still the gate-safe passthrough). This banks the decoded generator as
+ * testable code and removes the surrogate from the exact path. */
+const UW_M = 714025;          // 0xae529 LCG modulus (= normalizer const@0x269614)
+const UW_C = 150889;          // 0x24d69 LCG increment
+const UW_A = 4096;            // 1<<12 LCG multiplier
+const UW_NTAB = 101;          // 0x65 shuffle-table span
+const UW_FILL_SEED = 0x23232323; // fill-loop initial state (NOT the shuffle seed)
+const UW_SHUFFLE_SEED = 0x6f638; // iy init (the constant wave-field seed)
+const UW_TWO_PI = 6.2831854820251465; // const@0x269820 (float32 2π)
+
+/** Exact 10-octave field from the decoded LCG+Bays–Durham generator (see header). */
+function buildFieldExact(sizeScale: number): WaveComponent[] {
+  void sizeScale; // field freq is Size-independent in the exact generator; scaling applied downstream
+  // Fill the shuffle table: store the ADVANCED value each step (str after msub).
+  const buf = new Array<number>(103).fill(0);
+  let x = UW_FILL_SEED;
+  for (let k = 1; k <= 102; k++) {
+    // (UW_A*x + UW_C) mod UW_M with values < 2^33 → use Number (exact to 2^53).
+    x = (UW_A * x + UW_C) % UW_M;
+    buf[k] = x;
+  }
+  let iy = UW_SHUFFLE_SEED;
+  const base = 1; // draw reads buf[base + (iy mod 101)]
+  const draw = (): number => {
+    const j = iy % UW_NTAB;
+    const idx = base + j;
+    const out = buf[idx];
+    buf[idx] = (UW_A * out + UW_C) % UW_M;
+    iy = out;
+    return out;
+  };
+  const comps: WaveComponent[] = [];
+  for (let n = 0; n < 10; n++) {
+    const ang = (draw() / UW_M) * UW_TWO_PI;
+    const ph = (draw() / UW_M) * UW_TWO_PI;
+    const fr = draw() / UW_M;
+    const octave = n / 4 + 1;
+    const freq = (fr * 0.25 + 0.75) * (1 / octave) * 0.25;
+    const w = octave * freq;
+    comps.push({
+      fx: w * Math.cos(ang),
+      fy: w * Math.sin(ang),
+      phase0: ph,
+      rate: octave,
+      amp: 1 / octave,
+    });
+  }
+  const total = comps.reduce((s, c) => s + c.amp, 0) || 1;
+  for (const c of comps) c.amp /= total;
+  return comps;
 }
 
 interface WaveComponent {
@@ -186,6 +264,13 @@ interface WaveComponent {
  * Size = larger ripples = LOWER frequency (freq divided by size).
  */
 function buildField(sizeScale: number): WaveComponent[] {
+  // Exact decoded generator (LCG+Bays–Durham, seed 0x6f638) behind FCT_UNDERWATER_EXACT;
+  // shipped default keeps the surrogate. The exact path removes the guessed RNG — the
+  // remaining fidelity gap is the RefractV2 bilerp/projective displacement model, not
+  // the field generator (see buildFieldExact header).
+  if (typeof process !== 'undefined' && process.env?.FCT_UNDERWATER_EXACT) {
+    return buildFieldExact(sizeScale);
+  }
   const rng = makeRng(0x6f638);
   const comps: WaveComponent[] = [];
   for (let n = 0; n < 10; n++) {

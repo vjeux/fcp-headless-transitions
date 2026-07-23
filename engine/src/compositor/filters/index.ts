@@ -31,5 +31,8 @@ import './threshold.js';      // registers Threshold (soft luma binarize; HgcThr
 import './contrast.js';       // registers Contrast (PAEContrast; affine-about-0.5 in gamma-1.958 WS, decoded 2026-07-22)
 import './pixellate.js';      // registers Pixellate (Scale-px mosaic; HgcPixellate coord-quantize)
 import './fisheye.js';        // registers Fisheye (anisotropic radial power warp; HgcFisheye, exp=Amount/30+1)
+import './underwater.js';   // registers Underwater (10-octave sinusoid refraction; HgcUnderwaterRefractV2)
+
+import './underwater.js';   // registers Underwater (10-octave sinusoid refraction; HgcUnderwaterRefractV2)
 
 export {};
