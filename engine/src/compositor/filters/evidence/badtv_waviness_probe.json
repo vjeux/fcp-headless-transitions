@@ -42,7 +42,9 @@
     "shuffle": "libc++ std::shuffle FORWARD: identity byte array a[0..255]; for i=1..255: j=uniform_int_distribution(0,i)(mt); swap a[i],a[j]. (verified forward direction + growing range from the disasm loop @0xa85c4.)",
     "fill": "256x1 RGBA bitmap: per pixel i, R,G = nested perm-hash lookups (perm[perm[..]+..]), B = i, A = from a SECOND re-seeded MT (madd w9*0x6c078965+.. then uniform draws). Then HSampleTiledNoise samples this tiled.",
     "shader": "HgcBadTV samples hg_Texture0 at a coord from ONE texCoord projection (floor(row/P9.x)) => 1-D per-scanline row index; 3-tap smoothed; * Waviness => horizontal displacement (measured smooth walk, autocorr 0.996).",
-    "caveat": "libc++ uniform_int_distribution mask width must match libc++'s exact __independent_bits_engine formula for a bit-exact perm; validate the reproduced perm against a headless probe before trusting the full port."
+    "caveat": "libc++ uniform_int_distribution mask width must match libc++'s exact __independent_bits_engine formula for a bit-exact perm; validate the reproduced perm against a headless probe before trusting the full port.",
+    "mt19937_validated": "MT19937 impl PROVEN bit-exact vs the canonical reference vector: std::mt19937(5489) first 5 outputs = [3499211612, 581869302, 3890346734, 3586334585, 545404204], matching Matsumoto mt19937ar exactly. The generator core is bit-exact.",
+    "libcxx_uniform": "libc++ uniform_int_distribution<size_t>(0,b): Rp=b+1; w=(Rp-1).bit_length(); draw 32-bit MT words, take low w bits, REJECT values>=Rp. (standard libc++ __independent_bits_engine; single word since w<=8 for a 256-shuffle.) NOTE: could not run a libc++ reference binary to confirm the exact bit-extraction (macOS/navi sandbox SIGKILLs freshly-compiled binaries), so this stage is from libc++ source logic, not a live diff -- validate against a headless perm probe when porting."
   },
   "rng_chain_decode": {
     "desc": "Full RNG chain for PAEGenerateNoise NoiseType=0, decoded from ProAppsFxSupport 0xa783c+.",
