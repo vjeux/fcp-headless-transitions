@@ -128,6 +128,13 @@ if [ ! -e "$WT/venv" ]; then
   ln -s "$MAIN/venv" "$WT/venv"
 fi
 
+# Share the headless-FCP shim dylib (gitignored build artifact, oz_render.dylib). Without
+# it ozengine.init_engine() dlopen()s a missing path and EVERY headless render fails, so a
+# worktree could not run `fct subswarm`/`caps`/`min-score` (the per-node FCP oracle). Symlink.
+if [ ! -e "$WT/oz_render.dylib" ] && [ -e "$MAIN/oz_render.dylib" ]; then
+  ln -s "$MAIN/oz_render.dylib" "$WT/oz_render.dylib"
+fi
+
 # Seed the private frames dir so the gate (which reads ALL 65 slugs off disk) is
 # complete. A deep copy of the 481M store per agent is far too slow (>30s each), so we
 # seed with PER-SLUG SYMLINKS into the shared baseline store. The agent re-renders only

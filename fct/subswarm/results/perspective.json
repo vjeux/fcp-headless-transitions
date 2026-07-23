@@ -1,20 +1,17 @@
 {
   "subsystem": "perspective",
-  "ran_at": "2026-07-23T14:07:02",
+  "ran_at": "2026-07-23T14:30:31",
   "nodes": [
     {
-      "cap": "persp.rot.y.30",
-      "min_psnr": 26,
-      "psnr": 14.75,
-      "mean_abs_err": 26.19,
-      "headless_vs_input_mad": 35.25,
-      "headless_png": "/var/folders/z8/gx6sf1kn72nbp3xp2mx862100000gn/T/subsw_ee_q_u_4/headless.png",
-      "ts_png": "/var/folders/z8/gx6sf1kn72nbp3xp2mx862100000gn/T/subsw_ee_q_u_4/ts.png",
-      "motr": "/var/folders/z8/gx6sf1kn72nbp3xp2mx862100000gn/T/subsw_xform_3i55701p.motr",
-      "status": "FAIL",
+      "cap": "persp.camera.identity",
+      "min_psnr": 30,
+      "psnr": 43.31,
+      "mean_abs_err": 1.04,
+      "headless_vs_input_mad": 0.93,
+      "status": "PASS",
       "applied": true
     }
   ],
-  "pass": 0,
-  "fail": 1
+  "pass": 1,
+  "fail": 0
 }
