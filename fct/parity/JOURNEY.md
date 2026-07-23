@@ -676,3 +676,24 @@ needs the RenderTile/tile-conversion disasm (pointwise fitting exhaustively rule
 
 Workflow: `npm run test:node <substr>` runs one node (fast); golden regen via
 `python3 -m fct.parity.export_golden`. The 65-slug full-frame gate stays DISABLED (geometry-dominated).
+
+
+## UPDATE 2026-07-22 (session 2) — coverage: +Threshold (bug fix) +Contrast (new decode). 14 nodes/501 cases
+
+Using the fast per-node loop (npm run test:node <substr>) against headless FCP golden:
+- THRESHOLD: found+fixed a real SHIPPED BUG — threshold.ts had UUID ...763CD9813C67 but the
+  authoritative UUID (filter_binding.json, traced from binary) is ...763CD9813E17. Wrong UUID =
+  the engine's Threshold filter would NEVER dispatch on a real .motr (silently dead). Fixed;
+  transfer.PAEThreshold now VERIFIED 0.67 lvl (n=135), golden 45/45.
+- CONTRAST: implemented the previously-MISSING PAEContrast (12+ hosts, 2nd-most-used unimplemented
+  filter). Decoded via dense headless sweep: out = ws_inv(0.5 + (ws(in)-0.5)*Contrast) in the
+  gamma-1.958 WS — pivot 0.5 EXACTLY in the WS (code ~65.8), slope=Contrast exactly. Fit 0.18 rms.
+  transfer.PAEContrast_gray VERIFIED 0.79 lvl (n=180), golden 60/60. Combined node 48/54 (the 6
+  fails are the 3 saturated primaries over-clipping = shared clamp). Same unified WS as everything.
+- Ran a full UUID audit of all 28 engine filter UUIDs vs filter_binding.json: only Threshold was
+  wrong (now fixed); Noise/Bevel absent from binding (generator/geometry, decoded separately — OK).
+
+Colour node coverage: 14 nodes / 501 REAL-headless-FCP golden cases, 481 pass. Every divergence is
+STILL the one shared HGColorMatrix over-1.0/under-0 GPU-readback gamut clamp (same [50,200,50]-type
+over-clip input across Brightness/ChannelMixer-clip/HSV-hue/HSV-oversat/Contrast). All pointwise
+colour math is decoded + correct; the clamp needs the OZ tile-conversion disasm.
