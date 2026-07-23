@@ -3179,6 +3179,51 @@
        "value": 1.0
       }
      ]
+    },
+    {
+     "label": "c0.6",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 0.6
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "c0.9",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 0.9
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "c1.1",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 1.1
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
     }
    ],
    "oracle_truth": "transfer",

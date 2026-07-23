@@ -1845,17 +1845,17 @@
       "kind": "transfer",
       "status": "VERIFIED",
       "metric": "max_abs_levels",
-      "max_abs_levels": 0.7700000000000031,
-      "n_samples": 108,
+      "max_abs_levels": 0.9799999999999898,
+      "n_samples": 189,
       "tol_levels": 2.0,
       "worst": {
         "case": {
-          "label": "c1.25",
+          "label": "c0.6",
           "params": [
             {
               "name": "Contrast",
               "id": 1,
-              "value": 1.25
+              "value": 0.6
             },
             {
               "name": "Mix",
@@ -1865,19 +1865,19 @@
           ]
         },
         "input": [
-          200,
-          50,
-          50
+          240,
+          240,
+          240
         ],
         "oracle": [
-          244.68,
-          46.77,
-          46.15
+          157.02,
+          157.02,
+          157.11
         ],
         "engine": [
-          245.0,
-          46.0,
-          46.0
+          158.0,
+          158.0,
+          158.0
         ]
       },
       "oracle_truth": "transfer",
@@ -3152,8 +3152,18 @@
       "id": "spatial.PAEBevel",
       "status": "DIVERGED",
       "at": "2026-07-23T10:40:05Z"
+    },
+    {
+      "id": "transfer.PAEContrast_ingamut",
+      "status": "DIVERGED",
+      "at": "2026-07-23T10:50:24Z"
+    },
+    {
+      "id": "transfer.PAEContrast_ingamut",
+      "status": "VERIFIED",
+      "at": "2026-07-23T10:51:21Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T10:40:05Z"
+  "updated": "2026-07-23T10:51:21Z"
 }
