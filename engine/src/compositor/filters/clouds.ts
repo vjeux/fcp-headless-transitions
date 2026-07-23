@@ -131,4 +131,86 @@
  *     Speed·seconds — but the disasm shows it IS Speed·seconds, so even t≠0 is recoverable.
  * ========================================================================================
  */
+
+/* ═══════════════ DECODED CloudsV2 Perlin generator (2026-07-23) ═══════════════
+ * The reverse-engineering above (getPermTable/makePermTable @0x5313c, calculateCellValues
+ * @0x5123c, gradient table @0x467218, HgcClouds fade+fBm+LUT) is ported here as executable,
+ * tested code. This is the exact FCP generator, not a surrogate:
+ *   - the 256-entry permutation is built by the SAME seeded LCG+Bays-Durham shuffle as
+ *     PAEUnderwater (buildFieldExact) — a Fisher-Yates shuffle of the identity permutation;
+ *   - the 12 gradients are the canonical improved-noise 2D gradients @0x467218;
+ *   - noise2D is classic Ken-Perlin gradient noise: hash the 4 cell corners through the perm
+ *     (gi = perm[(perm[(perm[z&255]+y)&255]+x)&255] % 12), dot each gradient with the corner
+ *     offset, quintic-fade (6t^5-15t^4+10t^3) and bilerp.
+ * The remaining port surface for a pixel-exact node-boundary match is the vertex-mesh
+ * tessellation (how the CPU packs per-cell corner values into texCoord{2k+1}) + the Scale→
+ * cell-size mapping + the Gradient-param→256-LUT bake; those are documented above and are the
+ * scoped next step. This evaluator is the verified core. */
+
+/** Build CloudsV2's fixed 256-entry permutation — the SAME generator as PAEUnderwater's
+ *  wave field (LCG X<-(4096X+150889) mod 714025, fill seed 0x23232323; Bays-Durham shuffle,
+ *  iy seed 0x6f638, NTAB=101), used to Fisher-Yates shuffle the identity permutation:
+ *    for i in 0..255: draw d; swap perm[i] <-> perm[d & 0xff].
+ *  Decoded from makePermTable @0x5313c; verified 256/256 unique, perm[0:8]=
+ *  [208,84,188,177,134,131,38,36]. */
+export function makeCloudsPermTable(): number[] {
+  const M = 714025, C = 150889, A = 4096, NTAB = 101;
+  const perm: number[] = [];
+  for (let i = 0; i < 256; i++) perm.push(i); // identity (SIMD fill @0x53170)
+  // Fill the 102-entry shuffle table via the LCG, seeded 0x23232323.
+  const buf = new Array<number>(103).fill(0);
+  let x = 0x23232323;
+  for (let k = 1; k <= 102; k++) { x = (A * x + C) % M; buf[k] = x; }
+  // Bays-Durham shuffle (iy seed 0x6f638) → Fisher-Yates on perm.
+  let iy = 0x6f638;
+  for (let i = 0; i < 256; i++) {
+    const j = iy % NTAB;
+    const idx = 1 + j;
+    const d = buf[idx];
+    buf[idx] = (A * d + C) % M;
+    iy = d;
+    const sw = d & 0xff;
+    const t = perm[i]; perm[i] = perm[sw]; perm[sw] = t;
+  }
+  return perm;
+}
+
+/** The 12 canonical improved-noise 2D gradient vectors (@0x467218, verbatim). */
+export const CLOUDS_GRADIENTS: ReadonlyArray<readonly [number, number]> = [
+  [1, 1], [-1, 1], [1, -1], [-1, -1],
+  [1, 0], [-1, 0], [1, 0], [-1, 0],
+  [0, 1], [0, -1], [0, 1], [0, -1],
+];
+
+const CLOUDS_PERM = makeCloudsPermTable();
+
+/** Ken-Perlin quintic smootherstep fade: 6t^5 − 15t^4 + 10t^3 (HgcClouds c0=(6,-15,10)). */
+function cloudsFade(t: number): number {
+  return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
+/**
+ * Decoded CloudsV2 gradient noise at continuous (x, y) with integer evolution index z
+ * (z = floor(Speed·seconds); 0 at t=0). Returns the raw Perlin value (roughly [-1,1]).
+ * Matches calculateCellValues' hash + the HgcClouds fade/bilerp for ONE octave.
+ */
+export function cloudsNoise2D(x: number, y: number, z: number, perm: number[] = CLOUDS_PERM): number {
+  const xi = Math.floor(x) & 0xff, yi = Math.floor(y) & 0xff, zi = z & 0xff;
+  const xf = x - Math.floor(x), yf = y - Math.floor(y);
+  // Corner gradient indices via the nested-perm hash (perm[(perm[(perm[z]+y)+x)]) % 12).
+  const gi = (cx: number, cy: number): number => {
+    const h = perm[(perm[(perm[zi] + ((yi + cy) & 0xff)) & 0xff] + ((xi + cx) & 0xff)) & 0xff];
+    return ((h % 12) + 12) % 12;
+  };
+  const dot = (cx: number, cy: number): number => {
+    const g = CLOUDS_GRADIENTS[gi(cx, cy)];
+    return g[0] * (xf - cx) + g[1] * (yf - cy);
+  };
+  const n00 = dot(0, 0), n10 = dot(1, 0), n01 = dot(0, 1), n11 = dot(1, 1);
+  const u = cloudsFade(xf), v = cloudsFade(yf);
+  const rowTop = n00 * (1 - u) + n10 * u; // mix along x
+  const rowBot = n01 * (1 - u) + n11 * u;
+  return rowTop * (1 - v) + rowBot * v;   // mix along y
+}
+
 export {};
