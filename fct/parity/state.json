@@ -1244,6 +1244,61 @@
       },
       "oracle_truth": "transfer",
       "n_failures": 0
+    },
+    "transfer.PAELevels_outremap": {
+      "id": "transfer.PAELevels_outremap",
+      "kind": "transfer",
+      "status": "VERIFIED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 0.6299999999999955,
+      "n_samples": 81,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "label": "bo0.2",
+          "params": [
+            {
+              "name": "Histogram",
+              "id": 1,
+              "children": [
+                {
+                  "name": "RGB",
+                  "id": 2,
+                  "children": [
+                    {
+                      "name": "Black Out",
+                      "id": 2,
+                      "value": 0.2
+                    },
+                    {
+                      "name": "White Out",
+                      "id": 4,
+                      "value": 1.0
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "input": [
+          200,
+          200,
+          200
+        ],
+        "oracle": [
+          210.41,
+          210.63,
+          210.62
+        ],
+        "engine": [
+          210.0,
+          210.0,
+          210.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
     }
   },
   "history": [
@@ -1646,8 +1701,13 @@
       "id": "transfer.PAEContrast_gray",
       "status": "VERIFIED",
       "at": "2026-07-23T01:00:22Z"
+    },
+    {
+      "id": "transfer.PAELevels_outremap",
+      "status": "VERIFIED",
+      "at": "2026-07-23T01:17:57Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T01:00:22Z"
+  "updated": "2026-07-23T01:17:57Z"
 }

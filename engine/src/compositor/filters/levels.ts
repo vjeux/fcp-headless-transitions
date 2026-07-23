@@ -50,7 +50,10 @@
  *   is used by 27+ transitions so any change is gate-load-bearing). Sweep GAP cases
  *   'black in 0.3' / 'white in 0.7' added to tools/re/filter_sweeps.json track it.
  *   Param-id map (verified where noted): Black In=1, White In=3, Gamma=5; Black Out=2,
- *   White Out=4 by convention (unverified).
+ *   White Out=4 (VERIFIED 2026-07-22 via transfer.PAELevels_outremap — a headless-FCP sweep
+ *   of Black Out/White Out matched the engine's WS output-remap at 0.63 levels, confirming
+ *   both the param IDs and that the output remap is affine out=ws_inv(bo+ws(in)*(wo-bo)) in
+ *   the gamma-1.958 working space).
  * ⚠️ GAMMA DIRECTION (GUI-GT-verified 2026-07-11, do NOT "fix" to pow(x,gamma)):
  *   although the HgcLevels *shader* raises to pow(x, gamma), the Motion "Gamma" UI
  *   param is fed to the shader as its RECIPROCAL, so the net mapping the TS LUT must
