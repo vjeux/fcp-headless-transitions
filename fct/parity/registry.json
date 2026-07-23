@@ -4187,6 +4187,36 @@
        "value": 1.0
       }
      ]
+    },
+    {
+     "label": "c3.0",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 3.0
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "c4.0",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 4.0
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
     }
    ],
    "characterized": true,
@@ -4385,6 +4415,141 @@
            "name": "White Out",
            "id": 4,
            "value": 0.1
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "bo0.3_wo0.7",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "RGB",
+         "id": 2,
+         "children": [
+          {
+           "name": "Black Out",
+           "id": 2,
+           "value": 0.3
+          },
+          {
+           "name": "White Out",
+           "id": 4,
+           "value": 0.7
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "bo0.15_wo0.85",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "RGB",
+         "id": 2,
+         "children": [
+          {
+           "name": "Black Out",
+           "id": 2,
+           "value": 0.15
+          },
+          {
+           "name": "White Out",
+           "id": 4,
+           "value": 0.85
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "bo0.25",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "RGB",
+         "id": 2,
+         "children": [
+          {
+           "name": "Black Out",
+           "id": 2,
+           "value": 0.25
+          },
+          {
+           "name": "White Out",
+           "id": 4,
+           "value": 1.0
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "wo0.6",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "RGB",
+         "id": 2,
+         "children": [
+          {
+           "name": "Black Out",
+           "id": 2,
+           "value": 0.0
+          },
+          {
+           "name": "White Out",
+           "id": 4,
+           "value": 0.6
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "label": "partial_invert_bo0.7_wo0.3",
+     "params": [
+      {
+       "name": "Histogram",
+       "id": 1,
+       "children": [
+        {
+         "name": "RGB",
+         "id": 2,
+         "children": [
+          {
+           "name": "Black Out",
+           "id": 2,
+           "value": 0.7
+          },
+          {
+           "name": "White Out",
+           "id": 4,
+           "value": 0.3
           }
          ]
         }

@@ -1208,7 +1208,7 @@
       "status": "VERIFIED",
       "metric": "max_abs_levels",
       "max_abs_levels": 0.789999999999992,
-      "n_samples": 180,
+      "n_samples": 240,
       "tol_levels": 2.0,
       "worst": {
         "case": {
@@ -1251,7 +1251,7 @@
       "status": "VERIFIED",
       "metric": "max_abs_levels",
       "max_abs_levels": 0.8599999999999994,
-      "n_samples": 135,
+      "n_samples": 270,
       "tol_levels": 2.0,
       "worst": {
         "case": {
@@ -3257,8 +3257,18 @@
       "id": "transfer.PAEHSVAdjust_valsat",
       "status": "VERIFIED",
       "at": "2026-07-23T12:45:31Z"
+    },
+    {
+      "id": "transfer.PAEContrast_gray",
+      "status": "VERIFIED",
+      "at": "2026-07-23T12:50:30Z"
+    },
+    {
+      "id": "transfer.PAELevels_outremap",
+      "status": "VERIFIED",
+      "at": "2026-07-23T12:51:20Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T12:45:31Z"
+  "updated": "2026-07-23T12:51:20Z"
 }
