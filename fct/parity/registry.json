@@ -2182,6 +2182,166 @@
    ]
   },
   {
+   "id": "transfer.PAEFill",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAEFill (Color mode): out = lerp(input, fillColor, Mix). Pointwise; EXACT isolation via uniform inputs. Checks the fill-lerp space (code vs working) and nested Color IDs.",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "47D6B897-5749-4A6A-B93B-00FABCF72B25",
+    "pluginName": "PAEFill"
+   },
+   "param_cases": [
+    {
+     "label": "red_mix0.5",
+     "params": [
+      {
+       "name": "Fill With",
+       "id": 1,
+       "value": 0
+      },
+      {
+       "name": "Color",
+       "id": 2,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 1
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 0
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 0.5
+      }
+     ]
+    },
+    {
+     "label": "blue_mix0.5",
+     "params": [
+      {
+       "name": "Fill With",
+       "id": 1,
+       "value": 0
+      },
+      {
+       "name": "Color",
+       "id": 2,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 0
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 0
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 1
+        }
+       ]
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 0.5
+      }
+     ]
+    },
+    {
+     "label": "gray0.5_mix0.5",
+     "params": [
+      {
+       "name": "Fill With",
+       "id": 1,
+       "value": 0
+      },
+      {
+       "name": "Color",
+       "id": 2,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 0.5
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 0.5
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 0.5
+        }
+       ]
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 0.5
+      }
+     ]
+    },
+    {
+     "label": "green_mix1",
+     "params": [
+      {
+       "name": "Fill With",
+       "id": 1,
+       "value": 0
+      },
+      {
+       "name": "Color",
+       "id": 2,
+       "children": [
+        {
+         "name": "Red",
+         "id": 1,
+         "value": 0
+        },
+        {
+         "name": "Green",
+         "id": 2,
+         "value": 1
+        },
+        {
+         "name": "Blue",
+         "id": 3,
+         "value": 0
+        }
+       ]
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    }
+   ],
+   "engine_env": {
+    "FCT_FILL_LINEAR": "1"
+   }
+  },
+  {
    "id": "filter.PAEColorize",
    "subsystem": "color",
    "kind": "filter",

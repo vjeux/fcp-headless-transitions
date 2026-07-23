@@ -1299,6 +1299,70 @@
       },
       "oracle_truth": "transfer",
       "n_failures": 0
+    },
+    "transfer.PAEFill": {
+      "id": "transfer.PAEFill",
+      "kind": "transfer",
+      "status": "VERIFIED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 1.1399999999999864,
+      "n_samples": 108,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "label": "red_mix0.5",
+          "params": [
+            {
+              "name": "Fill With",
+              "id": 1,
+              "value": 0
+            },
+            {
+              "name": "Color",
+              "id": 2,
+              "children": [
+                {
+                  "name": "Red",
+                  "id": 1,
+                  "value": 1
+                },
+                {
+                  "name": "Green",
+                  "id": 2,
+                  "value": 0
+                },
+                {
+                  "name": "Blue",
+                  "id": 3,
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "name": "Mix",
+              "id": 10001,
+              "value": 0.5
+            }
+          ]
+        },
+        "input": [
+          64,
+          64,
+          64
+        ],
+        "oracle": [
+          158.86,
+          32.16,
+          32.0
+        ],
+        "engine": [
+          160.0,
+          32.0,
+          32.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
     }
   },
   "history": [
@@ -1706,8 +1770,23 @@
       "id": "transfer.PAELevels_outremap",
       "status": "VERIFIED",
       "at": "2026-07-23T01:17:57Z"
+    },
+    {
+      "id": "transfer.PAEFill",
+      "status": "DIVERGED",
+      "at": "2026-07-23T01:27:52Z"
+    },
+    {
+      "id": "transfer.PAEFill",
+      "status": "VERIFIED",
+      "at": "2026-07-23T01:37:35Z"
+    },
+    {
+      "id": "transfer.PAEFill",
+      "status": "VERIFIED",
+      "at": "2026-07-23T01:38:01Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T01:17:57Z"
+  "updated": "2026-07-23T01:38:01Z"
 }

@@ -98,10 +98,21 @@ export function fillFilter(
   const w = input.width, h = input.height;
   const src = input.data;
   const out = new Uint8ClampedArray(src.length);
-
-  // Fill color scaled to 0..255.
-  const fr = r * 255, fg = g * 255, fb = b * 255;
   const m = Math.max(0, Math.min(1, mix));
+
+  // DECODED gamma/space path (fct/parity, transfer.PAEFill, 2026-07-22). Verified vs REAL
+  // headless FCP at 0.26 rms: FCP lerps input(sRGB code) toward the fill color where the FILL
+  // COLOUR is decoded via the TRUE sRGB EOTF to scene-linear first (input stays code), i.e.
+  //   out = in*(1-Mix) + sRGBtoLinear(fill)*255*Mix
+  // (an authored fill 0.5 contributes effective code 54.5 = s2l(0.5)*255, NOT 127.5 — which is
+  // why the naive code-space lerp diverged: gray-0.5 fill, Mix 0.5, in 240 -> FCP 147 vs
+  // code-lerp 184). Guarded by FCT_FILL_LINEAR=1 (parity harness / faithful path); the shipped
+  // default keeps the raw code-space lerp so existing transitions are byte-identical.
+  const useLinearFill = typeof process !== 'undefined' && !!process.env && process.env.FCT_FILL_LINEAR === '1';
+  const s2l = (c01: number): number => (c01 <= 0.04045 ? c01 / 12.92 : Math.pow((c01 + 0.055) / 1.055, 2.4));
+  const fr = (useLinearFill ? s2l(r) : r) * 255;
+  const fg = (useLinearFill ? s2l(g) : g) * 255;
+  const fb = (useLinearFill ? s2l(b) : b) * 255;
 
   for (let i = 0; i < src.length; i += 4) {
     const ir = src[i], ig = src[i + 1], ib = src[i + 2], ia = src[i + 3];

@@ -10853,6 +10853,1638 @@
    }
   ]
  },
+ "transfer.PAEFill": {
+  "uuid": "47D6B897-5749-4A6A-B93B-00FABCF72B25",
+  "pluginName": "PAEFill",
+  "engine_env": {
+   "FCT_FILL_LINEAR": "1"
+  },
+  "tol_levels": 2.0,
+  "verified": true,
+  "n": 36,
+  "cases": [
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     16,
+     16,
+     16
+    ],
+    "oracle": [
+     135.52,
+     8.03,
+     7.98
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     32,
+     32,
+     32
+    ],
+    "oracle": [
+     143.23,
+     16.0,
+     16.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     64,
+     64,
+     64
+    ],
+    "oracle": [
+     158.86,
+     32.16,
+     32.0
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     191.48,
+     64.31,
+     64.31
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     200,
+     200,
+     200
+    ],
+    "oracle": [
+     227.48,
+     100.3,
+     99.73
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     240,
+     240,
+     240
+    ],
+    "oracle": [
+     247.52,
+     119.67,
+     119.94
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     200,
+     50,
+     50
+    ],
+    "oracle": [
+     227.36,
+     24.84,
+     24.89
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     50,
+     200,
+     50
+    ],
+    "oracle": [
+     152.4,
+     99.89,
+     25.15
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 1
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     50,
+     50,
+     200
+    ],
+    "oracle": [
+     152.28,
+     25.09,
+     99.95
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     16,
+     16,
+     16
+    ],
+    "oracle": [
+     8.0,
+     8.0,
+     135.63
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     32,
+     32,
+     32
+    ],
+    "oracle": [
+     16.05,
+     16.01,
+     143.56
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     64,
+     64,
+     64
+    ],
+    "oracle": [
+     32.22,
+     31.97,
+     159.44
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     64.19,
+     64.19,
+     191.64
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     200,
+     200,
+     200
+    ],
+    "oracle": [
+     99.98,
+     99.97,
+     227.26
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     240,
+     240,
+     240
+    ],
+    "oracle": [
+     119.84,
+     119.89,
+     247.33
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     200,
+     50,
+     50
+    ],
+    "oracle": [
+     100.12,
+     24.99,
+     152.47
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     50,
+     200,
+     50
+    ],
+    "oracle": [
+     25.11,
+     100.14,
+     152.3
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 1
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     50,
+     50,
+     200
+    ],
+    "oracle": [
+     25.18,
+     24.95,
+     227.64
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0.5
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0.5
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0.5
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     16,
+     16,
+     16
+    ],
+    "oracle": [
+     34.98,
+     35.11,
+     35.09
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0.5
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0.5
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0.5
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     32,
+     32,
+     32
+    ],
+    "oracle": [
+     43.4,
+     43.4,
+     43.41
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0.5
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0.5
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0.5
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     64,
+     64,
+     64
+    ],
+    "oracle": [
+     59.42,
+     59.44,
+     59.44
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0.5
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0.5
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0.5
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     91.31,
+     91.31,
+     91.31
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0.5
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0.5
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0.5
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     200,
+     200,
+     200
+    ],
+    "oracle": [
+     127.39,
+     127.44,
+     127.44
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0.5
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0.5
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0.5
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     240,
+     240,
+     240
+    ],
+    "oracle": [
+     147.02,
+     147.01,
+     146.87
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0.5
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0.5
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0.5
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     200,
+     50,
+     50
+    ],
+    "oracle": [
+     127.39,
+     52.51,
+     52.41
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0.5
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0.5
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0.5
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     50,
+     200,
+     50
+    ],
+    "oracle": [
+     52.44,
+     127.36,
+     52.07
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0.5
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 0.5
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0.5
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 0.5
+     }
+    ],
+    "input": [
+     50,
+     50,
+     200
+    ],
+    "oracle": [
+     51.97,
+     51.97,
+     127.67
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     16,
+     16,
+     16
+    ],
+    "oracle": [
+     0.11,
+     254.29,
+     0.13
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     32,
+     32,
+     32
+    ],
+    "oracle": [
+     0.11,
+     254.29,
+     0.13
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     64,
+     64,
+     64
+    ],
+    "oracle": [
+     0.11,
+     254.29,
+     0.13
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     128,
+     128,
+     128
+    ],
+    "oracle": [
+     0.11,
+     254.29,
+     0.13
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     200,
+     200,
+     200
+    ],
+    "oracle": [
+     0.11,
+     254.29,
+     0.13
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     240,
+     240,
+     240
+    ],
+    "oracle": [
+     0.11,
+     254.29,
+     0.13
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     200,
+     50,
+     50
+    ],
+    "oracle": [
+     0.11,
+     254.29,
+     0.13
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     50,
+     200,
+     50
+    ],
+    "oracle": [
+     0.11,
+     254.29,
+     0.13
+    ]
+   },
+   {
+    "params": [
+     {
+      "name": "Fill With",
+      "id": 1,
+      "value": 0
+     },
+     {
+      "name": "Color",
+      "id": 2,
+      "children": [
+       {
+        "name": "Red",
+        "id": 1,
+        "value": 0
+       },
+       {
+        "name": "Green",
+        "id": 2,
+        "value": 1
+       },
+       {
+        "name": "Blue",
+        "id": 3,
+        "value": 0
+       }
+      ]
+     },
+     {
+      "name": "Mix",
+      "id": 10001,
+      "value": 1.0
+     }
+    ],
+    "input": [
+     50,
+     50,
+     200
+    ],
+    "oracle": [
+     0.11,
+     254.29,
+     0.13
+    ]
+   }
+  ]
+ },
  "transfer.PAEHSVAdjust": {
   "uuid": "D23AF030-B0BF-44DF-B622-7C9EA0DF5744",
   "pluginName": "PAEHSVAdjust",
