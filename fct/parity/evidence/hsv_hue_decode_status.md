@@ -85,3 +85,25 @@ channels" model (the SAME mechanism measured for Contrast/Brightness/ChannelMixe
 rms to 14.0. So the HUE out-of-gamut divergence is the SAME shared HGColorMatrix over-1.0
 cross-channel GPU-readback lift, NOT a separate hue-decode problem. It unifies with the documented
 clamp blocker (needs Metal tile-readback disasm; gate-inert since Hue!=0 never ships).
+
+## UPDATE 2026-07-23d — HgcHSVAdjust is the WRONG shader; engine WS-YCbCr model is optimal (rms 20)
+DECISIVE: the extracted HgcHSVAdjust shader (identity-exact port) FAILS 120-149 dR vs headless
+FCP even on PURE Saturation and PURE Value on saturated inputs (e.g. Sat=+0.5 red: shader ->
+(200,0,0) pure-saturate, FCP -> (249,120,115) desaturate-toward-white; Value=1.5 green: shader
+-> (64,255,64), FCP -> (213,255,192)). But the engine's transfer.PAEHSVAdjust_valsat is VERIFIED
+at 0.87 lvl using a DIFFERENT model — the gamma-1.958 working-space luma-lerp (HgcSaturation
+math), NOT HgcHSVAdjust. => HgcHSVAdjust is a legacy/OSC-preview variant; FCP's PAEHSVAdjust
+RENDER path applies HgcSaturation-style ops in the working space. The earlier "port HgcHSVAdjust"
+lead was chasing the wrong shader.
+
+Re-confirmed against the fresh 7-input x 4-angle hue grid:
+  - engine WS-YCbCr hue (rotate Rec.709 Cb/Cr in gamma-1.958 WS + desat-toward-luma): rms 20.0,
+    worst 70.7 dR  ← the best available, and the shipped model
+  - HgcHSVAdjust shader port (+ free offset): 165 dR / 17-165 even with per-case best offset
+  - rotate in code-space instead of WS: rms 19.7 (no better)
+  - gamut hardclip / clip-lo-only instead of desat-toward-luma: rms 23.9 (worse)
+So the 20 rms is intrinsic to the Rec.709-YCbCr-rotation MODEL — FCP's hue rotation is not exactly
+a Rec.709 chroma rotation. Closing it needs the true PAEHSVAdjust render-path shader + its
+frameSetup (the HgcSaturation-in-WS pipeline with the exact hue-rotation primitive), captured
+live — NOT HgcHSVAdjust. Node stays CHARACTERIZED (gate-inert; Hue!=0 never ships). The in-gamut
+Value+Saturation legs ARE verified (transfer.PAEHSVAdjust_valsat 0.87, ..._combined_ingamut 0.72).
