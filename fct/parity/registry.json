@@ -658,7 +658,17 @@
     {
      "name": "Value",
      "id": 3,
+     "value": 0.1
+    },
+    {
+     "name": "Value",
+     "id": 3,
      "value": 0.25
+    },
+    {
+     "name": "Value",
+     "id": 3,
+     "value": 0.4
     },
     {
      "name": "Value",
@@ -668,7 +678,17 @@
     {
      "name": "Value",
      "id": 3,
+     "value": 0.6
+    },
+    {
+     "name": "Value",
+     "id": 3,
      "value": 0.75
+    },
+    {
+     "name": "Value",
+     "id": 3,
+     "value": 0.9
     },
     {
      "name": "Value",
@@ -679,6 +699,11 @@
      "name": "Value",
      "id": 3,
      "value": 2.0
+    },
+    {
+     "name": "Value",
+     "id": 3,
+     "value": 3.0
     }
    ],
    "oracle_truth": "transfer",

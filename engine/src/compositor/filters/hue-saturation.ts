@@ -129,7 +129,12 @@ function hueSaturationFilterWS(input: ImageData, params: HueSatParams): ImageDat
   // wrong way (up to 62 lvl off at -30° on saturated red). Matches FCP: hue = max(0, hue).
   const hue = params.hue > 0 ? params.hue : 0;
   const satFactor = 1 + saturation;
-  const valMul = Math.max(0, value);   // Value = linear multiply in the gamma-1.958 working
+  // DECODED 2026-07-23 (fct/parity value-sweep probe): FCP CLAMPS the Value multiplier at 2.0.
+  // On gray 32, Value 1.0/1.5/2.0 give effective ws-mult 1.0/1.5/2.0, but Value 2.5/3/4/5 all
+  // saturate at mult 2.0 (out stays 124.3) — NOT unbounded. So effectiveMult = min(max(0,V),2).
+  // The engine previously used the raw Value (V=3 -> mult 3 -> gray 32 clipped to 255 vs FCP 124,
+  // a 130 lvl gap). This mirrors the Hue-at-0 clamp: FCP's HSV CPU wiring bounds the param.
+  const valMul = Math.min(2, Math.max(0, value));  // Value = linear multiply in the gamma-1.958 working
   // space: out = ws_inv(ws(in) * value). DECODED + VERIFIED for BOTH legs (fct/parity golden,
   // transfer.PAEHSVAdjust_value_brighten): darken (value<=1) AND brighten (value>1) match REAL
   // headless FCP within 1 level on grays (e.g. Value=2, gray 64 -> 248.2; ws_mul 249.2). This
