@@ -76,5 +76,12 @@
     "structural": "Adding a PROJECTIVE (homography) U,V mapping U=(m0*Xc+m1*Yc)/(m6*Xc+m7*Yc+1)+0.5 (V likewise) drops the Size=50 flow-fit residual 0.902->0.355px (near the ~0.5px centroid floor) and CROSS-VALIDATES at Size=100 (rms 0.84, corr 0.962/0.964 with the SAME homography+gain). This CONFIRMS the missing term is the shader's perspective divide (pos = M*texCoord * 1/dot(tc,P2)), not cross-frequency terms.",
     "overfit_caution": "The 11-param homography FIT to Size=50 alone helps s50 end-to-end (29.6->32.6 dB) but REGRESSES s100 (30.2->28.0). Net ~neutral. Per decode-don't-fit, NOT shipped: a single-Size fit overfits. Kept the robust cross-validated LINEAR scalars (29.6/30.2 dB both Sizes).",
     "true_remaining_step": "Pin the homography to the EXACT host pixel-transform M (stored at sp+0x438..0x468 as doubles in canThrowRenderOutput; P0..P2 forward + P3..P5 inverse) for the 1920x1080 canvas -- READ from the binary/runtime, not fitted -- so both Sizes improve together. That is the last step to the 40 dB gate."
+  },
+  "homography_investigation": {
+    "finding": "A full projective U,V homography (11 params) drops the Size=50 flow residual 0.902->0.355px (near the ~0.5px centroid-measurement floor), CONFIRMING the missing term is the shader's PROJECTIVE M mapping (U=posx/sizeX+0.5 with posx from the perspective divide r0.xy*=1/dot(tc,P2)), NOT cross-terms.",
+    "cross_val_flow": "same homography+gain, kU/kV halved for Size=100: flow rms 0.842px corr 0.962/0.964 (generalizes in FLOW space).",
+    "end_to_end": "but wired end-to-end the 1-case-fit homography helps Size=50 (29.6->32.6 dB) and HURTS Size=100 (30.2->28.0 dB) = net-neutral overfit.",
+    "decision": "REVERTED per decode-don't-fit: kept the robust cross-validated LINEAR scalars (29.6/30.2 dB both Sizes). A ROBUST improvement needs the EXACT host pixel-transform M (read from the runtime FxImage), not an 11-param single-Size fit. The structural conclusion stands: projective U,V is the last gap to the 40 dB gate.",
+    "verdict": "model structurally exact (10 weighted sines, corner-lerp endpoints, projective U,V confirmed); shipped exact path = robust linear approx at ~30 dB; exact-M pin remains the final step."
   }
 }
