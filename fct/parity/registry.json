@@ -8213,7 +8213,7 @@
       "oracle_truth": "gui",
       "status": "UNTESTED",
       "characterized": true,
-      "superseded_by": "transfer.PAEHSVAdjust_valsat/_value/_saturation/_hue_ingamut/_combined_ingamut",
+      "superseded_by": "transfer.PAEHSVAdjust (+_hue/_saturation/_value/_valsat/_combined, all VERIFIED 2026-07-23)",
       "characterized_reason": "Delegated in-host faithful-delta node DIVERGES because the host transition's geometry/composite pipeline entangles it (the documented delegation artifact: e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node's COMPUTATION is decoded + VERIFIED at its NODE BOUNDARY via transfer.PAEHSVAdjust_valsat/_value/_saturation/_combined_ingamut/_hue_ingamut (VERIFIED at node boundary). The transfer/spatial regimes supersede delegation for this node; the delegated metric is retained only as a host-integration signal, not a node-correctness verdict.",
       "superseded_note": "Delegated in-host faithful-delta metric DIVERGES because the host transition's geometry/composite pipeline entangles this node (documented delegation artifact: e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node's COMPUTATION is decoded + VERIFIED at its NODE BOUNDARY via transfer.PAEHSVAdjust_valsat/_value/_saturation/_hue_ingamut/_combined_ingamut. The transfer/spatial regimes supersede delegation for this node."
     },
@@ -8322,7 +8322,7 @@
       "oracle_truth": "gui",
       "status": "UNTESTED",
       "characterized": true,
-      "superseded_by": "transfer.PAEBrightness_darken + transfer.PAEBrightness_brighten",
+      "superseded_by": "transfer.PAEBrightness (+_darken/_brighten, VERIFIED 2026-07-23 via OZ_CLAMP_UNIT)",
       "characterized_reason": "Delegated in-host faithful-delta node DIVERGES because the host transition's geometry/composite pipeline entangles it (the documented delegation artifact: e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node's COMPUTATION is decoded + VERIFIED at its NODE BOUNDARY via transfer.PAEBrightness_darken + _brighten (VERIFIED at node boundary; in-gamut WS-multiply). The transfer/spatial regimes supersede delegation for this node; the delegated metric is retained only as a host-integration signal, not a node-correctness verdict.",
       "superseded_note": "Delegated in-host faithful-delta metric DIVERGES because the host transition's geometry/composite pipeline entangles this node (documented delegation artifact: e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node's COMPUTATION is decoded + VERIFIED at its NODE BOUNDARY via transfer.PAEBrightness_darken + transfer.PAEBrightness_brighten. The transfer/spatial regimes supersede delegation for this node."
     },
@@ -8339,7 +8339,7 @@
       "oracle_truth": "gui",
       "status": "UNTESTED",
       "characterized": true,
-      "superseded_by": "transfer.PAEChannelMixer + transfer.PAEChannelMixer_offset",
+      "superseded_by": "transfer.PAEChannelMixer (+_offset/_clip, VERIFIED 2026-07-23)",
       "characterized_reason": "Delegated in-host faithful-delta node DIVERGES because the host transition's geometry/composite pipeline entangles it (the documented delegation artifact: e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node's COMPUTATION is decoded + VERIFIED at its NODE BOUNDARY via transfer.PAEChannelMixer + _offset (VERIFIED at node boundary). The transfer/spatial regimes supersede delegation for this node; the delegated metric is retained only as a host-integration signal, not a node-correctness verdict.",
       "superseded_note": "Delegated in-host faithful-delta metric DIVERGES because the host transition's geometry/composite pipeline entangles this node (documented delegation artifact: e.g. Glow reads 13.5 dB inside the Bloom host but 40.4 dB at its own node boundary). The node's COMPUTATION is decoded + VERIFIED at its NODE BOUNDARY via transfer.PAEChannelMixer + transfer.PAEChannelMixer_offset. The transfer/spatial regimes supersede delegation for this node."
     },
