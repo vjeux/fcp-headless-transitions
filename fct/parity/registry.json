@@ -4236,6 +4236,36 @@
      ]
     },
     {
+     "label": "c0.6",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 0.6
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "c0.7",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 0.7
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
      "label": "c0.75",
      "params": [
       {
@@ -4251,42 +4281,12 @@
      ]
     },
     {
-     "label": "c1.0",
+     "label": "c0.8",
      "params": [
       {
        "name": "Contrast",
        "id": 1,
-       "value": 1.0
-      },
-      {
-       "name": "Mix",
-       "id": 10001,
-       "value": 1.0
-      }
-     ]
-    },
-    {
-     "label": "c1.25",
-     "params": [
-      {
-       "name": "Contrast",
-       "id": 1,
-       "value": 1.25
-      },
-      {
-       "name": "Mix",
-       "id": 10001,
-       "value": 1.0
-      }
-     ]
-    },
-    {
-     "label": "c0.6",
-     "params": [
-      {
-       "name": "Contrast",
-       "id": 1,
-       "value": 0.6
+       "value": 0.8
       },
       {
        "name": "Mix",
@@ -4311,12 +4311,72 @@
      ]
     },
     {
+     "label": "c1.0",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 1.0
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
      "label": "c1.1",
      "params": [
       {
        "name": "Contrast",
        "id": 1,
        "value": 1.1
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "c1.15",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 1.15
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "c1.2",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 1.2
+      },
+      {
+       "name": "Mix",
+       "id": 10001,
+       "value": 1.0
+      }
+     ]
+    },
+    {
+     "label": "c1.25",
+     "params": [
+      {
+       "name": "Contrast",
+       "id": 1,
+       "value": 1.25
       },
       {
        "name": "Mix",
