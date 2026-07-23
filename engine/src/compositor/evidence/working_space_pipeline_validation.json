@@ -1,0 +1,10 @@
+{
+  "desc": "End-to-end validation of the float working-space filter pipeline (FCT_WORKING_SPACE_PIPELINE) on real shipping transitions vs GUI GT, frame 12.",
+  "results": {
+    "Objects__Curtains": {"off": 20.49, "on": 20.49, "delta": 0.0, "note": "Mono->Brightness->Colorize; neutral (intermediates in-gamut here)"},
+    "Objects__Leaves": {"off": 16.34, "on": 16.37, "delta": 0.03, "note": "HSVAdjust->Tint->Tint; slight improvement"},
+    "Stylized__Color_Panels": {"off": 18.02, "on": 18.77, "delta": 0.75, "note": "Colorize->HueSat; REAL improvement from fused HSV in working space (no inter-filter clamp)"}
+  },
+  "conclusion": "The working-space pipeline is gate-NEUTRAL-or-BETTER on tested shipping transitions: no regressions, Color_Panels +0.75 dB. The fused HSV/Contrast/Brightness chain preserves headroom the old 8-bit-per-filter path clamped away. Migrated so far: Brightness, Contrast, HSV Adjust (all applyWorking, in-gamut maxΔ=0 vs apply). Gated default-OFF pending the full GUI gate suite (currently disabled); the golden node corpus (1993/0-reg) confirms byte-identity when off.",
+  "remaining": "The over-1.0 cross-channel clamp (a fully-coupled 3-channel GPU highlight soft-clip) sits on top of this substrate — a bounded Metal tile-readback disasm task."
+}
