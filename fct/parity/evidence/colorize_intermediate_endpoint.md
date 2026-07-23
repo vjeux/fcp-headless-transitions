@@ -40,3 +40,13 @@ for intermediate endpoints. Since headless is the source of truth and s2l is exa
 a full headless-faithful Colorize (s2l endpoints + this luma curve + direct-linear out) is within
 reach once the curve is pinned (needs a gray-luma sweep at more points + a principled form). All
 built-in users author 0/1 endpoints so the shipped RAW/WS path stays VERIFIED (0.70) meanwhile.
+
+## UPDATE 2026-07-23h — luma remap is IDENTITY for 0/1 endpoints; intermediate-endpoint interp unresolved
+Pure luma remap (black=0, white=1), dense gray sweep 0..255: output == input EXACTLY (max 0.3 lvl)
+— confirms luma=Rec.709-on-codes and the 0/1 path is exact identity (why all built-in users verify).
+For INTERMEDIATE endpoints (darkgray 0.2 -> lightgray 0.85) the mid-luma interpolation matches
+NONE of: direct-linear s2l-interp (-14.7), raw-code interp (+30-38), linear-luma interp (-60). FCP
+sits BETWEEN direct-linear and raw — a partial encode not yet pinned. Endpoints DECODED (s2l, exact);
+this interpolation curve for non-0/1 endpoints needs a dense luma sweep at a FIXED intermediate
+endpoint pair to isolate its shape (separate targeted probe). Gate-inert (built-ins use 0/1).
+Evidence: colorize_luma_sweep.json (0/1 identity), colorize_endpoint_sweep.json (s2l endpoints).
