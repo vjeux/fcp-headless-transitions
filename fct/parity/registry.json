@@ -298,6 +298,177 @@
    "characterized_reason": "Cross-channel HGColorMatrix in a non-sRGB working space (see report). Isolated headless transfer != GUI-gate truth; closing needs a linear-working-space filter CHAIN (encode once), an engine-arch change tracked separately. Per-channel multiply shipped intentionally (GUI GT prefers it for the stacked chain)."
   },
   {
+   "id": "transfer.PAEBrightness_brighten",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAEBrightness BRIGHTEN regime (gain>1) on NEUTRAL inputs (gray + near-gray) that clamp symmetrically with no cross-channel effect. Isolates the VERIFIED per-channel brightness multiply for gain>1 (Brightness_darken covered gain<=1) from the CHARACTERIZED saturated-primary cases where one channel's over-1.0 overflow triggers the shared HGColorMatrix cross-channel clamp.",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "2E4DBB0A-A950-4896-BC2D-A5B0CFF7FAC6",
+    "pluginName": "PAEBrightness"
+   },
+   "engine_env": {},
+   "inputs": [
+    [
+     16,
+     16,
+     16
+    ],
+    [
+     32,
+     32,
+     32
+    ],
+    [
+     64,
+     64,
+     64
+    ],
+    [
+     128,
+     128,
+     128
+    ],
+    [
+     200,
+     200,
+     200
+    ],
+    [
+     240,
+     240,
+     240
+    ],
+    [
+     120,
+     120,
+     110
+    ],
+    [
+     100,
+     100,
+     120
+    ]
+   ],
+   "param_cases": [
+    {
+     "label": "g1.25",
+     "params": [
+      {
+       "name": "Brightness",
+       "id": 1,
+       "value": 1.25
+      }
+     ]
+    },
+    {
+     "label": "g1.5",
+     "params": [
+      {
+       "name": "Brightness",
+       "id": 1,
+       "value": 1.5
+      }
+     ]
+    },
+    {
+     "label": "g2.0",
+     "params": [
+      {
+       "name": "Brightness",
+       "id": 1,
+       "value": 2.0
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "transfer",
+   "status": "UNTESTED"
+  },
+  {
+   "id": "transfer.PAEBrightness_brighten_ingamut",
+   "subsystem": "color",
+   "kind": "transfer",
+   "desc": "PAEBrightness BRIGHTEN regime (gain>1) on in-gamut inputs (gray + low-saturation colours whose channels stay <=1.0 after the multiply). Isolates the VERIFIED per-channel brightness multiply for gain>1 (Brightness_darken only covered gain<=1) from the CHARACTERIZED saturated-primary cases that hit the shared HGColorMatrix over-1.0 clamp.",
+   "oracle": {
+    "type": "transfer",
+    "uuid": "2E4DBB0A-A950-4896-BC2D-A5B0CFF7FAC6",
+    "pluginName": "PAEBrightness"
+   },
+   "engine_env": {},
+   "inputs": [
+    [
+     16,
+     16,
+     16
+    ],
+    [
+     32,
+     32,
+     32
+    ],
+    [
+     64,
+     64,
+     64
+    ],
+    [
+     100,
+     100,
+     100
+    ],
+    [
+     120,
+     110,
+     90
+    ],
+    [
+     80,
+     100,
+     120
+    ],
+    [
+     100,
+     80,
+     60
+    ]
+   ],
+   "param_cases": [
+    {
+     "label": "g1.25",
+     "params": [
+      {
+       "name": "Brightness",
+       "id": 1,
+       "value": 1.25
+      }
+     ]
+    },
+    {
+     "label": "g1.5",
+     "params": [
+      {
+       "name": "Brightness",
+       "id": 1,
+       "value": 1.5
+      }
+     ]
+    },
+    {
+     "label": "g2.0",
+     "params": [
+      {
+       "name": "Brightness",
+       "id": 1,
+       "value": 2.0
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "transfer",
+   "status": "UNTESTED"
+  },
+  {
    "id": "transfer.PAEHSVAdjust",
    "subsystem": "color",
    "kind": "transfer",

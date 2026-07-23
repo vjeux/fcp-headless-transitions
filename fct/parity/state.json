@@ -1882,6 +1882,82 @@
       },
       "oracle_truth": "transfer",
       "n_failures": 0
+    },
+    "transfer.PAEBrightness_brighten_ingamut": {
+      "id": "transfer.PAEBrightness_brighten_ingamut",
+      "kind": "transfer",
+      "status": "VERIFIED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 0.8799999999999955,
+      "n_samples": 63,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "label": "g1.25",
+          "params": [
+            {
+              "name": "Brightness",
+              "id": 1,
+              "value": 1.25
+            }
+          ]
+        },
+        "input": [
+          120,
+          110,
+          90
+        ],
+        "oracle": [
+          149.5,
+          137.12,
+          112.1
+        ],
+        "engine": [
+          150.0,
+          138.0,
+          112.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
+    },
+    "transfer.PAEBrightness_brighten": {
+      "id": "transfer.PAEBrightness_brighten",
+      "kind": "transfer",
+      "status": "VERIFIED",
+      "metric": "max_abs_levels",
+      "max_abs_levels": 0.8700000000000045,
+      "n_samples": 72,
+      "tol_levels": 2.0,
+      "worst": {
+        "case": {
+          "label": "g1.25",
+          "params": [
+            {
+              "name": "Brightness",
+              "id": 1,
+              "value": 1.25
+            }
+          ]
+        },
+        "input": [
+          120,
+          120,
+          110
+        ],
+        "oracle": [
+          150.1,
+          150.12,
+          137.13
+        ],
+        "engine": [
+          150.0,
+          150.0,
+          138.0
+        ]
+      },
+      "oracle_truth": "transfer",
+      "n_failures": 0
     }
   },
   "history": [
@@ -2479,8 +2555,23 @@
       "id": "transfer.PAEContrast_ingamut",
       "status": "VERIFIED",
       "at": "2026-07-23T04:43:07Z"
+    },
+    {
+      "id": "transfer.PAEBrightness_brighten_ingamut",
+      "status": "VERIFIED",
+      "at": "2026-07-23T04:46:31Z"
+    },
+    {
+      "id": "transfer.PAEBrightness_brighten_ingamut",
+      "status": "VERIFIED",
+      "at": "2026-07-23T04:46:41Z"
+    },
+    {
+      "id": "transfer.PAEBrightness_brighten",
+      "status": "VERIFIED",
+      "at": "2026-07-23T04:47:03Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T04:43:07Z"
+  "updated": "2026-07-23T04:47:03Z"
 }
