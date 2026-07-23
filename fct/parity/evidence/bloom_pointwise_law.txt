@@ -1,0 +1,24 @@
+PAEBloom pointwise extract+combine LAW — headless FCP vs TS float bloom (FCT_BLOOM_FLOAT)
+Params: Amount=32/40, Brightness=100 (gain=(|100-50|*4)/50=4.0), Threshold swept.
+Uniform-patch center read (flat field => blur is identity, isolates HgcBloomThreshold
+extract [rgb=max(color*10 - Threshold/10, 0)] + HgcEchoScaleAndAdd additive combine
+[out=orig + blur*(gain), clip-to-white]). MATCH: max |dR| = 0.3 levels across the grid.
+
+   v  thr                FCP                 TS     dR
+  97    0 [ 254.7 254.8 254.8] [ 255.0 255.0 255.0]   +0.3
+  97   50 [  97.0  96.8  96.9] [  97.0  97.0  97.0]   -0.0
+ 128   50 [ 147.7 147.6 147.6] [ 148.0 148.0 148.0]   +0.3
+ 128   75 [ 128.0 128.0 128.0] [ 128.0 128.0 128.0]   -0.0
+ 190   75 [ 189.8 189.6 189.6] [ 190.0 190.0 190.0]   +0.2
+ 255  all [ 254.7 254.8 254.8] [ 255.0 255.0 255.0]   +0.3
+  60   30 [  60.2  60.2  60.2] [  60.0  60.0  60.0]   -0.2
+(full grid v in {60,97,128,190,255} x thr in {0,15,30,50,75,100} — all |dR|<=0.3)
+
+SPATIAL residual at Threshold>0 (why the full-frame PSNR is 27-30 dB not >40):
+  disc-r[   0, 150) in=250 head=254.8 ts=255.0 signed=+0.25   (core matches)
+  disc-r[ 150, 250) in= 92 head=112.8 ts=105.2 signed=-7.56   (TS halo falls faster)
+  disc-r[ 700,3000) in= 59 head= 68.0 ts= 66.2 signed=-1.78   (FCP spreads more to far field)
+  edge pixels (0.5%): MAD 0.5   |  flat pixels (99.4%): MAD 1.57
+=> uniform flat-field deficit = the shared decimated FLOAT blur's slightly lighter tail vs
+   FCP's Gaussian on a SPARSE high-contrast extract layer. NOT a decode error (law exact);
+   same blur-tail ceiling family as Glow/Zoom. Shipping regime (Threshold=0) VERIFIES 42.7 dB.

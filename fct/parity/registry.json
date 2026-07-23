@@ -3446,6 +3446,108 @@
    "synth": "textured",
    "pass_db": 24.0,
    "note": "polar-resample discretization caps the all-edges ceiling ~24-26 dB (directional-blur.ts L206); a faithful decode is harness-limited here, not divergent \u2014 near-zero signed bias confirms the kernel math matches."
+  },
+  {
+   "id": "spatial.PAEBloom",
+   "subsystem": "blur",
+   "kind": "spatial",
+   "desc": "PAEBloom at its node boundary: decode-faithful FLOAT bloom (HgcBloomThreshold extract x10-Thr/10 -> float blur 0.5*Amount -> HgcEchoScaleAndAdd additive orig+blur*(|Bright-50|*4/50), clip-to-white). Delegated filter.PAEBloom reads 7.0 dB inside its host; the notes report the float path matches headless ~50 dB isolated at shipping params vs the broken 8-bit glowFilter at 3.7 dB. engine_env selects the decoded float path (shipped default is still 8-bit, gated on host-composition work).",
+   "oracle": {
+    "type": "spatial",
+    "uuid": "5599C557-CDC0-4112-B2C4-355E9A1A902E",
+    "pluginName": "PAEBloom"
+   },
+   "engine_env": {
+    "FCT_BLOOM_FLOAT": "1"
+   },
+   "synth": "smooth",
+   "param_cases": [
+    {
+     "label": "360Bloom-ship A32 B100 T0",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 1,
+       "value": 32
+      },
+      {
+       "name": "Brightness",
+       "id": 2,
+       "value": 100
+      },
+      {
+       "name": "Threshold",
+       "id": 3,
+       "value": 0
+      }
+     ]
+    },
+    {
+     "label": "A50 B100 T30",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 1,
+       "value": 50
+      },
+      {
+       "name": "Brightness",
+       "id": 2,
+       "value": 100
+      },
+      {
+       "name": "Threshold",
+       "id": 3,
+       "value": 30
+      }
+     ]
+    },
+    {
+     "label": "A40 B80 T50",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 1,
+       "value": 40
+      },
+      {
+       "name": "Brightness",
+       "id": 2,
+       "value": 80
+      },
+      {
+       "name": "Threshold",
+       "id": 3,
+       "value": 50
+      }
+     ]
+    },
+    {
+     "label": "A30 B70 T75",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 1,
+       "value": 30
+      },
+      {
+       "name": "Brightness",
+       "id": 2,
+       "value": 70
+      },
+      {
+       "name": "Threshold",
+       "id": 3,
+       "value": 75
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "headless",
+   "status": "UNTESTED",
+   "characterized": true,
+   "pass_db": 40.0,
+   "characterized_reason": "Pointwise extract+combine LAW verified EXACT vs headless FCP across the full (input v in {60,97,128,190,255}) x (Threshold in {0,15,30,50,75,100}) grid at max |dR|=0.3 levels (HgcBloomThreshold x10-Thr/10 extract + HgcEchoScaleAndAdd additive orig+blur*(|Bright-50|*4/50), clip-to-white \u2014 all register-decoded). At the SHIPPING regime (Threshold=0, full-frame bloom to white) the spatial render VERIFIES at 42.7 dB. The Threshold>0 spatial divergence (27-30 dB) is NOT the decode: the residual is a uniform ~-1.5 level flat-field deficit (99.4% of pixels; edges match at MAD 0.5) = the shared decimated FLOAT blur spreads the sparse high-contrast extracted-highlight layer with a slightly lighter tail than FCP's Gaussian (disc energy: FCP reaches +7.6 more just outside the disc and +1.8 more in the far field). Same blur-tail ceiling family as Glow's dark-tail and Zoom's log-polar spread; retuning the shared sigma/truncation risks the VERIFIED PAEGaussianBlur (49 dB), so decode-don't-fit holds. Gate-inert: shipping Bloom slugs author Threshold->0 with full-frame bloom, the VERIFIED regime. Float path guarded by FCT_BLOOM_FLOAT (shipped default still 8-bit, gated on 360deg_Bloom host composition)."
   }
  ]
 }

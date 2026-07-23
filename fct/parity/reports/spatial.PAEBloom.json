@@ -1,0 +1,169 @@
+{
+  "id": "spatial.PAEBloom",
+  "kind": "spatial",
+  "status": "DIVERGED",
+  "metric": "frame_psnr_db",
+  "worst_psnr_db": 26.99,
+  "pass_db": 40.0,
+  "n_scored": 4,
+  "oracle_truth": "headless",
+  "worst_case": {
+    "param": {
+      "label": "A40 B80 T50",
+      "params": [
+        {
+          "name": "Amount",
+          "id": 1,
+          "value": 40
+        },
+        {
+          "name": "Brightness",
+          "id": 2,
+          "value": 80
+        },
+        {
+          "name": "Threshold",
+          "id": 3,
+          "value": 50
+        }
+      ]
+    },
+    "psnr": 26.99,
+    "mad": 1.562,
+    "signed": [
+      -1.856,
+      -1.219,
+      -1.238
+    ],
+    "resized": false,
+    "head_vs_input_mad": 7.04
+  },
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "360Bloom-ship A32 B100 T0",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 32
+          },
+          {
+            "name": "Brightness",
+            "id": 2,
+            "value": 100
+          },
+          {
+            "name": "Threshold",
+            "id": 3,
+            "value": 0
+          }
+        ]
+      },
+      "psnr": 42.73,
+      "mad": 0.279,
+      "signed": [
+        0.281,
+        0.172,
+        0.196
+      ],
+      "resized": false,
+      "head_vs_input_mad": 193.0
+    },
+    {
+      "param": {
+        "label": "A50 B100 T30",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 50
+          },
+          {
+            "name": "Brightness",
+            "id": 2,
+            "value": 100
+          },
+          {
+            "name": "Threshold",
+            "id": 3,
+            "value": 30
+          }
+        ]
+      },
+      "psnr": 28.94,
+      "mad": 1.342,
+      "signed": [
+        -1.502,
+        -1.061,
+        -1.078
+      ],
+      "resized": false,
+      "head_vs_input_mad": 11.56
+    },
+    {
+      "param": {
+        "label": "A40 B80 T50",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 40
+          },
+          {
+            "name": "Brightness",
+            "id": 2,
+            "value": 80
+          },
+          {
+            "name": "Threshold",
+            "id": 3,
+            "value": 50
+          }
+        ]
+      },
+      "psnr": 26.99,
+      "mad": 1.562,
+      "signed": [
+        -1.856,
+        -1.219,
+        -1.238
+      ],
+      "resized": false,
+      "head_vs_input_mad": 7.04
+    },
+    {
+      "param": {
+        "label": "A30 B70 T75",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 1,
+            "value": 30
+          },
+          {
+            "name": "Brightness",
+            "id": 2,
+            "value": 70
+          },
+          {
+            "name": "Threshold",
+            "id": 3,
+            "value": 75
+          }
+        ]
+      },
+      "psnr": 30.49,
+      "mad": 1.063,
+      "signed": [
+        -1.227,
+        -0.782,
+        -0.801
+      ],
+      "resized": false,
+      "head_vs_input_mad": 3.0
+    }
+  ],
+  "note": ""
+}

@@ -1748,6 +1748,49 @@
       },
       "n_failures": 0,
       "note": ""
+    },
+    "spatial.PAEBloom": {
+      "id": "spatial.PAEBloom",
+      "kind": "spatial",
+      "status": "DIVERGED",
+      "metric": "frame_psnr_db",
+      "worst_psnr_db": 26.99,
+      "pass_db": 40.0,
+      "n_scored": 4,
+      "oracle_truth": "headless",
+      "worst_case": {
+        "param": {
+          "label": "A40 B80 T50",
+          "params": [
+            {
+              "name": "Amount",
+              "id": 1,
+              "value": 40
+            },
+            {
+              "name": "Brightness",
+              "id": 2,
+              "value": 80
+            },
+            {
+              "name": "Threshold",
+              "id": 3,
+              "value": 50
+            }
+          ]
+        },
+        "psnr": 26.99,
+        "mad": 1.562,
+        "signed": [
+          -1.856,
+          -1.219,
+          -1.238
+        ],
+        "resized": false,
+        "head_vs_input_mad": 7.04
+      },
+      "n_failures": 0,
+      "note": ""
     }
   },
   "history": [
@@ -2300,8 +2343,23 @@
       "id": "spatial.PAEZoomBlur",
       "status": "DIVERGED",
       "at": "2026-07-23T03:20:12Z"
+    },
+    {
+      "id": "spatial.PAEBloom",
+      "status": "DIVERGED",
+      "at": "2026-07-23T03:38:40Z"
+    },
+    {
+      "id": "spatial.PAEBloom",
+      "status": "DIVERGED",
+      "at": "2026-07-23T03:42:35Z"
+    },
+    {
+      "id": "spatial.PAEBloom",
+      "status": "DIVERGED",
+      "at": "2026-07-23T03:42:47Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-23T03:20:12Z"
+  "updated": "2026-07-23T03:42:47Z"
 }
