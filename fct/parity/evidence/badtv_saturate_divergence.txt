@@ -1,0 +1,32 @@
+PAEBadTV (32AB5EE1) DESATURATE-leg divergence — REAL decode lead (2026-07-23)
+================================================================================
+Probe: Waviness=0, Static=0 (isolate deterministic path), Mix=1, sweep Saturate on colour
+swatches; uniform-patch 40x40 center read. Headless FCP vs engine (badtv.ts).
+
+FINDING: the engine's desaturate model DIVERGES from FCP by up to 109 levels. Key evidence:
+
+  colour        sat        FCP                engine            maxdR
+  (200,50,50)     0  [237.2 142.3 139.3] [242.3  67.5  67.5]    74.8
+  (50,200,50)     0  [165.5 242.7 148.9] [ 67.5 242.3  67.5]    98.0
+  (50,200,50)    50  [117.2 246.8  70.7] [  8.1 250.8   8.1]   109.1
+  (128,128,128)   0  [163.1 163.1 163.1] [172.8 172.8 172.8]     9.7  (gray, chroma-free)
+
+ROOT CAUSE (partially decoded, NOT yet closed — honest):
+ 1. Saturate=0 is NOT identity in FCP. FCP heavily desaturates at Saturate=0
+    (green 50 -> 142, toward gray), while the engine's `sat = Saturate/100 + 1` gives
+    sat=1 (no desaturation) -> green stays ~67. The engine's Saturate->sat MAPPING is wrong.
+ 2. Gray 128 -> 163.1 in FCP (const across Saturate) = a ~1.274x brightness lift that is
+    NOT the scanline factor (a periodic dark-band average would DARKEN, not brighten).
+ 3. The lift + desaturate + luma-coeff are ENTANGLED and CHANNEL-INCONSISTENT under a
+    uniform-brightness x mix(luma,rgb,sat) model: solving sat from the green channel gives
+    -0.13 while the red channel gives +0.86 for the SAME pixel — so it is not a single
+    scalar sat multiply. The luma coeffs (0.2581,0.5856,0.1611 in badtv.ts) are a prior
+    least-squares FIT, not decoded; the full-desat luma (104.4 for (200,50,50)) is itself
+    scaled by the ~1.274 lift, so the fit is contaminated.
+
+NEXT (needs shader param-buffer register trace, decode-don't-fit): decode the HgcBadTV
+P7 (saturation vector), P12 (luma coeffs), and the brightness/scanline constants from the
+-[PAEBadTV canThrowRenderOutput] register trace to separate the three entangled effects.
+Until then BadTV stays DIVERGED (delegated faithful ddb=11.3); the deterministic desaturate
+leg is a documented, reproducible lead but not a clean node-boundary verify (stochastic
+Waviness/Static + spatial scanlines + entangled brightness make the transfer confounded).
