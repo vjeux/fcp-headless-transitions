@@ -1,0 +1,98 @@
+{
+  "id": "spatial.PAERadialBlur",
+  "kind": "spatial",
+  "status": "DIVERGED",
+  "metric": "frame_psnr_db",
+  "worst_psnr_db": 29.39,
+  "pass_db": 30.0,
+  "n_scored": 3,
+  "oracle_truth": "headless",
+  "worst_case": {
+    "param": {
+      "label": "amt8",
+      "params": [
+        {
+          "name": "Amount",
+          "id": 2,
+          "value": 8
+        }
+      ]
+    },
+    "psnr": 29.39,
+    "mad": 6.148,
+    "signed": [
+      -2.838,
+      -2.039,
+      -2.064
+    ],
+    "resized": false,
+    "head_vs_input_mad": 28.43
+  },
+  "n_failures": 0,
+  "rows": [
+    {
+      "param": {
+        "label": "amt3",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 2,
+            "value": 3
+          }
+        ]
+      },
+      "psnr": 33.61,
+      "mad": 2.372,
+      "signed": [
+        -1.589,
+        -1.157,
+        -1.173
+      ],
+      "resized": false,
+      "head_vs_input_mad": 23.77
+    },
+    {
+      "param": {
+        "label": "amt5",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 2,
+            "value": 5
+          }
+        ]
+      },
+      "psnr": 32.6,
+      "mad": 3.124,
+      "signed": [
+        -2.361,
+        -1.696,
+        -1.719
+      ],
+      "resized": false,
+      "head_vs_input_mad": 27.37
+    },
+    {
+      "param": {
+        "label": "amt8",
+        "params": [
+          {
+            "name": "Amount",
+            "id": 2,
+            "value": 8
+          }
+        ]
+      },
+      "psnr": 29.39,
+      "mad": 6.148,
+      "signed": [
+        -2.838,
+        -2.039,
+        -2.064
+      ],
+      "resized": false,
+      "head_vs_input_mad": 28.43
+    }
+  ],
+  "note": ""
+}

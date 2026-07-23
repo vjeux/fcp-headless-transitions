@@ -6154,6 +6154,55 @@
    "status": "UNTESTED",
    "synth": "textured",
    "pass_db": 30.0
+  },
+  {
+   "id": "spatial.PAERadialBlur",
+   "subsystem": "blur",
+   "kind": "spatial",
+   "desc": "PAERadialBlur (SPIN blur: FCP does polar-remap -> 1-D Gaussian along the ANGLE axis -> inverse-remap, amount'=Amount*1.5). Node-boundary full-frame PSNR over Amount. Smooth synth (spin about centre). NOTE: engine's radialBlur('spin') rotates in SCREEN space (PHASE-2 TODO P2-RB1) \u2014 this node characterizes the screen-vs-polar-space gap.",
+   "oracle": {
+    "type": "spatial",
+    "uuid": "8F9F88CF-F1DC-4C7E-8946-1A8B53B4F53A",
+    "pluginName": "PAERadialBlur"
+   },
+   "param_cases": [
+    {
+     "label": "amt3",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 2,
+       "value": 3
+      }
+     ]
+    },
+    {
+     "label": "amt5",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 2,
+       "value": 5
+      }
+     ]
+    },
+    {
+     "label": "amt8",
+     "params": [
+      {
+       "name": "Amount",
+       "id": 2,
+       "value": 8
+      }
+     ]
+    }
+   ],
+   "oracle_truth": "headless",
+   "status": "UNTESTED",
+   "synth": "smooth",
+   "pass_db": 30.0,
+   "characterized": true,
+   "characterized_reason": "Engine implements FCP's polar-space spin pipeline (rect->polar, 1-D wrap-Gaussian on the angle axis, polar->rect; sigma=arcPx/6.0) and now reads the CORRECT Amount param (id=2, not id=1 -- the initial probe used id=1 which FCP ignored, a probe bug found+fixed this session). With id=2 the spin responds but carries a systematic signed bias (~-2 to -3 lvl, growing with Amount: 33.6 dB @amt3 -> 29.4 dB @amt8 -> 22.8 dB @amt30) -- the engine's angular kernel width vs FCP's differs, on top of the shared polar-resample discretization ceiling (~24 dB on all-edges content, documented in directional-blur.ts PHASE-2 CEILING NOTE). The Amount->arc scaling (FCP amount'=Amount*1.5) and the sigma constant need a clean spin-arc decode (a non-wrapping off-centre wedge probe -- the disc/spoke synths wrap +/-pi around the spin centre and can't measure the arc FWHM). Shipping users author Amount static so gate-inert. Small-amount regime {3,5,8} registered."
   }
  ]
 }
