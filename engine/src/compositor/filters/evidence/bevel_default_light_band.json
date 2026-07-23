@@ -41,5 +41,17 @@
   "BOTTOM": 11
  },
  "engine_bug": "engine bevelFilter uses the OLD gradient-normal-dot model (PHASE-2 TODO P2-bevel-1 said to replace) and its inward-normal is INVERTED at the frame border (nx=-gx/gmag points toward transparent), so it DARKENS the band to ~0 instead of lightening. Band GEOMETRY (width/cutoff) is correct; TINT is wrong (9.5 dB, signed -2.8/-5.1/-9.5 growing with width).",
- "fix_needed": "port FCP's verbatim OFFSET-ACCUMULATION: re-draw the layer as 4 directionally-offset (offset=halfWidth), |cos(theta+k)|-tinted (k in {0,-45,-90,+45}) copies composited by HgcBevel (out=mix(dest,color,color.a); a=max). The flat additive band toward the light Color matches the measured plateau. Rotation unverifiable (angle not drivable) but the default-light tints above pin the k-to-edge assignment for a regression check."
+ "fix_needed": "port FCP's verbatim OFFSET-ACCUMULATION: re-draw the layer as 4 directionally-offset (offset=halfWidth), |cos(theta+k)|-tinted (k in {0,-45,-90,+45}) copies composited by HgcBevel (out=mix(dest,color,color.a); a=max). The flat additive band toward the light Color matches the measured plateau. Rotation unverifiable (angle not drivable) but the default-light tints above pin the k-to-edge assignment for a regression check.",
+ "decoded_mix_law": {
+  "formula": "band pixel = mix(input, T_edge, 0.80) = input*0.20 + T_edge*0.80, clipped [0,255]",
+  "plateau_weight_w": 0.8,
+  "default_light_edge_targets_T": {
+   "TOP": 255,
+   "LEFT": 135,
+   "RIGHT": 135,
+   "BOTTOM": 114
+  },
+  "verified": "reproduces all measured points (input 50/100/150/200 x TOP/BOT/LEFT) within 1 level",
+  "note": "T_edge = 255 * lightColor * lobe_edge. The four |cos(theta+k)| lobes (k in {0,-45,-90,+45}) don't cleanly fit a single-cosine (resid 0.097), so the exact facet->edge mapping needs the bevelHe vertex-color disasm. Light Angle is NOT probe-drivable so a general angle-driven rewrite is UNVERIFIABLE against headless \u2014 only this default-light band is measurable. A future fix should port the verbatim offset-accumulation and CALIBRATE the default to these T targets (regression check)."
+ }
 }
