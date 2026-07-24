@@ -105,3 +105,21 @@ Motion formula. (2) Likely fix: pivot-around-anchor screen = pos + anchor·(1−
 re-score show NO regression (this fn is shared by every transition — Fall/Reflection/Rotate use
 non-zero anchors + scale/rotation and currently pass, so the fix must preserve them).
 Probe harness saved: /tmp/mkmask.py, /tmp/stripparent.py, /tmp/hrender.py.
+
+## Anchor convention probe data (2026-07-24) — FCP, parent-scale stripped to 1
+Probe harness: /tmp/mkmask.py (set pos/scale/anchor), /tmp/stripparent.py, /tmp/hrender.py.
+  sc=1 pos=0 anchorY=0    -> yc 565 (shape natural centroid), cov 47%
+  sc=1 pos=0 anchorY=200  -> yc 540, cov 60%
+  sc=1 pos=0 anchorY=-300 -> yc 670, cov 26%
+  sc=1 pos=(800,400)      -> EMPTY (Position translates the shape off-frame)
+  sc=2 pos=0 anchorY=0    -> yc 540, cov 83%
+  sc=2 pos=0 anchorY=200  -> yc 540, cov 98%  (center unchanged by anchor at sc=2)
+  sc=3 pos=0 anchorY=0    -> yc 540, cov 99%
+FINDINGS: (1) Position translates the shape (unscaled). (2) Scale scales the shape and its coverage
+grows with scale. (3) Anchor's effect on the CENTER is SMALL and roughly scale-independent — NOT the
+large scaleY×anchorY shift the engine applies. So FCP's anchor/scale composition keeps the shape
+near-centered; the engine's M=T(pos)·S·T(-anchor) scales the anchor offset (238×5.25≈1250px) and
+throws the mask off-frame. NEXT (implement in buildTransformMatrix, verify no 65-slug regression):
+match FCP's convention — the anchor must not produce a scale-magnified translation for the mask.
+Read the exact Motion order from the binary if the empirical fit stays ambiguous. Segfaults on rapid
+repeated headless boots are benign (re-run singly).
