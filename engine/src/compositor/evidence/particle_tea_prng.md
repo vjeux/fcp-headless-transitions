@@ -64,3 +64,26 @@ probe triples). NEXT: decode `*0x20` (per-particle index source) + `*0x258` (see
 enumerate the remaining attribute salts + the birth/initialNumber timing, then replace the
 placeholder hash01 spawn draws with teaRand(index, salt, seed). Then Drop_In/Diagonal/Glide
 particle fields become frame-matchable.
+
+## SPAWN DRAW STRUCTURE (refined, x86_64 slice)
+Function: PSEmitter::initPropertiesFromShape(uint shapeType, CMTime const& t,
+          PSParticleType* pt, PSParticle* p, OZSimStateElement&, PCVector3<double>& out, bool&)
+Locals: -0x38(rbp) = PSParticle* p (r15/arg4); -0x30(rbp) = PSEmitter* this (r12); -0x60 = CMTime t.
+Each attribute draw compiles to:
+    w0 = p->vmethod_0x20()                 // per-PARTICLE value (particle index / birth id)
+    w1 = <hard-coded attribute salt>       // 0x3712F987 / 0x83820093 / 0x39002838 = X/Y/Z
+    w2 = this->vmethod_0x258(CMTime t)      // emitter SEED at time t (the per-emitter RNG seed)
+    u  = getRandTEAf(w0, w1, w2)           // uniform [0,1)  (TEA, above)
+    → mapped into the attribute's range by the caller (cone dir, speed±rand, etc).
+So the triple is (particleIndex, attributeSalt, emitterSeed). This matches a stateless
+per-particle scheme: particle i's X-position random = teaRand(i, 0x3712F987, seed), etc.
+
+## TODO to wire into emitter-sim.ts (replace hash01 spawn draws)
+- [ ] Decode PSParticle::vmethod_0x20 → confirm it is the 0-based particle index (birth order).
+- [ ] Decode PSEmitter::vmethod_0x258(t) → the seed value (likely emitterSeed 25785, possibly
+      combined with cell randomSeed 18155; check if time-varying for continuous birth).
+- [ ] Enumerate ALL attribute salts (speed, life, scale, spin, emission-angle) from the other
+      getRandTEAf sites (initPropertiesFromShape has ~14; also genPosGeometry + life/scale/spin).
+- [ ] Birth model: initialNumber one-shot burst at emitter `in` + birthRate accrual + life.
+- [ ] Replace emitter-sim.ts spawn's hash01(seedA,seedB,i) with teaRand(i, salt, seed) per attribute.
+Then verify Drop_In/Diagonal/Glide particle fields vs FCP-headless (min-gen/min-score).
