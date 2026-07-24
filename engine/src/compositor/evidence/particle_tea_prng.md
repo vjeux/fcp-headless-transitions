@@ -87,3 +87,19 @@ per-particle scheme: particle i's X-position random = teaRand(i, 0x3712F987, see
 - [ ] Birth model: initialNumber one-shot burst at emitter `in` + birthRate accrual + life.
 - [ ] Replace emitter-sim.ts spawn's hash01(seedA,seedB,i) with teaRand(i, salt, seed) per attribute.
 Then verify Drop_In/Diagonal/Glide particle fields vs FCP-headless (min-gen/min-score).
+
+## CONFIRMED (2026-07-24 cont): w0 = particle ID, w1 = salt, w2 = seed
+- w0 = PSParticle::getID() = *(uint32*)(this+0xe0) — a plain field, the particle's unique ID.
+  Called before each draw but returns the SAME value for all attributes of one particle, so the
+  ONLY discriminator between a particle's X/Y/Z (etc.) draws is the SALT w1. => per attribute:
+      u_attr = teaRand(particleID, ATTR_SALT, seed)
+- w1 salts confirmed: 0x3712F987 (X), 0x83820093 (Y), 0x39002838 (Z) for the spawn-position vector.
+- w2 = PSEmitter vm_0x258(CMTime) = the emitter/cell Random Seed channel value at time t (OZChannelSeed;
+  the .motr "Random Seed" — Drop_In cell randomSeed=18155 / emitterSeed=25785).
+- The 3 XYZ draws feed a REJECTION SAMPLER (ucomisd/subsd at 0x18a68) — a point-in-unit-sphere/box test
+  that RESAMPLES if outside. So position within a spherical/box emitter region is rejection-sampled from
+  the 3 uniforms; a rejected sample must advance to the NEXT draw triple (so the effective w0/seed advance
+  — likely getID stays fixed and a per-attempt counter feeds one of the words; TBD which). For emitters
+  that emit AT POINTS or on a line (Drop_In uses radius=100 circle) the mapping is simpler.
+- Particle ID assignment / birth order (getID's +0xe0) and the birth model (initialNumber burst) are the
+  last pieces before wiring: enumerate how IDs are assigned across the initialNumber=379 burst.
