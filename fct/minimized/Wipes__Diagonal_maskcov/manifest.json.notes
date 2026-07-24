@@ -123,3 +123,19 @@ throws the mask off-frame. NEXT (implement in buildTransformMatrix, verify no 65
 match FCP's convention — the anchor must not produce a scale-magnified translation for the mask.
 Read the exact Motion order from the binary if the empirical fit stays ambiguous. Segfaults on rapid
 repeated headless boots are benign (re-run singly).
+
+## Clean square-probe (2026-07-24) — reveals a ~1.77x base scale + offset in the mask chain
+Replaced the mask geometry with a sharp ±100 unfeathered SQUARE, feather=0, pos=(0,0) sc=1 anchor=0
+(parent 'Transition Diagonal' scale stripped to 1). Expected: a 200×200 px square centered at world
+(0,0). FCP RENDERS: 354×322 px at world centroid (250,-392). So even at "identity" mask transform,
+a ~1.77× scale (354/200) AND an offset (+250,-392) are applied. Sources to check next iteration:
+  - the "Gradient and background" GROUP transform (Position X=-248,Y=-435 — matches the ~-392 y offset
+    roughly) is still in the chain (I only stripped the 'Transition Diagonal' layer scale, not the group).
+  - a project-unit → pixel base scale (~1.77?) or the shape's Aspect Ratio (1.5) / Preserve Scale.
+  - the mask Anchor Point Y=-238 default (I set it to 0 in the probe, but the group offset remains).
+So the ~1.77× and offset are from the PARENT GROUP + possibly a project scale, NOT purely the mask.
+NEXT: strip the group offset too, and add a known project scale, to get a clean identity baseline;
+then vary (pos,scale,anchor) ONE at a time and fit the exact Motion transform. Only then fix
+buildTransformMatrix. The anchor-scaling bug (238×5.25≈1250 off-frame) stands as the leading cause of
+the coverage cap; confirm the exact formula before editing the shared transform code.
+Probes: /tmp/mksquare.py, /tmp/mkmask.py, /tmp/stripparent.py, /tmp/hrender.py.
