@@ -1113,9 +1113,74 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
           if (!m.visible || !m.layer.shape) continue;
           if (m.writeOnTransforms) {
             if (m.writeOnTransforms.length === 0) { writeOnPending = true; continue; }
-            for (const xf of m.writeOnTransforms) {
-              masks.push(rasterizeShape(m.layer.shape, output.width, output.height, xf));
+            const wt = m.writeOnTransforms;
+            const Wf = output.width, Hf = output.height;
+            // Monotonic LEADING reveal: union the quad rasterized at every sub-time so a
+            // pixel revealed at ANY earlier sub-time stays revealed (the write-on fill).
+            const leading: Uint8Array[] = [];
+            for (const xf of wt) leading.push(rasterizeShape(m.layer.shape, Wf, Hf, xf));
+            const env = leading.length === 1 ? leading[0] : unionMasks(leading, Wf, Hf);
+            // TRAILING wipe-out front (two-front hysteresis band, decoded from Wipes/
+            // Diagonal, evidence in AUDIT). The sweeping quad is a BAND: its leading edge
+            // reveals (monotonic union above), its TRAILING edge UN-reveals as it passes
+            // (FCP corner trace: gray plateau f11-15, then a TL→BR wipe-to-behind f17-23).
+            // The monotonic union never un-reveals ⇒ the tail wrongly holds the revealed
+            // content. Recover the trailing edge: cut env with the CURRENT quad's REAR
+            // half-plane along the sweep axis. CRITICAL: the sweep direction is taken from
+            // the RASTERISED footprint centroids (first vs last sub-time), NOT the raw
+            // transform translation — lifted `<mask>` shapes carry a positionY flip, so the
+            // on-screen motion sign differs from the world Position delta (verified: FCP
+            // wipe is screen +x,+y; the raw-Position delta implied +x,−y). Centroids already
+            // include the flip/scale/anchor. Byte-neutral during the fill phase (rear edge
+            // still off-frame ⇒ cutoff below every in-frame projection).
+            // Sweep direction + rear cutoff from the TRANSFORMED VERTEX centroids of the
+            // first vs last sub-time quad (screen coords via toPixel: px=wx+W/2, py=H/2−wy).
+            // Using transformed vertices (not the RASTERISED footprint) means it still works
+            // when the quad has translated/scaled ENTIRELY OFF-FRAME at the tail (an empty
+            // raster would give a null centroid and skip the trailing cut → the f21-23 gray-
+            // snap bug). The vertex path already carries the lifted-mask Y-flip (same toPixel),
+            // so the on-screen sweep sign is correct (verified: screen +x,+y down-right).
+            const shp = m.layer.shape;
+            const vxA = shp.verticesX, vyA = shp.verticesY;
+            const aspA = shp.aspectRatio && shp.aspectRatio > 0 ? shp.aspectRatio : 1;
+            const vcentroid = (mat: Float64Array): [number, number] => {
+              let sx = 0, sy = 0;
+              for (let vi = 0; vi < vxA.length; vi++) {
+                const lx = vxA[vi] * aspA, ly = vyA[vi];
+                const wx = mat[0] * lx + mat[4] * ly + mat[12];
+                const wy = mat[1] * lx + mat[5] * ly + mat[13];
+                sx += wx + Wf / 2; sy += Hf / 2 - wy;
+              }
+              return [sx / vxA.length, sy / vxA.length];
+            };
+            const c0 = vcentroid(wt[0]);
+            const c1 = vcentroid(wt[wt.length - 1]);
+            if (c0 && c1) {
+              let dx = c1[0] - c0[0], dy = c1[1] - c0[1];
+              const dlen = Math.hypot(dx, dy);
+              if (dlen > 4) {   // a real on-screen sweep (≥4px centroid travel)
+                dx /= dlen; dy /= dlen;
+                // Rear cutoff = min projection of the CURRENT quad's transformed vertices
+                // onto the screen sweep axis (screen coords; toPixel: sx=wx+W/2, sy=H/2−wy).
+                const last = wt[wt.length - 1];
+                let cutoff = Infinity;
+                for (let vi = 0; vi < vxA.length; vi++) {
+                  const lx = vxA[vi] * aspA, ly = vyA[vi];
+                  const wx = last[0] * lx + last[4] * ly + last[12];
+                  const wy = last[1] * lx + last[5] * ly + last[13];
+                  const px = wx + Wf / 2, py = Hf / 2 - wy;
+                  const proj = px * dx + py * dy;
+                  if (proj < cutoff) cutoff = proj;
+                }
+                if (isFinite(cutoff)) {
+                  for (let y = 0; y < Hf; y++) for (let x = 0; x < Wf; x++) {
+                    const i = y * Wf + x;
+                    if (env[i] > 0 && (x * dx + y * dy) < cutoff) env[i] = 0;
+                  }
+                }
+              }
             }
+            masks.push(env);
           } else {
             masks.push(rasterizeShape(m.layer.shape, output.width, output.height, m.worldTransform));
           }
