@@ -244,57 +244,50 @@ export function render360Band(
   // (The earlier bottom-half "band" model matched an OLD GUI-GT capture; the current
   // truth shows the panorama filling the whole frame — f0 == full-frame A at 28.9 dB.)
   if (cfg.mode === 'push') {
-    // EQUIRECT 360° PUSH — fully decoded 2026-07-16 from the GUI GT (per-column A/B
-    // classifier + FFT phase-correlation, W=1920, N=24). The push is NOT two rigid
-    // butted cards: it is structurally the SAME rig as the sibling 360° Slide —
-    // outgoing A PANS while incoming B is revealed in a CENTRE-ANCHORED WEDGE — with
-    // the roles of "who pans" flipped vs Slide:
-    //   - OUTGOING A yaws left at a CONSTANT −86 px/frame, dy=0, NO magnification.
-    //     Phase-corr abs-shift vs f0 is EXACTLY −86·f every frame (f08=−688, f11=−946,
-    //     f12=−1032 reading +888=−1032+W via wrap, … f23=−1978≡−58 home). A single
-    //     clean translation peak, no radial smear → PURE yaw, no pitch, no FOV zoom.
-    //     Verified in the A-region: f8 A-pan −688 err 40.5 ≪ static 48.8.
-    //   - INCOMING B is STATIC at HOME (pan 0): B-region f8 home err 34.6 ≪ any pan.
-    //   - REVEAL: a wedge anchored at frame CENTRE (c0=W/2) whose covered span grows
-    //     at ~91.3 px/frame (measured f2→183, f4→365, f6→549, f10→913 = 91.3·f),
-    //     reaching full frame at f≈21. B shows inside the wedge; A (panned) fills the
-    //     complement. The centre anchor is why one A/B seam is pinned at x=960 on
-    //     EVERY frame while the other seam sweeps out with the wedge edge.
-    // Matches the .motr: the two `360° Reorient` filters carry only Tilt(X)/Pan(Y)/
-    // Roll(Z)/Mix and NO FOV/scale param, Tilt=Roll=0 → a pure yaw, whose equirect→
-    // rectilinear reprojection is EXACTLY a horizontal wrap-roll. (The task premise of
-    // an animated ~3.2× FOV zoom / yaw+pitch reorient is refuted by both the .motr and
-    // the GT — see the swarm report.) The PREVIOUS model drew both cards full-frame
-    // (A opaque over B) sweeping one W-width: endpoints right but no centre reveal, so
-    // the mid band collapsed to ~10 dB (f12 10.27).
-    const NF = 24;                                 // fct sampling: 24 frames at p=i/N
-    const panA = progress * NF * 86 * cfg.dir;     // outgoing A yaw = 86 px/frame
-    const c0 = 0.5 * outW;                         // reveal wedge anchor = frame centre
-    // Reveal wedge: B fills a window from CENTRE going right (wrap) at 91.3 px/frame,
-    // in TWO phases (decoded, W=1920): the RIGHT half [c0, c0+W/2] fills over f0..10.5
-    // (91.3·f, measured f2=183, f8=731, f10=913), HOLDS at W/2 across the plateau
-    // f11..13 (960,960,960), then the LEFT half continues at the SAME 91.3 px/frame
-    // from f≈13.3 (measured f16 left-fill=259 ≈ 91.3·(16−13.3), f20=623), completing
-    // at f≈23. Without the plateau a single 91.3·f wedge over-fills the left half by
-    // ~240 px at f16. Expressed continuously: wedge = min(91.3·f, W/2) for the first
-    // phase, plus max(0, 91.3·(f − 13.3)) for the second, capped at W.
-    const fFrames = progress * NF;
-    const halfW = 0.5 * outW;
-    const rightFill = Math.min(fFrames * 91.3, halfW);            // phase 1: → W/2
-    const leftFill = Math.max(0, (fFrames - 13.3) * 91.3);        // phase 2: from f13.3
-    // Terminal settle: the last fct frame (p≈0.958, f23) is FULL B in the GT
-    // (abs-shift 0, whole panorama at home). Snap the wedge to the full frame once
-    // the left phase is essentially complete so no A sliver survives the settle.
-    const wedge = progress >= 0.94 ? outW : Math.min(rightFill + leftFill, outW);
-    const bMask: Mask = (x, _y) => {
-      const d = (((x - c0) * cfg.dir) % outW + outW) % outW;
-      return d < wedge ? 1 : 0;
-    };
-    // A shown OUTSIDE the B-reveal wedge (its complement).
-    const aMask: Mask = (x, y) => (bMask(x, y) > 0 ? 0 : 1);
-    // B static full-frame at home BENEATH; A panned (wrap) on top, hidden in the wedge.
-    drawFull(out, imageB, 0, outW, outH, 1, null);
-    drawFull(out, imageA, panA, outW, outH, 1, aMask, true);
+    // EQUIRECT 360° PUSH — RE-DECODED 2026-07-24 from the REAL HEADLESS oracle (the
+    // authoritative source of truth). The earlier "A pans −86px/f + B centre-wedge,
+    // NO black" model was fit to a GUI-GT capture and is REFUTED by headless: headless
+    // passes through TOTAL BLACK at the midpoint (f12 = [0,0,0] uniformly, std=0) and
+    // NEITHER card translates. Measured on the minimized case (W=1920, N=24):
+    //   • A content is STATIC (phase-corr shift ≈0-4px across f0-8, NOT a −86px/f pan).
+    //   • B content is STATIC (phase-corr shift ≈−5px across f14-22, i.e. at home).
+    //   • A BLACK Color Solid (the "Alpha Mask Group" Color Solid, RGB=0, 4096×2048,
+    //     Blend Mode=28) wipes IN from the right OVER A, its left edge = aRight:
+    //     f0=1919,f2=1861,f4=1686,f6=1395,f8=986,f10=461,f11=155 → 0 at f12 (ease-IN,
+    //     accelerating). Full-frame black at f12.
+    //   • Then B wipes IN from the right OVER the black, its left edge = bLeft:
+    //     f13=1670,f16=865,f18=474,f20=200,f22=42,f23=7 → 0 at f24 (ease-OUT,
+    //     decelerating). B is revealed right→left over the black backdrop.
+    // So the render is: opaque BLACK backdrop; first half draws static A clipped to
+    // [0,aRight] (accelerating edge); second half draws static B clipped to [bLeft,W]
+    // (decelerating edge). No panorama yaw, no centre wedge. The eased edges are the
+    // two Align-To behaviors (Transition=4 curve) driving the black-card / B wipes; the
+    // ~1.85 power below is the measured shape of that ease (accelerate-out / decel-in).
+    // fill an OPAQUE BLACK backdrop (the Color Solid seam) — ImageData starts as
+    // transparent zeros, so set alpha to 255 across the whole frame.
+    for (let i = 3; i < out.data.length; i += 4) out.data[i] = 255;
+    const s = progress;                            // 0 .. ~0.958 (fct p=i/N, N=24)
+    const mirror = cfg.dir < 0;                    // West: wipe from the left instead
+    const xf = (x: number): number => (mirror ? outW - 1 - x : x);
+    // The two Align-To behaviors (Transition=4) each drive a QUADRATIC edge wipe
+    // (p≈2.0, fit rms ≈2-3px vs the headless edge measurements). Timing (fct N=24):
+    //   • black wipes IN over A, completing at frame 11.5 → progress 0.479 (aRight=W(1−t²))
+    //   • short full-black hold [11.5, 12.25]
+    //   • B wipes IN over black, frame 12.25→23.75 → progress 0.510..0.990 (bLeft=W(1−t)²)
+    const A_END = 11.5 / 24;                        // black fully covers A here
+    const B_START = 12.25 / 24, B_END = 23.75 / 24; // B wipe window
+    if (s < A_END) {
+      const t = s / A_END;                          // 0..1
+      const aRight = outW * (1 - t * t);
+      const aMask: Mask = (x, _y) => (xf(x) < aRight ? 1 : 0);
+      drawFull(out, imageA, 0, outW, outH, 1, aMask);
+    } else if (s > B_START) {
+      const t = Math.min(1, (s - B_START) / (B_END - B_START)); // 0..1
+      const bLeft = outW * (1 - t) * (1 - t);
+      const bMask: Mask = (x, _y) => (xf(x) >= bLeft ? 1 : 0);
+      drawFull(out, imageB, 0, outW, outH, 1, bMask);
+    }
+    // else: full-black hold — leave the opaque black backdrop as-is.
     return out;
   }
 
