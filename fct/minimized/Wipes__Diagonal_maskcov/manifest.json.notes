@@ -83,3 +83,25 @@ anchor/scale/position order; then fix buildTransformMatrix and regress-check all
 /tmp/mkmask.py (set pos/scale/anchor), /tmp/stripparent.py, /tmp/hrender.py (headless w/ DYLD reexec).
 NOTE: headless worker segfaults intermittently on rapid repeated cold boots — re-run singly if a
 frame is missing.
+
+## Anchor convention probe (2026-07-24) — decode in progress
+FCP mask transform behavior (parent scale stripped to 1, single static mask, coverage-bbox centroid;
+NOTE: feathered asymmetric shape makes bbox-centroid NOISY — need a clean unfeathered small-quad +
+alpha-weighted centroid for an exact fit):
+  sc=1 pos=0 anchorY=0    -> yc 565 (shape's own centroid, cov 47%)
+  sc=1 pos=0 anchorY=200  -> yc 540 (cov 60%)
+  sc=1 pos=0 anchorY=-300 -> yc 670 (cov 26%)
+  sc=1 pos=(800,400)      -> EMPTY (Position DOES translate, unscaled)
+  sc=2 pos=0 anchorY=0    -> yc 540 cov 83%   (bbox saturates when shape is large)
+  sc=2 pos=0 anchorY=200  -> yc 540 cov 98%   (anchor changes COVERAGE but not center at sc=2)
+  sc=3 pos=0 anchorY=0    -> cov 99%
+KEY: the ENGINE currently maps screen = pos + S·(v − anchor), which SCALES the anchor offset
+(anchorY=-238 × scaleY=5.25 ≈ 1250px off-frame). FCP's anchor has a much SMALLER effect and does
+NOT scale off-frame. The engine's buildTransformMatrix M = T(pos)·R·S·T(-anchor) is the suspect.
+NEXT: (1) build a clean probe: replace the mask geometry with a SMALL UNFEATHERED square at known
+coords, vary (pos, scale, anchor), measure alpha-weighted centroid (not bbox) — fit the exact
+Motion formula. (2) Likely fix: pivot-around-anchor screen = pos + anchor·(1−S)... derive exactly.
+(3) Apply to buildTransformMatrix; verify Wipes__Diagonal reaches ~99dB AND min-regress + full-65
+re-score show NO regression (this fn is shared by every transition — Fall/Reflection/Rotate use
+non-zero anchors + scale/rotation and currently pass, so the fix must preserve them).
+Probe harness saved: /tmp/mkmask.py, /tmp/stripparent.py, /tmp/hrender.py.
