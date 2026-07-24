@@ -68,7 +68,7 @@ function liftProceduralMasks(
   out: Layer[],
   hostType?: Layer['type'],
 ): void {
-  // S8 PROCEDURAL SHAPE-MASK MATTE (default ON; set FCT_PROCMASK=0 to disable).
+  // S8 PROCEDURAL SHAPE-MASK MATTE.
   // Lifts a source-less animated `<mask>` (Wipes/Diagonal's "Animated mask") into a
   // child mask-shape so the compositor rasterizes it as the owning group's alpha
   // matte. The mask sweeps a finite feathered quad diagonally; its INSTANTANEOUS
@@ -77,7 +77,6 @@ function liftProceduralMasks(
   // unions them (per-pixel max) into a monotonic envelope. VERIFIED WIN on GUI-GT:
   // Diagonal pair 11.39 → 13.47 dB (+2.08), 0 collateral regressions across all 65
   // (2026-07-14m). Lift fires on 14 built-ins so it is a generic reveal primitive.
-  if (typeof process !== 'undefined' && process.env?.FCT_PROCMASK === '0') return;
   for (const maskEl of directChildren(el, 'mask')) {
     // Skip Image Masks (have a non-zero Mask Source — handled by the imageMaskSourceId path).
     let hasSource = false;
@@ -91,8 +90,7 @@ function liftProceduralMasks(
     const mshape = parseShape(maskEl, factories, linkSourceIds);
     if (!mshape || mshape.verticesX.length < 3) continue;
 
-    // NARROW MOTION-PATH MASK LIFT (T-qcf704c6b, flag-gated,
-    // `FCT_MOTION_PATH_MASK_LIFT`, default OFF). Some scenes (Stylized/Slide_In)
+    // NARROW MOTION-PATH MASK LIFT (T-qcf704c6b). Some scenes (Stylized/Slide_In)
     // author a `<mask>` DIRECTLY UNDER a generator/image LEAF whose name isn't
     // "Mask"/"Masks" and whose enclosing DOM chain doesn't include one either —
     // so detectMask (in shapes.ts, name-walk-based) returns isMask=false and the
@@ -106,9 +104,7 @@ function liftProceduralMasks(
     // Force-lift by promoting mshape.isMask to true LOCALLY (a shallow copy in
     // the emitted Layer — no leak back to shapes.ts).
     let effectiveIsMask = mshape.isMask;
-    const motionPathLiftEnabled = typeof process !== 'undefined'
-      && process.env?.FCT_MOTION_PATH_MASK_LIFT === '1';
-    if (motionPathLiftEnabled && !effectiveIsMask
+    if (!effectiveIsMask
         && (hostType === 'generator' || hostType === 'image')) {
       const hasMotionPath = directChildren(maskEl, 'behavior').some(b => {
         const fid = parseInt(b.getAttribute('factoryID') || '0', 10);
@@ -117,8 +113,8 @@ function liftProceduralMasks(
       if (hasMotionPath) effectiveIsMask = true;
     }
 
-    // NARROW ANIMATED-VERTEX MASK LIFT (T-q11397f86, default ON — the FCT_PROCMASK
-    // env gate above already covers disable). A `<mask>` inside a generator/image
+    // NARROW ANIMATED-VERTEX MASK LIFT (T-q11397f86). A `<mask>` inside a generator/image
+    // leaf whose CONTROL POINTS themselves animate (a `<curve>` inside a vertex
     // leaf whose CONTROL POINTS themselves animate (a `<curve>` inside a vertex
     // Value parameter — Stylized/Center_Reveal's Arrow left/right shapes on the
     // "Grad middle" Gradient generator: 8 of 12 vertices per arrow key at scene

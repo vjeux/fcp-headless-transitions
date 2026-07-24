@@ -72,10 +72,8 @@ const FRAMING_VIEW_ENABLED = true;
 // box aspect (16:9) already ~matches the source (1.7793 vs 1.7778) and headless matches a
 // stretch (edge mae ~1.0) over aspect-fill+crop (right-edge mae ~3.1). Only UPSCALE. Scoped
 // at the call site to the base full-frame UNCROPPED case (box ≈ frame, crop=0 so effCrop is
-// 0 too, no framing/perspective/360). Env FCT_CONFORM_FILL=0 restores the native blit.
-const CONFORM_FILL_ENABLED = process.env.FCT_CONFORM_FILL !== '0';
+// 0 too, no framing/perspective/360).
 function conformDropZoneSource(src: ImageData, boxW: number, boxH: number): ImageData {
-  if (!CONFORM_FILL_ENABLED) return src;
   if (boxW <= 0 || boxH <= 0) return src;
   if (src.width >= boxW && src.height >= boxH) return src;
   return resample(src, boxW, boxH);
@@ -522,7 +520,6 @@ function renderCloneLayer(rctx: RenderContext, output: ImageData, evalLayer: Eva
       const leafId = cloneChainLeafId(rctx, layer.cloneSourceId);
       const leaf = leafId !== undefined ? rctx.layerById.get(leafId) : undefined;
       if (leaf && leaf.filters && leaf.filters.length > 0) {
-        if (process.env.FCT_DEBUG_CLONE_FILT) console.error(`[clone-filt] layer=${layer.id} type=${layer.type} name=${layer.name} leafId=${leafId} leafName=${leaf.name} filters=${leaf.filters.map(f=>(f as any).kind||(f as any).type||'?').join(',')}`);
         src = applyFilterChain(src, leaf.filters, evalLayer, time, filterOverrides, rctx);
       }
       // A clone may carry its OWN filters (e.g. Color Planes stacks 6 clones of the
@@ -1269,8 +1266,8 @@ export function composite(
   // over base B, thin B seams emerge where near-A stops covering). This hook now
   // uses the PROGRESS-AWARE A→B crossfade base (FCT_ZC_FADE_BASE, default-ON —
   // see z-composite.ts) which measures 20.04 dB on Replicator-Clones__3D_Rectangle
-  // vs the baseline 16.48 (+3.56 dB). Opt-OUT with FCT_Z_COMPOSITE_3D=0.
-  if (process.env.FCT_Z_COMPOSITE_3D !== '0' && sceneMatchesNestedMaskedCloneStack(scene)) {
+  // vs the baseline 16.48 (+3.56 dB).
+  if (sceneMatchesNestedMaskedCloneStack(scene)) {
     renderNestedMaskedCloneStack(rctx, scene, output, width, height);
     return output;
   }
@@ -1282,10 +1279,8 @@ export function composite(
 
   // Composite the field-texture proxy over the rendered frame (no-op if not detected).
   // T-B3 (flag-gated, default OFF): tint the proxy texture by the particle group's
-  // ancestor TintFx so the backdrop matches Motion's green wash. Default path is the
-  // untinted proxy (byte-identical to the shipped baseline).
-  const spriteSimOn = process.env.FCT_SPRITE_SIM !== '0';
-  const particleTint = spriteSimOn && field ? detectParticleGroupTint(scene) : null;
+  // ancestor TintFx so the backdrop matches Motion's green wash.
+  const particleTint = field ? detectParticleGroupTint(scene) : null;
   if (field) applyParticleFieldProxy(output, scene, field, particleTint);
 
   // The whole particle GROUP shares a fade-in envelope (FCP holds pure source A, then
@@ -1295,28 +1290,18 @@ export function composite(
   // frames (GT stays pure photo A through ~f05, then greens). Normalised by the 0.31
   // plateau and clamped to [0,1] so it reaches full strength at the plateau. Defaults
   // to 1 when there's no field texture (non-Nature emitter scenes are unaffected).
-  const groupFade = spriteSimOn && field
+  const groupFade = field
     ? Math.min(1, Math.max(0, (scene.evalLayerById?.get(field.layerId)?.opacity ?? 0.31) / 0.31))
     : 1;
 
-  // Emitter sim + render. T-B2 default: flat-COLOUR dots (byte-identical to baseline).
-  // T-B3 (flag-gated FCT_SPRITE_SIM=1): renders the cell's REAL Particle Source sprite
+  // Emitter sim + render: renders the cell's REAL Particle Source sprite
   // (resolved PNG, scaled/rotated/tinted/faded-over-life) + tints it by the particle-
-  // group TintFx. The sprite subsystem is BUILT and verified to render the correct
-  // structure (green hexagons over a green field on Wipes/Diagonal), but is gated OFF
-  // pending two calibration decodes that currently regress the PSNR vs GUI GT:
-  //   (1) TINT MAGNITUDE — Motion's TintFx (Color Space id=11 = 3) yields a PALE green
-  //       (GT f12 mean ≈ (183,225,178)); the luma·color model here over-darkens
-  //       (≈(52,134,50)). Needs the Color-Space=3 blend decoded (not plain luma·tint).
-  //   (2) FIELD ENVELOPE TIMING — GT stays pure brown photo through f05 then greens
-  //       f06→f11 and holds; the current proxy bell starts at progress≈0.088 (f02),
-  //       far too early. Needs the real green-onset envelope (texture layer opacity
-  //       curve, not a symmetric bell) decoded.
+  // group TintFx.
   // No-op when the scene has no simulatable emitter — non-particle transitions stay
   // byte-identical. Runs AFTER the field-texture proxy.
   applyEmitterSim(
     output, scene, { emitters: scene.emitters, particleCells: scene.particleCells },
-    spriteSimOn ? mediaResolver : undefined, particleTint, groupFade,
+    mediaResolver, particleTint, groupFade,
   );
 
   return output;

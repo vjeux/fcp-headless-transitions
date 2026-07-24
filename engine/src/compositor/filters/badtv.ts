@@ -221,20 +221,10 @@ function buildWavyTable(height: number, frame: number): Float32Array {
   //   tmp[0]=close1_open2()-1;  tmp[i]=tmp[i-1]+(close1_open2()-1 - 0.5)
   // normalize by 2*max|tmp|, +0.5, 3-tap smooth. Reproducing this from DSFMT(seed=2*frame+1)
   // matched the headless field per-row to ~0.5px (std 12.71 vs 12.76, autocorr 0.9995 vs 0.996)
-  // — see evidence/badtv_waviness_probe.json. Gated behind FCT_BADTV_WAVINESS_EXACT; the LCG
-  // stand-in below stays the shipped default (the exact walk needs the real host frame index for
-  // t≠0, but at t=0 frame=0 → seed=1 is exact).
-  const exact = typeof process !== 'undefined' && !!process.env?.FCT_BADTV_WAVINESS_EXACT;
+  // — see evidence/badtv_waviness_probe.json. Reproduces the exact dSFMT(seed=2*frame+1) walk.
   const seed = ((2 * frame + 1) >>> 0) || 1;
-  let rnd: () => number;
-  if (exact) {
-    const d = new DSFMT(seed);
-    rnd = () => d.next() - 1.0; // close1_open2() - 1.0 ∈ [0,1)
-  } else {
-    // Lightweight LCG stand-in keyed to the per-frame seed (prior shipped behaviour).
-    let s = seed;
-    rnd = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
-  }
+  const d = new DSFMT(seed);
+  const rnd = () => d.next() - 1.0; // close1_open2() - 1.0 ∈ [0,1)
   const tmp = new Float32Array(height);
   tmp[0] = rnd();
   let maxAbs = Math.abs(tmp[0]);
@@ -298,7 +288,7 @@ registerFilter({
     // "cannot verify identical → don't inject wrong-phase noise" decision, NOT
     // per-transition hardcoding.
     const wavy: Float64Array | Float32Array | null =
-      (typeof process !== 'undefined' && process.env?.FCT_BADTV_WAVINESS_EXACT && waviness > 0)
+      waviness > 0
         ? buildWavyTable(h, Math.round(ctx.time * 30) * 1) // frame = round(t*fps); t=0 → frame 0 → seed 1
         : null;
     const noiseField: Uint8ClampedArray | null = null;

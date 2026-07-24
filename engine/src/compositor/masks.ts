@@ -226,10 +226,6 @@ export function getSourceImage(rctx: RenderContext, source: ImageSource | undefi
       // The flare envelope + sweep follow the LINEAR transition progress, so use
       // the UN-wrapped scene time (mediaTime) — the retime-wrap that remaps
       // `rctx.time` for the drop zones must not warp the flare's own animation.
-      if (typeof process !== 'undefined' && process.env?.FCT_FLARE_DEBUG) {
-        // eslint-disable-next-line no-console
-        console.error(`[flare] time=${rctx.time} media=${rctx.mediaTime} endSec=${rctx.animationEndSec} canvas=${source.flare.width}x${source.flare.height} out=${imageA.width}x${imageA.height}`);
-      }
       // Render the flare AT THE OUTPUT FRAME SIZE (not the generator's authored
       // 1920×1080 canvas). The generator canvas is larger than the render frame
       // (1854×1042 here), and the layer's world transform maps canvas→frame, which

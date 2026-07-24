@@ -176,9 +176,9 @@ export function levelsFilter(input: ImageData, params: LevelsParams): ImageData 
   //   ws(in) -> stage1: affine [blackIn,whiteIn]->[0,1]  (NO gamma here)
   //          -> stage2: affine [0,1]->[blackOut,whiteOut], THEN pow(1/gamma)
   //          -> ws_inv -> code
-  // (each stage clamps to [0,1]). Shipped GUI-GT path (code-space LUT below) byte-identical.
-  const useWS = typeof process !== 'undefined' && process.env && process.env.FCT_LEVELS_WS === '1';
-  if (useWS) {
+  // (each stage clamps to [0,1]). DECODED gamma-1.958 working-space HgcLevels
+  // (VERIFIED vs REAL FCP headless).
+  {
     const iv = 0.51117, gm = 1.0 / 0.51117;   // gamma-1.958 working space
     const rng = range || 0.001;
     const cl01 = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x);
@@ -212,36 +212,6 @@ export function levelsFilter(input: ImageData, params: LevelsParams): ImageData 
     }
     return new ImageData(out, width, height);
   }
-
-  // Build lookup table for speed (256 entries per channel):
-  //   norm = clamp((x - blackIn)/(whiteIn - blackIn), 0, 1)
-  //   out  = pow(norm, 1/gamma) * (whiteOut - blackOut) + blackOut
-  // Verified vs headless FCP: gamma is pow(x, 1/gamma) (gamma>1 brightens midtones);
-  // the input black/white affine + output black/white remap match the HgcLevels
-  // stage-1 form (the second HgcLevels stage is identity for these templates).
-  const lut = new Uint8Array(256);
-  for (let i = 0; i < 256; i++) {
-    const normalized = Math.max(0, Math.min(1, (i / 255 - blackIn) / (range || 0.001)));
-    const gammaCorrected = Math.pow(normalized, invGamma);
-    const output = gammaCorrected * (whiteOut - blackOut) + blackOut;
-    lut[i] = Math.round(Math.max(0, Math.min(1, output)) * 255);
-  }
-
-  for (let i = 0; i < src.length; i += 4) {
-    if (mix >= 1) {
-      out[i] = lut[src[i]];
-      out[i + 1] = lut[src[i + 1]];
-      out[i + 2] = lut[src[i + 2]];
-    } else {
-      // Blend original with processed
-      out[i] = Math.round(src[i] * (1 - mix) + lut[src[i]] * mix);
-      out[i + 1] = Math.round(src[i + 1] * (1 - mix) + lut[src[i + 1]] * mix);
-      out[i + 2] = Math.round(src[i + 2] * (1 - mix) + lut[src[i + 2]] * mix);
-    }
-    out[i + 3] = src[i + 3]; // preserve alpha
-  }
-
-  return new ImageData(out, width, height);
 }
 
 /**
@@ -371,12 +341,11 @@ registerFilter({
     });
     const mix = ctx.param('Mix', 1);
     // Per-channel path: FCP's Histogram exposes RGB (master) + Red/Green/Blue groups. If any
-    // per-channel group is authored (and the WS decode is active), compose master∘channel via
-    // the per-channel filter. DECODED (fct/parity): a per-channel group applies the IDENTICAL
+    // per-channel group is authored, compose master∘channel via the per-channel filter.
+    // DECODED (fct/parity): a per-channel group applies the IDENTICAL
     // WS HgcLevels transfer to its own channel only (Red gamma=2 on R=160 -> 202 vs FCP 202.4).
-    const useWS = typeof process !== 'undefined' && process.env && process.env.FCT_LEVELS_WS === '1';
     const hasPerChannel = !!hist?.children?.some(c => c.name === 'Red' || c.name === 'Green' || c.name === 'Blue');
-    if (useWS && hasPerChannel) {
+    if (hasPerChannel) {
       return levelsFilterPerChannel(input, chan('RGB'), chan('Red'), chan('Green'), chan('Blue'), mix);
     }
     return levelsFilter(input, {

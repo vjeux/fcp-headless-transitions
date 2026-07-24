@@ -597,20 +597,13 @@ function detectMask(el: Element): boolean {
  */
 function extractAxisVertices(curveEl: Element): AxisVertex[] {
   const verts: AxisVertex[] = [];
-  // ANIMATED VERTEX VALUE (T-q11397f86) — default OFF (opt-in via
-  // `FCT_ANIMATED_VERTEX=1`) because promoting previously-dropped animated
-  // vertices from undefined to real numeric geometry changes the parsed shape
-  // count for masks that authored ONLY a `<curve>` Value with no static
-  // `value` attribute on the outer parameter (e.g. Heart's Bezier/Swoosh/
-  // Shadow/Bezier 4/Bezier 5 lifted-shape masks) — the old code SKIPPED
-  // those vertices, so the entire shape had 0 vertices and was dropped by
-  // parseShape's `axisX.length === 0` guard. Turning that path on
-  // unconditionally regressed Stylized__Heart 18.24→13.83 in the full-corpus
-  // gate. Under the flag we parse the animated curve AND accept a scalar
-  // snapshot from the curve's `value`/`default`/first-keyframe; without the
-  // flag the outer-attr scan is byte-identical to origin/main.
-  const animatedVertexEnabled = typeof process !== 'undefined'
-    && process.env?.FCT_ANIMATED_VERTEX === '1';
+  // ANIMATED VERTEX VALUE (T-q11397f86): promote a vertex whose Value (id=2) is
+  // authored as a `<curve>` (keypoint track) — e.g. Center_Reveal's Arrow masks,
+  // and Heart's Bezier/Swoosh/Shadow lifted-shape masks that author ONLY a
+  // `<curve>` Value with no static `value` attr. We parse the animated curve AND
+  // take a scalar snapshot (curve's `value`/first-keyframe/`default`) so the
+  // shape has real numeric geometry; the evaluator overwrites the snapshot at
+  // frame time.
   for (const vertex of directChildren(curveEl, 'vertex')) {
     const folder = firstChild(vertex, 'vertex_folder');
     if (!folder) continue;
@@ -627,7 +620,7 @@ function extractAxisVertices(curveEl: Element): AxisVertex[] {
       // in-place at frame time. Only the Value axis (id=2) is animated on the
       // shapes we've seen (Center_Reveal); tangents stay static — Motion never
       // authors per-vertex tangent curves in the built-in transition corpus.
-      if (id === '2' && animatedVertexEnabled) {
+      if (id === '2') {
         const inner = firstChild(param, 'curve');
         if (inner) {
           const parsed = parseCurve(inner);

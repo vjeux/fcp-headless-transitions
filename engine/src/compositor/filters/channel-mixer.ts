@@ -440,10 +440,8 @@ export function colorizeRemapFilter(
   // RAW endpoints, matching REAL FCP (headless transfer) at 0.18 rms / 0.5 worst
   // (transfer.PAEColorize) — the SAME unified colour working space as Tint + HSV. PROMOTED
   // after the ground-truth switch to HEADLESS FCP (net +6.24 dB across the 5 Colorize hosts,
-  // 0 regressions). FCT_COLORIZE_LEGACY=1 restores the old code-space Rec.709-luma path
-  // (which the GUI export happened to prefer — headless≠GUI, and headless is now the truth).
-  const colorizeLegacy = typeof process !== 'undefined' && !!process.env && process.env.FCT_COLORIZE_LEGACY === '1';
-  if (!colorizeLegacy) {
+  // 0 regressions).
+  {
     const iv = 0.51117, gm = 1.0 / 0.51117;   // gamma-1.958 working space
     const wr = 0.2126, wg = 0.7152, wb = 0.0722;   // Rec.709 luma
     const bRw = black.r, bGw = black.g, bBw = black.b;
@@ -467,22 +465,6 @@ export function colorizeRemapFilter(
     }
     return new ImageData(out, input.width, input.height);
   }
-  for (let i = 0; i < src.length; i += 4) {
-    // DECODED: HgcColorize dots against slot4 = the Y row of
-    // colorMatrixFromDesiredRGBToYCbCr (PAEColorize @0x1b1f4). For HD that is the
-    // Rec.709 luma (0.2126/0.7152/0.0722), NOT Rec.601 — measured closer to headless.
-    // Luma is computed on the sRGB code values (the shader unpremults but does NOT
-    // linearise the input before the dot).
-    const lum = luma(src[i], src[i + 1], src[i + 2]) / 255;
-    const rR = bR + lum * (wR - bR);
-    const rG = bG + lum * (wG - bG);
-    const rB = bB + lum * (wB - bB);
-    out[i] = src[i] * (1 - k) + rR * k;
-    out[i + 1] = src[i + 1] * (1 - k) + rG * k;
-    out[i + 2] = src[i + 2] * (1 - k) + rB * k;
-    out[i + 3] = src[i + 3];
-  }
-  return new ImageData(out, input.width, input.height);
 }
 
 // Channel Mixer (UUID B2E0DE39-…). The per-channel weights are NESTED children of the
@@ -556,22 +538,16 @@ registerFilter({
     // node-boundary VERIFIED but not yet promoted to the shipped GUI-GT path — the
     // 2026-07-11 hard-light rewrite REGRESSED Leaves because the working space was raw
     // sRGB; the decoded gamma-1.956 space must be gate-checked on Leaves before promotion.
-    // FCT_TINT_HARDLIGHT=1 opts into the faithful path (used by the parity harness and
-    // for the gate A/B check); shipped default stays byte-identical.
-    const useHL = typeof process !== 'undefined' && process.env && process.env.FCT_TINT_HARDLIGHT === '1';
-    if (useHL) {
-      // Read the REAL param set: nested Color group {Red,Green,Blue}, Intensity, Mix.
+    // Faithful decoded HgcTint hard-light path (transfer.PAETint VERIFIED vs REAL
+    // FCP headless): read the REAL param set (nested Color group {Red,Green,Blue},
+    // Intensity, Mix) and run the decoded hard-light shader in the gamma-1.956
+    // working space.
+    {
       const r = ctx.nestedParam('Color', 'Red', ctx.param('Red', 1));
       const g = ctx.nestedParam('Color', 'Green', ctx.param('Green', 1));
       const b = ctx.nestedParam('Color', 'Blue', ctx.param('Blue', 1));
       return tintHardLightFilter(input, r, g, b, ctx.param('Intensity', 1), ctx.param('Mix', 1));
     }
-    // Shipped path: because it neither consumes nor publishes a linear buffer it
-    // BREAKS the chain: Leaves' HSVAdjust is then a chain entry (legacy emit) and Leaves
-    // stays byte-identical. CP's Colorize->HueSat chain is unaffected (no Tint).
-    return tintFilter(input, ctx.param('Red', 1), ctx.param('Green', 1), ctx.param('Blue', 1),
-                      ctx.param('Intensity', 1), ctx.param('Mix', 1),
-                      isLinearCompositeEnabled());
   },
 });
 
@@ -634,56 +610,9 @@ registerFilter({
     // (transfer.PAEColorize). PROMOTED 2026-07-22 after the ground-truth switch to
     // HEADLESS FCP: measured net +6.24 dB across all 5 Colorize hosts vs headless, 0
     // regressions (Slide 16.88→19.14, Curtains 19.32→21.89, Color_Panels 16.35→17.32,
-    // Up-Over 12.44→12.88, Duplicate neutral). This path REGRESSED the old GUI gate
-    // (which is why it was env-guarded), but the GUI applied a display transform on top
-    // of FCP's real render — headless is now the truth, so the faithful decode ships.
-    // FCT_COLORIZE_LEGACY=1 restores the old chain-level scene-linear path.
-    const colorizeLegacy = typeof process !== 'undefined' && !!process.env && process.env.FCT_COLORIZE_LEGACY === '1';
-    if (!colorizeLegacy) {
-      return colorizeRemapFilter(input, black, white, intensity, mix);
-    }
-
-    // LEGACY chain-level LINEAR working-space path (T-qlinchain01, FCT_COLORIZE_LEGACY=1).
-    // See linear-chain.ts. Engages when Colorize is the 2nd+ colour-adjust filter on a
-    // layer (input carries a prior filter's cached linear buffer — hasLinearInput).
-    {
-      const k = intensity * mix;
-      // WORKING-SPACE endpoint decode (fct/parity). In the DECODED Rec.709 gamma-1.961
-      // working space the Colorize endpoints go in RAW (the VERIFIED transfer.PAEColorize
-      // decode: 0/1 endpoints are gamma-invariant, raw wins). In the legacy scene-linear
-      // chain the endpoints are sRGB-decoded. Select by the same FCT_WS_GAMMA flag the
-      // chain seed/encode uses, so the whole chain stays in ONE consistent space.
-      //
-      // ⚠️ NEGATIVE RESULT (2026-07-22): running the FULL chain in the confirmed Rec.709
-      // gamma-1.961 working space REGRESSES Color_Panels on the GUI gate (18.92 → 16.9),
-      // even though gamma-1.961 is the VERIFIED HEADLESS transfer. This re-confirms
-      // headless≠GUI: the GUI-GT export applies colour management BEYOND the per-pixel
-      // working-space transfer, so matching FCP's headless colour FUNCTION does not improve
-      // the GUI score — the scene-linear-vs-gamma-1.961 choice is not what closes the GUI
-      // gap. Kept env-guarded (FCT_WS_GAMMA, default OFF, shipped byte-identical) as decoded
-      // infrastructure; do NOT ship it as default without also modelling the GUI display
-      // pipeline (a separate, larger effort).
-      const wsGamma = typeof process !== 'undefined' && !!process.env && process.env.FCT_WS_GAMMA === '1';
-      const bLin = wsGamma
-        ? { r: black.r, g: black.g, b: black.b }
-        : { r: srgbChannelToLinear(black.r * 255), g: srgbChannelToLinear(black.g * 255), b: srgbChannelToLinear(black.b * 255) };
-      const wLin = wsGamma
-        ? { r: white.r, g: white.g, b: white.b }
-        : { r: srgbChannelToLinear(white.r * 255), g: srgbChannelToLinear(white.g * 255), b: srgbChannelToLinear(white.b * 255) };
-      if (hasLinearInput(input)) {
-        // MID-chain: resume from the prior filter's exact linear buffer, encode ONCE.
-        const lin = getLinearInput(input);
-        colorizeLinearInPlace(lin, bLin, wLin, k);
-        const out = encodeLinearBuf(lin, input.width, input.height);
-        publishLinear(out, lin);
-        return out;
-      }
-      // ENTRY: emit legacy sRGB (gate-neutral for a lone Colorize) + publish linear.
-      const legacy = colorizeRemapFilter(input, black, white, intensity, mix);
-      const lin = getLinearInput(input);
-      colorizeLinearInPlace(lin, bLin, wLin, k);
-      publishLinear(legacy, lin);
-      return legacy;
-    }
+    // Up-Over 12.44→12.88, Duplicate neutral). This path REGRESSED the old GUI gate,
+    // but the GUI applied a display transform on top of FCP's real render — headless
+    // is now the truth, so the faithful decode ships.
+    return colorizeRemapFilter(input, black, white, intensity, mix);
   },
 });

@@ -86,7 +86,9 @@ export function hasLinearInput(input: ImageData): boolean {
  * if it wins, becomes the shared colour-chain fix. Default OFF = byte-identical.
  */
 function _useWorkingGamma(): boolean {
-  return typeof process !== 'undefined' && !!process.env && process.env.FCT_WS_GAMMA === '1';
+  // DECODED Rec.709 gamma-1.961 working space (ProCore PCEstimateGamma(ITUR_709)
+  // + the 6 VERIFIED transfer decodes) — the space FCP's colour ops actually use.
+  return true;
 }
 
 /**

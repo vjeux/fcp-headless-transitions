@@ -482,10 +482,6 @@ function applyMotionPathBehaviors(layer: Layer, tx: Transform, timeSec: number):
     if (bp?.x) dx += evaluateCurve(bp.x, tLocal);
     if (bp?.y) dy += evaluateCurve(bp.y, tLocal);
   }
-  if (process.env.FCT_MP_DEBUG === '1') {
-    // eslint-disable-next-line no-console
-    console.error(`[MP] layer=${layer.name} type=${layer.type} t=${timeSec.toFixed(3)} dx=${dx.toFixed(1)} dy=${dy.toFixed(1)} mps=${mps.length}`);
-  }
   if (dx === 0 && dy === 0) return tx;
   return {
     ...tx,
@@ -727,14 +723,10 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   // the PLAYBOOK warns a global spin regresses Vertigo/Leaves).
   riggedTransform = applySpinBehaviors(layer, riggedTransform, timeSec);
   // Motion Path behaviors (factoryID=24) contribute an additive positionX/Y offset
-  // via __mpDeltaX/Y (basePosition curve at behavior-local time). Flag-gated
-  // (FCT_MOTION_PATH_EVAL=1, default OFF) — enabling adds the panel-slide for
-  // Slide_In but is a MINIMAL first pass that ignores pathControlPoints curved
-  // paths, so it may misplace other Motion-Path-driven scenes. Follow-up ticks
-  // expand coverage.
-  if (typeof process !== 'undefined' && process.env?.FCT_MOTION_PATH_EVAL === '1') {
-    riggedTransform = applyMotionPathBehaviors(layer, riggedTransform, timeSec);
-  }
+  // via __mpDeltaX/Y (basePosition curve at behavior-local time). Enables the
+  // panel-slide for Slide_In; a MINIMAL pass that handles the basePosition X/Y
+  // curves (ignores pathControlPoints curved paths).
+  riggedTransform = applyMotionPathBehaviors(layer, riggedTransform, timeSec);
   // Drop-zone timeline offset: a Transition A/B image whose media `offset` sits
   // LATER than its `in` point (offset > in) has its transform curves authored in
   // the layer's own local time frame — Motion places that local timeline at
@@ -815,8 +807,8 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
       const out = layer.timing.out && layer.timing.out.timescale > 0
         ? layer.timing.out.value / layer.timing.out.timescale : 0;
       const endSec = ectx.animationEndSec ?? 0;
-      if ((typeof process === 'undefined' || process.env?.FCT_PANEL_RETIME !== '0') && out - inn > 1e-3 && endSec > 1e-3) {
-        // General template retime (default ON; FCT_PANEL_RETIME=0 disables): the panel
+      if (out - inn > 1e-3 && endSec > 1e-3) {
+        // General template retime: the panel
         // media plays [in,out] over the clip [0,endSec], so the media-local time at
         // scene t is  in + (t/endSec)·(out−in). Curves are authored relative to
         // `offset`, so curveTime = mediaTime − offset. (Panels_Across in=0, out=1.602,
@@ -852,15 +844,14 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
       }
     }
   }
-  // PROCEDURAL MASK local-frame re-anchor (S8) — default ON (set FCT_PROCMASK=0 to
-  // disable). A lifted `<mask>` shape (Wipes/Diagonal's "Animated mask") carries its
+  // PROCEDURAL MASK local-frame re-anchor (S8): a lifted `<mask>` shape
+  // (Wipes/Diagonal's "Animated mask") carries its
   // Position/Scale/Rotation curves in the mask's OWN local time frame, placed at the
   // mask's timeline `offset`. Diagonal's mask has offset=0.3003s with its Position
   // keyed LOCAL 0.3003s→1.0677s (the diagonal sweep). Evaluated at raw scene time the
   // sweep runs ~0.3s early, so shift curveTime by the offset. Scoped to mask shapes
   // with offset > in. Pairs with the parser lift + the write-on envelope below.
-  if ((typeof process === 'undefined' || process.env?.FCT_PROCMASK !== '0')
-      && layer.type === 'shape' && layer.shape && layer.shape.isMask && layer.timing) {
+  if (layer.type === 'shape' && layer.shape && layer.shape.isMask && layer.timing) {
     const off = layer.timing.offset && layer.timing.offset.timescale > 0
       ? layer.timing.offset.value / layer.timing.offset.timescale : 0;
     const inn = layer.timing.in && layer.timing.in.timescale > 0
@@ -903,7 +894,7 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
     }
   }
 
-  // WRITE-ON envelope (S8, default ON; FCT_PROCMASK=0 disables): a procedural shape
+  // WRITE-ON envelope (S8): a procedural shape
   // mask (Wipes/Diagonal's "Animated mask") sweeps a finite feathered quad diagonally
   // across the frame — its INSTANTANEOUS alpha reveals THEN RETREATS (coverage
   // 0→85%→0 as the quad enters, crosses, and exits). FCP's reveal is MONOTONIC (once
@@ -914,8 +905,7 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   // monotonic envelope. Scoped exactly like the re-anchor above (mask shape, offset
   // > in). VERIFIED on GUI-GT: Diagonal pair 11.39→13.47 dB (+2.08), 0 regressions.
   let writeOnTransforms: Float64Array[] | undefined;
-  if ((typeof process === 'undefined' || process.env?.FCT_PROCMASK !== '0')
-      && layer.type === 'shape' && layer.shape && layer.shape.isMask && layer.timing) {
+  if (layer.type === 'shape' && layer.shape && layer.shape.isMask && layer.timing) {
     const off = layer.timing.offset && layer.timing.offset.timescale > 0
       ? layer.timing.offset.value / layer.timing.offset.timescale : 0;
     const inn = layer.timing.in && layer.timing.in.timescale > 0

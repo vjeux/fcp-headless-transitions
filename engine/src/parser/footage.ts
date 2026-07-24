@@ -750,21 +750,7 @@ export function determineImageSource(params: Parameter[], el: Element | undefine
     // pluginUUID=40091D89 = Motion's Gradient generator; byte-neutral for
     // every other slug — no non-Slide_In built-in has such a generator).
     if (el) neutralizeGradientMotionPathPos206Times(el);
-    // The RENDER path stays FLAG-GATED (`FCT_LINEAR_GRADIENT_GEN`) because
-    // without the Motion Path evaluator (FCT_MOTION_PATH_EVAL, evaluator/
-    // index.ts — Center_Reveal lane) AND the mask lift
-    // (FCT_MOTION_PATH_MASK_LIFT, parser/index.ts — Panels_Across +
-    // Center_Reveal contended), the panel would render at the wrong on-
-    // screen position and regress Slide_In to 11.51 dB. Those two flags
-    // must flip together with this render return by a future coordinated
-    // agent; when they do, the +4.73 dB timing win here compounds with the
-    // render path for the full +9.12 dB (measured: 12.11 → 21.23 dB).
-    if (process.env.FCT_LINEAR_GRADIENT_GEN === '1') {
-      return { type: 'linearGradient', gradient: parseLinearGradient(params) };
-    }
-    // Default: fall through (return undefined below). The timing
-    // neutralization above STILL applies (animationEndSec restored to 1.0s),
-    // which alone is the +4.73 dB win.
+    return { type: 'linearGradient', gradient: parseLinearGradient(params) };
   }
 
   // Color Solid generator (a plugin fill, not a drop zone).

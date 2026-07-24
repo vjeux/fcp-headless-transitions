@@ -291,133 +291,9 @@ export function hueSaturationFilter(input: ImageData, params: HueSatParams): Ima
   // REAL FCP transfer gives Value = ws_inv(ws(in)*value) at 0.22 rms (gamma 1.9605),
   // and full Saturation-desaturate = ws_inv(Rec709·ws(rgb)) matching (200,50,50)→73.5
   // vs measured 73.5 (scene-linear gives 84.6, code space 94.8). Same working space as
-  // the decoded HgcTint. Guarded by FCT_HSV_WORKINGSPACE=1 so the shipped GUI-GT path
-  // (which the chain-level linear buffer feeds) stays byte-identical until the chain-
-  // level GUI colour pipeline is decided; the parity harness tests the decoded model.
-  const useWS = typeof process !== 'undefined' && process.env && process.env.FCT_HSV_WORKINGSPACE === '1';
-  if (useWS) return hueSaturationFilterWS(input, params);
-  const satFactor = 1 + saturation;   // 0-centered -> lerp weight toward color
-  // Value (brightness) transfer, DECODED vs headless FCP on a 0..255 gray gradient
-  // (PAEHSVAdjust Value sweep, gradient probe): for the DARKEN leg 0 <= Value <= 1 the
-  // output is EXACTLY out = in * Value^2 in sRGB CODE space (FCP matches srgb*v^2 within
-  // +-2 codes at Value=0.25/0.5/0.65/0.8 across the whole gradient). Value <= 0 clamps to
-  // BLACK (Value=-1 and Value=0 both render out=0 — NOT identity). The old `value*value`
-  // without the clamp made Value=-1 -> valMul=1 -> IDENTITY, the worst faithful-oracle
-  // divergence (ddb 6.95 at Value=-1). Clamp the multiplier at 0.
-  // ⚠️ The BRIGHTEN leg Value > 1 is NOT a simple squared multiply (FCP brightens far
-  // harder than srgb*v^2 / lin*v / HSV-V*v — in=32 -> 141 at Value=1.5; no standard
-  // model fits and the exponent is inconsistent). No built-in transition authors
-  // Value > 1 (all shipping users dim: Light_Sweep/Lower/Center), so the brighten leg
-  // stays a documented gap; the clamp below keeps the correct darken behavior and does
-  // not regress it. For Value > 1 we keep value^2 (over-bright but unexercised).
-  const valMul = Math.max(0, value) * Math.max(0, value);
-  if (hue === 0 && saturation === 0 && value === 1) return input;
-
-  const width = input.width;
-  const height = input.height;
-  const src = input.data;
-  const out = new Uint8ClampedArray(src.length);
-  // HUE UNIT = RADIANS (corrected 2026-07-22 via fct/parity transfer probe). The .motr
-  // stores Hue in RADIANS (schema range [-π, π]); FCP feeds hg_Params[0].x = hue/(2π) turns.
-  // PROVEN with the node-boundary transfer oracle on a red input (230,30,30): Hue=2π/3
-  // (=2.0944 rad = 120°) rotates red→GREEN in real FCP ([4.6,96,0] — a clean +120° hue
-  // shift), while Hue=120 read as degrees is ~identity. The prior code did hue/360 (treating
-  // the param as DEGREES), which is only correct at Hue=0 — so it looked fine because all 4
-  // shipping HSVAdjust hosts (Objects__Leaves, Stylized__Center/Light_Sweep/Lower) author
-  // Hue=0 (this fix is GATE-NEUTRAL on the 65 slugs) but was WRONG across the param space.
-  // turns = hue_radians / (2π). (Residual value/saturation darkening vs FCP is the separate
-  // linear-working-space issue tracked below, not the hue unit.)
-  const hueTurns = (((hue / (2 * Math.PI)) % 1) + 1) % 1;
-  const doHue = hueTurns !== 0;
-  // Linear working-space migration (T-D2d / S2). Off by default; flip the master flag
-  // (setLinearCompositeEnabled) to opt into the physically-correct pipeline. See the
-  // header comment "LINEAR WORKING SPACE" for the decoded FCP reference.
-  const useLinear = isLinearCompositeEnabled();
-
-  for (let i = 0; i < src.length; i += 4) {
-    let r: number, g: number, b: number;
-    if (useLinear) {
-      r = LUT_SRGB_TO_LINEAR[src[i]];
-      g = LUT_SRGB_TO_LINEAR[src[i + 1]];
-      b = LUT_SRGB_TO_LINEAR[src[i + 2]];
-    } else {
-      r = src[i] / 255; g = src[i + 1] / 255; b = src[i + 2] / 255;
-    }
-
-    if (doHue) {
-      let [h, s, v] = rgbToHsv(r, g, b);
-      h = (h + hueTurns) % 1;
-      [r, g, b] = hsvToRgb(h, s, v);
-    }
-    // Saturation. FCP's HgcHSVAdjust decodes to a TRUE HSV-space operation:
-    //   sat_out = clamp( (chroma/value) * satMul, 0, 1 )   // extract_shader.py line 39
-    // For DESATURATION (satFactor ≤ 1) the plain Rec.709 luma-lerp reproduces headless
-    // FCP to ~47 dB (verified via tools/re/filter_verify on Objects__Leaves' Sat=-1/
-    // Val=0.65 → [42.2] gray, and the Sat=-0.5 midpoint), so that path is UNCHANGED —
-    // every desaturating shipping user (Leaves, Center, Lower, all Sat=-1) keeps the
-    // measured-correct luma-lerp. For OVER-SATURATION (satFactor > 1) the unbounded
-    // luma-lerp pushes chroma past the fully-saturated gamut boundary (a channel goes
-    // negative relative to gray), which after the [0,1] clamp reads as an over-bright,
-    // over-red result — the exact Color_Panels failure (engine f10 = (95.5,55.9,35.7)
-    // vs GUI GT (52.7,49.1,42.3)). The decoded shader instead scales HSV *saturation*
-    // and clamps it to 1, so the boost saturates at the gamut edge rather than clipping
-    // per-channel. Stylized__Color_Panels' Sat=1 (satFactor=2) is the ONLY shipping
-    // HueSat user with Saturation > 0 (all others are Sat=-1 or 0 — verified against
-    // every .motr), so this over-saturation branch fires on Color_Panels alone and is
-    // byte-identical for every other slug.
-    if (saturation !== 0) {
-      const gray = luma709(r, g, b);
-      if (satFactor > 1) {
-        // Decoded HSV-space saturation with clamp(sat, 0, 1). Reconstruct HSV, scale
-        // saturation by satFactor, clamp to 1, rebuild — value (max channel) preserved.
-        const [h, s, v] = rgbToHsv(r, g, b);
-        const sc = Math.min(1, s * satFactor);
-        [r, g, b] = hsvToRgb(h, sc, v);
-      } else {
-        // Desaturation (measured-correct Rec.709 luma-lerp toward gray).
-        r = gray + (r - gray) * satFactor;
-        g = gray + (g - gray) * satFactor;
-        b = gray + (b - gray) * satFactor;
-      }
-    }
-    // Value: squared multiply. In linear space this is a true photon scale (v=0.5 halves
-    // light, then encodes to sRGB ≈ 188 — the physically correct midtone dim).
-    if (value !== 1) { r *= valMul; g *= valMul; b *= valMul; }
-
-    const cl = (x: number) => Math.max(0, Math.min(1, x));
-    if (useLinear) {
-      const rC = cl(r), gC = cl(g), bC = cl(b);
-      if (mix >= 1) {
-        out[i] = linearChannelToSrgb(rC);
-        out[i + 1] = linearChannelToSrgb(gC);
-        out[i + 2] = linearChannelToSrgb(bC);
-      } else {
-        // Lerp in LINEAR light between the original linear source and the processed
-        // linear result, then encode. PAEHSVAdjust ships mix=1 so this path is only
-        // exercised by the TS-ism unit tests, but the linear-space lerp is the
-        // consistent choice for the working-space model.
-        const srcRL = LUT_SRGB_TO_LINEAR[src[i]];
-        const srcGL = LUT_SRGB_TO_LINEAR[src[i + 1]];
-        const srcBL = LUT_SRGB_TO_LINEAR[src[i + 2]];
-        out[i] = linearChannelToSrgb(srcRL * (1 - mix) + rC * mix);
-        out[i + 1] = linearChannelToSrgb(srcGL * (1 - mix) + gC * mix);
-        out[i + 2] = linearChannelToSrgb(srcBL * (1 - mix) + bC * mix);
-      }
-    } else {
-      if (mix >= 1) {
-        out[i] = Math.round(cl(r) * 255);
-        out[i + 1] = Math.round(cl(g) * 255);
-        out[i + 2] = Math.round(cl(b) * 255);
-      } else {
-        out[i] = Math.round((src[i] / 255 * (1 - mix) + cl(r) * mix) * 255);
-        out[i + 1] = Math.round((src[i + 1] / 255 * (1 - mix) + cl(g) * mix) * 255);
-        out[i + 2] = Math.round((src[i + 2] / 255 * (1 - mix) + cl(b) * mix) * 255);
-      }
-    }
-    out[i + 3] = src[i + 3];
-  }
-
-  return new ImageData(out, width, height);
+  // the decoded HgcTint. The decoded gamma-1.958 working-space transfer (VERIFIED vs
+  // REAL FCP headless).
+  return hueSaturationFilterWS(input, params);
 }
 
 
@@ -482,46 +358,8 @@ registerFilter({
     const value = ctx.rawParam('Value', 1);
     const mix = ctx.rawParam('Mix', 1);
 
-    // DECODED gamma-1.958 working-space path (fct/parity). When FCT_HSV_WORKINGSPACE=1
-    // the filter bypasses the chain-level scene-linear buffer and runs the decoded
-    // gamma-1.958 transfer directly (node-boundary faithful). Shipped default unchanged.
-    if (typeof process !== 'undefined' && process.env && process.env.FCT_HSV_WORKINGSPACE === '1') {
-      return hueSaturationFilter(input, { hue, saturation, value, mix });
-    }
-
-    // Chain-level LINEAR working-space path (T-qlinchain01). See linear-chain.ts.
-    // STRUCTURAL primitive (not gated on the per-filter isLinearComposite flag): it
-    // engages ONLY when this HSV filter is the 2nd+ colour-adjust filter on a layer
-    // (its input carries a prior filter's exact linear buffer — hasLinearInput; e.g.
-    // Color_Panels' Colorize→HueSat, or Leaves' HSVAdjust→Tint→Tint). It then resumes
-    // from that EXACT linear buffer, runs the HSV math in linear, and encodes ONCE —
-    // the FCP single-readback model, no per-filter re-encode. A CHAIN ENTRY (no
-    // cached input) still emits the LEGACY sRGB output so a lone HSV filter
-    // (Lower/Center/Light_Sweep) is BYTE-IDENTICAL, and publishes the linear
-    // computation so a following colour filter resumes losslessly.
-    if (hue !== 0 || saturation !== 0 || value !== 1) {
-      const cl = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x);
-      // Hue is RADIANS in the .motr -> turns = hue/(2π). See hueSaturationFilter (corrected
-      // 2026-07-22 via fct/parity transfer probe: Hue=2π/3 rotates red→green in real FCP).
-      // Gate-neutral: all shipping HSV hosts author Hue=0.
-      const hueTurns = (((hue / (2 * Math.PI)) % 1) + 1) % 1;
-      if (hasLinearInput(input)) {
-        // MID-chain: resume from the prior filter's exact linear buffer, encode ONCE.
-        const lin = getLinearInput(input);
-        hsvLinearInPlace(lin, hueTurns, saturation, value);
-        for (let i = 0; i < lin.length; i += 4) { lin[i] = cl(lin[i]); lin[i + 1] = cl(lin[i + 1]); lin[i + 2] = cl(lin[i + 2]); }
-        const out = encodeLinearBuf(lin, input.width, input.height);
-        publishLinear(out, lin);
-        return out;
-      }
-      // ENTRY: emit legacy sRGB (gate-neutral for a lone HSV) + publish linear.
-      const legacy = hueSaturationFilter(input, { hue, saturation, value, mix });
-      const lin = getLinearInput(input);
-      hsvLinearInPlace(lin, hueTurns, saturation, value);
-      for (let i = 0; i < lin.length; i += 4) { lin[i] = cl(lin[i]); lin[i + 1] = cl(lin[i + 1]); lin[i + 2] = cl(lin[i + 2]); }
-      publishLinear(legacy, lin);
-      return legacy;
-    }
+    // DECODED gamma-1.958 working-space transfer (fct/parity, node-boundary faithful,
+    // VERIFIED vs REAL FCP headless).
     return hueSaturationFilter(input, { hue, saturation, value, mix });
   },
 });

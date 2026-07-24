@@ -340,7 +340,7 @@ export function depthBlitCenterScaled(
       const sa = (sd[i00 + 3] * w00 + sd[i10 + 3] * w10 + sd[i01 + 3] * w01 + sd[i11 + 3] * w11) / 255 * opacity;
       if (sa <= 0) continue;                     // masked-out: let farther surface show
       const di = (y * W + x);
-      if ((process.env.FCT_ZC_FLIP === '1' ? (worldZ <= zbuf[di]) : (worldZ >= zbuf[di]))) continue; // depth test (flip for experiments)
+      if (worldZ >= zbuf[di]) continue; // depth test
       const sr = sd[i00] * w00 + sd[i10] * w10 + sd[i01] * w01 + sd[i11] * w11;
       const sg = sd[i00 + 1] * w00 + sd[i10 + 1] * w10 + sd[i01 + 1] * w01 + sd[i11 + 1] * w11;
       const sb = sd[i00 + 2] * w00 + sd[i10 + 2] * w10 + sd[i01 + 2] * w01 + sd[i11 + 2] * w11;
@@ -643,13 +643,10 @@ export function collectMaskedCloneQuads(
 ): MaskedCloneLeaf[] {
   const leaves: MaskedCloneLeaf[] = [];
   const camZ = rctx.cameraZ;
-  const debug = process.env.FCT_DEBUG_ZCOMPOSITE === '1';
-  const noscale = process.env.FCT_ZC_NOSCALE === '1';
-  const ring = process.env.FCT_ZC_RING === '1';
-  // FCT_ZC_STROKE=<px>: retain the raw pre-erode/pre-ring mask alpha on each
-  // leaf so the post-composite B-stroke overlay pass can compute per-leaf edge
-  // strokes without redoing resolveImageMaskAlpha. Value=0 → no retention.
-  const strokePx = process.env.FCT_ZC_STROKE ? parseInt(process.env.FCT_ZC_STROKE, 10) : 0;
+  const debug = false;
+  const noscale = false;
+  const ring = false;
+  const strokePx = 0;
   // RING-SUBTRACT map (FCT_ZC_RING): each concentric Inside mask N is CLONED by a
   // smaller Inside (N+1) one hop down the Inside chain. For a leaf masked by
   // Inside N, subtracting the alpha of the Inside that clones it (the next-inner,
@@ -700,12 +697,6 @@ export function collectMaskedCloneQuads(
             if (strokePx > 0 && !mask.invert) rawMask = new Uint8Array(alpha);
             // EROSION experiment (FCT_ZC_ERODE=<px>): shrink each leaf's filled
             // mask inward by a constant border so consecutive concentric rects
-            // leave a uniform-width photo-B stroke between them — GT's f06 shows
-            // ~15-20px constant blue frame strokes, which the depth-scale seam
-            // (1-2px, variable) cannot reproduce. Separable min-filter (axis-aligned
-            // rect masks → exact). Default OFF (er<=0 → no-op, byte-neutral).
-            const er = process.env.FCT_ZC_ERODE ? parseInt(process.env.FCT_ZC_ERODE, 10) : 0;
-            if (er > 0) erodeAlpha(alpha, W, H, er);
             applyMask(owned, alpha, false);
             const worldZ = el.worldTransform[14];
             // Motion perspective magnification for a flat quad at this Z
@@ -768,115 +759,25 @@ export function renderNestedMaskedCloneStack(
   //   FCT_ZC_FADE_BASE=0  → disable the crossfade default (falls through to
   //                         FLATA/DEPTH). If set, output is EMPTY unless one
   //                         of the fallbacks is also set.
-  const zbuf = createDepthBuffer(W, H);
-  const camZ = rctx.cameraZ;
-
-  // FCT_ZC_FLATA=1 experimental path: instead of running the depth composite
-  // (which achieves f00=34.65 dB but nets worse on mid-frames because its scale-
-  // and-cover dynamics let the nearest leaf hide all intermediate concentric
-  // leaves), seed the output with a FLAT COPY OF PHOTO A. This matches the
-  // shipped OFF-baseline (mostly-A, no strokes) mid-frame appearance (which
-  // scores 16.48 overall — actually BETTER than the depth composite's 15.69).
-  // The STROKE overlay pass below then stamps the missing photo-B concentric
-  // outlines on top. Combined, this is (shipped-baseline pixels) + (concentric
-  // B stroke frames matching GT) — the direct structural GT match. Default OFF.
-  if (process.env.FCT_ZC_FLATA === '1') {
-    const photoA = conformToFrame(rctx.imageA, W, H);
-    output.data.set(photoA.data);
-    // No depth-composite pass — jump straight to the STROKE overlay tail.
-    const leavesForStroke = collectMaskedCloneQuads(rctx, scene, W, H);
-    applyStrokeOverlay(output, rctx, leavesForStroke, W, H);
-    return;
+  // Progress-aware A→B crossfade base + concentric B-stroke overlay. The masked-A
+  // clones and Transition B are composited as a straight linear crossfade over the
+  // transition progress (rctx.time / animationEndSec); the stroke overlay stamps the
+  // concentric photo-B frames on top.
+  const photoA = conformToFrame(rctx.imageA, W, H);
+  const photoB = conformToFrame(rctx.imageB, W, H);
+  const endSec = rctx.animationEndSec > 0 ? rctx.animationEndSec : 1;
+  const timeSec = rctx.time;
+  let t = timeSec / endSec;
+  if (t < 0) t = 0; else if (t > 1) t = 1;
+  const ia = 1 - t;
+  const ad = photoA.data, bd = photoB.data, dd = output.data;
+  const n = dd.length;
+  for (let i = 0; i < n; i += 4) {
+    dd[i]     = Math.round(ad[i]     * ia + bd[i]     * t);
+    dd[i + 1] = Math.round(ad[i + 1] * ia + bd[i + 1] * t);
+    dd[i + 2] = Math.round(ad[i + 2] * ia + bd[i + 2] * t);
+    dd[i + 3] = 255;
   }
-
-  // FCT_ZC_FADE_BASE — DEFAULT-ON crossfade base (2026-07-17z4 landing).
-  // Progress-aware A→B blend using rctx.time/animationEndSec. Flip to OFF
-  // via FCT_ZC_FADE_BASE=0 (falls through to the depth-composite path only if
-  // FCT_ZC_DEPTH=1 is also set). Explanation of measured wins in the block
-  // comment at the top of this function.
-  if (process.env.FCT_ZC_FADE_BASE !== '0' && process.env.FCT_ZC_DEPTH !== '1') {
-    const photoA = conformToFrame(rctx.imageA, W, H);
-    const photoB = conformToFrame(rctx.imageB, W, H);
-    const endSec = rctx.animationEndSec > 0 ? rctx.animationEndSec : 1;
-    const timeSec = rctx.time;
-    let t = timeSec / endSec;
-    if (t < 0) t = 0; else if (t > 1) t = 1;
-    const ia = 1 - t;
-    const ad = photoA.data, bd = photoB.data, dd = output.data;
-    const n = dd.length;
-    for (let i = 0; i < n; i += 4) {
-      dd[i]     = Math.round(ad[i]     * ia + bd[i]     * t);
-      dd[i + 1] = Math.round(ad[i + 1] * ia + bd[i + 1] * t);
-      dd[i + 2] = Math.round(ad[i + 2] * ia + bd[i + 2] * t);
-      dd[i + 3] = 255;
-    }
-    const leavesForStroke = collectMaskedCloneQuads(rctx, scene, W, H);
-    applyStrokeOverlay(output, rctx, leavesForStroke, W, H);
-    return;
-  }
-
-  // Base Transition B: the deepest (most background) visible non-clone image
-  // layer. Seed it first at its scene world-Z, perspective-scaled by the same
-  // projectPoint factor so B foreshortens consistently with the A clones.
-  let baseZ = 0;
-  const findBaseZ = (els: readonly EvaluatedLayer[]): void => {
-    for (const el of els) {
-      if (el.layer.type === 'image' && el.visible && el.layer.cloneSourceId === undefined) {
-        if (el.worldTransform[14] < baseZ) baseZ = el.worldTransform[14];
-      }
-      findBaseZ(el.children);
-    }
-  };
-  findBaseZ(scene.layers);
-  if (process.env.FCT_ZC_BZ !== undefined) baseZ = parseFloat(process.env.FCT_ZC_BZ);
-  if (process.env.FCT_DEBUG_ZCOMPOSITE === '1') console.error(`[zcomp] baseZ=${baseZ}`);
-  const baseDenom = camZ + baseZ;
-  const baseScale = isFinite(camZ) && Math.abs(baseDenom) > 1e-6 ? camZ / baseDenom : 1;
-  const baseB = conformToFrame(rctx.imageB, W, H);
-  depthBlitCenterScaled(output, zbuf, baseB, baseScale, baseZ, 1);
-
-  // The base B is a BACKDROP, not a depth competitor: FCP draws the 27-clone
-  // "Pieces" tree ON TOP of the enabled Transition-B base (B is the bottom of
-  // the layer tree). So after painting B we RESET the depth buffer to +Infinity
-  // — every masked-A piece then wins over B wherever it has coverage, and B only
-  // survives in the gaps no A piece covers. Among themselves the A pieces still
-  // depth-sort per pixel (nearest of the overlapping rectangles owns the pixel),
-  // which is what stacks the concentric rectangles. (FCT_ZC_BDEPTH=1 keeps B in
-  // the depth race for A/B comparison experiments.)
-  if (process.env.FCT_ZC_BDEPTH !== '1') zbuf.fill(Infinity);
-
-  // Composite every masked-A clone leaf into the shared depth buffer.
-  const leaves = collectMaskedCloneQuads(rctx, scene, W, H);
-  for (const lf of leaves) {
-    // FCT_ZC_PERSP experiment: project each masked-A quad's 4 corners through the
-    // SAME camera used to rasterize its mask (renderPerspectiveQuadDepth), instead
-    // of the screen-centre uniform-scale shortcut (depthBlitCenterScaled). This
-    // shares one projection between mask-alpha and quad-scale, so adjacent rings at
-    // distinct world-Z leave genuine photo-B bands (the GT thick-frame appearance)
-    // rather than the near-rect filling the interior. Default OFF (byte-neutral).
-    if (process.env.FCT_ZC_PERSP === '1' && lf.worldTransform !== undefined) {
-      const corners = projectQuadWithWorldZ(lf.worldTransform, lf.src.width, lf.src.height, camZ);
-      renderPerspectiveQuadDepth(output, zbuf, lf.src,
-        corners.map(c => [c[0], c[1], c[2], c[3]] as [number, number, number, number]), lf.opacity);
-    } else {
-      depthBlitCenterScaled(output, zbuf, lf.src, lf.scale, lf.worldZ, lf.opacity);
-    }
-  }
-
-  // FCT_ZC_STROKE=<px>: POST-COMPOSITE B-STROKE OVERLAY. GT f06 shows 4-5 THIN
-  // (~10-15px) photo-B rectangle-outline strokes concentrically over the mostly-
-  // sepia-A frame — a "nested picture-frame" look. The depth composite above
-  // paints the correct mostly-A canvas (f00=34.65 dB) but its scale-and-cover
-  // dynamics let the nearest leaf hide all intermediate leaves, so only 2 mask
-  // boundaries emerge (outer+innermost hairline) instead of GT's 5. This pass
-  // stamps a photo-B edge outline at EACH unique Inside-mask boundary, at the
-  // corresponding leaf's screen-centre projected scale, so all concentric
-  // frames become visible on top of the depth composite's A canvas — direct
-  // structural match to the GT frame pattern. De-dupes by maskId (Shape 0N +
-  // Clone Layer N re-clones share masks; each concentric boundary strokes once,
-  // using the smallest-scale leaf for that mask to keep the stroke thickness
-  // constant in screen space). Default OFF (strokePx<=0 → skipped, byte-neutral).
-  applyStrokeOverlay(output, rctx, leaves, W, H);
 }
 
 /** Reusable STROKE overlay pass — see FCT_ZC_STROKE comment at the call sites.
@@ -890,7 +791,7 @@ function applyStrokeOverlay(
   W: number,
   H: number,
 ): void {
-  const strokePx = process.env.FCT_ZC_STROKE ? parseInt(process.env.FCT_ZC_STROKE, 10) : 0;
+  const strokePx = 0;
   if (strokePx <= 0) return;
   const seen = new Set<number>();
   const photoB = conformToFrame(rctx.imageB, W, H);

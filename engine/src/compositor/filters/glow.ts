@@ -444,15 +444,9 @@ registerFilter({
     if (amount > 0 && brightness > 0) {
       // Decode-faithful FLOAT bloom (bloomHeliumRender register trace, see bloomFilter
       // header): extract max(color·10 − Threshold/10, 0) → float blur(0.5·Amount) →
-      // additive orig + blur·(Brightness/50), clip to white. Gated behind FCT_BLOOM_FLOAT
-      // while gate-verifying; the 8-bit fallback below is the prior shipping behaviour.
-      if (process.env?.FCT_BLOOM_FLOAT) {
-        const clipToWhite = ctx.has('Clip to White') ? ctx.param('Clip to White', 1) > 0.5 : true;
-        return bloomFilter(input, { amount, brightness, threshold, clipToWhite });
-      }
-      // Prior 8-bit path (glowFilter): Bloom's pre-blur mask approximated by a hard
-      // luma cutoff; drops the ×10 amplification so it under-blooms at the peak.
-      return glowFilter(input, { radius: amount, threshold: threshold / 100, amount: brightness / 100, softness: 0 });
+      // additive orig + blur·(Brightness/50), clip to white.
+      const clipToWhite = ctx.has('Clip to White') ? ctx.param('Clip to White', 1) > 0.5 : true;
+      return bloomFilter(input, { amount, brightness, threshold, clipToWhite });
     }
     return input;
   },

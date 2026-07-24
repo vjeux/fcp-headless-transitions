@@ -327,41 +327,10 @@ interface WaveComponent {
  *   the interim plane-wave surrogate. */
 
 function buildField(sizeScale: number): WaveComponent[] {
-  // Exact decoded generator (LCG+Bays–Durham, seed 0x6f638) behind FCT_UNDERWATER_EXACT;
-  // shipped default keeps the surrogate. The exact path removes the guessed RNG — the
-  // remaining fidelity gap is the RefractV2 bilerp/projective displacement model, not
-  // the field generator (see buildFieldExact header).
-  if (typeof process !== 'undefined' && process.env?.FCT_UNDERWATER_EXACT) {
-    return buildFieldExact(sizeScale);
-  }
-  const rng = makeRng(0x6f638);
-  const comps: WaveComponent[] = [];
-  for (let n = 0; n < 10; n++) {
-    const rand0 = rng();
-    const rand1 = rng();
-    const rand2 = rng();
-    const octave = n / 4 + 1;
-    const freq = (rand2 * 0.25 + 0.75) * (1 / octave) * 0.25;
-    // FIELD_FREQ: global spatial-frequency factor of the wave field. The RefractV2
-    // shader multiplies the bilerped coordinate by 2π (c0.x); the effective visible
-    // ripple wavelength is set by this factor divided by Size. Calibrated (headless
-    // t=0 best-fit, generic — not per-transition) to give the large, slow refraction
-    // FCP shows: lower factor = larger ripples. See HEADLESS VALIDATION note.
-    const FIELD_FREQ = 0.5;
-    const w = (octave * freq * FIELD_FREQ) / sizeScale; // angular spatial frequency (÷ Size)
-    const angle = rand0 * TWO_PI;
-    comps.push({
-      fx: w * Math.cos(angle),
-      fy: w * Math.sin(angle),
-      phase0: rand1 * TWO_PI,
-      rate: octave,
-      amp: 1 / octave, // amplitude falloff (low octaves dominate the wobble)
-    });
-  }
-  // Normalise total amplitude to 1 so Refraction gain maps predictably.
-  const total = comps.reduce((s, c) => s + c.amp, 0) || 1;
-  for (const c of comps) c.amp /= total;
-  return comps;
+  // Exact decoded generator (LCG+Bays–Durham, seed 0x6f638). The exact path removes
+  // the guessed RNG — the remaining fidelity gap is the RefractV2 bilerp/projective
+  // displacement model, not the field generator (see buildFieldExact header).
+  return buildFieldExact(sizeScale);
 }
 
 /**
@@ -467,31 +436,26 @@ export function underwater(
   const REFRACT_GAIN = 4;
   const gain = refraction * REFRACT_GAIN;
 
-  // Exact corner-lerp displacement (decoded + validated vs headless) behind FCT_UNDERWATER_EXACT;
-  // shipped default keeps the plane-wave surrogate. size = sizeScale·100 (underwaterApply maps
-  // Size→sizeScale=Size/100); the corner-lerp uses the exact-RNG field + the M-projected endpoints.
-  const exact = typeof process !== 'undefined' && !!process.env?.FCT_UNDERWATER_EXACT;
+  // Exact corner-lerp displacement (decoded + validated vs headless). size =
+  // sizeScale·100 (underwaterApply maps Size→sizeScale=Size/100); the corner-lerp
+  // uses the exact-RNG field + the M-projected endpoints.
   const size = sizeScale * 100;
 
   const clampi = (i: number, lo: number, hi: number) => (i < lo ? lo : i > hi ? hi : i);
 
   for (let y = 0; y < h; y++) {
-    const v = (y + 0.5) / h;
     for (let x = 0; x < w; x++) {
-      const u = (x + 0.5) / w;
-      const [ox, oy] = exact ? fieldOffsetExact(comps, x, y, w, h, size)
-                             : fieldOffset(comps, u, v, timeVal);
+      const [ox, oy] = fieldOffsetExact(comps, x, y, w, h, size);
       // displaced SOURCE sample position (inverse map): sample where the water
-      // "bends" this pixel from. The exact path already folds the Refraction gain
-      // into UW_COEFF gain; the surrogate path scales by the calibrated REFRACT_GAIN.
+      // "bends" this pixel from. The exact path folds the Refraction gain into
+      // UW_COEFF gain.
       // SIGN: fieldOffsetExact's disp = gain·(offX,offY) matches the measured FORWARD
       // flow (rms 0.90px, corr 0.97 vs evidence/underwater_flow_t0.json); the inverse-map
-      // sample below produces a visible shift of −(offset), so the exact path NEGATES the
+      // sample below produces a visible shift of −(offset), so we NEGATE the
       // offset to reproduce the forward flow (validated: forward rms 0.90 vs inverse 40.5).
-      const g = exact ? UW_COEFF_S50.gain : gain;
-      const sgn = exact ? -1 : 1;
-      const fx = x + sgn * ox * g;
-      const fy = y + sgn * oy * g;
+      const g = UW_COEFF_S50.gain;
+      const fx = x - ox * g;
+      const fy = y - oy * g;
 
       // bilinear sample with wrap (repeatEdges) or clamp addressing
       let x0 = Math.floor(fx), y0 = Math.floor(fy);
@@ -524,40 +488,13 @@ registerFilter({
   names: ['paeunderwater', 'underwater'],
   label: 'Underwater',
   apply(input, ctx: FilterContext) {
-    // Decoded exact refraction (corner-lerp displacement + exact-RNG field) behind
-    // FCT_UNDERWATER_EXACT — validated vs headless t=0 flow (RMS 0.64px, corr 0.905-0.970).
-    // Shipped default stays the gate-safe passthrough (see the PHASE-2 CEILING note below).
-    if (typeof process !== 'undefined' && process.env?.FCT_UNDERWATER_EXACT) {
-      return underwaterApply(input, ctx);
-    }
-    // ── PHASE-2 CEILING — this filter is registered but its per-pixel refraction
-    // field is NOT applied for the shipping transition, because it cannot be made
-    // pixel-identical to FCP and enabling it REGRESSES the gate:
-    //   * FCP's HgcUnderwaterFreqSynth builds the 10-octave sinusoid table by
-    //     sampling a runtime-generated GPU gradient-noise texture (a permutation +
-    //     gradient table). That table is NOT recoverable from the Filters binary,
-    //     so the individual ripple PHASES differ from FCP even though the octave
-    //     amplitude falloff, phase-drift rate (∝ Speed·seconds·(octave+1)) and
-    //     displacement magnitude match (documented above; Phase-1 complete).
-    //   * The PAEUnderwater plugin ALSO renders BLACK in the headless FCP harness
-    //     for t≳1.0 (the FreqSynth noise texture isn't bound headless — the same
-    //     class of failure as reorient360). So there is no valid GUI GT past t≈0.5
-    //     to converge against either.
-    //   * MEASURED: wiring the faithful refraction into Movements/Flashback drops it
-    //     16.87 → 15.13 dB (−1.74, a gate FAIL). A phase-divergent sinusoid field is
-    //     worse than passthrough because it displaces pixels away from FCP's actual
-    //     (differently-phased) field. ONE TRUTH (GUI GT gate) says: do not apply it.
-    // The verbatim algorithm is fully documented above (Phase-1) and the faithful
-    // implementation is retained in `underwater()` below for the day the noise
-    // field / a t>0.5 GUI GT becomes available. Until then this apply() is a
-    // gate-safe passthrough. (This is NOT per-transition hardcoding — it is a
-    // filter-wide "cannot verify → do not diverge from truth" decision.)
-    return input;
+    // Decoded exact refraction (corner-lerp displacement + exact-RNG field) —
+    // validated vs headless t=0 flow (RMS 0.64px, corr 0.905-0.970).
+    return underwaterApply(input, ctx);
   },
 });
 
-/** The faithful (phase-divergent) refraction entry point — retained, not wired into
- * apply() yet (see the Phase-2 ceiling note above). Exercise it via filter_verify. */
+/** The faithful refraction entry point. */
 export function underwaterApply(input: ImageData, ctx: FilterContext): ImageData {
     const refraction = ctx.param('Refraction', 0);
     // parmId=3 Refraction==0 => passthrough (verbatim CPU short-circuit).

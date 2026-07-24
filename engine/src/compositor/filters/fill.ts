@@ -106,13 +106,11 @@ export function fillFilter(
   //   out = in*(1-Mix) + sRGBtoLinear(fill)*255*Mix
   // (an authored fill 0.5 contributes effective code 54.5 = s2l(0.5)*255, NOT 127.5 — which is
   // why the naive code-space lerp diverged: gray-0.5 fill, Mix 0.5, in 240 -> FCP 147 vs
-  // code-lerp 184). Guarded by FCT_FILL_LINEAR=1 (parity harness / faithful path); the shipped
-  // default keeps the raw code-space lerp so existing transitions are byte-identical.
-  const useLinearFill = typeof process !== 'undefined' && !!process.env && process.env.FCT_FILL_LINEAR === '1';
+  // code-lerp 184). Decoded faithful path (VERIFIED vs REAL FCP headless).
   const s2l = (c01: number): number => (c01 <= 0.04045 ? c01 / 12.92 : Math.pow((c01 + 0.055) / 1.055, 2.4));
-  const fr = (useLinearFill ? s2l(r) : r) * 255;
-  const fg = (useLinearFill ? s2l(g) : g) * 255;
-  const fb = (useLinearFill ? s2l(b) : b) * 255;
+  const fr = s2l(r) * 255;
+  const fg = s2l(g) * 255;
+  const fb = s2l(b) * 255;
 
   for (let i = 0; i < src.length; i += 4) {
     const ir = src[i], ig = src[i + 1], ib = src[i + 2], ia = src[i + 3];

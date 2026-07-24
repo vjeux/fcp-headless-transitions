@@ -49,7 +49,7 @@ const WS_IV = 0.51117;          // sRGB→working decode exponent (fct/parity, =
 const WS_GM = 1 / WS_IV;        // working→sRGB encode exponent ≈ 1.9563
 void WORKING_GAMMA;             // nominal 1.961; the operational exponent is WS_IV (see note)
 
-let _wsPipelineEnabled = typeof process !== 'undefined' && !!process.env?.FCT_WORKING_SPACE_PIPELINE;
+let _wsPipelineEnabled = true;
 export function isWorkingSpacePipelineEnabled(): boolean { return _wsPipelineEnabled; }
 export function setWorkingSpacePipelineEnabled(on: boolean): void { _wsPipelineEnabled = on; }
 
