@@ -1,0 +1,24 @@
+
+## Deep isolation findings (2026-07-24)
+- STATIC mask geometry is CORRECT: with offset=in (write-on off) + frozen position/scale, FCP and
+  engine both ~26% coverage, similar bbox. So parse/rasterize/feather/scale of a single static quad
+  is fine. The bug is NOT static geometry.
+- The divergence is ENTIRELY the WRITE-ON sweep. Engine coverage caps ~71-85% and HOLDS; FCP reaches
+  100% by scene t~0.65 then conceals L->R at the very end (t>0.95).
+- The mask legitimately animates Position (X -1045.8->2105.2, Y -2129->1870 over local 0.30->1.07)
+  AND Scale (X const 2.088; Y 0.686->5.941 over local -0.20->0.57). Both are sampled by the write-on.
+- The offset re-anchor (curveTime = timeSec - offset(0.30)) is NOT the cause: disabling it
+  (FCT_NO_REANCHOR probe) leaves coverage at 71%.
+- Write-on sub-time dump at t=0.70 (curveTime=0.494): the 13 swept quads run pos (-367,-1183)->(843,210),
+  scale.Y 1.82->4.81. Early quads sit ABOVE the frame (Y=-1183, frame top -540); only late quads enter.
+  The union traces a diagonal band that misses the frame's TOP-RIGHT and BOTTOM-LEFT corners.
+- OPEN QUESTION for next iteration: why does FCP's swept mask reach 100% when the quad-union caps at
+  ~71-85%? Hypotheses to test: (a) FCP's Scale.Y (up to 5.94) makes the quad tall enough to cover the
+  full column at each X — check if the engine is applying the FULL scale.Y at the correct sub-times or
+  clamping it; (b) the Scale curve local times [-0.20,0.57] vs Position [0.30,1.07] are on DIFFERENT
+  anchors — the engine samples both at the same `st`, but FCP may co-evaluate them at a consistent
+  scene time, so the engine's quad is smaller-than-FCP at the sweep positions where it matters;
+  (c) FCP's reveal may be a continuous swept-region (not K=12 discrete quads) — increase K and/or
+  rasterize the swept HULL between consecutive sub-quads to fill gaps.
+- NEXT CONCRETE STEP: freeze Position to a static mid-frame value but KEEP Scale animating (and vice
+  versa) to determine whether the coverage shortfall is driven by the Position sweep or the Scale ramp.
