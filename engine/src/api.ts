@@ -220,7 +220,7 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
         // A bilinear squeeze here horizontally compresses everything ~2.13× (the
         // geometry bug behind Bloom's 5 dB vs headless's 17 dB). See
         // docs/notes/FCP_360_BLUR_REVERSE_ENGINEERING.md.
-        return wideEquirect ? (process.env.FCT_DBG_NOCROP ? frame : cropCenter(frame, outW, outH)) : resample(frame, outW, outH);
+        return wideEquirect ? cropCenter(frame, outW, outH) : resample(frame, outW, outH);
       }
       return frame;
     };
