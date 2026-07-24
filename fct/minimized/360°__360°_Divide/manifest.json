@@ -1,0 +1,13 @@
+{
+  "slug": "360\u00b0__360\u00b0_Divide",
+  "source_motr": "/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized/360\u00b0.localized/360\u00b0 Divide.localized/360\u00b0 Divide.motr",
+  "worst_frame": 1,
+  "baseline_psnr": 13.994,
+  "final_psnr": 13.318,
+  "struct_before": 35,
+  "struct_after": 2,
+  "removed": 33,
+  "nframes": 24,
+  "slack": 0.12,
+  "protect": null
+}

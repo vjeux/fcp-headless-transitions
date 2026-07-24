@@ -1,10 +1,10 @@
 import { parseMotr } from './parser/index.js';
 import { evaluate } from './evaluator/index.js';
 import { composite } from './compositor/index.js';
-import { resample, cropCenter } from './compositor/resample.js';
+import { resample } from './compositor/resample.js';
 import { detect360Band, render360Band } from './compositor/transition360.js';
 import { buildTimeMap } from './timemap.js';
-import { hasColorizeRemapRig, isEquirectScene } from './capabilities.js';
+import { hasColorizeRemapRig } from './capabilities.js';
 import type { MotrScene } from './types.js';
 
 export interface TransitionOptions {
@@ -74,20 +74,14 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
   const outW = opts?.outputWidth;
   const outH = opts?.outputHeight;
 
-  // WIDE EQUIRECT (360°/VR) scene: a ≥3072-wide, ~2:1 panorama that does NOT take
-  // the detect360Band fast path (e.g. 360°/Bloom: a 4096×2160 group with 360°-Aware
-  // Gaussian/Glow/Bloom filters over the two drop zones). FCP renders the full
-  // panorama then reads back an output-sized window CENTERED on the aperture centre —
-  // a front-facing view — NOT a bilinear squeeze of the 2:1 canvas into 16:9 (which
-  // horizontally compresses everything ~2.13×: the geometry bug that scored
-  // 360°_Bloom at 5.1 dB vs the headless centred-crop's 16.9). Matches oz_render.mm's
-  // `sceneBounds.w >= 3072` equirect readback. When set, renderInstant CROPs the
-  // conform instead of resampling. See docs/notes/FCP_360_BLUR_REVERSE_ENGINEERING.md.
-  // Scene-aware: only a GENUINE panorama scene (both drop zones wide, see
-  // isEquirectScene) takes the cropCenter readback. A plain HD transition inside a 4K
-  // canvas (Movements/Smear) resamples the full frame down (and its drop zones get the
-  // fill-conform) so the settled-B tail fills the frame instead of centre-cropping.
-  const wideEquirect = isEquirectScene(scene);
+  // WIDE EQUIRECT (360°/VR) scene: a ≥3072-wide panorama scene (e.g. 360°_Divide 4096×2048,
+  // 360°_Bloom 4096×2160) that does NOT take the detect360Band fast path. FCP conforms it to
+  // the output by a plain RESAMPLE (squeeze), showing the FULL panorama scaled — RE-DECODED
+  // 2026-07-24 against the REAL HEADLESS oracle (Divide/Bloom f0 match the squeeze at 37.7 dB
+  // vs a centred cropCenter's 13.3 dB). The A/B drop-zone source is fill-conformed to the
+  // panorama buffer (conformEquirectAB in compositor/index.ts, gated on isEquirectScene) so the
+  // squeeze shows full A rather than a letterboxed native blit. The earlier "centred-window
+  // readback (cropCenter)" model was a mis-decode: it showed only the centre ~47% of A.
 
   // 360° transition family: drop-zone cover-fit band + "Align To" horizontal push.
   // These render at the CONFORMED output resolution directly (the push transform
@@ -220,7 +214,18 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
         // A bilinear squeeze here horizontally compresses everything ~2.13× (the
         // geometry bug behind Bloom's 5 dB vs headless's 17 dB). See
         // docs/notes/FCP_360_BLUR_REVERSE_ENGINEERING.md.
-        return wideEquirect ? cropCenter(frame, outW, outH) : resample(frame, outW, outH);
+        // WIDE EQUIRECT (360°/VR) conform to output. RE-DECODED 2026-07-24 against the
+        // REAL HEADLESS oracle: FCP conforms the 4096-wide panorama scene to the 1920×1080
+        // output by a RESAMPLE (squeeze), showing the FULL panorama scaled — it does NOT
+        // read back a centred 1920×1080 window. Proven on 360°_Divide AND 360°_Bloom f0
+        // (bloom inert): the drop-zone A conformed to fill the panorama buffer, then
+        // squeezed to output, matches FCP at 37.7 / 37.6 dB — vs cropCenter's 13.3 dB
+        // (which showed only the centre ~47% of A). The earlier "cropCenter, squeeze=5 dB"
+        // measurement was taken when A was blitted NATIVE (letterboxed small) BEFORE the
+        // squeeze — with the fill-conform (conformEquirectAB) now placing full A in the
+        // buffer, the squeeze is the correct full-frame conform. So the equirect readback
+        // is the SAME resample as every other scene: no centred-window special case.
+        return resample(frame, outW, outH);
       }
       return frame;
     };
