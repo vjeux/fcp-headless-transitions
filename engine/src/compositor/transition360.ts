@@ -137,6 +137,13 @@ export function detect360Band(scene: MotrScene): Band360Config | null {
     // prior [0.26,0.42] left→right window was a GUI-GT mis-fit (started too late, wrong
     // direction).
     if (wnames.has('Soften Edges')) return { mode: 'wipe', dir, w0: 0.0, w1: 0.5 };
+    // else (Border only) → Circle Wipe: a circle expanding from frame CENTRE, radius
+    // LINEAR in progress (decoded 2026-07-24 from the REAL HEADLESS oracle: radius =
+    // 85.8·f − 4.7 px @ W=1920, i.e. 2059 px per unit progress; B-fraction f1=0.01…
+    // f11=0.97, full at f12=progress 0.5; radius covers the frame corner at p≈0.537).
+    // The prior [0.30,0.48] window + rad=t·W/1.4 was a GUI-GT mis-fit (started far too
+    // late — engine held full A through f4-6 while FCP's circle already reached mid-frame).
+    return { mode: 'circle', dir, w0: 0.0, w1: 0.537 };
     return { mode: 'circle', dir, w0: 0.30, w1: 0.48 };
   }
 
@@ -479,7 +486,13 @@ export function render360Band(
   const cx = outW / 2, cy = outH / 2;
   let mask: Mask;
   if (cfg.mode === 'divide') mask = (x) => { const half = t * outW / 2; return (x < half || x > outW - half) ? 1 : 0; };
-  else if (cfg.mode === 'circle') mask = (x, y) => { const rad = t * outW / 1.4; const dx = x - cx, dy = (y - cy); return (dx * dx + dy * dy) < rad * rad ? 1 : 0; };
+  else if (cfg.mode === 'circle') {
+    // Circle Wipe: radius LINEAR in progress at 2059 px/progress @ W=1920 (decoded from
+    // the REAL HEADLESS oracle, radius = 85.8·f − 4.7 px, N=24). Scale to outW. Covers
+    // the frame corner at progress≈0.537, so B is fully revealed there.
+    const rad = (progress * 2059) * (outW / 1920);
+    mask = (x, y) => { const dx = x - cx, dy = (y - cy); return (dx * dx + dy * dy) < rad * rad ? 1 : 0; };
+  }
   else if (cfg.mode === 'wipe') { const halfW = t * (0.5 * outW); mask = (x) => (Math.abs(x - cx) < halfW ? 1 : 0); } // centre-out two-sided wipe
   else mask = (x) => (x < t * outW ? 1 : 0); // left→right wipe
   drawFull(out, imageA, 0, outW, outH, 1, null);

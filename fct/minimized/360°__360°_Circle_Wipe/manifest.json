@@ -1,0 +1,13 @@
+{
+  "slug": "360\u00b0__360\u00b0_Circle_Wipe",
+  "source_motr": "/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized/360\u00b0.localized/360\u00b0 Circle Wipe.localized/360\u00b0 Circle Wipe.motr",
+  "worst_frame": 7,
+  "baseline_psnr": 12.375,
+  "final_psnr": 5.735,
+  "struct_before": 46,
+  "struct_after": 5,
+  "removed": 41,
+  "nframes": 24,
+  "slack": 0.12,
+  "protect": null
+}
