@@ -32,12 +32,16 @@ what you started before picking anything new.
   and NOT permission to ship a partial/quick fix to "make the tick productive". If a fix needs a
   large subsystem, a deep refactor, hours of binary RE across many ticks — DO THAT. It is fine and
   expected for a single bug to span many cron ticks. Depth over breadth. Correctness over score.
-- Do not env-gate a fix just to avoid dealing with a regression it exposes. If the correct fix
-  regresses something else, that "something else" was relying on wrong behavior — but you do NOT
-  need to fix or even measure that other case now. Ship the decoded-correct fix and move on; the
-  other case is its own separate bug you'll reach later. Never chase regressions or hold a correct
-  fix hostage to another slug's score. Prefer a correct default; only gate when you have a decoded
-  reason the two truly differ.
+- NO FEATURE FLAGS. Never add an `FCT_*` env gate / opt-in flag to guard a fix. There is exactly
+  ONE behavior: the decoded-correct one, always on. If a fix is the decoded-faithful FCP mechanism,
+  ship it as the unconditional default. (All prior FCT_* flags were removed 2026-07-24 — do not
+  reintroduce the pattern. The only surviving FCT_* env vars are the render harness inputs
+  FCT_RENDER_MOTR/A_PNG/B_PNG/T/OUT and the gen/slug driver vars — never behavior toggles.)
+- Do not gate a fix to avoid a regression it exposes. If the correct fix regresses something else,
+  that "something else" was relying on wrong behavior — but you do NOT need to fix or even measure
+  that other case now. Ship the decoded-correct fix and move on; the other case is its own separate
+  bug you'll reach later. Never chase regressions or hold a correct fix hostage to another slug's
+  score.
 
 ## The loop (one iteration)
 1. PICK a target. If a fix is already in progress, CONTINUE it — do not switch.
