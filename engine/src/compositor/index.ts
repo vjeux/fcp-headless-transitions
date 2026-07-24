@@ -804,7 +804,27 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
         && (layer.source?.type === 'transitionA' || layer.source?.type === 'transitionB')
         && dz.width >= output.width - 2 && dz.height >= output.height - 2
         && (dz.width > output.width + 2 || dz.height > output.height + 2);
-      const conformed = conformBoxEqOut || conformSubCanvasAB || conformOverscanAB;
+      // EQUIRECT A/B card: a GENUINE 360°/VR panorama (rctx.equirectScene) renders at
+      // its native 4096×2160 canvas and reads back a centred output-sized window
+      // (cropCenter). The A/B drop-zone SOURCE (native ~1854×1042) is blitted at its
+      // native size, centred — so the centred readback catches ~33px black side bars
+      // and ~50px black top/bottom (content 1854×976 < 1920×1080), and the content is
+      // ~0.87× too dark AND slightly SMALLER than FCP's view (FCP fills the 1920×1080
+      // front-facing view, so its content is magnified ×1.04 h / ×1.10 v vs ours —
+      // decoded from the t=0 no-bloom frame: panorama content occupied cols[1121,2974]
+      // rows[592,1568] = 1853×976, and FCP needs exactly 1920/1853=1.04, 1080/976=1.10
+      // to align). FCP conforms the drop-zone to FILL the front-facing readback. So
+      // stretch-conform the A/B source to the OUTPUT size; blitted centred in the
+      // 4096×2160 canvas, the centred readback then shows it filling the frame — same
+      // fill-conform the non-equirect A/B cards already get, just gated back on for the
+      // panorama readback (the earlier "regressed −0.38" measurement was vs GUI-GT with
+      // the BROKEN 8-bit bloom; against HEADLESS with the faithful float bloom, filling
+      // the readback is the correct front-facing view).
+      const conformEquirectAB = !!dz && rctx.equirectScene && boxNotCropped
+        && !(FRAMING_VIEW_ENABLED && rctx.framed)
+        && (layer.source?.type === 'transitionA' || layer.source?.type === 'transitionB')
+        && (src.width < output.width - 2 || src.height < output.height - 2);
+      const conformed = conformBoxEqOut || conformSubCanvasAB || conformOverscanAB || conformEquirectAB;
       const drawSrc = conformed
         ? conformDropZoneSource(src, output.width, output.height)
         : src;
