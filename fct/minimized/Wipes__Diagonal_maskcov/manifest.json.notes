@@ -139,3 +139,22 @@ then vary (pos,scale,anchor) ONE at a time and fit the exact Motion transform. O
 buildTransformMatrix. The anchor-scaling bug (238×5.25≈1250 off-frame) stands as the leading cause of
 the coverage cap; confirm the exact formula before editing the shared transform code.
 Probes: /tmp/mksquare.py, /tmp/mkmask.py, /tmp/stripparent.py, /tmp/hrender.py.
+
+## CLEAN SQUARE PROBE (2026-07-24) — exact discrepancy isolated
+Replaced the mask geometry with a sharp 200×200 SQUARE (±100 shape units), feather=0, pos=0 sc=1
+anchorY=-238 (the mask's authored anchor), parent 'Transition Diagonal' scale stripped to 1:
+  FCP:    centroid (1210, 932)  size 354×322 px
+  engine: centroid (1209, 144)  size 282×282 px
+FINDINGS (X is CORRECT, Y is the bug):
+  - X centroid matches (1210 vs 1209). 
+  - Y centroid: FCP 932 vs engine 144 — off by 788px. The engine places the square near the TOP,
+    FCP near the BOTTOM. This is the anchorY=-238 being applied with the WRONG SIGN/scale on Y.
+  - Size: FCP 354×322 (non-square! wider than tall) vs engine 282×282 (square). FCP applies a
+    NON-UNIFORM magnification (~1.77× X, ~1.61× Y) — there's a base coordinate scale (~1.7×,
+    project-unit->pixel?) that the engine applies as ~1.4× (282/200) uniformly. The Aspect Ratio=1.5
+    param may drive the non-uniform X/Y.
+EXACT NEXT STEP: sweep anchorY ∈ {-238,0,+238} and scale ∈ {1,2} on this clean square, record FCP
+centroid+size each, and SOLVE the linear map (pixel = A·shapeCoord + b) for X and Y separately.
+That yields the exact Motion mask transform (base scale, anchor sign, aspect). Then fix
+buildTransformMatrix / the mask raster transform and verify no 65-slug regression.
+Harness: /tmp/mksquare.py (square with pos/scale/anchor args), /tmp/hrender.py.
