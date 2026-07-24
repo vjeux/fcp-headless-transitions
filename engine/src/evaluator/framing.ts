@@ -160,6 +160,15 @@ function ease(t: number): number {
  * shifted ramp e = clamp((frac − k)/(1 − k)) with k = REVEAL_HOLD; a strong ease-in
  * exponent gives the same "hold then rush" shape without a magic breakpoint per
  * transition. k and the exponent are generic (no slug branch).
+ *
+ * NOTE (2026-07-24): FCP-headless of the Video_Wall min-repro measures the tile
+ * FULLY off-frame through window-frac 0.71 then top-edge sliding 0.66→0.02 over
+ * frac 0.79-1.03. Raising k alone to 0.72 fixed the early frames (f16-19 correctly
+ * black) but REGRESSED f20-23 (the HOLD_MUL=2.6 slide distance is then too large to
+ * arrive by the window end → tail stays black; net 84.09→83.79). k and HOLD_MUL are
+ * COUPLED — the reveal ramp is an un-decoded approximation; tuning one constant
+ * unbalances it. Proper fix needs decoding the Framing behavior's Position
+ * Transition Time (=1) + Ease Out Curve (=10) temporal model, not piecewise fits.
  */
 const REVEAL_HOLD = 0.6;   // fraction of the window the tile is held off-frame
 function revealEase(frac: number): number {
