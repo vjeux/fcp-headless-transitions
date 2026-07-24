@@ -103,3 +103,22 @@ Then verify Drop_In/Diagonal/Glide particle fields vs FCP-headless (min-gen/min-
   that emit AT POINTS or on a line (Drop_In uses radius=100 circle) the mapping is simpler.
 - Particle ID assignment / birth order (getID's +0xe0) and the birth model (initialNumber burst) are the
   last pieces before wiring: enumerate how IDs are assigned across the initialNumber=379 burst.
+
+## SIMPLIFICATION: only 3 salts total → one 3-vector per particle + rejection sampler (2026-07-24)
+Grepped the ENTIRE Particles binary: there are ONLY 3 getRandTEAf salts — 0x3712F987, 0x83820093,
+0x39002838 — all inside initPropertiesFromShape. So Motion does NOT have separate salts for
+direction/speed/life/scale/spin. Instead each particle draws ONE 3D random vector:
+    R = ( teaRand(id, 0x3712F987, seed), teaRand(id, 0x83820093, seed), teaRand(id, 0x39002838, seed) )
+and the emitter SHAPE geometry maps R → spawn position (and the emission cone direction) via a
+REJECTION SAMPLER (0x18a68: xmm4 = 2·y + x <= radius²-type test; resample-region test). Speed/life/
+scale/spin ±randomness must be derived from R's components too (or from a re-draw with the same salts
+at a different id — TBD; but there are no other salts, so it's R-derived).
+PER-SHAPE geometry branches (read from emitter channels at this+0x4f48/0x4fe0/0x5078 = Points/Columns/
+Rows for the RECT/point-set path; the circle/burst path — Drop_In radius=100 — is a sibling branch).
+Each Shape (0=Rect,1=Circle,2=Burst,3=Spiral,4=paint) maps R differently. Drop_In uses a circle region
+(radius 100) with a WIDE 241° emission cone (emissionAngle=π, range=4.206) — the cone direction is the
+dominant spatial spread, derived from R.
+NEXT (the actual build): trace the CIRCLE-shape branch of initPropertiesFromShape to get R→(pos,dir)
+for Drop_In; derive speed/life/scale from R; assign particle IDs across the initialNumber=379 burst;
+then rebuild simulateAndCompositeCell's spawn analytically with teaRand. Do NOT half-swap hash01→teaRand
+without the correct R→attribute mapping (would just move the error — RULE 2).
