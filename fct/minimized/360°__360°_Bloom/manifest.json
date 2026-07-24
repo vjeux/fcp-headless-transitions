@@ -1,0 +1,13 @@
+{
+  "slug": "360\u00b0__360\u00b0_Bloom",
+  "source_motr": "/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized/360\u00b0.localized/360\u00b0 Bloom.localized/360\u00b0 Bloom.motr",
+  "worst_frame": 10,
+  "baseline_psnr": 8.093,
+  "final_psnr": 7.257,
+  "struct_before": 8,
+  "struct_after": 3,
+  "removed": 5,
+  "nframes": 24,
+  "slack": 0.12,
+  "protect": null
+}
