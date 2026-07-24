@@ -66,3 +66,20 @@ matching FCP. MUST verify against all other transitions that use anchor+scale (M
 family, Replicator panels) — this is a core transform change, regress-check the full min-gate + a
 broad slug re-score before shipping. This supersedes the earlier "write-on union caps 71%" framing:
 the write-on is fine; the per-sub-time transform mis-scales the anchor.
+
+## Anchor/scale convention probe (2026-07-24) — FCP behavior measured
+Parent 'Transition Diagonal' scale stripped to 1; mask Position/Scale/Anchor set explicitly; measured
+FCP coverage-bbox center (noisy — feathered partial shape, but indicative):
+  sc=1 anchorY=0   -> yc 565 (shape natural centroid, cov 47%)
+  sc=1 anchorY=200 -> yc 540 (cov 60%)
+  sc=1 anchorY=-300-> yc 670 (cov 26%)
+  sc=2 anchorY=0   -> yc 540 (cov 83%)
+  sc=2 anchorY=200 -> yc 540 (cov 98%)  <- center INVARIANT to anchor at sc=2
+  pos=(800,400) sc=1 -> EMPTY (Position DOES translate)
+Neither 'pos+S(v-anchor)' nor 'pos+S(v-anchor)+anchor' cleanly fits the noisy bbox-center data.
+The ENGINE currently over-shifts (anchor scaled by S -> +1250px off-frame at sc=5.25). NEXT: measure
+with a SMALL UNFEATHERED shape + alpha centroid (not bbox) for a clean fit; derive the exact Motion
+anchor/scale/position order; then fix buildTransformMatrix and regress-check all 65. Probe harness:
+/tmp/mkmask.py (set pos/scale/anchor), /tmp/stripparent.py, /tmp/hrender.py (headless w/ DYLD reexec).
+NOTE: headless worker segfaults intermittently on rapid repeated cold boots — re-run singly if a
+frame is missing.
