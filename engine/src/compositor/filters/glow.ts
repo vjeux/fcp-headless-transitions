@@ -97,6 +97,7 @@
  *     BOTH glow.rgb and glow coverage (r1.w). TS `amount` scales only rgb.
  */
 import { decimatedGaussianBlur, decimatedBlurFloatRGB } from './gaussian-blur.js';
+import { resample } from '../resample.js';
 import { luma } from '../blend.js';
 
 export interface GlowParams {
@@ -446,6 +447,26 @@ registerFilter({
       // header): extract max(color·10 − Threshold/10, 0) → float blur(0.5·Amount) →
       // additive orig + blur·(Brightness/50), clip to white.
       const clipToWhite = ctx.has('Clip to White') ? ctx.param('Clip to White', 1) > 0.5 : true;
+      // OUTPUT-RES BLOOM (2026-07-24, decoded vs REAL HEADLESS): a wide-equirect scene
+      // renders at a stretched panorama buffer (e.g. 4096×2160 = A stretched 2.13×) that is
+      // squeezed to output on readback. FCP's get360BlurNode sizes the blur from the pixel
+      // transform, i.e. the blur is applied in OUTPUT space. Blooming the STRETCHED panorama
+      // (then squeezing) is NOT equivalent — the extract is nonlinear and the blur of a
+      // 2.13×-stretched bright region over-narrows; scaling the decimated-blur radius does
+      // NOT fix it (the decimated blur loses energy at large radius). So when the buffer is
+      // larger than the output (outputScale<1), run the ENTIRE bloom at output resolution:
+      // downscale → extract/blur/combine → upscale back to the buffer. The compositor then
+      // squeezes the buffer to output = an output-space bloom (matches FCP f3-10 24-33 dB vs
+      // ~10-17 dB blooming the panorama). outputScale defaults to 1, so plain-HD Bloom
+      // (Lights/Bloom, buffer==output) is byte-identical.
+      const scale = ctx.outputScale;
+      if (scale < 0.999 && input.width > 8 && input.height > 8) {
+        const ow = Math.max(1, Math.round(input.width * scale));
+        const oh = Math.max(1, Math.round(input.height * scale));
+        const small = resample(input, ow, oh);
+        const bloomedSmall = bloomFilter(small, { amount, brightness, threshold, clipToWhite });
+        return resample(bloomedSmall, input.width, input.height);
+      }
       return bloomFilter(input, { amount, brightness, threshold, clipToWhite });
     }
     return input;

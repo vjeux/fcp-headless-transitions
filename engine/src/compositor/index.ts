@@ -1391,7 +1391,9 @@ export function composite(
   imageB: ImageData,
   width: number,
   height: number,
-  mediaResolver?: (url: string, timeSec?: number, absolute?: boolean) => ImageData | null
+  mediaResolver?: (url: string, timeSec?: number, absolute?: boolean) => ImageData | null,
+  outputRefWidth?: number,
+  outputRefHeight?: number,
 ): ImageData {
   const output = createBuffer(width, height);
 
@@ -1415,6 +1417,8 @@ export function composite(
     mediaTime: scene.unwrappedTime ?? scene.time,
     filterTime: scene.unwrappedTime ?? scene.time,
     equirectScene: computeEquirectScene(scene.width, scene.height, scene.layerById),
+    outputRefWidth: outputRefWidth ?? width,
+    outputRefHeight: outputRefHeight ?? height,
     culledStandaloneAB: scene.camera?.framed ? collectCulledStandaloneAB(scene) : undefined,
   };
 
@@ -1509,7 +1513,8 @@ function applyFilter(input: ImageData, filter: import('../types.js').Filter, eva
       // principle already used for lensFlare/video overlays (mediaTime). Falls back
       // to the wrapped `time` when no rctx is threaded.
       const fTime = rctx?.filterTime ?? time;
-      const ctx = makeContext(filter, fTime, input.width, input.height, overrides);
+      const outScale = rctx?.outputRefWidth && input.width ? rctx.outputRefWidth / input.width : 1;
+      const ctx = makeContext(filter, fTime, input.width, input.height, overrides, outScale);
       return mod.apply(input, ctx);
     }
   }
@@ -1554,7 +1559,7 @@ function applyFilterChain(
     if (isOsc(name) || isOsc(nodeName)) continue; // OSC preview filter — skip (matches applyFilter)
     const mod = lookupFilter(filter);
     if (mod && mod.applyWorking) {
-      const ctx = makeContext(filter, fTime, img.width, img.height, filterOverrides.get(filter.id));
+      const ctx = makeContext(filter, fTime, img.width, img.height, filterOverrides.get(filter.id), rctx?.outputRefWidth && img.width ? rctx.outputRefWidth / img.width : 1);
       if (!fbuf) fbuf = decodeToWorking(img);
       fbuf = mod.applyWorking(fbuf, ctx);
     } else {

@@ -19,6 +19,10 @@ export interface FilterContext {
   overrides?: Map<string, number>;
   width: number;
   height: number;
+  /** Ratio of the final OUTPUT (readback) width to the render-buffer width (outputW/bufferW).
+   * <1 for a wide-equirect scene squeezed on readback. The Bloom filter runs its extract→blur→
+   * combine at this OUTPUT resolution so the blur spread matches FCP. Defaults to 1 (no squeeze). */
+  outputScale: number;
   /** Resolve a numeric param by name, honoring rig overrides then curve/value. */
   param(name: string, fallback: number): number;
   /** True if a param is explicitly present (curve or value). */
@@ -78,7 +82,7 @@ export function lookupFilter(filter: Filter): FilterModule | undefined {
 }
 
 /** Build the FilterContext for a given filter invocation. */
-export function makeContext(filter: Filter, time: number, width: number, height: number, overrides?: Map<string, number>): FilterContext {
+export function makeContext(filter: Filter, time: number, width: number, height: number, overrides?: Map<string, number>, outputScale?: number): FilterContext {
   // A filter's parameter curves are authored on the effect's OWN (filter-local)
   // timeline; Motion places local zero at the filter's `timing offset` on the scene
   // timeline (scene = local + offset). So a curve is sampled at (sceneTime − offset).
@@ -157,5 +161,5 @@ export function makeContext(filter: Filter, time: number, width: number, height:
     if (typeof c.value === 'number') return c.value;
     return fallback;
   };
-  return { filter, time, overrides, width, height, param, has, rawParam, hasRaw, blurAmount, nestedParam };
+  return { filter, time, overrides, width, height, outputScale: outputScale ?? 1, param, has, rawParam, hasRaw, blurAmount, nestedParam };
 }

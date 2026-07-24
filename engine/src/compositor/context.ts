@@ -97,6 +97,11 @@ export interface RenderContext {
    * fill-conformed so the settled tail fills the frame instead of letterboxing.
    */
   equirectScene?: boolean;
+  /** Final output (readback) dims. For a wide-equirect scene the render buffer is squeezed
+   * to these; the Bloom filter runs its blur at this OUTPUT resolution so the spread matches
+   * FCP's pixel-transform-sized kernel. Defaults to the buffer when no squeeze applies. */
+  outputRefWidth?: number;
+  outputRefHeight?: number;
   /**
    * Set of layer ids for STANDALONE Transition A/B drop-zone image scenenodes
    * (Object.Type=1 or 2) that FCP CULLS from the framed-camera render because their

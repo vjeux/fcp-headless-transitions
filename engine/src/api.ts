@@ -206,7 +206,7 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
       // and 51% of the frame rendered BLACK. Native-then-resample scales the whole
       // scene (images, shapes, masks) uniformly, so the pieces tile the frame again.
       // (Verified vs GUI GT: Divide 10.15→11.16, Drop In 14.61→14.76; both improve.)
-      const frame = composite(evaluated, imageA, imageB, width, height, opts?.mediaResolver);
+      const frame = composite(evaluated, imageA, imageB, width, height, opts?.mediaResolver, outW, outH);
       if (outW && outH && (outW !== width || outH !== height)) {
         // WIDE EQUIRECT (360°/VR, e.g. 4096×2048 panorama): FCP reads back a
         // centred output-sized window (front-facing view), it does NOT squeeze the
