@@ -1,0 +1,13 @@
+{
+  "slug": "360\u00b0__360\u00b0_Push",
+  "source_motr": "/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized/360\u00b0.localized/360\u00b0 Push.localized/360\u00b0 Push.motr",
+  "worst_frame": 13,
+  "baseline_psnr": 5.819,
+  "final_psnr": 6.263,
+  "struct_before": 46,
+  "struct_after": 11,
+  "removed": 34,
+  "nframes": 24,
+  "slack": 0.12,
+  "protect": null
+}
