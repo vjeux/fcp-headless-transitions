@@ -408,13 +408,23 @@ export function render360Band(
     // fracB=1.000 in the GT). fct samples the half-open grid p=i/24, so the last
     // frame lands at 23/24≈0.958; a settle threshold of 0.94 (between f22=0.917 and
     // f23=0.958) reproduces the terminal snap to full B without touching the hold.
-    const settled = progress >= 0.94;
+    // SECOND PHASE (decoded 2026-07-24 from the REAL HEADLESS oracle): the wipe does
+    // NOT snap — after the right half saturates, B fills the LEFT portion from x=0
+    // sweeping RIGHT toward the centre seam. Measured A-gap left edge: f19=102, f20=274,
+    // f21=446, f22=618, f23=802 (linear ~174 px/frame), i.e. leftEdge = 4186·(p−0.768)
+    // px @ W=1920, starting p≈0.768; it reaches the centre seam (~W/2) around f28 (so
+    // the frame still has a ~139px A sliver at f23 — NOT fully B). The prior 0.94 snap
+    // jumped straight to full B, missing the f19-23 gradual left fill (f20 19.8, f22 15.3).
     const halfWidth = t * (0.5 * outW);          // covered span from centre, ≤ W/2
+    const leftFill = Math.max(0, (progress - 0.768) * 4186 * (outW / 1920)); // B from x=0 →
     const bMask: Mask = (x) => {
-      if (settled) return 1;
       // dir=+1: B fills [c0, c0+halfWidth); dir=−1: B fills (c0−halfWidth, c0].
       const d = (x - c0) * cfg.dir;              // signed distance from centre
-      return (d >= 0 && d < halfWidth) ? 1 : 0;
+      if (d >= 0 && d < halfWidth) return 1;     // right-half wedge (phase 1)
+      // Phase 2: B fills the LEFT portion from the far edge inward (dir-aware wrap side).
+      const leftCoord = cfg.dir >= 0 ? x : (outW - 1 - x);
+      if (leftCoord < leftFill) return 1;
+      return 0;
     };
     drawFull(out, imageA, 0, outW, outH, 1, null);
     drawFull(out, imageB, 0, outW, outH, 1, bMask);
