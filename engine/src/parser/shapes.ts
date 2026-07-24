@@ -92,6 +92,25 @@ export function findObjectSource(el: Element): number | undefined {
 
 }
 
+/**
+ * Read the shape's "Aspect Ratio" — Motion's `<aspectRatio>N</aspectRatio>`
+ * ELEMENT, a direct child of the shape/mask scenenode (sibling of
+ * `<isShapeStyle>`). It applies a pure X-axis stretch to the shape's LOCAL
+ * vertex coordinates BEFORE the node transform (see Shape.aspectRatio for the
+ * decoded headless probe). Returns the numeric value only when it is present,
+ * finite, positive, and ≠ 1 (so ordinary aspect-1 shapes keep the byte-neutral
+ * path and never carry the field). NB: the `Aspect Ratio` (id=153) PARAMETER
+ * inside the Shape group is a different, inert field and is intentionally not
+ * read here.
+ */
+function parseShapeAspectRatio(el: Element): number | undefined {
+  const ar = firstChild(el, 'aspectRatio');
+  if (!ar) return undefined;
+  const v = parseFloat((ar.textContent || '').trim());
+  if (!Number.isFinite(v) || v <= 0 || v === 1) return undefined;
+  return v;
+}
+
 export function parseShape(el: Element, factories: Map<number, string>, linkSourceIds: Set<number>): Shape | undefined {
   const curveX = findDescendant(el, 'curve_X');
   const curveY = findDescendant(el, 'curve_Y');
@@ -127,6 +146,24 @@ export function parseShape(el: Element, factories: Map<number, string>, linkSour
   const closed = closedEl ? closedEl.textContent?.trim() === '1' : true;
 
   const isMask = detectMask(el);
+
+  // Shape "Aspect Ratio" — the `<aspectRatio>N</aspectRatio>` ELEMENT that is a
+  // direct child of the shape/mask scenenode (sibling of `<isShapeStyle>`). Motion
+  // applies it as a pure X-axis scale on the shape's LOCAL vertex coordinates
+  // BEFORE the node transform (rotation/scale/anchor) — see Shape.aspectRatio.
+  // The `Aspect Ratio` (id=153) PARAMETER inside the Shape group is inert (a stored
+  // default, no render effect), so we read ONLY the element here. 1/absent = no
+  // stretch (byte-identical to the pre-fix path). Verified via headless probe on
+  // Wipes/Diagonal's diagonal-wipe mask (a 200-unit square renders 301×203 at
+  // aspect 1.5, 355×355 when also rotated 45°).
+  let aspectRatio: number | undefined;
+  {
+    const arEl = directChildren(el, 'aspectRatio')[0];
+    if (arEl) {
+      const v = parseFloat(arEl.textContent?.trim() || '');
+      if (!Number.isNaN(v) && v > 0 && Math.abs(v - 1) > 1e-9) aspectRatio = v;
+    }
+  }
 
   // Solid fill color for a non-mask filled shape. Motion stores it as a
   // "Fill Color" (id=111) parameter with Red/Green/Blue (ids 1/2/3, 0-1 float)
@@ -288,6 +325,7 @@ export function parseShape(el: Element, factories: Map<number, string>, linkSour
     closed,
     isMask,
     feather,
+    aspectRatio: parseShapeAspectRatio(el),
     fillColor,
     // Candidates carried on panelFill/panelFillOpacity; isSolidPanel is set later
     // (parseSceneNode) only if the layer passes the panel gate. If it never passes,

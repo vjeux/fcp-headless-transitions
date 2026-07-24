@@ -1016,6 +1016,21 @@ export interface Shape {
    */
   feather?: number;
   /**
+   * Shape ASPECT RATIO (Motion's `<aspectRatio>` element — a DIRECT child of the
+   * shape/mask scenenode, sibling of the shape params — NOT the "Aspect Ratio"
+   * id=153 parameter, which has NO rendering effect). Motion multiplies every
+   * vertex's local X coordinate by this value BEFORE the shape's own
+   * scale/rotation/position transform, i.e. it stretches the shape horizontally
+   * in shape-local space. Decoded from a clean ±100 square probe through REAL
+   * FCP-headless: aspectRatio=1.5 renders a 200-unit square as 301×203 px (X×1.5,
+   * Y unchanged); linear across {0.5,1,1.5,2,3}; applied PRE-rotation (a 300×200
+   * rect rotated 45° yields a 355×355 bbox = (300+200)/√2, matching FCP exactly).
+   * The engine previously ignored it → rendered a plain 199×199 square → the
+   * Wipes/Diagonal write-on union capped at ~71% coverage instead of 100%.
+   * 1 / undefined = no stretch (byte-identical to origin/main).
+   */
+  aspectRatio?: number;
+  /**
    * Solid fill color for a NON-mask filled shape (0-255 RGB, 0-1 alpha), read
    * from the shape's "Fill Color" (id=111) Red/Green/Blue params. Undefined when
    * the shape has no solid fill (e.g. gradient-only) or is a mask. Used by

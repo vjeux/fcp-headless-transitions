@@ -57,8 +57,19 @@ export function rasterizeShape(
   // position is supplied, fall back to Motion's origin-camera divide (cameraZ + wz).
   const camP = cameraPosZ ?? 0;
 
+  // Shape "Aspect Ratio" (Motion's `<aspectRatio>` element) — a pure X-axis
+  // stretch applied to the shape's LOCAL vertex coordinates BEFORE the node
+  // transform (rotation/scale/anchor). Decoded from headless probes on
+  // Wipes/Diagonal's diagonal-wipe mask: a 200-unit square with aspectRatio=1.5
+  // renders 301×203 (X×1.5, Y unchanged); rotated 45° it becomes a 355×355 bbox
+  // ((300+200)/√2) — confirming the stretch is in shape-local space, pre-rotation.
+  // 1/undefined = identity (byte-neutral for every aspect-1 shape).
+  const aspect = shape.aspectRatio && shape.aspectRatio > 0 ? shape.aspectRatio : 1;
+
   // --- Transform vertices (and tangent endpoints) into pixel coordinates. ---
   const toPixel = (vx: number, vy: number): [number, number] => {
+    // Local-space X stretch (aspect) happens FIRST, before any node transform.
+    if (aspect !== 1) vx = vx * aspect;
     if (transform) {
       if (perspective) {
         const m = transform;
