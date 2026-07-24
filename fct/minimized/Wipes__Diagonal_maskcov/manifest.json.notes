@@ -178,3 +178,27 @@ composition, and the base coordinate→pixel scale (likely a project-unit or asp
 mask path drops). Re-fit with the square probe (vary pos/scale/anchor) to pin exact constants, then
 apply. This is the concrete, measured root cause of Wipes__Diagonal's 2.6 dB worst frame.
 Probe harness: /tmp/mksquare.py, /tmp/stripparent.py, /tmp/hrender.py.
+
+## CLEAN SQUARE PROBE (2026-07-24) — EXACT single-number bug: engine mask scale is 1.2544x too small
+Replaced the mask geometry with a sharp 200x200 unfeathered SQUARE (±100 shape units), feather=0,
+pos=0 sc=1 anchor=0, ALL parent transforms (Transition Diagonal + Gradient group Position/Scale)
+zeroed. Rendered FCP vs engine, alpha centroid + size:
+  FCP:    world centroid (0,0)  size 355 x 355 px
+  engine: world centroid (0,0)  size 283 x 283 px
+POSITION MATCHES EXACTLY (0,0). The ONLY difference is SIZE: FCP 355, engine 283, ratio 355/283 =
+1.2544. So a mask shape's control-point coordinates map to pixels at a scale that is 1.2544x LARGER
+in FCP than in the engine. FCP maps 200 shape-units -> 355px (1.775x); engine -> 283px (1.415x).
+This missing 1.2544x is EXACTLY why the swept mask covers only ~71-85% instead of 100%: the mask
+verts (±550) reach ±778px in the engine but ±973px (full ±960 frame) in FCP.
+NOTE 1.080/0.861 = 1.2544 and 1920/1531 = 1.254 — likely a project-resolution / shape-coordinate-space
+factor. The mask shape coords are probably defined in a canonical space (e.g. a 1531-wide or a
+'1080p vs 1195p' authoring canvas) that the engine isn't scaling to the 1920x1080 output.
+NEXT (fit the 1.2544 source, then fix + verify no 65-slug regression):
+  - Check whether NON-mask shapes (Flash rectangles, panel shapes) have the same 1.2544x shortfall
+    (would point to a global shape-coordinate scale) or if it's mask-specific.
+  - Candidate: shapes are authored in a coordinate space normalized to project HEIGHT/width; the
+    engine may use output px directly. 1.2544 ≈ 1080/861 — find what 861 is (maybe the .motr's
+    authoring resolution or a 'Preserve Scale'/Aspect factor).
+  - Apply the scale in the shape rasterization / transform; verify Wipes__Diagonal ~99dB, golden
+    green, min-regress + full-65 no regression.
+Probe harness: /tmp/mksquare.py, /tmp/stripall.py, /tmp/stripparent.py, /tmp/hrender.py.
