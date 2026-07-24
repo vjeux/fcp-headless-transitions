@@ -27,6 +27,24 @@ import {
   type FloatImage,
 } from './working-space.js';
 import './filters/index.js'; // side-effect: registers all UUID-keyed filter modules
+import { srgbChannelToLinear } from './linear.js';
+
+/**
+ * Shape solid Fill Color → output code. Motion decodes the authored sRGB fill
+ * value (0..255) through the sRGB EOTF to linear light and writes that linear
+ * value directly as the output code (verified vs REAL FCP headless — see the
+ * fill-color paint site). Precomputed 256-entry LUT (0=0, 255=255 fixed points).
+ */
+const FILL_SRGB_TO_OUTPUT: Uint8Array = (() => {
+  const t = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) t[i] = Math.round(srgbChannelToLinear(i) * 255);
+  return t;
+})();
+function srgbFillToOutput(v: number): number {
+  const i = v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
+  return FILL_SRGB_TO_OUTPUT[i];
+}
+
 
 /**
  * Framing-camera view transform (factory-3 "Framing" behaviors). GENERIC primitive:
@@ -587,10 +605,26 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
     // is a colour swatch, no per-channel alpha modulation).
     const baseFC = layer.shape.fillColor;
     const linked = evalLayer.fillColorOverride;
-    const r = linked ? linked.r : baseFC!.r;
-    const g = linked ? linked.g : baseFC!.g;
-    const b = linked ? linked.b : baseFC!.b;
+    // Motion renders a shape's OWN solid Fill Color in LINEAR light: the authored
+    // sRGB fill value (Color Space id=11 = 3) is decoded through the sRGB EOTF and
+    // that linear value becomes the output code — verified against REAL FCP
+    // headless on a clean gray card (Wipes/Diagonal "Background"): fill 0.888 →
+    // 194 (= srgbToLinear(0.888)·255), 0.10→2.6, 0.60→81.2, 0.95→227, all matching
+    // the IEC 61966-2-1 piecewise curve (NOT pure gamma-2.2). This is SHAPE-FILL-
+    // specific: image dropzones pass through as sRGB (proved: image A held renders
+    // byte-identical [140,90,60] in FCP and engine, no linearization). White fills
+    // (Lights/Flash = 1.0) are a fixed point so that path is unchanged.
+    //
+    // A Link-driven fill OVERRIDE (Panels_Across "Red bar" = the Color linker's
+    // (188,18,36) copied in each frame) is NOT decoded here: decoding it regressed
+    // Panels_Across 16.61→14.96, so FCP renders the linked colour at its authored
+    // sRGB value (a different colour path than a shape's own Fill Color). Only the
+    // shape's own baseFC is decoded; the override passes through unchanged.
+    const r = linked ? linked.r : srgbFillToOutput(baseFC!.r);
+    const g = linked ? linked.g : srgbFillToOutput(baseFC!.g);
+    const b = linked ? linked.b : srgbFillToOutput(baseFC!.b);
     const a = baseFC ? baseFC.a : 1;
+
     const fillBuf = createBuffer(output.width, output.height);
     const fd = fillBuf.data;
     for (let p = 0, di = 0; p < alpha.length; p++, di += 4) {

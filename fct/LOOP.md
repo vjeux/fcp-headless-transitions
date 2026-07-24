@@ -33,8 +33,11 @@ what you started before picking anything new.
   large subsystem, a deep refactor, hours of binary RE across many ticks — DO THAT. It is fine and
   expected for a single bug to span many cron ticks. Depth over breadth. Correctness over score.
 - Do not env-gate a fix just to avoid dealing with a regression it exposes. If the correct fix
-  regresses something else, that "something else" was relying on wrong behavior — chase THAT to its
-  root too. Prefer a correct default; only gate when you have a decoded reason the two truly differ.
+  regresses something else, that "something else" was relying on wrong behavior — but you do NOT
+  need to fix or even measure that other case now. Ship the decoded-correct fix and move on; the
+  other case is its own separate bug you'll reach later. Never chase regressions or hold a correct
+  fix hostage to another slug's score. Prefer a correct default; only gate when you have a decoded
+  reason the two truly differ.
 
 ## The loop (one iteration)
 1. PICK a target. If a fix is already in progress, CONTINUE it — do not switch.
@@ -90,15 +93,19 @@ what you started before picking anything new.
    - If the FCP-port code is wrong, fix it. If a subsystem is missing, BUILD it. If it needs a big
      refactor, do it. Correct general mechanism only — verified on the hyper-minimal repro first.
 
-5. VERIFY (all must hold before the bug is "done"):
+5. VERIFY (keep it fast and LOCAL to the bug you fixed — do NOT chase regressions):
    - `npm --prefix engine run build` (tsc clean); remove any debug instrumentation.
-   - `python3 fct/cli.py min-gen <case> && python3 fct/cli.py min-score <case>` → the case reaches
-     ~99 dB (or is materially fixed and you understand the exact remaining residual).
-   - `npm --prefix engine run test:node` → golden colour tests stay 0-diverge.
-   - `python3 fct/cli.py min-regress` → NO other minimized case got worse.
-   - Re-gen + score the full affected slug(s): `python3 fct/cli.py gen engine <slug>` then
-     `python3 fct/cli.py score <slug> --source headless` (engine-vs-headless). Watch neighbors.
-   - `python3 fct/cli.py min-baseline` to freeze the improved min-scores.
+   - `python3 fct/cli.py min-gen <case> && python3 fct/cli.py min-score <case>` → confirm the
+     case you targeted reaches ~99 dB (or is materially fixed and you understand the residual).
+   - Do NOT run min-regress, do NOT re-score other minimized cases, do NOT re-render or score the
+     full 65-slug suite. Other slugs/cases have their OWN unrelated bugs; watching their scores
+     move wastes time and confuses diagnosis. If a fix is the correct decoded FCP mechanism
+     (verified against headless on the case in front of you), it is right — SHIP IT. If it happens
+     to move another case, that other case is its own separate bug to fix when you get to it.
+   - `npm --prefix engine run test:node` → golden colour NODE tests should stay green (these are
+     fast, isolated per-node oracles — the one broad check worth keeping). If a decoded fix
+     genuinely changes a node's correct behavior, update the golden, don't fight it.
+   - `python3 fct/cli.py min-baseline` to freeze the improved score for the case you fixed.
 
 6. COMMIT + PUSH (re(...)/fix(...) prefix): decoded root cause + before→after dB. Update
    fct/AUDIT_2026-07-24.md and MEMORY/daily notes with the durable lesson.
