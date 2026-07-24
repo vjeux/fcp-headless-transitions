@@ -47,3 +47,22 @@ the anchor-point/scale composition needs to match Motion's convention. Candidate
   NEXT: read Motion's actual transform order (ENGINE_RE_PLAYBOOK / OZTransformNode) or empirically
   fit by rendering FCP with a few (anchor, scale) combos and matching the engine. Then implement +
   verify: this repro reaches ~99 dB, golden test:node green, min-regress no worse, full 65 re-scored.
+
+## ROOT CAUSE FOUND (2026-07-24): anchor-point offset is SCALED by the layer scale (engine bug)
+Isolated to a STATIC single frame: max Scale (X=2.088, Y=5.941) + Position (0,0), mask offset=in
+(no write-on). FCP covers 94% (full frame, centered); engine covers 55% (bbox x[472,1726], shifted).
+Instrumented the world transform passed to rasterizeShape: sx=1.846 (=2.088*0.884 parent, CORRECT),
+sy=5.253, but **tx=1141, ty=1275** — the mask is translated OFF the bottom-right corner!
+  - anchorY = -238.4; buildTransformMatrix uses M = T(pos)·R·S·T(-anchor), so a vertex maps to
+    pos + S·(v - anchor). With pos=0, scaleY=5.253, anchorY=-238: the shape shifts by
+    S·(-anchorY) = 5.253 * 238 ≈ +1250 in Y (== the observed ty=1275). The anchor offset is
+    MAGNIFIED by the scale, pushing the mask off-frame.
+  - FCP does NOT do this: FCP anchorY=-238 → 94% coverage, anchorY=0 → 100% (a SMALL shift), i.e.
+    FCP's anchor effect is ~unscaled, keeping the shape centered. The engine scales it by 5.25×.
+CONCLUSION: the divergence (coverage cap 55-71%, and the write-on "never reaches 100%") is because
+the mask is shifted off-frame by the scaled anchor. Fix = correct the anchor/scale pivot composition
+so a scaled layer pivots AROUND its anchor without a scaled translation (Motion's actual convention),
+matching FCP. MUST verify against all other transitions that use anchor+scale (Movements 3D-fold
+family, Replicator panels) — this is a core transform change, regress-check the full min-gate + a
+broad slug re-score before shipping. This supersedes the earlier "write-on union caps 71%" framing:
+the write-on is fine; the per-sub-time transform mis-scales the anchor.
