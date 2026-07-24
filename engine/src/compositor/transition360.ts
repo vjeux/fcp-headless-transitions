@@ -129,7 +129,14 @@ export function detect360Band(scene: MotrScene): Band360Config | null {
   if (hasWipeRig) {
     if (wnames.has('Slices')) return { mode: 'divide360slices', dir, w0: 0.667, w1: 0.87 };
     if (wnames.has('Direction')) return { mode: 'wipe360h', dir, w0: 0.057, w1: 0.186 };
-    if (wnames.has('Soften Edges')) return { mode: 'wipe', dir, w0: 0.26, w1: 0.42 };
+    // Soften Edges (no Direction) → Reveal Wipe: a CENTRE-anchored TWO-SIDED horizontal
+    // wipe (B grows from frame centre outward BOTH ways), LINEAR over [0, 0.5]. Decoded
+    // 2026-07-24 from the REAL HEADLESS oracle: B-fraction is dead-linear f/12 (reaches
+    // full frame at f12=progress 0.5), and the reveal is symmetric about the centre
+    // (f3 covers centre cols 3-4, f6 cols 2-5, f9 cols 1-6), uniform vertically. The
+    // prior [0.26,0.42] left→right window was a GUI-GT mis-fit (started too late, wrong
+    // direction).
+    if (wnames.has('Soften Edges')) return { mode: 'wipe', dir, w0: 0.0, w1: 0.5 };
     return { mode: 'circle', dir, w0: 0.30, w1: 0.48 };
   }
 
@@ -473,6 +480,7 @@ export function render360Band(
   let mask: Mask;
   if (cfg.mode === 'divide') mask = (x) => { const half = t * outW / 2; return (x < half || x > outW - half) ? 1 : 0; };
   else if (cfg.mode === 'circle') mask = (x, y) => { const rad = t * outW / 1.4; const dx = x - cx, dy = (y - cy); return (dx * dx + dy * dy) < rad * rad ? 1 : 0; };
+  else if (cfg.mode === 'wipe') { const halfW = t * (0.5 * outW); mask = (x) => (Math.abs(x - cx) < halfW ? 1 : 0); } // centre-out two-sided wipe
   else mask = (x) => (x < t * outW ? 1 : 0); // left→right wipe
   drawFull(out, imageA, 0, outW, outH, 1, null);
   drawFull(out, imageB, 0, outW, outH, 1, mask);
