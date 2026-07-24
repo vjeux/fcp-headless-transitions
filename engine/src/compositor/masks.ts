@@ -459,6 +459,18 @@ function replicatorMaskAlpha(rctx: RenderContext, replEval: EvaluatedLayer, W: n
   const base = shapeLayer.worldTransform;
   const rx = replEval.worldTransform[12];
   const ry = replEval.worldTransform[13];
+  // REPLICATOR WORLD SCALE (2026-07-24): the Replicator node carries its OWN world
+  // scale (e.g. a 4096-wide equirect / oversized-canvas scene scales the replicator
+  // group by ~2.11 = 4096/1920). generateInstances lays the grid in the replicator's
+  // LOCAL space (Size param) and the cell shape's worldTransform is the cell's OWN
+  // (identity-scale) basis — NEITHER includes the replicator's world scale. So the
+  // grid offsets AND the tile sizes must both be multiplied by the replicator's world
+  // scale, else the tiles (bare 138px) are placed on a grid spanning 2.11× further
+  // apart → they cover only (1/2.11)² ≈ 22% of the frame and never tessellate
+  // (Objects/Squares: reveal capped at 23% coverage at t=0.9, so B never fills in).
+  // Extract the replicator's uniform world scale from its transform basis.
+  const rsx = Math.hypot(replEval.worldTransform[0], replEval.worldTransform[1]) || 1;
+  const rsy = Math.hypot(replEval.worldTransform[4], replEval.worldTransform[5]) || 1;
   // Uniform cell-SIZE multiplier (Replicator Cell "Scale" id=116). For a grid
   // replicator this scales the tiled shape up so its extent == the grid spacing
   // and the tiles tessellate seamlessly (Squares: shape extent 122.4 × cellScale
@@ -479,13 +491,14 @@ function replicatorMaskAlpha(rctx: RenderContext, replEval: EvaluatedLayer, W: n
     if (instScale <= 0 || instOpacity <= 0) continue;
     const totalScale = instScale * cellScale;
     const m = new Float64Array(base);
-    if (totalScale !== 1) {
-      m[0] *= totalScale; m[1] *= totalScale;
-      m[4] *= totalScale; m[5] *= totalScale;
-    }
-    // Grid placement: replicator group translation + instance grid offset.
-    m[12] = rx + inst.x;
-    m[13] = ry + inst.y;
+    // Tile size = cell basis × cellScale × instScale × REPLICATOR world scale (rsx/rsy),
+    // so the tiles grow to tessellate the replicator-scaled grid (see rsx/rsy note above).
+    m[0] *= totalScale * rsx; m[1] *= totalScale * rsx;
+    m[4] *= totalScale * rsy; m[5] *= totalScale * rsy;
+    // Grid placement: replicator group translation + instance grid offset SCALED by the
+    // replicator's world scale (the offsets come from generateInstances in local space).
+    m[12] = rx + inst.x * rsx;
+    m[13] = ry + inst.y * rsy;
     const cellMask = rasterizeShape(shape, W, H, m);
     // Fold the sequenced opacity into the cell's alpha so a mid-ramp dot reveals B
     // partially (matches Motion's cell opacity fade-in).
@@ -495,7 +508,8 @@ function replicatorMaskAlpha(rctx: RenderContext, replEval: EvaluatedLayer, W: n
     masks.push(cellMask);
   }
   if (masks.length === 0) return new Uint8Array(W * H);
-  return masks.length === 1 ? masks[0] : unionMasks(masks, W, H);
+  const result = masks.length === 1 ? masks[0] : unionMasks(masks, W, H);
+  return result;
 }
 
 /** First visible shape descendant in an evaluated subtree (rig-selected cell). */
