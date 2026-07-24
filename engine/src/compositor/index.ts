@@ -1032,7 +1032,24 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
         const dy = m ? m[13] : 0;
         return dx * dx + dy * dy;
       };
-      const sorted = [...visibleChildren].sort((a, b) => centreDist(b) - centreDist(a));
+      // Sort farthest-from-centre first (bottom) → nearest last (top). TIE-BREAK
+      // (equal centre distance, e.g. a flat stack of full-frame drop zones all at
+      // the scene origin) must honour Motion's FIRST-DECLARED-ON-TOP convention:
+      // the first-declared scenenode paints LAST (topmost). A stable sort keeps DOM
+      // order (first-declared first = BOTTOM), which is BACKWARDS — it painted the
+      // last-declared drop zone on top. Decoded from Movements/Switch (behaviors-
+      // stripped min repro): DOM [Clone B, Transition A, Transition B]; FCP shows
+      // Transition A (first-declared visible) for f0-12 then Clone B once it enters
+      // (in=0.934s), i.e. first-declared-visible on top. The engine painted
+      // Transition B (last-declared) on top → showed B when FCP showed A (9.4 dB).
+      // Reverse the DOM index in the tie-break so first-declared ends up last/topmost.
+      const domIndex = new Map<EvaluatedLayer, number>();
+      visibleChildren.forEach((c, i) => domIndex.set(c, i));
+      const sorted = [...visibleChildren].sort((a, b) => {
+        const d = centreDist(b) - centreDist(a);
+        if (Math.abs(d) > 1e-6) return d;
+        return (domIndex.get(b) ?? 0) - (domIndex.get(a) ?? 0); // later DOM → earlier (bottom); first-declared → last (top)
+      });
       // LINEAR-GRADIENT OVERLAY ON TOP (T-qcf704c6b). Motion's classic "Gradient"
       // generator (source.type 'linearGradient') authored as a SIBLING of the A/B
       // drop-zone cards is a translucent PANEL overlay that Motion paints ON TOP of
