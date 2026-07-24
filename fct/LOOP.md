@@ -4,7 +4,14 @@ GOAL: drive the from-scratch JS/TS Motion engine to match REAL headless FCP on A
 transitions. NO TIME LIMIT. Big refactors, new subsystems, deep binary RE, and fixing wrong
 FCP-port code are ALL in scope and EXPECTED. Repeat the loop below until every transition matches FCP.
 
-## TWO HARD RULES (do not violate — these override any urge to move on)
+## THREE HARD RULES (do not violate — these override any urge to move on)
+
+### RULE 0 — NEVER STOP WORKING. The cron is a safety net, not a work trigger.
+Do NOT "record findings and wait for the next cron tick." Do NOT "reach a good stopping point."
+There is no stopping point. If you know what to do next, DO IT NOW. The 10-minute cron exists only
+as a backup in case context is lost — it is NEVER permission to pause. If you have diagnosed a bug,
+IMPLEMENT THE FIX immediately. If you have implemented a fix, VERIFY IT immediately. If you have
+verified, COMMIT and PICK THE NEXT immediately. Momentum is everything. Depth AND speed.
 
 ### RULE 1 — A divergence is a bug, PERIOD. Never dismiss a minimized case.
 If a minimized case diverges from FCP-headless, that IS a real engine bug that must be
