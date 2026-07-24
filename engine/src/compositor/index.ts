@@ -515,6 +515,26 @@ function renderCloneLayer(rctx: RenderContext, output: ImageData, evalLayer: Eva
     // Clone Layer: draw the image of the object it mirrors, at this layer's transform.
     let src = resolveCloneImage(rctx, layer.cloneSourceId);
     if (src) {
+      // FILL-CONFORM a full-frame A/B drop-zone clone: resolveCloneImage returns the
+      // RAW imageA/imageB (e.g. 1854×1042) which, blitted at the clone's identity-
+      // scale transform into a larger scene buffer (Movements/Switch: 2160×1080),
+      // leaves the source PILLARBOXED — the sibling warm A shows through the side
+      // gaps (Switch f15-23: B tinted warm, left edge [55,39,60]). The direct
+      // drop-zone image path fill-conforms its source (see conformDropZoneSource);
+      // a clone of a full-frame A/B card must too. Scoped to a clone whose terminal
+      // leaf is a transitionA/B drop zone and whose source is smaller than the
+      // buffer, and only when this clone isn't perspective/3D-projected (a flat
+      // full-frame card). No-op for clones already ≥ the buffer or non-A/B clones.
+      {
+        const leafId0 = cloneChainLeafId(rctx, layer.cloneSourceId);
+        const leaf0 = leafId0 !== undefined ? rctx.layerById.get(leafId0) : undefined;
+        const isABCard = !!leaf0 && leaf0.type === 'image' && !!leaf0.dropZone
+          && (leaf0.source?.type === 'transitionA' || leaf0.source?.type === 'transitionB');
+        if (isABCard && !rctx.equirectScene && (src.width < output.width - 2 || src.height < output.height - 2)
+            && leaf0!.dropZone!.width >= output.width - 2 && leaf0!.dropZone!.height >= output.height - 2) {
+          src = conformDropZoneSource(src, output.width, output.height);
+        }
+      }
       // CLONE SOURCE'S OWN FILTERS: when a Clone Layer references a standalone
       // Transition A/B (or another leaf) as its `cloneSourceId`, the SOURCE layer's
       // filters must be applied to the resolved pixels — resolveCloneImage returns
