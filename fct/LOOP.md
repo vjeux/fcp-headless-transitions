@@ -48,11 +48,41 @@ what you started before picking anything new.
      tools/re/extract_shader.py <HgcName>; read __TEXT,__const constants (fct/parity/oracle.py
      read_helium_const_matrix); air-objdump -d <metallib> (Metal Toolchain installed).
 
-3. FIX the root cause in engine/src (rig/movement/3D/compositing/geometry/subsystem/parser/…).
-   - If the FCP-port code is wrong, fix it. If a subsystem is missing, BUILD it. If it needs a big
-     refactor, do it. Correct general mechanism only.
+3. MANUALLY HYPER-MINIMIZE until ONE frame shows ONE defect. (Do NOT skip this — it is the
+   single most important debugging step. `fct minimize` only strips whole structural nodes; it
+   stops while the repro still has MANY interacting effects. A repro with two wavefronts, a
+   feather, an animated sweep, timing-outs, AND a gradient is TOO COMPLEX to reason about — keep
+   cutting BY HAND until exactly one thing is wrong.)
+   - Work on a COPY: `cp fct/minimized/<slug>/case.motr /tmp/m.motr` and edit /tmp/m.motr directly.
+     Render each edit through BOTH engines and diff, to confirm the divergence SURVIVES the cut:
+       FCP:    (venv) python3 -c "import tools.ozengine as z; z.init_engine(); d=z.load_doc('/tmp/m.motr'); z.render_frame(d, IMG_A, IMG_B, T, '/tmp/h.png')"
+       engine: (cwd engine/) FCT_RENDER_MOTR=/tmp/m.motr FCT_RENDER_A_PNG=/tmp/A.png FCT_RENDER_B_PNG=/tmp/B.png FCT_RENDER_T=<t> FCT_RENDER_OUT=/tmp/e.png node_modules/.bin/tsx test/_fct_render_motr.ts
+     (or add /tmp/m.motr to a slugmap and use min-gen-style rendering). KEEP a cut only if engine
+     STILL diverges from FCP on the reduced doc; otherwise revert that cut.
+   - Aggressive manual reductions to try, one at a time:
+       * DELETE nodes: whole layers/groups/scenenodes/masks/behaviors/filters, sibling by sibling.
+         Reduce to the SMALLEST set that still diverges (often 1 layer + 1 mask, or even 1 shape).
+       * FREEZE animation → statics: replace an animated <curve> (Position/Rotation/Scale/vertex
+         Value) with a single static `value=` at the divergent frame's time. A moving sweep becomes
+         a STILL mask at one position — if the still frame still diverges, the bug is geometric/
+         compositing, NOT timing. If it only diverges while moving, the bug is the sweep/write-on.
+       * FLATTEN params: Feather→0, Roundness→0, Aspect→1, collapse a bezier to a simple rect/quad,
+         Opacity→1, remove blend modes, set colours to pure black/white so the defect is unambiguous.
+       * COLLAPSE timing: set in=0, out=huge, offset=0 to remove timing-out/visibility-window effects
+         (isolate them SEPARATELY — a disappearing layer is its own distinct bug from a mask sweep).
+       * PICK ONE FRAME: find the single time T where engine-vs-FCP is worst and debug only that.
+   - GOAL: a handful-of-lines .motr where a single static frame shows exactly one wrong thing
+     (e.g. "a still feathered quad at position P masks the wrong region" or "layer with out=X is
+     black when FCP shows it"). Save it as fct/minimized/<slug>_<tag>/case.motr with its own
+     headless/ + manifest so it becomes a permanent regression repro. THEN diagnose that.
+   - If the original repro contains MULTIPLE independent bugs, split them into MULTIPLE hyper-minimal
+     cases and fix each separately (RULE 1: every divergence is its own bug).
 
-4. VERIFY (all must hold before the bug is "done"):
+4. FIX the root cause in engine/src (rig/movement/3D/compositing/geometry/subsystem/parser/…).
+   - If the FCP-port code is wrong, fix it. If a subsystem is missing, BUILD it. If it needs a big
+     refactor, do it. Correct general mechanism only — verified on the hyper-minimal repro first.
+
+5. VERIFY (all must hold before the bug is "done"):
    - `npm --prefix engine run build` (tsc clean); remove any debug instrumentation.
    - `python3 fct/cli.py min-gen <case> && python3 fct/cli.py min-score <case>` → the case reaches
      ~99 dB (or is materially fixed and you understand the exact remaining residual).
@@ -62,10 +92,10 @@ what you started before picking anything new.
      `python3 fct/cli.py score <slug> --source headless` (engine-vs-headless). Watch neighbors.
    - `python3 fct/cli.py min-baseline` to freeze the improved min-scores.
 
-5. COMMIT (re(...)/fix(...) prefix): decoded root cause + before→after dB. Update
+6. COMMIT (re(...)/fix(...) prefix): decoded root cause + before→after dB. Update
    fct/AUDIT_2026-07-24.md and MEMORY/daily notes with the durable lesson.
 
-6. Only THEN pick the next-worst. Keep going. Never stop.
+7. Only THEN pick the next-worst. Keep going. Never stop.
 
 ## Guardrails
 - decode-don't-fit: read constants from the binary or a clean probe; never force-fit a guess.
