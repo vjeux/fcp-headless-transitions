@@ -787,6 +787,16 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
           wtp[0] *= pr.ps; wtp[1] *= pr.ps; wtp[4] *= pr.ps; wtp[5] *= pr.ps;
           wtp[12] = pr.sx; wtp[13] = pr.sy; wtp[14] = 0;
           worldTransform = wtp;
+        } else {
+          // The framed tile's centre projects BEHIND the camera → it is off-screen
+          // and must be CULLED, not blitted at its original full-frame transform.
+          // Decoded from Replicator-Clones/Clone_Spin f21: as the framing camera
+          // dollies/orbits to the far B pose, Transition A recedes BEHIND the eye
+          // (projectFramed→null); the engine used to fall through and paint A
+          // un-transformed FULL-FRAME warm, occluding the small dark B that FCP
+          // shows. Skipping the layer when its framed centre is behind the camera
+          // lets B (which still projects, ps≈0.35) be the visible content.
+          return 'children';
         }
       }
       // An Image Mask clips ONLY this layer by a rig-selected wipe shape (e.g.
