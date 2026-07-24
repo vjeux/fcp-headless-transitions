@@ -40,8 +40,13 @@ import { srgbChannelToLinear } from '../compositor/linear.js';
  * share mutable state.
  */
 export interface ClipInfo {
-  /** Footage clip-id -> which transition drop zone (A = outgoing, B = incoming). */
-  ab: Map<number, 'A' | 'B'>;
+  /**
+   * Footage clip-id -> which transition drop zone (A = outgoing, B = incoming),
+   * or 'P' for an UNFILLED generic "Drop Zone" placeholder (missing media, name
+   * "Drop Zone" without an A/B designation) — FCP renders these as a neutral-gray
+   * placeholder card (the drop-zone "arrow" glyph), NOT the user's A/B media.
+   */
+  ab: Map<number, 'A' | 'B' | 'P'>;
   /**
    * Footage clip-id -> bundled media relativeURL. Some transitions (e.g.
    * Stylized/Documentary/Slide) reference template-bundled PNG assets (sliding
@@ -59,7 +64,7 @@ export interface ClipInfo {
 }
 
 export function parseFootageClipAB(sceneEl: Element, factories: Map<number, string>): ClipInfo {
-  const map = new Map<number, 'A' | 'B'>();
+  const map = new Map<number, 'A' | 'B' | 'P'>();
   const clipMedia = new Map<number, { url: string; frameRate?: number }>();
   let dropZoneMediaHeight: number | undefined;
   const clips: { id: number; path: string; name: string }[] = [];
@@ -118,14 +123,18 @@ export function parseFootageClipAB(sceneEl: Element, factories: Map<number, stri
     }
   }
   // Generic "Drop Zone" clips (name/path "Drop Zone" WITHOUT an A/B designation)
-  // carry the transition's primary (outgoing) media. Multi-drop-zone templates
-  // such as Replicator/Video Wall reference these plain drop zones as the replicator
-  // cell content (the tiled media), alongside the designated Transition A/B clips.
-  // Map any still-unclassified generic drop zone to source A so its cell renders.
+  // are UNFILLED placeholder drop zones. FCP renders them as a neutral-gray
+  // placeholder card (the drop-zone arrow glyph), NOT the user's A/B media —
+  // DECODED from Replicator-Clones/Video_Wall_rep: its replicator cell Pins
+  // reference the generic "Drop Zone" clip (id 1000118032, missing media) and
+  // REAL FCP-headless renders every tile as a flat ~78 gray card, whereas the
+  // sibling Video_Wall's Pins reference "Drop Zone Transition B" (filled → real
+  // photo). Map generic drop zones to 'P' (placeholder) so the compositor paints
+  // the gray card instead of binding them to imageA/B.
   for (const c of clips) {
     if (map.has(c.id)) continue;
     if (/drop\s*zone/.test(c.name) || /drop\s*zone/.test(c.path)) {
-      map.set(c.id, 'A'); sawA = true;
+      map.set(c.id, 'P');
     }
   }
   // Fallback: if pathURL/name matching failed, order the two clips A then B.
@@ -789,7 +798,9 @@ export function determineImageSource(params: Parameter[], el: Element | undefine
   // Resolve by footage clip reference (the authoritative signal).
   const clipId = findSourceMediaId(params);
   if (clipId !== undefined && clip.ab.has(clipId)) {
-    return clip.ab.get(clipId) === 'A' ? { type: 'transitionA' } : { type: 'transitionB' };
+    const which = clip.ab.get(clipId);
+    if (which === 'P') return { type: 'placeholder' };
+    return which === 'A' ? { type: 'transitionA' } : { type: 'transitionB' };
   }
   // Bundled template media (a PNG in the template's Media/ folder, e.g. Slide's
   // sliding rounded-rectangle tiles). Resolved at render time by the host's

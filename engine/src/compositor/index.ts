@@ -241,6 +241,16 @@ function resolveCellImage(
   //    OZImageElement::createDropZoneGridBitmap gray placeholder, preserving the
   //    generic Type=3-without-content behaviour for non-Pin templates.
   if (src.type === 'image' && src.dropZone?.type === 3) {
+    // If the Pin's OWN Source Media resolves to an UNFILLED generic "Drop Zone"
+    // placeholder (parser mapped it to {type:'placeholder'}), FCP renders the gray
+    // placeholder card regardless of the Pin index — DECODED from Video_Wall_rep
+    // (Pins reference the generic "Drop Zone" clip 1000118032 → every tile is a
+    // ~78 gray card in REAL FCP-headless), vs the sibling Video_Wall whose Pins
+    // reference "Drop Zone Transition B" (filled → real photo). So the referenced
+    // clip — not the "Pin N" name — decides filled-vs-placeholder.
+    if (src.source?.type === 'placeholder') {
+      return { kind: 'image', img: getSourceImage(rctx, src.source, imageA, imageB)! };
+    }
     const pinIdx = parsePinIndex(src.name);
     if (pinIdx === 1) return { kind: 'image', img: imageA };
     if (pinIdx === 2) return { kind: 'image', img: imageB };

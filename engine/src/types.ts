@@ -172,6 +172,7 @@ export type ImageSource =
   | { type: 'gaussianGradient'; gradient: GaussianGradientConfig }
   | { type: 'lensFlare'; flare: LensFlareConfig }
   | { type: 'linearGradient'; gradient: LinearGradientConfig }
+  | { type: 'placeholder' }
   | { type: 'color'; r: number; g: number; b: number; a: number };
 
 /**

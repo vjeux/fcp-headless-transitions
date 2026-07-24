@@ -193,6 +193,18 @@ export function getSourceImage(rctx: RenderContext, source: ImageSource | undefi
   switch (source.type) {
     case 'transitionA': return imageA;
     case 'transitionB': return imageB;
+    case 'placeholder': {
+      // UNFILLED generic "Drop Zone" — FCP renders the drop-zone placeholder as a
+      // flat neutral-gray card (measured ~78/255 on Video_Wall_rep's headless
+      // tiles; the subtle centre arrow glyph is a small perturbation on the card).
+      // Faithful reproduction: a uniform gray fill at the frame size, clipped/
+      // transformed by the referencing tile exactly like a real drop-zone image.
+      const img = createBuffer(imageA.width, imageA.height);
+      for (let i = 0; i < img.data.length; i += 4) {
+        img.data[i] = 78; img.data[i + 1] = 78; img.data[i + 2] = 78; img.data[i + 3] = 255;
+      }
+      return img;
+    }
     case 'media': {
       if (!rctx.mediaResolver) return null;
       const absolute = clipTimeOverride !== undefined;
