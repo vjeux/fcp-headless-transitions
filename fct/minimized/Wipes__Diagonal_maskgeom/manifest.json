@@ -1,0 +1,9 @@
+{
+  "slug": "Wipes__Diagonal_maskgeom",
+  "source_motr": "/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized/Stylized.localized/Nature.localized/Diagonal.localized/Diagonal.motr",
+  "derived_from": "Wipes__Diagonal",
+  "worst_frame": 12,
+  "nframes": 24,
+  "note": "HYPER-MINIMAL static repro (hand-reduced from the 6-node Wipes__Diagonal case): image A removed, mask Position frozen to its START value (X=-1045.81, Y=-2129.0), NO animation/sweep/write-on/timing-out. Single defect: FCP renders this ONE static feathered shape-mask over the gray gradient group covering the FULL frame (mean 192.5, all quadrants ~195), but the engine covers only ~160 (left quadrants 141) — the mask quad rasterizes TOO SMALL / mis-positioned. Pure shape-mask rasterization geometry bug (feather/anchor/aspect/coordinate-transform), isolated from the Wipes__Diagonal sweep. Fix the static rasterization first, then the sweep/write-on separately.",
+  "render_t": 0.5
+}

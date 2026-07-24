@@ -1,0 +1,8 @@
+{
+  "slug": "Wipes__Diagonal_maskcov",
+  "source_motr": "/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized/Stylized.localized/Nature.localized/Diagonal.localized/Diagonal.motr",
+  "derived_from": "Wipes__Diagonal",
+  "worst_frame": 20,
+  "nframes": 24,
+  "note": "HYPER-MINIMAL (hand-reduced): 'Transition Diagonal' layer only (gradient 'Background' + 'Animated mask'), image A ('Transition Drop Zones') removed. Divergence SURVIVES (worst frame ~7 dB). DIAGNOSIS (step-3 isolation): (1) STATIC mask (offset=in, position frozen, no write-on) rasterizes CORRECTLY — FCP and engine both ~26% coverage, similar bbox/size, so the shape geometry+feather+scale are ~right. (2) The bug is ENTIRELY in the WRITE-ON SWEEP accumulation: FCP's diagonal sweep reveals to 100% coverage (then conceals L->R at the very end), but the engine's write-on union caps ~85% (leaves L/R black bands) and never reaches full frame. Anomaly found: during the write-on the sampled transform's fscale RAMPS 1.83->2.44 across the K=12 sub-times (a mask sweeping POSITION should not also ramp SCALE ~2x) — likely a buildTransformMatrix sub-time composition bug (Z-scale 1.1385 on the parent 'Transition Diagonal' layer coupling into XY, or the offset/curveTime re-anchor). NEXT: fix the write-on sub-time transform so the swept quad keeps the correct (static-equivalent) scale and the union reaches 100%."
+}
