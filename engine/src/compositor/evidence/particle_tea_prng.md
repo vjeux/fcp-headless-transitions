@@ -122,3 +122,20 @@ NEXT (the actual build): trace the CIRCLE-shape branch of initPropertiesFromShap
 for Drop_In; derive speed/life/scale from R; assign particle IDs across the initialNumber=379 burst;
 then rebuild simulateAndCompositeCell's spawn analytically with teaRand. Do NOT half-swap hash01→teaRand
 without the correct R→attribute mapping (would just move the error — RULE 2).
+
+## genPosCircle decoded (Drop_In spawn-position geometry) (2026-07-24)
+PSEmitter::genPosCircle(double t, CMTime const&, PCVector3& outPos, PCVector3& outAccum) @0x1adf0:
+    angle  = t * (-2.0) * PI            // = -2π·t   (consts -2.0, π read from binary)
+    radius = getValueAsDouble(emitter+0x5b08, time)   // the circle-radius channel (Drop_In=100)
+    (s, c) = sincos(angle)              // ___sincos_stret → xmm1=sin, xmm0=cos
+    outPos = radius * (c, s, 0)         // spawn point on the circle
+    outAccum += radius * (c, s); outAccum.z += 0   // accumulates into the 2nd out vector
+So a CIRCLE emitter spawns each particle at parametric angle −2π·t on a radius-R circle, where t is
+a uniform [0,1) — i.e. t = teaRand(id, 0x3712F987, seed) (the X-salt draw). This is the spawn
+POSITION; the emission VELOCITY/direction (Drop_In's 241° cone, speed 2409) is a SEPARATE computation
+(emissionAngle ± emissionRange/2, likely from another R component / the 2nd or 3rd salt draw).
+Sibling geometry fns exist: genPosPoint/genPosLine/genPosRect/genPosWave/genPosRadial/genPosSpiral/
+genPosGeometry + genOrderLinear/genOrderRadial (the "Emit At Points" ordered grid). Drop_In (radius,
+not emitAtPoints) → genPosCircle (or genPosGeometry dispatching to it).
+NEXT: (1) confirm Drop_In's initPropertiesFromShape dispatches to genPosCircle; (2) decode the
+velocity/emission-direction draw (which salt/component → cone angle); (3) birth/ID model; (4) wire.
