@@ -98,6 +98,35 @@ function hash01(a: number, b: number, c: number): number {
   return h / 0x1_0000_0000;
 }
 
+/**
+ * Motion's EXACT particle PRNG — TEA (Tiny Encryption Algorithm), recovered from
+ * FCP's Particles.ozp `PCRandom::getRandTEAf` (see evidence/particle_tea_prng.md).
+ * A stateless 32-round Feistel hash of three uint32 words → uniform [0,1). This is
+ * the faithful FCP mechanism (not the earlier splitmix `hash01` placeholder): the
+ * particle spawn attributes Motion draws are `getRandTEAf(w0,w1,w2)` where w0/w1/w2
+ * are a (seed, particle-index, attribute-stream) triple. Reproducing it bit-exactly
+ * is what lets the engine's particle field match FCP-headless frame-for-frame.
+ *
+ * Disassembly (x86_64 slice @ 0x178e0): v0=w0, v1=w1, k0=w2, sum=0x9E3779B9, and
+ * per round v0 += (((v1<<4)+k0) ^ (sum+v1) ^ ((v1>>>5)+kK1)); v1 += (((v0<<4)+kK2)
+ * ^ (sum+v0) ^ ((v0>>>5)+kK3)); sum += 0x9E3779B9. Return (v1^v0)/2^32. The kK*
+ * key-words are read straight from the plugin's __data (0xe1c60/64/68).
+ */
+const TEA_KK1 = 0x000004a7, TEA_KK2 = 0x80100000, TEA_KK3 = 0x0000d410;
+const TEA_DELTA = 0x9e3779b9;
+export function teaRand(w0: number, w1: number, w2: number): number {
+  // uint32 math via >>> 0; multiply-free (adds/shifts/xors) so it stays exact.
+  let v0 = w0 >>> 0, v1 = w1 >>> 0;
+  const k0 = w2 >>> 0;
+  let sum = 0;
+  for (let i = 0; i < 32; i++) {
+    sum = (sum + TEA_DELTA) >>> 0;
+    v0 = (v0 + ((((v1 << 4) + k0) >>> 0) ^ ((sum + v1) >>> 0) ^ (((v1 >>> 5) + TEA_KK1) >>> 0))) >>> 0;
+    v1 = (v1 + ((((v0 << 4) + TEA_KK2) >>> 0) ^ ((sum + v0) >>> 0) ^ (((v0 >>> 5) + TEA_KK3) >>> 0))) >>> 0;
+  }
+  return ((v1 ^ v0) >>> 0) / 0x1_0000_0000;
+}
+
 /** Numeric-or-Curve reader (curves evaluated at scene time 0 — birth rate / life / speed
  *  animation is rare on cells, and T-B2 uses the static/initial value for the minimal sim). */
 function numAt(v: number | Curve, timeSec: number = 0): number {

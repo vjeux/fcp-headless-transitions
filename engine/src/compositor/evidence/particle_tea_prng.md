@@ -38,3 +38,29 @@ Verified TS impl produces well-distributed uniform values (see emitter-sim TEA).
 Once wired, the 4 particle transitions (Drop_In 12.03, Wipes/Stylized Diagonal 16.6,
 Glide 18.31) become matchable. This DOWNGRADES the "unrecoverable PRNG" blocker to a
 "recoverable TEA + spawn-logic wiring" task.
+
+## ARG MAPPING (from PSEmitter::initPropertiesFromShape, x86_64 slice @ 0x18983+)
+Each spawn-attribute draw is: `getRandTEAf(w0, w1, w2)` where
+  • w0 (edi) = a per-call value from a virtual call `*0x20(vtable)` on the emitter/particle
+    object (r12) — re-fetched before EACH draw (a running per-particle counter / particle index).
+  • w1 (esi) = a HARD-CODED per-ATTRIBUTE stream salt (the "which random am I" selector):
+      0x3712F987  → attribute/axis 0 (X)
+      0x83820093  → attribute/axis 1 (Y)
+      0x39002838  → attribute/axis 2 (Z)
+    (These three recur across every geometry path — rect/circle/burst — as the XYZ salts.
+     Other attributes — speed, life, scale, spin — will have their OWN salts; enumerate them
+     from the remaining getRandTEAf sites in initPropertiesFromShape + genPosGeometry + the
+     life/scale/spin draw functions.)
+  • w2 (edx) = a value from virtual call `*0x258(vtable)` on the particle-type object (-0x30) —
+    the per-cell SEED (combines the emitter/cell Random Seed; e.g. Drop_In cell randomSeed=18155,
+    emitterSeed=25785). Re-fetched before each draw (so it's the same seed each time, or a seed
+    stream advanced per particle).
+Output xmm0 = uniform [0,1); the caller maps it into the attribute range (e.g. emission cone
+angle, speed±randomness, life±randomness, scale±randomness).
+
+## STATUS
+Primitive teaRand() shipped + verified in emitter-sim.ts (matches getRandTEAf bit-exactly on 5
+probe triples). NEXT: decode `*0x20` (per-particle index source) + `*0x258` (seed accessor) +
+enumerate the remaining attribute salts + the birth/initialNumber timing, then replace the
+placeholder hash01 spawn draws with teaRand(index, salt, seed). Then Drop_In/Diagonal/Glide
+particle fields become frame-matchable.
