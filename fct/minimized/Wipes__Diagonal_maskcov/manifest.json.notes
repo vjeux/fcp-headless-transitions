@@ -158,3 +158,23 @@ centroid+size each, and SOLVE the linear map (pixel = A·shapeCoord + b) for X a
 That yields the exact Motion mask transform (base scale, anchor sign, aspect). Then fix
 buildTransformMatrix / the mask raster transform and verify no 65-slug regression.
 Harness: /tmp/mksquare.py (square with pos/scale/anchor args), /tmp/hrender.py.
+
+## CLEAN SQUARE PROBE (2026-07-24) — exact defects measured
+Replaced the mask geometry with a sharp 200×200 SQUARE (±100 shape units), feather=0, parent scale
+stripped, pos=0 sc=1 anchor=0. Rendered FCP vs engine, measured alpha centroid + size:
+  FCP:    centroid (1210, 932)  size 354×322 px   (world cy = 540-932 = -392)
+  engine: centroid (1209, 144)  size 282×282 px   (world cy = 540-144 = +396)
+TWO EXACT DEFECTS:
+  (1) Y-POSITION SIGN FLIP: FCP world cy=-392, engine cy=+396 (near-exact sign flip). Magnitude ~395
+      == the parent 'Transition Diagonal' layer Position.Y=+395.3. So the parent layer's Position.Y
+      propagates to the mask with the WRONG SIGN in the engine (Y-axis convention mismatch in the
+      parent→mask world-transform composition). X matches (1210 vs 1209), so it's Y-specific.
+  (2) SIZE / BASE SCALE: FCP renders the 200-unit square at 354×322 px (×1.77 wide, ×1.61 tall — a
+      NON-UNIFORM ~1.7× base magnification), engine at 282×282 (×1.41 uniform). FCP applies a larger,
+      non-uniform base coordinate→pixel scale that the engine under-applies. This ~1.7× base scale is
+      why FCP's ±550 mask verts reach the full ±960 frame (full coverage) while the engine's fall short.
+NEXT (implement + verify no 65-slug regression): fix the parent-Y sign in the mask world-transform
+composition, and the base coordinate→pixel scale (likely a project-unit or aspect-ratio factor the
+mask path drops). Re-fit with the square probe (vary pos/scale/anchor) to pin exact constants, then
+apply. This is the concrete, measured root cause of Wipes__Diagonal's 2.6 dB worst frame.
+Probe harness: /tmp/mksquare.py, /tmp/stripparent.py, /tmp/hrender.py.
