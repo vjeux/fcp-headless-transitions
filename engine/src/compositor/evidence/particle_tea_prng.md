@@ -139,3 +139,17 @@ genPosGeometry + genOrderLinear/genOrderRadial (the "Emit At Points" ordered gri
 not emitAtPoints) → genPosCircle (or genPosGeometry dispatching to it).
 NEXT: (1) confirm Drop_In's initPropertiesFromShape dispatches to genPosCircle; (2) decode the
 velocity/emission-direction draw (which salt/component → cone angle); (3) birth/ID model; (4) wire.
+
+## Circle spawn CONFIRMED inline in initPropertiesFromShape (0x18711-0x18781) (2026-07-24)
+The circle-emitter branch is inlined (not a genPosCircle call): reads radius channel emitter+0x5b08,
+angle = t·(-2)·π, pos = radius·(cos angle, sin angle, 0), written to the particle pos (r15) and
+accumulated into the out-vector (r9/-0x78). Same math as genPosCircle. `t` (the circle parameter) is
+the per-particle uniform. So Drop_In spawn position = radius·(cos(-2πt), sin(-2πt)), t=teaRand(id,SX,seed).
+The FILLED-region rejection sampler (the 3-draw X/Y/Z path at 0x18983+, with the ucomisd/subsd tests at
+0x18824/0x18a68) is the OTHER branch (filled sphere/box/circle — uniform-area fill), separate from this
+perimeter-circle path. Drop_In's exact shape param (0x4d18 channel = Shape id, 0x4db0 = Emit-At-Points)
+decides which; radius=100 + emitAtPoints=false → the filled/area path with the 3-vector rejection sample.
+STILL TO DECODE before wiring: (a) the VELOCITY/emission-cone draw (emissionAngle=π ± range/2=2.1rad →
+the 241° fan; the dominant Drop_In spread) and which R-component/draw feeds it; (b) speed±randomness,
+life±randomness, scale±randomness draws; (c) particle-ID/birth assignment across initialNumber=379.
+This is a multi-tick reconstruction; the PRNG + geometry primitives are now decoded + committed.
