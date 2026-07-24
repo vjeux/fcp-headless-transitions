@@ -11,7 +11,8 @@ Do NOT "record findings and wait for the next cron tick." Do NOT "reach a good s
 There is no stopping point. If you know what to do next, DO IT NOW. The 10-minute cron exists only
 as a backup in case context is lost — it is NEVER permission to pause. If you have diagnosed a bug,
 IMPLEMENT THE FIX immediately. If you have implemented a fix, VERIFY IT immediately. If you have
-verified, COMMIT and PICK THE NEXT immediately. Momentum is everything. Depth AND speed.
+verified, COMMIT+PUSH and PICK THE NEXT immediately. Momentum is everything. Depth AND speed.
+(A local-only commit is not done: always `git push` right after committing so no fix is stranded.)
 
 ### RULE 1 — A divergence is a bug, PERIOD. Never dismiss a minimized case.
 If a minimized case diverges from FCP-headless, that IS a real engine bug that must be
@@ -99,8 +100,13 @@ what you started before picking anything new.
      `python3 fct/cli.py score <slug> --source headless` (engine-vs-headless). Watch neighbors.
    - `python3 fct/cli.py min-baseline` to freeze the improved min-scores.
 
-6. COMMIT (re(...)/fix(...) prefix): decoded root cause + before→after dB. Update
+6. COMMIT + PUSH (re(...)/fix(...) prefix): decoded root cause + before→after dB. Update
    fct/AUDIT_2026-07-24.md and MEMORY/daily notes with the durable lesson.
+   - ALWAYS `git push` immediately after committing — a commit that only lives locally is
+     NOT done. Push every fix as soon as it is committed so work is never stranded on the Mac
+     (the box can recycle). Standard: `git add -A && git commit -m ... && git push`.
+   - If push is rejected (remote moved), `git pull --rebase origin main` then push again; if the
+     rebase conflicts, resolve surgically (never `git checkout`/reset away local work) and push.
 
 7. Only THEN pick the next-worst. Keep going. Never stop.
 
