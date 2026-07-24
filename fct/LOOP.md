@@ -1,68 +1,97 @@
 # fct engine-vs-FCP fix loop — standing instructions
 
 GOAL: drive the from-scratch JS/TS Motion engine to match REAL headless FCP on ALL 65 shipped
-transitions. No time limit. Big refactors, new subsystems, deep binary RE, and fixing wrong
-FCP-port code are ALL in scope. Repeat the loop below until every transition matches FCP.
+transitions. NO TIME LIMIT. Big refactors, new subsystems, deep binary RE, and fixing wrong
+FCP-port code are ALL in scope and EXPECTED. Repeat the loop below until every transition matches FCP.
+
+## TWO HARD RULES (do not violate — these override any urge to move on)
+
+### RULE 1 — A divergence is a bug, PERIOD. Never dismiss a minimized case.
+If a minimized case diverges from FCP-headless, that IS a real engine bug that must be
+investigated and FIXED — even if it is "not the original transition's primary bug", even if the
+minimizer "stripped context", even if a manifest note calls it "secondary" or "a poor oracle".
+The minimized .motr is a valid FCP document; FCP renders it a specific way; the engine MUST match
+that exact output. "This repro doesn't capture the real bug" is NEVER a reason to skip it — it just
+means there are (at least) TWO bugs, and you fix the one in front of you first. Do NOT re-minimize
+to dodge a hard case. Do NOT move to a different transition because the current one is hard. Finish
+what you started before picking anything new.
+
+### RULE 2 — Fix thoroughly. No short-term hacks. Take all the time you need.
+- Diagnose to the ROOT CAUSE. Reproduce, instrument, decode from the binary/shader/scene — never
+  guess, never curve-fit a constant (decode-don't-fit), never special-case a single slug to move a
+  number. A fix must be the CORRECT general mechanism, verified against FCP.
+- The 10-minute cron is ONLY a heartbeat so the work continues across turns. It is NOT a deadline
+  and NOT permission to ship a partial/quick fix to "make the tick productive". If a fix needs a
+  large subsystem, a deep refactor, hours of binary RE across many ticks — DO THAT. It is fine and
+  expected for a single bug to span many cron ticks. Depth over breadth. Correctness over score.
+- Do not env-gate a fix just to avoid dealing with a regression it exposes. If the correct fix
+  regresses something else, that "something else" was relying on wrong behavior — chase THAT to its
+  root too. Prefer a correct default; only gate when you have a decoded reason the two truly differ.
 
 ## The loop (one iteration)
-1. PICK the worst-diverging target.
+1. PICK a target. If a fix is already in progress, CONTINUE it — do not switch.
    - `python3 fct/cli.py min-score` → per-minimized-case engine-vs-FCP PSNR (99 dB = fixed).
-     Lowest `worst` dB first. These are already reduced to tiny repros.
-   - If a needed transition has no minimized case yet: `python3 fct/cli.py minimize <slug>`
-     (writes fct/minimized/<slug>/case.motr + headless/ + engine/ + manifest.json).
-   - Whole-transition ranking (context): fct/AUDIT_2026-07-24.md task list + `fct baseline`
-     scores in fct/baseline_engine.json.
-   - Subsystem view: `python3 fct/cli.py subswarm list` (perspective/replicator/panels by deficit).
+     Work the lowest `worst` dB. These are already reduced to tiny repros.
+   - Only if a needed transition has no minimized case: `python3 fct/cli.py minimize <slug>`.
+   - Context: fct/AUDIT_2026-07-24.md task list, fct/baseline_engine.json (engine-vs-headless),
+     `python3 fct/cli.py subswarm list` (perspective/replicator/panels deficits).
 
-2. DIAGNOSE against the minimized repro. NEVER guess.
-   - Structure: parse fct/minimized/<slug>/case.motr (layers/groups/scenenodes/mask/behavior/filter).
-   - Visual: side-by-side headless vs engine at the worst frame (manifest.worst_frame).
-       he=fct/minimized/<slug>/headless/*.png ; en=.../engine/*.png ; stack + view.
-   - Decode the real FCP scene/params: `python3 fct/cli.py census <slug>`.
-   - Deep RE when needed: otool -arch arm64 -tvV on the Filters.bundle / framework binary;
-     extract_shader.py <HgcName>; read constants from __TEXT,__const (see fct/parity/oracle.py
-     read_helium_const_matrix for the offset-mapping technique). air-objdump -d <metallib> for
-     Metal shaders (Metal Toolchain installed).
+2. DIAGNOSE against the minimized repro to the ROOT CAUSE. NEVER guess.
+   - Structure: parse fct/minimized/<slug>/case.motr.
+   - Visual: stack headless vs engine at the worst frame; SHOW it to yourself (read the image).
+     Watch for background/alpha-flatten differences (transparent→white vs →black), scale, position,
+     z-order, timing/visibility windows, missing subsystems.
+   - Decode real FCP scene/params: `python3 fct/cli.py census <slug>`.
+   - Instrument the engine (add a debug env flag + console.error, rebuild, render one frame with
+     test/_fct_render_motr.ts via FCT_RENDER_MOTR/T/OUT). REMOVE debug before committing.
+   - Deep RE when needed: otool -arch arm64 -tvV on Filters.bundle / framework binaries;
+     tools/re/extract_shader.py <HgcName>; read __TEXT,__const constants (fct/parity/oracle.py
+     read_helium_const_matrix); air-objdump -d <metallib> (Metal Toolchain installed).
 
-3. FIX the root cause in engine/src (rig/movement/3D-transform/compositing/geometry/subsystem).
-   - If the FCP-port code is wrong, fix it. If a subsystem is missing, build it.
-   - Env-gate risky changes if they might regress, but PREFER a correct default once verified.
+3. FIX the root cause in engine/src (rig/movement/3D/compositing/geometry/subsystem/parser/…).
+   - If the FCP-port code is wrong, fix it. If a subsystem is missing, BUILD it. If it needs a big
+     refactor, do it. Correct general mechanism only.
 
-4. VERIFY (must all hold before moving on):
-   - `npm --prefix engine run build` (tsc clean).
-   - `python3 fct/cli.py min-gen <case> && python3 fct/cli.py min-score <case>` → the case PSNR rose.
-   - `npm --prefix engine run test:node` → golden colour tests stay 0-diverge (no colour regression).
+4. VERIFY (all must hold before the bug is "done"):
+   - `npm --prefix engine run build` (tsc clean); remove any debug instrumentation.
+   - `python3 fct/cli.py min-gen <case> && python3 fct/cli.py min-score <case>` → the case reaches
+     ~99 dB (or is materially fixed and you understand the exact remaining residual).
+   - `npm --prefix engine run test:node` → golden colour tests stay 0-diverge.
    - `python3 fct/cli.py min-regress` → NO other minimized case got worse.
-   - Optional broad check: re-gen + score the affected slug(s) and neighbors; watch for regressions.
-   - Then `python3 fct/cli.py min-baseline` to freeze the new (better) min-scores if improved.
+   - Re-gen + score the full affected slug(s): `python3 fct/cli.py gen engine <slug>` then
+     `python3 fct/cli.py score <slug> --source headless` (engine-vs-headless). Watch neighbors.
+   - `python3 fct/cli.py min-baseline` to freeze the improved min-scores.
 
-5. COMMIT with a re(...)/fix(...) prefix describing the decoded root cause + before→after dB.
-   Update fct/AUDIT_2026-07-24.md (check off / re-note the task). Update MEMORY/daily notes with
-   the durable lesson.
+5. COMMIT (re(...)/fix(...) prefix): decoded root cause + before→after dB. Update
+   fct/AUDIT_2026-07-24.md and MEMORY/daily notes with the durable lesson.
 
-6. REPEAT. Pick the next-worst. Keep going.
+6. Only THEN pick the next-worst. Keep going. Never stop.
 
-## Guardrails (from MEMORY.md)
-- decode-don't-fit: never force-fit a guessed constant; read it from the binary or a clean probe.
-- A minimize run that ABORTS at ~99 dB headless means the discrepancy is engine-vs-GUI
-  (colour-management), NOT engine-vs-FCP — DIFFERENT class; note it, deprioritize vs real
-  engine-vs-headless divergences.
+## Guardrails
+- decode-don't-fit: read constants from the binary or a clean probe; never force-fit a guess.
+- A minimize run that ABORTS at ~99 dB headless = engine-vs-GUI (colour-management), a DIFFERENT
+  class. Still a real divergence to understand, but tracked separately; note it and keep it distinct
+  from engine-vs-FCP-headless bugs. (This is the ONE case where "not this loop's target" is valid,
+  and even then you record WHY.)
 - Never `git checkout`/revert a file without asking (loses uncommitted work).
-- Run `arc f` equivalent / keep tsc green; all existing tests stay green.
+- Keep tsc green; all existing tests stay green.
 - Careful-coder: measure twice. Reproduce, instrument, verify. Change one thing at a time.
-
-## Current state (update as you go)
-- Baseline: 65 transitions mean 17.83 dB, only 6/65 >25 dB (2026-07-24).
-- Minimized cases still broken (min-score worst dB): Wipes__Diagonal, Replicator-Clones__*,
-  Movements__Switch, Perspective__3D_Rectangle_cam, Stylized__Slide_In. See `fct/cli.py min-score`.
-- Subsystem deficits: perspective 27.7, replicator 23.1, panels 21.0.
 
 ## Handy commands
   python3 fct/cli.py min-score [case|--all]
   python3 fct/cli.py minimize <slug> [--frames N] [--slack F] [--name NAME] [--params]
   python3 fct/cli.py census <slug>
-  python3 fct/cli.py probe <slug> [frame]        # fast single-frame engine-vs-GUI PSNR
-  python3 fct/cli.py gen engine <slug>           # re-render engine frames for a full slug
-  python3 fct/cli.py score <slug> --source engine
-  npm --prefix engine run build                   # tsc
-  npm --prefix engine run test:node               # golden colour node tests
+  python3 fct/cli.py gen engine <slug>            # re-render engine frames for a full slug
+  python3 fct/cli.py score <slug> --source headless
+  # render one arbitrary .motr frame (engine): FCT_RENDER_MOTR=<abs.motr> FCT_RENDER_T=0..1 \
+  #   FCT_RENDER_OUT=/tmp/x.png node_modules/.bin/tsx test/_fct_render_motr.ts   (cwd=engine/)
+  npm --prefix engine run build                    # tsc
+  npm --prefix engine run test:node                # golden colour node tests
+
+## Current state (update as you go)
+- Baseline: 65 transitions mean 17.83 dB, only 6/65 >25 dB (2026-07-24).
+- IN PROGRESS: Replicator-Clones__Concentric — group Image Mask fires (2.2% ring, correct) but the
+  masked-OUT region flattens to WHITE in the engine while FCP shows it BLACK (near-0 mean). Root
+  cause under investigation = transparent/alpha background flatten (transparent→white vs →black),
+  NOT the mask itself. FINISH THIS before anything else.
+- Subsystem deficits: perspective 27.7, replicator 23.1, panels 21.0.
