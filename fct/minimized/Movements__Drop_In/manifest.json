@@ -1,0 +1,13 @@
+{
+  "slug": "Movements__Drop_In",
+  "source_motr": "/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized/Movements.localized/Drop In.localized/Drop In.motr",
+  "worst_frame": 7,
+  "baseline_psnr": 11.439,
+  "final_psnr": 11.553,
+  "struct_before": 21,
+  "struct_after": 2,
+  "removed": 19,
+  "nframes": 24,
+  "slack": 0.12,
+  "protect": null
+}
