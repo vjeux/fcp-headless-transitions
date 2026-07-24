@@ -217,3 +217,13 @@ mask as a white-on-black matte. The 1.2544x ratio between FCP and engine is real
 scales earlier), but the absolute 200->283/355 needs the direct-alpha measurement to interpret.
 Still: the engine mask is 1.2544x smaller than FCP's -> the coverage cap. Pin the scale source with
 the direct-alpha probe, then fix + regress-check.
+
+## Rotation ruled out (2026-07-24): both FCP and engine render the square as a ~45deg diamond
+(the Transition Diagonal layer has Rotation Z=-0.79rad, applied in both — NOT zeroed in the probe).
+Engine diamond bbox 283 (= 200×√2, correct for a rotated ±100 square). FCP diamond bbox 355. So the
+1.2544× gap is NOT rotation — FCP's shape is genuinely 1.2544× larger pre-rotation with an IDENTITY
+mask transform (sc=1). => a BASE coordinate scale FCP applies to shape control points that the engine
+maps 1:1. Candidate: the 1200×1200 authoring-canvas reference in the .motr, or a Z-scale (Transition
+Diagonal Scale.Z=1.1385) compounding, or a project-unit->pixel factor. NEXT: (a) test a non-mask shape
+in another slug for the same 1.2544× shortfall (global vs mask-specific); (b) pin the constant's
+source; (c) fix + full regression check.
