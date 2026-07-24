@@ -324,40 +324,39 @@ export function render360Band(
     // the observed 2064-px total sweep (minus a small time-margin gap that the
     // animation completes early at f≈22.32/24).
     const NF = 24;                            // fct sampling: 24 frames at p=i/N
-    // 86 px/frame in output space, decoded from GT (see above). Equivalent to
-    // yaw = min(p · N · 86, outW) — kept in fraction-of-outW form for clarity.
-    const yawFraction = Math.min(progress * NF * 86 / outW, 1);
-    const yaw = yawFraction * outW * cfg.dir;
-    const c0 = 0.5 * outW;                    // reveal wedge leading edge = frame centre
-    // Reveal wedge — fully re-decoded 2026-07-16 (per-column A/B classifier over the
-    // raw GUI GT + FFT phase-correlation, W=1920, N=24; mean wedge error 0.82 px).
-    // The B-reveal wedge is a TWO-SEAM centre wedge (same rig as sibling 360° Push):
-    //   - rightFill: leading edge fixed at frame CENTRE, covered span grows RIGHT at
-    //     91.3 px/frame until it reaches the half-frame (W/2) at f≈10.5.
-    //   - PLATEAU: the wedge holds at exactly W/2 for f11–f13 (~240 px = 2.63-frame
-    //     gap) while the yaw carries B's far seam around the equirect cylinder.
-    //   - leftFill: once the yaw has advanced past W/2 + 240 px, the SECOND seam
-    //     re-enters from the left edge (wrap) and closes the complement, again at
-    //     91.3 px/frame, until the whole frame is B.
-    // Measured wedge widths (col-count of B in GT): f8=730, f10=912, f11-13=960,
-    // f16=1220, f20=1584 — matched to <3 px by rightFill+leftFill below.
-    // (The OLD width=p·W under-filled the mid-band by ~90 px, uncovering A early and
-    // capping f8–f16 at ~21–22 dB; this two-seam form removes that dip.)
-    // 91.3 px/frame is the SAME sweep rate the Push decode found for its wedge
-    // (Push commit c157b35); the 240-px plateau gap is the equirect time-margin the
-    // Rig Behavior leaves before the far seam catches the near one.
-    const sweep = progress * NF * 91.3;       // wedge fill distance travelled (px)
-    const half = 0.5 * outW;
-    const rightFill = Math.min(sweep, half);
-    const leftFill = Math.max(0, Math.min(sweep - half - 240, half));
-    const width = progress >= 0.94 ? outW : rightFill + leftFill;
-    const bMask: Mask = (x) => {
-      const d = (((x - c0) * cfg.dir) % outW + outW) % outW;
-      return d < width ? 1 : 0;
-    };
-    // A static at identity (no yaw, no wrap needed); B yawed with wrap, over wedge.
-    drawFull(out, imageA, 0, outW, outH, 1, null);
-    drawFull(out, imageB, yaw, outW, outH, 1, bMask, true);
+    // EQUIRECT 360° SLIDE — RE-DECODED 2026-07-24 from the REAL HEADLESS oracle.
+    // The prior "B yaws in over static A + centre wedge, no black" model was fit to a
+    // GUI-GT capture and is refuted by headless: headless passes through BLACK (the
+    // Alpha Mask Group Color Solid) between A and B, exactly like the sibling Push.
+    // Measured on the minimized case (W=1920, N=24):
+    //   • A HOLDS full-frame f0..8 (no motion), then a BLACK wipe covers A from the
+    //     right, right-edge f9=1826,f10=1549,f11=1243,f12=909 → 0 at ~f14 (quadratic
+    //     ease-in, like Push's black wipe).
+    //   • B then LINEAR-slides IN from the right at a CONSTANT −173 px/frame: left-edge
+    //     f16=1331,f18=985,f20=640,f22=294,f23=121 → reaches x=0 at f≈23.7, and would
+    //     enter (edge=W) at f≈12.6. This constant-velocity slide (NOT eased) is the
+    //     Rig-Behavior linear pan that gives the family its "Slide" name; only B moves.
+    // So the render is: opaque BLACK backdrop; static A clipped to [0, aRight] with a
+    // hold+quadratic wipe; static B clipped to [bLeft, W] with a linear slide.
+    for (let i = 3; i < out.data.length; i += 4) out.data[i] = 255;
+    const mirror = cfg.dir < 0;
+    const xf = (x: number): number => (mirror ? outW - 1 - x : x);
+    const fF = progress * NF;
+    const A_HOLD = 8.0, A_WIPE_END = 14.0;    // A holds then black wipes it out
+    const B_ENTER = 12.6, B_HOME = 23.7;      // B linear slide window (edge W→0)
+    // A: static, clipped to [0, aRight]; hold to A_HOLD, then quadratic ease-in wipe.
+    if (fF < A_WIPE_END) {
+      const t = fF <= A_HOLD ? 0 : (fF - A_HOLD) / (A_WIPE_END - A_HOLD);
+      const aRight = outW * (1 - t * t);
+      const aMask: Mask = (x) => (xf(x) < aRight ? 1 : 0);
+      drawFull(out, imageA, 0, outW, outH, 1, aMask);
+    }
+    // B: static, clipped to [bLeft, W]; linear slide in from the right.
+    if (fF > B_ENTER) {
+      const bLeft = outW * Math.max(0, 1 - (fF - B_ENTER) / (B_HOME - B_ENTER));
+      const bMask: Mask = (x) => (xf(x) >= bLeft ? 1 : 0);
+      drawFull(out, imageB, 0, outW, outH, 1, bMask);
+    }
     return out;
   }
 

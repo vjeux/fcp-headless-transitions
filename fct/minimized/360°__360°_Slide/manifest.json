@@ -1,0 +1,13 @@
+{
+  "slug": "360\u00b0__360\u00b0_Slide",
+  "source_motr": "/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized/360\u00b0.localized/360\u00b0 Slide.localized/360\u00b0 Slide.motr",
+  "worst_frame": 19,
+  "baseline_psnr": 8.65,
+  "final_psnr": 8.712,
+  "struct_before": 39,
+  "struct_after": 14,
+  "removed": 25,
+  "nframes": 24,
+  "slack": 0.12,
+  "protect": null
+}
