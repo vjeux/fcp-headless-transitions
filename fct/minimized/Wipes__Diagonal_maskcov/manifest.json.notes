@@ -22,3 +22,28 @@
   rasterize the swept HULL between consecutive sub-quads to fill gaps.
 - NEXT CONCRETE STEP: freeze Position to a static mid-frame value but KEEP Scale animating (and vice
   versa) to determine whether the coverage shortfall is driven by the Position sweep or the Scale ramp.
+
+## ROOT CAUSE FOUND (2026-07-24) — anchor point is scaled, shifting the mask off-frame
+Instrumented the mask's world transform (FCT_MTX_DEBUG) on the max-scale-static-centered repro:
+  worldTransform: sx=1.846 (=2.088 mask × 0.884 parent ✓), sy=5.253, tx=1141, ty=1275 (!!)
+The SCALE is correct, but the TRANSLATION is +1141,+1275 — WAY off the bottom-right of the 1920×1080
+frame — even though the mask Position is (0,0). Source: the mask has Anchor Point Y=-238.4, and
+buildTransformMatrix composes M = T(pos)·R·S·T(-anchor), i.e. screen = pos + S·(v - anchor). With
+scaleY=5.253 and anchorY=-238, the anchor offset is SCALED: 238×5.253 ≈ 1250 = the ty shift. So the
+whole mask is pushed off-frame, covering only 55% (static) / 71% (swept) instead of FCP's 94-100%.
+CONTROL: FCP with anchorY=-238 → 94% coverage; anchorY=0 → 100%. So FCP applies the anchor but its
+effect is SMALL (a slight shift), NOT the massive scaled shift the engine produces. => FCP does NOT
+scale the anchor offset the way the engine does (or pivots scale around the anchor so the anchor
+point stays fixed). This is the ROOT CAUSE of the Wipes__Diagonal mask-coverage divergence.
+
+FIX DIRECTION (careful — buildTransformMatrix is shared by ALL 65 transitions; must not regress):
+the anchor-point/scale composition needs to match Motion's convention. Candidates to test:
+  (a) pivot-around-anchor: screen = pos + anchor + R·S·(v - anchor)  [anchor added back so the
+      anchor point maps to pos+anchor, not scaled away] — verify against a layer that uses BOTH a
+      non-zero anchor and scale (this mask) AND ones that currently pass (Fall anchor -540, Reflection
+      anchor Z=960) so no regression.
+  (b) anchor is a pure rotation pivot (not scaled/translated for scale) — Motion's "Anchor Point"
+      may only pivot rotation, with scale about the layer origin.
+  NEXT: read Motion's actual transform order (ENGINE_RE_PLAYBOOK / OZTransformNode) or empirically
+  fit by rendering FCP with a few (anchor, scale) combos and matching the engine. Then implement +
+  verify: this repro reaches ~99 dB, golden test:node green, min-regress no worse, full 65 re-scored.
