@@ -771,9 +771,32 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
       const conformBoxEqOut = conformBaseOK && !!dz
         && Math.abs(dz.width - output.width) <= 2
         && Math.abs(dz.height - output.height) <= 2;
-      const drawSrc = (conformBoxEqOut || conformSubCanvasAB)
+      // OVERSCAN A/B drop zone: the box is LARGER than the render buffer (Movements/
+      // Switch authors its Transition A/B at a 2160×1080 drop-zone frame in a 1920×1080
+      // project — a 2:1 overscan card). FCP fills the 1920×1080 output with it (the
+      // extra width overscans/centre-crops); the engine, finding the box neither ≈equal
+      // nor smaller than output, left the source native → it blitted LETTERBOXED (the
+      // square source fit its worldTransform, black bars top/bottom, whole frame ~0.886×
+      // too dark). Treat an A/B card whose box ≥ output as full-frame: fill-conform the
+      // source to the output buffer (same as the box≈output case). Scoped to A/B
+      // transition cards so a decorative oversized sprite is never stretched.
+      const conformOverscanAB = conformBaseOK && !!dz
+        && (layer.source?.type === 'transitionA' || layer.source?.type === 'transitionB')
+        && dz.width >= output.width - 2 && dz.height >= output.height - 2
+        && (dz.width > output.width + 2 || dz.height > output.height + 2);
+      const conformed = conformBoxEqOut || conformSubCanvasAB || conformOverscanAB;
+      const drawSrc = conformed
         ? conformDropZoneSource(src, output.width, output.height)
         : src;
+      // When the source has been fill-CONFORMED to the output buffer, it already
+      // fills the frame — the letterbox-bar crop adjustment computed above (effCrop,
+      // for the NATIVE-size aspect-fit placement) no longer applies and would
+      // wrongly crop the conformed source (Movements/Switch: a 2160×1080 overscan
+      // drop-zone gave barTop=−67 → effCrop.top/bottom≈57px, blitting the conformed
+      // 2160×1080 card with a 57px top/bottom crop → BLACK BARS, whole frame ~0.886×
+      // dark). Reset effCrop to the plain (usually zero) transform crop for conformed
+      // sources; the conform IS the fill.
+      if (conformed) effCrop = crop;
       // Framing camera (factory 3): the standalone Transition A/B drop-zone tiles
       // live in the same off-canvas world space as the replicator wall, so route
       // them through the same look-at camera (computeFraming pose). Generic — only
