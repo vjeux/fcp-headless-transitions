@@ -202,3 +202,18 @@ NEXT (fit the 1.2544 source, then fix + verify no 65-slug regression):
   - Apply the scale in the shape rasterization / transform; verify Wipes__Diagonal ~99dB, golden
     green, min-regress + full-65 no regression.
 Probe harness: /tmp/mksquare.py, /tmp/stripall.py, /tmp/stripparent.py, /tmp/hrender.py.
+
+## ANOMALY (2026-07-24, cont): identity-transform 200-unit square renders at 283px (engine) / 355px (FCP)
+Parsed square mask verts are EXACTLY ±100 (200-unit), feather=undefined(0), transform fully identity
+(sX=sY=sZ=1, pos=0, anchor=0), NO camera, no significant Z. The engine's toPixel maps shape coords
+1:1 (vx + width/2), so a ±100 square should render EXACTLY 200px. But the measured rendered coverage
+is 283px (engine) / 355px (FCP). BOTH are larger than 200 -> the measurement (frame region where
+mean>50) is NOT the raw mask alpha; it's the gradient-shown-through-mask region, possibly including
+the gradient shape's own extent or AA/feather spread. So the "1.2544x" may be conflating the mask
+size with the gradient 'Background' shape size.
+=> NEXT TICK MUST re-measure the MASK ALPHA DIRECTLY (rasterizeShape output), not the composited
+frame, to get a clean mask-size number. Add a debug that dumps the mask alpha bbox, or render the
+mask as a white-on-black matte. The 1.2544x ratio between FCP and engine is real (consistent across
+scales earlier), but the absolute 200->283/355 needs the direct-alpha measurement to interpret.
+Still: the engine mask is 1.2544x smaller than FCP's -> the coverage cap. Pin the scale source with
+the direct-alpha probe, then fix + regress-check.
