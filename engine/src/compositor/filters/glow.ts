@@ -415,8 +415,14 @@ export function bloomFilter(input: ImageData, params: BloomParams): ImageData {
     bright[j] = er; bright[j + 1] = eg; bright[j + 2] = eb;
   }
 
-  // Step 2 — blur the extracted highlights in FLOAT at radius 0.5·withRadius (register trace).
-  const blurred = decimatedBlurFloatRGB(bright, width, height, 0.5 * withRadius);
+  // Step 2 — blur the extracted highlights in FLOAT. The HGBlur radius = withRadius (=Amount);
+  // decimatedBlurFloatRGB maps radius→sigma as radius/6.10 (the verified HGaussianBlur ratio),
+  // giving sigma = Amount/6.10 ≈ 5.25 at Amount=32. RE-DECODED 2026-07-24 vs REAL HEADLESS:
+  // the blur radius is the FULL withRadius, NOT 0.5·withRadius — 360°_Bloom's mid-ramp glow
+  // spread matches FCP at sigma≈5.25 (f3-10 ~36 dB in the output-res model) but only ~2.6 (=
+  // 0.5·Amount/6.10) with the half-Amount radius (f3-10 ~22 dB). The earlier "0.5·Amount"
+  // (register fmul #0.5) was a mis-read of the radius arg.
+  const blurred = decimatedBlurFloatRGB(bright, width, height, withRadius);
 
   // Step 3 — HgcEchoScaleAndAdd: out = orig + blurred·(withBrightness/50), clip (doClip ? 1 : ∞).
   const gain = withBrightness / 50;
