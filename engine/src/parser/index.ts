@@ -104,17 +104,17 @@ function liftProceduralMasks(
     // Force-lift by promoting mshape.isMask to true LOCALLY (a shallow copy in
     // the emitted Layer — no leak back to shapes.ts).
     let effectiveIsMask = mshape.isMask;
+    let motionPathLifted = false;
     if (!effectiveIsMask
         && (hostType === 'generator' || hostType === 'image')) {
       const hasMotionPath = directChildren(maskEl, 'behavior').some(b => {
         const fid = parseInt(b.getAttribute('factoryID') || '0', 10);
         return fid === 24 || factories.get(fid) === 'Motion Path';
       });
-      if (hasMotionPath) effectiveIsMask = true;
+      if (hasMotionPath) { effectiveIsMask = true; motionPathLifted = true; }
     }
 
     // NARROW ANIMATED-VERTEX MASK LIFT (T-q11397f86). A `<mask>` inside a generator/image
-    // leaf whose CONTROL POINTS themselves animate (a `<curve>` inside a vertex
     // leaf whose CONTROL POINTS themselves animate (a `<curve>` inside a vertex
     // Value parameter — Stylized/Center_Reveal's Arrow left/right shapes on the
     // "Grad middle" Gradient generator: 8 of 12 vertices per arrow key at scene
@@ -139,11 +139,26 @@ function liftProceduralMasks(
 
     const maskParams: Parameter[] = [];
     for (const mp of directChildren(maskEl, 'parameter')) maskParams.push(parseParameter(mp));
+    const maskTransform = extractTransform(maskParams);
+    // Y-AXIS CONVENTION for a MOTION-PATH mask lifted off a generator/image leaf:
+    // Motion authors such a mask's Transform (Position.Y, Anchor.Y) in the LEAF's
+    // own content frame, whose Y sign is INVERTED relative to the scene Y-up world
+    // space the engine's buildTransformMatrix + toPixel expect. Decoded from
+    // Stylized/Slide_In's "Rounded rect down" mask (headless probe): the engine
+    // placed the sliding panel band at screen y[664..1079] while FCP renders it at
+    // y[0..416] — an EXACT mirror about the frame centre. Negating the mask's
+    // Position.Y and Anchor.Y lands the band at y[0..415], matching FCP. Scoped to
+    // the motion-path lift so name-based masks (Wipes/Diagonal's "Animated mask",
+    // already correct) are untouched.
+    if (motionPathLifted) {
+      maskTransform.positionY = negateCurveOrNumber(maskTransform.positionY);
+      maskTransform.anchorY = negateCurveOrNumber(maskTransform.anchorY);
+    }
     out.push({
       id: parseInt(maskEl.getAttribute('id') || '0', 10),
       name: maskEl.getAttribute('name') || 'Procedural Mask',
       type: 'shape',
-      transform: extractTransform(maskParams),
+      transform: maskTransform,
       blendMode: 'normal',
       filters: [],
       children: [],
@@ -216,6 +231,23 @@ function extractImageMask(el: Element): { sourceId?: number; invert: boolean } {
  * animation) and from continuously-growing scales (never returning to 0). Kept
  * strict to avoid false positives outside the Stylized/Panels_* family.
  */
+/**
+ * Negate a Transform channel that may be a static number OR an animated Curve.
+ * Used to flip the Y-axis sign of a motion-path mask lifted off a generator/image
+ * leaf (leaf content frame → scene Y-up). Negates the curve's default/value and
+ * every keyframe value in a shallow copy (the source Curve is not mutated).
+ */
+function negateCurveOrNumber(v: Curve | number | undefined): Curve | number | undefined {
+  if (v === undefined) return undefined;
+  if (typeof v === 'number') return -v;
+  return {
+    ...v,
+    default: -v.default,
+    value: v.value === undefined ? undefined : -v.value,
+    keyframes: v.keyframes.map(k => ({ ...k, value: -k.value })),
+  };
+}
+
 function isAnimatedZeroPeakZeroCurve(c: Curve | number | undefined): boolean {
   if (!c || typeof c === 'number' || !c.keyframes || c.keyframes.length < 3) return false;
   const kps = c.keyframes;
