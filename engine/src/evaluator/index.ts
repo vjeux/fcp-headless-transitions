@@ -969,12 +969,21 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
   }
   const opacity = Math.max(0, Math.min(1, rawOpacity));
 
-  // Crop
+  // Crop. Resolved at `curveTime` (the layer-local, offset-re-anchored time used
+  // for the transform above), NOT raw scene `timeSec`: Crop is a Transform-block
+  // parameter authored in the SAME local time frame as Position/Scale, so an
+  // offset-authored panel (Stylized/Center's "Right full") whose Crop keyframes
+  // live in negative local time [-1.0s..-0.7s] would otherwise clamp to its last
+  // keyframe (crop=0) at every positive scene time — leaving the panel uncropped
+  // and covering Transition B for the whole clip. Using curveTime lands the crop
+  // sweep in the visible window exactly like the panel's slide (crop→0 as the
+  // panel opens). timeSec==curveTime for scene-time-authored layers, so this is
+  // byte-neutral for every non-re-anchored layer (crop unchanged there).
   const crop = {
-    left: resolveValue(layer.transform.cropLeft, timeSec, 0),
-    right: resolveValue(layer.transform.cropRight, timeSec, 0),
-    top: resolveValue(layer.transform.cropTop, timeSec, 0),
-    bottom: resolveValue(layer.transform.cropBottom, timeSec, 0),
+    left: resolveValue(layer.transform.cropLeft, curveTime, 0),
+    right: resolveValue(layer.transform.cropRight, curveTime, 0),
+    top: resolveValue(layer.transform.cropTop, curveTime, 0),
+    bottom: resolveValue(layer.transform.cropBottom, curveTime, 0),
   };
 
   // Evaluate children

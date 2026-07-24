@@ -1,0 +1,13 @@
+{
+  "slug": "Stylized__Center",
+  "source_motr": "/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized/Stylized.localized/Kinetic.localized/Center.localized/Center.motr",
+  "worst_frame": 19,
+  "baseline_psnr": 6.839,
+  "final_psnr": 6.095,
+  "struct_before": 123,
+  "struct_after": 6,
+  "removed": 115,
+  "nframes": 24,
+  "slack": 0.12,
+  "protect": null
+}

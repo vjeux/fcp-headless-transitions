@@ -601,7 +601,7 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
   const { layer, worldTransform, opacity, crop } = evalLayer;
   if (layer.type === 'shape' && layer.shape && !layer.shape.isMask && !layer.shape.isSolidPanel
       && (layer.shape.fillColor || evalLayer.fillColorOverride) && opacity > 0) {
-    const alpha = rasterizeShape(layer.shape, output.width, output.height, worldTransform, rctx.cameraZ, rctx.cameraPosZ);
+    const alpha = rasterizeShape(layer.shape, output.width, output.height, worldTransform, rctx.cameraZ, rctx.cameraPosZ, undefined, crop);
     // A colour-channel Link (ROADMAP S1/T-A1) may drive this shape's Fill Color
     // RGB from a hidden colour-driver shape's fill. Panels_Across's "Red bar"
     // authors its Fill Color WITHOUT the solid-fill flag bit (findFillColor
@@ -659,7 +659,7 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
     const r = linked ? linked.r : shp.panelFill!.r;
     const g = linked ? linked.g : shp.panelFill!.g;
     const b = linked ? linked.b : shp.panelFill!.b;
-    const mask = rasterizeShape(shp, output.width, output.height, worldTransform);
+    const mask = rasterizeShape(shp, output.width, output.height, worldTransform, undefined, undefined, undefined, crop);
     const fillBuf = createBuffer(output.width, output.height);
     const fd = fillBuf.data;
     const fillA = shp.panelFillOpacity ?? 1;

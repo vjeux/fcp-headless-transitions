@@ -31,7 +31,8 @@ export function rasterizeShape(
   transform?: Float64Array,
   cameraZ?: number,
   cameraPosZ?: number,
-  strokeOverride?: { firstOffset: number; lastOffset: number }
+  strokeOverride?: { firstOffset: number; lastOffset: number },
+  crop?: { left: number; right: number; top: number; bottom: number }
 ): Uint8Array {
   const mask = new Uint8Array(width * height);
   const { verticesX, verticesY } = shape;
@@ -165,6 +166,41 @@ export function rasterizeShape(
   }
 
   const alpha = fillPolygonAA(poly, width, height);
+
+  // CROP (Motion Transform > Crop): clips the shape's LOCAL bounding box inward by
+  // Left/Right/Top/Bottom pixels (shape-local units, +Y up). The crop rect is
+  // axis-aligned in shape-local space, so its 4 corners map through the SAME
+  // toPixel (aspect stretch + node/camera transform) as the shape verts; pixels
+  // outside that (possibly rotated) quad are zeroed. Used by Stylized/Center's
+  // "Right full" panel, whose animated Crop shrinks the white card away to reveal
+  // Transition B. An all-zero crop is skipped (byte-neutral for every uncropped
+  // shape). Applied to the raw local bbox BEFORE the aspect stretch, matching the
+  // order Motion crops (content rect) then stretches.
+  if (crop && (crop.left > 0 || crop.right > 0 || crop.top > 0 || crop.bottom > 0)) {
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (let i = 0; i < n; i++) {
+      if (verticesX[i] < minX) minX = verticesX[i];
+      if (verticesX[i] > maxX) maxX = verticesX[i];
+      if (verticesY[i] < minY) minY = verticesY[i];
+      if (verticesY[i] > maxY) maxY = verticesY[i];
+    }
+    const cl = minX + crop.left;         // left edge moves inward (+X)
+    const cr = maxX - crop.right;        // right edge moves inward (−X)
+    const cb = minY + crop.bottom;       // bottom edge (Y-up) moves inward (+Y)
+    const ct = maxY - crop.top;          // top edge (Y-up) moves inward (−Y)
+    if (cr <= cl || ct <= cb) {
+      // Cropped to nothing.
+      alpha.fill(0);
+      return alpha;
+    }
+    // Map the 4 crop-rect corners (local) → pixel via toPixel, then AA-fill that
+    // quad as an intersection mask and multiply into the shape alpha.
+    const cq: number[][] = [toPixel(cl, cb), toPixel(cr, cb), toPixel(cr, ct), toPixel(cl, ct)];
+    const cropMask = fillPolygonAA(cq, width, height);
+    for (let i = 0; i < alpha.length; i++) {
+      alpha[i] = Math.round(alpha[i] * cropMask[i] / 255);
+    }
+  }
 
   // FEATHER (S8): Motion soft-blurs a mask's alpha edge by the shape's Feather
   // radius (shape-local units). Convert to pixels via the transform's average
