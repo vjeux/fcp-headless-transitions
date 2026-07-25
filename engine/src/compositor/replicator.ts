@@ -472,6 +472,37 @@ export function shuffledSequenceOrder(
   return arr[idx] / (n - 1);
 }
 
+/** Number of folded symmetry classes N = ⌈cols/2⌉·⌈rows/2⌉ (the drand48 shuffle domain). */
+export function shuffledClassCount(cols: number, rows: number): number {
+  return (Math.floor(cols / 2) + (cols % 2)) * (Math.floor(rows / 2) + (rows % 2));
+}
+
+/**
+ * Reveal progress for a "Shuffle Order" sequenced replicator.
+ *
+ * Decoded from a CLEAN 4×3-grid oracle probe (fct/AUDIT_2026-07-24): each folded
+ * class reveals as a HARD STEP (no fade ramp — full opacity in <1/96 of the clip)
+ * at globalProgress ≈ rank/N, where rank = arr[classIndex] ∈ [0, N−1] is the
+ * drand48 Fisher-Yates value and N = colFoldCount·rowFoldCount. Measured reveal
+ * times for N=4 were {0.02, 0.27, 0.51, 0.76} = rank/N + ~0.02 (linear fit
+ * gp = 0.982·(rank/N) + 0.022, residuals < 0.003). This is fundamentally DIFFERENT
+ * from the continuous-sweep sequenceProgress() band model (which mis-fires the
+ * shuffle: an ordering value fed through a spread/total band flashes each instance
+ * in a 1/total-wide window at the wrong time). Here the class at FY-rank k occupies
+ * the whole time slice [k/N, (k+1)/N) and steps on at its start.
+ *
+ * `orderValue` is arr[idx]/(N−1) from shuffledSequenceOrder (rank normalized to
+ * [0,1]); `n` is the class count N. Returns 0/1 (a hard step). `end` scales the
+ * sweep so it completes by globalProgress = end (End param; default 1).
+ */
+export function shuffledSequenceProgress(
+  orderValue: number, globalProgress: number, end: number, n: number
+): number {
+  const front = end > 0 ? globalProgress / end : globalProgress;
+  const rank = Math.round(orderValue * (n - 1));
+  return front >= rank / n ? 1 : 0;
+}
+
 /**
  * "Held past timing.out" gate for a framed-scene content replicator.
  *
