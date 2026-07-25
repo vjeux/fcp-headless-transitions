@@ -5,8 +5,8 @@ import ozengine, fct.config as C
 ozengine.init_engine()
 FW="/Applications/Final Cut Pro.app/Contents/Frameworks"
 ctypes.CDLL(FW+"/Ozone.framework/Versions/A/PlugIns/Particles.ozp/Contents/MacOS/Particles", mode=ctypes.RTLD_GLOBAL)
-hook=ctypes.CDLL(REPO+"/fct/instrument/initprop.dylib"); hook.setup_initprop.restype=ctypes.c_int
-print("setup", hook.setup_initprop(), flush=True)
+hook=ctypes.CDLL(REPO+"/fct/instrument/calcidx_elem.dylib"); hook.setup_calcidx.restype=ctypes.c_int
+print("setup", hook.setup_calcidx(), flush=True)
 doc=ozengine.load_doc(REPO+"/fct/minimized/Objects__Squares/case.motr")
 # render at frac 0.3 (where scramble is clearest)
 ozengine.render_frame(doc,C.IMG_A,C.IMG_B,0.3*2.333,"/tmp/pa.png")
