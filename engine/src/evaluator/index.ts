@@ -363,8 +363,28 @@ function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: nu
   // sliding-in retimed card (pos≠anchor, or no rotation) is unaffected.
   const hasAnyRot = !!(tx.rotationX || tx.rotationY || tx.rotationZ || tx.__spinRadians);
   const isNum = (v: unknown): v is number => typeof v === 'number';
-  const hingeAxis = (p: number | Curve | undefined, a: number | Curve | undefined): boolean =>
-    hasRetime && hasAnyRot && isNum(p) && isNum(a) && p === a && p !== 0;
+  // A hinge axis is a pos/anchor pair that resolves to the SAME nonzero STATIC value
+  // (the shared pivot line). The value may be authored either as a raw number OR as a
+  // keyframeless ("empty") Curve `{keyframes:[], value:V}` — Motion emits both forms
+  // depending on the parameter. Movements__Swing's hinge is raw numbers; Movements__
+  // Reflection's Transition B authors positionZ as an EMPTY CURVE (value=960) while its
+  // anchorZ is a raw number 960. The old isNum-only guard missed the mixed/curve form,
+  // so the Z pivot got retime-RAMPED 0→960 (posZ+anchorZ both →320 at f8) instead of
+  // held at 960 — the page hinged on a drifting spine and landed centre-right instead
+  // of pinned at the left screen edge. staticVal() resolves either form to its static
+  // scalar (undefined for a real animated curve, which must NOT be treated as a hinge).
+  const staticVal = (v: number | Curve | undefined): number | undefined => {
+    if (typeof v === 'number') return v;
+    if (v && typeof v === 'object' && (v.keyframes?.length ?? 0) === 0) {
+      return v.value !== undefined ? v.value : v.default;
+    }
+    return undefined; // real keyframed curve → not a static hinge axis
+  };
+  const hingeAxis = (p: number | Curve | undefined, a: number | Curve | undefined): boolean => {
+    if (!hasRetime || !hasAnyRot) return false;
+    const pv = staticVal(p), av = staticVal(a);
+    return pv !== undefined && av !== undefined && pv === av && pv !== 0;
+  };
   const hingeX = hingeAxis(tx.positionX, tx.anchorX);
   const hingeY = hingeAxis(tx.positionY, tx.anchorY);
   const hingeZ = hingeAxis(tx.positionZ, tx.anchorZ);
