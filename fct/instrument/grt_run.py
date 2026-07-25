@@ -5,9 +5,9 @@ import ozengine, fct.config as C
 ozengine.init_engine()
 FW="/Applications/Final Cut Pro.app/Contents/Frameworks"
 ctypes.CDLL(FW+"/Ozone.framework/Versions/A/PlugIns/Particles.ozp/Contents/MacOS/Particles", mode=ctypes.RTLD_GLOBAL)
-hook=ctypes.CDLL(REPO+"/fct/instrument/applyseq.dylib"); hook.setup_applyseq.restype=ctypes.c_int
-print("setup", hook.setup_applyseq(), flush=True)
+hook=ctypes.CDLL(REPO+"/fct/instrument/grt.dylib"); hook.setup_grt.restype=ctypes.c_int
+print("setup", hook.setup_grt(), flush=True)
 doc=ozengine.load_doc(REPO+"/fct/minimized/Objects__Squares/case.motr")
 # render at frac 0.3 (where scramble is clearest)
-ozengine.render_frame(doc,C.IMG_A,C.IMG_B,0.3*2.333,"/tmp/as.png")
-print("done",flush=True); open("/tmp/as_done.txt","w").write("done")
+ozengine.render_frame(doc,C.IMG_A,C.IMG_B,0.3*2.333,"/tmp/grt.png")
+print("done",flush=True); open("/tmp/grt_done.txt","w").write("done")

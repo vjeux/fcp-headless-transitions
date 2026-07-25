@@ -5,9 +5,11 @@ import ozengine, fct.config as C
 ozengine.init_engine()
 FW="/Applications/Final Cut Pro.app/Contents/Frameworks"
 ctypes.CDLL(FW+"/Ozone.framework/Versions/A/PlugIns/Particles.ozp/Contents/MacOS/Particles", mode=ctypes.RTLD_GLOBAL)
-hook=ctypes.CDLL(REPO+"/fct/instrument/applyseq.dylib"); hook.setup_applyseq.restype=ctypes.c_int
-print("setup", hook.setup_applyseq(), flush=True)
+hook=ctypes.CDLL(REPO+"/fct/instrument/gvof.dylib"); hook.setup_gvof.restype=ctypes.c_int
+hook.gvof_frame.argtypes=[ctypes.c_int]
+print("setup", hook.setup_gvof(), flush=True)
 doc=ozengine.load_doc(REPO+"/fct/minimized/Objects__Squares/case.motr")
-# render at frac 0.3 (where scramble is clearest)
-ozengine.render_frame(doc,C.IMG_A,C.IMG_B,0.3*2.333,"/tmp/as.png")
-print("done",flush=True); open("/tmp/as_done.txt","w").write("done")
+for i,frac in enumerate([0.1,0.3,0.5,0.7]):
+    hook.gvof_frame(int(frac*100))
+    ozengine.render_frame(doc,C.IMG_A,C.IMG_B,frac*2.333,f"/tmp/gvof_{i}.png")
+print("done",flush=True); open("/tmp/gvof_done.txt","w").write("done")

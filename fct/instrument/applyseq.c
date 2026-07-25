@@ -10,17 +10,16 @@
 #include <mach/mach_vm.h>
 static FILE* g=NULL;
 static void L(const char*f,...){ if(!g)g=fopen("/tmp/applyseq_trace.txt","a"); va_list a; va_start(a,f); vfprintf(g,f,a); va_end(a); fflush(g);}
-typedef void (*fn_t)(void*,void*,void*,void*);
+// PSPaintPType::applyAllSequenceBehaviors(this x0, CMTime& x1, PSParticle* x2, PSSequencedValues& x3)
+typedef void (*fn_t)(void*, void*, char*, void*);
 static fn_t o_fn=NULL; static long cnt=0;
-static void h_fn(void* self, void* cm, void* particle, void* vals){
-    if(cnt<250 && particle){
-        char* p=(char*)particle;
-        double a8=*(double*)(p+0xa8);
-        double b0=*(double*)(p+0xb0);
-        uint32_t e0=*(uint32_t*)(p+0xe0);       // ctor index arg
-        // position q0 stored at +0x8 (2 doubles) per ctor `stur q0,[x0,#0x8]`
-        double px=*(double*)(p+0x8), py=*(double*)(p+0x10);
-        L("#%ld idx=%u phase=%.5f rank=%.1f pos=(%.3f,%.3f) ptr=%p\n", cnt, e0, a8, b0, px, py, particle);
+static void h_fn(void* self, void* cm, char* particle, void* vals){
+    if(cnt<130 && particle){
+        double of=*(double*)(particle+0xa8);
+        // dump candidate position offsets
+        double p8=*(double*)(particle+0x8), p10=*(double*)(particle+0x10), p18=*(double*)(particle+0x18);
+        double p20=*(double*)(particle+0x20), p28=*(double*)(particle+0x28);
+        L("#%ld of=%.4f p8=%.1f p10=%.1f p18=%.1f p20=%.1f p28=%.1f\n", cnt, of, p8,p10,p18,p20,p28);
     }
     cnt++;
     o_fn(self,cm,particle,vals);
@@ -30,7 +29,7 @@ static int patch(void*d,const void*s,size_t n){mach_port_t t=mach_task_self();ui
 static void* mktr(uint32_t*t){void*m=mmap(0,4096,PROT_READ|PROT_WRITE|PROT_EXEC,MAP_ANON|MAP_PRIVATE|MAP_JIT,-1,0);if(m==MAP_FAILED)m=mmap(0,4096,PROT_READ|PROT_WRITE|PROT_EXEC,MAP_ANON|MAP_PRIVATE,-1,0);if(m==MAP_FAILED)return 0;
  pthread_jit_write_protect_np(0);uint32_t*p=m;for(int i=0;i<4;i++)p[i]=t[i];p[4]=0x58000051;p[5]=0xD61F0220;*(uint64_t*)&p[6]=(uint64_t)(t+4);sys_icache_invalidate(m,4096);pthread_jit_write_protect_np(1);return m;}
 int setup_applyseq(void){
-    void* ad=dlsym((void*)-2,"_ZN14PSParticleType25applyAllSequenceBehaviorsERK6CMTimePK10PSParticleR17PSSequencedValues");
+    void* ad=dlsym((void*)-2,"_ZN12PSPaintPType23applyAllSequenceBehaviorsERK6CMTimePK10PSParticleR17PSSequencedValues");
     if(!ad){L("NOSYM\n");return -2;}
     void* tr=mktr((uint32_t*)ad); if(!tr)return -1; o_fn=(fn_t)tr;
     uint32_t pt[4]; pt[0]=0x58000051; pt[1]=0xD61F0220; *(uint64_t*)&pt[2]=(uint64_t)h_fn;
