@@ -994,6 +994,24 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
     const hasFilters = layer.filters.length > 0;
     const hasMasks = maskShapes.length > 0;
     const hasBlend = layer.blendMode !== 'normal';
+    // STENCIL/SILHOUETTE CHILD → the group MUST render into its own scoped buffer.
+    // A child with a stencil/silhouette blend (stencilAlpha/stencilLuma/silhouetteAlpha/
+    // silhouetteLuma) modulates the DESTINATION alpha of whatever it composites onto
+    // (blit.ts: dstA *= key or 1-key). FCP scopes that knockout to the layers BELOW the
+    // stencil WITHIN THE SAME GROUP. If the enclosing group renders its children DIRECTLY
+    // to the shared `output` (the else-branch, taken when the group itself has no
+    // filter/mask/blend), the stencil leaks and knocks out SIBLING groups' alpha too.
+    // Decoded from 360° Circle Wipe (minimized): "Transition A Group" holds only an
+    // "Alpha Mask Group" (silhouetteLuma, a white matte); the top-level paints B Group
+    // first then A Group, so A's leaked silhouette zeroed the WHOLE frame's alpha
+    // (mean colour = B but maxAlpha = 0 → all-black JPEG). Forcing the scoped-buffer
+    // path confines the knockout to A Group's own (empty) buffer, leaving B intact.
+    const hasStencilChild = visibleChildren.some(c => {
+      const bm = c.layer.blendMode;
+      return bm === 'stencilAlpha' || bm === 'stencilLuma'
+        || bm === 'silhouetteAlpha' || bm === 'silhouetteLuma';
+    });
+
     // GROUP-LEVEL IMAGE MASK: a `<mask Image Mask>` authored on the GROUP/LAYER (not a
     // leaf drawable) clips the WHOLE group to a referenced shape/clone. Concentric's
     // ring groups mask stacked Clone A/B to a Circle shape (the concentric-ring
@@ -1155,7 +1173,7 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
       order = (idx: number): EvaluatedLayer => visibleChildren[visibleChildren.length - 1 - idx];
     }
 
-    if (hasFilters || hasMasks || hasBlend || hasImageMask || hasCrossContainerDropZoneMask) {
+    if (hasFilters || hasMasks || hasBlend || hasImageMask || hasCrossContainerDropZoneMask || hasStencilChild) {
       // Render visible children to a temp buffer
       const groupBuffer = createBuffer(output.width, output.height);
       for (let i = 0; i < visibleChildren.length; i++) {
