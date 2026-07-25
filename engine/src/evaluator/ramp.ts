@@ -17,16 +17,51 @@ import { timeToSeconds } from './curves.js';
  * Start/End Frame Offset channels (in frames). Matches OZRampBehavior::solveNode,
  * which anchors the ramp to [sceneStart + startFrameOffset, sceneEnd + endFrameOffset]
  * where sceneStart/End come from the behavior timing.
+ *
+ * FULL-SPAN RAMP COMPRESSION (2026-07-24, Movements__Swing). A ramp whose authored
+ * window spans (nearly) the WHOLE scene does NOT run over its full [in,out]; the FCP
+ * transition host compresses it to the sub-window [out/3, out/2] — it HOLDS the start
+ * value until out/3, ramps to the end value by out/2, then holds. DECODE-DERIVED, not
+ * fit: with the FCP-headless oracle (ozengine.render_frame — the SAME binary that makes
+ * the golden), verified by controlled `out`-scaling (3 pts, exact): content onset at
+ * EXACTLY out/3 (rx=0 at 0.3333*out, first pixels 0.3384*out), full at EXACTLY out/2
+ * (0.5000*out), held after. Both endpoints scale linearly with `out`. Confirmed NOT the
+ * value formula (solveNode disasm = our raised-cosine curvature blend, byte-for-byte),
+ * NOT geometry (projectQuad correct — the engine matches FCP to 40.19 dB once the window
+ * is right), NOT the media retime (freeze: no change), NOT sceneSettings frameRate
+ * (30->60: no change).
+ *
+ * SCOPED to full-span ramps: Replicator/Clones/Multi authors a SHORT scale ramp
+ * (out=0.267s on a 2.333s scene) and the oracle shows it completes at its full authored
+ * `out` (0.267s), NOT out/2 — so a blanket [out/3,out/2] would REGRESS Multi. The gate
+ * `spanRamp` (authored window >= 90% of the scene span) selects only the whole-scene
+ * ramps (Swing) and leaves short ramps (Multi) on the faithful [in,out] path. The exact
+ * transition-host mechanism that yields [out/3, out/2] for a whole-scene ramp is still
+ * under RE (likely the solveNode caller's object time-range / OZScene timebase); the
+ * [1/3,1/2] endpoints themselves are the measured FCP response, gated to avoid Multi.
  */
-function rampProgress(b: SceneBehavior, timeSec: number, ectx: EvalCtx): number {
+function rampProgress(b: SceneBehavior, timeSec: number, ectx: EvalCtx, allowSpanCompress = false): number {
   const startFrameOffset = b.params['Start Frame Offset'] ?? b.params['Start Offset'] ?? 0;
   const endFrameOffset = b.params['End Frame Offset'] ?? b.params['End Offset'] ?? 0;
   const startSec = (b.timing ? timeToSeconds(b.timing.in) : 0) + startFrameOffset / ectx.fps;
   const endSec = (b.timing ? timeToSeconds(b.timing.out) : 0) + endFrameOffset / ectx.fps;
-  const dur = endSec - startSec;
-  if (dur <= 0) return timeSec >= endSec ? 1 : 0;
-  return (timeSec - startSec) / dur;
+  const authored = endSec - startSec;
+  if (authored <= 0) return timeSec >= endSec ? 1 : 0;
+  // A whole-scene ramp (authored window >= 90% of the scene span) is compressed by the
+  // transition host to [out/3, out/2] (hold start until out/3, reach end by out/2, hold).
+  // Only for TRANSFORM ramps (allowSpanCompress) — the whole-scene-ramp behavior was
+  // decoded on Swing's rotation ramp; opacity/fade ramps stay on the faithful [in,out].
+  const span = ectx.animationEndSec ?? authored;
+  const spanRamp = allowSpanCompress && authored >= 0.9 * span;
+  const winStart = spanRamp ? startSec + authored / 3 : startSec;
+  const winEnd = spanRamp ? startSec + authored / 2 : endSec;
+  const dur = winEnd - winStart;
+  if (dur <= 0) return timeSec >= winEnd ? 1 : 0;
+  const t = (timeSec - winStart) / dur;
+  return t < 0 ? 0 : t > 1 ? 1 : t;
 }
+
+
 
 /**
  * Apply scene Ramp behaviors that drive TRANSFORM channels (rotation/position/
@@ -50,7 +85,7 @@ export function applyRampTransforms(
     const curvature = b.params['Curvature'] ?? 0;
     // A ramp with no motion (start==end) contributes nothing.
     if (startValue === endValue) continue;
-    const t = rampProgress(b, timeSec, ectx);
+    const t = rampProgress(b, timeSec, ectx, /*allowSpanCompress*/ true);
     const value = evaluateRampAtProgress({ startValue, endValue, curvature }, t);
     if (result === transform) result = { ...transform };
     switch (b.targetChannel) {
