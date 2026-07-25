@@ -237,5 +237,32 @@ function parseSequenceReplicator(el: Element, factories: Map<number, string>): S
   const opacityAnimated = opacityEnd !== undefined || (opSnap !== undefined && opSnap !== 1);
   const scaleAnimated = scaleEnd !== undefined || (scSnap !== undefined && scSnap !== 1);
 
-  return { sequencing, end, spread, mapAnimation, quadraticEase, opacityEnd, scaleEnd, rotationEnd, opacityAnimated, scaleAnimated };
+  // "Shuffle Order" (param id=335): when 1, reveal instances in a pseudo-random
+  // (drand48 Fisher-Yates) permutation instead of the geometric order. This param
+  // lives on the Replicator/Cell scenenode subtree (`el`), NOT on the Sequence
+  // behavior, so read it from el. Guard: skip the behavior <target> stub named
+  // "Shuffle Order" (no value) by requiring a numeric value/default.
+  let shuffleOrder = false;
+  {
+    const ps = el.getElementsByTagName('parameter');
+    for (let i = 0; i < ps.length; i++) {
+      if (ps[i].getAttribute('name') !== 'Shuffle Order') continue;
+      const v = ps[i].getAttribute('value') ?? ps[i].getAttribute('default');
+      const n = v !== null ? parseFloat(v) : NaN;
+      if (!isNaN(n)) { shuffleOrder = n >= 0.5; break; }
+    }
+  }
+  // "Replicate Seed" (id=349) is a DIRECT param of the Replicator scenenode `el`
+  // (not the Sequence behavior), so read it from el, not seqBehavior.
+  let replicateSeed: number | undefined;
+  {
+    const p = findParam(el, 'Replicate Seed');
+    if (p) {
+      const v = p.getAttribute('value') ?? p.getAttribute('default');
+      const n = v !== null ? parseFloat(v) : NaN;
+      if (!isNaN(n)) replicateSeed = n >>> 0;
+    }
+  }
+
+  return { sequencing, end, spread, mapAnimation, quadraticEase, opacityEnd, scaleEnd, rotationEnd, opacityAnimated, scaleAnimated, shuffleOrder, replicateSeed };
 }

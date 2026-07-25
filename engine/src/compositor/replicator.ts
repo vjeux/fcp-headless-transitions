@@ -403,23 +403,73 @@ export function sequenceProgress(
 export function sequenceOrder(inst: ReplicatorInstance, cols: number, rows: number): number {
   const maxDiag = (cols - 1) + (rows - 1);
   if (maxDiag <= 0) return 0;
-  // Diagonal sweep. Motion's Sequence Replicator traverses the grid in a diagonal
-  // wavefront; combined with the replicator group's own 180° Z-rotation the visible
-  // wave runs corner-to-corner across the frame. The rank orders instances by
-  // (col + (Rmax − row)) — a diagonal from one corner — normalized to [0,1] with 0
-  // = animates first. This orientation reproduces FCP's Duplicate reveal (the dot
-  // wave sweeps across the frame leaving the far corner last). Derived from the grid
-  // layout (col/row indices), not from any GT-measured constant.
-  //
-  // NOTE (Squares): that template sets Replicator "Shuffle Order"=1, so FCP reveals
-  // tiles in a pseudo-random permutation, not a diagonal band. A deterministic
-  // seeded-hash scatter was tried and MEASURED (full 24-frame GUI-GT score): it
-  // did NOT beat the diagonal (12.70 vs 12.97 dB) because the hash permutation is
-  // not Motion's actual PRNG order — it just moved the error around. Reproducing
-  // Motion's exact shuffle PRNG is out of scope; the diagonal remains the best
-  // generic order. Left documented so a future exact-PRNG decode can revisit.
   const rank = inst.col + ((rows - 1) - inst.row);
   return rank / maxDiag;
+}
+
+/**
+ * drand48 Fisher-Yates permutation over N elements, seeded per Motion's
+ * TXSequenceParams::shuffle (TextFramework @0x18710, disassembled 2026-07-24):
+ *
+ *   state = (seed << 16 | 0x330E) & (2^48 − 1)          // srand48(seed)
+ *   arr   = identity[0..N)
+ *   for i = 1 .. N−1:
+ *       state = (state * 0x5DEECE66D + 0xB) & (2^48 − 1)  // POSIX drand48 LCG
+ *       j     = (state >> 17) % (i + 1)                    // nrand48 hi bits, mod (i+1)
+ *       swap(arr[i], arr[j])
+ *   return arr
+ *
+ * The shuffle() routine returns arr[selIndex] — object i's ORDER VALUE is arr[i]
+ * (the FORWARD map: value AT index i, not the inverse permutation position). All
+ * arithmetic is 48-bit; JS Number loses precision above 2^53, so state is kept in
+ * a BigInt. N is small (grid cells / folded classes) so this is cheap and cached.
+ */
+const _fyCache = new Map<string, Int32Array>();
+export function drand48FisherYates(n: number, seed: number): Int32Array {
+  const key = `${n}:${seed >>> 0}`;
+  const hit = _fyCache.get(key);
+  if (hit) return hit;
+  const M = (1n << 48n) - 1n;
+  const MULT = 0x5DEECE66Dn;
+  const INC = 0xBn;
+  let state = ((BigInt(seed >>> 0) << 16n) | 0x330En) & M;
+  const arr = new Int32Array(n);
+  for (let i = 0; i < n; i++) arr[i] = i;
+  for (let i = 1; i < n; i++) {
+    state = (state * MULT + INC) & M;
+    const j = Number((state >> 17n) % BigInt(i + 1));
+    const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+  _fyCache.set(key, arr);
+  return arr;
+}
+
+/**
+ * Shuffled order value for an instance under Motion "Shuffle Order" = on.
+ *
+ * Motion folds the grid to symmetric equivalence classes (mirror partners share a
+ * reveal rank — 4-fold symmetry verified from FCP: the 4 mirror cells of each class
+ * reveal on the SAME frame). The fold key is enumerated row-major from the FAR
+ * (bottom-right) corner: classIndex = (rowFoldMax − rowFold)*colFoldCount + (colFoldMax − colFold),
+ * where colFold = min(col, cols−1−col), rowFold = min(row, rows−1−row). The order
+ * VALUE = arr[classIndex] / (N−1) with arr = drand48FisherYates(N, seed) (FORWARD
+ * map, per the disasm). Decoded/validated against clean per-cell onset data
+ * (fct/AUDIT_2026-07-24): fold enumeration (3-rf)*7+(6-cf) gave the best rank↔onset
+ * correlation (+0.81) of all index schemes. Returns [0,1], 0 = animates first.
+ */
+export function shuffledSequenceOrder(
+  inst: ReplicatorInstance, cols: number, rows: number, seed: number
+): number {
+  const colFoldCount = Math.floor(cols / 2) + (cols % 2);
+  const rowFoldCount = Math.floor(rows / 2) + (rows % 2);
+  const n = colFoldCount * rowFoldCount;
+  if (n <= 1) return 0;
+  const colFold = Math.min(inst.col, cols - 1 - inst.col);
+  const rowFold = Math.min(inst.row, rows - 1 - inst.row);
+  const classIndex = (rowFoldCount - 1 - rowFold) * colFoldCount + (colFoldCount - 1 - colFold);
+  const arr = drand48FisherYates(n, seed);
+  const idx = Math.max(0, Math.min(n - 1, classIndex));
+  return arr[idx] / (n - 1);
 }
 
 /**

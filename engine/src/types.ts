@@ -647,6 +647,20 @@ export interface SequenceReplicator {
    * so its full-size tiles must NOT be shrunk by the wavefront progress. */
   opacityAnimated?: boolean;
   scaleAnimated?: boolean;
+  /**
+   * Motion "Shuffle Order" (Sequence behavior param id=335, value 1 = on). When on,
+   * the Sequence Replicator reveals instances in a pseudo-random permutation instead
+   * of the geometric (diagonal/sequential) order. The permutation is Fisher-Yates
+   * seeded by the replicator's "Replicate Seed" using the POSIX drand48 LCG — decoded
+   * BYTE-FOR-BYTE from TXSequenceParams::shuffle (TextFramework @0x18710):
+   *   arr = identity[N]; for i=1..N-1: state=(state*0x5DEECE66D+0xB)&2^48-1;
+   *   j=(state>>17)%(i+1); swap(arr[i],arr[j]);  seed state = (seed<<16)|0x330E.
+   * Object i's order-VALUE = arr[i] (FORWARD map — the value at index i, NOT the
+   * inverse position). Grid cells fold to symmetric classes so mirror partners share
+   * a rank (4-fold symmetry observed). */
+  shuffleOrder?: boolean;
+  /** "Replicate Seed" (replicator param id=349) — the drand48 seed for shuffleOrder. */
+  replicateSeed?: number;
 }
 
 
