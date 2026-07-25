@@ -9,7 +9,7 @@
 #include <mach/mach.h>
 #include <mach/mach_vm.h>
 static FILE* g=NULL;
-static void L(const char*f,...){ if(!g)g=fopen("/tmp/applyseq_trace.txt","a"); va_list a; va_start(a,f); vfprintf(g,f,a); va_end(a); fflush(g);}
+static void L(const char*f,...){ if(!g)g=fopen("/tmp/applyseq8_trace.txt","a"); va_list a; va_start(a,f); vfprintf(g,f,a); va_end(a); fflush(g);}
 typedef void (*fn_t)(void*,void*,void*,void*);
 static fn_t o_fn=NULL; static long cnt=0;
 static void h_fn(void* self, void* cm, void* particle, void* vals){
