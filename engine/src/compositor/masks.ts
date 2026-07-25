@@ -14,7 +14,7 @@ import type { RenderContext } from './context.js';
 import { evaluateCurve } from '../evaluator/curves.js';
 import { rasterizeShape, unionMasks } from './shapes.js';
 import { luma601 } from './blend.js';
-import { generateInstances, sequenceProgress, sequenceOrder } from './replicator.js';
+import { generateInstances, sequenceProgress, sequenceOrder, shuffledSequenceOrder, shuffledSequenceProgress, shuffledClassCount } from './replicator.js';
 import { renderGaussianGradient, renderLensFlare, renderLinearGradient } from './filters/gradient.js';
 import { mat4Mul, instanceLocalMatrix, createBuffer } from './blit.js';
 import { lookupFilter, makeContext } from './filters/registry.js';
@@ -483,8 +483,18 @@ function replicatorMaskAlpha(rctx: RenderContext, replEval: EvaluatedLayer, W: n
     let instScale = 1;
     let instOpacity = 1;
     if (seq) {
-      const order = sequenceOrder(inst, cols, rows);
-      const p = sequenceProgress(order, globalProgress, seq.end, seq.spread, instances.length);
+      // "Shuffle Order" ON (Objects · Squares): drand48 Fisher-Yates block reveal
+      // keyed by Replicate Seed — fully decoded + 4-seed verified (replicator.ts).
+      let order: number;
+      let p: number;
+      if (seq.shuffleOrder && seq.replicateSeed !== undefined) {
+        const n = shuffledClassCount(cols, rows);
+        order = shuffledSequenceOrder(inst, cols, rows, seq.replicateSeed);
+        p = shuffledSequenceProgress(order, globalProgress, seq.end, n);
+      } else {
+        order = sequenceOrder(inst, cols, rows);
+        p = sequenceProgress(order, globalProgress, seq.end, seq.spread, instances.length);
+      }
       // Only ramp the channels the sequence actually animates; a non-sequenced channel
       // holds its identity (scale 1 / opacity 1). Squares sequences OPACITY only → its
       // full-size tessellating tiles must stay scale 1 and merely fade in (the old

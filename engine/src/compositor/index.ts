@@ -20,7 +20,7 @@ import { resample } from './resample.js';
 import { detectFieldTexture, applyParticleFieldProxy, detectParticleGroupTint } from './field-texture.js';
 import { sceneMatchesNestedMaskedCloneStack, renderNestedMaskedCloneStack } from './z-composite.js';
 import { applyEmitterSim } from './emitter-sim.js';
-import { generateInstances, sequenceProgress, sequenceOrder, shouldHoldReplicatorPastTiming } from './replicator.js';
+import { generateInstances, sequenceProgress, sequenceOrder, shuffledSequenceOrder, shuffledSequenceProgress, shuffledClassCount, shouldHoldReplicatorPastTiming } from './replicator.js';
 import { lookupFilter, makeContext } from './filters/registry.js';
 import {
   isWorkingSpacePipelineEnabled, decodeToWorking, encodeFromWorking,
@@ -409,8 +409,20 @@ function renderReplicatorLayer(rctx: RenderContext, output: ImageData, evalLayer
       let instOpacityMul = 1;
       let instScale = 1;
       if (seq) {
-        const order = sequenceOrder(inst, cols, rows);
-        const p = sequenceProgress(order, globalProgress, seq.end, seq.spread, instances.length);
+        // "Shuffle Order" ON: reveal blocks in a drand48 Fisher-Yates order keyed
+        // by the Replicate Seed (fully decoded + 4-seed verified, replicator.ts).
+        // Each order-block steps on hard at arr[baseRank]/N. Otherwise the default
+        // diagonal-sweep band model.
+        let order: number;
+        let p: number;
+        if (seq.shuffleOrder && seq.replicateSeed !== undefined) {
+          const n = shuffledClassCount(cols, rows);
+          order = shuffledSequenceOrder(inst, cols, rows, seq.replicateSeed);
+          p = shuffledSequenceProgress(order, globalProgress, seq.end, n);
+        } else {
+          order = sequenceOrder(inst, cols, rows);
+          p = sequenceProgress(order, globalProgress, seq.end, seq.spread, instances.length);
+        }
         // Apply the per-instance curves. Motion Scale curve is a MULTIPLIER
         // ramp: value 0 → scaleEnd means the instance grows from 0 to scaleEnd×
         // the base cell. Opacity ramps 0 → opacityEnd. (Rotation would rotate

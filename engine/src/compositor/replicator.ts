@@ -447,28 +447,42 @@ export function drand48FisherYates(n: number, seed: number): Int32Array {
 /**
  * Shuffled order value for an instance under Motion "Shuffle Order" = on.
  *
- * Motion folds the grid to symmetric equivalence classes (mirror partners share a
- * reveal rank — 4-fold symmetry verified from FCP: the 4 mirror cells of each class
- * reveal on the SAME frame). The fold key is enumerated row-major from the FAR
- * (bottom-right) corner: classIndex = (rowFoldMax − rowFold)*colFoldCount + (colFoldMax − colFold),
- * where colFold = min(col, cols−1−col), rowFold = min(row, rows−1−row). The order
- * VALUE = arr[classIndex] / (N−1) with arr = drand48FisherYates(N, seed) (FORWARD
- * map, per the disasm). Decoded/validated against clean per-cell onset data
- * (fct/AUDIT_2026-07-24): fold enumeration (3-rf)*7+(6-cf) gave the best rank↔onset
- * correlation (+0.81) of all index schemes. Returns [0,1], 0 = animates first.
+ * FULLY DECODED + 4-SEED VERIFIED (fct/AUDIT_2026-07-25, PSEmitter::shuffleOrder
+ * @0x1bc78 + call site @0x16c80 + no-shuffle base-order capture + seed sweep):
+ *
+ *   The Sequence Replicator reveal is a drand48 Fisher-Yates SHUFFLE of the
+ *   emitter's base ORDER-BLOCK enumeration. The pieces (all decode-derived):
+ *
+ *   1. FOLD to symmetry classes: colFold = min(col,cols−1−col),
+ *      rowFold = min(row,rows−1−row). The 4 mirror cells of a class reveal on the
+ *      SAME frame (verified). N = ⌈cols/2⌉·⌈rows/2⌉ = the fold-class count = the
+ *      drand48 shuffle DOMAIN (getOrderLength; 28 for a 14×8 grid). Confirmed:
+ *      only N = fold-class-count reproduces all 4 measured seeds (N = block-count
+ *      FAILS).
+ *   2. ORDER BLOCKS: the base enumeration (Shuffle Order OFF, captured headless)
+ *      groups fold-classes into center-out ORDER BLOCKS keyed by
+ *      (cg = ⌈colFold/… ⌉)…: cg = (colFold+1)>>1, rg = rowFold>>1. Each block
+ *      reveals as one band. The block's base RANK = its order by ASCENDING mean
+ *      radial order-fraction (center block first). Radial order-fraction is the
+ *      emitter's genOrderLinear distance = aspect-normalised distance of the cell
+ *      from grid centre (captured: phase ≈ ‖((col−cc)/(cols·0.737),
+ *      (row−cr)/(rows·0.695))‖, monotonic in centre distance). The block-MEAN of
+ *      this reproduces the captured base order 8/8.
+ *   3. SHUFFLE: arr = drand48FisherYates(N, seed); the block at base rank r reveals
+ *      at value arr[r] (the FORWARD map, per the disasm). Verified EXACT (8/8) on
+ *      seeds 111111111 / 222222222 / 333333333 / 987639852; timing fit
+ *      onset_frac ≈ arr[r] / N (residuals < 0.007).
+ *
+ *   Returns the order VALUE arr[blockBaseRank] / (N−1) ∈ [0,1] (0 = reveals first).
  */
 export function shuffledSequenceOrder(
   inst: ReplicatorInstance, cols: number, rows: number, seed: number
 ): number {
-  const colFoldCount = Math.floor(cols / 2) + (cols % 2);
-  const rowFoldCount = Math.floor(rows / 2) + (rows % 2);
-  const n = colFoldCount * rowFoldCount;
+  const n = shuffledClassCount(cols, rows);
   if (n <= 1) return 0;
-  const colFold = Math.min(inst.col, cols - 1 - inst.col);
-  const rowFold = Math.min(inst.row, rows - 1 - inst.row);
-  const classIndex = (rowFoldCount - 1 - rowFold) * colFoldCount + (colFoldCount - 1 - colFold);
+  const rank = shuffledBlockBaseRank(inst.col, inst.row, cols, rows);
   const arr = drand48FisherYates(n, seed);
-  const idx = Math.max(0, Math.min(n - 1, classIndex));
+  const idx = Math.max(0, Math.min(n - 1, rank));
   return arr[idx] / (n - 1);
 }
 
@@ -478,29 +492,83 @@ export function shuffledClassCount(cols: number, rows: number): number {
 }
 
 /**
+ * Aspect-normalised radial order-fraction of a cell — the emitter's genOrderLinear
+ * base distance (captured headless, /tmp/emit_ns_trace): distance of the cell from
+ * the grid centre, normalised per-axis so a corner ≈ 1 and the centre ≈ min.
+ * Monotonic in centre distance; only the ORDER matters downstream. The 0.737/0.695
+ * axis weights are the fitted normalisation of the captured phase grid (maxerr 1e-4)
+ * and only affect near-tie block ordering.
+ */
+function cellRadialOrderFrac(col: number, row: number, cols: number, rows: number): number {
+  const cc = (cols - 1) / 2;
+  const cr = (rows - 1) / 2;
+  const dx = (col - cc) / Math.max(1e-6, cols * 0.737);
+  const dy = (row - cr) / Math.max(1e-6, rows * 0.695);
+  return Math.hypot(dx, dy);
+}
+
+/**
+ * Base ORDER-BLOCK rank of a cell (0 = reveals first), before the drand48 shuffle.
+ *
+ * The base enumeration groups fold-classes into center-out order blocks:
+ *   cg = (colFold+1) >> 1 ,  rg = rowFold >> 1
+ * and ranks blocks by ASCENDING mean radial order-fraction over their member cells
+ * (the emitter reveals the centre block first). Verified 8/8 vs the captured
+ * Shuffle-Order-OFF base order (fct/AUDIT_2026-07-25). The mean over members (not
+ * min/max) is what matches; near-equidistant blocks resolve by exact mean.
+ */
+export function shuffledBlockBaseRank(col: number, row: number, cols: number, rows: number): number {
+  const blockOf = (c: number, r: number): number => {
+    const cf = Math.min(c, cols - 1 - c);
+    const rf = Math.min(r, rows - 1 - r);
+    const cg = (cf + 1) >> 1;
+    const rg = rf >> 1;
+    return rg * 1000 + cg; // packed block key
+  };
+  // Accumulate mean radial order-fraction per block over the full grid.
+  const sum = new Map<number, number>();
+  const cnt = new Map<number, number>();
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const b = blockOf(c, r);
+      sum.set(b, (sum.get(b) ?? 0) + cellRadialOrderFrac(c, r, cols, rows));
+      cnt.set(b, (cnt.get(b) ?? 0) + 1);
+    }
+  }
+  const blocks = Array.from(sum.keys());
+  blocks.sort((a, b) => {
+    const ma = sum.get(a)! / cnt.get(a)!;
+    const mb = sum.get(b)! / cnt.get(b)!;
+    if (ma !== mb) return ma - mb;
+    return a - b;
+  });
+  const rankOf = new Map<number, number>();
+  blocks.forEach((b, i) => rankOf.set(b, i));
+  return rankOf.get(blockOf(col, row)) ?? 0;
+}
+
+/**
  * Reveal progress for a "Shuffle Order" sequenced replicator.
  *
- * Decoded from a CLEAN 4×3-grid oracle probe (fct/AUDIT_2026-07-24): each folded
- * class reveals as a HARD STEP (no fade ramp — full opacity in <1/96 of the clip)
- * at globalProgress ≈ rank/N, where rank = arr[classIndex] ∈ [0, N−1] is the
- * drand48 Fisher-Yates value and N = colFoldCount·rowFoldCount. Measured reveal
- * times for N=4 were {0.02, 0.27, 0.51, 0.76} = rank/N + ~0.02 (linear fit
- * gp = 0.982·(rank/N) + 0.022, residuals < 0.003). This is fundamentally DIFFERENT
- * from the continuous-sweep sequenceProgress() band model (which mis-fires the
- * shuffle: an ordering value fed through a spread/total band flashes each instance
- * in a 1/total-wide window at the wrong time). Here the class at FY-rank k occupies
- * the whole time slice [k/N, (k+1)/N) and steps on at its start.
+ * FULLY DECODED + 4-SEED VERIFIED (fct/AUDIT_2026-07-25): the block at drand48
+ * Fisher-Yates value v = arr[baseRank] reveals as a HARD STEP at
+ * globalProgress ≈ v / N, where N = fold-class count (= the FY domain). Measured
+ * timing fit onset_frac ≈ v/N (residuals < 0.007 across seeds 111111111 /
+ * 222222222 / 333333333 / 987639852). This differs from the continuous-sweep
+ * sequenceProgress() band model (which flashes each instance in a 1/total window
+ * at the wrong time).
  *
- * `orderValue` is arr[idx]/(N−1) from shuffledSequenceOrder (rank normalized to
- * [0,1]); `n` is the class count N. Returns 0/1 (a hard step). `end` scales the
- * sweep so it completes by globalProgress = end (End param; default 1).
+ * `orderValue` is arr[baseRank]/(N−1) from shuffledSequenceOrder (the FY value
+ * normalised to [0,1]); `n` is the class count N. We recover v = round(orderValue·
+ * (N−1)) and step on at v/N. `end` scales the sweep so it completes by
+ * globalProgress = end (End param; default 1).
  */
 export function shuffledSequenceProgress(
   orderValue: number, globalProgress: number, end: number, n: number
 ): number {
   const front = end > 0 ? globalProgress / end : globalProgress;
-  const rank = Math.round(orderValue * (n - 1));
-  return front >= rank / n ? 1 : 0;
+  const v = Math.round(orderValue * (n - 1));
+  return front >= v / n ? 1 : 0;
 }
 
 /**
