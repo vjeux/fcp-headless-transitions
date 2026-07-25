@@ -232,6 +232,20 @@ export function parseFootageClipAB(sceneEl: Element, factories: Map<number, stri
         // Assign by fade: negative (fade-out) → A, positive (fade-in) → B.
         map.set(d0 < 0 ? c0 : c1, 'A');
         map.set(d0 < 0 ? c1 : c0, 'B');
+      } else if (sawA && sawB
+          && ((map.get(c0) === 'A' && map.get(c1) === 'B') || (map.get(c0) === 'B' && map.get(c1) === 'A'))) {
+        // NAME-BASED BINDING IS AUTHORITATIVE when both clips carry an unambiguous
+        // "Transition A"/"Transition B" name AND there is NO disambiguating render
+        // signal (no opposite-signed fades handled above, no shared mask). The
+        // pure-document-order re-key below wrongly SWAPS A/B for templates that author
+        // the "Transition B" scenenode BEFORE "Transition A" with neither fades nor
+        // masks — DECODED from Objects__Squares (minimized): DOM order is Group>
+        // Transition-B then Drop-Zones>Transition-A, so doc-order set B-clip→A and
+        // engine rendered image A where FCP-headless shows B. FCP binds each source to
+        // its NAME-matched drop zone here (Transition B → image B), NOT to render order.
+        // The doc-order fallback is retained ONLY for the case where names did NOT
+        // disambiguate both clips (the genuine "first element = A" discovery-order
+        // templates). Leave the name-based binding in `map` untouched.
       } else {
         map.set(referenced[0], 'A');
         map.set(referenced[1], 'B');
