@@ -207,5 +207,35 @@ function parseSequenceReplicator(el: Element, factories: Map<number, string>): S
   const scaleEnd = lastKeypointValue('Scale', 'X');
   const rotationEnd = lastKeypointValue('Rotation', 'Z');
 
-  return { sequencing, end, spread, mapAnimation, quadraticEase, opacityEnd, scaleEnd, rotationEnd };
+  // WHICH channels the sequence actually animates. Motion's Sequence Replicator
+  // stores the sequenced target as a SNAPSHOT `value` on the Opacity(202)/Scale(203)/
+  // Rotation(206) params — NOT necessarily a keyframed <curve>. Objects/Squares
+  // sequences ONLY Opacity (param `default="1" value="0"` → cells fade 0→1) and does
+  // NOT sequence Scale, so its tiles must stay FULL-SIZE (scale 1) and only fade in.
+  // The old fallback ramped BOTH scale AND opacity by the wavefront `p` whenever the
+  // curve-endpoint was absent (`: p`), which WRONGLY shrank the full-size tiles by p
+  // — the reveal both grew and faded, lagging FCP badly (coverage 9% vs 43% at gp0.25)
+  // and overshooting late. Detect an animated channel by the presence of a sequenced
+  // snapshot value that DIFFERS from the channel's identity (Opacity≠1, Scale≠1),
+  // OR a real curve endpoint. A channel that is NOT sequenced holds its identity.
+  const snapshotVal = (name: string, sub?: string): number | undefined => {
+    const p = findParam(seqBehavior!, name);
+    if (!p) return undefined;
+    let host: Element | undefined = p;
+    if (sub) {
+      const subs = p.getElementsByTagName('parameter');
+      host = undefined;
+      for (let j = 0; j < subs.length; j++) if (subs[j].getAttribute('name') === sub) { host = subs[j]; break; }
+      if (!host) return undefined;
+    }
+    const v = host.getAttribute('value');
+    const n = v !== null ? parseFloat(v) : NaN;
+    return isNaN(n) ? undefined : n;
+  };
+  const opSnap = snapshotVal('Opacity');
+  const scSnap = snapshotVal('Scale', 'X');
+  const opacityAnimated = opacityEnd !== undefined || (opSnap !== undefined && opSnap !== 1);
+  const scaleAnimated = scaleEnd !== undefined || (scSnap !== undefined && scSnap !== 1);
+
+  return { sequencing, end, spread, mapAnimation, quadraticEase, opacityEnd, scaleEnd, rotationEnd, opacityAnimated, scaleAnimated };
 }

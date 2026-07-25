@@ -485,8 +485,17 @@ function replicatorMaskAlpha(rctx: RenderContext, replEval: EvaluatedLayer, W: n
     if (seq) {
       const order = sequenceOrder(inst, cols, rows);
       const p = sequenceProgress(order, globalProgress, seq.end, seq.spread, instances.length);
-      instScale = seq.scaleEnd !== undefined ? p * seq.scaleEnd : p;
-      instOpacity = seq.opacityEnd !== undefined ? p * seq.opacityEnd : p;
+      // Only ramp the channels the sequence actually animates; a non-sequenced channel
+      // holds its identity (scale 1 / opacity 1). Squares sequences OPACITY only → its
+      // full-size tessellating tiles must stay scale 1 and merely fade in (the old
+      // `: p` fallback shrank them, lagging the reveal). scaleAnimated/opacityAnimated
+      // are parsed from the sequence's snapshot values (see parser/replicator.ts).
+      instScale = seq.scaleAnimated
+        ? (seq.scaleEnd !== undefined ? p * seq.scaleEnd : p)
+        : 1;
+      instOpacity = (seq.opacityAnimated ?? true)
+        ? (seq.opacityEnd !== undefined ? p * seq.opacityEnd : p)
+        : 1;
     }
     if (instScale <= 0 || instOpacity <= 0) continue;
     const totalScale = instScale * cellScale;

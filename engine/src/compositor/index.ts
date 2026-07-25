@@ -416,8 +416,12 @@ function renderReplicatorLayer(rctx: RenderContext, output: ImageData, evalLayer
         // the base cell. Opacity ramps 0 → opacityEnd. (Rotation would rotate
         // the cell; for a radially-symmetric dot mask it is a visual no-op, so
         // it is intentionally not applied to the circular reveal.)
-        instOpacityMul = seq.opacityEnd !== undefined ? p * seq.opacityEnd : p;
-        instScale = seq.scaleEnd !== undefined ? p * seq.scaleEnd : p;
+        instOpacityMul = (seq.opacityAnimated ?? true)
+          ? (seq.opacityEnd !== undefined ? p * seq.opacityEnd : p)
+          : 1;
+        instScale = seq.scaleAnimated
+          ? (seq.scaleEnd !== undefined ? p * seq.scaleEnd : p)
+          : 1;
       }
 
       if (cell && cellBBox && stampImg && instOpacityMul > 0 && instScale > 0) {

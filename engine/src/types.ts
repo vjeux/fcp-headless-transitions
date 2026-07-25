@@ -642,6 +642,11 @@ export interface SequenceReplicator {
   opacityEnd?: number;
   scaleEnd?: number;
   rotationEnd?: number;
+  /** Whether the sequence actually animates that channel (else it holds identity:
+   * opacity 1 / scale 1). Objects/Squares sequences ONLY opacity → scaleAnimated=false
+   * so its full-size tiles must NOT be shrunk by the wavefront progress. */
+  opacityAnimated?: boolean;
+  scaleAnimated?: boolean;
 }
 
 
