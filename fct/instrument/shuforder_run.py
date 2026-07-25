@@ -5,8 +5,8 @@ import ozengine, fct.config as C
 ozengine.init_engine()
 FW="/Applications/Final Cut Pro.app/Contents/Frameworks"
 ctypes.CDLL(FW+"/Ozone.framework/Versions/A/PlugIns/Particles.ozp/Contents/MacOS/Particles", mode=ctypes.RTLD_GLOBAL)
-hook=ctypes.CDLL(REPO+"/fct/instrument/shuf.dylib"); hook.setup_shuf.restype=ctypes.c_int
-print("setup", hook.setup_shuf(), flush=True)
+hook=ctypes.CDLL(REPO+"/fct/instrument/shuforder.dylib"); hook.setup_shuforder.restype=ctypes.c_int
+print("setup", hook.setup_shuforder(), flush=True)
 doc=ozengine.load_doc(REPO+"/fct/minimized/Objects__Squares/case.motr")
-ozengine.render_frame(doc,C.IMG_A,C.IMG_B,0.3*2.333,"/tmp/shufp.png")
-print("done",flush=True); open("/tmp/shuf_done.txt","w").write("done")
+ozengine.render_frame(doc,C.IMG_A,C.IMG_B,0.3*2.333,"/tmp/shf.png")
+print("done",flush=True); open("/tmp/shf_done.txt","w").write("done")
