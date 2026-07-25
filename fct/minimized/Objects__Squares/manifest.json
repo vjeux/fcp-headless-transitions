@@ -1,13 +1,19 @@
 {
-  "slug": "Objects__Squares",
-  "source_motr": "/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized/Objects.localized/Squares.localized/Squares.motr",
-  "worst_frame": 16,
-  "baseline_psnr": 12.265,
-  "final_psnr": 10.012,
-  "struct_before": 13,
-  "struct_after": 4,
-  "removed": 9,
-  "nframes": 24,
-  "slack": 0.12,
-  "protect": null
+ "slug": "Objects__Squares",
+ "source_motr": "/Applications/Final Cut Pro.app/Contents/PlugIns/MediaProviders/MotionEffect.fxp/Contents/Resources/PETemplates.localized/Transitions.localized/Objects.localized/Squares.localized/Squares.motr",
+ "worst_frame": 10,
+ "baseline_psnr": 12.652,
+ "final_psnr": 8.8,
+ "struct_before": 5,
+ "struct_after": 0,
+ "removed": 5,
+ "nframes": 24,
+ "slack": 0.12,
+ "protect": [
+  "Image Mask",
+  "Replicator",
+  "Replicator Cell",
+  "Sequence Replicator",
+  "Shape"
+ ]
 }
