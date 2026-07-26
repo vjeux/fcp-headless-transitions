@@ -555,6 +555,18 @@ def _iter_empty_param_folders(root, protect=None, factory_desc=None):
 _ENVELOPE_TAGS = {"ozml", "scene", "layer", "scenenode", "footage", "clip", "behavior",
                   "factory", "parameter"}
 
+# SCENE-GEOMETRY tags: elements that define FCP's render coordinate space. These MUST
+# NEVER be stripped — FCP's headless render is scene-size-DEPENDENT (with no <sceneSettings>,
+# FCP falls back to a small non-1920 default scene and then upscales the whole scene —
+# including every shape/mask vertex — anisotropically to the output; DECODED 2026-07-26 on
+# _t_center3: a ±160 square renders ±468.5×±354.5 (scale 2.93×/2.22×) with NO sceneSettings
+# but EXACTLY ±161.5 (scale 1.0) once a <width>1920</width><height>1080</height> is present).
+# Our minimizer's passes are gated against the ENGINE only, and the engine ALWAYS defaults to
+# 1920×1080 regardless — so removing <sceneSettings>/<width>/<height> silently changes FCP's
+# render while passing the engine gate, manufacturing a FALSE divergence (the geometry-scale
+# "bug" that consumed a whole session was purely this artifact). Protect them everywhere.
+_SCENE_GEOMETRY_TAGS = {"sceneSettings", "width", "height", "pixelAspectRatio"}
+
 
 def _iter_generic(root, protect=None, factory_desc=None):
     """(parent, child) for ARBITRARY leaf/config elements the other passes can't reach:
@@ -582,6 +594,8 @@ def _iter_generic(root, protect=None, factory_desc=None):
             continue
         if _localname(c.tag) in _ENVELOPE_TAGS:
             continue
+        if _localname(c.tag) in _SCENE_GEOMETRY_TAGS:
+            continue  # scene coordinate space — stripping it changes FCP's render (see note)
         yield parent[c], c
 
 
@@ -626,7 +640,7 @@ def _iter_value_simplifications(root, protect=None, factory_desc=None):
             if fv is not None and _is_num(fv) and fv not in ("0",):
                 yield (el, fa, fv, "0")
         # (c) scalar element text → 0 (leaf elements like <motionBlurSamples>8</…>)
-        if tag not in _ENVELOPE_TAGS and len(list(el)) == 0 and el.text and _is_num(el.text.strip()):
+        if tag not in _ENVELOPE_TAGS and tag not in _SCENE_GEOMETRY_TAGS and len(list(el)) == 0 and el.text and _is_num(el.text.strip()):
             t = el.text.strip()
             if t not in ("0", "0.0") and float(t) != 0.0:
                 yield (el, None, t, "0")
