@@ -299,58 +299,22 @@ export function resolveFramedWallPose(
   if (framing.length < 1) return undefined;
   const t2s = (rt: RationalTime | undefined) => (rt && rt.timescale > 0) ? rt.value / rt.timescale : 0;
 
-  // SINGLE-BEHAVIOR spin dolly (Replicator-Clones/Clone_Spin). Clone_Spin's Camera
-  // carries ONE Framing behavior (factory 3, transition type 1) whose Target is the
-  // "Transition B" photo tile, active the whole clip (timing in=0, out~endSec).
-  // Decoded from Clone Spin.motr: it frames B at an oblique world pose (rot X=0.309,
-  // Y=0.529 rad), Path Offset (1450,980,5332), Offset Path Apex=0.2925. FCP's
-  // OZScene::computeFraming samples the target transform at time t; the resulting
-  // camera path opens full-frame on photo A (Transition-A tile at world origin z=0,
-  // un-rotated -> GT f0 is warm A edge-to-edge), then pulls back to the wide oblique
-  // reveal that brings the surrounding "Timeline Pin" tile staircase into frame (the
-  // spinning grid GT holds through the middle). The final full-frame-B settle in GT
-  // is delivered by the B drop-zone retime-wrap (timemap), NOT the framing camera, so
-  // the camera HOLDS the wide reveal after the pull-back rather than chasing the lone
-  // oblique B tile (which mis-frames it and regresses the tail). Structural: a single
-  // always-on framer targeting an off-plane Transition tile. No fitted constant. The
-  // baseline returned framePose(B) STATICALLY (never opened on A); adding the near-A
-  // opening dolly is the win (Clone_Spin 10.16 -> 10.69 dB, no per-frame regression).
-  if (framing.length === 1) {
-    const beh = framing[0];
-    const tgt = resolveTarget(beh.targetId);
-    if (!tgt) return undefined;
-    if (t2s(beh.timing?.in) > 1e-3) return undefined;
-    const tanHalfC = Math.tan((aovDeg * Math.PI) / 360);
-    if (tanHalfC < EPS) return undefined;
-    const aspectC = (frameWidth && frameHeight) ? frameWidth / frameHeight : (16 / 9);
-    const tanHC = Math.max(tanHalfC * aspectC, EPS);
-    const bbC = worldBBox(tgt);
-    const halfVc = Math.max(bbC.half[1], EPS), halfHc = Math.max(bbC.half[0], EPS);
-    const nearDistC = Math.min(halfHc / tanHC, halfVc / tanHalfC);
-    const far = framePose(tgt, beh, aovDeg, aspectC);
-    const camXc = staticCamPos ? staticCamPos[0] : 0;
-    const camYc = staticCamPos ? staticCamPos[1] : 0;
-    const keyNearA: CameraPose = {
-      target: [camXc, camYc, 0],
-      pos: [camXc, camYc, nearDistC],
-      distance: nearDistC,
-    };
-    const endC = animationEndSec > EPS ? animationEndSec : Math.max(t2s(beh.timing?.out), EPS);
-    const apexFracC = Math.max(0.05, Math.min(0.95, beh.apex || 0.5));
-    const tFarC = apexFracC * endC;
-    const lerpC = (a: CameraPose, b: CameraPose, f: number): CameraPose => {
-      const e = ease(Math.max(0, Math.min(1, f)));
-      const L = (p: number, q: number) => p + (q - p) * e;
-      return {
-        pos: [L(a.pos[0], b.pos[0]), L(a.pos[1], b.pos[1]), L(a.pos[2], b.pos[2])],
-        target: [L(a.target[0], b.target[0]), L(a.target[1], b.target[1]), L(a.target[2], b.target[2])],
-        distance: L(a.distance, b.distance),
-      };
-    };
-    if (timeSec <= 0) return keyNearA;
-    if (timeSec <= tFarC) return lerpC(keyNearA, far, tFarC > EPS ? timeSec / tFarC : 1);
-    return far;
-  }
+  // SINGLE always-on framer (Replicator-Clones/Clone_Spin's Camera carries ONE Framing
+  // behavior, transition type 1, timing in=0). FCP's OZScene::computeFraming holds this
+  // framer's pose CONSTANT for the whole clip — DECODED on the faithful Camera+Framing repro
+  // _t_clonespin3 (Camera + Framing + the single Transition-B plate, no A tile, no replicator):
+  // FCP renders the framed plate at a CONSTANT ~3.2% coverage across f0..f23 (mean 6,5,5), NOT
+  // a pull-back dolly. So the single framer returns undefined here → the caller falls back to
+  // the STATIC framePose (resolveFramedPose), which matches FCP.
+  //   The prior branch modelled a "near-A opening dolly" (open full-frame on photo A at t=0,
+  //   lerp to the wide reveal by apex·end). That premise — "GT f0 is warm-A edge-to-edge" —
+  //   was a CONFOUND of the FULL transition, where a SEPARATE Transition-A tile at world z=0
+  //   fills f0; the framed B plate itself is small throughout. Faking the A fill via the B
+  //   framer's dolly wrongly blew the B plate up to full-frame at f0 (faithful repro f0 was
+  //   7.4 dB: engine full-frame warm vs FCP small dark). In the engine the A tile is its own
+  //   layer, so the B framer must stay on its constant framePose. (The marginal +0.53 dB the
+  //   dolly scored on the confounded full transition is superseded by the faithful decode.)
+  if (framing.length === 1) return undefined;
 
   // Proxy behavior = the one active at t=0 (smallest timing-in); content behavior =
   // the later one, whose target is an on-plane tile.
