@@ -229,8 +229,15 @@ export function extractTransform(params: Parameter[]): Transform {
     tx.scaleZ = axis(scaleParam.children, 'Z', 3);
   }
 
-  // Anchor Point
-  const anchorParam = findParam(params, 'Anchor Point') ?? findContainerById(params, 106);
+  // Anchor Point (Transform-group container id=107 — verified across all real .motr:
+  // 19× `name="Anchor Point" id="107"`, zero at 106). The name-based lookup masked the
+  // wrong 106 fallback until the minimizer stripped the name — DECODED 2026-07-26 on
+  // Movements/Switch (_t_switch_v3): a LinkAnchor copies the driver Generator's Anchor X
+  // (id=1/100/107/1 = 737) onto Transition B, but extractTransform searched id=106 →
+  // driver.transform.anchorX undefined → only the Position link (X=2388) applied, so B
+  // landed off-canvas at worldX=2388. FCP nets 2388−737=1651 (= FCP content left-edge
+  // x=1650). id=106 is a DIFFERENT param (3:2 Pulldown / Channel ID), never Anchor.
+  const anchorParam = findParam(params, 'Anchor Point') ?? findContainerById(params, 107);
   if (anchorParam?.children) {
     tx.anchorX = axis(anchorParam.children, 'X', 1);
     tx.anchorY = axis(anchorParam.children, 'Y', 2);

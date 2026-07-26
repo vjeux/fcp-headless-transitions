@@ -260,9 +260,20 @@ export function parseLinkBehaviors(
     const affectedId = parseInt(el.getAttribute('id') || '0', 10);
     for (const p of directChildren(b, 'parameter')) {
       const pname = p.getAttribute('name') || '';
+      const pid = parseInt(p.getAttribute('id') || '0', 10);
       const v = p.getAttribute('value');
       const num = v !== null ? parseFloat(v) : NaN;
-      if (pname === 'Source Object') sourceObjectId = parseInt(v || '0', 10);
+      // Source Object is parameter id=201. Resolve it STRUCTURALLY by id (not by
+      // name) — the "Source Object" name attribute is often absent (stripped by the
+      // minimizer, or simply not authored). DECODED 2026-07-26 on Movements/Switch
+      // (_t_switch_v3): a Transition-B card carries two Links (LinkAnchor ./1/100/107
+      // + LinkPos ./1/100/101) whose Source Object <parameter id="201" value="..."/>
+      // had NO name attr → sourceObjectId stayed 0 → both links were DROPPED at the
+      // `sourceObjectId === 0` guard, so B rendered full-frame centred instead of
+      // pushed to the driver's Position X≈2388 (−Anchor 737 = left edge 1651, exactly
+      // FCP's content x[1651,1919]). Keying on id=201 recovers the driver id.
+      if (pid === 201 || pname === 'Source Object') sourceObjectId = parseInt(v || '0', 10);
+
       // Colour-Link routing needs the Affecting Object (Hidden) id (id=199) to
       // decide whether `./1`/`./2` targets a Colorize filter's Remap Black/White
       // folder. Ignored by transform links (redundant with the enclosing layer id).
@@ -406,6 +417,16 @@ export function parseLinkBehaviors(
     for (const expr of exprEls) {
       const srcRef = getTextContent(expr, 'sourceChannelRef');
       const tgtId = getTextContent(expr, 'targetChannelID');
+      // A transform Link expression channel needs a SOURCE to copy from: either an
+      // explicit <sourceChannelRef> (which channel of the driver to read) or a
+      // <channelBehavior affectingChannel> path (which property this Link drives).
+      // With NEITHER, the Link is structurally degenerate and inert — FCP has no
+      // channel to read. DECODED 2026-07-26 on Movements/Switch (_t_switch_v2): the
+      // minimizer stripped both from a Link, leaving only <targetChannelID>1; the old
+      // code fabricated a position.X←position.X spec that copied the disabled driver's
+      // Position X=2388 onto Transition A → off-canvas BLACK, while FCP renders A
+      // full-frame centred (the stripped Link does nothing). Skip specs with no source.
+      if (!srcRef && !affPath) continue;
       const sourceChannel = chanName(srcRef);
       const targetChannel = tgtId === '1' ? 'X' : tgtId === '2' ? 'Y' : tgtId === '3' ? 'Z' : chanName(affPath || null);
       if (!targetChannel) continue;
