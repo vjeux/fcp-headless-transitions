@@ -1529,6 +1529,58 @@ export function parseMotr(xmlText: string): MotrScene {
     if (bHoldOut > animationEndSec) animationEndSec = bHoldOut;
   }
 
+  // HELD-VISIBLE-LAYER window (2026-07-26, Stylized__Center faithful repro _t_center_faithful).
+  // Generalizes the Transition-B hold above to ANY held drawable layer. The keyframe-walk maxT
+  // finds the last SPATIAL keyframe, but a scene can carry a STATIC (no-keyframe) visible layer —
+  // a filled Shape or a Clone — whose <timing> window opens AFTER maxT and stays on-screen until
+  // its `out`. When that `out` lies past maxT (or past the B-hold end), trimming animationEndSec to
+  // maxT compresses the whole transition into [0,maxT]; the progress→time map then samples every
+  // frame BEFORE the held layer's window opens, so the engine renders BLACK where FCP shows the
+  // held content. DECODED on _t_center_faithful: a bare white-fill Shape (id 390117) with NO
+  // keyframes and <timing in=1.368s out=3.604s> — maxT lands at 0.534s (a stripped keyframe curve),
+  // so the engine sampled every frame in [0,0.534s], never reaching the shape's window, and f7–f16
+  // rendered black while FCP (playing the authored 5.3s span) shows the shape (gray ~36) the whole
+  // time. Fix: never trim animationEndSec below the max `out` of a HELD VISIBLE drawable layer
+  // (non-mask Shape with a fill / Clone / Image), clamped to the authored scene duration, and only
+  // when its window opens within the span (in < span). This is the same held-content principle as
+  // the Transition-B hold — a layer that is on-screen past maxT bounds the true visual end.
+  {
+    const spanSecH = duration.value / duration.timescale;
+    const rtSec = (t: RationalTime | undefined): number =>
+      t && t.timescale > 0 ? t.value / t.timescale : 0;
+    let heldOut = 0;
+    const walkH = (ls: Layer[]): void => {
+      for (const l of ls) {
+        const isHeldDrawable =
+          (l.type === 'shape' && l.shape && !l.shape.isMask && l.shape.fillColor)
+          || l.type === 'clone';
+        if (isHeldDrawable && l.enabled !== false && l.timing) {
+          const inS = rtSec(l.timing.in);
+          const outS = rtSec(l.timing.out);
+          // A held drawable whose window OPENS AT OR AFTER the current animation-end (so the
+          // maxT keyframe-walk entirely MISSED it) yet opens within the authored span. FCP
+          // plays the FULL authored duration (duration/frameRate), sampling this held content
+          // in its window; the engine's maxT-trim compressed the timeline so the window was
+          // never reached (Center's Shape 390117: in=1.368s, out=3.604s, but maxT=0.534s → the
+          // whole shape window was unreachable → f7–f16 black). When such a genuinely-MISSED
+          // held layer exists, extend animationEndSec to the authored scene duration so the
+          // progress→time map plays the full span exactly like FCP — NOT merely to the layer's
+          // own `out` (which would still mis-map the frames straddling the window; verified:
+          // extending to out=3.604s left f18–f22 wrong, extending to span=5.3s matches FCP).
+          // Requiring in >= animationEndSec keeps this OFF every scene where maxT already covers
+          // the content (in < end) — keyframe-driven and normal drop-zone slugs are untouched;
+          // only a held layer the maxT-walk entirely skipped triggers the full-span play.
+          if (inS >= animationEndSec - 1e-3 && inS < spanSecH + 1e-3 && outS > inS) {
+            if (spanSecH > heldOut) heldOut = spanSecH;
+          }
+        }
+        if (l.children && l.children.length) walkH(l.children);
+      }
+    };
+    walkH(layers);
+    if (heldOut > animationEndSec) animationEndSec = heldOut;
+  }
+
   settings.animationEndSec = animationEndSec;
 
   // T-B1: build flat indexes of every parsed Emitter + Particle Cell in the scene,

@@ -537,17 +537,20 @@ function isLayerVisible(layer: Layer, timeSec: number): boolean {
   if (!layer.timing) return true;
   const inTime = timeToSeconds(layer.timing.in);
   const outTime = timeToSeconds(layer.timing.out);
-  // A solid-FILL-COLOR shape overlay's lifetime is governed by its OPACITY curve,
-  // not the (often shorter) timing window. Motion authors these flash/color
-  // overlays with a timing `out` that can end before the opacity ramps back to 0
-  // (Lights/Flash's overlay "Rectangle": out=0.267s but opacity rides down to 0
-  // at scene 0.3s). A strict window check clips the fade tail to nothing. Treat
-  // such shapes as timing-unbounded - opacity>0 (checked downstream) decides
-  // visibility. Also covers the degenerate zero-duration (in==out) case.
-  // SCOPED to shapes with a solid fillColor (the flash rectangles) so mask shapes
-  // and gradient/stroke reveal shapes (Stylized/Heart, Center_Reveal) keep their
-  // normal window gating and don't linger past their lifetime.
-  if (layer.type === 'shape' && layer.shape && !layer.shape.isMask && layer.shape.fillColor) {
+  // A solid-FILL-COLOR shape overlay whose OPACITY is ANIMATED (a keyframed Curve) has its
+  // lifetime governed by that opacity fade, not the (often shorter) timing window. Motion
+  // authors flash/color overlays with a timing `out` that ends BEFORE the opacity ramps back
+  // to 0 (Lights/Flash's "Rectangle": out=0.267s but the opacity curve rides down to 0 at
+  // ~0.3s) — a strict window check would clip that fade tail to nothing. Treat ONLY such
+  // ANIMATED-opacity shapes as timing-unbounded (opacity>0 downstream decides visibility).
+  // A shape with STATIC / no opacity (no fade curve) is a plainly-held card whose `out` IS
+  // its hard cutoff and MUST be honored: DECODED on Stylized/Center's held white Shape (id
+  // 390117, no opacity curve, timing in=1.368s out=3.604s) — ignoring its `out` held it on
+  // through the tail (f17-f23) where FCP renders BLACK (the shape drops at out=3.604s ≈ f16).
+  // SCOPED to non-mask fillColor shapes; mask/gradient/stroke reveal shapes keep normal gating.
+  const opIsAnimated = layer.transform && typeof layer.transform.opacity === 'object'
+    && layer.transform.opacity !== null;
+  if (layer.type === 'shape' && layer.shape && !layer.shape.isMask && layer.shape.fillColor && opIsAnimated) {
     // Degenerate zero-duration window (in==out): the shape's whole lifetime is its
     // opacity curve - treat as always on (opacity>0 downstream decides).
     if (outTime <= inTime) return true;
