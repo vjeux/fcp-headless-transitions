@@ -877,7 +877,21 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
         && !(FRAMING_VIEW_ENABLED && rctx.framed)
         && (layer.source?.type === 'transitionA' || layer.source?.type === 'transitionB')
         && (src.width < output.width - 2 || src.height < output.height - 2);
-      const conformed = conformBoxEqOut || conformSubCanvasAB || conformOverscanAB || conformEquirectAB;
+      // NO-DROP-ZONE-BOX A/B card: a Transition A/B plate whose Object Width/Height (the
+      // dropZone box) is ABSENT — either never authored, or (common in minimized repros)
+      // stripped by the minimizer. FCP still fills the frame with the A/B media, so the engine
+      // must fill-conform the native source (~1854×1042) to the output; otherwise it blits the
+      // source native-size + centred → LETTERBOXED (dark ~33px side / ~19px top-bottom borders),
+      // pulling the whole-frame mean ~0.93× too dark. DECODED on 3D_Rectangle (_t_3dr_v5, minimizer
+      // stripped the Object box): FCP B = raw end.jpg mean [100,116,148] full-frame; engine blitted
+      // native 1854 → mean [94,108,138] letterboxed. Same fill-conform the box-bearing A/B cards
+      // get above, just keyed on the A/B SOURCE TYPE when the box dims are missing. Scoped like the
+      // others: non-equirect, non-framed, uncropped, and only when the source is smaller than output.
+      const conformNoBoxAB = !dz && !rctx.equirectScene && boxNotCropped
+        && !(FRAMING_VIEW_ENABLED && rctx.framed)
+        && (layer.source?.type === 'transitionA' || layer.source?.type === 'transitionB')
+        && (src.width < output.width - 2 || src.height < output.height - 2);
+      const conformed = conformBoxEqOut || conformSubCanvasAB || conformOverscanAB || conformEquirectAB || conformNoBoxAB;
       const drawSrc = conformed
         ? conformDropZoneSource(src, output.width, output.height)
         : src;
