@@ -25,24 +25,38 @@ ALGORITHM (ddmin, coarse-to-fine, single-frame):
   2. STRUCT pass — enumerate removable STRUCTURAL nodes (scenenode/layer/group/filter/
      behavior/mask) — a few hundred, not 17k. Greedily try removing each subtree,
      deepest-first. ACCEPT a removal iff, after it: (a) FCP still renders a valid
-     (non-black) frame, AND (b) the engine-vs-FCP MSE stays >= D0*(1-slack) — i.e. the
-     bug is PRESERVED. Else RESTORE (the node is load-bearing for the repro). This
-     localizes the bug to the minimal set of interacting NODES.
+     (non-black) frame, AND (b) the engine STILL diverges from FCP by >= D0*(1-slack).
+     Else RESTORE. This localizes SOME divergence to a minimal set of nodes.
   3. LINE-MINIFICATION passes (always on) — the struct pass leaves ~70% of a .motr as
-     boilerplate/UI-state XML it CAN'T reach (those tags aren't structural). Three
-     render-gated iterators then shrink the FILE itself:
+     boilerplate/UI-state XML it CAN'T reach (those tags aren't structural). Five
+     render-gated passes then shrink the FILE itself:
        boiler    → unreferenced <factory> type decls (a Motion .motr always ships a
                    fixed 14-row factory table regardless of use), unwired footage
                    <clip>/<footage>, and scene metadata (publishSettings/curvesets/…).
        emptyfold → collapsed-panel <parameter> FOLDERS that hold only foldFlags and no
                    value/curve/child (Lighting/Shadows/Reflection/Crop UI stubs).
        param     → individual default-valued <parameter> value leaves.
-     Each removal is gated with require_engine=True (a removal that breaks OUR engine is
-     reverted — we want the repro to still render cleanly in BOTH engines, not to shrink
-     by crashing our renderer) AND in-band (target <= mse <= upper, so a removal can't
-     sneak in a DIFFERENT/larger bug). Iterated to a fixpoint.
+       generic   → EVERY other non-envelope element the passes above can't reach
+                   (<sceneSettings> scalars, behaviour plumbing, clip fields, scene meta).
+       value     → simplify remaining attribute/text VALUES toward default / 0 / round.
+     Each change is gated with require_engine=True (a change that breaks OUR engine is
+     reverted — a repro that our engine can't even render is useless) AND keeps the
+     divergence >= target. Iterated to a fixpoint.
+
+  WE DO NOT TRY TO PRESERVE THE "SAME" BUG. The point of this tool is to shrink the
+  document as far as possible so that ONE tiny, unambiguous divergence remains. If a
+  removal changes the FLAVOUR of the divergence (e.g. the repro that used to show a
+  "16%-too-narrow plate" now shows "engine renders black where FCP renders grey"), that
+  is a WIN, not a regression — the smaller repro isolates a simpler, more fixable defect
+  with fewer confounding effects. Per LOOP.md RULE 1, every divergence is its own real
+  bug; you fix whatever the minimal repro shows, then re-minimize from source and repeat.
+  So the gate only checks "still diverges enough" and "still renders" — there is
+  deliberately NO upper bound and NO signature/identity check tying the shrunk repro to
+  the original bug. Smaller-and-different is exactly the goal.
+
   Coarse struct removal collapses 17k elements to a tiny subtree in minutes; the line
-  passes then strip it from ~550 lines to its ~150-line irreducible core.
+  passes then strip it to a few dozen lines showing a single defect.
+
 
 Both renderers share ONE FCP engine boot; trials render to a tmpdir. Nothing writes
 the committed frame stores. Output → fct/minimized/<name>/ (case.motr + headless/ +
@@ -451,6 +465,91 @@ def _iter_empty_param_folders(root, protect=None, factory_desc=None):
             yield parent[c], c
 
 
+# Document ENVELOPE: elements whose removal would make the .motr structurally invalid or
+# would remove the very thing being localized. The generic pass ranges over everything
+# EXCEPT these (and the struct/param/boilerplate tags, which their own passes own). The
+# render gate is still the real safety net; this list just skips known-fatal removals so we
+# don't waste a render trial proving that deleting <ozml> breaks the parser.
+_ENVELOPE_TAGS = {"ozml", "scene", "layer", "scenenode", "footage", "clip", "behavior",
+                  "factory", "parameter"}
+
+
+def _iter_generic(root, protect=None, factory_desc=None):
+    """(parent, child) for ARBITRARY leaf/config elements the other passes can't reach:
+    <sceneSettings> scalar fields (motionBlurSamples, DRTSupport, glyphOSCMode, …),
+    behaviour plumbing (<expressionChannels>, <dynamicChannelIDSet>, <channelBehavior>,
+    <sourceParentChannelRef>), clip fields (<missingWidth>, <mediaID>, …), and scene
+    metadata (<currentFrame>, <timeRange>, <playRange>, <flags>, <audioTracks>, …).
+
+    Deepest-first. Skips the document ENVELOPE tags (whose own passes handle them or whose
+    removal is structurally fatal) and anything inside a protected subtree. Every yield is
+    still render-gated + in-band, so a field the render actually depends on is RESTORED —
+    this just lets the minimizer TRY the ~40 boilerplate scalar/plumbing elements a Motion
+    .motr always carries regardless of the scene."""
+    inside = _protected_subtree(root, protect, factory_desc or {})
+    parent = {}
+    order = []
+    def walk(e):
+        for c in list(e):
+            parent[c] = e
+            walk(c)
+            order.append(c)
+    walk(root)
+    for c in order:
+        if c in inside:
+            continue
+        if _localname(c.tag) in _ENVELOPE_TAGS:
+            continue
+        yield parent[c], c
+
+
+# Value simplifications tried by the value pass, in order. Each maps a current value to a
+# SIMPLER candidate; the render gate keeps the swap only if it preserves the divergence
+# in-band. "Simpler" = closer to Motion's own defaults / round numbers, so the repro reads
+# clearly (e.g. a keyframed Z that could be a static 0, a flags="8589938704" that could be
+# "0"). We never invent values the schema wouldn't accept — we snap toward 0 / the element's
+# own default= attribute / round magnitudes.
+def _iter_value_simplifications(root, protect=None, factory_desc=None):
+    """Yield (element, attr, old_value, new_value) candidate attribute simplifications,
+    and (element, None, old_text, new_text) candidate TEXT simplifications. The caller
+    applies one, render-gates it, and reverts if the divergence isn't preserved.
+
+    Strategies (only emitted when they actually change the value):
+      • value="X"  → value=default (when a default= attr exists and differs)
+      • value="X"  → value="0"     (snap numeric magic numbers toward zero)
+      • flags/foldFlags/baseFlags large integer → "0"
+      • scalar element text (e.g. <motionBlurSamples>8</motionBlurSamples>) → "0"
+    Skips protected subtrees. Deepest-first is irrelevant here (independent leaves)."""
+    inside = _protected_subtree(root, protect, factory_desc or {})
+    def _is_num(s):
+        try:
+            float(s); return True
+        except (TypeError, ValueError):
+            return False
+    for el in root.iter():
+        if el in inside:
+            continue
+        tag = _localname(el.tag)
+        # (a) attribute value → default, then → 0
+        v = el.get("value")
+        if v is not None and _is_num(v):
+            d = el.get("default")
+            if d is not None and d != v and _is_num(d):
+                yield (el, "value", v, d)
+            if v not in ("0", "0.0") and float(v) != 0.0:
+                yield (el, "value", v, "0")
+        # (b) flag attributes → 0 (huge bitfields that are usually UI/fold state)
+        for fa in ("flags", "foldFlags", "baseFlags"):
+            fv = el.get(fa)
+            if fv is not None and _is_num(fv) and fv not in ("0",):
+                yield (el, fa, fv, "0")
+        # (c) scalar element text → 0 (leaf elements like <motionBlurSamples>8</…>)
+        if tag not in _ENVELOPE_TAGS and len(list(el)) == 0 and el.text and _is_num(el.text.strip()):
+            t = el.text.strip()
+            if t not in ("0", "0.0") and float(t) != 0.0:
+                yield (el, None, t, "0")
+
+
 
 def minimize(slug, nframes=None, keep_above=25.0, slack=0.12, max_passes=6,
              out_name=None, do_params=False, probe_frame=None, protect=None):
@@ -507,17 +606,18 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
               f"the discrepancy is vs the GUI, not vs FCP. Nothing to minimize.")
         return None
     target = d0 * (1.0 - slack)
-    # Upper band for the FINE/AGGRESSIVE passes: a removal that PUSHES the divergence far
-    # ABOVE the baseline has introduced a DIFFERENT (bigger) bug — the repro would then
-    # localize the wrong thing. Cap accepted trials to a band around d0 so the shrunk
-    # repro keeps reproducing the SAME divergence we started with, not a new one.
-    upper = d0 * (1.0 + max(slack, 0.35))
+    # There is deliberately NO upper bound. We do NOT try to keep the shrunk repro on the
+    # SAME bug as the original — the whole point is to shrink maximally so ONE tiny defect
+    # remains, even if that defect differs in flavour from where we started (see the module
+    # docstring / LOOP.md RULE 1). A removal that makes the divergence BIGGER or DIFFERENT
+    # is still a smaller repro of a real bug, so we accept it. The only gate is "the engine
+    # still renders AND still diverges from FCP by >= target".
 
     def _count(it): return sum(1 for _ in it(root))
     n_struct0 = _count(_struct_iter)
     removed = 0
 
-    def _run_pass(iter_fn, label, require_engine=False, band=False):
+    def _run_pass(iter_fn, label, require_engine=False):
         nonlocal removed
         changed = False
         for parent, child in list(iter_fn(root)):
@@ -532,10 +632,10 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
                 parent.insert(idx, child); continue
             mse, ok = _mse_engine_vs_headless(trial, work, fi, nframes, worker=worker,
                                               require_engine=require_engine)
-            # ACCEPT iff both engines rendered AND the divergence is preserved. The fine
-            # / aggressive passes additionally require the divergence to stay in-band
-            # (>= target and <= upper) so a removal can't sneak in a different, larger bug.
-            keep = ok and mse >= target and (not band or mse <= upper)
+            # ACCEPT iff the engine still rendered (when required) AND SOME divergence of
+            # at least `target` survives. No upper bound: a bigger/different divergence in a
+            # smaller file is a better repro, not a regression.
+            keep = ok and mse >= target
             if keep:
                 removed += 1; changed = True
                 tree.write(cur, encoding="unicode")
@@ -543,7 +643,42 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
                 parent.insert(idx, child)
         return changed
 
-    # 2. coarse structural passes (fast, primary): whole subtrees, old behavior.
+    simplified = [0]  # value-simplifications applied (distinct from element removals)
+
+    def _run_value_pass(iter_fn, label):
+        """Try attribute/text VALUE simplifications (not removals). For each candidate
+        (el, attr, old, new): apply, render-gate, keep if the engine still renders and
+        still diverges >= target, else revert. attr=None means simplify el.text. Returns
+        count applied this pass."""
+        applied = 0
+        for el, attr, old, new in list(iter_fn(root)):
+            # the element may have been removed by an earlier pass; skip if orphaned
+            cur_val = el.get(attr) if attr is not None else (el.text.strip() if el.text else None)
+            if cur_val != old:
+                continue  # already changed / stale candidate
+            if attr is not None:
+                el.set(attr, new)
+            else:
+                el.text = new
+            trial = os.path.join(work, "trial.motr")
+            try:
+                tree.write(trial, encoding="unicode")
+            except Exception:
+                if attr is not None: el.set(attr, old)
+                else: el.text = old
+                continue
+            mse, ok = _mse_engine_vs_headless(trial, work, fi, nframes, worker=worker,
+                                              require_engine=True)
+            if ok and mse >= target:
+                applied += 1
+                tree.write(cur, encoding="unicode")
+            else:
+                if attr is not None: el.set(attr, old)
+                else: el.text = old
+        simplified[0] += applied
+        return applied
+
+    # 2. coarse structural passes (fast, primary): whole subtrees.
     for p in range(max_passes):
         changed = _run_pass(_struct_iter, "struct")
         rem = _count(_struct_iter)
@@ -551,25 +686,35 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
         if not changed:
             break
     # 3. LINE-MINIFICATION passes — always on. These shrink the FILE (not just the
-    #    structural-node count): drop unreferenced boilerplate (<factory> type decls,
-    #    unused footage <clip>/<footage>, scene metadata like publishSettings/curvesets),
-    #    collapse empty fold-only <parameter> folders (Lighting/Shadows/Crop UI stubs),
-    #    and strip <parameter> value leaves. Every removal is render-gated with
-    #    require_engine=True + in-band (target..upper), so anything the engine actually
-    #    needs is RESTORED — the reduced repro still renders cleanly in BOTH engines and
-    #    reproduces the SAME divergence. A Motion .motr is ~70% boilerplate/UI-state XML,
-    #    so this is where a 547-line repro collapses toward its irreducible core.
+    #    structural-node count):
+    #      boiler    → unreferenced <factory>/<clip>/<footage> + scene metadata
+    #      emptyfold → fold-only <parameter> UI-stub folders
+    #      param     → default-valued <parameter> value leaves
+    #      generic   → EVERY other non-envelope element (sceneSettings scalars, behaviour
+    #                  plumbing <expressionChannels>/<dynamicChannelIDSet>/<channelBehavior>,
+    #                  clip fields <missingWidth>/<mediaID>, scene <currentFrame>/<timeRange>…)
+    #      value     → simplify remaining attribute/text VALUES toward default / 0 / round
+    #    Every change is render-gated with require_engine=True (anything the engine needs to
+    #    RENDER is restored) and keeps SOME divergence >= target. No upper bound / no bug-
+    #    identity check: shrinking to a smaller-and-possibly-different defect is the goal.
     for p in range(max_passes):
         c1 = _run_pass(lambda r: _iter_boilerplate(r, protect=protect, factory_desc=factory_desc),
-                       "boiler", require_engine=True, band=True)
+                       "boiler", require_engine=True)
         c2 = _run_pass(lambda r: _iter_empty_param_folders(r, protect=protect, factory_desc=factory_desc),
-                       "emptyfold", require_engine=True, band=True)
+                       "emptyfold", require_engine=True)
         c3 = _run_pass(lambda r: _iter_params(r, protect=protect, factory_desc=factory_desc),
-                       "param", require_engine=True, band=True)
-        print(f"[minimize] line pass {p+1}: removed total {removed} "
-              f"(boiler={c1} emptyfold={c2} param={c3})", flush=True)
-        if not (c1 or c2 or c3):
+                       "param", require_engine=True)
+        c4 = _run_pass(lambda r: _iter_generic(r, protect=protect, factory_desc=factory_desc),
+                       "generic", require_engine=True)
+        c5 = _run_value_pass(lambda r: _iter_value_simplifications(r, protect=protect, factory_desc=factory_desc),
+                             "value")
+        print(f"[minimize] line pass {p+1}: removed {removed} simplified {simplified[0]} "
+              f"(boiler={c1} emptyfold={c2} param={c3} generic={c4} value={c5})", flush=True)
+        if not (c1 or c2 or c3 or c4 or c5):
             break
+
+
+
 
     tree.write(cur, encoding="unicode")
     # final divergence + write case

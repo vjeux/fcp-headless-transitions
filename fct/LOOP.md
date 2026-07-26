@@ -14,15 +14,29 @@ IMPLEMENT THE FIX immediately. If you have implemented a fix, VERIFY IT immediat
 verified, COMMIT+PUSH and PICK THE NEXT immediately. Momentum is everything. Depth AND speed.
 (A local-only commit is not done: always `git push` right after committing so no fix is stranded.)
 
-### RULE 1 — A divergence is a bug, PERIOD. Never dismiss a minimized case.
+### RULE 1 — A divergence is a bug, PERIOD. Minimize maximally, fix the tiny thing, repeat.
 If a minimized case diverges from FCP-headless, that IS a real engine bug that must be
 investigated and FIXED — even if it is "not the original transition's primary bug", even if the
-minimizer "stripped context", even if a manifest note calls it "secondary" or "a poor oracle".
+minimizer "stripped context", even if an old note called it "secondary" or "a poor oracle".
 The minimized .motr is a valid FCP document; FCP renders it a specific way; the engine MUST match
-that exact output. "This repro doesn't capture the real bug" is NEVER a reason to skip it — it just
-means there are (at least) TWO bugs, and you fix the one in front of you first. Do NOT re-minimize
-to dodge a hard case. Do NOT move to a different transition because the current one is hard. Finish
-what you started before picking anything new.
+that exact output.
+
+The WHOLE POINT of minimization is to shrink the document AS FAR AS POSSIBLE so that ONE tiny,
+unambiguous defect remains — with as few confounding effects as you can get. This means:
+  - SMALLER IS ALWAYS BETTER. A 30-line repro beats a 500-line one, always.
+  - CHANGING THE FLAVOUR OF THE BUG IS A WIN, NOT A LOSS. If aggressive minimization turns a
+    "16%-too-narrow plate" repro into an "engine renders black where FCP renders grey" repro,
+    that is GREAT — the smaller repro isolates a simpler defect. Do NOT try to preserve the
+    "same" bug the original transition showed. Do NOT reject a smaller repro because it "no longer
+    captures the real bug" — there is no single "real bug", just a stack of defects, and the
+    minimal repro hands you the easiest one to fix next.
+  - Then the workflow is: minimize maximally → fix whatever the tiny repro shows → re-run the
+    minimizer from source → fix the next tiny thing it reveals → repeat. Each pass peels off one
+    small, cleanly-isolated defect. You never get lost debugging a pile of interacting effects.
+"This repro doesn't capture the real bug" / "poor oracle" is NEVER a reason to skip a case — the
+concept of "poor oracle" is RETIRED. Every minimal divergence is a real, fixable bug. Do NOT move
+to a different transition because the current one is hard; finish the one in front of you first.
+
 
 ### RULE 2 — Fix thoroughly. No short-term hacks. Take all the time you need.
 - Diagnose to the ROOT CAUSE. Reproduce, instrument, decode from the binary/shader/scene — never
@@ -63,35 +77,31 @@ what you started before picking anything new.
      tools/re/extract_shader.py <HgcName>; read __TEXT,__const constants (fct/parity/oracle.py
      read_helium_const_matrix); air-objdump -d <metallib> (Metal Toolchain installed).
 
-3. MANUALLY HYPER-MINIMIZE until ONE frame shows ONE defect. (Do NOT skip this — it is the
-   single most important debugging step. `fct minimize` only strips whole structural nodes; it
-   stops while the repro still has MANY interacting effects. A repro with two wavefronts, a
-   feather, an animated sweep, timing-outs, AND a gradient is TOO COMPLEX to reason about — keep
-   cutting BY HAND until exactly one thing is wrong.)
-   - Work on a COPY: `cp fct/minimized/<slug>/case.motr /tmp/m.motr` and edit /tmp/m.motr directly.
-     Render each edit through BOTH engines and diff, to confirm the divergence SURVIVES the cut:
+3. MINIMIZE MAXIMALLY, then re-minimize after every fix. The `fct minimize` tool now shrinks
+   BOTH structure AND file content (struct-node removal + boilerplate/param/generic-element removal
+   + value simplification), gated only on "engine still renders AND still diverges >= target" — it
+   has NO upper bound and does NOT try to preserve the original bug's identity, so it drives to the
+   smallest possible repro of SOME divergence. Let it. A tiny repro (a few dozen lines showing ONE
+   defect) is the goal; if it shows a different/simpler defect than the full transition did, that is
+   a WIN (RULE 1). The workflow is: `fct minimize <slug>` → fix the one tiny thing it shows →
+   `fct minimize <slug>` again from source → fix the next tiny thing → repeat until 99 dB.
+   - If the automated minimizer leaves something still too complex to reason about (two wavefronts,
+     a feather, an animated sweep AND a gradient all at once), HAND-CUT further on a COPY. Render
+     each edit through BOTH engines and diff, keeping a cut only if the engine STILL diverges:
        FCP:    (venv) python3 -c "import tools.ozengine as z; z.init_engine(); d=z.load_doc('/tmp/m.motr'); z.render_frame(d, IMG_A, IMG_B, T, '/tmp/h.png')"
        engine: (cwd engine/) FCT_RENDER_MOTR=/tmp/m.motr FCT_RENDER_A_PNG=/tmp/A.png FCT_RENDER_B_PNG=/tmp/B.png FCT_RENDER_T=<t> FCT_RENDER_OUT=/tmp/e.png node_modules/.bin/tsx test/_fct_render_motr.ts
-     (or add /tmp/m.motr to a slugmap and use min-gen-style rendering). KEEP a cut only if engine
-     STILL diverges from FCP on the reduced doc; otherwise revert that cut.
-   - Aggressive manual reductions to try, one at a time:
+   - Hand-cut moves (one at a time; keep only if divergence survives):
        * DELETE nodes: whole layers/groups/scenenodes/masks/behaviors/filters, sibling by sibling.
-         Reduce to the SMALLEST set that still diverges (often 1 layer + 1 mask, or even 1 shape).
-       * FREEZE animation → statics: replace an animated <curve> (Position/Rotation/Scale/vertex
-         Value) with a single static `value=` at the divergent frame's time. A moving sweep becomes
-         a STILL mask at one position — if the still frame still diverges, the bug is geometric/
-         compositing, NOT timing. If it only diverges while moving, the bug is the sweep/write-on.
-       * FLATTEN params: Feather→0, Roundness→0, Aspect→1, collapse a bezier to a simple rect/quad,
+       * FREEZE animation → statics: replace an animated <curve> with a single static `value=` at the
+         divergent frame's time. If the still frame still diverges, the bug is geometric/compositing,
+         NOT timing; if it only diverges while moving, the bug is the sweep/write-on.
+       * FLATTEN params: Feather→0, Roundness→0, Aspect→1, collapse a bezier to a rect/quad,
          Opacity→1, remove blend modes, set colours to pure black/white so the defect is unambiguous.
-       * COLLAPSE timing: set in=0, out=huge, offset=0 to remove timing-out/visibility-window effects
-         (isolate them SEPARATELY — a disappearing layer is its own distinct bug from a mask sweep).
-       * PICK ONE FRAME: find the single time T where engine-vs-FCP is worst and debug only that.
-   - GOAL: a handful-of-lines .motr where a single static frame shows exactly one wrong thing
-     (e.g. "a still feathered quad at position P masks the wrong region" or "layer with out=X is
-     black when FCP shows it"). Save it as fct/minimized/<slug>_<tag>/case.motr with its own
-     headless/ + manifest so it becomes a permanent regression repro. THEN diagnose that.
-   - If the original repro contains MULTIPLE independent bugs, split them into MULTIPLE hyper-minimal
-     cases and fix each separately (RULE 1: every divergence is its own bug).
+       * COLLAPSE timing: in=0, out=huge, offset=0 to remove timing-out/visibility-window effects.
+       * PICK ONE FRAME: the single time T where engine-vs-FCP is worst; debug only that.
+   - Save the reduced case as fct/minimized/<slug>[_<tag>]/case.motr with its headless/ + manifest so
+     it is a permanent regression repro. THEN diagnose that. Every distinct minimal divergence is its
+     own bug (RULE 1) — fix them one at a time, re-minimizing between fixes.
 
 4. FIX the root cause in engine/src (rig/movement/3D/compositing/geometry/subsystem/parser/…).
    - If the FCP-port code is wrong, fix it. If a subsystem is missing, BUILD it. If it needs a big
@@ -119,10 +129,18 @@ what you started before picking anything new.
    - If push is rejected (remote moved), `git pull --rebase origin main` then push again; if the
      rebase conflicts, resolve surgically (never `git checkout`/reset away local work) and push.
 
-7. Only THEN pick the next-worst. Keep going. Never stop.
+7. RE-MINIMIZE, THEN pick the next. After the fix, run `fct minimize <slug>` again from source:
+   the defect you fixed is gone, so the minimizer now drives to the NEXT tiny divergence (often a
+   smaller/different repro). Fix that. Repeat until the slug reaches 99 dB, then pick the next-worst
+   slug. Keep going. Never stop.
 
 ## Guardrails
 - decode-don't-fit: read constants from the binary or a clean probe; never force-fit a guess.
+- SMALLER-AND-DIFFERENT IS THE GOAL. `fct minimize` shrinks maximally and does NOT preserve the
+  original bug's identity — expect the reduced repro to sometimes show a simpler/different defect
+  than the full transition. That is correct and desirable (RULE 1). "Poor oracle" is a RETIRED
+  concept: never reject or de-prioritize a minimal case because it "isn't the real bug". Fix what
+  the tiny repro shows, then re-minimize from source and fix the next thing.
 - A minimize run that ABORTS at ~99 dB headless = engine-vs-GUI (colour-management), a DIFFERENT
   class. Still a real divergence to understand, but tracked separately; note it and keep it distinct
   from engine-vs-FCP-headless bugs. (This is the ONE case where "not this loop's target" is valid,
@@ -133,7 +151,12 @@ what you started before picking anything new.
 
 ## Handy commands
   python3 fct/cli.py min-score [case|--all]
-  python3 fct/cli.py minimize <slug> [--frames N] [--slack F] [--name NAME] [--params]
+  python3 fct/cli.py minimize <slug> [--frames N] [--frame I] [--slack F] [--name NAME] [--protect T,…]
+  #   minimize shrinks structure AND file content (boilerplate/param/generic-element removal +
+  #   value simplification), always on — no flag needed. It drives to the SMALLEST doc that still
+  #   diverges, with NO upper bound (a smaller/different defect is a win). --protect keeps a named
+  #   Motion subsystem's whole subtree intact. (--params is accepted but a no-op; line passes are
+  #   unconditional now.)
   python3 fct/cli.py census <slug>
   python3 fct/cli.py gen engine <slug>            # re-render engine frames for a full slug
   python3 fct/cli.py score <slug> --source headless
