@@ -754,31 +754,89 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
     n_struct0 = _count(_struct_iter)
     removed = 0
 
-    def _run_pass(iter_fn, label, require_engine=False):
-        nonlocal removed
-        changed = False
-        for parent, child in list(iter_fn(root)):
-            if child not in list(parent):
+    require_engine_flag = [False]
+    parent_of = {}
+
+    def _try_remove_batch(cands):
+        """Try to remove a BATCH of (parent, child) candidates at once, render ONCE, and
+        KEEP the removal iff the engine still renders + still diverges >= target. Returns
+        the number of elements actually removed-and-kept (0 if the batch was reverted, so
+        the caller bisects).
+
+        Only removes candidates that are still LIVE and whose ancestor isn't ALSO being
+        removed in this same batch (a nested candidate would be double-handled); those are
+        skipped this round and picked up when the caller bisects / on a later pass. Reverts
+        in reverse order so element indices stay valid."""
+        applied = []  # (parent, idx, child) in removal order
+        chosen = set()
+        for parent, child in cands:
+            if child not in parent:            # already gone (removed via an ancestor)
+                continue
+            anc = parent_of.get(child); nested = False
+            while anc is not None:
+                if anc in chosen: nested = True; break
+                anc = parent_of.get(anc)
+            if nested:
                 continue
             idx = list(parent).index(child)
             parent.remove(child)
-            trial = os.path.join(work, "trial.motr")
-            try:
-                tree.write(trial, encoding="unicode")
-            except Exception:
-                parent.insert(idx, child); continue
-            mse, ok = _mse_engine_vs_headless(trial, work, fi, nframes, worker=worker,
-                                              require_engine=require_engine, eworker=eworker)
-            # ACCEPT iff the engine still rendered (when required) AND SOME divergence of
-            # at least `target` survives. No upper bound: a bigger/different divergence in a
-            # smaller file is a better repro, not a regression.
-            keep = ok and mse >= target
-            if keep:
-                removed += 1; changed = True
-                tree.write(cur, encoding="unicode")
-            else:
+            applied.append((parent, idx, child))
+            chosen.add(child)
+        if not applied:
+            return 0
+        trial = os.path.join(work, "trial.motr")
+        try:
+            tree.write(trial, encoding="unicode")
+        except Exception:
+            for parent, idx, child in reversed(applied):
                 parent.insert(idx, child)
-        return changed
+            return 0
+        mse, ok = _mse_engine_vs_headless(trial, work, fi, nframes, worker=worker,
+                                          require_engine=require_engine_flag[0], eworker=eworker)
+        if ok and mse >= target:
+            tree.write(cur, encoding="unicode")
+            return len(applied)
+        for parent, idx, child in reversed(applied):
+            parent.insert(idx, child)
+        return 0
+
+    def _run_pass(iter_fn, label, require_engine=False):
+        """ddmin-style BATCH removal. Instead of one render per candidate (O(n) renders),
+        try removing the WHOLE candidate set at once; if the divergence survives, the entire
+        set is gone for ONE render. On failure, bisect the set into halves and recurse — so a
+        pass over n candidates of which k are load-bearing costs ~O(k·log n) renders, not
+        O(n). Early struct/boiler passes strip the large majority of nodes, so most batches
+        succeed whole and this is a big win on large sources. Correctness is identical to the
+        old greedy loop: every ACCEPTED state is render-verified (still renders + still
+        diverges >= target); a reverted batch never changes the doc. Deepest-first candidate
+        order + the ancestor-nesting skip keep the remove/revert index-safe."""
+        nonlocal removed, parent_of
+        require_engine_flag[0] = require_engine
+        # Snapshot the parent map once per pass for the nesting check.
+        parent_of = {c: p for p in root.iter() for c in p}
+        cands = list(iter_fn(root))
+        if not cands:
+            return False
+        before = removed
+
+        def rec(batch):
+            nonlocal removed
+            if not batch:
+                return
+            n = _try_remove_batch(batch)
+            if n:
+                removed += n            # whole (live subset of the) batch accepted
+                return
+            if len(batch) == 1:
+                return                  # single load-bearing candidate → leave it in
+            mid = len(batch) // 2
+            rec(batch[:mid])
+            rec(batch[mid:])
+
+        rec(cands)
+        return removed > before
+
+
 
     simplified = [0]  # value-simplifications applied (distinct from element removals)
 
