@@ -781,19 +781,42 @@ export function determineImageSource(params: Parameter[], el: Element | undefine
     return { type: 'linearGradient', gradient: parseLinearGradient(params) };
   }
 
-  // Color Solid generator (a plugin fill, not a drop zone).
-  if (el && (el.getAttribute('pluginName')?.includes('Color Solid') || el.getAttribute('pluginName')?.includes('PAEColorSolid'))) {
-    // Motion's Color Solid generator defaults to BLACK. Motion only serializes
-    // color channels that differ from the object default; e.g. Reflection's "Floor"
-    // Color Solid writes only <Blue value="0"/> (and Group 1's driver likewise) —
-    // Red/Green are absent because they equal the default 0. Defaulting to white
-    // here painted the floor plane bright yellow (255,255,0). Black is correct.
-    let r = 0, g = 0, b = 0;
+  // Color Solid generator (a plugin fill, not a drop zone). Matched by pluginUUID FIRST
+  // (C18E8B62-… is the canonical, stable Color Solid generator identity — verified constant
+  // across "Color Solid" / "Color Solid BG" / "Color Solid FG" in 360°/Reflection templates;
+  // only the pluginName varies), with a pluginName fallback for any variant. Keying on the
+  // UUID makes this robust to a stripped pluginName (the minimizer drops decorative attrs,
+  // and FCP itself resolves the plugin from the UUID, not the name).
+  const _pluginUUIDCS = (el?.getAttribute('pluginUUID') || '').toUpperCase();
+  const _pluginNameCS = el?.getAttribute('pluginName') || '';
+  if (el && (_pluginUUIDCS.startsWith('C18E8B62')
+      || _pluginNameCS.includes('Color Solid') || _pluginNameCS.includes('PAEColorSolid'))) {
+    // Motion's Color Solid generator has PER-CHANNEL defaults R=0, G=0, B=1 (a pure-BLUE
+    // default), DECODED from the generator definition (360° Color Solid.motn): the Color
+    // param's Blue child carries default="1", Red/Green default="0". Motion only serializes
+    // a channel's `value` when it differs from that channel's default AND omits the whole
+    // channel element when it equals the default. So an ABSENT channel must fall back to its
+    // channel DEFAULT (not a blanket 0): a Color Solid with NO serialized Color children is
+    // pure blue (0,0,1) — verified vs headless FCP on the minimized 360° Push repro (all
+    // color params stripped → FCP renders solid blue (0,0,254), engine previously black).
+    // When a channel IS present we honor its value (Reflection's "Floor" writes <Blue
+    // value="0"/> explicitly → stays black; Red/Green absent → their 0 default → black floor
+    // preserved). Prior code defaulted ALL channels to 0, which is only correct for Red/Green
+    // and wrongly blackened the (defaulted) Blue channel.
+    let r = 0, g = 0, b = 1;
     (function findColor(ps: Parameter[]) {
       for (const p of ps) {
-        if (p.name === 'Red' && typeof p.value === 'number') r = p.value;
-        if (p.name === 'Green' && typeof p.value === 'number') g = p.value;
-        if (p.name === 'Blue' && typeof p.value === 'number') b = p.value;
+        // Prefer the serialized `value`; if a channel element exists but has no numeric
+        // value, use its `default`. Absent channels keep the generator channel-default set
+        // above (R=0,G=0,B=1).
+        const resolve = (p: Parameter): number | undefined => {
+          if (typeof p.value === 'number') return p.value;
+          if (typeof p.default === 'number') return p.default;
+          return undefined;
+        };
+        if (p.name === 'Red') { const v = resolve(p); if (v !== undefined) r = v; }
+        if (p.name === 'Green') { const v = resolve(p); if (v !== undefined) g = v; }
+        if (p.name === 'Blue') { const v = resolve(p); if (v !== undefined) b = v; }
         if (p.children) findColor(p.children);
       }
     })(params);
