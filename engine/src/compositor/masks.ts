@@ -72,6 +72,18 @@ export function resolveCloneImage(rctx: RenderContext, cloneSourceId: number | u
   if (cloneSourceId === undefined || depth > 8) return null;
   const src = rctx.layerById.get(cloneSourceId);
   if (!src) return null;
+  // A clone whose resolved SOURCE layer is DISABLED (<enabled>0</enabled>) contributes
+  // NOTHING — a disabled node renders no pixels, and cloning it (directly or transitively
+  // through a clone chain) yields nothing either. DECODED 2026-07-26 on 3D_Rectangle
+  // (_t_3dr_v7, minimized): a clone chain 21867→14023→10009 terminates on a DISABLED
+  // Transition-A image (10009, <enabled>0</enabled>). The engine followed the chain and
+  // painted A FULL-FRAME, occluding the one live clone (10006 = Transition B receded at
+  // Z), so it rendered A everywhere while FCP renders only the receded B ([63.4,73,93.2]).
+  // Returning null when the resolved source is disabled makes the dead A-clone draw
+  // nothing (8.89 → 43.81 dB; residual is the Z-recede tile geometry). Same principle as
+  // the disabled-Link-driver rule (evaluator/links.ts): disabled nodes are inert as
+  // sources of pixels, channels, AND clone content.
+  if (src.enabled === false) return null;
   if (src.source?.type === 'transitionA') return rctx.imageA;
   if (src.source?.type === 'transitionB') return rctx.imageB;
   if (src.type === 'clone') return resolveCloneImage(rctx, src.cloneSourceId, depth + 1);
