@@ -317,11 +317,25 @@ export function parseFootageClipAB(sceneEl: Element, factories: Map<number, stri
   return { ab: map, media: clipMedia, dropZoneMediaHeight };
 }
 function findSourceMediaId(params: Parameter[]): number | undefined {
-  for (const p of params) {
-    if (p.name === 'Source Media' && p.id === 300 && typeof p.value === 'number') return p.value;
-    if (p.children) { const r = findSourceMediaId(p.children); if (r !== undefined) return r; }
-  }
-  return undefined;
+  // A drop-zone Image node references its footage clip via a "Source Media" param
+  // (id=300) nested inside a "Media" wrapper (id=324): Object(2) → Media(324) →
+  // Source Media(300)=clipId. The id=300 is AMBIGUOUS on its own — a Color Solid /
+  // Gradient generator uses id=300 for its "Width" (directly under the Object, with
+  // NO id=324 "Media" parent). We disambiguate by EITHER the explicit name OR the
+  // STRUCTURAL signature (id=300 child of an id=324 wrapper). The structural check
+  // makes resolution robust when the `name` attribute is absent (the minimizer strips
+  // decorative names; FCP resolves by the id=324→id=300 nesting, so the engine must too).
+  const walk = (ps: Parameter[], parentId: number | undefined): number | undefined => {
+    for (const p of ps) {
+      if (p.id === 300 && typeof p.value === 'number'
+        && (p.name === 'Source Media' || parentId === 324)) {
+        return p.value;
+      }
+      if (p.children) { const r = walk(p.children, p.id); if (r !== undefined) return r; }
+    }
+    return undefined;
+  };
+  return walk(params, undefined);
 }
 
 
