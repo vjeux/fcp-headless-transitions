@@ -16,12 +16,6 @@ import type { EvaluatedLayer } from '../evaluator/index.js';
  */
 export interface RenderContext {
   layerById: Map<number, Layer>;
-  /** Ids of every node that lives INSIDE a disabled group (a group with <enabled>0</enabled>),
-   * i.e. hidden-by-ancestor. resolveCloneImage returns null for a clone target in this set — FCP
-   * yields nothing for a clone chain routed through a disabled-group descendant (decoded on
-   * 3D_Rectangle _t_3dr_v7). A SELF-disabled leaf whose ancestors are enabled is NOT in this set,
-   * so it still renders when cloned (Movements/Swing). */
-  disabledGroupDescendants?: Set<number>;
   evalLayerById: Map<number, EvaluatedLayer>;
   imageA: ImageData;
   imageB: ImageData;

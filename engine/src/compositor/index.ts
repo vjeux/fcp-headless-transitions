@@ -87,24 +87,6 @@ function conformDropZoneSource(src: ImageData, boxW: number, boxH: number): Imag
 // card inside a 4096×2160 project) is NOT equirect — its drop-zone sources must still
 // be fill-conformed (otherwise the settled-B tail letterboxes). Computed from the raw
 // layer map (composite() only holds the EvaluatedScene, not the MotrScene).
-// Collect the ids of every node inside a DISABLED group (a group with enabled===false). A clone
-// chain routed through such a hidden-by-ancestor node renders nothing in FCP (resolveCloneImage
-// returns null for it). Walks the evaluated layer tree; once inside a disabled group, EVERY
-// descendant id (including nested groups' children) is collected. A self-disabled LEAF whose
-// ancestors are enabled is NOT collected — it still provides pixels when cloned (Movements/Swing).
-function computeDisabledGroupDescendants(layers: EvaluatedLayer[]): Set<number> {
-  const out = new Set<number>();
-  const walk = (el: EvaluatedLayer, underDisabled: boolean): void => {
-    const disabledHere = underDisabled || (el.layer.type === 'group' && el.layer.enabled === false);
-    for (const c of el.children ?? []) {
-      if (disabledHere && c.layer.id) out.add(c.layer.id);
-      walk(c, disabledHere);
-    }
-  };
-  for (const el of layers) walk(el, false);
-  return out;
-}
-
 function computeEquirectScene(width: number, height: number, layerById: Map<number, Layer>): boolean {
   if (!isWideEquirect(width, height)) return false;
   let anyDropZone = false;
@@ -549,25 +531,30 @@ function renderCloneLayer(rctx: RenderContext, output: ImageData, evalLayer: Eva
     // is the missing lever, not the A visibility.
     // Clone Layer: draw the image of the object it mirrors, at this layer's transform.
     let src = resolveCloneImage(rctx, layer.cloneSourceId);
-    if(process.env.FCT_DV5)console.error('DV5 clone',layer.id,'cloneSrc',layer.cloneSourceId,'src?',!!src,'imgMask',layer.imageMaskSourceId);
     if (src) {
       // FILL-CONFORM a full-frame A/B drop-zone clone: resolveCloneImage returns the
       // RAW imageA/imageB (e.g. 1854×1042) which, blitted at the clone's identity-
-      // scale transform into a larger scene buffer (Movements/Switch: 2160×1080),
-      // leaves the source PILLARBOXED — the sibling warm A shows through the side
-      // gaps (Switch f15-23: B tinted warm, left edge [55,39,60]). The direct
-      // drop-zone image path fill-conforms its source (see conformDropZoneSource);
-      // a clone of a full-frame A/B card must too. Scoped to a clone whose terminal
-      // leaf is a transitionA/B drop zone and whose source is smaller than the
-      // buffer, and only when this clone isn't perspective/3D-projected (a flat
-      // full-frame card). No-op for clones already ≥ the buffer or non-A/B clones.
+      // scale transform into a larger scene buffer, leaves the source PILLARBOXED. FCP
+      // fills the frame with the A/B media, so a clone of a full-frame A/B card must too.
+      // Scoped to a clone whose terminal leaf is a transitionA/B drop zone and whose source
+      // is smaller than the buffer, and only when not equirect. Keys on the leaf's A/B SOURCE
+      // TYPE, NOT on its dropZone box dims — those may be ABSENT (never authored, or stripped
+      // by the minimizer), in which case the box-size gate wrongly skipped the conform and the
+      // clone rendered native-size letterboxed (DECODED on 3D_Rectangle _t_3dr_v8: cloned A
+      // blitted native 1854 → mean 95 letterboxed vs FCP full-frame 102). This mirrors the
+      // direct-image conformNoBoxAB path.
       {
         const leafId0 = cloneChainLeafId(rctx, layer.cloneSourceId);
         const leaf0 = leafId0 !== undefined ? rctx.layerById.get(leafId0) : undefined;
-        const isABCard = !!leaf0 && leaf0.type === 'image' && !!leaf0.dropZone
+        const isABCard = !!leaf0 && leaf0.type === 'image'
           && (leaf0.source?.type === 'transitionA' || leaf0.source?.type === 'transitionB');
-        if (isABCard && !rctx.equirectScene && (src.width < output.width - 2 || src.height < output.height - 2)
-            && leaf0!.dropZone!.width >= output.width - 2 && leaf0!.dropZone!.height >= output.height - 2) {
+        // Conform when the leaf declares a FULL-FRAME box (dropZone ≥ output) OR has NO box at
+        // all (dims absent/stripped). A leaf with a genuinely SMALLER box (a sub-frame tile) keeps
+        // its native size — only full-frame A/B cards fill.
+        const boxFillsFrameOrAbsent = !leaf0?.dropZone
+          || (leaf0.dropZone.width >= output.width - 2 && leaf0.dropZone.height >= output.height - 2);
+        if (isABCard && !rctx.equirectScene && boxFillsFrameOrAbsent
+            && (src.width < output.width - 2 || src.height < output.height - 2)) {
           src = conformDropZoneSource(src, output.width, output.height);
         }
       }
@@ -796,7 +783,6 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
     // timeline instead of the reverse-video default.
     const clipT = retimedClipTime(evalLayer, rctx);
     const src = evalLayer.forceSourceA ? imageA : getSourceImage(rctx, layer.source, imageA, imageB, clipT);
-    if(process.env.FCT_DV5)console.error('DV5 drawable',layer.id,'type',layer.type,'forceA',evalLayer.forceSourceA,'src?',!!src,'imgMask',layer.imageMaskSourceId,'source',JSON.stringify(layer.source));
     if (src) {
       // Lens-flare glow: renderLensFlare emits a FULL-FRAME field already in output
       // coordinates (its centre sweep + envelope are computed in frame pixels), so
@@ -1546,7 +1532,6 @@ export function composite(
   const rctx: RenderContext = {
     layerById: scene.layerById,
     evalLayerById: scene.evalLayerById,
-    disabledGroupDescendants: computeDisabledGroupDescendants(scene.layers),
     imageA,
     imageB,
     cameraZ: scene.camera?.distance ?? defaultCameraDistance(width),

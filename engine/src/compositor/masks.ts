@@ -72,16 +72,6 @@ export function resolveCloneImage(rctx: RenderContext, cloneSourceId: number | u
   if (cloneSourceId === undefined || depth > 8) return null;
   const src = rctx.layerById.get(cloneSourceId);
   if (!src) return null;
-  // A clone target that lives inside a DISABLED GROUP contributes nothing — FCP yields empty for a
-  // clone chain routed through a hidden-by-ancestor node. DECODED 2026-07-26 on 3D_Rectangle
-  // (_t_3dr_v7): Clone Layer 7 (21867) → 14023 (an enabled clone but inside group 10011 which is
-  // <enabled>0</enabled>) → 10009 (disabled Transition-A image). FCP renders ZERO A (only the
-  // receded B shows); with B removed the whole chain is pure black. CONTRAST _t_swing: its clone
-  // targets a disabled IMAGE LEAF (987619203) that sits in an ENABLED group — that DOES render
-  // (a self-disabled leaf still provides its pixels to be cloned). So the break is a DISABLED
-  // ANCESTOR GROUP on the chain, not a self-disabled leaf. rctx.disabledGroupDescendants holds the
-  // ids of nodes inside any disabled group.
-  if (rctx.disabledGroupDescendants?.has(cloneSourceId)) return null;
   if (src.source?.type === 'transitionA') return rctx.imageA;
   if (src.source?.type === 'transitionB') return rctx.imageB;
   if (src.type === 'clone') return resolveCloneImage(rctx, src.cloneSourceId, depth + 1);
