@@ -401,6 +401,15 @@ def _referenced_node_ids(root):
         for ch in p:
             if _localname(ch.tag) == "parameter":
                 parent_pid[id(ch)] = p.get("id")
+    # Collect every structural node id so a Target (id=200) reference is only honored when it
+    # actually points at a real node (guards the stripped-name case from a coincidental id=200
+    # scalar param).
+    node_ids = set()
+    for el in root.iter():
+        if _localname(el.tag) in _STRUCT_TAGS:
+            nid = el.get("id")
+            if nid and nid.isdigit():
+                node_ids.add(int(nid))
     for p in root.iter():
         if _localname(p.tag) != "parameter":
             continue
@@ -408,13 +417,15 @@ def _referenced_node_ids(root):
         name = p.get("name") or ""
         is_mask_source = pid == "1" and name == "Mask Source"
         is_source_media = pid == "300" and (name == "Source Media" or parent_pid.get(id(p)) == "324")
-        # A Clone Layer / Framing behavior binds to the node it clones via a `Target` param
-        # (id=200): stripping the target's subtree leaves a dangling clone (FCP renders the
-        # clone of a now-absent source as nothing / hidden, while the engine may draw the bare
-        # source directly). DECODED on Replicator-Clones/Clone_Spin: node 987618479 ("Transition
-        # B") is a Clone Target; the minimizer stripped the Clone Layer + Target binding, leaving
-        # a bare drop-zone plate the engine drew full-frame while FCP (which only shows the clone,
-        # off-screen/spun) rendered black → false 7.4 dB divergence. Protect the Target's subtree.
+        # A Clone Layer / Framing / Camera behavior binds to the node it clones or looks at via a
+        # `Target` param (id=200). Stripping the target's subtree leaves a dangling reference (FCP
+        # renders the clone/framed view of a now-absent source as nothing / off-screen, while the
+        # engine may draw the bare source directly). DECODED on Replicator-Clones/Clone_Spin: node
+        # 987618479 ("Transition B") is a Camera's Target; the minimizer stripped the Camera + spin
+        # transforms, leaving bare drop-zone plates the engine drew full-frame while FCP (framing
+        # the spun/edge-on plates) rendered black → false 7.4 dB divergence. Protect the Target's
+        # subtree. Name-independent (minimizer strips names) but gated on the value being a REAL
+        # node id below, so a coincidental scalar id=200 param never matches.
         is_clone_target = pid == "200" and (name == "Target" or name == "")
         if not (is_mask_source or is_source_media or is_clone_target):
             continue
@@ -424,6 +435,9 @@ def _referenced_node_ids(root):
         try:
             iv = int(float(v))
         except ValueError:
+            continue
+        # A Target (id=200) must reference an existing node; Mask Source / Source Media always do.
+        if is_clone_target and iv not in node_ids:
             continue
         if iv > 0:
             ref_ids.add(iv)
