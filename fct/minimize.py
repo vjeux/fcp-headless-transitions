@@ -762,6 +762,17 @@ def _iter_generic(root, protect=None, factory_desc=None):
             continue  # scene coordinate space — stripping it changes FCP's render (see note)
         if _localname(c.tag) in _MEDIA_REF_TAGS:
             continue  # a clip's media reference — stripping it changes FCP's media resolution (see note)
+        # A DISABLED node's <enabled>0</enabled> is LOAD-BEARING: FCP does not draw the node
+        # directly (it survives only as a Clone/Mask/Camera SOURCE that other nodes reference),
+        # but the ENGINE draws any node without enabled=0 — so stripping it makes a hidden driver
+        # become a visible full-frame plate → a FALSE divergence. DECODED 2026-07-26 on
+        # 3D_Rectangle (_t_3dr_v6): node 10009 (Transition A) is <enabled>0</enabled> and is the
+        # Source of 9 masked rectangle clones; stripping enabled=0 made the engine paint A
+        # full-frame over B while FCP shows only the receded B. (<enabled>1</enabled> is the
+        # default and harmless to strip — only guard the disabled flag.) Same
+        # engine-tolerates-but-FCP-depends class as sceneSettings / Source Media / drop-zone Type.
+        if _localname(c.tag) == "enabled" and (c.text or "").strip() == "0":
+            continue
         yield parent[c], c
 
 
