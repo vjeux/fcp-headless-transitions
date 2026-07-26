@@ -1038,10 +1038,24 @@ function renderChildLayers(rctx: RenderContext, output: ImageData, evalLayer: Ev
     const visibleChildren: EvaluatedLayer[] = [];
     for (const child of evalLayer.children) {
       if (child.layer.type === 'shape' && child.layer.shape?.isMask) {
-        maskShapes.push(child);
+        // A DEGENERATE mask shape (fewer than 3 vertices) cannot form a closed polygon —
+        // it rasterizes to an EMPTY (all-zero) alpha, which if applied would zero the whole
+        // group to black. FCP treats such a shape as NO mask (the well is simply un-filled),
+        // NOT as a null matte. DECODED on Stylized/Lower (_t_lower): a "Transition B mask
+        // shapes" layer holds a 1-vertex placeholder Shape (554481424, curve_X has a single
+        // empty vertex → 0 usable verts); the engine lifted it as a mask and its empty alpha
+        // masked the sibling fill/Transition-B content to pure black (FCP shows the content
+        // ~32% coverage). Skip degenerate mask shapes so they never contribute a killing matte.
+        if ((child.layer.shape.verticesX?.length ?? 0) >= 3) maskShapes.push(child);
       } else if (isMaskGroup(rctx, child)) {
-        // A group that contains only mask shapes → lift its masks.
+        // A group that contains only mask shapes → lift its masks (degenerate <3-vert shapes
+        // inside are filtered by collectMaskShapes' consumers the same way — see below).
+        const before = maskShapes.length;
         collectMaskShapes(child, maskShapes);
+        // Drop any degenerate (<3-vert) shapes the lift collected, for the same reason.
+        for (let k = maskShapes.length - 1; k >= before; k--) {
+          if ((maskShapes[k].layer.shape?.verticesX?.length ?? 0) < 3) maskShapes.splice(k, 1);
+        }
       } else {
         visibleChildren.push(child);
       }
