@@ -550,6 +550,57 @@ def _iter_value_simplifications(root, protect=None, factory_desc=None):
                 yield (el, None, t, "0")
 
 
+# Attributes that are load-bearing for the PARSER/resolver and must never be dropped: an
+# element's own id, the numeric factoryID that wires a scenenode to its <factory>, the
+# Source Media `value` that points a drop-zone at its clip, and the id-carrying attrs the
+# schema keys on. Everything else (cosmetic name=, plugin metadata, redundant default=,
+# unreferenced uuid=, version=) is a removal CANDIDATE — still render-gated, so anything
+# that turns out to matter is restored.
+_KEEP_ATTRS = {"id", "factoryID", "value"}
+
+
+def _iter_attr_removals(root, protect=None, factory_desc=None):
+    """Yield (element, attr, old_value) candidate ATTRIBUTE removals — the file also shrinks
+    by trimming attributes off surviving elements (a Motion scenenode carries pluginUUID/
+    pluginName/pluginVersion/version/name that are usually cosmetic). Skips _KEEP_ATTRS and
+    protected subtrees. The caller deletes the attr, render-gates, and restores if needed."""
+    inside = _protected_subtree(root, protect, factory_desc or {})
+    for el in root.iter():
+        if el in inside:
+            continue
+        for attr in list(el.attrib.keys()):
+            if attr in _KEEP_ATTRS:
+                continue
+            yield (el, attr, el.get(attr))
+
+
+
+# Attributes NEVER dropped by the attribute pass: removing them changes identity/wiring or
+# breaks the parse. `id`/`factoryID` identify nodes and are referenced elsewhere; `value`
+# carries the actual parameter setting (that's the value pass's job, not removal); `uuid` on
+# <factory> is how behaviors bind a factory. Everything else on an element (name=,
+# pluginUUID=, pluginVersion=, pluginName=, version=, default=, round=, etc.) is fair game —
+# each is still individually render-gated, so a genuinely-load-bearing attr is restored.
+_KEEP_ATTRS = {"id", "factoryID", "value", "uuid"}
+
+
+def _iter_attr_removals(root, protect=None, factory_desc=None):
+    """Yield (element, attr, old_value, None) candidates that DELETE an optional attribute.
+    (new_value=None is the sentinel for 'remove the attribute' in _run_value_pass.) Skips
+    _KEEP_ATTRS and protected subtrees. This trims the many decorative attributes a Motion
+    .motr carries (name/pluginName/pluginVersion/version/default/…) that don't affect the
+    render — the struct/param/value passes never touch attributes, so without this they
+    survive to the final repro as noise."""
+    inside = _protected_subtree(root, protect, factory_desc or {})
+    for el in root.iter():
+        if el in inside:
+            continue
+        for attr in list(el.attrib.keys()):
+            if attr in _KEEP_ATTRS:
+                continue
+            yield (el, attr, el.get(attr), None)
+
+
 
 def minimize(slug, nframes=None, keep_above=25.0, slack=0.12, max_passes=6,
              out_name=None, do_params=False, probe_frame=None, protect=None):
@@ -646,25 +697,35 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
     simplified = [0]  # value-simplifications applied (distinct from element removals)
 
     def _run_value_pass(iter_fn, label):
-        """Try attribute/text VALUE simplifications (not removals). For each candidate
-        (el, attr, old, new): apply, render-gate, keep if the engine still renders and
-        still diverges >= target, else revert. attr=None means simplify el.text. Returns
-        count applied this pass."""
+        """Try attribute/text VALUE simplifications AND attribute REMOVALS. For each candidate
+        (el, attr, old, new): apply, render-gate, keep if the engine still renders and still
+        diverges >= target, else revert. Semantics of (attr, new):
+          • attr is not None, new is not None → set el[attr] = new   (value simplification)
+          • attr is not None, new is None     → delete el[attr]       (attribute removal)
+          • attr is None                      → set el.text = new     (text simplification)
+        Returns count applied this pass."""
         applied = 0
         for el, attr, old, new in list(iter_fn(root)):
-            # the element may have been removed by an earlier pass; skip if orphaned
-            cur_val = el.get(attr) if attr is not None else (el.text.strip() if el.text else None)
-            if cur_val != old:
-                continue  # already changed / stale candidate
+            # the element may have been removed/changed by an earlier pass; skip if stale
             if attr is not None:
-                el.set(attr, new)
+                cur_val = el.get(attr)
             else:
-                el.text = new
+                cur_val = el.text.strip() if el.text else None
+            if cur_val != old:
+                continue
+            # apply
+            if attr is not None and new is None:
+                del el.attrib[attr]           # attribute removal
+            elif attr is not None:
+                el.set(attr, new)             # value simplification
+            else:
+                el.text = new                 # text simplification
             trial = os.path.join(work, "trial.motr")
             try:
                 tree.write(trial, encoding="unicode")
             except Exception:
-                if attr is not None: el.set(attr, old)
+                if attr is not None and new is None: el.set(attr, old)
+                elif attr is not None: el.set(attr, old)
                 else: el.text = old
                 continue
             mse, ok = _mse_engine_vs_headless(trial, work, fi, nframes, worker=worker,
@@ -673,10 +734,12 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
                 applied += 1
                 tree.write(cur, encoding="unicode")
             else:
+                # revert
                 if attr is not None: el.set(attr, old)
                 else: el.text = old
         simplified[0] += applied
         return applied
+
 
     # 2. coarse structural passes (fast, primary): whole subtrees.
     for p in range(max_passes):
@@ -685,19 +748,28 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
         print(f"[minimize] struct pass {p+1}: removed {removed}/{n_struct0}, remaining {rem}", flush=True)
         if not changed:
             break
-    # 3. LINE-MINIFICATION passes — always on. These shrink the FILE (not just the
-    #    structural-node count):
-    #      boiler    → unreferenced <factory>/<clip>/<footage> + scene metadata
-    #      emptyfold → fold-only <parameter> UI-stub folders
-    #      param     → default-valued <parameter> value leaves
-    #      generic   → EVERY other non-envelope element (sceneSettings scalars, behaviour
-    #                  plumbing <expressionChannels>/<dynamicChannelIDSet>/<channelBehavior>,
-    #                  clip fields <missingWidth>/<mediaID>, scene <currentFrame>/<timeRange>…)
-    #      value     → simplify remaining attribute/text VALUES toward default / 0 / round
+    # 3. FIXPOINT of ALL passes (struct + line + attribute) — always on. Each pass can UNLOCK
+    #    another: stripping a scenenode's params/transform empties it so the STRUCT pass can
+    #    then remove the whole now-empty node/layer/behavior; dropping a value can make a
+    #    <factory>/<clip> unreferenced so BOILER can remove it; etc. Running struct only once
+    #    up-front (as the old code did) left removable empty shells behind — e.g. Reflection's
+    #    34-line repro still had an emptied Color Solid, its wrapper <layer>, and an empty
+    #    LinkPos <behavior> that were ALL independently removable. So we loop struct + every
+    #    line pass together until a whole sweep changes nothing.
+    #      struct     → whole subtrees (re-tried every sweep, catching newly-emptied nodes)
+    #      boiler     → unreferenced <factory>/<clip>/<footage> + scene metadata
+    #      emptyfold  → fold-only <parameter> UI-stub folders
+    #      param      → default-valued <parameter> value leaves
+    #      generic    → EVERY other non-envelope element (sceneSettings scalars, behaviour
+    #                   plumbing, clip fields, scene <currentFrame>/<timeRange>…)
+    #      attr       → removable ELEMENT ATTRIBUTES (name=, pluginUUID/Name/Version, version,
+    #                   default=, unreferenced uuid=) — the file also shrinks by attribute
+    #      value      → simplify remaining attribute/text VALUES toward default / 0 / round
     #    Every change is render-gated with require_engine=True (anything the engine needs to
     #    RENDER is restored) and keeps SOME divergence >= target. No upper bound / no bug-
     #    identity check: shrinking to a smaller-and-possibly-different defect is the goal.
-    for p in range(max_passes):
+    for p in range(max_passes * 2):
+        cs = _run_pass(_struct_iter, "struct2")
         c1 = _run_pass(lambda r: _iter_boilerplate(r, protect=protect, factory_desc=factory_desc),
                        "boiler", require_engine=True)
         c2 = _run_pass(lambda r: _iter_empty_param_folders(r, protect=protect, factory_desc=factory_desc),
@@ -706,12 +778,15 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
                        "param", require_engine=True)
         c4 = _run_pass(lambda r: _iter_generic(r, protect=protect, factory_desc=factory_desc),
                        "generic", require_engine=True)
+        c6 = _run_value_pass(lambda r: _iter_attr_removals(r, protect=protect, factory_desc=factory_desc),
+                             "attr")
         c5 = _run_value_pass(lambda r: _iter_value_simplifications(r, protect=protect, factory_desc=factory_desc),
                              "value")
-        print(f"[minimize] line pass {p+1}: removed {removed} simplified {simplified[0]} "
-              f"(boiler={c1} emptyfold={c2} param={c3} generic={c4} value={c5})", flush=True)
-        if not (c1 or c2 or c3 or c4 or c5):
+        print(f"[minimize] fixpoint pass {p+1}: removed {removed} simplified {simplified[0]} "
+              f"(struct={cs} boiler={c1} emptyfold={c2} param={c3} generic={c4} attr={c6} value={c5})", flush=True)
+        if not (cs or c1 or c2 or c3 or c4 or c5 or c6):
             break
+
 
 
 
