@@ -1410,25 +1410,24 @@ export function parseMotr(xmlText: string): MotrScene {
     }
     if (maxT > 0) animationEndSec = maxT;
     else {
-      // No spatial keyframes (e.g. Blurs/Zoom — motion is Retime + procedural
-      // behaviors). The animation window is bounded by the transition's own layer
-      // timing: the max <timing out=...> across all nodes. Past that, the drop-zone
-      // layers time out and the frame goes empty. This is tighter than the padded
-      // scene duration (durationFrames/frameRate) and matches what FCP renders.
-      let maxOut = 0;
-      const timings = Array.from(sceneEl.getElementsByTagName('timing'));
-      for (const tEl of timings) {
-        const outAttr = tEl.getAttribute('out');
-        if (!outAttr) continue;
-        const parts = outAttr.trim().split(/\s+/);
-        const val = parseFloat(parts[0]);
-        const scale = parts.length > 1 ? parseFloat(parts[1]) : 1;
-        if (scale > 0 && isFinite(val)) {
-          const sec = val / scale;
-          if (sec > maxOut) maxOut = sec;
-        }
-      }
-      if (maxOut > 0) { animationEndSec = maxOut; usedMaxOutFallback = true; }
+      // No within-span spatial keyframes (e.g. Blurs/Zoom — motion is Retime + procedural
+      // behaviors; or a fully-static minimized clone/drop-zone scene). FCP plays the transition
+      // over EXACTLY the authored scene span (sceneSettings/duration ÷ frameRate; the GUI GT and
+      // headless capture N frames at t=(i/N)·span). Content whose <timing out> ends BEFORE the
+      // span simply times out mid-transition and FCP renders the remaining frames EMPTY (black) —
+      // it does NOT compress the timeline to the last `out`. DECODED 2026-07-26 on 3D_Rectangle
+      // (_t_3dr_v8): the survivor is a static clone with timing out=1.502s in a duration-60/fps-30
+      // = 2.0s scene; FCP shows the clone f0-f17 then BLACK f18-f23 (out crossed at f18). The old
+      // fallback set animationEndSec = max(<timing out>) = 1.502s, which compressed render(progress)
+      // so f23 mapped to 1.44s < 1.502 → the clone NEVER timed out (A held all 24 frames). Use the
+      // authored span so the clone times out at the right frame and the black tail renders.
+      // (The max-<out> value is never the right window: when it EXCEEDS the span it is editor
+      // padding — capped to span below; when it is SHORTER than the span the scene has a real black
+      // tail — also the span. So the fallback IS the span. This preserves Combo_Spin/Squares/
+      // Video_Wall, whose maxOut 10-19s clamped to span 2.0s = the same value.)
+      const spanSecFallback = duration.value / duration.timescale;
+      animationEndSec = spanSecFallback;
+      usedMaxOutFallback = true;
     }
   }
 
@@ -1476,19 +1475,21 @@ export function parseMotr(xmlText: string): MotrScene {
   }
 
   // HARD INVARIANT (maxOut fallback only): when a scene has NO within-span spatial
-  // keyframes (maxT==0 above — motion is Retime + procedural behaviors), the window
-  // falls back to the max <timing out=…> across nodes. Some scenes carry a node whose
-  // `out` sits FAR past the authored span (a Motion editor artifact — e.g. a hidden
-  // Comp group or a replicator whose lifetime `out` is authored in a padded timeline),
-  // which inflates animationEndSec many× the span. FCP plays the transition over
-  // exactly the authored span (sceneSettings/duration ÷ frameRate; the GUI GT captures
-  // exactly that many frames at t=(i/N)·span, fct.timing), so a fallback `out` LARGER
-  // than the span is definitionally not the visible transition window — clamp it. This
-  // rescues Combo_Spin / Squares / Video_Wall (no spatial keyframes → maxOut read 10-19s
-  // → render(0.5) sampled past every layer's `out` = a frozen/black tail). It touches
-  // ONLY the maxT==0 fallback path, so every keyframe-driven slug is unaffected.
+  // keyframes (maxT==0 above — motion is Retime + procedural behaviors), the sampling
+  // window is ALWAYS the authored span (sceneSettings/duration ÷ frameRate). FCP plays the
+  // transition over exactly that span (the GUI GT / headless capture N frames at t=(i/N)·span),
+  // and per-LAYER <timing out=…> only gates each layer's visibility WITHIN that span — it does
+  // NOT shorten the sampling domain. The maxOut fallback set animationEndSec = max(timing out),
+  // which is WRONG in BOTH directions: (a) a node `out` FAR past the span (editor-padded Comp
+  // group / replicator lifetime, 10-19s) inflated the domain many×; (b) a node `out` BEFORE the
+  // span COMPRESSED the domain so the scene's real black tail never rendered AND timed layers
+  // never crossed their own `out`. DECODED (b) on 3D_Rectangle (_t_3dr_v8): a clone with
+  // timing out=1.502s in a 2.0s scene — FCP shows the clone f0-f17 then BLACK f18-f23; the engine
+  // used animationEndSec=1.502 so f23 mapped to 1.44s < 1.502 and the clone never timed out.
+  // FIX: the maxT==0 fallback pins animationEndSec to the authored span; layer timing does the
+  // rest. (For (a) this is identical to the old clamp-down-to-span; for (b) it lifts to span.)
   const spanSec = duration.value / duration.timescale;
-  if (usedMaxOutFallback && spanSec > 0 && animationEndSec > spanSec) {
+  if (usedMaxOutFallback && spanSec > 0) {
     animationEndSec = spanSec;
   }
 
