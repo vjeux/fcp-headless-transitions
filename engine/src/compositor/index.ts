@@ -692,9 +692,18 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
     // panel being composited TWICE — which over-brightened faded panels, e.g.
     // Stylized__Lower's 0.40-opacity white panel rendered ~163 instead of 102).
     const linked = evalLayer.fillColorOverride;
-    const r = linked ? linked.r : shp.panelFill!.r;
-    const g = linked ? linked.g : shp.panelFill!.g;
-    const b = linked ? linked.b : shp.panelFill!.b;
+    // Motion renders a panel's OWN solid Fill Color in LINEAR light, decoding the
+    // authored sRGB value through the sRGB EOTF — IDENTICAL to the generic shape
+    // fillColor path above (srgbFillToOutput). The panel path previously wrote the
+    // RAW sRGB code (panelFill.r), so e.g. Stylized/Center's "Big blue" panel
+    // (Fill Color 0.914/0.949/0.957 → raw 233/242/244) painted too WHITE; FCP
+    // headless renders it 206/227/231 = srgbToLinear(233/242/244) — the panel is
+    // decoded, not raw. A Link-driven OVERRIDE stays raw (authoritative), exactly
+    // as in the generic path. Verified vs REAL FCP-headless on the full Center
+    // transition: the left-half "Big blue" panel now matches (208/226/231).
+    const r = linked ? linked.r : srgbFillToOutput(shp.panelFill!.r);
+    const g = linked ? linked.g : srgbFillToOutput(shp.panelFill!.g);
+    const b = linked ? linked.b : srgbFillToOutput(shp.panelFill!.b);
     const mask = rasterizeShape(shp, output.width, output.height, worldTransform, undefined, undefined, undefined, crop);
     const fillBuf = createBuffer(output.width, output.height);
     const fd = fillBuf.data;
