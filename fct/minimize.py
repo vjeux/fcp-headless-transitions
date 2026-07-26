@@ -711,25 +711,6 @@ def _iter_value_simplifications(root, protect=None, factory_desc=None):
 # schema keys on. Everything else (cosmetic name=, plugin metadata, redundant default=,
 # unreferenced uuid=, version=) is a removal CANDIDATE — still render-gated, so anything
 # that turns out to matter is restored.
-_KEEP_ATTRS = {"id", "factoryID", "value"}
-
-
-def _iter_attr_removals(root, protect=None, factory_desc=None):
-    """Yield (element, attr, old_value) candidate ATTRIBUTE removals — the file also shrinks
-    by trimming attributes off surviving elements (a Motion scenenode carries pluginUUID/
-    pluginName/pluginVersion/version/name that are usually cosmetic). Skips _KEEP_ATTRS and
-    protected subtrees. The caller deletes the attr, render-gates, and restores if needed."""
-    inside = _protected_subtree(root, protect, factory_desc or {})
-    for el in root.iter():
-        if el in inside:
-            continue
-        for attr in list(el.attrib.keys()):
-            if attr in _KEEP_ATTRS:
-                continue
-            yield (el, attr, el.get(attr))
-
-
-
 # Attributes NEVER dropped by the attribute pass: removing them changes identity/wiring or
 # breaks the parse. `id`/`factoryID` identify nodes and are referenced elsewhere; `value`
 # carries the actual parameter setting (that's the value pass's job, not removal); `uuid` on
@@ -750,8 +731,21 @@ def _iter_attr_removals(root, protect=None, factory_desc=None):
     for el in root.iter():
         if el in inside:
             continue
+        is_vertex = _localname(el.tag) == "vertex"
         for attr in list(el.attrib.keys()):
             if attr in _KEEP_ATTRS:
+                continue
+            # `index` on a <vertex> is LOAD-BEARING: it defines the vertex's position in the
+            # shape's closed path, i.e. how curve_X[i] pairs with curve_Y[i] and the order the
+            # contour connects points. FCP (OZChannelCurve::getVertexValue reads a 2D OZVertex2D
+            # keyed by index) pairs/orders by this attribute; the engine sorts by it too but
+            # FALLS BACK to document order when it is absent (all index=0). So dropping <vertex
+            # index=> passes the engine-MSE gate while SILENTLY changing FCP's vertex pairing —
+            # DECODED on Stylized/Center's held Shape 390117 (_t_center_faithful): with the index
+            # attrs stripped, FCP fills a slant triangle (apex at TOP-Y) while the engine fills the
+            # doc-order polygon (apex at MID) — a false ~1 dB divergence purely from the strip.
+            # Same referenced/load-bearing-attribute class as the _SCENE_GEOMETRY_TAGS strips.
+            if is_vertex and attr == "index":
                 continue
             yield (el, attr, el.get(attr), None)
 
