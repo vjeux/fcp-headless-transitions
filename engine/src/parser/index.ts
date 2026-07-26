@@ -34,6 +34,74 @@ import { extractBlendMode, extractRetimeValue, extractTransform } from './transf
 import { parseCameraParams } from './camera.js';
 
 
+// Canonical factory UUID → node-type description. FCP identifies a factory by its stable
+// <uuid>, NOT by the human-readable <description> text. We mirror that so the parser is
+// robust to a missing/blank <description> (a stripped .motr, a localized build, etc.) —
+// resolving by UUID first and only falling back to <description> for an unknown UUID.
+// Harvested (unambiguously — 0 UUID mapped to >1 description) from all 65 shipped
+// Transitions .motr templates. Only the types the parser's factory switch / factory-type
+// checks care about are listed; anything else falls through to the <description> text.
+const FACTORY_UUID_TYPE: Record<string, string> = {
+  "eecb322ed23242d8ae51f33765574dbd": "Align To",
+  "de1a9415beb34e5fb0964d1528bef14a": "Camera",
+  "11615b89cbc0483fb92e95eb0c80e59c": "Channel",
+  "46c844a813d311d8a438000a95af9f7e": "Channel",
+  "dbca752470fd11d7980100039389b702": "Channel",
+  "1595b452229211d78c7f00039389b702": "Channel",
+  "27f3ee8b229211d7925a00039389b702": "Channel",
+  "878a64bd193011d8bac3000a95af9f7e": "Channel",
+  "fdc1944b229111d7b1c300039389b702": "Channel",
+  "0e8d443513b611d89395000a95af9f7e": "Channel",
+  "10405f52139811d8b4db000a95af9f7e": "Channel",
+  "558f10b4a1c011d7998900039389b702": "Channel",
+  "69f1e0a52e7911d8b19a000a95b0025a": "Channel",
+  "7644521e2e7911d891a6000a95b0025a": "Channel",
+  "98458b1125bc499897c399d6d1240f52": "Channel",
+  "5360af6225b111d89d2b000a95af9f7e": "Channel",
+  "0b00de81229211d7ac3d00039389b702": "Channel",
+  "645630bfb46e49b7846b64f1f24cb140": "Channel",
+  "b81b85d08c6811d7928a0003936f6f92": "Channel",
+  "b5736f3528f111d7bd1900039389b702": "Channel",
+  "046e7c74fd734809885d35e99ac9eeb2": "Channel",
+  "84414060b0fd11d99bb5000a957d5fce": "Clone Layer",
+  "eb05a238b3c511d7a70f00039366fb58": "Emitter",
+  "a1a40f72a21111d7a40e00039366fb58": "Fade In/Fade Out",
+  "24594f34e7774bf290ae932f3a3147cd": "Framing",
+  "615c4bf6406511d88802000a95af90f2": "Generator",
+  "036c5baf38d311d9979d000a95af90f2": "Generator",
+  "f32e7a31146f11d8a20a000a95af9f7e": "Gradient",
+  "d0dee83c7e5f11d782c8000393d68f0a": "Gravity",
+  "de7105bba28d11d7b58600039366fb58": "Grow/Shrink",
+  "66fc0d6af6a911d6a7a7000393670732": "Image",
+  "0dcc884c286f11d8ab08000a9598188a": "Image Mask",
+  "c8607b294c0446cea658e7c290b295f5": "Light",
+  "68fba2c1aa094655bf4b81587efec626": "Link",
+  "e7a29264e55311d7a8a300039389b702": "Motion Path",
+  "1a262447ab7011d7bb4600039366fb58": "Oscillate",
+  "6b337e9c21aa11d7a08700039375d2ba": "Output",
+  "8b8df2b5b33d11d7ab8900039366fb58": "Particle Cell",
+  "deca4859b16011d7a12d0003936f6f92": "ProPlugin Filter",
+  "7d468273c013498e9806a0d7bc32fddf": "Project",
+  "7abc31338be411d795d800039366fb58": "Ramp",
+  "ec10c2b2d8d111d7802e00039366fb58": "Random Motion",
+  "742cb47d503411d891e9000a95b0025a": "Rate",
+  "caf198bdb7c34dccb8af6ebb4f382ae3": "Replicator",
+  "43c1dc5a125c11d9a1d4000a95b0025a": "Replicator",
+  "dab733bb21ab47e08874d786d2fdddc9": "Replicator Cell",
+  "d14bf2ee2e9411d99824000a95b0025a": "Replicator Cell",
+  "402246385249454b90e08b2ee1b6bf06": "Rig",
+  "dd0036f96c9e4bfdadb82f71fbf5c9d8": "Rig Behavior",
+  "b52ca8782c4311d88b2e000a95b0025a": "Scale Over Life",
+  "79daf21786d54b32bf2f0679c6319f52": "Scrub",
+  "988d3afc322411d98a37000a95b0025a": "Sequence Replicator",
+  "712462a4323911d78f8400039389b702": "Shape",
+  "c329cc18a13f11d7a13e00039366fb58": "Spin",
+  "701038687e6011d7b671000393d68f0a": "Throw",
+  "65cb4dc9d4504fa281921f5f751fba06": "Widget",
+  "e35c74f01d5042f6b468eb530169bfb7": "Widget",
+};
+
+
 // ============================================================================
 // Layer Parsing
 // ============================================================================
@@ -649,12 +717,23 @@ export function parseMotr(xmlText: string): MotrScene {
   const root = doc.documentElement; // <ozml>
 
   // 1. Parse factory definitions (direct children of <ozml>)
+  //
+  // FCP resolves a scenenode's factory TYPE by the factory's stable UUID, not by the
+  // human-readable <description> text. We mirror that: map factoryID → canonical type via
+  // FACTORY_UUID_TYPE (keyed on <uuid>), and fall back to the <description> text only when
+  // the UUID isn't in our table. This makes the parser robust to a missing/blank
+  // <description> exactly as FCP-headless is (e.g. a stripped-down .motr that keeps the
+  // <factory uuid=...> shell but drops <description> still classifies a Shape as a shape,
+  // not a group). Without this the node silently degrades to a 'group' and renders nothing.
   const factories = new Map<number, string>();
   for (const factoryEl of directChildren(root, 'factory')) {
     const id = parseInt(factoryEl.getAttribute('id') || '0', 10);
+    const uuid = (factoryEl.getAttribute('uuid') || '').toLowerCase();
     const desc = getTextContent(factoryEl, 'description') || '';
-    factories.set(id, desc);
+    const canonical = FACTORY_UUID_TYPE[uuid];
+    factories.set(id, canonical || desc);
   }
+
 
   // 2. Find the <scene> element
   const sceneEl = firstChild(root, 'scene');
