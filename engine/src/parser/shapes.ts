@@ -606,13 +606,12 @@ function extractAxisVertices(curveEl: Element): AxisVertex[] {
   // frame time.
   for (const vertex of directChildren(curveEl, 'vertex')) {
     const folder = firstChild(vertex, 'vertex_folder');
-    if (!folder) continue;
     const idx = parseInt(vertex.getAttribute('index') || '0', 10);
     let value: number | undefined;
     let valueCurve: Curve | undefined;
     let inTangent: number | undefined;
     let outTangent: number | undefined;
-    for (const param of directChildren(folder, 'parameter')) {
+    for (const param of folder ? directChildren(folder, 'parameter') : []) {
       const id = param.getAttribute('id');
       // Animated vertex Value: a `<curve>` child on the Value parameter (id=2).
       // Read the CURVE's `value` attribute (Motion's authored current-frame
@@ -641,7 +640,16 @@ function extractAxisVertices(curveEl: Element): AxisVertex[] {
       else if (id === '4') inTangent = v;
       else if (id === '5') outTangent = v;
     }
-    if (value === undefined) continue;
+    // DECODED (2026-07-26, controlled ozengine probe on Stylized/Center's "Right full"
+    // shape): FCP keeps EVERY <vertex> slot in the closed path and resolves a MISSING
+    // Value coordinate to 0 — it does NOT drop the vertex. Proven: setting a value-less
+    // curve_X vertex explicitly to "0" reproduces FCP's baseline render byte-for-byte,
+    // and the polygon collapses to nothing only when a slot is truly removed (not when
+    // its Value is absent). The old code did `if (value === undefined) continue;`, which
+    // DROPPED value-less slots, collapsing a 4-point rectangle (whose empties were stripped)
+    // to a degenerate 1-2 point path that renders nothing while FCP still fills it. Keep the
+    // slot with coordinate 0.
+    if (value === undefined) value = 0;
     verts.push({ index: idx, value, valueCurve, inTangent, outTangent });
   }
   verts.sort((a, b) => a.index - b.index);
