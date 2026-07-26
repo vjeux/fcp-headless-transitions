@@ -208,10 +208,13 @@ export interface LinearGradientConfig {
   end: { x: number; y: number };
   /**
    * Colour stops, sorted by location ascending. Each stop has an axis location
-   * (0..1), an RGB colour (0-255), and an opacity (0..1). Between stops the
-   * engine linearly interpolates R, G, B, A.
+   * (0..1), an RGB colour (0-255), an opacity (0..1), and a `middle` (0..1)
+   * interpolation-MIDPOINT bias controlling where the 50% blend to the NEXT stop
+   * falls (Motion's per-stop "Middle"; default 0.5 = even). Between stops the
+   * engine remaps the normalized fraction by the midpoint (power curve
+   * `f^(ln0.5/lnM)`) then interpolates R, G, B, A.
    */
-  stops: Array<{ location: number; r: number; g: number; b: number; a: number }>;
+  stops: Array<{ location: number; r: number; g: number; b: number; a: number; middle?: number }>;
 }
 
 /**

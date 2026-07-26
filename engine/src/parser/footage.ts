@@ -459,11 +459,16 @@ function parseLinearGradient(params: Parameter[]): LinearGradientConfig {
   // Each RGB stop: Location (id=1), Color (id=3) > Red/Green/Blue leaves.
   const readRGBStop = (stop: Parameter, defaultLoc: number, defaultRGB: [number, number, number]) => {
     const loc = num(stop.children?.find(p => p.id === 1 && p.name === 'Location'), defaultLoc);
+    // Per-stop "Middle" (id=2): interpolation-midpoint bias to the NEXT stop
+    // (0..1, default 0.5 = even). Motion reshapes the blend fraction so the 50%
+    // colour lands at `middle` of the way (verified vs FCP-headless: RGB1
+    // Middle=0.744 makes the mid-gradient stay near the dark stop far longer).
+    const middle = num(stop.children?.find(p => p.id === 2 && p.name === 'Middle'), 0.5);
     const color = stop.children?.find(p => p.id === 3 && p.name === 'Color');
     const r = num(color?.children?.find(p => p.name === 'Red'), defaultRGB[0]);
     const g = num(color?.children?.find(p => p.name === 'Green'), defaultRGB[1]);
     const b = num(color?.children?.find(p => p.name === 'Blue'), defaultRGB[2]);
-    return { location: loc, r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
+    return { location: loc, r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255), middle };
   };
   // Each Opacity stop: Location (id=1), Opacity leaf (id=3).
   const readOpacityStop = (stop: Parameter, defaultLoc: number, defaultA: number) => {
@@ -496,7 +501,7 @@ function parseLinearGradient(params: Parameter[]): LinearGradientConfig {
       const opAt = opList.find(o => Math.abs(o.location - rgb.location) < 1e-4) ?? opList[Math.min(i, opList.length - 1)];
       a = opAt.a;
     }
-    return { location: rgb.location, r: rgb.r, g: rgb.g, b: rgb.b, a };
+    return { location: rgb.location, r: rgb.r, g: rgb.g, b: rgb.b, a, middle: (rgb as { middle?: number }).middle };
   }).sort((a, b) => a.location - b.location);
 
   // Start (id=4) / End (id=5) — direct children of `Gradient(id=310)` (the

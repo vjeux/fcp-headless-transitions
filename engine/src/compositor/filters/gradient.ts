@@ -456,7 +456,15 @@ export function renderLinearGradient(config: LinearGradientConfig): ImageData {
       const s0 = S[i], s1 = S[i + 1];
       if (t >= s0.location && t <= s1.location) {
         const range = s1.location - s0.location;
-        const f = range > 0 ? (t - s0.location) / range : 0;
+        let f = range > 0 ? (t - s0.location) / range : 0;
+        // Per-stop "Middle" midpoint bias: Motion reshapes the blend fraction so
+        // the 50% colour lands at `middle` of the way from s0→s1 (default 0.5 =
+        // even). Power curve f^(ln0.5/lnM) — decoded vs REAL FCP-headless on
+        // Slide_In (RGB1 Middle=0.744 keeps the mid-gradient near the dark stop).
+        const M = (s0 as { middle?: number }).middle;
+        if (M !== undefined && M > 0 && M < 1 && Math.abs(M - 0.5) > 1e-4) {
+          f = Math.pow(f, Math.log(0.5) / Math.log(M));
+        }
         return [
           s0.r + (s1.r - s0.r) * f,
           s0.g + (s1.g - s0.g) * f,
