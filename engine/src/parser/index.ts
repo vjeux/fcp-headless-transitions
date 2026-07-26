@@ -473,12 +473,19 @@ function parseSceneNode(el: Element, factories: Map<number, string>, clip: ClipI
   const enabledText = getTextContent(el, 'enabled');
   const enabled = enabledText === null ? true : enabledText.trim() !== '0';
 
-  // Clone Layers reference their source object by ID via the "Source" id=300 parameter.
+  // Clone Layers reference their source object by ID via the "Source" id=300 parameter
+  // (Object id=2 → "Clone X" id=1 → Source id=300). Match by id===300 STRUCTURALLY, not by
+  // name==="Source": the minimizer strips decorative `name` attributes, and FCP itself keys
+  // on the id, not the name. DECODED on Movements/Swing (_t_swing): its "Clone B" node's
+  // <parameter id="300" value="987619203"> lost its name="Source" in minimization, so a
+  // name-gated lookup returned undefined → the clone drew nothing (engine black) while FCP
+  // renders full-frame Transition B (the disabled node the clone targets). id=300 inside a
+  // CLONE node is unambiguously the source-object ref (this walk only runs for type==='clone').
   let cloneSourceId: number | undefined;
   if (type === 'clone') {
     const findSource = (ps: Parameter[]): number | undefined => {
       for (const p of ps) {
-        if (p.name === 'Source' && p.id === 300 && typeof p.value === 'number') return p.value;
+        if (p.id === 300 && typeof p.value === 'number') return p.value;
         if (p.children) { const r = findSource(p.children); if (r !== undefined) return r; }
       }
       return undefined;
