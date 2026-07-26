@@ -97,6 +97,19 @@ export interface RenderContext {
    * fill-conformed so the settled tail fills the frame instead of letterboxing.
    */
   equirectScene?: boolean;
+  /**
+   * True when the SCENE CANVAS is wide-equirect BY DIMENSIONS ALONE (≥3072 wide, ≥1.6:1) —
+   * the raw isWideEquirect test, WITHOUT the drop-zone refinement of `equirectScene`.
+   * Used only by the uniform Color-Solid backdrop fill: a Color Solid on a 360°/VR panorama
+   * sphere paints every latitude/longitude the same colour, so the front-facing readback is
+   * 100% that colour edge-to-edge REGARDLESS of whether the scene also authors A/B drop zones.
+   * The minimized 360°_Push repro is a bare Color Solid (drop zones stripped) in a 4096×2048
+   * canvas → equirectScene is false (no drop zone) but the backdrop must STILL fill the frame
+   * (FCP renders solid blue full-frame; the engine previously blitted only a centred ~868×549
+   * box). HD-canvas Color Solids (Reflection's Floor, Color Planes — both 1920×1080) are NOT
+   * wide-equirect so this stays false for them, preserving their transform-positioned blit.
+   */
+  wideEquirectDims?: boolean;
   /** Final output (readback) dims. For a wide-equirect scene the render buffer is squeezed
    * to these; the Bloom filter runs its blur at this OUTPUT resolution so the spread matches
    * FCP's pixel-transform-sized kernel. Defaults to the buffer when no squeeze applies. */

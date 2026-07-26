@@ -798,10 +798,14 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
       // whole 1920×1080 frame). The generic equirect path instead blits the generator's native
       // 4096×2048 box through its world transform + centred readback, which lands the fill in a
       // centred ~868×549 sub-region with black margins. Since a solid colour has no spatial
-      // content to project, fill the output buffer directly with it. GATED on rctx.equirectScene
-      // so a NON-panorama Color Solid positioned by its own transform (e.g. Reflection's Floor
-      // plane) is untouched and keeps the normal box/transform blit.
-      if (layer.source?.type === 'color' && rctx.equirectScene) {
+      // content to project, fill the output buffer directly with it.
+      // GATED on rctx.wideEquirectDims (raw ≥3072-wide, ≥1.6:1 canvas) — NOT the stricter
+      // rctx.equirectScene: a uniform backdrop fills the sphere whether or not the scene also
+      // authors A/B drop zones, so the minimized 360°_Push (bare Color Solid, drop zones
+      // stripped → equirectScene false) still fills. A NON-panorama Color Solid positioned by
+      // its own transform (Reflection's Floor / Color Planes, both 1920×1080 = not wide-equirect)
+      // is untouched and keeps the normal box/transform blit.
+      if (layer.source?.type === 'color' && rctx.wideEquirectDims) {
         const r = src.data[0], g = src.data[1], b = src.data[2], a = src.data[3];
         const filled = new (globalThis as any).ImageData(
           new Uint8ClampedArray(output.width * output.height * 4), output.width, output.height);
@@ -1505,6 +1509,7 @@ export function composite(
     mediaTime: scene.unwrappedTime ?? scene.time,
     filterTime: scene.unwrappedTime ?? scene.time,
     equirectScene: computeEquirectScene(scene.width, scene.height, scene.layerById),
+    wideEquirectDims: isWideEquirect(scene.width, scene.height),
     outputRefWidth: outputRefWidth ?? width,
     outputRefHeight: outputRefHeight ?? height,
     culledStandaloneAB: scene.camera?.framed ? collectCulledStandaloneAB(scene) : undefined,
