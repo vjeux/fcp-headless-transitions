@@ -22,14 +22,27 @@ ALGORITHM (ddmin, coarse-to-fine, single-frame):
      (found by a 24-frame scan once). Baseline divergence D0 = 255-space MSE there.
      If the engine already matches FCP (PSNR >= --keep-above), there's nothing to
      minimize — abort (the discrepancy is vs the GUI, not vs FCP; different problem).
-  2. Enumerate removable STRUCTURAL nodes (scenenode/layer/group/filter/behavior/mask)
-     — a few hundred, not 17k. Greedily try removing each subtree, deepest-first.
-     ACCEPT a removal iff, after it: (a) FCP still renders a valid (non-black) frame,
-     AND (b) the engine-vs-FCP MSE stays >= D0*(1-slack) — i.e. the bug is PRESERVED.
-     Else RESTORE (the node is load-bearing for the repro).
-  3. Iterate passes to a fixpoint. The survivors are the essential bug drivers.
-  Coarse structural removal collapses 17k elements to a tiny subtree in minutes; the
-  optional --params pass then strips individual <parameter> leaves within survivors.
+  2. STRUCT pass — enumerate removable STRUCTURAL nodes (scenenode/layer/group/filter/
+     behavior/mask) — a few hundred, not 17k. Greedily try removing each subtree,
+     deepest-first. ACCEPT a removal iff, after it: (a) FCP still renders a valid
+     (non-black) frame, AND (b) the engine-vs-FCP MSE stays >= D0*(1-slack) — i.e. the
+     bug is PRESERVED. Else RESTORE (the node is load-bearing for the repro). This
+     localizes the bug to the minimal set of interacting NODES.
+  3. LINE-MINIFICATION passes (always on) — the struct pass leaves ~70% of a .motr as
+     boilerplate/UI-state XML it CAN'T reach (those tags aren't structural). Three
+     render-gated iterators then shrink the FILE itself:
+       boiler    → unreferenced <factory> type decls (a Motion .motr always ships a
+                   fixed 14-row factory table regardless of use), unwired footage
+                   <clip>/<footage>, and scene metadata (publishSettings/curvesets/…).
+       emptyfold → collapsed-panel <parameter> FOLDERS that hold only foldFlags and no
+                   value/curve/child (Lighting/Shadows/Reflection/Crop UI stubs).
+       param     → individual default-valued <parameter> value leaves.
+     Each removal is gated with require_engine=True (a removal that breaks OUR engine is
+     reverted — we want the repro to still render cleanly in BOTH engines, not to shrink
+     by crashing our renderer) AND in-band (target <= mse <= upper, so a removal can't
+     sneak in a DIFFERENT/larger bug). Iterated to a fixpoint.
+  Coarse struct removal collapses 17k elements to a tiny subtree in minutes; the line
+  passes then strip it from ~550 lines to its ~150-line irreducible core.
 
 Both renderers share ONE FCP engine boot; trials render to a tmpdir. Nothing writes
 the committed frame stores. Output → fct/minimized/<name>/ (case.motr + headless/ +
@@ -197,13 +210,21 @@ def _render_engine(motr_path, out_path, frame_i, nframes):
     return r.returncode == 0 and os.path.exists(out_path)
 
 
-def _mse_engine_vs_headless(motr_path, tmp, frame_i, nframes, worker=None):
+def _mse_engine_vs_headless(motr_path, tmp, frame_i, nframes, worker=None,
+                            require_engine=False):
     """255-space MSE between FCP-headless and engine at frame_i (both sRGB → no
-    color conform). Returns (mse, headless_valid).
+    color conform). Returns (mse, valid).
 
     If `worker` (a _HeadlessWorker) is given, the headless render goes through the
     PERSISTENT engine (boots once, ~10x fewer boots); else it falls back to the
-    per-call isolated `_render_headless` subprocess."""
+    per-call isolated `_render_headless` subprocess.
+
+    `require_engine`: when True, a missing ENGINE frame makes the trial INVALID
+    (valid=False) instead of reporting mse=1e9. The coarse structural pass keeps the
+    old behavior (require_engine=False: an engine that crashes without the node still
+    counts as "diverges"), but the FINE/AGGRESSIVE passes set require_engine=True so a
+    removal that crashes the engine is REVERTED — we want the shrunk repro to still
+    render CLEANLY in both engines, not to "shrink" by breaking our own renderer."""
     import numpy as np
     from fct.read import read_frame
     hp = os.path.join(tmp, "h.jpg"); ep = os.path.join(tmp, "e.jpg")
@@ -220,7 +241,7 @@ def _mse_engine_vs_headless(motr_path, tmp, frame_i, nframes, worker=None):
     if h.mean() < 1.0:   # FCP rendered ~black → this reduced doc broke FCP
         return 0.0, False
     if not os.path.exists(ep):
-        return 1e9, True
+        return (0.0, False) if require_engine else (1e9, True)
     e = read_frame(ep, size=(480, 270))
     return float(((h - e) ** 2).mean()), True
 
@@ -279,6 +300,26 @@ def _is_protected(el, factory_desc, protect):
         return False
 
 
+def _protected_subtree(root, protect, factory_desc):
+    """Set of elements that live INSIDE a protected subtree (a node whose factoryID
+    resolves to a protected Motion type, plus all its descendants). The line-minification
+    passes skip these so a `--protect Replicator` re-minimize keeps not just the replicator
+    NODE but every <parameter>/curve inside it — otherwise stripping a leaf param would
+    silently change the very subsystem the protected repro is meant to exercise. Returns an
+    empty set when protect is falsy (line passes then range over everything)."""
+    if not protect:
+        return set()
+    inside = set()
+    def mark(e, under):
+        p = under or _is_protected(e, factory_desc, protect)
+        if p:
+            inside.add(e)
+        for c in list(e):
+            mark(c, p)
+    mark(root, False)
+    return inside
+
+
 def _iter_struct(root, protect=None, factory_desc=None):
     """(parent, child) for removable STRUCTURAL child elements, deepest-first.
 
@@ -323,9 +364,11 @@ def _iter_struct(root, protect=None, factory_desc=None):
             yield parent[c], c
 
 
-def _iter_params(root):
+def _iter_params(root, protect=None, factory_desc=None):
     """(parent, child) for <parameter> leaves (fine pass), deepest-first. Only params
-    that have NO child <parameter> (true leaves) so we strip settings, not folders."""
+    that have NO child <parameter> (true leaves) so we strip settings, not folders.
+    Params inside a protected subtree are skipped (see _protected_subtree)."""
+    inside = _protected_subtree(root, protect, factory_desc)
     parent = {}
     order = []
     def walk(e):
@@ -335,8 +378,78 @@ def _iter_params(root):
             order.append(c)
     walk(root)
     for c in order:
+        if c in inside:
+            continue
         if _localname(c.tag) == "parameter" and not any(_localname(k.tag) == "parameter" for k in c):
             yield parent[c], c
+
+
+# Non-<parameter> boilerplate that bloats a repro without carrying the bug: unreferenced
+# <factory> type decls, footage <clip>/<footage> blocks whose media isn't wired in, and
+# top-level scene metadata (publishSettings, curvesets, guides, markers, build/description).
+# NOT hardcoded as "safe" — each is still individually render-gated (require_engine=True),
+# so anything load-bearing is RESTORED. This just makes the minimizer TRY them, which the
+# struct pass never did (they aren't in _STRUCT_TAGS). Reference-aware ordering (unreferenced
+# ids first) makes the common wins cheap; the gate is the real safety net.
+_BOILERPLATE_TAGS = {"factory", "clip", "footage", "publishSettings", "curvesets",
+                     "guideset", "timemarkerset", "build"}
+
+
+def _iter_boilerplate(root, protect=None, factory_desc=None):
+    """(parent, child) for removable NON-parameter boilerplate, deepest-first, with
+    unreferenced defs yielded FIRST (cheap wins), then the rest. The ddmin gate still
+    render-tests every removal, so a referenced-but-actually-inert def can still go.
+    Elements inside a protected subtree are skipped."""
+    inside = _protected_subtree(root, protect, factory_desc)
+    parent = {}
+    order = []
+    def walk(e):
+        for c in list(e):
+            parent[c] = e
+            walk(c)
+            order.append(c)
+    walk(root)
+    cands = [c for c in order if _localname(c.tag) in _BOILERPLATE_TAGS and c not in inside]
+    blob = ET.tostring(root, encoding="unicode")
+    def is_unref(c):
+        cid = c.get("id")
+        if cid is None:
+            return True  # metadata blocks (publishSettings etc.) have no id → try freely
+        # a <factory>/<clip> is "unreferenced" if its id token appears nowhere else
+        return blob.count(f'"{cid}"') <= 1
+    cands.sort(key=lambda c: 0 if is_unref(c) else 1)
+    for c in cands:
+        yield parent[c], c
+
+
+
+def _iter_empty_param_folders(root, protect=None, factory_desc=None):
+    """(parent, child) for <parameter> FOLDERS that are pure UI state — they contain only
+    <foldFlags>/<flags> and NO value=, NO <curve>, NO child <parameter>, NO <keypoint>.
+    These are collapsed-panel markers (Lighting/Shadows/Reflection/Crop stubs) that carry
+    no render meaning. Deepest-first so nested empties collapse bottom-up. Skips folders
+    inside a protected subtree."""
+    inside = _protected_subtree(root, protect, factory_desc or {})
+    parent = {}
+    order = []
+    def walk(e):
+        for c in list(e):
+            parent[c] = e
+            walk(c)
+            order.append(c)
+    walk(root)
+    for c in order:
+        if c in inside:
+            continue
+        if _localname(c.tag) != "parameter":
+            continue
+        if c.get("value") is not None:
+            continue
+        has_curve = any(_localname(k.tag) in ("curve", "keypoint") for k in c.iter())
+        has_child_param = any(_localname(k.tag) == "parameter" for k in c)
+        if not has_curve and not has_child_param:
+            yield parent[c], c
+
 
 
 def minimize(slug, nframes=None, keep_above=25.0, slack=0.12, max_passes=6,
@@ -394,12 +507,17 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
               f"the discrepancy is vs the GUI, not vs FCP. Nothing to minimize.")
         return None
     target = d0 * (1.0 - slack)
+    # Upper band for the FINE/AGGRESSIVE passes: a removal that PUSHES the divergence far
+    # ABOVE the baseline has introduced a DIFFERENT (bigger) bug — the repro would then
+    # localize the wrong thing. Cap accepted trials to a band around d0 so the shrunk
+    # repro keeps reproducing the SAME divergence we started with, not a new one.
+    upper = d0 * (1.0 + max(slack, 0.35))
 
     def _count(it): return sum(1 for _ in it(root))
     n_struct0 = _count(_struct_iter)
     removed = 0
 
-    def _run_pass(iter_fn, label):
+    def _run_pass(iter_fn, label, require_engine=False, band=False):
         nonlocal removed
         changed = False
         for parent, child in list(iter_fn(root)):
@@ -412,28 +530,46 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
                 tree.write(trial, encoding="unicode")
             except Exception:
                 parent.insert(idx, child); continue
-            mse, ok = _mse_engine_vs_headless(trial, work, fi, nframes, worker=worker)
-            if ok and mse >= target:
+            mse, ok = _mse_engine_vs_headless(trial, work, fi, nframes, worker=worker,
+                                              require_engine=require_engine)
+            # ACCEPT iff both engines rendered AND the divergence is preserved. The fine
+            # / aggressive passes additionally require the divergence to stay in-band
+            # (>= target and <= upper) so a removal can't sneak in a different, larger bug.
+            keep = ok and mse >= target and (not band or mse <= upper)
+            if keep:
                 removed += 1; changed = True
                 tree.write(cur, encoding="unicode")
             else:
                 parent.insert(idx, child)
         return changed
 
-    # 2. coarse structural passes
+    # 2. coarse structural passes (fast, primary): whole subtrees, old behavior.
     for p in range(max_passes):
         changed = _run_pass(_struct_iter, "struct")
         rem = _count(_struct_iter)
         print(f"[minimize] struct pass {p+1}: removed {removed}/{n_struct0}, remaining {rem}", flush=True)
         if not changed:
             break
-    # 3. optional fine param pass
-    if do_params:
-        for p in range(max_passes):
-            changed = _run_pass(_iter_params, "param")
-            print(f"[minimize] param pass {p+1}: removed total {removed}", flush=True)
-            if not changed:
-                break
+    # 3. LINE-MINIFICATION passes — always on. These shrink the FILE (not just the
+    #    structural-node count): drop unreferenced boilerplate (<factory> type decls,
+    #    unused footage <clip>/<footage>, scene metadata like publishSettings/curvesets),
+    #    collapse empty fold-only <parameter> folders (Lighting/Shadows/Crop UI stubs),
+    #    and strip <parameter> value leaves. Every removal is render-gated with
+    #    require_engine=True + in-band (target..upper), so anything the engine actually
+    #    needs is RESTORED — the reduced repro still renders cleanly in BOTH engines and
+    #    reproduces the SAME divergence. A Motion .motr is ~70% boilerplate/UI-state XML,
+    #    so this is where a 547-line repro collapses toward its irreducible core.
+    for p in range(max_passes):
+        c1 = _run_pass(lambda r: _iter_boilerplate(r, protect=protect, factory_desc=factory_desc),
+                       "boiler", require_engine=True, band=True)
+        c2 = _run_pass(lambda r: _iter_empty_param_folders(r, protect=protect, factory_desc=factory_desc),
+                       "emptyfold", require_engine=True, band=True)
+        c3 = _run_pass(lambda r: _iter_params(r, protect=protect, factory_desc=factory_desc),
+                       "param", require_engine=True, band=True)
+        print(f"[minimize] line pass {p+1}: removed total {removed} "
+              f"(boiler={c1} emptyfold={c2} param={c3})", flush=True)
+        if not (c1 or c2 or c3):
+            break
 
     tree.write(cur, encoding="unicode")
     # final divergence + write case
