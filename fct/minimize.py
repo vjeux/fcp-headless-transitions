@@ -379,6 +379,36 @@ def _factory_desc_map(root):
     return m
 
 
+def _referenced_node_ids(root):
+    """IDs of nodes REFERENCED BY VALUE elsewhere whose removal silently changes FCP's render
+    while the ENGINE tolerates the dangling ref — the same 'engine-tolerates-but-FCP-depends'
+    hazard as the scene-geometry tags. DECODED 2026-07-26 on Stylized/Center's _t_center_multi
+    (the engine-MSE-gated struct pass stripped these → false divergence):
+      • Image-Mask `Mask Source` (param id=1, name "Mask Source"): the shape/replicator/group
+        that IS the reveal matte. Stripped → mask dangles → FCP vs engine diverge.
+      • Drop-zone `Source Media` (param id=300): binds a Transition A/B drop-zone to its <clip>.
+        Stripping the <clip> corrupts the A/B map → the drop zone mis-resolves (B → A / black).
+    Returns the set of integer ids named as the VALUE of any such param."""
+    ref_ids = set()
+    for p in root.iter():
+        if _localname(p.tag) != "parameter":
+            continue
+        pid = p.get("id")
+        name = p.get("name") or ""
+        if not ((pid == "1" and name == "Mask Source") or (pid == "300" and name == "Source Media")):
+            continue
+        v = p.get("value")
+        if v is None:
+            continue
+        try:
+            iv = int(float(v))
+        except ValueError:
+            continue
+        if iv > 0:
+            ref_ids.add(iv)
+    return ref_ids
+
+
 def _is_protected(el, factory_desc, protect):
     """A structural element is protected (never stripped) when its factoryID resolves to a
     Motion type in `protect` (e.g. {"Replicator","Sequence Replicator","Replicator Cell"}),
@@ -444,12 +474,30 @@ def _iter_struct(root, protect=None, factory_desc=None):
             walk(c)
             order.append(c)
     walk(root)
+    # REFERENCED-NODE PROTECTION (always on, independent of --protect): a node whose id is the
+    # VALUE of a `Mask Source` (id=1) or drop-zone `Source Media` (id=300) param must survive —
+    # stripping it dangles the reference and silently changes FCP's render (the engine-MSE gate
+    # can't catch it because the engine tolerates the dangling ref). Protect every element whose
+    # own id is referenced, plus its descendants and ancestor chain. See _referenced_node_ids.
+    ref_ids = _referenced_node_ids(root)
+    if ref_ids:
+        for e in order:
+            eid = e.get("id")
+            if eid is not None and eid.isdigit() and int(eid) in ref_ids:
+                # protect the node + all descendants
+                stack = [e]
+                while stack:
+                    n = stack.pop()
+                    protected.add(n)
+                    stack.extend(list(n))
+
     # Also protect the ANCESTOR CHAIN of every protected node: you cannot strip a container
     # (e.g. the plain <layer>/<group> holding the Clone Layers) without taking the protected
     # nodes with it. Without this, the minimizer removed the un-typed parent group and every
     # protected clone inside it (3D_Rectangle went 25 clones -> 0 despite --protect "Clone
-    # Layer"). Walk each protected node up to the root and protect every ancestor.
-    if protect:
+    # Layer"). Walk each protected node up to the root and protect every ancestor. Runs whenever
+    # anything is protected — via --protect OR the always-on referenced-node protection above.
+    if protected:
         for c in list(protected):
             a = parent.get(c)
             while a is not None:
@@ -497,6 +545,7 @@ def _iter_boilerplate(root, protect=None, factory_desc=None):
     render-tests every removal, so a referenced-but-actually-inert def can still go.
     Elements inside a protected subtree are skipped."""
     inside = _protected_subtree(root, protect, factory_desc)
+    ref_ids = _referenced_node_ids(root)
     parent = {}
     order = []
     def walk(e):
@@ -505,7 +554,12 @@ def _iter_boilerplate(root, protect=None, factory_desc=None):
             walk(c)
             order.append(c)
     walk(root)
-    cands = [c for c in order if _localname(c.tag) in _BOILERPLATE_TAGS and c not in inside]
+    def _ref_protected(c):
+        # A <clip>/<footage> whose id is a drop-zone Source Media / Mask Source target must
+        # survive (see _referenced_node_ids) — stripping it corrupts FCP's A/B clip binding.
+        cid = c.get("id")
+        return cid is not None and cid.isdigit() and int(cid) in ref_ids
+    cands = [c for c in order if _localname(c.tag) in _BOILERPLATE_TAGS and c not in inside and not _ref_protected(c)]
     blob = ET.tostring(root, encoding="unicode")
     def is_unref(c):
         cid = c.get("id")
