@@ -1406,6 +1406,43 @@ export function parseMotr(xmlText: string): MotrScene {
     animationEndSec = spanSec;
   }
 
+  // TRANSITION-B HOLD WINDOW (2026-07-26, Stylized__Center). The keyframe-walk maxT
+  // above finds the last SPATIAL keyframe (Center: the Animated-Panels curves end at
+  // 4.671s). But a sequential-reveal transition shows Transition A first (in=0,
+  // out=T), then swaps to a Transition B drop-zone (in=T, out=B_out) that is simply
+  // HELD (static drop-zone, no keyframes) until its `out`. When B_out lies PAST maxT,
+  // trimming animationEndSec to maxT truncates the B-hold phase: the progress→time
+  // map compresses the whole transition into [0,maxT], so at progress=1 the engine
+  // samples scene-time maxT (4.671s) — still inside the Animated-Panels' triangle-mask
+  // windows (out=4.171s only just passed) and BEFORE B has finished settling — and the
+  // tail frames show leftover panels/triangles instead of the fully-revealed B that FCP
+  // shows (FCP plays over the authored 5.3s span, sampling B's settled hold at ~5.27s).
+  // Fix: never trim below the last Transition-B drop-zone's `out` (clamped to the
+  // authored scene duration). Decoded vs headless FCP on the full Center source: B.out
+  // = 5.272s; extending animationEndSec 4.671→5.272 fixes the tail (t=0.8 7.4→14.6 dB,
+  // t=1.0 holds B). Gated on a Transition-B source layer whose in>0 (a genuine A→B
+  // sequential reveal) so crossfade/single-plate scenes (B.in=0) are untouched.
+  {
+    const spanSecB = duration.value / duration.timescale;
+    const rtSec = (t: RationalTime | undefined): number =>
+      t && t.timescale > 0 ? t.value / t.timescale : 0;
+    let bHoldOut = 0;
+    const walkB = (ls: Layer[]): void => {
+      for (const l of ls) {
+        if (l.source?.type === 'transitionB' && l.timing) {
+          const inS = rtSec(l.timing.in);
+          const outS = rtSec(l.timing.out);
+          // Sequential A→B reveal (B starts after the transition begins) whose hold
+          // extends past the keyframe end but within the authored span.
+          if (inS > 1e-3 && outS > bHoldOut && outS <= spanSecB + 1e-3) bHoldOut = outS;
+        }
+        if (l.children && l.children.length) walkB(l.children);
+      }
+    };
+    walkB(layers);
+    if (bHoldOut > animationEndSec) animationEndSec = bHoldOut;
+  }
+
   settings.animationEndSec = animationEndSec;
 
   // T-B1: build flat indexes of every parsed Emitter + Particle Cell in the scene,
