@@ -95,8 +95,19 @@ export function rasterizeShape(
         vx = nx; vy = ny;
       }
     }
-    // Centered coords → pixel coords (Y-up → Y-down)
-    return [vx + width / 2, height / 2 - vy];
+    // Centered coords → pixel coords. FCP's shape-vertex space is Y-DOWN (+Y points
+    // toward the BOTTOM of the frame), NOT the mathematical Y-up. DECODED via two
+    // controlled headless-FCP probes on FULLY-SPECIFIED (no empty-slot) asymmetric
+    // triangles (2026-07-26): a triangle with apex at vertex-Y=+400 renders with its
+    // apex at the BOTTOM of the frame (screen row ≈ H/2 + 400), and a right triangle
+    // with its right-angle at vertex (−400,−400) renders that corner at the TOP-LEFT —
+    // both consistent ONLY with pixel_row = H/2 + vy. The engine previously used
+    // H/2 − vy (Y-up), which flips every ASYMMETRIC fill/mask shape vertically vs FCP
+    // (Stylized/Center's degenerate triangle rendered in the wrong half → 8 dB). It went
+    // unnoticed because real/golden shapes (Flash/Panels/Heart/Wipes rectangles, the real
+    // Center rect X=[±546] Y=[±597]) are Y-SYMMETRIC, so the flip is invisible on them.
+    // Correct FCP convention is Y-DOWN: row = H/2 + vy.
+    return [vx + width / 2, height / 2 + vy];
   };
 
   const px: number[] = [];
