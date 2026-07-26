@@ -1433,8 +1433,15 @@ export function parseMotr(xmlText: string): MotrScene {
           const inS = rtSec(l.timing.in);
           const outS = rtSec(l.timing.out);
           // Sequential A→B reveal (B starts after the transition begins) whose hold
-          // extends past the keyframe end but within the authored span.
-          if (inS > 1e-3 && outS > bHoldOut && outS <= spanSecB + 1e-3) bHoldOut = outS;
+          // extends past the keyframe end. Its `out` may be authored slightly PAST the
+          // rendered span (a padded editor timeline — Stylized/Light Sweep: B.out=1.47s
+          // vs span=1.433s); clamp it to the span so the hold still extends the window
+          // to the authored end (FCP plays the full span). Only a B whose hold begins
+          // within the span (inS < span) counts.
+          if (inS > 1e-3 && inS < spanSecB + 1e-3) {
+            const held = Math.min(outS, spanSecB);
+            if (held > bHoldOut) bHoldOut = held;
+          }
         }
         if (l.children && l.children.length) walkB(l.children);
       }
