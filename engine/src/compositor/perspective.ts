@@ -8,8 +8,19 @@
  * content at Z=0 renders 1:1. Objects with Z≠0 or 3D rotation get perspective foreshortening.
  */
 
-/** Default perspective distance (Motion's reference camera). */
-const DEFAULT_CAMERA_Z = 2000;
+/** Default perspective distance (Motion's reference camera).
+ * Motion's default camera Angle-Of-View is 45°, applied to the frame WIDTH, so the reference
+ * distance where content at Z=0 renders 1:1 is d = (frameWidth/2)/tan(AOV/2). DECODED 2026-07-26
+ * from 5 controlled headless-FCP Position-Z probes on the camera-less 3D_Rectangle drop-zone
+ * (_t_3dr_v4): plate scale = d/(d − Z) fits a SINGLE d = (1920/2)/tan(22.5°) = 2317.6 (5-pt LSQ
+ * 2324.8±7 ≡ 44.88°) — and it scales with WIDTH (a 1080-wide probe → d≈1304). The old fixed 2000
+ * under-foreshortened (rotX-60 far edge 1556 vs FCP 1598; Position-Z −600 scale 0.769 vs 0.795).
+ * Callers that know the frame width use defaultCameraDistance(width); this constant is the
+ * 1920-wide fallback for the few that don't thread it. */
+export function defaultCameraDistance(frameWidth: number): number {
+  return (frameWidth / 2) / Math.tan((45 * Math.PI) / 360);
+}
+const DEFAULT_CAMERA_Z = defaultCameraDistance(1920); // ≈ 2317.6
 
 import { isSeparable, blendChannel, luma } from './blend.js';
 import type { BlendMode } from '../types.js';

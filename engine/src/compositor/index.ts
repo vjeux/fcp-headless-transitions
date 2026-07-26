@@ -1,5 +1,5 @@
 import { rasterizeShape, applyMask, unionMasks } from './shapes.js';
-import { needsPerspective, projectQuad, renderPerspectiveQuad, renderPageFlip } from './perspective.js';
+import { needsPerspective, projectQuad, renderPerspectiveQuad, renderPageFlip, defaultCameraDistance } from './perspective.js';
 import {
   mat4MultiplyOffset, createBuffer, blitDstBBox,
   blitTransformed, blitDirect,
@@ -1498,7 +1498,7 @@ export function composite(
     evalLayerById: scene.evalLayerById,
     imageA,
     imageB,
-    cameraZ: scene.camera?.distance ?? 2000,
+    cameraZ: scene.camera?.distance ?? defaultCameraDistance(width),
     cameraPosZ: scene.camera?.worldTransform ? scene.camera.worldTransform[14] : undefined,
     framed: scene.camera?.framed,
     imageMaskSourceIds: collectImageMaskSourceIds(scene.evalLayerById),

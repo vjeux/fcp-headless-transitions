@@ -448,8 +448,16 @@ function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: nu
   if (rotX !== 0) m = mat4Multiply(mat4RotateX(rotX), m);
   if (rotY !== 0) m = mat4Multiply(mat4RotateY(rotY), m);
   if (rotZ !== 0) m = mat4Multiply(mat4RotateZ(rotZ), m);
-  // Outermost: translate to position
-  m = mat4Multiply(mat4Translate(posX, posY, posZ), m);
+  // Outermost: translate to position.
+  // Motion Position +Z = TOWARD the camera (near/enlarge); the engine's projectPoint uses
+  // scale = cameraZ/(cameraZ + wz) where +wz = AWAY (recede). So Motion posZ must be NEGATED
+  // into the world-Z translation (m14): Motion Z=-600 → wz=+600 → recede/shrink (scale d/(d+600)).
+  // DECODED (RULE 2.0) from 5 controlled headless-FCP Position-Z probes on the camera-less
+  // 3D_Rectangle drop-zone (_t_3dr_v4): plate scale = d/(d − Z_motion), i.e. wz=−Z_motion, exact
+  // to <0.005 on all 5 points (Z −150→0.940 −300→0.886 −450→0.838 −600→0.795 −900→0.721). Only
+  // the Z TRANSLATION is negated here; rotation-induced world-Z comes from the R basis columns and
+  // is unchanged (rotationX already matches FCP via its own -rotX negation above).
+  m = mat4Multiply(mat4Translate(posX, posY, -posZ), m);
 
   return m;
 }
@@ -1355,11 +1363,22 @@ function resolveCamera(
     //   is 0; the routine compares fabs(AOV) against the double 0x3e7ad7f29abcaf48
     //   (== 1.0e-7 exactly) and returns true. A null/AOV-0 camera therefore renders under a
     //   PARALLEL (orthographic) projection with no perspective foreshortening.
-    // So a camera-less 3D transition is framed orthographically: every Z projects
-    // at scale 1 (distance -> infinity). This matches the headless GT, whose Fall
-    // PSNR rises monotonically as the assumed camera distance grows
-    // (1303->17.4dB, 2000->18.5dB, orthographic->20.6dB) with no interior optimum.
-    return { angleOfView: 0, distance: Infinity, worldTransform: mat4Identity() };
+    // ⚠️ SUPERSEDED (2026-07-26) for the TRANSLATION path. Controlled headless-FCP probes on a
+    // camera-less scene (3D_Rectangle minimized to a single Position-Z drop-zone, _t_3dr_v4) show
+    // FCP DOES perspective-foreshorten a camera-less Position-Z plate: measured plate scale
+    //   Z −150→0.940, −300→0.886, −450→0.838, −600→0.795, −900→0.721
+    // all fit scale = d/(d − Z) with a SINGLE d = (frameWidth/2)/tan(AOV/2), AOV = Motion's
+    // default 45° → d = 2317.6 for 1920-wide (5-pt fit 2324.8±7 ≡ 44.88°, i.e. 45° within
+    // integer-edge noise; d scales with WIDTH — a 1080-wide probe gives d≈1304). So the
+    // camera-less default is a PERSPECTIVE camera at that reference distance, NOT orthographic.
+    // (The old distance=Infinity rendered every Z at scale 1 → a camera-less Position-Z plate
+    // stayed full-frame vs FCP's 0.795 shrink.) The prior "Fall prefers orthographic" note
+    // measured a ROTATION-X-only scene (Fall has Rotation-X keyframes, NO Position-Z) whose
+    // weak foreshortening is a SEPARATE rotation-axis/DoF matter, not the translation law probed
+    // here; a rotation-only plate stays ~centred/full-frame either way, so the finite perspective
+    // distance is the decoded-correct camera-less default. Derivation, not a fit (RULE 2.0).
+    const orthoDist = (frameWidth / 2) / Math.tan((45 * Math.PI) / 360);
+    return { angleOfView: 45, distance: orthoDist, worldTransform: mat4Identity() };
   }
 
   const cam = camLayer.layer.camera;
