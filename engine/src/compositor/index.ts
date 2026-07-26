@@ -886,9 +886,19 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
       // Framing camera (factory 3): the standalone Transition A/B drop-zone tiles
       // live in the same off-canvas world space as the replicator wall, so route
       // them through the same look-at camera (computeFraming pose). Generic — only
-      // active when the scene resolves a Framing pose (rctx.framed).
+      // active when the scene resolves a Framing pose (rctx.framed). Applies to any
+      // image layer that carries a Transition A/B source OR a parsed dropZone box: the
+      // framing camera projects the drop-zone PLATE regardless of whether the plate's
+      // Object Width/Height (dropZone dims) are present — Clone_Spin frames a plain
+      // Transition A/B plate (no replicator tile grid) whose dropZone box may be absent,
+      // and gating only on layer.dropZone left it un-projected (rendered flat full-frame
+      // warm while FCP frames it small/edge-on → near black).
+      const isFramedPlate = layer.type === 'image'
+        && (layer.dropZone
+          || layer.source?.type === 'transitionA'
+          || layer.source?.type === 'transitionB');
       let worldTransform = evalLayer.worldTransform;
-      if (FRAMING_VIEW_ENABLED && rctx.framed && output.height && layer.type === 'image' && layer.dropZone) {
+      if (FRAMING_VIEW_ENABLED && rctx.framed && output.height && isFramedPlate) {
         const fcam = framedCameraBasis(rctx.framed, output.height);
         const wtp = new Float64Array(worldTransform);
         const pr = projectFramed(wtp[12], wtp[13], wtp[14], fcam);
