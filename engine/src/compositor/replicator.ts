@@ -135,8 +135,14 @@ export function generateInstances(config: ReplicatorConfig): ReplicatorInstance[
       // Spacing between cells (Motion centers the grid on the origin)
       const spacingX = cols > 1 ? sizeWidth / (cols - 1) : 0;
       const spacingY = rowCount > 1 ? sizeHeight / (rowCount - 1) : 0;
-      const startX = -sizeWidth / 2;
-      const startY = sizeHeight / 2; // Y-up: top row at +Y
+      // The grid is CENTERED on the origin. With ≥2 cells on an axis the cells span
+      // [-size/2, +size/2] (startX=-size/2 + c·spacing). With a SINGLE cell on an axis
+      // there is no span — the lone cell sits at the ORIGIN (0), not at -size/2.
+      // (Bug: a 1×1 grid previously placed its only cell at (-sizeWidth/2, +sizeHeight/2)
+      // = the top-left corner; Motion centers it at (0,0). Verified vs headless FCP on
+      // the minimized Objects__Squares 1×1 repro: FCP renders the tile at frame centre.)
+      const startX = cols > 1 ? -sizeWidth / 2 : 0;
+      const startY = rowCount > 1 ? sizeHeight / 2 : 0; // Y-up: top row at +Y
 
       // Degenerate axis collapse: when a grid dimension has zero extent (Motion
       // authors some replicators with sizeWidth/Height = 0), N>1 cells along that
