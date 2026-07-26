@@ -208,8 +208,88 @@ class _HeadlessWorker:
         self.proc = None
 
 
-def _render_engine(motr_path, out_path, frame_i, nframes):
-    """Render ONE engine frame (index frame_i of nframes) for an ARBITRARY motr path."""
+class _EngineWorker:
+    """A PERSISTENT JS/TS-engine render server — the engine-side twin of _HeadlessWorker.
+
+    WHY: the ddmin hot loop does hundreds of ENGINE renders too. The one-shot
+    `_fct_render_one.ts` pays the Node boot + tsx/esbuild TypeScript transpile of the
+    whole engine import graph (~1-2s) on EVERY trial — which dwarfs the actual render
+    (~10-50ms). This boots that graph ONCE (`test/_fct_render_worker.ts`, which stays
+    alive reading requests off stdin) and streams every trial through the SAME live
+    process. Verified BIT-IDENTICAL to the one-shot renderer, and A-before-BC == A-after-BC
+    (zero state leak) — the engine builds a fresh createTransition per call, so there is no
+    drifting GPU/canvas state (unlike a naive persistent scorer, which can produce
+    false-low PSNRs — see AUDIT 2026-07-26).
+
+    Crash isolation preserved at process grain: a malformed .motr that throws is CAUGHT in
+    the worker (replies "ERR"); one that hard-crashes the process is seen as a closed pipe,
+    the trial is marked failed, and the worker is transparently respawned. Protocol:
+    send "<motr>\t<frame>\t<nframes>\t<out>\n", read one reply line ("OK"/"ERR")."""
+
+    def __init__(self):
+        self.proc = None
+
+    def _spawn(self):
+        import subprocess
+        from fct.config import ISOLATION_ID
+        self.proc = subprocess.Popen(
+            ["node_modules/.bin/tsx", "test/_fct_render_worker.ts", "--fct-iso", ISOLATION_ID],
+            cwd=os.path.join(REPO, "engine"),
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            env=dict(os.environ), text=True, bufsize=1)
+        line = self.proc.stdout.readline()
+        if line.strip() != "READY":
+            self._kill()
+
+    def _kill(self):
+        if self.proc is not None:
+            try: self.proc.kill()
+            except Exception: pass
+            try: self.proc.wait(timeout=5)
+            except Exception: pass
+            self.proc = None
+
+    def render(self, motr_path, out_path, frame_i, nframes):
+        """Render one engine frame via the persistent worker. Returns True iff written.
+        Respawns transparently if the worker crashed on the PREVIOUS request."""
+        if os.path.exists(out_path):
+            try: os.remove(out_path)
+            except OSError: pass
+        for attempt in range(2):
+            if self.proc is None or self.proc.poll() is not None:
+                self._spawn()
+            if self.proc is None:
+                return False
+            req = "\t".join([os.path.abspath(motr_path), str(frame_i),
+                             str(nframes), os.path.abspath(out_path)]) + "\n"
+            try:
+                self.proc.stdin.write(req)
+                self.proc.stdin.flush()
+                reply = self.proc.stdout.readline()
+            except (BrokenPipeError, ValueError, OSError):
+                reply = ""
+            if reply.strip() in ("OK", "ERR"):
+                return os.path.exists(out_path)
+            # No valid reply -> the worker crashed on this request. Reap + respawn + retry.
+            self._kill()
+        return os.path.exists(out_path)
+
+    def close(self):
+        if self.proc is not None and self.proc.poll() is None:
+            try:
+                self.proc.stdin.write("QUIT\n"); self.proc.stdin.flush()
+                self.proc.wait(timeout=5)
+            except Exception:
+                self._kill()
+        self.proc = None
+
+
+def _render_engine(motr_path, out_path, frame_i, nframes, eworker=None):
+    """Render ONE engine frame (index frame_i of nframes) for an ARBITRARY motr path.
+    If `eworker` (a persistent _EngineWorker) is given, stream through it (boots the
+    engine graph ONCE); else fall back to the per-call isolated `tsx` subprocess."""
+    if eworker is not None:
+        return eworker.render(motr_path, out_path, frame_i, nframes)
     import subprocess
     smap = out_path + ".slugmap.json"
     json.dump({"_min": os.path.abspath(motr_path)}, open(smap, "w"))
@@ -224,8 +304,10 @@ def _render_engine(motr_path, out_path, frame_i, nframes):
     return r.returncode == 0 and os.path.exists(out_path)
 
 
+
+
 def _mse_engine_vs_headless(motr_path, tmp, frame_i, nframes, worker=None,
-                            require_engine=False):
+                            require_engine=False, eworker=None):
     """255-space MSE between FCP-headless and engine at frame_i (both sRGB → no
     color conform). Returns (mse, valid).
 
@@ -248,7 +330,7 @@ def _mse_engine_vs_headless(motr_path, tmp, frame_i, nframes, worker=None,
         hv = worker.render(motr_path, hp, frame_i, nframes)
     else:
         hv = _render_headless(motr_path, hp, frame_i, nframes)
-    _render_engine(motr_path, ep, frame_i, nframes)
+    _render_engine(motr_path, ep, frame_i, nframes, eworker=eworker)
     if not hv or not os.path.exists(hp):
         return 0.0, False
     h = read_frame(hp, size=(480, 270))
@@ -260,7 +342,7 @@ def _mse_engine_vs_headless(motr_path, tmp, frame_i, nframes, worker=None,
     return float(((h - e) ** 2).mean()), True
 
 
-def _find_worst_frame(motr_path, tmp, nframes, worker=None):
+def _find_worst_frame(motr_path, tmp, nframes, worker=None, eworker=None):
     """Return (worst_frame_index, mse) for engine-vs-FCP divergence. Probes a COARSE
     subset of frames (not all N) — each probe is 2 subprocess renders (~a few s), so a
     full 24-frame scan is wasteful. The subset spans the transition (early/mid/late)
@@ -271,7 +353,7 @@ def _find_worst_frame(motr_path, tmp, nframes, worker=None):
     cand = list(range(1, nframes, step))
     best_i, best_mse = cand[0], -1.0
     for i in cand:
-        mse, ok = _mse_engine_vs_headless(motr_path, tmp, i, nframes, worker=worker)
+        mse, ok = _mse_engine_vs_headless(motr_path, tmp, i, nframes, worker=worker, eworker=eworker)
         if ok and mse > best_mse:
             best_mse, best_i = mse, i
     return best_i, best_mse
@@ -626,18 +708,22 @@ def minimize(slug, nframes=None, keep_above=25.0, slack=0.12, max_passes=6,
     tree.write(cur, encoding="unicode")
 
     worker = _HeadlessWorker()
+    eworker = _EngineWorker()
     try:
         return _minimize_body(slug, tree, root, work, cur, src, fi_probe=probe_frame,
                               nframes=nframes, keep_above=keep_above, slack=slack,
                               max_passes=max_passes, out_name=out_name,
-                              do_params=do_params, worker=worker, protect=protect)
+                              do_params=do_params, worker=worker, protect=protect,
+                              eworker=eworker)
     finally:
         worker.close()
+        eworker.close()
         shutil.rmtree(work, ignore_errors=True)
 
 
 def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_above,
-                   slack, max_passes, out_name, do_params, worker, protect=None):
+                   slack, max_passes, out_name, do_params, worker, protect=None,
+                   eworker=None):
     # Resolve the protect set (Motion factory-description type names) to the factory map
     # ONCE — nodes of these types (+ their structural descendants) are never stripped, so
     # a re-minimize retains a live Replicator subtree (see _iter_struct docstring).
@@ -647,9 +733,9 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
     # 1. worst frame + baseline divergence (skip the scan if --frame was given).
     if fi_probe is not None:
         fi = fi_probe
-        d0, _ok = _mse_engine_vs_headless(cur, work, fi, nframes, worker=worker)
+        d0, _ok = _mse_engine_vs_headless(cur, work, fi, nframes, worker=worker, eworker=eworker)
     else:
-        fi, d0 = _find_worst_frame(cur, work, nframes, worker=worker)
+        fi, d0 = _find_worst_frame(cur, work, nframes, worker=worker, eworker=eworker)
     psnr0 = 99.0 if d0 <= 0 else 10.0 * math.log10(65025.0 / d0)
     print(f"[minimize] {slug}: worst frame f{fi}, engine-vs-FCP MSE={d0:.1f} (PSNR {psnr0:.2f} dB)", flush=True)
     if psnr0 >= keep_above:
@@ -682,7 +768,7 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
             except Exception:
                 parent.insert(idx, child); continue
             mse, ok = _mse_engine_vs_headless(trial, work, fi, nframes, worker=worker,
-                                              require_engine=require_engine)
+                                              require_engine=require_engine, eworker=eworker)
             # ACCEPT iff the engine still rendered (when required) AND SOME divergence of
             # at least `target` survives. No upper bound: a bigger/different divergence in a
             # smaller file is a better repro, not a regression.
@@ -729,7 +815,7 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
                 else: el.text = old
                 continue
             mse, ok = _mse_engine_vs_headless(trial, work, fi, nframes, worker=worker,
-                                              require_engine=True)
+                                              require_engine=True, eworker=eworker)
             if ok and mse >= target:
                 applied += 1
                 tree.write(cur, encoding="unicode")
@@ -790,14 +876,14 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
 
     tree.write(cur, encoding="unicode")
     # final divergence + write case
-    mse_f, _ = _mse_engine_vs_headless(cur, work, fi, nframes, worker=worker)
+    mse_f, _ = _mse_engine_vs_headless(cur, work, fi, nframes, worker=worker, eworker=eworker)
     psnr_f = 99.0 if mse_f <= 0 else 10.0 * math.log10(65025.0 / mse_f)
     out_name = out_name or slug
     case = os.path.join(MIN_DIR, out_name)
     os.makedirs(case, exist_ok=True)
     shutil.copy(cur, os.path.join(case, "case.motr"))
     # render + store ALL frames both ways for the gate
-    _render_case_frames(cur, case, nframes, worker=worker)
+    _render_case_frames(cur, case, nframes, worker=worker, eworker=eworker)
     man = {
         "slug": slug, "source_motr": src, "worst_frame": fi,
         "baseline_psnr": round(psnr0, 3), "final_psnr": round(psnr_f, 3),
@@ -813,10 +899,10 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
     return man
 
 
-def _render_case_frames(motr_path, case_dir, nframes, worker=None):
+def _render_case_frames(motr_path, case_dir, nframes, worker=None, eworker=None):
     """Render all frames of the minimized case both ways into case_dir/{headless,engine}.
-    Reuses the persistent `worker` (one engine boot for all N headless frames) when given;
-    else falls back to the per-call isolated `_render_headless`."""
+    Reuses the persistent `worker`/`eworker` (one engine boot for all N frames) when given;
+    else falls back to the per-call isolated `_render_headless`/tsx subprocess."""
     hd = os.path.join(case_dir, "headless"); ed = os.path.join(case_dir, "engine")
     shutil.rmtree(hd, ignore_errors=True); shutil.rmtree(ed, ignore_errors=True)
     os.makedirs(hd, exist_ok=True); os.makedirs(ed, exist_ok=True)
@@ -826,7 +912,7 @@ def _render_case_frames(motr_path, case_dir, nframes, worker=None):
             worker.render(motr_path, hp, i, nframes)
         else:
             _render_headless(motr_path, hp, i, nframes)
-        _render_engine(motr_path, os.path.join(ed, f"frame_{i:04d}.jpg"), i, nframes)
+        _render_engine(motr_path, os.path.join(ed, f"frame_{i:04d}.jpg"), i, nframes, eworker=eworker)
 
 
 def run(argv):
