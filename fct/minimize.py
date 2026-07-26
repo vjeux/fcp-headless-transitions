@@ -741,21 +741,18 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
         return applied
 
 
-    # 2. coarse structural passes (fast, primary): whole subtrees.
-    for p in range(max_passes):
-        changed = _run_pass(_struct_iter, "struct")
-        rem = _count(_struct_iter)
-        print(f"[minimize] struct pass {p+1}: removed {removed}/{n_struct0}, remaining {rem}", flush=True)
-        if not changed:
-            break
-    # 3. FIXPOINT of ALL passes (struct + line + attribute) — always on. Each pass can UNLOCK
+    # 2. FIXPOINT of ALL passes (struct + line + attribute) — always on. Each pass can UNLOCK
     #    another: stripping a scenenode's params/transform empties it so the STRUCT pass can
     #    then remove the whole now-empty node/layer/behavior; dropping a value can make a
-    #    <factory>/<clip> unreferenced so BOILER can remove it; etc. Running struct only once
-    #    up-front (as the old code did) left removable empty shells behind — e.g. Reflection's
-    #    34-line repro still had an emptied Color Solid, its wrapper <layer>, and an empty
-    #    LinkPos <behavior> that were ALL independently removable. So we loop struct + every
-    #    line pass together until a whole sweep changes nothing.
+    #    <factory>/<clip> unreferenced so BOILER can remove it; etc. An EARLIER design ran the
+    #    struct pass to a fixpoint ONCE up-front and only THEN the line passes — that left
+    #    removable empty shells behind (Reflection's 34-line repro still had an emptied Color
+    #    Solid, its wrapper <layer>, and an empty LinkPos <behavior>, all independently
+    #    removable — proven by probe). So there is now ONE loop: struct runs FIRST inside every
+    #    sweep (so big subtrees still get shrunk before the per-line/per-attr passes run — no
+    #    separate coarse pre-pass is needed) and is RE-TRIED every sweep, catching nodes that
+    #    only become empty/removable after the line passes strip their contents. We iterate the
+    #    whole battery until a full sweep changes nothing.
     #      struct     → whole subtrees (re-tried every sweep, catching newly-emptied nodes)
     #      boiler     → unreferenced <factory>/<clip>/<footage> + scene metadata
     #      emptyfold  → fold-only <parameter> UI-stub folders
@@ -769,7 +766,7 @@ def _minimize_body(slug, tree, root, work, cur, src, fi_probe, nframes, keep_abo
     #    RENDER is restored) and keeps SOME divergence >= target. No upper bound / no bug-
     #    identity check: shrinking to a smaller-and-possibly-different defect is the goal.
     for p in range(max_passes * 2):
-        cs = _run_pass(_struct_iter, "struct2")
+        cs = _run_pass(_struct_iter, "struct")
         c1 = _run_pass(lambda r: _iter_boilerplate(r, protect=protect, factory_desc=factory_desc),
                        "boiler", require_engine=True)
         c2 = _run_pass(lambda r: _iter_empty_param_folders(r, protect=protect, factory_desc=factory_desc),
