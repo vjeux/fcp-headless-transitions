@@ -18,7 +18,8 @@ import {
 } from './geometry.js';
 import { resample } from './resample.js';
 import { detectFieldTexture, applyParticleFieldProxy, detectParticleGroupTint } from './field-texture.js';
-import { sceneMatchesNestedMaskedCloneStack, renderNestedMaskedCloneStack } from './z-composite.js';
+// (removed: sceneMatchesNestedMaskedCloneStack / renderNestedMaskedCloneStack — the fitted
+//  A→B crossfade hook for 3D_Rectangle, superseded by the decoded camera-less perspective path)
 import { applyEmitterSim } from './emitter-sim.js';
 import { generateInstances, sequenceProgress, sequenceOrder, shuffledSequenceOrder, shuffledSequenceProgress, shuffledClassCount, shouldHoldReplicatorPastTiming } from './replicator.js';
 import { lookupFilter, makeContext } from './filters/registry.js';
@@ -530,6 +531,7 @@ function renderCloneLayer(rctx: RenderContext, output: ImageData, evalLayer: Eva
     // is the missing lever, not the A visibility.
     // Clone Layer: draw the image of the object it mirrors, at this layer's transform.
     let src = resolveCloneImage(rctx, layer.cloneSourceId);
+    if(process.env.FCT_DV5)console.error('DV5 clone',layer.id,'cloneSrc',layer.cloneSourceId,'src?',!!src,'imgMask',layer.imageMaskSourceId);
     if (src) {
       // FILL-CONFORM a full-frame A/B drop-zone clone: resolveCloneImage returns the
       // RAW imageA/imageB (e.g. 1854×1042) which, blitted at the clone's identity-
@@ -776,6 +778,7 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
     // timeline instead of the reverse-video default.
     const clipT = retimedClipTime(evalLayer, rctx);
     const src = evalLayer.forceSourceA ? imageA : getSourceImage(rctx, layer.source, imageA, imageB, clipT);
+    if(process.env.FCT_DV5)console.error('DV5 drawable',layer.id,'type',layer.type,'forceA',evalLayer.forceSourceA,'src?',!!src,'imgMask',layer.imageMaskSourceId,'source',JSON.stringify(layer.source));
     if (src) {
       // Lens-flare glow: renderLensFlare emits a FULL-FRAME field already in output
       // coordinates (its centre sweep + envelope are computed in frame pixels), so
@@ -1537,17 +1540,18 @@ export function composite(
   const field = detectFieldTexture(scene, mediaResolver);
   if (field) rctx.fieldTextureLayerId = field.layerId;
 
-  // Z-BUFFERED CLONE COMPOSITE hook (T-q98a30de5). For the nested-masked-clone +
-  // camera family (3D_Rectangle), painter/layer-Z order is a measured dead-end;
-  // the reveal is per-pixel depth (masked-A rectangles float at animated world-Z
-  // over base B, thin B seams emerge where near-A stops covering). This hook now
-  // uses the PROGRESS-AWARE A→B crossfade base (FCT_ZC_FADE_BASE, default-ON —
-  // see z-composite.ts) which measures 20.04 dB on Replicator-Clones__3D_Rectangle
-  // vs the baseline 16.48 (+3.56 dB).
-  if (sceneMatchesNestedMaskedCloneStack(scene)) {
-    renderNestedMaskedCloneStack(rctx, scene, output, width, height);
-    return output;
-  }
+  // Z-BUFFERED CLONE COMPOSITE hook — REMOVED 2026-07-26. This path
+  // (renderNestedMaskedCloneStack) was a FITTED GUI-GT hack: it ignored the actual clone/mask
+  // geometry and just painted a straight linear A→B crossfade (output = A·(1−t)+B·t), tuned to
+  // move the FULL 3D_Rectangle 16.48→20.04 dB vs GUI-GT. That violates decode-don't-fit (RULE
+  // 2.0: never special-case a slug to move a number) and it produces the WRONG result vs
+  // FCP-HEADLESS on the minimized repro: _t_3dr_v5 (all clones empty/degenerate) — FCP renders
+  // static Transition B, but the crossfade hack renders an A→B fade (f0 warm-A, mean [140,91,60]
+  // vs FCP [100,116,148]). Now that the real camera-less PERSPECTIVE mechanism is decoded and
+  // shipped (f2c957e/a6b62fa), the normal compositing path renders these scenes correctly, so the
+  // fitted hook is removed. (If the full 3D_Rectangle needs more, it is the real per-pixel
+  // depth/mask geometry — decoded, not a crossfade fit.)
+  // if (sceneMatchesNestedMaskedCloneStack(scene)) { renderNestedMaskedCloneStack(...); return output; }
 
   // Render layers back-to-front (Motion: first in list = top/foreground, last = bottom/background)
   for (let i = scene.layers.length - 1; i >= 0; i--) {
