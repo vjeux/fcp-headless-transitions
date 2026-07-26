@@ -102,7 +102,15 @@ function levelsChannelIsIdentity(c: LevelsChannel): boolean {
  *  vs FCP 202.4, matches the master model within quantisation). */
 export function buildLevelsWSLUT(c: LevelsChannel): Uint8Array {
   const iv = 0.51117, gm = 1.0 / 0.51117;
-  const rng = (c.whiteIn - c.blackIn) || 0.001;
+  // DECODED (2026-07-26, 50 REAL-FCP PAELevels probe points, transfer_batch): the HgcLevels
+  // stage-1 input denominator is (whiteIn - blackIn) - 1e-5 (the shader's ((inBlack-inWhite)+1e-5)
+  // epsilon), NOT `range || 0.001`. At a degenerate/inverted range (whiteIn<=blackIn, e.g. the
+  // Up-Over minimizer's White In=0) the -1e-5 makes the slope hugely NEGATIVE -> pixels above the
+  // black point clamp to BLACK (FCP renders ~0/13), whereas the old positive 0.001 fallback blew
+  // up to WHITE (227). Verified: reproduces ALL 50 probe points to 0 error, including the subtle
+  // blackIn=whiteIn=0.5 case -> [in16:255, in96:0] (below-black->white, above-black->black); and is
+  // byte-identical to the old form on all non-degenerate legs to within 1 code (readback noise).
+  const rng = (c.whiteIn - c.blackIn) - 1e-5;
   const invGamma = c.gamma !== 0 ? 1 / c.gamma : 1;
   const cl01 = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x);
   const lut = new Uint8Array(256);
@@ -180,7 +188,10 @@ export function levelsFilter(input: ImageData, params: LevelsParams): ImageData 
   // (VERIFIED vs REAL FCP headless).
   {
     const iv = 0.51117, gm = 1.0 / 0.51117;   // gamma-1.958 working space
-    const rng = range || 0.001;
+    // DECODED (2026-07-26, see buildLevelsWSLUT): stage-1 denominator is (range) - 1e-5, matching
+    // the HgcLevels shader epsilon. Degenerate/inverted range -> negative slope -> black (FCP), not
+    // the old white blowup from `range || 0.001`. Byte-identical to old on non-degenerate legs.
+    const rng = range - 1e-5;
     const cl01 = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x);
     const lutWS = new Uint8Array(256);
     for (let i = 0; i < 256; i++) {
