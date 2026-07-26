@@ -556,16 +556,21 @@ _ENVELOPE_TAGS = {"ozml", "scene", "layer", "scenenode", "footage", "clip", "beh
                   "factory", "parameter"}
 
 # SCENE-GEOMETRY tags: elements that define FCP's render coordinate space. These MUST
-# NEVER be stripped — FCP's headless render is scene-size-DEPENDENT (with no <sceneSettings>,
-# FCP falls back to a small non-1920 default scene and then upscales the whole scene —
-# including every shape/mask vertex — anisotropically to the output; DECODED 2026-07-26 on
-# _t_center3: a ±160 square renders ±468.5×±354.5 (scale 2.93×/2.22×) with NO sceneSettings
-# but EXACTLY ±161.5 (scale 1.0) once a <width>1920</width><height>1080</height> is present).
+# NEVER be stripped — FCP's headless render is scene-size-DEPENDENT. DECODED 2026-07-26 on
+# _t_center3/_t_center_ss: a ±160 square renders ±474×±360 (scale ~2.96×, anisotropic) UNLESS
+# the scene <width>/<height> AND — critically — a <frameRate> are present, at which point FCP
+# honours the authored size and renders EXACTLY ±162 (scale 1.0), matching the engine.
+# Controlled probe (with <width>1920</width><height>1080</height> present): adding <duration>
+# alone leaves the 2.96× upscale; adding <frameRate> alone collapses it to 1.0× — so <frameRate>
+# is the field that switches FCP into the authored scene size (without it FCP uses a small
+# default scene and upscales the WHOLE scene — every shape/mask vertex — to the output).
 # Our minimizer's passes are gated against the ENGINE only, and the engine ALWAYS defaults to
-# 1920×1080 regardless — so removing <sceneSettings>/<width>/<height> silently changes FCP's
-# render while passing the engine gate, manufacturing a FALSE divergence (the geometry-scale
-# "bug" that consumed a whole session was purely this artifact). Protect them everywhere.
-_SCENE_GEOMETRY_TAGS = {"sceneSettings", "width", "height", "pixelAspectRatio"}
+# 1920×1080 regardless — so stripping <sceneSettings>/<width>/<height>/<frameRate> silently
+# changes FCP's render while passing the engine gate, manufacturing a FALSE divergence (the
+# "shape geometry scale ×2.93/×2.22" bug that consumed a session was purely this artifact).
+# Protect them everywhere. (<duration>/<pixelAspectRatio> kept too — harmless completeness.)
+_SCENE_GEOMETRY_TAGS = {"sceneSettings", "width", "height", "pixelAspectRatio",
+                        "duration", "frameRate"}
 
 
 def _iter_generic(root, protect=None, factory_desc=None):
