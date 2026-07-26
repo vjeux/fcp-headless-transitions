@@ -87,6 +87,24 @@ function conformDropZoneSource(src: ImageData, boxW: number, boxH: number): Imag
 // card inside a 4096×2160 project) is NOT equirect — its drop-zone sources must still
 // be fill-conformed (otherwise the settled-B tail letterboxes). Computed from the raw
 // layer map (composite() only holds the EvaluatedScene, not the MotrScene).
+// Collect the ids of every node inside a DISABLED group (a group with enabled===false). A clone
+// chain routed through such a hidden-by-ancestor node renders nothing in FCP (resolveCloneImage
+// returns null for it). Walks the evaluated layer tree; once inside a disabled group, EVERY
+// descendant id (including nested groups' children) is collected. A self-disabled LEAF whose
+// ancestors are enabled is NOT collected — it still provides pixels when cloned (Movements/Swing).
+function computeDisabledGroupDescendants(layers: EvaluatedLayer[]): Set<number> {
+  const out = new Set<number>();
+  const walk = (el: EvaluatedLayer, underDisabled: boolean): void => {
+    const disabledHere = underDisabled || (el.layer.type === 'group' && el.layer.enabled === false);
+    for (const c of el.children ?? []) {
+      if (disabledHere && c.layer.id) out.add(c.layer.id);
+      walk(c, disabledHere);
+    }
+  };
+  for (const el of layers) walk(el, false);
+  return out;
+}
+
 function computeEquirectScene(width: number, height: number, layerById: Map<number, Layer>): boolean {
   if (!isWideEquirect(width, height)) return false;
   let anyDropZone = false;
@@ -1528,6 +1546,7 @@ export function composite(
   const rctx: RenderContext = {
     layerById: scene.layerById,
     evalLayerById: scene.evalLayerById,
+    disabledGroupDescendants: computeDisabledGroupDescendants(scene.layers),
     imageA,
     imageB,
     cameraZ: scene.camera?.distance ?? defaultCameraDistance(width),
