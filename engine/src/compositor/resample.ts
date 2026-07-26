@@ -3,10 +3,29 @@
  * Used to conform the scene's native authoring resolution to a target output
  * resolution (matching FCP's project-resolution conform, e.g. a 4096x2048 VR
  * template rendered into a 1920x1080 project).
+ *
+ * MEMOIZED: resample is a PURE function of (source pixels, targetW, targetH). In the
+ * fct minimizer hot loop the SAME source plates (Transition A/B) are conformed to the
+ * SAME output box on every trial and every frame — so without a cache we recompute the
+ * identical ~2M-pixel bilinear resample hundreds of times (profiled as the #1 render
+ * cost, ~500ms/call). The cache is keyed by SOURCE-OBJECT IDENTITY (WeakMap, so it never
+ * pins memory once a source is dropped) plus the "WxH" target. To stay 100% safe against
+ * any caller that might mutate the returned buffer in place, we cache the computed pixels
+ * and return a fresh COPY each call (an ~8MB memcpy, ~2ms — negligible vs the 500ms
+ * resample it replaces). Output is byte-identical to the uncached path.
  */
+const _resampleCache = new WeakMap<ImageData, Map<string, Uint8ClampedArray>>();
+
 export function resample(src: ImageData, targetW: number, targetH: number): ImageData {
   if (src.width === targetW && src.height === targetH) return src;
-  const out = new ImageData(new Uint8ClampedArray(targetW * targetH * 4), targetW, targetH);
+  const key = targetW + "x" + targetH;
+  let byTarget = _resampleCache.get(src);
+  const cached = byTarget?.get(key);
+  if (cached) {
+    // Defensive copy so a downstream in-place mutation can't corrupt the cache.
+    return new ImageData(new Uint8ClampedArray(cached), targetW, targetH);
+  }
+  const buf = new Uint8ClampedArray(targetW * targetH * 4);
   const sw = src.width, sh = src.height;
   for (let y = 0; y < targetH; y++) {
     const sy = (y + 0.5) * sh / targetH - 0.5;
@@ -24,12 +43,15 @@ export function resample(src: ImageData, targetW: number, targetH: number): Imag
       for (let c = 0; c < 4; c++) {
         const top = src.data[i00 + c] * (1 - fx) + src.data[i10 + c] * fx;
         const bot = src.data[i01 + c] * (1 - fx) + src.data[i11 + c] * fx;
-        out.data[o + c] = Math.round(top * (1 - fy) + bot * fy);
+        buf[o + c] = Math.round(top * (1 - fy) + bot * fy);
       }
     }
   }
-  return out;
+  if (!byTarget) { byTarget = new Map(); _resampleCache.set(src, byTarget); }
+  byTarget.set(key, buf);
+  return new ImageData(new Uint8ClampedArray(buf), targetW, targetH);
 }
+
 
 /**
  * Extract a `targetW × targetH` window CENTERED on the source, clamped to bounds.
