@@ -526,6 +526,33 @@ def _iter_struct(root, protect=None, factory_desc=None):
                     protected.add(n)
                     stack.extend(list(n))
 
+    # RIG-BEHAVIOR PROTECTION (always on, independent of --protect): a Rig Behavior
+    # (factoryID resolves to "Rig Behavior") DRIVES a channel on ANOTHER node via its
+    # Widget-indexed Snapshots array (e.g. Movements/Switch's Rig Behavior sets the hidden
+    # Color-Solid driver's Position X to a per-Direction snapshot [2064/2363/2512] that the
+    # sibling LinkPos then copies onto the A/B cards). Stripping the Rig Behavior leaves the
+    # driver at its authored fallback and un-gates the Links' Custom Mix — the ENGINE
+    # tolerates it but the RENDER changes meaning, so the engine-MSE gate happily "minimizes"
+    # to a degenerate rig fragment (Switch _t_switch_v5: A slid off-frame on a phantom ramp
+    # while FCP holds A static). Same 'engine-tolerates-but-FCP-depends' hazard as the
+    # referenced-node protection. Protect every Rig Behavior element + its subtree so a
+    # re-minimize keeps the rig intact and isolates the GENUINE divergence instead.
+    rig_desc = factory_desc if factory_desc else _factory_desc_map(root)
+    rig_fids = {fid for fid, desc in rig_desc.items() if desc == "Rig Behavior"}
+    if rig_fids:
+        for e in order:
+            if _localname(e.tag) == "behavior":
+                try:
+                    fid = int(e.get("factoryID") or -1)
+                except ValueError:
+                    continue
+                if fid in rig_fids:
+                    stack = [e]
+                    while stack:
+                        n = stack.pop()
+                        protected.add(n)
+                        stack.extend(list(n))
+
     # Also protect the ANCESTOR CHAIN of every protected node: you cannot strip a container
     # (e.g. the plain <layer>/<group> holding the Clone Layers) without taking the protected
     # nodes with it. Without this, the minimizer removed the un-typed parent group and every
