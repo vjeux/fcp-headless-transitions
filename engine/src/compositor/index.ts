@@ -985,9 +985,24 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
         filtered = applyFilterChain(filtered, layer.filters, evalLayer, time, filterOverrides, rctx);
         blitDirect(output, filtered, opacity, layer.blendMode);
       } else if (needsPerspective(worldTransform)) {
-        // 3D perspective: project the source quad and rasterize
-        const corners = projectQuad(worldTransform, drawSrc.width, drawSrc.height, rctx.cameraZ ?? 2000);
-        renderPerspectiveQuad(output, drawSrc, corners, opacity);
+        // 3D perspective: project the source quad and rasterize.
+        // A full-frame A/B drop-zone plate is conformed to the SCENE frame before FCP applies the
+        // perspective transform — FCP's "Drop Zone Transition A/B" fills its frame, then the
+        // Position-Z/rotation perspective foreshortens that FRAME-sized plate. So a drop-zone A/B
+        // source (native ~1854×1042) that wasn't already conformed above must be fill-conformed to
+        // the output size here, else projectQuad shrinks the NATIVE source and the plate lands too
+        // small (DECODED on 3D_Rectangle _t_3dr_v4: FCP plate width 1526 = 1920×0.794, engine was
+        // 1472 = 1854×0.794 — same 0.794 perspective scale, wrong base size). Scoped to A/B sources
+        // that are smaller than the frame and not already conformed (a decorative sub-frame sprite
+        // keeps its native size).
+        let perspSrc = drawSrc;
+        if (!conformed
+          && (layer.source?.type === 'transitionA' || layer.source?.type === 'transitionB')
+          && (drawSrc.width < output.width - 2 || drawSrc.height < output.height - 2)) {
+          perspSrc = conformDropZoneSource(drawSrc, output.width, output.height);
+        }
+        const corners = projectQuad(worldTransform, perspSrc.width, perspSrc.height, rctx.cameraZ ?? 2000);
+        renderPerspectiveQuad(output, perspSrc, corners, opacity);
       } else {
         blitTransformed(output, drawSrc, worldTransform, opacity, effCrop, layer.blendMode, blitDstBBox(output, drawSrc, worldTransform, effCrop));
       }
