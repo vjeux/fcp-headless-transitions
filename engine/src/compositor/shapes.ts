@@ -197,16 +197,22 @@ export function rasterizeShape(
     }
     const cl = minX + crop.left;         // left edge moves inward (+X)
     const cr = maxX - crop.right;        // right edge moves inward (−X)
-    const cb = minY + crop.bottom;       // bottom edge (Y-up) moves inward (+Y)
-    const ct = maxY - crop.top;          // top edge (Y-up) moves inward (−Y)
-    if (cr <= cl || ct <= cb) {
+    // Shape vertices are Y-DOWN (decoded: pixel_row = H/2 + vy), so the VISUAL top edge is at
+    // MIN vy and the VISUAL bottom edge is at MAX vy — the opposite of a Y-up convention. A
+    // Motion "Top" crop removes from the visual top (min vy → moves the low bound inward, +Y);
+    // "Bottom" removes from the visual bottom (max vy → moves the high bound inward, −Y).
+    // DECODED on Stylized/Center _t_center_v4: a Top crop=734 makes FCP keep the BOTTOM portion
+    // (y[674,1079]); the old Y-up mapping (ct=maxY−top) kept the TOP (y[0,403]) — inverted.
+    const cbnd = minY + crop.top;        // visual-top edge (min vy) moves inward by Top crop
+    const ct = maxY - crop.bottom;       // visual-bottom edge (max vy) moves inward by Bottom crop
+    if (cr <= cl || ct <= cbnd) {
       // Cropped to nothing.
       alpha.fill(0);
       return alpha;
     }
     // Map the 4 crop-rect corners (local) → pixel via toPixel, then AA-fill that
     // quad as an intersection mask and multiply into the shape alpha.
-    const cq: number[][] = [toPixel(cl, cb), toPixel(cr, cb), toPixel(cr, ct), toPixel(cl, ct)];
+    const cq: number[][] = [toPixel(cl, cbnd), toPixel(cr, cbnd), toPixel(cr, ct), toPixel(cl, ct)];
     const cropMask = fillPolygonAA(cq, width, height);
     for (let i = 0; i < alpha.length; i++) {
       alpha[i] = Math.round(alpha[i] * cropMask[i] / 255);

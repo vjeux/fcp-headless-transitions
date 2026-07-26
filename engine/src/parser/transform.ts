@@ -141,6 +141,24 @@ export function extractTransform(params: Parameter[]): Transform {
     return undefined;
   }
 
+  // Match a top-level transform CONTAINER param (Position/Rotation/Scale/Anchor/Crop/Opacity)
+  // by its stable numeric id ALONE, ignoring the name. FCP identifies params by id (the name is
+  // decorative) and the minimizer strips `name=`, so a name-gated `findParam` silently misses a
+  // stripped-name container — e.g. Stylized/Center's Shape Crop id=216 lost name="Crop", so the
+  // whole Crop was skipped and the shape rendered UNcropped (full-size) vs FCP's cropped shape.
+  // Scoped to the unambiguous top-level container ids; child axis lookups (id 1/2/3/4, shared by
+  // Left/Red/X/…) keep the safer name-first match below.
+  function findContainerById(params: Parameter[], id: number): Parameter | undefined {
+    for (const p of params) {
+      if (p.id === id) return p;
+      if (p.children) {
+        const found = findContainerById(p.children, id);
+        if (found) return found;
+      }
+    }
+    return undefined;
+  }
+
   function getAnimValue(params: Parameter[], name: string, id?: number): Curve | number | undefined {
     const p = findParam(params, name, id);
     if (!p) return undefined;
@@ -149,8 +167,35 @@ export function extractTransform(params: Parameter[]): Transform {
     return undefined;
   }
 
+  // id-ONLY resolution among DIRECT children (no name required). Used for a stripped-name
+  // Crop edge (Left/Right/Top/Bottom = id 1/2/3/4) — within the Crop container these ids are
+  // unambiguous, so an id match is safe even when the minimizer removed the edge's name=.
+  function getAnimValueById(params: Parameter[], id: number): Curve | number | undefined {
+    for (const p of params) {
+      if (p.id === id) {
+        if (p.curve) return p.curve;
+        if (typeof p.value === 'number') return p.value;
+      }
+    }
+    return undefined;
+  }
+
+  // Resolve a value by CHILD id alone (name stripped). Only safe where the child id set is a
+  // fixed, unambiguous enumeration within its container — used for Crop's Left/Right/Top/Bottom
+  // (ids 1/2/3/4), whose names the minimizer strips (Stylized/Center Shape Crop). A DIRECT-child
+  // scan (not recursive) so it can't stray into a nested param sharing the id.
+  function getChildValueById(params: Parameter[], id: number): Curve | number | undefined {
+    for (const p of params) {
+      if (p.id === id) {
+        if (p.curve) return p.curve;
+        if (typeof p.value === 'number') return p.value;
+      }
+    }
+    return undefined;
+  }
+
   // Position
-  const posParam = findParam(params, 'Position');
+  const posParam = findParam(params, 'Position') ?? findContainerById(params, 101);
   if (posParam?.children) {
     tx.positionX = getAnimValue(posParam.children, 'X') ?? getAnimValue(posParam.children, 'X', 1);
     tx.positionY = getAnimValue(posParam.children, 'Y') ?? getAnimValue(posParam.children, 'Y', 2);
@@ -158,7 +203,7 @@ export function extractTransform(params: Parameter[]): Transform {
   }
 
   // Rotation
-  const rotParam = findParam(params, 'Rotation');
+  const rotParam = findParam(params, 'Rotation') ?? findContainerById(params, 109);
   if (rotParam?.children) {
     tx.rotationZ = getAnimValue(rotParam.children, 'Z') ?? getAnimValue(rotParam.children, 'Z', 3);
     tx.rotationX = getAnimValue(rotParam.children, 'X') ?? getAnimValue(rotParam.children, 'X', 1);
@@ -169,7 +214,7 @@ export function extractTransform(params: Parameter[]): Transform {
   }
 
   // Scale (in percent)
-  const scaleParam = findParam(params, 'Scale');
+  const scaleParam = findParam(params, 'Scale') ?? findContainerById(params, 105);
   if (scaleParam?.children) {
     tx.scaleX = getAnimValue(scaleParam.children, 'X') ?? getAnimValue(scaleParam.children, 'X', 1);
     tx.scaleY = getAnimValue(scaleParam.children, 'Y') ?? getAnimValue(scaleParam.children, 'Y', 2);
@@ -177,7 +222,7 @@ export function extractTransform(params: Parameter[]): Transform {
   }
 
   // Anchor Point
-  const anchorParam = findParam(params, 'Anchor Point');
+  const anchorParam = findParam(params, 'Anchor Point') ?? findContainerById(params, 106);
   if (anchorParam?.children) {
     tx.anchorX = getAnimValue(anchorParam.children, 'X') ?? getAnimValue(anchorParam.children, 'X', 1);
     tx.anchorY = getAnimValue(anchorParam.children, 'Y') ?? getAnimValue(anchorParam.children, 'Y', 2);
@@ -194,12 +239,19 @@ export function extractTransform(params: Parameter[]): Transform {
   }
 
   // Crop
-  const cropParam = findParam(params, 'Crop');
+  const cropParam = findParam(params, 'Crop') ?? findContainerById(params, 216);
   if (cropParam?.children) {
-    tx.cropLeft = getAnimValue(cropParam.children, 'Left') ?? getAnimValue(cropParam.children, 'Left', 1);
-    tx.cropRight = getAnimValue(cropParam.children, 'Right') ?? getAnimValue(cropParam.children, 'Right', 2);
-    tx.cropTop = getAnimValue(cropParam.children, 'Top') ?? getAnimValue(cropParam.children, 'Top', 3);
-    tx.cropBottom = getAnimValue(cropParam.children, 'Bottom') ?? getAnimValue(cropParam.children, 'Bottom', 4);
+    // Name-first, then name+id, then id-only (minimizer strips the Left/Right/Top/Bottom names —
+    // Stylized/Center's Shape Crop id=216 kept only id=3 (Top) value=734, no name → the old
+    // name-gated read missed it → shape rendered UNcropped full-size vs FCP's cropped shape).
+    tx.cropLeft = getAnimValue(cropParam.children, 'Left') ?? getAnimValue(cropParam.children, 'Left', 1)
+      ?? getChildValueById(cropParam.children, 1);
+    tx.cropRight = getAnimValue(cropParam.children, 'Right') ?? getAnimValue(cropParam.children, 'Right', 2)
+      ?? getChildValueById(cropParam.children, 2);
+    tx.cropTop = getAnimValue(cropParam.children, 'Top') ?? getAnimValue(cropParam.children, 'Top', 3)
+      ?? getChildValueById(cropParam.children, 3);
+    tx.cropBottom = getAnimValue(cropParam.children, 'Bottom') ?? getAnimValue(cropParam.children, 'Bottom', 4)
+      ?? getChildValueById(cropParam.children, 4);
   }
 
   return tx;
