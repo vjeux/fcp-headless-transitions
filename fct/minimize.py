@@ -666,6 +666,15 @@ def _iter_empty_param_folders(root, protect=None, factory_desc=None):
 _ENVELOPE_TAGS = {"ozml", "scene", "layer", "scenenode", "footage", "clip", "behavior",
                   "factory", "parameter"}
 
+# MEDIA-REFERENCE tags: a <clip>'s <relativeURL>/<pathURL> bind it to a BUNDLED MEDIA file
+# (Media/…). Stripping them changes FCP's media resolution — the clip flips from "bundled
+# media" to "bare clip", which the engine's A/B order-fallback then mis-maps to Transition A
+# (FCP renders the media / black, never source A). DECODED 2026-07-26 on Stylized/Up-Over
+# (_t_upover): stripping <relativeURL>Media/bg 6.jpg</relativeURL> turned the "bg 6" bundled
+# background clip into a bare clip → false engine-vs-FCP divergence (engine warm-A vs FCP bg).
+# Same engine-tolerates-dangling-but-FCP-depends class as sceneSettings/vertex-index/factory.
+_MEDIA_REF_TAGS = {"relativeURL", "pathURL"}
+
 # SCENE-GEOMETRY tags: elements that define FCP's render coordinate space. These MUST
 # NEVER be stripped — FCP's headless render is scene-size-DEPENDENT. DECODED 2026-07-26 on
 # _t_center3/_t_center_ss: a ±160 square renders ±474×±360 (scale ~2.96×, anisotropic) UNLESS
@@ -682,6 +691,26 @@ _ENVELOPE_TAGS = {"ozml", "scene", "layer", "scenenode", "footage", "clip", "beh
 # Protect them everywhere. (<duration>/<pixelAspectRatio> kept too — harmless completeness.)
 _SCENE_GEOMETRY_TAGS = {"sceneSettings", "width", "height", "pixelAspectRatio",
                         "duration", "frameRate"}
+
+# MEDIA-REFERENCE tags: a <clip>'s <relativeURL>/<pathURL> bind it to a BUNDLED MEDIA file
+# (e.g. Media/bg 6.jpg). This is LOAD-BEARING for FCP's media resolution — a clip WITH a media
+# ref resolves to that image; a clip WITHOUT one falls to the Transition A/B order-fallback.
+# DECODED 2026-07-26 on Stylized/Up-Over (_t_upover): stripping <relativeURL>Media/bg 6.jpg
+# </relativeURL> turned the "bg 6" background clip into a bare clip that the engine mis-maps to
+# Transition A (FCP renders the bundled media / black-when-absent, never source A) — a false
+# engine-vs-FCP divergence that is purely the stripped media binding. Same engine-tolerates-
+# dangling-but-FCP-depends class as _SCENE_GEOMETRY_TAGS / factory / vertex-index / Source-Media.
+_MEDIA_REF_TAGS = {"relativeURL", "pathURL"}
+
+# MEDIA-REFERENCE tags: a <clip>'s <relativeURL>/<pathURL> binds it to a BUNDLED template
+# media file (Media/…). Stripping it silently changes FCP's resolution: the clip stops being
+# bundled media and the engine's A/B order-fallback then mis-maps it to Transition A/B (FCP
+# renders the media, or black when absent — never source A). DECODED 2026-07-26 on
+# Stylized/Up-Over (_t_upover): stripping <relativeURL>Media/bg 6.jpg</relativeURL> turned the
+# "bg 6" background-photo clip into a bare clip → engine showed source-A full-frame vs FCP's
+# bg media. Same engine-tolerates-dangling-but-FCP-depends class as sceneSettings / vertex-index
+# / factory / Source-Media. Never strip.
+_MEDIA_REF_TAGS = {"relativeURL", "pathURL"}
 
 
 def _iter_generic(root, protect=None, factory_desc=None):
@@ -712,6 +741,8 @@ def _iter_generic(root, protect=None, factory_desc=None):
             continue
         if _localname(c.tag) in _SCENE_GEOMETRY_TAGS:
             continue  # scene coordinate space — stripping it changes FCP's render (see note)
+        if _localname(c.tag) in _MEDIA_REF_TAGS:
+            continue  # a clip's media reference — stripping it changes FCP's media resolution (see note)
         yield parent[c], c
 
 
