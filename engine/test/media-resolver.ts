@@ -47,8 +47,42 @@ if (typeof (globalThis as any).ImageData === 'undefined') {
   };
 }
 
-/** Decode any node-canvas-supported still (png/jpg/tiff) into ImageData. */
-function decodeStill(absPath: string): ImageData | null {
+/**
+ * sRGB→linear 8-bit LUT (IEC 61966-2-1 EOTF). Applied to bundled STILL media.
+ *
+ * DECODED 2026-07-26 vs REAL FCP-headless (synthetic uniform-gray media probe, /tmp/graytest —
+ * ZERO geometry ambiguity): FCP loads a bundled `<relativeURL>` still through its media pipeline,
+ * decodes it sRGB→LINEAR, composites in its linear working buffer, and the headless readback
+ * outputs that buffer AS-IS (no linear→sRGB re-encode). FCP centre pixel == the sRGB EOTF exactly:
+ *     in  64 → 13  (s2l 13.1)    in 128 → 55  (s2l 55.0)    in 192 → 134  (s2l 134.4)
+ * (NOT a plain gamma 2.2 → 12.2/56.0/136.6; the piecewise sRGB curve nails all three.)
+ * The A/B DROP-ZONE plates, by contrast, are injected as RAW sRGB bytes straight into the buffer,
+ * so they read back == raw sRGB (verified: Wipes/Diagonal & Switch f0 == raw start.jpg exactly,
+ * NOT its linear decode). So the engine's buffer is sRGB-valued for the injected A/B plates (engine
+ * already matches), and to match FCP the engine must store bundled media as its sRGB→LINEAR decode.
+ * The engine applies NO downstream gamma to media (synthetic gray128 → 128 passthrough), so this
+ * decode at load is the single, correct point. Geometry is unaffected (engine & FCP conform the
+ * 512² gray to the identical box x[704,1215] y[284,795]).
+ */
+const _S2L_LUT = (() => {
+  const lut = new Uint8ClampedArray(256);
+  for (let i = 0; i < 256; i++) {
+    const u = i / 255;
+    const lin = u <= 0.04045 ? u / 12.92 : Math.pow((u + 0.055) / 1.055, 2.4);
+    lut[i] = Math.round(lin * 255);
+  }
+  return lut;
+})();
+
+/**
+ * Decode any node-canvas-supported still (png/jpg/tiff) into ImageData.
+ * `linearize` (default true) applies the sRGB→linear EOTF to the RGB channels (alpha
+ * is straight coverage — linear-invariant — so it is left untouched). This is FCP's decoded
+ * behaviour for bundled `<relativeURL>` stills. Extracted video frames pass `false` — the .mov
+ * matte/luma/overlay colour handling was tuned separately (forward-playback vs GUI-GT) and is not
+ * yet re-decoded vs headless, so those keep raw bytes until proven.
+ */
+function decodeStill(absPath: string, linearize = true): ImageData | null {
   try {
     const img = new Image();
     img.src = fs.readFileSync(absPath);
@@ -58,7 +92,16 @@ function decodeStill(absPath: string): ImageData | null {
     const cx = cv.getContext('2d');
     cx.drawImage(img, 0, 0);
     const id = cx.getImageData(0, 0, w, h);
-    return new (globalThis as any).ImageData(new Uint8ClampedArray(id.data.buffer.slice(0)), w, h);
+    const buf = new Uint8ClampedArray(id.data.buffer.slice(0));
+    if (linearize) {
+      for (let i = 0; i < buf.length; i += 4) {
+        buf[i] = _S2L_LUT[buf[i]];
+        buf[i + 1] = _S2L_LUT[buf[i + 1]];
+        buf[i + 2] = _S2L_LUT[buf[i + 2]];
+        // buf[i+3] alpha untouched
+      }
+    }
+    return new (globalThis as any).ImageData(buf, w, h);
   } catch { return null; }
 }
 
