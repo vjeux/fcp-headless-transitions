@@ -675,18 +675,31 @@ function extractAxisVertices(curveEl: Element): AxisVertex[] {
       else if (id === '4') inTangent = v;
       else if (id === '5') outTangent = v;
     }
-    // DECODED (2026-07-26, controlled ozengine probe on Stylized/Center's "Right full"
-    // shape): FCP keeps EVERY <vertex> slot in the closed path and resolves a MISSING
-    // Value coordinate to 0 — it does NOT drop the vertex. Proven: setting a value-less
-    // curve_X vertex explicitly to "0" reproduces FCP's baseline render byte-for-byte,
-    // and the polygon collapses to nothing only when a slot is truly removed (not when
-    // its Value is absent). The old code did `if (value === undefined) continue;`, which
-    // DROPPED value-less slots, collapsing a 4-point rectangle (whose empties were stripped)
-    // to a degenerate 1-2 point path that renders nothing while FCP still fills it. Keep the
-    // slot with coordinate 0.
-    if (value === undefined) value = 0;
-    verts.push({ index: idx, value, valueCurve, inTangent, outTangent });
+    // DECODED (2026-07-26, controlled ozengine probes on Stylized/Center's degenerate
+    // shapes _t_center_v2 and _t_center_faithful): FCP keeps EVERY <vertex> slot in the
+    // closed path and resolves a MISSING Value coordinate by a ZERO-ORDER HOLD along the
+    // vertex-INDEX sequence — an empty slot inherits the PREVIOUS defined value; LEADING
+    // empty slots (before any defined value) resolve to 0. PROVEN byte-for-byte on two
+    // shapes:
+    //   • X=[e,e,+546,e] → [0,0,+546,+546]   (lead 0, trailing slot holds +546)
+    //   • Y=[+597,e,-597,e] → [+597,+597,-597,-597]  (interior + trailing holds)
+    //   • X=[e,e,e,-546] → [0,0,0,-546]        (all-leading empties → 0)
+    // Each reconstruction rendered IDENTICALLY to the original-empties FCP render.
+    // The old model resolved ALL empties to 0, correct only for LEADING empties, and
+    // produced the wrong polygon for interior/trailing empty slots (Center's degenerate
+    // triangle rendered a mid-diamond vs FCP's slant). The hold runs AFTER the index sort
+    // below (not here), because it must follow the vertex INDEX order, not document order.
+    // `value` may still be undefined for an empty slot here; the post-sort hold fills it.
+    verts.push({ index: idx, value: value as number, valueCurve, inTangent, outTangent });
   }
   verts.sort((a, b) => a.index - b.index);
+  // ZERO-ORDER HOLD across empty slots, in INDEX order (see the DECODED note above). An
+  // undefined value inherits the previous defined value; leading empties → 0. An ANIMATED
+  // (valueCurve) slot already has its snapshot in `value`, so it counts as defined.
+  let lastDefined = 0;
+  for (const v of verts) {
+    if (v.value === undefined) v.value = lastDefined;
+    else lastDefined = v.value;
+  }
   return verts;
 }
