@@ -41,10 +41,15 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
   // it leaves Transition A's 1.702s as the true wrap (GT frames past 1.702s ARE
   // frame-0/source-A; the tail before that keeps animating via the clone).
   const clonedContinuationSourceIds = new Set<number>();
+  // Also track the LATEST `out` (seconds) of any Clone Layer that continues a
+  // drop-zone's content — so a wrap set by the OUTGOING drop zone can be cancelled
+  // when a Clone keeps the INCOMING content alive all the way to the animation end.
+  let cloneContinuationOutSec = 0;
   (function scanClones(layers: readonly Layer[]) {
     for (const l of layers) {
       if (l.type === 'clone' && l.cloneSourceId !== undefined && l.timing) {
         clonedContinuationSourceIds.add(l.cloneSourceId);
+        cloneContinuationOutSec = Math.max(cloneContinuationOutSec, t2s(l.timing.out));
       }
       scanClones(l.children);
     }
@@ -410,7 +415,20 @@ export function buildTimeMap(scene: MotrScene): TimeMap {
     // clamp (which requires wrapSec !== undefined). So gate the filteredMaskReveal
     // cancel on NOT strokedMaskShape — a stroked reveal takes the clamp path instead.
     const nonStrokedFilteredReveal = filteredMaskReveal && !strokedMaskShape;
-    if (wrapSec !== undefined && (filledShapeOverlay || blendedMediaOverlay || replicatorMaskReveal || kineticPanelMontage || nonStrokedFilteredReveal || pureCrossfadeSettleB || hasFramingCamera) && endSec > wrapSec + frameSec) {
+    // CLONE CONTINUES THE INCOMING CONTENT TO THE ANIMATION END (Movements/Switch). The
+    // wrap here is set by the OUTGOING Transition-A drop zone (retimeExtrap=1, out=1.702s),
+    // whose timeout the wrap-to-frame-0 treats as "loop back to source A". But Switch's
+    // "Clone B" (clones Transition B) stays alive to 1.735s ≈ the animation end, so the
+    // INCOMING B content persists all the way through — the transition SETTLES on B, it
+    // does NOT loop back to A. DECODED 2026-07-26 against the REAL FCP-headless oracle:
+    // Switch f0-f22 already match (A early, B mid via Clone B), but f23 (t=1.693s) wrapped
+    // to frame 0 → engine showed full-frame A [140,91,60] while FCP holds full-frame B
+    // [100,116,147] (|D|=67.9). The half-frame wrap tolerance pulls the wrap in at f23 even
+    // though t<A.out. Cancel the wrap when a Clone Layer continues content alive to ≈endSec
+    // (cloneContinuationOutSec ≥ endSec − 1 frame): the cloned incoming content is the
+    // settled tail, not a loop-to-A. Structural (clone lifetime vs endSec), no slug names.
+    const cloneContinuesToEnd = cloneContinuationOutSec >= endSec - frameSec;
+    if (wrapSec !== undefined && (filledShapeOverlay || blendedMediaOverlay || replicatorMaskReveal || kineticPanelMontage || nonStrokedFilteredReveal || pureCrossfadeSettleB || hasFramingCamera || cloneContinuesToEnd) && endSec > wrapSec + frameSec) {
       wrapSec = undefined;
     }
     // Stroked-mask reveal (Objects/Arrows): the growing arrow arcs cut A away to
