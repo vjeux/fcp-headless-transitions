@@ -137,12 +137,21 @@ export function parseFootageClipAB(sceneEl: Element, factories: Map<number, stri
       map.set(c.id, 'P');
     }
   }
-  // Fallback: if pathURL/name matching failed, order the two clips A then B.
-  if ((!sawA || !sawB) && clips.length >= 2) {
-    map.set(clips[0].id, 'A');
-    map.set(clips[1].id, 'B');
-  } else if (clips.length === 1 && !sawA && !sawB) {
-    map.set(clips[0].id, 'A');
+  // Fallback: if pathURL/name matching failed, order the two clips A then B. A clip that
+  // carries BUNDLED MEDIA (a <relativeURL> → in clipMedia) is NOT a drop-zone — it is the
+  // template's own decorative asset (e.g. Stylized/Up-Over's "bg 6" = Media/bg 6.jpg
+  // background photo). Such clips must resolve to their media (handled downstream via
+  // clip.media), NOT be mis-assigned Transition A/B by this order-fallback. DECODED on
+  // Stylized/Up-Over (_t_upover): "bg 6" (relativeURL Media/bg 6.jpg) was fallback-mapped to
+  // transitionA, so the engine painted source-A warm full-frame while FCP renders the bundled
+  // bg image (and, when the media is absent, black — not source A). Exclude media clips from
+  // the A/B order-fallback (and from its count) so a lone bundled-media clip is never A/B.
+  const abCandidates = clips.filter(c => !clipMedia.has(c.id));
+  if ((!sawA || !sawB) && abCandidates.length >= 2) {
+    map.set(abCandidates[0].id, 'A');
+    map.set(abCandidates[1].id, 'B');
+  } else if (abCandidates.length === 1 && !sawA && !sawB) {
+    map.set(abCandidates[0].id, 'A');
   }
 
   // FCP discovery-order override. The headless render hook assigns image A to the
