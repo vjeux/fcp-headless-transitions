@@ -203,6 +203,20 @@ function parseColorTarget(
     const tagId = parseInt(segs[gi + 2] || '0', 10);
     if (tagId) return { kind: 'gradientTag', tagId };
   }
+  // Motion's Gradient GENERATOR (pluginUUID 40091D89) drives its stops via a DIFFERENT
+  // path: `./2/1/310/1/<tagId>/3/{1,2,3}` — Object(2) > Gradient(id=1) > stops(id=310) >
+  // RGB folder(1) > stop(<tagId>) > Color(3) > R/G/B. Structurally identical to the
+  // shape-fill `104` case after the gradient-folder id, just id 310 not 104. Slide_In's
+  // 6 "Link N red/green/blue" behaviors use this to copy each "Color link" shape's Fill
+  // Color into a generator gradient stop. Same gradientTag override the evaluator +
+  // compositor consume. (Decoded vs REAL FCP-headless: Color link 1 fill [0,158,181] →
+  // gradient stop loc0, rendered [0,86,118] after Middle+linear.)
+  const gi310 = segs.indexOf('310');
+  if (gi310 >= 0 && segs[gi310 + 1] === '1' && segs[gi310 + 3] === '3'
+      && (segs[gi310 + 4] === '1' || segs[gi310 + 4] === '2' || segs[gi310 + 4] === '3')) {
+    const tagId = parseInt(segs[gi310 + 2] || '0', 10);
+    if (tagId) return { kind: 'gradientTag', tagId };
+  }
   return null;
 }
 

@@ -214,7 +214,7 @@ export interface LinearGradientConfig {
    * engine remaps the normalized fraction by the midpoint (power curve
    * `f^(ln0.5/lnM)`) then interpolates R, G, B, A.
    */
-  stops: Array<{ location: number; r: number; g: number; b: number; a: number; middle?: number }>;
+  stops: Array<{ location: number; r: number; g: number; b: number; a: number; middle?: number; tagId?: number }>;
 }
 
 /**

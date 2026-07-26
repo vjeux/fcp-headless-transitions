@@ -1212,6 +1212,31 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
       }
     })(layers);
   }
+  // Gradient-STOP colour Links (Slide_In): a colour Link with kind='gradientTag'
+  // drives one stop of a Gradient GENERATOR (source.type 'linearGradient') by the
+  // stop's tagId. Motion copies the source shape's Fill Color into that stop (Apply
+  // Mode 2 = replace). Apply the per-stop RGB override (0-1 → 0-255) onto the parsed
+  // gradient config's matching stop so renderLinearGradient paints the linked colour.
+  // Idempotent (source colours are static), so mutating the shared config is safe.
+  if (colorLinks.gradientStops.size > 0) {
+    (function propagateGradientStops(els: EvaluatedLayer[]) {
+      for (const el of els) {
+        const byTag = colorLinks.gradientStops.get(el.layer.id);
+        const grad = el.layer.source?.type === 'linearGradient' ? el.layer.source.gradient : undefined;
+        if (byTag && grad) {
+          for (const stop of grad.stops) {
+            if (stop.tagId === undefined) continue;
+            const ov = byTag.get(stop.tagId);
+            if (!ov) continue;
+            if (ov.r !== undefined) stop.r = Math.round(Math.max(0, Math.min(1, ov.r)) * 255);
+            if (ov.g !== undefined) stop.g = Math.round(Math.max(0, Math.min(1, ov.g)) * 255);
+            if (ov.b !== undefined) stop.b = Math.round(Math.max(0, Math.min(1, ov.b)) * 255);
+          }
+        }
+        propagateGradientStops(el.children);
+      }
+    })(layers);
+  }
 
   // Index every evaluated layer by object ID so the compositor can resolve a
   // replicator cell's Object Source to its fully-evaluated content.

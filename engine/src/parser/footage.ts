@@ -468,7 +468,7 @@ function parseLinearGradient(params: Parameter[]): LinearGradientConfig {
     const r = num(color?.children?.find(p => p.name === 'Red'), defaultRGB[0]);
     const g = num(color?.children?.find(p => p.name === 'Green'), defaultRGB[1]);
     const b = num(color?.children?.find(p => p.name === 'Blue'), defaultRGB[2]);
-    return { location: loc, r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255), middle };
+    return { location: loc, r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255), middle, tagId: stop.id };
   };
   // Each Opacity stop: Location (id=1), Opacity leaf (id=3).
   const readOpacityStop = (stop: Parameter, defaultLoc: number, defaultA: number) => {
@@ -501,7 +501,7 @@ function parseLinearGradient(params: Parameter[]): LinearGradientConfig {
       const opAt = opList.find(o => Math.abs(o.location - rgb.location) < 1e-4) ?? opList[Math.min(i, opList.length - 1)];
       a = opAt.a;
     }
-    return { location: rgb.location, r: rgb.r, g: rgb.g, b: rgb.b, a, middle: (rgb as { middle?: number }).middle };
+    return { location: rgb.location, r: rgb.r, g: rgb.g, b: rgb.b, a, middle: (rgb as { middle?: number }).middle, tagId: (rgb as { tagId?: number }).tagId };
   }).sort((a, b) => a.location - b.location);
 
   // Start (id=4) / End (id=5) — direct children of `Gradient(id=310)` (the
