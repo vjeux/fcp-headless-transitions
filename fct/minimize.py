@@ -589,11 +589,33 @@ def _iter_boilerplate(root, protect=None, factory_desc=None):
             walk(c)
             order.append(c)
     walk(root)
+    # Factory ids referenced by ANY node's factoryID attribute — those <factory> type decls are
+    # load-bearing for the engine's factoryID -> Motion-type resolution and must never be stripped.
+    _factory_ref_ids = set()
+    for el in root.iter():
+        fattr = el.get("factoryID")
+        if fattr is not None:
+            _factory_ref_ids.add(fattr)
     def _ref_protected(c):
         # A <clip>/<footage> whose id is a drop-zone Source Media / Mask Source target must
         # survive (see _referenced_node_ids) — stripping it corrupts FCP's A/B clip binding.
         cid = c.get("id")
-        return cid is not None and cid.isdigit() and int(cid) in ref_ids
+        if cid is not None and cid.isdigit() and int(cid) in ref_ids:
+            return True
+        # A <factory> whose id is referenced by ANY node's factoryID attribute is load-bearing:
+        # it maps factoryID -> Motion type (Camera/Framing/Replicator/...). DECODED on
+        # Replicator-Clones/Clone_Spin — the boiler pass stripped <factory id="11"> (Camera) even
+        # though a scenenode uses factoryID="11"; the ENGINE-MSE gate accepted it because the
+        # engine doesn't yet model the Camera (renders the plate flat either way), but the strip
+        # DESTROYS the faithful repro (the Camera node degrades to a plain group, so a future
+        # camera fix can't even be exercised). FCP resolves factoryID from its BUILT-IN registry
+        # so it renders identically with/without the <factory> row — exactly the engine-tolerates-
+        # (here: engine-ALSO-tolerates-but-only-because-unimplemented) hazard. Keep referenced
+        # factory rows so re-minimized repros retain their true node types.
+        if _localname(c.tag) == "factory" and cid is not None:
+            if cid in _factory_ref_ids:
+                return True
+        return False
     cands = [c for c in order if _localname(c.tag) in _BOILERPLATE_TAGS and c not in inside and not _ref_protected(c)]
     blob = ET.tostring(root, encoding="unicode")
     def is_unref(c):
