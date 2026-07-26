@@ -193,21 +193,29 @@ export function extractTransform(params: Parameter[]): Transform {
     }
     return undefined;
   }
+  // Axis value: name-first, then name+id, then id-only (minimizer strips the X/Y/Z names). The
+  // id-only fallback is safe because a Position/Rotation/Scale/Anchor container's direct children
+  // are exactly the axis triple X=1,Y=2,Z=3 (a fixed enumeration). DECODED on Replicator-Clones/
+  // 3D_Rectangle (_t_3dr_v4): the drop-zone image's Position Z (id=1>100>101>3, curve −600) lost
+  // its Position/Z names → the whole Transform parsed empty → engine ignored the Z push-back and
+  // rendered the plate flat/full-frame, while FCP perspective-shrinks it (~0.82×, camera d≈2770).
+  const axis = (children: Parameter[], name: string, id: number): Curve | number | undefined =>
+    getAnimValue(children, name) ?? getAnimValue(children, name, id) ?? getChildValueById(children, id);
 
   // Position
   const posParam = findParam(params, 'Position') ?? findContainerById(params, 101);
   if (posParam?.children) {
-    tx.positionX = getAnimValue(posParam.children, 'X') ?? getAnimValue(posParam.children, 'X', 1);
-    tx.positionY = getAnimValue(posParam.children, 'Y') ?? getAnimValue(posParam.children, 'Y', 2);
-    tx.positionZ = getAnimValue(posParam.children, 'Z') ?? getAnimValue(posParam.children, 'Z', 3);
+    tx.positionX = axis(posParam.children, 'X', 1);
+    tx.positionY = axis(posParam.children, 'Y', 2);
+    tx.positionZ = axis(posParam.children, 'Z', 3);
   }
 
   // Rotation
   const rotParam = findParam(params, 'Rotation') ?? findContainerById(params, 109);
   if (rotParam?.children) {
-    tx.rotationZ = getAnimValue(rotParam.children, 'Z') ?? getAnimValue(rotParam.children, 'Z', 3);
-    tx.rotationX = getAnimValue(rotParam.children, 'X') ?? getAnimValue(rotParam.children, 'X', 1);
-    tx.rotationY = getAnimValue(rotParam.children, 'Y') ?? getAnimValue(rotParam.children, 'Y', 2);
+    tx.rotationZ = axis(rotParam.children, 'Z', 3);
+    tx.rotationX = axis(rotParam.children, 'X', 1);
+    tx.rotationY = axis(rotParam.children, 'Y', 2);
   } else if (rotParam) {
     // Single rotation value = Z rotation
     tx.rotationZ = rotParam.curve ?? (typeof rotParam.value === 'number' ? rotParam.value : undefined);
@@ -216,17 +224,17 @@ export function extractTransform(params: Parameter[]): Transform {
   // Scale (in percent)
   const scaleParam = findParam(params, 'Scale') ?? findContainerById(params, 105);
   if (scaleParam?.children) {
-    tx.scaleX = getAnimValue(scaleParam.children, 'X') ?? getAnimValue(scaleParam.children, 'X', 1);
-    tx.scaleY = getAnimValue(scaleParam.children, 'Y') ?? getAnimValue(scaleParam.children, 'Y', 2);
-    tx.scaleZ = getAnimValue(scaleParam.children, 'Z') ?? getAnimValue(scaleParam.children, 'Z', 3);
+    tx.scaleX = axis(scaleParam.children, 'X', 1);
+    tx.scaleY = axis(scaleParam.children, 'Y', 2);
+    tx.scaleZ = axis(scaleParam.children, 'Z', 3);
   }
 
   // Anchor Point
   const anchorParam = findParam(params, 'Anchor Point') ?? findContainerById(params, 106);
   if (anchorParam?.children) {
-    tx.anchorX = getAnimValue(anchorParam.children, 'X') ?? getAnimValue(anchorParam.children, 'X', 1);
-    tx.anchorY = getAnimValue(anchorParam.children, 'Y') ?? getAnimValue(anchorParam.children, 'Y', 2);
-    tx.anchorZ = getAnimValue(anchorParam.children, 'Z') ?? getAnimValue(anchorParam.children, 'Z', 3);
+    tx.anchorX = axis(anchorParam.children, 'X', 1);
+    tx.anchorY = axis(anchorParam.children, 'Y', 2);
+    tx.anchorZ = axis(anchorParam.children, 'Z', 3);
   }
 
   // Opacity (0-100 in Motion → 0-1 for compositing). The layer's own opacity is
