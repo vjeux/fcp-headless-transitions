@@ -417,16 +417,22 @@ export function parseLinkBehaviors(
     for (const expr of exprEls) {
       const srcRef = getTextContent(expr, 'sourceChannelRef');
       const tgtId = getTextContent(expr, 'targetChannelID');
-      // A transform Link expression channel needs a SOURCE to copy from: either an
-      // explicit <sourceChannelRef> (which channel of the driver to read) or a
-      // <channelBehavior affectingChannel> path (which property this Link drives).
-      // With NEITHER, the Link is structurally degenerate and inert — FCP has no
-      // channel to read. DECODED 2026-07-26 on Movements/Switch (_t_switch_v2): the
-      // minimizer stripped both from a Link, leaving only <targetChannelID>1; the old
-      // code fabricated a position.X←position.X spec that copied the disabled driver's
-      // Position X=2388 onto Transition A → off-canvas BLACK, while FCP renders A
-      // full-frame centred (the stripped Link does nothing). Skip specs with no source.
-      if (!srcRef && !affPath) continue;
+      // A well-formed transform Link needs BOTH a SOURCE and a TARGET-PROPERTY path.
+      // The <channelBehavior affectingChannel> (affPath) defines WHICH property this
+      // Link drives (./1/100/101=position, /107=anchor, /109=rotation, /105=scale);
+      // the <sourceChannelRef> defines which driver channel to read. VERIFIED: every
+      // genuine transform Link in all 65 FCP source .motr carries a channelBehavior
+      // (830 channelBehavior vs 137 sourceChannelRef; the real Switch LinkPos pairs
+      // affectingChannel="./1/100/107/1" with sourceChannelRef="./1/100/101/1" — it
+      // copies the driver's POSITION X onto the target's ANCHOR X). A Link missing
+      // EITHER is a minimizer-degenerate fragment with no defined channel copy → inert.
+      // DECODED 2026-07-26 on Movements/Switch: _t_switch_v2's Link lost BOTH (kept only
+      // <targetChannelID>1) and _t_switch_v4's Link lost the channelBehavior (kept
+      // sourceChannelRef ./1/100/101/1). In both the old code fabricated a position
+      // spec, copied the disabled driver's Position X=2388 onto Transition A, and
+      // pushed A off the 2160 canvas → BLACK, while FCP renders A FULL-FRAME CENTRED.
+      // Require affPath (the target-property path) — without it the target is undefined.
+      if (!affPath) continue;
       const sourceChannel = chanName(srcRef);
       const targetChannel = tgtId === '1' ? 'X' : tgtId === '2' ? 'Y' : tgtId === '3' ? 'Z' : chanName(affPath || null);
       if (!targetChannel) continue;
