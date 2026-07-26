@@ -390,12 +390,33 @@ def _referenced_node_ids(root):
         Stripping the <clip> corrupts the A/B map → the drop zone mis-resolves (B → A / black).
     Returns the set of integer ids named as the VALUE of any such param."""
     ref_ids = set()
+    # Build a child→parent-param-id lookup so a Source Media (id=300) can be recognized by its
+    # id=324 "Media" wrapper parent even when the decorative name attribute was stripped (the
+    # engine resolves it structurally too — see footage.ts findSourceMediaId). id=300 alone is
+    # AMBIGUOUS (Color Solid / Gradient use it for Width), so require name OR the id=324 parent.
+    parent_pid = {}
+    for p in root.iter():
+        if _localname(p.tag) != "parameter":
+            continue
+        for ch in p:
+            if _localname(ch.tag) == "parameter":
+                parent_pid[id(ch)] = p.get("id")
     for p in root.iter():
         if _localname(p.tag) != "parameter":
             continue
         pid = p.get("id")
         name = p.get("name") or ""
-        if not ((pid == "1" and name == "Mask Source") or (pid == "300" and name == "Source Media")):
+        is_mask_source = pid == "1" and name == "Mask Source"
+        is_source_media = pid == "300" and (name == "Source Media" or parent_pid.get(id(p)) == "324")
+        # A Clone Layer / Framing behavior binds to the node it clones via a `Target` param
+        # (id=200): stripping the target's subtree leaves a dangling clone (FCP renders the
+        # clone of a now-absent source as nothing / hidden, while the engine may draw the bare
+        # source directly). DECODED on Replicator-Clones/Clone_Spin: node 987618479 ("Transition
+        # B") is a Clone Target; the minimizer stripped the Clone Layer + Target binding, leaving
+        # a bare drop-zone plate the engine drew full-frame while FCP (which only shows the clone,
+        # off-screen/spun) rendered black → false 7.4 dB divergence. Protect the Target's subtree.
+        is_clone_target = pid == "200" and (name == "Target" or name == "")
+        if not (is_mask_source or is_source_media or is_clone_target):
             continue
         v = p.get("value")
         if v is None:
