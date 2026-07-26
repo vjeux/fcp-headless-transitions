@@ -39,6 +39,31 @@ to a different transition because the current one is hard; finish the one in fro
 
 
 ### RULE 2 — Fix thoroughly. No short-term hacks. Take all the time you need.
+
+#### RULE 2.0 — DECODE BEFORE YOU EDIT. No guessed constants, values, or branches. (HARD GATE)
+Before writing ANY engine change that introduces a specific value, default, threshold, ordering, or
+conditional branch, you MUST have REVERSE-ENGINEERED what FCP's code actually does — from one of:
+  (a) the FCP/Ozone/Filters binary (otool -tvV, air-objdump on metallib, __const constant reads),
+  (b) the shader source (tools/re/extract_shader.py), OR
+  (c) a CONTROLLED-INPUT PROBE of the real headless engine that isolates the exact law (vary ONE
+      input through ozengine.render_frame, measure the output response, and confirm the relationship
+      is deterministic and matches your model on values you did NOT fit).
+A change is FORBIDDEN if its justification is "this value/branch makes the pixels match" without a
+decoded source. Specifically BANNED (these are guesses, not decodes):
+  • Inventing a default (e.g. "a shape with no Fill Color defaults to white (255,255,255)") because
+    it happens to match — unless you have READ that default out of FCP (binary/param default=/probe
+    that proves it). "Motion's Fill Color param default= is 1.0" IS a decode; "white looks right" is NOT.
+  • Picking a magic threshold / count gate (e.g. `verticesX.length >= 3`) to make a case render.
+  • Guessing how a degenerate/missing input is resolved (empty vertex = 0? = default? = dropped?)
+    without PROBING the real engine to observe the actual rule.
+  • Any "fits the observed pixels" constant with no independent verification.
+If you CANNOT yet decode the mechanism (inert inputs, no binary symbol, probe inconclusive): STOP,
+write the exact decode blocker to the AUDIT, and pick a case whose mechanism you CAN decode. Shipping
+a plausible guess is WORSE than shipping nothing — it hides the real bug and rots the engine.
+PROCESS for every fix: (1) reproduce, (2) DECODE the FCP mechanism from binary/shader/controlled
+probe, (3) state the decoded law explicitly (what FCP does, and the evidence), (4) implement exactly
+that, (5) verify on inputs you did NOT use to derive it. If step 2 or 3 can't be completed, do not edit.
+
 - Diagnose to the ROOT CAUSE. Reproduce, instrument, decode from the binary/shader/scene — never
   guess, never curve-fit a constant (decode-don't-fit), never special-case a single slug to move a
   number. A fix must be the CORRECT general mechanism, verified against FCP.
