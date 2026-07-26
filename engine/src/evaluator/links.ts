@@ -227,6 +227,17 @@ export function applyLinks(
     if (link.targetProp === 'color') continue;
     const driver = layerById.get(link.sourceObjectId);
     if (!driver) continue;
+    // A Link whose SOURCE OBJECT is DISABLED (<enabled>0</enabled>) does not drive its target.
+    // A disabled node contributes NOTHING to the render — not its pixels, and not its channel
+    // values as a Link/parameter driver. DECODED 2026-07-26 on Movements/Switch (_t_switch_v2,
+    // minimized to 2 layers): a Transition-A image carries a Link (Source Object = a disabled
+    // Generator, channel 1 = Position X). The disabled Generator's static Position X = 2387.98,
+    // so applying the Link pushed the image to worldX=2388 — entirely off the 2160-wide canvas
+    // → the engine rendered pure BLACK, while FCP renders the image FULL-FRAME CENTERED (raw A
+    // [140.5,90.9,60.5]). Skipping links from disabled drivers lands the engine on full-frame A
+    // (|D| 97.3 → 1.6, matching FCP on every frame). Scoped to disabled drivers only; every
+    // enabled-driver Link (Reflection/Clothesline/Switch's live rig channels) is unaffected.
+    if (driver.enabled === false) continue;
 
     // Resolve the Custom Mix (rig-gated if a rig snapshot is present).
     let mix = link.customMix;
