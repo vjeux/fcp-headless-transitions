@@ -556,8 +556,27 @@ def _iter_params(root, protect=None, factory_desc=None):
             walk(c)
             order.append(c)
     walk(root)
+    # DROP-ZONE A/B BINDING protection (always on): a drop-zone image scenenode designates
+    # WHICH transition input it receives via Object(id=2) > {Type id=321 (1=A, 2=B, 3=Pin),
+    # Drop Zone id=311}. FCP binds the injected A/B media to the well by that Type; the ENGINE
+    # resolves A/B by the clip's pathURL name instead, so it TOLERATES a stripped Type (keeps
+    # showing the same plate) while FCP DEGRADES the un-typed well to its red "drop media here"
+    # PLACEHOLDER glyph — a false divergence purely from the strip. DECODED 2026-07-26 on
+    # Replicator-Clones/3D_Rectangle (_t_3dr_v2): stripping the "Transition B" node's Object>Type=2
+    # made FCP render the placeholder (mean [58,2,2]) vs the engine's real B plate. Same
+    # engine-tolerates-dangling-but-FCP-depends class as Source Media / sceneSettings / relativeURL.
+    # Protect any Type(321)/Drop-Zone(311) leaf whose parent param is an Object (id=2) container.
+    protected_bind = set()
     for c in order:
-        if c in inside:
+        if _localname(c.tag) != "parameter":
+            continue
+        cid = c.get("id")
+        if cid in ("321", "311"):
+            par = parent.get(c)
+            if par is not None and _localname(par.tag) == "parameter" and par.get("id") == "2":
+                protected_bind.add(c)
+    for c in order:
+        if c in inside or c in protected_bind:
             continue
         if _localname(c.tag) == "parameter" and not any(_localname(k.tag) == "parameter" for k in c):
             yield parent[c], c
@@ -764,6 +783,20 @@ def _iter_value_simplifications(root, protect=None, factory_desc=None):
       • scalar element text (e.g. <motionBlurSamples>8</motionBlurSamples>) → "0"
     Skips protected subtrees. Deepest-first is irrelevant here (independent leaves)."""
     inside = _protected_subtree(root, protect, factory_desc or {})
+    # Never simplify the drop-zone A/B BINDING value: Object(id=2) > Type id=321 (1=A/2=B/3=Pin)
+    # binds which transition input the well receives. Snapping it to default/0 un-types the well →
+    # FCP shows its placeholder glyph while the engine (pathURL-based A/B) tolerates it — a false
+    # divergence (see _iter_params drop-zone note; DECODED on 3D_Rectangle _t_3dr_v2). Same for
+    # the Drop Zone flag (id=311). Build a child→parent-id map to identify them structurally.
+    _pp = {}
+    for _p in root.iter():
+        if _localname(_p.tag) == "parameter":
+            for _ch in _p:
+                if _localname(_ch.tag) == "parameter":
+                    _pp[id(_ch)] = _p.get("id")
+    def _is_ab_binding(el):
+        return (_localname(el.tag) == "parameter" and el.get("id") in ("321", "311")
+                and _pp.get(id(el)) == "2")
     def _is_num(s):
         try:
             float(s); return True
