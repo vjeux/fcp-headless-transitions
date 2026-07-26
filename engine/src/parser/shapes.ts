@@ -314,6 +314,41 @@ export function parseShape(el: Element, factories: Map<number, string>, linkSour
     }
   }
 
+  // DEFAULT SOLID FILL = WHITE (decoded 2026-07-26 from ProShapes.framework arm64
+  // factory-parameter init, addr 0x113c–0x1260). The Shape factory registers its
+  // fill parameters with these DEFAULTS:
+  //   "Shape Filled Shape" (id 0x71=113)  → OZChannelFolder present  (shape IS filled)
+  //   "Shape Fill Mode"    (id 0x72=114)  → OZChannelEnum default 0   (solid colour)
+  //   "Shape Fill Color"   (id 0x6f=111)  → OZChannelColorNoAlpha(1.0,1.0,1.0)  WHITE
+  //   "Shape Fill Opacity" (id 0x8d=141)  → 1.0                       (fully opaque)
+  // i.e. a Shape whose document omits the Fill Color / Fill Mode params still renders
+  // as an OPAQUE WHITE polygon — FCP falls back to the factory default, it does NOT
+  // render nothing. PROVEN against REAL FCP-headless on the minimized Stylized/Center
+  // "Right full" shape (_t_center3): FCP fills the polygon interior 255-white while the
+  // engine (which required an explicit fillColor at compositor index.ts:638) rendered
+  // pure black. This is NOT the reverted guess: the earlier `vertices>=3 → white` had no
+  // proof and over-fired; this fires ONLY for a genuine plain filled shape — non-mask,
+  // closed, ≥3 verts, and with NO competing fill mechanism (no explicit colour, no
+  // gradient, no solid-panel candidate, no stroke/arrow, not a colour-Link source) — so
+  // gradient/panel/stroke/link shapes keep their own render paths untouched.
+  if (
+    !isMask &&
+    fillColor === undefined &&
+    parseFillGradient(el) === undefined &&
+    panelFillCandidate === undefined &&
+    stroke === undefined &&
+    closed &&
+    verticesX.length >= 3
+  ) {
+    const shapeId = parseInt(el.getAttribute('id') || '0', 10);
+    const isColorLink =
+      linkSourceIds.has(shapeId) ||
+      directChildren(el, 'behavior').some(
+        b => factories.get(parseInt(b.getAttribute('factoryID') || '0', 10)) === 'Link',
+      );
+    if (!isColorLink) fillColor = { r: 255, g: 255, b: 255, a: 1 };
+  }
+
   const shape: Shape = {
     verticesX,
     verticesY,
