@@ -437,6 +437,8 @@ export function renderLensFlare(config: LensFlareConfig, timeSec: number, endSec
  * generator's own canvas resolution (config.width x config.height). Straight
  * alpha; premultiplication is applied by the compositor blit path.
  */
+import { srgbChannelToLinear } from '../linear.js';
+
 export function renderLinearGradient(config: LinearGradientConfig): ImageData {
   const { width, height, start, end, stops } = config;
   const out = new ImageData(new Uint8ClampedArray(width * height * 4), width, height);
@@ -481,9 +483,11 @@ export function renderLinearGradient(config: LinearGradientConfig): ImageData {
 
   const hw = width / 2, hh = height / 2;
   for (let y = 0; y < height; y++) {
-    // Motion canvas Y is +up, origin at canvas centre; pixel Y is +down from
-    // the top. Sample at pixel centres.
-    const cy = hh - (y + 0.5);
+    // Motion's Gradient GENERATOR authors Start/End in TEXTURE space (Y +DOWN from
+    // top-centre), NOT the canvas +up convention. Decoded vs REAL FCP-headless on
+    // Stylized/Slide_In (isolated gradient-only): the +up mapping rendered the
+    // gradient vertically INVERTED. Sample at pixel centres in Y-down.
+    const cy = (y + 0.5) - hh;
     for (let x = 0; x < width; x++) {
       const cx = (x + 0.5) - hw;
       const dx = cx - start.x;
@@ -492,9 +496,13 @@ export function renderLinearGradient(config: LinearGradientConfig): ImageData {
       if (t < 0) t = 0; else if (t > 1) t = 1;
       const [r, g, b, a] = sample(t);
       const idx = (y * width + x) * 4;
-      out.data[idx] = Math.round(r);
-      out.data[idx + 1] = Math.round(g);
-      out.data[idx + 2] = Math.round(b);
+      // Motion's Gradient generator emits colour in LINEAR light: the interpolated
+      // sRGB stop value is decoded through the sRGB EOTF and written as the output
+      // code (verified vs REAL FCP-headless: parsed stop [72,141,144] renders
+      // [16,68,71] == srgbToLinear). Same decode as solid shape fills.
+      out.data[idx] = Math.round(srgbChannelToLinear(r) * 255);
+      out.data[idx + 1] = Math.round(srgbChannelToLinear(g) * 255);
+      out.data[idx + 2] = Math.round(srgbChannelToLinear(b) * 255);
       out.data[idx + 3] = Math.round(a * 255);
     }
   }
