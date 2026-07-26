@@ -790,6 +790,27 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
         blitDirect(output, filtered, opacity, layer.blendMode);
         return 'children';
       }
+      // UNIFORM COLOR generator (Color Solid, source.type 'color') — fills the ENTIRE
+      // EQUIRECT COLOR-SOLID BACKDROP fills the ENTIRE front-facing frame. A Color Solid
+      // generator emits ONE uniform colour; on an equirectangular 360°/VR sphere that colour
+      // is identical at every latitude/longitude, so the front-facing readback is 100% that
+      // colour edge-to-edge (verified: minimized 360° Push = solid blue 0,0,254 across the
+      // whole 1920×1080 frame). The generic equirect path instead blits the generator's native
+      // 4096×2048 box through its world transform + centred readback, which lands the fill in a
+      // centred ~868×549 sub-region with black margins. Since a solid colour has no spatial
+      // content to project, fill the output buffer directly with it. GATED on rctx.equirectScene
+      // so a NON-panorama Color Solid positioned by its own transform (e.g. Reflection's Floor
+      // plane) is untouched and keeps the normal box/transform blit.
+      if (layer.source?.type === 'color' && rctx.equirectScene) {
+        const r = src.data[0], g = src.data[1], b = src.data[2], a = src.data[3];
+        const filled = new (globalThis as any).ImageData(
+          new Uint8ClampedArray(output.width * output.height * 4), output.width, output.height);
+        const fd = filled.data;
+        for (let i = 0; i < fd.length; i += 4) { fd[i] = r; fd[i+1] = g; fd[i+2] = b; fd[i+3] = a; }
+        const filtered = applyFilterChain(filled, layer.filters, evalLayer, time, filterOverrides, rctx);
+        blitDirect(output, filtered, opacity, layer.blendMode);
+        return 'children';
+      }
       // Conform the base full-frame drop-zone SOURCE to fill the frame (capability #1;
       // see conformDropZoneSource). The classic case: a plain UNCROPPED drop-zone image
       // whose box ≈ the render buffer in a NON-panorama scene (rctx.equirectScene false).
