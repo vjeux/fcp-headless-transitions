@@ -805,6 +805,8 @@ def _iter_value_simplifications(root, protect=None, factory_desc=None):
     for el in root.iter():
         if el in inside:
             continue
+        if _is_ab_binding(el):
+            continue  # never snap a drop-zone Type(321)/Drop-Zone(311) binding value
         tag = _localname(el.tag)
         # (a) attribute value → default, then → 0
         v = el.get("value")
