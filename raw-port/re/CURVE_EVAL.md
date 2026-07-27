@@ -43,3 +43,16 @@ OZLinearInterpolator::interpolate on that model; then OZBezierInterpolator (uses
 - OZSpline::getSmallDeltaU() @0x2fe52:  returns CMTimeMake(1, ts) with ts = 0x64 (100) normally, or 1
   if the byte at spline+0xa8 -> [0] is set. i.e. a 1/100 s (or 1/1) one-tick epsilon in spline timescale,
   used to guard equal-U keypoints before the divide.
+
+## ADDENDUM 2 (2026-07-27) — OZSpline::getVertexValue(CMTime t, CMTime u, bool) @0x303a6 (the sampler)
+The value-at-time entry that the channel calls. Steps:
+  1. default = (this->0xa0 cache ? cache->*0x48() : 0.0)
+  2. minU = getMinValueU(); if CMTimeCompare(t, minU) < 0 (t before first vertex):
+        if !(this->0x90 extrapolate-flag) -> return the clamped first-vertex value (branch 0x308c9).
+  3. maxU = getMaxValueU(); symmetric clamp to the last vertex when t > maxU.
+  4. otherwise find the bracketing vertex pair around t and call the interpolator's *0x18 interpolate
+     (via getInterpolator(type), *0x40 useKeypoints checked first).
+=> Outside [minU,maxU] the spline HOLDS the endpoint value (unless the 0x90 extrapolation flag is set).
+   Inside, it brackets t and calls interpolate(t, vA, vB). This is the selection layer above
+   linearInterpolate(); TODO transcribe the exact bracket search (getMin/MaxValueU @0x2db7e/0x2da44,
+   getLastValidVertex @0x2dd5a) + the 0x90 extrapolation flag source.
