@@ -46,6 +46,31 @@ export function linearInterpolate(t: CMTime, a: OZKeypoint, b: OZKeypoint): numb
   return valA + (valB - valA) * (num / den);        // fY==0 path
 }
 
+/**
+ * OZSCurveInterpolator::interpolate(OZSpline& sp, CMTime t, vA, vB, ...)  @ProChannel 0xaabde.
+ * Fully decoded (all constants + the trig fn resolved from the binary):
+ *   tA = CMTimeGetSeconds(vA.U);  tB = CMTimeGetSeconds(vB.U)   (equal-U guard via getSmallDeltaU)
+ *   te = easeTime(t)  (identity base)
+ *   f  = (CMTimeGetSeconds(te) - tA) / (tB - tA)                 (linear fraction)
+ *   x  = f * PI          (const @0xb03b8 = 3.141592653589793)
+ *   c  = cosf(x)         (call @0xaced6 = _cosf)
+ *   fʹ = (1.0 - c) * 0.5 (consts @0xaf528 = 1.0, @0xb03c0 = 0.5)  => fʹ = (1 - cos(PI*f))/2
+ *   valA = vA.getValueV(te);  valB = vB.getValueV(te)
+ *   result = valA * (1 - fʹ) + valB * fʹ
+ * i.e. a raised-cosine (smooth) ease of the linear fraction. NOTE: cosf is single-precision (float)
+ * in the binary — Math.fround matches that rounding.
+ */
+export function scurveInterpolate(t: CMTime, a: OZKeypoint, b: OZKeypoint): number {
+  const tA = CMTimeGetSeconds(a.u), tB = CMTimeGetSeconds(b.u);
+  const te = easeTime_identity(t, a, b);
+  const den = tB - tA;
+  const valA = a.value, valB = b.value;
+  if (den === 0) return valA;                       // CMTimeCompare(tB,tA)<=0 degenerate
+  const f = (CMTimeGetSeconds(te) - tA) / den;
+  const fp = (1.0 - Math.fround(Math.cos(Math.fround(f * Math.PI)))) * 0.5; // (1 - cosf(PI*f))/2
+  return valA * (1 - fp) + valB * fp;
+}
+
 // --- Interpolator dispatch: type-id -> which interpolate function --------------------------------
 // Faithful transcription of OZInterpolators::getInterpolator(uint) @0x447a6 +
 // OZInterpolatorStrategies::getInterpolator(uint) @0x44ddc. Decode (re/INTERPOLATION_TYPES.md):
@@ -109,7 +134,8 @@ export function sampleCurveValue(
       switch (kind) {
         case "constant": return a.value;              // OZConstantInterpolator: hold left value
         case "linear":   return linearInterpolate(t, a, b);
-        // Bezier/CatmullRom/SCurve/Convex/Concave/XSpline/BSpline: transcriptions pending — do NOT
+        case "scurve":   return scurveInterpolate(t, a, b);
+        // Bezier/CatmullRom/Convex/Concave/XSpline/BSpline: transcriptions pending — do NOT
         // silently approximate. Throw so an un-transcribed interpolator is a loud, visible gap.
         default:
           throw new Error(`interpolator '${kind}' (type ${type}) not yet transcribed`);
