@@ -1,0 +1,90 @@
+{
+ "?": {
+  "0x0": "v8@?0"
+ },
+ "OZChannelBaseReadScope": {
+  "0x0": "flags"
+ },
+ "OZChannelBaseScope": {
+  "0x0": "flags",
+  "0x6e": "name",
+  "0x6f": "id",
+  "0x70": "flags",
+  "0x71": "factoryID",
+  "0x76": "internalName"
+ },
+ "OZChannelBlindDataScope": {
+  "0x0": "defaultVal",
+  "0x6e": "name",
+  "0x6f": "id",
+  "0x70": "flags",
+  "0x71": "factoryID",
+  "0x72": "value"
+ },
+ "OZChannelFolderScope": {
+  "0x0": "parameter",
+  "0x6e": "name",
+  "0x6f": "id",
+  "0x70": "flags",
+  "0x71": "factoryID",
+  "0x72": "value",
+  "0x73": "default"
+ },
+ "OZChannelObjectRootBaseScope": {
+  "0x0": "baseFlags",
+  "0x1": "in",
+  "0x2": "out",
+  "0x3": "offset"
+ },
+ "OZChannelScope": {
+  "0x0": "vertex",
+  "0x5": "index",
+  "0x6e": "name",
+  "0x6f": "id",
+  "0x7": "id",
+  "0x70": "flags",
+  "0x71": "factoryID",
+  "0x72": "value",
+  "0x73": "default"
+ },
+ "OZChannelTextScope": {
+  "0x0": "text"
+ },
+ "OZChannelVertexFolderScope": {
+  "0x0": "foldFlags",
+  "0x6e": "name",
+  "0x6f": "id",
+  "0x70": "flags",
+  "0x71": "factoryID",
+  "0x72": "value",
+  "0x73": "default"
+ },
+ "OZCurveScope": {
+  "0x0": "numberOfKeypoints",
+  "0x1": "value",
+  "0x4": "type",
+  "0x5": "parametric",
+  "0x6": "round",
+  "0x7": "retimingExtrapolation",
+  "0x8": "default",
+  "0x9": "enabled",
+  "0xa": "interpolation",
+  "0xb": "flags"
+ },
+ "OZFactoryScope": {
+  "0x0": "version",
+  "0x6f": "id",
+  "0x75": "uuid"
+ },
+ "OZMLScope": {
+  "0x0": "parameter",
+  "0x6e": "name",
+  "0x6f": "id",
+  "0x70": "flags",
+  "0x71": "factoryID",
+  "0x72": "value",
+  "0x73": "default",
+  "0x74": "version",
+  "0x75": "uuid"
+ }
+}

@@ -1,0 +1,13 @@
+00000000000ebed0 d _OZChannelFolderScope
+00000000000ec080 d _OZChannelVertexFolderScope
+00000000000eb8f0 d OZCurveScope
+00000000000eb830 d OZChannelScope
+00000000000ebe10 d OZChannelScope
+00000000000eb6f0 d OZFactoryScope
+00000000000ebac0 d OZChannelBaseScope
+00000000000ec050 d OZChannelTextScope
+00000000000ebb40 d OZChannelBaseReadScope
+00000000000ebc80 d OZChannelBlindDataScope
+00000000000ec110 d OZChannelOverRangeScope
+00000000000ebf90 d OZChannelObjectRootBaseScope
+00000000000ebb60 d OZMLScope
