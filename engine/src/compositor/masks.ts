@@ -94,6 +94,14 @@ export function resolveCloneImage(rctx: RenderContext, cloneSourceId: number | u
   // media). Together these guards match FCP on BOTH Swing (B shows) and 3D_Rectangle (dead chain culled).
   if (src.source?.type === 'transitionA') return rctx.imageA;
   if (src.source?.type === 'transitionB') return rctx.imageB;
+  // An EMPTY drop-zone node (its clip has no media) still feeds its BOUND A/B transition media to a
+  // CLONE — the clone samples the drop-zone's resolved output, not the clip's missing-media placeholder.
+  // The node's Drop Zone Type (id 321) is carried on the empty source as dropZoneAB. DECODED 2026-07-27
+  // on Concentric_v2: a clone of an empty-clip Type=2 B drop zone renders imageB content in FCP
+  // ([51,54,62] rings), whereas a DIRECT render of the same empty node shows the red placeholder
+  // (Switch_v4). So resolve A/B here for the clone; the direct-render placeholder path is unchanged.
+  if (src.source?.type === 'empty' && src.source.dropZoneAB === 'A') return rctx.imageA;
+  if (src.source?.type === 'empty' && src.source.dropZoneAB === 'B') return rctx.imageB;
   // Any OTHER node whose OWN scenenode is disabled (a disabled clone or a disabled non-transition
   // media node such as a hidden Link/mask driver) is inert as a source of clone pixels. Same
   // principle as the disabled-Link-driver rule (evaluator/links.ts).

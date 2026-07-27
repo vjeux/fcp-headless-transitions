@@ -93,20 +93,20 @@ export function parseFootageClipAB(sceneEl: Element, factories: Map<number, stri
       // A clip WITH <missingWidth>/<missingHeight> is a REAL but unloaded, DIMENSIONED drop zone
       // (Reflection _t_refl_np Type=2 B 1200×1200) that FCP renders as its A/B content — NOT 'E'.
       const relRaw = getTextContent(clip, 'relativeURL');
-      // A clip is a REAL DIMENSIONED drop zone (unfilled but sized) when it has a POSITIVE
-      // <missingWidth> OR <missingHeight> — a media WELL exists, so FCP resolves it to A/B content
-      // (a value that clones/replicators display), NOT the empty placeholder. DECODED 2026-07-27 on
-      // Replicator-Clones/Concentric's re-minimized repro (Concentric_v2): its Type=2 B clip (real
-      // clip carries missingWidth=1200+missingHeight=1200; the minimizer stripped the width leaving
-      // <missingHeight>1200</missingHeight> only) renders FCP CONTENT — concentric clone rings of B
-      // (bright centre on black, mean [51,54,62]) — NOT red. So a single positive missing dimension is
-      // enough to mark a real drop zone. A clip with NO pathURL/relativeURL AND NO positive missing
-      // dim is TRULY EMPTY → the missing-media placeholder (red at DV canvas / black with sceneSettings;
-      // bare committed repros _t_3dr/DropIn_v3/Squares_v2 stay empty). Reflection _t_refl_np (both
-      // dims 1200) stays a real B. NAME is irrelevant (Drop_In's named-but-media-less clip → red).
+      // A clip is a REAL DIMENSIONED drop zone (unfilled but sized) only when it carries BOTH a
+      // positive <missingWidth> AND <missingHeight> — a complete media WELL. A single dimension
+      // (or neither) with no pathURL/relativeURL is TRULY EMPTY → FCP paints the missing-media
+      // placeholder (red at the DV/no-sceneSettings canvas, black with sceneSettings). DECODED
+      // 2026-07-27 on Movements/Switch's re-minimized repro (Switch_v4): a DIRECT Transition-A image
+      // whose clip lost its pathURL + missingWidth to the minimizer (only <missingHeight>1200> left)
+      // renders FCP RED [204,0,0] — an empty placeholder, NOT imageA. The earlier "any single positive
+      // dim = real" rule wrongly bound it to imageA. Reflection _t_refl_np (BOTH dims 1200) stays a real
+      // drop zone. NOTE: a CLONE of a Transition-A/B node still resolves imageA/imageB content even when
+      // the underlying clip is 'E' — the clone samples the drop-zone NODE's bound media, not the clip
+      // placeholder (Concentric's ring clones), handled in the clone-resolution path, not here.
       const mw = parseFloat(getTextContent(clip, 'missingWidth') || '');
       const mh = parseFloat(getTextContent(clip, 'missingHeight') || '');
-      const hasMissingBox = (isFinite(mw) && mw > 0) || (isFinite(mh) && mh > 0);
+      const hasMissingBox = isFinite(mw) && mw > 0 && isFinite(mh) && mh > 0;
       const isEmptyClip = !path && !(relRaw && relRaw.trim()) && !hasMissingBox;
       clips.push({ id, path, name, empty: isEmptyClip });
       // Capture the drop-zone media box's Fixed Height (Object → id 115). Motion
@@ -927,7 +927,18 @@ export function determineImageSource(params: Parameter[], el: Element | undefine
     // TRULY-EMPTY clip (no pathURL/relativeURL/name): unresolvable media → FCP renders nothing
     // (empty → black). Return an 'empty' source so the compositor draws no pixels (NOT a fallback
     // to imageA). DECODED 2026-07-27 (headless probes on empty-media images with sceneSettings).
-    if (which === 'E') return { type: 'empty' };
+    // BUT preserve the node's Drop Zone Type (Object id=2 → Type id=321: 1=A, 2=B) on the empty
+    // source: a DIRECT render of an empty drop zone shows the missing-media placeholder (red/black),
+    // yet a CLONE of that same Transition-A/B drop-zone NODE still resolves imageA/imageB — the clone
+    // samples the drop-zone's BOUND transition media, not the clip placeholder. DECODED 2026-07-27 on
+    // Concentric_v2 (clone of an empty-clip Type=2 B → FCP content [51,54,62]) vs Switch_v4 (DIRECT
+    // empty-clip Type=1 A → FCP red). resolveCloneImage reads dropZoneAB to yield A/B for clones.
+    if (which === 'E') {
+      const objP = params.find(p => p.id === 2 && (p.name === 'Object' || p.name === undefined || p.name === ''));
+      const typeP = objP?.children?.find(p => p.id === 321);
+      const t = typeof typeP?.value === 'number' ? typeP.value : undefined;
+      return { type: 'empty', dropZoneAB: t === 1 ? 'A' : t === 2 ? 'B' : undefined };
+    }
     return which === 'A' ? { type: 'transitionA' } : { type: 'transitionB' };
   }
   // Bundled template media (a PNG in the template's Media/ folder, e.g. Slide's

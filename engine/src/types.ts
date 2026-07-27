@@ -188,7 +188,7 @@ export type ImageSource =
   | { type: 'lensFlare'; flare: LensFlareConfig }
   | { type: 'linearGradient'; gradient: LinearGradientConfig }
   | { type: 'placeholder' }
-  | { type: 'empty' }
+  | { type: 'empty'; dropZoneAB?: 'A' | 'B' }
   | { type: 'color'; r: number; g: number; b: number; a: number };
 
 /**
