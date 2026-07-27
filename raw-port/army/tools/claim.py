@@ -65,6 +65,9 @@ def _candidates():
         for cls, ms in led.items():
             if cls in done or cls in SHARED: continue
             if cls == "(free)" or any(b in cls for b in BAD_SUB) or any(t in cls for t in BAD_TOK): continue
+            # Skip ledger files that use a different schema (e.g. shaders.ledger.json
+            # is class -> {fw:str,lib:str,status:str}, not class -> methods dict).
+            if not all(isinstance(v, dict) for v in ms.values()): continue
             n = len(ms); todo = sum(1 for v in ms.values() if v.get("status") != "ported")
             if todo != n: continue          # partially ported already — skip (avoid churn)
             if not (2 <= n <= 12): continue  # small leaves only
