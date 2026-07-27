@@ -71,6 +71,59 @@ export function scurveInterpolate(t: CMTime, a: OZKeypoint, b: OZKeypoint): numb
   return valA * (1 - fp) + valB * fp;
 }
 
+/**
+ * OZConvexInterpolator::interpolate(OZSpline& sp, CMTime t, vA, vB, ...)  @ProChannel 0xaae4a.
+ * Fully decoded (constants + both trig fns + the branch predicate resolved from the binary):
+ *   f = (CMTimeGetSeconds(te) - tA)/(tB - tA);  x = fround(f * (PI/2))   (const @0xaf578 = π/2)
+ *   The branch (ucomisd valB, valA @0xaaf66; jbe = valB <= valA) picks the trig so the segment
+ *   always bulges CONVEX regardless of rise/fall direction:
+ *     valB >  valA (rising):  s = sinf(x);  result = valA*(1 - s) + valB*s
+ *     valB <= valA (falling): c = cosf(x);  result = valB*(1 - c) + valA*c
+ *   (consts @0xaf528 = 1.0; sinf @0xacf84, cosf @0xaced6; single-precision -> Math.fround.)
+ */
+export function convexInterpolate(t: CMTime, a: OZKeypoint, b: OZKeypoint): number {
+  const tA = CMTimeGetSeconds(a.u), tB = CMTimeGetSeconds(b.u);
+  const te = easeTime_identity(t, a, b);
+  const den = tB - tA;
+  const valA = a.value, valB = b.value;
+  if (den === 0) return valA;
+  const f = (CMTimeGetSeconds(te) - tA) / den;
+  const x = Math.fround(f * (Math.PI / 2)); // cvtsd2ss(f * π/2)
+  if (valB > valA) {
+    const s = Math.fround(Math.sin(x)); // sinf(x)
+    return valA * (1 - s) + valB * s;
+  } else {
+    const c = Math.fround(Math.cos(x)); // cosf(x)
+    return valB * (1 - c) + valA * c;
+  }
+}
+
+/**
+ * OZConcaveInterpolator::interpolate(OZSpline& sp, CMTime t, vA, vB, ...)  @ProChannel 0xab0de.
+ * Mirror of Convex — the segment always dips CONCAVE. Fully decoded (same π/2 scale + trig, opposite
+ * pairing; branch ucomisd valB,valA @0xab1fa; jbe = valB <= valA):
+ *   f = (secs(te)-tA)/(tB-tA);  x = fround(f * (PI/2))
+ *   valB >  valA (rising):  c = cosf(x);  result = valA*c + valB*(1 - c)    [= valA + (valB-valA)*(1-cos x)]
+ *   valB <= valA (falling): s = sinf(x);  result = valA*(1 - s) + valB*s
+ *   (const @0xaf578 = π/2, @0xaf528 = 1.0; cosf @0xaced6, sinf @0xacf84; single-precision.)
+ */
+export function concaveInterpolate(t: CMTime, a: OZKeypoint, b: OZKeypoint): number {
+  const tA = CMTimeGetSeconds(a.u), tB = CMTimeGetSeconds(b.u);
+  const te = easeTime_identity(t, a, b);
+  const den = tB - tA;
+  const valA = a.value, valB = b.value;
+  if (den === 0) return valA;
+  const f = (CMTimeGetSeconds(te) - tA) / den;
+  const x = Math.fround(f * (Math.PI / 2)); // cvtsd2ss(f * π/2)
+  if (valB > valA) {
+    const c = Math.fround(Math.cos(x)); // cosf(x)
+    return valA * c + valB * (1 - c);
+  } else {
+    const s = Math.fround(Math.sin(x)); // sinf(x)
+    return valA * (1 - s) + valB * s;
+  }
+}
+
 // --- Interpolator dispatch: type-id -> which interpolate function --------------------------------
 // Faithful transcription of OZInterpolators::getInterpolator(uint) @0x447a6 +
 // OZInterpolatorStrategies::getInterpolator(uint) @0x44ddc. Decode (re/INTERPOLATION_TYPES.md):
@@ -135,7 +188,9 @@ export function sampleCurveValue(
         case "constant": return a.value;              // OZConstantInterpolator: hold left value
         case "linear":   return linearInterpolate(t, a, b);
         case "scurve":   return scurveInterpolate(t, a, b);
-        // Bezier/CatmullRom/Convex/Concave/XSpline/BSpline: transcriptions pending — do NOT
+        case "convex":   return convexInterpolate(t, a, b);
+        case "concave":  return concaveInterpolate(t, a, b);
+        // Bezier/CatmullRom/XSpline/BSpline: transcriptions pending — do NOT
         // silently approximate. Throw so an un-transcribed interpolator is a loud, visible gap.
         default:
           throw new Error(`interpolator '${kind}' (type ${type}) not yet transcribed`);
