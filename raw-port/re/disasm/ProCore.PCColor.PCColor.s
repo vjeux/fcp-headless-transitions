@@ -1,0 +1,5 @@
+__ZN7PCColorC1EP7NSColor:
+0000000000078088	pushq	%rbp
+0000000000078089	movq	%rsp, %rbp
+000000000007808c	popq	%rbp
+000000000007808d	jmp	__ZN7PCColorC2EP7NSColor        ## PCColor::PCColor(NSColor*)
