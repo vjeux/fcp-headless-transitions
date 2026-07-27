@@ -1,0 +1,632 @@
+[
+{
+"scope": "OZFactoryScope",
+"tag": 92,
+"id": 0,
+"name": "factory"
+},
+{
+"scope": "OZFactoryScope",
+"tag": 92,
+"id": 111,
+"name": "id"
+},
+{
+"scope": "OZFactoryScope",
+"tag": 92,
+"id": 117,
+"name": "uuid"
+},
+{
+"scope": "OZFactoryScope",
+"tag": 93,
+"id": 0,
+"name": "description"
+},
+{
+"scope": "OZFactoryScope",
+"tag": 94,
+"id": 0,
+"name": "version"
+},
+{
+"scope": "OZChannelScope",
+"tag": 110,
+"id": 0,
+"name": "parameter"
+},
+{
+"scope": "OZChannelScope",
+"tag": 110,
+"id": 113,
+"name": "factoryID"
+},
+{
+"scope": "OZChannelScope",
+"tag": 110,
+"id": 110,
+"name": "name"
+},
+{
+"scope": "OZChannelScope",
+"tag": 110,
+"id": 111,
+"name": "id"
+},
+{
+"scope": "OZChannelScope",
+"tag": 110,
+"id": 112,
+"name": "flags"
+},
+{
+"scope": "OZChannelScope",
+"tag": 110,
+"id": 114,
+"name": "value"
+},
+{
+"scope": "OZChannelScope",
+"tag": 110,
+"id": 115,
+"name": "default"
+},
+{
+"scope": "OZChannelScope",
+"tag": 119,
+"id": 0,
+"name": "fadeInOffset"
+},
+{
+"scope": "OZChannelScope",
+"tag": 120,
+"id": 0,
+"name": "fadeOutOffset"
+},
+{
+"scope": "OZChannelScope",
+"tag": 130,
+"id": 0,
+"name": "fadeInCurve"
+},
+{
+"scope": "OZChannelScope",
+"tag": 131,
+"id": 0,
+"name": "fadeOutCurve"
+},
+{
+"scope": "OZCurveScope",
+"tag": 118,
+"id": 0,
+"name": "curve"
+},
+{
+"scope": "OZCurveScope",
+"tag": 118,
+"id": 1,
+"name": "value"
+},
+{
+"scope": "OZCurveScope",
+"tag": 118,
+"id": 4,
+"name": "type"
+},
+{
+"scope": "OZCurveScope",
+"tag": 118,
+"id": 5,
+"name": "parametric"
+},
+{
+"scope": "OZCurveScope",
+"tag": 118,
+"id": 6,
+"name": "round"
+},
+{
+"scope": "OZCurveScope",
+"tag": 118,
+"id": 7,
+"name": "retimingExtrapolation"
+},
+{
+"scope": "OZCurveScope",
+"tag": 118,
+"id": 8,
+"name": "default"
+},
+{
+"scope": "OZCurveScope",
+"tag": 51,
+"id": 0,
+"name": "postExtrapolation"
+},
+{
+"scope": "OZCurveScope",
+"tag": 52,
+"id": 0,
+"name": "preExtrapolation"
+},
+{
+"scope": "OZCurveScope",
+"tag": 64,
+"id": 0,
+"name": "min"
+},
+{
+"scope": "OZCurveScope",
+"tag": 65,
+"id": 0,
+"name": "max"
+},
+{
+"scope": "OZCurveScope",
+"tag": 53,
+"id": 0,
+"name": "keypoint"
+},
+{
+"scope": "OZCurveScope",
+"tag": 54,
+"id": 0,
+"name": "time"
+},
+{
+"scope": "OZCurveScope",
+"tag": 55,
+"id": 0,
+"name": "value"
+},
+{
+"scope": "OZCurveScope",
+"tag": 56,
+"id": 0,
+"name": "inputTangentTime"
+},
+{
+"scope": "OZCurveScope",
+"tag": 57,
+"id": 0,
+"name": "inputTangentValue"
+},
+{
+"scope": "OZCurveScope",
+"tag": 58,
+"id": 0,
+"name": "outputTangentTime"
+},
+{
+"scope": "OZCurveScope",
+"tag": 59,
+"id": 0,
+"name": "outputTangentValue"
+},
+{
+"scope": "OZCurveScope",
+"tag": 60,
+"id": 0,
+"name": "bias"
+},
+{
+"scope": "OZCurveScope",
+"tag": 61,
+"id": 0,
+"name": "closed"
+},
+{
+"scope": "OZCurveScope",
+"tag": 53,
+"id": 9,
+"name": "enabled"
+},
+{
+"scope": "OZCurveScope",
+"tag": 53,
+"id": 10,
+"name": "interpolation"
+},
+{
+"scope": "OZCurveScope",
+"tag": 53,
+"id": 11,
+"name": "flags"
+},
+{
+"scope": "OZCurveScope",
+"tag": 62,
+"id": 0,
+"name": "numberOfKeypoints"
+},
+{
+"scope": "OZChannelBaseScope",
+"tag": 110,
+"id": 0,
+"name": "parameter"
+},
+{
+"scope": "OZChannelBaseScope",
+"tag": 110,
+"id": 113,
+"name": "factoryID"
+},
+{
+"scope": "OZChannelBaseScope",
+"tag": 110,
+"id": 110,
+"name": "name"
+},
+{
+"scope": "OZChannelBaseScope",
+"tag": 110,
+"id": 118,
+"name": "internalName"
+},
+{
+"scope": "OZChannelBaseScope",
+"tag": 110,
+"id": 111,
+"name": "id"
+},
+{
+"scope": "OZChannelBaseScope",
+"tag": 110,
+"id": 112,
+"name": "flags"
+},
+{
+"scope": "OZChannelBaseScope",
+"tag": 112,
+"id": 0,
+"name": "flags"
+},
+{
+"scope": "OZChannelBaseReadScope",
+"tag": 112,
+"id": 0,
+"name": "flags"
+},
+{
+"scope": "OZMLScope",
+"tag": 90,
+"id": 0,
+"name": "xmeml"
+},
+{
+"scope": "OZMLScope",
+"tag": 91,
+"id": 0,
+"name": "ozml"
+},
+{
+"scope": "OZMLScope",
+"tag": 91,
+"id": 116,
+"name": "version"
+},
+{
+"scope": "OZMLScope",
+"tag": 93,
+"id": 0,
+"name": "description"
+},
+{
+"scope": "OZMLScope",
+"tag": 94,
+"id": 0,
+"name": "version"
+},
+{
+"scope": "OZMLScope",
+"tag": 95,
+"id": 0,
+"name": "manufacturer"
+},
+{
+"scope": "OZMLScope",
+"tag": 92,
+"id": 0,
+"name": "factory"
+},
+{
+"scope": "OZMLScope",
+"tag": 92,
+"id": 111,
+"name": "id"
+},
+{
+"scope": "OZMLScope",
+"tag": 92,
+"id": 117,
+"name": "uuid"
+},
+{
+"scope": "OZMLScope",
+"tag": 110,
+"id": 0,
+"name": "parameter"
+},
+{
+"scope": "OZMLScope",
+"tag": 110,
+"id": 110,
+"name": "name"
+},
+{
+"scope": "OZMLScope",
+"tag": 110,
+"id": 111,
+"name": "id"
+},
+{
+"scope": "OZMLScope",
+"tag": 110,
+"id": 112,
+"name": "flags"
+},
+{
+"scope": "OZMLScope",
+"tag": 110,
+"id": 114,
+"name": "value"
+},
+{
+"scope": "OZMLScope",
+"tag": 110,
+"id": 115,
+"name": "default"
+},
+{
+"scope": "OZMLScope",
+"tag": 110,
+"id": 113,
+"name": "factoryID"
+},
+{
+"scope": "OZChannelBlindDataScope",
+"tag": 110,
+"id": 0,
+"name": "parameter"
+},
+{
+"scope": "OZChannelBlindDataScope",
+"tag": 110,
+"id": 113,
+"name": "factoryID"
+},
+{
+"scope": "OZChannelBlindDataScope",
+"tag": 110,
+"id": 110,
+"name": "name"
+},
+{
+"scope": "OZChannelBlindDataScope",
+"tag": 110,
+"id": 111,
+"name": "id"
+},
+{
+"scope": "OZChannelBlindDataScope",
+"tag": 110,
+"id": 112,
+"name": "flags"
+},
+{
+"scope": "OZChannelBlindDataScope",
+"tag": 110,
+"id": 114,
+"name": "value"
+},
+{
+"scope": "OZChannelBlindDataScope",
+"tag": 1,
+"id": 0,
+"name": "numberOfKeypoints"
+},
+{
+"scope": "OZChannelBlindDataScope",
+"tag": 2,
+"id": 0,
+"name": "keypoint"
+},
+{
+"scope": "OZChannelBlindDataScope",
+"tag": 3,
+"id": 0,
+"name": "time"
+},
+{
+"scope": "OZChannelBlindDataScope",
+"tag": 4,
+"id": 0,
+"name": "value"
+},
+{
+"scope": "OZChannelBlindDataScope",
+"tag": 5,
+"id": 0,
+"name": "defaultVal"
+},
+{
+"scope": "OZChannelScope",
+"tag": 8,
+"id": 0,
+"name": "closed"
+},
+{
+"scope": "OZChannelScope",
+"tag": 1000,
+"id": 0,
+"name": "index"
+},
+{
+"scope": "OZChannelScope",
+"tag": 122,
+"id": 0,
+"name": "vertex_folder"
+},
+{
+"scope": "OZChannelScope",
+"tag": 1,
+"id": 0,
+"name": "curve_X"
+},
+{
+"scope": "OZChannelScope",
+"tag": 2,
+"id": 0,
+"name": "curve_Y"
+},
+{
+"scope": "OZChannelScope",
+"tag": 123,
+"id": 0,
+"name": "vertex"
+},
+{
+"scope": "OZChannelScope",
+"tag": 123,
+"id": 5,
+"name": "index"
+},
+{
+"scope": "OZChannelScope",
+"tag": 123,
+"id": 7,
+"name": "id"
+},
+{
+"scope": "OZChannelFolderScope",
+"tag": 110,
+"id": 0,
+"name": "parameter"
+},
+{
+"scope": "OZChannelFolderScope",
+"tag": 110,
+"id": 110,
+"name": "name"
+},
+{
+"scope": "OZChannelFolderScope",
+"tag": 110,
+"id": 111,
+"name": "id"
+},
+{
+"scope": "OZChannelFolderScope",
+"tag": 110,
+"id": 112,
+"name": "flags"
+},
+{
+"scope": "OZChannelFolderScope",
+"tag": 110,
+"id": 113,
+"name": "factoryID"
+},
+{
+"scope": "OZChannelFolderScope",
+"tag": 110,
+"id": 114,
+"name": "value"
+},
+{
+"scope": "OZChannelFolderScope",
+"tag": 110,
+"id": 115,
+"name": "default"
+},
+{
+"scope": "OZChannelObjectRootBaseScope",
+"tag": 150,
+"id": 0,
+"name": "timing"
+},
+{
+"scope": "OZChannelObjectRootBaseScope",
+"tag": 150,
+"id": 1,
+"name": "in"
+},
+{
+"scope": "OZChannelObjectRootBaseScope",
+"tag": 150,
+"id": 2,
+"name": "out"
+},
+{
+"scope": "OZChannelObjectRootBaseScope",
+"tag": 150,
+"id": 3,
+"name": "offset"
+},
+{
+"scope": "OZChannelObjectRootBaseScope",
+"tag": 151,
+"id": 0,
+"name": "foldFlags"
+},
+{
+"scope": "OZChannelObjectRootBaseScope",
+"tag": 152,
+"id": 0,
+"name": "baseFlags"
+},
+{
+"scope": "OZChannelTextScope",
+"tag": 114,
+"id": 0,
+"name": "text"
+},
+{
+"scope": "OZChannelVertexFolderScope",
+"tag": 122,
+"id": 0,
+"name": "vertex_folder"
+},
+{
+"scope": "OZChannelVertexFolderScope",
+"tag": 122,
+"id": 110,
+"name": "name"
+},
+{
+"scope": "OZChannelVertexFolderScope",
+"tag": 122,
+"id": 111,
+"name": "id"
+},
+{
+"scope": "OZChannelVertexFolderScope",
+"tag": 122,
+"id": 112,
+"name": "flags"
+},
+{
+"scope": "OZChannelVertexFolderScope",
+"tag": 122,
+"id": 113,
+"name": "factoryID"
+},
+{
+"scope": "OZChannelVertexFolderScope",
+"tag": 122,
+"id": 114,
+"name": "value"
+},
+{
+"scope": "OZChannelVertexFolderScope",
+"tag": 122,
+"id": 115,
+"name": "default"
+},
+{
+"scope": "OZChannelVertexFolderScope",
+"tag": 111,
+"id": 0,
+"name": "foldFlags"
+}
+]
