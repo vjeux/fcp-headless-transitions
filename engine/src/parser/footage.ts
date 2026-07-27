@@ -93,7 +93,14 @@ export function parseFootageClipAB(sceneEl: Element, factories: Map<number, stri
       // A clip WITH <missingWidth>/<missingHeight> is a REAL but unloaded, DIMENSIONED drop zone
       // (Reflection _t_refl_np Type=2 B 1200×1200) that FCP renders as its A/B content — NOT 'E'.
       const relRaw = getTextContent(clip, 'relativeURL');
-      const hasMissingBox = !!getTextContent(clip, 'missingWidth') || !!getTextContent(clip, 'missingHeight');
+      // A clip is DIMENSIONED (a real, unfilled-but-sized drop zone) only when missingWidth/Height
+      // parse to a POSITIVE number. A <missingHeight>0</missingHeight> (or absent) is NOT a real box
+      // — it is still empty. DECODED 2026-07-27 on Drop_In's re-minimized repro: clip with
+      // <missingHeight>0</missingHeight> and no pathURL renders FCP red [204,0,0] (empty), but a naive
+      // presence check treated the "0" text as a real box and bound it to imageA (photo).
+      const mw = parseFloat(getTextContent(clip, 'missingWidth') || '');
+      const mh = parseFloat(getTextContent(clip, 'missingHeight') || '');
+      const hasMissingBox = (isFinite(mw) && mw > 0) || (isFinite(mh) && mh > 0);
       const isEmptyClip = !path && !(relRaw && relRaw.trim()) && !hasMissingBox;
       clips.push({ id, path, name, empty: isEmptyClip });
       // Capture the drop-zone media box's Fixed Height (Object → id 115). Motion
