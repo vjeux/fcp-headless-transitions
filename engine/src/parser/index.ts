@@ -745,14 +745,33 @@ export function parseMotr(xmlText: string): MotrScene {
   // 2. Find the <scene> element
   const sceneEl = firstChild(root, 'scene');
   if (!sceneEl) {
-    return { settings: { width: 1920, height: 1080, duration: { value: 200200, timescale: 120000 }, frameRate: 24 }, layers: [], factories, rigWidgets: [], rigBehaviors: [], sceneBehaviors: [] };
+    // No <scene> at all → FCP default project format 720×486 (see canvas-format rule below).
+    return { settings: { width: 720, height: 486, duration: { value: 200200, timescale: 120000 }, frameRate: 24 }, layers: [], factories, rigWidgets: [], rigBehaviors: [], sceneBehaviors: [] };
   }
 
   // 3. Parse scene settings from <sceneSettings>
   const ssEl = firstChild(sceneEl, 'sceneSettings');
-  const width = ssEl ? getIntContent(ssEl, 'width', 1920) : 1920;
-  const height = ssEl ? getIntContent(ssEl, 'height', 1080) : 1080;
+  // FCP CANVAS-FORMAT RULE (DECODED 2026-07-26 via controlled FCP-headless probes):
+  // FCP honors the scene's authored <width>×<height> ONLY when <sceneSettings> contains
+  // ALL FOUR of {width, height, pixelAspectRatio, frameRate}. If ANY of those is absent
+  // (or there is no <sceneSettings> at all), FCP falls back to its default project format
+  // 720×486 (NTSC-DV / D1, 4:3). Verified: w+h+PAR+frameRate → authored (1920×1080; 1280×720
+  // honored too, so it's the authored value not a fixed constant); w+h+frameRate (no PAR) →
+  // 720×486; w+h+PAR (no frameRate) → 720×486; w+h+duration+frameRate (no PAR) → 720×486;
+  // width+PAR+frameRate (no height) → 720×486; empty/absent sceneSettings → 720×486. Duration
+  // is NOT required. The engine previously defaulted a missing width/height to 1920×1080, so a
+  // .motr with an incomplete format (common after minimization strips sceneSettings fields)
+  // rendered at 1920×1080 while FCP rendered 720×486 — a real divergence, now matched.
+  const DEFAULT_W = 720, DEFAULT_H = 486;
+  const hasFormat = !!ssEl
+    && getTextContent(ssEl, 'width') !== null
+    && getTextContent(ssEl, 'height') !== null
+    && getTextContent(ssEl, 'pixelAspectRatio') !== null
+    && getTextContent(ssEl, 'frameRate') !== null;
+  const width = hasFormat ? getIntContent(ssEl!, 'width', DEFAULT_W) : DEFAULT_W;
+  const height = hasFormat ? getIntContent(ssEl!, 'height', DEFAULT_H) : DEFAULT_H;
   const frameRate = ssEl ? getFloatContent(ssEl, 'frameRate', 30) : 30;
+
 
   // Duration: compute from sceneSettings frames + frameRate.
   // sceneSettings.duration is in FRAMES. Convert to a rational time.
