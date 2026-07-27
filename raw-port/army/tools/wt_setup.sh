@@ -1,0 +1,27 @@
+#!/bin/bash
+# wt_setup.sh <agentTag> — create an ISOLATED git worktree+branch for one port-agent.
+# Overhead (measured on this repo): ~0.07s create, ~0.15s checkout, ~12M disk (raw-port only);
+# the .git object store is SHARED (not copied) so N worktrees add N*12M, not N*3G.
+# Agents work + commit + gate ENTIRELY inside their worktree. A serialized merge-queue (wt_merge.sh)
+# fast-forwards green branches into main. No shared index, no push races, no peer clobbering.
+set -euo pipefail
+TAG="${1:?usage: wt_setup.sh <agentTag>}"
+REPO="$(cd "$(dirname "$0")/../../.." && pwd)"          # main checkout
+WT="$REPO/raw-port/army/worktrees/$TAG"
+BR="port/$TAG"
+cd "$REPO"
+git fetch -q origin 2>/dev/null || true
+# fresh branch off the latest origin/main; reuse if it already exists (resume)
+if git worktree list --porcelain | grep -q "worktree $WT"; then
+  echo "worktree exists: $WT (branch $BR) — resuming"
+else
+  git show-ref --verify -q "refs/heads/$BR" && git branch -q -D "$BR" 2>/dev/null || true
+  git worktree add -q -b "$BR" "$WT" origin/main
+fi
+# Symlink the gitignored heavy runtime deps so tsc + the oracle work WITHOUT copying 500M+:
+#   engine/node_modules (tsc), raw-port/node_modules (tsx), venv (oracle python), fct/parity reports dir
+ln -sfn "$REPO/engine/node_modules"   "$WT/engine/node_modules"   2>/dev/null || true
+ln -sfn "$REPO/raw-port/node_modules" "$WT/raw-port/node_modules" 2>/dev/null || true
+ln -sfn "$REPO/venv"                  "$WT/venv"                  2>/dev/null || true
+echo "WORKTREE READY: $WT  (branch $BR, based on origin/main)"
+echo "cd $WT && do all work here; commit to $BR; then: raw-port/army/tools/wt_merge.sh $TAG"

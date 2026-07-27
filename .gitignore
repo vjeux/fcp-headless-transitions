@@ -45,3 +45,4 @@ engine/node_modules
 fct/minimized/*/engine/
 fct/minimized/*/_slugmap.json
 fct/subswarm/results/*.json
+raw-port/army/worktrees/

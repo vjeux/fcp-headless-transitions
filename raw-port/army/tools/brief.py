@@ -13,7 +13,7 @@ print(f"""TASK: faithfully transcribe FCP class {cls} ({fw}) to TypeScript — {
 Repo /Users/vjeux/random/final-cut-pro-transitions (work in raw-port/).
 READ FIRST (mandatory): raw-port/army/PORTING_SPEC.md — cite @0xADDR on every fn, NEVER invent,
 THROW on undecoded, Math.fround single-precision, one class per file. Violations rejected.
-CLAIM before editing: write raw-port/army/claims/{fw}.{cls.replace('::','_')}.claim (agent id + UTC).
+ISOLATE FIRST (no shared-tree collisions): run `bash raw-port/army/tools/wt_setup.sh {short}` — it makes an isolated git worktree+branch port/{short} at raw-port/army/worktrees/{short}. cd into THAT worktree and do ALL work there. Never edit/commit in the main checkout.
 TARGET FILE: raw-port/src/<layer>/{fname}.ts  (layer = infra | channels | nodes | render).
 
 METHODS:
@@ -32,5 +32,4 @@ GATE (MANDATORY — a shortcut cannot land): before committing, run
    is fuzzed against the REAL FCP symbol via dlsym and must match bit-for-bit. You cannot fake that;
    the only way to pass is a correct transcription. If your class maps to a parity node, add it to
    raw-port/army/gate/oracle_map.json so the oracle covers it.
-COMMIT+PUSH one class per commit ("raw-port: transcribe {cls} @<addrs>") citing addrs + verification.
-Delete your claim file. Report completed addresses + any new frontier callees you hit.""")
+COMMIT to YOUR branch inside YOUR worktree ("raw-port: transcribe {cls} @<addrs>") citing addrs + the gate result. Do NOT push to main and do NOT touch the main checkout. Then run `bash raw-port/army/tools/wt_merge.sh {short}` — the serialized merge queue re-gates your branch and fast-forwards it into main (rejecting it if the gate fails). Report: completed addresses, gate result, and any new frontier callee classes you hit.""")
