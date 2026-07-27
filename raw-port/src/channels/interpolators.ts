@@ -8,6 +8,7 @@
 // value-channel at vertex+0x150 — for a static keypoint that returns the stored scalar `value`).
 import { OZKeypoint } from "./OZCurve.js";
 import { CMTime, CMTimeCompare, CMTimeGetSeconds, PC_CMTimeSaferSubtract } from "../infra/CMTime.js";
+import { catmullRomInterpolate } from "./OZCatmullRomInterpolator.js";
 
 /**
  * OZInterpolator::easeTime(OZSpline&, CMTime t, vA, vB) -> CMTime   @ProChannel 0x418b2.
@@ -190,9 +191,13 @@ export function sampleCurveValue(
         case "scurve":   return scurveInterpolate(t, a, b);
         case "convex":   return convexInterpolate(t, a, b);
         case "concave":  return concaveInterpolate(t, a, b);
+        // OZCatmullRomInterpolator (@ProChannel 0x430a2, vtable 0xd6040) — ported class exists in
+        // OZCatmullRomInterpolator.ts. It faithfully throws citing its two undecoded upstream deps
+        // (OZBezierInterpolator::interpolate @0x407e6 + OZCardinalInterpolator::computeTangents
+        // @0x42ae2), rather than substituting a textbook Catmull-Rom that would diverge from FCP.
+        case "catmullRom": return catmullRomInterpolate(t, a, b);
         // Pending faithful transcriptions (decoded, not yet ported — each MUST match its disasm):
         //   bezier      OZBezierInterpolator::interpolate      @ProChannel 0x407e6
-        //   catmullRom  OZCatmullRomInterpolator::interpolate  @ProChannel 0x430a2
         //   xspline     OZXSplineInterpolator::interpolate     @ProChannel 0x45eae
         //   bspline     OZBSplineInterpolator::interpolate     @ProChannel 0x4191c
         // Never silently substitute a different curve; a loud throw is the correct behaviour.
