@@ -1,0 +1,2 @@
+# Regenerable from the binary via tools/dump_syms + build_ledger — don't bloat the repo.
+inventory/*.syms.txt

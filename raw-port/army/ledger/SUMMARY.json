@@ -1,0 +1,22 @@
+{
+  "ProChannel": {
+    "functions": 5696,
+    "classes": 850,
+    "ported": 0
+  },
+  "ProCore": {
+    "functions": 4360,
+    "classes": 917,
+    "ported": 0
+  },
+  "Ozone": {
+    "functions": 18078,
+    "classes": 2782,
+    "ported": 0
+  },
+  "Flexo": {
+    "functions": 7543,
+    "classes": 1385,
+    "ported": 0
+  }
+}
