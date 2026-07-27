@@ -739,8 +739,18 @@ export function parseMotr(xmlText: string): MotrScene {
   // walks all shapes/media and picks 720x486 vs 1920x1080. All 65 shipped transitions carry a COMPLETE
   // sceneSettings block so they are untouched; this only affects degenerate MINIMIZED repros whose
   // <sceneSettings> the minimizer stripped, so they render at the SAME canvas FCP-headless uses.
-  const width = ssEl ? getIntContent(ssEl, 'width', 1920) : 1920;
-  const height = ssEl ? getIntContent(ssEl, 'height', 1080) : 1080;
+  // An EMPTY / INCOMPLETE <sceneSettings> (present but with NO <width> or <height> child) declares
+  // NO output format — FCP treats it EXACTLY like an absent <sceneSettings> and falls back to the
+  // NTSC-DV content-bbox default (see the bbox-span block below), NOT to 1920×1080. DECODED
+  // 2026-07-27 on Stylized/Center's re-minimized repro (Center_v3): a bare <sceneSettings></sceneSettings>
+  // wrapping a single lower-left Shape renders 720×486 in FCP-headless while the engine defaulted to
+  // 1920×1080 (getIntContent returned its 1920 default because ssEl existed). Treat a format-less
+  // sceneSettings as no-sceneSettings for the canvas default: gate on the actual <width>/<height> tags,
+  // not merely ssEl's presence. All 65 shipped transitions carry a COMPLETE sceneSettings block so this
+  // is a no-op for them; it only corrects minimizer-stripped repros so they render at FCP's canvas.
+  const ssHasFormat = !!ssEl && (firstChild(ssEl, 'width') !== null || firstChild(ssEl, 'height') !== null);
+  const width = ssHasFormat ? getIntContent(ssEl!, 'width', 1920) : 1920;
+  const height = ssHasFormat ? getIntContent(ssEl!, 'height', 1080) : 1080;
   const frameRate = ssEl ? getFloatContent(ssEl, 'frameRate', 30) : 30;
 
 
@@ -1615,7 +1625,7 @@ export function parseMotr(xmlText: string): MotrScene {
   // repros (whose <sceneSettings> the minimizer strips) render at the SAME canvas FCP-headless uses,
   // instead of the engine's 1920x1080 — otherwise every stripped-sceneSettings repro fake-diverges on a
   // pure dimension mismatch and the fct minimize workflow collapses onto this corner (see fct/AUDIT).
-  if (!ssEl) {
+  if (!ssHasFormat) {
     const span = computeContentBBoxSpan(layers);
     // span undefined => no measurable vector content => DV default. Else apply the threshold.
     if (!span || (span.w <= 750 && span.h <= 558)) {
