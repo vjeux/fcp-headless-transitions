@@ -82,16 +82,19 @@ export function parseFootageClipAB(sceneEl: Element, factories: Map<number, stri
       if (!id) continue;
       const path = (getTextContent(clip, 'pathURL') || '').toLowerCase();
       const name = (clip.getAttribute('name') || '').toLowerCase();
-      // A clip is TRULY EMPTY when it carries NO pathURL, NO relativeURL, NO name, AND no
-      // missingWidth/missingHeight box — its media is entirely unresolvable, so FCP renders
-      // nothing (empty → black with sceneSettings; the DV-canvas red variant is separate).
-      // A clip WITH <missingWidth>/<missingHeight> is a REAL but unloaded drop-zone (dimensioned
-      // media well, e.g. Reflection's Type=2 B clip 1999871172 missing 1200x1200) that FCP still
-      // renders as its A/B content — such a clip must stay in the A/B classification, NOT 'E'.
-      // DECODED 2026-07-27 (headless probes: bare-empty clip → black/red; missingW/H clip → B).
+      // A clip is TRULY EMPTY when it carries NO ACTUAL MEDIA — no pathURL, no relativeURL, and no
+      // <missingWidth>/<missingHeight> dimensioned media well. Its media is unresolvable, so FCP
+      // renders a missing-media PLACEHOLDER (red [204,0,0] at the DV/no-sceneSettings canvas, black
+      // with sceneSettings), NOT the user's A/B media. The clip's NAME is IRRELEVANT: DECODED
+      // 2026-07-27 on Movements/Drop_In's re-minimized repro — a clip NAMED "Drop Zone Transition B"
+      // but with NO pathURL still renders RED in FCP-headless (the engine's name-based A/B classifier
+      // wrongly bound it to imageB → photo). So emptiness keys ONLY on the absence of real media, and
+      // an empty clip must be excluded from BOTH the name/path A/B classifier AND the order-fallback.
+      // A clip WITH <missingWidth>/<missingHeight> is a REAL but unloaded, DIMENSIONED drop zone
+      // (Reflection _t_refl_np Type=2 B 1200×1200) that FCP renders as its A/B content — NOT 'E'.
       const relRaw = getTextContent(clip, 'relativeURL');
       const hasMissingBox = !!getTextContent(clip, 'missingWidth') || !!getTextContent(clip, 'missingHeight');
-      const isEmptyClip = !path && !name && !(relRaw && relRaw.trim()) && !hasMissingBox;
+      const isEmptyClip = !path && !(relRaw && relRaw.trim()) && !hasMissingBox;
       clips.push({ id, path, name, empty: isEmptyClip });
       // Capture the drop-zone media box's Fixed Height (Object → id 115). Motion
       // conforms the drop-zone source to this box; Drop In uses it to size the
@@ -134,11 +137,26 @@ export function parseFootageClipAB(sceneEl: Element, factories: Map<number, stri
   }
   let sawA = false, sawB = false;
   for (const c of clips) {
+    // An EMPTY clip (no real media) is NEVER A/B even if its NAME says "Transition A/B" — with no
+    // pathURL the media is unresolvable and FCP renders the missing-media placeholder, not photo A/B.
+    // (DECODED 2026-07-27: Drop_In's re-minimized clip name="Drop Zone Transition B" no pathURL → red.)
+    if (c.empty) continue;
     if (/transition\s*a\b|drop zone transition a| a\.tiff|\ba\.|source a/.test(c.path) || /transition\s*a\b|\ba\b/.test(c.name)) {
       map.set(c.id, 'A'); sawA = true;
     } else if (/transition\s*b\b|drop zone transition b| b\.tiff|\bb\.|source b/.test(c.path) || /transition\s*b\b|\bb\b/.test(c.name)) {
       map.set(c.id, 'B'); sawB = true;
     }
+  }
+  // TRULY-EMPTY clips (no pathURL/relativeURL, no missing-dims) are unresolvable media → FCP
+  // renders a missing-media placeholder (red [204,0,0] at DV canvas / black with sceneSettings),
+  // NOT the user's A/B media and NOT the gray 'Drop Zone' placeholder card. Mark them 'E' FIRST —
+  // BEFORE the generic 'Drop Zone' → 'P' loop below — because an empty clip named "Drop Zone
+  // Transition B" would otherwise be caught by the "drop zone" name test and wrongly painted gray.
+  // Also excluded from the A/B order-fallback. DECODED 2026-07-27 (headless probes: bare-empty clip
+  // → red/black; a real stripped A/B clip keeps its "…Transition A/B.tiff" pathURL so is never empty).
+  for (const c of clips) {
+    if (map.has(c.id)) continue;
+    if (c.empty) map.set(c.id, 'E');
   }
   // Generic "Drop Zone" clips (name/path "Drop Zone" WITHOUT an A/B designation)
   // are UNFILLED placeholder drop zones. FCP renders them as a neutral-gray
@@ -154,17 +172,6 @@ export function parseFootageClipAB(sceneEl: Element, factories: Map<number, stri
     if (/drop\s*zone/.test(c.name) || /drop\s*zone/.test(c.path)) {
       map.set(c.id, 'P');
     }
-  }
-  // TRULY-EMPTY clips (no pathURL/relativeURL/name) are unresolvable media → FCP renders
-  // NOTHING (empty → black). Mark them 'E' and EXCLUDE them from the A/B order-fallback below,
-  // so a stripped minimized scene whose only clip is empty does not fake a full-frame photo-A.
-  // DECODED 2026-07-27 (headless probes on _t_upover / _t_clonespin3: empty media → FCP [5,5,5]
-  // black, where the engine's order-fallback wrongly bound the empty clip to imageA and painted
-  // the warm test photo). A real (stripped) A/B clip keeps its "…Transition A/B.tiff" pathURL and
-  // is classified above, so it is never seen as empty.
-  for (const c of clips) {
-    if (map.has(c.id)) continue;
-    if (c.empty) map.set(c.id, 'E');
   }
   // Fallback: if pathURL/name matching failed, order the two clips A then B. A clip that
   // carries BUNDLED MEDIA (a <relativeURL> → in clipMedia) is NOT a drop-zone - it is the
