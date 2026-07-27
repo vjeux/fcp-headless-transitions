@@ -10,7 +10,9 @@ G1 PROVENANCE (provenance_gate.py): every exporting file cites its source `@0xAD
    heuristic/hack/fudge) and CODE (Math.random, swallowed catch, Date.now-as-value); a throwing
    "not yet transcribed" stub MUST cite the addr it's deferring (so frontier.py can see the gap).
 G2 TYPECHECK: tsc --noEmit clean.
-G3 REGRESSION: all 65 .motr still parse (the verification corpus never breaks).
+(No .motr-parse gate: leaf math classes aren't in parseScene's import graph, so re-parsing
+   after e.g. a PCMath change is a provable no-op; tsc already catches import-graph breakage. The
+   65-transition corpus is used for end-to-end scoring once render classes land, not per-commit.)
 G4 ORACLE (the un-fakeable one): for every changed file mapped in oracle_map.json, run the parity
    driver — it fuzzes inputs, calls the REAL FCP symbol via dlsym, and compares to the TS port. If
    the driver says DIVERGED/FAILED, the commit is rejected. You cannot fake matching Apple's own

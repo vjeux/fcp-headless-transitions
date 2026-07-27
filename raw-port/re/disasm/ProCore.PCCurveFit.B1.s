@@ -1,0 +1,10 @@
+__ZN10PCCurveFit2B1Ed:
+000000000000c490	pushq	%rbp
+000000000000c491	movq	%rsp, %rbp
+000000000000c494	movsd	0x116094(%rip), %xmm1
+000000000000c49c	subsd	%xmm0, %xmm1
+000000000000c4a0	mulsd	0x116180(%rip), %xmm0
+000000000000c4a8	mulsd	%xmm1, %xmm1
+000000000000c4ac	mulsd	%xmm1, %xmm0
+000000000000c4b0	popq	%rbp
+000000000000c4b1	retq

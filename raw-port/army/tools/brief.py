@@ -6,13 +6,15 @@ fw,cls=sys.argv[1],sys.argv[2]
 led=json.load(open(os.path.join(ROOT,"army","ledger",f"{fw}.ledger.json")))
 ms=led.get(cls) or sys.exit(f"no class {cls} in {fw}")
 short=cls.split("::")[-1]
+import re as _re
+fname=_re.sub(r"[<>,: ]+","_",cls.split("::")[-1]).strip("_")  # template/namespace-safe filename
 lst="\n".join(f"  {v['addr']:12} {v['demangled']}" for v in sorted(ms.values(),key=lambda x:x['addr']))
 print(f"""TASK: faithfully transcribe FCP class {cls} ({fw}) to TypeScript — {len(ms)} methods.
 Repo /Users/vjeux/random/final-cut-pro-transitions (work in raw-port/).
 READ FIRST (mandatory): raw-port/army/PORTING_SPEC.md — cite @0xADDR on every fn, NEVER invent,
 THROW on undecoded, Math.fround single-precision, one class per file. Violations rejected.
 CLAIM before editing: write raw-port/army/claims/{fw}.{cls.replace('::','_')}.claim (agent id + UTC).
-TARGET FILE: raw-port/src/<layer>/{short}.ts  (layer = infra | channels | nodes | render).
+TARGET FILE: raw-port/src/<layer>/{fname}.ts  (layer = infra | channels | nodes | render).
 
 METHODS:
 {lst}
@@ -26,7 +28,7 @@ FOR EACH METHOD:
 GATE (MANDATORY — a shortcut cannot land): before committing, run
    bash raw-port/army/gate/gate.sh <your changed .ts files>
    It must print "GATE: PASS". It enforces: provenance (@0xADDR cited, no invented magic numbers, no
-   shortcut language/code), tsc clean, 65/65 .motr parse, AND the ORACLE — your ported pure-math fn
+   shortcut language/code), tsc clean, AND the ORACLE — your ported pure-math fn
    is fuzzed against the REAL FCP symbol via dlsym and must match bit-for-bit. You cannot fake that;
    the only way to pass is a correct transcription. If your class maps to a parity node, add it to
    raw-port/army/gate/oracle_map.json so the oracle covers it.

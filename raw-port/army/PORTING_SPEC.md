@@ -34,7 +34,6 @@ symbols and reviewers can diff a class against its disassembly.
 
 ## Rule 7 — Verify before commit
 - `tsc --noEmit` clean.
-- `npm run parse:all` stays 65/65 (regression corpus).
 - A micro-check: assert the ported fn reproduces a value derivable from the disasm/formula OR from a
   real .motr, and put the numbers in the commit message (e.g. "SCurve f=0.25 -> 14.6447 == (1-cos πf)/2").
 - COMMIT + PUSH immediately, one class per commit, message citing the addresses + the verification.
