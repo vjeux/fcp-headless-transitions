@@ -29,3 +29,20 @@ control-point times. Chain (all addresses ProChannel x86_64):
 NEXT to transcribe (fills the sampleCurveValue 'bezier' throw): getControlPoints affine math +
 SanitizeControlPolygon + the interpolate combine. Until then bezier THROWS (no silent approximation).
 Types using bezier in the corpus: keypoint interpolation 2,3,4,5,9,11 (rare vs 12850 linear).
+
+## ADDENDUM (2026-07-27) — getControlPoints tangent math resolved:
+- *0x80(spline) = OZSpline::getVertexInputHandles(void* v, double* outDx, double* outDy, CMTime, bool)
+  @0x3c522 — returns a vertex's tangent HANDLE as (dTime, dValue). (There is a matching
+  getVertexOutputHandles @0x3c5da.)
+- Denominator floor constant @0xb0770 = 1e-5: den = max(CMTimeGetSeconds(span), 1e-5) via maxsd,
+  guarding divide-by-zero for zero-length segments.
+- Interior control point build (0x4074a..0x407ab): with handle (hx=out[0x8], the SIMD lane math):
+    cp.time  = handle.dTime  * outStruct[0x8]  / den        (divpd by broadcast den)
+    cp.value = (handle.dValue * outStruct[0x10] + secs) / den
+  and the second control point: out[0x8] = out[0x8]*handle + out[0x0]; out[0x10] = out[0x10]*handle + out[0x18].
+  (Exact lane->field mapping still needs a careful re-trace before transcription — do NOT guess.)
+- OZBezierSanitizeControlPolygon(double* xs, double* ys) @0xa550c is called ONLY when the spline flag
+  bytes spline->0xa8[0]==0 && spline->0xa8[3]==1 (a "clamp handles" mode).
+STILL PENDING before transcription: exact SIMD lane->(time,value) mapping in getControlPoints; the
+interpolate combine (0x40a10+) that samples getVertexValue at the 2 control times + the 3rd sample;
+OZBezierSanitizeControlPolygon body. Until all three are decoded, sampleCurveValue THROWS for bezier.
