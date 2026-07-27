@@ -8,10 +8,14 @@
 //   - Element cases (elem->type at +0x8): 0xe (a scalar/int header), 0x76 (a keypoint entry), etc.
 import { PCSerializerReadStream } from "../infra/PCSerializerReadStream.js";
 import { PCStreamElement } from "../infra/PCStreamElement.js";
+import { CMTime, CMTimeGetSeconds } from "../infra/CMTime.js";
 
 /** One keyframe: a rational time + value (+ optional 2D-Bézier tangent handles/interp). */
 export interface OZKeypoint {
-  time: number;            // CMTime numerator in the stream timescale (setTimeScale)
+  /** The vertex time "U" as the FULL rational CMTime (value/timescale), for CMTime-space interp. */
+  u: CMTime;
+  /** Convenience: u reduced to seconds (u.value/u.timescale). */
+  time: number;
   value: number;
   interpolation?: number;  // 0xa
   // Bézier/CatmullRom tangent HANDLES, in (time,value) space, relative to this keypoint.
@@ -43,9 +47,9 @@ export class OZCurve {
         break;
       case "keypoint": {
         // <keypoint><time>..</time><value>..</value> ... </keypoint> — appendVertexNoTangents.
-        const kp: OZKeypoint = { time: 0, value: 0 };
+        const kp: OZKeypoint = { u: { value: 0n, timescale: 0, flags: 0, epoch: 0n }, time: 0, value: 0 };
         for (const c of e.children) {
-          if (c.tagName === "time") kp.time = s.getAsFigTime(c); // CMTime "value ts epoch flags" -> seconds
+          if (c.tagName === "time") { kp.u = s.getAsCMTime(c); kp.time = CMTimeGetSeconds(kp.u); } // full CMTime + seconds
           else if (c.tagName === "value") kp.value = s.getAsDouble(c);
           else if (c.tagName === "inputTangentTime") kp.inputTangentTime = s.getAsDouble(c);
           else if (c.tagName === "inputTangentValue") kp.inputTangentValue = s.getAsDouble(c);

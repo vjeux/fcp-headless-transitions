@@ -14,6 +14,7 @@
 // parseElement methods consult.
 
 import { PCStreamElement } from "./PCStreamElement.js";
+import { CMTime, kCMTimeFlags_Valid } from "./CMTime.js";
 
 export class PCSerializerReadStream {
   /** Document format version (from <ozml version=...> / OZDocument). */
@@ -56,6 +57,25 @@ export class PCSerializerReadStream {
     // epoch (parts[2], base 16) and flags (parts[3], base 10) are parsed by FCP but do not affect
     // the scalar seconds value used for sampling; retained here only for fidelity of the format.
     return timescale > 0 ? value / timescale : 0;
+  }
+
+  /**
+   * getAsCMTime — parse a CMTime element to the FULL rational struct (not reduced to seconds).
+   * Same faithful 4-field parse as getAsFigTime / PCStreamElement::aToFigTime (ProCore @0x287d8):
+   *   value=strtoll(10) @0x0, timescale=strtol(10) @0x8, epoch=strtoull(16) @0xc, flags=strtoull(10) @0x10.
+   * The interpolators (OZLinearInterpolator::interpolate etc.) operate in CMTime rational space, so
+   * keypoints must retain value/timescale, not a pre-divided double. An absent/empty element yields
+   * an invalid (flags=0) zero time.
+   */
+  getAsCMTime(e: PCStreamElement): CMTime {
+    const t = e.text.trim();
+    if (!t) return { value: 0n, timescale: 0, flags: 0, epoch: 0n };
+    const parts = t.split(/\s+/);
+    const value = parts[0] !== undefined ? BigInt.asIntN(64, BigInt(parseInt(parts[0], 10) || 0)) : 0n;
+    const timescale = parts[1] !== undefined ? parseInt(parts[1], 10) : 0;
+    const epoch = parts[2] !== undefined ? BigInt(parseInt(parts[2], 16) || 0) : 0n; // base 16 (hex) per aToFigTime
+    const flags = parts[3] !== undefined ? (parseInt(parts[3], 10) | kCMTimeFlags_Valid) : kCMTimeFlags_Valid;
+    return { value, timescale, flags, epoch };
   }
 
   /** OZDocument version gate. Returns true when doc version < (maj,min). */
