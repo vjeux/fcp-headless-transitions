@@ -20,6 +20,15 @@ export class OZChannelFolder extends OZChannelBase {
 
   push_back(c: OZChannelBase): void { this.children.push(c); }
 
+  /**
+   * getDescendant — find a child by numeric ID. DECODED from OZChannelFolder::getDescendant(uint)
+   * (@0x65d68): scan the folder's children comparing each child's id field (0x18(child)) to the
+   * requested id (with a flag test). Direct-children scan (the ref-path walk recurses per segment).
+   */
+  getDescendant(id: number): OZChannelBase | undefined {
+    return this.children.find(c => c.id === id);
+  }
+
   override parseElement(s: PCSerializerReadStream, e: PCStreamElement): void {
     super.parseElement(s, e); // OZChannelBase::parseElement @0x666d2
     if (e.tagName !== "parameter") return; // only <parameter> children are folder entries
@@ -80,4 +89,26 @@ export function buildChannelTree(s: PCSerializerReadStream, e: PCStreamElement):
     }
   }
   return node;
+}
+
+// --- Channel-ref path resolution ------------------------------------------------------------
+// DECODED from OZChannelRef::getChannel(OZChannelBase*) (@0x4af40): a channel-ref is a path string
+// whose components are separated by '/' (0x2f); a leading "./" (0x2e 0x2f) means relative to the
+// supplied base, otherwise the walk starts at the root. Each path component is a NUMERIC id resolved
+// via OZChannelFolder::getDescendant(id) (@0x65d68) — a by-id scan of the current folder's children.
+// Returns the resolved channel, or undefined if any segment is missing.
+export function resolveChannelRef(path: string, base: OZChannelBase, root: OZChannelBase): OZChannelBase | undefined {
+  if (!path) return undefined;
+  let p = path;
+  let cur: OZChannelBase | undefined;
+  if (p.startsWith("./")) { cur = base; p = p.slice(2); }   // relative to base
+  else { cur = root; if (p.startsWith("/")) p = p.slice(1); } // absolute from root
+  for (const seg of p.split("/")) {
+    if (seg === "" || seg === ".") continue;
+    if (!(cur instanceof OZChannelFolder)) return undefined;
+    const id = Number(seg);
+    cur = Number.isFinite(id) ? cur.getDescendant(id) : cur.children.find(c => c.name === seg);
+    if (!cur) return undefined;
+  }
+  return cur;
 }
