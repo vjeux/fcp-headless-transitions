@@ -209,19 +209,14 @@ function liftProceduralMasks(
     for (const mp of directChildren(maskEl, 'parameter')) maskParams.push(parseParameter(mp));
     const maskTransform = extractTransform(maskParams);
     // Y-AXIS CONVENTION for a MOTION-PATH mask lifted off a generator/image leaf:
-    // Motion authors such a mask's Transform (Position.Y, Anchor.Y) in the LEAF's
-    // own content frame, whose Y sign is INVERTED relative to the scene Y-up world
-    // space the engine's buildTransformMatrix + toPixel expect. Decoded from
-    // Stylized/Slide_In's "Rounded rect down" mask (headless probe): the engine
-    // placed the sliding panel band at screen y[664..1079] while FCP renders it at
-    // y[0..416] — an EXACT mirror about the frame centre. Negating the mask's
-    // Position.Y and Anchor.Y lands the band at y[0..415], matching FCP. Scoped to
-    // the motion-path lift so name-based masks (Wipes/Diagonal's "Animated mask",
-    // already correct) are untouched.
-    if (motionPathLifted) {
-      maskTransform.positionY = negateCurveOrNumber(maskTransform.positionY);
-      maskTransform.anchorY = negateCurveOrNumber(maskTransform.anchorY);
-    }
+    // Motion authors the mask's Transform Position.Y / Anchor.Y in the scene's Y-UP world
+    // space, matching the engine's buildTransformMatrix — so the RAW values are used as-is.
+    // (An earlier negation, 7acc747, was correct against a since-superseded buildTransformMatrix
+    // Y convention; after the anchor-Z / Y-down toolchain fixes it FLIPPED the panel to the
+    // wrong half: PROBED on Slide_In's "Rounded rect down" mask — raw posY=-1229/ancY=-606 land
+    // the band at screen y[0..416] EXACTLY matching FCP, while negating placed it at y[664..1079]
+    // (an exact mirror about the frame centre). So the negation is removed.)
+    void motionPathLifted;
     out.push({
       id: parseInt(maskEl.getAttribute('id') || '0', 10),
       name: maskEl.getAttribute('name') || 'Procedural Mask',
