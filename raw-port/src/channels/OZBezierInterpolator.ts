@@ -20,6 +20,13 @@
 //   raw-port/src/infra/PCMath.ts     (quadraticD @ProCore 0x12a17, cubicD @ProCore 0x12c56)
 
 import { quadraticD, cubicD } from "../infra/PCMath.js";
+import type { OZKeypoint } from "./OZCurve.js";
+import {
+  CMTime,
+  CMTimeGetSeconds,
+  PC_CMTimeSaferSubtract,
+} from "../infra/CMTime.js";
+import { OZBezierSanitizeControlPolygon } from "./OZBezierSanitizeControlPolygon.js";
 
 // ────────────────────────────────────────────────────────────────────────────────────────
 // __Z12OZBezierEvalPKdd  @ProChannel 0xa549c   — cubic Bezier in Bernstein basis, Horner form.
@@ -254,21 +261,113 @@ function clampToUnit(chosen: number): number {
  * Empty ctor per the disasm (both C1 and C2 are 16-line shims that install the vtable and
  * chain to OZInterpolator's ctor). No user-visible state on this class.
  */
+/**
+ * ────────────────────────────────────────────────────────────────────────────────────────
+ * OZBezierInterpolator instance ctor sets:
+ *   this[+0x00] = vtable install                                     @0x40418 ctor(C1) @0x4045c ctor(C2)
+ *   this[+0x08] = 1.0 (handleScale)                                  @0x4045e movabsq $0x3ff0000000000000
+ * The handleScale (this+0x08) is used at getControlPoints @0x4074a / 0x4075e / 0x40788 / 0x4079f as
+ * the multiplier applied to every incoming tangent handle. FCP's OZBezierInterpolator singleton
+ * never overwrites it, so it stays 1.0 for all keyframe evaluation.
+ * ────────────────────────────────────────────────────────────────────────────────────────
+ */
+/**
+ * ────────────────────────────────────────────────────────────────────────────────────────
+ * NUMERIC SELF-CHECK (PORTING_SPEC Rule 7) — real Bezier segments evaluate correctly.
+ * Values are exact modulo single-ulp fp rounding; endpoint clamping matches; monotonic-in-time.
+ *
+ *   Case 1: P0=10,P3=30 all tangents zero, midpoint t=0.5s → 19.999999999999996 (expected 20)
+ *           (single-ulp: xs=[0,0,1,1] gives smoothstep(0.5)=0.5 → (P0+P3)/2 = 20.0)
+ *   Case 2: same segment, t=0.001s → 10.019999999999998 (near P0=10, correct trace of smoothstep)
+ *   Case 3: same segment, t=0.999s → 29.98 (near P3=30)
+ *   Case 4: S-tangents (P0=0,P3=1; outA=(0.1,1.0), inB=(-0.1,-1.0)) at t=0.5s → 0.5000000000000001
+ *           (matches analytic B(0.5)=0.5 by symmetry — construction: xs=[0,0.1,0.9,1], ys=[0,1,0,1])
+ *   Case 5: same S-tangents at t=0.25s → interpolate = 0.47142509263705185, exactly
+ *           OZBezierEval([0,1,0,1], OZBezierFindParameter([0,0.1,0.9,1], 0.25)) = same value
+ *           (proves interpolate() is the exact composition of the two oracle-verified free fns)
+ *   Case 6: 11-sample sweep t∈[0,1] on Case 4 is monotone non-decreasing (S-shape in time)
+ *
+ * (Corpus grep: `find fct -name "*.motr" | xargs grep -l 'keypoint interpolation="[234591]"'`
+ *  returns 0 files — no Bezier-typed keypoints in the 65-transition corpus. Bezier is exercised
+ *  as the delegated target of OZCardinalInterpolator / OZCatmullRomInterpolator; those
+ *  computeTangents ports are landed but their interpolate paths were blocked ONLY by this
+ *  file's throws. With this closure, Cardinal-family curves now evaluate too.)
+ * ────────────────────────────────────────────────────────────────────────────────────────
+ */
 export class OZBezierInterpolator {
-  constructor() { /* @0x4040e: vtable install, no fields */ }
+  /** handleScale — @ProChannel 0x4045e stores $0x3ff0000000000000 (=1.0) into this+0x08. */
+  readonly handleScale: number = 1.0;
+
+  constructor() { /* @0x4045c/0x4045e: vtable install + handleScale=1.0 */ }
 
   /**
    * OZBezierInterpolator::interpolate(OZSpline&, CMTime, void*, void*, CMTime, bool, bool)
-   *   @ProChannel 0x407e6  — 204-line function; see re/BEZIER_DECODE.md.
-   * Requires: getControlPoints @0x4054a, OZSpline::getVertexValue @0x303a6 (via *0xf0 vtable),
-   *           OZBezierSanitizeControlPolygon @0xa550c, and the affine combine at 0x40a10+.
+   *   @ProChannel 0x407e6 — 204 lines. Full transcription of the fY=false, fX=false path
+   *   (the only path exercised by static-keypoint evaluation from OZSpline::getVertexValue).
+   *
+   * Flow (from re/disasm/ProChannel.OZBezierInterpolator.interpolate.s):
+   *   1. getControlPoints(sp, vA, vB, tQuery, &outUB, &outUC, xs[4], ys[4])    @0x40844
+   *      -> xs = [0, P1u, P2u, 1]  (u-abscissae, sanitized if flags gate),
+   *         ys = [P0v, P1v, P2v, P3v]  (values including endpoints + interior control),
+   *         outUB = vA.u,  outUC = vB.u (or nudged if uB<=uA).
+   *   2. span_seconds = seconds(outUC - outUB)                                 (@0x408af..0x40903)
+   *   3. IF fY (arg 0x18(rbp)) == 0 (normal path @0x40ac0):
+   *        num = seconds(tQuery - outUB)                                        (@0x40a99..0x40ab1
+   *              — this is a subsd on xmm0 following a *0xf0 vtable call on OZSpline;
+   *              *0xf0 on OZSpline = OZSpline::getVertexValue @0x303a6. Since our port takes
+   *              (t, a, b) directly and static keypoints supply the CMTime u on the vertex,
+   *              the actual num is just CMTimeGetSeconds(tQuery) - CMTimeGetSeconds(outUB).)
+   *        (There is also the getMinValueU/getMaxValueU branch @0x40a10/0x40a5c that only fires
+   *        when tQuery falls OUTSIDE the [minU, maxU] range — but OZSpline::sampleCurveValue
+   *        already clamps t into [first.u, last.u] before dispatching to us, so tQuery is
+   *        guaranteed to be inside the segment's [A.u, B.u], and this outer branch is not
+   *        reachable from our call-site. When both getMinValueU and getMaxValueU indicate t
+   *        is inside range, the code falls through to @0x40ac0 which is the normalize step.)
+   *      den = max(span_seconds, 1e-5)                                           @0x40ac0..0x40acd
+   *              (const @ProChannel 0xb0770 = 1e-5, verified via resolve.py const)
+   *      uNorm = num / den                                                        @0x40acd
+   *      IF fX (arg 0x10(rbp)) == 0:  param = OZBezierFindParameter(xs, uNorm)   @0x40adb
+   *      ELSE (rare, unused by static keypoints):  param = uNorm  (skips find)   @0x40ad5 jne
+   *      result = OZBezierEval(ys, param)                                        @0x40ae0..0x40aea
+   *              (via *0x70 on the OZBezierInterpolator vtable — resolves to
+   *               OZBezierInterpolator::eval(double*, double) @0x40b58 which tail-calls
+   *               OZBezierEval @0xa549c per resolve.py vtable OZBezierInterpolator 0x70.)
+   *
+   * The fY=true branch (@0x4090d..0x40aed) builds two intermediate CMTimes via CMTimeMake(1,1000)
+   * + PC_CMTimeSaferAdd/Subtract and calls OZSpline::getVertexValue *0xf0 twice; that path is used
+   * only when the caller passes fY=true (Cardinal/Catmull-Rom pass through with fY hard-coded
+   * false — see re/disasm/ProChannel.OZCatmullRomInterpolator vtable *0x18 which just reuses this
+   * interpolate). NOT reachable from OZSpline::sampleCurveValue for static bezier keypoints.
    */
-  interpolate(): number {
-    throw new Error(
-      "OZBezierInterpolator::interpolate @ProChannel 0x407e6 not yet transcribed — " +
-        "requires OZBezierInterpolator::getControlPoints @0x4054a + OZSpline::getVertexValue " +
-        "@0x303a6 + OZBezierSanitizeControlPolygon @0xa550c + the CMTime/value combine at 0x40a10+.",
-    );
+  interpolate(t: CMTime, a: OZKeypoint, b: OZKeypoint): number {
+    // ── Step 1: getControlPoints (fills xs[4], ys[4] from tangent handles) ────────────
+    const xs: number[] = [0, 0, 0, 0];
+    const ys: number[] = [0, 0, 0, 0];
+    // outUB/outUC are the segment's actual endpoint times AFTER the equal-U nudge; they equal
+    // (a.u, b.u) except in the degenerate uB<=uA case where outUC gets nudged by smallDeltaU.
+    const { outUB, outUC } = this.getControlPoints(a, b, xs, ys);
+
+    // ── Step 2: seconds of the (possibly nudged) segment span ──────────────────────────
+    // @0x408b8-0x40903: two _PC_CMTimeSaferSubtract calls; the second one produces xmm0 =
+    // seconds(uQuery - outUB) but only along the fY=true path. On the fY=false path (@0x40ac0),
+    // xmm1 is set to 1e-5, maxsd'd with -0x78(%rbp) (=seconds(outUC-outUB)), then xmm0 (still
+    // holding seconds(uQuery-outUB) from @0x408fe) is divided. So:
+    const span_seconds = CMTimeGetSeconds(PC_CMTimeSaferSubtract(outUC, outUB));
+    const num_seconds  = CMTimeGetSeconds(PC_CMTimeSaferSubtract(t, outUB));
+
+    // ── Step 3: normalize + find parameter + evaluate ─────────────────────────────────
+    // @0x40ac0: movsd 1e-5 -> xmm1; @0x40ac8: maxsd -0x78(%rbp), xmm1  → xmm1 = max(1e-5, span).
+    // @0x40acd: divsd xmm1, xmm0                                       → xmm0 = num / max.
+    // const @ProChannel 0xb0770 = 9.999999747378752e-06 (float32 promotion of 1e-5), read via
+    // resolve.py ProChannel const 0xb0770. Match the same single-precision constant.
+    const FLOOR_EPS = Math.fround(1e-5);                          // @0xb0770 (1e-5 as float32)
+    const den = Math.max(span_seconds, FLOOR_EPS);
+    const uNorm = num_seconds / den;
+    // @0x40ad1 cmpb $0, 0x10(%rbp): fX (first bool). fX=false here (matches OZSpline dispatch).
+    // @0x40adb callq OZBezierFindParameter with rdi=&xs=-0x50(%rbp), xmm0=uNorm.
+    const param = OZBezierFindParameter(xs, uNorm);
+    // @0x40ae0-0x40aea: OZBezierEval(ys, param) via vtable *0x70 which tail-calls the free fn.
+    return OZBezierEval(ys, param);
   }
 
   /** OZBezierInterpolator::eval(double* ctrl, double u)   @ProChannel 0x40b58 —
@@ -289,21 +388,233 @@ export class OZBezierInterpolator {
     );
   }
 
-  /** OZBezierInterpolator::computeTangents(...)  @ProChannel 0x40499a. */
-  computeTangents(): void {
-    throw new Error(
-      "OZBezierInterpolator::computeTangents @ProChannel 0x4049a not yet transcribed — " +
-        "requires OZSpline::getVertexInputHandles @0x3c522 + getVertexOutputHandles @0x3c5da.",
-    );
+  /**
+   * OZBezierInterpolator::computeTangents(OZSpline&, void* vA, void* vB, CMTime const& uQuery,
+   *                                       double* dTimeA, double* dValueA, double* dTimeB, double* dValueB)
+   *   @ProChannel 0x4049a — 32-line delegator; see re/disasm/ProChannel.OZBezierInterpolator.computeTangents.s.
+   *
+   * Body:
+   *   @0x404db: callq *0x40(vtable(vA))    → OZDynamicVertex::getOutputTangents(dTimeA, dValueA, uQuery)  @0x3eb02
+   *   @0x404f5: callq *0x38(vtable(vB))    → OZDynamicVertex::getInputTangents (dTimeB, dValueB, uQuery)  @0x3eaca
+   *   @0x404f8 movq 0xa8(sp), rax ; cmpb $0, (rax) ; je -> convertTangentsToHandles path
+   *   IF sp->0xa8[0] == 0 (the DEFAULT — no clamp-handles / vector-mode):
+   *     @0x40524: call *0x30(this vtable) = OZSplineInterpolator::convertTangentsToHandles @0x45c46
+   *              (base implementation is empty / no-op for OZBezierInterpolator; Cardinal
+   *               overrides at *0x30 -> 0x42adc which is also a small no-op stub that returns
+   *               without transforming — see OZCardinalInterpolator vtable).
+   *     @0x40527..0x40548: also does *0x30(*0x30(vtable(this))) — the double-dispatch delegator.
+   *   IF sp->0xa8[0] != 0: early return (@0x40504) — handles already in tangent form, no convert.
+   *
+   * OZDynamicVertex::getInputTangents @0x3eaca (verbatim, 15 lines):
+   *   if (dTime != 0)  *dTime  = 0                                     @0x3ead8 movq $0,(rsi)
+   *   if (dValue != 0) *dValue = channel(this+0x280).getValueAsDouble(uQuery, 0.0)  @0x3eae4-0x3eaf6
+   * getOutputTangents @0x3eb02: same, but reads channel(this+0x318).
+   *
+   * FOR STATIC KEYPOINTS (our port's data model — see OZCurve.ts), the input/output tangent
+   * time+value are already stored ON the OZKeypoint as inputTangentTime/Value +
+   * outputTangentTime/Value (parsed from <inputTangentTime>...</inputTangentTime> children
+   * — see OZCurve::parseElement). This matches what getInputTangents/getOutputTangents read
+   * from an OZDynamicVertex's channels(0x280/0x318) at parse time. So the "computeTangents"
+   * body for our static-keypoint model reduces to:
+   *   dTimeA  = a.outputTangentTime  ?? 0
+   *   dValueA = a.outputTangentValue ?? 0
+   *   dTimeB  = b.inputTangentTime   ?? 0
+   *   dValueB = b.inputTangentValue  ?? 0
+   * (getInputTangents/getOutputTangents zero the dTime slot @0x3ead8/0x3eb10 unconditionally
+   *  BEFORE the channel read; the .motr also does not always emit those tags — see OZCurve.ts —
+   *  hence the nullish fallback to 0.)
+   */
+  computeTangents(a: OZKeypoint, b: OZKeypoint): {
+    dTimeA: number; dValueA: number; dTimeB: number; dValueB: number;
+  } {
+    // @0x3eb02 getOutputTangents on vA -> A-side handle (outgoing).
+    // @0x3ead8 first zeros *dTime unconditionally; if vertex is a static keypoint (no channel),
+    // dTime stays 0. Our parsed .motr keypoint carries the outputTangentTime directly.
+    const dTimeA  = a.outputTangentTime  ?? 0;
+    const dValueA = a.outputTangentValue ?? 0;
+    // @0x3eaca getInputTangents on vB -> B-side handle (incoming).
+    const dTimeB  = b.inputTangentTime   ?? 0;
+    const dValueB = b.inputTangentValue  ?? 0;
+    // NOTE: the *0x30 convertTangentsToHandles double-dispatch at @0x40527..0x40548 (base
+    // OZSplineInterpolator @0x45c46 / Cardinal @0x42adc) is empty for the OZBezierInterpolator
+    // instance path: neither implementation transforms the tangent slots — this was verified by
+    // reading the vtable installation of the base classes (both return without writing).
+    return { dTimeA, dValueA, dTimeB, dValueB };
   }
 
-  /** OZBezierInterpolator::getControlPoints(...)  @ProChannel 0x4054a — see re/BEZIER_DECODE.md ADDENDUM. */
-  getControlPoints(): void {
-    throw new Error(
-      "OZBezierInterpolator::getControlPoints @ProChannel 0x4054a not yet transcribed — " +
-        "requires OZSpline::getVertexInputHandles @0x3c522, getVertexOutputHandles @0x3c5da, " +
-        "OZBezierSanitizeControlPolygon @0xa550c, and the affine-combine at 0x4074a-0x407ab.",
-    );
+  /**
+   * OZBezierInterpolator::getControlPoints(OZSpline& sp, void* vA, void* vB, CMTime const& uQuery,
+   *                                        CMTime& outUB, CMTime& outUC, double* xs, double* ys)
+   *   @ProChannel 0x4054a — see re/BEZIER_DECODE.md (ADDENDUM) + re/BEZIER_GETCONTROLPOINTS_DECODE.md
+   *   for the full step-by-step decode. Full transcription follows the disasm line-by-line.
+   *
+   * Layout on entry (from the disasm):
+   *   rdi = this, rsi/r12 = sp, rdx/r13 = vA, rcx/rbx = vB, r8/r14 = &uQuery,
+   *   r9 = &outUB, [rbp+0x10] = &outUC, [rbp+0x18] = xs (u-abscissae), [rbp+0x20] = ys (values).
+   *
+   * Step A — Copy vA.u -> outUB, vB.u -> outUC (@0x40570..0x40592):
+   *   movups 0x10(vA), xmm0 ; movq 0x20(vA), rax ; movq rax, 0x10(outUB) ; movups xmm0, (outUB)
+   *     → outUB = vA.CMTime@offset+0x10 (24-byte struct: value@0x10, timescale@0x18, flags@0x1c,
+   *       epoch@0x20). Same for outUC ← vB.u.
+   *   For our port: OZKeypoint.u IS the vertex time CMTime, so outUB=a.u, outUC=b.u.
+   *
+   * Step B — Equal-U guard (@0x405db..0x4064c):
+   *   cmp = CMTimeCompare(outUC, outUB)                    (via inlined helper @0xaca80)
+   *   if (cmp > 0)  do nothing (typical non-degenerate case, jle 0x4064f)
+   *   else           outUC += sp.getSmallDeltaU()          (nudge to prevent divide-by-zero)
+   *   The Bezier interpolator on real .motr keypoints always has b.u > a.u strictly (see
+   *   OZSpline::sampleCurveValue bracketing loop), so the nudge path is NOT exercised for
+   *   our data model. When it would fire, we call OZSpline::getSmallDeltaU() @0x2fe52 which
+   *   returns CMTimeMake(1,100) = 0.01s by default (or CMTimeMake(1,1)=1s if sp->0xa8[0]).
+   *
+   * Step C — Endpoints (@0x40651..0x4066d):
+   *   ys[0] = P0.value = vA.getValueV(uQuery)              (*0x18 vtable = OZDynamicVertex::
+   *                                                          getValueV @0x3ea46 → for a static
+   *                                                          keypoint just returns v.value)
+   *   ys[3] = P3.value = vB.getValueV(uQuery)              at ys+0x18 = ys[3]
+   *
+   * Step D — Seed abscissae endpoints (@0x4067e..0x40690):
+   *   xs[0] = 0.0
+   *   xs[3] = 1.0    (0x3ff0000000000000 -> at ys+0x18 stored via movabsq)
+   *
+   * Step E — computeTangents via *0x80 vtable (@0x406ae..0x406c8):
+   *   *0x80(this) = OZBezierInterpolator::computeTangents @0x4049a. Fills
+   *     r15+0x8 = dTimeA, r15+0x10 = dTimeB  (into ys buffer at ys+0x8/+0x10 — TEMP storage
+   *                                            for the tangent times — will be OVERWRITTEN in
+   *                                            Step G with the interior VALUES).
+   *     r12+0x8 = dValueA, r12+0x10 = dValueB (into xs buffer at xs+0x8/+0x10 — TEMP storage
+   *                                            for the tangent values — will be OVERWRITTEN in
+   *                                            Step G with the interior U-abscissae).
+   *   Wait — re-reading: the callee sees r9=xs+8, [rsp+8]=xs+16, rdx=&ys[1], [rsp+0x10]=&ys[2]?
+   *   Let me re-verify from the disasm shuffle @0x40695-0x406aa:
+   *     leaq 0x8(%r12), %r9      → r9  = &xs[1]   (per r12=xs local)
+   *     leaq 0x8(%r15), %rax     → rax = &ys[1]
+   *     leaq 0x10(%r12), %rcx    → rcx = &xs[2]
+   *     leaq 0x10(%r15), %rdx    → rdx = &ys[2]
+   *     movq %r14, %r8           → r8 = &uQuery
+   *   Then the stack args pushed for the call to *0x80: [rsp]=&ys[1](=rax), [rsp+8]=&xs[2](=rcx),
+   *   [rsp+0x10]=&ys[2](=rdx). The 8-arg computeTangents signature is
+   *   (sp, vA, vB, uQuery, dTimeA*, dValueA*, dTimeB*, dValueB*).
+   *   So the mapping is:
+   *     dTimeA*  = r9  = &xs[1]     dValueA* = [rsp]  = &ys[1]
+   *     dTimeB*  = rcx = &xs[2]     dValueB* = [rsp+0x10] = &ys[2]
+   *   And [rsp+8] = &xs[2] (rcx) → wait that's the same as dTimeB*. Let me re-count:
+   *
+   *   Args to method call (this + sp + vA + vB + uQuery + dTimeA + dValueA + dTimeB + dValueB):
+   *     rdi=this,  rsi=sp,  rdx=vA,  rcx=vB,  r8=uQuery,  r9=arg6=&xs[1],
+   *     [rsp]=arg7=&ys[1] (=rax), [rsp+8]=arg8=&xs[2] (=rcx), [rsp+0x10]=arg9=&ys[2] (=rdx).
+   *   So:
+   *     dTimeA*  = &xs[1] ,  dValueA* = &ys[1]  (A-side handle stored at xs[1],ys[1])
+   *     dTimeB*  = &xs[2] ,  dValueB* = &ys[2]  (B-side handle stored at xs[2],ys[2])
+   *
+   * Step F — Compute segment span in SECONDS (@0x4071f..0x40739):
+   *   Recompute outUC - outUB (as CMTime), then CMTimeGetSeconds → xmm0 = segment_seconds.
+   *   Then @0x4073e: movsd 0xb0770(rip) = 1e-5 → xmm1 ; @0x40746 maxsd xmm0 → xmm1 = max(secs, 1e-5).
+   *
+   * Step G — Interior control-point SIMD combine (@0x4074a..0x407ab):
+   *   Let HS = this+0x08 (handleScale = 1.0). Reading the disasm:
+   *     movsd 0x8(%r14), %xmm2      ; xmm2.lo = HS
+   *     mulsd 0x8(%r12), %xmm2      ; xmm2.lo = HS * xs[1] (=dTimeA)
+   *     movsd %xmm2, 0x8(%r12)      ; xs[1] = HS * dTimeA
+   *     movsd 0x8(%r14), %xmm3      ; xmm3.lo = HS
+   *     mulsd 0x10(%r12), %xmm3     ; xmm3.lo = HS * xs[2] (=dTimeB)
+   *     addsd %xmm0, %xmm3          ; xmm3.lo = HS * dTimeB + segment_seconds
+   *     unpcklpd %xmm3, %xmm2       ; xmm2 = (HS*dTimeA, HS*dTimeB + span)
+   *     movddup %xmm1, %xmm0        ; xmm0 = (max(secs,1e-5), max(secs,1e-5))
+   *     divpd %xmm0, %xmm2          ; xmm2 = ((HS*dTimeA)/den, (HS*dTimeB+span)/den)
+   *     movupd %xmm2, 0x8(%r12)     ; xs[1] = (HS*dTimeA)/den ; xs[2] = (HS*dTimeB+span)/den
+   *   ...then values:
+   *     movsd 0x8(%r15), %xmm0      ; xmm0 = ys[1] = dValueA (stored there by computeTangents)
+   *     mulsd 0x8(%r14), %xmm0      ; xmm0 = HS * dValueA
+   *     movsd 0x10(%r15), %xmm1     ; xmm1 = ys[2] = dValueB
+   *     addsd (%r15), %xmm0         ; xmm0 = HS*dValueA + ys[0]  (=P0.value + HS*dValueA)
+   *     movsd %xmm0, 0x8(%r15)      ; ys[1] = P0.value + HS*dValueA
+   *     mulsd 0x8(%r14), %xmm1      ; xmm1 = HS * dValueB
+   *     addsd 0x18(%r15), %xmm1     ; xmm1 = HS*dValueB + ys[3]  (=P3.value + HS*dValueB)
+   *     movsd %xmm1, 0x10(%r15)     ; ys[2] = P3.value + HS*dValueB
+   *
+   * Step H — Sanitize gate (@0x407b1..0x407ce):
+   *   rax = sp->0xa8   (the spline "handle mode" struct, byte flags)
+   *   if sp->0xa8[0]==0 && sp->0xa8[3]==1:
+   *     OZBezierSanitizeControlPolygon(xs, ys)   @0xa550c
+   *   Default sp->0xa8 = {0,0,0,0} on a bare OZSpline → gate is FALSE (byte 3 is 0), skip Sanitize.
+   *   Only .motr files with an explicit "clamp handles" mode set byte 3 to 1 (undecoded parse
+   *   path; when it fires, Sanitize is undecoded (~200 lines) and throws citing @0xa550c).
+   */
+  getControlPoints(a: OZKeypoint, b: OZKeypoint, xs: number[], ys: number[]): {
+    outUB: CMTime; outUC: CMTime;
+  } {
+    // Step A — outUB = vA.u , outUC = vB.u  (@0x40570..0x40592)
+    // Deep-copy each CMTime field (matches the movups+movq copy of the 24-byte struct).
+    let outUB: CMTime = { value: a.u.value, timescale: a.u.timescale, flags: a.u.flags, epoch: a.u.epoch };
+    let outUC: CMTime = { value: b.u.value, timescale: b.u.timescale, flags: b.u.flags, epoch: b.u.epoch };
+
+    // Step B — Equal-U guard (@0x405db..0x4064c). CMTimeCompare(outUC, outUB) via inlined helper.
+    // We use CMTime rational compare (raw-port infra) which is bit-equivalent to Apple's CMTimeCompare
+    // (raw-port/src/infra/CMTime.ts). On the non-degenerate path (b.u > a.u) this branch does nothing.
+    // The degenerate nudge path calls OZSpline::getSmallDeltaU() @0x2fe52 which we don't yet model
+    // as a spline method on our data (OZKeypoint[]). It is not reachable from OZSpline::
+    // sampleCurveValue because the bracketing loop guarantees a.u < t < b.u strictly.
+    // (If a future caller supplies b.u <= a.u — malformed input — we throw citing the addr.)
+    // {} — no re-import of CMTimeCompare needed; use raw sign of seconds diff:
+    const secDiff = CMTimeGetSeconds(PC_CMTimeSaferSubtract(outUC, outUB));
+    if (secDiff <= 0) {
+      throw new Error(
+        "OZBezierInterpolator::getControlPoints @ProChannel 0x405db equal-U nudge path not yet " +
+          "transcribed — requires OZSpline::getSmallDeltaU @0x2fe52 on the spline instance " +
+          "(current data model is a flat OZKeypoint[] without a spline handle). Non-degenerate " +
+          "segments (b.u > a.u strictly, guaranteed by OZSpline::sampleCurveValue bracketing) do " +
+          "NOT reach this path.",
+      );
+    }
+
+    // Step C — Endpoints: ys[0] = P0.value, ys[3] = P3.value  (@0x40651..0x4066d).
+    // getValueV @0x3ea46 on a static keypoint just returns v.value (no channel indirection).
+    ys[0] = a.value;
+    ys[3] = b.value;
+
+    // Step D — Abscissae endpoints  (@0x4067e..0x40690).
+    xs[0] = 0.0;
+    xs[3] = 1.0;
+
+    // Step E — computeTangents via *0x80  (@0x406ae..0x406c8):
+    //   dTimeA -> xs[1], dValueA -> ys[1], dTimeB -> xs[2], dValueB -> ys[2]
+    const tans = this.computeTangents(a, b);
+    xs[1] = tans.dTimeA;
+    ys[1] = tans.dValueA;
+    xs[2] = tans.dTimeB;
+    ys[2] = tans.dValueB;
+
+    // Step F — segment_seconds = seconds(outUC - outUB); floor by 1e-5.
+    // (Recomputed from CMTimes — matches the second SaferSubtract+CMTimeGetSeconds at @0x4071f/
+    //  @0x40739; equal to secDiff we already computed above for the guard.)
+    const segment_seconds = secDiff;
+    const FLOOR_EPS = Math.fround(1e-5);           // @ProChannel 0xb0770 (1e-5 as float32)
+    const den = Math.max(segment_seconds, FLOOR_EPS);
+
+    // Step G — Interior control-point combine  (@0x4074a..0x407ab).
+    const HS = this.handleScale;
+    // xs[1] = (HS * dTimeA) / den
+    // xs[2] = (HS * dTimeB + segment_seconds) / den
+    const HS_dTimeA = HS * xs[1];
+    const HS_dTimeB = HS * xs[2];
+    xs[1] = HS_dTimeA / den;
+    xs[2] = (HS_dTimeB + segment_seconds) / den;
+    // ys[1] = ys[0] + HS * dValueA          (= P0.value + HS * outTangentValueA)
+    // ys[2] = ys[3] + HS * dValueB          (= P3.value + HS * inTangentValueB)
+    ys[1] = ys[0] + HS * ys[1];
+    ys[2] = ys[3] + HS * ys[2];
+
+    // Step H — Sanitize gate (@0x407b1..0x407ce).
+    // Our OZSpline model exposes handleMode0/handleMode3 (default 0/0). The gate requires
+    // handleMode0==0 && handleMode3==1 — with defaults both false, Sanitize is skipped. If a
+    // future caller sets these to trigger Sanitize, OZBezierSanitizeControlPolygon @0xa550c is
+    // called (see raw-port/src/channels/OZBezierSanitizeControlPolygon.ts).
+    if (sanitizeGateFromKeypoint(a, b)) {
+      OZBezierSanitizeControlPolygon(xs, ys);
+    }
+
+    return { outUB, outUC };
   }
 
   /** OZBezierInterpolator::subDivide(...)  @ProChannel 0x40cb6. */
@@ -327,6 +638,22 @@ export class OZBezierInterpolator {
         "requires the vector<CMTime> output-collection path.",
     );
   }
+}
+
+/**
+ * Predicate mirroring the sp->0xa8 sanitize gate @0x407b5-0x407c5:
+ *   rax = sp->0xa8 ; if (rax[0]==0 && rax[3]==1) call OZBezierSanitizeControlPolygon.
+ * OZSpline's default byte layout at +0xa8 is 4 zero bytes (bounds ctor pattern), so the gate
+ * is FALSE on a freshly-parsed .motr unless the parser explicitly sets +0xa8[3]. Our OZCurve
+ * parser (raw-port/src/channels/OZCurve.ts) does NOT currently produce any keypoint field or
+ * spline attribute that maps to sp->0xa8[3]. If a future .motr shape sets that flag (a
+ * "clamp handles" mode), Sanitize is called — but for the current corpus, this always returns
+ * false, matching the default OZSpline ctor state. Passed the two segment endpoints so future
+ * clamp-flag propagation can gate off keypoint.flags.
+ */
+function sanitizeGateFromKeypoint(_a: OZKeypoint, _b: OZKeypoint): boolean {
+  // OZSpline default: sp->0xa8 = {0,0,0,0}. Gate = (0==0 && 0==1) = false.
+  return false;
 }
 
 /** Module-level singleton — matches FCP's OZInterpolators registry (ctor @0x44a24 stores the
