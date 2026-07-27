@@ -294,23 +294,6 @@ function extractImageMask(el: Element): { sourceId?: number; invert: boolean } {
  * animation) and from continuously-growing scales (never returning to 0). Kept
  * strict to avoid false positives outside the Stylized/Panels_* family.
  */
-/**
- * Negate a Transform channel that may be a static number OR an animated Curve.
- * Used to flip the Y-axis sign of a motion-path mask lifted off a generator/image
- * leaf (leaf content frame → scene Y-up). Negates the curve's default/value and
- * every keyframe value in a shallow copy (the source Curve is not mutated).
- */
-function negateCurveOrNumber(v: Curve | number | undefined): Curve | number | undefined {
-  if (v === undefined) return undefined;
-  if (typeof v === 'number') return -v;
-  return {
-    ...v,
-    default: -v.default,
-    value: v.value === undefined ? undefined : -v.value,
-    keyframes: v.keyframes.map(k => ({ ...k, value: -k.value })),
-  };
-}
-
 function isAnimatedZeroPeakZeroCurve(c: Curve | number | undefined): boolean {
   if (!c || typeof c === 'number' || !c.keyframes || c.keyframes.length < 3) return false;
   const kps = c.keyframes;
