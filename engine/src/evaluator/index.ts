@@ -402,7 +402,16 @@ function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: nu
   // away from the viewer. Negating here makes m6/m9 couple Y→Z the correct way
   // (verified against Fall GT: top edge recedes, bottom swings up).
   const rotX = -resolveWithRetime(tx.rotationX, timeSec, 0, retimeProgress, ov?.has('rotX'), hasRetime) * RAD2DEG;
-  const rotY = resolveWithRetime(tx.rotationY, timeSec, 0, retimeProgress, ov?.has('rotY'), hasRetime) * RAD2DEG;
+  // rotationY sign: a LINK-DRIVEN rotationY (ov.has('rotY')) is inverted relative to our matrix
+  // convention — the SAME inversion the link resolver applies to rotationZ (see linkRotZ below).
+  // DECODED 2026-07-26 on Movements/Reflection: Transition B's group takes a LinkRot copying the
+  // hidden driver's Rotation Y (0→−90°). With the raw (un-negated) link value the group hinged
+  // about the screen-RIGHT edge (content swung in from the right), while FCP hinges about the
+  // screen-LEFT spine (content grows x[0,775]→[0,1614]→[0,1894]). Negating the link-driven rotationY
+  // flips the swing to the left hinge, matching FCP (Reflection 15.40→25.38 dB, per-frame |D| 66→13).
+  // A directly-authored rotationY curve (no link) keeps our convention, exactly like rotationZ.
+  const rawRotY = resolveWithRetime(tx.rotationY, timeSec, 0, retimeProgress, ov?.has('rotY'), hasRetime);
+  const rotY = (ov?.has('rotY') ? -rawRotY : rawRotY) * RAD2DEG;
   // A Spin behavior contributes an extra in-plane Z rotation (RADIANS), added to the
   // authored rotationZ so it pivots about the layer's own anchor origin. tx.__spinRadians
   // is set by applySpinBehaviors and is 0/undefined for non-spinning layers.
