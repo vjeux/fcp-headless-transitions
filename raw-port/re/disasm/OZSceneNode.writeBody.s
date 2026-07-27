@@ -1,0 +1,188 @@
+__ZN11OZSceneNode9writeBodyER23PCSerializerWriteStreambbb:
+0000000000091380	pushq	%rbp
+0000000000091381	movq	%rsp, %rbp
+0000000000091384	pushq	%r15
+0000000000091386	pushq	%r14
+0000000000091388	pushq	%r13
+000000000009138a	pushq	%r12
+000000000009138c	pushq	%rbx
+000000000009138d	subq	$0x18, %rsp
+0000000000091391	movl	%r8d, -0x2c(%rbp)
+0000000000091395	movl	%ecx, -0x38(%rbp)
+0000000000091398	movl	%edx, %r13d
+000000000009139b	movq	%rsi, %r14
+000000000009139e	movq	%rdi, %rbx
+00000000000913a1	leaq	__ZL21OZSceneNodeWriteScope(%rip), %rsi ## OZSceneNodeWriteScope
+00000000000913a8	movq	%r14, %rdi
+00000000000913ab	callq	0x6de820                        ## symbol stub for: __ZN23PCSerializerWriteStream9pushScopeEP7PCScope
+00000000000913b0	testq	%rbx, %rbx
+00000000000913b3	je	0x91409
+00000000000913b5	leaq	__ZTI11OZSceneNode(%rip), %rsi  ## typeinfo for OZSceneNode
+00000000000913bc	leaq	__ZTI13OZFxGenerator(%rip), %rdx ## typeinfo for OZFxGenerator
+00000000000913c3	movq	%rbx, %rdi
+00000000000913c6	xorl	%ecx, %ecx
+00000000000913c8	callq	0x6dfd0e                        ## symbol stub for: ___dynamic_cast
+00000000000913cd	testq	%rax, %rax
+00000000000913d0	je	0x91409
+00000000000913d2	movq	%rax, %r15
+00000000000913d5	movq	%rax, %r12
+00000000000913d8	addq	$0x4bb0, %r12                   ## imm = 0x4BB0
+00000000000913df	movq	0x4bb0(%rax), %rax
+00000000000913e6	movq	%r12, %rdi
+00000000000913e9	callq	*0xd0(%rax)
+00000000000913ef	testb	%al, %al
+00000000000913f1	je	0x91409
+00000000000913f3	movq	%r15, %rdi
+00000000000913f6	callq	__ZN13OZFxGenerator20getRootChannelFolderEv ## OZFxGenerator::getRootChannelFolder()
+00000000000913fb	movq	%r12, %rdi
+00000000000913fe	movq	%r14, %rsi
+0000000000091401	movq	%rax, %rdx
+0000000000091404	callq	__ZN18OZFxPlugSharedBase18writeDynamicParamsER23PCSerializerWriteStreamP15OZChannelFolder ## OZFxPlugSharedBase::writeDynamicParams(PCSerializerWriteStream&, OZChannelFolder*)
+0000000000091409	movl	0x3f8(%rbx), %r15d
+0000000000091410	movq	(%r14), %rax
+0000000000091413	movq	%r14, %rdi
+0000000000091416	movl	$0xc8, %esi
+000000000009141b	callq	*0x10(%rax)
+000000000009141e	movq	(%r14), %rax
+0000000000091421	movq	%r14, %rdi
+0000000000091424	movl	%r15d, %esi
+0000000000091427	callq	*0x38(%rax)
+000000000009142a	movq	(%r14), %rax
+000000000009142d	movq	%r14, %rdi
+0000000000091430	callq	*0x18(%rax)
+0000000000091433	movq	0x418(%rbx), %r15
+000000000009143a	cmpq	0x420(%rbx), %r15
+0000000000091441	je	0x91480
+0000000000091443	nopw	%cs:(%rax,%rax)
+0000000000091450	movq	(%r14), %rax
+0000000000091453	movq	%r14, %rdi
+0000000000091456	movl	$0xc9, %esi
+000000000009145b	callq	*0x10(%rax)
+000000000009145e	movl	(%r15), %esi
+0000000000091461	movq	(%r14), %rax
+0000000000091464	movq	%r14, %rdi
+0000000000091467	callq	*0x38(%rax)
+000000000009146a	movq	(%r14), %rax
+000000000009146d	movq	%r14, %rdi
+0000000000091470	callq	*0x18(%rax)
+0000000000091473	addq	$0x4, %r15
+0000000000091477	cmpq	0x420(%rbx), %r15
+000000000009147e	jne	0x91450
+0000000000091480	leaq	0x30(%rbx), %rdi
+0000000000091484	movzbl	%r13b, %edx
+0000000000091488	movzbl	-0x38(%rbp), %r12d
+000000000009148d	movq	%r14, %rsi
+0000000000091490	movl	%r12d, %ecx
+0000000000091493	callq	__ZN19OZChannelObjectRoot17serializeSelfOnlyER23PCSerializerWriteStreambb ## OZChannelObjectRoot::serializeSelfOnly(PCSerializerWriteStream&, bool, bool)
+0000000000091498	leaq	0x148(%rbx), %r13
+000000000009149f	movq	0x148(%rbx), %rax
+00000000000914a6	movq	%r13, %rdi
+00000000000914a9	movq	%r14, %rsi
+00000000000914ac	xorl	%edx, %edx
+00000000000914ae	callq	*0x10(%rax)
+00000000000914b1	movq	0x148(%rbx), %rax
+00000000000914b8	movzbl	-0x2c(%rbp), %r15d
+00000000000914bd	movq	%r13, %rdi
+00000000000914c0	movq	%r14, %rsi
+00000000000914c3	xorl	%edx, %edx
+00000000000914c5	movl	$0x1, %ecx
+00000000000914ca	movl	%r15d, %r8d
+00000000000914cd	callq	*0x18(%rax)
+00000000000914d0	movq	(%r14), %rax
+00000000000914d3	movq	%r14, %rdi
+00000000000914d6	callq	*0x18(%rax)
+00000000000914d9	leaq	0x1c8(%rbx), %r13
+00000000000914e0	movq	0x1c8(%rbx), %rax
+00000000000914e7	movq	%r13, %rdi
+00000000000914ea	movq	%r14, %rsi
+00000000000914ed	xorl	%edx, %edx
+00000000000914ef	callq	*0x10(%rax)
+00000000000914f2	movq	%rbx, -0x38(%rbp)
+00000000000914f6	movq	0x1c8(%rbx), %rax
+00000000000914fd	movq	%r13, %rdi
+0000000000091500	movq	%r14, %rsi
+0000000000091503	xorl	%edx, %edx
+0000000000091505	movl	$0x1, %ecx
+000000000009150a	movl	%r15d, -0x2c(%rbp)
+000000000009150e	movl	%r15d, %r8d
+0000000000091511	callq	*0x18(%rax)
+0000000000091514	movq	(%r14), %rax
+0000000000091517	movq	%r14, %rdi
+000000000009151a	callq	*0x18(%rax)
+000000000009151d	testb	%r12b, %r12b
+0000000000091520	je	0x91605
+0000000000091526	movq	-0x38(%rbp), %rax
+000000000009152a	leaq	0x3c8(%rax), %r13
+0000000000091531	movq	0x3d0(%rax), %r15
+0000000000091538	jmp	0x91544
+000000000009153a	nopw	(%rax,%rax)
+0000000000091540	movq	0x8(%r15), %r15
+0000000000091544	cmpq	%r13, %r15
+0000000000091547	je	0x91595
+0000000000091549	movq	0x10(%r15), %rbx
+000000000009154d	leaq	0x50(%rbx), %rdi
+0000000000091551	movl	$0x8, %esi
+0000000000091556	callq	0x6df57c                        ## symbol stub for: __ZNK13OZChannelBase8testFlagEy
+000000000009155b	testb	%al, %al
+000000000009155d	jne	0x91540
+000000000009155f	leaq	0x48(%rbx), %r12
+0000000000091563	movq	0x48(%rbx), %rax
+0000000000091567	movq	%r12, %rdi
+000000000009156a	movq	%r14, %rsi
+000000000009156d	xorl	%edx, %edx
+000000000009156f	callq	*0x10(%rax)
+0000000000091572	movq	0x48(%rbx), %rax
+0000000000091576	movq	%r12, %rdi
+0000000000091579	movq	%r14, %rsi
+000000000009157c	xorl	%edx, %edx
+000000000009157e	movl	$0x1, %ecx
+0000000000091583	movl	-0x2c(%rbp), %r8d
+0000000000091587	callq	*0x18(%rax)
+000000000009158a	movq	(%r14), %rax
+000000000009158d	movq	%r14, %rdi
+0000000000091590	callq	*0x18(%rax)
+0000000000091593	jmp	0x91540
+0000000000091595	movq	-0x38(%rbp), %rax
+0000000000091599	leaq	0x3e0(%rax), %r13
+00000000000915a0	movq	0x3e8(%rax), %r15
+00000000000915a7	jmp	0x915b4
+00000000000915a9	nopl	(%rax)
+00000000000915b0	movq	0x8(%r15), %r15
+00000000000915b4	cmpq	%r13, %r15
+00000000000915b7	je	0x91605
+00000000000915b9	movq	0x10(%r15), %rbx
+00000000000915bd	leaq	0x30(%rbx), %rdi
+00000000000915c1	movl	$0x8, %esi
+00000000000915c6	callq	0x6df57c                        ## symbol stub for: __ZNK13OZChannelBase8testFlagEy
+00000000000915cb	testb	%al, %al
+00000000000915cd	jne	0x915b0
+00000000000915cf	leaq	0x28(%rbx), %r12
+00000000000915d3	movq	0x28(%rbx), %rax
+00000000000915d7	movq	%r12, %rdi
+00000000000915da	movq	%r14, %rsi
+00000000000915dd	xorl	%edx, %edx
+00000000000915df	callq	*0x10(%rax)
+00000000000915e2	movq	0x28(%rbx), %rax
+00000000000915e6	movq	%r12, %rdi
+00000000000915e9	movq	%r14, %rsi
+00000000000915ec	xorl	%edx, %edx
+00000000000915ee	movl	$0x1, %ecx
+00000000000915f3	movl	-0x2c(%rbp), %r8d
+00000000000915f7	callq	*0x18(%rax)
+00000000000915fa	movq	(%r14), %rax
+00000000000915fd	movq	%r14, %rdi
+0000000000091600	callq	*0x18(%rax)
+0000000000091603	jmp	0x915b0
+0000000000091605	movq	%r14, %rdi
+0000000000091608	callq	0x6de81a                        ## symbol stub for: __ZN23PCSerializerWriteStream8popScopeEv
+000000000009160d	movq	-0x38(%rbp), %rax
+0000000000091611	movb	$0x1, 0x3fc(%rax)
+0000000000091618	addq	$0x18, %rsp
+000000000009161c	popq	%rbx
+000000000009161d	popq	%r12
+000000000009161f	popq	%r13
+0000000000091621	popq	%r14
+0000000000091623	popq	%r15
+0000000000091625	popq	%rbp
+0000000000091626	retq
+0000000000091627	nopw	(%rax,%rax)
