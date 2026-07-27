@@ -16,59 +16,51 @@
       "n_failures": 0,
       "tol_abs": 1e-06,
       "tol_rel": 1e-06,
-      "swept": "2026-07-23T14:04:36Z"
+      "swept": "2026-07-27T18:58:45Z"
     },
     "curve.interp.bezier.eval": {
       "id": "curve.interp.bezier.eval",
       "kind": "curve",
       "status": "VERIFIED",
       "n_cases": 166,
-      "max_abs_err": 3.197442310920451e-14,
-      "max_rel_err": 1.7793109999639577e-15,
+      "max_abs_err": 0.0,
+      "max_rel_err": 0.0,
       "worst": {
-        "case": {
-          "ctrl": [
-            -46.39266018350674,
-            47.267435921232405,
-            17.408996307659947,
-            0.3140483766658235
-          ],
-          "u": 0.6143553481173157
-        },
-        "output": "ret",
-        "oracle": 17.970114898324205,
-        "engine": 17.970114898324237
+        "case": null,
+        "output": null,
+        "oracle": null,
+        "engine": null
       },
       "n_failures": 0,
       "tol_abs": 1e-06,
       "tol_rel": 1e-06,
-      "swept": "2026-07-22T11:48:19Z"
+      "swept": "2026-07-27T18:58:45Z"
     },
     "curve.interp.bezier.findparam": {
       "id": "curve.interp.bezier.findparam",
       "kind": "curve",
       "status": "VERIFIED",
       "n_cases": 135,
-      "max_abs_err": 4.293831956658778e-10,
-      "max_rel_err": 1.1745022423449324e-09,
+      "max_abs_err": 4.996003610813204e-16,
+      "max_rel_err": 2.4060844834601804e-15,
       "worst": {
         "case": {
           "tctrl": [
-            2.0,
-            2.5,
-            3.5,
-            4.0
+            -3.3816278374972386,
+            -2.052979234593285,
+            -0.8782426336992302,
+            -0.8131469905727924
           ],
-          "t": 2.7
+          "t": -2.5824479546563395
         },
         "output": "ret",
-        "oracle": 0.3655873779383244,
-        "engine": 0.3655873783677076
+        "oracle": 0.2076404068583856,
+        "engine": 0.2076404068583851
       },
       "n_failures": 0,
       "tol_abs": 1e-06,
       "tol_rel": 1e-06,
-      "swept": "2026-07-22T11:48:19Z"
+      "swept": "2026-07-27T18:58:45Z"
     },
     "filter.PAEBrightness": {
       "id": "filter.PAEBrightness",
@@ -3786,8 +3778,23 @@
       "id": "spatial.PAEDirectionalBlur",
       "status": "VERIFIED",
       "at": "2026-07-24T00:45:02Z"
+    },
+    {
+      "id": "curve.interp.bezier.eval",
+      "status": "VERIFIED",
+      "at": "2026-07-27T18:58:45Z"
+    },
+    {
+      "id": "curve.interp.bezier.findparam",
+      "status": "VERIFIED",
+      "at": "2026-07-27T18:58:45Z"
+    },
+    {
+      "id": "curve.interp.ease",
+      "status": "VERIFIED",
+      "at": "2026-07-27T18:58:45Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-24T00:45:02Z"
+  "updated": "2026-07-27T18:58:45Z"
 }

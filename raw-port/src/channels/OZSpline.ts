@@ -12,6 +12,7 @@ import { scurveInterpolate } from "./OZSCurveInterpolator.js";
 import { convexInterpolate } from "./OZConvexInterpolator.js";
 import { concaveInterpolate } from "./OZConcaveInterpolator.js";
 import { catmullRomInterpolate } from "./OZCatmullRomInterpolator.js";
+import { OZ_BEZIER_INTERPOLATOR } from "./OZBezierInterpolator.js";
 
 /**
  * sampleCurveValue — OZSpline::getVertexValue(CMTime t) @0x303a6. Keypoints ARE the vertices (sorted
@@ -46,8 +47,14 @@ export function sampleCurveValue(
         // undecoded upstream deps (OZBezierInterpolator::interpolate @0x407e6 +
         // OZCardinalInterpolator::computeTangents @0x42ae2) rather than substituting a textbook curve.
         case "catmullRom": return catmullRomInterpolate(t, a, b);
+        // OZBezierInterpolator @ProChannel 0x407e6: the class-level interpolate is NOT yet
+        // transcribed (needs getControlPoints @0x4054a + getVertexValue @0x303a6 + Sanitize
+        // ControlPolygon @0xa550c + the CMTime combine @0x40a10+). The two ORACLE-GATED free
+        // functions OZBezierEval @0xa549c and OZBezierFindParameter @0xa57c7 ARE transcribed in
+        // OZBezierInterpolator.ts (bit-exact vs live FCP; nodes curve.interp.bezier.eval /
+        // curve.interp.bezier.findparam VERIFIED). The class .interpolate() faithfully throws.
+        case "bezier":   return OZ_BEZIER_INTERPOLATOR.interpolate();
         // Pending faithful transcriptions (decoded, not yet ported — each MUST match its disasm):
-        //   bezier      OZBezierInterpolator::interpolate      @ProChannel 0x407e6
         //   xspline     OZXSplineInterpolator::interpolate     @ProChannel 0x45eae
         //   bspline     OZBSplineInterpolator::interpolate     @ProChannel 0x4191c
         // Never silently substitute a different curve; a loud throw is the correct behaviour.

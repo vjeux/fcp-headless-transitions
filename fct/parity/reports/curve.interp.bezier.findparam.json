@@ -3,32 +3,25 @@
   "kind": "curve",
   "status": "VERIFIED",
   "n_cases": 135,
-  "max_abs_err": 4.293831956658778e-10,
-  "max_rel_err": 1.1745022423449324e-09,
+  "max_abs_err": 4.996003610813204e-16,
+  "max_rel_err": 2.4060844834601804e-15,
   "worst": {
     "case": {
       "tctrl": [
-        2.0,
-        2.5,
-        3.5,
-        4.0
+        -3.3816278374972386,
+        -2.052979234593285,
+        -0.8782426336992302,
+        -0.8131469905727924
       ],
-      "t": 2.7
+      "t": -2.5824479546563395
     },
     "output": "ret",
-    "oracle": 0.3655873779383244,
-    "engine": 0.3655873783677076
+    "oracle": 0.2076404068583856,
+    "engine": 0.2076404068583851
   },
   "n_failures": 0,
   "failures": [],
   "tol_abs": 1e-06,
   "tol_rel": 1e-06,
-  "swept": "2026-07-22T11:48:19Z",
-  "findings": [
-    {
-      "kind": "characterized_edge_case",
-      "summary": "Degenerate time-Bezier [0,0,1,1] at exact endpoints: FCP returns the opposite root (u(0)=1, u(1)=0); engine returns the natural root. Interior + all strictly-increasing polygons match to ~1e-9.",
-      "not_a_bug": "Real Motion time-Beziers keep interior handle times strictly increasing; cases.bezierFind tests that faithful domain. Not fitted to the FCP boundary artifact."
-    }
-  ]
+  "swept": "2026-07-27T18:58:45Z"
 }

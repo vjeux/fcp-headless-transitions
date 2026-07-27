@@ -16,6 +16,17 @@
 
 import readline from 'node:readline';
 import { easeInOut, cubicBezier, solveBezierParam } from '../src/evaluator/curves.js';
+// Raw-port faithful transcriptions (bit-exact vs the live FCP symbols). Preferred over the
+// engine's cubicBezier/solveBezierParam for the OZBezier* parity nodes — the raw-port versions
+// are structural line-for-line ports of __Z12OZBezierEvalPKdd @ProChannel 0xa549c and
+// __Z21OZBezierFindParameterPKdd @ProChannel 0xa57c7 (see raw-port/src/channels/OZBezierInterpolator.ts).
+import {
+  OZBezierEval as RawOZBezierEval,
+  OZBezierFindParameter as RawOZBezierFindParameter,
+} from '../../raw-port/src/channels/OZBezierInterpolator.js';
+// Silence "unused" for the engine's approximate ports (kept only as reference for the pre-oracle
+// engine path; parity nodes now route through the raw-port faithful transcriptions).
+void cubicBezier; void solveBezierParam;
 import { gaussianDecimation } from '../src/compositor/filters/gaussian-blur.js';
 import { LUMA709_COEFFS_FCP } from '../src/compositor/blend.js';
 import { DSFMT } from '../src/compositor/filters/noise.js';
@@ -47,16 +58,19 @@ const FUNCTIONS: Record<string, Fn> = {
     return { outVal };
   },
 
-  // OZBezierEval(ctrl[4], u) -> value. TS analogue: cubicBezier(u, p0,p1,p2,p3).
+  // OZBezierEval(ctrl[4], u) -> value. Bit-exact port of __Z12OZBezierEvalPKdd @ProChannel 0xa549c
+  // living in raw-port/src/channels/OZBezierInterpolator.ts (Bernstein Horner cubic).
   'OZBezierEval': (a) => {
     const c = a.ctrl as number[]; const u = a.u as number;
-    return { ret: cubicBezier(u, c[0], c[1], c[2], c[3]) };
+    return { ret: RawOZBezierEval(c, u) };
   },
 
-  // OZBezierFindParameter(tctrl[4], t) -> u. TS analogue: solveBezierParam(t, t0..t3).
+  // OZBezierFindParameter(tctrl[4], t) -> u. Bit-exact port of __Z21OZBezierFindParameterPKdd
+  // @ProChannel 0xa57c7 (delegates to OZBezierGetRoots @0xa5716 -> PCMath::cubic/quadratic; then
+  // picks the root closest to [0,1] and clamps).
   'OZBezierFindParameter': (a) => {
     const c = a.tctrl as number[]; const t = a.t as number;
-    return { ret: solveBezierParam(t, c[0], c[1], c[2], c[3]) };
+    return { ret: RawOZBezierFindParameter(c, t) };
   },
 
   // HGBlur::GetDecimation(radius) -> decimation level. TS: gaussianDecimation(radius).
