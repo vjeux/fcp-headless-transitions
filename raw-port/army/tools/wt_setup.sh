@@ -20,7 +20,7 @@ for i in $(seq 1 600); do mkdir "$SETUP_LOCK" 2>/dev/null && break; sleep 0.5; d
 trap 'rmdir "$SETUP_LOCK" 2>/dev/null || true' EXIT
 git fetch -q origin 2>/dev/null || true
 # fresh branch off the latest origin/main; reuse if it already exists (resume)
-if git worktree list --porcelain | grep -q "worktree $WT"; then
+if git worktree list --porcelain | grep -qx "worktree $WT"; then
   echo "worktree exists: $WT (branch $BR) — resuming"
 else
   git show-ref --verify -q "refs/heads/$BR" && git branch -q -D "$BR" 2>/dev/null || true
