@@ -48,3 +48,9 @@ bit-for-bit. Mark such units "verified". Units not yet oracle-checkable are "por
 - A `// TODO approximate` / silent fallback instead of a throw.
 - A "helper" that doesn't correspond to a real FCP function (invent-a-function smell).
 - Reformatting/ް"cleaning up" logic away from the instruction structure.
+
+## Naming rule (STRICT): one file per FCP class, named after the class
+- File name = the exact FCP class name: `OZLinearInterpolator.ts`, `PCMatrix44Tmpl_double.ts`, etc.
+- NEVER a grab-bag file (no `interpolators.ts`, no `utils.ts`). Each function goes in its owning class.
+- A free function goes in a file named after it (or its translation-unit), not a catch-all.
+- Reviewers reject any file that holds more than one FCP class or isn't named after what it contains.
