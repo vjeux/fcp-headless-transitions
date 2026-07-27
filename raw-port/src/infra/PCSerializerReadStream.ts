@@ -38,6 +38,26 @@ export class PCSerializerReadStream {
   getAsInt32(e: PCStreamElement): number { const v = parseInt(e.text, 10); return Number.isNaN(v) ? 0 : v | 0; }
   getAsDouble(e: PCStreamElement): number { const v = parseFloat(e.text); return Number.isNaN(v) ? 0 : v; }
 
+  /**
+   * getAsFigTime — parse a CMTime element to SECONDS. DECODED from PCStreamElement::aToFigTime
+   * (ProCore @0x287d8): the text is 4 whitespace-separated fields parsed in THIS order/base:
+   *   1. value     = strtoll(base 10)   -> CMTime.value      (int64, offset 0x0)
+   *   2. timescale = strtol (base 10)   -> CMTime.timescale  (int32, offset 0x8)
+   *   3. epoch     = strtoull(base 16)  -> CMTime.epoch       (uint,  offset 0xc)  [HEX!]
+   *   4. flags     = strtoull(base 10)  -> CMTime.flags       (uint,  offset 0x10)
+   * e.g. "88088 120000 1 0" = value 88088 / timescale 120000 = 0.7340666s. Returns seconds.
+   */
+  getAsFigTime(e: PCStreamElement): number {
+    const t = e.text.trim();
+    if (!t) return 0;
+    const parts = t.split(/\s+/);
+    const value = parts[0] !== undefined ? Number(BigInt.asIntN(64, BigInt(parseInt(parts[0], 10) || 0))) : 0;
+    const timescale = parts[1] !== undefined ? parseInt(parts[1], 10) : 0;
+    // epoch (parts[2], base 16) and flags (parts[3], base 10) are parsed by FCP but do not affect
+    // the scalar seconds value used for sampling; retained here only for fidelity of the format.
+    return timescale > 0 ? value / timescale : 0;
+  }
+
   /** OZDocument version gate. Returns true when doc version < (maj,min). */
   isLessThanVersion(maj: number, min: number): boolean {
     return this.versionMajor < maj || (this.versionMajor === maj && this.versionMinor < min);

@@ -7,7 +7,7 @@
 import { OZChannelBase } from "./OZChannelBase.js";
 import { OZChannelFolder } from "./OZChannelFolder.js";
 import { OZChannel } from "./OZChannel.js";
-
+import { interpKindForType } from "./interpolators.js";
 export interface Vec3 { x: number; y: number; z: number; }
 export interface NodeTransform {
   position: Vec3;
@@ -35,14 +35,25 @@ export function channelValue(c: OZChannelBase | undefined, t: number, fallback: 
 function evalCurve(c: OZChannel, t: number): number {
   const kps = c.curve!.keypoints;
   if (kps.length === 1) return kps[0].value;
-  // linear interpolation between surrounding keypoints (tangent/interp modes layered later)
+  // Before first / after last keypoint: hold the endpoint (FCP's default extrapolation).
   if (t <= kps[0].time) return kps[0].value;
   if (t >= kps[kps.length - 1].time) return kps[kps.length - 1].value;
   for (let i = 0; i < kps.length - 1; i++) {
     const a = kps[i], b = kps[i + 1];
     if (t >= a.time && t <= b.time) {
-      const f = b.time === a.time ? 0 : (t - a.time) / (b.time - a.time);
-      return a.value + (b.value - a.value) * f;
+      // The SEGMENT interpolator is selected by the LEFT keypoint's interpolation type, falling
+      // back to the <curve type=N> when the keypoint carries none (Reflection's curves put type on
+      // the <curve>, not per-keypoint). DECODED type->interpolator (re/INTERPOLATION_TYPES.md):
+      //   0 = Constant (hold-left); 1,15,16,17,18 = Linear; 2..5,9,11 = Bezier (tangents);
+      //   6 = CatmullRom; 10 = XSpline; 12 = BSpline; 19 = Convex; 20 = Concave; 21 = SCurve;
+      //   7,8,13,14 = base (identity). Constant + Linear cover 13766/13997 keypoints across the 65.
+      const kind = interpKindForType(a.interpolation ?? c.curve!.type ?? 1);
+      if (kind === "constant") return a.value; // OZConstantInterpolator: hold the left value
+      // OZLinearInterpolator (@0x44ec8): u = (t-t0)/(t1-t0); value = v0 + (v1-v0)*u. VERIFIED exact.
+      const u = b.time === a.time ? 0 : (t - a.time) / (b.time - a.time);
+      // Bezier/CatmullRom/SCurve segment math (tangent-based) is not yet decoded; fall back to the
+      // linear parameterisation of u for those (documented TODO — decode OZBezierInterpolator next).
+      return a.value + (b.value - a.value) * u;
     }
   }
   return c.value ?? c.defaultValue ?? 0;

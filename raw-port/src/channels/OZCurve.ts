@@ -38,7 +38,7 @@ export class OZCurve {
         // <keypoint><time>..</time><value>..</value> ... </keypoint> — appendVertexNoTangents.
         const kp: OZKeypoint = { time: 0, value: 0 };
         for (const c of e.children) {
-          if (c.tagName === "time") kp.time = s.getAsDouble(c);
+          if (c.tagName === "time") kp.time = s.getAsFigTime(c); // CMTime "value ts epoch flags" -> seconds
           else if (c.tagName === "value") kp.value = s.getAsDouble(c);
           else if (c.tagName === "inTangent") kp.inTangent = s.getAsDouble(c);
           else if (c.tagName === "outTangent") kp.outTangent = s.getAsDouble(c);
