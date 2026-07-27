@@ -836,7 +836,23 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
       ? layer.timing.offset.value / layer.timing.offset.timescale : 0;
     const inn = layer.timing.in && layer.timing.in.timescale > 0
       ? layer.timing.in.value / layer.timing.in.timescale : 0;
-    if (off - inn > 1e-3) curveTime = timeSec - off;
+    // A resolved drop-zone with offset > in authors its transform curves in the layer-LOCAL
+    // frame anchored at `offset` (Movements/Rotate: B panel offset=0.367 > in=0.167). Shift.
+    // ALSO: a drop-zone with offset == in > 0 AND an ANIMATED position curve authors that
+    // bounce/motion in local time too — Motion places local-frame zero at `offset`. DECODED
+    // 2026-07-26 on Movements/Drop_In: Transition B (offset==in==0.100s) carries a 7-keyframe
+    // Position-Y DROP bounce (719→−416→282→…→0 over local [0,1.268s]). The old gate
+    // (off−in>1e-3 only) left curveTime=raw scene time, so the bounce played ~0.1s (≈2 frames)
+    // early — B dropped to centre by f2 and the engine showed B (blue) while FCP still shows A
+    // (warm) through the drop (full-case 11.99 dB; B mid-transition mean [113,124,150] vs FCP
+    // [140,93,64]). Shifting by offset re-anchors the bounce to start at scene t=offset=0.100s.
+    // Scoped to an ANIMATED-position drop zone so static-position panels with offset==in
+    // (Reflection B off==in==0.033 static, Zoom/Color Planes/Lens Flare off==in==0) are
+    // untouched (the shift would be a no-op for a static curve anyway, but keep it explicit).
+    const pY = layer.transform.positionY;
+    const posAnimated = typeof pY === 'object' && pY !== null && (pY as { keyframes?: unknown[] }).keyframes !== undefined
+      && ((pY as { keyframes: unknown[] }).keyframes.length > 1);
+    if (off - inn > 1e-3 || (off > 1e-3 && posAnimated)) curveTime = timeSec - off;
     // A blended (screen/add) VIDEO overlay whose media timeline offset is NEGATIVE
     // (its local frame starts BEFORE scene-zero) also anchors its Opacity/transform
     // curves in the layer-local frame: curveTime = timeSec - offset. Lights/Light
