@@ -863,16 +863,21 @@ export function determineImageSource(params: Parameter[], el: Element | undefine
     return { type: 'linearGradient', gradient: parseLinearGradient(params) };
   }
 
-  // Color Solid generator (a plugin fill, not a drop zone). Matched by pluginUUID FIRST
+  // Color Solid generator (a plugin fill, not a drop zone). Matched STRICTLY by pluginUUID
   // (C18E8B62-… is the canonical, stable Color Solid generator identity — verified constant
-  // across "Color Solid" / "Color Solid BG" / "Color Solid FG" in 360°/Reflection templates;
-  // only the pluginName varies), with a pluginName fallback for any variant. Keying on the
-  // UUID makes this robust to a stripped pluginName (the minimizer drops decorative attrs,
-  // and FCP itself resolves the plugin from the UUID, not the name).
+  // across "Color Solid" / "Color Solid BG" / "Color Solid FG" in 360°/Reflection templates).
+  // FCP binds a generator plugin by its pluginUUID; a node with only a pluginName and NO
+  // pluginUUID is an UNRESOLVED plugin — FCP renders NOTHING (black/transparent). DECODED
+  // 2026-07-27 via controlled headless probes: a bare Color-Solid node stripped of its
+  // pluginUUID (pluginName="Color Solid" only) renders [0,0,0] in FCP-headless, whereas the
+  // same node WITH pluginUUID renders its (blue-default) fill. The earlier pluginName fallback
+  // over-matched — it made the engine paint the default blue where FCP paints black, so a
+  // minimizer-stripped Color-Solid DRIVER (Reflection's disabled Position-Z driver, whose
+  // <enabled>0</enabled> AND pluginUUID both get stripped) wrongly occluded the real content.
+  // EVERY shipped-transition Color Solid carries the pluginUUID (verified across all 65), so
+  // requiring it is a strict no-op for real templates and only corrects stripped repros.
   const _pluginUUIDCS = (el?.getAttribute('pluginUUID') || '').toUpperCase();
-  const _pluginNameCS = el?.getAttribute('pluginName') || '';
-  if (el && (_pluginUUIDCS.startsWith('C18E8B62')
-      || _pluginNameCS.includes('Color Solid') || _pluginNameCS.includes('PAEColorSolid'))) {
+  if (el && _pluginUUIDCS.startsWith('C18E8B62')) {
     // Motion's Color Solid generator has PER-CHANNEL defaults R=0, G=0, B=1 (a pure-BLUE
     // default), DECODED from the generator definition (360° Color Solid.motn): the Color
     // param's Blue child carries default="1", Red/Green default="0". Motion only serializes
