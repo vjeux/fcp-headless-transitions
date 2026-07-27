@@ -150,3 +150,22 @@ Ozone node `parseElement` methods handle STRUCTURE (child scenenodes, factory re
 behaviors, flags). All VALUES flow through OZChannelObjectRootBase::parseElement (ProChannel),
 which OZSceneNode::parseElement calls first (@0x91b40). So porting a node = (a) its structural
 tags from Ozone + (b) delegating <parameter> children to the ProChannel channel-tree port.
+
+---
+
+## PARITY STATUS (2026-07-27)
+Node-ID-set diff of raw-port vs engine/src/parser across all 65 transitions:
+- **onlyEng = 0 for ALL 65** — raw-port captures every scene node the engine parser produces.
+- raw-port is a SUPERSET: the extra `onlyRaw` nodes are the helper/driver nodes the engine's
+  renderer-oriented parser deliberately skips (Project widget, Camera, Rig behavior host, Widget,
+  and the fully-recursed Emitter/Cell particle subtree). Faithful to FCP — these ARE real nodes.
+- All 65 parse without error; full <parameter> channel tree + behaviors + factory table captured.
+
+Remaining port work (values/semantics, not structure):
+1. Concrete leaf classes where the engine specializes: OZCamera, OZLight, OZRotoshape, OZImageMask,
+   OZFxGenerator, replicator/emitter (OZChannel typed subclasses for gradient/text/overrange).
+2. parseEnd passes (OZScene::parseEnd ref/dependency resolution; OZSceneNode::parseEnd defaults).
+3. Behavior/rig channel semantics (OZLinkBehavior/OZRigBehavior read their channelBehavior refs).
+4. Then: transform-matrix + A/B + media resolution derived FROM the channel tree (the render-facing
+   projection the engine currently guesses) — computed faithfully from the decoded channels.
+5. Wire the evaluator/compositor to consume the raw-port tree; re-score the 65.
