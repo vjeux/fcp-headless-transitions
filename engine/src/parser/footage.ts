@@ -73,13 +73,6 @@ export interface ClipInfo {
 
 export function parseFootageClipAB(sceneEl: Element, factories: Map<number, string>): ClipInfo {
   const map = new Map<number, 'A' | 'B' | 'P' | 'E'>();
-  // Whether the scene declares a <sceneSettings> block. At the no-<sceneSettings> DV-default canvas
-  // FCP paints its RED missing-media placeholder for ANY unfilled (no pathURL/relativeURL) clip —
-  // even a DIMENSIONED one (<missingWidth>/<missingHeight> both 1200) — DECODED 2026-07-27 on Drop_In's
-  // re-minimized both-dims repro (no sceneSettings → red). WITH <sceneSettings>, a both-dims-positive
-  // unfilled clip is a REAL drop zone that resolves to its A/B content (Reflection _t_refl_np Type=2 B
-  // 1200×1200 → bluish B, no red). So the missing-dims "rescue from empty" applies ONLY with sceneSettings.
-  const hasSceneSettings = sceneEl.getElementsByTagName('sceneSettings').length > 0;
   const clipMedia = new Map<number, { url: string; frameRate?: number }>();
   let dropZoneMediaHeight: number | undefined;
   const clips: { id: number; path: string; name: string; empty: boolean }[] = [];
@@ -100,18 +93,20 @@ export function parseFootageClipAB(sceneEl: Element, factories: Map<number, stri
       // A clip WITH <missingWidth>/<missingHeight> is a REAL but unloaded, DIMENSIONED drop zone
       // (Reflection _t_refl_np Type=2 B 1200×1200) that FCP renders as its A/B content — NOT 'E'.
       const relRaw = getTextContent(clip, 'relativeURL');
-      // A clip is a REAL DIMENSIONED drop zone (unfilled but sized) only when BOTH missingWidth AND
-      // missingHeight parse to POSITIVE numbers. A single dimension, a zero, or an absent one is NOT
-      // a real box — the clip is still EMPTY. DECODED 2026-07-27 on Drop_In's re-minimized repros: a
-      // clip with <missingHeight>0</missingHeight> OR only <missingHeight>1200</missingHeight> (no
-      // missingWidth) and no pathURL renders FCP red [204,0,0] (empty), whereas Reflection _t_refl_np's
-      // Type=2 B clip carries BOTH missingWidth=1200 AND missingHeight=1200 → a real drop zone (stays B).
+      // A clip is a REAL DIMENSIONED drop zone (unfilled but sized) when it has a POSITIVE
+      // <missingWidth> OR <missingHeight> — a media WELL exists, so FCP resolves it to A/B content
+      // (a value that clones/replicators display), NOT the empty placeholder. DECODED 2026-07-27 on
+      // Replicator-Clones/Concentric's re-minimized repro (Concentric_v2): its Type=2 B clip (real
+      // clip carries missingWidth=1200+missingHeight=1200; the minimizer stripped the width leaving
+      // <missingHeight>1200</missingHeight> only) renders FCP CONTENT — concentric clone rings of B
+      // (bright centre on black, mean [51,54,62]) — NOT red. So a single positive missing dimension is
+      // enough to mark a real drop zone. A clip with NO pathURL/relativeURL AND NO positive missing
+      // dim is TRULY EMPTY → the missing-media placeholder (red at DV canvas / black with sceneSettings;
+      // bare committed repros _t_3dr/DropIn_v3/Squares_v2 stay empty). Reflection _t_refl_np (both
+      // dims 1200) stays a real B. NAME is irrelevant (Drop_In's named-but-media-less clip → red).
       const mw = parseFloat(getTextContent(clip, 'missingWidth') || '');
       const mh = parseFloat(getTextContent(clip, 'missingHeight') || '');
-      // A dimensioned box (both dims > 0) rescues an unfilled clip from "empty" ONLY when the scene
-      // has <sceneSettings> — at the DV-default (no-sceneSettings) canvas FCP renders red for any
-      // no-media clip regardless of dims (see hasSceneSettings note above).
-      const hasMissingBox = hasSceneSettings && isFinite(mw) && mw > 0 && isFinite(mh) && mh > 0;
+      const hasMissingBox = (isFinite(mw) && mw > 0) || (isFinite(mh) && mh > 0);
       const isEmptyClip = !path && !(relRaw && relRaw.trim()) && !hasMissingBox;
       clips.push({ id, path, name, empty: isEmptyClip });
       // Capture the drop-zone media box's Fixed Height (Object → id 115). Motion
