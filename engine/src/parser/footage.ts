@@ -243,7 +243,11 @@ export function parseFootageClipAB(sceneEl: Element, factories: Map<number, stri
       const params: Parameter[] = [];
       for (const p of directChildren(node, 'parameter')) params.push(parseParameter(p));
       const cid = findSourceMediaId(params);
-      if (cid !== undefined && map.has(cid) && !seen.has(cid)) {
+      // Skip 'E' (truly-empty missing-media) clips: they render the FCP missing-media placeholder,
+      // NOT A/B media, so the A/B document-order re-key below must never bind them to imageA/imageB.
+      // DECODED 2026-07-27 on Objects/Squares' re-minimized repro (two empty clips → the discovery-
+      // order override was re-keying them A/B and painting the test photos; FCP renders red placeholders).
+      if (cid !== undefined && map.has(cid) && map.get(cid) !== 'E' && !seen.has(cid)) {
         seen.add(cid);
         referenced.push(cid);
         // Record a direct-child <mask name="Image Mask"> on this drop-zone node.
