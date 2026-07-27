@@ -1,4 +1,5 @@
 fw	class	nMethods	nPorted
+Helium	(free)	1458	0
 Flexo	(free)	821	0
 Ozone	(free)	627	0
 ProCore	(free)	537	0
@@ -7,6 +8,7 @@ Ozone	OZPreferenceManager	365	0
 ProChannel	OZChannel	241	0
 Ozone	OZImageElement	212	0
 Ozone	OZElement	205	0
+Helium	HGGPURenderer	193	0
 Ozone	OZSceneNode	186	0
 ProChannel	OZCurve	184	0
 Ozone	OZFootage	180	0
@@ -19,9 +21,15 @@ Ozone	OZFxPlugSharedBase	148	0
 ProChannel	OZSpline	137	0
 ProChannel	OZChannelCurve	131	0
 Ozone	OZFxFilter	121	0
+Helium	HGRasterizer	117	0
+Helium	HGString	112	0
+Helium	HGMetalHandler	102	0
 ProCore	Json::Value	100	0
+Helium	HGRenderQueue	99	0
+Helium	HGTextureManager	97	0
 ProCore	PCColor	96	0
 ProChannel	OZChannelFolder	94	0
+Helium	HGNode	94	0
 Ozone	OZEffect	93	0
 Ozone	OZRenderParams	92	0
 Ozone	non-virtual thunk to OZRotoshape	92	0
@@ -30,8 +38,11 @@ Ozone	OZBehavior	90	0
 ProCore	PCString	89	0
 Ozone	OZTransformNode	89	0
 ProChannel	OZDynamicCurve	88	0
+Helium	HGRenderer	86	0
+Helium	HGColorGamma	84	0
 Flexo	FFOZSlaveCurve	83	0
 Ozone	OZMaterialSubstanceLayer	80	0
+Helium	HGRenderJob	80	0
 Ozone	OZObjectManipulator	78	0
 ProChannel	(free)	77	0
 Ozone	OZMaterialFinishLayer	75	0
@@ -39,6 +50,7 @@ Ozone	OZSceneCamera	75	0
 Ozone	OZDocument	73	0
 ProCore	PCColorSpaceCache	71	0
 Flexo	FFAudioPlayer	71	0
+Helium	HGGLNode	68	0
 Ozone	OZSceneNodeFile	67	0
 Ozone	OZMoShape	67	0
 Ozone	OZAudioBehavior	66	0
@@ -52,11 +64,13 @@ Ozone	OZ3DEngineSceneFile	62	0
 Ozone	OZShapeBehavior	62	0
 Ozone	OZAudioTrack	61	0
 Flexo	FFAudioRecorder	60	0
+Helium	HGComicImplementation	59	0
 Ozone	OZ3DEngineSceneElement	57	0
 Ozone	OZViewerState	56	0
 Flexo	FFScopedEffect	56	0
 ProChannel	OZChannelBlindData	55	0
 Ozone	OZMaterialPaintLayer	55	0
+Helium	HGColorConform	55	0
 ProChannel	OZChannelObjectRootBase	54	0
 Ozone	OZLayeredMaterial	54	0
 Ozone	OZOpticalFlow::Private::AnalyzerImpl	54	0
@@ -79,11 +93,13 @@ ProCore	PCHashWriteStream	47	0
 ProCore	PCBinaryXMLWriteStream	47	0
 Ozone	OZMaterialLayerBase	47	0
 Ozone	OZMaterialCompoundLayer	47	0
+Helium	HGLinearFilter2D	47	0
 Ozone	OZStyle	46	0
 Ozone	OZObjectSimulator	45	0
 Ozone	non-virtual thunk to OZFxFilter	45	0
 Ozone	OZTrackerMotionSpecific	45	0
 Flexo	FFAudioDeviceObject	45	0
+Helium	HGMetalTexture	45	0
 ProChannel	OZChannelEnum	44	0
 ProCore	PCBitmap	44	0
 Ozone	OZFxGenerator	43	0
@@ -100,6 +116,8 @@ Flexo	FFScheduledReadAudioFile	41	0
 ProCore	PCSerializerReadStream	40	0
 Ozone	OZChanObjectRefWithPicker	40	0
 Flexo	FFShape	40	0
+Helium	HGRenderNode	40	0
+Helium	HGGLShaderCache	40	0
 ProChannel	OZDynamicSpline	39	0
 ProChannel	OZChannelGradient	39	0
 ProCore	PCBinaryXMLStreamElement	39	0
@@ -108,18 +126,22 @@ Ozone	OZMaterialDistressLayer	39	0
 Ozone	OZChannelBehavior	39	0
 Flexo	FFAudioPlaybackMediator	39	0
 Flexo	MXF::FileReader	39	0
+Helium	HGXForm	39	0
 ProChannel	OZChannelColorNoAlpha	38	0
 Flexo	ausdk::AUBufferList	38	0
+Helium	HGHWBlend	38	0
 ProCore	PCAtomBoxFile	37	0
 Ozone	OZApplication	37	0
 Ozone	OZMaterialFlatLayer	37	0
 Ozone	OZLight	37	0
 Ozone	OZLinkChannelExpression	37	0
+Helium	HGTransform	37	0
 ProCore	ProCore::Private	36	0
 ProCore	Json::OurReader	36	0
 Ozone	non-virtual thunk to OZBehavior	36	0
 Ozone	OZRig	36	0
 Flexo	MXF::MXFEssenceContainer	36	0
+Helium	HGProgramDescriptor	36	0
 ProCore	PCURL	35	0
 ProCore	PCAtomMetadataHandler	35	0
 ProChannel	OZRecordingNode	34	0
@@ -133,6 +155,7 @@ Ozone	OZSceneSettings	33	0
 Ozone	OZChanSceneNodeRef	33	0
 Ozone	OZTransitiveBehavior	33	0
 Ozone	non-virtual thunk to OZMaterialSpecularLayer	33	0
+Helium	HGBitmapLoader	33	0
 ProChannel	OZCompoundChannel	32	0
 ProChannel	OZChannelRotation3D	32	0
 ProCore	PCImageDescAtomBox	32	0
@@ -141,6 +164,7 @@ Ozone	non-virtual thunk to OZFxGenerator	32	0
 ProChannel	OZChannelImpl	31	0
 ProCore	PCXMLStreamElement	31	0
 Flexo	FFPlayerHealthMeter	31	0
+Helium	HGRenderContext	31	0
 ProChannel	OZDynamicVertex	30	0
 ProCore	PCAtomBox	30	0
 Ozone	non-virtual thunk to OZElement	30	0
@@ -152,6 +176,8 @@ Ozone	non-virtual thunk to OZMaterialBase	30	0
 Ozone	OZChannelFontBase	30	0
 Flexo	FFScopedExternalUnitEffect	30	0
 Flexo	HPMCoreMedia	30	0
+Helium	HGComicDesignerInterfaceImplementation	30	0
+Helium	HGColorMatrix	30	0
 ProChannel	OZChannelBool3D	29	0
 ProChannel	OZChannelText	29	0
 ProCore	PCColorUtil	29	0
@@ -169,12 +195,18 @@ Flexo	ProResRaw::PluginMultiSettingsController	28	0
 Flexo	CoreMediaMovieReader_Decode	28	0
 Flexo	FFVTDecompressionSession	28	0
 Flexo	AUSampleRateConverterWithTimeStamps	28	0
+Helium	HGFormatUtils	28	0
+Helium	HGLimits	28	0
+Helium	HGGLContext	28	0
 ProCore	PCDelaunay::TriangleEdge	27	0
 Ozone	OZAudioLayer	27	0
 Ozone	OZPasteList	27	0
 Ozone	OZImageGenerator	27	0
 Ozone	OZHostApplicationDelegateHandler	27	0
 Flexo	FFAVFVideoCursor	27	0
+Helium	HGGPURenderContext	27	0
+Helium	arb	27	0
+Helium	HGMetalDeviceInfo	27	0
 ProChannel	OZChannelPosition	26	0
 Ozone	OZNotificationManager	26	0
 Ozone	OZTimeMarkerSet	26	0
@@ -184,10 +216,13 @@ Flexo	FFAudioPlaybackScrubBuffer	26	0
 Flexo	FFAudioStreamObjectScope	26	0
 Flexo	MXF::MXFPartitionData	26	0
 Flexo	MXF::MXFTimeline	26	0
+Helium	HGBitmap	26	0
 ProChannel	OZChannelVaryingFolder	25	0
 ProChannel	OZChannelDiscreteColor	25	0
 Ozone	METimeRemap	25	0
 Ozone	OZSimulationBehavior	25	0
+Helium	HGeometryData	25	0
+Helium	HGBlur	25	0
 ProChannel	OZChannel3D	24	0
 ProChannel	OZChannelButton	24	0
 ProChannel	OZChannelHistogram	24	0
@@ -200,6 +235,7 @@ Ozone	OZImageEnvironment	24	0
 Ozone	OZMaterialEmissiveLayer	24	0
 Ozone	non-virtual thunk to OZMaterialDiffuseLayer	24	0
 Flexo	FFAVFQTMediaReader	24	0
+Helium	HGToneCurve	24	0
 ProChannel	OZConstantNode	23	0
 ProChannel	OZBSplineInterpolator	23	0
 ProChannel	OZChanObjectRef	23	0
@@ -218,6 +254,9 @@ Ozone	non-virtual thunk to OZLinkBehavior	23	0
 Flexo	FFAudioPlaybackSkipStyleBuffer	23	0
 Flexo	FFAVFCompositionMediaReader	23	0
 Flexo	AUSimpleScoper	23	0
+Helium	HGHWMultiBlend	23	0
+Helium	HGDotGraph	23	0
+Helium	HGHandler	23	0
 ProChannel	OZChannelBase_Factory	22	0
 ProChannel	OZChannelDouble_Factory	22	0
 ProChannel	OZChannelBool_Factory	22	0
@@ -301,6 +340,14 @@ Ozone	OZMaterialLayersFolder	22	0
 Ozone	OZFontManagerBase	22	0
 Flexo	FFPMRXMLInstrument	22	0
 Flexo	FFAudioEffectChain	22	0
+Helium	HGGLContextCGL	22	0
+Helium	HGRenderExecUnit	22	0
+Helium	TextureDeleteQueue	22	0
+Helium	HGApply3DLUT	22	0
+Helium	HGConvolution	22	0
+Helium	HGMetalContext	22	0
+Helium	HGLodFilter	22	0
+Helium	HGCVPixelBuffer	22	0
 ProChannel	OZCurveNode	21	0
 ProChannel	OZVertex	21	0
 ProChannel	OZXSplineInterpolator	21	0
@@ -338,6 +385,10 @@ Ozone	OZHGBuilderJob	21	0
 Flexo	FFMediaReader	21	0
 Flexo	FFVideoDecoder_Intra	21	0
 Flexo	ausdk::AUBase	21	0
+Helium	HGMetalBuffer	21	0
+Helium	HGString::Digest	21	0
+Helium	HGTW::HGTextureWrapRepeat	21	0
+Helium	HgcRasterizerTexture	21	0
 ProChannel	OZChannelSegmentVisitor	20	0
 ProCore	PCMatrix44Tmpl<double>	20	0
 Ozone	OZAudioTrackBase_Factory	20	0
@@ -459,6 +510,21 @@ Flexo	SurroundPanner	20	0
 Flexo	FFOZObservableFolder_Factory	20	0
 Flexo	FFOZRootChannel_Factory	20	0
 Flexo	Observers	20	0
+Helium	HGAnisotropicSampler	20	0
+Helium	HGAnisotropicXForm	20	0
+Helium	HGImmersiveVideoPreview	20	0
+Helium	HGPixelBufferObj	20	0
+Helium	HGExecutionUnit	20	0
+Helium	HGLegacyBlend	20	0
+Helium	Hgc2DeinterlaceLA	20	0
+Helium	Hgc2ChannelCopy	20	0
+Helium	Hgc2GammaMC	20	0
+Helium	Hgc2LensGDC_BC	20	0
+Helium	Hgc2LensGDC_BL	20	0
+Helium	Hgc2Gamma	20	0
+Helium	Hgc2GammaNoPremult	20	0
+Helium	HgcRasterizerTextureNoColor	20	0
+Helium	HgcRasterizerGenerator	20	0
 ProChannel	OZChannelBool	19	0
 ProChannel	OZChannelGradientRGBFolder	19	0
 ProChannel	OZChannelGradientAlphaFolder	19	0
@@ -481,6 +547,10 @@ Flexo	FFAudioGainChannelChaser	19	0
 Flexo	FFParameterChaser	19	0
 Flexo	AUSurroundPanner	19	0
 Flexo	J2KCodeStream	19	0
+Helium	HGGLTexture	19	0
+Helium	HGUserJob	19	0
+Helium	HGGPUResources	19	0
+Helium	Hgc2ComputeDeltaEITP	19	0
 ProChannel	OZChannelColor	18	0
 ProChannel	OZChannelCrop	18	0
 ProChannel	OZChannelScale3D	18	0
@@ -493,6 +563,19 @@ Ozone	HgcCombineFields	18	0
 Ozone	HgcCopyMaskRGBToMaskAlpha	18	0
 Flexo	FFVideoScopes::HistogramRenderer	18	0
 Flexo	FFAudioFileChannelStream	18	0
+Helium	HGEquirectReorient	18	0
+Helium	HGExecUnitStack	18	0
+Helium	MultiGPUPoolingPolicy	18	0
+Helium	HGGLRendererInfo	18	0
+Helium	HGCVPixelBufferPool	18	0
+Helium	HGEnhanceDetails_LProj	18	0
+Helium	HgcYUV444BiPlanar_chroma	18	0
+Helium	HgcYUV420TriPlanar_alpha	18	0
+Helium	HgcInterlaceHandler_InterlaceFields	18	0
+Helium	HgcExposure	18	0
+Helium	HgcPixelFormatConversion_kV4B_WXYZ_output	18	0
+Helium	HgcPixelFormatConversion_kV4F_WXYZ_output	18	0
+Helium	HgcPixelFormatConversion_kV4S_WXYZ_output	18	0
 ProChannel	OZChannelGradientPositioned	17	0
 ProChannel	OZChannelGradientSample	17	0
 ProChannel	OZChannelQuad	17	0
@@ -575,6 +658,221 @@ Flexo	HgcSubtractAlpha	17	0
 Flexo	HgcVibrancy	17	0
 Flexo	HgcMaskCompFirstPass	17	0
 Flexo	HgcMaskElem	17	0
+Helium	HGCPURenderContext	17	0
+Helium	HGPool::Pool<id<MTLTexture>, HGMetalTexturePool::Descriptor>	17	0
+Helium	HGFlipAndOffset	17	0
+Helium	HGCVBitmap	17	0
+Helium	HGGLHandler	17	0
+Helium	HGPool::Pool<id<MTLHeap>, HGMetalHeapPool::Descriptor>	17	0
+Helium	HGPool::Pool<id<MTLBuffer>, HGMetalBufferPool::Descriptor>	17	0
+Helium	HGMetalUtils	17	0
+Helium	HGPool::Pool<__CVBuffer*, HGCVPixelBufferPool::Descriptor>	17	0
+Helium	HGCinematic	17	0
+Helium	HgcSMAAEdgeDetect	17	0
+Helium	HgcSMAAPatternSearch	17	0
+Helium	HgcSMAABlend	17	0
+Helium	HgcAVATemporalAverage	17	0
+Helium	HgcAVAMotionDetection	17	0
+Helium	HgcAVAMotionDilationInit	17	0
+Helium	HgcAVAMotionDilation	17	0
+Helium	HgcAVAEdgeStrength	17	0
+Helium	HgcAVASpatialAverage2Tap	17	0
+Helium	HgcAVASpatialAverage4Tap	17	0
+Helium	HgcAVASpatialAverageAdaptive_UpperField	17	0
+Helium	HgcAVASpatialAverageAdaptive_LowerField	17	0
+Helium	HgcAVA_Fusion	17	0
+Helium	HGChromatic	17	0
+Helium	HGEnhanceDetails_Mix	17	0
+Helium	HGEnhanceDetails_Classify	17	0
+Helium	HGLevelsLumaKernel	17	0
+Helium	HGLevelsRGBKernel	17	0
+Helium	HgcBlendBlur	17	0
+Helium	HgcBlendBlur_2	17	0
+Helium	HgcBlendBlur_3	17	0
+Helium	HgcBlendBlur_4	17	0
+Helium	HgcBlendBlur_5	17	0
+Helium	HgcBlendBlur_6	17	0
+Helium	HgcBlendBlur_7	17	0
+Helium	HGVignetting	17	0
+Helium	HGDeVignetting	17	0
+Helium	HgcAnaglyph	17	0
+Helium	HgcYUV420BiPlanar_chroma_f1	17	0
+Helium	HgcYUV422BiPlanar_chroma_f1	17	0
+Helium	HgcScaleBiasCrop	17	0
+Helium	HgcYUV444BiPlanar_chroma_pack2	17	0
+Helium	HgcComputeDeltaE2000fromLAB	17	0
+Helium	HgcComputeDeltaEITP	17	0
+Helium	HgcGradeDeltaE	17	0
+Helium	HgcYUV420TriPlanar_420To444_Type0	17	0
+Helium	HgcYUV420TriPlanar_420To444_Type2	17	0
+Helium	HgcXYZtoLAB	17	0
+Helium	HgcYUV420TriPlanar_601ToRGB	17	0
+Helium	HgcYUV420TriPlanar_709ToRGB	17	0
+Helium	HgcYUV420TriPlanar_2020ToRGB	17	0
+Helium	HgcYUV422TriPlanar_422To444_Type2	17	0
+Helium	HgcYUV422TriPlanar_601ToRGB	17	0
+Helium	HgcYUV422TriPlanar_709ToRGB	17	0
+Helium	HgcYUV422TriPlanar_2020ToRGB	17	0
+Helium	HgcYUV444TriPlanar_444To444_Type2	17	0
+Helium	HgcYUV444TriPlanar_601ToRGB	17	0
+Helium	HgcYUV444TriPlanar_709ToRGB	17	0
+Helium	HgcYUV444TriPlanar_2020ToRGB	17	0
+Helium	HgcQuadPlanarReader	17	0
+Helium	HgcYUV420BiPlanar_luma	17	0
+Helium	HgcYUV420BiPlanar_luma_pack2	17	0
+Helium	HgcYUV420BiPlanar_luma_pack4	17	0
+Helium	HgcYUV420BiPlanar_chroma_pack2	17	0
+Helium	HgcYUV420BiPlanar_chroma	17	0
+Helium	HgcYUV422BiPlanar_chroma	17	0
+Helium	HgcYUV422BiPlanar_chroma_pack2	17	0
+Helium	HgcYUV422BiPlanar_422To444_Type2	17	0
+Helium	HgcYUV422BiPlanar_601ToRGB	17	0
+Helium	HgcYUV422BiPlanar_709ToRGB	17	0
+Helium	HgcYUV422BiPlanar_2020ToRGB	17	0
+Helium	HgcYUV420BiPlanar_2020ToRGB	17	0
+Helium	HgcYUV444BiPlanar_2020ToRGB	17	0
+Helium	HgcYUV444BiPlanar_601ToRGB	17	0
+Helium	HgcYUV444BiPlanar_709ToRGB	17	0
+Helium	HgcGradientLinearTranslate	17	0
+Helium	HgcGradientLinearAffine	17	0
+Helium	HgcGradientLinearPerspective	17	0
+Helium	HgcGradientLinearIdentity	17	0
+Helium	HgcGradientRadialAffine	17	0
+Helium	HgcGradientRadialIdentity	17	0
+Helium	HgcGradientRadialPerspective	17	0
+Helium	HgcGradientRadialTranslate	17	0
+Helium	HgcBilateralFilterInterpSC_InterpolatorLastZ	17	0
+Helium	HgcYUV420BiPlanar_709ToRGB	17	0
+Helium	HgcMultiTexBlend_8	17	0
+Helium	HgcConvertYIQToRGB	17	0
+Helium	HgcConvertRGBToYIQ	17	0
+Helium	HgcMultiTexBlend_2	17	0
+Helium	HgcChromaticAdapter	17	0
+Helium	HgcYUV420BiPlanar_420To444_Type2	17	0
+Helium	HgcBilateralFilterInterp_InterpolatorLast	17	0
+Helium	HgcBilateralFilterInterp_Divide	17	0
+Helium	HgcSMixer	17	0
+Helium	HgcBilateralFilterInterp_IntensityWeight	17	0
+Helium	HgcBilateralFilterInterpSC_InterpolatorLastX	17	0
+Helium	HgcLaplacianSharpen	17	0
+Helium	HgcColorBars	17	0
+Helium	HgcMultiTexBlend_5	17	0
+Helium	HgcRetimeWithFlowInterpFullRez	17	0
+Helium	HgcShadowHighlight	17	0
+Helium	HgcYUV420BiPlanar_420To444_Type0	17	0
+Helium	HgcReflectionClip	17	0
+Helium	HgcClampPremultiplied	17	0
+Helium	HgcShadowHighlightFast	17	0
+Helium	HgcBilateralFilterInterpSC_Interpolator	17	0
+Helium	HgcColorClamp	17	0
+Helium	HgcBilateralFilterInterpSC_InterpolatorLastY	17	0
+Helium	HgcSolidColor	17	0
+Helium	HgcDefinition	17	0
+Helium	HgcBilateralFilterInterpSC_InterpolatorFirst	17	0
+Helium	HgcLuminize	17	0
+Helium	HgcSimpleSpatialDenoise	17	0
+Helium	HgcInvertAlpha	17	0
+Helium	HgcOpenEXR	17	0
+Helium	HgcBilateralFilterInterp_Multiply	17	0
+Helium	HgcMultiTexBlend_4	17	0
+Helium	HgcRetimeWithFlowInterpVariableRez	17	0
+Helium	HgcRetimeWithFrameBlend	17	0
+Helium	HgcMix	17	0
+Helium	HgcInterlaceHandler_ExtractField	17	0
+Helium	HgcYUV444BiPlanar_444To444_Type2	17	0
+Helium	HgcChannelCopy	17	0
+Helium	HgcRetimeFullRez	17	0
+Helium	HgcBilateralFilterInterp_Interpolator	17	0
+Helium	HgcMultiTexBlend_7	17	0
+Helium	HgcRetimeVariableRez	17	0
+Helium	HgcBilateralFilterInterpSC_IntensityWeight	17	0
+Helium	HgcBilateralFilterInterp_InterpolatorFirst	17	0
+Helium	HgcYUV420BiPlanar_601ToRGB	17	0
+Helium	HgcMultiTexBlend_3	17	0
+Helium	HgcMultiTexBlend_6	17	0
+Helium	HgcGamutMap	17	0
+Helium	HgcGamutDebug	17	0
+Helium	HgcOutputClamp_RGBOnly	17	0
+Helium	HgcOutputClamp	17	0
+Helium	HgcCompositeWithMask	17	0
+Helium	HgcGamma	17	0
+Helium	HgcGammaNoPremult	17	0
+Helium	HgcPower	17	0
+Helium	HgcToneParamCurve1AntiSymmetric	17	0
+Helium	HgcToneParamCurve2AntiSymmetric	17	0
+Helium	HgcToneParamCurve3AntiSymmetric	17	0
+Helium	HgcToneParamCurve4AntiSymmetric	17	0
+Helium	HgcBT2446_Method_A_TMO	17	0
+Helium	HgcBT2446_Method_A_TMO_Input_Clamped	17	0
+Helium	HgcBT2446_Method_A_ITMO	17	0
+Helium	HgcBT2390_Gain_Sat_ToneAdj	17	0
+Helium	HgcWhiteBalanceRAW	17	0
+Helium	HgcEquirectReorient	17	0
+Helium	HgcDemosaic_1	17	0
+Helium	HgcDemosaic_2	17	0
+Helium	HgcColorGamma_chroma_upsample_f1	17	0
+Helium	HgcTextureWrapClampToEdge	17	0
+Helium	HgcBlur_g4u2_rect	17	0
+Helium	HgcToneParamCurve2	17	0
+Helium	HgcToneParamCurve1	17	0
+Helium	HgcPixelFormatConversion_kV4B10Bit_BE_output	17	0
+Helium	HgcPixelFormatConversion_kV4B_WXYZ_input	17	0
+Helium	HgcColorGamma_v216_yxzx_expand	17	0
+Helium	HgcApply3DLUTTetrahedral_basekernel	17	0
+Helium	HgcApply3DLUTTrilinear_basekernel	17	0
+Helium	HgcApply3DLUTTrilinearUniform_basekernel	17	0
+Helium	HgcApply3DLUTTrilinearFast_basekernel	17	0
+Helium	HgcColorGamma_2vuy_yxzx_expand	17	0
+Helium	HgcPremultiply	17	0
+Helium	HgcToneParamCurve4	17	0
+Helium	HgcColorGamma_v210_yxzx_rgba_expand	17	0
+Helium	HgcColorGamma_2vuy_xyxz_expand	17	0
+Helium	HgcPixelFormatConversion_kV4S_BE_WXYZ_output	17	0
+Helium	HgcUnpremultiply	17	0
+Helium	HgcUnpremultiplySanitized	17	0
+Helium	HgcApply3DLUTTetrahedralFast_basekernel	17	0
+Helium	HgcPixelFormatConversion_kV4F_WXYZ_input	17	0
+Helium	HgcPixelFormatConversion_kV4S_WXYZ_input	17	0
+Helium	HgcColorGamma_v216_yxzx_collapse	17	0
+Helium	HgcPixelFormatConversion_kV4B10Bit_BE_input	17	0
+Helium	HgcColorGamma_chroma_downsample_f1	17	0
+Helium	HgcColorGamma_v210_yxzx_rgba_collapse	17	0
+Helium	HgcColorGamma_2vuy_xyxz_collapse	17	0
+Helium	HgcBlur_cs9s_rect	17	0
+Helium	HgcColorGamma_2vuy_yxzx_collapse	17	0
+Helium	HgcBlur_g4u2	17	0
+Helium	HgcPremultiplyWhiteToBlack	17	0
+Helium	HgcApply3DLUTTetrahedralUniform_basekernel	17	0
+Helium	HgcToneParamCurve3	17	0
+Helium	HgcBlur_cs9s	17	0
+Helium	HgcPixelFormatConversion_kV4S_BE_WXYZ_input	17	0
+Helium	HgcColorGamma_bias	17	0
+Helium	HgcColorGamma_bias_clamp	17	0
+Helium	HgcASC_CDL	17	0
+Helium	HgcST2084_EOTF	17	0
+Helium	HgcST2084_InverseEOTF	17	0
+Helium	HgcBT2100_PQ_OETF_qtApprox	17	0
+Helium	HgcBT2100_PQ_OOTF	17	0
+Helium	HgcBT2100_PQ_OOTF_qtApprox	17	0
+Helium	HgcBT2100_PQ_InverseOOTF	17	0
+Helium	HgcBT2100_PQ_OETF	17	0
+Helium	HgcBT2100_PQ_InverseOETF	17	0
+Helium	HgcBT2100_PQ_InverseOETF_qtApprox	17	0
+Helium	HgcBT2100_HLG_OETF	17	0
+Helium	HgcBT2100_HLG_InverseOETF	17	0
+Helium	HgcBT2100_HLG_OOTF_InverseOOTF	17	0
+Helium	HgcHybridQTGammaLog_encode	17	0
+Helium	HgcHybridQTGammaLog_decode	17	0
+Helium	HgcLogVideo_encode	17	0
+Helium	HgcLogVideo_decode	17	0
+Helium	HgcSony709_800_MLUT	17	0
+Helium	HgcBT2390_EETF	17	0
+Helium	HgcBT2390_EETF_YRGB	17	0
+Helium	HgcRGB_EETF	17	0
+Helium	HgcAppleLog_encode	17	0
+Helium	HgcCanonLog_encode	17	0
+Helium	HgcCanonLog3_encode	17	0
+Helium	HgcNikonLog_encode	17	0
 ProChannel	OZFactories	16	0
 ProChannel	OZChannel_Factory	16	0
 ProChannel	OZChannelGradientSampleRGB	16	0
@@ -609,6 +907,13 @@ Flexo	AUChannelConform	16	0
 Flexo	Fraction	16	0
 Flexo	MXF::MXFIndexTableSequence	16	0
 Flexo	MXF::MXFBuildIndexFrameWrapped	16	0
+Helium	OpticalFlowFields	16	0
+Helium	HGShadowHighlight	16	0
+Helium	HGColorConformLook3DLUT	16	0
+Helium	HGPool::Pool<id<MTLBuffer>, HGMetalBufferWrapperInfinipool::Descriptor>	16	0
+Helium	HGPool::Pool<id<MTLTexture>, HGMetalTextureWrapperInfinipool::Descriptor>	16	0
+Helium	HGBilateralFilterKernelNode	16	0
+Helium	HGStencil	16	0
 ProChannel	OZChannelInfo	15	0
 ProChannel	OZChannelGradientFolder	15	0
 ProCore	PCXMLReadStream	15	0
@@ -632,6 +937,18 @@ Flexo	FFVideoDecoderSelector	15	0
 Flexo	AUMultiInputBase	15	0
 Flexo	FFOZRootChannel	15	0
 Flexo	MXF::MXFBuildIndexCustomWrapped	15	0
+Helium	HGLodBlend2	15	0
+Helium	HGApply1DLUT	15	0
+Helium	HGBitmapUtils	15	0
+Helium	HGBilateralFilterInterpSC	15	0
+Helium	HGStats::UnitStats	15	0
+Helium	HGRenderCinema	15	0
+Helium	HGRect	15	0
+Helium	HGObject	15	0
+Helium	HgcCropShaderBlend	15	0
+Helium	HGLightWrap	15	0
+Helium	HgcDither_GPU_NoClamp	15	0
+Helium	HgcDither_GPU	15	0
 ProChannel	OZFactory	14	0
 ProChannel	OZInterpolator	14	0
 ProChannel	OZChannelGradientExtras	14	0
@@ -674,6 +991,20 @@ Flexo	UpDownMixerUnit	14	0
 Flexo	FFAudioBufferList	14	0
 Flexo	FFConditionLock	14	0
 Flexo	MXF::MXFColorSpace	14	0
+Helium	HGComicEdges	14	0
+Helium	HGComicQuantize	14	0
+Helium	HGComicStrokeAndBlend	14	0
+Helium	HGPool::BasePool	14	0
+Helium	HGBilateralFilterInterp	14	0
+Helium	HGLinearFilter	14	0
+Helium	GLPBO	14	0
+Helium	HGGLState	14	0
+Helium	HGComicStroke	14	0
+Helium	HGComicSobelOperator	14	0
+Helium	HGComicBilateralFilter	14	0
+Helium	HGComicGaussianBlurAndGradientGeneration	14	0
+Helium	HGComicColorStroke	14	0
+Helium	HGG4U2X<HgcBlur_g4u2>	14	0
 ProChannel	OZBezierInterpolator	13	0
 ProChannel	OZSplineInterpolator	13	0
 ProChannel	OZChannelPositionPercent	13	0
@@ -714,6 +1045,21 @@ Flexo	ausdk::AUScope	13	0
 Flexo	AUPullController	13	0
 Flexo	AUScoper	13	0
 Flexo	FFLock	13	0
+Helium	HGIndirectSampler	13	0
+Helium	HGMipmap	13	0
+Helium	HGShadowHighlightFast	13	0
+Helium	HGComicLookupFilterLUTBitmapResourceImplementation	13	0
+Helium	__HGStats_private::StatsTimer	13	0
+Helium	HGStats::UnitStatsImpl	13	0
+Helium	HGStats::GraphStats	13	0
+Helium	HGShaderNode	13	0
+Helium	std::__1::basic_filebuf<char, std::__1::char_traits<char>>	13	0
+Helium	DepthBufferManager	13	0
+Helium	HGTextureWrap	13	0
+Helium	HGLogger	13	0
+Helium	HGEquirectProject	13	0
+Helium	HGBufferDumper	13	0
+Helium	HGG4U2X<HgcBlur_g4u2_rect>	13	0
 ProChannel	OZChannelDouble	12	0
 ProChannel	OZChannelAngle	12	0
 ProChannel	OZChannelPositionPercent3D	12	0
@@ -752,6 +1098,21 @@ Flexo	FFChunkedSampleBufferCache	12	0
 Flexo	FFAudioSamplesCache::SubCache	12	0
 Flexo	CrossCorrelation	12	0
 Flexo	VAMatrixMixer	12	0
+Helium	HGChromaticAdapter	12	0
+Helium	HGStats::GraphStatsImpl	12	0
+Helium	DBM_cpu	12	0
+Helium	HGHLG::OETF	12	0
+Helium	HGCanonLogToneCurveLUTInfo	12	0
+Helium	ROIStatIO	12	0
+Helium	HGIQA::IQAFile	12	0
+Helium	HGConvolutionShader	12	0
+Helium	HGTW::HGTextureWrapClampToEdge	12	0
+Helium	HGTW::HGTextureWrapClampToColor	12	0
+Helium	HGNodeWithDepth	12	0
+Helium	HGLensDistort_distort_kernel	12	0
+Helium	HGLensDistort_undistort_kernel	12	0
+Helium	HgcDither_CPU_NoClamp	12	0
+Helium	HgcDither_CPU	12	0
 ProCore	PCFileWriteStream	11	0
 ProCore	void doDynamicRangeTransform<PCColorUtil::transformColorWithDynamicRange(PCColorUtil::Buffer const&, PCColorUtil::Buffer&, PCToneMapMethod const&)	11	0
 ProCore	PCICCTransferFunctionParametric2	11	0
@@ -799,6 +1160,31 @@ Flexo	FFPurgeableAudioBufferList	11	0
 Flexo	FFOZObservableFolder	11	0
 Flexo	Synchronizable	11	0
 Flexo	MXF::MXFBuildIndexClipWrapped	11	0
+Helium	HGMetalCounterSet	11	0
+Helium	HGOpticalFlowEffect	11	0
+Helium	HGGLBuffer	11	0
+Helium	HGApplyNDLUTInfo	11	0
+Helium	HGTexturePoolHandleImpl	11	0
+Helium	HGMetalTexturePool	11	0
+Helium	HGHLG::InverseOETF	11	0
+Helium	HGACEScct::Decode	11	0
+Helium	HGARRILogC4::Encode	11	0
+Helium	HGGPUComputeDevice	11	0
+Helium	HGColorClamp	11	0
+Helium	HGGamutMap	11	0
+Helium	HGMetalHeapPool	11	0
+Helium	HGMetalHeapTexturePool	11	0
+Helium	HGLocalTiling	11	0
+Helium	HGMetalBufferPool	11	0
+Helium	HGSynchronizable	11	0
+Helium	HGRasterizerAntiAliasingImplementation	11	0
+Helium	HGOutputClamp	11	0
+Helium	HGMemoryManager	11	0
+Helium	HGLensDistort_kernel	11	0
+Helium	MinMax::MMNode<(MinMax::Mode)0, (MinMax::Axis)0>	11	0
+Helium	MinMax::MMNode<(MinMax::Mode)0, (MinMax::Axis)1>	11	0
+Helium	MinMax::MMNode<(MinMax::Mode)1, (MinMax::Axis)0>	11	0
+Helium	MinMax::MMNode<(MinMax::Mode)1, (MinMax::Axis)1>	11	0
 ProChannel	OZChannelShearAngle	10	0
 ProCore	PCFileReadStream	10	0
 ProCore	PCEvaluator	10	0
@@ -854,6 +1240,28 @@ Flexo	MXF::MXFBuildIndex	10	0
 Flexo	Hgc2CopyAlpha	10	0
 Flexo	HgcColorLinearizeAlpha	10	0
 Flexo	HgcColorGammaCorrectAlpha	10	0
+Helium	HGParamField	10	0
+Helium	HGTraversal::RecursiveTraversal<(HGTraversal::NodeInput)1, (HGTraversal::InputOrder)0>::Visitor	10	0
+Helium	HgcApply1DLUT	10	0
+Helium	__HGStats_private::StatsProfile	10	0
+Helium	SimplePoolingPolicy	10	0
+Helium	HGTextureManager::TextureInfo	10	0
+Helium	HGAnaglyph	10	0
+Helium	HGPool::GroupServicingPolicy	10	0
+Helium	__HGStats_private::operator<<(std::__1::basic_ostream<char, std::__1::char_traits<char>>&, __HGStats_private::StatsOut	10	0
+Helium	HGOverwrite	10	0
+Helium	HGACEScct::Encode	10	0
+Helium	HGCVGLTextureFactory	10	0
+Helium	HGBMDFilmLinearizationLUTInfo	10	0
+Helium	HGSampleRectStat	10	0
+Helium	HGARBHandler	10	0
+Helium	HGLodPreFilter	10	0
+Helium	HGDenoisePDEIteration	10	0
+Helium	HGBilateralFilter	10	0
+Helium	HGMetalSharedEvent	10	0
+Helium	LensParams	10	0
+Helium	HGLevels	10	0
+Helium	HGCropNode	10	0
 ProChannel	OZChannelUint32	9	0
 ProChannel	OZChannelAspectRatio	9	0
 ProChannel	OZChannelAspectRatioFootage	9	0
@@ -922,6 +1330,58 @@ Flexo	FFCompressionSessionCallbackRef	9	0
 Flexo	FFMemoryPressureTracker	9	0
 Flexo	Thread	9	0
 Flexo	std::__1::__function::__func<std::__1::__bind<void (FFDestAnalyzerSynchronizer::*)() const, FFDestAnalyzerSynchronizer const*>, void ()>	9	0
+Helium	std::__1::basic_stringbuf<char, std::__1::char_traits<char>, std::__1::allocator<char>>	9	0
+Helium	HGSharpen	9	0
+Helium	HGArrayDataRef	9	0
+Helium	HGTextureManager::PostTextureDeleteEventList	9	0
+Helium	HGTextureManager::TextureUsage	9	0
+Helium	HGStats::RendererStatsImpl	9	0
+Helium	HGTextureManager::TexturePool	9	0
+Helium	HGSampler	9	0
+Helium	std::__1::__function::__func<HGPool::MatchDescription<id<MTLTexture>, HGMetalTexturePool::Descriptor>, bool (HGPool::Entry<objc_object<MTLTexture>, HGMetalTexturePool> const&)>	9	0
+Helium	std::__1::__function::__func<HGPool::MatchObject<id<MTLTexture>, HGMetalTexturePool::Descriptor>, bool (HGPool::Entry<objc_object<MTLTexture>, HGMetalTexturePool> const&)>	9	0
+Helium	HGRenderUtils::BufferFiller	9	0
+Helium	HGDither	9	0
+Helium	HGComputeDeltaE	9	0
+Helium	HGStats::ProfilerScopeGuard	9	0
+Helium	HGStats::RendererStats	9	0
+Helium	HGTraversal::IterativeTraversal<(HGTraversal::NodeInput)1, (HGTraversal::InputOrder)0>::Visitor	9	0
+Helium	HGYUVPlanarToRGBA	9	0
+Helium	HGYUV444ToPlanarChroma	9	0
+Helium	HGHLG::HLGToSDR	9	0
+Helium	HGDefinition	9	0
+Helium	HGTexture	9	0
+Helium	HGMultiTexBlend<2>	9	0
+Helium	HGMultiTexBlend<3>	9	0
+Helium	HGMultiTexBlend<4>	9	0
+Helium	HGMultiTexBlend<5>	9	0
+Helium	HGMultiTexBlend<6>	9	0
+Helium	HGMultiTexBlend<7>	9	0
+Helium	HGMultiTexBlend<8>	9	0
+Helium	HGCanonLog3LinearizationLUTInfo	9	0
+Helium	HGSonySLog3LinearizationLUTInfo	9	0
+Helium	HGComputeDeviceManager	9	0
+Helium	HGSolidColor	9	0
+Helium	HGGLSLHandler	9	0
+Helium	std::__1::__function::__func<HGPool::MatchDescription<id<MTLHeap>, HGMetalHeapPool::Descriptor>, bool (HGPool::Entry<objc_object<MTLHeap>, HGMetalHeapPool> const&)>	9	0
+Helium	std::__1::__function::__func<HGPool::MatchObject<id<MTLHeap>, HGMetalHeapPool::Descriptor>, bool (HGPool::Entry<objc_object<MTLHeap>, HGMetalHeapPool> const&)>	9	0
+Helium	HGGradient	9	0
+Helium	std::__1::__function::__func<HGPool::MatchDescription<id<MTLBuffer>, HGMetalBufferWrapperInfinipool::Descriptor>, bool (HGPool::Entry<objc_object<MTLBuffer>, HGMetalBufferWrapperInfinipool> const&)>	9	0
+Helium	std::__1::__function::__func<HGPool::MatchObject<id<MTLBuffer>, HGMetalBufferWrapperInfinipool::Descriptor>, bool (HGPool::Entry<objc_object<MTLBuffer>, HGMetalBufferWrapperInfinipool> const&)>	9	0
+Helium	std::__1::__function::__func<HGPool::MatchDescription<id<MTLTexture>, HGMetalTextureWrapperInfinipool::Descriptor>, bool (HGPool::Entry<objc_object<MTLTexture>, HGMetalTextureWrapperInfinipool> const&)>	9	0
+Helium	std::__1::__function::__func<HGPool::MatchObject<id<MTLTexture>, HGMetalTextureWrapperInfinipool::Descriptor>, bool (HGPool::Entry<objc_object<MTLTexture>, HGMetalTextureWrapperInfinipool> const&)>	9	0
+Helium	std::__1::__function::__func<HGPool::MatchDescription<id<MTLBuffer>, HGMetalBufferPool::Descriptor>, bool (HGPool::Entry<objc_object<MTLBuffer>, HGMetalBufferPool> const&)>	9	0
+Helium	std::__1::__function::__func<HGPool::MatchObject<id<MTLBuffer>, HGMetalBufferPool::Descriptor>, bool (HGPool::Entry<objc_object<MTLBuffer>, HGMetalBufferPool> const&)>	9	0
+Helium	HGBuffer	9	0
+Helium	HGColorConformLUTData	9	0
+Helium	HGMetalFunctionCache	9	0
+Helium	std::__1::__function::__func<HGPool::MatchDescription<__CVBuffer*, HGCVPixelBufferPool::Descriptor>, bool (HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor> const&)>	9	0
+Helium	std::__1::__function::__func<HGPool::MatchObject<__CVBuffer*, HGCVPixelBufferPool::Descriptor>, bool (HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor> const&)>	9	0
+Helium	HGBlurGroup	9	0
+Helium	HGG9X<HgcBlur_cs9s_rect>	9	0
+Helium	HGG9X<HgcBlur_cs9s>	9	0
+Helium	HGChannelDuplicate	9	0
+Helium	HGMinMax	9	0
 ProChannel	OZCurveBool	8	0
 ProChannel	OZInterpolatorStrategies	8	0
 ProChannel	non-virtual thunk to OZChannelBase	8	0
@@ -1022,6 +1482,44 @@ Flexo	FFLocker	8	0
 Flexo	FFSemaphore	8	0
 Flexo	WorkerThreadTaskQueue	8	0
 Flexo	MXF::MXFColorProcessing	8	0
+Helium	HGGradientLinear	8	0
+Helium	HGTextureManagerHandleImpl	8	0
+Helium	RenderbufferCache	8	0
+Helium	NoPoolingPolicy	8	0
+Helium	HGRenderUtils::BufferFillerImpl	8	0
+Helium	HGCache	8	0
+Helium	HGGradientRadial	8	0
+Helium	HGPool::TotalUsageServicingPolicy	8	0
+Helium	HGMetalBlendingInfo	8	0
+Helium	HGInterlaceHandler_ExtractField	8	0
+Helium	HGInterlaceHandler_InterlaceFields	8	0
+Helium	HGYUV444ToPlanarLuma	8	0
+Helium	HGGPUReadbackExecUnit	8	0
+Helium	HGArriLogCDefaultToneCurveLUTInfo	8	0
+Helium	HGArriLogC4LinearizationLUTInfo	8	0
+Helium	HGSonySLog2LinearizationLUTInfo	8	0
+Helium	HGPanasonicVLogLinearizationLUTInfo	8	0
+Helium	HGAppleLogLinearizationLUTInfo	8	0
+Helium	HGDJIDLogLinearizationLUTInfo	8	0
+Helium	HGFujifilmFLogLinearizationLUTInfo	8	0
+Helium	HGFujifilmFLog2LinearizationLUTInfo	8	0
+Helium	HGNode3D	8	0
+Helium	HGStackPage	8	0
+Helium	HGREDDebayer	8	0
+Helium	HGCGL::RendererList	8	0
+Helium	HGGamma	8	0
+Helium	std::__1::__shared_ptr_emplace<(anonymous namespace)::InfinipoolServicingPolicy, std::__1::allocator<(anonymous namespace)::InfinipoolServicingPolicy>>	8	0
+Helium	HGOpenEXR	8	0
+Helium	HGLaplacianSharpen	8	0
+Helium	HGLightWrapBlend	8	0
+Helium	project_util	8	0
+Helium	HGProfiler	8	0
+Helium	HGSimpleSpatialDenoise	8	0
+Helium	HGProResPluginDebayer	8	0
+Helium	HGG9B<HgcBlur_cs9s>	8	0
+Helium	HGG9B<HgcBlur_cs9s_rect>	8	0
+Helium	HGAntiAlias	8	0
+Helium	HGModulatedBlur	8	0
 ProChannel	non-virtual thunk to OZChannel	7	0
 ProChannel	std::__1::vector<double, std::__1::allocator<double>>	7	0
 ProChannel	OZEaseInInterpolator	7	0
@@ -1133,6 +1631,78 @@ Flexo	FFSingleToneAudioSignal	7	0
 Flexo	FFPMRFunnelAutoTimer	7	0
 Flexo	FFMachSemaphore	7	0
 Flexo	FFDestAnalyzerSynchronizer	7	0
+Helium	HGVTRAWProcessorDebayer	7	0
+Helium	std::__1::deque<HGRenderJob*, std::__1::allocator<HGRenderJob*>>	7	0
+Helium	std::__1::deque<HGUserJob*, std::__1::allocator<HGUserJob*>>	7	0
+Helium	HGBlendingInfo	7	0
+Helium	HGColorBars	7	0
+Helium	HGApplyNDLUTEntry	7	0
+Helium	HGDeinterlaceLA	7	0
+Helium	TextureDeleteQueue::DeleteRequest	7	0
+Helium	HGReflectionClip	7	0
+Helium	HGRenderUtils::BufferCopierImpl	7	0
+Helium	HGRenderUtils::BufferReformatterImpl	7	0
+Helium	HGRenderUtils::BufferCopier	7	0
+Helium	HGRenderUtils::BufferReformatter	7	0
+Helium	HGUserExecUnit	7	0
+Helium	HGPBOBitmap	7	0
+Helium	HGShaderTiling	7	0
+Helium	HGGradeDeltaE	7	0
+Helium	HGDemosaic	7	0
+Helium	HGRetimeWithFlowInterp	7	0
+Helium	HGYUVPlanarTo444	7	0
+Helium	HG_RENDERER_ENV	7	0
+Helium	HGPQ::EOTF	7	0
+Helium	HGPQ::InverseEOTF	7	0
+Helium	HGPQ::OOTF	7	0
+Helium	HGPQ::PQToSDR	7	0
+Helium	HGPQ::SDRToPQ	7	0
+Helium	HGHLG::OOTF	7	0
+Helium	HGHLG::InverseOOTF	7	0
+Helium	HGHLG::SDRToHLG	7	0
+Helium	HGDJIDLog::Encode	7	0
+Helium	HGNikonNLog::Encode	7	0
+Helium	HGPanasonicVLog::Encode	7	0
+Helium	HGBT2390_EETF	7	0
+Helium	HGRGB_EETF	7	0
+Helium	HGArriLogCLinearizationLUTInfo	7	0
+Helium	HGCanonLogLinearizationLUTInfo	7	0
+Helium	HGNikonNLogLinearizationLUTInfo	7	0
+Helium	HGBMDFilmGen5LinearizationLUTInfo	7	0
+Helium	HGComic	7	0
+Helium	shlMix	7	0
+Helium	HGSHL	7	0
+Helium	HGHighlightShadow	7	0
+Helium	HGComicDesignerInterface	7	0
+Helium	HGCompositeWithMask	7	0
+Helium	HGGammaMC	7	0
+Helium	HGChannelCopy	7	0
+Helium	HGMetalBufferWrapperInfinipool	7	0
+Helium	HGMetalTextureWrapperInfinipool	7	0
+Helium	HGRetime	7	0
+Helium	HGPool::FixedTotalUsageServicingPolicy	7	0
+Helium	HGExposure	7	0
+Helium	HGGLContextPtr	7	0
+Helium	HGMemoryManager::PageSizePolicy	7	0
+Helium	HGSmDecN	7	0
+Helium	HGSGX	7	0
+Helium	HGSGY	7	0
+Helium	HGGSqTens	7	0
+Helium	HGDenoisePDE	7	0
+Helium	HGRegularize	7	0
+Helium	HGDenoise	7	0
+Helium	HGBlackWhiteRestore	7	0
+Helium	HGColorConformLUTInfo	7	0
+Helium	HGMetalRenderPipelineStateCache	7	0
+Helium	HGLensGDC	7	0
+Helium	HGRetimeWithFrameBlend	7	0
+Helium	HGPower	7	0
+Helium	HGAVAMotionDilation	7	0
+Helium	HGAVADeinterlace	7	0
+Helium	HGChromaticAberration	7	0
+Helium	HGEnhanceDetails	7	0
+Helium	HGLensDistort	7	0
+Helium	HGVignettingCorrection	7	0
 ProChannel	OZCoreGlobals	6	0
 ProChannel	std::__1::vector<PCString, std::__1::allocator<PCString>>	6	0
 ProChannel	OZFactoryBase	6	0
@@ -1247,6 +1817,69 @@ Flexo	CPanMatrix	6	0
 Flexo	FFContainerAudioSignal	6	0
 Flexo	FFSerialAudioSignal	6	0
 Flexo	FFSynchronizable	6	0
+Helium	HGParamBufferDesc	6	0
+Helium	HGInvertAlpha	6	0
+Helium	std::__1::deque<HGNode*, std::__1::allocator<HGNode*>>	6	0
+Helium	HGGLContextImpl	6	0
+Helium	HGComicLookupFilterLUTBitmapResource	6	0
+Helium	HGTexturePoolingPolicy	6	0
+Helium	NoPaddingPolicy	6	0
+Helium	DefaultPaddingPolicy	6	0
+Helium	POTPaddingPolicy	6	0
+Helium	BorderPaddingPolicy	6	0
+Helium	ClusteredPaddingPolicy	6	0
+Helium	HGPool	6	0
+Helium	HGStats::CoreStats<HGNode, __HGStats_private::StatsProfile>	6	0
+Helium	__HGStats_private::RRStatsProfile	6	0
+Helium	HGMix	6	0
+Helium	HGLUTCache	6	0
+Helium	HGLUTCacheManager	6	0
+Helium	HGYUV444ToPlanarAlpha	6	0
+Helium	HGPQ::InverseOOTF	6	0
+Helium	HGPQ::OETF	6	0
+Helium	HGPQ::InverseOETF	6	0
+Helium	HGHybridQTGammaLog::Encode	6	0
+Helium	HGHybridQTGammaLog::Decode	6	0
+Helium	HGARRILogC::Encode	6	0
+Helium	HGARRILogC::Decode	6	0
+Helium	HGAppleLog::Encode	6	0
+Helium	HGBMDFilm::Encode	6	0
+Helium	HGBMDFilmGen5::Encode	6	0
+Helium	HGCanonLog::Encode	6	0
+Helium	HGFujifilmFLog::Encode	6	0
+Helium	HGSonySLog2::Encode	6	0
+Helium	HGSonySLog3::Encode	6	0
+Helium	HGSony709_800_MLUT	6	0
+Helium	HGCameraLogEncode	6	0
+Helium	HGColorGammaLUTInfo	6	0
+Helium	HGCanonLog2LinearizationLUTInfo	6	0
+Helium	HGAYCCToneCurveToLinearLUTInfo	6	0
+Helium	HGLinearToAYCCToneCurveLUTInfo	6	0
+Helium	HG_ERsRGBToneCurveToLinearLUTInfo	6	0
+Helium	HGLinearToERsRGBToneCurveLUTInfo	6	0
+Helium	HGIQA	6	0
+Helium	HGPremultiply	6	0
+Helium	HGUnpremultiply	6	0
+Helium	HGPremultiplyWhiteToBlack	6	0
+Helium	HGMetalTexture::Descriptor	6	0
+Helium	HGRasterizerTextureUnit	6	0
+Helium	HGColorBias	6	0
+Helium	HGPool::FixedGroupServicingPolicy	6	0
+Helium	HGClampPremultiplied	6	0
+Helium	HGColorConformNodeListCacheItem	6	0
+Helium	HGMetalSamplerStateCache	6	0
+Helium	HGMetalDepthStencilStateCache	6	0
+Helium	HGMetalCommandBufferRef	6	0
+Helium	HGEdgePolicy	6	0
+Helium	HGG9Y<HgcBlur_cs9s_rect>	6	0
+Helium	HGG9Y<HgcBlur_cs9s>	6	0
+Helium	HGG9D2Y<HgcBlur_cs9s_rect>	6	0
+Helium	HGG9D2Y<HgcBlur_cs9s>	6	0
+Helium	HGG4U2Y<HgcBlur_g4u2_rect>	6	0
+Helium	HGG4U2Y<HgcBlur_g4u2>	6	0
+Helium	HGAVATemporalAverage	6	0
+Helium	HGAVAMotionDetection	6	0
+Helium	HGCrop	6	0
 ProChannel	OZCurveDouble	5	0
 ProChannel	OZCurveInt	5	0
 ProChannel	OZCurveAngle	5	0
@@ -1385,6 +2018,55 @@ Flexo	MXF::MXFScanInfo	5	0
 Flexo	MXF::MXFMPEGPictureDataDecoder	5	0
 Flexo	MXF::MXFADTSStream	5	0
 Flexo	MXF::MXFHEVCPictureDataDecoder	5	0
+Helium	std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>	5	0
+Helium	HEquirectReorientImpl	5	0
+Helium	HGCFDataRefHolder	5	0
+Helium	std::__1::deque<HGNode const*, std::__1::allocator<HGNode const*>>	5	0
+Helium	HGCVBufferPairStorage	5	0
+Helium	hgdb	5	0
+Helium	TextureDeleteQueueLock	5	0
+Helium	HGTextureManager::TextureEntry	5	0
+Helium	HGPool::List<id<MTLTexture>, HGMetalTexturePool::Descriptor, false>	5	0
+Helium	HGStats::CoreStats<std::type_info const, __HGStats_private::StatsProfile>	5	0
+Helium	HGShaderBinding	5	0
+Helium	HGSystem	5	0
+Helium	HGLUTCache::LUTEntry	5	0
+Helium	Planar_420to444_Type0<HgcYUV420TriPlanar_420To444_Type0, 3>	5	0
+Helium	Planar_420to444_Type0<HgcYUV420BiPlanar_420To444_Type0, 2>	5	0
+Helium	HGCColorGamma_2vuy_yxzx_expand	5	0
+Helium	HGCColorGamma_2vuy_xyxz_expand	5	0
+Helium	HGCColorGamma_v210_yxzx_rgba_expand	5	0
+Helium	HGCColorGamma_v216_yxzx_expand	5	0
+Helium	HGCPixelFormatConversion_kV4B_WXYZ_output	5	0
+Helium	HGCPixelFormatConversion_kV4S_WXYZ_output	5	0
+Helium	HGCPixelFormatConversion_kV4F_WXYZ_output	5	0
+Helium	HGCPixelFormatConversion_kV4S_BE_WXYZ_output	5	0
+Helium	HGCPixelFormatConversion_kV4B10Bit_BE_output	5	0
+Helium	HGCColorGamma_chroma_upsample_f1	5	0
+Helium	HGCColorGamma_2vuy_yxzx_collapse	5	0
+Helium	HGCColorGamma_2vuy_xyxz_collapse	5	0
+Helium	HGCColorGamma_v210_yxzx_rgba_collapse	5	0
+Helium	HGCColorGamma_v216_yxzx_collapse	5	0
+Helium	HGGPUReadbackJob	5	0
+Helium	HGMultiTexBlendBase	5	0
+Helium	HGComputeDevice	5	0
+Helium	HGCPUComputeDevice	5	0
+Helium	shlRGB2YIQ	5	0
+Helium	shlYIQ2RGB	5	0
+Helium	HGNodeBuffer	5	0
+Helium	HGPool::List<id<MTLHeap>, HGMetalHeapPool::Descriptor, false>	5	0
+Helium	HGPool::List<id<MTLBuffer>, HGMetalBufferWrapperInfinipool::Descriptor, false>	5	0
+Helium	HGPool::List<id<MTLTexture>, HGMetalTextureWrapperInfinipool::Descriptor, false>	5	0
+Helium	HGPool::List<id<MTLBuffer>, HGMetalBufferPool::Descriptor, false>	5	0
+Helium	HGPool::FixedServicingPolicy	5	0
+Helium	HGMemory::StorageObject	5	0
+Helium	HGSmDecN_Shader	5	0
+Helium	HGCVPixelBufferPoolImpl	5	0
+Helium	HGPool::List<__CVBuffer*, HGCVPixelBufferPool::Descriptor, false>	5	0
+Helium	HGBS::HGBlurShared	5	0
+Helium	HGG9D2X<HgcBlur_cs9s_rect>	5	0
+Helium	HGG9D2X<HgcBlur_cs9s>	5	0
+Helium	HGSWRenderer	5	0
 ProChannel	std::__1::vector<CMTime, std::__1::allocator<CMTime>>	4	0
 ProChannel	std::__1::vector<OZCurveNode*, std::__1::allocator<OZCurveNode*>>	4	0
 ProChannel	OZDynamicVertex::OZDynamicVertex_enabledImpl	4	0
@@ -1693,6 +2375,110 @@ Flexo	MXFH264Parser	4	0
 Flexo	VlcParser	4	0
 Flexo	MXF::MXFPictureDataDecoder	4	0
 Flexo	MXF::MXFAVCPictureDataDecoder	4	0
+Helium	std::__1	4	0
+Helium	void std::__1::__split_buffer<HGRenderJob**, std::__1::allocator<HGRenderJob**>>	4	0
+Helium	void std::__1::__split_buffer<HGNode**, std::__1::allocator<HGNode**>>	4	0
+Helium	void std::__1::__split_buffer<HGUserJob**, std::__1::allocator<HGUserJob**>>	4	0
+Helium	void std::__1::__split_buffer<HGNode const**, std::__1::allocator<HGNode const**>>	4	0
+Helium	HGMipmapLevel	4	0
+Helium	HGLayerParams	4	0
+Helium	HRasterizerGenerator	4	0
+Helium	soDeinterlaceLA	4	0
+Helium	HGSMixer	4	0
+Helium	HGTextureManager::TexturePoolLock	4	0
+Helium	HGTexturePaddingPolicy	4	0
+Helium	HGTexturePoolHandle	4	0
+Helium	HGTextureManagerHandle	4	0
+Helium	HRasterizerTextureNoColor	4	0
+Helium	std::__1::__shared_ptr_emplace<(anonymous namespace)::TextureAllocator, std::__1::allocator<(anonymous namespace)::TextureAllocator>>	4	0
+Helium	HGDitherLUTInfo	4	0
+Helium	HGDitherLUTEntry	4	0
+Helium	HgcApply3DLUTTrilinearUniform	4	0
+Helium	HgcApply3DLUTTrilinearFast	4	0
+Helium	HgcApply3DLUTTrilinear	4	0
+Helium	HgcApply3DLUTTetrahedralUniform	4	0
+Helium	HgcApply3DLUTTetrahedralFast	4	0
+Helium	HgcApply3DLUTTetrahedral	4	0
+Helium	HGAutoReleasePoolScopeGuard	4	0
+Helium	HGCInterlaceHandler_ExtractField	4	0
+Helium	HGCInterlaceHandler_InterlaceFields	4	0
+Helium	__HGStats_private::operator<<(std::__1::basic_ostream<char, std::__1::char_traits<char>>&, __HGStats_private::RoiStatsOut	4	0
+Helium	glsl	4	0
+Helium	HGArray<int, (HGFormat)36>	4	0
+Helium	HGDemosaicImplementation	4	0
+Helium	HDemosaic_2	4	0
+Helium	HGCRetimeWithFlowInterpFullRez	4	0
+Helium	HGCRetimeWithFlowInterpVariableRez	4	0
+Helium	PlanarToRGB<HgcYUV444TriPlanar_601ToRGB>	4	0
+Helium	PlanarToRGB<HgcYUV444BiPlanar_601ToRGB>	4	0
+Helium	PlanarToRGB<HgcYUV444TriPlanar_2020ToRGB>	4	0
+Helium	PlanarToRGB<HgcYUV444BiPlanar_2020ToRGB>	4	0
+Helium	PlanarToRGB<HgcYUV444TriPlanar_709ToRGB>	4	0
+Helium	PlanarToRGB<HgcYUV444BiPlanar_709ToRGB>	4	0
+Helium	PlanarToRGB<HgcYUV422TriPlanar_601ToRGB>	4	0
+Helium	PlanarToRGB<HgcYUV422BiPlanar_601ToRGB>	4	0
+Helium	PlanarToRGB<HgcYUV422TriPlanar_2020ToRGB>	4	0
+Helium	PlanarToRGB<HgcYUV422BiPlanar_2020ToRGB>	4	0
+Helium	PlanarToRGB<HgcYUV422TriPlanar_709ToRGB>	4	0
+Helium	PlanarToRGB<HgcYUV422BiPlanar_709ToRGB>	4	0
+Helium	PlanarToRGB<HgcYUV420TriPlanar_601ToRGB>	4	0
+Helium	PlanarToRGB<HgcYUV420BiPlanar_601ToRGB>	4	0
+Helium	PlanarToRGB<HgcYUV420TriPlanar_2020ToRGB>	4	0
+Helium	PlanarToRGB<HgcYUV420BiPlanar_2020ToRGB>	4	0
+Helium	PlanarToRGB<HgcYUV420TriPlanar_709ToRGB>	4	0
+Helium	PlanarToRGB<HgcYUV420BiPlanar_709ToRGB>	4	0
+Helium	HRasterizerTexture	4	0
+Helium	HGRendererOutput	4	0
+Helium	HGCPixelFormatConversion_kV4B_WXYZ_input	4	0
+Helium	HGCPixelFormatConversion_kV4S_WXYZ_input	4	0
+Helium	HGCPixelFormatConversion_kV4F_WXYZ_input	4	0
+Helium	HGCPixelFormatConversion_kV4S_BE_WXYZ_input	4	0
+Helium	HGCPixelFormatConversion_kV4B10Bit_BE_input	4	0
+Helium	HGCColorGamma_bias	4	0
+Helium	HGCColorGamma_chroma_downsample_f1	4	0
+Helium	HGDitherNoise	4	0
+Helium	std::__1::__shared_ptr_emplace<HGCPUComputeDevice, std::__1::allocator<HGCPUComputeDevice>>	4	0
+Helium	std::__1::__shared_ptr_emplace<HGGPUComputeDevice, std::__1::allocator<HGGPUComputeDevice>>	4	0
+Helium	HGPagePullTexturesGuard	4	0
+Helium	HGPagePullMetalTexturesGuard	4	0
+Helium	HGNodeInput	4	0
+Helium	HGStackStateGuard	4	0
+Helium	HGCGL	4	0
+Helium	HGGLState::SetCurrentContextGuard	4	0
+Helium	std::__1::__shared_ptr_emplace<(anonymous namespace)::HeapAllocator, std::__1::allocator<(anonymous namespace)::HeapAllocator>>	4	0
+Helium	std::__1::__shared_ptr_emplace<(anonymous namespace)::HeapTextureAllocator, std::__1::allocator<(anonymous namespace)::HeapTextureAllocator>>	4	0
+Helium	HGPool::EntryEventHandler<id<MTLTexture>, HGMetalTexturePool::Descriptor>	4	0
+Helium	std::__1::__shared_ptr_emplace<(anonymous namespace)::BufferWrapperAllocator, std::__1::allocator<(anonymous namespace)::BufferWrapperAllocator>>	4	0
+Helium	std::__1::__shared_ptr_emplace<(anonymous namespace)::TextureWrapperAllocator, std::__1::allocator<(anonymous namespace)::TextureWrapperAllocator>>	4	0
+Helium	HGPool::EntryEventHandler<id<MTLTexture>, HGMetalTextureWrapperInfinipool::Descriptor>	4	0
+Helium	std::__1::__shared_ptr_emplace<(anonymous namespace)::BufferAllocator, std::__1::allocator<(anonymous namespace)::BufferAllocator>>	4	0
+Helium	HGCRetimeFullRez	4	0
+Helium	HGCRetimeVariableRez	4	0
+Helium	HGOBJ	4	0
+Helium	std::__1::__shared_ptr_emplace<(anonymous namespace)::HeapPoolFixedAllocationPolicy<0, 2097152>, std::__1::allocator<(anonymous namespace)::HeapPoolFixedAllocationPolicy<0, 2097152>>>	4	0
+Helium	std::__1::__shared_ptr_emplace<(anonymous namespace)::BufferPoolFixedAllocationPolicy<0, 1024>, std::__1::allocator<(anonymous namespace)::BufferPoolFixedAllocationPolicy<0, 1024>>>	4	0
+Helium	std::__1::__shared_ptr_emplace<(anonymous namespace)::TexturePoolProgressivePOTAllocationPolicy<-2, 9>, std::__1::allocator<(anonymous namespace)::TexturePoolProgressivePOTAllocationPolicy<-2, 9>>>	4	0
+Helium	std::__1::__shared_ptr_emplace<(anonymous namespace)::TexturePoolProgressivePOTAllocationPolicy<-2, 11>, std::__1::allocator<(anonymous namespace)::TexturePoolProgressivePOTAllocationPolicy<-2, 11>>>	4	0
+Helium	std::__1::__shared_ptr_emplace<HGPool::FixedTotalUsageServicingPolicy, std::__1::allocator<HGPool::FixedTotalUsageServicingPolicy>>	4	0
+Helium	std::__1::__shared_ptr_emplace<HGPool::FixedServicingPolicy, std::__1::allocator<HGPool::FixedServicingPolicy>>	4	0
+Helium	std::__1::__shared_ptr_emplace<HGPool::FixedGroupServicingPolicy, std::__1::allocator<HGPool::FixedGroupServicingPolicy>>	4	0
+Helium	HGHWBlendFlipped	4	0
+Helium	HGLoggerUtils	4	0
+Helium	HGTraceGuard	4	0
+Helium	HGGLSetCurrentContextGuard	4	0
+Helium	HGMemory	4	0
+Helium	HGCSimpleSpatialDenoise	4	0
+Helium	HGColorConformNodeListItem	4	0
+Helium	HGWhiteBalanceRAW	4	0
+Helium	HGPool::EntryEventHandler<__CVBuffer*, HGCVPixelBufferPool::Descriptor>	4	0
+Helium	std::__1::__shared_ptr_emplace<(anonymous namespace)::HGCVPixelBufferAllocator, std::__1::allocator<(anonymous namespace)::HGCVPixelBufferAllocator>>	4	0
+Helium	SessionManager	4	0
+Helium	HGAntiAliasLUTInfo	4	0
+Helium	HGSMAAPatternSearch	4	0
+Helium	HGSMAABlend	4	0
+Helium	HGAntiAliasLUTEntry	4	0
+Helium	HGAVASpatialAverageAdaptive_LowerField	4	0
+Helium	HGAVASpatialAverageAdaptive_UpperField	4	0
 ProChannel	OZCurveDoubleSplineState	3	0
 ProChannel	OZChannelUint32Info	3	0
 ProChannel	OZCurveIntSplineState	3	0
@@ -2208,7 +2994,7 @@ Flexo	std::__1::vector<double, std::__1::allocator<double>>	3	0
 Flexo	std::__1::vector<float, std::__1::allocator<float>>	3	0
 Flexo	OZCurve	3	0
 Flexo	FFAssetUser	3	0
-Flexo	FFWithDisableUndoRegistration	3	0
+Flexo	FFWithDisableUndoRegistration	3	2
 Flexo	FFWithEnableUndoRegistration	3	0
 Flexo	void std::__1::__split_buffer<void () block_pointer*, std::__1::allocator<void () block_pointer*>>	3	0
 Flexo	FFAudioDynamicScopingWindow::LivePreroller	3	0
@@ -2257,7 +3043,7 @@ Flexo	FFAudioPlaybackMediator::WithScopingWindowPreroll	3	0
 Flexo	FFAudioPlaybackMediator_iOS	3	0
 Flexo	FFAudioStreamMonitoringAngleObjectScope	3	0
 Flexo	cachedPathsForQuals	3	0
-Flexo	FFVideoPropsObjectCounter	3	0
+Flexo	FFVideoPropsObjectCounter	3	3
 Flexo	non-virtual thunk to FFGraphAttachedParameterChaser	3	0
 Flexo	non-virtual thunk to STScheduledEventQueue	3	0
 Flexo	ausdk::APFactory<ausdk::AUBaseLookup, UpDownMixerUnit>	3	0
@@ -2307,6 +3093,78 @@ Flexo	CTMCoreMedia::AvidARES	3	0
 Flexo	std::__1::vector<HPMChunkEntry, std::__1::allocator<HPMChunkEntry>>	3	0
 Flexo	MXF::MXFColorComponents	3	0
 Flexo	MXF::MXFPartitionEntry	3	0
+Helium	PBOStrategy::PBOStageSetBuffer	3	0
+Helium	PBOStrategy::PBOStageRenderBuffer	3	0
+Helium	PBOStrategy::PBOStageReadPixels	3	0
+Helium	PBOStrategy::PBOStageMapBuffer	3	0
+Helium	PBOStrategy::PBOStageStartCopy	3	0
+Helium	PBOStrategy::PBOStageFinishCopy	3	0
+Helium	std::__1::basic_stringstream<char, std::__1::char_traits<char>, std::__1::allocator<char>>	3	0
+Helium	std::__1::vector<HGRef<HGBitmap>, std::__1::allocator<HGRef<HGBitmap>>>	3	0
+Helium	std::__1::deque<HGBitmap*, std::__1::allocator<HGBitmap*>>	3	0
+Helium	std::__1::deque<HGGPUReadbackJob*, std::__1::allocator<HGGPUReadbackJob*>>	3	0
+Helium	std::__1::deque<HGPixelBufferObj*, std::__1::allocator<HGPixelBufferObj*>>	3	0
+Helium	void std::__1::__split_buffer<SessionInfo*, std::__1::allocator<SessionInfo*>>	3	0
+Helium	void std::__1::__split_buffer<HGRef<HGGLContext>*, std::__1::allocator<HGRef<HGGLContext>*>>	3	0
+Helium	void std::__1::__split_buffer<HGGPUReadbackJob**, std::__1::allocator<HGGPUReadbackJob**>>	3	0
+Helium	void std::__1::__split_buffer<HGPixelBufferObj**, std::__1::allocator<HGPixelBufferObj**>>	3	0
+Helium	void std::__1::__split_buffer<HGBitmap**, std::__1::allocator<HGBitmap**>>	3	0
+Helium	void std::__1::__split_buffer<unsigned long*, std::__1::allocator<unsigned long*>>	3	0
+Helium	std::__1::vector<HGRef<HGNode>, std::__1::allocator<HGRef<HGNode>>>	3	0
+Helium	std::__1::shared_ptr<HGGPUComputeDevice const>	3	0
+Helium	std::__1::list<HGRenderJob*, std::__1::allocator<HGRenderJob*>>	3	0
+Helium	HGQuadPlanar	3	0
+Helium	std::__1::deque<HGTextureManager::TextureEntry, std::__1::allocator<HGTextureManager::TextureEntry>>	3	0
+Helium	std::__1::vector<std::__1::shared_ptr<HGComputeDevice const>, std::__1::allocator<std::__1::shared_ptr<HGComputeDevice const>>>	3	0
+Helium	std::__1::deque<HGPool::Entry<id<MTLTexture>, HGMetalTexturePool::Descriptor>, std::__1::allocator<HGMetalTexturePool::Descriptor>>	3	0
+Helium	std::__1::deque<HGRef<HGGLContext>, std::__1::allocator<HGRef<HGGLContext>>>	3	0
+Helium	HGDitherLUTEntryFactory	3	0
+Helium	HGRenderQueueSetupProperties	3	0
+Helium	std::__1::vector<HGRef<HGRenderNode>, std::__1::allocator<HGRef<HGRenderNode>>>	3	0
+Helium	HGPool::ServicingPolicy	3	0
+Helium	std::__1::basic_ostringstream<char, std::__1::char_traits<char>, std::__1::allocator<char>>	3	0
+Helium	HGCV	3	0
+Helium	DEITP::Rec709ToRec2020DisplayNits	3	0
+Helium	__HGStats_private::NodePixelsStats	3	0
+Helium	__HGStats_private::RoiStats	3	0
+Helium	HGStats::CoreStats<HGNode, __HGStats_private::StatsTimer>	3	0
+Helium	std::__1::vector<__HGStats_private::StatsTimer, std::__1::allocator<__HGStats_private::StatsTimer>>	3	0
+Helium	std::__1::vector<__HGStats_private::StatsProfile, std::__1::allocator<__HGStats_private::StatsProfile>>	3	0
+Helium	HGArray<HEdge, (HGFormat)0>	3	0
+Helium	HGArray<float vector[4], (HGFormat)28>	3	0
+Helium	HGArray<bool, (HGFormat)0>	3	0
+Helium	HDemosaic_1	3	0
+Helium	HGColorGammaLUTEntryFactory	3	0
+Helium	HGRectf	3	0
+Helium	void std::__1::__call_once_proxy[abi:nqe210106]<std::__1::tuple<CreateComputeDeviceList()	3	0
+Helium	HGCSolidColor	3	0
+Helium	MotionROIFrame	3	0
+Helium	std::__1::basic_ofstream<char, std::__1::char_traits<char>>	3	0
+Helium	HGComicLUT	3	0
+Helium	std::__1::basic_istringstream<char, std::__1::char_traits<char>, std::__1::allocator<char>>	3	0
+Helium	std::__1::deque<HGPool::Entry<id<MTLHeap>, HGMetalHeapPool::Descriptor>, std::__1::allocator<HGMetalHeapPool::Descriptor>>	3	0
+Helium	std::__1::deque<HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>, std::__1::allocator<HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>>>	3	0
+Helium	std::__1::deque<HGPool::Entry<id<MTLBuffer>, HGMetalBufferWrapperInfinipool::Descriptor>, std::__1::allocator<HGMetalBufferWrapperInfinipool::Descriptor>>	3	0
+Helium	HGPool::EntryEventHandler<id<MTLBuffer>, HGMetalBufferWrapperInfinipool::Descriptor>	3	0
+Helium	std::__1::deque<HGPool::Entry<id<MTLTexture>, HGMetalTextureWrapperInfinipool::Descriptor>, std::__1::allocator<HGMetalTextureWrapperInfinipool::Descriptor>>	3	0
+Helium	HGRef<HGMetalTexture> HGMetalTexture::_createFromBufferStorage<(HGMetalTexture	3	0
+Helium	std::__1::deque<HGPool::Entry<id<MTLBuffer>, HGMetalBufferPool::Descriptor>, std::__1::allocator<HGMetalBufferPool::Descriptor>>	3	0
+Helium	HGTransformUtils	3	0
+Helium	std::__1::deque<HGMemoryManager::Block*, std::__1::allocator<HGMemoryManager::Block*>>	3	0
+Helium	HGProfilerGuard<(HGProfilerGuardMode)0>	3	0
+Helium	HGProfilerGuard<(HGProfilerGuardMode)1>	3	0
+Helium	HGColorConformLUTEntryFactory	3	0
+Helium	std::__1::vector<HGColorConformNodeListItem*, std::__1::allocator<HGColorConformNodeListItem*>>	3	0
+Helium	HGCVPixelBufferPool::Descriptor	3	0
+Helium	HGLensGDC_BL	3	0
+Helium	HGLensGDC_BC	3	0
+Helium	std::__1::vector<HGRef<HGMetalTexture>, std::__1::allocator<HGRef<HGMetalTexture>>>	3	0
+Helium	HGDecimationImplementation	3	0
+Helium	HGAntiAliasLUTEntryFactory	3	0
+Helium	HgcSampler	3	0
+Helium	HGParamFieldType<float vector[4]>	3	0
+Helium	HGParamFieldType<bool>	3	0
+Helium	HGParamFieldType<float>	3	0
 ProChannel	std::__1::__tree<std::__1::__value_type<unsigned int, OZFactory*>, std::__1::__map_value_compare<unsigned int, std::__1::pair<unsigned int const, OZFactory*>, std::__1::less<unsigned int>, true>, std::__1::allocator<std::__1::pair<unsigned int const, OZFactory*>>>	2	0
 ProChannel	non-virtual thunk to OZChannelBase_Factory	2	0
 ProChannel	non-virtual thunk to OZChannel_Factory	2	0
@@ -3361,6 +4219,97 @@ Flexo	FFFlexo	2	0
 Flexo	OZChannelParameterComponent	2	0
 Flexo	OZChannelLabelComponent	2	0
 Flexo	OZAnimStatusCellComponent	2	0
+Helium	std::__1::vector<HGRef<HGParamField>, std::__1::allocator<HGRef<HGParamField>>>	2	0
+Helium	std::__1::shared_ptr<HGComputeDevice const>	2	0
+Helium	std::__1::vector<HGRect, std::__1::allocator<HGRect>>	2	0
+Helium	non-virtual thunk to std::__1::basic_stringstream<char, std::__1::char_traits<char>, std::__1::allocator<char>>	2	0
+Helium	virtual thunk to std::__1::basic_stringstream<char, std::__1::char_traits<char>, std::__1::allocator<char>>	2	0
+Helium	HGTraversal::IterativeUniqueTraversal<(HGTraversal::NodeInput)1, (HGTraversal::IteratorOrder)0, (HGTraversal::TraversalOrder)0, (HGTraversal::InputOrder)0>::Visitor	2	0
+Helium	HGRef<HGBitmap>* std::__1::vector<HGRef<HGBitmap>, std::__1::allocator<HGRef<HGBitmap>>>	2	0
+Helium	std::__1::deque<unsigned long, std::__1::allocator<unsigned long>>	2	0
+Helium	std::__1::vector<HGRef<HGPixelBufferObj>, std::__1::allocator<HGRef<HGPixelBufferObj>>>	2	0
+Helium	void std::__1::__split_buffer<HGTextureManager::TextureEntry*, std::__1::allocator<HGTextureManager::TextureEntry*>>::emplace_back<HGTextureManager	2	0
+Helium	void std::__1::__split_buffer<TextureDeleteQueue::DeleteRequest*, std::__1::allocator<TextureDeleteQueue::DeleteRequest*>>::emplace_back<TextureDeleteQueue	2	0
+Helium	void std::__1::__split_buffer<HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>*, std::__1::allocator<HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>*>>::emplace_back<HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool	2	0
+Helium	void std::__1::__split_buffer<HGPool::Entry<id<MTLHeap>, HGMetalHeapPool::Descriptor>*, std::__1::allocator<HGPool::Entry<id<MTLHeap>, HGMetalHeapPool::Descriptor>>>::emplace_back<HGPool::Entry<id<MTLHeap>, HGMetalHeapPool	2	0
+Helium	void std::__1::__split_buffer<HGPool::Entry<id<MTLBuffer>, HGMetalBufferPool::Descriptor>*, std::__1::allocator<HGPool::Entry<id<MTLBuffer>, HGMetalBufferPool::Descriptor>>>::emplace_back<HGPool::Entry<id<MTLBuffer>, HGMetalBufferPool	2	0
+Helium	void std::__1::__split_buffer<HGPool::Entry<id<MTLBuffer>, HGMetalBufferWrapperInfinipool::Descriptor>*, std::__1::allocator<HGPool::Entry<id<MTLBuffer>, HGMetalBufferWrapperInfinipool::Descriptor>>>::emplace_back<HGPool::Entry<id<MTLBuffer>, HGMetalBufferWrapperInfinipool	2	0
+Helium	void std::__1::__split_buffer<HGPool::Entry<id<MTLTexture>, HGMetalTexturePool::Descriptor>*, std::__1::allocator<HGPool::Entry<id<MTLTexture>, HGMetalTexturePool::Descriptor>>>::emplace_back<HGPool::Entry<id<MTLTexture>, HGMetalTexturePool	2	0
+Helium	void std::__1::__split_buffer<HGPool::Entry<id<MTLTexture>, HGMetalTextureWrapperInfinipool::Descriptor>*, std::__1::allocator<HGPool::Entry<id<MTLTexture>, HGMetalTextureWrapperInfinipool::Descriptor>>>::emplace_back<HGPool::Entry<id<MTLTexture>, HGMetalTextureWrapperInfinipool	2	0
+Helium	void std::__1::__split_buffer<HGMemoryManager::Block**, std::__1::allocator<HGMemoryManager::Block**>>::emplace_back<HGMemoryManager	2	0
+Helium	HGRef<HGNode>* std::__1::vector<HGRef<HGNode>, std::__1::allocator<HGRef<HGNode>>>	2	0
+Helium	std::__1::list<HGGPUReadbackJob*, std::__1::allocator<HGGPUReadbackJob*>>	2	0
+Helium	std::__1::list<HGRenderExecUnit*, std::__1::allocator<HGRenderExecUnit*>>	2	0
+Helium	std::__1::list<HGUserJob*, std::__1::allocator<HGUserJob*>>	2	0
+Helium	std::__1::vector<HGLayerParams, std::__1::allocator<HGLayerParams>>	2	0
+Helium	std::__1::vector<float, std::__1::allocator<float>>	2	0
+Helium	std::__1::vector<HGBinding, std::__1::allocator<HGBinding>>	2	0
+Helium	HGBinding* std::__1::vector<HGBinding, std::__1::allocator<HGBinding>>	2	0
+Helium	HGDefaultPolicies	2	0
+Helium	void std::__1::__split_buffer<HGMemoryManager::Block**, std::__1::allocator<HGMemoryManager::Block**>>::emplace_front<HGMemoryManager	2	0
+Helium	std::__1::deque<TextureDeleteQueue::DeleteRequest, std::__1::allocator<TextureDeleteQueue::DeleteRequest>>	2	0
+Helium	HGMetalTexturePool::Descriptor	2	0
+Helium	HGPool::List<id<MTLTexture>, HGMetalTexturePool::Descriptor, true>	2	0
+Helium	HGPool::Entry<id<MTLTexture>, HGMetalTexturePool::Descriptor>	2	0
+Helium	std::__1::bad_function_call	2	0
+Helium	HGTiming	2	0
+Helium	HGStorage3DLUT	2	0
+Helium	unsigned long HGPool::GroupServicingPolicy::_maxValue<(HGPool::GroupServicingPolicy	2	0
+Helium	operator<<(std::__1::basic_ostream<char, std::__1::char_traits<char>>&, HGDotGraph	2	0
+Helium	virtual thunk to std::__1::basic_ostringstream<char, std::__1::char_traits<char>, std::__1::allocator<char>>	2	0
+Helium	std::__1::vector<HGNode*, std::__1::allocator<HGNode*>>	2	0
+Helium	__HGStats_private::operator<<(std::__1::basic_ostream<char, std::__1::char_traits<char>>&, __HGStats_private::NodeOut<HGNode const>	2	0
+Helium	__HGStats_private::operator<<(std::__1::basic_ostream<char, std::__1::char_traits<char>>&, __HGStats_private::NodeOut<HGNode>	2	0
+Helium	__HGStats_private::operator<<(std::__1::basic_ostream<char, std::__1::char_traits<char>>&, __HGStats_private::NodeOut<std::type_info const>	2	0
+Helium	__HGStats_private::operator<<(std::__1::basic_ostream<char, std::__1::char_traits<char>>&, __HGStats_private::NodeOut<std::type_info>	2	0
+Helium	void __HGStats_private	2	0
+Helium	void __HGStats_private::probe<std	2	0
+Helium	void __HGStats_private::OpStats<__HGStats_private::StatsProfile>::merge<__HGStats_private	2	0
+Helium	void __HGStats_private::printNodeStats<HGNode, __HGStats_private	2	0
+Helium	HGTraversal::IterativeUniqueTraversal<(HGTraversal::NodeInput)0, (HGTraversal::IteratorOrder)0, (HGTraversal::TraversalOrder)0, (HGTraversal::InputOrder)0>::Visitor	2	0
+Helium	HGTraversal::IterativeUniqueTraversal<(HGTraversal::NodeInput)0, (HGTraversal::IteratorOrder)1, (HGTraversal::TraversalOrder)1, (HGTraversal::InputOrder)1>::Visitor	2	0
+Helium	HGTraversal::IterativeUniqueTraversal<(HGTraversal::NodeInput)0, (HGTraversal::IteratorOrder)0, (HGTraversal::TraversalOrder)1, (HGTraversal::InputOrder)1>::Visitor	2	0
+Helium	HGTraversal::IterativeUniqueTraversal<(HGTraversal::NodeInput)1, (HGTraversal::IteratorOrder)1, (HGTraversal::TraversalOrder)1, (HGTraversal::InputOrder)1>::Visitor	2	0
+Helium	HGTraversal::IterativeUniqueTraversal<(HGTraversal::NodeInput)1, (HGTraversal::IteratorOrder)0, (HGTraversal::TraversalOrder)1, (HGTraversal::InputOrder)1>::Visitor	2	0
+Helium	std::__1::vector<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, std::__1::allocator<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>>	2	0
+Helium	HGArray<HGRect, (HGFormat)0>	2	0
+Helium	HGArray<HEdge*, (HGFormat)0>	2	0
+Helium	HGArray<HGNode*, (HGFormat)0>	2	0
+Helium	std::__1::basic_ifstream<char, std::__1::char_traits<char>>	2	0
+Helium	virtual thunk to std::__1::basic_ifstream<char, std::__1::char_traits<char>>	2	0
+Helium	HGYUVPlanar	2	0
+Helium	StatsAccumulator	2	0
+Helium	std::__1::map<char const*, HGColorConform::hgColorConformRAWToLogEncoding, std::__1::less<char const*>, std::__1::allocator<std::__1::pair<char const* const, HGColorConform::hgColorConformRAWToLogEncoding>>>	2	0
+Helium	std::__1::map<char const*, std::__1::pair<HGColorConform::hgColorConformLogLinearization, HGColorGamma::hgColorGammaLogGamut>, std::__1::less<char const*>, std::__1::allocator<std::__1::pair<char const* const, std::__1::pair<HGColorConform::hgColorConformLogLinearization, HGColorGamma::hgColorGammaLogGamut>>>>	2	0
+Helium	operator<<(std::__1::basic_ostream<char, std::__1	2	0
+Helium	HGPrefilterUtils	2	0
+Helium	std::__1::vector<std::__1::shared_ptr<HGGPUComputeDevice const>, std::__1::allocator<std::__1::shared_ptr<HGGPUComputeDevice const>>>	2	0
+Helium	HGPage	2	0
+Helium	std::__1::vector<HGNodeChain, std::__1::allocator<HGNodeChain>>	2	0
+Helium	virtual thunk to ROIStatIO	2	0
+Helium	std::__1::vector<ROIStatIO::ROITestSet, std::__1::allocator<ROIStatIO::ROITestSet>>	2	0
+Helium	virtual thunk to std::__1::basic_ofstream<char, std::__1::char_traits<char>>	2	0
+Helium	HGCGL::RendererProperties	2	0
+Helium	std::__1::vector<int, std::__1::allocator<int>>	2	0
+Helium	virtual thunk to std::__1::basic_istringstream<char, std::__1::char_traits<char>, std::__1::allocator<char>>	2	0
+Helium	std::__1::vector<std::__1::pair<HGProgramDescriptor::InputType, HGRef<HGProgramDescriptor>>, std::__1::allocator<std::__1::pair<HGProgramDescriptor::InputType, HGRef<HGProgramDescriptor>>>>	2	0
+Helium	HGMetalHeapPool::Descriptor	2	0
+Helium	HGPool::List<id<MTLHeap>, HGMetalHeapPool::Descriptor, true>	2	0
+Helium	HGMetalBufferWrapperInfinipool::Descriptor	2	0
+Helium	HGPool::List<id<MTLBuffer>, HGMetalBufferWrapperInfinipool::Descriptor, true>	2	0
+Helium	HGMetalTextureWrapperInfinipool::Descriptor	2	0
+Helium	HGPool::List<id<MTLTexture>, HGMetalTextureWrapperInfinipool::Descriptor, true>	2	0
+Helium	bool HGMetalTexture::_canCreateTiledTexture<(HGMetalTexture	2	0
+Helium	bool HGMetalTexture::_canCreateLinearTexture<(HGMetalTexture	2	0
+Helium	HGMetalBufferPool::Descriptor	2	0
+Helium	HGPool::List<id<MTLBuffer>, HGMetalBufferPool::Descriptor, true>	2	0
+Helium	std::__1::vector<float vector[4], std::__1::allocator<float vector[4]>>	2	0
+Helium	HGBitmap* HGHWBlend	2	0
+Helium	std::__1::basic_string<char, std::__1::char_traits<char>, std::__1	2	0
+Helium	std::__1::vector<unsigned char, std::__1::allocator<unsigned char>>	2	0
+Helium	HGPool::List<__CVBuffer*, HGCVPixelBufferPool::Descriptor, true>	2	0
+Helium	std::__1::deque<SessionInfo, std::__1::allocator<SessionInfo>>	2	0
+Helium	HGBS	2	0
 ProChannel	void std::__1::__call_once_proxy[abi:nqe210106]<std::__1::tuple<OZChannelBase_Factory::getInstance()	1	0
 ProChannel	std::__1::__invoke_result_impl<void, OZChannelBase_Factory::getInstance()::'lambda'()>::type std::__1::__invoke[abi:nqe210106]<OZChannelBase_Factory::getInstance()	1	0
 ProChannel	void std::__1::__call_once_proxy[abi:nqe210106]<std::__1::tuple<OZChannel_Factory::getInstance()	1	0
@@ -5937,3 +6886,347 @@ Flexo	std::__1::vector<MXF::MXObject*, std::__1::allocator<MXF::MXObject*>>	1	0
 Flexo	bool std::__1::operator==[abi:nqe210106]<char, std::__1::char_traits<char>, std::__1	1	0
 Flexo	std::__1::map<unsigned int, MXF::MXFEssenceContainer*, std::__1::less<unsigned int>, std::__1::allocator<std::__1::pair<unsigned int const, MXF::MXFEssenceContainer*>>>	1	0
 Flexo	HGBinding* std::__1::vector<HGBinding, std::__1::allocator<HGBinding>>	1	0
+Helium	HGRef<HGParamField>* std::__1::vector<HGRef<HGParamField>, std::__1::allocator<HGRef<HGParamField>>>	1	0
+Helium	std::__1::__split_buffer<HGRef<HGParamField>, std::__1::allocator<HGRef<HGParamField>>&>	1	0
+Helium	std::length_error	1	0
+Helium	std	1	0
+Helium	std::__1::__exception_guard_exceptions<std::__1::_AllocatorDestroyRangeReverse<std::__1::allocator<HGRef<HGParamField>>, HGRef<HGParamField>*>>	1	0
+Helium	reorient_util	1	0
+Helium	std::__1::shared_ptr<HGRAWRendererBase>	1	0
+Helium	std::__1::shared_ptr<HGPRRawSdkRendererBase>	1	0
+Helium	std::__1::shared_ptr<HGVTRAWProcessorRendererBase>	1	0
+Helium	std::__1::shared_ptr<HGCPUComputeDevice const>	1	0
+Helium	std::__1::shared_ptr<HGPool::ServicingPolicy>	1	0
+Helium	std::__1::shared_ptr<HGPool::AllocationPolicy<HGMetalHeapPool::Descriptor>>	1	0
+Helium	std::__1::shared_ptr<HGPool::AllocationPolicy<HGMetalBufferPool::Descriptor>>	1	0
+Helium	std::__1::shared_ptr<HGPool::AllocationPolicy<HGMetalTexturePool::Descriptor>>	1	0
+Helium	std::__1::shared_ptr<HGPool::FixedServicingPolicy>	1	0
+Helium	std::__1::shared_ptr<HGPool::FixedGroupServicingPolicy>	1	0
+Helium	std::__1::shared_ptr<HGPool::FixedTotalUsageServicingPolicy>	1	0
+Helium	std::__1::shared_ptr<HGPool::Allocator<__CVBuffer*, HGCVPixelBufferPool::Descriptor>>	1	0
+Helium	std::__1::shared_ptr<HGPool::Allocator<id<MTLHeap>, HGMetalHeapPool::Descriptor>>	1	0
+Helium	std::__1::shared_ptr<HGPool::Allocator<id<MTLBuffer>, HGMetalBufferPool::Descriptor>>	1	0
+Helium	std::__1::shared_ptr<HGPool::Allocator<id<MTLBuffer>, HGMetalBufferWrapperInfinipool::Descriptor>>	1	0
+Helium	std::__1::shared_ptr<HGPool::Allocator<id<MTLTexture>, HGMetalTexturePool::Descriptor>>	1	0
+Helium	std::__1::shared_ptr<HGPool::Allocator<id<MTLTexture>, HGMetalTextureWrapperInfinipool::Descriptor>>	1	0
+Helium	HGSignPost::EventScopeGuard	1	0
+Helium	PBOStrategy::PBOTilingPolicy	1	0
+Helium	PBOStrategy::Pipeliner	1	0
+Helium	std::__1::vector<HGBitmap*, std::__1::allocator<HGBitmap*>>	1	0
+Helium	void std::__1::__introsort<std::__1::_ClassicAlgPolicy, std::__1	1	0
+Helium	bool std::__1::__insertion_sort_incomplete[abi:nqe210106]<std::__1::_ClassicAlgPolicy, std::__1	1	0
+Helium	HGBitmap** std::__1::__partial_sort_impl[abi:nqe210106]<std::__1::_ClassicAlgPolicy, std::__1	1	0
+Helium	std::__1::__split_buffer<HGRef<HGBitmap>, std::__1::allocator<HGRef<HGBitmap>>&>	1	0
+Helium	std::__1::__exception_guard_exceptions<std::__1::_AllocatorDestroyRangeReverse<std::__1::allocator<HGRef<HGBitmap>>, HGRef<HGBitmap>*>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<HGMetalDeviceInfo const*, HGRef<HGMetalContext>>, std::__1::__map_value_compare<HGMetalDeviceInfo const*, std::__1::pair<HGMetalDeviceInfo const* const, HGRef<HGMetalContext>>, std::__1::less<HGMetalDeviceInfo const*>, true>, std::__1::allocator<std::__1::pair<HGMetalDeviceInfo const* const, HGRef<HGMetalContext>>>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<__HGStats_private::RoiStatsID<HGNode>, __HGStats_private::RoiStats>, std::__1::__map_value_compare<__HGStats_private::RoiStatsID<HGNode>, std::__1::pair<__HGStats_private::RoiStatsID<HGNode> const, __HGStats_private::RoiStats>, std::__1::less<__HGStats_private::RoiStatsID<HGNode>>, true>, std::__1::allocator<std::__1::pair<__HGStats_private::RoiStatsID<HGNode> const, __HGStats_private::RoiStats>>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<__HGStats_private::RoiStatsID<std::type_info const>, __HGStats_private::RoiStats>, std::__1::__map_value_compare<__HGStats_private::RoiStatsID<std::type_info const>, std::__1::pair<__HGStats_private::RoiStatsID<std::type_info const> const, __HGStats_private::RoiStats>, std::__1::less<__HGStats_private::RoiStatsID<std::type_info const>>, true>, std::__1::allocator<std::__1::pair<__HGStats_private::RoiStatsID<std::type_info const> const, __HGStats_private::RoiStats>>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<HGMetalSamplerStateCache::Info, HGMTLSamplerStateType>, std::__1::__map_value_compare<HGMetalSamplerStateCache::Info, std::__1::pair<HGMetalSamplerStateCache::Info const, HGMTLSamplerStateType>, std::__1::less<HGMetalSamplerStateCache::Info>, true>, std::__1::allocator<std::__1::pair<HGMetalSamplerStateCache::Info const, HGMTLSamplerStateType>>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<HGPixelBufferObj*, unsigned long long>, std::__1::__map_value_compare<HGPixelBufferObj*, std::__1::pair<HGPixelBufferObj* const, unsigned long long>, std::__1::less<HGPixelBufferObj*>, true>, std::__1::allocator<std::__1::pair<HGPixelBufferObj* const, unsigned long long>>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<HGNode*, __HGStats_private::StatsTimer>, std::__1::__map_value_compare<HGNode*, std::__1::pair<HGNode* const, __HGStats_private::StatsTimer>, std::__1::less<HGNode*>, true>, std::__1::allocator<std::__1::pair<HGNode* const, __HGStats_private::StatsTimer>>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<HGNode*, __HGStats_private::StatsProfile>, std::__1::__map_value_compare<HGNode*, std::__1::pair<HGNode* const, __HGStats_private::StatsProfile>, std::__1::less<HGNode*>, true>, std::__1::allocator<std::__1::pair<HGNode* const, __HGStats_private::StatsProfile>>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<HGNode*, __HGStats_private::NodePixelsStats>, std::__1::__map_value_compare<HGNode*, std::__1::pair<HGNode* const, __HGStats_private::NodePixelsStats>, std::__1::less<HGNode*>, true>, std::__1::allocator<std::__1::pair<HGNode* const, __HGStats_private::NodePixelsStats>>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<HGMetalDeviceInfo const*, HGMetalContext*>, std::__1::__map_value_compare<HGMetalDeviceInfo const*, std::__1::pair<HGMetalDeviceInfo const* const, HGMetalContext*>, std::__1::less<HGMetalDeviceInfo const*>, true>, std::__1::allocator<std::__1::pair<HGMetalDeviceInfo const* const, HGMetalContext*>>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<std::type_info const*, __HGStats_private::StatsProfile>, std::__1::__map_value_compare<std::type_info const*, std::__1::pair<std::type_info const* const, __HGStats_private::StatsProfile>, std::__1::less<std::type_info const*>, true>, std::__1::allocator<std::__1::pair<std::type_info const* const, __HGStats_private::StatsProfile>>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<std::type_info const*, __HGStats_private::NodePixelsStats>, std::__1::__map_value_compare<std::type_info const*, std::__1::pair<std::type_info const* const, __HGStats_private::NodePixelsStats>, std::__1::less<std::type_info const*>, true>, std::__1::allocator<std::__1::pair<std::type_info const* const, __HGStats_private::NodePixelsStats>>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<char const*, HGColorConform::hgColorConformRAWToLogEncoding>, std::__1::__map_value_compare<char const*, std::__1::pair<char const* const, HGColorConform::hgColorConformRAWToLogEncoding>, std::__1::less<char const*>, true>, std::__1::allocator<std::__1::pair<char const* const, HGColorConform::hgColorConformRAWToLogEncoding>>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<char const*, std::__1::pair<HGColorConform::hgColorConformLogLinearization, HGColorGamma::hgColorGammaLogGamut>>, std::__1::__map_value_compare<char const*, std::__1::pair<char const* const, std::__1::pair<HGColorConform::hgColorConformLogLinearization, HGColorGamma::hgColorGammaLogGamut>>, std::__1::less<char const*>, true>, std::__1::allocator<std::__1::pair<char const* const, std::__1::pair<HGColorConform::hgColorConformLogLinearization, HGColorGamma::hgColorGammaLogGamut>>>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<HGLUTCache::LUTEntryFactory*, HGLUTCache*>, std::__1::__map_value_compare<HGLUTCache::LUTEntryFactory*, std::__1::pair<HGLUTCache::LUTEntryFactory* const, HGLUTCache*>, std::__1::less<HGLUTCache::LUTEntryFactory*>, true>, std::__1::allocator<std::__1::pair<HGLUTCache::LUTEntryFactory* const, HGLUTCache*>>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<void*, HGGLUniformLocations*>, std::__1::__map_value_compare<void*, std::__1::pair<void* const, HGGLUniformLocations*>, std::__1::less<void*>, true>, std::__1::allocator<std::__1::pair<void* const, HGGLUniformLocations*>>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<unsigned int, HGLimits*>, std::__1::__map_value_compare<unsigned int, std::__1::pair<unsigned int const, HGLimits*>, std::__1::less<unsigned int>, true>, std::__1::allocator<std::__1::pair<unsigned int const, HGLimits*>>>	1	0
+Helium	std::__1::__tree<HGNodeInput*, std::__1::less<HGNodeInput*>, std::__1::allocator<HGNodeInput*>>	1	0
+Helium	std::__1::__tree<HGMetalTexture*, std::__1::less<HGMetalTexture*>, std::__1::allocator<HGMetalTexture*>>	1	0
+Helium	std::__1::__tree<HGNode*, std::__1::less<HGNode*>, std::__1::allocator<HGNode*>>	1	0
+Helium	std::__1::__tree<HGNode const*, std::__1::less<HGNode const*>, std::__1::allocator<HGNode const*>>	1	0
+Helium	std::__1::basic_ostream<char, std::__1::char_traits<char>>& std::__1::__put_character_sequence[abi:nqe210106]<char, std::__1	1	0
+Helium	std::__1::ostreambuf_iterator<char, std::__1::char_traits<char>> std::__1::__pad_and_output[abi:nqe210106]<char, std::__1	1	0
+Helium	HGRef<HGPixelBufferObj>* std::__1::vector<HGRef<HGPixelBufferObj>, std::__1::allocator<HGRef<HGPixelBufferObj>>>	1	0
+Helium	std::__1::__split_buffer<HGRef<HGPixelBufferObj>, std::__1::allocator<HGRef<HGPixelBufferObj>>&>	1	0
+Helium	std::__1::__exception_guard_exceptions<std::__1::_AllocatorDestroyRangeReverse<std::__1::allocator<HGRef<HGPixelBufferObj>>, HGRef<HGPixelBufferObj>*>>	1	0
+Helium	void std::__1::__tree_balance_after_insert[abi:nqe210106]<std::__1	1	0
+Helium	void std::__1::__introsort<std::__1	1	0
+Helium	void std::__1::__sort4[abi:nqe210106]<std::__1	1	0
+Helium	void std::__1::__sort5[abi:nqe210106]<std::__1	1	0
+Helium	bool std::__1::__insertion_sort_incomplete[abi:nqe210106]<std::__1	1	0
+Helium	HGROIsInfo* std::__1::__partial_sort_impl[abi:nqe210106]<std::__1	1	0
+Helium	std::__1::vector<HGROIsInfo, std::__1::allocator<HGROIsInfo>>	1	0
+Helium	std::__1::pair<std::__1::__deque_iterator<HGRenderJob*, HGRenderJob**, HGRenderJob*&, HGRenderJob***, long, 512l>, std::__1::__deque_iterator<HGRenderJob*, HGRenderJob**, HGRenderJob*&, HGRenderJob***, long, 512l>> std::__1::__move_backward_impl<std::__1::_ClassicAlgPolicy>	1	0
+Helium	std::__1::pair<std::__1::__deque_iterator<HGGPUReadbackJob*, HGGPUReadbackJob**, HGGPUReadbackJob*&, HGGPUReadbackJob***, long, 512l>, std::__1::__deque_iterator<HGGPUReadbackJob*, HGGPUReadbackJob**, HGGPUReadbackJob*&, HGGPUReadbackJob***, long, 512l>> std::__1::__move_backward_impl<std::__1::_ClassicAlgPolicy>	1	0
+Helium	std::__1::pair<std::__1::__deque_iterator<HGBitmap*, HGBitmap**, HGBitmap*&, HGBitmap***, long, 512l>, std::__1::__deque_iterator<HGBitmap*, HGBitmap**, HGBitmap*&, HGBitmap***, long, 512l>> std::__1::__move_backward_impl<std::__1::_ClassicAlgPolicy>	1	0
+Helium	std::__1::pair<std::__1::__deque_iterator<HGUserJob*, HGUserJob**, HGUserJob*&, HGUserJob***, long, 512l>, std::__1::__deque_iterator<HGUserJob*, HGUserJob**, HGUserJob*&, HGUserJob***, long, 512l>> std::__1::__move_backward_impl<std::__1::_ClassicAlgPolicy>	1	0
+Helium	std::__1::pair<std::__1::__deque_iterator<HGMemoryManager::Block*, HGMemoryManager::Block**, HGMemoryManager::Block*&, HGMemoryManager::Block***, long, 512l>, std::__1::__deque_iterator<HGMemoryManager::Block*, HGMemoryManager::Block**, HGMemoryManager::Block*&, HGMemoryManager::Block***, long, 512l>> std::__1::__move_backward_impl<std::__1::_ClassicAlgPolicy>	1	0
+Helium	void std::__1::__for_each_segment[abi:nqe210106]<std::__1::__deque_iterator<HGRenderJob*, HGRenderJob**, HGRenderJob*&, HGRenderJob***, long, 512l>, std::__1::__move_impl<std::__1::_ClassicAlgPolicy>::_MoveSegment<std::__1::__deque_iterator<HGRenderJob*, HGRenderJob**, HGRenderJob*&, HGRenderJob***, long, 512l>, std::__1	1	0
+Helium	void std::__1::__for_each_segment[abi:nqe210106]<std::__1::__deque_iterator<HGGPUReadbackJob*, HGGPUReadbackJob**, HGGPUReadbackJob*&, HGGPUReadbackJob***, long, 512l>, std::__1::__move_impl<std::__1::_ClassicAlgPolicy>::_MoveSegment<std::__1::__deque_iterator<HGGPUReadbackJob*, HGGPUReadbackJob**, HGGPUReadbackJob*&, HGGPUReadbackJob***, long, 512l>, std::__1	1	0
+Helium	void std::__1::__for_each_segment[abi:nqe210106]<std::__1::__deque_iterator<HGBitmap*, HGBitmap**, HGBitmap*&, HGBitmap***, long, 512l>, std::__1::__move_impl<std::__1::_ClassicAlgPolicy>::_MoveSegment<std::__1::__deque_iterator<HGBitmap*, HGBitmap**, HGBitmap*&, HGBitmap***, long, 512l>, std::__1	1	0
+Helium	void std::__1::__for_each_segment[abi:nqe210106]<std::__1::__deque_iterator<HGUserJob*, HGUserJob**, HGUserJob*&, HGUserJob***, long, 512l>, std::__1::__move_impl<std::__1::_ClassicAlgPolicy>::_MoveSegment<std::__1::__deque_iterator<HGUserJob*, HGUserJob**, HGUserJob*&, HGUserJob***, long, 512l>, std::__1	1	0
+Helium	void std::__1::__for_each_segment[abi:nqe210106]<std::__1::__deque_iterator<HGMemoryManager::Block*, HGMemoryManager::Block**, HGMemoryManager::Block*&, HGMemoryManager::Block***, long, 512l>, std::__1::__move_impl<std::__1::_ClassicAlgPolicy>::_MoveSegment<std::__1::__deque_iterator<HGMemoryManager::Block*, HGMemoryManager::Block**, HGMemoryManager::Block*&, HGMemoryManager::Block***, long, 512l>, std::__1::__deque_iterator<HGMemoryManager::Block*, HGMemoryManager::Block**, HGMemoryManager::Block*&, HGMemoryManager	1	0
+Helium	HGSynchronizer	1	0
+Helium	std::__1::__split_buffer<HGRef<HGNode>, std::__1::allocator<HGRef<HGNode>>&>	1	0
+Helium	std::__1::__exception_guard_exceptions<std::__1::_AllocatorDestroyRangeReverse<std::__1::allocator<HGRef<HGNode>>, HGRef<HGNode>*>>	1	0
+Helium	HGOpticalFlowEffect::StreamID	1	0
+Helium	std::__1::__hash_iterator<std::__1::__hash_node<std::__1::__hash_value_type<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, HGRect>, void*>*> std::__1::__hash_table<std::__1::__hash_value_type<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, HGRect>, std::__1::__unordered_map_hasher<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, std::__1::pair<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const, HGRect>, std::__1::hash<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::equal_to<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, true>, std::__1::__unordered_map_equal<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, std::__1::pair<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const, HGRect>, std::__1::equal_to<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::hash<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, true>, std::__1::allocator<std::__1::pair<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const, HGRect>>>::find<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1	1	0
+Helium	std::__1::__murmur2_or_cityhash<unsigned long, 64ul>	1	0
+Helium	std::__1::pair<std::__1::__hash_iterator<std::__1::__hash_node<std::__1::__hash_value_type<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, HGRect>, void*>*>, bool> std::__1::__hash_table<std::__1::__hash_value_type<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, HGRect>, std::__1::__unordered_map_hasher<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, std::__1::pair<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const, HGRect>, std::__1::hash<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::equal_to<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, true>, std::__1::__unordered_map_equal<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, std::__1::pair<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const, HGRect>, std::__1::equal_to<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::hash<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, true>, std::__1::allocator<std::__1::pair<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const, HGRect>>>::__emplace_unique_key_args<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1	1	0
+Helium	std::__1::unique_ptr<std::__1::__hash_node<std::__1::__hash_value_type<HGMetalFunctionCache::Info, HGMTLFunctionType>, void*>, std::__1::__hash_node_destructor<std::__1::allocator<std::__1::__hash_node<std::__1::__hash_value_type<HGMetalFunctionCache::Info, HGMTLFunctionType>, void*>>>>	1	0
+Helium	std::__1::unique_ptr<std::__1::__hash_node<std::__1::__hash_value_type<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, HGRect>, void*>, std::__1::__hash_node_destructor<std::__1::allocator<std::__1::__hash_node<std::__1::__hash_value_type<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, HGRect>, void*>>>>	1	0
+Helium	std::__1::unique_ptr<std::__1::__hash_node<std::__1::__hash_value_type<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, bool>, void*>, std::__1::__hash_node_destructor<std::__1::allocator<std::__1::__hash_node<std::__1::__hash_value_type<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, bool>, void*>>>>	1	0
+Helium	void std::__1::__hash_table<std::__1::__hash_value_type<HGMetalFunctionCache::Info, HGMTLFunctionType>, std::__1::__unordered_map_hasher<HGMetalFunctionCache::Info, std::__1::pair<HGMetalFunctionCache::Info const, HGMTLFunctionType>, HGMetalFunctionCache::InfoHash, std::__1::equal_to<HGMetalFunctionCache::Info>, true>, std::__1::__unordered_map_equal<HGMetalFunctionCache::Info, std::__1::pair<HGMetalFunctionCache::Info const, HGMTLFunctionType>, std::__1::equal_to<HGMetalFunctionCache::Info>, HGMetalFunctionCache::InfoHash, true>, std::__1::allocator<std::__1::pair<HGMetalFunctionCache::Info const, HGMTLFunctionType>>>	1	0
+Helium	void std::__1::__hash_table<std::__1::__hash_value_type<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, HGRect>, std::__1::__unordered_map_hasher<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, std::__1::pair<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const, HGRect>, std::__1::hash<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::equal_to<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, true>, std::__1::__unordered_map_equal<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, std::__1::pair<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const, HGRect>, std::__1::equal_to<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::hash<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, true>, std::__1::allocator<std::__1::pair<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const, HGRect>>>	1	0
+Helium	void std::__1::__hash_table<std::__1::__hash_value_type<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, bool>, std::__1::__unordered_map_hasher<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, std::__1::pair<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const, bool>, std::__1::hash<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::equal_to<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, true>, std::__1::__unordered_map_equal<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, std::__1::pair<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const, bool>, std::__1::equal_to<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::hash<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, true>, std::__1::allocator<std::__1::pair<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const, bool>>>	1	0
+Helium	void std::__1::__hash_table<std::__1::__hash_value_type<HGNode const*, bool>, std::__1::__unordered_map_hasher<HGNode const*, std::__1::pair<HGNode const* const, bool>, std::__1::hash<HGNode const*>, std::__1::equal_to<HGNode const*>, true>, std::__1::__unordered_map_equal<HGNode const*, std::__1::pair<HGNode const* const, bool>, std::__1::equal_to<HGNode const*>, std::__1::hash<HGNode const*>, true>, std::__1::allocator<std::__1::pair<HGNode const* const, bool>>>	1	0
+Helium	void std::__1::__hash_table<std::__1::__hash_value_type<int, HGRect>, std::__1::__unordered_map_hasher<int, std::__1::pair<int const, HGRect>, std::__1::hash<int>, std::__1::equal_to<int>, true>, std::__1::__unordered_map_equal<int, std::__1::pair<int const, HGRect>, std::__1::equal_to<int>, std::__1::hash<int>, true>, std::__1::allocator<std::__1::pair<int const, HGRect>>>	1	0
+Helium	void std::__1::__hash_table<std::__1::__hash_value_type<unsigned long, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::__unordered_map_hasher<unsigned long, std::__1::pair<unsigned long const, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::hash<unsigned long>, std::__1::equal_to<unsigned long>, true>, std::__1::__unordered_map_equal<unsigned long, std::__1::pair<unsigned long const, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::equal_to<unsigned long>, std::__1::hash<unsigned long>, true>, std::__1::allocator<std::__1::pair<unsigned long const, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>>>	1	0
+Helium	std::__1::vector<HGRenderJob*, std::__1::allocator<HGRenderJob*>>	1	0
+Helium	std::__1::vector<HGRendererOutput, std::__1::allocator<HGRendererOutput>>	1	0
+Helium	std::__1::unordered_map<HGNode const*, bool, std::__1::hash<HGNode const*>, std::__1::equal_to<HGNode const*>, std::__1::allocator<std::__1::pair<HGNode const* const, bool>>>	1	0
+Helium	std::__1::unordered_map<int, HGRect, std::__1::hash<int>, std::__1::equal_to<int>, std::__1::allocator<std::__1::pair<int const, HGRect>>>	1	0
+Helium	std::__1::unordered_map<int, HGRef<HGBitmap>, std::__1::hash<int>, std::__1::equal_to<int>, std::__1::allocator<std::__1::pair<int const, HGRef<HGBitmap>>>>	1	0
+Helium	std::__1::pair<std::__1::__hash_iterator<std::__1::__hash_node<std::__1::__hash_value_type<int, HGRect>, void*>*>, bool> std::__1::__hash_table<std::__1::__hash_value_type<int, HGRect>, std::__1::__unordered_map_hasher<int, std::__1::pair<int const, HGRect>, std::__1::hash<int>, std::__1::equal_to<int>, true>, std::__1::__unordered_map_equal<int, std::__1::pair<int const, HGRect>, std::__1::equal_to<int>, std::__1::hash<int>, true>, std::__1::allocator<std::__1::pair<int const, HGRect>>>::__emplace_unique_key_args<int, std::__1::piecewise_construct_t const&, std::__1::tuple<int const&>, std::__1	1	0
+Helium	std::__1::pair<std::__1::__hash_iterator<std::__1::__hash_node<std::__1::__hash_value_type<int, HGRef<HGBitmap>>, void*>*>, bool> std::__1::__hash_table<std::__1::__hash_value_type<int, HGRef<HGBitmap>>, std::__1::__unordered_map_hasher<int, std::__1::pair<int const, HGRef<HGBitmap>>, std::__1::hash<int>, std::__1::equal_to<int>, true>, std::__1::__unordered_map_equal<int, std::__1::pair<int const, HGRef<HGBitmap>>, std::__1::equal_to<int>, std::__1::hash<int>, true>, std::__1::allocator<std::__1::pair<int const, HGRef<HGBitmap>>>>::__emplace_unique_key_args<int, std::__1::piecewise_construct_t const&, std::__1::tuple<int const&>, std::__1	1	0
+Helium	std::__1::unique_ptr<std::__1::__hash_node<std::__1::__hash_value_type<int, HGRef<HGBitmap>>, void*>, std::__1::__hash_node_destructor<std::__1::allocator<std::__1::__hash_node<std::__1::__hash_value_type<int, HGRef<HGBitmap>>, void*>>>>	1	0
+Helium	void std::__1::__hash_table<std::__1::__hash_value_type<int, HGRef<HGBitmap>>, std::__1::__unordered_map_hasher<int, std::__1::pair<int const, HGRef<HGBitmap>>, std::__1::hash<int>, std::__1::equal_to<int>, true>, std::__1::__unordered_map_equal<int, std::__1::pair<int const, HGRef<HGBitmap>>, std::__1::equal_to<int>, std::__1::hash<int>, true>, std::__1::allocator<std::__1::pair<int const, HGRef<HGBitmap>>>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<HGMetalDepthStencilStateCache::Info, HGMTLDepthStencilStateType>, std::__1::__map_value_compare<HGMetalDepthStencilStateCache::Info, std::__1::pair<HGMetalDepthStencilStateCache::Info const, HGMTLDepthStencilStateType>, std::__1::less<HGMetalDepthStencilStateCache::Info>, true>, std::__1::allocator<std::__1::pair<HGMetalDepthStencilStateCache::Info const, HGMTLDepthStencilStateType>>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<int, int>, std::__1::__map_value_compare<int, std::__1::pair<int const, int>, std::__1::less<int>, true>, std::__1::allocator<std::__1::pair<int const, int>>>	1	0
+Helium	std::__1::list<ClusteredPaddingPolicy::Size, std::__1::allocator<ClusteredPaddingPolicy::Size>>	1	0
+Helium	void std::__1::__split_buffer<HGTextureManager::TextureEntry*, std::__1::allocator<HGTextureManager::TextureEntry*>>::emplace_front<HGTextureManager	1	0
+Helium	void std::__1::__split_buffer<TextureDeleteQueue::DeleteRequest*, std::__1::allocator<TextureDeleteQueue::DeleteRequest*>>::emplace_front<TextureDeleteQueue	1	0
+Helium	void std::__1::__split_buffer<HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>*, std::__1::allocator<HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>*>>::emplace_front<HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool	1	0
+Helium	void std::__1::__split_buffer<HGPool::Entry<id<MTLHeap>, HGMetalHeapPool::Descriptor>*, std::__1::allocator<HGPool::Entry<id<MTLHeap>, HGMetalHeapPool::Descriptor>>>::emplace_front<HGPool::Entry<id<MTLHeap>, HGMetalHeapPool	1	0
+Helium	void std::__1::__split_buffer<HGPool::Entry<id<MTLBuffer>, HGMetalBufferPool::Descriptor>*, std::__1::allocator<HGPool::Entry<id<MTLBuffer>, HGMetalBufferPool::Descriptor>>>::emplace_front<HGPool::Entry<id<MTLBuffer>, HGMetalBufferPool	1	0
+Helium	void std::__1::__split_buffer<HGPool::Entry<id<MTLBuffer>, HGMetalBufferWrapperInfinipool::Descriptor>*, std::__1::allocator<HGPool::Entry<id<MTLBuffer>, HGMetalBufferWrapperInfinipool::Descriptor>>>::emplace_front<HGPool::Entry<id<MTLBuffer>, HGMetalBufferWrapperInfinipool	1	0
+Helium	void std::__1::__split_buffer<HGPool::Entry<id<MTLTexture>, HGMetalTexturePool::Descriptor>*, std::__1::allocator<HGPool::Entry<id<MTLTexture>, HGMetalTexturePool::Descriptor>>>::emplace_front<HGPool::Entry<id<MTLTexture>, HGMetalTexturePool	1	0
+Helium	void std::__1::__split_buffer<HGPool::Entry<id<MTLTexture>, HGMetalTextureWrapperInfinipool::Descriptor>*, std::__1::allocator<HGPool::Entry<id<MTLTexture>, HGMetalTextureWrapperInfinipool::Descriptor>>>::emplace_front<HGPool::Entry<id<MTLTexture>, HGMetalTextureWrapperInfinipool	1	0
+Helium	std::__1::vector<void*, std::__1::allocator<void*>>	1	0
+Helium	std::__1::vector<RenderbufferCache::RenderbufferEntry, std::__1::allocator<RenderbufferCache::RenderbufferEntry>>	1	0
+Helium	std::__1::pair<std::__1::__deque_iterator<HGTextureManager::TextureEntry, HGTextureManager::TextureEntry*, HGTextureManager::TextureEntry&, HGTextureManager::TextureEntry**, long, 42l>, std::__1::__deque_iterator<HGTextureManager::TextureEntry, HGTextureManager::TextureEntry*, HGTextureManager::TextureEntry&, HGTextureManager::TextureEntry**, long, 42l>> std::__1::__move_backward_impl<std::__1::_ClassicAlgPolicy>	1	0
+Helium	void std::__1::__for_each_segment[abi:nqe210106]<std::__1::__deque_iterator<HGTextureManager::TextureEntry, HGTextureManager::TextureEntry*, HGTextureManager::TextureEntry&, HGTextureManager::TextureEntry**, long, 42l>, std::__1::__move_impl<std::__1::_ClassicAlgPolicy>::_MoveSegment<std::__1::__deque_iterator<HGTextureManager::TextureEntry, HGTextureManager::TextureEntry*, HGTextureManager::TextureEntry&, HGTextureManager::TextureEntry**, long, 42l>, std::__1::__deque_iterator<HGTextureManager::TextureEntry, HGTextureManager::TextureEntry*, HGTextureManager::TextureEntry&, HGTextureManager	1	0
+Helium	std::__1::vector<HGTextureManager*, std::__1::allocator<HGTextureManager*>>	1	0
+Helium	void std::__1::__tree_remove[abi:nqe210106]<std::__1	1	0
+Helium	std::__1::vector<HGRenderNode*, std::__1::allocator<HGRenderNode*>>	1	0
+Helium	std::__1::vector<HGBitmapLoader*, std::__1::allocator<HGBitmapLoader*>>	1	0
+Helium	void std::__1::vector<std::__1::shared_ptr<HGComputeDevice const>, std::__1::allocator<std::__1::shared_ptr<HGComputeDevice const>>>::__assign_with_size[abi:nqe210106]<std::__1::shared_ptr<HGComputeDevice const>*, std::__1	1	0
+Helium	std::__1::shared_ptr<(anonymous namespace)::HeapAllocator>	1	0
+Helium	std::__1::shared_ptr<(anonymous namespace)::BufferAllocator>	1	0
+Helium	std::__1::shared_ptr<(anonymous namespace)::TextureAllocator>	1	0
+Helium	std::__1::shared_ptr<(anonymous namespace)::HeapTextureAllocator>	1	0
+Helium	std::__1::shared_ptr<(anonymous namespace)::BufferWrapperAllocator>	1	0
+Helium	std::__1::shared_ptr<(anonymous namespace)::TextureWrapperAllocator>	1	0
+Helium	std::__1::shared_ptr<(anonymous namespace)::HGCVPixelBufferAllocator>	1	0
+Helium	std::__1::shared_ptr<(anonymous namespace)::InfinipoolServicingPolicy>	1	0
+Helium	std::__1::shared_ptr<(anonymous namespace)::HeapPoolFixedAllocationPolicy<0, 2097152>>	1	0
+Helium	std::__1::shared_ptr<(anonymous namespace)::BufferPoolFixedAllocationPolicy<0, 1024>>	1	0
+Helium	std::__1::shared_ptr<(anonymous namespace)::TexturePoolProgressivePOTAllocationPolicy<-2, 11>>	1	0
+Helium	std::__1::shared_ptr<(anonymous namespace)::TexturePoolProgressivePOTAllocationPolicy<-2, 9>>	1	0
+Helium	HGPool::EntryTrace<id<MTLTexture>, HGMetalTexturePool::Descriptor>	1	0
+Helium	HGPool::DescriptorString<HGMetalTexturePool::Descriptor>	1	0
+Helium	HGPool::EntryLog<id<MTLTexture>, HGMetalTexturePool::Descriptor>	1	0
+Helium	std::__1::pair<std::__1::__deque_iterator<HGPool::Entry<id<MTLTexture>, HGMetalTexturePool::Descriptor>, HGMetalTexturePool::Descriptor*, HGMetalTexturePool::Descriptor&, HGPool::Entry<id<MTLTexture>, HGMetalTexturePool::Descriptor>*, long, 46l>, HGPool::Entry<id<MTLTexture>, HGMetalTexturePool::Descriptor>*> std::__1::__move_backward_impl<std::__1::_ClassicAlgPolicy>	1	0
+Helium	void std::__1::__for_each_segment[abi:nqe210106]<std::__1::__deque_iterator<HGPool::Entry<id<MTLTexture>, HGMetalTexturePool::Descriptor>, HGMetalTexturePool::Descriptor*, HGMetalTexturePool::Descriptor&, HGPool::Entry<id<MTLTexture>, HGMetalTexturePool::Descriptor>*, long, 46l>, std::__1::__move_impl<std::__1::_ClassicAlgPolicy>::_MoveSegment<HGPool::Entry<id<MTLTexture>, HGMetalTexturePool::Descriptor>*, HGPool::Entry<id<MTLTexture>, HGMetalTexturePool	1	0
+Helium	std::__1::map<HGMetalDeviceInfo const*, HGMetalContext*, std::__1::less<HGMetalDeviceInfo const*>, std::__1::allocator<std::__1::pair<HGMetalDeviceInfo const* const, HGMetalContext*>>>	1	0
+Helium	std::__1::list<HGUserExecUnit*, std::__1::allocator<HGUserExecUnit*>>	1	0
+Helium	std::__1::list<HGRenderContext*, std::__1::allocator<HGRenderContext*>>	1	0
+Helium	std::__1::list<HGGPUReadbackExecUnit*, std::__1::allocator<HGGPUReadbackExecUnit*>>	1	0
+Helium	std::__1::map<HGPixelBufferObj*, unsigned long long, std::__1::less<HGPixelBufferObj*>, std::__1::allocator<std::__1::pair<HGPixelBufferObj* const, unsigned long long>>>	1	0
+Helium	std::__1::shared_ptr<HGComputeDevice const>& std::__1::shared_ptr<HGComputeDevice const>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<std::__1::shared_ptr<HGGPUComputeDevice const>, HGSynchronizable*>, std::__1::__map_value_compare<std::__1::shared_ptr<HGGPUComputeDevice const>, std::__1::pair<std::__1::shared_ptr<HGGPUComputeDevice const> const, HGSynchronizable*>, std::__1::less<std::__1::shared_ptr<HGGPUComputeDevice const>>, true>, std::__1::allocator<std::__1::pair<std::__1::shared_ptr<HGGPUComputeDevice const> const, HGSynchronizable*>>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<std::__1::shared_ptr<HGGPUComputeDevice const>, bool>, std::__1::__map_value_compare<std::__1::shared_ptr<HGGPUComputeDevice const>, std::__1::pair<std::__1::shared_ptr<HGGPUComputeDevice const> const, bool>, std::__1::less<std::__1::shared_ptr<HGGPUComputeDevice const>>, true>, std::__1::allocator<std::__1::pair<std::__1::shared_ptr<HGGPUComputeDevice const> const, bool>>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<std::__1::shared_ptr<HGGPUComputeDevice const>, unsigned long long>, std::__1::__map_value_compare<std::__1::shared_ptr<HGGPUComputeDevice const>, std::__1::pair<std::__1::shared_ptr<HGGPUComputeDevice const> const, unsigned long long>, std::__1::less<std::__1::shared_ptr<HGGPUComputeDevice const>>, true>, std::__1::allocator<std::__1::pair<std::__1::shared_ptr<HGGPUComputeDevice const> const, unsigned long long>>>	1	0
+Helium	std::__1::__exception_guard_exceptions<std::__1::vector<std::__1::shared_ptr<HGComputeDevice const>, std::__1::allocator<std::__1::shared_ptr<HGComputeDevice const>>>::__destroy_vector>	1	0
+Helium	HGRef<HGRenderNode>* std::__1::vector<HGRef<HGRenderNode>, std::__1::allocator<HGRef<HGRenderNode>>>	1	0
+Helium	std::__1::__split_buffer<HGRef<HGRenderNode>, std::__1::allocator<HGRef<HGRenderNode>>&>	1	0
+Helium	std::__1::__exception_guard_exceptions<std::__1::_AllocatorDestroyRangeReverse<std::__1::allocator<HGRef<HGRenderNode>>, HGRef<HGRenderNode>*>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<HGPool::BasePool const*, std::__1::shared_ptr<HGPool::ServicingPolicy>>, std::__1::__map_value_compare<HGPool::BasePool const*, std::__1::pair<HGPool::BasePool const* const, std::__1::shared_ptr<HGPool::ServicingPolicy>>, std::__1::less<HGPool::BasePool const*>, true>, std::__1::allocator<std::__1::pair<HGPool::BasePool const* const, std::__1::shared_ptr<HGPool::ServicingPolicy>>>>	1	0
+Helium	std::__1::pair<HGPool::BasePool const* const, std::__1::shared_ptr<HGPool::ServicingPolicy>>	1	0
+Helium	void std::__1::__call_once_proxy[abi:nqe210106]<std::__1::tuple<HGPool::registerPool(HGPool::BasePool*)	1	0
+Helium	std::__1::thread	1	0
+Helium	void* std::__1::__thread_proxy[abi:nqe210106]<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1	1	0
+Helium	std::__1::unique_ptr<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct>>, void (*)()>, std::__1::default_delete<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct>>, void (*)()>>>	1	0
+Helium	std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct>>	1	0
+Helium	std::__1::vector<HGPool::BasePool*, std::__1::allocator<HGPool::BasePool*>>	1	0
+Helium	void std::__1::__destroy_at[abi:nqe210106]<std::__1::pair<unsigned long const, HGDotGraph	1	0
+Helium	std::__1::pair<unsigned long const, HGDotGraph::Node>	1	0
+Helium	HGDotGraph::Node	1	0
+Helium	std::__1::__tree<std::__1::__value_type<unsigned long, HGDotGraph::Node>, std::__1::__map_value_compare<unsigned long, std::__1::pair<unsigned long const, HGDotGraph::Node>, std::__1::less<unsigned long>, true>, std::__1::allocator<std::__1::pair<unsigned long const, HGDotGraph::Node>>>	1	0
+Helium	std::__1::__tree<std::__1::__value_type<std::__1::tuple<unsigned long, unsigned long>, HGDotGraph::Edge>, std::__1::__map_value_compare<std::__1::tuple<unsigned long, unsigned long>, std::__1::pair<std::__1::tuple<unsigned long, unsigned long> const, HGDotGraph::Edge>, std::__1::less<std::__1::tuple<unsigned long, unsigned long>>, true>, std::__1::allocator<std::__1::pair<std::__1::tuple<unsigned long, unsigned long> const, HGDotGraph::Edge>>>	1	0
+Helium	int HGFlipAndOffset	1	0
+Helium	void std::__1::__call_once_proxy[abi:nqe210106]<std::__1::tuple<HGCV::AllowPixelSizeCastingForHGFormat(HGFormat)	1	0
+Helium	std::out_of_range	1	0
+Helium	__HGStats_private::NodeKeyMerger<HGNode, HGNode>	1	0
+Helium	__HGStats_private::NodeKeyMerger<std::type_info const, HGNode>	1	0
+Helium	__HGStats_private	1	0
+Helium	__HGStats_private::Stats	1	0
+Helium	__HGStats_private::OpStats<__HGStats_private::StatsTimer>	1	0
+Helium	std::__1::vector<HGProfiler*, std::__1::allocator<HGProfiler*>>	1	0
+Helium	__HGStats_private::InOutRoiStatsPrinter<HGNode>	1	0
+Helium	__HGStats_private::OpStats<__HGStats_private::StatsProfile>	1	0
+Helium	__HGStats_private::MergeNodeStats<HGNode, __HGStats_private::StatsTimer, HGNode, __HGStats_private::StatsProfile>	1	0
+Helium	std::__1::__invoke_result_impl<void, __HGStats_private::MergeRoiStats<HGNode, HGNode>&, std::__1::pair<__HGStats_private::RoiStatsID<HGNode> const, __HGStats_private::RoiStats> const&>::type std::__1::__invoke[abi:nqe210106]<__HGStats_private::MergeRoiStats<HGNode, HGNode>&, std::__1::pair<__HGStats_private::RoiStatsID<HGNode> const, __HGStats_private	1	0
+Helium	__HGStats_private::ReadRenderAccumulator<HGNode, __HGStats_private::StatsProfile>	1	0
+Helium	__HGStats_private::NodePixelsPrinter<HGNode>	1	0
+Helium	__HGStats_private::NodeStatsVerbosePrinter<HGNode, __HGStats_private::StatsProfile, (__HGStats_private::NodeStatsType)1>	1	0
+Helium	__HGStats_private::NodePixels<HGNode>	1	0
+Helium	__HGStats_private::NodeStatsVerbosePrinter<HGNode, __HGStats_private::StatsProfile, (__HGStats_private::NodeStatsType)0>	1	0
+Helium	__HGStats_private::MergeNodeStats<HGNode, __HGStats_private::StatsProfile, std::type_info const, __HGStats_private::StatsProfile>	1	0
+Helium	__HGStats_private::MergeRoiStats<HGNode, std::type_info const>	1	0
+Helium	__HGStats_private::MergeNodePixels<HGNode, std::type_info const>	1	0
+Helium	__HGStats_private::ReadRenderAccumulator<std::type_info const, __HGStats_private::StatsProfile>	1	0
+Helium	void __HGStats_private::printNodeStats<std::type_info, __HGStats_private	1	0
+Helium	__HGStats_private::NodePixelsPrinter<std::type_info const>	1	0
+Helium	__HGStats_private::InOutRoiStatsPrinter<std::type_info const>	1	0
+Helium	__HGStats_private::NodeStatsVerbosePrinter<std::type_info const, __HGStats_private::StatsProfile, (__HGStats_private::NodeStatsType)1>	1	0
+Helium	__HGStats_private::NodePixels<std::type_info const>	1	0
+Helium	__HGStats_private::NodeStatsVerbosePrinter<std::type_info const, __HGStats_private::StatsProfile, (__HGStats_private::NodeStatsType)0>	1	0
+Helium	void std::__1::__call_once_proxy[abi:nqe210106]<std::__1::tuple<HGFormatUtils::adjustPrecision(unsigned int, unsigned int)	1	0
+Helium	void std::__1::vector<unsigned int, std::__1::allocator<unsigned int>>	1	0
+Helium	std::__1::vector<unsigned int, std::__1::allocator<unsigned int>>	1	0
+Helium	HGTraversal::RecursiveTraversal<(HGTraversal::NodeInput)1, (HGTraversal::InputOrder)0>	1	0
+Helium	HGTraversal::IterativeTraversal<(HGTraversal::NodeInput)1, (HGTraversal::InputOrder)0>	1	0
+Helium	HGTraversal::IterativeUniqueTraversal<(HGTraversal::NodeInput)0, (HGTraversal::IteratorOrder)0, (HGTraversal::TraversalOrder)0, (HGTraversal::InputOrder)0>	1	0
+Helium	HGTraversal::IterativeUniqueTraversal<(HGTraversal::NodeInput)0, (HGTraversal::IteratorOrder)1, (HGTraversal::TraversalOrder)1, (HGTraversal::InputOrder)1>	1	0
+Helium	std::__1::__deque_iterator<HGNode*, HGNode**, HGNode*&, HGNode***, long, 512l> hgstd::stable_unique<std::__1	1	0
+Helium	HGTraversal::IterativeUniqueTraversal<(HGTraversal::NodeInput)0, (HGTraversal::IteratorOrder)0, (HGTraversal::TraversalOrder)1, (HGTraversal::InputOrder)1>	1	0
+Helium	HGTraversal::IterativeUniqueTraversal<(HGTraversal::NodeInput)1, (HGTraversal::IteratorOrder)0, (HGTraversal::TraversalOrder)0, (HGTraversal::InputOrder)0>	1	0
+Helium	HGTraversal::IterativeUniqueTraversal<(HGTraversal::NodeInput)1, (HGTraversal::IteratorOrder)1, (HGTraversal::TraversalOrder)1, (HGTraversal::InputOrder)1>	1	0
+Helium	HGTraversal::IterativeUniqueTraversal<(HGTraversal::NodeInput)1, (HGTraversal::IteratorOrder)0, (HGTraversal::TraversalOrder)1, (HGTraversal::InputOrder)1>	1	0
+Helium	metal	1	0
+Helium	string_t	1	0
+Helium	std::__1::vector<HGShaderHistory, std::__1::allocator<HGShaderHistory>>	1	0
+Helium	std::__1::vector<HGLUTCache::LUTEntry*, std::__1::allocator<HGLUTCache::LUTEntry*>>	1	0
+Helium	std::__1::vector<HGBuffer*, std::__1::allocator<HGBuffer*>>	1	0
+Helium	StaticInitTracker	1	0
+Helium	std::__1::vector<HGExecutionUnit*, std::__1::allocator<HGExecutionUnit*>>	1	0
+Helium	std::__1::vector<DepthBufferManager*, std::__1::allocator<DepthBufferManager*>>	1	0
+Helium	void std::__1::__call_once_proxy[abi:nqe210106]<std::__1::tuple<HGBitmapLoader::RenderPage(HGPage*, HGGPURenderAPI)	1	0
+Helium	HGARRILogC	1	0
+Helium	std::__1::__tree_node_base<void*>*& std::__1::__tree<std::__1::__value_type<char const*, HGColorConform::hgColorConformRAWToLogEncoding>, std::__1::__map_value_compare<char const*, std::__1::pair<char const* const, HGColorConform::hgColorConformRAWToLogEncoding>, std::__1::less<char const*>, true>, std::__1::allocator<std::__1::pair<char const* const, HGColorConform::hgColorConformRAWToLogEncoding>>>	1	0
+Helium	std::__1::__tree_node_base<void*>*& std::__1::__tree<std::__1::__value_type<char const*, std::__1::pair<HGColorConform::hgColorConformLogLinearization, HGColorGamma::hgColorGammaLogGamut>>, std::__1::__map_value_compare<char const*, std::__1::pair<char const* const, std::__1::pair<HGColorConform::hgColorConformLogLinearization, HGColorGamma::hgColorGammaLogGamut>>, std::__1::less<char const*>, true>, std::__1::allocator<std::__1::pair<char const* const, std::__1::pair<HGColorConform::hgColorConformLogLinearization, HGColorGamma::hgColorGammaLogGamut>>>>	1	0
+Helium	void std::__1::map<char const*, HGColorConform::hgColorConformRAWToLogEncoding, std::__1::less<char const*>, std::__1::allocator<std::__1::pair<char const* const, HGColorConform::hgColorConformRAWToLogEncoding>>>::insert[abi:nqe210106]<std::__1::__map_const_iterator<std::__1::__tree_const_iterator<std::__1::__value_type<char const*, HGColorConform::hgColorConformRAWToLogEncoding>, std::__1::__tree_node<std::__1::__value_type<char const*, HGColorConform	1	0
+Helium	void std::__1::map<char const*, std::__1::pair<HGColorConform::hgColorConformLogLinearization, HGColorGamma::hgColorGammaLogGamut>, std::__1::less<char const*>, std::__1::allocator<std::__1::pair<char const* const, std::__1::pair<HGColorConform::hgColorConformLogLinearization, HGColorGamma::hgColorGammaLogGamut>>>>::insert[abi:nqe210106]<std::__1::__map_const_iterator<std::__1::__tree_const_iterator<std::__1::__value_type<char const*, std::__1::pair<HGColorConform::hgColorConformLogLinearization, HGColorGamma::hgColorGammaLogGamut>>, std::__1::__tree_node<std::__1::__value_type<char const*, std::__1::pair<HGColorConform::hgColorConformLogLinearization, HGColorGamma	1	0
+Helium	HGMath	1	0
+Helium	void std::__1::__introsort<std::__1::_ClassicAlgPolicy, SortGPUDevices&, std::__1	1	0
+Helium	SortGPUDevices	1	0
+Helium	bool std::__1::__sort3[abi:nqe210106]<std::__1::_ClassicAlgPolicy, SortGPUDevices&, std::__1	1	0
+Helium	void std::__1::__sort5[abi:nqe210106]<std::__1::_ClassicAlgPolicy, SortGPUDevices&, std::__1	1	0
+Helium	void std::__1::__insertion_sort[abi:nqe210106]<std::__1::_ClassicAlgPolicy, SortGPUDevices&, std::__1	1	0
+Helium	void std::__1::__insertion_sort_unguarded[abi:nqe210106]<std::__1::_ClassicAlgPolicy, SortGPUDevices&, std::__1	1	0
+Helium	std::__1::shared_ptr<HGGPUComputeDevice const>* std::__1::__partition_with_equals_on_left[abi:nqe210106]<std::__1::_ClassicAlgPolicy, std::__1	1	0
+Helium	std::__1::pair<std::__1::shared_ptr<HGGPUComputeDevice const>*, bool> std::__1::__partition_with_equals_on_right[abi:nqe210106]<std::__1::_ClassicAlgPolicy, std::__1	1	0
+Helium	bool std::__1::__insertion_sort_incomplete[abi:nqe210106]<std::__1::_ClassicAlgPolicy, SortGPUDevices&, std::__1	1	0
+Helium	void std::__1::__sift_down[abi:nqe210106]<std::__1::_ClassicAlgPolicy, SortGPUDevices&, std::__1	1	0
+Helium	void std::__1::__pop_heap[abi:nqe210106]<std::__1::_ClassicAlgPolicy, SortGPUDevices, std::__1	1	0
+Helium	void std::__1::__sift_up[abi:nqe210106]<std::__1::_ClassicAlgPolicy, SortGPUDevices&, std::__1	1	0
+Helium	HGTile	1	0
+Helium	std::__1::__deque_iterator<HGNode const*, HGNode const**, HGNode const*&, HGNode const***, long, 512l> hgstd::stable_unique<std::__1	1	0
+Helium	std::__1::vector<HGNode const*, std::__1::allocator<HGNode const*>>	1	0
+Helium	std::__1::pair<std::__1::__hash_iterator<std::__1::__hash_node<std::__1::__hash_value_type<HGNode const*, bool>, void*>*>, bool> std::__1::__hash_table<std::__1::__hash_value_type<HGNode const*, bool>, std::__1::__unordered_map_hasher<HGNode const*, std::__1::pair<HGNode const* const, bool>, std::__1::hash<HGNode const*>, std::__1::equal_to<HGNode const*>, true>, std::__1::__unordered_map_equal<HGNode const*, std::__1::pair<HGNode const* const, bool>, std::__1::equal_to<HGNode const*>, std::__1::hash<HGNode const*>, true>, std::__1::allocator<std::__1::pair<HGNode const* const, bool>>>::__emplace_unique_key_args<HGNode const*, std::__1::piecewise_construct_t const&, std::__1::tuple<HGNode const* const&>, std::__1	1	0
+Helium	std::__1::vector<HGStackPage*, std::__1::allocator<HGStackPage*>>	1	0
+Helium	operator<<(std::__1::basic_ostream<char, std::__1::char_traits<char>>&, ROIStatIO	1	0
+Helium	ROIStatIO::ROITestSet	1	0
+Helium	ROIStatIO::ROITestSet* std::__1::vector<ROIStatIO::ROITestSet, std::__1::allocator<ROIStatIO::ROITestSet>>::__emplace_back_slow_path<ROIStatIO	1	0
+Helium	std::__1::__split_buffer<ROIStatIO::ROITestSet, std::__1::allocator<ROIStatIO::ROITestSet>&>	1	0
+Helium	void std::__1::__uninitialized_allocator_relocate[abi:nqe210106]<std::__1::allocator<ROIStatIO::ROITestSet>, ROIStatIO	1	0
+Helium	std::__1::__exception_guard_exceptions<std::__1::_AllocatorDestroyRangeReverse<std::__1::allocator<ROIStatIO::ROITestSet>, ROIStatIO::ROITestSet*>>	1	0
+Helium	void std::__1::__split_buffer<ROIStatIO::ROITestSet, std::__1::allocator<ROIStatIO::ROITestSet>&>::emplace_back<ROIStatIO	1	0
+Helium	std::__1::vector<HGCGL::RendererProperties*, std::__1::allocator<HGCGL::RendererProperties*>>	1	0
+Helium	HGXF	1	0
+Helium	HGMetalHandler::CommandEncoderCargo	1	0
+Helium	std::__1::vector<HGMTLFunctionType, std::__1::allocator<HGMTLFunctionType>>	1	0
+Helium	std::__1::basic_istream<char, std::__1::char_traits<char>>& std::__1::getline[abi:nqe210106]<char, std::__1::char_traits<char>, std::__1	1	0
+Helium	std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>& std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>	1	0
+Helium	std::__1::vector<HGMetalCounterSet*, std::__1::allocator<HGMetalCounterSet*>>	1	0
+Helium	void std::__1::vector<HGMTLFunctionType, std::__1::allocator<HGMTLFunctionType>>	1	0
+Helium	std::__1::vector<HGMetalHandler::CommandEncoderCargo*, std::__1::allocator<HGMetalHandler::CommandEncoderCargo*>>	1	0
+Helium	std::__1::unordered_map<unsigned long, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, std::__1::hash<unsigned long>, std::__1::equal_to<unsigned long>, std::__1::allocator<std::__1::pair<unsigned long const, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>>>	1	0
+Helium	std::__1::unordered_map<HGMetalFunctionCache::Info, HGMTLFunctionType, HGMetalFunctionCache::InfoHash, std::__1::equal_to<HGMetalFunctionCache::Info>, std::__1::allocator<std::__1::pair<HGMetalFunctionCache::Info const, HGMTLFunctionType>>>	1	0
+Helium	std::__1::unordered_map<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, bool, std::__1::hash<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::equal_to<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::allocator<std::__1::pair<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const, bool>>>	1	0
+Helium	HGProgramDescriptor::Dependency	1	0
+Helium	void std::__1::vector<HGBinding, std::__1::allocator<HGBinding>>	1	0
+Helium	std::__1::__exception_guard_exceptions<std::__1::_AllocatorDestroyRangeReverse<std::__1::allocator<HGBinding>, HGBinding*>>	1	0
+Helium	std::__1::pair<HGProgramDescriptor::InputType, HGRef<HGProgramDescriptor>>* std::__1::vector<std::__1::pair<HGProgramDescriptor::InputType, HGRef<HGProgramDescriptor>>, std::__1::allocator<std::__1::pair<HGProgramDescriptor::InputType, HGRef<HGProgramDescriptor>>>>::__emplace_back_slow_path<std::__1::pair<HGProgramDescriptor	1	0
+Helium	std::__1::__split_buffer<std::__1::pair<HGProgramDescriptor::InputType, HGRef<HGProgramDescriptor>>, std::__1::allocator<std::__1::pair<HGProgramDescriptor::InputType, HGRef<HGProgramDescriptor>>>&>	1	0
+Helium	std::__1::__exception_guard_exceptions<std::__1::_AllocatorDestroyRangeReverse<std::__1::allocator<std::__1::pair<HGProgramDescriptor::InputType, HGRef<HGProgramDescriptor>>>, std::__1::pair<HGProgramDescriptor::InputType, HGRef<HGProgramDescriptor>>*>>	1	0
+Helium	std::__1::__split_buffer<HGBinding, std::__1::allocator<HGBinding>&>	1	0
+Helium	std::__1::pair<std::__1::__hash_iterator<std::__1::__hash_node<std::__1::__hash_value_type<unsigned long, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, void*>*>, bool> std::__1::__hash_table<std::__1::__hash_value_type<unsigned long, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::__unordered_map_hasher<unsigned long, std::__1::pair<unsigned long const, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::hash<unsigned long>, std::__1::equal_to<unsigned long>, true>, std::__1::__unordered_map_equal<unsigned long, std::__1::pair<unsigned long const, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::equal_to<unsigned long>, std::__1::hash<unsigned long>, true>, std::__1::allocator<std::__1::pair<unsigned long const, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>>>::__emplace_unique_key_args<unsigned long, std::__1::piecewise_construct_t const&, std::__1::tuple<unsigned long const&>, std::__1	1	0
+Helium	std::__1::unique_ptr<std::__1::__hash_node<std::__1::__hash_value_type<unsigned long, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, void*>, std::__1::__hash_node_destructor<std::__1::allocator<std::__1::__hash_node<std::__1::__hash_value_type<unsigned long, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, void*>>>>	1	0
+Helium	std::__1::vector<unsigned long, std::__1::allocator<unsigned long>>	1	0
+Helium	std::__1::pair<std::__1::__hash_iterator<std::__1::__hash_node<std::__1::__hash_value_type<unsigned long, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, void*>*>, bool> std::__1::__hash_table<std::__1::__hash_value_type<unsigned long, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::__unordered_map_hasher<unsigned long, std::__1::pair<unsigned long const, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::hash<unsigned long>, std::__1::equal_to<unsigned long>, true>, std::__1::__unordered_map_equal<unsigned long, std::__1::pair<unsigned long const, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::equal_to<unsigned long>, std::__1::hash<unsigned long>, true>, std::__1::allocator<std::__1::pair<unsigned long const, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>>>::__emplace_unique_key_args<unsigned long, std::__1::pair<unsigned long const, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1	1	0
+Helium	std::__1::pair<std::__1::__hash_iterator<std::__1::__hash_node<std::__1::__hash_value_type<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, bool>, void*>*>, bool> std::__1::__hash_table<std::__1::__hash_value_type<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, bool>, std::__1::__unordered_map_hasher<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, std::__1::pair<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const, bool>, std::__1::hash<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::equal_to<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, true>, std::__1::__unordered_map_equal<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, std::__1::pair<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const, bool>, std::__1::equal_to<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, std::__1::hash<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>, true>, std::__1::allocator<std::__1::pair<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const, bool>>>::__emplace_unique_key_args<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, std::__1::piecewise_construct_t const&, std::__1::tuple<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const&>, std::__1	1	0
+Helium	HGProgramDescriptor::Dependency* std::__1::vector<HGProgramDescriptor::Dependency, std::__1::allocator<HGProgramDescriptor::Dependency>>::__emplace_back_slow_path<HGProgramDescriptor	1	0
+Helium	std::__1::vector<HGProgramDescriptor::Dependency, std::__1::allocator<HGProgramDescriptor::Dependency>>	1	0
+Helium	HGPool::EntryTrace<id<MTLHeap>, HGMetalHeapPool::Descriptor>	1	0
+Helium	HGPool::EntryLog<id<MTLHeap>, HGMetalHeapPool::Descriptor>	1	0
+Helium	std::__1::pair<std::__1::__deque_iterator<HGPool::Entry<id<MTLHeap>, HGMetalHeapPool::Descriptor>, HGMetalHeapPool::Descriptor*, HGMetalHeapPool::Descriptor&, HGPool::Entry<id<MTLHeap>, HGMetalHeapPool::Descriptor>*, long, 73l>, HGPool::Entry<id<MTLHeap>, HGMetalHeapPool::Descriptor>*> std::__1::__move_backward_impl<std::__1::_ClassicAlgPolicy>	1	0
+Helium	void std::__1::__for_each_segment[abi:nqe210106]<std::__1::__deque_iterator<HGPool::Entry<id<MTLHeap>, HGMetalHeapPool::Descriptor>, HGMetalHeapPool::Descriptor*, HGMetalHeapPool::Descriptor&, HGPool::Entry<id<MTLHeap>, HGMetalHeapPool::Descriptor>*, long, 73l>, std::__1::__move_impl<std::__1::_ClassicAlgPolicy>::_MoveSegment<HGPool::Entry<id<MTLHeap>, HGMetalHeapPool::Descriptor>*, HGPool::Entry<id<MTLHeap>, HGMetalHeapPool	1	0
+Helium	HGPool::EntryTrace<id<MTLBuffer>, HGMetalBufferWrapperInfinipool::Descriptor>	1	0
+Helium	HGPool::EntryLog<id<MTLBuffer>, HGMetalBufferWrapperInfinipool::Descriptor>	1	0
+Helium	std::__1::pair<std::__1::__deque_iterator<HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>, HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>*, HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>&, HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>**, long, 64l>, std::__1::__deque_iterator<HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>, HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>*, HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>&, HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>**, long, 64l>> std::__1::__move_backward_impl<std::__1::_ClassicAlgPolicy>	1	0
+Helium	std::__1::pair<std::__1::__deque_iterator<HGPool::Entry<id<MTLBuffer>, HGMetalBufferWrapperInfinipool::Descriptor>, HGMetalBufferWrapperInfinipool::Descriptor*, HGMetalBufferWrapperInfinipool::Descriptor&, HGPool::Entry<id<MTLBuffer>, HGMetalBufferWrapperInfinipool::Descriptor>*, long, 64l>, HGPool::Entry<id<MTLBuffer>, HGMetalBufferWrapperInfinipool::Descriptor>*> std::__1::__move_backward_impl<std::__1::_ClassicAlgPolicy>	1	0
+Helium	void std::__1::__for_each_segment[abi:nqe210106]<std::__1::__deque_iterator<HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>, HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>*, HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>&, HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>**, long, 64l>, std::__1::__move_impl<std::__1::_ClassicAlgPolicy>::_MoveSegment<std::__1::__deque_iterator<HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>, HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>*, HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>&, HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>**, long, 64l>, std::__1::__deque_iterator<HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>, HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>*, HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool::Descriptor>&, HGPool::Entry<__CVBuffer*, HGCVPixelBufferPool	1	0
+Helium	void std::__1::__for_each_segment[abi:nqe210106]<std::__1::__deque_iterator<HGPool::Entry<id<MTLBuffer>, HGMetalBufferWrapperInfinipool::Descriptor>, HGMetalBufferWrapperInfinipool::Descriptor*, HGMetalBufferWrapperInfinipool::Descriptor&, HGPool::Entry<id<MTLBuffer>, HGMetalBufferWrapperInfinipool::Descriptor>*, long, 64l>, std::__1::__move_impl<std::__1::_ClassicAlgPolicy>::_MoveSegment<HGPool::Entry<id<MTLBuffer>, HGMetalBufferWrapperInfinipool::Descriptor>*, HGPool::Entry<id<MTLBuffer>, HGMetalBufferWrapperInfinipool	1	0
+Helium	HGPool::DescriptorString<HGMetalTextureWrapperInfinipool::Descriptor>	1	0
+Helium	HGPool::EntryTrace<id<MTLTexture>, HGMetalTextureWrapperInfinipool::Descriptor>	1	0
+Helium	HGPool::EntryLog<id<MTLTexture>, HGMetalTextureWrapperInfinipool::Descriptor>	1	0
+Helium	std::__1::pair<std::__1::__deque_iterator<HGPool::Entry<id<MTLTexture>, HGMetalTextureWrapperInfinipool::Descriptor>, HGMetalTextureWrapperInfinipool::Descriptor*, HGMetalTextureWrapperInfinipool::Descriptor&, HGPool::Entry<id<MTLTexture>, HGMetalTextureWrapperInfinipool::Descriptor>*, long, 36l>, HGPool::Entry<id<MTLTexture>, HGMetalTextureWrapperInfinipool::Descriptor>*> std::__1::__move_backward_impl<std::__1::_ClassicAlgPolicy>	1	0
+Helium	void std::__1::__for_each_segment[abi:nqe210106]<std::__1::__deque_iterator<HGPool::Entry<id<MTLTexture>, HGMetalTextureWrapperInfinipool::Descriptor>, HGMetalTextureWrapperInfinipool::Descriptor*, HGMetalTextureWrapperInfinipool::Descriptor&, HGPool::Entry<id<MTLTexture>, HGMetalTextureWrapperInfinipool::Descriptor>*, long, 36l>, std::__1::__move_impl<std::__1::_ClassicAlgPolicy>::_MoveSegment<HGPool::Entry<id<MTLTexture>, HGMetalTextureWrapperInfinipool::Descriptor>*, HGPool::Entry<id<MTLTexture>, HGMetalTextureWrapperInfinipool	1	0
+Helium	HGPool::EntryTrace<id<MTLBuffer>, HGMetalBufferPool::Descriptor>	1	0
+Helium	HGPool::EntryLog<id<MTLBuffer>, HGMetalBufferPool::Descriptor>	1	0
+Helium	std::__1::pair<std::__1::__deque_iterator<HGPool::Entry<id<MTLBuffer>, HGMetalBufferPool::Descriptor>, HGMetalBufferPool::Descriptor*, HGMetalBufferPool::Descriptor&, HGPool::Entry<id<MTLBuffer>, HGMetalBufferPool::Descriptor>*, long, 85l>, HGPool::Entry<id<MTLBuffer>, HGMetalBufferPool::Descriptor>*> std::__1::__move_backward_impl<std::__1::_ClassicAlgPolicy>	1	0
+Helium	void std::__1::__for_each_segment[abi:nqe210106]<std::__1::__deque_iterator<HGPool::Entry<id<MTLBuffer>, HGMetalBufferPool::Descriptor>, HGMetalBufferPool::Descriptor*, HGMetalBufferPool::Descriptor&, HGPool::Entry<id<MTLBuffer>, HGMetalBufferPool::Descriptor>*, long, 85l>, std::__1::__move_impl<std::__1::_ClassicAlgPolicy>::_MoveSegment<HGPool::Entry<id<MTLBuffer>, HGMetalBufferPool::Descriptor>*, HGPool::Entry<id<MTLBuffer>, HGMetalBufferPool	1	0
+Helium	HGSynchronizable::NestingReleaser	1	0
+Helium	void std::__1::__call_once_proxy[abi:nqe210106]<std::__1::tuple<HGRasterizer::getIsROIDebug()	1	0
+Helium	HGTW	1	0
+Helium	std::__1::pair<std::__1::vector<HGTW::HGTextureWrapRepeat::Segment, std::__1::allocator<HGTW::HGTextureWrapRepeat::Segment>>, std::__1::vector<HGTW::HGTextureWrapRepeat::Segment, std::__1::allocator<HGTW::HGTextureWrapRepeat::Segment>>>	1	0
+Helium	std::__1::vector<HGTW::HGTextureWrapRepeat::Segment, std::__1::allocator<HGTW::HGTextureWrapRepeat::Segment>>	1	0
+Helium	HGLC	1	0
+Helium	std::__1::pair<std::__1::__tree_iterator<std::__1::__value_type<char const*, int>, std::__1::__tree_node<std::__1::__value_type<char const*, int>, void*>*, long>, bool> std::__1::__tree<std::__1::__value_type<char const*, int>, std::__1::__map_value_compare<char const*, std::__1::pair<char const* const, int>, HGLC::ltstr, true>, std::__1::allocator<std::__1::pair<char const* const, int>>>::__emplace_unique_key_args<char const*, std::__1::piecewise_construct_t const&, std::__1::tuple<char const* const&>, std::__1	1	0
+Helium	std::__1::vector<char, std::__1::allocator<char>>	1	0
+Helium	void std::__1::__call_once_proxy[abi:nqe210106]<std::__1::tuple<HGMemoryManager::INSTANCE()	1	0
+Helium	HGMemoryManager::Stats	1	0
+Helium	void std::__1::__for_each_segment[abi:nqe210106]<std::__1::__deque_iterator<HGMemoryManager::Block*, HGMemoryManager::Block**, HGMemoryManager::Block*&, HGMemoryManager::Block***, long, 512l>, std::__1::__deque_iterator<HGMemoryManager::Block*, HGMemoryManager::Block**, HGMemoryManager::Block*&, HGMemoryManager::Block***, long, 512l> std::__1::__for_each[abi:nqe210106]<std::__1::__deque_iterator<HGMemoryManager::Block*, HGMemoryManager::Block**, HGMemoryManager::Block*&, HGMemoryManager::Block***, long, 512l>, HGMemoryManager::BlockDumper, std::__1::__identity, 0>(std::__1::__deque_iterator<HGMemoryManager::Block*, HGMemoryManager::Block**, HGMemoryManager::Block*&, HGMemoryManager::Block***, long, 512l>, std::__1::__deque_iterator<HGMemoryManager::Block*, HGMemoryManager::Block**, HGMemoryManager::Block*&, HGMemoryManager::Block***, long, 512l>, HGMemoryManager::BlockDumper&, std::__1::__identity&)::'lambda'(HGMemoryManager::Block**, HGMemoryManager	1	0
+Helium	std::__1::vector<float vector[3], std::__1::allocator<float vector[3]>>	1	0
+Helium	std::__1::vector<project_util::Triangle, std::__1::allocator<project_util::Triangle>>	1	0
+Helium	void std::__1::__call_once_proxy[abi:nqe210106]<std::__1::tuple<getIcosphereP()	1	0
+Helium	std::__1::vector<HGBuffer**, std::__1::allocator<HGBuffer**>>	1	0
+Helium	void std::__1::__call_once_proxy[abi:nqe210106]<std::__1::tuple<HGMetalDeviceInfo::_initAllDevices()	1	0
+Helium	std::__1::vector<HGMetalDeviceInfo*, std::__1::allocator<HGMetalDeviceInfo*>>	1	0
+Helium	std::__1::vector<HKNode* __strong, std::__1::allocator<HKNode* __strong>>	1	0
+Helium	HKNode* __strong* std::__1::vector<HKNode* __strong, std::__1::allocator<HKNode* __strong>>	1	0
+Helium	void std::__1::vector<unsigned char, std::__1::allocator<unsigned char>>	1	0
+Helium	HGMetalFunctionCache::Info::operator<(HGMetalFunctionCache	1	0
+Helium	HGMetalFunctionCache::Info	1	0
+Helium	HGMetalFunctionCache::InfoHash	1	0
+Helium	HGMetalRenderPipelineStateCache::Info::RenderTarget	1	0
+Helium	HGMetalRenderPipelineStateCache::Info::RenderTarget::operator<(HGMetalRenderPipelineStateCache::Info	1	0
+Helium	HGMetalRenderPipelineStateCache::Info	1	0
+Helium	HGMetalRenderPipelineStateCache::Info::operator<(HGMetalRenderPipelineStateCache	1	0
+Helium	HGMetalSamplerStateCache::Info::operator<(HGMetalSamplerStateCache	1	0
+Helium	HGMetalDepthStencilStateCache::Info::operator<(HGMetalDepthStencilStateCache	1	0
+Helium	std::__1::__hash_iterator<std::__1::__hash_node<std::__1::__hash_value_type<HGMetalFunctionCache::Info, HGMTLFunctionType>, void*>*> std::__1::__hash_table<std::__1::__hash_value_type<HGMetalFunctionCache::Info, HGMTLFunctionType>, std::__1::__unordered_map_hasher<HGMetalFunctionCache::Info, std::__1::pair<HGMetalFunctionCache::Info const, HGMTLFunctionType>, HGMetalFunctionCache::InfoHash, std::__1::equal_to<HGMetalFunctionCache::Info>, true>, std::__1::__unordered_map_equal<HGMetalFunctionCache::Info, std::__1::pair<HGMetalFunctionCache::Info const, HGMTLFunctionType>, std::__1::equal_to<HGMetalFunctionCache::Info>, HGMetalFunctionCache::InfoHash, true>, std::__1::allocator<std::__1::pair<HGMetalFunctionCache::Info const, HGMTLFunctionType>>>::find<HGMetalFunctionCache	1	0
+Helium	std::__1::pair<std::__1::__hash_iterator<std::__1::__hash_node<std::__1::__hash_value_type<HGMetalFunctionCache::Info, HGMTLFunctionType>, void*>*>, bool> std::__1::__hash_table<std::__1::__hash_value_type<HGMetalFunctionCache::Info, HGMTLFunctionType>, std::__1::__unordered_map_hasher<HGMetalFunctionCache::Info, std::__1::pair<HGMetalFunctionCache::Info const, HGMTLFunctionType>, HGMetalFunctionCache::InfoHash, std::__1::equal_to<HGMetalFunctionCache::Info>, true>, std::__1::__unordered_map_equal<HGMetalFunctionCache::Info, std::__1::pair<HGMetalFunctionCache::Info const, HGMTLFunctionType>, std::__1::equal_to<HGMetalFunctionCache::Info>, HGMetalFunctionCache::InfoHash, true>, std::__1::allocator<std::__1::pair<HGMetalFunctionCache::Info const, HGMTLFunctionType>>>::__emplace_unique_key_args<HGMetalFunctionCache::Info, std::__1::piecewise_construct_t const&, std::__1::tuple<HGMetalFunctionCache::Info const&>, std::__1	1	0
+Helium	std::__1::__tree<std::__1::__value_type<HGMetalRenderPipelineStateCache::Info, HGMTLRenderPipelineStateType>, std::__1::__map_value_compare<HGMetalRenderPipelineStateCache::Info, std::__1::pair<HGMetalRenderPipelineStateCache::Info const, HGMTLRenderPipelineStateType>, std::__1::less<HGMetalRenderPipelineStateCache::Info>, true>, std::__1::allocator<std::__1::pair<HGMetalRenderPipelineStateCache::Info const, HGMTLRenderPipelineStateType>>>	1	0
+Helium	std::__1::pair<std::__1::__tree_iterator<std::__1::__value_type<HGMetalRenderPipelineStateCache::Info, HGMTLRenderPipelineStateType>, std::__1::__tree_node<std::__1::__value_type<HGMetalRenderPipelineStateCache::Info, HGMTLRenderPipelineStateType>, void*>*, long>, bool> std::__1::__tree<std::__1::__value_type<HGMetalRenderPipelineStateCache::Info, HGMTLRenderPipelineStateType>, std::__1::__map_value_compare<HGMetalRenderPipelineStateCache::Info, std::__1::pair<HGMetalRenderPipelineStateCache::Info const, HGMTLRenderPipelineStateType>, std::__1::less<HGMetalRenderPipelineStateCache::Info>, true>, std::__1::allocator<std::__1::pair<HGMetalRenderPipelineStateCache::Info const, HGMTLRenderPipelineStateType>>>::__emplace_unique_key_args<HGMetalRenderPipelineStateCache::Info, std::__1::piecewise_construct_t const&, std::__1::tuple<HGMetalRenderPipelineStateCache::Info const&>, std::__1	1	0
+Helium	std::__1::unique_ptr<std::__1::__tree_node<std::__1::__value_type<HGMetalRenderPipelineStateCache::Info, HGMTLRenderPipelineStateType>, void*>, std::__1::__tree_node_destructor<std::__1::allocator<std::__1::__tree_node<std::__1::__value_type<HGMetalRenderPipelineStateCache::Info, HGMTLRenderPipelineStateType>, void*>>>>	1	0
+Helium	std::__1::__tree_iterator<std::__1::__value_type<HGMetalSamplerStateCache::Info, HGMTLSamplerStateType>, std::__1::__tree_node<std::__1::__value_type<HGMetalSamplerStateCache::Info, HGMTLSamplerStateType>, void*>*, long> std::__1::__tree<std::__1::__value_type<HGMetalSamplerStateCache::Info, HGMTLSamplerStateType>, std::__1::__map_value_compare<HGMetalSamplerStateCache::Info, std::__1::pair<HGMetalSamplerStateCache::Info const, HGMTLSamplerStateType>, std::__1::less<HGMetalSamplerStateCache::Info>, true>, std::__1::allocator<std::__1::pair<HGMetalSamplerStateCache::Info const, HGMTLSamplerStateType>>>::find<HGMetalSamplerStateCache	1	0
+Helium	std::__1::pair<std::__1::__tree_iterator<std::__1::__value_type<HGMetalSamplerStateCache::Info, HGMTLSamplerStateType>, std::__1::__tree_node<std::__1::__value_type<HGMetalSamplerStateCache::Info, HGMTLSamplerStateType>, void*>*, long>, bool> std::__1::__tree<std::__1::__value_type<HGMetalSamplerStateCache::Info, HGMTLSamplerStateType>, std::__1::__map_value_compare<HGMetalSamplerStateCache::Info, std::__1::pair<HGMetalSamplerStateCache::Info const, HGMTLSamplerStateType>, std::__1::less<HGMetalSamplerStateCache::Info>, true>, std::__1::allocator<std::__1::pair<HGMetalSamplerStateCache::Info const, HGMTLSamplerStateType>>>::__emplace_unique_key_args<HGMetalSamplerStateCache::Info, std::__1::piecewise_construct_t const&, std::__1::tuple<HGMetalSamplerStateCache::Info const&>, std::__1	1	0
+Helium	HGLodFilter::Axis	1	0
+Helium	HGPool::DescriptorString<HGCVPixelBufferPool::Descriptor>	1	0
+Helium	HGPool::EntryLog<__CVBuffer*, HGCVPixelBufferPool::Descriptor>	1	0
+Helium	HGPool::EntryTrace<__CVBuffer*, HGCVPixelBufferPool::Descriptor>	1	0
+Helium	std::__1::pair<std::__1::__deque_iterator<SessionInfo, SessionInfo*, SessionInfo&, SessionInfo**, long, 73l>, std::__1::__deque_iterator<SessionInfo, SessionInfo*, SessionInfo&, SessionInfo**, long, 73l>> std::__1::__move_backward_impl<std::__1::_ClassicAlgPolicy>	1	0
+Helium	void std::__1::__for_each_segment[abi:nqe210106]<std::__1::__deque_iterator<SessionInfo, SessionInfo*, SessionInfo&, SessionInfo**, long, 73l>, std::__1::__move_impl<std::__1::_ClassicAlgPolicy>::_MoveSegment<std::__1::__deque_iterator<SessionInfo, SessionInfo*, SessionInfo&, SessionInfo**, long, 73l>, std::__1	1	0
+Helium	HGRef<HGMetalTexture>* std::__1::vector<HGRef<HGMetalTexture>, std::__1::allocator<HGRef<HGMetalTexture>>>	1	0
+Helium	std::__1::__split_buffer<HGRef<HGMetalTexture>, std::__1::allocator<HGRef<HGMetalTexture>>&>	1	0
+Helium	std::__1::__exception_guard_exceptions<std::__1::_AllocatorDestroyRangeReverse<std::__1::allocator<HGRef<HGMetalTexture>>, HGRef<HGMetalTexture>*>>	1	0
+Helium	void std::__1::__call_once_proxy[abi:nqe210106]<std::__1::tuple<HGCinematic::api_performPortraitWithDevice(HGMTLDeviceType, HGMTLCommandQueueType, HGMTLTextureType, HGMTLTextureType, HGMTLTextureType, void (id<MTLCommandBuffer>) block_pointer)	1	0
+Helium	std::__1::vector<HGBlurGroup::BlurVal, std::__1::allocator<HGBlurGroup::BlurVal>>	1	0
+Helium	HgcSMAAPatternSearch::State	1	0
+Helium	HGToneCurve::State	1	0
+Helium	HGHWBlend::State	1	0
+Helium	std::__1::vector<HGHWBlend::State*, std::__1::allocator<HGHWBlend::State*>>	1	0
+Helium	std::__1::vector<HGLightWrap::State*, std::__1::allocator<HGLightWrap::State*>>	1	0
+Helium	std::__1::vector<HGStencil::State*, std::__1::allocator<HGStencil::State*>>	1	0
+Helium	std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> HGParamFieldSpecialized	1	0
+Helium	HgcComputeDeltaE2000fromLAB::State	1	0
+Helium	HgcComputeDeltaEITP::State	1	0
+Helium	HgcShadowHighlightFast::State	1	0
+Helium	HgcBT2446_Method_A_ITMO::State	1	0
