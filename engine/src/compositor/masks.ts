@@ -72,20 +72,32 @@ export function resolveCloneImage(rctx: RenderContext, cloneSourceId: number | u
   if (cloneSourceId === undefined || depth > 8) return null;
   const src = rctx.layerById.get(cloneSourceId);
   if (!src) return null;
-  // A clone whose resolved SOURCE layer is DISABLED (<enabled>0</enabled>) contributes
-  // NOTHING — a disabled node renders no pixels, and cloning it (directly or transitively
-  // through a clone chain) yields nothing either. DECODED 2026-07-26 on 3D_Rectangle
-  // (_t_3dr_v7, minimized): a clone chain 21867→14023→10009 terminates on a DISABLED
-  // Transition-A image (10009, <enabled>0</enabled>). The engine followed the chain and
-  // painted A FULL-FRAME, occluding the one live clone (10006 = Transition B receded at
-  // Z), so it rendered A everywhere while FCP renders only the receded B ([63.4,73,93.2]).
-  // Returning null when the resolved source is disabled makes the dead A-clone draw
-  // nothing (8.89 → 43.81 dB; residual is the Z-recede tile geometry). Same principle as
-  // the disabled-Link-driver rule (evaluator/links.ts): disabled nodes are inert as
-  // sources of pixels, channels, AND clone content.
-  if (src.enabled === false) return null;
+  // A node inside a DISABLED GROUP (has a <enabled>0</enabled> ANCESTOR) is fully culled —
+  // cloning into it (directly or through a chain) yields nothing. DECODED 2026-07-26 on
+  // 3D_Rectangle (_t_3dr_v7, minimized): the clone chain 21867→14023→10009 passes through the
+  // INTERMEDIATE clone 14023, which lives inside a DISABLED group (10011). The engine followed
+  // the chain and painted Transition A FULL-FRAME, occluding the one live clone (10006 = Transition
+  // B receded at Z), so it rendered A everywhere while FCP renders only the receded B
+  // ([63.4,73,93.2]). Bailing here makes the dead A-clone draw nothing (8.89 → 43.81 dB). Checked
+  // BEFORE the transition-media resolution so a disabled-ANCESTOR transition leaf is still culled.
+  if (rctx.disabledSubtreeIds.has(src.id)) return null;
+  // A TRANSITION SOURCE (Transition A / Transition B drop zone) always provides its MEDIA to
+  // clones even when its OWN scenenode is <enabled>0</enabled>. In every transition template the
+  // "Transition A"/"Transition B" source cards are authored DISABLED precisely so they do not draw
+  // on-canvas themselves — their whole purpose is to be CLONED (swinging doors, folded pages, tiles).
+  // Disabling the source hides only its own direct draw, NOT the media it feeds to clones. DECODED
+  // 2026-07-26 on Movements/Swing: the "Left away" door is a Clone of the disabled Transition B
+  // (987619203, sitting in the ENABLED "Source" group); FCP shows B full-frame through it as the door
+  // swings flat, while the engine (which bailed on `src.enabled===false` FIRST) drew nothing → black
+  // tail. Resolved here — AFTER the disabled-SUBTREE guard above (a disabled-ANCESTOR transition leaf
+  // is still culled), BEFORE the own-enabled guard below (a disabled transition LEAF still yields its
+  // media). Together these guards match FCP on BOTH Swing (B shows) and 3D_Rectangle (dead chain culled).
   if (src.source?.type === 'transitionA') return rctx.imageA;
   if (src.source?.type === 'transitionB') return rctx.imageB;
+  // Any OTHER node whose OWN scenenode is disabled (a disabled clone or a disabled non-transition
+  // media node such as a hidden Link/mask driver) is inert as a source of clone pixels. Same
+  // principle as the disabled-Link-driver rule (evaluator/links.ts).
+  if (src.enabled === false) return null;
   if (src.type === 'clone') return resolveCloneImage(rctx, src.cloneSourceId, depth + 1);
   if (src.source) return getSourceImage(rctx, src.source, rctx.imageA, rctx.imageB);
   return null;

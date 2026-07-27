@@ -214,6 +214,34 @@ export function needsPerspective(worldTransform: Float64Array): boolean {
 }
 
 /**
+ * A planar card whose face is EDGE-ON to the camera (surface normal ⊥ view axis) has ~zero
+ * true projected area — FCP renders nothing. The card's face normal is its local +Z basis
+ * vector = the matrix's 3rd column (m8, m9, m10); its component ALONG the view axis (Z) is
+ * `m10`. |m10|/|normal| is the cosine of the angle between the card face and the screen
+ * plane: 1 ⇒ facing the camera head-on (or directly away — a mirrored back face, still full
+ * area), 0 ⇒ exactly edge-on (the card surface contains the view axis).
+ *
+ * DECODED 2026-07-26 on Movements/Swing: the swinging "door" (a Clone of Transition B, hinged
+ * at the left frame edge) is held fully EDGE-ON (rotation Y ≈ 90°, m10≈0) for the first third
+ * of the transition, then opens. FCP renders BLACK while it is edge-on (frames 0-7, m10=0.000)
+ * and only shows B once it turns toward the camera (f8 m10=0.004 ⇒ a whisper; f9 m10=0.292 ⇒
+ * real reveal). The engine, lacking this check, projected the receding edge-on card into a
+ * spurious ~440px-wide half-bright wedge (foreshortening the far edge inward). Culling the quad
+ * while within EPS of edge-on removes that wedge and matches FCP's held-shut door.
+ *
+ * DISTINCT from back-face culling (which FCP does NOT do — Movements/Reflection's mirrored cards
+ * reach m10=-1.0 and are fully drawn). We cull ONLY the near-degenerate edge-on band |m10|<EPS
+ * where the true frontal area is ~0 regardless of facing. EPS is small (0.02): Reflection's
+ * minimum |m10| while visible is 0.116, well clear, so its swing is untouched.
+ */
+export function isEdgeOnQuad(worldTransform: Float64Array): boolean {
+  const m8 = worldTransform[8], m9 = worldTransform[9], m10 = worldTransform[10];
+  const nlen = Math.hypot(m8, m9, m10);
+  if (nlen < 1e-9) return true; // fully degenerate basis → no area
+  return Math.abs(m10) / nlen < 0.02;
+}
+
+/**
  * Render a textured quad with perspective-correct interpolation.
  * Uses the projected corners and samples the source texture per output pixel.
  *

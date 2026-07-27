@@ -282,6 +282,12 @@ export function applyLinks(
       const base = resolveValue(result[chan], timeSec, 0);
       result[chan] = base * (1 - mix) + v * mix;
       overrides.add(ovKey);
+      // Mark this rotation as LINK-DRIVEN so buildTransformMatrix applies the sign flip that
+      // Motion's link resolver requires (rotY/rotZ). Kept SEPARATE from __overrideChannels (which
+      // only means "bypass the Retime static-position ramp"): a STATIC clone/drop-zone pre-fold
+      // reaches __overrideChannels too but must NOT be sign-flipped (Swing's Clone-B −90° fold).
+      const linkRot = result.__linkDrivenRot ?? (result.__linkDrivenRot = new Set<string>());
+      linkRot.add(ovKey);
     } else if (link.targetProp === 'opacity') {
       // Opacity link (LinkAO/LinkBO/LinkBOF): drive layer opacity from the
       // source's opacity via the mix blend. Motion stores opacity 0-1; the base

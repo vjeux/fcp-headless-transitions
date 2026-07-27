@@ -1,5 +1,5 @@
 import { rasterizeShape, applyMask, unionMasks } from './shapes.js';
-import { needsPerspective, projectQuad, renderPerspectiveQuad, renderPageFlip, defaultCameraDistance } from './perspective.js';
+import { needsPerspective, projectQuad, renderPerspectiveQuad, renderPageFlip, defaultCameraDistance, isEdgeOnQuad } from './perspective.js';
 import {
   mat4MultiplyOffset, createBuffer, blitDstBBox,
   blitTransformed, blitDirect,
@@ -160,6 +160,27 @@ function collectCulledStandaloneAB(scene: EvaluatedScene): Set<number> {
   }
   return out;
 }
+
+/**
+ * Collect the IDs of every layer that lives inside a DISABLED group (has a
+ * <enabled>0</enabled> ANCESTOR) — NOT counting a node's own enabled flag. Walks the raw
+ * layer tree (each EvaluatedLayer carries its raw `.layer` with raw `.children`). Used by
+ * resolveCloneImage to cull clone-resolution paths that pass through a disabled subtree,
+ * while STILL letting a disabled transition-source LEAF (own scenenode disabled but enabled
+ * parent) feed its media to clones. See RenderContext.disabledSubtreeIds and the
+ * Movements/Swing vs 3D_Rectangle (_t_3dr_v7) decode.
+ */
+function collectDisabledSubtreeIds(layers: EvaluatedLayer[]): Set<number> {
+  const out = new Set<number>();
+  const walk = (raw: Layer, ancestorDisabled: boolean): void => {
+    if (ancestorDisabled) out.add(raw.id);
+    const disabledHere = ancestorDisabled || raw.enabled === false;
+    for (const child of raw.children) walk(child, disabledHere);
+  };
+  for (const el of layers) walk(el.layer, false);
+  return out;
+}
+
 
 /**
  * Compositor: EvaluatedScene + source images → output ImageData
@@ -531,6 +552,14 @@ function renderCloneLayer(rctx: RenderContext, output: ImageData, evalLayer: Eva
     // is the missing lever, not the A visibility.
     // Clone Layer: draw the image of the object it mirrors, at this layer's transform.
     let src = resolveCloneImage(rctx, layer.cloneSourceId);
+    // EDGE-ON CULL: a clone card held (near-)edge-on to the camera (face normal ⊥ view axis)
+    // has ~zero true frontal area — FCP renders nothing. Movements/Swing's door (Clone of
+    // Transition B, hinged at the left frame edge) is held fully edge-on (rotation Y≈90°) for
+    // the first third of the transition; FCP is BLACK there. Without this guard the engine
+    // projected the receding edge-on card into a spurious ~440px half-bright wedge. Scoped to
+    // genuine perspective quads within EPS of edge-on (see isEdgeOnQuad); a card meaningfully
+    // turned toward OR away from the camera still draws (NOT back-face culling).
+    if (src && needsPerspective(worldTransform) && isEdgeOnQuad(worldTransform)) return 'children';
     if (src) {
       // FILL-CONFORM a full-frame A/B drop-zone clone: resolveCloneImage returns the
       // RAW imageA/imageB (e.g. 1854×1042) which, blitted at the clone's identity-
@@ -1538,6 +1567,7 @@ export function composite(
     cameraPosZ: scene.camera?.worldTransform ? scene.camera.worldTransform[14] : undefined,
     framed: scene.camera?.framed,
     imageMaskSourceIds: collectImageMaskSourceIds(scene.evalLayerById),
+    disabledSubtreeIds: collectDisabledSubtreeIds(scene.layers),
     mediaResolver,
     mediaCache: new Map<string, ImageData | null>(),
     animationEndSec: scene.animationEndSec || 1,

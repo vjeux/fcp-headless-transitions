@@ -44,6 +44,11 @@ export interface RenderContext {
    * NOT lift it to clip the enclosing group.
    */
   imageMaskSourceIds: Set<number>;
+  /** IDs of layers inside a DISABLED group (disabled ANCESTOR); NOT a node's own enabled flag.
+   * resolveCloneImage culls clone paths through these (3D_Rectangle _t_3dr_v7 dead chain) but a
+   * disabled transition-source LEAF in an ENABLED group still feeds clones (Movements/Swing shows B).
+   * DECODED 2026-07-26. */
+  disabledSubtreeIds: Set<number>;
   /**
    * Host-injected resolver for bundled-media relativeURLs. Still images (e.g.
    * Slide's tile PNGs) ignore the second arg; VIDEO media (e.g. Objects/Veil's

@@ -77,6 +77,21 @@ export interface Transform {
    */
   __overrideChannels?: Set<string>;
   /**
+   * Rotation channels ('rotY'|'rotZ') whose value was produced by a LINK behavior's
+   * resolver. Motion's link resolver returns a rotation whose SIGN is inverted relative to
+   * our matrix convention, so buildTransformMatrix negates these. SEPARATE from
+   * __overrideChannels (which only means "bypass the Retime static-position ramp"): a
+   * link-driven rotation needs BOTH the retime-bypass AND the sign flip; a STATIC
+   * clone/drop-zone pre-fold rotation needs the retime-bypass ONLY (its authored sign is
+   * already correct). DECODED 2026-07-26 on Movements/Swing: the inner "Clone B" door carries
+   * a static Rotation Y = -pi/2 that composes with the parent group's Ramp (0->+pi/2) to reach
+   * FLAT (0deg, B full-frame). Conflating the two flags (old code negated any 'rotY' in
+   * __overrideChannels) flipped the static -pi/2 to +pi/2 -> the door composed to +180deg
+   * (off-screen) instead of flat -> black tail. Movements/Reflection's B-fold IS link-driven
+   * (LinkRot on Rotation Y) so it correctly stays in this set (its -pi/2 must be sign-flipped).
+   */
+  __linkDrivenRot?: Set<string>;
+  /**
    * Extra in-plane Z rotation (RADIANS) contributed by a Spin behavior (factory 22)
    * on this layer, accumulated over the behavior's own timing window and ADDED to
    * rotationZ in buildTransformMatrix (composed about the layer's own anchor origin,

@@ -402,26 +402,32 @@ function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: nu
   // away from the viewer. Negating here makes m6/m9 couple Y→Z the correct way
   // (verified against Fall GT: top edge recedes, bottom swings up).
   const rotX = -resolveWithRetime(tx.rotationX, timeSec, 0, retimeProgress, ov?.has('rotX'), hasRetime) * RAD2DEG;
-  // rotationY sign: a LINK-DRIVEN rotationY (ov.has('rotY')) is inverted relative to our matrix
+  // rotationY sign: a LINK-DRIVEN rotationY (linkRot.has('rotY')) is inverted relative to our matrix
   // convention — the SAME inversion the link resolver applies to rotationZ (see linkRotZ below).
   // DECODED 2026-07-26 on Movements/Reflection: Transition B's group takes a LinkRot copying the
   // hidden driver's Rotation Y (0→−90°). With the raw (un-negated) link value the group hinged
   // about the screen-RIGHT edge (content swung in from the right), while FCP hinges about the
   // screen-LEFT spine (content grows x[0,775]→[0,1614]→[0,1894]). Negating the link-driven rotationY
   // flips the swing to the left hinge, matching FCP (Reflection 15.40→25.38 dB, per-frame |D| 66→13).
-  // A directly-authored rotationY curve (no link) keeps our convention, exactly like rotationZ.
+  // A directly-authored / STATIC-clone-fold rotationY (in __overrideChannels for retime-bypass but
+  // NOT link-driven) keeps our convention — only genuinely link-driven rotations flip. DECODED
+  // 2026-07-26 on Movements/Swing: negating the static Clone-B −π/2 fold via __overrideChannels
+  // composed the door to +180° (off-screen) → black tail; tracking link-driven rotations in the
+  // separate __linkDrivenRot set fixes it (Swing door now settles flat, B revealed).
+  const linkRot = tx.__linkDrivenRot;
   const rawRotY = resolveWithRetime(tx.rotationY, timeSec, 0, retimeProgress, ov?.has('rotY'), hasRetime);
-  const rotY = (ov?.has('rotY') ? -rawRotY : rawRotY) * RAD2DEG;
+  const rotY = (linkRot?.has('rotY') ? -rawRotY : rawRotY) * RAD2DEG;
   // A Spin behavior contributes an extra in-plane Z rotation (RADIANS), added to the
   // authored rotationZ so it pivots about the layer's own anchor origin. tx.__spinRadians
   // is set by applySpinBehaviors and is 0/undefined for non-spinning layers.
-  // rotZ sign: when the value is LINK-DRIVEN (ov.has('rotZ')), Motion's link resolver
+  // rotZ sign: when the value is LINK-DRIVEN (linkRot.has('rotZ')), Motion's link resolver
   // produces a value whose sign is inverted relative to our matrix convention (verified
   // against Movements__Switch GUI GT: link-driven -π/2 must rotate the outgoing layer +90°
   // in our matrix, not -90°). Directly-authored rotationZ curves and __spinRadians already
-  // use our convention, so they stay unnegated.
+  // use our convention, so they stay unnegated. (Uses __linkDrivenRot, not __overrideChannels,
+  // so a STATIC clone/drop-zone rotationZ that only needs retime-bypass is not sign-flipped.)
   const rawRotZ = resolveWithRetime(tx.rotationZ, timeSec, 0, retimeProgress, ov?.has('rotZ'), hasRetime);
-  const linkRotZ = ov?.has('rotZ') ? -rawRotZ : rawRotZ;
+  const linkRotZ = linkRot?.has('rotZ') ? -rawRotZ : rawRotZ;
   const rotZ = (linkRotZ + (tx.__spinRadians ?? 0)) * RAD2DEG;
   // Scale is FRACTIONAL (1.0 = 100%) in every .motr template (all 108 Scale curves have
   // default="1"). Used as-is - never divided by 100.
@@ -773,6 +779,15 @@ function evaluateLayer(layer: Layer, timeSec: number, parentTransform: Float64Ar
     if (typeof layer.transform.rotationY === 'number' && layer.transform.rotationY !== 0) {
       const ov = riggedTransform.__overrideChannels ?? (riggedTransform.__overrideChannels = new Set<string>());
       ov.add('rotY');
+      // A REAL A/B drop-zone's static pre-fold rotationY follows Motion's LINK sign convention
+      // (it is authored the same way the rig's link-driven fold is), so it must be SIGN-FLIPPED
+      // like a link-driven rotation — DECODED on Movements/Reflection (Transition B authored
+      // Rotation Y = +π/2 must render as m8=-0.906, i.e. negated, for B to hinge about the LEFT
+      // spine and land full-frame; without the flip B folds the wrong way and the tail is wrong).
+      // This is OPPOSITE to a CLONE's static fold (Swing's Clone-B −π/2 must NOT flip), which is
+      // why only the drop-zone block joins __linkDrivenRot, not the clone block above.
+      const lr = riggedTransform.__linkDrivenRot ?? (riggedTransform.__linkDrivenRot = new Set<string>());
+      lr.add('rotY');
     }
   }
   // Links drive channels from a source object; apply after rig snapshots.
