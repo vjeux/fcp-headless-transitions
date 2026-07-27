@@ -33,3 +33,13 @@ Ease/SCurve/Convex/Concave subclasses OVERRIDE this to warp the query time; Line
 CMTime.ts primitive already implements CMTimeCompare/GetSeconds/Make/PC_CMTimeSaferAdd/Subtract.
 NEXT: model the keypoint as {U:CMTime, value, inTan, outTan}; transcribe easeTime (identity) +
 OZLinearInterpolator::interpolate on that model; then OZBezierInterpolator (uses getControlPoints).
+
+## ADDENDUM (2026-07-27) — getValueV + getSmallDeltaU resolved:
+- OZDynamicVertex::getValueV(t) @0x3ea46:  this += 0x150; tail-call OZChannel::getValueAsDouble(t, 0.0).
+  => a keypoint's VALUE is itself a full OZChannel embedded at vertex+0x150, sampled at t. For a static
+     keypoint this returns the stored scalar; but keypoint values CAN be animated/behavior-driven
+     (nested channel). So the "keyframe value" is not a bare double — it is getValueAsDouble of a nested
+     OZChannel. (getValueAsDouble decoded in this file: empty spline -> 0; else sample via the spline.)
+- OZSpline::getSmallDeltaU() @0x2fe52:  returns CMTimeMake(1, ts) with ts = 0x64 (100) normally, or 1
+  if the byte at spline+0xa8 -> [0] is set. i.e. a 1/100 s (or 1/1) one-tick epsilon in spline timescale,
+  used to guard equal-U keypoints before the divide.
