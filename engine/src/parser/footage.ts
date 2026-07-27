@@ -928,6 +928,20 @@ export function determineImageSource(params: Parameter[], el: Element | undefine
     // (empty → black). Return an 'empty' source so the compositor draws no pixels (NOT a fallback
     // to imageA). DECODED 2026-07-27 (headless probes on empty-media images with sceneSettings).
     if (which === 'E') return { type: 'empty' };
+    // The NODE's own drop-zone Type (Object id=2 → Type id=321) is the AUTHORITATIVE A/B
+    // designation: Type=1 → Transition A, Type=2 → Transition B (verified across templates —
+    // Drop In's "Transition A" node carries Type=1, "Transition B" Type=2). It OVERRIDES the
+    // clip-name/document-order A/B heuristic, which is only a fallback for when the node has no
+    // explicit Type. DECODED 2026-07-27 on Replicator-Clones/Concentric (minimized): its Type=2
+    // B clip lost its name+width to the minimizer, so the order-fallback wrongly classified the
+    // lone clip as 'A' (warm) — but the node's Type=2 says Transition B, and FCP renders B
+    // (blue clone rings). Read Type=321 DIRECTLY from Object(id=2) (parseDropZone needs Width/
+    // Height and would miss a box-less node like Concentric's). Honour it so the clone resolves imageB.
+    const objP = params.find(p => p.id === 2 && (p.name === 'Object' || !p.name));
+    const typeP = objP?.children?.find(p => p.id === 321);
+    const dzTypeVal = typeof typeP?.value === 'number' ? typeP.value : undefined;
+    if (dzTypeVal === 1) return { type: 'transitionA' };
+    if (dzTypeVal === 2) return { type: 'transitionB' };
     return which === 'A' ? { type: 'transitionA' } : { type: 'transitionB' };
   }
   // Bundled template media (a PNG in the template's Media/ folder, e.g. Slide's
