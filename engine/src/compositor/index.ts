@@ -952,6 +952,57 @@ function renderDrawableLayer(rctx: RenderContext, output: ImageData, evalLayer: 
           || layer.source?.type === 'transitionA'
           || layer.source?.type === 'transitionB');
       let worldTransform = evalLayer.worldTransform;
+      // TYPE-2 INCOMING DROP-ZONE CARD renders at SCENE-NATIVE pixel size, NOT scaled up to the
+      // OUTPUT resolution. DECODED 2026-07-27 (Movements/Drop_In): the scene is authored 1280×720
+      // and the engine renders it at scene size then resamples ×1.5 to the 1920×1080 output. FCP
+      // fills the frame with the OUTGOING Transition-A (Type id321=1) but renders the INCOMING
+      // Transition-B (Type id321=2) DROP card at exactly the 1280×720 scene size placed 1:1 in the
+      // 1920×1080 output — measured B = 67%w×66%h = scene/output = 1280/1920 = 720/1080 = 0.667,
+      // CONSTANT while B's Position-Y bounces (719→…→0), warm A visible around it. i.e. the Type=2
+      // card is PIXEL-LOCKED to the output resolution, immune to the scene→output upscale. In the
+      // scene-space render we scale the card DOWN by output.width/outputRefWidth about its own
+      // centre so the ×1.5 resample lands it at native size. Scoped to a Type=2 A/B drop card in an
+      // UPSCALED scene (outputRefWidth>output.width); Type=1 (A) and equal/greater-canvas scenes
+      // untouched; not framed/equirect. (End-of-transition expand-to-fill is separate.)
+      if (layer.type === 'image' && layer.dropZone?.type === 2
+        && (layer.source?.type === 'transitionA' || layer.source?.type === 'transitionB')
+        && rctx.outputRefWidth && rctx.outputRefWidth > output.width + 2
+        && !(FRAMING_VIEW_ENABLED && rctx.framed) && !rctx.equirectScene) {
+        const cardScale = output.width / rctx.outputRefWidth;
+        const wt = new Float64Array(worldTransform);
+        // Scale the card about its OWN centre: the linear part shrinks the plate, and the
+        // translation is re-anchored so the card centre (scene_centre + Position bounce) is
+        // preserved. blitTransformed maps the source centre to (m12,m13) offset from the buffer
+        // centre, so scaling the linear part alone keeps the centre fixed.
+        wt[0] *= cardScale; wt[1] *= cardScale; wt[4] *= cardScale; wt[5] *= cardScale;
+        worldTransform = wt;
+      }
+      // TYPE=2 INCOMING-CARD NATIVE SCALE (Movements/Drop In). A scene authored SMALLER than the
+      // project output (Drop In: 1280×720 scene → 1920×1080 output) renders at scene-native size
+      // then resamples ×(outputRef/scene). FCP fills the frame with the OUTGOING Transition-A
+      // (Type id321=1) but renders the INCOMING Transition-B card (Type id321=2) at the OUTPUT's
+      // native pixel size — i.e. NOT subject to that scene→output upscale. Measured: FCP's B card
+      // is 67%w×66%h of the 1920×1080 output = exactly the 1280/1920 = 720/1080 = scene/output
+      // ratio, held constant while it bounces (Position-Y damped drop), with A visible around it.
+      // The engine conformed B to fill the scene buffer → after the ×1.5 resample it wrongly filled
+      // the whole output. So for a Type=2 A/B card in an UPSCALED scene, pre-scale it by
+      // (output.width/outputRefWidth) about the frame centre so it lands at native output size.
+      // DECODED 2026-07-27 (per-frame blue-card geometry vs headless). Scoped to Type=2 non-framed
+      // A/B cards in an upscaled scene; Type=1 (A) and equal-size scenes are untouched.
+      const upscaleRatio = (rctx.outputRefWidth && rctx.outputRefWidth > output.width + 2)
+        ? output.width / rctx.outputRefWidth : 1;
+      if (upscaleRatio < 0.999 && !(FRAMING_VIEW_ENABLED && rctx.framed)
+        && layer.type === 'image' && layer.dropZone?.type === 2
+        && (layer.source?.type === 'transitionA' || layer.source?.type === 'transitionB')) {
+        // blitTransformed maps source-CENTRED → dest-CENTRED coords, so wt[12]/wt[13] are the card
+        // centre's offset FROM the frame centre (0 = centred). Scale both the linear part (card
+        // shrinks to native output size) AND that centre-relative offset (the Position-Y bounce
+        // travel shrinks with the native-size card) by the scene/output ratio.
+        const wt = new Float64Array(worldTransform);
+        wt[0] *= upscaleRatio; wt[1] *= upscaleRatio; wt[4] *= upscaleRatio; wt[5] *= upscaleRatio;
+        wt[12] *= upscaleRatio; wt[13] *= upscaleRatio;
+        worldTransform = wt;
+      }
       if (FRAMING_VIEW_ENABLED && rctx.framed && output.height && isFramedPlate) {
         const fcam = framedCameraBasis(rctx.framed, output.height);
         const wtp = new Float64Array(worldTransform);
