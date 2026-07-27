@@ -1,0 +1,78 @@
+_HGRectGrow:
+0000000000107960	movq	%rdi, %r9
+0000000000107963	shrq	$0x20, %r9
+0000000000107967	movq	%rdx, %r10
+000000000010796a	shrq	$0x20, %r10
+000000000010796e	leal	(%rdx,%rdi), %eax
+0000000000107971	testl	%edx, %edx
+0000000000107973	jle	0x107987
+0000000000107975	xorl	$0x7fffffff, %edx               ## imm = 0x7FFFFFFF
+000000000010797b	cmpl	%edi, %edx
+000000000010797d	movl	$0x7fffffff, %edx               ## imm = 0x7FFFFFFF
+0000000000107982	cmovlel	%edx, %eax
+0000000000107985	jmp	0x10799d
+0000000000107987	movl	$0x80000000, %r8d               ## imm = 0x80000000
+000000000010798d	movl	$0x80000000, %r11d              ## imm = 0x80000000
+0000000000107993	subl	%edx, %r11d
+0000000000107996	cmpl	%edi, %r11d
+0000000000107999	cmovgel	%r8d, %eax
+000000000010799d	movq	%rsi, %rdi
+00000000001079a0	shrq	$0x20, %rdi
+00000000001079a4	movq	%rcx, %r8
+00000000001079a7	shrq	$0x20, %r8
+00000000001079ab	leal	(%r10,%r9), %edx
+00000000001079af	testl	%r10d, %r10d
+00000000001079b2	jle	0x1079fe
+00000000001079b4	xorl	$0x7fffffff, %r10d              ## imm = 0x7FFFFFFF
+00000000001079bb	cmpl	%r9d, %r10d
+00000000001079be	movl	$0x7fffffff, %r9d               ## imm = 0x7FFFFFFF
+00000000001079c4	cmovlel	%r9d, %edx
+00000000001079c8	leal	(%rcx,%rsi), %r9d
+00000000001079cc	testl	%ecx, %ecx
+00000000001079ce	jle	0x107a22
+00000000001079d0	xorl	$0x7fffffff, %ecx               ## imm = 0x7FFFFFFF
+00000000001079d6	cmpl	%esi, %ecx
+00000000001079d8	movl	$0x7fffffff, %ecx               ## imm = 0x7FFFFFFF
+00000000001079dd	cmovlel	%ecx, %r9d
+00000000001079e1	leal	(%r8,%rdi), %ecx
+00000000001079e5	testl	%r8d, %r8d
+00000000001079e8	jle	0x107a41
+00000000001079ea	xorl	$0x7fffffff, %r8d               ## imm = 0x7FFFFFFF
+00000000001079f1	cmpl	%edi, %r8d
+00000000001079f4	movl	$0x7fffffff, %esi               ## imm = 0x7FFFFFFF
+00000000001079f9	cmovlel	%esi, %ecx
+00000000001079fc	jmp	0x107a55
+00000000001079fe	pushq	%rbp
+00000000001079ff	movq	%rsp, %rbp
+0000000000107a02	pushq	%rbx
+0000000000107a03	movl	$0x80000000, %r11d              ## imm = 0x80000000
+0000000000107a09	movl	$0x80000000, %ebx               ## imm = 0x80000000
+0000000000107a0e	subl	%r10d, %ebx
+0000000000107a11	cmpl	%r9d, %ebx
+0000000000107a14	cmovgel	%r11d, %edx
+0000000000107a18	popq	%rbx
+0000000000107a19	popq	%rbp
+0000000000107a1a	leal	(%rcx,%rsi), %r9d
+0000000000107a1e	testl	%ecx, %ecx
+0000000000107a20	jg	0x1079d0
+0000000000107a22	movl	$0x80000000, %r10d              ## imm = 0x80000000
+0000000000107a28	movl	$0x80000000, %r11d              ## imm = 0x80000000
+0000000000107a2e	subl	%ecx, %r11d
+0000000000107a31	cmpl	%esi, %r11d
+0000000000107a34	cmovgel	%r10d, %r9d
+0000000000107a38	leal	(%r8,%rdi), %ecx
+0000000000107a3c	testl	%r8d, %r8d
+0000000000107a3f	jg	0x1079ea
+0000000000107a41	movl	$0x80000000, %esi               ## imm = 0x80000000
+0000000000107a46	movl	$0x80000000, %r10d              ## imm = 0x80000000
+0000000000107a4c	subl	%r8d, %r10d
+0000000000107a4f	cmpl	%edi, %r10d
+0000000000107a52	cmovgel	%esi, %ecx
+0000000000107a55	shlq	$0x20, %rdx
+0000000000107a59	movl	%eax, %eax
+0000000000107a5b	orq	%rdx, %rax
+0000000000107a5e	shlq	$0x20, %rcx
+0000000000107a62	movl	%r9d, %edx
+0000000000107a65	orq	%rcx, %rdx
+0000000000107a68	retq
+0000000000107a69	nopl	(%rax)
