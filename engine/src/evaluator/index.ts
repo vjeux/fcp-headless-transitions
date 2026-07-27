@@ -113,6 +113,10 @@ export interface EvaluatedScene {
   animationEndSec: number;
   width: number;
   height: number;
+  /** True when the scene declared no <sceneSettings> (DV-default canvas). Threaded to the
+   *  compositor so an empty/unresolvable drop-zone renders FCP's red [204,0,0] missing-media
+   *  placeholder at that canvas (vs black with sceneSettings). See RenderContext.noSceneSettings. */
+  noSceneSettings?: boolean;
   /** Drop-zone media box height (Fixed Height) - governs the Drop In card conform. */
   dropZoneMediaHeight?: number;
   /** Rig-resolved filter parameter overrides: filterId → (paramName → value). */
@@ -1329,6 +1333,7 @@ export function evaluate(scene: MotrScene, timeSec: number): EvaluatedScene {
     animationEndSec: scene.settings.animationEndSec ?? (scene.settings.duration.value / scene.settings.duration.timescale),
     width: scene.settings.width,
     height: scene.settings.height,
+    noSceneSettings: scene.settings.noSceneSettings,
     dropZoneMediaHeight: scene.settings.dropZoneMediaHeight,
     filterOverrides,
     layerById,

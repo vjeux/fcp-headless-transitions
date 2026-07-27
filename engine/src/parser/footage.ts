@@ -44,9 +44,17 @@ export interface ClipInfo {
    * Footage clip-id -> which transition drop zone (A = outgoing, B = incoming),
    * or 'P' for an UNFILLED generic "Drop Zone" placeholder (missing media, name
    * "Drop Zone" without an A/B designation) — FCP renders these as a neutral-gray
-   * placeholder card (the drop-zone "arrow" glyph), NOT the user's A/B media.
+   * placeholder card (the drop-zone "arrow" glyph), NOT the user's A/B media,
+   * or 'E' for a TRULY-EMPTY clip (no pathURL, no relativeURL, no name) whose media
+   * is unresolvable — FCP renders NOTHING (the image is empty → black/transparent),
+   * NOT the user's A/B media. DECODED 2026-07-27 via controlled headless probes: a
+   * factory-8/10 image whose Source Media clip is empty renders BLACK with sceneSettings
+   * (e.g. _t_upover, _t_clonespin3 → FCP [5,5,5] where the engine wrongly fell back to
+   * the A test photo via the A/B order-fallback). (At the no-sceneSettings DV canvas the
+   * same empty media instead shows FCP's red [204,0,0] missing-media placeholder — a
+   * separate DV-canvas-only variant, not modelled here.)
    */
-  ab: Map<number, 'A' | 'B' | 'P'>;
+  ab: Map<number, 'A' | 'B' | 'P' | 'E'>;
   /**
    * Footage clip-id -> bundled media relativeURL. Some transitions (e.g.
    * Stylized/Documentary/Slide) reference template-bundled PNG assets (sliding
@@ -64,17 +72,27 @@ export interface ClipInfo {
 }
 
 export function parseFootageClipAB(sceneEl: Element, factories: Map<number, string>): ClipInfo {
-  const map = new Map<number, 'A' | 'B' | 'P'>();
+  const map = new Map<number, 'A' | 'B' | 'P' | 'E'>();
   const clipMedia = new Map<number, { url: string; frameRate?: number }>();
   let dropZoneMediaHeight: number | undefined;
-  const clips: { id: number; path: string; name: string }[] = [];
+  const clips: { id: number; path: string; name: string; empty: boolean }[] = [];
   for (const footage of Array.from(sceneEl.getElementsByTagName('footage'))) {
     for (const clip of directChildren(footage, 'clip')) {
       const id = parseInt(clip.getAttribute('id') || '0', 10);
       if (!id) continue;
       const path = (getTextContent(clip, 'pathURL') || '').toLowerCase();
       const name = (clip.getAttribute('name') || '').toLowerCase();
-      clips.push({ id, path, name });
+      // A clip is TRULY EMPTY when it carries NO pathURL, NO relativeURL, NO name, AND no
+      // missingWidth/missingHeight box — its media is entirely unresolvable, so FCP renders
+      // nothing (empty → black with sceneSettings; the DV-canvas red variant is separate).
+      // A clip WITH <missingWidth>/<missingHeight> is a REAL but unloaded drop-zone (dimensioned
+      // media well, e.g. Reflection's Type=2 B clip 1999871172 missing 1200x1200) that FCP still
+      // renders as its A/B content — such a clip must stay in the A/B classification, NOT 'E'.
+      // DECODED 2026-07-27 (headless probes: bare-empty clip → black/red; missingW/H clip → B).
+      const relRaw = getTextContent(clip, 'relativeURL');
+      const hasMissingBox = !!getTextContent(clip, 'missingWidth') || !!getTextContent(clip, 'missingHeight');
+      const isEmptyClip = !path && !name && !(relRaw && relRaw.trim()) && !hasMissingBox;
+      clips.push({ id, path, name, empty: isEmptyClip });
       // Capture the drop-zone media box's Fixed Height (Object → id 115). Motion
       // conforms the drop-zone source to this box; Drop In uses it to size the
       // top-left card. Track the smallest across the transition's clips.
@@ -137,16 +155,28 @@ export function parseFootageClipAB(sceneEl: Element, factories: Map<number, stri
       map.set(c.id, 'P');
     }
   }
+  // TRULY-EMPTY clips (no pathURL/relativeURL/name) are unresolvable media → FCP renders
+  // NOTHING (empty → black). Mark them 'E' and EXCLUDE them from the A/B order-fallback below,
+  // so a stripped minimized scene whose only clip is empty does not fake a full-frame photo-A.
+  // DECODED 2026-07-27 (headless probes on _t_upover / _t_clonespin3: empty media → FCP [5,5,5]
+  // black, where the engine's order-fallback wrongly bound the empty clip to imageA and painted
+  // the warm test photo). A real (stripped) A/B clip keeps its "…Transition A/B.tiff" pathURL and
+  // is classified above, so it is never seen as empty.
+  for (const c of clips) {
+    if (map.has(c.id)) continue;
+    if (c.empty) map.set(c.id, 'E');
+  }
   // Fallback: if pathURL/name matching failed, order the two clips A then B. A clip that
-  // carries BUNDLED MEDIA (a <relativeURL> → in clipMedia) is NOT a drop-zone — it is the
+  // carries BUNDLED MEDIA (a <relativeURL> → in clipMedia) is NOT a drop-zone - it is the
   // template's own decorative asset (e.g. Stylized/Up-Over's "bg 6" = Media/bg 6.jpg
   // background photo). Such clips must resolve to their media (handled downstream via
   // clip.media), NOT be mis-assigned Transition A/B by this order-fallback. DECODED on
   // Stylized/Up-Over (_t_upover): "bg 6" (relativeURL Media/bg 6.jpg) was fallback-mapped to
   // transitionA, so the engine painted source-A warm full-frame while FCP renders the bundled
-  // bg image (and, when the media is absent, black — not source A). Exclude media clips from
-  // the A/B order-fallback (and from its count) so a lone bundled-media clip is never A/B.
-  const abCandidates = clips.filter(c => !clipMedia.has(c.id));
+  // bg image (and, when the media is absent, black - not source A). Exclude media clips AND
+  // truly-empty clips (marked 'E' above) from the A/B order-fallback (and its count) so a lone
+  // bundled-media or empty clip is never A/B.
+  const abCandidates = clips.filter(c => !clipMedia.has(c.id) && !c.empty);
   if ((!sawA || !sawB) && abCandidates.length >= 2) {
     map.set(abCandidates[0].id, 'A');
     map.set(abCandidates[1].id, 'B');
@@ -865,6 +895,10 @@ export function determineImageSource(params: Parameter[], el: Element | undefine
   if (clipId !== undefined && clip.ab.has(clipId)) {
     const which = clip.ab.get(clipId);
     if (which === 'P') return { type: 'placeholder' };
+    // TRULY-EMPTY clip (no pathURL/relativeURL/name): unresolvable media → FCP renders nothing
+    // (empty → black). Return an 'empty' source so the compositor draws no pixels (NOT a fallback
+    // to imageA). DECODED 2026-07-27 (headless probes on empty-media images with sceneSettings).
+    if (which === 'E') return { type: 'empty' };
     return which === 'A' ? { type: 'transitionA' } : { type: 'transitionB' };
   }
   // Bundled template media (a PNG in the template's Media/ folder, e.g. Slide's

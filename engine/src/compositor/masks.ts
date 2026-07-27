@@ -217,6 +217,22 @@ export function getSourceImage(rctx: RenderContext, source: ImageSource | undefi
   switch (source.type) {
     case 'transitionA': return imageA;
     case 'transitionB': return imageB;
+    case 'empty':
+      // A TRULY-EMPTY footage clip (no pathURL/relativeURL/name/missing-dims): unresolvable media.
+      // FCP renders NOTHING (black/transparent) at a normal canvas → return null so the image draws
+      // no pixels (instead of falling back to imageA). BUT at the no-<sceneSettings> DV-default canvas,
+      // FCP paints its RED [204,0,0] missing-media placeholder instead of black — DECODED 2026-07-27
+      // via controlled headless probes (adding <sceneSettings> to an empty-media scene flips the render
+      // from [204,0,0] red to [5,5,5] black; the flip is caused solely by the presence of sceneSettings).
+      // Emit the red raw (like the gray 'placeholder' card) so it survives to the output unchanged.
+      if (rctx.noSceneSettings) {
+        const red = createBuffer(imageA.width, imageA.height);
+        for (let i = 0; i < red.data.length; i += 4) {
+          red.data[i] = 204; red.data[i + 1] = 0; red.data[i + 2] = 0; red.data[i + 3] = 255;
+        }
+        return red;
+      }
+      return null;
     case 'placeholder': {
       // UNFILLED generic "Drop Zone" — FCP renders the drop-zone placeholder as a
       // flat neutral-gray card (measured ~78/255 on Video_Wall_rep's headless

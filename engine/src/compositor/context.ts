@@ -49,6 +49,11 @@ export interface RenderContext {
    * disabled transition-source LEAF in an ENABLED group still feeds clones (Movements/Swing shows B).
    * DECODED 2026-07-26. */
   disabledSubtreeIds: Set<number>;
+  /** True when the scene declared no <sceneSettings> (DV-default canvas). At that canvas an
+   * unresolvable-media (empty) drop-zone renders FCP's red [204,0,0] missing-media placeholder
+   * instead of black. DECODED 2026-07-27 (headless probes: -sceneSettings empty media -> red,
+   * +sceneSettings empty media -> black). Used by getSourceImage for the {type:'empty'} source. */
+  noSceneSettings?: boolean;
   /**
    * Host-injected resolver for bundled-media relativeURLs. Still images (e.g.
    * Slide's tile PNGs) ignore the second arg; VIDEO media (e.g. Objects/Veil's

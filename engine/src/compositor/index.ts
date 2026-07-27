@@ -1568,6 +1568,7 @@ export function composite(
     framed: scene.camera?.framed,
     imageMaskSourceIds: collectImageMaskSourceIds(scene.evalLayerById),
     disabledSubtreeIds: collectDisabledSubtreeIds(scene.layers),
+    noSceneSettings: scene.noSceneSettings,
     mediaResolver,
     mediaCache: new Map<string, ImageData | null>(),
     animationEndSec: scene.animationEndSec || 1,
