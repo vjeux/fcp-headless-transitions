@@ -1,3663 +1,3663 @@
 [
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e0f0",
 "tag": 90,
 "id": 0,
-"flags": 32,
 "name": "xmeml"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e100",
 "tag": 91,
 "id": 0,
-"flags": 32,
 "name": "ozml"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e110",
 "tag": 91,
 "id": 116,
-"flags": 32,
 "name": "version"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e120",
 "tag": 92,
 "id": 0,
-"flags": 32,
 "name": "factory"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e130",
 "tag": 92,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e140",
 "tag": 92,
 "id": 117,
-"flags": 32,
 "name": "uuid"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e150",
 "tag": 60,
 "id": 0,
-"flags": 32,
 "name": "scene"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e160",
 "tag": 93,
 "id": 0,
-"flags": 32,
 "name": "description"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e170",
 "tag": 94,
 "id": 0,
-"flags": 32,
 "name": "version"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e180",
 "tag": 95,
 "id": 0,
-"flags": 32,
 "name": "manufacturer"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e190",
 "tag": 21,
 "id": 0,
-"flags": 32,
 "name": "template"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e1a0",
 "tag": 39,
 "id": 0,
-"flags": 32,
 "name": "compressorDocDisplayName"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e1b0",
 "tag": 22,
 "id": 0,
-"flags": 32,
 "name": "isCompressorDoc"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e1c0",
 "tag": 38,
 "id": 0,
-"flags": 32,
 "name": "renderForCompressor"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e1d0",
 "tag": 24,
 "id": 0,
-"flags": 32,
 "name": "build"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e1e0",
 "tag": 36,
 "id": 0,
-"flags": 32,
 "name": "displayversion"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e1f0",
 "tag": 83,
 "id": 0,
-"flags": 32,
 "name": "viewer"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e200",
 "tag": 83,
 "id": 9,
-"flags": 32,
 "name": "subview"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e210",
 "tag": 84,
 "id": 0,
-"flags": 32,
 "name": "canvas"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e220",
 "tag": 80,
 "id": 0,
-"flags": 32,
 "name": "projectPanel"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e230",
 "tag": 81,
 "id": 0,
-"flags": 32,
 "name": "timeline"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e240",
 "tag": 500,
 "id": 0,
-"flags": 32,
 "name": "curveeditor"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e250",
 "tag": 85,
 "id": 0,
-"flags": 32,
 "name": "inspector"
 },
 {
+"scope": "OZDocumentScope",
 "addr": "0x92e260",
 "tag": 25,
 "id": 0,
-"flags": 64,
 "name": "FCPOriginated"
 },
 {
+"scope": "TemplateScope",
 "addr": "0x92e280",
 "tag": 35,
 "id": 0,
-"flags": 32,
 "name": "theme"
 },
 {
+"scope": "TemplateScope",
 "addr": "0x92e290",
 "tag": 37,
 "id": 0,
-"flags": 64,
 "name": "flags"
 },
 {
+"scope": "FactoryScope",
 "addr": "0x92e2b0",
 "tag": 93,
 "id": 0,
-"flags": 32,
 "name": "description"
 },
 {
+"scope": "FactoryScope",
 "addr": "0x92e2c0",
 "tag": 94,
 "id": 0,
-"flags": 32,
 "name": "version"
 },
 {
+"scope": "FactoryScope",
 "addr": "0x92e2d0",
 "tag": 95,
 "id": 0,
-"flags": 64,
 "name": "manufacturer"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e310",
 "tag": 60,
 "id": 0,
-"flags": 32,
 "name": "scene"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e320",
 "tag": 61,
 "id": 0,
-"flags": 32,
 "name": "layer"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e330",
 "tag": 61,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e340",
 "tag": 61,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e350",
 "tag": 63,
 "id": 0,
-"flags": 32,
 "name": "group"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e360",
 "tag": 63,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e370",
 "tag": 63,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e380",
 "tag": 64,
 "id": 0,
-"flags": 32,
 "name": "audio"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e390",
 "tag": 64,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e3a0",
 "tag": 64,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e3b0",
 "tag": 66,
 "id": 0,
-"flags": 32,
 "name": "footage"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e3c0",
 "tag": 66,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e3d0",
 "tag": 66,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e3e0",
 "tag": 62,
 "id": 0,
-"flags": 32,
 "name": "scenenode"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e3f0",
 "tag": 62,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e400",
 "tag": 62,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e410",
 "tag": 62,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e420",
 "tag": 74,
 "id": 0,
-"flags": 32,
 "name": "sceneSettings"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e430",
 "tag": 33,
 "id": 0,
-"flags": 32,
 "name": "exportSettings"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e440",
 "tag": 34,
 "id": 0,
-"flags": 32,
 "name": "publishSettings"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e450",
 "tag": 1,
 "id": 0,
-"flags": 32,
 "name": "currentFrame"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e460",
 "tag": 2,
 "id": 0,
-"flags": 32,
 "name": "currentObject"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e470",
 "tag": 3,
 "id": 0,
-"flags": 32,
 "name": "activeLayer"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e480",
 "tag": 6,
 "id": 0,
-"flags": 32,
 "name": "audioTracks"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e490",
 "tag": 4,
 "id": 0,
-"flags": 32,
 "name": "timeRange"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e4a0",
 "tag": 4,
 "id": 1,
-"flags": 32,
 "name": "offset"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e4b0",
 "tag": 4,
 "id": 2,
-"flags": 32,
 "name": "duration"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e4c0",
 "tag": 5,
 "id": 0,
-"flags": 32,
 "name": "playRange"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e4d0",
 "tag": 5,
 "id": 1,
-"flags": 32,
 "name": "offset"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e4e0",
 "tag": 5,
 "id": 2,
-"flags": 32,
 "name": "duration"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e4f0",
 "tag": 72,
 "id": 0,
-"flags": 32,
 "name": "timemarkerset"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e500",
 "tag": 75,
 "id": 0,
-"flags": 32,
 "name": "guideset"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e510",
 "tag": 600,
 "id": 0,
-"flags": 32,
 "name": "curvesets"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e520",
 "tag": 600,
 "id": 1,
-"flags": 32,
 "name": "selected"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e530",
 "tag": 9,
 "id": 0,
-"flags": 32,
 "name": "flags"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e540",
 "tag": 10,
 "id": 0,
-"flags": 32,
 "name": "renderModel"
 },
 {
+"scope": "OZSceneScope",
 "addr": "0x92e550",
 "tag": 11,
 "id": 0,
-"flags": 64,
 "name": "360ProjectMode"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e570",
 "tag": 61,
 "id": 0,
-"flags": 32,
 "name": "layer"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e580",
 "tag": 61,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e590",
 "tag": 61,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e5a0",
 "tag": 63,
 "id": 0,
-"flags": 32,
 "name": "group"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e5b0",
 "tag": 63,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e5c0",
 "tag": 63,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e5d0",
 "tag": 66,
 "id": 0,
-"flags": 32,
 "name": "footage"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e5e0",
 "tag": 66,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e5f0",
 "tag": 66,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e600",
 "tag": 67,
 "id": 0,
-"flags": 32,
 "name": "clip"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e610",
 "tag": 67,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e620",
 "tag": 67,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e630",
 "tag": 79,
 "id": 0,
-"flags": 32,
 "name": "videoClip"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e640",
 "tag": 79,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e650",
 "tag": 79,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e660",
 "tag": 64,
 "id": 0,
-"flags": 32,
 "name": "audio"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e670",
 "tag": 64,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e680",
 "tag": 64,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e690",
 "tag": 65,
 "id": 0,
-"flags": 32,
 "name": "audioTrack"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e6a0",
 "tag": 65,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e6b0",
 "tag": 65,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e6c0",
 "tag": 80,
 "id": 0,
-"flags": 32,
 "name": "audioClip"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e6d0",
 "tag": 80,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e6e0",
 "tag": 80,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e6f0",
 "tag": 70,
 "id": 0,
-"flags": 32,
 "name": "mask"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e700",
 "tag": 70,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e710",
 "tag": 70,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e720",
 "tag": 70,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e730",
 "tag": 62,
 "id": 0,
-"flags": 32,
 "name": "scenenode"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e740",
 "tag": 62,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e750",
 "tag": 62,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e760",
 "tag": 62,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e770",
 "tag": 62,
 "id": 118,
-"flags": 32,
 "name": "pluginName"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e780",
 "tag": 62,
 "id": 7,
-"flags": 32,
 "name": "pluginUUID"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e790",
 "tag": 62,
 "id": 116,
-"flags": 32,
 "name": "version"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e7a0",
 "tag": 62,
 "id": 8,
-"flags": 32,
 "name": "pluginVersion"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e7b0",
 "tag": 62,
 "id": 9,
-"flags": 32,
 "name": "pluginDynamicParams"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e7c0",
 "tag": 200,
 "id": 0,
-"flags": 32,
 "name": "flags"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e7d0",
 "tag": 69,
 "id": 0,
-"flags": 32,
 "name": "behavior"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e7e0",
 "tag": 69,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e7f0",
 "tag": 69,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e800",
 "tag": 69,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e810",
 "tag": 68,
 "id": 0,
-"flags": 32,
 "name": "filter"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e820",
 "tag": 68,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e830",
 "tag": 68,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e840",
 "tag": 68,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e850",
 "tag": 68,
 "id": 118,
-"flags": 32,
 "name": "pluginName"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e860",
 "tag": 68,
 "id": 7,
-"flags": 32,
 "name": "pluginUUID"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e870",
 "tag": 68,
 "id": 116,
-"flags": 32,
 "name": "version"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e880",
 "tag": 68,
 "id": 8,
-"flags": 32,
 "name": "pluginVersion"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e890",
 "tag": 68,
 "id": 9,
-"flags": 32,
 "name": "pluginDynamicParams"
 },
 {
+"scope": "OZSceneNodeWriteScope",
 "addr": "0x92e8a0",
 "tag": 201,
 "id": 0,
-"flags": 64,
 "name": "linkedobjects"
 },
 {
+"scope": "OZSceneNodeReadScope",
 "addr": "0x92e8c0",
 "tag": 200,
 "id": 0,
-"flags": 32,
 "name": "flags"
 },
 {
+"scope": "OZSceneNodeReadScope",
 "addr": "0x92e8d0",
 "tag": 69,
 "id": 0,
-"flags": 32,
 "name": "behavior"
 },
 {
+"scope": "OZSceneNodeReadScope",
 "addr": "0x92e8e0",
 "tag": 69,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZSceneNodeReadScope",
 "addr": "0x92e8f0",
 "tag": 69,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZSceneNodeReadScope",
 "addr": "0x92e900",
 "tag": 69,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZSceneNodeReadScope",
 "addr": "0x92e910",
 "tag": 68,
 "id": 0,
-"flags": 32,
 "name": "filter"
 },
 {
+"scope": "OZSceneNodeReadScope",
 "addr": "0x92e920",
 "tag": 68,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZSceneNodeReadScope",
 "addr": "0x92e930",
 "tag": 68,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZSceneNodeReadScope",
 "addr": "0x92e940",
 "tag": 68,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZSceneNodeReadScope",
 "addr": "0x92e950",
 "tag": 68,
 "id": 118,
-"flags": 32,
 "name": "pluginName"
 },
 {
+"scope": "OZSceneNodeReadScope",
 "addr": "0x92e960",
 "tag": 68,
 "id": 7,
-"flags": 32,
 "name": "pluginUUID"
 },
 {
+"scope": "OZSceneNodeReadScope",
 "addr": "0x92e970",
 "tag": 68,
 "id": 116,
-"flags": 32,
 "name": "version"
 },
 {
+"scope": "OZSceneNodeReadScope",
 "addr": "0x92e980",
 "tag": 68,
 "id": 8,
-"flags": 32,
 "name": "pluginVersion"
 },
 {
+"scope": "OZSceneNodeReadScope",
 "addr": "0x92e990",
 "tag": 68,
 "id": 9,
-"flags": 32,
 "name": "pluginDynamicParams"
 },
 {
+"scope": "OZSceneNodeReadScope",
 "addr": "0x92e9a0",
 "tag": 201,
 "id": 0,
-"flags": 64,
 "name": "linkedobjects"
 },
 {
+"scope": "OZElementScope",
 "addr": "0x92e9c0",
 "tag": 400,
 "id": 0,
-"flags": 32,
 "name": "override"
 },
 {
+"scope": "OZElementScope",
 "addr": "0x92e9d0",
 "tag": 401,
 "id": 0,
-"flags": 32,
 "name": "freezeKey"
 },
 {
+"scope": "OZElementScope",
 "addr": "0x92e9e0",
 "tag": 70,
 "id": 0,
-"flags": 32,
 "name": "mask"
 },
 {
+"scope": "OZElementScope",
 "addr": "0x92e9f0",
 "tag": 70,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZElementScope",
 "addr": "0x92ea00",
 "tag": 70,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZElementScope",
 "addr": "0x92eb00",
 "tag": 0,
 "id": 0,
-"flags": 32,
 "name": "OZFootage::kFieldOrderOverride"
 },
 {
+"scope": "OZFootageScope",
 "addr": "0x92eb10",
 "tag": 1,
 "id": 0,
-"flags": 32,
 "name": "pathURL"
 },
 {
+"scope": "OZFootageScope",
 "addr": "0x92eb20",
 "tag": 2,
 "id": 0,
-"flags": 32,
 "name": "relativeURL"
 },
 {
+"scope": "OZFootageScope",
 "addr": "0x92eb30",
 "tag": 3,
 "id": 0,
-"flags": 32,
 "name": "missingWidth"
 },
 {
+"scope": "OZFootageScope",
 "addr": "0x92eb40",
 "tag": 4,
 "id": 0,
-"flags": 32,
 "name": "missingHeight"
 },
 {
+"scope": "OZFootageScope",
 "addr": "0x92eb50",
 "tag": 5,
 "id": 0,
-"flags": 32,
 "name": "missingDuration"
 },
 {
+"scope": "OZFootageScope",
 "addr": "0x92eb60",
 "tag": 6,
 "id": 0,
-"flags": 32,
 "name": "creationDuration"
 },
 {
+"scope": "OZFootageScope",
 "addr": "0x92eb70",
 "tag": 7,
 "id": 0,
-"flags": 32,
 "name": "mediaID"
 },
 {
+"scope": "OZFootageScope",
 "addr": "0x92eb80",
 "tag": 8,
 "id": 0,
-"flags": 32,
 "name": "bookmark"
 },
 {
+"scope": "OZFootageScope",
 "addr": "0x92eb90",
 "tag": 9,
 "id": 0,
-"flags": 32,
 "name": "relativeBookmark"
 },
 {
+"scope": "OZFootageScope",
 "addr": "0x92eba0",
 "tag": 10,
 "id": 0,
-"flags": 32,
 "name": "missingDynamicRangeType"
 },
 {
+"scope": "OZFootageScope",
 "addr": "0x92ebb0",
 "tag": 11,
 "id": 0,
-"flags": 32,
 "name": "usesFormatReader"
 },
 {
+"scope": "OZFootageScope",
 "addr": "0x92ebc0",
 "tag": 12,
 "id": 0,
-"flags": 32,
 "name": "formatReaderName"
 },
 {
+"scope": "OZFootageScope",
 "addr": "0x92ebd0",
 "tag": 13,
 "id": 0,
-"flags": 32,
 "name": "decoder"
 },
 {
+"scope": "OZFootageScope",
 "addr": "0x92ebe0",
 "tag": 14,
 "id": 0,
-"flags": 32,
 "name": "decoderFourCC"
 },
 {
+"scope": "OZFootageScope",
 "addr": "0x92ebf0",
 "tag": 15,
 "id": 0,
-"flags": 32,
 "name": "decoderName"
 },
 {
+"scope": "OZFootageScope",
 "addr": "0x92ec00",
 "tag": 16,
 "id": 0,
-"flags": 32,
 "name": "RAWProcessor"
 },
 {
+"scope": "OZFootageScope",
 "addr": "0x92ec10",
 "tag": 17,
 "id": 0,
-"flags": 32,
 "name": "RAWProcessorFourCC"
 },
 {
+"scope": "OZGroupScope",
 "addr": "0x92ed40",
 "tag": 63,
 "id": 0,
-"flags": 32,
 "name": "group"
 },
 {
+"scope": "OZGroupScope",
 "addr": "0x92ed50",
 "tag": 63,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZGroupScope",
 "addr": "0x92ed60",
 "tag": 63,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZGroupScope",
 "addr": "0x92ed70",
 "tag": 62,
 "id": 0,
-"flags": 32,
 "name": "scenenode"
 },
 {
+"scope": "OZGroupScope",
 "addr": "0x92ed80",
 "tag": 62,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZGroupScope",
 "addr": "0x92ed90",
 "tag": 62,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZGroupScope",
 "addr": "0x92eda0",
 "tag": 62,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZGroupScope",
 "addr": "0x92edb0",
 "tag": 62,
 "id": 118,
-"flags": 32,
 "name": "pluginName"
 },
 {
+"scope": "OZGroupScope",
 "addr": "0x92edc0",
 "tag": 62,
 "id": 116,
-"flags": 32,
 "name": "version"
 },
 {
+"scope": "OZGroupScope",
 "addr": "0x92edd0",
 "tag": 62,
 "id": 7,
-"flags": 32,
 "name": "pluginUUID"
 },
 {
+"scope": "OZGroupScope",
 "addr": "0x92ede0",
 "tag": 62,
 "id": 8,
-"flags": 32,
 "name": "pluginVersion"
 },
 {
+"scope": "OZGroupScope",
 "addr": "0x92edf0",
 "tag": 62,
 "id": 9,
-"flags": 32,
 "name": "pluginDynamicParams"
 },
 {
+"scope": "OZGroupScope",
 "addr": "0x92ee00",
 "tag": 61,
 "id": 0,
-"flags": 32,
 "name": "layer"
 },
 {
+"scope": "OZGroupScope",
 "addr": "0x92ee10",
 "tag": 61,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZEffectScope",
 "addr": "0x92eee0",
 "tag": 68,
 "id": 0,
-"flags": 32,
 "name": "filter"
 },
 {
+"scope": "OZEffectScope",
 "addr": "0x92eef0",
 "tag": 68,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZEffectScope",
 "addr": "0x92ef00",
 "tag": 68,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZEffectScope",
 "addr": "0x92ef10",
 "tag": 68,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZEffectScope",
 "addr": "0x92ef20",
 "tag": 68,
 "id": 118,
-"flags": 32,
 "name": "pluginName"
 },
 {
+"scope": "OZBehaviorScope",
 "addr": "0x92efb0",
 "tag": 69,
 "id": 0,
-"flags": 32,
 "name": "behavior"
 },
 {
+"scope": "OZBehaviorScope",
 "addr": "0x92efc0",
 "tag": 69,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZBehaviorScope",
 "addr": "0x92efd0",
 "tag": 69,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZAudioLayerScope",
 "addr": "0x92f3d0",
 "tag": 62,
 "id": 0,
-"flags": 32,
 "name": "scenenode"
 },
 {
+"scope": "OZAudioLayerScope",
 "addr": "0x92f3e0",
 "tag": 62,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZAudioLayerScope",
 "addr": "0x92f3f0",
 "tag": 62,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZAudioLayerScope",
 "addr": "0x92f400",
 "tag": 62,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZAudioLayerScope",
 "addr": "0x92f410",
 "tag": 65,
 "id": 0,
-"flags": 32,
 "name": "audioTrack"
 },
 {
+"scope": "OZAudioLayerScope",
 "addr": "0x92f420",
 "tag": 65,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZFootageLayerScope",
 "addr": "0x92f4b0",
 "tag": 67,
 "id": 0,
-"flags": 32,
 "name": "clip"
 },
 {
+"scope": "OZFootageLayerScope",
 "addr": "0x92f4c0",
 "tag": 67,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZFootageLayerScope",
 "addr": "0x92f4d0",
 "tag": 67,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZFootageLayerScope",
 "addr": "0x92f4e0",
 "tag": 62,
 "id": 0,
-"flags": 32,
 "name": "scenenode"
 },
 {
+"scope": "OZFootageLayerScope",
 "addr": "0x92f4f0",
 "tag": 62,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZFootageLayerScope",
 "addr": "0x92f500",
 "tag": 62,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZTransformNodeScope",
 "addr": "0x92f910",
 "tag": 300,
 "id": 0,
-"flags": 32,
 "name": "aspectRatio"
 },
 {
+"scope": "OZTransformNodeScope",
 "addr": "0x92f920",
 "tag": 301,
 "id": 0,
-"flags": 96,
 "name": "ignoreBehaviorsBeforeID"
 },
 {
+"scope": "OZTransitiveBehaviorScope",
 "addr": "0x92fa70",
 "tag": 301,
 "id": 0,
-"flags": 96,
 "name": "affectedNode"
 },
 {
+"scope": "OZTimeMarkerScope",
 "addr": "0x92fb00",
 "tag": 73,
 "id": 0,
-"flags": 32,
 "name": "timemarker"
 },
 {
+"scope": "OZTimeMarkerScope",
 "addr": "0x92fb10",
 "tag": 1,
 "id": 0,
-"flags": 32,
 "name": "inpoint"
 },
 {
+"scope": "OZTimeMarkerScope",
 "addr": "0x92fb20",
 "tag": 2,
 "id": 0,
-"flags": 32,
 "name": "outpoint"
 },
 {
+"scope": "OZTimeMarkerScope",
 "addr": "0x92fb30",
 "tag": 3,
 "id": 0,
-"flags": 32,
 "name": "label"
 },
 {
+"scope": "OZTimeMarkerScope",
 "addr": "0x92fb40",
 "tag": 4,
 "id": 0,
-"flags": 32,
 "name": "comment"
 },
 {
+"scope": "OZTimeMarkerScope",
 "addr": "0x92fb50",
 "tag": 5,
 "id": 0,
-"flags": 32,
 "name": "color"
 },
 {
+"scope": "OZTimeMarkerScope",
 "addr": "0x92fb60",
 "tag": 6,
 "id": 0,
-"flags": 64,
 "name": "type"
 },
 {
+"scope": "OZTimeMarkerSetScope",
 "addr": "0x92fb80",
 "tag": 72,
 "id": 0,
-"flags": 32,
 "name": "timemarkerset"
 },
 {
+"scope": "OZTimeMarkerSetScope",
 "addr": "0x92fb90",
 "tag": 73,
 "id": 0,
-"flags": 64,
 "name": "timemarker"
 },
 {
+"scope": "OZChannelObjectRootScope",
 "addr": "0x92fbb0",
 "tag": 72,
 "id": 0,
-"flags": 64,
 "name": "timemarkerset"
 },
 {
+"scope": "OZChannelObjectRootScope",
 "addr": "0x92fbd0",
 "tag": 0,
 "id": 0,
-"flags": 32,
 "name": "GLRenderer::useROIParameter"
 },
 {
+"scope": "OZStyleScope",
 "addr": "0x92fc40",
 "tag": 77,
 "id": 0,
-"flags": 32,
 "name": "style"
 },
 {
+"scope": "OZStyleScope",
 "addr": "0x92fc50",
 "tag": 77,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZStyleScope",
 "addr": "0x92fc60",
 "tag": 77,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZFxFilterScope",
 "addr": "0x92fef0",
 "tag": 68,
 "id": 0,
-"flags": 32,
 "name": "filter"
 },
 {
+"scope": "OZFxFilterScope",
 "addr": "0x92ff00",
 "tag": 68,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZFxFilterScope",
 "addr": "0x92ff10",
 "tag": 68,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZFxFilterScope",
 "addr": "0x92ff20",
 "tag": 68,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZFxFilterScope",
 "addr": "0x92ff30",
 "tag": 68,
 "id": 118,
-"flags": 32,
 "name": "pluginName"
 },
 {
+"scope": "OZFxFilterScope",
 "addr": "0x92ff40",
 "tag": 68,
 "id": 7,
-"flags": 32,
 "name": "pluginUUID"
 },
 {
+"scope": "OZFxFilterScope",
 "addr": "0x92ff50",
 "tag": 68,
 "id": 8,
-"flags": 32,
 "name": "pluginVersion"
 },
 {
+"scope": "OZFxFilterScope",
 "addr": "0x92ff60",
 "tag": 68,
 "id": 9,
-"flags": 64,
 "name": "pluginDynamicParams"
 },
 {
+"scope": "OZImageMaskScope",
 "addr": "0x930f00",
 "tag": 901,
 "id": 0,
-"flags": 32,
 "name": "AnalyzedRange"
 },
 {
+"scope": "OZImageMaskScope",
 "addr": "0x930f10",
 "tag": 901,
 "id": 1,
-"flags": 32,
 "name": "offset"
 },
 {
+"scope": "OZImageMaskScope",
 "addr": "0x930f20",
 "tag": 901,
 "id": 2,
-"flags": 32,
 "name": "duration"
 },
 {
+"scope": "OZImageMaskScope",
 "addr": "0x930f30",
 "tag": 902,
 "id": 0,
-"flags": 96,
 "name": "analysisFrameDuration"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931030",
 "tag": 74,
 "id": 0,
-"flags": 32,
 "name": "sceneSettings"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931040",
 "tag": 2,
 "id": 0,
-"flags": 32,
 "name": "width"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931050",
 "tag": 3,
 "id": 0,
-"flags": 32,
 "name": "height"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931060",
 "tag": 4,
 "id": 0,
-"flags": 32,
 "name": "duration"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931070",
 "tag": 42,
 "id": 0,
-"flags": 32,
 "name": "shouldOverrideFCDuration"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931080",
 "tag": 5,
 "id": 0,
-"flags": 32,
 "name": "frameRate"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931090",
 "tag": 6,
 "id": 0,
-"flags": 32,
 "name": "NTSC"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x9310a0",
 "tag": 9,
 "id": 0,
-"flags": 32,
 "name": "pixelAspectRatio"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x9310b0",
 "tag": 46,
 "id": 0,
-"flags": 32,
 "name": "gamut"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x9310c0",
 "tag": 47,
 "id": 0,
-"flags": 32,
 "name": "workingGamut"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x9310d0",
 "tag": 48,
 "id": 0,
-"flags": 32,
 "name": "viewGamut"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x9310e0",
 "tag": 50,
 "id": 0,
-"flags": 32,
 "name": "optimizeForDisplay"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x9310f0",
 "tag": 10,
 "id": 0,
-"flags": 32,
 "name": "backgroundColor"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931100",
 "tag": 10,
 "id": 1,
-"flags": 32,
 "name": "red"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931110",
 "tag": 10,
 "id": 2,
-"flags": 32,
 "name": "green"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931120",
 "tag": 10,
 "id": 3,
-"flags": 32,
 "name": "blue"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931130",
 "tag": 10,
 "id": 4,
-"flags": 32,
 "name": "alpha"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931140",
 "tag": 11,
 "id": 0,
-"flags": 32,
 "name": "audioChannels"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931150",
 "tag": 12,
 "id": 0,
-"flags": 32,
 "name": "audioBitsPerSample"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931160",
 "tag": 13,
 "id": 0,
-"flags": 32,
 "name": "audioSampleRate"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931170",
 "tag": 28,
 "id": 0,
-"flags": 32,
 "name": "lightingQuality"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931180",
 "tag": 15,
 "id": 0,
-"flags": 32,
 "name": "fieldRenderingMode"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931190",
 "tag": 19,
 "id": 0,
-"flags": 32,
 "name": "renderMethod"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x9311a0",
 "tag": 17,
 "id": 0,
-"flags": 32,
 "name": "motionBlurSamples"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x9311b0",
 "tag": 18,
 "id": 0,
-"flags": 32,
 "name": "motionBlurDuration"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x9311c0",
 "tag": 45,
 "id": 0,
-"flags": 32,
 "name": "sharpScaling"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x9311d0",
 "tag": 20,
 "id": 0,
-"flags": 32,
 "name": "startTimecode"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x9311e0",
 "tag": 25,
 "id": 0,
-"flags": 32,
 "name": "presetPath"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x9311f0",
 "tag": 27,
 "id": 0,
-"flags": 32,
 "name": "use3D"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931200",
 "tag": 29,
 "id": 0,
-"flags": 32,
 "name": "renderBackground"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931210",
 "tag": 36,
 "id": 0,
-"flags": 32,
 "name": "blendBackground"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931220",
 "tag": 35,
 "id": 0,
-"flags": 32,
 "name": "reflectionRecursionLimit"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931230",
 "tag": 34,
 "id": 0,
-"flags": 32,
 "name": "glyphOSCMode"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931240",
 "tag": 38,
 "id": 0,
-"flags": 32,
 "name": "backgroundMode"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931250",
 "tag": 39,
 "id": 0,
-"flags": 32,
 "name": "animateFlag"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931260",
 "tag": 40,
 "id": 0,
-"flags": 32,
 "name": "parameterGamma"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931270",
 "tag": 41,
 "id": 0,
-"flags": 32,
 "name": "parameterColorSpaceID"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931280",
 "tag": 43,
 "id": 0,
-"flags": 32,
 "name": "savePreviewMovie"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x931290",
 "tag": 49,
 "id": 0,
-"flags": 32,
 "name": "project360Mode"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x9312a0",
 "tag": 44,
 "id": 0,
-"flags": 32,
 "name": "introducesAlpha"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x9312b0",
 "tag": 51,
 "id": 0,
-"flags": 32,
 "name": "Object3DEnvironments"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x9312c0",
 "tag": 52,
 "id": 0,
-"flags": 32,
 "name": "DRTSupport"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x9312d0",
 "tag": 53,
 "id": 0,
-"flags": 32,
 "name": "onHDRDisplay"
 },
 {
+"scope": "OZSceneSettingsScope",
 "addr": "0x9312e0",
 "tag": 30,
 "id": 0,
-"flags": 64,
 "name": "antialiasing"
 },
 {
+"scope": "OZScopePrimaryObjectsScope",
 "addr": "0x931300",
 "tag": 27,
 "id": 0,
-"flags": 32,
 "name": "primaryObjects"
 },
 {
+"scope": "OZScopePrimaryObjectsScope",
 "addr": "0x931310",
 "tag": 28,
 "id": 0,
-"flags": 64,
 "name": "id"
 },
 {
+"scope": "OZScopePrimaryFactoriesScope",
 "addr": "0x931330",
 "tag": 29,
 "id": 0,
-"flags": 32,
 "name": "primaryFactories"
 },
 {
+"scope": "OZScopePrimaryFactoriesScope",
 "addr": "0x931340",
 "tag": 30,
 "id": 0,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZScopePrimaryFactoriesScope",
 "addr": "0x931350",
 "tag": 31,
 "id": 0,
-"flags": 64,
 "name": "uuid"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931370",
 "tag": 90,
 "id": 0,
-"flags": 32,
 "name": "xmeml"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931380",
 "tag": 91,
 "id": 0,
-"flags": 32,
 "name": "ozml"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931390",
 "tag": 91,
 "id": 116,
-"flags": 32,
 "name": "version"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9313a0",
 "tag": 20,
 "id": 0,
-"flags": 32,
 "name": "description"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9313b0",
 "tag": 92,
 "id": 0,
-"flags": 32,
 "name": "factory"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9313c0",
 "tag": 92,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9313d0",
 "tag": 92,
 "id": 117,
-"flags": 32,
 "name": "uuid"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9313e0",
 "tag": 74,
 "id": 0,
-"flags": 32,
 "name": "sceneSettings"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9313f0",
 "tag": 27,
 "id": 0,
-"flags": 32,
 "name": "primaryObjects"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931400",
 "tag": 29,
 "id": 0,
-"flags": 32,
 "name": "primaryFactories"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931410",
 "tag": 21,
 "id": 0,
-"flags": 32,
 "name": "template"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931420",
 "tag": 39,
 "id": 0,
-"flags": 32,
 "name": "compressorDocDisplayName"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931430",
 "tag": 22,
 "id": 0,
-"flags": 32,
 "name": "isCompressorDoc"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931440",
 "tag": 38,
 "id": 0,
-"flags": 32,
 "name": "renderAsCompressorDoc"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931450",
 "tag": 23,
 "id": 0,
-"flags": 32,
 "name": "theme"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931460",
 "tag": 60,
 "id": 0,
-"flags": 32,
 "name": "scene"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931470",
 "tag": 61,
 "id": 0,
-"flags": 32,
 "name": "layer"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931480",
 "tag": 61,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931490",
 "tag": 61,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9314a0",
 "tag": 63,
 "id": 0,
-"flags": 32,
 "name": "group"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9314b0",
 "tag": 63,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9314c0",
 "tag": 63,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9314d0",
 "tag": 66,
 "id": 0,
-"flags": 32,
 "name": "footage"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9314e0",
 "tag": 66,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9314f0",
 "tag": 66,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931500",
 "tag": 67,
 "id": 0,
-"flags": 32,
 "name": "clip"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931510",
 "tag": 67,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931520",
 "tag": 67,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931530",
 "tag": 64,
 "id": 0,
-"flags": 32,
 "name": "audio"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931540",
 "tag": 64,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931550",
 "tag": 64,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931560",
 "tag": 65,
 "id": 0,
-"flags": 32,
 "name": "audioTrack"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931570",
 "tag": 65,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931580",
 "tag": 65,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931590",
 "tag": 79,
 "id": 0,
-"flags": 32,
 "name": "videoClip"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9315a0",
 "tag": 79,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9315b0",
 "tag": 79,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9315c0",
 "tag": 80,
 "id": 0,
-"flags": 32,
 "name": "audioClip"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9315d0",
 "tag": 80,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9315e0",
 "tag": 80,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9315f0",
 "tag": 68,
 "id": 0,
-"flags": 32,
 "name": "filter"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931600",
 "tag": 68,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931610",
 "tag": 68,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931620",
 "tag": 68,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931630",
 "tag": 68,
 "id": 118,
-"flags": 32,
 "name": "pluginName"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931640",
 "tag": 68,
 "id": 7,
-"flags": 32,
 "name": "pluginUUID"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931650",
 "tag": 68,
 "id": 8,
-"flags": 32,
 "name": "pluginVersion"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931660",
 "tag": 68,
 "id": 9,
-"flags": 32,
 "name": "pluginDynamicParams"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931670",
 "tag": 200,
 "id": 0,
-"flags": 32,
 "name": "*"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931680",
 "tag": 200,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x931690",
 "tag": 200,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9316a0",
 "tag": 200,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9316b0",
 "tag": 200,
 "id": 118,
-"flags": 32,
 "name": "pluginName"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9316c0",
 "tag": 200,
 "id": 7,
-"flags": 32,
 "name": "pluginUUID"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9316d0",
 "tag": 200,
 "id": 8,
-"flags": 32,
 "name": "pluginVersion"
 },
 {
+"scope": "OZXMLRootScope",
 "addr": "0x9316e0",
 "tag": 200,
 "id": 9,
-"flags": 64,
 "name": "pluginDynamicParams"
 },
 {
+"scope": "TemplateScope",
 "addr": "0x931700",
 "tag": 35,
 "id": 0,
-"flags": 32,
 "name": "theme"
 },
 {
+"scope": "TemplateScope",
 "addr": "0x931710",
 "tag": 37,
 "id": 0,
-"flags": 64,
 "name": "flags"
 },
 {
+"scope": "SceneScope",
 "addr": "0x931730",
 "tag": 74,
 "id": 0,
-"flags": 64,
 "name": "sceneSettings"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x931750",
 "tag": 33,
 "id": 0,
-"flags": 32,
 "name": "exportSettings"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x931760",
 "tag": 100,
 "id": 0,
-"flags": 32,
 "name": "version"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x931770",
 "tag": 5,
 "id": 0,
-"flags": 32,
 "name": "locationMode"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x931780",
 "tag": 10,
 "id": 0,
-"flags": 32,
 "name": "resolutionMode"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x931790",
 "tag": 11,
 "id": 0,
-"flags": 32,
 "name": "colorMode"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x9317a0",
 "tag": 12,
 "id": 0,
-"flags": 32,
 "name": "premultiplyAlpha"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x9317b0",
 "tag": 13,
 "id": 0,
-"flags": 32,
 "name": "renderQuality"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x9317c0",
 "tag": 14,
 "id": 0,
-"flags": 32,
 "name": "textRenderQuality"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x9317d0",
 "tag": 15,
 "id": 0,
-"flags": 32,
 "name": "useHighQualityResampling"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x9317e0",
 "tag": 16,
 "id": 0,
-"flags": 32,
 "name": "useShapeAntialiasing"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x9317f0",
 "tag": 17,
 "id": 0,
-"flags": 32,
 "name": "use3DIntersectionAntialiasing"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x931800",
 "tag": 19,
 "id": 0,
-"flags": 32,
 "name": "fieldRenderingMode"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x931810",
 "tag": 20,
 "id": 0,
-"flags": 32,
 "name": "motionBlurMode"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x931820",
 "tag": 21,
 "id": 0,
-"flags": 32,
 "name": "frameBlendingMode"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x931830",
 "tag": 22,
 "id": 0,
-"flags": 32,
 "name": "colorSpace"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x931840",
 "tag": 23,
 "id": 0,
-"flags": 32,
 "name": "colorSpaceUserSetting"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x931850",
 "tag": 40,
 "id": 0,
-"flags": 32,
 "name": "camera"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x931860",
 "tag": 41,
 "id": 0,
-"flags": 32,
 "name": "lightingMode"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x931870",
 "tag": 42,
 "id": 0,
-"flags": 32,
 "name": "shadowsMode"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x931880",
 "tag": 43,
 "id": 0,
-"flags": 32,
 "name": "reflectionsMode"
 },
 {
+"scope": "OZExportSettingsScope",
 "addr": "0x931890",
 "tag": 44,
 "id": 0,
-"flags": 96,
 "name": "depthOfFieldMode"
 },
 {
+"scope": "OZLayeredMaterialScope",
 "addr": "0x931aa0",
 "tag": 300,
 "id": 0,
-"flags": 64,
 "name": "styleJitterRandomSeed"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931ad0",
 "tag": 83,
 "id": 0,
-"flags": 32,
 "name": "viewer"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931ae0",
 "tag": 83,
 "id": 9,
-"flags": 32,
 "name": "subview"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931af0",
 "tag": 1,
 "id": 0,
-"flags": 32,
 "name": "zoom"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931b00",
 "tag": 2,
 "id": 0,
-"flags": 32,
 "name": "zoomMode"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931b10",
 "tag": 3,
 "id": 0,
-"flags": 32,
 "name": "resolutionMode"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931b20",
 "tag": 4,
 "id": 0,
-"flags": 32,
 "name": "viewmode"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931b30",
 "tag": 5,
 "id": 0,
-"flags": 32,
 "name": "overlayOptions"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931b40",
 "tag": 6,
 "id": 0,
-"flags": 32,
 "name": "oscOptions"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931b50",
 "tag": 7,
 "id": 0,
-"flags": 32,
 "name": "compensateAspectRatio"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931b60",
 "tag": 9,
 "id": 0,
-"flags": 32,
 "name": "renderFields"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931b70",
 "tag": 10,
 "id": 0,
-"flags": 32,
 "name": "showMotionBlur"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931b80",
 "tag": 11,
 "id": 0,
-"flags": 32,
 "name": "showFrameBlending"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931b90",
 "tag": 8,
 "id": 0,
-"flags": 32,
 "name": "showLighting"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931ba0",
 "tag": 26,
 "id": 0,
-"flags": 32,
 "name": "showShadows"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931bb0",
 "tag": 27,
 "id": 0,
-"flags": 32,
 "name": "showReflection"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931bc0",
 "tag": 28,
 "id": 0,
-"flags": 32,
 "name": "showDepthOfField"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931bd0",
 "tag": 12,
 "id": 0,
-"flags": 32,
 "name": "panX"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931be0",
 "tag": 13,
 "id": 0,
-"flags": 32,
 "name": "panY"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931bf0",
 "tag": 14,
 "id": 0,
-"flags": 32,
 "name": "keepCentered"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931c00",
 "tag": 16,
 "id": 0,
-"flags": 32,
 "name": "renderFullView"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931c10",
 "tag": 17,
 "id": 0,
-"flags": 32,
 "name": "renderQuality"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931c20",
 "tag": 52,
 "id": 0,
-"flags": 32,
 "name": "dynamicResolution"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931c30",
 "tag": 20,
 "id": 0,
-"flags": 32,
 "name": "textRenderQuality"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931c40",
 "tag": 21,
 "id": 0,
-"flags": 32,
 "name": "showHighQualityResampling"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931c50",
 "tag": 22,
 "id": 0,
-"flags": 32,
 "name": "showShapeAntialiasing"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931c60",
 "tag": 23,
 "id": 0,
-"flags": 32,
 "name": "show3DIntersectionAntialiasing"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931c70",
 "tag": 29,
 "id": 0,
-"flags": 32,
 "name": "cameraType"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931c80",
 "tag": 30,
 "id": 0,
-"flags": 32,
 "name": "cameraName"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931c90",
 "tag": 31,
 "id": 0,
-"flags": 32,
 "name": "camera"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931ca0",
 "tag": 31,
 "id": 32,
-"flags": 32,
 "name": "type"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931cb0",
 "tag": 33,
 "id": 0,
-"flags": 32,
 "name": "position"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931cc0",
 "tag": 33,
 "id": 34,
-"flags": 32,
 "name": "x"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931cd0",
 "tag": 33,
 "id": 35,
-"flags": 32,
 "name": "y"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931ce0",
 "tag": 33,
 "id": 36,
-"flags": 32,
 "name": "z"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931cf0",
 "tag": 37,
 "id": 0,
-"flags": 32,
 "name": "rotation"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931d00",
 "tag": 37,
 "id": 38,
-"flags": 32,
 "name": "s"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931d10",
 "tag": 37,
 "id": 39,
-"flags": 32,
 "name": "vx"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931d20",
 "tag": 37,
 "id": 40,
-"flags": 32,
 "name": "vy"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931d30",
 "tag": 37,
 "id": 41,
-"flags": 32,
 "name": "vz"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931d40",
 "tag": 42,
 "id": 0,
-"flags": 32,
 "name": "filmback"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931d50",
 "tag": 42,
 "id": 43,
-"flags": 32,
 "name": "x"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931d60",
 "tag": 42,
 "id": 44,
-"flags": 32,
 "name": "y"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931d70",
 "tag": 45,
 "id": 0,
-"flags": 32,
 "name": "panZoom"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931d80",
 "tag": 45,
 "id": 46,
-"flags": 32,
 "name": "camera"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931d90",
 "tag": 45,
 "id": 47,
-"flags": 32,
 "name": "zoom"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931da0",
 "tag": 45,
 "id": 48,
-"flags": 32,
 "name": "mode"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931db0",
 "tag": 45,
 "id": 49,
-"flags": 32,
 "name": "panX"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931dc0",
 "tag": 45,
 "id": 50,
-"flags": 32,
 "name": "panY"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931dd0",
 "tag": 45,
 "id": 51,
-"flags": 32,
 "name": "centered"
 },
 {
+"scope": "OZViewerStateScope",
 "addr": "0x931de0",
 "tag": 53,
 "id": 0,
-"flags": 64,
 "name": "mirrorHMD"
 },
 {
+"scope": "OZTimelineStateScope",
 "addr": "0x931e00",
 "tag": 81,
 "id": 0,
-"flags": 32,
 "name": "timeline"
 },
 {
+"scope": "OZTimelineStateScope",
 "addr": "0x931e10",
 "tag": 1,
 "id": 0,
-"flags": 32,
 "name": "displayVideo"
 },
 {
+"scope": "OZTimelineStateScope",
 "addr": "0x931e20",
 "tag": 2,
 "id": 0,
-"flags": 32,
 "name": "displayAudio"
 },
 {
+"scope": "OZTimelineStateScope",
 "addr": "0x931e30",
 "tag": 3,
 "id": 0,
-"flags": 32,
 "name": "displayKeyframes"
 },
 {
+"scope": "OZTimelineStateScope",
 "addr": "0x931e40",
 "tag": 4,
 "id": 0,
-"flags": 32,
 "name": "displayMasks"
 },
 {
+"scope": "OZTimelineStateScope",
 "addr": "0x931e50",
 "tag": 5,
 "id": 0,
-"flags": 32,
 "name": "displayBehaviors"
 },
 {
+"scope": "OZTimelineStateScope",
 "addr": "0x931e60",
 "tag": 6,
 "id": 0,
-"flags": 32,
 "name": "displayEffects"
 },
 {
+"scope": "OZTimelineStateScope",
 "addr": "0x931e70",
 "tag": 7,
 "id": 0,
-"flags": 32,
 "name": "videoVerticalZoom"
 },
 {
+"scope": "OZTimelineStateScope",
 "addr": "0x931e80",
 "tag": 8,
 "id": 0,
-"flags": 32,
 "name": "audioVerticalZoom"
 },
 {
+"scope": "OZTimelineStateScope",
 "addr": "0x931e90",
 "tag": 9,
 "id": 0,
-"flags": 32,
 "name": "displayRange"
 },
 {
+"scope": "OZTimelineStateScope",
 "addr": "0x931ea0",
 "tag": 9,
 "id": 1,
-"flags": 32,
 "name": "in"
 },
 {
+"scope": "OZGuideScope",
 "addr": "0x931f30",
 "tag": 76,
 "id": 0,
-"flags": 32,
 "name": "guide"
 },
 {
+"scope": "OZGuideScope",
 "addr": "0x931f40",
 "tag": 1,
 "id": 0,
-"flags": 32,
 "name": "location"
 },
 {
+"scope": "OZGuideScope",
 "addr": "0x931f50",
 "tag": 2,
 "id": 0,
-"flags": 64,
 "name": "vertical"
 },
 {
+"scope": "OZGuideSetScope",
 "addr": "0x931f70",
 "tag": 75,
 "id": 0,
-"flags": 32,
 "name": "guideset"
 },
 {
+"scope": "OZGuideSetScope",
 "addr": "0x931f80",
 "tag": 76,
 "id": 0,
-"flags": 64,
 "name": "guide"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x931fa0",
 "tag": 80,
 "id": 0,
-"flags": 32,
 "name": "projectPanel"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x931fb0",
 "tag": 10,
 "id": 0,
-"flags": 32,
 "name": "layersPreviewColumn"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x931fc0",
 "tag": 11,
 "id": 0,
-"flags": 32,
 "name": "layersOpacityColumn"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x931fd0",
 "tag": 12,
 "id": 0,
-"flags": 32,
 "name": "layersBlendColumn"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x931fe0",
 "tag": 1,
 "id": 0,
-"flags": 32,
 "name": "displayMasks"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x932000",
 "tag": 3,
 "id": 0,
-"flags": 32,
 "name": "displayEffects"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x932010",
 "tag": 4,
 "id": 0,
-"flags": 32,
 "name": "layersVerticalZoom"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x932020",
 "tag": 30,
 "id": 0,
-"flags": 32,
 "name": "mediaPreviewColumn"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x932030",
 "tag": 31,
 "id": 0,
-"flags": 32,
 "name": "mediaTypeColumn"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x932040",
 "tag": 32,
 "id": 0,
-"flags": 32,
 "name": "mediaDurationColumn"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x932050",
 "tag": 43,
 "id": 0,
-"flags": 32,
 "name": "mediaInUseColumn"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x932060",
 "tag": 33,
 "id": 0,
-"flags": 32,
 "name": "mediaFrameSizeColumn"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x932070",
 "tag": 34,
 "id": 0,
-"flags": 32,
 "name": "mediaCompressorColumn"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x932080",
 "tag": 35,
 "id": 0,
-"flags": 32,
 "name": "mediaDepthColumn"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x932090",
 "tag": 36,
 "id": 0,
-"flags": 32,
 "name": "mediaFrameRateColumn"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x9320a0",
 "tag": 37,
 "id": 0,
-"flags": 32,
 "name": "mediaDataRateColumn"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x9320b0",
 "tag": 38,
 "id": 0,
-"flags": 32,
 "name": "mediaAudioRateColumn"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x9320c0",
 "tag": 39,
 "id": 0,
-"flags": 32,
 "name": "mediaAudioFormatColumn"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x9320d0",
 "tag": 40,
 "id": 0,
-"flags": 32,
 "name": "mediaFileSizeColumn"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x9320e0",
 "tag": 41,
 "id": 0,
-"flags": 32,
 "name": "mediaFileCreatedColumn"
 },
 {
+"scope": "OZProjectPanelStateScope",
 "addr": "0x9320f0",
 "tag": 42,
 "id": 0,
-"flags": 32,
 "name": "mediaDileModifiedColumn"
 },
 {
+"scope": "OZShapeBehaviorScope",
 "addr": "0x9327c0",
 "tag": 801,
 "id": 0,
-"flags": 64,
 "name": "affectedVertex"
 },
 {
+"scope": "OZChannelBehaviorScope",
 "addr": "0x9327e0",
 "tag": 71,
 "id": 0,
-"flags": 32,
 "name": "channelBehavior"
 },
 {
+"scope": "OZChannelBehaviorScope",
 "addr": "0x9327f0",
 "tag": 71,
 "id": 1,
-"flags": 32,
 "name": "affectingFactory"
 },
 {
+"scope": "OZChannelBehaviorScope",
 "addr": "0x932800",
 "tag": 71,
 "id": 2,
-"flags": 32,
 "name": "affectingChannel"
 },
 {
+"scope": "OZChannelBehaviorScope",
 "addr": "0x932810",
 "tag": 71,
 "id": 3,
-"flags": 32,
 "name": "sliderRange"
 },
 {
+"scope": "OZChannelBehaviorScope",
 "addr": "0x932820",
 "tag": 71,
 "id": 4,
-"flags": 64,
 "name": "excludeCompoundFlags"
 },
 {
+"scope": "OZLayeredMaterialSequenceScope",
 "addr": "0x932840",
 "tag": 110,
 "id": 0,
-"flags": 32,
 "name": "parameter"
 },
 {
+"scope": "OZLayeredMaterialSequenceScope",
 "addr": "0x932850",
 "tag": 110,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZLayeredMaterialSequenceScope",
 "addr": "0x932860",
 "tag": 110,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZLayeredMaterialSequenceScope",
 "addr": "0x932870",
 "tag": 110,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZRotoshapeScope",
 "addr": "0x9329e0",
 "tag": 800,
 "id": 0,
-"flags": 32,
 "name": "vertex_folder"
 },
 {
+"scope": "OZRotoshapeScope",
 "addr": "0x9329f0",
 "tag": 601,
 "id": 0,
-"flags": 32,
 "name": "rotoshape"
 },
 {
+"scope": "OZRotoshapeScope",
 "addr": "0x932a00",
 "tag": 602,
 "id": 0,
-"flags": 32,
 "name": "properties"
 },
 {
+"scope": "OZRotoshapeScope",
 "addr": "0x932a10",
 "tag": 603,
 "id": 0,
-"flags": 32,
 "name": "curve_X"
 },
 {
+"scope": "OZRotoshapeScope",
 "addr": "0x932a20",
 "tag": 604,
 "id": 0,
-"flags": 32,
 "name": "curve_Y"
 },
 {
+"scope": "OZRotoshapeScope",
 "addr": "0x932a30",
 "tag": 605,
 "id": 0,
-"flags": 32,
 "name": "vertex"
 },
 {
+"scope": "OZRotoshapeScope",
 "addr": "0x932a40",
 "tag": 606,
 "id": 0,
-"flags": 32,
 "name": "is_rect"
 },
 {
+"scope": "OZRotoshapeScope",
 "addr": "0x932a50",
 "tag": 607,
 "id": 0,
-"flags": 32,
 "name": "isShapeStyle"
 },
 {
+"scope": "OZRotoshapeScope",
 "addr": "0x932a60",
 "tag": 605,
 "id": 504,
-"flags": 32,
 "name": "index"
 },
 {
+"scope": "OZRotoshapeScope",
 "addr": "0x932a70",
 "tag": 605,
 "id": 502,
-"flags": 32,
 "name": "flags"
 },
 {
+"scope": "OZRotoshapeScope",
 "addr": "0x932a80",
 "tag": 62,
 "id": 0,
-"flags": 32,
 "name": "scenenode"
 },
 {
+"scope": "OZRotoshapeScope",
 "addr": "0x932a90",
 "tag": 62,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZRotoshapeScope",
 "addr": "0x932aa0",
 "tag": 62,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZChannelStringEnumScope",
 "addr": "0x932b90",
 "tag": 170,
 "id": 0,
-"flags": 32,
 "name": "savedName"
 },
 {
+"scope": "OZ3DEngineSceneFileScope",
 "addr": "0x932d50",
 "tag": 1,
 "id": 0,
-"flags": 32,
 "name": "pathURL"
 },
 {
+"scope": "OZ3DEngineSceneFileScope",
 "addr": "0x932d60",
 "tag": 2,
 "id": 0,
-"flags": 32,
 "name": "relativeURL"
 },
 {
+"scope": "OZ3DEngineSceneFileScope",
 "addr": "0x932d70",
 "tag": 3,
 "id": 0,
-"flags": 32,
 "name": "missingWidth"
 },
 {
+"scope": "OZ3DEngineSceneFileScope",
 "addr": "0x932d80",
 "tag": 4,
 "id": 0,
-"flags": 32,
 "name": "missingHeight"
 },
 {
+"scope": "OZ3DEngineSceneFileScope",
 "addr": "0x932d90",
 "tag": 5,
 "id": 0,
-"flags": 32,
 "name": "missingDuration"
 },
 {
+"scope": "OZ3DEngineSceneFileScope",
 "addr": "0x932da0",
 "tag": 6,
 "id": 0,
-"flags": 32,
 "name": "creationDuration"
 },
 {
+"scope": "OZ3DEngineSceneFileScope",
 "addr": "0x932db0",
 "tag": 7,
 "id": 0,
-"flags": 32,
 "name": "mediaID"
 },
 {
+"scope": "OZ3DEngineSceneFileScope",
 "addr": "0x932dc0",
 "tag": 8,
 "id": 0,
-"flags": 32,
 "name": "bookmark"
 },
 {
+"scope": "OZ3DEngineSceneFileScope",
 "addr": "0x932dd0",
 "tag": 9,
 "id": 0,
-"flags": 64,
 "name": "relativeBookmark"
 },
 {
+"scope": "OZCanvasStateScope",
 "addr": "0x932df0",
 "tag": 84,
 "id": 0,
-"flags": 32,
 "name": "canvas"
 },
 {
+"scope": "OZCanvasStateScope",
 "addr": "0x932e00",
 "tag": 1,
 "id": 0,
-"flags": 32,
 "name": "layout"
 },
 {
+"scope": "OZCanvasStateScope",
 "addr": "0x932e10",
 "tag": 2,
 "id": 0,
-"flags": 64,
 "name": "activeView"
 },
 {
+"scope": "OZInspectorScope",
 "addr": "0x933060",
 "tag": 85,
 "id": 0,
-"flags": 32,
 "name": "inspector"
 },
 {
+"scope": "OZInspectorScope",
 "addr": "0x933070",
 "tag": 1,
 "id": 0,
-"flags": 32,
 "name": "collapseState"
 },
 {
+"scope": "OZInspectorScope",
 "addr": "0x933080",
 "tag": 1,
 "id": 1,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZRigScope",
 "addr": "0x933bc0",
 "tag": 62,
 "id": 0,
-"flags": 32,
 "name": "scenenode"
 },
 {
+"scope": "OZRigScope",
 "addr": "0x933bd0",
 "tag": 62,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZRigScope",
 "addr": "0x933be0",
 "tag": 62,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZChannelEnumWithListScope",
 "addr": "0x933cd0",
 "tag": 170,
 "id": 0,
-"flags": 32,
 "name": "entry"
 },
 {
+"scope": "OZChannelEnumWithListScope",
 "addr": "0x933ce0",
 "tag": 170,
 "id": 1,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZChannelEnumWithListScope",
 "addr": "0x933cf0",
 "tag": 170,
 "id": 2,
-"flags": 64,
 "name": "tag"
 },
 {
+"scope": "OZPublishSettingsScope",
 "addr": "0x933d10",
 "tag": 34,
 "id": 0,
-"flags": 32,
 "name": "publishSettings"
 },
 {
+"scope": "OZPublishSettingsScope",
 "addr": "0x933d20",
 "tag": 1,
 "id": 0,
-"flags": 32,
 "name": "version"
 },
 {
+"scope": "OZPublishSettingsScope",
 "addr": "0x933d30",
 "tag": 2,
 "id": 0,
-"flags": 32,
 "name": "target"
 },
 {
+"scope": "OZPublishSettingsScope",
 "addr": "0x933d40",
 "tag": 2,
 "id": 1,
-"flags": 32,
 "name": "channel"
 },
 {
+"scope": "OZPublishSettingsScope",
 "addr": "0x933d50",
 "tag": 2,
 "id": 2,
-"flags": 32,
 "name": "object"
 },
 {
+"scope": "OZPublishSettingsScope",
 "addr": "0x933d60",
 "tag": 2,
 "id": 3,
-"flags": 64,
 "name": "name"
 },
 {
+"scope": "OZMaterialLayerSequenceScope",
 "addr": "0x933d80",
 "tag": 110,
 "id": 0,
-"flags": 32,
 "name": "parameter"
 },
 {
+"scope": "OZMaterialLayerSequenceScope",
 "addr": "0x933d90",
 "tag": 110,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZMaterialLayerSequenceScope",
 "addr": "0x933da0",
 "tag": 110,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZMaterialLayerSequenceScope",
 "addr": "0x933db0",
 "tag": 110,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZMaterialLayerSequenceScope",
 "addr": "0x933dc0",
 "tag": 110,
 "id": 112,
-"flags": 64,
 "name": "flags"
 },
 {
+"scope": "OZRigWidgetScope",
 "addr": "0x933e00",
 "tag": 700,
 "id": 0,
-"flags": 32,
 "name": "affecting"
 },
 {
+"scope": "OZMaterialBaseScope",
 "addr": "0x934620",
 "tag": 81,
 "id": 0,
-"flags": 32,
 "name": "material"
 },
 {
+"scope": "OZMaterialBaseScope",
 "addr": "0x934630",
 "tag": 81,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZMaterialBaseScope",
 "addr": "0x934640",
 "tag": 81,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZMaterialBaseScope",
 "addr": "0x934650",
 "tag": 81,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZMaterialBaseScope",
 "addr": "0x934660",
 "tag": 200,
 "id": 0,
-"flags": 96,
 "name": "isNamed"
 },
 {
+"scope": "OZLinkBehaviorScope",
 "addr": "0x934690",
 "tag": 1002,
 "id": 0,
-"flags": 32,
 "name": "sourceParentChannelRef"
 },
 {
+"scope": "OZLinkBehaviorScope",
 "addr": "0x9346a0",
 "tag": 1003,
 "id": 0,
-"flags": 32,
 "name": "expressionChannels"
 },
 {
+"scope": "OZLinkBehaviorScope",
 "addr": "0x9346b0",
 "tag": 1005,
 "id": 0,
-"flags": 32,
 "name": "sourceChannelRef"
 },
 {
+"scope": "OZLinkBehaviorScope",
 "addr": "0x9346c0",
 "tag": 1006,
 "id": 0,
-"flags": 32,
 "name": "targetChannelID"
 },
 {
+"scope": "OZLinkBehaviorScope",
 "addr": "0x9346d0",
 "tag": 1020,
 "id": 0,
-"flags": 32,
 "name": "offsetChannelRef"
 },
 {
+"scope": "OZLinkBehaviorScope",
 "addr": "0x9346e0",
 "tag": 1021,
 "id": 0,
-"flags": 32,
 "name": "minChannelRef"
 },
 {
+"scope": "OZLinkBehaviorScope",
 "addr": "0x9346f0",
 "tag": 1022,
 "id": 0,
-"flags": 32,
 "name": "maxChannelRef"
 },
 {
+"scope": "OZLinkBehaviorScope",
 "addr": "0x934700",
 "tag": 1007,
 "id": 0,
-"flags": 32,
 "name": "dynamicChannelIDSet"
 },
 {
+"scope": "OZLinkBehaviorScope",
 "addr": "0x934710",
 "tag": 1007,
 "id": 1030,
-"flags": 32,
 "name": "offsetChannelID"
 },
 {
+"scope": "OZLinkBehaviorScope",
 "addr": "0x934720",
 "tag": 1007,
 "id": 1031,
-"flags": 32,
 "name": "rangeMinChannelID"
 },
 {
+"scope": "OZProjectNodeScope",
 "addr": "0x934880",
 "tag": 62,
 "id": 0,
-"flags": 32,
 "name": "scenenode"
 },
 {
+"scope": "OZProjectNodeScope",
 "addr": "0x934890",
 "tag": 62,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZProjectNodeScope",
 "addr": "0x9348a0",
 "tag": 62,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZProjectNodeScope",
 "addr": "0x9348b0",
 "tag": 62,
 "id": 111,
-"flags": 64,
 "name": "id"
 },
 {
+"scope": "OZImageElementScope",
 "addr": "0x9348d0",
 "tag": 1,
 "id": 0,
-"flags": 32,
 "name": "footageLayer"
 },
 {
+"scope": "OZImageElementScope",
 "addr": "0x9348e0",
 "tag": 2,
 "id": 0,
-"flags": 32,
 "name": "numberOfPages"
 },
 {
+"scope": "OZImageElementScope",
 "addr": "0x9348f0",
 "tag": 3,
 "id": 0,
-"flags": 32,
 "name": "validTracks"
 },
 {
+"scope": "OZImageElementScope",
 "addr": "0x934900",
 "tag": 4,
 "id": 0,
-"flags": 32,
 "name": "CinematicScript"
 },
 {
+"scope": "OZImageElementScope",
 "addr": "0x934910",
 "tag": 5,
 "id": 0,
-"flags": 32,
 "name": "type"
 },
 {
+"scope": "OZChannelFontBaseScope",
 "addr": "0x9349f0",
 "tag": 110,
 "id": 0,
-"flags": 32,
 "name": "parameter"
 },
 {
+"scope": "OZChannelFontBaseScope",
 "addr": "0x934a00",
 "tag": 110,
 "id": 113,
-"flags": 32,
 "name": "factoryID"
 },
 {
+"scope": "OZChannelFontBaseScope",
 "addr": "0x934a10",
 "tag": 110,
 "id": 110,
-"flags": 32,
 "name": "name"
 },
 {
+"scope": "OZChannelFontBaseScope",
 "addr": "0x934a20",
 "tag": 110,
 "id": 111,
-"flags": 32,
 "name": "id"
 },
 {
+"scope": "OZChannelFontBaseScope",
 "addr": "0x934a30",
 "tag": 110,
 "id": 112,
-"flags": 32,
 "name": "flags"
 },
 {
+"scope": "OZChannelFontBaseScope",
 "addr": "0x934a40",
 "tag": 114,
 "id": 0,
-"flags": 32,
 "name": "font"
 }
 ]
