@@ -358,6 +358,24 @@ export function applyRigBehaviors(
   for (const behavior of behaviors) {
     if (behavior.affectedObjectId !== layer.id) continue;
 
+    // A Rig Behavior whose controlling Widget object does NOT exist is INERT: it does
+    // not override the affected channel, which keeps its AUTHORED value. DECODED
+    // 2026-07-26 on Movements/Swing: the minimizer stripped the "Anchor"/"Direction"
+    // Widget scenenodes (they were referenced only by <publishSettings>, so structural
+    // minimization removed them), yet FCP-headless renders the stripped .motr IDENTICALLY
+    // to the full transition (full B in the tail, f12 mean [111,121,149]). FCP resolves the
+    // absent-widget rig to a no-op and leaves the channel's authored value: the "Right"
+    // group / "Right towards" layer are authored Opacity=0 (hidden), "Left"=1 (visible), so
+    // B shows. The old code defaulted the missing widget value to 0 → snapshot[0]=Opacity 1,
+    // which WRONGLY forced the hidden Right doors visible; they then rotated edge-on
+    // (m0=0, zero width) → BLACK tail (engine black f8-f23 where FCP shows B). Skipping the
+    // rig when its widget is absent restores the authored opacities and matches FCP. This is
+    // the same "no source ⇒ inert" principle already applied to source-less Link behaviors.
+    // widgetValues only ever contains REAL widgets (buildWidgetValueMap + the adjust* passes
+    // iterate scene.rigWidgets), so .has() cleanly distinguishes "widget absent" from
+    // "widget present with value 0".
+    if (!widgetValues.has(behavior.widgetId)) continue;
+
     const rawValue = widgetValues.get(behavior.widgetId) ?? 0;
     // Widget values may be fractional (e.g. aspect ratios) or discrete indices.
     // Round to nearest integer and clamp to the valid snapshot range.

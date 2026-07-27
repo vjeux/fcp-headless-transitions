@@ -31,6 +31,9 @@ export function computeFilterOverrides(scene: MotrScene, timeSec: number, widget
   // Find the max retime frame span for time→frame conversion (use scene duration)
   for (const behavior of scene.rigBehaviors) {
     if (!filterIds.has(behavior.affectedObjectId)) continue;
+    // A Rig Behavior whose Widget object is absent is INERT (see applyRigBehaviors in
+    // links.ts for the Movements/Swing decode) — leave the filter param at its authored value.
+    if (!widgetValues.has(behavior.widgetId)) continue;
     // This rig behavior targets a filter
     const rawValue = widgetValues.get(behavior.widgetId) ?? 0;
     let snapIndex = Math.round(rawValue);
