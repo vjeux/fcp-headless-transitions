@@ -8,11 +8,32 @@
 //   vtable: `__ZTV13OZCurveDouble + 0x10` stored at (this+0x0) — the vptr slot (@0x397f,
 //   @0x6a13e, @0x6a18b).
 //
-// Base helpers we ride but haven't decoded yet (each is a throwing stub — Rule 3):
-//   __ZN7OZCurveC2Edddd    OZCurve::OZCurve(double,double,double,double)      (@ProChannel U-stub, called @0x3973)
-//   __ZN7OZCurveC2ERKS_b   OZCurve::OZCurve(OZCurve const&, bool)             (called @0x6a132, @0x6a17f)
-//   __ZN7OZCurveD2Ev       OZCurve::~OZCurve()                                (called @0x3a0d)
-//   __ZN7OZCurve14setSplineStateEP13OZSplineState  OZCurve::setSplineState(...)  (called @0x3999)
+// Base helpers we ride. The 4 OZCurve base methods have been transcribed as instance/static
+// methods on OZCurveRuntime (raw-port/src/channels/OZCurveRuntime.ts) at the real addresses
+// listed below, but they do NOT compose with this subclass's call shape: OZCurveRuntime models
+// OZCurve::OZCurve(dddd) / OZCurve(const&,bool) as STATIC FACTORIES returning a fresh
+// OZCurveRuntime object (`make_bounds` / `make_copy`), whereas the C++ subclass ctor requires
+// the base ctor to INITIALISE THE SUBCLASS `this` IN PLACE. Delegating here would either
+// (a) fabricate a new in-place-init API on OZCurveRuntime (out-of-scope), or (b) discard the
+// returned runtime instance and leak "this" uninitialised (wrong). Per the port's "no wrong
+// delegation; accurate-address throwing stub is acceptable" rule, we keep the stubs and
+// correct the cited addresses so provenance is honest. `~OZCurve()` and `setSplineState()`
+// ARE clean instance methods on OZCurveRuntime, but they read runtime fields (extraNodes,
+// recordingNode, splineState, splineNode) that the throwing base ctor never installed on
+// `this` — delegating them would crash before doing useful work, so they also stay as
+// address-corrected throwing stubs.
+//   __ZN7OZCurveC2Edddd    OZCurve::OZCurve(double,double,double,double)
+//                          @ProChannel 0x1e494 (called @0x3973; transcribed as
+//                          OZCurveRuntime.make_bounds — static-factory shape, not in-place)
+//   __ZN7OZCurveC2ERKS_b   OZCurve::OZCurve(OZCurve const&, bool)
+//                          @ProChannel 0x1e56c (called @0x6a132, @0x6a17f; transcribed as
+//                          OZCurveRuntime.make_copy — static-factory shape)
+//   __ZN7OZCurveD2Ev       OZCurve::~OZCurve()
+//                          @ProChannel 0x1e77a (called @0x3a0d; transcribed as
+//                          OZCurveRuntime.prototype.destruct — needs runtime fields)
+//   __ZN7OZCurve14setSplineStateEP13OZSplineState  OZCurve::setSplineState(...)
+//                          @ProChannel 0x1ea66 (called @0x3999; transcribed as
+//                          OZCurveRuntime.prototype.setSplineState — needs runtime fields)
 //   __ZN24OZCurveDoubleSplineState11getInstanceEv OZCurveDoubleSplineState::getInstance() (called @0x3986)
 //
 // (The parser model OZCurve.ts in this file's sibling is intentionally NOT touched — it
@@ -30,7 +51,7 @@ function OZCurve_ctor_bounds(
   _initVal: number,
 ): void {
   throw new Error(
-    "OZCurve::OZCurve(double,double,double,double) @ProChannel 0x0 (__ZN7OZCurveC2Edddd U-import; call site @0x3973) not yet transcribed",
+    "OZCurve::OZCurve(double,double,double,double) @ProChannel 0x1e494 (__ZN7OZCurveC2Edddd; call site @0x3973; runtime decoded in OZCurveRuntime.ts as static make_bounds — cannot delegate: static-factory shape does not initialise subclass `this` in place) not yet transcribed as an in-place initialiser",
   );
 }
 
@@ -38,20 +59,20 @@ function OZCurve_ctor_bounds(
  */
 function OZCurve_copy_ctor(_self: OZCurveDouble, _src: OZCurveDouble, _flag: boolean): void {
   throw new Error(
-    "OZCurve::OZCurve(OZCurve const&, bool) @ProChannel 0x0 (__ZN7OZCurveC2ERKS_b U-import; call sites @0x6a132 @0x6a17f) not yet transcribed",
+    "OZCurve::OZCurve(OZCurve const&, bool) @ProChannel 0x1e56c (__ZN7OZCurveC2ERKS_b; call sites @0x6a132 @0x6a17f; runtime decoded in OZCurveRuntime.ts as static make_copy — cannot delegate: static-factory shape does not initialise subclass `this` in place) not yet transcribed as an in-place initialiser",
   );
 }
 
 /** OZCurve::~OZCurve() @ProChannel __ZN7OZCurveD2Ev — undecoded.
  */
 function OZCurve_dtor(_self: OZCurveDouble): void {
-  throw new Error("OZCurve::~OZCurve() @ProChannel 0x0 (__ZN7OZCurveD2Ev U-import; call sites @0x39a9 @0x3a0d @0x6a104) not yet transcribed");
+  throw new Error("OZCurve::~OZCurve() @ProChannel 0x1e77a (__ZN7OZCurveD2Ev; call sites @0x39a9 @0x3a0d @0x6a104; runtime decoded in OZCurveRuntime.ts as instance method `destruct` — cannot delegate: reads runtime fields (extraNodes, recordingNode, splineState) that the throwing base ctor never installed on `this`) not yet reachable via this subclass",);
 }
 
 /** OZCurve::setSplineState(OZSplineState*) @ProChannel __ZN7OZCurve14setSplineStateEP13OZSplineState — undecoded. */
 function OZCurve_setSplineState(_self: OZCurveDouble, _state: unknown): void {
   throw new Error(
-    "OZCurve::setSplineState(OZSplineState*) @ProChannel 0x0 (__ZN7OZCurve14setSplineStateEP13OZSplineState U-import; call site @0x3999) not yet transcribed",
+    "OZCurve::setSplineState(OZSplineState*) @ProChannel 0x1ea66 (__ZN7OZCurve14setSplineStateEP13OZSplineState; call site @0x3999; runtime decoded in OZCurveRuntime.ts as instance method `setSplineState` — cannot delegate: reads splineState + splineNode fields the throwing base ctor never installed on `this`) not yet reachable via this subclass",
   );
 }
 
