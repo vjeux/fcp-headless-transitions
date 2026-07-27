@@ -21,6 +21,8 @@
 
 import { PCSerializerReadStream } from "../infra/PCSerializerReadStream.js";
 import { PCStreamElement } from "../infra/PCStreamElement.js";
+import { OZChannelBase } from "../channels/OZChannelBase.js";
+import { buildChannelTree } from "../channels/OZChannelFolder.js";
 
 /** A filter/effect attached to a scene node (created via OZFactories::lookupFactory). */
 export interface OZAttachedEffect {
@@ -56,6 +58,12 @@ export class OZSceneNode {
   filters: OZAttachedEffect[] = [];
   behaviors: OZAttachedBehavior[] = [];
   linkedObjects: number[] = [];
+  /** The node's <parameter> channel tree roots (Properties/Object/...) — every VALUE lives here.
+   *  Built via OZChannelObjectRoot::parseElement (which OZSceneNode::parseElement calls @0x91b40). */
+  channels: OZChannelBase[] = [];
+
+  /** Find a top-level channel folder by id (e.g. Properties=1, Object=2). */
+  channel(id: number): OZChannelBase | undefined { return this.channels.find(c => c.id === id); }
 
   /** parseElement @ 0x91aa0. Reads a plugin descriptor (factoryID/name/id/pluginUUID/...). */
   protected readPluginDescriptor(s: PCSerializerReadStream, e: PCStreamElement): OZAttachedEffect {
@@ -72,9 +80,12 @@ export class OZSceneNode {
   }
 
   parseElement(s: PCSerializerReadStream, e: PCStreamElement): void {
-    // NOTE: FCP calls OZChannelObjectRoot::parseElement (the <parameter>/channel tree) FIRST
-    // (0x91b40). That base is ported in channels/OZChannelObjectRoot.ts; the concrete node
-    // subclass wires it. Here we handle the OZSceneNode-level element tags.
+    // FCP calls OZChannelObjectRoot::parseElement (the <parameter> channel tree) FIRST (@0x91b40):
+    // a top-level <parameter> child is a channel-folder root (Properties=1, Object=2, ...). Build it.
+    if (e.tagName === "parameter") {
+      this.channels.push(buildChannelTree(s, e));
+      return;
+    }
     switch (e.type) {
       case OZSceneNode.TAG_FILTER: {          // 0x44 <filter>
         this.filters.push(this.readPluginDescriptor(s, e));

@@ -47,3 +47,37 @@ export class OZChannelFolder extends OZChannelBase {
     this.push_back(node);                                                                        // 0x66819
   }
 }
+
+// --- Channel-tree builder (module function) -------------------------------------------------
+// Build the channel tree for a <parameter> PCStreamElement. Returns an OZChannelFolder when the
+// element has child <parameter>s, else a leaf OZChannel. Mirrors OZChannelFolder::parseElement
+// (@0x666xx): id(0x6f)/name(0x6e)/factoryID(0x71)/flags(0x70 u64)/value(0x72->setInitialValue)/
+// default(0x73->setDefaultValue); recurse child <parameter>; attach <curve> to leaves.
+import { OZCurve, OZKeypoint } from "./OZCurve.js";
+
+export function buildChannelTree(s: PCSerializerReadStream, e: PCStreamElement): OZChannelBase {
+  const hasChildParams = e.children.some(c => c.tagName === "parameter");
+  const node: OZChannelBase = hasChildParams ? new OZChannelFolder() : new OZChannel();
+  const id = s.getAttributeAsUInt32(e, 0x6f); if (id !== undefined) node.id = id;
+  const nm = s.getAttributeAsString(e, 0x6e); if (nm !== undefined) node.name = nm;
+  const fid = s.getAttributeAsUInt32(e, 0x71); if (fid !== undefined) node.factoryID = fid;
+  const fl = s.getAttributeAsUInt32(e, 0x70); if (fl !== undefined) node.flags = BigInt(fl >>> 0);
+  if (node instanceof OZChannel) {
+    const val = s.getAttributeAsDouble(e, 0x72); if (val !== undefined) node.setInitialValue(val);
+    const def = s.getAttributeAsDouble(e, 0x73); if (def !== undefined) node.setDefaultValue(def);
+  }
+  for (const c of e.children) {
+    if (c.tagName === "parameter") {
+      const child = buildChannelTree(s, c);
+      if (node instanceof OZChannelFolder) node.push_back(child);
+    } else if (c.tagName === "curve" && node instanceof OZChannel) {
+      const cv = new OZCurve();
+      for (const g of c.children) cv.parseElement(s, g);
+      // curve attrs on the <curve> element itself:
+      const t = s.getAttributeAsUInt32(c, 0x4); if (t !== undefined) cv.type = t;
+      const re = s.getAttributeAsUInt32(c, 0x7); if (re !== undefined) cv.retimingExtrapolation = re;
+      node.curve = cv;
+    }
+  }
+  return node;
+}
