@@ -9,13 +9,20 @@
 import { PCSerializerReadStream } from "../infra/PCSerializerReadStream.js";
 import { PCStreamElement } from "../infra/PCStreamElement.js";
 
-/** One keyframe: a rational time + value (+ optional tangents/interp). */
+/** One keyframe: a rational time + value (+ optional 2D-Bézier tangent handles/interp). */
 export interface OZKeypoint {
   time: number;            // CMTime numerator in the stream timescale (setTimeScale)
   value: number;
   interpolation?: number;  // 0xa
-  inTangent?: number;
-  outTangent?: number;
+  // Bézier/CatmullRom tangent HANDLES, in (time,value) space, relative to this keypoint.
+  // DECODED: the .motr tags are inputTangentTime/inputTangentValue/outputTangentTime/
+  // outputTangentValue (strings present verbatim in ProChannel; consumed via
+  // OZChannelCurve -> OZChannelCurve::setTangents(OZVertex2D, CMTime tanTime, double, double)).
+  // The incoming handle time is NEGATIVE (points back toward the previous keypoint).
+  inputTangentTime?: number;
+  inputTangentValue?: number;
+  outputTangentTime?: number;
+  outputTangentValue?: number;
   flags?: number;          // 0xb
 }
 
@@ -40,8 +47,10 @@ export class OZCurve {
         for (const c of e.children) {
           if (c.tagName === "time") kp.time = s.getAsFigTime(c); // CMTime "value ts epoch flags" -> seconds
           else if (c.tagName === "value") kp.value = s.getAsDouble(c);
-          else if (c.tagName === "inTangent") kp.inTangent = s.getAsDouble(c);
-          else if (c.tagName === "outTangent") kp.outTangent = s.getAsDouble(c);
+          else if (c.tagName === "inputTangentTime") kp.inputTangentTime = s.getAsDouble(c);
+          else if (c.tagName === "inputTangentValue") kp.inputTangentValue = s.getAsDouble(c);
+          else if (c.tagName === "outputTangentTime") kp.outputTangentTime = s.getAsDouble(c);
+          else if (c.tagName === "outputTangentValue") kp.outputTangentValue = s.getAsDouble(c);
         }
         const interp = s.getAttributeAsUInt32(e, 0xa); if (interp !== undefined) kp.interpolation = interp;
         const flags = s.getAttributeAsUInt32(e, 0xb); if (flags !== undefined) kp.flags = flags;
