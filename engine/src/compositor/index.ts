@@ -169,11 +169,24 @@ function collectCulledStandaloneAB(scene: EvaluatedScene): Set<number> {
  * while STILL letting a disabled transition-source LEAF (own scenenode disabled but enabled
  * parent) feed its media to clones. See RenderContext.disabledSubtreeIds and the
  * Movements/Swing vs 3D_Rectangle (_t_3dr_v7) decode.
+ *
+ * EXCEPTION — a TRANSITION-SOURCE A/B IMAGE LEAF (an image layer whose source is transitionA/B)
+ * inside a disabled group is NOT added: FCP still feeds its A/B media to any clone that
+ * references it. DECODED 2026-07-27 on Replicator-Clones/Concentric: its "Drop Zones" group
+ * (id 14142) is <enabled>0</enabled> and holds the Transition-A (10008) + Transition-B (10006)
+ * image leaves; 33 "Clone A/B copy N" layers clone them into concentric rings. Culling the
+ * leaves (they had a disabled ANCESTOR) made every clone resolve null → the whole transition
+ * rendered BLACK, while FCP shows the concentric A/B rings. The 3dr_v7 cull that this set exists
+ * for targets a disabled-group CLONE node (factory-16), NOT an A/B image leaf, so excluding A/B
+ * image leaves keeps that cull intact (verified: _t_3dr_v7 clones a disabled-group CLONE 14023,
+ * which is still culled).
  */
 function collectDisabledSubtreeIds(layers: EvaluatedLayer[]): Set<number> {
   const out = new Set<number>();
   const walk = (raw: Layer, ancestorDisabled: boolean): void => {
-    if (ancestorDisabled) out.add(raw.id);
+    const isABImageLeaf = raw.type === 'image'
+      && (raw.source?.type === 'transitionA' || raw.source?.type === 'transitionB');
+    if (ancestorDisabled && !isABImageLeaf) out.add(raw.id);
     const disabledHere = ancestorDisabled || raw.enabled === false;
     for (const child of raw.children) walk(child, disabledHere);
   };
