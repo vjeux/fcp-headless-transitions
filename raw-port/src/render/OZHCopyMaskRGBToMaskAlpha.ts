@@ -34,19 +34,14 @@
 // disassembly: GetDOD moves rcx→rax and r8→rdx with NO reads of the interior, and when it
 // returns HGRectNull it dereferences (rcx) and 0x8(rcx) — i.e. it reads the two 8-byte halves.
 
-/**
- * HGRect — Ozone/HG's 2D rectangle type. The Ozone binary passes and returns it as two
- * 8-byte halves in {rax,rdx}. See file header for the ABI note.
- *
- * Layout is opaque to OZHCopyMaskRGBToMaskAlpha (never accessed by field here), so this class
- * models it as an opaque {lo,hi} pair matching the register-pair the SysV ABI uses. Any decoder
- * that later recovers the field layout (int32 x/y/w/h or float64 xy/wh) MUST replace this
- * interface repo-wide; keeping the halves means we do not INVENT a layout here.
- */
-export interface HGRect {
-    lo: bigint;   // register half 0 (bytes 0..7)
-    hi: bigint;   // register half 1 (bytes 8..15)
-}
+// HGRect is the canonical Helium type — corner-form int32 {x, y, right, bottom}.
+// See raw-port/src/render/HGRect.ts. This file previously modelled HGRect as
+// two opaque bigint halves {lo, hi} because GetDOD never inspects the
+// interior — it just passes 16 bytes through OR replaces them with
+// _HGRectNull. Since no bigint bit-packing math is performed here, adopting
+// the canonical corner-form type is safe (pass-through semantics unchanged).
+import { HGRect, HGRectNull as HGRectNullConst } from "./HGRect.js";
+export { HGRect };
 
 /**
  * Forward declarations for pointer args. These stand in for real FCP types the decoder has not
@@ -56,12 +51,12 @@ export interface HGRect {
 export type HGRenderer = { readonly __hgRendererBrand: unique symbol } | object;
 
 /**
- * _HGRectNull — the "empty rectangle" global HGRect exported by the Ozone binary and read at
- * @Ozone 0x42428b (GetDOD's non-zero-input branch). Its numeric value is not encoded in
- * OZHCopyMaskRGBToMaskAlpha itself; it lives in the Ozone data segment. Frontier stub.
+ * _HGRectNull — the "empty rectangle" global HGRect read by GetDOD at
+ * @Ozone 0x42428b. Delegates to the canonical Helium _HGRectNull decoded in
+ * HGRect.ts (same _HGRectNull data symbol shared across Ozone/Helium).
  */
 export function hgRectNull(): HGRect {
-    throw new Error("_HGRectNull @Ozone 0x42428b not yet transcribed (data-segment global)");
+    return HGRectNullConst;
 }
 
 /**
@@ -106,21 +101,20 @@ export class OZHCopyMaskRGBToMaskAlpha {
      * confirmed by the disassembly having no loads through rdi or rsi.
      */
     getDOD(_renderer: HGRenderer, inputIndex: number, rect: HGRect): HGRect {
-        // rax <- rect.lo  (unconditional, before the branch)
-        let retLo: bigint = rect.lo;
-        // r8   holds rect.hi at function entry
-        let retHi: bigint = rect.hi;
+        // Faithful 2-branch dispatch — the 16-byte rect is moved as a whole
+        // by the disasm (no field-level manipulation on either path), so the
+        // canonical HGRect struct is passed through opaquely.
 
         // testl %edx,%edx ; je 0x42429a  — branch iff inputIndex == 0
         if ((inputIndex | 0) !== 0) {
-            // Non-zero input pin -> both halves come from _HGRectNull.
-            const nullRect: HGRect = hgRectNull();
-            retLo = nullRect.lo;      // movq (%rcx),%rax
-            retHi = nullRect.hi;      // movq 0x8(%rcx),%r8
+            // Non-zero input pin -> return _HGRectNull.
+            // @Ozone 0x42428b movq _HGRectNull(%rip),%rcx
+            // @Ozone 0x424292 movq (%rcx),%rax     (return.lo)
+            // @Ozone 0x424295 movq 0x8(%rcx),%r8   (return.hi)
+            return hgRectNull();
         }
-
-        // movq %r8,%rdx ; retq
-        return { lo: retLo, hi: retHi };
+        // @Ozone 0x424280 movq %rcx,%rax  ; 0x42429a movq %r8,%rdx  — return input verbatim.
+        return rect;
     }
 
     /**

@@ -47,15 +47,21 @@
 // Frontier types (undecoded C++ types surfaced as opaque handles).
 // ---------------------------------------------------------------------------
 
-/** HGRect — Ozone's rectangle type, stored as (x1, y1, x2, y2) int32 corners
- *  packed into two qwords. Source: layout deduced from GetDOD clamp pattern
- *  and HGRectMake4i arg passing (see file header). */
-export interface HGRect {
-  readonly x1: number;
-  readonly y1: number;
-  readonly x2: number;
-  readonly y2: number;
-}
+// HGRect is the canonical Helium type — corner-form int32 {x, y, right, bottom}.
+// See raw-port/src/render/HGRect.ts. This file's old field names {x1,y1,x2,y2}
+// were the SAME corner form (x1/y1 = top-left inclusive, x2/y2 = exclusive
+// far corner — see clamp bounds pattern below) and map 1:1 to canonical
+// {x, y, right, bottom}. The _HGRectNull @0x436c03/@0x436e3c is the same
+// 16-zero-bytes _HGRectNull decoded in HGRect.ts, and _HGRectMake4i @0x6dcca8
+// and _HGRectIsNull @0x6dcc9c both resolve to the Helium impls we transcribed
+// there.
+import {
+  HGRect,
+  HGRectMake4i as HGRectMake4iCanonical,
+  HGRectIsNull as HGRectIsNullCanonical,
+  HGRectNull as HGRectNullConst,
+} from "./HGRect.js";
+export { HGRect };
 
 /** HGRenderer* — opaque; only the two methods below are used from this file. */
 export interface HGRenderer {
@@ -107,32 +113,28 @@ export interface HMaskCompSubtract extends HgcMaskCompSubtract {}
 // ---------------------------------------------------------------------------
 
 /** _HGRectNull — Ozone's "null rectangle" sentinel. Read at 0x436c03/0x436e3c
- *  as two qwords (rax=lo, r8/rdx=hi). Its exact bit pattern is defined in
- *  Ozone's data segment; a fully faithful port must read those 16 bytes at
- *  runtime. Documented as an undecoded frontier data symbol. */
+ *  as two qwords (rax=lo, r8/rdx=hi). Delegates to the canonical Helium
+ *  HGRectNull decoded in HGRect.ts (same _HGRectNull symbol across
+ *  Ozone/Flexo/Helium). */
 export function HGRectNull(): HGRect {
-  // @Ozone _HGRectNull data symbol — value not yet transcribed.
-  throw new Error("HGRectNull @Ozone _HGRectNull (data symbol referenced at 0x436c03 / 0x436e3c) not yet transcribed");
+  // @Ozone _HGRectNull data symbol (RIP-loaded at 0x436c03 / 0x436e3c)
+  //   -> canonical Helium _HGRectNull @0x3d2284 = {0,0,0,0}.
+  return HGRectNullConst;
 }
 
-/** _HGRectIsNull(HGRect) — stub for the imported predicate @Ozone 0x6dcc9c.
- *  Not yet transcribed (leaf helper — needs the HGRectNull bit pattern to
- *  compare against). */
-export function HGRectIsNull(_r: HGRect): boolean {
-  throw new Error("HGRectIsNull @Ozone 0x6dcc9c not yet transcribed");
+/** _HGRectIsNull(HGRect) — @Ozone 0x6dcc9c symbol stub -> canonical Helium
+ *  _HGRectIsNull @0x107b20 (`r.right <= r.x || r.bottom <= r.y`). */
+export function HGRectIsNull(r: HGRect): boolean {
+  return HGRectIsNullCanonical(r);
 }
 
-/** _HGRectMake4i(x1, y1, x2, y2) — stub for the imported constructor
- *  @Ozone 0x6dcca8. This file's HMaskCompSubtract::GetDOD passes (x1, y1,
- *  x2, y2) exactly (see 0x436d7f-0x436d8e), i.e. corners rather than
- *  (x, y, w, h). Not yet transcribed. */
+/** _HGRectMake4i @Ozone 0x6dcca8 -> canonical Helium _HGRectMake4i @0x107710.
+ *  The callsite at 0x436d7f-0x436d8e passes (x1, y1, x2, y2) corners in
+ *  (edi, esi, edx, ecx), and the canonical impl normalises to
+ *  {min, max} across each axis — matching the callsite's precomputed
+ *  min_x1/y1 + max_x2/y2 UNION corners exactly. */
 export function HGRectMake4i(x1: number, y1: number, x2: number, y2: number): HGRect {
-  // @Ozone 0x6dcca8 — the storage form of an HGRect. Deferred.
-  // We keep the transcription faithful by NOT synthesizing a struct here,
-  // and forcing whoever ports 0x6dcca8 to decide the (x1,y1,x2,y2) vs
-  // (x,y,w,h) representation once, in one place.
-  void x1; void y1; void x2; void y2;
-  throw new Error("HGRectMake4i @Ozone 0x6dcca8 not yet transcribed (called from HMaskCompSubtract::GetDOD @0x436d8e)");
+  return HGRectMake4iCanonical(x1, y1, x2, y2);
 }
 
 // ---------------------------------------------------------------------------
@@ -273,14 +275,14 @@ export function HMaskCompSubtract_GetDOD(
     in0_x1 = 0;   // -0x48
     in0_y1 = 0;   // -0x4c
   } else {
-    // @0x436c6b clamp dod0.x1 (ebx low32) → edx
-    const x1 = clampLo(i32(dod0.x1));
-    // @0x436c7e shrq $0x20, %rbx ; @0x436c82 clamp dod0.y1 (ebx high32) → ecx
-    const y1 = clampLo(i32(dod0.y1));
-    // @0x436c8b clamp dod0.x2 (r13 low32) → edi
-    const x2 = clampHi(i32(dod0.x2));
-    // @0x436ca0 shrq $0x20, %r13 ; @0x436ca4 clamp dod0.y2 (r13 high32) → esi
-    const y2 = clampHi(i32(dod0.y2));
+    // @0x436c6b clamp dod0.x (ebx low32) → edx
+    const x1 = clampLo(i32(dod0.x));
+    // @0x436c7e shrq $0x20, %rbx ; @0x436c82 clamp dod0.y (ebx high32) → ecx
+    const y1 = clampLo(i32(dod0.y));
+    // @0x436c8b clamp dod0.right (r13 low32) → edi
+    const x2 = clampHi(i32(dod0.right));
+    // @0x436ca0 shrq $0x20, %r13 ; @0x436ca4 clamp dod0.bottom (r13 high32) → esi
+    const y2 = clampHi(i32(dod0.bottom));
     // @0x436caf subl %edx, %edi  ; @0x436cb1 subl %ecx, %esi
     in0_w = i32(x2 - x1);   // -0x58
     in0_h = i32(y2 - y1);   // -0x44
@@ -314,14 +316,14 @@ export function HMaskCompSubtract_GetDOD(
     in1_y1 = 0;              // -0x54
     in1_w = 0;               // -0x50 (see note above)
   } else {
-    // @0x436cfb clampLo(dod1.x1) → r13d
-    const x1 = clampLo(i32(dod1.x1));
-    // @0x436d15 clampLo(dod1.y1) → eax
-    const y1 = clampLo(i32(dod1.y1));
-    // @0x436d20 clampHi(dod1.x2) → ecx
-    const x2 = clampHi(i32(dod1.x2));
-    // @0x436d38 clampHi(dod1.y2) → r12d
-    const y2 = clampHi(i32(dod1.y2));
+    // @0x436cfb clampLo(dod1.x) → r13d
+    const x1 = clampLo(i32(dod1.x));
+    // @0x436d15 clampLo(dod1.y) → eax
+    const y1 = clampLo(i32(dod1.y));
+    // @0x436d20 clampHi(dod1.right) → ecx
+    const x2 = clampHi(i32(dod1.right));
+    // @0x436d38 clampHi(dod1.bottom) → r12d
+    const y2 = clampHi(i32(dod1.bottom));
     // @0x436d42 subl %r13d, %ecx  → w
     in1_w = i32(x2 - x1);            // -0x50
     // @0x436d48 movl %eax, -0x54(%rbp)

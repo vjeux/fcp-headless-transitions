@@ -25,18 +25,20 @@
 // per file" rule; a future HGRect.ts port will replace this alias.
 // ---------------------------------------------------------------------------
 
-/** HGRect — four int32s (x, y, right, bottom). Storage layout is recovered
- *  from the register split in GetDOD @0x425880-@0x425926: after
- *  `HGRenderer::GetDOD` returns HGRect via %rax:%rdx, the low half of %rax is
- *  read as `x` (0x4258f1 `cmpl $0xc0000002, %ebx`) and the high half via
- *  `shrq $0x20, %rbx` (0x425904); the low half of %rdx is `r` (0x425911) and
- *  its high half `b` (0x425926). Fields are signed 32-bit ints. */
-export interface HGRect {
-  readonly x: number;
-  readonly y: number;
-  readonly r: number;
-  readonly b: number;
-}
+// HGRect is the canonical Helium type — corner-form int32 {x, y, right, bottom}.
+// See raw-port/src/render/HGRect.ts. This file's old field names {x, y, r, b}
+// were the SAME corner form (r = right, b = bottom — recovered from the
+// register split at GetDOD @0x425880-@0x425926) and map 1:1 to canonical
+// {x, y, right, bottom}. _HGRectIsNull @0x6dcc9c, _HGRectMake4i @0x6dcca8 and
+// _HGRectNull @0x425884/@0x425a5c all resolve to the real Helium impls
+// decoded in HGRect.ts.
+import {
+  HGRect,
+  HGRectIsNull as HGRectIsNullCanonical,
+  HGRectMake4i as HGRectMake4iCanonical,
+  HGRectNull as HGRectNullConst,
+} from "./HGRect.js";
+export { HGRect };
 
 /** HGRenderer — opaque. GetDOD only exercises two of its members:
  *   HGRenderer::GetInput(HGNode*, int)   @Ozone symbol stub 0x6dd37a
@@ -62,26 +64,25 @@ export type HGNode = object;
 // changes the union path taken.
 // ---------------------------------------------------------------------------
 
-/** _HGRectIsNull — symbol stub @Ozone 0x6dcc9c (called from GetDOD
- *  @0x4258ce and @0x42596c). Returns nonzero when the rect represents the
- *  "null" (empty) domain. Not yet transcribed. */
-function HGRectIsNull(_rect: HGRect): number {
-  throw new Error("HGRectIsNull @Ozone 0x6dcc9c symbol stub — not yet transcribed");
+/** _HGRectIsNull — @Ozone 0x6dcc9c symbol stub -> canonical Helium
+ *  _HGRectIsNull @0x107b20 (`r.right <= r.x || r.bottom <= r.y`). Called from
+ *  GetDOD @0x4258ce and @0x42596c. */
+function HGRectIsNull(rect: HGRect): boolean {
+  return HGRectIsNullCanonical(rect);
 }
 
-/** _HGRectMake4i — symbol stub @Ozone 0x6dcca8 (tail-called from GetDOD
- *  @0x425a48). Packs four int32s (x, y, right, bottom) into an HGRect.
- *  Not yet transcribed. */
-function HGRectMake4i(_x: number, _y: number, _r: number, _b: number): HGRect {
-  throw new Error("HGRectMake4i @Ozone 0x6dcca8 symbol stub — not yet transcribed");
+/** _HGRectMake4i — @Ozone 0x6dcca8 symbol stub -> canonical Helium
+ *  _HGRectMake4i @0x107710. Tail-called from GetDOD @0x425a48; packs four
+ *  int32s (x, y, right, bottom) into an HGRect (normalising so x<=right,
+ *  y<=bottom — matches the callsite's precomputed union corners). */
+function HGRectMake4i(x: number, y: number, r: number, b: number): HGRect {
+  return HGRectMake4iCanonical(x, y, r, b);
 }
 
-/** _HGRectNull — literal-pool symbol @Ozone (read via RIP-relative load at
- *  @0x425884 `movq 0x3fb495(%rip), %rcx` and @0x425a5c `movq 0x3fb2bd(%rip),
- *  %rcx`). Both call sites dereference `*rcx` and `*(rcx+8)` to load the two
- *  halves of the null HGRect. Not yet transcribed. */
+/** _HGRectNull — @Ozone data symbol (RIP-loaded @0x425884 / @0x425a5c) ->
+ *  canonical Helium _HGRectNull @0x3d2284 = {0,0,0,0}. */
 function HGRectNull(): HGRect {
-  throw new Error("HGRectNull @Ozone data symbol (loaded @0x425884 / @0x425a5c) — not yet transcribed");
+  return HGRectNullConst;
 }
 
 /** HgcMaskStrokeAdd::~HgcMaskStrokeAdd — base-class destructor called by both
@@ -189,17 +190,17 @@ export class HMaskSimpleStrokeAdd {
     let h0 = -1 | 0;
 
     // @0x4258ed-@0x425937 — if !HGRectIsNull(rectA): clamp + convert to w/h.
-    if (HGRectIsNull(rectA) === 0) {
+    if (!HGRectIsNull(rectA)) {
       // @0x4258f1-@0x425901 — x0 = (rectA.x >= 0xC0000002) ? rectA.x : 0xC0000001.
       // 0xC0000002 as signed int32 = -1073741822; 0xC0000001 = -1073741823.
       // So: clamp x to a lower bound of -0x3FFFFFFF (= 0xC0000001 signed).
       x0 = (rectA.x | 0) >= (0xc0000002 | 0) ? (rectA.x | 0) : (0xc0000001 | 0);
       // @0x425904-@0x42590e — y0 same clamp on rectA.y.
       y0 = (rectA.y | 0) >= (0xc0000002 | 0) ? (rectA.y | 0) : (0xc0000001 | 0);
-      // @0x425911-@0x425922 — r0 = (rectA.r < 0x3FFFFFFE) ? rectA.r : 0x3FFFFFFE.
-      const r0 = (rectA.r | 0) < 0x3ffffffe ? (rectA.r | 0) : 0x3ffffffe;
+      // @0x425911-@0x425922 — r0 = (rectA.right < 0x3FFFFFFE) ? rectA.right : 0x3FFFFFFE.
+      const r0 = (rectA.right | 0) < 0x3ffffffe ? (rectA.right | 0) : 0x3ffffffe;
       // @0x425926-@0x425931 — b0 same clamp on rectA.b.
-      const b0 = (rectA.b | 0) < 0x3ffffffe ? (rectA.b | 0) : 0x3ffffffe;
+      const b0 = (rectA.bottom | 0) < 0x3ffffffe ? (rectA.bottom | 0) : 0x3ffffffe;
       // @0x425935-@0x425937 — convert to width/height (int32 subtraction).
       w0 = ((r0 - x0) | 0);
       h0 = ((b0 - y0) | 0);
@@ -219,11 +220,11 @@ export class HMaskSimpleStrokeAdd {
     let h1 = -1 | 0;
 
     // @0x425982-@0x4259cc — if !HGRectIsNull(rectB): clamp + convert.
-    if (HGRectIsNull(rectB) === 0) {
+    if (!HGRectIsNull(rectB)) {
       x1 = (rectB.x | 0) >= (0xc0000002 | 0) ? (rectB.x | 0) : (0xc0000001 | 0);
       y1 = (rectB.y | 0) >= (0xc0000002 | 0) ? (rectB.y | 0) : (0xc0000001 | 0);
-      const r1 = (rectB.r | 0) < 0x3ffffffe ? (rectB.r | 0) : 0x3ffffffe;
-      const b1 = (rectB.b | 0) < 0x3ffffffe ? (rectB.b | 0) : 0x3ffffffe;
+      const r1 = (rectB.right | 0) < 0x3ffffffe ? (rectB.right | 0) : 0x3ffffffe;
+      const b1 = (rectB.bottom | 0) < 0x3ffffffe ? (rectB.bottom | 0) : 0x3ffffffe;
       w1 = ((r1 - x1) | 0);
       h1 = ((b1 - y1) | 0);
     }

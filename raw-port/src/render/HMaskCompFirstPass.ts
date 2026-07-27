@@ -54,14 +54,14 @@
 // Frontier types (undecoded C++ types surfaced as opaque handles).
 // ---------------------------------------------------------------------------
 
-/** HGRect — Flexo/Helium's rectangle type, stored as (x1, y1, x2, y2) int32
- *  corners packed into two qwords. See file header for decode evidence. */
-export interface HGRect {
-  readonly x1: number;
-  readonly y1: number;
-  readonly x2: number;
-  readonly y2: number;
-}
+// HGRect is the canonical Helium type — corner-form int32 {x, y, right, bottom}.
+// See raw-port/src/render/HGRect.ts. The `_HGRectNull` symbol referenced by
+// this file at 0x60201e / 0x60207b is the same 16-zero-bytes _HGRectNull
+// decoded there (Helium and Flexo share the sentinel). The bit-layout note in
+// the file header (rcx = x1|y1<<32, r8 = x2|y2<<32) is the SAME corner form —
+// the old field names {x1,y1,x2,y2} map 1:1 to canonical {x,y,right,bottom}.
+import { HGRect, HGRectNull as HGRectNullConst, HGRectIsNull as HGRectIsNullCanonical } from "./HGRect.js";
+export { HGRect };
 
 /** HGRenderer* — opaque handle. HMaskCompFirstPass::GetDOD / GetROI ignore it
  *  (no callq/mov via %rsi in either method). */
@@ -91,19 +91,22 @@ export interface HMaskCompFirstPass extends HgcMaskCompFirstPass {
 // ---------------------------------------------------------------------------
 
 /** _HGRectNull — Flexo's "null rectangle" sentinel. Read at 0x60201e/0x60207b
- *  as two qwords (rax=lo, r14/r8=hi). Its exact bit pattern is defined in
- *  Flexo's data segment; a fully faithful port must read those 16 bytes at
- *  runtime. Documented as an undecoded frontier data symbol. */
+ *  as two qwords (rax=lo, r14/r8=hi). Delegates to the canonical Helium
+ *  HGRectNull decoded in HGRect.ts (same _HGRectNull data symbol across
+ *  Flexo/Helium/Ozone). */
 export function HGRectNull(): HGRect {
-  // @Flexo _HGRectNull data symbol - value not yet transcribed.
-  throw new Error("HGRectNull @Flexo _HGRectNull (data symbol referenced at 0x60201e / 0x60207b) not yet transcribed");
+  // @Flexo _HGRectNull (data symbol; RIP-loaded at 0x60201e / 0x60207b)
+  //   -> canonical Helium _HGRectNull @0x3d2284 = {0,0,0,0}.
+  return HGRectNullConst;
 }
 
-/** _HGRectIsNull(HGRect) — stub for the imported predicate @Flexo 0x149568e.
- *  Not yet transcribed (leaf helper — needs the HGRectNull bit pattern to
- *  compare against). */
-export function HGRectIsNull(_r: HGRect): boolean {
-  throw new Error("HGRectIsNull @Flexo 0x149568e not yet transcribed");
+/** _HGRectIsNull(HGRect) — predicate for the null-sentinel returned by Flexo
+ *  APIs. Delegates to the canonical Helium HGRectIsNull decoded in HGRect.ts
+ *  (Helium _HGRectIsNull @0x107b20: `r.right <= r.x || r.bottom <= r.y`). The
+ *  Flexo call site @0x149568e is a symbol stub for the same predicate. */
+export function HGRectIsNull(r: HGRect): boolean {
+  // @Flexo 0x149568e -> canonical Helium _HGRectIsNull @0x107b20.
+  return HGRectIsNullCanonical(r);
 }
 
 // ---------------------------------------------------------------------------

@@ -43,18 +43,23 @@ export interface HGNode {}
  * vfn on a render node. Layout undecoded. */
 export interface HGRenderer {}
 
-/** HGRect — a 16-byte struct passed by value in {rax=lo64, rdx=hi64} where
- * lo64 = (y << 32) | x (as signed int32s in the low/high halves) and
- * hi64 = (h << 32) | w. Fields are signed int32.
- * Decode source: matches how GetDOD reads GetDOD()'s return in
- * raw-port/re/disasm/HMaskSimpleStrokeSubtract.GetDOD.s (rax/rdx split,
- * `shrq $0x20` extracts each high half). */
-export interface HGRect {
-  x: number;  // int32, low32 of  lo-qword
-  y: number;  // int32, high32 of lo-qword
-  w: number;  // int32, low32 of  hi-qword
-  h: number;  // int32, high32 of hi-qword
-}
+// HGRect is the canonical Helium type — corner-form int32 {x, y, right, bottom}.
+// See raw-port/src/render/HGRect.ts. This file's old field names {x, y, w, h}
+// were named "w/h" per the register slot low32(rdx)/high32(rdx) but hold FAR
+// CORNERS (not widths/heights) — confirmed by the clamp pattern at
+// @0x425b31-@0x425b51 which uses the SAME upper-corner bound (0x3ffffffe)
+// as HMaskCompSubtract's x2/y2 clamps, and by the union arithmetic at
+// @0x425c15-@0x425c38 which treats (min + w) as the far-corner value. The
+// call-site HGRectMake4i(x, y, w+x, h+y) at @0x425c52-0x425c68 passes
+// corners; delegating to Helium's normalising HGRectMake4i is exact.
+// So the map is w -> right, h -> bottom.
+import {
+  HGRect,
+  HGRectIsNull as HGRectIsNullCanonical,
+  HGRectMake4i as HGRectMake4iCanonical,
+  HGRectNull as HGRectNullConst,
+} from "./HGRect.js";
+export { HGRect };
 
 // ---------------------------------------------------------------------------
 // Constants read from Ozone's literal pool (see disasm rip-relative loads).
@@ -63,14 +68,8 @@ export interface HGRect {
 /** _HGRectNull — the global sentinel HGRect that GetDOD/GetROI return when
  * asked for an input that doesn't exist. Both methods load it from the same
  * literal-pool address (rip-rel 0x3fb275 at 0x425aa4, 0x3fb09d at 0x425c7c).
- * The concrete field values are not visible in Ozone's disasm — they live in
- * the __const segment behind that pointer. Callers of HGRectNull should not
- * inspect its fields; they compare against it via HGRectIsNull(). */
-export const HGRectNull: HGRect = /* @Ozone rip-relative _HGRectNull */
-  { x: 0, y: 0, w: 0, h: 0 };
-// NOTE: (0,0,0,0) is a placeholder tag — real HGRectNull's field values are
-// determined by Ozone's __const and are consumed only via HGRectIsNull, which
-// is a THROWing stub below. Do not rely on these fields.
+ * Delegates to the canonical Helium _HGRectNull @0x3d2284 = {0,0,0,0}. */
+export const HGRectNull: HGRect = HGRectNullConst;
 
 // ---------------------------------------------------------------------------
 // Undecoded external helpers — each throws with its Ozone address so
@@ -93,17 +92,20 @@ export function HGRenderer_GetDOD(_r: HGRenderer, _node: HGNode | null): HGRect 
 }
 
 /** HGRectIsNull(HGRect) — resolved through Ozone symbol stub @Ozone 0x6dcc9c
- * (call sites at 0x425aee and 0x425b8c). Returns non-zero iff the rect is
- * the HGRectNull sentinel / an empty rect. Not yet transcribed. */
-export function HGRectIsNull(_r: HGRect): number {
-  throw new Error("HGRectIsNull @Ozone 0x6dcc9c not yet transcribed");
+ * (call sites at 0x425aee and 0x425b8c) -> canonical Helium _HGRectIsNull
+ * @0x107b20 (`r.right <= r.x || r.bottom <= r.y`). Returns 1 iff null, 0
+ * otherwise — this file's call sites compare `!== 0`, so keep the number
+ * return shape at the boundary. */
+export function HGRectIsNull(r: HGRect): number {
+  return HGRectIsNullCanonical(r) ? 1 : 0;
 }
 
-/** HGRectMake4i(x,y,w,h) — resolved through Ozone symbol stub @Ozone 0x6dcca8
- * (tail-call at 0x425c68). Builds an HGRect from four signed int32s.
- * Not yet transcribed. */
-export function HGRectMake4i(_x: number, _y: number, _w: number, _h: number): HGRect {
-  throw new Error("HGRectMake4i @Ozone 0x6dcca8 not yet transcribed");
+/** HGRectMake4i(x,y,right,bottom) — @Ozone 0x6dcca8 -> canonical Helium
+ * _HGRectMake4i @0x107710. The disasm's fourth-arg `h` (register %ecx) is
+ * `y + h_delta` = the far y corner (bottom); the third-arg `w` is `x + w_delta`
+ * = the far x corner (right). Delegates to the normalising canonical impl. */
+export function HGRectMake4i(x: number, y: number, right: number, bottom: number): HGRect {
+  return HGRectMake4iCanonical(x, y, right, bottom);
 }
 
 /** HgcMaskStrokeSubtract::~HgcMaskStrokeSubtract() — base-class destructor
@@ -175,7 +177,7 @@ export class HMaskSimpleStrokeSubtract {
     // @0x425aa0-0x425ab2: outputIdx != 0 short-circuits to HGRectNull.
     if (outputIdx !== 0) {
       // @0x425aa4  load _HGRectNull; @0x425ab2 retq
-      return { x: HGRectNull.x, y: HGRectNull.y, w: HGRectNull.w, h: HGRectNull.h };
+      return HGRectNull;
     }
 
     // ----- Input A (slot 0) -----
@@ -205,8 +207,8 @@ export class HMaskSimpleStrokeSubtract {
       // Extract A.{x, y, w, h} from the {lo64=y|x, hi64=h|w} pair.
       const xA = A.x | 0;                //          low32(rax) via %ebx      @0x425b11
       const yA = A.y | 0;                //          shrq $0x20 %rbx           @0x425b24
-      const wA = A.w | 0;                //          low32(rdx) via %r13d      @0x425b31
-      const hA = A.h | 0;                //          shrq $0x20 %r13           @0x425b46
+      const wA = A.right | 0;                //          low32(rdx) via %r13d      @0x425b31
+      const hA = A.bottom | 0;                //          shrq $0x20 %r13           @0x425b46
 
       // Clamp each of A.x, A.y into [ -0x3fffffff, +INF ) — replace anything
       // that is signed-less-than -0x3ffffffe with -0x3fffffff.
@@ -219,7 +221,7 @@ export class HMaskSimpleStrokeSubtract {
       //   @0x425b2e  cmovgel %ebx, %ecx     — ecx becomes clamped A.y
       const cy = (yA >= -0x3ffffffe) ? yA : -0x3fffffff;   // clamped A.y
 
-      // Clamp each of A.w, A.h into ( -INF, +0x3ffffffe ] — replace anything
+      // Clamp each of A.right, A.bottom into ( -INF, +0x3ffffffe ] — replace anything
       // signed-greater-than-or-equal-to 0x3ffffffe with itself only when it
       // is strictly less than that bound, else keep default 0x3ffffffe.
       //   @0x425b31  cmpl $0x3ffffffe, %r13d
@@ -259,15 +261,15 @@ export class HMaskSimpleStrokeSubtract {
     if (!bNull) {
       const xB = B.x | 0;
       const yB = B.y | 0;
-      const wB = B.w | 0;
-      const hB = B.h | 0;
+      const wB = B.right | 0;
+      const hB = B.bottom | 0;
 
       // Same clamp pattern as A: mins clamped to >= -0x3fffffff (default when
       // signed-less-than -0x3ffffffe), maxes clamped to <= 0x3ffffffe.
       //   @0x425ba4..@0x425bc1  →  clamped B.x, B.y
       const cxB = (xB >= -0x3ffffffe) ? xB : -0x3fffffff;
       const cyB = (yB >= -0x3ffffffe) ? yB : -0x3fffffff;
-      //   @0x425bc4..@0x425be5  →  clamped B.w, B.h  (min with 0x3ffffffe)
+      //   @0x425bc4..@0x425be5  →  clamped B.right, B.bottom  (min with 0x3ffffffe)
       const cwB = (wB <  0x3ffffffe) ? wB :  0x3ffffffe;
       const chB = (hB <  0x3ffffffe) ? hB :  0x3ffffffe;
 
@@ -361,10 +363,10 @@ export class HMaskSimpleStrokeSubtract {
     // @0x425c76  jl 0x425c8b       — if inputIdx < 2, skip the null-load
     if (inputIdx >= 2) {
       // @0x425c7c  load _HGRectNull ; @0x425c83/86 rax=lo, r8=hi
-      return { x: HGRectNull.x, y: HGRectNull.y, w: HGRectNull.w, h: HGRectNull.h };
+      return HGRectNull;
     }
     // @0x425c8b  movq %r8, %rdx    ; @0x425c8e retq  — return the caller's
     // rect unchanged (rax already = rcx from the entry `movq %rcx, %rax`).
-    return { x: requested.x | 0, y: requested.y | 0, w: requested.w | 0, h: requested.h | 0 };
+    return { x: requested.x | 0, y: requested.y | 0, right: requested.right | 0, bottom: requested.bottom | 0 };
   }
 }
