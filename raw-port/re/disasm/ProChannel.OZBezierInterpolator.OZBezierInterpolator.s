@@ -1,0 +1,16 @@
+__ZN20OZBezierInterpolatorC1Ev:
+000000000004043c	pushq	%rbp
+000000000004043d	movq	%rsp, %rbp
+0000000000040440	pushq	%rbx
+0000000000040441	pushq	%rax
+0000000000040442	movq	%rdi, %rbx
+0000000000040445	callq	__ZN20OZSplineInterpolatorC2Ev  ## OZSplineInterpolator::OZSplineInterpolator()
+000000000004044a	leaq	0x95a07(%rip), %rax
+0000000000040451	movq	%rax, (%rbx)
+0000000000040454	movabsq	$0x3ff0000000000000, %rax       ## imm = 0x3FF0000000000000
+000000000004045e	movq	%rax, 0x8(%rbx)
+0000000000040462	addq	$0x8, %rsp
+0000000000040466	popq	%rbx
+0000000000040467	popq	%rbp
+0000000000040468	retq
+0000000000040469	nop

@@ -9,6 +9,7 @@
 import { OZKeypoint } from "./OZCurve.js";
 import { CMTime, CMTimeCompare, CMTimeGetSeconds, PC_CMTimeSaferSubtract } from "../infra/CMTime.js";
 import { catmullRomInterpolate } from "./OZCatmullRomInterpolator.js";
+import { OZ_BEZIER_INTERPOLATOR } from "./OZBezierInterpolator.js";
 
 /**
  * OZInterpolator::easeTime(OZSpline&, CMTime t, vA, vB) -> CMTime   @ProChannel 0x418b2.
@@ -196,8 +197,15 @@ export function sampleCurveValue(
         // (OZBezierInterpolator::interpolate @0x407e6 + OZCardinalInterpolator::computeTangents
         // @0x42ae2), rather than substituting a textbook Catmull-Rom that would diverge from FCP.
         case "catmullRom": return catmullRomInterpolate(t, a, b);
+        // OZBezierInterpolator @ProChannel 0x407e6 — the CLASS-level interpolate is not yet
+        // transcribed (needs getControlPoints @0x4054a + OZSpline::getVertexValue @0x303a6 +
+        // OZBezierSanitizeControlPolygon @0xa550c + the CMTime combine at 0x40a10+). The two
+        // ORACLE-GATED free functions OZBezierEval @0xa549c and OZBezierFindParameter @0xa57c7
+        // ARE transcribed in OZBezierInterpolator.ts (bit-exact vs the live FCP symbols per
+        // fct/parity nodes curve.interp.bezier.eval / curve.interp.bezier.findparam). The class
+        // method faithfully throws citing the addr — a loud gap is the correct behaviour.
+        case "bezier":   return OZ_BEZIER_INTERPOLATOR.interpolate();
         // Pending faithful transcriptions (decoded, not yet ported — each MUST match its disasm):
-        //   bezier      OZBezierInterpolator::interpolate      @ProChannel 0x407e6
         //   xspline     OZXSplineInterpolator::interpolate     @ProChannel 0x45eae
         //   bspline     OZBSplineInterpolator::interpolate     @ProChannel 0x4191c
         // Never silently substitute a different curve; a loud throw is the correct behaviour.
