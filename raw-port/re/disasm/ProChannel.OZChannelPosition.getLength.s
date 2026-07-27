@@ -1,0 +1,79 @@
+__ZN17OZChannelPosition9getLengthERK6CMTimeP14PCMatrix44TmplIdE:
+00000000000745d2	pushq	%rbp
+00000000000745d3	movq	%rsp, %rbp
+00000000000745d6	pushq	%r15
+00000000000745d8	pushq	%r14
+00000000000745da	pushq	%rbx
+00000000000745db	subq	$0x18, %rsp
+00000000000745df	movq	%rdx, %r15
+00000000000745e2	movq	%rdi, %r14
+00000000000745e5	leaq	0x2bc(%rdi), %rbx
+00000000000745ec	movq	%rbx, %rdi
+00000000000745ef	callq	0xacb16                         ## symbol stub for: __ZN10PCSpinLock4lockEv
+00000000000745f4	cmpl	$0x0, 0x2b8(%r14)
+00000000000745fc	je	0x7467d
+00000000000745fe	testq	%r15, %r15
+0000000000074601	je	0x746b0
+0000000000074607	leaq	0x1c0(%r14), %rax
+000000000007460e	xorl	%ecx, %ecx
+0000000000074610	movapd	0x3bd78(%rip), %xmm0
+0000000000074618	movsd	0x3bd90(%rip), %xmm1
+0000000000074620	movq	%r15, %rdx
+0000000000074623	xorl	%esi, %esi
+0000000000074625	movsd	(%rdx,%rsi,8), %xmm2
+000000000007462a	subsd	(%rax,%rsi,8), %xmm2
+000000000007462f	andpd	%xmm0, %xmm2
+0000000000074633	ucomisd	%xmm2, %xmm1
+0000000000074637	jbe	0x74663
+0000000000074639	incq	%rsi
+000000000007463c	cmpq	$0x4, %rsi
+0000000000074640	jne	0x74625
+0000000000074642	incq	%rcx
+0000000000074645	addq	$0x20, %rax
+0000000000074649	addq	$0x20, %rdx
+000000000007464d	cmpq	$0x4, %rcx
+0000000000074651	jne	0x74623
+0000000000074653	movq	0x248(%r14), %rax
+000000000007465a	cmpq	%rax, 0x240(%r14)
+0000000000074661	jne	0x746c9
+0000000000074663	movq	%r15, (%rsp)
+0000000000074667	movq	%r14, %rdi
+000000000007466a	xorl	%esi, %esi
+000000000007466c	xorl	%edx, %edx
+000000000007466e	xorl	%ecx, %ecx
+0000000000074670	xorl	%r8d, %r8d
+0000000000074673	xorl	%r9d, %r9d
+0000000000074676	callq	__ZN17OZChannelPosition16getCachedVectorsEPPdS1_S1_S1_PiP14PCMatrix44TmplIdE ## OZChannelPosition::getCachedVectors(double**, double**, double**, double**, int*, PCMatrix44Tmpl<double>*)
+000000000007467b	jmp	0x7469a
+000000000007467d	movq	%r15, (%rsp)
+0000000000074681	movq	%r14, %rdi
+0000000000074684	xorl	%esi, %esi
+0000000000074686	xorl	%edx, %edx
+0000000000074688	xorl	%ecx, %ecx
+000000000007468a	xorl	%r8d, %r8d
+000000000007468d	xorl	%r9d, %r9d
+0000000000074690	callq	__ZN17OZChannelPosition16getCachedVectorsEPPdS1_S1_S1_PiP14PCMatrix44TmplIdE ## OZChannelPosition::getCachedVectors(double**, double**, double**, double**, int*, PCMatrix44Tmpl<double>*)
+0000000000074695	testq	%r15, %r15
+0000000000074698	je	0x746b9
+000000000007469a	movq	0x248(%r14), %rax
+00000000000746a1	cmpq	%rax, 0x240(%r14)
+00000000000746a8	jne	0x746c9
+00000000000746aa	xorpd	%xmm0, %xmm0
+00000000000746ae	jmp	0x746ce
+00000000000746b0	movq	0x260(%r14), %rax
+00000000000746b7	jmp	0x746c9
+00000000000746b9	movq	0x260(%r14), %rax
+00000000000746c0	cmpq	%rax, 0x258(%r14)
+00000000000746c7	je	0x746aa
+00000000000746c9	movsd	-0x8(%rax), %xmm0
+00000000000746ce	movsd	%xmm0, -0x20(%rbp)
+00000000000746d3	movq	%rbx, %rdi
+00000000000746d6	callq	0xacb1c                         ## symbol stub for: __ZN10PCSpinLock6unlockEv
+00000000000746db	movsd	-0x20(%rbp), %xmm0
+00000000000746e0	addq	$0x18, %rsp
+00000000000746e4	popq	%rbx
+00000000000746e5	popq	%r14
+00000000000746e7	popq	%r15
+00000000000746e9	popq	%rbp
+00000000000746ea	retq
+00000000000746eb	nop

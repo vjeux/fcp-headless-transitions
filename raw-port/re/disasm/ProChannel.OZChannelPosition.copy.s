@@ -1,0 +1,63 @@
+__ZN17OZChannelPosition4copyEPK13OZChannelBaseb:
+000000000007404e	pushq	%rbp
+000000000007404f	movq	%rsp, %rbp
+0000000000074052	pushq	%r15
+0000000000074054	pushq	%r14
+0000000000074056	pushq	%r13
+0000000000074058	pushq	%r12
+000000000007405a	pushq	%rbx
+000000000007405b	pushq	%rax
+000000000007405c	movl	%edx, %r14d
+000000000007405f	movq	%rsi, %rbx
+0000000000074062	movq	%rdi, %r15
+0000000000074065	testq	%rsi, %rsi
+0000000000074068	je	0x74161
+000000000007406e	leaq	__ZTI13OZChannelBase(%rip), %rsi ## typeinfo for OZChannelBase
+0000000000074075	leaq	__ZTI17OZChannelPosition(%rip), %rdx ## typeinfo for OZChannelPosition
+000000000007407c	movq	%rbx, %rdi
+000000000007407f	xorl	%ecx, %ecx
+0000000000074081	callq	0xacea0                         ## symbol stub for: ___dynamic_cast
+0000000000074086	testq	%rax, %rax
+0000000000074089	je	0x74161
+000000000007408f	movq	%rax, %r13
+0000000000074092	leaq	0x2bc(%r15), %r12
+0000000000074099	movq	%r12, %rdi
+000000000007409c	callq	0xacb16                         ## symbol stub for: __ZN10PCSpinLock4lockEv
+00000000000740a1	movb	0x1b8(%r13), %al
+00000000000740a8	movb	%al, 0x1b8(%r15)
+00000000000740af	movq	0x240(%r15), %rax
+00000000000740b6	movq	0x258(%r15), %rcx
+00000000000740bd	movq	%rcx, 0x260(%r15)
+00000000000740c4	movq	%rax, 0x248(%r15)
+00000000000740cb	movq	0x270(%r15), %rax
+00000000000740d2	movq	%rax, 0x278(%r15)
+00000000000740d9	movq	0x288(%r15), %rax
+00000000000740e0	movq	%rax, 0x290(%r15)
+00000000000740e7	movq	0x2a0(%r15), %rax
+00000000000740ee	movq	%rax, 0x2a8(%r15)
+00000000000740f5	movabsq	$0x3ff0000000000000, %rax       ## imm = 0x3FF0000000000000
+00000000000740ff	movq	%rax, 0x238(%r15)
+0000000000074106	movq	%rax, 0x210(%r15)
+000000000007410d	movq	%rax, 0x1e8(%r15)
+0000000000074114	movq	%rax, 0x1c0(%r15)
+000000000007411b	xorps	%xmm0, %xmm0
+000000000007411e	movups	%xmm0, 0x1c8(%r15)
+0000000000074126	movups	%xmm0, 0x1d8(%r15)
+000000000007412e	movups	%xmm0, 0x1f0(%r15)
+0000000000074136	movups	%xmm0, 0x200(%r15)
+000000000007413e	movups	%xmm0, 0x228(%r15)
+0000000000074146	movups	%xmm0, 0x218(%r15)
+000000000007414e	movl	$0x0, 0x2b8(%r15)
+0000000000074159	movq	%r12, %rdi
+000000000007415c	callq	0xacb1c                         ## symbol stub for: __ZN10PCSpinLock6unlockEv
+0000000000074161	movzbl	%r14b, %edx
+0000000000074165	movq	%r15, %rdi
+0000000000074168	movq	%rbx, %rsi
+000000000007416b	addq	$0x8, %rsp
+000000000007416f	popq	%rbx
+0000000000074170	popq	%r12
+0000000000074172	popq	%r13
+0000000000074174	popq	%r14
+0000000000074176	popq	%r15
+0000000000074178	popq	%rbp
+0000000000074179	jmp	__ZN11OZChannel2D4copyEPK13OZChannelBaseb ## OZChannel2D::copy(OZChannelBase const*, bool)
