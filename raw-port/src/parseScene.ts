@@ -1,3 +1,4 @@
+import "./nodes/nodeFactory.js"; // registers the scene-node maker (side-effect import)
 // parseScene.ts — top-level entry: .motr XML -> OZScene (faithful parser port).
 // Walks the loaded element tree (readScene) driving the ported parseElement dispatch.
 // Builds the <factory> table (factoryID->uuid) first, then the scene body.

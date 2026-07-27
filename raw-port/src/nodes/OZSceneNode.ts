@@ -24,6 +24,16 @@ import { PCStreamElement } from "../infra/PCStreamElement.js";
 import { OZChannelBase } from "../channels/OZChannelBase.js";
 import { buildChannelTree } from "../channels/OZChannelFolder.js";
 
+// Child-node factory hook. Registered by nodeFactory.ts to avoid a circular import
+// (nodeFactory imports the OZGroup/OZImageElement subclasses which extend this base).
+type SceneNodeMaker = (tagName: string, factoryID: number, uuidOrType?: string) => OZSceneNode;
+let _makeSceneNode: SceneNodeMaker | undefined;
+export function registerSceneNodeMaker(fn: SceneNodeMaker): void { _makeSceneNode = fn; }
+function makeSceneNode(tagName: string, factoryID: number, uuidOrType?: string): OZSceneNode {
+  if (_makeSceneNode) return _makeSceneNode(tagName, factoryID, uuidOrType);
+  return new OZSceneNode(); // fallback before registration
+}
+
 /** A filter/effect attached to a scene node (created via OZFactories::lookupFactory). */
 export interface OZAttachedEffect {
   factoryID: number;
@@ -55,12 +65,18 @@ export class OZSceneNode {
   id = 0;
   name = "";
   flags = 0;
+  /** <enabled>0</enabled> marks a hidden driver node (default: enabled/true). */
+  enabled = true;
   filters: OZAttachedEffect[] = [];
   behaviors: OZAttachedBehavior[] = [];
   linkedObjects: number[] = [];
   /** The node's <parameter> channel tree roots (Properties/Object/...) — every VALUE lives here.
    *  Built via OZChannelObjectRoot::parseElement (which OZSceneNode::parseElement calls @0x91b40). */
   channels: OZChannelBase[] = [];
+  /** Child scene nodes. In FCP ANY scenenode can nest child <scenenode>/<layer>/<group> (an Emitter
+   *  under an Image, a Widget under a Project, etc). parseSceneNode recurses on directChildren
+   *  'scenenode' for every node — so child-node handling lives in the base, not only OZGroup. */
+  childNodes: OZSceneNode[] = [];
 
   /** Find a top-level channel folder by id (e.g. Properties=1, Object=2). */
   channel(id: number): OZChannelBase | undefined { return this.channels.find(c => c.id === id); }
@@ -86,6 +102,21 @@ export class OZSceneNode {
       this.channels.push(buildChannelTree(s, e));
       return;
     }
+    // Child scene nodes — ANY node may nest <scenenode>/<layer>/<group> (parseSceneNode recurses on
+    // directChildren 'scenenode' for every node). Instantiate the concrete class and recurse.
+    if (e.tagName === "scenenode" || e.tagName === "layer" || e.tagName === "group") {
+      const factoryID = s.getAttributeAsUInt32(e, 0x71) ?? 0;
+      const pluginUUID = s.getAttributeAsUUID(e, 0x7);
+      const child = makeSceneNode(e.tagName, factoryID, s.factories.get(factoryID) ?? pluginUUID);
+      const cid = s.getAttributeAsUInt32(e, 0x6f); if (cid !== undefined) child.id = cid;
+      const cnm = s.getAttributeAsString(e, 0x6e); if (cnm !== undefined) child.name = cnm;
+      const en = e.children.find(c => c.tagName === "enabled");
+      if (en) child.enabled = s.getAsInt32(en) !== 0;
+      for (const c of e.children) child.parseElement(s, c);
+      this.childNodes.push(child);
+      return;
+    }
+    if (e.tagName === "enabled") { this.enabled = s.getAsInt32(e) !== 0; return; }
     switch (e.type) {
       case OZSceneNode.TAG_FILTER: {          // 0x44 <filter>
         this.filters.push(this.readPluginDescriptor(s, e));
