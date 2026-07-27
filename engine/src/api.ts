@@ -71,8 +71,13 @@ export function createTransition(motrXML: string, opts?: TransitionOptions): Tra
   const scene = parseMotr(motrXML);
   const width = opts?.width ?? scene.settings.width;
   const height = opts?.height ?? scene.settings.height;
-  const outW = opts?.outputWidth;
-  const outH = opts?.outputHeight;
+  // A no-sceneSettings scene renders at its native DEFAULT canvas (720x486 / 1920x1080 per the
+  // content-bbox-span rule already applied in the parser) and is NOT conformed to any host output
+  // format — FCP-headless outputs it at that canvas. So the render harness's outputWidth/outputHeight
+  // override is IGNORED here (else a stripped minimized repro upscales to 1920x1080 and fake-diverges
+  // from the native-canvas FCP frame). Real transitions (with sceneSettings) keep the conform.
+  const outW = scene.settings.noSceneSettings ? undefined : opts?.outputWidth;
+  const outH = scene.settings.noSceneSettings ? undefined : opts?.outputHeight;
 
   // WIDE EQUIRECT (360°/VR) scene: a ≥3072-wide panorama scene (e.g. 360°_Divide 4096×2048,
   // 360°_Bloom 4096×2160) that does NOT take the detect360Band fast path. FCP conforms it to

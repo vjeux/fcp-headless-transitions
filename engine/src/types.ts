@@ -574,6 +574,7 @@ export interface SceneSettings {
   motionBlurSamples?: number;
   /** Shutter length in frames (`<motionBlurDuration>`), default 1. */
   motionBlurDuration?: number;
+  noSceneSettings?: boolean;
 }
 
 /** The complete parsed transition scene. */

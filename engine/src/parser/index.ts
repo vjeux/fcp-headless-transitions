@@ -757,11 +757,10 @@ export function parseMotr(xmlText: string): MotrScene {
   //   (exact: width 750 fits / 752 bumps; height 558 fits / 560 bumps. A bare Image/drop-zone node
   //    with no vector extent -> 720x486.) Verified on non-fitted values + offset (a 100-wide rect at
   //    x=800 stays 720x486; a 752-wide rect anywhere bumps) so it is the bbox SIZE, not position.
-  // NOT IMPLEMENTED: doing so needs the engine to compute the union content bbox-span across all
-  // shapes/media BEFORE settings are finalized — a real subsystem for a corner that affects ZERO
-  // shipped transitions (all 65 carry a COMPLETE sceneSettings width+height+PAR+frameRate block).
-  // Deferred as disproportionate; engine keeps the historical 1920x1080 default. This only affects
-  // degenerate minimized repros whose sceneSettings the minimizer stripped (see fct/AUDIT).
+  // IMPLEMENTED below (after the layer tree is built): when ssEl is absent, computeContentBBoxSpan
+  // walks all shapes/media and picks 720x486 vs 1920x1080. All 65 shipped transitions carry a COMPLETE
+  // sceneSettings block so they are untouched; this only affects degenerate MINIMIZED repros whose
+  // <sceneSettings> the minimizer stripped, so they render at the SAME canvas FCP-headless uses.
   const width = ssEl ? getIntContent(ssEl, 'width', 1920) : 1920;
   const height = ssEl ? getIntContent(ssEl, 'height', 1080) : 1080;
   const frameRate = ssEl ? getFloatContent(ssEl, 'frameRate', 30) : 30;
@@ -1630,5 +1629,73 @@ export function parseMotr(xmlText: string): MotrScene {
   const emitters = emittersMap.size > 0 ? emittersMap : undefined;
   const particleCells = particleCellsMap.size > 0 ? particleCellsMap : undefined;
 
+  // FCP DEFAULT CANVAS (no <sceneSettings>): FULLY DECODED 2026-07-26 as a CONTENT-BOUNDING-BOX-SPAN
+  // rule, position-independent — content bbox width-span <= 750 AND height-span <= 558 -> 720x486
+  // (NTSC-DV default), else 1920x1080. (Exact thresholds from bisection: width 750 fits / 752 bumps;
+  // height 558 fits / 560 bumps. A node with no vector extent -> 720x486.) All 65 shipped transitions
+  // carry a COMPLETE sceneSettings block so this affects none of them; it exists so degenerate MINIMIZED
+  // repros (whose <sceneSettings> the minimizer strips) render at the SAME canvas FCP-headless uses,
+  // instead of the engine's 1920x1080 — otherwise every stripped-sceneSettings repro fake-diverges on a
+  // pure dimension mismatch and the fct minimize workflow collapses onto this corner (see fct/AUDIT).
+  if (!ssEl) {
+    const span = computeContentBBoxSpan(layers);
+    // span undefined => no measurable vector content => DV default. Else apply the threshold.
+    if (!span || (span.w <= 750 && span.h <= 558)) {
+      settings.width = 720;
+      settings.height = 486;
+    } else {
+      settings.width = 1920;
+      settings.height = 1080;
+    }
+    // Mark so createTransition renders at this native default canvas (FCP-headless does NOT
+    // conform a no-sceneSettings scene to a timeline output format).
+    settings.noSceneSettings = true;
+  }
+
   return { settings, layers, factories, rigWidgets, rigBehaviors, sceneBehaviors, linkColorSources, emitters, particleCells };
+}
+
+/**
+ * Compute the union CONTENT bounding-box SPAN (max extent in X and Y, centered coords) that
+ * determines the no-<sceneSettings> default canvas (see parseScene). PROBED 2026-07-26 against
+ * FCP-headless: a degenerate/authored SHAPE path does NOT contribute to this bbox — Center_v2's
+ * 4-vertex shape renders at 720x486 no matter how far its vertices reach (X to -2000, Y to 700 all
+ * stay 720x486). Only real MEDIA boxes (drop-zone / image width×height) count toward the span. So
+ * we measure drop-zone/image box corners (offset by static position) and IGNORE shape vertices.
+ * Returns undefined when no measurable media extent exists (caller → 720x486 DV default). Position
+ * is resolved statically (a plain number, or a Curve's `value`/first-keyframe) — enough for the size
+ * threshold (750×558 fits DV, else HD; position-independent).
+ */
+function computeContentBBoxSpan(layers: Layer[]): { w: number; h: number } | undefined {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  let any = false;
+  const staticVal = (c: unknown): number => {
+    if (typeof c === 'number') return c;
+    if (c && typeof c === 'object') {
+      const cv = c as { value?: number; keyframes?: Array<{ value?: number }> };
+      if (typeof cv.value === 'number') return cv.value;
+      if (cv.keyframes && cv.keyframes.length && typeof cv.keyframes[0].value === 'number') return cv.keyframes[0].value;
+    }
+    return 0;
+  };
+  const add = (x: number, y: number): void => {
+    any = true;
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+  };
+  const walk = (ls: Layer[]): void => {
+    for (const l of ls) {
+      const px = staticVal(l.transform.positionX);
+      const py = staticVal(l.transform.positionY);
+      // ONLY real media boxes count (shapes do not — proven by FCP-headless probes on Center_v2).
+      if (l.dropZone && l.dropZone.width > 0 && l.dropZone.height > 0) {
+        add(px - l.dropZone.width / 2, py - l.dropZone.height / 2);
+        add(px + l.dropZone.width / 2, py + l.dropZone.height / 2);
+      }
+      if (l.children.length > 0) walk(l.children);
+    }
+  };
+  walk(layers);
+  if (!any) return undefined;
+  return { w: maxX - minX, h: maxY - minY };
 }
