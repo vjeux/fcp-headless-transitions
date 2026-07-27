@@ -1,0 +1,55 @@
+                 U PCSerializerReadStream::getAsDouble(PCStreamElement&, double*)
+                 U PCSerializerReadStream::getAsFloat(PCStreamElement&, float*)
+                 U PCSerializerReadStream::getAsInt32(PCStreamElement&, int*)
+                 U PCSerializerReadStream::getAsString(PCStreamElement&, PCString*)
+                 U PCSerializerReadStream::getAsUInt32(PCStreamElement&, unsigned int*)
+                 U PCSerializerReadStream::getAsUInt64(PCStreamElement&, unsigned long long*)
+                 U PCSerializerReadStream::getAttributeAsBool(PCStreamElement const&, unsigned int, bool*) const
+                 U PCSerializerReadStream::getAttributeAsDouble(PCStreamElement const&, unsigned int, double*) const
+                 U PCSerializerReadStream::getAttributeAsInt32(PCStreamElement const&, unsigned int, int*) const
+                 U PCSerializerReadStream::getAttributeAsString(PCStreamElement const&, unsigned int, PCString*) const
+                 U PCSerializerReadStream::getAttributeAsUInt32(PCStreamElement const&, unsigned int, unsigned int*) const
+                 U PCSerializerReadStream::getAttributeAsUUID(PCStreamElement const&, unsigned int) const
+                 U PCSerializerReadStream::isLessThanVersion(unsigned int, unsigned int) const
+                 U PCSerializerReadStream::pushHandler(PCSerializer*)
+                 U PCSerializerReadStream::pushScope(PCScope*)
+                 U PCSerializerReadStream::setTimeScale(CMTime const&)
+                 U PCString::PCString()
+                 U PCString::PCString(PCString const&)
+                 U PCString::PCString(__CFString const*)
+                 U PCString::PCString(__CFString const*, __CFBundle*, __CFString const*)
+                 U PCString::PCString(__CFString const*, __CFString const*)
+                 U PCString::PCString(__CFString const*, bool)
+                 U PCString::PCString(char const*)
+                 U PCString::PCString(char const*, __CFBundle*, char const*)
+                 U PCString::PCString(char const*, char const*)
+                 U PCString::PCString(char const*, char const*, char const*)
+                 U PCString::PCString(unsigned short const*)
+                 U PCString::append(PCString const&)
+                 U PCString::append(char const*)
+                 U PCString::caseInsensitiveCompare(PCString const&) const
+                 U PCString::cf_str() const
+                 U PCString::clear()
+                 U PCString::compare(PCString const&) const
+                 U PCString::createCStr() const
+                 U PCString::createUTF8Str() const
+                 U PCString::createVerifiedFormatCFString(char const*) const
+                 U PCString::createVerifiedFormatString(char const*) const
+                 U PCString::empty() const
+                 U PCString::erase(unsigned long, unsigned int)
+                 U PCString::find(PCString const&) const
+                 U PCString::format(int)
+                 U PCString::isUUID() const
+                 U PCString::ns_str() const
+                 U PCString::replace(unsigned long, unsigned int, PCString const&)
+                 U PCString::set(PCString const&)
+                 U PCString::set(__CFString const*)
+                 U PCString::set(char const*)
+                 U PCString::size() const
+                 U PCString::sprintf(__CFString const*, ...)
+                 U PCString::sprintf(char const*, ...)
+                 U PCString::ssprintf(char const*, ...)
+                 U PCString::substr(unsigned long, unsigned int) const
+                 U PCString::substrFrom(unsigned long) const
+                 U PCString::substrTo(unsigned long) const
+                 U PCString::~PCString()
