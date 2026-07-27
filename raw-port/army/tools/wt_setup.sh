@@ -10,6 +10,14 @@ REPO="$(cd "$(dirname "$0")/../../.." && pwd)"          # main checkout
 WT="$REPO/raw-port/army/worktrees/$TAG"
 BR="port/$TAG"
 cd "$REPO"
+# SERIALIZE git-mutating setup: concurrent `git worktree add` / `git fetch` race .git/worktrees and
+# .git/index.lock. Under a mass agent wave many setups fire at once, so take a global lock (mkdir is
+# atomic + portable, no flock on macOS). Only the fetch + worktree-add are serialized; the symlink
+# work below is per-worktree and safe to run unlocked.
+SETUP_LOCK="$REPO/raw-port/army/worktrees/.setup.lock.d"
+mkdir -p "$REPO/raw-port/army/worktrees"
+for i in $(seq 1 600); do mkdir "$SETUP_LOCK" 2>/dev/null && break; sleep 0.5; done
+trap 'rmdir "$SETUP_LOCK" 2>/dev/null || true' EXIT
 git fetch -q origin 2>/dev/null || true
 # fresh branch off the latest origin/main; reuse if it already exists (resume)
 if git worktree list --porcelain | grep -q "worktree $WT"; then
@@ -18,6 +26,8 @@ else
   git show-ref --verify -q "refs/heads/$BR" && git branch -q -D "$BR" 2>/dev/null || true
   git worktree add -q -b "$BR" "$WT" origin/main
 fi
+rmdir "$SETUP_LOCK" 2>/dev/null || true
+trap - EXIT
 # Symlink the gitignored heavy runtime deps so tsc + the oracle work WITHOUT copying 500M+:
 #   engine/node_modules (tsc), raw-port/node_modules (tsx), venv (oracle python), fct/parity reports dir
 ln -sfn "$REPO/engine/node_modules"   "$WT/engine/node_modules"   2>/dev/null || true
