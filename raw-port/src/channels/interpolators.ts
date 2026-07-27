@@ -190,10 +190,14 @@ export function sampleCurveValue(
         case "scurve":   return scurveInterpolate(t, a, b);
         case "convex":   return convexInterpolate(t, a, b);
         case "concave":  return concaveInterpolate(t, a, b);
-        // Bezier/CatmullRom/XSpline/BSpline: transcriptions pending — do NOT
-        // silently approximate. Throw so an un-transcribed interpolator is a loud, visible gap.
+        // Pending faithful transcriptions (decoded, not yet ported — each MUST match its disasm):
+        //   bezier      OZBezierInterpolator::interpolate      @ProChannel 0x407e6
+        //   catmullRom  OZCatmullRomInterpolator::interpolate  @ProChannel 0x430a2
+        //   xspline     OZXSplineInterpolator::interpolate     @ProChannel 0x45eae
+        //   bspline     OZBSplineInterpolator::interpolate     @ProChannel 0x4191c
+        // Never silently substitute a different curve; a loud throw is the correct behaviour.
         default:
-          throw new Error(`interpolator '${kind}' (type ${type}) not yet transcribed`);
+          throw new Error(`interpolator '${kind}' (type ${type}) not yet transcribed @ProChannel 0x407e6`);
       }
     }
   }

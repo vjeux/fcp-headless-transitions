@@ -23,7 +23,12 @@ FOR EACH METHOD:
      python3 raw-port/army/tools/vtable.py {fw} <ClassOfThisPtr>   (every *0xNN(rax) vtable call)
   3. Transcribe to TS; doc-comment cites @0xADDR + each callee/const/vtable-slot by name+addr.
      Mirror asm control flow (each branch -> if/else). Un-ported callees -> a THROWing stub.
-VERIFY: engine/node_modules/.bin/tsc --noEmit -p raw-port/tsconfig.json clean;
-        cd raw-port && node_modules/.bin/tsx test/parse_all.ts -> 65/65 OK; micro-check pure math.
+GATE (MANDATORY — a shortcut cannot land): before committing, run
+   bash raw-port/army/gate/gate.sh <your changed .ts files>
+   It must print "GATE: PASS". It enforces: provenance (@0xADDR cited, no invented magic numbers, no
+   shortcut language/code), tsc clean, 65/65 .motr parse, AND the ORACLE — your ported pure-math fn
+   is fuzzed against the REAL FCP symbol via dlsym and must match bit-for-bit. You cannot fake that;
+   the only way to pass is a correct transcription. If your class maps to a parity node, add it to
+   raw-port/army/gate/oracle_map.json so the oracle covers it.
 COMMIT+PUSH one class per commit ("raw-port: transcribe {cls} @<addrs>") citing addrs + verification.
 Delete your claim file. Report completed addresses + any new frontier callees you hit.""")

@@ -1,0 +1,7 @@
+{
+  "_comment": "src file basename (or path substring) -> parity node ids to oracle-check (bit-exact vs live FCP) when that file changes. Only REAL registry.json node ids. Grow this as ports land: every ported pure-math class should map to its oracle node so the gate proves faithfulness, not just compilation.",
+  "OZInterpolator": ["curve.interp.ease"],
+  "interpolators": ["curve.interp.ease", "curve.interp.bezier.eval", "curve.interp.bezier.findparam"],
+  "OZBezierInterpolator": ["curve.interp.bezier.eval", "curve.interp.bezier.findparam"],
+  "CMTime": []
+}

@@ -1,5 +1,6 @@
 // OZScene — the top-level scene: layers + sceneSettings + factory table.
-// Faithful port of Ozone OZScene::parseElement @0x57... (OZSceneScope):
+// Faithful port of Ozone OZScene::parseElement @Ozone 0x62dd0 (parseBegin @0x62140, parseEnd @0x62480;
+// OZSceneScope). Decode from re/disasm/ + the ledger (army/ledger/Ozone.ledger.json).
 //   child tags: 0x3c scene, 0x3d layer, 0x3f group, 0x3e scenenode, 0x42 footage, 0x4a sceneSettings,
 //   markers/guides/editor-state (low priority). Layers/groups are OZGroup nodes; the <sceneSettings>
 //   block carries canvas format. The <factory> table (factoryID->uuid) is parsed at the document
