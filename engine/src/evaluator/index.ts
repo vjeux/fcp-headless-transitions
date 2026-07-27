@@ -440,8 +440,21 @@ function buildTransformMatrix(tx: Transform, timeSec: number, retimeProgress: nu
   // which incorrectly scaled/rotated the translation - only visible when a layer
   // combines a non-origin position with scale AND rotation, e.g. the Wipes masks.)
   let m = mat4Identity();
-  // Innermost: translate by -anchor
-  if (ancX !== 0 || ancY !== 0 || ancZ !== 0) m = mat4Multiply(mat4Translate(-ancX, -ancY, -ancZ), m);
+  // Innermost: translate by -anchor. The Z term is NEGATED to match the position-Z
+  // convention below: Motion's +Z points TOWARD the camera, and the outermost position
+  // translate maps posZ→world -posZ. The anchor is a Motion Z coordinate in the SAME
+  // convention, so ancZ must map to world -ancZ too; since the anchor is SUBTRACTED here,
+  // the Z term is -(-ancZ) = +ancZ. DECODED (RULE 2.0) on Movements/Reflection: B's parent
+  // group hinges (LinkRot 0→-90° Y) about anchor Z=960 while sitting at position Z=960. With
+  // the OLD -ancZ, the pivot depth doubled (anchor + position both pushed world Z to -1920 at
+  // face-on instead of cancelling), so the swinging group's centre walked to world X=+960 at
+  // edge-on — B projected OFF-SCREEN RIGHT (tail rendered black) while FCP hinges B about its
+  // LEFT edge (content grows x[0,775]→[0,1614]→[0,1894], staying framed). Negating ancZ makes
+  // the anchor/position Z CANCEL at face-on (centre→world 0) and hinge LEFT (world X −960→0 as
+  // it opens), matching FCP. X/Y anchor stay −ancX/−ancY (position X/Y are un-negated, so their
+  // anchors are too — only the Z axis carries the toward-camera sign flip).
+  if (ancX !== 0 || ancY !== 0 || ancZ !== 0) m = mat4Multiply(mat4Translate(-ancX, -ancY, ancZ), m);
+
   // Scale
   if (scX !== 1 || scY !== 1 || scZ !== 1) m = mat4Multiply(mat4Scale(scX, scY, scZ), m);
   // Rotate (X, Y, Z applied so Z is outermost of the three, matching prior code)
