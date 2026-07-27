@@ -119,10 +119,43 @@ def cmd_stats():
     if c["claimed"]:
         print("in-flight:", ", ".join(k.split(':')[1] for k in list(c["claimed"])[:20]))
 
+
+def _shader_candidates():
+    """All un-ported shaders (fw, name), best-first (fewest-line .ll ~ simplest; we lack line counts
+    pre-extraction so just alpha order for determinism)."""
+    done = _ported_files()
+    p = os.path.join(LED, "shaders.ledger.json")
+    if not os.path.exists(p): return []
+    led = json.load(open(p))
+    out = []
+    for name, meta in led.items():
+        tsname = "shader_" + name
+        if tsname in done: continue
+        out.append((meta["fw"], name))
+    out.sort()
+    return out
+
+def cmd_next_shader():
+    _lock()
+    try:
+        c = _load()
+        skip = set(c["claimed"]) | set(c["done"]) | set(c["failed"])
+        for fw, name in _shader_candidates():
+            key = f"shader:{name}"
+            if key in skip: continue
+            c["claimed"][key] = {"fw": fw, "shader": name, "t": time.time()}
+            _save(c)
+            print(f"{fw}\t{name}")
+            return
+        print("EMPTY")
+    finally:
+        _unlock()
+
 if __name__ == "__main__":
     a = sys.argv[1:] or ["stats"]
     cmd = a[0]
     if cmd == "next": cmd_next()
+    elif cmd == "next-shader": cmd_next_shader()
     elif cmd == "done": cmd_done(a[1], a[2])
     elif cmd == "fail": cmd_fail(a[1], a[2], " ".join(a[3:]))
     elif cmd == "release": cmd_release(a[1], a[2])
