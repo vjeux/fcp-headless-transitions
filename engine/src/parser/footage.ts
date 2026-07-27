@@ -73,6 +73,13 @@ export interface ClipInfo {
 
 export function parseFootageClipAB(sceneEl: Element, factories: Map<number, string>): ClipInfo {
   const map = new Map<number, 'A' | 'B' | 'P' | 'E'>();
+  // Whether the scene declares a <sceneSettings> block. At the no-<sceneSettings> DV-default canvas
+  // FCP paints its RED missing-media placeholder for ANY unfilled (no pathURL/relativeURL) clip —
+  // even a DIMENSIONED one (<missingWidth>/<missingHeight> both 1200) — DECODED 2026-07-27 on Drop_In's
+  // re-minimized both-dims repro (no sceneSettings → red). WITH <sceneSettings>, a both-dims-positive
+  // unfilled clip is a REAL drop zone that resolves to its A/B content (Reflection _t_refl_np Type=2 B
+  // 1200×1200 → bluish B, no red). So the missing-dims "rescue from empty" applies ONLY with sceneSettings.
+  const hasSceneSettings = sceneEl.getElementsByTagName('sceneSettings').length > 0;
   const clipMedia = new Map<number, { url: string; frameRate?: number }>();
   let dropZoneMediaHeight: number | undefined;
   const clips: { id: number; path: string; name: string; empty: boolean }[] = [];
@@ -101,7 +108,10 @@ export function parseFootageClipAB(sceneEl: Element, factories: Map<number, stri
       // Type=2 B clip carries BOTH missingWidth=1200 AND missingHeight=1200 → a real drop zone (stays B).
       const mw = parseFloat(getTextContent(clip, 'missingWidth') || '');
       const mh = parseFloat(getTextContent(clip, 'missingHeight') || '');
-      const hasMissingBox = isFinite(mw) && mw > 0 && isFinite(mh) && mh > 0;
+      // A dimensioned box (both dims > 0) rescues an unfilled clip from "empty" ONLY when the scene
+      // has <sceneSettings> — at the DV-default (no-sceneSettings) canvas FCP renders red for any
+      // no-media clip regardless of dims (see hasSceneSettings note above).
+      const hasMissingBox = hasSceneSettings && isFinite(mw) && mw > 0 && isFinite(mh) && mh > 0;
       const isEmptyClip = !path && !(relRaw && relRaw.trim()) && !hasMissingBox;
       clips.push({ id, path, name, empty: isEmptyClip });
       // Capture the drop-zone media box's Fixed Height (Object → id 115). Motion
