@@ -62,17 +62,21 @@
 // guess is a defect (see PORTING_SPEC Rule 3).
 // ---------------------------------------------------------------------------
 
-/** HGRect — 4×int32, returned by value in %rax:%rdx (16 bytes). Layout
- * recovered from the register unpacking in GetDOD @0x436efa..0x436f3e:
- *   %rax lo dword -> x0, hi dword -> y0
- *   %rdx lo dword -> x1, hi dword -> y1
- * i.e. { x0, y0, x1, y1 }. */
-export interface HGRect {
-  readonly x0: number;
-  readonly y0: number;
-  readonly x1: number;
-  readonly y1: number;
-}
+// HGRect is the canonical Helium type — corner-form int32 {x, y, right, bottom}.
+// See raw-port/src/render/HGRect.ts. This file's old field names {x0,y0,x1,y1}
+// were the SAME corner form (x0/y0 = top-left, x1/y1 = far corner — recovered
+// from GetDOD's %rax low/hi + %rdx low/hi split) and map 1:1 to canonical
+// {x, y, right, bottom}. _HGRectNull @0x436ea3, _HGRectInfinite @0x436fa5,
+// _HGRectIsNull @0x6dcc9c and _HGRectMake4i @0x6dcca8 all resolve to the real
+// Helium impls decoded in HGRect.ts.
+import {
+  HGRect,
+  HGRectMake4i as HGRectMake4iCanonical,
+  HGRectIsNull as HGRectIsNullCanonical,
+  HGRectNull as HGRectNullConst,
+  HGRectInfinite as HGRectInfiniteConst,
+} from "./HGRect.js";
+export { HGRect };
 
 /** HGNode — opaque handle. HMaskCompReplace itself derives from HGNode; only
  * pointers ever cross the ABI. */
@@ -91,32 +95,29 @@ export interface HGRenderer {
   GetDOD(node: HGNode): HGRect;
 }
 
-/** HGRectIsNull(HGRect) — Helium __stub @Ozone 0x6dcc9c
- *  (resolves to _HGRectIsNull). Predicate on the null-sentinel returned by
- *  various Helium APIs; used by GetDOD to detect an undefined input DOD.
- *  Undecoded — this file must not fake it. */
-export function HGRectIsNull(_r: HGRect): boolean {
-  throw new Error("HGRectIsNull @Ozone-stub 0x6dcc9c (Helium _HGRectIsNull) not yet transcribed");
+/** HGRectIsNull(HGRect) — @Ozone-stub 0x6dcc9c -> canonical Helium
+ *  _HGRectIsNull @0x107b20 (`r.right <= r.x || r.bottom <= r.y`). */
+export function HGRectIsNull(r: HGRect): boolean {
+  return HGRectIsNullCanonical(r);
 }
 
-/** HGRectMake4i(x, y, w, h) — Helium __stub @Ozone 0x6dcca8
- *  (resolves to _HGRectMake4i). Constructs an HGRect from an (x, y, w, h)
- *  tuple. Undecoded — deliberate throw. */
-export function HGRectMake4i(_x: number, _y: number, _w: number, _h: number): HGRect {
-  throw new Error("HGRectMake4i @Ozone-stub 0x6dcca8 (Helium _HGRectMake4i) not yet transcribed");
+/** HGRectMake4i(x, y, right, bottom) — @Ozone-stub 0x6dcca8 -> canonical
+ *  Helium _HGRectMake4i @0x107710 (normalises so x<=right, y<=bottom). */
+export function HGRectMake4i(x: number, y: number, right: number, bottom: number): HGRect {
+  return HGRectMake4iCanonical(x, y, right, bottom);
 }
 
-/** _HGRectNull — sentinel loaded from Ozone literal-pool @0x436ea3 / @0x436fec
- *  (extern _HGRectNull, resolved by dyld). The concrete i32 layout is Helium's
- *  responsibility; a lookup here would be inventing bytes. */
+/** _HGRectNull — extern loaded from Ozone literal-pool @0x436ea3 / @0x436fec
+ *  (extern _HGRectNull, resolved by dyld). Delegates to the canonical
+ *  Helium HGRectNull (same data symbol across frameworks). */
 export function HGRectNull(): HGRect {
-  throw new Error("HGRectNull @Ozone-lit 0x436ea3 (extern _HGRectNull, Helium) not yet transcribed");
+  return HGRectNullConst;
 }
 
-/** _HGRectInfinite — sentinel loaded from Ozone literal-pool @0x436fa5. Same
- *  caveat as HGRectNull: extern from Helium. */
+/** _HGRectInfinite — extern loaded from Ozone literal-pool @0x436fa5.
+ *  Delegates to canonical Helium HGRectInfinite. */
 export function HGRectInfinite(): HGRect {
-  throw new Error("HGRectInfinite @Ozone-lit 0x436fa5 (extern _HGRectInfinite, Helium) not yet transcribed");
+  return HGRectInfiniteConst;
 }
 
 /** HgcMaskCompReplace — the base class whose virtual slot *0x68 is called from
@@ -214,10 +215,10 @@ export class HMaskCompReplace {
    *   0x436ef8  jne  0x436f4b
    *
    *   ---- clamp branch (input DOD is not null) ----
-   *   0x436efa..0x436f0b  x0 = (inDod.x0 >= 0xC0000002) ? inDod.x0 : 0xC0000001
-   *   0x436f13..0x436f1a  y0 = (inDod.y0 >= 0xC0000002) ? inDod.y0 : 0xC0000001
-   *   0x436f1e..0x436f30  x1clamped = (inDod.x1 < 0x3FFFFFFE) ? inDod.x1 : 0x3FFFFFFE
-   *   0x436f38..0x436f3e  y1clamped = (inDod.y1 < 0x3FFFFFFE) ? inDod.y1 : 0x3FFFFFFE
+   *   0x436efa..0x436f0b  x0 = (inDod.x >= 0xC0000002) ? inDod.x : 0xC0000001
+   *   0x436f13..0x436f1a  y0 = (inDod.y >= 0xC0000002) ? inDod.y : 0xC0000001
+   *   0x436f1e..0x436f30  x1clamped = (inDod.right < 0x3FFFFFFE) ? inDod.right : 0x3FFFFFFE
+   *   0x436f38..0x436f3e  y1clamped = (inDod.bottom < 0x3FFFFFFE) ? inDod.bottom : 0x3FFFFFFE
    *   0x436f42..0x436f48  x = x0; w = x1clamped - x0; h = y1clamped - y0
    *
    *   ---- read the two controlling floats via vtable slot *0x68 ----
@@ -269,13 +270,13 @@ export class HMaskCompReplace {
       const MAX_THR  = 0x3FFFFFFE | 0;  // =  1073741822 (strict < in cmovll)
 
       // 0x436efa cmpl $0xc0000002,%r15d ; 0x436f0b cmovgel %r15d,%eax
-      const x0c = ((inDod.x0 | 0) >= MIN_THR) ? (inDod.x0 | 0) : MIN_LOAD;
+      const x0c = ((inDod.x | 0) >= MIN_THR) ? (inDod.x | 0) : MIN_LOAD;
       // 0x436f13 cmpl $0xc0000002,%r15d ; 0x436f1a cmovgel %r15d,%ecx  (r15 was inDod hi qword after shr 32 -> y0)
-      const y0c = ((inDod.y0 | 0) >= MIN_THR) ? (inDod.y0 | 0) : MIN_LOAD;
+      const y0c = ((inDod.y | 0) >= MIN_THR) ? (inDod.y | 0) : MIN_LOAD;
       // 0x436f1e cmpl $0x3ffffffe,%ebx ; 0x436f30 cmovll %ebx,%r12d
-      const x1c = ((inDod.x1 | 0) <  MAX_THR) ? (inDod.x1 | 0) : MAX_LOAD;
+      const x1c = ((inDod.right | 0) <  MAX_THR) ? (inDod.right | 0) : MAX_LOAD;
       // 0x436f38 cmpl $0x3ffffffe,%ebx ; 0x436f3e cmovll %ebx,%r13d
-      const y1c = ((inDod.y1 | 0) <  MAX_THR) ? (inDod.y1 | 0) : MAX_LOAD;
+      const y1c = ((inDod.bottom | 0) <  MAX_THR) ? (inDod.bottom | 0) : MAX_LOAD;
 
       // 0x436f42..0x436f48  x = x0c; y = y0c; w = x1c - x0c; h = y1c - y0c
       // (movl %eax,-0x44(%rbp) / subl %eax,%r12d / subl %ecx,%r13d ; then

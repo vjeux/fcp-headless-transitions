@@ -51,42 +51,13 @@
 //   if (dir >= 2)  return HGRectNull;                                          // @0x437273 jl → skip
 //   else           return the ROI arg unchanged (rcx/r8 → return regs).       // @0x43728b-0x43728e
 
-/** HGRect (Ozone). Corner-form: x/y = top-left inclusive corner, right/bottom = exclusive corner
- *  (per the "subl %eax, %esi" pattern turning `right` into `right-x`).  Fields are int32.
- *  Bit layout in returned {rax,rdx} regs: rax = (y<<32)|x, rdx = (bottom<<32)|right.
- */
-export interface HGRect {
-  readonly x: number;      // int32
-  readonly y: number;      // int32
-  readonly right: number;  // int32 (exclusive)
-  readonly bottom: number; // int32 (exclusive)
-}
-
-// _HGRectNull — the sentinel loaded from RIP-relative literal pool at 0x437053/0x43727c.
-// The 16 bytes at (_HGRectNull) are its data; we can't observe them at TS-transcribe time without
-// a runtime read of the symbol. Model as an unambiguous "null" flag and rely on HGRectIsNull to
-// recognize it — matching how the binary itself dispatches on HGRectIsNull rather than field equality.
-// @Ozone _HGRectNull
-export const HGRectNull: HGRect = Object.freeze({ x: 0, y: 0, right: 0, bottom: 0 });
-
-/** _HGRectIsNull @Ozone 0x6dcc9c (symbol stub). Undecoded — routed to a throwing stub so callers
- *  that reach real (non-marker) rects loudly fail rather than silently accept a wrong answer. */
-export function HGRectIsNull(_r: HGRect): boolean {
-  // @Ozone 0x6dcc9c — HGRectIsNull is an external C symbol; body not yet transcribed.
-  // Callers here compare against the module-local HGRectNull marker for the (fixed) null literal
-  // used by ~HMaskCompIntersect at 0x437053; the general predicate stays deferred.
-  if (_r === HGRectNull) return true;
-  throw new Error("HGRectIsNull @Ozone 0x6dcc9c not yet transcribed");
-}
-
-/** _HGRectMake4i @Ozone 0x6dcca8 (symbol stub). Undecoded — but its signature is fully
- *  determined by the register convention at the callsite @0x437233:
- *    (edi=x, esi=y, edx=right, ecx=bottom) → HGRect {x, y, right, bottom}. */
-export function HGRectMake4i(x: number, y: number, right: number, bottom: number): HGRect {
-  // @Ozone 0x6dcca8 — HGRectMake4i is an external C constructor for HGRect.
-  // Field packing is directly observable in the disasm and is the identity mapping; we transcribe it.
-  return { x: x | 0, y: y | 0, right: right | 0, bottom: bottom | 0 };
-}
+// HGRect is the canonical Helium type — corner-form int32 {x, y, right, bottom}.
+// See raw-port/src/render/HGRect.ts (transcribed from Helium _HGRect{Make4i,IsNull,Null,...}).
+// The `_HGRectNull` symbol referenced by this file at 0x437053/0x43727c is the same
+// 16-zero-bytes _HGRectNull decoded there; _HGRectMake4i at 0x6dcca8 and _HGRectIsNull
+// at 0x6dcc9c both resolve to Helium's HGRectMake4i/HGRectIsNull respectively.
+import { HGRect, HGRectMake4i, HGRectIsNull, HGRectNull } from "./HGRect.js";
+export { HGRect, HGRectMake4i, HGRectIsNull, HGRectNull };
 
 /** HGRenderer — forward-declared external class. Ozone dumps no vtable for it, so its methods are
  *  routed through interfaces here and treated as undecoded frontier. */

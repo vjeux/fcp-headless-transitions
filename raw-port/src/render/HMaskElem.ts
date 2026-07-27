@@ -75,24 +75,23 @@
 // is correct; a plausible guess is a defect (PORTING_SPEC Rule 3).
 // ---------------------------------------------------------------------------
 
+// HGRect is the canonical Helium type — corner-form int32 {x, y, right, bottom}.
+// The `_HGRectNull` symbol RIP-loaded here @0x6020cc / @0x6020ec is the same
+// 16-zero-bytes _HGRectNull decoded in HGRect.ts.
+import { HGRect, HGRectNull as HGRectNullConst } from "./HGRect.js";
+export { HGRect };
+
 /**
- * HGRect — 4×int32, returned by value in %rax:%rdx (16 bytes). Layout
- * recovered from the register plumbing in GetDOD/GetROI: rcx = { x, y },
- * r8 = { right, bottom } (all i32, corner-form).
- *
- * Kept structurally compatible with the sister files' HGRect (fields left
- * unnamed here beyond the two dword pairs, since HMaskElem itself never
- * touches the fields — it moves the whole 16-byte value).
+ * _HGRectNull — Flexo data symbol referenced by GetDOD @0x6020cc and by
+ * GetROI @0x6020ec via RIP-relative literal-pool loads. Delegates to the
+ * canonical Helium HGRectNull decoded in HGRect.ts (both frameworks share
+ * the same _HGRectNull data symbol; its 16 zero bytes are read directly from
+ * the Helium __DATA_CONST section).
  */
-export interface HGRect {
-  /** low qword, dword 0 (i32) — recovered as `x` in HMaskCompIntersect */
-  readonly x: number;
-  /** low qword, dword 1 (i32) — recovered as `y` */
-  readonly y: number;
-  /** high qword, dword 0 (i32) — recovered as `right` (exclusive corner) */
-  readonly right: number;
-  /** high qword, dword 1 (i32) — recovered as `bottom` (exclusive corner) */
-  readonly bottom: number;
+export function HGRectNull(): HGRect {
+  // @Flexo _HGRectNull (data symbol; RIP-loaded at 0x6020cc / 0x6020ec)
+  //   -> canonical Helium _HGRectNull @0x3d2284 = {0,0,0,0}.
+  return HGRectNullConst;
 }
 
 /**
@@ -118,21 +117,7 @@ export interface HgcMaskElem {
   __dtor_base(): void;
 }
 
-/**
- * _HGRectNull — Flexo data symbol referenced by GetDOD @0x6020cc and by
- * GetROI @0x6020ec via RIP-relative literal-pool loads. The 16 bytes at
- * that address encode the "null rectangle" sentinel; a faithful port must
- * read them from the binary. Same frontier as in the sister mask files.
- *
- * Not synthesized here so that whoever ports _HGRectNull (Flexo data) —
- * or HGRectIsNull @Flexo stub — decides the bit pattern once, in one place.
- */
-export function HGRectNull(): HGRect {
-  // @Flexo _HGRectNull (data symbol; RIP-loaded at 0x6020cc / 0x6020ec).
-  throw new Error(
-    "HGRectNull @Flexo _HGRectNull (data symbol referenced at 0x6020cc / 0x6020ec) not yet transcribed",
-  );
-}
+// (HGRectNull delegated to canonical HGRect.ts above — see top of file.)
 
 /**
  * HGObject::operator delete(void*) — Flexo symbol stub @Flexo 0x1496d8c.

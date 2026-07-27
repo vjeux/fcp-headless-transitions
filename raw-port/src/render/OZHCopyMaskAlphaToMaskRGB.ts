@@ -37,41 +37,25 @@
 // magic address in the disasm is a RIP-relative reference to _HGRectNull
 // (an imported symbol) which we model as a module-level opaque handle.
 
-/**
- * HGRect — opaque 16-byte value type, modeled as the two 8-byte halves the
- * disasm actually loads and returns. The disasm proves nothing about the
- * internal layout beyond "sizeof == 16 bytes, passed/returned as two 8-byte
- * integer register slots" (movq (%rcx),%rax ; movq 0x8(%rcx),%r8). Any
- * structural interpretation (origin/size fields, float vs int) is the
- * responsibility of the HGRect class itself and is NOT decoded here.
- *
- * We use bigint for the two halves because they are opaque 64-bit blobs and
- * we do not want silent precision loss if any half encodes a value >= 2^53.
- */
-export interface HGRect {
-  /** low 8 bytes of the value (loaded via movq (%rcx),%rax) */
-  lo: bigint;
-  /** high 8 bytes of the value (loaded via movq 0x8(%rcx),%r8) */
-  hi: bigint;
-}
+// HGRect is the canonical Helium type — corner-form int32 {x, y, right, bottom}.
+// See raw-port/src/render/HGRect.ts. This file previously modelled HGRect as
+// two opaque bigint halves {lo, hi} because it never inspects the interior;
+// GetDOD simply passes the entire 16-byte value through OR replaces it with
+// _HGRectNull. Since no bigint bit-packing math is performed here, adopting
+// the canonical corner-form type is safe — the pass-through remains identical
+// in semantics (16 bytes in, 16 bytes out) but with the shared Helium type.
+import { HGRect, HGRectNull as HGRectNullConst } from "./HGRect.js";
+export { HGRect };
 
 /**
- * Extern global `_HGRectNull` (defined outside Ozone — nm reports
- * `U _HGRectNull`, i.e. an imported symbol resolved by HGCore at load time).
- * The Ozone binary reaches it via a RIP-relative movq at 0x42426c:
- *     movq 0x3fcaad(%rip), %rcx     ## literal pool symbol address: _HGRectNull
- * i.e. rcx ends up pointing at the storage for the extern _HGRectNull, then
- * the two 8-byte halves are loaded. HGRectNull's actual bit pattern lives in
- * HGCore (an undecoded frontier framework), so this accessor throws with the
- * @Ozone RIP-relative-load address so frontier.py can enumerate the gap. See
- * porting-spec Rule 3.
+ * Extern global `_HGRectNull` — the Ozone binary reaches it via a RIP-relative
+ * movq at 0x42426c. Delegates to the canonical Helium _HGRectNull decoded in
+ * HGRect.ts (same _HGRectNull data symbol shared across Ozone/Helium/Flexo).
  */
 export function getHGRectNull(): HGRect {
-  // @extern _HGRectNull (imported by Ozone at 0x42426c via RIP-rel movq;
-  // defined in HGCore — see `nm -arch x86_64 Ozone | grep HGRectNull` -> `U _HGRectNull`)
-  throw new Error(
-    "_HGRectNull @extern (imported by Ozone at 0x42426c; defined in HGCore) not yet transcribed",
-  );
+  // @extern _HGRectNull (Ozone RIP-load at 0x42426c) -> canonical Helium
+  // _HGRectNull @0x3d2284 = {0,0,0,0}.
+  return HGRectNullConst;
 }
 
 /**
@@ -180,7 +164,7 @@ export class OZHCopyMaskAlphaToMaskRGB {
       // jl 0x42427b — passthrough. rax was pre-seeded to rcx (inRect.lo) at
       // the top of the function; r8 still holds the caller-supplied
       // inRect.hi. So return.lo = inRect.lo, return.hi = inRect.hi.
-      return { lo: inRect.lo, hi: inRect.hi };
+      return inRect;
     }
     // Fall-through: load _HGRectNull's two halves and return that.
     // @Ozone 0x42426c: mov rcx, [rip + 0x3fcaad]  ## _HGRectNull
@@ -188,7 +172,7 @@ export class OZHCopyMaskAlphaToMaskRGB {
     // @Ozone 0x424276: mov r8,  [rcx + 0x8]       (return.hi = _HGRectNull.hi)
     // @Ozone 0x42427b: mov rdx, r8                (place high half into return slot)
     const rectNull = getHGRectNull();
-    return { lo: rectNull.lo, hi: rectNull.hi };
+    return rectNull;
   }
 
   /**
