@@ -57,6 +57,23 @@ ALGORITHM (ddmin, coarse-to-fine, single-frame):
   Coarse struct removal collapses 17k elements to a tiny subtree in minutes; the line
   passes then strip it to a few dozen lines showing a single defect.
 
+NO ALWAYS-ON SEMANTIC PROTECTIONS (policy 2026-07-26). Earlier versions of this tool
+"protected" certain elements from removal — referenced Source Media / Mask Source /
+Clone Target nodes, Rig Behaviors, drop-zone Type/Drop-Zone bindings, <enabled>0</enabled>
+flags, scene-geometry (<width>/<height>/<frameRate>), <factory> type rows, clip media refs,
+and <vertex index=> attributes — on the theory that stripping them produced a "false"
+divergence (the ENGINE tolerated the dangling/stripped input while FCP degraded it). THOSE
+PROTECTIONS ARE ALL REMOVED. The goal is to MATCH FCP, including on degenerate/error inputs:
+if stripping X makes the engine diverge from FCP-headless, the correct response is to
+reverse-engineer what FCP actually renders for that stripped X and make the ENGINE do the
+same — after which the minimized case stops diverging and we move on. Protecting X only HID
+the mismatch. The only remaining exclusions are: (a) the explicit user `--protect <type>`
+opt-in (keeps a named subsystem's subtree so a re-minimize still exercises it), (b) document
+ENVELOPE tags whose removal makes the .motr unparseable, and (c) the parser-identity attrs
+in _KEEP_ATTRS (id/factoryID/value/uuid) — dropping those corrupts node wiring, not render
+semantics. Everything else is a fair strip candidate, gated only by "engine still renders AND
+still diverges from FCP".
+
 
 Both renderers share ONE FCP engine boot; trials render to a tmpdir. Nothing writes
 the committed frame stores. Output → fct/minimized/<name>/ (case.motr + headless/ +
@@ -509,56 +526,17 @@ def _iter_struct(root, protect=None, factory_desc=None):
             walk(c)
             order.append(c)
     walk(root)
-    # REFERENCED-NODE PROTECTION (always on, independent of --protect): a node whose id is the
-    # VALUE of a `Mask Source` (id=1) or drop-zone `Source Media` (id=300) param must survive —
-    # stripping it dangles the reference and silently changes FCP's render (the engine-MSE gate
-    # can't catch it because the engine tolerates the dangling ref). Protect every element whose
-    # own id is referenced, plus its descendants and ancestor chain. See _referenced_node_ids.
-    ref_ids = _referenced_node_ids(root)
-    if ref_ids:
-        for e in order:
-            eid = e.get("id")
-            if eid is not None and eid.isdigit() and int(eid) in ref_ids:
-                # protect the node + all descendants
-                stack = [e]
-                while stack:
-                    n = stack.pop()
-                    protected.add(n)
-                    stack.extend(list(n))
-
-    # RIG-BEHAVIOR PROTECTION (always on, independent of --protect): a Rig Behavior
-    # (factoryID resolves to "Rig Behavior") DRIVES a channel on ANOTHER node via its
-    # Widget-indexed Snapshots array (e.g. Movements/Switch's Rig Behavior sets the hidden
-    # Color-Solid driver's Position X to a per-Direction snapshot [2064/2363/2512] that the
-    # sibling LinkPos then copies onto the A/B cards). Stripping the Rig Behavior leaves the
-    # driver at its authored fallback and un-gates the Links' Custom Mix — the ENGINE
-    # tolerates it but the RENDER changes meaning, so the engine-MSE gate happily "minimizes"
-    # to a degenerate rig fragment (Switch _t_switch_v5: A slid off-frame on a phantom ramp
-    # while FCP holds A static). Same 'engine-tolerates-but-FCP-depends' hazard as the
-    # referenced-node protection. Protect every Rig Behavior element + its subtree so a
-    # re-minimize keeps the rig intact and isolates the GENUINE divergence instead.
-    rig_desc = factory_desc if factory_desc else _factory_desc_map(root)
-    rig_fids = {fid for fid, desc in rig_desc.items() if desc == "Rig Behavior"}
-    if rig_fids:
-        for e in order:
-            if _localname(e.tag) == "behavior":
-                try:
-                    fid = int(e.get("factoryID") or -1)
-                except ValueError:
-                    continue
-                if fid in rig_fids:
-                    stack = [e]
-                    while stack:
-                        n = stack.pop()
-                        protected.add(n)
-                        stack.extend(list(n))
-
-    # Also protect the ANCESTOR CHAIN of every protected node: you cannot strip a container
-    # (e.g. the plain <layer>/<group> holding the Clone Layers) without taking the protected
-    # nodes with it. Without this, the minimizer removed the un-typed parent group and every
-    # protected clone inside it (3D_Rectangle went 25 clones -> 0 despite --protect "Clone
-    # Layer"). Walk each protected node up to the root and protect every ancestor. Runs whenever
-    # anything is protected — via --protect OR the always-on referenced-node protection above.
+    # NO ALWAYS-ON PROTECTIONS. The minimizer strips EVERYTHING (only the explicit
+    # user `--protect <type>` opt-in keeps a named subsystem's subtree). Policy 2026-07-26:
+    # a minimized case that diverges is a REAL bug — the right fix is to reverse-engineer
+    # what FCP does for that degenerate/stripped input and make the ENGINE do the same, so
+    # the case stops diverging. Protecting nodes to keep repros "faithful" only MASKS these
+    # bugs. Every strippable structural node (referenced source, rig behavior, clone target,
+    # drop-zone binding, disabled flag, factory decl, scene geometry, …) is a fair candidate;
+    # when removing it makes engine ≠ FCP-headless, that divergence is the next thing to fix.
+    # Also protect the ANCESTOR CHAIN of every EXPLICITLY --protect'd node (you cannot strip a
+    # container without taking its protected descendants). Only runs when --protect marked
+    # something; with no --protect, `protected` is empty and nothing is shielded.
     if protected:
         for c in list(protected):
             a = parent.get(c)
@@ -583,27 +561,13 @@ def _iter_params(root, protect=None, factory_desc=None):
             walk(c)
             order.append(c)
     walk(root)
-    # DROP-ZONE A/B BINDING protection (always on): a drop-zone image scenenode designates
-    # WHICH transition input it receives via Object(id=2) > {Type id=321 (1=A, 2=B, 3=Pin),
-    # Drop Zone id=311}. FCP binds the injected A/B media to the well by that Type; the ENGINE
-    # resolves A/B by the clip's pathURL name instead, so it TOLERATES a stripped Type (keeps
-    # showing the same plate) while FCP DEGRADES the un-typed well to its red "drop media here"
-    # PLACEHOLDER glyph — a false divergence purely from the strip. DECODED 2026-07-26 on
-    # Replicator-Clones/3D_Rectangle (_t_3dr_v2): stripping the "Transition B" node's Object>Type=2
-    # made FCP render the placeholder (mean [58,2,2]) vs the engine's real B plate. Same
-    # engine-tolerates-dangling-but-FCP-depends class as Source Media / sceneSettings / relativeURL.
-    # Protect any Type(321)/Drop-Zone(311) leaf whose parent param is an Object (id=2) container.
-    protected_bind = set()
+    # NO always-on drop-zone A/B binding protection (removed 2026-07-26). If stripping a
+    # Type(321)/Drop-Zone(311) leaf makes engine ≠ FCP-headless (e.g. FCP degrades an un-typed
+    # well to its red "drop media here" placeholder while the engine keeps resolving A/B by the
+    # clip pathURL), that divergence is a REAL engine bug to fix by making the engine reproduce
+    # FCP's placeholder/degenerate behavior — not something to hide by protecting the binding.
     for c in order:
-        if _localname(c.tag) != "parameter":
-            continue
-        cid = c.get("id")
-        if cid in ("321", "311"):
-            par = parent.get(c)
-            if par is not None and _localname(par.tag) == "parameter" and par.get("id") == "2":
-                protected_bind.add(c)
-    for c in order:
-        if c in inside or c in protected_bind:
+        if c in inside:
             continue
         if _localname(c.tag) == "parameter" and not any(_localname(k.tag) == "parameter" for k in c):
             yield parent[c], c
@@ -626,7 +590,6 @@ def _iter_boilerplate(root, protect=None, factory_desc=None):
     render-tests every removal, so a referenced-but-actually-inert def can still go.
     Elements inside a protected subtree are skipped."""
     inside = _protected_subtree(root, protect, factory_desc)
-    ref_ids = _referenced_node_ids(root)
     parent = {}
     order = []
     def walk(e):
@@ -635,34 +598,12 @@ def _iter_boilerplate(root, protect=None, factory_desc=None):
             walk(c)
             order.append(c)
     walk(root)
-    # Factory ids referenced by ANY node's factoryID attribute — those <factory> type decls are
-    # load-bearing for the engine's factoryID -> Motion-type resolution and must never be stripped.
-    _factory_ref_ids = set()
-    for el in root.iter():
-        fattr = el.get("factoryID")
-        if fattr is not None:
-            _factory_ref_ids.add(fattr)
-    def _ref_protected(c):
-        # A <clip>/<footage> whose id is a drop-zone Source Media / Mask Source target must
-        # survive (see _referenced_node_ids) — stripping it corrupts FCP's A/B clip binding.
-        cid = c.get("id")
-        if cid is not None and cid.isdigit() and int(cid) in ref_ids:
-            return True
-        # A <factory> whose id is referenced by ANY node's factoryID attribute is load-bearing:
-        # it maps factoryID -> Motion type (Camera/Framing/Replicator/...). DECODED on
-        # Replicator-Clones/Clone_Spin — the boiler pass stripped <factory id="11"> (Camera) even
-        # though a scenenode uses factoryID="11"; the ENGINE-MSE gate accepted it because the
-        # engine doesn't yet model the Camera (renders the plate flat either way), but the strip
-        # DESTROYS the faithful repro (the Camera node degrades to a plain group, so a future
-        # camera fix can't even be exercised). FCP resolves factoryID from its BUILT-IN registry
-        # so it renders identically with/without the <factory> row — exactly the engine-tolerates-
-        # (here: engine-ALSO-tolerates-but-only-because-unimplemented) hazard. Keep referenced
-        # factory rows so re-minimized repros retain their true node types.
-        if _localname(c.tag) == "factory" and cid is not None:
-            if cid in _factory_ref_ids:
-                return True
-        return False
-    cands = [c for c in order if _localname(c.tag) in _BOILERPLATE_TAGS and c not in inside and not _ref_protected(c)]
+    # NO always-on referenced-clip / factory-decl protection (removed 2026-07-26). The ddmin
+    # gate still render-tests every removal, so anything structurally fatal to OUR engine is
+    # restored; but a strip that keeps the engine rendering yet makes it DIVERGE from
+    # FCP-headless (e.g. removing a <factory> row or a referenced <clip>) is a REAL bug to fix
+    # by matching FCP's behavior for that stripped input, not to hide behind a protection.
+    cands = [c for c in order if _localname(c.tag) in _BOILERPLATE_TAGS and c not in inside]
     blob = ET.tostring(root, encoding="unicode")
     def is_unref(c):
         cid = c.get("id")
@@ -784,22 +725,14 @@ def _iter_generic(root, protect=None, factory_desc=None):
         if c in inside:
             continue
         if _localname(c.tag) in _ENVELOPE_TAGS:
-            continue
-        if _localname(c.tag) in _SCENE_GEOMETRY_TAGS:
-            continue  # scene coordinate space — stripping it changes FCP's render (see note)
-        if _localname(c.tag) in _MEDIA_REF_TAGS:
-            continue  # a clip's media reference — stripping it changes FCP's media resolution (see note)
-        # A DISABLED node's <enabled>0</enabled> is LOAD-BEARING: FCP does not draw the node
-        # directly (it survives only as a Clone/Mask/Camera SOURCE that other nodes reference),
-        # but the ENGINE draws any node without enabled=0 — so stripping it makes a hidden driver
-        # become a visible full-frame plate → a FALSE divergence. DECODED 2026-07-26 on
-        # 3D_Rectangle (_t_3dr_v6): node 10009 (Transition A) is <enabled>0</enabled> and is the
-        # Source of 9 masked rectangle clones; stripping enabled=0 made the engine paint A
-        # full-frame over B while FCP shows only the receded B. (<enabled>1</enabled> is the
-        # default and harmless to strip — only guard the disabled flag.) Same
-        # engine-tolerates-but-FCP-depends class as sceneSettings / Source Media / drop-zone Type.
-        if _localname(c.tag) == "enabled" and (c.text or "").strip() == "0":
-            continue
+            continue  # document skeleton — its own passes handle these / removal is fatal to the parse
+        # NO scene-geometry / media-ref / disabled-flag protection (removed 2026-07-26). If
+        # stripping <width>/<height>/<frameRate>, a clip media ref, or an <enabled>0</enabled>
+        # flag makes the engine diverge from FCP-headless, that divergence is a REAL bug: FCP
+        # renders the stripped doc a specific way (e.g. an undefined scene coordinate space
+        # defaults to 1920×1080, or a node with no <enabled> flag is drawn), and the engine must
+        # reproduce exactly that. Protecting these only hid the mismatch. The ddmin render gate
+        # still restores anything structurally fatal to OUR engine.
         yield parent[c], c
 
 
@@ -821,20 +754,6 @@ def _iter_value_simplifications(root, protect=None, factory_desc=None):
       • scalar element text (e.g. <motionBlurSamples>8</motionBlurSamples>) → "0"
     Skips protected subtrees. Deepest-first is irrelevant here (independent leaves)."""
     inside = _protected_subtree(root, protect, factory_desc or {})
-    # Never simplify the drop-zone A/B BINDING value: Object(id=2) > Type id=321 (1=A/2=B/3=Pin)
-    # binds which transition input the well receives. Snapping it to default/0 un-types the well →
-    # FCP shows its placeholder glyph while the engine (pathURL-based A/B) tolerates it — a false
-    # divergence (see _iter_params drop-zone note; DECODED on 3D_Rectangle _t_3dr_v2). Same for
-    # the Drop Zone flag (id=311). Build a child→parent-id map to identify them structurally.
-    _pp = {}
-    for _p in root.iter():
-        if _localname(_p.tag) == "parameter":
-            for _ch in _p:
-                if _localname(_ch.tag) == "parameter":
-                    _pp[id(_ch)] = _p.get("id")
-    def _is_ab_binding(el):
-        return (_localname(el.tag) == "parameter" and el.get("id") in ("321", "311")
-                and _pp.get(id(el)) == "2")
     def _is_num(s):
         try:
             float(s); return True
@@ -843,8 +762,6 @@ def _iter_value_simplifications(root, protect=None, factory_desc=None):
     for el in root.iter():
         if el in inside:
             continue
-        if _is_ab_binding(el):
-            continue  # never snap a drop-zone Type(321)/Drop-Zone(311) binding value
         tag = _localname(el.tag)
         # (a) attribute value → default, then → 0
         v = el.get("value")
@@ -859,8 +776,11 @@ def _iter_value_simplifications(root, protect=None, factory_desc=None):
             fv = el.get(fa)
             if fv is not None and _is_num(fv) and fv not in ("0",):
                 yield (el, fa, fv, "0")
-        # (c) scalar element text → 0 (leaf elements like <motionBlurSamples>8</…>)
-        if tag not in _ENVELOPE_TAGS and tag not in _SCENE_GEOMETRY_TAGS and len(list(el)) == 0 and el.text and _is_num(el.text.strip()):
+        # (c) scalar element text → 0 (leaf elements like <motionBlurSamples>8</…>).
+        # No scene-geometry exemption (removed 2026-07-26) — snapping <width>/<frameRate>/… is a
+        # render-gated candidate like any other; if it makes the engine diverge from FCP that is a
+        # real bug to fix by matching FCP's default-coordinate-space behavior.
+        if tag not in _ENVELOPE_TAGS and len(list(el)) == 0 and el.text and _is_num(el.text.strip()):
             t = el.text.strip()
             if t not in ("0", "0.0") and float(t) != 0.0:
                 yield (el, None, t, "0")
@@ -892,22 +812,13 @@ def _iter_attr_removals(root, protect=None, factory_desc=None):
     for el in root.iter():
         if el in inside:
             continue
-        is_vertex = _localname(el.tag) == "vertex"
         for attr in list(el.attrib.keys()):
             if attr in _KEEP_ATTRS:
                 continue
-            # `index` on a <vertex> is LOAD-BEARING: it defines the vertex's position in the
-            # shape's closed path, i.e. how curve_X[i] pairs with curve_Y[i] and the order the
-            # contour connects points. FCP (OZChannelCurve::getVertexValue reads a 2D OZVertex2D
-            # keyed by index) pairs/orders by this attribute; the engine sorts by it too but
-            # FALLS BACK to document order when it is absent (all index=0). So dropping <vertex
-            # index=> passes the engine-MSE gate while SILENTLY changing FCP's vertex pairing —
-            # DECODED on Stylized/Center's held Shape 390117 (_t_center_faithful): with the index
-            # attrs stripped, FCP fills a slant triangle (apex at TOP-Y) while the engine fills the
-            # doc-order polygon (apex at MID) — a false ~1 dB divergence purely from the strip.
-            # Same referenced/load-bearing-attribute class as the _SCENE_GEOMETRY_TAGS strips.
-            if is_vertex and attr == "index":
-                continue
+            # No vertex-index exemption (removed 2026-07-26). If dropping a <vertex index=>
+            # makes the engine diverge from FCP (FCP pairs curve_X[i]/curve_Y[i] by the index
+            # while the engine falls back to document order), that is a real engine bug: make
+            # the engine's vertex pairing match FCP's index-keyed pairing for the stripped input.
             yield (el, attr, el.get(attr), None)
 
 

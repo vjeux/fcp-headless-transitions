@@ -161,6 +161,17 @@ that, (5) verify on inputs you did NOT use to derive it. If step 2 or 3 can't be
 
 ## Guardrails
 - decode-don't-fit: read constants from the binary or a clean probe; never force-fit a guess.
+- NO MINIMIZER "PROTECTIONS" (policy 2026-07-26). The minimizer strips EVERYTHING — it has NO
+  always-on guards that keep a node/attr/tag "because FCP depends on it" (the old referenced-source
+  / Rig-Behavior / drop-zone-binding / <enabled>0</enabled> / scene-geometry / <factory> / vertex-
+  index protections are ALL removed). The goal is to MATCH FCP on every input, INCLUDING degenerate
+  / error / stripped cases. When a strip makes the engine diverge from FCP-headless, that is a REAL
+  bug: reverse-engineer what FCP renders for that stripped input (placeholder glyph, default 1920×1080
+  coordinate space, index-keyed vertex pairing, a disabled node still driving a clone, …) and make
+  the ENGINE reproduce it — then the minimized case no longer diverges and you move to the next.
+  NEVER re-add a protection to "keep the repro faithful"; that only hides the mismatch. The only
+  non-semantic exclusions are the explicit `--protect <type>` opt-in, unparseable-envelope tags, and
+  the id/factoryID/value/uuid parse-identity attrs.
 - SMALLER-AND-DIFFERENT IS THE GOAL. `fct minimize` shrinks maximally and does NOT preserve the
   original bug's identity — expect the reduced repro to sometimes show a simpler/different defect
   than the full transition. That is correct and desirable (RULE 1). "Poor oracle" is a RETIRED
