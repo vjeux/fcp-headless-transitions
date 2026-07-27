@@ -120,3 +120,33 @@ Phase 6 — Doc/template/factory envelope: OZDocument, OZProjectNode, TemplatePa
 - DECODE-BEFORE-IMPLEMENT: every ported function cites the Ozone address range it came from.
 - No feature flags. One faithful behavior, always on.
 - Commit + push after each class (or small batch) lands with its disasm reference.
+
+---
+
+## FRAMEWORK MAP (decoded 2026-07-27) — parsing spans THREE frameworks
+The `.motr` parser is NOT in one binary. Confirmed by symbol-definition search:
+- **ProCore.framework** — the SAX serialization infra: `PCSerializerReadStream`, `PCXMLStreamElement`
+  (attribute id<->name via PCScope, getAttributeAs*), `PCScope`, `PCMotionProjectXMLParser`
+  (the NSXMLParser driver: didStartElement/didEndElement/foundCharacters). PORTED in src/infra/.
+- **ProChannel.framework** — the CHANNEL/PARAMETER tree (all animatable VALUES): `ChannelParser`,
+  `OZChannelObjectRootBase`, `OZChannel`, `OZChannelBase`, `OZChannelFolder`, `OZCurve`,
+  `OZChannelCurve`, and typed channels (`OZChannel2DOverRange`, `OZChannelAngleOverRange`,
+  `OZChannelScaleOverRange`, `OZChannelPercentOverRange`, `OZChannelDoubleOverRange`,
+  `OZChannelGradient(Folder/Sample)`, `OZChannelText`, `OZChannelBlindData`, `OZChannelVaryingFolder`,
+  `OZChannelColorNoAlpha`, `OZChannelRotation3D`). Full list: re/prochannel_parse.txt.
+  THIS IS PHASE 2 and holds the BULK of the data (every <parameter id=N .. value=..> + <curve>
+  keyframe lives here). The transform (Position/Scale/Rotation/Anchor) of every node is here, NOT
+  on OZTransformNode.
+- **Ozone.framework** — the SCENE-NODE classes (structure): OZSceneNode/OZElement/OZTransformNode/
+  OZGroup/OZImageElement/OZFootage(Layer)/behaviors/OZScene/OZSceneSettings/OZDocument + the PCScope
+  static tables. PORTED in src/nodes/, src/behaviors/.
+
+Disasm the channel classes from ProChannel:
+  otool -tV -arch x86_64 ".../ProChannel.framework/Versions/A/ProChannel"
+(the disasm.sh tool targets Ozone by default; add a $BIN arg for ProChannel/ProCore — TODO).
+
+### Node vs Channel split (KEY architectural fact)
+Ozone node `parseElement` methods handle STRUCTURE (child scenenodes, factory refs, masks,
+behaviors, flags). All VALUES flow through OZChannelObjectRootBase::parseElement (ProChannel),
+which OZSceneNode::parseElement calls first (@0x91b40). So porting a node = (a) its structural
+tags from Ozone + (b) delegating <parameter> children to the ProChannel channel-tree port.
