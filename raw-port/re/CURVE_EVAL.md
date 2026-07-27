@@ -1,40 +1,35 @@
-# Curve evaluation — decode notes for a FAITHFUL transcription (in progress) — 2026-07-27
+# Curve value evaluation — FULLY DECODED (all vtable slots resolved via dyld_info -fixups) 2026-07-27
 
-Goal: transcribe the real value-sampling path; invent nothing. Entry -> leaf:
+Objects (verified layouts):
+- OZDynamicVertex (a keypoint). vtable 0xd5380. Key virtuals:
+    *0x10 OZVertex::setValueU(CMTime)      *0x18 getValueV(CMTime) -> double   (THE VALUE)
+    *0x38 getInputTangents(double* tTime,double* tVal, CMTime)   *0x40 getOutputTangents(...)
+    *0x88 isEnabled(CMTime).   The vertex's time "U" is a CMTime stored at vertex+0x10 (value@+0x10,
+    timescale/flags@+0x18); +0x20 = epoch.
+- OZSpline. vtable 0xd5228. *0x68 isEnabledVertex(void*,CMTime); *0x28/0x30 sampleSpline; getSmallDeltaU @0x2fe52.
+- OZLinearInterpolator. vtable 0xd6518. *0x18 interpolate; *0x28 convertHandlesToTangents;
+    *0x38 useTangents; *0x40 useKeypoints; *0x60 uForCurveValue; *0x68 OZInterpolator::easeTime.
 
-## OZChannel::getValueAsDouble(const CMTime& t, double dflt) — ProChannel @0x15d4e
-- reads the channel's spline at this+0x70; if its keypoint list (spline+0x8) is empty -> return 0.
-- vtable *0x340 = "is animated / has expression" test; flag 0x80000000 = expression channel.
-- builds a time-map via vtable *0x148, then samples via *0x270 (expression) or *0x268 (normal).
-- flag 0x800000000 + getFadeRatio(t) (@0x15f4e) multiplies a fade envelope onto the sampled value.
+## OZInterpolator::easeTime(OZSpline&, CMTime t, void* vA, void* vB) -> CMTime   @0x418b2
+IDENTITY for the base interpolator: returns t unchanged (copies the 24-byte CMTime to the sret buffer).
+Ease/SCurve/Convex/Concave subclasses OVERRIDE this to warp the query time; Linear/Bezier use the base.
 
-## OZSpline::interpolate(const CMTime& t, void* outA, void* outB, const CMTime& u, double* out, bool)
-  — ProChannel @0x31ec8
-- if spline+0xa0 (a helper obj) and its +0x28 present, try its vtable *0x70 (a fast path); else:
-- eax = (via *0xd0 on outA) the interpolation TYPE at this query; then
-  OZInterpolators::getInterpolator(type) (@0x447a6) -> the interpolator object.
-- interpolator vtable *0x58 = "needs setup?" ; *0x10 = setup; then *0x18 = interpolate(spline, t,
-  outA, outB, u, bool, bool) -> writes the sampled double to *out.
+## OZLinearInterpolator::interpolate(OZSpline& sp, CMTime t, OZDynamicVertex* a, OZDynamicVertex* b,
+##   CMTime& u, bool fX, bool fY) -> double    @0x44ec8   [fully resolved]
+  tA = a.U (CMTime @a+0x10);  tB = b.U
+  if CMTimeCompare(tB, tA) > 0:                      # non-degenerate span
+      d = sp.getSmallDeltaU()                        # tiny epsilon CMTime
+      (used via PC_CMTimeSaferAdd to guard equal-U)  # nudge
+  te = this->easeTime(sp, t, a, b)                   # *0x68 ; base = identity => te = t
+  num = CMTimeGetSeconds( PC_CMTimeSaferSubtract(te, tA) )
+  den = CMTimeGetSeconds( PC_CMTimeSaferSubtract(tB, tA) )
+  valA = a.getValueV(te)      # vertex *0x18
+  valB = b.getValueV(te)
+  if !fY:  return valA + (valB - valA) * (num/den)   # packed SIMD (value + a 2nd lane / tangent)
+  else:    return (te_seconds_expr - valA) / den     # derivative/slope variant
 
-## OZLinearInterpolator::interpolate(OZSpline&, const CMTime& t, void* vA, void* vB, const CMTime& u,
-   bool fX, bool fY) — ProChannel @0x44ec8    [the actual linear math]
-- vA, vB are OZVertex2D-like: CMTime at vertex+0x10 (value@+0x10, timescale/flags@+0x18) and +0x20
-  (epoch); the vertex VALUE is fetched via a vtable call *0x18 on the vertex (returns double in xmm0).
-- CMTimeCompare(vB.time, vA.time) (@0xaca80); if >0 it computes getSmallDeltaU (@0x2fe52) and
-  PC_CMTimeSaferAdd (@0xacad4) to nudge — a degenerate/equal-time guard.
-- num = CMTimeGetSeconds(PC_CMTimeSaferSubtract(t,  vA.time))     [seconds of (t - tA)]
-  den = CMTimeGetSeconds(PC_CMTimeSaferSubtract(vB.time, vA.time)) [seconds of (tB - tA)]  (@0xacada,@0xaca8c)
-  (a sign mask xorpd @0xb0640 negates one operand as needed.)
-- valA = vertexA.value (*0x18), valB = vertexB.value (*0x18).
-- fY==0 (SIMD path @0x450c3): packs two (num,den) pairs, divpd -> f = num/den (2 lanes: value +
-  a 2nd channel/tangent), then [valA,valB]·... mulpd + haddpd  =>  result = valA + (valB-valA)*f.
-- fY==1 (@0x450fe): scalar (x0 - valB)/den — the derivative/slope variant.
-
-=> Linear value = valA + (valB - valA) * ( seconds(t - tA) / seconds(tB - tA) ), all in CMTime space.
-
-## Blocking to transcribe fully (must model, not guess):
-- OZVertex2D exact layout + the *0x18 value accessor and *0xd0 (type) / *0x68 vtable methods.
-- OZSpline vertex list + how getVertexValue / the surrounding-vertex pair is selected before
-  interpolate is called (OZSpline::getPoint / sampleSpline).
-- getInterpolator(type) map already decoded (see disasm/ProChannel.OZInterpolators.getInterpolator.s).
-CMTime.ts primitive is in place (CMTimeCompare/GetSeconds/Make/SaferAdd/SaferSubtract).
+=> LINEAR value at time t between keypoints a,b:  valA + (valB-valA) * (t - tA)/(tB - tA), all in
+   CMTime rational space via CMTimeGetSeconds. easeTime warps t for the eased interpolator subclasses.
+CMTime.ts primitive already implements CMTimeCompare/GetSeconds/Make/PC_CMTimeSaferAdd/Subtract.
+NEXT: model the keypoint as {U:CMTime, value, inTan, outTan}; transcribe easeTime (identity) +
+OZLinearInterpolator::interpolate on that model; then OZBezierInterpolator (uses getControlPoints).
