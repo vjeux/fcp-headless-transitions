@@ -8,18 +8,30 @@
 //   vtable: `__ZTV14OZCurvePercent + 0x10` stored at (this+0x0) — the vptr slot
 //   (@0xabb09, @0xabbe3, @0xabc30).
 //
-// Base helpers we ride but haven't decoded yet (each is a throwing stub — Rule 3):
-//   __ZN7OZCurveC2Edddd    OZCurve::OZCurve(double,double,double,double)      (called @0xabb04)
-//   __ZN7OZCurveC2ERKS_b   OZCurve::OZCurve(OZCurve const&, bool)             (called @0xabbde, @0xabc2b)
-//   __ZN7OZCurveD2Ev       OZCurve::~OZCurve()                                (called @0xabb3a, @0xabb9b, @0xabba9)
-//   __ZN7OZCurve14setSplineStateEP13OZSplineState  OZCurve::setSplineState(...)  (called @0xabb2a)
+// Base helpers we ride. The 4 OZCurve base methods have been transcribed as instance/static
+// methods on OZCurveRuntime (raw-port/src/channels/OZCurveRuntime.ts) at the real addresses
+// listed below, but they do NOT compose with this subclass's call shape (see the header of
+// OZCurveDouble.ts for the full rationale). Per the port's "no wrong delegation" rule we keep
+// the stubs and correct the cited addresses so provenance is honest.
+//   __ZN7OZCurveC2Edddd    OZCurve::OZCurve(double,double,double,double)
+//                          @ProChannel 0x1e494 (called @0xabb04; runtime = OZCurveRuntime.make_bounds)
+//   __ZN7OZCurveC2ERKS_b   OZCurve::OZCurve(OZCurve const&, bool)
+//                          @ProChannel 0x1e56c (called @0xabbde, @0xabc2b; runtime = OZCurveRuntime.make_copy)
+//   __ZN7OZCurveD2Ev       OZCurve::~OZCurve()
+//                          @ProChannel 0x1e77a (called @0xabb3a, @0xabb9b, @0xabba9;
+//                          runtime = OZCurveRuntime.prototype.destruct — needs runtime fields)
+//   __ZN7OZCurve14setSplineStateEP13OZSplineState  OZCurve::setSplineState(...)
+//                          @ProChannel 0x1ea66 (called @0xabb2a;
+//                          runtime = OZCurveRuntime.prototype.setSplineState — needs runtime fields)
 //   __ZN25OZCurvePercentSplineState11getInstanceEv OZCurvePercentSplineState::getInstance()
-//                                                                              (called @0xabb17)
+//                          @ProChannel 0xabb48 (called @0xabb17; TRANSCRIBED in
+//                          OZCurvePercentSplineState.ts — delegated below.)
 //
 // Mirrors the landed OZCurveDouble.ts pattern exactly; only the bound constants and the
 // spline-state singleton class differ.
 
 import { OZCurve } from "./OZCurve.js";
+import { OZCurvePercentSplineState } from "./OZCurvePercentSplineState.js";
 
 /** OZCurve::OZCurve(double, double, double, double) @ProChannel __ZN7OZCurveC2Edddd — undecoded. */
 function OZCurve_ctor_bounds(
@@ -30,38 +42,59 @@ function OZCurve_ctor_bounds(
   _initVal: number,
 ): void {
   throw new Error(
-    "OZCurve::OZCurve(double,double,double,double) @ProChannel 0x0 (__ZN7OZCurveC2Edddd; call site @0xabb04) not yet transcribed",
+    "OZCurve::OZCurve(double,double,double,double) @ProChannel 0x1e494 (__ZN7OZCurveC2Edddd; call site @0xabb04; runtime decoded in OZCurveRuntime.ts as static make_bounds — cannot delegate: static-factory shape does not initialise subclass `this` in place) not yet transcribed as an in-place initialiser",
   );
 }
 
 /** OZCurve::OZCurve(OZCurve const&, bool) @ProChannel __ZN7OZCurveC2ERKS_b — undecoded. */
 function OZCurve_copy_ctor(_self: OZCurvePercent, _src: OZCurvePercent, _flag: boolean): void {
   throw new Error(
-    "OZCurve::OZCurve(OZCurve const&, bool) @ProChannel 0x0 (__ZN7OZCurveC2ERKS_b; call sites @0xabbde @0xabc2b) not yet transcribed",
+    "OZCurve::OZCurve(OZCurve const&, bool) @ProChannel 0x1e56c (__ZN7OZCurveC2ERKS_b; call sites @0xabbde @0xabc2b; runtime decoded in OZCurveRuntime.ts as static make_copy — cannot delegate: static-factory shape does not initialise subclass `this` in place) not yet transcribed as an in-place initialiser",
   );
 }
 
 /** OZCurve::~OZCurve() @ProChannel __ZN7OZCurveD2Ev — undecoded. */
 function OZCurve_dtor(_self: OZCurvePercent): void {
   throw new Error(
-    "OZCurve::~OZCurve() @ProChannel 0x0 (__ZN7OZCurveD2Ev; call sites @0xabb3a @0xabb9b @0xabba9) not yet transcribed",
+    "OZCurve::~OZCurve() @ProChannel 0x1e77a (__ZN7OZCurveD2Ev; call sites @0xabb3a @0xabb9b @0xabba9; runtime decoded in OZCurveRuntime.ts as instance method `destruct` — cannot delegate: reads runtime fields (extraNodes, recordingNode, splineState) that the throwing base ctor never installed on `this`) not yet reachable via this subclass",
   );
 }
 
 /** OZCurve::setSplineState(OZSplineState*) @ProChannel __ZN7OZCurve14setSplineStateEP13OZSplineState — undecoded. */
 function OZCurve_setSplineState(_self: OZCurvePercent, _state: unknown): void {
   throw new Error(
-    "OZCurve::setSplineState(OZSplineState*) @ProChannel 0x0 (__ZN7OZCurve14setSplineStateEP13OZSplineState; call site @0xabb2a) not yet transcribed",
+    "OZCurve::setSplineState(OZSplineState*) @ProChannel 0x1ea66 (__ZN7OZCurve14setSplineStateEP13OZSplineState; call site @0xabb2a; runtime decoded in OZCurveRuntime.ts as instance method `setSplineState` — cannot delegate: reads splineState + splineNode fields the throwing base ctor never installed on `this`) not yet reachable via this subclass",
   );
 }
 
-/** OZCurvePercentSplineState::getInstance() @ProChannel (__ZN25OZCurvePercentSplineState11getInstanceEv).
- *  Meyers-singleton-via-call_once returning an OZCurvePercentSplineState* (or null on race). Undecoded.
- *  Call site @0xabb17. */
+/** OZCurvePercentSplineState::getInstance() @ProChannel 0xabb48
+ *  (__ZN25OZCurvePercentSplineState11getInstanceEv). Call site @0xabb17.
+ *
+ *  TRANSCRIBED — delegates to OZCurvePercentSplineState.getInstance() (raw-port/src/channels/
+ *  OZCurvePercentSplineState.ts) which mirrors the Meyers-singleton-via-std::call_once body
+ *  @0xabb48..0xabb94 (see that file for the address-by-address decode).
+ *
+ *  The C++ caller (@0xabb17 in OZCurvePercent's ctor) receives a raw pointer to the singleton
+ *  and immediately computes `s + 0x8` (leaq 0x8(%rax),%rsi @0xabb1c) — i.e. it wants the
+ *  address of the embedded OZSplineState subobject at (singleton+0x8). In the TS port this
+ *  corresponds to the `splineState_at_0x8` field on OZCurvePercentSplineState. To keep the
+ *  ctor's downstream `s.addr + 0x8` arithmetic working unchanged, this thunk wraps the
+ *  delegation in an `{ addr }` shim whose numeric address is opaque (the ctor's next-line
+ *  cmoveq @0xabb1c..0xabb23 only cares whether the singleton pointer is null vs non-null;
+ *  once we adopt a decoded OZSplineState* the shim goes away). */
 function OZCurvePercentSplineState_getInstance(): { addr: number } | null {
-  throw new Error(
-    "OZCurvePercentSplineState::getInstance() @ProChannel 0x0 (__ZN25OZCurvePercentSplineState11getInstanceEv; call site @0xabb17) not yet transcribed",
-  );
+  const s = OZCurvePercentSplineState.getInstance();
+  if (s === null) {
+    // Matches the disasm's `testq %rax,%rax ; cmoveq %rax,%rsi` @0xabb1c..0xabb23:
+    // when getInstance returns null we propagate null so the ctor passes nullptr to setSplineState.
+    return null;
+  }
+  // The `addr` field is an opaque provenance marker (the ctor computes addr+0x8 which the
+  // decoded OZCurve_setSplineState stub then ignores — see the setSplineState stub above,
+  // which throws before touching the value). Once OZCurve_setSplineState becomes a real
+  // in-place initialiser, this thunk should be replaced by returning s.splineState_at_0x8
+  // directly (the +0x8 arithmetic in the ctor already models `&s->splineState_at_0x8`).
+  return { addr: 0x8 };
 }
 
 /** Vtable base for OZCurvePercent. The vptr stored at (this+0x0) is `&vtable + 0x10`, i.e. it
