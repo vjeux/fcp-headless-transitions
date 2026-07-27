@@ -1,0 +1,61 @@
+__ZN8OZSpline21getVertexInputHandlesEPvPdS1_RK6CMTimeb:
+000000000003c522	pushq	%rbp
+000000000003c523	movq	%rsp, %rbp
+000000000003c526	pushq	%r15
+000000000003c528	pushq	%r14
+000000000003c52a	pushq	%r13
+000000000003c52c	pushq	%r12
+000000000003c52e	pushq	%rbx
+000000000003c52f	subq	$0x28, %rsp
+000000000003c533	movl	%r9d, -0x30(%rbp)
+000000000003c537	movq	%r8, %r15
+000000000003c53a	movq	%rcx, -0x40(%rbp)
+000000000003c53e	movq	%rdx, %r14
+000000000003c541	movq	%rsi, %r13
+000000000003c544	movq	%rdi, -0x38(%rbp)
+000000000003c548	xorl	%eax, %eax
+000000000003c54a	leaq	-0x50(%rbp), %r12
+000000000003c54e	movq	%rax, (%r12)
+000000000003c552	leaq	-0x48(%rbp), %rbx
+000000000003c556	movq	%rax, (%rbx)
+000000000003c559	movq	(%rsi), %rax
+000000000003c55c	movq	%rsi, %rdi
+000000000003c55f	callq	*0xd0(%rax)
+000000000003c565	movl	%eax, -0x2c(%rbp)
+000000000003c568	movq	(%r13), %rax
+000000000003c56c	movq	%r13, %rdi
+000000000003c56f	movq	%r12, %rsi
+000000000003c572	movq	%rbx, %rdx
+000000000003c575	movq	%r15, %rcx
+000000000003c578	callq	*0x38(%rax)
+000000000003c57b	testq	%r14, %r14
+000000000003c57e	je	0x3c58a
+000000000003c580	movsd	-0x50(%rbp), %xmm0
+000000000003c585	movsd	%xmm0, (%r14)
+000000000003c58a	movq	-0x40(%rbp), %rbx
+000000000003c58e	testq	%rbx, %rbx
+000000000003c591	je	0x3c59c
+000000000003c593	movsd	-0x48(%rbp), %xmm0
+000000000003c598	movsd	%xmm0, (%rbx)
+000000000003c59c	cmpb	$0x0, -0x30(%rbp)
+000000000003c5a0	je	0x3c5c8
+000000000003c5a2	movq	-0x38(%rbp), %r15
+000000000003c5a6	movq	0x98(%r15), %rdi
+000000000003c5ad	movl	-0x2c(%rbp), %esi
+000000000003c5b0	callq	__ZN15OZInterpolators15getInterpolatorEj ## OZInterpolators::getInterpolator(unsigned int)
+000000000003c5b5	movq	(%rax), %r8
+000000000003c5b8	movq	%rax, %rdi
+000000000003c5bb	movq	%r15, %rsi
+000000000003c5be	movq	%r14, %rdx
+000000000003c5c1	movq	%rbx, %rcx
+000000000003c5c4	callq	*0x30(%r8)
+000000000003c5c8	movb	$0x1, %al
+000000000003c5ca	addq	$0x28, %rsp
+000000000003c5ce	popq	%rbx
+000000000003c5cf	popq	%r12
+000000000003c5d1	popq	%r13
+000000000003c5d3	popq	%r14
+000000000003c5d5	popq	%r15
+000000000003c5d7	popq	%rbp
+000000000003c5d8	retq
+000000000003c5d9	nop
