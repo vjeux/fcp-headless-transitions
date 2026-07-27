@@ -1,0 +1,498 @@
+// PCString.ts — ProCore's PCString class.  Transcribed from the x86_64
+// disassembly of /Applications/Final Cut Pro.app/Contents/Frameworks/
+// ProCore.framework/Versions/A/ProCore (see /tmp/ProCore_tV.txt).
+//
+// Every function below cites its @0xADDR in ProCore, every called C
+// runtime / CoreFoundation symbol is resolved by name from
+// /tmp/ProCore_symmap.tsv (the framework's own dynamic symbol table),
+// every hex offset comes straight out of the assembly.  Per Itanium C++
+// ABI there are C1/C2 (complete/base) and D1/D2 (complete/base) aliases
+// for the ctors and dtor; the C2/D2 body is the real work and C1/D1 is
+// an identical (independent, not-a-jump) function whose bytes match
+// C2/D2 — both entry points are recorded.
+//
+// ── STRUCT LAYOUT ────────────────────────────────────────────────────
+// Recovered from the default ctor @0x31ab8/@0x31ac6 (`movq $0x0,(%rdi)`
+// — nothing else written), from every setter/getter which touches
+// only (rdi) (i.e. `movq (%rdi), %rdi`), and from the dtor @0x31fb6
+// which `_CFRelease`s the single pointer at +0x00 and returns.
+//
+//     +0x00  ref : CFStringRef       // owning strong reference, may be null
+//
+// Total size: 8 bytes.  There is NO small-string-optimization buffer,
+// NO length/capacity field, NO heap-vs-inline discriminator — the
+// underlying storage is entirely delegated to CoreFoundation's
+// CFStringRef (which itself does small-string optimization internally,
+// but that is opaque to PCString and invisible at this ABI boundary).
+//
+// Ownership convention: whenever the slot is written, PCString takes
+// ownership of a +1-retained CFStringRef (either freshly created via
+// _CFStringCreateWithCString, or copied via _CFStringCreateCopy which
+// bumps the retain count on immutable strings).  Whenever the slot is
+// cleared/overwritten the old ref is _CFRelease()d.  A null ref means
+// "empty string" and is handled explicitly at every read site.
+//
+// ── ABI NOTE (JS port) ──────────────────────────────────────────────
+// The real class stores an opaque CoreFoundation handle.  In this port
+// there is no live CoreFoundation, so the "handle" is modelled as a
+// nullable JS string (`string | null`) — that carries exactly the two
+// pieces of information every method in the native class observes:
+// (a) is the slot populated? (b) if so, what are the code units?
+// _CFRelease is a no-op (JS GC handles memory), _CFStringCreateCopy is
+// identity (JS strings are immutable), and _CFStringCreateWithCString
+// with encoding 0x8000100 (kCFStringEncodingUTF8) is identity on the
+// already-decoded JS string.  This is the minimal faithful model of a
+// CFStringRef wrapper; anything more (UTF-16 buffers, retain counts,
+// mutable subclasses) is neither exercised by the transcribed methods
+// nor observable through them.
+//
+// ── FRONTIER (methods NOT ported in this pass) ───────────────────────
+// PCString has 89 total symbols in ProCore; this file transcribes only
+// the eight core methods listed below (identified as the keystone set
+// used by every OZChannelInfo/OZChannel*Info ctor).  All other methods
+// remain undecoded and will be added in future passes.  Notable
+// deferrals include:
+//   0x31b70  PCString(char const*, char const*)
+//   0x31c02  PCString(__CFString const*, char const*)
+//   0x31c72  PCString(__CFString const*, __CFString const*)
+//   0x31cce  PCString(__CFString const*, __CFBundle*, __CFString const*)
+//   0x31d0a  PCString(char const*, char const*, char const*)
+//   0x31dde  PCString(char const*, __CFBundle*, char const*)
+//   0x31e7a  PCString(unsigned short const*)
+//   0x31f32  PCString(__CFString const*)
+//   0x31f76  PCString(__CFString const*, bool)
+//   0x31fdc  intern(PCString const&)
+//   0x3209c  clear()
+//   0x320f0  set(char const*, unsigned int)
+//   0x3212a  set(unsigned short const*)
+//   0x321c8  set(__CFString const*)
+//   0x32200  setOSType(unsigned int)
+//   0x32246  empty() const
+//   0x32262  size() const
+//   0x32278  createCStr() const
+//   0x322ee  createUTF8Str() const
+//   0x32352  u_str() const
+//   0x32368  cf_str() const
+//   0x32380  createUniStr() const
+//   0x323dc  get_OSType() const
+//   0x32438  createVerifiedFormatString(char const*) const
+//   0x324a2  createVerifiedFormatCFString(char const*) const
+//   0x32532  compare(unsigned long, unsigned int, PCString const&) const
+//   0x3258a  compare(unsigned long, unsigned int, PCString const&, unsigned long) const
+//   0x325bc  caseInsensitiveCompare(PCString const&) const
+//   0x32694  insert(unsigned long, PCString const&)
+//   0x32704  append(PCString const&)
+//   0x327c0  append(PCString const&, unsigned long, unsigned int)
+//   0x327fa  repeat(PCString const&, int)
+//   0x32850  append(char const*)
+//   0x328c4  append(unsigned short const*)
+//   0x328fe  push_back(char)
+//   0x3292a  erase(unsigned long, unsigned int)
+//   0x3299a  replace(unsigned long, unsigned int, PCString const&)
+//   0x32a12  find(PCString const&) const
+//   0x32a4e  substr(unsigned long, unsigned int) const
+//   0x32ab0  substrTo(unsigned long) const
+//   0x32b18  substrFrom(unsigned long) const
+//   0x32b9a  debugShow() const
+//   0x32ba8  sprintf(__CFString const*, ...)
+//   0x32c80  vsprintf(char const*, __va_list_tag*)
+//   0x32cba  sprintf(char const*, ...)
+//   0x32d88  ssprintf(char const*, ...)
+//   0x32e72  format(short) / 0x32eae format(int) / 0x32eea format(long)
+//   0x32f28  format(float) / 0x32f66 format(double)
+//   0x32fa0  toLower() const
+//   0x33006  toCapitalize() const
+//   0x3230   ns_str() const
+//   0x3254   stringWithoutDiacritics() const
+//   0x32b0   toUpper() const
+//   0x32e4   stringWithoutSpacesAndNewlines() const
+//   0x333c   composedCharacterCount() const
+//   0x3352   glyphCount() const
+//   0x3368   isWhitespace() const
+//   0x3384   isWhitespaceAndNewline() const
+//   0x33a0   isNewline() const
+//   0x33bc   isUUID() const
+//   0x31b18  PCString(std::__1::basic_string<char> const&)
+//   0x31b38  set(std::__1::basic_string<char> const&)
+// plus the std::__1::basic_string overloads.
+
+// ── CoreFoundation frontier ──────────────────────────────────────────
+// The methods below call into CoreFoundation via ProCore's __stubs
+// section.  Their real semantics live in CoreFoundation.framework,
+// which is not part of this port.  We model each stub at the minimum
+// fidelity the transcribed callers actually observe (see the ABI note
+// above); anything richer would be inventing behavior.
+
+/** _CFStringCreateWithCString(alloc=NULL, cStr, encoding=0x8000100)
+ *  — creates an immutable CFString from a NUL-terminated C string in
+ *  the given encoding (0x8000100 == kCFStringEncodingUTF8).  Returns
+ *  a +1-retained CFStringRef or NULL on failure.  Called from
+ *  PCString(char const*) @0x31aee and set(char const*) @0x320cb. */
+function _CFStringCreateWithCString(cStr: string | null, encoding: number): string | null {
+  // Faithful model: JS strings are already-decoded UTF-16, so the
+  // "decode from UTF-8" step is a no-op at this fidelity.  The real
+  // symbol returns NULL if `cStr` is NULL; we mirror that.
+  if (cStr === null) return null;
+  if (encoding !== 0x8000100) {
+    throw new Error(
+      `_CFStringCreateWithCString: encoding 0x${encoding.toString(16)} @ProCore stub — only kCFStringEncodingUTF8 (0x8000100) is exercised by the transcribed callers`,
+    );
+  }
+  return cStr;
+}
+
+/** _CFStringCreateCopy(alloc=NULL, src) — for immutable inputs returns
+ *  the same pointer with a +1 retain; for mutable inputs makes a copy.
+ *  Called from PCString(char const*) @0x31afe, PCString(PCString const&)
+ *  @0x31ef8, set(PCString const&) @0x3208f. */
+function _CFStringCreateCopy(src: string | null): string | null {
+  return src;
+}
+
+/** _CFRelease(cf) — decrements retain count; frees at zero.  Called
+ *  from ~PCString @0x31fc2, set(char const*) @0x320e2, set(PCString
+ *  const&) @0x32080. */
+function _CFRelease(_cf: string | null): void {
+  // no-op in JS
+}
+
+/** _CFStringCompare(a, b, options).  In native code it returns a
+ *  CFComparisonResult of -1, 0, or +1.  Called from compare(PCString
+ *  const&) @0x3252a with options=0x20 (kCFCompareNonliteral).  Only
+ *  invoked when both operands are non-null (the caller pre-guards
+ *  null on either side and returns +/-1 without invoking CF). */
+function _CFStringCompare(a: string, b: string, options: number): number {
+  if (options !== 0x20) {
+    throw new Error(
+      `_CFStringCompare: options 0x${options.toString(16)} @ProCore stub — only kCFCompareNonliteral (0x20) is exercised by the transcribed callers`,
+    );
+  }
+  // kCFCompareNonliteral: canonically-equivalent code-point sequences
+  // compare equal.  We do not implement Unicode canonical equivalence
+  // in this port; fall back to code-unit comparison, which is exact
+  // for all ASCII / already-normalised inputs (the case observed for
+  // every OZChannel*Info name in the corpus).
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
+
+// The literal CFString @"bad cfstring ref" referenced from PCString(char
+// const*) @0x31af5 and cf_str() @0x32372 — a ProCore-internal sentinel
+// CFStringRef used when the source pointer is NULL/empty.  The string
+// payload lives in __TEXT,__cstring; the address 0x11b27c(%rip) resolves
+// to the CFConstantString wrapper for the C-literal "bad cfstring ref".
+const BAD_CFSTRING_REF_LITERAL = "bad cfstring ref";
+
+/**
+ * PCString — ProCore's CFString-backed string wrapper.  Every method
+ * is transcribed line-for-line from the ProCore disassembly; each
+ * cites its @0xADDR in ProCore.
+ *
+ * The single instance field `ref` corresponds to the CFStringRef at
+ * this+0x00 in the native layout (see STRUCT LAYOUT header above).
+ */
+export class PCString {
+  /** +0x00: CFStringRef.  null == empty / uninitialised.  Held with a
+   *  +1 retain by convention (set/copy paths bump; dtor releases). */
+  ref: string | null = null;
+
+  // ── Constructors ────────────────────────────────────────────────
+  //
+  // The native class exposes many overloads at distinct addresses; JS
+  // has no overloading, so we route through a single constructor that
+  // switches on argument kind.  Each branch is documented with the
+  // exact FCP symbol/address it corresponds to.
+
+  constructor(arg?: PCString | string | null) {
+    if (arg === undefined) {
+      this._ctor_default();
+    } else if (arg instanceof PCString) {
+      this._ctor_copy(arg);
+    } else {
+      // `string | null` — the char* ctor accepts both a valid pointer
+      // and NULL, and additionally treats an empty first byte as
+      // "bad cfstring ref"; we forward null and empty-string alike
+      // into the NULL/empty branch faithfully to the asm.
+      this._ctor_cstr(arg);
+    }
+  }
+
+  /**
+   * PCString::PCString() [base]  — @ProCore 0x31ab8
+   * PCString::PCString() [complete] — @ProCore 0x31ac6 (identical bytes)
+   *
+   *   0x31ab8  movq $0x0, (%rdi)      ; this->ref = nullptr
+   *   0x31abf  retq                    ; (complete variant also
+   *                                       pushes/pops rbp — same net)
+   *
+   * No callees, no reads.  Simply zeroes the single pointer field. */
+  private _ctor_default(): void {
+    // 0x31ab8: movq $0x0, (%rdi)
+    this.ref = null;
+  }
+
+  /**
+   * PCString::PCString(char const*) [base] — @ProCore 0x31ad4
+   * PCString::PCString(char const*) [complete] — @ProCore 0x31b0e (thunk, same body)
+   *
+   *   0x31ad4  push rbp / mov rbp,rsp / push rbx / push rax
+   *   0x31ada  movq %rdi, %rbx            ; rbx = this
+   *   0x31add  testq %rsi, %rsi           ; if (cstr == NULL) goto empty
+   *   0x31ae0  je   0x31af5
+   *   0x31ae2  cmpb $0x0, (%rsi)          ; if (*cstr == '\0') goto empty
+   *   0x31ae5  je   0x31af5
+   *   0x31ae7  xorl %edi, %edi            ; alloc = NULL
+   *   0x31ae9  movl $0x8000100, %edx      ; encoding = kCFStringEncodingUTF8
+   *   0x31aee  callq _CFStringCreateWithCString  (rsi already = cstr)
+   *   0x31af3  jmp  0x31b03
+   *   0x31af5  leaq @"bad cfstring ref"(%rip), %rsi
+   *   0x31afc  xorl %edi, %edi            ; alloc = NULL
+   *   0x31afe  callq _CFStringCreateCopy  ; copy the sentinel CFString
+   *   0x31b03  movq %rax, (%rbx)          ; this->ref = rax
+   *   0x31b06  ...                         ; epilogue */
+  private _ctor_cstr(cstr: string | null): void {
+    let created: string | null;
+    // 0x31add-0x31ae5: NULL pointer OR empty-first-byte falls to sentinel.
+    if (cstr === null || cstr.length === 0 || cstr.charCodeAt(0) === 0) {
+      // 0x31af5-0x31afe: alloc=NULL, src=@"bad cfstring ref"
+      created = _CFStringCreateCopy(BAD_CFSTRING_REF_LITERAL);
+    } else {
+      // 0x31ae7-0x31aee: alloc=NULL, cStr=rsi, encoding=UTF8
+      created = _CFStringCreateWithCString(cstr, 0x8000100);
+    }
+    // 0x31b03: movq %rax, (%rbx)
+    this.ref = created;
+  }
+
+  /**
+   * PCString::PCString(PCString const&) [base]     — @ProCore 0x31ede
+   * PCString::PCString(PCString const&) [complete] — @ProCore 0x31f08 (identical bytes)
+   *
+   *   0x31ede  movq $0x0, (%rdi)         ; this->ref = nullptr
+   *   0x31ee5  movq (%rsi), %rsi         ; rsi = other.ref
+   *   0x31ee8  testq %rsi, %rsi          ; if (rsi == NULL) return
+   *   0x31eeb  je   0x31f06
+   *   0x31eed  push rbp / mov rbp,rsp / push rbx / push rax
+   *   0x31ef3  movq %rdi, %rbx           ; rbx = this
+   *   0x31ef6  xorl %edi, %edi           ; alloc = NULL
+   *   0x31ef8  callq _CFStringCreateCopy ; rax = copy(other.ref)
+   *   0x31efd  movq %rax, (%rbx)         ; this->ref = rax
+   *   0x31f00  ...                        ; epilogue */
+  private _ctor_copy(other: PCString): void {
+    // 0x31ede: movq $0x0, (%rdi)
+    this.ref = null;
+    // 0x31ee5: movq (%rsi), %rsi
+    const src = other.ref;
+    // 0x31ee8-0x31eeb: null-check on other.ref, early return
+    if (src === null) return;
+    // 0x31ef8: _CFStringCreateCopy(NULL, src)
+    const copied = _CFStringCreateCopy(src);
+    // 0x31efd: movq %rax, (%rbx)
+    this.ref = copied;
+  }
+
+  // ── Destructor ──────────────────────────────────────────────────
+  /**
+   * PCString::~PCString() [base]     — @ProCore 0x31fb6
+   * PCString::~PCString() [complete] — @ProCore 0x31fd2 (jmp to base)
+   *
+   *   0x31fb6  push rbp / mov rbp,rsp
+   *   0x31fba  movq (%rdi), %rdi         ; rdi = this->ref
+   *   0x31fbd  testq %rdi, %rdi          ; if (ref == NULL) skip
+   *   0x31fc0  je   0x31fc7
+   *   0x31fc2  callq _CFRelease
+   *   0x31fc7  pop rbp / retq
+   *
+   * NOTE: the epilogue at 0x31fc9 is the C++-exception cleanup landing
+   * pad (`__clang_call_terminate`), unreachable on the normal path.
+   * The destructor does NOT null out the slot after release — the
+   * object's storage is going away anyway. */
+  destroy(): void {
+    // 0x31fba: movq (%rdi), %rdi
+    const r = this.ref;
+    // 0x31fbd-0x31fc2: if non-null, release
+    if (r !== null) {
+      _CFRelease(r);
+    }
+    // Native code leaves `ref` at its previous value; the caller is
+    // about to reclaim the storage.  We do the same faithfully.
+  }
+
+  // ── Setters ─────────────────────────────────────────────────────
+
+  /**
+   * PCString::set(char const*) — @ProCore 0x320ba
+   *
+   *   0x320ba  push rbp/mov rbp,rsp/push r14/push rbx
+   *   0x320c1  movq %rdi, %rbx           ; rbx = this
+   *   0x320c4  xorl %edi, %edi           ; alloc = NULL
+   *   0x320c6  movl $0x8000100, %edx     ; encoding = UTF8
+   *   0x320cb  callq _CFStringCreateWithCString    (rsi already = cstr)
+   *   0x320d0  movq %rax, %r14           ; r14 = new_ref
+   *   0x320d3  movq (%rbx), %rdi         ; rdi = this->ref
+   *   0x320d6  testq %rdi, %rdi          ; if (this->ref != NULL) release
+   *   0x320d9  je   0x320e7
+   *   0x320db  movq $0x0, (%rbx)         ; this->ref = NULL   (BEFORE release, exception-safe)
+   *   0x320e2  callq _CFRelease
+   *   0x320e7  movq %r14, (%rbx)         ; this->ref = new_ref
+   *   0x320ea  ...                        ; epilogue
+   *
+   * NOTE: unlike PCString(char const*) this variant does NOT special-
+   * case NULL/empty — it just passes cstr straight to CF (which returns
+   * NULL for a NULL input, yielding a null ref).  Faithfully mirror. */
+  set_cstr(cstr: string | null): void {
+    // 0x320cb: create new ref from UTF-8 C-string
+    const newRef = _CFStringCreateWithCString(cstr, 0x8000100);
+    // 0x320d3-0x320e2: if this->ref is non-null, clear-then-release
+    const old = this.ref;
+    if (old !== null) {
+      // 0x320db: movq $0x0, (%rbx)  — zero the slot BEFORE the release
+      // call so that if _CFRelease throws (or reenters), the slot is
+      // in a consistent state.
+      this.ref = null;
+      // 0x320e2: _CFRelease(old)
+      _CFRelease(old);
+    }
+    // 0x320e7: movq %r14, (%rbx)
+    this.ref = newRef;
+  }
+
+  /**
+   * PCString::set(PCString const&) — @ProCore 0x32064
+   *
+   *   0x32064  push rbp / mov rbp,rsp / push r14 / push rbx
+   *   0x3206b  movq %rsi, %r14           ; r14 = &other
+   *   0x3206e  movq %rdi, %rbx           ; rbx = this
+   *   0x32071  movq (%rdi), %rdi         ; rdi = this->ref
+   *   0x32074  testq %rdi, %rdi          ; if (this->ref != NULL) release
+   *   0x32077  je   0x32085
+   *   0x32079  movq $0x0, (%rbx)         ; this->ref = NULL (pre-release)
+   *   0x32080  callq _CFRelease
+   *   0x32085  movq (%r14), %rsi        ; rsi = other.ref
+   *   0x32088  testq %rsi, %rsi          ; if (other.ref == NULL) done
+   *   0x3208b  je   0x32097
+   *   0x3208d  xorl %edi, %edi           ; alloc = NULL
+   *   0x3208f  callq _CFStringCreateCopy
+   *   0x32094  movq %rax, (%rbx)         ; this->ref = rax
+   *   0x32097  ...                        ; epilogue
+   *
+   * NOTE the order: release-then-copy, unlike set(char const*)'s
+   * create-then-release.  This means self-assign IS unsafe in the
+   * native code (`s.set(s)` releases `s.ref`, then copies from the
+   * now-dangling `other.ref` — but at this ABI level `other.ref`
+   * has already been loaded into `rsi` at 0x32085 AFTER the release,
+   * so it reads the just-nulled slot and produces an empty PCString).
+   * We faithfully mirror that ordering. */
+  set(other: PCString): void {
+    // 0x32071-0x32080: release existing ref (with pre-null)
+    const old = this.ref;
+    if (old !== null) {
+      this.ref = null;   // 0x32079
+      _CFRelease(old);   // 0x32080
+    }
+    // 0x32085: reload other.ref AFTER the release (matches the asm's
+    // "movq (%r14), %rsi" placement — hence the observed self-assign
+    // quirk above).
+    const src = other.ref;
+    // 0x32088-0x3208b: null-check
+    if (src === null) return;
+    // 0x3208f: rax = _CFStringCreateCopy(NULL, src)
+    const copied = _CFStringCreateCopy(src);
+    // 0x32094: movq %rax, (%rbx)
+    this.ref = copied;
+  }
+
+  // ── Comparison ──────────────────────────────────────────────────
+
+  /**
+   * PCString::compare(PCString const&) const — @ProCore 0x324e4
+   *
+   *   0x324e4  movq (%rdi), %rdi         ; rdi = this->ref
+   *   0x324e7  movq (%rsi), %rsi         ; rsi = other.ref
+   *   0x324ea  xorl %eax, %eax           ; result = 0
+   *   0x324ec  movq %rdi, %rcx           ; rcx = this->ref
+   *   0x324ef  orq  %rsi, %rcx           ; rcx |= other.ref
+   *   0x324f2  je   0x32530              ; if (both NULL) return 0
+   *   0x324f4  testq %rsi, %rsi          ; al = (other.ref == NULL)
+   *   0x324f7  sete %al
+   *   0x324fa  testq %rdi, %rdi          ; cl = (this->ref != NULL)
+   *   0x324fd  setne %cl
+   *   0x32500  orb  %al, %cl             ; cl = A||B where
+   *                                       ;   A = (this->ref != NULL)
+   *                                       ;   B = (other.ref == NULL)
+   *   0x32502  movl $0xffffffff, %eax    ; result = -1 (default for
+   *                                       ;   "not both this-null+other-nonnull")
+   *   0x32507  cmpb $0x1, %cl
+   *   0x3250a  jne  0x32530              ; if (cl != 1) return -1
+   *                                       ;   [this-only-null case]
+   *   0x3250c  testq %rdi, %rdi          ; cl = (this->ref != NULL)
+   *   0x3250f  setne %cl
+   *   0x32512  testq %rsi, %rsi          ; dl = (other.ref == NULL)
+   *   0x32515  sete %dl
+   *   0x32518  movl $0x1, %eax           ; result = +1
+   *   0x3251d  testb %dl, %cl            ; if (dl & cl) return +1
+   *   0x3251f  jne  0x32530              ;   [other-only-null case]
+   *   0x32521  push rbp / mov rbp,rsp
+   *   0x32525  movl $0x20, %edx          ; options = kCFCompareNonliteral
+   *   0x3252a  callq _CFStringCompare    ; rdi = this->ref, rsi = other.ref
+   *   0x3252f  pop rbp
+   *   0x32530  retq                       ; return eax
+   *
+   * Summary of the branch structure the asm computes:
+   *   (a, b) := (this->ref, other.ref)
+   *   if a == NULL && b == NULL          -> return  0
+   *   if a == NULL && b != NULL          -> return -1
+   *   if a != NULL && b == NULL          -> return +1
+   *   else                                -> return _CFStringCompare(a, b, 0x20)
+   *
+   * Returns i32 (native symbol returns CFComparisonResult which is a
+   * signed long, but at every documented call site it's truncated to
+   * -1/0/+1 — matching a 32-bit tri-state). */
+  compare(other: PCString): number {
+    // 0x324e4/0x324e7: load both refs
+    const a = this.ref;
+    const b = other.ref;
+    // 0x324ec-0x324f2: both-null fast path
+    if (a === null && b === null) return 0;
+    // 0x324f4-0x3250a: this-null, other-non-null -> -1
+    if (a === null) return -1;
+    // 0x3250c-0x3251f: this-non-null, other-null -> +1
+    if (b === null) return 1;
+    // 0x32525-0x3252a: kCFCompareNonliteral (0x20) both non-null path
+    return _CFStringCompare(a, b, 0x20);
+  }
+
+  // ── Accessor ────────────────────────────────────────────────────
+
+  /**
+   * PCString::cf_str() const — @ProCore 0x32368
+   * Returns the raw CFStringRef, or the sentinel @"bad cfstring ref"
+   * if the slot is null.  Bundled as the canonical read-only accessor.
+   *
+   *   0x32368  push rbp / mov rbp,rsp
+   *   0x3236c  movq (%rdi), %rcx         ; rcx = this->ref
+   *   0x3236f  testq %rcx, %rcx
+   *   0x32372  leaq @"bad cfstring ref"(%rip), %rax
+   *   0x32379  cmovneq %rcx, %rax        ; rax = rcx ? rcx : sentinel
+   *   0x3237d  pop rbp / retq */
+  cf_str(): string {
+    // 0x3236c-0x32379: cmovne sentinel-or-ref
+    const r = this.ref;
+    return r !== null ? r : BAD_CFSTRING_REF_LITERAL;
+  }
+
+  /**
+   * Convenience: return the JS string value.  In native ProCore the
+   * closest analogue is `createCStr() const` @0x32278 which _malloc's
+   * a UTF-8 C-string via _CFStringGetMaximumSizeForEncoding + 
+   * _CFStringGetCString and hands ownership to the caller (see the
+   * frontier list above — full transcription deferred, as it involves
+   * malloc/CoreFoundation-owned byte buffers we don't model).  This
+   * accessor exposes the same observable data (the code units) without
+   * the malloc/lifetime machinery, mirroring cf_str()'s sentinel
+   * semantics for a null ref. */
+  toString(): string {
+    return this.cf_str();
+  }
+}
