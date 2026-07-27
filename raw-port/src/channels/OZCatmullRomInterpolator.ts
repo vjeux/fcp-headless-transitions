@@ -125,12 +125,12 @@ export class OZCatmullRomInterpolator {
  * Module-level singleton, mirroring FCP's own OZInterpolators registry (`OZInterpolators::ctor`
  * @ProChannel 0x44a24 stores one instance of each interpolator into the singleton at fixed offsets
  * — see re/INTERPOLATOR_DECODE.md; the type-6 slot @+0x20 in that registry is a
- * OZCatmullRomInterpolator). The dispatch in interpolators.ts uses this singleton.
+ * OZCatmullRomInterpolator). The dispatch in OZSpline.ts (getVertexValue) uses this singleton.
  */
 export const OZ_CATMULL_ROM_INTERPOLATOR = new OZCatmullRomInterpolator();
 
 /**
- * Free-function facade used by the sampleCurveValue dispatch in interpolators.ts. Kept as a thin
+ * Free-function facade used by the sampleCurveValue dispatch in OZSpline.ts. Kept as a thin
  * wrapper so the switch stays symmetric with linearInterpolate / scurveInterpolate / etc.
  * Throws the same faithful gap message from OZCatmullRomInterpolator.interpolate @ProChannel 0x407e6.
  */

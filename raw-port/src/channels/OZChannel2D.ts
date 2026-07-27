@@ -169,7 +169,7 @@ export class OZChannel2D {
    *   x.setKeyframeInterpolation(kfX, 1)                    @0x47f47   (linear = 1)
    *   y.setKeyframeInterpolation(kfY, 1)  (tail)            @0x47f5f
    * (movl 0x1,%edx at @0x47f42 / @0x47f52 is the interpolation-kind enum; 1 = linear per
-   *  the OZChannel interpolation table decoded in interpolators.ts.)
+   *  the OZChannel interpolation table decoded in OZInterpolators.ts.)
    */
   setLinearAtTime(t: CMTime): void {
     const kfX = this.x.getKeyframe(t);
