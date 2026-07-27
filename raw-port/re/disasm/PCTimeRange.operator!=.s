@@ -1,0 +1,54 @@
+__ZNK11PCTimeRangeneERKS_:
+00000000002163f0	pushq	%rbp
+00000000002163f1	movq	%rsp, %rbp
+00000000002163f4	pushq	%r14
+00000000002163f6	pushq	%rbx
+00000000002163f7	subq	$0x70, %rsp
+00000000002163fb	movq	%rsi, %rbx
+00000000002163fe	movq	%rdi, %r14
+0000000000216401	movq	0x10(%rdi), %rax
+0000000000216405	movq	%rax, -0x40(%rbp)
+0000000000216409	movups	(%rdi), %xmm0
+000000000021640c	movaps	%xmm0, -0x50(%rbp)
+0000000000216410	movq	0x10(%rsi), %rax
+0000000000216414	movq	%rax, -0x20(%rbp)
+0000000000216418	movups	(%rsi), %xmm0
+000000000021641b	movaps	%xmm0, -0x30(%rbp)
+000000000021641f	movq	-0x20(%rbp), %rax
+0000000000216423	movq	%rax, 0x28(%rsp)
+0000000000216428	movaps	-0x30(%rbp), %xmm0
+000000000021642c	movups	%xmm0, 0x18(%rsp)
+0000000000216431	movq	-0x40(%rbp), %rax
+0000000000216435	movq	%rax, 0x10(%rsp)
+000000000021643a	movaps	-0x50(%rbp), %xmm0
+000000000021643e	movups	%xmm0, (%rsp)
+0000000000216442	callq	0x6dcab0                        ## symbol stub for: _CMTimeCompare
+0000000000216447	movl	%eax, %ecx
+0000000000216449	movb	$0x1, %al
+000000000021644b	testl	%ecx, %ecx
+000000000021644d	jne	0x21649d
+000000000021644f	movq	0x28(%r14), %rax
+0000000000216453	movq	%rax, -0x40(%rbp)
+0000000000216457	movups	0x18(%r14), %xmm0
+000000000021645c	movaps	%xmm0, -0x50(%rbp)
+0000000000216460	movq	0x28(%rbx), %rax
+0000000000216464	movq	%rax, -0x20(%rbp)
+0000000000216468	movups	0x18(%rbx), %xmm0
+000000000021646c	movaps	%xmm0, -0x30(%rbp)
+0000000000216470	movq	-0x20(%rbp), %rax
+0000000000216474	movq	%rax, 0x28(%rsp)
+0000000000216479	movaps	-0x30(%rbp), %xmm0
+000000000021647d	movups	%xmm0, 0x18(%rsp)
+0000000000216482	movq	-0x40(%rbp), %rax
+0000000000216486	movq	%rax, 0x10(%rsp)
+000000000021648b	movaps	-0x50(%rbp), %xmm0
+000000000021648f	movups	%xmm0, (%rsp)
+0000000000216493	callq	0x6dcab0                        ## symbol stub for: _CMTimeCompare
+0000000000216498	testl	%eax, %eax
+000000000021649a	setne	%al
+000000000021649d	addq	$0x70, %rsp
+00000000002164a1	popq	%rbx
+00000000002164a2	popq	%r14
+00000000002164a4	popq	%rbp
+00000000002164a5	retq
+00000000002164a6	nopw	%cs:(%rax,%rax)
