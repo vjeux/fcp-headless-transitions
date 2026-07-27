@@ -1,0 +1,749 @@
+__ZN6SCurve7maxDiffERKNSt3__16vectorIfNS0_9allocatorIfEEEES6_dddd:
+00000000000642d0	pushq	%rbp
+00000000000642d1	movq	%rsp, %rbp
+00000000000642d4	pushq	%r15
+00000000000642d6	pushq	%r14
+00000000000642d8	pushq	%r13
+00000000000642da	pushq	%r12
+00000000000642dc	pushq	%rbx
+00000000000642dd	subq	$0xe8, %rsp
+00000000000642e4	movsd	%xmm3, -0x108(%rbp)
+00000000000642ec	movsd	%xmm2, -0x100(%rbp)
+00000000000642f4	movsd	%xmm1, -0xf8(%rbp)
+00000000000642fc	movsd	%xmm0, -0xf0(%rbp)
+0000000000064304	movq	0x18898bd(%rip), %rax           ## literal pool symbol address: ___stack_chk_guard
+000000000006430b	movq	(%rax), %rax
+000000000006430e	movq	%rax, -0x30(%rbp)
+0000000000064312	movq	(%rdi), %rax
+0000000000064315	movq	%rdi, -0x110(%rbp)
+000000000006431c	movq	0x8(%rdi), %rcx
+0000000000064320	movq	%rcx, %rbx
+0000000000064323	subq	%rax, %rbx
+0000000000064326	movq	%rcx, %rdi
+0000000000064329	subq	%rax, %rdi
+000000000006432c	je	0x646b9
+0000000000064332	movq	%rcx, -0xd0(%rbp)
+0000000000064339	movq	%rax, -0xd8(%rbp)
+0000000000064340	sarq	$0x2, %rbx
+0000000000064344	movq	%rbx, %rax
+0000000000064347	shrq	$0x3d, %rax
+000000000006434b	jne	0x64b86
+0000000000064351	movq	%rsi, %r13
+0000000000064354	addq	%rdi, %rdi
+0000000000064357	callq	0x1497452                       ## symbol stub for: __Znwm
+000000000006435c	movq	%rax, %r12
+000000000006435f	leaq	(%rax,%rbx,8), %r15
+0000000000064363	xorl	%r14d, %r14d
+0000000000064366	movq	%rax, %rdx
+0000000000064369	movq	-0xd8(%rbp), %rsi
+0000000000064370	movq	-0xd0(%rbp), %rdi
+0000000000064377	movq	%r13, -0xe8(%rbp)
+000000000006437e	jmp	0x643a3
+0000000000064380	movss	%xmm0, (%rdx)
+0000000000064384	movss	%xmm1, 0x4(%rdx)
+0000000000064389	addq	$0x8, %rdx
+000000000006438d	incl	%r14d
+0000000000064390	movq	%rdi, %rax
+0000000000064393	subq	%rsi, %rax
+0000000000064396	sarq	$0x2, %rax
+000000000006439a	cmpq	%r14, %rax
+000000000006439d	jbe	0x646b4
+00000000000643a3	movss	(%rsi,%r14,4), %xmm0
+00000000000643a9	movq	(%r13), %rax
+00000000000643ad	movss	(%rax,%r14,4), %xmm1
+00000000000643b3	cmpq	%r15, %rdx
+00000000000643b6	jb	0x64380
+00000000000643b8	movq	%rdx, %rbx
+00000000000643bb	subq	%r12, %rbx
+00000000000643be	movq	%r12, %rcx
+00000000000643c1	movq	%rbx, %r12
+00000000000643c4	sarq	$0x3, %r12
+00000000000643c8	leaq	0x1(%r12), %rax
+00000000000643cd	movabsq	$0x1fffffffffffffff, %r8        ## imm = 0x1FFFFFFFFFFFFFFF
+00000000000643d7	cmpq	%r8, %rax
+00000000000643da	movq	%rcx, -0xa8(%rbp)
+00000000000643e1	ja	0x64b73
+00000000000643e7	movss	%xmm1, -0xbc(%rbp)
+00000000000643ef	movss	%xmm0, -0xc8(%rbp)
+00000000000643f7	movq	%rdi, -0xd0(%rbp)
+00000000000643fe	movq	%rsi, -0xd8(%rbp)
+0000000000064405	movq	%rdx, -0xb8(%rbp)
+000000000006440c	subq	%rcx, %r15
+000000000006440f	movq	%r15, %r13
+0000000000064412	sarq	$0x2, %r13
+0000000000064416	cmpq	%rax, %r13
+0000000000064419	cmovbeq	%rax, %r13
+000000000006441d	movabsq	$0x7ffffffffffffff8, %rax       ## imm = 0x7FFFFFFFFFFFFFF8
+0000000000064427	cmpq	%rax, %r15
+000000000006442a	cmovaeq	%r8, %r13
+000000000006442e	cmpq	%r8, %r13
+0000000000064431	ja	0x64b7a
+0000000000064437	leaq	(,%r13,8), %rdi
+000000000006443f	callq	0x1497452                       ## symbol stub for: __Znwm
+0000000000064444	leaq	(%rax,%rbx), %r10
+0000000000064448	movss	-0xc8(%rbp), %xmm0
+0000000000064450	movss	%xmm0, (%rax,%rbx)
+0000000000064455	movss	-0xbc(%rbp), %xmm0
+000000000006445d	movss	%xmm0, 0x4(%rax,%rbx)
+0000000000064463	shlq	$0x3, %r12
+0000000000064467	subq	%r12, %r10
+000000000006446a	movq	-0xb8(%rbp), %r11
+0000000000064471	cmpq	%r11, -0xa8(%rbp)
+0000000000064478	je	0x644c7
+000000000006447a	leaq	-0x8(%rbx), %rcx
+000000000006447e	movq	-0xa8(%rbp), %rdx
+0000000000064485	movq	%r10, %rsi
+0000000000064488	cmpq	$0xd8, %rcx
+000000000006448f	jae	0x64524
+0000000000064495	xorl	%ecx, %ecx
+0000000000064497	nopw	(%rax,%rax)
+00000000000644a0	movss	(%rdx,%rcx), %xmm0
+00000000000644a5	movss	%xmm0, (%rsi,%rcx)
+00000000000644aa	movss	0x4(%rdx,%rcx), %xmm0
+00000000000644b0	movss	%xmm0, 0x4(%rsi,%rcx)
+00000000000644b6	leaq	(%rdx,%rcx), %rdi
+00000000000644ba	addq	$0x8, %rdi
+00000000000644be	addq	$0x8, %rcx
+00000000000644c2	cmpq	%r11, %rdi
+00000000000644c5	jne	0x644a0
+00000000000644c7	leaq	(%rax,%r13,8), %r15
+00000000000644cb	leaq	(%rax,%rbx), %rdx
+00000000000644cf	addq	$0x8, %rdx
+00000000000644d3	movq	-0xa8(%rbp), %rdi
+00000000000644da	testq	%rdi, %rdi
+00000000000644dd	je	0x64507
+00000000000644df	movq	%rdx, %rbx
+00000000000644e2	movq	%r10, %r12
+00000000000644e5	callq	0x1497404                       ## symbol stub for: __ZdlPv
+00000000000644ea	movq	%rbx, %rdx
+00000000000644ed	movq	-0x110(%rbp), %rax
+00000000000644f4	movq	(%rax), %rsi
+00000000000644f7	movq	0x8(%rax), %rdi
+00000000000644fb	movq	-0xe8(%rbp), %r13
+0000000000064502	jmp	0x6438d
+0000000000064507	movq	%r10, %r12
+000000000006450a	movq	-0xe8(%rbp), %r13
+0000000000064511	movq	-0xd8(%rbp), %rsi
+0000000000064518	movq	-0xd0(%rbp), %rdi
+000000000006451f	jmp	0x6438d
+0000000000064524	leaq	0x4(%rax), %r11
+0000000000064528	movq	%rcx, %rsi
+000000000006452b	andq	$-0x8, %rsi
+000000000006452f	leaq	(%rax,%rsi), %rdi
+0000000000064533	addq	$0x4, %rdi
+0000000000064537	leaq	0x8(%rax,%rsi), %r15
+000000000006453c	movq	-0xa8(%rbp), %rdx
+0000000000064543	movq	%r10, -0xc8(%rbp)
+000000000006454a	leaq	0x4(%rdx), %r10
+000000000006454e	leaq	(%rdx,%rsi), %r9
+0000000000064552	addq	$0x4, %r9
+0000000000064556	addq	%rdx, %rsi
+0000000000064559	addq	$0x8, %rsi
+000000000006455d	cmpq	%r15, -0xc8(%rbp)
+0000000000064564	setb	-0xbc(%rbp)
+000000000006456b	cmpq	%rdi, %r11
+000000000006456e	setb	-0xae(%rbp)
+0000000000064575	cmpq	%r9, -0xc8(%rbp)
+000000000006457c	setb	%r8b
+0000000000064580	cmpq	%rdi, %rdx
+0000000000064583	setb	-0xad(%rbp)
+000000000006458a	cmpq	%rsi, -0xc8(%rbp)
+0000000000064591	setb	-0xac(%rbp)
+0000000000064598	cmpq	%rdi, %r10
+000000000006459b	setb	-0xab(%rbp)
+00000000000645a2	cmpq	%r9, %r11
+00000000000645a5	setb	%r9b
+00000000000645a9	cmpq	%r15, %rdx
+00000000000645ac	setb	-0xaa(%rbp)
+00000000000645b3	cmpq	%rsi, %r11
+00000000000645b6	movq	-0xb8(%rbp), %r11
+00000000000645bd	setb	%dil
+00000000000645c1	cmpq	%r15, %r10
+00000000000645c4	movq	-0xc8(%rbp), %r10
+00000000000645cb	setb	-0xa9(%rbp)
+00000000000645d2	movq	%r10, %rsi
+00000000000645d5	movzbl	-0xae(%rbp), %r15d
+00000000000645dd	testb	%r15b, -0xbc(%rbp)
+00000000000645e4	jne	0x64495
+00000000000645ea	movq	-0xa8(%rbp), %rdx
+00000000000645f1	movq	%r10, %rsi
+00000000000645f4	andb	-0xad(%rbp), %r8b
+00000000000645fb	jne	0x64495
+0000000000064601	movq	-0xa8(%rbp), %rdx
+0000000000064608	movq	%r10, %rsi
+000000000006460b	movzbl	-0xab(%rbp), %r8d
+0000000000064613	andb	%r8b, -0xac(%rbp)
+000000000006461a	jne	0x64495
+0000000000064620	movq	-0xa8(%rbp), %rdx
+0000000000064627	movq	%r10, %rsi
+000000000006462a	andb	-0xaa(%rbp), %r9b
+0000000000064631	jne	0x64495
+0000000000064637	movq	-0xa8(%rbp), %rdx
+000000000006463e	movq	%r10, %rsi
+0000000000064641	andb	-0xa9(%rbp), %dil
+0000000000064648	jne	0x64495
+000000000006464e	shrq	$0x3, %rcx
+0000000000064652	incq	%rcx
+0000000000064655	movq	%rcx, %rdi
+0000000000064658	andq	$-0x4, %rdi
+000000000006465c	movq	%r10, %rsi
+000000000006465f	movq	-0xa8(%rbp), %r10
+0000000000064666	leaq	(%r10,%rdi,8), %rdx
+000000000006466a	leaq	(%rsi,%rdi,8), %rsi
+000000000006466e	movq	%rbx, %r8
+0000000000064671	subq	%r12, %r8
+0000000000064674	addq	%rax, %r8
+0000000000064677	addq	$0x10, %r8
+000000000006467b	xorl	%r9d, %r9d
+000000000006467e	nop
+0000000000064680	movups	(%r10,%r9,8), %xmm0
+0000000000064685	movups	0x10(%r10,%r9,8), %xmm1
+000000000006468b	movups	%xmm0, -0x10(%r8,%r9,8)
+0000000000064691	movups	%xmm1, (%r8,%r9,8)
+0000000000064696	addq	$0x4, %r9
+000000000006469a	cmpq	%r9, %rdi
+000000000006469d	jne	0x64680
+000000000006469f	cmpq	%rdi, %rcx
+00000000000646a2	movq	-0xc8(%rbp), %r10
+00000000000646a9	jne	0x64495
+00000000000646af	jmp	0x644c7
+00000000000646b4	movq	%rdx, %rbx
+00000000000646b7	jmp	0x646be
+00000000000646b9	xorl	%ebx, %ebx
+00000000000646bb	xorl	%r12d, %r12d
+00000000000646be	movl	$0x0, -0xe0(%rbp)
+00000000000646c8	movl	$0x3f800000, -0xdc(%rbp)        ## imm = 0x3F800000
+00000000000646d2	leaq	-0xa0(%rbp), %rdi
+00000000000646d9	leaq	-0xe0(%rbp), %rsi
+00000000000646e0	leaq	-0xdc(%rbp), %rdx
+00000000000646e7	movsd	-0xf0(%rbp), %xmm0
+00000000000646ef	movsd	-0xf8(%rbp), %xmm1
+00000000000646f7	movsd	-0x100(%rbp), %xmm2
+00000000000646ff	movsd	-0x108(%rbp), %xmm3
+0000000000064707	callq	__ZN6SCurve30computeBezierShadowsHightlightEddddP6point2RfS2_ ## SCurve::computeBezierShadowsHightlight(double, double, double, double, point2*, float&, float&)
+000000000006470c	subq	%r12, %rbx
+000000000006470f	shrq	$0x3, %rbx
+0000000000064713	testl	%ebx, %ebx
+0000000000064715	jle	0x64960
+000000000006471b	movss	-0xe0(%rbp), %xmm1
+0000000000064723	movss	0x1508841(%rip), %xmm0
+000000000006472b	addss	%xmm1, %xmm0
+000000000006472f	addss	%xmm0, %xmm0
+0000000000064733	movss	0x1508595(%rip), %xmm3
+000000000006473b	movaps	%xmm3, %xmm2
+000000000006473e	movss	%xmm0, -0xd8(%rbp)
+0000000000064746	subss	%xmm0, %xmm2
+000000000006474a	movss	%xmm2, -0xd0(%rbp)
+0000000000064752	movss	-0xdc(%rbp), %xmm0
+000000000006475a	andl	$0x7fffffff, %ebx               ## imm = 0x7FFFFFFF
+0000000000064760	ucomiss	%xmm0, %xmm3
+0000000000064763	movq	%rbx, %r13
+0000000000064766	movss	%xmm1, -0xc8(%rbp)
+000000000006476e	jbe	0x64971
+0000000000064774	movaps	%xmm3, %xmm4
+0000000000064777	subss	%xmm0, %xmm4
+000000000006477b	movss	0x1508a45(%rip), %xmm0
+0000000000064783	addss	%xmm4, %xmm0
+0000000000064787	mulss	0x150854d(%rip), %xmm0
+000000000006478f	movss	%xmm0, -0xe8(%rbp)
+0000000000064797	subss	%xmm0, %xmm3
+000000000006479b	xorl	%r15d, %r15d
+000000000006479e	leaq	-0xa0(%rbp), %r14
+00000000000647a5	leaq	0x1509224(%rip), %rbx
+00000000000647ac	xorps	%xmm0, %xmm0
+00000000000647af	movss	%xmm3, -0xa8(%rbp)
+00000000000647b7	movss	%xmm4, -0xbc(%rbp)
+00000000000647bf	jmp	0x6481c
+00000000000647c1	nopw	%cs:(%rax,%rax)
+00000000000647d0	movl	(%rbx,%rcx,4), %ecx
+00000000000647d3	subl	%eax, %ecx
+00000000000647d5	xorps	%xmm1, %xmm1
+00000000000647d8	cvtsi2ss	%ecx, %xmm1
+00000000000647dc	mulss	%xmm4, %xmm1
+00000000000647e0	mulss	0x15084f4(%rip), %xmm1
+00000000000647e8	divss	%xmm5, %xmm1
+00000000000647ec	addss	%xmm1, %xmm0
+00000000000647f0	movq	%rsi, %r12
+00000000000647f3	subss	0x4(%rsi,%r15,8), %xmm0
+00000000000647fa	andps	0x15085af(%rip), %xmm0
+0000000000064801	movss	-0xb8(%rbp), %xmm1
+0000000000064809	addss	%xmm0, %xmm1
+000000000006480d	movaps	%xmm1, %xmm0
+0000000000064810	incq	%r15
+0000000000064813	cmpq	%r15, %rdi
+0000000000064816	je	0x64b39
+000000000006481c	movss	%xmm0, -0xb8(%rbp)
+0000000000064824	movss	(%r12,%r15,8), %xmm0
+000000000006482a	movq	%r14, %rdi
+000000000006482d	movl	$0xd, %esi
+0000000000064832	callq	__Z12BezierYfromXP6point2if     ## BezierYfromX(point2*, int, float)
+0000000000064837	movss	-0xc8(%rbp), %xmm2
+000000000006483f	xorps	%xmm1, %xmm1
+0000000000064842	ucomiss	%xmm1, %xmm2
+0000000000064845	movq	%r12, %rsi
+0000000000064848	movss	(%r12,%r15,8), %xmm1
+000000000006484e	movss	0x1508712(%rip), %xmm5
+0000000000064856	mulss	%xmm5, %xmm1
+000000000006485a	cvttss2si	%xmm1, %eax
+000000000006485e	movslq	%eax, %rcx
+0000000000064861	movq	%r13, %rdi
+0000000000064864	movss	-0xa8(%rbp), %xmm3
+000000000006486c	movss	-0xbc(%rbp), %xmm4
+0000000000064874	jbe	0x648dd
+0000000000064876	movss	0x150845a(%rip), %xmm1
+000000000006487e	ucomiss	%xmm2, %xmm1
+0000000000064881	leaq	0x1508948(%rip), %rdx
+0000000000064888	movl	(%rdx,%rcx,4), %edx
+000000000006488b	jbe	0x648a0
+000000000006488d	subl	%eax, %edx
+000000000006488f	xorps	%xmm1, %xmm1
+0000000000064892	cvtsi2ss	%edx, %xmm1
+0000000000064896	mulss	%xmm2, %xmm1
+000000000006489a	addss	%xmm1, %xmm1
+000000000006489e	jmp	0x648d5
+00000000000648a0	xorps	%xmm2, %xmm2
+00000000000648a3	cvtsi2ss	%edx, %xmm2
+00000000000648a7	leaq	0x1508d22(%rip), %rdx
+00000000000648ae	xorps	%xmm1, %xmm1
+00000000000648b1	cvtsi2ssl	(%rdx,%rcx,4), %xmm1
+00000000000648b6	mulss	-0xd0(%rbp), %xmm2
+00000000000648be	mulss	-0xd8(%rbp), %xmm1
+00000000000648c6	addss	%xmm2, %xmm1
+00000000000648ca	xorps	%xmm2, %xmm2
+00000000000648cd	cvtsi2ss	%ecx, %xmm2
+00000000000648d1	subss	%xmm2, %xmm1
+00000000000648d5	divss	%xmm5, %xmm1
+00000000000648d9	addss	%xmm1, %xmm0
+00000000000648dd	movss	0x1508487(%rip), %xmm1
+00000000000648e5	ucomiss	%xmm4, %xmm1
+00000000000648e8	ja	0x647d0
+00000000000648ee	movss	0x15083e2(%rip), %xmm1
+00000000000648f6	ucomiss	%xmm4, %xmm1
+00000000000648f9	jbe	0x64940
+00000000000648fb	xorps	%xmm2, %xmm2
+00000000000648fe	cvtsi2ssl	(%rbx,%rcx,4), %xmm2
+0000000000064903	leaq	0x15094c6(%rip), %rdx
+000000000006490a	xorps	%xmm1, %xmm1
+000000000006490d	cvtsi2ssl	(%rdx,%rcx,4), %xmm1
+0000000000064912	mulss	%xmm3, %xmm2
+0000000000064916	mulss	-0xe8(%rbp), %xmm1
+000000000006491e	addss	%xmm2, %xmm1
+0000000000064922	xorps	%xmm2, %xmm2
+0000000000064925	cvtsi2ss	%eax, %xmm2
+0000000000064929	subss	%xmm2, %xmm1
+000000000006492d	jmp	0x647e8
+0000000000064932	nopw	%cs:(%rax,%rax)
+0000000000064940	leaq	0x1509489(%rip), %rdx
+0000000000064947	movl	(%rdx,%rcx,4), %ecx
+000000000006494a	subl	%eax, %ecx
+000000000006494c	xorps	%xmm1, %xmm1
+000000000006494f	cvtsi2ss	%ecx, %xmm1
+0000000000064953	mulss	%xmm4, %xmm1
+0000000000064957	addss	%xmm1, %xmm1
+000000000006495b	jmp	0x647e8
+0000000000064960	xorps	%xmm0, %xmm0
+0000000000064963	testq	%r12, %r12
+0000000000064966	jne	0x64b39
+000000000006496c	jmp	0x64b51
+0000000000064971	xorps	%xmm0, %xmm0
+0000000000064974	ucomiss	%xmm0, %xmm1
+0000000000064977	jbe	0x64a2e
+000000000006497d	movq	%r12, -0xa8(%rbp)
+0000000000064984	movss	0x150834c(%rip), %xmm0
+000000000006498c	ucomiss	%xmm1, %xmm0
+000000000006498f	jbe	0x64a85
+0000000000064995	xorps	%xmm0, %xmm0
+0000000000064998	xorl	%ebx, %ebx
+000000000006499a	leaq	-0xa0(%rbp), %r14
+00000000000649a1	leaq	0x1508828(%rip), %r15
+00000000000649a8	movq	-0xa8(%rbp), %r12
+00000000000649af	nop
+00000000000649b0	movss	%xmm0, -0xb8(%rbp)
+00000000000649b8	movss	(%r12,%rbx,8), %xmm0
+00000000000649be	movq	%r14, %rdi
+00000000000649c1	movl	$0xd, %esi
+00000000000649c6	callq	__Z12BezierYfromXP6point2if     ## BezierYfromX(point2*, int, float)
+00000000000649cb	movss	(%r12,%rbx,8), %xmm1
+00000000000649d1	movss	0x150858f(%rip), %xmm2
+00000000000649d9	mulss	%xmm2, %xmm1
+00000000000649dd	cvttss2si	%xmm1, %eax
+00000000000649e1	cltq
+00000000000649e3	movl	(%r15,%rax,4), %ecx
+00000000000649e7	subl	%eax, %ecx
+00000000000649e9	xorps	%xmm1, %xmm1
+00000000000649ec	cvtsi2ss	%ecx, %xmm1
+00000000000649f0	mulss	-0xc8(%rbp), %xmm1
+00000000000649f8	addss	%xmm1, %xmm1
+00000000000649fc	divss	%xmm2, %xmm1
+0000000000064a00	addss	%xmm1, %xmm0
+0000000000064a04	subss	0x4(%r12,%rbx,8), %xmm0
+0000000000064a0b	andps	0x150839e(%rip), %xmm0
+0000000000064a12	movss	-0xb8(%rbp), %xmm1
+0000000000064a1a	addss	%xmm0, %xmm1
+0000000000064a1e	movaps	%xmm1, %xmm0
+0000000000064a21	incq	%rbx
+0000000000064a24	cmpq	%rbx, %r13
+0000000000064a27	jne	0x649b0
+0000000000064a29	jmp	0x64b39
+0000000000064a2e	xorl	%ebx, %ebx
+0000000000064a30	leaq	-0xa0(%rbp), %r14
+0000000000064a37	nopw	(%rax,%rax)
+0000000000064a40	movss	%xmm0, -0xb8(%rbp)
+0000000000064a48	movss	(%r12,%rbx,8), %xmm0
+0000000000064a4e	movq	%r14, %rdi
+0000000000064a51	movl	$0xd, %esi
+0000000000064a56	callq	__Z12BezierYfromXP6point2if     ## BezierYfromX(point2*, int, float)
+0000000000064a5b	subss	0x4(%r12,%rbx,8), %xmm0
+0000000000064a62	andps	0x1508347(%rip), %xmm0
+0000000000064a69	movss	-0xb8(%rbp), %xmm1
+0000000000064a71	addss	%xmm0, %xmm1
+0000000000064a75	movaps	%xmm1, %xmm0
+0000000000064a78	incq	%rbx
+0000000000064a7b	cmpq	%rbx, %r13
+0000000000064a7e	jne	0x64a40
+0000000000064a80	jmp	0x64b39
+0000000000064a85	xorps	%xmm0, %xmm0
+0000000000064a88	xorl	%ebx, %ebx
+0000000000064a8a	leaq	0x150873f(%rip), %r15
+0000000000064a91	leaq	0x1508b38(%rip), %r14
+0000000000064a98	movq	-0xa8(%rbp), %r12
+0000000000064a9f	nop
+0000000000064aa0	movss	%xmm0, -0xb8(%rbp)
+0000000000064aa8	movss	(%r12,%rbx,8), %xmm0
+0000000000064aae	leaq	-0xa0(%rbp), %rdi
+0000000000064ab5	movl	$0xd, %esi
+0000000000064aba	callq	__Z12BezierYfromXP6point2if     ## BezierYfromX(point2*, int, float)
+0000000000064abf	movss	(%r12,%rbx,8), %xmm1
+0000000000064ac5	movss	0x150849b(%rip), %xmm4
+0000000000064acd	mulss	%xmm4, %xmm1
+0000000000064ad1	cvttss2si	%xmm1, %eax
+0000000000064ad5	cltq
+0000000000064ad7	xorps	%xmm2, %xmm2
+0000000000064ada	cvtsi2ssl	(%r15,%rax,4), %xmm2
+0000000000064ae0	mulss	-0xd0(%rbp), %xmm2
+0000000000064ae8	xorps	%xmm3, %xmm3
+0000000000064aeb	cvtsi2ssl	(%r14,%rax,4), %xmm3
+0000000000064af1	mulss	-0xd8(%rbp), %xmm3
+0000000000064af9	addss	%xmm2, %xmm3
+0000000000064afd	cvttps2dq	%xmm1, %xmm1
+0000000000064b01	cvtdq2ps	%xmm1, %xmm1
+0000000000064b04	subss	%xmm1, %xmm3
+0000000000064b08	divss	%xmm4, %xmm3
+0000000000064b0c	addss	%xmm3, %xmm0
+0000000000064b10	subss	0x4(%r12,%rbx,8), %xmm0
+0000000000064b17	andps	0x1508292(%rip), %xmm0
+0000000000064b1e	movss	-0xb8(%rbp), %xmm1
+0000000000064b26	addss	%xmm0, %xmm1
+0000000000064b2a	movaps	%xmm1, %xmm0
+0000000000064b2d	incq	%rbx
+0000000000064b30	cmpq	%rbx, %r13
+0000000000064b33	jne	0x64aa0
+0000000000064b39	movss	%xmm0, -0xb8(%rbp)
+0000000000064b41	movq	%r12, %rdi
+0000000000064b44	callq	0x1497404                       ## symbol stub for: __ZdlPv
+0000000000064b49	movss	-0xb8(%rbp), %xmm0
+0000000000064b51	movq	0x1889070(%rip), %rax           ## literal pool symbol address: ___stack_chk_guard
+0000000000064b58	movq	(%rax), %rax
+0000000000064b5b	cmpq	-0x30(%rbp), %rax
+0000000000064b5f	jne	0x64b81
+0000000000064b61	addq	$0xe8, %rsp
+0000000000064b68	popq	%rbx
+0000000000064b69	popq	%r12
+0000000000064b6b	popq	%r13
+0000000000064b6d	popq	%r14
+0000000000064b6f	popq	%r15
+0000000000064b71	popq	%rbp
+0000000000064b72	retq
+0000000000064b73	callq	__ZNSt3__16vectorI5Vec2fNS_9allocatorIS1_EEE20__throw_length_errorB9nqe210106Ev ## std::__1::vector<Vec2f, std::__1::allocator<Vec2f>>::__throw_length_error[abi:nqe210106]()
+0000000000064b78	jmp	0x64b7f
+0000000000064b7a	callq	__ZSt28__throw_bad_array_new_lengthB9nqe210106v ## std::__throw_bad_array_new_length[abi:nqe210106]()
+0000000000064b7f	ud2
+0000000000064b81	callq	0x14974f4                       ## symbol stub for: ___stack_chk_fail
+0000000000064b86	callq	__ZNSt3__16vectorI5Vec2fNS_9allocatorIS1_EEE20__throw_length_errorB9nqe210106Ev ## std::__1::vector<Vec2f, std::__1::allocator<Vec2f>>::__throw_length_error[abi:nqe210106]()
+0000000000064b8b	jmp	0x64b93
+0000000000064b8d	jmp	0x64b9e
+0000000000064b8f	jmp	0x64b9e
+0000000000064b91	jmp	0x64b93
+0000000000064b93	movq	%r12, -0xa8(%rbp)
+0000000000064b9a	jmp	0x64b9e
+0000000000064b9c	jmp	0x64b9e
+0000000000064b9e	movq	%rax, %r14
+0000000000064ba1	cmpq	$0x0, -0xa8(%rbp)
+0000000000064ba9	je	0x64bb7
+0000000000064bab	movq	-0xa8(%rbp), %rdi
+0000000000064bb2	callq	0x1497404                       ## symbol stub for: __ZdlPv
+0000000000064bb7	movq	%r14, %rdi
+0000000000064bba	callq	0x1495d30                       ## symbol stub for: __Unwind_Resume
+0000000000064bbf	nop
+___Block_byref_object_copy_:
+0000000000064bc0	pushq	%rbp
+0000000000064bc1	movq	%rsp, %rbp
+0000000000064bc4	xorps	%xmm0, %xmm0
+0000000000064bc7	movups	%xmm0, 0x30(%rdi)
+0000000000064bcb	movq	$0x0, 0x40(%rdi)
+0000000000064bd3	movups	0x30(%rsi), %xmm1
+0000000000064bd7	movups	%xmm1, 0x30(%rdi)
+0000000000064bdb	movq	0x40(%rsi), %rax
+0000000000064bdf	movq	%rax, 0x40(%rdi)
+0000000000064be3	movups	%xmm0, 0x30(%rsi)
+0000000000064be7	movq	$0x0, 0x40(%rsi)
+0000000000064bef	popq	%rbp
+0000000000064bf0	retq
+0000000000064bf1	nopw	%cs:(%rax,%rax)
+___Block_byref_object_dispose_:
+0000000000064c00	pushq	%rbp
+0000000000064c01	movq	%rsp, %rbp
+0000000000064c04	movq	%rdi, %rax
+0000000000064c07	movq	0x30(%rdi), %rdi
+0000000000064c0b	testq	%rdi, %rdi
+0000000000064c0e	je	0x64c1a
+0000000000064c10	movq	%rdi, 0x38(%rax)
+0000000000064c14	popq	%rbp
+0000000000064c15	jmp	0x1497404                       ## symbol stub for: __ZdlPv
+0000000000064c1a	popq	%rbp
+0000000000064c1b	retq
+0000000000064c1c	nopl	(%rax)
+___Block_byref_object_copy_.4:
+0000000000064c20	pushq	%rbp
+0000000000064c21	movq	%rsp, %rbp
+0000000000064c24	xorps	%xmm0, %xmm0
+0000000000064c27	movups	%xmm0, 0x30(%rdi)
+0000000000064c2b	movq	$0x0, 0x40(%rdi)
+0000000000064c33	movups	0x30(%rsi), %xmm1
+0000000000064c37	movups	%xmm1, 0x30(%rdi)
+0000000000064c3b	movq	0x40(%rsi), %rax
+0000000000064c3f	movq	%rax, 0x40(%rdi)
+0000000000064c43	movups	%xmm0, 0x30(%rsi)
+0000000000064c47	movq	$0x0, 0x40(%rsi)
+0000000000064c4f	popq	%rbp
+0000000000064c50	retq
+0000000000064c51	nopw	%cs:(%rax,%rax)
+___Block_byref_object_dispose_.5:
+0000000000064c60	pushq	%rbp
+0000000000064c61	movq	%rsp, %rbp
+0000000000064c64	movq	%rdi, %rax
+0000000000064c67	movq	0x30(%rdi), %rdi
+0000000000064c6b	testq	%rdi, %rdi
+0000000000064c6e	je	0x64c7a
+0000000000064c70	movq	%rdi, 0x38(%rax)
+0000000000064c74	popq	%rbp
+0000000000064c75	jmp	0x1497404                       ## symbol stub for: __ZdlPv
+0000000000064c7a	popq	%rbp
+0000000000064c7b	retq
+0000000000064c7c	nopl	(%rax)
+____ZN12_GLOBAL__N_117cFitCurveToPointsERKNSt3__16vectorI5Vec2fNS0_9allocatorIS2_EEEERdS8_S8_S8_fi_block_invoke:
+0000000000064c80	pushq	%rbp
+0000000000064c81	movq	%rsp, %rbp
+0000000000064c84	pushq	%r15
+0000000000064c86	pushq	%r14
+0000000000064c88	pushq	%r13
+0000000000064c8a	pushq	%r12
+0000000000064c8c	pushq	%rbx
+0000000000064c8d	subq	$0x118, %rsp                    ## imm = 0x118
+0000000000064c94	movq	%rdi, %r14
+0000000000064c97	movq	0x1888f2a(%rip), %rax           ## literal pool symbol address: ___stack_chk_guard
+0000000000064c9e	movq	(%rax), %rax
+0000000000064ca1	movq	%rax, -0x30(%rbp)
+0000000000064ca5	movss	0x54(%rdi), %xmm0
+0000000000064caa	testq	%rsi, %rsi
+0000000000064cad	movq	%rsi, -0x100(%rbp)
+0000000000064cb4	js	0x64cbd
+0000000000064cb6	cvtsi2ss	%rsi, %xmm3
+0000000000064cbb	jmp	0x64cd4
+0000000000064cbd	movq	%rsi, %rax
+0000000000064cc0	shrq	%rax
+0000000000064cc3	movl	%esi, %ecx
+0000000000064cc5	andl	$0x1, %ecx
+0000000000064cc8	orq	%rax, %rcx
+0000000000064ccb	cvtsi2ss	%rcx, %xmm3
+0000000000064cd0	addss	%xmm3, %xmm3
+0000000000064cd4	mulss	%xmm0, %xmm3
+0000000000064cd8	addss	0x50(%r14), %xmm3
+0000000000064cde	addss	%xmm3, %xmm0
+0000000000064ce2	movss	%xmm0, -0xac(%rbp)
+0000000000064cea	ucomiss	%xmm3, %xmm0
+0000000000064ced	jb	0x64cfc
+0000000000064cef	movss	0x60(%r14), %xmm2
+0000000000064cf5	ucomiss	0x5c(%r14), %xmm2
+0000000000064cfa	jae	0x64d22
+0000000000064cfc	movq	0x1888ec5(%rip), %rax           ## literal pool symbol address: ___stack_chk_guard
+0000000000064d03	movq	(%rax), %rax
+0000000000064d06	cmpq	-0x30(%rbp), %rax
+0000000000064d0a	jne	0x6522d
+0000000000064d10	addq	$0x118, %rsp                    ## imm = 0x118
+0000000000064d17	popq	%rbx
+0000000000064d18	popq	%r12
+0000000000064d1a	popq	%r13
+0000000000064d1c	popq	%r14
+0000000000064d1e	popq	%r15
+0000000000064d20	popq	%rbp
+0000000000064d21	retq
+0000000000064d22	movss	0x58(%r14), %xmm1
+0000000000064d28	movss	0x1508494(%rip), %xmm0
+0000000000064d30	movss	%xmm0, -0xa8(%rbp)
+0000000000064d38	movss	0x150848c(%rip), %xmm4
+0000000000064d40	leaq	-0xa0(%rbp), %r15
+0000000000064d47	leaq	0x1508482(%rip), %r12
+0000000000064d4e	leaq	0x1508c7b(%rip), %rbx
+0000000000064d55	movaps	%xmm1, %xmm5
+0000000000064d58	jmp	0x64d79
+0000000000064d5a	nopw	(%rax,%rax)
+0000000000064d60	movss	-0xb0(%rbp), %xmm3
+0000000000064d68	addss	%xmm1, %xmm3
+0000000000064d6c	movss	-0xac(%rbp), %xmm0
+0000000000064d74	ucomiss	%xmm3, %xmm0
+0000000000064d77	jb	0x64cfc
+0000000000064d79	movss	0x5c(%r14), %xmm0
+0000000000064d7f	ucomiss	%xmm0, %xmm2
+0000000000064d82	movss	%xmm3, -0xb0(%rbp)
+0000000000064d8a	jb	0x64d60
+0000000000064d8c	cvtss2sd	%xmm3, %xmm3
+0000000000064d90	movsd	%xmm3, -0xe8(%rbp)
+0000000000064d98	jmp	0x64dbe
+0000000000064d9a	nopw	(%rax,%rax)
+0000000000064da0	movss	0x60(%r14), %xmm2
+0000000000064da6	movaps	-0x120(%rbp), %xmm4
+0000000000064dad	movss	-0xa4(%rbp), %xmm0
+0000000000064db5	addss	%xmm4, %xmm0
+0000000000064db9	ucomiss	%xmm0, %xmm2
+0000000000064dbc	jb	0x64d60
+0000000000064dbe	movaps	%xmm4, %xmm3
+0000000000064dc1	movaps	%xmm0, %xmm4
+0000000000064dc4	xorps	%xmm0, %xmm0
+0000000000064dc7	movss	%xmm4, -0xa4(%rbp)
+0000000000064dcf	cmpnless	%xmm4, %xmm0
+0000000000064dd4	movaps	%xmm1, %xmm4
+0000000000064dd7	blendvps	%xmm0, %xmm3, %xmm4
+0000000000064ddc	movss	0x64(%r14), %xmm0
+0000000000064de2	movss	0x68(%r14), %xmm3
+0000000000064de8	ucomiss	%xmm0, %xmm3
+0000000000064deb	jb	0x64dad
+0000000000064ded	movaps	%xmm0, %xmm7
+0000000000064df0	movaps	%xmm4, -0x120(%rbp)
+0000000000064df7	movss	0x70(%r14), %xmm4
+0000000000064dfd	ucomiss	0x6c(%r14), %xmm4
+0000000000064e02	jae	0x64e40
+0000000000064e04	movaps	%xmm5, %xmm6
+0000000000064e07	movaps	0x1508392(%rip), %xmm5
+0000000000064e0e	nop
+0000000000064e10	xorps	%xmm0, %xmm0
+0000000000064e13	cmpnless	%xmm7, %xmm0
+0000000000064e18	movaps	%xmm5, %xmm4
+0000000000064e1b	blendvps	%xmm0, %xmm6, %xmm4
+0000000000064e20	movaps	%xmm4, %xmm6
+0000000000064e23	addss	%xmm4, %xmm7
+0000000000064e27	ucomiss	%xmm7, %xmm3
+0000000000064e2a	jae	0x64e10
+0000000000064e2c	movaps	-0x120(%rbp), %xmm4
+0000000000064e33	movaps	%xmm6, %xmm5
+0000000000064e36	jmp	0x64dad
+0000000000064e3b	nopl	(%rax,%rax)
+0000000000064e40	movss	-0xa4(%rbp), %xmm0
+0000000000064e48	cvtss2sd	%xmm0, %xmm0
+0000000000064e4c	movsd	%xmm0, -0xf0(%rbp)
+0000000000064e54	movaps	%xmm7, %xmm6
+0000000000064e57	jmp	0x64e81
+0000000000064e59	nopl	(%rax)
+0000000000064e60	movss	0x68(%r14), %xmm3
+0000000000064e66	movaps	-0x130(%rbp), %xmm5
+0000000000064e6d	movaps	-0x140(%rbp), %xmm6
+0000000000064e74	addss	%xmm5, %xmm6
+0000000000064e78	ucomiss	%xmm6, %xmm3
+0000000000064e7b	jb	0x64da0
+0000000000064e81	movaps	%xmm5, %xmm2
+0000000000064e84	xorps	%xmm0, %xmm0
+0000000000064e87	cmpnless	%xmm6, %xmm0
+0000000000064e8c	movaps	0x150830d(%rip), %xmm5
+0000000000064e93	blendvps	%xmm0, %xmm2, %xmm5
+0000000000064e98	movss	0x6c(%r14), %xmm0
+0000000000064e9e	ucomiss	%xmm0, %xmm4
+0000000000064ea1	movaps	%xmm6, -0x140(%rbp)
+0000000000064ea8	jb	0x64e6d
+0000000000064eaa	movaps	%xmm5, -0x130(%rbp)
+0000000000064eb1	xorps	%xmm1, %xmm1
+0000000000064eb4	cvtss2sd	%xmm6, %xmm1
+0000000000064eb8	movsd	%xmm1, -0xf8(%rbp)
+0000000000064ec0	jmp	0x64ef1
+0000000000064ec2	nopw	%cs:(%rax,%rax)
+0000000000064ed0	movss	0x58(%r14), %xmm1
+0000000000064ed6	movss	0x70(%r14), %xmm4
+0000000000064edc	movss	-0xb4(%rbp), %xmm0
+0000000000064ee4	addss	%xmm1, %xmm0
+0000000000064ee8	ucomiss	%xmm0, %xmm4
+0000000000064eeb	jb	0x64e60
+0000000000064ef1	movss	%xmm0, -0xb4(%rbp)
+0000000000064ef9	xorps	%xmm2, %xmm2
+0000000000064efc	cvtss2sd	%xmm0, %xmm2
+0000000000064f00	movsd	-0xf0(%rbp), %xmm0
+0000000000064f08	movsd	-0xf8(%rbp), %xmm1
+0000000000064f10	movsd	%xmm2, -0x108(%rbp)
+0000000000064f18	movsd	-0xe8(%rbp), %xmm3
+0000000000064f20	movq	%r15, %rdi
+0000000000064f23	leaq	-0xdc(%rbp), %rsi
+0000000000064f2a	leaq	-0xd8(%rbp), %rdx
+0000000000064f31	callq	__ZN6SCurve30computeBezierShadowsHightlightEddddP6point2RfS2_ ## SCurve::computeBezierShadowsHightlight(double, double, double, double, point2*, float&, float&)
+0000000000064f36	cmpl	$0x0, 0x74(%r14)
+0000000000064f3b	js	0x65190
+0000000000064f41	movss	-0xdc(%rbp), %xmm3
+0000000000064f49	movaps	%xmm3, %xmm1
+0000000000064f4c	addss	0x1508018(%rip), %xmm1
+0000000000064f54	addss	%xmm1, %xmm1
+0000000000064f58	movss	0x1507d70(%rip), %xmm0
+0000000000064f60	movaps	%xmm0, %xmm2
+0000000000064f63	movss	%xmm1, -0xc4(%rbp)
+0000000000064f6b	subss	%xmm1, %xmm2
+0000000000064f6f	movss	%xmm2, -0xc0(%rbp)
+0000000000064f77	movss	-0xd8(%rbp), %xmm1
+0000000000064f7f	movaps	%xmm0, %xmm4
+0000000000064f82	movss	%xmm1, -0xcc(%rbp)
+0000000000064f8a	subss	%xmm1, %xmm4
+0000000000064f8e	movaps	%xmm4, %xmm1
+0000000000064f91	addss	0x150822f(%rip), %xmm1
+0000000000064f99	mulss	0x1507d3b(%rip), %xmm1
+0000000000064fa1	movss	%xmm1, -0xbc(%rbp)
+0000000000064fa9	subss	%xmm1, %xmm0
+0000000000064fad	movss	%xmm0, -0xb8(%rbp)
+0000000000064fb5	movq	0x48(%r14), %rax
+0000000000064fb9	movq	(%rax), %rax
+0000000000064fbc	xorps	%xmm1, %xmm1
+0000000000064fbf	movq	$-0x1, %r13
+0000000000064fc6	movss	%xmm3, -0xd0(%rbp)
+0000000000064fce	movss	%xmm4, -0xc8(%rbp)
+0000000000064fd6	jmp	0x6502e
+0000000000064fd8	nopl	(%rax,%rax)
+0000000000064fe0	movl	(%rbx,%rcx,4), %edx
+0000000000064fe3	subl	%ecx, %edx
+0000000000064fe5	xorps	%xmm1, %xmm1
+0000000000064fe8	cvtsi2ss	%edx, %xmm1
+0000000000064fec	mulss	%xmm4, %xmm1
+0000000000064ff0	mulss	0x1507ce4(%rip), %xmm1
+0000000000064ff8	divss	0x1507f68(%rip), %xmm1
+0000000000065000	addss	%xmm1, %xmm0
+0000000000065004	subss	0xc(%rax,%r13,8), %xmm0
+000000000006500b	andps	0x1507d9e(%rip), %xmm0
+0000000000065012	movss	-0xd4(%rbp), %xmm1
+000000000006501a	addss	%xmm0, %xmm1
+000000000006501e	movslq	0x74(%r14), %rcx
+0000000000065022	incq	%r13
+0000000000065025	cmpq	%rcx, %r13
+0000000000065028	jge	0x65193
+000000000006502e	movss	%xmm1, -0xd4(%rbp)
+0000000000065036	movss	0x8(%rax,%r13,8), %xmm0
+000000000006503d	movq	%r15, %rdi
+0000000000065040	movl	$0xd, %esi
+0000000000065045	callq	__Z12BezierYfromXP6point2if     ## BezierYfromX(point2*, int, float)
+000000000006504a	movss	-0xd0(%rbp), %xmm3
+0000000000065052	xorps	%xmm1, %xmm1
+0000000000065055	ucomiss	%xmm1, %xmm3
+0000000000065058	movq	0x48(%r14), %rax
+000000000006505c	movq	(%rax), %rax
+000000000006505f	jbe	0x650e1
+0000000000065065	movss	0x1507c6b(%rip), %xmm1
+000000000006506d	ucomiss	%xmm3, %xmm1
+0000000000065070	movss	0x8(%rax,%r13,8), %xmm1
+0000000000065077	mulss	0x1507ee9(%rip), %xmm1
+000000000006507f	cvttss2si	%xmm1, %esi
+0000000000065083	movslq	%esi, %rcx
+0000000000065086	movl	(%r12,%rcx,4), %edx
+000000000006508a	jbe	0x650a0
+000000000006508c	subl	%esi, %edx
