@@ -1,0 +1,9 @@
+__ZN15OZChannelBool3D4setXERK6CMTimed:
+000000000005376c	pushq	%rbp
+000000000005376d	movq	%rsp, %rbp
+0000000000053770	movq	0x88(%rdi), %rax
+0000000000053777	addq	$0x88, %rdi
+000000000005377e	movq	0x2c8(%rax), %rax
+0000000000053785	xorl	%edx, %edx
+0000000000053787	popq	%rbp
+0000000000053788	jmpq	*%rax

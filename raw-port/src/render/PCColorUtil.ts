@@ -1,0 +1,350 @@
+// PCColorUtil.ts — ProCore's PCColorUtil color-space math utility class.
+// Mirrors 29 methods at ProCore addresses 0x3d38..0x10eb2. Every function cites its @0xADDR.
+// Every numeric constant cites the __TEXT __const VA it was read from.
+//
+// DECODE: disassembly captured with raw-port/tools/disasm.sh PCColorUtil <method> ProCore,
+// stored under raw-port/re/disasm/ProCore.PCColorUtil.*.s. RIP-relative float4 constants
+// resolved by hand-computing (next-instruction-VA + disp32) and reading 16 bytes via
+// struct.unpack_from('<4f', ...) against /tmp/ProCore.x86_64 (thin arch dump).
+//
+// This class covers HDR transfer-function math (PQ, HLG), OOTF, tone-mapping (BT.2390,
+// BT.2446_A, OSFA, OS variants, LinearGain), sRGB<->Linear, and three top-level pixel-
+// transform entry points.
+//
+// PORTED SUBSET (pure math with fully-decoded constants):
+//   - applyLinearToSRGB              @0x4675
+//   - applySRGBToLinear              @0x46fc
+//
+// STUBS (throw citing @0xADDR — required by porting-spec Rule 3):
+//   Every other method. The remaining pure-math methods (PQ, HLG, OOTF, tone-mapping)
+//   depend on runtime-initialized statics computed by:
+//     - (anonymous namespace)::PQ::TransferFunction::TransferFunction()   @0x4784
+//     - (anonymous namespace)::PQ::getTransferFunction()                   @0x3da8
+//     - (anonymous namespace)::HLG::getTransferFunction()                  (not yet disasm'd)
+//   whose runtime state (three float4 statics in BSS at 0x15b140, 0x15b150, 0x15b160)
+//   is not part of the ported subset for this pass. The top-level transform() family
+//   bottoms out in CGColorSpace* / PCDynamicRange / PCToneMapMethod / vImage — Apple
+//   system ABI that is explicitly outside scope per the porting brief.
+//
+// The stubs below are the "loud gap" prescribed by raw-port/army/PORTING_SPEC.md Rule 3:
+// each throw carries the exact @0xADDR so raw-port/army/tools/frontier.py can enumerate
+// the un-ported methods.
+//
+// Apple SIMD-lib callees seen in disasm and how they map to TS:
+//   __simd_pow_f4  (@stub 0xde768)  — pow(x,y) applied lane-wise on float4.
+//                                     TS equivalent: Math.fround(Math.pow(x_i, y_i)) per lane.
+//   __simd_exp2_f4 (@stub 0xde756)  — exp2 applied lane-wise on float4.
+//                                     TS equivalent: Math.fround(2 ** x_i) per lane.
+// Only applyLinearToSRGB / applySRGBToLinear actually invoke __simd_pow_f4 in the
+// ported subset; both are transcribed with per-lane Math.fround(Math.pow(...)).
+
+export type PCVector3f = readonly [number, number, number];
+
+// ── Constants read from /tmp/ProCore.x86_64 (thin x86_64) at __TEXT __const ──
+// Sign-mask for `andps` clearing the sign bit ( |x| ).
+// @const 0xe1c30  (u32 0x7fffffff on all 4 lanes)
+// sRGB piece-wise constants (applyLinearToSRGB @0x4675 / applySRGBToLinear @0x46fc).
+// @const 0xe1d90  linear-slope 12.92     (u32 0x414147ae, 12.920000076293945)
+const SRGB_LINEAR_SLOPE   = Math.fround(12.920000076293945);
+// @const 0xe1cb0  encode pow exponent 1/2.4  (u32 0x3ed55555, 0.4166666567325592)
+const SRGB_ENCODE_EXP     = Math.fround(0.4166666567325592);
+// @const 0xe1da0  encode threshold 0.0031308 (u32 0x3b4d2e1c)
+const SRGB_ENCODE_THR     = Math.fround(0.0031308000907301903);
+// @const 0xe1db0  encode scale 1.055        (u32 0x3f870a3d)
+const SRGB_ENCODE_SCALE   = Math.fround(1.0549999475479126);
+// @const 0xe1dc0  encode offset -0.055      (u32 0xbd6147ae)
+const SRGB_ENCODE_OFFSET  = Math.fround(-0.054999999701976776);
+// @const 0xe1b10  positive-branch sign +1.0 (u32 0x3f800000)
+const F32_POS_ONE         = Math.fround(1.0);
+// @const 0xe1b20  negative-branch sign -1.0 (u32 0xbf800000)
+const F32_NEG_ONE         = Math.fround(-1.0);
+// @const 0xe1e20  0.055 (u32 0x3d6147ae)    offset added in SRGB→Linear high branch
+const SRGB_DECODE_OFFSET  = Math.fround(0.054999999701976776);
+// @const 0xe1d50  2.4  (u32 0x4019999a)     pow exponent for SRGB→Linear
+const SRGB_DECODE_EXP     = Math.fround(2.4000000953674316);
+// @const 0xe1df0  0.0405 (u32 0x3d25d354)   decode threshold (matches disasm exactly)
+const SRGB_DECODE_THR     = Math.fround(0.04050000011920929);
+
+// ── Per-lane float32 SIMD helpers matching Apple's __simd_*_f4 semantics ─────
+// __simd_pow_f4 is lane-wise pow. On x86_64 it operates on packed single-precision
+// floats, so each lane is a Math.fround(Math.pow(x_i, y_i)). The disasm always zeros
+// lane[3] via `blendps $0x8, %xmm0-zero, ...` before the call, so we mirror that.
+function simd_pow_f4(x: PCVector3f, y: PCVector3f): PCVector3f {
+  return [
+    Math.fround(Math.pow(x[0], y[0])),
+    Math.fround(Math.pow(x[1], y[1])),
+    Math.fround(Math.pow(x[2], y[2])),
+  ];
+}
+
+// `andps mask, x`  with mask = 0x7fffffff on every lane == |x_i|.
+function simd_abs_f4(x: PCVector3f): PCVector3f {
+  return [
+    Math.fround(Math.abs(x[0])),
+    Math.fround(Math.abs(x[1])),
+    Math.fround(Math.abs(x[2])),
+  ];
+}
+
+// ── PCColorUtil class ────────────────────────────────────────────────────────
+export class PCColorUtil {
+  /**
+   * PCColorUtil::applyPQ_OETF(float vector[3]) — @ProCore 0x3d38
+   * See raw-port/re/disasm/ProCore.PCColorUtil.applyPQ_OETF.s. Depends on the
+   * runtime-initialized static (anonymous namespace)::PQ::getTransferFunction()::result
+   * @0x15b140 (BSS), populated by PQ::TransferFunction ctor @0x4784 via __simd_pow_f4.
+   */
+  static applyPQ_OETF(_v: PCVector3f): PCVector3f {
+    throw new Error("PCColorUtil::applyPQ_OETF @ProCore 0x3d38 not yet transcribed (depends on PQ::getTransferFunction runtime static @0x15b140)");
+  }
+
+  /** PCColorUtil::applyPQ_InverseOETF(float vector[3]) — @ProCore 0x3dbe */
+  static applyPQ_InverseOETF(_v: PCVector3f): PCVector3f {
+    throw new Error("PCColorUtil::applyPQ_InverseOETF @ProCore 0x3dbe not yet transcribed (depends on PQ::getTransferFunction runtime static @0x15b140)");
+  }
+
+  /** PCColorUtil::applyPQ_OOTF(float vector[3], float, float) — @ProCore 0x3e38 */
+  static applyPQ_OOTF(_v: PCVector3f, _a: number, _b: number): PCVector3f {
+    throw new Error("PCColorUtil::applyPQ_OOTF @ProCore 0x3e38 not yet transcribed");
+  }
+
+  /** PCColorUtil::applyPQ_InverseOOTF(float vector[3], float, float) — @ProCore 0x3e8c */
+  static applyPQ_InverseOOTF(_v: PCVector3f, _a: number, _b: number): PCVector3f {
+    throw new Error("PCColorUtil::applyPQ_InverseOOTF @ProCore 0x3e8c not yet transcribed");
+  }
+
+  /** PCColorUtil::applyHLG_OETF(float vector[3]) — @ProCore 0x3edb */
+  static applyHLG_OETF(_v: PCVector3f): PCVector3f {
+    throw new Error("PCColorUtil::applyHLG_OETF @ProCore 0x3edb not yet transcribed (depends on HLG::getTransferFunction runtime static)");
+  }
+
+  /** PCColorUtil::applyHLG_InverseOETF(float vector[3]) — @ProCore 0x3f70 */
+  static applyHLG_InverseOETF(_v: PCVector3f): PCVector3f {
+    throw new Error("PCColorUtil::applyHLG_InverseOETF @ProCore 0x3f70 not yet transcribed (depends on HLG::getTransferFunction runtime static)");
+  }
+
+  /** PCColorUtil::applyHLG_OOTF(float vector[3], float, float) — @ProCore 0x3fe4 */
+  static applyHLG_OOTF(_v: PCVector3f, _a: number, _b: number): PCVector3f {
+    throw new Error("PCColorUtil::applyHLG_OOTF @ProCore 0x3fe4 not yet transcribed");
+  }
+
+  /** PCColorUtil::applyHLG_InverseOOTF(float vector[3], float, float) — @ProCore 0x40cb */
+  static applyHLG_InverseOOTF(_v: PCVector3f, _a: number, _b: number): PCVector3f {
+    throw new Error("PCColorUtil::applyHLG_InverseOOTF @ProCore 0x40cb not yet transcribed");
+  }
+
+  /** PCColorUtil::applyHLGToPQ(float vector[3], float) — @ProCore 0x41b8 */
+  static applyHLGToPQ(_v: PCVector3f, _a: number): PCVector3f {
+    throw new Error("PCColorUtil::applyHLGToPQ @ProCore 0x41b8 not yet transcribed");
+  }
+
+  /** PCColorUtil::applyPQToHLG(float vector[3], float) — @ProCore 0x42c5 */
+  static applyPQToHLG(_v: PCVector3f, _a: number): PCVector3f {
+    throw new Error("PCColorUtil::applyPQToHLG @ProCore 0x42c5 not yet transcribed");
+  }
+
+  /**
+   * PCColorUtil::applyInverseToneMap_BT2390(float vector[3]) — @ProCore 0x4311
+   * Wrapper tail-calls file-scope doInverseToneMap_BT2390 @0x342a. See disasm.
+   */
+  static applyInverseToneMap_BT2390(_v: PCVector3f): PCVector3f {
+    throw new Error("PCColorUtil::applyInverseToneMap_BT2390 @ProCore 0x4311 not yet transcribed (tail-calls doInverseToneMap_BT2390 @0x342a)");
+  }
+
+  /** PCColorUtil::applyToneMap_BT2446_A(float vector[3]) — @ProCore 0x431b */
+  static applyToneMap_BT2446_A(_v: PCVector3f): PCVector3f {
+    throw new Error("PCColorUtil::applyToneMap_BT2446_A @ProCore 0x431b not yet transcribed");
+  }
+
+  /**
+   * PCColorUtil::applyInverseToneMap_BT2446_A(float vector[3]) — @ProCore 0x4379
+   * Tail-calls doInverseToneMap_BT2446_A @0x36c9. See disasm.
+   */
+  static applyInverseToneMap_BT2446_A(_v: PCVector3f): PCVector3f {
+    throw new Error("PCColorUtil::applyInverseToneMap_BT2446_A @ProCore 0x4379 not yet transcribed (tail-calls doInverseToneMap_BT2446_A @0x36c9)");
+  }
+
+  /**
+   * PCColorUtil::applyToneMap_OS(float vector[3]) — @ProCore 0x4383
+   * Tail-calls doToneMap_OS @0x383e. See disasm.
+   */
+  static applyToneMap_OS(_v: PCVector3f): PCVector3f {
+    throw new Error("PCColorUtil::applyToneMap_OS @ProCore 0x4383 not yet transcribed (tail-calls doToneMap_OS @0x383e)");
+  }
+
+  /**
+   * PCColorUtil::applyInverseToneMap_OS(float vector[3]) — @ProCore 0x438d
+   * Tail-calls doInverseToneMap_OS @0x39f3. See disasm.
+   */
+  static applyInverseToneMap_OS(_v: PCVector3f): PCVector3f {
+    throw new Error("PCColorUtil::applyInverseToneMap_OS @ProCore 0x438d not yet transcribed (tail-calls doInverseToneMap_OS @0x39f3)");
+  }
+
+  /** PCColorUtil::applyToneMap_HLGDiffuseWhite(float vector[3]) — @ProCore 0x4397 */
+  static applyToneMap_HLGDiffuseWhite(_v: PCVector3f): PCVector3f {
+    throw new Error("PCColorUtil::applyToneMap_HLGDiffuseWhite @ProCore 0x4397 not yet transcribed");
+  }
+
+  /** PCColorUtil::applyInverseToneMap_HLGDiffuseWhite(float vector[3]) — @ProCore 0x4409 */
+  static applyInverseToneMap_HLGDiffuseWhite(_v: PCVector3f): PCVector3f {
+    throw new Error("PCColorUtil::applyInverseToneMap_HLGDiffuseWhite @ProCore 0x4409 not yet transcribed");
+  }
+
+  /** PCColorUtil::applyToneMap_LinearGain(float vector[3], float) — @ProCore 0x4469 */
+  static applyToneMap_LinearGain(_v: PCVector3f, _gain: number): PCVector3f {
+    throw new Error("PCColorUtil::applyToneMap_LinearGain @ProCore 0x4469 not yet transcribed");
+  }
+
+  /** PCColorUtil::applyInverseToneMap_LinearGain(float vector[3], float) — @ProCore 0x44e8 */
+  static applyInverseToneMap_LinearGain(_v: PCVector3f, _gain: number): PCVector3f {
+    throw new Error("PCColorUtil::applyInverseToneMap_LinearGain @ProCore 0x44e8 not yet transcribed");
+  }
+
+  /**
+   * PCColorUtil::getHLGDiffuseWhiteGain() — @ProCore 0x4546
+   * Tail-calls file-scope memoized free-fn getWhiteGainForHLG_75 @0x4550, whose one-time
+   * init calls getWhiteGainForHLGLevel(0.75f) @0x4569 (constant 0.75 @0xe200c).
+   * See raw-port/re/disasm/ProCore.PCColorUtil.getHLGDiffuseWhiteGain.s.
+   */
+  static getHLGDiffuseWhiteGain(): number {
+    throw new Error("PCColorUtil::getHLGDiffuseWhiteGain @ProCore 0x4546 not yet transcribed (tail-calls memoized getWhiteGainForHLG_75 @0x4550)");
+  }
+
+  /**
+   * PCColorUtil::getWhiteGainForHLGLevel(float) — @ProCore 0x456f
+   * See raw-port/re/disasm/ProCore.PCColorUtil.getWhiteGainForHLGLevel.s.
+   * Uses (anonymous namespace)::HLG::getTransferFunction() runtime state and
+   * __simd_exp2_f4 (Apple SIMD stub 0xde756).
+   */
+  static getWhiteGainForHLGLevel(_hlgLevel: number): number {
+    throw new Error("PCColorUtil::getWhiteGainForHLGLevel @ProCore 0x456f not yet transcribed (HLG runtime static + __simd_exp2_f4)");
+  }
+
+  /**
+   * PCColorUtil::getWhiteGainForHLG_75() — @ProCore 0x4657
+   * Tail-calls file-scope memoized getWhiteGainForHLG_75 @0x4550. See disasm.
+   */
+  static getWhiteGainForHLG_75(): number {
+    throw new Error("PCColorUtil::getWhiteGainForHLG_75 @ProCore 0x4657 not yet transcribed (tail-calls memoized free-fn getWhiteGainForHLG_75 @0x4550)");
+  }
+
+  /** PCColorUtil::applyToneMap_OSFA(float vector[3]) — @ProCore 0x4661  (tail-calls doToneMap_OSFA @0x3ba5) */
+  static applyToneMap_OSFA(_v: PCVector3f): PCVector3f {
+    throw new Error("PCColorUtil::applyToneMap_OSFA @ProCore 0x4661 not yet transcribed (tail-calls doToneMap_OSFA @0x3ba5)");
+  }
+
+  /** PCColorUtil::applyInverseToneMap_OSFA(float vector[3]) — @ProCore 0x466b  (tail-calls doInverseToneMap_OSFA @0x3c73) */
+  static applyInverseToneMap_OSFA(_v: PCVector3f): PCVector3f {
+    throw new Error("PCColorUtil::applyInverseToneMap_OSFA @ProCore 0x466b not yet transcribed (tail-calls doInverseToneMap_OSFA @0x3c73)");
+  }
+
+  /**
+   * PCColorUtil::applyLinearToSRGB(float vector[3]) — @ProCore 0x4675
+   *
+   * See raw-port/re/disasm/ProCore.PCColorUtil.applyLinearToSRGB.s.
+   *
+   * The x86_64 disasm mirrored 1:1:
+   *   xmm2 = v ; xmm0 = 0 ; xmm1 = v
+   *   xmm2 = v & 0x7fffffff  (= |v|)                    ; andps  @0xe1c30, %xmm2
+   *   xmm1 = (v <lt 0.0) as mask                        ; cmpltps %xmm0, %xmm1  -> sign mask
+   *   xmm1 = 12.92 * |v|                                ; mulps  @0xe1d90, %xmm1 -> low branch spill
+   *   xmm0 = pow(|v|, 1/2.4)                            ; call   __simd_pow_f4  (@0xe1cb0 = 1/2.4)
+   *   xmm0-cmp = (|v| <= 0.0031308) as mask             ; cmpleps @0xe1da0
+   *   xmm1(high) = pow(...) * 1.055 + (-0.055)          ; mulps @0xe1db0 ; addps @0xe1dc0
+   *   xmm1 = blendv(high, low, cmp)                     ; blendvps ...
+   *   xmm2 = (sign<0 ? -1.0 : 1.0)                      ; blendv 1.0 (@0xe1b10) with -1.0 (@0xe1b20)
+   *   ret sign * encoded
+   *
+   * i.e. FCP's sRGB encode is exactly the standard piece-wise curve applied to |v|,
+   * then re-signed lane-wise. Note the branch selector uses |v| (not v), so negative
+   * inputs are encoded as -sRGB(|v|).
+   */
+  static applyLinearToSRGB(v: PCVector3f): PCVector3f {
+    const abs = simd_abs_f4(v);
+    const powed = simd_pow_f4(abs, [SRGB_ENCODE_EXP, SRGB_ENCODE_EXP, SRGB_ENCODE_EXP]);
+    const highLane = (i: number): number =>
+      Math.fround(Math.fround(powed[i] * SRGB_ENCODE_SCALE) + SRGB_ENCODE_OFFSET);
+    const lowLane = (i: number): number => Math.fround(SRGB_LINEAR_SLOPE * abs[i]);
+    // blendvps selector: xmm0 = (|v| <= 0.0031308 @0xe1da0). If mask-msb set (true),
+    // the memory operand (low branch) wins; else the dest register (high branch) wins.
+    const encoded: [number, number, number] = [0, 0, 0];
+    for (let i = 0; i < 3; i++) {
+      encoded[i] = abs[i] <= SRGB_ENCODE_THR ? lowLane(i) : highLane(i);
+    }
+    // Re-sign via cmpltps mask: sign = (v < 0) ? -1.0 : 1.0.
+    const signed: [number, number, number] = [0, 0, 0];
+    for (let i = 0; i < 3; i++) {
+      const s = v[i] < 0 ? F32_NEG_ONE : F32_POS_ONE;
+      signed[i] = Math.fround(s * encoded[i]);
+    }
+    return signed as PCVector3f;
+  }
+
+  /**
+   * PCColorUtil::applySRGBToLinear(float vector[3]) — @ProCore 0x46fc
+   *
+   * See raw-port/re/disasm/ProCore.PCColorUtil.applySRGBToLinear.s.
+   *
+   * x86_64 disasm mirrored 1:1:
+   *   xmm2 = v ; xmm1 = 0
+   *   xmm0 = (v < 0) as sign mask                       ; cmpltps xmm1, xmm0
+   *   xmm2 = v & 0x7fffffff  (= |v|)                    ; andps  @0xe1c30, %xmm2
+   *   xmm0 = |v| / 12.92    (@0xe1d90)                  ; divps  @0xe1d90  -> low branch spill
+   *   xmm0 = 0.055 (@0xe1e20) + |v|                     ; addps  ; movaps 0xe1e20
+   *   xmm0 = (|v|+0.055) / 1.055  (@0xe1db0)            ; divps  @0xe1db0
+   *   xmm0 = pow((|v|+0.055)/1.055, 2.4)                ; call   __simd_pow_f4  (@0xe1d50 = 2.4)
+   *   xmm1 = pow result ; xmm0 = |v|
+   *   xmm0 = (|v| <= 0.0405) as mask  (@0xe1df0)        ; cmpleps @0xe1df0
+   *   xmm1 = blendv(high, low, cmp)                     ; blendvps
+   *   xmm2 = sign ? -1.0 : 1.0  (@0xe1b10 / @0xe1b20)
+   *   ret sign * decoded
+   *
+   * NOTE: the decode threshold in the binary is 0.0405 (@0xe1df0), NOT 0.04045 as
+   * the sRGB standard formally writes — this is exactly what's in Apple's constant.
+   */
+  static applySRGBToLinear(v: PCVector3f): PCVector3f {
+    const abs = simd_abs_f4(v);
+    const lowLane = (i: number): number => Math.fround(abs[i] / SRGB_LINEAR_SLOPE);
+    const highArg: PCVector3f = [
+      Math.fround(Math.fround(abs[0] + SRGB_DECODE_OFFSET) / SRGB_ENCODE_SCALE),
+      Math.fround(Math.fround(abs[1] + SRGB_DECODE_OFFSET) / SRGB_ENCODE_SCALE),
+      Math.fround(Math.fround(abs[2] + SRGB_DECODE_OFFSET) / SRGB_ENCODE_SCALE),
+    ];
+    const powed = simd_pow_f4(highArg, [SRGB_DECODE_EXP, SRGB_DECODE_EXP, SRGB_DECODE_EXP]);
+    const decoded: [number, number, number] = [0, 0, 0];
+    for (let i = 0; i < 3; i++) {
+      decoded[i] = abs[i] <= SRGB_DECODE_THR ? lowLane(i) : powed[i];
+    }
+    const signed: [number, number, number] = [0, 0, 0];
+    for (let i = 0; i < 3; i++) {
+      const s = v[i] < 0 ? F32_NEG_ONE : F32_POS_ONE;
+      signed[i] = Math.fround(s * decoded[i]);
+    }
+    return signed as PCVector3f;
+  }
+
+  /**
+   * PCColorUtil::transformColor(Buffer const&, Buffer&) — @ProCore 0xe003
+   * Top-level pixel-transform entry point. Bottoms out in PCColorUtil::Buffer
+   * marshalling and (in transform() @0x10eb2) CGColorSpace* + vImage conversion —
+   * Apple system ABI, explicitly out of scope per the porting brief.
+   */
+  static transformColor(_src: unknown, _dst: unknown): void {
+    throw new Error("PCColorUtil::transformColor @ProCore 0xe003 not yet transcribed (bottoms out in CGColorSpace/vImage system ABI)");
+  }
+
+  /** PCColorUtil::transformColorWithDynamicRange(Buffer const&, Buffer&, PCToneMapMethod const&) — @ProCore 0xe4b9 */
+  static transformColorWithDynamicRange(_src: unknown, _dst: unknown, _tm: unknown): void {
+    throw new Error("PCColorUtil::transformColorWithDynamicRange @ProCore 0xe4b9 not yet transcribed (bottoms out in CGColorSpace/vImage system ABI)");
+  }
+
+  /**
+   * PCColorUtil::transform(PCVector3<float> const&, CGColorSpace*, PCDynamicRange,
+   *                        CGColorSpace*, PCDynamicRange, PCToneMapMethod const&)
+   * @ProCore 0x10eb2 — uses CGColorSpace* directly (Apple Core Graphics system ABI).
+   */
+  static transform(_v: unknown, _srcCS: unknown, _srcDR: unknown,
+                   _dstCS: unknown, _dstDR: unknown, _tm: unknown): PCVector3f {
+    throw new Error("PCColorUtil::transform @ProCore 0x10eb2 not yet transcribed (uses CGColorSpace* system ABI)");
+  }
+}
