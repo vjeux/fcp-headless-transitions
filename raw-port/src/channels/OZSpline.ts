@@ -47,13 +47,16 @@ export function sampleCurveValue(
         // undecoded upstream deps (OZBezierInterpolator::interpolate @0x407e6 +
         // OZCardinalInterpolator::computeTangents @0x42ae2) rather than substituting a textbook curve.
         case "catmullRom": return catmullRomInterpolate(t, a, b);
-        // OZBezierInterpolator @ProChannel 0x407e6: the class-level interpolate is NOT yet
-        // transcribed (needs getControlPoints @0x4054a + getVertexValue @0x303a6 + Sanitize
-        // ControlPolygon @0xa550c + the CMTime combine @0x40a10+). The two ORACLE-GATED free
-        // functions OZBezierEval @0xa549c and OZBezierFindParameter @0xa57c7 ARE transcribed in
-        // OZBezierInterpolator.ts (bit-exact vs live FCP; nodes curve.interp.bezier.eval /
-        // curve.interp.bezier.findparam VERIFIED). The class .interpolate() faithfully throws.
-        case "bezier":   return OZ_BEZIER_INTERPOLATOR.interpolate();
+        // OZBezierInterpolator @ProChannel 0x407e6: interpolate is now transcribed (see
+        // OZBezierInterpolator.ts + re/BEZIER_GETCONTROLPOINTS_DECODE.md). Full flow:
+        //   getControlPoints @0x4054a (from OZKeypoint tangent handles) -> xs[4], ys[4]
+        //   normalize t into u=[0,1] over [a.u,b.u] (den=max(span_seconds,1e-5) @0xb0770)
+        //   param = OZBezierFindParameter(xs, u)  @0xa57c7 (oracle-VERIFIED)
+        //   value = OZBezierEval(ys, param)       @0xa549c (oracle-VERIFIED)
+        // Bezier is now REACHABLE for a real .motr bezier keyframe (interp type 2,3,4,5,9,11 —
+        // rare vs 12850 linear in the corpus). The Sanitize clamp-handles path (@0xa550c) is
+        // still gated off (default sp->0xa8[3]=0) — see OZBezierSanitizeControlPolygon.ts.
+        case "bezier":   return OZ_BEZIER_INTERPOLATOR.interpolate(t, a, b);
         // Pending faithful transcriptions (decoded, not yet ported — each MUST match its disasm):
         //   xspline     OZXSplineInterpolator::interpolate     @ProChannel 0x45eae
         //   bspline     OZBSplineInterpolator::interpolate     @ProChannel 0x4191c
