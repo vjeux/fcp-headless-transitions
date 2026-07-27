@@ -17,13 +17,19 @@ export interface NodeTransform {
   anchor: Vec3;
 }
 
-const TRANSFORM = 100, POSITION = 101, ROTATION = 109, SCALE = 105, ANCHOR = 107;
+const TRANSFORM = 100, POSITION = 101, ROTATION_3D = 109, ROTATION_2D = 102, SCALE = 105, ANCHOR = 107;
 const AXIS = { x: 1, y: 2, z: 3 } as const;
 
 function folder(c: OZChannelBase | undefined, id: number): OZChannelFolder | undefined {
   if (!(c instanceof OZChannelFolder)) return undefined;
   const f = c.children.find(x => x.id === id);
   return f instanceof OZChannelFolder ? f : undefined;
+}
+
+/** Find a direct child parameter (folder OR scalar leaf) of `c` by id. */
+function child(c: OZChannelBase | undefined, id: number): OZChannelBase | undefined {
+  if (!(c instanceof OZChannelFolder)) return undefined;
+  return c.children.find(x => x.id === id);
 }
 
 /** Evaluate a channel's scalar at time t (curve if animated, else static value/default). */
@@ -126,8 +132,28 @@ export function readTransform(propertiesRoot: OZChannelBase | undefined, t: numb
   const ONE: Vec3 = { x: 1, y: 1, z: 1 };
   return {
     position: vec3(folder(xf, POSITION), t, Z0),
-    rotation: vec3(folder(xf, ROTATION), t, Z0),
+    rotation: readRotation(xf, t),
     scale: vec3(folder(xf, SCALE), t, ONE),
     anchor: vec3(folder(xf, ANCHOR), t, Z0),
   };
+}
+
+/**
+ * Read the Transform's Rotation. DECODED from the .motr transform tree: under Transform(100) the
+ * Rotation child appears with one of TWO factory-assigned ids (census over all 65 templates):
+ *   - id 109 = the 3D rotation GROUP (folder with X(1)/Y(2)/Z(3) Euler leaves; 326x)
+ *   - id 102 = the scalar 2D rotation (a single OZChannel = the in-plane Z angle; 413x)
+ * (Position=101 and Scale=105 are shared across both, so 102/109 is purely the rotation-param
+ * variant, not a different transform factory.) Prefer the 3D group when present; else read 102 as
+ * the Z-angle. Motion stores rotation in DEGREES.
+ */
+function readRotation(xf: OZChannelFolder | undefined, t: number): Vec3 {
+  const g3d = folder(xf, ROTATION_3D);
+  if (g3d) return vec3(g3d, t, { x: 0, y: 0, z: 0 });
+  const rot2d = child(xf, ROTATION_2D);
+  if (rot2d instanceof OZChannel) return { x: 0, y: 0, z: channelValue(rot2d, t, 0) };
+  // A 2D rotation authored as a folder-with-Z (rare) — read its Z axis.
+  const rot2dFolder = folder(xf, ROTATION_2D);
+  if (rot2dFolder) return vec3(rot2dFolder, t, { x: 0, y: 0, z: 0 });
+  return { x: 0, y: 0, z: 0 };
 }
