@@ -21,6 +21,7 @@ FW_BIN = {
  "ProCore":"/Applications/Final Cut Pro.app/Contents/Frameworks/ProCore.framework/Versions/A/ProCore",
  "Ozone":"/Applications/Final Cut Pro.app/Contents/Frameworks/Ozone.framework/Versions/A/Ozone",
  "Flexo":"/Applications/Final Cut Pro.app/Contents/Frameworks/Flexo.framework/Versions/A/Flexo",
+ "Helium":"/Applications/Final Cut Pro.app/Contents/Frameworks/Helium.framework/Versions/A/Helium",
 }
 
 def sh(*a, **k):
@@ -35,7 +36,7 @@ def save_ledger(d):
     json.dump(d, open(LEDGER,"w"), indent=2)
 
 # addr + framework citation patterns from the doc-comments, e.g. "@ProChannel 0x44ec8", "@0x407e6", "@Ozone 0x62a3c0"
-CITE = re.compile(r'@(ProChannel|ProCore|Ozone|Flexo)?\s*(0x[0-9a-fA-F]{3,})')
+CITE = re.compile(r'@(ProChannel|ProCore|Ozone|Flexo|Helium)?\s*(0x[0-9a-fA-F]{3,})')
 
 def disasm_at(fw, addr, nbytes=0x140):
     """Objdump a window at a VA in the framework's __text (best-effort; the addr is a file/VA offset)."""
@@ -81,21 +82,37 @@ def cmd_bundle(src):
     print("="*80); print(f"REVIEW BUNDLE: {src}"); print("="*80)
     print(f"\n----- TS SOURCE ({ts.count(chr(10))+1} lines) -----\n")
     print(ts)
-    # collect cited addresses (fw carries forward from the last seen framework token)
-    cites=[]; last_fw="ProChannel"
+    # collect cited addresses. If a citation carries an explicit @Framework token, use it.
+    # Otherwise DO NOT blindly inherit the last-seen framework (that mislabels ProCore/Ozone imports
+    # cited without a prefix) — mark it ambiguous and re-disassemble against ALL frameworks, showing
+    # whichever actually has a function start at that address.
+    cites=[]
     for m in CITE.finditer(ts):
-        fw = m.group(1) or last_fw
-        if m.group(1): last_fw=m.group(1)
-        cites.append((fw, m.group(2)))
-    # dedupe preserving order
+        cites.append((m.group(1), m.group(2)))   # group(1) may be None = ambiguous
     seen=set(); uniq=[]
     for fw,a in cites:
-        if (fw,a) in seen: continue
-        seen.add((fw,a)); uniq.append((fw,a))
+        key=(fw,a)
+        if key in seen: continue
+        seen.add(key); uniq.append((fw,a))
     print(f"\n----- {len(uniq)} UNIQUE CITED ADDRESSES — RE-DISASSEMBLED FROM THE BINARY -----")
-    for fw,a in uniq[:40]:
-        print(f"\n########## @{fw} {a} ##########")
-        print(disasm_at(fw,a))
+    print("(addresses cited WITHOUT an explicit @Framework are resolved against ALL frameworks)")
+    for fw,a in uniq[:60]:
+        if fw:
+            print(f"\n########## @{fw} {a} ##########")
+            print(disasm_at(fw,a))
+        else:
+            # ambiguous: try every framework, show the ones that have a real fn start there
+            hits=[]
+            for cand in FW_BIN:
+                d=disasm_at(cand,a)
+                if not d.startswith("(addr") and not d.startswith("(no binary"):
+                    hits.append((cand,d))
+            if hits:
+                for cand,d in hits:
+                    print(f"\n########## @{cand} {a}  (framework inferred — no explicit @FW in citation) ##########")
+                    print(d)
+            else:
+                print(f"\n########## @??? {a}  (no fn start at this addr in ANY framework — data const, inlined, or bogus) ##########")
 
 def cmd_verdict(src, verdict, note):
     led = load_ledger()
