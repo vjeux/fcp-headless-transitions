@@ -750,17 +750,18 @@ export function parseMotr(xmlText: string): MotrScene {
 
   // 3. Parse scene settings from <sceneSettings>
   const ssEl = firstChild(sceneEl, 'sceneSettings');
-  // FCP DEFAULT CANVAS when the scene declares no format is CONTENT-DEPENDENT (decode in
-  // progress — NOT a simple sceneSettings-completeness rule). Controlled FCP-headless probes
-  // (2026-07-26) show: a scene whose content is a MEDIA-backed Image/drop-zone node (factoryID
-  // uuid 66fc0d6a…) with no <sceneSettings> renders 720×486 (NTSC-DV default) — even bare, with
-  // no footage/Source-Media; a VECTOR Shape scene (factoryID uuid 712462a4…) with no
-  // <sceneSettings> renders 1920×1080. So the default tracks the content TYPE, not the presence
-  // of width/height/PAR/frameRate. (An earlier fix defaulted incomplete-format scenes to 720×486
-  // uniformly — correct for the Image case, WRONG for the Shape case — reverted here.) All 65
-  // shipped transitions carry a COMPLETE sceneSettings block (width+height+PAR+frameRate), so
-  // this default only affects degenerate minimized repros. Keeping the historical 1920×1080
-  // default (matches the Shape case) until the content-type rule is fully decoded + implemented.
+  // FCP DEFAULT CANVAS when the scene declares no complete format is FULLY DECODED (2026-07-26,
+  // controlled fct _headless-frame probes) as a CONTENT-BOUNDING-BOX-SPAN rule, position-independent:
+  //   • content bbox width-span <= 750 AND height-span <= 558  -> 720x486 (NTSC-DV default)
+  //   • either span exceeds it                                 -> 1920x1080
+  //   (exact: width 750 fits / 752 bumps; height 558 fits / 560 bumps. A bare Image/drop-zone node
+  //    with no vector extent -> 720x486.) Verified on non-fitted values + offset (a 100-wide rect at
+  //    x=800 stays 720x486; a 752-wide rect anywhere bumps) so it is the bbox SIZE, not position.
+  // NOT IMPLEMENTED: doing so needs the engine to compute the union content bbox-span across all
+  // shapes/media BEFORE settings are finalized — a real subsystem for a corner that affects ZERO
+  // shipped transitions (all 65 carry a COMPLETE sceneSettings width+height+PAR+frameRate block).
+  // Deferred as disproportionate; engine keeps the historical 1920x1080 default. This only affects
+  // degenerate minimized repros whose sceneSettings the minimizer stripped (see fct/AUDIT).
   const width = ssEl ? getIntContent(ssEl, 'width', 1920) : 1920;
   const height = ssEl ? getIntContent(ssEl, 'height', 1080) : 1080;
   const frameRate = ssEl ? getFloatContent(ssEl, 'frameRate', 30) : 30;
