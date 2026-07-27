@@ -3,5 +3,6 @@
   "OZInterpolator": ["curve.interp.ease"],
   "interpolators": ["curve.interp.ease", "curve.interp.bezier.eval", "curve.interp.bezier.findparam"],
   "OZBezierInterpolator": ["curve.interp.bezier.eval", "curve.interp.bezier.findparam"],
-  "CMTime": []
+  "CMTime": [],
+  "PCMath": ["curve.interp.ease"]
 }

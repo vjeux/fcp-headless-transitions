@@ -1,0 +1,120 @@
+__ZN6PCMath3erfEd:
+000000000001279c	pushq	%rbp
+000000000001279d	movq	%rsp, %rbp
+00000000000127a0	subq	$0x30, %rsp
+00000000000127a4	movapd	%xmm0, %xmm8
+00000000000127a9	movapd	%xmm0, %xmm14
+00000000000127ae	mulsd	%xmm0, %xmm14
+00000000000127b3	movsd	0x1102ad(%rip), %xmm0
+00000000000127bb	ucomisd	%xmm14, %xmm0
+00000000000127c0	jbe	0x1284a
+00000000000127c6	xorpd	%xmm1, %xmm1
+00000000000127ca	ucomisd	%xmm1, %xmm14
+00000000000127cf	jbe	0x129ed
+00000000000127d5	movsd	0x10fd8b(%rip), %xmm5
+00000000000127dd	movsd	0x1100ab(%rip), %xmm0
+00000000000127e5	movl	$0x64, %eax
+00000000000127ea	movsd	0x10fd3e(%rip), %xmm2
+00000000000127f2	movapd	0x10fe76(%rip), %xmm3
+00000000000127fa	movsd	0x110276(%rip), %xmm4
+0000000000012802	movapd	%xmm5, %xmm9
+0000000000012807	movapd	%xmm5, %xmm6
+000000000001280b	addsd	%xmm2, %xmm0
+000000000001280f	movapd	%xmm14, %xmm5
+0000000000012814	divsd	%xmm0, %xmm5
+0000000000012818	mulsd	%xmm6, %xmm5
+000000000001281c	addsd	%xmm5, %xmm9
+0000000000012821	movapd	%xmm5, %xmm6
+0000000000012825	andpd	%xmm3, %xmm6
+0000000000012829	movapd	%xmm9, %xmm7
+000000000001282e	andpd	%xmm3, %xmm7
+0000000000012832	mulsd	%xmm4, %xmm7
+0000000000012836	ucomisd	%xmm6, %xmm7
+000000000001283a	ja	0x129a8
+0000000000012840	decl	%eax
+0000000000012842	je	0x129ed
+0000000000012848	jmp	0x12807
+000000000001284a	movapd	%xmm8, -0x30(%rbp)
+0000000000012850	movsd	0x110038(%rip), %xmm1
+0000000000012858	addsd	%xmm14, %xmm1
+000000000001285d	movsd	0x10fccb(%rip), %xmm2
+0000000000012865	movapd	%xmm2, %xmm15
+000000000001286a	divsd	%xmm1, %xmm15
+000000000001286f	movapd	0x110298(%rip), %xmm10
+0000000000012878	movsd	%xmm15, %xmm10                  ## xmm10 = xmm15[0],xmm10[1]
+000000000001287d	movl	$0x64, %eax
+0000000000012882	movapd	0xcf7e6(%rip), %xmm3
+000000000001288a	movsd	0x10fd16(%rip), %xmm4
+0000000000012892	movsd	0x10fcce(%rip), %xmm5
+000000000001289a	movapd	0x10fdce(%rip), %xmm6
+00000000000128a2	movapd	0x110276(%rip), %xmm7
+00000000000128aa	movapd	0x11027d(%rip), %xmm8
+00000000000128b3	movsd	0x1101b4(%rip), %xmm9
+00000000000128bc	movsd	0x1101b3(%rip), %xmm11
+00000000000128c5	movapd	%xmm2, %xmm12
+00000000000128ca	movapd	%xmm12, %xmm0
+00000000000128cf	xorpd	%xmm3, %xmm0
+00000000000128d3	movapd	%xmm12, %xmm13
+00000000000128d8	addsd	%xmm4, %xmm13
+00000000000128dd	mulsd	%xmm0, %xmm13
+00000000000128e2	addsd	%xmm5, %xmm1
+00000000000128e6	movapd	%xmm10, %xmm0
+00000000000128eb	mulsd	%xmm13, %xmm0
+00000000000128f0	unpckhpd	%xmm10, %xmm10                  ## xmm10 = xmm10[1,1]
+00000000000128f5	divsd	%xmm10, %xmm13
+00000000000128fa	unpcklpd	%xmm13, %xmm0                   ## xmm0 = xmm0[0],xmm13[0]
+00000000000128ff	movddup	%xmm1, %xmm13                   ## xmm13 = xmm1[0,0]
+0000000000012904	addpd	%xmm0, %xmm13
+0000000000012909	movapd	%xmm2, %xmm10
+000000000001290e	divsd	%xmm13, %xmm10
+0000000000012913	blendpd	$0x2, %xmm13, %xmm10            ## xmm10 = xmm10[0],xmm13[1]
+000000000001291a	movapd	%xmm13, %xmm0
+000000000001291f	andpd	%xmm6, %xmm0
+0000000000012923	cmpltpd	%xmm7, %xmm0
+0000000000012928	blendvpd	%xmm0, %xmm8, %xmm10
+000000000001292e	movapd	%xmm10, %xmm0
+0000000000012933	unpckhpd	%xmm10, %xmm0                   ## xmm0 = xmm0[1],xmm10[1]
+0000000000012938	mulsd	%xmm10, %xmm0
+000000000001293d	mulsd	%xmm0, %xmm15
+0000000000012942	addsd	%xmm9, %xmm0
+0000000000012947	andpd	%xmm6, %xmm0
+000000000001294b	ucomisd	%xmm0, %xmm11
+0000000000012950	ja	0x1295f
+0000000000012952	addsd	%xmm2, %xmm12
+0000000000012957	decl	%eax
+0000000000012959	jne	0x128ca
+000000000001295f	movapd	%xmm14, %xmm0
+0000000000012964	movsd	%xmm14, -0x8(%rbp)
+000000000001296a	movapd	%xmm15, -0x20(%rbp)
+0000000000012970	callq	0xde918                         ## symbol stub for: _log
+0000000000012975	mulsd	0x10ff13(%rip), %xmm0
+000000000001297d	subsd	-0x8(%rbp), %xmm0
+0000000000012982	addsd	0x1100f6(%rip), %xmm0
+000000000001298a	callq	0xde858                         ## symbol stub for: _exp
+000000000001298f	mulsd	-0x20(%rbp), %xmm0
+0000000000012994	movsd	0x10fb94(%rip), %xmm1
+000000000001299c	subsd	%xmm0, %xmm1
+00000000000129a0	movapd	-0x30(%rbp), %xmm8
+00000000000129a6	jmp	0x129ed
+00000000000129a8	movapd	%xmm14, %xmm0
+00000000000129ad	movapd	%xmm8, -0x30(%rbp)
+00000000000129b3	movsd	%xmm14, -0x8(%rbp)
+00000000000129b9	movapd	%xmm9, -0x20(%rbp)
+00000000000129bf	callq	0xde918                         ## symbol stub for: _log
+00000000000129c4	mulsd	0x10fec4(%rip), %xmm0
+00000000000129cc	subsd	-0x8(%rbp), %xmm0
+00000000000129d1	addsd	0x1100a7(%rip), %xmm0
+00000000000129d9	callq	0xde858                         ## symbol stub for: _exp
+00000000000129de	movapd	-0x30(%rbp), %xmm8
+00000000000129e4	movapd	%xmm0, %xmm1
+00000000000129e8	mulsd	-0x20(%rbp), %xmm1
+00000000000129ed	movapd	0xcf67b(%rip), %xmm2
+00000000000129f5	xorpd	%xmm1, %xmm2
+00000000000129f9	xorpd	%xmm0, %xmm0
+00000000000129fd	cmpltsd	%xmm0, %xmm8
+0000000000012a03	movapd	%xmm8, %xmm0
+0000000000012a08	blendvpd	%xmm0, %xmm2, %xmm1
+0000000000012a0d	movapd	%xmm1, %xmm0
+0000000000012a11	addq	$0x30, %rsp
+0000000000012a15	popq	%rbp
+0000000000012a16	retq

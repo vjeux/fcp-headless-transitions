@@ -1,0 +1,73 @@
+__ZN6PCMath9quadraticEfffRfS0_f:
+0000000000012b3c	pushq	%rbp
+0000000000012b3d	movq	%rsp, %rbp
+0000000000012b40	movaps	0xcf069(%rip), %xmm5
+0000000000012b47	andps	%xmm0, %xmm5
+0000000000012b4a	movss	0xcf4ae(%rip), %xmm4
+0000000000012b52	ucomiss	%xmm5, %xmm4
+0000000000012b55	jbe	0x12b80
+0000000000012b57	movaps	0xcf052(%rip), %xmm0
+0000000000012b5e	andps	%xmm1, %xmm0
+0000000000012b61	xorl	%eax, %eax
+0000000000012b63	ucomiss	%xmm0, %xmm4
+0000000000012b66	ja	0x12c14
+0000000000012b6c	xorps	0xcf4ed(%rip), %xmm2
+0000000000012b73	divss	%xmm1, %xmm2
+0000000000012b77	movss	%xmm2, (%rdi)
+0000000000012b7b	jmp	0x12c0f
+0000000000012b80	movaps	%xmm1, %xmm6
+0000000000012b83	mulss	%xmm1, %xmm6
+0000000000012b87	movss	0x10ffe1(%rip), %xmm5
+0000000000012b8f	mulss	%xmm0, %xmm5
+0000000000012b93	mulss	%xmm2, %xmm5
+0000000000012b97	addss	%xmm6, %xmm5
+0000000000012b9b	xorps	%xmm6, %xmm6
+0000000000012b9e	ucomiss	%xmm6, %xmm5
+0000000000012ba1	jae	0x12bda
+0000000000012ba3	movaps	0xcf4b6(%rip), %xmm2
+0000000000012baa	xorps	%xmm3, %xmm2
+0000000000012bad	xorl	%eax, %eax
+0000000000012baf	ucomiss	%xmm2, %xmm5
+0000000000012bb2	jbe	0x12c14
+0000000000012bb4	ucomiss	%xmm5, %xmm3
+0000000000012bb7	jbe	0x12c14
+0000000000012bb9	cvtss2sd	%xmm1, %xmm1
+0000000000012bbd	mulsd	0x10f9e3(%rip), %xmm1
+0000000000012bc5	cvtss2sd	%xmm0, %xmm0
+0000000000012bc9	divsd	%xmm0, %xmm1
+0000000000012bcd	xorps	%xmm0, %xmm0
+0000000000012bd0	cvtsd2ss	%xmm1, %xmm0
+0000000000012bd4	movss	%xmm0, (%rdi)
+0000000000012bd8	jmp	0x12c0f
+0000000000012bda	sqrtss	%xmm5, %xmm5
+0000000000012bde	movaps	0xcefcb(%rip), %xmm6
+0000000000012be5	andps	%xmm6, %xmm5
+0000000000012be8	movaps	0xcf471(%rip), %xmm3
+0000000000012bef	andps	%xmm1, %xmm3
+0000000000012bf2	orps	%xmm5, %xmm3
+0000000000012bf5	addss	%xmm1, %xmm3
+0000000000012bf9	mulss	0x10ff73(%rip), %xmm3
+0000000000012c01	andps	%xmm3, %xmm6
+0000000000012c04	ucomiss	%xmm6, %xmm4
+0000000000012c07	jbe	0x12c16
+0000000000012c09	movl	$0x0, (%rdi)
+0000000000012c0f	movl	$0x1, %eax
+0000000000012c14	popq	%rbp
+0000000000012c15	retq
+0000000000012c16	divss	%xmm3, %xmm2
+0000000000012c1a	divss	%xmm0, %xmm3
+0000000000012c1e	movss	%xmm3, (%rdi)
+0000000000012c22	movss	%xmm2, (%rsi)
+0000000000012c26	movss	(%rdi), %xmm0
+0000000000012c2a	movaps	%xmm0, %xmm1
+0000000000012c2d	subss	%xmm2, %xmm1
+0000000000012c31	andps	0xcef78(%rip), %xmm1
+0000000000012c38	movl	$0x1, %eax
+0000000000012c3d	ucomiss	%xmm1, %xmm4
+0000000000012c40	ja	0x12c14
+0000000000012c42	movl	$0x2, %eax
+0000000000012c47	ucomiss	%xmm2, %xmm0
+0000000000012c4a	jbe	0x12c14
+0000000000012c4c	movss	%xmm2, (%rdi)
+0000000000012c50	movss	%xmm0, (%rsi)
+0000000000012c54	jmp	0x12c14

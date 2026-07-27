@@ -11,7 +11,7 @@ OUT="$ROOT/re/disasm/${PFX}${CLS}.${METH}.s"
 mkdir -p "$(dirname "$OUT")"
 MAP="/tmp/${FW}_symmap.tsv"; DIS="/tmp/${FW}_tV.txt"
 if [ ! -s "$MAP" ]; then
-  nm -arch x86_64 "$BIN" 2>/dev/null | awk '$2=="T"{print $3}' | grep '^__ZN' > "/tmp/${FW}_mangled.txt"
+  nm -arch x86_64 "$BIN" 2>/dev/null | awk '$2=="T"||$2=="t"{print $3}' | grep '^__ZN' > "/tmp/${FW}_mangled.txt"
   c++filt < "/tmp/${FW}_mangled.txt" > "/tmp/${FW}_demangled.txt"
   paste "/tmp/${FW}_mangled.txt" "/tmp/${FW}_demangled.txt" > "$MAP"
 fi
