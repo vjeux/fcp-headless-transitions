@@ -1,0 +1,25 @@
+__ZN16OZCurveNodeParamD2Ev:
+00000000000278b0	pushq	%rbp
+00000000000278b1	movq	%rsp, %rbp
+00000000000278b4	pushq	%rbx
+00000000000278b5	pushq	%rax
+00000000000278b6	movq	%rdi, %rbx
+00000000000278b9	cmpb	$0x1, 0xa0(%rdi)
+00000000000278c0	jne	0x278d3
+00000000000278c2	movq	0x98(%rbx), %rdi
+00000000000278c9	testq	%rdi, %rdi
+00000000000278cc	je	0x278d3
+00000000000278ce	callq	0xacdfe                         ## symbol stub for: __ZdaPv
+00000000000278d3	cmpb	$0x1, 0x58(%rbx)
+00000000000278d7	jne	0x278ed
+00000000000278d9	movq	0x50(%rbx), %rdi
+00000000000278dd	testq	%rdi, %rdi
+00000000000278e0	je	0x278ed
+00000000000278e2	addq	$0x8, %rsp
+00000000000278e6	popq	%rbx
+00000000000278e7	popq	%rbp
+00000000000278e8	jmp	0xacdfe                         ## symbol stub for: __ZdaPv
+00000000000278ed	addq	$0x8, %rsp
+00000000000278f1	popq	%rbx
+00000000000278f2	popq	%rbp
+00000000000278f3	retq
