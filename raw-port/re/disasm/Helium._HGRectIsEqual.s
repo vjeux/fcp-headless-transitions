@@ -1,0 +1,11 @@
+_HGRectIsEqual:
+0000000000107a80	pushq	%rbp
+0000000000107a81	movq	%rsp, %rbp
+0000000000107a84	xorq	%rdx, %rdi
+0000000000107a87	xorq	%rcx, %rsi
+0000000000107a8a	xorl	%eax, %eax
+0000000000107a8c	orq	%rdi, %rsi
+0000000000107a8f	sete	%al
+0000000000107a92	popq	%rbp
+0000000000107a93	retq
+0000000000107a94	nopw	%cs:(%rax,%rax)
