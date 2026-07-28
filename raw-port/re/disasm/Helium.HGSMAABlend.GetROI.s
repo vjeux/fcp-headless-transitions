@@ -1,0 +1,37 @@
+__ZN11HGSMAABlend6GetROIEP10HGRendereri6HGRect:
+0000000000211d10	pushq	%rbp
+0000000000211d11	movq	%rsp, %rbp
+0000000000211d14	pushq	%r14
+0000000000211d16	pushq	%rbx
+0000000000211d17	movq	%r8, %rbx
+0000000000211d1a	movq	%rcx, %r14
+0000000000211d1d	cmpl	$0x1, %edx
+0000000000211d20	je	0x211d3c
+0000000000211d22	testl	%edx, %edx
+0000000000211d24	jne	0x211d64
+0000000000211d26	movl	$0xffffffff, %edi               ## imm = 0xFFFFFFFF
+0000000000211d2b	movl	$0xffffffff, %esi               ## imm = 0xFFFFFFFF
+0000000000211d30	movl	$0x1, %edx
+0000000000211d35	movl	$0x1, %ecx
+0000000000211d3a	jmp	0x211d4a
+0000000000211d3c	movl	$0x1, %edi
+0000000000211d41	movl	$0x1, %esi
+0000000000211d46	xorl	%edx, %edx
+0000000000211d48	xorl	%ecx, %ecx
+0000000000211d4a	callq	_HGRectMake4i
+0000000000211d4f	movq	%rdx, %rcx
+0000000000211d52	movq	%r14, %rdi
+0000000000211d55	movq	%rbx, %rsi
+0000000000211d58	movq	%rax, %rdx
+0000000000211d5b	popq	%rbx
+0000000000211d5c	popq	%r14
+0000000000211d5e	popq	%rbp
+0000000000211d5f	jmp	_HGRectGrow
+0000000000211d64	leaq	_HGRectNull(%rip), %rcx
+0000000000211d6b	movq	(%rcx), %rax
+0000000000211d6e	movq	0x8(%rcx), %rdx
+0000000000211d72	popq	%rbx
+0000000000211d73	popq	%r14
+0000000000211d75	popq	%rbp
+0000000000211d76	retq
+0000000000211d77	nopw	(%rax,%rax)
