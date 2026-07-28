@@ -1,0 +1,21 @@
+__ZN20OZSplineInterpolator24convertHandlesToTangentsER8OZSplinePdS2_:
+0000000000045c00	pushq	%rbp
+0000000000045c01	movq	%rsp, %rbp
+0000000000045c04	movq	0xa8(%rsi), %rax
+0000000000045c0b	cmpb	$0x0, (%rax)
+0000000000045c0e	jne	0x45c1a
+0000000000045c10	movsd	0x6a8f8(%rip), %xmm0
+0000000000045c18	jmp	0x45c22
+0000000000045c1a	movsd	0x6ae46(%rip), %xmm0
+0000000000045c22	testq	%rdx, %rdx
+0000000000045c25	je	0x45c33
+0000000000045c27	movsd	(%rdx), %xmm1
+0000000000045c2b	divsd	%xmm0, %xmm1
+0000000000045c2f	movsd	%xmm1, (%rdx)
+0000000000045c33	testq	%rcx, %rcx
+0000000000045c36	je	0x45c44
+0000000000045c38	movsd	(%rcx), %xmm1
+0000000000045c3c	divsd	%xmm0, %xmm1
+0000000000045c40	movsd	%xmm1, (%rcx)
+0000000000045c44	popq	%rbp
+0000000000045c45	retq
