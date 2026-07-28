@@ -1,0 +1,163 @@
+__ZN16HgcMultiplyAlpha14RenderTile_AVXEP6HGTile:
+0000000001468d90	pushq	%rbp
+0000000001468d91	movq	%rsp, %rbp
+0000000001468d94	pushq	%r15
+0000000001468d96	pushq	%r14
+0000000001468d98	pushq	%r13
+0000000001468d9a	pushq	%r12
+0000000001468d9c	pushq	%rbx
+0000000001468d9d	movl	0xc(%rsi), %eax
+0000000001468da0	subl	0x4(%rsi), %eax
+0000000001468da3	movl	%eax, -0x2c(%rbp)
+0000000001468da6	jle	0x146900e
+0000000001468dac	movl	0x8(%rsi), %r9d
+0000000001468db0	subl	(%rsi), %r9d
+0000000001468db3	movq	0x50(%rsi), %rdx
+0000000001468db7	movq	0x60(%rsi), %rdi
+0000000001468dbb	movq	0x10(%rsi), %r8
+0000000001468dbf	movslq	0x18(%rsi), %r10
+0000000001468dc3	movslq	0x68(%rsi), %r14
+0000000001468dc7	movslq	0x58(%rsi), %r15
+0000000001468dcb	cmpl	$0x6, %r9d
+0000000001468dcf	jl	0x1468f4e
+0000000001468dd5	movl	%r9d, %r11d
+0000000001468dd8	leaq	-0x5(%r11), %rbx
+0000000001468ddc	shlq	$0x4, %r15
+0000000001468de0	shlq	$0x4, %r14
+0000000001468de4	shlq	$0x4, %r10
+0000000001468de8	leaq	0x60(%rdx), %rcx
+0000000001468dec	leaq	0x60(%rdi), %rax
+0000000001468df0	leaq	0x60(%r8), %r12
+0000000001468df4	xorl	%esi, %esi
+0000000001468df6	movl	%r9d, -0x30(%rbp)
+0000000001468dfa	movq	%r10, -0x48(%rbp)
+0000000001468dfe	movq	%r14, -0x40(%rbp)
+0000000001468e02	movq	%r15, -0x38(%rbp)
+0000000001468e06	jmp	0x1468e45
+0000000001468e08	nopl	(%rax,%rax)
+0000000001468e10	movq	-0x50(%rbp), %rsi
+0000000001468e14	incl	%esi
+0000000001468e16	movq	-0x38(%rbp), %r15
+0000000001468e1a	addq	%r15, %rdx
+0000000001468e1d	movq	-0x40(%rbp), %r14
+0000000001468e21	addq	%r14, %rdi
+0000000001468e24	movq	-0x48(%rbp), %r10
+0000000001468e28	addq	%r10, %r8
+0000000001468e2b	movq	-0x60(%rbp), %rcx
+0000000001468e2f	addq	%r15, %rcx
+0000000001468e32	movq	-0x58(%rbp), %rax
+0000000001468e36	addq	%r14, %rax
+0000000001468e39	addq	%r10, %r12
+0000000001468e3c	cmpl	-0x2c(%rbp), %esi
+0000000001468e3f	je	0x146900e
+0000000001468e45	movq	%rsi, -0x50(%rbp)
+0000000001468e49	movl	$0x50, %esi
+0000000001468e4e	movq	%r12, %r10
+0000000001468e51	movq	%rax, -0x58(%rbp)
+0000000001468e55	movq	%rax, %r9
+0000000001468e58	movq	%rcx, -0x60(%rbp)
+0000000001468e5c	xorl	%eax, %eax
+0000000001468e5e	nop
+0000000001468e60	movq	%rcx, %r13
+0000000001468e63	movq	%r9, %r15
+0000000001468e66	movq	%r10, %r14
+0000000001468e69	vmovaps	-0x50(%rdx,%rsi), %xmm0
+0000000001468e6f	vmovaps	-0x40(%rdx,%rsi), %xmm1
+0000000001468e75	vmovaps	-0x30(%rdx,%rsi), %xmm2
+0000000001468e7b	vmovaps	-0x20(%rdx,%rsi), %xmm3
+0000000001468e81	vmovaps	-0x10(%rdx,%rsi), %xmm4
+0000000001468e87	vmovaps	(%rdx,%rsi), %xmm5
+0000000001468e8c	vmulps	-0x50(%rdi,%rsi), %xmm0, %xmm0
+0000000001468e92	vmulps	-0x40(%rdi,%rsi), %xmm1, %xmm1
+0000000001468e98	vmulps	-0x30(%rdi,%rsi), %xmm2, %xmm2
+0000000001468e9e	vmulps	-0x20(%rdi,%rsi), %xmm3, %xmm3
+0000000001468ea4	vmulps	-0x10(%rdi,%rsi), %xmm4, %xmm4
+0000000001468eaa	vmulps	(%rdi,%rsi), %xmm5, %xmm5
+0000000001468eaf	vshufps	$0xff, %xmm0, %xmm0, %xmm0      ## xmm0 = xmm0[3,3,3,3]
+0000000001468eb4	vmovaps	%xmm0, -0x50(%r8,%rsi)
+0000000001468ebb	vshufps	$0xff, %xmm1, %xmm1, %xmm0      ## xmm0 = xmm1[3,3,3,3]
+0000000001468ec0	vmovaps	%xmm0, -0x40(%r8,%rsi)
+0000000001468ec7	vshufps	$0xff, %xmm2, %xmm2, %xmm0      ## xmm0 = xmm2[3,3,3,3]
+0000000001468ecc	vmovaps	%xmm0, -0x30(%r8,%rsi)
+0000000001468ed3	vshufps	$0xff, %xmm3, %xmm3, %xmm0      ## xmm0 = xmm3[3,3,3,3]
+0000000001468ed8	vmovaps	%xmm0, -0x20(%r8,%rsi)
+0000000001468edf	vshufps	$0xff, %xmm4, %xmm4, %xmm0      ## xmm0 = xmm4[3,3,3,3]
+0000000001468ee4	vmovaps	%xmm0, -0x10(%r8,%rsi)
+0000000001468eeb	vshufps	$0xff, %xmm5, %xmm5, %xmm0      ## xmm0 = xmm5[3,3,3,3]
+0000000001468ef0	vmovaps	%xmm0, (%r8,%rsi)
+0000000001468ef6	addq	$0x6, %rax
+0000000001468efa	addq	$0x60, %rsi
+0000000001468efe	addq	$0x60, %rcx
+0000000001468f02	addq	$0x60, %r9
+0000000001468f06	addq	$0x60, %r10
+0000000001468f0a	cmpq	%rbx, %rax
+0000000001468f0d	jl	0x1468e60
+0000000001468f13	movl	-0x30(%rbp), %r9d
+0000000001468f17	cmpl	%eax, %r9d
+0000000001468f1a	jle	0x1468e10
+0000000001468f20	vmovaps	(%r13), %xmm0
+0000000001468f26	vmulps	(%r15), %xmm0, %xmm0
+0000000001468f2b	vshufps	$0xff, %xmm0, %xmm0, %xmm0      ## xmm0 = xmm0[3,3,3,3]
+0000000001468f30	vmovaps	%xmm0, (%r14)
+0000000001468f35	incq	%rax
+0000000001468f38	addq	$0x10, %r13
+0000000001468f3c	addq	$0x10, %r15
+0000000001468f40	addq	$0x10, %r14
+0000000001468f44	cmpq	%r11, %rax
+0000000001468f47	jb	0x1468f20
+0000000001468f49	jmp	0x1468e10
+0000000001468f4e	testl	%r9d, %r9d
+0000000001468f51	jle	0x146900e
+0000000001468f57	movl	%r9d, %r11d
+0000000001468f5a	movl	%r11d, %ebx
+0000000001468f5d	andl	$0x7ffffffe, %ebx               ## imm = 0x7FFFFFFE
+0000000001468f63	shlq	$0x4, %r15
+0000000001468f67	shlq	$0x4, %r14
+0000000001468f6b	shlq	$0x4, %r10
+0000000001468f6f	xorl	%eax, %eax
+0000000001468f71	jmp	0x1468f90
+0000000001468f73	nopw	%cs:(%rax,%rax)
+0000000001468f80	addq	%r15, %rdx
+0000000001468f83	addq	%r14, %rdi
+0000000001468f86	addq	%r10, %r8
+0000000001468f89	incl	%eax
+0000000001468f8b	cmpl	-0x2c(%rbp), %eax
+0000000001468f8e	je	0x146900e
+0000000001468f90	cmpl	$0x1, %r9d
+0000000001468f94	jne	0x1468fa0
+0000000001468f96	xorl	%ecx, %ecx
+0000000001468f98	jmp	0x1468fea
+0000000001468f9a	nopw	(%rax,%rax)
+0000000001468fa0	movl	$0x10, %esi
+0000000001468fa5	xorl	%ecx, %ecx
+0000000001468fa7	nopw	(%rax,%rax)
+0000000001468fb0	vmovaps	-0x10(%rdx,%rsi), %xmm0
+0000000001468fb6	vmulps	-0x10(%rdi,%rsi), %xmm0, %xmm0
+0000000001468fbc	vshufps	$0xff, %xmm0, %xmm0, %xmm0      ## xmm0 = xmm0[3,3,3,3]
+0000000001468fc1	vmovaps	%xmm0, -0x10(%r8,%rsi)
+0000000001468fc8	vmovaps	(%rdx,%rsi), %xmm0
+0000000001468fcd	vmulps	(%rdi,%rsi), %xmm0, %xmm0
+0000000001468fd2	vshufps	$0xff, %xmm0, %xmm0, %xmm0      ## xmm0 = xmm0[3,3,3,3]
+0000000001468fd7	vmovaps	%xmm0, (%r8,%rsi)
+0000000001468fdd	addq	$0x2, %rcx
+0000000001468fe1	addq	$0x20, %rsi
+0000000001468fe5	cmpq	%rcx, %rbx
+0000000001468fe8	jne	0x1468fb0
+0000000001468fea	testb	$0x1, %r11b
+0000000001468fee	je	0x1468f80
+0000000001468ff0	shlq	$0x4, %rcx
+0000000001468ff4	vmovaps	(%rdx,%rcx), %xmm0
+0000000001468ff9	vmulps	(%rdi,%rcx), %xmm0, %xmm0
+0000000001468ffe	vshufps	$0xff, %xmm0, %xmm0, %xmm0      ## xmm0 = xmm0[3,3,3,3]
+0000000001469003	vmovaps	%xmm0, (%r8,%rcx)
+0000000001469009	jmp	0x1468f80
+000000000146900e	vzeroupper
+0000000001469011	xorl	%eax, %eax
+0000000001469013	popq	%rbx
+0000000001469014	popq	%r12
+0000000001469016	popq	%r13
+0000000001469018	popq	%r14
+000000000146901a	popq	%r15
+000000000146901c	popq	%rbp
+000000000146901d	retq
+000000000146901e	nop
