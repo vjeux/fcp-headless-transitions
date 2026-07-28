@@ -1,0 +1,27 @@
+__ZN16HGYUVPlanarTo44412SetParameterEiffff:
+00000000000e5990	pushq	%rbp
+00000000000e5991	movq	%rsp, %rbp
+00000000000e5994	cmpl	$0x1, %esi
+00000000000e5997	je	0xe59b3
+00000000000e5999	movl	$0xffffffff, %eax               ## imm = 0xFFFFFFFF
+00000000000e599e	testl	%esi, %esi
+00000000000e59a0	jne	0xe59d7
+00000000000e59a2	cvttss2si	%xmm0, %rax
+00000000000e59a7	cmpl	%eax, 0x1a4(%rdi)
+00000000000e59ad	jne	0xe59c4
+00000000000e59af	xorl	%eax, %eax
+00000000000e59b1	popq	%rbp
+00000000000e59b2	retq
+00000000000e59b3	cvttss2si	%xmm0, %rax
+00000000000e59b8	cmpl	%eax, 0x1a8(%rdi)
+00000000000e59be	jne	0xe59cc
+00000000000e59c0	xorl	%eax, %eax
+00000000000e59c2	popq	%rbp
+00000000000e59c3	retq
+00000000000e59c4	movl	%eax, 0x1a4(%rdi)
+00000000000e59ca	jmp	0xe59d2
+00000000000e59cc	movl	%eax, 0x1a8(%rdi)
+00000000000e59d2	movl	$0x1, %eax
+00000000000e59d7	popq	%rbp
+00000000000e59d8	retq
+00000000000e59d9	nopl	(%rax)
