@@ -1,0 +1,15 @@
+__ZN13HGDitherNoise9getFormatEv:
+000000000010a570	pushq	%rbp
+000000000010a571	movq	%rsp, %rbp
+000000000010a574	movl	$0x1b, %eax
+000000000010a579	popq	%rbp
+000000000010a57a	retq
+000000000010a57b	addb	%al, (%rax)
+000000000010a57d	addb	%al, (%rax)
+000000000010a57f	addb	%dl, 0x48(%rbp)
+000000000010a582	movl	%esp, %ebp
+000000000010a584	xorps	%xmm0, %xmm0
+000000000010a587	movups	%xmm0, 0x10(%rdi)
+000000000010a58b	movups	%xmm0, (%rdi)
+000000000010a58e	popq	%rbp
+000000000010a58f	retq
