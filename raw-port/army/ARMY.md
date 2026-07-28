@@ -10,16 +10,26 @@ not yet decoded, the port THROWS ("not yet transcribed") — it never approximat
 function MUST cite the address it was transcribed from (`@0xADDR`), which is how the ledger detects
 completion and how reviewers audit faithfulness. Guessing = the work is rejected.
 
-## 1. Scope is DEMAND-DRIVEN, not "port all 131,792 functions"
-The four frameworks hold ~131.8K defined functions (Flexo 86.6K, Ozone 33.2K, ProChannel 6.4K,
-ProCore 5.5K). We do NOT port them all. We port the TRANSITIVE CALL-CLOSURE of what actually runs
-when rendering the 65 shipped transitions, expanded lazily:
-  - Seed = the entry points already exercised: readScene, the parse{Begin,Element,End} chain, the
-    channel/curve/interpolator subsystem, and (next) the render/compositor entry.
-  - A unit enters the frontier when a TRANSCRIBED function calls it (the `throw` at an un-ported
-    callee is the demand signal). Agents pull the next frontier unit, decode it, port it, which
-    reveals its callees -> new frontier. BFS outward from real execution, so we never port dead code.
-  - `army/tools/frontier.py` computes the current frontier from src/ throws + call-sites.
+## 1. Scope is THE ENTIRE ENGINE — every function in every framework
+GOAL (authoritative, per vjeux 2026-07-28): port the COMPLETE FCP engine to TypeScript — ALL
+~131.8K defined functions across Flexo (86.6K), Ozone (33.2K), ProChannel (6.4K), ProCore (5.5K),
+plus Helium (12.5K) and every Metal shader. There is NO "dead code" exclusion. The 65 shipped
+transitions are the VERIFICATION CORPUS (a sample to test parity against real FCP), NOT the scope
+boundary. Every function gets a faithful, gate-passing, @0xADDR-cited TS port.
+
+  - The demand-driven call-closure (throw-at-un-ported-callee = frontier signal) is still the
+    ORDERING HEURISTIC — it front-loads what the 65 transitions exercise so we can verify early —
+    but it is NOT the stopping condition. When the reachable frontier drains, we keep going: pull
+    EVERY remaining class/shader leaf from the ledger until the whole binary is transcribed.
+  - `army/ledger/CLASSES.tsv` enumerates ALL classes (7,232 class leaves seeded so far); the shader
+    ledger enumerates all metallib functions. These are the real denominators. "Done" = every leaf
+    in every framework ledger is status=ported (and ideally verified).
+  - `army/tools/frontier.py` still computes the reachable frontier for prioritization, but claim.py
+    hands out ALL leaves, not just reachable ones. A leaf being "not reachable from the 65" is NOT a
+    reason to skip it — it just means it's lower priority than reachable work, port it later.
+
+CORRECTION LOG: earlier revisions of this file said "we do NOT port them all / never port dead code."
+That was WRONG and contradicted the stated goal. The entire engine is in scope. (Fixed 2026-07-28.)
 
 ## 2. The work ledger (source of truth for "what's left")
 `army/inventory/<FW>.syms.txt`  — `nm -n` defined-symbol dump per framework (regenerate: tools/dump_syms.sh).
