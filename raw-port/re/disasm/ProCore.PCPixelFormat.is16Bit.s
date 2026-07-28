@@ -1,0 +1,9 @@
+__ZN13PCPixelFormat7is16BitENS_12ChannelOrderE:
+00000000000354a2	pushq	%rbp
+00000000000354a3	movq	%rsp, %rbp
+00000000000354a6	addl	$-0x7, %edi
+00000000000354a9	cmpl	$0x7, %edi
+00000000000354ac	setb	%al
+00000000000354af	popq	%rbp
+00000000000354b0	retq
+00000000000354b1	nop

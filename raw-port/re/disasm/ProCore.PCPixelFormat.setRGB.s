@@ -1,0 +1,18 @@
+__ZN13PCPixelFormat6setRGBENS_12ChannelOrderE:
+00000000000354f6	pushq	%rbp
+00000000000354f7	movq	%rsp, %rbp
+00000000000354fa	movl	%edi, %eax
+00000000000354fc	leal	-0x1(%rax), %ecx
+00000000000354ff	cmpl	$0xf, %ecx
+0000000000035502	setb	%dl
+0000000000035505	movl	$0x6cc3, %esi                   ## imm = 0x6CC3
+000000000003550a	shrl	%cl, %esi
+000000000003550c	andb	%dl, %sil
+000000000003550f	cmpb	$0x1, %sil
+0000000000035513	jne	0x35521
+0000000000035515	movl	%ecx, %eax
+0000000000035517	leaq	0xee962(%rip), %rcx
+000000000003551e	movl	(%rcx,%rax,4), %eax
+0000000000035521	popq	%rbp
+0000000000035522	retq
+0000000000035523	nop
