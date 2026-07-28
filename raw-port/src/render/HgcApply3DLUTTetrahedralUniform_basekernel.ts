@@ -1242,4 +1242,312 @@ export function HgcApply3DLUTTetrahedralUniform_basekernel_shaderDescription(
 // interface — all of which are frontier symbols today. Rather than paint
 // over them, this method is kept as an explicit throwing stub citing
 // every callee's @Helium address; the two shader source strings ARE
-// decoded and expos
+// decoded and exposed below as named constants so downstream ports can
+// reuse them without re-decoding the disasm.
+// -----------------------------------------------------------------------------
+
+/** HGProgramDescriptor::SetVisibleShaderWithSource — @Helium
+ *  __ZN19HGProgramDescriptor26SetVisibleShaderWithSourceEPKcS1_. Frontier stub. */
+function HGProgramDescriptor_SetVisibleShaderWithSource(
+  _desc: HGProgramDescriptor,
+  _name: string,
+  _source: string,
+): void {
+  throw new Error(
+    "HGProgramDescriptor::SetVisibleShaderWithSource not yet transcribed: called from InitProgramDescriptor @Helium 0x398f02 as an undecoded frontier symbol.",
+  );
+}
+
+/** HGProgramDescriptor::SetFragmentFunctionName — @Helium
+ *  __ZN19HGProgramDescriptor23SetFragmentFunctionNameEPKc. Frontier stub. */
+function HGProgramDescriptor_SetFragmentFunctionName(
+  _desc: HGProgramDescriptor,
+  _name: string,
+): void {
+  throw new Error(
+    "HGProgramDescriptor::SetFragmentFunctionName not yet transcribed: called from InitProgramDescriptor @Helium 0x398f11 as an undecoded frontier symbol.",
+  );
+}
+
+/** HGProgramDescriptor::SetReturnBinding(HGBinding) — @Helium
+ *  __ZN19HGProgramDescriptor16SetReturnBindingE9HGBinding. Frontier stub. */
+function HGProgramDescriptor_SetReturnBinding(
+  _desc: HGProgramDescriptor,
+  _binding: HGBinding,
+): void {
+  throw new Error(
+    "HGProgramDescriptor::SetReturnBinding not yet transcribed: called from InitProgramDescriptor @Helium 0x398f58 as an undecoded frontier symbol.",
+  );
+}
+
+/** std::vector<HGBinding>::__emplace_back_slow_path — the STL out-of-line
+ *  reserve+move path. Frontier stub. */
+function vectorHGBinding_emplace_back_slow_path(
+  _vec: HGBinding[],
+  _val: HGBinding,
+): HGBinding {
+  throw new Error(
+    "std::vector<HGBinding>::__emplace_back_slow_path not yet transcribed: called from InitProgramDescriptor @Helium 0x398fad and downstream emplace sites as an undecoded frontier symbol.",
+  );
+}
+
+/** HGBinding — a small tagged binding struct populated by
+ *  InitProgramDescriptor's stack builders. Fields recovered from the
+ *  offsets read/written in the disasm: */
+export interface HGBinding {
+  /** @-0x60(%rbp) written @0x398f7e as $0x2 (a "float4" type code)
+   *  and @0x398fc9 as $0xa (a different type code, likely "texture2d"). */
+  type_at_0x00: number;
+  /** @-0x58(%rbp) written @0x398f85 as $0xc (the C-string small-string
+   *  tag = 12 chars inline). */
+  smallStringTag_at_0x08: number;
+  /** @-0x57(%rbp) inline C-string "float4\0" packed as three imm-writes
+   *  ($0x616f6c66, $0x3474, $0x00). */
+  inlineName_at_0x09: string;
+  /** @-0x40(%rbp) 16-byte payload copied from a source-pool xmm0 load
+   *  (movaps 0x4f38af(%rip) @0x398f9a and its siblings). */
+  payload_at_0x18: Float32Array;
+}
+
+/** The [[visible]] Metal 1.0 fragment shader source string emitted by
+ *  InitProgramDescriptor at @0x398ef8 (RIP-target VA (0x398f01)+0x63cd50
+ *  = 0x9d5c51). LEN=0x0d5b (=3419) as declared by its own "//LEN=".
+ *
+ *  Same tetrahedral interpolation math as
+ *  METAL_1_0_FRAGMENT_SHADER_SRC, but declared as a `[[ visible ]]`
+ *  function taking `color0` as a parameter (instead of sampling
+ *  hg_Texture0 from stage-in texcoords) — this is the "callable" variant
+ *  used when this kernel is inlined into a bigger fragment program. */
+export const METAL_1_0_VISIBLE_SHADER_SRC =
+  '//Metal1.0     \n' +
+  '//LEN=0000000d5b\n' +
+  '[[ visible ]] FragmentOut HgcApply3DLUTTetrahedralUniform_basekernel_hgc_visible(const constant float4* hg_Params,\n' +
+  '    float4 color0, \n' +
+  '    texture2d< float > hg_Texture1, \n' +
+  '    sampler hg_Sampler1)\n' +
+  '{\n' +
+  '    const float4 c0 = float4(1.000000000, 0.000000000, 0.5000000000, 0.000000000);\n' +
+  '    float4 r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19;\n' +
+  '    FragmentOut output;\n' +
+  '\n' +
+  '    r0 = color0;\n' +
+  '    r1.xyz = r0.xyz*hg_Params[0].xxx + hg_Params[0].yyy;\n' +
+  '    r2.xyz = hg_Params[1].yyy - c0.xxx;\n' +
+  '    r1.xyz = r1.xyz*r2.xyz;\n' +
+  '    r1.xyz = fmax(r1.xyz, c0.yyy);\n' +
+  '    r1.xyz = fmin(r1.xyz, r2.xyz);\n' +
+  '    r3.xyz = fract(r1.xyz);\n' +
+  '    r1.xyz = floor(r1.xyz);\n' +
+  '    r4.xyz = r1.xyz + c0.xxx;\n' +
+  '    r4.xyz = fmin(r4.xyz, r2.xyz);\n' +
+  '    r4.xyz = r4.xyz - r1.xyz;\n' +
+  '    r4.xyz = r4.xyz*hg_Params[1].xyz;\n' +
+  '    r2.x = dot(r1.xy, hg_Params[1].xy);\n' +
+  '    r2.y = r1.z;\n' +
+  '    r2.xy = r2.xy + c0.zz;\n' +
+  '    r1.xy = r2.xy + hg_Params[3].xy;\n' +
+  '    r1.xy = r1.xy*hg_Params[3].zw;\n' +
+  '    r1 = hg_Texture1.sample(hg_Sampler1, r1.xy);\n' +
+  '    r2.x = r2.x + r4.x;\n' +
+  '    r5.xy = r2.xy + hg_Params[3].xy;\n' +
+  '    r5.xy = r5.xy*hg_Params[3].zw;\n' +
+  '    r5 = hg_Texture1.sample(hg_Sampler1, r5.xy);\n' +
+  '    r2.x = r2.x + r4.y;\n' +
+  '    r6.xy = r2.xy + hg_Params[3].xy;\n' +
+  '    r6.xy = r6.xy*hg_Params[3].zw;\n' +
+  '    r6 = hg_Texture1.sample(hg_Sampler1, r6.xy);\n' +
+  '    r2.x = r2.x - r4.x;\n' +
+  '    r7.xy = r2.xy + hg_Params[3].xy;\n' +
+  '    r7.xy = r7.xy*hg_Params[3].zw;\n' +
+  '    r7 = hg_Texture1.sample(hg_Sampler1, r7.xy);\n' +
+  '    r2.y = r2.y + r4.z;\n' +
+  '    r8.xy = r2.xy + hg_Params[3].xy;\n' +
+  '    r8.xy = r8.xy*hg_Params[3].zw;\n' +
+  '    r8 = hg_Texture1.sample(hg_Sampler1, r8.xy);\n' +
+  '    r2.x = r2.x - r4.y;\n' +
+  '    r9.xy = r2.xy + hg_Params[3].xy;\n' +
+  '    r9.xy = r9.xy*hg_Params[3].zw;\n' +
+  '    r9 = hg_Texture1.sample(hg_Sampler1, r9.xy);\n' +
+  '    r2.x = r2.x + r4.x;\n' +
+  '    r10.xy = r2.xy + hg_Params[3].xy;\n' +
+  '    r10.xy = r10.xy*hg_Params[3].zw;\n' +
+  '    r10 = hg_Texture1.sample(hg_Sampler1, r10.xy);\n' +
+  '    r2.x = r2.x + r4.y;\n' +
+  '    r2.xy = r2.xy + hg_Params[3].xy;\n' +
+  '    r2.xy = r2.xy*hg_Params[3].zw;\n' +
+  '    r2 = hg_Texture1.sample(hg_Sampler1, r2.xy);\n' +
+  '    r4 = float4(r3.xzzy > r3.yxyz);\n' +
+  '    r11.x = float(r3.y > r3.x);\n' +
+  '    r12 = float4(r3.yxxz >= r3.xyzy);\n' +
+  '    r13 = r2 - r8;\n' +
+  '    r14 = r7 - r1;\n' +
+  '    r15 = r8 - r7;\n' +
+  '    r16 = r13*r3.xxxx;\n' +
+  '    r16 = r14*r3.yyyy + r16;\n' +
+  '    r15 = r15*r3.zzzz + r16;\n' +
+  '    r16 = r10 - r9;\n' +
+  '    r17 = r2 - r10;\n' +
+  '    r18 = r9 - r1;\n' +
+  '    r16 = r16*r3.xxxx;\n' +
+  '    r16 = r17*r3.yyyy + r16;\n' +
+  '    r16 = r18*r3.zzzz + r16;\n' +
+  '    r19 = fmin(r4.xxxx, r4.yyyy);\n' +
+  '    r15 = select(r15, r16, r19 > 0.00000f);\n' +
+  '    r8 = r8 - r9;\n' +
+  '    r13 = r13*r3.xxxx;\n' +
+  '    r13 = r8*r3.yyyy + r13;\n' +
+  '    r13 = r18*r3.zzzz + r13;\n' +
+  '    r19 = fmin(r12.xxxx, r4.zzzz);\n' +
+  '    r15 = select(r15, r13, r19 > 0.00000f);\n' +
+  '    r16 = r5 - r1;\n' +
+  '    r9 = r6 - r5;\n' +
+  '    r2 = r2 - r6;\n' +
+  '    r8 = r16*r3.xxxx;\n' +
+  '    r8 = r9*r3.yyyy + r8;\n' +
+  '    r8 = r2*r3.zzzz + r8;\n' +
+  '    r4 = fmin(r4.wwww, r12.yyyy);\n' +
+  '    r15 = select(r15, r8, r4 > 0.00000f);\n' +
+  '    r6 = r6 - r7;\n' +
+  '    r6 = r6*r3.xxxx;\n' +
+  '    r6 = r14*r3.yyyy + r6;\n' +
+  '    r6 = r2*r3.zzzz + r6;\n' +
+  '    r11 = fmin(r12.zzzz, r11.xxxx);\n' +
+  '    r15 = select(r15, r6, r11 > 0.00000f);\n' +
+  '    r10 = r10 - r5;\n' +
+  '    r16 = r16*r3.xxxx;\n' +
+  '    r16 = r17*r3.yyyy + r16;\n' +
+  '    r16 = r10*r3.zzzz + r16;\n' +
+  '    r12 = fmin(r12.wwww, r12.zzzz);\n' +
+  '    r12 = select(r15, r16, r12 > 0.00000f);\n' +
+  '    r12 = r12 + r1;\n' +
+  '    r12 = r12*hg_Params[0].zzzz + hg_Params[0].wwww;\n' +
+  '    output.color0 = select(r12, r0, hg_Params[2] < 0.00000f);\n' +
+  '    return output;\n' +
+  '}\n';
+
+/** InitProgramDescriptor @Helium 0x398ee0. Fills the HGProgramDescriptor
+ *  with the [[visible]] Metal-1.0 tetrahedral 3D-LUT shader source, the
+ *  fragment function name "HgcApply3DLUTTetrahedralUniform_basekernel",
+ *  a FragmentOut return binding, and two "float4" input bindings via
+ *  std::vector<HGBinding> emplace_back calls.
+ *
+ *  Kept as a throwing stub: the four callee interfaces
+ *  (SetVisibleShaderWithSource, SetFragmentFunctionName, SetReturnBinding,
+ *  vector<HGBinding>::__emplace_back_slow_path) are undecoded frontier
+ *  symbols; the two Metal shader sources ARE decoded (see
+ *  METAL_1_0_FRAGMENT_SHADER_SRC and METAL_1_0_VISIBLE_SHADER_SRC). */
+export function HgcApply3DLUTTetrahedralUniform_basekernel_InitProgramDescriptor(
+  _self: HgcApply3DLUTTetrahedralUniform_basekernel,
+  _desc: HGProgramDescriptor,
+): void {
+  throw new Error(
+    "HgcApply3DLUTTetrahedralUniform_basekernel::InitProgramDescriptor @Helium 0x398ee0 not yet transcribed: 191-line STL-vector + HGProgramDescriptor plumbing whose callees HGProgramDescriptor::SetVisibleShaderWithSource @Helium 0x398f02, HGProgramDescriptor::SetFragmentFunctionName @Helium 0x398f11, HGProgramDescriptor::SetReturnBinding @Helium 0x398f58, and std::vector<HGBinding>::__emplace_back_slow_path @Helium 0x398fad are all undecoded frontier symbols (Metal shader source strings ARE decoded — see METAL_1_0_FRAGMENT_SHADER_SRC and METAL_1_0_VISIBLE_SHADER_SRC).",
+  );
+  // Unreachable — retained so imports/refs stay live in the type graph.
+  HGProgramDescriptor_SetVisibleShaderWithSource(
+    _desc,
+    'HgcApply3DLUTTetrahedralUniform_basekernel_hgc_visible',
+    METAL_1_0_VISIBLE_SHADER_SRC,
+  );
+  HGProgramDescriptor_SetFragmentFunctionName(
+    _desc,
+    'HgcApply3DLUTTetrahedralUniform_basekernel',
+  );
+  const returnBinding: HGBinding = {
+    type_at_0x00: 0x4,
+    smallStringTag_at_0x08: 0x16,
+    inlineName_at_0x09: 'FragmentOut',
+    payload_at_0x18: new Float32Array(4),
+  };
+  HGProgramDescriptor_SetReturnBinding(_desc, returnBinding);
+  const inputs: HGBinding[] = [];
+  vectorHGBinding_emplace_back_slow_path(inputs, {
+    type_at_0x00: 0x2,
+    smallStringTag_at_0x08: 0xc,
+    inlineName_at_0x09: 'float4',
+    payload_at_0x18: new Float32Array(4),
+  });
+  vectorHGBinding_emplace_back_slow_path(inputs, {
+    type_at_0x00: 0xa,
+    smallStringTag_at_0x08: 0xc,
+    inlineName_at_0x09: 'float4',
+    payload_at_0x18: new Float32Array(4),
+  });
+}
+
+// -----------------------------------------------------------------------------
+// HgcApply3DLUTTetrahedralUniform_basekernel::RenderTile(HGTile*) @Helium 0x399f60
+//
+// 658 lines of x86 that:
+//   1. Reads HGTile::Renderer() (@0x399f7d) and HGRenderer::GetTarget(0)
+//      (@0x399f87).
+//   2. If renderer >= 0x4700000 -> tail-call RenderTile_AVX (@0x399f99).
+//   3. Otherwise reads tile.rect (16 bytes @[rbx+0x00]), tile.dst_stride
+//      (0x58), tile.src_ptr (0x50), tile.dst_ptr (0x10), tile.src_stride
+//      (0x18), then runs one of two SSE inner loops selected on
+//      renderer <= 0x44fffff (@0x399ff1) — the "fully-scalar" fallback
+//      (@0x39a533) or the SSE-packed tetrahedral evaluator (@0x39a007
+//      onward). The packed loop consumes hg_Params[0..3] from
+//      self.params_at_0x198 and does the SAME tetrahedral interpolation
+//      whose textual form is in METAL_1_0_FRAGMENT_SHADER_SRC above.
+//
+// A faithful per-instruction port of RenderTile / RenderTile_AVX is
+// approximately 1200 lines of SSE/AVX pseudocode. This file transcribes
+// the class's WRAPPER surface (ctor, dtor, param buffer, virtuals, and
+// the Metal shader constants that ARE the ground-truth math); the two
+// packed CPU render paths are kept as decoded-frontier stubs so the
+// gate can see the gap.
+// -----------------------------------------------------------------------------
+
+/** HGTile::Renderer() const — @Helium __ZNK6HGTile8RendererEv. Frontier. */
+function HGTile_Renderer(_tile: HGTile): HGRenderer {
+  throw new Error(
+    "HGTile::Renderer() const not yet transcribed: called from HgcApply3DLUTTetrahedralUniform_basekernel::RenderTile @Helium 0x399f7d as an undecoded frontier symbol.",
+  );
+}
+
+/** HgcApply3DLUTTetrahedralUniform_basekernel::RenderTile @Helium 0x399f60.
+ *
+ *  Dispatches to RenderTile_AVX for renderer feature-levels >= 0x4700000
+ *  (@0x399f8c-@0x399f99); otherwise runs one of two SSE-packed inner
+ *  loops depending on renderer <= 0x44fffff (@0x399ff1). The SSE math
+ *  matches METAL_1_0_FRAGMENT_SHADER_SRC.
+ *
+ *  Kept as a decoded-frontier stub — the 658-line SSE tetrahedral
+ *  evaluator is a separate leaf. */
+export function HgcApply3DLUTTetrahedralUniform_basekernel_RenderTile(
+  _self: HgcApply3DLUTTetrahedralUniform_basekernel,
+  _tile: HGTile,
+): number {
+  throw new Error(
+    "HgcApply3DLUTTetrahedralUniform_basekernel::RenderTile @Helium 0x399f60 not yet transcribed: 658-line SSE-packed tetrahedral 3D-LUT evaluator (dispatches to RenderTile_AVX @Helium 0x399f99 for renderer>=0x4700000; SSE inner loop begins @Helium 0x39a007 for renderer>0x44fffff; scalar fallback @Helium 0x39a533 for renderer<=0x44fffff). Callee HGTile::Renderer @Helium 0x399f7d and HGRenderer::GetTarget @Helium 0x399f87 also frontier. Math IS the Metal shader (see METAL_1_0_FRAGMENT_SHADER_SRC).",
+  );
+  // Unreachable — kept live so RenderTile_AVX referenced.
+  HGTile_Renderer(_tile);
+  HgcApply3DLUTTetrahedralUniform_basekernel_RenderTile_AVX(_self, _tile);
+  const _thresholds = RENDERTILE_AVX_THRESHOLD + RENDERTILE_SCALAR_THRESHOLD;
+  return _thresholds & 0;
+}
+
+// -----------------------------------------------------------------------------
+// HgcApply3DLUTTetrahedralUniform_basekernel::RenderTile_AVX(HGTile*) @Helium 0x399420
+//
+// 590 lines of AVX packed-single-precision tetrahedral 3D-LUT
+// interpolation. Consumes hg_Params[0..3] from self.params_at_0x198 (via
+// the offsets baked into the ctor: rows 0/1 at +0x00 = hg_Params[0]
+// scale/bias/enable/postscale, rows 2/3 at +0x20 = hg_Params[1] grid
+// xform, rows 4/5 at +0x40 = hg_Params[2] enable flag, rows 10/11 at
+// +0xa0 = hg_Params[3] tex-coord bias/scale). Math IS
+// METAL_1_0_FRAGMENT_SHADER_SRC.
+// -----------------------------------------------------------------------------
+
+/** HgcApply3DLUTTetrahedralUniform_basekernel::RenderTile_AVX @Helium 0x399420.
+ *  590-line AVX packed-float tetrahedral 3D-LUT evaluator. Frontier stub. */
+export function HgcApply3DLUTTetrahedralUniform_basekernel_RenderTile_AVX(
+  _self: HgcApply3DLUTTetrahedralUniform_basekernel,
+  _tile: HGTile,
+): number {
+  throw new Error(
+    "HgcApply3DLUTTetrahedralUniform_basekernel::RenderTile_AVX @Helium 0x399420 not yet transcribed: 590-line AVX-packed tetrahedral 3D-LUT evaluator whose math mirrors METAL_1_0_FRAGMENT_SHADER_SRC (parameter buffer layout at self+0x198 is decoded — see PARAMS LAYOUT).",
+  );
+}
