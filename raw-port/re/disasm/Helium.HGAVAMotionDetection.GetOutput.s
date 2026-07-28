@@ -1,0 +1,37 @@
+__ZN20HGAVAMotionDetection9GetOutputEP10HGRenderer:
+0000000000214560	pushq	%rbp
+0000000000214561	movq	%rsp, %rbp
+0000000000214564	pushq	%r15
+0000000000214566	pushq	%r14
+0000000000214568	pushq	%rbx
+0000000000214569	pushq	%rax
+000000000021456a	movq	%rsi, %r14
+000000000021456d	movq	%rdi, %rbx
+0000000000214570	movq	0x198(%rdi), %r15
+0000000000214577	movq	%rsi, %rdi
+000000000021457a	movq	%rbx, %rsi
+000000000021457d	xorl	%edx, %edx
+000000000021457f	callq	__ZN10HGRenderer8GetInputEP6HGNodei ## HGRenderer::GetInput(HGNode*, int)
+0000000000214584	movq	(%r15), %rcx
+0000000000214587	movq	%r15, %rdi
+000000000021458a	xorl	%esi, %esi
+000000000021458c	movq	%rax, %rdx
+000000000021458f	callq	*0x78(%rcx)
+0000000000214592	movq	0x198(%rbx), %r15
+0000000000214599	movq	%r14, %rdi
+000000000021459c	movq	%rbx, %rsi
+000000000021459f	movl	$0x1, %edx
+00000000002145a4	callq	__ZN10HGRenderer8GetInputEP6HGNodei ## HGRenderer::GetInput(HGNode*, int)
+00000000002145a9	movq	(%r15), %rcx
+00000000002145ac	movq	%r15, %rdi
+00000000002145af	movl	$0x1, %esi
+00000000002145b4	movq	%rax, %rdx
+00000000002145b7	callq	*0x78(%rcx)
+00000000002145ba	movq	0x198(%rbx), %rax
+00000000002145c1	addq	$0x8, %rsp
+00000000002145c5	popq	%rbx
+00000000002145c6	popq	%r14
+00000000002145c8	popq	%r15
+00000000002145ca	popq	%rbp
+00000000002145cb	retq
+00000000002145cc	nopl	(%rax)
