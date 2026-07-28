@@ -1,0 +1,121 @@
+__ZN44HgcBilateralFilterInterpSC_InterpolatorLastX11BindTextureEP9HGHandleri:
+000000000031c810	pushq	%rbp
+000000000031c811	movq	%rsp, %rbp
+000000000031c814	pushq	%r14
+000000000031c816	pushq	%rbx
+000000000031c817	cmpl	$0x3, %edx
+000000000031c81a	ja	0x31c90b
+000000000031c820	movq	%rsi, %rbx
+000000000031c823	movl	%edx, %eax
+000000000031c825	leaq	0xf0(%rip), %rcx
+000000000031c82c	movslq	(%rcx,%rax,4), %rax
+000000000031c830	addq	%rcx, %rax
+000000000031c833	jmpq	*%rax
+000000000031c835	movq	(%rbx), %rax
+000000000031c838	xorl	%r14d, %r14d
+000000000031c83b	movq	%rbx, %rdi
+000000000031c83e	xorl	%esi, %esi
+000000000031c840	xorl	%edx, %edx
+000000000031c842	callq	*0x48(%rax)
+000000000031c845	movq	(%rbx), %rax
+000000000031c848	movq	%rbx, %rdi
+000000000031c84b	xorl	%esi, %esi
+000000000031c84d	xorl	%edx, %edx
+000000000031c84f	callq	*0x30(%rax)
+000000000031c852	movq	%rbx, %rdi
+000000000031c855	xorl	%esi, %esi
+000000000031c857	jmp	0x31c8d5
+000000000031c859	movq	(%rbx), %rax
+000000000031c85c	xorl	%r14d, %r14d
+000000000031c85f	movq	%rbx, %rdi
+000000000031c862	movl	$0x2, %esi
+000000000031c867	xorl	%edx, %edx
+000000000031c869	callq	*0x48(%rax)
+000000000031c86c	movq	(%rbx), %rax
+000000000031c86f	movq	%rbx, %rdi
+000000000031c872	xorl	%esi, %esi
+000000000031c874	xorl	%edx, %edx
+000000000031c876	callq	*0x30(%rax)
+000000000031c879	movq	%rbx, %rdi
+000000000031c87c	movl	$0x2, %esi
+000000000031c881	jmp	0x31c8d5
+000000000031c883	movq	(%rbx), %rax
+000000000031c886	xorl	%r14d, %r14d
+000000000031c889	movq	%rbx, %rdi
+000000000031c88c	movl	$0x3, %esi
+000000000031c891	xorl	%edx, %edx
+000000000031c893	callq	*0x48(%rax)
+000000000031c896	movq	(%rbx), %rax
+000000000031c899	movq	%rbx, %rdi
+000000000031c89c	xorl	%esi, %esi
+000000000031c89e	xorl	%edx, %edx
+000000000031c8a0	callq	*0x30(%rax)
+000000000031c8a3	movq	%rbx, %rdi
+000000000031c8a6	movl	$0x3, %esi
+000000000031c8ab	jmp	0x31c8d5
+000000000031c8ad	movq	(%rbx), %rax
+000000000031c8b0	xorl	%r14d, %r14d
+000000000031c8b3	movq	%rbx, %rdi
+000000000031c8b6	movl	$0x1, %esi
+000000000031c8bb	xorl	%edx, %edx
+000000000031c8bd	callq	*0x48(%rax)
+000000000031c8c0	movq	(%rbx), %rax
+000000000031c8c3	movq	%rbx, %rdi
+000000000031c8c6	xorl	%esi, %esi
+000000000031c8c8	xorl	%edx, %edx
+000000000031c8ca	callq	*0x30(%rax)
+000000000031c8cd	movq	%rbx, %rdi
+000000000031c8d0	movl	$0x1, %esi
+000000000031c8d5	xorl	%edx, %edx
+000000000031c8d7	xorl	%ecx, %ecx
+000000000031c8d9	xorl	%r8d, %r8d
+000000000031c8dc	callq	__ZN9HGHandler8TexCoordEiiiPKd  ## HGHandler::TexCoord(int, int, int, double const*)
+000000000031c8e1	movq	0x90(%rbx), %rdi
+000000000031c8e8	movq	(%rdi), %rax
+000000000031c8eb	movl	$0x2e, %esi
+000000000031c8f0	callq	*0x80(%rax)
+000000000031c8f6	testl	%eax, %eax
+000000000031c8f8	jne	0x31c911
+000000000031c8fa	movq	(%rbx), %rax
+000000000031c8fd	movq	%rbx, %rdi
+000000000031c900	callq	*0xa8(%rax)
+000000000031c906	xorl	%r14d, %r14d
+000000000031c909	jmp	0x31c911
+000000000031c90b	movl	$0xffffffff, %r14d              ## imm = 0xFFFFFFFF
+000000000031c911	movl	%r14d, %eax
+000000000031c914	popq	%rbx
+000000000031c915	popq	%r14
+000000000031c917	popq	%rbp
+000000000031c918	retq
+000000000031c919	nopl	(%rax)
+000000000031c91c	sbbl	%edi, %edi
+000000000031c91e	.byte 0xff #bad opcode
+000000000031c91f	callq	*0x3dffffff(%rcx)
+000000000031c925	.byte 0xff #bad opcode
+000000000031c926	.byte 0xff #bad opcode
+000000000031c927	jmpq	*-0x1(%rdi)
+000000000031c92a	.byte 0xff #bad opcode
+000000000031c92b	decl	(%rdi)
+000000000031c92d	.byte 0x1f #bad opcode
+000000000031c92e	addb	%dl, 0x48(%rbp)
+000000000031c932	movl	%esp, %ebp
+000000000031c934	pushq	%r14
+000000000031c936	pushq	%rbx
+000000000031c937	movq	%rsi, %rbx
+000000000031c93a	movq	%rdi, %r14
+000000000031c93d	movq	0x198(%rdi), %rdx
+000000000031c944	movq	(%rsi), %rax
+000000000031c947	movq	%rsi, %rdi
+000000000031c94a	xorl	%esi, %esi
+000000000031c94c	movl	$0x1, %ecx
+000000000031c951	callq	*0x90(%rax)
+000000000031c957	movq	(%r14), %rax
+000000000031c95a	movq	%r14, %rdi
+000000000031c95d	movq	%rbx, %rsi
+000000000031c960	callq	*0xc0(%rax)
+000000000031c966	xorl	%eax, %eax
+000000000031c968	popq	%rbx
+000000000031c969	popq	%r14
+000000000031c96b	popq	%rbp
+000000000031c96c	retq
+000000000031c96d	nopl	(%rax)
