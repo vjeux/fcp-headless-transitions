@@ -27,7 +27,14 @@ CHUNK_THRESHOLD = 24
 
 BAD_TOK = ['Cache','Hash','Tree','Alloc','Iterator','Impl','CFRef','_UIComponent','Controller',
            'Overlay','HUD','Inspector','Tool','Cell','Button','Picker','View','Window','Menu',
-           'Panel','Dialog','Sentry','__cxx']
+           'Panel','Dialog','Sentry','__cxx',
+           # ObjC-facade / plumbing families (blocked on H1 consumer wiring or pure I/O plumbing,
+           # no decodable math). Demote so pure-math leaves (PC*/OZChannel*/OZCurve*/HG* LUT) sort
+           # first and workers don't burn their skip budget on the FF* facade wall (2026-07-28).
+           'Undo','RenderJob','Arbiter','PlaybackUnit','Assistant','Instrument','Queue','Pool',
+           'IQA','Callback','LockBase','MachPort','DeviceArbiter','BufferQueue','Playback',
+           'Device','Session','Listener','Observer','Delegate','Proxy','Manager','Scheduler',
+           'Dispatcher','Registry','Coordinator','Monitor','Adapter','Handler']
 # classes whose port would edit a SHARED dispatch file — keep out of the auto-swarm (hand-serialize)
 SHARED = {'OZSpline','OZInterpolators','OZInterpolator','OZBezierInterpolator','OZCardinalInterpolator',
           'OZCurve','OZChannelInfo','PCSingleton','OZSplineState','PCString','OZCurveRuntime','HGRect'}
