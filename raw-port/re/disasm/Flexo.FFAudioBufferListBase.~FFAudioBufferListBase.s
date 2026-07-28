@@ -1,0 +1,5 @@
+__ZN21FFAudioBufferListBaseD0Ev:
+0000000001491060	pushq	%rbp
+0000000001491061	movq	%rsp, %rbp
+0000000001491064	ud2
+0000000001491066	nopw	%cs:(%rax,%rax)
