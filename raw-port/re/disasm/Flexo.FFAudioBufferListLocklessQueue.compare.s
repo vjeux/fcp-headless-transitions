@@ -1,0 +1,70 @@
+__ZNK30FFAudioBufferListLocklessQueue7compareEPN19FFLocklessQueueBase11ElementBaseES2_:
+0000000001256810	pushq	%rbp
+0000000001256811	movq	%rsp, %rbp
+0000000001256814	pushq	%r15
+0000000001256816	pushq	%r14
+0000000001256818	pushq	%rbx
+0000000001256819	subq	$0x68, %rsp
+000000000125681d	movq	%rdx, %r14
+0000000001256820	movq	%rsi, %r15
+0000000001256823	movq	%rdi, %rbx
+0000000001256826	testq	%rsi, %rsi
+0000000001256829	je	0x12568ef
+000000000125682f	testq	%r14, %r14
+0000000001256832	je	0x12568fd
+0000000001256838	movq	0x18(%r15), %rcx
+000000000125683c	addq	$0x8, %rcx
+0000000001256840	movq	0x18(%r14), %rax
+0000000001256844	addq	$0x8, %rax
+0000000001256848	cmpl	$0x1, 0x38(%rbx)
+000000000125684c	jne	0x1256899
+000000000125684e	movq	0x10(%rcx), %rdx
+0000000001256852	movq	%rdx, -0x40(%rbp)
+0000000001256856	movups	(%rcx), %xmm0
+0000000001256859	movaps	%xmm0, -0x50(%rbp)
+000000000125685d	movq	0x10(%rax), %rcx
+0000000001256861	movq	%rcx, -0x20(%rbp)
+0000000001256865	movups	(%rax), %xmm0
+0000000001256868	movaps	%xmm0, -0x30(%rbp)
+000000000125686c	movq	-0x20(%rbp), %rax
+0000000001256870	movq	%rax, 0x28(%rsp)
+0000000001256875	movaps	-0x30(%rbp), %xmm0
+0000000001256879	movups	%xmm0, 0x18(%rsp)
+000000000125687e	movq	-0x40(%rbp), %rax
+0000000001256882	movq	%rax, 0x10(%rsp)
+0000000001256887	movaps	-0x50(%rbp), %xmm0
+000000000125688b	movups	%xmm0, (%rsp)
+000000000125688f	callq	0x149511e                       ## symbol stub for: _CMTimeCompare
+0000000001256894	shrl	$0x1f, %eax
+0000000001256897	jmp	0x12568e4
+0000000001256899	movq	0x10(%rcx), %rdx
+000000000125689d	movq	%rdx, -0x40(%rbp)
+00000000012568a1	movups	(%rcx), %xmm0
+00000000012568a4	movaps	%xmm0, -0x50(%rbp)
+00000000012568a8	movq	0x10(%rax), %rcx
+00000000012568ac	movq	%rcx, -0x20(%rbp)
+00000000012568b0	movups	(%rax), %xmm0
+00000000012568b3	movaps	%xmm0, -0x30(%rbp)
+00000000012568b7	movq	-0x20(%rbp), %rax
+00000000012568bb	movq	%rax, 0x28(%rsp)
+00000000012568c0	movaps	-0x30(%rbp), %xmm0
+00000000012568c4	movups	%xmm0, 0x18(%rsp)
+00000000012568c9	movq	-0x40(%rbp), %rax
+00000000012568cd	movq	%rax, 0x10(%rsp)
+00000000012568d2	movaps	-0x50(%rbp), %xmm0
+00000000012568d6	movups	%xmm0, (%rsp)
+00000000012568da	callq	0x149511e                       ## symbol stub for: _CMTimeCompare
+00000000012568df	testl	%eax, %eax
+00000000012568e1	setg	%al
+00000000012568e4	addq	$0x68, %rsp
+00000000012568e8	popq	%rbx
+00000000012568e9	popq	%r14
+00000000012568eb	popq	%r15
+00000000012568ed	popq	%rbp
+00000000012568ee	retq
+00000000012568ef	callq	__ZN7FFFlexo10ThrowNULL_Ev      ## FFFlexo::ThrowNULL_()
+00000000012568f4	testq	%r14, %r14
+00000000012568f7	jne	0x1256838
+00000000012568fd	callq	__ZN7FFFlexo10ThrowNULL_Ev      ## FFFlexo::ThrowNULL_()
+0000000001256902	jmp	0x1256838
+0000000001256907	nopw	(%rax,%rax)
