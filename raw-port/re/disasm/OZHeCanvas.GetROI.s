@@ -1,0 +1,12 @@
+__ZN10OZHeCanvas6GetROIEP10HGRendereri6HGRect:
+00000000005a7170	pushq	%rbp
+00000000005a7171	movq	%rsp, %rbp
+00000000005a7174	movq	%rcx, %rax
+00000000005a7177	cmpl	$0x1, %edx
+00000000005a717a	jne	0x5a718a
+00000000005a717c	movq	0x1a0(%rdi), %rax
+00000000005a7183	movq	0x1a8(%rdi), %r8
+00000000005a718a	movq	%r8, %rdx
+00000000005a718d	popq	%rbp
+00000000005a718e	retq
+00000000005a718f	nop
