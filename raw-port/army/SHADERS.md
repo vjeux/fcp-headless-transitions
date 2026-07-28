@@ -69,3 +69,23 @@ truncate). i.e. rely on the AIR `air.clamp` you already transcribed to bound the
 cast with `|0`, NOT a bitmask. Matches landed siblings bm3dnr_buf_blend8x8Weight16.ts /
 bm3dnr_buf_blf2DImage3x3S16.ts. Note: the `.u.v4i16` unsigned-cast variants OMIT `air.floor`
 because +0.5-bias plus the cast's implicit truncate == round-half-up over the unsigned domain.
+
+## TWO SILENT-CORRECTNESS shader traps (guided-filter/bm3dnr workers, 2026-07-28)
+These do NOT trip the gate — they produce WRONG numbers silently. Watch for them.
+
+### air.convert.f.*.u.* is UNSIGNED int->float
+`air.convert.f.v2f32.u.v2i32` (and .u. variants) treat the source int as UNSIGNED: a negative
+i32 becomes a huge positive float (~4.29e9), NOT a negative. When transcribing, coerce the JS
+int to unsigned FIRST: `Math.fround((x >>> 0))` for i32, or mask to the exact width for i16/i8.
+The `.s.` variants are signed (normal). Get this wrong and box-sum/mean kernels silently corrupt.
+
+### icmp ult (outer axis) vs icmp sgt (inner axis) bounds guards
+Common two-axis compute-kernel guard: the OUTER axis uses `icmp ult` (unsigned) so a negative
+extent wraps to a huge unsigned and "always passes"; the INNER axis uses `icmp sgt` (signed >0)
+to skip. Preserve BOTH literally — don't normalize both to the same signed compare, or edge tiles
+sample out of bounds / skip valid rows.
+
+### struct-type-name reuse (Apple compiler dedup)
+HeliumSenso reuses layout-compatible AIR struct types across kernels (e.g. a Pass2_I kernel's
+params IR-named `..._Pass4_params`). The `!N` field metadata is authoritative — trust the field
+names/offsets there, NOT the struct type name.
