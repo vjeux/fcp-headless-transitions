@@ -1,0 +1,16 @@
+__ZN19HGAVAMotionDilationC1Ev:
+0000000000216940	pushq	%rbp
+0000000000216941	movq	%rsp, %rbp
+0000000000216944	pushq	%rbx
+0000000000216945	pushq	%rax
+0000000000216946	movq	%rdi, %rbx
+0000000000216949	callq	__ZN6HGNodeC2Ev                 ## HGNode::HGNode()
+000000000021694e	leaq	0x819ad3(%rip), %rax
+0000000000216955	movq	%rax, (%rbx)
+0000000000216958	movq	$0x0, 0x198(%rbx)
+0000000000216963	movb	$0x0, 0x1a0(%rbx)
+000000000021696a	addq	$0x8, %rsp
+000000000021696e	popq	%rbx
+000000000021696f	popq	%rbp
+0000000000216970	retq
+0000000000216971	nopw	%cs:(%rax,%rax)
