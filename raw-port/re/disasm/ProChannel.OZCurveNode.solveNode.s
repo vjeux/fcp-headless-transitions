@@ -1,0 +1,7 @@
+__ZN11OZCurveNode9solveNodeERK6CMTimedd:
+0000000000029c7a	pushq	%rbp
+0000000000029c7b	movq	%rsp, %rbp
+0000000000029c7e	movaps	%xmm1, %xmm0
+0000000000029c81	popq	%rbp
+0000000000029c82	retq
+0000000000029c83	nop
