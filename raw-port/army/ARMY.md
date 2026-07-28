@@ -101,9 +101,15 @@ WORKER FLOW for a chunk (claim.py next prints "...\tCHUNK=<k>"):
   2. Port ONLY those methods into <Class>.m<k>.ts (one file per chunk — distinct files never conflict
      on merge). Each method fully decoded + @0xADDR cited; gate as usual. Undecoded callee → throw-stub
      citing its addr (that's the frontier signal, NOT a shortcut).
-  3. The main <Class>.ts (ctor/dtor/layout, ported by the first/whole-class pass or a dedicated chunk)
-     re-exports/assembles the .m<k> parts. If <Class>.ts doesn't exist yet, still land your .m<k>.ts —
-     assembly is a later step; partial correct chunks are the win.
+  3. EXPORT CONVENTION (so the auto-assembler can wire parts): each <Class>.m<k>.ts exports
+       export const chunkMethods_<k>: Record<string, Function> = { "<methodKeyFromClaimChunk>": function(self,...){...}, ... };
+     using the EXACT method key strings printed by `claim.py chunk` (the demangled '-[Class sel]' or
+     C++ 'Class::meth' form). ctor/dtor/layout go in chunk 0 (or the whole-class base pass).
+  4. ASSEMBLY IS AUTOMATED: after chunks land, `python3 raw-port/army/tools/assemble_class.py <FW> <Class>`
+     generates <Class>.ts importing every present chunk and merging their maps into <Class>_METHODS
+     (what H1 objc_msgSend / C++ dispatch reads). It reports MISSING chunk indices. Idempotent — re-run
+     as more chunks land. You do NOT hand-write <Class>.ts. Land your .m<k>.ts, gate it, merge it; the
+     assembler stitches. Partial (some chunks missing) is fine — <Class>_METHODS just has fewer entries.
   4. `claim.py done <FW> <Class> <k>` (chunk index as 4th arg). fail/release also take the chunk index.
 DEDUP: a chunk is skipped once <Class>.m<k>.ts exists on disk. Big-class chunks sort AFTER whole small
 classes (tier 3) so quick wins still drain first, but the heavies now MAKE PROGRESS instead of bouncing.
