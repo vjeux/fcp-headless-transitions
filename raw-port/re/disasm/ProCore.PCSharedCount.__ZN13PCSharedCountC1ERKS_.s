@@ -1,0 +1,17 @@
+__ZN13PCSharedCountC1ERKS_:
+000000000004e0d6	movq	(%rsi), %rax
+000000000004e0d9	movq	%rax, (%rdi)
+000000000004e0dc	testq	%rax, %rax
+000000000004e0df	je	0x4e0f8
+000000000004e0e1	pushq	%rbp
+000000000004e0e2	movq	%rsp, %rbp
+000000000004e0e5	movl	$0x1, %ecx
+000000000004e0ea	lock
+000000000004e0eb	xaddl	%ecx, 0x8(%rax)
+000000000004e0ef	testl	%ecx, %ecx
+000000000004e0f1	jne	0x4e0f7
+000000000004e0f3	lock
+000000000004e0f4	incl	0xc(%rax)
+000000000004e0f7	popq	%rbp
+000000000004e0f8	retq
+000000000004e0f9	nop
