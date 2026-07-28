@@ -30,28 +30,43 @@ def class_method(dem):
     head=dem[:cut]
     return head.rsplit("::",1) if "::" in head else ("(free)",head)
 
+# ObjC symbol: "-[Class sel]" / "+[Class sel]" / "-[Class(Category) sel]". Class is the port unit;
+# the '-'/'+' prefix + selector is the method key. Categories fold into the base Class.
+OBJC_RE = re.compile(r'^([0-9a-f]+)\s+[Tt]\s+([-+])\[([^\]\s]+?)(?:\(([^)]*)\))?\s+([^\]]+)\]')
+
 def main():
-    fws=sys.argv[1:] or ["ProChannel","ProCore","Ozone","Flexo"]
+    # Full engine scope (per ARMY.md §1): ALL frameworks, C++ AND ObjC symbols.
+    fws=sys.argv[1:] or ["ProChannel","ProCore","Ozone","Flexo","Helium"]
     ported=ported_addrs(); summary={}; rows=[]
     for fw in fws:
         p=os.path.join(INV,f"{fw}.syms.txt")
         if not os.path.exists(p): continue
-        mang=[]
+        mang=[]        # C++ (addr, mangled)
+        objc=[]        # ObjC (addr, cls, methkey, full)
         for line in open(p):
             m=re.match(r'^([0-9a-f]+)\s+[Tt]\s+(__Z\S+)',line)
-            if m: mang.append((m.group(1),m.group(2)))
+            if m: mang.append((m.group(1),m.group(2))); continue
+            o=OBJC_RE.match(line)
+            if o:
+                addr,pm,cls,cat,sel=o.groups()
+                methkey=f"{pm}[{cls}{('('+cat+')') if cat else ''} {sel}]"
+                objc.append((addr,cls,methkey,o.group(0).split(None,2)[2]))
         dem=subprocess.run(["c++filt"],input="\n".join(s for _,s in mang),capture_output=True,text=True).stdout.splitlines()
         ledger={}
         for (addr,mg),d in zip(mang,dem):
             cls,meth=class_method(d)
             st="ported" if addr.lower() in ported else "todo"
-            ledger.setdefault(cls,{})[f"{meth}@0x{addr}"]={"addr":"0x"+addr,"mangled":mg,"demangled":d,"status":st}
+            ledger.setdefault(cls,{})[f"{meth}@0x{addr}"]={"addr":"0x"+addr,"mangled":mg,"demangled":d,"status":st,"kind":"cpp"}
+        for addr,cls,methkey,full in objc:
+            st="ported" if addr.lower() in ported else "todo"
+            ledger.setdefault(cls,{})[f"{methkey}@0x{addr}"]={"addr":"0x"+addr,"mangled":full,"demangled":full,"status":st,"kind":"objc"}
         json.dump(ledger,open(os.path.join(LED,f"{fw}.ledger.json"),"w"))
+        nfns=len(mang)+len(objc)
         nport=sum(1 for c in ledger.values() for u in c.values() if u["status"]=="ported")
-        summary[fw]={"functions":len(mang),"classes":len([c for c in ledger if c!="(free)"]),"ported":nport}
+        summary[fw]={"functions":nfns,"cpp":len(mang),"objc":len(objc),"classes":len([c for c in ledger if c!="(free)"]),"ported":nport}
         for cls,ms in ledger.items():
             rows.append((fw,cls,len(ms),sum(1 for u in ms.values() if u["status"]=="ported")))
-        print(f"{fw:12} {len(mang):6} fns  {summary[fw]['classes']:5} classes  {nport} ported")
+        print(f"{fw:12} {nfns:6} fns ({len(mang)} cpp + {len(objc)} objc)  {summary[fw]['classes']:5} classes  {nport} ported")
     rows.sort(key=lambda r:-r[2])
     with open(os.path.join(LED,"CLASSES.tsv"),"w") as f:
         f.write("fw\tclass\tnMethods\tnPorted\n")

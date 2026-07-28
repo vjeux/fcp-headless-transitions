@@ -55,25 +55,32 @@ def _layer(cls):
     return 'channels'
 
 def _candidates():
-    """All portable leaf classes (fw, cls, nMethods), best-first."""
+    """Portable leaf classes (fw, cls, nMethods), best-first.
+    FULL-ENGINE scope (ARMY.md §1): dispense the ENTIRE inventory, not just tiny C++ leaves.
+    Ordering = smallest-first so simple leaves drain before heavies, but NOTHING is permanently
+    excluded — a class only being big/ObjC/std means it sorts LATER, not that it's skipped.
+    Only hard-skip: already-ported, SHARED hand-serialized dispatch files, and the (free) bucket
+    (free functions are dispensed separately via next-free so they don't dominate the class queue)."""
     done = _ported_files()
     out = []
     for f in sorted(glob.glob(os.path.join(LED, "*.ledger.json"))):
         fw = os.path.basename(f).split(".")[0]
+        if fw == "shaders": continue
         try: led = json.load(open(f))
         except Exception: continue
         for cls, ms in led.items():
-            if cls in done or cls in SHARED: continue
-            if cls == "(free)" or any(b in cls for b in BAD_SUB) or any(t in cls for t in BAD_TOK): continue
-            # Skip ledger files that use a different schema (e.g. shaders.ledger.json
-            # is class -> {fw:str,lib:str,status:str}, not class -> methods dict).
+            if cls in done or cls in SHARED or cls == "(free)": continue
+            if any(b in cls for b in BAD_SUB): continue      # std/template/anon — genuinely un-nameable as a file
             if not all(isinstance(v, dict) for v in ms.values()): continue
             n = len(ms); todo = sum(1 for v in ms.values() if v.get("status") != "ported")
-            if todo != n: continue          # partially ported already — skip (avoid churn)
-            if not (2 <= n <= 12): continue  # small leaves only
-            out.append((n, fw, cls))
-    out.sort()  # fewest methods first
-    return out
+            if todo == 0: continue                            # fully ported already
+            # priority tier: small clean C++ first (0), then bigger (1), then ObjC-heavy (2)
+            objc = sum(1 for v in ms.values() if v.get("kind") == "objc")
+            heavy_tok = any(t in cls for t in BAD_TOK)
+            tier = 0 if (2 <= n <= 12 and objc == 0 and not heavy_tok) else (2 if objc > n//2 else 1)
+            out.append((tier, n, fw, cls))
+    out.sort()  # tier first, then fewest methods
+    return [(n, fw, cls) for (tier, n, fw, cls) in out]
 
 def cmd_next():
     _lock()
