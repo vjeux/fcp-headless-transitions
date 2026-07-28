@@ -15,6 +15,9 @@ Faithful model of the Darwin ObjC dispatch the facades use. Decode + implement:
     (VA+0x4000 on the x86_64 slice). Provide a helper `selectorAt(fw, callSiteVA)` documenting the
     recovery so facade ports cite the real selector.
   - A registry so an ObjC class port registers its selector->method map; msgSend looks it up.
+  - CoreFoundation refcount: CFRetain/CFRelease/CFAutorelease behave exactly like objc_retain/release
+    on a toll-free-bridged object — model them with the SAME refcount ops (worker-131 hit these on
+    FFPMRInstrument's NSAutoreleasePool create/deletePool). Include them in H1.
 This unblocks: FFProviderPSDAssistant, OZ*Undo Cocoa epilogues, device arbiters, the 66K Flexo ObjC.
 
 ## H2 — std container harness → raw-port/src/harness/StdContainers.ts
