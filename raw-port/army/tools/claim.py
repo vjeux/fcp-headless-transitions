@@ -132,8 +132,8 @@ def _shader_candidates():
     led = json.load(open(p))
     out = []
     for name, meta in led.items():
-        tsname = "shader_" + name
-        if tsname in done: continue
+        # Shader .ts files are named "<name>.ts" (NOT "shader_<name>.ts").
+        if name in done: continue
         out.append((meta["fw"], name))
     out.sort()
     return out
@@ -142,10 +142,14 @@ def cmd_next_shader():
     _lock()
     try:
         c = _load()
+        # A shader may be marked "done" under EITHER key scheme: cmd_done writes
+        # "<fw>:<name>" while historically next-shader leased "shader:<name>".
+        # Skip both, plus any already-written .ts file on disk (authoritative).
         skip = set(c["claimed"]) | set(c["done"]) | set(c["failed"])
         for fw, name in _shader_candidates():
             key = f"shader:{name}"
             if key in skip: continue
+            if f"{fw}:{name}" in skip: continue
             c["claimed"][key] = {"fw": fw, "shader": name, "t": time.time()}
             _save(c)
             print(f"{fw}\t{name}")
