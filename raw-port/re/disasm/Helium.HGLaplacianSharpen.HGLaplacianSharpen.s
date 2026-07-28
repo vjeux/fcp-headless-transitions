@@ -1,0 +1,16 @@
+__ZN18HGLaplacianSharpenC1Ev:
+0000000000194670	pushq	%rbp
+0000000000194671	movq	%rsp, %rbp
+0000000000194674	pushq	%rbx
+0000000000194675	pushq	%rax
+0000000000194676	movq	%rdi, %rbx
+0000000000194679	callq	__ZN6HGNodeC2Ev                 ## HGNode::HGNode()
+000000000019467e	leaq	0x88fc63(%rip), %rax
+0000000000194685	movq	%rax, (%rbx)
+0000000000194688	movl	$0x0, 0x198(%rbx)
+0000000000194692	movq	$0x0, 0x1a0(%rbx)
+000000000019469d	addq	$0x8, %rsp
+00000000001946a1	popq	%rbx
+00000000001946a2	popq	%rbp
+00000000001946a3	retq
+00000000001946a4	nopw	%cs:(%rax,%rax)

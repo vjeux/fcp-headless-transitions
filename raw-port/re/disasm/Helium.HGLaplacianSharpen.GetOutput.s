@@ -1,0 +1,75 @@
+__ZN18HGLaplacianSharpen9GetOutputEP10HGRenderer:
+00000000001947e0	pushq	%rbp
+00000000001947e1	movq	%rsp, %rbp
+00000000001947e4	pushq	%r15
+00000000001947e6	pushq	%r14
+00000000001947e8	pushq	%rbx
+00000000001947e9	pushq	%rax
+00000000001947ea	movq	%rdi, %rbx
+00000000001947ed	movq	%rsi, %rdi
+00000000001947f0	movq	%rbx, %rsi
+00000000001947f3	xorl	%edx, %edx
+00000000001947f5	callq	__ZN10HGRenderer8GetInputEP6HGNodei ## HGRenderer::GetInput(HGNode*, int)
+00000000001947fa	movss	0x198(%rbx), %xmm0
+0000000000194802	xorps	%xmm1, %xmm1
+0000000000194805	ucomiss	%xmm1, %xmm0
+0000000000194808	jne	0x194810
+000000000019480a	jnp	0x194897
+0000000000194810	movq	%rax, %r14
+0000000000194813	movl	$0x1a0, %edi                    ## imm = 0x1A0
+0000000000194818	callq	__ZN8HGObjectnwEm               ## HGObject::operator new(unsigned long)
+000000000019481d	movq	%rax, %r15
+0000000000194820	movq	%rax, %rdi
+0000000000194823	callq	__ZN19HgcLaplacianSharpenC1Ev   ## HgcLaplacianSharpen::HgcLaplacianSharpen()
+0000000000194828	movq	0x1a0(%rbx), %rdi
+000000000019482f	cmpq	%r15, %rdi
+0000000000194832	je	0x19484b
+0000000000194834	testq	%rdi, %rdi
+0000000000194837	je	0x19483f
+0000000000194839	movq	(%rdi), %rax
+000000000019483c	callq	*0x18(%rax)
+000000000019483f	movq	%r15, 0x1a0(%rbx)
+0000000000194846	movq	%r15, %rdi
+0000000000194849	jmp	0x194860
+000000000019484b	testq	%r15, %r15
+000000000019484e	je	0x194860
+0000000000194850	movq	(%r15), %rax
+0000000000194853	movq	%r15, %rdi
+0000000000194856	callq	*0x18(%rax)
+0000000000194859	movq	0x1a0(%rbx), %rdi
+0000000000194860	movq	(%rdi), %rax
+0000000000194863	xorl	%esi, %esi
+0000000000194865	movq	%r14, %rdx
+0000000000194868	callq	*0x78(%rax)
+000000000019486b	movq	0x1a0(%rbx), %rdi
+0000000000194872	movss	0x198(%rbx), %xmm0
+000000000019487a	movq	(%rdi), %rax
+000000000019487d	movss	0x23343b(%rip), %xmm3
+0000000000194885	xorl	%esi, %esi
+0000000000194887	movaps	%xmm0, %xmm1
+000000000019488a	movaps	%xmm0, %xmm2
+000000000019488d	callq	*0x60(%rax)
+0000000000194890	movq	0x1a0(%rbx), %rax
+0000000000194897	addq	$0x8, %rsp
+000000000019489b	popq	%rbx
+000000000019489c	popq	%r14
+000000000019489e	popq	%r15
+00000000001948a0	popq	%rbp
+00000000001948a1	retq
+00000000001948a2	movq	%rax, %rdi
+00000000001948a5	callq	___clang_call_terminate
+00000000001948aa	movq	%rax, %rbx
+00000000001948ad	testq	%r15, %r15
+00000000001948b0	je	0x1948d0
+00000000001948b2	movq	(%r15), %rax
+00000000001948b5	movq	%r15, %rdi
+00000000001948b8	callq	*0x18(%rax)
+00000000001948bb	jmp	0x1948d0
+00000000001948bd	movq	%rax, %rdi
+00000000001948c0	callq	___clang_call_terminate
+00000000001948c5	movq	%rax, %rbx
+00000000001948c8	movq	%r15, %rdi
+00000000001948cb	callq	__ZN8HGObjectdlEPv              ## HGObject::operator delete(void*)
+00000000001948d0	movq	%rbx, %rdi
+00000000001948d3	callq	0x3c4e02                        ## symbol stub for: __Unwind_Resume
+00000000001948d8	nopl	(%rax,%rax)
