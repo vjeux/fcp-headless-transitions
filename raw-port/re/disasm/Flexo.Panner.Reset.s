@@ -1,0 +1,6 @@
+__ZN6Panner5ResetEv:
+00000000012514b0	pushq	%rbp
+00000000012514b1	movq	%rsp, %rbp
+00000000012514b4	popq	%rbp
+00000000012514b5	retq
+00000000012514b6	nopw	%cs:(%rax,%rax)
