@@ -1,0 +1,6 @@
+__ZN8LTCFrame4DumpEv:
+0000000001227640	pushq	%rbp
+0000000001227641	movq	%rsp, %rbp
+0000000001227644	popq	%rbp
+0000000001227645	retq
+0000000001227646	nopw	%cs:(%rax,%rax)
