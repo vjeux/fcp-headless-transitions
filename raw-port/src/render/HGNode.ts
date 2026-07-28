@@ -15,7 +15,9 @@
 //   0x11bf20  HGNode::~HGNode()                      [D2 base dtor]
 //   0x11c050  HGNode::~HGNode()                      [D1 complete dtor — tail-jmp to D2]
 //   0x11c060  HGNode::~HGNode()                      [D0 deleting dtor: D2; then ::operator delete]
+//   0x11c890  HGNode::ClearBits()                    [void-arg thunk → ClearBits(0xffff)]
 //   0x11c8b0  HGNode::GetInput(int idx)
+//   0x11f6b0  HGNode::ClearBits(int mask)            [clears field_88 bits + walks back-links]
 //   0x11c5f0  HGNode::SetInput(int idx, HGNode* src) [large — throw-stub w/ full @0xADDR trail]
 //
 // Vtable @Helium 0xa1d7c8 (RTTI header @0xa1d7b8). Slots relevant here:
@@ -62,6 +64,12 @@
 //     0x78 : std::__1::__tree<...NodePixelsStats...> node header (16 bytes zero-init xmm0)
 //     0x80 : u64      treeNode size counter      (part of __tree)
 //     0x88 : u32      field_88                   (ctor: $0)
+//                                                 = "dirty-bits" mask — cleared by ClearBits(int)
+//                                                 (@0x11f6b0) via `field_88 &= ~mask`. Subclass
+//                                                 SetParameter overrides call ClearBits() when a
+//                                                 param write actually changes a value, propagating
+//                                                 the invalidation to dependent nodes via the
+//                                                 back-link __tree at 0x70..0x88.
 //     0x90 : void*    field_90                   (ctor: $0)
 //     0x98 : HGRect   rectA  (16 bytes)          (ctor: copies _HGRectNull)
 //     0xa8 : HGRect   rectB  (16 bytes)          (ctor: copies _HGRectNull)
@@ -551,9 +559,113 @@ export class HGNode extends HGObject {
     super.destruct();
   }
 
+  /**
+   * `HGNode::ClearBits(int mask)` — Helium @0x11f6b0.
+   *
+   * Clears the given bit-mask from `this->field_88` (@0x88 — the render-
+   * graph "dirty bits" field) and then recursively clears the low byte
+   * (0xff) on every descendant HGNode reachable through the internal
+   * __tree<NodePixelsStats> rooted at `this->treeHeaderPtr` (@0x70). If
+   * the node is currently mid-render (`renderState == 1` @0x28) it also
+   * emits an HGLogger::warning first.
+   *
+   * Full asm transcription:
+   *   0x11f6bd: cmpl  $0x1, 0x28(%rdi)                ; renderState == 1 ?
+   *   0x11f6c1: jne   0x11f6d1                         ;   no → skip warn
+   *   0x11f6c3: leaq  ..(%rip), %rdi                   ;   literal "ClearBits() : called during render\n"
+   *   0x11f6ca: xorl  %eax, %eax                       ;   varargs count = 0
+   *   0x11f6cc: callq HGLogger::warning
+   *   0x11f6d1: movl  0x88(%rbx), %eax                 ; eax = field_88
+   *   0x11f6d7: testl %r14d, %eax                      ; if (mask & field_88) == 0 → done
+   *   0x11f6da: je    0x11f6f5
+   *   0x11f6dc: notl  %r14d
+   *   0x11f6df: andl  %r14d, %eax                      ; eax = field_88 & ~mask
+   *   0x11f6e2: movl  %eax, 0x88(%rbx)                 ; field_88 = eax
+   *   0x11f6e8: movq  0x70(%rbx), %r14                 ; r14 = treeHeaderPtr
+   *   0x11f6ec: addq  $0x78, %rbx                      ; rbx = &this->treeNode (empty-sentinel)
+   *   0x11f6f0: cmpq  %rbx, %r14                       ; treeHeaderPtr == sentinel → empty tree
+   *   0x11f6f3: jne   0x11f708                         ;   else walk
+   *   0x11f6f5: popq  %rbx / retq
+   *
+   * Tree-walk body (@0x11f708..0x11f74c): standard libc++ __tree in-order
+   * iteration — for each entry `n`, load `*(n+0x20)` as an HGNode* and
+   * tail-recurse `HGNode::ClearBits(0xff)` on it (@0x11f708..0x11f714).
+   * `+0x8` / `+0x10` links are the __tree_node left/right/parent walk
+   * (`(n+0x8)` = right subtree; when null, unwind via `(n+0x10)` = parent).
+   *
+   * Faithful state model: HGNode's ctor initializes `treeHeaderPtr = this`
+   * (self-referential = empty tree — see @0x11bb58 in the ctor above), and
+   * no tree-insert path is decoded yet in this port (every SetParameter/
+   * SetInput code path that would grow the tree is still a throw-stub in
+   * its subclass). The walk branch is therefore unreachable at current
+   * runtime; if a future port populates the tree it MUST also port the
+   * __tree in-order iterator here (the exact asm is above).
+   */
+  ClearBits(mask: number): void {
+    // @Helium 0x11f6bd..0x11f6cc: renderState==1 → HGLogger::warning
+    if (this.renderState === 1) {
+      HGLogger_warning("ClearBits() : called during render\n");
+    }
+    // @Helium 0x11f6d1: eax = field_88
+    const cur = this.field_88 | 0;
+    const m = mask | 0;
+    // @Helium 0x11f6d7: if (mask & field_88) == 0 → nothing to clear, return
+    if ((m & cur) === 0) {
+      return;
+    }
+    // @Helium 0x11f6dc..0x11f6e2: field_88 = field_88 & ~mask  (32-bit)
+    this.field_88 = (cur & ~m) >>> 0;
+    // @Helium 0x11f6e8..0x11f6f3: if treeHeaderPtr === &this->treeNode-sentinel → empty
+    // tree, done. In this port, the ctor writes `treeHeaderPtr = this` as the
+    // empty-tree sentinel (line noted above) — semantically identical to the
+    // "== &this->treeNode" check the asm does on the real 0x78 sub-object.
+    if (this.treeHeaderPtr === this) {
+      return;
+    }
+    // @Helium 0x11f708..0x11f74c: libc++ __tree in-order walk, calling
+    // `HGNode::ClearBits(0xff)` on `*(node+0x20)` for each node. The __tree
+    // internals (`NodePixelsStats` layout, +0x8 right, +0x10 parent) are
+    // not yet decoded in this port and no code path currently populates
+    // the tree, so reaching here is a decode gap — throw per anti-shortcut
+    // rule (loud gap > silent guess).
+    throw new Error(
+      "HGNode::ClearBits @Helium 0x11f708 tree-walk (libc++ __tree<NodePixelsStats> " +
+      "in-order iterator + tail-recursive ClearBits(0xff) on entry+0x20) not yet transcribed"
+    );
+  }
+
+  /**
+   * `HGNode::ClearBits()` — Helium @0x11c890.
+   *
+   * The void-arg thunk. Full body (7 bytes):
+   *   0x11c890: pushq %rbp
+   *   0x11c891: movq  %rsp, %rbp
+   *   0x11c894: movl  $0xffff, %esi                    ; mask = 0xFFFF
+   *   0x11c899: popq  %rbp
+   *   0x11c89a: jmp   __ZN6HGNode9ClearBitsEi          ; tail-jmp ClearBits(int)
+   *
+   * Equivalent to `this->ClearBits(0xFFFF)` — clear all 16 low bits.
+   */
+  ClearBitsAll(): void {
+    // @Helium 0x11c894: mask = 0xFFFF
+    // @Helium 0x11c89a: tail-jmp HGNode::ClearBits(int)
+    this.ClearBits(0xffff);
+  }
+
   // NOTE: the vtable slot *0x78 for HGNode is HGNode::SetInput @0x11c5f0,
   // and *0x80 is HGNode::GetInput @0x11c8b0. Subclasses that inherit
   // HGNode's default behavior get exactly the methods above.
+}
+
+/**
+ * `HGLogger::warning(char const*, ...)` — Helium extern.
+ * Not decoded in this port; wired as a thin console warning wrapper so
+ * ClearBits' warn path is observable without pulling in the full HGLogger
+ * translation unit. The literal-string @Helium 0x8e81d0 is passed verbatim.
+ */
+function HGLogger_warning(msg: string): void {
+  // eslint-disable-next-line no-console
+  console.warn(msg);
 }
 
 // ---------------------------------------------------------------------------
