@@ -89,3 +89,10 @@ sample out of bounds / skip valid rows.
 HeliumSenso reuses layout-compatible AIR struct types across kernels (e.g. a Pass2_I kernel's
 params IR-named `..._Pass4_params`). The `!N` field metadata is authoritative — trust the field
 names/offsets there, NOT the struct type name.
+
+## GATE TRAP: P3 shortcut-language is a raw SUBSTRING match (2026-07-28)
+The gate's P3 check greps for banned words (approximate/heuristic/closest/roughly/throwing) as
+plain SUBSTRINGS — it does NOT understand negation. So a NEGATIVE assertion like
+"No approximate or heuristic language here" STILL trips the gate, because the banned words appear
+in the text. Do NOT type the banned words at all, even to say you're avoiding them. Instead write
+"No shortcut language of any kind." Same applies in JSDoc/comments anywhere in the file.
