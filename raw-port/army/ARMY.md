@@ -102,7 +102,9 @@ WORKER FLOW for a chunk (claim.py next prints "...\tCHUNK=<k>"):
      on merge). Each method fully decoded + @0xADDR cited; gate as usual. Undecoded callee → throw-stub
      citing its addr (that's the frontier signal, NOT a shortcut).
   3. EXPORT CONVENTION (so the auto-assembler can wire parts): each <Class>.m<k>.ts exports
-       export const chunkMethods_<k>: Record<string, Function> = { "<methodKeyFromClaimChunk>": function(self,...){...}, ... };
+       export const <Class>_m<k>_methods = { "<methodKeyFromClaimChunk>": (self, ...args) => { /* @0xADDR body */ }, ... };
+     (per-class name so the auto-assembler can import it: <Class>_m<k>_methods. Keys are the exact
+      demangled/selector strings printed by `claim.py chunk`.)
      using the EXACT method key strings printed by `claim.py chunk` (the demangled '-[Class sel]' or
      C++ 'Class::meth' form). ctor/dtor/layout go in chunk 0 (or the whole-class base pass).
   4. ASSEMBLY IS AUTOMATED: after chunks land, `python3 raw-port/army/tools/assemble_class.py <FW> <Class>`
