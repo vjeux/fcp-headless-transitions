@@ -12,6 +12,20 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"        # raw-port/
 REPO="$(cd "$ROOT/.." && pwd)"
 FAIL=0
 
+# G0 EXISTENCE : every .ts arg must actually EXIST and be NON-EMPTY. Without this, a worker that
+# never wrote its file (e.g. ipython wrote to the wrong node) gets a false "GATE: PASS" — G1 skips
+# missing paths, G2 tsc is whole-project, G4 finds no node. Reject unwritten/empty ports up front.
+echo "== G0 existence =="
+G0_TS_SEEN=0
+for f in "$@"; do
+  case "$f" in *.ts) ;; *) continue ;; esac
+  G0_TS_SEEN=1
+  if [ ! -f "$f" ]; then echo "  MISSING FILE: $f (was it written to the right node?)"; FAIL=1
+  elif [ ! -s "$f" ]; then echo "  EMPTY FILE: $f"; FAIL=1
+  else echo "  ok: $f ($(wc -l < "$f") lines)"; fi
+done
+if [ "$FAIL" != 0 ]; then echo ""; echo "GATE: REJECT ❌ (G0: unwritten/empty file — nothing to gate)"; exit 1; fi
+
 echo "== G1 provenance =="
 python3 "$ROOT/army/gate/provenance_gate.py" "$@" || FAIL=1
 

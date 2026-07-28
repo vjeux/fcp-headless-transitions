@@ -60,6 +60,7 @@ def main():
     errs=[]
     for p in paths:
         if os.path.exists(p): errs+=check(p)
+        else: errs.append(f"{p}:0: P0 file does not exist (unwritten port — nothing to gate)")
     for e in errs: print(e)
     print(f"\nprovenance_gate: {len(errs)} violation(s) across {len(paths)} file(s)  ->  {'REJECT' if errs else 'PASS'}")
     sys.exit(2 if errs else 0)
