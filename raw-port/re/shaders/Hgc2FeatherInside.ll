@@ -1,0 +1,127 @@
+0x00000000001780 -- Hgc2FeatherInside:
+source_filename = "Hgc2FeatherInside"
+target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v24:32:32-v32:32:32-v48:64:64-v64:64:64-v96:128:128-v128:128:128-v192:256:256-v256:256:256-v512:512:512-v1024:1024:1024-n8:16:32"
+target triple = "air64_v27-apple-macosx15.6.0"
+
+%struct._texture_2d_t.0 = type opaque
+%struct._sampler_t.1 = type opaque
+
+; Function Attrs: convergent mustprogress nofree nounwind readonly willreturn
+define <4 x float> @Hgc2FeatherInside(<4 x float> %0, <4 x float> %1, <4 x float> %2, %struct._texture_2d_t.0 addrspace(1)* %3, %struct._texture_2d_t.0 addrspace(1)* %4, %struct._sampler_t.1 addrspace(2)* nocapture readonly %5, %struct._sampler_t.1 addrspace(2)* nocapture readonly %6, <4 x float> addrspace(2)* nocapture noundef readonly "air-buffer-no-alias" %7) local_unnamed_addr #0 {
+  %9 = load <4 x float>, <4 x float> addrspace(2)* %7, align 16, !tbaa !27, !alias.scope !30, !noalias !33
+  %10 = getelementptr inbounds <4 x float>, <4 x float> addrspace(2)* %7, i64 1
+  %11 = load <4 x float>, <4 x float> addrspace(2)* %10, align 16, !tbaa !27, !alias.scope !30, !noalias !33
+  %12 = shufflevector <4 x float> %1, <4 x float> poison, <2 x i32> <i32 0, i32 1>
+  %13 = tail call { <4 x float>, i8 } @air.sample_texture_2d.v4f32(%struct._texture_2d_t.0 addrspace(1)* nocapture readonly %3, %struct._sampler_t.1 addrspace(2)* nocapture readonly %5, <2 x float> %12, i1 true, <2 x i32> zeroinitializer, i1 false, float 0.000000e+00, float 0.000000e+00, i32 0) #3, !alias.scope !33, !noalias !30
+  %14 = extractvalue { <4 x float>, i8 } %13, 0
+  %15 = shufflevector <4 x float> %2, <4 x float> poison, <2 x i32> <i32 0, i32 1>
+  %16 = tail call { <4 x float>, i8 } @air.sample_texture_2d.v4f32(%struct._texture_2d_t.0 addrspace(1)* nocapture readonly %4, %struct._sampler_t.1 addrspace(2)* nocapture readonly %6, <2 x float> %15, i1 true, <2 x i32> zeroinitializer, i1 false, float 0.000000e+00, float 0.000000e+00, i32 0) #3, !alias.scope !33, !noalias !30
+  %17 = extractvalue { <4 x float>, i8 } %16, 0
+  %18 = fsub fast <4 x float> <float 1.000000e+00, float 1.000000e+00, float 1.000000e+00, float 1.000000e+00>, %14
+  %19 = fmul fast <4 x float> %18, <float 5.000000e-01, float 5.000000e-01, float 5.000000e-01, float 5.000000e-01>
+  %20 = fadd fast <4 x float> %19, %17
+  %21 = fmul fast <4 x float> %20, %14
+  %22 = extractelement <4 x float> %11, i64 3
+  %23 = extractelement <4 x float> %21, i64 3
+  %24 = fcmp fast ogt float %23, 0x3FD99999A0000000
+  br i1 %24, label %25, label %36
+
+25:                                               ; preds = %8
+  %26 = fsub fast float 0x3FEA3D70A0000000, %22
+  %27 = fmul fast float %26, 0x3FFAAAAAA0000000
+  %28 = fsub fast float 1.000000e+00, %27
+  %29 = insertelement <4 x float> poison, float %27, i64 0
+  %30 = shufflevector <4 x float> %29, <4 x float> poison, <4 x i32> zeroinitializer
+  %31 = fmul fast <4 x float> %21, %30
+  %32 = insertelement <4 x float> poison, float %28, i64 0
+  %33 = shufflevector <4 x float> %32, <4 x float> poison, <4 x i32> zeroinitializer
+  %34 = fadd fast <4 x float> %31, %33
+  %35 = tail call fast <4 x float> @air.fast_fmin.v4f32(<4 x float> %34, <4 x float> <float 1.000000e+00, float 1.000000e+00, float 1.000000e+00, float 1.000000e+00>) #4
+  br label %42
+
+36:                                               ; preds = %8
+  %37 = fadd fast float %22, 0x3FC70A3D80000000
+  %38 = fmul fast float %37, 2.500000e+00
+  %39 = insertelement <4 x float> poison, float %38, i64 0
+  %40 = shufflevector <4 x float> %39, <4 x float> poison, <4 x i32> zeroinitializer
+  %41 = fmul fast <4 x float> %21, %40
+  br label %42
+
+42:                                               ; preds = %36, %25
+  %43 = phi <4 x float> [ %35, %25 ], [ %41, %36 ]
+  %44 = extractelement <4 x float> %9, i64 3
+  %45 = tail call fast float @air.fast_fmin.f32(float %44, float 1.000000e+00) #4
+  %46 = insertelement <4 x float> poison, float %45, i64 0
+  %47 = shufflevector <4 x float> %46, <4 x float> poison, <4 x i32> zeroinitializer
+  %48 = fmul fast <4 x float> %47, %43
+  %49 = fsub fast float 1.000000e+00, %45
+  %50 = insertelement <4 x float> poison, float %49, i64 0
+  %51 = shufflevector <4 x float> %50, <4 x float> poison, <4 x i32> zeroinitializer
+  %52 = fmul fast <4 x float> %51, %14
+  %53 = fadd fast <4 x float> %52, %48
+  %54 = tail call fast <4 x float> @air.fast_fmax.v4f32(<4 x float> %53, <4 x float> zeroinitializer) #4
+  ret <4 x float> %54
+}
+
+; Function Attrs: mustprogress nofree nosync nounwind readnone willreturn
+declare <4 x float> @air.fast_fmax.v4f32(<4 x float>, <4 x float>) local_unnamed_addr #1
+
+; Function Attrs: mustprogress nofree nosync nounwind readnone willreturn
+declare float @air.fast_fmin.f32(float, float) local_unnamed_addr #1
+
+; Function Attrs: mustprogress nofree nosync nounwind readnone willreturn
+declare <4 x float> @air.fast_fmin.v4f32(<4 x float>, <4 x float>) local_unnamed_addr #1
+
+; Function Attrs: argmemonly convergent mustprogress nofree nounwind readonly willreturn
+declare { <4 x float>, i8 } @air.sample_texture_2d.v4f32(%struct._texture_2d_t.0 addrspace(1)* nocapture readonly, %struct._sampler_t.1 addrspace(2)* nocapture readonly, <2 x float>, i1, <2 x i32>, i1, float, float, i32) local_unnamed_addr #2
+
+attributes #0 = { convergent mustprogress nofree nounwind readonly willreturn "approx-func-fp-math"="true" "frame-pointer"="all" "min-legal-vector-width"="128" "no-builtins" "no-infs-fp-math"="true" "no-nans-fp-math"="true" "no-signed-zeros-fp-math"="true" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "unsafe-fp-math"="true" }
+attributes #1 = { mustprogress nofree nosync nounwind readnone willreturn }
+attributes #2 = { argmemonly convergent mustprogress nofree nounwind readonly willreturn }
+attributes #3 = { argmemonly convergent nounwind readonly willreturn }
+attributes #4 = { nounwind readnone willreturn }
+
+!llvm.module.flags = !{!0, !1, !2, !3, !4, !5, !6, !7, !8}
+!llvm.ident = !{!9}
+!air.version = !{!10}
+!air.language_version = !{!11}
+!air.compile_options = !{!12, !13, !14}
+!air.fragment = !{!15}
+
+!0 = !{i32 2, !"SDK Version", [2 x i32] [i32 26, i32 4]}
+!1 = !{i32 1, !"wchar_size", i32 4}
+!2 = !{i32 7, !"frame-pointer", i32 2}
+!3 = !{i32 7, !"air.max_device_buffers", i32 31}
+!4 = !{i32 7, !"air.max_constant_buffers", i32 31}
+!5 = !{i32 7, !"air.max_threadgroup_buffers", i32 31}
+!6 = !{i32 7, !"air.max_textures", i32 128}
+!7 = !{i32 7, !"air.max_read_write_textures", i32 8}
+!8 = !{i32 7, !"air.max_samplers", i32 16}
+!9 = !{!"Apple metal version 32023.883 (metalfe-32023.883)"}
+!10 = !{i32 2, i32 7, i32 0}
+!11 = !{!"Metal", i32 3, i32 2, i32 0}
+!12 = !{!"air.compile.denorms_disable"}
+!13 = !{!"air.compile.fast_math_enable"}
+!14 = !{!"air.compile.framebuffer_fetch_enable"}
+!15 = !{<4 x float> (<4 x float>, <4 x float>, <4 x float>, %struct._texture_2d_t.0 addrspace(1)*, %struct._texture_2d_t.0 addrspace(1)*, %struct._sampler_t.1 addrspace(2)*, %struct._sampler_t.1 addrspace(2)*, <4 x float> addrspace(2)*)* @Hgc2FeatherInside, !16, !18}
+!16 = !{!17}
+!17 = !{!"air.render_target", i32 0, i32 0, !"air.arg_type_name", !"float4"}
+!18 = !{!19, !20, !21, !22, !23, !24, !25, !26}
+!19 = !{i32 0, !"air.position", !"air.center", !"air.no_perspective", !"air.arg_type_name", !"float4", !"air.arg_name", !"position", !"air.arg_unused"}
+!20 = !{i32 1, !"air.fragment_input", !"user(texcoord0)", !"air.center", !"air.perspective", !"air.arg_type_name", !"float4", !"air.arg_name", !"texcoord0"}
+!21 = !{i32 2, !"air.fragment_input", !"user(texcoord1)", !"air.center", !"air.perspective", !"air.arg_type_name", !"float4", !"air.arg_name", !"texcoord1"}
+!22 = !{i32 3, !"air.texture", !"air.location_index", i32 0, i32 1, !"air.sample", !"air.arg_type_name", !"texture2d<float, sample>", !"air.arg_name", !"texture0"}
+!23 = !{i32 4, !"air.texture", !"air.location_index", i32 1, i32 1, !"air.sample", !"air.arg_type_name", !"texture2d<float, sample>", !"air.arg_name", !"texture1"}
+!24 = !{i32 5, !"air.sampler", !"air.location_index", i32 0, i32 1, !"air.arg_type_name", !"sampler", !"air.arg_name", !"sampler0"}
+!25 = !{i32 6, !"air.sampler", !"air.location_index", i32 1, i32 1, !"air.arg_type_name", !"sampler", !"air.arg_name", !"sampler1"}
+!26 = !{i32 7, !"air.buffer", !"air.location_index", i32 0, i32 1, !"air.read", !"air.address_space", i32 2, !"air.arg_type_size", i32 16, !"air.arg_type_align_size", i32 16, !"air.arg_type_name", !"float4", !"air.arg_name", !"parameters"}
+!27 = !{!28, !28, i64 0}
+!28 = !{!"omnipotent char", !29, i64 0}
+!29 = !{!"Simple C++ TBAA"}
+!30 = !{!31}
+!31 = distinct !{!31, !32, !"air-alias-scope-arg(7)"}
+!32 = distinct !{!32, !"air-alias-scopes(Hgc2FeatherInside)"}
+!33 = !{!34, !35}
+!34 = distinct !{!34, !32, !"air-alias-scope-textures"}
+!35 = distinct !{!35, !32, !"air-alias-scope-samplers"}
+
