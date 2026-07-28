@@ -156,7 +156,7 @@ function dynamic_cast_stub(
 ): unknown | null {
   // System ABI, not FCP code. A real TS port would call `instanceof` against
   // the ported OZ3DEngineSceneElement class. Since neither OZSceneNode nor
-  // OZ3DEngineSceneElement is transcribed yet, this must throw.
+  // OZ3DEngineSceneElement is decoded yet, this must throw (call site @0x3ca905).
   throw new Error("___dynamic_cast @libc++abi not applicable in TS; called from OZ3DEngineScenePlacementBehavior::didAddToNode @0x3ca905 for OZSceneNode->OZ3DEngineSceneElement (needs ported OZ3DEngineSceneElement class)");
 }
 
