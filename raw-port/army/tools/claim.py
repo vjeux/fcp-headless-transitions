@@ -134,8 +134,14 @@ def _shader_candidates():
     for name, meta in led.items():
         # On-disk .ts (and .ll) sanitize C++ "::" to "__", so dedup against the sanitized
         # basename — the raw "::" ledger key never matches a ported file (148 keys have "::").
+        # Also accept the LEGACY single-"_" collapse (early workers landed "Cls::Cls_foo"
+        # as "Cls_foo.ts"), so next-shader stops re-serving those already-ported shaders.
         safe = name.replace("::", "__")
-        if safe in done or name in done: continue
+        legacy = None
+        if "::" in name:
+            a, b = name.split("::", 1)
+            legacy = b if b.startswith(a + "_") else (a + "_" + b)
+        if safe in done or name in done or (legacy and legacy in done): continue
         out.append((meta["fw"], name))
     out.sort()
     return out

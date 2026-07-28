@@ -6,6 +6,9 @@
 # fast-forwards green branches into main. No shared index, no push races, no peer clobbering.
 set -euo pipefail
 TAG="${1:?usage: wt_setup.sh <agentTag>}"
+# C++ "::" is not a valid git ref/path component — sanitize to "__" so shader tags like
+# "bm3dnr_buf::bm3dnr_buf_blend..." don't fatal on `git worktree add`/branch creation.
+TAG="${TAG//::/__}"
 REPO="$(cd "$(dirname "$0")/../../.." && pwd)"          # main checkout
 WT="$REPO/raw-port/army/worktrees/$TAG"
 BR="port/$TAG"
