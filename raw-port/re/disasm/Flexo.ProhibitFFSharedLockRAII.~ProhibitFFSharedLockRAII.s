@@ -1,0 +1,6 @@
+__ZN24ProhibitFFSharedLockRAIID1Ev:
+0000000000478190	pushq	%rbp
+0000000000478191	movq	%rsp, %rbp
+0000000000478194	popq	%rbp
+0000000000478195	retq
+0000000000478196	nopw	%cs:(%rax,%rax)
