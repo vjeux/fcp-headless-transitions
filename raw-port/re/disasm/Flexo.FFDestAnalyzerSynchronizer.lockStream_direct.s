@@ -1,0 +1,15 @@
+__ZNK26FFDestAnalyzerSynchronizer17lockStream_directEv:
+0000000001320350	pushq	%rbp
+0000000001320351	movq	%rsp, %rbp
+0000000001320354	pushq	%rbx
+0000000001320355	pushq	%rax
+0000000001320356	movq	%rdi, %rbx
+0000000001320359	addq	$0xa0, %rdi
+0000000001320360	callq	__ZN16FFSynchronizable4LockEv   ## FFSynchronizable::Lock()
+0000000001320365	lock
+0000000001320366	incl	0x130(%rbx)
+000000000132036c	addq	$0x8, %rsp
+0000000001320370	popq	%rbx
+0000000001320371	popq	%rbp
+0000000001320372	retq
+0000000001320373	nopw	%cs:(%rax,%rax)
