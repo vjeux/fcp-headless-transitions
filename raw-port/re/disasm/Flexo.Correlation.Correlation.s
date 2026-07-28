@@ -1,0 +1,14 @@
+__ZN11CorrelationC1Ev:
+00000000012218d0	pushq	%rbp
+00000000012218d1	movq	%rsp, %rbp
+00000000012218d4	leaq	0x6fbd65(%rip), %rax
+00000000012218db	movq	%rax, (%rdi)
+00000000012218de	movq	$0x0, 0x40(%rdi)
+00000000012218e6	xorps	%xmm0, %xmm0
+00000000012218e9	movups	%xmm0, 0x8(%rdi)
+00000000012218ed	movups	%xmm0, 0x18(%rdi)
+00000000012218f1	movups	%xmm0, 0x28(%rdi)
+00000000012218f5	movl	$0x0, 0x38(%rdi)
+00000000012218fc	popq	%rbp
+00000000012218fd	retq
+00000000012218fe	nop
