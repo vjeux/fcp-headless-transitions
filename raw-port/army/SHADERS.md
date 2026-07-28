@@ -129,3 +129,59 @@ Earlier notes here overstated/mis-stated the P3 rule. GROUND TRUTH from raw-port
   SAME line. P5 bans Math.random, Date.now()-arithmetic, and empty catch{}.
 (Supersedes the earlier "raw substring / negative assertions always trip / say 'No shortcut language'"
 notes — those were over-cautious/inaccurate. The over-cautious advice was still SAFE, just wrong on mechanism.)
+
+
+## HOW TO PORT A BARRIER SHADER using harness/ThreadgroupReduction (2026-07-28)
+Landed 2026-07-28 (SHA aa92f83): `raw-port/src/harness/ThreadgroupReduction.ts` + worked
+example `raw-port/src/shaders/soMOMotionEstimation_numPoints.ts`. This unblocks the whole
+>500-line barrier shader family that queue-pull workers were previously skipping
+(bm3dnr_buf haar8x8/mcBuf/noiseStats/variance, soMOMotionEstimation reduction*/moment/
+numWtSum, soOFlowEstimator estimateCLG* — ~30 shaders).
+
+RECIPE (for any shader whose .ll contains `air.wg.barrier` + `addrspace(3)`):
+
+1. **Read the AIR kernel signature** from `!air.kernel !14` at the bottom of the .ll. Note which
+   args are `air.threads_per_threadgroup` (`gSize`), `air.thread_position_in_threadgroup` (`lid`),
+   `air.thread_position_in_grid` (`gid`), `addrspace(3)*` (threadgroup shared mem), and
+   `addrspace(1)*` (global buffers). The metadata operand `!N` field names/offsets are the ground
+   truth — use them, not the C++ struct-type name (Apple's compiler dedups layout-compatible types).
+
+2. **Split the IR at every `air.wg.barrier(i32 2, i32 1)` call**. Each barrier is a PHASE BOUNDARY.
+   K barriers → K+1 phase functions. Number the phases 0..K in IR order.
+
+3. **Write ONE phase function per barrier region**, each of type
+   `PhaseFn<TShared> = (idx: ThreadIndex, sharedMem: TShared) => void`. Inside:
+   - Pull `lid.x/lid.y/gSize.x/gSize.y` off `idx` — these ARE the AIR intrinsics.
+   - Read/write threadgroup memory as literal indexing: AIR's
+     `getelementptr i32, i32 addrspace(3)* %5, i64 %lid.x` becomes `sharedMem[lid.x]`.
+   - Reads AFTER the barrier see writes that HAPPENED IN EARLIER PHASES — the harness's
+     "run all threads' phase-N before ANY thread's phase-(N+1)" loop IS air.wg.barrier.
+   - Do NOT invent a reduction stride — transcribe the exact loop shape (`+1`, `+gSize.x`,
+     tree-halving, whatever the IR does).
+
+4. **Pick the shared-mem typed array to match the AIR element type**:
+   - `i32 addrspace(3)*` → `Int32Array`
+   - `float addrspace(3)*` → `Float32Array` (use `Math.fround` on every fp32 store)
+   - `i16 addrspace(3)*` → `Int16Array`
+   - Etc. Element type is stated on the `addrspace(3)` GEP in the IR.
+
+5. **Wrap it with a driver** that calls `dispatchThreadgroup(gSize, sharedMem, [phase0, phase1, ...])`.
+   For multi-tile kernels (e.g. bm3dnr's per-16x16-tile stats), use `dispatchGrid(gridSize, gSize,
+   makeShared, phases)` instead — it gives each threadgroup a fresh shared-mem buffer, matching Metal.
+
+6. **Header + gate**: the shader file's FIRST line must be
+   `// Faithful transcription @0xADDR — @shader <Name> (<FW>)` (address from the .ll's first line
+   `0xADDR -- <Sym>:`). Cite %IR line numbers for each block. Copy the .ll into
+   `raw-port/re/shaders/` if it's not already there. `bash raw-port/army/gate/gate.sh <files>`
+   → gate PASS. Then commit + `wt_merge.sh`.
+
+CAVEATS specific to barrier shaders:
+- `air.convert.f.f32.s.i32` is SIGNED (normal). `.u.` is UNSIGNED — coerce with `>>>0` first.
+- `air.sample_texture_2d.u.v4i32` returns `{<4 x i32>, i8}` (rgba + residency); model the callback
+  as `(uv) => [r,g,b,a]` and ignore the residency byte unless the IR extracts it.
+- Sample coord bias `+ 0.5` on integer-derived uv (`float(x) + 0.5`) is pixel-CENTER — this is the
+  standard AIR idiom for pixel-exact texel fetches, not a heuristic.
+- The AIR barrier args `(i32 2, i32 1)` are (scope=threadgroup=2, flags=mem_threadgroup=1). See
+  `AIR_WG_BARRIER_SCOPE_THREADGROUP` / `AIR_WG_BARRIER_FLAGS_THREADGROUP` exports for the sentinels.
+- `lid.y` may be unused in 1-D reductions (numPoints, moment, numWtSum) — the shader dispatches
+  with `gSize.y == 1` and only `lid.x` matters. Just don't read `idx.lid[1]` if the IR doesn't.
