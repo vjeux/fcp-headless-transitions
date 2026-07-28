@@ -1,0 +1,99 @@
+__ZN16HGDitherLUTEntry9GetBitmapEv:
+0000000000070270	pushq	%rbp
+0000000000070271	movq	%rsp, %rbp
+0000000000070274	pushq	%r15
+0000000000070276	pushq	%r14
+0000000000070278	pushq	%rbx
+0000000000070279	subq	$0x18, %rsp
+000000000007027d	movq	%rdi, %rbx
+0000000000070280	movq	0x10(%rdi), %rdi
+0000000000070284	testq	%rdi, %rdi
+0000000000070287	je	0x7034d
+000000000007028d	movq	(%rdi), %rax
+0000000000070290	callq	*0x130(%rax)
+0000000000070296	testb	%al, %al
+0000000000070298	jne	0x7034d
+000000000007029e	movq	0x10(%rbx), %r15
+00000000000702a2	testq	%r15, %r15
+00000000000702a5	je	0x702c4
+00000000000702a7	leaq	__ZTI10HGRenderer(%rip), %rsi   ## typeinfo for HGRenderer
+00000000000702ae	leaq	__ZTI13HGGPURenderer(%rip), %rdx ## typeinfo for HGGPURenderer
+00000000000702b5	movq	%r15, %rdi
+00000000000702b8	xorl	%ecx, %ecx
+00000000000702ba	callq	0x3c5018                        ## symbol stub for: ___dynamic_cast
+00000000000702bf	movq	%rax, %r14
+00000000000702c2	jmp	0x702c7
+00000000000702c4	xorl	%r14d, %r14d
+00000000000702c7	movq	(%r15), %rax
+00000000000702ca	movq	%r15, %rdi
+00000000000702cd	movl	$0x2b, %esi
+00000000000702d2	callq	*0x80(%rax)
+00000000000702d8	cmpl	$0x1, %eax
+00000000000702db	jne	0x7034d
+00000000000702dd	leaq	0x20(%rbx), %r15
+00000000000702e1	movq	0x20(%rbx), %rdi
+00000000000702e5	testq	%rdi, %rdi
+00000000000702e8	jne	0x70384
+00000000000702ee	movq	%r14, %rdi
+00000000000702f1	callq	__ZN13HGGPURenderer15GetMetalContextEv ## HGGPURenderer::GetMetalContext()
+00000000000702f6	movq	0x10(%rax), %rax
+00000000000702fa	movq	0x10(%rax), %rsi
+00000000000702fe	movq	0x18(%rbx), %rcx
+0000000000070302	movq	0x14(%rcx), %r8
+0000000000070306	movq	0x1c(%rcx), %r9
+000000000007030a	movl	$0x0, 0x8(%rsp)
+0000000000070312	movl	$0x0, (%rsp)
+0000000000070319	leaq	-0x20(%rbp), %rdi
+000000000007031d	xorl	%edx, %edx
+000000000007031f	callq	__ZN14HGMetalTexture14createWithCopyE15HGMTLDeviceTypeP18HGMetalTexturePoolP8HGBitmap6HGRectbb ## HGMetalTexture::createWithCopy(HGMTLDeviceType, HGMetalTexturePool*, HGBitmap*, HGRect, bool, bool)
+0000000000070324	movq	0x20(%rbx), %rax
+0000000000070328	movq	-0x20(%rbp), %rdi
+000000000007032c	cmpq	%rdi, %rax
+000000000007032f	je	0x70371
+0000000000070331	testq	%rax, %rax
+0000000000070334	je	0x70343
+0000000000070336	movq	(%rax), %rcx
+0000000000070339	movq	%rax, %rdi
+000000000007033c	callq	*0x18(%rcx)
+000000000007033f	movq	-0x20(%rbp), %rdi
+0000000000070343	movq	%rdi, (%r15)
+0000000000070346	testq	%rdi, %rdi
+0000000000070349	jne	0x70384
+000000000007034b	jmp	0x70363
+000000000007034d	movq	0x18(%rbx), %rdi
+0000000000070351	addq	$0x18, %rbx
+0000000000070355	testq	%rdi, %rdi
+0000000000070358	je	0x70360
+000000000007035a	movq	(%rdi), %rax
+000000000007035d	callq	*0x10(%rax)
+0000000000070360	movq	%rbx, %r15
+0000000000070363	movq	(%r15), %rax
+0000000000070366	addq	$0x18, %rsp
+000000000007036a	popq	%rbx
+000000000007036b	popq	%r14
+000000000007036d	popq	%r15
+000000000007036f	popq	%rbp
+0000000000070370	retq
+0000000000070371	testq	%rax, %rax
+0000000000070374	je	0x70363
+0000000000070376	movq	(%rdi), %rax
+0000000000070379	callq	*0x18(%rax)
+000000000007037c	movq	(%r15), %rdi
+000000000007037f	testq	%rdi, %rdi
+0000000000070382	je	0x70363
+0000000000070384	movq	(%rdi), %rax
+0000000000070387	callq	*0x10(%rax)
+000000000007038a	jmp	0x70363
+000000000007038c	movq	%rax, %rdi
+000000000007038f	callq	___clang_call_terminate
+0000000000070394	movq	%rax, %rbx
+0000000000070397	movq	-0x20(%rbp), %rdi
+000000000007039b	testq	%rdi, %rdi
+000000000007039e	je	0x703a6
+00000000000703a0	movq	(%rdi), %rax
+00000000000703a3	callq	*0x18(%rax)
+00000000000703a6	movq	%rbx, %rdi
+00000000000703a9	callq	0x3c4e02                        ## symbol stub for: __Unwind_Resume
+00000000000703ae	movq	%rax, %rdi
+00000000000703b1	callq	___clang_call_terminate
+00000000000703b6	nopw	%cs:(%rax,%rax)
