@@ -18,6 +18,13 @@ LOCK   = os.path.join(ARMY, "swarm", ".claims.lock.d")
 SRC = os.path.join(REPO, "raw-port", "src")
 
 BAD_SUB = ['<', 'std', '__', '::', ' ', '.cold', 'thunk', '_Factory', 'anonymous']
+# ANTI-SHORTCUT: classes bigger than CHUNK_THRESHOLD methods are split into CHUNK-method batches so
+# NO agent is ever asked to port 100s-1000s of methods in one context (that forces stub-to-finish
+# shortcuts). Each chunk is its own claimable unit "<fw>:<cls>#<k>" -> its own file <Class>.m<k>.ts,
+# independently gated + merged. The main <Class>.ts imports the parts. See `claim.py chunk`.
+CHUNK = 20
+CHUNK_THRESHOLD = 24
+
 BAD_TOK = ['Cache','Hash','Tree','Alloc','Iterator','Impl','CFRef','_UIComponent','Controller',
            'Overlay','HUD','Inspector','Tool','Cell','Button','Picker','View','Window','Menu',
            'Panel','Dialog','Sentry','__cxx']
@@ -54,13 +61,18 @@ def _layer(cls):
     if 'Node' in cls and 'Channel' not in cls: return 'nodes'
     return 'channels'
 
+def _class_methods(fw, cls):
+    """Ordered (methkey, unit) list for a class, stable by ledger insertion (addr) order."""
+    led = json.load(open(os.path.join(LED, f"{fw}.ledger.json")))
+    ms = led.get(cls, {})
+    return [(k, v) for k, v in ms.items()]
+
 def _candidates():
-    """Portable leaf classes (fw, cls, nMethods), best-first.
-    FULL-ENGINE scope (ARMY.md §1): dispense the ENTIRE inventory, not just tiny C++ leaves.
-    Ordering = smallest-first so simple leaves drain before heavies, but NOTHING is permanently
-    excluded — a class only being big/ObjC/std means it sorts LATER, not that it's skipped.
-    Only hard-skip: already-ported, SHARED hand-serialized dispatch files, and the (free) bucket
-    (free functions are dispensed separately via next-free so they don't dominate the class queue)."""
+    """Portable work units (fw, cls, nMethods, chunk_or_None), best-first.
+    FULL-ENGINE scope (ARMY.md §1): dispense the ENTIRE inventory. ANTI-SHORTCUT: any class with
+    > CHUNK_THRESHOLD methods is emitted as MULTIPLE chunk units of CHUNK methods each — never as one
+    giant unit — so no agent is asked to port 100s-1000s of methods in one sitting (the thing that
+    forces stub-to-finish shortcuts). Small classes stay whole. Ordering = tier then size."""
     done = _ported_files()
     out = []
     for f in sorted(glob.glob(os.path.join(LED, "*.ledger.json"))):
@@ -69,58 +81,86 @@ def _candidates():
         try: led = json.load(open(f))
         except Exception: continue
         for cls, ms in led.items():
-            if cls in done or cls in SHARED or cls == "(free)": continue
-            if any(b in cls for b in BAD_SUB): continue      # std/template/anon — genuinely un-nameable as a file
+            if cls in SHARED or cls == "(free)": continue
+            if any(b in cls for b in BAD_SUB): continue
             if not all(isinstance(v, dict) for v in ms.values()): continue
             n = len(ms); todo = sum(1 for v in ms.values() if v.get("status") != "ported")
-            if todo == 0: continue                            # fully ported already
-            # priority tier: small clean C++ first (0), then bigger (1), then ObjC-heavy (2)
+            if todo == 0: continue
             objc = sum(1 for v in ms.values() if v.get("kind") == "objc")
             heavy_tok = any(t in cls for t in BAD_TOK)
-            tier = 0 if (2 <= n <= 12 and objc == 0 and not heavy_tok) else (2 if objc > n//2 else 1)
-            out.append((tier, n, fw, cls))
-    out.sort()  # tier first, then fewest methods
-    return [(n, fw, cls) for (tier, n, fw, cls) in out]
+            if n > CHUNK_THRESHOLD:
+                # split into chunks; each chunk is its own unit. Whole-class .ts skip check doesn't
+                # apply (parts are <Class>.m<k>.ts), so emit every chunk not yet on disk.
+                nchunks = (n + CHUNK - 1) // CHUNK
+                for k in range(nchunks):
+                    if f"{cls}.m{k}" in done: continue
+                    tier = 3  # chunks sort after whole small classes (do quick wins first)
+                    out.append((tier, CHUNK, fw, cls, k))
+            else:
+                if cls in done: continue
+                tier = 0 if (2 <= n <= 12 and objc == 0 and not heavy_tok) else (2 if objc > n//2 else 1)
+                out.append((tier, n, fw, cls, None))
+    out.sort()
+    return [(n, fw, cls, ck) for (tier, n, fw, cls, ck) in out]
 
 def cmd_next():
     _lock()
     try:
         c = _load()
         leased = set(c["claimed"]) | set(c["done"])
-        # failed classes are retryable after a while, but skip for now to avoid loops
         skip = leased | set(c["failed"])
-        for n, fw, cls in _candidates():
-            key = f"{fw}:{cls}"
+        for n, fw, cls, ck in _candidates():
+            key = f"{fw}:{cls}#{ck}" if ck is not None else f"{fw}:{cls}"
             if key in skip: continue
-            c["claimed"][key] = {"fw": fw, "cls": cls, "n": n, "t": time.time()}
+            rec = {"fw": fw, "cls": cls, "n": n, "t": time.time()}
+            if ck is not None: rec["chunk"] = ck
+            c["claimed"][key] = rec
             _save(c)
-            print(f"{fw}\t{cls}\t{n}\t{_layer(cls)}")
+            if ck is not None:
+                # a method-batch of a big class: tell the worker EXACTLY which methods (bounded list)
+                print(f"{fw}\t{cls}\t{n}\t{_layer(cls)}\tCHUNK={ck}")
+            else:
+                print(f"{fw}\t{cls}\t{n}\t{_layer(cls)}")
             return
         print("EMPTY")
     finally:
         _unlock()
 
-def cmd_done(fw, cls):
+def cmd_chunk(fw, cls, k):
+    """Print the exact method list for chunk k of a big class — the BOUNDED work unit. The worker
+    ports ONLY these into src/<layer>/<Class>.m<k>.ts. Never asked to hold the whole class."""
+    k = int(k)
+    meths = _class_methods(fw, cls)
+    lo, hi = k * CHUNK, min((k + 1) * CHUNK, len(meths))
+    print(f"# {fw}:{cls} chunk {k}  methods [{lo}..{hi}) of {len(meths)}")
+    print(f"# write ONLY these {hi-lo} methods into raw-port/src/{_layer(cls)}/{cls}.m{k}.ts")
+    for i in range(lo, hi):
+        mk, v = meths[i]
+        print(f"{i}\t{v.get('addr','?')}\t{v.get('kind','cpp')}\t{v.get('demangled', mk)}")
+
+def _key(fw, cls, ck=None):
+    return f"{fw}:{cls}#{ck}" if ck not in (None, "") else f"{fw}:{cls}"
+
+def cmd_done(fw, cls, ck=None):
     _lock()
     try:
-        c = _load(); key = f"{fw}:{cls}"
+        c = _load(); key = _key(fw, cls, ck)
         c["claimed"].pop(key, None); c["done"][key] = time.time(); _save(c)
         print(f"done {key}")
     finally: _unlock()
 
-def cmd_fail(fw, cls, reason):
+def cmd_fail(fw, cls, reason, ck=None):
     _lock()
     try:
-        c = _load(); key = f"{fw}:{cls}"
+        c = _load(); key = _key(fw, cls, ck)
         c["claimed"].pop(key, None); c["failed"][key] = {"t": time.time(), "reason": reason}; _save(c)
         print(f"failed {key}: {reason}")
     finally: _unlock()
 
-def cmd_release(fw, cls):
-    # release a stale claim without marking done/failed (e.g. worker crashed)
+def cmd_release(fw, cls, ck=None):
     _lock()
     try:
-        c = _load(); c["claimed"].pop(f"{fw}:{cls}", None); _save(c); print("released")
+        c = _load(); c["claimed"].pop(_key(fw, cls, ck), None); _save(c); print("released")
     finally: _unlock()
 
 def cmd_stats():
@@ -178,7 +218,11 @@ if __name__ == "__main__":
     cmd = a[0]
     if cmd == "next": cmd_next()
     elif cmd == "next-shader": cmd_next_shader()
-    elif cmd == "done": cmd_done(a[1], a[2])
-    elif cmd == "fail": cmd_fail(a[1], a[2], " ".join(a[3:]))
-    elif cmd == "release": cmd_release(a[1], a[2])
+    elif cmd == "chunk": cmd_chunk(a[1], a[2], a[3])
+    elif cmd == "done": cmd_done(*a[1:])
+    elif cmd == "fail":
+        # done/fail/release accept optional trailing chunk index: done <fw> <cls> [chunk]
+        if len(a) >= 4 and a[-1].isdigit(): cmd_fail(a[1], a[2], " ".join(a[3:-1]) or "n/a", a[-1])
+        else: cmd_fail(a[1], a[2], " ".join(a[3:]))
+    elif cmd == "release": cmd_release(*a[1:])
     else: cmd_stats()

@@ -90,3 +90,21 @@ budget (≈1 class or a few tiny classes per sub-agent).
   M3 Transform/matrix     — OZTransformNode::getTransformMatrix + PCMatrix44 compose (decoded, TODO).
   M4 Render/compositor    — the pixel pipeline (largest; Flexo-heavy).
   M5 Full parity          — every reachable unit oracle-verified against dlsym FCP.
+
+## 9. ANTI-SHORTCUT: method-level chunking for big classes (2026-07-28)
+A class with >24 methods is NEVER handed to one agent whole — that forces stub-to-finish shortcuts
+(no one can faithfully transcribe 1,471 methods in one context). claim.py splits it into 20-method
+CHUNKS, each its own claimable unit.
+WORKER FLOW for a chunk (claim.py next prints "...\tCHUNK=<k>"):
+  1. `python3 raw-port/army/tools/claim.py chunk <FW> <Class> <k>` → prints the EXACT ≤20 methods
+     (index, @0xADDR, kind, demangled) you must port, and the target file src/<layer>/<Class>.m<k>.ts.
+  2. Port ONLY those methods into <Class>.m<k>.ts (one file per chunk — distinct files never conflict
+     on merge). Each method fully decoded + @0xADDR cited; gate as usual. Undecoded callee → throw-stub
+     citing its addr (that's the frontier signal, NOT a shortcut).
+  3. The main <Class>.ts (ctor/dtor/layout, ported by the first/whole-class pass or a dedicated chunk)
+     re-exports/assembles the .m<k> parts. If <Class>.ts doesn't exist yet, still land your .m<k>.ts —
+     assembly is a later step; partial correct chunks are the win.
+  4. `claim.py done <FW> <Class> <k>` (chunk index as 4th arg). fail/release also take the chunk index.
+DEDUP: a chunk is skipped once <Class>.m<k>.ts exists on disk. Big-class chunks sort AFTER whole small
+classes (tier 3) so quick wins still drain first, but the heavies now MAKE PROGRESS instead of bouncing.
+The point: an agent is only ever asked for ≤20 named methods — bounded, gate-checked, no shortcut pressure.
