@@ -1,0 +1,20 @@
+__ZN16HGAVADeinterlaceC1Ev:
+00000000002212e0	pushq	%rbp
+00000000002212e1	movq	%rsp, %rbp
+00000000002212e4	pushq	%rbx
+00000000002212e5	pushq	%rax
+00000000002212e6	movq	%rdi, %rbx
+00000000002212e9	callq	__ZN6HGNodeC2Ev                 ## HGNode::HGNode()
+00000000002212ee	leaq	0x8100f3(%rip), %rax
+00000000002212f5	movq	%rax, (%rbx)
+00000000002212f8	movl	$0x2, 0x198(%rbx)
+0000000000221302	movsd	0x66b586(%rip), %xmm0
+000000000022130a	movsd	%xmm0, 0x19c(%rbx)
+0000000000221312	movl	$0x1, 0x1a4(%rbx)
+000000000022131c	movb	$0x0, 0x1a8(%rbx)
+0000000000221323	movq	$0x0, 0x1b0(%rbx)
+000000000022132e	addq	$0x8, %rsp
+0000000000221332	popq	%rbx
+0000000000221333	popq	%rbp
+0000000000221334	retq
+0000000000221335	nopw	%cs:(%rax,%rax)
