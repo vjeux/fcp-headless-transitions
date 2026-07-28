@@ -1,0 +1,18 @@
+__ZN17HGStackStateGuardC1EP15HGExecutionUnit:
+00000000001440f0	pushq	%rbp
+00000000001440f1	movq	%rsp, %rbp
+00000000001440f4	movq	0x90(%rsi), %rax
+00000000001440fb	movq	%rax, (%rdi)
+00000000001440fe	movq	0x88(%rax), %rcx
+0000000000144105	movq	%rcx, 0x8(%rdi)
+0000000000144109	movq	0x90(%rax), %rdx
+0000000000144110	movq	%rdx, 0x10(%rdi)
+0000000000144114	movq	0x10(%rcx), %rcx
+0000000000144118	movq	%rcx, 0x18(%rdi)
+000000000014411c	movq	0x10(%rdx), %rcx
+0000000000144120	movq	%rcx, 0x20(%rdi)
+0000000000144124	movl	0x98(%rax), %eax
+000000000014412a	movl	%eax, 0x28(%rdi)
+000000000014412d	popq	%rbp
+000000000014412e	retq
+000000000014412f	nop
