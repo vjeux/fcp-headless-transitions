@@ -1,0 +1,191 @@
+0x0000000009b79d -- soGuidedFilter::soGuidedFilter_I1p3_Pass4:
+source_filename = "soGuidedFilter::soGuidedFilter_I1p3_Pass4"
+target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v24:32:32-v32:32:32-v48:64:64-v64:64:64-v96:128:128-v128:128:128-v192:256:256-v256:256:256-v512:512:512-v1024:1024:1024-n8:16:32"
+target triple = "air64_v23-apple-macosx11.5.1"
+
+%"struct.soGuidedFilter::soGuidedFilter_I1p1_Pass4_params" = type { <4 x i32>, i32, i32, [8 x i8] }
+%struct._sampler_t = type opaque
+%struct._texture_2d_t = type opaque
+
+; Function Attrs: convergent nounwind
+define void @"soGuidedFilter::soGuidedFilter_I1p3_Pass4"(%"struct.soGuidedFilter::soGuidedFilter_I1p1_Pass4_params" addrspace(2)* nocapture readonly "air-buffer-no-alias" %0, <2 x i32> %1, %struct._sampler_t addrspace(2)* nocapture readonly %2, %struct._texture_2d_t addrspace(1)* %3, %struct._texture_2d_t addrspace(1)* %4, %struct._texture_2d_t addrspace(1)* %5, %struct._texture_2d_t addrspace(1)* %6) local_unnamed_addr #0 {
+  %8 = getelementptr inbounds %"struct.soGuidedFilter::soGuidedFilter_I1p1_Pass4_params", %"struct.soGuidedFilter::soGuidedFilter_I1p1_Pass4_params" addrspace(2)* %0, i64 0, i32 0
+  %9 = load <4 x i32>, <4 x i32> addrspace(2)* %8, align 16, !alias.scope !25, !noalias !28
+  %10 = shufflevector <4 x i32> %9, <4 x i32> undef, <2 x i32> <i32 0, i32 1>
+  %11 = add <2 x i32> %10, %1
+  %12 = extractelement <2 x i32> %11, i64 0
+  %13 = extractelement <4 x i32> %9, i64 2
+  %14 = extractelement <4 x i32> %9, i64 0
+  %15 = sub nsw i32 %13, %14
+  %16 = icmp ult i32 %12, %15
+  br i1 %16, label %17, label %97
+
+17:                                               ; preds = %7
+  %18 = tail call <2 x float> @air.convert.f.v2f32.u.v2i32(<2 x i32> %11) #3
+  %19 = getelementptr inbounds %"struct.soGuidedFilter::soGuidedFilter_I1p1_Pass4_params", %"struct.soGuidedFilter::soGuidedFilter_I1p1_Pass4_params" addrspace(2)* %0, i64 0, i32 1
+  %20 = load i32, i32 addrspace(2)* %19, align 16, !tbaa !31, !alias.scope !25, !noalias !28
+  %21 = tail call float @air.convert.f.f32.s.i32(i32 %20) #3
+  %22 = insertelement <2 x float> <float 0.000000e+00, float undef>, float %21, i64 1
+  %23 = fsub <2 x float> %18, %22
+  %24 = fadd <2 x float> %23, <float 5.000000e-01, float 5.000000e-01>
+  %25 = shl nsw i32 %20, 1
+  %26 = or i32 %25, 1
+  %27 = icmp sgt i32 %26, 0
+  br i1 %27, label %42, label %28
+
+28:                                               ; preds = %42, %17
+  %29 = phi <4 x float> [ zeroinitializer, %17 ], [ %52, %42 ]
+  %30 = phi <4 x float> [ zeroinitializer, %17 ], [ %49, %42 ]
+  %31 = phi <2 x float> [ %24, %17 ], [ %55, %42 ]
+  %32 = extractelement <4 x i32> %9, i64 3
+  %33 = extractelement <4 x i32> %9, i64 1
+  %34 = sub i32 %32, %33
+  %35 = icmp sgt i32 %34, 0
+  br i1 %35, label %36, label %97
+
+36:                                               ; preds = %28
+  %37 = getelementptr inbounds %"struct.soGuidedFilter::soGuidedFilter_I1p1_Pass4_params", %"struct.soGuidedFilter::soGuidedFilter_I1p1_Pass4_params" addrspace(2)* %0, i64 0, i32 2
+  %38 = load i32, i32 addrspace(2)* %37, align 4, !tbaa !36, !alias.scope !25, !noalias !28
+  %39 = tail call float @air.convert.f.f32.s.i32(i32 %38) #3
+  %40 = insertelement <4 x float> undef, float %39, i64 0
+  %41 = shufflevector <4 x float> %40, <4 x float> undef, <4 x i32> <i32 0, i32 0, i32 0, i32 undef>
+  br label %58
+
+42:                                               ; preds = %42, %17
+  %43 = phi <2 x float> [ %55, %42 ], [ %24, %17 ]
+  %44 = phi <4 x float> [ %49, %42 ], [ zeroinitializer, %17 ]
+  %45 = phi <4 x float> [ %52, %42 ], [ zeroinitializer, %17 ]
+  %46 = phi i32 [ %56, %42 ], [ 0, %17 ]
+  %47 = tail call { <4 x float>, i8 } @air.sample_texture_2d.v4f32(%struct._texture_2d_t addrspace(1)* nocapture readonly %3, %struct._sampler_t addrspace(2)* nocapture readonly %2, <2 x float> %43, i1 true, <2 x i32> zeroinitializer, i1 false, float 0.000000e+00, float 0.000000e+00, i32 0) #1, !alias.scope !28, !noalias !25
+  %48 = extractvalue { <4 x float>, i8 } %47, 0
+  %49 = fadd <4 x float> %44, %48
+  %50 = tail call { <4 x float>, i8 } @air.sample_texture_2d.v4f32(%struct._texture_2d_t addrspace(1)* nocapture readonly %4, %struct._sampler_t addrspace(2)* nocapture readonly %2, <2 x float> %43, i1 true, <2 x i32> zeroinitializer, i1 false, float 0.000000e+00, float 0.000000e+00, i32 0) #1, !alias.scope !28, !noalias !25
+  %51 = extractvalue { <4 x float>, i8 } %50, 0
+  %52 = fadd <4 x float> %45, %51
+  %53 = extractelement <2 x float> %43, i64 1
+  %54 = fadd float %53, 1.000000e+00
+  %55 = insertelement <2 x float> %43, float %54, i64 1
+  %56 = add nuw nsw i32 %46, 1
+  %57 = icmp eq i32 %56, %26
+  br i1 %57, label %28, label %42, !llvm.loop !37
+
+58:                                               ; preds = %58, %36
+  %59 = phi <2 x float> [ %31, %36 ], [ %88, %58 ]
+  %60 = phi <2 x float> [ %24, %36 ], [ %91, %58 ]
+  %61 = phi <2 x i32> [ %11, %36 ], [ %94, %58 ]
+  %62 = phi <4 x float> [ %30, %36 ], [ %82, %58 ]
+  %63 = phi <4 x float> [ %29, %36 ], [ %85, %58 ]
+  %64 = phi i32 [ 0, %36 ], [ %95, %58 ]
+  %65 = tail call <2 x float> @air.convert.f.v2f32.u.v2i32(<2 x i32> %61) #3
+  %66 = fadd <2 x float> %65, <float 5.000000e-01, float 5.000000e-01>
+  %67 = tail call { <4 x float>, i8 } @air.sample_texture_2d.v4f32(%struct._texture_2d_t addrspace(1)* nocapture readonly %5, %struct._sampler_t addrspace(2)* nocapture readonly %2, <2 x float> %66, i1 true, <2 x i32> zeroinitializer, i1 false, float 0.000000e+00, float 0.000000e+00, i32 0) #1, !alias.scope !28, !noalias !25
+  %68 = extractvalue { <4 x float>, i8 } %67, 0
+  %69 = shufflevector <4 x float> %68, <4 x float> undef, <4 x i32> zeroinitializer
+  %70 = tail call <4 x float> @llvm.fmuladd.v4f32(<4 x float> %62, <4 x float> %69, <4 x float> %63)
+  %71 = fdiv <4 x float> %70, %41
+  %72 = insertelement <4 x float> %71, float 1.000000e+00, i64 3
+  %73 = tail call <4 x float> @air.clamp.v4f32(<4 x float> %72, <4 x float> zeroinitializer, <4 x float> <float 1.000000e+00, float 1.000000e+00, float 1.000000e+00, float 1.000000e+00>) #3
+  tail call void @air.write_texture_2d.v4f32(%struct._texture_2d_t addrspace(1)* nocapture %6, <2 x i32> %61, <4 x float> %73, i32 0, i32 2) #2, !alias.scope !39, !noalias !40
+  %74 = tail call { <4 x float>, i8 } @air.sample_texture_2d.v4f32(%struct._texture_2d_t addrspace(1)* nocapture readonly %3, %struct._sampler_t addrspace(2)* nocapture readonly %2, <2 x float> %59, i1 true, <2 x i32> zeroinitializer, i1 false, float 0.000000e+00, float 0.000000e+00, i32 0) #1, !alias.scope !28, !noalias !25
+  %75 = extractvalue { <4 x float>, i8 } %74, 0
+  %76 = fadd <4 x float> %62, %75
+  %77 = tail call { <4 x float>, i8 } @air.sample_texture_2d.v4f32(%struct._texture_2d_t addrspace(1)* nocapture readonly %4, %struct._sampler_t addrspace(2)* nocapture readonly %2, <2 x float> %59, i1 true, <2 x i32> zeroinitializer, i1 false, float 0.000000e+00, float 0.000000e+00, i32 0) #1, !alias.scope !28, !noalias !25
+  %78 = extractvalue { <4 x float>, i8 } %77, 0
+  %79 = fadd <4 x float> %63, %78
+  %80 = tail call { <4 x float>, i8 } @air.sample_texture_2d.v4f32(%struct._texture_2d_t addrspace(1)* nocapture readonly %3, %struct._sampler_t addrspace(2)* nocapture readonly %2, <2 x float> %60, i1 true, <2 x i32> zeroinitializer, i1 false, float 0.000000e+00, float 0.000000e+00, i32 0) #1, !alias.scope !28, !noalias !25
+  %81 = extractvalue { <4 x float>, i8 } %80, 0
+  %82 = fsub <4 x float> %76, %81
+  %83 = tail call { <4 x float>, i8 } @air.sample_texture_2d.v4f32(%struct._texture_2d_t addrspace(1)* nocapture readonly %4, %struct._sampler_t addrspace(2)* nocapture readonly %2, <2 x float> %60, i1 true, <2 x i32> zeroinitializer, i1 false, float 0.000000e+00, float 0.000000e+00, i32 0) #1, !alias.scope !28, !noalias !25
+  %84 = extractvalue { <4 x float>, i8 } %83, 0
+  %85 = fsub <4 x float> %79, %84
+  %86 = extractelement <2 x float> %59, i64 1
+  %87 = fadd float %86, 1.000000e+00
+  %88 = insertelement <2 x float> %59, float %87, i64 1
+  %89 = extractelement <2 x float> %60, i64 1
+  %90 = fadd float %89, 1.000000e+00
+  %91 = insertelement <2 x float> %60, float %90, i64 1
+  %92 = extractelement <2 x i32> %61, i64 1
+  %93 = add i32 %92, 1
+  %94 = insertelement <2 x i32> %61, i32 %93, i64 1
+  %95 = add nuw nsw i32 %64, 1
+  %96 = icmp eq i32 %95, %34
+  br i1 %96, label %97, label %58, !llvm.loop !41
+
+97:                                               ; preds = %58, %28, %7
+  ret void
+}
+
+; Function Attrs: argmemonly convergent nounwind readonly
+declare { <4 x float>, i8 } @air.sample_texture_2d.v4f32(%struct._texture_2d_t addrspace(1)* nocapture readonly, %struct._sampler_t addrspace(2)* nocapture readonly, <2 x float>, i1, <2 x i32>, i1, float, float, i32) local_unnamed_addr #1
+
+; Function Attrs: argmemonly nounwind
+declare void @air.write_texture_2d.v4f32(%struct._texture_2d_t addrspace(1)* nocapture, <2 x i32>, <4 x float>, i32, i32) local_unnamed_addr #2
+
+; Function Attrs: nounwind readnone
+declare <4 x float> @air.clamp.v4f32(<4 x float>, <4 x float>, <4 x float>) local_unnamed_addr #3
+
+; Function Attrs: nocallback nofree nosync nounwind readnone speculatable willreturn
+declare <4 x float> @llvm.fmuladd.v4f32(<4 x float>, <4 x float>, <4 x float>) #4
+
+; Function Attrs: nounwind readnone
+declare <2 x float> @air.convert.f.v2f32.u.v2i32(<2 x i32>) local_unnamed_addr #3
+
+; Function Attrs: nounwind readnone
+declare float @air.convert.f.f32.s.i32(i32) local_unnamed_addr #3
+
+attributes #0 = { convergent nounwind "frame-pointer"="all" "min-legal-vector-width"="128" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+attributes #1 = { argmemonly convergent nounwind readonly }
+attributes #2 = { argmemonly nounwind }
+attributes #3 = { nounwind readnone }
+attributes #4 = { nocallback nofree nosync nounwind readnone speculatable willreturn }
+
+!llvm.module.flags = !{!0, !1, !2, !3, !4, !5, !6, !7}
+!llvm.ident = !{!8}
+!air.version = !{!9}
+!air.language_version = !{!10}
+!air.compile_options = !{!11, !12, !13}
+!air.kernel = !{!14}
+
+!0 = !{i32 2, !"SDK Version", [2 x i32] [i32 26, i32 4]}
+!1 = !{i32 1, !"wchar_size", i32 4}
+!2 = !{i32 7, !"air.max_device_buffers", i32 31}
+!3 = !{i32 7, !"air.max_constant_buffers", i32 31}
+!4 = !{i32 7, !"air.max_threadgroup_buffers", i32 31}
+!5 = !{i32 7, !"air.max_textures", i32 128}
+!6 = !{i32 7, !"air.max_read_write_textures", i32 8}
+!7 = !{i32 7, !"air.max_samplers", i32 16}
+!8 = !{!"Apple metal version 32023.883 (metalfe-32023.883)"}
+!9 = !{i32 2, i32 3, i32 0}
+!10 = !{!"Metal", i32 2, i32 3, i32 0}
+!11 = !{!"air.compile.denorms_disable"}
+!12 = !{!"air.compile.fast_math_disable"}
+!13 = !{!"air.compile.framebuffer_fetch_enable"}
+!14 = !{void (%"struct.soGuidedFilter::soGuidedFilter_I1p1_Pass4_params" addrspace(2)*, <2 x i32>, %struct._sampler_t addrspace(2)*, %struct._texture_2d_t addrspace(1)*, %struct._texture_2d_t addrspace(1)*, %struct._texture_2d_t addrspace(1)*, %struct._texture_2d_t addrspace(1)*)* @"soGuidedFilter::soGuidedFilter_I1p3_Pass4", !15, !16}
+!15 = !{}
+!16 = !{!17, !19, !20, !21, !22, !23, !24}
+!17 = !{i32 0, !"air.buffer", !"air.location_index", i32 0, i32 1, !"air.read", !"air.struct_type_info", !18, !"air.arg_type_size", i32 32, !"air.arg_type_align_size", i32 16, !"air.arg_type_name", !"soGuidedFilter::soGuidedFilter_I1p3_Pass4_params", !"air.arg_name", !"params"}
+!18 = !{i32 0, i32 16, i32 0, !"int4", !"m_rect_in", i32 16, i32 4, i32 0, !"int", !"m_radius", i32 20, i32 4, i32 0, !"int", !"m_numPixelsInRect"}
+!19 = !{i32 1, !"air.thread_position_in_grid", !"air.arg_type_name", !"uint2", !"air.arg_name", !"grid_in"}
+!20 = !{i32 2, !"air.sampler", !"air.location_index", i32 0, i32 1, !"air.arg_type_name", !"sampler", !"air.arg_name", !"sam"}
+!21 = !{i32 3, !"air.texture", !"air.location_index", i32 0, i32 1, !"air.sample", !"air.arg_type_name", !"texture2d<float, sample>", !"air.arg_name", !"input_a_mean_row"}
+!22 = !{i32 4, !"air.texture", !"air.location_index", i32 1, i32 1, !"air.sample", !"air.arg_type_name", !"texture2d<float, sample>", !"air.arg_name", !"input_b_mean_row"}
+!23 = !{i32 5, !"air.texture", !"air.location_index", i32 2, i32 1, !"air.sample", !"air.arg_type_name", !"texture2d<float, sample>", !"air.arg_name", !"input_I"}
+!24 = !{i32 6, !"air.texture", !"air.location_index", i32 3, i32 1, !"air.write", !"air.arg_type_name", !"texture2d<float, write>", !"air.arg_name", !"output_q"}
+!25 = !{!26}
+!26 = distinct !{!26, !27, !"air-alias-scope-arg(0)"}
+!27 = distinct !{!27, !"air-alias-scopes(soGuidedFilter::soGuidedFilter_I1p3_Pass4)"}
+!28 = !{!29, !30}
+!29 = distinct !{!29, !27, !"air-alias-scope-samplers"}
+!30 = distinct !{!30, !27, !"air-alias-scope-textures"}
+!31 = !{!32, !35, i64 16}
+!32 = !{!"_ZTSN14soGuidedFilter32soGuidedFilter_I1p3_Pass4_paramsE", !33, i64 0, !35, i64 16, !35, i64 20}
+!33 = !{!"omnipotent char", !34, i64 0}
+!34 = !{!"Simple C++ TBAA"}
+!35 = !{!"int", !33, i64 0}
+!36 = !{!32, !35, i64 20}
+!37 = distinct !{!37, !38}
+!38 = !{!"llvm.loop.mustprogress"}
+!39 = !{!30}
+!40 = !{!26, !29}
+!41 = distinct !{!41, !38}
+
