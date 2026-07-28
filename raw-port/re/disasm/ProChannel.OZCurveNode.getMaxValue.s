@@ -1,0 +1,7 @@
+__ZN11OZCurveNode11getMaxValueEb:
+0000000000029c66	pushq	%rbp
+0000000000029c67	movq	%rsp, %rbp
+0000000000029c6a	xorps	%xmm0, %xmm0
+0000000000029c6d	popq	%rbp
+0000000000029c6e	retq
+0000000000029c6f	nop
