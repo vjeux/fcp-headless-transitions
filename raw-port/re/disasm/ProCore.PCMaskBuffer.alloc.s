@@ -1,0 +1,31 @@
+__ZN12PCMaskBuffer5allocEii:
+00000000000c487c	pushq	%rbp
+00000000000c487d	movq	%rsp, %rbp
+00000000000c4880	pushq	%r15
+00000000000c4882	pushq	%r14
+00000000000c4884	pushq	%rbx
+00000000000c4885	pushq	%rax
+00000000000c4886	movl	%edx, %ebx
+00000000000c4888	movl	%esi, %r14d
+00000000000c488b	movq	%rdi, %r15
+00000000000c488e	movl	%edx, %eax
+00000000000c4890	imull	%esi, %eax
+00000000000c4893	movslq	%eax, %rdi
+00000000000c4896	callq	0xde6c6                         ## symbol stub for: __Znam
+00000000000c489b	movq	%rax, (%r15)
+00000000000c489e	movl	%r14d, 0x8(%r15)
+00000000000c48a2	movl	%ebx, 0xc(%r15)
+00000000000c48a6	movl	%r14d, 0x10(%r15)
+00000000000c48aa	xorl	%eax, %eax
+00000000000c48ac	movl	%eax, 0x14(%r15)
+00000000000c48b0	decl	%r14d
+00000000000c48b3	movl	%r14d, 0x18(%r15)
+00000000000c48b7	movl	%eax, 0x1c(%r15)
+00000000000c48bb	decl	%ebx
+00000000000c48bd	movl	%ebx, 0x20(%r15)
+00000000000c48c1	addq	$0x8, %rsp
+00000000000c48c5	popq	%rbx
+00000000000c48c6	popq	%r14
+00000000000c48c8	popq	%r15
+00000000000c48ca	popq	%rbp
+00000000000c48cb	retq

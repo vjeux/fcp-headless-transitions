@@ -1,0 +1,14 @@
+__ZN12PCMaskBufferC1EPhiii:
+00000000000c481a	pushq	%rbp
+00000000000c481b	movq	%rsp, %rbp
+00000000000c481e	decl	%edx
+00000000000c4820	xorps	%xmm0, %xmm0
+00000000000c4823	movups	%xmm0, (%rdi)
+00000000000c4826	movq	$0x0, 0x10(%rdi)
+00000000000c482e	movl	%edx, 0x18(%rdi)
+00000000000c4831	movl	$0x0, 0x1c(%rdi)
+00000000000c4838	decl	%ecx
+00000000000c483a	movl	%ecx, 0x20(%rdi)
+00000000000c483d	popq	%rbp
+00000000000c483e	retq
+00000000000c483f	nop

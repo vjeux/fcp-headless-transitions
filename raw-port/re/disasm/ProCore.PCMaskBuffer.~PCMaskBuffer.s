@@ -1,0 +1,5 @@
+__ZN12PCMaskBufferD1Ev:
+00000000000c4876	pushq	%rbp
+00000000000c4877	movq	%rsp, %rbp
+00000000000c487a	popq	%rbp
+00000000000c487b	retq
