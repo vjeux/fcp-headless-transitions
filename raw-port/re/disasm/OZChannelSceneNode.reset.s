@@ -1,0 +1,33 @@
+__ZN18OZChannelSceneNode5resetEb:
+0000000000213cd0	pushq	%rbp
+0000000000213cd1	movq	%rsp, %rbp
+0000000000213cd4	pushq	%r14
+0000000000213cd6	pushq	%rbx
+0000000000213cd7	movq	%rdi, %rbx
+0000000000213cda	movq	0x100(%rdi), %rdi
+0000000000213ce1	testq	%rdi, %rdi
+0000000000213ce4	je	0x213d44
+0000000000213ce6	movq	0x138(%rdi), %rax
+0000000000213ced	addq	$0x138, %rdi                    ## imm = 0x138
+0000000000213cf4	movzbl	%sil, %r14d
+0000000000213cf8	movl	%r14d, %esi
+0000000000213cfb	callq	*0x120(%rax)
+0000000000213d01	movq	0x100(%rbx), %rdi
+0000000000213d08	movq	0x338(%rdi), %rax
+0000000000213d0f	addq	$0x338, %rdi                    ## imm = 0x338
+0000000000213d16	movl	%r14d, %esi
+0000000000213d19	callq	*0x120(%rax)
+0000000000213d1f	movq	0x100(%rbx), %rdi
+0000000000213d26	movq	0x1b8(%rdi), %rax
+0000000000213d2d	addq	$0x1b8, %rdi                    ## imm = 0x1B8
+0000000000213d34	movq	0x120(%rax), %rax
+0000000000213d3b	movl	%r14d, %esi
+0000000000213d3e	popq	%rbx
+0000000000213d3f	popq	%r14
+0000000000213d41	popq	%rbp
+0000000000213d42	jmpq	*%rax
+0000000000213d44	popq	%rbx
+0000000000213d45	popq	%r14
+0000000000213d47	popq	%rbp
+0000000000213d48	retq
+0000000000213d49	nopl	(%rax)
