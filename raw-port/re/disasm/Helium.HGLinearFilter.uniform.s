@@ -1,0 +1,7 @@
+__ZN14HGLinearFilter7uniformEfff:
+000000000010f060	pushq	%rbp
+000000000010f061	movq	%rsp, %rbp
+000000000010f064	movaps	%xmm1, %xmm0
+000000000010f067	popq	%rbp
+000000000010f068	retq
+000000000010f069	nopl	(%rax)
