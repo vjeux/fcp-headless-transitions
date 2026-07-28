@@ -24,7 +24,11 @@ git fetch -q origin
 git show-ref --verify -q "refs/heads/$BR" || { echo "no branch $BR"; exit 1; }
 
 # what did this branch change under raw-port/src vs origin/main?
-CHANGED="$(git diff --name-only origin/main "$BR" -- 'raw-port/src/**/*.ts' | sed "s#^#$REPO/#")"
+# what did THIS BRANCH change under raw-port/src vs the MERGE-BASE with origin/main?
+# 3-dot (origin/main...BR) = only commits unique to the branch. 2-dot would also list files that
+# origin/main added since the branch point (they appear as deletions from the branch's side), which
+# the G0 existence gate would then wrongly reject even though this branch never touched them.
+CHANGED="$(git diff --name-only origin/main...$BR -- 'raw-port/src/**/*.ts' | sed "s#^#$REPO/#")"
 echo "== gating $BR changed files: =="; echo "$CHANGED" | sed 's/^/  /'
 if [ -n "$CHANGED" ]; then
   # gate runs against the BRANCH content in a throwaway gate-worktree so tsc sees its files.
