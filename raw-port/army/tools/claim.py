@@ -132,8 +132,10 @@ def _shader_candidates():
     led = json.load(open(p))
     out = []
     for name, meta in led.items():
-        # Shader .ts files are named "<name>.ts" (NOT "shader_<name>.ts").
-        if name in done: continue
+        # On-disk .ts (and .ll) sanitize C++ "::" to "__", so dedup against the sanitized
+        # basename — the raw "::" ledger key never matches a ported file (148 keys have "::").
+        safe = name.replace("::", "__")
+        if safe in done or name in done: continue
         out.append((meta["fw"], name))
     out.sort()
     return out

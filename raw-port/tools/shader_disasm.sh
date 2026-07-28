@@ -6,7 +6,11 @@
 set -uo pipefail
 NAME="${1:?usage: shader_disasm.sh <ShaderName> [framework]}"; FWHINT="${2:-}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"                       # raw-port/
-OUT="$ROOT/re/shaders/${NAME}.ll"; mkdir -p "$(dirname "$OUT")"
+# Canonical on-disk name: C++ "::" is not filesystem/tooling friendly, so map it to "__".
+# The metal-objdump module header still uses the raw "::" name, so we search by $NAME but
+# write to the sanitized $SAFE — .ll / .ts / claim.py dedup all agree on the "__" form.
+SAFE="${NAME//::/__}"
+OUT="$ROOT/re/shaders/${SAFE}.ll"; mkdir -p "$(dirname "$OUT")"
 MOBJDUMP="$(xcrun --find metal-objdump 2>/dev/null || true)"
 [ -z "$MOBJDUMP" ] && MOBJDUMP="$(ls /var/run/com.apple.security.cryptexd/mnt/*/Metal.xctoolchain/usr/bin/metal-objdump 2>/dev/null | head -1)"
 [ -x "$MOBJDUMP" ] || { echo "metal-objdump not found"; exit 1; }
