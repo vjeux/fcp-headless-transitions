@@ -1,0 +1,149 @@
+__ZNK11OZPolygonAA18generateEdgeAADataEPNSt3__16vectorIhNS0_9allocatorIhEEEE:
+000000000015b300	pushq	%rbp
+000000000015b301	movq	%rsp, %rbp
+000000000015b304	pushq	%r15
+000000000015b306	pushq	%r14
+000000000015b308	pushq	%r13
+000000000015b30a	pushq	%r12
+000000000015b30c	pushq	%rbx
+000000000015b30d	subq	$0x18, %rsp
+000000000015b311	movq	%rsi, %r15
+000000000015b314	movq	%rdi, %rbx
+000000000015b317	movq	0x8(%rdi), %r13
+000000000015b31b	imulq	%r13, %r13
+000000000015b31f	movq	(%rsi), %rsi
+000000000015b322	movq	0x8(%r15), %rdi
+000000000015b326	movq	%rdi, %r12
+000000000015b329	subq	%rsi, %r12
+000000000015b32c	movq	%r13, %r14
+000000000015b32f	subq	%r12, %r14
+000000000015b332	jbe	0x15b3d6
+000000000015b338	movq	0x10(%r15), %rax
+000000000015b33c	movq	%rax, %rcx
+000000000015b33f	subq	%rdi, %rcx
+000000000015b342	cmpq	%r14, %rcx
+000000000015b345	jae	0x15b549
+000000000015b34b	subq	%rsi, %rax
+000000000015b34e	leaq	(%rax,%rax), %rcx
+000000000015b352	cmpq	%r13, %rcx
+000000000015b355	cmovbeq	%r13, %rcx
+000000000015b359	movabsq	$0x3fffffffffffffff, %rdx       ## imm = 0x3FFFFFFFFFFFFFFF
+000000000015b363	cmpq	%rdx, %rax
+000000000015b366	movabsq	$0x7fffffffffffffff, %rdi       ## imm = 0x7FFFFFFFFFFFFFFF
+000000000015b370	cmovbq	%rcx, %rdi
+000000000015b374	movq	%rdi, -0x30(%rbp)
+000000000015b378	movq	%rsi, -0x38(%rbp)
+000000000015b37c	callq	0x6dfca2                        ## symbol stub for: __Znwm
+000000000015b381	movq	%rax, -0x40(%rbp)
+000000000015b385	leaq	(%rax,%r12), %rdi
+000000000015b389	addq	%rax, -0x30(%rbp)
+000000000015b38d	addq	%rax, %r13
+000000000015b390	movq	%r14, %rsi
+000000000015b393	callq	0x6dfcba                        ## symbol stub for: ___bzero
+000000000015b398	movq	-0x40(%rbp), %r14
+000000000015b39c	movq	%r14, %rdi
+000000000015b39f	movq	-0x38(%rbp), %rsi
+000000000015b3a3	movq	%r12, %rdx
+000000000015b3a6	callq	0x6dff8a                        ## symbol stub for: _memcpy
+000000000015b3ab	movq	-0x38(%rbp), %rdi
+000000000015b3af	movq	%r14, (%r15)
+000000000015b3b2	movq	%r13, 0x8(%r15)
+000000000015b3b6	movq	-0x30(%rbp), %rax
+000000000015b3ba	movq	%rax, 0x10(%r15)
+000000000015b3be	testq	%rdi, %rdi
+000000000015b3c1	je	0x15b3df
+000000000015b3c3	callq	0x6dfc36                        ## symbol stub for: __ZdlPv
+000000000015b3c8	movq	0x8(%rbx), %r14
+000000000015b3cc	testq	%r14, %r14
+000000000015b3cf	jg	0x15b3ec
+000000000015b3d1	jmp	0x15b537
+000000000015b3d6	jae	0x15b3df
+000000000015b3d8	addq	%r13, %rsi
+000000000015b3db	movq	%rsi, 0x8(%r15)
+000000000015b3df	movq	0x8(%rbx), %r14
+000000000015b3e3	testq	%r14, %r14
+000000000015b3e6	jle	0x15b537
+000000000015b3ec	decq	%r14
+000000000015b3ef	cvtsi2sd	%r14, %xmm0
+000000000015b3f4	movsd	0x10(%rbx), %xmm1
+000000000015b3f9	divsd	%xmm0, %xmm1
+000000000015b3fd	movsd	%xmm1, -0x30(%rbp)
+000000000015b402	movq	(%r15), %r15
+000000000015b405	jmp	0x15b41d
+000000000015b407	nopw	(%rax,%rax)
+000000000015b410	testq	%r14, %r14
+000000000015b413	leaq	-0x1(%r14), %r14
+000000000015b417	jle	0x15b533
+000000000015b41d	xorps	%xmm0, %xmm0
+000000000015b420	cvtsi2sd	%r14, %xmm0
+000000000015b425	mulsd	-0x30(%rbp), %xmm0
+000000000015b42a	xorpd	%xmm1, %xmm1
+000000000015b42e	movsd	%xmm1, -0x38(%rbp)
+000000000015b433	ucomisd	0x5abaad(%rip), %xmm0
+000000000015b43b	jae	0x15b46b
+000000000015b43d	mulsd	%xmm0, %xmm0
+000000000015b441	andpd	0x5ab9c7(%rip), %xmm0
+000000000015b449	mulsd	0x5aba67(%rip), %xmm0
+000000000015b451	callq	0x6dfde0                        ## symbol stub for: _exp
+000000000015b456	addsd	0x5ae112(%rip), %xmm0
+000000000015b45e	divsd	0x5ae112(%rip), %xmm0
+000000000015b466	movsd	%xmm0, -0x38(%rbp)
+000000000015b46b	movq	0x8(%rbx), %r12
+000000000015b46f	testq	%r12, %r12
+000000000015b472	jle	0x15b410
+000000000015b474	incq	%r12
+000000000015b477	jmp	0x15b4d3
+000000000015b479	nopl	(%rax)
+000000000015b480	movsd	0x5a9f58(%rip), %xmm1
+000000000015b488	divsd	0x18(%rbx), %xmm1
+000000000015b48d	callq	0x6e008c                        ## symbol stub for: _pow
+000000000015b492	movapd	%xmm0, %xmm1
+000000000015b496	mulsd	-0x38(%rbp), %xmm1
+000000000015b49b	mulsd	0x5ae0dd(%rip), %xmm1
+000000000015b4a3	addsd	0x5ab9fd(%rip), %xmm1
+000000000015b4ab	addsd	0x5aba1d(%rip), %xmm1
+000000000015b4b3	xorps	%xmm0, %xmm0
+000000000015b4b6	roundsd	$0x9, %xmm1, %xmm0
+000000000015b4bc	cvttsd2si	%xmm0, %eax
+000000000015b4c0	movb	%al, (%r15)
+000000000015b4c3	incq	%r15
+000000000015b4c6	decq	%r12
+000000000015b4c9	cmpq	$0x1, %r12
+000000000015b4cd	jbe	0x15b410
+000000000015b4d3	leaq	-0x2(%r12), %rax
+000000000015b4d8	xorps	%xmm1, %xmm1
+000000000015b4db	cvtsi2sd	%rax, %xmm1
+000000000015b4e0	mulsd	-0x30(%rbp), %xmm1
+000000000015b4e5	xorpd	%xmm0, %xmm0
+000000000015b4e9	ucomisd	0x5ab9f7(%rip), %xmm1
+000000000015b4f1	jae	0x15b480
+000000000015b4f3	mulsd	%xmm1, %xmm1
+000000000015b4f7	andpd	0x5ab911(%rip), %xmm1
+000000000015b4ff	mulsd	0x5ab9b1(%rip), %xmm1
+000000000015b507	movapd	%xmm1, %xmm0
+000000000015b50b	callq	0x6dfde0                        ## symbol stub for: _exp
+000000000015b510	addsd	0x5ae058(%rip), %xmm0
+000000000015b518	divsd	0x5ae058(%rip), %xmm0
+000000000015b520	xorpd	%xmm1, %xmm1
+000000000015b524	ucomisd	%xmm0, %xmm1
+000000000015b528	jbe	0x15b480
+000000000015b52e	jmp	0x15b496
+000000000015b533	movq	0x8(%rbx), %r14
+000000000015b537	movl	%r14d, %eax
+000000000015b53a	addq	$0x18, %rsp
+000000000015b53e	popq	%rbx
+000000000015b53f	popq	%r12
+000000000015b541	popq	%r13
+000000000015b543	popq	%r14
+000000000015b545	popq	%r15
+000000000015b547	popq	%rbp
+000000000015b548	retq
+000000000015b549	leaq	(%rdi,%r14), %r12
+000000000015b54d	movq	%r14, %rsi
+000000000015b550	callq	0x6dfcba                        ## symbol stub for: ___bzero
+000000000015b555	movq	%r12, 0x8(%r15)
+000000000015b559	movq	0x8(%rbx), %r14
+000000000015b55d	testq	%r14, %r14
+000000000015b560	jg	0x15b3ec
+000000000015b566	jmp	0x15b537
+000000000015b568	nopl	(%rax,%rax)
