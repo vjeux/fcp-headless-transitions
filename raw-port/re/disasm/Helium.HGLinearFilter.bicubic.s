@@ -1,0 +1,56 @@
+__ZN14HGLinearFilter7bicubicEfff:
+000000000010f190	pushq	%rbp
+000000000010f191	movq	%rsp, %rbp
+000000000010f194	andps	0x2b8a95(%rip), %xmm0
+000000000010f19b	movss	0x2b8b1d(%rip), %xmm3
+000000000010f1a3	ucomiss	%xmm0, %xmm3
+000000000010f1a6	jbe	0x10f203
+000000000010f1a8	movss	0x2b8b24(%rip), %xmm3
+000000000010f1b0	mulss	%xmm1, %xmm3
+000000000010f1b4	addss	0x2bbdd0(%rip), %xmm3
+000000000010f1bc	subss	%xmm2, %xmm3
+000000000010f1c0	mulss	%xmm0, %xmm3
+000000000010f1c4	mulss	%xmm0, %xmm3
+000000000010f1c8	movaps	%xmm1, %xmm4
+000000000010f1cb	addss	%xmm1, %xmm4
+000000000010f1cf	addss	%xmm2, %xmm4
+000000000010f1d3	addss	0x2c31b9(%rip), %xmm4
+000000000010f1db	mulss	%xmm0, %xmm4
+000000000010f1df	addss	%xmm3, %xmm4
+000000000010f1e3	mulss	%xmm0, %xmm4
+000000000010f1e7	mulss	0x2c31a9(%rip), %xmm1
+000000000010f1ef	addss	0x2b8ac9(%rip), %xmm1
+000000000010f1f7	addss	%xmm4, %xmm1
+000000000010f1fb	movaps	%xmm1, %xmm3
+000000000010f1fe	movaps	%xmm3, %xmm0
+000000000010f201	popq	%rbp
+000000000010f202	retq
+000000000010f203	xorps	%xmm3, %xmm3
+000000000010f206	movss	0x2bbd7e(%rip), %xmm4
+000000000010f20e	ucomiss	%xmm0, %xmm4
+000000000010f211	jbe	0x10f1fe
+000000000010f213	movss	0x2c3175(%rip), %xmm3
+000000000010f21b	mulss	%xmm1, %xmm3
+000000000010f21f	subss	%xmm2, %xmm3
+000000000010f223	mulss	%xmm0, %xmm3
+000000000010f227	movss	0x2c0429(%rip), %xmm4
+000000000010f22f	mulss	%xmm2, %xmm4
+000000000010f233	addss	%xmm1, %xmm4
+000000000010f237	addss	%xmm3, %xmm4
+000000000010f23b	mulss	%xmm0, %xmm4
+000000000010f23f	movss	0x2bad7d(%rip), %xmm3
+000000000010f247	mulss	%xmm2, %xmm3
+000000000010f24b	movaps	%xmm1, %xmm5
+000000000010f24e	addss	%xmm1, %xmm5
+000000000010f252	subss	%xmm5, %xmm3
+000000000010f256	addss	%xmm4, %xmm3
+000000000010f25a	mulss	0x2bc88a(%rip), %xmm1
+000000000010f262	mulss	0x2bb082(%rip), %xmm2
+000000000010f26a	mulss	%xmm0, %xmm3
+000000000010f26e	addss	%xmm1, %xmm2
+000000000010f272	addss	%xmm3, %xmm2
+000000000010f276	movaps	%xmm2, %xmm3
+000000000010f279	movaps	%xmm3, %xmm0
+000000000010f27c	popq	%rbp
+000000000010f27d	retq
+000000000010f27e	nop

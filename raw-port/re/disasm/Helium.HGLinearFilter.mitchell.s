@@ -1,0 +1,33 @@
+__ZN14HGLinearFilter8mitchellEfff:
+000000000010f340	pushq	%rbp
+000000000010f341	movq	%rsp, %rbp
+000000000010f344	andps	0x2b88e5(%rip), %xmm0
+000000000010f34b	movss	0x2b896d(%rip), %xmm1
+000000000010f353	ucomiss	%xmm0, %xmm1
+000000000010f356	jbe	0x10f384
+000000000010f358	movss	0x2c3048(%rip), %xmm1
+000000000010f360	mulss	%xmm0, %xmm1
+000000000010f364	mulss	%xmm0, %xmm1
+000000000010f368	movaps	%xmm0, %xmm2
+000000000010f36b	addss	%xmm0, %xmm2
+000000000010f36f	subss	%xmm2, %xmm1
+000000000010f373	mulss	%xmm0, %xmm1
+000000000010f377	addss	0x2c302d(%rip), %xmm1
+000000000010f37f	movaps	%xmm1, %xmm0
+000000000010f382	popq	%rbp
+000000000010f383	retq
+000000000010f384	xorps	%xmm1, %xmm1
+000000000010f387	movss	0x2bbbfd(%rip), %xmm2
+000000000010f38f	ucomiss	%xmm0, %xmm2
+000000000010f392	jbe	0x10f37f
+000000000010f394	movss	0x2c3000(%rip), %xmm1
+000000000010f39c	mulss	%xmm0, %xmm1
+000000000010f3a0	addss	0x2bbbe4(%rip), %xmm1
+000000000010f3a8	mulss	%xmm0, %xmm1
+000000000010f3ac	addss	0x2c2fec(%rip), %xmm1
+000000000010f3b4	mulss	%xmm0, %xmm1
+000000000010f3b8	addss	0x2c2fe4(%rip), %xmm1
+000000000010f3c0	movaps	%xmm1, %xmm0
+000000000010f3c3	popq	%rbp
+000000000010f3c4	retq
+000000000010f3c5	nopw	%cs:(%rax,%rax)
