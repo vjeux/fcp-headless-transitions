@@ -1,0 +1,266 @@
+__ZN19dftPhaseCorrelation25calculatePhaseCorrelationEPfS0_:
+0000000001223f00	pushq	%rbp
+0000000001223f01	movq	%rsp, %rbp
+0000000001223f04	pushq	%r15
+0000000001223f06	pushq	%r14
+0000000001223f08	pushq	%r13
+0000000001223f0a	pushq	%r12
+0000000001223f0c	pushq	%rbx
+0000000001223f0d	subq	$0x58, %rsp
+0000000001223f11	movq	%rdx, -0x50(%rbp)
+0000000001223f15	movq	%rsi, -0x48(%rbp)
+0000000001223f19	movq	%rdi, %rbx
+0000000001223f1c	leaq	0x8(%rdi), %rax
+0000000001223f20	movq	%rax, -0x60(%rbp)
+0000000001223f24	movq	0x8(%rdi), %rdi
+0000000001223f28	movslq	0x48(%rbx), %rdx
+0000000001223f2c	movl	$0x1, %esi
+0000000001223f31	callq	0x1497e06                       ## symbol stub for: _vDSP_vclr
+0000000001223f36	movq	0x10(%rbx), %rdi
+0000000001223f3a	movslq	0x48(%rbx), %rdx
+0000000001223f3e	movl	$0x1, %esi
+0000000001223f43	callq	0x1497e06                       ## symbol stub for: _vDSP_vclr
+0000000001223f48	leaq	0x18(%rbx), %rax
+0000000001223f4c	movq	%rax, -0x70(%rbp)
+0000000001223f50	movq	0x18(%rbx), %rdi
+0000000001223f54	movslq	0x48(%rbx), %rdx
+0000000001223f58	movl	$0x1, %esi
+0000000001223f5d	callq	0x1497e06                       ## symbol stub for: _vDSP_vclr
+0000000001223f62	movq	0x20(%rbx), %rdi
+0000000001223f66	movslq	0x48(%rbx), %rdx
+0000000001223f6a	movl	$0x1, %esi
+0000000001223f6f	callq	0x1497e06                       ## symbol stub for: _vDSP_vclr
+0000000001223f74	movq	0x28(%rbx), %rdi
+0000000001223f78	movslq	0x48(%rbx), %rdx
+0000000001223f7c	movl	$0x1, %esi
+0000000001223f81	callq	0x1497e06                       ## symbol stub for: _vDSP_vclr
+0000000001223f86	movq	%rbx, -0x38(%rbp)
+0000000001223f8a	movslq	0x48(%rbx), %r14
+0000000001223f8e	testq	%r14, %r14
+0000000001223f91	jle	0x1224122
+0000000001223f97	movq	-0x38(%rbp), %rax
+0000000001223f9b	movq	0x8(%rax), %rcx
+0000000001223f9f	movq	%rcx, -0x30(%rbp)
+0000000001223fa3	movq	0x10(%rax), %r15
+0000000001223fa7	cvtsi2sd	%r14d, %xmm0
+0000000001223fac	movsd	0x3595ac(%rip), %xmm1
+0000000001223fb4	divsd	%xmm0, %xmm1
+0000000001223fb8	movsd	%xmm1, -0x68(%rbp)
+0000000001223fbd	addsd	0x348a3b(%rip), %xmm0
+0000000001223fc5	mulsd	0x348a6b(%rip), %xmm0
+0000000001223fcd	cvttsd2si	%xmm0, %eax
+0000000001223fd1	movslq	%eax, %r12
+0000000001223fd4	xorl	%r13d, %r13d
+0000000001223fd7	jmp	0x1223fec
+0000000001223fd9	nopl	(%rax)
+0000000001223fe0	incq	%r13
+0000000001223fe3	cmpq	%r14, %r13
+0000000001223fe6	je	0x1224072
+0000000001223fec	movq	-0x30(%rbp), %rax
+0000000001223ff0	movl	$0x0, (%rax,%r13,4)
+0000000001223ff8	movl	$0x0, (%r15,%r13,4)
+0000000001224000	xorps	%xmm0, %xmm0
+0000000001224003	cvtsi2sd	%r13d, %xmm0
+0000000001224008	mulsd	-0x68(%rbp), %xmm0
+000000000122400d	movsd	%xmm0, -0x40(%rbp)
+0000000001224012	xorl	%ebx, %ebx
+0000000001224014	jmp	0x1224028
+0000000001224016	nopw	%cs:(%rax,%rax)
+0000000001224020	incq	%rbx
+0000000001224023	cmpq	%rbx, %r14
+0000000001224026	je	0x1223fe0
+0000000001224028	cmpq	%r12, %rbx
+000000000122402b	jge	0x1224020
+000000000122402d	xorps	%xmm0, %xmm0
+0000000001224030	cvtsi2sd	%ebx, %xmm0
+0000000001224034	mulsd	-0x40(%rbp), %xmm0
+0000000001224039	callq	0x14974e8                       ## symbol stub for: ___sincos_stret
+000000000122403e	cvtsd2ss	%xmm0, %xmm0
+0000000001224042	cvtsd2ss	%xmm1, %xmm1
+0000000001224046	movq	-0x48(%rbp), %rax
+000000000122404a	mulss	(%rax,%rbx,4), %xmm1
+000000000122404f	movq	-0x30(%rbp), %rcx
+0000000001224053	addss	(%rcx,%r13,4), %xmm1
+0000000001224059	movss	%xmm1, (%rcx,%r13,4)
+000000000122405f	mulss	(%rax,%rbx,4), %xmm0
+0000000001224064	addss	(%r15,%r13,4), %xmm0
+000000000122406a	movss	%xmm0, (%r15,%r13,4)
+0000000001224070	jmp	0x1224020
+0000000001224072	movq	-0x38(%rbp), %rax
+0000000001224076	movq	0x18(%rax), %rcx
+000000000122407a	movq	%rcx, -0x30(%rbp)
+000000000122407e	movq	0x20(%rax), %r15
+0000000001224082	xorl	%r13d, %r13d
+0000000001224085	jmp	0x122409c
+0000000001224087	nopw	(%rax,%rax)
+0000000001224090	incq	%r13
+0000000001224093	cmpq	%r14, %r13
+0000000001224096	je	0x1224122
+000000000122409c	movq	-0x30(%rbp), %rax
+00000000012240a0	movl	$0x0, (%rax,%r13,4)
+00000000012240a8	movl	$0x0, (%r15,%r13,4)
+00000000012240b0	xorps	%xmm0, %xmm0
+00000000012240b3	cvtsi2sd	%r13d, %xmm0
+00000000012240b8	mulsd	-0x68(%rbp), %xmm0
+00000000012240bd	movsd	%xmm0, -0x40(%rbp)
+00000000012240c2	xorl	%ebx, %ebx
+00000000012240c4	jmp	0x12240d8
+00000000012240c6	nopw	%cs:(%rax,%rax)
+00000000012240d0	incq	%rbx
+00000000012240d3	cmpq	%rbx, %r14
+00000000012240d6	je	0x1224090
+00000000012240d8	cmpq	%r12, %rbx
+00000000012240db	jge	0x12240d0
+00000000012240dd	xorps	%xmm0, %xmm0
+00000000012240e0	cvtsi2sd	%ebx, %xmm0
+00000000012240e4	mulsd	-0x40(%rbp), %xmm0
+00000000012240e9	callq	0x14974e8                       ## symbol stub for: ___sincos_stret
+00000000012240ee	cvtsd2ss	%xmm0, %xmm0
+00000000012240f2	cvtsd2ss	%xmm1, %xmm1
+00000000012240f6	movq	-0x50(%rbp), %rax
+00000000012240fa	mulss	(%rax,%rbx,4), %xmm1
+00000000012240ff	movq	-0x30(%rbp), %rcx
+0000000001224103	addss	(%rcx,%r13,4), %xmm1
+0000000001224109	movss	%xmm1, (%rcx,%r13,4)
+000000000122410f	mulss	(%rax,%rbx,4), %xmm0
+0000000001224114	addss	(%r15,%r13,4), %xmm0
+000000000122411a	movss	%xmm0, (%r15,%r13,4)
+0000000001224120	jmp	0x12240d0
+0000000001224122	movq	%r14, (%rsp)
+0000000001224126	movl	$0x1, %esi
+000000000122412b	movl	$0x1, %ecx
+0000000001224130	movl	$0x1, %r9d
+0000000001224136	movq	-0x70(%rbp), %rdi
+000000000122413a	movq	-0x60(%rbp), %rdx
+000000000122413e	movq	%rdi, %r8
+0000000001224141	callq	0x1497e54                       ## symbol stub for: _vDSP_zvcmul
+0000000001224146	movq	-0x38(%rbp), %rbx
+000000000122414a	movq	0x8(%rbx), %rdi
+000000000122414e	movslq	0x48(%rbx), %rdx
+0000000001224152	movl	$0x1, %esi
+0000000001224157	callq	0x1497e06                       ## symbol stub for: _vDSP_vclr
+000000000122415c	movq	0x10(%rbx), %rdi
+0000000001224160	movslq	0x48(%rbx), %rdx
+0000000001224164	movl	$0x1, %esi
+0000000001224169	callq	0x1497e06                       ## symbol stub for: _vDSP_vclr
+000000000122416e	movq	0x8(%rbx), %r8
+0000000001224172	movq	0x18(%rbx), %rdi
+0000000001224176	movq	0x20(%rbx), %rdx
+000000000122417a	movslq	0x48(%rbx), %rax
+000000000122417e	movq	%rax, (%rsp)
+0000000001224182	movl	$0x1, %esi
+0000000001224187	movl	$0x1, %ecx
+000000000122418c	movl	$0x1, %r9d
+0000000001224192	callq	0x1497e0c                       ## symbol stub for: _vDSP_vdist
+0000000001224197	movq	0x8(%rbx), %rdi
+000000000122419b	movq	0x18(%rbx), %rdx
+000000000122419f	movslq	0x48(%rbx), %rax
+00000000012241a3	movq	%rax, (%rsp)
+00000000012241a7	movl	$0x1, %esi
+00000000012241ac	movl	$0x1, %ecx
+00000000012241b1	movl	$0x1, %r9d
+00000000012241b7	movq	%rdx, %r8
+00000000012241ba	callq	0x1497e12                       ## symbol stub for: _vDSP_vdiv
+00000000012241bf	movq	0x8(%rbx), %rdi
+00000000012241c3	movq	0x20(%rbx), %rdx
+00000000012241c7	movslq	0x48(%rbx), %rax
+00000000012241cb	movq	%rax, (%rsp)
+00000000012241cf	movl	$0x1, %esi
+00000000012241d4	movl	$0x1, %ecx
+00000000012241d9	movl	$0x1, %r9d
+00000000012241df	movq	%rdx, %r8
+00000000012241e2	callq	0x1497e12                       ## symbol stub for: _vDSP_vdiv
+00000000012241e7	movq	0x8(%rbx), %rdi
+00000000012241eb	movslq	0x48(%rbx), %rdx
+00000000012241ef	movl	$0x1, %esi
+00000000012241f4	callq	0x1497e06                       ## symbol stub for: _vDSP_vclr
+00000000012241f9	movq	0x10(%rbx), %rdi
+00000000012241fd	movslq	0x48(%rbx), %rdx
+0000000001224201	movl	$0x1, %esi
+0000000001224206	callq	0x1497e06                       ## symbol stub for: _vDSP_vclr
+000000000122420b	movslq	0x48(%rbx), %r14
+000000000122420f	movq	0x8(%rbx), %rbx
+0000000001224213	testq	%r14, %r14
+0000000001224216	jle	0x12242fc
+000000000122421c	movq	-0x38(%rbp), %rax
+0000000001224220	movq	0x18(%rax), %r13
+0000000001224224	movq	0x20(%rax), %r15
+0000000001224228	cvtsi2sd	%r14d, %xmm0
+000000000122422d	movq	0x10(%rax), %rax
+0000000001224231	movsd	0x34e31f(%rip), %xmm1
+0000000001224239	divsd	%xmm0, %xmm1
+000000000122423d	movsd	%xmm1, -0x48(%rbp)
+0000000001224242	movq	$0x0, -0x30(%rbp)
+000000000122424a	movq	%rax, -0x50(%rbp)
+000000000122424e	nop
+0000000001224250	movq	-0x30(%rbp), %rdi
+0000000001224254	movl	$0x0, (%rbx,%rdi,4)
+000000000122425b	movl	$0x0, (%rax,%rdi,4)
+0000000001224262	xorps	%xmm0, %xmm0
+0000000001224265	cvtsi2sd	%edi, %xmm0
+0000000001224269	mulsd	-0x48(%rbp), %xmm0
+000000000122426e	movsd	%xmm0, -0x40(%rbp)
+0000000001224273	xorl	%r12d, %r12d
+0000000001224276	nopw	%cs:(%rax,%rax)
+0000000001224280	xorps	%xmm0, %xmm0
+0000000001224283	cvtsi2sd	%r12d, %xmm0
+0000000001224288	mulsd	-0x40(%rbp), %xmm0
+000000000122428d	callq	0x14974e8                       ## symbol stub for: ___sincos_stret
+0000000001224292	movq	-0x50(%rbp), %rax
+0000000001224296	cvtsd2ss	%xmm1, %xmm1
+000000000122429a	cvtsd2ss	%xmm0, %xmm0
+000000000122429e	movss	(%r13,%r12,4), %xmm2
+00000000012242a5	mulss	%xmm1, %xmm2
+00000000012242a9	movss	(%r15,%r12,4), %xmm3
+00000000012242af	mulss	%xmm0, %xmm3
+00000000012242b3	subss	%xmm3, %xmm2
+00000000012242b7	movq	-0x30(%rbp), %rdi
+00000000012242bb	addss	(%rbx,%rdi,4), %xmm2
+00000000012242c0	movss	%xmm2, (%rbx,%rdi,4)
+00000000012242c5	mulss	(%r13,%r12,4), %xmm0
+00000000012242cc	mulss	(%r15,%r12,4), %xmm1
+00000000012242d2	addss	%xmm0, %xmm1
+00000000012242d6	addss	(%rax,%rdi,4), %xmm1
+00000000012242db	movss	%xmm1, (%rax,%rdi,4)
+00000000012242e0	incq	%r12
+00000000012242e3	cmpq	%r12, %r14
+00000000012242e6	jne	0x1224280
+00000000012242e8	movq	-0x30(%rbp), %r8
+00000000012242ec	incq	%r8
+00000000012242ef	movq	%r8, -0x30(%rbp)
+00000000012242f3	cmpq	%r14, %r8
+00000000012242f6	jne	0x1224250
+00000000012242fc	xorps	%xmm0, %xmm0
+00000000012242ff	cvtsi2ss	%r14d, %xmm0
+0000000001224304	movss	0x3489c4(%rip), %xmm1
+000000000122430c	divss	%xmm0, %xmm1
+0000000001224310	movss	%xmm1, -0x54(%rbp)
+0000000001224315	leaq	-0x54(%rbp), %rdx
+0000000001224319	movl	$0x1, %esi
+000000000122431e	movl	$0x1, %r8d
+0000000001224324	movq	%rbx, %rdi
+0000000001224327	movq	%rbx, %rcx
+000000000122432a	movq	%r14, %r9
+000000000122432d	callq	0x1497e30                       ## symbol stub for: _vDSP_vsmul
+0000000001224332	movq	-0x60(%rbp), %rax
+0000000001224336	movq	(%rax), %rdi
+0000000001224339	testq	%rdi, %rdi
+000000000122433c	je	0x122435a
+000000000122433e	movq	-0x38(%rbp), %rcx
+0000000001224342	leaq	0x38(%rcx), %rdx
+0000000001224346	movslq	0x48(%rcx), %r8
+000000000122434a	addq	$0x30, %rcx
+000000000122434e	movl	$0x1, %esi
+0000000001224353	callq	0x1497ddc                       ## symbol stub for: _vDSP_maxvi
+0000000001224358	jmp	0x1224366
+000000000122435a	leaq	0x45ca27(%rip), %rdi            ## literal pool for: "Error: need to make sure you have a good cross-corr function before attempting to retrieve is peak"
+0000000001224361	callq	0x1497b36                       ## symbol stub for: _puts
+0000000001224366	addq	$0x58, %rsp
+000000000122436a	popq	%rbx
+000000000122436b	popq	%r12
+000000000122436d	popq	%r13
+000000000122436f	popq	%r14
+0000000001224371	popq	%r15
+0000000001224373	popq	%rbp
+0000000001224374	retq
+0000000001224375	nopw	%cs:(%rax,%rax)
