@@ -1,0 +1,8 @@
+__ZNK10HMDTexture7isValidEv:
+00000000005305b0	pushq	%rbp
+00000000005305b1	movq	%rsp, %rbp
+00000000005305b4	cmpq	$0x0, (%rdi)
+00000000005305b8	setne	%al
+00000000005305bb	popq	%rbp
+00000000005305bc	retq
+00000000005305bd	nopl	(%rax)
