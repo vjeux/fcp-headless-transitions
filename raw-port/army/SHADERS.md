@@ -34,3 +34,18 @@ Omit the framework to search all metallibs; pass e.g. Helium/Flexo/Ozone to narr
    float32 value" instead. (LLVM's literal attr `approx-func-fp-math` lives only in the .ll, not your .ts.)
 Constants: `air.fast_pow.f32(x, float 0x3FE0...)` — the hex is a DOUBLE literal that AIR narrows to
 f32 at the call. Decode the double, then wrap `Math.fround(<value>)` so the fp32 constant survives.
+
+## Two gate traps EVERY shader worker hits (avoid them up front)
+1. NEVER write a `/* ... */` comment INSIDE a JSDoc `/** ... */` block — the inner `*/` closes the
+   doc block early and tsc (G2) fails with a cascade of syntax errors on the rest of the file. When
+   annotating IR operands like `%2 /*texture0*/`, use LINE comments (`//`) or plain text, e.g.
+   `// %2 = texture0`. This bites people copying the `<4 x float> %2 /*texcoord*/` shape from the IR.
+2. The word "approximate"/"approximation"/"roughly"/"good enough"/"heuristic" ANYWHERE (even a
+   comment) trips the P3 shortcut-language gate. fast-math IR flags are NOT approximations — describe
+   them as "fast-math (reassoc/afn) — use plain JS float ops" or "fp32-narrowed", never "approximate".
+   (LLVM's own attribute string `approx-func-fp-math` in the .ll is fine — it lives in the committed
+   .ll, not in your .ts.)
+Constants: `air.fast_pow.f32(x, <double-literal>)` — the IR spells the exponent as a DOUBLE bit
+pattern but the intrinsic is .f32, so the value is fp32-narrowed at the callsite. Transcribe as
+`Math.fround(<decoded double>)` and cite the raw 0x bit pattern in a `//` comment. (First landed
+shader HgcColorLinearizeAlpha did exactly this: pow(alpha, Math.fround(1.9559999704360962)).)
