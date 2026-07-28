@@ -22,6 +22,19 @@ git fetch -q origin 2>/dev/null || true
 # fresh branch off the latest origin/main; reuse if it already exists (resume)
 if git worktree list --porcelain | grep -qx "worktree $WT"; then
   echo "worktree exists: $WT (branch $BR) — resuming"
+  # A leftover worktree's branch may be based off a STALE origin/main (many merges ago). If so, the
+  # merge gate later sees files main ADDED as 'missing' and the worker burns cycles rebasing. Refresh
+  # it now: if the worktree is CLEAN and has NO commits of its own (tip is an ancestor of origin/main),
+  # hard-reset it to current origin/main. If it has un-merged local work, leave it (don't destroy work).
+  if [ -z "$(git -C "$WT" status --porcelain)" ]; then
+    TIP="$(git -C "$WT" rev-parse HEAD 2>/dev/null || echo none)"
+    if [ "$TIP" != none ] && git merge-base --is-ancestor "$TIP" origin/main 2>/dev/null; then
+      git -C "$WT" reset -q --hard origin/main
+      echo "  (clean + fully-merged: reset $BR to current origin/main)"
+    else
+      echo "  (has local commits or dirty tree: left as-is — rebase manually if the merge gate complains)"
+    fi
+  fi
 else
   git show-ref --verify -q "refs/heads/$BR" && git branch -q -D "$BR" 2>/dev/null || true
   git worktree add -q -b "$BR" "$WT" origin/main
