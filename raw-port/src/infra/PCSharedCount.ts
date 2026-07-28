@@ -83,26 +83,12 @@
 // four virtual slots + the two counters, faithfully to the disasm.
 // ---------------------------------------------------------------------------
 
-/**
- * The PC_Sp_counted_base control block. Every field corresponds to a decoded
- * offset in the ProCore binary. `dispose` and `destroy` are the two vtable
- * slots that PCSharedCount::~PCSharedCount fires; their signatures come from
- * PC_Sp_counted_base_impl.vtable (already ported).
- *
- * Signature check: PCSharedCount only ever reads +0x00 / +0x08 / +0x0c and
- * calls vptr[+0x10] and vptr[+0x18]. Anything else on this shape is not
- * exercised by PCSharedCount and stays out of this file.
- */
-export interface PC_Sp_counted_base {
-  /** +0x00 vtable slot 0x10 — `dispose()`: destroy owned payload. Cited by D2 @0x4e114. */
-  dispose(): void;
-  /** +0x00 vtable slot 0x18 — `destroy()`: free the control block itself. Cited by D2 @0x4e123. */
-  destroy(): void;
-  /** +0x08 strong-refs (i32). Written atomically. Cited by all counting ops. */
-  use_count: number;
-  /** +0x0c weak-refs (i32). Written atomically. Cited by all counting ops. */
-  weak_count: number;
-}
+// The PC_Sp_counted_base control-block base is now a first-class port living
+// at raw-port/src/infra/PC_Sp_counted_base.ts (transcribed from the six
+// ProCore entry points @0x4df4e..0x4dfef). Import it here as a type so
+// PCSharedCount's `pi_` field stays typed against the real class.
+import { PC_Sp_counted_base } from "./PC_Sp_counted_base.js";
+export { PC_Sp_counted_base };
 
 // ---------------------------------------------------------------------------
 // PCSharedCount — the 8-byte handle.
