@@ -107,3 +107,11 @@ treat it as FRESH work: do the real edit + gate + merge as normal. RECOVERY if y
 placeholder branch: `git worktree remove -f <wt>` + `git branch -D port/<name>` + `git worktree prune`
 + fresh wt_setup + real edit + re-merge. (Verified 2026-07-28: main had 0 stray placeholders after
 one worker self-recovered colorDownsampleVertexFunc.)
+
+## TOOLING NIT: shader_disasm.sh FWHINT glob fails on nested-framework shaders (2026-07-28)
+`shader_disasm.sh <Name> <FW>` with an EXPLICIT framework hint returns "shader not found" for shaders
+in nested frameworks (MAPlugInGUISwift, MAVectorUIKit inside EDEL.framework, etc.) — the FWHINT glob
+path is stale. WORKAROUND: call `shader_disasm.sh <Name>` with NO framework arg — the no-hint path
+scans all metallibs and finds them fine (confirmed for chromaVerb_vertex_untextured/MAPlugInGUISwift
+and fragment_main/MAVectorUIKit). Not blocking; just drop the FW arg. (Script fix deferred to a
+low-load window — don't edit shared tooling while the swarm is live.)
