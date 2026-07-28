@@ -1,0 +1,59 @@
+0x0000000000717b -- fragment_main:
+source_filename = "fragment_main"
+target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v24:32:32-v32:32:32-v48:64:64-v64:64:64-v96:128:128-v128:128:128-v192:256:256-v256:256:256-v512:512:512-v1024:1024:1024-n8:16:32"
+target triple = "air64_v27-apple-macosx15.6.0"
+
+%struct._texture_2d_array_t = type opaque
+%struct._sampler_t = type opaque
+
+; Function Attrs: argmemonly convergent mustprogress nofree nounwind readonly willreturn
+define <4 x half> @fragment_main(<4 x float> %0, <2 x float> %1, i16 %2, %struct._texture_2d_array_t addrspace(1)* nocapture readonly %3, %struct._sampler_t addrspace(2)* nocapture readonly %4) local_unnamed_addr #0 {
+  %6 = zext i16 %2 to i32
+  %7 = tail call { <4 x half>, i8 } @air.sample_texture_2d_array.v4f16(%struct._texture_2d_array_t addrspace(1)* nocapture readonly %3, %struct._sampler_t addrspace(2)* nocapture readonly %4, <2 x float> %1, i32 %6, i1 true, <2 x i32> zeroinitializer, i1 false, float 0.000000e+00, float 0.000000e+00, i32 0) #2, !alias.scope !24
+  %8 = extractvalue { <4 x half>, i8 } %7, 0
+  ret <4 x half> %8
+}
+
+; Function Attrs: argmemonly convergent mustprogress nofree nounwind readonly willreturn
+declare { <4 x half>, i8 } @air.sample_texture_2d_array.v4f16(%struct._texture_2d_array_t addrspace(1)* nocapture readonly, %struct._sampler_t addrspace(2)* nocapture readonly, <2 x float>, i32, i1, <2 x i32>, i1, float, float, i32) local_unnamed_addr #1
+
+attributes #0 = { argmemonly convergent mustprogress nofree nounwind readonly willreturn "approx-func-fp-math"="true" "frame-pointer"="all" "min-legal-vector-width"="128" "no-builtins" "no-infs-fp-math"="true" "no-nans-fp-math"="true" "no-signed-zeros-fp-math"="true" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "unsafe-fp-math"="true" }
+attributes #1 = { argmemonly convergent mustprogress nofree nounwind readonly willreturn }
+attributes #2 = { argmemonly convergent nounwind readonly willreturn }
+
+!llvm.module.flags = !{!0, !1, !2, !3, !4, !5, !6, !7, !8}
+!llvm.ident = !{!9}
+!air.version = !{!10}
+!air.language_version = !{!11}
+!air.compile_options = !{!12, !13, !14}
+!air.fragment = !{!15}
+
+!0 = !{i32 2, !"SDK Version", [2 x i32] [i32 26, i32 4]}
+!1 = !{i32 1, !"wchar_size", i32 4}
+!2 = !{i32 7, !"frame-pointer", i32 2}
+!3 = !{i32 7, !"air.max_device_buffers", i32 31}
+!4 = !{i32 7, !"air.max_constant_buffers", i32 31}
+!5 = !{i32 7, !"air.max_threadgroup_buffers", i32 31}
+!6 = !{i32 7, !"air.max_textures", i32 128}
+!7 = !{i32 7, !"air.max_read_write_textures", i32 8}
+!8 = !{i32 7, !"air.max_samplers", i32 16}
+!9 = !{!"Apple metal version 32023.883 (metalfe-32023.883)"}
+!10 = !{i32 2, i32 7, i32 0}
+!11 = !{!"Metal", i32 3, i32 2, i32 0}
+!12 = !{!"air.compile.denorms_disable"}
+!13 = !{!"air.compile.fast_math_enable"}
+!14 = !{!"air.compile.framebuffer_fetch_enable"}
+!15 = !{<4 x half> (<4 x float>, <2 x float>, i16, %struct._texture_2d_array_t addrspace(1)*, %struct._sampler_t addrspace(2)*)* @fragment_main, !16, !18}
+!16 = !{!17}
+!17 = !{!"air.render_target", i32 0, i32 0, !"air.arg_type_name", !"half4"}
+!18 = !{!19, !20, !21, !22, !23}
+!19 = !{i32 0, !"air.position", !"air.center", !"air.no_perspective", !"air.arg_type_name", !"float4", !"air.arg_name", !"m_Position", !"air.arg_unused"}
+!20 = !{i32 1, !"air.fragment_input", !"user(texturecoord)", !"air.center", !"air.perspective", !"air.arg_type_name", !"float2", !"air.arg_name", !"m_TexCoord"}
+!21 = !{i32 2, !"air.fragment_input", !"generated(4m_IDt)", !"air.flat", !"air.arg_type_name", !"ushort", !"air.arg_name", !"m_ID"}
+!22 = !{i32 3, !"air.texture", !"air.location_index", i32 0, i32 1, !"air.sample", !"air.arg_type_name", !"texture2d_array<half, sample>", !"air.arg_name", !"tex2D"}
+!23 = !{i32 4, !"air.sampler", !"air.location_index", i32 0, i32 1, !"air.arg_type_name", !"sampler", !"air.arg_name", !"mySampler"}
+!24 = !{!25, !27}
+!25 = distinct !{!25, !26, !"air-alias-scope-textures"}
+!26 = distinct !{!26, !"air-alias-scopes(fragment_main)"}
+!27 = distinct !{!27, !26, !"air-alias-scope-samplers"}
+
