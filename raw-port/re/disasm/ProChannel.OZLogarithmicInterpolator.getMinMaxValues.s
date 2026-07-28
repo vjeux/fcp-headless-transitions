@@ -1,0 +1,102 @@
+__ZN25OZLogarithmicInterpolator15getMinMaxValuesER8OZSplinePvS2_RK6CMTimeS5_PdS6_:
+00000000000457dc	pushq	%rbp
+00000000000457dd	movq	%rsp, %rbp
+00000000000457e0	pushq	%r15
+00000000000457e2	pushq	%r14
+00000000000457e4	pushq	%r13
+00000000000457e6	pushq	%r12
+00000000000457e8	pushq	%rbx
+00000000000457e9	subq	$0x88, %rsp
+00000000000457f0	movq	%r9, %r13
+00000000000457f3	movq	%r8, %r15
+00000000000457f6	movq	%rdx, %r14
+00000000000457f9	movq	%rsi, -0x68(%rbp)
+00000000000457fd	movq	%rdi, %r12
+0000000000045800	movq	0x20(%rdx), %rax
+0000000000045804	movq	%rax, -0x70(%rbp)
+0000000000045808	movups	0x10(%rdx), %xmm0
+000000000004580c	movaps	%xmm0, -0x80(%rbp)
+0000000000045810	movq	0x20(%rcx), %rax
+0000000000045814	movq	%rax, -0x50(%rbp)
+0000000000045818	movq	%rcx, %rbx
+000000000004581b	movups	0x10(%rcx), %xmm0
+000000000004581f	movaps	%xmm0, -0x60(%rbp)
+0000000000045823	movq	0x10(%r8), %rax
+0000000000045827	movq	%rax, -0x30(%rbp)
+000000000004582b	movups	(%r8), %xmm0
+000000000004582f	movaps	%xmm0, -0x40(%rbp)
+0000000000045833	movq	0x20(%rdx), %rax
+0000000000045837	movq	%rax, 0x28(%rsp)
+000000000004583c	movups	0x10(%rdx), %xmm0
+0000000000045840	movups	%xmm0, 0x18(%rsp)
+0000000000045845	movq	-0x30(%rbp), %rax
+0000000000045849	movq	%rax, 0x10(%rsp)
+000000000004584e	movaps	-0x40(%rbp), %xmm0
+0000000000045852	movups	%xmm0, (%rsp)
+0000000000045856	callq	0xaca80                         ## symbol stub for: _CMTimeCompare
+000000000004585b	testl	%eax, %eax
+000000000004585d	jle	0x4586f
+000000000004585f	movq	0x10(%r15), %rax
+0000000000045863	movq	%rax, -0x70(%rbp)
+0000000000045867	movups	(%r15), %xmm0
+000000000004586b	movaps	%xmm0, -0x80(%rbp)
+000000000004586f	movq	0x10(%r13), %rax
+0000000000045873	movq	%rax, -0x30(%rbp)
+0000000000045877	movups	(%r13), %xmm0
+000000000004587c	movaps	%xmm0, -0x40(%rbp)
+0000000000045880	movq	-0x50(%rbp), %rax
+0000000000045884	movq	%rax, 0x28(%rsp)
+0000000000045889	movaps	-0x60(%rbp), %xmm0
+000000000004588d	movups	%xmm0, 0x18(%rsp)
+0000000000045892	movq	-0x30(%rbp), %rax
+0000000000045896	movq	%rax, 0x10(%rsp)
+000000000004589b	movapd	-0x40(%rbp), %xmm0
+00000000000458a0	movupd	%xmm0, (%rsp)
+00000000000458a5	callq	0xaca80                         ## symbol stub for: _CMTimeCompare
+00000000000458aa	testl	%eax, %eax
+00000000000458ac	jns	0x458c1
+00000000000458ae	movq	0x10(%r13), %rax
+00000000000458b2	movq	%rax, -0x50(%rbp)
+00000000000458b6	movupd	(%r13), %xmm0
+00000000000458bc	movapd	%xmm0, -0x60(%rbp)
+00000000000458c1	movq	(%r12), %rax
+00000000000458c5	xorl	%ecx, %ecx
+00000000000458c7	movl	%ecx, 0x8(%rsp)
+00000000000458cb	movl	%ecx, (%rsp)
+00000000000458ce	movq	0x84beb(%rip), %rdx             ## literal pool symbol address: _kCMTimeZero
+00000000000458d5	leaq	-0x80(%rbp), %r9
+00000000000458d9	movq	%r12, %rdi
+00000000000458dc	movq	-0x68(%rbp), %r15
+00000000000458e0	movq	%r15, %rsi
+00000000000458e3	movq	%r14, %rcx
+00000000000458e6	movq	%rbx, %r13
+00000000000458e9	movq	%rbx, %r8
+00000000000458ec	callq	*0x18(%rax)
+00000000000458ef	movq	0x10(%rbp), %rbx
+00000000000458f3	movsd	%xmm0, (%rbx)
+00000000000458f7	movq	(%r12), %rax
+00000000000458fb	xorl	%ecx, %ecx
+00000000000458fd	movl	%ecx, 0x8(%rsp)
+0000000000045901	movl	%ecx, (%rsp)
+0000000000045904	leaq	-0x60(%rbp), %r9
+0000000000045908	movq	%r12, %rdi
+000000000004590b	movq	%r15, %rsi
+000000000004590e	movq	0x84bab(%rip), %rdx             ## literal pool symbol address: _kCMTimeZero
+0000000000045915	movq	%r14, %rcx
+0000000000045918	movq	%r13, %r8
+000000000004591b	callq	*0x18(%rax)
+000000000004591e	movq	0x18(%rbp), %rax
+0000000000045922	movsd	%xmm0, (%rax)
+0000000000045926	movsd	(%rbx), %xmm1
+000000000004592a	ucomisd	%xmm0, %xmm1
+000000000004592e	jbe	0x45938
+0000000000045930	movsd	%xmm0, (%rbx)
+0000000000045934	movsd	%xmm1, (%rax)
+0000000000045938	addq	$0x88, %rsp
+000000000004593f	popq	%rbx
+0000000000045940	popq	%r12
+0000000000045942	popq	%r13
+0000000000045944	popq	%r14
+0000000000045946	popq	%r15
+0000000000045948	popq	%rbp
+0000000000045949	retq
