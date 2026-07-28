@@ -1,0 +1,70 @@
+__ZN22HGVignettingCorrection12SetParameterEiffff:
+000000000023ef70	cmpl	$0x4, %esi
+000000000023ef73	ja	0x23f05a
+000000000023ef79	movl	%esi, %eax
+000000000023ef7b	leaq	0xde(%rip), %rcx
+000000000023ef82	movslq	(%rcx,%rax,4), %rax
+000000000023ef86	addq	%rcx, %rax
+000000000023ef89	jmpq	*%rax
+000000000023ef8b	divss	0x18b301(%rip), %xmm0
+000000000023ef93	movss	0x198(%rdi), %xmm1
+000000000023ef9b	ucomiss	%xmm0, %xmm1
+000000000023ef9e	jne	0x23efa6
+000000000023efa0	jnp	0x23f057
+000000000023efa6	movss	%xmm0, 0x198(%rdi)
+000000000023efae	jmp	0x23f047
+000000000023efb3	movss	0x1ac(%rdi), %xmm2
+000000000023efbb	ucomiss	%xmm0, %xmm2
+000000000023efbe	jne	0x23efd5
+000000000023efc0	jp	0x23efd5
+000000000023efc2	movss	0x1b0(%rdi), %xmm2
+000000000023efca	ucomiss	%xmm1, %xmm2
+000000000023efcd	jne	0x23efd5
+000000000023efcf	jnp	0x23f057
+000000000023efd5	movss	%xmm0, 0x1ac(%rdi)
+000000000023efdd	movss	%xmm1, 0x1b0(%rdi)
+000000000023efe5	jmp	0x23f047
+000000000023efe7	movss	0x1a0(%rdi), %xmm1
+000000000023efef	ucomiss	%xmm0, %xmm1
+000000000023eff2	jne	0x23eff6
+000000000023eff4	jnp	0x23f057
+000000000023eff6	movss	%xmm0, 0x1a0(%rdi)
+000000000023effe	jmp	0x23f047
+000000000023f000	movss	0x1a4(%rdi), %xmm2
+000000000023f008	ucomiss	%xmm0, %xmm2
+000000000023f00b	jne	0x23f01e
+000000000023f00d	jp	0x23f01e
+000000000023f00f	movss	0x1a8(%rdi), %xmm2
+000000000023f017	ucomiss	%xmm1, %xmm2
+000000000023f01a	jne	0x23f01e
+000000000023f01c	jnp	0x23f057
+000000000023f01e	movss	%xmm0, 0x1a4(%rdi)
+000000000023f026	movss	%xmm1, 0x1a8(%rdi)
+000000000023f02e	jmp	0x23f047
+000000000023f030	movss	0x19c(%rdi), %xmm1
+000000000023f038	ucomiss	%xmm0, %xmm1
+000000000023f03b	jne	0x23f03f
+000000000023f03d	jnp	0x23f057
+000000000023f03f	movss	%xmm0, 0x19c(%rdi)
+000000000023f047	pushq	%rbp
+000000000023f048	movq	%rsp, %rbp
+000000000023f04b	callq	__ZN6HGNode9ClearBitsEv         ## HGNode::ClearBits()
+000000000023f050	movl	$0x1, %eax
+000000000023f055	popq	%rbp
+000000000023f056	retq
+000000000023f057	xorl	%eax, %eax
+000000000023f059	retq
+000000000023f05a	movl	$0xffffffff, %eax               ## imm = 0xFFFFFFFF
+000000000023f05f	retq
+000000000023f060	subl	%edi, %edi
+000000000023f062	.byte 0xff #bad opcode
+000000000023f063	callq	*%rax
+000000000023f065	.byte 0xff #bad opcode
+000000000023f066	.byte 0xff #bad opcode
+000000000023f067	incl	-0x5f000001(%rdi)
+000000000023f06d	.byte 0xff #bad opcode
+000000000023f06e	.byte 0xff #bad opcode
+000000000023f06f	callq	*-0x1(%rbx)
+000000000023f072	.byte 0xff #bad opcode
+000000000023f073	jmpq	*0x66(%rsi)
+000000000023f076	nopw	%cs:(%rax,%rax)
