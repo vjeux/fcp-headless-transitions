@@ -1,0 +1,14 @@
+__ZNK8FractioneqERKS_:
+0000000001300fd0	pushq	%rbp
+0000000001300fd1	movq	%rsp, %rbp
+0000000001300fd4	movq	(%rdi), %rax
+0000000001300fd7	cmpq	(%rsi), %rax
+0000000001300fda	jne	0x1300fe9
+0000000001300fdc	movq	0x8(%rdi), %rax
+0000000001300fe0	cmpq	0x8(%rsi), %rax
+0000000001300fe4	sete	%al
+0000000001300fe7	popq	%rbp
+0000000001300fe8	retq
+0000000001300fe9	xorl	%eax, %eax
+0000000001300feb	popq	%rbp
+0000000001300fec	retq
