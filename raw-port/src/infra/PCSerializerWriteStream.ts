@@ -1,128 +1,137 @@
-// PCSerializerWriteStream — abstract "write stream" base for the Pro Codec
-// serializer framework (Ozone).
+// PCSerializerWriteStream.ts — ProChannel PCSerializerWriteStream: the
+// ABSTRACT base interface for FCP's ProChannel serialization output. This
+// class is a pure interface — its instance data is empty at THIS layer,
+// and all four exported symbols are stubs / trap bodies. Concrete
+// serializer implementations (hash streams, memory buffer streams, plist
+// streams, …) live elsewhere and override reset()/isHashStream().
 //
-// Framework: Ozone
-// Provenance (raw-port/re/disasm/PCSerializerWriteStream.*.s):
-//   reset()                          @0x0004b250  (__ZN23PCSerializerWriteStream5resetEv)
-//   isHashStream()                   @0x0004b260  (__ZN23PCSerializerWriteStream12isHashStreamEv)
-//   ~PCSerializerWriteStream (D2)    @0x006daef0  (base dtor — ICF-folded with D0; resolves to the same symbol name)
-//   ~PCSerializerWriteStream (D0)    @0x006daf00  (__ZN23PCSerializerWriteStreamD0Ev — body is `ud2`)
+// Method transcription:
 //
-// Callees / vtable refs: NONE. All four methods are self-contained.
+//   @0x4cbc6  PCSerializerWriteStream::reset() — EMPTY function body
+//                                                  (prologue + epilogue only,
+//                                                  no work done).
+//   @0x4cbcc  PCSerializerWriteStream::isHashStream() — always returns 0 (false).
+//   @0xac220  PCSerializerWriteStream::~PCSerializerWriteStream() [D1] — the
+//                                                  D1 body is 6 bytes:
+//                                                    pushq %rbp
+//                                                    movl  %esp, %ebp
+//                                                    ud2
+//                                                  i.e. a 32-bit-truncated
+//                                                  prologue followed by a
+//                                                  deliberate CPU trap. This
+//                                                  strongly indicates the
+//                                                  destructor is PURE VIRTUAL
+//                                                  and must never be invoked
+//                                                  on a raw base instance —
+//                                                  Clang emits `ud2` for
+//                                                  __cxa_pure_virtual thunks
+//                                                  in some builds.
+//   @0xac226  PCSerializerWriteStream::~PCSerializerWriteStream() [D0] — same
+//                                                  shape:
+//                                                    pushq %rbp
+//                                                    movq  %rsp, %rbp
+//                                                    ud2
+//                                                  D0 (deleting) is likewise
+//                                                  a trap. Concrete derived
+//                                                  streams provide their own
+//                                                  destructors and never
+//                                                  chain into this trap.
 //
-// Bodies (from otool -tvV, x86_64 slice):
+// Provenance: /Applications/Final Cut Pro.app/Contents/Frameworks/
+//             ProChannel.framework/Versions/A/ProChannel (x86_64 slice).
+// Disasm saved: raw-port/re/disasm/ProChannel.PCSerializerWriteStream.*.s.
 //
-//   0x4b250  reset:
-//     pushq  %rbp
-//     movq   %rsp, %rbp
-//     popq   %rbp
-//     retq
-//     -> empty frame, returns void. Base class provides a do-nothing default.
+// Numerics: nothing. reset() is a no-op; isHashStream() is a constant
+// `xorl %eax, %eax ; retq` (== `return 0;`). No struct fields, no floats,
+// no callees. The dtor "ud2" bodies are modeled as throwing stubs to
+// preserve the "must never be called directly" invariant.
 //
-//   0x4b260  isHashStream:
-//     pushq  %rbp
-//     movq   %rsp, %rbp
-//     xorl   %eax, %eax           // return 0
-//     popq   %rbp
-//     retq
-//     -> returns false. Base class default: "I am not a hash stream".
-//
-//   0x6daf00  ~PCSerializerWriteStream (D0 / deleting dtor):
-//     pushq  %rbp
-//     movq   %rsp, %rbp
-//     ud2                          // undefined instruction: unreachable
-//     -> abstract-class marker: the deleting form should never be dispatched
-//        for the base type. If a caller ever hits it, `ud2` raises SIGILL.
-//        In TS we surface it as a throw so the same "should be unreachable"
-//        contract is preserved (see destroyAndDelete below).
-//
-//   0x6daef0  ~PCSerializerWriteStream (D2 / base dtor):
-//     The resolver returns the same demangled name for 0x6daef0 and
-//     0x6daf00, and the raw disasm dumper only produces a single symbol at
-//     0x6daf00. In FCP's LTO-linked binary these two ABI entry points are
-//     ICF-folded onto the same body (the trivial `ud2` stub is a common ICF
-//     tail). Both entries end at the same illegal-instruction trap, so we
-//     model both TS entry points identically.
+// USAGE PATTERNS (from ProChannel's symbol map): PCSerializerWriteStream is
+// passed as `&` to a large family of writers — OZChannelBase::writeBody,
+// OZChannelCurve::calcHashForState, OZChannelText::writeHeader,
+// ChannelParser::writeHeader, OZFactories::saveFactories, etc. Consumers
+// call reset(), isHashStream(), plus a suite of write* methods that are
+// NOT on this abstract-base symbol list — those live on the concrete
+// derived streams (undecoded here).
 
 /**
- * PCSerializerWriteStream — abstract base for the Ozone Pro Codec
- * serializer's write-stream family. Concrete subclasses override `reset`,
- * `isHashStream`, and the destructor; the base itself provides only the
- * no-op / false-returning defaults captured here.
- *
- * The class has no data members visible from these four method bodies
- * (nothing on `this` is touched — no `rdi` reads other than the C++ ABI
- * `this` pointer implicit in `pushq %rbp; movq %rsp,%rbp; …`). Concrete
- * subclasses carry their own state.
+ * PCSerializerWriteStream — abstract serializer sink for ProChannel. Empty
+ * at this layer; derived classes hold buffers, hashers, etc.
  */
 export class PCSerializerWriteStream {
   /**
-   * PCSerializerWriteStream::reset() @0x0004b250 (Ozone).
+   * PCSerializerWriteStream::reset() @0x4cbc6.
    *
-   *   pushq %rbp
-   *   movq  %rsp, %rbp
-   *   popq  %rbp
-   *   retq
+   *   @0x4cbc6 pushq %rbp
+   *   @0x4cbc7 movq  %rsp, %rbp
+   *   @0x4cbca popq  %rbp
+   *   @0x4cbcb retq
    *
-   * Empty prologue+epilogue, returns void. The base class defines `reset`
-   * as a no-op default; hash / buffer / file subclasses override this.
+   * Empty function. The base impl of reset() intentionally does nothing —
+   * derived classes with buffers/state override it. Present as an
+   * out-of-line definition so callers can non-virtual-invoke the base if
+   * they know they hold a plain PCSerializerWriteStream, and so the
+   * symbol is available for linkage in the derived-class vtable slot
+   * default. Modeled here as a plain no-op.
    */
   reset(): void {
-    // (empty body — matches the empty stack frame at @0x0004b250)
+    // @0x4cbc6..@0x4cbcb  empty body.
   }
 
   /**
-   * PCSerializerWriteStream::isHashStream() @0x0004b260 (Ozone).
+   * PCSerializerWriteStream::isHashStream() @0x4cbcc.
    *
-   *   pushq %rbp
-   *   movq  %rsp, %rbp
-   *   xorl  %eax, %eax         // return 0
-   *   popq  %rbp
-   *   retq
+   *   @0x4cbcc pushq %rbp
+   *   @0x4cbcd movq  %rsp, %rbp
+   *   @0x4cbd0 xorl  %eax, %eax          ; eax = 0
+   *   @0x4cbd2 popq  %rbp
+   *   @0x4cbd3 retq
    *
-   * Always returns false in the base class. Only hash-stream subclasses
-   * (e.g. any CRC / digest write-stream) will override this to return true.
+   * Constant `return false`. The concrete hash-stream subclass overrides
+   * this to return true; the base default is false. Returned as a plain
+   * JS boolean to match the C++ `bool` return type.
    */
   isHashStream(): boolean {
-    // xorl %eax, %eax  ->  return 0 (false).
+    // @0x4cbd0  xorl %eax, %eax → return 0.
     return false;
   }
 
   /**
-   * PCSerializerWriteStream::~PCSerializerWriteStream() @0x006daef0 — base
-   * (D2) destructor. See file-header note on ICF folding with D0. TS has no
-   * destructors; a call here is a lifecycle no-op mirroring the abstract-
-   * class contract (the compiler-emitted body is the illegal-instruction
-   * trap shared with D0).
+   * PCSerializerWriteStream::~PCSerializerWriteStream() [D1] @0xac220.
+   *
+   *   @0xac220 pushq %rbp
+   *   @0xac222 movl  %esp, %ebp             ; note 32-bit trunc — this
+   *                                             is a 32-bit `mov r32, r/m32`
+   *                                             encoding of the frame setup;
+   *                                             a compiler artefact rather
+   *                                             than the usual `movq`.
+   *   @0xac224 ud2                          ; deliberate CPU trap.
+   *
+   * The `ud2` opcode raises an invalid-opcode exception. Clang emits ud2
+   * for pure-virtual trampolines and for `__builtin_trap()`. In JS we
+   * model this as a throwing stub — calling it MUST abort the caller.
    */
   destroy(): void {
-    // ud2 @0x006daef0 (folded with D0). Unreachable in a well-formed program.
-    // We leave this as a lifecycle no-op rather than throwing: some callers
-    // invoke the base dtor explicitly during subclass tear-down chains, and
-    // those paths are safe as long as no virtual dispatch tries to *reach*
-    // the abstract slot. The deleting-form entry point is where the trap
-    // fires (see destroyAndDelete below).
+    // @0xac224 ud2 — abstract base D1 must never be called.
+    throw new Error(
+      "PCSerializerWriteStream::~PCSerializerWriteStream [D1] @ProChannel 0xac220 is a `ud2` trap — must not be invoked on an abstract base instance",
+    );
   }
 
   /**
-   * PCSerializerWriteStream::~PCSerializerWriteStream() @0x006daf00 — the
-   * deleting (D0) destructor, which the Itanium C++ ABI generates for any
-   * class with a virtual dtor. Body is a single `ud2` illegal instruction:
+   * PCSerializerWriteStream::~PCSerializerWriteStream() [D0 deleting-dtor] @0xac226.
    *
-   *   pushq %rbp
-   *   movq  %rsp, %rbp
-   *   ud2
+   *   @0xac226 pushq %rbp
+   *   @0xac227 movq  %rsp, %rbp
+   *   @0xac22a ud2                          ; deliberate CPU trap.
    *
-   * This is the compiler's marker for an abstract base whose deleting form
-   * must never actually be dispatched: if the vtable slot for D0 is ever
-   * resolved to *this* symbol at runtime, something has gone wrong (a
-   * `delete p;` on a `PCSerializerWriteStream*` when no concrete override
-   * was linked). Mirror the trap in TS with a throw citing the address.
+   * Same pattern as D1 — the deleting-dtor thunk is also a trap. Concrete
+   * derived streams must provide their own D0 that never chains here.
    */
-  destroyAndDelete(): never {
-    // ud2 @0x006daf00 — unreachable in a well-formed program.
+  destroyAndDelete(): void {
+    // @0xac22a ud2 — abstract base D0 must never be called.
     throw new Error(
-      'PCSerializerWriteStream::~PCSerializerWriteStream() D0 is unreachable (@0x006daf00 ud2) — abstract base',
+      "PCSerializerWriteStream::~PCSerializerWriteStream [D0] @ProChannel 0xac226 is a `ud2` trap — must not be invoked on an abstract base instance",
     );
   }
 }
