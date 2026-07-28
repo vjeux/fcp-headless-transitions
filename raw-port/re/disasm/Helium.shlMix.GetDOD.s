@@ -1,0 +1,13 @@
+__ZN6shlMix6GetDODEP10HGRendereri6HGRect:
+000000000014c820	movq	%rcx, %rax
+000000000014c823	cmpl	$0x2, %edx
+000000000014c826	jb	0x14c83b
+000000000014c828	pushq	%rbp
+000000000014c829	movq	%rsp, %rbp
+000000000014c82c	leaq	_HGRectNull(%rip), %rcx
+000000000014c833	movq	(%rcx), %rax
+000000000014c836	movq	0x8(%rcx), %r8
+000000000014c83a	popq	%rbp
+000000000014c83b	movq	%r8, %rdx
+000000000014c83e	retq
+000000000014c83f	nop
