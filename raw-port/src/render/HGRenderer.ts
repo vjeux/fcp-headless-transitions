@@ -117,9 +117,34 @@ import type { HGNode } from "./HGNode";
 // will land later and provide the real backing object.
 // ---------------------------------------------------------------------------
 
-/** Opaque handle to `HGLimits*` — HGLimits::target is u32 at offset 0
- *  (per GetTarget @0xea5d3 `movl (%rax),%eax`). */
-export type HGLimitsPtr = { readonly __brand: "HGLimits" };
+/** Handle to `HGLimits*` — the framework's per-target limits POD.
+ *
+ *  Only the leading u32 has a decoded reader on this file: GetTarget @0xea5d3
+ *  loads `*(u32*)HGLimits+0`, which is the target-id tag itself. Downstream
+ *  call-sites (HgcBT2100_HLG_OETF, HGLensDistort_distort_kernel, ...) compare
+ *  it against constants like 0x60b10 (Metal fragment 1.0) or 0x4700000
+ *  (software/AVX). Additional HGLimits fields (texturerect, tile sizes, ...)
+ *  will be pinned when their reader methods are ported.
+ *
+ *  Kept as a nominal-branded object so downstream code can hold an
+ *  `HGLimitsPtr` opaquely, but the `target` field is real (decoded from
+ *  @0xea5d3). */
+export interface HGLimitsPtr {
+  readonly __brand: "HGLimits";
+  /** @Helium HGLimits +0x00 — u32 target-id tag (loaded by GetTarget
+   *  @0xea5d3 `movl (%rax),%eax`, also by GetParameter #4 @0xea3cf). */
+  target: number;
+}
+
+/** Module-scope Helium `static int g_target` at 0x0000000000addd58
+ *  (nm: `__ZL8g_target`), zero-initialized. Read by
+ *  `HGRenderer::GetTarget(0)` @0xea5c8/@0xea5cf.
+ *
+ *  Exposed as a mutable module-scope holder so the (not-yet-transcribed)
+ *  Helium module-ctor that installs the process-wide default target can
+ *  update it without breaking the GetTarget port. Concrete FCP renders
+ *  observe this as 0 until the ctor runs. */
+export const HGRenderer_g_target: { value: number } = { value: 0 };
 
 /** Opaque handle to `HGRect` — a 16-byte {x,y,w,h} u32 quad in the C++ ABI
  *  (per GetROI @0xf2d6a — `leaq 0xa8(%rax),%rcx / addq $0xb0,%rax`). */
@@ -337,14 +362,19 @@ export class HGRenderer {
     const sel = selector >>> 0;
     if (sel === 0) {
       // Path @0xea5c8/0xea5cf — reads Helium module-scope `g_target` (u32).
-      // Its initializer is set by the Helium module ctors (which are
-      // themselves undecoded); the runtime value depends on which
-      // concrete renderer the process boots with. Refuse rather than
-      // return 0 (which would silently corrupt Metal-vs-CPU dispatch).
-      throw new Error(
-        "HGRenderer::GetTarget(0) @0x000ea5cf reads Helium g_target " +
-          "(__ZL8g_target); its initializer is not yet transcribed",
-      );
+      //
+      //   0xea5c8: leaq __ZL8g_target(%rip),%rax
+      //   0xea5cf: movl (%rax),%eax
+      //   0xea5d5: retq
+      //
+      // `__ZL8g_target` is a BSS u32 at Helium 0xaddd58 (nm shows
+      // `b __ZL8g_target` — BSS, zero-initialized). Its runtime value is
+      // written by a not-yet-transcribed Helium module-ctor that picks the
+      // process-wide default target family; before that runs (and in a
+      // headless port that never invokes the ctor) the value is 0, which is
+      // exactly what a faithful transcription of `movl (%rax),%eax` returns.
+      // Faithful port: return the module-scope holder value.
+      return HGRenderer_g_target.value >>> 0;
     }
     if (sel === 0x60000) {
       // Path @0xea5bd/0xea5c2/0xea5cf.
@@ -360,13 +390,12 @@ export class HGRenderer {
     return 0;
   }
 
-  /** HGLimits.target at u32 offset 0 — see GetTarget @0xea5d3.
-   *  HGLimits port pending @0x000ea5cf; concrete calls throw per Rule 3. */
-  private _limitsTarget(_limits: HGLimitsPtr): number {
-    throw new Error(
-      "HGRenderer::GetTarget @0x000ea5cf: HGLimits.target read (u32 @ +0) — " +
-        "HGLimits port not yet transcribed",
-    );
+  /** HGLimits.target — u32 field at HGLimits+0. Read by GetTarget @0xea5d3
+   *  (`movl (%rax),%eax`) and GetParameter #4 @0xea3cf. Faithful port: read
+   *  the pinned `target` u32 off the HGLimits POD. */
+  private _limitsTarget(limits: HGLimitsPtr): number {
+    // @0xea5cf: movl (%rax),%eax   — u32 at HGLimits+0.
+    return (limits.target | 0) >>> 0;
   }
 
   /**
