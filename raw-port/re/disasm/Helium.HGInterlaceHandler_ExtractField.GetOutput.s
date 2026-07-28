@@ -1,0 +1,22 @@
+__ZN31HGInterlaceHandler_ExtractField9GetOutputEP10HGRenderer:
+0000000000093000	pushq	%rbp
+0000000000093001	movq	%rsp, %rbp
+0000000000093004	pushq	%r14
+0000000000093006	pushq	%rbx
+0000000000093007	movq	%rdi, %rbx
+000000000009300a	movq	0x198(%rdi), %r14
+0000000000093011	movq	%rsi, %rdi
+0000000000093014	movq	%rbx, %rsi
+0000000000093017	xorl	%edx, %edx
+0000000000093019	callq	__ZN10HGRenderer8GetInputEP6HGNodei ## HGRenderer::GetInput(HGNode*, int)
+000000000009301e	movq	(%r14), %rcx
+0000000000093021	movq	%r14, %rdi
+0000000000093024	xorl	%esi, %esi
+0000000000093026	movq	%rax, %rdx
+0000000000093029	callq	*0x78(%rcx)
+000000000009302c	movq	0x198(%rbx), %rax
+0000000000093033	popq	%rbx
+0000000000093034	popq	%r14
+0000000000093036	popq	%rbp
+0000000000093037	retq
+0000000000093038	nopl	(%rax,%rax)
