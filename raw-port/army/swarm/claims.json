@@ -1,5 +1,85 @@
 {
 "claimed": {},
-"done": {},
-"failed": {}
+"done": {
+"MDPKit:MDPSpecularLitFragmentFunc": 1785223706.224268,
+"MDPKit:MDP3DLineVertexFunc": 1785223713.30033,
+"MDPKit:SolidVertexFunc": 1785223723.9209669,
+"MDPKit:StippledLineFragmentFunc": 1785223732.1263502,
+"MDPKit:StippledLineVertexFunc": 1785223822.801158,
+"MDPKit:TextureFragmentFunc": 1785223883.52417,
+"Ozone:EmissionView_solid_sphere_fs": 1785224016.859854,
+"Lithium:paintersVertexFunc": 1785224095.521688,
+"HeliumSenso:bm3dnr_buf::bm3dnr_buf_variance16x16S16": 1785224117.013813,
+"MAVectorUIKit:fragment_main": 1785224165.5390341,
+"MAPlugInGUISwift:chromaVerb_kernel_blur": 1785224190.935145,
+"MAVectorUIKit:vertex_main": 1785224334.152919,
+"MAVectorUIKit:kernel_fade": 1785224360.696148,
+"MAVectorUIKit:vertex_untextured": 1785224387.144293,
+"MAPlugInGUISwift:noise": 1785224406.250109,
+"MDPKit:TextureVertexFunc": 1785224573.2283862,
+"MDPKit:MDPDefaultLitVertexFunc": 1785224664.719279,
+"Ozone:EmissionView_solid_sphere_vs": 1785224890.2948291,
+"Ozone:SpinHUD_trackball_fs": 1785225046.755766,
+"Ozone:VelocityView_arrow_fs": 1785225233.872829,
+"Ozone:VelocityView_trackball_fs": 1785225628.183291,
+"ProAppsFxSupport:Hgc2ErodeInside": 1785225664.6989708,
+"ProAppsFxSupport:Hgc2ErodeOutside": 1785225679.2262132,
+"Ozone:fragmentShaderViewer": 1785225709.388522,
+"Ozone:VelocityView_trackball_vs": 1785225722.568762,
+"ProAppsFxSupport:Hgc2FeatherOutside": 1785225765.115972,
+"ProShapes:Hgc2ShapeGradientBlend": 1785225819.973047,
+"Ozone:vertexShaderViewer": 1785225823.7810209,
+"ProAppsFxSupport:fragmentShader": 1785225846.410646,
+"VAML:compressKernel": 1785225933.448237,
+"ProAppsFxSupport:Hgc2ColorBalanceNoClip": 1785225948.439013,
+"ProAppsFxSupport:Hgc2FeatherInside": 1785225963.7534888,
+"VAML:initializeKernel": 1785226004.851052,
+"VAML:findLargestComponentKernel": 1785226013.184567,
+"VAML:mergeKernel": 1785226046.754268,
+"TextFramework:Hgc2CombineFields": 1785226056.326159,
+"Flexo:FFAudioInputAdapter": 1785226494.0394418,
+"Ozone:OZSimpleCameraUndo": 1785226566.295271,
+"Flexo:FFAudioBufferListBase": 1785226587.3403509,
+"Flexo:FFDestAnalyzerSynchronizer": 1785226724.1058471,
+"Flexo:FFAudioKillThread": 1785226787.931892,
+"Flexo:FFAudioPlaybackSkipStyleStepPlaybackBuffer": 1785226901.429152,
+"Flexo:FFAudioRecorderBufferWriteTask": 1785226922.295938,
+"Flexo:FFAudioGainChannelBuffer": 1785226950.6207922,
+"Flexo:FFSingleToneAudioSignal": 1785227166.990143,
+"Flexo:STBuiltinAudioUnits": 1785227235.189409,
+"Flexo:FFPlayerLockable": 1785227247.563871,
+"Flexo:FFUnitAttachedParameterChaser": 1785227303.128327,
+"Helium:HGAVADeinterlace": 1785227502.563999,
+"Helium:HGBMDFilmGen5LinearizationLUTInfo": 1785227717.601902
+},
+"failed": {
+"MAVectorUIKit:kernel_fadeHoldInfinite": {
+"t": 1785224507.68188,
+"reason": "MAVectorUIKit.framework not present on this system \u2014 cannot disassemble the source metallib"
+},
+"Flexo:FFImmediateModeRendererBorrower": {
+"t": 1785226321.785271,
+"reason": "std::shared_ptr + dynamic_cast + HGRenderer/HGGPURenderer RTTI soup, needs HGGPURenderer::GetMetalContext port"
+},
+"Flexo:FFMachSemaphore": {
+"t": 1785226379.332809,
+"reason": "wraps mach kernel semaphore syscalls (semaphore_create/signal/wait) \u2014 no JS equivalent"
+},
+"Flexo:FFOZAudioUnitEffectRootChannel": {
+"t": 1785226451.4690812,
+"reason": "audio unit wrapper \u2014 OZFactory/PCString/OZChannelFolder deps"
+},
+"Flexo:FFPMRFunnelAutoTimer": {
+"t": 1785226486.590084,
+"reason": "CFString-based telemetry timer; not pure math, all sink calls"
+},
+"Flexo:FFParallelAudioSignal": {
+"t": 1785226539.063383,
+"reason": "audio signal aggregator with FFAudioSignal dep tree"
+},
+"Flexo:FFProviderPSDAssistant": {
+"t": 1785253162.8895738,
+"reason": "objc-facade-heavy: needs H1 consumer wiring first"
+}
+}
 }
