@@ -1,0 +1,408 @@
+// OZChannelUint16 — Ozone OZChannel subclass for a uint16-valued animatable
+// parameter. Only ONE symbol is exported from Ozone for this class:
+//
+//   @Ozone 0x00000000005ae620  OZChannelUint16::OZChannelUint16(
+//                                 int defaultValue, PCString const& name,
+//                                 OZChannelFolder* folder,
+//                                 unsigned int u1, unsigned int u2,
+//                                 OZChannelImpl* impl,
+//                                 OZChannelInfo* info)                          [C2 ctor]
+//
+// (The dtor, clone, copy, setValue*/getValue*, getObjCWrapperName etc. are
+// all `U` undefined imports in Ozone — they live in ProChannel or are
+// inlined at call sites. Any real dispatch through them lands as a
+// frontier throw citing @0x5ae620.)
+//
+// FRAMEWORK: Ozone (/Applications/Final Cut Pro.app/Contents/Frameworks/
+// Ozone.framework/Versions/A/Ozone). Disasm captured via
+// `bash raw-port/tools/disasm.sh OZChannelUint16 OZChannelUint16 Ozone`
+// (95 lines in raw-port/re/disasm/OZChannelUint16.OZChannelUint16.s).
+//
+// STRUCT LAYOUT (recovered directly from the ctor body; inherits from
+// OZChannel — see raw-port/src/channels/OZChannel.ts for the base layout):
+//
+//   +0x00  void*                 vtable_primary    (installed = vt+0x10)   @0x5ae67d
+//   +0x10  void*                 vtable_secondary  (installed = vt+0x380)   @0x5ae686
+//                                                   (=  0x10 + 0x370, per
+//                                                   `addq $0x370, %rax`)
+//   +0x18..0x6F   inherited from OZChannel / OZChannelBase (base ctor at
+//                                                  @0x5ae66d fills these)
+//   +0x70  OZChannelImpl*        implPrimary        (base wrote from
+//                                                    arg6=impl at C2 time;
+//                                                    THIS ctor overrides it
+//                                                    to _OZChannelUint16Impl
+//                                                    if arg6 was null)
+//   +0x78  OZChannelImpl*        implSecondary      (same source)
+//   +0x80  OZChannelInfo*        infoPrimary        (base wrote from
+//                                                    arg7=info; THIS ctor
+//                                                    overrides to
+//                                                    _OZChannelUint16Info
+//                                                    if arg7 was null)
+//   +0x88  OZChannelInfo*        infoSecondary      (same source)
+//
+// The two per-class singleton globals resolved by literal-pool pointers in
+// the ctor:
+//   __ZN15OZChannelUint1620_OZChannelUint16InfoE  (RIP-rel @0x5ae6e2, delta 0x273617)
+//   __ZN15OZChannelUint1620_OZChannelUint16ImplE  (RIP-rel @0x5ae73b, delta 0x2735b6)
+// each initialized exactly once via `std::__1::call_once` in a small helper
+// (OZChannelUint16::createOZChannelUint16Info() / ...Impl()) — those two
+// helper methods and the two singletons are frontier / not yet transcribed.
+//
+// FULL LINE-BY-LINE DECODE of C2 @0x5ae620..0x5ae77c (branches + fallthrough):
+//
+//   prologue (0x5ae620..0x5ae630):
+//     push rbp; mov rsp,rbp; push r15/r14/r13/r12/rbx; sub $0x38,%rsp
+//   argument shuffle (0x5ae631..0x5ae644):
+//     -0x38(rbp) = r9d (u2)              @0x5ae631
+//     r12d      = r8d (u1)               @0x5ae635
+//     r13       = rcx (folder)           @0x5ae638
+//     r14       = rdx (&name)            @0x5ae63b
+//     -0x4c(rbp)= esi (defaultValue)     @0x5ae63e
+//     rbx       = rdi (this)             @0x5ae641
+//     r15       = 0x10(rbp) (impl arg)   @0x5ae644
+//   factory fetch + base ctor (0x5ae648..0x5ae66d):
+//     rax = getOZChannelUint16_FactoryBase()                              @0x5ae648
+//     8(rsp) = 0x18(rbp)     ; info (arg 8 for base ctor)                 @0x5ae651
+//     (rsp)  = r15           ; impl (arg 7 for base ctor)                 @0x5ae656
+//     call OZChannel::OZChannel(this=rbx, factory=rax, name=r14,
+//                               folder=r13, u1=r12d, u2=r9d[reloaded],
+//                               impl (rsp), info (rsp+8))                  @0x5ae66d
+//   vtable install (0x5ae672..0x5ae686):
+//     rax = &vtable_for_OZChannelUint16                                    @0x5ae672
+//     this[0x00] = rax + 0x10                                              @0x5ae67d
+//     this[0x10] = rax + 0x380  (0x10 + 0x370)                             @0x5ae686
+//   InfoOnce init (0x5ae68a..0x5ae6b9):
+//     if (_OZChannelUint16Info_once != -1)
+//       std::call_once(_OZChannelUint16Info_once,
+//                      OZChannelUint16::createOZChannelUint16Info() lambda) @0x5ae6b9
+//   Info-arg branch (0x5ae6be..0x5ae6f3):
+//     if (arg7 info != 0):                          ; base already wrote
+//       this[0x80] = this[0x88]                     ;   both slots; this
+//                                                   ;   reads-back the base's
+//                                                   ;   0x88 write (r15) and
+//                                                   ;   re-writes 0x80 — a
+//                                                   ;   deliberate re-copy in
+//                                                   ;   case a subclass ctor
+//                                                   ;   between-writes 0x88.
+//       goto impl-once check
+//     else (info == 0):
+//       ptr = *_OZChannelUint16Info    ; deref global               @0x5ae6e9
+//       this[0x88] = ptr                                             @0x5ae6ec
+//       this[0x80] = ptr                                             @0x5ae6f3
+//       fall through to impl-once check
+//   ImplOnce init (0x5ae6d3..0x5ae729):
+//     if (_OZChannelUint16Impl_once != -1)
+//       std::call_once(_OZChannelUint16Impl_once,
+//                      OZChannelUint16::createOZChannelUint16Impl() lambda) @0x5ae729
+//   Impl-arg branch (0x5ae72e..0x5ae749):
+//     if (arg6 impl != 0):
+//       rax = this[0x78]                                             @0x5ae735
+//       goto write-0x70
+//     else (impl == 0):
+//       rax = *_OZChannelUint16Impl                                  @0x5ae742
+//       this[0x78] = rax                                             @0x5ae745
+//     this[0x70] = rax                                               @0x5ae749
+//   Default+initial value (0x5ae74d..0x5ae76d):
+//     xmm0  = (double)(int)defaultValue    ; cvtsi2sdl -0x4c(rbp)    @0x5ae74d
+//     spill xmm0 -> -0x38(rbp)                                       @0x5ae755
+//     OZChannel::setDefaultValue(this, xmm0)                         @0x5ae75a
+//     xmm0  = -0x38(rbp)     ; reload                                @0x5ae762
+//     esi   = 0              ; second arg `propagate` = false        @0x5ae767
+//     OZChannel::setInitialValue(this, xmm0, false)                  @0x5ae769
+//   Epilogue (0x5ae76e..0x5ae77c):
+//     add $0x38,%rsp; pop rbx/r12/r13/r14/r15/rbp; ret
+//   Cleanup landing pad (0x5ae77d..0x5ae78e):
+//     r14 = rax (exception); ~OZChannel(this); _Unwind_Resume(r14)
+//     — unwinds a base sub-object that was partially constructed if the
+//     Info/Impl call_once or the setDefaultValue/setInitialValue throws.
+//
+// ---------------------------------------------------------------------------
+// Frontier surface: everything the ctor calls into (base ctor, factory
+// getter, call_once, setDefaultValue, setInitialValue) is un-ported. Each
+// helper below throws with a message citing its address so any real dispatch
+// surfaces a decode gap rather than a silent no-op (rule 3 of PORTING_SPEC).
+// ---------------------------------------------------------------------------
+
+import type { OZChannel } from "./OZChannel";
+import type { OZCompoundChannel } from "./OZCompoundChannel";
+
+/** OZChannelInfo forward-type — layout not needed inside this file. */
+export type OZChannelInfoPtr = object | null;
+/** OZChannelImpl forward-type — layout not needed inside this file. */
+export type OZChannelImplPtr = object | null;
+/** PCString forward-type — treated opaquely; content isn't dereferenced here. */
+export type PCString = { readonly __pcstring: true } | string;
+/** OZChannelFolder pointer (nullable) — passed through to the base ctor. */
+export type OZChannelFolderPtr = object | null;
+
+/**
+ * OZChannelUint16 instance shape — the fields THIS ctor writes into. The
+ * OZChannel/OZChannelBase base sub-object owns 0x18..0x6F (see OZChannel.ts).
+ */
+export interface OZChannelUint16Layout {
+  /** +0x00: primary vtable (installed = vtable_for_OZChannelUint16 + 0x10, @Ozone 0x5ae67d). */
+  _vtable_primary: unknown;
+  /** +0x10: secondary vtable (installed = vtable_for_OZChannelUint16 + 0x380, @Ozone 0x5ae686). */
+  _vtable_secondary: unknown;
+  /** Inherited OZChannel base sub-object (0x18..0x6F). */
+  _base: OZChannel;
+  /** +0x70: OZChannelImpl* implPrimary (@Ozone 0x5ae749). */
+  implPrimary: OZChannelImplPtr;
+  /** +0x78: OZChannelImpl* implSecondary (@Ozone 0x5ae745 / 0x5ae735). */
+  implSecondary: OZChannelImplPtr;
+  /** +0x80: OZChannelInfo* infoPrimary (@Ozone 0x5ae6cc / 0x5ae6f3). */
+  infoPrimary: OZChannelInfoPtr;
+  /** +0x88: OZChannelInfo* infoSecondary (@Ozone 0x5ae6c5 read; 0x5ae6ec written). */
+  infoSecondary: OZChannelInfoPtr;
+}
+
+// ---------------------------------------------------------------------------
+// Frontier stubs — each throws citing the callee's stub address in Ozone.
+// ---------------------------------------------------------------------------
+
+/**
+ * getOZChannelUint16_FactoryBase() — @Ozone stub 0x6dd2b4 (symbol
+ * __Z30getOZChannelUint16_FactoryBasev). Called at @0x5ae648 to obtain the
+ * factory pointer passed as arg2 to OZChannel::OZChannel base ctor.
+ * The helper's own body is a free function elsewhere in Ozone and is not
+ * yet transcribed — see the free-function ledger.
+ */
+function getOZChannelUint16_FactoryBase(): unknown {
+  throw new Error(
+    "getOZChannelUint16_FactoryBase @Ozone stub 0x6dd2b4 not yet transcribed " +
+    "(called from OZChannelUint16::OZChannelUint16 @0x5ae648)"
+  );
+}
+
+/**
+ * OZChannel::OZChannel(OZFactory*, PCString const&, OZChannelFolder*,
+ *                      unsigned int, unsigned int, OZChannelImpl*,
+ *                      OZChannelInfo*) — @Ozone stub 0x6df474 (symbol
+ * __ZN9OZChannelC2EP9OZFactoryRK8PCStringP15OZChannelFolderjjP13OZChannelImplP13OZChannelInfo).
+ * Undefined import in Ozone — implemented in ProChannel; the body is
+ * decoded in raw-port/src/channels/OZChannel.ts (@ProChannel 0x13cfc) but
+ * we call through the stub-shape declared here rather than importing a
+ * function that isn't exported yet as an initializer.
+ */
+function OZChannel__C2(
+  _this: OZChannelUint16Layout, _factory: unknown, _name: PCString,
+  _folder: OZChannelFolderPtr, _u1: number, _u2: number,
+  _impl: OZChannelImplPtr, _info: OZChannelInfoPtr,
+): void {
+  throw new Error(
+    "OZChannel::OZChannel(OZFactory*,PCString&,OZChannelFolder*,u32,u32,OZChannelImpl*,OZChannelInfo*) " +
+    "@ProChannel 0x13cfc (Ozone stub 0x6df474) not yet exported as a callable initializer " +
+    "(called from OZChannelUint16::OZChannelUint16 @0x5ae66d)"
+  );
+}
+
+/**
+ * OZChannel::setDefaultValue(double) — @Ozone stub 0x6df306 (symbol
+ * __ZN9OZChannel15setDefaultValueEd). ProChannel-side body; frontier here.
+ */
+function OZChannel__setDefaultValue(_this: OZChannelUint16Layout, _v: number): void {
+  throw new Error(
+    "OZChannel::setDefaultValue(double) @Ozone stub 0x6df306 (ProChannel) not yet transcribed " +
+    "(called from OZChannelUint16::OZChannelUint16 @0x5ae75a)"
+  );
+}
+
+/**
+ * OZChannel::setInitialValue(double, bool) — @Ozone stub 0x6df30c (symbol
+ * __ZN9OZChannel15setInitialValueEdb). ProChannel-side body; frontier.
+ */
+function OZChannel__setInitialValue(_this: OZChannelUint16Layout, _v: number, _propagate: boolean): void {
+  throw new Error(
+    "OZChannel::setInitialValue(double,bool) @Ozone stub 0x6df30c (ProChannel) not yet transcribed " +
+    "(called from OZChannelUint16::OZChannelUint16 @0x5ae769)"
+  );
+}
+
+/**
+ * std::__1::call_once implementation of the per-class Info singleton init.
+ * The `_OZChannelUint16Info_once` flag is a std::once_flag located in Ozone
+ * data; its `-1` sentinel means "already initialized". The lambda called
+ * on first use is `OZChannelUint16::createOZChannelUint16Info()` — a
+ * separate method not enumerated in the swarm ledger because it's a
+ * lambda-emitted proxy (see std::__1::__call_once_proxy @0x5ae6b9). Both
+ * this and the singleton dereferencer are frontier; body throws.
+ *
+ * When ported, this must:
+ *   - read `_OZChannelUint16Info_once`; if == -1, return
+ *   - otherwise call std::__1::__call_once(flag, proxy, tuple{lambda&&})
+ *     which drops into `createOZChannelUint16Info()` on the first thread
+ *     and marks the flag done.
+ */
+function ensureOZChannelUint16InfoOnce(): void {
+  throw new Error(
+    "OZChannelUint16::createOZChannelUint16Info() std::call_once wrapper " +
+    "@Ozone 0x5ae68a..0x5ae6b9 (call_once stub 0x6dfb2e, proxy at " +
+    "__ZNSt3__117__call_once_proxyB9nqe210106INS_5tupleIJOZN15OZChannelUint1625createOZChannelUint16InfoEvEUlvE_EEEEEvPv) " +
+    "not yet transcribed"
+  );
+}
+
+/** Same for the Impl singleton — @Ozone 0x5ae6d3..0x5ae729 (stub 0x6dfb2e). */
+function ensureOZChannelUint16ImplOnce(): void {
+  throw new Error(
+    "OZChannelUint16::createOZChannelUint16Impl() std::call_once wrapper " +
+    "@Ozone 0x5ae6d3..0x5ae729 (call_once stub 0x6dfb2e) not yet transcribed"
+  );
+}
+
+/**
+ * `*_OZChannelUint16Info` global pointer — @Ozone 0x5ae6e2 loads it via
+ * `movq 0x273617(%rip), %rax` and then `movq (%rax), %rax` dereferences to
+ * an OZChannelInfo*. Frontier: needs the createOZChannelUint16Info() body
+ * to know the singleton's actual OZChannelInfo shape (name string, min/max,
+ * value serializer, etc.).
+ */
+function loadOZChannelUint16Info(): OZChannelInfoPtr {
+  throw new Error(
+    "*_OZChannelUint16Info singleton @Ozone 0x5ae6e2 not yet transcribed " +
+    "(needs createOZChannelUint16Info() body)"
+  );
+}
+
+/**
+ * `*_OZChannelUint16Impl` global pointer — @Ozone 0x5ae73b, mirror of
+ * loadOZChannelUint16Info() but for the Impl side.
+ */
+function loadOZChannelUint16Impl(): OZChannelImplPtr {
+  throw new Error(
+    "*_OZChannelUint16Impl singleton @Ozone 0x5ae73b not yet transcribed " +
+    "(needs createOZChannelUint16Impl() body)"
+  );
+}
+
+// ---------------------------------------------------------------------------
+// OZChannelUint16
+// ---------------------------------------------------------------------------
+
+export class OZChannelUint16 {
+  /** Vtable-installed offsets from the ctor (@Ozone 0x5ae67d, 0x5ae686). */
+  static readonly VTABLE_PRIMARY_OFFSET   = 0x10;   // `leaq 0x10(%rax), %rcx`
+  static readonly VTABLE_SECONDARY_OFFSET = 0x380;  // `addq $0x370, %rax`  (0x10 + 0x370)
+
+  /**
+   * Byte offsets of the per-class extension fields @0x5ae620 writes:
+   *   implPrimary   +0x70   (@0x5ae749)
+   *   implSecondary +0x78   (@0x5ae745 / 0x5ae735)
+   *   infoPrimary   +0x80   (@0x5ae6cc / 0x5ae6f3)
+   *   infoSecondary +0x88   (@0x5ae6c5 read / 0x5ae6ec written)
+   * All four inherit from OZChannel — but the ctor re-writes them
+   * unconditionally, so recording them here keeps the layout mechanical.
+   */
+  static readonly OFF_IMPL_PRIMARY   = 0x70;
+  static readonly OFF_IMPL_SECONDARY = 0x78;
+  static readonly OFF_INFO_PRIMARY   = 0x80;
+  static readonly OFF_INFO_SECONDARY = 0x88;
+
+  /**
+   * OZChannelUint16::OZChannelUint16(int, PCString const&, OZChannelFolder*,
+   *                                  unsigned int, unsigned int,
+   *                                  OZChannelImpl*, OZChannelInfo*)
+   * — @Ozone 0x00000000005ae620 (C2 body; also the C1 entry per Itanium
+   * ABI, since no virtual-base construction).
+   *
+   * The body is transcribed step-for-step below. Every call flows into a
+   * frontier stub that throws citing @0x5ae620, so this constructor throws
+   * loudly the moment ANY step is reached — matching PORTING_SPEC rule 3:
+   * loud gaps, no plausible-looking silent no-ops.
+   *
+   * Signature matches the demangled ledger entry exactly:
+   *   __ZN15OZChannelUint16C2EiRK8PCStringP15OZChannelFolderjjP13OZChannelImplP13OZChannelInfo
+   *
+   * @param this_        rdi — this pointer (populated as an OZChannelUint16Layout)
+   * @param defaultValue esi (int) — used as the initial/default value
+   * @param name         rdx — const PCString&
+   * @param folder       rcx — OZChannelFolder* (nullable)
+   * @param u1           r8d — u32 (opaque; passed through to base ctor)
+   * @param u2           r9d — u32 (opaque; passed through to base ctor)
+   * @param impl         (rsp+0x10) — OZChannelImpl* (nullable; overrides singleton)
+   * @param info         (rsp+0x18) — OZChannelInfo* (nullable; overrides singleton)
+   */
+  static C2(
+    this_: OZChannelUint16Layout,
+    defaultValue: number,
+    name: PCString,
+    folder: OZChannelFolderPtr,
+    u1: number,
+    u2: number,
+    impl: OZChannelImplPtr,
+    info: OZChannelInfoPtr,
+  ): void {
+    // ---- 1) factory = getOZChannelUint16_FactoryBase()   @0x5ae648 ----
+    const factory = getOZChannelUint16_FactoryBase();
+    // ---- 2) OZChannel::OZChannel(this, factory, name, folder, u1, u2, impl, info)  @0x5ae66d
+    OZChannel__C2(this_, factory, name, folder, u1, u2, impl, info);
+    // ---- 3) install vtables                              @0x5ae672..0x5ae686 ----
+    // this[0x00] = vtable_for_OZChannelUint16 + 0x10       @0x5ae67d
+    this_._vtable_primary = "OZChannelUint16::vtable+0x10";
+    // this[0x10] = vtable_for_OZChannelUint16 + 0x380      @0x5ae686
+    this_._vtable_secondary = "OZChannelUint16::vtable+0x380";
+    // ---- 4) init Info singleton via std::call_once       @0x5ae68a..0x5ae6b9 ----
+    ensureOZChannelUint16InfoOnce();
+    // ---- 5) Info-arg branch                              @0x5ae6be..0x5ae6f3 ----
+    if (info !== null && info !== undefined) {
+      // info != 0 (arg7): re-copy this[0x88] into this[0x80]. Base ctor
+      // already wrote r15 (info) into BOTH 0x80 and 0x88, so this is
+      // effectively a re-emission of the same value; the branch survives
+      // in codegen because subclass hooks between the base ctor and here
+      // may have mutated 0x88. Verbatim from @0x5ae6c5/0x5ae6cc.
+      this_.infoPrimary = this_.infoSecondary;
+    } else {
+      // info == 0: override with the process-wide singleton.
+      const ptr = loadOZChannelUint16Info();                    // @0x5ae6e2/0x5ae6e9
+      this_.infoSecondary = ptr;                                 // this[0x88] @0x5ae6ec
+      this_.infoPrimary   = ptr;                                 // this[0x80] @0x5ae6f3
+    }
+    // ---- 6) init Impl singleton via std::call_once        @0x5ae6d3..0x5ae729 ----
+    ensureOZChannelUint16ImplOnce();
+    // ---- 7) Impl-arg branch                              @0x5ae72e..0x5ae749 ----
+    let raxImpl: OZChannelImplPtr;
+    if (impl !== null && impl !== undefined) {
+      // impl != 0 (arg6): rax = this[0x78] (base already wrote both slots
+      // to r15 = impl). @0x5ae735
+      raxImpl = this_.implSecondary;
+    } else {
+      // impl == 0: rax = *_OZChannelUint16Impl; this[0x78] = rax. @0x5ae742/0x5ae745
+      raxImpl = loadOZChannelUint16Impl();
+      this_.implSecondary = raxImpl;
+    }
+    // this[0x70] = rax   @0x5ae749  (unconditional final write from raxImpl)
+    this_.implPrimary = raxImpl;
+    // ---- 8) default + initial value                       @0x5ae74d..0x5ae769 ----
+    // xmm0 = (double)(int32)defaultValue via `cvtsi2sdl -0x4c(%rbp), %xmm0`.
+    // Signed conversion from int32 — exact integer -> double (uint16 fits
+    // in mantissa without rounding).
+    const dv = (defaultValue | 0);        // enforce int32 signedness (matches cvtsi2sdl)
+    const xmm0 = dv;                      // implicit int->double (JS Number is already f64)
+    OZChannel__setDefaultValue(this_, xmm0);      // @0x5ae75a
+    OZChannel__setInitialValue(this_, xmm0, false); // @0x5ae769  (esi = 0 -> propagate=false)
+    // ---- 9) epilogue (register restore + ret)             @0x5ae76e..0x5ae77c ----
+    // Nothing to write; the object is now fully constructed by the sequence
+    // above. Any throw between step 2 and step 8 unwinds via the landing
+    // pad at @0x5ae77d which tail-calls ~OZChannel(this) then _Unwind_Resume.
+  }
+
+  /**
+   * `new OZChannelUint16(...)`-style factory. Because every step of the
+   * ctor throws (all frontier), this method throws too; the shape exists
+   * so callers get a class name in the error and NOT a silent success.
+   */
+  private constructor() {
+    throw new Error(
+      "OZChannelUint16 has no direct-callable TS constructor: every step " +
+      "of the C2 body @Ozone 0x5ae620 depends on ProChannel frontier " +
+      "symbols (OZChannel::OZChannel, setDefaultValue, setInitialValue, " +
+      "call_once + create*Info/*Impl singletons). Call OZChannelUint16.C2 " +
+      "with a pre-allocated Layout to surface the exact frontier that " +
+      "blocks construction."
+    );
+  }
+}
+
+// Re-export the base type placeholder so consumers don't need to know it lives
+// in another file (matches the pattern used by other landed OZChannel* ports).
+export type { OZCompoundChannel };
