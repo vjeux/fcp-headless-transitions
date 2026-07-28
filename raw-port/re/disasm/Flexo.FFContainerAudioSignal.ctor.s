@@ -1,0 +1,83 @@
+__ZN22FFContainerAudioSignalC2ERKNSt3__16vectorIP13FFAudioSignalNS0_9allocatorIS3_EEEE27FFAudioSignalInputOwnership:
+0000000001258210	pushq	%rbp
+0000000001258211	movq	%rsp, %rbp
+0000000001258214	pushq	%r15
+0000000001258216	pushq	%r14
+0000000001258218	pushq	%r13
+000000000125821a	pushq	%r12
+000000000125821c	pushq	%rbx
+000000000125821d	pushq	%rax
+000000000125821e	movq	%rdi, %rbx
+0000000001258221	xorps	%xmm0, %xmm0
+0000000001258224	movups	%xmm0, 0x8(%rdi)
+0000000001258228	movb	$0x0, 0x18(%rdi)
+000000000125822c	leaq	0x6c96cd(%rip), %rax
+0000000001258233	movq	%rax, (%rdi)
+0000000001258236	leaq	0x20(%rdi), %r15
+000000000125823a	testl	%edx, %edx
+000000000125823c	je	0x1258292
+000000000125823e	movups	%xmm0, (%r15)
+0000000001258242	movq	$0x0, 0x10(%r15)
+000000000125824a	movq	(%rsi), %r12
+000000000125824d	movq	0x8(%rsi), %r13
+0000000001258251	subq	%r12, %r13
+0000000001258254	je	0x12582bf
+0000000001258256	js	0x12582ed
+000000000125825c	movq	%r13, %rdi
+000000000125825f	callq	0x1497452                       ## symbol stub for: __Znwm
+0000000001258264	movq	%rax, %r14
+0000000001258267	movq	%rax, 0x20(%rbx)
+000000000125826b	movq	%rax, 0x28(%rbx)
+000000000125826f	movq	%rax, %r15
+0000000001258272	addq	%r13, %r15
+0000000001258275	movq	%r15, 0x30(%rbx)
+0000000001258279	movq	%rax, %rdi
+000000000125827c	movq	%r12, %rsi
+000000000125827f	movq	%r13, %rdx
+0000000001258282	callq	0x14978ba                       ## symbol stub for: _memcpy
+0000000001258287	movq	%r15, 0x28(%rbx)
+000000000125828b	cmpq	%r15, %r14
+000000000125828e	jne	0x12582a7
+0000000001258290	jmp	0x12582bf
+0000000001258292	movq	%r15, %rdi
+0000000001258295	callq	__ZN13FFAudioSignal8copyListERKNSt3__16vectorIPS_NS0_9allocatorIS2_EEEE ## FFAudioSignal::copyList(std::__1::vector<FFAudioSignal*, std::__1::allocator<FFAudioSignal*>> const&)
+000000000125829a	movq	0x20(%rbx), %r14
+000000000125829e	movq	0x28(%rbx), %r15
+00000000012582a2	cmpq	%r15, %r14
+00000000012582a5	je	0x12582bf
+00000000012582a7	movq	%r14, %rax
+00000000012582aa	nopw	(%rax,%rax)
+00000000012582b0	cmpq	$0x0, (%rax)
+00000000012582b4	je	0x12582d9
+00000000012582b6	addq	$0x8, %rax
+00000000012582ba	cmpq	%r15, %rax
+00000000012582bd	jne	0x12582b0
+00000000012582bf	addq	$0x8, %rsp
+00000000012582c3	popq	%rbx
+00000000012582c4	popq	%r12
+00000000012582c6	popq	%r13
+00000000012582c8	popq	%r14
+00000000012582ca	popq	%r15
+00000000012582cc	popq	%rbp
+00000000012582cd	retq
+00000000012582ce	nop
+00000000012582d0	addq	$0x8, %r14
+00000000012582d4	cmpq	%r15, %r14
+00000000012582d7	je	0x12582bf
+00000000012582d9	movq	(%r14), %rdi
+00000000012582dc	testq	%rdi, %rdi
+00000000012582df	je	0x12582d0
+00000000012582e1	movq	(%rdi), %rax
+00000000012582e4	callq	*0x8(%rax)
+00000000012582e7	movq	0x28(%rbx), %r15
+00000000012582eb	jmp	0x12582d0
+00000000012582ed	callq	__ZNSt3__16vectorIP13FFAudioSignalNS_9allocatorIS2_EEE20__throw_length_errorB9nqe210106Ev ## std::__1::vector<FFAudioSignal*, std::__1::allocator<FFAudioSignal*>>::__throw_length_error[abi:nqe210106]()
+00000000012582f2	ud2
+00000000012582f4	movq	%rax, %r14
+00000000012582f7	movq	(%r15), %rdi
+00000000012582fa	testq	%rdi, %rdi
+00000000012582fd	je	0x1258308
+00000000012582ff	movq	%rdi, 0x28(%rbx)
+0000000001258303	callq	0x1497404                       ## symbol stub for: __ZdlPv
+0000000001258308	movq	%r14, %rdi
+000000000125830b	callq	0x1495d30                       ## symbol stub for: __Unwind_Resume
