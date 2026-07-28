@@ -96,3 +96,14 @@ plain SUBSTRINGS — it does NOT understand negation. So a NEGATIVE assertion li
 "No approximate or heuristic language here" STILL trips the gate, because the banned words appear
 in the text. Do NOT type the banned words at all, even to say you're avoiding them. Instead write
 "No shortcut language of any kind." Same applies in JSDoc/comments anywhere in the file.
+
+## FALSE-PASS RISK: wt_setup "resuming" can land a 1-line placeholder (2026-07-28)
+If a prior branch's ONLY commit was the `// __PLACEHOLDER__` marker, wt_setup's "resuming"
+fast-path picks it up and a merge can land that 1-line placeholder to main. Because dedup treats
+ANY non-empty file as "already ported", a landed placeholder would PERMANENTLY skip that unit
+(silent data loss — no gate failure). PREVENTION: after any wt_setup that says "resuming" (branch
+already existed), `wc -l` your target .ts BEFORE editing — if it's 1 line (just the marker),
+treat it as FRESH work: do the real edit + gate + merge as normal. RECOVERY if you spot a stale
+placeholder branch: `git worktree remove -f <wt>` + `git branch -D port/<name>` + `git worktree prune`
++ fresh wt_setup + real edit + re-merge. (Verified 2026-07-28: main had 0 stray placeholders after
+one worker self-recovered colorDownsampleVertexFunc.)
