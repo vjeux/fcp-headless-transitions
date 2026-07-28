@@ -1,0 +1,8 @@
+__ZN6Panner12SetAlgorithmEj:
+00000000012514c0	pushq	%rbp
+00000000012514c1	movq	%rsp, %rbp
+00000000012514c4	cmpl	$0x64666c74, %esi               ## imm = 0x64666C74
+00000000012514ca	sete	%al
+00000000012514cd	popq	%rbp
+00000000012514ce	retq
+00000000012514cf	nop
