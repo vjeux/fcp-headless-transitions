@@ -1,0 +1,47 @@
+__ZN14PCMatrix44TmplIdE10rightScaleEddd:
+000000000004f5ec	pushq	%rbp
+000000000004f5ed	movq	%rsp, %rbp
+000000000004f5f0	ucomisd	0xd2f38(%rip), %xmm0
+000000000004f5f8	jne	0x4f5fc
+000000000004f5fa	jnp	0x4f62e
+000000000004f5fc	movsd	(%rdi), %xmm3
+000000000004f600	mulsd	%xmm0, %xmm3
+000000000004f604	movsd	%xmm3, (%rdi)
+000000000004f608	movsd	0x20(%rdi), %xmm3
+000000000004f60d	mulsd	%xmm0, %xmm3
+000000000004f611	movsd	%xmm3, 0x20(%rdi)
+000000000004f616	movsd	0x40(%rdi), %xmm3
+000000000004f61b	mulsd	%xmm0, %xmm3
+000000000004f61f	movsd	%xmm3, 0x40(%rdi)
+000000000004f624	mulsd	0x60(%rdi), %xmm0
+000000000004f629	movsd	%xmm0, 0x60(%rdi)
+000000000004f62e	ucomisd	0xd2efa(%rip), %xmm1
+000000000004f636	jne	0x4f63a
+000000000004f638	jnp	0x4f66e
+000000000004f63a	movsd	0x8(%rdi), %xmm0
+000000000004f63f	mulsd	%xmm1, %xmm0
+000000000004f643	movsd	%xmm0, 0x8(%rdi)
+000000000004f648	movsd	0x28(%rdi), %xmm0
+000000000004f64d	mulsd	%xmm1, %xmm0
+000000000004f651	movsd	%xmm0, 0x28(%rdi)
+000000000004f656	movsd	0x48(%rdi), %xmm0
+000000000004f65b	mulsd	%xmm1, %xmm0
+000000000004f65f	movsd	%xmm0, 0x48(%rdi)
+000000000004f664	mulsd	0x68(%rdi), %xmm1
+000000000004f669	movsd	%xmm1, 0x68(%rdi)
+000000000004f66e	ucomisd	0xd2eba(%rip), %xmm2
+000000000004f676	jne	0x4f67a
+000000000004f678	jnp	0x4f6ae
+000000000004f67a	movsd	0x10(%rdi), %xmm0
+000000000004f67f	mulsd	%xmm2, %xmm0
+000000000004f683	movsd	%xmm0, 0x10(%rdi)
+000000000004f688	movsd	0x30(%rdi), %xmm0
+000000000004f68d	mulsd	%xmm2, %xmm0
+000000000004f691	movsd	%xmm0, 0x30(%rdi)
+000000000004f696	movsd	0x50(%rdi), %xmm0
+000000000004f69b	mulsd	%xmm2, %xmm0
+000000000004f69f	movsd	%xmm0, 0x50(%rdi)
+000000000004f6a4	mulsd	0x70(%rdi), %xmm2
+000000000004f6a9	movsd	%xmm2, 0x70(%rdi)
+000000000004f6ae	popq	%rbp
+000000000004f6af	retq

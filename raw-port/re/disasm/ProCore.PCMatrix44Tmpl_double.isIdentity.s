@@ -1,0 +1,76 @@
+__ZNK14PCMatrix44TmplIdE10isIdentityEv:
+000000000004ef7e	pushq	%rbp
+000000000004ef7f	movq	%rsp, %rbp
+000000000004ef82	movsd	0x78(%rdi), %xmm1
+000000000004ef87	movapd	0xd36e1(%rip), %xmm2
+000000000004ef8f	andpd	%xmm1, %xmm2
+000000000004ef93	movsd	0xd38e5(%rip), %xmm0
+000000000004ef9b	ucomisd	%xmm2, %xmm0
+000000000004ef9f	ja	0x4f0f0
+000000000004efa5	movsd	(%rdi), %xmm2
+000000000004efa9	subsd	%xmm1, %xmm2
+000000000004efad	andpd	0xd36bb(%rip), %xmm2
+000000000004efb5	ucomisd	%xmm2, %xmm0
+000000000004efb9	jbe	0x4f0f0
+000000000004efbf	movsd	0x28(%rdi), %xmm2
+000000000004efc4	subsd	%xmm1, %xmm2
+000000000004efc8	andpd	0xd36a0(%rip), %xmm2
+000000000004efd0	ucomisd	%xmm2, %xmm0
+000000000004efd4	jbe	0x4f0f0
+000000000004efda	movsd	0x50(%rdi), %xmm2
+000000000004efdf	subsd	%xmm1, %xmm2
+000000000004efe3	andpd	0xd3685(%rip), %xmm2
+000000000004efeb	ucomisd	%xmm2, %xmm0
+000000000004efef	jbe	0x4f0f0
+000000000004eff5	movsd	0x8(%rdi), %xmm1
+000000000004effa	andpd	0xd366e(%rip), %xmm1
+000000000004f002	ucomisd	%xmm1, %xmm0
+000000000004f006	jbe	0x4f0f0
+000000000004f00c	movsd	0x10(%rdi), %xmm1
+000000000004f011	andpd	0xd3657(%rip), %xmm1
+000000000004f019	ucomisd	%xmm1, %xmm0
+000000000004f01d	jbe	0x4f0f0
+000000000004f023	movsd	0x18(%rdi), %xmm1
+000000000004f028	andpd	0xd3640(%rip), %xmm1
+000000000004f030	ucomisd	%xmm1, %xmm0
+000000000004f034	jbe	0x4f0f0
+000000000004f03a	movsd	0x20(%rdi), %xmm1
+000000000004f03f	andpd	0xd3629(%rip), %xmm1
+000000000004f047	ucomisd	%xmm1, %xmm0
+000000000004f04b	jbe	0x4f0f0
+000000000004f051	movsd	0x30(%rdi), %xmm1
+000000000004f056	andpd	0xd3612(%rip), %xmm1
+000000000004f05e	ucomisd	%xmm1, %xmm0
+000000000004f062	jbe	0x4f0f0
+000000000004f068	movsd	0x38(%rdi), %xmm1
+000000000004f06d	andpd	0xd35fb(%rip), %xmm1
+000000000004f075	ucomisd	%xmm1, %xmm0
+000000000004f079	jbe	0x4f0f0
+000000000004f07b	movsd	0x40(%rdi), %xmm1
+000000000004f080	andpd	0xd35e8(%rip), %xmm1
+000000000004f088	ucomisd	%xmm1, %xmm0
+000000000004f08c	jbe	0x4f0f0
+000000000004f08e	movsd	0x48(%rdi), %xmm1
+000000000004f093	andpd	0xd35d5(%rip), %xmm1
+000000000004f09b	ucomisd	%xmm1, %xmm0
+000000000004f09f	jbe	0x4f0f0
+000000000004f0a1	movsd	0x58(%rdi), %xmm1
+000000000004f0a6	andpd	0xd35c2(%rip), %xmm1
+000000000004f0ae	ucomisd	%xmm1, %xmm0
+000000000004f0b2	jbe	0x4f0f0
+000000000004f0b4	movsd	0x60(%rdi), %xmm1
+000000000004f0b9	andpd	0xd35af(%rip), %xmm1
+000000000004f0c1	ucomisd	%xmm1, %xmm0
+000000000004f0c5	jbe	0x4f0f0
+000000000004f0c7	movsd	0x68(%rdi), %xmm1
+000000000004f0cc	andpd	0xd359c(%rip), %xmm1
+000000000004f0d4	ucomisd	%xmm1, %xmm0
+000000000004f0d8	jbe	0x4f0f0
+000000000004f0da	movsd	0x70(%rdi), %xmm1
+000000000004f0df	andpd	0xd3589(%rip), %xmm1
+000000000004f0e7	ucomisd	%xmm1, %xmm0
+000000000004f0eb	seta	%al
+000000000004f0ee	jmp	0x4f0f2
+000000000004f0f0	xorl	%eax, %eax
+000000000004f0f2	popq	%rbp
+000000000004f0f3	retq
