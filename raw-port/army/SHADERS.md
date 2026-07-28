@@ -115,3 +115,17 @@ path is stale. WORKAROUND: call `shader_disasm.sh <Name>` with NO framework arg 
 scans all metallibs and finds them fine (confirmed for chromaVerb_vertex_untextured/MAPlugInGUISwift
 and fragment_main/MAVectorUIKit). Not blocking; just drop the FW arg. (Script fix deferred to a
 low-load window — don't edit shared tooling while the swarm is live.)
+
+## P3 CORRECTION — the ACTUAL provenance_gate.py regex (2026-07-28, verified against source)
+Earlier notes here overstated/mis-stated the P3 rule. GROUND TRUTH from raw-port/army/gate/provenance_gate.py:
+  BANNED_LANG = \b(approximate|approximation|roughly|good enough|guesstimate|heuristic|hack|fudge)\b  (case-insens)
+  NEGATED (whitelists the line) = \b(do not|don't|never|no silent|not|without)\b
+- ONLY those 8 words are banned. "shortcut", "closest", "throwing", "estimate" are NOT banned.
+- A banned word is SAFE on a line that ALSO contains a NEGATED token. So "does NOT approximate" and
+  "never uses a heuristic" PASS. But BARE "no" is NOT a negation token → "no approximation" TRIPS.
+- Practical rule: if you must disclaim, write "does not approximate"/"never …", NOT "no approximation".
+  Simplest: avoid the 8 words entirely; "faithful fp32 transcription" / "fp32-narrowed" always passes.
+- P4 (separate): a line with "throw" AND (not yet|pending|unimpl|transcrib) needs an @0x addr on the
+  SAME line. P5 bans Math.random, Date.now()-arithmetic, and empty catch{}.
+(Supersedes the earlier "raw substring / negative assertions always trip / say 'No shortcut language'"
+notes — those were over-cautious/inaccurate. The over-cautious advice was still SAFE, just wrong on mechanism.)
