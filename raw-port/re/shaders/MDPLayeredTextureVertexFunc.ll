@@ -1,0 +1,141 @@
+0x000000000070f6 -- MDPLayeredTextureVertexFunc:
+source_filename = "MDPLayeredTextureVertexFunc"
+target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v24:32:32-v32:32:32-v48:64:64-v64:64:64-v96:128:128-v128:128:128-v192:256:256-v256:256:256-v512:512:512-v1024:1024:1024-n8:16:32"
+target triple = "air64_v27-apple-macosx15.6.0"
+
+%struct.MDPUniformMvp = type { %"struct.metal::matrix.14" }
+%"struct.metal::matrix.14" = type { [4 x <4 x float>] }
+%struct.MDPTextureVertex = type { <3 x float>, <4 x float>, <2 x float>, [8 x i8] }
+
+; Function Attrs: argmemonly mustprogress nofree norecurse nosync nounwind readonly willreturn
+define <{ <4 x float>, <4 x float>, <2 x float> }> @MDPLayeredTextureVertexFunc(%struct.MDPUniformMvp addrspace(2)* nocapture noundef readonly align 16 dereferenceable(64) "air-buffer-no-alias" %0, %struct.MDPTextureVertex addrspace(1)* nocapture noundef readonly "air-buffer-no-alias" %1, i32 noundef %2) local_unnamed_addr #0 !dbg !40 {
+  %4 = zext i32 %2 to i64, !dbg !43
+  %5 = getelementptr inbounds %struct.MDPTextureVertex, %struct.MDPTextureVertex addrspace(1)* %1, i64 %4, i32 0, !dbg !44
+  %6 = load <3 x float>, <3 x float> addrspace(1)* %5, align 16, !dbg !44, !tbaa !45, !alias.scope !48, !noalias !51
+  %7 = getelementptr inbounds %struct.MDPUniformMvp, %struct.MDPUniformMvp addrspace(2)* %0, i64 0, i32 0, i32 0, i64 0, !dbg !53
+  %8 = load <4 x float>, <4 x float> addrspace(2)* %7, align 16, !dbg !61, !tbaa !45, !alias.scope !51, !noalias !48
+  %9 = shufflevector <3 x float> %6, <3 x float> undef, <4 x i32> zeroinitializer, !dbg !62
+  %10 = fmul fast <4 x float> %8, %9, !dbg !63
+  %11 = getelementptr inbounds %struct.MDPUniformMvp, %struct.MDPUniformMvp addrspace(2)* %0, i64 0, i32 0, i32 0, i64 1, !dbg !64
+  %12 = load <4 x float>, <4 x float> addrspace(2)* %11, align 16, !dbg !68, !tbaa !45, !alias.scope !51, !noalias !48
+  %13 = shufflevector <3 x float> %6, <3 x float> undef, <4 x i32> <i32 1, i32 1, i32 1, i32 1>, !dbg !69
+  %14 = fmul fast <4 x float> %12, %13, !dbg !70
+  %15 = fadd fast <4 x float> %14, %10, !dbg !71
+  %16 = getelementptr inbounds %struct.MDPUniformMvp, %struct.MDPUniformMvp addrspace(2)* %0, i64 0, i32 0, i32 0, i64 2, !dbg !72
+  %17 = load <4 x float>, <4 x float> addrspace(2)* %16, align 16, !dbg !76, !tbaa !45, !alias.scope !51, !noalias !48
+  %18 = shufflevector <3 x float> %6, <3 x float> undef, <4 x i32> <i32 2, i32 2, i32 2, i32 2>, !dbg !77
+  %19 = fmul fast <4 x float> %17, %18, !dbg !78
+  %20 = fadd fast <4 x float> %15, %19, !dbg !79
+  %21 = getelementptr inbounds %struct.MDPUniformMvp, %struct.MDPUniformMvp addrspace(2)* %0, i64 0, i32 0, i32 0, i64 3, !dbg !80
+  %22 = load <4 x float>, <4 x float> addrspace(2)* %21, align 16, !dbg !84, !tbaa !45, !alias.scope !51, !noalias !48
+  %23 = fadd fast <4 x float> %20, %22, !dbg !85
+  %24 = getelementptr inbounds %struct.MDPTextureVertex, %struct.MDPTextureVertex addrspace(1)* %1, i64 %4, i32 1, !dbg !86
+  %25 = load <4 x float>, <4 x float> addrspace(1)* %24, align 16, !dbg !86, !tbaa !45, !alias.scope !48, !noalias !51
+  %26 = getelementptr inbounds %struct.MDPTextureVertex, %struct.MDPTextureVertex addrspace(1)* %1, i64 %4, i32 2, !dbg !87
+  %27 = load <2 x float>, <2 x float> addrspace(1)* %26, align 16, !dbg !87, !tbaa !45, !alias.scope !48, !noalias !51
+  %28 = insertvalue <{ <4 x float>, <4 x float>, <2 x float> }> undef, <4 x float> %23, 0, !dbg !88
+  %29 = insertvalue <{ <4 x float>, <4 x float>, <2 x float> }> %28, <4 x float> %25, 1, !dbg !88
+  %30 = insertvalue <{ <4 x float>, <4 x float>, <2 x float> }> %29, <2 x float> %27, 2, !dbg !88
+  ret <{ <4 x float>, <4 x float>, <2 x float> }> %30, !dbg !88
+}
+
+attributes #0 = { argmemonly mustprogress nofree norecurse nosync nounwind readonly willreturn "approx-func-fp-math"="true" "frame-pointer"="all" "min-legal-vector-width"="128" "no-builtins" "no-infs-fp-math"="true" "no-nans-fp-math"="true" "no-signed-zeros-fp-math"="true" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "unsafe-fp-math"="true" }
+
+!llvm.dbg.cu = !{!0}
+!llvm.module.flags = !{!12, !13, !14, !15, !16, !17, !18, !19, !20, !21, !22}
+!llvm.ident = !{!23}
+!air.version = !{!24}
+!air.language_version = !{!25}
+!air.compile_options = !{!26, !27, !28}
+!air.vertex = !{!29}
+
+!0 = distinct !DICompileUnit(language: DW_LANG_Metal, file: !1, producer: "Apple metal version 32023.883 (metalfe-32023.883)", isOptimized: true, flags: "/AppleInternal/Toolchains/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/metal/32023/bin/metal --driver-mode=metal -c --target=air64-apple-macos15.6 -gline-tables-only -frecord-sources=yes -I /Library/Caches/com.apple.xbs/Binaries/MDPKit/install/Symbols/BuiltProducts/include -F/Library/Caches/com.apple.xbs/Binaries/MDPKit/install/Symbols/BuiltProducts -isysroot /AppleInternal/Toolchains/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk -fmetal-math-mode=fast -fmetal-math-fp32-functions=fast -serialize-diagnostics /Library/Caches/com.apple.xbs/Binaries/MDPKit/install/TempContent/Objects/MDPKit.build/MDPKit.build/Metal/MDPLayeredTexture.dia -o /Library/Caches/com.apple.xbs/Binaries/MDPKit/install/TempContent/Objects/MDPKit.build/MDPKit.build/Metal/MDPLayeredTexture.air -MMD -MT dependencies -MF /Library/Caches/com.apple.xbs/Binaries/MDPKit/install/TempContent/Objects/MDPKit.build/MDPKit.build/Metal/MDPLayeredTexture.dat /Library/Caches/com.apple.xbs/Sources/MDPKit/MDPKit-45000.0.1/MDPKit/Shaders/MDPLayeredTexture.metal -Wno-reorder-init-list -Wno-implicit-int-float-conversion -Wno-c99-designator -Wno-final-dtor-non-final-class -Wno-extra-semi-stmt -Wno-misleading-indentation -Wno-quoted-include-in-framework-header -Wno-implicit-fallthrough -Wno-enum-enum-conversion -Wno-enum-float-conversion -Wno-elaborated-enum-base -Wno-reserved-identifier -Wno-gnu-folding-constant -Wno-objc-load-method -Xclang -clang-vendor-feature=+disableNonDependentMemberExprInCurrentInstantiation -mllvm -disable-aligned-alloc-awareness=1 -Xclang -fno-odr-hash-protocols -Xclang -clang-vendor-feature=+enableAggressiveVLAFolding -Xclang -clang-vendor-feature=+revert09abecef7bbf -Xclang -clang-vendor-feature=+thisNoAlignAttr -Xclang -clang-vendor-feature=+thisNoNullAttr -mlinker-version=1266.8", runtimeVersion: 0, emissionKind: LineTablesOnly, imports: !2, splitDebugInlining: false, nameTableKind: None, sysroot: "/AppleInternal/Toolchains/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk", sdk: "MacOSX26.4.sdk")
+!1 = !DIFile(filename: "/Library/Caches/com.apple.xbs/Sources/MDPKit/MDPKit-45000.0.1/MDPKit/Shaders/MDPLayeredTexture.metal", directory: "/Library/Caches/com.apple.xbs/Sources/MDPKit/MDPKit-45000.0.1")
+!2 = !{!3, !6, !9}
+!3 = !DIImportedEntity(tag: DW_TAG_imported_declaration, scope: !0, entity: !4, file: !5, line: 1)
+!4 = !DIModule(scope: null, name: "metal_types", includePath: "/AppleInternal/Toolchains/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/metal/32023/lib/clang/32023.883/include/metal")
+!5 = !DIFile(filename: "<built-in>", directory: "/Library/Caches/com.apple.xbs/Sources/MDPKit/MDPKit-45000.0.1")
+!6 = !DIImportedEntity(tag: DW_TAG_imported_declaration, scope: !0, entity: !7, file: !8, line: 8)
+!7 = !DIModule(scope: null, name: "metal_stdlib", includePath: "/AppleInternal/Toolchains/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/metal/32023/lib/clang/32023.883/include/metal")
+!8 = !DIFile(filename: "MDPKit/Shaders/MDPLayeredTexture.metal", directory: "/Library/Caches/com.apple.xbs/Sources/MDPKit/MDPKit-45000.0.1")
+!9 = !DIImportedEntity(tag: DW_TAG_imported_declaration, scope: !0, entity: !10, file: !11, line: 29)
+!10 = !DIModule(scope: null, name: "metal_matrix", includePath: "/AppleInternal/Toolchains/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/metal/32023/lib/clang/32023.883/include/metal")
+!11 = !DIFile(filename: "/AppleInternal/Toolchains/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/metal/32023/lib/clang/32023.883/include/metal/simd/matrix_types.h", directory: "")
+!12 = !{i32 2, !"SDK Version", [2 x i32] [i32 26, i32 4]}
+!13 = !{i32 7, !"Dwarf Version", i32 4}
+!14 = !{i32 2, !"Debug Info Version", i32 3}
+!15 = !{i32 1, !"wchar_size", i32 4}
+!16 = !{i32 7, !"frame-pointer", i32 2}
+!17 = !{i32 7, !"air.max_device_buffers", i32 31}
+!18 = !{i32 7, !"air.max_constant_buffers", i32 31}
+!19 = !{i32 7, !"air.max_threadgroup_buffers", i32 31}
+!20 = !{i32 7, !"air.max_textures", i32 128}
+!21 = !{i32 7, !"air.max_read_write_textures", i32 8}
+!22 = !{i32 7, !"air.max_samplers", i32 16}
+!23 = !{!"Apple metal version 32023.883 (metalfe-32023.883)"}
+!24 = !{i32 2, i32 7, i32 0}
+!25 = !{!"Metal", i32 3, i32 2, i32 0}
+!26 = !{!"air.compile.denorms_disable"}
+!27 = !{!"air.compile.fast_math_enable"}
+!28 = !{!"air.compile.framebuffer_fetch_enable"}
+!29 = !{<{ <4 x float>, <4 x float>, <2 x float> }> (%struct.MDPUniformMvp addrspace(2)*, %struct.MDPTextureVertex addrspace(1)*, i32)* @MDPLayeredTextureVertexFunc, !30, !34}
+!30 = !{!31, !32, !33}
+!31 = !{!"air.position", !"air.arg_type_name", !"float4", !"air.arg_name", !"position"}
+!32 = !{!"air.vertex_output", !"generated(5colorDv4_f)", !"air.arg_type_name", !"float4", !"air.arg_name", !"color"}
+!33 = !{!"air.vertex_output", !"generated(8texCoordDv2_f)", !"air.arg_type_name", !"float2", !"air.arg_name", !"texCoord"}
+!34 = !{!35, !37, !39}
+!35 = !{i32 0, !"air.buffer", !"air.buffer_size", i32 64, !"air.location_index", i32 0, i32 1, !"air.read", !"air.address_space", i32 2, !"air.struct_type_info", !36, !"air.arg_type_size", i32 64, !"air.arg_type_align_size", i32 16, !"air.arg_type_name", !"MDPUniformMvp", !"air.arg_name", !"uniforms"}
+!36 = !{i32 0, i32 64, i32 0, !"float4x4", !"mvp"}
+!37 = !{i32 1, !"air.buffer", !"air.location_index", i32 1, i32 1, !"air.read", !"air.address_space", i32 1, !"air.struct_type_info", !38, !"air.arg_type_size", i32 48, !"air.arg_type_align_size", i32 16, !"air.arg_type_name", !"MDPTextureVertex", !"air.arg_name", !"verts"}
+!38 = !{i32 0, i32 16, i32 0, !"float3", !"position", i32 16, i32 16, i32 0, !"float4", !"color", i32 32, i32 8, i32 0, !"float2", !"texCoord"}
+!39 = !{i32 2, !"air.vertex_id", !"air.arg_type_name", !"uint", !"air.arg_name", !"vert"}
+!40 = distinct !DISubprogram(name: "MDPLayeredTextureVertexFunc", scope: !8, file: !8, line: 28, type: !41, scopeLine: 31, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, retainedNodes: !42)
+!41 = !DISubroutineType(types: !42)
+!42 = !{}
+!43 = !DILocation(line: 33, column: 25, scope: !40)
+!44 = !DILocation(line: 33, column: 37, scope: !40)
+!45 = !{!46, !46, i64 0}
+!46 = !{!"omnipotent char", !47, i64 0}
+!47 = !{!"Simple C++ TBAA"}
+!48 = !{!49}
+!49 = distinct !{!49, !50, !"air-alias-scope-arg(1)"}
+!50 = distinct !{!50, !"air-alias-scopes(MDPLayeredTextureVertexFunc)"}
+!51 = !{!52}
+!52 = distinct !{!52, !50, !"air-alias-scope-arg(0)"}
+!53 = !DILocation(line: 689, column: 12, scope: !54, inlinedAt: !56)
+!54 = distinct !DISubprogram(name: "operator[]", scope: !55, file: !55, line: 687, type: !41, scopeLine: 688, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, retainedNodes: !42)
+!55 = !DIFile(filename: "/AppleInternal/Toolchains/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/metal/32023/lib/clang/32023.883/include/metal/metal_matrix", directory: "")
+!56 = distinct !DILocation(line: 2672, column: 44, scope: !57, inlinedAt: !58)
+!57 = distinct !DISubprogram(name: "_matrix_vector_product_impl<float, 4, 4, 0, 1, 2, 3>", scope: !55, file: !55, line: 2670, type: !41, scopeLine: 2671, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, retainedNodes: !42)
+!58 = distinct !DILocation(line: 2500, column: 10, scope: !59, inlinedAt: !60)
+!59 = distinct !DISubprogram(name: "operator*<float, 4, 4>", scope: !55, file: !55, line: 2498, type: !41, scopeLine: 2499, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, retainedNodes: !42)
+!60 = distinct !DILocation(line: 34, column: 33, scope: !40)
+!61 = !DILocation(line: 2672, column: 44, scope: !57, inlinedAt: !58)
+!62 = !DILocation(line: 2672, column: 66, scope: !57, inlinedAt: !58)
+!63 = !DILocation(line: 2672, column: 64, scope: !57, inlinedAt: !58)
+!64 = !DILocation(line: 689, column: 12, scope: !54, inlinedAt: !65)
+!65 = distinct !DILocation(line: 2672, column: 44, scope: !66, inlinedAt: !67)
+!66 = distinct !DISubprogram(name: "_matrix_vector_product_impl<float, 4, 4, 0, 1, 2>", scope: !55, file: !55, line: 2670, type: !41, scopeLine: 2671, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, retainedNodes: !42)
+!67 = distinct !DILocation(line: 2672, column: 10, scope: !57, inlinedAt: !58)
+!68 = !DILocation(line: 2672, column: 44, scope: !66, inlinedAt: !67)
+!69 = !DILocation(line: 2672, column: 66, scope: !66, inlinedAt: !67)
+!70 = !DILocation(line: 2672, column: 64, scope: !66, inlinedAt: !67)
+!71 = !DILocation(line: 2672, column: 42, scope: !66, inlinedAt: !67)
+!72 = !DILocation(line: 689, column: 12, scope: !54, inlinedAt: !73)
+!73 = distinct !DILocation(line: 2672, column: 44, scope: !74, inlinedAt: !75)
+!74 = distinct !DISubprogram(name: "_matrix_vector_product_impl<float, 4, 4, 0, 1>", scope: !55, file: !55, line: 2670, type: !41, scopeLine: 2671, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, retainedNodes: !42)
+!75 = distinct !DILocation(line: 2672, column: 10, scope: !66, inlinedAt: !67)
+!76 = !DILocation(line: 2672, column: 44, scope: !74, inlinedAt: !75)
+!77 = !DILocation(line: 2672, column: 66, scope: !74, inlinedAt: !75)
+!78 = !DILocation(line: 2672, column: 64, scope: !74, inlinedAt: !75)
+!79 = !DILocation(line: 2672, column: 42, scope: !74, inlinedAt: !75)
+!80 = !DILocation(line: 689, column: 12, scope: !54, inlinedAt: !81)
+!81 = distinct !DILocation(line: 2677, column: 16, scope: !82, inlinedAt: !83)
+!82 = distinct !DISubprogram(name: "_matrix_vector_product_impl<float, 4, 4>", scope: !55, file: !55, line: 2675, type: !41, scopeLine: 2676, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, retainedNodes: !42)
+!83 = distinct !DILocation(line: 2672, column: 10, scope: !74, inlinedAt: !75)
+!84 = !DILocation(line: 2677, column: 16, scope: !82, inlinedAt: !83)
+!85 = !DILocation(line: 2677, column: 14, scope: !82, inlinedAt: !83)
+!86 = !DILocation(line: 35, column: 29, scope: !40)
+!87 = !DILocation(line: 36, column: 32, scope: !40)
+!88 = !DILocation(line: 38, column: 1, scope: !40)
+
