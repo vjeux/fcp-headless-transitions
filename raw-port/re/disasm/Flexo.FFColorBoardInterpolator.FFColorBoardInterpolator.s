@@ -1,0 +1,14 @@
+__ZN24FFColorBoardInterpolatorC1Ev:
+0000000000066300	pushq	%rbp
+0000000000066301	movq	%rsp, %rbp
+0000000000066304	pushq	%rbx
+0000000000066305	pushq	%rax
+0000000000066306	movq	%rdi, %rbx
+0000000000066309	callq	0x1496474                       ## symbol stub for: __ZN14OZInterpolatorC2Ev
+000000000006630e	leaq	0x188b613(%rip), %rax
+0000000000066315	movq	%rax, (%rbx)
+0000000000066318	addq	$0x8, %rsp
+000000000006631c	popq	%rbx
+000000000006631d	popq	%rbp
+000000000006631e	retq
+000000000006631f	nop
