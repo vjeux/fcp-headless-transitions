@@ -1,0 +1,95 @@
+__ZN11HWrapRepeat12setInvMatrixERK14PCMatrix44TmplIdE:
+0000000000470ab0	pushq	%rbp
+0000000000470ab1	movq	%rsp, %rbp
+0000000000470ab4	pushq	%r14
+0000000000470ab6	pushq	%rbx
+0000000000470ab7	movq	%rsi, %rbx
+0000000000470aba	movq	%rdi, %r14
+0000000000470abd	leaq	0x240(%rdi), %rax
+0000000000470ac4	cmpq	%rax, %rsi
+0000000000470ac7	je	0x470bac
+0000000000470acd	movsd	(%rbx), %xmm0
+0000000000470ad1	movsd	%xmm0, 0x240(%r14)
+0000000000470ada	movsd	0x8(%rbx), %xmm0
+0000000000470adf	movsd	%xmm0, 0x248(%r14)
+0000000000470ae8	movsd	0x10(%rbx), %xmm0
+0000000000470aed	movsd	%xmm0, 0x250(%r14)
+0000000000470af6	movsd	0x18(%rbx), %xmm0
+0000000000470afb	movsd	%xmm0, 0x258(%r14)
+0000000000470b04	movsd	0x20(%rbx), %xmm0
+0000000000470b09	movsd	%xmm0, 0x260(%r14)
+0000000000470b12	movsd	0x28(%rbx), %xmm0
+0000000000470b17	movsd	%xmm0, 0x268(%r14)
+0000000000470b20	movsd	0x30(%rbx), %xmm0
+0000000000470b25	movsd	%xmm0, 0x270(%r14)
+0000000000470b2e	movsd	0x38(%rbx), %xmm0
+0000000000470b33	movsd	%xmm0, 0x278(%r14)
+0000000000470b3c	movsd	0x40(%rbx), %xmm0
+0000000000470b41	movsd	%xmm0, 0x280(%r14)
+0000000000470b4a	movsd	0x48(%rbx), %xmm0
+0000000000470b4f	movsd	%xmm0, 0x288(%r14)
+0000000000470b58	movsd	0x50(%rbx), %xmm0
+0000000000470b5d	movsd	%xmm0, 0x290(%r14)
+0000000000470b66	movsd	0x58(%rbx), %xmm0
+0000000000470b6b	movsd	%xmm0, 0x298(%r14)
+0000000000470b74	movsd	0x60(%rbx), %xmm0
+0000000000470b79	movsd	%xmm0, 0x2a0(%r14)
+0000000000470b82	movsd	0x68(%rbx), %xmm0
+0000000000470b87	movsd	%xmm0, 0x2a8(%r14)
+0000000000470b90	movsd	0x70(%rbx), %xmm0
+0000000000470b95	movsd	%xmm0, 0x2b0(%r14)
+0000000000470b9e	movsd	0x78(%rbx), %xmm0
+0000000000470ba3	movsd	%xmm0, 0x2b8(%r14)
+0000000000470bac	movsd	(%rbx), %xmm0
+0000000000470bb0	movsd	0x20(%rbx), %xmm1
+0000000000470bb5	cvtsd2ss	%xmm0, %xmm0
+0000000000470bb9	cvtsd2ss	%xmm1, %xmm1
+0000000000470bbd	movsd	0x40(%rbx), %xmm2
+0000000000470bc2	cvtsd2ss	%xmm2, %xmm2
+0000000000470bc6	movsd	0x60(%rbx), %xmm3
+0000000000470bcb	cvtsd2ss	%xmm3, %xmm3
+0000000000470bcf	movq	(%r14), %rax
+0000000000470bd2	movq	%r14, %rdi
+0000000000470bd5	movl	$0x5, %esi
+0000000000470bda	callq	*0x60(%rax)
+0000000000470bdd	movsd	0x8(%rbx), %xmm0
+0000000000470be2	movsd	0x28(%rbx), %xmm1
+0000000000470be7	cvtsd2ss	%xmm0, %xmm0
+0000000000470beb	cvtsd2ss	%xmm1, %xmm1
+0000000000470bef	movsd	0x48(%rbx), %xmm2
+0000000000470bf4	cvtsd2ss	%xmm2, %xmm2
+0000000000470bf8	movsd	0x68(%rbx), %xmm3
+0000000000470bfd	cvtsd2ss	%xmm3, %xmm3
+0000000000470c01	movq	(%r14), %rax
+0000000000470c04	movq	%r14, %rdi
+0000000000470c07	movl	$0x6, %esi
+0000000000470c0c	callq	*0x60(%rax)
+0000000000470c0f	movsd	0x10(%rbx), %xmm0
+0000000000470c14	movsd	0x30(%rbx), %xmm1
+0000000000470c19	cvtsd2ss	%xmm0, %xmm0
+0000000000470c1d	cvtsd2ss	%xmm1, %xmm1
+0000000000470c21	movsd	0x50(%rbx), %xmm2
+0000000000470c26	cvtsd2ss	%xmm2, %xmm2
+0000000000470c2a	movsd	0x70(%rbx), %xmm3
+0000000000470c2f	cvtsd2ss	%xmm3, %xmm3
+0000000000470c33	movq	(%r14), %rax
+0000000000470c36	movq	%r14, %rdi
+0000000000470c39	movl	$0x7, %esi
+0000000000470c3e	callq	*0x60(%rax)
+0000000000470c41	movsd	0x18(%rbx), %xmm0
+0000000000470c46	movsd	0x38(%rbx), %xmm1
+0000000000470c4b	cvtsd2ss	%xmm0, %xmm0
+0000000000470c4f	cvtsd2ss	%xmm1, %xmm1
+0000000000470c53	movsd	0x58(%rbx), %xmm2
+0000000000470c58	cvtsd2ss	%xmm2, %xmm2
+0000000000470c5c	movsd	0x78(%rbx), %xmm3
+0000000000470c61	cvtsd2ss	%xmm3, %xmm3
+0000000000470c65	movq	(%r14), %rax
+0000000000470c68	movq	0x60(%rax), %rax
+0000000000470c6c	movq	%r14, %rdi
+0000000000470c6f	movl	$0x8, %esi
+0000000000470c74	popq	%rbx
+0000000000470c75	popq	%r14
+0000000000470c77	popq	%rbp
+0000000000470c78	jmpq	*%rax
+0000000000470c7a	nopw	(%rax,%rax)
