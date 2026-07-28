@@ -3,7 +3,7 @@
 # Wired into .git/hooks/pre-commit (blocks the commit) and CI (blocks the PR). Shortcuts cannot land.
 #
 # G1 PROVENANCE : every ported fn cites @0xADDR; no ungrounded magic numbers; no shortcut language/code.
-# G2 TYPECHECK  : tsc --noEmit clean (the port must actually compile).
+# G2 TYPECHECK  : tsgo --noEmit clean (the port must actually compile). Uses the Go-native compiler.
 # (Dropped the 65-.motr parse: leaf math classes aren't in parseScene's import graph, so re-parsing
 #  after e.g. a PCMath change is a provable no-op. tsc already catches any import-graph breakage.)
 # G4 ORACLE     : every parity node whose TS changed must still be VERIFIED bit-exact vs live FCP.
@@ -30,7 +30,7 @@ echo "== G1 provenance =="
 python3 "$ROOT/army/gate/provenance_gate.py" "$@" || FAIL=1
 
 echo "== G2 typecheck =="
-( cd "$REPO" && engine/node_modules/.bin/tsc --noEmit -p raw-port/tsconfig.json ) || { echo "  tsc FAILED"; FAIL=1; }
+( cd "$REPO" && engine/node_modules/.bin/tsgo --noEmit -p raw-port/tsconfig.json ) || { echo "  tsgo FAILED"; FAIL=1; }
 
 echo "== G4 oracle (bit-exact vs live FCP for touched parity nodes) =="
 # Map changed .ts -> parity node ids via army/gate/oracle_map.json (class -> [node ids]).
