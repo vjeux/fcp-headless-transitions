@@ -1,0 +1,14 @@
+__ZNK17OZARAnchorElement11getIconNameEv:
+000000000062c800	pushq	%rbp
+000000000062c801	movq	%rsp, %rbp
+000000000062c804	pushq	%rbx
+000000000062c805	pushq	%rax
+000000000062c806	movq	%rdi, %rbx
+000000000062c809	movq	(%rsi), %rax
+000000000062c80c	callq	*0x18(%rax)
+000000000062c80f	movq	%rbx, %rax
+000000000062c812	addq	$0x8, %rsp
+000000000062c816	popq	%rbx
+000000000062c817	popq	%rbp
+000000000062c818	retq
+000000000062c819	nopl	(%rax)

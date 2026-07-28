@@ -1,0 +1,6 @@
+__ZN17OZARAnchorElement16calcHashForStateER23PCSerializerWriteStreamRK14OZRenderParamsRNSt3__14listIP19OZObjectManipulatorNS5_9allocatorIS8_EEEEb:
+000000000062c8c0	pushq	%rbp
+000000000062c8c1	movq	%rsp, %rbp
+000000000062c8c4	popq	%rbp
+000000000062c8c5	jmp	__ZN22OZ3DEngineSceneElement16calcHashForStateER23PCSerializerWriteStreamRK14OZRenderParamsRNSt3__14listIP19OZObjectManipulatorNS5_9allocatorIS8_EEEEb ## OZ3DEngineSceneElement::calcHashForState(PCSerializerWriteStream&, OZRenderParams const&, std::__1::list<OZObjectManipulator*, std::__1::allocator<OZObjectManipulator*>>&, bool)
+000000000062c8ca	nopw	(%rax,%rax)
