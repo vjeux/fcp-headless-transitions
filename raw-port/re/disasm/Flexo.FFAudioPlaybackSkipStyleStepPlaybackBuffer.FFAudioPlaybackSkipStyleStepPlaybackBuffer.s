@@ -1,0 +1,6 @@
+__ZN42FFAudioPlaybackSkipStyleStepPlaybackBufferC1EP13FFStreamAudio6CMTime:
+0000000000d109c0	pushq	%rbp
+0000000000d109c1	movq	%rsp, %rbp
+0000000000d109c4	popq	%rbp
+0000000000d109c5	jmp	__ZN42FFAudioPlaybackSkipStyleStepPlaybackBufferC2EP13FFStreamAudio6CMTime ## FFAudioPlaybackSkipStyleStepPlaybackBuffer::FFAudioPlaybackSkipStyleStepPlaybackBuffer(FFStreamAudio*, CMTime)
+0000000000d109ca	nopw	(%rax,%rax)
