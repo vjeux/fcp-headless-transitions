@@ -1,0 +1,7 @@
+__ZN24FFColorBoardInterpolator8isActiveER8OZSplinePv:
+0000000000066460	pushq	%rbp
+0000000000066461	movq	%rsp, %rbp
+0000000000066464	movb	$0x1, %al
+0000000000066466	popq	%rbp
+0000000000066467	retq
+0000000000066468	nopl	(%rax,%rax)
