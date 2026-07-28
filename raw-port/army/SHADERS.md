@@ -49,3 +49,23 @@ Constants: `air.fast_pow.f32(x, <double-literal>)` — the IR spells the exponen
 pattern but the intrinsic is .f32, so the value is fp32-narrowed at the callsite. Transcribe as
 `Math.fround(<decoded double>)` and cite the raw 0x bit pattern in a `//` comment. (First landed
 shader HgcColorLinearizeAlpha did exactly this: pow(alpha, Math.fround(1.9559999704360962)).)
+
+## TWO RECURRING TS/GATE TRAPS (observed across multiple shader workers 2026-07-28)
+
+### 1. TS 5.x Float32Array variance trap
+Newer TS types a plain `Float32Array` as `Float32Array<ArrayBuffer>` and REFUSES
+tuple-destructuring assignment between differently-parameterised variants
+(`Float32Array<ArrayBuffer>` vs `Float32Array<ArrayBufferLike>`). If you return a
+`[Float32Array, Float32Array]` tuple from a helper and destructure it, tsc (gate G2)
+fails with a variance error. FIX: don't return tuples of typed arrays — pass a MUTATING
+accumulator object (e.g. `const acc = {num: 0, den: 0}; step(acc, ...)`) or use plain
+`number[]`. Confirmed working idiom in the bilateral-filter (blf2DImage*) shaders.
+
+### 2. int16/uint16 cast gate idiom (P2 ungrounded-literal)
+`(x: number) => Math.trunc(x) & 0xffff` TRIPS the P2 ungrounded-literal gate (the `& 0xffff`
+mask reads as an invented constant). The accepted idiom — after a preceding clamp to the
+type's range — is `Math.trunc(x) | 0` (or `Math.round(x)|0` when the IR has a +0.5 bias then
+truncate). i.e. rely on the AIR `air.clamp` you already transcribed to bound the value, then
+cast with `|0`, NOT a bitmask. Matches landed siblings bm3dnr_buf_blend8x8Weight16.ts /
+bm3dnr_buf_blf2DImage3x3S16.ts. Note: the `.u.v4i16` unsigned-cast variants OMIT `air.floor`
+because +0.5-bias plus the cast's implicit truncate == round-half-up over the unsigned domain.
