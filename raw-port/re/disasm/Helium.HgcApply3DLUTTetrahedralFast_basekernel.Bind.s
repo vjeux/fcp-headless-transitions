@@ -1,0 +1,43 @@
+__ZN39HgcApply3DLUTTetrahedralFast_basekernel4BindEP9HGHandler:
+000000000038a560	pushq	%rbp
+000000000038a561	movq	%rsp, %rbp
+000000000038a564	pushq	%r14
+000000000038a566	pushq	%rbx
+000000000038a567	movq	%rsi, %rbx
+000000000038a56a	movq	%rdi, %r14
+000000000038a56d	movq	0x198(%rdi), %rdx
+000000000038a574	movq	(%rsi), %rax
+000000000038a577	movq	%rsi, %rdi
+000000000038a57a	xorl	%esi, %esi
+000000000038a57c	movl	$0x1, %ecx
+000000000038a581	callq	*0x90(%rax)
+000000000038a587	movq	0x198(%r14), %rdx
+000000000038a58e	addq	$0x20, %rdx
+000000000038a592	movq	(%rbx), %rax
+000000000038a595	movq	%rbx, %rdi
+000000000038a598	movl	$0x1, %esi
+000000000038a59d	movl	$0x1, %ecx
+000000000038a5a2	callq	*0x90(%rax)
+000000000038a5a8	movq	0x198(%r14), %rdx
+000000000038a5af	addq	$0x40, %rdx
+000000000038a5b3	movq	(%rbx), %rax
+000000000038a5b6	movq	%rbx, %rdi
+000000000038a5b9	movl	$0x2, %esi
+000000000038a5be	movl	$0x1, %ecx
+000000000038a5c3	callq	*0x90(%rax)
+000000000038a5c9	movq	0x198(%r14), %rdx
+000000000038a5d0	addq	$0x60, %rdx
+000000000038a5d4	movq	(%rbx), %rax
+000000000038a5d7	movq	%rbx, %rdi
+000000000038a5da	movl	$0x3, %esi
+000000000038a5df	movl	$0x1, %ecx
+000000000038a5e4	callq	*0x90(%rax)
+000000000038a5ea	movq	(%r14), %rax
+000000000038a5ed	movq	%r14, %rdi
+000000000038a5f0	movq	%rbx, %rsi
+000000000038a5f3	callq	*0xc0(%rax)
+000000000038a5f9	xorl	%eax, %eax
+000000000038a5fb	popq	%rbx
+000000000038a5fc	popq	%r14
+000000000038a5fe	popq	%rbp
+000000000038a5ff	retq
