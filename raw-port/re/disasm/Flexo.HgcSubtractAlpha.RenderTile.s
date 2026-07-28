@@ -1,0 +1,129 @@
+__ZN16HgcSubtractAlpha10RenderTileEP6HGTile:
+000000000146e600	pushq	%rbp
+000000000146e601	movq	%rsp, %rbp
+000000000146e604	pushq	%r15
+000000000146e606	pushq	%r14
+000000000146e608	pushq	%r12
+000000000146e60a	pushq	%rbx
+000000000146e60b	movq	%rsi, %r14
+000000000146e60e	movq	%rdi, %rbx
+000000000146e611	movq	%rsi, %rdi
+000000000146e614	callq	0x1497218                       ## symbol stub for: __ZNK6HGTile8RendererEv
+000000000146e619	movq	%rax, %rdi
+000000000146e61c	xorl	%esi, %esi
+000000000146e61e	callq	0x1495ea4                       ## symbol stub for: __ZN10HGRenderer9GetTargetEj
+000000000146e623	cmpl	$0x4700000, %eax                ## imm = 0x4700000
+000000000146e628	jb	0x146e63a
+000000000146e62a	movq	%rbx, %rdi
+000000000146e62d	movq	%r14, %rsi
+000000000146e630	callq	__ZN16HgcSubtractAlpha14RenderTile_AVXEP6HGTile ## HgcSubtractAlpha::RenderTile_AVX(HGTile*)
+000000000146e635	jmp	0x146e7d2
+000000000146e63a	movl	0x4(%r14), %r11d
+000000000146e63e	movl	0xc(%r14), %r15d
+000000000146e642	movl	%r15d, %ecx
+000000000146e645	subl	%r11d, %ecx
+000000000146e648	jle	0x146e7d2
+000000000146e64e	movl	0x8(%r14), %r10d
+000000000146e652	subl	(%r14), %r10d
+000000000146e655	movq	0x50(%r14), %rsi
+000000000146e659	movq	0x60(%r14), %rdx
+000000000146e65d	movq	0x10(%r14), %rax
+000000000146e661	movslq	0x18(%r14), %rdi
+000000000146e665	movslq	0x68(%r14), %r8
+000000000146e669	movslq	0x58(%r14), %r9
+000000000146e66d	cmpl	$0x2, %r10d
+000000000146e671	jl	0x146e72e
+000000000146e677	shlq	$0x4, %r9
+000000000146e67b	shlq	$0x4, %r8
+000000000146e67f	shlq	$0x4, %rdi
+000000000146e683	xorl	%r11d, %r11d
+000000000146e686	jmp	0x146e6a5
+000000000146e688	nopl	(%rax,%rax)
+000000000146e690	incl	%r11d
+000000000146e693	addq	%r9, %rsi
+000000000146e696	addq	%r8, %rdx
+000000000146e699	addq	%rdi, %rax
+000000000146e69c	cmpl	%ecx, %r11d
+000000000146e69f	je	0x146e7d2
+000000000146e6a5	xorl	%r15d, %r15d
+000000000146e6a8	xorl	%r14d, %r14d
+000000000146e6ab	nopl	(%rax,%rax)
+000000000146e6b0	movaps	(%rsi,%r14), %xmm0
+000000000146e6b5	subps	(%rdx,%r14), %xmm0
+000000000146e6ba	movaps	0x10(%rsi,%r14), %xmm1
+000000000146e6c0	subps	0x10(%rdx,%r14), %xmm1
+000000000146e6c6	shufps	$0xff, %xmm0, %xmm0             ## xmm0 = xmm0[3,3,3,3]
+000000000146e6ca	shufps	$0xff, %xmm1, %xmm1             ## xmm1 = xmm1[3,3,3,3]
+000000000146e6ce	movq	0x198(%rbx), %r12
+000000000146e6d5	movaps	(%r12), %xmm2
+000000000146e6da	maxps	%xmm2, %xmm0
+000000000146e6dd	maxps	%xmm2, %xmm1
+000000000146e6e0	movaps	%xmm0, (%rax,%r14)
+000000000146e6e5	movaps	%xmm1, 0x10(%rax,%r14)
+000000000146e6eb	addq	$0x20, %r14
+000000000146e6ef	movl	%r15d, %r12d
+000000000146e6f2	addl	$-0x2, %r15d
+000000000146e6f6	addl	%r10d, %r12d
+000000000146e6f9	addl	$-0x2, %r12d
+000000000146e6fd	cmpl	$0x1, %r12d
+000000000146e701	jg	0x146e6b0
+000000000146e703	negl	%r15d
+000000000146e706	cmpl	%r15d, %r10d
+000000000146e709	jle	0x146e690
+000000000146e70b	movaps	(%rsi,%r14), %xmm0
+000000000146e710	subps	(%rdx,%r14), %xmm0
+000000000146e715	shufps	$0xff, %xmm0, %xmm0             ## xmm0 = xmm0[3,3,3,3]
+000000000146e719	movq	0x198(%rbx), %r15
+000000000146e720	maxps	(%r15), %xmm0
+000000000146e724	movaps	%xmm0, (%rax,%r14)
+000000000146e729	jmp	0x146e690
+000000000146e72e	cmpl	$0x1, %r10d
+000000000146e732	jne	0x146e7d2
+000000000146e738	incl	%r11d
+000000000146e73b	cmpl	%r11d, %r15d
+000000000146e73e	je	0x146e7b6
+000000000146e740	movl	%ecx, %r10d
+000000000146e743	andl	$0x7ffffffe, %r10d              ## imm = 0x7FFFFFFE
+000000000146e74a	movq	%r9, %r11
+000000000146e74d	shlq	$0x5, %r11
+000000000146e751	shlq	$0x4, %r9
+000000000146e755	movq	%r8, %r14
+000000000146e758	shlq	$0x5, %r14
+000000000146e75c	shlq	$0x4, %r8
+000000000146e760	movq	%rdi, %r15
+000000000146e763	shlq	$0x5, %r15
+000000000146e767	shlq	$0x4, %rdi
+000000000146e76b	nopl	(%rax,%rax)
+000000000146e770	movaps	(%rsi), %xmm0
+000000000146e773	subps	(%rdx), %xmm0
+000000000146e776	shufps	$0xff, %xmm0, %xmm0             ## xmm0 = xmm0[3,3,3,3]
+000000000146e77a	movq	0x198(%rbx), %r12
+000000000146e781	maxps	(%r12), %xmm0
+000000000146e786	movaps	%xmm0, (%rax)
+000000000146e789	movaps	(%rsi,%r9), %xmm0
+000000000146e78e	subps	(%rdx,%r8), %xmm0
+000000000146e793	shufps	$0xff, %xmm0, %xmm0             ## xmm0 = xmm0[3,3,3,3]
+000000000146e797	movq	0x198(%rbx), %r12
+000000000146e79e	maxps	(%r12), %xmm0
+000000000146e7a3	movaps	%xmm0, (%rax,%rdi)
+000000000146e7a7	addq	%r11, %rsi
+000000000146e7aa	addq	%r14, %rdx
+000000000146e7ad	addq	%r15, %rax
+000000000146e7b0	addl	$-0x2, %r10d
+000000000146e7b4	jne	0x146e770
+000000000146e7b6	testb	$0x1, %cl
+000000000146e7b9	je	0x146e7d2
+000000000146e7bb	movaps	(%rsi), %xmm0
+000000000146e7be	subps	(%rdx), %xmm0
+000000000146e7c1	shufps	$0xff, %xmm0, %xmm0             ## xmm0 = xmm0[3,3,3,3]
+000000000146e7c5	movq	0x198(%rbx), %rcx
+000000000146e7cc	maxps	(%rcx), %xmm0
+000000000146e7cf	movaps	%xmm0, (%rax)
+000000000146e7d2	xorl	%eax, %eax
+000000000146e7d4	popq	%rbx
+000000000146e7d5	popq	%r12
+000000000146e7d7	popq	%r14
+000000000146e7d9	popq	%r15
+000000000146e7db	popq	%rbp
+000000000146e7dc	retq
+000000000146e7dd	nopl	(%rax)
