@@ -1,0 +1,7 @@
+__ZNK26PCICCTransferFunctionGamma8getGammaEv:
+000000000001383c	pushq	%rbp
+000000000001383d	movq	%rsp, %rbp
+0000000000013840	movss	0x8(%rdi), %xmm0
+0000000000013845	popq	%rbp
+0000000000013846	retq
+0000000000013847	nop
