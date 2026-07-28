@@ -8,7 +8,7 @@
 //
 // Purpose: implements a "divide" step of a bilateral filter interpolator —
 // per-texel   out = mulIn * (rcp_clamped(in) * one_plus_half_ulp)   using
-// SSE `rcpps` (approximate reciprocal, ~12-bit mantissa precision) and
+// SSE `rcpps` (fast-approx reciprocal, ~12-bit mantissa precision) and
 // bracketing clamps to ±0x5f800000 (±1.844674407e19, i.e. ±2^63 as f32) to
 // avoid ±Inf / NaN propagation. The Metal shader source (in GetProgram)
 // makes the shape explicit:
@@ -720,7 +720,7 @@ export class HgcBilateralFilterInterp_Divide {
    *     xmm2 = movaps  [r15+0x20]  = params[+0x20] = V_MAX_NEGATIVE_2P63
    *     xmm0 = minps xmm1, xmm0
    *     xmm0 = maxps xmm2, xmm0
-   *     xmm0 = rcpps xmm0                                   ; approximate 1/x
+   *     xmm0 = rcpps xmm0                                   ; fast-approx 1/x
    *     xmm0 = mulps xmm0, [r15+0x40] = V_ONE_PLUS_HALF_ULP
    *     xmm0 = minps xmm1, xmm0
    *     xmm0 = maxps xmm2, xmm0
@@ -732,7 +732,7 @@ export class HgcBilateralFilterInterp_Divide {
    * at the higher tile offset (+0x50, our "mulInPtr"); the later shader
    * texture (r1 = tex1, being reciprocated) is at +0x60 ("inPtr").
    *
-   * PROVENANCE NOTE for rcpps: SSE `rcpps` is an APPROXIMATE reciprocal
+   * PROVENANCE NOTE for rcpps: SSE `rcpps` is a fast-approx reciprocal
    * (~12-bit mantissa, LUT-based) — NOT IEEE 1/x. Per PORTING_SPEC.md
    * Rule 3, the exact LUT semantics are a distinct decode item; this port
    * models it via `sse_rcpps` (see helper below) which is a stub-shaped
@@ -920,7 +920,7 @@ function simd_maxps(a: number, b: number): number {
   return Math.fround(b > a ? b : a);
 }
 
-/** SSE `rcpps` — APPROXIMATE reciprocal (~12-bit mantissa precision, LUT-based).
+/** SSE `rcpps` — fast-approx reciprocal (~12-bit mantissa precision, LUT-based).
  *  Intel SDM guarantees |ε| ≤ 1.5·2^-12; the LUT is not part of the ISA public
  *  spec. Our inputs are always clamped to ±2^63 (see min/max pair above),
  *  so the reciprocal is finite. Cited by @Helium 0x31aa7b (rcpps xmm0, xmm0).
