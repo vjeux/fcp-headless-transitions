@@ -53,6 +53,15 @@ STUB_PHRASE = re.compile(
 )
 THROW = re.compile(r'\bthrow\s+new\b')
 ADDR  = re.compile(r'0x([0-9a-fA-F]{3,})')
+# FRAMEWORK-AWARE key. Short addresses collide across the 5 frameworks (3205 addrs appear in >1 fw):
+# e.g. @ProCore 0x41b8 (PCColorUtil::applyHLGToPQ, a throw stub) and @Ozone 0x41b8
+# (vertexShaderViewer, a real body) share the bare key '41b8', so the real Ozone cite made the
+# ProCore stub count as `ported`. We now key on (framework, addr) when a framework tag is on the
+# line, and fall back to a wildcard '*|addr' only when no framework is present. status_for() gives
+# a framework-SPECIFIC classification precedence over the wildcard, so a fw-specific stub can never
+# be masked by a wildcard real from a DIFFERENT framework.
+_FW = r'(?:ProCore|ProChannel|Helium|Ozone|Flexo)'
+FW_PAIR = re.compile(r'@?(' + _FW + r')\b[^\n]{0,40}?0x([0-9a-fA-F]{3,})')
 
 
 def norm(a):
@@ -89,14 +98,18 @@ def scan_src(root):
             continue
         r, s = set(), set()
         for ln in lines:
-            found = ADDR.findall(ln)
-            if not found:
-                continue
-            addrs = {norm(a) for a in found}
-            if THROW.search(ln) and STUB_PHRASE.search(ln):
-                s |= addrs
+            pairs = FW_PAIR.findall(ln)
+            if pairs:
+                keys = {f"{fw}|{norm(a)}" for fw, a in pairs}
             else:
-                r |= addrs
+                found = ADDR.findall(ln)
+                if not found:
+                    continue
+                keys = {f"*|{norm(a)}" for a in found}   # no framework on the line -> wildcard
+            if THROW.search(ln) and STUB_PHRASE.search(ln):
+                s |= keys
+            else:
+                r |= keys
         if r:
             real_in[f] = r
         if s:
@@ -111,6 +124,22 @@ def scan_src(root):
         stub |= s
     stub -= real
     return real, stub
+
+
+def status_for(fw, addr, real, stub):
+    """Framework-aware status. A framework-SPECIFIC classification always beats the wildcard, so a
+    fw-specific stub cannot be masked by a wildcard `real` from a DIFFERENT framework (the bug that
+    made @ProCore 0x41b8 count `ported` because @Ozone 0x41b8 was real)."""
+    a = norm(addr)
+    if fw and f"{fw}|{a}" in real:
+        return "ported"
+    if fw and f"{fw}|{a}" in stub:
+        return "stub"
+    if f"*|{a}" in real:
+        return "ported"
+    if f"*|{a}" in stub:
+        return "stub"
+    return "todo"
 
 
 def _root_from_here():

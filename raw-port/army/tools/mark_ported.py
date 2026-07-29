@@ -18,7 +18,7 @@ ROOT=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LED=os.path.join(ROOT,"army","ledger")
 GRAPH=os.path.join(ROOT,"army","graph")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from stubscan import scan_src, norm
+from stubscan import scan_src, norm, status_for as _stub_status_for
 # structural classifier (verifier) for the DISPATCH_ONLY (skeleton) downgrade
 sys.path.insert(0, os.path.join(ROOT,"army","verifier"))
 try:
@@ -55,13 +55,15 @@ def _is_dispatch_only(fw, mangled):
 
 real_cited, stub_cited = scan_src(ROOT)
 def status_for(addr, fw=None, mangled=None):
-    a=norm(addr)
-    if a in real_cited:
+    # FRAMEWORK-AWARE (fixes the cross-fw addr-collision bug: @ProCore 0x41b8 stub was masked by
+    # @Ozone 0x41b8 real). stubscan.status_for gives fw-specific keys precedence over the wildcard.
+    base = _stub_status_for(fw, addr, real_cited, stub_cited)
+    if base == "ported":
         # a real-cited body that is structurally a vtable shell is a SKELETON, not ported.
         if fw and mangled and _is_dispatch_only(fw, mangled):
             return "skeleton"
         return "ported"
-    return "stub" if a in stub_cited else "todo"
+    return base
 
 tot=port=skel=stub=todo=changed=0
 for fw in ["ProChannel","ProCore","Ozone","Flexo","Helium"]:
