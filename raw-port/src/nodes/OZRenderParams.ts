@@ -36,6 +36,12 @@
 // -----------------------------------------------------------------------------
 //   * __ZN14OZRenderParams13setResolutionERK9PCVector2IdE
 //       — OZRenderParams::setResolution(PCVector2<double> const&) @Ozone 0x2716f0
+//   * __ZN14OZRenderParams16setBlendingGammaEf
+//       — OZRenderParams::setBlendingGamma(float) @Ozone 0x271610
+//   * __ZN14OZRenderParams20setResolutionDynamicERK9PCVector2IdE
+//       — OZRenderParams::setResolutionDynamic(PCVector2<double> const&) @Ozone 0x271730
+//         (raw-port/re/disasm/
+//           __ZN14OZRenderParams20setResolutionDynamicERK9PCVector2IdE.s — 15 lines)
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (raw-port/re/disasm/
@@ -103,6 +109,24 @@ export class OZRenderParams {
   blendingGamma: number = 0;
 
   /**
+   * @Ozone offset +0x1a8 — a one-byte flag/mode discriminator, read
+   * @0x27173e by `setResolutionDynamic` via `cmpb $0x1, 0x1a8(%rdi)`.
+   * When this byte holds the value `1`, `setResolutionDynamic` fans the
+   * incoming resolution out to the same "downstream" cache slots that
+   * `setResolution` writes (+0x18, +0x188, +0x198). When it holds any
+   * other value, `setResolutionDynamic` only writes the `+0x1c0` slot
+   * and leaves the downstream slots untouched.
+   *
+   * Semantically this is likely a "dynamic-resolution enabled?" or
+   * "override-mode == follow-dynamic?" boolean, but the setter/writer
+   * for this byte lives in a different (not-yet-ported) OZRenderParams
+   * method, so we don't invent a name for the mode — the offset IS the
+   * name until the setter's disasm reveals it. Modelled as `number`
+   * (0..255) to preserve the single-byte width the `cmpb` operates on.
+   */
+  flagByteAt1a8: number = 0;
+
+  /**
    * `OZRenderParams::setResolution(PCVector2<double> const&)`
    *   — @Ozone 0x2716f0
    *   — __ZN14OZRenderParams13setResolutionERK9PCVector2IdE
@@ -167,5 +191,91 @@ export class OZRenderParams {
   setBlendingGamma(gamma: number): void {
     // @0x271614  movss %xmm0,0x2e0(%rdi)
     this.blendingGamma = Math.fround(gamma);
+  }
+
+  /**
+   * `OZRenderParams::setResolutionDynamic(PCVector2<double> const&)`
+   *   — @Ozone 0x271730
+   *   — __ZN14OZRenderParams20setResolutionDynamicERK9PCVector2IdE
+   *
+   * Faithful line-for-line transcription of the 15-line disassembly:
+   *
+   *   0x271730  pushq  %rbp                        ; frame prologue
+   *   0x271731  movq   %rsp, %rbp
+   *   0x271734  movups (%rsi), %xmm0               ; xmm0 = *vec (16 bytes)
+   *   0x271737  movups %xmm0, 0x1c0(%rdi)          ; this[+0x1c0] = *vec
+   *
+   *   0x27173e  cmpb   $0x1, 0x1a8(%rdi)           ; flag byte @+0x1a8 == 1 ?
+   *   0x271745  jne    0x271763                    ;   ; if not, skip fan-out
+   *
+   *   0x271747  movups 0x1c0(%rdi), %xmm0          ; xmm0 = this[+0x1c0]
+   *                                                ; (i.e. the value we JUST wrote — a
+   *                                                ; register-reload rather than reading
+   *                                                ; *vec again; compiler chose this over
+   *                                                ; keeping xmm0 live, presumably to
+   *                                                ; free the reg between blocks)
+   *   0x27174e  movups %xmm0, 0x18(%rdi)           ; this[+0x018] = *vec
+   *   0x271752  xorps  %xmm0, %xmm0                ; xmm0 = 0
+   *   0x271755  movups %xmm0, 0x188(%rdi)          ; this[+0x188] = (0, 0)
+   *   0x27175c  movups %xmm0, 0x198(%rdi)          ; this[+0x198] = (0, 0)
+   *
+   *   0x271763  popq   %rbp                        ; frame epilogue
+   *   0x271764  retq
+   *
+   * SEMANTICS:
+   *   Always writes the "dynamic resolution" cache slot at +0x1c0. Then:
+   *     - If the mode-byte at +0x1a8 is 1, propagates that value through
+   *       to the downstream cache slots (+0x18 gets the vec, +0x188 and
+   *       +0x198 are zeroed) — i.e. exactly the SAME downstream writes
+   *       that `setResolution(vec)` performs. So when mode==1, calling
+   *       setResolutionDynamic ends up equivalent to setResolution
+   *       PLUS the +0x1c0 cache stamp.
+   *     - If the mode-byte is anything else, only +0x1c0 is touched;
+   *       the downstream cache stays put.
+   *
+   *   The `+0x1a8 == 1` gate is the "dynamic mode overrides static
+   *   resolution" latch — when the caller has told OZRenderParams "use
+   *   dynamic resolution as the source of truth", any dynamic-resolution
+   *   update also refreshes the downstream cache. Otherwise the static
+   *   `setResolution(vec)` remains the sole writer of the downstream
+   *   cache slots.
+   *
+   * DEPENDENCIES: zero in-scope, zero externs. Pure field writes.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZRenderParams20setResolutionDynamicERK9PCVector2IdE.s
+   */
+  setResolutionDynamic(vec: PCVector2Double): void {
+    // @0x271734  movups (%rsi),%xmm0
+    // @0x271737  movups %xmm0,0x1c0(%rdi)
+    //   this[+0x1c0] = *vec  (16-byte copy)
+    this.resolutionAt1c0 = { x: vec.x, y: vec.y };
+
+    // @0x27173e  cmpb  $0x1,0x1a8(%rdi)
+    // @0x271745  jne   0x271763
+    //   Fall through to the fan-out only when the flag byte == 1.
+    //   (`cmpb` computes `flag - 1`; `jne` = ZF==0 = flag != 1.)
+    if (this.flagByteAt1a8 === 1) {
+      // @0x271747  movups 0x1c0(%rdi),%xmm0
+      //   xmm0 = this[+0x1c0] (the value we just wrote above; the
+      //   disasm re-reads the destination rather than keeping the
+      //   source in a register — faithful to the compiler's choice).
+      // @0x27174e  movups %xmm0,0x18(%rdi)
+      //   this[+0x018] = xmm0 = this[+0x1c0] = *vec
+      this.resolutionAt18 = { x: this.resolutionAt1c0.x, y: this.resolutionAt1c0.y };
+
+      // @0x271752  xorps %xmm0,%xmm0            ; xmm0 = 0 (16 zero bytes)
+      // @0x271755  movups %xmm0,0x188(%rdi)      ; this[+0x188] = (0, 0)
+      // @0x27175c  movups %xmm0,0x198(%rdi)      ; this[+0x198] = (0, 0)
+      //
+      // Note on write order: the disasm writes +0x188 BEFORE +0x198,
+      // which is the REVERSE of setResolution's write order. It's the
+      // SAME zero value going to both, so the observable state is the
+      // same either way, but we mirror the disasm order here.
+      this.zeroedAt188 = { x: 0, y: 0 };
+      this.zeroedAt198 = { x: 0, y: 0 };
+    }
+
+    // @0x271763-0x271764 — epilogue + retq.
   }
 }
