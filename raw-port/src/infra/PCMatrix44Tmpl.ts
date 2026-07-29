@@ -56,6 +56,8 @@
  *   0x000c4b6a  transform<double>(PCVector2 const&, PCVector2&) — THE UNLOCK
  *   0x000188c4  transform<double>(PCVector3 const&, PCVector3&)
  *   0x00017520  transform<double>(PCVector4 const&, PCVector4&)
+ *   0x00050dfa  transform<double>(PCVector2 const&, PCVector4&) — Vec2→Vec4
+ *                                                                (no divide)
  *   0x0004ef7e  isIdentity()
  *   0x0004f378  leftTranslate(tx, ty, tz)
  *   0x0004f444  rightTranslate(tx, ty, tz)
@@ -343,6 +345,98 @@ export class PCMatrix44Tmpl_double {
     out.z = m[8] * x + m[9] * y + m[10] * z + m[11] * w;
     // out.w = row 3 · in
     out.w = m[12] * x + m[13] * y + m[14] * z + m[15] * w;
+    return out;
+  }
+
+  // ==========================================================================
+  //  transform<Vector2 -> Vector4>  @ProCore 0x00050dfa
+  // ==========================================================================
+  /**
+   * `PCVector4<double>& PCMatrix44Tmpl<double>::transform<double>(
+   *      PCVector2<double> const& in, PCVector4<double>& out) const`
+   *
+   * @ProCore 0x00050dfa  (mangled __ZNK14PCMatrix44TmplIdE9transformIdEE
+   *                     R9PCVector4IT_ERK9PCVector2IS3_ES5_)
+   *
+   * Treats `in` as (x, y, 0, 1) and computes the full 4-component result
+   * WITHOUT perspective divide (unlike transformVec2, which does divide;
+   * unlike transformVec4, which uses in.w — here w is implicitly 1 and z
+   * is implicitly 0). Every row is dotted with (x, y, 0, 1) → row_i.0*x
+   * + row_i.1*y + row_i.3, i.e. m02 (row·col 2) is skipped entirely.
+   *
+   * Full transcription of the 35-instr body in
+   * raw-port/re/disasm/ProCore.__ZNK14PCMatrix44TmplIdE9transformIdEE
+   * R9PCVector4IT_ERK9PCVector2IS3_ES5_.s:
+   *
+   *   0x50dfe  movq   %rdx, %rax                ; rax = &out (return value)
+   *   0x50e01  movsd  (%rsi), %xmm1             ; xmm1 = in.x
+   *   0x50e05  movsd  0x8(%rsi), %xmm0          ; xmm0 = in.y
+   *   0x50e0a  movsd  (%rdi), %xmm2             ; xmm2 = m00
+   *   0x50e0e  mulsd  %xmm1, %xmm2              ; xmm2 = m00*x
+   *   0x50e12  movsd  0x8(%rdi), %xmm3          ; xmm3 = m01
+   *   0x50e17  mulsd  %xmm0, %xmm3              ; xmm3 = m01*y
+   *   0x50e1b  addsd  %xmm2, %xmm3              ; xmm3 = m00*x + m01*y
+   *   0x50e1f  addsd  0x18(%rdi), %xmm3         ; xmm3 += m03
+   *                                             ;   NOTE: 0x10(%rdi)=m02
+   *                                             ;   is NOT loaded — z=0 is
+   *                                             ;   folded away at compile
+   *                                             ;   time.
+   *   0x50e24  movsd  %xmm3, (%rdx)             ; out.x = row0·(x,y,0,1)
+   *   0x50e28  movsd  0x20(%rdi), %xmm2         ; xmm2 = m10
+   *   0x50e2d  mulsd  %xmm1, %xmm2              ; xmm2 = m10*x
+   *   0x50e31  movsd  0x28(%rdi), %xmm3         ; xmm3 = m11
+   *   0x50e36  mulsd  %xmm0, %xmm3              ; xmm3 = m11*y
+   *   0x50e3a  addsd  %xmm2, %xmm3              ; xmm3 = m10*x + m11*y
+   *   0x50e3e  addsd  0x38(%rdi), %xmm3         ; xmm3 += m13
+   *                                             ;   (m12 at 0x30(%rdi)
+   *                                             ;   skipped for the same
+   *                                             ;   z=0 reason)
+   *   0x50e43  movsd  %xmm3, 0x8(%rdx)          ; out.y = row1·(x,y,0,1)
+   *   0x50e48  movsd  0x40(%rdi), %xmm2         ; xmm2 = m20
+   *   0x50e4d  mulsd  %xmm1, %xmm2              ; xmm2 = m20*x
+   *   0x50e51  movsd  0x48(%rdi), %xmm3         ; xmm3 = m21
+   *   0x50e56  mulsd  %xmm0, %xmm3              ; xmm3 = m21*y
+   *   0x50e5a  addsd  %xmm2, %xmm3              ; xmm3 = m20*x + m21*y
+   *   0x50e5e  addsd  0x58(%rdi), %xmm3         ; xmm3 += m23
+   *                                             ;   (m22 at 0x50 skipped)
+   *   0x50e63  movsd  %xmm3, 0x10(%rdx)         ; out.z = row2·(x,y,0,1)
+   *   0x50e68  mulsd  0x60(%rdi), %xmm1         ; xmm1 = m30*x
+   *                                             ;   (in-place: reuses
+   *                                             ;   xmm1 since x is not
+   *                                             ;   needed again)
+   *   0x50e6d  mulsd  0x68(%rdi), %xmm0         ; xmm0 = m31*y
+   *                                             ;   (in-place: reuses
+   *                                             ;   xmm0)
+   *   0x50e72  addsd  %xmm1, %xmm0              ; xmm0 = m30*x + m31*y
+   *   0x50e76  addsd  0x78(%rdi), %xmm0         ; xmm0 += m33
+   *                                             ;   (m32 at 0x70 skipped)
+   *   0x50e7b  movsd  %xmm0, 0x18(%rdx)         ; out.w = row3·(x,y,0,1)
+   *   0x50e80  popq   %rbp                      ; epilogue
+   *   0x50e81  retq                             ; return rax (&out)
+   *
+   * NO divsd anywhere → no perspective divide. NO cvtsd2ss → full IEEE-754
+   * f64 (matches transformVec4's precision discipline).
+   *
+   * The return value is the same reference as `out` (rax = rdx @0x50dfe);
+   * we mirror that by returning `out` at the end.
+   */
+  transformVec2ToVec4(
+    inV: PCVector2Double,
+    out: PCVector4Double,
+  ): PCVector4Double {
+    const m = this.m;
+    // @0x50e01..0x50e05 — load in.x, in.y.
+    const x = inV.x;
+    const y = inV.y;
+    // @0x50e0a..0x50e24 — out.x = m00*x + m01*y + m03  (row 0 · (x,y,0,1))
+    out.x = m[0] * x + m[1] * y + m[3];
+    // @0x50e28..0x50e43 — out.y = m10*x + m11*y + m13  (row 1 · ...)
+    out.y = m[4] * x + m[5] * y + m[7];
+    // @0x50e48..0x50e63 — out.z = m20*x + m21*y + m23  (row 2 · ...)
+    out.z = m[8] * x + m[9] * y + m[11];
+    // @0x50e68..0x50e7b — out.w = m30*x + m31*y + m33  (row 3 · ...)
+    out.w = m[12] * x + m[13] * y + m[15];
+    // @0x50e80..0x50e81 — retq (rax = rdx = &out; we return the reference).
     return out;
   }
 
