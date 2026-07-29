@@ -1,0 +1,11 @@
+__ZeqRK10PCNCLCCodeS1_:
+00000000000c2286	pushq	%rbp
+00000000000c2287	movq	%rsp, %rbp
+00000000000c228a	movq	(%rdi), %rax
+00000000000c228d	xorq	(%rsi), %rax
+00000000000c2290	movl	0x8(%rdi), %ecx
+00000000000c2293	xorl	0x8(%rsi), %ecx
+00000000000c2296	orq	%rax, %rcx
+00000000000c2299	sete	%al
+00000000000c229c	popq	%rbp
+00000000000c229d	retq
