@@ -14,7 +14,7 @@
 //                              double, double, int)            @0xdce4
 //        findPointOnSineWave  (double, double, double, double,
 //                              double, double, double, int,
-//                              double*, double*)               @0xdb02
+//                              double*, double*)               @0xd6dc
 //
 // Faithfully transcribed from ProCore.framework/Versions/A/ProCore
 // (x86_64 slice; VAs are otool -tV VAs). Uses the yet-to-be-ported
@@ -31,7 +31,7 @@
 //   ProCore.PCEvaluator.findLengthOfEllipse.s        @0xd2b4
 //   ProCore.PCEvaluator.findPointOnEllipse.s         @0xd322 (214 lines)
 //   ProCore.PCEvaluator.findLengthOfSineWave.s       @0xdce4 (94 lines)
-//   ProCore.PCEvaluator.findPointOnSineWave.s        @0xdb02 (327 lines)
+//   ProCore.PCEvaluator.findPointOnSineWave.s        @0xd6dc (326 lines)
 //
 // ---------------------------------------------------------------------------
 // CLASS LAYOUT — 0x5c (92) bytes total, recovered from the four ctor
@@ -436,12 +436,41 @@ export class PCEvaluator {
 
   /**
    * `PCEvaluator::findPointOnSineWave(double, double, double, double,
-   *   double, double, double, int, double*, double*)` @0xdb02 (327 lines).
+   *   double, double, double, int, double*, double*)` @0xd6dc (326 lines).
+   *   __ZN11PCEvaluator19findPointOnSineWaveEdddddddiPdS0_
+   *   re/disasm/ProCore.PCEvaluator.findPointOnSineWave_0xd6dc.s
+   *
+   * NOTE: an earlier version of this file cited this method as `@0xdb02`.
+   * That address is INSIDE the function body (byte offset +0x426 into the
+   * function per `nm -n` + `otool -tV`); the actual entry point is 0xd6dc.
+   * Citation corrected — `frontier.py` grounds on the function's real entry
+   * PC, not a mid-body offset.
    *
    * Same-family method as findLengthOfSineWave — pulls or refreshes the
-   * PCEvaluatorWaveData arc-length cache, then linear-interpolates the
-   * cached (x, y) samples to hit the requested fractional arc length.
-   * All frontier types unlanded — Rule-3 throw-stub.
+   * PCEvaluatorWaveData arc-length cache, then binary-searches (via
+   * PCAlgorithm::bisect) into the cached (x, y) samples to hit the
+   * requested fractional arc length, and finally interpolates.
+   *
+   * DEPENDENCY CHAIN (all currently throw-stubs or unlanded — see below):
+   *   PCSpinLock::lock()                                @ProCore (stub)
+   *   PCEvaluatorWaveData::operator==(...)              @ProCore 0xcde4  (ported)
+   *   PCEvaluatorWaveData::operator=(...)               @ProCore 0xce92  (ported)
+   *   PCEvaluatorWaveData::refreshWaveArrays()          @ProCore 0xcf88  (throw-stub — unlanded)
+   *   PCAlgorithm::bisect(double*, u32, double, i32*)   @ProCore (throw-stub — unlanded)
+   *   libSystem _exp, _sin                              @ProCore stubs @0xde858, @0xdeb2e
+   *   operator new[] / operator delete[]                @ProCore stubs @0xde6c6, @0xde6ba
+   *
+   * Body outline (@0xd6dc..@0xdc??): reads the wave-data cache under the
+   * spin-lock (offset +0x58), scales the input `s` by the last element of
+   * the pre-computed arc-length table (at wavedata+0x50), bisects for the
+   * bin, then does a linear interpolation over an exp/sin-weighted sample
+   * grid (rip-relative rodata reads at 0x114d30, 0x114c3d, 0x114b87 —
+   * classical wave-envelope constants; see PCEvaluatorWaveData for their
+   * decode once refreshWaveArrays is transcribed).
+   *
+   * FAITHFUL PORT NOT YET POSSIBLE: refreshWaveArrays + PCAlgorithm::bisect
+   * are frontier. Per Rule-1 we do NOT paraphrase a 326-line Newton/bisection
+   * numerical solver — the transcription lands once its callees land.
    */
   public findPointOnSineWave(
     _amp: number,
@@ -456,8 +485,9 @@ export class PCEvaluator {
     _outY: { value: number },
   ): void {
     throw new Error(
-      "raw-port: PCEvaluator::findPointOnSineWave @0xdb02 not yet transcribed — " +
-        "depends on unlanded PCEvaluatorWaveData + PCSpinLock (see findLengthOfSineWave)"
+      "raw-port: PCEvaluator::findPointOnSineWave @0xd6dc not yet transcribed — " +
+        "depends on unlanded PCEvaluatorWaveData::refreshWaveArrays @0xcf88 + " +
+        "PCAlgorithm::bisect (see findLengthOfSineWave)"
     );
   }
 }
