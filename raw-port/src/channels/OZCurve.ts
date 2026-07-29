@@ -527,6 +527,8 @@ export class OZCurve {
    * OZCurve::markFactoriesForSerialization(PCSerializerWriteStream&, bool)
    * @ProChannel 0x277b4 (body address from nm; ledger index @0x1daa0 is an ICF-alias / stale
    * ledger slot, both share this identical body — verified with nm -n on the x86_64 slice).
+   * @Flexo      0x220190 (cross-framework duplicate — Flexo carries an identical body:
+   *                       pushq %rbp ; movq %rsp,%rbp ; popq %rbp ; retq).
    *
    *   __ZN7OZCurve29markFactoriesForSerializationER23PCSerializerWriteStreamb:
    *   000000000x277b4  pushq   %rbp
@@ -547,6 +549,8 @@ export class OZCurve {
    * OZCurve::supportsAssignmentOperator() const
    * @ProChannel 0x84d98 (body address from nm; ledger index @0x1db60 is an ICF-alias / stale
    * ledger slot — the true body is at 0x84d98 and returns constant 1).
+   * @Flexo      0x220240 (cross-framework duplicate — Flexo carries an identical body:
+   *                       movb $0x1,%al ; returns literal true).
    *
    *   __ZNK7OZCurve26supportsAssignmentOperatorEv:
    *   0000000000084d98  pushq   %rbp
@@ -565,6 +569,8 @@ export class OZCurve {
    * OZCurve::isCurveBoolean()
    * @ProChannel 0x84da0 (body address from nm; ledger index @0x1db70 is an ICF-alias / stale
    * ledger slot — the true body is at 0x84da0 and returns constant 0).
+   * @Flexo      0x220250 (cross-framework duplicate — Flexo carries an identical body:
+   *                       xorl %eax,%eax ; returns literal false).
    *
    *   __ZN7OZCurve14isCurveBooleanEv:
    *   0000000000084da0  pushq   %rbp
