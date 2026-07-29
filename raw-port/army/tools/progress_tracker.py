@@ -134,6 +134,25 @@ def snapshot():
     print(f"  ported .ts files : {len(ts)}")
     print(f"  total src lines  : {lines:,}")
     print(f"  distinct @0xADDR : {len(addrs):,}  (of ~{ledtot:,} ledger fns = {100.0*len(addrs)/max(ledtot,1):.2f}% cited)")
+    # --- ledger-truth 3-way split: real ports vs throw-stubs vs todo (via stubscan classifier) ---
+    real=stubn=todon=0
+    for lf in (os.listdir(ldir) if os.path.isdir(ldir) else []):
+        if not lf.endswith(".ledger.json") or lf.startswith("shaders"): continue
+        try:
+            led=json.load(open(os.path.join(ldir,lf)))
+        except Exception:
+            continue
+        for ms in led.values():
+            if not isinstance(ms,dict): continue
+            for v in ms.values():
+                if not isinstance(v,dict): continue
+                s=v.get("status")
+                if s=="ported": real+=1
+                elif s=="stub": stubn+=1
+                else: todon+=1
+    if real+stubn+todon:
+        print(f"  ledger status    : ported={real:,}  stub={stubn:,}  todo={todon:,}"
+              f"  (stub = addr-cited throw placeholder, NOT real math)")
     print(f"  by src layer:")
     for k,v in by_layer.most_common():
         print(f"     {k:<12} {v:>5}")

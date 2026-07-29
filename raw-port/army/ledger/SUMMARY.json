@@ -4,34 +4,39 @@
     "cpp": 5696,
     "objc": 708,
     "classes": 910,
-    "ported": 8
+    "ported": 1193,
+    "stub": 90
   },
   "ProCore": {
     "functions": 5224,
     "cpp": 4360,
     "objc": 864,
     "classes": 971,
-    "ported": 14
+    "ported": 915,
+    "stub": 93
   },
   "Ozone": {
     "functions": 28625,
     "cpp": 18078,
     "objc": 10547,
     "classes": 3435,
-    "ported": 26
+    "ported": 2099,
+    "stub": 95
   },
   "Flexo": {
     "functions": 74035,
     "cpp": 7543,
     "objc": 66492,
     "classes": 4506,
-    "ported": 52
+    "ported": 1384,
+    "stub": 26
   },
   "Helium": {
     "functions": 12769,
     "cpp": 12510,
     "objc": 259,
     "classes": 1320,
-    "ported": 32
+    "ported": 2610,
+    "stub": 54
   }
 }

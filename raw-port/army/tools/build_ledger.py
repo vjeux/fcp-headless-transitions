@@ -14,12 +14,14 @@ ROOT=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INV=os.path.join(ROOT,"army","inventory"); LED=os.path.join(ROOT,"army","ledger")
 os.makedirs(LED,exist_ok=True)
 
-def ported_addrs():
-    txt=""
-    for f in subprocess.run(["find",os.path.join(ROOT,"src"),"-name","*.ts"],capture_output=True,text=True).stdout.split():
-        try: txt+=open(f).read()
-        except: pass
-    return set(x.lower() for x in re.findall(r'@0x([0-9a-fA-F]+)',txt))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # tools/ on path for stubscan
+from stubscan import scan_src, norm as _norm   # shared "real body vs throw-stub" oracle
+
+def status_sets():
+    """Return (real_cited, stub_cited) normalized-addr sets from src/ (via stubscan).
+    real_cited => a real body/JSDoc/comment names the addr (ported).
+    stub_cited => addr appears ONLY on a throwing-stub line (placeholder; status=stub)."""
+    return scan_src(ROOT)
 
 def class_method(dem):
     depth=0; cut=len(dem)
@@ -37,7 +39,10 @@ OBJC_RE = re.compile(r'^([0-9a-f]+)\s+[Tt]\s+([-+])\[([^\]\s]+?)(?:\(([^)]*)\))?
 def main():
     # Full engine scope (per ARMY.md §1): ALL frameworks, C++ AND ObjC symbols.
     fws=sys.argv[1:] or ["ProChannel","ProCore","Ozone","Flexo","Helium"]
-    ported=ported_addrs(); summary={}; rows=[]
+    real_cited, stub_cited = status_sets(); summary={}; rows=[]
+    def _status(addr):
+        a=_norm(addr)
+        return "ported" if a in real_cited else "stub" if a in stub_cited else "todo"
     for fw in fws:
         p=os.path.join(INV,f"{fw}.syms.txt")
         if not os.path.exists(p): continue
@@ -55,18 +60,19 @@ def main():
         ledger={}
         for (addr,mg),d in zip(mang,dem):
             cls,meth=class_method(d)
-            st="ported" if addr.lower() in ported else "todo"
+            st=_status(addr)
             ledger.setdefault(cls,{})[f"{meth}@0x{addr}"]={"addr":"0x"+addr,"mangled":mg,"demangled":d,"status":st,"kind":"cpp"}
         for addr,cls,methkey,full in objc:
-            st="ported" if addr.lower() in ported else "todo"
+            st=_status(addr)
             ledger.setdefault(cls,{})[f"{methkey}@0x{addr}"]={"addr":"0x"+addr,"mangled":full,"demangled":full,"status":st,"kind":"objc"}
         json.dump(ledger,open(os.path.join(LED,f"{fw}.ledger.json"),"w"))
         nfns=len(mang)+len(objc)
         nport=sum(1 for c in ledger.values() for u in c.values() if u["status"]=="ported")
-        summary[fw]={"functions":nfns,"cpp":len(mang),"objc":len(objc),"classes":len([c for c in ledger if c!="(free)"]),"ported":nport}
+        nstub=sum(1 for c in ledger.values() for u in c.values() if u["status"]=="stub")
+        summary[fw]={"functions":nfns,"cpp":len(mang),"objc":len(objc),"classes":len([c for c in ledger if c!="(free)"]),"ported":nport,"stub":nstub}
         for cls,ms in ledger.items():
             rows.append((fw,cls,len(ms),sum(1 for u in ms.values() if u["status"]=="ported")))
-        print(f"{fw:12} {nfns:6} fns ({len(mang)} cpp + {len(objc)} objc)  {summary[fw]['classes']:5} classes  {nport} ported")
+        print(f"{fw:12} {nfns:6} fns ({len(mang)} cpp + {len(objc)} objc)  {summary[fw]['classes']:5} classes  {nport} ported  {nstub} stub")
     rows.sort(key=lambda r:-r[2])
     with open(os.path.join(LED,"CLASSES.tsv"),"w") as f:
         f.write("fw\tclass\tnMethods\tnPorted\n")

@@ -10,13 +10,14 @@ Usage: frontier.py [FW]   (default: all)
 import json, os, re, subprocess, sys
 ROOT=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 LED=os.path.join(ROOT,"army","ledger")
-# (A) explicit throws naming an addr/symbol
-src=""
-for f in subprocess.run(["find",os.path.join(ROOT,"src"),"-name","*.ts"],capture_output=True,text=True).stdout.split():
-    try: src+=open(f).read()
-    except: pass
-throw_addrs=set(x.lower() for x in re.findall(r'not yet transcribed[^\n]*@0x([0-9a-fA-F]+)',src))
-fws=sys.argv[1:] or ["ProChannel","ProCore","Ozone","Flexo"]
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from stubscan import scan_src, norm   # shared "real body vs throw-stub" oracle
+# (A) explicit throws naming an un-ported addr. Use the stubscan oracle so ALL stub phrasings
+# ("not yet transcribed|ported|decoded|implemented", "deferred stub") count — and so the addr may
+# sit anywhere on the throw line (the old regex required "not yet transcribed ... @0x" on ONE line,
+# missing ~all deferred-stub / demoted-ported placeholders). This surfaces every real gap as demand.
+_real, throw_addrs = scan_src(ROOT)   # throw_addrs = normalized addr-keys of pure throwing stubs
+fws=sys.argv[1:] or ["ProChannel","ProCore","Ozone","Flexo","Helium"]
 print("=== explicit frontier (throw-stubs naming an un-ported addr) ===")
 hits=0
 for fw in fws:
@@ -25,7 +26,7 @@ for fw in fws:
     led=json.load(open(lp))
     for cls,ms in led.items():
         for v in ms.values():
-            if v["addr"].lower().lstrip("0x") in throw_addrs:
+            if norm(v["addr"]) in throw_addrs:
                 print(f"  {fw} {cls}  {v['addr']}  {v['demangled']}"); hits+=1
 if not hits: print("  (none — add throwing stubs that cite @0xADDR to grow the frontier)")
 print("\n=== next-tier ready classes (todo classes with most methods, by fw) ===")
