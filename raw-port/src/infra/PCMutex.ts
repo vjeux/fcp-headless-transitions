@@ -42,9 +42,10 @@
 // Symbols ported here (mangled → address)
 // -----------------------------------------------------------------------------
 //   * __ZN7PCMutexD2Ev  PCMutex::~PCMutex()  [D2 base dtor]  @0x347c0
+//   * __ZN7PCMutex6unlockEv  PCMutex::unlock()               @0x34844
 //
-// The C1/D1/D0/lock/unlock siblings live at 0x34422/0x347e2/0x34804/0x34836/
-// 0x34844 and are NOT ported by this unit — they are separate ledger entries.
+// The C1/D1/D0/lock siblings live at 0x34422/0x347e2/0x34804/0x34836 and are
+// NOT ported by this unit — they are separate ledger entries.
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (raw-port/re/disasm/ProCore.__ZN7PCMutexD2Ev.s)
@@ -174,5 +175,62 @@ export class PCMutex {
     // @0x347d9..0x347dc landing pad: movq %rax, %rdi; callq
     //   ___clang_call_terminate — std::terminate on unwinding
     //   _pthread_mutex_destroy. Out-of-scope (libc++ terminate handler).
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // PCMutex::unlock()
+  //
+  // Disassembly source:
+  //   raw-port/re/disasm/ProCore.__ZN7PCMutex6unlockEv.s
+  //
+  // FULL DISASM
+  //   0x34844  pushq  %rbp                              ; frame prologue
+  //   0x34845  movq   %rsp, %rbp
+  //   0x34848  addq   $0x8, %rdi                        ; rdi = &this->mutex_at_0x8
+  //   0x3484c  popq   %rbp                              ; frame epilogue
+  //   0x3484d  jmp    _pthread_mutex_unlock             ; TAIL-CALL (POSIX stub 0xdeac2)
+  //
+  // Tail-call jmp (not callq) — the epilogue already restored rbp, so the
+  // return address on the stack sends the pthread stub's return straight
+  // back to unlock's caller. Semantically: `return _pthread_mutex_unlock(
+  // &this->mutex_at_0x8)` with the argument coincidentally in the same
+  // register (%rdi) that already held `this` — the compiler folded the
+  // load and the passthrough into a single `addq $0x8, %rdi`.
+  //
+  // FRONTIER CALLEES (one, TRUE OUT-OF-SCOPE extern)
+  //   * _pthread_mutex_unlock @ProCore stub 0xdeac2 — POSIX pthread.
+  //     Same policy as the dtor's _pthread_mutex_destroy: pthread
+  //     primitives are not modeled in TS; we raise, not paper-over.
+  // ═════════════════════════════════════════════════════════════════════════
+  /**
+   * `PCMutex::unlock()` — @ProCore 0x34844
+   * (__ZN7PCMutex6unlockEv).
+   *
+   * Faithful transcription of the disassembly above. Adds 8 to `this` to
+   * obtain the address of the embedded `pthread_mutex_t` (the layout was
+   * recovered by the dtor at 0x347ce — the mutex sits at `this+0x8`)
+   * then tail-jumps to `_pthread_mutex_unlock`. Since pthread is a TRUE
+   * out-of-scope extern (POSIX primitive; not modeled in the TS port —
+   * see the D2 dtor's identical treatment of `_pthread_mutex_destroy`),
+   * we raise rather than paper over.
+   */
+  unlock(): void {
+    // @0x34844..0x34845 — frame prologue (transcribed as JS scope entry).
+    // @0x34848 — addq $0x8, %rdi : compute address of the embedded
+    //             pthread_mutex_t at this+0x8. No dereference: we pass the
+    //             ADDRESS (a pointer) to pthread_mutex_unlock, not the
+    //             value at that address.
+    void this.mutex_at_0x8;
+    // @0x3484c..0x3484d — popq %rbp; jmp _pthread_mutex_unlock (tail-call).
+    // POSIX pthread — TRUE out-of-scope extern (libSystem.B.dylib stub
+    // @ProCore 0xdeac2). We raise, not paper-over. Same policy as the
+    // dtor's _pthread_mutex_destroy and every other pthread callee in
+    // this port.
+    throw new Error(
+      "PCMutex::unlock() requires _pthread_mutex_unlock on &this[+0x8] " +
+        "@ProCore 0x3484d (POSIX pthread stub @0xdeac2) — pthread primitives " +
+        "are not modeled in TS. " +
+        "@0x34844",
+    );
   }
 }
