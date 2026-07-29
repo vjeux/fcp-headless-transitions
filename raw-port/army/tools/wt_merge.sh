@@ -16,9 +16,11 @@ REPO="$(dirname "$COMMON_GIT")"                                 # -> <main> work
 cd "$REPO"
 LOCKDIR="$REPO/raw-port/army/worktrees/.merge.lock.d"
 
-# global merge lock (serialize — only one merge to main at a time). mkdir is atomic + portable.
-for i in $(seq 1 600); do mkdir "$LOCKDIR" 2>/dev/null && break; sleep 1; done
-trap 'rmdir "$LOCKDIR" 2>/dev/null || true' EXIT
+# SCALING (vjeux 2026-07-29): the EXPENSIVE gate (gate.sh + G5 + tsgo, ~20-25s) and the reviewer
+# sidecar check operate on BRANCH content + the <file>.review.json — NOT on main state — so they do
+# NOT need the global lock. Running them inside the lock serialized ALL merges at ~0.5/min (one gate
+# at a time) regardless of reviewer count. We now gate OUTSIDE the lock (parallel across reviewers,
+# 10 idle cores) and take the lock ONLY for the ~2s git merge+push critical section. Ceiling ~10x.
 
 git fetch -q origin
 git show-ref --verify -q "refs/heads/$BR" || { echo "no branch $BR"; exit 1; }
@@ -70,6 +72,10 @@ if [ -n "$CHANGED" ]; then
 fi
 
 # --- Merge into main and push (from the MAIN worktree) -----------------------------------------
+# CRITICAL SECTION: acquire the global lock ONLY now (gate + review already passed OUTSIDE the lock).
+# Only ONE merge+push touches main at a time; everything expensive already ran in parallel.
+for i in $(seq 1 900); do mkdir "$LOCKDIR" 2>/dev/null && break; sleep 1; done
+trap 'rmdir "$LOCKDIR" 2>/dev/null || true' EXIT
 # RETRY LOOP: even under the merge lock, origin can advance between our pull and push if a push
 # landed from elsewhere (or the lock was contended). A bare `push` then rejects with "cannot lock
 # ref 'refs/heads/main': is at X but expected Y". Re-pull (--no-edit) + re-push up to 5x instead of
