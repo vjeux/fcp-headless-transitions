@@ -1,0 +1,5 @@
+__ZN23OZChannelSegmentVisitor16visitLogarithmicER8OZSplinePvS2_RK6CMTimeS5_S5_S5_d:
+00000000000a3d96	pushq	%rbp
+00000000000a3d97	movq	%rsp, %rbp
+00000000000a3d9a	popq	%rbp
+00000000000a3d9b	retq
