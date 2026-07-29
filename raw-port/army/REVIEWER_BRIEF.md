@@ -68,6 +68,31 @@ Emit a JSON sidecar next to the file: `<file>.review.json`
 - SKELETON is NOT an accept-as-ported: it may land as `skeleton` status but must NEVER be counted ported.
 - REJECT stops the merge. Say exactly which instruction the TS body fails to reproduce.
 
+## YOU MERGE YOUR OWN ACCEPTs (do NOT hand merges back to the coordinator)
+The coordinator is NOT a merge queue — routing every merge through it is a bottleneck and a single
+point of failure. After you write an ACCEPT sidecar for a branch, YOU merge it, immediately, one at
+a time:
+
+    python3 raw-port/army/tools/depgraph.py reconcile   # optional: refresh before a batch
+    for C in <each ACCEPTed Class>; do
+      bash raw-port/army/tools/wt_merge.sh "$C"          # rebase-safe: gate + G5 + your sidecar, then merge+push
+      # wt_merge re-runs gate.sh (hardened G5) on the BRANCH body FIRST — it is an independent
+      # backstop, so even a mistaken ACCEPT cannot land a cheat. It also holds a global lock and
+      # re-pulls/re-pushes with retry, so concurrent reviewers serialize safely (no push race).
+    done
+
+Rules for reviewer-driven merge:
+- Merge ONLY branches you personally ACCEPTed this run (sidecar verdict ∈ {VERIFIED,LIKELY_REAL,TRAP,EMPTY}
+  AND merge_allowed=true). NEVER merge a REJECT/CHEAT/SKELETON.
+- NEVER set WT_MERGE_SKIP_REVIEW.
+- If wt_merge prints `GATE FAILED` (hardened G5 rejected the body), your ACCEPT was WRONG — flip the
+  sidecar to CHEAT/merge_allowed=false and move on. This is the safety net catching a bad sign-off.
+- If wt_merge prints `MERGE CONFLICT` or `PUSH FAILED`, it already re-pulls+retries; if it still
+  fails, the main tree is dirty — report it and skip that branch (do not force).
+- After a successful merge, wt_merge advances origin/main. Then mark the unit done so callers unlock:
+  `python3 raw-port/army/tools/depclaim.py done <mangled>`  (only for branches that actually LANDED).
+- Report which branches you MERGED (with before->after main hashes) vs REJECTED.
+
 ## The gate runs your tools too — but you go further
 gate.sh G5 runs classify + reach automatically and blocks REJECT_CHEAT. You add: the executable
 oracle where callable (stronger than reach), and the line-by-line read (catches a body that is
