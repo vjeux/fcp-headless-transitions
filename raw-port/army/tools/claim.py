@@ -68,6 +68,18 @@ def _layer(cls):
     if 'Node' in cls and 'Channel' not in cls: return 'nodes'
     return 'channels'
 
+def _is_shader_facade(ms):
+    """True iff a class is a bare GPU-shader RenderTile facade (math lives in the Metal shader
+    source, NOT in the C++ body — GetProgram/BindTexture/RenderTile plumbing only). Detected by
+    METHOD SIGNATURE, not name prefix, so genuine HG* color math (HGColorMatrix/HGGamma — which
+    have SetParameter/GetOutput/matrix ops and NONE of these) is never wrongly demoted. These
+    stay claimable (full-engine scope) but sort BELOW all real-math leaves so math workers don't
+    burn their whole session churning the ~130-deep Hgc* facade wall (2026-07-29)."""
+    names = set(k.split('@', 1)[0] for k in ms.keys())
+    has_rendertile = 'RenderTile' in names or 'RenderTile_AVX' in names
+    has_prog = bool(names & {'GetProgram', 'BindTexture', 'InitProgramDescriptor', 'shaderDescription'})
+    return has_rendertile and has_prog
+
 def _class_methods(fw, cls):
     """Ordered (methkey, unit) list for a class, stable by ledger insertion (addr) order."""
     led = json.load(open(os.path.join(LED, f"{fw}.ledger.json")))
@@ -94,18 +106,26 @@ def _candidates():
             n = len(ms); todo = sum(1 for v in ms.values() if v.get("status") != "ported")
             if todo == 0: continue
             objc = sum(1 for v in ms.values() if v.get("kind") == "objc")
-            heavy_tok = any(t in cls for t in BAD_TOK)
+            is_facade = _is_shader_facade(ms)
+            heavy_tok = any(t in cls for t in BAD_TOK) or is_facade
             if n > CHUNK_THRESHOLD:
                 # split into chunks; each chunk is its own unit. Whole-class .ts skip check doesn't
                 # apply (parts are <Class>.m<k>.ts), so emit every chunk not yet on disk.
                 nchunks = (n + CHUNK - 1) // CHUNK
                 for k in range(nchunks):
                     if f"{cls}.m{k}" in done: continue
-                    tier = 3  # chunks sort after whole small classes (do quick wins first)
+                    tier = 5 if is_facade else 3  # facade chunks last; real chunks after small wins
                     out.append((tier, CHUNK, fw, cls, k))
             else:
                 if cls in done: continue
-                tier = 0 if (2 <= n <= 12 and objc == 0 and not heavy_tok) else (2 if objc > n//2 else 1)
+                # tier 0 small-clean-math > 1 normal-math > 2 objc-heavy > 4 shader-facade (last).
+                # Shader facades (GetProgram+RenderTile signature) demote BELOW all real-math whole
+                # classes so math workers reach OZ/PC/OZChannel leaves without churning the
+                # ~130-deep Helium Hgc* facade wall (2026-07-29).
+                if is_facade: tier = 4
+                elif 2 <= n <= 12 and objc == 0 and not heavy_tok: tier = 0
+                elif objc > n // 2: tier = 2
+                else: tier = 1
                 out.append((tier, n, fw, cls, None))
     out.sort()
     return [(n, fw, cls, ck) for (tier, n, fw, cls, ck) in out]
