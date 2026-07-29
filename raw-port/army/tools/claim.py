@@ -192,6 +192,37 @@ def cmd_chunk(fw, cls, k):
         mk, v = meths[i]
         print(f"{i}\t{v.get('addr','?')}\t{v.get('kind','cpp')}\t{v.get('demangled', mk)}")
 
+def cmd_claim(fw, cls, ck=None):
+    """Atomically claim a SPECIFIC class by name (targeted hand-pick), bypassing the `next` sort.
+    Requested by workers 208/210/218 so a math worker can grab a known-good target (e.g. a class
+    flagged as a high-value frontier callee) instead of churning `next` through plumbing. Refuses
+    if the class is already claimed/done/failed, or if the ledger has no such class. Prints the same
+    TSV line as `next` (fw\tcls\tn\tlayer[\tCHUNK=k]) so worker flow is identical after claiming."""
+    _lock()
+    try:
+        c = _load()
+        key = _key(fw, cls, ck)
+        if key in c["claimed"]: print(f"ALREADY-CLAIMED {key}"); return
+        if key in c["done"]:    print(f"ALREADY-DONE {key}");    return
+        if key in c["failed"]:  print(f"ALREADY-FAILED {key} (use release to reclaim)"); return
+        # Verify the class exists in the ledger and count its methods.
+        lp = os.path.join(LED, f"{fw}.ledger.json")
+        if not os.path.exists(lp): print(f"NO-SUCH-FRAMEWORK {fw}"); return
+        try: led = json.load(open(lp))
+        except Exception: print(f"BAD-LEDGER {fw}"); return
+        ms = led.get(cls)
+        if not isinstance(ms, dict) or not ms: print(f"NO-SUCH-CLASS {fw}:{cls}"); return
+        n = len(ms)
+        rec = {"fw": fw, "cls": cls, "n": n, "t": time.time()}
+        ckn = int(ck) if ck not in (None, "") else None
+        if ckn is not None: rec["chunk"] = ckn
+        c["claimed"][key] = rec
+        _save(c)
+        if ckn is not None: print(f"{fw}\t{cls}\t{n}\t{_layer(cls)}\tCHUNK={ckn}")
+        else:               print(f"{fw}\t{cls}\t{n}\t{_layer(cls)}")
+    finally:
+        _unlock()
+
 def _key(fw, cls, ck=None):
     return f"{fw}:{cls}#{ck}" if ck not in (None, "") else f"{fw}:{cls}"
 
@@ -271,6 +302,7 @@ if __name__ == "__main__":
     a = sys.argv[1:] or ["stats"]
     cmd = a[0]
     if cmd == "next": cmd_next()
+    elif cmd == "claim": cmd_claim(a[1], a[2], a[3] if len(a) >= 4 and a[3].isdigit() else None)
     elif cmd == "next-shader": cmd_next_shader()
     elif cmd == "chunk": cmd_chunk(a[1], a[2], a[3])
     elif cmd == "done": cmd_done(*a[1:])
