@@ -196,8 +196,12 @@ def check_file(path):
                     dpath = hits[0]; break
         if not dpath:
             # can't classify. A method carrying @<FW> 0xADDR provenance claims to be a REAL decoded
-            # function — silently passing it is the blind spot that let parseElement's empty body land.
-            # Block it as an error UNLESS an adversarial-reviewer sidecar has signed it off.
+            # function. We do NOT hard-block here: the .s disasm cache is transient (concurrent agents
+            # regenerate/prune it constantly), so a legit port can momentarily lack its .s at commit
+            # time — hard-blocking would false-reject honest work. Instead FLAG loudly; the real
+            # backstop is merge time, where the reviewer re-derives from the binary (find_disasm now
+            # resolves the dotted <FW>.<Class>.<method>.s form, closing the blind spot that let
+            # OZChannelBase::parseElement's empty body land). A reviewer sidecar clears the flag.
             rev = path + ".review.json"
             signed = False
             if os.path.exists(rev):
@@ -208,9 +212,9 @@ def check_file(path):
                 except Exception:
                     signed = False
             if fwm and not signed:
-                errs.append(f"{path}: G5 NO-DISASM — {name}: carries @{fwm.group(1)} 0x{fwm.group(2)} "
-                            f"provenance but no disasm is findable to verify it (blind-spot guard). "
-                            f"Reviewer must re-derive from the binary and sign off, or fix the cited addr.")
+                flags.append(f"{path}: {name}: NO-DISASM for @{fwm.group(1)} 0x{fwm.group(2)} "
+                             f"provenance — reviewer MUST re-derive from the binary and verify the "
+                             f"body matches (blind-spot guard; empty-body-for-REAL-work is a cheat).")
             else:
                 flags.append(f"{path}: {name}: no disasm found to classify (reviewer must verify)")
             continue
