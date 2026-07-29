@@ -1,29 +1,69 @@
 #!/usr/bin/env python3
-"""mark_ported.py — reconcile ledger status with src/ truth (3-way: ported/stub/todo).
+"""mark_ported.py — reconcile ledger status with src/ truth (4-way: ported/skeleton/stub/todo).
 
 The @0xADDR citation (PORTING_SPEC rule 1) is the completion signal, BUT a throwing stub ALSO
-cites its addr. The naive "addr cited anywhere => ported" rule OVERCOUNTS: it flips stub methods to
-ported. This uses the shared `stubscan` oracle to classify HOW each addr is cited:
+cites its addr, AND a DISPATCH_ONLY vtable-shell (the 7385eb01 cheat) has a non-throwing body that
+cites its addr yet implements NOTHING. The naive "addr cited anywhere => ported" rule OVERCOUNTS
+both. This uses the shared `stubscan` oracle + the structural classifier to classify each addr:
 
-  ported  = addr appears in a real body / JSDoc / comment (real-cited)
-  stub     = addr appears ONLY on a throwing-stub line ("... not yet transcribed ...")
-  todo    = addr never appears in src/
+  ported   = addr real-cited AND (not a DISPATCH_ONLY shell) — a genuine body.
+  skeleton = addr real-cited BUT the function's disasm is DISPATCH_ONLY (whole body is virtual/vtable
+             dispatch — real work IS its callees; the 7385eb01 shape). NOT counted as ported.
+  stub     = addr appears ONLY on a throwing-stub line ("... not yet transcribed ...").
+  todo     = addr never appears in src/.
 
-Bidirectional + idempotent: promotes todo->ported AND demotes a previously-miscounted
-ported->stub when the body is (still) just a throw. Run after commits; then re-run build_ledger.py
-to refresh CLASSES.tsv / SUMMARY.json counts."""
-import json, os, sys
+Bidirectional + idempotent. Run after commits; then re-run build_ledger.py to refresh counts."""
+import json, os, sys, glob
 ROOT=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 LED=os.path.join(ROOT,"army","ledger")
+GRAPH=os.path.join(ROOT,"army","graph")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from stubscan import scan_src, norm
+# structural classifier (verifier) for the DISPATCH_ONLY (skeleton) downgrade
+sys.path.insert(0, os.path.join(ROOT,"army","verifier"))
+try:
+    from classify_disasm import classify as _classify_disasm
+except Exception:
+    _classify_disasm = None
+
+# Fast DISPATCH_ONLY detection from the callgraph (keyed by mangled): a function with NO internal
+# callees, NO external named calls, but >=1 indirect dispatch is the structural DISPATCH_ONLY
+# candidate. Confirmed by classify_disasm on the saved .s when available (else trust the structural
+# signal — conservative: a vtable-only shell is not a real port regardless).
+_cg = {}
+def _load_callgraphs():
+    for f in glob.glob(os.path.join(GRAPH, "*.callgraph.json")):
+        try: _cg[os.path.basename(f).split(".")[0]] = json.load(open(f))
+        except Exception: pass
+_load_callgraphs()
+
+def _is_dispatch_only(fw, mangled):
+    g = _cg.get(fw, {})
+    info = g.get(mangled)
+    if not info: return False
+    if not (not info.get("callees") and info.get("ext",0)==0 and info.get("ind",0)>=1):
+        return False
+    # structural candidate; confirm with the saved disasm if we have it (do NOT disasm on-demand here
+    # — mark_ported runs over the whole ledger and must stay fast; the structural signal is sound).
+    import re as _re
+    safe = _re.sub(r"[^A-Za-z0-9_]", "", mangled)
+    pfx = "" if fw == "Ozone" else fw + "."
+    dpath = os.path.join(ROOT, "re", "disasm", f"{pfx}{safe}.s")
+    if _classify_disasm and os.path.exists(dpath) and os.path.getsize(dpath) > 0:
+        return _classify_disasm(dpath)["class"] == "DISPATCH_ONLY"
+    return True  # structural DISPATCH_ONLY candidate, no disasm to refute -> treat as skeleton
 
 real_cited, stub_cited = scan_src(ROOT)
-def status_for(addr):
+def status_for(addr, fw=None, mangled=None):
     a=norm(addr)
-    return "ported" if a in real_cited else "stub" if a in stub_cited else "todo"
+    if a in real_cited:
+        # a real-cited body that is structurally a vtable shell is a SKELETON, not ported.
+        if fw and mangled and _is_dispatch_only(fw, mangled):
+            return "skeleton"
+        return "ported"
+    return "stub" if a in stub_cited else "todo"
 
-tot=port=stub=todo=changed=0
+tot=port=skel=stub=todo=changed=0
 for fw in ["ProChannel","ProCore","Ozone","Flexo","Helium"]:
     lp=os.path.join(LED,f"{fw}.ledger.json")
     if not os.path.exists(lp): continue
@@ -31,11 +71,13 @@ for fw in ["ProChannel","ProCore","Ozone","Flexo","Helium"]:
     for ms in led.values():
         for v in ms.values():
             tot+=1
-            want=status_for(v["addr"])
+            want=status_for(v["addr"], fw, v.get("mangled"))
             if v.get("status")!=want:
                 v["status"]=want; changed+=1
             if want=="ported": port+=1
+            elif want=="skeleton": skel+=1
             elif want=="stub": stub+=1
             else: todo+=1
     json.dump(led,open(lp,"w"))
-print(f"ported {port}/{tot}  stub {stub}  todo {todo}  (status changed on {changed} units)")
+print(f"ported {port}/{tot}  skeleton {skel}  stub {stub}  todo {todo}  (status changed on {changed} units)")
+
