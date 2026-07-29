@@ -1,0 +1,34 @@
+__ZN14OZDynamicCurve24getKeypointInterpolationEPvPjPb:
+0000000000029382	pushq	%rbp
+0000000000029383	movq	%rsp, %rbp
+0000000000029386	pushq	%r15
+0000000000029388	pushq	%r14
+000000000002938a	pushq	%r12
+000000000002938c	pushq	%rbx
+000000000002938d	movq	%rcx, %rbx
+0000000000029390	movq	%rdx, %r14
+0000000000029393	movq	%rsi, %r15
+0000000000029396	movq	%rdi, %r12
+0000000000029399	addq	$0x8, %r12
+000000000002939d	movq	%r12, %rdi
+00000000000293a0	callq	__ZN8OZSpline13isValidHandleEPv ## OZSpline::isValidHandle(void*)
+00000000000293a5	testb	%al, %al
+00000000000293a7	je	0x293c2
+00000000000293a9	movq	%r12, %rdi
+00000000000293ac	movq	%r15, %rsi
+00000000000293af	movq	%r14, %rdx
+00000000000293b2	movq	%rbx, %rcx
+00000000000293b5	popq	%rbx
+00000000000293b6	popq	%r12
+00000000000293b8	popq	%r14
+00000000000293ba	popq	%r15
+00000000000293bc	popq	%rbp
+00000000000293bd	jmp	__ZN8OZSpline22getVertexInterpolationEPvPjPb ## OZSpline::getVertexInterpolation(void*, unsigned int*, bool*)
+00000000000293c2	xorl	%eax, %eax
+00000000000293c4	popq	%rbx
+00000000000293c5	popq	%r12
+00000000000293c7	popq	%r14
+00000000000293c9	popq	%r15
+00000000000293cb	popq	%rbp
+00000000000293cc	retq
+00000000000293cd	nop
