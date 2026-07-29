@@ -40,6 +40,10 @@ def main():
     now = time.time()
     stale = []
     for k, v in list(claimed.items()):
+        if not isinstance(v, dict):
+            # malformed legacy entry (e.g. a bare float timestamp) — release it
+            stale.append((k, -1, None))
+            continue
         age = (now - v.get("t", 0)) / 60.0
         if age <= MAX_AGE_MIN:
             continue
