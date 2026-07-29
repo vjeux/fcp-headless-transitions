@@ -576,4 +576,132 @@ export class HGTransform {
     // @0x1b6857-0x1b6873 |1.0 - m[15]| via subsd, then setbe.
     return check(1.0 - t[15]);
   }
+
+  /** HGTransform::Project(float* dst, int width, int height) const @Helium 0x1b59d0.
+   *  Homogeneous project of the 2D point (width, height) through the 3x3 top-left of the matrix
+   *  plus translation column, dividing by w.  Writes 2 f32s to `dst`.
+   *
+   *  Body:
+   *    xmm0 = (double)width   (cvtsi2sd  @0x1b59d4)
+   *    xmm1 = broadcast xmm0
+   *    xmm0 = width * m[3]     (mulsd 0x28(rdi))
+   *    xmm2 = (double)height   (cvtsi2sd @0x1b59e1)
+   *    xmm3 = broadcast xmm2
+   *    xmm2 = height * m[7]    (mulsd 0x48(rdi))
+   *    xmm2 = xmm0 + xmm2                      -> width*m[3] + height*m[7]
+   *    xmm2 += m[15]           (addsd 0x88(rdi))   -> w  = width*m[3] + height*m[7] + m[15]
+   *    xmm0 = [m[0], m[1]]     (movupd 0x10(rdi))
+   *    xmm0 *= xmm1 broadcast width           -> width * [m[0], m[1]]
+   *    xmm1 = [m[4], m[5]]     (movupd 0x30(rdi))
+   *    xmm4 = [m[12], m[13]]   (movupd 0x70(rdi))
+   *    xmm1 *= xmm3 broadcast height          -> height * [m[4], m[5]]
+   *    xmm1 += xmm0
+   *    xmm1 += xmm4                            -> [x, y]
+   *    xmm0 = broadcast w
+   *    xmm1 /= xmm0                            -> [x/w, y/w]
+   *    xmm0 = cvtpd2ps xmm1                    -> narrow to 2 f32s
+   *    movlpd xmm0, (rsi)                      -> store 2 f32s (8 bytes) to dst */
+  public Project(dst: Float32Array, width: number, height: number): void {
+    const t = this.m;
+    // int -> double via cvtsi2sd.
+    const w = width | 0;
+    const h = height | 0;
+    // w' = width*m[3] + height*m[7] + m[15]   (@0x1b59dc-0x1b59f2)
+    const wPrime = w * t[3] + h * t[7] + t[15];
+    // x = width*m[0] + height*m[4] + m[12]   (@0x1b59fa-0x1b5a15)
+    const x = w * t[0] + h * t[4] + t[12];
+    // y = width*m[1] + height*m[5] + m[13]
+    const y = w * t[1] + h * t[5] + t[13];
+    // divpd + cvtpd2ps -> narrow to f32 (@0x1b5a1d-0x1b5a25).
+    dst[0] = Math.fround(x / wPrime);
+    dst[1] = Math.fround(y / wPrime);
+  }
+
+  /** HGTransform::IsXYFlipAndOrIntegerTranslation() const @Helium 0x1b6640.
+   *  Two-part check:
+   *
+   *  PART A: verify the matrix is a "2D similarity + z-passthrough + integer translation"
+   *  candidate. All these must hold (with NaN treated as failure):
+   *    m[1] = m[2] = m[3] = m[4] = m[6] = m[7] = m[8] = m[9] = 0     (offsets 0x18..0x58 checks)
+   *    m[10] = 1.0    (rip+0x213b83 == @Helium 0x3ca260, @0x1b66d5)
+   *    m[11] = m[14] = 0        (offsets 0x68, 0x80)
+   *    m[15] = 1.0    (cmpeqsd rip+0x213b56 == 1.0, @0x1b6702)
+   *
+   *  If PART A fails, al = 0 (@0x1b671d xorl eax,eax). Otherwise al = 1 from the cmpeqsd + andl $0x1 of m[15].
+   *
+   *  PART B: m[0] and m[5] must each be +1.0 or -1.0, AND m[12], m[13] must be within 2^-18 of an integer.
+   *    m[0] check   (@0x1b671f-0x1b6744):  ucomisd against 1.0 (rip+0x213b34), else -1.0 (rip+0x213bc8).
+   *                                        Any other value (or NaN) -> jump to fail block @0x1b6803.
+   *    m[5] check   (@0x1b6744-0x1b676b):  cmpeqsd against +1.0 and -1.0, or them, and with al. If
+   *                                        `al & mask != 1` fail.  Also folds in PART A's result.
+   *    m[12] check  (@0x1b6771-0x1b67bb):  compute round(m[12]) via `f32(m[12]) + copysign(0.499..., m[12])`
+   *                                        then roundss->cvttps2dq->cvtdq2pd. Then |round(m[12]) - m[12]|
+   *                                        < 2^-18 (@Helium 0x85d3b8, loaded via `movsd rip+0x6a6bf9`).
+   *    m[13] check  (@0x1b67bd-0x1b6803):  same for m[13]. `movb $0x1, al` before final ucomisd/ja.
+   *
+   *  The mid-round constant is 0.4999999 (u32 0x3effffff) at @Helium 0x3ca310 combined with sign-mask
+   *  @Helium 0x3ca0d0 = 4 x 0x80000000 (f32 sign bits).
+   */
+  public IsXYFlipAndOrIntegerTranslation(): boolean {
+    const t = this.m;
+    // PART A: all zeros + m[10]=1 + m[15]=1 (NaN counts as failure).
+    // @0x1b6644-0x1b66ee
+    if (!(t[1] === 0.0)) return false;
+    if (!(t[2] === 0.0)) return false;
+    if (!(t[3] === 0.0)) return false;
+    if (!(t[4] === 0.0)) return false;
+    if (!(t[6] === 0.0)) return false;
+    if (!(t[7] === 0.0)) return false;
+    if (!(t[8] === 0.0)) return false;
+    if (!(t[9] === 0.0)) return false;
+    // @0x1b66d5 m[10] == 1.0  (rip+0x213b83 = @0x3ca260)
+    if (!(t[10] === 1.0)) return false;
+    if (!(t[11] === 0.0)) return false;
+    if (!(t[14] === 0.0)) return false;
+    // @0x1b6702 m[15] == 1.0  (cmpeqsd rip+0x213b56 = @0x3ca260)
+    if (!(t[15] === 1.0)) return false;
+
+    // PART B m[0]: must be +1 or -1 (NaN fails via jp).
+    // @0x1b671f-0x1b6744
+    if (!(t[0] === 1.0 || t[0] === -1.0)) return false;
+    // PART B m[5]: same.  @0x1b6744-0x1b676b
+    if (!(t[5] === 1.0 || t[5] === -1.0)) return false;
+
+    // PART B integer check for m[12], m[13].  eps = 2^-18 @Helium 0x85d3b8.
+    const eps = 3.814697265625e-06;
+
+    // Faithful transcription of the round-half-away sequence @0x1b6779-0x1b67a3:
+    //   f32v   = f32(v)                                               (cvtsd2ss)
+    //   halfSg = copysign(0.4999999f, f32v)   (u32 0x3effffff w/ mask 0x80000000)
+    //   biased = f32v + halfSg
+    //   rndF32 = round-toward-zero(biased)    (roundss $0xb)
+    //   rndInt = cvttps2dq(rndF32)            (f32 to int truncate)
+    //   rndF64 = cvtdq2pd(rndInt)             (int back to double)
+    //   diff   = |rndF64 - v|                 (subsd then andpd abs-mask)
+    //   ok     = eps > diff                   (ucomisd eps,|diff|; ja -> ok)
+    const roundHalfAwayViaF32 = (v: number): number => {
+      const f32v = Math.fround(v);
+      // copysign(0.4999999.., f32v) — the u32 constant 0x3effffff == Math.fround(0.4999999...).
+      const half = Math.fround(0.49999997);          // == u32 0x3effffff
+      const biased = Math.fround(f32v + (f32v < 0 ? -half : half));
+      // roundss $0xb (round toward zero) + cvttps2dq + cvtdq2pd = trunc(biased) as int -> double.
+      // Note: cvttps2dq truncates to int32, so out-of-int32 range gets clamped; the disasm doesn't
+      // guard against that either.
+      return (biased | 0);
+    };
+    // m[12] check.  @0x1b6771-0x1b67bb
+    {
+      const rnd = roundHalfAwayViaF32(t[12]);
+      const diff = Math.abs(rnd - t[12]);
+      // @0x1b67b7 ucomisd eps, diff -> jbe fail. Equivalently: eps > diff means ok. NaN fails (jbe on unordered).
+      if (!(eps > diff)) return false;
+    }
+    // m[13] check.  @0x1b67bd-0x1b6801  (final movb $0x1,al then ucomisd/ja for ok/xor eax)
+    {
+      const rnd = roundHalfAwayViaF32(t[13]);
+      const diff = Math.abs(rnd - t[13]);
+      if (!(eps > diff)) return false;
+    }
+    return true;
+  }
 }
