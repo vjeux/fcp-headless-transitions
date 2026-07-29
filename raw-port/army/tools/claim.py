@@ -5,8 +5,9 @@
 # ever grab the same class. On success the worker calls `claim.py done <fw> <class>`; on give-up
 # `claim.py fail <fw> <class> <reason>`. `claim.py stats` prints progress.
 #
-# Prioritizes SMALL, SELF-CONTAINED leaf classes (real math/data, not std/template/UI soup) so the
-# swarm drains high-value work first and rarely hits un-portable dead-ends.
+# Serves the ENTIRE inventory in a STABLE, NEUTRAL order. There is NO prioritization heuristic:
+# classes are NOT ranked by name, math-signal, size, or kind (that biasing was removed per vjeux
+# 2026-07-29 — it was misguided). Every un-ported class is dispensed in deterministic ledger order.
 import sys, os, json, time, glob, re
 
 ROOT = os.path.dirname(os.path.abspath(__file__))                 # army/tools
@@ -25,12 +26,14 @@ BAD_SUB = ['<', 'std', '__', '::', ' ', '.cold', 'thunk', '_Factory', 'anonymous
 CHUNK = 20
 CHUNK_THRESHOLD = 24
 
-# NOTE: the "facade" concept has been REMOVED (2026-07-29, per vjeux). GOAL = port EVERYTHING (all
-# 131,792 fns). A class is NEVER out of scope or demoted for being a "facade": ctors/dtors/field
-# layout are real FCP code; ObjC-dispatch bodies port via the H1 runtime harness; extern framework
-# calls become boundary stubs. There is no BAD_TOK denylist and no shader-facade demotion. Ordering
-# only PROMOTES verification-corpus math (MATH_SIG) so the 65-transition math leads; everything else
-# is served equally by size. Nothing is skipped, nothing is deprioritized for its name/kind.
+# NOTE: the "facade" concept AND all content-based ordering heuristics have been REMOVED (2026-07-29,
+# per vjeux — they were misguided). GOAL = port EVERYTHING (all 131,792 fns). A class is NEVER out of
+# scope, demoted, or promoted for being a "facade", for its name, for its kind, for its method-count,
+# or for any "math-signal": ctors/dtors/field layout are real FCP code; ObjC-dispatch bodies port via
+# the H1 runtime harness; extern framework calls become boundary stubs. There is no BAD_TOK denylist,
+# no shader-facade demotion, and NO MATH_SIG promotion. The queue is served in stable, neutral ledger
+# order. Nothing is skipped or reordered for its name/kind — only DONE/CLAIMED are skipped, and a
+# worker-deferred class is merely appended AFTER fresh work (still fully claimable).
 
 # classes whose port would edit a SHARED dispatch file — keep out of the auto-swarm (hand-serialize
 # to avoid two workers editing the same file concurrently — NOT a facade judgement).
@@ -72,60 +75,28 @@ def _class_methods(fw, cls):
     ms = led.get(cls, {})
     return [(k, v) for k, v in ms.items()]
 
-# Pure-math demangled-method signatures — RARE in plumbing, common in real numeric classes.
-# Used ONLY to give math-corpus classes a light lead in the queue (tier 0 vs 1) so the
-# 65-transition verification corpus is exercised early. This is a preference, NOT an exclusion —
-# a class with zero math signals is served right behind, never skipped or demoted for its name.
-MATH_SIG = ("MultMatrix","LoadMatrix","LoadIdentity","PostMultMatrix","determinant",
-    "invert","Interpolat","interpolat","evalXSpline","evalBSpline","Bezier","BSpline",
-    "Quaternion","crossProduct","dotProduct","SetCoefficient","GetCoefficient",
-    "convolve","Convolution","solveNode","getValueAsDouble","superEllipse","calcSnap",
-    "Gradient","Catmull","EaseIn","EaseOut","Logarithmic","SampledContour","perspective",
-    "homography","Vec3","Vec4","PCVector","PCMatrix","toLinear","fromLinear",
-    "OETF","EOTF","OOTF")
-def _math_signals(ms):
-    # Count math-corpus signals ONLY from the METHOD name of C++ methods — NOT the class-name
-    # prefix (else a UI class like OZBSplineMaskTool_UIComponent matches "BSpline" via its own
-    # ctor/dtor name echo and wrongly leads the queue). Strip the "Class::" qualifier and the
-    # arg list, then match MATH_SIG against just the bare method identifier. ObjC selectors are
-    # skipped (kind!=cpp) — incidental selector words must not promote.
-    import re as _re
-    hits=set()
-    for v in ms.values():
-        if not isinstance(v,dict): continue
-        if v.get("kind")!="cpp": continue
-        dem=v.get("demangled","")
-        # method = text after the LAST "::" (namespace/class qualifiers dropped), before "(".
-        head=dem.split("(",1)[0]
-        meth=head.rsplit("::",1)[-1] if "::" in head else head
-        # a dtor "~OZBSplineMaskTool_UIComponent" echoes the class name — never a math signal.
-        if meth.startswith("~"): continue
-        for t in MATH_SIG:
-            if t in meth: hits.add(t)
-    return len(hits)
-
 def _candidates(defer=None):
-    """Portable work units (fw, cls, nMethods, chunk_or_None), best-first.
+    """Portable work units (fw, cls, nMethods, chunk_or_None), in STABLE NEUTRAL order.
     FULL-ENGINE scope: dispense the ENTIRE inventory. GOAL = port EVERYTHING (all 131,792 fns).
-    There is NO facade concept — every class is real, portable FCP code (ctors/dtors/field-layout
-    are real; ObjC-dispatch bodies port via the H1 runtime harness; extern framework calls become
-    boundary stubs). NOTHING is skipped or demoted for being a "facade".
+    There is NO facade concept and NO prioritization heuristic — every class is real, portable FCP
+    code (ctors/dtors/field-layout are real; ObjC-dispatch bodies port via the H1 runtime harness;
+    extern framework calls become boundary stubs). NOTHING is skipped, demoted, or promoted for its
+    name, math-signal, size, or kind. (The old MATH_SIG math-corpus lead and size-preference sort
+    were removed per vjeux 2026-07-29 — they were misguided biasing.)
 
     ANTI-SHORTCUT: any class with > CHUNK_THRESHOLD methods is emitted as MULTIPLE chunk units of
     CHUNK methods each — never as one giant unit — so no agent is asked to port 100s-1000s of
     methods in one sitting (the thing that forces stub-to-finish shortcuts). Small classes stay whole.
+    This is a CONTEXT-SIZE bound, not a value judgement.
 
-    Ordering (tier, then size) — a light preference only, never an exclusion:
-      * math-corpus classes (>=1 MATH_SIG cpp signal) lead slightly so the 65-transition
-        verification corpus gets exercised early; every other class follows right behind.
-      * smaller classes sort before larger (quicker merges, less contention).
-      * `defer` = classes a worker gave up on this pass; sorted to a bottom band (+DEFER_TIER) so
-        fresh work is served first, but they REMAIN claimable and WILL be served once fresh is done.
+    Order is deterministic ledger order (framework filename, then class insertion order). The ONLY
+    reordering is a single `defer` band: classes a worker gave up on this pass are appended AFTER all
+    fresh work so newborns are served first — but they REMAIN claimable and WILL be served once fresh
+    work is exhausted. Nothing is ever removed.
     """
     defer = defer if defer is not None else (lambda _c: set(_c.get("deferred", {})) | set(_c.get("failed", {})))(_load())
-    DEFER_TIER = 1000
     done = _ported_files()
-    out = []
+    fresh, deferred = [], []
     for f in sorted(glob.glob(os.path.join(LED, "*.ledger.json"))):
         fw = os.path.basename(f).split(".")[0]
         if fw == "shaders": continue
@@ -137,23 +108,17 @@ def _candidates(defer=None):
             if not all(isinstance(v, dict) for v in ms.values()): continue
             n = len(ms); todo = sum(1 for v in ms.values() if v.get("status") != "ported")
             if todo == 0: continue
-            msig = _math_signals(ms)
-            # tier 0 = has math-corpus signal (leads); tier 1 = everything else. No facade demotion.
-            base_tier = 0 if msig >= 1 else 1
+            bucket = deferred if f"{fw}:{cls}" in defer else fresh
             if n > CHUNK_THRESHOLD:
                 nchunks = (n + CHUNK - 1) // CHUNK
                 for k in range(nchunks):
                     if f"{cls}.m{k}" in done: continue
-                    tier = base_tier
-                    if f"{fw}:{cls}" in defer: tier += DEFER_TIER
-                    out.append((tier, CHUNK, fw, cls, k))
+                    bucket.append((CHUNK, fw, cls, k))
             else:
                 if cls in done: continue
-                tier = base_tier
-                if f"{fw}:{cls}" in defer: tier += DEFER_TIER
-                out.append((tier, n, fw, cls, None))
-    out.sort()
-    return [(n, fw, cls, ck) for (tier, n, fw, cls, ck) in out]
+                bucket.append((n, fw, cls, None))
+    # fresh first (ledger order), deferred last (ledger order) — no other reordering.
+    return fresh + deferred
 
 def cmd_next():
     _lock()
