@@ -136,19 +136,12 @@ export class HgcBT2100_PQ_OETF_qtApprox extends HGNode {
   }
 }
 
-/** HgcRGB_EETF — the inner (non-HG) RGB EETF worker wrapped by subB.
- *  Ctor invoked @0x00105860.  Frontier. */
-export class HgcRGB_EETF extends HGNode {
-  /** HgcRGB_EETF::HgcRGB_EETF() @Helium (mangled __ZN11HgcRGB_EETFC1Ev;
-   *  called @0x00105860). Frontier. */
-  constructor() {
-    super();
-    throw new Error(
-      "HgcRGB_EETF::HgcRGB_EETF() @Helium (frontier) " +
-        "— __ZN11HgcRGB_EETFC1Ev; called from HGRGB_EETF::HGRGB_EETF @0x00105860"
-    );
-  }
-}
+// HgcRGB_EETF — the inner (non-HG) RGB EETF worker wrapped by subB.
+// Ctor invoked @0x00105860. Class definition + partially-decoded methods
+// now live in ./HgcRGB_EETF.ts (one-file-per-class rule); import + re-export
+// so existing consumers of HGRGB_EETF continue to see the symbol.
+import { HgcRGB_EETF } from "./HgcRGB_EETF";
+export { HgcRGB_EETF } from "./HgcRGB_EETF";
 
 /** HgcBT2100_PQ_InverseOETF_qtApprox — the "quick-approx" BT.2100 PQ inverse
  *  OETF core wrapped by subC. Ctor invoked @0x0010589b. Frontier. */
