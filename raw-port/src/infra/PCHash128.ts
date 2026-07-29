@@ -14,6 +14,16 @@
 //   __ZN9PCHash128C1Ev            @0x1bf36   default ctor alias (same body)
 //   __ZN9PCHash128C2ERK8PCString  @0x1c06c   parse hex string ctor
 //   __ZN9PCHash128C2Ejjjj         @0x1c148   4-uint ctor
+// And the three C1 (complete-object) aliases — trivial forwarders whose bodies were
+// read via `xcrun llvm-objdump --disassemble-symbols=` against /tmp/ProCore.x86_64:
+//   __ZN9PCHash128C1EPKhj         @0x1c05c   zeros 16 bytes then `jmp addData` (identical
+//                                             to C2EPKhj @0x1bf42; single JS ctor body
+//                                             covers both entry points).
+//   __ZN9PCHash128C1ERK8PCString  @0x1c13e   pure `jmp` to C2ERK8PCString @0x1c06c.
+//   __ZN9PCHash128C1Ejjjj         @0x1c15a   4x `movl` of (esi,edx,ecx,r8d) into
+//                                             (%rdi),4(%rdi),8(%rdi),0xc(%rdi) — same
+//                                             body as C2Ejjjj @0x1c148 with which it
+//                                             shares its single JS branch below.
 //
 // ALGORITHM IDENTIFICATION (unambiguous from the T-constant and rotate
 // tables observed in transform.s):
