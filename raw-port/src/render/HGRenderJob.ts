@@ -161,6 +161,34 @@ export class HGRenderJob {
   }
 
   /**
+   * `HGRenderJob::SetType(HGRenderJob::Type)` @Helium 0x54510
+   * (__ZN11HGRenderJob7SetTypeENS_4TypeE).
+   *
+   * Faithful line-for-line transcription of a 6-line function: writes the
+   * u32 argument to the +0x0c slot. No callees, no side effects. From
+   * raw-port/re/disasm/Helium.__ZN11HGRenderJob7SetTypeENS_4TypeE.s:
+   *
+   *   0x54510  pushq %rbp                    ; frame prologue
+   *   0x54511  movq  %rsp, %rbp
+   *   0x54514  movl  %esi, 0xc(%rdi)         ; this->_type (u32) = esi
+   *   0x54517  popq  %rbp                    ; epilogue
+   *   0x54518  retq
+   *   0x54519  nopl  (%rax)                  ; padding
+   *
+   * @param type — HGRenderJob::Type enum value (SysV %esi, u32).
+   */
+  SetType(type: HGRenderJobType): void {
+    // ------------------------------------------------------------
+    // @0x54510..0x54511 — prologue (no TS-visible effect).
+    // @0x54514 — movl %esi, 0xc(%rdi) : store u32 at offset +0x0c.
+    //   Model 32-bit truncation with `>>> 0` so a negative / oversized
+    //   JS number stores the same bit-pattern the machine would.
+    // @0x54517..0x54518 — epilogue + retq.
+    // ------------------------------------------------------------
+    this._type = type >>> 0;
+  }
+
+  /**
    * `HGRenderJob::SetUserName(char const*)` @Helium 0x54670
    * (__ZN11HGRenderJob11SetUserNameEPKc).
    *
