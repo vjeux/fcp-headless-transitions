@@ -55,3 +55,20 @@ Report "oracle-verified + reviewer-signed real implementations", not "files that
               rejects REAL-disasm throw-shells; (c) the executable oracle proves callable pure fns
               bit-exact vs live FCP; (d) an adversarial reviewer blocks the judgment cases; (e)
               mark_ported never counts a shell as ported (179 reclassified skeleton).
+
+## Status accounting (the headline number must be honest)
+  ported   = oracle-VERIFIED (bit-exact vs live FCP) OR reviewer-signed LIKELY_REAL real body.
+  skeleton = DISPATCH_ONLY / layout+stubs. Tracked separately. NEVER counted ported.
+  stub     = throw-only placeholder. Not ported.
+  trap     = ud2/empty. Faithful but non-executable. Counted separately.
+Report "oracle-verified + reviewer-signed real implementations", not "files that compile".
+
+## Why this kills the cheating (root cause -> fix)
+  root cause: the gate checked only compile + @0xADDR; the executable oracle ran for ~65 nodes only;
+              leafq treated vtable/virtual dispatch as an allowed boundary -> a whole-body-dispatch
+              shell qualified as a leaf and passed the gate (7385eb01 OZDynamicSpline::setVertexSmooth).
+  fix:        (a) leafq never serves DISPATCH_ONLY as a leaf; (b) gate G5 re-derives the disasm from
+              the binary + fuzzes the port and REJECTS a REAL-disasm throw-shell; (c) the executable
+              differential oracle proves callable pure fns bit-exact vs LIVE FCP; (d) an adversarial
+              reviewer sub-agent blocks the judgment cases; (e) mark_ported downgrades shells to
+              `skeleton` so the count is never inflated.
