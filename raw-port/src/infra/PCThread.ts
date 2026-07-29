@@ -1,16 +1,19 @@
-// PCThread — ProCore's POSIX-thread wrapper. This file transcribes ONLY
-// the default (no-arg) constructor `PCThread::PCThread()` @ProCore 0x34b14
-// (the C1 variant — the Itanium-ABI "complete-object" alias that ordinary
-// code sees). All other members (parameterised C1/C2 ctors, the D1/D2
-// dtors, startup, cancel, wait, detach, self, isSelf, operator==) are
-// SEPARATE ledger units currently `todo`/claimed elsewhere and are NOT
-// added to this file — they will extend this class file as their own
-// claims land, per the "one class per file" rule.
+// PCThread — ProCore's POSIX-thread wrapper. This file currently
+// transcribes:
+//   * the default (no-arg) constructor `PCThread::PCThread()` @ProCore
+//     0x34b14 (the C1 "complete-object" ABI variant), and
+//   * the query method `PCThread::isSelf() const` @ProCore 0x34b8e.
+// All other members (parameterised C1/C2 ctors, D1/D2 dtors, startup,
+// cancel, wait, detach, self, operator==) are SEPARATE ledger units
+// currently `todo`/claimed elsewhere and are NOT added to this file —
+// they will extend this class file as their own claims land, per the
+// "one class per file" rule.
 //
 // Transcribed from /Applications/Final Cut Pro.app/Contents/Frameworks/
 // ProCore.framework/Versions/A/ProCore (x86_64 slice; unadjusted VAs
-// from `otool -tV`). Disassembly source:
+// from `otool -tV`). Disassembly sources:
 //   raw-port/re/disasm/ProCore.__ZN8PCThreadC1Ev.s
+//   raw-port/re/disasm/ProCore.__ZNK8PCThread6isSelfEv.s
 //
 // Full 12-line disassembly of the CLAIMED method (verbatim):
 //
@@ -47,13 +50,48 @@
 //                 as they are transcribed)
 //
 // DEPENDENCIES
-//   Direct in-scope callees: NONE. The one call target is `_pthread_self`
-//   @ProCore stub 0xdeada — TRUE out-of-scope extern (POSIX / libpthread /
-//   libSystem runtime, not one of the five FCP frameworks). Modelled as
-//   a boundary stub per policy (see PORTING_SPEC.md).
+//   Direct in-scope callees: NONE. The only call targets are POSIX /
+//   libpthread / libSystem externs — TRUE out-of-scope (not one of the
+//   five FCP frameworks), modelled as boundary stubs per policy (see
+//   PORTING_SPEC.md):
+//     * `_pthread_self`  @ProCore stub 0xdeada
+//     * `_pthread_equal` @ProCore stub 0xdeaa4  (used by isSelf)
 //
 // Symbols ported here (mangled -> address):
-//   * __ZN8PCThreadC1Ev  —  PCThread::PCThread()  @ProCore 0x34b14  (C1)
+//   * __ZN8PCThreadC1Ev       —  PCThread::PCThread()      @ProCore 0x34b14  (C1)
+//   * __ZNK8PCThread6isSelfEv —  PCThread::isSelf() const  @ProCore 0x34b8e
+//
+// -----------------------------------------------------------------------------
+// FULL DISASM for isSelf (raw-port/re/disasm/ProCore.__ZNK8PCThread6isSelfEv.s)
+// -----------------------------------------------------------------------------
+//   __ZNK8PCThread6isSelfEv:
+//   0x34b8e  pushq   %rbp
+//   0x34b8f  movq    %rsp, %rbp
+//   0x34b92  pushq   %rbx
+//   0x34b93  pushq   %rax                    ; 16B stack align
+//   0x34b94  movq    (%rdi), %rbx            ; rbx = this->threadId
+//   0x34b97  callq   0xdeada                 ## symbol stub for: _pthread_self
+//                                            ; %rax = pthread_self()
+//   0x34b9c  movq    %rbx, %rdi              ; arg0 = this->threadId
+//   0x34b9f  movq    %rax, %rsi              ; arg1 = pthread_self()
+//   0x34ba2  callq   0xdeaa4                 ## symbol stub for: _pthread_equal
+//                                            ; %eax = pthread_equal(t1,t2)
+//                                            ; (POSIX: nonzero if equal)
+//   0x34ba7  testl   %eax, %eax              ; ZF = (eax == 0)
+//   0x34ba9  setne   %al                     ; al = (eax != 0) ? 1 : 0
+//                                            ; → returns bool "equal"
+//   0x34bac  addq    $0x8, %rsp              ; unwind the 16B-align pad
+//   0x34bb0  popq    %rbx
+//   0x34bb1  popq    %rbp
+//   0x34bb2  retq                            ; return value in %al
+//
+// SEMANTIC SUMMARY
+//   `PCThread::isSelf()` asks "does this PCThread's wrapped pthread_t
+//   refer to the CALLING thread?" — i.e. compares `this->threadId`
+//   against `pthread_self()` via POSIX `pthread_equal`. Uses the POSIX-
+//   correct opaque comparator (never `==`), which is important because
+//   pthread_t is opaque and may not be a raw integer on every platform.
+//   Returns a C++ `bool`.
 
 /**
  * `pthread_self()` — POSIX thread self-identifier. Called via ProCore's
@@ -74,16 +112,44 @@ function pthread_self_stub(): unknown {
 }
 
 /**
+ * `pthread_equal(pthread_t, pthread_t)` — POSIX opaque-thread-handle
+ * equality comparator. Called via ProCore's imported stub at @0xdeaa4
+ * from `PCThread::isSelf` @0x34ba2. TRUE out-of-scope extern
+ * (libpthread/libSystem — not one of the five FCP frameworks), same
+ * policy as `pthread_self_stub` above.
+ *
+ * POSIX semantics: returns a nonzero `int` if the two pthread_t handles
+ * refer to the same thread, zero otherwise. The FCP caller reads the
+ * result as a C++ `bool` via `testl %eax,%eax ; setne %al` @0x34ba7.
+ *
+ * In this port there is no libpthread runtime, so we can't compare real
+ * pthread_t values. A faithful raise is the correct behaviour: any
+ * caller reaching this point would have already had to obtain a real
+ * pthread_t via `pthread_self_stub` (which itself raises), so control
+ * cannot legitimately arrive here in the current partially-ported state.
+ */
+function pthread_equal_stub(_t1: unknown, _t2: unknown): number {
+  throw new Error(
+    "pthread_equal() @ProCore imported stub 0xdeaa4 (libpthread/libSystem — " +
+      "TRUE out-of-scope extern; not yet transcribed)",
+  );
+}
+
+/**
  * `PCThread` — ProCore's POSIX-thread wrapper (partial port).
  *
- * ONLY the default constructor `PCThread::PCThread()` @0x34b14 is
- * transcribed here. All other members (parameterised C1/C2, D1/D2,
- * startup, cancel, wait, detach, self, isSelf, operator==) are SEPARATE
- * ledger symbols and are the responsibility of separate claims.
+ * Currently transcribed:
+ *   * the default constructor `PCThread::PCThread()` @0x34b14, and
+ *   * the query method `PCThread::isSelf() const` @0x34b8e.
+ *
+ * All other members (parameterised C1/C2, D1/D2, startup, cancel, wait,
+ * detach, self, operator==) are SEPARATE ledger symbols and are the
+ * responsibility of separate claims.
  *
  * Struct layout (partial, decoded from ported members only):
  *   +0x00  pthread_t threadId  — written by the default ctor with
- *                                pthread_self() (see body below).
+ *                                pthread_self(); read by isSelf()
+ *                                @0x34b94.
  */
 export class PCThread {
   /**
@@ -134,5 +200,58 @@ export class PCThread {
     this.threadId = tid;
 
     // @0x34b25–0x34b2b: epilogue + retq. (No return value.)
+  }
+
+  /**
+   * `PCThread::isSelf() const` @ProCore 0x34b8e
+   * (__ZNK8PCThread6isSelfEv).
+   *
+   * Returns true iff the pthread_t held at `this->threadId` (+0x00)
+   * refers to the CALLING thread — i.e. compares against
+   * `pthread_self()` via the POSIX opaque comparator `pthread_equal`.
+   *
+   * Faithful line-for-line transcription of the 15-line disasm quoted
+   * in the file header:
+   *
+   *   %rbx = this->threadId               ; @0x34b94
+   *   %rax = pthread_self()               ; @0x34b97 (stub 0xdeada)
+   *   %eax = pthread_equal(%rbx, %rax)    ; @0x34ba2 (stub 0xdeaa4)
+   *                                       ;   ; args (arg0=this->threadId,
+   *                                       ;   ;       arg1=pthread_self())
+   *   %al  = (%eax != 0) ? 1 : 0          ; @0x34ba7-0x34ba9 (testl/setne)
+   *   return %al  (bool)                  ; @0x34bb2 (retq)
+   *
+   * Note operand ordering: the disasm passes `this->threadId` first
+   * (%rdi) and `pthread_self()` second (%rsi). `pthread_equal` is
+   * commutative (nonzero iff the two handles refer to the same thread),
+   * so the argument order is a decoding detail — we preserve it here
+   * for faithful transcription (an inverted argument order would still
+   * produce the same boolean, but the disassembly names this order).
+   */
+  isSelf(): boolean {
+    // @0x34b8e–0x34b93: prologue (rbp frame + rbx callee-save + 16B align).
+    //                    No TS-visible effect.
+
+    // @0x34b94: movq (%rdi), %rbx  ; rbx = *(this + 0) = this->threadId.
+    const t1 = this.threadId;
+
+    // @0x34b97: callq 0xdeada     ; rax = pthread_self().
+    //                             ; TRUE out-of-scope extern (POSIX). Stub raises.
+    const t2 = pthread_self_stub();
+
+    // @0x34b9c: movq %rbx, %rdi   ; arg0 = t1 (this->threadId).
+    // @0x34b9f: movq %rax, %rsi   ; arg1 = t2 (pthread_self()).
+    // @0x34ba2: callq 0xdeaa4     ; eax = pthread_equal(t1, t2).
+    //                             ; TRUE out-of-scope extern (POSIX). Stub raises.
+    const eq = pthread_equal_stub(t1, t2);
+
+    // @0x34ba7: testl %eax,%eax   ; ZF = (eax == 0).
+    // @0x34ba9: setne %al         ; al = (eax != 0) ? 1 : 0.
+    //   pthread_equal's C-int contract: NONZERO iff the two thread
+    //   handles refer to the same thread. The `setne` idiom collapses
+    //   that C-int into a proper C++ bool.
+    //
+    // @0x34bac–0x34bb2: epilogue + retq (return value in %al).
+    return eq !== 0;
   }
 }
