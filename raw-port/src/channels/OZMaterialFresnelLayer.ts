@@ -119,7 +119,7 @@
 // two forwarders) is a real transcription that runs on a real instance once the ctor lands.
 
 // -----------------------------------------------------------------------------
-// External hooks (not yet transcribed — declared as throwing stubs).
+// External hooks (not yet decoded — declared as stubs that fail loudly).
 // -----------------------------------------------------------------------------
 
 /** OZMaterialLayerBase — parent class, not yet transcribed as a whole. */
