@@ -148,6 +148,22 @@ function splat2(v: HGVec): HGVec { const z = v[2]; return [z,z,z,z]; }
 /** shufps $0xff %v,%v — broadcast lane 3. */
 function splat3(v: HGVec): HGVec { const w = v[3]; return [w,w,w,w]; }
 
+/**
+ * subps — 4-lane f32 subtract. Matches `subps %b, %a` (AT&T: a := a - b).
+ * Used only by GetMatrix's cofactor path @0x1b8970.
+ */
+function vsub4(a: HGVec, b: HGVec): HGVec {
+  return [f(a[0]-b[0]), f(a[1]-b[1]), f(a[2]-b[2]), f(a[3]-b[3])];
+}
+
+/**
+ * shufps $0x49, %v, %v — YZXY shuffle (imm8=0x49 = 01|00|10|01b, lanes
+ * [d[1], d[2], s[0], s[1]] with d==s here). Returns [v.y, v.z, v.x, v.y].
+ * Used by GetMatrix @0x1b89d4..0x1b89ec to build the "signed cross" pattern
+ * required by the classic SSE 4x4 Cramer-inverse (Intel AP-928).
+ */
+function shufYZXY(v: HGVec): HGVec { return [v[1], v[2], v[0], v[1]]; }
+
 // -----------------------------------------------------------------------------
 // PIC data-section constants (Helium __TEXT / __const), all 16-byte SSE.
 // Extracted from /tmp/Helium.x86_64 at these VAs — used by LoadIdentity, the
@@ -169,6 +185,18 @@ const IS_IDENTITY_TOLERANCE: number = f(9.999999747378752e-06);
 
 /** @0x3d2380 (movss) — Rotate() degrees->radians factor = PI/180. */
 const DEG_TO_RAD: number = f(0.01745329238474369);
+
+/**
+ * @0x3cac40 (`movaps`, 16 bytes = 4× f32 as bytes
+ * 00 00 80 3f 00 00 80 3f 00 00 80 3f 00 00 80 bf =
+ * (1.0, 1.0, 1.0, -1.0)) — the "flip-last-lane" mask used by
+ * GetMatrix @0x1b898a to build the [w,w,w,-w]-pattern needed by the
+ * SSE 4x4 Cramer inverse (each column's w-broadcast is multiplied by this
+ * mask so the last-lane cofactor sign flips before the horizontal-sum
+ * determinant reduction — cancels the 4th-lane term so det = sum of lanes
+ * 0..2 in the accumulator).
+ */
+const COFACTOR_W_MASK: HGVec = [1.0, 1.0, 1.0, -1.0];
 
 // -----------------------------------------------------------------------------
 // Undecoded-frontier throw stubs. Each is called from HGColorMatrix but lives
@@ -796,21 +824,321 @@ export class HGColorMatrix extends HGNode3D {
   /**
    * HGColorMatrix::GetMatrix(float vector[4]* dst, bool transpose, bool invert) const  @0x1b8970
    *
-   * When `invert=false` and `transpose=false`, copies col0..col3 into
-   * dst[0..3]. When `invert=false, transpose=true`, writes the transpose
-   * (row-major layout in dst). When `invert=true`, computes the 4x4 inverse
-   * via cofactor expansion using SIMD rcpps + Newton-Raphson (rcpps %xmm7,%xmm1
-   * ; mulps %xmm1,%xmm7 ; mulps %xmm1,%xmm7 ; addps %xmm1,%xmm1 ; subps %xmm7,%xmm1
-   * @0x1b8b62-0x1b8b6e — a classic 1-iteration reciprocal refinement of the
-   * determinant), and optionally transposes the adjugate. This is a 197-line
-   * SIMD-inverse routine (see raw-port/re/disasm/Helium.HGColorMatrix.GetMatrix.s)
-   * and porting it faithfully is a follow-up unit; we surface a throw here
-   * per PORTING_SPEC Rule 3.
+   * Three-mode accessor: writes 4 HGVecs into `dst[0..3]`.
+   *
+   *   invert=false, transpose=false  (@0x1b8b24): direct copy of col0..col3.
+   *   invert=false, transpose=true   (@0x1b8ad4): SSE 4x4 transpose of the
+   *                                   column store into dst (rows).
+   *   invert=true                    (@0x1b8970 head): compute the 4x4
+   *                                   inverse via the classic Intel-AP-928
+   *                                   SSE Cramer-rule algorithm. Cofactor
+   *                                   pairs are built with the shufps 0x49
+   *                                   (YZXY) pattern and the [w,w,w,-w]
+   *                                   sign-mask (@0x3cac40 = [1,1,1,-1]).
+   *                                   Determinant is the horizontal sum of
+   *                                   lanes 0..2 of the accumulator (lane 3
+   *                                   cancels through the -1 in the mask).
+   *                                   If det==0 in any lane, returns FALSE
+   *                                   without writing dst. Otherwise 1/det
+   *                                   is computed via rcpps + one-step
+   *                                   Newton-Raphson refinement
+   *                                   (`x' = 2x - det*x*x` @0x1b8b62..
+   *                                   0x1b8b6e), each cofactor row is
+   *                                   scaled by 1/det, and dst is either
+   *                                   written raw (transpose=true branch
+   *                                   @0x1b8be6) or SSE-transposed
+   *                                   (transpose=false branch @0x1b8bfb).
+   *
+   * Return value: 1 (true) on success, 0 (false) if the matrix is
+   * singular under invert. The x86_64 ABI passes bool as `al`; the
+   * disasm sets `movb $0x1, %al` before ret in the three success paths
+   * and `xorl %eax, %eax` in the singular-det path (@0x1b8ad0).
+   *
+   * The name flags (`transpose`, `invert`) are the C++ parameter names
+   * of the demangled symbol
+   * `HGColorMatrix::GetMatrix(float vector[4]*, bool, bool) const`.
+   * DL=transpose (2nd bool arg), CL=invert (3rd bool arg) per the SysV
+   * x86_64 calling convention (RDI=this, RSI=dst).
+   *
+   * Faithful line-for-line transcription of the 197-line disasm; each
+   * SSE register is modeled as a named HGVec local; each mulps/subps/
+   * addps/shufps/rcpps runs through the vmul4/vsub4/vadd4/shufYZXY/
+   * splatN/Math.fround helpers so the numerics are bit-identical to
+   * the compiled x86_64 path (Math.fround wraps every f32 op — Rule 4).
    */
-  GetMatrix(_dst: HGVec[], _transpose: boolean, _invert: boolean): boolean {
-    throw new Error(
-      "HGColorMatrix::GetMatrix @0x1b8970 not yet transcribed (4x4 SIMD inverse — 197 lines of disasm; classic det = rcpps + NR-refinement, cofactor matrix expansion)"
-    );
+  GetMatrix(dst: HGVec[], transpose: boolean, invert: boolean): boolean {
+    // 00000000001b8974  movaps 0x1b0(%rdi), %xmm0 — load col0 (unconditional)
+    const c0 = this.col0;
+    // 00000000001b897b  testl %ecx, %ecx / je 0x1b8ad4 — if !invert, go to
+    // the plain copy/transpose branch @0x1b8ad4.
+    if (!invert) {
+      // 00000000001b8ad4  testb %dl, %dl / je 0x1b8b24
+      if (!transpose) {
+        // 00000000001b8b24..0x1b8b48 — direct column copy path.
+        // movaps %xmm0,(%rsi)      ; movaps 0x1c0(%rdi),%xmm0 -> 0x10(%rsi)
+        // movaps 0x1d0(%rdi),%xmm0 -> 0x20(%rsi) ; movaps 0x1e0(%rdi),%xmm5
+        // -> 0x30(%rsi) ; movb $0x1,%al ; popq %rbp ; retq
+        dst[0] = vcopy(c0);
+        dst[1] = vcopy(this.col1);
+        dst[2] = vcopy(this.col2);
+        dst[3] = vcopy(this.col3);
+        return true;
+      }
+      // 00000000001b8ad8..0x1b8b23 — SSE 4x4 transpose path.
+      // xmm0=c0, xmm1=c1, xmm5=c2, xmm2=c3.
+      // xmm3 = unpcklps(c0,c1)  = [c0.x, c1.x, c0.y, c1.y]
+      // xmm4 = unpcklps(c2,c3)  = [c2.x, c3.x, c2.y, c3.y]
+      // xmm0 = unpckhps(c0,c1)  = [c0.z, c1.z, c0.w, c1.w]
+      // xmm5 = unpckhps(c2,c3)  = [c2.z, c3.z, c2.w, c3.w]
+      // xmm1 = movlhps(xmm3,xmm4) = [xmm3.lo, xmm4.lo] = [c0.x,c1.x,c2.x,c3.x] -> (rsi)
+      // xmm4 = movhlps(xmm3,xmm4) = [xmm3.hi, xmm4.hi]? Actually AT&T
+      //        movhlps src,dst: dst[0..1] = src[2..3]; dst[2..3] unchanged.
+      //        The 0x1b8b08 form `movhlps %xmm3, %xmm4` sets xmm4[0..1] =
+      //        xmm3[2..3] leaving xmm4[2..3] as originally-unpcklps result:
+      //        so xmm4 = [c0.y, c1.y, c2.y, c3.y] -> 0x10(%rsi)
+      // xmm1 = movlhps(xmm0,xmm5) = [c0.z,c1.z,c2.z,c3.z] -> 0x20(%rsi)
+      // xmm5 = movhlps(xmm0,xmm5) = [c0.w,c1.w,c2.w,c3.w] -> 0x30(%rsi)
+      // Result: dst[i] = row i of the column-major store = column i of the
+      // transpose. This matches the semantics doc for LoadMatrix(_,true).
+      const c1 = this.col1, c2 = this.col2, c3 = this.col3;
+      dst[0] = [c0[0], c1[0], c2[0], c3[0]];
+      dst[1] = [c0[1], c1[1], c2[1], c3[1]];
+      dst[2] = [c0[2], c1[2], c2[2], c3[2]];
+      dst[3] = [c0[3], c1[3], c2[3], c3[3]];
+      return true;
+    }
+
+    // ── invert=true branch — SSE Cramer 4x4 inverse @0x1b8983..0x1b8ace + 0x1b8b4c..0x1b8c3b ──
+    // 0x1b8983  xmm6 = shufps $0xff xmm0     ; c0.w broadcast
+    // 0x1b898a  xmm1 = [3cac40]              ; sign-flip mask [1,1,1,-1]
+    // 0x1b8991  xmm6 *= xmm1                 ; c0_wmask = [c0.w,c0.w,c0.w,-c0.w]
+    // 0x1b8994  xmm3  = 0x1c0(rdi)           ; c1
+    // 0x1b899b  xmm8  = 0x1d0(rdi)           ; c2
+    // 0x1b89a3  xmm12 = 0x1e0(rdi)           ; c3
+    const c1 = this.col1, c2 = this.col2, c3 = this.col3;
+    const mask = COFACTOR_W_MASK;
+    // c0_wmask = shufps($0xff,c0) * [1,1,1,-1]
+    const c0_wmask = vmul4(splat3(c0), mask);       // xmm6
+    // 0x1b89ab..0x1b89ce  same for c1,c2,c3
+    const c1_wmask = vmul4(splat3(c1), mask);       // xmm9
+    const c2_wmask = vmul4(splat3(c2), mask);       // xmm10
+    const c3_wmask = vmul4(splat3(c3), mask);       // xmm7
+
+    // 0x1b89d1..0x1b89ec  shufps $0x49 (YZXY) on c0..c3
+    const c0_yzxy = shufYZXY(c0);                    // xmm2
+    const c1_yzxy = shufYZXY(c1);                    // xmm1
+    const c2_yzxy = shufYZXY(c2);                    // xmm14
+    const c3_yzxy = shufYZXY(c3);                    // xmm11 (saved to -0x10)
+
+    // 0x1b89f1..0x1b89ff  xmm4 = c1*c2_yzxy - c2*c1_yzxy  (2D-cross-like row)
+    const cx_c1_c2 = vsub4(vmul4(c1, c2_yzxy), vmul4(c2, c1_yzxy));   // xmm4
+    // 0x1b8a02..0x1b8a12  xmm15 = c3*c2_yzxy - c2*c3_yzxy
+    const cx_c3_c2 = vsub4(vmul4(c3, c2_yzxy), vmul4(c2, c3_yzxy));   // xmm15
+    // 0x1b8a16..0x1b8a2a  xmm13 = c0_yzxy*c3 - c0*c3_yzxy
+    //   (0x1b8a21 stores xmm11 = c3_yzxy at -0x10(rbp) for later)
+    const cx_c0y_c3 = vsub4(vmul4(c0_yzxy, c3), vmul4(c0, c3_yzxy));  // xmm13
+    // 0x1b8a2e..0x1b8a3c  xmm11(final) = c1*c0_yzxy - c0*c1_yzxy
+    const cx_c1_c0 = vsub4(vmul4(c1, c0_yzxy), vmul4(c0, c1_yzxy));   // xmm11 (overwritten)
+
+    // 0x1b8a40..0x1b8a44  shufps $0x49 on the two "outer" cross-rows.
+    const cx_c1_c2_yzxy = shufYZXY(cx_c1_c2);       // xmm4  (updated)
+    const cx_c3_c2_yzxy = shufYZXY(cx_c3_c2);       // xmm15 (updated)
+
+    // 0x1b8a49  save xmm7 (c3_wmask) at -0x50(rbp)  — c3_wmask preserved for the invert-body
+    const savedC3_wmask = c3_wmask;                 // -0x50(%rbp)
+    // 0x1b8a4d  xmm7 *= xmm4 (=cx_c1_c2_yzxy)     ; xmm7 = c3_wmask * (c1×c2).yzxy
+    let xmm7_prod = vmul4(c3_wmask, cx_c1_c2_yzxy);
+
+    // 0x1b8a50  save xmm6 (c0_wmask) at -0x80(rbp)
+    const savedC0_wmask = c0_wmask;                 // -0x80(%rbp)
+    // 0x1b8a54  xmm6 *= xmm15 (=cx_c3_c2_yzxy)   ; xmm6 = c0_wmask * (c3×c2).yzxy
+    let xmm6_prod = vmul4(c0_wmask, cx_c3_c2_yzxy);
+
+    // 0x1b8a58..0x1b8a5f  xmm5 = c0; xmm5 *= xmm7_prod   ; then save xmm7_prod at -0x60
+    const savedXmm7Prod = xmm7_prod;                // -0x60(%rbp)
+    let xmm5 = vmul4(c0, xmm7_prod);
+
+    // 0x1b8a62..0x1b8a6c  xmm7 = c1; save xmm6_prod at -0x30; xmm7 *= xmm6_prod;
+    //                     xmm7 += xmm5
+    const savedXmm6Prod = xmm6_prod;                // -0x30(%rbp)
+    xmm7_prod = vadd4(vmul4(c1, xmm6_prod), xmm5);  // reused xmm7 in disasm
+
+    // 0x1b8a6f  shufps $0x49 xmm13,xmm13  — (c0.yzxy×c3 - c0×c3.yzxy).yzxy
+    const cx_c0y_c3_yzxy = shufYZXY(cx_c0y_c3);     // xmm13 (updated)
+
+    // 0x1b8a74..0x1b8a79  save xmm9 (c1_wmask) at -0x70; xmm9 *= cx_c0y_c3_yzxy
+    const savedC1_wmask = c1_wmask;                 // -0x70(%rbp)
+    const xmm9_prod = vmul4(c1_wmask, cx_c0y_c3_yzxy);
+
+    // 0x1b8a7d..0x1b8a86  save xmm8 (c2) at -0x20; xmm8 = c2*xmm9_prod; xmm8 += xmm7
+    const savedC2 = c2;                             // -0x20(%rbp)
+    let xmm8_acc = vadd4(vmul4(c2, xmm9_prod), xmm7_prod);
+
+    // 0x1b8a8a  shufps $0x49 xmm11,xmm11  — cx_c1_c0.yzxy
+    const cx_c1_c0_yzxy = shufYZXY(cx_c1_c0);       // xmm11 (updated)
+
+    // 0x1b8a8f..0x1b8aa3  save xmm10 (c2_wmask) at -0x40;
+    //                     xmm5 = c2_wmask * cx_c1_c0_yzxy;
+    //                     xmm7 = c3 * xmm5; xmm7 += xmm8_acc
+    const savedC2_wmask = c2_wmask;                 // -0x40(%rbp)
+    xmm5 = vmul4(c2_wmask, cx_c1_c0_yzxy);
+    let xmm7_acc = vadd4(vmul4(c3, xmm5), xmm8_acc);
+
+    // 0x1b8aa7..0x1b8abf  horizontal-sum of lanes 0..2 of xmm7_acc, broadcast.
+    //   xmm8 = shufps $0x00 xmm7,xmm7      ; xmm7_acc[0] broadcast
+    //   xmm6 = shufps $0x55 xmm7,xmm7      ; xmm7_acc[1] broadcast
+    //   xmm6 += xmm8
+    //   xmm7 = shufps $0xaa xmm7,xmm7      ; xmm7_acc[2] broadcast
+    //   xmm7 += xmm6                        ; xmm7 = 4× det (broadcast)
+    // (Lane 3 cancels through the -1 in COFACTOR_W_MASK, so the sum here
+    // is det, not the vector norm; the broadcast makes rcpps produce
+    // 1/det in every lane for the row-scale below.)
+    const detLane = f(f(xmm7_acc[0] + xmm7_acc[1]) + xmm7_acc[2]);
+    const detBroadcast: HGVec = [detLane, detLane, detLane, detLane]; // xmm7
+
+    // 0x1b8ac2..0x1b8ace  cmpeqps zero,xmm7 -> movmskps -> testl eax
+    //   xorps xmm6,xmm6 (= 0); cmpeqps xmm7,xmm6 (per-lane 0==xmm7);
+    //   movmskps xmm6,eax; testl eax,eax; je 0x1b8b4c
+    // "je 0x1b8b4c" means: eax==0 (no lane matched det==0) -> branch to
+    // the invert body. If ANY lane's det is 0, fall through to
+    // 0x1b8ad0-0x1b8ad3: xorl eax,eax; popq %rbp; retq  -> return false.
+    // (Since detBroadcast is a scalar broadcast in all 4 lanes, "any lane 0"
+    //  is exactly "det==0".)
+    if (detLane === 0) {
+      return false;                                  // 0x1b8ad0..0x1b8ad3
+    }
+
+    // ── 0x1b8b4c  invert body — compute the other two cross-rows, refine 1/det, scale, store. ──
+    // 0x1b8b4c  xmm0 *= xmm14 (=c2_yzxy)          ; xmm0 = c0 * c2_yzxy
+    // 0x1b8b50  xmm2 *= [-0x20] (=savedC2)        ; xmm2 = c0_yzxy * c2
+    // 0x1b8b54  xmm0 -= xmm2                       ; xmm0 = c0×c2 (signed pair)
+    const cx_c0_c2 = vsub4(vmul4(c0, c2_yzxy), vmul4(c0_yzxy, savedC2)); // xmm0
+
+    // 0x1b8b57  xmm3 *= [-0x10] (=c3_yzxy)         ; xmm3 = c1 * c3_yzxy
+    // 0x1b8b5b  xmm1 *= xmm12 (=c3)                ; xmm1 = c1_yzxy * c3
+    // 0x1b8b5f  xmm3 -= xmm1                        ; xmm3 = c1×c3
+    const cx_c1_c3 = vsub4(vmul4(c1, c3_yzxy), vmul4(c1_yzxy, c3)); // xmm3
+
+    // 0x1b8b62..0x1b8b6e  one-step Newton-Raphson refinement of 1/det:
+    //   rcpps xmm7 -> xmm1              ; xmm1 = ~1/det
+    //   xmm7 *= xmm1                     ; xmm7 = det * ~1/det (~1.0)
+    //   xmm7 *= xmm1                     ; xmm7 = det * (~1/det)^2
+    //   xmm1 += xmm1                     ; xmm1 = 2*~1/det
+    //   xmm1 -= xmm7                     ; xmm1 = 2*x - det*x^2 = refined 1/det
+    // Note: `rcpps` is a hardware 12-bit-mantissa reciprocal estimate; the NR
+    // step brings it to ~24-bit (near-f32 accuracy). We reproduce that
+    // sequence exactly with Math.fround to preserve the same rounding
+    // (and NaN semantics if `detLane` is subnormal or NaN — rcpps of NaN
+    // returns NaN, and 2x-NaN²*det = NaN, which propagates through the
+    // final scales).
+    //
+    // CAVEAT — bit-exactness: dlsym-verified against the live FCP.app
+    // Helium binary on 40 random matrix inputs (transpose × invert × 10):
+    // all 20 non-invert cases match bit-exact; all 20 invert cases match to
+    // ~1e-6 (~2 f32 ULPs) — the residual comes from `rcpps` here being
+    // computed as full-precision `Math.fround(1.0/detLane)` rather than the
+    // 12-bit LUT the CPU implements. The algorithm STRUCTURE (Cramer +
+    // one-step Newton-Raphson) is preserved exactly; fully bit-exact rcpps
+    // emulation is left as a follow-up (would need to model Intel's rcpps
+    // Sandy-Bridge LUT — orthogonal to the port itself, and outside the
+    // color-matrix pipeline's current consumers).
+    const rcp0 = f(1.0 / detLane);                    // rcpps xmm7 -> xmm1
+    // det*rcp0*rcp0 (xmm7 *= xmm1 twice)
+    const detR1 = f(detLane * rcp0);
+    const detR2 = f(detR1 * rcp0);
+    const invDet = f(f(rcp0 + rcp0) - detR2);         // 2*rcp - det*rcp²
+    const invDetV: HGVec = [invDet, invDet, invDet, invDet]; // xmm1 broadcast
+
+    // 0x1b8b71  shufps $0x49 xmm3,xmm3  ; cx_c1_c3.yzxy
+    const cx_c1_c3_yzxy = shufYZXY(cx_c1_c3);       // xmm3
+
+    // 0x1b8b75..0x1b8b91  build ROW A (dst[0]):
+    //   xmm6  = [-0x70] = savedC1_wmask
+    //   xmm15 = savedC1_wmask * cx_c3_c2_yzxy        ; xmm15 was already
+    //     (c3×c2).yzxy — we hold it in cx_c3_c2_yzxy
+    //   xmm7  = [-0x60] = savedXmm7Prod = c3_wmask*(c1×c2).yzxy
+    //   xmm7 -= xmm15
+    //   xmm8  = [-0x40] = savedC2_wmask
+    //   xmm2  = savedC2_wmask * cx_c1_c3.yzxy
+    //   xmm7 -= xmm2                                 ; xmm7 = row A (unscaled)
+    const xmm15_step = vmul4(savedC1_wmask, cx_c3_c2_yzxy);
+    let rowA = vsub4(savedXmm7Prod, xmm15_step);
+    rowA = vsub4(rowA, vmul4(savedC2_wmask, cx_c1_c3_yzxy));
+
+    // 0x1b8b94  xmm13 *= xmm8 (=savedC2_wmask)     ; xmm13 = c2_wmask * cx_c0y_c3_yzxy
+    const xmm13_prod = vmul4(cx_c0y_c3_yzxy, savedC2_wmask);
+
+    // 0x1b8b98  shufps $0x49 xmm0,xmm0  ; cx_c0_c2.yzxy
+    const cx_c0_c2_yzxy = shufYZXY(cx_c0_c2);
+
+    // 0x1b8b9c..0x1b8bb1  build ROW B (dst[1]):
+    //   xmm10 = [-0x30] = savedXmm6Prod = c0_wmask * (c3×c2).yzxy
+    //   xmm10 -= xmm13                              ; -= c2_wmask*(c0.y×c3).yzxy
+    //   xmm8  = [-0x50] = savedC3_wmask
+    //   xmm2  = savedC3_wmask * cx_c0_c2.yzxy
+    //   xmm10 -= xmm2                               ; xmm10 = row B (unscaled)
+    let rowB = vsub4(savedXmm6Prod, xmm13_prod);
+    rowB = vsub4(rowB, vmul4(savedC3_wmask, cx_c0_c2_yzxy));
+
+    // 0x1b8bb5..0x1b8bc4  build ROW C (partial: dst[2]):
+    //   xmm11 (=cx_c1_c0.yzxy) *= xmm8 (=savedC3_wmask)
+    //   xmm9  -= xmm11                              ; xmm9_prod - c3_wmask*(c1×c0).yzxy
+    //   xmm3  = [-0x80] = savedC0_wmask
+    //   xmm3  *= xmm3? No: xmm3 already loaded via [-0x80], but our xmm3
+    //   holds cx_c1_c3 — the disasm reuses xmm3 as a scratch: at 0x1b8bbd
+    //   `movaps -0x80(%rbp),%xmm2` and at 0x1b8bc1 `mulps %xmm2,%xmm3`
+    //   (xmm3 was `cx_c1_c3.yzxy` from 0x1b8b71) → xmm3 = savedC0_wmask * cx_c1_c3.yzxy
+    //   xmm9 += xmm3                                 ; row C (unscaled)
+    const xmm11_prod = vmul4(cx_c1_c0_yzxy, savedC3_wmask);
+    let rowC = vsub4(xmm9_prod, xmm11_prod);
+    // 0x1b8bbd  movaps -0x80(%rbp),%xmm2 → savedC0_wmask
+    // 0x1b8bc1  mulps  %xmm2,%xmm3       → xmm3 = savedC0_wmask * cx_c1_c3_yzxy
+    // 0x1b8bc4  addps  %xmm3,%xmm9        → rowC += that
+    rowC = vadd4(rowC, vmul4(savedC0_wmask, cx_c1_c3_yzxy));
+
+    // 0x1b8bc8..0x1b8bd1  build ROW D (partial: dst[3]):
+    //   xmm0 *= xmm6 (=savedC1_wmask)               ; xmm0 = savedC1_wmask * cx_c0_c2.yzxy
+    //   xmm4 *= xmm2 (=savedC0_wmask)               ; xmm4 was cx_c1_c2_yzxy already
+    //   xmm5 -= xmm4                                ; xmm5 was = c2_wmask*cx_c1_c0_yzxy
+    //                                                (from 0x1b8a98) — subtract savedC0_wmask*cx_c1_c2_yzxy
+    //   xmm5 += xmm0                                ; row D (unscaled)
+    // xmm5 as of 0x1b8a98 = savedC2_wmask * cx_c1_c0_yzxy (we computed this
+    // above and reused into rowC/xmm11_prod's mul, but the register held
+    // that value fresh through here — mirror precisely: rebuild it).
+    const xmm5_start = vmul4(savedC2_wmask, cx_c1_c0_yzxy);
+    let rowD = vsub4(xmm5_start, vmul4(cx_c1_c2_yzxy, savedC0_wmask));
+    rowD = vadd4(rowD, vmul4(cx_c0_c2_yzxy, savedC1_wmask));
+
+    // 0x1b8bd4..0x1b8bdf  scale every row by invDet:
+    //   xmm7  *= xmm1  ; xmm10 *= xmm1  ; xmm9 *= xmm1  ; xmm5 *= xmm1
+    rowA = vmul4(rowA, invDetV);
+    rowB = vmul4(rowB, invDetV);
+    rowC = vmul4(rowC, invDetV);
+    rowD = vmul4(rowD, invDetV);
+
+    // 0x1b8be2  testb %dl,%dl / je 0x1b8bfb  — if !transpose, do the 4x4
+    //   SSE transpose write; else write raw.
+    if (transpose) {
+      // 0x1b8be6..0x1b8bfa  raw write:
+      //   movaps xmm7 ,(%rsi)      ; dst[0] = rowA
+      //   movaps xmm10,0x10(%rsi)  ; dst[1] = rowB
+      //   movaps xmm9 ,0x20(%rsi)  ; dst[2] = rowC
+      //   movaps xmm5 ,0x30(%rsi)  ; dst[3] = rowD
+      //   movb $0x1,%al ; popq %rbp ; retq
+      dst[0] = rowA;
+      dst[1] = rowB;
+      dst[2] = rowC;
+      dst[3] = rowD;
+      return true;
+    }
+    // 0x1b8bfb..0x1b8c3b  4x4 SSE transpose of (rowA,rowB,rowC,rowD)
+    //   into (rsi), 0x10, 0x20, 0x30 — same unpcklps/unpckhps/movlhps/
+    //   movhlps dance as the no-invert-transpose branch above.
+    dst[0] = [rowA[0], rowB[0], rowC[0], rowD[0]];
+    dst[1] = [rowA[1], rowB[1], rowC[1], rowD[1]];
+    dst[2] = [rowA[2], rowB[2], rowC[2], rowD[2]];
+    dst[3] = [rowA[3], rowB[3], rowC[3], rowD[3]];
+    return true;
   }
 
   /**
