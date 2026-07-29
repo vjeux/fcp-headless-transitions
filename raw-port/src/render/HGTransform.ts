@@ -329,4 +329,105 @@ export class HGTransform {
     // @0x1b4fd4-0x1b4fe1: this->Multiply(&tmp) via vtable+0xc0.
     this.Multiply(tmp);
   }
+
+  /** HGTransform::LoadOrtho(float l, float r, float b, float t, float n, float f) @Helium 0x1b4730.
+   *  Signature: floats l, r, b, t, n, f (near/far).  Builds the standard OpenGL glOrtho matrix.
+   *  Disasm:
+   *    @0x1b4755-0x1b4758  callq vtable+0x38 == LoadIdentity() @0x1b4480    (start from identity)
+   *    @0x1b4784 load rip+0x216a04 == 2.0 (@Helium 0x3cb190)  -> c0
+   *    @0x1b4790 xmm3 = 2.0 / (r - l)     ->  store m[0]  @0x1b4794 (offset 0x10)
+   *    @0x1b47a1 xmm2 = 2.0 / (t - b)     ->  store m[5]  @0x1b47a5 (offset 0x38)
+   *    @0x1b47c1 load rip+0x21c75f == -2.0 (@Helium 0x3d0f28) -> c1
+   *    @0x1b47c9 xmm3 = -2.0 / (f - n)    ->  store m[10] @0x1b47e0 (offset 0x60)
+   *    @0x1b47d0 load rip+0x2158f9 == 4x 0x80000000 (@Helium 0x3ca0d0) -> f32 sign-flip mask
+   *    @0x1b47d7 xmm6 = (l+r, t+b, ..., ...) xored with sign-mask = (-(l+r), -(t+b), ...)
+   *    @0x1b47da xmm6 /= (r-l, t-b, ..., ...)
+   *    @0x1b47dd cvtps2pd (bottom two f32s -> two f64s)
+   *    @0x1b47e5 movups xmm0, 0x70(rbx) -> stores m[12], m[13]
+   *    @0x1b47e9-0x47fb final: -(n+f)/(f-n) as f32 then to f64 into 0x80(rbx) == m[14].
+   *    m[15] stays 1.0 (from LoadIdentity), m[1..3]=m[4]=m[6]=m[7]=m[8]=m[9]=m[11] stay 0. */
+  public LoadOrtho(l: number, r: number, b: number, t: number, n: number, f: number): void {
+    // @0x1b4755: callq vtable+0x38 == LoadIdentity.
+    this.LoadIdentity();
+    // Params were f32-typed args; the disasm narrows through cvtss2sd, so treat them as f32.
+    l = Math.fround(l); r = Math.fround(r);
+    b = Math.fround(b); t = Math.fround(t);
+    n = Math.fround(n); f = Math.fround(f);
+    // Subtractions done in f32 (subps xmm0,xmm1 @0x1b4777, subss xmm1,xmm5 @0x1b47b6), then
+    // cvtss2sd -> divsd -> results are f64 stored in the matrix.
+    const rl = Math.fround(r - l);
+    const tb = Math.fround(t - b);
+    const fn = Math.fround(f - n);
+    // c0 = 2.0 @0x3cb190 ; c1 = -2.0 @0x3d0f28.
+    this.m[0]  = 2.0 / rl;
+    this.m[5]  = 2.0 / tb;
+    this.m[10] = -2.0 / fn;
+    // xmm6 = (l+r, t+b, ..., ...) via addps @0x1b47cd; xored with sign-mask; divps by (r-l, t-b, ...).
+    // Then cvtps2pd puts (result_x, result_y) as 2 doubles into 0x70(rbx) == m[12], m[13].
+    // The f32 addps result is then narrowed on cvtps2pd. Preserve f32 precision.
+    this.m[12] = Math.fround(-Math.fround(l + r)) / rl;
+    this.m[13] = Math.fround(-Math.fround(t + b)) / tb;
+    // @0x1b47e9-0x1b47fb: xmm0 = (n + f) then xored with sign-mask ; div by (f-n) ; store 0x80(rbx) == m[14].
+    this.m[14] = Math.fround(-Math.fround(n + f)) / fn;
+  }
+
+  /** HGTransform::LoadFrustum(float l, float r, float b, float t, float n, float f) @Helium 0x1b4810.
+   *  Standard OpenGL glFrustum. Signature is 6 floats l,r,b,t,n,f.
+   *  Disasm:
+   *    @0x1b4835-0x1b4838  callq vtable+0x38 == LoadIdentity (but then overwrites everything below).
+   *    @0x1b483f-0x1b4842  xmm0 = 2*n  (addss xmm5,xmm5 with xmm5=n)
+   *    @0x1b485c-0x1b4862  xmm1 = (r-l, t-b, ...) via subps
+   *    @0x1b4865-0x1b4870  xmm2 = 2*n / (r-l) -> store m[0]  (offset 0x10)
+   *    @0x1b4878-0x1b4884  xmm0 = 2*n / (t-b) via movshdup for high lane -> store m[5]  (offset 0x38)
+   *    @0x1b4875 addps xmm3, xmm4       ; xmm3 = (l+r, t+b, ...) (using original saved l,r,t,b)
+   *    @0x1b4889-0x1b488f  xmm3 /= (r-l, t-b, ...) -> cvtps2pd -> store 0x50(rbx) == m[8], m[9]
+   *                                                   ((l+r)/(r-l), (t+b)/(t-b))
+   *    @0x1b4893 movq $0x0, 0x78(rbx)   ; m[13] = 0
+   *    @0x1b489b xorps xmm0,xmm0 ; movups 0x18(rbx) ; zeros m[1], m[2] (offset 0x18=m[1], 0x20=m[2] hi)
+   *    @0x1b48a2-0x1b48c7  xmm1 = -(n+f)/(f-n) as f32 -> f64 -> store m[10]  (offset 0x60)
+   *    @0x1b48cc addss xmm4,xmm4        ; xmm4 = 2*f
+   *    @0x1b48d0-0x1b48e2  xmm1 = -(2*f*n)/(f-n)  -> store m[14]  (offset 0x80)
+   *    @0x1b48ea movups 0x28,0x40 zeros ; m[3] and m[6] region
+   *    @0x1b48f2-0x1b48fa  xmm0 = movsd rip+0x215a06 (a pair of doubles, [-1.0, 0.0]) -> movups 0x68(rbx)
+   *                        stores m[11]=-1.0 and m[12]=0.0
+   *    @0x1b48fe movq $0x0, 0x88(rbx) ; m[15]=0
+   *  Result matrix (column-major layout entries; all others are 0):
+   *      m[0]  = 2n/(r-l)
+   *      m[5]  = 2n/(t-b)
+   *      m[8]  = (r+l)/(r-l)      m[9]  = (t+b)/(t-b)
+   *      m[10] = -(f+n)/(f-n)     m[11] = -1.0
+   *      m[14] = -(2fn)/(f-n)
+   *      m[15] = 0
+   */
+  public LoadFrustum(l: number, r: number, b: number, t: number, n: number, f: number): void {
+    // @0x1b4835: callq vtable+0x38 == LoadIdentity, but the code overwrites nearly every slot.
+    this.LoadIdentity();
+    // Params are f32-typed.
+    l = Math.fround(l); r = Math.fround(r);
+    b = Math.fround(b); t = Math.fround(t);
+    n = Math.fround(n); f = Math.fround(f);
+    // f32 arithmetic for the (l+r), (r-l), (t+b), (t-b), (f+n), (f-n), 2n, 2f terms.
+    const rl = Math.fround(r - l);
+    const tb = Math.fround(t - b);
+    const fn = Math.fround(f - n);
+    const two_n = Math.fround(n + n);           // @0x1b483f addss xmm5,xmm5
+    const two_f = Math.fround(f + f);           // @0x1b48cc addss xmm4,xmm4
+    // The final cvtss2sd narrows every f32 result to a double.  We keep the intermediate in f32
+    // then let the JS divide widen to f64 the same way cvtss2sd does.
+    this.m[0]  = Math.fround(two_n) / rl;                                  // @0x1b4870 store m[0]
+    this.m[5]  = Math.fround(two_n) / tb;                                  // @0x1b4884 store m[5]
+    this.m[8]  = Math.fround(Math.fround(l + r)) / rl;                     // @0x1b488f-0x1b48ea -> m[8]
+    this.m[9]  = Math.fround(Math.fround(t + b)) / tb;                     // m[9] (upper cvtps2pd lane)
+    // m[10] = -(n+f)/(f-n). The disasm applies the f32 sign-flip mask at @0x1b48b5, so we mirror.
+    this.m[10] = Math.fround(-Math.fround(n + f)) / fn;                    // @0x1b48c7 store m[10]
+    this.m[11] = -1.0;                                                     // from const-pair @0x1b48f2
+    this.m[12] = 0.0;                                                      // from const-pair @0x1b48f2 (2nd double)
+    this.m[13] = 0.0;                                                      // @0x1b4893 movq $0x0, 0x78
+    this.m[14] = Math.fround(-Math.fround(n) * two_f) / fn;                // @0x1b48e2 store m[14]
+    this.m[15] = 0.0;                                                      // @0x1b48fe movq $0x0, 0x88
+    // Remaining zero slots (m[1..4] except diagonals, m[6..7]) were zeroed by LoadIdentity + the
+    // `movups %xmm0, 0x18/0x28/0x40` writes at @0x1b489e/0x1b48ea/0x1b48ee.
+    this.m[1] = 0; this.m[2] = 0; this.m[3] = 0;
+    this.m[4] = 0; this.m[6] = 0; this.m[7] = 0;
+  }
 }
