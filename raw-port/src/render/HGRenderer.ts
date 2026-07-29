@@ -515,9 +515,154 @@ export class HGRenderer {
         "HGNode vtable *0x158 (hasCompatibleOutput @0xf203b/@0xf2053), " +
         "*0x160 (adoptCollapsedInput @0xf208d), *0x30 (renderNodeName " +
         "@0xf20fd), *0xb0 (onOutputPromoted @0xf219b), plus " +
-        "HGRenderer::IsMergeable @0x000f2380 and " +
+        "HGRenderer::IsMergeable @0x000f2c10 and " +
         "HGNode::GetGuardedOutput @__ZN6HGNode16GetGuardedOutputEP10HGRenderer" +
         " — none of these have been transcribed yet",
+    );
+  }
+
+  /**
+   * `HGRenderer::IsMergeable(HGNode* node, int slot, bool wantCollapse)` —
+   * Helium @0x000f2c10.
+   *
+   * Predicates whether `node` (at input `slot`, or `node` itself if slot<0)
+   * is a candidate for graph-level upstream merging. Two-tier gate:
+   *
+   *   Tier A — flag gate (@0xf2c10-@0xf2c8a):
+   *     Build a flags word `%r15d`:
+   *       - if slot >= 0 (@0xf2c24 testl edx,edx; jns):
+   *           bounds-check @0xf2c2b (jge → false).
+   *           slot = node.inputs[slot] (+0x50 array, 8-byte stride);
+   *             null → drop through with %r15d=0.
+   *           %r15d = slot.flags (+0x0c).
+   *           src = slot.linkedNode (+0x10). If !src, skip to gate.
+   *           subFlags = src.field_10 (+0x10).
+   *           subFlags |= GetOutput(src).field_10   (@0xf2c56 recurse; @0xf2c5e or).
+   *           %r15d |= subFlags.
+   *       - if slot <  0 (@0xf2c72):
+   *           %r15d = node.field_10 (+0x10, the same "renderPageStrategy"
+   *                                       flag word GetFlags folds).
+   *     If (%r15d & 0x26) != 0 (@0xf2c65 / @0xf2c76 testb $0x26, %r15b):
+   *       -> return false immediately (@0xf2c6b xor eax,eax; jmp epi).
+   *
+   *   Tier B — collapse gate (@0xf2c7c-@0xf2d24):
+   *     After the flag drop:
+   *       %r15d &= 0x40                                (@0xf2c7c)
+   *       %r15d |= this.field_340                      (@0xf2c80)  <- paramBlock[0x340]
+   *       %al   = (%r15d != 0)                         (@0xf2c87 setne)
+   *     Then branch on `wantCollapse` (%cl):
+   *       - !wantCollapse: return %al (@0xf2c8c je epi).
+   *       -  wantCollapse:
+   *           if (%r15d == 0) return %al=0  (@0xf2c92 testl; je epi).
+   *           %al = 1 (@0xf2c9b — collapse "yes" by default).
+   *           if (node.field_80 < 2) return al=1 (@0xf2c9d cmpq $0x2; jb epi):
+   *             a merge-info map with 0 or 1 entries always says "yes".
+   *           Otherwise walk the std::_Tree at node+0x70/+0x78:
+   *             r12 = tree root (+0x70), sentinel = node+0x78 (@0xf2ca7-@0xf2cab)
+   *             Standard rb-tree successor-order iteration (@0xf2ccd-@0xf2d1d)
+   *             at each entry: r15d += (GetOutput(entry.key) == entry.dedupKey)
+   *             Return (%r15d < 2)  (@0xf2d1f cmpl $0x2; setb).
+   *
+   * PORTED faithfully for slot>=0 AND slot<0 flag-computation AND
+   * wantCollapse=false. GetOutput's own cold-path caller passes
+   * `wantCollapse=false` (@0xf2067 `xorl %ecx,%ecx`) so this cover unblocks
+   * GetOutput's merge-check gate for the exact call-site of interest.
+   *
+   * The wantCollapse=true rb-tree walk is deferred to a throwing stub with
+   * per-address citations — decoding the std::map<HGNode*,...> layout at
+   * node+0x70/+0x78/+0x80 is a separate HGNode port.
+   */
+  IsMergeable(
+    node: HGNode | null,
+    slot: number,
+    wantCollapse: boolean,
+  ): boolean {
+    if (node === null) return false;                              // guard
+    const s = (slot | 0);
+
+    let flags: number;                                            // %r15d
+    if (s < 0) {
+      // @0xf2c72: movl 0x10(%rbx), %r15d
+      flags = ((node as unknown as { renderPageStrategy: number })
+        .renderPageStrategy | 0) >>> 0;
+    } else {
+      // @0xf2c28: xorl %r15d,%r15d
+      flags = 0;
+      const nn = node as unknown as {
+        numInputSlots: number;
+        inputSlots: Array<
+          | { flags: number; linkedNode: HGNode | null }
+          | null
+        >;
+      };
+      // @0xf2c2b-e: cmpl 0x58(%rbx), edx; jge -> tier-B gate with flags=0.
+      if (s >= (nn.numInputSlots | 0) || !nn.inputSlots) {
+        // fall through with flags=0.
+      } else {
+        // @0xf2c30-36: slot = inputSlots[s].
+        const inSlot = nn.inputSlots[s];
+        if (inSlot) {
+          // @0xf2c3f: movl 0xc(%rax),%r15d — slot.flags.
+          flags = (inSlot.flags | 0) >>> 0;
+          const src = inSlot.linkedNode;
+          if (src !== null) {
+            // @0xf2c4c: movl 0x10(%rsi),%r13d — subFlags = src.field_10.
+            const src10 = ((src as unknown as { renderPageStrategy: number })
+              .renderPageStrategy | 0) >>> 0;
+            // @0xf2c56: callq GetOutput(src).
+            const resolved = this.GetOutput(src);
+            // @0xf2c5e: orl 0x10(%rax),%r13d — subFlags |= resolved.field_10.
+            let subFlags = src10;
+            if (resolved !== null) {
+              subFlags = (subFlags |
+                (((resolved as unknown as { renderPageStrategy: number })
+                  .renderPageStrategy | 0) >>> 0)) >>> 0;
+            }
+            // @0xf2c62: orl %r13d,%r15d.
+            flags = (flags | subFlags) >>> 0;
+          }
+        }
+      }
+    }
+
+    // @0xf2c65/@0xf2c76: testb $0x26, %r15b -- reject if any of the 0x02
+    // (some kind of "cannot-collapse"), 0x04, or 0x20 bit is set.
+    if ((flags & 0x26) !== 0) {
+      // @0xf2c6b: xorl %eax,%eax; jmp epi -- return false.
+      return false;
+    }
+
+    // @0xf2c7c: andl $0x40, %r15d -- keep only the 0x40 ("mergeable-hint") bit.
+    let gate = (flags & 0x40) >>> 0;
+    // @0xf2c80: orl 0x340(%r14), %r15d -- OR in the renderer's paramBlock[0x340].
+    gate = (gate | ((this.paramBlock[0x340] | 0) >>> 0)) >>> 0;
+    // @0xf2c87: setne %al -- boolean "gate != 0".
+    const gateNonzero = gate !== 0;
+
+    // @0xf2c8a-c: testb %cl,%cl; je epi -- if !wantCollapse, return gateNonzero.
+    if (!wantCollapse) return gateNonzero;
+
+    // @0xf2c92: testl %r15d,%r15d; je epi -- with wantCollapse, if gate is
+    // clear we still return `gateNonzero` (false here, since gate==0 implies
+    // %al=setne(0)=0 unless paramBlock[0x340] contributed but gate==0 forces
+    // eax=0 through the je).
+    if (gate === 0) return gateNonzero;
+
+    // @0xf2c9b: movb $0x1,%al -- pre-load "collapse yes"; will only clear on
+    // the tree-count arm below.
+    // @0xf2c9d: cmpq $0x2, 0x80(%rbx); jb epi -- map size < 2 -> yes.
+    const mergeInfoSize = (node as unknown as { field_80: number }).field_80 | 0;
+    if ((mergeInfoSize >>> 0) < 2) return true;
+
+    // @0xf2ca7-@0xf2d24 tree walk not yet transcribed. Two integers to
+    // decode: node+0x70 (tree root ptr) and node+0x78 (end sentinel), plus
+    // the per-entry offsets +0x08 (left link), +0x10 (parent link), +0x20
+    // (payload -> key ptr + dedupKey). The result is (count < 2).
+    throw new Error(
+      "HGRenderer::IsMergeable @0x000f2c9d cold-collapse arm requires the " +
+        "std::_Tree walk over node+0x70/+0x78/+0x80 (per-entry keys read via " +
+        "callq GetOutput @0xf2cd8, cmp against *(entry+0x20) @0xf2ce9); " +
+        "HGNode merge-info map layout not yet transcribed",
     );
   }
 
