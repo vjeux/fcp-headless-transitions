@@ -1,0 +1,84 @@
+__ZNK16PCBinaryXMLField9getAsBoolEPb:
+0000000000066932	movl	(%rdi), %ecx
+0000000000066934	movb	$0x1, %al
+0000000000066936	cmpq	$0x5, %rcx
+000000000006693a	ja	0x669cc
+0000000000066940	pushq	%rbp
+0000000000066941	movq	%rsp, %rbp
+0000000000066944	pushq	%r14
+0000000000066946	pushq	%rbx
+0000000000066947	movq	%rsi, %rbx
+000000000006694a	leaq	0x7f(%rip), %rdx
+0000000000066951	movslq	(%rdx,%rcx,4), %rcx
+0000000000066955	addq	%rdx, %rcx
+0000000000066958	jmpq	*%rcx
+000000000006695a	cmpq	$0x0, 0x8(%rdi)
+000000000006695f	jmp	0x6696f
+0000000000066961	xorps	%xmm0, %xmm0
+0000000000066964	ucomiss	0x18(%rdi), %xmm0
+0000000000066968	jmp	0x6697d
+000000000006696a	cmpq	$0x0, 0x10(%rdi)
+000000000006696f	setne	(%rbx)
+0000000000066972	jmp	0x669c8
+0000000000066974	xorpd	%xmm0, %xmm0
+0000000000066978	ucomisd	0x20(%rdi), %xmm0
+000000000006697d	setp	%cl
+0000000000066980	setne	%dl
+0000000000066983	orb	%cl, %dl
+0000000000066985	movb	%dl, (%rbx)
+0000000000066987	jmp	0x669c8
+0000000000066989	addq	$0x40, %rdi
+000000000006698d	callq	__ZNK8PCString10createCStrEv    ## PCString::createCStr() const
+0000000000066992	movq	%rax, %r14
+0000000000066995	callq	0xde726                         ## symbol stub for: ___error
+000000000006699a	movl	$0x0, (%rax)
+00000000000669a0	movq	%r14, %rdi
+00000000000669a3	xorl	%esi, %esi
+00000000000669a5	movl	$0xa, %edx
+00000000000669aa	callq	0xdeba6                         ## symbol stub for: _strtoul
+00000000000669af	testq	%rax, %rax
+00000000000669b2	setne	(%rbx)
+00000000000669b5	movq	%r14, %rdi
+00000000000669b8	callq	0xde89a                         ## symbol stub for: _free
+00000000000669bd	callq	0xde726                         ## symbol stub for: ___error
+00000000000669c2	cmpl	$0x22, (%rax)
+00000000000669c5	setne	%al
+00000000000669c8	popq	%rbx
+00000000000669c9	popq	%r14
+00000000000669cb	popq	%rbp
+00000000000669cc	retq
+00000000000669cd	nopl	(%rax)
+00000000000669d0	movb	%bh, %bh
+00000000000669d2	.byte 0xff #bad opcode
+00000000000669d3	lcalll	*-0x6e000001(%rdx)
+00000000000669d9	.byte 0xff #bad opcode
+00000000000669da	.byte 0xff #bad opcode
+00000000000669db	jmpq	*-0x70001(%rdi,%rdi,8)
+00000000000669e2	.byte 0xff #bad opcode
+00000000000669e3	.byte 0xff #bad opcode
+00000000000669e4	movl	$0x55ffffff, %ecx               ## imm = 0x55FFFFFF
+00000000000669e9	movq	%rsp, %rbp
+00000000000669ec	movq	0x90(%rdi), %rcx
+00000000000669f3	testq	%rcx, %rcx
+00000000000669f6	je	0x66a23
+00000000000669f8	movq	%rdi, %rax
+00000000000669fb	addq	$0x90, %rax
+0000000000066a01	movq	%rax, %rdi
+0000000000066a04	xorl	%edx, %edx
+0000000000066a06	cmpl	%esi, 0x20(%rcx)
+0000000000066a09	setb	%dl
+0000000000066a0c	cmovaeq	%rcx, %rdi
+0000000000066a10	movq	(%rcx,%rdx,8), %rcx
+0000000000066a14	testq	%rcx, %rcx
+0000000000066a17	jne	0x66a04
+0000000000066a19	cmpq	%rax, %rdi
+0000000000066a1c	je	0x66a23
+0000000000066a1e	cmpl	0x20(%rdi), %esi
+0000000000066a21	jae	0x66a27
+0000000000066a23	xorl	%eax, %eax
+0000000000066a25	popq	%rbp
+0000000000066a26	retq
+0000000000066a27	addq	$0x28, %rdi
+0000000000066a2b	popq	%rbp
+0000000000066a2c	jmp	__ZNK16PCBinaryXMLField9getAsUUIDEv ## PCBinaryXMLField::getAsUUID() const
+0000000000066a31	nop
