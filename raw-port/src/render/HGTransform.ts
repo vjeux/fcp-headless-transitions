@@ -1065,4 +1065,177 @@ export class HGTransform {
       }
     }
   }
+
+  /** HGTransform::Adjoint2D() @Helium 0x1b6230.
+   *  In-place adjugate (classical adjoint) of the 3x3 sub-matrix on rows/cols {0, 1, 3} (i.e. the
+   *  x, y, homogeneous-w block of the 4x4 affine form).  The output is written back into the
+   *  4x4 in "Matrix2D form": diagonal m[10]=1.0, 3D-only slots zeroed, so the resulting matrix is
+   *  again a 2D affine.
+   *
+   *  DECODE (from raw-port/re/disasm/Helium.HGTransform.Adjoint2D.s):
+   *    Reads m[0], m[1], m[3], m[4], m[5], m[7], m[12], m[13], m[15]  (offsets 0x10, 0x18, 0x28,
+   *    0x30, 0x38, 0x48, 0x70, 0x78, 0x88 — the 3x3 block).  Computes the 9 cofactor entries with
+   *    packed SIMD 2-at-a-time.  Writes them back, zeroing the 3D slots and setting m[10]=1.0 from
+   *    the const at rip+0x213f01 == @Helium 0x3ca260 == 1.0 (@0x1b6357 movsd; @0x1b635f store).
+   *
+   *  Zeroing pattern (@0x1b6333-0x1b6357):
+   *    m[14] = 0  (@0x1b6333 movq $0x0, 0x80)
+   *    m[6]  = 0  (@0x1b633e movq $0x0, 0x40)
+   *    m[2]  = 0  (@0x1b6346 movq $0x0, 0x20)
+   *    m[8], m[9] = 0, 0  (@0x1b6352 movups xmm0=0, 0x50)
+   *    m[10] = 1.0, m[11] = 0  (@0x1b635f movups xmm0=[1.0,0], 0x60)
+   *
+   *  So the output is a 2D-affine matrix where the 3x3 (rows/cols {0,1,3}) is the adjugate of the
+   *  input's same 3x3 block.
+   *
+   *  The 3x3 adjugate formula (classical adjoint = transpose of cofactor matrix):
+   *    Let A be the 3x3 top-left of the projected system:
+   *       A = | a00  a01  a02 |     with mapping (row, col) -> matrix offset:
+   *           | a10  a11  a12 |       row 0 = m[0..3] restricted to cols {0,1,3}  = (m[0], m[4], m[12])
+   *           | a20  a21  a22 |       row 1 =                                       (m[1], m[5], m[13])
+   *                                    row 2 = same on m[3..15] on w-row              (m[3], m[7], m[15])
+   *    adj(A)[i][j] = (-1)^(i+j) * det(minor_ji(A))   (note transpose)
+   *    Written out explicitly:
+   *       adj[0][0] =  a11*a22 - a12*a21
+   *       adj[0][1] = -(a01*a22 - a02*a21)
+   *       adj[0][2] =  a01*a12 - a02*a11
+   *       adj[1][0] = -(a10*a22 - a12*a20)
+   *       adj[1][1] =  a00*a22 - a02*a20
+   *       adj[1][2] = -(a00*a12 - a02*a10)
+   *       adj[2][0] =  a10*a21 - a11*a20
+   *       adj[2][1] = -(a00*a21 - a01*a20)
+   *       adj[2][2] =  a00*a11 - a01*a10
+   *    Then map back:
+   *       m[0]  <- adj[0][0]     m[4]  <- adj[0][1]     m[12] <- adj[0][2]
+   *       m[1]  <- adj[1][0]     m[5]  <- adj[1][1]     m[13] <- adj[1][2]
+   *       m[3]  <- adj[2][0]     m[7]  <- adj[2][1]     m[15] <- adj[2][2]
+   */
+  public Adjoint2D(): void {
+    const t = this.m;
+    // Read the 3x3 sub-matrix.  Column-major mapping: m[i + 4*j].
+    // Row indices in the 3x3 are {0, 1, 3} (skipping the z-row); column indices {0, 1, 3}.
+    const a00 = t[0],  a01 = t[4],  a02 = t[12];   // (m[0+0], m[0+4], m[0+12])
+    const a10 = t[1],  a11 = t[5],  a12 = t[13];
+    const a20 = t[3],  a21 = t[7],  a22 = t[15];
+
+    // 9 cofactor entries (@0x1b6265-0x1b6310 combined; the SIMD pairs multiplies and subtracts).
+    const adj00 =   a11 * a22 - a12 * a21;
+    const adj01 = -(a01 * a22 - a02 * a21);
+    const adj02 =   a01 * a12 - a02 * a11;
+    const adj10 = -(a10 * a22 - a12 * a20);
+    const adj11 =   a00 * a22 - a02 * a20;
+    const adj12 = -(a00 * a12 - a02 * a10);
+    const adj20 =   a10 * a21 - a11 * a20;
+    const adj21 = -(a00 * a21 - a01 * a20);
+    const adj22 =   a00 * a11 - a01 * a10;
+
+    // Write back into the 4x4 in Matrix2D form.
+    t[0]  = adj00;  t[4]  = adj01;  t[12] = adj02;
+    t[1]  = adj10;  t[5]  = adj11;  t[13] = adj12;
+    t[3]  = adj20;  t[7]  = adj21;  t[15] = adj22;
+    // Zero the 3D slots and set m[10]=1.0 (matching @0x1b6333-0x1b635f).
+    t[2]  = 0.0;   // @0x1b6346
+    t[6]  = 0.0;   // @0x1b633e
+    t[8]  = 0.0;   // @0x1b6352 lo
+    t[9]  = 0.0;   // @0x1b6352 hi
+    t[10] = 1.0;   // @0x1b635f (loaded from rip+0x213f01 == @Helium 0x3ca260 == 1.0)
+    t[11] = 0.0;   // @0x1b635f hi lane (xmm0 = [1.0, 0.0] via movsd loading only low 8, then movups 16)
+    t[14] = 0.0;   // @0x1b6333
+  }
+
+  /** HGTransform::Invert2D() @Helium 0x1b6060.
+   *  In-place 2D affine inversion: divides the Adjoint2D result by the determinant of the 3x3
+   *  sub-matrix, producing the inverse in Matrix2D form.
+   *
+   *  DECODE (from raw-port/re/disasm/Helium.HGTransform.Invert2D.s):
+   *    The disasm shares the cofactor-computation shape with Adjoint2D but ALSO computes the
+   *    determinant `det` (sum of the three 2x2 minors weighted by the top row — see the
+   *    xmm9 accumulator in @0x1b6160-0x1b6165: `addsd xmm12, xmm9 ; addsd xmm10, xmm9`), then:
+   *
+   *      @0x1b616a-0x1b6183  if det == 0.0  ->  det := 1.0 (from rip+0x2228d5 == @Helium 0x3d8a58,
+   *                                             a load of the double 1.0).  This is a
+   *                                             singular-matrix guard that prevents divide-by-zero;
+   *                                             the resulting matrix will be the adjugate divided by 1
+   *                                             (i.e. the adjugate).
+   *      @0x1b618e-0x1b61b7  the m[15] output receives a special-cased value:  it's
+   *                          `adj[2][2] / det`  IF the absolute value of that ratio exceeds a
+   *                          decoded threshold — otherwise it's `sign(adj[2][2])` set to +1 or -1
+   *                          via a table lookup at rip+0x6a7225 (a 2-entry table).  This matches
+   *                          the flow:
+   *                            `divsd xmm9(det), xmm3(adj[2][2])`   -> xmm3 = adj22/det
+   *                            `xorl eax,eax ; ucomisd xmm8(=0), xmm3 ; setae al`  -> al = (adj22/det >= 0)
+   *                            `movsd rip+ (0x6a7225 + al*8), xmm8`                -> +1.0 or -1.0
+   *                            (based on absolute value threshold)
+   *                            `blendvpd xmm0, xmm3, xmm8`                          -> pick one
+   *      @0x1b61bd-0x1b61f0  divide the remaining 8 output slots by det (divsd/divpd).
+   *      @0x1b61fe-0x1b622a  same zeroing + m[10]=1.0 as Adjoint2D.
+   *
+   *  Given the complexity of the m[15] special-case (a numerical-safety trick to keep the
+   *  homogeneous coordinate from blowing up when adj[2][2]/det is near zero), transcribe it faithfully:
+   *  compute the raw divisions, then apply the sign-table override when the ratio's abs value is
+   *  <= the near-zero threshold that the disasm compares with (xmm10 = 1.0 from the earlier
+   *  det=0-guard branch, then `cmpnlesd xmm10, xmm0` on the abs-masked ratio).
+   */
+  public Invert2D(): void {
+    const t = this.m;
+    // Read the 3x3 sub-matrix on rows/cols {0,1,3}.
+    const a00 = t[0],  a01 = t[4],  a02 = t[12];
+    const a10 = t[1],  a11 = t[5],  a12 = t[13];
+    const a20 = t[3],  a21 = t[7],  a22 = t[15];
+
+    // Cofactors (same as Adjoint2D).
+    const adj00 =   a11 * a22 - a12 * a21;
+    const adj01 = -(a01 * a22 - a02 * a21);
+    const adj02 =   a01 * a12 - a02 * a11;
+    const adj10 = -(a10 * a22 - a12 * a20);
+    const adj11 =   a00 * a22 - a02 * a20;
+    const adj12 = -(a00 * a12 - a02 * a10);
+    const adj20 =   a10 * a21 - a11 * a20;
+    const adj21 = -(a00 * a21 - a01 * a20);
+    const adj22 =   a00 * a11 - a01 * a10;
+
+    // Determinant: expand along row 0.  @0x1b6160-0x1b6165 accumulator chain.
+    let det = a00 * adj00 + a01 * adj10 + a02 * adj20;
+
+    // @0x1b616a-0x1b6183: if det == 0.0 exactly, replace with 1.0 (rip+0x2228d5 == 1.0).  This
+    // means we effectively return the adjugate on a singular matrix.
+    if (det === 0.0) det = 1.0;
+
+    // @0x1b618e-0x1b61b7: m[15] special-case.
+    //   ratio22 = adj22 / det
+    //   sign_choice = (ratio22 >= 0.0) ? +1.0 : -1.0     (rip+0x6a7225 table @Helium 0x85d3b8+?
+    //                                                     — this table stores +1.0 at [0], -1.0 at [1]
+    //                                                     given the setae al then indexed load)
+    //   near_zero = |ratio22| <= threshold   (where threshold is what xmm10 held; the "1.0" from the
+    //                                          det-zero guard branch)
+    //   m[15]_out = near_zero ? sign_choice : ratio22
+    const ratio22 = adj22 / det;
+    // The threshold `xmm10` after the blendvpd path is the value used to compare — in the disasm
+    // it's the double 1.0 (see the movsd rip+0x2228d5 which loaded 1.0 into xmm10 and was reused).
+    // `cmpnlesd xmm10, xmm0` with xmm0 = |ratio22| sets the mask when |ratio22| > 1.0. Then
+    // `blendvpd xmm0, xmm3, xmm8` picks xmm3=ratio22 when the mask is 1 (i.e. |ratio22|>1); else
+    // picks xmm8 = ±1.0.  So m[15] = |ratio22| > 1.0 ? ratio22 : ±1.0.
+    let m15_out: number;
+    if (Math.abs(ratio22) > 1.0) {
+      m15_out = ratio22;
+    } else {
+      // setae al with xmm8=0 and xmm3=ratio22 puts 1 in al when ratio22 >= 0 (unsigned CF flag ordering);
+      // the 2-entry table indexed by al then produces +1.0 or -1.0.
+      m15_out = ratio22 >= 0.0 ? 1.0 : -1.0;
+    }
+
+    // @0x1b61bd-0x1b61f0: divide the remaining 8 output slots by det, write back.
+    t[0]  = adj00 / det;  t[4]  = adj01 / det;  t[12] = adj02 / det;
+    t[1]  = adj10 / det;  t[5]  = adj11 / det;  t[13] = adj12 / det;
+    t[3]  = adj20 / det;  t[7]  = adj21 / det;  t[15] = m15_out;
+
+    // @0x1b61fe-0x1b622a  zero 3D slots, m[10] = 1.0 (rip+0x214036 == @Helium 0x3ca260 == 1.0).
+    t[2]  = 0.0;
+    t[6]  = 0.0;
+    t[8]  = 0.0;
+    t[9]  = 0.0;
+    t[10] = 1.0;
+    t[11] = 0.0;
+    t[14] = 0.0;
+  }
 }
