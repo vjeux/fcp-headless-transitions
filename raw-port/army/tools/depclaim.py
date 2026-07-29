@@ -78,6 +78,19 @@ def cmd_fail(sym,why):
         c=_load(); c["claimed"].pop(sym,None); c["deferred"][sym]=time.time(); _save(c); print("deferred",sym,why)
     return _locked(go)
 
+
+def cmd_reap(max_age_min=90):
+    """Release claims abandoned by dead workers (age > max_age_min). depclaim has no per-worktree
+    heartbeat, so age is the signal; a live worker re-claims fast. Frees the unit back to the queue."""
+    import time as _t
+    def go():
+        c=_load(); now=_t.time(); freed=0
+        for sym,v in list(c["claimed"].items()):
+            if now - v.get("ts",now) > max_age_min*60:
+                c["claimed"].pop(sym,None); c["deferred"][sym]=now; freed+=1
+        _save(c); print(f"reaped {freed} stale claim(s) (age>{max_age_min}m) -> back in queue")
+    return _locked(go)
+
 def cmd_claims():
     c=_load()
     print(f"claimed={len(c['claimed'])} done={len(c['done'])} deferred={len(c['deferred'])}")
@@ -89,4 +102,5 @@ if __name__=="__main__":
     if a[0]=="next": cmd_next(int(a[1]) if len(a)>1 else 8)
     elif a[0]=="done": cmd_done(a[1])
     elif a[0]=="fail": cmd_fail(a[1]," ".join(a[2:]))
+    elif a[0]=="reap": cmd_reap(int(a[1]) if len(a)>1 else 90)
     else: cmd_claims()
