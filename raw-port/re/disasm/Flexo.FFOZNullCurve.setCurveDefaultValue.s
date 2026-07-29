@@ -1,0 +1,7 @@
+__ZN13FFOZNullCurve20setCurveDefaultValueEd:
+0000000001287230	pushq	%rbp
+0000000001287231	movq	%rsp, %rbp
+0000000001287234	xorl	%eax, %eax
+0000000001287236	popq	%rbp
+0000000001287237	retq
+0000000001287238	nopl	(%rax,%rax)
