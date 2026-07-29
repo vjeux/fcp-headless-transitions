@@ -208,14 +208,6 @@ export class OZChannelGradientWithAngle_Factory {
    *
    *   3. Return `_instance` @0x27e9..0x27f0 (whatever the initializer
    *      wrote — or NULL if the initializer threw).
-   *
-   * The stack tuple / captureless-lambda dance @0x27c4..0x27d3 is a
-   * libc++ ABI artefact — the caller side just does "call call_once
-   * with the proxy pointer" and doesn't observe the intermediate
-   * slots. In this port we don't need to model the two stack slots
-   * because std_call_once (above) invokes the proxy directly
-   * (single-threaded, no ABI marshalling needed). The disasm's stack
-   * setup is documented in the header for provenance.
    */
   static getInstance(): OZChannelGradientWithAngle_Factory | null {
     // ------------------------------------------------------------
