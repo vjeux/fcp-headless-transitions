@@ -97,7 +97,29 @@ def scan_src(root):
         except Exception:
             continue
         r, s = set(), set()
-        for ln in lines:
+        n = len(lines)
+        # Precompute stub-window: a line is "stub context" if it is part of a `throw new ...`
+        # statement whose message carries a stub phrase — even across line breaks (a multi-line
+        # throw where "not yet transcribed" is on a continuation line). We scan each `throw new`
+        # and, if a stub phrase appears within the next STUB_WINDOW lines before the statement's
+        # terminating `);`, mark that whole span as stub context. Fixes the cc_rgb::hsl @0x9667e
+        # miss (throw opened on one line, stub phrase + addr on the next).
+        STUB_WINDOW = 6
+        stub_ctx = [False] * n
+        for i, ln in enumerate(lines):
+            if not THROW.search(ln):
+                continue
+            span = "\n".join(lines[i:i + STUB_WINDOW])
+            # cut the span at the statement terminator to avoid bleeding into the next statement
+            term = span.find(");")
+            if term != -1:
+                span = span[:term + 2]
+            if STUB_PHRASE.search(span):
+                # mark the lines actually covered by this throw statement
+                covered = span.count("\n") + 1
+                for j in range(i, min(i + covered, n)):
+                    stub_ctx[j] = True
+        for i, ln in enumerate(lines):
             pairs = FW_PAIR.findall(ln)
             if pairs:
                 keys = {f"{fw}|{norm(a)}" for fw, a in pairs}
@@ -106,7 +128,7 @@ def scan_src(root):
                 if not found:
                     continue
                 keys = {f"*|{norm(a)}" for a in found}   # no framework on the line -> wildcard
-            if THROW.search(ln) and STUB_PHRASE.search(ln):
+            if stub_ctx[i]:
                 s |= keys
             else:
                 r |= keys
@@ -115,10 +137,19 @@ def scan_src(root):
         if s:
             stub_in[f] = s
     # 'ported' = real-cited in at least one file that does NOT also stub it (clean real cite).
+    # WITHIN A FILE, a stub of an address invalidates a real cite of the SAME bare address even when
+    # the framework tags differ (the throw line often uses a bare `@0x..` while the JSDoc header uses
+    # `@Fw 0x..`; without this, the header's `Fw|addr` real cite masks the body's `*|addr` throw and
+    # the stub is miscounted `ported` — the cc_rgb::hsl @0x9667e bug).
+    def _bare(key):
+        return key.split("|", 1)[1]
     real = set()
     for f, r in real_in.items():
-        real |= (r - stub_in.get(f, set()))
-    # 'stub' = stub-cited anywhere and NOT cleanly ported by any file.
+        stubbed_bare = {_bare(k) for k in stub_in.get(f, set())}
+        real |= {k for k in r if _bare(k) not in stubbed_bare}
+    # 'stub' = stub-cited anywhere and NOT cleanly ported by any file. (Cross-file: a real BODY in
+    # another file legitimately ports an addr even if a caller stubs it as a callee — HGNode case —
+    # so we only subtract exact `real` keys here, not by bare addr.)
     stub = set()
     for s in stub_in.values():
         stub |= s
