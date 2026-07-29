@@ -847,4 +847,115 @@ export class HGTransform {
     // @0x1b4c32-0x1b4c38: this->Multiply(&tmp) via vtable+0xc0.
     this.Multiply(tmp);
   }
+
+  /** HGTransform::Shear(double angleDeg, double sx, double sy, double sz) @Helium 0x1b4c70.
+   *  Builds a 1-off-diagonal "row 1 = shearFactor * row 0" matrix and Multiplies.
+   *  DECODE (from raw-port/re/disasm/Helium.HGTransform.Shear.s):
+   *
+   *    @0x1b4c8e  angleRad = angleDeg * pi/180  (@Helium 0x85d3a0 == 0.017453292519943295)
+   *    @0x1b4c96  callq _sincos_stret            -> xmm0=sin(rad), xmm1=cos(rad)
+   *    @0x1b4c9b  s_f32 = f32(sin)
+   *    @0x1b4ca2-@0x1b4ca7  if s_f32 == 0.0f (ordered), return (do nothing)
+   *    @0x1b4cad  c_f32 = f32(cos)
+   *    @0x1b4cb1-@0x1b4cb6  if c_f32 == 0.0f (ordered), return
+   *    @0x1b4cbc-@0x1b4cdf  len2 = sx*sx + sy*sy + sz*sz
+   *    @0x1b4ce3  compare len2 vs 1.0 (rip+0x215575 == @Helium 0x3ca260 == 1.0)
+   *    @0x1b4cef-@0x1b4cf1  if len2 == 1.0 (ordered), skip normalization
+   *    @0x1b4cf3-@0x1b4d03  if len2 == 0.0 (ordered), return
+   *    @0x1b4d0a-@0x1b4d12  divpd  xmm3=[sx², sx], xmm5=[len2, sqrt(len2)] -> [sx²/len2, sx/sqrt(len2)]
+   *    @0x1b4d16  store xmm3 -> -0x30    ;  the (sx²_norm, sxn) pair for later
+   *    @0x1b4d33  store [sxn, sxn] -> -0x50
+   *    @0x1b4d1b/-0x1b4d2a  save s and c as f64 to -0x20 and -0x40 respectively
+   *
+   *    @0x1b4d38-@0x1b4d47  construct tmp HGTransform (identity+vtable)
+   *    @0x1b4d55-@0x1b4d7f  zero m[1..14] (7 * 16-byte movups pairs)
+   *    @0x1b4d83-@0x1b4d8d  m[0] = 1.0 (movabsq 0x3ff...; movq to -0xd0)
+   *    @0x1b4dd1           m[10] = 1.0 (movq rax, -0x80)
+   *    @0x1b4dda           m[15] = 1.0 (movq rax, -0x58)
+   *
+   *    Shear factor computation (@0x1b4d94-@0x1b4de3):
+   *      NOTE: m[5] STAYS 0 from the zero-fill.  Only m[4] gets a computed value.
+   *      xmm1 = [0.0, -0.0] const at rip+0x215d3d == @Helium 0x3caae0 (2x negate-double mask)
+   *      xmm3 = -0x20 = f64(s)
+   *      xmm1 = xmm3 xor sign_mask = [s, -s]   (the low double keeps sign; high flips)
+   *      xmm2 = 0.0
+   *      xmm0 = -0x50 = f64(sxn)
+   *      cmpltsd xmm2, xmm0 -> xmm0 = (sxn < 0) ? all-1s : 0
+   *      xmm2 = [s, -s]
+   *      blendvpd xmm0, xmm3=[s,s], xmm2  ; xmm2 = (sxn<0) ? [s,s] : [s,-s]
+   *      xmm0 = -0x30 low = sx²/len2 (sx²_norm)
+   *      cmpeqsd rip+0x21548f (=1.0), xmm0  -> xmm0 = (sx²_norm == 1.0) ? all-1s : 0
+   *      blendvpd xmm0, xmm2, xmm1  ; xmm1 = (sx²_norm == 1.0) ? xmm2 : xmm1
+   *      divsd -0x40 (=c), xmm1  ; xmm1 = xmm1_low / c
+   *      store xmm1 low -> -0xb0 == m[4]
+   *
+   *    @0x1b4dea-@0x1b4df4  this->Multiply(&tmp) via vtable+0xc0.
+   *    @0x1b4dfa           destroy tmp
+   *
+   *  Effective semantics:  Multiply-with-tmp where tmp has m[0]=m[10]=m[15]=1, m[5]=0,
+   *  and m[4] = shear factor.  Since `Multiply` is `this = tmp * this`, this operation replaces
+   *  row 1 of the accumulator: new_row1 = m[4] * old_row0. All other rows unchanged.
+   *
+   *  The shear-factor selection: it is only sensitive to sx (its sign and whether sx² == len2,
+   *  i.e. axis is aligned with x). sy and sz only affect it through the len2 normalization.
+   */
+  public Shear(angleDeg: number, sx: number, sy: number, sz: number): void {
+    // @0x1b4c8e  angleRad = angleDeg * pi/180.
+    const angleRad = angleDeg * (Math.PI / 180);
+    // @0x1b4c96  sincos_stret.
+    const sinRad = Math.sin(angleRad);
+    const cosRad = Math.cos(angleRad);
+    const sF32 = Math.fround(sinRad);
+    // @0x1b4ca2-0x1b4ca7  if s_f32 == 0 -> return.
+    if (sF32 === 0.0) return;
+    const cF32 = Math.fround(cosRad);
+    // @0x1b4cb1-0x1b4cb6  if c_f32 == 0 -> return.
+    if (cF32 === 0.0) return;
+    // @0x1b4cbc-0x1b4cdf  len2 (double-precision arithmetic on the double-precision sx, sy, sz).
+    let ax = sx, ay = sy, az = sz;
+    const len2 = ax * ax + ay * ay + az * az;
+    // Snapshot BEFORE normalization for the "sx²_norm" and "sxn" values that get saved.
+    let sx2_norm: number;
+    let sxn: number;
+    if (len2 === 1.0) {
+      // @0x1b4cef-0x1b4cf1  ordered-equal to 1.0: skip normalize.
+      sx2_norm = ax * ax;   // just sx² (which == sx²/1.0)
+      sxn      = ax;
+    } else if (len2 === 0.0) {
+      // @0x1b4cfb-0x1b4cfd  ordered-equal to 0.0: return (degenerate axis).
+      return;
+    } else {
+      // @0x1b4d0a  sqrt(len2) ; @0x1b4d12 divpd -> [sx²/len2, sx/sqrt(len2)]
+      const rootLen2 = Math.sqrt(len2);
+      sx2_norm = (ax * ax) / len2;
+      sxn      = ax / rootLen2;
+    }
+    // s and c widened back to f64 (widening f32 -> f64 is exact).
+    const s = sF32;
+    const c = cF32;
+    // @0x1b4d94-0x1b4de3  compute shearFactor:
+    //   x1_pair = [s, -s]                                        (via xorpd with [0,-0.0] mask)
+    //   x2_pair = (sxn < 0)      ? [s,  s] : [s, -s]
+    //   x1_out  = (sx²_norm == 1) ? x2_pair : x1_pair
+    //   m[4]    = x1_out.low / c
+    let x1_lo: number;
+    if (sx2_norm === 1.0) {
+      // x2_pair used; low double = s in both branches, so x1_lo = s regardless of sxn sign.
+      x1_lo = s;
+    } else {
+      // x1_pair used; low double = s.
+      x1_lo = s;
+    }
+    const shearFactor = x1_lo / c;   // = tan(angleRad)  (since s/c = tan)
+
+    // Build tmp:  m[0]=1, m[10]=1, m[15]=1; m[4]=shearFactor; all others (including m[5]) = 0.
+    const tmp = new HGTransform();
+    // ctor already produced identity; overwrite m[5] to 0 (identity had m[5]=1 -- we need 0 to
+    // exactly match the FCP tmp layout above), and set m[4].
+    tmp.m[5] = 0.0;
+    tmp.m[4] = shearFactor;
+
+    // @0x1b4df4  this->Multiply(&tmp) via vtable+0xc0.
+    this.Multiply(tmp);
+  }
 }
