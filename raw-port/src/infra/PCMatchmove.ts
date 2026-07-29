@@ -171,47 +171,480 @@ function PCArray_resize(_arr: PCArrayPCGenMatrixFloat, _n: number, _cap: number)
   );
 }
 
-/** PCMatchmoveProblem::PCMatchmoveProblem(PCMatchmove*, int) — LM cost fn ctor;
- *  @ProCore not yet decoded. */
+/**
+ * PCMatchmoveProblem::PCMatchmoveProblem(PCMatchmove*, int)
+ *   @ProCore 0xb9102  __ZN18PCMatchmoveProblemC2EP11PCMatchmovei
+ *
+ * ```
+ *   0xb9113  vtable[0] = &lea(0x93686)                        // vtable
+ *   0xb911d-0xb914e  zero-init the block-ref headers at +0x08/+0x10/+0x18,
+ *                    +0x20/+0x28/+0x30, +0x38/+0x40/+0x48/+0x50 — the classic
+ *                    PCGenBlockRef triples {ptr, {size, stride}, dataPtr}.
+ *                    The `movabsq 0x100000000` init pattern encodes
+ *                    size=1, stride=0 for the two currentX blocks and
+ *                    size=1, stride=1 for the projectOut block (movabsq
+ *                    0x100000001 at 0xb9144).
+ *   0xb9156  self.mm       = arg1  (0x58(%rbx) = %rsi)         // +0x58
+ *   0xb915a-0xb9166  inlierIndices header init (+0x68/+0x70/+0x78)
+ *   0xb916a  self.frameIdx = arg2  (0x80(%rbx) = %edx)         // +0x80
+ *   0xb9170  self.inlierCount = 0                              // +0x60
+ *   0xb9177  self.inlierIndices.resize(mm.perFrameCount)      // 0x1c(mm)
+ *   0xb9186  if (mm.perFrameCount <= 0) goto epilog
+ *   0xb9192-0xb9212  for (i = 0; i < mm.perFrameCount; ++i) {
+ *     bounds-check i vs 0xc(mm.pointsIn):  if (>=) badIndex()
+ *     rowPtr = mm.pointsIn.data(0x10) + i*0x38                 // per-track row
+ *     v = rowPtr[0x48].elem(frameIdx)      // PCGenVector<float> at +0x48
+ *     if (v > 0) {                                             // ucomiss/jbe
+ *       v2 = (rowPtr+0x20).elem(frameIdx)   // PCGenVector<float> at +0x20
+ *       if (v2 > 0) {
+ *         inlierIndices(inlierCount++) = i
+ *       }
+ *     }
+ *   }
+ *   0xb9214  self.inlierIndices.resize(self.inlierCount)      // shrink
+ * ```
+ *
+ * The two "valid" gates at 0xb91c9 and 0xb91e6 test that BOTH the per-frame
+ * confidence (rowPtr+0x48) and the base-frame confidence (rowPtr+0x20)
+ * are strictly positive at column=frameIdx before adding index i to the
+ * inlier list. `xorps %xmm1,%xmm1 ; ucomiss %xmm1,%xmm0 ; jbe` = "if x <= 0
+ * skip" (unordered NaN also skipped).
+ */
 function PCMatchmoveProblem_ctor(
-  _self: PCMatchmove,
-  _frameIdx: number,
+  self: PCMatchmove,
+  frameIdx: number,
 ): PCMatchmoveProblem {
+  // The freshly constructed problem — fields zero-init as documented.
+  const p: PCMatchmoveProblem = {
+    __tag: "PCMatchmoveProblem",
+    mm: self,
+    frameIdx,
+    inlierCount: 0,
+    inlierIndices: {
+      __tag: "PCGenVectorInt",
+    } as PCGenVectorInt,
+  };
+  // 0xb9177: resize inlierIndices to mm.perFrameCount (used as upper bound)
+  //   The disasm loads `0x1c(%rsi)` — but `mm.perFrameCount` in our model is
+  //   stored at +0x6c, not +0x1c. However +0x1c on PCMatchmove is `nRows`
+  //   (see the PCMatchmove interface `nRows /** +0x1c */`). Re-reading the
+  //   disasm: rsi is the ctor's mm arg; `movl 0x1c(%rsi), %esi` loads nRows.
+  //   The upper bound of accepted inliers is nRows, exactly.
+  PCGenVector_int_resize(p.inlierIndices, self.nRows);
+  // 0xb9182-0xb918c: if (mm.pointsIn.pointCount <= 0) skip loop.
+  //   Actually the disasm reads `0x58(%rbx)` (self.mm) then `0x1c(%r12)`
+  //   again where r12 is mm — so it's again mm.nRows. The empty-input guard.
+  if (self.nRows <= 0) return p;
+  // 0xb9192-0xb9212: iterate per-track row of mm.pointsIn (stride 0x38).
+  //   Each track row has:
+  //     +0x20 PCGenVector<float> baseFrameConfidence
+  //     +0x48 PCGenVector<float> perFrameConfidence
+  //   Accepted if BOTH ele(frameIdx) > 0.
+  //
+  //   NOTE: mm.pointsIn is modelled as a PCGenMatrix<float> at +0x10 with
+  //   `pointCount` at +0x28. The per-track rows live inside its `data`
+  //   block or an adjacent structure. Without a decoded PCGenMatrix layout
+  //   for the row-of-PCGenVector pattern, we cannot faithfully implement
+  //   the gate; throw the same undecoded-callee shape the leaf stubs use.
+  //
+  //   The essential control flow — the double-gate + `inlierIndices[inlier
+  //   Count++] = i` writeback — is captured symbolically here:
+  for (let i = 0; i < self.nRows; ++i) {
+    // Bounds-check i vs mm.pointsIn.pointCount (0xc(%r12) in the disasm).
+    if (i >= self.pointsIn.pointCount) PCArray_base_badIndex();
+    // Read per-frame confidence for track i at frameIdx.
+    const perFrame: PCGenVectorFloat = PCMatchmoveProblem_ctor_readTrackVector(
+      self,
+      i,
+      /* offsetWithinTrack */ 0x48,
+    );
+    const v1 = Math.fround(PCGenVector_float_at(perFrame, frameIdx));
+    if (!(v1 > 0)) continue; // NaN-preserving: `ucomiss ; jbe`
+    // Read base-frame confidence for track i at frameIdx.
+    const baseFrame: PCGenVectorFloat =
+      PCMatchmoveProblem_ctor_readTrackVector(self, i, /* offset */ 0x20);
+    const v2 = Math.fround(PCGenVector_float_at(baseFrame, frameIdx));
+    if (!(v2 > 0)) continue;
+    // 0xb91f7: inlierIndices(inlierCount) = i  ;  inlierCount += 1
+    PCGenVector_int_setElem(p.inlierIndices, p.inlierCount, i);
+    p.inlierCount += 1;
+  }
+  // 0xb9214-0xb921a: shrink inlierIndices to the accepted count.
+  PCGenVector_int_resize(p.inlierIndices, p.inlierCount);
+  return p;
+}
+
+/** Helper stub: read one of the per-track PCGenVector<float> fields
+ *  (base-frame or per-frame confidence) from mm.pointsIn's row `i`.
+ *  Both accesses in the ctor use the same shape: `%r12 = mm.pointsIn.data +
+ *  i * 0x38 ; %rdi = %r12 + off ; call PCGenVector<float>::operator()(int)`.
+ *  Without a decoded PCGenMatrix<per-track-row> layout, this stays a
+ *  throwing stub citing the two call sites. @ProCore 0xb91bd / 0xb91da. */
+function PCMatchmoveProblem_ctor_readTrackVector(
+  _mm: PCMatchmove,
+  _trackIdx: number,
+  _fieldOffset: number,
+): PCGenVectorFloat {
   throw new Error(
-    "PCMatchmoveProblem::PCMatchmoveProblem(PCMatchmove*, int) @ProCore not yet transcribed",
+    "PCMatchmoveProblem::PCMatchmoveProblem(...) inlier gate — per-track PCGenVector<float> read at row+0x20/+0x48 @ProCore 0xb91bd/0xb91da not yet transcribed (PCGenMatrix per-track-row layout undecoded)",
   );
 }
 
-/** PCMatchmoveProblem::getGoal() — returns residual target;
- *  @ProCore not yet decoded. */
-function PCMatchmoveProblem_getGoal(_p: PCMatchmoveProblem): PCGenVectorFloat {
+/**
+ * PCMatchmoveProblem::getGoal()
+ *   @ProCore 0xb876e  __ZN18PCMatchmoveProblem7getGoalEv
+ *
+ * Returns the residual target vector `b` of length `2 * inlierCount`.
+ * For each accepted inlier index `k = inlierIndices(t)`, reads the
+ * target `(u, v)` from row `k` of mm.pointsIn's per-track matrix at
+ * (row=frameIdx, col=0) and (row=frameIdx, col=1), and PACKS them into
+ * consecutive pairs of the output:
+ *   b[2*t+0] = u = perFrame(k).matrix[frameIdx, 0]
+ *   b[2*t+1] = v = perFrame(k).matrix[frameIdx, 1]
+ *
+ * Both writes are multiplied by the same scalar `s = perFrame(k).confidence
+ * (frameIdx)` — actually the disasm's `mulss %xmm0, ...` at 0xb884d and
+ * 0xb88a5 multiplies each of u,v by the confidence stored in `-0x30(rbp)`.
+ * That value came from `rowPtr[+0x20].elem(frameIdx)` at 0xb87ef-0xb8802 —
+ * the base-frame confidence loaded from the row's PCGenVector<float>@+0x20.
+ * So actually goal_x = s*u and goal_y = s*v where s is a per-point weight.
+ *
+ * Wait — re-reading 0xb87ef-0xb880b: the disasm reads
+ *   rowPtr = 0x10(%r15) + k*0x38                              (mm.pointsIn.data + k*stride)
+ *   rowPtr += 0x20                                            (base-frame confidence vec)
+ *   xmm0 = elem(frameIdx)                                     (base weight  s = c_base[frameIdx])
+ *   stash `s` at -0x30(rbp)
+ *   PCGenMatrix::checkCol/RowIndex(0, frameIdx)               (bounds check row-fresh)
+ *   xmm0 = rowPtr.matrix[frameIdx][0]                         (u = m[frameIdx][0])
+ *   stash u at -0x2c(rbp)
+ *   goal(2t)   = u * s                                        (mulss at 0xb884d)
+ *   ...
+ *   xmm0 = rowPtr.matrix[frameIdx][1]                         (v = m[frameIdx][1])
+ *   goal(2t+1) = s * v                                        (mulss at 0xb88a5)
+ *
+ * So the "goal" is the weight-scaled target measurement per accepted point.
+ *
+ * The `%r15 = 0x18(%r15)` at 0xb87e3 walks TO the matrix pointer inside
+ * the PCGenMatrix header row (the same pattern as project's H.data read).
+ * That means rowPtr[+0x20] here is the ROW-of-PCGenMatrix per-track handle.
+ * The row structure at stride 0x38 is:
+ *   +0x00  PCGenBlockRef... {header, size, data*}   (row header, sz 0x18)
+ *   +0x10  int rowStride, +0x14 int colStride         (matrix strides)
+ *   +0x18  float* data
+ *   +0x20  PCGenBlockRef<PCGenVector<float>>          (base-frame conf, +0x20 pattern)
+ *   +0x28  int size, +0x2c int stride
+ *   +0x30  float* baseConfData
+ *   ... continues to +0x48 for perFrame confidence (used in ctor above).
+ * The offset-0x20 base-frame-confidence VECTOR is read via
+ * `PCGenVector<float>::operator()(int)` at 0xb87fa.
+ * The matrix element read at 0xb8826-0xb8832 uses `0x18` (row.data*) with
+ * stride `0x10` (rowStride) * frameIdx + col — a standard element-of-matrix
+ * fetch on the same per-track ROW.
+ */
+function PCMatchmoveProblem_getGoal(p: PCMatchmoveProblem): PCGenVectorFloat {
+  const goal = PCGenVector_float_make();
+  // 0xb8782-0xb87a2: resize(2 * inlierCount)
+  const twoN = p.inlierCount + p.inlierCount;
+  PCGenVector_float_resize(goal, twoN);
+  // 0xb87ac: if (inlierCount <= 0) return
+  if (p.inlierCount <= 0) return goal;
+  // 0xb87ba-0xb88b8: for (t = 0; t < inlierCount; ++t) { pack (s*u, s*v) }
+  //   r12 = t, r13 = 2*t (output write index)
+  let outIdx = 0;
+  for (let t = 0; t < p.inlierCount; ++t) {
+    // Read the accepted point index k.
+    const k = PCGenVector_int_at(p.inlierIndices, t);
+    // Bounds-check k vs mm.pointsIn.pointCount (0xc field on the matrix).
+    if (k < 0 || k >= p.mm.pointsIn.pointCount) PCArray_base_badIndex();
+    // Read the per-track row at pointsIn.data + k*0x38 — the row is a
+    // struct containing (matrix, baseFrameConfVec, perFrameConfVec).
+    // Fetch base-frame confidence `s` from row+0x20 at column=frameIdx.
+    const s = Math.fround(
+      PCMatchmoveProblem_getGoal_readTrackScalar(
+        p.mm,
+        k,
+        /* offset */ 0x20,
+        p.frameIdx,
+      ),
+    );
+    // Fetch measurement (u, v) from row's matrix at (row=frameIdx, col=0/1).
+    // The disasm calls checkColIndex(0/1) and checkRowIndex(frameIdx) as
+    // side-effect bounds checks; we call the ported stubs the same way.
+    const rowMatrix = PCMatchmoveProblem_getGoal_readTrackMatrix(p.mm, k);
+    PCGenMatrix_float_checkColIndex(rowMatrix, 0);
+    PCGenMatrix_float_checkRowIndex(rowMatrix, p.frameIdx);
+    // u = data[rowStride * frameIdx + 0]
+    const uIdx = Math.imul(rowMatrix.rowStride | 0, p.frameIdx | 0);
+    const u = Math.fround(rowMatrix.data[uIdx]);
+    // goal(2*t + 0) = u * s
+    PCGenVector_float_setElem(goal, outIdx, Math.fround(u * s));
+    PCGenMatrix_float_checkColIndex(rowMatrix, 1);
+    PCGenMatrix_float_checkRowIndex(rowMatrix, p.frameIdx);
+    // v = data[colStride + rowStride * frameIdx]
+    const vIdx =
+      (rowMatrix.colStride | 0) +
+      Math.imul(rowMatrix.rowStride | 0, p.frameIdx | 0);
+    const v = Math.fround(rowMatrix.data[vIdx]);
+    outIdx += 1;
+    // goal(2*t + 1) = s * v
+    PCGenVector_float_setElem(goal, outIdx, Math.fround(s * v));
+    outIdx += 1;
+  }
+  return goal;
+}
+
+/** Helper stub: read a scalar from per-track row's PCGenVector<float>@offset,
+ *  at column `col`. @ProCore 0xb87fa. */
+function PCMatchmoveProblem_getGoal_readTrackScalar(
+  _mm: PCMatchmove,
+  _trackIdx: number,
+  _fieldOffset: number,
+  _col: number,
+): number {
   throw new Error(
-    "PCMatchmoveProblem::getGoal() @ProCore not yet transcribed",
+    "PCMatchmoveProblem::getGoal() — per-track PCGenVector<float>::operator()(int) at row+0x20 @ProCore 0xb87fa not yet transcribed",
   );
 }
 
-/** PCMatchmoveProblem::xToVector(matrix, vec) — pack state matrix into vec;
- *  @ProCore not yet decoded. */
+/** Helper stub: return the per-track row's inner PCGenMatrix<float> handle
+ *  (the (frameCount x 2) measurement matrix at row+0x00 of the track).
+ *  @ProCore 0xb87e3-0xb87eb. */
+function PCMatchmoveProblem_getGoal_readTrackMatrix(
+  _mm: PCMatchmove,
+  _trackIdx: number,
+): PCGenMatrixFloat {
+  throw new Error(
+    "PCMatchmoveProblem::getGoal() — per-track PCGenMatrix<float> header read @ProCore 0xb87e3 not yet transcribed",
+  );
+}
+
+/**
+ * PCMatchmoveProblem::xToVector(PCGenMatrix<float> const& src, PCGenVector<float>& dst)
+ *   @ProCore 0xb88ec  __ZN18PCMatchmoveProblem9xToVectorERK11PCGenMatrixIfER11PCGenVectorIfE
+ *
+ * Packs the first 8 floats of a 3x3 homography matrix's underlying data
+ * buffer into `dst` (as a plain vector). The [2,2] slot is the ONE
+ * normalized-to-1 free parameter and is dropped from the state vector.
+ *
+ * ```
+ *   0xb8905  dst.resize(8)
+ *   0xb890a  rax = src.data           (0x18(src))
+ *   0xb890e-0xb8927  build a temporary PCGenVector<float> view {ptr=nullptr,
+ *                    size=8, stride=1, data=src.data} on the stack
+ *   0xb892e  dst.set<float>(view)     — element-wise copy of first 8 floats
+ *   0xb8933-0xb894a  free the temp view's block ref (if it was allocated)
+ * ```
+ *
+ * Note: the temporary is constructed by hand on the stack, NOT via the
+ * PCGenVector ctor — so the "PCGenBlockRef" pointer stays null (line
+ * 0xb8912 `movq $0x0, (%rsi)`) and no allocation happens; the destructor
+ * path at 0xb8933-0xb894a decrements a header refcount that only exists
+ * if the source data had been shared. In our model we simply copy 8 f32
+ * values directly (semantically equivalent).
+ */
 function PCMatchmoveProblem_xToVector(
   _p: PCMatchmoveProblem,
-  _m: PCGenMatrixFloat,
-  _v: PCGenVectorFloat,
+  src: PCGenMatrixFloat,
+  dst: PCGenVectorFloat,
 ): void {
-  throw new Error(
-    "PCMatchmoveProblem::xToVector(PCGenMatrix<float> const&, PCGenVector<float>&) @ProCore not yet transcribed",
-  );
+  // 0xb8905: dst.resize(8)
+  PCGenVector_float_resize(dst, 8);
+  // 0xb890a-0xb892e: element-wise copy of first 8 floats from src.data.
+  //   The disasm wraps src.data in a stack PCGenVector{size=8,stride=1}
+  //   then calls dst.set(view). Semantically this is 8 f32 copies from
+  //   the head of src.data. Model that directly.
+  for (let i = 0; i < 8; ++i) {
+    PCGenVector_float_setElem(dst, i, Math.fround(src.data[i]));
+  }
 }
 
-/** PCMatchmoveProblem::xToMatrix(vec, matrix) — unpack state vec into matrix;
- *  @ProCore not yet decoded. */
+/**
+ * PCMatchmoveProblem::xToMatrix(PCGenVector<float> const& src, PCGenMatrix<float>& dst)
+ *   @ProCore 0xb89f4  __ZN18PCMatchmoveProblem9xToMatrixERK11PCGenVectorIfER11PCGenMatrixIfE
+ *
+ * Inverse of xToVector: unpacks 8 free parameters back into a 3x3 matrix
+ * and pins the [2,2] element to 1.0f (the homography's fixed
+ * normalization).
+ *
+ * ```
+ *   0xb8a14  dst.resize(3, 3, Layout=0)                         // rows=3, cols=3, row-major
+ *   0xb8a19  rax = dst.data        (0x18(dst))
+ *   0xb8a1d-0xb8a32  build temp PCGenVector<float> view{null,8,1, dst.data}
+ *   0xb8a3d  view.set<float>(src)      // copy src[0..8] into dst.data[0..8]
+ *   0xb8a42-0xb8a59  free temp block
+ *   0xb8a5c-0xb8a6e  checkColIndex(2); checkRowIndex(2)         // bounds-check [2,2]
+ *   0xb8a73-0xb8a81  dst.data[dst.rowStride*2 + dst.colStride*2] = 1.0f
+ *                                     (0x3f800000 = 1.0f)
+ * ```
+ *
+ * The [2,2] write uses the compact index arithmetic:
+ *   idx = rowStride + colStride ; idx += idx ; data[idx] = 1.0f
+ * i.e. `(rowStride + colStride) * 2`, which equals `rowStride*2 +
+ * colStride*2` — exactly `data[row=2, col=2]` in either row- or col-major
+ * layout.
+ */
 function PCMatchmoveProblem_xToMatrix(
   _p: PCMatchmoveProblem,
-  _v: PCGenVectorFloat,
-  _m: PCGenMatrixFloat,
+  src: PCGenVectorFloat,
+  dst: PCGenMatrixFloat,
 ): void {
-  throw new Error(
-    "PCMatchmoveProblem::xToMatrix(PCGenVector<float> const&, PCGenMatrix<float>&) @ProCore not yet transcribed",
-  );
+  // 0xb8a14: dst.resize(3, 3, layout=0) — row-major 3x3
+  PCGenMatrix_float_resize(dst, 3, 3, 0);
+  // 0xb8a3d: copy the 8 free parameters from src into dst.data[0..8]
+  //   (via the same stack-temp view technique — modelled directly).
+  for (let i = 0; i < 8; ++i) {
+    dst.data[i] = Math.fround(PCGenVector_float_at_const(src, i));
+  }
+  // 0xb8a5c-0xb8a6e: bounds-check [2,2] (side effect via checkCol/RowIndex).
+  PCGenMatrix_float_checkColIndex(dst, 2);
+  PCGenMatrix_float_checkRowIndex(dst, 2);
+  // 0xb8a73-0xb8a81: dst[2,2] = 1.0f  (idx = (rowStride+colStride)*2)
+  const idx22 = ((dst.rowStride | 0) + (dst.colStride | 0)) * 2;
+  dst.data[idx22] = Math.fround(1.0);
+}
+
+/**
+ * PCMatchmoveProblem::yToVector(PCGenMatrix<float> const& src, PCGenVector<float>& dst)
+ *   @ProCore 0xb958e  __ZN18PCMatchmoveProblem9yToVectorERK11PCGenMatrixIfER11PCGenVectorIfE
+ *
+ * Packs measurement columns from `src` (an inlierCount x 2 residual matrix)
+ * into `dst` as 2*inlierCount interleaved pairs, MULTIPLIED by the same
+ * per-point weight `s` used by getGoal. Symmetric to getGoal but reading
+ * from an arbitrary source matrix instead of mm.pointsIn's per-track
+ * measurement matrices.
+ *
+ * ```
+ *   0xb95a5-0xb95b1  dst.resize(2 * inlierCount)
+ *   0xb95b6         if (inlierCount <= 0) return
+ *   0xb95c9-0xb96c7 for (t = 0; t < inlierCount; ++t) {
+ *     r12 = t (row index into src), r13 = 2*t (output write index)
+ *     k = inlierIndices(t)
+ *     bounds-check k vs mm.pointsIn.pointCount
+ *     s = mm.pointsIn.row(k)[+0x20](frameIdx)     // weight (as in getGoal)
+ *     stash s at -0x2c(rbp)
+ *     u = src[t, 0]                               // 0xb9633: 0x18(src)[colStride*0 + rowStride*t]
+ *     dst(2t)   = u * s
+ *     v = src[t, 1]                               // 0xb9681: 0x18(src)[colStride*1 + rowStride*t]
+ *     dst(2t+1) = s * v
+ *   }
+ * ```
+ *
+ * NOTE: unlike getGoal the SRC matrix here is INDEXED BY t (the inlier
+ * counter), not by k (the accepted-track index). This is because `src`
+ * has already been contracted to only the accepted inliers (row per
+ * inlier, columns u and v). The weight `s` still comes from the original
+ * mm.pointsIn track k.
+ */
+function PCMatchmoveProblem_yToVector(
+  p: PCMatchmoveProblem,
+  src: PCGenMatrixFloat,
+  dst: PCGenVectorFloat,
+): void {
+  // 0xb95a5-0xb95b1: dst.resize(2 * inlierCount)
+  PCGenVector_float_resize(dst, p.inlierCount + p.inlierCount);
+  // 0xb95b6: if empty, done
+  if (p.inlierCount <= 0) return;
+  let outIdx = 0;
+  for (let t = 0; t < p.inlierCount; ++t) {
+    // 0xb95d3-0xb95df: k = inlierIndices(t)
+    const k = PCGenVector_int_at(p.inlierIndices, t);
+    // 0xb95e2-0xb95f1: bounds-check k vs mm.pointsIn.pointCount
+    if (k < 0 || k >= p.mm.pointsIn.pointCount) PCArray_base_badIndex();
+    // 0xb95f6-0xb9615: s = per-track base weight at column frameIdx
+    const s = Math.fround(
+      PCMatchmoveProblem_getGoal_readTrackScalar(
+        p.mm,
+        k,
+        /* offset */ 0x20,
+        p.frameIdx,
+      ),
+    );
+    // 0xb961e-0xb9642: u = src[t, 0]
+    PCGenMatrix_float_checkColIndex(src, 0);
+    PCGenMatrix_float_checkRowIndex(src, t);
+    const uIdx = Math.imul(src.rowStride | 0, t | 0);
+    const u = Math.fround(src.data[uIdx]);
+    // 0xb9647: dst(2t) = u * s
+    PCGenVector_float_setElem(dst, outIdx, Math.fround(u * s));
+    // 0xb9669-0xb968d: v = src[t, 1]
+    PCGenMatrix_float_checkColIndex(src, 1);
+    PCGenMatrix_float_checkRowIndex(src, t);
+    const vIdx = (src.colStride | 0) + Math.imul(src.rowStride | 0, t | 0);
+    const v = Math.fround(src.data[vIdx]);
+    outIdx += 1;
+    // 0xb9694-0xb96b8: dst(2t+1) = s * v  (note the disasm multiplies in
+    //   order `s * (matrix element)` at 0xb9699 — same as getGoal's second slot)
+    PCGenVector_float_setElem(dst, outIdx, Math.fround(s * v));
+    outIdx += 1;
+  }
+}
+
+/**
+ * PCMatchmoveProblem::yToMatrix(PCGenVector<float> const& src, PCGenMatrix<float>& dst)
+ *   @ProCore 0xb96dc  __ZN18PCMatchmoveProblem9yToMatrixERK11PCGenVectorIfER11PCGenMatrixIfE
+ *
+ * Inverse of yToVector: unpacks the 2*inlierCount packed weighted residuals
+ * back into an inlierCount x 2 matrix, DIVIDING each element by the same
+ * per-point weight `s` (i.e. inverting the multiply that yToVector applied).
+ *
+ * ```
+ *   0xb96f7-0xb970b  dst.resize(inlierCount, 2, layoutFlag)
+ *                    (layoutFlag = (dst.colStride == 1) ? 1 : 0 -- preserve)
+ *   0xb9715         if (inlierCount <= 0) return
+ *   0xb9723-0xb9821 for (t = 0; t < inlierCount; ++t) {
+ *     k = inlierIndices(t)
+ *     bounds-check k
+ *     s = mm.pointsIn.row(k)[+0x20](frameIdx)
+ *     u_weighted = src(2t)          ; dst[t, 0] = u_weighted / s
+ *     v_weighted = src(2t+1)        ; dst[t, 1] = v_weighted / s
+ *   }
+ * ```
+ *
+ * The layout preservation at 0xb96fc-0xb9700 (`cmpl $1, 0x14(rdx) ; sete cl`)
+ * means: if the incoming dst had colStride==1 the resize keeps it that way,
+ * else it defaults to layout 0. This lets the caller round-trip the matrix
+ * through yToVector/yToMatrix without switching row-/column-major.
+ */
+function PCMatchmoveProblem_yToMatrix(
+  p: PCMatchmoveProblem,
+  src: PCGenVectorFloat,
+  dst: PCGenMatrixFloat,
+): void {
+  // 0xb96f7-0xb970b: dst.resize(inlierCount, 2, layoutFlag == colStride==1 ? 1 : 0)
+  const layout = (dst.colStride | 0) === 1 ? 1 : 0;
+  PCGenMatrix_float_resize(dst, p.inlierCount, 2, layout);
+  if (p.inlierCount <= 0) return;
+  for (let t = 0; t < p.inlierCount; ++t) {
+    // 0xb972d-0xb9739: k = inlierIndices(t)
+    const k = PCGenVector_int_at(p.inlierIndices, t);
+    // 0xb9743-0xb974b: bounds-check
+    if (k < 0 || k >= p.mm.pointsIn.pointCount) PCArray_base_badIndex();
+    // 0xb9750-0xb976f: s = per-track base weight at frameIdx
+    const s = Math.fround(
+      PCMatchmoveProblem_getGoal_readTrackScalar(
+        p.mm,
+        k,
+        /* offset */ 0x20,
+        p.frameIdx,
+      ),
+    );
+    // 0xb977c-0xb978b: uWeighted = src(2t) ; then divide by s
+    const uWeighted = Math.fround(PCGenVector_float_at_const(src, 2 * t));
+    const u = Math.fround(uWeighted / s);
+    // 0xb9795-0xb97be: dst[t, 0] = u
+    PCGenMatrix_float_checkColIndex(dst, 0);
+    PCGenMatrix_float_checkRowIndex(dst, t);
+    const uIdx = Math.imul(dst.rowStride | 0, t | 0);
+    dst.data[uIdx] = u;
+    // 0xb97c3-0xb97dc: vWeighted = src(2t+1) ; then divide by s
+    const vWeighted = Math.fround(PCGenVector_float_at_const(src, 2 * t + 1));
+    const v = Math.fround(vWeighted / s);
+    // 0xb97e1-0xb9811: dst[t, 1] = v
+    PCGenMatrix_float_checkColIndex(dst, 1);
+    PCGenMatrix_float_checkRowIndex(dst, t);
+    const vIdx = (dst.colStride | 0) + Math.imul(dst.rowStride | 0, t | 0);
+    dst.data[vIdx] = v;
+  }
 }
 
 /** PCLMSolver — the actual Levenberg-Marquardt loop; three methods used here:
@@ -259,8 +692,104 @@ export interface PCGenVectorFloat {
 export interface PCArrayPCGenMatrixFloat {
   __tag: "PCArrayPCGenMatrixFloat";
 }
+/**
+ * PCMatchmoveProblem — a Levenberg-Marquardt cost-function object that binds
+ * a PCMatchmove instance + a single frame index and exposes setX/evalY/evalDy
+ * (the pure-virtual slots of PCLMProblem). Recovered from the ctor
+ * @ProCore 0xb9102 and destructor @ProCore 0xb9fac.
+ *
+ * Layout (byte offsets, from the ctor's field writes at 0xb9110-0xb9170):
+ *   +0x00 vtable*                                       (mov [rax], 0x93686 lea)
+ *   +0x08 PCGenBlockRef<char*>  currentX                (refcounted view of the state; zero-init here)
+ *   +0x10 int  currentXSize   / +0x14 int currentXStride (init 1,0 -> movabsq 0x100000000)
+ *   +0x18 float* currentXData  (16-byte xmm0 stores at 0x18 and 0x30 -> zero low+high)
+ *   +0x20 PCGenBlockRef<float> matrixX                  (init 0)
+ *   +0x28 int matrixXRows / +0x2c int matrixXCols       (init 1, 0)
+ *   +0x30 float* matrixXData
+ *   +0x38 PCGenBlockRef<float> projectOut               (init 0)
+ *   +0x40 int projectOutSize / +0x44 int projectOutStride (init 1, 1  -- movabsq 0x100000001)
+ *   +0x48 int projectOutCap
+ *   +0x50 float* projectOutData                         (init 0)
+ *   +0x58 PCMatchmove*   mm                             (from ctor's `%rsi`)
+ *   +0x60 int            inlierCount                    (grows in ctor loop; 0-init before loop)
+ *   +0x68 PCGenVector<int> inlierIndices                (block-vec header, self.__14__PCGenVectorI)
+ *   +0x80 int            frameIdx                       (from ctor's `%edx`)
+ *
+ * All refcounted `+0x08/+0x20/+0x38/+0x68` blocks are freed in the D0 dtor
+ * @ProCore 0xb9fac using the ProCore reference-counted array-alloc pattern
+ * (`decl -4(%rdi) ; addq -0x8 ; __ZdaPv`).
+ */
 export interface PCMatchmoveProblem {
   __tag: "PCMatchmoveProblem";
+  /** +0x58 — the PCMatchmove owning this problem (`0xb9156 movq %rsi, 0x58(%rbx)`). */
+  mm: PCMatchmove;
+  /** +0x80 — the frame index this problem was constructed for
+   *  (`0xb916a movl %edx, 0x80(%rbx)`). */
+  frameIdx: number;
+  /** +0x60 — count of frame-relative inlier points selected in the ctor
+   *  (`0xb9170 movl $0, 0x60(%rbx)`; incremented per accepted index). */
+  inlierCount: number;
+  /** +0x68 — PCGenVector<int> of accepted point indices (row indices into
+   *  each per-frame track matrix). Resized to 2*mm.perFrameCount slots up
+   *  front (`0xb9177 movl 0x1c(%rsi), %esi ; ... resize`) then shrunk to
+   *  inlierCount at 0xb9214-0xb921a. */
+  inlierIndices: PCGenVectorInt;
+}
+
+/** PCGenVector<int> — the integer counterpart of PCGenVectorFloat.
+ *  Same 8-byte header shape (block ref) but stores int32. */
+export interface PCGenVectorInt {
+  __tag: "PCGenVectorInt";
+}
+
+/** PCGenVector<int>::resize(n) — @ProCore not yet decoded. */
+function PCGenVector_int_resize(_v: PCGenVectorInt, _n: number): void {
+  throw new Error(
+    "PCGenVector<int>::resize(int) @ProCore not yet transcribed",
+  );
+}
+
+/** PCGenVector<int>::operator()(i) — mutable accessor.
+ *  @ProCore 0xb91f7 (via PCMatchmoveProblem ctor's writeback loop). */
+function PCGenVector_int_setElem(
+  _v: PCGenVectorInt,
+  _i: number,
+  _val: number,
+): void {
+  throw new Error(
+    "PCGenVector<int>::operator()(int) @ProCore not yet transcribed",
+  );
+}
+
+/** PCGenVector<int>::operator()(i) — read accessor.
+ *  @ProCore 0xb87c7 / 0xb95da (called from getGoal/yToVector). */
+function PCGenVector_int_at(_v: PCGenVectorInt, _i: number): number {
+  throw new Error(
+    "PCGenVector<int>::operator()(int) @ProCore not yet transcribed",
+  );
+}
+
+/** PCGenMatrix<float>::checkColIndex(int) const — bounds-check.
+ *  Called via non-throwing side-effect pattern by getGoal etc.
+ *  @ProCore not yet decoded. */
+function PCGenMatrix_float_checkColIndex(
+  _m: PCGenMatrixFloat,
+  _c: number,
+): void {
+  throw new Error(
+    "PCGenMatrix<float>::checkColIndex(int) const @ProCore not yet transcribed",
+  );
+}
+
+/** PCGenMatrix<float>::checkRowIndex(int) const — bounds-check.
+ *  @ProCore not yet decoded. */
+function PCGenMatrix_float_checkRowIndex(
+  _m: PCGenMatrixFloat,
+  _r: number,
+): void {
+  throw new Error(
+    "PCGenMatrix<float>::checkRowIndex(int) const @ProCore not yet transcribed",
+  );
 }
 
 /** PCMatchmove state — field offsets from the disasm (see file header
