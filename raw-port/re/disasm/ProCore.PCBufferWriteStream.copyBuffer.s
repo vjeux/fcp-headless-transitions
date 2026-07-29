@@ -1,0 +1,28 @@
+__ZN19PCBufferWriteStream10copyBufferEv:
+000000000005197a	pushq	%rbp
+000000000005197b	movq	%rsp, %rbp
+000000000005197e	pushq	%r15
+0000000000051980	pushq	%r14
+0000000000051982	pushq	%rbx
+0000000000051983	pushq	%rax
+0000000000051984	movq	0x8(%rdi), %r14
+0000000000051988	movq	0x10(%rdi), %rbx
+000000000005198c	subq	%r14, %rbx
+000000000005198f	leaq	0x1(%rbx), %rdi
+0000000000051993	callq	0xde94e                         ## symbol stub for: _malloc
+0000000000051998	movq	%rax, %r15
+000000000005199b	testq	%rax, %rax
+000000000005199e	je	0x519b3
+00000000000519a0	movq	%r15, %rdi
+00000000000519a3	movq	%r14, %rsi
+00000000000519a6	movq	%rbx, %rdx
+00000000000519a9	callq	0xde960                         ## symbol stub for: _memcpy
+00000000000519ae	movb	$0x0, (%r15,%rbx)
+00000000000519b3	movq	%r15, %rax
+00000000000519b6	addq	$0x8, %rsp
+00000000000519ba	popq	%rbx
+00000000000519bb	popq	%r14
+00000000000519bd	popq	%r15
+00000000000519bf	popq	%rbp
+00000000000519c0	retq
+00000000000519c1	nop
