@@ -75,7 +75,9 @@ export interface PCGenBlockRefHeader<TArr> {
  *
  * @ProCore  ctor 0xba07c, dtor 0xb6c4a, assign 0xba044
  */
-export class PCGenBlockRef<TArr extends Float32Array | Float64Array | Int32Array> {
+export class PCGenBlockRef<
+  TArr extends Float32Array | Float64Array | Int32Array | BigUint64Array,
+> {
   /** +0x00 the sole field of the object: a reference to the header living at
    *  the START of the heap allocation. C++ stores the USER pointer (alloc+8)
    *  in this slot and reads size/refcount at negative offsets from it; we
@@ -243,5 +245,72 @@ export function newPCGenBlockRefInt(n: number): PCGenBlockRef<Int32Array> {
     n,
     4,
     (count) => new Int32Array(count),
+  );
+}
+
+/**
+ * `PCGenBlockRef<char*>::PCGenBlockRef(int n)` @ProCore 0xbc820
+ * (__ZN13PCGenBlockRefIPcEC2Ei).
+ *
+ * Ledger-claimed unit. Faithful line-for-line transcription:
+ *
+ *   0xbc820  pushq  %rbp                    ; prologue
+ *   0xbc821  movq   %rsp, %rbp
+ *   0xbc824  pushq  %r15
+ *   0xbc826  pushq  %r14
+ *   0xbc828  pushq  %rbx
+ *   0xbc829  pushq  %rax                    ; 8-byte alignment pad
+ *   0xbc82a  movq   %rdi, %rbx              ; rbx = this
+ *   0xbc82d  testl  %esi, %esi              ; if (n == 0)
+ *   0xbc82f  je     0xbc862                 ;   goto empty
+ *   0xbc831  movl   %esi, %r15d             ; r15d = n
+ *   0xbc834  shll   $0x3, %r15d             ; r15d = n << 3 = n * 8
+ *                                           ;   (sizeof(char*) == 8 on
+ *                                           ;    x86_64 → ×8, vs the ×4
+ *                                           ;    baked into the <float>/
+ *                                           ;    <int> instantiations)
+ *   0xbc838  leal   0x8(,%rsi,8), %eax      ; eax = 8 + n*8  (alloc size)
+ *   0xbc83f  movslq %eax, %rdi              ; rdi = sign-extend(eax)
+ *   0xbc842  callq  __Znam                  ; rax = operator new[](rdi)
+ *                                           ;   (stub @ProCore 0xde6c6)
+ *   0xbc847  leaq   0x8(%rax), %r14         ; userPtr = alloc + 8
+ *   0xbc84b  movl   %r15d, (%rax)           ; header.sizeBytes = n*8
+ *   0xbc84e  movl   $0x1, 0x4(%rax)         ; header.refcount = 1
+ *   0xbc855  movslq %r15d, %rsi             ; rsi = n*8 (size for bzero)
+ *   0xbc858  movq   %r14, %rdi              ; rdi = userPtr
+ *   0xbc85b  callq  _bzero                  ; bzero(userPtr, n*8)
+ *                                           ;   (stub @ProCore 0xde79e)
+ *   0xbc860  jmp    0xbc865                 ; skip empty branch
+ *   0xbc862  xorl   %r14d, %r14d            ; empty branch: userPtr = 0
+ *   0xbc865  movq   %r14, (%rbx)            ; this->ptr = userPtr
+ *   0xbc86d..0xbc872 — epilogue.
+ *
+ * This body is textually identical to PCGenBlockRef<float>::PCGenBlockRef
+ * @ProCore 0xba07c except for the shift constant (`$0x3` vs `$0x2`) and
+ * the resulting `leal` scale (`,%rsi,8` vs `,%rsi,4`). ICF cannot fold
+ * these two ctors because the shift/scale differ; each instantiation
+ * has its own body. The rest — `__Znam` + header init + `_bzero` +
+ * store-user-pointer — matches the generic layout modelled in this
+ * file's `PCGenBlockRef` class @0x-8/-4 header and user-ptr storage.
+ *
+ * TypeScript model: `char*` is a 64-bit pointer on x86_64; the natural
+ * typed-array analogue that both zero-fills and gives us the right
+ * per-element size is `BigUint64Array` (8 bytes per element, ctor
+ * returns zero-initialised — which IS the observable effect of
+ * `new[] + bzero`). External clients that want string semantics can
+ * either treat each element as a raw handle or maintain their own
+ * side-table keyed by index; the class's own operations (assign, dtor,
+ * refcount) don't dereference elements — they never touch string data
+ * — so any element representation is invariant here (same reason the
+ * <char*>/<float>/<double>/<int> `assign` bodies are ICF-folded).
+ */
+export function newPCGenBlockRefCharPtr(
+  n: number,
+): PCGenBlockRef<BigUint64Array> {
+  // The shift @0xbc834 is $0x3 → ×8 bytes per element.  // @ProCore 0xbc834
+  return new PCGenBlockRef<BigUint64Array>(
+    n,
+    8, // sizeof(char*) on x86_64 — cited @0xbc834 (`shll $0x3, %r15d`)
+    (count) => new BigUint64Array(count),
   );
 }
