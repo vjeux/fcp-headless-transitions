@@ -72,3 +72,23 @@ Report "oracle-verified + reviewer-signed real implementations", not "files that
               differential oracle proves callable pure fns bit-exact vs LIVE FCP; (d) an adversarial
               reviewer sub-agent blocks the judgment cases; (e) mark_ported downgrades shells to
               `skeleton` so the count is never inflated.
+
+## WIRED (2026-07-29) — everything is plumbed; only the enable flip remains
+The coordinator cron (d82b4a68) was rewritten and the old system deleted:
+- DISPENSER: cron dispenses via `depclaim.py next` (strict dependency queue) — NOT the old claim.py.
+  A worker only gets a function whose EVERY in-scope callee is ported. depclaim.py added `reap`.
+- BRIEF: workers get DEP_WORKER_BRIEF.md (throw allowed ONLY for true out-of-scope externs; an
+  in-scope callee is already ported, so a throw for it is a rejected cheat). The old throw-licensing
+  GENERAL brief is gone.
+- GATE: wt_merge.sh runs gate.sh (G5 blocks REAL-disasm throw-shells) AND now requires a REVIEWER
+  sign-off (<file>.review.json, ACCEPT verdict) before merge. Worker cannot self-merge.
+  Escape hatch WT_MERGE_SKIP_REVIEW=1 for a watched pilot only.
+- REVIEWER: cron spawns 1-2 adversarial reviewers per tick alongside the workers.
+- SIZE: Phase-B pilot = TARGET 3 workers (not 20). Widen only on explicit instruction.
+- DELETED (superseded): leafq.py, callgraph.py, frontier.py, claim.py, assemble_class.py,
+  coordinator_scan.py, demote_stub_bodies.py, army/graph/, army/swarm/, LEAF_BRIEF.md, wave_manifest.
+- HONEST LEDGER: ported 7700, skeleton 217, stub 1524 (throw-shells + DISPATCH_ONLY never counted ported).
+
+TO RESTART: set cron d82b4a68 enabled=true. It will spawn ≤3 dep-workers + reviewers per 10-min tick,
+each doing dependency-ready work with a mandatory reviewer merge gate. Watch the first 1-2 ticks:
+confirm workers import+call real deps (no internal throws) and the ready-count grows as they merge.
