@@ -199,4 +199,128 @@ export class HGProgramDescriptor {
   SetShaderProgram(program: string): void {
     this.shaderProgram = program;
   }
+
+  // ---------------------------------------------------------------------------------------
+  // 2-arg setters — two consecutive basic_string::assign calls at documented offsets.
+  // ---------------------------------------------------------------------------------------
+
+  /**
+   * `HGProgramDescriptor::SetVertexShaderWithLibrary(char const*, char const*)` @Helium 0x16e650.
+   * Body: assign(this+0x10, arg1) ; assign(this+0x58, arg2).
+   *   => this.vertexFunctionName = funcName; this.metalLibPath = libraryName.
+   * See re/disasm/Helium.HGProgramDescriptor.SetVertexShaderWithLibrary.s.
+   */
+  SetVertexShaderWithLibrary(funcName: string, libraryName: string): void {
+    this.vertexFunctionName = funcName;
+    this.metalLibPath = libraryName;
+  }
+
+  /**
+   * `HGProgramDescriptor::SetFragmentShaderWithLibrary(char const*, char const*)` @Helium 0x16e680.
+   * Body: assign(this+0x28, arg1) ; assign(this+0x58, arg2).
+   *   => this.fragmentFunctionName = funcName; this.metalLibPath = libraryName.
+   * See re/disasm/Helium.HGProgramDescriptor.SetFragmentShaderWithLibrary.s.
+   */
+  SetFragmentShaderWithLibrary(funcName: string, libraryName: string): void {
+    this.fragmentFunctionName = funcName;
+    this.metalLibPath = libraryName;
+  }
+
+  /**
+   * `HGProgramDescriptor::SetVisibleShaderWithSource(char const*, char const*)` @Helium 0x16e6b0.
+   * Body: assign(this+0x40, arg1) ; assign(this+0xa0, arg2).
+   *   => this.fragmentShaderSource = arg1 (a shader-symbol name);
+   *      this.visibleShaderSecondArg = arg2 (the actual Metal source text).
+   * See re/disasm/Helium.HGProgramDescriptor.SetVisibleShaderWithSource.s.
+   */
+  SetVisibleShaderWithSource(shaderSymbol: string, shaderSource: string): void {
+    this.fragmentShaderSource = shaderSymbol;
+    this.visibleShaderSecondArg = shaderSource;
+  }
+
+  /**
+   * `HGProgramDescriptor::SetVisibleShaderWithLibrary(char const*, char const*)` @Helium 0x16e6e0.
+   * Body: assign(this+0x40, arg1) ; assign(this+0x58, arg2).
+   *   => this.fragmentShaderSource = arg1; this.metalLibPath = arg2.
+   * See re/disasm/Helium.HGProgramDescriptor.SetVisibleShaderWithLibrary.s.
+   *
+   * NOTE: SetVisibleShaderWithLibrary writes its 2nd arg to +0x58 (metalLibPath), NOT to +0xa0
+   * like SetVisibleShaderWithSource does. This is a real semantic difference (library vs source).
+   */
+  SetVisibleShaderWithLibrary(shaderSymbol: string, libraryName: string): void {
+    this.fragmentShaderSource = shaderSymbol;
+    this.metalLibPath = libraryName;
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // trivial getters
+  // ---------------------------------------------------------------------------------------
+
+  /**
+   * `HGProgramDescriptor::getReturnAttribute() const` @Helium 0x16ce90.
+   * Body: `mov eax, [rdi + 0xb8] ; ret`. Returns the 32-bit `returnAttribute` slot.
+   * See re/disasm/Helium.HGProgramDescriptor.getReturnAttribute.s.
+   */
+  getReturnAttribute(): number {
+    return this.returnAttribute >>> 0;
+  }
+
+  /**
+   * `HGProgramDescriptor::GetVertexFunctionName() const` @Helium 0x16d8f0.
+   * Body: std::string c_str() at offset +0x10 — `mov rax, rdi ; testb $1, [rdi+0x10] ; jne heap
+   * ; add rax, 0x11 ; ret ; heap: mov rax, [rax+0x20] ; ret`. Just returns the string.
+   * See re/disasm/Helium.HGProgramDescriptor.GetVertexFunctionName.s.
+   */
+  GetVertexFunctionName(): string {
+    return this.vertexFunctionName;
+  }
+
+  /**
+   * `HGProgramDescriptor::GetMetalLibPath() const` @Helium 0x16d8d0.
+   * Body: std::string c_str() at offset +0x58 (analogous to GetVertexFunctionName).
+   * See re/disasm/Helium.HGProgramDescriptor.GetMetalLibPath.s.
+   */
+  GetMetalLibPath(): string {
+    return this.metalLibPath;
+  }
+
+  /**
+   * `HGProgramDescriptor::GetFragmentFunctionName() const` @Helium 0x16cde0.
+   *
+   * ICF-folded — otool -tV emits no label at 0x16cde0. Decoded by hand from raw bytes at file
+   * offset 0x16cde0 of /tmp/Helium.x86_64 with capstone; verified via `nm -arch x86_64 -n` which
+   * places `__ZNK19HGProgramDescriptor23GetFragmentFunctionNameEv` at exactly 0x16cde0. Raw bytes:
+   *
+   *   55                          push  rbp
+   *   48 89 e5                    mov   rbp, rsp
+   *   0f b6 47 28                 movzx eax, byte [rdi+0x28]         ; std::string SSO byte
+   *   a8 01                       test  al, 1                        ; heap-flag?
+   *   75 13                       jne   0x16cdff
+   *   48 83 c7 29                 add   rdi, 0x29                    ; SSO chars start at +0x29
+   *   84 c0                       test  al, al                       ; SSO length (already shifted-out
+   *                                                                    of the flag bit) == 0?
+   *   48 8d 05 1e de 74 00        lea   rax, [rip + 0x74de1e]        ; -> "fragmentFunc" @ 0x8bac17
+   *   48 0f 45 c7                 cmovne rax, rdi                    ; if not empty, return SSO ptr
+   *   5d                          pop   rbp
+   *   c3                          ret
+   *   ; heap branch (bit 0 of length byte set)
+   *   48 83 7f 30 00              cmp   qword [rdi+0x30], 0          ; heap size == 0?
+   *   74 06                       je    0x16ce0c
+   *   48 8b 47 38                 mov   rax, [rdi+0x38]              ; heap data ptr
+   *   5d ; c3                     pop rbp ; ret
+   *   ; heap empty branch
+   *   48 8d 05 04 de 74 00        lea   rax, [rip + 0x74de04]        ; -> "fragmentFunc" (same string)
+   *   5d ; c3                     pop rbp ; ret
+   *
+   * Semantics: return the fragment function name, defaulting to the literal `"fragmentFunc"` when
+   * the string is empty (BOTH the SSO-empty AND the heap-empty branches load the SAME cstring
+   * literal at __cstring 0x8bac17). The RIP-rel address 0x8bac17 was verified by reading the thin
+   * slice: bytes at file offset 0x8bac17 are `fragmentFunc\0`.
+   *
+   * NOTE: `SetFragmentFunctionName` at +0x28 (see @0x16d8a0) is what this getter reads back.
+   */
+  GetFragmentFunctionName(): string {
+    // decoded default: literal "fragmentFunc" @ __cstring 0x8bac17 (Helium.x86_64).
+    return this.fragmentFunctionName.length !== 0 ? this.fragmentFunctionName : "fragmentFunc";
+  }
 }
