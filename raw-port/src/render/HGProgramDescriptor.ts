@@ -469,4 +469,102 @@ export class HGProgramDescriptor {
     if (idx >>> 0 >= this.inputs.length) return;
     this.inputs[idx] = [0, ref];
   }
+
+  // ---------------------------------------------------------------------------------------
+  // Predicates — all read SSO-vs-heap std::string length bytes at documented offsets, and
+  // form boolean expressions over them. Documented mapping (Helium libc++ small-string layout):
+  //
+  //   `!fieldEmpty(off)` <=> `field.length > 0` where `field` is the std::string at `+off`.
+  //   The C++ code path reads `[+off]` byte; if bit0=1 it's a heap-allocated string and the size
+  //   lives at `[+off+8]`; if bit0=0 the byte's remaining bits (>>1) are the SSO length.
+  //   In TS we just check `.length !== 0`.
+  // ---------------------------------------------------------------------------------------
+
+  /**
+   * `HGProgramDescriptor::IsMergeable() const` @Helium 0x167d70.
+   *
+   * Body (see re/disasm/Helium.HGProgramDescriptor.IsMergeable.s):
+   *   Loads and length-tests `[+0x40]` (fragmentShaderSource), `[+0x58]` (metalLibPath), and
+   *   `[+0xa0]` (visibleShaderSecondArg). Register `%dl` is set to `(+0x58 nonempty OR +0xa0
+   *   nonempty)`; register `%al` is set to `+0x40 nonempty`; `andb %dl, %al` yields the answer.
+   *
+   * Semantic:
+   *   IsMergeable <=> fragmentShaderSource.nonEmpty AND (metalLibPath.nonEmpty OR
+   *                                                     visibleShaderSecondArg.nonEmpty)
+   */
+  IsMergeable(): boolean {
+    const fragSourceNonEmpty = this.fragmentShaderSource.length !== 0;
+    const otherNonEmpty =
+      this.metalLibPath.length !== 0 || this.visibleShaderSecondArg.length !== 0;
+    return fragSourceNonEmpty && otherNonEmpty;
+  }
+
+  /**
+   * `HGProgramDescriptor::IsComplete() const` @Helium 0x167de0.
+   *
+   * Body (see re/disasm/Helium.HGProgramDescriptor.IsComplete.s):
+   *   Two-path structure. Path A tests `+0x40` (fragmentShaderSource) non-empty; if so, the answer
+   *   is `+0x58 nonempty OR +0xa0 nonempty` (metalLibPath OR visibleShaderSecondArg). Path B
+   *   (frag source empty) tests `+0x28` (fragmentFunctionName) non-empty AND
+   *   `+0x58 nonempty OR +0x88 nonempty` (metalLibPath OR shaderProgram). Any other combination
+   *   returns false.
+   *
+   * Semantic:
+   *   IsComplete <=>
+   *     (fragmentShaderSource.nonEmpty AND (metalLibPath.nonEmpty OR visibleShaderSecondArg.nonEmpty))
+   *  OR (fragmentShaderSource.empty    AND fragmentFunctionName.nonEmpty
+   *                                    AND (metalLibPath.nonEmpty OR shaderProgram.nonEmpty))
+   */
+  IsComplete(): boolean {
+    const fragSourceNonEmpty = this.fragmentShaderSource.length !== 0;
+    const metalLibNonEmpty = this.metalLibPath.length !== 0;
+    const visible2NonEmpty = this.visibleShaderSecondArg.length !== 0;
+    const fragFuncNonEmpty = this.fragmentFunctionName.length !== 0;
+    const shaderProgNonEmpty = this.shaderProgram.length !== 0;
+    if (fragSourceNonEmpty) {
+      return metalLibNonEmpty || visible2NonEmpty;
+    }
+    return fragFuncNonEmpty && (metalLibNonEmpty || shaderProgNonEmpty);
+  }
+
+  /**
+   * `HGProgramDescriptor::IsConcatenated() const` @Helium 0x167e90.
+   *
+   * Body (see re/disasm/Helium.HGProgramDescriptor.IsConcatenated.s):
+   *   First evaluates the same fragmentShaderSource / metalLibPath / visibleShaderSecondArg
+   *   non-empty combination that IsMergeable uses (registers rcx / dl / rax carry the intermediate
+   *   flags). If (frag_source nonempty AND (metalLib OR visible2 nonempty)) is FALSE, it returns 0.
+   *   Otherwise it walks `this.inputs` (vector at +0x70/+0x78, stride 0x10) looking for an entry
+   *   where `first == 0` AND `second != null`. If found, returns 1; else returns 0.
+   *
+   * The loop:
+   *   ```
+   *   rax = *(this+0x70); rcx = *(this+0x78)
+   *   if rax == rcx: return 0            ; empty vector
+   *   loop:
+   *     if cmpl $0, [rax] != 0:  goto next   ; pair.first != 0 -> skip
+   *     if cmpq $0, [rax+8] == 0: goto next  ; pair.second == null -> skip
+   *     return 1
+   *   next:
+   *     rax += 0x10
+   *     if rax != rcx: goto loop
+   *   return 0
+   *   ```
+   *
+   * Semantic:
+   *   IsConcatenated <=> IsMergeable() AND (inputs contains some (0, non-null)).
+   *   Where IsMergeable is inlined from IsMergeable @0x167d70 — both use the same +0x40/+0x58/
+   *   +0xa0 non-empty formula.
+   */
+  IsConcatenated(): boolean {
+    // Inlined IsMergeable disasm — same registers, same offsets. See @0x167d70.
+    const fragSourceNonEmpty = this.fragmentShaderSource.length !== 0;
+    const otherNonEmpty =
+      this.metalLibPath.length !== 0 || this.visibleShaderSecondArg.length !== 0;
+    if (!(fragSourceNonEmpty && otherNonEmpty)) return false;
+    for (const [first, second] of this.inputs) {
+      if (first === 0 && second !== null) return true;
+    }
+    return false;
+  }
 }
