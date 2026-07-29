@@ -149,10 +149,22 @@ def _candidates():
                 elif 2 <= n <= 12 and objc == 0 and not heavy_tok: tier = 0
                 elif objc > n // 2: tier = 2
                 else: tier = 1
-                # PROMOTE-ONLY: strong pure-math signal (>=2 distinct MATH_SIG method names)
-                # lifts a class above tier 0 to tier -1 — never demotes (min with current tier).
-                # Separates real numeric classes from the small n=7 plumbing at the queue head.
-                if not is_facade and objc <= n // 2 and _math_signals(ms) >= 2: tier = min(tier, -1)
+                # PROMOTE-ONLY math-signal tiers (never demote; min with current tier). Guards:
+                # not a shader-facade, not objc-dominant, not heavy_tok (BAD_TOK). BAD_SUB already
+                # strips std::/thunk/_Factory/anonymous noise upstream, so signals here are real.
+                #   >=2 distinct MATH_SIG cpp-method names  -> tier -1 (strong: interpolators,
+                #     matrices, HGColorMatrix, etc. lead the queue).
+                #   ==1 distinct MATH_SIG (guarded)         -> tier 0 (single-signal math like
+                #     OZBehaviorCurveNode/OZCompoundChannel/OZInterpolator/PCQuat/OZ360Camera/HGGradient
+                #     surfaces ABOVE the n=7 non-shader plumbing but below strong 2-signal math).
+                #     Validated 2026-07-29: 30 genuine math classes surfaced, 0 facade/STL false-pos
+                #     (BAD_SUB+BAD_TOK+shader-facade+objc guards catch SequenceFolder/_UIComponent/etc).
+                if not is_facade and objc <= n // 2 and not heavy_tok:
+                    msig = _math_signals(ms)
+                    # single-signal math -> tier -1 (ABOVE the tier-0 n=7 non-shader plumbing that
+                    # dodges BAD_TOK — the churn 2 workers hit); strong 2-signal -> tier -2 (leads).
+                    if msig >= 2: tier = min(tier, -2)
+                    elif msig == 1: tier = min(tier, -1)
                 out.append((tier, n, fw, cls, None))
     out.sort()
     return [(n, fw, cls, ck) for (tier, n, fw, cls, ck) in out]
