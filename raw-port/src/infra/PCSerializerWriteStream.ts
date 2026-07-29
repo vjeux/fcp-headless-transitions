@@ -134,4 +134,31 @@ export class PCSerializerWriteStream {
       "PCSerializerWriteStream::~PCSerializerWriteStream [D0] @ProChannel 0xac226 is a `ud2` trap — must not be invoked on an abstract base instance",
     );
   }
+
+  /**
+   * PCSerializerWriteStream::~PCSerializerWriteStream() [D0 deleting-dtor] @ProCore 0x000DD604.
+   *
+   * ProCore.framework ships its OWN copy of this abstract-base symbol (the
+   * same class definition compiled into a separate binary), byte-identical
+   * shape to the ProChannel D0 above:
+   *
+   *   dd604  pushq  %rbp
+   *   dd605  movq   %rsp, %rbp
+   *   dd608  ud2                        ; deliberate CPU trap.
+   *
+   * Same rationale as the ProChannel D0 and as PCSerializer._dtorD1 @Ozone
+   * 0x6DAF30: clang emits `ud2` for the base-class deleting-dtor entry when
+   * the compiler proves it can never be reached (all live instances are
+   * concrete subclasses whose own D0 handles teardown). The sibling D1 at
+   * @ProCore 0x000DD5FE is byte-identical (also `ud2`) — not the leaf here.
+   *
+   * Ported as a raising stub that cites the address, per the destroyAndDelete
+   * (ProChannel D0) precedent right above. The decode IS `ud2`; this throw
+   * is the faithful port, not a deferral of an undecoded body.
+   */
+  protected _dtorD0_ProCore(): never {
+    throw new Error(
+      "PCSerializerWriteStream::~PCSerializerWriteStream [D0] @ProCore 0xdd604 is a `ud2` trap — must not be invoked on an abstract base instance",
+    );
+  }
 }
