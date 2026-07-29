@@ -80,4 +80,57 @@ export class OZChannelBase {
     // @0x000000000001fc14  xorl %eax, %eax
     return false;
   }
+
+  /**
+   * `OZChannelBase::nofityObjCWrapperWillDelete()` — @ProChannel 0x4d5b8
+   * (__ZN13OZChannelBase27nofityObjCWrapperWillDeleteEv).
+   *
+   * Disasm (raw-port/re/disasm/ProChannel.__ZN13OZChannelBase27nofityObjCWrapperWillDeleteEv.s):
+   *   0x4d5b8  pushq  %rbp
+   *   0x4d5b9  movq   %rsp, %rbp
+   *   0x4d5bc  movq   %rdi, %rdx                 ; rdx = self (3rd ObjC arg = the channel ptr)
+   *   0x4d5bf  movq   0x48(%rdi), %rdi           ; rdi = *(self + 0x48)  (the ObjC wrapper receiver)
+   *   0x4d5c3  movq   0x9bd76(%rip), %rsi        ; rsi = @selector(_ozChannelWillBeDeleted:)  (selref @ 0xe9340)
+   *   0x4d5ca  popq   %rbp
+   *   0x4d5cb  jmpq   *0x7cf9f(%rip)             ; TAIL-CALL _objc_msgSend (imported stub GOT slot @ 0xca570)
+   *
+   * Semantics: `[(id)self->objcWrapper _ozChannelWillBeDeleted:(id)self]`. Fire-and-forget
+   * notification to the ObjC bridge wrapper that the underlying C++ OZChannelBase is about
+   * to be destroyed.
+   *
+   * Frontier: `_objc_msgSend` is a TRUE out-of-scope extern (ObjC runtime, libobjc.dylib) —
+   * dispatched via ProChannel's imported-stubs GOT slot @0xca570. In this port there is no
+   * ObjC runtime, so the dispatch is modelled as a boundary throw citing the exact GOT slot
+   * and selref addresses (per the same policy as every other _objc_msgSend site in-tree).
+   *
+   * The ObjC wrapper field lives at offset 0x48 of the OZChannelBase layout. Layout not yet
+   * fully decoded here — the field is loaded verbatim from that offset as an opaque `id`
+   * pointer (unknown until an ObjC-bridge port is done); it may be null when no wrapper is
+   * attached, in which case msgSend to nil is a documented ObjC no-op (nil-messaging), but
+   * we cannot reproduce that behaviour without the runtime, so any invocation throws.
+   */
+  nofityObjCWrapperWillDelete(): void {
+    // @0x4d5b8..0x4d5b9 — prologue.
+    // @0x4d5bc — rdx = self (positional; ObjC 3rd arg).
+    // @0x4d5bf — rdi = *(self + 0x48).  The ObjC wrapper `id` (opaque; layout TBD).
+    const wrapper = this.__objc_wrapper_at_0x48; // (mirrors `movq 0x48(%rdi), %rdi` @0x4d5bf)
+    // @0x4d5c3 — rsi = selref `_ozChannelWillBeDeleted:` @ProChannel selref 0xe9340.
+    const _selector = "_ozChannelWillBeDeleted:";
+    // @0x4d5ca..0x4d5cb — TAIL-CALL through the ObjC msgSend imported-stub GOT slot @0xca570.
+    // libobjc runtime is out-of-scope: throw at the extern boundary citing the exact GOT slot.
+    throw new Error(
+      "OZChannelBase::nofityObjCWrapperWillDelete() would dispatch " +
+        `[(id)wrapper=${String(wrapper)} ${_selector} (id)self] via _objc_msgSend ` +
+        "@ProChannel imported-stubs GOT 0xca570 (selref @0xe9340). The ObjC runtime " +
+        "(libobjc.dylib _objc_msgSend) is a TRUE out-of-scope extern — see policy on " +
+        "boundary stubs. Called from OZChannelBase dtor path to notify the paired ObjC " +
+        "bridge wrapper that this C++ instance is going away.",
+    );
+  }
+
+  /** @ProChannel OZChannelBase layout offset 0x48 (read @0x4d5bf).
+   *  Opaque `id` pointer to the paired ObjC wrapper. Layout not yet decoded — the ctor
+   *  that populates this field is a separate ledger unit. Modelled as `unknown | null`
+   *  so the offset-0x48 load in nofityObjCWrapperWillDelete has a well-typed source. */
+  private __objc_wrapper_at_0x48: unknown | null = null;
 }
