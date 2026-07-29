@@ -430,4 +430,150 @@ export class HGTransform {
     this.m[1] = 0; this.m[2] = 0; this.m[3] = 0;
     this.m[4] = 0; this.m[6] = 0; this.m[7] = 0;
   }
+
+  /** HGTransform::Matrix2D() @Helium 0x1b6370.
+   *  Zeros the "3D" slots (m[2], m[6], m[8], m[9], m[11], m[14]) and sets m[10] = 1.0
+   *  (from the double 1.0 constant @Helium 0x3ca260 loaded at @0x1b6396 via `movsd 0x213ec2(%rip)`).
+   *  Leaves m[0], m[1], m[4], m[5], m[12], m[13], m[15] untouched — the 2D affine block.
+   *  Result: projects the transform to a pure 2D affine + z passes through unchanged.
+   *  Offsets touched (all writes):
+   *    0x80 = m[14] = 0   (@0x1b6374 movq $0x0)
+   *    0x40 = m[6]  = 0   (@0x1b637f)
+   *    0x20 = m[2]  = 0   (@0x1b6387)
+   *    0x50 = m[8]  = 0   (@0x1b6392 xorps xmm0,xmm0; movups xmm0,0x50)  [also touches m[9]=0]
+   *    0x60 = m[10] = 1.0 (@0x1b639e movups xmm0,0x60)  — xmm0 = [1.0, 0.0], so m[11]=0 too
+   */
+  public Matrix2D(): void {
+    this.m[2]  = 0.0;  // @0x1b6387
+    this.m[6]  = 0.0;  // @0x1b637f
+    this.m[8]  = 0.0;  // @0x1b6392 (low lane of movups %xmm0, 0x50)
+    this.m[9]  = 0.0;  // @0x1b6392 (high lane)
+    this.m[10] = 1.0;  // @0x1b6396 movsd rip+0x213ec2 == @Helium 0x3ca260 == 1.0 ; store 0x60
+    this.m[11] = 0.0;  // @0x1b639e (high lane of movups %xmm0, 0x60 — xmm0 high 8 bytes were cleared by movsd)
+    this.m[14] = 0.0;  // @0x1b6374
+  }
+
+  /** HGTransform::Transpose() @Helium 0x1b6880.
+   *  In-place 4x4 transpose over the 16-double block. The generated SIMD path narrows every
+   *  off-diagonal element through f32 on the OUTPUT SIDE that ends up at the "upper" offset of
+   *  each swap pair (see disasm @0x1b6884-0x1b690c). Diagonal entries (m[0], m[5], m[10], m[15])
+   *  are untouched. Pairs and their asymmetric narrowing (@lower gets full f64, @upper gets f32-narrowed):
+   *    0x18 <-> 0x30  =>  m[1] <- m[4] (f64)   ;  m[4] <- f32(m[1])       @0x1b6884-0x1b689b
+   *    0x50 <-> 0x20  =>  m[2] <- m[8] (f64)   ;  m[8] <- f32(m[2])       @0x1b68a0-0x1b68d4
+   *    0x70 <-> 0x28  =>  m[3] <- m[12] (f64)  ;  m[12] <- f32(m[3])      @0x1b68af-0x1b68ee
+   *    0x40 <-> 0x58  =>  m[6] <- m[9] (f64)   ;  m[9] <- f32(m[6])       @0x1b68c3-0x1b68d4
+   *    0x78 <-> 0x48  =>  m[7] <- m[13] (f64)  ;  m[13] <- f32(m[7])      @0x1b68d8-0x1b68ee
+   *    0x80 <-> 0x68  =>  m[11] <- m[14] (f64) ;  m[14] <- f32(m[11])     @0x1b68f2-0x1b690c
+   */
+  public Transpose(): void {
+    const t = this.m;
+    // Save originals FIRST (the SIMD does staged saves; the effect is a bit-exact swap where the
+    // "upper" slot's new value is f32(old lower)).
+    const o1 = t[1],  o2 = t[2],  o3 = t[3];
+    const o6 = t[6],  o7 = t[7],  o11 = t[11];
+    t[1]  = t[4];   t[4]  = Math.fround(o1);   // @0x1b6884-0x1b689b
+    t[2]  = t[8];   t[8]  = Math.fround(o2);   // @0x1b68a0-0x1b68d4 (lower lane of packed narrow)
+    t[6]  = t[9];   t[9]  = Math.fround(o6);   // @0x1b68a0-0x1b68d4 (upper lane)
+    t[3]  = t[12];  t[12] = Math.fround(o3);   // @0x1b68af-0x1b68ee (lower lane of packed narrow)
+    t[7]  = t[13];  t[13] = Math.fround(o7);   // @0x1b68af-0x1b68ee (upper lane)
+    t[11] = t[14];  t[14] = Math.fround(o11);  // @0x1b68f2-0x1b690c
+  }
+
+  /** HGTransform::IsIdentity() const @Helium 0x1b63b0.
+   *  Chain of 16 ucomisd + jne/jp: matrix element k must equal the reference at offset k
+   *  (1.0 at diag offsets 0x10, 0x38, 0x60, 0x88, 0.0 elsewhere) with NaN-ordered comparison.
+   *  The final cmpeqsd @0x1b64d8 loads 1.0 from rip+0x213d88 == @Helium 0x3ca260 and compares
+   *  to 0x88(%rdi) == m[15]; then andl $0x1 to convert the mask to a bool.
+   *  Note: `ucomisd` sets ZF=1 if equal (or if NaN), PF=1 if NaN. `jne` on ZF=0 -> not-equal.
+   *  `jp` on PF=1 -> unordered/NaN. Together they reject "not equal OR NaN", so effectively
+   *  IsIdentity requires bit-exact equality with 1.0 or 0.0 (NaN counts as NOT identity).
+   *
+   *  In TS: use `!==` for the mid checks (matches IEEE ordered !=), NOT `Object.is`, because
+   *  ucomisd's NaN rejects with jne+jp mean any NaN slot returns false. For the final entry,
+   *  cmpeqsd is a REG-mask predicate (bit-exact equality that also returns false for NaN),
+   *  and then `andl $0x1, %eax` returns 0 or 1. */
+  public IsIdentity(): boolean {
+    const t = this.m;
+    // @0x1b63b4-0x1b63c9  m[0] != 1.0 or NaN -> return false
+    if (!(t[0] === 1.0)) return false;
+    // @0x1b63cf-0x1b641b  m[1..4] must == 0
+    if (!(t[1] === 0.0)) return false;
+    if (!(t[2] === 0.0)) return false;
+    if (!(t[3] === 0.0)) return false;
+    if (!(t[4] === 0.0)) return false;
+    // @0x1b6427-0x1b642c  m[5] == 1.0 (rip+0x213e2c == @Helium 0x3ca260 == 1.0)
+    if (!(t[5] === 1.0)) return false;
+    // m[6..9] == 0
+    if (!(t[6] === 0.0)) return false;
+    if (!(t[7] === 0.0)) return false;
+    if (!(t[8] === 0.0)) return false;
+    if (!(t[9] === 0.0)) return false;
+    // @0x1b6484-0x1b6489  m[10] == 1.0 (rip+0x213dcf == @Helium 0x3ca260 == 1.0)
+    if (!(t[10] === 1.0)) return false;
+    // m[11..14] == 0
+    if (!(t[11] === 0.0)) return false;
+    if (!(t[12] === 0.0)) return false;
+    if (!(t[13] === 0.0)) return false;
+    if (!(t[14] === 0.0)) return false;
+    // @0x1b64d0-0x1b64e6  cmpeqsd 1.0 (rip+0x213d88 == @Helium 0x3ca260) vs m[15] ; andl $0x1
+    return t[15] === 1.0;
+  }
+
+  /** HGTransform::IsEqual(HGTransform const*) const @Helium 0x1b64f0.
+   *  Null-guard: `testq %rsi,%rsi; je 0x1b6630` sets eax=0 and returns false when the arg is null.
+   *  Otherwise the 16 ucomisd/jne/jp pairs compare each element pairwise (NaN counts as unequal).
+   *  Final cmpeqsd + andl $0x1 for the last slot. */
+  public IsEqual(other: HGTransform | null): boolean {
+    // @0x1b64f4-0x1b64f9  xorl eax,eax ; testq rsi,rsi ; je -> return 0
+    if (other === null) return false;
+    const a = this.m, b = other.m;
+    for (let i = 0; i < 15; i++) {
+      // NaN-ordered `!=`. Any NaN in either side -> unequal.
+      if (!(a[i] === b[i])) return false;
+    }
+    // @0x1b6617-0x1b662d  cmpeqsd + andl $0x1 for m[15] (bit-exact / non-NaN).
+    return a[15] === b[15];
+  }
+
+  /** HGTransform::HasPerspective() const @Helium 0x1b6810.
+   *  Loads the sign-abs mask (@Helium 0x85aad0 = 0x7fffffff_ffffffff x2) via
+   *  `andpd 0x6a42af(%rip), %xmm1` (@0x1b6819) to compute |x| = x AND ~sign.
+   *  Loads the epsilon eps @Helium 0x85d3b8 = 3.814697265625e-06 = 2^-18
+   *  via `movsd 0x6a6b8d(%rip), %xmm0` (@0x1b6823).
+   *  Sets `al = 1` then compares:
+   *    |m[3]|  (offset 0x28) vs eps -> jbe skip (eps <= |m[3]| means has perspective, keep al=1)
+   *    |m[7]|  (offset 0x48) vs eps
+   *    |m[11]| (offset 0x68) vs eps
+   *    |1.0 - m[15]| (offset 0x88, 1.0 from @Helium 0x3ca260) vs eps -> setbe %al
+   *  Final `setbe %al`: al = (xmm0 <= xmm1) = (eps <= |1.0 - m[15]|) -> 1 iff m[15] differs from 1 by more than eps.
+   *
+   *  ucomisd sets: CF=1 if xmm0<xmm1 (or unordered), ZF=1 if equal (or unordered), PF=1 if unordered.
+   *  jbe on `CF=1 OR ZF=1` = "xmm0<=xmm1" = "eps <= |val|". So jbe keeps al=1 when |val| >= eps.
+   *  Fall-through (|val| < eps) proceeds to the next check; if all 4 checks have |val| < eps,
+   *  final setbe sets al = (eps <= |1.0 - m[15]|). Semantics: return TRUE iff any of the four
+   *  perspective components is meaningfully non-zero (i.e., matrix has perspective).
+   *
+   *  Confusingly, on NaN inputs ucomisd sets CF=ZF=PF=1 so `jbe` is taken (keep al=1) — a NaN in
+   *  the perspective row is reported as "has perspective". This matches the disasm literally. */
+  public HasPerspective(): boolean {
+    // @Helium 0x85d3b8 = 2^-18. Matches `movsd 0x6a6b8d(%rip)` @0x1b6823 target 0x85d3b8.
+    const eps = 3.814697265625e-06;
+    const t = this.m;
+    // The disasm uses ordered `xmm0 <= |val|` and jbe-keeps-al=1. In TS:
+    //   if (Math.abs(v) >= eps) return true;
+    // where NaN in v gives Math.abs(v)=NaN and (NaN >= eps) is false -- BUT the disasm treats NaN
+    // as "has perspective" (jbe taken on unordered).  Special-case NaN explicitly.
+    const check = (v: number): boolean => {
+      if (v !== v) return true;               // NaN -> jbe unordered -> keep al=1
+      return Math.abs(v) >= eps;
+    };
+    // @0x1b6814 |m[3]| (offset 0x28)
+    if (check(t[3])) return true;
+    // @0x1b6831 |m[7]| (offset 0x48)
+    if (check(t[7])) return true;
+    // @0x1b6844 |m[11]| (offset 0x68)
+    if (check(t[11])) return true;
+    // @0x1b6857-0x1b6873 |1.0 - m[15]| via subsd, then setbe.
+    return check(1.0 - t[15]);
+  }
 }
