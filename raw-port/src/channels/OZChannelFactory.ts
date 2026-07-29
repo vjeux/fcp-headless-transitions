@@ -89,6 +89,33 @@
 //
 // (This class holds NO instance state of its own beyond the vtable pointer
 // at +0x00 — it's a pure ABI slot bag.)
+//
+// -----------------------------------------------------------------------------
+// CROSS-FRAMEWORK DUPLICATION — Flexo re-emits OZChannelFactory (2026-07-29)
+// -----------------------------------------------------------------------------
+// Flexo.framework contains a byte-identical copy of every method under a
+// separate set of link addresses. Verified against /tmp/Flexo_tV.txt: each
+// body is the same `pushq %rbp; movq %rsp,%rbp; xorl %eax,%eax; popq %rbp; retq`
+// (or `pushq %rbp; movq %rsp,%rbp; ud2` for the dtors) as the Ozone copy above.
+// The port below is a faithful transcription of BOTH — same TS body, different
+// address citations. mark_ported.py flips both frameworks' ledger entries from
+// the shared @0xADDR list.
+//
+//   @Flexo 0x2181a0 = @Ozone 0x1aa20  OZChannelFactory::create
+//   @Flexo 0x2181b0 = @Ozone 0x1aa30  OZChannelFactory::createCopy
+//   @Flexo 0x2181c0 = @Ozone 0x1aa40  OZChannelFactory::createInstance
+//   @Flexo 0x2181d0 = @Ozone 0x1aa50  OZChannelFactory::createChannel
+//   @Flexo 0x2181e0 = @Ozone 0x1aa60  OZChannelFactory::createChannelCopy
+//   @Flexo 0x2181f0 = @Ozone 0x1aa70  OZChannelFactory::createChannelInstance
+//   @Flexo 0x14763c0 = @Ozone 0x6dadf0  ~OZChannelFactory (D1) — `pushq %rbp; movq %rsp,%rbp; ud2`
+//   @Flexo 0x14763d0 = @Ozone 0x6dae00  ~OZChannelFactory (D0) — same body
+//
+// (No Flexo D2 entry appears in the ledger — Flexo's binary elides the in-place
+// dtor; only D1/D0 are emitted, both trapping via `ud2`.)
+//
+// Verified byte-for-byte against /tmp/Flexo_tV.txt @0x2181a0-0x2181f8 and
+// @0x14763c0-0x14763d8.  This adds NO new bodies — it just documents that the
+// same six-slot ABI + trapping-dtor is present at these Flexo addresses.
 
 import type { PCString } from "../infra/PCString";
 import type { OZChannelBase } from "./OZChannelBase";
