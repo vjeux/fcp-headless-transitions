@@ -8,15 +8,38 @@
 # Serves the ENTIRE inventory in a STABLE, NEUTRAL order. There is NO prioritization heuristic:
 # classes are NOT ranked by name, math-signal, size, or kind (that biasing was removed per vjeux
 # 2026-07-29 — it was misguided). Every un-ported class is dispensed in deterministic ledger order.
-import sys, os, json, time, glob, re
+import sys, os, json, time, glob, re, subprocess
 
 ROOT = os.path.dirname(os.path.abspath(__file__))                 # army/tools
 ARMY = os.path.dirname(ROOT)                                       # army
-REPO = os.path.dirname(os.path.dirname(ARMY))                      # repo root
-LED  = os.path.join(ARMY, "ledger")
-CLAIMS = os.path.join(ARMY, "swarm", "claims.json")
-LOCK   = os.path.join(ARMY, "swarm", ".claims.lock.d")
-SRC = os.path.join(REPO, "raw-port", "src")
+REPO = os.path.dirname(os.path.dirname(ARMY))                      # repo root (THIS checkout)
+
+# CRITICAL (2026-07-29): the swarm STATE (claims.json + ledgers) must be read/written from the ONE
+# canonical main worktree, NEVER from a per-agent worktree's stale snapshot. Worktrees are created
+# off origin/main and carry a FROZEN copy of claims.json/ledgers at branch time; a worker that runs
+# claim.py from inside its worktree would otherwise claim against a stale snapshot -> double-claims
+# and done-status drift (the "ledger lag" that kept re-handing-out already-ported classes). Resolve
+# the canonical checkout via `git --git-common-dir` (its parent is the main worktree, shared by ALL
+# worktrees), and anchor claims.json + the ledger dir there. src/ (ported-file truth) stays LOCAL to
+# whatever checkout is running — a worker legitimately sees its own in-progress src/.
+def _canonical_repo():
+    try:
+        cg = subprocess.run(["git","-C",REPO,"rev-parse","--git-common-dir"],
+                            capture_output=True, text=True, timeout=10).stdout.strip()
+        if cg:
+            if not os.path.isabs(cg): cg = os.path.join(REPO, cg)
+            main_wt = os.path.dirname(os.path.abspath(cg))            # <main>/.git -> <main>
+            if os.path.isdir(os.path.join(main_wt, "raw-port", "army", "swarm")):
+                return main_wt
+    except Exception:
+        pass
+    return REPO                                                       # fallback: this checkout
+
+CANON = _canonical_repo()
+LED  = os.path.join(CANON, "raw-port", "army", "ledger")           # canonical ledgers (shared truth)
+CLAIMS = os.path.join(CANON, "raw-port", "army", "swarm", "claims.json")   # canonical claim log
+LOCK   = os.path.join(CANON, "raw-port", "army", "swarm", ".claims.lock.d")
+SRC = os.path.join(CANON, "raw-port", "src")                       # canonical merged src (authoritative "what's ported")
 
 BAD_SUB = ['<', 'std', '__', '::', ' ', '.cold', 'thunk', '_Factory', 'anonymous']
 # ANTI-SHORTCUT: classes bigger than CHUNK_THRESHOLD methods are split into CHUNK-method batches so
