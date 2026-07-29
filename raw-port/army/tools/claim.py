@@ -25,17 +25,15 @@ BAD_SUB = ['<', 'std', '__', '::', ' ', '.cold', 'thunk', '_Factory', 'anonymous
 CHUNK = 20
 CHUNK_THRESHOLD = 24
 
-BAD_TOK = ['Cache','Hash','Tree','Alloc','Iterator','Impl','CFRef','_UIComponent','Controller',
-           'Overlay','HUD','Inspector','Tool','Cell','Button','Picker','View','Window','Menu',
-           'Panel','Dialog','Sentry','__cxx',
-           # ObjC-facade / plumbing families (blocked on H1 consumer wiring or pure I/O plumbing,
-           # no decodable math). Demote so pure-math leaves (PC*/OZChannel*/OZCurve*/HG* LUT) sort
-           # first and workers don't burn their skip budget on the FF* facade wall (2026-07-28).
-           'Undo','RenderJob','Arbiter','PlaybackUnit','Assistant','Instrument','Queue','Pool',
-           'IQA','Callback','LockBase','MachPort','DeviceArbiter','BufferQueue','Playback',
-           'Device','Session','Listener','Observer','Delegate','Proxy','Manager','Scheduler',
-           'Dispatcher','Registry','Coordinator','Monitor','Adapter','Handler']
-# classes whose port would edit a SHARED dispatch file — keep out of the auto-swarm (hand-serialize)
+# NOTE: the "facade" concept has been REMOVED (2026-07-29, per vjeux). GOAL = port EVERYTHING (all
+# 131,792 fns). A class is NEVER out of scope or demoted for being a "facade": ctors/dtors/field
+# layout are real FCP code; ObjC-dispatch bodies port via the H1 runtime harness; extern framework
+# calls become boundary stubs. There is no BAD_TOK denylist and no shader-facade demotion. Ordering
+# only PROMOTES verification-corpus math (MATH_SIG) so the 65-transition math leads; everything else
+# is served equally by size. Nothing is skipped, nothing is deprioritized for its name/kind.
+
+# classes whose port would edit a SHARED dispatch file — keep out of the auto-swarm (hand-serialize
+# to avoid two workers editing the same file concurrently — NOT a facade judgement).
 SHARED = {'OZSpline','OZInterpolators','OZInterpolator','OZBezierInterpolator','OZCardinalInterpolator',
           'OZCurve','OZChannelInfo','PCSingleton','OZSplineState','PCString','OZCurveRuntime','HGRect'}
 
@@ -68,18 +66,6 @@ def _layer(cls):
     if 'Node' in cls and 'Channel' not in cls: return 'nodes'
     return 'channels'
 
-def _is_shader_facade(ms):
-    """True iff a class is a bare GPU-shader RenderTile facade (math lives in the Metal shader
-    source, NOT in the C++ body — GetProgram/BindTexture/RenderTile plumbing only). Detected by
-    METHOD SIGNATURE, not name prefix, so genuine HG* color math (HGColorMatrix/HGGamma — which
-    have SetParameter/GetOutput/matrix ops and NONE of these) is never wrongly demoted. These
-    stay claimable (full-engine scope) but sort BELOW all real-math leaves so math workers don't
-    burn their whole session churning the ~130-deep Hgc* facade wall (2026-07-29)."""
-    names = set(k.split('@', 1)[0] for k in ms.keys())
-    has_rendertile = 'RenderTile' in names or 'RenderTile_AVX' in names
-    has_prog = bool(names & {'GetProgram', 'BindTexture', 'InitProgramDescriptor', 'shaderDescription'})
-    return has_rendertile and has_prog
-
 def _class_methods(fw, cls):
     """Ordered (methkey, unit) list for a class, stable by ledger insertion (addr) order."""
     led = json.load(open(os.path.join(LED, f"{fw}.ledger.json")))
@@ -87,8 +73,9 @@ def _class_methods(fw, cls):
     return [(k, v) for k, v in ms.items()]
 
 # Pure-math demangled-method signatures — RARE in plumbing, common in real numeric classes.
-# Used to PROMOTE (never demote) classes with >=2 distinct signals to tier -1 so math workers
-# reach real leaves first, past the small n=7 non-shader plumbing that dodges BAD_TOK (2026-07-29).
+# Used ONLY to give math-corpus classes a light lead in the queue (tier 0 vs 1) so the
+# 65-transition verification corpus is exercised early. This is a preference, NOT an exclusion —
+# a class with zero math signals is served right behind, never skipped or demoted for its name.
 MATH_SIG = ("MultMatrix","LoadMatrix","LoadIdentity","PostMultMatrix","determinant",
     "invert","Interpolat","interpolat","evalXSpline","evalBSpline","Bezier","BSpline",
     "Quaternion","crossProduct","dotProduct","SetCoefficient","GetCoefficient",
@@ -97,26 +84,44 @@ MATH_SIG = ("MultMatrix","LoadMatrix","LoadIdentity","PostMultMatrix","determina
     "homography","Vec3","Vec4","PCVector","PCMatrix","toLinear","fromLinear",
     "OETF","EOTF","OOTF")
 def _math_signals(ms):
-    # Only count signals from C++ methods — ObjC selectors (e.g. a retiming UI module whose
-    # selector name contains "Interpolate"/"Bezier") are incidental and must not promote.
+    # Count math-corpus signals ONLY from the METHOD name of C++ methods — NOT the class-name
+    # prefix (else a UI class like OZBSplineMaskTool_UIComponent matches "BSpline" via its own
+    # ctor/dtor name echo and wrongly leads the queue). Strip the "Class::" qualifier and the
+    # arg list, then match MATH_SIG against just the bare method identifier. ObjC selectors are
+    # skipped (kind!=cpp) — incidental selector words must not promote.
+    import re as _re
     hits=set()
     for v in ms.values():
         if not isinstance(v,dict): continue
         if v.get("kind")!="cpp": continue
-        nm=v.get("demangled","")
+        dem=v.get("demangled","")
+        # method = text after the LAST "::" (namespace/class qualifiers dropped), before "(".
+        head=dem.split("(",1)[0]
+        meth=head.rsplit("::",1)[-1] if "::" in head else head
+        # a dtor "~OZBSplineMaskTool_UIComponent" echoes the class name — never a math signal.
+        if meth.startswith("~"): continue
         for t in MATH_SIG:
-            if t in nm: hits.add(t)
+            if t in meth: hits.add(t)
     return len(hits)
 
 def _candidates(defer=None):
     """Portable work units (fw, cls, nMethods, chunk_or_None), best-first.
-    FULL-ENGINE scope (ARMY.md §1): dispense the ENTIRE inventory. ANTI-SHORTCUT: any class with
-    > CHUNK_THRESHOLD methods is emitted as MULTIPLE chunk units of CHUNK methods each — never as one
-    giant unit — so no agent is asked to port 100s-1000s of methods in one sitting (the thing that
-    forces stub-to-finish shortcuts). Small classes stay whole. Ordering = tier then size.
-    `defer` = set of "<fw>:<cls>" keys that were given up on (deferred/legacy-failed). They are NOT
-    excluded — they are pushed to a bottom band (tier += DEFER_TIER) so every never-touched candidate
-    is served first and a facade only comes back once fresh work is exhausted."""
+    FULL-ENGINE scope: dispense the ENTIRE inventory. GOAL = port EVERYTHING (all 131,792 fns).
+    There is NO facade concept — every class is real, portable FCP code (ctors/dtors/field-layout
+    are real; ObjC-dispatch bodies port via the H1 runtime harness; extern framework calls become
+    boundary stubs). NOTHING is skipped or demoted for being a "facade".
+
+    ANTI-SHORTCUT: any class with > CHUNK_THRESHOLD methods is emitted as MULTIPLE chunk units of
+    CHUNK methods each — never as one giant unit — so no agent is asked to port 100s-1000s of
+    methods in one sitting (the thing that forces stub-to-finish shortcuts). Small classes stay whole.
+
+    Ordering (tier, then size) — a light preference only, never an exclusion:
+      * math-corpus classes (>=1 MATH_SIG cpp signal) lead slightly so the 65-transition
+        verification corpus gets exercised early; every other class follows right behind.
+      * smaller classes sort before larger (quicker merges, less contention).
+      * `defer` = classes a worker gave up on this pass; sorted to a bottom band (+DEFER_TIER) so
+        fresh work is served first, but they REMAIN claimable and WILL be served once fresh is done.
+    """
     defer = defer if defer is not None else (lambda _c: set(_c.get("deferred", {})) | set(_c.get("failed", {})))(_load())
     DEFER_TIER = 1000
     done = _ported_files()
@@ -128,50 +133,24 @@ def _candidates(defer=None):
         except Exception: continue
         for cls, ms in led.items():
             if cls in SHARED or cls == "(free)": continue
-            if any(b in cls for b in BAD_SUB): continue
+            if any(b in cls for b in BAD_SUB): continue   # only strips std::/thunk/_Factory/anon noise
             if not all(isinstance(v, dict) for v in ms.values()): continue
             n = len(ms); todo = sum(1 for v in ms.values() if v.get("status") != "ported")
             if todo == 0: continue
-            objc = sum(1 for v in ms.values() if v.get("kind") == "objc")
-            is_facade = _is_shader_facade(ms)
-            heavy_tok = any(t in cls for t in BAD_TOK) or is_facade
+            msig = _math_signals(ms)
+            # tier 0 = has math-corpus signal (leads); tier 1 = everything else. No facade demotion.
+            base_tier = 0 if msig >= 1 else 1
             if n > CHUNK_THRESHOLD:
-                # split into chunks; each chunk is its own unit. Whole-class .ts skip check doesn't
-                # apply (parts are <Class>.m<k>.ts), so emit every chunk not yet on disk.
                 nchunks = (n + CHUNK - 1) // CHUNK
                 for k in range(nchunks):
                     if f"{cls}.m{k}" in done: continue
-                    tier = 5 if is_facade else 3  # facade chunks last; real chunks after small wins
-                    if not is_facade and objc <= n // 2 and _math_signals(ms) >= 2: tier = min(tier, 2)
-                    if f"{fw}:{cls}" in defer: tier += DEFER_TIER   # deferred -> bottom band
+                    tier = base_tier
+                    if f"{fw}:{cls}" in defer: tier += DEFER_TIER
                     out.append((tier, CHUNK, fw, cls, k))
             else:
                 if cls in done: continue
-                # tier 0 small-clean-math > 1 normal-math > 2 objc-heavy > 4 shader-facade (last).
-                # Shader facades (GetProgram+RenderTile signature) demote BELOW all real-math whole
-                # classes so math workers reach OZ/PC/OZChannel leaves without churning the
-                # ~130-deep Helium Hgc* facade wall (2026-07-29).
-                if is_facade: tier = 4
-                elif 2 <= n <= 12 and objc == 0 and not heavy_tok: tier = 0
-                elif objc > n // 2: tier = 2
-                else: tier = 1
-                # PROMOTE-ONLY math-signal tiers (never demote; min with current tier). Guards:
-                # not a shader-facade, not objc-dominant, not heavy_tok (BAD_TOK). BAD_SUB already
-                # strips std::/thunk/_Factory/anonymous noise upstream, so signals here are real.
-                #   >=2 distinct MATH_SIG cpp-method names  -> tier -1 (strong: interpolators,
-                #     matrices, HGColorMatrix, etc. lead the queue).
-                #   ==1 distinct MATH_SIG (guarded)         -> tier 0 (single-signal math like
-                #     OZBehaviorCurveNode/OZCompoundChannel/OZInterpolator/PCQuat/OZ360Camera/HGGradient
-                #     surfaces ABOVE the n=7 non-shader plumbing but below strong 2-signal math).
-                #     Validated 2026-07-29: 30 genuine math classes surfaced, 0 facade/STL false-pos
-                #     (BAD_SUB+BAD_TOK+shader-facade+objc guards catch SequenceFolder/_UIComponent/etc).
-                if not is_facade and objc <= n // 2 and not heavy_tok:
-                    msig = _math_signals(ms)
-                    # single-signal math -> tier -1 (ABOVE the tier-0 n=7 non-shader plumbing that
-                    # dodges BAD_TOK — the churn 2 workers hit); strong 2-signal -> tier -2 (leads).
-                    if msig >= 2: tier = min(tier, -2)
-                    elif msig == 1: tier = min(tier, -1)
-                if f"{fw}:{cls}" in defer: tier += DEFER_TIER   # deferred -> bottom band, still served
+                tier = base_tier
+                if f"{fw}:{cls}" in defer: tier += DEFER_TIER
                 out.append((tier, n, fw, cls, None))
     out.sort()
     return [(n, fw, cls, ck) for (tier, n, fw, cls, ck) in out]
