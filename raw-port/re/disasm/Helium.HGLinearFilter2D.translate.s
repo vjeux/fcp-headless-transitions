@@ -1,0 +1,15 @@
+__ZN16HGLinearFilter2D9translateEii:
+000000000010c080	pushq	%rbp
+000000000010c081	movq	%rsp, %rbp
+000000000010c084	movl	%edx, %eax
+000000000010c086	orl	%esi, %eax
+000000000010c088	je	0x10c08e
+000000000010c08a	andb	$-0x2, 0x1c(%rdi)
+000000000010c08e	movq	0x8(%rdi), %xmm0
+000000000010c093	movd	%esi, %xmm1
+000000000010c097	pinsrd	$0x1, %edx, %xmm1
+000000000010c09d	paddd	%xmm0, %xmm1
+000000000010c0a1	movq	%xmm1, 0x8(%rdi)
+000000000010c0a6	popq	%rbp
+000000000010c0a7	retq
+000000000010c0a8	nopl	(%rax,%rax)
