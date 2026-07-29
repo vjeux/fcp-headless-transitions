@@ -301,9 +301,97 @@ export class HGPQ_OETF {
 
   /* ---------------- ctor: HGPQ::OETF(bool, double) ------------------- */
 
-  public constructor(qtApprox: boolean, d: number); // @Helium 0xfe6e0 (C2) / 0xfe7b0 (C1 thunk)
-  public constructor(qtApprox: boolean, d: number) {
-    throw new Error("HGPQ_OETF constructor not yet transcribed (@Helium 0xfe6e0)");
+  /**
+   * HGPQ::OETF::OETF(bool qtApprox, double d) — Helium @0xfe6e0 (C2).
+   * The C1 complete-object ctor @0xfe7b0 is a plain 5-byte
+   * `pushq %rbp ; movq %rsp, %rbp ; popq %rbp ; jmp C2` thunk (see
+   * raw-port/re/disasm/Helium.HGPQ::OETF.OETF.s — 6-line body). Both
+   * observably invoke the identical body below.
+   *
+   * Disasm-to-TS (@0xfe6e0..@0xfe777):
+   *
+   *   movsd  %xmm0, -0x20(%rbp)                ; @0xfe6ea  spill d
+   *   movl   %esi, %r14d                       ; @0xfe6ef  r14 = (int32)qtApprox (bool)
+   *   movq   %rdi, %rbx                        ; @0xfe6f2  rbx = this
+   *   callq  __ZN6HGNodeC2Ev  ; HGNode::HGNode(this)   @0xfe6f5
+   *   leaq   0x917eff(%rip), %rax              ; @0xfe6fa  vtable-for-HGPQ::OETF
+   *   movq   %rax, (%rbx)                      ; @0xfe701  this->vtable = ...
+   *
+   *   movsd  -0x20(%rbp), %xmm0                ; @0xfe704  xmm0 = d
+   *   divsd  10000.0(%rip), %xmm0              ; @0xfe709  const @0x3d0d20 — xmm0 = d/10000
+   *   movsd  m1(%rip), %xmm1                   ; @0xfe711  const @0x3d0d30 = 0.1593017578125
+   *   callq  _pow                              ; @0xfe719  xmm0 = pow(d/10000, m1)
+   *   movddup %xmm0, %xmm0                     ; @0xfe71e  xmm0 = {p, p}
+   *   mulpd  {c2,c3}(%rip), %xmm0              ; @0xfe722  const @0x3d1080 = {18.8515625, 18.6875}
+   *   cvtpd2ps %xmm0, %xmm0                    ; @0xfe72a  narrow both lanes to f32
+   *   movlpd %xmm0, 0x1a0(%rbx)                ; @0xfe72e  store 2 f32s -> +0x1a0, +0x1a4
+   *
+   *   testl  %r14d, %r14d                      ; @0xfe736  branch on qtApprox
+   *   je     0xfe752                           ; @0xfe739  false -> full-shader branch
+   *   ; qtApprox branch:
+   *   movl   $0x1a0, %edi                      ; @0xfe73b  0x1a0 = size for operator new
+   *   callq  __ZN8HGObjectnwEm                 ; @0xfe740  HGObject::operator new(0x1a0)
+   *   movq   %rax, %r14                        ; @0xfe745  r14 = raw
+   *   movq   %rax, %rdi                        ; @0xfe748  this = raw
+   *   callq  __ZN26HgcBT2100_PQ_OETF_qtApproxC1Ev ; @0xfe74b  qtApprox leaf ctor
+   *   jmp    0xfe767                           ; @0xfe750  -> store inner
+   *   ; full-shader branch:
+   *   movl   $0x1a0, %edi                      ; @0xfe752
+   *   callq  __ZN8HGObjectnwEm                 ; @0xfe757  HGObject::operator new(0x1a0)
+   *   movq   %rax, %r14                        ; @0xfe75c
+   *   movq   %rax, %rdi                        ; @0xfe75f
+   *   callq  __ZN17HgcBT2100_PQ_OETFC1Ev       ; @0xfe762  full leaf ctor
+   *   ; both branches merge:
+   *   movq   %r14, 0x198(%rbx)                 ; @0xfe767  this->0x198 = raw
+   *   ; epilogue @0xfe76e..@0xfe778, then a landing pad @0xfe779..@0xfe7a4 that on
+   *   ; exception frees `raw` (HGObject::operator delete @0xfe781) and destroys
+   *   ; the partially-constructed HGNode (HGNode::~HGNode @0xfe789 / 0xfe79c),
+   *   ; then _Unwind_Resume. In TS, we let the frontier throws propagate.
+   *
+   * NUMERIC VERIFICATION (matches sibling HGPQ::EOTF header + BT.2100 Table 4):
+   *   For d = 10000 -> p = pow(1, 0.1593017578125) = 1.0
+   *                    -> +0x1a0 = f32(1 * 18.8515625) = 18.8515625
+   *                    -> +0x1a4 = f32(1 * 18.6875)    = 18.6875
+   *   For d = 1000  -> p = pow(0.1, 0.1593017578125) ≈ 0.6931605...
+   *                    -> +0x1a0 ≈ f32(13.0663...)  ≈ 13.066364
+   *                    -> +0x1a4 ≈ f32(12.9524...)  ≈ 12.952437
+   * (See end-of-file self-check.)
+   */
+  public constructor(qtApprox: boolean, d: number) { // @Helium 0xfe6e0 (C2) / 0xfe7b0 (C1 thunk)
+    // HGNode::HGNode(this)  @0xfe6f5
+    HGNode_ctor_call(this);
+    // vtable install @0xfe701 — modelled implicitly (methods are direct dispatch here).
+
+    // xmm0 = d / 10000.0                        @0xfe704 / @0xfe709 (const @0x3d0d20)
+    // xmm1 = m1 = 0.1593017578125               @0xfe711             (const @0x3d0d30)
+    // xmm0 = pow(xmm0, xmm1)                    @0xfe719
+    const p = Math.pow(d / 10000.0, 0.1593017578125);
+
+    // xmm0 = {p, p}                             @0xfe71e (movddup)
+    // xmm0 *= {c2, c3} = {18.8515625, 18.6875}  @0xfe722 (mulpd, const @0x3d1080)
+    // -> f64 lane0 = p * 18.8515625, lane1 = p * 18.6875
+    // cvtpd2ps -> narrow both to f32            @0xfe72a
+    // movlpd %xmm0, 0x1a0(%rbx)                 @0xfe72e
+    //   +0x1a0 (low  4 bytes) = f32(p * c2)
+    //   +0x1a4 (high 4 bytes) = f32(p * c3)
+    this.pTimesC2 = Math.fround(p * 18.8515625);
+    this.pTimesC3 = Math.fround(p * 18.6875);
+
+    // testl %r14d, %r14d ; je 0xfe752   @0xfe736 / @0xfe739
+    // r14 = esi = the `bool` argument. Nonzero -> qtApprox branch.
+    if (qtApprox) {
+      // 0xfe73b..0xfe750: qtApprox leaf allocation
+      const raw = HGObject_operator_new(0x1a0); // @0xfe740
+      HgcBT2100_PQ_OETF_qtApprox_ctor(raw);      // @0xfe74b
+      this.inner = raw;                          // @0xfe767 (post-merge store)
+      this.isQtApprox = true;
+    } else {
+      // 0xfe752..0xfe767: full-shader leaf allocation
+      const raw = HGObject_operator_new(0x1a0); // @0xfe757
+      HgcBT2100_PQ_OETF_ctor(raw);               // @0xfe762
+      this.inner = raw;                          // @0xfe767
+      this.isQtApprox = false;
+    }
   }
 
   /* ---------------- dtor: HGPQ::~OETF ------------------------- */
