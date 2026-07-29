@@ -1,0 +1,22 @@
+__ZN21OZSimulationCurveNodeC1EP17OZObjectSimulatorj:
+0000000000208c40	pushq	%rbp
+0000000000208c41	movq	%rsp, %rbp
+0000000000208c44	pushq	%r15
+0000000000208c46	pushq	%r14
+0000000000208c48	pushq	%rbx
+0000000000208c49	pushq	%rax
+0000000000208c4a	movl	%edx, %ebx
+0000000000208c4c	movq	%rsi, %r14
+0000000000208c4f	movq	%rdi, %r15
+0000000000208c52	callq	0x6dd59c                        ## symbol stub for: __ZN11OZCurveNodeC2Ev
+0000000000208c57	leaq	0x63d182(%rip), %rax
+0000000000208c5e	movq	%rax, (%r15)
+0000000000208c61	movq	%r14, 0x8(%r15)
+0000000000208c65	movl	%ebx, 0x10(%r15)
+0000000000208c69	addq	$0x8, %rsp
+0000000000208c6d	popq	%rbx
+0000000000208c6e	popq	%r14
+0000000000208c70	popq	%r15
+0000000000208c72	popq	%rbp
+0000000000208c73	retq
+0000000000208c74	nopw	%cs:(%rax,%rax)
