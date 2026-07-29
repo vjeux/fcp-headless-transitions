@@ -1,0 +1,9 @@
+__ZNK8PCICCTag5emptyEv:
+00000000000b6a22	pushq	%rbp
+00000000000b6a23	movq	%rsp, %rbp
+00000000000b6a26	movq	0x8(%rdi), %rax
+00000000000b6a2a	cmpq	0x10(%rdi), %rax
+00000000000b6a2e	sete	%al
+00000000000b6a31	popq	%rbp
+00000000000b6a32	retq
+00000000000b6a33	nop
