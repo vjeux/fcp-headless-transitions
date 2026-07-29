@@ -1,0 +1,13 @@
+__ZNK19HGProgramDescriptor21GetVertexFunctionNameEv:
+000000000016d8f0	pushq	%rbp
+000000000016d8f1	movq	%rsp, %rbp
+000000000016d8f4	movq	%rdi, %rax
+000000000016d8f7	testb	$0x1, 0x10(%rdi)
+000000000016d8fb	jne	0x16d903
+000000000016d8fd	addq	$0x11, %rax
+000000000016d901	popq	%rbp
+000000000016d902	retq
+000000000016d903	movq	0x20(%rax), %rax
+000000000016d907	popq	%rbp
+000000000016d908	retq
+000000000016d909	nopl	(%rax)

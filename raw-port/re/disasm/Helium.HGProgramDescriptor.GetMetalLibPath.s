@@ -1,0 +1,13 @@
+__ZNK19HGProgramDescriptor15GetMetalLibPathEv:
+000000000016d8d0	pushq	%rbp
+000000000016d8d1	movq	%rsp, %rbp
+000000000016d8d4	movq	%rdi, %rax
+000000000016d8d7	testb	$0x1, 0x58(%rdi)
+000000000016d8db	jne	0x16d8e3
+000000000016d8dd	addq	$0x59, %rax
+000000000016d8e1	popq	%rbp
+000000000016d8e2	retq
+000000000016d8e3	movq	0x68(%rax), %rax
+000000000016d8e7	popq	%rbp
+000000000016d8e8	retq
+000000000016d8e9	nopl	(%rax)
