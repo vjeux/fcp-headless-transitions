@@ -1,0 +1,22 @@
+__ZNK12OZTimeMarkerltERKS_:
+0000000000210920	pushq	%rbp
+0000000000210921	movq	%rsp, %rbp
+0000000000210924	subq	$0x50, %rsp
+0000000000210928	movq	0x18(%rdi), %rax
+000000000021092c	movq	%rax, -0x10(%rbp)
+0000000000210930	movups	0x8(%rdi), %xmm0
+0000000000210934	movaps	%xmm0, -0x20(%rbp)
+0000000000210938	movq	0x18(%rsi), %rax
+000000000021093c	movq	%rax, 0x28(%rsp)
+0000000000210941	movups	0x8(%rsi), %xmm0
+0000000000210945	movups	%xmm0, 0x18(%rsp)
+000000000021094a	movq	-0x10(%rbp), %rax
+000000000021094e	movq	%rax, 0x10(%rsp)
+0000000000210953	movaps	-0x20(%rbp), %xmm0
+0000000000210957	movups	%xmm0, (%rsp)
+000000000021095b	callq	0x6dcab0                        ## symbol stub for: _CMTimeCompare
+0000000000210960	shrl	$0x1f, %eax
+0000000000210963	addq	$0x50, %rsp
+0000000000210967	popq	%rbp
+0000000000210968	retq
+0000000000210969	nopl	(%rax)
