@@ -167,4 +167,75 @@ export class HGTransform {
   public LoadTransform(src: HGTransform): void {
     for (let i = 0; i < 16; i++) this.m[i] = src.m[i];
   }
+
+  /** HGTransform::Multiply(HGTransform const*) @Helium 0x1b5020.
+   *  Despite the plain name, this LEFT-multiplies: this = rhs * this.
+   *  The disasm has 4 nearly-identical column-loops (one per output column j=0..3):
+   *    - Load the FOUR broadcast scalars t[k] = this.m[i+4*j] for k=0..3, i=0..3 (offsets
+   *      0x10+j*32, 0x18+j*32, 0x20+j*32, 0x28+j*32 — @0x1b502d,0x504a,0x505c,0x506e for j=0).
+   *    - For each rhs column k=0..3 (offsets 0x10, 0x30, 0x50, 0x70 for rows 0-1 halves; 0x20,
+   *      0x40, 0x60, 0x80 for rows 2-3 halves), do: sum += rhs.col[k] * t[k].
+   *    - Store the 4-double result back into this.col[j] (offsets 0x10+j*32 rows 0-1 and
+   *      0x20+j*32 rows 2-3 — see @0x1b50a4, 0x50a9 for j=0).
+   *  Null-guard @0x1b5024: `testq %rsi, %rsi; je 0x1b523a` — if rhs is null, do nothing.
+   *
+   *  Semantics: (new this)[i][j] = sum_k (rhs[i][k]) * (this[k][j])
+   *  == columns of rhs weighted by scalars taken from THIS's column j
+   *  == matrix product `rhs * this`. Post-multiply on OpenGL-style column-vector convention:
+   *  used by Scale/Translate/etc. to apply their transform AFTER the current one.
+   */
+  public Multiply(rhs: HGTransform | null): void {
+    // @0x1b5024: testq %rsi,%rsi ; je pop-and-ret.
+    if (rhs === null) return;
+    const t = this.m;
+    const r = rhs.m;
+    // Buffer output into locals so aliasing this==rhs is safe (the SIMD version cannot alias since
+    // rdi and rsi are distinct pointers; but we mirror the semantics by reading t before writing).
+    const out = new Float64Array(16);
+    for (let j = 0; j < 4; j++) {
+      // t[i+4*j] broadcast; result column j = sum_k this.col[j][k] * rhs.col[k]
+      const t0 = t[0 + 4 * j];
+      const t1 = t[1 + 4 * j];
+      const t2 = t[2 + 4 * j];
+      const t3 = t[3 + 4 * j];
+      out[0 + 4 * j] = t0 * r[0] + t1 * r[4] + t2 * r[8]  + t3 * r[12];
+      out[1 + 4 * j] = t0 * r[1] + t1 * r[5] + t2 * r[9]  + t3 * r[13];
+      out[2 + 4 * j] = t0 * r[2] + t1 * r[6] + t2 * r[10] + t3 * r[14];
+      out[3 + 4 * j] = t0 * r[3] + t1 * r[7] + t2 * r[11] + t3 * r[15];
+    }
+    for (let i = 0; i < 16; i++) t[i] = out[i];
+  }
+
+  /** HGTransform::PreMultiply(HGTransform const*) @Helium 0x1b5240.
+   *  Right-multiplies: this = this * rhs.
+   *  Disasm structure @0x1b524d-0x5317: loads xmm3=this[0][0], xmm2=this[0][1], xmm1=this[0][2],
+   *  xmm0=this[0][3] (= this row 0 across offsets 0x10, 0x30, 0x50, 0x70), then computes 4 dot
+   *  products against rhs columns 0..3 to produce row 0 of the product; stores back to row 0
+   *  (offsets 0x10, 0x30, 0x50, 0x70 of this — see @0x1b5317 store). The full disasm repeats
+   *  this for each row (4 blocks total; the truncated view here just shows the first row).
+   *  Null guard @0x1b5244: same testq/je as Multiply.
+   *
+   *  Semantics: (new this)[i][j] = sum_k this[i][k] * rhs[k][j] == `this * rhs`.
+   */
+  public PreMultiply(rhs: HGTransform | null): void {
+    // @0x1b5244: testq %rsi,%rsi ; je pop-and-ret.
+    if (rhs === null) return;
+    const t = this.m;
+    const r = rhs.m;
+    const out = new Float64Array(16);
+    for (let i = 0; i < 4; i++) {
+      // row i of this: this[i][0]=t[i], this[i][1]=t[i+4], this[i][2]=t[i+8], this[i][3]=t[i+12].
+      const a0 = t[i + 0];
+      const a1 = t[i + 4];
+      const a2 = t[i + 8];
+      const a3 = t[i + 12];
+      // out[i][j] = a0*r[0][j] + a1*r[1][j] + a2*r[2][j] + a3*r[3][j]; rhs is column-major so
+      // r[k][j] = r[k + 4*j].
+      out[i + 0]  = a0 * r[0]  + a1 * r[1]  + a2 * r[2]  + a3 * r[3];
+      out[i + 4]  = a0 * r[4]  + a1 * r[5]  + a2 * r[6]  + a3 * r[7];
+      out[i + 8]  = a0 * r[8]  + a1 * r[9]  + a2 * r[10] + a3 * r[11];
+      out[i + 12] = a0 * r[12] + a1 * r[13] + a2 * r[14] + a3 * r[15];
+    }
+    for (let k = 0; k < 16; k++) t[k] = out[k];
+  }
 }
