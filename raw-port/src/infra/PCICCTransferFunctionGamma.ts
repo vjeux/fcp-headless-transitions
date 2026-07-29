@@ -124,8 +124,49 @@ export class PCICCTransferFunctionGamma {
    * observable work). D0 (deleting) @ProCore 0x13822 tail-jmps `operator delete` via
    *   0x13826  popq %rbp; 0x13827  jmp __ZdlPv
    * No fields need destruction and no heap references exist. Modeled as a no-op in JS.
+   *
+   * Distinct disassembled entry points (all 4-instruction trivial stubs — no observable work):
+   *   D2 @ProCore 0x13816  (base-subobject dtor)
+   *      0x13816 pushq %rbp; 0x13817 movq %rsp,%rbp; 0x1381a popq %rbp; 0x1381b retq
+   *   D1 @ProCore 0x1381c  (complete-object dtor) — see PCICCTransferFunctionGamma__D1 below
+   *      0x1381c pushq %rbp; 0x1381d movq %rsp,%rbp; 0x13820 popq %rbp; 0x13821 retq
+   *   D0 @ProCore 0x13822  (deleting dtor — tail-calls __ZdlPv)
    */
   public dispose(): void {
     /* no-op — matches D2/D1 (trivial) and JS has no `delete this` */
   }
 }
+
+/**
+ * PCICCTransferFunctionGamma::~PCICCTransferFunctionGamma()  [D1, complete-object dtor]
+ *   @ProCore 0x1381c  __ZN26PCICCTransferFunctionGammaD1Ev
+ *
+ * re/disasm:
+ *   raw-port/re/disasm/ProCore.__ZN26PCICCTransferFunctionGammaD1Ev.s  (4 instructions)
+ *
+ * Distinct symbol from D2/D0 but the body is IDENTICAL to D2 — a POD dtor stub:
+ *
+ *   @0x1381c  pushq %rbp
+ *   @0x1381d  movq  %rsp, %rbp
+ *   @0x13820  popq  %rbp
+ *   @0x13821  retq
+ *
+ * No calls, no memory writes, no vtable manipulation. Under the Itanium C++ ABI, the D1
+ * complete-object dtor for a class with no virtual bases is either identical to D2 (as here)
+ * or a thin wrapper that invokes D2 then any virtual-base dtors — this class has none. So
+ * D1 semantics = "nothing to release; no vtable to swap in for a base subobject". The
+ * corresponding JS behavior is a no-op on the JS object; there is no heap ptr to free
+ * (D0 does that separately) and no member-wise cleanup (`gamma` is a primitive).
+ *
+ * Provided as a standalone export so callers who need the exact D1 entry point (e.g. code
+ * that invokes it through the vtable +0x10 slot rather than the deleting +0x18 slot) get a
+ * symbol that matches the mangled name and cites the correct address.
+ */
+export function PCICCTransferFunctionGamma__D1(
+  _self: PCICCTransferFunctionGamma,
+): void {
+  // @0x1381c..@0x13821  prologue → epilogue → ret. No observable work.
+}
+
+/** Alias export: mangled symbol name. @ProCore 0x1381c */
+export const __ZN26PCICCTransferFunctionGammaD1Ev = PCICCTransferFunctionGamma__D1;
