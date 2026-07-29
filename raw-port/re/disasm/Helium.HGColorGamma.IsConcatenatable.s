@@ -1,0 +1,55 @@
+__ZN12HGColorGamma16IsConcatenatableEP6HGNode:
+00000000000f7550	cmpl	$0x424d504c, 0xc(%rsi)          ## imm = 0x424D504C
+00000000000f7557	jne	0xf75ee
+00000000000f755d	xorl	%eax, %eax
+00000000000f755f	cmpl	$0x0, 0x404(%rdi)
+00000000000f7566	jne	0xf75f0
+00000000000f756c	pushq	%rbp
+00000000000f756d	movq	%rsp, %rbp
+00000000000f7570	movaps	0x2d3449(%rip), %xmm0
+00000000000f7577	movaps	0x300(%rdi), %xmm1
+00000000000f757e	mulps	%xmm0, %xmm1
+00000000000f7581	cmpneqps	%xmm0, %xmm1
+00000000000f7585	movmskps	%xmm1, %ecx
+00000000000f7588	testb	%cl, %cl
+00000000000f758a	jne	0xf762e
+00000000000f7590	movss	0x2d0728(%rip), %xmm1
+00000000000f7598	movaps	0x380(%rdi), %xmm2
+00000000000f759f	cmpneqps	%xmm1, %xmm2
+00000000000f75a3	movsd	0x2d0705(%rip), %xmm0
+00000000000f75ab	movaps	0x390(%rdi), %xmm4
+00000000000f75b2	cmpneqps	%xmm0, %xmm4
+00000000000f75b6	orps	%xmm2, %xmm4
+00000000000f75b9	movaps	0x2d34b0(%rip), %xmm2
+00000000000f75c0	movaps	0x3a0(%rdi), %xmm5
+00000000000f75c7	cmpneqps	%xmm2, %xmm5
+00000000000f75cb	movaps	0x2d2a0e(%rip), %xmm3
+00000000000f75d2	movaps	0x3b0(%rdi), %xmm6
+00000000000f75d9	cmpneqps	%xmm3, %xmm6
+00000000000f75dd	orps	%xmm5, %xmm6
+00000000000f75e0	orps	%xmm4, %xmm6
+00000000000f75e3	movmskps	%xmm6, %eax
+00000000000f75e6	testl	%eax, %eax
+00000000000f75e8	je	0xf75f1
+00000000000f75ea	xorl	%eax, %eax
+00000000000f75ec	popq	%rbp
+00000000000f75ed	retq
+00000000000f75ee	xorl	%eax, %eax
+00000000000f75f0	retq
+00000000000f75f1	cmpneqps	0x3c0(%rdi), %xmm1
+00000000000f75f9	cmpneqps	0x3d0(%rdi), %xmm0
+00000000000f7601	orps	%xmm1, %xmm0
+00000000000f7604	cmpneqps	0x3e0(%rdi), %xmm2
+00000000000f760c	cmpneqps	0x3f0(%rdi), %xmm3
+00000000000f7614	orps	%xmm2, %xmm3
+00000000000f7617	orps	%xmm0, %xmm3
+00000000000f761a	movmskps	%xmm3, %eax
+00000000000f761d	testl	%eax, %eax
+00000000000f761f	je	0xf7625
+00000000000f7621	xorl	%eax, %eax
+00000000000f7623	popq	%rbp
+00000000000f7624	retq
+00000000000f7625	movq	%rsi, 0x498(%rdi)
+00000000000f762c	movb	$0x1, %al
+00000000000f762e	popq	%rbp
+00000000000f762f	retq
