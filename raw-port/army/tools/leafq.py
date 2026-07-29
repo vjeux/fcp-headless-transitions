@@ -92,15 +92,22 @@ def _ported_all():
                     done.add(v["mangled"])
     return done
 
+SHARED = {'OZSpline','OZInterpolators','OZInterpolator','OZBezierInterpolator','OZCardinalInterpolator',
+          'OZCurve','OZChannelInfo','PCSingleton','OZSplineState','PCString','OZCurveRuntime','HGRect'}
+
 def _ready_rows(fw):
     g=_graph(fw); idx=_ledger_index(fw); done=_ported_all()
+    c=_load(); deferred=set(c.get("deferred",{}))
     rows=[]
     for sym,info in g.items():
         meta=idx.get(sym)
         if not meta: continue                       # not a ledger method (thunk/anon) — skip
         cls,mk,status,dem,addr=meta
         if status=="ported": continue               # already real
-        blockers=[c for c in info.get("callees",[]) if c not in done]
+        if cls in SHARED: continue                  # hand-serialized dispatch files — never auto-serve
+        if sym in deferred: continue                # a worker gave up this pass — try later
+        if "non-virtual thunk to" in dem or "virtual thunk to" in dem: continue  # ABI thunk, not a body
+        blockers=[c2 for c2 in info.get("callees",[]) if c2 not in done]
         if blockers: continue                       # not implementable yet
         rows.append((info.get("lines",0), info.get("ext",0), info.get("ind",0), sym, cls, dem, addr))
     rows.sort()                                     # smallest body first = truest leaves lead
