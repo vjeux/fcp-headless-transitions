@@ -95,7 +95,7 @@ def _ported_all():
 SHARED = {'OZSpline','OZInterpolators','OZInterpolator','OZBezierInterpolator','OZCardinalInterpolator',
           'OZCurve','OZChannelInfo','PCSingleton','OZSplineState','PCString','OZCurveRuntime','HGRect'}
 
-def _ready_rows(fw):
+def _ready_rows(fw, min_lines=0):
     g=_graph(fw); idx=_ledger_index(fw); done=_ported_all()
     c=_load(); deferred=set(c.get("deferred",{}))
     rows=[]
@@ -107,31 +107,33 @@ def _ready_rows(fw):
         if cls in SHARED: continue                  # hand-serialized dispatch files — never auto-serve
         if sym in deferred: continue                # a worker gave up this pass — try later
         if "non-virtual thunk to" in dem or "virtual thunk to" in dem: continue  # ABI thunk, not a body
+        if info.get("lines",0) < min_lines: continue  # --min: skip trivial dtors/getters, target real logic
         blockers=[c2 for c2 in info.get("callees",[]) if c2 not in done]
         if blockers: continue                       # not implementable yet
         rows.append((info.get("lines",0), info.get("ext",0), info.get("ind",0), sym, cls, dem, addr))
     rows.sort()                                     # smallest body first = truest leaves lead
     return rows
 
-def cmd_ready(fw=None, N=40):
+def cmd_ready(fw=None, N=40, min_lines=0):
     fws = [fw] if fw else FWS
     allrows=[]
     for f in fws:
-        for lines,ext,ind,sym,cls,dem,addr in _ready_rows(f):
+        for lines,ext,ind,sym,cls,dem,addr in _ready_rows(f, min_lines):
             allrows.append((lines,ext,ind,sym,cls,dem,addr,f))
     allrows.sort(key=lambda r:(r[0], r[7], r[3]))   # smallest body first, then fw, then sym
-    print(f"# {'+'.join(fws)}: {len(allrows)} functions implementable NOW (all internal callees ported). top {min(N,len(allrows))}:")
+    print(f"# {'+'.join(fws)}: {len(allrows)} functions implementable NOW (all internal callees ported"
+          f"{', min '+str(min_lines)+'L' if min_lines else ''}). top {min(N,len(allrows))}:")
     for lines,ext,ind,sym,cls,dem,addr,f in allrows[:N]:
         print(f"  {f}\t{addr}  [{lines}L ext={ext} ind={ind}]  {cls}::{dem[:66]}")
 
-def cmd_next(fw=None):
+def cmd_next(fw=None, min_lines=0):
     _lock()
     try:
         c=_load(); skip=set(c["claimed"])|set(c["done"])
         fws = [fw] if fw else FWS
         cands=[]
         for f in fws:
-            for lines,ext,ind,sym,cls,dem,addr in _ready_rows(f):
+            for lines,ext,ind,sym,cls,dem,addr in _ready_rows(f, min_lines):
                 if sym in skip: continue
                 cands.append((lines, ext, ind, sym, cls, dem, addr, f))
                 break   # rows already sorted smallest-first; first unclaimed of this fw is its best
@@ -179,11 +181,15 @@ if __name__=="__main__":
     a=sys.argv[1:]
     if not a: print(__doc__); sys.exit(0)
     cmd=a[0]; rest=a[1:]
-    if   cmd=="next":  cmd_next(rest[0] if rest and not rest[0].isdigit() else None)
+    # optional --min N (target substantive bodies, skipping trivial dtors/getters)
+    minl=0
+    if "--min" in rest:
+        i=rest.index("--min"); minl=int(rest[i+1]); del rest[i:i+2]
+    if   cmd=="next":  cmd_next(rest[0] if rest and not rest[0].isdigit() else None, minl)
     elif cmd=="ready":
         fw = rest[0] if rest and not rest[0].isdigit() else None
         nums = [int(x) for x in rest if x.isdigit()]
-        cmd_ready(fw, nums[0] if nums else 40)
+        cmd_ready(fw, nums[0] if nums else 40, minl)
     elif cmd=="deps":  cmd_deps(rest[0], rest[1])
     elif cmd=="done":  cmd_done(rest[0], rest[1])
     elif cmd=="fail":  cmd_fail(rest[0], rest[1], " ".join(rest[2:]) or "n/a")
