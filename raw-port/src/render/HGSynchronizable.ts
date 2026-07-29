@@ -134,6 +134,61 @@ function pthread_mutex_unlock_default(_mutexPtr: HGSynchronizable): void {
 let _pthread_mutex_unlock_impl: (m: HGSynchronizable) => void =
   pthread_mutex_unlock_default;
 
+/** `_pthread_mutex_init` @Helium stub 0x3c5564 — POSIX mutex init.
+ *  Called from the ctor @0x194940 with `&this->mutex` in %rdi and
+ *  `attr = NULL` (%esi := 0 via `xorl %esi,%esi` @0x19493e). TRUE
+ *  out-of-scope extern (libSystem.B.dylib). Modelled as an injectable
+ *  no-op default (single-thread JS semantics — no real mutex state to
+ *  initialize), matching the discipline of the peer
+ *  _pthread_mutex_lock/_pthread_mutex_unlock stubs above. */
+function pthread_mutex_init_default(_mutexPtr: HGSynchronizable, _attr: number): void {
+  // No-op faithful to single-thread semantics; see the file header notes.
+}
+
+let _pthread_mutex_init_impl: (m: HGSynchronizable, attr: number) => void =
+  pthread_mutex_init_default;
+
+/** `_pthread_cond_init` @Helium stub 0x3c552e — POSIX condvar init.
+ *  Tail-jumped-to from the ctor @0x194954 with `&this->cond`
+ *  (= `this + 0x58` per the peer NotifyAll port at @0x194a30) in %rdi
+ *  and `attr = NULL` (%esi := 0 via `xorl %esi,%esi` @0x19494c). TRUE
+ *  out-of-scope extern (libSystem.B.dylib). Same policy as the peer
+ *  pthread frontier stubs: an injectable no-op default. */
+function pthread_cond_init_default(_condPtr: HGSynchronizable, _attr: number): void {
+  // No-op faithful to single-thread semantics; see the file header notes.
+}
+
+let _pthread_cond_init_impl: (m: HGSynchronizable, attr: number) => void =
+  pthread_cond_init_default;
+
+// =========================================================================
+// vtable pin (recovered from ctor @0x194929)
+// =========================================================================
+
+/**
+ * `vtable for HGSynchronizable` (complete-object variant) @Helium 0xa24540.
+ *
+ * Derived from the ctor body: @0x194929 the compiler emits
+ *   leaq 0x88fc10(%rip), %rax
+ *   movq %rax, (%rdi)          ; this->vptr = &vtable
+ * The RIP-relative computation resolves to `next_instr_addr + disp`
+ * = 0x194930 + 0x88fc10 = 0xa24540 in the Helium image. This is the
+ * `vtable for HGSynchronizable` (Itanium ABI: address of the first
+ * function pointer in the vtable, i.e. offset 0x10 past the RTTI/
+ * offset-to-top preamble). Stored on every constructed instance so
+ * virtual-dispatch callers (e.g. HGSynchronizer.ts's Unlock() through
+ * an HGSynchronizable*) can resolve concrete slots.
+ *
+ * NOTE — The C2 (base-object) constructor at @0x1948e0 pins a
+ * DIFFERENT vtable @0xa24b40 (`leaq 0x88fc50(%rip),%rax` at 0x1948e9
+ * → 0x1948f0 + 0x88fc50 = 0xa24b40). C1 and C2 vtables typically
+ * differ when the class participates as a base of a further-derived
+ * class (Itanium ABI dual constructors); the class body ports only
+ * C1 here — a separate ledger entry claims C2 when its call sites
+ * demand it.
+ */
+export const HG_SYNCHRONIZABLE_VTABLE_ADDR = 0xa24540;
+
 // =========================================================================
 // The class
 // =========================================================================
@@ -194,6 +249,124 @@ export class HGSynchronizable {
    */
   static setPthreadMutexUnlock(fn: (m: HGSynchronizable) => void): void {
     _pthread_mutex_unlock_impl = fn;
+  }
+
+  /**
+   * Install a caller-supplied `pthread_mutex_init()` implementation.
+   * Default is a no-op (see pthread_mutex_init_default). External
+   * drivers can override to observe/track lifetime events.
+   */
+  static setPthreadMutexInit(fn: (m: HGSynchronizable, attr: number) => void): void {
+    _pthread_mutex_init_impl = fn;
+  }
+
+  /**
+   * Install a caller-supplied `pthread_cond_init()` implementation.
+   * Default is a no-op (see pthread_cond_init_default).
+   */
+  static setPthreadCondInit(fn: (m: HGSynchronizable, attr: number) => void): void {
+    _pthread_cond_init_impl = fn;
+  }
+
+  /**
+   * `HGSynchronizable::HGSynchronizable()` @Helium 0x194920
+   * (__ZN16HGSynchronizableC1Ev — complete-object constructor).
+   *
+   * Faithful line-for-line transcription of the disassembly at
+   * raw-port/re/disasm/Helium.__ZN16HGSynchronizableC1Ev.s.
+   *
+   * FULL DISASM:
+   *   0x194920  pushq  %rbp                              ; prologue
+   *   0x194921  movq   %rsp, %rbp
+   *   0x194924  pushq  %rbx
+   *   0x194925  pushq  %rax                              ; align stack
+   *   0x194926  movq   %rdi, %rbx                        ; rbx = this
+   *   0x194929  leaq   0x88fc10(%rip), %rax              ; rax = &vtable
+   *                                                     ;   (0x194930 + 0x88fc10
+   *                                                     ;    = 0xa24540, see
+   *                                                     ;    HG_SYNCHRONIZABLE_VTABLE_ADDR)
+   *   0x194930  movq   %rax, (%rdi)                      ; this->vptr = vtable
+   *   0x194933  addq   $0x8, %rdi                        ; rdi = &this->mutex
+   *   0x194937  xorps  %xmm0, %xmm0                      ; xmm0 = 0 (16 bytes)
+   *   0x19493a  movups %xmm0, 0x48(%rbx)                 ; this->ownerTid = 0 AND
+   *                                                     ; this->recurseCount = 0
+   *                                                     ; (unaligned 128-bit write
+   *                                                     ;  covers +0x48..+0x57)
+   *   0x19493e  xorl   %esi, %esi                        ; attr = NULL
+   *   0x194940  callq  _pthread_mutex_init               ; pthread_mutex_init(
+   *                                                     ;   &this->mutex, NULL)
+   *                                                     ;   (Helium stub 0x3c5564)
+   *   0x194945  addq   $0x58, %rbx                       ; rbx = &this->cond
+   *                                                     ;   (+0x58, see peer
+   *                                                     ;    NotifyAll port)
+   *   0x194949  movq   %rbx, %rdi                        ; rdi = &this->cond
+   *   0x19494c  xorl   %esi, %esi                        ; attr = NULL
+   *   0x19494e  addq   $0x8, %rsp                        ; unpad stack
+   *   0x194952  popq   %rbx                              ; epilogue
+   *   0x194953  popq   %rbp
+   *   0x194954  jmp    _pthread_cond_init                ; TAIL-CALL
+   *                                                     ;   (Helium stub 0x3c552e)
+   *                                                     ; pthread_cond_init(
+   *                                                     ;   &this->cond, NULL)
+   *
+   * Semantics: textbook C++ constructor for a "mutex + condvar" primitive.
+   *   1. Pin the vptr (@0x194929..0x194930) — this instance is now a
+   *      dispatchable HGSynchronizable*.
+   *   2. Zero-initialize `ownerTid` and `recurseCount` in one 128-bit
+   *      XMM store (@0x194937..0x19493a) — clears the two u64 fields
+   *      at +0x48/+0x50 that Lock/Unlock later mutate.
+   *   3. Initialize the embedded pthread_mutex_t at +0x08 with a NULL
+   *      attribute (@0x194940). NOTE: this yields a DEFAULT (non-
+   *      recursive) POSIX mutex — recursion is emulated in the class
+   *      itself via the ownerTid/recurseCount fields, as Lock/Unlock
+   *      already establish.
+   *   4. Tail-call pthread_cond_init on the embedded pthread_cond_t at
+   *      +0x58 with a NULL attribute (@0x194954) — again default
+   *      condvar attributes.
+   *
+   * Both pthread calls are TRUE out-of-scope externs (libSystem.B.dylib)
+   * and modelled via injectable stubs whose defaults are no-ops (the
+   * same discipline as the peer Lock/Unlock/NotifyAll ports).
+   */
+  constructor() {
+    // ------------------------------------------------------------
+    // @0x194920..0x194926 — prologue; rbx = this. (No TS-visible effect.)
+    // @0x194929..0x194930 — leaq 0x88fc10(%rip),%rax; movq %rax,(%rdi).
+    //   this->vptr = &vtable  (RIP-relative resolves to 0xa24540 in the
+    //   Helium image — see HG_SYNCHRONIZABLE_VTABLE_ADDR).
+    // ------------------------------------------------------------
+    this.vptr = HG_SYNCHRONIZABLE_VTABLE_ADDR;
+    // ------------------------------------------------------------
+    // @0x194933 — addq $8,%rdi  (rdi = &this->mutex).
+    // @0x194937..0x19493a — xorps %xmm0,%xmm0; movups %xmm0,0x48(%rbx).
+    //   Writes 16 zero bytes at +0x48..+0x57 in one store, i.e.:
+    //     this->ownerTid     (+0x48) = 0
+    //     this->recurseCount (+0x50) = 0
+    // These fields are already declared with initializer `0n`, but the
+    // faithful transcription of the machine store is to assign them
+    // explicitly here at the address the machine performs the write.
+    // ------------------------------------------------------------
+    this.ownerTid = 0n;
+    this.recurseCount = 0n;
+    // ------------------------------------------------------------
+    // @0x19493e — xorl %esi,%esi   (attr := NULL / 0).
+    // @0x194940 — callq _pthread_mutex_init  (Helium stub 0x3c5564).
+    //   pthread_mutex_init(&this->mutex, NULL). TS models &this->mutex
+    //   as `this` (the +0x08 offset is a compile-time constant; JS
+    //   has no pointer arithmetic — same convention as Lock/Unlock).
+    // ------------------------------------------------------------
+    _pthread_mutex_init_impl(this, 0);
+    // ------------------------------------------------------------
+    // @0x194945 — addq $0x58,%rbx  (rbx = &this->cond).
+    // @0x194949 — movq %rbx,%rdi   (rdi = &this->cond).
+    // @0x19494c — xorl %esi,%esi   (attr := NULL / 0).
+    // @0x19494e..0x194953 — unpad stack; epilogue.
+    // @0x194954 — jmp _pthread_cond_init  (Helium stub 0x3c552e).
+    //   TAIL-CALL: pthread_cond_init(&this->cond, NULL). TS models
+    //   &this->cond as `this` (the +0x58 offset is a compile-time
+    //   constant — mirrors NotifyAll's convention).
+    // ------------------------------------------------------------
+    _pthread_cond_init_impl(this, 0);
   }
 
   /**
