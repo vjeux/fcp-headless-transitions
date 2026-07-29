@@ -1,0 +1,7 @@
+__ZN13FFOZNullCurve11smoothCurveERK6CMTimeS2_S2_:
+0000000001287320	pushq	%rbp
+0000000001287321	movq	%rsp, %rbp
+0000000001287324	xorl	%eax, %eax
+0000000001287326	popq	%rbp
+0000000001287327	retq
+0000000001287328	nopl	(%rax,%rax)

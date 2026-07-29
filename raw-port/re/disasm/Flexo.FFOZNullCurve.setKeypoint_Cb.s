@@ -1,0 +1,7 @@
+__ZN13FFOZNullCurve11setKeypointERK6CMTimeb:
+0000000001287400	pushq	%rbp
+0000000001287401	movq	%rsp, %rbp
+0000000001287404	xorl	%eax, %eax
+0000000001287406	popq	%rbp
+0000000001287407	retq
+0000000001287408	nopl	(%rax,%rax)

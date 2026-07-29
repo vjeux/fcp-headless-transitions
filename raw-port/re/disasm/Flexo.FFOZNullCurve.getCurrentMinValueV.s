@@ -1,0 +1,7 @@
+__ZN13FFOZNullCurve19getCurrentMinValueVEPdb:
+0000000001287360	pushq	%rbp
+0000000001287361	movq	%rsp, %rbp
+0000000001287364	xorl	%eax, %eax
+0000000001287366	popq	%rbp
+0000000001287367	retq
+0000000001287368	nopl	(%rax,%rax)
