@@ -69,4 +69,30 @@ export class PCStreamElement {
   getAttributeAsUUID(id: number): string | undefined {
     const s = this.raw(id); return s; // UUIDs kept as their canonical string form
   }
+
+  /**
+   * PCStreamElement::~PCStreamElement() — D1 (complete-object dtor) @ProCore 0x000DD63A.
+   *
+   * Disassembly (4 lines — from otool -tV of ProCore.framework x86_64):
+   *   dd63a  pushq  %rbp
+   *   dd63b  movq   %rsp, %rbp
+   *   dd63e  ud2
+   *
+   * Body: `ud2` @ProCore 0xDD63A — abstract-class trap. Byte-identical shape
+   * to PCSerializer::~PCSerializer() D1 @Ozone 0x6DAF30 (see PCSerializer.ts):
+   * clang's canonical output when the compiler proves the base-class dtor
+   * entry can never be reached (all live instances are concrete subclasses
+   * whose own D1 handles teardown). The sibling D0 (deleting dtor) at
+   * @ProCore 0x000DD640 is byte-identical (also `ud2`).
+   *
+   * Ported as a raising stub that cites the address, per PCSerializer._dtorD1
+   * precedent — an unreachable trap must be a loud gap, not a silent no-op.
+   * The decode IS `ud2`; this throw is the faithful port, not a deferral of
+   * an undecoded body.
+   */
+  protected _dtorD1(): never {
+    throw new Error(
+      "PCStreamElement::~PCStreamElement() D1 @ProCore 0xdd63a is `ud2` — abstract-class trap, must never be reached",
+    );
+  }
 }
