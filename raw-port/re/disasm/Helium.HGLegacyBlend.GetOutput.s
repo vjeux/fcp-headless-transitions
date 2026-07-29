@@ -1,0 +1,126 @@
+__ZN13HGLegacyBlend9GetOutputEP10HGRenderer:
+0000000000241af0	pushq	%rbp
+0000000000241af1	movq	%rsp, %rbp
+0000000000241af4	pushq	%r15
+0000000000241af6	pushq	%r14
+0000000000241af8	pushq	%r12
+0000000000241afa	pushq	%rbx
+0000000000241afb	movq	%rsi, %r15
+0000000000241afe	movq	%rdi, %rbx
+0000000000241b01	movl	0x1ac(%rdi), %edx
+0000000000241b07	movq	%rsi, %rdi
+0000000000241b0a	movq	%rbx, %rsi
+0000000000241b0d	callq	__ZN10HGRenderer8GetInputEP6HGNodei ## HGRenderer::GetInput(HGNode*, int)
+0000000000241b12	movq	%rax, %r14
+0000000000241b15	movl	0x1b0(%rbx), %edx
+0000000000241b1b	movq	%r15, %rdi
+0000000000241b1e	movq	%rbx, %rsi
+0000000000241b21	callq	__ZN10HGRenderer8GetInputEP6HGNodei ## HGRenderer::GetInput(HGNode*, int)
+0000000000241b26	testq	%r14, %r14
+0000000000241b29	je	0x241b45
+0000000000241b2b	testq	%rax, %rax
+0000000000241b2e	je	0x241b42
+0000000000241b30	movss	0x1a0(%rbx), %xmm0
+0000000000241b38	xorps	%xmm1, %xmm1
+0000000000241b3b	ucomiss	%xmm1, %xmm0
+0000000000241b3e	jne	0x241b4e
+0000000000241b40	jp	0x241b4e
+0000000000241b42	movq	%r14, %rax
+0000000000241b45	popq	%rbx
+0000000000241b46	popq	%r12
+0000000000241b48	popq	%r14
+0000000000241b4a	popq	%r15
+0000000000241b4c	popq	%rbp
+0000000000241b4d	retq
+0000000000241b4e	ucomiss	0x18616b(%rip), %xmm0
+0000000000241b55	jne	0x241b62
+0000000000241b57	jp	0x241b62
+0000000000241b59	cmpl	$0x8, 0x1a8(%rbx)
+0000000000241b60	je	0x241b45
+0000000000241b62	cmpl	$0x0, 0x1ac(%rbx)
+0000000000241b69	je	0x241ba0
+0000000000241b6b	movq	%rax, %r15
+0000000000241b6e	movq	(%rbx), %rax
+0000000000241b71	movq	%rbx, %rdi
+0000000000241b74	callq	*0x230(%rax)
+0000000000241b7a	movq	%rax, %r12
+0000000000241b7d	movq	0x198(%rbx), %rdi
+0000000000241b84	cmpq	%rax, %rdi
+0000000000241b87	je	0x241ba5
+0000000000241b89	testq	%rdi, %rdi
+0000000000241b8c	je	0x241b94
+0000000000241b8e	movq	(%rdi), %rax
+0000000000241b91	callq	*0x18(%rax)
+0000000000241b94	movq	%r12, 0x198(%rbx)
+0000000000241b9b	movq	%r12, %rdi
+0000000000241b9e	jmp	0x241bbb
+0000000000241ba0	movq	%rbx, %rax
+0000000000241ba3	jmp	0x241b45
+0000000000241ba5	testq	%r12, %r12
+0000000000241ba8	je	0x241bbb
+0000000000241baa	movq	(%r12), %rax
+0000000000241bae	movq	%r12, %rdi
+0000000000241bb1	callq	*0x18(%rax)
+0000000000241bb4	movq	0x198(%rbx), %rdi
+0000000000241bbb	movq	(%rdi), %rax
+0000000000241bbe	xorps	%xmm0, %xmm0
+0000000000241bc1	xorps	%xmm1, %xmm1
+0000000000241bc4	xorps	%xmm2, %xmm2
+0000000000241bc7	xorps	%xmm3, %xmm3
+0000000000241bca	movl	$0x2, %esi
+0000000000241bcf	callq	*0x60(%rax)
+0000000000241bd2	movq	0x198(%rbx), %rdi
+0000000000241bd9	movq	(%rdi), %rax
+0000000000241bdc	xorl	%esi, %esi
+0000000000241bde	movq	%r14, %rdx
+0000000000241be1	callq	*0x78(%rax)
+0000000000241be4	movq	0x198(%rbx), %rdi
+0000000000241beb	movq	(%rdi), %rax
+0000000000241bee	movl	$0x1, %esi
+0000000000241bf3	movq	%r15, %rdx
+0000000000241bf6	callq	*0x78(%rax)
+0000000000241bf9	movq	(%rbx), %rax
+0000000000241bfc	movq	0x198(%rbx), %r14
+0000000000241c03	movq	%rbx, %rdi
+0000000000241c06	movl	$0x1, %esi
+0000000000241c0b	callq	*0x98(%rax)
+0000000000241c11	movq	(%r14), %rcx
+0000000000241c14	movq	%r14, %rdi
+0000000000241c17	xorl	%esi, %esi
+0000000000241c19	movl	%eax, %edx
+0000000000241c1b	callq	*0x88(%rcx)
+0000000000241c21	movq	(%rbx), %rax
+0000000000241c24	movq	0x198(%rbx), %r14
+0000000000241c2b	movq	%rbx, %rdi
+0000000000241c2e	xorl	%esi, %esi
+0000000000241c30	callq	*0x98(%rax)
+0000000000241c36	movq	(%r14), %rcx
+0000000000241c39	movq	%r14, %rdi
+0000000000241c3c	movl	$0x1, %esi
+0000000000241c41	movl	%eax, %edx
+0000000000241c43	callq	*0x88(%rcx)
+0000000000241c49	movq	(%rbx), %rax
+0000000000241c4c	movq	0x198(%rbx), %r14
+0000000000241c53	movq	%rbx, %rdi
+0000000000241c56	movl	$0xffffffff, %esi               ## imm = 0xFFFFFFFF
+0000000000241c5b	callq	*0x98(%rax)
+0000000000241c61	movq	(%r14), %rcx
+0000000000241c64	movq	%r14, %rdi
+0000000000241c67	movl	$0xffffffff, %esi               ## imm = 0xFFFFFFFF
+0000000000241c6c	movl	%eax, %edx
+0000000000241c6e	callq	*0x88(%rcx)
+0000000000241c74	movq	0x198(%rbx), %rax
+0000000000241c7b	jmp	0x241b45
+0000000000241c80	movq	%rax, %rdi
+0000000000241c83	callq	___clang_call_terminate
+0000000000241c88	movq	%rax, %rbx
+0000000000241c8b	testq	%r12, %r12
+0000000000241c8e	je	0x241c9a
+0000000000241c90	movq	(%r12), %rax
+0000000000241c94	movq	%r12, %rdi
+0000000000241c97	callq	*0x18(%rax)
+0000000000241c9a	movq	%rbx, %rdi
+0000000000241c9d	callq	0x3c4e02                        ## symbol stub for: __Unwind_Resume
+0000000000241ca2	movq	%rax, %rdi
+0000000000241ca5	callq	___clang_call_terminate
+0000000000241caa	nopw	(%rax,%rax)
