@@ -46,9 +46,22 @@ Usage as a CLI (report only, read-only):
 import os, re, sys, subprocess
 
 STUB_PHRASE = re.compile(
-    r'not yet (?:transcribed|ported|decoded|implemented)'
+    # Incompleteness markers a throw-stub uses to say "the real body is not here yet". Aligned with
+    # verifier/reach_worker.ts's INCOMPLETE vocab + the variants actually observed in src (census
+    # 2026-07-29: 'not yet transcribed' x422, 'unimplemented' x54, 'frontier callee' x26,
+    # 'not yet decoded' x18, 'pending' x8, 'not yet ported' x8, 'not yet materialized' x3,
+    # 'undecoded' x2, 'not yet wired' x1). Deliberately specific so a real runtime-guard throw
+    # (e.g. "called before ctor") is NOT mistaken for an incompleteness stub.
+    r'not yet (?:transcribed|ported|decoded|implemented|materialized|wired|transcri)'
+    r'|not (?:transcribed|decoded|yet)'
+    r'|pending transcription'
     r'|deferred stub'
-    r'|un-?transcribed',
+    r'|un-?transcribed'
+    r'|\bundecoded\b'
+    r'|\bunimplemented\b'
+    r'|\bunimpl\b'
+    r'|frontier callee'
+    r'|stub not',
     re.I,
 )
 THROW = re.compile(r'\bthrow\s+new\b')
