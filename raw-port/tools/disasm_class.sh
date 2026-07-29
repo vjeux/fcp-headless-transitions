@@ -37,6 +37,16 @@ while IFS=$'\t' read -r SYM DEM; do
   METH="$(printf '%s' "$DEM" | sed 's/(.*//; s/.*:://; s#[/ <>*&,:]#_#g')"
   [ -n "$METH" ] || METH="sym$N"
   OUT="$OUTDIR/${PFX}${CLS}.${METH}.s"
+  # OVERLOAD-SAFE: N overloads (e.g. doLog(CFString*)/doLog(double)/...) all demangle to the same
+  # METH and would clobber ONE .s file (only the last variant survives — a real data-loss bug that
+  # bit FFPMRNoOpInstrument's 6 doLog variants). If this METH's file was already written THIS run,
+  # disambiguate by a short suffix from the mangled symbol so every overload keeps its own body.
+  if [ -n "${SEEN_METH:-}" ] && printf '%s\n' "$SEEN_METH" | grep -qxF "$METH"; then
+    SFX="$(printf '%s' "$SYM" | tr -cd 'A-Za-z0-9' | tail -c 8)"
+    OUT="$OUTDIR/${PFX}${CLS}.${METH}__${SFX}.s"
+  fi
+  SEEN_METH="${SEEN_METH:-}
+$METH"
   awk -v s="$SYM:" '$0==s{f=1;print;next} f&&/:$/{exit} f{print}' "$DIS" > "$OUT"
   if [ ! -s "$OUT" ]; then
     # ICF-folded / no otool label — objdump per-symbol fallback (exact boundary).
