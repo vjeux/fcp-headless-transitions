@@ -12,7 +12,7 @@ for f in subprocess.run(["find",os.path.join(ROOT,"src"),"-name","*.ts"],capture
 cited=set(x.lower() for x in re.findall(r'@0x([0-9a-fA-F]+)',txt))
 cited|=set(x.lower() for x in re.findall(r'\b0x([0-9a-fA-F]{4,})',txt))
 tot=port=0
-for fw in ["ProChannel","ProCore","Ozone","Flexo"]:
+for fw in ["ProChannel","ProCore","Ozone","Flexo","Helium"]:
     lp=os.path.join(LED,f"{fw}.ledger.json")
     if not os.path.exists(lp): continue
     led=json.load(open(lp))
