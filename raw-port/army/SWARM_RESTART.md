@@ -92,3 +92,18 @@ The coordinator cron (d82b4a68) was rewritten and the old system deleted:
 TO RESTART: set cron d82b4a68 enabled=true. It will spawn ≤3 dep-workers + reviewers per 10-min tick,
 each doing dependency-ready work with a mandatory reviewer merge gate. Watch the first 1-2 ticks:
 confirm workers import+call real deps (no internal throws) and the ready-count grows as they merge.
+
+## Phase-C sign-off (2026-07-29) — WIDENED to 6 workers + 2 reviewers
+Phase B is signed off. Evidence the reviewer catches every injected cheat:
+- reviewer-04 caught 6/6 Pattern-C call_once cheats (dep-worker-05).
+- reviewer-05 caught 8/8 (matched an independent coordinator ground-truth scan; 0 rubber-stamps).
+- Hardened G5 (_callonce_singleton_cheat in g5_impl_gate.py) is a STRUCTURAL backstop that rejects
+  the fabricated-`new`/`!==1`-sentinel cheat even if a reviewer misses it; locked by
+  test_callonce_cheat.py; prove_all.py PASS. wt_merge runs gate.sh(G5) BEFORE the sidecar check.
+- No cheat from the swarm reached main; the only on-main cheat (pre-gate seed
+  OZChannelPositionPercent3D_Factory) was demoted to stub.
+Architecture change: reviewers MERGE their own ACCEPTs (rebase-safe wt_merge: global lock +
+re-pull/retry). The coordinator is NO LONGER a merge queue (removed the bottleneck/SPOF).
+Phase-C params (coordinator cron d82b4a68): TARGET 6 workers + 2 reviewers, spawn <=6/tick,
+load1<25 (under-fill to <=2 workers if load1>12), freeGB>6, git-clean (untracked-only) disk prune.
+Widen further toward 12 only on a later explicit instruction after Phase-C stays clean.
