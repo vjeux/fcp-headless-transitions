@@ -68,7 +68,23 @@ if os.path.exists(_ov):
     except Exception:
         _CLASSC_OVERRIDE = {}
 
-def status_for(addr, fw=None, mangled=None):
+# BODY-BASED throw-only override (authoritative): a method whose committed body is only a throw
+# is NOT ported, regardless of what addresses its JSDoc cites. This makes status STABLE (mark_ported
+# and mark_stub_bodies agree in one pass instead of oscillating). Keyed by (fileClass, leaf).
+try:
+    from mark_stub_bodies import _throwonly_methods as _tom
+    _THROWONLY = _tom()
+except Exception:
+    _THROWONLY = set()
+
+def status_for(addr, fw=None, mangled=None, demangled=None):
+    # Body-based throw-only override (authoritative over any address citation).
+    if demangled and _THROWONLY:
+        leaf=demangled.split("(")[0].split("::")[-1].strip()
+        scope=demangled.split("(")[0]
+        cppcls=scope.split("::")[-2] if "::" in scope else None
+        if (cppcls and (cppcls,leaf) in _THROWONLY):
+            return "stub"
     # Confirmed class-C (real disasm, throw/stub-only body) — demote regardless of address citation.
     if mangled and mangled in _CLASSC_OVERRIDE:
         return "stub"
@@ -90,7 +106,7 @@ for fw in ["ProChannel","ProCore","Ozone","Flexo","Helium"]:
     for ms in led.values():
         for v in ms.values():
             tot+=1
-            want=status_for(v["addr"], fw, v.get("mangled"))
+            want=status_for(v["addr"], fw, v.get("mangled"), v.get("demangled"))
             if v.get("status")!=want:
                 v["status"]=want; changed+=1
             if want=="ported": port+=1

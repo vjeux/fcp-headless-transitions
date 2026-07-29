@@ -1,9 +1,0 @@
-[
- {
-  "fw": "ProCore",
-  "class": "PCDelaunay",
-  "addr": "0x0000000000056456",
-  "demangled": "PCDelaunay::insertSegment(PCVector2<float>*, PCVector2<",
-  "was": "ported"
- }
-]

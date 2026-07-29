@@ -2,7 +2,7 @@
 """depgraph.py — GLOBAL cross-framework dependency graph + STRICT topological work order.
 
 The rule (vjeux 2026-07-29): a function is only dispensable once EVERY function it calls is already
-ported. No unresolved dependency => no license to throw. Unlike the old callgraph.py, extern
+ported. No unresolved dependency => no license to throw. Unlike a naive intra-framework call graph, extern
 (cross-framework) calls are NOT a free pass — a `## symbol stub for: __ZN...` names a REAL target
 symbol in another framework, and that target is a hard dependency too. So we build ONE graph across
 ProCore/ProChannel/Helium/Ozone/Flexo and topologically order the whole thing.
@@ -286,6 +286,24 @@ def ready_scc(N=40):
     return rows
 
 
+
+
+def reconcile():
+    """Refresh ledger status HONESTLY, then rebuild the graph — so the traversal never unblocks a
+    caller based on a stub. Runs: mark_ported (citation-based: address-cited throw-stubs -> stub,
+    DISPATCH_ONLY -> skeleton) THEN mark_stub_bodies (body-based: throw-only method bodies whose
+    stub-throw cites only callee/call-site addrs -> stub). Then depgraph build. Run this before
+    `ready`/`order`/`stats` whenever src changed."""
+    import subprocess
+    tools=os.path.join(os.path.dirname(os.path.abspath(__file__)))
+    for step in ("mark_ported.py", "mark_stub_bodies.py"):
+        args=[sys.executable, os.path.join(tools, step)]
+        if step=="mark_stub_bodies.py": args.append("--apply")
+        r=subprocess.run(args, capture_output=True, text=True)
+        print(f"[{step}] " + (r.stdout.strip().splitlines() or [""])[-1])
+    build()
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2: print(__doc__); sys.exit(0)
     cmd = sys.argv[1]
@@ -297,4 +315,5 @@ if __name__ == "__main__":
     elif cmd == "deps": deps(sys.argv[2])
     elif cmd == "sccs": build_sccs()
     elif cmd == "ready_scc": ready_scc(int(sys.argv[2]) if len(sys.argv)>2 else 40)
+    elif cmd == "reconcile": reconcile()
     else: print(__doc__)
