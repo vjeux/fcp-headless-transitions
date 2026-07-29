@@ -1,0 +1,37 @@
+__ZN8OZSpline24getNumberOfValidVerticesERK6CMTime:
+0000000000030332	pushq	%rbp
+0000000000030333	movq	%rsp, %rbp
+0000000000030336	pushq	%r15
+0000000000030338	pushq	%r14
+000000000003033a	pushq	%r12
+000000000003033c	pushq	%rbx
+000000000003033d	subq	$0x10, %rsp
+0000000000030341	movq	%rsi, %rdx
+0000000000030344	movq	%rdi, %rbx
+0000000000030347	leaq	-0x28(%rbp), %r14
+000000000003034b	movq	$0x0, (%r14)
+0000000000030352	movq	%r14, %rsi
+0000000000030355	callq	__ZN8OZSpline19getFirstValidVertexEPPvRK6CMTime ## OZSpline::getFirstValidVertex(void**, CMTime const&)
+000000000003035a	cmpq	$0x0, (%r14)
+000000000003035e	je	0x30389
+0000000000030360	xorl	%r14d, %r14d
+0000000000030363	movq	0x9a156(%rip), %r15             ## literal pool symbol address: _kCMTimeZero
+000000000003036a	leaq	-0x28(%rbp), %r12
+000000000003036e	movq	-0x28(%rbp), %rsi
+0000000000030372	movq	%rbx, %rdi
+0000000000030375	movq	%r12, %rdx
+0000000000030378	movq	%r15, %rcx
+000000000003037b	callq	__ZN8OZSpline18getNextValidVertexEPvPS0_RK6CMTime ## OZSpline::getNextValidVertex(void*, void**, CMTime const&)
+0000000000030380	incl	%r14d
+0000000000030383	testb	%al, %al
+0000000000030385	jne	0x3036e
+0000000000030387	jmp	0x3038c
+0000000000030389	xorl	%r14d, %r14d
+000000000003038c	movl	%r14d, %eax
+000000000003038f	addq	$0x10, %rsp
+0000000000030393	popq	%rbx
+0000000000030394	popq	%r12
+0000000000030396	popq	%r14
+0000000000030398	popq	%r15
+000000000003039a	popq	%rbp
+000000000003039b	retq
