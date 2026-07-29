@@ -4,6 +4,50 @@
 // OZChannelBaseScope: 0x6e name, 0x6f id, 0x70 flags, 0x71 factoryID, 0x76 internalName.
 import { PCSerializerReadStream } from "../infra/PCSerializerReadStream.js";
 import { PCStreamElement } from "../infra/PCStreamElement.js";
+import type { OZChannelObjectRootBase } from "./OZChannelObjectRootBase.js";
+
+/**
+ * `___dynamic_cast(void* src, const std::type_info* srcType,
+ *                  const std::type_info* dstType, ptrdiff_t hint)`
+ *   → Itanium C++ ABI RTTI cross-cast helper (libc++abi.dylib —
+ *   `_Unwind_...`/`__cxa_...`/`___dynamic_cast` are all part of the
+ *   C++ runtime, NOT one of the five FCP frameworks).
+ *
+ * Called via tail-jmp from `OZChannelBase::getChannelRootBase()`
+ * @0x4a450 through ProChannel imported-stubs slot 0xacea0. In FCP's
+ * actual invocation, srcType = &typeinfo(OZChannelBase) and dstType =
+ * &typeinfo(OZChannelObjectRootBase); the runtime returns either an
+ * adjusted OZChannelObjectRootBase* (when `src` is actually a sibling
+ * of both in a multiple-inheritance hierarchy) or NULL (when the cast
+ * cannot succeed for this concrete type).
+ *
+ * TRUE out-of-scope extern per this port's policy — RTTI metadata
+ * lives in Mach-O `__DATA_CONST` sections that we do not reconstruct;
+ * we cannot honestly walk the class hierarchy without a full C++
+ * runtime. A faithful raise is the correct behaviour: any caller
+ * reaching this point in the current partially-ported state depends
+ * on RTTI info that is not yet modelled.
+ *
+ * The stub is signature-typed to return `OZChannelObjectRootBase |
+ * null` because the ONE call-site in this file wants exactly that
+ * type (the disasm's dstType is `OZChannelObjectRootBase`). When
+ * additional call-sites for other cross-cast pairs appear, a
+ * generic-typed helper can be introduced; for now the specialised
+ * stub matches the single use.
+ */
+function dynamic_cast_to_OZChannelObjectRootBase_stub(
+  _src: OZChannelBase,
+): OZChannelObjectRootBase | null {
+  throw new Error(
+    "___dynamic_cast(this, &typeinfo(OZChannelBase), " +
+      "&typeinfo(OZChannelObjectRootBase), 0) @ProChannel imported-stubs " +
+      "GOT 0xacea0 — Itanium C++ ABI RTTI helper (libc++abi.dylib). " +
+      "TRUE out-of-scope extern (C++ runtime). Called as a tail-jmp from " +
+      "OZChannelBase::getChannelRootBase() @ProChannel 0x4a450 after the " +
+      "parent-chain walk finds a node with flag bit 0x20 set at +0x39. " +
+      "Not yet transcribed — no RTTI metadata available in this port.",
+  );
+}
 
 export class OZChannelBase {
   id = 0;
@@ -177,5 +221,122 @@ export class OZChannelBase {
     this.__parent_folder_at_0x30 = null;
     // @0x49b3b retq — return %al (bool).
     return had;
+  }
+
+  /** @ProChannel OZChannelBase layout offset +0x39 (one flag byte).
+   *  Read @0x4a42f as `testb $0x20, 0x39(%rdi)` — a small bitfield. Bit
+   *  0x20 is set on nodes that are the "channel root" (owned by an
+   *  OZChannelObjectRootBase). Other bits in this byte are used by
+   *  sibling methods not yet transcribed; we model the whole byte here
+   *  and mask the bit at the read-site to preserve the disasm's
+   *  arithmetic exactly. The ctor that populates this field is a
+   *  separate ledger unit and will fill this in when landed. Modelled
+   *  as `number` (a 0..0xff byte). */
+  private __flag_byte_at_0x39: number = 0;
+
+  /**
+   * OZChannelBase::getChannelRootBase() const.
+   * @ProChannel 0x4a426..0x4a455
+   * (__ZNK13OZChannelBase18getChannelRootBaseEv)
+   *
+   * Disasm (raw-port/re/disasm/ProChannel.__ZNK13OZChannelBase18getChannelRootBaseEv.s):
+   *   0x4a426  pushq  %rbp                        ; prologue
+   *   0x4a427  movq   %rsp, %rbp                  ; prologue
+   *   0x4a42a  testq  %rdi, %rdi                  ; ZF = (this == NULL)
+   *   0x4a42d  je     0x4a43b                     ; if (this == NULL) goto bail
+   *   0x4a42f  testb  $0x20, 0x39(%rdi)           ; ZF = ((*(u8*)(this+0x39)) & 0x20) == 0
+   *   0x4a433  jne    0x4a43f                     ; if (bit 0x20 set) goto cast
+   *   0x4a435  movq   0x30(%rdi), %rdi            ; this = *(this+0x30) = parent
+   *   0x4a439  jmp    0x4a42a                     ; goto loop
+   *
+   *   0x4a43b  xorl   %eax, %eax                  ; rax = 0     (bail path — no root found)
+   *   0x4a43d  popq   %rbp                        ; epilogue
+   *   0x4a43e  retq                               ; return NULL
+   *
+   *   0x4a43f  leaq   __ZTI13OZChannelBase(%rip),   %rsi   ; arg1 = &typeinfo(OZChannelBase)
+   *   0x4a446  leaq   __ZTI23OZChannelObjectRootBase(%rip), %rdx ; arg2 = &typeinfo(OZChannelObjectRootBase)
+   *   0x4a44d  xorl   %ecx, %ecx                  ; arg3 = 0    (hint = -1UL not; here literal 0)
+   *   0x4a44f  popq   %rbp                        ; epilogue-before-tailcall
+   *   0x4a450  jmp    0xacea0                     ## symbol stub for: ___dynamic_cast
+   *                                               ; tail-call ___dynamic_cast(this, srcType, dstType, hint)
+   *                                               ;   -> returns OZChannelObjectRootBase* or NULL
+   *
+   * SEMANTICS:
+   *   Walk the parent chain (via +0x30) starting from `this`, stopping
+   *   at the FIRST node with bit 0x20 set in its flag byte at +0x39
+   *   (the "channel root" flag). At that stopping node, do a
+   *   cross-cast: `dynamic_cast<OZChannelObjectRootBase*>(stop_node)`.
+   *   Return NULL if the walk hits a NULL parent before finding the
+   *   flag bit (chain terminates without a root — floating fragment).
+   *
+   *   `___dynamic_cast` is the Itanium C++ ABI symbol implementing the
+   *   RTTI cross-cast; it walks the class-hierarchy metadata to compute
+   *   the correct pointer adjustment from an OZChannelBase* to an
+   *   OZChannelObjectRootBase* (a sibling in the multiple-inheritance
+   *   hierarchy of concrete root classes). The hint argument (arg3=0)
+   *   is `ptrdiff_t src2dst_offset` — 0 means "no hint given"; a value
+   *   of -1 would say "definitely fails"; positive would encode a fast-
+   *   path public-inheritance offset (per libcxxabi rules). The
+   *   compiler here decided to leave the hint 0 (no precomputed
+   *   offset — must consult full RTTI at runtime).
+   *
+   * DEPENDENCIES: none in-scope. The one external is `___dynamic_cast`
+   * @ProChannel stub 0xacea0 — libcxxabi (part of libc++abi.dylib), a
+   * TRUE out-of-scope extern like the other C++-runtime callees in this
+   * port (operator new, __call_once). Modelled as a boundary stub.
+   */
+  getChannelRootBase(): OZChannelObjectRootBase | null {
+    // The disasm is a tight loop over `this` — a pointer walk. In TS we
+    // reflect that with a mutable local; JS's null-punning matches the
+    // x86 `testq %rdi,%rdi ; je bail` and NULL-parent termination.
+    // We DO NOT recurse — the disasm uses a `jmp 0x4a42a` back-edge, a
+    // proper loop (not a self-call).
+    let cur: OZChannelBase | null = this;
+
+    // @0x4a42a..0x4a439 — the loop body.
+    while (cur !== null) {
+      // @0x4a42a  testq %rdi,%rdi ; @0x4a42d  je 0x4a43b
+      //     already handled by the while-condition (we entered the body
+      //     only if `cur` is non-null — the disasm re-checks at every
+      //     iteration, which we model by re-checking at each while-turn).
+
+      // @0x4a42f  testb $0x20, 0x39(%rdi)  ; @0x4a433  jne 0x4a43f
+      //   Read the flag byte at +0x39; if bit 0x20 is set, exit the
+      //   loop and go to the dynamic_cast at @0x4a43f.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const flagByte: number = (cur as any).__flag_byte_at_0x39 as number;
+      if ((flagByte & 0x20) !== 0) {
+        // @0x4a43f..0x4a450 — the "cast" tail.
+        //   @0x4a43f  leaq  __ZTI13OZChannelBase(%rip),  %rsi   ; srcType = typeinfo(OZChannelBase)
+        //   @0x4a446  leaq  __ZTI23OZChannelObjectRootBase(%rip), %rdx ; dstType = typeinfo(OZChannelObjectRootBase)
+        //   @0x4a44d  xorl  %ecx, %ecx                          ; hint = 0
+        //   @0x4a450  jmp   0xacea0                             ; tail-call ___dynamic_cast
+        //             -> return ___dynamic_cast(cur, &typeinfo(OZChannelBase),
+        //                                       &typeinfo(OZChannelObjectRootBase), 0)
+        return dynamic_cast_to_OZChannelObjectRootBase_stub(cur);
+      }
+
+      // @0x4a435  movq 0x30(%rdi), %rdi  ; cur = cur->parent
+      // @0x4a439  jmp  0x4a42a           ; goto loop
+      //
+      // The parent field at +0x30 is typed `unknown | null` in this
+      // file (see `__parent_folder_at_0x30` above) because the parent
+      // may be any OZChannelFolder in the general case. In THIS
+      // function the walk only cares whether the pointer is
+      // null/non-null and (via the flag byte) whether it's the root —
+      // the RTTI cast at the end handles the sibling-cross issue. We
+      // narrow via an unchecked assign consistent with the x86 raw
+      // pointer walk; the eventual dynamic_cast is what validates the
+      // final destination type.
+      const parent = cur.__parent_folder_at_0x30 as
+        | OZChannelBase
+        | null;
+      cur = parent;
+    }
+
+    // @0x4a43b..0x4a43e — the "bail" path.
+    //   0x4a43b  xorl %eax,%eax  ; @0x4a43d popq %rbp ; @0x4a43e retq
+    //   return NULL.
+    return null;
   }
 }
