@@ -226,5 +226,41 @@
   "addr": "0x000000000146df90",
   "demangled": "HgcSubtractAlpha::InitProgramDescriptor(HGProgramDescri",
   "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN18OZChannelHistogramD0Ev": {
+  "fw": "ProChannel",
+  "addr": "0x000000000007029e",
+  "demangled": "OZChannelHistogram::~OZChannelHistogram()",
+  "reason": "ctor/dtor/operator throw-only body (addr on incompleteness-throw line); census 2026-07-29"
+ },
+ "__ZN10OZDocumentD1Ev": {
+  "fw": "Ozone",
+  "addr": "0x00000000000474c0",
+  "demangled": "OZDocument::~OZDocument()",
+  "reason": "ctor/dtor/operator throw-only body (addr on incompleteness-throw line); census 2026-07-29"
+ },
+ "__ZN10OZDocumentD0Ev": {
+  "fw": "Ozone",
+  "addr": "0x00000000000474d0",
+  "demangled": "OZDocument::~OZDocument()",
+  "reason": "ctor/dtor/operator throw-only body (addr on incompleteness-throw line); census 2026-07-29"
+ },
+ "__ZN30FFThreadLocalCountedSetSupportD2Ev": {
+  "fw": "Flexo",
+  "addr": "0x00000000012fbb30",
+  "demangled": "FFThreadLocalCountedSetSupport::~FFThreadLocalCountedSe",
+  "reason": "ctor/dtor/operator throw-only body (addr on incompleteness-throw line); census 2026-07-29"
+ },
+ "__ZN30FFThreadLocalCountedSetSupportD1Ev": {
+  "fw": "Flexo",
+  "addr": "0x00000000012fbbe0",
+  "demangled": "FFThreadLocalCountedSetSupport::~FFThreadLocalCountedSe",
+  "reason": "ctor/dtor/operator throw-only body (addr on incompleteness-throw line); census 2026-07-29"
+ },
+ "__ZN10PCDelaunay13insertSegmentEP9PCVector2IfES2_": {
+  "fw": "ProCore",
+  "addr": "0x0000000000056456",
+  "demangled": "PCDelaunay::insertSegment(PCVector2<float>*, PCVector2<",
+  "reason": "throw-only body (demote_stub_bodies census); symbol-keyed to survive addr collisions"
  }
 }
