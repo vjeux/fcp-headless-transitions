@@ -1,0 +1,11 @@
+__ZN11OZ360Camera5resetEv:
+0000000000448b90	pushq	%rbp
+0000000000448b91	movq	%rsp, %rbp
+0000000000448b94	movabsq	$0x3ff0000000000000, %rax       ## imm = 0x3FF0000000000000
+0000000000448b9e	movq	%rax, 0x40(%rdi)
+0000000000448ba2	xorps	%xmm0, %xmm0
+0000000000448ba5	movups	%xmm0, 0x48(%rdi)
+0000000000448ba9	movq	$0x0, 0x58(%rdi)
+0000000000448bb1	popq	%rbp
+0000000000448bb2	retq
+0000000000448bb3	nopw	%cs:(%rax,%rax)
