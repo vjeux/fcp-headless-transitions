@@ -1,0 +1,7 @@
+__ZN5HGHLG8HLGToSDR18SetToneQualityModeEN12HGColorGamma23hgColorGammaToneQualityE:
+0000000000100920	pushq	%rbp
+0000000000100921	movq	%rsp, %rbp
+0000000000100924	movl	%esi, 0x1a8(%rdi)
+000000000010092a	popq	%rbp
+000000000010092b	retq
+000000000010092c	nopl	(%rax)
