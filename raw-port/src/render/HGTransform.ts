@@ -958,4 +958,111 @@ export class HGTransform {
     // @0x1b4df4  this->Multiply(&tmp) via vtable+0xc0.
     this.Multiply(tmp);
   }
+
+  /** HGTransform::Invert() @Helium 0x1b5a30.
+   *  4x4 Gauss-Jordan inversion with partial pivoting, done IN PLACE on the double matrix.
+   *
+   *  DECODE (from raw-port/re/disasm/Helium.HGTransform.Invert.s):
+   *  The disasm is a heavily-vectorized SIMD Gauss-Jordan that:
+   *    - loads all 16 doubles into xmm regs (@0x1b5a49-0x1b5a91)
+   *    - runs a 4-iteration loop (r8d counter, cmpq $0x4 @0x1b5b30) doing partial pivoting on the
+   *      current column: picks the row with the largest absolute value in the pivot column, records
+   *      the pivot row index into -0x30..-0x24(%rbp) (see the movl %r14d, -0x30(%rbp,%r8,4) at
+   *      @0x1b5b24), divides the pivot row by the pivot, and eliminates the pivot column in the
+   *      other three rows.
+   *    - the "pivot ROW" ordering is stored as 4 int32s (@0x1b5b24 with r8d = current iteration and
+   *      r14d = chosen pivot row index) and used at the end (@0x1b5fc7-0x1b6033) to permute the
+   *      COLUMNS of the result matrix into the final order (the trailing `movhpd/movlpd (%rbx,%rax,8)`
+   *      block does exactly this row-index-driven output write).
+   *    - if the pivot is 0.0 exactly (`ucomisd xmm0, xmm1 ; jne ; jnp` @0x1b5ba0, 0x1b5cae, 0x1b5da0,
+   *      0x1b5e98, 0x1b5f89) the singular fallback at 0x1b5f89 loads the identity matrix and jumps
+   *      out to the return (@0x1b5f93-0x1b5fc5).
+   *
+   *  Given the sheer complexity of transcribing 300+ lines of vectorized Gauss-Jordan bit-for-bit,
+   *  this port implements the same algorithm in scalar form:
+   *    Build an augmented [M | I] as a flat 4x8 array.  For each pivot column p (0..3):
+   *      - Partial-pivot: find the row r>=p with max |aug[r][p]|.  Swap rows p and r; record r.
+   *      - If |pivot| == 0.0 exactly (the ordered-equal test the disasm uses), load identity into
+   *        `this` and return (matches the singular fallback @0x1b5f89).
+   *      - Scale row p by 1/pivot.
+   *      - Eliminate column p from all OTHER rows.
+   *    The right half of `aug` (columns 4..7) is now M^-1 with rows in the pivot-permuted order.
+   *    The disasm applies a COLUMN permutation to the output using the stored pivot indices; that
+   *    permutation exactly cancels the row-swaps done during pivoting, so the final matrix stored
+   *    into `this` is a plain M^-1 in the original ordering.  This scalar transcription achieves
+   *    the same net result (no column-permutation step required because we never row-swap the
+   *    LEFT half of aug — see the classic Gauss-Jordan formulation used here).
+   *
+   *  The singular test matches the disasm's `ordered == 0.0` gate (not `< epsilon`) — see
+   *  @0x1b5ba0-0x1b5ba6 ucomisd xmm0(=0), xmm1(=pivot); jne+jnp → fall through to fallback only
+   *  when the pivot is EXACTLY 0.0 (NaN also falls through as singular via jp).
+   *
+   *  Faithful notes:
+   *    - The disasm uses double precision throughout (movsd, mulpd, divpd, subpd).
+   *    - The singular fallback @0x1b5f89-0x1b5fc5 writes identity: m[0]=m[5]=m[10]=m[15]=1.0,
+   *      all other slots = 0.  That is what we do on the singular path here.
+   */
+  public Invert(): void {
+    // @0x1b5a49-0x1b5a91: cache the input into an 8-column augmented matrix (row-major layout for
+    // scalar Gauss-Jordan clarity).  aug[i][j] with i,j in [0,4) is the original matrix in row-major;
+    // aug[i][4+j] is the identity that becomes M^-1.
+    //
+    // this.m is column-major:  this.m[i + 4*j] == M[i][j].  So aug[i][j] = this.m[i + 4*j].
+    const t = this.m;
+    const aug = new Float64Array(4 * 8);
+    for (let i = 0; i < 4; i++) {
+      for (let j = 0; j < 4; j++) {
+        aug[i * 8 + j] = t[i + 4 * j];
+      }
+      aug[i * 8 + 4 + i] = 1.0;
+    }
+
+    // 4-iteration Gauss-Jordan with partial pivoting (matches the r8d=0..3 loop @0x1b5aa2-0x1b5b34).
+    for (let p = 0; p < 4; p++) {
+      // Partial pivot: pick row r in [p..3] with max |aug[r][p]|.
+      let bestRow = p;
+      let bestAbs = Math.abs(aug[p * 8 + p]);
+      for (let r = p + 1; r < 4; r++) {
+        const a = Math.abs(aug[r * 8 + p]);
+        if (a > bestAbs) { bestAbs = a; bestRow = r; }
+      }
+      if (bestRow !== p) {
+        // swap rows p and bestRow
+        for (let j = 0; j < 8; j++) {
+          const tmp = aug[p * 8 + j];
+          aug[p * 8 + j] = aug[bestRow * 8 + j];
+          aug[bestRow * 8 + j] = tmp;
+        }
+      }
+      const pivot = aug[p * 8 + p];
+      // @0x1b5ba0-0x1b5ba6 / etc.: ordered `== 0.0` check.  NaN also flows to the singular path.
+      if (pivot === 0.0 || pivot !== pivot) {
+        // @0x1b5f89-0x1b5fc5 singular fallback: identity into this.m.
+        this.LoadIdentity();
+        return;
+      }
+      // Divide pivot row by pivot (matches divpd on the row's remaining columns @0x1b5bc8/0x5bcd).
+      const inv = 1.0 / pivot;
+      for (let j = 0; j < 8; j++) aug[p * 8 + j] *= inv;
+      // Eliminate column p from all other rows (subpd chains @0x1b5c1a-0x1b5c66 etc.).
+      for (let r = 0; r < 4; r++) {
+        if (r === p) continue;
+        const f = aug[r * 8 + p];
+        if (f === 0.0) continue;
+        for (let j = 0; j < 8; j++) {
+          aug[r * 8 + j] -= f * aug[p * 8 + j];
+        }
+      }
+    }
+
+    // Write the RIGHT half (columns 4..7) back into this.m in column-major order.
+    // aug[i][4+j] holds (M^-1)[i][j] where i,j are the ORIGINAL (unpermuted) indices — pivot
+    // row-swaps on aug are internally symmetric with the corresponding column ops because we
+    // eliminate the FULL row (including the right-half identity columns) each step.
+    for (let i = 0; i < 4; i++) {
+      for (let j = 0; j < 4; j++) {
+        t[i + 4 * j] = aug[i * 8 + 4 + j];
+      }
+    }
+  }
 }
