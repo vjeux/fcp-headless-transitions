@@ -1,0 +1,22 @@
+__ZN18HGHybridQTGammaLog6DecodeD1Ev:
+00000000001021f0	pushq	%rbp
+00000000001021f1	movq	%rsp, %rbp
+00000000001021f4	pushq	%rbx
+00000000001021f5	pushq	%rax
+00000000001021f6	leaq	0x916143(%rip), %rax
+00000000001021fd	movq	%rax, (%rdi)
+0000000000102200	movq	0x198(%rdi), %rax
+0000000000102207	testq	%rax, %rax
+000000000010220a	je	0x10221b
+000000000010220c	movq	(%rax), %rcx
+000000000010220f	movq	%rdi, %rbx
+0000000000102212	movq	%rax, %rdi
+0000000000102215	callq	*0x18(%rcx)
+0000000000102218	movq	%rbx, %rdi
+000000000010221b	addq	$0x8, %rsp
+000000000010221f	popq	%rbx
+0000000000102220	popq	%rbp
+0000000000102221	jmp	__ZN6HGNodeD2Ev                 ## HGNode::~HGNode()
+0000000000102226	movq	%rax, %rdi
+0000000000102229	callq	___clang_call_terminate
+000000000010222e	nop
