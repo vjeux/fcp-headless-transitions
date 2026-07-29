@@ -83,4 +83,31 @@ export class PCSerializerReadStream {
     return this.versionMajor < maj || (this.versionMajor === maj && this.versionMinor < min);
   }
   setTimeScale(ts: number): void { this.timeScale = ts; }
+
+  /**
+   * PCSerializerReadStream::~PCSerializerReadStream() — D1 (complete-object dtor) @ProCore 0x000DD60A.
+   *
+   * Disassembly (4 lines — from otool -tV of ProCore.framework x86_64):
+   *   dd60a  pushq  %rbp
+   *   dd60b  movq   %rsp, %rbp
+   *   dd60e  ud2
+   *
+   * Body: `ud2` @ProCore 0xDD60A — abstract-class trap. Byte-identical shape
+   * to the PCSerializer base-class dtor pair (see PCSerializer._dtorD1 @Ozone
+   * 0x6DAF30) and to the sibling PCStreamElement dtor at @ProCore 0xDD63A:
+   * clang's canonical output when the compiler proves the base-class dtor
+   * entry can never be reached (all live instances are concrete subclasses
+   * whose own D1 handles teardown). The sibling D0 (deleting dtor) at
+   * @ProCore 0x000DD610 is byte-identical (also `ud2`).
+   *
+   * Ported as a raising stub that cites the address, per PCSerializer._dtorD1
+   * precedent — an unreachable trap must be a loud gap, not a silent no-op.
+   * The decode IS `ud2`; this throw is the faithful port, not a deferral of
+   * an undecoded body.
+   */
+  protected _dtorD1(): never {
+    throw new Error(
+      "PCSerializerReadStream::~PCSerializerReadStream() D1 @ProCore 0xdd60a is `ud2` — abstract-class trap, must never be reached",
+    );
+  }
 }
