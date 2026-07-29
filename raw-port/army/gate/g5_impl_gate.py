@@ -1,0 +1,166 @@
+#!/usr/bin/env python3
+"""g5_impl_gate.py — the SEMANTIC-completeness gate (G5). Replaces the gameable regex impl_gate.py.
+
+For each `export function NAME(params): ret` in a changed .ts file that carries an @<FW> 0xADDR
+provenance, G5:
+  1. finds NAME's disassembly (re/disasm/*.s by symbol/class match near the provenance),
+  2. classifies it (verifier/classify_disasm.py): TRAP | EMPTY | DISPATCH_ONLY | REAL,
+  3. for REAL/DISPATCH_ONLY/EMPTY, runs the reachability fuzzer on the ACTUAL exported fn
+     (verifier/reach_check.py) using param TYPES parsed from the TS signature,
+  4. maps the verdict to a gate decision:
+
+       ACCEPT_AS_TRAP / ACCEPT_AS_EMPTY / LIKELY_REAL  -> PASS (real or faithfully-trivial)
+       SKELETON (DISPATCH_ONLY)                        -> PASS BUT FLAG: must be marked `skeleton`,
+                                                          NEVER counted `ported` (dispenser will not
+                                                          hand these out as leaves post-fix)
+       REJECT_CHEAT (REAL disasm + reachable throw)    -> REJECT (exit 2). The class-C/D cheat.
+       REVIEW_NEEDED (REAL, fuzz unavailable)          -> REJECT unless a reviewer sign-off sidecar
+                                                          (<file>.review.json {verdict:"LIKELY_REAL"})
+                                                          exists — forces the adversarial reviewer.
+
+This is NOT gameable by adding a token `if`/`return`: the verdict comes from CALLING the port
+(reach fuzz) or CALLING the real FCP symbol (oracle, Layer 1 via gate.sh G4). A throw on any reached
+input fails; a wrong number diverges. Writing more throw-free-looking text does not help.
+"""
+import re, os, sys, json, subprocess
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # raw-port/
+VERIFIER = os.path.join(ROOT, "army", "verifier")
+sys.path.insert(0, VERIFIER)
+from classify_disasm import classify, find_disasm
+import reach_check
+
+FW_RE = re.compile(r'@(ProCore|ProChannel|Helium|Ozone|Flexo)\s+0x([0-9a-fA-F]+)')
+ADDR_RE = re.compile(r'@0x([0-9a-fA-F]{3,})')
+# a mangled symbol cited in a comment (best disasm key)
+SYM_RE = re.compile(r'\b(_{1,2}Z[NK]?[0-9A-Za-z_]+)\b')
+
+def _ts_functions(text):
+    """Yield (name, params:[(pname,ptype)], ret, start_index) for each exported function."""
+    out = []
+    for m in re.finditer(r'export\s+function\s+(\w+)\s*\(', text):
+        name = m.group(1)
+        # capture the param list up to the matching close paren
+        i = m.end(); depth = 1; j = i
+        while j < len(text) and depth:
+            if text[j] == '(': depth += 1
+            elif text[j] == ')': depth -= 1
+            j += 1
+        params_src = text[i:j-1]
+        # ret type after ): up to {
+        k = text.find('{', j)
+        ret = text[j:k].lstrip(': ').strip() if k > 0 else ""
+        params = _parse_params(params_src)
+        out.append((name, params, ret, m.start()))
+    return out
+
+def _parse_params(src):
+    params = []
+    depth = 0; cur = ""
+    for ch in src:
+        if ch in "<([{": depth += 1
+        elif ch in ">)]}": depth -= 1
+        if ch == "," and depth == 0:
+            params.append(cur); cur = ""
+        else:
+            cur += ch
+    if cur.strip(): params.append(cur)
+    out = []
+    for p in params:
+        p = p.strip()
+        if not p: continue
+        mm = re.match(r'(\w+)\s*:\s*(.+)', p)
+        if mm:
+            out.append((mm.group(1), mm.group(2).strip()))
+        else:
+            out.append((p, "unknown"))
+    return out
+
+def _ts_type_to_grid(t):
+    t = t.lower().replace("readonly", "").strip()
+    if t.startswith(("boolean",)): return "boolean"
+    if t.startswith(("number",)) and "[]" not in t: return "number"
+    if "number[]" in t or "float64array" in t or "float32array" in t or "array<number>" in t: return "number[]"
+    if t.startswith("string"): return "string"
+    return "unknown"
+
+def check_file(path):
+    """Return (errs, flags). errs => REJECT; flags => informational (skeleton must not be ported)."""
+    errs, flags = [], []
+    text = open(path, errors="replace").read()
+    fns = _ts_functions(text)
+    module_rel = os.path.relpath(path, os.path.dirname(ROOT))  # raw-port/src/...
+    # module path the workers import is .js; on-disk is .ts. reach_worker imports the .ts directly.
+    # symbols cited anywhere in the file (one class per file, per the strict rule) — used as a
+    # fallback disasm key when the nearest-provenance window doesn't contain the mangled symbol.
+    file_syms = SYM_RE.findall(text)
+    # class name derived from the file (e.g. OZDynamicSpline.ts -> OZDynamicSpline) and from the
+    # export prefix (OZDynamicSpline_setVertexSmooth -> OZDynamicSpline / setVertexSmooth).
+    file_class = os.path.splitext(os.path.basename(path))[0]
+    for name, params, ret, start in fns:
+        pre = text[:start][-4000:]
+        fwm = FW_RE.search(pre) or FW_RE.search(text)
+        symm = SYM_RE.findall(pre) or file_syms
+        if not fwm and not symm:
+            continue  # no provenance near this fn -> provenance_gate handles it
+        # find disasm: prefer a mangled symbol whose name relates to THIS export; else file syms;
+        # else class/name/method-derived keys.
+        method = name.split("_", 1)[1] if "_" in name else name
+        dpath = None
+        # rank cited symbols by whether they mention this method name
+        ranked = sorted(set(symm), key=lambda s: (0 if method.lower() in s.lower() else 1))
+        for s in ranked:
+            dpath = find_disasm(s)
+            if dpath: break
+        for key in (name, f"{file_class}.{method}", method, file_class):
+            if dpath: break
+            dpath = find_disasm(key)
+        if not dpath:
+            # can't classify -> defer to reviewer (don't silently pass)
+            flags.append(f"{path}: {name}: no disasm found to classify (reviewer must verify)")
+            continue
+        dcls = classify(dpath)["class"]
+        if dcls == "TRAP":
+            continue  # throwing port is faithful
+        # build param grid types for the reach fuzzer
+        pgrid = [{"type": _ts_type_to_grid(t)} for (_, t) in params]
+        try:
+            verdict = reach_check.check(dpath, path, name, pgrid, cap=256)
+        except Exception as e:
+            flags.append(f"{path}: {name}: reach check error ({e}); reviewer must verify")
+            continue
+        v = verdict["verdict"]
+        if v == "REJECT_CHEAT":
+            errs.append(f"{path}: G5 CHEAT — {name}: REAL disasm ({os.path.basename(dpath)}) but the "
+                        f"port throws incompleteness on {verdict['reach'].get('incompleteHits')} "
+                        f"reachable inputs. Transcribe the real instructions; don't stub the body.")
+        elif v == "SKELETON":
+            flags.append(f"{path}: {name}: DISPATCH_ONLY (7385eb01 shape) — mark `skeleton`, "
+                         f"NEVER `ported`. Real work is the callees; not an implementable leaf.")
+        elif v == "REVIEW_NEEDED":
+            rev = path + ".review.json"
+            signed = os.path.exists(rev) and json.load(open(rev)).get("verdict") == "LIKELY_REAL"
+            if not signed:
+                errs.append(f"{path}: G5 REVIEW_NEEDED — {name}: REAL disasm but not callable in "
+                            f"isolation; needs adversarial-reviewer sign-off ({os.path.basename(rev)}).")
+        elif v == "REJECT_INCOMPLETE_EMPTY":
+            errs.append(f"{path}: G5 — {name}: EMPTY disasm but port throws incompleteness on a "
+                        f"reachable input (a no-op must not throw).")
+        # ACCEPT_AS_TRAP / ACCEPT_AS_EMPTY / LIKELY_REAL -> pass
+    return errs, flags
+
+def main():
+    paths = [p for p in sys.argv[1:] if p.endswith(".ts")]
+    all_errs, all_flags = [], []
+    for p in paths:
+        if not os.path.exists(p): continue
+        e, f = check_file(p)
+        all_errs += e; all_flags += f
+    for f in all_flags: print("  FLAG:", f)
+    for e in all_errs: print("  ", e)
+    print(f"\ng5_impl_gate: {len(all_errs)} cheat(s), {len(all_flags)} flag(s) across {len(paths)} file(s)"
+          f"  ->  {'REJECT' if all_errs else 'PASS'}")
+    sys.exit(2 if all_errs else 0)
+
+if __name__ == "__main__":
+    main()

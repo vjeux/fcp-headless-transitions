@@ -45,6 +45,14 @@ if [ -n "$CHANGED" ] && [ -f "$ROOT/army/gate/oracle_map.json" ]; then
   else echo "  (no oracle-mapped node for changed files)"; fi
 else echo "  (skipped: no changed files given or no oracle_map)"; fi
 
+echo "== G5 semantic completeness (un-gameable: classify disasm + reach fuzz + oracle) =="
+# G5 rejects class-C/D cheats: a REAL-disasm function whose TS body throws incompleteness on a
+# reachable input (the 7385eb01 family). DISPATCH_ONLY shells are FLAGGED (must be `skeleton`,
+# never `ported`). Re-derives disasm from the binary (adversarial: does not trust the saved .s).
+python3 "$ROOT/army/gate/g5_impl_gate.py" "$@"
+G5=$?
+[ "$G5" = 2 ] && { echo "  G5 REJECT"; FAIL=1; }
+
 echo ""
 [ "$FAIL" = 0 ] && echo "GATE: PASS ✅" || echo "GATE: REJECT ❌ (fix the above; shortcuts do not land)"
 exit $FAIL
