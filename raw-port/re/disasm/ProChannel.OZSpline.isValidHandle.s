@@ -1,0 +1,41 @@
+__ZN8OZSpline13isValidHandleEPv:
+000000000003026c	pushq	%rbp
+000000000003026d	movq	%rsp, %rbp
+0000000000030270	pushq	%r14
+0000000000030272	pushq	%rbx
+0000000000030273	movq	%rsi, %r14
+0000000000030276	movq	%rdi, %rbx
+0000000000030279	movq	0xa0(%rdi), %rax
+0000000000030280	testq	%rax, %rax
+0000000000030283	je	0x3028e
+0000000000030285	movq	0x30(%rax), %rdi
+0000000000030289	testq	%rdi, %rdi
+000000000003028c	jne	0x30292
+000000000003028e	leaq	0x8(%rbx), %rdi
+0000000000030292	callq	0xacb16                         ## symbol stub for: __ZN10PCSpinLock4lockEv
+0000000000030297	movq	0x18(%rbx), %rdx
+000000000003029b	subq	0x10(%rbx), %rdx
+000000000003029f	je	0x302ba
+00000000000302a1	sarq	$0x3, %rdx
+00000000000302a5	decq	%rdx
+00000000000302a8	movq	%rbx, %rdi
+00000000000302ab	xorl	%esi, %esi
+00000000000302ad	movq	%r14, %rcx
+00000000000302b0	callq	__ZN8OZSpline10findVertexEllPv  ## OZSpline::findVertex(long, long, void*)
+00000000000302b5	movl	%eax, %r14d
+00000000000302b8	jmp	0x302bd
+00000000000302ba	xorl	%r14d, %r14d
+00000000000302bd	movq	0xa0(%rbx), %rax
+00000000000302c4	testq	%rax, %rax
+00000000000302c7	je	0x302d2
+00000000000302c9	movq	0x30(%rax), %rdi
+00000000000302cd	testq	%rdi, %rdi
+00000000000302d0	jne	0x302d9
+00000000000302d2	addq	$0x8, %rbx
+00000000000302d6	movq	%rbx, %rdi
+00000000000302d9	callq	0xacb1c                         ## symbol stub for: __ZN10PCSpinLock6unlockEv
+00000000000302de	movl	%r14d, %eax
+00000000000302e1	popq	%rbx
+00000000000302e2	popq	%r14
+00000000000302e4	popq	%rbp
+00000000000302e5	retq
