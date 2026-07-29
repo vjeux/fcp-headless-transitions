@@ -86,6 +86,28 @@ def _class_methods(fw, cls):
     ms = led.get(cls, {})
     return [(k, v) for k, v in ms.items()]
 
+# Pure-math demangled-method signatures — RARE in plumbing, common in real numeric classes.
+# Used to PROMOTE (never demote) classes with >=2 distinct signals to tier -1 so math workers
+# reach real leaves first, past the small n=7 non-shader plumbing that dodges BAD_TOK (2026-07-29).
+MATH_SIG = ("MultMatrix","LoadMatrix","LoadIdentity","PostMultMatrix","determinant",
+    "invert","Interpolat","interpolat","evalXSpline","evalBSpline","Bezier","BSpline",
+    "Quaternion","crossProduct","dotProduct","SetCoefficient","GetCoefficient",
+    "convolve","Convolution","solveNode","getValueAsDouble","superEllipse","calcSnap",
+    "Gradient","Catmull","EaseIn","EaseOut","Logarithmic","SampledContour","perspective",
+    "homography","Vec3","Vec4","PCVector","PCMatrix","toLinear","fromLinear",
+    "OETF","EOTF","OOTF")
+def _math_signals(ms):
+    # Only count signals from C++ methods — ObjC selectors (e.g. a retiming UI module whose
+    # selector name contains "Interpolate"/"Bezier") are incidental and must not promote.
+    hits=set()
+    for v in ms.values():
+        if not isinstance(v,dict): continue
+        if v.get("kind")!="cpp": continue
+        nm=v.get("demangled","")
+        for t in MATH_SIG:
+            if t in nm: hits.add(t)
+    return len(hits)
+
 def _candidates():
     """Portable work units (fw, cls, nMethods, chunk_or_None), best-first.
     FULL-ENGINE scope (ARMY.md §1): dispense the ENTIRE inventory. ANTI-SHORTCUT: any class with
@@ -115,6 +137,7 @@ def _candidates():
                 for k in range(nchunks):
                     if f"{cls}.m{k}" in done: continue
                     tier = 5 if is_facade else 3  # facade chunks last; real chunks after small wins
+                    if not is_facade and objc <= n // 2 and _math_signals(ms) >= 2: tier = min(tier, 2)
                     out.append((tier, CHUNK, fw, cls, k))
             else:
                 if cls in done: continue
@@ -126,6 +149,10 @@ def _candidates():
                 elif 2 <= n <= 12 and objc == 0 and not heavy_tok: tier = 0
                 elif objc > n // 2: tier = 2
                 else: tier = 1
+                # PROMOTE-ONLY: strong pure-math signal (>=2 distinct MATH_SIG method names)
+                # lifts a class above tier 0 to tier -1 — never demotes (min with current tier).
+                # Separates real numeric classes from the small n=7 plumbing at the queue head.
+                if not is_facade and objc <= n // 2 and _math_signals(ms) >= 2: tier = min(tier, -1)
                 out.append((tier, n, fw, cls, None))
     out.sort()
     return [(n, fw, cls, ck) for (tier, n, fw, cls, ck) in out]
