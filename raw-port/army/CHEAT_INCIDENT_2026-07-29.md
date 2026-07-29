@@ -64,3 +64,15 @@ at line 41 BEFORE the sidecar check at line 43 — proven that G5 REJECTs the ch
 branch body regardless of sidecar content. So the CODE gate is primary; the
 mutable sidecar cannot override it. FOLLOWUP (optional): make sidecars append-only
 or have wt_merge prefer the most-restrictive verdict across history.
+
+## UPDATE 19:2x — sidecar race + defense-in-depth CONFIRMED
+- `.review.json` sidecars are MUTABLE and a later mis-firing reviewer overwrote 4 of my
+  coordinator REJECTs back to LIKELY_REAL/merge_allowed=true (incl. Bool3D, which reviewer-04
+  had explicitly rejected). Sidecars alone are NOT a reliable block.
+- BUT: wt_merge.sh runs gate.sh (hardened G5) at line 41-43 BEFORE the sidecar check at line 51.
+  Verified by simulation: the hardened G5 REJECTs each cheat branch body in a gate-worktree.
+  => The 8 cheat branches CANNOT merge regardless of sidecar state. Defense-in-depth holds.
+- Ground-truth body scan: all 8 branches (OZChannel_Factory, Seed, Bool3D, Button, Double,
+  Folder, Levels, Scale) confirmed CHEAT (fabricated new + sentinel==1).
+- Lesson: the GATE (structural, re-derived from binary) is the authority, not the sidecar.
+  The reviewer sidecar is a SECONDARY signal for throw-free-but-wrong bodies G5 can't judge.
