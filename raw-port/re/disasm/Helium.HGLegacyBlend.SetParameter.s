@@ -1,0 +1,73 @@
+__ZN13HGLegacyBlend12SetParameterEiffff:
+0000000000241720	movl	$0xffffffff, %eax               ## imm = 0xFFFFFFFF
+0000000000241725	cmpl	$0x5, %esi
+0000000000241728	ja	0x241818
+000000000024172e	movl	%esi, %ecx
+0000000000241730	leaq	0xe5(%rip), %rdx
+0000000000241737	movslq	(%rdx,%rcx,4), %rcx
+000000000024173b	addq	%rdx, %rcx
+000000000024173e	jmpq	*%rcx
+0000000000241740	roundss	$0x9, %xmm0, %xmm0
+0000000000241746	cvttss2si	%xmm0, %ecx
+000000000024174a	cmpl	$0x8, %ecx
+000000000024174d	ja	0x241818
+0000000000241753	xorl	%eax, %eax
+0000000000241755	cmpl	%ecx, 0x1a8(%rdi)
+000000000024175b	je	0x241818
+0000000000241761	movl	%ecx, 0x1a8(%rdi)
+0000000000241767	jmp	0x241809
+000000000024176c	roundss	$0x9, %xmm0, %xmm0
+0000000000241772	cvttss2si	%xmm0, %edx
+0000000000241776	xorl	%ecx, %ecx
+0000000000241778	testl	%edx, %edx
+000000000024177a	setne	%cl
+000000000024177d	cmpl	%ecx, 0x1ac(%rdi)
+0000000000241783	je	0x241818
+0000000000241789	xorl	%eax, %eax
+000000000024178b	testl	%edx, %edx
+000000000024178d	sete	%al
+0000000000241790	movl	%ecx, 0x1ac(%rdi)
+0000000000241796	movl	%eax, 0x1b0(%rdi)
+000000000024179c	jmp	0x241809
+000000000024179e	movss	%xmm0, 0x1a0(%rdi)
+00000000002417a6	shufps	$0x0, %xmm0, %xmm0              ## xmm0 = xmm0[0,0,0,0]
+00000000002417aa	movq	0x1b8(%rdi), %rax
+00000000002417b1	movaps	%xmm0, 0x10(%rax)
+00000000002417b5	movq	0x1b8(%rdi), %rax
+00000000002417bc	movaps	%xmm0, (%rax)
+00000000002417bf	jmp	0x241809
+00000000002417c1	movss	%xmm0, 0x1a4(%rdi)
+00000000002417c9	movss	0x1864ef(%rip), %xmm1
+00000000002417d1	divss	%xmm0, %xmm1
+00000000002417d5	shufps	$0x0, %xmm1, %xmm1              ## xmm1 = xmm1[0,0,0,0]
+00000000002417d9	movq	0x1b8(%rdi), %rax
+00000000002417e0	movaps	%xmm1, 0x30(%rax)
+00000000002417e4	movq	0x1b8(%rdi), %rax
+00000000002417eb	movaps	%xmm1, 0x20(%rax)
+00000000002417ef	shufps	$0x0, %xmm0, %xmm0              ## xmm0 = xmm0[0,0,0,0]
+00000000002417f3	movq	0x1b8(%rdi), %rax
+00000000002417fa	movaps	%xmm0, 0x50(%rax)
+00000000002417fe	movq	0x1b8(%rdi), %rax
+0000000000241805	movaps	%xmm0, 0x40(%rax)
+0000000000241809	pushq	%rbp
+000000000024180a	movq	%rsp, %rbp
+000000000024180d	callq	__ZN6HGNode9ClearBitsEv         ## HGNode::ClearBits()
+0000000000241812	movl	$0x1, %eax
+0000000000241817	popq	%rbp
+0000000000241818	retq
+0000000000241819	nopl	(%rax)
+000000000024181c	andb	$-0x1, %al
+000000000024181e	.byte 0xff #bad opcode
+000000000024181f	incl	0x50ffffff(%rdx)
+0000000000241825	.byte 0xff #bad opcode
+0000000000241826	.byte 0xff #bad opcode
+0000000000241827	.byte 0xff #bad opcode
+0000000000241828	cld
+0000000000241829	.byte 0xff #bad opcode
+000000000024182a	.byte 0xff #bad opcode
+000000000024182b	.byte 0xff #bad opcode
+000000000024182c	cld
+000000000024182d	.byte 0xff #bad opcode
+000000000024182e	.byte 0xff #bad opcode
+000000000024182f	jmpq	*0x66ffffff(%rbp)
+0000000000241835	nopw	%cs:(%rax,%rax)

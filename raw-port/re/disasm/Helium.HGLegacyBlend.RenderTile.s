@@ -1,0 +1,10 @@
+__ZN13HGLegacyBlend10RenderTileEP6HGTile:
+0000000000242510	pushq	%rbp
+0000000000242511	movq	%rsp, %rbp
+0000000000242514	movq	0x1b8(%rdi), %rcx
+000000000024251b	movl	0x1a8(%rdi), %edx
+0000000000242521	movq	(%rdi), %rax
+0000000000242524	movq	0x238(%rax), %rax
+000000000024252b	popq	%rbp
+000000000024252c	jmpq	*%rax
+000000000024252e	nop
