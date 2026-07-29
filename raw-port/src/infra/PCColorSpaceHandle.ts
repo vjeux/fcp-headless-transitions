@@ -73,4 +73,24 @@ export class PCColorSpaceHandle {
     }
     this.handle = null;
   }
+
+  /**
+   * getCGColorSpace() const  @ProCore 0x9afee  __ZNK18PCColorSpaceHandle15getCGColorSpaceEv
+   *
+   * Source disassembly: raw-port/re/disasm/ProCore.__ZNK18PCColorSpaceHandle15getCGColorSpaceEv.s
+   *   0x9afee  pushq %rbp                       ; prologue
+   *   0x9afef  movq  %rsp, %rbp
+   *   0x9aff2  movq  (%rdi), %rax               ; rax = *(this + 0) = this->handle
+   *   0x9aff5  popq  %rbp
+   *   0x9aff6  retq
+   *   0x9aff7  nop
+   *
+   * Trivial 7-instruction accessor: return the +0x00 field (the CGColorSpaceRef
+   * handle). The +0x00 offset is already documented on this class from the
+   * destructor decode above; no new layout information here.
+   */
+  public getCGColorSpace(): CGColorSpaceRef | null {
+    // @0x9aff2  movq (%rdi), %rax   -> return this->handle
+    return this.handle;
+  }
 }
