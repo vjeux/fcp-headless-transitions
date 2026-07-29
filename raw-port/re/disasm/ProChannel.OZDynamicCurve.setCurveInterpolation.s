@@ -1,0 +1,16 @@
+__ZN14OZDynamicCurve21setCurveInterpolationEj:
+0000000000029350	pushq	%rbp
+0000000000029351	movq	%rsp, %rbp
+0000000000029354	pushq	%r14
+0000000000029356	pushq	%rbx
+0000000000029357	movl	%esi, %ebx
+0000000000029359	movq	%rdi, %r14
+000000000002935c	addq	$0x8, %rdi
+0000000000029360	callq	__ZN8OZSpline16setInterpolationEj ## OZSpline::setInterpolation(unsigned int)
+0000000000029365	movl	%ebx, 0xd8(%r14)
+000000000002936c	movb	$0x1, %al
+000000000002936e	popq	%rbx
+000000000002936f	popq	%r14
+0000000000029371	popq	%rbp
+0000000000029372	retq
+0000000000029373	nop
