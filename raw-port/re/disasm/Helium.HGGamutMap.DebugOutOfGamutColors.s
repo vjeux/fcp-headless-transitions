@@ -1,0 +1,7 @@
+__ZN10HGGamutMap21DebugOutOfGamutColorsEb:
+0000000000157750	pushq	%rbp
+0000000000157751	movq	%rsp, %rbp
+0000000000157754	movb	%sil, 0x1d4(%rdi)
+000000000015775b	popq	%rbp
+000000000015775c	retq
+000000000015775d	nopl	(%rax)
