@@ -50,4 +50,28 @@ export class Json_StreamWriter_Factory {
       "Json::StreamWriter::Factory::~Factory() [D0] @ProCore 0xddec2 is a `ud2` trap — must not be invoked on an abstract base instance",
     );
   }
+
+  /**
+   * Json::StreamWriter::Factory::~Factory() [D1 complete-object dtor] @ProCore 0x000DDEBC.
+   *
+   * Disassembly (3 lines — from otool -tV of ProCore.framework x86_64):
+   *   ddebc  pushq  %rbp
+   *   ddebd  movq   %rsp, %rbp
+   *   ddec0  ud2                          ; deliberate CPU trap.
+   *
+   * Byte-identical shape to the sibling D0 above at @ProCore 0xDDEC2, and to
+   * PCSerializer._dtorD1 @Ozone 0x6DAF30 and PCStreamElement._dtorD1
+   * @ProCore 0xDD63A: clang emits `ud2` for the abstract base-class dtor
+   * entry when the compiler proves it can never be reached (all live
+   * instances are concrete subclasses whose own dtor handles teardown).
+   *
+   * Ported as a raising stub that cites the address, matching the D0 method
+   * above. The decode IS `ud2`; this throw is the faithful port, not a
+   * deferral of an undecoded body.
+   */
+  protected _dtorD1(): never {
+    throw new Error(
+      "Json::StreamWriter::Factory::~Factory() [D1] @ProCore 0xddebc is a `ud2` trap — must not be invoked on an abstract base instance",
+    );
+  }
 }
