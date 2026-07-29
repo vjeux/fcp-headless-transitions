@@ -43,6 +43,52 @@ def _canonical_repo():
     return repo
 
 CANON = _canonical_repo()
+
+# --- DISPATCH_ONLY guard (anti-cheat): never serve a function whose real work IS its callees ---
+# The 7385eb01 root cause: leafq classified virtual/vtable dispatch as an allowed "boundary", so a
+# function whose ENTIRE body is unimplemented dispatch (callees==[], ext==0, ind>=1, no compute)
+# qualified as an implementable leaf. Porting it can only produce a shell. We refuse to dispense it.
+_VERIFIER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "verifier")
+sys.path.insert(0, os.path.abspath(_VERIFIER))
+try:
+    from classify_disasm import classify as _classify_disasm
+except Exception:
+    _classify_disasm = None
+_DISASM_SH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools", "disasm.sh")
+_DISPATCH_CACHE = {}
+
+def _is_dispatch_only(fw, sym, info):
+    """True if this function is a pure vtable/dispatch shell (no transcribable work of its own).
+    Fast pre-filter on callgraph fields, then confirm with the disasm classifier when available."""
+    # cheap structural pre-filter: no internal callees, no external named calls, but has indirect
+    # dispatch, and a small body -> strong DISPATCH_ONLY candidate.
+    if not (not info.get("callees") and info.get("ext", 0) == 0 and info.get("ind", 0) >= 1):
+        return False
+    if sym in _DISPATCH_CACHE:
+        return _DISPATCH_CACHE[sym]
+    if _classify_disasm is None:
+        # can't classify -> be safe and treat the structural candidate as dispatch-only (skip it).
+        _DISPATCH_CACHE[sym] = True
+        return True
+    # re-derive the disasm on demand (adversarial, do not trust a saved .s), then classify.
+    verdict = False
+    try:
+        safe = re.sub(r"[^A-Za-z0-9_]", "", sym)
+        pfx = "" if fw == "Ozone" else fw + "."
+        dpath = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "re", "disasm",
+                             f"{pfx}{safe}.s")
+        if not (os.path.exists(dpath) and os.path.getsize(dpath) > 0):
+            subprocess.run(["bash", _DISASM_SH, "--sym", sym, fw],
+                           capture_output=True, text=True, timeout=120)
+        if os.path.exists(dpath) and os.path.getsize(dpath) > 0:
+            verdict = _classify_disasm(dpath)["class"] == "DISPATCH_ONLY"
+        else:
+            verdict = True  # structural candidate + no disasm -> refuse to dispense (safe)
+    except Exception:
+        verdict = True
+    _DISPATCH_CACHE[sym] = verdict
+    return verdict
+
 GRAPH = os.path.join(CANON, "raw-port", "army", "graph")
 LED   = os.path.join(CANON, "raw-port", "army", "ledger")
 CLAIMS= os.path.join(CANON, "raw-port", "army", "swarm", "leaf_claims.json")
@@ -110,6 +156,7 @@ def _ready_rows(fw, min_lines=0):
         if info.get("lines",0) < min_lines: continue  # --min: skip trivial dtors/getters, target real logic
         blockers=[c2 for c2 in info.get("callees",[]) if c2 not in done]
         if blockers: continue                       # not implementable yet
+        if _is_dispatch_only(fw, sym, info): continue  # 7385eb01 shape — real work IS callees, not a leaf
         rows.append((info.get("lines",0), info.get("ext",0), info.get("ind",0), sym, cls, dem, addr))
     rows.sort()                                     # smallest body first = truest leaves lead
     return rows
