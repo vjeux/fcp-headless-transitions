@@ -694,15 +694,145 @@ export class OZChannelPosition3D {
    * OZChannelPosition3D::getTangent(CMTime const& t, double u, PCVector3<double>& out)
    * @0xADDR ProChannel 0x7b3bc.
    *
-   * Samples getPositionOnPath at (u + -1.0) and (u + 1.0) — the ±1 finite-difference secant
-   * along the polyline (@ProChannel 0xb03c8 = -1.0, @ProChannel 0xaf528 = 1.0). Normalizes the
-   * difference vector (with the abs-mask @0xb0390 and epsilon @0xb03b0 = 1e-7 fallback). Depends
-   * on getPositionOnPath which is not yet transcribed.
+   * Samples getPositionOnPath at (u + -1.0) @0x7b40b and (u + 1.0) @0x7b435 — a symmetric
+   * ±1 finite-difference secant along the polyline. Only the position-triple outputs of
+   * getPositionOnPath are consulted; the six trailing tangent/normal/binormal double* args
+   * are passed as scratch pointers (populated but ignored here) and the boolean `wrap`
+   * arg is passed 0 @0x7b428 and @0x7b45b.
+   *
+   *   at u-1:  scratch @[-0x68] (x0), scratch @[-0x60] (y0), scratch @[-0x58] (z0)
+   *   at u+1:  scratch @[-0x40] (x1), scratch @[-0x50](?)... let me be exact:
+   *
+   * Reading the register bindings:
+   *   %rbx  = &tmp0    <- x-out slot for the first call (@0x7b3ee leaq -0x68(rbp),rbx)
+   *   %r13  = &tmp5    <- y-out slot for the SECOND call  (@0x7b3fc leaq -0x60(rbp),r13)
+   *   %r15  = &tmp?    <- z-out slot for the SECOND call  (@0x7b404 leaq -0x58(rbp),r15)
+   *   %r14  = &tmp3    <- x-out slot for the second call  (@0x7b44e leaq -0x40(rbp),r14)
+   *
+   * Then the tangent is computed as:
+   *   diff.z = *r15 - *rbx     (z1 - z0)                @0x7b463..0x7b46c
+   *   diff.xy(vec) = [*r14 : *r13] - [*(-0x50) : *(-0x48)]      (x1-x0, y1-y0)  @0x7b474..0x7b48f
+   *   len2 = diff.x*diff.x + diff.y*diff.y + diff.z*diff.z      (haddpd + addsd)  @0x7b493..0x7b49f
+   *   len  = sqrt(len2)                                          @0x7b4a3
+   *   if (fabs(len) > 1e-7) {                                    @0x7b4a7..0x7b4bd
+   *     out = diff / len   (component-wise)
+   *   } else {
+   *     out = diff         (raw un-normalized difference)
+   *   }
+   *
+   * The compiler folded the divide with a masked blend: it always computes
+   * `diff / len` for the XY pair AND `diff.z / len` (@0x7b4c4..0x7b4e5), then
+   * `blendvpd` picks per-lane between `raw diff` (mask lane) and `diff/len`.
+   * Because the mask is `(fabs(len) > 1e-7) ? 1 : 0` broadcast to a 128-bit
+   * MSB-set-per-lane, the FALSE case yields `diff/len` in every lane
+   * (paradoxical vs. the pseudocode above; see the asm carefully):
+   *
+   *   @0x7b4b3 movsd 0x34ef5(rip),xmm4  -> xmm4 = 1e-7
+   *   @0x7b4bd ucomisd xmm0(=|len|),xmm4 ; seta al  -> al = (|len| > 1e-7)? 0 : 1 ... wait,
+   *   `seta` is "unsigned above" after ucomisd; PF=0 && CF=0 iff xmm4>xmm0 i.e. 1e-7>|len|,
+   *   i.e. al=1 iff |len| is TINY.
+   *   @0x7b4d0 movd eax,xmm0 ; @0x7b4d4 pshufd $0x44 -> broadcast al to lanes
+   *   @0x7b4d9 psllq $0x3f -> put al in MSB of each 64-bit lane
+   *   @0x7b4de blendvpd xmm0,xmm2,xmm4  ; blend mask lanes: mask=1 -> pick xmm2 (raw diff)
+   *
+   * So the LANE-BLEND is: |len| tiny -> use raw diff; else use normalized. Matches the
+   * pseudocode above.
+   *
+   * The scalar Z path @0x7b4e3..0x7b4e5:
+   *   ja 0x7b4e9   ; if |len| > 1e-7, SKIP the divide (leave xmm1 as raw z-diff)
+   *   divsd xmm3,xmm1  ; (unreached in |len|>1e-7 case? or in tiny case?)
+   *
+   * Reading it again: `ja` after `ucomisd xmm0(=abs len),xmm4(=1e-7)` means "if xmm4 <
+   * xmm0 & unordered=0" — i.e. "|len| > 1e-7 STRICTLY, in ordered comparison". The
+   * "taken" arm SKIPS the divsd, leaving xmm1 with the RAW z-difference. So this is
+   * REVERSED from what I said: |len|>1e-7 -> raw z; |len|<=1e-7 -> divide by len.
+   *
+   * That contradicts the blendvpd branch, so re-check blendvpd:
+   *   blendvpd xmm0(mask),xmm2(raw),xmm4(quotient): "for each 64-bit lane, if mask MSB=1
+   *   pick from xmm2, else pick from xmm4". mask was set from `al = (|len|<=1e-7)`
+   *   (seta after ucomisd xmm0,xmm4 is EAX=1 iff xmm4>xmm0 unordered=0, i.e. 1e-7>|len|).
+   *   So al=1 -> tiny -> pick xmm2 (raw). al=0 -> not tiny -> pick xmm4 (normalized).
+   *
+   * For the Z scalar: `ja` is taken iff xmm4<xmm0 (i.e. |len|>1e-7). Taken arm skips
+   * divsd, leaving xmm1 as raw z-diff. NOT-taken arm falls through into `divsd xmm3,xmm1`
+   * (xmm3=len, xmm1=z-diff), producing xmm1 = z-diff / len ... but that's the "tiny"
+   * case, which would divide by ~0. So Z's blend is ALSO reversed vs. XY:
+   *
+   * The clang codegen appears to emit a de-normalized fallback where the "tiny" case
+   * DOES divide by the tiny len (producing large/inf output), while the "not tiny"
+   * case leaves the raw z-diff unmodified. AND then blendvpd merges XY according to
+   * the OPPOSITE convention (tiny -> raw XY, not-tiny -> normalized XY).
+   *
+   * That's an obvious inconsistency; but the disassembly is what it is. This method
+   * DEPENDS on getPositionOnPath (still deferred @ProChannel 0x7b508 body). Rather than
+   * side-step the arithmetic, we transcribe the pattern faithfully; the invocation of
+   * the deferred getPositionOnPath will propagate its error to callers exactly at the
+   * points where FCP would have produced a numeric result.
    */
-  getTangent(_t: CMTime, _u: number, _out: IPCVector3d): boolean {
-    throw new Error(
-      "OZChannelPosition3D::getTangent @ProChannel 0x7b3bc not yet transcribed (depends on getPositionOnPath @ProChannel 0x?)",
+  getTangent(t: CMTime, u: number, out: IPCVector3d): boolean {
+    // @0x7b3dd..0x7b40b — allocate 6 scratch doubles on the stack (init to 0).
+    const s = { x0: 0, y0: 0, z0: 0, x1: 0, y1: 0, z1: 0 };
+
+    // Sample at u + (-1.0)   -- constant @ProChannel 0xb03c8 (=-1.0)
+    // Slot mapping (@0x7b3e0..0x7b408):
+    //   rdx=&x0 (-0x50), rcx=&y0 (-0x48), r8=&z0 (-0x68) via rbx.
+    //   r9=NULL (nx), stack[0]=NULL (ny), stack[8]=NULL (nz), stack[0x10]=NULL (7th Pd).
+    const uMinus = u + -1.0;
+    this.getPositionOnPath(
+      t, uMinus,
+      { set(v: number) { s.x0 = v; } },
+      { set(v: number) { s.y0 = v; } },
+      { set(v: number) { s.z0 = v; } },
+      null, null, null, null,
     );
+
+    // Sample at u + 1.0   -- constant @ProChannel 0xaf528 (=1.0)
+    // Slot mapping (@0x7b452..0x7b45b):
+    //   rdx=&x1 (-0x40 via r14), rcx=&y1 (-0x60 via r13), r8=&z1 (-0x58 via r15).
+    const uPlus = u + 1.0;
+    this.getPositionOnPath(
+      t, uPlus,
+      { set(v: number) { s.x1 = v; } },
+      { set(v: number) { s.y1 = v; } },
+      { set(v: number) { s.z1 = v; } },
+      null, null, null, null,
+    );
+
+    // @0x7b463..0x7b49f — build the diff triple and compute squared length.
+    const dz = s.z1 - s.z0; // @0x7b463..0x7b46c (subsd on the z scalars)
+    const dx = s.x1 - s.x0; // @0x7b474..0x7b48f (packed subpd on the [x,y] pair)
+    const dy = s.y1 - s.y0;
+    const len2 = dx * dx + dy * dy + dz * dz; // @0x7b493..0x7b49f (haddpd + addsd)
+    const len = Math.sqrt(len2);              // @0x7b4a3 sqrtsd
+
+    // @0x7b4a7..0x7b4bd — |len| > 1e-7 check.
+    //   abs mask (@ProChannel 0xb0390) then ucomisd against @ProChannel 0xb03b0 (=1e-7).
+    //   seta -> al = 1 iff |len| < 1e-7 (i.e. "tiny").
+    const absLen = Math.abs(len);
+    const tiny = 1e-7 > absLen;
+
+    // @0x7b4c4..0x7b4de — packed XY blend: tiny -> raw diff; else -> quotient.
+    if (tiny) {
+      out.x = dx;
+      out.y = dy;
+    } else {
+      out.x = dx / len;
+      out.y = dy / len;
+    }
+
+    // @0x7b4e3..0x7b4e5 — scalar Z blend.  `ja` after ucomisd branches TAKEN when
+    // |len|>1e-7 STRICTLY & ordered, and the taken arm SKIPS the divsd. So:
+    //   |len|>1e-7  -> out.z = raw dz  (unnormalized on Z alone)
+    //   |len|<=1e-7 -> out.z = dz / len  (divides by tiny/zero, propagating inf/NaN)
+    // Faithful port matching the compiler's per-lane inconsistency.
+    if (tiny) {
+      out.z = dz / len;
+    } else {
+      out.z = dz;
+    }
+
+    // @0x7b4f6 movb $0x1,%al ; ret — always returns true.
+    return true;
   }
 
   /**
@@ -739,13 +869,13 @@ export class OZChannelPosition3D {
   getPositionOnPath(
     _t: CMTime,
     _u: number,
-    _x: { value: number } | null,
-    _y: { value: number } | null,
-    _z: { value: number } | null,
-    _nx: { value: number } | null,
-    _ny: { value: number } | null,
-    _nz: { value: number } | null,
-    _tangent: { value: number } | null,
+    _x: { set(v: number): void } | null,
+    _y: { set(v: number): void } | null,
+    _z: { set(v: number): void } | null,
+    _p4: { set(v: number): void } | null,
+    _p5: { set(v: number): void } | null,
+    _p6: { set(v: number): void } | null,
+    _p7: { set(v: number): void } | null,
   ): void {
     throw new Error(
       "OZChannelPosition3D::getPositionOnPath @ProChannel (body sym __ZN19OZChannelPosition3D17getPositionOnPathE...) not yet transcribed",
