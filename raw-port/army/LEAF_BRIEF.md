@@ -14,8 +14,11 @@ Read raw-port/army/PORTING_SPEC.md + ANTI_SHORTCUT.md first (esp. the x86 AT&T c
    (Pin a framework with `leafq.py next ProCore` if you want to stay in one file set.)
 2. `python3 raw-port/army/tools/leafq.py deps <FW> <mangled>` → lists its internal callees and shows
    each is `ported`. You will IMPORT and CALL those real functions — never re-stub them.
-3. Disassemble ONLY that function: `bash raw-port/tools/disasm.sh <Class> <method> <FW>`
-   (auto-ICF-fallback + over-dump guard baked in). Constants: `resolve.py <FW> ripconst <instr> <disp>`.
+3. Disassemble ONLY that function BY ITS MANGLED SYMBOL (leafq gives you the mangled name — use it
+   directly to avoid the D0/D1/D2 demangle-collision): `bash raw-port/tools/disasm.sh --sym <mangled> <FW>`.
+   (Name mode `disasm.sh <Class> <method> <FW>` still works but warns + may grab the wrong dtor variant.)
+   Auto-ICF-fallback + over-dump guard baked in. Constants: `resolve.py <FW> ripconst <instr> <disp>`.
+   NOTE: run wt_setup.sh / wt_merge.sh with background:true (they can exceed the 5s foreground cap).
 4. `wt_setup.sh <Class>`; commit fast after first edit.
 5. Write the REAL body with the `edit` tool into `raw-port/src/<layer>/<Class>.ts`:
    - if the file exists (>100 lines), ADD/REPLACE ONLY this method — leave siblings alone.

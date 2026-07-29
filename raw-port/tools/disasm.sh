@@ -1,9 +1,38 @@
 #!/bin/bash
 # disasm.sh <ClassName> [method] [framework]
-#   framework: Ozone (default) | ProChannel | ProCore
+#   framework: Ozone (default) | ProChannel | ProCore | Flexo | Helium
 # Dumps x86_64 disasm of <Class>::<method> to raw-port/re/disasm/<fw>.<Class>.<method>.s
+#
+# MANGLED MODE (preferred by leaf workers): disasm.sh --sym <mangledSymbol> <FW>
+#   Uses the EXACT mangled symbol leafq hands you — skips the demangled lookup entirely, so the
+#   D0/D1/D2 destructor-variant collision (three symbols demangle to the identical "~Class()"
+#   string, and the old name-lookup grabbed whichever came first) can't happen. Output goes to
+#   <fw>.<sanitized-mangled>.s.
 set -euo pipefail
-CLS="${1:?usage: disasm.sh <Class> [method] [framework]}"; METH="${2:-parseElement}"; FW="${3:-Ozone}"
+if [ "${1:-}" = "--sym" ]; then
+  SYM="${2:?usage: disasm.sh --sym <mangledSymbol> <FW>}"; FW="${3:?framework required}"
+  BIN="/Applications/Final Cut Pro.app/Contents/Frameworks/${FW}.framework/Versions/A/${FW}"
+  ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+  PFX="$FW"; [ "$FW" = "Ozone" ] && PFX="" || PFX="${FW}."
+  SAFE="$(printf '%s' "$SYM" | tr -cd 'A-Za-z0-9_')"
+  OUT="$ROOT/re/disasm/${PFX}${SAFE}.s"
+  mkdir -p "$(dirname "$OUT")"
+  DIS="/tmp/${FW}_tV.txt"; THIN="/tmp/${FW}.x86_64"
+  [ -s "$DIS" ] || otool -tV -arch x86_64 "$BIN" > "$DIS" 2>/dev/null
+  awk -v s="$SYM:" '$0==s{f=1;print;next} f&&/:$/{exit} f{print}' "$DIS" > "$OUT"
+  if [ ! -s "$OUT" ]; then
+    OBJDUMP="$(command -v llvm-objdump || command -v objdump || echo /usr/bin/objdump)"
+    [ -s "$THIN" ] || lipo "$BIN" -thin x86_64 -output "$THIN" 2>/dev/null || true
+    [ -s "$THIN" ] && "$OBJDUMP" --macho -d --disassemble-symbols="$SYM" "$THIN" 2>/dev/null > "$OUT" || true
+    if [ -s "$OUT" ] && [ "$(wc -l < "$OUT")" -gt 600 ]; then
+      echo "WARNING: objdump fallback for [$SYM] emitted $(wc -l < "$OUT") lines — ICF alias into a larger host fn." >&2
+      echo "  Not the method body. nm -n slice or throw-stub @0xADDR." >&2; : > "$OUT"
+    fi
+  fi
+  if [ ! -s "$OUT" ]; then echo "0-line disasm for [$SYM] (stub/extern/ICF) — throw-stub @0xADDR, do not guess." >&2; exit 2; fi
+  echo "wrote $OUT ($(wc -l < "$OUT") lines)  [$SYM]"; exit 0
+fi
+CLS="${1:?usage: disasm.sh <Class> [method] [framework]   OR   disasm.sh --sym <mangled> <FW>}"; METH="${2:-parseElement}"; FW="${3:-Ozone}"
 BIN="/Applications/Final Cut Pro.app/Contents/Frameworks/${FW}.framework/Versions/A/${FW}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PFX="$FW"; [ "$FW" = "Ozone" ] && PFX="" || PFX="${FW}."
@@ -17,7 +46,12 @@ if [ ! -s "$MAP" ]; then
 fi
 [ -s "$DIS" ] || otool -tV -arch x86_64 "$BIN" > "$DIS" 2>/dev/null
 SYM=$(awk -F'\t' -v k="${CLS}::${METH}(" 'index($2,k)==1{print $1; exit}' "$MAP")
+NHIT=$(awk -F'\t' -v k="${CLS}::${METH}(" 'index($2,k)==1{n++} END{print n+0}' "$MAP")
 if [ -z "${SYM:-}" ]; then echo "symbol not found: ${FW} ${CLS}::${METH}"; exit 1; fi
+if [ "${NHIT:-0}" -gt 1 ]; then
+  echo "note: '${CLS}::${METH}' matches ${NHIT} symbols (e.g. D0/D1/D2 variants demangle alike);" >&2
+  echo "  grabbed the first ($SYM). For an EXACT variant use: disasm.sh --sym <mangled> ${FW}" >&2
+fi
 awk -v s="$SYM:" '$0==s{f=1;print;next} f&&/:$/{exit} f{print}' "$DIS" > "$OUT"
 # GUARD + AUTO-ICF-FALLBACK: otool -tV sometimes emits NO label for a symbol (ICF identical-code-
 # folding, or a linear-sweep that decoded the prior region into this entry so the true start has no
