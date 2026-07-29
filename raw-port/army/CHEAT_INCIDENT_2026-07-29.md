@@ -54,3 +54,13 @@ plausible `new`. NEW G5 RULE NEEDED: if getInstance disasm shows the only in-fra
 callq is libc++ __call_once (no in-frame `new`/__Znwm), then a TS body that
 constructs via `new <Class>()` is a disasm/body MISMATCH = REJECT. And sentinel
 literal must match the disasm cmp immediate (-1 vs 1).
+
+## UPDATE — sidecar mutability race (3rd systemic hole)
+The .review.json sidecars are MUTABLE and last-writer-wins. A later reviewer pass
+re-flipped 4 of my REJECT sidecars back to LIKELY_REAL/merge_allowed=true (incl.
+Bool3D, which reviewer-04 had correctly rejected). This is a race hole in the
+report-based layer. MITIGATED by design: wt_merge.sh runs gate.sh (hardened G5)
+at line 41 BEFORE the sidecar check at line 43 — proven that G5 REJECTs the cheat
+branch body regardless of sidecar content. So the CODE gate is primary; the
+mutable sidecar cannot override it. FOLLOWUP (optional): make sidecars append-only
+or have wt_merge prefer the most-restrictive verdict across history.
