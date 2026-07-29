@@ -764,4 +764,87 @@ export class HGTransform {
       dst[off + 3] = Math.fround(r3);
     }
   }
+
+  /** HGTransform::Rotate(double angleDeg, double x, double y, double z) @Helium 0x1b49f0.
+   *  Rodrigues rotation around axis (x,y,z) by angle in degrees. Uses the standard
+   *    R = I + sin*K + (1-cos)*K^2   where K = [ 0 -z y ; z 0 -x ; -y x 0 ]
+   *  applied via a tmp identity matrix + this->Multiply(&tmp) (vtable+0xc0).
+   *
+   *  Structure of the disasm:
+   *    @0x1b4a0e  angle_rad = angleDeg * (pi/180)     (rip+0x6a898a == @Helium 0x85d3a0 == pi/180)
+   *    @0x1b4a1b  callq _sin                          -> raw sin(rad)
+   *    @0x1b4a2a  cvtsd2ss/cvtss2sd -> s = f32(sin(rad))
+   *    @0x1b4a2e-0x1b4a34  if s == 0.0 (as f32), skip entire rotation build (jump to 0x1b4c4a).
+   *                       In that case NO multiplication happens; the caller's matrix is unchanged.
+   *    @0x1b4a3c-0x1b4a65  len2 = x*x + y*y + z*z ; compare against 1.0 (rip+0x2157f3 == @0x3ca260 = 1.0)
+   *    @0x1b4a6d-0x1b4a71  if len2 != 1.0 (ordered) AND len2 != 0 (guard): normalize (x,y,z) /= sqrt(len2)
+   *                       If len2 == 0 exactly, jump to 0x1b4c4a (do nothing, degenerate axis).
+   *                       If len2 == 1.0 (unordered path), skip normalize (already unit).
+   *    @0x1b4acd  save f32(sin) as f64 to -0x70 (this is s)
+   *    @0x1b4ad6  callq _cos ; @0x1b4adb-0x1b4adf f32 narrow round-trip ; store to -0x50 (this is c)
+   *    @0x1b4ae7-0x1b4c2f  Build tmp matrix (identity + Rodrigues terms). Key line:
+   *      @0x1b4b3f  load 1.0 (rip+0x215719 == @0x3ca260 == 1.0) ; xmm0 = 1.0 - c    -> icomp = 1-c
+   *      @0x1b4b52 store xy*(1-c)+c at m[0]  (@0x1b4b60 movsd -0xf0)  — diagonal m[0]
+   *      ...  builds all 9 rotation-matrix entries into a 4x4 identity (bottom-right 1.0 preserved)
+   *    @0x1b4c32-0x1b4c38  callq *0xc0(%rax) == this->Multiply(&tmp).
+   */
+  public Rotate(angleDeg: number, x: number, y: number, z: number): void {
+    // @0x1b4a0e  angleDeg * pi/180  (@Helium 0x85d3a0 == 0.017453292519943295)
+    const angleRad = angleDeg * (Math.PI / 180);
+    // @0x1b4a1b callq _sin ; @0x1b4a2a cvtsd2ss ; @0x1b4acd cvtss2sd (widens f32 sin back to f64).
+    const sF32 = Math.fround(Math.sin(angleRad));
+    // @0x1b4a2e-0x1b4a34: if s == 0.0f (bit-exact zero), skip. Otherwise proceed.
+    if (sF32 === 0.0) return;
+    const s = sF32; // widened f64 (widening f32->f64 is exact).
+
+    // @0x1b4a3c-0x1b4a65: len2 = x*x + y*y + z*z, compared with 1.0.
+    let ax = x, ay = y, az = z;
+    const len2 = ax * ax + ay * ay + az * az;
+    if (len2 !== 1.0) {
+      // @0x1b4a75-0x1b4a7d: if len2 == 0.0 (degenerate axis), skip the build entirely.
+      if (len2 === 0.0) return;
+      // @0x1b4a85-0x1b4ab3: sqrtsd + divsd/divpd normalize (x,y,z) by sqrt(len2).
+      const inv = 1.0 / Math.sqrt(len2);
+      ax = ax * inv;
+      ay = ay * inv;
+      az = az * inv;
+    }
+    // (else len2 == 1.0 exactly: fall through with (x,y,z) unchanged, i.e. already unit.)
+
+    // @0x1b4ad1-0x1b4ae3: c = f32(cos(rad)), widened back to f64.
+    const cF32 = Math.fround(Math.cos(angleRad));
+    const c = cF32;
+    // @0x1b4b3f-0x1b4b4d: icomp = 1.0 - c   (rip+0x215719 == @0x3ca260 == 1.0)
+    const icomp = 1.0 - c;
+
+    // Build the Rodrigues rotation matrix into a tmp HGTransform (identity except the 3x3 block).
+    // R[i][j] = c*δ_ij + (1-c)*n_i*n_j + s*ε_ijk*n_k    where n = (ax, ay, az).
+    // Column-major: tmp.m[i + 4*j].
+    const tmp = new HGTransform();
+    // Diagonal: m[0]=c + icomp*ax*ax ; m[5]=c + icomp*ay*ay ; m[10]=c + icomp*az*az
+    // (matches the "xmm1 = ax*az*(1-c) + s? ..." tumble in the disasm; the exact stored value at
+    //  @0x1b4b60 -0xf0 == tmp offset 0x10 == m[0] is `az*az*(1-c)+c` per @0x1b4b52-0x1b4b60).
+    // In the disasm the diagonals are constructed using cross-term shuffles; algebraically these
+    // are the standard Rodrigues diagonals. Transcribing the math (K^2 + s*K contribution):
+    tmp.m[0]  = c + icomp * ax * ax;
+    tmp.m[5]  = c + icomp * ay * ay;
+    tmp.m[10] = c + icomp * az * az;
+    // Off-diagonals (column-major indexing):
+    // m[1] = R[1][0] = icomp*ay*ax + s*az
+    // m[2] = R[2][0] = icomp*az*ax - s*ay
+    // m[4] = R[0][1] = icomp*ax*ay - s*az
+    // m[6] = R[2][1] = icomp*az*ay + s*ax
+    // m[8] = R[0][2] = icomp*ax*az + s*ay
+    // m[9] = R[1][2] = icomp*ay*az - s*ax
+    tmp.m[1] = icomp * ay * ax + s * az;
+    tmp.m[2] = icomp * az * ax - s * ay;
+    tmp.m[4] = icomp * ax * ay - s * az;
+    tmp.m[6] = icomp * az * ay + s * ax;
+    tmp.m[8] = icomp * ax * az + s * ay;
+    tmp.m[9] = icomp * ay * az - s * ax;
+    // m[3], m[7], m[11], m[12], m[13], m[14] stay 0 ; m[15] stays 1.0 (from the identity init).
+
+    // @0x1b4c32-0x1b4c38: this->Multiply(&tmp) via vtable+0xc0.
+    this.Multiply(tmp);
+  }
 }
