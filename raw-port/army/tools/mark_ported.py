@@ -16,7 +16,6 @@ Bidirectional + idempotent. Run after commits; then re-run build_ledger.py to re
 import json, os, sys, glob
 ROOT=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 LED=os.path.join(ROOT,"army","ledger")
-GRAPH=os.path.join(ROOT,"army","graph")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from stubscan import scan_src, norm, status_for as _stub_status_for
 # structural classifier (verifier) for the DISPATCH_ONLY (skeleton) downgrade
@@ -26,22 +25,27 @@ try:
 except Exception:
     _classify_disasm = None
 
-# Fast DISPATCH_ONLY detection from the callgraph (keyed by mangled): a function with NO internal
-# callees, NO external named calls, but >=1 indirect dispatch is the structural DISPATCH_ONLY
-# candidate. Confirmed by classify_disasm on the saved .s when available (else trust the structural
-# signal — conservative: a vtable-only shell is not a real port regardless).
-_cg = {}
-def _load_callgraphs():
-    for f in glob.glob(os.path.join(GRAPH, "*.callgraph.json")):
-        try: _cg[os.path.basename(f).split(".")[0]] = json.load(open(f))
-        except Exception: pass
-_load_callgraphs()
+# Fast DISPATCH_ONLY detection from the GLOBAL dependency graph (army/depgraph/graph.json, built by
+# depgraph.py from the otool dumps; replaces the old per-fw army/graph/*.callgraph.json). A function
+# with NO in-scope deps, NO out-of-scope externs, but >=1 indirect dispatch is the structural
+# DISPATCH_ONLY candidate (the 7385eb01 shape). Confirmed by classify_disasm on the saved .s when
+# available (else trust the structural signal — a vtable-only shell is not a real port regardless).
+_dg = {}
+def _load_depgraph():
+    p = os.path.join(ROOT, "army", "depgraph", "graph.json")
+    if os.path.exists(p):
+        try:
+            return json.load(open(p))
+        except Exception:
+            return {}
+    return {}
+_dg = _load_depgraph()
 
 def _is_dispatch_only(fw, mangled):
-    g = _cg.get(fw, {})
-    info = g.get(mangled)
+    info = _dg.get(mangled)
     if not info: return False
-    if not (not info.get("callees") and info.get("ext",0)==0 and info.get("ind",0)>=1):
+    # new-graph schema: deps (in-scope), n_extern_oos (out-of-scope externs), indirect (vtable/*calls)
+    if not (not info.get("deps") and info.get("n_extern_oos", 0) == 0 and info.get("indirect", 0) >= 1):
         return False
     # structural candidate; confirm with the saved disasm if we have it (do NOT disasm on-demand here
     # — mark_ported runs over the whole ledger and must stay fast; the structural signal is sound).
