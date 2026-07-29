@@ -133,4 +133,49 @@ export class OZChannelBase {
    *  that populates this field is a separate ledger unit. Modelled as `unknown | null`
    *  so the offset-0x48 load in nofityObjCWrapperWillDelete has a well-typed source. */
   private __objc_wrapper_at_0x48: unknown | null = null;
+
+  /** @ProChannel OZChannelBase layout offset 0x30 (read+write @0x49b2a/0x49b32).
+   *  Parent OZChannelFolder pointer. Non-null when this channel is nested inside a folder;
+   *  cleared by unregisterParent. Ctor that sets it is a separate ledger unit; modelled here
+   *  as opaque | null because the OZChannelFolder class body isn't yet in this file. */
+  private __parent_folder_at_0x30: unknown | null = null;
+
+  /**
+   * OZChannelBase::unregisterParent(OZChannelFolder*).
+   * @ProChannel 0x49b26..0x49b3b  (__ZN13OZChannelBase16unregisterParentEP15OZChannelFolder)
+   *
+   * Disasm (raw-port/re/disasm/ProChannel.__ZN13OZChannelBase16unregisterParentEP15OZChannelFolder.s):
+   *   0x49b26  pushq  %rbp                        ; prologue
+   *   0x49b27  movq   %rsp, %rbp                  ; prologue
+   *   0x49b2a  cmpq   $0x0, 0x30(%rdi)            ; flags = (*(u64*)(this+0x30)) - 0   -> ZF=1 iff parent==NULL
+   *   0x49b2f  setne  %al                         ; al = (ZF==0) = (parent != NULL) as a boolean
+   *   0x49b32  movq   $0x0, 0x30(%rdi)            ; *(this+0x30) = 0   (clear the parent slot)
+   *   0x49b3a  popq   %rbp                        ; epilogue
+   *   0x49b3b  retq                               ; return %al (bool)
+   *
+   * Semantics: unconditionally clear the parent-folder pointer at offset 0x30 and return
+   * `true` iff the slot HAD been non-null (i.e. we actually detached a parent) or `false`
+   * if it was already null (no-op path). The `OZChannelFolder*` argument (%rsi) is IGNORED
+   * — the disasm never reads it. Its identity doesn't matter; the channel just drops its
+   * parent link. The parameter is likely there for symmetry with a registerParent()
+   * counterpart / RAII paired API, and possibly for a caller-side assertion at a higher
+   * layer that the folder pointer matches. In this port we preserve the parameter but
+   * mark it unused (`_` prefix) to keep the signature faithful.
+   *
+   * Note: return type is `bool` in x86 ABI: the `setne %al` produces a byte in %al which
+   * is the whole return value (no upper-bit clear needed — the ABI leaves the upper bytes
+   * unspecified for a bool return, and callers do their own zext/movzbl).
+   *
+   * Note: the SETNE-then-STORE ordering matters. The compare reads the OLD value at 0x30
+   * (setne captures whether it was non-null), THEN the store overwrites it with null. In
+   * TS we mirror this exactly: capture `had` first, then null out the field.
+   */
+  unregisterParent(_folder: unknown): boolean {
+    // @0x49b2a cmpq $0x0, 0x30(%rdi) + @0x49b2f setne %al  — "was the parent slot non-null?"
+    const had = this.__parent_folder_at_0x30 !== null;
+    // @0x49b32 movq $0x0, 0x30(%rdi)  — clear the parent slot to null.
+    this.__parent_folder_at_0x30 = null;
+    // @0x49b3b retq — return %al (bool).
+    return had;
+  }
 }
