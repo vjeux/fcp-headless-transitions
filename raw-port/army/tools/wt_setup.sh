@@ -5,7 +5,9 @@
 # Agents work + commit + gate ENTIRELY inside their worktree. A serialized merge-queue (wt_merge.sh)
 # fast-forwards green branches into main. No shared index, no push races, no peer clobbering.
 set -euo pipefail
-TAG="${1:?usage: wt_setup.sh <agentTag>}"
+MODE="setup"
+if [ "${1:-}" = "done" ]; then MODE="done"; shift; fi   # `wt_setup.sh done <tag>` = teardown after push
+TAG="${1:?usage: wt_setup.sh [done] <agentTag>}"
 # C++ "::" is not a valid git ref/path component — sanitize to "__" so shader tags like
 # "bm3dnr_buf::bm3dnr_buf_blend..." don't fatal on `git worktree add`/branch creation.
 TAG="${TAG//::/__}"
@@ -13,6 +15,28 @@ REPO="$(cd "$(dirname "$0")/../../.." && pwd)"          # main checkout
 WT="$REPO/raw-port/army/worktrees/$TAG"
 BR="port/$TAG"
 cd "$REPO"
+
+# --- TEARDOWN MODE: `wt_setup.sh done <tag>` ------------------------------------------------------
+# A worktree is DISPOSABLE SCRATCH; the durable artifact is the pushed commit on origin. A worker
+# calls this the instant after its `git push` succeeds. Removing the worktree loses NOTHING: the
+# branch ref + commit objects persist in the shared .git AND on origin, `git worktree add` recreates
+# the checkout on demand, and wt_merge builds its OWN .gate-<tag> worktree from the branch ref (it
+# never touches the agent's worktree). We remove ONLY when SAFE — clean tree AND tip already on
+# origin. Dirty or unpushed => keep and say so (never destroy un-pushed work).
+if [ "$MODE" = "done" ]; then
+  git fetch -q origin 2>/dev/null || true
+  if ! git worktree list --porcelain | grep -qx "worktree $WT"; then echo "no worktree $WT (already gone)"; exit 0; fi
+  if [ -n "$(git -C "$WT" status --porcelain 2>/dev/null)" ]; then echo "KEEP $TAG: uncommitted changes — commit+push first"; exit 0; fi
+  TIP="$(git -C "$WT" rev-parse HEAD 2>/dev/null || echo none)"
+  OTIP="$(git rev-parse -q --verify "origin/$BR" 2>/dev/null || echo none)"
+  if { [ "$OTIP" != none ] && [ "$TIP" = "$OTIP" ]; } || git merge-base --is-ancestor "$TIP" origin/main 2>/dev/null; then
+    git worktree remove --force "$WT" 2>/dev/null && echo "REAPED $TAG (clean + on origin; commit is the durable artifact)"
+    git worktree prune 2>/dev/null || true
+  else
+    echo "KEEP $TAG: local commits not on origin — push, then rerun: wt_setup.sh done $TAG"
+  fi
+  exit 0
+fi
 # SERIALIZE git-mutating setup: concurrent `git worktree add` / `git fetch` race .git/worktrees and
 # .git/index.lock. Under a mass agent wave many setups fire at once, so take a global lock (mkdir is
 # atomic + portable, no flock on macOS). Only the fetch + worktree-add are serialized; the symlink
