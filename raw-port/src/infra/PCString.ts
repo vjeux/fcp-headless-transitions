@@ -156,6 +156,18 @@ function _CFRelease(_cf: string | null): void {
   // no-op in JS
 }
 
+/** _CFRetain(cf) — increments retain count on a CFTypeRef; returns
+ *  the SAME pointer.  Called from PCString(__CFString const*) [C1
+ *  @0x31f54, C2 @0x31f32] when the incoming ref is non-null (see
+ *  the null-guard test at @0x31f61/@0x31f3f in each). In this port
+ *  the JS-string model has no retain-counted lifecycle, so this is
+ *  identity — same policy as `_CFStringCreateCopy` above. */
+function _CFRetain(cf: string | null): string | null {
+  // Identity — the disasm's `callq _CFRetain` @0x31f69 returns its
+  // input in rax; we mirror that (JS GC subsumes the retain count).
+  return cf;
+}
+
 /** _CFStringCompare(a, b, options).  In native code it returns a
  *  CFComparisonResult of -1, 0, or +1.  Called from compare(PCString
  *  const&) @0x3252a with options=0x20 (kCFCompareNonliteral).  Only
@@ -290,6 +302,98 @@ export class PCString {
     const copied = _CFStringCreateCopy(src);
     // 0x31efd: movq %rax, (%rbx)
     this.ref = copied;
+  }
+
+  /**
+   * PCString::PCString(__CFString const*) [C1 complete ctor] — @ProCore 0x31f54
+   *   (__ZN8PCStringC1EPK10__CFString)
+   * PCString::PCString(__CFString const*) [C2 base ctor]     — @ProCore 0x31f32
+   *   (__ZN8PCStringC2EPK10__CFString) — byte-identical twin
+   *
+   * Full disasm (raw-port/re/disasm/ProCore.__ZN8PCStringC1EPK10__CFString.s;
+   * the C2 body at 0x31f32 is byte-for-byte identical, differing only in the
+   * entry-point address):
+   *
+   *   0x31f54  pushq  %rbp                    ; frame prologue
+   *   0x31f55  movq   %rsp, %rbp
+   *   0x31f58  pushq  %r14                    ; save r14 (callee-saved)
+   *   0x31f5a  pushq  %rbx                    ; save rbx (callee-saved)
+   *                                            ; (no `pushq %rax` padding —
+   *                                            ; two pushes already keep rsp
+   *                                            ; 16-byte aligned)
+   *   0x31f5b  movq   %rsi, %rbx              ; rbx = cfstr (the incoming ref)
+   *   0x31f5e  movq   %rdi, %r14              ; r14 = this
+   *   0x31f61  testq  %rsi, %rsi              ; if (cfstr == NULL) skip retain
+   *   0x31f64  je     0x31f6e
+   *   0x31f66  movq   %rbx, %rdi              ; rdi = cfstr (arg for CFRetain)
+   *   0x31f69  callq  _CFRetain               ; @stub ProCore 0xde018 —
+   *                                            ; +1 the incoming CFString
+   *   0x31f6e  movq   %rbx, (%r14)            ; this->ref = cfstr
+   *                                            ; (the RETAINED ref if we
+   *                                            ; retained; the original ref
+   *                                            ; if null; _CFRetain returns
+   *                                            ; its input, so this is the
+   *                                            ; same pointer either way)
+   *   0x31f71  popq   %rbx                    ; frame epilogue
+   *   0x31f72  popq   %r14
+   *   0x31f74  popq   %rbp
+   *   0x31f75  retq
+   *
+   * Callees:
+   *   * _CFRetain  @stub ProCore 0xde018 — TRUE out-of-scope extern
+   *     (CoreFoundation.framework). Modelled as an identity function in
+   *     `_CFRetain` above (JS GC subsumes retain counts; same policy as
+   *     `_CFStringCreateCopy` for the char-ptr / PCString-copy ctors above).
+   *
+   * Ownership: the C1/C2 CFString ctor takes a NON-owning input and
+   * RETAINS it into `this->ref` (the +0 -> +1 bump is the whole point of
+   * this ctor variant, distinguishing it from the raw-char* and copy
+   * ctors above which do CFStringCreate*). ~PCString @0x31fb6 releases
+   * that retained ref through `_CFRelease` @0x31fc2 — the retain/release
+   * pair is balanced.
+   *
+   * Modelling in this port: since `_CFRetain` is identity in JS, the two
+   * branches (null and non-null) both end with `this.ref = cfstr` — same
+   * as the disasm, which stores rbx to (r14) unconditionally after the
+   * skip. We preserve the branch structure (null-skip vs retain-then-
+   * store) so the machine's control flow is observable, and cite the
+   * exact addresses.
+   */
+  private _ctor_cfstr(cfstr: string | null): void {
+    // 0x31f5b/0x31f5e: rbx = cfstr, r14 = this (register renames only).
+    // 0x31f61-0x31f64: null-check on cfstr.
+    if (cfstr !== null) {
+      // 0x31f66/0x31f69: _CFRetain(cfstr). Return value goes back to
+      // rax; the disasm ignores it (rbx still holds the input pointer,
+      // and _CFRetain returns its argument — CF invariant). We mirror
+      // that by discarding the return value.
+      void _CFRetain(cfstr);
+    }
+    // 0x31f6e: movq %rbx, (%r14) — this->ref = cfstr (the fall-through
+    // target of the null-skip). Same store executes on both paths.
+    this.ref = cfstr;
+  }
+
+  /**
+   * PCString::PCString(__CFString const*) — public C1 entry point at
+   * @ProCore 0x31f54. This static factory exposes the CFString-taking
+   * ctor variant separately from the polymorphic `constructor(...)`
+   * above (whose `string | null` arm already routes to the char* ctor
+   * `_ctor_cstr` @0x31ad4, which has DIFFERENT semantics — that one
+   * calls _CFStringCreateWithCString, whereas this one calls _CFRetain).
+   * Keeping them as distinct entry points matches the FCP ABI: two
+   * different mangled symbols, two different bodies, at different
+   * addresses. Byte-identical C2 twin lives at @ProCore 0x31f32.
+   */
+  static fromCFString(cfstr: string | null): PCString {
+    // Allocate an uninitialized PCString (default-ctor lays down
+    // `this->ref = null` @0x31ab8) and immediately overwrite via the
+    // C1 body. This mirrors what a caller does in C++: they pass a
+    // raw storage `this` pointer into the C1 ctor and expect it
+    // fully initialised on return.
+    const s = new PCString(); // @0x31ab8 (default ctor sets ref=null)
+    s._ctor_cfstr(cfstr); // @0x31f54 (C1 CFString ctor body)
+    return s;
   }
 
   // ── Destructor ──────────────────────────────────────────────────
