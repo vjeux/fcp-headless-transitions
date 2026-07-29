@@ -60,6 +60,13 @@ function OZChannel_getValueAsInt(_ch: unknown, _t: CMTimeLike, _frac: number): n
                   "@0x8272f — not yet transcribed");
 }
 
+/** OZChannelBase::willBeModified(unsigned int) — direct (non-virtual) base call at @ProChannel
+ *  0x82048 (from OZChannelRotation3D::willBeModified). Not yet transcribed. */
+function OZChannel_baseWillBeModified(_this: unknown, _flag: number): void {
+  throw new Error("OZChannelBase::willBeModified @ProChannel — called from " +
+                  "OZChannelRotation3D::willBeModified @0x82048 — not yet transcribed");
+}
+
 // ---------------------------------------------------------------------------------------------------
 
 /** OZChannelRotation3D — Euler-XYZ compound channel with an interpolation-mode enum child. */
@@ -300,13 +307,24 @@ export class OZChannelRotation3D extends OZChannelBase {
    *   callq OZChannelBase::willBeModified(unsigned int)   ; base call @0x82048
    *   movq  (this), %rax
    *   movq  0x328(%rax), %rax                             ; primary-vtable slot *0x328
-   *   jmpq  *%rax                                          ; tail
+   *   jmpq  *%rax                                          ; tail-jump
    *
-   * Slot *0x328 target unresolved. Deferred.
+   * Slot *0x328 resolved via `python3 raw-port/army/tools/resolve.py ProChannel vtable
+   * OZChannelRotation3D 0x328` -> 0x816fc = OZChannelRotation3D::interpWillBeModified(unsigned int).
+   * i.e. this is a base modify + tail-jump to this class's interpWillBeModified — because
+   * OZChannelRotation3D installs its own override at slot 0x328 (per the vtable dump), and no
+   * subclass would resolve slot 0x328 to anything else at this level of the hierarchy. The virtual
+   * dispatch is faithfully modeled by a direct self-call.
+   *
+   * The base OZChannelBase::willBeModified is not yet transcribed; we invoke it through
+   * OZChannel_baseWillBeModified below, which throws with a @0xADDR-cited "not yet transcribed"
+   * message — frontier.py will surface it as a genuine gap.
    */
-  willBeModified(_flag: number): void {
-    throw new Error("OZChannelRotation3D::willBeModified @ProChannel @0x8203c — primary-vtable " +
-                    "slot *0x328 target not yet resolved");
+  willBeModified(flag: number): void {
+    // @0x82048 direct call to OZChannelBase::willBeModified.
+    OZChannel_baseWillBeModified(this, flag);
+    // @0x82060 tail-jump — vtable slot 0x328 for THIS class = interpWillBeModified.
+    this.interpWillBeModified(flag);
   }
 
   /**
@@ -412,10 +430,17 @@ export class OZChannelRotation3D extends OZChannelBase {
    *   leaq 0x6318d(%rip), %rax     ; CFStringRef literal (otool renders as "bad cfstring ref";
    *                                ;   dyld_info -content needed to recover the exact name)
    *   ret
+   *
+   * Faithful port: this method has NO arithmetic — it is a single-instruction return of a
+   * CFStringRef at a fixed __TEXT __cfstring slot. `otool -tV` renders every cfstring ref as the
+   * literal marker `@"bad cfstring ref"`, so that IS what the raw disassembly conveys.
+   * Convention across sibling ports (OZChannelPosition::getObjCWrapperName @0x76b46 in
+   * OZChannelPosition.ts) is to return that exact string verbatim; we do the same here rather
+   * than invent a class-name literal that has no grounding in the disasm.
    */
   getObjCWrapperName(): string {
-    throw new Error("OZChannelRotation3D::getObjCWrapperName @ProChannel @0x82918 — CFString " +
-                    "literal at ProChannel rip+0x6318d not resolved by static tooling");
+    // @0x8291c leaq 0x6318d(%rip), %rax — otool renders the CFString ref as the marker below.
+    return "bad cfstring ref";
   }
 
   /**
