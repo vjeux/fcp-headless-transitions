@@ -19,15 +19,29 @@ fi
 SYM=$(awk -F'\t' -v k="${CLS}::${METH}(" 'index($2,k)==1{print $1; exit}' "$MAP")
 if [ -z "${SYM:-}" ]; then echo "symbol not found: ${FW} ${CLS}::${METH}"; exit 1; fi
 awk -v s="$SYM:" '$0==s{f=1;print;next} f&&/:$/{exit} f{print}' "$DIS" > "$OUT"
-# GUARD: otool -tV sometimes emits NO label for a symbol (ICF identical-code-folding, or a
-# linear-sweep that decoded the prior region into this entry so the true start has no line). The
-# old code then wrote a 0-line file and returned success — and a worker would GUESS the body. That
-# is a decode-integrity hole. Refuse loudly instead: a 0-line extraction is a hard stop, not a body.
+# GUARD + AUTO-ICF-FALLBACK: otool -tV sometimes emits NO label for a symbol (ICF identical-code-
+# folding, or a linear-sweep that decoded the prior region into this entry so the true start has no
+# line). The old code wrote a 0-line file and returned success — and a worker would GUESS the body.
+# That is a decode-integrity hole. Instead of failing, AUTO-FALL-BACK to objdump's per-symbol
+# disassembler, which resolves the EXACT symbol boundary (Apple ships LLVM objdump at /usr/bin/
+# objdump — no install needed). For ICF-folded bodies objdump prints the fold *target's* label but
+# the BYTES at this symbol's address are correct (see MEMORY: ICF alias addr ports correctly).
 if [ ! -s "$OUT" ]; then
-  echo "WARNING: 0-line disasm for ${FW} ${CLS}::${METH} [$SYM] — otool -tV has no label here" >&2
-  echo "  (ICF-folded / misaligned / pure-stub / extern). DO NOT GUESS the body. Try:" >&2
-  echo "  llvm-objdump --arch=x86_64 -d --disassemble-symbols='$SYM' \"$BIN\"   (per-symbol, exact boundary)" >&2
-  echo "  or throw-stub the method citing its @0xADDR. Re-run only if you can extract a real body." >&2
-  exit 2
+  OBJDUMP="$(command -v llvm-objdump || command -v objdump || echo /usr/bin/objdump)"
+  echo "note: 0-line otool disasm for ${FW} ${CLS}::${METH} [$SYM] (ICF-folded/misaligned) — "\
+       "falling back to $OBJDUMP --disassemble-symbols" >&2
+  # Need the thin x86_64 slice for objdump --macho; build once (cached alongside resolve.py's).
+  THIN="/tmp/${FW}.x86_64"
+  [ -s "$THIN" ] || lipo "$BIN" -thin x86_64 -output "$THIN" 2>/dev/null || true
+  if [ -s "$THIN" ]; then
+    "$OBJDUMP" --macho -d --disassemble-symbols="$SYM" "$THIN" 2>/dev/null > "$OUT" || true
+  fi
+  if [ ! -s "$OUT" ]; then
+    echo "WARNING: still 0-line after objdump fallback for ${FW} ${CLS}::${METH} [$SYM]" >&2
+    echo "  (pure-stub / extern / truly-empty). DO NOT GUESS the body — throw-stub it citing @0xADDR." >&2
+    exit 2
+  fi
+  echo "wrote $OUT ($(wc -l < "$OUT") lines via objdump ICF-fallback)  [$SYM]"
+  exit 0
 fi
 echo "wrote $OUT ($(wc -l < "$OUT") lines)  [$SYM]"
