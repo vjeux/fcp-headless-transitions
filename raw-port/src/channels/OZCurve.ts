@@ -274,8 +274,11 @@ export class OZCurve {
   /** (+0x98) 16 B zero-init (two adjacent 8-byte slots). Semantics deferred. */
   zero_0x98_lo?: number;
 
-  /** (+0xa0) OZSplineState* — nullable. See file header. */
-  splineState?: OZSplineStateSlot | null;
+  /** (+0xa0) OZSplineState* — nullable. See file header. Kept as an opaque `unknown` so
+   *  sibling files (OZChannelDouble.ts etc.) that declare their own OZSplineState-shaped
+   *  interface can still narrow this field through their own type; the runtime ctor
+   *  narrows it internally via {@link OZSplineStateSlot} when it needs `flag_at_0x2c`. */
+  splineState?: unknown;
 
   /** (+0xa8) uint32 curveState — 0 in bounds ctor @0x1e515; mirrored from src in copy-ctor. */
   curveState?: number;
@@ -414,7 +417,7 @@ export class OZCurve {
     //   super()). We mirror that by NOT null-checking `src.splineState` before the
     //   flag read; the property access will throw in TS just as the load would fault
     //   in the binary.
-    let stateToInstall: OZSplineStateSlot | null = src.splineState ?? null;
+    let stateToInstall: OZSplineStateSlot | null = (src.splineState as OZSplineStateSlot | null | undefined) ?? null;
     // @0x1e5ca/0x1e5cf:  cmpb $0x0,0x2c(%r14) ; jne 0x1e5ec
     //   -> if src->splineState->flag_at_0x2c == 0 (owned), heap-copy it; else share.
     if (stateToInstall !== null && stateToInstall.flag_at_0x2c === 0) {
