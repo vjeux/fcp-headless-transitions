@@ -1,0 +1,72 @@
+__ZN14HGColorConform10SetLookCDLEPfS0_S0_f:
+00000000001c98d0	pushq	%rbp
+00000000001c98d1	movq	%rsp, %rbp
+00000000001c98d4	movss	(%rsi), %xmm3
+00000000001c98d8	movss	(%rdx), %xmm4
+00000000001c98dc	movss	(%rcx), %xmm5
+00000000001c98e0	movss	%xmm3, 0x31c(%rdi)
+00000000001c98e8	movss	%xmm4, 0x328(%rdi)
+00000000001c98f0	movss	%xmm5, 0x334(%rdi)
+00000000001c98f8	movss	0x1fe3c0(%rip), %xmm1
+00000000001c9900	cmpeqss	%xmm1, %xmm3
+00000000001c9905	xorps	%xmm2, %xmm2
+00000000001c9908	cmpeqss	%xmm2, %xmm4
+00000000001c990d	andps	%xmm3, %xmm4
+00000000001c9910	movd	%xmm4, %r8d
+00000000001c9915	ucomiss	%xmm1, %xmm5
+00000000001c9918	setnp	%al
+00000000001c991b	sete	%r9b
+00000000001c991f	andb	%al, %r9b
+00000000001c9922	movss	0x4(%rsi), %xmm3
+00000000001c9927	movss	0x4(%rdx), %xmm4
+00000000001c992c	movss	0x4(%rcx), %xmm5
+00000000001c9931	movss	%xmm3, 0x320(%rdi)
+00000000001c9939	movss	%xmm4, 0x32c(%rdi)
+00000000001c9941	ucomiss	%xmm1, %xmm3
+00000000001c9944	setnp	%al
+00000000001c9947	sete	%r10b
+00000000001c994b	andb	%al, %r10b
+00000000001c994e	andb	%r9b, %r10b
+00000000001c9951	ucomiss	%xmm2, %xmm4
+00000000001c9954	movss	%xmm5, 0x338(%rdi)
+00000000001c995c	setnp	%r9b
+00000000001c9960	sete	%al
+00000000001c9963	andb	%r9b, %al
+00000000001c9966	andb	%r10b, %al
+00000000001c9969	andb	%r8b, %al
+00000000001c996c	ucomiss	%xmm1, %xmm5
+00000000001c996f	setnp	%r8b
+00000000001c9973	sete	%r9b
+00000000001c9977	andb	%r8b, %r9b
+00000000001c997a	movss	0x8(%rsi), %xmm3
+00000000001c997f	movss	0x8(%rdx), %xmm4
+00000000001c9984	movss	0x8(%rcx), %xmm5
+00000000001c9989	movss	%xmm3, 0x324(%rdi)
+00000000001c9991	movss	%xmm4, 0x330(%rdi)
+00000000001c9999	ucomiss	%xmm1, %xmm3
+00000000001c999c	setnp	%cl
+00000000001c999f	sete	%dl
+00000000001c99a2	andb	%cl, %dl
+00000000001c99a4	andb	%r9b, %dl
+00000000001c99a7	ucomiss	%xmm2, %xmm4
+00000000001c99aa	movss	%xmm5, 0x33c(%rdi)
+00000000001c99b2	setnp	%cl
+00000000001c99b5	sete	%sil
+00000000001c99b9	andb	%cl, %sil
+00000000001c99bc	andb	%dl, %sil
+00000000001c99bf	ucomiss	%xmm1, %xmm5
+00000000001c99c2	setnp	%cl
+00000000001c99c5	sete	%dl
+00000000001c99c8	andb	%cl, %dl
+00000000001c99ca	andb	%sil, %dl
+00000000001c99cd	andb	%al, %dl
+00000000001c99cf	movss	%xmm0, 0x340(%rdi)
+00000000001c99d7	ucomiss	%xmm1, %xmm0
+00000000001c99da	setnp	%al
+00000000001c99dd	sete	%cl
+00000000001c99e0	andb	%al, %cl
+00000000001c99e2	andb	%dl, %cl
+00000000001c99e4	movb	%cl, 0x344(%rdi)
+00000000001c99ea	popq	%rbp
+00000000001c99eb	retq
+00000000001c99ec	nopl	(%rax)
