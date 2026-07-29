@@ -704,4 +704,64 @@ export class HGTransform {
     }
     return true;
   }
+
+  /** HGTransform::Transform(float* dst, float const* src, int count) const @Helium 0x1b55e0.
+   *  Transforms `count` 4-vectors: dst[i] = M * src[i], where src/dst are 4-float column vectors.
+   *
+   *  Fast-exit: `testl %ecx,%ecx; jle 0x1b5726` if count<=0 -> return.
+   *
+   *  The code loads all 16 matrix doubles into 8 xmm regs BEFORE the loop, as 8 columns-of-two:
+   *    xmm0 = [m[0],  m[1]]   (offset 0x10)   col 0 rows 0..1
+   *    xmm1 = [m[2],  m[3]]   (offset 0x20)   col 0 rows 2..3
+   *    xmm2 = [m[4],  m[5]]   (offset 0x30)   col 1 rows 0..1
+   *    xmm3 = [m[6],  m[7]]   (offset 0x40)   col 1 rows 2..3
+   *    xmm5 = [m[8],  m[9]]   (offset 0x50)   col 2 rows 0..1
+   *    xmm4 = [m[10], m[11]]  (offset 0x60)   col 2 rows 2..3
+   *    xmm7 = [m[12], m[13]]  (offset 0x70)   col 3 rows 0..1
+   *    xmm6 = [m[14], m[15]]  (offset 0x80)   col 3 rows 2..3
+   *
+   *  Then a scalar per-iteration loop (@0x1b5660-0x1b571b):
+   *    Load 4 f32 from src[i], widen each via cvtss2sd to double: (x, y, z, w)
+   *    Broadcast x -> multiply into col0 -> ; broadcast y * col1 + accumulate ; z * col2 ; w * col3.
+   *    Two lanes: rows 0..1 accumulator and rows 2..3 accumulator.
+   *    Narrow each 2-double lane back to 2 f32 via cvtpd2ps + unpcklpd -> 4 f32s stored to dst[i].
+   *
+   *  The 0x1b5727 vector path (@0x1b5727-0x1b59c2) handles 2 vectors per iteration when the count
+   *  is >= 2 AND src/dst don't alias (setb-based `cmpq %rax, %rsi ; cmpq %rdi, %rdx` alias check).
+   *  It's a fused SIMD version of the same math and produces the same result modulo any
+   *  fma/associativity — the disasm does NOT use fma (only mulpd + addpd), so both paths compute
+   *  the same bit-exact sums. We port the scalar semantics; the vectorized path is a performance
+   *  optimization of the exact same arithmetic.
+   */
+  public Transform(dst: Float32Array, src: Float32Array | ReadonlyArray<number>, count: number): void {
+    // @0x1b55e0: testl %ecx,%ecx ; jle -> return.
+    if ((count | 0) <= 0) return;
+    const m = this.m;
+    // Cache the 16 doubles once (mirrors the pre-loop loads @0x1b55f3-0x1b5619).
+    const m00 = m[0],  m01 = m[1],  m02 = m[2],  m03 = m[3];
+    const m10 = m[4],  m11 = m[5],  m12 = m[6],  m13 = m[7];
+    const m20 = m[8],  m21 = m[9],  m22 = m[10], m23 = m[11];
+    const m30 = m[12], m31 = m[13], m32 = m[14], m33 = m[15];
+    for (let i = 0; i < (count | 0); i++) {
+      const off = i * 4;
+      // cvtss2sd on each of the 4 f32 lanes (@0x1b5660-0x1b568a).
+      const x = Math.fround(src[off + 0]);
+      const y = Math.fround(src[off + 1]);
+      const z = Math.fround(src[off + 2]);
+      const w = Math.fround(src[off + 3]);
+      // Widening f32->f64 is exact.  All subsequent arithmetic is f64 as in the disasm.
+      const xD = x, yD = y, zD = z, wD = w;
+      // Accumulator lanes 0..1 (rows 0 and 1) — @0x1b568f-0x1b56d5.
+      const r0 = m00 * xD + m10 * yD + m20 * zD + m30 * wD;
+      const r1 = m01 * xD + m11 * yD + m21 * zD + m31 * wD;
+      // Accumulator lanes 2..3 (rows 2 and 3) — @0x1b56e4-0x1b56f8.
+      const r2 = m02 * xD + m12 * yD + m22 * zD + m32 * wD;
+      const r3 = m03 * xD + m13 * yD + m23 * zD + m33 * wD;
+      // cvtpd2ps narrow @0x1b56fd-0x1b5707, movups @0x1b570c.
+      dst[off + 0] = Math.fround(r0);
+      dst[off + 1] = Math.fround(r1);
+      dst[off + 2] = Math.fround(r2);
+      dst[off + 3] = Math.fround(r3);
+    }
+  }
 }
