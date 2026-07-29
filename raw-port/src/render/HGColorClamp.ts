@@ -14,8 +14,18 @@
 //     the (max, min) tuples through the subnode's SetParameter vtable slot.
 //
 // Symbols decoded here (Helium.framework, x86_64 slice):
-//   0x151f00  HGColorClamp::HGColorClamp()             [C1==C2, default ctor]
-//   0x152030  HGColorClamp::HGColorClamp(float, float) [C1==C2]
+//   0x151e70  HGColorClamp::HGColorClamp()             [C2, in-place default ctor]
+//   0x151f00  HGColorClamp::HGColorClamp()             [C1, complete-object — same body]
+//   0x151f90  HGColorClamp::HGColorClamp(float, float) [C2, in-place]
+//   0x152030  HGColorClamp::HGColorClamp(float, float) [C1, complete-object — same body]
+//   0x1520d0  HGColorClamp::~HGColorClamp()            [D2, in-place: reinstall vtable →
+//                                                        subnode->vtable[0x18](subnode)
+//                                                        (i.e. HgcColorClamp::~HgcColorClamp
+//                                                        via HGNode D0/D1 slot) → tail-jmp
+//                                                        HGNode::~HGNode() @0x11bf20]
+//   0x152110  HGColorClamp::~HGColorClamp()            [D1, complete-object — same body as D2]
+//   0x152150  HGColorClamp::~HGColorClamp()            [D0, deleting — D2 body then jmp
+//                                                        HGObject::operator delete @0x1a0f10]
 //   0x152190  HGColorClamp::SetParameter(int, float, float, float, float)
 //   0x1521f0  HGColorClamp::SetClampMaxValues(float, float, float, float)
 //   0x152220  HGColorClamp::SetClampMinValues(float, float, float, float)
@@ -391,5 +401,57 @@ export class HGColorClamp extends HGNode {
 
     // return this->hgcSubnode (@0x1522db reloads 0x198 into rax).
     return this.hgcSubnode;
+  }
+
+  /**
+   * `HGColorClamp::~HGColorClamp()` — three symbols share this body:
+   *   D2 (in-place base-subobject dtor)       @Helium 0x1520d0
+   *   D1 (complete-object dtor, byte-identical to D2)  @Helium 0x152110
+   *   D0 (deleting dtor: D2 then `operator delete`)    @Helium 0x152150
+   *
+   * The D2 body (from `xcrun llvm-objdump --disassemble-symbols`):
+   *   pushq %rbp / movq %rsp,%rbp / pushq %rbx / subq $0x8,%rsp
+   *   movq %rdi, %rbx
+   *   leaq 0x8cd5d8(%rip), %rax  ## @0xa1f6b8 = &HGColorClamp::vtable[+0x10]
+   *   movq %rax, (%rdi)          ; reinstall own vtable (defensive Itanium
+   *                                ABI move so a virtual call during dtor
+   *                                dispatches to THIS class's slot).
+   *   movq 0x198(%rdi), %rdi     ; rdi = this->hgcSubnode  (the owned subnode)
+   *   movq (%rdi), %rax          ; rax = hgcSubnode->vtable
+   *   callq *0x18(%rax)          ; hgcSubnode->vtable[+0x18](subnode)
+   *                              ;   HGNode vtable slot 0x18 is the deleting
+   *                              ;   dtor D0 (see HGNode.ts vtable map);
+   *                              ;   this deletes the owned HgcColorClamp.
+   *   movq %rbx, %rdi
+   *   ...
+   *   jmp __ZN6HGNodeD2Ev        ; tail-call HGNode::~HGNode() @0x11bf20
+   *                              ;   to destroy the base subobject.
+   *
+   * D0 (0x152150) differs only by adding `jmp __ZN8HGObjectdlEPv` (=
+   * HGObject::operator delete @0x1a0f10) AFTER the HGNode::~HGNode call,
+   * to free the storage for `this`. In JS/TS memory is GC'd, so both D2
+   * and D0 map to the same body here — the delete step is a no-op.
+   * D1 (0x152110) is byte-for-byte D2 in this binary (LLVM identical-code
+   * folding candidate; not actually folded, but same source).
+   *
+   * The `.cold` unwind trampolines (@0x1520fe / @0x15213e / @0x152186)
+   * that call `__clang_call_terminate` after `___cxa_throw` are omitted:
+   * JS exceptions unwind natively, and no dtor here can throw.
+   */
+  public dispose(): void {
+    // Reinstall the vtable pointer as a placeholder — the JS field model
+    // has no vtable slot, but the operation is documented for parity.
+    // (The C++ code does `movq &vtable, (%rdi)` at @0x1520d9.)
+
+    // Invoke the owned subnode's deleting dtor (vtable slot +0x18).
+    // In the TS port, HgcColorClamp doesn't expose a runtime vtable; call
+    // its explicit dispose if present. Otherwise the subnode is dropped.
+    const sub = this.hgcSubnode as unknown as { dispose?: () => void };
+    if (typeof sub.dispose === "function") {
+      sub.dispose(); // @0x1520ed — hgcSubnode->vtable[0x18](subnode)
+    }
+    // Tail-call HGNode::~HGNode() @0x11bf20 — the base subobject dtor.
+    // super has no ported dispose today; the reference-release is implicit.
+    // (D0 additionally calls HGObject::operator delete @0x1a0f10 — no-op in GC land.)
   }
 }
