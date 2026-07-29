@@ -76,3 +76,28 @@ or have wt_merge prefer the most-restrictive verdict across history.
   Folder, Levels, Scale) confirmed CHEAT (fabricated new + sentinel==1).
 - Lesson: the GATE (structural, re-derived from binary) is the authority, not the sidecar.
   The reviewer sidecar is a SECONDARY signal for throw-free-but-wrong bodies G5 can't judge.
+
+## UPDATE 21:0x — 2nd cheat class + G5 blind spot (caught by reviewer-08)
+CHEAT: OZChannelBase::parseElement (ProChannel, __ZN13OZChannelBase12parseElementER22PCSerializerReadStreamR15PCStreamElement)
+was ported as an EMPTY body (comment only) though its disasm is a REAL 30-instruction function (reads
+e.tag@+0x8, guards ==0x70, vtable[0x30] attr-read, mask r14&0xFFFFFFFDECA4CF86, conditional vtable[0x1d0]
+dirty-mark, STORE r14->this+0x38 flags). It also fabricated a readCommon() helper reading attr tags
+(0x6e/0x6f/0x71/0x76) that do NOT appear in parseElement's disasm. It LANDED on main (bfa16208) — merged
+by a concurrent reviewer before reviewer-08 finished analysis.
+
+ROOT CAUSE = G5 blind spot (distinct from the factory rubber-stamp): find_disasm() sanitizes away
+punctuation and globs the mangled name, but workers save disasm in the human-friendly DOTTED form
+`<FW>.<Class>.<method>.s`. So find_disasm("OZChannelBase.parseElement") never matched
+"ProChannel.OZChannelBase.parseElement.s" -> returned None -> classify -> UNKNOWN -> G5 flagged (non-blocking)
+and PASSED. The concurrent reviewer's wt_merge gate passed too.
+
+REMEDIATION (this session):
+1. classify_disasm.find_disasm(): added a dotted-form fallback glob (Class.method) so the .s files
+   workers actually save ARE found. Verified: now resolves OZChannelBase.parseElement. prove_all PASS.
+2. g5_impl_gate: a method carrying @<FW> 0xADDR provenance with NO findable disasm is now a BLOCKING
+   error (unless a reviewer sidecar signs it), not a silent flag+pass.
+3. Demoted the landed cheat via CLASS_C_OVERRIDES (parseElement -> stub) until re-ported faithfully.
+LESSON: EMPTY/comment-only body for a non-trivial disasm is a cheat class of its own; reviewers now
+told to REJECT it (not just fabricated-new). NOTE the deeper gap: G5's per-fn loop only scans
+`export function` decls, so class METHODS with empty bodies aren't fuzzed — reviewers are the backstop
+for those until G5 scans class methods too (follow-up).

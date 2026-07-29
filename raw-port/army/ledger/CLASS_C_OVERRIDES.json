@@ -268,5 +268,10 @@
   "addr": "0x00000000000a6186",
   "demangled": "OZChannelPositionPercent3D_Factory::getInstance()",
   "reason": "CHEAT INCIDENT 2026-07-29: Pattern-C fabricated-construction cheat (pre-gate, commit 27e5ee67, no review). getInstance fabricates 'new OZChannelPositionPercent3D_Factory()' + corrupted !==1 sentinel; disasm is cmpq $-0x1 + libc++ __call_once, no in-frame __Znwm. NOT a real port. Demoted from ported until reworked Style-A/B. Was the template dep-worker-05 copied to produce 8 more cheats."
+ },
+ "__ZN13OZChannelBase12parseElementER22PCSerializerReadStreamR15PCStreamElement": {
+  "fw": "ProChannel",
+  "demangled": "OZChannelBase::parseElement(PCSerializerReadStream&, PCStreamElement&)",
+  "reason": "CHEAT INCIDENT 2026-07-29 (caught by reviewer-08, landed via G5 find_disasm blind spot): REAL 30-instruction body (reads e.tag@+0x8, guards ==0x70, vtable[0x30] attr-read, mask r14&0xFFFFFFFDECA4CF86, conditional vtable[0x1d0] dirty-mark, STORE r14->this+0x38 flags) ported as an EMPTY body + a FABRICATED readCommon() helper reading tags not in the disasm. Demoted until re-ported faithfully."
  }
 }

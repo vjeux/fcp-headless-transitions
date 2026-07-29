@@ -182,9 +182,37 @@ def check_file(path):
         for key in (name, f"{file_class}.{method}", method, file_class):
             if dpath: break
             dpath = find_disasm(key)
+        # BLIND-SPOT FIX (reviewer-08, 2026-07-29): find_disasm sanitizes away dots, so a disasm
+        # saved in the human-friendly dotted form `<FW>.<Class>.<method>.s` was NEVER matched by the
+        # mangled-name search -> dpath=None -> silent flag+pass -> OZChannelBase::parseElement (a REAL
+        # 30-instr body ported EMPTY) merged. Directly glob the dotted forms the workers actually save.
         if not dpath:
-            # can't classify -> defer to reviewer (don't silently pass)
-            flags.append(f"{path}: {name}: no disasm found to classify (reviewer must verify)")
+            import glob as _g
+            for pat in (f"*.{file_class}.{method}.s", f"*.{file_class}.{method}.*.s",
+                        f"*{file_class}.{method}.s"):
+                hits = [h for h in _g.glob(os.path.join(ROOT, "re", "disasm", pat))
+                        if ".cold" not in h and "proxy" not in h]
+                if hits:
+                    dpath = hits[0]; break
+        if not dpath:
+            # can't classify. A method carrying @<FW> 0xADDR provenance claims to be a REAL decoded
+            # function — silently passing it is the blind spot that let parseElement's empty body land.
+            # Block it as an error UNLESS an adversarial-reviewer sidecar has signed it off.
+            rev = path + ".review.json"
+            signed = False
+            if os.path.exists(rev):
+                try:
+                    rv = json.load(open(rev))
+                    signed = rv.get("merge_allowed") is True and rv.get("verdict") in (
+                        "VERIFIED", "LIKELY_REAL", "TRAP", "EMPTY")
+                except Exception:
+                    signed = False
+            if fwm and not signed:
+                errs.append(f"{path}: G5 NO-DISASM — {name}: carries @{fwm.group(1)} 0x{fwm.group(2)} "
+                            f"provenance but no disasm is findable to verify it (blind-spot guard). "
+                            f"Reviewer must re-derive from the binary and sign off, or fix the cited addr.")
+            else:
+                flags.append(f"{path}: {name}: no disasm found to classify (reviewer must verify)")
             continue
         dcls = classify(dpath)["class"]
         if dcls == "TRAP":

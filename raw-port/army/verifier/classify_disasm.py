@@ -146,7 +146,28 @@ def classify(path):
 def find_disasm(sym_or_class):
     san = re.sub(r'[^A-Za-z0-9_]', '', sym_or_class)
     c = glob.glob(os.path.join(DISASM, f"*{san}*.s"))
-    return c[0] if c else None
+    if c:
+        return c[0]
+    # CHEAT INCIDENT 2026-07-29 (reviewer-08): workers/reviewers save disasm in the human-friendly
+    # dotted form `<FW>.<Class>.<method>.s`, but the sanitized-mangled glob above strips the dots so
+    # e.g. "OZChannelBase.parseElement" -> "OZChannelBaseparseElement" never matches
+    # "ProChannel.OZChannelBase.parseElement.s". Fall back to a dotted-form glob keyed on the last
+    # two dotted components (Class.method) so those files ARE found -> classify no longer returns
+    # UNKNOWN -> G5 no longer silently passes an empty-body-for-REAL-work port.
+    parts = [p for p in re.split(r'[^A-Za-z0-9_]+', sym_or_class) if p]
+    if len(parts) >= 2:
+        cls, meth = parts[-2], parts[-1]
+        for pat in (f"*.{cls}.{meth}.s", f"*.{cls}.{meth}.*.s"):
+            c = [h for h in glob.glob(os.path.join(DISASM, pat))
+                 if ".cold" not in h and "invoke" not in h and "proxy" not in h]
+            if c:
+                return c[0]
+    elif len(parts) == 1:
+        for pat in (f"*.{parts[0]}.s",):
+            c = glob.glob(os.path.join(DISASM, pat))
+            if c:
+                return c[0]
+    return None
 
 if __name__ == "__main__":
     import json
