@@ -237,4 +237,247 @@ export class OZChannelAspectRatio {
 
     return self;
   }
+
+  /**
+   * `OZChannelAspectRatio::createOZChannelAspectRatioInfo()` @ProChannel 0x5e9e
+   * (__ZN20OZChannelAspectRatio30createOZChannelAspectRatioInfoEv).
+   *
+   * Faithful line-for-line transcription of the disassembly at
+   *   raw-port/re/disasm/ProChannel.__ZN20OZChannelAspectRatio30createOZChannelAspectRatioInfoEv.s
+   *
+   * This is the standalone STATIC METHOD `createOZChannelAspectRatioInfo`,
+   * NOT to be confused with the module-level `createOZChannelAspectRatioInfo_default`
+   * fallback stub above (which is used from the ctor's null-info branch
+   * at Ozone @0x30c1ee..0x30c223 — see step 8 of newNamed). This method
+   * is a call_once-guarded getter for the class-static `_OZChannelAspectRatioInfo`
+   * global pointer: on first call it runs the once-init lambda (a SEPARATE
+   * ledger unit that allocates + C2-ctors an OZChannelAspectRatioInfo of
+   * size 0x58 and writes it to the global), then returns the global's
+   * current value.
+   *
+   * Note on cross-framework class layout: the same C++ class
+   * `OZChannelAspectRatio` is compiled into BOTH ProChannel and Ozone
+   * binaries (Apple ships the same source through two frameworks; the
+   * newer OZ symbols now live under ProChannel with the same mangling).
+   * The existing file header cites Ozone addresses for the CTOR; this
+   * static method is only present in ProChannel's symbol table (the
+   * Ozone binary's ctor inlines the call_once directly at 0x30c1ba..0x30c1ee
+   * rather than calling this out-of-line helper). Both frameworks share
+   * the same C++ storage duration for the once-flag and _OZChannelAspectRatioInfo
+   * globals: function-local statics with libc++'s `std::call_once`
+   * guard word (`unsigned long`, 0 = not-started, -1 = completed).
+   *
+   * -----------------------------------------------------------------------
+   * PROCESS-GLOBAL STORAGE
+   * -----------------------------------------------------------------------
+   *   __ZZN20OZChannelAspectRatio30createOZChannelAspectRatioInfoEvE30_OZChannelAspectRatioInfo_once
+   *     — libc++ std::once_flag word for this function's local static.
+   *       Fast-path check at @0x5ead: `cmpq $-1, %rax; je 0x5ed8` — if
+   *       the flag equals ~0UL (init complete), skip call_once and just
+   *       return the global.
+   *
+   *   __ZN20OZChannelAspectRatio25_OZChannelAspectRatioInfoE
+   *     — the class-static `_OZChannelAspectRatioInfo*` (a pointer, not
+   *       an inline object). Written by the once-init lambda's __invoke
+   *       body at ProChannel 0xbb6b (`_instance = rax`, after the new+C2
+   *       @0xbb56+0xbb61). Read here @0x5ed8-0x5edf.
+   *
+   * -----------------------------------------------------------------------
+   * FRONTIER CALLEES
+   * -----------------------------------------------------------------------
+   *   * `__ZNSt3__111__call_onceERVmPvPFvS2_E`
+   *     — std::__1::__call_once — libc++ TRUE out-of-scope extern. Called
+   *     @0x5ed3 via ProChannel stub 0xacdc8. Same policy as
+   *     OZChannelBase_Factory::getInstance() and OZChannelGradientSampleAlpha_Factory::getInstance().
+   *
+   *   * `__ZNSt3__117__call_once_proxy<...createOZChannelAspectRatioInfo::lambda...>Pv`
+   *     — libc++ proxy template instantiation, referenced @0x5ecc via
+   *     `leaq ...(%rip), %rdx`. NOT called by this function directly —
+   *     passed as a data reference to __call_once. The proxy tail-jumps
+   *     to __invoke, which allocates a 0x58-byte OZChannelAspectRatioInfo
+   *     via operator new @ProChannel 0xbb56 (__Znwm stub 0xace4c),
+   *     invokes __ZN24OZChannelAspectRatioInfoC2Ev @ProChannel 0xbb61
+   *     (C2 base ctor — SEPARATE ledger entry, currently `todo`), and
+   *     stores the pointer to `_OZChannelAspectRatioInfo` @0xbb6b. Note
+   *     the __invoke body also does a NULL-check on the global first
+   *     @0xbb50-0xbb54 (`cmpq $0x0, (%r14); jne 0x5f6e`) — a belt-and-
+   *     suspenders guard against double-init that libc++'s call_once
+   *     already rules out.
+   *
+   * -----------------------------------------------------------------------
+   * FULL DISASM (raw-port/re/disasm/ProChannel.__ZN20OZChannelAspectRatio30createOZChannelAspectRatioInfoEv.s)
+   * -----------------------------------------------------------------------
+   *   0x5e9e  pushq  %rbp                              ; prologue
+   *   0x5e9f  movq   %rsp, %rbp
+   *   0x5ea2  subq   $0x20, %rsp                       ; 32-byte local frame
+   *                                                    ; (holds a 3-word libc++
+   *                                                    ; "tuple<lambda&&>" plus
+   *                                                    ; alignment padding)
+   *   0x5ea6  movq   _once(%rip), %rax                 ; rax = _..._once
+   *   0x5ead  cmpq   $-0x1, %rax                       ; init complete?
+   *   0x5eb1  je     0x5ed8                            ; -> fast_path
+   *   0x5eb3  leaq   -0x1(%rbp), %rax                  ; captureless-lambda slot
+   *   0x5eb7  leaq   -0x18(%rbp), %rcx                 ; tuple<T&&> slot
+   *   0x5ebb  movq   %rax, (%rcx)                      ; tuple.head = &lambda
+   *   0x5ebe  leaq   -0x10(%rbp), %rsi                 ; call_once's `void* arg`
+   *   0x5ec2  movq   %rcx, (%rsi)                      ; *arg = &tuple
+   *   0x5ec5  leaq   _once(%rip), %rdi                 ; rdi = &_once
+   *   0x5ecc  leaq   __call_once_proxy<...>(%rip), %rdx ; rdx = &proxy
+   *   0x5ed3  callq  0xacdc8                           ; std::__call_once stub
+   *   0x5ed8  leaq   _OZChannelAspectRatioInfo(%rip), %rax ; fast_path: rax = &_global
+   *   0x5edf  movq   (%rax), %rax                      ; rax = _global (deref)
+   *   0x5ee2  addq   $0x20, %rsp                       ; epilogue
+   *   0x5ee6  popq   %rbp
+   *   0x5ee7  retq
+   */
+  static createOZChannelAspectRatioInfo(): OZChannelAspectRatioInfoLayout | null {
+    // ------------------------------------------------------------
+    // @0x5e9e..0x5ea2 — prologue + 0x20 local frame (no TS effect).
+    // @0x5ea6..0x5ead — rax = _once; cmpq $-1, %rax.
+    // @0x5eb1 — je 0x5ed8 (fast_path).
+    // ------------------------------------------------------------
+    if (
+      OZChannelAspectRatio._createOZChannelAspectRatioInfo_once !== -1n
+    ) {
+      // ------------------------------------------------------------
+      // @0x5eb3..0x5ec2 — set up libc++ tuple<lambda&&> on the stack
+      // (ABI-level, no TS-visible effect — the proxy just needs a
+      // stable void* to dispatch through; we pass a null placeholder).
+      // @0x5ec5 — rdi = &_once.
+      // @0x5ecc — rdx = &__call_once_proxy<...lambda...> (@ProChannel 0xbb17).
+      // @0x5ed3 — callq std::__call_once (libc++ stub @0xacdc8).
+      // ------------------------------------------------------------
+      OZChannelAspectRatio_std_call_once(
+        {
+          get: (): bigint =>
+            OZChannelAspectRatio._createOZChannelAspectRatioInfo_once,
+          set: (v: bigint): void => {
+            OZChannelAspectRatio._createOZChannelAspectRatioInfo_once = v;
+          },
+        },
+        null, // ABI void* — the real disasm passes &tuple; our proxy ignores it.
+        OZChannelAspectRatio_createOZChannelAspectRatioInfo_lambda,
+      );
+    }
+    // ------------------------------------------------------------
+    // @0x5ed8..0x5edf — rax = _OZChannelAspectRatioInfo (deref).
+    // @0x5ee2..0x5ee7 — epilogue + retq.
+    // ------------------------------------------------------------
+    return OZChannelAspectRatio._OZChannelAspectRatioInfo;
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // PROCESS-GLOBAL STORAGE for createOZChannelAspectRatioInfo (ProChannel BSS)
+  // ═════════════════════════════════════════════════════════════════════════
+  // In the real binary these are function-local statics (guarded by libc++'s
+  // call_once). In the port we hoist them to class-static private fields for
+  // the same lifetime + zero-init semantics (Mach-O __bss is zero at load).
+  //
+  // NB: These fields belong to the PROCHANNEL build of OZChannelAspectRatio.
+  // The OZONE build's ctor inlines its own call_once at 0x30c1ba-0x30c1ee
+  // and does NOT go through this static method — so at the class level the
+  // once-flag storage is shared under a single symbol but the two build
+  // variants use it independently. In TS we have one instance of this
+  // module, so the flag transitions 0 -> -1 on first call regardless of
+  // which entry point drove it (matches the C++ observable behaviour).
+  // ═════════════════════════════════════════════════════════════════════════
+
+  /** @ProChannel BSS `__ZZN20OZChannelAspectRatio30createOZChannelAspectRatioInfoEvE30_OZChannelAspectRatioInfo_once`.
+   *  libc++ std::once_flag word. 0n = not started; -1n (0xFFFF_FFFF_FFFF_FFFF) = completed.
+   *  createOZChannelAspectRatioInfo() compares this to $-1 @0x5ead. */
+  private static _createOZChannelAspectRatioInfo_once: bigint = 0n; // @ProChannel BSS 0x5ea6
+
+  /** @ProChannel BSS `__ZN20OZChannelAspectRatio25_OZChannelAspectRatioInfoE`.
+   *  The `OZChannelAspectRatioInfo*` singleton. Read @0x5ed8-0x5edf.
+   *  Written by the once-init __invoke body at ProChannel 0xbb6b (after
+   *  operator new(0x58) @0xbb56 + C2 ctor @0xbb61). Also referenced by
+   *  the Ozone ctor's fallback path @0x30c212-0x30c21c (see step 8 in
+   *  newNamed above — that path currently routes through the
+   *  `createOZChannelAspectRatioInfo_default` frontier stub, and once
+   *  the once-init lambda is ported it will read this global instead). */
+  static _OZChannelAspectRatioInfo: OZChannelAspectRatioInfoLayout | null = null; // @ProChannel BSS 0x5ed8
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// libc++ boundary stubs for createOZChannelAspectRatioInfo (ProChannel)
+// ═════════════════════════════════════════════════════════════════════════
+
+/**
+ * `std::__1::__call_once(flag&, void* arg, void(*)(void*))` — libc++
+ * (libc++.dylib). Called from createOZChannelAspectRatioInfo @0x5ed3
+ * via ProChannel stub 0xacdc8. TRUE out-of-scope extern (libc++ runtime).
+ * In this port there is no libc++ runtime, so we model the "run the
+ * initializer exactly once, atomically" contract at the JS single-threaded
+ * level: on first call with a zero once_flag, we invoke the proxy(arg)
+ * and — IF it completes without throwing — write $-1 into the flag; on
+ * subsequent calls we no-op. If the proxy throws, the flag stays 0
+ * (libc++'s ~0UL-on-success write is skipped) and future calls will
+ * retry, exactly like the real runtime. This mirrors the identical
+ * std_call_once helpers in the OZChannel*Factory files and models only
+ * the semantics createOZChannelAspectRatioInfo's disasm relies on (the
+ * fast-path @0x5ead `cmp $-1` check). */
+function OZChannelAspectRatio_std_call_once(
+  once: { get(): bigint; set(v: bigint): void },
+  arg: unknown,
+  proxy: (arg: unknown) => void,
+): void {
+  // libc++ fast-path: already completed?
+  if (once.get() === -1n) return; // (mirrors 0x5ead fast-path exit)
+  // First-call slow path (single-threaded model — no atomic CAS needed
+  // in JS). Run the proxy; on success mark the flag ~0.
+  proxy(arg);
+  once.set(-1n);
+}
+
+/**
+ * `__ZNSt3__117__call_once_proxy<...createOZChannelAspectRatioInfo::lambda...>Pv`
+ * — libc++ template instantiation (ProChannel @0xbb17). Body is
+ * `jmp __invoke<...>` @0xbb22, which lives at ProChannel 0xbb27 and:
+ *   1. Loads &_OZChannelAspectRatioInfo (@0xbb49) and null-checks it
+ *      (@0xbb50-0xbb54): if the global is already non-null, skip the
+ *      alloc entirely and return.
+ *   2. Allocates 0x58 bytes via `operator new` @ProChannel 0xbb56
+ *      (__Znwm stub @0xace4c).
+ *   3. Invokes __ZN24OZChannelAspectRatioInfoC2Ev @ProChannel 0xbb61
+ *      (OZChannelAspectRatioInfo::C2 base ctor — SEPARATE ledger entry,
+ *      currently `todo`).
+ *   4. Stores the fresh pointer to `_OZChannelAspectRatioInfo` @0xbb6b.
+ * Since neither the C2 ctor nor operator new are ported yet, this stub
+ * raises with the exact @0xADDRs of the dispatching call sites — the
+ * deferred work is transparently documented and will resolve once those
+ * separate ledger units are claimed. The proxy and __invoke themselves
+ * are also SEPARATE ledger units (not this file's scope).
+ */
+function OZChannelAspectRatio_createOZChannelAspectRatioInfo_lambda(
+  _arg: unknown,
+): void {
+  // The __invoke body @ProChannel 0xbb27..0xbb72 is:
+  //   1. r14 = &_OZChannelAspectRatioInfo                    @ProChannel 0xbb49
+  //   2. if (*r14 != null) skip to epilogue @0xbb6e          @ProChannel 0xbb50-0xbb54
+  //   3. rax = operator new(0x58)                            @ProChannel 0xbb56 (imported __Znwm)
+  //   4. OZChannelAspectRatioInfo::C2(rax)                   @ProChannel 0xbb61
+  //   5. _OZChannelAspectRatioInfo = rax                     @ProChannel 0xbb6b
+  // C2 is a separate ledger entry (todo). We cite all call sites.
+  throw new Error(
+    "OZChannelAspectRatio::createOZChannelAspectRatioInfo() __call_once " +
+      "init lambda not yet transcribed — the __invoke body @ProChannel 0xbb27 " +
+      "null-checks _OZChannelAspectRatioInfo @0xbb50, otherwise allocates " +
+      "0x58 bytes via operator new @0xbb56 then invokes " +
+      "__ZN24OZChannelAspectRatioInfoC2Ev @ProChannel 0xbb61 " +
+      "(OZChannelAspectRatioInfo C2 base ctor, ledger status: todo) and " +
+      "stores the result into _OZChannelAspectRatioInfo @0xbb6b. Neither " +
+      "operator new (__Znwm ProChannel stub 0xace4c) nor the C2 ctor is " +
+      "yet ported — the proxy, __invoke, and C2 are each SEPARATE ledger " +
+      "units and will be filled in when they are next claimed. The proxy " +
+      "is invoked from std::__call_once at ProChannel 0x5ed3.",
+  );
+}
+
+// Bring OZChannelAspectRatioInfoLayout into scope for the class-static field
+// declaration above. The type-only import keeps this file's runtime
+// dependency graph unchanged (no cycles introduced). The layout interface
+// (rather than a class) matches the actual .ts export shape — the info
+// object is populated field-by-field by OZChannelAspectRatioInfo__ctor
+// (see OZChannelAspectRatioInfo.ts), which is what the SEPARATE C2-ctor
+// ledger unit @ProChannel 0xbb61 corresponds to.
+import type { OZChannelAspectRatioInfoLayout } from './OZChannelAspectRatioInfo';
