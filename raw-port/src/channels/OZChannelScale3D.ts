@@ -85,6 +85,7 @@
 
 import type { OZChannel } from "./OZChannel";
 import type { OZCompoundChannel } from "./OZCompoundChannel";
+import type { CMTime } from "../infra/CMTime.js";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Frontier callees. Each throws with its call site cited by @0xADDR.
@@ -295,4 +296,222 @@ export class OZChannelScale3D {
     // offset 0 of OZChannelScale3D).
     OZCompoundChannel__D2(this as unknown as OZCompoundChannel);
   }
+
+  // ═════════════════════════════════════════════════════════════════════
+  // ProChannel-side methods (framework: ProChannel.framework).
+  //
+  // Every OZChannelScale3D method whose body lives in the ProChannel
+  // binary (setValue, setValueOffsetByBehaviors, getValue, clone, copy,
+  // getObjCWrapperName, ~OZChannelScale3D, and the ctors) is transcribed
+  // OR loud-throw-stubbed below. VAs cited are from the ProChannel
+  // x86_64 slice (/tmp/ProChannel.x86_64; VA == file offset).
+  // ═════════════════════════════════════════════════════════════════════
+
+  /**
+   * `OZChannelScale3D::setValue(CMTime const&, double, double, double)`
+   *   @ProChannel 0x86e20 (33-line body). Sets X/Y/Z sub-channel values
+   *   at time `t` by dispatching each sub-channel's vtable[0x2c8] slot
+   *   with `edx=0` (per-axis "setValue" virtual). The Z dispatch is a
+   *   tail-jmp (@0x86e99). Faithful transcription:
+   *
+   *     x_sub = this + 0x88
+   *     (*(x_sub->vtable + 0x2c8))(x_sub, &t, x, edx=0)         @0x86e4b
+   *     y_sub = this + 0x120
+   *     (*(y_sub->vtable + 0x2c8))(y_sub, &t, y, edx=0)         @0x86e69
+   *     z_sub = this + 0x1b8
+   *     tail-jmp (*(z_sub->vtable + 0x2c8))(z_sub, &t, z, edx=0) @0x86e99
+   */
+  setValue(t: CMTime, x: number, y: number, z: number): void {
+    const xSub = this.xSubChannel();
+    const ySub = this.ySubChannel();
+    const zSub = this.zSubChannel();
+    // vtable[0x2c8] on each OZChannel — the per-channel "set value at time" virtual.
+    // The 4th positional arg in x86_64 SysV is `edx=0`; we thread it through as a
+    // literal so the shim call-site matches the disasm one-for-one.
+    (xSub as unknown as { __vtable_0x2c8_setValue__(t: CMTime, v: number, flag: number): void })
+      .__vtable_0x2c8_setValue__(t, x, 0);                           // @0x86e4b
+    (ySub as unknown as { __vtable_0x2c8_setValue__(t: CMTime, v: number, flag: number): void })
+      .__vtable_0x2c8_setValue__(t, y, 0);                           // @0x86e69
+    // Step 3: tail-jmp equivalent (no return value threaded further).
+    (zSub as unknown as { __vtable_0x2c8_setValue__(t: CMTime, v: number, flag: number): void })
+      .__vtable_0x2c8_setValue__(t, z, 0);                           // @0x86e99
+  }
+
+  /**
+   * `OZChannelScale3D::getValue(CMTime const&, double* x, double* y, double* z, double bias) const`
+   *   @ProChannel 0x9ed50 (46-line body). Reads each sub-channel via
+   *   OZChannel::getValueAsDouble(t, bias) and writes to *x/*y/*z, but
+   *   only if the corresponding pointer is non-null. Faithful:
+   *
+   *     if (x != null): *x = xSub.getValueAsDouble(t, bias)       @0x9ed86
+   *     if (y != null): *y = ySub.getValueAsDouble(t, bias)       @0x9edaa
+   *     if (z != null): *z = zSub.getValueAsDouble(t, bias)       @0x9edcc
+   *
+   * NB: `bias` is preserved across each call (movsd -0x30(%rbp),%xmm0
+   * before each callq) — it's an input to getValueAsDouble, not a
+   * per-axis output.
+   */
+  getValue(
+    t: CMTime,
+    outX: { value: number } | null,
+    outY: { value: number } | null,
+    outZ: { value: number } | null,
+    bias: number,
+  ): void {
+    if (outX != null) {
+      const xSub = this.xSubChannel();
+      const v = (xSub as unknown as { getValueAsDouble(t: CMTime, bias: number): number })
+        .getValueAsDouble(t, bias);                                   // @0x9ed86
+      outX.value = v;
+    }
+    if (outY != null) {
+      const ySub = this.ySubChannel();
+      const v = (ySub as unknown as { getValueAsDouble(t: CMTime, bias: number): number })
+        .getValueAsDouble(t, bias);                                   // @0x9edaa
+      outY.value = v;
+    }
+    if (outZ != null) {
+      const zSub = this.zSubChannel();
+      const v = (zSub as unknown as { getValueAsDouble(t: CMTime, bias: number): number })
+        .getValueAsDouble(t, bias);                                   // @0x9edcc
+      outZ.value = v;
+    }
+  }
+
+  /**
+   * `OZChannelScale3D::clone() const`  @ProChannel 0x86d92 (24-line body).
+   *
+   * Faithful:
+   *   1) rax = operator new(0x250)  (sizeof OZChannelScale3D)         @0x86da1
+   *   2) OZChannelScale3D::OZChannelScale3D(*rax, *this, nullptr)     @0x86db1
+   *      — copy-ctor with folder=nullptr.
+   *   3) return rax.
+   *
+   * The unwind path @0x86dbe..0x86dcc deletes the half-constructed
+   * copy on exception; not modeled explicitly in JS (GC handles it).
+   *
+   * NB sizeof is 0x250 bytes (recovered from `movl $0x250, %edi`
+   * @0x86d9c). This is BIGGER than OZChannelScale (0x1b8): +0x88 for
+   * the Z sub-channel + +0x10 for the two vptrs — the ledger entry
+   * for the copy-ctor is 0x86d12/0x86d88.
+   */
+  clone(): OZChannelScale3D {
+    // Copy-ctor with folder=null. The full body of the copy-ctor lives
+    // at ProChannel 0x86d12 (C1) / 0x86d88 (C2) — not yet transcribed
+    // (frontier stub below). Every real call to clone() lands there.
+    return OZChannelScale3D__C2_copy(this, null);                     // @0x86db1
+  }
+
+  /**
+   * `OZChannelScale3D::copy(OZChannelBase const*, bool)`  @ProChannel 0x86dd2
+   *   (27-line body).
+   *
+   * Faithful:
+   *   1) OZChannel2D::copy(this, src, deep)  — chain to 2D base first  @0x86de4
+   *   2) casted = dynamic_cast<OZChannelScale3D*>(src)                  @0x86dfc
+   *   3) tail-jmp OZChannel::copy(
+   *          this + 0x1b8,               // z sub-channel
+   *          casted + 0x1b8,             // src z sub-channel
+   *          deep,
+   *      )                                                              @0x86e1b
+   *
+   * i.e. delegate the X/Y sub-channels to OZChannel2D::copy, then deep-
+   * copy just the Z sub-channel on top.
+   */
+  copy(src: OZChannelScale3D, deep: boolean): void {
+    // Step 1: OZChannel2D::copy(this, src, deep).                       @0x86de4
+    OZChannel2D__copy(this as unknown as OZChannel2D, src as unknown as OZChannel2D, deep);
+    // Step 2: dynamic_cast<OZChannelScale3D*> — in JS, the shape already
+    // is OZChannelScale3D (dynamic_cast can return nullptr on failure,
+    // but the disasm doesn't null-check the result; we mirror that).
+    const casted = src;
+    // Step 3: tail-jmp OZChannel::copy(this.z, src.z, deep).             @0x86e1b
+    OZChannel__copy(
+      this.zSubChannel(),
+      casted.zSubChannel(),
+      deep,
+    );
+  }
+
+  /**
+   * `OZChannelScale3D::getObjCWrapperName()`  @ProChannel 0x870e6 (7-line body).
+   *
+   * Faithful:
+   *   pushq %rbp; movq %rsp,%rbp                                        @0x870e6-0x870e7
+   *   leaq  0x5ea1f(%rip),%rax   ## Objc cfstring ref: @"bad cfstring ref"  @0x870ea
+   *   popq %rbp; retq                                                    @0x870f1-0x870f2
+   *
+   * The stub the RIP-relative points at is the linker's placeholder
+   * (`@"bad cfstring ref"`) — a real production build would resolve
+   * to something like `@"FCEffectChannelScale3D"`. Faithful today
+   * returns the literal the binary actually references (so the
+   * behavior matches at bit level even if the string is nominally
+   * a placeholder).
+   */
+  getObjCWrapperName(): string {
+    // Literal at ProChannel rip+0x5ea1f = the CFString the binary
+    // actually references. Kept verbatim per raw-port spec.
+    return "bad cfstring ref";                                          // @0x870ea
+  }
+
+  /**
+   * `OZChannelScale3D::setValueOffsetByBehaviors(CMTime const&, double, double, double)`
+   *   @ProChannel 0x86e9c (143-line body).
+   *
+   * Faithful outline (deep transcription deferred):
+   *   1) for each axis a in [X @+0x88, Y @+0x120, Z @+0x1b8]:
+   *        cur = axis->getValueAsDouble(t, bias=0.0)                     @0x86ed3/@0x86ef8/@0x86f1c
+   *        arg[a] -= cur     (compute offset from current)               @0x86edd/@0x86f02/@0x86f26
+   *   2) tRef = xSub->getTimeOffset()                                    @0x86f40
+   *   3) call each axis->setValueOffsetAtTime(t + tRef, offset)  — the
+   *      exact vtable slot + arg-marshaling is what fills the remaining
+   *      100+ instructions. Deferred.
+   *
+   * Body deferred — throw citing @0x86e9c and every sub-callee.
+   */
+  setValueOffsetByBehaviors(_t: CMTime, _x: number, _y: number, _z: number): void {
+    throw new Error(
+      "OZChannelScale3D::setValueOffsetByBehaviors @ProChannel 0x86e9c not yet transcribed " +
+      "(143-line body; deps: OZChannel::getValueAsDouble @call 0x86ed3/0x86ef8/0x86f1c, " +
+      "OZChannelBase::getTimeOffset @call 0x86f40, per-axis vtable-set-offset dispatch)",
+    );
+  }
 }
+
+// ── ProChannel-side frontier stubs (unchanged if already declared elsewhere) ─────────────────
+
+/** `OZChannelScale3D::OZChannelScale3D(OZChannelScale3D const&, OZChannelFolder*)` [C2 copy]
+ *  @ProChannel 0x86d12 (entry) / 0x86d88 (fold). The copy-ctor allocated by clone(). Body not
+ *  transcribed yet at @ProChannel 0x86d12; stub cites addr. */
+function OZChannelScale3D__C2_copy(
+  _src: OZChannelScale3D,
+  _folder: unknown,
+): OZChannelScale3D {
+  throw new Error(
+    "OZChannelScale3D::OZChannelScale3D(OZChannelScale3D const&, OZChannelFolder*) " +
+    "@ProChannel 0x86d12 (C2 copy) — invoked by clone() @0x86db1. Not yet transcribed.",
+  );
+}
+
+/** `OZChannel2D::copy(OZChannelBase const*, bool)` @ProChannel U-extern. Invoked by
+ *  OZChannelScale3D::copy @0x86de4. Body lives in OZChannel2D.ts (frontier if not yet ported).
+ *  Throw-stub for now. */
+function OZChannel2D__copy(_self: OZChannel2D, _src: OZChannel2D, _deep: boolean): void {
+  throw new Error(
+    "OZChannel2D::copy(OZChannelBase const*, bool) @ProChannel U-extern — invoked by " +
+    "OZChannelScale3D::copy @0x86de4. Not yet transcribed.",
+  );
+}
+
+/** `OZChannel::copy(OZChannelBase const*, bool)` @ProChannel U-extern. Tail-jumped by
+ *  OZChannelScale3D::copy @0x86e1b (against the Z sub-channel at +0x1b8). Throw-stub for now. */
+function OZChannel__copy(_self: OZChannel, _src: OZChannel, _deep: boolean): void {
+  throw new Error(
+    "OZChannel::copy(OZChannelBase const*, bool) @ProChannel U-extern — tail-jmp'd by " +
+    "OZChannelScale3D::copy @0x86e1b (Z sub-channel at +0x1b8). Not yet transcribed.",
+  );
+}
+
+/** Shape sentinel for OZChannel2D — matches the ProChannel-side shape (frontier). */
+interface OZChannel2D { /* frontier — see OZChannel2D.ts */ }
+
