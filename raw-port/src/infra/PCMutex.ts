@@ -5,9 +5,9 @@
 //
 // PCMutex is a very thin OO wrapper around a POSIX `pthread_mutex_t`. All the
 // enumerated instance methods live at a contiguous block starting @0x34330
-// (ctors + D2/D1/D0 + lock/unlock). Only ~PCMutex [D2] is dispatched to me;
-// it is a textbook Itanium base destructor: reinstall the base-class vtable,
-// then destroy the embedded pthread_mutex.
+// (ctors + D2/D1/D0 + lock/unlock). This file ports the ~PCMutex [D2] base
+// destructor @0x347c0 and the `unlock()` @0x34844 methods; both are textbook
+// pthread-wrapper bodies (POSIX externs, no in-scope callees).
 //
 // -----------------------------------------------------------------------------
 // SHAPE — decoded from D2 alone
@@ -33,6 +33,8 @@
 //   * _pthread_mutex_destroy   @stub ProCore 0xdeab0 (called @0x347d2)
 //                              POSIX pthread — outside the 5-framework port
 //                              scope (libSystem.B.dylib). Boundary stub.
+//   * _pthread_mutex_unlock    @stub ProCore 0xdeac2 (tail-jmp @0x3484d)
+//                              POSIX pthread — same policy.
 //   * ___clang_call_terminate  @stub ProCore (called @0x347dc as the
 //                              LSDA-registered cleanup for a _pthread_mutex_
 //                              destroy that unwinds — libc++ terminate
@@ -41,10 +43,11 @@
 // -----------------------------------------------------------------------------
 // Symbols ported here (mangled → address)
 // -----------------------------------------------------------------------------
-//   * __ZN7PCMutexD2Ev  PCMutex::~PCMutex()  [D2 base dtor]  @0x347c0
+//   * __ZN7PCMutexD2Ev     PCMutex::~PCMutex()  [D2 base dtor]  @0x347c0
+//   * __ZN7PCMutex6unlockEv  PCMutex::unlock()                   @0x34844
 //
-// The C1/D1/D0/lock/unlock siblings live at 0x34422/0x347e2/0x34804/0x34836/
-// 0x34844 and are NOT ported by this unit — they are separate ledger entries.
+// The C1/D1/D0/lock siblings live at 0x34422/0x347e2/0x34804/0x34836 and are
+// NOT ported by this unit — they are separate ledger entries.
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (raw-port/re/disasm/ProCore.__ZN7PCMutexD2Ev.s)
@@ -174,5 +177,60 @@ export class PCMutex {
     // @0x347d9..0x347dc landing pad: movq %rax, %rdi; callq
     //   ___clang_call_terminate — std::terminate on unwinding
     //   _pthread_mutex_destroy. Out-of-scope (libc++ terminate handler).
+  }
+
+  /**
+   * `PCMutex::unlock()` — @ProCore 0x34844 (__ZN7PCMutex6unlockEv).
+   *
+   * Faithful line-for-line transcription of the disassembly at
+   * raw-port/re/disasm/ProCore.__ZN7PCMutex6unlockEv.s:
+   *
+   *   0x34844  pushq  %rbp                                  ; frame prologue
+   *   0x34845  movq   %rsp, %rbp
+   *   0x34848  addq   $0x8, %rdi                            ; rdi = &this->mutex_at_0x8
+   *   0x3484c  popq   %rbp                                  ; epilogue (before tail-jmp)
+   *   0x3484d  jmp    0xdeac2 ## symbol stub for: _pthread_mutex_unlock
+   *
+   * The function is a textbook tail-jmp trampoline: adjust `%rdi` (this) by
+   * +0x8 so it now points at the embedded pthread_mutex_t (see the struct
+   * layout above; the +0x8 slot is proven by D2 @0x347ce doing the same
+   * `addq $0x8, %rdi` before `_pthread_mutex_destroy`), then tail-jmp into
+   * the POSIX stub for `_pthread_mutex_unlock`. There is no ABI-visible
+   * return value and no in-scope callee.
+   *
+   * `_pthread_mutex_unlock` is a TRUE OUT-OF-SCOPE extern (libSystem.B.dylib
+   * symbol stub @ProCore 0xdeac2). Same policy as PCSemaphore's pthread_*
+   * callees (see raw-port/src/infra/PCSemaphore.ts) and this file's own D2
+   * — we raise, not paper-over: JS/TS has no pthread runtime, and silently
+   * returning "success" would let a caller think the mutex was released
+   * when in fact NO lock was ever acquired (see the sibling `lock` method,
+   * which also throws for `_pthread_mutex_lock`). A future JS runtime port
+   * would either (a) map to `Atomics.wait/notify` on a `SharedArrayBuffer`,
+   * or (b) map to a Node.js `worker_threads` sync primitive; today, either
+   * choice is speculative and out of scope for a bit-faithful transcription.
+   */
+  unlock(): void {
+    // ------------------------------------------------------------
+    // @0x34844..0x34845 — prologue (no TS effect).
+    // @0x34848 — addq $0x8, %rdi   ;  rdi = &this->mutex_at_0x8
+    //   (matches D2 @0x347ce; +0x8 is the pthread_mutex_t slot).
+    // @0x3484c — popq %rbp        (epilogue before the tail-jmp).
+    // @0x3484d — jmp _pthread_mutex_unlock  ; TRUE out-of-scope extern
+    //   (POSIX pthread stub @ProCore 0xdeac2). Tail-jmp semantics: the
+    //   pthread call's return goes directly to PCMutex::unlock's caller.
+    // ------------------------------------------------------------
+    // Reference the mutex slot so a reader can see the +0x8 offset the
+    // machine addresses. Value is opaque (`PthreadMutex | null`) and its
+    // content is only meaningful to libSystem.
+    const mutexArg /* @0x34848 &this[+0x8] */ = this.mutex_at_0x8;
+    void mutexArg;
+
+    // @0x3484d _pthread_mutex_unlock — TRUE out-of-scope extern (POSIX).
+    throw new Error(
+      "PCMutex::unlock() requires _pthread_mutex_unlock(&this[+0x8]) " +
+        "@ProCore 0x3484d (POSIX pthread stub @0xdeab6/0xdeac2) — pthread " +
+        "primitives are not modeled in TS. Tail-jmp trampoline transcribed " +
+        "above. @0x34844",
+    );
   }
 }
