@@ -1,0 +1,13 @@
+__ZN11HGToneCurve6GetROIEP10HGRendereri6HGRect:
+00000000002481d0	movq	%rcx, %rax
+00000000002481d3	testl	%edx, %edx
+00000000002481d5	je	0x2481ea
+00000000002481d7	pushq	%rbp
+00000000002481d8	movq	%rsp, %rbp
+00000000002481db	leaq	_HGRectNull(%rip), %rcx
+00000000002481e2	movq	(%rcx), %rax
+00000000002481e5	movq	0x8(%rcx), %r8
+00000000002481e9	popq	%rbp
+00000000002481ea	movq	%r8, %rdx
+00000000002481ed	retq
+00000000002481ee	nop
