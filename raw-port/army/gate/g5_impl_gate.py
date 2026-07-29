@@ -35,6 +35,64 @@ ADDR_RE = re.compile(r'@0x([0-9a-fA-F]{3,})')
 # a mangled symbol cited in a comment (best disasm key)
 SYM_RE = re.compile(r'\b(_{1,2}Z[NK]?[0-9A-Za-z_]+)\b')
 
+# --- G5 call_once-singleton fabricated-construction detector -------------------------------------
+# CHEAT INCIDENT 2026-07-29: workers passed G5 by fabricating `new <Class>()` inside a getInstance
+# whose disasm actually walls allocation behind libc++ __call_once (the only in-frame callq) with a
+# `cmpq $-0x1` sentinel. reach-fuzz can't catch it (no throw). This structural check does.
+#
+# A getInstance disasm of the call_once-singleton shape has ALL of:
+#   - a `cmpq $-0x1` guard on _instanceOnce   (sentinel is -1, NOT 1)
+#   - an in-frame `callq` targeting the libc++ __call_once stub
+#   - NO in-frame `callq __Znwm` (operator new) — allocation is in the proxy lambda (separate unit)
+# A FAITHFUL port therefore models the __call_once boundary (call a std_call_once(...) helper, or
+# throw at that libc++ boundary). It must NOT fabricate `new <SameClass>()` (no such instruction is
+# in-frame), and its sentinel literal must be -1 / -1n, never 1.
+def _find_getinstance_disasm(file_class):
+    """Locate the class's OWN getInstance .s. Disasm files are named `<FW>.<Class>.<method>.s`
+    (find_disasm's punctuation-stripping glob can't match that dotted form). Prefer the exact
+    `.<Class>.getInstance.s`; fall back to a mangled-symbol file if present."""
+    import glob as _glob
+    disasm_dir = os.path.join(ROOT, "re", "disasm")
+    # exact method file: <FW>.<Class>.getInstance.s (exclude .cold / block-invoke)
+    for pat in (f"*.{file_class}.getInstance.s",
+                f"*{file_class}*getInstance*.s"):
+        hits = sorted(_glob.glob(os.path.join(disasm_dir, pat)))
+        hits = [h for h in hits if ".cold" not in h and "invoke" not in h and "proxy" not in h]
+        if hits:
+            return hits[0]
+    return None
+
+
+def _callonce_singleton_cheat(dpath, name, body_text, file_class):
+    """Return an error string if this is a call_once-singleton getInstance whose TS body fabricates
+    construction / corrupts the sentinel; else None. Conservative: only fires on the exact shape."""
+    try:
+        d = open(dpath, errors="replace").read()
+    except Exception:
+        return None
+    if "cmpq\t$-0x1" not in d and "cmpq $-0x1" not in d:
+        return None  # not the -1-sentinel singleton shape
+    if "__call_once" not in d:
+        return None  # not a call_once dispatch
+    if "__Znwm" in d:
+        return None  # in-frame operator new would legitimize a `new` — don't fire
+    m = re.search(r'getInstance\s*\([^)]*\)\s*:[^{]*\{(.*?)\n\s{0,4}\}', body_text, re.S)
+    if not m:
+        return None
+    gbody = m.group(1)
+    fabricated = re.search(r'\bnew\s+' + re.escape(file_class) + r'\s*\(', gbody)
+    bad_sentinel = re.search(r'_instanceOnce\s*(?:!==|===)\s*1\b', gbody)
+    if fabricated or bad_sentinel:
+        why = []
+        if fabricated:
+            why.append("fabricates `new %s()` (disasm has NO in-frame alloc; allocation is walled "
+                       "behind libc++ __call_once + proxy lambda)" % file_class)
+        if bad_sentinel:
+            why.append("corrupted sentinel (compares _instanceOnce to 1; disasm is `cmpq $-0x1`)")
+        return ("G5 CALLONCE-CHEAT — %s: call_once-singleton getInstance but the port %s. A faithful "
+                "port models the __call_once boundary (std_call_once helper or a throw at the libc++ "
+                "callq), never a fabricated construction." % (name, "; ".join(why)))
+    return None
 def _ts_functions(text):
     """Yield (name, params:[(pname,ptype)], ret, start_index) for each exported function."""
     out = []
@@ -97,6 +155,15 @@ def check_file(path):
     # class name derived from the file (e.g. OZDynamicSpline.ts -> OZDynamicSpline) and from the
     # export prefix (OZDynamicSpline_setVertexSmooth -> OZDynamicSpline / setVertexSmooth).
     file_class = os.path.splitext(os.path.basename(path))[0]
+    # FILE-LEVEL call_once-singleton cheat check (getInstance is a `static` class method, not an
+    # `export function`, so the per-fn loop below never inspects it). Keyed on the class's OWN
+    # getInstance disasm. Fires only on the exact -1-sentinel/__call_once/no-in-frame-new shape.
+    if "getInstance" in text:
+        gpath = _find_getinstance_disasm(file_class)
+        if gpath:
+            ce = _callonce_singleton_cheat(gpath, f"{file_class}::getInstance", text, file_class)
+            if ce:
+                errs.append(f"{path}: {ce}")
     for name, params, ret, start in fns:
         pre = text[:start][-4000:]
         fwm = FW_RE.search(pre) or FW_RE.search(text)
