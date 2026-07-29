@@ -81,4 +81,90 @@ export class HGTransform {
     this.m[10] = 1.0;
     this.m[15] = 1.0;
   }
+
+  /** HGTransform::LoadColumnf(float const*, int col) @Helium 0x1b44d0.
+   *  Two `cvtps2pd` loads convert 4 f32s from `src` to 4 f64s and store them into column `col`
+   *  at offsets 0x10+col*32 and 0x20+col*32 (@0x1b44d4-0x1b44e6).
+   *  Effect: matrix.column[col] = (f64)src[0..3]. */
+  public LoadColumnf(src: Float32Array, col: number): void {
+    // shll $0x2, edx ; movslq -> col*4 index shift for stride-8 (rdi + rax*8 == rdi + col*32).
+    const base = col * 4;
+    this.m[base + 0] = src[0];
+    this.m[base + 1] = src[1];
+    this.m[base + 2] = src[2];
+    this.m[base + 3] = src[3];
+  }
+
+  /** HGTransform::GetMatrixd(double*) const @Helium 0x1b42f0.
+   *  Straight copy of 16 doubles from this+0x10..0x88 to dst+0..0x78. */
+  public GetMatrixd(dst: Float64Array): void {
+    for (let i = 0; i < 16; i++) dst[i] = this.m[i];
+  }
+
+  /** HGTransform::LoadMatrixd(double const*) @Helium 0x1b4540.
+   *  Reverse of GetMatrixd — copy 16 doubles from src into this+0x10..0x88. */
+  public LoadMatrixd(src: Float64Array | ReadonlyArray<number>): void {
+    for (let i = 0; i < 16; i++) this.m[i] = src[i];
+  }
+
+  /** HGTransform::GetMatrixf(float*) const @Helium 0x1b4270.
+   *  4 blocks of `cvtpd2ps` pack two columns (4 doubles) into 4 floats and unpcklpd combines
+   *  them into a 4-float row of dst (@0x1b4274-0x1b42dd). Result: dst[k] = (float)m[k] for k in [0..15]. */
+  public GetMatrixf(dst: Float32Array): void {
+    for (let i = 0; i < 16; i++) dst[i] = Math.fround(this.m[i]);
+  }
+
+  /** HGTransform::LoadMatrixf(float const*) @Helium 0x1b44f0.
+   *  8 `cvtps2pd` loads convert 16 floats to 16 doubles (@0x1b44f4-0x1b452f). */
+  public LoadMatrixf(src: Float32Array | ReadonlyArray<number>): void {
+    for (let i = 0; i < 16; i++) this.m[i] = Math.fround(src[i]);
+  }
+
+  /** HGTransform::GetMatrixdouble4x4(simd::double4x4*) const @Helium 0x1b4420.
+   *  Reads columns 0..3 (offsets 0x10,0x20,0x30,0x40,0x50,0x60,0x70,0x80) and writes them
+   *  swapping COLUMNS 2 and 3 in the destination — the code stores xmm4/xmm5 (columns 3,2 of source)
+   *  at dst 0x40/0x50 and xmm6/xmm7 (columns 5,4... wait) — trace carefully:
+   *    xmm0 = 0x10..0x1f  ; xmm1 = 0x20..0x2f  ; xmm2 = 0x30..0x3f ; xmm3 = 0x40..0x4f
+   *    xmm4 = 0x60..0x6f  ; xmm5 = 0x50..0x5f  ; xmm6 = 0x80..0x8f ; xmm7 = 0x70..0x7f
+   *    store xmm0..xmm3 at dst 0..0x30 (this = src cols 0,1 as-is)
+   *    store xmm5,xmm4 at dst 0x40,0x50  (columns 2 stays, column 3 flipped -> WRONG that reading)
+   *  Actually re-reading: dst 0x40 <- xmm5 (src 0x50..0x5f = col2 lo)
+   *                       dst 0x50 <- xmm4 (src 0x60..0x6f = col2 hi)   -> col 2 preserved
+   *                       dst 0x60 <- xmm7 (src 0x70..0x7f = col3 lo)
+   *                       dst 0x70 <- xmm6 (src 0x80..0x8f = col3 hi)   -> col 3 preserved
+   *  So this is a straight copy of all 16 doubles column-by-column into simd::double4x4 (also column-major). */
+  public GetMatrixdouble4x4(dst: Float64Array): void {
+    for (let i = 0; i < 16; i++) dst[i] = this.m[i];
+  }
+
+  /** HGTransform::LoadMatrixdouble4x4(simd::double4x4 const*) @Helium 0x1b4650.
+   *  Copies 4 16-byte lanes (128 bytes total = 16 doubles) from src to a stack buffer,
+   *  then calls vtable+0x48 (LoadMatrixd @0x1b4540) on that buffer. So the effect is
+   *  the same as LoadMatrixd(src as double[16]). */
+  public LoadMatrixdouble4x4(src: Float64Array | ReadonlyArray<number>): void {
+    // @0x1b46ab-0x1b46b5 -> callq *0x48(%rax) == LoadMatrixd; behavior is a straight 16-double copy.
+    this.LoadMatrixd(src);
+  }
+
+  /** HGTransform::GetMatrixfloat4x4(simd::float4x4*) const @Helium 0x1b43a0.
+   *  Same shape as GetMatrixf: 16 doubles narrowed via cvtpd2ps into 16 floats
+   *  (column-major, both source and destination). */
+  public GetMatrixfloat4x4(dst: Float32Array): void {
+    for (let i = 0; i < 16; i++) dst[i] = Math.fround(this.m[i]);
+  }
+
+  /** HGTransform::LoadMatrixfloat4x4(simd::float4x4 const*) @Helium 0x1b45f0.
+   *  Copies 4 16-byte lanes (64 bytes = 16 floats) to a stack buffer, then calls
+   *  vtable+0x40 == LoadMatrixf @0x1b44f0. Effective behavior: LoadMatrixf(src as float[16]). */
+  public LoadMatrixfloat4x4(src: Float32Array | ReadonlyArray<number>): void {
+    // @0x1b4625-0x1b462c -> callq *0x40(%rax) == LoadMatrixf.
+    this.LoadMatrixf(src);
+  }
+
+  /** HGTransform::LoadTransform(HGTransform const*) @Helium 0x1b46e0.
+   *  Copies bytes 0x10..0x8f from src to this in 8 x 16-byte movups (@0x1b46e4-0x1b4726).
+   *  I.e. copies the full 16-double matrix. Does NOT touch the vtable or the HGObject header. */
+  public LoadTransform(src: HGTransform): void {
+    for (let i = 0; i < 16; i++) this.m[i] = src.m[i];
+  }
 }
