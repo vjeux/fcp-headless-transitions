@@ -1,0 +1,22 @@
+__ZN5HGHLG4OOTFD1Ev:
+0000000000100280	pushq	%rbp
+0000000000100281	movq	%rsp, %rbp
+0000000000100284	pushq	%rbx
+0000000000100285	pushq	%rax
+0000000000100286	leaq	0x9170f3(%rip), %rax
+000000000010028d	movq	%rax, (%rdi)
+0000000000100290	movq	0x198(%rdi), %rax
+0000000000100297	testq	%rax, %rax
+000000000010029a	je	0x1002ab
+000000000010029c	movq	(%rax), %rcx
+000000000010029f	movq	%rdi, %rbx
+00000000001002a2	movq	%rax, %rdi
+00000000001002a5	callq	*0x18(%rcx)
+00000000001002a8	movq	%rbx, %rdi
+00000000001002ab	addq	$0x8, %rsp
+00000000001002af	popq	%rbx
+00000000001002b0	popq	%rbp
+00000000001002b1	jmp	__ZN6HGNodeD2Ev                 ## HGNode::~HGNode()
+00000000001002b6	movq	%rax, %rdi
+00000000001002b9	callq	___clang_call_terminate
+00000000001002be	nop
