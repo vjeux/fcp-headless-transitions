@@ -63,7 +63,7 @@ export interface PCNCLCCode {
  * Non-zero codes: 1 (BT.709), 5 (BT.470BG), 6 (SMPTE 170M), 9 (BT.2020), 11 (SMPTE ST 428),
  * 12 (SMPTE RP 431). Code 0 ("reserved") and everything undefined by H.273 is rejected.
  */
-const supportedPrimariesTable: Readonly<Uint8Array> =
+export const supportedPrimariesTable: Readonly<Uint8Array> =
   new Uint8Array([0, 1, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1]);
 
 /**
@@ -75,7 +75,7 @@ const supportedPrimariesTable: Readonly<Uint8Array> =
  * Non-zero codes: 1 (BT.709), 7 (SMPTE 240M), 8 (Linear), 13 (sRGB/IEC 61966-2-1), 14 (BT.2020
  * 10-bit), 16 (SMPTE ST 2084 / PQ), 17 (SMPTE ST 428), 18 (ARIB STD-B67 / HLG).
  */
-const supportedTransfersTable: Readonly<Uint8Array> =
+export const supportedTransfersTable: Readonly<Uint8Array> =
   new Uint8Array([0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1]);
 
 /**
@@ -86,7 +86,7 @@ const supportedTransfersTable: Readonly<Uint8Array> =
  *   val  1  1  0  0  0  0  1  1  0  1
  * Non-zero codes: 0 (Identity/RGB), 1 (BT.709), 6 (SMPTE 170M), 7 (SMPTE 240M), 9 (BT.2020 NCL).
  */
-const supportedMatricesTable: Readonly<Uint8Array> =
+export const supportedMatricesTable: Readonly<Uint8Array> =
   new Uint8Array([1, 1, 0, 0, 0, 0, 1, 1, 0, 1]);
 
 /**
