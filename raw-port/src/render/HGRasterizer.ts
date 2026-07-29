@@ -1,0 +1,208 @@
+// HGRasterizer.ts — Helium's software rasterizer/GL-state object. This file
+// currently holds ONE transcribed method: `rotatef(float, float, float, float)`,
+// the OpenGL-style glRotatef() dispatched through the rasterizer's current
+// matrix stack. Other members will be added by later ports.
+//
+// FRAMEWORK: Helium.framework (Final Cut Pro).
+//   /Applications/Final Cut Pro.app/Contents/Frameworks/Helium.framework/Versions/A/Helium
+//
+// SOURCE DISASSEMBLY:
+//   raw-port/re/disasm/Helium.HGRasterizer.rotatef.s   @0x1975c0
+//
+// STRUCT LAYOUT (partial — recovered strictly from the byte offsets touched by
+// rotatef @0x1975c0 and the sibling scalef @0x197500, which has the identical
+// dispatch prologue; only fields ACTUALLY LOADED are named here — the rest of
+// the class remains unmapped and will be filled in by later methods):
+//
+//   struct HGRasterizer {
+//     // +0x000..+0x1af  unmapped so far.
+//     // +0x1b0          array of controller-slot pointers indexed by the
+//     //                 GL_PROJECTION top-of-stack byte at +0x440. Each slot
+//     //                 is 8 bytes (movq 0x1b0(%rdi,%rax,8)); the slot value
+//     //                 is a pointer-to-pointer: the outer load fetches a
+//     //                 "holder", then `movq (%rax), %rdi` fetches the actual
+//     //                 controller. When that controller pointer is NULL the
+//     //                 method silently returns (the `testq %rdi,%rdi; je`
+//     //                 at 0x1975f3).
+//     //                 Only slots 0..(+0x440-value) are ever indexed; a full
+//     //                 count is not observable from rotatef alone.
+//     projStackSlots: unknown[];  // +0x1b0  (holder pointers; 8B each)
+//     // +0x1b8..+0x2ff  unmapped so far.
+//     // +0x300          the GL_MODELVIEW transform controller EMBEDDED in the
+//     //                 HGRasterizer (not a pointer — the code does
+//     //                 `addq $0x300, %rdi; jmp <vtable-dispatch>` at
+//     //                 0x1975d8/0x1975df, then treats `%rdi` as an object
+//     //                 with a vtable at (%rdi)). So the MODELVIEW controller
+//     //                 lives in-place at rasterizer+0x300.
+//     modelViewController: unknown;  // +0x300  (embedded controller object)
+//     // +0x308..+0x43f  unmapped so far.
+//     // +0x440          byte  GL_PROJECTION top-of-stack index (movzbl at
+//     //                 0x1975e1 uses a 1-byte load). Used to index into
+//     //                 the +0x1b0 slot array.
+//     projStackTop: number;            // +0x440  u8
+//     // +0x441..+0x44f  unmapped so far.
+//     // +0x450          u32  current OpenGL matrix mode enum:
+//     //                   0x1700 GL_MODELVIEW  (from GL/gl.h)
+//     //                   0x1702 GL_PROJECTION (from GL/gl.h)
+//     //                 See raw-port/src/infra/LiMatrixStack.ts for the same
+//     //                 enum reference (LiMatrixStack also compares against
+//     //                 0x1702). Any other value falls through to the plain
+//     //                 return at 0x197615.
+//     matrixMode: number;              // +0x450  u32
+//   }
+//
+
+/** GL_MODELVIEW = 0x1700 — read as u32 from HGRasterizer+0x450 at
+ *  disasm 0x1975d1 (`cmpl $0x1700, %eax`). Source: OpenGL gl.h enum. */
+const GL_MODELVIEW = 0x1700;
+
+/** GL_PROJECTION = 0x1702 — read as u32 from HGRasterizer+0x450 at
+ *  disasm 0x1975ca (`cmpl $0x1702, %eax`). Source: OpenGL gl.h enum.
+ *  Same constant appears in LiMatrixStack.ts (see comment there). */
+const GL_PROJECTION = 0x1702;
+
+/** Byte offset of the u32 matrix-mode field on HGRasterizer, read at
+ *  disasm 0x1975c4 (`movl 0x450(%rdi), %eax`). */
+const OFF_MATRIX_MODE = 0x450;
+/** Byte offset of the u8 GL_PROJECTION top-of-stack index, read at
+ *  disasm 0x1975e1 (`movzbl 0x440(%rdi), %eax`). */
+const OFF_PROJ_STACK_TOP = 0x440;
+/** Byte offset of the GL_PROJECTION controller-slot array (8-byte holder
+ *  pointers), addressed at disasm 0x1975e8
+ *  (`movq 0x1b0(%rdi,%rax,8), %rax`). */
+const OFF_PROJ_STACK_SLOTS = 0x1b0;
+/** Byte offset of the embedded GL_MODELVIEW controller — reached at disasm
+ *  0x1975d8 by `addq $0x300, %rdi` and treated as an object with a vtable
+ *  at (%rdi). */
+const OFF_MODELVIEW_CONTROLLER = 0x300;
+
+/** Modeled HGRasterizer shape used by rotatef. Only the fields the disasm
+ *  touches are named; the rest of the class is unmapped and marked so. */
+export interface HGRasterizer {
+  /** +0x1b0  — see OFF_PROJ_STACK_SLOTS above. */
+  projStackSlots: readonly (TransformControllerHolder | null)[];
+  /** +0x300  — embedded GL_MODELVIEW controller, addressed BY OFFSET
+   *  (not by pointer). See OFF_MODELVIEW_CONTROLLER above. */
+  modelViewController: TransformController;
+  /** +0x440  — u8 top-of-stack index into projStackSlots. */
+  projStackTop: number;
+  /** +0x450  — u32 current GL matrix mode (GL_MODELVIEW / GL_PROJECTION /
+   *  other). See OFF_MATRIX_MODE above. */
+  matrixMode: number;
+}
+
+/** A GL_PROJECTION stack slot at rasterizer+0x1b0+8*i is a pointer-to-
+ *  pointer: the outer holder is dereferenced ONCE (`movq (%rax), %rdi`
+ *  at 0x1975f0) to reach the actual controller. Modeled as a { ctrl }
+ *  cell so the two dereferences remain visible. */
+export interface TransformControllerHolder {
+  ctrl: TransformController | null;
+}
+
+/** The controller object whose vtable dispatches the OpenGL matrix-op
+ *  calls. Only the two slots touched by rotatef (0x80) and scalef (0x90)
+ *  are named here; both take double-precision arguments after the
+ *  cvtss2sd widenings the caller performs. */
+export interface TransformController {
+  /** vtable slot +0x80, as loaded at disasm 0x197608
+   *  (`movq (%rdi), %rax; movq 0x80(%rax), %rax; jmpq *%rax`).
+   *  Signature after cvtss2sd of xmm0..xmm3 is (double, double, double, double).
+   *  This is the virtual "rotate" entry — extern boundary @0x1975c0, not yet
+   *  transcribed. */
+  rotate(angleDeg: number, x: number, y: number, z: number): void;
+}
+
+/**
+ * HGRasterizer::rotatef(float, float, float, float) — glRotatef-style entry
+ * that dispatches the rotation onto the CURRENT matrix stack's top-of-stack
+ * transform controller.
+ *
+ * @0x1975c0  __ZN12HGRasterizer7rotatefEffff
+ *
+ * Disasm control flow (raw-port/re/disasm/Helium.HGRasterizer.rotatef.s):
+ *
+ *   0x1975c4  movl   0x450(%rdi), %eax          ; eax = this.matrixMode (u32)
+ *   0x1975ca  cmpl   $0x1702, %eax              ; compare vs GL_PROJECTION
+ *   0x1975cf  je     0x1975e1                   ; if PROJECTION -> stack path
+ *   0x1975d1  cmpl   $0x1700, %eax              ; compare vs GL_MODELVIEW
+ *   0x1975d6  jne    0x197615                   ; unknown mode -> plain return
+ *   0x1975d8  addq   $0x300, %rdi               ; rdi = &this.modelViewController
+ *   0x1975df  jmp    0x1975f8                   ; -> vtable dispatch (skip NULL guard)
+ *   0x1975e1  movzbl 0x440(%rdi), %eax          ; eax = this.projStackTop (u8)
+ *   0x1975e8  movq   0x1b0(%rdi,%rax,8), %rax   ; rax = this.projStackSlots[top]
+ *   0x1975f0  movq   (%rax), %rdi               ; rdi = *rax  (holder->ctrl)
+ *   0x1975f3  testq  %rdi, %rdi                 ; NULL check on the controller
+ *   0x1975f6  je     0x197615                   ; NULL -> plain return
+ *   0x1975f8  cvtss2sd %xmm0..%xmm3             ; widen the four f32 args to f64
+ *   0x197608  movq   (%rdi), %rax               ; rax = vptr
+ *   0x19760b  movq   0x80(%rax), %rax           ; rax = vptr[+0x80]  (rotate slot)
+ *   0x197613  jmpq   *%rax                      ; tail-call the virtual
+ *   0x197615  <no controller / unknown mode>    ; popq %rbp; retq   -- silent no-op
+ *
+ * Numerics: the four f32 args are widened to f64 via cvtss2sd BEFORE the
+ * virtual call, so the port passes them through Math.fround (their exact
+ * f32 identity) — the widening to double is implicit in JS number.
+ * The MODELVIEW branch DELIBERATELY SKIPS the NULL check (`jmp 0x1975f8`
+ * lands PAST the `testq/je`), because `this + 0x300` is an EMBEDDED
+ * subobject and can never be null. The PROJECTION branch DOES NULL-check
+ * (a projection slot may hold a null controller pointer) and returns
+ * silently if so — this is the observed behavior, not a defensive add-on.
+ */
+export function HGRasterizer_rotatef(
+  self: HGRasterizer,
+  angle: number,
+  x: number,
+  y: number,
+  z: number,
+): void {
+  // 0x1975c4-0x1975cf — dispatch on the current OpenGL matrix mode.
+  const mode = self.matrixMode; // u32 @+0x450
+
+  let ctrl: TransformController;
+
+  if (mode === GL_PROJECTION) {
+    // 0x1975e1 — u8 top-of-stack index into the +0x1b0 slot array.
+    const top = self.projStackTop & 0xff;
+    // 0x1975e8 — indexed load of the holder pointer (8 bytes per slot).
+    const holder = self.projStackSlots[top];
+    if (holder === null || holder === undefined) {
+      // The disasm does NOT explicitly guard against an out-of-range /
+      // absent holder before the `movq (%rax), %rdi` — it would just
+      // dereference garbage. Modeling this in TS as a NULL controller
+      // is the closest faithful surface; both branches end at 0x197615
+      // (the "silent return") when the controller is null.
+      return; // matches 0x197615 (popq/retq) path
+    }
+    // 0x1975f0 — second deref: holder->ctrl (the ACTUAL controller pointer).
+    const c = holder.ctrl;
+    // 0x1975f3-0x1975f6 — testq/je on the controller pointer.
+    if (c === null) {
+      return; // 0x197615 (silent no-op — matches "je 0x197615")
+    }
+    ctrl = c;
+  } else if (mode === GL_MODELVIEW) {
+    // 0x1975d8 — `addq $0x300, %rdi`. The MODELVIEW controller is an
+    // EMBEDDED subobject at rasterizer+0x300; the jump at 0x1975df lands
+    // PAST the null check, so we do not null-check here either.
+    ctrl = self.modelViewController;
+  } else {
+    // 0x1975d6 (jne 0x197615) — any mode other than the two enum values
+    // above returns immediately with no side-effect.
+    return;
+  }
+
+  // 0x1975f8-0x197604 — cvtss2sd on all four f32 args (widen f32 -> f64
+  // before the virtual call). The Math.fround wrapping preserves the
+  // f32 identity of the value BEFORE widening (which is what the compiler
+  // saw at the call site). @0x1975f8 @0x1975fc @0x197600 @0x197604
+  const angleD = Math.fround(angle);
+  const xD = Math.fround(x);
+  const yD = Math.fround(y);
+  const zD = Math.fround(z);
+
+  // 0x197608-0x197613 — virtual dispatch through vptr[+0x80] (the "rotate"
+  // slot on TransformController). This is the tail call `jmpq *%rax` and
+  // is an extern boundary @0x1975c0: the concrete virtual target is not
+  // yet transcribed.
+  ctrl.rotate(angleD, xD, yD, zD);
+}
