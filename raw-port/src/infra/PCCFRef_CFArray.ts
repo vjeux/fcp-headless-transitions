@@ -45,7 +45,9 @@
 // Symbols ported here (mangled → address)
 // -----------------------------------------------------------------------------
 //   * __ZN7PCCFRefIPK9__CFArrayED2Ev
-//       — PCCFRef<CFArrayRef>::~PCCFRef() [D2 base] @ProChannel 0x27a4a
+//       — PCCFRef<CFArrayRef>::~PCCFRef() [D2 base]     @ProChannel 0x27a4a
+//   * __ZN7PCCFRefIPK9__CFArrayED1Ev
+//       — PCCFRef<CFArrayRef>::~PCCFRef() [D1 complete] @Ozone      0x83e00
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (raw-port/re/disasm/ProChannel.__ZN7PCCFRefIPK9__CFArrayED2Ev.s)
@@ -141,5 +143,63 @@ export class PCCFRef_CFArray {
     // @0x27a56 — callq _CFRelease (ProChannel stub 0xaca50).
     CFRelease(cf);
     // @0x27a5b..0x27a5c — retq.
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // Ozone D1 (complete-object destructor) instantiation — a second, distinct
+  // Itanium-ABI dtor variant for the same class, emitted by the compiler into
+  // the Ozone.framework binary at a different address. Semantically identical
+  // to the D2 body above (this class has no virtual base, so D1 and D2 have
+  // the same body: read the CF handle, CFRelease if non-null).
+  //
+  //   * __ZN7PCCFRefIPK9__CFArrayED1Ev
+  //       — PCCFRef<CFArrayRef>::~PCCFRef() [D1 complete] @Ozone 0x83e00
+  //
+  // Disassembly source:
+  //   raw-port/re/disasm/__ZN7PCCFRefIPK9__CFArrayED1Ev.s (Ozone)
+  //
+  // FULL DISASM
+  //   0x83e00  pushq  %rbp
+  //   0x83e01  movq   %rsp, %rbp
+  //   0x83e04  movq   (%rdi), %rdi                   ; rdi = this->handle
+  //   0x83e07  testq  %rdi, %rdi                     ; handle == NULL ?
+  //   0x83e0a  je     0x83e11                        ; yes → skip release
+  //   0x83e0c  callq  _CFRelease                     ; CoreFoundation stub 0x6dc810
+  //   0x83e11  popq   %rbp
+  //   0x83e12  retq
+  //   ------------ landing pad (unwind path, unreachable normally) ------------
+  //   0x83e13  movq   %rax, %rdi
+  //   0x83e16  callq  ___clang_call_terminate
+  //
+  // FRONTIER CALLEES (both TRUE OUT-OF-SCOPE externs)
+  //   * _CFRelease @Ozone stub 0x6dc810 — CoreFoundation.framework — boundary
+  //     stub. Same policy as the D2 above.
+  //   * ___clang_call_terminate @0x83e16 — Itanium ABI landing pad, only
+  //     reachable on unwind, not part of the normal control flow.
+  /**
+   * `PCCFRef<CFArrayRef>::~PCCFRef()` [D1 complete] — @Ozone 0x83e00
+   * (__ZN7PCCFRefIPK9__CFArrayED1Ev).
+   *
+   * Faithful line-for-line transcription of the Ozone disassembly. Body is
+   * identical to `destructBase` (D2) above — same class, same CF-release
+   * pattern, just a second Itanium-ABI instantiation the compiler chose to
+   * emit for the Ozone translation unit. D1 (complete-object) is called
+   * when a stack-allocated or explicitly-deleted instance goes away; D2
+   * (base) is called from a derived class's own dtor. Since this class has
+   * no virtual base, both bodies are the same.
+   */
+  destructComplete_Ozone(): void {
+    // @0x83e00..0x83e01 — prologue.
+    // @0x83e04 — rdi = this->handle (same folding as the ProChannel D2 —
+    //            the field read and the CFRelease arg register coincide).
+    const cf = this.handle;
+    // @0x83e07..0x83e0a — testq/je: NULL-check.
+    if (cf === null) {
+      // @0x83e11..0x83e12 — retq. Nothing to release.
+      return;
+    }
+    // @0x83e0c — callq _CFRelease (Ozone stub 0x6dc810).
+    CFRelease(cf);
+    // @0x83e11..0x83e12 — retq.
   }
 }
