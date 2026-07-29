@@ -36,7 +36,10 @@
  *           the class overloads the meaning.)
  *   0x70    inputs                               vector<pair<InputType, HGRef<HGProgramDescriptor>>>
  *                                                              (SetInput @0x168140 and @0x168210
- *                                                              write at +0x70/+0x78; sizeof(pair)=0x30)
+ *                                                              write at +0x70/+0x78; sizeof(pair)=0x10
+ *                                                              — SetInput @0x168210 does `shl 0x4, %rsi`
+ *                                                              on the index; layout is u32 InputType
+ *                                                              at +0, HGRef ptr at +8.)
  *   0x88    (std::string slot — SEE IsComplete)  std::string  (IsComplete reads byte at +0x88 and
  *                                                              heap ptr at +0x90 with std::string SSO
  *                                                              layout)  — vertexShaderSource? library?
@@ -322,5 +325,148 @@ export class HGProgramDescriptor {
   GetFragmentFunctionName(): string {
     // decoded default: literal "fragmentFunc" @ __cstring 0x8bac17 (Helium.x86_64).
     return this.fragmentFunctionName.length !== 0 ? this.fragmentFunctionName : "fragmentFunc";
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // Binding & input setters
+  // ---------------------------------------------------------------------------------------
+
+  /**
+   * `HGProgramDescriptor::SetReturnBinding(HGBinding)` @Helium 0x167f30.
+   *
+   * Body (see re/disasm/Helium.HGProgramDescriptor.SetReturnBinding.s):
+   *   1. `movl (%rsi), %eax ; movl %eax, 0xb8(%rdi)` — write `binding.type` (u32 at +0x00 of
+   *      HGBinding) into `this.returnAttribute` (u32 at +0xb8).
+   *   2. `addq $0xc0, %rdi ; addq $0x8, %rsi ; call basic_string::operator=(basic_string const&)` —
+   *      copy-assign `binding.name` (std::string at +0x08 of HGBinding) into `this.returnBinding.name`
+   *      (std::string at +0xc0).
+   *   3. `movups 0x20(%rbx), %xmm0 ; movups %xmm0, 0xd8(%r14)` — copy 16 bytes from `+0x20` of
+   *      the binding into `+0xd8` of `this` — the opaque "tail" of the binding.
+   *
+   * NOTE: this method writes BOTH `returnAttribute` (u32 at +0xb8) AND the return-binding record
+   * (+0xc0/+0xd8). The `returnAttribute` slot is what `getReturnAttribute` @0x16ce90 reads.
+   */
+  SetReturnBinding(binding: HGBinding): void {
+    this.returnAttribute = binding.type >>> 0;
+    this.returnBinding = {
+      type: binding.type >>> 0,
+      name: binding.name,
+      tail: new Uint8Array(binding.tail), // copy 16 bytes
+    };
+  }
+
+  /**
+   * `HGProgramDescriptor::SetArgumentBindings(std::vector<HGBinding> const&)` @Helium 0x167f70.
+   *
+   * Body (see re/disasm/Helium.HGProgramDescriptor.SetArgumentBindings.s):
+   *   (A) `addq $0xe8, %rdi ; cmpq %rsi, %rdi` — if `&this.argumentBindings == &input` (self-
+   *       assignment) skip the copy. Otherwise call
+   *       `vector<HGBinding>::__assign_with_size(begin, end, size)`.
+   *   (B) Walk the copied `argumentBindings` linearly (element stride 0x30, per `imul r15,rcx`
+   *       with `r15 = 0xAAAAAAAAAAAAAAAB` — the magic-multiply constant used for the /0x30
+   *       division/multiplication that dodges an imul-by-a-non-power-of-two).
+   *   (C) For each binding, examine `binding.type` (u32 at +0x00 of HGBinding):
+   *         - if `binding.type == 9`  -> push `(InputType=1, HGRef=null)` onto `this.inputs` (@+0x70).
+   *         - if `binding.type == 0xA` -> push `(InputType=2, HGRef=null)` onto `this.inputs`.
+   *         - otherwise no input is pushed.
+   *       The push uses `emplace_back_slow_path` when the vector is at capacity, or writes
+   *       `mov [rax], InputType ; mov [rax+8], 0` directly when there's spare capacity.
+   *
+   * Semantic: replace `argumentBindings` and derive `inputs` entries from bindings whose types
+   * are 9 (input) or 0xA (input2). Refcount juggling for the HGRef half is a no-op in TS.
+   */
+  SetArgumentBindings(bindings: readonly HGBinding[]): void {
+    // (A) copy (with self-assign guard). We model owning-copy: rebuild the array.
+    if (this.argumentBindings !== (bindings as unknown as HGBinding[])) {
+      this.argumentBindings = bindings.map((b) => ({
+        type: b.type >>> 0,
+        name: b.name,
+        tail: new Uint8Array(b.tail),
+      }));
+    }
+    // (B)+(C) walk and push inputs for type==9 / type==0xA.
+    for (const b of this.argumentBindings) {
+      const t = b.type >>> 0;
+      if (t === 0x9) {
+        this.inputs.push([1, null]);
+      } else if (t === 0xa) {
+        this.inputs.push([2, null]);
+      }
+      // other types: no input push (fall through).
+    }
+  }
+
+  /**
+   * `HGProgramDescriptor::SetStageInBindings(std::vector<HGBinding> const&)` @Helium 0x168100.
+   *
+   * Body (see re/disasm/Helium.HGProgramDescriptor.SetStageInBindings.s):
+   *   `addq $0x100, %rdi ; cmpq %rsi, %rdi ; je ret` — self-assign guard on the stage-in vector
+   *   at +0x100. Otherwise falls through to `vector<HGBinding>::__assign_with_size(begin, end,
+   *   size)`. The stride is `sar rsi, 0x4 ; imul rcx, 0xAAAA...AB` = /0x30 (magic-multiply for
+   *   sizeof(HGBinding)=0x30).
+   *
+   * Semantic: `this.stageInBindings = bindings` (copy). No side-effect on inputs.
+   */
+  SetStageInBindings(bindings: readonly HGBinding[]): void {
+    if (this.stageInBindings !== (bindings as unknown as HGBinding[])) {
+      this.stageInBindings = bindings.map((b) => ({
+        type: b.type >>> 0,
+        name: b.name,
+        tail: new Uint8Array(b.tail),
+      }));
+    }
+  }
+
+  /**
+   * `HGProgramDescriptor::SetInput(size_t idx, InputType t)` @Helium 0x168210.
+   *
+   * Body (see re/disasm/Helium.HGProgramDescriptor.SetInput.s):
+   *   ```
+   *   rbx = this.inputs.begin (at +0x70); rax = this.inputs.end (at +0x78)
+   *   size = (rax - rbx) >> 4                              ; stride 0x10 = sizeof(pair)
+   *   if idx >= size: return                                ; bounds check
+   *   offs = idx << 4
+   *   *(rbx+offs)   = t                                     ; pair.first  = InputType (u32)
+   *   rdi = *(rbx+offs+8)                                   ; old HGRef ptr
+   *   if rdi != null: call *(rdi->vtable + 0x18) (release) ; pair.second = null
+   *                   *(rbx+offs+8) = null
+   *   ```
+   * Semantic: `this.inputs[idx] = (t, null)`, guarded by bounds check. Old ref released (GC in TS).
+   */
+  SetInput_byType(idx: number, t: HGProgramDescriptorInputType): void {
+    if (idx >>> 0 >= this.inputs.length) return;
+    this.inputs[idx] = [t >>> 0, null];
+  }
+
+  /**
+   * `HGProgramDescriptor::SetInput(size_t idx, HGRef<HGProgramDescriptor> const& ref)` @Helium
+   * 0x168140. Overload of SetInput taking a ref instead of an InputType tag.
+   *
+   * Decoded (raw bytes via capstone, /tmp/Helium.x86_64 offset 0x168140 — otool -tV emits no label
+   * here due to ICF folding neighbors, so we hand-decoded from the thin slice):
+   *   ```
+   *   size = ((this[+0x78] - this[+0x70]) >> 4)             ; stride 0x10
+   *   if idx >= size: return                                ; bounds check
+   *   newPtr = *(&ref)                                      ; deref HGRef -> raw ptr
+   *   if newPtr == null:
+   *       // just write null with the same shape as the byType overload:
+   *       inputs[idx] = (InputType=0, null)                 ; releasing the old ptr if any
+   *       return
+   *   call *(newPtr->vtable + 0x10)                         ; retain newPtr
+   *   inputs[idx].first  = InputType=0                      ; mov dword [rcx+rax], 0
+   *   oldPtr = inputs[idx].second                           ; mov rdi, [rcx+rax+8]
+   *   if oldPtr == newPtr:
+   *       call *(newPtr->vtable + 0x18) (release once)      ; balance the retain
+   *   else:
+   *       if oldPtr != null: call *(oldPtr->vtable + 0x18)  ; release the old
+   *       inputs[idx].second = newPtr                       ; mov [r14], rbx
+   *   ```
+   *
+   * Semantic (ignoring retain/release which is GC-managed in TS): `this.inputs[idx] = (0, newRef)`
+   * with bounds check, treating null newRef as clearing the slot.
+   */
+  SetInput_byRef(idx: number, ref: HGProgramDescriptor | null): void {
+    if (idx >>> 0 >= this.inputs.length) return;
+    this.inputs[idx] = [0, ref];
   }
 }
