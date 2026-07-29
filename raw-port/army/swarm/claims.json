@@ -1,5 +1,30 @@
 {
-"claimed": {},
+"claimed": {
+"Flexo:FFPMRNoOpInstrument": {
+"fw": "Flexo",
+"cls": "FFPMRNoOpInstrument",
+"n": 9,
+"t": 1785325888.006817
+},
+"Flexo:FFAudioDuckingClipInfo": {
+"fw": "Flexo",
+"cls": "FFAudioDuckingClipInfo",
+"n": 1,
+"t": 1785326081.803854
+},
+"Flexo:FFCinematicManagerDestructor": {
+"fw": "Flexo",
+"cls": "FFCinematicManagerDestructor",
+"n": 1,
+"t": 1785326617.15018
+},
+"Flexo:FFAUEventHandlerMediator": {
+"fw": "Flexo",
+"cls": "FFAUEventHandlerMediator",
+"n": 9,
+"t": 1785327123.739219
+}
+},
 "done": {
 "MDPKit:MDPSpecularLitFragmentFunc": 1785223706.224268,
 "MDPKit:MDP3DLineVertexFunc": 1785223713.30033,
@@ -50,7 +75,15 @@
 "Flexo:FFPlayerLockable": 1785227247.563871,
 "Flexo:FFUnitAttachedParameterChaser": 1785227303.128327,
 "Helium:HGAVADeinterlace": 1785227502.563999,
-"Helium:HGBMDFilmGen5LinearizationLUTInfo": 1785227717.601902
+"Helium:HGBMDFilmGen5LinearizationLUTInfo": 1785227717.601902,
+"Flexo:FFOZMediaRefChannel#0": 1785326068.263041,
+"Flexo:FFOZVideoTrackerFolder": 1785326192.188447,
+"Ozone:OZRetimingBehavior#1": 1785326254.661572,
+"Flexo:Synchronizer": 1785326661.8146582,
+"Flexo:FramesAndTimeInfo": 1785326666.069242,
+"Flexo:FFLocklessQueueBase": 1785327025.548942,
+"Flexo:_FFModelLocker": 1785327123.482419,
+"Flexo:FFSharedLockRAIIGuardLockAndUnlocker": 1785327383.1878421
 },
 "failed": {
 "MAVectorUIKit:kernel_fadeHoldInfinite": {
@@ -80,6 +113,18 @@
 "Flexo:FFProviderPSDAssistant": {
 "t": 1785253162.8895738,
 "reason": "objc-facade-heavy: needs H1 consumer wiring first"
+}
+},
+"deferred": {
+"Ozone:OZGradientEnvironment": {
+"t": 1785327009.737942,
+"reason": "--reason worker context budget after successful OZ3DEnginePhysicsFieldBehavior port (merged 9b88fc5f, gate PASS this session); makeRenderImageSource @0x4d65f0 is 176 lines needing OZGradient1D + LiGradientSphere + HGRef<HGNode> + PCSharedCount + CGColorSpace + OZRenderParams (all unported) \u2014 release for fresh worker",
+"count": 5
+},
+"Flexo:AUChannelSupportCache": {
+"t": 1785327437.553528,
+"reason": "--reason swarm-worker-352 budget spent on FFLocklessQueueBase (20) + FFSharedLockRAIIGuardLockAndUnlocker (1); returning AUChannelSupportCache to queue for next worker",
+"count": 1
 }
 }
 }
