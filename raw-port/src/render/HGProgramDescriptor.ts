@@ -158,4 +158,45 @@ export class HGProgramDescriptor {
   argumentBindings: HGBinding[] = [];
   /** `+0x100` — stage-in bindings vector.  (SetStageInBindings@0x168100)                  */
   stageInBindings: HGBinding[] = [];
+
+  // ---------------------------------------------------------------------------------------
+  // trivial setters — all `pushq rbp; addq $OFF, rdi; jmp basic_string::assign(char const*)`.
+  // See raw-port/re/disasm/Helium.HGProgramDescriptor.Set*.s.
+  // ---------------------------------------------------------------------------------------
+
+  /**
+   * `HGProgramDescriptor::SetFragmentFunctionName(char const*)` @Helium 0x16d8a0.
+   * Body (5 instructions): `add rdi, 0x28 ; jmp basic_string::assign(char const*)`.
+   * i.e. `this.fragmentFunctionName = name`. See re/disasm/Helium.HGProgramDescriptor.SetFragmentFunctionName.s.
+   */
+  SetFragmentFunctionName(name: string): void {
+    this.fragmentFunctionName = name;
+  }
+
+  /**
+   * `HGProgramDescriptor::SetVertexFunctionName(char const*)` @Helium 0x16d8b0.
+   * Body: `add rdi, 0x10 ; jmp basic_string::assign(char const*)`.
+   * See re/disasm/Helium.HGProgramDescriptor.SetVertexFunctionName.s.
+   */
+  SetVertexFunctionName(name: string): void {
+    this.vertexFunctionName = name;
+  }
+
+  /**
+   * `HGProgramDescriptor::SetMetalLibPath(char const*)` @Helium 0x16d8c0.
+   * Body: `add rdi, 0x58 ; jmp basic_string::assign(char const*)`.
+   * See re/disasm/Helium.HGProgramDescriptor.SetMetalLibPath.s.
+   */
+  SetMetalLibPath(path: string): void {
+    this.metalLibPath = path;
+  }
+
+  /**
+   * `HGProgramDescriptor::SetShaderProgram(char const*)` @Helium 0x16e630.
+   * Body: `add rdi, 0x88 ; jmp basic_string::assign(char const*)`.
+   * See re/disasm/Helium.HGProgramDescriptor.SetShaderProgram.s.
+   */
+  SetShaderProgram(program: string): void {
+    this.shaderProgram = program;
+  }
 }
