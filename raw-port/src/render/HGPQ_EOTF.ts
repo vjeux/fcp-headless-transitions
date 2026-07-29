@@ -54,7 +54,10 @@
 //   HGPQ::EOTF::C(double) @0xfdab0 (all f64 — 8-byte movsd/addsd/mulsd):
 //     0x3d0cf0 : 0.012683313515655966  (= 1/m2 = 4096/(128*2523))       @0xfdabe
 //     0x3d0cf8 : 0.8359375             (= c1  = 3424/4096)              @0xfdacb
-//     0x3d0d00 : -0.8359375            (= -c1)                          @0xfdadd
+//                                       // NOTE: loaded a SECOND time as the black-clip
+//                                       //   guard threshold — `ucomisd xmm0, xmm1` at
+//                                       //   @0xfdad3 tests c1 vs E, `jae` on c1>=E.
+//     0x3d0d00 : -0.8359375            (= -c1, seed for xmm2 = -c1+E) @0xfdadd
 //     0x3d0d08 : -18.6875              (= -c3 = -2392/4096 * 32)        @0xfdae9
 //     0x3d0d10 : 18.8515625            (= c2  = 2413/4096 * 32)         @0xfdaf1
 //     0x3d0d18 : 6.277394636015326     (= 1/m1 = 16384/2610)            @0xfdafd
@@ -207,7 +210,7 @@ export class HGPQ_EOTF {
    * non-positive x returns +0.0). For 0 < x:
    *
    *   E  = pow(x, 1/m2)                                         ; @0xfdac6
-   *   if (1.0 >= E)                       // ucomisd @0xfdad3
+   *   if (c1 >= E)                        // ucomisd @0xfdad3
    *     return 0;                          // fall-through to xorpd/ret
    *   num  = -c1 + E                       // addsd  @0xfdae5  (xmm2 = -c1 + E)
    *   den  = E * (-c3) + c2                // mulsd+addsd @0xfdae9/@0xfdaf1
@@ -216,13 +219,14 @@ export class HGPQ_EOTF {
    *   L    = Y * 10000.0                   ; @0xfdb12
    *   return L;
    *
-   * NOTE: the middle guard at @0xfdad3 tests `1.0 >= pow(x, 1/m2)`
-   * (i.e. `x^(1/m2) <= 1`) and returns 0 in that case. That's the
+   * NOTE: the middle guard at @0xfdad3 tests `c1 >= pow(x, 1/m2)`
+   * (i.e. `x^(1/m2) <= c1`) and returns 0 in that case. That's the
    * standard PQ black-clip: for x <= c1^m2 the numerator
    * `x^(1/m2) - c1` is <= 0 → clamp to 0. The asm's `ucomisd` + `xorpd`
-   * chain effectively does `max(x^(1/m2) - c1, 0)` in the branchless
-   * form the disasm shows (though here it clamps at E<=1 not E<=c1,
-   * which is a slightly stronger clip — we transcribe it faithfully).
+   * chain implements `if (E <= c1) return 0; else compute` — an
+   * early-out that is algebraically equivalent to
+   * `max(x^(1/m2) - c1, 0) / (c2 - c3*x^(1/m2))` for the positive
+   * branch.
    *
    * NaN semantics: `ucomisd` sets ZF=PF=CF=1 (unordered) so `jae`
    * (CF=0 branch) does NOT fire — NaN falls through both guards,
@@ -242,11 +246,12 @@ export class HGPQ_EOTF {
     // xmm1 = 1/m2 ; movapd unchanged xmm0=x ; callq _pow   @0xfdabe/@0xfdac6
     const E = Math.pow(x, 0.012683313515655966); // 1/m2 @0x3d0cf0
 
-    // xmm1 = 1.0 ; ucomisd xmm0(=E), xmm1(=1.0) ; xorpd xmm1,xmm1 ; jae 0xfdb1a
-    //   @0xfdacb..0xfdadb
-    // ucomisd flags = (1.0 - E): jae fires when 1.0 >= E, i.e. E <= 1.
+    // xmm1 = c1 = 0.8359375 (@0x3d0cf8) ; ucomisd xmm0(=E), xmm1(=c1) ;
+    //   xorpd xmm1,xmm1 ; jae 0xfdb1a          @0xfdacb..0xfdadb
+    // ucomisd flags = (xmm1 CMP xmm0) = (c1 CMP E): jae fires when c1 >= E,
+    // i.e. E <= c1 — the PQ black-clip.
     // NaN: unordered -> CF=1 -> jae does NOT fire -> falls through.
-    if (E <= 1.0) {
+    if (E <= 0.8359375) {
       return 0; // xmm1 zeroed @0xfdad7 ; movapd xmm1, xmm0 ; ret
     }
 
