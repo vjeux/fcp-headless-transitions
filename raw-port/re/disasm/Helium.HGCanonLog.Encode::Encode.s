@@ -1,0 +1,6 @@
+__ZN10HGCanonLog6EncodeC1ENS_16SceneColorimetryENS_11LogEncodingENS_14LogColorimetryENS_22CodeValueNormalizationE:
+00000000001038e0	pushq	%rbp
+00000000001038e1	movq	%rsp, %rbp
+00000000001038e4	popq	%rbp
+00000000001038e5	jmp	__ZN10HGCanonLog6EncodeC2ENS_16SceneColorimetryENS_11LogEncodingENS_14LogColorimetryENS_22CodeValueNormalizationE ## HGCanonLog::Encode::Encode(HGCanonLog::SceneColorimetry, HGCanonLog::LogEncoding, HGCanonLog::LogColorimetry, HGCanonLog::CodeValueNormalization)
+00000000001038ea	nopw	(%rax,%rax)
