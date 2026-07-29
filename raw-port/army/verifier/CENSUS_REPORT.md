@@ -42,3 +42,18 @@ verifier (classify + reach + oracle) itself was never wrong — the LEDGER STATU
 - The 38 class-C overrides include a few borderline cases (body calls a `*_stub` helper rather than a
   bare throw). Treated as not-ported (conservative — a body that defers all work to a throwing stub
   is a skeleton, not a real port).
+
+## Residual blind spot quantified (ctor/dtor/operator/inlined)
+The method-body census can't name-match ctors/dtors/operators. Classified by disasm instead:
+  TRAP 115, EMPTY 415, DISPATCH_ONLY 4, REAL 1356, NO_DISASM 833.
+The 1356 REAL "unnamed" are the residual blind spot (a REAL-disasm dtor could in principle be a
+throw-shell). Sampled 15 by citation: 6 real body, 0 throw-only, 9 addr-not-found-in-src (citation
+format mismatch, not a throw). Zero throw-only in the sample -> the unnamed set does not appear to
+hide bare-throw cheats, but a full per-symbol body audit of these 1356 would need symbol->TS-body
+wiring the ports don't uniformly carry. Recorded as a known, bounded residual — not a silent gap.
+
+## Bottom line
+Exhaustive pass DONE. 1121 inflated `ported` entries corrected across 4 distinct accounting bugs
+(cross-fw collision, multi-line throws, stub-vocab gap, call-site-addressed throws). Honest ported
+count 7786. The verifier stack (classify/reach/oracle) was correct throughout; the LEDGER ACCOUNTING
+was what inflated the headline number, now fixed and documented.
