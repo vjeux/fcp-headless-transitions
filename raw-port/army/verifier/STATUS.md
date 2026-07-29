@@ -41,3 +41,17 @@
    ~18,863 exported T symbols (ProCore 2260 + ProChannel 2747 + Helium 4203 + Ozone 9653). Not all
    pure/callable-in-isolation. Tier-1 = pure value/array in-out. Tier-2 = needs constructed obj.
    Tier-3 = local/hidden or ObjC/GL -> reviewer + classify + reach.
+
+
+## FINAL (2026-07-29): objective steps 1-5 COMPLETE + pilots proven
+- STEP 1-4: see above + STEP4_PROOF.md. All committed on main.
+- STEP 5: adversarial-reviewer pilot SUCCESS (STEP5_REVIEWER_PILOT.md — rejected 7385eb01 DISPATCH_ONLY
+  + class-C throw-shell, accepted OZBezierEval bit-exact). Closed-loop worker pilot: a leaf worker
+  ported Json::StreamWriter (TRAP/ud2 — faithful throw), committed to isolated branch
+  port/Json_StreamWriter, did NOT self-merge (main HEAD unchanged) — the reviewer-gated flow works.
+- 7385eb01 (OZDynamicSpline::setVertexSmooth) is now `skeleton` in the ledger, NOT `ported`.
+- SWARM_RESTART.md: phased (A=1 / B=3 / C=scale) reviewer-gated restart. The coordinator cron
+  (d82b4a68) stays DISABLED; re-enabling the fleet is an EXPLICIT human decision (blast-radius),
+  not autonomous. No mass spawning was done.
+- Verifier is un-gameable: prove_all.py + test_classify.py both PASS; gate.sh G5 blocks class-C;
+  leafq refuses DISPATCH_ONLY; mark_ported never counts a shell as ported.
