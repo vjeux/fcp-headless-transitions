@@ -102,6 +102,7 @@
 //   in-place initialisers so subclass ctors can call `super()` (or Object.create) and
 //   then run `initBounds(this,…)` / `initCopy(this, src, flag)` to fill the base slots.
 import { PCSerializerReadStream } from "../infra/PCSerializerReadStream.js";
+import { PCSerializerWriteStream } from "../infra/PCSerializerWriteStream.js";
 import { PCStreamElement } from "../infra/PCStreamElement.js";
 import { CMTime, CMTimeGetSeconds } from "../infra/CMTime.js";
 
@@ -520,5 +521,63 @@ export class OZCurve {
       default:
         break;
     }
+  }
+
+  /**
+   * OZCurve::markFactoriesForSerialization(PCSerializerWriteStream&, bool)
+   * @ProChannel 0x277b4 (body address from nm; ledger index @0x1daa0 is an ICF-alias / stale
+   * ledger slot, both share this identical body — verified with nm -n on the x86_64 slice).
+   *
+   *   __ZN7OZCurve29markFactoriesForSerializationER23PCSerializerWriteStreamb:
+   *   000000000x277b4  pushq   %rbp
+   *   000000000x277b5  movq    %rsp, %rbp
+   *   000000000x277b8  popq    %rbp
+   *   000000000x277b9  retq
+   *
+   * Pure prologue+epilogue: no memory writes, no calls, no return value. OZCurve has NO factory
+   * subobjects that require pre-serialization registration — subclasses (OZCurveDouble/Int/Bool/
+   * Enum/Angle/Percent) override this if they own serialized factories. The base implementation is
+   * a NO-OP by design.
+   */
+  markFactoriesForSerialization(_out: PCSerializerWriteStream, _flag: boolean): void {
+    // NO-OP — pure prologue/epilogue in the disasm above (@0x277b4).
+  }
+
+  /**
+   * OZCurve::supportsAssignmentOperator() const
+   * @ProChannel 0x84d98 (body address from nm; ledger index @0x1db60 is an ICF-alias / stale
+   * ledger slot — the true body is at 0x84d98 and returns constant 1).
+   *
+   *   __ZNK7OZCurve26supportsAssignmentOperatorEv:
+   *   0000000000084d98  pushq   %rbp
+   *   0000000000084d99  movq    %rsp, %rbp
+   *   0000000000084d9c  movb    $0x1, %al       ;; return true
+   *   0000000000084d9e  popq    %rbp
+   *   0000000000084d9f  retq
+   *
+   * Returns literal true. OZCurve subclasses that hold non-copyable state override this to false.
+   */
+  supportsAssignmentOperator(): boolean {
+    return true;  // movb $0x1,%al @0x84d9c
+  }
+
+  /**
+   * OZCurve::isCurveBoolean()
+   * @ProChannel 0x84da0 (body address from nm; ledger index @0x1db70 is an ICF-alias / stale
+   * ledger slot — the true body is at 0x84da0 and returns constant 0).
+   *
+   *   __ZN7OZCurve14isCurveBooleanEv:
+   *   0000000000084da0  pushq   %rbp
+   *   0000000000084da1  movq    %rsp, %rbp
+   *   0000000000084da4  xorl    %eax, %eax      ;; return false
+   *   0000000000084da6  popq    %rbp
+   *   0000000000084da7  retq
+   *
+   * Returns literal false. Only OZCurveBool overrides this to return true (that's the whole point
+   * of the predicate — it's a virtual RTTI-lite that lets callers ask "is this a boolean-valued
+   * curve so I should route through OR/AND aggregation rather than mean/lerp?").
+   */
+  isCurveBoolean(): boolean {
+    return false;  // xorl %eax,%eax @0x84da4
   }
 }
