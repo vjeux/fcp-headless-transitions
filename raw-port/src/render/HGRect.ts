@@ -7,6 +7,7 @@
 //   raw-port/re/disasm/Helium._HGRectMake4i.s        @0x107710
 //   raw-port/re/disasm/Helium._HGRectMake4f.s        @0x107d50
 //   raw-port/re/disasm/Helium._HGRectIsNull.s        @0x107b20
+//   raw-port/re/disasm/Helium.__ZNK6HGRect6IsNullEv.s @0x1074a0 (class-member twin)
 //   raw-port/re/disasm/Helium._HGRectContainsRect.s  @0x107b60
 //   raw-port/re/disasm/Helium._HGRectExcludesRect.s  @0x107ba0
 //   raw-port/re/disasm/Helium._HGRectGrow.s          @0x107960
@@ -146,6 +147,72 @@ export function HGRectMake4i(x0: number, y0: number, x1: number, y1: number): HG
 // ---------------------------------------------------------------------------
 export function HGRectIsNull(r: HGRect): boolean {
   return (r.right | 0) <= (r.x | 0) || (r.bottom | 0) <= (r.y | 0);
+}
+
+// ---------------------------------------------------------------------------
+// HGRect::IsNull() const @Helium 0x1074a0  (__ZNK6HGRect6IsNullEv)
+//
+// Class-member twin of the free HGRectIsNull @0x107b20 above. The free
+// function takes the HGRect packed into %rdi|%rsi (pass-by-value corner
+// form); this method takes a `const HGRect*` in %rdi and dereferences
+// each field individually. Same logical result, different ABI: the C++
+// method is emitted separately because its calling convention differs
+// (pointer this vs packed value).
+//
+// Disassembly source:
+//   raw-port/re/disasm/Helium.__ZNK6HGRect6IsNullEv.s
+//
+// FULL DISASM
+//   0x1074a0  pushq  %rbp
+//   0x1074a1  movq   %rsp, %rbp
+//   0x1074a4  movl   0x8(%rdi), %ecx           ; ecx = this->right (+0x8)
+//   0x1074a7  movb   $0x1, %al                 ; al = 1 (default "IsNull=true")
+//   0x1074a9  cmpl   (%rdi), %ecx              ; flags on right - x   (AT&T dst-src)
+//   0x1074ab  jle    0x1074b6                  ; taken iff right <= x  -> return al=1
+//   0x1074ad  movl   0xc(%rdi), %eax           ; eax = this->bottom (+0xc)
+//                                              ; NB: this clobbers %al (low byte
+//                                              ; of eax) — that's intentional; the
+//                                              ; next setle overwrites al again.
+//   0x1074b0  cmpl   0x4(%rdi), %eax           ; flags on bottom - y
+//   0x1074b3  setle  %al                       ; al = 1 iff bottom <= y
+//   0x1074b6  popq   %rbp
+//   0x1074b7  retq                             ; return al
+//
+// TRUTH TABLE (from the AT&T dst-src decode)
+//   right <= x            -> return true    (jle branch taken)
+//   right >  x, bottom<=y -> return true    (setle sets al=1)
+//   right >  x, bottom> y -> return false   (setle sets al=0)
+// Both edges are SIGNED int32 (`jle`/`setle`, not `jbe`/`setbe`). This is
+// the standard "empty rectangle" test: a corner-form rect is null iff
+// EITHER its width (right - x) OR its height (bottom - y) is non-positive.
+//
+// FRONTIER CALLEES: none — leaf function (no calls, no in-scope deps).
+// ---------------------------------------------------------------------------
+
+/** `HGRect::IsNull() const` — @Helium 0x1074a0 (__ZNK6HGRect6IsNullEv).
+ *
+ * Class-member accessor. Because our `HGRect` is modelled as a plain
+ * TS interface (not a class — see the type declaration above), this
+ * function receives the "this" pointer as an explicit parameter.
+ * Semantically identical to the free `HGRectIsNull` above; kept
+ * separate so the ledger entry for the member mangled name maps 1:1
+ * to a real ported symbol.
+ *
+ * @param self  the `HGRect` — `this` in the native method.
+ */
+export function HGRect__IsNull(self: HGRect): boolean {
+  // @0x1074a4..0x1074ab — cmpl (%rdi), %ecx ; jle : right <= x → true.
+  //   AT&T `cmpl (%rdi), %ecx` sets flags on `ecx - (this+0)` =
+  //   `right - x`, so `jle` is taken iff `right <= x`.
+  if ((self.right | 0) <= (self.x | 0)) {
+    // @0x1074ab — jle taken; al is still 1 from @0x1074a7.
+    return true;
+  }
+  // @0x1074ad..0x1074b3 — cmpl 0x4(%rdi), %eax ; setle : bottom <= y.
+  //   AT&T `cmpl 0x4(%rdi), %eax` sets flags on `eax - (this+0x4)` =
+  //   `bottom - y`, so `setle` = 1 iff `bottom <= y`.
+  return (self.bottom | 0) <= (self.y | 0);
+  // @0x1074b6..0x1074b7 — epilogue + retq.
 }
 
 // ---------------------------------------------------------------------------
