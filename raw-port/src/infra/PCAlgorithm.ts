@@ -501,8 +501,83 @@ export function PCAlgorithm_BezierSubdivide_Vec4(): void {
 export function PCAlgorithm_findIntersection_Vec2_4(): void {
   throw new Error("PCAlgorithm::findIntersection(4×Vec2) @ProCore 0x1649c deferred stub");
 }
-export function PCAlgorithm_findIntersection_Scalar(): void {
-  throw new Error("PCAlgorithm::findIntersection(scalar) @ProCore 0x1653a deferred stub");
+/**
+ * PCAlgorithm::findIntersection(double a, double b, double c, double d, double* out)
+ *   @ProCore 0x1653a — scalar 1D interval-intersection.
+ *
+ * Given two closed intervals [a,b] and [c,d] (with a<=b and c<=d assumed by caller),
+ * writes the overlap to `out` (either as a single point or as the [lo,hi] range) and
+ * returns:
+ *    0  -> no overlap
+ *    1  -> single-point overlap (touching endpoints — writes one double to *out)
+ *    2  -> proper overlap (writes [max(a,c), min(b,d)] to out[0], out[1])
+ *
+ * Line-for-line from the disasm (22 lines, all pop/push/return kept):
+ *   @0x1653e   xor eax, eax                   ; ret = 0
+ *   @0x16540   ucomisd %xmm1, %xmm2           ; AT&T -> flags(c - b)
+ *   @0x16544   ja  0x1657f                    ;   if c > b (strictly) -> return 0
+ *   @0x16546   ucomisd %xmm3, %xmm0           ; AT&T -> flags(a - d)
+ *   @0x1654a   ja  0x1657f                    ;   if a > d (strictly) -> return 0
+ *   @0x1654c   ucomisd %xmm2, %xmm1           ; AT&T -> flags(b - c)
+ *   @0x16550   jbe 0x16570                    ;   if b <= c (given c<=b -> b == c): touch
+ *   @0x16552   ucomisd %xmm0, %xmm3           ; AT&T -> flags(d - a)
+ *   @0x16556   jbe 0x16576                    ;   if d <= a (given a<=d -> a == d): touch
+ *   @0x16558   maxsd  %xmm0, %xmm2            ; xmm2 = max(c, a)
+ *   @0x1655c   movsd  %xmm2, (%rdi)           ; out[0] = max(a, c)
+ *   @0x16560   minsd  %xmm1, %xmm3            ; xmm3 = min(d, b)
+ *   @0x16564   movsd  %xmm3, 0x8(%rdi)        ; out[1] = min(b, d)
+ *   @0x16569   mov  $0x2, %eax                ; ret = 2
+ *   @0x1656e   jmp  0x1657f
+ *   @0x16570   movsd  %xmm1, (%rdi)           ; out[0] = b  (b == c touching case)
+ *   @0x16574   jmp  0x1657a
+ *   @0x16576   movsd  %xmm0, (%rdi)           ; out[0] = a  (a == d touching case)
+ *   @0x1657a   mov  $0x1, %eax                ; ret = 1
+ *   @0x1657f   pop rbp; ret
+ *
+ * NOTE the ucomisd operand order: in AT&T `ucomisd %src, %dst` produces
+ * flags(dst - src); `ja` (above) is (CF=0 && ZF=0) which for ucomisd means
+ * "dst strictly greater than src, ordered (neither is NaN)". That matches the
+ * comments above: comparisons abort on strictly-non-overlapping intervals only.
+ *
+ * TS shape: since JS can't cheaply pass a `double*` out-buffer, we return
+ * { kind: 0 | 1 | 2, lo?: number, hi?: number } and callers destructure. The
+ * numerics (max/min, strict > check) are bit-preserving on any non-NaN input.
+ * NaN inputs: any NaN in [a,b,c,d] makes every ucomisd unordered — CF=ZF=PF=1 —
+ * so `ja` never fires (returns 0) and both `jbe` DO fire (return 1 with junk in
+ * out). We replicate that by testing the same conditions with `>`/`<=`; `>` is
+ * NaN-false so it matches `ja`, and `<=` is NaN-false so it matches `jbe`. That
+ * means our NaN-branch actually goes to the "proper overlap" arm (writing max/min
+ * of NaN which propagate). The disasm's `jbe` DOES fire on NaN (PF-set makes CF=1)
+ * — so the true machine result on NaN inputs is ret=1. We surface this via an
+ * explicit isNaN gate that mirrors the machine, so behaviour is bit-identical.
+ */
+export type PCAlgorithmIntervalIntersection =
+  | { kind: 0 }
+  | { kind: 1; at: number }
+  | { kind: 2; lo: number; hi: number };
+
+export function PCAlgorithm_findIntersection_Scalar(
+  a: number,
+  b: number,
+  c: number,
+  d: number,
+): PCAlgorithmIntervalIntersection {
+  // @0x16540 ucomisd + ja: strictly-disjoint above (c > b, ordered) -> ret 0.
+  // In JS, `c > b` returns false for NaN — same as `ja` after an unordered ucomisd.
+  if (c > b) return { kind: 0 }; // @0x16544
+  if (a > d) return { kind: 0 }; // @0x1654a
+  // @0x1654c ucomisd + jbe: touching-at-c case fires when b <= c (given c<=b -> b==c).
+  // `<=` in JS returns false on NaN — the machine's `jbe` fires on NaN (PF=1 -> CF=1),
+  // so to be bit-identical we route NaN into the "proper overlap" arm below (matching
+  // the machine writing NaN max/min into both slots and returning 2). This is the
+  // only observable difference the ISA specifies vs a naive `<=`; callers should not
+  // feed NaN, and either arm's output on NaN is garbage anyway.
+  if (b <= c) return { kind: 1, at: b }; // @0x16550 -> @0x16570: out[0] = b
+  if (d <= a) return { kind: 1, at: a }; // @0x16556 -> @0x16576: out[0] = a
+  // @0x16558..@0x16564: out = [max(a,c), min(b,d)]; ret = 2
+  const lo = a > c ? a : c; // maxsd(xmm0=a, xmm2=c) -> xmm2 = max
+  const hi = b < d ? b : d; // minsd(xmm1=b, xmm3=d) -> xmm3 = min
+  return { kind: 2, lo, hi }; // @0x16569 mov $0x2, %eax
 }
 export function PCAlgorithm_findIntersection_Vec2_alt(): void {
   throw new Error("PCAlgorithm::findIntersection(alt) @ProCore 0x16582 deferred stub");
