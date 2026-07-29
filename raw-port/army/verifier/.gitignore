@@ -1,0 +1,4 @@
+_mutants/
+__pycache__/
+proofs/
+*.pyc

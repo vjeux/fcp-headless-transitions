@@ -1,0 +1,155 @@
+#!/usr/bin/env python3
+"""classify_disasm.py — AUTHORITATIVE structural classifier for one function's disassembly.
+
+Two un-gameable purposes:
+  1. DISPENSER FILTER: never hand a worker a DISPATCH_ONLY function as an "implementable leaf".
+     Its real work IS its callees; until those are ported a port can only be a shell (7385eb01).
+  2. REVIEWER SIGNAL: an objective starting classification + the exact "real-work" counts a
+     faithful TS body must reflect. A worker cannot satisfy a REAL classification with an
+     all-throw body.
+
+Classes (mutually exclusive, computed from AT&T `<hex>\\t<mnem> <ops>` disasm):
+  TRAP          : contains `ud2`. The faithful port is a throw.
+  EMPTY         : no stores, no arith/simd, no direct calls; at most arg-marshalling + <=1 field
+                  load feeding the return (a trivial getter / no-op). A tiny body is faithful.
+  DISPATCH_ONLY : the ONLY non-trivial work is INDIRECT dispatch (callq/jmpq *off(%reg)) — i.e.
+                  the body loads a vtable ptr, marshals args, and calls through it, with ZERO
+                  stores, ZERO arith/simd, ZERO DIRECT named calls, ZERO data compares beyond an
+                  entry-arg guard. THE 7385eb01 CHEAT SHAPE. Not independently implementable;
+                  at most `skeleton`, never `ported`, until callees land.
+  REAL          : has genuine transcribable work — a memory STORE (writes a struct field),
+                  arithmetic/SIMD on data, a DIRECT named call, or multiple data-dependent
+                  loads/compares. An all-throw TS body here is a cheat (class C/D).
+
+Discriminator rationale (why the naive versions FALSE-PASSED the cheat):
+  - a memory LOAD is not "work"; only a memory STORE mutates state. (vtable loads are loads.)
+  - the entry `testl %edx,%edx; jne` on a bool ARG is control flow to pick early-return vs
+    dispatch — NOT transcribable compute. We only count compares that read a memory field
+    or that are not the single entry guard.
+  - `mov %reg,%reg` and `xorps %xmm,%xmm` are arg marshalling, not work.
+"""
+import re, sys, os, glob
+
+DISASM = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "re", "disasm"))
+
+RE_INSN_LINE = re.compile(r'^\s*[0-9a-fA-F]{4,}\s')
+UD2 = re.compile(r'\bud2\b')
+
+# arithmetic / SIMD-arith / conversion / shift on DATA (work the TS must reflect)
+COMPUTE = re.compile(
+    r'^(add|sub|imul|mul|idiv|div|inc|dec|neg|not|sbb|adc|abs|'
+    r'adds[sd]|subs[sd]|muls[sd]|divs[sd]|sqrts[sd]|mins[sd]|maxs[sd]|'
+    r'addp[sd]|subp[sd]|mulp[sd]|divp[sd]|minp[sd]|maxp[sd]|addss|mulss|divss|subss|'
+    r'haddp[sd]|hsubp[sd]|shufp[sd]|blendp[sd]|dpp[sd]|unpckl|unpckh|'
+    r'cvt[a-z0-9]+|rcpss|rsqrtss|sqrtp[sd]|'
+    r'sar|sal|shl|shr|rol|ror|bsr|bsf|popcnt|'
+    r'pmul|padd|psub|pand|por|pxor|pcmp|pmax|pmin|pshuf|pslld|psrld|psllq|psrlq|'
+    r'andp[sd]|orp[sd])', re.I)
+
+def _mnem_ops(line):
+    line = re.split(r'\s##', line)[0].rstrip()
+    if "\t" in line:
+        body = line.split("\t", 1)[1].strip()
+    else:
+        # label or malformed
+        return None, None
+    parts = body.split(None, 1)
+    if not parts:
+        return None, None
+    return parts[0].lower(), (parts[1] if len(parts) > 1 else "")
+
+def _is_frame(mn, ops):
+    if mn in ("push","pushq","pop","popq","leave","ret","retq","nop","nopl","nopw","endbr64","hint","int3","ud2"):
+        return True
+    if mn.startswith("mov") and re.search(r'%rsp,\s*%rbp\s*$', ops): return True
+    if mn.startswith("mov") and re.search(r'%rbp,\s*%rsp\s*$', ops): return True
+    if mn in ("sub","subq","add","addq") and re.search(r'\$0x[0-9a-f]+,\s*%rsp\s*$', ops): return True
+    return False
+
+# memory dest (STORE): last operand is `off(%reg)` or `(%reg)`; reg not rsp/rbp/rip.
+RE_STORE_DEST = re.compile(r',\s*-?(0x[0-9a-fA-F]+)?\((%r[a-z0-9]+)(?:,[^)]*)?\)\s*$')
+# memory src (LOAD): first operand is `off(%reg)`; dest is a register.
+RE_LOAD_SRC  = re.compile(r'^\s*-?(0x[0-9a-fA-F]+)?\((%r[a-z0-9]+)(?:,[^)]*)?\),\s*%[a-z0-9]+\s*$')
+def _mem_kind(ops):
+    m = RE_STORE_DEST.search(ops)
+    if m and m.group(2) not in ("%rsp", "%rbp", "%rip"):
+        return "store"
+    m = RE_LOAD_SRC.match(ops)
+    if m and m.group(2) not in ("%rip",):
+        return "load"
+    return None
+
+RE_INDIRECT = re.compile(r'^(call|callq|jmp|jmpq)\b.*\*')          # callq *0x48(%rax)
+RE_DIRECTCALL = re.compile(r'^(call|callq)\b(?!.*\*)')             # callq <named/abs>
+RE_REGREG = re.compile(r'^%[a-z0-9]+,\s*%[a-z0-9]+\s*$')           # mov %rax,%rdi (marshalling)
+RE_XORZERO = re.compile(r'^(xorps|xorpd|pxor|xor|xorl|xorq)\s+%([a-z0-9]+),\s*%\2\s*$')
+RE_CMP = re.compile(r'^(cmp|test|ucomis[sd]|comis[sd])', re.I)
+
+def classify(path):
+    if not path or not os.path.exists(path):
+        return {"class": "UNKNOWN", "reason": "no disasm file"}
+    text = open(path, errors="replace").read()
+    if UD2.search(text):
+        return {"class":"TRAP","stores":0,"compute":0,"direct_calls":0,"indirect_calls":0,
+                "loads":0,"cmp_data":0,"instrs":0,"reason":"ud2 present"}
+    stores = compute = direct_calls = indirect_calls = loads = cmp_data = cmp_guard = n = 0
+    for line in text.splitlines():
+        if not RE_INSN_LINE.match(line):
+            continue
+        mn, ops = _mnem_ops(line)
+        if mn is None:
+            continue
+        n += 1
+        if _is_frame(mn, ops):
+            continue
+        if RE_INDIRECT.match(mn + " " + ops):
+            indirect_calls += 1; continue
+        if RE_DIRECTCALL.match(mn + " " + ops):
+            direct_calls += 1; continue
+        if RE_XORZERO.match(mn + " " + ops):
+            continue  # zero a reg (arg setup / return-0 idiom)
+        if COMPUTE.match(mn) and mn != "lea":
+            compute += 1; continue
+        if mn == "lea":
+            # lea is address math; count as compute only if it's not a trivial stack/rip form
+            if not re.search(r'\(%r(sp|bp|ip)\)', ops):
+                compute += 1
+            continue
+        if RE_CMP.match(mn):
+            # a compare that reads a memory field is data logic; a bare reg/imm compare is a guard.
+            if re.search(r'\(%r[a-z0-9]+\)', ops):
+                cmp_data += 1
+            else:
+                cmp_guard += 1
+            continue
+        if mn.startswith("mov") or mn in ("movaps","movups","movsd","movss","movdqa","movdqu"):
+            k = _mem_kind(ops)
+            if k == "store": stores += 1; continue
+            if k == "load":  loads += 1;  continue
+            # reg-reg mov = marshalling; imm->reg = const load (light) — neither is "work"
+            continue
+        # set*/cmov/other -> light control, ignore
+    real = stores + compute + direct_calls
+    # DISPATCH_ONLY: indirect dispatch present, but no store/arith/direct-call and no data compare.
+    if indirect_calls >= 1 and real == 0 and cmp_data == 0:
+        cls = "DISPATCH_ONLY"
+    elif real >= 1 or cmp_data >= 1 or loads >= 2:
+        cls = "REAL"
+    else:
+        cls = "EMPTY"
+    return {"class":cls,"stores":stores,"compute":compute,"direct_calls":direct_calls,
+            "indirect_calls":indirect_calls,"loads":loads,"cmp_data":cmp_data,
+            "cmp_guard":cmp_guard,"instrs":n,
+            "reason":"stores=%d compute=%d direct=%d indirect=%d loads=%d cmpdata=%d"
+                     % (stores,compute,direct_calls,indirect_calls,loads,cmp_data)}
+
+def find_disasm(sym_or_class):
+    san = re.sub(r'[^A-Za-z0-9_]', '', sym_or_class)
+    c = glob.glob(os.path.join(DISASM, f"*{san}*.s"))
+    return c[0] if c else None
+
+if __name__ == "__main__":
+    import json
+    for a in sys.argv[1:]:
+        p = a if os.path.exists(a) else find_disasm(a)
+        print("%-14s %s" % (classify(p)["class"], a), "->", json.dumps(classify(p)))

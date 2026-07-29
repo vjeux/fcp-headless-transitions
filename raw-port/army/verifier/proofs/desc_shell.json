@@ -1,0 +1,4 @@
+{ "framework":"ProChannel","symbol":"__Z12OZBezierEvalPKdd",
+  "signature":{"args":[{"kind":"in_array","ctype":"double","name":"ctrl","len":4},{"kind":"in","ctype":"double","name":"u"}],"ret":"double"},
+  "outputs":["ret"],
+  "module":"/tmp/verifier_proof/shell/OZBezierInterpolator.ts","export":"OZBezierEval" }
