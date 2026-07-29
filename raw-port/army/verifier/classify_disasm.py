@@ -148,6 +148,17 @@ def find_disasm(sym_or_class):
     c = glob.glob(os.path.join(DISASM, f"*{san}*.s"))
     if c:
         return c[0]
+    # FILENAME LENGTH CAP (mirrors disasm.sh): names >200 chars are written as
+    # "<prefix>.<san[:200]>__H<sha1(san)[:16]>.s" because the full sanitized mangled overflows the
+    # 255-byte filename limit (318 STL __tree/__hash_table instantiations). Recompute the capped
+    # form here so those files ARE found (else classify returns UNKNOWN and G5 silently passes).
+    if len(san) > 200:
+        import hashlib
+        h = hashlib.sha1(san.encode()).hexdigest()[:16]
+        capped = san[:200] + "__H" + h
+        c = glob.glob(os.path.join(DISASM, f"*{capped}*.s"))
+        if c:
+            return c[0]
     # CHEAT INCIDENT 2026-07-29 (reviewer-08): workers/reviewers save disasm in the human-friendly
     # dotted form `<FW>.<Class>.<method>.s`, but the sanitized-mangled glob above strips the dots so
     # e.g. "OZChannelBase.parseElement" -> "OZChannelBaseparseElement" never matches

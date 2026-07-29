@@ -15,6 +15,16 @@ if [ "${1:-}" = "--sym" ]; then
   ROOT="$(cd "$(dirname "$0")/.." && pwd)"
   PFX="$FW"; [ "$FW" = "Ozone" ] && PFX="" || PFX="${FW}."
   SAFE="$(printf '%s' "$SYM" | tr -cd 'A-Za-z0-9_')"
+  # FILENAME LENGTH CAP: 318 STL template instantiations (__tree/__hash_table) have sanitized
+  # mangled names > 240 chars, so "${PFX}${SAFE}.s" exceeds the 255-byte filename limit and the
+  # write silently fails -> those units are unportable. Cap to a stable prefix + sha1 tail. The
+  # reader (classify_disasm.find_disasm) applies the IDENTICAL rule so both sides agree. The full
+  # mangled symbol is preserved as the first line of the file body (awk prints "$SYM:"), so nothing
+  # is lost. Threshold 200 leaves headroom for the "${PFX}" (<=11) + ".s" + hash suffix.
+  if [ "${#SAFE}" -gt 200 ]; then
+    H="$(printf '%s' "$SAFE" | shasum | cut -c1-16)"
+    SAFE="${SAFE:0:200}__H${H}"
+  fi
   OUT="$ROOT/re/disasm/${PFX}${SAFE}.s"
   mkdir -p "$(dirname "$OUT")"
   DIS="/tmp/${FW}_tV.txt"; THIN="/tmp/${FW}.x86_64"
