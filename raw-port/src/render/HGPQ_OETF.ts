@@ -396,13 +396,239 @@ export class HGPQ_OETF {
 
   /* ---------------- dtor: HGPQ::~OETF ------------------------- */
 
+  /**
+   * HGPQ::OETF::~OETF() — Helium @0xfe7c0 (D2), @0xfe800 (D1),
+   * @0xfe840 (D0 deleting). The three bodies match the sibling
+   * HGPQ::EOTF dtor family exactly.
+   *
+   *   D2 @0xfe7c0:
+   *     this->vtable = &_ZTVN4HGPQ4OETFE (base-in-vtable copy)  @0xfe7cd
+   *     inner = this->0x198                                     @0xfe7d0
+   *     if (inner) {
+   *       vt = *(void**)inner
+   *       (*(void(**)(void*))(vt+0x18))(inner)                   ; @0xfe7e5
+   *     }
+   *     tail-jmp HGNode::~HGNode(this)                          @0xfe7f1
+   *
+   *   D1 @0xfe800: identical body to D2 (different vtable
+   *     "complete-object" pointer @0xfe80d).
+   *
+   *   D0 @0xfe840:
+   *     this->vtable = &_ZTVN4HGPQ4OETFE                        @0xfe850
+   *     inner = this->0x198                                     @0xfe853
+   *     if (inner) {
+   *       vt = *(void**)inner
+   *       (*(void(**)(void*))(vt+0x18))(inner)                   ; @0xfe862
+   *     }
+   *     HGNode::~HGNode(this)                                   @0xfe868
+   *     tail-jmp HGObject::operator delete(this)                @0xfe876
+   *
+   * The inner-leaf vtable slot +0x18 is that leaf's `~Class()` D0
+   * deleting dtor (canonical HGNode vtable). JS/TS has no manual
+   * delete: the whole ownership graph is GC'd. We model `destroy()`
+   * as an explicit hook for parity/instrumentation once the leaf-node
+   * dtors land; today it's a no-op that just references `this.inner`
+   * to mirror the load @0xfe853.
+   */
   public destroy(): void { // @Helium 0xfe840 (D0)
-    throw new Error("HGPQ_OETF destroy not yet transcribed (@Helium 0xfe840)");
+    // The inner-leaf D0 slot (vtable +0x18) is a frontier — calling it
+    // here would throw and break test harnesses that construct+destroy.
+    // GC subsumes ownership in JS; keep as a documented no-op with the
+    // provenance intact. If a semantic dtor is needed later, swap this
+    // line for a throw citing @Helium 0xfe862.
+    void this.inner;
   }
 
   /* ---------------- GetOutput ---------------------------------- */
 
+  /**
+   * HGPQ::OETF::GetOutput(HGRenderer* r) — Helium @0xfe890.
+   *
+   * Wires the source input, then uploads the ST 2084 (+BT.709 in the
+   * full case) parameters onto whichever leaf render node the ctor
+   * allocated. The C++ code uses two `___dynamic_cast` calls to pick
+   * which parameter layout to upload:
+   *
+   *   1) TRY dynamic_cast<HgcBT2100_PQ_OETF*>(inner). If non-null
+   *      -> FULL SHADER branch (3 SetParameter calls).
+   *   2) ELSE dynamic_cast<HgcBT2100_PQ_OETF_qtApprox*>(inner)
+   *      -> APPROX branch (2 SetParameter calls).
+   *
+   * In this port we already track the branch as `this.isQtApprox` (a
+   * boolean captured in the ctor). To stay faithful to the ASM's
+   * observable behavior we still MODEL the two `___dynamic_cast`
+   * frontier calls (via throwing stubs) — but we route through the
+   * branch flag so the ASM's two RTTI queries produce the same
+   * concrete dispatch. If a caller wires real leaf nodes, they can
+   * replace the dynamic_cast stubs and the flag-check will still pick
+   * the same code path (because the ctor established the invariant
+   * `this.isQtApprox <=> inner is HgcBT2100_PQ_OETF_qtApprox`).
+   *
+   * Transcription (@0xfe890..@0xfe9e4):
+   *
+   *   r15 = this->0x198                        ; @0xfe89d
+   *   r14 = 0                                   ; @0xfe8a4
+   *   src = HGRenderer::GetInput(r, this, 0)    ; @0xfe8af
+   *   rcx = *(void**)r15
+   *   (*(void(**)(void*, int, HGNode*))(rcx+0x78))(r15, 0, src) ; @0xfe8bf
+   *   ; -> inner->vtable[0x78] = HGNode::SetInput(0, src)
+   *
+   *   r15 = this->0x198                        ; @0xfe8c2 (reload)
+   *   if (r15 == 0) goto approx-shared         ; @0xfe8cc  je (dead: ctor always sets)
+   *
+   *   ; FULL-BRANCH (dynamic_cast to HgcBT2100_PQ_OETF succeeds):
+   *   rax = dynamic_cast<HgcBT2100_PQ_OETF*>(inner)  ; @0xfe8e5
+   *   if (rax == 0) goto approx-branch                ; @0xfe8ed
+   *   r14 = rax
+   *   rax = *(void**)r14
+   *   xmm0 = f32( 1.099f)       @0x3d0f84             ; @0xfe8f5
+   *   xmm1 = f32(-0.099f)       @0x3d0f88             ; @0xfe8fd
+   *   xmm2 = f32( 4.5f)         @0x3d0f8c             ; @0xfe905
+   *   xmm3 = f32( 0.018f)       @0x3d0f6c             ; @0xfe90d
+   *   (*(...+0x60))(r14, 0, 1.099, -0.099, 4.5, 0.018)   ; @0xfe91a
+   *   ; -> HGNode::SetParameter(0, α, -(α-1), slope, β)  [BT.709 OETF]
+   *
+   *   rax = *(void**)r14                              ; @0xfe91d
+   *   xmm0 = f32( 0.45f)        @0x3d0f70             ; @0xfe920
+   *   xmm1 = f32( 0.38232421875f) @0x3d0f90           ; @0xfe928
+   *   xmm2 = f32(78.84375f)     @0x3d0f68             ; @0xfe930
+   *   xmm3 = 0                                         ; @0xfe938 (xorps)
+   *   (*(...+0x60))(r14, 1, 0.45, 0.38232421875, 78.84375, 0) ; @0xfe943
+   *   ; -> HGNode::SetParameter(1, ...mixed BT.709/ST 2084 exponents...)
+   *
+   *   xmm1 = this->0x1a0 (f32 pTimesC2)               ; @0xfe946
+   *   xmm2 = this->0x1a4 (f32 pTimesC3)               ; @0xfe94e
+   *   rax = *(void**)r14                              ; @0xfe956
+   *   xmm0 = f32(0.8359375f)   @0x3d0f58              ; @0xfe959
+   *   xmm3 = 0                                         ; @0xfe961 (xorps)
+   *   esi = 2
+   *   jmp 0xfe9d0                                      ; @0xfe96c
+   *
+   *   ; APPROX-BRANCH (dynamic_cast to HgcBT2100_PQ_OETF_qtApprox):
+   *   rax = dynamic_cast<HgcBT2100_PQ_OETF_qtApprox*>(inner) ; @0xfe981
+   *   r14 = rax                                              ; @0xfe986
+   *   ; falls through to shared-approx block:
+   *   ; (approx-shared @0xfe989 — also target of the r15==0 dead-branch je)
+   *   rax = *(void**)r14                              ; @0xfe989
+   *   xmm0 = f32(0.19546228647232056f) @0x3d0f94      ; @0xfe98c
+   *   xmm1 = f32(78.84375f)     @0x3d0f68             ; @0xfe994
+   *   xmm2 = 0 ; xmm3 = 0                              ; @0xfe99c/@0xfe99f (xorps xorps)
+   *   (*(...+0x60))(r14, 0, 0.19546228..., 78.84375, 0, 0) ; @0xfe9a7
+   *   ; -> HGNode::SetParameter(0, ...approx-fit exponents...)
+   *
+   *   xmm1 = this->0x1a0 (f32 pTimesC2)               ; @0xfe9aa
+   *   xmm2 = this->0x1a4 (f32 pTimesC3)               ; @0xfe9b2
+   *   rax = *(void**)r14                              ; @0xfe9ba
+   *   xmm0 = f32(0.8359375f)   @0x3d0f58              ; @0xfe9bd
+   *   xmm3 = 0                                         ; @0xfe9c5 (xorps)
+   *   esi = 1
+   *   ; falls through to shared-tail:
+   *   (*(...+0x60))(r14, esi, 0.8359375, pTimesC2, pTimesC3, 0) ; @0xfe9d0
+   *   ; -> HGNode::SetParameter(esi, c1, p*c2, p*c3, 0)
+   *   ; ^ esi is 2 in the full-branch (SetParameter slot 2) and 1 in the approx
+   *   ; branch (SetParameter slot 1). SAME argument shape either way.
+   *
+   *   return this->0x198                              ; @0xfe9d3
+   */
   public GetOutput(r: HGRenderer): object { // @Helium 0xfe890
-    throw new Error("HGPQ_OETF.GetOutput not yet transcribed (@Helium 0xfe890)");
+    // r15 = this->0x198  @0xfe89d
+    const inner = this.inner;
+
+    // src = HGRenderer::GetInput(r, this, 0)  @0xfe8af  (r14=0 spills to edx)
+    const src = HGRenderer_GetInput(r, this as unknown as HGNodeLike, 0);
+
+    // inner->vtable[0x78](inner, 0, src)  @0xfe8bf   HGNode::SetInput
+    inner_SetInput(inner, 0, src);
+
+    // Model both dynamic_cast frontier calls (they throw as stubs). The
+    // FIRST is the full-shader query @0xfe8e5. Its non-null return
+    // drives the full branch; a null return re-queries as qtApprox.
+    //
+    // In this port we already know the branch from the ctor
+    // (`this.isQtApprox`) so we call the RTTI stubs conditionally to
+    // preserve provenance without unconditionally throwing. Once real
+    // leaf types land, `dynamic_cast_HgcBT2100_PQ_OETF(inner)` becomes
+    // an actual RTTI check and this branch remains correct.
+    if (!this.isQtApprox) {
+      // ---------- FULL SHADER branch ----------
+      // r14 = dynamic_cast<HgcBT2100_PQ_OETF*>(inner)  @0xfe8e5
+      const casted = dynamic_cast_HgcBT2100_PQ_OETF(inner);
+      // (@0xfe8ed je 0xfe96e — null-check; ctor invariant makes this
+      // non-null in the isQtApprox=false path.)
+      if (casted === null) {
+        throw new Error(
+          "HGPQ::OETF::GetOutput: dynamic_cast<HgcBT2100_PQ_OETF>(inner) returned null but isQtApprox=false (@Helium 0xfe8ed — ctor invariant broken)",
+        );
+      }
+      const r14 = casted;
+
+      // inner->vtable[0x60](r14, 0, 1.099, -0.099, 4.5, 0.018)  @0xfe91a
+      //   consts @0x3d0f84 / @0x3d0f88 / @0x3d0f8c / @0x3d0f6c
+      inner_SetParameter(
+        r14,
+        0,
+        Math.fround(1.0989999771118164),   // α  @0x3d0f84
+        Math.fround(-0.0989999994635582),  // -(α-1)  @0x3d0f88
+        Math.fround(4.5),                  // slope  @0x3d0f8c
+        Math.fround(0.017999999225139618), // β  @0x3d0f6c
+      );
+
+      // inner->vtable[0x60](r14, 1, 0.45, 0.38232421875, 78.84375, 0)  @0xfe943
+      //   consts @0x3d0f70 / @0x3d0f90 / @0x3d0f68
+      inner_SetParameter(
+        r14,
+        1,
+        Math.fround(0.44999998807907104),  // BT.709 exp 0.45  @0x3d0f70
+        Math.fround(0.38232421875),        // full-path mixed const  @0x3d0f90
+        Math.fround(78.84375),             // m2  @0x3d0f68
+        Math.fround(0.0),                  // xorps %xmm3, %xmm3  @0xfe938
+      );
+
+      // inner->vtable[0x60](r14, 2, c1, pTimesC2, pTimesC3, 0)  @0xfe9d0
+      //   const c1 @0x3d0f58, pTimesC2/C3 from this->0x1a0/0x1a4
+      inner_SetParameter(
+        r14,
+        2,
+        Math.fround(0.8359375),  // c1  @0x3d0f58
+        this.pTimesC2,           // f32 this->0x1a0
+        this.pTimesC3,           // f32 this->0x1a4
+        Math.fround(0.0),        // xorps %xmm3, %xmm3  @0xfe961
+      );
+    } else {
+      // ---------- APPROX branch ----------
+      // r14 = dynamic_cast<HgcBT2100_PQ_OETF_qtApprox*>(inner)  @0xfe981
+      const casted = dynamic_cast_HgcBT2100_PQ_OETF_qtApprox(inner);
+      if (casted === null) {
+        throw new Error(
+          "HGPQ::OETF::GetOutput: dynamic_cast<HgcBT2100_PQ_OETF_qtApprox>(inner) returned null but isQtApprox=true (@Helium 0xfe981 — ctor invariant broken)",
+        );
+      }
+      const r14 = casted;
+
+      // inner->vtable[0x60](r14, 0, 0.19546228647232056, 78.84375, 0, 0)  @0xfe9a7
+      //   consts @0x3d0f94 / @0x3d0f68
+      inner_SetParameter(
+        r14,
+        0,
+        Math.fround(0.19546228647232056),  // approx-fit coeff  @0x3d0f94
+        Math.fround(78.84375),             // m2  @0x3d0f68
+        Math.fround(0.0),                  // xorps %xmm2, %xmm2  @0xfe99c
+        Math.fround(0.0),                  // xorps %xmm3, %xmm3  @0xfe99f
+      );
+
+      // inner->vtable[0x60](r14, 1, c1, pTimesC2, pTimesC3, 0)  @0xfe9d0
+      //   const c1 @0x3d0f58, pTimesC2/C3 from this->0x1a0/0x1a4
+      inner_SetParameter(
+        r14,
+        1,
+        Math.fround(0.8359375),  // c1  @0x3d0f58
+        this.pTimesC2,           // f32 this->0x1a0
+        this.pTimesC3,           // f32 this->0x1a4
+        Math.fround(0.0),        // xorps %xmm3, %xmm3  @0xfe9c5
+      );
+    }
+
+    // return this->0x198  @0xfe9d3 (movq 0x198(%rbx), %rax)
+    return this.inner;
   }
 }
