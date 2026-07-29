@@ -108,12 +108,17 @@ def _math_signals(ms):
             if t in nm: hits.add(t)
     return len(hits)
 
-def _candidates():
+def _candidates(defer=None):
     """Portable work units (fw, cls, nMethods, chunk_or_None), best-first.
     FULL-ENGINE scope (ARMY.md §1): dispense the ENTIRE inventory. ANTI-SHORTCUT: any class with
     > CHUNK_THRESHOLD methods is emitted as MULTIPLE chunk units of CHUNK methods each — never as one
     giant unit — so no agent is asked to port 100s-1000s of methods in one sitting (the thing that
-    forces stub-to-finish shortcuts). Small classes stay whole. Ordering = tier then size."""
+    forces stub-to-finish shortcuts). Small classes stay whole. Ordering = tier then size.
+    `defer` = set of "<fw>:<cls>" keys that were given up on (deferred/legacy-failed). They are NOT
+    excluded — they are pushed to a bottom band (tier += DEFER_TIER) so every never-touched candidate
+    is served first and a facade only comes back once fresh work is exhausted."""
+    defer = defer if defer is not None else (lambda _c: set(_c.get("deferred", {})) | set(_c.get("failed", {})))(_load())
+    DEFER_TIER = 1000
     done = _ported_files()
     out = []
     for f in sorted(glob.glob(os.path.join(LED, "*.ledger.json"))):
@@ -138,6 +143,7 @@ def _candidates():
                     if f"{cls}.m{k}" in done: continue
                     tier = 5 if is_facade else 3  # facade chunks last; real chunks after small wins
                     if not is_facade and objc <= n // 2 and _math_signals(ms) >= 2: tier = min(tier, 2)
+                    if f"{fw}:{cls}" in defer: tier += DEFER_TIER   # deferred -> bottom band
                     out.append((tier, CHUNK, fw, cls, k))
             else:
                 if cls in done: continue
@@ -165,6 +171,7 @@ def _candidates():
                     # dodges BAD_TOK — the churn 2 workers hit); strong 2-signal -> tier -2 (leads).
                     if msig >= 2: tier = min(tier, -2)
                     elif msig == 1: tier = min(tier, -1)
+                if f"{fw}:{cls}" in defer: tier += DEFER_TIER   # deferred -> bottom band, still served
                 out.append((tier, n, fw, cls, None))
     out.sort()
     return [(n, fw, cls, ck) for (tier, n, fw, cls, ck) in out]
