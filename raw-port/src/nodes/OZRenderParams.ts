@@ -99,6 +99,9 @@ export class OZRenderParams {
   /** @Ozone offset +0x1c0 — written by setResolution @0x271701. */
   resolutionAt1c0: PCVector2Double = { x: 0, y: 0 };
 
+  /** @Ozone offset +0x2e0 — written by setBlendingGamma @0x271614 (float32 store). */
+  blendingGamma: number = 0;
+
   /**
    * `OZRenderParams::setResolution(PCVector2<double> const&)`
    *   — @Ozone 0x2716f0
@@ -136,5 +139,33 @@ export class OZRenderParams {
     this.zeroedAt198 = { x: 0, y: 0 };
     // @0x27170f-0x271719 — this[+0x188] = (0, 0)  (reuses the zeroed xmm0)
     this.zeroedAt188 = { x: 0, y: 0 };
+  }
+
+  /**
+   * `OZRenderParams::setBlendingGamma(float)`
+   *   — @Ozone 0x271610
+   *   — __ZN14OZRenderParams16setBlendingGammaEf
+   *
+   * Faithful transcription of the 7-line disassembly:
+   *   0x271610  pushq  %rbp
+   *   0x271611  movq   %rsp, %rbp
+   *   0x271614  movss  %xmm0, 0x2e0(%rdi)   ; this->+0x2e0 = arg (float32 store)
+   *   0x27161c  popq   %rbp
+   *   0x27161d  retq
+   *
+   * Single-instruction body: store the incoming float32 gamma into the
+   * class slot at +0x2e0. Per Rule 4 (match the machine's numerics),
+   * `movss` is a 32-bit float store — we clamp precision with Math.fround
+   * so downstream reads see exactly the value the CPU would return from
+   * `movss` (JS numbers are f64; the truncation is real on the machine).
+   *
+   * Zero in-scope callees, zero externs — pure field write.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZRenderParams16setBlendingGammaEf.s (7 lines)
+   */
+  setBlendingGamma(gamma: number): void {
+    // @0x271614  movss %xmm0,0x2e0(%rdi)
+    this.blendingGamma = Math.fround(gamma);
   }
 }
