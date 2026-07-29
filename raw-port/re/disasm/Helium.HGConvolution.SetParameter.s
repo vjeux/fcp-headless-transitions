@@ -1,0 +1,154 @@
+__ZN13HGConvolution12SetParameterEiffff:
+0000000000167350	pushq	%rbp
+0000000000167351	movq	%rsp, %rbp
+0000000000167354	pushq	%r15
+0000000000167356	pushq	%r14
+0000000000167358	pushq	%r12
+000000000016735a	pushq	%rbx
+000000000016735b	subq	$0x40, %rsp
+000000000016735f	movq	%rdi, %rbx
+0000000000167362	testl	%esi, %esi
+0000000000167364	je	0x16740b
+000000000016736a	movl	0x1a8(%rbx), %ecx
+0000000000167370	movl	0x200(%rbx), %r12d
+0000000000167377	cmpl	$0x2, %r12d
+000000000016737b	jl	0x16746e
+0000000000167381	movl	0x1ac(%rbx), %eax
+0000000000167387	movl	0x1c8(%rbx), %edx
+000000000016738d	leal	(%rcx,%rdx), %edi
+0000000000167390	decl	%edi
+0000000000167392	movl	0x1cc(%rbx), %ecx
+0000000000167398	addl	%eax, %ecx
+000000000016739a	decl	%ecx
+000000000016739c	movl	%ecx, %edx
+000000000016739e	imull	%edi, %edx
+00000000001673a1	movl	$0xffffffff, %eax               ## imm = 0xFFFFFFFF
+00000000001673a6	cmpl	%edx, %esi
+00000000001673a8	jg	0x167570
+00000000001673ae	decl	%esi
+00000000001673b0	movl	%esi, %eax
+00000000001673b2	xorl	%edx, %edx
+00000000001673b4	divl	%edi
+00000000001673b6	movl	%edx, %r15d
+00000000001673b9	movl	%esi, %eax
+00000000001673bb	xorl	%edx, %edx
+00000000001673bd	divl	%ecx
+00000000001673bf	movl	%eax, %r14d
+00000000001673c2	leaq	0x198(%rbx), %rdi
+00000000001673c9	leaq	0x1b8(%rbx), %rsi
+00000000001673d0	movaps	%xmm0, -0x40(%rbp)
+00000000001673d4	movaps	%xmm1, -0x30(%rbp)
+00000000001673d8	movaps	%xmm3, -0x60(%rbp)
+00000000001673dc	movaps	%xmm2, -0x50(%rbp)
+00000000001673e0	callq	__ZN16HGLinearFilter2D8convolveERKS_ ## HGLinearFilter2D::convolve(HGLinearFilter2D const&)
+00000000001673e5	movaps	-0x50(%rbp), %xmm2
+00000000001673e9	movaps	-0x60(%rbp), %xmm3
+00000000001673ed	movaps	-0x30(%rbp), %xmm1
+00000000001673f1	movaps	-0x40(%rbp), %xmm0
+00000000001673f5	orb	$0x15, 0x1d8(%rbx)
+00000000001673fc	movl	$0x1, 0x200(%rbx)
+0000000000167406	jmp	0x16749a
+000000000016740b	movaps	%xmm1, -0x30(%rbp)
+000000000016740f	xorps	%xmm1, %xmm1
+0000000000167412	roundss	$0xa, %xmm2, %xmm1
+0000000000167418	cvttss2si	%xmm1, %esi
+000000000016741c	xorps	%xmm1, %xmm1
+000000000016741f	roundss	$0xa, %xmm3, %xmm1
+0000000000167425	cvttss2si	%xmm1, %edx
+0000000000167429	movq	%rbx, %rdi
+000000000016742c	movaps	%xmm0, -0x40(%rbp)
+0000000000167430	callq	__ZN13HGConvolution7SetSizeEii  ## HGConvolution::SetSize(int, int)
+0000000000167435	cvtss2si	-0x40(%rbp), %rsi
+000000000016743b	cvtss2si	-0x30(%rbp), %rdx
+0000000000167441	movl	%eax, %r14d
+0000000000167444	movl	0x1a0(%rbx), %eax
+000000000016744a	cmpl	$0x2, 0x200(%rbx)
+0000000000167451	jl	0x167536
+0000000000167457	addl	0x1c0(%rbx), %eax
+000000000016745d	movl	0x1c4(%rbx), %ecx
+0000000000167463	addl	0x1a4(%rbx), %ecx
+0000000000167469	jmp	0x16753c
+000000000016746e	movl	0x1ac(%rbx), %edi
+0000000000167474	movl	%edi, %edx
+0000000000167476	imull	%ecx, %edx
+0000000000167479	movl	$0xffffffff, %eax               ## imm = 0xFFFFFFFF
+000000000016747e	cmpl	%edx, %esi
+0000000000167480	jg	0x167570
+0000000000167486	decl	%esi
+0000000000167488	movl	%esi, %eax
+000000000016748a	xorl	%edx, %edx
+000000000016748c	divl	%ecx
+000000000016748e	movl	%edx, %r15d
+0000000000167491	movl	%esi, %eax
+0000000000167493	xorl	%edx, %edx
+0000000000167495	divl	%edi
+0000000000167497	movl	%eax, %r14d
+000000000016749a	movl	0x1a0(%rbx), %esi
+00000000001674a0	movl	$0xffffffff, %eax               ## imm = 0xFFFFFFFF
+00000000001674a5	movl	%r15d, %ecx
+00000000001674a8	subl	%esi, %ecx
+00000000001674aa	jl	0x167570
+00000000001674b0	movl	0x1a8(%rbx), %edx
+00000000001674b6	addl	%edx, %esi
+00000000001674b8	decl	%esi
+00000000001674ba	cmpl	%esi, %r15d
+00000000001674bd	jg	0x167570
+00000000001674c3	movl	0x1a4(%rbx), %edi
+00000000001674c9	movl	%r14d, %esi
+00000000001674cc	subl	%edi, %esi
+00000000001674ce	jl	0x167570
+00000000001674d4	movl	0x1ac(%rbx), %r8d
+00000000001674db	addl	%r8d, %edi
+00000000001674de	decl	%edi
+00000000001674e0	cmpl	%edi, %r14d
+00000000001674e3	jg	0x167570
+00000000001674e9	movq	0x198(%rbx), %rax
+00000000001674f0	imull	%edx, %esi
+00000000001674f3	addl	%esi, %ecx
+00000000001674f5	movslq	%ecx, %rcx
+00000000001674f8	shlq	$0x4, %rcx
+00000000001674fc	insertps	$0x10, %xmm1, %xmm0             ## xmm0 = xmm0[0],xmm1[0],xmm0[2,3]
+0000000000167502	insertps	$0x20, %xmm2, %xmm0             ## xmm0 = xmm0[0,1],xmm2[0],xmm0[3]
+0000000000167508	insertps	$0x30, %xmm3, %xmm0             ## xmm0 = xmm0[0,1,2],xmm3[0]
+000000000016750e	xorps	%xmm2, %xmm2
+0000000000167511	movaps	%xmm0, %xmm1
+0000000000167514	cmpneqps	%xmm2, %xmm1
+0000000000167518	cmpneqps	(%rax,%rcx), %xmm2
+000000000016751d	xorps	%xmm1, %xmm2
+0000000000167520	movmskps	%xmm2, %edx
+0000000000167523	testl	%edx, %edx
+0000000000167525	je	0x16757d
+0000000000167527	addq	%rcx, %rax
+000000000016752a	orb	$0x11, 0x1d8(%rbx)
+0000000000167531	movaps	%xmm0, (%rax)
+0000000000167534	jmp	0x167585
+0000000000167536	movl	0x1a4(%rbx), %ecx
+000000000016753c	subl	%eax, %esi
+000000000016753e	subl	%ecx, %edx
+0000000000167540	movl	%edx, %eax
+0000000000167542	orl	%esi, %eax
+0000000000167544	je	0x16756b
+0000000000167546	leaq	0x198(%rbx), %rdi
+000000000016754d	callq	__ZN16HGLinearFilter2D9translateEii ## HGLinearFilter2D::translate(int, int)
+0000000000167552	movl	$0xffffffff, 0x1d8(%rbx)        ## imm = 0xFFFFFFFF
+000000000016755c	movq	%rbx, %rdi
+000000000016755f	callq	__ZN6HGNode9ClearBitsEv         ## HGNode::ClearBits()
+0000000000167564	movl	$0x1, %eax
+0000000000167569	jmp	0x16756d
+000000000016756b	xorl	%eax, %eax
+000000000016756d	orl	%r14d, %eax
+0000000000167570	addq	$0x40, %rsp
+0000000000167574	popq	%rbx
+0000000000167575	popq	%r12
+0000000000167577	popq	%r14
+0000000000167579	popq	%r15
+000000000016757b	popq	%rbp
+000000000016757c	retq
+000000000016757d	xorl	%eax, %eax
+000000000016757f	cmpl	$0x2, %r12d
+0000000000167583	jl	0x167570
+0000000000167585	movq	%rbx, %rdi
+0000000000167588	callq	__ZN6HGNode9ClearBitsEv         ## HGNode::ClearBits()
+000000000016758d	movl	$0x1, %eax
+0000000000167592	jmp	0x167570
+0000000000167594	nopw	%cs:(%rax,%rax)
