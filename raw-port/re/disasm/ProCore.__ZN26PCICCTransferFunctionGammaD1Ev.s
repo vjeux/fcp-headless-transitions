@@ -1,0 +1,5 @@
+__ZN26PCICCTransferFunctionGammaD1Ev:
+000000000001381c	pushq	%rbp
+000000000001381d	movq	%rsp, %rbp
+0000000000013820	popq	%rbp
+0000000000013821	retq
