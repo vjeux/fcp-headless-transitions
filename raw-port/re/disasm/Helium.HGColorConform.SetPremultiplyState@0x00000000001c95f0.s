@@ -1,0 +1,27 @@
+__ZN14HGColorConform19SetPremultiplyStateEbb:
+00000000001c95f0	pushq	%rbp
+00000000001c95f1	movq	%rsp, %rbp
+00000000001c95f4	pushq	%r15
+00000000001c95f6	pushq	%r14
+00000000001c95f8	pushq	%rbx
+00000000001c95f9	pushq	%rax
+00000000001c95fa	movl	%edx, %ebx
+00000000001c95fc	movl	%esi, %r15d
+00000000001c95ff	movq	%rdi, %r14
+00000000001c9602	cmpb	%r15b, 0x1d8(%rdi)
+00000000001c9609	je	0x1c961a
+00000000001c960b	movq	%r14, %rdi
+00000000001c960e	callq	__ZN6HGNode9ClearBitsEv         ## HGNode::ClearBits()
+00000000001c9613	movb	%r15b, 0x1d8(%r14)
+00000000001c961a	cmpb	%bl, 0x1d9(%r14)
+00000000001c9621	je	0x1c9632
+00000000001c9623	movq	%r14, %rdi
+00000000001c9626	callq	__ZN6HGNode9ClearBitsEv         ## HGNode::ClearBits()
+00000000001c962b	movb	%bl, 0x1d9(%r14)
+00000000001c9632	addq	$0x8, %rsp
+00000000001c9636	popq	%rbx
+00000000001c9637	popq	%r14
+00000000001c9639	popq	%r15
+00000000001c963b	popq	%rbp
+00000000001c963c	retq
+00000000001c963d	nopl	(%rax)
