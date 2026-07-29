@@ -417,12 +417,310 @@ export class cc_rgb {
    * cc_rgb::hsl() const — HSL decoder (max/min channel, 6-sector hue).
    * @ProCore 0x000000000009667e  (__ZNK6cc_rgb3hslEv)
    *
-   * FRONTIER: 118-line SIMD body with several conditional branches and RIP-relative
-   * doubles at 0x125550, 0x11e074, 0x121ef8, 0x123908, etc. — not yet transcribed. See
-   * raw-port/re/disasm/ProCore.cc_rgb.hsl.s for the decoded instruction stream.
+   * DECODE (raw-port/re/disasm/ProCore.__ZNK6cc_rgb3hslEv.s):
+   *   0x96682   movss (%rdi), %xmm4                 ## xmm4 = r      (float @+0x0)
+   *   0x96686   movss 0x4(%rdi), %xmm5              ## xmm5 = g      (float @+0x4)
+   *   0x9668b   movss 0x8(%rdi), %xmm6              ## xmm6 = b      (float @+0x8)
+   *   0x96690   movaps %xmm5, %xmm0
+   *   0x96693   maxss  %xmm6, %xmm0                 ## xmm0 = max(g, b)
+   *   0x96697   movaps %xmm4, %xmm2
+   *   0x9669a   maxss  %xmm0, %xmm2                 ## xmm2 = max(r, max(g,b)) = max
+   *   0x9669e   movaps %xmm5, %xmm0
+   *   0x966a1   minss  %xmm6, %xmm0                 ## xmm0 = min(g, b)
+   *   0x966a5   movaps %xmm4, %xmm8
+   *   0x966a9   minss  %xmm0, %xmm8                 ## xmm8 = min(r, min(g,b)) = min
+   *   0x966ae   movaps %xmm8, %xmm9
+   *   0x966b2   addss  %xmm2, %xmm9                 ## xmm9 = min + max (float)
+   *   0x966b7   xorps  %xmm0, %xmm0
+   *   0x966ba   cvtss2sd %xmm9, %xmm0               ## xmm0 (dbl) = (double)(min+max)
+   *   0x966bf   mulsd  0x8eec9(%rip), %xmm0         ## @0x125590 = 0.5  → xmm0 = L (dbl) = (min+max)/2
+   *   0x966c7   movaps %xmm2, %xmm3
+   *   0x966ca   subss  %xmm8, %xmm3                 ## xmm3 (float) = max - min = delta
+   *   0x966cf   cvtss2sd %xmm3, %xmm7               ## xmm7 (dbl) = (double)delta
+   *   0x966d3   xorps  %xmm1, %xmm1
+   *   0x966d6   ucomiss %xmm3, %xmm1                ## flags on (0 - delta) — signals delta < 0
+   *   0x966d9   jbe    0x966e2                      ## 0 <= delta → skip (normal path)
+   *   0x966db   xorps  0x4b98e(%rip), %xmm7         ## @0xe2070 = 128-bit sign-flip mask
+   *                                                 ##   (xorps of dbl sign bits) — xmm7 = |delta|_dbl
+   *   0x966e2   xorps  %xmm1, %xmm1                 ## zero xmm1 low for cvt
+   *   0x966e5   cvtsd2ss %xmm0, %xmm1               ## xmm1 (float) = L
+   *   0x966e9   xorps  %xmm0, %xmm0                 ## xmm0 = 0 (accumulator for return H/S)
+   *   0x966ec   movsd  0x4b98b(%rip), %xmm10        ## @0xe2080 = 2^-23 = 1.192092896e-07 (dbl)
+   *   0x966f5   ucomisd %xmm7, %xmm10               ## flags on (eps - |delta|)
+   *   0x966fa   ja     0x96880                      ## |delta| < eps  → ACHROMATIC: return (0, 0, L)
+   *
+   *   0x96700   movss  0x4b880(%rip), %xmm0         ## @0xe1f88 = 0.5f
+   *   0x96708   ucomiss %xmm1, %xmm0                ## flags on (0.5 - L)
+   *   0x9670b   jae    0x96737                      ## 0.5 >= L → divisor = min+max ; skip the block
+   *   0x9670d   xorps  %xmm0, %xmm0                 ## L > 0.5 path
+   *   0x96710   cvtss2sd %xmm2, %xmm0               ## xmm0 = (dbl)max
+   *   0x96714   movsd  0x8be4c(%rip), %xmm7         ## @0x122568 = 2.0 (dbl)
+   *   0x9671c   xorps  %xmm9, %xmm9
+   *   0x96720   cvtss2sd %xmm8, %xmm9               ## xmm9 = (dbl)min
+   *   0x96725   subsd  %xmm0, %xmm7                 ## xmm7 = 2 - max
+   *   0x96729   subsd  %xmm9, %xmm7                 ## xmm7 = 2 - max - min
+   *   0x9672e   xorps  %xmm9, %xmm9
+   *   0x96732   cvtsd2ss %xmm7, %xmm9               ## xmm9 (float) = 2 - min - max  (divisor)
+   *
+   *   0x96737   movaps 0x4b922(%rip), %xmm0         ## @0xe2060 = (-0f,-0f,-0f,-0f) sign-flip pack
+   *   0x9673e   xorps  %xmm9, %xmm0                 ## xmm0[0] = -xmm9 (lane 0 flipped)
+   *   0x96742   maxss  %xmm9, %xmm0                 ## xmm0 = max(-div, div) = |div|
+   *   0x96747   cvtss2sd %xmm0, %xmm0               ## xmm0 (dbl) = |div|
+   *   0x9674b   movsd  0x8ce0d(%rip), %xmm7         ## @0x123560 = 0.0001 (dbl)
+   *   0x96753   ucomisd %xmm0, %xmm7                ## flags on (0.0001 - |div|)
+   *   0x96757   jbe    0x96762                      ## |div| >= 0.0001  → keep divisor xmm9 as-is
+   *   0x96759   movss  0x8fbce(%rip), %xmm9         ## @0x126330 = 1e-4f  — clamp divisor to 1e-4
+   *
+   *   0x96762   movaps %xmm3, %xmm7                 ## xmm7 (float) = delta
+   *   0x96765   movaps %xmm4, %xmm10                ## xmm10 = r
+   *   0x96769   subss  %xmm2, %xmm10                ## xmm10 = r - max
+   *   0x9676e   andps  0x4b43a(%rip), %xmm10        ## @0xe1bb0 = |...|_pack   → xmm10 = |r - max|
+   *   0x96776   divss  %xmm9, %xmm7                 ## xmm7 (float) = delta / divisor = S
+   *   0x9677b   movss  0x8ee89(%rip), %xmm0         ## @0x12560c = 1.192092896e-07f (eps)
+   *   0x96783   ucomiss %xmm10, %xmm0               ## flags on (eps - |r-max|)
+   *   0x96787   jbe    0x967b9                      ## |r-max| >= eps → r NOT max → to r-not-max block
+   *
+   *   ; r IS max
+   *   0x96789   movaps %xmm5, %xmm4                 ## xmm4 = g
+   *   0x9678c   subss  %xmm8, %xmm4                 ## xmm4 = g - min
+   *   0x96791   andps  0x4b418(%rip), %xmm4         ## xmm4 = |g - min|
+   *   0x96798   ucomiss %xmm4, %xmm0                ## flags on (eps - |g-min|)
+   *   0x9679b   jbe    0x967fd                      ## |g-min| >= eps → g NOT min → b=min branch
+   *
+   *   ; r=max, g=min (b is middle) — TERMINAL 1
+   *   0x9679d   subss  %xmm6, %xmm2                 ## xmm2 = max - b = r - b
+   *   0x967a1   divss  %xmm3, %xmm2                 ## xmm2 = (r - b) / delta
+   *   0x967a5   xorps  %xmm0, %xmm0
+   *   0x967a8   cvtss2sd %xmm2, %xmm0
+   *   0x967ac   addsd  0x8d164(%rip), %xmm0         ## @0x123918 = 5.0 → H_dbl = 5 + (r-b)/delta
+   *   0x967b4   jmp    0x9686e
+   *
+   *   0x967b9:  ; r NOT max
+   *   0x967b9   movaps %xmm5, %xmm9
+   *   0x967bd   subss  %xmm2, %xmm9                 ## xmm9 = g - max
+   *   0x967c2   andps  0x4b3e6(%rip), %xmm9         ## xmm9 = |g - max|
+   *   0x967ca   ucomiss %xmm9, %xmm0                ## flags on (eps - |g-max|)
+   *   0x967ce   jbe    0x96813                      ## |g-max| >= eps → g NOT max → b=max block
+   *
+   *   ; g IS max
+   *   0x967d0   movaps %xmm6, %xmm5
+   *   0x967d3   subss  %xmm8, %xmm5                 ## xmm5 = b - min
+   *   0x967d8   andps  0x4b3d1(%rip), %xmm5         ## xmm5 = |b - min|
+   *   0x967df   ucomiss %xmm5, %xmm0                ## flags on (eps - |b-min|)
+   *   0x967e2   jbe    0x96840                      ## |b-min| >= eps → b NOT min → r=min branch
+   *
+   *   ; g=max, b=min — TERMINAL 3
+   *   0x967e4   subss  %xmm4, %xmm2                 ## xmm2 = max - r = g - r
+   *   0x967e8   divss  %xmm3, %xmm2                 ## xmm2 = (g - r) / delta
+   *   0x967ec   xorps  %xmm0, %xmm0
+   *   0x967ef   cvtss2sd %xmm2, %xmm0
+   *   0x967f3   addsd  0x8bd35(%rip), %xmm0         ## @0x122530 = 1.0 → H_dbl = 1 + (g-r)/delta
+   *   0x967fb   jmp    0x9686e
+   *
+   *   ; r=max, b=min (g NOT min) — TERMINAL 2
+   *   0x967fd   subss  %xmm5, %xmm2                 ## xmm2 = max - g = r - g
+   *   0x96801   divss  %xmm3, %xmm2                 ## xmm2 = (r - g) / delta
+   *   0x96805   cvtss2sd %xmm2, %xmm2
+   *   0x96809   movsd  0x8bd1f(%rip), %xmm0         ## @0x122530 = 1.0
+   *   0x96811   jmp    0x9686a                      ## H_dbl = 1 - (r-g)/delta
+   *
+   *   ; g NOT max ; b IS max branch
+   *   0x96813   movaps %xmm4, %xmm6
+   *   0x96816   subss  %xmm8, %xmm6                 ## xmm6 = r - min
+   *   0x9681b   andps  0x4b38e(%rip), %xmm6         ## xmm6 = |r - min|
+   *   0x96822   ucomiss %xmm6, %xmm0                ## flags on (eps - |r-min|)
+   *   0x96825   jbe    0x96856                      ## |r-min| >= eps → r NOT min → g=min branch
+   *
+   *   ; b=max, r=min — TERMINAL 5
+   *   0x96827   subss  %xmm5, %xmm2                 ## xmm2 = max - g = b - g
+   *   0x9682b   divss  %xmm3, %xmm2                 ## (b - g) / delta
+   *   0x9682f   xorps  %xmm0, %xmm0
+   *   0x96832   cvtss2sd %xmm2, %xmm0
+   *   0x96836   addsd  0x8bdea(%rip), %xmm0         ## @0x122628 = 3.0 → H_dbl = 3 + (b-g)/delta
+   *   0x9683e   jmp    0x9686e
+   *
+   *   ; g=max, r=min (b NOT min) — TERMINAL 4
+   *   0x96840   subss  %xmm6, %xmm2                 ## xmm2 = max - b = g - b
+   *   0x96844   divss  %xmm3, %xmm2                 ## (g - b) / delta
+   *   0x96848   cvtss2sd %xmm2, %xmm2
+   *   0x9684c   movsd  0x8bdd4(%rip), %xmm0         ## @0x122628 = 3.0
+   *   0x96854   jmp    0x9686a                      ## H_dbl = 3 - (g-b)/delta
+   *
+   *   ; b=max, g=min — TERMINAL 6
+   *   0x96856   subss  %xmm4, %xmm2                 ## xmm2 = max - r = b - r
+   *   0x9685a   divss  %xmm3, %xmm2                 ## (b - r) / delta
+   *   0x9685e   cvtss2sd %xmm2, %xmm2
+   *   0x96862   movsd  0x8d0ae(%rip), %xmm0         ## @0x123918 = 5.0
+   *                                                 ##   jmp 0x9686a → H_dbl = 5 - (b-r)/delta
+   *
+   *   0x9686a   subsd  %xmm2, %xmm0                 ## H_dbl = const - ratio   (terminals 2,4,6)
+   *   0x9686e   cvtsd2ss %xmm0, %xmm0               ## H (float)
+   *   0x96872   divss  0x8ed96(%rip), %xmm0         ## @0x125610 = 6.0f → H /= 6
+   *   0x9687a   insertps $0x10, %xmm7, %xmm0        ## xmm0[1] = xmm7[0] = S (float)
+   *                                                 ##   result packed: xmm0 = (H, S, ?, ?)
+   *                                                 ##   xmm1 = L (float, set @0x966e5)
+   *   0x96880   popq %rbp
+   *   0x96881   retq
+   *
+   * SIX HUE TERMINALS (H in [0, 6) sector units, then divided by 6):
+   *   r=max, g=min : H = 5 + (r-b)/delta   ; b is middle, hue in [5, 6)
+   *   r=max, b=min : H = 1 - (r-g)/delta   ; g is middle, hue in [0, 1)
+   *   g=max, b=min : H = 1 + (g-r)/delta   ; r is middle, hue in [1, 2)
+   *   g=max, r=min : H = 3 - (g-b)/delta   ; b is middle, hue in [2, 3)
+   *   b=max, r=min : H = 3 + (b-g)/delta   ; g is middle, hue in [3, 4)
+   *   b=max, g=min : H = 5 - (b-r)/delta   ; r is middle, hue in [4, 5)
+   * Equivalent to the standard piecewise HSL hue formula, wrapped positive.
+   *
+   * ACHROMATIC (delta < 2^-23): returns { h: 0, s: 0, l: L } (xmm0 = 0 packed).
+   * DIVISOR (denominator for saturation): min+max if L<=0.5, else 2-min-max;
+   *   further clamped to a floor of 1e-4f to prevent div-by-zero on tiny sums.
    */
   hsl(): cc_hsl_value {
-    throw new Error(`cc_rgb::hsl() @0x000000000009667e not yet transcribed`);
+    // 0x96682-0x9668b — load fields as float32.
+    const r = Math.fround(this.r);
+    const g = Math.fround(this.g);
+    const b = Math.fround(this.b);
+
+    // 0x96690-0x966a9 — scalar max/min via maxss/minss.
+    const max = Math.fround(Math.max(r, Math.max(g, b)));
+    const min = Math.fround(Math.min(r, Math.min(g, b)));
+
+    // 0x966ae-0x966bf — L (double) = (min + max) * 0.5.
+    //   Note: xmm9 (float) = min + max first, THEN cvtss2sd, THEN * 0.5 in double.
+    const minPlusMax_f = Math.fround(min + max);              // 0x966b2 addss  (float32)
+    const CC_D_HALF_AT_0x00125590 = 0.5000000000000001;       // @0x125590 dbl u64 0x3fe0000000000001
+    const L_dbl = minPlusMax_f * CC_D_HALF_AT_0x00125590;     // 0x966bf mulsd  (double)
+
+    // 0x966c7-0x966cf — delta (float) and its (double) copy.
+    const delta_f = Math.fround(max - min);                   // 0x966ca subss
+    // 0x966d6-0x966db — abs(delta) in double via xor of dbl-sign mask if 0 > delta.
+    //   For non-negative delta this is a no-op. Model with plain Math.abs on double.
+    const absDelta_dbl = Math.abs(delta_f);
+
+    // 0x966e5 — L as float32.
+    const L_f = Math.fround(L_dbl);                           // 0x966e5 cvtsd2ss
+
+    // 0x966ec-0x966fa — ACHROMATIC early return: if |delta_dbl| < eps, return (0, 0, L_f).
+    const CC_D_2POWNEG23_AT_0x000e2080 = 1.1920928955078125e-07;  // @0xe2080 dbl 2^-23
+    if (CC_D_2POWNEG23_AT_0x000e2080 > absDelta_dbl) {
+      // xmm0 was zeroed at 0x966e9; branch target 0x96880 returns xmm0 (=0 packed) + xmm1 (=L_f).
+      return { h: 0, s: 0, l: L_f };
+    }
+
+    // 0x96700-0x9670b — select divisor: L > 0.5 → 2 - min - max ; L <= 0.5 → min + max.
+    //   L compared as float32 vs 0.5f (movss @0xe1f88).
+    const CC_F_HALF_AT_0x000e1f88 = Math.fround(0.5);         // @0xe1f88 float 0.5
+    let divisor_f: number;
+    if (CC_F_HALF_AT_0x000e1f88 >= L_f) {
+      // 0x9670b jae → skip block → divisor = min+max (still in xmm9 as float from 0x966b2).
+      divisor_f = minPlusMax_f;
+    } else {
+      // 0x9670d-0x96732 — 2 - max - min in double, then cvtsd2ss to float.
+      const max_dbl = max;                                    // 0x96710 cvtss2sd
+      const min_dbl = min;                                    // 0x96720 cvtss2sd
+      const CC_D_TWO_AT_0x00122568 = 2.0;                     // @0x122568 dbl 2.0
+      const tmp_dbl = (CC_D_TWO_AT_0x00122568 - max_dbl) - min_dbl;  // 0x96725/0x96729 subsd, subsd
+      divisor_f = Math.fround(tmp_dbl);                       // 0x96732 cvtsd2ss
+    }
+
+    // 0x96737-0x96747 — |divisor| in double (xorps + maxss + cvtss2sd).
+    //   For non-negative divisor this is Math.abs on the double.
+    const absDivisor_dbl = Math.abs(divisor_f);
+
+    // 0x9674b-0x96759 — if |divisor|_dbl < 0.0001, clamp divisor float to 1e-4f.
+    //   (Only the divisor magnitude is compared; the sign of divisor_f is preserved but for
+    //   RGB inputs divisor_f is >=0 always so this is a positive-floor.)
+    const CC_D_1EM4_AT_0x00123560 = 0.0001;                   // @0x123560 dbl 0.0001
+    const CC_F_1EM4_AT_0x00126330 = Math.fround(9.999999747378752e-05);  // @0x126330 float 1e-4
+    if (CC_D_1EM4_AT_0x00123560 > absDivisor_dbl) {
+      // 0x96757 jbe not-taken (|div| < 0.0001) → load clamp.
+      divisor_f = CC_F_1EM4_AT_0x00126330;                    // 0x96759 movss
+    }
+
+    // 0x96762-0x96776 — Saturation: S = delta / divisor  (all float32).
+    const S_f = Math.fround(delta_f / divisor_f);             // 0x96776 divss
+
+    // 0x96765-0x9676e — |r - max| as float (for the r-is-max compare).
+    const absRminusMax = Math.abs(Math.fround(r - max));      // 0x96769 subss + 0x9676e andps
+    // 0x9677b — eps as float32 (for comparisons).
+    const CC_F_EPS_AT_0x0012560c = Math.fround(1.1920928955078125e-07);   // @0x12560c float 2^-23
+
+    // 0x96783-0x96787 — is r the max?  |r - max| < eps  ⇒  YES.
+    //   ucomiss xmm10, xmm0 (xmm0=eps, xmm10=|r-max|); jbe (eps <= |r-max|) → jump to r-NOT-max.
+    //   Fall through: eps > |r-max| → r IS max.
+    let H_sixths: number;   // H_dbl expressed in [0, 6) BEFORE the final /6.
+    if (CC_F_EPS_AT_0x0012560c > absRminusMax) {
+      // ---- r IS max ----
+      // 0x96789-0x96798 — |g - min| < eps?
+      const absGminusMin = Math.abs(Math.fround(g - min));    // 0x9678c/0x96791
+      if (CC_F_EPS_AT_0x0012560c > absGminusMin) {
+        // TERMINAL 1: r=max, g=min → H = 5 + (r - b)/delta
+        //   0x9679d subss %xmm6, %xmm2 : xmm2 (was max) becomes max - b = r - b
+        //   0x967a1 divss %xmm3, %xmm2 : (r-b)/delta
+        //   0x967ac addsd @0x123918=5.0 (in double)
+        const ratio_f = Math.fround(Math.fround(max - b) / delta_f);
+        const CC_D_5_AT_0x00123918 = 5.0;                     // @0x123918 dbl 5.0
+        H_sixths = ratio_f + CC_D_5_AT_0x00123918;            // 0x967ac addsd (dbl)
+      } else {
+        // TERMINAL 2: r=max, b=min (g NOT min) → H = 1 - (r - g)/delta
+        //   0x967fd subss %xmm5, %xmm2 : max - g = r - g
+        //   0x96801 divss %xmm3, %xmm2
+        //   0x96809 movsd @0x122530=1.0 ; jmp 0x9686a → subsd
+        const ratio_f = Math.fround(Math.fround(max - g) / delta_f);
+        const CC_D_1_AT_0x00122530 = 1.0;                     // @0x122530 dbl 1.0
+        H_sixths = CC_D_1_AT_0x00122530 - ratio_f;            // 0x9686a subsd (dbl)
+      }
+    } else {
+      // ---- r NOT max ----
+      // 0x967b9-0x967ce — |g - max| < eps?
+      const absGminusMax = Math.abs(Math.fround(g - max));    // 0x967bd/0x967c2
+      if (CC_F_EPS_AT_0x0012560c > absGminusMax) {
+        // ---- g IS max ----
+        // 0x967d0-0x967e2 — |b - min| < eps?
+        const absBminusMin = Math.abs(Math.fround(b - min));  // 0x967d3/0x967d8
+        if (CC_F_EPS_AT_0x0012560c > absBminusMin) {
+          // TERMINAL 3: g=max, b=min → H = 1 + (g - r)/delta
+          //   0x967e4 subss %xmm4, %xmm2 : max - r = g - r
+          //   0x967f3 addsd @0x122530=1.0
+          const ratio_f = Math.fround(Math.fround(max - r) / delta_f);
+          const CC_D_1_AT_0x00122530 = 1.0;                   // @0x122530 dbl 1.0
+          H_sixths = ratio_f + CC_D_1_AT_0x00122530;          // 0x967f3 addsd
+        } else {
+          // TERMINAL 4: g=max, r=min (b NOT min) → H = 3 - (g - b)/delta
+          //   0x96840 subss %xmm6, %xmm2 : max - b = g - b
+          //   0x9684c movsd @0x122628=3.0 ; jmp 0x9686a → subsd
+          const ratio_f = Math.fround(Math.fround(max - b) / delta_f);
+          const CC_D_3_AT_0x00122628 = 3.0;                   // @0x122628 dbl 3.0
+          H_sixths = CC_D_3_AT_0x00122628 - ratio_f;          // 0x9686a subsd
+        }
+      } else {
+        // ---- b IS max ----
+        // 0x96813-0x96825 — |r - min| < eps?
+        const absRminusMin = Math.abs(Math.fround(r - min));  // 0x96816/0x9681b
+        if (CC_F_EPS_AT_0x0012560c > absRminusMin) {
+          // TERMINAL 5: b=max, r=min → H = 3 + (b - g)/delta
+          //   0x96827 subss %xmm5, %xmm2 : max - g = b - g
+          //   0x96836 addsd @0x122628=3.0
+          const ratio_f = Math.fround(Math.fround(max - g) / delta_f);
+          const CC_D_3_AT_0x00122628 = 3.0;                   // @0x122628 dbl 3.0
+          H_sixths = ratio_f + CC_D_3_AT_0x00122628;          // 0x96836 addsd
+        } else {
+          // TERMINAL 6: b=max, g=min → H = 5 - (b - r)/delta
+          //   0x96856 subss %xmm4, %xmm2 : max - r = b - r
+          //   0x96862 movsd @0x123918=5.0 ; jmp 0x9686a → subsd
+          const ratio_f = Math.fround(Math.fround(max - r) / delta_f);
+          const CC_D_5_AT_0x00123918 = 5.0;                   // @0x123918 dbl 5.0
+          H_sixths = CC_D_5_AT_0x00123918 - ratio_f;          // 0x9686a subsd
+        }
+      }
+    }
+
+    // 0x9686e-0x96872 — H (float) = H_dbl / 6.0f.
+    const CC_F_6_AT_0x00125610 = Math.fround(6.0);            // @0x125610 float 6.0
+    const H_f = Math.fround(Math.fround(H_sixths) / CC_F_6_AT_0x00125610);
+
+    // 0x9687a — pack (H, S) in xmm0[0..1], xmm1 = L. Model as struct.
+    return { h: H_f, s: S_f, l: L_f };
   }
 
   /**
