@@ -1,0 +1,75 @@
+__ZN13OZVectorShape7addPathEP15OZQuadraticPath:
+0000000000302570	pushq	%rbp
+0000000000302571	movq	%rsp, %rbp
+0000000000302574	pushq	%r15
+0000000000302576	pushq	%r14
+0000000000302578	pushq	%r13
+000000000030257a	pushq	%r12
+000000000030257c	pushq	%rbx
+000000000030257d	subq	$0x18, %rsp
+0000000000302581	movq	%rdi, %rbx
+0000000000302584	movq	0x68(%rdi), %r14
+0000000000302588	movq	0x70(%rdi), %rax
+000000000030258c	cmpq	%rax, %r14
+000000000030258f	jae	0x3025a0
+0000000000302591	movq	%rsi, (%r14)
+0000000000302594	addq	$0x8, %r14
+0000000000302598	movq	%r14, %r15
+000000000030259b	jmp	0x302658
+00000000003025a0	movq	0x60(%rbx), %rdi
+00000000003025a4	subq	%rdi, %r14
+00000000003025a7	movq	%r14, %r12
+00000000003025aa	sarq	$0x3, %r12
+00000000003025ae	leaq	0x1(%r12), %rcx
+00000000003025b3	movq	%rcx, %rdx
+00000000003025b6	shrq	$0x3d, %rdx
+00000000003025ba	jne	0x30266b
+00000000003025c0	movq	%rsi, -0x38(%rbp)
+00000000003025c4	movabsq	$0x1fffffffffffffff, %rdx       ## imm = 0x1FFFFFFFFFFFFFFF
+00000000003025ce	movq	%rdi, -0x40(%rbp)
+00000000003025d2	subq	%rdi, %rax
+00000000003025d5	movq	%rax, %r15
+00000000003025d8	sarq	$0x2, %r15
+00000000003025dc	cmpq	%rcx, %r15
+00000000003025df	cmovbeq	%rcx, %r15
+00000000003025e3	movabsq	$0x7ffffffffffffff8, %rcx       ## imm = 0x7FFFFFFFFFFFFFF8
+00000000003025ed	cmpq	%rcx, %rax
+00000000003025f0	cmovaeq	%rdx, %r15
+00000000003025f4	cmpq	%rdx, %r15
+00000000003025f7	ja	0x302670
+00000000003025f9	leaq	(,%r15,8), %rdi
+0000000000302601	callq	0x6dfca2                        ## symbol stub for: __Znwm
+0000000000302606	leaq	(%rax,%r14), %r13
+000000000030260a	leaq	(%rax,%r15,8), %rcx
+000000000030260e	movq	%rcx, -0x30(%rbp)
+0000000000302612	movq	-0x38(%rbp), %rcx
+0000000000302616	movq	%rcx, (%rax,%r14)
+000000000030261a	leaq	(%rax,%r14), %r15
+000000000030261e	addq	$0x8, %r15
+0000000000302622	shlq	$0x3, %r12
+0000000000302626	subq	%r12, %r13
+0000000000302629	movq	%r13, %rdi
+000000000030262c	movq	-0x40(%rbp), %r12
+0000000000302630	movq	%r12, %rsi
+0000000000302633	movq	%r14, %rdx
+0000000000302636	callq	0x6dff8a                        ## symbol stub for: _memcpy
+000000000030263b	movq	%r13, 0x60(%rbx)
+000000000030263f	movq	%r15, 0x68(%rbx)
+0000000000302643	movq	-0x30(%rbp), %rax
+0000000000302647	movq	%rax, 0x70(%rbx)
+000000000030264b	testq	%r12, %r12
+000000000030264e	je	0x302658
+0000000000302650	movq	%r12, %rdi
+0000000000302653	callq	0x6dfc36                        ## symbol stub for: __ZdlPv
+0000000000302658	movq	%r15, 0x68(%rbx)
+000000000030265c	addq	$0x18, %rsp
+0000000000302660	popq	%rbx
+0000000000302661	popq	%r12
+0000000000302663	popq	%r13
+0000000000302665	popq	%r14
+0000000000302667	popq	%r15
+0000000000302669	popq	%rbp
+000000000030266a	retq
+000000000030266b	callq	__ZNSt3__16vectorIP15OZQuadraticPathNS_9allocatorIS2_EEE20__throw_length_errorB9nqe210106Ev ## std::__1::vector<OZQuadraticPath*, std::__1::allocator<OZQuadraticPath*>>::__throw_length_error[abi:nqe210106]()
+0000000000302670	callq	__ZSt28__throw_bad_array_new_lengthB9nqe210106v ## std::__throw_bad_array_new_length[abi:nqe210106]()
+0000000000302675	nopw	%cs:(%rax,%rax)

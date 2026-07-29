@@ -1,0 +1,85 @@
+__ZN13OZVectorShape11isOnOutlineERK9PCVector2IfE:
+0000000000302a80	movq	0x60(%rdi), %rcx
+0000000000302a84	movq	0x68(%rdi), %rdx
+0000000000302a88	cmpq	%rdx, %rcx
+0000000000302a8b	je	0x302b9a
+0000000000302a91	pushq	%rbp
+0000000000302a92	movq	%rsp, %rbp
+0000000000302a95	movsd	(%rsi), %xmm0
+0000000000302a99	movaps	0x405120(%rip), %xmm1
+0000000000302aa0	movaps	0x405a99(%rip), %xmm2
+0000000000302aa7	movsd	0x4050a9(%rip), %xmm3
+0000000000302aaf	xorps	%xmm4, %xmm4
+0000000000302ab2	jmp	0x302acd
+0000000000302ab4	nopw	%cs:(%rax,%rax)
+0000000000302ac0	addq	$0x8, %rcx
+0000000000302ac4	cmpq	%rdx, %rcx
+0000000000302ac7	je	0x302ba1
+0000000000302acd	movq	(%rcx), %rsi
+0000000000302ad0	movq	0x8(%rsi), %rdi
+0000000000302ad4	jmp	0x302ae4
+0000000000302ad6	nopw	%cs:(%rax,%rax)
+0000000000302ae0	movq	0x8(%rdi), %rdi
+0000000000302ae4	cmpq	%rsi, %rdi
+0000000000302ae7	je	0x302ac0
+0000000000302ae9	movq	0x10(%rdi), %r8
+0000000000302aed	movl	(%r8), %eax
+0000000000302af0	cmpl	$0x1, %eax
+0000000000302af3	je	0x302b50
+0000000000302af5	testl	%eax, %eax
+0000000000302af7	jne	0x302ae0
+0000000000302af9	movsd	0x4(%r8), %xmm7
+0000000000302aff	movsd	0xc(%r8), %xmm5
+0000000000302b05	subps	%xmm7, %xmm5
+0000000000302b08	movaps	%xmm0, %xmm6
+0000000000302b0b	subps	%xmm7, %xmm6
+0000000000302b0e	movaps	%xmm5, %xmm7
+0000000000302b11	shufps	$0xe1, %xmm5, %xmm7             ## xmm7 = xmm7[1,0],xmm5[2,3]
+0000000000302b15	mulps	%xmm6, %xmm7
+0000000000302b18	movshdup	%xmm7, %xmm8                    ## xmm8 = xmm7[1,1,3,3]
+0000000000302b1d	subss	%xmm8, %xmm7
+0000000000302b22	andps	%xmm1, %xmm7
+0000000000302b25	cvtss2sd	%xmm7, %xmm7
+0000000000302b29	ucomisd	%xmm3, %xmm7
+0000000000302b2d	ja	0x302ae0
+0000000000302b2f	mulps	%xmm5, %xmm6
+0000000000302b32	movshdup	%xmm6, %xmm7                    ## xmm7 = xmm6[1,1,3,3]
+0000000000302b36	addps	%xmm6, %xmm7
+0000000000302b39	ucomiss	%xmm7, %xmm4
+0000000000302b3c	ja	0x302ae0
+0000000000302b3e	mulps	%xmm5, %xmm5
+0000000000302b41	movshdup	%xmm5, %xmm6                    ## xmm6 = xmm5[1,1,3,3]
+0000000000302b45	addss	%xmm5, %xmm6
+0000000000302b49	ucomiss	%xmm6, %xmm7
+0000000000302b4c	ja	0x302ae0
+0000000000302b4e	jmp	0x302b9d
+0000000000302b50	movsd	0x4(%r8), %xmm5
+0000000000302b56	movaps	%xmm0, %xmm6
+0000000000302b59	subps	%xmm5, %xmm6
+0000000000302b5c	andps	%xmm1, %xmm6
+0000000000302b5f	cmpltps	%xmm2, %xmm6
+0000000000302b63	unpcklps	%xmm6, %xmm6                    ## xmm6 = xmm6[0,0,1,1]
+0000000000302b66	movmskpd	%xmm6, %r9d
+0000000000302b6b	movb	$0x1, %al
+0000000000302b6d	cmpl	$0x3, %r9d
+0000000000302b71	je	0x302b98
+0000000000302b73	movsd	0xc(%r8), %xmm5
+0000000000302b79	movaps	%xmm0, %xmm6
+0000000000302b7c	subps	%xmm5, %xmm6
+0000000000302b7f	andps	%xmm1, %xmm6
+0000000000302b82	cmpltps	%xmm2, %xmm6
+0000000000302b86	unpcklps	%xmm6, %xmm6                    ## xmm6 = xmm6[0,0,1,1]
+0000000000302b89	movmskpd	%xmm6, %r8d
+0000000000302b8e	cmpl	$0x3, %r8d
+0000000000302b92	jne	0x302ae0
+0000000000302b98	popq	%rbp
+0000000000302b99	retq
+0000000000302b9a	xorl	%eax, %eax
+0000000000302b9c	retq
+0000000000302b9d	movb	$0x1, %al
+0000000000302b9f	popq	%rbp
+0000000000302ba0	retq
+0000000000302ba1	xorl	%eax, %eax
+0000000000302ba3	popq	%rbp
+0000000000302ba4	retq
+0000000000302ba5	nopw	%cs:(%rax,%rax)
