@@ -83,6 +83,9 @@ export type OZChannelFolderPtr = object | null | undefined;
 export type OZChannelImplPtr = object | null | undefined;
 export type OZChannelInfoPtr = object | null | undefined;
 export type OZSplineStatePtr = object | null | undefined;
+/** OZCurveInt — opaque marker for the int-typed curve instance (sizeof 0xb0 from `movl $0xb0,%edi`
+ *  @Ozone 0xdf580 and @ProChannel 0x44fe). Its internal layout is not exposed by this class. */
+export type OZCurveInt = { readonly __ozcurveint: true } | object;
 /** PCString — reference-counted immutable string; opaque here (base ctor consumes it). */
 export type PCString = { readonly __pcstring: true } | string;
 
@@ -512,5 +515,429 @@ export class OZChannelUint32 {
 
     // @0xdf60f — return the new curve.
     return curve;
+  }
+}
+
+// ================================================================================================
+// ProChannel-framework counterpart methods
+// ================================================================================================
+//
+// OZChannelUint32 is compiled and registered under BOTH Ozone.framework AND ProChannel.framework
+// (each is a separate x86_64 dylib slice). The Ozone slice above covers 4 ctor bodies + the curve
+// factory (all @Ozone 0xADDR). The ProChannel slice defines an ADDITIONAL 9 method bodies at
+// completely different addresses (`nm -n` on ProChannel.framework/Versions/A/ProChannel confirms
+// — see raw-port/army/inventory/ProChannel.syms.txt). Adds:
+//   * OZChannelUint32(OZFactory*, PCString&, uint, impl, info)  @ProChannel 0x423c
+//   * OZChannelUint32(PCString&, folder, uint, uint, impl, info) @ProChannel 0x97b34
+//   * createOZChannelUint32Info()                                @ProChannel 0x42ec
+//   * createOZChannelUint32Impl()                                @ProChannel 0x4336
+//   * createOZChannelUint32Impl()::lambda                        @ProChannel 0x44da
+//   * getObjCWrapperName()                                       @ProChannel 0x1cc3c
+//   * ~OZChannelUint32() D1                                      @ProChannel 0x1ce9a
+//   * ~OZChannelUint32() D0                                      @ProChannel 0x1cea4
+//   * clone() const                                              @ProChannel 0x1cec0
+//
+// STRUCT LAYOUT DELTA (ProChannel slice — confirms header layout):
+//   sizeof(OZChannelUint32) = 0x98 == 152 bytes           ; from `movl $0x98,%edi` @0x1ceca in clone().
+//   `__ZTV15OZChannelUint32` (ProChannel slice) at 0xd1f90 (nm confirms). Vptr targets:
+//       primary  = 0xd1fa0 = __ZTV+0x10        ; leaq 0xb50b5(%rip) @0x1ceeb (RIP=0x1cef2 → 0xd1fa0).
+//       secondary= 0xd2300 = __ZTV+0x370       ; leaq 0xb540b(%rip) @0x1cef5 (RIP=0x1cefc → 0xd2300).
+
+/** External `__ZN9OZChannelC2ERKS_P15OZChannelFolder` — OZChannel copy-ctor.
+ *  Called by clone() @ProChannel 0x1cedf. NOT yet transcribed. */
+function OZChannel_pc_copy_ctor(
+  _self: OZChannelUint32,
+  _other: OZChannelUint32,
+  _folder: OZChannelFolderPtr | null,
+): void {
+  throw new Error(
+    "OZChannel::OZChannel(OZChannel const&, OZChannelFolder*) @ProChannel U-extern " +
+    "__ZN9OZChannelC2ERKS_P15OZChannelFolderPtr (defined in ProChannel; not yet transcribed) — " +
+    "invoked by OZChannelUint32::clone() @ProChannel 0x1cedf"
+  );
+}
+
+/** External `__ZN9OZChannelD2Ev` — OZChannel base dtor. Called by D1 tail-jmp @ProChannel 0x1ce9f
+ *  and D0 body @0x1cead. NOT yet transcribed. */
+function OZChannel_pc_base_dtor(_self: OZChannelUint32): void {
+  throw new Error(
+    "OZChannel::~OZChannel() @ProChannel U-extern __ZN9OZChannelD2Ev " +
+    "(defined in ProChannel; not yet transcribed) — invoked by OZChannelUint32 D1 tail-jmp " +
+    "@ProChannel 0x1ce9f and D0 @ProChannel 0x1cead"
+  );
+}
+
+/** External `__ZN9OZChannelC2EP9OZFactoryRK8PCStringP15OZChannelFolderjjP13OZChannelImplP13OZChannelInfo`
+ *  — OZChannel base ctor. Called by every ProChannel-slice OZChannelUint32 ctor. NOT yet transcribed. */
+function OZChannel_pc_base_ctor(
+  _self: OZChannelUint32,
+  _factory: OZFactoryPtr,
+  _name: string,
+  _folder: OZChannelFolderPtr | null,
+  _uint1: number,
+  _uint2: number,
+  _impl: OZChannelImplPtr | null,
+  _info: OZChannelInfoPtr | null,
+): void {
+  throw new Error(
+    "OZChannel::OZChannel(OZFactory*, PCString const&, OZChannelFolder*, uint, uint, " +
+    "OZChannelImpl*, OZChannelInfo*) @ProChannel U-extern " +
+    "__ZN9OZChannelC2EP9OZFactoryRK8PCStringP15OZChannelFolderjjP13OZChannelImplP13OZChannelInfo " +
+    "(defined in ProChannel; not yet transcribed) — invoked by OZChannelUint32 ctors " +
+    "@ProChannel 0x4263 and @ProChannel 0x97b81"
+  );
+}
+
+/** External `__Z30getOZChannelUint32_FactoryBasev` — factory base accessor called by ProChannel
+ *  ctor @0x97b58. NOT yet transcribed. */
+function getOZChannelUint32_FactoryBase_ProChannel(): OZFactoryPtr {
+  throw new Error(
+    "getOZChannelUint32_FactoryBase() @ProChannel U-extern __Z30getOZChannelUint32_FactoryBasev " +
+    "(defined in ProChannel; not yet transcribed) — invoked by OZChannelUint32 " +
+    "PCString-folder ctor @ProChannel 0x97b58"
+  );
+}
+
+/** External `__ZN10OZCurveIntC2Ed` — OZCurveInt(double) ctor. Called from lambda @ProChannel 0x4511.
+ *  NOT yet transcribed. */
+function OZCurveInt_ctor_d_ProChannel(_self: OZCurveInt, _initVal: number): void {
+  throw new Error(
+    "OZCurveInt::OZCurveInt(double) @ProChannel U-extern __ZN10OZCurveIntC2Ed " +
+    "(defined in ProChannel; not yet transcribed) — invoked by " +
+    "OZChannelUint32::createOZChannelUint32Impl::lambda @ProChannel 0x4511"
+  );
+}
+
+/** External `__ZN13OZChannelImplC2EP7OZCurvedjb` — OZChannelImplPtr ctor. Called from lambda @0x4529
+ *  with args (curve, 0.0, 1, true). NOT yet transcribed. */
+function OZChannelImpl_ctor_pc(
+  _self: OZChannelImplPtr,
+  _curve: OZCurveInt,
+  _defaultValue: number,
+  _uint1: number,
+  _bool1: boolean,
+): void {
+  throw new Error(
+    "OZChannelImpl::OZChannelImpl(OZCurve*, double, unsigned int, bool) @ProChannel U-extern " +
+    "__ZN13OZChannelImplC2EP7OZCurvedjb (defined in ProChannel; not yet transcribed) — " +
+    "invoked by OZChannelUint32::createOZChannelUint32Impl::lambda @ProChannel 0x4529"
+  );
+}
+
+/** External `__ZN13OZChannelImplD2Ev` — OZChannelImplPtr base dtor. Unwind path @0x4568. */
+function OZChannelImpl_dtor_pc_u32(_self: OZChannelImplPtr): void {
+  throw new Error(
+    "OZChannelImpl::~OZChannelImpl() @ProChannel U-extern __ZN13OZChannelImplD2Ev " +
+    "(defined in ProChannel; not yet transcribed) — invoked by " +
+    "OZChannelUint32::createOZChannelUint32Impl::lambda unwind @ProChannel 0x4568"
+  );
+}
+
+/** External `__ZN11PCSingletonC2Ej` — PCSingleton(uint) ctor. Called from lambda @0x453a with slotID=0x64. */
+function PCSingleton_ctor_pc_u32(_self: PCSingletonU32, _slotID: number): void {
+  throw new Error(
+    "PCSingleton::PCSingleton(unsigned int) @ProChannel U-extern __ZN11PCSingletonC2Ej " +
+    "(defined in ProChannel; not yet transcribed) — invoked by " +
+    "OZChannelUint32::createOZChannelUint32Impl::lambda @ProChannel 0x453a (slotID = 0x64)"
+  );
+}
+
+/** Placeholder for the PCSingleton subobject embedded at (impl + 0x28) in the lambda. */
+interface PCSingletonU32 {
+  readonly _prochannelPCSingletonU32Marker: true;
+}
+
+/**
+ * OZChannelUint32::getObjCWrapperName() @ProChannel 0x1cc3c.
+ *
+ * Faithful transcription:
+ *   @0x1cc40: leaq 0xc8129(%rip), %rax   ; RIP-post=0x1cc47, +0xc8129 = 0xe4d70 in __cfstring.
+ *             CFString struct at 0xe4d70:  cstr ptr = 0xbc4b8, length = 15.
+ *             Reading __TEXT,__cstring @0xbc4b8 (file offset) yields the literal
+ *             bytes b'CHChannelUint32\x00' — the 15-char ObjC wrapper class name.
+ *   @0x1cc47: retq                       ; return the CFString pointer.
+ */
+export function OZChannelUint32_getObjCWrapperName(): string {
+  return "CHChannelUint32"; // @ProChannel cfstring @0xe4d70 -> cstring @0xbc4b8 (len 15)
+}
+
+/**
+ * OZChannelUint32::~OZChannelUint32() D1 @ProChannel 0x1ce9a.
+ *
+ * Faithful transcription:
+ *   @0x1ce9a-9e: push %rbp / mov %rsp,%rbp / pop %rbp     ; empty frame.
+ *   @0x1ce9f:    jmp __ZN9OZChannelD2Ev                    ; tail-call base dtor.
+ *
+ * OZChannelUint32 owns no fields beyond OZChannel — every derived slot (impl/info) is either
+ * a shared singleton or caller-owned. Base dtor handles everything.
+ */
+export function OZChannelUint32_D1(self: OZChannelUint32): void {
+  // Tail-call @ProChannel 0x1ce9f — OZChannel base dtor cleans up all inherited state.
+  OZChannel_pc_base_dtor(self);
+}
+
+/**
+ * OZChannelUint32::~OZChannelUint32() D0 @ProChannel 0x1cea4.
+ *
+ * Faithful transcription:
+ *   @0x1cea4-a9: standard prologue (push %rbp, mov %rsp,%rbp, push %rbx, push %rax).
+ *   @0x1ceaa:    mov %rdi,%rbx                            ; save `this`.
+ *   @0x1cead:    callq __ZN9OZChannelD2Ev                 ; run base dtor.
+ *   @0x1ceb2-ba: epilogue.
+ *   @0x1cebb:    jmp __ZdlPv                              ; tail-call operator delete(void*).
+ */
+export function OZChannelUint32_D0(self: OZChannelUint32): void {
+  // @ProChannel 0x1cead — base dtor.
+  OZChannel_pc_base_dtor(self);
+  // @ProChannel 0x1cebb — operator delete(void*). No-op in JS (GC-managed).
+  operator_delete_u32(self);
+}
+
+/** `__ZdlPv` — global `operator delete(void*)`. Trivial: releases heap memory. GC handles this in JS.
+ *  Cited so the transcription is complete. @ProChannel symbol stub @0xace04. */
+function operator_delete_u32(_ptr: unknown): void {
+  // Explicit no-op — the raw heap free has no language-level counterpart in JS.
+}
+
+/**
+ * OZChannelUint32::clone() const @ProChannel 0x1cec0.
+ *
+ * Faithful transcription:
+ *   Step 1 @0x1ceca:  `movl $0x98,%edi`                      ; sizeof(OZChannelUint32) = 0x98.
+ *   Step 2 @0x1cecf:  `callq __Znwm`                          ; ::operator new(0x98).
+ *   Step 3 @0x1ced4-dd: save alloc into %rbx, feed copy-ctor with %rsi=other, %rdx=NULL folder.
+ *   Step 4 @0x1cedf:  `callq __ZN9OZChannelC2ERKS_P15OZChannelFolder` — base copy-ctor.
+ *   Step 5 @0x1cee4-eb: write primary vptr `__ZTV15OZChannelUint32 + 0x10` (data addr 0xd1fa0) at (new+0x00).
+ *                       leaq 0xb50b5(%rip) resolves to 0xd1fa0.
+ *   Step 6 @0x1ceee-f5: write secondary vptr `__ZTV15OZChannelUint32 + 0x370` (data addr 0xd2300) at (new+0x10).
+ *                       leaq 0xb540b(%rip) resolves to 0xd2300.
+ *   Step 7 @0x1cef9:  `mov %rbx,%rax`                        ; return the new instance.
+ *   Exception path @0x1cf01-0f: `__ZdlPv(alloc)` + `__Unwind_Resume` if copy-ctor threw.
+ */
+export function OZChannelUint32_clone(self: OZChannelUint32): OZChannelUint32 {
+  // Step 1-2 @ProChannel 0x1ceca-cf — allocate sizeof(OZChannelUint32)=0x98 = 152 bytes.
+  const cloned = Object.create(null) as OZChannelUint32;
+
+  // Step 4 @ProChannel 0x1cedf — OZChannel(const&, folder=null). Frontier throw.
+  OZChannel_pc_copy_ctor(cloned, self, /*folder*/ null);
+
+  // Steps 5-6 — vptr writes @ProChannel 0x1ceeb/0x1cef5. Data addrs 0xd1fa0 and 0xd2300 (both
+  // inside __ZTV15OZChannelUint32 @0xd1f90 at offsets +0x10 and +0x370). Implicit in JS shape.
+
+  // Step 7 @ProChannel 0x1cef9 — return the clone.
+  return cloned;
+}
+
+/**
+ * OZChannelUint32::createOZChannelUint32Info() @ProChannel 0x42ec.
+ *
+ * Faithful transcription (standard std::call_once pattern):
+ *   @0x42f4:  load `_OZChannelUint32Info_once` into %rax.
+ *   @0x42fb-ff: cmpq $-1,%rax ; je 0x4326                   ; skip if already initialized.
+ *   @0x4301-21: set up std::call_once with args (once, lambda_capture, __call_once_proxy<lambda>);
+ *              the lambda's body is std::once_proxy-wrapped and NOT symbol-visible in the
+ *              framework slice (populates the _OZChannelUint32Info global).
+ *   @0x4321:  callq __ZNSt3__111__call_onceERVmPvPFvS2_E    ; std::__1::__call_once.
+ *   @0x4326-2d: load `_OZChannelUint32Info` global + deref, return.
+ */
+export function OZChannelUint32_createOZChannelUint32Info(): OZChannelInfoPtr {
+  // @ProChannel 0x4301-21 — std::call_once wraps _OZChannelUint32Info_once_body (below).
+  return _OZChannelUint32Info_once_body();
+}
+
+/** The `_OZChannelUint32Info` lambda body (std::once_proxy-wrapped, no direct symbol exposed).
+ *  NOT yet decoded. */
+function _OZChannelUint32Info_once_body(): OZChannelInfoPtr {
+  throw new Error(
+    "OZChannelUint32::createOZChannelUint32Info()::lambda @ProChannel U-extern " +
+    "(bound via __ZNSt3__117__call_once_proxyB9nqe210106INS_5tupleIJOZN15OZChannelUint3225createOZChannelUint32InfoEvEUlvE_EEEEEvPv" +
+    " -- lambda body not symbol-visible; not yet transcribed). Referenced by " +
+    "OZChannelUint32::createOZChannelUint32Info() @ProChannel 0x431a"
+  );
+}
+
+/**
+ * OZChannelUint32::createOZChannelUint32Impl() @ProChannel 0x4336.
+ *
+ * Faithful transcription (identical shape to createOZChannelUint32Info):
+ *   @0x433e:  load `_OZChannelUint32Impl_once`.
+ *   @0x4345-49: cmpq $-1 ; je 0x4370                        ; skip if initialized.
+ *   @0x434b-6b: std::call_once(once, lambda_capture, __call_once_proxy<lambda>) —
+ *              lambda body IS decoded here (see next function @0x44da).
+ *   @0x436b:  callq __ZNSt3__111__call_onceERVmPvPFvS2_E    ; std::__1::__call_once.
+ *   @0x4370-77: load `_OZChannelUint32Impl` global + deref, return.
+ */
+export function OZChannelUint32_createOZChannelUint32Impl(): OZChannelImplPtr {
+  // @ProChannel 0x434b-6b — std::call_once wraps the lambda (below).
+  return OZChannelUint32_createOZChannelUint32Impl_lambda();
+}
+
+/**
+ * OZChannelUint32::createOZChannelUint32Impl()::'lambda'() @ProChannel 0x44da.
+ *
+ * Faithful transcription (parallel to the OZChannelDouble equivalent, but with OZCurveInt):
+ *   Step  1 @0x44e4:  leaq _OZChannelUint32Impl(%rip),%r15   ; addr of the shared singleton slot.
+ *   Step  2 @0x44eb-ef: cmpq $0,(%r15) ; jne 0x4557         ; skip if slot already set.
+ *   Step  3 @0x44f1-f6: `movl $0x30,%edi ; call __Znwm`     ; alloc 48 bytes for OZChannelImpl.
+ *   Step  4 @0x44fb:  mov %rax,%rbx                          ; save impl.
+ *   Step  5 @0x44fe-503: `movl $0xb0,%edi ; call __Znwm`    ; alloc 176 bytes for OZCurveInt.
+ *   Step  6 @0x4508:  mov %rax,%r14                          ; save curve.
+ *   Step  7 @0x450b-11: `xorps %xmm0,%xmm0 ; mov %rax,%rdi ;
+ *                          call __ZN10OZCurveIntC2Ed`         ; OZCurveInt::OZCurveInt(0.0).
+ *   Step  8 @0x4516-29: `xorps %xmm0,%xmm0 ; mov %rbx,%rdi ; mov %r14,%rsi ; movl $1,%edx ;
+ *                          movl $1,%ecx ; call __ZN13OZChannelImplC2EP7OZCurvedjb`
+ *                          ; OZChannelImpl(curve=r14, defaultValue=0.0, uint1=1, bool1=true).
+ *   Step  9 @0x452e-3a: `mov %rbx,%rdi ; add $0x28,%rdi ; movl $0x64,%esi ; call __ZN11PCSingletonC2Ej`
+ *                          ; PCSingleton in-place at (impl + 0x28) with slotID = 0x64.
+ *   Step 10 @0x453f-46: `leaq 0xc7172(%rip),%rax ; mov %rax,(%rbx)`
+ *                          ; primary vptr at impl+0x00 -> data addr 0xcb6b8
+ *                            (= __ZTV19OZChannelUint32Impl @0xcb6a8 + 0x10).
+ *   Step 11 @0x4549-50: `leaq 0xc7188(%rip),%rax ; mov %rax,0x28(%rbx)`
+ *                          ; secondary vptr at impl+0x28 -> data addr 0xcb6d8
+ *                            (= __ZTV19OZChannelUint32Impl + 0x30).
+ *   Step 12 @0x4554:  `mov %rbx,(%r15)`                     ; publish into _OZChannelUint32Impl.
+ *   Exception paths @0x4562-8a: same 3-arm cleanup as the OZChannelDouble variant.
+ */
+function OZChannelUint32_createOZChannelUint32Impl_lambda(): OZChannelImplPtr {
+  // Step 3 @ProChannel 0x44f1 — sizeof(OZChannelImpl) = 0x30 (48 bytes).
+  const impl = Object.create(null) as OZChannelImplPtr & {
+    _pcSingleton?: PCSingletonU32;
+  };
+
+  // Step 5-7 @ProChannel 0x44fe-511 — alloc + ctor OZCurveInt(0.0).
+  //   sizeof(OZCurveInt) = 0xb0 (176 bytes); xmm0=0.0 (xorps @0x450b).
+  const curve = Object.create(null) as OZCurveInt;
+  OZCurveInt_ctor_d_ProChannel(curve, 0.0);
+
+  // Step 8 @ProChannel 0x4516-29 — OZChannelImpl(curve, 0.0, 1, true).
+  //   defaultValue = 0.0                                    (xorps %xmm0,%xmm0 @0x4516)
+  //   uint1        = 1                                      (movl $1,%edx      @0x451f)
+  //   bool1        = true                                   (movl $1,%ecx      @0x4524)
+  OZChannelImpl_ctor_pc(impl, curve, /*defaultValue*/ 0.0, /*uint1*/ 1, /*bool1*/ true);
+
+  // Step 9 @ProChannel 0x452e-3a — PCSingleton in-place at impl+0x28 with slotID = 0x64.
+  const pcs = Object.create(null) as PCSingletonU32;
+  PCSingleton_ctor_pc_u32(pcs, /*slotID*/ 0x64);
+  impl._pcSingleton = pcs;
+
+  // Steps 10-11 — vptr writes @ProChannel 0x4546/0x4550. Data addrs 0xcb6b8 and 0xcb6d8, both
+  // inside __ZTV19OZChannelUint32Impl @0xcb6a8 at offsets +0x10 and +0x30. Implicit in JS shape.
+
+  // Step 12 @ProChannel 0x4554 — publish. Global-slot semantics wrapped in the enclosing
+  // createOZChannelUint32Impl() call_once shell above.
+  return impl;
+}
+
+/**
+ * OZChannelUint32::OZChannelUint32(OZFactory*, PCString const&, uint, OZChannelImpl*, OZChannelInfo*)
+ * @ProChannel 0x423c.
+ *
+ * Faithful transcription:
+ *   Step 1 @0x4249-52:  save regs: r15=info, r14=impl, r8d=uint1 (from ecx), rbx=this.
+ *   Step 2 @0x4255-5e:  put info (r15) at [rsp+0x8], impl (r14) at [rsp+0] (stack args for base).
+ *   Step 3 @0x425e-60:  `xorl %ecx,%ecx ; xorl %r9d,%r9d`   ; folder=NULL, uint2=0 (fixed).
+ *   Step 4 @0x4263:     callq OZChannel::OZChannel(this, factory, name, folder=NULL, uint1, uint2=0, impl, info).
+ *   Step 5 @0x4268-77:  write primary vptr `__ZTV15OZChannelUint32 + 0x10` at (this+0)      = 0xd1fa0.
+ *   Step 6 @0x427c:     write secondary vptr `__ZTV15OZChannelUint32 + 0x370` at (this+0x10) = 0xd2300.
+ *   Step 7 @0x4280:     callq createOZChannelUint32Info() — idempotent lazy singleton init.
+ *   Step 8 @0x4285-a4:  if r15(info) != NULL: mirror (this+0x88)->(this+0x80).
+ *                       else load _OZChannelUint32Info and write to BOTH (this+0x88) and (this+0x80).
+ *   Step 9 @0x42ab:     callq createOZChannelUint32Impl() — idempotent lazy singleton init.
+ *   Step 10 @0x42b0-c9: if r14(impl) != NULL: mirror (this+0x78)->(this+0x70).
+ *                        else load _OZChannelUint32Impl and write to BOTH (this+0x78) and (this+0x70).
+ *   Exception path @0x42d8-e6: OZChannel::~OZChannel() + __Unwind_Resume.
+ *
+ * Semantics: this OZFactory-forwarding ctor is called from OZChannelUint32_Factory::create() to
+ * build an instance with a caller-nominated factory but no folder attachment. It always passes
+ * folder=NULL and uint2=0 to the base ctor.
+ */
+export function OZChannelUint32_ctor_factory(
+  self: OZChannelUint32,
+  factory: OZFactoryPtr,
+  name: string,
+  uint1: number,                    // ecx / arg-4 (unsigned int)
+  impl: OZChannelImplPtr | null,
+  info: OZChannelInfoPtr | null,
+): void {
+  // Step 4 @ProChannel 0x4263 — OZChannel base ctor with folder=NULL, uint2=0.
+  OZChannel_pc_base_ctor(self, factory, name, /*folder*/ null, uint1, /*uint2*/ 0, impl, info);
+  // Steps 5-6 — vptrs implicit in JS shape.
+  //   +0x00  <- __ZTV15OZChannelUint32 + 0x10   (data addr 0xd1fa0)
+  //   +0x10  <- __ZTV15OZChannelUint32 + 0x370  (data addr 0xd2300)
+
+  // Steps 7-8 — Info singleton or caller-supplied.
+  OZChannelUint32_createOZChannelUint32Info();
+  if (info !== null) {
+    // Base ctor already wrote info at (self+0x88); mirror (self+0x88) -> (self+0x80). @0x428a-a4.
+    (self as OZChannelUint32 & { info?: OZChannelInfoPtr }).info = info;
+  } else {
+    // @0x4293: load _OZChannelUint32Info and write it to BOTH slots.
+    (self as OZChannelUint32 & { info?: OZChannelInfoPtr }).info = _OZChannelUint32Info_once_body();
+  }
+
+  // Steps 9-10 — Impl singleton or caller-supplied.
+  OZChannelUint32_createOZChannelUint32Impl();
+  if (impl !== null) {
+    (self as OZChannelUint32 & { impl?: OZChannelImplPtr }).impl = impl;
+  } else {
+    (self as OZChannelUint32 & { impl?: OZChannelImplPtr }).impl = OZChannelUint32_createOZChannelUint32Impl_lambda();
+  }
+}
+
+/**
+ * OZChannelUint32::OZChannelUint32(PCString const&, OZChannelFolder*, uint, uint, OZChannelImpl*, OZChannelInfo*)
+ * @ProChannel 0x97b34.
+ *
+ * Faithful transcription:
+ *   Step 1 @0x97b45-55: save regs: r15=impl (%r9), [rbp-0x2c]=uint2 (%r8d), r12d=uint1 (%ecx),
+ *                        r13=folder (%rdx), r14=name (%rsi), rbx=this (%rdi). info is at
+ *                        0x10(%rbp) (7th arg via stack under sysV).
+ *   Step 2 @0x97b58:   callq getOZChannelUint32_FactoryBase() -> %rax   ; internally-fetched factory.
+ *   Step 3 @0x97b5d-6a: put stack-arg info at [rsp+0x8], impl (r15) at [rsp+0]; save r15 to [rbp-0x38].
+ *   Step 4 @0x97b6e-81: register moves + `callq OZChannel::OZChannel(...)` — full 7-arg base ctor.
+ *   Step 5 @0x97b86-9a: write primary vptr `__ZTV + 0x10` (0xd1fa0) and secondary vptr `__ZTV + 0x370` (0xd2300).
+ *   Step 6 @0x97b9e:   callq createOZChannelUint32Info() — idempotent lazy init.
+ *   Step 7 @0x97ba3-c4: null-check info (at 0x10(%rbp)): if non-null, mirror (this+0x88)->(this+0x80);
+ *                        else load _OZChannelUint32Info and write to BOTH.
+ *   Step 8 @0x97bcb:   callq createOZChannelUint32Impl() — idempotent lazy init.
+ *   Step 9 @0x97bd0-eb: null-check impl (at -0x38(%rbp) = saved r15): if non-null, mirror
+ *                         (this+0x78)->(this+0x70); else load _OZChannelUint32Impl and write to BOTH.
+ *   Exception path @0x97bfe-0c: OZChannel::~OZChannel() + __Unwind_Resume.
+ *
+ * Semantics: this variant is what OZChannelUint32_Factory::createChannel() invokes when no
+ * caller-supplied factory is available — it internally sources `getOZChannelUint32_FactoryBase()`
+ * and forwards it to the OZChannel base ctor along with the caller's folder + uint1/uint2 + impl/info.
+ */
+export function OZChannelUint32_ctor_named(
+  self: OZChannelUint32,
+  name: string,
+  folder: OZChannelFolderPtr | null,
+  uint1: number,                    // ecx / arg-4
+  uint2: number,                    // r8d / arg-5
+  impl: OZChannelImplPtr | null,
+  info: OZChannelInfoPtr | null,
+): void {
+  // Step 2 @ProChannel 0x97b58 — fetch the internal factory. Frontier throw.
+  const factory = getOZChannelUint32_FactoryBase_ProChannel();
+
+  // Step 4 @ProChannel 0x97b81 — base ctor with all 7 args.
+  OZChannel_pc_base_ctor(self, factory, name, folder, uint1, uint2, impl, info);
+
+  // Steps 5 — vptrs implicit.
+
+  // Steps 6-7 — Info handling. Symmetric to the OZFactoryPtr ctor above.
+  OZChannelUint32_createOZChannelUint32Info();
+  if (info !== null) {
+    (self as OZChannelUint32 & { info?: OZChannelInfoPtr }).info = info;
+  } else {
+    (self as OZChannelUint32 & { info?: OZChannelInfoPtr }).info = _OZChannelUint32Info_once_body();
+  }
+
+  // Steps 8-9 — Impl handling.
+  OZChannelUint32_createOZChannelUint32Impl();
+  if (impl !== null) {
+    (self as OZChannelUint32 & { impl?: OZChannelImplPtr }).impl = impl;
+  } else {
+    (self as OZChannelUint32 & { impl?: OZChannelImplPtr }).impl = OZChannelUint32_createOZChannelUint32Impl_lambda();
   }
 }
