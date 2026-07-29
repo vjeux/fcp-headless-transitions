@@ -180,3 +180,72 @@ export function PCIsUsableNCLCCode(code: PCNCLCCode): boolean {
   if (supportedTransfersTable[transfer] === 0) return false;    // cmpb ; je @0xc2113..17
   return supportedMatricesTable[matrix] !== 0;                  // movb (%rdx,%rax), %al @0xc2120
 }
+
+/**
+ * `operator<(PCNCLCCode const& lhs, PCNCLCCode const& rhs)` — the free ADL comparator
+ * that libc++ picks up so `std::less<PCNCLCCode>` (used by `std::set<PCNCLCCode>` and
+ * `std::map<PCNCLCCode, T>` in ProCore's colour-cache layer) can order two triples.
+ *
+ * Symbol: __ZltRK10PCNCLCCodeS1_   @ProCore 0xc22bd
+ * Disasm: raw-port/re/disasm/ProCore.__ZltRK10PCNCLCCodeS1_.s (14 lines total).
+ *
+ * Byte-exact transcription:
+ *
+ *   0xc22bd  pushq %rbp
+ *   0xc22be  movq  %rsp, %rbp
+ *   0xc22c1  movl  (%rsi), %eax            ; eax = rhs->primaries          (+0x00)
+ *   0xc22c3  cmpl  %eax, (%rdi)            ; flags = lhs->primaries - eax  (AT&T: dst-src)
+ *   0xc22c5  jne   0xc22d5                 ; if (lhs.p != rhs.p) go to setl using THOSE flags
+ *   0xc22c7  movl  0x4(%rsi), %eax         ; eax = rhs->transfer           (+0x04)
+ *   0xc22ca  cmpl  %eax, 0x4(%rdi)         ; flags = lhs->transfer - eax
+ *   0xc22cd  jne   0xc22d5                 ; if (lhs.t != rhs.t) go to setl
+ *   0xc22cf  movl  0x8(%rdi), %eax         ; eax = lhs->matrix             (+0x08)
+ *   0xc22d2  cmpl  0x8(%rsi), %eax         ; flags = eax - rhs->matrix = lhs.m - rhs.m
+ *   0xc22d5  setl  %al                     ; al = 1 iff signed-less (SF^OF == 1)
+ *   0xc22d8  popq  %rbp
+ *   0xc22d9  retq
+ *
+ * The three `cmpl`s all leave SF/OF set by `lhs.<field> - rhs.<field>` (AT&T is `dst - src`):
+ *   - @0xc22c3 `cmpl %eax, (%rdi)` computes `(%rdi) - %eax` = `lhs.p - rhs.p`  → setl → lhs.p < rhs.p
+ *   - @0xc22ca `cmpl %eax, 0x4(%rdi)` computes `lhs.t - rhs.t`                 → setl → lhs.t < rhs.t
+ *   - @0xc22d2 `cmpl 0x8(%rsi), %eax` computes `eax - 0x8(%rsi)` = `lhs.m - rhs.m` → setl → lhs.m < rhs.m
+ *
+ * Semantics: strict lexicographic less-than on (primaries, transfer, matrix), comparing each
+ * u32 field with SIGNED order (the disasm uses `setl`, not `setb`). Two triples with all
+ * three fields equal fall through to the third `cmpl` which yields zero (equal), so `setl`
+ * returns 0 — i.e. `!(a < b)` and `!(b < a)` together imply equality, giving `std::less` a
+ * total order suitable for RB-tree keying.
+ *
+ * The three fields hold ISO/IEC 23001-8 code points (small u32s in the range 0..18). Signed
+ * vs unsigned comparison is observably identical for values ≤ 0x7fffffff, but the port
+ * preserves the SIGNED comparison the codegen chose so the ordering stays bit-exact with
+ * the binary at any input.
+ *
+ * NO callees — no in-scope deps. The function reads six int32s and returns a bool.
+ */
+export function PCNCLCCode_operator_lt(lhs: PCNCLCCode, rhs: PCNCLCCode): boolean {
+  // @0xc22c1  eax = rhs.primaries.
+  // @0xc22c3  cmpl %eax, (%rdi)   ; flags = lhs.p - rhs.p (AT&T: dst - src).
+  // @0xc22c5  jne  0xc22d5        ; if (lhs.p != rhs.p) skip to setl with these flags.
+  const lp = lhs.primaries | 0;
+  const rp = rhs.primaries | 0;
+  if (lp !== rp) {
+    // @0xc22d5 setl (signed less) on (lhs.p - rhs.p).
+    return lp < rp;
+  }
+  // @0xc22c7  eax = rhs.transfer.
+  // @0xc22ca  cmpl %eax, 0x4(%rdi) ; flags = lhs.t - rhs.t.
+  // @0xc22cd  jne  0xc22d5         ; if (lhs.t != rhs.t) skip to setl with these flags.
+  const lt = lhs.transfer | 0;
+  const rt = rhs.transfer | 0;
+  if (lt !== rt) {
+    // @0xc22d5 setl on (lhs.t - rhs.t).
+    return lt < rt;
+  }
+  // @0xc22cf  eax = lhs.matrix.
+  // @0xc22d2  cmpl 0x8(%rsi), %eax ; flags = eax - rhs.m = lhs.m - rhs.m.
+  // @0xc22d5  setl on those flags.
+  const lm = lhs.matrix | 0;
+  const rm = rhs.matrix | 0;
+  return lm < rm;
+}
