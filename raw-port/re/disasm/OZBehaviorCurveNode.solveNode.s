@@ -1,0 +1,61 @@
+__ZN19OZBehaviorCurveNode9solveNodeER16OZCurveNodeParam:
+000000000020b8f0	movl	0x90(%rsi), %eax
+000000000020b8f6	testq	%rax, %rax
+000000000020b8f9	je	0x20b9d8
+000000000020b8ff	pushq	%rbp
+000000000020b900	movq	%rsp, %rbp
+000000000020b903	movq	0x98(%rsi), %rcx
+000000000020b90a	movq	0x50(%rsi), %rdx
+000000000020b90e	cmpl	$0x6, %eax
+000000000020b911	setb	%sil
+000000000020b915	movq	%rcx, %rdi
+000000000020b918	subq	%rdx, %rdi
+000000000020b91b	cmpq	$0x20, %rdi
+000000000020b91f	setb	%dil
+000000000020b923	orb	%sil, %dil
+000000000020b926	je	0x20b92c
+000000000020b928	xorl	%esi, %esi
+000000000020b92a	jmp	0x20b963
+000000000020b92c	movl	%eax, %esi
+000000000020b92e	andl	$-0x4, %esi
+000000000020b931	leaq	(,%rax,8), %rdi
+000000000020b939	andq	$-0x20, %rdi
+000000000020b93d	xorl	%r8d, %r8d
+000000000020b940	movups	(%rdx,%r8), %xmm0
+000000000020b945	movups	0x10(%rdx,%r8), %xmm1
+000000000020b94b	movups	%xmm0, (%rcx,%r8)
+000000000020b950	movups	%xmm1, 0x10(%rcx,%r8)
+000000000020b956	addq	$0x20, %r8
+000000000020b95a	cmpq	%r8, %rdi
+000000000020b95d	jne	0x20b940
+000000000020b95f	cmpl	%eax, %esi
+000000000020b961	je	0x20b9d7
+000000000020b963	movq	%rax, %r8
+000000000020b966	movq	%rsi, %rdi
+000000000020b969	andq	$0x3, %r8
+000000000020b96d	je	0x20b992
+000000000020b96f	movq	%rsi, %rdi
+000000000020b972	nopw	%cs:(%rax,%rax)
+000000000020b980	movsd	(%rdx,%rdi,8), %xmm0
+000000000020b985	movsd	%xmm0, (%rcx,%rdi,8)
+000000000020b98a	incq	%rdi
+000000000020b98d	decq	%r8
+000000000020b990	jne	0x20b980
+000000000020b992	subq	%rax, %rsi
+000000000020b995	cmpq	$-0x4, %rsi
+000000000020b999	ja	0x20b9d7
+000000000020b99b	nopl	(%rax,%rax)
+000000000020b9a0	movsd	(%rdx,%rdi,8), %xmm0
+000000000020b9a5	movsd	%xmm0, (%rcx,%rdi,8)
+000000000020b9aa	movsd	0x8(%rdx,%rdi,8), %xmm0
+000000000020b9b0	movsd	%xmm0, 0x8(%rcx,%rdi,8)
+000000000020b9b6	movsd	0x10(%rdx,%rdi,8), %xmm0
+000000000020b9bc	movsd	%xmm0, 0x10(%rcx,%rdi,8)
+000000000020b9c2	movsd	0x18(%rdx,%rdi,8), %xmm0
+000000000020b9c8	movsd	%xmm0, 0x18(%rcx,%rdi,8)
+000000000020b9ce	addq	$0x4, %rdi
+000000000020b9d2	cmpq	%rdi, %rax
+000000000020b9d5	jne	0x20b9a0
+000000000020b9d7	popq	%rbp
+000000000020b9d8	retq
+000000000020b9d9	nopl	(%rax)
