@@ -1,0 +1,38 @@
+__ZN18HGHybridQTGammaLog6Decode9GetOutputEP10HGRenderer:
+0000000000102280	pushq	%rbp
+0000000000102281	movq	%rsp, %rbp
+0000000000102284	pushq	%r14
+0000000000102286	pushq	%rbx
+0000000000102287	movq	%rdi, %rbx
+000000000010228a	movq	0x198(%rdi), %r14
+0000000000102291	movq	%rsi, %rdi
+0000000000102294	movq	%rbx, %rsi
+0000000000102297	xorl	%edx, %edx
+0000000000102299	callq	__ZN10HGRenderer8GetInputEP6HGNodei ## HGRenderer::GetInput(HGNode*, int)
+000000000010229e	movq	(%r14), %rcx
+00000000001022a1	movq	%r14, %rdi
+00000000001022a4	xorl	%esi, %esi
+00000000001022a6	movq	%rax, %rdx
+00000000001022a9	callq	*0x78(%rcx)
+00000000001022ac	movq	0x198(%rbx), %rdi
+00000000001022b3	movss	0x1a0(%rbx), %xmm0
+00000000001022bb	movq	(%rdi), %rax
+00000000001022be	xorps	%xmm1, %xmm1
+00000000001022c1	xorps	%xmm2, %xmm2
+00000000001022c4	xorps	%xmm3, %xmm3
+00000000001022c7	xorl	%esi, %esi
+00000000001022c9	callq	*0x60(%rax)
+00000000001022cc	movq	0x198(%rbx), %rdi
+00000000001022d3	movss	0x1a4(%rbx), %xmm1
+00000000001022db	movss	0x1a8(%rbx), %xmm2
+00000000001022e3	movss	0x1ac(%rbx), %xmm3
+00000000001022eb	movq	(%rdi), %rax
+00000000001022ee	movss	0x2cecc6(%rip), %xmm0
+00000000001022f6	movl	$0x1, %esi
+00000000001022fb	callq	*0x60(%rax)
+00000000001022fe	movq	0x198(%rbx), %rax
+0000000000102305	popq	%rbx
+0000000000102306	popq	%r14
+0000000000102308	popq	%rbp
+0000000000102309	retq
+000000000010230a	nopw	(%rax,%rax)
