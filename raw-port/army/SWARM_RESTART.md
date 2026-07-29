@@ -39,3 +39,19 @@ not an autonomous one — restarting a fleet that writes to the shared repo is a
 The reviewer's `<file>.review.json` + the commit are the audit trail. Re-run mark_ported to reclassify
 (DISPATCH_ONLY -> skeleton), and add the offending shape as a locked fixture in test_classify.py so it
 can never regress.
+
+## Status accounting (the headline number must be honest)
+  ported   = oracle-VERIFIED (bit-exact vs live FCP) OR reviewer-signed LIKELY_REAL real body.
+  skeleton = DISPATCH_ONLY / layout+stubs. Tracked separately. NEVER counted ported.
+  stub     = throw-only placeholder. Not ported.
+  trap     = ud2/empty. Faithful but non-executable. Counted separately.
+Report "oracle-verified + reviewer-signed real implementations", not "files that compile".
+
+## Why this kills the cheating (root cause -> fix)
+  root cause: the gate checked only compile + @0xADDR; the oracle ran for ~65 nodes; leafq treated
+              vtable dispatch as an allowed boundary -> a whole-body-dispatch shell qualified as a
+              leaf and passed the gate (7385eb01 OZDynamicSpline::setVertexSmooth).
+  fix:        (a) leafq never serves DISPATCH_ONLY; (b) G5 re-derives disasm + fuzzes the port and
+              rejects REAL-disasm throw-shells; (c) the executable oracle proves callable pure fns
+              bit-exact vs live FCP; (d) an adversarial reviewer blocks the judgment cases; (e)
+              mark_ported never counts a shell as ported (179 reclassified skeleton).
