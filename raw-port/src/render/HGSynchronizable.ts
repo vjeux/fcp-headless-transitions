@@ -123,6 +123,17 @@ function pthread_mutex_lock_default(_mutexPtr: HGSynchronizable): void {
 let _pthread_mutex_lock_impl: (m: HGSynchronizable) => void =
   pthread_mutex_lock_default;
 
+/** `_pthread_mutex_unlock` — POSIX mutex release. Called (tail) from
+ *  Unlock @0x194aa2 via Helium stub 0x3c5570. TRUE out-of-scope extern
+ *  (libSystem.B.dylib). Same modelling as _pthread_mutex_lock above:
+ *  injectable stub whose default is a no-op (mirrors PCSharedMutex.ts). */
+function pthread_mutex_unlock_default(_mutexPtr: HGSynchronizable): void {
+  // No-op default (single-thread semantics). See file header notes.
+}
+
+let _pthread_mutex_unlock_impl: (m: HGSynchronizable) => void =
+  pthread_mutex_unlock_default;
+
 // =========================================================================
 // The class
 // =========================================================================
@@ -175,6 +186,14 @@ export class HGSynchronizable {
    */
   static setPthreadMutexLock(fn: (m: HGSynchronizable) => void): void {
     _pthread_mutex_lock_impl = fn;
+  }
+
+  /**
+   * Install a caller-supplied `pthread_mutex_unlock()` implementation.
+   * Default is a no-op (see pthread_mutex_unlock_default).
+   */
+  static setPthreadMutexUnlock(fn: (m: HGSynchronizable) => void): void {
+    _pthread_mutex_unlock_impl = fn;
   }
 
   /**
@@ -234,5 +253,96 @@ export class HGSynchronizable {
     // @0x194a72..0x194a76 — epilogue, return.
     // ------------------------------------------------------------
     this.ownerTid = _pthread_self_impl();
+  }
+
+  /**
+   * `HGSynchronizable::Unlock()` — @Helium 0x194a80
+   * (__ZN16HGSynchronizable6UnlockEv).
+   *
+   * Faithful line-for-line transcription of the disassembly at
+   * raw-port/re/disasm/Helium.__ZN16HGSynchronizable6UnlockEv.s.
+   *
+   * FULL DISASM:
+   *   0x194a80  pushq  %rbp                        ; prologue
+   *   0x194a81  movq   %rsp, %rbp
+   *   0x194a84  movq   0x50(%rdi), %rax            ; rax = this->recurseCount
+   *   0x194a88  testq  %rax, %rax                  ; recurseCount == 0?
+   *   0x194a8b  je     0x194a96                    ; yes → outermost release
+   *   0x194a8d  decq   %rax                        ; rax = recurseCount - 1
+   *   0x194a90  movq   %rax, 0x50(%rdi)            ; this->recurseCount = rax
+   *   0x194a94  popq   %rbp                        ; epilogue
+   *   0x194a95  retq
+   *   0x194a96  xorps  %xmm0, %xmm0                ; 16 bytes of zero
+   *   0x194a99  movups %xmm0, 0x48(%rdi)           ; this->ownerTid = 0 AND
+   *                                                ; this->recurseCount = 0
+   *                                                ; (unaligned 128-bit write
+   *                                                ;  covers +0x48..+0x57)
+   *   0x194a9d  addq   $0x8, %rdi                  ; rdi = &this->mutex
+   *   0x194aa1  popq   %rbp
+   *   0x194aa2  jmp    _pthread_mutex_unlock       ; TAIL-CALL (Helium stub 0x3c5570)
+   *
+   * Semantics: symmetric to Lock's recursive-mutex algorithm.
+   *   1. Load `recurseCount` (@0x194a84).
+   *   2. If nonzero (i.e. we're inside a recursive re-acquire), just
+   *      decrement it (@0x194a8d..0x194a90) and return. No pthread call.
+   *   3. If zero (outermost release), clear BOTH `ownerTid` and
+   *      `recurseCount` in one 128-bit XMM write (@0x194a96..0x194a99;
+   *      `movups %xmm0, 0x48(%rdi)` writes 16 bytes at +0x48..+0x57,
+   *      exactly the two u64 fields), then tail-call
+   *      `_pthread_mutex_unlock(&this->mutex)` to release the POSIX
+   *      mutex embedded at +0x08.
+   *
+   * NOTE on the fast-path check: `testq %rax, %rax; je …` fires iff
+   * `recurseCount == 0`, meaning we entered without recursion. The
+   * initial "before Unlock" state is: `recurseCount == 0` (Lock reset
+   * it to 0 on outermost acquire @0x194a61, and every subsequent
+   * `Lock` increments it, every `Unlock` decrements it). So Unlock
+   * with `recurseCount == 0` == "we are at the outermost level, this
+   * IS the release call".
+   *
+   * Frontier: `_pthread_mutex_unlock` @Helium stub 0x3c5570 — TRUE
+   * out-of-scope extern (libSystem.B.dylib), same policy as the
+   * _pthread_mutex_lock/_pthread_self frontier stubs used by Lock().
+   */
+  Unlock(): void {
+    // ------------------------------------------------------------
+    // @0x194a80..0x194a81 — prologue.
+    // @0x194a84 — rax = this->recurseCount.
+    // ------------------------------------------------------------
+    const count: bigint = this.recurseCount;
+    // ------------------------------------------------------------
+    // @0x194a88..0x194a8b — testq %rax,%rax; je slow.
+    //   ZF=1 iff rax==0. je fires on ZF=1 → count == 0.
+    //   So the FAST path (recursive decrement) runs when count != 0.
+    // ------------------------------------------------------------
+    if (count !== 0n) {
+      // ------------------------------------------------------------
+      // @0x194a8d — decq %rax  (rax = count - 1).
+      // @0x194a90 — movq %rax, 0x50(%rdi)  (this->recurseCount = rax).
+      // @0x194a94..0x194a95 — pop rbp; retq.
+      // ------------------------------------------------------------
+      this.recurseCount = count - 1n;
+      return;
+    }
+    // ------------------------------------------------------------
+    // OUTERMOST RELEASE PATH.
+    // @0x194a96..0x194a99 — movups %xmm0(=0), 0x48(%rdi).
+    //   Writes 16 zero bytes at +0x48..+0x57, i.e. simultaneously:
+    //     this->ownerTid     (+0x48) = 0
+    //     this->recurseCount (+0x50) = 0
+    // ------------------------------------------------------------
+    this.ownerTid = 0n;
+    this.recurseCount = 0n;
+    // ------------------------------------------------------------
+    // @0x194a9d — addq $8, %rdi  (rdi = &this->mutex, since the
+    // pthread_mutex_t sits at this+0x08 per the recovered layout).
+    // @0x194aa1..0x194aa2 — pop rbp; jmp _pthread_mutex_unlock
+    //   (TAIL-CALL to Helium stub 0x3c5570 — TRUE out-of-scope
+    //    extern from libSystem.B.dylib).
+    // We pass `this` as the mutex handle (the stub knows the +0x08
+    // offset is a compile-time constant); default impl is a no-op,
+    // matching single-thread semantics — see the file header.
+    // ------------------------------------------------------------
+    _pthread_mutex_unlock_impl(this);
   }
 }
