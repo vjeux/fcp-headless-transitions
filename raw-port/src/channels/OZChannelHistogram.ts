@@ -294,21 +294,148 @@ export class OZChannelHistogram {
   // getObjCWrapperName, all ctors/dtors, serializer plumbing.
   // ---------------------------------------------------------------------------
 
-  /** getBlackOut(int) — @ProChannel 0x70444 (ICF-folded with getBlackIn; jump-table permutation TBD). */
-  getBlackOut(_channel: number): OZChannel_forHistogram | null {
-    throw new Error("OZChannelHistogram::getBlackOut(int) @0x70444 not yet transcribed (ICF-folded; needs per-symbol disasm)");
+  // ---------------------------------------------------------------------------
+  // getBlackOut / getWhiteIn / getWhiteOut / getGamma — pointer accessors that share
+  // getBlackIn's exact 15-instruction jump-table shape.  otool -tV's linear sweep
+  // could not label them because the preceding function's jump-table data (5×2 bytes
+  // of `.byte 0xff` filler between the retq and the next function) throws otool out
+  // of sync; the true function starts were recovered via `nm -n | c++filt` and the
+  // bodies via `llvm-objdump -d --disassemble-symbols=<sym>` on the thin x86_64 slice
+  // (per Anti-Shortcut §disasm).  Disasm files written next to this port:
+  //
+  //   raw-port/re/disasm/ProChannel.OZChannelHistogram.getBlackOut.s   @0x70444
+  //   raw-port/re/disasm/ProChannel.OZChannelHistogram.getWhiteIn.s    @0x704a4
+  //   raw-port/re/disasm/ProChannel.OZChannelHistogram.getWhiteOut.s   @0x70504
+  //   raw-port/re/disasm/ProChannel.OZChannelHistogram.getGamma.s      @0x70564
+  //
+  // All four share getBlackIn's caller-channel-to-band PERMUTATION [0, 4, 2, 3, 1]
+  // (verified from the constant table at the tail of each function — the physical
+  // offsets in-order are +0x000, +0x1000, +0x900, +0xc80, +0x580 into the band
+  // stride, i.e. base + n·0x380 for n = 0, 4, 2, 3, 1).  The per-method BASE offset
+  // is the sub-parameter's fixed intra-band offset:
+  //
+  //   getBlackOut  base=0x2a8  = 0x210 + 0x98 (band.blackOut)   @0x70462..@0x70482
+  //   getWhiteIn   base=0x340  = 0x210 + 0x130 (band.whiteIn)   @0x704c2..@0x704e2
+  //   getWhiteOut  base=0x3d8  = 0x210 + 0x1c8 (band.whiteOut)  @0x70522..@0x70542
+  //   getGamma     base=0x470  = 0x210 + 0x260 (band.gamma)     @0x70582..@0x705a2
+
+  /**
+   * getBlackOut(channel) — @ProChannel 0x70444.
+   *
+   * ```
+   *   @0x70444  pushq %rbp; movq %rsp, %rbp
+   *   @0x7044a  cmpl $0x4, %esi; ja 0x7048a                    ; return 0 if channel > 4
+   *   @0x7044d  movq %rdi, %rax; movl %esi, %ecx
+   *   @0x70452  leaq 0x37(%rip), %rdx                          ; jump table @0x70490
+   *   @0x70459  movslq (%rdx,%rcx,4), %rcx; addq %rdx, %rcx; jmpq *%rcx
+   *   -- c=0 →  addq $0x2a8,  %rax; jmp 0x7048c                ; this + 0x2a8
+   *   -- c=1 →  addq $0x10a8, %rax; jmp 0x7048c                ; this + 0x10a8
+   *   -- c=2 →  addq $0x9a8,  %rax; jmp 0x7048c                ; this + 0x9a8
+   *   -- c=3 →  addq $0xd28,  %rax; jmp 0x7048c                ; this + 0xd28
+   *   -- c=4 →  addq $0x628,  %rax; jmp 0x7048c                ; this + 0x628
+   *   @0x7048a  xorl %eax, %eax                                 ; return 0
+   * ```
+   *
+   * Offset set = {0x2a8, 0x10a8, 0x9a8, 0xd28, 0x628} = 0x2a8 + n·0x380 for
+   * n ∈ {0,4,2,3,1} (same permutation as getBlackIn).
+   *
+   * @provenance ProChannel @0x70444..@0x7048d.
+   */
+  getBlackOut(channel: number): OZChannel_forHistogram | null {
+    // @0x7044a  cmpl $0x4, %esi; ja 0x7048a
+    if ((channel >>> 0) > 4) return null; // @0x7048a `xorl %eax, %eax; ...; retq`
+    // Jump-table permutation identical to getBlackIn (offsets base + n·0x380 for
+    // n = 0, 4, 2, 3, 1 as channel steps 0, 1, 2, 3, 4).
+    // @provenance ProChannel @0x70462 / @0x7046a / @0x70472 / @0x7047a / @0x70482.
+    const bandIndex = [0, 4, 2, 3, 1][channel]!;
+    return this.bands[bandIndex]!.blackOut;
   }
-  /** getWhiteIn(int) — @ProChannel 0x704a4. */
-  getWhiteIn(_channel: number): OZChannel_forHistogram | null {
-    throw new Error("OZChannelHistogram::getWhiteIn(int) @0x704a4 not yet transcribed");
+
+  /**
+   * getWhiteIn(channel) — @ProChannel 0x704a4.
+   *
+   * Identical shape to getBlackOut, base offset `+0x340`.
+   *
+   * ```
+   *   @0x704a4  pushq %rbp; movq %rsp, %rbp
+   *   @0x704aa  cmpl $0x4, %esi; ja 0x704ea
+   *   @0x704c2  addq $0x340,  %rax; jmp 0x704ec                ; this + 0x340
+   *   @0x704ca  addq $0x1140, %rax; jmp 0x704ec                ; this + 0x1140
+   *   @0x704d2  addq $0xa40,  %rax; jmp 0x704ec                ; this + 0xa40
+   *   @0x704da  addq $0xdc0,  %rax; jmp 0x704ec                ; this + 0xdc0
+   *   @0x704e2  addq $0x6c0,  %rax; jmp 0x704ec                ; this + 0x6c0
+   *   @0x704ea  xorl %eax, %eax; popq %rbp; retq
+   * ```
+   *
+   * Offset set = {0x340, 0x1140, 0xa40, 0xdc0, 0x6c0} = 0x340 + n·0x380 for
+   * n ∈ {0,4,2,3,1}.
+   *
+   * @provenance ProChannel @0x704a4..@0x704ed.
+   */
+  getWhiteIn(channel: number): OZChannel_forHistogram | null {
+    // @0x704aa  cmpl $0x4, %esi; ja 0x704ea
+    if ((channel >>> 0) > 4) return null;
+    // @provenance ProChannel @0x704c2 / @0x704ca / @0x704d2 / @0x704da / @0x704e2.
+    const bandIndex = [0, 4, 2, 3, 1][channel]!;
+    return this.bands[bandIndex]!.whiteIn;
   }
-  /** getWhiteOut(int) — @ProChannel 0x70504. */
-  getWhiteOut(_channel: number): OZChannel_forHistogram | null {
-    throw new Error("OZChannelHistogram::getWhiteOut(int) @0x70504 not yet transcribed");
+
+  /**
+   * getWhiteOut(channel) — @ProChannel 0x70504.
+   *
+   * Identical shape, base offset `+0x3d8`.
+   *
+   * ```
+   *   @0x70504  pushq %rbp; movq %rsp, %rbp
+   *   @0x7050a  cmpl $0x4, %esi; ja 0x7054a
+   *   @0x70522  addq $0x3d8,  %rax; jmp 0x7054c                ; this + 0x3d8
+   *   @0x7052a  addq $0x11d8, %rax; jmp 0x7054c                ; this + 0x11d8
+   *   @0x70532  addq $0xad8,  %rax; jmp 0x7054c                ; this + 0xad8
+   *   @0x7053a  addq $0xe58,  %rax; jmp 0x7054c                ; this + 0xe58
+   *   @0x70542  addq $0x758,  %rax; jmp 0x7054c                ; this + 0x758
+   *   @0x7054a  xorl %eax, %eax; popq %rbp; retq
+   * ```
+   *
+   * Offset set = {0x3d8, 0x11d8, 0xad8, 0xe58, 0x758} = 0x3d8 + n·0x380 for
+   * n ∈ {0,4,2,3,1}.
+   *
+   * @provenance ProChannel @0x70504..@0x7054d.
+   */
+  getWhiteOut(channel: number): OZChannel_forHistogram | null {
+    // @0x7050a  cmpl $0x4, %esi; ja 0x7054a
+    if ((channel >>> 0) > 4) return null;
+    // @provenance ProChannel @0x70522 / @0x7052a / @0x70532 / @0x7053a / @0x70542.
+    const bandIndex = [0, 4, 2, 3, 1][channel]!;
+    return this.bands[bandIndex]!.whiteOut;
   }
-  /** getGamma(int) — @ProChannel 0x70564. */
-  getGamma(_channel: number): OZChannel_forHistogram | null {
-    throw new Error("OZChannelHistogram::getGamma(int) @0x70564 not yet transcribed");
+
+  /**
+   * getGamma(channel) — @ProChannel 0x70564.
+   *
+   * Identical shape, base offset `+0x470`.
+   *
+   * ```
+   *   @0x70564  pushq %rbp; movq %rsp, %rbp
+   *   @0x7056a  cmpl $0x4, %esi; ja 0x705aa
+   *   @0x70582  addq $0x470,  %rax; jmp 0x705ac                ; this + 0x470
+   *   @0x7058a  addq $0x1270, %rax; jmp 0x705ac                ; this + 0x1270
+   *   @0x70592  addq $0xb70,  %rax; jmp 0x705ac                ; this + 0xb70
+   *   @0x7059a  addq $0xef0,  %rax; jmp 0x705ac                ; this + 0xef0
+   *   @0x705a2  addq $0x7f0,  %rax; jmp 0x705ac                ; this + 0x7f0
+   *   @0x705aa  xorl %eax, %eax; popq %rbp; retq
+   * ```
+   *
+   * Offset set = {0x470, 0x1270, 0xb70, 0xef0, 0x7f0} = 0x470 + n·0x380 for
+   * n ∈ {0,4,2,3,1}.
+   *
+   * @provenance ProChannel @0x70564..@0x705ad.
+   */
+  getGamma(channel: number): OZChannel_forHistogram | null {
+    // @0x7056a  cmpl $0x4, %esi; ja 0x705aa
+    if ((channel >>> 0) > 4) return null;
+    // @provenance ProChannel @0x70582 / @0x7058a / @0x70592 / @0x7059a / @0x705a2.
+    const bandIndex = [0, 4, 2, 3, 1][channel]!;
+    return this.bands[bandIndex]!.gamma;
   }
 
   /** clone() const — @ProChannel 0x702de. */
