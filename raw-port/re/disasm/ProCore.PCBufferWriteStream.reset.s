@@ -1,0 +1,8 @@
+__ZN19PCBufferWriteStream5resetEv:
+0000000000051826	pushq	%rbp
+0000000000051827	movq	%rsp, %rbp
+000000000005182a	movq	0x8(%rdi), %rax
+000000000005182e	movq	%rax, 0x10(%rdi)
+0000000000051832	movq	%rax, 0x20(%rdi)
+0000000000051836	popq	%rbp
+0000000000051837	retq

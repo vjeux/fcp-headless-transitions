@@ -1,0 +1,7 @@
+__ZN19PCBufferWriteStream6setPosEy:
+000000000005191c	pushq	%rbp
+000000000005191d	movq	%rsp, %rbp
+0000000000051920	addq	0x8(%rdi), %rsi
+0000000000051924	movq	%rsi, 0x10(%rdi)
+0000000000051928	popq	%rbp
+0000000000051929	retq
