@@ -41,6 +41,32 @@ if [ -n "$CHANGED" ]; then
   RC=0; ( cd "$GW" && bash raw-port/army/gate/gate.sh $GCHANGED ) || RC=$?
   git worktree remove --force "$GW" 2>/dev/null || true
   [ "$RC" = 0 ] || { echo "GATE FAILED for $BR — NOT merging"; exit 2; }
+
+  # --- REVIEWER SIGN-OFF GATE (worker cannot self-merge a real body) ---------------------------
+  # G5 (in gate.sh) blocks the mechanical cheat (REAL disasm + throw-only body). The adversarial
+  # reviewer (REVIEWER_BRIEF.md) covers what G5 can't: a throw-free body that is WRONG. Before merge,
+  # every changed src file must carry an ACCEPT verdict in <file>.review.json (verdict in
+  # {VERIFIED,LIKELY_REAL,TRAP,EMPTY} AND merge_allowed==true), written by the reviewer sub-agent.
+  # Escape hatch for the closely-watched pilot: WT_MERGE_SKIP_REVIEW=1 (logged, must be justified).
+  if [ "${WT_MERGE_SKIP_REVIEW:-0}" != "1" ]; then
+    REVIEW_FAIL=0
+    for f in $CHANGED; do
+      case "$f" in *.ts) ;; *) continue ;; esac
+      rev="${f}.review.json"
+      if [ ! -f "$rev" ]; then
+        echo "  REVIEW MISSING: $rev — reviewer (REVIEWER_BRIEF.md) must sign off before merge"; REVIEW_FAIL=1; continue
+      fi
+      ok=$(python3 -c "import json,sys;d=json.load(open('$rev'));print('1' if (d.get('merge_allowed') is True and d.get('verdict') in ('VERIFIED','LIKELY_REAL','TRAP','EMPTY')) else '0')" 2>/dev/null)
+      if [ "$ok" != "1" ]; then
+        echo "  REVIEW REJECTED/INVALID: $rev (verdict must be VERIFIED/LIKELY_REAL/TRAP/EMPTY + merge_allowed=true)"; REVIEW_FAIL=1
+      else
+        echo "  review OK: $(basename "$f")"
+      fi
+    done
+    [ "$REVIEW_FAIL" = 0 ] || { echo "REVIEWER GATE FAILED for $BR — NOT merging (set WT_MERGE_SKIP_REVIEW=1 to bypass in a watched pilot)"; exit 3; }
+  else
+    echo "  (reviewer gate BYPASSED via WT_MERGE_SKIP_REVIEW=1 — pilot mode)"
+  fi
 fi
 
 # --- Merge into main and push (from the MAIN worktree) -----------------------------------------
