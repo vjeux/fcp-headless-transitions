@@ -173,8 +173,11 @@ def cmd_next():
     _lock()
     try:
         c = _load()
-        leased = set(c["claimed"]) | set(c["done"])
-        skip = leased | set(c["failed"])
+        # GOAL = port EVERYTHING. Only skip classes that are DONE or currently CLAIMED by a live
+        # worker. NEVER skip on `failed`/`deferred` — a give-up must not permanently remove a class.
+        # (`failed` is legacy/frozen; `cmd_fail` now writes `deferred`, which _candidates orders LAST
+        # but still serves. `reclaim` drains any legacy `failed` back into the queue.)
+        skip = set(c["claimed"]) | set(c["done"])
         for n, fw, cls, ck in _candidates():
             key = f"{fw}:{cls}#{ck}" if ck is not None else f"{fw}:{cls}"
             if key in skip: continue
@@ -216,7 +219,10 @@ def cmd_claim(fw, cls, ck=None):
         key = _key(fw, cls, ck)
         if key in c["claimed"]: print(f"ALREADY-CLAIMED {key}"); return
         if key in c["done"]:    print(f"ALREADY-DONE {key}");    return
-        if key in c["failed"]:  print(f"ALREADY-FAILED {key} (use release to reclaim)"); return
+        # A previously-deferred/"failed" class is FAIR GAME — hand-picking it is exactly how we
+        # port the things earlier workers gave up on. Clear the stale exclusion and claim it.
+        c.get("failed", {}).pop(key, None)
+        c.get("deferred", {}).pop(key, None)
         # Verify the class exists in the ledger and count its methods.
         lp = os.path.join(LED, f"{fw}.ledger.json")
         if not os.path.exists(lp): print(f"NO-SUCH-FRAMEWORK {fw}"); return
@@ -229,6 +235,8 @@ def cmd_claim(fw, cls, ck=None):
         ckn = int(ck) if ck not in (None, "") else None
         if ckn is not None: rec["chunk"] = ckn
         c["claimed"][key] = rec
+        c.get("failed", {}).pop(key, None)      # claiming clears any stale defer/fail exclusion
+        c.get("deferred", {}).pop(key, None)
         _save(c)
         if ckn is not None: print(f"{fw}\t{cls}\t{n}\t{_layer(cls)}\tCHUNK={ckn}")
         else:               print(f"{fw}\t{cls}\t{n}\t{_layer(cls)}")
@@ -247,11 +255,41 @@ def cmd_done(fw, cls, ck=None):
     finally: _unlock()
 
 def cmd_fail(fw, cls, reason, ck=None):
+    # DEFER, don't DELETE. GOAL = port EVERYTHING (all 131,792 fns). A "facade" is NOT out of scope:
+    # ctors/dtors/field-layout are real FCP code; ObjC-dispatch bodies port via the H1 runtime harness;
+    # extern framework calls become boundary stubs (like _CGColorSpaceGetNumberOfComponents). So a
+    # worker giving up on a class only DEPRIORITIZES it — it must stay claimable. We record the defer
+    # in `deferred` (with reason + count), release the claim, and DO NOT add it to the permanent
+    # `failed` exclusion set. `_candidates()` still serves deferred classes, just at the lowest tier,
+    # so nothing is ever arbitrarily prevented from being ported.
     _lock()
     try:
         c = _load(); key = _key(fw, cls, ck)
-        c["claimed"].pop(key, None); c["failed"][key] = {"t": time.time(), "reason": reason}; _save(c)
-        print(f"failed {key}: {reason}")
+        c["claimed"].pop(key, None)
+        c.setdefault("deferred", {})
+        prev = c["deferred"].get(key, {})
+        c["deferred"][key] = {"t": time.time(), "reason": reason, "count": prev.get("count", 0) + 1}
+        _save(c)
+        print(f"deferred {key} (still claimable, lowest tier): {reason}")
+    finally: _unlock()
+
+def cmd_reclaim():
+    """Move EVERY class out of the permanent `failed` exclusion set back into the queue (as
+    `deferred`, lowest tier). Undoes the historical 'fail = delete forever' behavior so the swarm
+    can port everything. Idempotent."""
+    _lock()
+    try:
+        c = _load(); failed = c.get("failed", {}); c.setdefault("deferred", {})
+        n = 0
+        for key, rec in list(failed.items()):
+            reason = rec.get("reason", "") if isinstance(rec, dict) else ""
+            prev = c["deferred"].get(key, {})
+            c["deferred"][key] = {"t": time.time(), "reason": f"reclaimed: {reason}",
+                                   "count": prev.get("count", 0)}
+            n += 1
+        c["failed"] = {}
+        _save(c)
+        print(f"reclaimed {n} previously-failed classes back into the queue (deferred, lowest tier)")
     finally: _unlock()
 
 def cmd_release(fw, cls, ck=None):
@@ -262,7 +300,7 @@ def cmd_release(fw, cls, ck=None):
 
 def cmd_stats():
     c = _load(); cands = _candidates()
-    print(f"claimed={len(c['claimed'])} done={len(c['done'])} failed={len(c['failed'])} available_leaves={len(cands)}")
+    print(f"claimed={len(c['claimed'])} done={len(c['done'])} deferred={len(c.get('deferred',{}))} failed={len(c.get('failed',{}))} available_leaves={len(cands)}")
     if c["claimed"]:
         print("in-flight:", ", ".join(k.split(':')[1] for k in list(c["claimed"])[:20]))
 
@@ -314,6 +352,7 @@ if __name__ == "__main__":
     a = sys.argv[1:] or ["stats"]
     cmd = a[0]
     if cmd == "next": cmd_next()
+    elif cmd == "reclaim": cmd_reclaim()
     elif cmd == "claim": cmd_claim(a[1], a[2], a[3] if len(a) >= 4 and a[3].isdigit() else None)
     elif cmd == "next-shader": cmd_next_shader()
     elif cmd == "chunk": cmd_chunk(a[1], a[2], a[3])
@@ -323,4 +362,5 @@ if __name__ == "__main__":
         if len(a) >= 4 and a[-1].isdigit(): cmd_fail(a[1], a[2], " ".join(a[3:-1]) or "n/a", a[-1])
         else: cmd_fail(a[1], a[2], " ".join(a[3:]))
     elif cmd == "release": cmd_release(*a[1:])
+    elif cmd == "reclaim": cmd_reclaim()
     else: cmd_stats()
