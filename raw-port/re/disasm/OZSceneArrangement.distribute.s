@@ -1,0 +1,83 @@
+__ZN18OZSceneArrangement10distributeEv:
+0000000000505830	pushq	%rbp
+0000000000505831	movq	%rsp, %rbp
+0000000000505834	pushq	%r15
+0000000000505836	pushq	%r14
+0000000000505838	pushq	%r13
+000000000050583a	pushq	%r12
+000000000050583c	pushq	%rbx
+000000000050583d	subq	$0x58, %rsp
+0000000000505841	movl	0x114(%rdi), %r13d
+0000000000505848	cmpl	$0x3, %r13d
+000000000050584c	jge	0x50585d
+000000000050584e	addq	$0x58, %rsp
+0000000000505852	popq	%rbx
+0000000000505853	popq	%r12
+0000000000505855	popq	%r13
+0000000000505857	popq	%r14
+0000000000505859	popq	%r15
+000000000050585b	popq	%rbp
+000000000050585c	retq
+000000000050585d	movq	%rdi, %rbx
+0000000000505860	xorps	%xmm0, %xmm0
+0000000000505863	movaps	%xmm0, -0x80(%rbp)
+0000000000505867	movq	$0x0, -0x70(%rbp)
+000000000050586f	movslq	0x138(%rdi), %rax
+0000000000505876	movabsq	$0x3ff0000000000000, %rcx       ## imm = 0x3FF0000000000000
+0000000000505880	movq	%rcx, -0x80(%rbp,%rax,8)
+0000000000505885	movq	0x118(%rdi), %rax
+000000000050588c	movsd	0x8(%rax), %xmm0
+0000000000505891	decl	%r13d
+0000000000505894	leaq	(,%r13,2), %rcx
+000000000050589c	addq	%r13, %rcx
+000000000050589f	movsd	0x8(%rax,%rcx,8), %xmm1
+00000000005058a5	movsd	%xmm0, -0x58(%rbp)
+00000000005058aa	subsd	%xmm0, %xmm1
+00000000005058ae	movsd	%xmm1, -0x50(%rbp)
+00000000005058b3	xorps	%xmm0, %xmm0
+00000000005058b6	cvtsi2sd	%r13d, %xmm0
+00000000005058bb	movsd	%xmm0, -0x48(%rbp)
+00000000005058c0	movl	$0x1, %r14d
+00000000005058c6	movl	$0x29, %r15d
+00000000005058cc	jmp	0x5058e0
+00000000005058ce	nop
+00000000005058d0	incq	%r14
+00000000005058d3	addq	$0x18, %r15
+00000000005058d7	cmpq	%r14, %r13
+00000000005058da	je	0x50584e
+00000000005058e0	xorps	%xmm0, %xmm0
+00000000005058e3	cvtsi2sd	%r14d, %xmm0
+00000000005058e8	mulsd	-0x50(%rbp), %xmm0
+00000000005058ed	divsd	-0x48(%rbp), %xmm0
+00000000005058f2	addsd	-0x58(%rbp), %xmm0
+00000000005058f7	xorpd	0x201c61(%rip), %xmm0
+00000000005058ff	movlpd	%xmm0, -0x68(%rbp)
+0000000000505904	movslq	0x114(%rbx), %rax
+000000000050590b	cmpq	%rax, %r14
+000000000050590e	jl	0x505915
+0000000000505910	callq	0x6dd740                        ## symbol stub for: __ZN12PCArray_base8badIndexEv
+0000000000505915	movq	0x118(%rbx), %rax
+000000000050591c	cmpb	$0x0, (%rax,%r15)
+0000000000505921	jne	0x5058d0
+0000000000505923	leaq	(%rax,%r15), %r12
+0000000000505927	addq	$-0x11, %r12
+000000000050592b	xorpd	%xmm0, %xmm0
+000000000050592f	movapd	%xmm0, -0x40(%rbp)
+0000000000505934	movq	$0x0, -0x30(%rbp)
+000000000050593c	movsd	0x140(%rbx), %xmm0
+0000000000505944	movq	%r12, %rdi
+0000000000505947	leaq	-0x80(%rbp), %rsi
+000000000050594b	movq	%rbx, %rdx
+000000000050594e	leaq	-0x40(%rbp), %rcx
+0000000000505952	callq	__ZN18OZSceneArrangement27computeElementToPlaneOffsetERKNS_7ElementERK9PCVector4IdEdRK13OZRenderStateP9PCVector3IdE ## OZSceneArrangement::computeElementToPlaneOffset(OZSceneArrangement::Element const&, PCVector4<double> const&, double, OZRenderState const&, PCVector3<double>*)
+0000000000505957	testb	%al, %al
+0000000000505959	je	0x5058d0
+000000000050595f	movq	(%r12), %rdi
+0000000000505963	movsd	-0x40(%rbp), %xmm0
+0000000000505968	movsd	-0x38(%rbp), %xmm1
+000000000050596d	movsd	-0x30(%rbp), %xmm2
+0000000000505972	movq	%rbx, %rsi
+0000000000505975	movl	$0x1, %edx
+000000000050597a	callq	__ZN15OZTransformNode17offsetTranslationEdddRK6CMTimeb ## OZTransformNode::offsetTranslation(double, double, double, CMTime const&, bool)
+000000000050597f	jmp	0x5058d0
+0000000000505984	nopw	%cs:(%rax,%rax)
