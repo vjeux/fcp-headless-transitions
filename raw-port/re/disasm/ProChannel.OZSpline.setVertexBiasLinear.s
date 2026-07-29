@@ -1,0 +1,49 @@
+__ZN8OZSpline19setVertexBiasLinearEPvdRK6CMTime:
+000000000003c7fa	pushq	%rbp
+000000000003c7fb	movq	%rsp, %rbp
+000000000003c7fe	pushq	%r15
+000000000003c800	pushq	%r14
+000000000003c802	pushq	%r12
+000000000003c804	pushq	%rbx
+000000000003c805	subq	$0x20, %rsp
+000000000003c809	movq	%rdx, %rbx
+000000000003c80c	movsd	%xmm0, -0x28(%rbp)
+000000000003c811	movq	%rsi, %r14
+000000000003c814	movq	%rdi, %r15
+000000000003c817	xorl	%eax, %eax
+000000000003c819	leaq	-0x38(%rbp), %rsi
+000000000003c81d	movq	%rax, (%rsi)
+000000000003c820	leaq	-0x30(%rbp), %r12
+000000000003c824	movq	%rax, (%r12)
+000000000003c828	callq	__ZN8OZSpline19getFirstValidVertexEPPvRK6CMTime ## OZSpline::getFirstValidVertex(void**, CMTime const&)
+000000000003c82d	movq	%r15, %rdi
+000000000003c830	movq	%r12, %rsi
+000000000003c833	movq	%rbx, %rdx
+000000000003c836	callq	__ZN8OZSpline18getLastValidVertexEPPvRK6CMTime ## OZSpline::getLastValidVertex(void**, CMTime const&)
+000000000003c83b	cmpb	$0x0, 0x90(%r15)
+000000000003c843	jne	0x3c865
+000000000003c845	cmpq	$0x0, -0x38(%rbp)
+000000000003c84a	je	0x3c853
+000000000003c84c	cmpq	$0x0, -0x30(%rbp)
+000000000003c851	jne	0x3c865
+000000000003c853	movq	0xa0(%r15), %rax
+000000000003c85a	testq	%rax, %rax
+000000000003c85d	je	0x3c885
+000000000003c85f	cmpb	$0x1, 0x38(%rax)
+000000000003c863	jne	0x3c885
+000000000003c865	movq	(%r14), %rax
+000000000003c868	movq	%r14, %rdi
+000000000003c86b	movsd	-0x28(%rbp), %xmm0
+000000000003c870	movq	%rbx, %rsi
+000000000003c873	callq	*0x30(%rax)
+000000000003c876	movb	$0x1, %al
+000000000003c878	addq	$0x20, %rsp
+000000000003c87c	popq	%rbx
+000000000003c87d	popq	%r12
+000000000003c87f	popq	%r14
+000000000003c881	popq	%r15
+000000000003c883	popq	%rbp
+000000000003c884	retq
+000000000003c885	xorl	%eax, %eax
+000000000003c887	jmp	0x3c878
+000000000003c889	nop
