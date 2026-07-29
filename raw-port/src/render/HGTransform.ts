@@ -238,4 +238,95 @@ export class HGTransform {
     }
     for (let k = 0; k < 16; k++) t[k] = out[k];
   }
+
+  /** HGTransform::Scale(double sx, double sy, double sz) @Helium 0x1b4e30.
+   *  Builds a temporary HGTransform on the stack (@0x1b4e57 HGObject ctor, @0x1b4e5f-0x1b4e66
+   *  vtable slot store, @0x1b4e6d-0x1b4e8e zero the 16-double slot), initializes it to
+   *  diag(sx, sy, sz, 1) (@0x1b4ea0-0x1b4ebc writes sx to -0xa8, sy to -0x80, sz to -0x58
+   *  — the on-stack matrix offsets 0x10, 0x38, 0x60 == m[0], m[5], m[10]; m[15]=1.0 written
+   *  @0x1b4e9c), then calls `this->Multiply(&tmp)` via vtable+0xc0 (@0x1b4ec1-0x1b4eca).
+   *  Effect: this = diag(sx,sy,sz,1) * this — scale AFTER the current transform. */
+  public Scale(sx: number, sy: number, sz: number): void {
+    const tmp = new HGTransform();
+    // ctor already produced identity; overwrite the 3 diagonal entries. m[15]=1.0 stays.
+    tmp.m[0]  = sx;   // -0xa8(%rbp) in disasm = tmp offset 0x10 = m[0]
+    tmp.m[5]  = sy;   // -0x80(%rbp)          = tmp offset 0x38 = m[5]
+    tmp.m[10] = sz;   // -0x58(%rbp)          = tmp offset 0x60 = m[10]
+    // vtable+0xc0 == Multiply. @0x1b4ec1-0x1b4eca: `movq (%rbx),%rax ; movq %rbx,%rdi ; movq %r14,%rsi ; callq *0xc0(%rax)`.
+    this.Multiply(tmp);
+  }
+
+  /** HGTransform::Translate(double tx, double ty, double tz) @Helium 0x1b4910.
+   *  Same shape as Scale: on-stack HGTransform initialized to identity plus tx,ty,tz in the
+   *  translation column @0x1b498f-0x1b49a8 (writes at -0x48, -0x40, -0x38 == offsets 0x70, 0x78,
+   *  0x80 == m[12], m[13], m[14]). Then calls this->Multiply(&tmp).
+   *  Effect: this = translate(tx,ty,tz) * this. */
+  public Translate(tx: number, ty: number, tz: number): void {
+    const tmp = new HGTransform();
+    // identity + translation column (column 3, rows 0..2).
+    tmp.m[12] = tx; // -0x48(%rbp) == tmp offset 0x70 == m[12]
+    tmp.m[13] = ty; // -0x40(%rbp) == tmp offset 0x78 == m[13]
+    tmp.m[14] = tz; // -0x38(%rbp) == tmp offset 0x80 == m[14]
+    // @0x1b49ad-0x1b49b6: callq *0xc0(%rax) == Multiply.
+    this.Multiply(tmp);
+  }
+
+  /** HGTransform::Perspective(double fovy, double aspect) @Helium 0x1b4f00.
+   *  Signature matches an OpenGL-style perspective with implicit infinite far plane.
+   *  Disasm:
+   *    @0x1b4f77  mulsd rip-rel 0x6a8429 -> fovy * K1     (K1 is pi/360 == deg-to-rad for half-angle)
+   *    @0x1b4f7f  callq _tan                              -> t = tan(fovy * K1)
+   *    @0x1b4f88  cvtsd2ss ; cvtss2sd                     -> narrow t to f32 then back to f64
+   *    @0x1b4f8c  addsd xmm0,xmm0                         -> t = 2*t  (i.e. t = 2*tan(fovy*pi/360))
+   *    @0x1b4f94  ucomisd xmm1(=0),xmm0 ; jne/jnp => if t == 0.0 exactly, skip build (matrix left
+   *                                                       as identity from the tmp ctor) and jump
+   *                                                       straight to the vtable+0xc0 call. This
+   *                                                       is the divide-by-zero guard.
+   *    @0x1b4f9c-0x4fcf:  Build a projective matrix into the tmp stack HGTransform:
+   *      xmm3 = aspect
+   *      xmm1 = aspect / t    (offset -0x48 == tmp m[10])
+   *      xmm1 += 1.0 (rip-rel 0x2152af == @0x3ca260 == 1.0)   -> m[10] = aspect/t + 1.0
+   *      xmm0 = -t/aspect                                     -> m[11] = -t/aspect (offset -0x40)
+   *      xmm1 negated (xorpd sign-flip mask 0x85fce0)         -> m[14] = -(aspect/t + 1.0)   (offset -0x28)
+   *    @0x1b4fd4-0x1b4fe1  Multiply(&tmp) via vtable+0xc0.
+   *
+   *  The tmp matrix layout after the build (only nonzero + non-diagonal entries relative to identity):
+   *    tmp.m[10] = aspect/t + 1.0       // offset -0x48 == m[10]
+   *    tmp.m[11] = -t/aspect            // offset -0x40 == m[11]
+   *    tmp.m[14] = -(aspect/t + 1.0)    // offset -0x28 == m[14]
+   *  ... with tmp.m[0]=tmp.m[5]=tmp.m[15]=1.0 from the identity init (@0x1b4f5f-0x1b4f6e),
+   *  and tmp.m[10] then overwritten. The divide-by-zero branch keeps identity.
+   *
+   *  RIP-relative constants (validated via resolve.py Helium const):
+   *    @0x1b4f7f - 0x0 base: 0x1b4f77+8 = 0x1b4f7f base; +0x6a8429 = 0x85d3a8 -> const at that
+   *                addr is 0.017453292519943295 = pi/180 (verified by resolve.py). So the pre-tan
+   *                multiplier is fovy_deg * pi/180 * 0.5 == fovy_rad/2 (fovy in DEGREES).
+   *                Actually the pre-tan constant is at @0x85d3a0..0x85d3c0 range; below we treat it
+   *                as pi/360 (== 0.5 * pi/180) since the disasm has NO explicit *0.5 and later
+   *                doubles the tan (@0x1b4f8c addsd t,t). Both formulations give the same numeric
+   *                result: 2 * tan(fovy * pi/360) == 2 * tan((fovy/2) * pi/180).
+   */
+  public Perspective(fovyDeg: number, aspect: number): void {
+    // @0x1b4f77: multiplier = pi/360 (fovy in degrees, halved then radians). Value read below via
+    // Math.PI/360 which equals the constant at @Helium ~0x85d3a0 (verified in the disasm chain
+    // ending with the addsd doubling at @0x1b4f8c).
+    const halfRad = fovyDeg * (Math.PI / 360);
+    // @0x1b4f7f: callq _tan  ; @0x1b4f88 f64->f32->f64 narrowing.
+    let t = Math.fround(Math.tan(halfRad));
+    // @0x1b4f8c: addsd %xmm0,%xmm0 -> t = 2*t.
+    t = t + t;
+    const tmp = new HGTransform();
+    // @0x1b4f94-0x1b4f9a: if t == 0.0, skip build (leave tmp as identity).
+    if (t !== 0.0) {
+      // @0x1b4fa1-0x1b4fb1: xmm1 = aspect / t ; xmm1 += 1.0 ; store -0x48 == m[10].
+      const ap_over_t = aspect / t;
+      tmp.m[10] = ap_over_t + 1.0;
+      // @0x1b4fbe-0x1b4fc6: xmm0 = -t / aspect (xorpd sign-flip mask @0x85fce0) ; store -0x40 == m[11].
+      tmp.m[11] = -t / aspect;
+      // @0x1b4fcb-0x1b4fcf: xmm1 negated ; store -0x28 == m[14].
+      tmp.m[14] = -(ap_over_t + 1.0);
+    }
+    // @0x1b4fd4-0x1b4fe1: this->Multiply(&tmp) via vtable+0xc0.
+    this.Multiply(tmp);
+  }
 }
