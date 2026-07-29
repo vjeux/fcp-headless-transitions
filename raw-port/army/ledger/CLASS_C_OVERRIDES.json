@@ -262,5 +262,11 @@
   "addr": "0x0000000000056456",
   "demangled": "PCDelaunay::insertSegment(PCVector2<float>*, PCVector2<",
   "reason": "throw-only body (demote_stub_bodies census); symbol-keyed to survive addr collisions"
+ },
+ "__ZN34OZChannelPositionPercent3D_Factory11getInstanceEv": {
+  "fw": "ProChannel",
+  "addr": "0x00000000000a6186",
+  "demangled": "OZChannelPositionPercent3D_Factory::getInstance()",
+  "reason": "CHEAT INCIDENT 2026-07-29: Pattern-C fabricated-construction cheat (pre-gate, commit 27e5ee67, no review). getInstance fabricates 'new OZChannelPositionPercent3D_Factory()' + corrupted !==1 sentinel; disasm is cmpq $-0x1 + libc++ __call_once, no in-frame __Znwm. NOT a real port. Demoted from ported until reworked Style-A/B. Was the template dep-worker-05 copied to produce 8 more cheats."
  }
 }
