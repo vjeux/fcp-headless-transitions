@@ -1,0 +1,27 @@
+__ZN14OZDynamicCurve19isKeypointFlattenedEPvPb:
+000000000002973a	pushq	%rbp
+000000000002973b	movq	%rsp, %rbp
+000000000002973e	pushq	%r15
+0000000000029740	pushq	%r14
+0000000000029742	pushq	%r12
+0000000000029744	pushq	%rbx
+0000000000029745	movq	%rdx, %rbx
+0000000000029748	movq	%rsi, %r14
+000000000002974b	movq	%rdi, %r15
+000000000002974e	addq	$0x8, %r15
+0000000000029752	movq	%r15, %rdi
+0000000000029755	callq	__ZN8OZSpline13isValidHandleEPv ## OZSpline::isValidHandle(void*)
+000000000002975a	movl	%eax, %r12d
+000000000002975d	testb	%al, %al
+000000000002975f	je	0x2976e
+0000000000029761	movq	%r15, %rdi
+0000000000029764	movq	%r14, %rsi
+0000000000029767	callq	__ZN15OZDynamicSpline17isVertexFlattenedEPv ## OZDynamicSpline::isVertexFlattened(void*)
+000000000002976c	movb	%al, (%rbx)
+000000000002976e	movl	%r12d, %eax
+0000000000029771	popq	%rbx
+0000000000029772	popq	%r12
+0000000000029774	popq	%r14
+0000000000029776	popq	%r15
+0000000000029778	popq	%rbp
+0000000000029779	retq

@@ -1,0 +1,40 @@
+__ZN14OZDynamicCurve17getVertexToInsertERK6CMTimedPdS3_S3_S3_S3_:
+0000000000029810	pushq	%rbp
+0000000000029811	movq	%rsp, %rbp
+0000000000029814	pushq	%r15
+0000000000029816	pushq	%r14
+0000000000029818	pushq	%r13
+000000000002981a	pushq	%r12
+000000000002981c	pushq	%rbx
+000000000002981d	subq	$0x28, %rsp
+0000000000029821	movq	%r9, -0x38(%rbp)
+0000000000029825	movq	%r8, -0x30(%rbp)
+0000000000029829	movq	%rcx, %r15
+000000000002982c	movq	%rdx, %r12
+000000000002982f	movq	%rsi, %r13
+0000000000029832	movq	%rdi, %rbx
+0000000000029835	addq	$0x8, %rbx
+0000000000029839	leaq	-0x50(%rbp), %r14
+000000000002983d	movq	%r14, %rdi
+0000000000029840	movl	$0x40000, %esi                  ## imm = 0x40000
+0000000000029845	callq	0xacafe                         ## symbol stub for: __Z26OZFigTimeForChannelSecondsdi
+000000000002984a	movq	%rbx, %rdi
+000000000002984d	movq	%r13, %rsi
+0000000000029850	movq	%r14, %rdx
+0000000000029853	movq	%r12, %rcx
+0000000000029856	movq	%r15, %r8
+0000000000029859	movq	-0x30(%rbp), %r9
+000000000002985d	pushq	0x10(%rbp)
+0000000000029860	pushq	-0x38(%rbp)
+0000000000029863	callq	__ZN15OZDynamicSpline17getVertexToInsertERK6CMTimeS2_PdS3_S3_S3_S3_ ## OZDynamicSpline::getVertexToInsert(CMTime const&, CMTime const&, double*, double*, double*, double*, double*)
+0000000000029868	addq	$0x10, %rsp
+000000000002986c	movb	$0x1, %al
+000000000002986e	addq	$0x28, %rsp
+0000000000029872	popq	%rbx
+0000000000029873	popq	%r12
+0000000000029875	popq	%r13
+0000000000029877	popq	%r14
+0000000000029879	popq	%r15
+000000000002987b	popq	%rbp
+000000000002987c	retq
+000000000002987d	nop
