@@ -24,6 +24,45 @@ silently corrupts everything downstream.
 - Rational time stays in CMTime (value/timescale); never divide to seconds earlier than the binary.
 - Respect signed/unsigned widths at truncation points (& 0xffffffff, asIntN, etc.).
 
+### x86 AT&T decode cheat-sheet (READ THIS before hand-deriving any compare/branch)
+otool/objdump print **AT&T syntax**: operands are `src, dst` and a compare computes **`dst - src`**
+(the REVERSE of Intel order). Getting this backwards silently inverts a clamp/branch — the single
+most-repeated, most-expensive decode mistake in this codebase. The truth table (float `ucomisd`/
+`ucomiss` and unsigned/CF-based `cmp`; `ja/jae/jb/jbe/seta/setae/setb/setbe` are the CF/ZF pair):
+
+- `ucomisd %xmm_src, %xmm_dst` sets flags on **`dst - src`**. So:
+  - `jb`  / `setb`  (CF=1)        -> **dst <  src**
+  - `jbe` / `setbe` (CF=1 or ZF=1)-> **dst <= src**
+  - `ja`  / `seta`  (CF=0 & ZF=0) -> **dst >  src**
+  - `jae` / `setae` (CF=0)        -> **dst >= src**
+  - `je`  / `sete`  (ZF=1)        -> **dst == src** (also set when UNORDERED — a NaN operand sets
+    CF=ZF=PF=1, so `jb`/`jbe`/`je` all take on NaN; guard with `jp`/`jnp` if the binary does).
+- Same rule for integer `cmp %src, %dst` -> `dst - src`; signed uses `jl/jle/jg/jge`, unsigned `jb/…`.
+- `subsd %src, %dst` -> `dst = dst - src`; `divsd %src, %dst` -> `dst = dst / src` (dst is left op).
+- Worked example (FatLine::intersectHull): `ucomisd %xmm4, %xmm2 ; jb L` where xmm2=dist, xmm4=dLow
+  => branch taken iff `dist < dLow`. Then `ucomisd %xmm2, %xmm3 ; jb L` (xmm3=dHigh) => taken iff
+  `dHigh < dist`. "Fall through to the update" = NOT-taken on both = `dLow <= dist <= dHigh` (inside).
+
+## x86 AT&T decode cheat-sheet (otool/objdump on macOS emit AT&T)
+Getting compare/branch direction wrong is the #1 silent-logic-flip bug (a worker re-derived
+`ucomisd` semantics FOUR times on FatLine before landing `dLow <= dist <= dHigh`). Pin this:
+- **AT&T operand order is `op SRC, DST`** (reversed from Intel). `subsd %xmm1,%xmm0` = `xmm0 -= xmm1`.
+- **`ucomisd %src,%dst` sets flags on `(DST - SRC)`.** So with `ucomisd %xmm1,%xmm0`:
+  - `jb`/`jc`  (CF=1) => `xmm0 <  xmm1`      | `seta`/`setnbe` => `xmm0 >  xmm1`
+  - `jbe`      (CF|ZF) => `xmm0 <= xmm1`      | `setae`/`setnb` => `xmm0 >= xmm1`
+  - `ja`       (!CF&!ZF)=> `xmm0 >  xmm1`      | `setb`          => `xmm0 <  xmm1`
+  - `jae`/`jnc`(CF=0) => `xmm0 >= xmm1`      | `setbe`         => `xmm0 <= xmm1`
+  - `je`/`jz`  (ZF=1) => equal (or unordered) | `setne`         => not-equal
+- **Unordered (NaN operand) sets ZF=PF=CF=1**, so `jb`/`jbe`/`je` are TAKEN and `ja`/`jae` are NOT.
+  Mirror this: `a < b` in TS is already false when either is NaN — matches `jb`-not-taken-on-NaN? NO:
+  `jb` IS taken on NaN. When NaN-handling matters, gate explicitly (`Number.isNaN(x)`), don't rely on `<`.
+- **`comiss/comisd` vs `ucomiss/ucomisd`**: same flag semantics for ordering; only differ on which
+  NaN raises an FP exception (irrelevant to a faithful value port).
+- **`setCC %r8b` / `cmovCC`**: same condition tables as the `jCC` above — read the DST-SRC subtraction.
+- Integer `cmp %src,%dst` is identical: flags on `DST - SRC`; `jl/jle/jg/jge` are the SIGNED variants
+  of `jb/jbe/ja/jae`. `jl` => `DST < SRC` signed.
+When in doubt, WRITE the DST-SRC subtraction next to the branch in a comment and read the table.
+
 ## Rule 5 — Model structs, not magic numbers
 `vertex+0x10` etc. must be named/typed fields with the offset documented, not raw literals scattered
 in code. Layouts are recovered from ctors + accessor disasm and recorded in re/<Struct>_LAYOUT.md.
