@@ -51,6 +51,13 @@ fi
 BEFORE="$(git rev-parse origin/main)"
 BR_TIP="$(git rev-parse "$BR")"
 git checkout -q main
+# AUTO-CLEAN untracked disasm scratch in the MAIN tree before merging. A peer session that ran
+# disasm.sh/disasm_class.sh with cwd=main (or dropped a *.s here) leaves untracked re/disasm/*.s;
+# if the incoming branch ADDS the same tracked path, `git merge` aborts with "untracked working
+# tree files would be overwritten by merge". These .s are fully regenerable from the binary, so
+# removing untracked ones under re/disasm is safe and unblocks the merge (workers keep their own
+# copies in their worktrees — this only touches MAIN's untracked scratch).
+git clean -fdq -- raw-port/re/disasm 2>/dev/null || true
 PUSHED=0
 for attempt in 1 2 3 4 5; do
   git pull -q --no-edit origin main
