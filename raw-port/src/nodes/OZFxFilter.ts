@@ -13,7 +13,24 @@
 // truncate-to-int packed representation, presumably one for pixel bounds
 // and one for tile/coord bounds.
 
-import type { PCRectDouble } from "../infra/PCFilterUtils";
+import type { PCRectDouble, PCRectInt } from "../infra/PCFilterUtils";
+
+// FxImage boundary. The exact ObjC selector invoked by setOutputImageDOD is
+// resolved at runtime through the ObjC selref table at VA 0x90f931 (`.got`
+// slot loaded @0x29a155). We surface it as an extern boundary — the actual
+// message body lives in FxPlug/Motion's Objective-C runtime, not in Ozone.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function FxImage_objcMsgSend_setDOD(
+  image: unknown,
+  packedOriginXY: bigint,
+  packedSizeWH: bigint,
+  aspect: number,
+): void {
+  throw new Error(
+    "FxImage objc_msgSend (selector selref @Ozone 0x90f931) extern boundary @0x29a15d — " +
+      "not yet transcribed (ObjC runtime dispatch out-of-framework)",
+  );
+}
 
 // Truncate-toward-zero to 32-bit signed int (matches SSE cvttpd2dq
 // behaviour for values within int32 range; out-of-range/NaN yield
@@ -106,4 +123,78 @@ export function OZFxFilter_FilterBounds_setAll(
   self.y1 = ry;
   self.w1 = rw;
   self.h1 = rh;
+}
+
+/**
+ * OZFxFilter::setOutputImageDOD(PCRect<int> const&, double, FxImage*)
+ * @0x000000000029a120  Ozone
+ *
+ * Computes a symmetric (origin-centered) integer rectangle from the input
+ * PCRect<int>'s width/height and forwards it as a Domain-of-Definition
+ * message to the FxImage* via the ObjC runtime. The `self` OZFxFilter is
+ * NOT used — the disasm's very first non-prologue instruction is
+ * `movq %rdx, %rdi`, i.e. the FxImage* argument replaces `this` as the
+ * ObjC message receiver, and this function is essentially a tail thunk.
+ *
+ * Disasm summary (@0x29a120):
+ *   movq  %rdx, %rdi                # receiver = FxImage*
+ *   movl  0x8(%rsi), %eax            # eax  = w = rect.width
+ *   movl  0xc(%rsi), %ecx            # ecx  = h = rect.height
+ *   movl  %eax, %esi                 # esi  = w
+ *   shrl  $0x1f, %esi                # esi  = (unsigned)w >> 31 (sign)
+ *   addl  %eax, %esi                 # esi  = w + sign(w)
+ *   sarl  %esi                       # esi >>= 1  (arith)  = w/2 trunc→0
+ *   subl  %esi, %eax                 # eax  = w - w/2 = ceil(w/2)
+ *   negl  %esi                       # esi  = -floor(w/2)
+ *   …same 4-instr sequence for h in %ecx/%edx…
+ *   shlq  $0x20, %rdx ; orq %rsi,%rdx  # rdx = (h_neg<<32) | (w_neg & 0xffffffff)
+ *   shlq  $0x20, %rcx ; orq %rax,%rcx  # rcx = (h_pos<<32) | (w_pos & 0xffffffff)
+ *   movq  0x6757d4(%rip), %rsi        # sel = selref @VA 0x90f931 (__objc_selrefs)
+ *   jmpq  *0x58bec5(%rip)             # tail-call objc_msgSend @VA 0x82602a
+ *
+ * The integer-halving idiom `x + (unsigned)x>>31, arith >>= 1` is C
+ * signed-divide-by-2 (rounded toward zero). So:
+ *   floor(w/2) := trunc(w/2)   ; ceil(w/2) := w - trunc(w/2)
+ * The packed message payload is two int32 pairs interpreted by the
+ * ObjC callee as a rect ⟨originX, originY, sizeW, sizeH⟩ =
+ * ⟨-floor(w/2), -floor(h/2), ceil(w/2), ceil(h/2)⟩, i.e. a rectangle
+ * centered on the origin whose extents recover the full input w×h.
+ * `aspect` (xmm0) is passed through unchanged.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function OZFxFilter_setOutputImageDOD(
+  _self: unknown,
+  rect: PCRectInt,
+  aspect: number,
+  image: unknown,
+): void {
+  // 32-bit signed C division-by-two truncating toward zero (matches the
+  // `mov;shr $0x1f;add;sar` idiom @0x29a12d-0x29a136 / 0x29a13a-0x29a143).
+  const w = rect.width | 0;
+  const h = rect.height | 0;
+
+  const wHalfTrunc = ((w + ((w >>> 31) & 1)) >> 1) | 0; // = trunc(w/2)
+  const hHalfTrunc = ((h + ((h >>> 31) & 1)) >> 1) | 0; // = trunc(h/2)
+
+  const originXi = -wHalfTrunc | 0; //  esi after negl @0x29a138
+  const originYi = -hHalfTrunc | 0; //  edx after negl @0x29a145
+  const sizeWi = (w - wHalfTrunc) | 0; //  eax after subl @0x29a136
+  const sizeHi = (h - hHalfTrunc) | 0; //  ecx after subl @0x29a143
+
+  // Pack as the CPU did (@0x29a147-0x29a152). Registers hold:
+  //   rdx = (hi=originY, lo=originX)   ; message arg #3 (%rdx)
+  //   rcx = (hi=sizeH,   lo=sizeW)     ; message arg #4 (%rcx)
+  // int32 sign-extended into the low half of the 64-bit register, then the
+  // high 32b overwrites via `shl 32; or`. We reproduce the exact bit
+  // pattern so downstream ObjC parsing matches.
+  const mask32 = 0xffffffffn;
+  const packedOriginXY =
+    (BigInt(originYi) << 32n) | (BigInt(originXi) & mask32);
+  const packedSizeWH =
+    (BigInt(sizeHi) << 32n) | (BigInt(sizeWi) & mask32);
+
+  // Tail-call the ObjC message. This is an out-of-framework boundary
+  // (Objective-C runtime dispatch through __objc_selrefs @0x90f931 and
+  // the __got objc_msgSend stub @0x82602a).
+  FxImage_objcMsgSend_setDOD(image, packedOriginXY, packedSizeWH, aspect);
 }
