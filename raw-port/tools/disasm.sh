@@ -35,13 +35,42 @@ if [ ! -s "$OUT" ]; then
   [ -s "$THIN" ] || lipo "$BIN" -thin x86_64 -output "$THIN" 2>/dev/null || true
   if [ -s "$THIN" ]; then
     "$OBJDUMP" --macho -d --disassemble-symbols="$SYM" "$THIN" 2>/dev/null > "$OUT" || true
+    # BOUND THE ICF BLOWUP: objdump --disassemble-symbols on an ICF-folded symbol whose address
+    # aliases INTO a large host function emits that whole host (hundreds/thousands of lines) — a
+    # misleading blob that invites guessing. A real single method here is small. If the fallback
+    # ran past a sane cap, it's the alias pathology: refuse the blob, tell the worker to slice by
+    # the real boundary via `nm -n` (next symbol addr) or to throw-stub citing @0xADDR.
+    LINES=$(wc -l < "$OUT" 2>/dev/null || echo 0)
+    if [ "${LINES:-0}" -gt 600 ]; then
+      echo "WARNING: objdump fallback for [$SYM] emitted $LINES lines — ICF alias into a LARGER host fn." >&2
+      echo "  This is NOT the method body. Find the real bounded slice:" >&2
+      echo "  nm -n $THIN | grep -A1 '$SYM'   # next symbol addr = end of this (folded) body" >&2
+      echo "  then sed the [start,next) VA range out of $OUT, OR throw-stub the method citing @0xADDR." >&2
+      : > "$OUT"   # clear the misleading blob so no worker transcribes it wholesale
+    fi
   fi
   if [ ! -s "$OUT" ]; then
     echo "WARNING: still 0-line after objdump fallback for ${FW} ${CLS}::${METH} [$SYM]" >&2
     echo "  (pure-stub / extern / truly-empty). DO NOT GUESS the body — throw-stub it citing @0xADDR." >&2
     exit 2
   fi
-  echo "wrote $OUT ($(wc -l < "$OUT") lines via objdump ICF-fallback)  [$SYM]"
+  # ICF-ALIAS OVER-DUMP GUARD: objdump --disassemble-symbols stops at the symbol's function end —
+  # BUT for an ICF-folded trivial body (e.g. a ~Foo dtor), `nm` reports the symbol at an address
+  # that is actually the START of a large UNRELATED kept function, so objdump dumps that whole
+  # function (100s–1000s of lines). A worker must NOT transcribe that tail as the method body.
+  # A real folded trivial method is tiny (<~40 lines). Flag any oversized fallback as UNRELIABLE.
+  NLINES=$(wc -l < "$OUT")
+  NLABELS=$(grep -cE '^[A-Za-z_][A-Za-z0-9_]*:$' "$OUT")
+  if [ "$NLINES" -gt 400 ] || [ "${NLABELS:-0}" -gt 1 ]; then
+    echo "WARNING: objdump fallback for ${FW} ${CLS}::${METH} [$SYM] returned $NLINES lines / $NLABELS labels" >&2
+    echo "  — this looks like an ICF-ALIAS OVER-DUMP (the folded symbol aliases into a large kept" >&2
+    echo "  function; the dump is NOT this method's body). DO NOT transcribe it. Options:" >&2
+    echo "   * nm -n /tmp/${FW}.x86_64 | grep -n <mangled> to find the real labeled body slice, or" >&2
+    echo "   * verify the trivial folded body at its @0xADDR and port it as the tiny idiom it is, or" >&2
+    echo "   * throw-stub the method citing @0xADDR. (kept the dump at $OUT for inspection.)" >&2
+    exit 3
+  fi
+  echo "wrote $OUT ($NLINES lines via objdump ICF-fallback)  [$SYM]"
   exit 0
 fi
 echo "wrote $OUT ($(wc -l < "$OUT") lines)  [$SYM]"

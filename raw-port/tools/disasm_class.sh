@@ -41,6 +41,12 @@ while IFS=$'\t' read -r SYM DEM; do
   if [ ! -s "$OUT" ]; then
     # ICF-folded / no otool label — objdump per-symbol fallback (exact boundary).
     if [ -s "$THIN" ]; then "$OBJDUMP" --macho -d --disassemble-symbols="$SYM" "$THIN" 2>/dev/null > "$OUT" || true; fi
+    # BOUND THE ICF BLOWUP: a folded symbol aliasing into a large host fn makes objdump emit that
+    # whole host (100s-1000s of lines) — a misleading blob, not the method. Cap it: clear + flag.
+    if [ -s "$OUT" ] && [ "$(wc -l < "$OUT")" -gt 600 ]; then
+      echo "  [BLOB] ${METH}  $(wc -l < "$OUT")L — ICF alias into larger host fn; clearing (nm -n slice or throw-stub @0xADDR)  [$SYM]"
+      : > "$OUT"
+    fi
     if [ -s "$OUT" ]; then ICF=$((ICF+1)); L=$(wc -l < "$OUT"); echo "  [icf] ${METH}  ${L}L  [$SYM]";
     else EMPTY=$((EMPTY+1)); echo "  [EMPTY] ${METH}  (pure-stub/extern — throw-stub @0xADDR)  [$SYM]"; fi
   else
