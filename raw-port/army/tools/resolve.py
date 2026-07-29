@@ -7,10 +7,22 @@ The single most-reused RE capability for the army. Modes:
   resolve.py <FW> vtable <Class> [slots] dump vtable: installed-ptr (from ctor) -> slot->method.
                                          Uses dyld_info -fixups; low-32 of the fixup qword = target.
   resolve.py <FW> const <addr>           read the 8-byte double at a RIP-relative data addr.
+  resolve.py <FW> ripconst <instr_addr> <disp> [len]
+                                         resolve a RIP-relative operand in ONE shot. Give the
+                                         address of the instruction that HAS the `disp(%rip)`
+                                         operand and the displacement; ripconst computes the target
+                                         VA = instr_addr + instr_len + disp (x86 RIP is relative to
+                                         the END of the instruction) and decodes the datum as f32,
+                                         f64, f32x4, f64x2, u32/i32, u64/i64 so you don't hand-derive
+                                         it. `len` = instruction byte length (default 7 for the
+                                         common `movsd/movss/movaps xmm, m(%rip)`; movss/movaps are
+                                         often 8, movsd 8, leaq 7 — pass it if unsure). Kills the
+                                         pc+disp + struct.unpack dance every shader/const worker does.
 
 Examples that this reproduces (interpolator decode):
   vtable OZLinearInterpolator -> *0x18 interpolate, *0x60 uForCurveValue, *0x68 easeTime.
   vtable OZDynamicVertex     -> *0x18 getValueV, *0x88 isEnabled.
+  ripconst Helium 0x30de0b 0x5c1dd5   -> target VA + f32/f64/f32x4 decode of a ctor const-fill.
 """
 import subprocess, sys, struct, os, re, functools
 
@@ -83,6 +95,35 @@ def main():
         va=int(sys.argv[3],16)
         print(f"double={struct.unpack_from('<d',data,va)[0]}  "
               f"u64=0x{struct.unpack_from('<Q',data,va)[0]:x}")
+    elif mode=="ripconst":
+        # resolve a RIP-relative operand in ONE shot: target VA = instr_addr + instr_len + disp,
+        # then decode the datum every which way so the worker never hand-derives pc+disp or unpacks.
+        # x86 RIP is relative to the END of the instruction, hence + instr_len.
+        instr=int(sys.argv[3],16); disp=int(sys.argv[4],16)
+        ilen=int(sys.argv[5],16) if len(sys.argv)>5 else 7
+        # disp is a signed 32-bit displacement in the encoding — honor the sign.
+        if disp & 0x80000000: disp -= 0x100000000
+        va=instr+ilen+disp
+        data=open(thin(fw),"rb").read()
+        if va<0 or va+16>len(data):
+            print(f"target VA 0x{va:x} out of range (file 0x{len(data):x}) — check instr_len "
+                  f"(passed 0x{ilen:x}; movsd/movss/movaps are often 8, leaq 7)"); return
+        f32=struct.unpack_from('<f',data,va)[0]
+        f64=struct.unpack_from('<d',data,va)[0]
+        f32x4=struct.unpack_from('<4f',data,va)
+        f64x2=struct.unpack_from('<2d',data,va)
+        u32=struct.unpack_from('<I',data,va)[0]; i32=struct.unpack_from('<i',data,va)[0]
+        u64=struct.unpack_from('<Q',data,va)[0]; i64=struct.unpack_from('<q',data,va)[0]
+        print(f"# instr@0x{instr:x} + len 0x{ilen:x} + disp {'-0x%x'%(-disp) if disp<0 else '0x%x'%disp}"
+              f"  ->  target VA 0x{va:x}")
+        near=nearest(fw,va)
+        if near and near!="?": print(f"#   (in {near})")
+        print(f"  f32      = {f32!r}")
+        print(f"  f64      = {f64!r}")
+        print(f"  f32x4    = ({f32x4[0]!r}, {f32x4[1]!r}, {f32x4[2]!r}, {f32x4[3]!r})")
+        print(f"  f64x2    = ({f64x2[0]!r}, {f64x2[1]!r})")
+        print(f"  u32/i32  = {u32} / {i32}   (0x{u32:x})")
+        print(f"  u64/i64  = {u64} / {i64}   (0x{u64:x})")
     elif mode=="vtable":
         cls=sys.argv[3]
         vt=find_class_vtable(fw,cls)
