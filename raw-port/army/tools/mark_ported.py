@@ -54,7 +54,24 @@ def _is_dispatch_only(fw, mangled):
     return True  # structural DISPATCH_ONLY candidate, no disasm to refute -> treat as skeleton
 
 real_cited, stub_cited = scan_src(ROOT)
+
+# SYMBOL-KEYED class-C override. Some throw-stubs cite CALL-SITE / callee addresses in their message
+# (e.g. OZChannelBool3D::setValue throws citing @0x53869/... not its own @0x537c6), so the
+# address-citation reconcile cannot link the throw to the method and miscounts it `ported`. The
+# exhaustive method-body census (census_final) confirms these by reading the actual TS body; they
+# are recorded by MANGLED symbol here and always demoted, independent of address matching.
+_CLASSC_OVERRIDE = {}
+_ov = os.path.join(LED, "CLASS_C_OVERRIDES.json")
+if os.path.exists(_ov):
+    try:
+        _CLASSC_OVERRIDE = json.load(open(_ov))
+    except Exception:
+        _CLASSC_OVERRIDE = {}
+
 def status_for(addr, fw=None, mangled=None):
+    # Confirmed class-C (real disasm, throw/stub-only body) — demote regardless of address citation.
+    if mangled and mangled in _CLASSC_OVERRIDE:
+        return "stub"
     # FRAMEWORK-AWARE (fixes the cross-fw addr-collision bug: @ProCore 0x41b8 stub was masked by
     # @Ozone 0x41b8 real). stubscan.status_for gives fw-specific keys precedence over the wildcard.
     base = _stub_status_for(fw, addr, real_cited, stub_cited)

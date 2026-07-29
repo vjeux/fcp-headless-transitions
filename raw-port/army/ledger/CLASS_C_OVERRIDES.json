@@ -1,0 +1,230 @@
+{
+ "__ZNK22PCNullPointerException9classNameEv": {
+  "fw": "ProCore",
+  "addr": "0x0000000000003022",
+  "demangled": "PCNullPointerException::className() const",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZNK31PCUnsupportedOperationException9classNameEv": {
+  "fw": "ProCore",
+  "addr": "0x000000000002c76c",
+  "demangled": "PCUnsupportedOperationException::className() const",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN18PC_Sp_counted_base12weak_add_refEv": {
+  "fw": "ProCore",
+  "addr": "0x000000000004df96",
+  "demangled": "PC_Sp_counted_base::weak_add_ref()",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN10PCDelaunay15constrainedEdgeERNS_12TriangleEdgeEP9PCVector2IfE": {
+  "fw": "ProCore",
+  "addr": "0x0000000000056a58",
+  "demangled": "PCDelaunay::constrainedEdge(PCDelaunay::TriangleEdge&, ",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZNK19PCBadIndexException9classNameEv": {
+  "fw": "ProCore",
+  "addr": "0x00000000000c4d7c",
+  "demangled": "PCBadIndexException::className() const",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN11OZChannel3D4copyEPK13OZChannelBaseb": {
+  "fw": "ProChannel",
+  "addr": "0x00000000000491a4",
+  "demangled": "OZChannel3D::copy(OZChannelBase const*, bool)",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN15OZChannelBool3D4copyEPK13OZChannelBaseb": {
+  "fw": "ProChannel",
+  "addr": "0x0000000000053562",
+  "demangled": "OZChannelBool3D::copy(OZChannelBase const*, bool)",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN15OZChannelBool3D8setValueERK6CMTimebbb": {
+  "fw": "ProChannel",
+  "addr": "0x00000000000537c6",
+  "demangled": "OZChannelBool3D::setValue(CMTime const&, bool, bool, bo",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN15OZChannelBool3D8setValueERK6CMTimeRK9PCVector3IdE": {
+  "fw": "ProChannel",
+  "addr": "0x000000000005382c",
+  "demangled": "OZChannelBool3D::setValue(CMTime const&, PCVector3<doub",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN15OZChannelBool3D15setDefaultValueEbbb": {
+  "fw": "ProChannel",
+  "addr": "0x00000000000538e4",
+  "demangled": "OZChannelBool3D::setDefaultValue(bool, bool, bool)",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZNK17OZChannelPosition11getPositionERK6CMTimePdS3_d": {
+  "fw": "ProChannel",
+  "addr": "0x00000000000808b2",
+  "demangled": "OZChannelPosition::getPosition(CMTime const&, double*, ",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN24OZChannelPositionPercent11getPositionERK6CMTimePdS3_": {
+  "fw": "ProChannel",
+  "addr": "0x00000000000a791e",
+  "demangled": "OZChannelPositionPercent::getPosition(CMTime const&, do",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN34OZChannelPositionPercent3D_Factory11descriptionEv": {
+  "fw": "ProChannel",
+  "addr": "0x00000000000a69c4",
+  "demangled": "OZChannelPositionPercent3D_Factory::description()",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN34OZChannelPositionPercent3D_Factory12manufacturerEv": {
+  "fw": "ProChannel",
+  "addr": "0x00000000000a69fe",
+  "demangled": "OZChannelPositionPercent3D_Factory::manufacturer()",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN34OZChannelPositionPercent3D_Factory15getCategoryNameEv": {
+  "fw": "ProChannel",
+  "addr": "0x00000000000a6a32",
+  "demangled": "OZChannelPositionPercent3D_Factory::getCategoryName()",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN34OZChannelPositionPercent3D_Factory22getEnglishCategoryNameEv": {
+  "fw": "ProChannel",
+  "addr": "0x00000000000a6a4a",
+  "demangled": "OZChannelPositionPercent3D_Factory::getEnglishCategoryN",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN34OZChannelPositionPercent3D_Factory19getIconNameInternalEv": {
+  "fw": "ProChannel",
+  "addr": "0x00000000000a6a70",
+  "demangled": "OZChannelPositionPercent3D_Factory::getIconNameInternal",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN34OZChannelPositionPercent3D_Factory21getIconNameBWInternalEv": {
+  "fw": "ProChannel",
+  "addr": "0x00000000000a6a88",
+  "demangled": "OZChannelPositionPercent3D_Factory::getIconNameBWIntern",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN34OZChannelPositionPercent3D_Factory26getLibraryIconNameInternalEv": {
+  "fw": "ProChannel",
+  "addr": "0x00000000000a6aac",
+  "demangled": "OZChannelPositionPercent3D_Factory::getLibraryIconNameI",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN13HGComicStroke10RenderTileEP6HGTile": {
+  "fw": "Helium",
+  "addr": "0x00000000001707d0",
+  "demangled": "HGComicStroke::RenderTile(HGTile*)",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN13HGComicStroke10GetProgramEP10HGRenderer": {
+  "fw": "Helium",
+  "addr": "0x0000000000171050",
+  "demangled": "HGComicStroke::GetProgram(HGRenderer*)",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN13HGLegacyBlend10RenderPageEP6HGPage": {
+  "fw": "Helium",
+  "addr": "0x0000000000242530",
+  "demangled": "HGLegacyBlend::RenderPage(HGPage*)",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZNK25HgcBT2100_HLG_InverseOETF21InitProgramDescriptorEP19HGProgramDescriptor": {
+  "fw": "Helium",
+  "addr": "0x00000000003b1320",
+  "demangled": "HgcBT2100_HLG_InverseOETF::InitProgramDescriptor(HGProg",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN13OZApplication22setPerThreadCurrentDocEP10OZDocument": {
+  "fw": "Ozone",
+  "addr": "0x000000000036ab10",
+  "demangled": "OZApplication::setPerThreadCurrentDoc(OZDocument*)",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN23OZMaterialCompoundLayer19getShouldRotateSideERK6CMTime": {
+  "fw": "Ozone",
+  "addr": "0x00000000001fa3f0",
+  "demangled": "OZMaterialCompoundLayer::getShouldRotateSide(CMTime con",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN23OZMaterialCompoundLayer22getUseTriplanarMappingERK6CMTime": {
+  "fw": "Ozone",
+  "addr": "0x00000000001fa460",
+  "demangled": "OZMaterialCompoundLayer::getUseTriplanarMapping(CMTime ",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN21OZSimulationCurveNode21anyAffectingBehaviorsEv": {
+  "fw": "Ozone",
+  "addr": "0x0000000000208fd0",
+  "demangled": "OZSimulationCurveNode::anyAffectingBehaviors()",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN18OZImageEnvironment7setNameERK8PCStringb": {
+  "fw": "Ozone",
+  "addr": "0x00000000004d5b20",
+  "demangled": "OZImageEnvironment::setName(PCString const&, bool)",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN18AudioChannelStream6SeekToEy": {
+  "fw": "Flexo",
+  "addr": "0x0000000001226ec0",
+  "demangled": "AudioChannelStream::SeekTo(unsigned long long)",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN24FFPlayerLockingUtilities38checkLockOrderForPlayerThreadStateLockEbPKv": {
+  "fw": "Flexo",
+  "addr": "0x0000000000d76770",
+  "demangled": "FFPlayerLockingUtilities::checkLockOrderForPlayerThread",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN24FFPlayerLockingUtilities24CachedPropsLockCheckFuncEbPKv": {
+  "fw": "Flexo",
+  "addr": "0x0000000000da8110",
+  "demangled": "FFPlayerLockingUtilities::CachedPropsLockCheckFunc(bool",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN29FFSegStoreDecompressionRefCon27decompressionOutputCallbackEPvS0_ijP10__CVBuffer6CMTimeS3_": {
+  "fw": "Flexo",
+  "addr": "0x000000000126ecf0",
+  "demangled": "FFSegStoreDecompressionRefCon::decompressionOutputCallb",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN29FFSegStoreDecompressionRefCon21waitForDecodeCompleteEb": {
+  "fw": "Flexo",
+  "addr": "0x000000000126f000",
+  "demangled": "FFSegStoreDecompressionRefCon::waitForDecodeComplete(bo",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN21FFLockerWithCallbacks11forceUnlockEv": {
+  "fw": "Flexo",
+  "addr": "0x00000000012b9ac0",
+  "demangled": "FFLockerWithCallbacks::forceUnlock()",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN21FFAutoReframeAnalysis34AnchoredObjectHasCropFilterAppliedEP16FFAnchoredObject": {
+  "fw": "Flexo",
+  "addr": "0x00000000013103f0",
+  "demangled": "FFAutoReframeAnalysis::AnchoredObjectHasCropFilterAppli",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN21FFAutoReframeAnalysis27GetFramingForAnchoredObjectEP16FFAnchoredObjectR6CGSize": {
+  "fw": "Flexo",
+  "addr": "0x0000000001310470",
+  "demangled": "FFAutoReframeAnalysis::GetFramingForAnchoredObject(FFAn",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZN16HgcSubtractAlpha10GetProgramEP10HGRenderer": {
+  "fw": "Flexo",
+  "addr": "0x000000000146df60",
+  "demangled": "HgcSubtractAlpha::GetProgram(HGRenderer*)",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ },
+ "__ZNK16HgcSubtractAlpha21InitProgramDescriptorEP19HGProgramDescriptor": {
+  "fw": "Flexo",
+  "addr": "0x000000000146df90",
+  "demangled": "HgcSubtractAlpha::InitProgramDescriptor(HGProgramDescri",
+  "reason": "class-C: REAL disasm, committed body throw/stub-only (throw cites call-site addrs so address-reconcile misses it)"
+ }
+}
