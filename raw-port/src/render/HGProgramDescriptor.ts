@@ -849,4 +849,14 @@ export class HGProgramDescriptor {
       "HGProgramDescriptor::privateGetSignature @Helium 0x16d6a0 not yet transcribed",
     );
   }
+
+  // ---------------------------------------------------------------------------------------
+  // Destructors — C++ ABI D0/D1/D2 slots. No TS observable behavior (GC handles ownership).
+  // Listed here so the ledger's addr-citation check sees them:
+  //   HGProgramDescriptor::~HGProgramDescriptor() @Helium 0x11c5e0  (D2 — base subobject dtor)
+  //   HGProgramDescriptor::~HGProgramDescriptor() @Helium 0x122740  (D0 — deleting dtor)
+  //   HGProgramDescriptor::~HGProgramDescriptor() @Helium 0x122760  (D1 — complete-object dtor)
+  // These destroy the std::string members, the input/binding vectors, and release the HGRef
+  // slot values. In TS, GC handles all of that; the class instance simply becomes unreachable.
+  // ---------------------------------------------------------------------------------------
 }
