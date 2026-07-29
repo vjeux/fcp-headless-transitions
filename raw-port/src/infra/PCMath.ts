@@ -34,6 +34,7 @@ import {
   CMTimeCompare,
   CMTimeMake,
 } from "./CMTime.js";
+import { PC_CMTimeFloorToSampleDuration } from "./PCTimeRange.js";
 
 // ── PCPlane<T> ────────────────────────────────────────────────────────────────
 // Recovered from raw-port/re/disasm/ProCore.PCMath.equal_planeD.s (loads at +0x00,
@@ -703,4 +704,60 @@ export function equalPlaneF(a: PCPlaneF, b: PCPlaneF, tol: number): boolean {
     + Math.fround(Math.fround(bpz - apz) * az),
   );
   return tolF > Math.fround(Math.abs(dot2));
+}
+
+// ── PCMath::mod(CMTime const&, CMTime const&) @ProChannel 0x3a34e ─────────────
+// `PCMath::mod(t, d)` — CMTime "mod" that operates entirely in the CMTime domain.
+// Straight transcription of ProChannel.PCMath.mod.s @0x3a34e..0x3a437:
+//   0x3a366  q     = operator/(t, d)                                            (extern @0xace0a)
+//   0x3a37c  one   = CMTimeMake(1, 1)                                           (extern @0xaca92)
+//   0x3a3c0  qi    = PC_CMTimeFloorToSampleDuration(q, one)                      (extern @0xacace)
+//   0x3a403  diff  = PC_CMTimeSaferSubtract(t, qi)                               (extern @0xacada)
+//   0x3a411  out   = operator*(diff, d)                                          (extern @0xace22)
+// The disasm's sret+arg shuffling is faithful to the Itanium ABI's hidden-first-arg return; in TS
+// we just return the CMTime. `q`, `qi`, `diff` live in stack slots -0x58/-0x70/-0x88 respectively.
+// NOTE: two of the callees (CMTime operator/ and CMTime operator*) are extern to PCMath in ProChannel
+// and not yet transcribed; they throw with their @0xADDR so frontier.py surfaces the gap.
+export function mod(t: CMTime, d: CMTime): CMTime {
+  const q     = CMTime_operator_div(t, d);              // extern @ProChannel 0xace0a
+  const one   = CMTimeMake(1n, 1);                       // extern @ProChannel 0xaca92 (_CMTimeMake)
+  const qi    = PC_CMTimeFloorToSampleDuration(q, one);  // extern @ProCore/ProChannel 0xacace
+  const diff  = PC_CMTimeSaferSubtract(t, qi);           // extern @ProChannel 0xacada
+  const out   = CMTime_operator_mul(diff, d);            // extern @ProChannel 0xace22
+  return out;
+}
+
+// ── PCMath::clamp(CMTime const&, CMTime const& lo, CMTime const& hi) @ProChannel 0x3a438 ─
+// Standard three-way clamp on CMTime, using CoreMedia's CMTimeCompare (extern @0xaca80).
+// Straight transcription of ProChannel.PCMath.clamp.s @0x3a438..0x3a50e:
+//   %rsi=val (r15), %rdx=lo (r12), %rcx=hi (r14)
+//   0x3a494  CMTimeCompare(val, lo)  — if result js (negative, i.e. val<lo): out = lo (jmp 0x3a4ee)
+//   0x3a4e0  else CMTimeCompare(val, hi)  — if result > 0: r15 <- hi (cmovg); else r15 stays val
+//   0x3a4eb  r12 <- r15 (result pointer to copy from)
+//   0x3a4ee  copy r12's 24 bytes into rbx (the sret slot).
+// So the return is: val<lo -> lo; val>hi -> hi; else val.
+// Ordering degenerates (lo>hi): if val<lo -> lo (first branch), else compares against hi;
+// with lo>hi and val==lo (not <lo) it'll return hi if lo>hi (since val>hi). That matches the
+// disasm's fall-through and is preserved verbatim.
+export function clamp(val: CMTime, lo: CMTime, hi: CMTime): CMTime {
+  if (CMTimeCompare(val, lo) < 0) return lo;         // js @0x3a49b -> load lo into result
+  if (CMTimeCompare(val, hi) > 0) return hi;         // cmovg @0x3a4e7 -> select hi
+  return val;
+}
+
+// ── Extern CMTime operator/ and operator* boundary stubs ──────────────────────
+// These are two ProChannel extern free functions used by PCMath::mod. They are NOT PCMath
+// methods; they live at 0xace0a / 0xace22 in ProChannel's __stubs region and are separate
+// leaf entries not on PCMath's ledger. Frontier.py picks them up via the @0xADDR citation.
+/** @ProChannel 0xace0a  __ZdvRK6CMTimeS1_ — operator/(CMTime const&, CMTime const&) — extern C++. */
+function CMTime_operator_div(_a: CMTime, _b: CMTime): CMTime {
+  throw new Error(
+    "CMTime operator/ __ZdvRK6CMTimeS1_ @ProChannel 0xace0a not yet transcribed",
+  );
+}
+/** @ProChannel 0xace22  __ZmlRK6CMTimeS1_ — operator*(CMTime const&, CMTime const&) — extern C++. */
+function CMTime_operator_mul(_a: CMTime, _b: CMTime): CMTime {
+  throw new Error(
+    "CMTime operator* __ZmlRK6CMTimeS1_ @ProChannel 0xace22 not yet transcribed",
+  );
 }
