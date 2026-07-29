@@ -220,25 +220,84 @@ export function operatorEquals(): boolean {
   );
 }
 
-/** OZBSplineInterpolator::generateOpenKnotVector(OZSpline&)  @ProChannel 0x41d4a.
- *  Pushes an open knot vector onto this->knots (vector<double> at this+0x40). Requires
- *  std::vector<double>::push_back modelling and this->count32 (+0x20), this->order (+0x70).
- *  The loop body reads knots[i] and adds a RIP constant at 0x6d75e(%rip) from @0x41dc2 —
- *  target = 0x41dca + 0x6d75e = 0xaf528 = 1.0 (the standard "increment by 1.0" open-knot step).
- */
-export function generateOpenKnotVector(): void {
-  throw new Error(
-    "OZBSplineInterpolator::generateOpenKnotVector(OZSpline&) @ProChannel 0x41d4a not yet " +
-      "transcribed — requires std::vector<double>::push_back modelling.",
-  );
+// ────────────────────────────────────────────────────────────────────────────────────────
+// OZBSplineInterpolator::generateOpenKnotVector(OZSpline&)  @ProChannel 0x41d4a
+// ────────────────────────────────────────────────────────────────────────────────────────
+// Faithful transcription of the 59-line body at raw-port/re/disasm/
+//   ProChannel.OZBSplineInterpolator.generateOpenKnotVector.s
+//
+// Reads this->count (+0x20, u32) and this->order (+0x70, u32); pushes exactly (count+order)
+// doubles onto this->knots (std::vector<double> at this+0x40). The (rewritten in TS as a
+// standard array) knot layout is the classic "clamped/open uniform" pattern:
+//   knots[0]                           = 0.0                         (push at @0x41d86)
+//   knots[i], 1<=i<=order-1            = knots[i-1]                  (plateau; @0x41ddd)
+//   knots[i], order<=i<=count          = knots[i-1] + 1.0            (@0x41dc2 +*0xaf528=1.0)
+//   knots[i], count+1<=i<=count+order-1= knots[i-1]                  (plateau)
+// giving `count+order` knots total. The RIP constant at 0x6d75e(%rip) resolves to
+//   0x41dca + 0x6d75e = 0xaf528 = 1.0  (`resolve.py ProChannel const 0xaf528` -> double=1.0).
+//
+// Control-flow map (loop @0x41da7..0x41df5):
+//   r13d = count+order    (loop upper bound)
+//   rax  = i (u64), initially 1
+//   r15  = byte-offset into knots vector, initially 0 (advances by 8 per iter)
+//   For each i in [1, count+order-1]:
+//     if (i < order):                       plateau path (@0x41ddd)
+//     else if ((i+1) >= (count+2)):         plateau path (@0x41ddd) — [rbp-0x30]=count+2
+//     else:                                 increment  path (@0x41dbc..0x41dd6)
+export function generateOpenKnotVector(state: OZBSplineInterpolatorState): void {
+  const count = state.count | 0;                              // @0x41d5e: mov 0x20(%rdi), %eax
+  const order = state.order | 0;                              // @0x41d61: mov 0x70(%rdi), %r15d
+  const total = (count + order) | 0;                          // @0x41d69: addl %eax, %r15d
+  const knots: number[] = [];                                 // @0x41d70/0x41d74: clear vec
+  knots.push(0.0);                                            // @0x41d78..0x41d86: push_back(0.0)
+  if ((total >>> 0) >= 2) {                                   // @0x41d8b/0x41d8f: cmpl $2 jb
+    const threshold = (count + 2) | 0;                        // @0x41d91..0x41d98: eax+=2; stash
+    for (let i = 1; i < total; i++) {                         // @0x41d9f/@0x41da7..@0x41df5
+      const prev = knots[i - 1];                              // @0x41dbc: movsd (%rax,%r15),xmm0
+      if (i < order && i + 1 < threshold) {                   // @0x41dae..0x41db7
+        knots.push(prev + 1.0);                               // @0x41dc2 (+*0xaf528=1.0) / d6
+      } else {
+        knots.push(prev);                                     // @0x41ddd..0x41de6 plateau
+      }
+    }
+  }
+  state.knots = knots;                                        // commit vector back to state
 }
 
-/** OZBSplineInterpolator::generatePeriodicKnotVector(OZSpline&)  @ProChannel 0x41e06. */
-export function generatePeriodicKnotVector(): void {
-  throw new Error(
-    "OZBSplineInterpolator::generatePeriodicKnotVector(OZSpline&) @ProChannel 0x41e06 not yet " +
-      "transcribed — requires std::vector<double>::push_back modelling.",
-  );
+// ────────────────────────────────────────────────────────────────────────────────────────
+// OZBSplineInterpolator::generatePeriodicKnotVector(OZSpline&)  @ProChannel 0x41e06
+// ────────────────────────────────────────────────────────────────────────────────────────
+// Faithful transcription of the 40-line body at raw-port/re/disasm/
+//   ProChannel.OZBSplineInterpolator.generatePeriodicKnotVector.s
+//
+// Uniform (periodic) knot vector: pushes 0.0, 1.0, 2.0, ..., (count+order - 1). Reads
+//   count = *(this+0x20)  (u32)
+//   order = *(this+0x70)  (u32)
+// and pushes `count+order` doubles onto this->knots. The RIP constants at
+//   0x6d6d4(%rip) from @0x41e4c  -> 0x41e54 + 0x6d6d4 = 0xaf528 = 1.0  (init xmm0)
+//   0x6d6ae(%rip) from @0x41e72  -> 0x41e7a + 0x6d6ae = 0xaf528 = 1.0  (loop increment)
+// (`resolve.py ProChannel const 0xaf528` -> double=1.0).
+//
+// Loop structure (@0x41e58..0x41e7d):
+//   xmm0 = 1.0
+//   r15d = count+order - 1  (iters remaining)
+//   do { push xmm0; xmm0 += 1.0; --r15d; } while (r15d != 0);
+// which pushes 1.0, 2.0, ..., (count+order-1). The initial 0.0 is pushed unconditionally at
+// @0x41e3b. Guard: if (count+order) is signed-< 2 we return with only the 0.0 knot pushed.
+export function generatePeriodicKnotVector(state: OZBSplineInterpolatorState): void {
+  const count = state.count | 0;                              // @0x41e15: mov 0x20(%rdi), %r14d
+  const order = state.order | 0;                              // @0x41e19: mov 0x70(%rdi), %r15d
+  const total = (count + order) | 0;                          // @0x41e1d: leal
+  const knots: number[] = [];                                 // @0x41e21..0x41e29: clear vec
+  knots.push(0.0);                                            // @0x41e3b: push_back(0.0)
+  if (total >= 2) {                                           // @0x41e40..0x41e44: cmpl $2 jl
+    let v = 1.0;                                              // @0x41e4c: *0xaf528 = 1.0
+    for (let iters = total - 1; iters > 0; iters--) {         // @0x41e58..0x41e7d
+      knots.push(v);
+      v += 1.0;                                               // @0x41e72: *0xaf528 = 1.0
+    }
+  }
+  state.knots = knots;                                        // commit vector back to state
 }
 
 // ────────────────────────────────────────────────────────────────────────────────────────
@@ -447,11 +506,68 @@ export function getAdjustedMinU(): void {
   );
 }
 
-/** OZBSplineInterpolator::init(OZSpline&, CMTime const&)  @ProChannel 0x4229a. */
-export function init(): void {
+// ────────────────────────────────────────────────────────────────────────────────────────
+// OZBSplineInterpolator::init(OZSpline&, CMTime const&)  @ProChannel 0x4229a
+// ────────────────────────────────────────────────────────────────────────────────────────
+// Faithful transcription of the 36-line body at raw-port/re/disasm/
+//   ProChannel.OZBSplineInterpolator.init.s
+//
+// Branches on spline periodicity (byte at spline+0x90). Both branches:
+//   1. call OZSpline::getNumberOfValidVerticesWithMultiplicity(kCMTimeZero) -> u32 nVerts
+//   2. write this->count (+0x20) and this->order (+0x70)
+//   3. call the matching knot-vector generator (periodic vs open)
+//   4. tail-call OZSpline::setDirty(false)
+//
+// Periodic path (@0x422c6..0x422dd):   this.count = nVerts + 3; this.order = 4
+// Open path     (@0x422df..0x422f5):   this.count = nVerts; this.order = min(4, nVerts)
+//                                       (via `cmpl $4; cmovbl %eax` — unsigned "below" pick).
+// The periodic-vs-open selector `*(spline+0x90)` matches getAdjustedMinU's
+//   `cmpb $0x1, 0x90(%r12) ; jne ...` decode — the OZSpline "periodic" flag byte.
+export function init(state: OZBSplineInterpolatorState, spline: { periodic: boolean }): void {
+  // @0x422aa: read spline periodic flag (byte at spline+0x90)
+  const isPeriodic = !!spline.periodic;
+  // @0x422b1..0x422bb: OZSpline::getNumberOfValidVerticesWithMultiplicity(kCMTimeZero)
+  const nVerts = ozSplineGetNumberOfValidVerticesWithMultiplicity_atKCMTimeZero(spline) | 0;
+  if (isPeriodic) {                                           // @0x422c0..0x422c4
+    state.count = (nVerts + 3) | 0;                           // @0x422c6/0x422c9
+    state.order = 4;                                          // @0x422cd
+    generatePeriodicKnotVector(state);                        // @0x422d5..0x422d8
+  } else {
+    state.count = nVerts | 0;                                 // @0x422df
+    // @0x422e3..0x422ee: order = (nVerts < 4 unsigned) ? nVerts : 4 -> i.e. min(4, nVerts).
+    // The `cmovb` picks EAX (nVerts) when nVerts < 4, i.e. keeps the smaller value... wait —
+    // read carefully: `mov $0x4,%ecx ; cmovb %eax,%ecx`. `cmovb` copies eax into ecx when
+    // CF=1 (i.e., nVerts <u 4). So ecx = (nVerts < 4) ? nVerts : 4, i.e. min(4, nVerts).
+    // That's the true FCP behavior: order clamped to at most 4, at most nVerts.
+    const order4 = (nVerts >>> 0) < 4 ? nVerts : 4;
+    state.order = order4;                                     // @0x422ee
+    generateOpenKnotVector(state);                            // @0x422f2..0x422f5
+  }
+  // @0x422fa..0x42309: tail-call OZSpline::setDirty(spline, false)
+  ozSplineSetDirty(spline, false);
+}
+
+// ────────────────────────────────────────────────────────────────────────────────────────
+// Undecoded external OZSpline vtable/method stubs — kept as throwing stubs per PORTING_SPEC
+// Rule 3. Each cites the exact @0xADDR call site so frontier.py can enumerate the gap.
+// ────────────────────────────────────────────────────────────────────────────────────────
+
+/** OZSpline::getNumberOfValidVerticesWithMultiplicity(CMTime const&) — called from init@0x422bb
+ *  and getAdjustedMinU@0x42215/getAdjustedMaxU@0x421c9-ish. Return value is a u32 vertex count. */
+function ozSplineGetNumberOfValidVerticesWithMultiplicity_atKCMTimeZero(
+  _spline: unknown,
+): number {
   throw new Error(
-    "OZBSplineInterpolator::init(OZSpline&, CMTime const&) @ProChannel 0x4229a not yet " +
-      "transcribed — 36-line body calling into knot-vector generators and fillTempArrays.",
+    "OZSpline::getNumberOfValidVerticesWithMultiplicity(CMTime const&) not yet transcribed " +
+      "— called from OZBSplineInterpolator::init @ProChannel 0x422bb.",
+  );
+}
+
+/** OZSpline::setDirty(bool) — tail-called from init@0x42309. */
+function ozSplineSetDirty(_spline: unknown, _dirty: boolean): void {
+  throw new Error(
+    "OZSpline::setDirty(bool) not yet transcribed — tail-called from " +
+      "OZBSplineInterpolator::init @ProChannel 0x42309.",
   );
 }
 
