@@ -44,12 +44,24 @@ if [ -n "$CHANGED" ]; then
 fi
 
 # --- Merge into main and push (from the MAIN worktree) -----------------------------------------
+# RETRY LOOP: even under the merge lock, origin can advance between our pull and push if a push
+# landed from elsewhere (or the lock was contended). A bare `push` then rejects with "cannot lock
+# ref 'refs/heads/main': is at X but expected Y". Re-pull (--no-edit) + re-push up to 5x instead of
+# failing the whole merge. Each iteration re-integrates the newest origin/main before pushing.
 BEFORE="$(git rev-parse origin/main)"
 BR_TIP="$(git rev-parse "$BR")"
 git checkout -q main
-git pull -q --no-edit origin main
-git merge -q --no-edit "$BR" || { echo "MERGE CONFLICT on $BR — needs manual resolve"; exit 3; }
-git push -q origin main
+PUSHED=0
+for attempt in 1 2 3 4 5; do
+  git pull -q --no-edit origin main
+  # merge is idempotent — if $BR is already contained, this is a no-op and returns 0.
+  git merge -q --no-edit "$BR" || { echo "MERGE CONFLICT on $BR — needs manual resolve"; exit 3; }
+  if git push -q origin main 2>/dev/null; then PUSHED=1; break; fi
+  echo "  push rejected (origin advanced) — re-pull+retry ($attempt/5)"
+  git fetch -q origin
+  sleep 1
+done
+[ "$PUSHED" = 1 ] || { echo "PUSH FAILED after 5 retries for $BR — origin kept advancing; re-run wt_merge"; exit 5; }
 
 # VERIFY the push actually advanced origin AND that the branch tip is now reachable from origin/main.
 git fetch -q origin
