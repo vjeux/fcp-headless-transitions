@@ -157,6 +157,32 @@ export class OZRenderParams {
   flagByteAt1a8: number = 0;
 
   /**
+   * @Ozone offset +0x1d0 — the "render quality" u32 slot, written
+   * @0x271774 by `setRenderQuality(OZQuality)` via `movl %esi, 0x1d0(%rdi)`.
+   * The argument is an `OZQuality` enum (SysV: 32-bit int in `%esi`); the
+   * setter stamps THE SAME value into both this slot and +0x1d4 (see
+   * `renderQualityDynamicAt1d4`) — a fan-out into two cached copies. We
+   * model it as `number` and keep the offset in the field name because
+   * the getter that reads +0x1d0 hasn't been ported yet, so we don't
+   * invent a name for the "static vs dynamic quality" split beyond what
+   * the two field addresses tell us.
+   */
+  renderQualityAt1d0: number = 0;
+
+  /**
+   * @Ozone offset +0x1d4 — the "dynamic render quality" u32 slot, written
+   * @0x27177a by `setRenderQuality(OZQuality)` via `movl %esi, 0x1d4(%rdi)`.
+   * `setRenderQuality` blasts the incoming enum into both this and
+   * `renderQualityAt1d0` in one go — the fact that the writer sets both
+   * suggests +0x1d0 holds the static (author-set) quality and +0x1d4
+   * holds the currently-applied ("dynamic") quality, and that
+   * `setRenderQuality` resets the dynamic back to the static. The
+   * separate not-yet-ported `setRenderQualityDynamic(OZQuality)` would
+   * touch only this slot.
+   */
+  renderQualityDynamicAt1d4: number = 0;
+
+  /**
    * `OZRenderParams::setResolution(PCVector2<double> const&)`
    *   — @Ozone 0x2716f0
    *   — __ZN14OZRenderParams13setResolutionERK9PCVector2IdE
@@ -369,5 +395,68 @@ export class OZRenderParams {
     // @0x271474  movb %sil,0x30c(%rdi)
     //   C++ `bool` → 1 byte: true == 0x01, false == 0x00.
     this.wantsHLGToPQPostProcessingStepAt30c = wants ? 1 : 0;
+  }
+
+  /**
+   * `OZRenderParams::setRenderQuality(OZQuality)`
+   *   — @Ozone 0x271770
+   *   — __ZN14OZRenderParams16setRenderQualityE9OZQuality
+   *
+   * Faithful line-for-line transcription of the 11-line disassembly:
+   *   0x271770  pushq  %rbp                        ; frame prologue
+   *   0x271771  movq   %rsp, %rbp
+   *   0x271774  movl   %esi, 0x1d0(%rdi)            ; this->+0x1d0 = arg (OZQuality, u32)
+   *   0x27177a  movl   %esi, 0x1d4(%rdi)            ; this->+0x1d4 = arg (OZQuality, u32)
+   *   0x271780  xorps  %xmm0, %xmm0                 ; xmm0 = 0 (16 zero bytes)
+   *   0x271783  movups %xmm0, 0x188(%rdi)           ; this->+0x188 = (0, 0)
+   *   0x27178a  movups %xmm0, 0x198(%rdi)           ; this->+0x198 = (0, 0)
+   *   0x271791  popq   %rbp                        ; frame epilogue
+   *   0x271792  retq
+   *
+   * SEMANTICS:
+   *   OZQuality is a C++ enum passed as a 32-bit int in `%esi` (SysV
+   *   arg2). setRenderQuality writes the SAME value into two adjacent
+   *   u32 slots — +0x1d0 (renderQualityAt1d0, the "static" quality) and
+   *   +0x1d4 (renderQualityDynamicAt1d4, the "dynamic" quality). This
+   *   is the same fan-out pattern setResolution uses (three copies of
+   *   the vec) — a plausible reading is "setting the quality also
+   *   resets the dynamic override to match", but we do not invent
+   *   semantics beyond the stores the machine performs.
+   *
+   *   The trailing `movups xmm0=0` to +0x188 and +0x198 zeroes the
+   *   SAME two 16-byte "cached derived" slots that setResolution
+   *   zeroes (see `zeroedAt188` / `zeroedAt198` above). Since those
+   *   slots hold PCVector2<double>-shaped caches derived from
+   *   resolution (and, we now learn, invalidated on quality change),
+   *   any resolution-derived cache must be recomputed after a quality
+   *   change. We mirror the disasm's write order exactly (+0x188 then
+   *   +0x198), which is the SAME order as setResolution.
+   *
+   * DEPENDENCIES: zero in-scope, zero externs, no indirect calls —
+   * pure field writes.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZRenderParams16setRenderQualityE9OZQuality.s
+   *   (11 lines total)
+   */
+  setRenderQuality(quality: number): void {
+    // @0x271774  movl %esi,0x1d0(%rdi)
+    //   Store the OZQuality enum (u32) into the "static quality" slot.
+    //   `| 0` preserves the 32-bit integer semantics the machine uses.
+    this.renderQualityAt1d0 = quality | 0;
+
+    // @0x27177a  movl %esi,0x1d4(%rdi)
+    //   Store the SAME enum into the adjacent "dynamic quality" slot.
+    this.renderQualityDynamicAt1d4 = quality | 0;
+
+    // @0x271780  xorps %xmm0,%xmm0            ; xmm0 = (0.0, 0.0) as 16 bytes
+    // @0x271783  movups %xmm0,0x188(%rdi)     ; this->+0x188 = (0, 0)
+    // @0x27178a  movups %xmm0,0x198(%rdi)     ; this->+0x198 = (0, 0)
+    //
+    // Invalidate the two PCVector2<double>-shaped caches that hold
+    // resolution-derived values (their meaning is decoded in the
+    // `zeroedAt188` / `zeroedAt198` doc-comments above).
+    this.zeroedAt188 = { x: 0, y: 0 };
+    this.zeroedAt198 = { x: 0, y: 0 };
   }
 }
