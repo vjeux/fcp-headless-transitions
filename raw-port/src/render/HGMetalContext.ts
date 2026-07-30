@@ -1,0 +1,155 @@
+// HGMetalContext.ts — Helium framework (render layer).
+//
+// Source: /Applications/Final Cut Pro.app/Contents/Frameworks/Helium.framework/
+//         Versions/A/Helium  (macOS FCP, x86_64 slice).
+//
+// -----------------------------------------------------------------------------
+// SYMBOLS PORTED
+// -----------------------------------------------------------------------------
+//   * HGMetalContext::bufferInfiniPool() const     @Helium 0x1d34e0
+//     __ZNK14HGMetalContext16bufferInfiniPoolEv
+//
+// re/disasm:
+//   raw-port/re/disasm/Helium.__ZNK14HGMetalContext16bufferInfiniPoolEv.s
+//
+// -----------------------------------------------------------------------------
+// FULL DISASM (12 lines, @0x1d34e0..@0x1d34f7)
+// -----------------------------------------------------------------------------
+//   __ZNK14HGMetalContext16bufferInfiniPoolEv:
+//     0x1d34e0  cmpb   $0x1, 0x68(%rdi)          ; flag byte at this[+0x68] == 1?
+//     0x1d34e4  jne    0x1d34f4                  ; no -> return nullptr branch
+//     0x1d34e6  pushq  %rbp                      ; frame prologue (only on taken path)
+//     0x1d34e7  movq   %rsp, %rbp
+//     0x1d34ea  movq   0x18(%rdi), %rax          ; rax = this[+0x18]  (wrapper ptr)
+//     0x1d34ee  movq   0x40(%rax), %rax          ; rax = wrapper[+0x40]  (pool ptr)
+//     0x1d34f2  popq   %rbp
+//     0x1d34f3  retq
+//     0x1d34f4  xorl   %eax, %eax                ; else return NULL
+//     0x1d34f6  retq
+//     0x1d34f7  nopw   (%rax,%rax)               ; alignment padding
+//
+// -----------------------------------------------------------------------------
+// FRONTIER CALLEES
+// -----------------------------------------------------------------------------
+// Zero. Pure inline branching getter — no callq, no external symbol stubs,
+// no indirect calls. Two 8-byte loads and a byte compare; the disasm is
+// end-to-end faithfully transcribable in TypeScript.
+// depgraph.py deps for __ZNK14HGMetalContext16bufferInfiniPoolEv reports
+// 0 in-scope callees, 0 externs, 0 indirect — pure straight-line code.
+
+/**
+ * `HGMetalBufferWrapperInfinipool` — opaque wrapper type declared inline
+ * inside HGMetalContext. The full definition lives in a not-yet-ported
+ * ledger unit; here we only need a `readonly poolAt0x40` field so
+ * `bufferInfiniPool` can read the offset the disasm reads.
+ *
+ * The `unique symbol` phantom brand keeps this distinct from other
+ * opaque wrapper handles at the type level. The runtime shape is a
+ * heap-allocated struct with at least a pointer at +0x40 (the only
+ * offset this port has observed so far).
+ */
+export interface HGMetalBufferWrapperInfinipool {
+  readonly __hgMetalBufferWrapperInfinipool: unique symbol;
+  /**
+   * @Helium offset +0x40 — the `HGBufferInfiniPool*` payload the wrapper
+   * exposes to `bufferInfiniPool`. Read @0x1d34ee via
+   * `movq 0x40(%rax), %rax` when the wrapper pointer at HGMetalContext+0x18
+   * is dereferenced. Marked `readonly` because this port only observes
+   * the load; the writer is in a different (not-yet-ported) method.
+   */
+  readonly poolAt0x40: HGBufferInfiniPool | null;
+}
+
+/**
+ * `HGBufferInfiniPool` — opaque handle for the return value of
+ * `HGMetalContext::bufferInfiniPool()`. Not modelled here (the concrete
+ * type lives elsewhere in the Metal-buffer subsystem, currently
+ * `todo`). The port declares an opaque handle so the getter has a
+ * legible return type; every downstream user treats the value as an
+ * opaque pointer.
+ */
+export interface HGBufferInfiniPool {
+  readonly __hgBufferInfiniPool: unique symbol;
+}
+
+/**
+ * `HGMetalContext` — Helium's Metal-backed render context. Only the
+ * fields touched by `bufferInfiniPool` are decoded here (offsets
+ * +0x18, +0x40 through the wrapper, and the flag at +0x68); every
+ * other field is undecoded and NOT modelled (per Rule 5 — no
+ * fabricated fields).
+ */
+export class HGMetalContext {
+  /**
+   * @Helium offset +0x18 — the `HGMetalBufferWrapperInfinipool*` this
+   * context owns. Read @0x1d34ea via `movq 0x18(%rdi), %rax` inside
+   * `bufferInfiniPool`. Only dereferenced when
+   * `isBufferInfiniPoolEnabled` (at +0x68) is 1.
+   *
+   * The `movq` load is 8-byte-wide, so the field is pointer-sized — a
+   * heap reference to an opaque wrapper instance (nullable before the
+   * pool is initialised). The writer for this slot lives in a
+   * different (not-yet-ported) HGMetalContext method; its identity is
+   * OUT OF SCOPE for this ledger unit.
+   */
+  bufferWrapper_at_0x18: HGMetalBufferWrapperInfinipool | null = null;
+
+  /**
+   * @Helium offset +0x68 — a `uint8_t` flag that gates access to the
+   * wrapper at +0x18. Read @0x1d34e0 via
+   * `cmpb $0x1, 0x68(%rdi)` inside `bufferInfiniPool`. When the byte
+   * equals 1 the wrapper is live and the pool is returned; any other
+   * value (including 0) makes the getter return `null`.
+   *
+   * The `cmpb` is a strict `== 1` check (not `!= 0`), so we mirror it
+   * exactly — this is the same discipline as the byte-flag reads
+   * everywhere else in the port (compare, don't coerce to truthy).
+   */
+  isBufferInfiniPoolEnabled_at_0x68: number = 0;
+
+  /**
+   * `HGMetalContext::bufferInfiniPool() const` — @Helium 0x1d34e0
+   * (__ZNK14HGMetalContext16bufferInfiniPoolEv).
+   *
+   * Faithful line-for-line transcription of the 12-line disassembly
+   * quoted in the file header. Two-path getter:
+   *
+   *   * If the byte flag at this[+0x68] equals 1, load
+   *     `this[+0x18]` (the wrapper pointer), then load
+   *     `wrapper[+0x40]` (the pool pointer) and return it.
+   *   * Otherwise return null (`xorl %eax, %eax; retq` @0x1d34f4).
+   *
+   * No in-scope callees. No externs. No indirect calls. `depgraph.py`
+   * confirms 0 deps of every kind.
+   *
+   * The disasm reveals a compiler-emitted "hot / cold" split: the
+   * cold `nullptr` path at @0x1d34f4 has no frame prologue/epilogue,
+   * the hot path pushes/pops %rbp only when it needs to load through
+   * the wrapper. Both paths reach the same return-value contract, so
+   * the TS mirror is a single conditional expression.
+   *
+   * The `const` qualifier in the C++ signature matches the `__ZNK...`
+   * mangling; every observed access is a read. We reflect that with
+   * no writes in the method body.
+   */
+  bufferInfiniPool(): HGBufferInfiniPool | null {
+    // @0x1d34e0  cmpb $0x1, 0x68(%rdi)          ; flag == 1?
+    // @0x1d34e4  jne  0x1d34f4                  ; not equal -> return null
+    if (this.isBufferInfiniPoolEnabled_at_0x68 !== 1) {
+      // @0x1d34f4  xorl %eax, %eax
+      // @0x1d34f6  retq
+      return null;
+    }
+    // @0x1d34ea  movq 0x18(%rdi), %rax          ; rax = this->bufferWrapper_at_0x18
+    const wrapper = this.bufferWrapper_at_0x18;
+    // If the wrapper pointer is null while the flag is 1, the machine
+    // still executes `movq 0x40(%rax), %rax` — a null-deref crash. We
+    // do NOT insert a defensive null check because the disasm doesn't
+    // @0x1d34ea (Rule 1: transcribe, don't reimplement). The TS mirror
+    // throws through the field access exactly as the FCP binary would.
+    // @0x1d34ee  movq 0x40(%rax), %rax          ; rax = wrapper->poolAt0x40
+    // @0x1d34f2  popq %rbp
+    // @0x1d34f3  retq
+    return wrapper!.poolAt0x40;
+  }
+}
