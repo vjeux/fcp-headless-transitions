@@ -216,6 +216,95 @@ export function HGRect__IsNull(self: HGRect): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// HGRect::IsZero() const — @Helium 0x1074c0 (__ZNK6HGRect6IsZeroEv)
+// ---------------------------------------------------------------------------
+// Class-member accessor. Distinct from IsNull: IsZero is TRUE iff all four
+// int32 fields are exactly 0 (i.e. the rect equals _HGRectNull byte-for-byte).
+// IsNull is TRUE for any corner-form rect with non-positive width or height,
+// so `HGRectNull` is IsNull-true AND IsZero-true, but e.g. {5,5,3,3} is
+// IsNull-true (right<=x, bottom<=y) yet IsZero-false. Different semantics —
+// both member accessors ship separately.
+//
+// Disassembly source:
+//   raw-port/re/disasm/Helium.__ZNK6HGRect6IsZeroEv.s
+//
+// FULL DISASM (23 lines — a short-circuit chain of four zero-tests)
+//   0x1074c0  pushq  %rbp
+//   0x1074c1  movq   %rsp, %rbp
+//   0x1074c4  cmpl   $0x0, (%rdi)           ; flags on (0 - x)  == flags on -x
+//   0x1074c7  je     0x1074cd               ; taken iff x == 0  -> continue
+//   0x1074c9  xorl   %eax, %eax             ; else return 0
+//   0x1074cb  popq   %rbp
+//   0x1074cc  retq
+//   0x1074cd  cmpl   $0x0, 0x4(%rdi)        ; flags on (0 - y)  == flags on -y
+//   0x1074d1  je     0x1074d7               ; taken iff y == 0
+//   0x1074d3  xorl   %eax, %eax             ; else return 0
+//   0x1074d5  popq   %rbp
+//   0x1074d6  retq
+//   0x1074d7  cmpl   $0x0, 0x8(%rdi)        ; flags on (0 - right)
+//   0x1074db  je     0x1074e1               ; taken iff right == 0
+//   0x1074dd  xorl   %eax, %eax             ; else return 0
+//   0x1074df  popq   %rbp
+//   0x1074e0  retq
+//   0x1074e1  cmpl   $0x0, 0xc(%rdi)        ; flags on (0 - bottom)
+//   0x1074e5  sete   %al                    ; al = 1 iff bottom == 0
+//   0x1074e8  popq   %rbp
+//   0x1074e9  retq
+//
+// TRUTH TABLE (AT&T dst-src decode of `cmpl $0x0, m` == `flags on (m - 0)`):
+//   Each `je` @0x1074c7/0x1074d1/0x1074db is taken iff its inspected int32
+//   field equals zero. The four `cmpl $0`s short-circuit: any non-zero field
+//   returns false immediately; only when x==y==right==bottom==0 does the
+//   final `sete %al` set al=1.
+//
+// EQUIVALENT to:  return self.x==0 && self.y==0 && self.right==0 && self.bottom==0
+//
+// The compiler chose the branch-per-field encoding over an OR-reduce because
+// short-circuit early-out is the tighter uop dispatch (Sandy-Bridge era) and
+// the fields alias `_HGRectNull`'s 16 zero bytes, so the common path is
+// most-likely-nonzero-early.
+//
+// FRONTIER CALLEES: none — leaf function (no calls, no in-scope deps).
+// ---------------------------------------------------------------------------
+
+/** `HGRect::IsZero() const` — @Helium 0x1074c0 (__ZNK6HGRect6IsZeroEv).
+ *
+ * Class-member accessor: returns true iff all four int32 fields (x, y,
+ * right, bottom) are exactly zero — i.e. the rect equals `_HGRectNull`
+ * byte-for-byte. This is a strictly stronger predicate than `IsNull`:
+ * IsZero(r) => IsNull(r), but not the reverse (a rect like `{5,5,3,3}`
+ * is IsNull-true, IsZero-false).
+ *
+ * Because our `HGRect` is modelled as a plain TS interface (not a class),
+ * the "this" pointer is passed as an explicit `self` parameter, mirroring
+ * the sibling `HGRect__IsNull` above.
+ *
+ * @param self  the `HGRect` — `this` in the native method.
+ */
+export function HGRect__IsZero(self: HGRect): boolean {
+  // @0x1074c4..0x1074c7 — cmpl $0, (%rdi) ; je : x == 0 -> continue.
+  //   `| 0` matches the 32-bit sign-agnostic compare emitted by the
+  //   compiler; the disasm's `cmpl` operates on the exact 4 bytes.
+  if ((self.x | 0) !== 0) {
+    // @0x1074c9..0x1074cc — xorl %eax,%eax ; popq ; retq  -> return false.
+    return false;
+  }
+  // @0x1074cd..0x1074d1 — cmpl $0, 0x4(%rdi) ; je : y == 0 -> continue.
+  if ((self.y | 0) !== 0) {
+    // @0x1074d3..0x1074d6 — xorl %eax,%eax ; popq ; retq  -> return false.
+    return false;
+  }
+  // @0x1074d7..0x1074db — cmpl $0, 0x8(%rdi) ; je : right == 0 -> continue.
+  if ((self.right | 0) !== 0) {
+    // @0x1074dd..0x1074e0 — xorl %eax,%eax ; popq ; retq  -> return false.
+    return false;
+  }
+  // @0x1074e1..0x1074e5 — cmpl $0, 0xc(%rdi) ; sete %al  -> al = (bottom==0).
+  return (self.bottom | 0) === 0;
+  // @0x1074e8..0x1074e9 — epilogue + retq.
+}
+
+// ---------------------------------------------------------------------------
 // HGRectContainsRect @Helium 0x107b60 — true iff r1 fully contains r2.
 //   dil = (r1.x      <= r2.x)      ; setle @0x107b6d
 //   al  = (r1.y      <= r2.y)      ; setle @0x107b77
