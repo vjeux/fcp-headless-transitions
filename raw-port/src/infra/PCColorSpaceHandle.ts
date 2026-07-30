@@ -32,6 +32,71 @@
 import type { CGColorSpaceRef } from "./PCColor";
 
 /**
+ * `_CGColorSpaceCreateWithName(CFStringRef name)` — CoreGraphics extern that
+ * produces a fresh CGColorSpaceRef (+1 retain) for a named color space (e.g.
+ * `kCGColorSpaceSRGB`, `kCGColorSpaceGenericGray`, `kCGColorSpaceExtendedSRGB`).
+ *
+ * TRUE out-of-scope extern per this port's policy — CoreGraphics is not one
+ * of the five ported FCP frameworks. The value it produces is an opaque CG
+ * handle that only the live CG runtime can construct. The ONLY faithful port
+ * without fabricating a CGColorSpace is to `throw`, matching the boundary-
+ * stub convention already used elsewhere in this port for CG-value-producing
+ * externs (see `PCColorSpaceHandle_operator_lt` @ProCore 0x9b3ec, and
+ * `createExtendedColorSpace` @ProCore 0x20581 which similarly cites this
+ * stub at 0xde1c2 for its Extended-sRGB path).
+ *
+ * The single call-site currently transcribed is the PCColorSpaceHandle
+ * CFString-name ctor @ProCore 0x9b22e (stub @0xde1c2).
+ */
+function _CGColorSpaceCreateWithName_stub(_name: unknown): CGColorSpaceRef | null {
+  // @ProCore 0x9b22e -> _CGColorSpaceCreateWithName @stub 0xde1c2
+  throw new Error(
+    "_CGColorSpaceCreateWithName(CFStringRef) @ProCore imported-stub 0xde1c2 " +
+      "(called from PCColorSpaceHandle::PCColorSpaceHandle(__CFString const*) " +
+      "@ProCore 0x9b22e): TRUE out-of-scope extern (CoreGraphics.framework). " +
+      "Produces an opaque CGColorSpaceRef only the live CG runtime can build " +
+      "— no faithful JS answer exists without fabricating a color-space handle. " +
+      "This matches the boundary-stub convention used across this port for " +
+      "CG-value-producing externs (see PCColorSpaceHandle_operator_lt.ts and " +
+      "createExtendedColorSpace.ts).",
+  );
+}
+
+/**
+ * CFStringRef — opaque CoreFoundation string handle. TRUE out-of-scope extern.
+ * Modelled here as a nominal type so the ctor signature reads exactly like the
+ * FCP prototype `PCColorSpaceHandle(__CFString const*)`.
+ */
+export type CFStringRef = unknown;
+
+/**
+ * `_CGColorSpaceCreateWithName(CFStringRef name) -> CGColorSpaceRef`
+ *   CoreGraphics extern @ProCore imported-stub 0xde1c2.
+ *
+ * TRUE out-of-scope extern (CoreGraphics.framework). Called from
+ * PCColorSpaceHandle::PCColorSpaceHandle(__CFString const*) @ProCore 0x9b22e
+ * (`callq 0xde1c2 ## symbol stub for: _CGColorSpaceCreateWithName`) and from
+ * createExtendedColorSpace @ProCore 0x2058b's Extended-sRGB fallback. Returns
+ * a +1-retained CGColorSpaceRef for the named color-space constant (e.g.
+ * kCGColorSpaceExtendedSRGB, kCGColorSpaceDisplayP3, kCGColorSpaceGenericGray).
+ *
+ * We honor the extern-boundary convention already used across the port (see
+ * PCColorSpaceHandle_operator_lt.ts and createExtendedColorSpace.ts): throw
+ * with the @0xADDR of the actual call site so any live code path that hits
+ * the boundary fails loud instead of silently fabricating a color space.
+ */
+function CGColorSpaceCreateWithName_stub(name: CFStringRef | null): CGColorSpaceRef | null {
+  // @ProCore imported-stub 0xde1c2 (`_CGColorSpaceCreateWithName`).
+  // Not modelled: JS has no live CoreGraphics color-space registry.
+  throw new Error(
+    "_CGColorSpaceCreateWithName(CFStringRef) @ProCore stub 0xde1c2 — " +
+      "CoreGraphics.framework extern (TRUE out-of-scope). Called from " +
+      "PCColorSpaceHandle::PCColorSpaceHandle(__CFString const*) @ProCore " +
+      "0x9b22e. Name arg (opaque CFStringRef): " + String(name),
+  );
+}
+
+/**
  * PCCFRefTraits<CGColorSpace*>::release(CGColorSpace* cs)  @ProCore 0x000acbf2
  *   __ZN13PCCFRefTraitsIP12CGColorSpaceE7releaseES1_
  *   pushq %rbp / movq %rsp,%rbp / popq %rbp / jmp _CGColorSpaceRelease   (stub @0xde1e6)
@@ -57,6 +122,115 @@ export class PCColorSpaceHandle {
     // No ctor symbol emitted in Flexo (inlined). The struct is a single pointer field,
     // so a faithful default+set is the only initialisation path visible in the binary.
     this.handle = handle;
+  }
+
+  /**
+   * `PCColorSpaceHandle::PCColorSpaceHandle(__CFString const*)`
+   *   @ProCore 0x9b222  __ZN18PCColorSpaceHandleC1EPK10__CFString
+   *
+   * Complete-object ctor (C1 alias) that constructs a PCColorSpaceHandle from a
+   * CoreFoundation string name (e.g. `kCGColorSpaceSRGB`,
+   * `kCGColorSpaceExtendedSRGB`, `kCGColorSpaceDisplayP3`, ...). The C1 body IS
+   * the real work — there is no separate C2 emitted at this address; the whole
+   * function is 14 lines including prologue/epilogue.
+   *
+   * Full disasm (raw-port/re/disasm/ProCore.__ZN18PCColorSpaceHandleC1EPK10__CFString.s):
+   *
+   *   0x9b222  pushq  %rbp
+   *   0x9b223  movq   %rsp, %rbp
+   *   0x9b226  pushq  %rbx
+   *   0x9b227  pushq  %rax                             ; align stack for callq
+   *   0x9b228  movq   %rdi, %rbx                       ; rbx = this  (save across call)
+   *   0x9b22b  movq   %rsi, %rdi                       ; rdi = name  (arg-shuffle)
+   *   0x9b22e  callq  0xde1c2                          ; _CGColorSpaceCreateWithName(name)
+   *                                                      ## symbol stub, ProCore imports
+   *   0x9b233  movq   %rax, (%rbx)                     ; this->handle = rax  (+0x00)
+   *   0x9b236  addq   $0x8, %rsp                       ; unwind stack
+   *   0x9b23a  popq   %rbx
+   *   0x9b23b  popq   %rbp
+   *   0x9b23c  retq
+   *   0x9b23d  nop                                     ; alignment
+   *
+   * Semantics recovered:
+   *   PCColorSpaceHandle::PCColorSpaceHandle(CFStringRef name) {
+   *     this->handle = _CGColorSpaceCreateWithName(name);   // +1 retain, may be NULL
+   *   }
+   *
+   * The stored ref is owned by this handle: the Flexo dtor @0x601fc0 releases it
+   * (via `PCCFRefTraits<CGColorSpace*>::release` -> `_CGColorSpaceRelease`). No
+   * retain/copy is inserted here because CGColorSpaceCreateWithName already
+   * returns a +1 reference per CF create-rule convention.
+   *
+   * ── PORT NOTES ──
+   * TypeScript does not support multiple constructor bodies with distinct
+   * parameter types the way C++ does. Every other overload in this class is
+   * exposed as a static factory (see the `new*` methods on `PCColor` for the
+   * same pattern), so this ctor is exposed as `newFromCFString(name)`. The
+   * default constructor `new PCColorSpaceHandle(handle?)` remains the direct
+   * pointer-holder path.
+   *
+   * The call to `_CGColorSpaceCreateWithName` is a TRUE out-of-scope extern:
+   * the value it produces is an opaque CGColorSpaceRef only the live
+   * CoreGraphics runtime can build. It is modelled as a boundary stub that
+   * throws, matching the extern-boundary convention used across this port
+   * (see `PCColorSpaceHandle_operator_lt.ts`, `createExtendedColorSpace.ts`).
+   * Callers that reach this path require a live CG color-space registry that
+   * does not exist in the JS port; the throw preserves that fact faithfully
+   * rather than silently fabricating a handle.
+   */
+  public static newFromCFString(name: CFStringRef | null): PCColorSpaceHandle {
+    const self = new PCColorSpaceHandle(null);
+    // @0x9b22e  callq _CGColorSpaceCreateWithName(name)
+    const ref = CGColorSpaceCreateWithName_stub(name);
+    // @0x9b233  movq %rax, (%rbx)   — store return value in this->handle (+0x00)
+    self.handle = ref;
+    return self;
+  }
+
+  /**
+   * `PCColorSpaceHandle::PCColorSpaceHandle(__CFString const*)`
+   *   C1 complete-object ctor  @ProCore 0x9b222
+   *   `__ZN18PCColorSpaceHandleC1EPK10__CFString`
+   *
+   * Disassembly (raw-port/re/disasm/ProCore.__ZN18PCColorSpaceHandleC1EPK10__CFString.s):
+   *
+   *   0x9b222  pushq %rbp
+   *   0x9b223  movq  %rsp, %rbp
+   *   0x9b226  pushq %rbx
+   *   0x9b227  pushq %rax                       ; 16-byte-align rsp
+   *   0x9b228  movq  %rdi, %rbx                 ; rbx = this
+   *   0x9b22b  movq  %rsi, %rdi                 ; rdi = name (arg1: CFStringRef)
+   *   0x9b22e  callq 0xde1c2                    ; symbol stub for: _CGColorSpaceCreateWithName
+   *   0x9b233  movq  %rax, (%rbx)               ; this->handle = returned CGColorSpaceRef
+   *   0x9b236  addq  $0x8, %rsp                 ; unwind scratch push
+   *   0x9b23a  popq  %rbx
+   *   0x9b23b  popq  %rbp
+   *   0x9b23c  retq
+   *   0x9b23d  nop
+   *
+   * Semantics: create a new PCColorSpaceHandle whose +0x00 field is set to the
+   * result of `_CGColorSpaceCreateWithName(name)`. No other work — no throwing
+   * ctor delegation, no null check, no retain adjustment (CGColorSpaceCreateWithName
+   * already returns a +1-retained ref, ownership transfers to the handle to be
+   * released by the Flexo dtor @0x601fc0). This is the "named-color-space" factory
+   * used by call-sites that want e.g. `kCGColorSpaceExtendedSRGB` or
+   * `kCGColorSpaceDisplayP3` wrapped in a PCColorSpaceHandle for the caching
+   * layers (PCNCLCCode map, PCEvictionHeap<PCCFRef<CGColorSpace*>>).
+   *
+   * TS PORT SHAPE: TypeScript cannot overload ctors, and the existing
+   * `constructor(handle?)` already covers the pointer-in path. We expose this
+   * one as the static factory `newFromCFStringName(name)` so the call sequence
+   * — invoke `_CGColorSpaceCreateWithName`, install result at +0x00 — reads
+   * literally from the disasm. Callers that transcribe a
+   * `PCColorSpaceHandle csh(name)` C++ stack ctor should call this factory.
+   */
+  static newFromCFStringName(name: CFStringRef | null): PCColorSpaceHandle {
+    // @0x9b22e  callq _CGColorSpaceCreateWithName(name)
+    const cs = CGColorSpaceCreateWithName_stub(name);
+    // @0x9b233  movq %rax, (%rbx)  -> this->handle = cs
+    const self = new PCColorSpaceHandle(null);
+    self.handle = cs;
+    return self;
   }
 
   /**
