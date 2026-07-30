@@ -1,10 +1,11 @@
 // PCNSRefImpl — ProCore's tiny ARC-owning wrapper around an Objective-C
 // `id` handle (namespace `ProCore_Impl::PCNSRefImpl`).
 //
-// This unit ports ONLY `release() const` at @ProCore 0xac550; every other
-// method on this class (ctors, dtors, retain, get, reset, etc.) is a
-// separate ledger entry and OUT OF SCOPE for this file. Extending this
-// file with more methods later is the correct workflow (one class per file).
+// This unit ports `release() const` @ProCore 0xac550 AND
+// `retain() const` @ProCore 0xac542. Ctors, dtors, get, reset, etc. are
+// SEPARATE ledger entries and remain OUT OF SCOPE for this file until
+// their own claims — extending this file with more methods later is the
+// correct workflow (one class per file).
 //
 // Provenance:
 //   Binary: /Applications/Final Cut Pro.app/Contents/Frameworks/
@@ -41,11 +42,26 @@
 //         slot). See raw-port/src/harness/ObjC.ts for the resolved __got
 //         address in Flexo — ProCore uses the same libobjc symbol.
 //
+//   * _objc_retain
+//       — libobjc ARC bump primitive. TRUE out-of-scope extern (ObjC
+//         runtime — same category as _objc_release). Loaded directly from
+//         __DATA_CONST.__got — disasm shows `jmpq *0x9b8a8(%rip)`. libobjc
+//         semantics: `_objc_retain(nil) == nil`, otherwise atomic +1 on
+//         the object's refcount, returning the SAME id (an important
+//         invariant callers rely on when chaining). Modelled as a
+//         literal identity-with-nil-passthrough in harness/ObjC.ts —
+//         lifetime primitives are NO-OPs in the JS surrogate (JS GC
+//         handles our object graph), per the landed extern-boundary
+//         convention (docs/reviewer commit 619711b7 "CFRelease/CFRetain-
+//         family externs are no-ops, not throws (whole PCCFRef family)").
+//
 // ─────────────────────────────────────────────────────────────────────────
 // SYMBOLS PORTED HERE
 // ─────────────────────────────────────────────────────────────────────────
 //   * __ZNK12ProCore_Impl11PCNSRefImpl7releaseEv
 //       — ProCore_Impl::PCNSRefImpl::release() const  @ProCore 0xac550
+//   * __ZNK12ProCore_Impl11PCNSRefImpl6retainEv
+//       — ProCore_Impl::PCNSRefImpl::retain()  const  @ProCore 0xac542
 //
 // ─────────────────────────────────────────────────────────────────────────
 // FULL DISASM
@@ -65,7 +81,7 @@
 //                                          ;  resolution.
 // ─────────────────────────────────────────────────────────────────────────
 
-import { objc_release, type ObjCObject } from "../harness/ObjC";
+import { objc_release, objc_retain, type ObjCObject } from "../harness/ObjC";
 
 /**
  * `ProCore_Impl::PCNSRefImpl` — ProCore's raw wrapper around a single
@@ -117,5 +133,63 @@ export class PCNSRefImpl {
     //                      value is void either way.
     // ------------------------------------------------------------
     objc_release(this.handle);
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // retain() — sibling of release(). Same 5-instruction shape, same ARC
+  // primitive family (libobjc), differing only in the __got slot: release
+  // hits @rip+0x9b892 (== _objc_release GOT), retain hits @rip+0x9b8a8
+  // (== _objc_retain GOT).  Added as a separate ledger claim; the header
+  // above already lists both symbols under SYMBOLS PORTED HERE.
+  //
+  // Disasm source:
+  //   raw-port/re/disasm/ProCore.__ZNK12ProCore_Impl11PCNSRefImpl6retainEv.s
+  //
+  // FULL DISASM
+  //   0xac542  pushq %rbp                    ; frame prologue
+  //   0xac543  movq  %rsp, %rbp
+  //   0xac546  movq  (%rdi), %rdi            ; rdi = this->handle
+  //                                          ; System-V ABI: this = %rdi.
+  //   0xac549  popq  %rbp                    ; frame epilogue
+  //   0xac54a  jmpq  *0x9b8a8(%rip)          ; tail-call _objc_retain via __got
+  //                                          ; literal-pool addr
+  //                                          ; 0xac54a+7+0x9b8a8 = 0x147df9.
+  // ═════════════════════════════════════════════════════════════════════════
+
+  /**
+   * `ProCore_Impl::PCNSRefImpl::retain() const` — @ProCore 0xac542
+   * (__ZNK12ProCore_Impl11PCNSRefImpl6retainEv).
+   *
+   * Faithful transcription of the 5-instruction body: load `this->handle`,
+   * tail-call `_objc_retain` through the __DATA_CONST.__got literal-pool
+   * slot at @0xac54a + 7 + 0x9b8a8 = 0x147df9. libobjc's `_objc_retain(id)`
+   * returns the SAME id (nil passes through unchanged); the wrapper never
+   * writes `handle`, so the C++ `const` on the signature is honest.
+   *
+   * Note: unlike a typical C++ smart-ptr retain, this returns the retained
+   * id (native register %rax is the ObjC return; the tail-jmp forwards it).
+   * We model that faithfully — the JS surrogate returns the same handle
+   * that would land in %rax after the tail-call (libobjc's retain is a
+   * documented identity on the object).
+   *
+   *   0xac542  pushq %rbp
+   *   0xac543  movq  %rsp, %rbp
+   *   0xac546  movq  (%rdi), %rdi
+   *   0xac549  popq  %rbp
+   *   0xac54a  jmpq  *0x9b8a8(%rip)   ; -> _objc_retain
+   */
+  retain(): ObjCObject | null {
+    // ------------------------------------------------------------
+    // @0xac542..0xac543 — prologue (no TS-visible effect).
+    // @0xac546           — `movq (%rdi), %rdi`: load this->handle into
+    //                      the arg-0 register for the impending tail-
+    //                      call to _objc_retain.
+    // @0xac549           — `popq %rbp`: epilogue.
+    // @0xac54a           — `jmpq *[rip+0x9b8a8]`: tail-call
+    //                      _objc_retain(this->handle). Return value in
+    //                      %rax IS the (retained) id from libobjc's
+    //                      identity-on-non-nil semantics.
+    // ------------------------------------------------------------
+    return objc_retain(this.handle);
   }
 }
