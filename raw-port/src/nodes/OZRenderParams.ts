@@ -16,6 +16,7 @@
 // are as-yet-undecoded and left OPAQUE — we don't invent unread fields)
 // -----------------------------------------------------------------------------
 //   +0x018  PCVector2<double>  resolutionAt18   ; @0x27170b write (16 bytes)
+//   +0x148  int32              heightAt148      ; @0x2707c4 write (4 bytes, low  half of `long` arg)
 //   +0x188  PCVector2<double>  zeroedAt188      ; @0x271719 write (16 bytes zero)
 //   +0x198  PCVector2<double>  zeroedAt198      ; @0x271712 write (16 bytes zero)
 //   +0x1b0  PCVector2<double>  resolutionAt1b0  ; @0x2716f7 write (16 bytes)
@@ -38,6 +39,11 @@
 //       — OZRenderParams::setResolution(PCVector2<double> const&) @Ozone 0x2716f0
 //   * __ZN14OZRenderParams16setBlendingGammaEf
 //       — OZRenderParams::setBlendingGamma(float) @Ozone 0x271610
+//   * __ZN14OZRenderParams9setHeightEl
+//       — OZRenderParams::setHeight(long) @Ozone 0x2707c0
+//       (10-line disasm; writes int32 at +0x148 then zeros the +0x188/+0x198
+//        cache pair — same pair setResolution invalidates. Source:
+//        __ZN14OZRenderParams9setHeightEl.s)
 //   * __ZN14OZRenderParams20setResolutionDynamicERK9PCVector2IdE
 //       — OZRenderParams::setResolutionDynamic(PCVector2<double> const&) @Ozone 0x271730
 //         (raw-port/re/disasm/
@@ -154,6 +160,23 @@ export class OZRenderParams {
    * mirrors it directly.
    */
   reducedResolutionMediaAt1e6: number = 0;
+
+  /**
+   * @Ozone offset +0x148 — a 32-bit int written by `setHeight(long)`
+   * @0x2707c4 via `movl %esi, 0x148(%rdi)`. The `movl` (4-byte) store
+   * confirms the field is 32 bits WIDE at the machine level even though
+   * the demangled prototype types the incoming argument as `long`
+   * (SysV/AAPCS puts the scalar in `%rsi`, and the setter reads only
+   * the low 32-bit register `%esi` — the top 32 bits of the caller's
+   * `long` are silently dropped). Modelled as `number` here; JS numbers
+   * hold this range exactly, but we clamp to a signed 32-bit truncation
+   * (`| 0`) in `setHeight` to reproduce the observable bit-width.
+   *
+   * The field is a per-render "height in pixels" slot. Its counterpart
+   * (setWidth @+0x144 or similar) has not yet been decoded — we don't
+   * invent it here.
+   */
+  heightAt148: number = 0;
 
   /**
    * @Ozone offset +0x1a8 — a one-byte flag/mode discriminator, read
@@ -423,5 +446,55 @@ export class OZRenderParams {
     // @0x271974  movb %sil,0x1e6(%rdi)
     //   C++ `bool` → 1 byte: true == 0x01, false == 0x00.
     this.reducedResolutionMediaAt1e6 = reduced ? 1 : 0;
+  }
+
+  /**
+   * `OZRenderParams::setHeight(long)`
+   *   — @Ozone 0x2707c0
+   *   — __ZN14OZRenderParams9setHeightEl
+   *
+   * Faithful line-for-line transcription of the 10-line disassembly:
+   *   0x2707c0  pushq  %rbp                        ; frame prologue
+   *   0x2707c1  movq   %rsp, %rbp
+   *   0x2707c4  movl   %esi, 0x148(%rdi)           ; this->+0x148 = (int32)arg
+   *   0x2707ca  xorps  %xmm0, %xmm0                ; xmm0 = 0
+   *   0x2707cd  movups %xmm0, 0x188(%rdi)          ; this->+0x188 = (0, 0)
+   *   0x2707d4  movups %xmm0, 0x198(%rdi)          ; this->+0x198 = (0, 0)
+   *   0x2707db  popq   %rbp                        ; frame epilogue
+   *   0x2707dc  retq
+   *   0x2707dd  nopl   (%rax)                      ; alignment padding
+   *
+   * Three-statement body:
+   *
+   *   1. Store the new height into `this->+0x148`. The prototype types
+   *      the argument as `long` (64-bit on macOS/x86_64), but the
+   *      generated code writes only the LOW 32 bits (`movl %esi, ...`).
+   *      The top 32 bits of the caller's `long` are silently discarded
+   *      by this setter — anyone passing values outside `int32_t` range
+   *      will see them wrap. We reproduce that truncation with `| 0`.
+   *
+   *   2 & 3. Zero the two "resolution-derived cache" slots at +0x188
+   *      and +0x198 — the SAME two slots that `setResolution` zeroes
+   *      at @0x271712 / @0x271719. Any resolution-affecting setter (the
+   *      full 2D resolution, or an individual height) invalidates the
+   *      cached derived pair.
+   *
+   * Zero in-scope callees, zero externs, no indirect calls — pure
+   * field writes.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZRenderParams9setHeightEl.s (10 lines)
+   */
+  setHeight(height: number): void {
+    // @0x2707c4  movl %esi,0x148(%rdi)
+    //   The setter reads only %esi (low 32 bits of the `long` in %rsi),
+    //   so the observable stored width is int32. `| 0` reproduces the
+    //   two's-complement truncation the CPU performs on the store.
+    this.heightAt148 = height | 0;
+    // @0x2707ca  xorps %xmm0,%xmm0
+    // @0x2707cd  movups %xmm0,0x188(%rdi)  ; this[+0x188] = (0, 0)
+    this.zeroedAt188 = { x: 0, y: 0 };
+    // @0x2707d4  movups %xmm0,0x198(%rdi)  ; this[+0x198] = (0, 0)
+    this.zeroedAt198 = { x: 0, y: 0 };
   }
 }
