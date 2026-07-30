@@ -169,4 +169,28 @@ export class OZSceneCamera {
     this.activeFlag = 1;
     // @0x4455dc..0x4455dd — epilogue + retq.
   }
+
+  /**
+   * `OZSceneCamera::setNodeID(uint32_t)` — @Ozone 0x445a90
+   *   __ZN13OZSceneCamera9setNodeIDEj
+   *
+   * Faithful line-for-line transcription (7-instruction body, no calls):
+   *
+   *   0x445a90  pushq %rbp                    ; prologue
+   *   0x445a91  movq  %rsp, %rbp
+   *   0x445a94  movl  %esi, 0x10(%rdi)        ; this->(field@+0x10) = arg (u32)
+   *   0x445a97  popq  %rbp                    ; epilogue
+   *   0x445a98  retq
+   *   0x445a99  nopl  (%rax)                  ; alignment
+   *
+   * The write is a 32-bit `movl` to offset 0x10 — the SAME field the C1
+   * ctor at @0x4455d5 initialises from its second arg (documented above
+   * as `+0x10 index`). "NodeID" is the setter's public name; internally
+   * the field is the 32-bit camera index. Pure struct assignment; no
+   * externs, no callees.
+   */
+  setNodeID(id: number): void {
+    // @0x445a94  movl %esi,0x10(%rdi)  — u32 truncation matches `movl`.
+    this.index = id >>> 0;
+  }
 }
