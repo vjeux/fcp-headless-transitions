@@ -42,6 +42,10 @@
 //       — OZRenderParams::setResolutionDynamic(PCVector2<double> const&) @Ozone 0x271730
 //         (raw-port/re/disasm/
 //           __ZN14OZRenderParams20setResolutionDynamicERK9PCVector2IdE.s — 15 lines)
+//   * __ZN14OZRenderParams29setDoShapeAntialiasingDynamicEb
+//       — OZRenderParams::setDoShapeAntialiasingDynamic(bool) @Ozone 0x2718c0
+//         (raw-port/re/disasm/
+//           __ZN14OZRenderParams29setDoShapeAntialiasingDynamicEb.s — 10 lines)
 //   * __ZN14OZRenderParams33setWantsHLGToPQPostProcessingStepEb
 //       — OZRenderParams::setWantsHLGToPQPostProcessingStep(bool) @Ozone 0x271470
 //         (raw-port/re/disasm/
@@ -111,6 +115,19 @@ export class OZRenderParams {
 
   /** @Ozone offset +0x2e0 — written by setBlendingGamma @0x271614 (float32 store). */
   blendingGamma: number = 0;
+
+  /**
+   * @Ozone offset +0x1e3 — a one-byte flag written by
+   * `setDoShapeAntialiasingDynamic(bool)` @0x2718c4 via
+   * `movb %sil, 0x1e3(%rdi)`. The 1-byte store (`movb`) confirms this
+   * is a C++ `bool` (1 byte). Preserved as `number` (0..255) so the
+   * exact bit-width the machine writes is legible. The dynamic-mode
+   * "do shape antialiasing" toggle; peer setDoShapeAntialiasing (a
+   * separate ledger unit) writes the non-dynamic counterpart at a
+   * different offset. The writer's disasm alone tells us the role,
+   * so the field name mirrors it directly.
+   */
+  doShapeAntialiasingDynamicAt1e3: number = 0;
 
   /**
    * @Ozone offset +0x108 — a one-byte flag written by `setIsPlaying(bool)`
@@ -369,5 +386,67 @@ export class OZRenderParams {
     // @0x271474  movb %sil,0x30c(%rdi)
     //   C++ `bool` → 1 byte: true == 0x01, false == 0x00.
     this.wantsHLGToPQPostProcessingStepAt30c = wants ? 1 : 0;
+  }
+
+  /**
+   * `OZRenderParams::setDoShapeAntialiasingDynamic(bool)`
+   *   — @Ozone 0x2718c0
+   *   — __ZN14OZRenderParams29setDoShapeAntialiasingDynamicEb
+   *
+   * Faithful line-for-line transcription of the 10-line disassembly:
+   *
+   *   0x2718c0  pushq  %rbp                        ; frame prologue
+   *   0x2718c1  movq   %rsp, %rbp
+   *   0x2718c4  movb   %sil, 0x1e3(%rdi)            ; this[+0x1e3] = arg (bool, 1 byte)
+   *   0x2718cb  xorps  %xmm0, %xmm0                 ; xmm0 = 0 (16 zero bytes)
+   *   0x2718ce  movups %xmm0, 0x188(%rdi)           ; this[+0x188] = (0, 0)
+   *   0x2718d5  movups %xmm0, 0x198(%rdi)           ; this[+0x198] = (0, 0)
+   *   0x2718dc  popq   %rbp                        ; frame epilogue
+   *   0x2718dd  retq
+   *   0x2718de  nop                                  ; padding
+   *
+   * TWO-PART BODY:
+   *   1. Store the `bool` arg (SysV/AAPCS puts scalar arg2 in %rsi;
+   *      `bool` is the low byte %sil) into the class slot at +0x1e3.
+   *   2. Zero the paired 16-byte "downstream cache" slots at +0x188
+   *      and +0x198 (identical pattern to setResolution's zeroing at
+   *      the same offsets @0x271712 / @0x271719, and to
+   *      setResolutionDynamic's conditional zero in mode==1
+   *      @0x271755 / @0x27175c). These slots are already modelled as
+   *      `zeroedAt188` / `zeroedAt198` on this class.
+   *
+   * SEMANTICS:
+   *   Every dynamic-quality setter that touches these downstream cache
+   *   slots wipes them — the +0x188 / +0x198 pair holds a cached
+   *   derived value that must be invalidated whenever ANY dynamic-
+   *   quality flag flips. This method is one such dynamic setter.
+   *
+   *   Note on write order: the disasm writes +0x188 BEFORE +0x198,
+   *   matching setResolutionDynamic's mode==1 order (and the REVERSE
+   *   of setResolution's order). Same zero value going to both, so
+   *   observable state is identical either way, but we mirror the
+   *   disasm order for fidelity per Rule 1.
+   *
+   * DEPENDENCIES: zero in-scope, zero externs. Pure field writes.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZRenderParams29setDoShapeAntialiasingDynamicEb.s
+   *   (10 lines)
+   */
+  setDoShapeAntialiasingDynamic(doAA: boolean): void {
+    // @0x2718c4  movb %sil,0x1e3(%rdi)
+    //   C++ `bool` → 1 byte: true == 0x01, false == 0x00.
+    this.doShapeAntialiasingDynamicAt1e3 = doAA ? 1 : 0;
+
+    // @0x2718cb  xorps %xmm0,%xmm0             ; xmm0 = 0 (16 zero bytes)
+    // @0x2718ce  movups %xmm0,0x188(%rdi)      ; this[+0x188] = (0, 0)
+    // @0x2718d5  movups %xmm0,0x198(%rdi)      ; this[+0x198] = (0, 0)
+    //
+    // Invalidate the downstream cache pair. Order mirrors the disasm
+    // (+0x188 before +0x198). Same zero-vector reused for both stores.
+    this.zeroedAt188 = { x: 0, y: 0 };
+    this.zeroedAt198 = { x: 0, y: 0 };
+
+    // @0x2718dc-0x2718dd — epilogue + retq.
   }
 }
