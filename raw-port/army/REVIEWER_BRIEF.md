@@ -101,3 +101,10 @@ throw-free but still WRONG — the oracle/line-read catch what the reach fuzz ca
 ## Prove your setup before reviewing (one-time)
     python3 raw-port/army/verifier/prove_all.py     # must print PROVE_ALL: PASS
 If that fails, the verifier is broken — fix it before signing anything.
+
+## RESOLVED: PCColorSpaceHandle::getColorSpaceRef (2026-07-30, coordinator)
+DECISIVE — stop re-litigating this. Evidence gathered twice (reviewer-34/45) + coordinator call-site probe:
+- +0x00 IS a real field: ctor @0x9b23e `movq %rbx,(%r14)`; `operator bool()` @0x9b39a `cmpq $0x0,(%rdi);setne`; setter tail-calls PCCFRef::operator= on +0x00.
+- getColorSpaceRef @0x9b384 is UNIQUE (no ICF twin) and is literally `movq %rdi,%rax; ret` = return this.
+- The class is a SINGLE-FIELD wrapper `{ PCCFRef<CGColorSpace*> @ +0x00 }`. A C++ method returning a REFERENCE to a first member compiles to exactly `movq %rdi,%rax` because address(member)==this. The `Ref` suffix = reference return.
+RULE (deterministic): `return this` is FAITHFUL and ACCEPTABLE **iff** the TS types the return as the handle/PCCFRef reference (a value address-equal to `this`) AND does NOT claim to dereference/load +0x00. REJECT only if the port (a) returns a dereferenced raw CGColorSpace* value while emitting no load, or (b) its narrative asserts "tag-only wrapper / no +0x00 field" (that reasoning is FALSE — there is a field — even though the emitted `return this` happens to match). Judge on the emitted TS return semantics, not the prose.
