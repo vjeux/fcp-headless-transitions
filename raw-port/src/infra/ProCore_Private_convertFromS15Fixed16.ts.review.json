@@ -1,0 +1,1 @@
+{"verdict":"REJECT","merge_allowed":false,"method":"ProCore::Private::convertFromS15Fixed16(int)","symbol":"__ZN7ProCore7Private21convertFromS15Fixed16Ei","disasm_class":"REAL","reason":"DUP_LEDGER_symbol_ALREADY_LANDED_on_main_at_same_filepath_body_functionally_equivalent_this_branch_is_a_reformat_not_a_new_port","reviewer":"adversarial-reviewer-111","ts":"2026-07-30T09:00:32Z"}
