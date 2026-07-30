@@ -153,3 +153,31 @@ CONSEQUENCE — stop rejecting honest partial class files:
 RULE: review the branch's CLAIMED method body(ies) for faithful transcription + ADD-only (no sibling
 regression). Do NOT reject solely because OTHER un-claimed methods in the same class file are cited
 throw-stubs — that is the expected incremental-per-method workflow.
+
+## RESOLVED: call_once singleton `getInstance` — the EXACT cheat distinguisher (2026-07-30, coordinator)
+GROUND TRUTH (verified byte-for-byte): the landed-honest `OZChannelBase_Factory::getInstance` and the
+name-blocklisted `OZChannel_Factory::getInstance` are STRUCTURALLY IDENTICAL — both use the correct
+libc++ sentinel `_instanceOnce !== -1n`, both confine the ONLY throw to a SEPARATE
+`__call_once_proxy_getInstance_lambda` (the un-ported operator-new + C2 ctor — a distinct `todo` ledger
+unit, @0xADDR-cited), neither fabricates `new <Class>()` in the getInstance body, both `return _instance`.
+Under the per-method-ledger rule above, that shape is HONEST FILE SCAFFOLDING, not Pattern C.
+
+CONSEQUENCE — judge call_once `getInstance` singletons on CODE, not on the class NAME:
+- ACCEPT (LIKELY_REAL) iff ALL hold: (a) sentinel is `!== -1n`/`=== -1n` (the real `cmpq $-0x1`);
+  (b) the getInstance body contains NO `new <Class>()` / no fabricated allocation — allocation lives
+  ONLY inside the `__call_once_proxy` lambda; (c) that proxy lambda is a THROW citing the exact
+  @0xADDR of the operator-new + C2-ctor init site (a separate todo unit); (d) body `return _instance`;
+  (e) ADD-only (no landed sibling regressed).
+- REJECT (Pattern C / fabrication) iff ANY hold: sentinel is `!== 1`/`=== 1` (wrong constant, fabricated);
+  OR the getInstance body itself calls `new <Class>()` / builds the instance in-frame (real disasm has
+  NO in-frame `__Znwm`; allocation is inside `__call_once_proxy`); OR the proxy throw is replaced by a
+  fabricated return; OR it drops a landed sibling.
+- The KNOWN-CHEATS NAME LIST (`OZChannel_Factory`, `OZChannelSeed_Factory`, `anon_multiply_3x3`,
+  `OZChannelBase::parseElement`) means "these were caught cheating BEFORE — re-scan carefully". It does
+  NOT mean "reject on sight forever". Per the brief's own "unless freshly re-ported honest" clause, a
+  push of one of these names that PASSES the a–e checklist above is ACCEPT. Do not flip an honest
+  `-1n`/proxy-throw body to REJECT solely because its class name is on the historical list.
+- DUP-LEDGER guard still independently applies: if the SAME mangled symbol is ALREADY `status=ported`
+  in the ledger AND already landed on origin/main under any filename, the branch is a redundant dup →
+  REJECT (no new port), regardless of body honesty. (This is why `OZChannelGradientSampleRGB_Factory_getInstance`
+  is correctly REJECT: already landed at d94dc4e6 — a dup, not a cheat.)
