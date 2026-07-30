@@ -138,3 +138,100 @@ export function OZPreferenceManager_getRenderingTechnology(
   // SysV: return %rax (which the prologue set to the sret out-ptr).
   return out;
 }
+
+// -----------------------------------------------------------------------------
+// previewBGColor — file-static NSColor* backing store
+// -----------------------------------------------------------------------------
+// The two accessors below (`getPreviewBackgroundColor()` @0x154310 and the
+// sret template variant @0x154320) BOTH load the exact same rip-relative
+// slot: `movq __ZL14previewBGColor(%rip), %r??`. That slot is a static
+// pointer to an `NSColor` (see the ObjC msgSend siblings
+// `+[LKColor ozDefaultPreviewBackgroundColor]` etc. and the setter
+// `__ZN19OZPreferenceManager25setPreviewBackgroundColorEP7NSColor` @0x1543f0
+// which writes this slot from an `NSColor*` argument).
+//
+// Under the port scope this is an out-of-scope ObjC/Foundation object —
+// modelled as an opaque handle. The `Ev` getter is a pure pointer read: it
+// returns whatever was last stored (or NULL if never set, matching the C++
+// zero-init of a file-static `NSColor*`).
+//
+// Provenance:
+//   otool -tv -p __ZN19OZPreferenceManager25getPreviewBackgroundColorEv Ozone
+//     @0x154310  pushq  %rbp
+//     @0x154311  movq   %rsp, %rbp
+//     @0x154314  movq   0x7e90bd(%rip), %rax   # rax = *(&previewBGColor)
+//     @0x15431b  popq   %rbp
+//     @0x15431c  retq
+//   nm -m Ozone | grep previewBackgroundColor
+//     __ZN19OZPreferenceManager25getPreviewBackgroundColorEv  (@0x12bf7c export)
+//   nm -m Ozone | grep previewBGColor  (from --sym disasm run)
+//     __ZL14previewBGColor  (static; internal-linkage — the `L` in `_ZL`).
+//
+// The slot's ADDRESS resolves as: rip-at-next-instruction (0x15431b) +
+// 0x7e90bd = 0x9433d8. It is the target of setPreviewBackgroundColor's
+// `movq %rbx, 0x7e90..(%rip)` after retaining the NSColor argument.
+//
+// Faithful model: a module-scope mutable box holding the current pointer.
+// Reads return it verbatim; writes (setter — a separate unit) will replace
+// it. NULL sentinel = "never set" (== the linker-zeroed BSS slot).
+
+/** Opaque NSColor* handle. Foundation object, out of port scope. */
+export type NSColorHandle = unknown;
+
+/**
+ * previewBGColor — the ONLY external side of `__ZL14previewBGColor`.
+ * Module-scope mutable pointer, initially NULL (BSS-zero). The setter
+ * (`OZPreferenceManager::setPreviewBackgroundColor` @0x1543f0, a separate
+ * unit) is the sole writer; the two getters (this file) are the sole
+ * readers. Guarded through the two exported helpers below so tests can
+ * install a value without importing this module's internal state.
+ */
+let previewBGColor: NSColorHandle | null = null;
+
+/**
+ * Test/boundary hook: install the current previewBGColor slot value.
+ * Mirrors what `OZPreferenceManager::setPreviewBackgroundColor` @0x1543f0
+ * ultimately does to the same rip slot (that unit is not ported here — it
+ * involves an ObjC `retain` + release cycle around the store). We expose a
+ * plain setter so peers/tests can seed the slot without depending on the
+ * still-unported setter.
+ *
+ * NOT a port of a real FCP symbol — it is the module-visibility hatch onto
+ * the static storage that BOTH getters read. Keep it minimal.
+ */
+export function __setPreviewBGColorSlot(v: NSColorHandle | null): void {
+  previewBGColor = v;
+}
+
+/**
+ * OZPreferenceManager::getPreviewBackgroundColor()
+ * @0x0000000000154310  Ozone  mangled: __ZN19OZPreferenceManager25getPreviewBackgroundColorEv
+ *
+ * Pure static-pointer accessor. Loads the file-static `previewBGColor`
+ * (an `NSColor*`, out-of-scope Foundation object modelled as an opaque
+ * handle) and returns it. Ignores `this` entirely — the manager singleton
+ * is not read, matching the disasm's absence of any `%rdi` use.
+ *
+ * Disasm (verbatim; see raw-port/re/disasm/…getPreviewBackgroundColorEv.s):
+ *   pushq  %rbp                              # @0x154310
+ *   movq   %rsp, %rbp                        # @0x154311
+ *   movq   __ZL14previewBGColor(%rip), %rax  # @0x154314  rax = *(&previewBGColor)
+ *   popq   %rbp                              # @0x15431b
+ *   retq                                     # @0x15431c
+ *
+ * Net effect: return the current value of the static NSColor* slot.
+ * No `this` dereference, no callees, no branches.
+ *
+ * NB: peer accessor at @0x154320 (the `ER` sret template variant) loads the
+ * SAME slot and hands it to `PCManagedColorTemplate::operator=(NSColor*)`
+ * — that call chain is a separate unit. This file only ports the `Ev` form.
+ */
+export function OZPreferenceManager_getPreviewBackgroundColor(
+  _self: OZPreferenceManager_Fields,
+): NSColorHandle | null {
+  // @0x154314 : movq __ZL14previewBGColor(%rip), %rax
+  // Reads the static slot verbatim. `_self` (rdi in the ABI) is never
+  // touched by the disasm — the prologue's push/mov and epilogue's pop
+  // don't count as reads. Faithful transcription: return the slot.
+  return previewBGColor;
+}
