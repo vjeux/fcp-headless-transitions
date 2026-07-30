@@ -112,4 +112,32 @@ export class PCColorSpaceHandle {
     // @0x9b388  movq %rdi, %rax  — return value = this-pointer, no field load.
     return this;
   }
+
+  /**
+   * PCColorSpaceHandle::getCGColorSpace() const  @ProCore 0x9afee
+   *   __ZNK18PCColorSpaceHandle15getCGColorSpaceEv
+   *
+   * Disassembly (raw-port/re/disasm/ProCore.__ZNK18PCColorSpaceHandle15getCGColorSpaceEv.s):
+   *
+   *   0x9afee  pushq %rbp                     ; prologue
+   *   0x9afef  movq  %rsp, %rbp
+   *   0x9aff2  movq  (%rdi), %rax             ; rax = *(void**)this  = field @+0x00
+   *   0x9aff5  popq  %rbp                     ; epilogue
+   *   0x9aff6  retq                           ; return rax
+   *   0x9aff7  nop                            ; alignment
+   *
+   * A dead-simple getter: load the first pointer-sized slot of `this` and
+   * return it. That slot is `handle` (see the class definition above and
+   * the Flexo ~PCColorSpaceHandle dtor @0x601fc4 which does the SAME load
+   * before releasing). Zero calls, zero branches, no null check.
+   *
+   * The distinction versus the sibling `getColorSpaceRef()` @0x9b384: that
+   * one returns `this` (identity cast); THIS one dereferences +0x00 and
+   * returns the stored CGColorSpace*. Both are legitimate wrapper idioms
+   * in ProCore's dual-TU compilation of PCColorSpaceHandle.
+   */
+  public getCGColorSpace(): CGColorSpaceRef | null {
+    // @0x9aff2  movq (%rdi), %rax
+    return this.handle;
+  }
 }
