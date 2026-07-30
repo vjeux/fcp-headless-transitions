@@ -42,6 +42,10 @@
 //       — OZRenderParams::setResolutionDynamic(PCVector2<double> const&) @Ozone 0x271730
 //         (raw-port/re/disasm/
 //           __ZN14OZRenderParams20setResolutionDynamicERK9PCVector2IdE.s — 15 lines)
+//   * __ZN14OZRenderParams25setReducedResolutionMediaEb
+//       — OZRenderParams::setReducedResolutionMedia(bool) @Ozone 0x271970
+//         (raw-port/re/disasm/
+//           __ZN14OZRenderParams25setReducedResolutionMediaEb.s — 7 lines)
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (raw-port/re/disasm/
@@ -120,6 +124,21 @@ export class OZRenderParams {
    * it directly.
    */
   isPlayingAt108: number = 0;
+
+  /**
+   * @Ozone offset +0x1e6 — a one-byte flag written by
+   * `setReducedResolutionMedia(bool)` @0x271974 via
+   * `movb %sil,0x1e6(%rdi)`. The single-byte width (`movb`) confirms
+   * the field is a `bool` / uint8 (C++ `bool` is one byte on x86_64
+   * Itanium/AAPCS). The setter name tells us this byte holds the
+   * "use reduced-resolution media" preference — when set, the render
+   * pipeline draws from the proxy/reduced-res media path instead of
+   * the full-res original. Preserved as `number` (0..255) so the
+   * exact byte-width the machine writes stays legible; no downstream
+   * reader has been decoded yet, so we don't add a boolean getter
+   * that would fabricate a coercion the disasm doesn't perform.
+   */
+  reducedResolutionMediaAt1e6: number = 0;
 
   /**
    * @Ozone offset +0x1a8 — a one-byte flag/mode discriminator, read
@@ -320,5 +339,38 @@ export class OZRenderParams {
     // @0x271184  movb %sil,0x108(%rdi)
     //   C++ `bool` → 1 byte: true == 0x01, false == 0x00.
     this.isPlayingAt108 = isPlaying ? 1 : 0;
+  }
+
+  /**
+   * `OZRenderParams::setReducedResolutionMedia(bool)`
+   *   — @Ozone 0x271970
+   *   — __ZN14OZRenderParams25setReducedResolutionMediaEb
+   *
+   * Faithful line-for-line transcription of the 7-line disassembly:
+   *   0x271970  pushq  %rbp                        ; frame prologue
+   *   0x271971  movq   %rsp, %rbp
+   *   0x271974  movb   %sil, 0x1e6(%rdi)            ; this->+0x1e6 = arg (bool, 1 byte)
+   *   0x27197b  popq   %rbp                        ; frame epilogue
+   *   0x27197c  retq
+   *   0x27197d  nopl   (%rax)                       ; padding to next 16-byte boundary
+   *
+   * Single-instruction body: store the incoming C++ `bool` argument
+   * (SysV/AAPCS puts scalar arg2 in `%rsi`, and `bool` occupies the
+   * low byte `%sil`) into the class slot at +0x1e6. Boolean semantics
+   * on x86_64 are zero-extended in the caller, so the observable state
+   * of the byte is 0 or 1.
+   *
+   * Zero in-scope callees, zero externs, no indirect calls — pure
+   * field write. Structurally identical to `setIsPlaying(bool)` (also
+   * a 7-line `movb %sil,off(%rdi)`), just a different destination
+   * offset (+0x1e6 vs +0x108).
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZRenderParams25setReducedResolutionMediaEb.s (7 lines)
+   */
+  setReducedResolutionMedia(reducedResolutionMedia: boolean): void {
+    // @0x271974  movb %sil,0x1e6(%rdi)
+    //   C++ `bool` → 1 byte: true == 0x01, false == 0x00.
+    this.reducedResolutionMediaAt1e6 = reducedResolutionMedia ? 1 : 0;
   }
 }
