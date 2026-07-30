@@ -2,9 +2,10 @@
 //
 // Transcribed from /Applications/Final Cut Pro.app/Contents/Frameworks/
 // Helium.framework/Versions/A/Helium (x86_64 slice). Disassembly sources:
-//   raw-port/re/disasm/Helium.__ZN11HGRenderJob10SetUserTagEy.s          (SetUserTag)
-//   raw-port/re/disasm/Helium.__ZN11HGRenderJob11SetUserNameEPKc.s       (SetUserName)
-//   raw-port/re/disasm/Helium.__ZN11HGRenderJob7SetTypeENS_4TypeE.s      (SetType)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob10SetUserTagEy.s              (SetUserTag)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob11SetUserNameEPKc.s           (SetUserName)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob7SetTypeENS_4TypeE.s          (SetType)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob11SetResourceENS_8ResourceE.s (SetResource)
 //
 // This file ports ONLY the methods listed under "Symbols ported here" below.
 // HGRenderJob is a large class (fields at offsets 0xc8 and 0xd8 imply at
@@ -20,7 +21,10 @@
 //   uint32_t type;      // offset 0x0c — HGRenderJob::Type enum tag.
 //                       // SetType @0x54514 writes it via `movl %esi, 0xc(%rdi)`.
 //                       // Values not enumerated here; opaque u32.
-//   ...                          // fields 0x10..0xc7 not yet decoded
+//   uint32_t resource;  // offset 0x10 — HGRenderJob::Resource enum tag.
+//                       // SetResource @0x54384 writes it via `movl %esi, 0x10(%rdi)`.
+//                       // Values not enumerated here; opaque u32.
+//   ...                          // fields 0x14..0xc7 not yet decoded
 //   uint64_t userTag;   // offset 0xc8 — a user-supplied tag word; the
 //                       // SetUserTag setter @0x54650 writes to it. The
 //                       // matching getter (GetUserTag) is a separate
@@ -44,6 +48,8 @@
 // FRONTIER CALLEES
 // -----------------------------------------------------------------------------
 //   SetUserTag  — none.
+//   SetType     — none.
+//   SetResource — none.
 //   SetUserName — `_free` @0x3c513e (libc extern, outside port scope), and
 //                 `_strdup` @0x3c5606 (libc extern, outside port scope). Both
 //                 are modelled as boundary stubs; see externs section below.
@@ -55,8 +61,23 @@
 //       — HGRenderJob::SetUserTag(unsigned long long) @Helium 0x54650
 //   * __ZN11HGRenderJob7SetTypeENS_4TypeE
 //       — HGRenderJob::SetType(HGRenderJob::Type) @Helium 0x54510
+//   * __ZN11HGRenderJob11SetResourceENS_8ResourceE
+//       — HGRenderJob::SetResource(HGRenderJob::Resource) @Helium 0x54380
 //   * __ZN11HGRenderJob11SetUserNameEPKc
 //       — HGRenderJob::SetUserName(char const*) @Helium 0x54670
+//
+// -----------------------------------------------------------------------------
+// FULL DISASM — SetResource @0x54380
+// -----------------------------------------------------------------------------
+//   0x54380  pushq  %rbp                              ; frame prologue
+//   0x54381  movq   %rsp, %rbp
+//   0x54384  movl   %esi, 0x10(%rdi)                  ; this->resource (u32) = esi
+//   0x54387  popq   %rbp                              ; epilogue
+//   0x54388  retq
+//   0x54389  nopl   (%rax)                            ; padding
+//
+// Same shape as SetType @0x54510 — a plain u32 slot-store between prologue
+// and epilogue. No callees.
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM — SetUserTag @0x54650
@@ -116,6 +137,16 @@
 export type HGRenderJobType = number;
 
 /**
+ * HGRenderJob::Resource — enum tag stored at +0x10. Values are not yet
+ * enumerated here; SetResource passes `esi` (an unsigned 32-bit int)
+ * straight into the slot. Model as an opaque u32 alias until a ctor /
+ * other setters pin the enum values. The mangled param type in
+ * `NS_8ResourceE` (see __ZN11HGRenderJob11SetResourceENS_8ResourceE)
+ * proves the C++ type is a member enum called `Resource`.
+ */
+export type HGRenderJobResource = number;
+
+/**
  * `HGRenderJob` — Helium render job. This file ports the setters listed in
  * "Symbols ported here" (see file header); every other method is a
  * separate ledger entry. Field offsets not yet decoded are omitted; the
@@ -126,6 +157,12 @@ export class HGRenderJob {
    *  Written by SetType @0x54514. Zero-initialised to a neutral tag until
    *  a ctor is transcribed to reveal the true default. */
   _type: HGRenderJobType = 0; // @Helium HGRenderJob@0x0c
+
+  /** @Helium HGRenderJob@0x10 — the u32 HGRenderJob::Resource enum tag.
+   *  Written by SetResource @0x54384 (`movl %esi, 0x10(%rdi)`). Sits in
+   *  the 4-byte slot immediately after `_type`. Zero-initialised to a
+   *  neutral tag until a ctor is transcribed to reveal the true default. */
+  _resource: HGRenderJobResource = 0; // @Helium HGRenderJob@0x10
 
   /** @Helium HGRenderJob@0xc8 — the user-supplied tag word. Written by
    *  SetUserTag @0x54654; read by the matching getter (separate ledger
@@ -186,6 +223,34 @@ export class HGRenderJob {
     // @0x54517..0x54518 — epilogue + retq.
     // ------------------------------------------------------------
     this._type = type >>> 0;
+  }
+
+  /**
+   * `HGRenderJob::SetResource(HGRenderJob::Resource)` @Helium 0x54380
+   * (__ZN11HGRenderJob11SetResourceENS_8ResourceE).
+   *
+   * Faithful line-for-line transcription of a 6-line function: writes the
+   * u32 argument to the +0x10 slot. No callees, no side effects. From
+   * raw-port/re/disasm/Helium.__ZN11HGRenderJob11SetResourceENS_8ResourceE.s:
+   *
+   *   0x54380  pushq %rbp                    ; frame prologue
+   *   0x54381  movq  %rsp, %rbp
+   *   0x54384  movl  %esi, 0x10(%rdi)        ; this->_resource (u32) = esi
+   *   0x54387  popq  %rbp                    ; epilogue
+   *   0x54388  retq
+   *   0x54389  nopl  (%rax)                  ; padding
+   *
+   * @param resource — HGRenderJob::Resource enum value (SysV %esi, u32).
+   */
+  SetResource(resource: HGRenderJobResource): void {
+    // ------------------------------------------------------------
+    // @0x54380..0x54381 — prologue (no TS-visible effect).
+    // @0x54384 — movl %esi, 0x10(%rdi) : store u32 at offset +0x10.
+    //   Model 32-bit truncation with `>>> 0` so a negative / oversized
+    //   JS number stores the same bit-pattern the machine would.
+    // @0x54387..0x54388 — epilogue + retq.
+    // ------------------------------------------------------------
+    this._resource = resource >>> 0;
   }
 
   /**
