@@ -16,6 +16,7 @@
 //   - applySRGBToLinear              @0x46fc
 //   - applyToneMap_LinearGain        @0x4469
 //   - applyInverseToneMap_LinearGain @0x44e8
+//   - applyHLG_InverseOOTF           @0x40cb
 //
 // STUBS (throw citing @0xADDR — required by porting-spec Rule 3):
 //   Every other method. The remaining pure-math methods (PQ, HLG, OOTF, tone-mapping)
@@ -130,9 +131,151 @@ export class PCColorUtil {
     throw new Error("PCColorUtil::applyHLG_OOTF @ProCore 0x3fe4 not yet transcribed");
   }
 
-  /** PCColorUtil::applyHLG_InverseOOTF(float vector[3], float, float) — @ProCore 0x40cb */
-  static applyHLG_InverseOOTF(_v: PCVector3f, _a: number, _b: number): PCVector3f {
-    throw new Error("PCColorUtil::applyHLG_InverseOOTF @ProCore 0x40cb not yet transcribed");
+  /**
+   * PCColorUtil::applyHLG_InverseOOTF(float vector[3], float Lw, float Lb) — @ProCore 0x40cb
+   *   (__ZN11PCColorUtil20applyHLG_InverseOOTFEDv3_fff)
+   *
+   * BT.2100 HLG Inverse OOTF: convert display-linear RGB back to scene-linear (relative-scene).
+   * The system gamma γ_display is piecewise in the peak-white luminance Lw:
+   *   - if 400 <= Lw <= 2000:  γ = 0.42*log10(Lw/1000) + 1.2                (@ProCore 0x4102 path)
+   *   - else:                  γ = 1.2 * pow(1.111, log2(Lw/1000))          (@ProCore 0x4119 path)
+   * Then the per-pixel inverse OOTF (with Y = BT.2100 luma of the input RGB):
+   *   Y      = 0.2627*R + 0.6780*G + 0.0593*B                                (BT.2100 luma)
+   *   Y_pow  = (Y > 0) ? pow(Y, 1/γ - 1) : 0                                 (clip @0x4199-0x41a5)
+   *   RGB'   = RGB * (12 * pow(Lb/Lw, 1/γ) * Y_pow)
+   *
+   * DECODE (raw-port/re/disasm/ProCore.__ZN11PCColorUtil20applyHLG_InverseOOTFEDv3_fff.s):
+   *   0x40cb-0x40cf  frame prologue, sub $0x30,%rsp  (48-byte local frame)
+   *   0x40d3         movss  xmm2,-4(rbp)             ; save Lb
+   *   0x40d8         ucomiss [@0xe1fe0 = 400.0f], xmm1   ; flags = xmm1 - 400
+   *   0x40df         movaps xmm0,-0x30(rbp)          ; save input RGB packed
+   *   0x40e3         movaps xmm1,xmm0                ; xmm0 = Lw
+   *   0x40e6         divss  [@0xe1fe4 = 1000.0f],xmm0 ; xmm0 = Lw/1000
+   *   0x40ee         movss  xmm1,-0x20(rbp)          ; save Lw
+   *   0x40f3         jb     0x4119                   ; if Lw < 400 → path B
+   *   0x40f5         movss  [@0xe1fe8 = 2000.0f],xmm2 ; xmm2 = 2000
+   *   0x40fd         ucomiss xmm1,xmm2               ; flags = 2000 - Lw
+   *   0x4100         jb     0x4119                   ; if 2000 < Lw → path B
+   *   ── PATH A (400 <= Lw <= 2000) ──
+   *   0x4102         callq  _log10f                  ; xmm0 = log10(Lw/1000)
+   *   0x4107         mulss  [@0xe1ff4 = 0.42f],xmm0  ; xmm0 *= 0.42
+   *   0x410f         addss  [@0xe1ff0 = 1.2f],xmm0   ; xmm0 += 1.2   (= γ)
+   *   0x4117         jmp    0x4136
+   *   ── PATH B ──
+   *   0x4119         callq  _log2f                   ; xmm0 = log2(Lw/1000)
+   *   0x411e         movaps xmm0,xmm1                ; xmm1 = log2(Lw/1000) = powf exponent
+   *   0x4121         movss  [@0xe1fec = 1.111f],xmm0 ; xmm0 = 1.111 = powf base
+   *   0x4129         callq  _powf                    ; xmm0 = pow(1.111, log2(Lw/1000))
+   *                                                    ; ≡ (Lw/1000)^log2(1.111)
+   *   0x412e         mulss  [@0xe1ff0 = 1.2f],xmm0   ; xmm0 *= 1.2  (= γ)
+   *   ── COMMON: xmm0 = γ ──
+   *   0x4136         movss  [@0xe1f70 = 1.0f],xmm1   ; xmm1 = 1.0
+   *   0x413e         divss  xmm0,xmm1                ; xmm1 = 1.0 / γ
+   *   0x4142         movss  [@0xe1f9c = -1.0f],xmm0  ; xmm0 = -1
+   *   0x414a         addss  xmm1,xmm0                ; xmm0 = -1 + 1/γ = (1/γ - 1)
+   *   0x414e         movss  xmm0,-0x8(rbp)           ; save inv_exp = (1/γ - 1)
+   *   0x4153         movss  -4(rbp),xmm0             ; xmm0 = Lb
+   *   0x4158         divss  -0x20(rbp),xmm0          ; xmm0 = Lb/Lw
+   *   0x415d         callq  _powf                    ; xmm0 = pow(Lb/Lw, 1/γ)
+   *                                                    ; (xmm1 still holds 1/γ from @0x413e)
+   *   0x4162         movaps [@0xe1c40 = (0.2627,0.6780,0.0593,0)],xmm2   ; BT.2100 luma coeffs
+   *   0x4169         mulps  -0x30(rbp),xmm2          ; xmm2 = [c0*R, c1*G, c2*B, 0]
+   *   0x416d         movaps xmm2,xmm1
+   *   0x4170         haddps xmm2,xmm1                ; xmm1 = [c0R+c1G, c2B+0, ...]
+   *   0x4174         mulss  [@0xe1fd0 = 12.0f],xmm0  ; xmm0 = 12 * pow(Lb/Lw, 1/γ)
+   *   0x417c         movss  xmm0,-4(rbp)             ; save alpha12
+   *   0x4181         movhlps xmm2,xmm2               ; xmm2[0] = c2*B
+   *   0x4184         addss  xmm1,xmm2                ; xmm2[0] = c0R+c1G+c2B = Y
+   *   0x4188         movaps xmm2,-0x20(rbp)          ; save Y (broadcast in [0])
+   *   0x418c         movaps xmm2,xmm0                ; xmm0 = Y
+   *   0x418f         movss  -0x8(rbp),xmm1           ; xmm1 = (1/γ - 1)
+   *   0x4194         callq  _powf                    ; xmm0 = pow(Y, 1/γ - 1)
+   *   0x4199         xorps  xmm1,xmm1                ; xmm1 = 0
+   *   0x419c         cmpltss -0x20(rbp),xmm1         ; xmm1 = (0 < Y) ? 0xFFFFFFFF : 0
+   *   0x41a2         andps  xmm1,xmm0                ; zero pow(Y,…) unless Y > 0
+   *   0x41a5         mulss  -4(rbp),xmm0             ; xmm0 *= alpha12  (= 12*pow(Lb/Lw,1/γ) * pow(Y,1/γ-1) IF Y>0)
+   *   0x41aa         shufps $0,xmm0,xmm0             ; broadcast scalar to all 4 lanes
+   *   0x41ae         mulps  -0x30(rbp),xmm0          ; return RGB_in * scalar (all lanes)
+   *   0x41b2-0x41b7  epilogue + ret
+   *
+   * The `_log10f`, `_log2f`, `_powf` calls are libc (out-of-scope externs — modelled by JS's
+   * Math with Math.fround for f32 semantics). All numeric literals are cited by their __TEXT
+   * __const VA above.
+   */
+  static applyHLG_InverseOOTF(v: PCVector3f, Lw: number, Lb: number): PCVector3f {
+    // ── γ computation (piecewise on Lw) ──
+    // @ProCore 0x40e3-0x40e6  Lw / 1000  (this is the argument to log10f/log2f)
+    const norm = Math.fround(Math.fround(Lw) / Math.fround(1000.0)); // @const 0xe1fe4
+
+    // @ProCore 0x40d8 / 0x40fd — branch selector: (Lw >= 400) && (Lw <= 2000).
+    // ucomiss dst=xmm1, src=400  -> jb (CF=1) taken iff xmm1 < 400   → path B.
+    // ucomiss dst=xmm2=2000, src=xmm1 -> jb (CF=1) taken iff xmm2 < xmm1 (i.e. Lw > 2000) → path B.
+    // NaN semantics: ucomiss with NaN sets CF=1 → falls into path B (matches the machine).
+    // Compare on the plain (non-fround) inputs to mirror the machine's f32 register operands
+    // being the incoming SSE args (already f32).
+    const inRange = !(Lw < 400.0) && !(Lw > 2000.0);           // @0x40d8 / 0x40fd
+    let gamma: number;
+    if (inRange) {
+      // PATH A: γ = 0.42 * log10(Lw/1000) + 1.2                            @0x4102-0x410f
+      const l10 = Math.fround(Math.log10(norm));               // @0x4102 callq _log10f
+      gamma = Math.fround(
+        Math.fround(l10 * Math.fround(0.41999998688697815))    // @const 0xe1ff4  0.42f
+        + Math.fround(1.2000000476837158),                     // @const 0xe1ff0  1.2f
+      );
+    } else {
+      // PATH B: γ = 1.2 * pow(1.111, log2(Lw/1000))                        @0x4119-0x412e
+      const l2 = Math.fround(Math.log2(norm));                 // @0x4119 callq _log2f
+      const p  = Math.fround(Math.pow(
+        Math.fround(1.1109999418258667),                       // @const 0xe1fec 1.111f (powf base)
+        l2,                                                    // powf exponent
+      ));                                                       // @0x4129 callq _powf
+      gamma = Math.fround(p * Math.fround(1.2000000476837158)); // @const 0xe1ff0 1.2f
+    }
+
+    // ── inv_exp = (1/γ - 1)                                             @0x4136-0x414e
+    const invGamma  = Math.fround(Math.fround(1.0) / gamma);   // @const 0xe1f70 1.0f  / γ
+    const invExpM1  = Math.fround(Math.fround(-1.0) + invGamma); // @const 0xe1f9c -1.0f
+
+    // ── alpha = 12 * pow(Lb/Lw, 1/γ)                                    @0x4153-0x4174
+    const ratio = Math.fround(Math.fround(Lb) / Math.fround(Lw));  // @0x4153-0x4158
+    // NOTE the machine's `powf` at @0x415d takes:
+    //   xmm0 = Lb/Lw
+    //   xmm1 = 1/γ (not modified since @0x413e; the -1 that produced invExpM1 went into xmm0,
+    //          not xmm1, so xmm1 still holds 1/γ)
+    const alphaPow = Math.fround(Math.pow(ratio, invGamma));    // @0x415d callq _powf
+    const alpha12  = Math.fround(alphaPow * Math.fround(12.0)); // @const 0xe1fd0 12.0f  (@0x4174)
+
+    // ── luma Y  (BT.2100 coefficients @const 0xe1c40)                   @0x4162-0x4184
+    // [c0,c1,c2,c3] = [0.2627, 0.6780, 0.0593, 0.0]
+    // The disasm performs a haddps+movhlps+addss reduction — the final scalar is
+    // c0*R + c1*G + c2*B (c3*W = 0*0 = 0). Transcribed as the direct dot to preserve intent.
+    const C_R = Math.fround(0.26269999146461487);
+    const C_G = Math.fround(0.6779999732971191);
+    const C_B = Math.fround(0.059300001710653305);
+    // The saved RGB at -0x30(rbp) is xmm0-packed at entry; treat v as (R,G,B).
+    const R = Math.fround(v[0]);
+    const G = Math.fround(v[1]);
+    const B = Math.fround(v[2]);
+    // Mirror the accumulation order the machine uses (pairwise horizontal add via haddps then a
+    // final addss for the movhlps'd tail): tmp1 = c0R + c1G ; tmp2 = c2B + 0 ; Y = tmp1 + tmp2.
+    const tmp1 = Math.fround(Math.fround(C_R * R) + Math.fround(C_G * G));
+    const tmp2 = Math.fround(Math.fround(C_B * B) + Math.fround(0.0));
+    const Y    = Math.fround(tmp1 + tmp2);
+
+    // ── (Y > 0) ? pow(Y, invExpM1) : 0                                  @0x4194-0x41a2
+    // cmpltss compares xmm1(0) < src(Y). Result mask is 0xFFFFFFFF on true (bitwise-and gates
+    // the pow result). NaN semantics: cmpltss with NaN returns 0 (unordered → false), so a NaN
+    // Y correctly zero-masks — mirror with `Y > 0` (JS `>` is false on NaN).
+    const powY = Math.fround(Math.pow(Y, invExpM1));           // @0x4194 callq _powf
+    const yTerm = (Y > 0) ? powY : Math.fround(0.0);
+
+    // ── scale + broadcast + mulps                                       @0x41a5-0x41ae
+    const scalar = Math.fround(yTerm * alpha12);
+    return [
+      Math.fround(scalar * R),
+      Math.fround(scalar * G),
+      Math.fround(scalar * B),
+    ];
   }
 
   /** PCColorUtil::applyHLGToPQ(float vector[3], float) — @ProCore 0x41b8 */
