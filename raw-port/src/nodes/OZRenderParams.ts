@@ -170,6 +170,25 @@ export class OZRenderParams {
   renderQualityAt1d0: number = 0;
 
   /**
+   * @Ozone offset +0x1e3 — a one-byte flag written by
+   * `setDoShapeAntialiasingDynamic(bool)` @0x2718c4 via
+   * `movb %sil, 0x1e3(%rdi)`. The single-byte width (`movb`) confirms the
+   * field is a C++ `bool` (1 byte in the Itanium/AAPCS ABIs used by clang
+   * on macOS). Preserved as `number` (0..255) so the exact bit-width the
+   * machine writes is legible.
+   *
+   * Semantically this is a "dynamic override for do-shape-antialiasing"
+   * boolean. Note the ADJACENT byte at +0x1e2 is read by the getter
+   * `getDoShapeAntialiasing()` @0x2718eb via `movzbl 0x1e2(%rdi,%rax)`
+   * where `%rax` is a 0/1 index loaded from +0x1a8 (the mode-byte). So
+   * the getter picks between +0x1e2 (static) and +0x1e3 (dynamic) using
+   * the same "dynamic mode?" latch that `setResolutionDynamic` uses.
+   * We don't decode the +0x1e2 static slot here (its setter isn't in this
+   * unit); we only add the dynamic slot the ported setter writes.
+   */
+  doShapeAntialiasingDynamicAt1e3: number = 0;
+
+  /**
    * @Ozone offset +0x1d4 — the "dynamic render quality" u32 slot, written
    * @0x27177a by `setRenderQuality(OZQuality)` via `movl %esi, 0x1d4(%rdi)`.
    * `setRenderQuality` blasts the incoming enum into both this and
@@ -456,6 +475,55 @@ export class OZRenderParams {
     // Invalidate the two PCVector2<double>-shaped caches that hold
     // resolution-derived values (their meaning is decoded in the
     // `zeroedAt188` / `zeroedAt198` doc-comments above).
+    this.zeroedAt188 = { x: 0, y: 0 };
+    this.zeroedAt198 = { x: 0, y: 0 };
+  }
+
+  /**
+   * `OZRenderParams::setDoShapeAntialiasingDynamic(bool)`
+   *   — @Ozone 0x2718c0
+   *   — __ZN14OZRenderParams29setDoShapeAntialiasingDynamicEb
+   *
+   * Faithful line-for-line transcription of the 8-line disassembly:
+   *   0x2718c0  pushq  %rbp                        ; frame prologue
+   *   0x2718c1  movq   %rsp, %rbp
+   *   0x2718c4  movb   %sil, 0x1e3(%rdi)           ; this->+0x1e3 = arg (bool, 1 byte)
+   *   0x2718cb  xorps  %xmm0, %xmm0                ; xmm0 = 0 (16 zero bytes)
+   *   0x2718ce  movups %xmm0, 0x188(%rdi)          ; this->+0x188 = (0, 0)
+   *   0x2718d5  movups %xmm0, 0x198(%rdi)          ; this->+0x198 = (0, 0)
+   *   0x2718dc  popq   %rbp                        ; frame epilogue
+   *   0x2718dd  retq
+   *
+   * SEMANTICS:
+   *   Writes the "dynamic override" byte for do-shape-antialiasing at
+   *   +0x1e3, then invalidates the same two paired PCVector2<double>
+   *   cache slots (+0x188, +0x198) that both `setResolution` and
+   *   `setResolutionDynamic (mode==1 branch)` and `setRenderQuality`
+   *   also zero. The zeroing is the SAME "cache invalidation" idiom
+   *   used across the class — any parameter change that could affect
+   *   resolution-derived caches wipes those two slots so the next
+   *   reader recomputes them from scratch.
+   *
+   *   The two 128-bit stores at +0x188 and +0x198 share the SAME zeroed
+   *   xmm0 register (compiler folded the `xorps` once and reused it).
+   *   The disasm writes +0x188 BEFORE +0x198 — same order as this port.
+   *
+   * DEPENDENCIES: zero in-scope, zero externs. Pure field writes.
+   *
+   * Source disassembly:
+   *   /tmp/Ozone_tV.txt lines 642760-642768 (8 lines).
+   */
+  setDoShapeAntialiasingDynamic(doAA: boolean): void {
+    // @0x2718c4  movb %sil,0x1e3(%rdi)
+    //   C++ `bool` → 1 byte: true == 0x01, false == 0x00.
+    this.doShapeAntialiasingDynamicAt1e3 = doAA ? 1 : 0;
+
+    // @0x2718cb  xorps %xmm0,%xmm0            ; xmm0 = 0 (16 zero bytes)
+    // @0x2718ce  movups %xmm0,0x188(%rdi)      ; this[+0x188] = (0, 0)
+    // @0x2718d5  movups %xmm0,0x198(%rdi)      ; this[+0x198] = (0, 0)
+    //
+    // Invalidate the two PCVector2<double>-shaped caches. Disasm writes
+    // +0x188 before +0x198; preserved here.
     this.zeroedAt188 = { x: 0, y: 0 };
     this.zeroedAt198 = { x: 0, y: 0 };
   }
