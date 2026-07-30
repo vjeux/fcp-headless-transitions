@@ -30,13 +30,19 @@
 //                        // SetPriority @0x2fe60 writes it via
 //                        // `movl %esi, 0xc(%rdi)`. Values not enumerated
 //                        // here; opaque u32.
-//   ...                          // fields >0x10 not yet decoded
+//   ...                          // fields 0x10..0x3f not yet decoded
+//   void (*notifyFunc)(HGUserJob*);
+//                        // offset 0x40 — function pointer written by
+//                        // SetNotifyFunc @0x2fee0 via
+//                        // `movq %rsi, 0x40(%rdi)` (8-byte code ptr).
+//   ...                          // fields >0x48 not yet decoded
 // }
 //
 // -----------------------------------------------------------------------------
 // FRONTIER CALLEES
 // -----------------------------------------------------------------------------
-//   SetPriority — none. Pure field write.
+//   SetPriority     — none. Pure field write.
+//   SetNotifyFunc   — none. Pure field write.
 //
 // -----------------------------------------------------------------------------
 // Symbols ported here (mangled → address)
@@ -45,6 +51,10 @@
 //       — HGUserJob::SetPriority(HGUserJob::Priority) @Helium 0x2fe60
 //         (raw-port/re/disasm/
 //           Helium.__ZN9HGUserJob11SetPriorityENS_8PriorityE.s — 7 lines)
+//   * __ZN9HGUserJob13SetNotifyFuncEPFvPS_E
+//       — HGUserJob::SetNotifyFunc(void (*)(HGUserJob*)) @Helium 0x2fee0
+//         (raw-port/re/disasm/
+//           Helium.__ZN9HGUserJob13SetNotifyFuncEPFvPS_E.s — 7 lines)
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (raw-port/re/disasm/
@@ -69,6 +79,22 @@
 export type HGUserJobPriority = number;
 
 /**
+ * `HGUserJob::NotifyFunc` — a C function pointer of type
+ * `void (*)(HGUserJob*)`. Stored at HGUserJob@+0x40 by
+ * `SetNotifyFunc` @0x2fee4 via `movq %rsi, 0x40(%rdi)` (8-byte pointer
+ * store). Callers dispatch through this slot to notify observers of
+ * the job's completion or state transition. The setter transcribed
+ * in this file only writes; the read/dispatch site lives in a peer
+ * method (not in scope here).
+ *
+ * Modelled as a plain TS function of the same shape. The pointer's
+ * IDENTITY is what matters (equal-to comparisons in the caller may
+ * check "is a callback installed?"); JS closures preserve identity
+ * bit-for-bit for this purpose.
+ */
+export type HGUserJobNotifyFn = (job: HGUserJob) => void;
+
+/**
  * `HGUserJob` — user-job dispatched by HGUserExecUnit.
  *
  * Only the fields touched by `SetPriority` are decoded at this layer; the
@@ -83,6 +109,22 @@ export class HGUserJob {
    * initialised until a setter runs.
    */
   _priority: HGUserJobPriority = 0; // @Helium HGUserJob@0x0c
+
+  /**
+   * @Helium HGUserJob@+0x40 — a function-pointer slot. Written by
+   * `SetNotifyFunc(void (*)(HGUserJob*))` @0x2fee4 via
+   * `movq %rsi, 0x40(%rdi)`. The 64-bit `movq` (8-byte) store confirms
+   * this holds a raw pointer (Itanium ABI 8-byte code pointers on
+   * x86_64). The stored value is the callback the render machinery
+   * invokes to notify observers of this HGUserJob's completion / state.
+   *
+   * Modelled as `HGUserJobNotifyFn | null`: null = "no callback set"
+   * (the zero-initialised value in C++), a function = the exact
+   * callback pointer the CPU stored. Callers of the notify path
+   * check this slot for null before dispatch — that read isn't in
+   * SetNotifyFunc's scope, so this file only writes.
+   */
+  _notifyFunc: HGUserJobNotifyFn | null = null; // @Helium HGUserJob@0x40
 
   /**
    * `HGUserJob::SetPriority(HGUserJob::Priority)` @Helium 0x2fe60
@@ -116,5 +158,42 @@ export class HGUserJob {
     // @0x2fe64  movl %esi,0xc(%rdi)
     //   32-bit store; preserve the u32 width the CPU writes.
     this._priority = priority >>> 0;
+  }
+
+  /**
+   * `HGUserJob::SetNotifyFunc(void (*)(HGUserJob*))` @Helium 0x2fee0
+   *   — __ZN9HGUserJob13SetNotifyFuncEPFvPS_E
+   *
+   * Faithful line-for-line transcription of the 7-line disassembly:
+   *
+   *   0x2fee0  pushq  %rbp                     ; frame prologue
+   *   0x2fee1  movq   %rsp, %rbp
+   *   0x2fee4  movq   %rsi, 0x40(%rdi)          ; this->+0x40 = arg (function ptr, 8 bytes)
+   *   0x2fee8  popq   %rbp                     ; frame epilogue
+   *   0x2fee9  retq
+   *   0x2feea  nopw   (%rax,%rax)               ; padding
+   *
+   * Single-instruction body: store the incoming function-pointer
+   * argument (SysV/AAPCS puts scalar arg2 in `%rsi`; a code pointer
+   * occupies all 64 bits) into the class slot at +0x40. The write
+   * width `movq` is 8 bytes — the full pointer, not a truncated value.
+   *
+   * Zero in-scope callees, zero externs — pure field write. This is a
+   * "setter" method mirroring `SetPriority`'s structural shape (same
+   * prologue/store/epilogue skeleton), differing only in the store
+   * width (movq vs movl) and offset (+0x40 vs +0x0c). See the top-of-
+   * file "STRUCT LAYOUT" comment for the field's decoded role.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Helium.__ZN9HGUserJob13SetNotifyFuncEPFvPS_E.s
+   *   (7 lines)
+   */
+  SetNotifyFunc(fn: HGUserJobNotifyFn | null): void {
+    // @0x2fee4  movq %rsi,0x40(%rdi)
+    //   8-byte pointer store. In C++ the caller may pass a null pointer
+    //   (0x0000000000000000) to clear the callback; we model that with
+    //   TS `null` so the read side ("if (this._notifyFunc)" -> dispatch)
+    //   observes the same "no callback" semantics.
+    this._notifyFunc = fn;
   }
 }
