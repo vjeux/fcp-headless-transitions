@@ -536,4 +536,166 @@ export class OZChannelBase {
 
     // @0x4bb92..0x4bb93 — epilogue + retq (void return).
   }
+
+  /**
+   * OZChannelBase::getObjectManipulator() const.
+   * @ProChannel 0x4a54e..0x4a583
+   * (__ZNK13OZChannelBase20getObjectManipulatorEv)
+   *
+   * Disasm (raw-port/re/disasm/ProChannel.__ZNK13OZChannelBase20getObjectManipulatorEv.s,
+   * 20 body lines including prologue/epilogue):
+   *
+   *   0x4a54e  pushq  %rbp                                          ; prologue
+   *   0x4a54f  movq   %rsp, %rbp                                    ; prologue
+   * [LOOP @0x4a552]:
+   *   0x4a552  testq  %rdi, %rdi                                    ; ZF = (this == NULL)
+   *   0x4a555  je     0x4a563                                       ; if NULL goto BAIL
+   *   0x4a557  testb  $0x20, 0x39(%rdi)                             ; ZF = ((*(u8*)(this+0x39)) & 0x20) == 0
+   *   0x4a55b  jne    0x4a567                                       ; if bit 0x20 SET goto CAST
+   *   0x4a55d  movq   0x30(%rdi), %rdi                              ; this = *(this+0x30) = parent
+   *   0x4a561  jmp    0x4a552                                       ; goto LOOP
+   * [BAIL @0x4a563]:
+   *   0x4a563  xorl   %eax, %eax                                    ; rax = 0
+   *   0x4a565  popq   %rbp                                          ; epilogue
+   *   0x4a566  retq                                                 ; return NULL
+   * [CAST @0x4a567]:
+   *   0x4a567  leaq   __ZTI13OZChannelBase(%rip),  %rsi             ; arg1 = &typeinfo(OZChannelBase)
+   *   0x4a56e  leaq   __ZTI23OZChannelObjectRootBase(%rip), %rdx    ; arg2 = &typeinfo(OZChannelObjectRootBase)
+   *   0x4a575  xorl   %ecx, %ecx                                    ; arg3 = 0 (hint = "no hint")
+   *   0x4a577  callq  0xacea0                                       ## ___dynamic_cast (symbol stub)
+   *                                                                 ;   rax = OZChannelObjectRootBase* (or NULL)
+   *   0x4a57c  movq   (%rax), %rcx                                  ; rcx = *rax = vtable ptr of the root
+   *                                                                 ;   (NB: if rax == NULL this is a NULL-deref
+   *                                                                 ;    crash — the machine relies on the
+   *                                                                 ;    ancestor invariant to guarantee non-NULL)
+   *   0x4a57f  movq   %rax, %rdi                                    ; arg1 = the root pointer
+   *   0x4a582  popq   %rbp                                          ; epilogue-before-tailcall
+   *   0x4a583  jmpq   *0x350(%rcx)                                  ; tail-call vtable[0x350/8 = slot 106]
+   *                                                                 ;   → virtual getObjectManipulator on the
+   *                                                                 ;     concrete root class.
+   *
+   * SEMANTICS:
+   *   Walk the parent chain (via +0x30) starting from `this`, stopping at
+   *   the FIRST node with bit 0x20 set in its flag byte at +0x39 (the
+   *   "channel root" flag — same criterion as getChannelRootBase). At that
+   *   stopping node, dynamic_cast to OZChannelObjectRootBase* and then
+   *   VIRTUAL-DISPATCH through the resulting root's vtable at offset 0x350
+   *   (slot 106) — that virtual is the concrete root class's
+   *   "getObjectManipulator" implementation. Return NULL if the walk hits
+   *   a NULL parent before finding the flag bit.
+   *
+   *   `getObjectManipulator` therefore is NOT implemented on
+   *   OZChannelObjectRootBase itself in this translation unit — it is a
+   *   virtual whose concrete impl lives on the derived root class. The
+   *   base's job is only to locate that root and delegate.
+   *
+   * DEPENDENCIES:
+   *   - `dynamic_cast_to_OZChannelObjectRootBase_stub` — the Itanium C++
+   *     ABI cross-cast helper (`___dynamic_cast` @ProChannel stub 0xacea0,
+   *     libc++abi.dylib). True out-of-scope extern; modelled as a boundary
+   *     stub already defined at the top of this file for the sibling
+   *     `getChannelRootBase()`.
+   *   - vtable slot 0x350 on the concrete root class — modelled as a
+   *     duck-typed optional hook `__vtable_0x350_getObjectManipulator` on
+   *     the OZChannelObjectRootBase runtime, following the same pattern as
+   *     `__vtable_0x2c8_getTimeExtent` in OZChannelObjectRootBase.ts. Not
+   *     yet implemented on the base — subclasses (concrete roots) that
+   *     have been ported must provide the slot. If the slot is missing,
+   *     we throw with the @0xADDR of the vtable dispatch — matching what
+   *     the disasm would do (jump to a NULL / uninit vtable entry crashes
+   *     the process; a loud throw is the honest TS analogue).
+   */
+  getObjectManipulator(): unknown {
+    // @0x4a54e/0x4a54f — prologue (no TS-visible effect).
+    //
+    // We model `%rdi` (the walking `this` pointer) as `cur`. The loop mirrors
+    // the x86: chase +0x30 (parent) until either NULL (bail: return NULL) or
+    // bit 0x20 of the byte at +0x39 is set (found root: cast + virtual-dispatch).
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    let cur: OZChannelBase | null = this;
+
+    // @0x4a552..0x4a561 — the loop body. Terminated by the two branches
+    // (je 0x4a563 → BAIL, jne 0x4a567 → CAST).
+    while (cur !== null) {
+      // @0x4a552  testq %rdi,%rdi ; @0x4a555  je 0x4a563
+      //   The NULL check is handled by the `while (cur !== null)` header.
+      //   The x86 re-checks at every iteration; so do we.
+
+      // @0x4a557  testb $0x20, 0x39(%rdi) ; @0x4a55b  jne 0x4a567
+      //   Read the flag byte at +0x39; if bit 0x20 is set, jump to CAST.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const flagByte: number = (cur as any).__flag_byte_at_0x39 as number;
+      if ((flagByte & 0x20) !== 0) {
+        // ------------------------------------------------------------
+        // CAST + virtual-dispatch tail (@0x4a567..0x4a583).
+        // ------------------------------------------------------------
+        // @0x4a567  leaq __ZTI13OZChannelBase(%rip), %rsi
+        // @0x4a56e  leaq __ZTI23OZChannelObjectRootBase(%rip), %rdx
+        // @0x4a575  xorl %ecx, %ecx
+        // @0x4a577  callq 0xacea0  (___dynamic_cast)
+        //   rax = dynamic_cast<OZChannelObjectRootBase*>(cur), or NULL.
+        //
+        // NB: unlike getChannelRootBase() @0x4a450 which uses a `jmp`
+        // (tail-call), this function uses `callq` because it still has
+        // work to do afterwards: load the vtable, then jmpq through slot
+        // 0x350. The C++-runtime call is otherwise identical.
+        const root: OZChannelObjectRootBase | null =
+          dynamic_cast_to_OZChannelObjectRootBase_stub(cur);
+
+        // @0x4a57c  movq (%rax), %rcx    — rcx = *root = vtable pointer.
+        //   If dynamic_cast returned NULL this is a NULL-deref crash in
+        //   the native binary. In TS the analogous fault is a throw; we
+        //   let the ambient behaviour of accessing a hook on `null`
+        //   surface (see below) — but guard explicitly to give a loud
+        //   diagnostic instead of the generic "cannot read properties
+        //   of null" so the fault-mode matches the disasm site.
+        if (root === null) {
+          throw new Error(
+            "OZChannelBase::getObjectManipulator @ProChannel 0x4a57c — " +
+              "___dynamic_cast returned NULL for the ancestor with the " +
+              "0x20 root-flag set; the native binary would NULL-deref " +
+              "loading vtable at (rax). Ancestor invariant violated.",
+          );
+        }
+
+        // @0x4a582  popq %rbp
+        // @0x4a583  jmpq *0x350(%rcx)  — tail-call vtable[0x350/8 = slot 106].
+        //   The vtable slot is a duck-typed optional method on the
+        //   concrete root; same modelling as OZChannelObjectRootBase's
+        //   own `__vtable_0x2c8_getTimeExtent` hook.
+        interface OZChannelObjectRootWithManipulatorVTable
+          extends OZChannelObjectRootBase {
+          /** Vtable slot 0x350 (slot 106) — the root's virtual
+           *  `getObjectManipulator()`. Concrete root classes override
+           *  this; the base class in raw-port does not implement it. */
+          __vtable_0x350_getObjectManipulator?(): unknown;
+        }
+        const fn = (root as OZChannelObjectRootWithManipulatorVTable)
+          .__vtable_0x350_getObjectManipulator;
+        if (fn === undefined) {
+          throw new Error(
+            "OZChannelBase::getObjectManipulator @ProChannel 0x4a583 — " +
+              "vtable slot 0x350 (__vtable_0x350_getObjectManipulator) " +
+              "not implemented on the concrete OZChannelObjectRootBase " +
+              "subclass. Native binary would jmpq through the concrete " +
+              "class's own override. Not yet transcribed.",
+          );
+        }
+        // Tail-call semantics: return whatever the vtable slot returns.
+        // The `%rdi` register is set to `%rax` (@0x4a57f) so the callee
+        // receives the ROOT pointer as `this`, not the original leaf.
+        // We reflect that by invoking the hook bound to `root`.
+        return fn.call(root);
+      }
+
+      // @0x4a55d  movq 0x30(%rdi), %rdi   — cur = cur->parent.
+      // @0x4a561  jmp  0x4a552            — goto loop.
+      const parent = cur.__parent_folder_at_0x30 as OZChannelBase | null;
+      cur = parent;
+    }
+
+    // @0x4a563..0x4a566 — BAIL: xorl %eax,%eax ; popq %rbp ; retq
+    //   return NULL.
+    return null;
+  }
 }
