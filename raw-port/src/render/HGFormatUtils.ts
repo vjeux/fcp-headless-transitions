@@ -185,3 +185,100 @@ export function HGFormatUtils_rowBytesHint(fmt: number, width: number): number {
   // @Helium 0xa1deb: andl $0xffffff00,%eax  — 256-byte align.
   return (plus & 0xffffff00) >>> 0;
 }
+
+// ---------------------------------------------------------------------------
+// (anonymous namespace)::formatInfos[fmt].metalFormat — the u64 at +0x0 of
+// each 32-byte entry.  Read directly from the Helium binary at file offset
+// 10549824 (Mach-O __DATA_CONST/__const; the "@0xa0ba40" comment near
+// FORMAT_INFOS_BPP referenced an older linker layout — the actual file
+// offset of the table is 10549824 in the current shipping x86_64 Helium
+// binary; verified by scanning for the exact FORMAT_INFOS_BPP pattern at
+// +0x10 across 44 entries with a 32-byte stride).
+//
+// Each value is an Apple `MTLPixelFormat` enum constant (u64) — the raw
+// mapping from FCP's `HGFormat` enum to a Metal pixel-format enum. A
+// value of 0 corresponds to `MTLPixelFormatInvalid` (Apple's canonical
+// "not representable in Metal" sentinel) and appears at every HGFormat
+// slot that has no direct Metal equivalent (fmt 17..21 = 24-bit RGB
+// packings, fmt 39..41, etc.).  A value of 252 is
+// `MTLPixelFormatDepth32Float` (Apple `Depth32Float`) at fmt 9.  A value
+// of 53 is `MTLPixelFormatR8Snorm` at fmt 36; 103 is
+// `MTLPixelFormatRG8Snorm` at fmt 38; 123 is `MTLPixelFormatRGBA8Snorm`
+// at fmt 42.  Every other value maps to the standard MTLPixelFormat
+// numeric constants (10=R8Unorm, 20=R16Unorm, 25=R16Float, 55=R32Float,
+// 30=RG8Unorm, 60=RG16Unorm, 65=RG16Float, 70=RGBA8Unorm, 80=BGRA8Unorm,
+// 90=RGB10A2Unorm, 105=RG32Float, 110=RGBA16Unorm, 115=RGBA16Float,
+// 125=RGBA32Float).  We DO NOT interpret these values at this layer —
+// we transcribe them verbatim from the binary.
+//
+// This is the raw u64 column that `metalFormat(HGFormat)` reads at
+// @0xa1461 via `movq (fmt*32 + &formatInfos), %rax`.  Values held in
+// number form (all 44 are <= 252, well within JS's safe integer range
+// of 2^53 - 1).
+const FORMAT_INFOS_METAL_FORMAT: readonly number[] = Object.freeze([
+  //   0    1    2    3    4    5    6    7    8    9
+  /* 0*/    0,  10,   1,  20,  20,  25,  25,  55,  55, 252,
+  /*10*/   30,  60,  65, 105,  80,  80, 110,   0,   0,   0,
+  /*20*/    0,   0,  80,  80,  70, 110, 110, 115, 125, 125,
+  /*30*/  110,  90,  70, 110,   0,   0,  53,   0, 103,   0,
+  /*40*/    0,   0, 123,   0,
+]);
+
+// ---------------------------------------------------------------------------
+// HGFormatUtils::metalFormat(HGFormat fmt)                      @Helium 0xa1450
+//
+// Disasm (10 lines):
+//   0xa1450  pushq   %rbp
+//   0xa1451  movq    %rsp, %rbp
+//   0xa1454  movl    %edi, %eax                 ; rax = fmt (zero-extended low 32b)
+//   0xa1456  shlq    $0x5, %rax                 ; rax = fmt * 32   (32-byte stride)
+//   0xa145a  leaq    formatInfosE(%rip), %rcx   ; rcx = &formatInfos[0]  (file off 10549824)
+//   0xa1461  movq    (%rax,%rcx), %rax          ; rax = *(u64*)(&formatInfos[fmt] + 0x0)
+//   0xa1465  popq    %rbp
+//   0xa1466  retq
+//
+// Semantics: look up the 8-byte `metalFormat` field at +0x0 of the
+// `formatInfos[fmt]` entry.  NO bounds check — unlike `bytesPerPixel`
+// (which has an explicit `cmpl $0x2b ; jg` clamp), this method reads
+// directly from `formatInfos + fmt*32 + 0`.  If `fmt` is >= 44 or
+// negative, the machine will read past the end of the 44-entry table
+// (C++ undefined behaviour); a faithful port raises rather than
+// silently returning garbage — the caller is expected to have already
+// clamped `fmt` to a valid HGFormat value.
+//
+// The `movl %edi, %eax` zero-extends the low 32 bits of `%edi` into
+// `%rax` — so `fmt` is treated as an UNSIGNED 32-bit value for the
+// index computation (a negative int32 in %edi would be interpreted
+// as a large positive u32, indexing far past the table). We mirror
+// that: the range check treats `fmt` after `>>> 0` truncation, so a
+// negative input surfaces as a large u32 that will fail the bounds
+// check and throw with the same @0xADDR.
+//
+// Zero in-scope callees, zero externs, zero indirect calls — pure
+// table lookup (confirmed by `depgraph.py why`: 0 in-scope deps, 0
+// indirect, 0 out-of-scope externs; READY at wave 0).
+//
+// Source disassembly:
+//   raw-port/re/disasm/Helium.__ZN13HGFormatUtils11metalFormatE8HGFormat.s
+export function HGFormatUtils_metalFormat(fmt: number): number {
+  // @Helium 0xa1454: movl %edi,%eax  — zero-extend fmt to u32.
+  const s = (fmt | 0) >>> 0;
+  // @Helium 0xa1456-0xa1461: rax = *(u64*)(&formatInfos[fmt] + 0x0)
+  //   NO bounds check in the disasm — we raise for OOB rather than
+  //   fabricate a value (Rule 3 — throw on undecoded, never approximate).
+  //   The 44-entry table is decoded verbatim into FORMAT_INFOS_METAL_FORMAT;
+  //   the disasm's raw read is well-defined only for fmt in [0, 43].
+  if (s > 0x2b) {
+    throw new Error(
+      "HGFormatUtils::metalFormat(fmt=" +
+        String(fmt) +
+        ") — fmt out of range [0, 0x2b]; disasm @Helium 0xa1461 has NO " +
+        "bounds check and would read past the 44-entry formatInfos table " +
+        "(&formatInfos + fmt*32 + 0x0 = file offset 10549824 + " +
+        String(s * 32) +
+        "), yielding C++ undefined behaviour.  Callers must clamp fmt to " +
+        "a valid HGFormat before invoking this. @Helium 0xa1450",
+    );
+  }
+  return FORMAT_INFOS_METAL_FORMAT[s]!;
+}
