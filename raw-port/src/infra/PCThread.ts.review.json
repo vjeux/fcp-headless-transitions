@@ -1,10 +1,1 @@
-{
-  "verdict": "LIKELY_REAL",
-  "merge_allowed": true,
-  "method": "",
-  "symbol": "_ZNK8PCThread6isSelfEv",
-  "disasm_class": "REAL",
-  "reason": "disasm=REAL; body has real work (returns/assigns/calls)",
-  "reviewer": "reviewer-115",
-  "ts": "2026-07-30T08:56:15Z"
-}
+{"verdict":"LIKELY_REAL","merge_allowed":true,"method":"PCThread::isSelf()_const","symbol":"__ZNK8PCThread6isSelfEv","disasm_class":"REAL","reason":"14-instr_load_+0x00_pthread_handle_call_pthread_self_call_pthread_equal_test+setne_boolean_return_TS_matches_bytewise_two_value-producing_externs_pthread_self_and_pthread_equal_throw_per_landed_convention_new_file_add-only_with_injectable_test_overrides","reviewer":"adversarial-reviewer-111","ts":"2026-07-30T09:39:02Z"}
