@@ -396,6 +396,128 @@ export class OZChannelAspectRatio {
    *  `createOZChannelAspectRatioInfo_default` frontier stub, and once
    *  the once-init lambda is ported it will read this global instead). */
   static _OZChannelAspectRatioInfo: OZChannelAspectRatioInfoLayout | null = null; // @ProChannel BSS 0x5ed8
+
+  /**
+   * `OZChannelAspectRatio::createOZChannelAspectRatioImpl()` @ProChannel 0x5ee8
+   * (__ZN20OZChannelAspectRatio30createOZChannelAspectRatioImplEv).
+   *
+   * Disasm source:
+   *   raw-port/re/disasm/ProChannel.__ZN20OZChannelAspectRatio30createOZChannelAspectRatioImplEv.s
+   *
+   * Structural TWIN of `createOZChannelAspectRatioInfo` above — the two share
+   * the identical libc++ call_once shape (cmp $-1 fast path, tuple<lambda&&>
+   * setup, callq std::__call_once, load-and-deref the singleton pointer).
+   * The DIFFERENCE is only which globals it targets:
+   *   - once-flag: __ZZN20OZChannelAspectRatio30createOZChannelAspectRatioImplEvE30_OZChannelAspectRatioImpl_once
+   *                @ProChannel BSS 0xeb7a8 (this file's `_createOZChannelAspectRatioImpl_once`)
+   *   - proxy:     __ZNSt3__117__call_once_proxy<...createOZChannelAspectRatioImpl::lambda...>Pv
+   *                @ProChannel 0x6085  (7-insn tail-jmp to the lambda operator())
+   *   - lambda:    __ZZN20OZChannelAspectRatio30createOZChannelAspectRatioImplEvENKUlvE_clEv
+   *                @ProChannel 0x6096  (53-insn body — the actual allocator/
+   *                initialiser of the Impl; SEPARATE ledger unit)
+   *   - singleton: __ZN20OZChannelAspectRatio25_OZChannelAspectRatioImplE
+   *                @ProChannel BSS 0xec2a0 (this file's `_OZChannelAspectRatioImpl`)
+   *
+   * FULL DISASM (31 lines, raw-port/re/disasm/ProChannel.__ZN20OZChannelAspectRatio30createOZChannelAspectRatioImplEv.s)
+   *
+   *   0x5ee8  pushq  %rbp                             ; prologue
+   *   0x5ee9  movq   %rsp, %rbp
+   *   0x5eec  subq   $0x20, %rsp                      ; 32-byte local frame
+   *                                                    ; (libc++ tuple<lambda&&>
+   *                                                    ; plus alignment padding)
+   *   0x5ef0  movq   _OZChannelAspectRatioImpl_once(%rip), %rax
+   *                                                    ; rax = _once
+   *   0x5ef7  cmpq   $-0x1, %rax                      ; already-init check
+   *   0x5efb  je     0x5f22                           ; fast path: skip call_once
+   *   0x5efd  leaq   -0x1(%rbp), %rax                 ; rax = &frame[-1]
+   *                                                    ; (empty captureless lambda
+   *                                                    ; storage — 1 byte)
+   *   0x5f01  leaq   -0x18(%rbp), %rcx                ; rcx = &frame[-0x18]
+   *   0x5f05  movq   %rax, (%rcx)                     ; tuple.head = &lambda-slot
+   *   0x5f08  leaq   -0x10(%rbp), %rsi                ; rsi = &frame[-0x10]
+   *   0x5f0c  movq   %rcx, (%rsi)                     ; *arg = &tuple
+   *   0x5f0f  leaq   _OZChannelAspectRatioImpl_once(%rip), %rdi
+   *                                                    ; rdi = &_once
+   *   0x5f16  leaq   __ZNSt3__117__call_once_proxy<...createOZChannelAspectRatioImpl::lambda...>Pv(%rip), %rdx
+   *                                                    ; rdx = proxy fn @0x6085
+   *   0x5f1d  callq  std::__call_once                 ; libc++ stub @0xacdc8
+   *   0x5f22  leaq   _OZChannelAspectRatioImpl(%rip), %rax
+   *                                                    ; rax = &_OZChannelAspectRatioImpl
+   *   0x5f29  movq   (%rax), %rax                     ; rax = *_OZChannelAspectRatioImpl (deref)
+   *   0x5f2c  addq   $0x20, %rsp                      ; epilogue
+   *   0x5f30  popq   %rbp
+   *   0x5f31  retq                                     ; return rax (Impl*)
+   *
+   * SEMANTICS
+   *   Standard libc++ std::call_once-guarded singleton accessor: on first
+   *   call, invoke the proxy which unpacks the lambda tuple and runs the
+   *   Impl allocator/initialiser (see lambda body @ProChannel 0x6096 — a
+   *   separate ledger unit that will fill in the storage via operator new
+   *   + OZCurveDouble ctor + field assignments). On subsequent calls, the
+   *   `cmp $-1` fast path skips straight to loading `_OZChannelAspectRatioImpl`.
+   *   The final `movq (%rax), %rax` derefs the global's ADDRESS (%rax) to
+   *   read the POINTER stored there. In JS the deref is trivial (just read
+   *   the class-static field).
+   */
+  static createOZChannelAspectRatioImpl(): OZChannelImpl | null {
+    // ------------------------------------------------------------
+    // @0x5ee8..0x5eec — prologue + 0x20 local frame (no TS effect).
+    // @0x5ef0..0x5ef7 — rax = _once; cmpq $-1, %rax.
+    // @0x5efb — je 0x5f22 (fast_path).
+    // ------------------------------------------------------------
+    if (
+      OZChannelAspectRatio._createOZChannelAspectRatioImpl_once !== -1n
+    ) {
+      // ------------------------------------------------------------
+      // @0x5efd..0x5f0c — set up libc++ tuple<lambda&&> on the stack
+      // (ABI-level, no TS-visible effect — the proxy just needs a
+      // stable void* to dispatch through; we pass a null placeholder).
+      // @0x5f0f — rdi = &_once.
+      // @0x5f16 — rdx = &__call_once_proxy<...lambda...> (@ProChannel 0x6085).
+      // @0x5f1d — callq std::__call_once (libc++ stub @0xacdc8).
+      // ------------------------------------------------------------
+      OZChannelAspectRatio_std_call_once(
+        {
+          get: (): bigint =>
+            OZChannelAspectRatio._createOZChannelAspectRatioImpl_once,
+          set: (v: bigint): void => {
+            OZChannelAspectRatio._createOZChannelAspectRatioImpl_once = v;
+          },
+        },
+        null, // ABI void* — the real disasm passes &tuple; our proxy ignores it.
+        OZChannelAspectRatio_createOZChannelAspectRatioImpl_lambda,
+      );
+    }
+    // ------------------------------------------------------------
+    // @0x5f22..0x5f29 — rax = _OZChannelAspectRatioImpl (deref).
+    // @0x5f2c..0x5f31 — epilogue + retq.
+    // ------------------------------------------------------------
+    return OZChannelAspectRatio._OZChannelAspectRatioImpl;
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // PROCESS-GLOBAL STORAGE for createOZChannelAspectRatioImpl (ProChannel BSS)
+  // ═════════════════════════════════════════════════════════════════════════
+  // Same pattern as the Info variant above — function-local statics in the
+  // real binary; hoisted to class-static private fields here for identical
+  // lifetime + zero-init semantics.
+  // ═════════════════════════════════════════════════════════════════════════
+
+  /** @ProChannel BSS `__ZZN20OZChannelAspectRatio30createOZChannelAspectRatioImplEvE30_OZChannelAspectRatioImpl_once`.
+   *  libc++ std::once_flag word. 0n = not started; -1n (0xFFFF_FFFF_FFFF_FFFF) = completed.
+   *  createOZChannelAspectRatioImpl() compares this to $-1 @0x5ef7. */
+  private static _createOZChannelAspectRatioImpl_once: bigint = 0n; // @ProChannel BSS 0xeb7a8
+
+  /** @ProChannel BSS `__ZN20OZChannelAspectRatio25_OZChannelAspectRatioImplE`.
+   *  The `OZChannelImpl*` singleton. Read @0x5f22-0x5f29.
+   *  Written by the once-init lambda body at ProChannel 0x6096 (a
+   *  53-insn body that allocates 0x30 bytes via `operator new` @0x60b2,
+   *  a 0xb0-byte OZCurveDouble via `operator new` @0x60bf, invokes the
+   *  OZCurveDouble ctor @0x60d2, and populates the fields — SEPARATE
+   *  ledger unit, currently `todo`). Also referenced by the Ozone ctor
+   *  fallback path @0x30c26b (see newNamed above — currently routed
+   *  through `createOZChannelAspectRatioImpl_default` frontier stub). */
+  static _OZChannelAspectRatioImpl: OZChannelImpl | null = null; // @ProChannel BSS 0xec2a0
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -481,3 +603,54 @@ function OZChannelAspectRatio_createOZChannelAspectRatioInfo_lambda(
 // (see OZChannelAspectRatioInfo.ts), which is what the SEPARATE C2-ctor
 // ledger unit @ProChannel 0xbb61 corresponds to.
 import type { OZChannelAspectRatioInfoLayout } from './OZChannelAspectRatioInfo';
+
+/**
+ * `__ZNSt3__117__call_once_proxy<...createOZChannelAspectRatioImpl::lambda...>Pv`
+ * — libc++ template instantiation (ProChannel @0x6085). Body is
+ * `jmp __ZZ...30createOZChannelAspectRatioImplEvENKUlvE_clEv` @0x6090
+ * — i.e. it tail-jumps to the lambda's `operator()` at ProChannel 0x6096.
+ * That lambda body (53 insns) does the real work:
+ *   1. Load &_OZChannelAspectRatioImpl (@0x60a0) and null-check it
+ *      (@0x60a7-0x60ab): if the global is already non-null, skip alloc.
+ *   2. Allocates 0x30 bytes via `operator new` @ProChannel 0x60b2
+ *      (__Znwm stub @0xace4c).
+ *   3. Allocates 0xb0 bytes via `operator new` @ProChannel 0x60bf for an
+ *      OZCurveDouble object.
+ *   4. Invokes `OZCurveDouble::OZCurveDouble(double)` @ProChannel 0x60d2
+ *      (__ZN13OZCurveDoubleC2Ed — SEPARATE ledger entry).
+ *   5. ...continues initialising fields and stores the outer 0x30-byte
+ *      pointer to `_OZChannelAspectRatioImpl` (final store — the singleton
+ *      publication).
+ * Since neither the OZCurveDouble ctor nor operator new are ported yet,
+ * this stub raises with the exact @0xADDRs of the dispatching call sites.
+ * The 53-insn lambda body, the proxy, and the OZCurveDouble ctor are each
+ * SEPARATE ledger units and will be filled in when they are claimed.
+ */
+function OZChannelAspectRatio_createOZChannelAspectRatioImpl_lambda(
+  _arg: unknown,
+): void {
+  // The lambda body @ProChannel 0x6096..0x6??? is:
+  //   1. r14 = &_OZChannelAspectRatioImpl                    @ProChannel 0x60a0
+  //   2. if (*r14 != null) skip to epilogue                  @ProChannel 0x60a7-0x60ab
+  //   3. rax = operator new(0x30)                            @ProChannel 0x60b2 (imported __Znwm)
+  //   4. rax = operator new(0xb0)                            @ProChannel 0x60bf (imported __Znwm)
+  //   5. OZCurveDouble::C2(rax, xmm0)                        @ProChannel 0x60d2
+  //   ... (field initialisers, then publication to _OZChannelAspectRatioImpl)
+  // The full 53-insn body is a SEPARATE ledger unit.
+  throw new Error(
+    "OZChannelAspectRatio::createOZChannelAspectRatioImpl() __call_once " +
+      "init lambda not yet transcribed — the lambda body @ProChannel 0x6096 " +
+      "null-checks _OZChannelAspectRatioImpl @0x60a7, otherwise allocates " +
+      "0x30 bytes via operator new @0x60b2, a 0xb0-byte OZCurveDouble via " +
+      "operator new @0x60bf, invokes __ZN13OZCurveDoubleC2Ed @ProChannel " +
+      "0x60d2 (OZCurveDouble double-ctor, ledger status: todo), continues " +
+      "initialising fields, and stores the fresh Impl pointer into " +
+      "_OZChannelAspectRatioImpl (published at the store that terminates the " +
+      "53-insn body). Neither operator new (__Znwm ProChannel stub 0xace4c) " +
+      "nor the OZCurveDouble ctor is yet ported — the proxy (@ProChannel " +
+      "0x6085), the lambda's operator() body (@ProChannel 0x6096), and the " +
+      "OZCurveDouble ctor are each SEPARATE ledger units and will be filled " +
+      "in when they are next claimed. The proxy is invoked from " +
+      "std::__call_once at ProChannel 0x5f1d.",
+  );
+}
