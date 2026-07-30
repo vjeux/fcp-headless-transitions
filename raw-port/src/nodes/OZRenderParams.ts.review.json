@@ -1,0 +1,10 @@
+{
+  "verdict": "LIKELY_REAL",
+  "merge_allowed": true,
+  "method": "OZRenderParams::setDoShapeAntialiasing",
+  "symbol": "__ZN14OZRenderParams22setDoShapeAntialiasingEb",
+  "disasm_class": "REAL",
+  "reason": "REAL disasm 4 stores no calls; TS byte-faithful: movb %sil,0x1e2 -> doShapeAntialiasingAt1e2, movb %sil,0x1e3 -> doShapeAntialiasingAt1e3, xorps+movups 0x188/0x198 -> zeroedAt188/198 = {x:0,y:0}; matches machine order; no throws",
+  "reviewer": "reviewer-124-adversarial",
+  "ts": "2026-07-30T08:55:46Z"
+}
