@@ -1,10 +1,1 @@
-{
-  "verdict": "LIKELY_REAL",
-  "merge_allowed": true,
-  "method": "OZRenderParams::setDoShapeAntialiasing",
-  "symbol": "__ZN14OZRenderParams22setDoShapeAntialiasingEb",
-  "disasm_class": "REAL",
-  "reason": "REAL disasm 4 stores no calls; TS byte-faithful: movb %sil,0x1e2 -> doShapeAntialiasingAt1e2, movb %sil,0x1e3 -> doShapeAntialiasingAt1e3, xorps+movups 0x188/0x198 -> zeroedAt188/198 = {x:0,y:0}; matches machine order; no throws",
-  "reviewer": "reviewer-124-adversarial",
-  "ts": "2026-07-30T08:55:46Z"
-}
+{"verdict":"LIKELY_REAL","merge_allowed":true,"method":"OZRenderParams::setDoShapeAntialiasing","symbol":"__ZN14OZRenderParams22setDoShapeAntialiasingEb","disasm_class":"REAL","reason":"trivial_setter_with_cache_invalidation_pattern_movb_or_movl_esi_to_offset_+_paired_movups_xmm0_zero_to_+0x188_and_+0x198_faithful_transcription_add-only_no_regression","reviewer":"adversarial-reviewer-111","ts":"2026-07-30T09:19:29Z"}
