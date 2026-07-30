@@ -339,4 +339,129 @@ export class OZChannelBase {
     //   return NULL.
     return null;
   }
+
+  /** @ProChannel OZChannelBase layout offset 0x38 (read+write @0x4bb4c/0x4bb5c).
+   *  Wide flags word (u64). Currently only two bits are known:
+   *    * bit 19 (0x80000)  — "eligible-for-solo-inheritance" test bit. Read by
+   *      `setChildSolo(false)` @0x4bb50 via `btl $0x13, %eax`. When SET on a
+   *      given ancestor, that ancestor's bit 20 (0x100000) is turned on to
+   *      indicate a solo descendant.
+   *    * bit 20 (0x100000) — "has-solo-child" propagated flag. Set by
+   *      `setChildSolo(false)` @0x4bb56 via `orq $0x100000, %rax`.
+   *  Other bits are unused by the transcribed methods so far. Modelled as a
+   *  BigInt so the u64 semantics (in particular that `btl $0x13` reads only
+   *  the low dword) are faithful; the low 32 bits are what the disasm's
+   *  `btl` / `orq` immediates operate on. Default 0 matches a
+   *  zero-initialised C++ struct; the setter path only ORs bits, never
+   *  clears them. */
+  private __flags_word_at_0x38: bigint = 0n;
+
+  /**
+   * OZChannelBase::setChildSolo(bool).
+   * @ProChannel 0x4bb42..0x4bb6c
+   * (__ZN13OZChannelBase12setChildSoloEb)
+   *
+   * Disasm (raw-port/re/disasm/ProChannel.__ZN13OZChannelBase12setChildSoloEb.s,
+   * 17 lines including prologue/epilogue):
+   *
+   *   0x4bb42  pushq  %rbp                        ; prologue
+   *   0x4bb43  movq   %rsp, %rbp                  ; prologue
+   * [LOOP @0x4bb46]:
+   *   0x4bb46  testb  $0x1, %sil                  ; test the bool arg (%sil = low byte of %rsi = `s`)
+   *   0x4bb4a  jne    0x4bb60                     ; if (s != 0) goto ADVANCE
+   *                                               ;   — skip modification of THIS node when
+   *                                               ;     s is true; only the parents (with s=false)
+   *                                               ;     get the flag propagated.
+   *   0x4bb4c  movq   0x38(%rdi), %rax            ; rax = flags_at_+0x38  (u64)
+   *   0x4bb50  btl    $0x13, %eax                 ; CF = bit 0x13 (=19) of the low dword
+   *                                               ;   — `btl` operates on the 32-bit %eax view.
+   *   0x4bb54  jae    0x4bb60                     ; if (CF == 0) goto ADVANCE
+   *                                               ;   — `jae` = jump-if-above-or-equal = CF==0;
+   *                                               ;     i.e. skip the OR when bit 19 is CLEAR.
+   *                                               ;     Only when bit 19 is SET do we mark bit 20.
+   *   0x4bb56  orq    $0x100000, %rax             ; rax |= (1 << 20)     ; set the "has-solo-child" bit
+   *   0x4bb5c  movq   %rax, 0x38(%rdi)            ; store flags_at_+0x38
+   * [ADVANCE @0x4bb60]:
+   *   0x4bb60  movq   0x30(%rdi), %rdi            ; this = this->parent (u64 at +0x30)
+   *   0x4bb64  xorl   %esi, %esi                  ; s = 0  (all subsequent iterations pass false)
+   *   0x4bb66  testq  %rdi, %rdi                  ; ZF = (parent == NULL)
+   *   0x4bb69  jne    0x4bb46                     ; if (parent != NULL) goto LOOP
+   *   0x4bb6b  popq   %rbp                        ; epilogue
+   *   0x4bb6c  retq                               ; return (void)
+   *
+   * SEMANTICS:
+   *   Walk the parent chain starting from `this`. For each visited node
+   *   except possibly THIS one (see below):
+   *     - Read the flags word at +0x38.
+   *     - If bit 19 (0x80000) is set, OR in bit 20 (0x100000) and
+   *       write the flags back.
+   *     - Advance to the parent via the +0x30 pointer.
+   *   The bool argument `s` gates whether the FIRST node (this) is
+   *   modified: when `s` is `true`, the initial iteration takes the
+   *   ADVANCE branch WITHOUT reading/modifying flags, so the walk
+   *   effectively begins at the parent. When `s` is `false`, `this`
+   *   is a candidate for modification too. On subsequent iterations
+   *   the register `%esi` is zeroed (see @0x4bb64), so parents always
+   *   go through the check-and-set path.
+   *
+   *   In plain terms: "propagate the has-solo-descendant bit
+   *   (0x100000) up the parent chain, marking every ancestor that
+   *   already has bit 0x80000 set. If the caller passes `s=true`
+   *   (meaning the CURRENT node is itself the solo one and doesn't
+   *   need to be marked as its OWN solo-child), skip the first node."
+   *
+   * DEPENDENCIES: none. Pure loop over the parent chain — no calls,
+   * no virtuals, no externs. The 17-line body has been transcribed
+   * one-for-one below.
+   */
+  setChildSolo(s: boolean): void {
+    // @0x4bb42/0x4bb43 — prologue.
+    //
+    // We model `%rdi` (the walking `this` pointer) as `cur`, and `%sil`
+    // (the low byte of the bool arg) as `flag`. The loop mutates both
+    // exactly like the x86 registers: `flag` is forcibly cleared to
+    // false at each ADVANCE step (@0x4bb64  xorl %esi,%esi), and `cur`
+    // is chased through the parent pointer (@0x4bb60  movq 0x30(%rdi),%rdi).
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    let cur: OZChannelBase | null = this;
+    // @0x4bb46 — the loop entry uses the low bit of the bool arg. In TS
+    // we normalise `boolean` down to that same "low bit" — `s ? 1 : 0`.
+    let flag: number = s ? 1 : 0;
+
+    // The loop terminates via @0x4bb66/0x4bb69 (`testq %rdi,%rdi ; jne 0x4bb46`)
+    // — i.e. we stop when the walking pointer becomes NULL.
+    while (cur !== null) {
+      // @0x4bb46  testb $0x1, %sil   ; @0x4bb4a  jne 0x4bb60
+      //   Test the low bit of `flag`. If set (bool arg is `true`), skip
+      //   the read-modify-write block and go straight to ADVANCE.
+      if ((flag & 0x1) === 0) {
+        // @0x4bb4c  movq 0x38(%rdi), %rax     — load the u64 flags word.
+        const rax_u64: bigint = cur.__flags_word_at_0x38;
+        // @0x4bb50  btl $0x13, %eax           — CF = bit 19 of low dword.
+        //           `btl` operates on the 32-bit %eax view, so we mask
+        //           to the low 32 bits to match. Bit 0x13 = bit 19.
+        const eax_low32: number = Number(rax_u64 & 0xffffffffn);
+        const cf: number = (eax_low32 >>> 19) & 1;
+        // @0x4bb54  jae 0x4bb60                — jump if CF == 0.
+        //           i.e. only fall through when bit 19 is SET.
+        if (cf !== 0) {
+          // @0x4bb56  orq $0x100000, %rax     — set bit 20 of the u64.
+          //           0x100000 fits in 32 bits so `orq` and `orl` are
+          //           equivalent here; we OR the u64 directly to match.
+          const new_rax: bigint = rax_u64 | 0x100000n;
+          // @0x4bb5c  movq %rax, 0x38(%rdi)  — write back.
+          cur.__flags_word_at_0x38 = new_rax;
+        }
+      }
+      // @0x4bb60  movq 0x30(%rdi), %rdi   — advance: cur = cur->parent.
+      const parent = cur.__parent_folder_at_0x30 as OZChannelBase | null;
+      cur = parent;
+      // @0x4bb64  xorl %esi, %esi        — zero the bool for all
+      //                                   subsequent iterations.
+      flag = 0;
+      // @0x4bb66/0x4bb69  testq %rdi,%rdi ; jne 0x4bb46
+      //   — the while-condition handles the NULL check + back-edge.
+    }
+    // @0x4bb6b/0x4bb6c  popq %rbp ; retq — void return.
+  }
 }
