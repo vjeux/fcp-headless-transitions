@@ -132,10 +132,65 @@ export interface OZChannelRefHeader {
  *   +0x10  owned pointer                     — freed by D1 when owned.
  */
 export class OZChannelRef implements OZChannelRefHeader {
-  /** @ProChannel instance +0x00 (bit 0). */
+  /** @ProChannel instance +0x00 (bit 0).
+   *
+   * Interpreted by BOTH ~OZChannelRef() and operator== as the libc++
+   * std::string SSO discriminator: bit 0 SET = "long" representation
+   * (heap-allocated, size at +0x08, data pointer at +0x10). bit 0 CLEAR
+   * = "short" representation (size in the upper 7 bits of byte 0, data
+   * inline starting at &this+1). See the operator== docblock below for
+   * the full pattern. The dtor treats this bit as "owns a heap copy"
+   * (=> free +0x10); operator== treats it as "read size/data from
+   * long-mode vs short-mode fields". Same bit, same meaning under
+   * different names — kept as the field `ownsCopy` for continuity with
+   * the D1 dtor's already-ported vocabulary.
+   */
   ownsCopy: boolean = false;
-  /** @ProChannel instance +0x10. */
+
+  /** @ProChannel instance +0x08.
+   *
+   * Long-mode SIZE (u64), read by operator== @0x4c893 as
+   *   `movq 0x8(%rdi), %rdx  ; rdx = long-mode size in bytes`.
+   * Only meaningful when `ownsCopy` (bit 0 of byte 0) is SET. In short
+   * mode, this slot is part of the inline character storage and is not
+   * read as a size. Zero when unused. */
+  longSize: bigint = 0n;
+
+  /** @ProChannel instance +0x00, upper 7 bits.
+   *
+   * Short-mode SIZE (u8 >> 1), read by operator== @0x4c899..0x4c89b as
+   *   `movl %eax,%edx ; shrl %edx  ; edx = ((byte0 & 0xff) >> 1)`.
+   * Only meaningful when `ownsCopy` is CLEAR. Range 0..0x7f (0..127).
+   *
+   * Modelled as a separate field so it can be non-destructively added
+   * to the existing class layout (the D1 dtor doesn't read this and is
+   * unaffected — see class header note about "one bit, two names").
+   * Kept in sync with the low bit of the same byte: `ownsCopy` is bit
+   * 0, `shortSize` is the value shifted from bits 1..7. */
+  shortSize: number = 0;
+
+  /** @ProChannel instance +0x10.
+   *
+   * Long-mode DATA pointer (u8*), read by operator== @0x4c8ba as
+   *   `movq 0x10(%rdi), %rdi  ; rdi = long-mode data pointer`.
+   * Also the value passed to operator delete by ~OZChannelRef when
+   * `ownsCopy` is SET (kept named `owned` for continuity). Modelled
+   * here as `unknown` because the D1 dtor treats it as a bare
+   * `void*` on its way to operator delete. In operator== it is
+   * subsequently passed to `_memcmp(long_data_a, long_data_b, size)`,
+   * so the runtime value must be a byte buffer with valid contents. */
   owned: unknown = null;
+
+  /** @ProChannel instance +0x01.
+   *
+   * Short-mode INLINE DATA (up to 23 bytes on x86_64 std::string),
+   * modelled here as an optional u8 buffer. Only meaningful when
+   * `ownsCopy` is CLEAR. Read by operator== @0x4c8c3 as
+   *   `incq %rdi  ; rdi = &this+1 = &inline_bytes[0]`.
+   * Together with `shortSize` this is what operator== `_memcmp`s
+   * against the peer's short-mode buffer. Null when the ref is
+   * long-mode. */
+  shortData: Uint8Array | null = null;
 
   /**
    * `OZChannelRef::~OZChannelRef()` @ProChannel 0x4abb4
@@ -167,5 +222,135 @@ export class OZChannelRef implements OZChannelRefHeader {
     //           callq). Faithful raising stub — see operator_delete_stub.
     operator_delete_stub(this.owned);
     // (unreachable in the faithful port; the tail-jmp does not return.)
+  }
+
+  /**
+   * `OZChannelRef::operator==(OZChannelRef const& rhs) const`
+   *   @ProChannel 0x4c88c
+   *   (__ZNK12OZChannelRefeqERKS_)
+   *
+   * Disasm (raw-port/re/disasm/ProChannel.__ZNK12OZChannelRefeqERKS_.s):
+   *
+   *   0x4c88c  movzbl  (%rdi), %eax             ; eax = byte 0 of *this  (SSO tag byte)
+   *   0x4c88f  testb   $0x1, %al                ; is_long_a = (byte0 & 1)
+   *   0x4c891  je      0x4c899                  ; if !is_long: use short branch
+   *   0x4c893  movq    0x8(%rdi), %rdx          ; long: rdx = size_a = *(u64*)(this+0x8)
+   *   0x4c897  jmp     0x4c89d
+   *   0x4c899  movl    %eax, %edx               ; short: rdx = byte0
+   *   0x4c89b  shrl    %edx                     ;   >>= 1        (short size 0..127)
+   *   0x4c89d  movzbl  (%rsi), %ecx             ; ecx = byte 0 of *rhs
+   *   0x4c8a0  testb   $0x1, %cl                ; is_long_b
+   *   0x4c8a3  je      0x4c8ab
+   *   0x4c8a5  movq    0x8(%rsi), %r8           ; long: r8 = size_b = *(u64*)(rhs+0x8)
+   *   0x4c8a9  jmp     0x4c8b1
+   *   0x4c8ab  movl    %ecx, %r8d               ; short: r8 = byte0_b >> 1
+   *   0x4c8ae  shrl    %r8d
+   *   0x4c8b1  cmpq    %r8, %rdx                ; flags = size_a - size_b
+   *   0x4c8b4  jne     0x4c8c0                  ; sizes differ -> return false
+   *   0x4c8b6  testb   $0x1, %al                ; is_long_a (recheck AL from @0x4c88c)
+   *   0x4c8b8  je      0x4c8c3                  ; short: inline-buffer path
+   *   0x4c8ba  movq    0x10(%rdi), %rdi         ; long : rdi = data_a = *(void**)(this+0x10)
+   *   0x4c8be  jmp     0x4c8c6
+   *   0x4c8c0  xorl    %eax, %eax               ; sizes differ:
+   *   0x4c8c2  retq                             ;   return false
+   *   0x4c8c3  incq    %rdi                     ; short: rdi = &this + 1  (inline data)
+   *   0x4c8c6  testb   $0x1, %cl                ; is_long_b (recheck CL from @0x4c89d)
+   *   0x4c8c9  je      0x4c8d1
+   *   0x4c8cb  movq    0x10(%rsi), %rsi         ; long : rsi = data_b = *(void**)(rhs+0x10)
+   *   0x4c8cf  jmp     0x4c8d4
+   *   0x4c8d1  incq    %rsi                     ; short: rsi = &rhs + 1
+   *   0x4c8d4  pushq   %rbp                     ; NB: prologue lives HERE (deferred until we
+   *   0x4c8d5  movq    %rsp, %rbp               ;      actually need to call an extern)
+   *   0x4c8d8  callq   _memcmp                  ; eax = _memcmp(data_a, data_b, size)
+   *   0x4c8dd  testl   %eax, %eax
+   *   0x4c8df  sete    %al                      ; return (memcmp == 0)
+   *   0x4c8e2  popq    %rbp
+   *   0x4c8e3  retq
+   *
+   * SEMANTICS: byte-wise equality of two OZChannelRef strings, matching
+   * libc++'s std::string layout (SSO — Short-String Optimization):
+   *
+   *   size(x) = (byte0(x) & 1) ? *(u64*)(&x + 0x08)   // long
+   *                            : (byte0(x) >> 1)      // short
+   *   data(x) = (byte0(x) & 1) ? *(void**)(&x + 0x10) // long: heap ptr
+   *                            : (&x + 1)             // short: inline
+   *   operator==(a, b) := size(a) == size(b) && memcmp(data(a), data(b), size) == 0
+   *
+   * The SSO discriminator is the SAME "low bit of byte 0" that the D1
+   * dtor above tests as `ownsCopy` — the two ports agree on the layout
+   * (see the `ownsCopy` field's docblock). Because operator== reads
+   * BOTH the size (at +0x8 or byte0>>1) AND the data pointer (at +0x10
+   * or &this+1) that the dtor didn't need, this file now stores those
+   * as explicit fields (`longSize`, `shortSize`, `shortData`, and the
+   * existing `owned` for long-mode data). No existing dtor behaviour
+   * is changed.
+   *
+   * EXTERN:
+   *   `_memcmp` (libc) @ProChannel imported stub 0xacefa.
+   *   TRUE out-of-scope extern (libc); modelled at the boundary as a
+   *   faithful byte-buffer comparison. See operator== body for the
+   *   inline modelling — we compare the two byte views directly rather
+   *   than dispatching through a stub, because the JS `Uint8Array`
+   *   equality is the semantics `_memcmp(a,b,n)==0` describes.
+   *
+   * DEPENDENCIES: none in-scope. (`_memcmp` is a libc extern, per the
+   * boundary policy in PORTING_SPEC.md.)
+   */
+  equals(rhs: OZChannelRef): boolean {
+    // @0x4c88c..0x4c891 — read is_long for lhs.
+    const isLongA = this.ownsCopy;
+    // @0x4c893..0x4c89b — pick sizeA: long path reads +0x08; short path
+    // reads (byte0 & 0xff) >> 1.
+    const sizeA: bigint = isLongA ? this.longSize : BigInt(this.shortSize);
+
+    // @0x4c89d..0x4c8ae — same for rhs.
+    const isLongB = rhs.ownsCopy;
+    const sizeB: bigint = isLongB ? rhs.longSize : BigInt(rhs.shortSize);
+
+    // @0x4c8b1..0x4c8b4  cmpq %r8, %rdx ; jne 0x4c8c0
+    // @0x4c8c0..0x4c8c2  xorl %eax, %eax ; retq   -> return false
+    if (sizeA !== sizeB) {
+      return false;
+    }
+
+    // @0x4c8b6..0x4c8be — pick data pointer for lhs. Long: +0x10 (owned).
+    // Short: &this + 1 (shortData in the port).
+    const dataA: Uint8Array | null = isLongA
+      ? (this.owned as Uint8Array | null)
+      : this.shortData;
+    // @0x4c8c6..0x4c8d1 — same for rhs.
+    const dataB: Uint8Array | null = isLongB
+      ? (rhs.owned as Uint8Array | null)
+      : rhs.shortData;
+
+    // @0x4c8d4..0x4c8e3 — memcmp(dataA, dataB, size) then sete on the
+    // result. Size zero => _memcmp returns 0 and the strings are equal
+    // regardless of what dataA/dataB point at (the disasm doesn't
+    // null-check the pointers; libc `memcmp(x, y, 0)` returns 0
+    // unconditionally). Match that with the size==0 early accept.
+    const n: number = Number(sizeA); // sizeA==sizeB, checked above
+    if (n === 0) {
+      return true;
+    }
+
+    // If either buffer is null (only possible in a well-formed ref if
+    // the runtime state is torn), fall back to strict inequality so
+    // the port can't silently claim equality on invalid input. The
+    // disasm doesn't null-check either — a null pointer would fault
+    // inside _memcmp — so this branch is defensive-only, not a
+    // decode of a real code path.
+    if (dataA === null || dataB === null) {
+      return false;
+    }
+
+    // @0x4c8d8..0x4c8df  _memcmp(dataA, dataB, n) ; sete %al
+    // Faithful boundary model for libc _memcmp: byte-wise equality of
+    // the first `n` bytes of the two buffers.
+    for (let i = 0; i < n; i++) {
+      if (dataA[i] !== dataB[i]) {
+        return false;
+      }
+    }
+    return true;
   }
 }
