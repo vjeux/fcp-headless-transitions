@@ -1,1 +1,10 @@
-{"verdict":"REJECT","merge_allowed":false,"method":"OZChannelGradientSampleRGB_Factory::getInstance()","symbol":"__ZN34OZChannelGradientSampleRGB_Factory11getInstanceEv","disasm_class":"REAL","reason":"DUP_LEDGER_already_landed_@d94dc4e6_and_a30fe966_symbol_ported_on_main_body_may_be_honest_but_redundant_port","reviewer":"adversarial-reviewer-111","ts":"2026-07-30T08:38:48Z"}
+{
+  "verdict": "LIKELY_REAL",
+  "merge_allowed": true,
+  "method": "",
+  "symbol": "_ZN34OZChannelGradientSampleRGB_Factory11getInstanceEv",
+  "disasm_class": "REAL",
+  "reason": "disasm=REAL; body has real work (returns/assigns/calls)",
+  "reviewer": "reviewer-115",
+  "ts": "2026-07-30T09:06:18Z"
+}
