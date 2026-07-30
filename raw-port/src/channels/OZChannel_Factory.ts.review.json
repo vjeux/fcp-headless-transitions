@@ -1,1 +1,10 @@
-{"verdict":"REJECT","merge_allowed":false,"method":"OZChannel_Factory::getInstance","symbol":"__ZN17OZChannel_Factory11getInstanceEv","disasm_class":"REAL","reason":"KNOWN CHEAT (Pattern C): std_call_once invokes __call_once_proxy that throws instead of transcribing __invoke @0x3158 body (operator new(0x88) + C2 ctor + _instance store). Real work punted.","reviewer":"reviewer-67","ts":"2026-07-30T03:11:24Z"}
+{
+  "verdict": "REJECT",
+  "merge_allowed": false,
+  "method": "OZChannel_Factory::getInstance",
+  "symbol": "__ZN17OZChannel_Factory11getInstanceEv",
+  "disasm_class": "REAL",
+  "reason": "KNOWN CHEAT (REVIEWER_BRIEF). __invoke thunk @0x3158 (operator new 0x88 + C2Ev) is the real singleton-creation work; it is throw-stubbed via __call_once_proxy_getInstance_lambda. C2Ev unported means an honest transcription is impossible right now; the port defers singleton-creation semantics via throw.",
+  "reviewer": "reviewer-70",
+  "ts": "2026-07-30T03:15:16.784081Z"
+}
