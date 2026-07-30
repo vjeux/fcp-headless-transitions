@@ -70,4 +70,52 @@ export class OZInterpolator {
     this.vptr_at_0x00 = "__ZTV14OZInterpolator+0x10";
     // @0x44640 popq %rbp / @0x44641 retq  ->  return (no return value)
   }
+
+  /**
+   * `OZInterpolator::~OZInterpolator()` [D2] @ProChannel 0x44642  __ZN14OZInterpolatorD2Ev
+   *
+   * Faithful line-for-line transcription of the 5-line disassembly:
+   *
+   *   0x44642  pushq  %rbp                        ; frame prologue
+   *   0x44643  movq   %rsp, %rbp
+   *   0x44646  popq   %rbp                        ; frame epilogue
+   *   0x44647  retq
+   *
+   * Empty destructor body — the Itanium C++ ABI D2 ("base object destructor")
+   * runs the LOCAL fields' destructors but neither reinstalls the vtable
+   * (that's D1's job) nor deletes the object (that's D0's). Since
+   * OZInterpolator's ctor @0x44632 installs only the vptr at +0x00 and
+   * initializes ZERO data fields (per the base-class ctor doc-comment
+   * above), there is genuinely nothing for D2 to destroy: no owned
+   * pointers, no allocated buffers, no non-POD members. The compiler
+   * emitted the bare frame + return.
+   *
+   * This is a real (non-cheat) empty body — it's what the machine does.
+   * The FCP compiler could have folded this to a nop-slot in a subclass's
+   * vtable, but it kept D2 as a callable symbol so subclass D2s can chain
+   * to it (e.g. via `jmp __ZN14OZInterpolatorD2Ev` from a subclass D2 that
+   * has no additional cleanup of its own).
+   *
+   * VTABLE ROLE: D2 is NOT the slot dispatched from `~OZInterpolator()`
+   * calls in the wild — those go through the class's vtable at slot +0x00
+   * (D1) or +0x08 (D0). D2 is the base-object variant invoked by other
+   * destructors' epilogues (the "in-charge" D1 chains to the parent's D2,
+   * per the Itanium ABI). See the vtable table in the class doc-comment
+   * above: *0x00 = D1 @0xac1fa, *0x08 = D0 @0xac200 (both separate ledger
+   * entries, not in this file's scope).
+   *
+   * Zero in-scope callees, zero externs — pure empty body.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/ProChannel.__ZN14OZInterpolatorD2Ev.s (5 lines)
+   */
+  destructor_D2(this: OZInterpolator): void {
+    // @0x44642..0x44647 — pushq %rbp / movq %rsp,%rbp / popq %rbp / retq
+    //   Empty function body. The C++ D2 destroys local (non-inherited)
+    //   fields — OZInterpolator has NONE (the ctor initializes only the
+    //   vptr; per the ABI, the vptr is NOT a destructor-run field), so
+    //   D2 is genuinely a no-op. Preserved as an explicit method so
+    //   subclass D2s that chain here still have a callable symbol.
+    /* no-op — the machine does nothing but frame prologue/epilogue. */
+  }
 }
