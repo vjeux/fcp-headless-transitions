@@ -108,3 +108,21 @@ DECISIVE — stop re-litigating this. Evidence gathered twice (reviewer-34/45) +
 - getColorSpaceRef @0x9b384 is UNIQUE (no ICF twin) and is literally `movq %rdi,%rax; ret` = return this.
 - The class is a SINGLE-FIELD wrapper `{ PCCFRef<CGColorSpace*> @ +0x00 }`. A C++ method returning a REFERENCE to a first member compiles to exactly `movq %rdi,%rax` because address(member)==this. The `Ref` suffix = reference return.
 RULE (deterministic): `return this` is FAITHFUL and ACCEPTABLE **iff** the TS types the return as the handle/PCCFRef reference (a value address-equal to `this`) AND does NOT claim to dereference/load +0x00. REJECT only if the port (a) returns a dereferenced raw CGColorSpace* value while emitting no load, or (b) its narrative asserts "tag-only wrapper / no +0x00 field" (that reasoning is FALSE — there is a field — even though the emitted `return this` happens to match). Judge on the emitted TS return semantics, not the prose.
+
+## RESOLVED: extern boundary model — no-op vs throw (2026-07-30, coordinator)
+DECISIVE — stop re-litigating per-branch. The LANDED, consistent convention across the whole
+PCCFRef family (PCCFRef_CFArray/CFData/CFDictionary, PCCFRefTraits_CGColorSpace/vImageConverter, all on main):
+- **LIFETIME / OWNERSHIP primitives → JS NO-OP (or return-arg).** CFRelease/CGColorSpaceRelease/
+  objc_release/CFRelease-family = do nothing (JS GC owns the surrogate). CFRetain/objc_retain/
+  CGColorSpaceRetain = return the argument unchanged (the CFRetain idiom's own faithful semantic).
+  These are void/identity refcount ops; the faithful boundary model is a no-op, NOT a throw.
+- **VALUE-PRODUCING externs → THROW with @0xADDR.** CFBundleGetBundleWithIdentifier,
+  CGColorSpaceCreateWithName, etc. — JS cannot fabricate the real return value, so an honest
+  citing-throw is correct.
+REVIEWER RULE (deterministic): a dtor/release port whose ONLY reachable-path "incompleteness" is a
+CFRelease/objc_release/retain-family call modeled as NO-OP (or return-arg) is FAITHFUL → do NOT
+reject it as a reachable-throw cheat. CONVERSELY, a release/dtor port that makes a lifetime primitive
+THROW on the reachable (non-null) path DIVERGES from the landed convention and breaks callers → REJECT
+(must be no-op). reach_check flagging the no-op path is a FALSE positive here — judge on this rule.
+(Independent of file-level-regression checks, which still apply — e.g. the PCCFRef_CFArray_dtor D1-only
+branch is ALSO REJECT for dropping the landed D2 destructor.)
