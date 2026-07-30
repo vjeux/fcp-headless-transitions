@@ -60,3 +60,15 @@ SAFE FIX (for a dedicated session, NOT a live hot-patch — a bug here stalls th
     dominate the top of queue; a --no-stl filter or dedicated STL-porter tier lets workers reach real math faster.
   - depgraph.py deps <sym>: always echo "OK: N in-scope deps, M externs, K indirect" (currently prints nothing
     for a 0-dep leaf, so workers can't tell the tool ran).
+
+## EVIDENCE (2026-07-30 01:07 tick): git-index serialization is the throughput WALL
+Reported independently by reviewer-49, reviewer-40, dep-worker-43, dep-worker-46 this tick: with ~24-41
+concurrent wt_merge processes, `git worktree add` (inside both wt_merge.sh gate-worktree AND wt_setup.sh)
+serializes on the single shared .git index -> `fatal: Could not write new index file`, stalled merges, and
+one CORRUPTED worker worktree index (dep-worker-43's unordered_map worktree, cleaned this tick). This is NOT
+disk (33GB free), NOT load (irrelevant per vjeux), NOT reviewer shortage. The bottleneck has SHIFTED to the
+shared git index. Merges still land (main advanced 619711b7->c0cb9f11->4d91d0ce) but slowly; adding MORE
+agents strictly worsens it. COORDINATOR RESPONSE: hold reviewer scale-up when wt_merge live > ~15; the extra
+reviewers just pile retrying `git worktree add` onto the contended index. SAFE FIX (dedicated session, not a
+live hot-patch): wrap `git worktree add` in wt_merge.sh AND wt_setup.sh with a jittered-backoff retry loop
+(3-5 tries, sleep $((RANDOM%3+1))s) on non-zero exit / "Could not write new index" — reviewer-49's rec.
