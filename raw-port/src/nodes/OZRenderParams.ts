@@ -42,6 +42,10 @@
 //       — OZRenderParams::setResolutionDynamic(PCVector2<double> const&) @Ozone 0x271730
 //         (raw-port/re/disasm/
 //           __ZN14OZRenderParams20setResolutionDynamicERK9PCVector2IdE.s — 15 lines)
+//   * __ZN14OZRenderParams33setWantsHLGToPQPostProcessingStepEb
+//       — OZRenderParams::setWantsHLGToPQPostProcessingStep(bool) @Ozone 0x271470
+//         (raw-port/re/disasm/
+//           __ZN14OZRenderParams33setWantsHLGToPQPostProcessingStepEb.s — 7 lines)
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (raw-port/re/disasm/
@@ -120,6 +124,19 @@ export class OZRenderParams {
    * it directly.
    */
   isPlayingAt108: number = 0;
+
+  /**
+   * @Ozone offset +0x30c — a one-byte flag written by
+   * `setWantsHLGToPQPostProcessingStep(bool)` @0x271474 via
+   * `movb %sil, 0x30c(%rdi)`. The 1-byte store confirms the field is a
+   * C++ `bool` (1 byte in the Itanium/AAPCS ABIs used by clang on
+   * macOS). Preserved as `number` (0..255) so the exact bit-width the
+   * machine writes is legible. The reader for this flag lives elsewhere
+   * in Ozone (an HLG→PQ post-processing gate in the render graph); the
+   * setter's disasm alone tells us its role, so the field name mirrors
+   * it directly.
+   */
+  wantsHLGToPQPostProcessingStepAt30c: number = 0;
 
   /**
    * @Ozone offset +0x1a8 — a one-byte flag/mode discriminator, read
@@ -320,5 +337,37 @@ export class OZRenderParams {
     // @0x271184  movb %sil,0x108(%rdi)
     //   C++ `bool` → 1 byte: true == 0x01, false == 0x00.
     this.isPlayingAt108 = isPlaying ? 1 : 0;
+  }
+
+  /**
+   * `OZRenderParams::setWantsHLGToPQPostProcessingStep(bool)`
+   *   — @Ozone 0x271470
+   *   — __ZN14OZRenderParams33setWantsHLGToPQPostProcessingStepEb
+   *
+   * Faithful line-for-line transcription of the 7-line disassembly:
+   *   0x271470  pushq  %rbp                        ; frame prologue
+   *   0x271471  movq   %rsp, %rbp
+   *   0x271474  movb   %sil, 0x30c(%rdi)            ; this->+0x30c = arg (bool, 1 byte)
+   *   0x27147b  popq   %rbp                        ; frame epilogue
+   *   0x27147c  retq
+   *
+   * Single-instruction body: store the incoming C++ `bool` argument
+   * (SysV/AAPCS puts scalar arg2 in `%rsi`, and `bool` occupies the
+   * low byte `%sil`) into the class slot at +0x30c. Boolean semantics
+   * on x86_64 are zero-extended in the caller, so the observable state
+   * of the byte is 0 or 1.
+   *
+   * The flag toggles the HLG→PQ post-processing step in the render
+   * graph (the getter/reader lives elsewhere and isn't ported here).
+   * Zero in-scope callees, zero externs, no indirect calls — pure
+   * field write.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZRenderParams33setWantsHLGToPQPostProcessingStepEb.s (7 lines)
+   */
+  setWantsHLGToPQPostProcessingStep(wants: boolean): void {
+    // @0x271474  movb %sil,0x30c(%rdi)
+    //   C++ `bool` → 1 byte: true == 0x01, false == 0x00.
+    this.wantsHLGToPQPostProcessingStepAt30c = wants ? 1 : 0;
   }
 }
