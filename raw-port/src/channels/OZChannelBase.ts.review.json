@@ -1,0 +1,1 @@
+{"verdict":"LIKELY_REAL","merge_allowed":true,"method":"OZChannelBase::isSolo()_const","symbol":"__ZNK13OZChannelBase6isSoloEv","disasm_class":"REAL","reason":"7-instr_load_u8_flag_+0x3a_mask_0x4_shift_2_return_bit_TS_matches_exactly_add-only","reviewer":"adversarial-reviewer-111","ts":"2026-07-30T08:55:20Z"}
