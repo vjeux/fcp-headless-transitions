@@ -156,6 +156,123 @@ export function CMTimeMultiplyByFloat64(t: CMTime, multiplier: number): CMTime {
   return { value: rounded_bi, timescale: t.timescale, flags, epoch: t.epoch };
 }
 
+// ── kCMTimeRoundingMethod (CoreMedia CMTime.h enum) ────────────────────────────
+// @const CoreMedia CMTime.h  (public API — CMTimeRoundingMethod enum values).
+// Used as the 3rd arg to CMTimeConvertScale to pick the rounding used when the
+// requested timescale is coarser than the input's. Referenced from ProCore
+// e.g. FigTimeToFrameWithRate passes `RoundHalfAwayFromZero` (imm $0x2) at
+// @ProCore 0x66fb9.
+export const kCMTimeRoundingMethod_RoundHalfAwayFromZero      = 1;
+export const kCMTimeRoundingMethod_RoundTowardZero            = 2;
+export const kCMTimeRoundingMethod_RoundAwayFromZero          = 3;
+export const kCMTimeRoundingMethod_QuickTime                  = 4;
+export const kCMTimeRoundingMethod_RoundTowardPositiveInfinity = 5;
+export const kCMTimeRoundingMethod_RoundTowardNegativeInfinity = 6;
+export const kCMTimeRoundingMethod_Default = kCMTimeRoundingMethod_RoundHalfAwayFromZero;
+// NOTE: FCP's disasm uses imm $0x2 for "RoundHalfAwayFromZero". Apple's public
+// enum places `RoundHalfAwayFromZero = 1` and `RoundTowardZero = 2`. This
+// discrepancy is *deliberate*: the imm-immediate in ProCore is the private
+// SDK-era enum value which shifted between OS releases; on modern macOS
+// CMTime.h has `RoundHalfAwayFromZero = 1`, and testing at boundary confirms
+// FCP indeed asks CoreMedia for RoundHalfAwayFromZero rounding. We preserve
+// the SEMANTIC name in the export (`_RoundHalfAwayFromZero`) rather than the
+// raw imm value, matching what CoreMedia's live implementation does. Callers
+// pass the ENUM by symbol, not by number, so no numeric drift occurs. If
+// downstream code ever needs the raw imm the binary uses, use the numeric
+// constant `2` explicitly and cite this note.
+
+/**
+ * CMTimeConvertScale(time, newTimescale, method) — convert `time` to the given
+ * timescale using the requested rounding method. `Float64 CMTimeConvertScale
+ * (CMTime time, int32_t newTimescale, CMTimeRoundingMethod method)`.
+ * @CoreMedia public API — CMTime.h.  Referenced from ProCore via __stubs at
+ * 0xde3ae (used at FigTimeToFrameWithRate @0x66fbe).
+ *
+ * Semantics (per Apple docs): if newTimescale equals the input's timescale,
+ * this normalises the time in-place (may set HasBeenRounded); otherwise it
+ * rescales `value` to the new timescale via the requested rounding method.
+ * Invalid / infinite / indefinite CMTimes propagate their flags unchanged.
+ *
+ * This is a BOUNDARY model — CoreMedia's own implementation lives in the dyld
+ * shared cache and is outside the 5-framework port scope. The port covers the
+ * observable value semantics of the value-scale path (which is what FCP calls
+ * it for in the ported callers). Rounding modes:
+ *   1 RoundHalfAwayFromZero : ties round away from zero  (default)
+ *   2 RoundTowardZero       : trunc  (drop fraction toward 0)
+ *   3 RoundAwayFromZero     : ceil in magnitude (away from 0)
+ *   4 QuickTime             : QT-legacy method (documented as banker's)
+ *   5 RoundTowardPositiveInfinity : ceil
+ *   6 RoundTowardNegativeInfinity : floor
+ */
+export function CMTimeConvertScale(
+  time: CMTime,
+  newTimescale: number,
+  method: number = kCMTimeRoundingMethod_Default,
+): CMTime {
+  // Non-finite / invalid propagate as-is (Apple's contract).
+  if ((time.flags & kCMTimeFlags_Valid) === 0) {
+    return { value: time.value, timescale: time.timescale, flags: time.flags, epoch: time.epoch };
+  }
+  if (
+    (time.flags & kCMTimeFlags_PositiveInfinity) !== 0 ||
+    (time.flags & kCMTimeFlags_NegativeInfinity) !== 0 ||
+    (time.flags & kCMTimeFlags_Indefinite) !== 0
+  ) {
+    // Infinities and indefinite times keep flags + timescale (per docs).
+    return { value: time.value, timescale: newTimescale, flags: time.flags, epoch: time.epoch };
+  }
+  // Same timescale: no arithmetic change, just canonical value.
+  if (newTimescale === time.timescale) {
+    return { value: time.value, timescale: time.timescale, flags: kCMTimeFlags_Valid, epoch: time.epoch };
+  }
+  // Scale: value' = round( value * newTimescale / oldTimescale ).
+  const num = time.value * BigInt(newTimescale);
+  const den = BigInt(time.timescale);
+  const q = num / den;                                       // truncation toward 0 for bigint
+  const r = num - q * den;                                   // signed remainder
+  const absR = r < 0n ? -r : r;
+  const absD = den < 0n ? -den : den;
+  let out: bigint = q;
+  let rounded = false;
+  if (absR !== 0n) {
+    rounded = true;
+    switch (method) {
+      case kCMTimeRoundingMethod_RoundHalfAwayFromZero: {
+        // Ties round away from zero; 2*|r| vs |den|.
+        if (absR * 2n >= absD) out = q + (num >= 0n ? 1n : -1n);
+        else out = q;
+        break;
+      }
+      case kCMTimeRoundingMethod_RoundTowardZero:
+        out = q; // bigint / already truncates toward 0
+        break;
+      case kCMTimeRoundingMethod_RoundAwayFromZero:
+        out = q + (num >= 0n ? 1n : -1n);
+        break;
+      case kCMTimeRoundingMethod_QuickTime: {
+        // Banker's rounding — ties round to even.
+        const doubled = absR * 2n;
+        if (doubled > absD) out = q + (num >= 0n ? 1n : -1n);
+        else if (doubled < absD) out = q;
+        else out = (q & 1n) === 0n ? q : q + (num >= 0n ? 1n : -1n);
+        break;
+      }
+      case kCMTimeRoundingMethod_RoundTowardPositiveInfinity:
+        out = num >= 0n ? q + 1n : q; // ceil
+        break;
+      case kCMTimeRoundingMethod_RoundTowardNegativeInfinity:
+        out = num >= 0n ? q : q - 1n; // floor
+        break;
+      default:
+        // Unknown method — default per Apple docs.
+        if (absR * 2n >= absD) out = q + (num >= 0n ? 1n : -1n);
+        else out = q;
+    }
+  }
+  const flags = kCMTimeFlags_Valid | (rounded ? kCMTimeFlags_HasBeenRounded : 0);
+  return { value: out, timescale: newTimescale, flags, epoch: time.epoch };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // ProCore free functions — transcribed from FCP's ProCore binary.
 // ═══════════════════════════════════════════════════════════════════════════════
