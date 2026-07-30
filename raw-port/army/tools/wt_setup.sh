@@ -37,15 +37,23 @@ if [ "$MODE" = "done" ]; then
   fi
   exit 0
 fi
-# SERIALIZE git-mutating setup: concurrent `git worktree add` / `git fetch` race .git/worktrees and
-# .git/index.lock. Under a mass agent wave many setups fire at once, so take a global lock (mkdir is
-# atomic + portable, no flock on macOS). Only the fetch + worktree-add are serialized; the symlink
-# work below is per-worktree and safe to run unlocked.
 SETUP_LOCK="$REPO/raw-port/army/worktrees/.setup.lock.d"
 mkdir -p "$REPO/raw-port/army/worktrees"
+# FETCH OUTSIDE THE LOCK, THROTTLED. `git worktree add origin/main` (L67) only needs origin/main to
+# EXIST locally, not to be fresh: it's been fetched hundreds of times, and a slightly-stale base is
+# already tolerated everywhere (resume-path reset L56-64, wt_merge's 3-way merge, and the `|| true`
+# here). Concurrent fetches only collide on packed-refs.lock, which aborts cleanly (atomic lock+rename,
+# no corruption) — safe unlocked. Throttle so that in a mass agent wave ONE worker fetches and the rest
+# skip instantly, instead of all serializing a multi-second network round-trip inside the critical section.
+STAMP="$REPO/raw-port/army/worktrees/.last_fetch"
+if [ ! -f "$STAMP" ] || [ "$(( $(date +%s) - $(stat -f %m "$STAMP" 2>/dev/null || echo 0) ))" -gt 30 ]; then
+  git fetch -q origin 2>/dev/null && touch "$STAMP" || true
+fi
+# SERIALIZE ONLY `git worktree add`: it mutates the shared .git/worktrees registry + index and truly
+# races under a mass wave. mkdir is atomic + portable (no flock on macOS). With fetch moved out, the
+# lock hold drops from a network RTT to ~0.07s. The symlink work below is per-worktree, safe unlocked.
 for i in $(seq 1 600); do mkdir "$SETUP_LOCK" 2>/dev/null && break; sleep 0.5; done
 trap 'rmdir "$SETUP_LOCK" 2>/dev/null || true' EXIT
-git fetch -q origin 2>/dev/null || true
 # fresh branch off the latest origin/main; reuse if it already exists (resume)
 if git worktree list --porcelain | grep -qx "worktree $WT"; then
   echo "worktree exists: $WT (branch $BR) — resuming"
