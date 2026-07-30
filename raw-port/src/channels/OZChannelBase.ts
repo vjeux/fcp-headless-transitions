@@ -997,4 +997,50 @@ export class OZChannelBase {
     //   in TS we just return the string value.
     return accum;
   }
+
+  /**
+   * OZChannelBase::setNameUnset(bool).
+   * @ProChannel 0x4b92c..0x4b943
+   * (__ZN13OZChannelBase12setNameUnsetEb)
+   *
+   * Disasm (raw-port/re/disasm/ProChannel.__ZN13OZChannelBase12setNameUnsetEb.s):
+   *
+   *   0x4b92c  pushq  %rbp                        ; prologue
+   *   0x4b92d  movq   %rsp, %rbp                  ; prologue
+   *   0x4b930  movq   0x38(%rdi), %rax            ; rax = flags_at_+0x38 (u64)
+   *   0x4b934  andq   $-0x41, %rax                ; rax &= ~0x40  (clear bit 6)
+   *   0x4b938  shll   $0x6, %esi                  ; esi = bool << 6 (0 or 0x40)
+   *   0x4b93b  orq    %rax, %rsi                  ; rsi = cleared | (bit << 6)
+   *   0x4b93e  movq   %rsi, 0x38(%rdi)            ; store flags_at_+0x38
+   *   0x4b942  popq   %rbp                        ; epilogue
+   *   0x4b943  retq                               ; void return
+   *
+   * SEMANTICS:
+   *   Bit-6 setter on the u64 flags word at +0x38. Bit 6 (0x40) is the
+   *   "name-is-unset" flag, distinguishing "no name assigned" from
+   *   "empty string name explicitly set". Peer methods on the same
+   *   flags word:
+   *     * bit 19 (0x80000)  solo-eligibility  (setChildSolo @0x4bb42)
+   *     * bit 20 (0x100000) has-solo-child    (setChildSolo @0x4bb42)
+   *   This method claims bit 6 exclusively.
+   *
+   *   shll $6, %esi is a 32-bit shift that zero-extends into the
+   *   upper 32 bits of %rsi. Since the input was a bool (only the low
+   *   bit could ever be set) the result is either 0 or 0x40 and the
+   *   upper 32 bits of %rax carry through the orq untouched. We
+   *   model the slot as bigint (u64) and do all ops in that width.
+   *
+   * DEPENDENCIES: none.  Pure bitfield mutation.
+   */
+  setNameUnset(v: boolean): void {
+    // @0x4b930  movq 0x38(%rdi), %rax
+    const rax_u64: bigint = this.__flags_word_at_0x38;
+    // @0x4b934  andq $-0x41, %rax   — clear bit 6 (imm32 -0x41 = ~0x40 in u64).
+    const cleared: bigint = rax_u64 & ~0x40n;
+    // @0x4b938  shll $0x6, %esi     — bool << 6 = 0 or 0x40.
+    const bit6: bigint = v ? 0x40n : 0n;
+    // @0x4b93b  orq %rax, %rsi / @0x4b93e movq %rsi, 0x38(%rdi)
+    this.__flags_word_at_0x38 = cleared | bit6;
+    // @0x4b942/0x4b943 — epilogue + void return.
+  }
 }
