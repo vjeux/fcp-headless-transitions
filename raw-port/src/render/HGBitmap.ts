@@ -87,6 +87,164 @@ export class HGBitmap {
     //   Return the opaque 8-byte pointer stored at this[+0x78] unchanged.
     return this.storageAt78;
   }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // NEW FIELDS added for byteOffset() @Helium 0x1e5c60
+  // ═══════════════════════════════════════════════════════════════════════
+  // The 28-line disassembly of byteOffset (raw-port/re/disasm/
+  // Helium.__ZNK8HGBitmap10byteOffsetEii.s) reveals five previously-
+  // undecoded fields at offsets 0x10, 0x14, 0x18, 0x38, 0x40. Each is
+  // documented @0xADDR below and modelled minimally (Rule 5 — only
+  // fields we OBSERVE this method touch).
+
+  /** @Helium offset +0x10 — 4-byte integer format code. Compared to
+   *  `0x1f` @0x1e5c6e via `cmpl $0x1f, 0x10(%rdi)`. Format 0x1f selects
+   *  the "packed subsampled" stride path (stride * ΔY * 4/3) which is
+   *  characteristic of YUV 4:2:0 planar/semi-planar layouts (where the
+   *  effective row-stride across all three planes is 1.5 * the luma
+   *  stride). Any other format falls through to the plain
+   *  `stride * ΔY` path. The name `format` is the standard Helium
+   *  terminology observed in peer method GetFormat (not yet ported). */
+  formatCode_at_0x10: number = 0;
+
+  /** @Helium offset +0x14 — 4-byte integer baseline Y coordinate. Loaded
+   *  as signed int64 @0x1e5c64 via `movslq 0x14(%rdi), %rax`, then
+   *  subtracted from the caller's `y` to produce a 0-relative row index
+   *  (ΔY = y - baseY). Peer method (setter) will land in a separate
+   *  ledger unit. Signed 32-bit integer (movslq sign-extends to 64). */
+  baseY_at_0x14: number = 0;
+
+  /** @Helium offset +0x18 — 4-byte integer baseline X coordinate. Loaded
+   *  as signed int64 @0x1e5c74 via `movslq 0x18(%rdi), %r8`, then
+   *  subtracted from the caller's `x` to produce a 0-relative column
+   *  index (ΔX = x - baseX). Signed 32-bit integer. */
+  baseX_at_0x18: number = 0;
+
+  /** @Helium offset +0x38 — 8-byte signed integer row stride (in bytes).
+   *  Loaded @0x1e5c7c via `movq 0x38(%rdi), %rax`, then multiplied by
+   *  the ΔY row-index. For the packed-subsampled path (format==0x1f) it
+   *  is additionally multiplied by 4 and divided by 3 (see comments on
+   *  the magic-multiply below). Bigint domain to preserve exact 64-bit
+   *  arithmetic — row × stride easily exceeds 2^53. */
+  rowStride_at_0x38: bigint = 0n;
+
+  /** @Helium offset +0x40 — 8-byte signed integer bytes-per-pixel.
+   *  Loaded @0x1e5c78 via `movq 0x40(%rdi), %rcx`, then multiplied by
+   *  the ΔX column-index (regardless of format). Bigint domain for the
+   *  same reason as rowStride_at_0x38 — pathological pixel counts can
+   *  overflow number precision at ~53 bits. */
+  bytesPerPixel_at_0x40: bigint = 0n;
+
+  /**
+   * `HGBitmap::byteOffset(int, int) const`
+   *   — @Helium 0x1e5c60
+   *   — __ZNK8HGBitmap10byteOffsetEii
+   *
+   * Compute the byte offset within the underlying pixel buffer for a
+   * given (y, x) coordinate. The formula is:
+   *
+   *     if formatCode == 0x1f:
+   *         byteOffset = rowStride * (y - baseY) * 4 / 3
+   *                    + bytesPerPixel * (x - baseX)
+   *     else:
+   *         byteOffset = rowStride * (y - baseY)
+   *                    + bytesPerPixel * (x - baseX)
+   *
+   * where the `* 4 / 3` on the packed-subsampled branch is emitted by
+   * the compiler as `shl 2` then a `mulq` by the unsigned 64-bit magic
+   * constant `0xAAAAAAAAAAAAAAAB` and `shrq 2` — the standard Hacker's
+   * Delight recipe for unsigned-divide-by-3 on a 64-bit lane. See the
+   * commentary at 0x1e5c8a below.
+   *
+   * FULL DISASM (raw-port/re/disasm/Helium.__ZNK8HGBitmap10byteOffsetEii.s):
+   *   0x1e5c60  pushq  %rbp                              ; frame prologue
+   *   0x1e5c61  movq   %rsp, %rbp
+   *   0x1e5c64  movslq 0x14(%rdi), %rax                  ; rax = (i64) baseY
+   *   0x1e5c68  movslq %esi,      %r9                    ; r9  = (i64) y
+   *   0x1e5c6b  subq   %rax,      %r9                    ; r9  = y - baseY  = ΔY
+   *   0x1e5c6e  cmpl   $0x1f, 0x10(%rdi)                 ; format == 0x1f ?
+   *   0x1e5c72  movl   %edx,      %esi                   ; esi = x (staged)
+   *   0x1e5c74  movslq 0x18(%rdi), %r8                   ; r8  = (i64) baseX
+   *   0x1e5c78  movq   0x40(%rdi), %rcx                  ; rcx = bytesPerPixel
+   *   0x1e5c7c  movq   0x38(%rdi), %rax                  ; rax = rowStride
+   *   0x1e5c80  jne    0x1e5ca0                          ; format != 0x1f -> plain path
+   *   0x1e5c82  imulq  %r9,       %rax                   ; rax = stride * ΔY
+   *   0x1e5c86  shlq   $0x2,      %rax                   ; rax *= 4
+   *   0x1e5c8a  movabsq $-0x5555555555555555, %rdx       ; rdx = 0xAAAAAAAAAAAAAAAB
+   *   0x1e5c94  mulq   %rdx                              ; rdx:rax = rax * 0xAAA...B
+   *                                                      ;  (unsigned 128-bit product;
+   *                                                      ;   only the high half (rdx)
+   *                                                      ;   carries useful bits after
+   *                                                      ;   the shrq below).
+   *   0x1e5c97  movq   %rdx,      %rax                   ; rax = high(product)
+   *   0x1e5c9a  shrq   $0x2,      %rax                   ; rax >>= 2
+   *                                                      ;  ; rax = rax_pre / 3
+   *   0x1e5c9e  jmp    0x1e5ca4                          ; join
+   *   0x1e5ca0  imulq  %r9,       %rax                   ; plain: rax = stride * ΔY
+   *   0x1e5ca4  movslq %esi,      %rdx                   ; rdx = (i64) x
+   *   0x1e5ca7  subq   %r8,       %rdx                   ; rdx = x - baseX = ΔX
+   *   0x1e5caa  imulq  %rdx,      %rcx                   ; rcx = bpp * ΔX
+   *   0x1e5cae  addq   %rax,      %rcx                   ; rcx += rax (rows term)
+   *   0x1e5cb1  movq   %rcx,      %rax                   ; return rcx
+   *   0x1e5cb4  popq   %rbp
+   *   0x1e5cb5  retq
+   *   0x1e5cb6  nopw   %cs:(%rax,%rax)                   ; alignment padding
+   *
+   * NOTE on the *4/3 recipe (@0x1e5c8a..0x1e5c9a):
+   *   The compiler expands `(a * 4) / 3` into
+   *     `high((a * 4) * 0xAAAAAAAAAAAAAAAB) >> 2`
+   *   which is the branch-free unsigned-divide-by-3 using the magic
+   *   reciprocal. For any non-negative a with `4*a < 2^64`, this gives
+   *   exactly `(4*a) / 3` (integer division). We mirror the SEMANTICS,
+   *   not the byte-shuffle: the JS mirror computes `(4n * a) / 3n`
+   *   with BigInt integer division (round-toward-zero for non-negative
+   *   operands, matching the machine's unsigned mulhi+shr).
+   *
+   * Zero in-scope callees; zero externs; zero indirect calls. Verified
+   * via `python3 raw-port/army/tools/depgraph.py deps
+   *      __ZNK8HGBitmap10byteOffsetEii`.
+   */
+  byteOffset(y: number, x: number): bigint {
+    // @0x1e5c64  movslq 0x14(%rdi), %rax  ; rax = (i64) baseY
+    const baseY: bigint = BigInt(this.baseY_at_0x14 | 0); // sign-extend i32 to i64
+    // @0x1e5c68  movslq %esi, %r9         ; r9 = (i64) y
+    const yLong: bigint = BigInt(y | 0);
+    // @0x1e5c6b  subq %rax, %r9           ; r9 = y - baseY
+    const dY: bigint = yLong - baseY;
+    // @0x1e5c74  movslq 0x18(%rdi), %r8   ; r8 = (i64) baseX
+    const baseX: bigint = BigInt(this.baseX_at_0x18 | 0);
+    // @0x1e5c78  movq 0x40(%rdi), %rcx    ; rcx = bytesPerPixel (i64)
+    const bpp: bigint = this.bytesPerPixel_at_0x40;
+    // @0x1e5c7c  movq 0x38(%rdi), %rax    ; rax = rowStride (i64)
+    const stride: bigint = this.rowStride_at_0x38;
+    // @0x1e5c6e  cmpl $0x1f, 0x10(%rdi)
+    // @0x1e5c80  jne  0x1e5ca0            ; NOT-EQUAL -> plain path
+    let rowsTerm: bigint;
+    if (this.formatCode_at_0x10 === 0x1f) {
+      // @0x1e5c82  imulq %r9, %rax        ; rax = stride * ΔY
+      // @0x1e5c86  shlq $0x2, %rax        ; rax = stride * ΔY * 4
+      // @0x1e5c8a..0x1e5c9a  divide-by-3 via magic-multiply
+      //   High(rax * 0xAAAAAAAAAAAAAAAB) >> 2 == rax / 3 for unsigned rax
+      //   with rax < 2^64. We use bigint integer division to mirror the
+      //   same result exactly (rounds toward zero for non-negative
+      //   operands, and byteOffset is only ever computed on non-negative
+      //   pixel-position deltas in practice).
+      const fourAtimesΔY: bigint = stride * dY * 4n;
+      rowsTerm = fourAtimesΔY / 3n;
+    } else {
+      // @0x1e5ca0  imulq %r9, %rax        ; rax = stride * ΔY (plain)
+      rowsTerm = stride * dY;
+    }
+    // @0x1e5ca4  movslq %esi, %rdx        ; rdx = (i64) x
+    const xLong: bigint = BigInt(x | 0);
+    // @0x1e5ca7  subq %r8, %rdx           ; rdx = x - baseX
+    const dX: bigint = xLong - baseX;
+    // @0x1e5caa  imulq %rdx, %rcx         ; rcx = bpp * ΔX
+    const colsTerm: bigint = bpp * dX;
+    // @0x1e5cae  addq %rax, %rcx          ; rcx = rowsTerm + colsTerm
+    // @0x1e5cb1  movq %rcx, %rax          ; return rcx
+    return rowsTerm + colsTerm;
+  }
 }
 
 /**
