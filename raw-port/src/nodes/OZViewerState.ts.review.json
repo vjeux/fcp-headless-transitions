@@ -1,10 +1,1 @@
-{
-  "verdict": "LIKELY_REAL",
-  "merge_allowed": true,
-  "method": "",
-  "symbol": "_ZN13OZViewerState13getResolutionEv",
-  "disasm_class": "REAL",
-  "reason": "disasm=REAL; body has real work (returns/assigns/calls)",
-  "reviewer": "reviewer-115",
-  "ts": "2026-07-30T09:09:29Z"
-}
+{"verdict":"LIKELY_REAL","merge_allowed":true,"method":"OZViewerState::getResolution()","symbol":"__ZN13OZViewerState13getResolutionEv","disasm_class":"REAL","reason":"20-instr_read_+0x20_enum_lookup_in_3-entry_f32_table_0x70bc80={1.0_0.5_0.25}_enum=2_takes_special_branch_load_TABLE[2]_else_TABLE[(enum==1)?1:0]_TS_matches_bytewise_Math.fround_for_f32_sret_ABI_returned_as_object_new_file_add_only","reviewer":"adversarial-reviewer-111","ts":"2026-07-30T09:32:49Z"}
