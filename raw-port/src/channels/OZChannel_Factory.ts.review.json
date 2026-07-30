@@ -1,10 +1,1 @@
-{
-  "verdict": "REJECT",
-  "merge_allowed": false,
-  "method": "OZChannel_Factory::getInstance",
-  "symbol": "__ZN17OZChannel_Factory11getInstanceEv",
-  "disasm_class": "REAL",
-  "reason": "KNOWN CHEAT (REVIEWER_BRIEF). __invoke thunk @0x3158 (operator new 0x88 + C2Ev) is the real singleton-creation work; it is throw-stubbed via __call_once_proxy_getInstance_lambda. C2Ev unported means an honest transcription is impossible right now; the port defers singleton-creation semantics via throw.",
-  "reviewer": "reviewer-70",
-  "ts": "2026-07-30T03:15:16.784081Z"
-}
+{"verdict":"REJECT","merge_allowed":false,"method":"OZChannel_Factory::getInstance","symbol":"__ZN17OZChannel_Factory11getInstanceEv","disasm_class":"REAL","oracle":"n/a","reach":"REJECT_CHEAT","reason":"KNOWN CHEAT (per REVIEWER_BRIEF known-cheats list). Pattern C: REAL-work disasm ported as an all-throw init. The disasm's __call_once invokes a proxy that (a) operator new(0x88), (b) C2 ctor, (c) stores _instance. Port fabricates a sentinel !== -1n gate around a std_call_once that dispatches to __call_once_proxy_getInstance_lambda which is a bare throw. On first call (default 0), reachable path throws. Faithful port must actually construct and store _instance; deferring 'until C2 is ported' is exactly the count-inflating cheat.","reviewer":"reviewer-68","ts":"2026-07-30T04:20:00Z"}
