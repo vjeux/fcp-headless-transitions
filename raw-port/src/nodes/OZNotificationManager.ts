@@ -88,6 +88,8 @@
 //         OZNotificationManager::ignoreObserverOnce(void*, unsigned int)   @0x4bef0
 //   * __ZN21OZNotificationManager20unignoreObserverOnceEPvj
 //         OZNotificationManager::unignoreObserverOnce(void*, unsigned int) @0x4bf20
+//   * __ZN21OZNotificationManager15hasObjCObserverEPv
+//         OZNotificationManager::hasObjCObserver(void*)                    @0x4be90
 //
 
 /**
@@ -268,5 +270,127 @@ export class OZNotificationManager {
       // @0x4bf44 popq %rbp ; @0x4bf45 retq  (fall-through, first match wins).
       return;
     }
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // OZNotificationManager::hasObjCObserver(void* observer)
+  //
+  // Disassembly source:
+  //   raw-port/re/disasm/__ZN21OZNotificationManager15hasObjCObserverEPv.s
+  //
+  // FULL DISASM (20 lines, @0x4be90..@0x4bebe):
+  //
+  //   0x4be90  movq   0x8(%rdi), %rax          ; rax = first = this->next_at_0x8
+  //   0x4be94  movq   %rdi, %rcx               ; rcx = this  (default "found=self=not-found")
+  //   0x4be97  cmpq   %rdi, %rax               ; sub: rax - rdi
+  //   0x4be9a  je     0x4beb8                  ;   ZF=1 => empty list => exit
+  //   0x4be9c  pushq  %rbp                     ; frame prologue (only if loop entered)
+  //   0x4be9d  movq   %rsp, %rbp
+  //   0x4bea0  cmpq   0x10(%rax), %rsi         ; sub: rsi - [rax+0x10]
+  //   0x4bea4  je     0x4beb4                  ;   ZF=1 => observer matches
+  //   0x4bea6  movq   0x8(%rax), %rax          ; rax = rax->next_at_0x8
+  //   0x4beaa  cmpq   %rdi, %rax               ; sub: rax - rdi
+  //   0x4bead  jne    0x4bea0                  ;   ZF=0 => continue walk
+  //   0x4beaf  movq   %rdi, %rcx               ; end-of-list: rcx = this (not found)
+  //   0x4beb2  jmp    0x4beb7                  ;   -> epilogue
+  //   0x4beb4  movq   %rax, %rcx               ; found: rcx = current record
+  //   0x4beb7  popq   %rbp                     ; frame epilogue (matches only the loop-entered path)
+  //   0x4beb8  cmpq   %rdi, %rcx               ; sub: rcx - rdi
+  //   0x4bebb  setne  %al                      ; al = (rcx != this) => "found?"
+  //   0x4bebe  retq
+  //
+  // NOTES:
+  //   AT&T: `cmpq %rsrc, %rdst` computes `dst - src`. So:
+  //     - `cmpq %rdi, %rax` => `rax - rdi`; je iff rax == rdi (walker returned to sentinel).
+  //     - `cmpq 0x10(%rax), %rsi` => `rsi - [rax+0x10]`; je iff rsi == [rax+0x10]
+  //       (observer key matches record's observer_at_0x10 slot).
+  //   The prologue+epilogue is asymmetric: `pushq %rbp` at 0x4be9c happens
+  //   ONLY when the list is non-empty (loop is entered).  The empty-list
+  //   fast-exit at 0x4be9a skips over the prologue AND the epilogue — the
+  //   final `cmpq/setne/retq` at 0x4beb8..0x4bebe runs with the caller's
+  //   frame intact.  In TS this is transparent (we have no explicit rbp),
+  //   but we mirror the control flow for clarity.
+  //
+  //   The register `rcx` is the "found record" scratch — it starts as
+  //   `this` (default = not found), gets overwritten with `rax` when the
+  //   match is found @0x4beb4, or with `this` again @0x4beaf when the
+  //   walker cycles back to `this` (end-of-list without match).  The
+  //   final `setne %al` on `cmpq %rdi, %rcx` returns true iff rcx !=
+  //   this, i.e. a matching record was found.
+  //
+  //   Interesting asymmetry vs ignoreObserverOnce / unignoreObserverOnce:
+  //   here the loop-head checks the MATCH first (0x4bea0) THEN advances
+  //   (0x4bea6) THEN checks end-of-list (0x4beaa); those two do it in
+  //   the reverse order (advance @0x4bf00 / 0x4bf30, then end-check
+  //   @0x4bf04 / 0x4bf34, then match @0x4bf09 / 0x4bf39).  Both patterns
+  //   correctly implement "walk the circular list once, first match
+  //   wins" — just different loop rotations chosen by the compiler.
+  //   We transcribe THIS function's rotation exactly.
+  //
+  // FRONTIER CALLEES: none.  Pure pointer walk + boolean setne.
+  //
+  // Dependency status: 0 in-scope deps, 0 indirect, 0 out-of-scope
+  // externs (confirmed by `depgraph.py why` — READY at wave 0).
+  // ═════════════════════════════════════════════════════════════════════════
+  /**
+   * `OZNotificationManager::hasObjCObserver(void*)` —
+   * @Ozone 0x4be90 (__ZN21OZNotificationManager15hasObjCObserverEPv).
+   *
+   * Walk the circular observer list; return true iff a record with
+   * `observer_at_0x10 === observer` is found.  The empty-list fast-path
+   * (list head's next pointer is the sentinel itself) returns false
+   * without entering the loop.
+   *
+   * This is a pure read — no fields are mutated.  Same list topology
+   * as the two sibling `*ObserverOnce` methods above; only the loop
+   * rotation and the return value differ.
+   */
+  hasObjCObserver(observer: object | null): boolean {
+    // @0x4be90 movq 0x8(%rdi), %rax : rax = this.next_at_0x8
+    let rax: OZObserverRecord | OZNotificationManager = this.next_at_0x8;
+    // @0x4be94 movq %rdi, %rcx : rcx = this  (default: "not found")
+    let rcx: OZObserverRecord | OZNotificationManager = this;
+
+    // @0x4be97 cmpq %rdi, %rax ; @0x4be9a je 0x4beb8
+    //   Empty-list fast-exit: skip the loop entirely if the first
+    //   next-pointer is the sentinel manager itself.  Falls straight
+    //   through to the final `cmpq %rdi, %rcx ; setne %al` at 0x4beb8,
+    //   which returns false since rcx == this.
+    if (rax !== this) {
+      // @0x4be9c pushq %rbp ; @0x4be9d movq %rsp, %rbp
+      //   Frame setup (only when loop is entered — asymmetric prologue).
+      //   TS has no explicit frame; noted for provenance.
+
+      // Loop: check-match FIRST, then advance, then check end-of-list.
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        // @0x4bea0 cmpq 0x10(%rax), %rsi ; @0x4bea4 je 0x4beb4
+        //   AT&T: cmp computes rsi - [rax+0x10]; je iff equal.
+        const rec = rax as OZObserverRecord;
+        if (rec.observer_at_0x10 === observer) {
+          // @0x4beb4 movq %rax, %rcx  (found)
+          rcx = rec;
+          break;
+        }
+
+        // @0x4bea6 movq 0x8(%rax), %rax : rax = rax->next
+        rax = rec.next_at_0x8;
+
+        // @0x4beaa cmpq %rdi, %rax ; @0x4bead jne 0x4bea0
+        //   If we cycled back to the sentinel, drop out.
+        if (rax === this) {
+          // @0x4beaf movq %rdi, %rcx (not found)
+          rcx = this;
+          // @0x4beb2 jmp 0x4beb7
+          break;
+        }
+      }
+
+      // @0x4beb7 popq %rbp  (epilogue; TS has no frame).
+    }
+
+    // @0x4beb8 cmpq %rdi, %rcx ; @0x4bebb setne %al : al = (rcx != this)
+    // @0x4bebe retq
+    return rcx !== this;
   }
 }
