@@ -55,7 +55,7 @@
 //   0x31b70  PCString(char const*, char const*)
 //   0x31c02  PCString(__CFString const*, char const*)
 //   0x31c72  PCString(__CFString const*, __CFString const*)
-//   0x31cce  PCString(__CFString const*, __CFBundle*, __CFString const*)
+//   0x31cce  PCString(__CFString const*, __CFBundle*, __CFString const*)  ← NOW PORTED (C2 base; byte-identical to C1 @0x31cec, both routed through fromCFString_CFBundle_CFString)
 //   0x31d0a  PCString(char const*, char const*, char const*)
 //   0x31dde  PCString(char const*, __CFBundle*, char const*)
 //   0x31e7a  PCString(unsigned short const*)
@@ -393,6 +393,152 @@ export class PCString {
     // fully initialised on return.
     const s = new PCString(); // @0x31ab8 (default ctor sets ref=null)
     s._ctor_cfstr(cfstr); // @0x31f54 (C1 CFString ctor body)
+    return s;
+  }
+
+  // ── PCString(__CFString const*, __CFBundle*, __CFString const*) ──────
+  // ─── C1 ctor @ProCore 0x31cec (byte-identical C2 twin @0x31cce) ──────
+  //
+  // Disassembly (raw-port/re/disasm/ProCore.__ZN8PCStringC1EPK10__CFStringP10__CFBundleS2_.s):
+  //
+  //   0x31cec  pushq %rbp / movq %rsp, %rbp / pushq %rbx / pushq %rax
+  //   0x31cf2  movq  %rdi, %rbx                ; rbx = this  (saved across call)
+  //   0x31cf5  movq  %rdx, %rdi                ; rdi = bundle              (arg1)
+  //   0x31cf8  movq  %rsi, %rdx                ; rdx = key (the FIRST      (arg3)
+  //                                            ;             CFString arg — passed
+  //                                            ;             here as the "value"
+  //                                            ;             default; libc's
+  //                                            ;             _CFBundleCopyLocalizedString
+  //                                            ;             uses `value` as the
+  //                                            ;             fallback when no
+  //                                            ;             localized string
+  //                                            ;             matches — so this ctor
+  //                                            ;             passes the key itself
+  //                                            ;             as the fallback text).
+  //                                            ;   [rsi already holds key       — arg2 unchanged]
+  //                                            ;   [rcx already holds the SECOND — arg4 unchanged
+  //                                            ;    CFString (the tableName)     from caller]
+  //   0x31cfb  callq _CFBundleCopyLocalizedString
+  //                                            ; ProCore stub 0xddf10 →
+  //                                            ; CoreFoundation extern with
+  //                                            ; signature:
+  //                                            ;   CFStringRef CFBundleCopyLocalizedString(
+  //                                            ;     CFBundleRef bundle,
+  //                                            ;     CFStringRef key,
+  //                                            ;     CFStringRef value,       // fallback
+  //                                            ;     CFStringRef tableName);  // .strings file
+  //                                            ; Returns a Copy — the caller
+  //                                            ; owns a +1 retain, and this
+  //                                            ; ctor absorbs it directly
+  //                                            ; into `this->ref` without a
+  //                                            ; further _CFRetain (matches
+  //                                            ; the disasm: no retain call).
+  //   0x31d00  movq  %rax, (%rbx)              ; this->ref = returned CFStringRef
+  //                                            ; (or NULL if the lookup
+  //                                            ; failed — CoreFoundation
+  //                                            ; returns NULL when the
+  //                                            ; bundle is unresolved).
+  //   0x31d03  addq  $0x8, %rsp                ; undo align pad
+  //   0x31d07  popq  %rbx / popq %rbp / retq
+  //
+  // ARG NAMING NOTE. The signature reads "PCString(CFString*, CFBundle*,
+  // CFString*)": key first, bundle second, tableName third. The disassembly
+  // preserves the SysV ordering (rdi=this, rsi=key, rdx=bundle, rcx=tableName)
+  // and then reshuffles to the CFBundleCopyLocalizedString ABI. It does NOT
+  // pass a separate "value" argument to CFBundleCopyLocalizedString — it
+  // reuses `key` as the fallback (arg3 = original rsi = key) via the
+  // `movq %rsi, %rdx` @0x31cf8. This is the standard "localize this
+  // CFString identifier within this bundle's tableName.strings file, and
+  // if not found, fall back to the identifier text itself" idiom.
+  //
+  // FRONTIER CALLEE:
+  //   _CFBundleCopyLocalizedString — CoreFoundation.framework, TRUE
+  //   out-of-scope value-producing extern (returns a CFStringRef with +1
+  //   retain). Boundary policy: THROW with @0xADDR, do NOT fabricate a
+  //   string value. (Matches the getProChannelBundle.ts
+  //   CFBundleGetBundleWithIdentifier_stub pattern.)
+
+  /**
+   * `_CFBundleCopyLocalizedString(bundle, key, value, tableName)` —
+   * CoreFoundation extern called @ProCore 0x31cfb (stub 0xddf10). Looks
+   * up the localized string for `key` in `tableName.strings` inside
+   * `bundle`; returns a NEW CFStringRef (+1 retain) which the caller
+   * owns. On failure returns `value` (retained), which the caller also
+   * owns. Value-producing extern → THROW per raw-port boundary policy;
+   * a future harness may wire the real CoreFoundation runtime here.
+   */
+  private static _CFBundleCopyLocalizedString_stub(
+    _bundle: unknown,
+    _key: string | null,
+    _value: string | null,
+    _tableName: string | null,
+  ): string | null {
+    throw new Error(
+      "_CFBundleCopyLocalizedString @ProCore 0x31cfb (stub 0xddf10) — CoreFoundation extern (value-producing, TRUE out-of-scope boundary). Called from PCString::PCString(CFString*, CFBundle*, CFString*) [C1 @0x31cec / C2 @0x31cce] to localize the key within the bundle's tableName.strings file. Not yet transcribed; wire a real CoreFoundation runtime here if a parity harness needs the actual localization.",
+    );
+  }
+
+  /**
+   * @ProCore 0x31cec — PCString::PCString(CFString const* key,
+   *                    CFBundle* bundle, CFString const* tableName) [C1].
+   *
+   * Body semantics: `this->ref = _CFBundleCopyLocalizedString(bundle, key,
+   * key, tableName)`. Standard "localize this identifier within this
+   * bundle" idiom. Absorbs the +1 retain from the CoreFoundation Copy
+   * (no additional _CFRetain in the disasm), so the eventual dtor's
+   * _CFRelease @0x31fc2 balances it exactly.
+   *
+   * `_ctor_cfstr_cfbundle_cfstring` is the SHARED body used by both the
+   * C1 (@0x31cec) and C2 (@0x31cce) mangled entry points — the two
+   * variants are byte-identical (both non-virtual, no vtable to install),
+   * so pointing both at one JS method matches the observable ABI.
+   */
+  private _ctor_cfstr_cfbundle_cfstring(
+    key: string | null,
+    bundle: unknown,
+    tableName: string | null,
+  ): void {
+    // @0x31cec..0x31cf1  prologue (no TS-visible effect)
+    // @0x31cf2          rbx = this (call-preserved save; unnecessary in JS)
+    // @0x31cf5-0x31cf8   register shuffle for CoreFoundation ABI:
+    //                    bundle → arg1, key stays arg2, key → arg3 (fallback
+    //                    value), tableName is already arg4 from the caller.
+    // @0x31cfb          callq _CFBundleCopyLocalizedString(bundle, key,
+    //                                                     value=key,
+    //                                                     tableName).
+    // @0x31d00          this->ref = returned CFStringRef (or NULL).
+    this.ref = PCString._CFBundleCopyLocalizedString_stub(
+      bundle,
+      key,
+      key, // arg3 = key (the fallback), per `movq %rsi,%rdx` @0x31cf8
+      tableName,
+    );
+    // @0x31d03..0x31d09  epilogue (no TS-visible effect)
+  }
+
+  /**
+   * Public C1 entry point at @ProCore 0x31cec —
+   * `PCString::PCString(CFString const*, CFBundle*, CFString const*)`.
+   *
+   * The byte-identical C2 twin @ProCore 0x31cce shares the same body via
+   * `_ctor_cfstr_cfbundle_cfstring`. Both mangled symbols are exported
+   * here as separate factories so the ABI surface is preserved (two
+   * distinct C++ ctor entry points → two distinct static factories).
+   *
+   *   * `__ZN8PCStringC1EPK10__CFStringP10__CFBundleS2_` → this factory
+   *   * `__ZN8PCStringC2EPK10__CFStringP10__CFBundleS2_` → same body
+   *      (twin call site — invoke this factory to reproduce it).
+   */
+  static fromCFString_CFBundle_CFString(
+    key: string | null,
+    bundle: unknown,
+    tableName: string | null,
+  ): PCString {
+    // Allocate uninitialised (default-ctor lays down ref=null @0x31ab8),
+    // then run the C1 body. Mirrors the C++ pattern: caller supplies
+    // raw storage `this`, the ctor initialises it fully on return.
+    const s = new PCString(); // @0x31ab8
+    s._ctor_cfstr_cfbundle_cfstring(key, bundle, tableName); // @0x31cec
     return s;
   }
 
