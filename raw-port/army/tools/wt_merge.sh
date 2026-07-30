@@ -14,7 +14,8 @@ BR="port/$TAG"
 COMMON_GIT="$(cd "$(git rev-parse --git-common-dir)" && pwd)"   # -> <main>/.git (absolute)
 REPO="$(dirname "$COMMON_GIT")"                                 # -> <main> worktree
 cd "$REPO"
-LOCKDIR="$REPO/raw-port/army/worktrees/.merge.lock.d"
+# NOTE: the old global merge lock ($REPO/raw-port/army/worktrees/.merge.lock.d) is GONE — the merge
+# is now lock-free (object-DB merge-tree + atomic CAS ref push). No LOCKDIR is used anywhere below.
 
 # SCALING (vjeux 2026-07-29): the EXPENSIVE gate (gate.sh + G5 + tsgo, ~20-25s) and the reviewer
 # sidecar check operate on BRANCH content + the <file>.review.json — NOT on main state — so they do
@@ -74,47 +75,55 @@ if [ -n "$CHANGED" ]; then
   fi
 fi
 
-# --- Merge into main and push (from the MAIN worktree) -----------------------------------------
-# CRITICAL SECTION: acquire the global lock ONLY now (gate + review already passed OUTSIDE the lock).
-# Only ONE merge+push touches main at a time; everything expensive already ran in parallel.
-for i in $(seq 1 900); do mkdir "$LOCKDIR" 2>/dev/null && break; sleep 1; done
-trap 'rmdir "$LOCKDIR" 2>/dev/null || true' EXIT
-# RETRY LOOP: even under the merge lock, origin can advance between our pull and push if a push
-# landed from elsewhere (or the lock was contended). A bare `push` then rejects with "cannot lock
-# ref 'refs/heads/main': is at X but expected Y". Re-pull (--no-edit) + re-push up to 5x instead of
-# failing the whole merge. Each iteration re-integrates the newest origin/main before pushing.
+# --- Merge into main and push — LOCK-FREE, OBJECT-DB ONLY (git merge-tree, git >=2.38) ---------
+# We do NOT check out main, do NOT touch the shared main working tree/index, and do NOT take a
+# global lock. The merge is computed entirely in the object database with `git merge-tree
+# --write-tree` (a pure tree->tree op with NO side effects), sealed into a commit with
+# `git commit-tree`, then published with an ATOMIC compare-and-swap ref push. Consequences:
+#   * A conflict writes NOTHING anywhere (merge-tree just exits nonzero) — it can NEVER leave the
+#     shared main tree in a half-merged/`MERGE_HEAD` state, so it can never wedge other reviewers.
+#   * The ONLY serialization is git's own atomic ref update on push: if origin/main advanced since
+#     we read it, the push is rejected cleanly and we re-integrate the newer main and retry. No
+#     mkdir-lock, no 900s spin, no self-heal dependency, no shared-tree blast radius.
 BEFORE="$(git rev-parse origin/main)"
 BR_TIP="$(git rev-parse "$BR")"
-git checkout -q main
-# AUTO-CLEAN untracked disasm scratch in the MAIN tree before merging. A peer session that ran
-# disasm.sh/disasm_class.sh with cwd=main (or dropped a *.s here) leaves untracked re/disasm/*.s;
-# if the incoming branch ADDS the same tracked path, `git merge` aborts with "untracked working
-# tree files would be overwritten by merge". These .s are fully regenerable from the binary, so
-# removing untracked ones under re/disasm is safe and unblocks the merge (workers keep their own
-# copies in their worktrees — this only touches MAIN's untracked scratch).
-git clean -fdq -- raw-port/re/disasm 2>/dev/null || true
+
+# Fast path: branch already contained in origin/main -> nothing to merge (honest NOOP, not a fake land).
+if git merge-base --is-ancestor "$BR_TIP" "$BEFORE"; then
+  echo "NOOP: $BR already contained in origin/main ($BEFORE) — nothing merged"
+  git worktree remove --force "$REPO/raw-port/army/worktrees/$TAG" 2>/dev/null || true
+  git branch -q -d "$BR" 2>/dev/null || true
+  exit 0
+fi
+
 PUSHED=0
+AFTER=""
 for attempt in 1 2 3 4 5; do
-  git pull -q --no-edit origin main
-  # merge is idempotent — if $BR is already contained, this is a no-op and returns 0.
-  git merge -q --no-edit "$BR" || { echo "MERGE CONFLICT on $BR — needs manual resolve"; exit 3; }
-  if git push -q origin main 2>/dev/null; then PUSHED=1; break; fi
-  echo "  push rejected (origin advanced) — re-pull+retry ($attempt/5)"
+  MAIN="$(git rev-parse origin/main)"          # current published main (re-read each attempt)
+  MB="$(git merge-base "$MAIN" "$BR")"
+  # Compute the merged tree purely in the object DB. NO working tree, NO index, NO side effects.
+  # On a merge conflict, merge-tree exits nonzero and we bail with zero cleanup needed.
+  if ! MERGED_TREE="$(git merge-tree --write-tree --merge-base="$MB" "$MAIN" "$BR" 2>/tmp/wt_merge.$$.mt)"; then
+    echo "MERGE CONFLICT on $BR (merge-tree) — needs manual resolve"; sed 's/^/    /' /tmp/wt_merge.$$.mt 2>/dev/null; rm -f /tmp/wt_merge.$$.mt
+    exit 3
+  fi
+  rm -f /tmp/wt_merge.$$.mt
+  # Seal the merged tree into a real 2-parent merge commit (parents: current main, then branch).
+  MERGE_COMMIT="$(git commit-tree "$MERGED_TREE" -p "$MAIN" -p "$BR" -m "Merge $BR into main")"
+  # ATOMIC PUBLISH: compare-and-swap — only lands if refs/heads/main is STILL at $MAIN server-side.
+  # If another merge landed first, this is rejected (non-fast-forward / stale) and we retry.
+  if git push -q origin "${MERGE_COMMIT}:refs/heads/main" 2>/dev/null; then
+    PUSHED=1; git fetch -q origin; AFTER="$(git rev-parse origin/main)"; break
+  fi
+  echo "  push rejected (origin advanced) — re-integrate newest main + retry ($attempt/5)"
   git fetch -q origin
   sleep 1
 done
 [ "$PUSHED" = 1 ] || { echo "PUSH FAILED after 5 retries for $BR — origin kept advancing; re-run wt_merge"; exit 5; }
 
-# VERIFY the push actually advanced origin AND that the branch tip is now reachable from origin/main.
-git fetch -q origin
-AFTER="$(git rev-parse origin/main)"
+# VERIFY the branch tip is now reachable from the published origin/main.
 if git merge-base --is-ancestor "$BR_TIP" "$AFTER"; then
-  if [ "$AFTER" = "$BEFORE" ]; then
-    # branch tip already in main before we started (nothing new) — report honestly, don't fake a land.
-    echo "NOOP: $BR already contained in origin/main ($AFTER) — nothing merged"
-  else
-    echo "MERGED + PUSHED $BR -> main ($BEFORE -> $AFTER)"
-  fi
+  echo "MERGED + PUSHED $BR -> main ($BEFORE -> $AFTER)"
   git worktree remove --force "$REPO/raw-port/army/worktrees/$TAG" 2>/dev/null || true
   git branch -q -d "$BR" 2>/dev/null || true
 else
