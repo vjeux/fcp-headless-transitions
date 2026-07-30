@@ -356,6 +356,17 @@ export class OZChannelBase {
    *  clears them. */
   private __flags_word_at_0x38: bigint = 0n;
 
+  /** @ProChannel OZChannelBase layout offset 0x40 (write @0x4bb8e in
+   *  saveStateAsDefault). The "default state" snapshot word — a u64
+   *  saved-copy of the flags at +0x38 with a specific mask applied. The
+   *  mask `0xFFFFFFFDECA4CF86` (the movabsq immediate at @0x4bb80) clears
+   *  a set of transient/volatile bits so that the "default" excludes
+   *  runtime-only state. Only saveStateAsDefault writes to this slot in
+   *  the currently-transcribed method set; readers are separate ledger
+   *  entries. Modelled as a BigInt for the same u64-fidelity reason as
+   *  __flags_word_at_0x38. Default 0 matches a zero-initialised struct. */
+  private __default_state_word_at_0x40: bigint = 0n;
+
   /**
    * OZChannelBase::setChildSolo(bool).
    * @ProChannel 0x4bb42..0x4bb6c
@@ -463,5 +474,66 @@ export class OZChannelBase {
       //   — the while-condition handles the NULL check + back-edge.
     }
     // @0x4bb6b/0x4bb6c  popq %rbp ; retq — void return.
+  }
+
+  /**
+   * OZChannelBase::saveStateAsDefault().
+   * @ProChannel 0x4bb7c..0x4bb93
+   * (__ZN13OZChannelBase18saveStateAsDefaultEv)
+   *
+   * Disasm (raw-port/re/disasm/ProChannel.__ZN13OZChannelBase18saveStateAsDefaultEv.s,
+   * 8 lines including prologue/epilogue):
+   *
+   *   0x4bb7c  pushq   %rbp                                ; prologue
+   *   0x4bb7d  movq    %rsp, %rbp                          ; prologue
+   *   0x4bb80  movabsq $-0x2135b307a, %rax                 ; rax = signed imm; bit-pattern
+   *                                                       ;   = 0xFFFFFFFDECA4CF86 (u64 mask).
+   *   0x4bb8a  andq    0x38(%rdi), %rax                    ; rax = this->flags_at_0x38 & mask
+   *                                                       ; (AT&T: `dst = dst AND src`; here dst=rax,
+   *                                                       ;  src=[rdi+0x38] — but the operation is
+   *                                                       ;  commutative so the read direction doesn't
+   *                                                       ;  matter). Note: `andq` reads 8 bytes from
+   *                                                       ;  memory into rax with the mask kept in rax.
+   *   0x4bb8e  movq    %rax, 0x40(%rdi)                    ; this->default_state_at_0x40 = rax
+   *   0x4bb92  popq    %rbp                                ; epilogue
+   *   0x4bb93  retq                                        ; void return
+   *
+   * Semantics: snapshot the current flags word (+0x38) into the "default
+   * state" slot (+0x40) with a fixed mask applied that clears a set of
+   * transient/runtime-only bits. The mask value @0x4bb80 is a compile-time
+   * constant; per PORTING_SPEC.md Rule 5 it is documented as a named u64
+   * with the address of its immediate.
+   *
+   * Note on `movabsq $-0x2135b307a, %rax`: this is the AT&T-syntax 64-bit
+   * absolute move of the SIGNED immediate -0x2135b307a (2^33 + 0x135b307a
+   * ≈ 8.895 GiB negative in signed). The disassembler's `## imm =
+   * 0xFFFFFFFDECA4CF86` comment gives the unsigned/u64 bit-pattern of the
+   * same 8 bytes — the value that lands in %rax. We use the bigint literal
+   * `0xFFFFFFFDECA4CF86n` (matching the u64 pattern) so that the JS `AND`
+   * reproduces the exact bit-pattern the machine would compute.
+   */
+  saveStateAsDefault(): void {
+    // ------------------------------------------------------------
+    // @0x4bb7c..0x4bb7d — prologue (no TS-visible effect).
+    // @0x4bb80 — movabsq $-0x2135b307a, %rax
+    //   Load the 64-bit mask into %rax. Cited as the u64 bit-pattern
+    //   0xFFFFFFFDECA4CF86 (see doc comment above for the two encodings).
+    //   @const ProChannel 0x4bb80  (movabsq immediate)
+    // ------------------------------------------------------------
+    const MASK: bigint = 0xFFFFFFFDECA4CF86n;
+
+    // ------------------------------------------------------------
+    // @0x4bb8a — andq 0x38(%rdi), %rax
+    //   rax = rax & this->__flags_word_at_0x38.
+    // ------------------------------------------------------------
+    const rax: bigint = MASK & this.__flags_word_at_0x38;
+
+    // ------------------------------------------------------------
+    // @0x4bb8e — movq %rax, 0x40(%rdi)
+    //   this->__default_state_word_at_0x40 = rax.
+    // ------------------------------------------------------------
+    this.__default_state_word_at_0x40 = rax;
+
+    // @0x4bb92..0x4bb93 — epilogue + retq (void return).
   }
 }
