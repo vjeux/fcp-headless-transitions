@@ -42,6 +42,14 @@
 //       — OZRenderParams::setResolutionDynamic(PCVector2<double> const&) @Ozone 0x271730
 //         (raw-port/re/disasm/
 //           __ZN14OZRenderParams20setResolutionDynamicERK9PCVector2IdE.s — 15 lines)
+//   * __ZN14OZRenderParams27setTextRenderQualityDynamicE13OZTextQuality
+//       — OZRenderParams::setTextRenderQualityDynamic(OZTextQuality) @Ozone 0x2717e0
+//         (raw-port/re/disasm/
+//           __ZN14OZRenderParams27setTextRenderQualityDynamicE13OZTextQuality.s — 10 lines)
+//   * __ZN14OZRenderParams29setDoShapeAntialiasingDynamicEb
+//       — OZRenderParams::setDoShapeAntialiasingDynamic(bool) @Ozone 0x2718c0
+//         (raw-port/re/disasm/
+//           __ZN14OZRenderParams29setDoShapeAntialiasingDynamicEb.s — 10 lines)
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (raw-port/re/disasm/
@@ -78,6 +86,18 @@ export interface PCVector2Double {
   x: number;
   y: number;
 }
+
+/**
+ * `OZTextQuality` — the enum type passed to
+ * `OZRenderParams::setTextRenderQualityDynamic(OZTextQuality)`. The
+ * demangled name declares it as a distinct enum (mangled as `13OZTextQuality`),
+ * and the setter's `movl %esi, 0x1dc(%rdi)` store width tells us it's a
+ * 32-bit integer (an `enum : int`). The actual enumerators are not yet
+ * decoded from a ctor / decoder callsite, so we model it as an opaque
+ * `number` alias for now — the type-brand is preserved so a future
+ * enumeration pass can replace it with a real string-union.
+ */
+export type OZTextQuality = number;
 
 /**
  * `OZRenderParams` — the render-params bag. Only the fields touched by
@@ -120,6 +140,34 @@ export class OZRenderParams {
    * it directly.
    */
   isPlayingAt108: number = 0;
+
+  /**
+   * @Ozone offset +0x1dc — a u32 slot written by
+   * `setTextRenderQualityDynamic(OZTextQuality)` @0x2717e4 via
+   * `movl %esi, 0x1dc(%rdi)`. The store width (`movl`, 4 bytes)
+   * matches an `enum : int` — OZTextQuality is passed in `%esi`
+   * as a 32-bit SysV integer. Preserved as `number` here so the
+   * exact width the machine writes is legible.
+   *
+   * Model as an opaque u32 alias (see `OZTextQuality` below) — the
+   * setter tells us its role, but the enum values themselves are
+   * not yet enumerated from a ctor / decoder call site, so we
+   * don't fabricate their names.
+   */
+  textRenderQualityDynamicAt1dc: number = 0;
+
+  /**
+   * @Ozone offset +0x1e3 — a one-byte flag written by
+   * `setDoShapeAntialiasingDynamic(bool)` @0x2718c4 via
+   * `movb %sil, 0x1e3(%rdi)`. The single-byte width (`movb`)
+   * confirms the field is a `bool` / uint8. Preserved as `number`
+   * (0..255) here so the exact bit-width the machine writes is
+   * legible.
+   *
+   * The dynamic-shape-antialiasing gate (0 = off, 1 = on) — the
+   * setter's name pins the role, so the field name mirrors it.
+   */
+  doShapeAntialiasingDynamicAt1e3: number = 0;
 
   /**
    * @Ozone offset +0x1a8 — a one-byte flag/mode discriminator, read
@@ -320,5 +368,102 @@ export class OZRenderParams {
     // @0x271184  movb %sil,0x108(%rdi)
     //   C++ `bool` → 1 byte: true == 0x01, false == 0x00.
     this.isPlayingAt108 = isPlaying ? 1 : 0;
+  }
+
+  /**
+   * `OZRenderParams::setTextRenderQualityDynamic(OZTextQuality)`
+   *   — @Ozone 0x2717e0
+   *   — __ZN14OZRenderParams27setTextRenderQualityDynamicE13OZTextQuality
+   *
+   * Faithful line-for-line transcription of the 10-line disassembly:
+   *
+   *   0x2717e0  pushq  %rbp                          ; frame prologue
+   *   0x2717e1  movq   %rsp, %rbp
+   *   0x2717e4  movl   %esi, 0x1dc(%rdi)             ; this[+0x1dc] = arg (u32)
+   *   0x2717ea  xorps  %xmm0, %xmm0                  ; xmm0 = 0 (16 zero bytes)
+   *   0x2717ed  movups %xmm0, 0x188(%rdi)            ; this[+0x188] = (0, 0)
+   *   0x2717f4  movups %xmm0, 0x198(%rdi)            ; this[+0x198] = (0, 0)
+   *   0x2717fb  popq   %rbp                          ; frame epilogue
+   *   0x2717fc  retq
+   *   0x2717fd  nopl   (%rax)                        ; padding
+   *
+   * SEMANTICS:
+   *   Two effects, unconditional (no branch / no guard):
+   *     1. Store the incoming OZTextQuality enum (u32) at +0x1dc.
+   *     2. Zero the two PCVector2<double> slots at +0x188 and +0x198 —
+   *        exactly the same downstream cache slots that `setResolution`
+   *        clears (see the header's field layout). Whenever the dynamic
+   *        text-render-quality changes, the derived cache is invalidated.
+   *
+   *   Write order for the two zeroed slots is +0x188 THEN +0x198 in the
+   *   disasm, matching setResolution's zero-block order. Because the
+   *   written value is (0, 0) either way, order is not observable, but
+   *   we mirror it for provenance fidelity (Rule 1).
+   *
+   * DEPENDENCIES: zero in-scope, zero externs, no indirect calls.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZRenderParams27setTextRenderQualityDynamicE13OZTextQuality.s
+   */
+  setTextRenderQualityDynamic(q: OZTextQuality): void {
+    // @0x2717e4  movl %esi,0x1dc(%rdi)   ; store u32 enum at offset +0x1dc.
+    //   Model 32-bit truncation with `>>> 0` so a negative / oversized
+    //   JS number stores the same bit-pattern the machine would.
+    this.textRenderQualityDynamicAt1dc = q >>> 0;
+
+    // @0x2717ea  xorps %xmm0,%xmm0        ; xmm0 = 0
+    // @0x2717ed  movups %xmm0,0x188(%rdi) ; this[+0x188] = (0, 0)
+    // @0x2717f4  movups %xmm0,0x198(%rdi) ; this[+0x198] = (0, 0)
+    this.zeroedAt188 = { x: 0, y: 0 };
+    this.zeroedAt198 = { x: 0, y: 0 };
+
+    // @0x2717fb..0x2717fc — epilogue + retq.
+  }
+
+  /**
+   * `OZRenderParams::setDoShapeAntialiasingDynamic(bool)`
+   *   — @Ozone 0x2718c0
+   *   — __ZN14OZRenderParams29setDoShapeAntialiasingDynamicEb
+   *
+   * Faithful line-for-line transcription of the 10-line disassembly:
+   *
+   *   0x2718c0  pushq  %rbp                          ; frame prologue
+   *   0x2718c1  movq   %rsp, %rbp
+   *   0x2718c4  movb   %sil, 0x1e3(%rdi)             ; this[+0x1e3] = arg (bool, 1 byte)
+   *   0x2718cb  xorps  %xmm0, %xmm0                  ; xmm0 = 0 (16 zero bytes)
+   *   0x2718ce  movups %xmm0, 0x188(%rdi)            ; this[+0x188] = (0, 0)
+   *   0x2718d5  movups %xmm0, 0x198(%rdi)            ; this[+0x198] = (0, 0)
+   *   0x2718dc  popq   %rbp                          ; frame epilogue
+   *   0x2718dd  retq
+   *   0x2718de  nop                                  ; padding
+   *
+   * SEMANTICS:
+   *   Structurally identical to `setTextRenderQualityDynamic` above,
+   *   with the u32 store at +0x1dc replaced by a byte store at +0x1e3
+   *   (SysV/AAPCS puts scalar arg2 in `%rsi`, and `bool` occupies the
+   *   low byte `%sil`, so `movb %sil, ...` stores the 0/1 boolean).
+   *
+   *   Zeroes the same +0x188 / +0x198 derived-cache slots that
+   *   `setResolution` and `setTextRenderQualityDynamic` clear —
+   *   whenever the dynamic-shape-antialiasing flag changes, the
+   *   downstream cache is invalidated.
+   *
+   * DEPENDENCIES: zero in-scope, zero externs, no indirect calls.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZRenderParams29setDoShapeAntialiasingDynamicEb.s
+   */
+  setDoShapeAntialiasingDynamic(on: boolean): void {
+    // @0x2718c4  movb %sil,0x1e3(%rdi)   ; C++ bool → 1 byte at +0x1e3.
+    //   C++ `bool` → 1 byte: true == 0x01, false == 0x00.
+    this.doShapeAntialiasingDynamicAt1e3 = on ? 1 : 0;
+
+    // @0x2718cb  xorps %xmm0,%xmm0        ; xmm0 = 0
+    // @0x2718ce  movups %xmm0,0x188(%rdi) ; this[+0x188] = (0, 0)
+    // @0x2718d5  movups %xmm0,0x198(%rdi) ; this[+0x198] = (0, 0)
+    this.zeroedAt188 = { x: 0, y: 0 };
+    this.zeroedAt198 = { x: 0, y: 0 };
+
+    // @0x2718dc..0x2718dd — epilogue + retq.
   }
 }
