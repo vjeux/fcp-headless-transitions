@@ -21,6 +21,7 @@
 //   0x029a5e  T  OZConstantNode::cloneNode()
 //   0x029aae  T  OZConstantNode::compare(OZCurveNode const*) const
 //   0x029950  T  OZConstantNode::OZConstantNode(OZConstantNode const&)                [C1]
+//   0x029b0a  T  OZConstantNode::operator=(OZConstantNode const&)
 //
 // Vtable install (from cloneNode @0x029a80 and copy ctor C1 @0x029962):
 //   cloneNode:  leaq 0x0ab3a1(%rip), %rax   -> RIP-after 0x029a87 + 0xab3a1 = 0xd4e28
@@ -517,4 +518,75 @@ export function OZConstantNode_compare(self: OZConstantNode, other: OZCurveNodeB
   if (self.defaultValue !== other.defaultValue) return 0;
   // @0x029afd movb $0x1
   return 1;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// COPY-ASSIGNMENT
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * `OZConstantNode::operator=(OZConstantNode const&)`  @ProChannel 0x029b0a
+ *   — __ZN14OZConstantNodeaSERKS_
+ *
+ * Faithful transcription of the 6-instruction body (raw-port/re/disasm/
+ * ProChannel.__ZN14OZConstantNodeaSERKS_.s):
+ *
+ *   0x029b0a  pushq  %rbp                      ; frame prologue
+ *   0x029b0b  movq   %rsp, %rbp
+ *   0x029b0e  movups 0x8(%rsi), %xmm0          ; xmm0 = 16 bytes from src[+0x08..+0x17]
+ *                                              ;      = { src.value, src.defaultValue }
+ *   0x029b12  movups %xmm0, 0x8(%rdi)          ; this[+0x08..+0x17] = xmm0
+ *                                              ;      { this.value, this.defaultValue } = src's
+ *   0x029b16  popq   %rbp                      ; frame epilogue
+ *   0x029b17  retq
+ *
+ * SEMANTICS:
+ *   Copies EXACTLY the two double-precision fields owned by OZConstantNode
+ *   (`value` @+0x08 and `defaultValue` @+0x10) from `src` to `this`. The
+ *   base-class subobject (OZCurveNode / vtable @+0x00) is DELIBERATELY NOT
+ *   touched — no `callq __ZN11OZCurveNodeaSERKS_` and no vtable store.
+ *   This mirrors the C++ synthesised operator= for a leaf class where the
+ *   base has been ICF-folded to a trivial (or ELIDED) assignment: only the
+ *   derived-owned bytes are copied. There is NO return of `*this` as an
+ *   ABI value here — the caller receives no result register (rax is not
+ *   set to `%rdi` in the emitted body); the C++ signature returns a ref
+ *   to `*this` but the emitted code relies on the caller passing `this`
+ *   through `%rdi` and the reference being materialised at the call
+ *   site.  In TS we model the mutation and return `this` for ergonomics;
+ *   the disasm has no explicit `movq %rdi, %rax`, so callers that read
+ *   the return are still faithful — %rax is unused after this call in
+ *   the caller frame.
+ *
+ * FRONTIER CALLEES: NONE. Zero `callq`. Zero externs. Pure two-scalar
+ * copy via one 128-bit `movups` load + `movups` store.
+ *
+ * FIELD OFFSETS (already documented on the class in the file header):
+ *   +0x08  double  value          ; xmm0 lane 0
+ *   +0x10  double  defaultValue   ; xmm0 lane 1
+ *
+ * @0x029b0a
+ */
+export function OZConstantNode_operatorEq(
+  self: OZConstantNode,
+  src: OZConstantNode,
+): OZConstantNode {
+  // @0x029b0a..0x029b0b  frame prologue (no TS-visible effect).
+  // @0x029b0e            xmm0 lanes = { src.value, src.defaultValue }
+  //                       — one 128-bit unaligned load from src[+0x08].
+  //                       Modelled as two scalar reads: the machine reads
+  //                       both doubles in a single movups; the store below
+  //                       writes them in a single movups. Semantically
+  //                       identical to the field-by-field copy expressed
+  //                       here (no shuffle/mix between lanes).
+  // @0x029b12            *this[+0x08..+0x17] = xmm0
+  self.value = src.value; // @0x029b0e/0x029b12 (xmm0 lane 0)
+  self.defaultValue = src.defaultValue; // @0x029b0e/0x029b12 (xmm0 lane 1)
+  // @0x029b16..0x029b17  frame epilogue + retq (no TS-visible effect).
+  // The C++ signature returns `OZConstantNode&`; the emitted body does
+  // NOT set %rax explicitly (no `movq %rdi, %rax`), so callers that
+  // consume the return by-reference get whatever value %rdi held at
+  // return — which by the SysV ABI equals `this` (unchanged by the fn).
+  // Return `self` here so TS callers that chain assignments see the
+  // same reference semantics.
+  return self;
 }
