@@ -36,3 +36,27 @@
 
 ## TOOLING: G5 DISPATCH_ONLY false-positive on SIMD matvec (2026-07-30)
 dep-worker-32 hit G5 raising `FLAG: DISPATCH_ONLY (7385eb01)` on `(anonymous)::transform(double const*, PCXYZColor&, PCXYZColor&)` — a bit-faithful 3×mulpd/3×addpd matvec, NOT a dispatch shell. If G5's DISPATCH_ONLY heuristic keys on a small-instruction SIMD-only shape (no branches, ends in stores), it will false-positive on the whole class of leaf SIMD math (color matvecs, 3x3/4x4 transforms) and silently block honest ports (worker demotes to depclaim.py fail). ACTION for tooling pass: audit g5_impl_gate.py DISPATCH_ONLY detector — exempt bodies whose only "calls" are register-to-register SIMD arithmetic with no tail-jmp/callq to another ledger unit. Deferred unit noted; do not chase individually.
+
+## TOOLING TODO (2026-07-30, dedicated session — do NOT hot-patch under live fleet)
+### depclaim dispenser race (highest-frequency worker friction; EFFICIENCY not correctness)
+Symptom (reported by dep-worker-40/43, reviewer-52 on 2026-07-30): `depclaim.py next` hands out units
+that are ALREADY pushed-but-unmerged on origin as `port/<TAG>` branches (ledger still `todo`, not in the
+local claimed/done cache because a DIFFERENT session pushed them). Two workers then race the same branch:
+one commits over the other's reused worktree (wt_setup line 62 preserves it — no data lost, but wasted work),
+or both collide at the shared setup lock. Reviewers catch resulting duplicates/cheats; reconcile self-corrects.
+NOT a correctness bug — no corrupt/lost work reaches main (verified: 0 corrupt .ts on recent merges).
+SAFE FIX (for a dedicated session, NOT a live hot-patch — a bug here stalls the whole fleet via NO_READY_UNIT):
+  - In cmd_next(), do ONE `git for-each-ref --format='%(refname:short)' refs/remotes/origin/port/*` (single
+    git call per `next`, NOT per-candidate — per-candidate ls-remote would worsen the .git contention that is
+    already the throughput cap under ~15 workers).
+  - Build an in-flight TAG set. For each candidate mangled symbol, compute its sanitized class TAG using the
+    SAME sanitizer as wt_setup.sh (must be byte-identical — factor the bash sanitizer into a shared python
+    helper to avoid divergence). Skip candidates whose TAG is in-flight.
+  - Guard: if skipping would empty the ready set, fall through to dispensing (never stall the fleet).
+### Secondary (lower priority):
+  - reap_worktrees.py stale-CLAIM reaper: auto-release claims >900s with no origin branch push (depclaim reap
+    already does age>90m; tighten + cross-check origin).
+  - depclaim `next` STL-tier: heavy libc++ templates (__tree/__hash_table/__for_each_segment/__move_backward_impl)
+    dominate the top of queue; a --no-stl filter or dedicated STL-porter tier lets workers reach real math faster.
+  - depgraph.py deps <sym>: always echo "OK: N in-scope deps, M externs, K indirect" (currently prints nothing
+    for a 0-dep leaf, so workers can't tell the tool ran).
