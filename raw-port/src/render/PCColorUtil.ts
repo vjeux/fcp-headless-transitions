@@ -14,6 +14,8 @@
 // PORTED SUBSET (pure math with fully-decoded constants):
 //   - applyLinearToSRGB              @0x4675
 //   - applySRGBToLinear              @0x46fc
+//   - applyToneMap_LinearGain        @0x4469
+//   - applyInverseToneMap_LinearGain @0x44e8
 //
 // STUBS (throw citing @0xADDR — required by porting-spec Rule 3):
 //   Every other method. The remaining pure-math methods (PQ, HLG, OOTF, tone-mapping)
@@ -295,9 +297,92 @@ export class PCColorUtil {
     ];
   }
 
-  /** PCColorUtil::applyInverseToneMap_LinearGain(float vector[3], float) — @ProCore 0x44e8 */
-  static applyInverseToneMap_LinearGain(_v: PCVector3f, _gain: number): PCVector3f {
-    throw new Error("PCColorUtil::applyInverseToneMap_LinearGain @ProCore 0x44e8 not yet transcribed");
+  /**
+   * PCColorUtil::applyInverseToneMap_LinearGain(float vector[3], float) — @ProCore 0x44e8.
+   *
+   * Faithful transcription of the 24-instruction SSE body at
+   * raw-port/re/disasm/ProCore.__ZN11PCColorUtil30applyInverseToneMap_LinearGainEDv3_ff.s
+   *
+   *   0x44e8  pushq   %rbp
+   *   0x44e9  movq    %rsp, %rbp
+   *   0x44ec  subq    $0x20, %rsp
+   *   0x44f0  movaps  %xmm1, -0x20(%rbp)     ; save gain-arg (still a scalar in xmm1)
+   *   0x44f4  xorps   %xmm1, %xmm1           ; xmm1 = 0
+   *   0x44f7  movaps  %xmm0, %xmm2           ; xmm2 = v
+   *   0x44fa  cmpltps %xmm1, %xmm2           ; AT&T: dst-src = xmm2 - xmm1 = v - 0
+   *                                            xmm2[i] = (v[i] < 0) ? 0xffffffff : 0
+   *                                            i.e. sign-negative mask per lane.
+   *   0x44fe  movaps  %xmm2, -0x10(%rbp)     ; save sign mask on stack
+   *   0x4502  andps   0xdd6a7(%rip), %xmm0   ; xmm0 &= ABS_MASK_F4 @0xe1bb0 = 4×0x7fffffff
+   *                                            -> xmm0 = |v|
+   *   0x4509  blendps $0x8, %xmm1, %xmm0     ; xmm0 lane-3 := 0 (v is a 3-vec)
+   *   0x450f  movaps  0xdd83a(%rip), %xmm1   ; xmm1 = POW_EXP @0xe1d50 = 4×1.956f
+   *                                            (u32 0x3ffa5e35, lane 3 = 0)
+   *   0x4516  callq   __simd_pow_f4          ; xmm0 = pow(|v|, 1.956) per lane
+   *                                            (Apple SIMD extern stub @0xde768,
+   *                                             modelled by simd_pow_f4 helper above)
+   *   0x451b  movaps  %xmm0, %xmm1           ; xmm1 = pow_result
+   *   0x451e  movaps  0xdd6ab(%rip), %xmm2   ; xmm2 = ONES_3 @0xe1bd0 = [1,1,1,0]
+   *   0x4525  movaps  -0x10(%rbp), %xmm0     ; xmm0 = saved sign mask
+   *   0x4529  blendvps %xmm0, 0xdd6ae(%rip), %xmm2
+   *                                          ; per lane: if sign-mask MSB set (negative),
+   *                                            xmm2[i] = NEG_ONES_3[i] @0xe1be0 = -1;
+   *                                            else keep xmm2[i] = 1.  Result: ±1 sign.
+   *   0x4532  mulps   %xmm1, %xmm2           ; xmm2 = pow_result * sign
+   *   0x4535  movaps  -0x20(%rbp), %xmm0     ; xmm0 = saved gain arg
+   *   0x4539  shufps  $0x0, %xmm0, %xmm0     ; xmm0 = broadcast(gain) to all 4 lanes
+   *   0x453d  mulps   %xmm2, %xmm0           ; xmm0 = gain * sign * pow_result
+   *   0x4540  addq    $0x20, %rsp
+   *   0x4544  popq    %rbp
+   *   0x4545  retq
+   *
+   * ALGORITHM: `gain * sign(v[i]) * pow(|v[i]|, 1.956)` lane-wise on lanes 0..2
+   * (lane 3 forced to 0 before the pow, ignored on return since our PCVector3f
+   * is a length-3 tuple). This is the inverse of applyToneMap_LinearGain
+   * @0x4469: forward maps `v -> sign(v/gain) * pow(|v/gain|, 0.5112474561)`, and
+   * this reverses it with the reciprocal exponent (1 / 0.5112474561 ≈ 1.956) and
+   * a plain multiply by `gain` instead of a `1/gain` scale.  Note there is NO
+   * `|gain| < 1e-5` early-exit here (unlike the forward), because the operation
+   * multiplies by `gain` rather than dividing by it — so a zero gain is safe.
+   *
+   * NOTE: `xmm1` on entry holds the SCALAR `gain` (System V AMD64 ABI: single-
+   * float arg passes in the low lane of the next xmm register).  The
+   * `movaps %xmm1, -0x20(%rbp)` at 0x44f0 spills all 128 bits but only the low
+   * lane is meaningful; the later `shufps $0x0, %xmm0, %xmm0` broadcasts that
+   * low lane to all four positions before the final multiply.
+   */
+  static applyInverseToneMap_LinearGain(v: PCVector3f, gain: number): PCVector3f {
+    // @0x44f0 — save gain-arg. Scalar in TS; no need to spill.
+    const g = Math.fround(gain);
+    // @0x44f7..0x44fa — sign-negative mask: (v[i] < 0).
+    const isNeg = [v[0] < 0, v[1] < 0, v[2] < 0];
+    // @0x4502 — |v| via andps 0x7fffffff mask @0xe1bb0.
+    const absV: PCVector3f = [
+      Math.fround(Math.abs(Math.fround(v[0]))),
+      Math.fround(Math.abs(Math.fround(v[1]))),
+      Math.fround(Math.abs(Math.fround(v[2]))),
+    ];
+    // @0x4509 — blendps $0x8 zeros lane 3 (our PCVector3f is length 3; nothing
+    // to zero in JS — lane 3 simply doesn't exist).
+    // @0x450f..0x4516 — pow with fixed exponent 1.956 per lane.
+    // Constant @ProCore 0xe1d50 = 4×0x3ffa5e35 = 4×1.9559999704360962f, lane3=0.
+    const POW_EXP = Math.fround(1.9559999704360962); // @ProCore 0xe1d50
+    const powV = simd_pow_f4(absV, [POW_EXP, POW_EXP, POW_EXP]);
+    // @0x451e..0x4529 — sign vector: ONES_3 @0xe1bd0 blended with NEG_ONES_3 @0xe1be0.
+    const POS = F32_POS_ONE; // 1.0f (lanes of @0xe1bd0)
+    const NEG = F32_NEG_ONE; // -1.0f (lanes of @0xe1be0)
+    // @0x4532 — signed_pow = sign * pow_result per lane.
+    const signedPow: [number, number, number] = [
+      Math.fround(powV[0] * (isNeg[0] ? NEG : POS)),
+      Math.fround(powV[1] * (isNeg[1] ? NEG : POS)),
+      Math.fround(powV[2] * (isNeg[2] ? NEG : POS)),
+    ];
+    // @0x4535..0x453d — broadcast(gain) * signed_pow per lane.
+    return [
+      Math.fround(g * signedPow[0]),
+      Math.fround(g * signedPow[1]),
+      Math.fround(g * signedPow[2]),
+    ];
   }
 
   /**
