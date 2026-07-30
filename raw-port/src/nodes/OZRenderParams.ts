@@ -46,6 +46,10 @@
 //       — OZRenderParams::setWantsHLGToPQPostProcessingStep(bool) @Ozone 0x271470
 //         (raw-port/re/disasm/
 //           __ZN14OZRenderParams33setWantsHLGToPQPostProcessingStepEb.s — 7 lines)
+//   * __ZN14OZRenderParams23setRenderQualityDynamicE9OZQuality
+//       — OZRenderParams::setRenderQualityDynamic(OZQuality) @Ozone 0x2717a0
+//         (raw-port/re/disasm/
+//           __ZN14OZRenderParams23setRenderQualityDynamicE9OZQuality.s — 7 lines)
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (raw-port/re/disasm/
@@ -82,6 +86,18 @@ export interface PCVector2Double {
   x: number;
   y: number;
 }
+
+/**
+ * `OZQuality` — 32-bit integer-backed FCP enum. Aliased to `number` here
+ * (same shape as raw-port/src/channels/OZProxyScrub.ts's `export type
+ * OZQuality = number`; a cross-directory import isn't required because
+ * the underlying primitive is a plain `number`). The enum's individual
+ * constants (Low/Medium/High/etc.) are not decoded by this unit — only
+ * its identity + 32-bit width matter for `setRenderQualityDynamic`,
+ * which does an int32 store. Per Rule 5, we model only what the ported
+ * method reads.
+ */
+export type OZQuality = number;
 
 /**
  * `OZRenderParams` — the render-params bag. Only the fields touched by
@@ -155,6 +171,32 @@ export class OZRenderParams {
    * (0..255) to preserve the single-byte width the `cmpb` operates on.
    */
   flagByteAt1a8: number = 0;
+
+  /**
+   * @Ozone offset +0x1d4 — a 32-bit `OZQuality` enum slot written by
+   * `setRenderQualityDynamic(OZQuality)` @0x2717a4 via
+   * `movl %esi, 0x1d4(%rdi)`. The 4-byte `movl` store confirms the field
+   * is a 32-bit integer (`OZQuality` in the FCP headers is a scoped enum
+   * with `int` underlying type; SysV puts the arg in `%esi` = the low 32
+   * bits of `%rsi`).
+   *
+   * Peer method `setRenderQuality(OZQuality)` @0x271770 writes BOTH the
+   * base slot at +0x1d0 AND this dynamic slot at +0x1d4 with the same
+   * value (see raw-port/re/disasm/
+   * __ZN14OZRenderParams16setRenderQualityE9OZQuality.s):
+   *   0x271774  movl %esi, 0x1d0(%rdi)      ; this->renderQualityAt1d0 = q
+   *   0x27177a  movl %esi, 0x1d4(%rdi)      ; this->renderQualityDynamicAt1d4 = q
+   * Confirming +0x1d4 is the "dynamic override" slot paired with +0x1d0
+   * (setRenderQuality clobbers the dynamic slot on every set, so a later
+   * setRenderQualityDynamic call re-overrides just the dynamic value).
+   * The base slot at +0x1d0 will be modelled when setRenderQuality is
+   * ported as its own ledger unit; only the +0x1d4 slot is required by
+   * this unit and is added here.
+   *
+   * Modelled as `number` (JS integer; the machine writes 32 bits — we
+   * mask to `| 0` at the write site to make the truncation explicit).
+   */
+  renderQualityDynamicAt1d4: number = 0;
 
   /**
    * `OZRenderParams::setResolution(PCVector2<double> const&)`
@@ -370,4 +412,38 @@ export class OZRenderParams {
     //   C++ `bool` → 1 byte: true == 0x01, false == 0x00.
     this.wantsHLGToPQPostProcessingStepAt30c = wants ? 1 : 0;
   }
+
+  /**
+   * `OZRenderParams::setRenderQualityDynamic(OZQuality)`
+   *   — @Ozone 0x2717a0
+   *   — __ZN14OZRenderParams23setRenderQualityDynamicE9OZQuality
+   *
+   * Faithful line-for-line transcription of the 7-line disassembly:
+   *   0x2717a0  pushq  %rbp                        ; frame prologue
+   *   0x2717a1  movq   %rsp, %rbp
+   *   0x2717a4  movl   %esi, 0x1d4(%rdi)            ; this->+0x1d4 = arg (int32)
+   *   0x2717aa  popq   %rbp                        ; frame epilogue
+   *   0x2717ab  retq
+   *
+   * Single-instruction body: store the incoming `OZQuality` argument
+   * (SysV/AAPCS puts scalar arg2 in `%rsi`, and `OZQuality` is a 32-bit
+   * enum occupying the low dword `%esi`) into the class slot at +0x1d4.
+   * The `movl` (4-byte) width fixes the field as int32.
+   *
+   * Zero in-scope callees, zero externs, no indirect calls — pure
+   * field write. Distinct from the peer `setRenderQuality(OZQuality)`
+   * @0x271770 which writes BOTH +0x1d0 and +0x1d4; this dynamic-only
+   * setter writes ONLY the +0x1d4 slot (the "dynamic override" value).
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/
+   *     __ZN14OZRenderParams23setRenderQualityDynamicE9OZQuality.s (7 lines)
+   */
+  setRenderQualityDynamic(quality: OZQuality): void {
+    // @0x2717a4  movl %esi,0x1d4(%rdi)
+    //   32-bit int store — force JS `number` to a 32-bit int truncation
+    //   with `| 0` so the port matches the machine's `movl` width.
+    this.renderQualityDynamicAt1d4 = quality | 0;
+  }
 }
+
