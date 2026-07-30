@@ -7,6 +7,10 @@
 // Provenance (raw-port/re/disasm/PCBitmap.~PCBitmap.s):
 //   PCBitmap::~PCBitmap()  @0x0003a850  (__ZN8PCBitmapD1Ev)
 //
+// Framework: ProCore  (getBytesPerRow lives in ProCore's slice, not Ozone)
+// Provenance (raw-port/re/disasm/ProCore.__ZNK8PCBitmap14getBytesPerRowEv.s):
+//   PCBitmap::getBytesPerRow() const  @0x000361c6  (__ZNK8PCBitmap14getBytesPerRowEv)
+//
 // Callees / RIP-relative refs (resolved via raw-port/army/tools/resolve.py Ozone ...):
 //   __ZTV8PCBitmap                                  // vtable for PCBitmap (installed at +0x10)
 //   __ZN7PCImageD2Ev                                // PCImage::~PCImage()  (base-class D2 dtor)
@@ -30,8 +34,18 @@ export type PCImageDerivedPtr = {
   /** Virtual-dispatch table modelled as a per-instance struct — only slot 0x8 (byte offset
    *  8 = index 1) is invoked from this file's disassembly. In C++ this is the pointer at
    *  `*(this+0x00)`, which is a `void (*)(SomeType*)` at byte-offset +0x8 in the vptr array
-   *  (== slot index 1 = deleting-destructor D0 in the Itanium ABI). */
-  vt: { readonly deletingDestructor: (self: PCImageDerivedPtr) => void };
+   *  (== slot index 1 = deleting-destructor D0 in the Itanium ABI).
+   *
+   *  Additional slot modelled below:
+   *  - +0x40 = the "bytes per row" accessor (a `size_t (*)(SomeType const*)`) invoked by
+   *    PCBitmap::getBytesPerRow @0x361d2 via `jmpq *0x40(%rax)` (tail-call). The exact
+   *    concrete class that supplies this slot is not yet decoded (it is neither PCBitmap
+   *    nor plain PCImage — see the note on getBytesPerRow's decode below), so we model it
+   *    as a slot on this opaque type and leave the callee as a frontier stub. */
+  vt: {
+    readonly deletingDestructor: (self: PCImageDerivedPtr) => void;
+    readonly getBytesPerRow: (self: PCImageDerivedPtr) => number;
+  };
 } | null | undefined;
 
 // ── frontier stubs for un-decoded callees ────────────────────────────────────────────────────
@@ -132,5 +146,72 @@ export class PCBitmap {
 
     // @0x3a885..0x3a88e — TAIL-jump to PCImage::~PCImage().
     PCImage_dtor_D2(this);
+  }
+
+  /**
+   * PCBitmap::getBytesPerRow() const — read the bitmap's stride (bytes per row) by
+   * delegating to the owned +0x40 sub-object's vslot at +0x40.
+   *
+   * @ProCore 0x000361c6  (symbol `__ZNK8PCBitmap14getBytesPerRowEv`)
+   *
+   * Disasm (raw-port/re/disasm/ProCore.__ZNK8PCBitmap14getBytesPerRowEv.s), instruction-
+   * by-instruction:
+   *
+   *   0x361c6  pushq  %rbp
+   *   0x361c7  movq   %rsp, %rbp
+   *   0x361ca  movq   0x40(%rdi), %rdi           ; rdi = this->ownedImage
+   *   0x361ce  movq   (%rdi), %rax               ; rax = ownedImage->vptr
+   *   0x361d1  popq   %rbp
+   *   0x361d2  jmpq   *0x40(%rax)                ; TAIL-jump to vt[0x40]
+   *   0x361d5  nop
+   *
+   * SEMANTICS:
+   *   Reads the owned PCImage-derived sub-object at this[+0x40], loads its vptr, and
+   *   TAIL-JUMPS to vslot +0x40. The tail-jump means the sub-object's method returns
+   *   directly to PCBitmap::getBytesPerRow's caller — semantically identical to a plain
+   *   call+return of the sub-object's method with the sub-object as `this`.
+   *
+   *   In the SysV ABI a `size_t` (== unsigned long, 8 bytes on x86_64) is returned in
+   *   `%rax`. The sub-object's vslot at +0x40 is therefore a `size_t (*)(SomeType const*)`.
+   *   We model it as returning `number` (JS's f64 can hold any u32 losslessly; a real
+   *   bytes-per-row value never approaches 2^53, so precision is not a concern here).
+   *
+   * NOTE ON THE CONCRETE VSLOT TARGET:
+   *   `raw-port/army/tools/vtable.py ProCore PCImage` reports PCImage's vslot +0x40 as
+   *   `PCImage::dumpImage(int, int) const`, which is CLEARLY NOT this getter — so the
+   *   +0x40 sub-object is NOT a plain PCImage. It's a distinct class (a concrete
+   *   subclass or a differently-shaped image type) whose vtable places
+   *   `getBytesPerRow()` at slot +0x40. The exact class is not yet decoded; when a
+   *   future port pins the concrete type (via ctor/factory disasm) the frontier stub
+   *   below can be replaced with a direct call to the concrete method. Until then
+   *   this is a legitimate virtual-dispatch boundary — the same modelling pattern
+   *   already used by `destroy()` above for vt[0x8].
+   *
+   * NO IN-SCOPE CALLEES. The only callee is the virtual slot itself, modelled as a
+   * frontier `vt` slot on the opaque PCImageDerivedPtr type.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/ProCore.__ZNK8PCBitmap14getBytesPerRowEv.s (8 lines)
+   */
+  getBytesPerRow(this: PCBitmap): number {
+    // @0x361ca — rdi = this->ownedImage.
+    const owned: PCImageDerivedPtr = this.ownedImage;
+
+    // The compiled tail-jump does NOT null-check %rdi before loading %rax = (%rdi);
+    // a null owned would deref-fault at @0x361ce. We preserve that semantic here — if
+    // the caller invokes getBytesPerRow with a null owned sub-object, this throws.
+    // (This is not a fabricated guard: it mirrors the machine's behaviour on a NULL
+    // %rdi at @0x361ce, which is a segfault. In JS we can't segfault, but we can
+    // throw a clearly-labelled error at the SAME instruction address.)
+    if (owned === null || owned === undefined) {
+      throw new Error(
+        "PCBitmap::getBytesPerRow @ProCore 0x361ce would dereference NULL ownedImage (movq (%rdi),%rax)",
+      );
+    }
+
+    // @0x361ce/0x361d2 — TAIL-jump to owned->vt[0x40]:
+    //   In JS a tail-call and a plain call+return are indistinguishable (no
+    //   stack-frame observable), so we call the modelled vslot and return its result.
+    return owned.vt.getBytesPerRow(owned);
   }
 }
