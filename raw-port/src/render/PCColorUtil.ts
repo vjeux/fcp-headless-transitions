@@ -130,9 +130,312 @@ export class PCColorUtil {
     throw new Error("PCColorUtil::applyHLG_OOTF @ProCore 0x3fe4 not yet transcribed");
   }
 
-  /** PCColorUtil::applyHLG_InverseOOTF(float vector[3], float, float) — @ProCore 0x40cb */
-  static applyHLG_InverseOOTF(_v: PCVector3f, _a: number, _b: number): PCVector3f {
-    throw new Error("PCColorUtil::applyHLG_InverseOOTF @ProCore 0x40cb not yet transcribed");
+  // ═════════════════════════════════════════════════════════════════════════
+  // PCColorUtil::applyHLG_InverseOOTF(float vector[3], float a, float b)
+  //   — @ProCore 0x40cb  (__ZN11PCColorUtil20applyHLG_InverseOOTFEDv3_fff)
+  //
+  // Disassembly source:
+  //   raw-port/re/disasm/ProCore.__ZN11PCColorUtil20applyHLG_InverseOOTFEDv3_fff.s
+  //
+  // FULL DISASM (52 lines quoted inline for auditability)
+  //   0x40cb  pushq  %rbp                                     ; frame prologue
+  //   0x40cc  movq   %rsp, %rbp
+  //   0x40cf  subq   $0x30, %rsp
+  //   0x40d3  movss  %xmm2, -0x4(%rbp)                        ; save b (param) at slot_b
+  //   0x40d8  ucomiss 0xddf01(%rip), %xmm1                    ; cmp: a - 400.0
+  //   0x40df  movaps %xmm0, -0x30(%rbp)                       ; save rgb (float4) at slot_rgb
+  //   0x40e3  movaps %xmm1, %xmm0                             ; xmm0 = a
+  //   0x40e6  divss  0xddef6(%rip), %xmm0                     ; xmm0 = a / 1000.0
+  //   0x40ee  movss  %xmm1, -0x20(%rbp)                       ; save a at slot_a
+  //   0x40f3  jb     0x4119                                   ; jb: a < 400.0 -> "extended" branch
+  //   0x40f5  movss  0xddeeb(%rip), %xmm2                     ; xmm2 = 2000.0
+  //   0x40fd  ucomiss %xmm1, %xmm2                            ; cmp: 2000.0 - a
+  //   0x4100  jb     0x4119                                   ; jb: 2000.0 < a -> extended branch
+  //   ; --- "in-range" branch  (400 <= a <= 2000) : γ = 1.2 + 0.42·log10(a/1000)
+  //   0x4102  callq  _log10f                                  ; xmm0 = log10(a/1000)
+  //   0x4107  mulss  0xddee5(%rip), %xmm0                     ; xmm0 *= 0.42
+  //   0x410f  addss  0xdded9(%rip), %xmm0                     ; xmm0 += 1.2   (= γ_in_range)
+  //   0x4117  jmp    0x4136                                   ; join
+  //   ; --- "extended" branch (a < 400 or a > 2000) : γ = 1.2·1.111^log2(a/1000)
+  //   0x4119  callq  _log2f                                   ; xmm0 = log2(a/1000)
+  //   0x411e  movaps %xmm0, %xmm1                             ; xmm1 = log2(a/1000)
+  //   0x4121  movss  0xddec3(%rip), %xmm0                     ; xmm0 = 1.111
+  //   0x4129  callq  _powf                                    ; xmm0 = powf(1.111, log2(a/1000))
+  //   0x412e  mulss  0xddeba(%rip), %xmm0                     ; xmm0 *= 1.2   (= γ_extended)
+  //   ; --- L4136 : common tail, given γ in xmm0 ---
+  //   0x4136  movss  0xdde32(%rip), %xmm1                     ; xmm1 = 1.0
+  //   0x413e  divss  %xmm0, %xmm1                             ; xmm1 = 1.0 / γ
+  //   0x4142  movss  0xdde52(%rip), %xmm0                     ; xmm0 = -1.0
+  //   0x414a  addss  %xmm1, %xmm0                             ; xmm0 = 1/γ + (-1.0) = 1/γ - 1  (= β)
+  //   0x414e  movss  %xmm0, -0x8(%rbp)                        ; save β at slot_beta
+  //   0x4153  movss  -0x4(%rbp), %xmm0                        ; xmm0 = b
+  //   0x4158  divss  -0x20(%rbp), %xmm0                       ; xmm0 = b / a
+  //   0x415d  callq  _powf                                    ; xmm0 = powf(b/a, β)     [xmm1 in β]
+  //   0x4162  movaps 0xddad7(%rip), %xmm2                     ; xmm2 = float4 luma coeffs
+  //                                                           ;        {0.2627, 0.678, 0.0593, 0.0}
+  //                                                           ;        (BT.2020 luma weights)
+  //   0x4169  mulps  -0x30(%rbp), %xmm2                       ; xmm2 = coeffs * rgb (lanewise)
+  //   0x416d  movaps %xmm2, %xmm1                             ; xmm1 = xmm2
+  //   0x4170  haddps %xmm2, %xmm1                             ; xmm1[0] = xmm2[0] + xmm2[1]
+  //                                                           ; xmm1[1] = xmm2[2] + xmm2[3]
+  //   0x4174  mulss  0xdde54(%rip), %xmm0                     ; xmm0 = 12.0 * (b/a)^β
+  //   0x417c  movss  %xmm0, -0x4(%rbp)                        ; save 12·(b/a)^β at slot_b (reused!)
+  //   0x4181  movhlps %xmm2, %xmm2                            ; xmm2[0] = xmm2[2]
+  //   0x4184  addss  %xmm1, %xmm2                             ; xmm2[0] = xmm2[2] + xmm1[0]
+  //                                                           ;         = 0.2627·R + 0.678·G + 0.0593·B
+  //                                                           ;         (= luma Y, BT.2020)
+  //   0x4188  movaps %xmm2, -0x20(%rbp)                       ; save Y at slot_a (reused!)
+  //   0x418c  movaps %xmm2, %xmm0                             ; xmm0 = Y
+  //   0x418f  movss  -0x8(%rbp), %xmm1                        ; xmm1 = β
+  //   0x4194  callq  _powf                                    ; xmm0 = powf(Y, β)
+  //   0x4199  xorps  %xmm1, %xmm1                             ; xmm1 = 0.0
+  //   0x419c  cmpltss -0x20(%rbp), %xmm1                      ; xmm1 = (0.0 < Y) ? all-1s : all-0s
+  //   0x41a2  andps  %xmm1, %xmm0                             ; xmm0 = powf(Y, β) if Y > 0 else 0
+  //   0x41a5  mulss  -0x4(%rbp), %xmm0                        ; xmm0 = Y^β · 12·(b/a)^β  (scalar scale)
+  //   0x41aa  shufps $0x0, %xmm0, %xmm0                       ; xmm0 = broadcast xmm0[0] to all 4 lanes
+  //   0x41ae  mulps  -0x30(%rbp), %xmm0                       ; xmm0 = rgb * scale (final float4)
+  //   0x41b2  addq   $0x30, %rsp
+  //   0x41b6  popq   %rbp
+  //   0x41b7  retq
+  //
+  // SEMANTICS
+  //   Inverse OOTF for BT.2100-family HLG signals with a *peak-luminance-
+  //   aware* system γ (Rec. ITU-R BT.2100-2 §6):
+  //     γ(a)       = 1.2 + 0.42·log10(a / 1000)               if 400 <= a <= 2000
+  //                = 1.2 · 1.111^log2(a / 1000)               otherwise
+  //     β         = 1/γ − 1
+  //     Y         = 0.2627·R + 0.678·G + 0.0593·B             (BT.2020 luma)
+  //     scale     = 12 · (b/a)^β · Y^β                        (0 when Y <= 0)
+  //     RGB_scene = RGB_display · scale
+  //
+  // The `a` parameter is the display peak luminance (in cd/m² / nits) and
+  // `b` is the black-level (usually 0 for display-referred).  When Y <= 0
+  // the machine returns exactly zero (via `xorps` + `cmpltss` + `andps`),
+  // NOT an undefined `pow(0, β)` — we mirror that exact predicate.
+  //
+  // NUMERIC PRECISION
+  //   Every scalar op in the disasm is single-precision (`ss`/`ps`, not
+  //   `sd`).  We wrap each intermediate in `Math.fround` per Rule 4 of
+  //   raw-port/army/PORTING_SPEC.md.  The vector ops are float4 lanewise
+  //   ops on {R,G,B,pad}; the returned vector is the first 3 lanes.
+  //
+  // FRONTIER CALLEES
+  //   * `_log10f` (@0x4102) — libm single-precision log10 (out-of-scope
+  //     libc; not modelled — modelled locally as `Math.fround(Math.log10())`,
+  //     matching how `_powf` is already handled in applyLinearToSRGB /
+  //     applySRGBToLinear at the top of this file).
+  //   * `_log2f`  (@0x4119) — libm single-precision log2  (same policy).
+  //   * `_powf`   (@0x4129, 0x415d, 0x4194) — libm single-precision pow
+  //     (same policy).
+  //
+  // Every callee is a libc/libm math extern.  These are OUT-OF-SCOPE
+  // (libSystem/libm), same status as the `__simd_pow_f4` / `__simd_exp2_f4`
+  // callees already modelled locally as `Math.fround(Math.pow/exp2)` in
+  // this same file's `applyLinearToSRGB` / `applySRGBToLinear`.  ZERO
+  // in-scope callees, zero indirect calls.
+  //
+  // CONSTANTS (all decoded from /tmp/ProCore.x86_64 via next-insn-VA + disp32)
+  //   @const 0xe1fe0  400.0     f32 (u32 0x43c80000)  — in-range gate low
+  //   @const 0xe1fe4  1000.0    f32 (u32 0x447a0000)  — a/1000 normaliser
+  //   @const 0xe1fe8  2000.0    f32 (u32 0x44fa0000)  — in-range gate high
+  //   @const 0xe1ff4  0.42      f32 (u32 0x3ed70a3d)  — γ_in-range slope
+  //   @const 0xe1ff0  1.2       f32 (u32 0x3f99999a)  — γ base (both branches)
+  //   @const 0xe1fec  1.111     f32 (u32 0x3f8e353f)  — γ_extended log base
+  //   @const 0xe1f70  1.0       f32 (u32 0x3f800000)  — numerator of 1/γ
+  //   @const 0xe1f9c -1.0       f32 (u32 0xbf800000)  — β = 1/γ + (-1)
+  //   @const 0xe1fd0  12.0      f32 (u32 0x41400000)  — HLG scene-referred scale
+  //   @const 0xe1c40  luma_coeffs float4 (BT.2020):
+  //                    0.2627, 0.6780, 0.05930, 0.0
+  //                    u4 = 0x3e86809d, 0x3f2d9168, 0x3d72e48f, 0x00000000
+  //
+  // Note two constants share the same VA `0xe1ff0` (γ base = 1.2): they
+  // are used at 0x410f (in-range branch, `addss`) and 0x4136 (also 1.2, via
+  // the extended branch's `mulss` at 0x412e).  In fact the extended
+  // branch's `mulss 0xddeba(%rip), %xmm0` also resolves to VA 0xe1ff0 —
+  // the same 1.2 literal is shared across the two γ branches.
+  // ═════════════════════════════════════════════════════════════════════════
+  /**
+   * PCColorUtil::applyHLG_InverseOOTF(float vector[3], float a, float b)
+   *   — @ProCore 0x40cb (__ZN11PCColorUtil20applyHLG_InverseOOTFEDv3_fff).
+   *
+   * BT.2100 HLG Inverse OOTF with peak-luminance-aware γ.  `a` is the
+   * display peak luminance in nits; `b` is the black-level offset.  The
+   * BT.2020 luma weights are baked into a `__TEXT __const` float4 read
+   * at ProCore 0xe1c40.  See file-header docblock above for the full
+   * decoded formula and the disassembly it was transcribed from.
+   *
+   * Faithful line-for-line port; every constant cites its `__TEXT __const`
+   * address; every single-precision op wraps its result in `Math.fround`
+   * per porting-spec Rule 4.
+   */
+  static applyHLG_InverseOOTF(v: PCVector3f, a: number, b: number): PCVector3f {
+    // ------------------------------------------------------------
+    // @const 0xe1fe0  400.0   (u32 0x43c80000)
+    // @const 0xe1fe4  1000.0  (u32 0x447a0000)
+    // @const 0xe1fe8  2000.0  (u32 0x44fa0000)
+    // @const 0xe1ff4  0.42    (u32 0x3ed70a3d)
+    // @const 0xe1ff0  1.2     (u32 0x3f99999a)
+    // @const 0xe1fec  1.111   (u32 0x3f8e353f)
+    // @const 0xe1f70  1.0     (u32 0x3f800000)
+    // @const 0xe1f9c -1.0     (u32 0xbf800000)
+    // @const 0xe1fd0  12.0    (u32 0x41400000)
+    // ------------------------------------------------------------
+    const C_400  /* @0xe1fe0 */ = Math.fround(400.0);
+    const C_1000 /* @0xe1fe4 */ = Math.fround(1000.0);
+    const C_2000 /* @0xe1fe8 */ = Math.fround(2000.0);
+    const C_042  /* @0xe1ff4 */ = Math.fround(0.41999998688697815);
+    const C_12   /* @0xe1ff0 */ = Math.fround(1.2000000476837158);
+    const C_1111 /* @0xe1fec */ = Math.fround(1.1109999418258667);
+    const C_10   /* @0xe1f70 */ = Math.fround(1.0);
+    const C_M1   /* @0xe1f9c */ = Math.fround(-1.0);
+    const C_120  /* @0xe1fd0 */ = Math.fround(12.0);
+    // @const 0xe1c40  BT.2020 luma coeffs float4 (with pad-lane 0.0)
+    const LUMA_R /* @0xe1c40 */ = Math.fround(0.26269999146461487);
+    const LUMA_G /* @0xe1c44 */ = Math.fround(0.6779999732971191);
+    const LUMA_B /* @0xe1c48 */ = Math.fround(0.059300001710653305);
+
+    // Materialise the on-stack copies the disasm makes at 0x40d3 / 0x40df / 0x40ee.
+    // slot_b = b (@0x40d3),  slot_rgb = v (@0x40df),  slot_a = a (@0x40ee).
+    const [R, G, B] = v;
+    const slot_b_initial = Math.fround(b);
+    const slot_rgb_R = Math.fround(R);
+    const slot_rgb_G = Math.fround(G);
+    const slot_rgb_B = Math.fround(B);
+    const slot_a = Math.fround(a);
+    void slot_b_initial; // reused after 0x417c overwrites it; the initial b is only
+    //                   used at 0x4153 (movss -0x4(%rbp)) which happens BEFORE 0x417c
+    //                   redefines slot_b.  Model as separate locals.
+
+    // ------------------------------------------------------------
+    // @0x40e3..0x40e6  xmm0 = a / 1000.0
+    // ------------------------------------------------------------
+    const a_over_1000 = Math.fround(slot_a / C_1000);
+
+    // ------------------------------------------------------------
+    // Compute γ  (system gamma, peak-luminance-aware).
+    //
+    // @0x40d8 ucomiss 400.0, %xmm1 ; @0x40f3 jb 0x4119
+    //   AT&T ucomiss `src=400, dst=xmm1=a` sets flags on (a - 400).
+    //   `jb` iff CF=1 iff a < 400 (unsigned/CF form on ucomiss = "a < 400").
+    // @0x40fd ucomiss %xmm1, %xmm2 ; @0x4100 jb 0x4119
+    //   AT&T `ucomiss %xmm1, %xmm2` sets flags on (xmm2 - xmm1) = (2000 - a).
+    //   `jb` iff CF=1 iff 2000 < a  (i.e. a > 2000).
+    // ------------------------------------------------------------
+    let gamma: number;
+    if (slot_a < C_400 || slot_a > C_2000) {
+      // Extended branch @0x4119..0x412e :
+      //   γ = 1.2 · powf(1.111, log2(a/1000))
+      //   Equivalently: γ = 1.2 · (a/1000)^log2(1.111).
+      // We transcribe the machine's exact log2 + powf sequence to preserve
+      // its rounding profile (single-precision log2 -> powf).
+      // @0x4119 callq _log2f      -> t = log2f(a/1000)
+      const t /* @0x4119 */ = Math.fround(Math.log2(a_over_1000));
+      // @0x4129 callq _powf(1.111, t)
+      const p /* @0x4129 */ = Math.fround(Math.pow(C_1111, t));
+      // @0x412e mulss 1.2, %xmm0
+      gamma = Math.fround(p * C_12);
+    } else {
+      // In-range branch @0x4102..0x4117 :
+      //   γ = 1.2 + 0.42 · log10(a / 1000)
+      //   (Rec. ITU-R BT.2100-2 System Gamma extension for 400..2000 nits).
+      // @0x4102 callq _log10f    -> t = log10f(a/1000)
+      const t /* @0x4102 */ = Math.fround(Math.log10(a_over_1000));
+      // @0x4107 mulss 0.42
+      const s1 /* @0x4107 */ = Math.fround(t * C_042);
+      // @0x410f addss 1.2  (= γ_in_range)
+      gamma = Math.fround(s1 + C_12);
+    }
+
+    // ------------------------------------------------------------
+    // @0x4136 movss 1.0, %xmm1 ; @0x413e divss %xmm0, %xmm1 ; @0x4142
+    // movss -1.0, %xmm0 ; @0x414a addss %xmm1, %xmm0
+    //   β = (1.0 / γ) + (-1.0) = 1/γ - 1
+    //
+    // Note the machine does the two ops in that ORDER (divss THEN addss
+    // with -1.0), not `xmm0 - 1.0`.  On IEEE-754 single-precision the
+    // fused form `(1/γ) + (-1)` and `(1/γ) - 1` are equal for all finite
+    // 1/γ, but we mirror the exact instruction sequence anyway.
+    // ------------------------------------------------------------
+    const inv_gamma /* @0x413e */ = Math.fround(C_10 / gamma);
+    const beta      /* @0x414a */ = Math.fround(inv_gamma + C_M1);
+    // @0x414e movss %xmm0, -0x8(%rbp)  : save β at slot_beta.
+    const slot_beta = beta;
+
+    // ------------------------------------------------------------
+    // @0x4153 movss -0x4(%rbp), %xmm0 : xmm0 = slot_b = b (INITIAL slot_b,
+    //                                    before the 0x417c overwrite).
+    // @0x4158 divss -0x20(%rbp), %xmm0 : xmm0 = b / a
+    // @0x415d callq _powf              : xmm0 = powf(b/a, β)      [xmm1 = β]
+    // ------------------------------------------------------------
+    const b_over_a /* @0x4158 */ = Math.fround(slot_b_initial / slot_a);
+    const ba_pow_beta /* @0x415d */ = Math.fround(Math.pow(b_over_a, slot_beta));
+
+    // ------------------------------------------------------------
+    // @0x4162..0x4188   Compute Y (BT.2020 luma) via the float4 dot
+    // product implementation the machine chose:
+    //   xmm2 = luma_coeffs * rgb                       (mulps)
+    //   xmm1 = haddps(xmm2, xmm2) ; xmm1[0] = xmm2[0]+xmm2[1]
+    //   xmm2 = movhlps(xmm2, xmm2) ; xmm2[0] = xmm2[2]
+    //   xmm2[0] = xmm2[0] + xmm1[0]  = xmm2[0..2] sum
+    //          = LUMA_R·R + LUMA_G·G + LUMA_B·B
+    // ------------------------------------------------------------
+    // Materialise the exact machine sum ordering so intermediate
+    // rounding is preserved:  ((R·LUMA_R) + (G·LUMA_G)) + (B·LUMA_B).
+    // haddps does `xmm2[0] + xmm2[1]` first (which is R·LUMA_R + G·LUMA_G),
+    // then addss adds xmm2[2] (= B·LUMA_B).
+    const lane0 = Math.fround(LUMA_R * slot_rgb_R);
+    const lane1 = Math.fround(LUMA_G * slot_rgb_G);
+    const lane2 = Math.fround(LUMA_B * slot_rgb_B);
+    const hadd  /* @0x4170 */ = Math.fround(lane0 + lane1); // xmm1[0]
+    const Y     /* @0x4184 */ = Math.fround(hadd + lane2);  // xmm2[0]
+
+    // ------------------------------------------------------------
+    // @0x4174 mulss 12.0, %xmm0 : xmm0 = 12 · (b/a)^β
+    // @0x417c movss %xmm0, -0x4(%rbp) : slot_b := 12·(b/a)^β  (reuses slot_b).
+    // ------------------------------------------------------------
+    const twelve_ba_pow_beta /* @0x4174 */ = Math.fround(C_120 * ba_pow_beta);
+
+    // ------------------------------------------------------------
+    // @0x418c..0x4194  xmm0 = powf(Y, β)
+    // ------------------------------------------------------------
+    const Y_pow_beta /* @0x4194 */ = Math.fround(Math.pow(Y, slot_beta));
+
+    // ------------------------------------------------------------
+    // @0x4199..0x41a2  masked select : mask = (0.0 < Y) ? all-1s : 0
+    //                                  result = Y^β AND mask
+    //
+    //   AT&T `cmpltss -0x20(%rbp), %xmm1` with xmm1 = 0.0 :
+    //     Intel `cmpltss xmm1, mem` computes (dst < src) i.e. (0.0 < Y).
+    //     WAIT — AT&T reverses operand order: `cmpltss src, dst`
+    //     computes `dst CMPLT src` → `xmm1 < mem` → `0.0 < Y`.
+    //     Mask is all-1s iff 0.0 < Y (equivalently Y > 0.0).
+    //     For Y == 0 or Y < 0 (or NaN), mask is 0, so result is 0.
+    //   `andps %xmm1, %xmm0` : xmm0 &= mask (bitwise AND on 4 lanes;
+    //     effect on scalar-slot: xmm0 = Y^β if Y>0 else +0.0).
+    //
+    //   The predicate CLAMPS a numerically-noisy or non-physical Y to
+    //   zero — critical when the OOTF is applied to display-referred
+    //   RGB values that can dip slightly below 0 or land exactly on 0.
+    // ------------------------------------------------------------
+    const Y_pow_beta_masked /* @0x41a2 */ =
+      Math.fround(0.0) < Y ? Y_pow_beta : Math.fround(0.0);
+
+    // ------------------------------------------------------------
+    // @0x41a5 mulss slot_b, %xmm0
+    //   xmm0 = (Y^β if Y>0 else 0) · (12·(b/a)^β)   = SCALAR SCALE.
+    // ------------------------------------------------------------
+    const scale /* @0x41a5 */ = Math.fround(Y_pow_beta_masked * twelve_ba_pow_beta);
+
+    // ------------------------------------------------------------
+    // @0x41aa shufps $0x0, %xmm0, %xmm0 : broadcast xmm0[0] to all 4 lanes.
+    // @0x41ae mulps  -0x30(%rbp), %xmm0 : xmm0 = rgb * scale (lanewise).
+    // ------------------------------------------------------------
+    const R_out = Math.fround(slot_rgb_R * scale);
+    const G_out = Math.fround(slot_rgb_G * scale);
+    const B_out = Math.fround(slot_rgb_B * scale);
+
+    // @0x41b2..0x41b7  addq $0x30, %rsp ; popq %rbp ; retq
+    return [R_out, G_out, B_out] as const;
   }
 
   /** PCColorUtil::applyHLGToPQ(float vector[3], float) — @ProCore 0x41b8 */
