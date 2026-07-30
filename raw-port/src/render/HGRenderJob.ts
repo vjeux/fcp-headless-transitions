@@ -5,6 +5,7 @@
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob10SetUserTagEy.s          (SetUserTag)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob11SetUserNameEPKc.s       (SetUserName)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob7SetTypeENS_4TypeE.s      (SetType)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob11SetPriorityENS_8PriorityE.s (SetPriority)
 //
 // This file ports ONLY the methods listed under "Symbols ported here" below.
 // HGRenderJob is a large class (fields at offsets 0xc8 and 0xd8 imply at
@@ -57,6 +58,8 @@
 //       — HGRenderJob::SetType(HGRenderJob::Type) @Helium 0x54510
 //   * __ZN11HGRenderJob11SetUserNameEPKc
 //       — HGRenderJob::SetUserName(char const*) @Helium 0x54670
+//   * __ZN11HGRenderJob11SetPriorityENS_8PriorityE
+//       — HGRenderJob::SetPriority(HGRenderJob::Priority) @Helium 0x544a0
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM — SetUserTag @0x54650
@@ -116,6 +119,14 @@
 export type HGRenderJobType = number;
 
 /**
+ * HGRenderJob::Priority — enum tag stored at +0x68. Values are not yet enumerated
+ * here; SetPriority @0x544a0 passes `esi` (an unsigned 32-bit int) straight into
+ * the slot via `movl %esi, 0x68(%rdi)`. Model as an opaque u32 alias until a ctor
+ * / other setters pin the enum values.
+ */
+export type HGRenderJobPriority = number;
+
+/**
  * `HGRenderJob` — Helium render job. This file ports the setters listed in
  * "Symbols ported here" (see file header); every other method is a
  * separate ledger entry. Field offsets not yet decoded are omitted; the
@@ -126,6 +137,11 @@ export class HGRenderJob {
    *  Written by SetType @0x54514. Zero-initialised to a neutral tag until
    *  a ctor is transcribed to reveal the true default. */
   _type: HGRenderJobType = 0; // @Helium HGRenderJob@0x0c
+
+  /** @Helium HGRenderJob@0x68 — the u32 HGRenderJob::Priority enum tag.
+   *  Written by SetPriority @0x544a4 via `movl %esi, 0x68(%rdi)`. Zero-
+   *  initialised until a ctor pins the true default. */
+  _priority: HGRenderJobPriority = 0; // @Helium HGRenderJob@0x68
 
   /** @Helium HGRenderJob@0xc8 — the user-supplied tag word. Written by
    *  SetUserTag @0x54654; read by the matching getter (separate ledger
@@ -239,6 +255,41 @@ export class HGRenderJob {
     }
 
     // @0x546ad..0x546b1 — epilogue + retq.
+  }
+
+  /**
+   * `HGRenderJob::SetPriority(HGRenderJob::Priority)` @Helium 0x544a0
+   * (__ZN11HGRenderJob11SetPriorityENS_8PriorityE).
+   *
+   * Faithful line-for-line transcription of a 6-line function: writes the
+   * u32 argument to the +0x68 slot. No callees, no side effects. From
+   * raw-port/re/disasm/Helium.__ZN11HGRenderJob11SetPriorityENS_8PriorityE.s:
+   *
+   *   0x544a0  pushq %rbp                    ; frame prologue
+   *   0x544a1  movq  %rsp, %rbp
+   *   0x544a4  movl  %esi, 0x68(%rdi)        ; this->_priority (u32) = esi
+   *   0x544a7  popq  %rbp                    ; epilogue
+   *   0x544a8  retq
+   *   0x544a9  nopl  (%rax)                  ; padding
+   *
+   * This is the exact same body-shape as SetType (above, @0x54510) — a
+   * bare u32 store into a fixed offset — with a different slot (+0x68
+   * vs +0x0c) and a different enum-arg tag (HGRenderJob::Priority vs
+   * HGRenderJob::Type). Model 32-bit truncation with `>>> 0` so a
+   * negative/oversized JS number stores the same bit-pattern the
+   * machine would; the disasm uses `movl` (32-bit), not `movq`.
+   *
+   * @param priority — HGRenderJob::Priority enum value (SysV %esi, u32).
+   */
+  SetPriority(priority: HGRenderJobPriority): void {
+    // ------------------------------------------------------------
+    // @0x544a0..0x544a1 — prologue (no TS-visible effect).
+    // @0x544a4 — movl %esi, 0x68(%rdi) : store u32 at offset +0x68.
+    //   Model 32-bit truncation with `>>> 0` so a negative / oversized
+    //   JS number stores the same bit-pattern the machine would.
+    // @0x544a7..0x544a8 — epilogue + retq.
+    // ------------------------------------------------------------
+    this._priority = priority >>> 0;
   }
 }
 
