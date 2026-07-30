@@ -1,10 +1,1 @@
-{
-  "verdict": "LIKELY_REAL",
-  "merge_allowed": true,
-  "method": "PCColorUtil::applyHLG_InverseOOTF",
-  "symbol": "__ZN11PCColorUtil20applyHLG_InverseOOTFEDv3_fff",
-  "disasm_class": "REAL",
-  "reason": "REAL disasm; TS body byte-accurate transcription of 0x40cb-0x41b7 machine code; piecewise gamma; alpha=12*pow(Lb/Lw,1/g); BT.2100 luma; Y-mask via cmpltss; Math.fround for f32; libc externs modeled by JS Math; no throws",
-  "reviewer": "reviewer-124-adversarial",
-  "ts": "2026-07-30T08:47:45Z"
-}
+{"verdict":"LIKELY_REAL","merge_allowed":true,"method":"PCColorUtil::applyHLG_InverseOOTF(float[3]_float_float)","symbol":"__ZN11PCColorUtil20applyHLG_InverseOOTFEDv3_fff","disasm_class":"REAL","reason":"52-instr_BT.2100_HLG_inverse_OOTF_piecewise_gamma_computation_400leLwle2000_uses_0.42log10+1.2_else_uses_1.2*pow(1.111_log2)_common_math_1/gamma-1_alpha=12*pow(Lb/Lw_1/gamma)_luma_Y=0.2627R+0.6780G+0.0593B_cliped_Y_gt_0_scalar*RGB_broadcast_TS_uses_Math.fround_for_f32_libc_externs_log10f_log2f_powf_are_math_primitives_replaces_landed_throw_stub_with_faithful_body_add-only_no_regression_of_other_static_methods","reviewer":"adversarial-reviewer-111","ts":"2026-07-30T09:29:56Z"}
