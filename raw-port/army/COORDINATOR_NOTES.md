@@ -72,3 +72,38 @@ agents strictly worsens it. COORDINATOR RESPONSE: hold reviewer scale-up when wt
 reviewers just pile retrying `git worktree add` onto the contended index. SAFE FIX (dedicated session, not a
 live hot-patch): wrap `git worktree add` in wt_merge.sh AND wt_setup.sh with a jittered-backoff retry loop
 (3-5 tries, sleep $((RANDOM%3+1))s) on non-zero exit / "Could not write new index" — reviewer-49's rec.
+
+## QUIESCED-WINDOW FIXES (diagnosed by dep-worker-75 2026-07-30; DO NOT hot-patch mid-swarm)
+Three infra inefficiencies cause wasted worker cycles (NOT correctness bugs — every affected
+worker correctly deferred via `depclaim.py fail`; zero bad merges resulted). Apply ONLY when the
+fleet is quiesced (no live workers claiming), because depgraph.py/depclaim.py/sccs.json are
+load-bearing shared state read+mutated by every agent.
+
+1. **depgraph DIRECT regex misses C-symbol internal callees.**
+   `DIRECT = re.compile(r'\t(?:callq|jmp)\t(__Z[A-Za-z0-9_$.]+)\b')` only matches `__Z*` C++-mangled
+   targets. Internal extern-"C" functions like `_PC_CMTimeMultiply64Divide64` @ProCore 0x8fab2 are
+   dropped from deps -> `operator/(CMTime,CMTime)` and peers get dispensed "ready" while an in-scope
+   callee is still unported. Concrete: `__ZdvRK6CMTimeS1_` @0x582a8 calls `_PC_CMTimeMultiply64Divide64`
+   (222-line in-scope body, defined T-symbol, absent from depgraph).
+   ⚠️ DANGER: the worker's proposed fix (broaden regex to `_[A-Za-z]`) is WRONG/unsafe — it would also
+   match every TRUE out-of-scope extern (`_CFHash`, `_pthread_self`, `_CGColorSpaceCreateWithName`,
+   `_objc_*`), making every function depend on unresolvable externs and DEADLOCKING the entire ready
+   queue for all agents. Correct fix: match `_[A-Za-z]` C-symbol callees BUT intersect against the set
+   of DEFINED internal symbols (nm -U on each framework binary => the "T" symbols), so only in-scope
+   C-symbols (like `_PC_*` defined inside ProCore) count as deps; genuine externs (undefined/U) stay
+   non-blocking. Build the defined-symbol set once in `_ledger_symbols()`-adjacent code and add to the
+   in-scope test in `build()`.
+
+2. **Stale-dispenser branch-existence race.** `depclaim.py cmd_next` re-hands units whose `port/<tag>`
+   branch already exists (pushed-but-unmerged) until the merge lands => constant collisions in a
+   ~20-agent swarm. Fix: in `cmd_next`, skip any candidate whose derived `port/<tag>` exists on
+   `refs/heads/` or `refs/remotes/origin/` (reuse wt_setup.sh's tag-derivation). Recorded earlier as
+   "stale-ledger dispenser race"; now confirmed as a top throughput sink.
+
+3. **`.setup.lock.d` is a single global mutex.** wt_setup worktree-add serializes with wt_merge gate
+   ops for UNRELATED tags; under ~20-30 agents individual waits exceed practical timeouts (worker
+   reported >15min stalls). Fix: per-tag lock (worktree-add for tag X need not serialize with an
+   unrelated tag Y). Lower priority than #1/#2.
+
+STATUS: recorded, not applied. Loop remains correctness-healthy (ported 8074, no cheat on main,
+reviewers self-correcting). These are throughput optimizations for the next quiesced window.
