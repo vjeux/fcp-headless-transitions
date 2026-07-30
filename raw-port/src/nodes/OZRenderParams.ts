@@ -46,6 +46,10 @@
 //       — OZRenderParams::setWantsHLGToPQPostProcessingStep(bool) @Ozone 0x271470
 //         (raw-port/re/disasm/
 //           __ZN14OZRenderParams33setWantsHLGToPQPostProcessingStepEb.s — 7 lines)
+//   * __ZN14OZRenderParams27setTextRenderQualityDynamicE13OZTextQuality
+//       — OZRenderParams::setTextRenderQualityDynamic(OZTextQuality) @Ozone 0x2717e0
+//         (raw-port/re/disasm/
+//           __ZN14OZRenderParams27setTextRenderQualityDynamicE13OZTextQuality.s — 10 lines)
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (raw-port/re/disasm/
@@ -137,6 +141,19 @@ export class OZRenderParams {
    * it directly.
    */
   wantsHLGToPQPostProcessingStepAt30c: number = 0;
+
+  /**
+   * @Ozone offset +0x1dc — a 32-bit enum written by
+   * `setTextRenderQualityDynamic(OZTextQuality)` @0x2717e4 via
+   * `movl %esi, 0x1dc(%rdi)`. The 4-byte store confirms the field is a
+   * 32-bit int (OZTextQuality is a C++ enum whose size defaults to
+   * `int` = 4 bytes on the Itanium/AAPCS ABIs). Preserved as `number`
+   * so the exact bit-width the machine writes is legible. The reader
+   * for this enum lives elsewhere in Ozone (a "dynamic text render
+   * quality" mode gate). Sibling of the (non-Dynamic) setter at
+   * @0x271790 which writes to a different offset.
+   */
+  textRenderQualityDynamicAt1dc: number = 0;
 
   /**
    * @Ozone offset +0x1a8 — a one-byte flag/mode discriminator, read
@@ -369,5 +386,57 @@ export class OZRenderParams {
     // @0x271474  movb %sil,0x30c(%rdi)
     //   C++ `bool` → 1 byte: true == 0x01, false == 0x00.
     this.wantsHLGToPQPostProcessingStepAt30c = wants ? 1 : 0;
+  }
+
+  /**
+   * `OZRenderParams::setTextRenderQualityDynamic(OZTextQuality)`
+   *   — @Ozone 0x2717e0
+   *   — __ZN14OZRenderParams27setTextRenderQualityDynamicE13OZTextQuality
+   *
+   * Faithful line-for-line transcription of the 10-line disassembly:
+   *   0x2717e0  pushq  %rbp                        ; frame prologue
+   *   0x2717e1  movq   %rsp, %rbp
+   *   0x2717e4  movl   %esi, 0x1dc(%rdi)            ; this->+0x1dc = arg (i32 / OZTextQuality)
+   *   0x2717ea  xorps  %xmm0, %xmm0                 ; xmm0 = 16 zero bytes
+   *   0x2717ed  movups %xmm0, 0x188(%rdi)           ; zero 16B at +0x188 (PCVector2<double>)
+   *   0x2717f4  movups %xmm0, 0x198(%rdi)           ; zero 16B at +0x198 (PCVector2<double>)
+   *   0x2717fb  popq   %rbp                        ; epilogue
+   *   0x2717fc  retq
+   *   0x2717fd  nopl   (%rax)                      ; alignment padding (not executed)
+   *
+   * Body semantics:
+   *   1. Store the incoming `OZTextQuality` enum value (arg2, 32-bit,
+   *      passed in `%esi`) into the class slot at +0x1dc (a 32-bit
+   *      integer field; `movl` is a 4-byte store).
+   *   2. Zero out the 16-byte PCVector2<double> at +0x188 and +0x198.
+   *      These are the SAME two slots that `setResolutionDynamic`
+   *      writes (see field docs on `zeroedAt188` / `zeroedAt198` above)
+   *      — both setters treat them as a "reset side-effect" that fires
+   *      whenever the render params' dynamic state is mutated. The
+   *      write order here is +0x188 THEN +0x198.
+   *
+   * SysV/AAPCS arg-passing: `OZTextQuality` is a 4-byte scalar enum, so
+   * arg2 lives in `%esi` (low 32 bits of `%rsi`). The store is `movl`
+   * (32-bit width) — not `movb` — because the field is not a bool but
+   * an enum value that may span the full 4 bytes.
+   *
+   * Zero in-scope callees; zero externs; no indirect calls — pure
+   * field writes.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/
+   *     __ZN14OZRenderParams27setTextRenderQualityDynamicE13OZTextQuality.s (10 lines)
+   */
+  setTextRenderQualityDynamic(quality: number): void {
+    // @0x2717e4  movl %esi, 0x1dc(%rdi)
+    //   OZTextQuality is a 32-bit enum. We truncate to i32 via `| 0` so
+    //   the observable state matches the machine's 4-byte store.
+    this.textRenderQualityDynamicAt1dc = quality | 0;
+    // @0x2717ea..0x2717ed  movups xmm0(=0), 0x188(%rdi)
+    //   Zero the PCVector2<double> at +0x188 (16 bytes).
+    this.zeroedAt188 = { x: 0, y: 0 };
+    // @0x2717f4  movups xmm0(=0), 0x198(%rdi)
+    //   Zero the PCVector2<double> at +0x198 (16 bytes).
+    this.zeroedAt198 = { x: 0, y: 0 };
   }
 }
