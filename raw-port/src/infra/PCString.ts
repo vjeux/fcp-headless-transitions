@@ -189,6 +189,85 @@ function _CFStringCompare(a: string, b: string, options: number): number {
   return 0;
 }
 
+/** _CFStringGetLength(cf) — CoreFoundation extern.  Returns the number
+ *  of UTF-16 code units in the CFStringRef.  Called from createCStr()
+ *  @0x3228d in the non-null branch.  In this port CFStringRef is
+ *  modelled as a JS string; JS's `.length` gives the number of UTF-16
+ *  code units (identical to CFStringGetLength's contract). */
+function _CFStringGetLength(cf: string): number {
+  return cf.length;
+}
+
+/** _CFStringGetMaximumSizeForEncoding(len, encoding) — CoreFoundation
+ *  extern.  Returns an upper bound on the number of BYTES needed to
+ *  represent a `len`-code-unit string in the target encoding, NOT
+ *  including a trailing NUL.  Called from createCStr() @0x3229a with
+ *  encoding=0x8000100 (kCFStringEncodingUTF8).
+ *
+ *  For UTF-8, CFStringGetMaximumSizeForEncoding returns len * 3 (each
+ *  UTF-16 code unit can encode to at most 3 UTF-8 bytes; surrogate
+ *  pairs — two code units — encode to 4 bytes, which fits within
+ *  2 * 3 = 6, so the bound holds). This exact formula is the one CF
+ *  returns for kCFStringEncodingUTF8; a faithful port uses the same
+ *  bound so downstream `malloc(bound + 1)` sizes match the machine.
+ */
+function _CFStringGetMaximumSizeForEncoding(len: number, encoding: number): number {
+  if (encoding !== 0x8000100) {
+    throw new Error(
+      `_CFStringGetMaximumSizeForEncoding: encoding 0x${encoding.toString(16)} @ProCore stub — only kCFStringEncodingUTF8 (0x8000100) is exercised by createCStr @0x3229a`,
+    );
+  }
+  // UTF-8 upper bound: 3 bytes per UTF-16 code unit (CF's own return
+  // for kCFStringEncodingUTF8). Matches CFStringGetMaximumSizeForEncoding's
+  // observable behaviour bit-for-bit at the sizing step.
+  return len * 3;
+}
+
+/** _CFStringGetCString(cf, buf, bufLen, encoding) — CoreFoundation
+ *  extern.  Writes cf's payload into `buf` as a NUL-terminated C-string
+ *  in `encoding`.  Returns true on success, false if buf was too small.
+ *  Called from createCStr() @0x322c3 with encoding=0x8000100
+ *  (kCFStringEncodingUTF8) and bufLen = maxSizeForEncoding(len)+1.
+ *
+ *  In this port `buf` is modelled as an object with a mutable `bytes`
+ *  slot (the caller's `char *`); we assign the encoded string into it
+ *  and return true.  The JS-string model already carries UTF-16 code
+ *  units so the "encode to UTF-8" step is deferred to the sole consumer
+ *  (callers use TextEncoder if they need raw UTF-8 bytes; every current
+ *  caller just re-decodes back to a JS string).
+ */
+function _CFStringGetCString(
+  cf: string,
+  buf: { bytes: string | null },
+  _bufLen: number,
+  encoding: number,
+): boolean {
+  if (encoding !== 0x8000100) {
+    throw new Error(
+      `_CFStringGetCString: encoding 0x${encoding.toString(16)} @ProCore stub — only kCFStringEncodingUTF8 (0x8000100) is exercised by createCStr @0x322c3`,
+    );
+  }
+  buf.bytes = cf;
+  return true;
+}
+
+/** _malloc(size) — libc/malloc extern (out of scope, modelled as a
+ *  boundary stub).  createCStr @0x322a8 calls it to allocate the
+ *  destination C-string buffer; a NULL return signals allocation
+ *  failure and createCStr returns NULL in that case.
+ *
+ *  In JS there is no bounded heap so allocation never fails; the
+ *  buffer object we hand back carries a mutable `bytes` slot that
+ *  `_CFStringGetCString` later writes into, plus a `capacity` slot
+ *  that mirrors the real size passed to malloc (retained for
+ *  debuggability / fidelity of the ABI shape). @0x322a8 and @0x322cf.
+ */
+function _malloc(size: number): { bytes: string | null; capacity: number } | null {
+  // JS never fails; return a fresh buffer object with bytes=null (the
+  // uninitialised memory that malloc returns) and the requested size.
+  return { bytes: null, capacity: size };
+}
+
 // The literal CFString @"bad cfstring ref" referenced from PCString(char
 // const*) @0x31af5 and cf_str() @0x32372 — a ProCore-internal sentinel
 // CFStringRef used when the source pointer is NULL/empty.  The string
@@ -744,5 +823,178 @@ export class PCString {
    * semantics for a null ref. */
   toString(): string {
     return this.cf_str();
+  }
+
+  /**
+   * `PCString::createCStr() const` @ProCore 0x32278
+   *   — __ZNK8PCString10createCStrEv
+   *
+   * Faithful transcription of the 42-line disassembly. Returns a
+   * freshly-allocated NUL-terminated UTF-8 C-string that the caller
+   * OWNS (must `free()`). Two code paths + a malloc-failure path:
+   *
+   *   IF this->ref == NULL:  malloc(1); write '\0'; return that.
+   *   ELSE:
+   *     len   = CFStringGetLength(this->ref)
+   *     bound = CFStringGetMaximumSizeForEncoding(len, UTF8=0x8000100)
+   *     buf   = malloc(bound + 1)
+   *     if (buf == NULL): return NULL      ; malloc-failure branch
+   *     CFStringGetCString(this->ref, buf, bound + 1, UTF8)
+   *     return buf
+   *
+   * Full 42-line disasm (transcribed to TS blocks below):
+   *
+   *   0x32278  pushq   %rbp                    ; frame prologue
+   *   0x32279  movq    %rsp, %rbp
+   *   0x3227c  pushq   %r15
+   *   0x3227e  pushq   %r14
+   *   0x32280  pushq   %rbx
+   *   0x32281  pushq   %rax                    ; align stack
+   *   0x32282  movq    %rdi, %rbx              ; rbx = this
+   *   0x32285  movq    (%rdi), %rdi            ; rdi = this->ref
+   *   0x32288  testq   %rdi, %rdi              ; ref == NULL ?
+   *   0x3228b  je      0x322ca                 ;   -> empty branch @0x322ca
+   *
+   *   ; ─── NON-NULL BRANCH ─── (0x3228d..0x322c8)
+   *   0x3228d  callq   _CFStringGetLength      ; rax = len(ref)
+   *   0x32292  movq    %rax, %rdi              ; rdi = len
+   *   0x32295  movl    $0x8000100, %esi        ; esi = kCFStringEncodingUTF8
+   *   0x3229a  callq   _CFStringGetMaximumSizeForEncoding
+   *   0x3229f  movq    %rax, %r15              ; r15 = bound
+   *   0x322a2  incq    %r15                    ; r15 = bound + 1  (room for '\0')
+   *   0x322a5  movq    %r15, %rdi              ; rdi = bound + 1
+   *   0x322a8  callq   _malloc                 ; rax = buf | NULL
+   *   0x322ad  testq   %rax, %rax              ; malloc failed ?
+   *   0x322b0  je      0x322dc                 ;   -> failure branch @0x322dc
+   *   0x322b2  movq    %rax, %r14              ; r14 = buf
+   *   0x322b5  movq    (%rbx), %rdi            ; rdi = this->ref (re-loaded)
+   *   0x322b8  movq    %rax, %rsi              ; rsi = buf
+   *   0x322bb  movq    %r15, %rdx              ; rdx = bound + 1
+   *   0x322be  movl    $0x8000100, %ecx        ; ecx = UTF8
+   *   0x322c3  callq   _CFStringGetCString     ; writes NUL-terminated bytes into buf
+   *   0x322c8  jmp     0x322df                 ; -> epilogue
+   *
+   *   ; ─── EMPTY (ref==NULL) BRANCH ─── (0x322ca..0x322da)
+   *   0x322ca  movl    $0x1, %edi              ; malloc 1 byte
+   *   0x322cf  callq   _malloc                 ; rax = buf   ; disasm does NOT
+   *                                            ; check the return here — the
+   *                                            ; empty branch trusts the alloc
+   *   0x322d4  movq    %rax, %r14              ; r14 = buf
+   *   0x322d7  movb    $0x0, (%rax)            ; *buf = '\0'
+   *   0x322da  jmp     0x322df                 ; -> epilogue
+   *
+   *   ; ─── MALLOC FAILURE BRANCH ─── (0x322dc..0x322dd)
+   *   0x322dc  xorl    %r14d, %r14d            ; r14 = NULL
+   *
+   *   ; ─── EPILOGUE ─── (0x322df..0x322ec)
+   *   0x322df  movq    %r14, %rax              ; return value = buf | NULL
+   *   0x322e2  addq    $0x8, %rsp
+   *   0x322e6  popq    %rbx
+   *   0x322e7  popq    %r14
+   *   0x322e9  popq    %r15
+   *   0x322eb  popq    %rbp
+   *   0x322ec  retq
+   *
+   * The five FRONTIER CALLEES are all CoreFoundation / libc externs —
+   * true out-of-scope symbols modelled as boundary stubs at the top of
+   * this file: _CFStringGetLength, _CFStringGetMaximumSizeForEncoding,
+   * _CFStringGetCString, _malloc. NO in-scope FCP callees.
+   *
+   * RETURN-TYPE MODEL: the machine returns a raw `char *`. In JS we
+   * return a `{ bytes: string | null; capacity: number } | null` — the
+   * same shape `_malloc` hands out — so downstream consumers see the
+   * exact allocation record (the C-string content in `bytes`, the
+   * requested malloc size in `capacity`). A `null` return means the
+   * malloc-failure branch was hit (the middle `xorl %r14d, %r14d`).
+   *
+   * OWNERSHIP: the caller of the native function must `free()` the
+   * returned pointer. In JS `free()` is a no-op (GC subsumes it), so
+   * the returned object is simply discarded when the caller drops its
+   * reference. The stub-signature `function PCString_createCStr(_s):
+   * string` in PCBinaryXMLField.ts is a frontier throw-stub for this
+   * exact symbol; that consumer will be re-pointed at this method as
+   * a separate landed unit.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/ProCore.__ZNK8PCString10createCStrEv.s (42 lines)
+   */
+  createCStr(): { bytes: string | null; capacity: number } | null {
+    // @0x32282  movq %rdi, %rbx        (this preserved in rbx across calls)
+    // @0x32285  movq (%rdi), %rdi      ; rdi = this->ref
+    // @0x32288..0x3228b  testq rdi,rdi ; je 0x322ca
+    const ref = this.ref;
+    if (ref === null) {
+      // ─── EMPTY (ref==NULL) BRANCH ─── @0x322ca..0x322da
+      // @0x322ca  movl $0x1, %edi
+      // @0x322cf  callq _malloc          ; malloc 1 byte
+      const buf = _malloc(1);
+      // The disasm does NOT null-check malloc here (unlike the non-null
+      // branch @0x322b0). A faithful port preserves that: if malloc
+      // returns NULL, the machine would `movb $0, (%rax)` and segfault.
+      // In our stub _malloc never fails, so buf is never NULL — but we
+      // model the write-through-buf regardless, and only null-check in
+      // the non-null path where the disasm null-checks.
+      // @0x322d4  movq %rax, %r14        ; r14 = buf
+      // @0x322d7  movb $0x0, (%rax)       ; *buf = '\0'
+      buf!.bytes = ""; // one byte allocated, then '\0' written -> empty C-string
+      // @0x322da  jmp 0x322df -> epilogue
+      // @0x322df  movq %r14, %rax; ...; retq
+      return buf;
+    }
+
+    // ─── NON-NULL BRANCH ─── @0x3228d..0x322c8
+    // @0x3228d  callq _CFStringGetLength      ; rax = CFStringGetLength(ref)
+    const len = _CFStringGetLength(ref);
+    // @0x32292  movq %rax, %rdi
+    // @0x32295  movl $0x8000100, %esi         ; kCFStringEncodingUTF8
+    // @0x3229a  callq _CFStringGetMaximumSizeForEncoding
+    const bound = _CFStringGetMaximumSizeForEncoding(len, 0x8000100);
+    // @0x3229f  movq %rax, %r15
+    // @0x322a2  incq %r15                     ; bound + 1 (room for '\0')
+    const size = bound + 1;
+    // @0x322a5  movq %r15, %rdi
+    // @0x322a8  callq _malloc
+    const buf = _malloc(size);
+    // @0x322ad..0x322b0  testq %rax,%rax ; je 0x322dc
+    if (buf === null) {
+      // ─── MALLOC FAILURE BRANCH ─── @0x322dc
+      // @0x322dc  xorl %r14d,%r14d              ; r14 = NULL
+      // @0x322df  movq %r14,%rax; ...; retq     ; return NULL
+      return null;
+    }
+    // @0x322b2  movq %rax, %r14                ; r14 = buf
+    // @0x322b5  movq (%rbx), %rdi              ; rdi = this->ref (re-load; the
+    //                                          ;  first load was consumed by
+    //                                          ;  the earlier calls' rdi)
+    // @0x322b8  movq %rax, %rsi                ; rsi = buf
+    // @0x322bb  movq %r15, %rdx                ; rdx = size
+    // @0x322be  movl $0x8000100, %ecx          ; ecx = UTF8
+    // @0x322c3  callq _CFStringGetCString      ; writes NUL-terminated bytes into buf
+    //
+    // A faithful port re-reads this->ref through rbx here (the disasm
+    // re-loads); JS has no aliasing concern between the two callees so
+    // the observable outcome is identical. We re-read `this.ref` here
+    // to mirror `movq (%rbx), %rdi` @0x322b5, but TS's control-flow
+    // narrowing lost the non-null refinement from the outer `if
+    // (ref === null) return`; assert with the same value observed
+    // above (there is no mutation between the two reads).
+    const refReload = this.ref;
+    if (refReload === null) {
+      // Unreachable in practice: no mutation between the outer null-check
+      // at @0x32288 and the re-load at @0x322b5. Kept here purely to
+      // narrow TypeScript's type; if this branch ever fires, some caller
+      // has mutated `this.ref` between the CF calls (which the disasm
+      // does not permit because the machine holds the ref value in %rdi
+      // register lifetime across the calls — but re-loads it before
+      // CFStringGetCString for a reason we haven't decoded).
+      // The machine would segfault here (`movq (%rbx), %rdi` -> %rdi=NULL
+      // -> CFStringGetCString(NULL, ...) crash). Return NULL to model that
+      // as a JS-visible failure signal.
+      return null;
+    }
+    _CFStringGetCString(refReload, buf, size, 0x8000100);
+    // @0x322c8  jmp 0x322df                     ; -> epilogue
+    // @0x322df  movq %r14,%rax; ...; retq
+    return buf;
   }
 }
