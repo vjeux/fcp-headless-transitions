@@ -312,3 +312,146 @@ export function OZScene_setActiveLayer(
   // @0x50b44  movq %rsi, 0x3f0(%rdi)   — the entire body.
   self.activeLayer_at0x3F0 = layer;
 }
+
+
+// ---------------------------------------------------------------------------
+// OZScene::getDependantNodes(unsigned int) @Ozone 0x58db0
+//   __ZN7OZScene17getDependantNodesEj
+// ---------------------------------------------------------------------------
+//
+// FULL DISASM (raw-port/re/disasm/__ZN7OZScene17getDependantNodesEj.s, 29 lines)
+// ---------------------------------------------------------------------------
+//   0x58db0  movq   0x418(%rdi), %rcx             ; rcx = root = this->depMapRoot@0x418
+//   0x58db7  testq  %rcx, %rcx
+//   0x58dba  je     0x58df3                       ; empty map => return 0
+//   0x58dbc  pushq  %rbp / movq %rsp,%rbp
+//   0x58dc0  addq   $0x418, %rdi                  ; rdi = &this->depMap@0x418 (header)
+//   0x58dc7  movq   %rdi, %rax                    ; rax = best = header
+//   0x58dca  nopw   (%rax,%rax)
+//   -------- LOWER_BOUND LOOP --------
+//   0x58dd0  xorl   %edx, %edx                    ; edx = 0
+//   0x58dd2  cmpl   %esi, 0x20(%rcx)              ; AT&T: dst-src => node.key - searchKey
+//   0x58dd5  setb   %dl                           ; dl = (node.key < searchKey) ? 1 : 0
+//                                                 ;   (setb: CF=1 => unsigned less-than)
+//   0x58dd8  cmovaeq %rcx, %rax                   ; CF=0 (node.key >= key) => best = cur
+//   0x58ddc  movq   (%rcx,%rdx,8), %rcx           ; rcx = cur->child[dl] (left if 0, right if 1)
+//                                                 ;   (libc++ __tree_node<>::__left_ @+0x00,
+//                                                 ;    __right_ @+0x08)
+//   0x58de0  testq  %rcx, %rcx
+//   0x58de3  jne    0x58dd0                       ; loop until nil
+//   -------- POST-LOOP CHECK --------
+//   0x58de5  cmpq   %rdi, %rax                    ; best == header?  (never updated)
+//   0x58de8  je     0x58def                       ; yes => return 0 (empty range)
+//   0x58dea  cmpl   0x20(%rax), %esi              ; AT&T: dst-src => key - best.key
+//   0x58ded  jae    0x58df6                       ; key >= best.key => match (since best.key >= key
+//                                                 ;   from the loop invariant, jae here means
+//                                                 ;   key == best.key, i.e. std::map::find hit)
+//   0x58def  xorl   %eax, %eax                    ; miss => return 0
+//   0x58df1  popq   %rbp / retq
+//   0x58df3  xorl   %eax, %eax / retq             ; empty map fast path
+//   0x58df6  movq   0x28(%rax), %rax              ; return best.value (pointer at +0x28)
+//   0x58dfa  popq   %rbp / retq
+//
+// STRUCTURE INTERPRETATION
+// ---------------------------------------------------------------------------
+// This is `std::map<unsigned int, T*>::find(key)` on a libc++ `__tree` where
+// the header sentinel is embedded inside OZScene at offset 0x418 and the
+// `__tree_node` layout is the standard
+//     +0x00  __left_    (__tree_node_base*)
+//     +0x08  __right_   (__tree_node_base*)
+//     +0x10  __parent_  (__tree_node_base*)         (unused here)
+//     +0x18  __is_black_ / padding
+//     +0x20  key        (unsigned int, 4 bytes + padding)
+//     +0x28  value      (T*, 8 bytes)
+// (Key type is `unsigned int` — see the `cmpl %esi, 0x20(%rcx)` 4-byte compare.
+//  Value type is a pointer because the return is loaded via a single `movq`.)
+//
+// The `addq $0x418, %rdi` before the loop makes `%rdi` point to the header;
+// on the miss path the code compares `%rax == %rdi` (best-still-pointing-at-
+// header) to detect the "key smaller than every element" corner. This is the
+// libc++ codegen for the very common
+//     auto it = m.find(key); return it == m.end() ? nullptr : it->second;
+// pattern, hand-inlined by clang -O2.
+//
+// The stored value is *the raw pointer at +0x28* — no retain, no bounds
+// check, no copy — so the caller borrows it. The demangled type signature
+// declares the return as untyped (`getDependantNodes(unsigned int)` mangles
+// no return-type token), matching a raw `T*` returned by value.
+//
+// PORT STRATEGY
+// ---------------------------------------------------------------------------
+// The libc++ red-black tree is out of scope for the port (it's an STL
+// template, not an FCP function), so we use JS's ordered/unordered `Map`.
+// For a find-only method the difference is invisible: `Map.prototype.get`
+// returns the stored value or `undefined` for a miss; we normalise the miss
+// to `null` to preserve the "0 vs pointer" distinction of the machine code.
+//
+// The field is modelled on `OZSceneRuntime` as `depMap_at0x418` (a
+// `Map<number, OZSceneDependantNodesEntry>` — the value type is opaque
+// because this method never dereferences the pointer). Peers that MUTATE
+// the map (there must be a `setDependantNodes` or the constructor of a
+// per-node registry) will land on the same field as they are ported; we
+// use `add-only` semantics (never destroy a landed sibling method).
+//
+// ZERO in-scope callees; ZERO externs. Pure structure read.
+
+/**
+ * Opaque pointee of a `depMap_at0x418` entry. FCP stores an 8-byte pointer
+ * at `__tree_node+0x28`; getDependantNodes just returns it, never touching
+ * whatever is on the other side. Modelled as a branded object so the type
+ * system can distinguish it from arbitrary pointers without pretending to
+ * know the internal layout (which is decoded by whichever `set`/`insert`
+ * peer lands next).
+ */
+export interface OZSceneDependantNodesEntry {
+  readonly __ozSceneDependantNodesEntryBrand: unique symbol;
+}
+
+/**
+ * `OZScene::getDependantNodes(unsigned int)` — @Ozone 0x58db0.
+ *
+ * `std::map<unsigned int, T*>::find(key)` on the embedded map at
+ * `this+0x418`; returns the stored pointer on hit, `null` on miss (the
+ * machine returns 0). See the disasm block above for the line-by-line
+ * transcription.
+ *
+ * The `OZSceneRuntime` extension adds a single field `depMap_at0x418`.
+ * Peer methods that populate the map (still un-ported at time of writing)
+ * MUST use the same field name so this method continues to observe their
+ * writes; the field name is stable and address-anchored to 0x418.
+ */
+export function OZScene_getDependantNodes(
+  self: OZSceneRuntime & {
+    depMap_at0x418: Map<number, OZSceneDependantNodesEntry> | null;
+  },
+  key: number,
+): OZSceneDependantNodesEntry | null {
+  // 0x58db0  movq 0x418(%rdi), %rcx  ; rcx = root pointer
+  // 0x58db7  testq %rcx, %rcx / je 0x58df3 — empty map fast path returns 0.
+  //   In the port, `null` (uninitialised) or an empty Map both stand in for
+  //   "no root". `Map.get` on an empty Map returns undefined, which the
+  //   `?? null` below normalises to null — bit-for-bit equivalent to the
+  //   xor-eax-eax return.
+  const map = self.depMap_at0x418;
+  if (map === null) return null; // @0x58dba je => xorl %eax,%eax / retq @0x58df3
+
+  // 0x58dc0..0x58de3  LOWER_BOUND LOOP + POST-LOOP EQUALITY CHECK.
+  //   The disassembled loop walks a libc++ red-black tree; the exact
+  //   invariant is "return the pointer at __tree_node+0x28 if a node with
+  //   key == searchKey exists, else return 0". JS's `Map.get` implements
+  //   the same set-membership + value fetch on a hash table. Both return
+  //   `null` on miss; both return the stored pointer on hit. Faithful
+  //   transcription of the observable semantics (not the traversal
+  //   micro-ops — the tree walk itself is libc++ template code, not FCP).
+  //
+  //   Key type is `uint32_t` (the `cmpl` is a 4-byte compare on %esi vs
+  //   [node+0x20]). We mask the JS `number` to 32 unsigned bits so a
+  //   caller passing a negative int or a value > 2**32-1 collides on the
+  //   same key the machine would (uint truncation is how the compare in
+  //   the ABI is defined).
+  const key32 = key >>> 0; // uint32_t coercion, matching `cmpl` operand width
+  // 0x58df6  movq 0x28(%rax), %rax   — hit: return best.value (T* at +0x28)
+  // 0x58def  xorl %eax, %eax         — miss (best.key > key strictly, so
+  //                                   the JAE at 0x58ded didn't fire).
+  return map.get(key32) ?? null;
+}
