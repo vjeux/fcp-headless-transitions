@@ -340,6 +340,130 @@ export class OZChannelBase {
     return null;
   }
 
+  /**
+   * OZChannelBase::getAncestorRootBase() const.
+   * @ProChannel 0x4a818..0x4a866
+   * (__ZNK13OZChannelBase19getAncestorRootBaseEv)
+   *
+   * Disasm (raw-port/re/disasm/ProChannel.__ZNK13OZChannelBase19getAncestorRootBaseEv.s):
+   *   0x4a818  testq  %rdi, %rdi                        ; ZF = (this == NULL)
+   *   0x4a81b  je     0x4a864                           ; if NULL -> bail (return NULL)
+   *   0x4a81d  pushq  %rbp                              ; prologue
+   *   0x4a81e  movq   %rsp, %rbp
+   *   0x4a821  pushq  %r15
+   *   0x4a823  pushq  %r14
+   *   0x4a825  pushq  %rbx
+   *   0x4a826  pushq  %rax
+   *   0x4a827  movq   %rdi, %rbx                        ; rbx = walking-this
+   *   0x4a82a  xorl   %eax, %eax                        ; result accumulator = NULL
+   *   0x4a82c  leaq   __ZTI13OZChannelBase(%rip), %r14  ; srcType = typeinfo(OZChannelBase)
+   *   0x4a833  leaq   __ZTI23OZChannelObjectRootBase(%rip), %r15
+   *                                                    ; dstType = typeinfo(OZChannelObjectRootBase)
+   * [LOOP @0x4a83a]:
+   *   0x4a83a  testb  $0x20, 0x39(%rbx)                 ; ZF = ((*(u8*)(rbx+0x39)) & 0x20) == 0
+   *   0x4a83e  je     0x4a850                           ; if (bit 0x20 CLEAR) skip cast, just advance
+   *   0x4a840  movq   %rbx, %rdi                        ; arg0 = current node
+   *   0x4a843  movq   %r14, %rsi                        ; arg1 = srcType
+   *   0x4a846  movq   %r15, %rdx                        ; arg2 = dstType
+   *   0x4a849  xorl   %ecx, %ecx                        ; arg3 = 0 (hint = "no hint")
+   *   0x4a84b  callq  0xacea0                           ; rax = ___dynamic_cast(...)
+   *                                                    ; NOTE: this is a CALL not a tail-jmp — the
+   *                                                    ; result overwrites the accumulator in %rax,
+   *                                                    ; then the loop continues.
+   * [ADVANCE @0x4a850]:
+   *   0x4a850  movq   0x30(%rbx), %rbx                  ; rbx = rbx->parent
+   *   0x4a854  testq  %rbx, %rbx                        ; ZF = (parent == NULL)
+   *   0x4a857  jne    0x4a83a                           ; if (parent != NULL) goto LOOP
+   *   0x4a859  addq   $0x8, %rsp                        ; epilogue
+   *   0x4a85d  popq   %rbx
+   *   0x4a85e  popq   %r14
+   *   0x4a860  popq   %r15
+   *   0x4a862  popq   %rbp
+   *   0x4a863  retq                                     ; return %rax (last-set cast result)
+   *
+   *   0x4a864  xorl   %eax, %eax                        ; NULL-this bail
+   *   0x4a866  retq                                     ; return NULL
+   *
+   * SEMANTICS (contrasted with `getChannelRootBase()` above):
+   *   `getChannelRootBase()` walks the parent chain and stops at the
+   *   FIRST node with flag bit 0x20 set at +0x39, then cross-casts
+   *   THAT node and returns the result.
+   *
+   *   `getAncestorRootBase()` walks the ENTIRE parent chain to NULL.
+   *   Every visited node with bit 0x20 set at +0x39 is cross-cast; the
+   *   accumulator `%rax` retains the LAST successful cast. The final
+   *   return is therefore the TOPMOST (root-most) ancestor node with
+   *   bit 0x20 set that is also cross-castable to OZChannelObjectRootBase.
+   *   If no ancestor has bit 0x20 set (or every cross-cast returns
+   *   NULL), the initial `xorl %eax,%eax` (line 0x4a82a) leaves %rax
+   *   NULL and the function returns NULL.
+   *
+   *   The NULL-this fast path (@0x4a818/0x4a81b/@0x4a864/@0x4a866)
+   *   returns NULL without touching any state — matches the same
+   *   pattern used at the top of `getChannelRootBase()`.
+   *
+   * DEPENDENCIES: none in-scope. The one external is `___dynamic_cast`
+   * @ProChannel stub 0xacea0 — same libc++abi boundary stub already
+   * modelled at the top of this file for `getChannelRootBase()`; the
+   * same `dynamic_cast_to_OZChannelObjectRootBase_stub` is invoked
+   * (identical srcType/dstType/hint at each call-site).
+   */
+  getAncestorRootBase(): OZChannelObjectRootBase | null {
+    // @0x4a818/0x4a81b — NULL-this fast path.
+    //
+    // In C++ this can happen because the function is const-qualified
+    // and the compiler will happily fold `((OZChannelBase*)nullptr)->
+    // getAncestorRootBase()` into a call with %rdi = 0. TS never has
+    // a `null` `this` so this branch is only reachable in principle;
+    // we keep it for shape-faithfulness. (No test can exercise it in
+    // TypeScript — but the shape mirrors the disasm.)
+    //
+    // Note: no `this` sentinel exists in TS, so the fast path is
+    // effectively dead here. The disasm's semantics are captured by
+    // the outer `if (cur === null) return null;` immediately below
+    // the loop entry — since our first iteration reads `cur = this`,
+    // and `this` is guaranteed non-null in TS method calls, control
+    // never diverts. We still model the check inside the loop's
+    // termination.
+
+    // @0x4a827  movq %rdi,%rbx     ; walking-this = this
+    let cur: OZChannelBase | null = this;
+
+    // @0x4a82a  xorl %eax,%eax     ; result accumulator initialised to NULL
+    let result: OZChannelObjectRootBase | null = null;
+
+    // @0x4a82c/@0x4a833 — the two typeinfo pointers are constants of
+    // the loop; nothing to model in TS beyond routing all call-sites
+    // through the same boundary stub (below).
+
+    // @0x4a83a..0x4a857 — the main loop.
+    while (cur !== null) {
+      // @0x4a83a  testb $0x20, 0x39(%rbx)  ; @0x4a83e je 0x4a850
+      //   Read the flag byte at +0x39; if bit 0x20 is SET, do the
+      //   cross-cast; otherwise skip to ADVANCE.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const flagByte: number = (cur as any).__flag_byte_at_0x39 as number;
+      if ((flagByte & 0x20) !== 0) {
+        // @0x4a840..0x4a84b — CALL (not tail-jmp) into ___dynamic_cast.
+        //   The result overwrites the accumulator %rax; the loop
+        //   continues walking parents. So each successful cast REPLACES
+        //   the previous result — the final return is the LAST match
+        //   encountered while walking toward the root.
+        result = dynamic_cast_to_OZChannelObjectRootBase_stub(cur);
+      }
+      // @0x4a850  movq 0x30(%rbx),%rbx  ; cur = cur->parent
+      const parent = cur.__parent_folder_at_0x30 as
+        | OZChannelBase
+        | null;
+      cur = parent;
+      // @0x4a854/@0x4a857 — the while-condition handles the NULL check
+      // + back-edge exactly like the x86 loop.
+    }
+
+    // @0x4a859..0x4a863 — epilogue + return %rax.
+    return result;
+  }
+
   /** @ProChannel OZChannelBase layout offset 0x38 (read+write @0x4bb4c/0x4bb5c).
    *  Wide flags word (u64). Currently only two bits are known:
    *    * bit 19 (0x80000)  — "eligible-for-solo-inheritance" test bit. Read by
