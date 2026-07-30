@@ -190,9 +190,109 @@ export class PCColorUtil {
     throw new Error("PCColorUtil::applyInverseToneMap_HLGDiffuseWhite @ProCore 0x4409 not yet transcribed");
   }
 
-  /** PCColorUtil::applyToneMap_LinearGain(float vector[3], float) — @ProCore 0x4469 */
-  static applyToneMap_LinearGain(_v: PCVector3f, _gain: number): PCVector3f {
-    throw new Error("PCColorUtil::applyToneMap_LinearGain @ProCore 0x4469 not yet transcribed");
+  /**
+   * PCColorUtil::applyToneMap_LinearGain(float vector[3], float) — @ProCore 0x4469.
+   *
+   * Faithful transcription of the 31-instruction SSE body at
+   * raw-port/re/disasm/ProCore.__ZN11PCColorUtil23applyToneMap_LinearGainEDv3_ff.s
+   *
+   *   0x4469  movaps  0xdd740(%rip), %xmm3    ; xmm3 = ABS_MASK_F4 @0xe1bb0 = 4×0x7fffffff
+   *   0x4470  andps   %xmm1, %xmm3            ; xmm3 = |gain|  (xmm1 = broadcast(gain))
+   *   0x4473  xorps   %xmm2, %xmm2            ; xmm2 = zero-vector (early-exit result)
+   *   0x4476  movss   0xddb82(%rip), %xmm4    ; xmm4 = THRESH @0xe2000[0] = 1.0e-5f
+   *                                             (u32 0x3727c5ac, verified via
+   *                                              struct.unpack_from('<f',...,0xe2000))
+   *   0x447e  ucomiss %xmm3, %xmm4            ; flags on xmm4 - xmm3
+   *   0x4481  ja      0x44e4                  ; if xmm4 > xmm3, i.e. 1e-5 > |gain|,
+   *                                             jump to `movaps xmm2,xmm0 ; retq`
+   *                                             returning ZERO vector.
+   *
+   *   -- else path: |gain| >= 1e-5 --
+   *   0x4483  pushq   %rbp
+   *   0x4484  movq    %rsp, %rbp
+   *   0x4487  subq    $0x10, %rsp             ; frame slot for sign mask
+   *   0x448b  movss   0xddadd(%rip), %xmm2    ; xmm2 = ONE @0xe1f70[0] = 1.0f (0x3f800000)
+   *   0x4493  divss   %xmm1, %xmm2            ; xmm2 = 1.0 / gain   (scalar)
+   *   0x4497  shufps  $0x0, %xmm2, %xmm2      ; xmm2 = broadcast(1/gain)
+   *   0x449b  mulps   %xmm2, %xmm0            ; xmm0 = v * (1/gain)  = v_scaled
+   *   0x449e  xorps   %xmm1, %xmm1            ; xmm1 = 0
+   *   0x44a1  movaps  %xmm0, %xmm2
+   *   0x44a4  cmpltps %xmm1, %xmm2            ; xmm2[i] = (v_scaled[i] < 0) ? -1 : 0
+   *                                             (packed float less-than mask)
+   *   0x44a8  movaps  %xmm2, -0x10(%rbp)      ; save sign mask on stack
+   *   0x44ac  andps   0xdd6fd(%rip), %xmm0    ; xmm0 &= ABS_MASK_F4 @0xe1bb0 = |v_scaled|
+   *   0x44b3  blendps $0x8, %xmm1, %xmm0      ; force lane 3 := 0 (v is 3-vec, lane 3 unused)
+   *   0x44b9  movaps  0xdd8d0(%rip), %xmm1    ; xmm1 = POW_EXP @0xe1d90 = 4×0.5112474561f
+   *                                             (u32 0x3f02e11d — verified)
+   *   0x44c0  callq   __simd_pow_f4           ; xmm0 = pow(|v_scaled|, 0.5112474561) per lane
+   *                                             (extern @stub 0xde768 — modelled by our
+   *                                              simd_pow_f4 helper at top of this file,
+   *                                              which is a lane-wise Math.fround(Math.pow).)
+   *   0x44c5  movaps  %xmm0, %xmm1            ; xmm1 = pow_result
+   *   0x44c8  movaps  0xdd701(%rip), %xmm2    ; xmm2 = ONES_3 @0xe1bd0 = [1,1,1,0]
+   *   0x44cf  movaps  -0x10(%rbp), %xmm0      ; xmm0 = saved sign mask (bit-mask per lane)
+   *   0x44d3  blendvps %xmm0, 0xdd704(%rip), %xmm2
+   *                                           ; blendvps: for each lane, if xmm0's high bit
+   *                                           ; is set, take the memory operand
+   *                                           ; NEG_ONES_3 @0xe1be0 = [-1,-1,-1,0]; else keep
+   *                                           ; xmm2 = ONES_3. Result: sign = ±1 per lane.
+   *   0x44dc  mulps   %xmm1, %xmm2            ; xmm2 = pow_result * sign
+   *   0x44df  addq    $0x10, %rsp
+   *   0x44e3  popq    %rbp
+   *   0x44e4  movaps  %xmm2, %xmm0            ; return xmm2 in xmm0
+   *   0x44e7  retq
+   *
+   * ALGORITHM: `sign(v/gain) * pow(|v/gain|, 0.5112474561)` lane-wise on
+   * lanes 0..2 (lane 3 forced to 0 before the pow, so 0^exp = 0). This is a
+   * gamma-style tone map with a fixed exponent recovered from the binary.
+   * On `|gain| < 1e-5`, returns the zero 3-vector (protects the 1/gain).
+   */
+  static applyToneMap_LinearGain(v: PCVector3f, gain: number): PCVector3f {
+    // @0x4469..0x4470 — xmm3 = |gain|. In JS we compute the scalar |gain|.
+    const absGain = Math.fround(Math.abs(Math.fround(gain)));
+    // @0x4476 — threshold constant (verified 0x3727c5ac = 1e-5f).
+    const THRESH = Math.fround(1e-5); // @ProCore 0xe2000[0]
+    // @0x447e..0x4481 — `ucomiss xmm3, xmm4 ; ja 0x44e4` means: if xmm4 > xmm3,
+    // i.e. THRESH > |gain|, return zero vector.
+    if (THRESH > absGain) {
+      // @0x44e4 with xmm2==0 → returns zero vector.
+      return [Math.fround(0), Math.fround(0), Math.fround(0)];
+    }
+    // @0x448b..0x4493 — scalar reciprocal: xmm2 = 1.0 / gain (SIGNED gain here,
+    // NOT abs — the sign is preserved and reflected below in the ± ONES table).
+    const ONE = Math.fround(1); // @ProCore 0xe1f70[0] = 0x3f800000
+    const inv = Math.fround(ONE / Math.fround(gain));
+    // @0x4497 — broadcast; @0x449b — v_scaled = v * (1/gain) per lane.
+    const vs: PCVector3f = [
+      Math.fround(Math.fround(v[0]) * inv),
+      Math.fround(Math.fround(v[1]) * inv),
+      Math.fround(Math.fround(v[2]) * inv),
+    ];
+    // @0x44a1..0x44a8 — save sign mask (v_scaled[i] < 0 ? 0xffffffff : 0).
+    // Represented here as boolean per lane.
+    const isNeg = [vs[0] < 0, vs[1] < 0, vs[2] < 0];
+    // @0x44ac — |v_scaled| via andps 0x7fffffff mask.
+    const absVs: PCVector3f = [
+      Math.fround(Math.abs(vs[0])),
+      Math.fround(Math.abs(vs[1])),
+      Math.fround(Math.abs(vs[2])),
+    ];
+    // @0x44b3 — blendps $0x8 zeros lane 3 (our PCVector3f is length 3, so
+    // the "lane 3" simply doesn't exist in the port; nothing to zero).
+    // @0x44b9..0x44c0 — pow with fixed exponent 0.5112474561 per lane.
+    const POW_EXP = Math.fround(0.5112474561); // @ProCore 0xe1d90 = 4×0x3f02e11d
+    const powV = simd_pow_f4(absVs, [POW_EXP, POW_EXP, POW_EXP]);
+    // @0x44c8..0x44d3 — sign vector: pick from ONES_3=[1,1,1,0] where sign bit
+    // is CLEAR (positive), else from NEG_ONES_3=[-1,-1,-1,0] (negative).
+    // Constants @0xe1bd0 and @0xe1be0.
+    const POS = Math.fround(1);
+    const NEG = Math.fround(-1);
+    // @0x44dc — result = pow * sign per lane.
+    return [
+      Math.fround(powV[0] * (isNeg[0] ? NEG : POS)),
+      Math.fround(powV[1] * (isNeg[1] ? NEG : POS)),
+      Math.fround(powV[2] * (isNeg[2] ? NEG : POS)),
+    ];
   }
 
   /** PCColorUtil::applyInverseToneMap_LinearGain(float vector[3], float) — @ProCore 0x44e8 */
