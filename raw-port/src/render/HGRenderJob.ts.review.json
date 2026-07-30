@@ -1,0 +1,1 @@
+{"verdict":"LIKELY_REAL","merge_allowed":true,"method":"HGRenderJob::SetRenderThreadPriority(RenderThreadPriority)","symbol":"__ZN11HGRenderJob23SetRenderThreadPriorityENS_20RenderThreadPriorityE","disasm_class":"REAL","reason":"6-instr_u32_setter_movl_esi_+0x70_rdi_no_regression_of_landed_setters_add-only","reviewer":"adversarial-reviewer-111","ts":"2026-07-30T08:50:39Z"}
