@@ -193,4 +193,30 @@ export class OZSceneCamera {
     // @0x445a94  movl %esi,0x10(%rdi)  — u32 truncation matches `movl`.
     this.index = id >>> 0;
   }
+
+  /**
+   * `OZSceneCamera::getNodeID() const` — @Ozone 0x444390
+   *   __ZNK13OZSceneCamera9getNodeIDEv
+   *
+   * Faithful line-for-line transcription (7-instruction body, no calls):
+   *
+   *   0x444390  pushq %rbp                    ; prologue
+   *   0x444391  movq  %rsp, %rbp
+   *   0x444394  movl  0x10(%rdi), %eax        ; eax = this->(field@+0x10)
+   *   0x444397  popq  %rbp                    ; epilogue
+   *   0x444398  retq                           ; return eax (u32)
+   *   0x444399  nopl  (%rax)                  ; alignment
+   *
+   * Pure 32-bit read of the SAME field written by `setNodeID` at +0x10 and
+   * initialised by the C1 ctor from `arg2` @0x4455d5. `movl` yields a 32-bit
+   * value zero-extended into %rax for the return — we `>>> 0` the result to
+   * match the u32 truncation the machine performs.
+   *
+   * The `K` (const) in the mangled `__ZNK...` confirms this is a const
+   * accessor: no writes, no state change, no externs, no callees.
+   */
+  getNodeID(): number {
+    // @0x444394  movl 0x10(%rdi), %eax  — u32 zero-extended into return reg.
+    return this.index >>> 0;
+  }
 }
