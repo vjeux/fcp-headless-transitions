@@ -1,7 +1,0 @@
-__ZN5HGHLG8HLGToSDR24SetMinimumInputValueZeroEb:
-0000000000100930	pushq	%rbp
-0000000000100931	movq	%rsp, %rbp
-0000000000100934	movb	%sil, 0x1a1(%rdi)
-000000000010093b	popq	%rbp
-000000000010093c	retq
-000000000010093d	nopl	(%rax)

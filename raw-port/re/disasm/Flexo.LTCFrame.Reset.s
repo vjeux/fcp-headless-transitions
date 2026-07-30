@@ -1,8 +1,0 @@
-__ZN8LTCFrame5ResetEv:
-00000000012275a0	pushq	%rbp
-00000000012275a1	movq	%rsp, %rbp
-00000000012275a4	movq	$0x0, 0x6(%rdi)
-00000000012275ac	movq	$0x0, (%rdi)
-00000000012275b3	popq	%rbp
-00000000012275b4	retq
-00000000012275b5	nopw	%cs:(%rax,%rax)

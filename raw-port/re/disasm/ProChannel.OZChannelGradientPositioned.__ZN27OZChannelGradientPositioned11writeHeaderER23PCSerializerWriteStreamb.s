@@ -1,5 +1,0 @@
-__ZN27OZChannelGradientPositioned11writeHeaderER23PCSerializerWriteStreamb:
-000000000006d8ba	pushq	%rbp
-000000000006d8bb	movq	%rsp, %rbp
-000000000006d8be	popq	%rbp
-000000000006d8bf	jmp	__ZN17OZChannelGradient11writeHeaderER23PCSerializerWriteStreamb ## OZChannelGradient::writeHeader(PCSerializerWriteStream&, bool)

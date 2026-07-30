@@ -1,7 +1,0 @@
-__ZN13FFOZNullCurve12getUForValueEdRNSt3__16vectorI6CMTimeNS0_9allocatorIS2_EEEER11PCTimeRangeRS2_j:
-0000000001287270	pushq	%rbp
-0000000001287271	movq	%rsp, %rbp
-0000000001287274	xorl	%eax, %eax
-0000000001287276	popq	%rbp
-0000000001287277	retq
-0000000001287278	nopl	(%rax,%rax)

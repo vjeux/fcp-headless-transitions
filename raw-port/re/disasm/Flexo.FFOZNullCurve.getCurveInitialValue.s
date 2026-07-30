@@ -1,7 +1,0 @@
-__ZN13FFOZNullCurve20getCurveInitialValueEPd:
-0000000001287240	pushq	%rbp
-0000000001287241	movq	%rsp, %rbp
-0000000001287244	xorl	%eax, %eax
-0000000001287246	popq	%rbp
-0000000001287247	retq
-0000000001287248	nopl	(%rax,%rax)

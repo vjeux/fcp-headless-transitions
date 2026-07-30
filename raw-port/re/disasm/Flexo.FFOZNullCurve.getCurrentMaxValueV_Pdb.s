@@ -1,7 +1,0 @@
-__ZN13FFOZNullCurve19getCurrentMaxValueVEPdb:
-0000000001287350	pushq	%rbp
-0000000001287351	movq	%rsp, %rbp
-0000000001287354	xorl	%eax, %eax
-0000000001287356	popq	%rbp
-0000000001287357	retq
-0000000001287358	nopl	(%rax,%rax)

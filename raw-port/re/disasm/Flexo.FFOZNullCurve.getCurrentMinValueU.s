@@ -1,7 +1,0 @@
-__ZN13FFOZNullCurve19getCurrentMinValueUEP6CMTime:
-0000000001287340	pushq	%rbp
-0000000001287341	movq	%rsp, %rbp
-0000000001287344	xorl	%eax, %eax
-0000000001287346	popq	%rbp
-0000000001287347	retq
-0000000001287348	nopl	(%rax,%rax)

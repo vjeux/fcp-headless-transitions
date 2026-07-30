@@ -1,9 +1,0 @@
-_HGRectHasSameOrigin:
-0000000000107a70	pushq	%rbp
-0000000000107a71	movq	%rsp, %rbp
-0000000000107a74	xorl	%eax, %eax
-0000000000107a76	cmpq	%rdx, %rdi
-0000000000107a79	sete	%al
-0000000000107a7c	popq	%rbp
-0000000000107a7d	retq
-0000000000107a7e	nop

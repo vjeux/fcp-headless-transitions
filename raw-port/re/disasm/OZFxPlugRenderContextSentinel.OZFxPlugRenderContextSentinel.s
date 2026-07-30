@@ -1,6 +1,0 @@
-__ZN29OZFxPlugRenderContextSentinelC1EP18OZFxPlugSharedBase19RenderContextDevice:
-0000000000618f00	pushq	%rbp
-0000000000618f01	movq	%rsp, %rbp
-0000000000618f04	popq	%rbp
-0000000000618f05	jmp	__ZN29OZFxPlugRenderContextSentinelC2EP18OZFxPlugSharedBase19RenderContextDevice ## OZFxPlugRenderContextSentinel::OZFxPlugRenderContextSentinel(OZFxPlugSharedBase*, RenderContextDevice)
-0000000000618f0a	nopw	(%rax,%rax)

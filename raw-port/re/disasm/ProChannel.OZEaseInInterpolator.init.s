@@ -1,5 +1,0 @@
-__ZN20OZEaseInInterpolator4initER8OZSplineRK6CMTime:
-0000000000043906	pushq	%rbp
-0000000000043907	movq	%rsp, %rbp
-000000000004390a	popq	%rbp
-000000000004390b	retq

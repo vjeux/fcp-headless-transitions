@@ -1,6 +1,0 @@
-__ZN4HGPQ7PQToSDRC1ENS0_10OutputModeE:
-00000000000feff0	pushq	%rbp
-00000000000feff1	movq	%rsp, %rbp
-00000000000feff4	popq	%rbp
-00000000000feff5	jmp	__ZN4HGPQ7PQToSDRC2ENS0_10OutputModeE ## HGPQ::PQToSDR::PQToSDR(HGPQ::PQToSDR::OutputMode)
-00000000000feffa	nopw	(%rax,%rax)

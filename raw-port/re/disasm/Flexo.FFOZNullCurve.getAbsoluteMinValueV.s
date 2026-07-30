@@ -1,7 +1,0 @@
-__ZN13FFOZNullCurve20getAbsoluteMinValueVEPd:
-0000000001287380	pushq	%rbp
-0000000001287381	movq	%rsp, %rbp
-0000000001287384	xorl	%eax, %eax
-0000000001287386	popq	%rbp
-0000000001287387	retq
-0000000001287388	nopl	(%rax,%rax)

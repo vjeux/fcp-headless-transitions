@@ -1,4 +1,0 @@
-__ZN13LiImageFilterD0Ev:
-00000000001c3170	pushq	%rbp
-00000000001c3171	movq	%rsp, %rbp
-00000000001c3174	ud2

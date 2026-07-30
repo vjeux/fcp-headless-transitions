@@ -1,6 +1,0 @@
-__ZN47PainterPipelineStatesForDeviceAndMTLPixelFormatC1EPU19objcproto9MTLDevice11objc_object14MTLPixelFormatPU21objcproto10MTLLibrary11objc_object:
-0000000000d68000	pushq	%rbp
-0000000000d68001	movq	%rsp, %rbp
-0000000000d68004	popq	%rbp
-0000000000d68005	jmp	__ZN47PainterPipelineStatesForDeviceAndMTLPixelFormatC2EPU19objcproto9MTLDevice11objc_object14MTLPixelFormatPU21objcproto10MTLLibrary11objc_object ## PainterPipelineStatesForDeviceAndMTLPixelFormat::PainterPipelineStatesForDeviceAndMTLPixelFormat(id<MTLDevice>, MTLPixelFormat, id<MTLLibrary>)
-0000000000d6800a	nopw	(%rax,%rax)

@@ -1,7 +1,0 @@
-__ZN12OZPaintLayer13usesColorTypeEP20OZMaterialPaintLayer:
-0000000000622040	pushq	%rbp
-0000000000622041	movq	%rsp, %rbp
-0000000000622044	movb	$0x1, %al
-0000000000622046	popq	%rbp
-0000000000622047	retq
-0000000000622048	nopl	(%rax,%rax)

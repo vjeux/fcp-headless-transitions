@@ -1,7 +1,0 @@
-__ZN13LiImageFilter11setPriorityEi:
-00000000000512bc	pushq	%rbp
-00000000000512bd	movq	%rsp, %rbp
-00000000000512c0	movl	%esi, 0x20(%rdi)
-00000000000512c3	popq	%rbp
-00000000000512c4	retq
-00000000000512c5	nop

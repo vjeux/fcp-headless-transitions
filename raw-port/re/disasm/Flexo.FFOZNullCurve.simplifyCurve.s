@@ -1,7 +1,0 @@
-__ZN13FFOZNullCurve13simplifyCurveERK6CMTimeS2_S2_ddji:
-0000000001287310	pushq	%rbp
-0000000001287311	movq	%rsp, %rbp
-0000000001287314	xorl	%eax, %eax
-0000000001287316	popq	%rbp
-0000000001287317	retq
-0000000001287318	nopl	(%rax,%rax)

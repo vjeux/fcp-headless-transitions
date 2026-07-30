@@ -1,7 +1,0 @@
-__ZN10HGProfiler4initEv:
-00000000001c3d10	pushq	%rbp
-00000000001c3d11	movq	%rsp, %rbp
-00000000001c3d14	movq	$0x0, 0x8(%rdi)
-00000000001c3d1c	popq	%rbp
-00000000001c3d1d	retq
-00000000001c3d1e	nop

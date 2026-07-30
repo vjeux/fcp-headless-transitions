@@ -1,7 +1,0 @@
-__ZN11OZCurveNode15getDefaultValueEv:
-0000000000029c90	pushq	%rbp
-0000000000029c91	movq	%rsp, %rbp
-0000000000029c94	xorps	%xmm0, %xmm0
-0000000000029c97	popq	%rbp
-0000000000029c98	retq
-0000000000029c99	nop

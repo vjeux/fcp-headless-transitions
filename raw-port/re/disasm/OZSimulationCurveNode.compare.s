@@ -1,7 +1,0 @@
-__ZNK21OZSimulationCurveNode7compareEPK11OZCurveNode:
-0000000000209040	pushq	%rbp
-0000000000209041	movq	%rsp, %rbp
-0000000000209044	movb	$0x1, %al
-0000000000209046	popq	%rbp
-0000000000209047	retq
-0000000000209048	nopl	(%rax,%rax)

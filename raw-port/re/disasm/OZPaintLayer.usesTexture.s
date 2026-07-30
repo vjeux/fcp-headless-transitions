@@ -1,7 +1,0 @@
-__ZN12OZPaintLayer11usesTextureEP20OZMaterialPaintLayer:
-0000000000622030	pushq	%rbp
-0000000000622031	movq	%rsp, %rbp
-0000000000622034	movb	$0x1, %al
-0000000000622036	popq	%rbp
-0000000000622037	retq
-0000000000622038	nopl	(%rax,%rax)

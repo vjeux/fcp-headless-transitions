@@ -1,7 +1,0 @@
-__ZN6Panner15SetPannerUIModeEj:
-0000000001251390	pushq	%rbp
-0000000001251391	movq	%rsp, %rbp
-0000000001251394	movl	%esi, 0x1c(%rdi)
-0000000001251397	popq	%rbp
-0000000001251398	retq
-0000000001251399	nopl	(%rax)

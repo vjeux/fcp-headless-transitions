@@ -1,7 +1,0 @@
-__ZN11HGStackPage5stampEm:
-0000000000143190	pushq	%rbp
-0000000000143191	movq	%rsp, %rbp
-0000000000143194	movq	%rsi, 0x30(%rdi)
-0000000000143198	popq	%rbp
-0000000000143199	retq
-000000000014319a	nopw	(%rax,%rax)

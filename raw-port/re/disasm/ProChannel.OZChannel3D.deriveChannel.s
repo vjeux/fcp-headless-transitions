@@ -1,5 +1,0 @@
-__ZN11OZChannel3D13deriveChannelERK6CMTime:
-00000000000491f2	pushq	%rbp
-00000000000491f3	movq	%rsp, %rbp
-00000000000491f6	popq	%rbp
-00000000000491f7	retq

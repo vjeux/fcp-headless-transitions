@@ -1,6 +1,0 @@
-__ZN24ProhibitFFSharedLockRAIIC1EP12FFSharedLockPK10__CFString:
-0000000000478170	pushq	%rbp
-0000000000478171	movq	%rsp, %rbp
-0000000000478174	popq	%rbp
-0000000000478175	retq
-0000000000478176	nopw	%cs:(%rax,%rax)

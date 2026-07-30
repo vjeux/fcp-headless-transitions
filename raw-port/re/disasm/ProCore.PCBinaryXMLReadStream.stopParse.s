@@ -1,7 +1,0 @@
-__ZN21PCBinaryXMLReadStream9stopParseEv:
-0000000000065282	pushq	%rbp
-0000000000065283	movq	%rsp, %rbp
-0000000000065286	movb	$0x1, 0xb0(%rdi)
-000000000006528d	popq	%rbp
-000000000006528e	retq
-000000000006528f	nop

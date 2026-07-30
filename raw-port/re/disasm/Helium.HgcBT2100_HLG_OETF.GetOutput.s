@@ -1,7 +1,0 @@
-__ZN18HgcBT2100_HLG_OETF9GetOutputEP10HGRenderer:
-00000000003b12e0	pushq	%rbp
-00000000003b12e1	movq	%rsp, %rbp
-00000000003b12e4	movq	%rdi, %rax
-00000000003b12e7	popq	%rbp
-00000000003b12e8	retq
-00000000003b12e9	nopl	(%rax)

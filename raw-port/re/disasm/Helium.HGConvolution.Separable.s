@@ -1,7 +1,0 @@
-__ZNK13HGConvolution9SeparableEv:
-0000000000166c50	pushq	%rbp
-0000000000166c51	movq	%rsp, %rbp
-0000000000166c54	cmpl	$0x2, 0x200(%rdi)
-0000000000166c5b	setge	%al
-0000000000166c5e	popq	%rbp
-0000000000166c5f	retq

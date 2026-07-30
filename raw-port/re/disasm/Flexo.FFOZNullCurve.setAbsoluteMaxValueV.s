@@ -1,7 +1,0 @@
-__ZN13FFOZNullCurve20setAbsoluteMaxValueVEd:
-0000000001287390	pushq	%rbp
-0000000001287391	movq	%rsp, %rbp
-0000000001287394	xorl	%eax, %eax
-0000000001287396	popq	%rbp
-0000000001287397	retq
-0000000001287398	nopl	(%rax,%rax)

@@ -1,7 +1,0 @@
-__ZNK17HGParamBufferDesc4sizeEv:
-0000000000001670	pushq	%rbp
-0000000000001671	movq	%rsp, %rbp
-0000000000001674	movq	0x28(%rdi), %rax
-0000000000001678	popq	%rbp
-0000000000001679	retq
-000000000000167a	nopw	(%rax,%rax)

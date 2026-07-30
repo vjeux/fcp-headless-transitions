@@ -1,6 +1,0 @@
-__ZN10PCDelaunay8Triangle4nextEv:
-00000000000547f8	pushq	%rbp
-00000000000547f9	movq	%rsp, %rbp
-00000000000547fc	movq	0x28(%rdi), %rax
-0000000000054800	popq	%rbp
-0000000000054801	retq

@@ -1,7 +1,0 @@
-__ZN11OZCurveNode11getMinValueEb:
-0000000000029c70	pushq	%rbp
-0000000000029c71	movq	%rsp, %rbp
-0000000000029c74	xorps	%xmm0, %xmm0
-0000000000029c77	popq	%rbp
-0000000000029c78	retq
-0000000000029c79	nop

@@ -46,3 +46,6 @@ fct/minimized/*/engine/
 fct/minimized/*/_slugmap.json
 fct/subswarm/results/*.json
 raw-port/army/worktrees/
+
+# regenerable disasm scratch — never commit (244MB GH001 incident 2026-07-30)
+raw-port/re/disasm/

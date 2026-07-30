@@ -1,6 +1,0 @@
-__ZN8LiCamera11setAnimTimeEd:
-0000000000040760	pushq	%rbp
-0000000000040761	movq	%rsp, %rbp
-0000000000040764	popq	%rbp
-0000000000040765	retq
-0000000000040766	nopw	%cs:(%rax,%rax)

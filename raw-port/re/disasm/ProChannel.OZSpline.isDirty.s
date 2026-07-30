@@ -1,6 +1,0 @@
-__ZN8OZSpline7isDirtyEv:
-000000000003227c	pushq	%rbp
-000000000003227d	movq	%rsp, %rbp
-0000000000032280	movb	0x91(%rdi), %al
-0000000000032286	popq	%rbp
-0000000000032287	retq

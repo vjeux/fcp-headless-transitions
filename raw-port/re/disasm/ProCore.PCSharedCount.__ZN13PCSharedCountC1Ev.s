@@ -1,7 +1,0 @@
-__ZN13PCSharedCountC1Ev:
-000000000004e032	pushq	%rbp
-000000000004e033	movq	%rsp, %rbp
-000000000004e036	movq	$0x0, (%rdi)
-000000000004e03d	popq	%rbp
-000000000004e03e	retq
-000000000004e03f	nop

@@ -1,7 +1,0 @@
-__ZN13FFOZNullCurve9bakeCurveEPvRK6CMTimeS3_S3_dd:
-0000000001287300	pushq	%rbp
-0000000001287301	movq	%rsp, %rbp
-0000000001287304	xorl	%eax, %eax
-0000000001287306	popq	%rbp
-0000000001287307	retq
-0000000001287308	nopl	(%rax,%rax)

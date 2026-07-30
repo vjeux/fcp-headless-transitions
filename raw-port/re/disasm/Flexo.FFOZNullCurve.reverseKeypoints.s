@@ -1,7 +1,0 @@
-__ZN13FFOZNullCurve16reverseKeypointsEPvS0_b:
-0000000001287260	pushq	%rbp
-0000000001287261	movq	%rsp, %rbp
-0000000001287264	xorl	%eax, %eax
-0000000001287266	popq	%rbp
-0000000001287267	retq
-0000000001287268	nopl	(%rax,%rax)

@@ -1,6 +1,0 @@
-__ZN24HgcBT2100_PQ_InverseOETFC1Ev:
-00000000003ae610	pushq	%rbp
-00000000003ae611	movq	%rsp, %rbp
-00000000003ae614	popq	%rbp
-00000000003ae615	jmp	__ZN24HgcBT2100_PQ_InverseOETFC2Ev ## HgcBT2100_PQ_InverseOETF::HgcBT2100_PQ_InverseOETF()
-00000000003ae61a	nopw	(%rax,%rax)
