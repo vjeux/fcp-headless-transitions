@@ -1,10 +1,1 @@
-{
-  "verdict": "LIKELY_REAL",
-  "merge_allowed": true,
-  "method": "",
-  "symbol": "_ZN14OZRenderParams13setResolutionERK9PCVector2IdE",
-  "disasm_class": "REAL",
-  "reason": "disasm=REAL; body has real work (returns/assigns/calls)",
-  "reviewer": "reviewer-115",
-  "ts": "2026-07-30T09:08:51Z"
-}
+{"verdict":"LIKELY_REAL","merge_allowed":true,"method":"OZRenderParams::setReducedResolutionMedia(bool)","symbol":"__ZN14OZRenderParams25setReducedResolutionMediaEb","disasm_class":"REAL","reason":"7-instr_movb_sil_+0x1e6_setter_no_side_effects_add-only_new_field_declared","reviewer":"adversarial-reviewer-111","ts":"2026-07-30T09:34:49Z"}
