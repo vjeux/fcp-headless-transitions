@@ -35,6 +35,9 @@
 // -----------------------------------------------------------------------------
 //   * __ZN13OZViewerState20getDynamicResolutionEv
 //       — OZViewerState::getDynamicResolution() @Ozone 0x36e2d0
+//   * __ZN13OZViewerState13getResolutionEv
+//       — OZViewerState::getResolution() @Ozone 0x36e2e0
+//         (raw-port/re/disasm/__ZN13OZViewerState13getResolutionEv.s — 23 lines)
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (raw-port/re/disasm/__ZN13OZViewerState20getDynamicResolutionEv.s)
@@ -74,6 +77,15 @@ export class OZViewerState {
   dynamicResolution: number = 0; // u8 field @+0x24
 
   /**
+   * @Ozone +0x20 (u32) — the resolution-mode discriminator read by
+   * `getResolution()` @0x36e2e7 via `movl 0x20(%rsi), %esi`. A 32-bit
+   * load whose value is compared against 1 and 2 to choose a resolution
+   * scale factor (see `getResolution` for the mapping). Modelled as a
+   * `number` (int32-clamped at truncation points via `| 0`).
+   */
+  resolutionMode: number = 0; // int32 field @+0x20
+
+  /**
    * `OZViewerState::getDynamicResolution()` @Ozone 0x36e2d0
    *   — __ZN13OZViewerState20getDynamicResolutionEv
    *
@@ -96,5 +108,106 @@ export class OZViewerState {
     //                       offset +0x24 and zero-extend to 32 bits.
     // @0x36e2d8..0x36e2d9 — epilogue + retq.
     return this.dynamicResolution & 0xff;
+  }
+
+  /**
+   * `OZViewerState::getResolution()` @Ozone 0x36e2e0
+   *   — __ZN13OZViewerState13getResolutionEv
+   *
+   * Returns a `PCVector2<float>` (two f32s: x, y) whose components are
+   * BOTH set to the same scalar picked from a 3-entry lookup based on
+   * the `resolutionMode` field at +0x20:
+   *
+   *     resolutionMode == 2  →  0.25f   (quarter-res)
+   *     resolutionMode == 1  →  0.50f   (half-res)
+   *     otherwise           →  1.00f    (full-res / any other mode)
+   *
+   * The C++ ABI here is sret: %rdi = out-pointer to the caller's 8-byte
+   * PCVector2<float> slot, %rsi = `this`. `%rax` is set to `%rdi` at
+   * prologue exit (System V sret returns the out-ptr in %rax). Both
+   * writes are `movss` (fp32 stores).
+   *
+   * Faithful line-for-line transcription of the 23-line disassembly:
+   *
+   *   0x36e2e0  pushq  %rbp                       ; prologue
+   *   0x36e2e1  movq   %rsp, %rbp
+   *   0x36e2e4  movq   %rdi, %rax                 ; %rax = sret out-ptr
+   *   0x36e2e7  movl   0x20(%rsi), %esi           ; esi = this->resolutionMode (32-bit load)
+   *   0x36e2ea  xorl   %ecx, %ecx                 ; ecx = 0
+   *   0x36e2ec  cmpl   $0x1, %esi                 ; flags = mode - 1
+   *   0x36e2ef  sete   %dl                        ; dl = (mode == 1) ? 1 : 0
+   *   0x36e2f2  cmpl   $0x2, %esi                 ; flags = mode - 2
+   *   0x36e2f5  je     0x36e310                   ; if (mode == 2) goto QUARTER
+   *   0x36e2f7  movb   %dl, %cl                   ; cl = dl (0 or 1)
+   *   0x36e2f9  leaq   0x39d980(%rip), %rdx       ; rdx = &FULL_HALF_TABLE @0x70bc80
+   *   0x36e300  movss  (%rdx,%rcx,4), %xmm0       ; xmm0 = FULL_HALF_TABLE[cl] fp32
+   *   0x36e305  movss  %xmm0, (%rax)              ; out->x = scalar
+   *   0x36e309  movss  %xmm0, 0x4(%rax)           ; out->y = scalar
+   *   0x36e30e  popq   %rbp
+   *   0x36e30f  retq
+   *
+   *   ; QUARTER-RES BRANCH (@0x36e310):
+   *   0x36e310  movss  0x39d970(%rip), %xmm0      ; xmm0 = QUARTER_RES fp32 @0x70bc88
+   *   0x36e318  movss  %xmm0, (%rax)              ; out->x = 0.25f
+   *   0x36e31c  movss  %xmm0, 0x4(%rax)           ; out->y = 0.25f
+   *   0x36e321  popq   %rbp
+   *   0x36e322  retq
+   *   0x36e323  nopw   %cs:(%rax,%rax)            ; padding
+   *
+   * CONSTANTS decoded from Ozone x86_64 __TEXT.__const:
+   *   @0x70bc80  fp32  1.0f   (FULL_HALF_TABLE[0])   [decoded from file offset 0x707480+0x6900]
+   *   @0x70bc84  fp32  0.5f   (FULL_HALF_TABLE[1])
+   *   @0x70bc88  fp32  0.25f  (QUARTER-RES scalar; separate rip-relative load)
+   *
+   * The two "cmpl" instructions in AT&T order compute `mode - immediate`;
+   * `sete` after `cmp $1` sets the byte when `mode - 1 == 0` i.e. mode==1;
+   * `je` after `cmp $2` branches when mode==2. `movb %dl, %cl` then makes
+   * `cl == 1` iff mode == 1 (and 0 otherwise), which indexes the 2-entry
+   * FULL_HALF_TABLE. `xorl %ecx, %ecx` at the top zeroes the upper bits so
+   * the 8-bit `movb` write leaves rcx = 0 or 1 exactly.
+   *
+   * Zero in-scope callees, zero externs — pure branch + table read.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN13OZViewerState13getResolutionEv.s (23 lines)
+   */
+  getResolution(): { x: number; y: number } {
+    // @0x36e2e7  movl 0x20(%rsi), %esi
+    //   32-bit load: clamp with `| 0` so the compare below observes the
+    //   same int32 range the machine sees. (JS number stores int32 exactly.)
+    const mode = this.resolutionMode | 0;
+
+    // fp32 table constants — Math.fround-clamped since the machine's
+    // `movss` load returns a 32-bit float. 1.0 and 0.5 and 0.25 are all
+    // exactly representable in f32, so fround is a no-op here — kept
+    // for machine-numerics fidelity per Rule 4.
+    const FULL_RES_1_0 = Math.fround(1.0);     // @0x70bc80 fp32
+    const HALF_RES_0_5 = Math.fround(0.5);     // @0x70bc84 fp32
+    const QUARTER_RES_0_25 = Math.fround(0.25); // @0x70bc88 fp32
+
+    // @0x36e2f2..0x36e2f5  cmpl $2, %esi; je 0x36e310
+    //   AT&T operand order: cmpl imm, reg computes `reg - imm`. `je`
+    //   takes on ZF==1 i.e. `mode - 2 == 0` i.e. mode == 2.
+    if (mode === 2) {
+      // @0x36e310..0x36e31c — QUARTER-RES branch
+      const s = QUARTER_RES_0_25;
+      return { x: s, y: s };
+    }
+
+    // @0x36e2ec..0x36e2ef  cmpl $1, %esi; sete %dl
+    //   dl = (mode == 1) ? 1 : 0.
+    // @0x36e2ea  xorl %ecx, %ecx     ; @0x36e2f7  movb %dl, %cl
+    //   cl = dl (upper bits of ecx were pre-zeroed).
+    const cl = mode === 1 ? 1 : 0;
+
+    // @0x36e2f9..0x36e300  leaq FULL_HALF_TABLE(rip), %rdx;
+    //                      movss (%rdx, %rcx, 4), %xmm0
+    //   Two-entry fp32 table: [FULL_RES_1_0, HALF_RES_0_5].
+    const FULL_HALF_TABLE: readonly [number, number] = [FULL_RES_1_0, HALF_RES_0_5];
+    const s = FULL_HALF_TABLE[cl]!;
+
+    // @0x36e305..0x36e309  movss %xmm0, (%rax); movss %xmm0, 0x4(%rax)
+    //   out->x = out->y = scalar (both 32-bit stores).
+    return { x: s, y: s };
   }
 }
