@@ -1,194 +1,278 @@
-// raw-port/src/channels/OZChannel_Factory.ts
+// OZChannel_Factory.ts — ProChannel factory singleton for OZChannel.
 //
-// FCP `OZChannel_Factory` (ProChannel.framework) — the shared factory
-// singleton that mints generic `OZChannel` instances. This file transcribes
-// its `getInstance()` accessor from the ProChannel x86_64 slice at file
-// offset 0x17d4 (see raw-port/re/disasm/ProChannel.__ZN17OZChannel_Factory11getInstanceEv.s).
+// Transcribed from /Applications/Final Cut Pro.app/Contents/Frameworks/
+// ProChannel.framework/Versions/A/ProChannel (x86_64 slice; unadjusted
+// VAs from `otool -tV`). Disassembly source:
+//   raw-port/re/disasm/ProChannel.__ZN17OZChannel_Factory11getInstanceEv.s
 //
-// This is the classic OZFactoryBase-tree singleton accessor pattern
-// (compare `OZChannelPositionPercent3D_Factory::getInstance()` @ProChannel
-// 0xa6186 — same libc++ `std::__1::call_once` shape, same in-memory
-// program-global state variables):
+// This unit ports ONLY the `getInstance()` static singleton accessor at
+// @0x17d4. The remaining methods on this factory (C2/D1/D0/createInstance
+// /etc.) are separate ledger entries and are OUT OF SCOPE for this file;
+// they will be added to this same class file when their own ledger
+// entries are claimed by future depclaim rounds (per the "one class per
+// file" rule, extending this file with more methods later is the correct
+// workflow, not creating a sibling).
 //
-//   __ZN17OZChannel_Factory13_instanceOnceE   // once-flag  (u64 sentinel; -1 = "already ran")
-//   __ZN17OZChannel_Factory9_instanceE        // the singleton pointer (OZChannel_Factory*)
+// -----------------------------------------------------------------------------
+// PROCESS-GLOBAL STORAGE (the two symbols getInstance reads/writes)
+// -----------------------------------------------------------------------------
+// Two BSS globals live at fixed addresses in ProChannel, each holding one
+// 8-byte word:
 //
-// Provenance: /Applications/Final Cut Pro.app/Contents/Frameworks/
-//             ProChannel.framework/Versions/A/ProChannel (x86_64).
+//   __ZN17OZChannel_Factory13_instanceOnceE
+//     — the libc++ std::once_flag word (an `unsigned long` in libc++'s
+//       __call_once implementation). Semantics: value 0 = "not yet
+//       started", intermediate values = "another thread is currently
+//       running init", value -1 = "init completed successfully"
+//       (libc++ writes ~0UL on completion). The `cmpq $-1, %rax` at
+//       @0x17e6 is the standard libc++ fast-path check for "init done".
 //
-// Ledger addresses (raw-port/army/ledger/ProChannel.ledger.json → OZChannel_Factory):
-//   0x17d4    OZChannel_Factory::getInstance()                      [THIS UNIT]
-//   0x3196    OZChannel_Factory::OZChannel_Factory()                [C2, frontier stub below]
-//   0x321a    OZChannel_Factory::~OZChannel_Factory()               [D2, not ported]
-//   0x3148    __call_once_proxy<tuple<lambda()&&>>                  [libc++ glue]
-//   0x3158    __invoke<lambda()>                                    [libc++ glue; does the `new`]
+//   __ZN17OZChannel_Factory9_instanceE
+//     — an `OZChannel_Factory*` (pointer to the singleton instance).
+//       Written by the __invoke thunk that std::__call_once dispatches
+//       to on first call; read by getInstance @0x1811.
 //
-// The ctor `OZChannel_FactoryC2Ev` @0x3196 (which the libc++ __invoke thunk
-// invokes on the freshly-`new`'d 0x88-byte block — see 0x3158 disasm: `movl
-// $0x88,%edi; callq __Znwm; callq __ZN17OZChannel_FactoryC2Ev; movq %rbx,
-// _instance(%rip)`) is a SEPARATE ledger unit and is not yet ported. This
-// file therefore only ports `getInstance()`; the ctor is a frontier stub
-// that will be filled in by its own dep-worker claim. All of the ctor's
-// in-scope callees (OZFactory::OZFactory, PCSingleton::PCSingleton,
-// OZFactory::~OZFactory) are already ported (see depgraph deps).
+// -----------------------------------------------------------------------------
+// FRONTIER CALLEES (all TRUE OUT-OF-SCOPE externs or SEPARATE ledger units)
+// -----------------------------------------------------------------------------
+//   * __ZNSt3__111__call_onceERVmPvPFvS2_E
+//       — std::__1::__call_once(flag&, void*, void(*)(void*))
+//       — libc++ (libc++.dylib) — TRUE out-of-scope extern. Called
+//         @0x180c via ProChannel stub 0xacdc8. Same policy as
+//         OZChannelBase_Factory::getInstance and HGMemory's call_once
+//         callsites — modelled as a boundary function that runs the
+//         proxy exactly once (single-threaded JS collapses libc++'s
+//         atomic CAS to a plain flag check).
+//
+//   * __ZNSt3__117__call_once_proxyB9nqe210106<
+//         tuple<OZChannel_Factory::getInstance()::'lambda'()&&>>(void*)
+//       — libc++ template instantiation @ProChannel 0x3148 that unpacks
+//         the tuple and invokes the lambda. NOT called by getInstance
+//         directly — it is PASSED AS A DATA REFERENCE (a function-pointer
+//         argument, `leaq __call_once_proxy(%rip), %rdx` @0x1805) to
+//         __call_once, which then dispatches through it. The proxy body
+//         is `jmp __ZNSt3__18__invoke<...>` at ProChannel 0x3148 → 0x3158
+//         (a separate ledger entry NOT in this file's scope, status: todo).
+//         That __invoke instantiation calls
+//         __ZN17OZChannel_FactoryC2Ev (the C2 base ctor, ledger status:
+//         todo) via operator new(0x88) at ProChannel 0x3164
+//         (__Znwm stub 0xace4c) then C2 @0x316f then stores the pointer
+//         into `_instance` @0x3174-0x317b. It is a TRANSITIVE dependency
+//         of getInstance, but not a DIRECT callee — getInstance's disasm
+//         only names __call_once as a call target (all other refs are
+//         `leaq` data references or memory loads).
+//
+//         Faithful modelling: getInstance's body executes std::call_once
+//         and then reads `_instance`. If the initializer runs and
+//         succeeds, `_instance` is the fresh pointer; if the initializer
+//         raises (which it currently does, since the C2 ctor is not yet
+//         ported), std::__call_once propagates the throw and _instance
+//         remains untouched. Both branches are faithful to the
+//         disassembly.
+//
+// -----------------------------------------------------------------------------
+// Symbols ported here (mangled → address)
+// -----------------------------------------------------------------------------
+//   * __ZN17OZChannel_Factory11getInstanceEv
+//       — OZChannel_Factory::getInstance() @ProChannel 0x17d4
+//
+// -----------------------------------------------------------------------------
+// FULL DISASM (raw-port/re/disasm/ProChannel.__ZN17OZChannel_Factory11getInstanceEv.s)
+// -----------------------------------------------------------------------------
+//   0x17d4  pushq  %rbp                              ; frame prologue
+//   0x17d5  movq   %rsp, %rbp
+//   0x17d8  subq   $0x20, %rsp                       ; 32-byte local frame
+//                                                    ; (holds a 3-word libc++
+//                                                    ; "tuple<lambda&&>" plus
+//                                                    ; alignment padding)
+//   0x17dc  leaq   _instanceOnce(%rip), %rax         ; rax = &_instanceOnce
+//   0x17e3  movq   (%rax), %rax                      ; rax = _instanceOnce
+//   0x17e6  cmpq   $-0x1, %rax                       ; already-init check
+//                                                    ; (libc++ writes ~0UL
+//                                                    ; on completion)
+//   0x17ea  je     0x1811                            ; fast path: skip call_once
+//   0x17ec  leaq   -0x1(%rbp), %rax                  ; rax = &frame[-1] (a 1-byte
+//                                                    ; stack slot — the lambda's
+//                                                    ; empty captureless closure
+//                                                    ; body; libc++'s tuple<T&&>
+//                                                    ; needs a stable address).
+//   0x17f0  leaq   -0x18(%rbp), %rcx                 ; rcx = &frame[-0x18]
+//                                                    ; (the tuple<T&&> slot)
+//   0x17f4  movq   %rax, (%rcx)                      ; tuple.head = &lambda-slot
+//   0x17f7  leaq   -0x10(%rbp), %rsi                 ; rsi = &frame[-0x10]
+//                                                    ; (call_once's `void* arg`)
+//   0x17fb  movq   %rcx, (%rsi)                      ; *arg = &tuple
+//                                                    ; (the void* passed to
+//                                                    ; __call_once_proxy)
+//   0x17fe  leaq   _instanceOnce(%rip), %rdi         ; rdi = &_instanceOnce
+//   0x1805  leaq   __call_once_proxy<...>(%rip), %rdx; rdx = &proxy_func
+//                                                    ; (function pointer)
+//   0x180c  callq  std::__call_once                   ; libc++ stub @0xacdc8
+//                                                    ; signature:
+//                                                    ; (once_flag& = %rdi,
+//                                                    ;  void* arg   = %rsi,
+//                                                    ;  void(*)(void*) = %rdx)
+//   0x1811  leaq   _instance(%rip), %rax             ; rax = &_instance
+//   0x1818  movq   (%rax), %rax                      ; rax = _instance
+//                                                    ; (the return value: the
+//                                                    ; singleton pointer, or
+//                                                    ; NULL if init raised)
+//   0x181b  addq   $0x20, %rsp                       ; frame epilogue
+//   0x181f  popq   %rbp
+//   0x1820  retq
 
 // ═════════════════════════════════════════════════════════════════════════
-// Frontier callees — every out-of-scope / not-yet-transcribed symbol used
-// by `getInstance()`'s call_once path, surfaced as a throwing stub that
-// cites its @0xADDR.
+// Process-global BSS slots — one 8-byte word each, sitting at fixed
+// linker-assigned addresses in ProChannel's __common/__bss. Since TS has
+// no linker, we model them as module-scope `let`s. The initial state
+// mirrors the ELF/Mach-O convention that BSS is zero-filled at load:
+//   _instanceOnce = 0n  ("not yet initialised" — libc++ once_flag zero)
+//   _instance     = null (nullptr — no singleton allocated yet)
 // ═════════════════════════════════════════════════════════════════════════
 
-/** `std::__1::__call_once(unsigned long&, void*, void(*)(void*))`
- *  — libc++ boundary/extern. Called by `getInstance` @ProChannel 0x180c
- *  through the PLT symbol stub at 0xacdc8. Not in the port scope (libc++). */
-function StdCallOnce_stub(
-  _once: { flag: 0 | 1 },
-  _ctx: unknown,
-  _proxy: (arg: unknown) => void,
+/** @ProChannel BSS `__ZN17OZChannel_Factory13_instanceOnceE`.
+ *  libc++ std::once_flag word. 0n = not started; 2n/3n = another thread
+ *  running init; -1n (0xFFFF_FFFF_FFFF_FFFF) = completed. getInstance
+ *  compares this to $-1 @0x17e6 as its fast-path check. */
+let _instanceOnce: bigint = 0n; // @ProChannel BSS 0x17d4 read-site
+
+/** @ProChannel BSS `__ZN17OZChannel_Factory9_instanceE`.
+ *  The singleton pointer. Read @0x1811-0x1818 (the return value).
+ *  Written by the __call_once_proxy → __invoke thunk (a separate
+ *  function at ProChannel 0x3148 → 0x3158-0x317b). */
+let _instance: OZChannel_Factory | null = null; // @ProChannel BSS 0x1811
+
+/**
+ * `std::__1::__call_once(flag&, void* arg, void(*)(void*))` — libc++
+ * (libc++.dylib). Called from getInstance @0x180c via ProChannel stub
+ * 0xacdc8. TRUE out-of-scope extern (libc++ runtime). In this port there
+ * is no libc++ runtime, so we model the "run the initializer exactly
+ * once, atomically" contract at the JS single-threaded level: on first
+ * call with a zero once_flag, we invoke the proxy(arg) and — IF it
+ * completes without throwing — write $-1 into the flag; on subsequent
+ * calls we no-op. If the proxy throws, the flag stays 0 (libc++'s
+ * ~0UL-on-success write is skipped) and future calls will retry, exactly
+ * like the real runtime. This is the minimum behaviour getInstance's
+ * disasm relies on (the fast-path @0x17e6 `cmp $-1` check). */
+function std_call_once(
+  once: { get(): bigint; set(v: bigint): void },
+  arg: unknown,
+  proxy: (arg: unknown) => void,
 ): void {
-  throw new Error(
-    "std::__1::__call_once __ZNSt3__111__call_onceERVmPvPFvS2_E " +
-      "@ProChannel imported stub 0xacdc8 — libc++ extern, not transcribed",
-  );
+  // libc++ fast-path: already completed?
+  if (once.get() === -1n) return; // (mirrors 0x17e6 fast-path exit)
+  // First-call slow path (single-threaded model — no atomic CAS needed
+  // in JS). Run the proxy; on success mark the flag ~0.
+  proxy(arg);
+  once.set(-1n);
 }
 
-/** `OZChannel_Factory::OZChannel_Factory()` C2 body @ProChannel 0x3196.
- *  Invoked (via libc++ __invoke thunk @0x3158) by the once-thunk to
- *  construct the singleton on a fresh 0x88-byte heap block. In-scope,
- *  NOT yet ported (separate ledger entry `OZChannel_Factory@0x3196`).
- *  This frontier stub exists ONLY for the not-yet-reachable `new`-path
- *  in this port of getInstance(); it will be replaced when the ctor
- *  ledger entry is claimed. */
-function OZChannel_Factory_ctor_stub(_this: OZChannel_Factory): void {
+/**
+ * `__ZNSt3__117__call_once_proxy<...>` — libc++ template instantiation
+ * (ProChannel 0x3148). Body is `jmp __invoke<...>` @0x3158, which
+ * allocates a fresh OZChannel_Factory (size 0x88) via `operator new`
+ * @0x3164 (__Znwm stub 0xace4c) and invokes
+ * `OZChannel_Factory::OZChannel_Factory()` (the C2 base ctor,
+ * __ZN17OZChannel_FactoryC2Ev, currently ledger status = `todo`)
+ * @0x316f; on success it stores the pointer into `_instance` @0x3174-
+ * 0x317b. Since neither the C2 ctor nor operator new are ported yet,
+ * the proxy stub raises with the exact @0xADDRs of the dispatching call
+ * sites — the deferred work is transparently documented and will
+ * resolve once the ctor is ported. */
+function __call_once_proxy_getInstance_lambda(_arg: unknown): void {
+  // The __invoke body @ProChannel 0x3158..0x3182 is:
+  //   1. rax = operator new(0x88)        @ProChannel 0x3164 (imported __Znwm stub 0xace4c)
+  //   2. OZChannel_Factory::C2(rax)      @ProChannel 0x316f (__ZN17OZChannel_FactoryC2Ev)
+  //   3. _instance = rax                 @ProChannel 0x3174-0x317b
+  // C2 is a separate ledger entry (todo). We cite all call sites.
   throw new Error(
-    "OZChannel_Factory::OZChannel_Factory() @ProChannel 0x3196 " +
-      "__ZN17OZChannel_FactoryC2Ev — not yet transcribed (separate ledger unit)",
-  );
-}
-
-/** `operator new(unsigned long)` — libc extern. Called (via libc++ __invoke
- *  thunk @ProChannel 0x315f: `movl $0x88,%edi; callq __Znwm`) with size
- *  0x88 = 136 bytes to allocate the singleton block. Not in port scope. */
-function OperatorNew_stub(_size: number): OZChannel_Factory {
-  throw new Error(
-    "operator new(unsigned long) __Znwm " +
-      "@ProChannel imported stub 0xace4c — libc extern, not transcribed",
+    "OZChannel_Factory::getInstance() __call_once init lambda not yet " +
+      "transcribed — the __invoke body @ProChannel 0x3158 allocates 0x88 " +
+      "bytes via operator new @0x3164 (stub 0xace4c) then invokes " +
+      "__ZN17OZChannel_FactoryC2Ev @ProChannel 0x316f (C2 base ctor, " +
+      "ledger status: todo) and stores the result into _instance @0x3174-" +
+      "0x317b. Neither operator new (__Znwm ProChannel stub 0xace4c) nor " +
+      "the C2 ctor is yet ported — this lambda function is a SEPARATE " +
+      "ledger unit and will be filled in when it is next claimed. The " +
+      "proxy is invoked from std::__call_once at ProChannel 0x180c.",
   );
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// `OZChannel_Factory` — the class itself. Only `getInstance()` is ported
-// here; other methods (ctor, dtor, description, manufacturer, version,
-// getBundleID, etc.) are separate ledger entries at 0x3196..0x3352 in
-// ProChannel and are not touched by this file.
+// The class
 // ═════════════════════════════════════════════════════════════════════════
 
 /**
- * `OZChannel_Factory` — ProChannel-framework singleton that produces plain
- * `OZChannel` instances. Extends `OZChannelFactory` (primary base) and
- * embeds a `PCSingleton` subobject at +0x80 (see ctor @0x3196 disasm:
- * `leaq 0x80(%rbx),%rdi ; xorl %esi,%esi ; callq PCSingleton::PCSingleton`).
- *
- * STRUCT LAYOUT (recovered from C2 ctor @0x3196):
- *   +0x000  primary vptr    (final install @0x31ed → OZChannel_Factory vtable
- *                             base +0x10; initial install @0x31d5 with
- *                             OZChannelFactory vtable, then rewritten)
- *   +0x080  secondary vptr  / PCSingleton subobject (constructed with
- *                             `PCSingleton::PCSingleton(u32=0)` @0x31e1,
- *                             then vptr slot rewritten @0x31f7 to
- *                             OZChannel_Factory vtable base +0xE0)
- *   [size = 0x88 bytes]     (allocation size in the __invoke thunk
- *                             @0x315f: `movl $0x88,%edi; callq __Znwm`)
+ * `OZChannel_Factory` — factory singleton for OZChannel instances. Only
+ * its getInstance() accessor is ported in this file; every other method
+ * is a separate ledger entry. See file header for the storage layout
+ * (a 0x88-byte object per the operator-new call in the __invoke thunk;
+ * field offsets not yet decoded since only getInstance is transcribed
+ * here).
  */
 export class OZChannel_Factory {
   /**
-   * Program-global (not per-instance) once-flag. In the binary this is the
-   * external symbol `__ZN17OZChannel_Factory13_instanceOnceE` — an
-   * `unsigned long` in the framework's BSS, addressed RIP-relative from
-   * `getInstance` @0x17dc (`leaq _instanceOnce(%rip), %rax`).
+   * `OZChannel_Factory::getInstance()` — @ProChannel 0x17d4
+   * (__ZN17OZChannel_Factory11getInstanceEv).
    *
-   * The libc++ sentinel for "already ran" is all-ones (0xFFFFFFFFFFFFFFFF ≡
-   * `-1` as signed) — verified by the `cmpq $-0x1, %rax` at @0x17e6. We
-   * model the two observable states here as 0 (not run) / 1 (run) in JS.
+   * Faithful line-for-line transcription of the disassembly quoted in
+   * the file header. Standard libc++ std::call_once-guarded singleton
+   * accessor:
+   *
+   *   1. Read the once_flag; if it equals $-1 (~0UL, libc++'s "init
+   *      complete" sentinel), skip straight to step 3.
+   *
+   *   2. Set up the stack tuple that libc++'s __call_once ABI expects
+   *      (a two-level indirection: `arg` points to `tuple.head`, which
+   *      points to the empty captureless lambda's 1-byte storage), and
+   *      call std::__call_once(&_instanceOnce, arg, &proxy). The proxy
+   *      (@ProChannel 0x3148) unpacks the tuple and jumps to __invoke
+   *      (@ProChannel 0x3158) which allocates and constructs the
+   *      singleton and writes it to `_instance`.
+   *
+   *   3. Return `_instance` (whatever the initializer wrote — or NULL if
+   *      the initializer threw and never got to write).
+   *
+   * Note: the stack tuple + captureless-lambda dance @0x17ec..0x17fb is
+   * an ABI-level artefact of libc++'s __call_once template
+   * instantiation — the caller side just does "call call_once with the
+   * proxy pointer" and doesn't observe the intermediate slots. In this
+   * port we don't need to model the two stack slots because
+   * std_call_once (above) invokes the proxy directly (single-threaded,
+   * no ABI marshaling needed). The disasm's stack setup is documented
+   * here for provenance but does not affect observable behaviour.
    */
-  private static _instanceOnce: 0 | 1 = 0;
-
-  /**
-   * Program-global singleton pointer, `__ZN17OZChannel_Factory9_instanceE`.
-   * Addressed RIP-relative from `getInstance` @0x1811 (`leaq _instance
-   * (%rip), %rax ; movq (%rax), %rax`). Written by the libc++ __invoke
-   * thunk @0x3174-0x317b after the C2 ctor returns.
-   */
-  private static _instance: OZChannel_Factory | null = null;
-
-  /**
-   * `OZChannel_Factory::OZChannel_Factory()` @ProChannel 0x3196. NOT this
-   * unit — declared here so `new OZChannel_Factory()` in the once-thunk
-   * compiles, but the body is a frontier stub until the ctor's own ledger
-   * unit is claimed. Every in-scope callee of the ctor (OZFactory C2 @0x31c5,
-   * PCSingleton C2 @0x31e1) is already ported; the ctor is READY.
-   */
-  public constructor() {
-    OZChannel_Factory_ctor_stub(this);
-  }
-
-  /**
-   * `OZChannel_Factory::getInstance()` @ProChannel 0x17d4.
-   *
-   * Faithful transcription of the disasm at
-   *   raw-port/re/disasm/ProChannel.__ZN17OZChannel_Factory11getInstanceEv.s:
-   *
-   *   0x17d4  pushq %rbp ; movq %rsp,%rbp ; subq $0x20,%rsp        ; prolog
-   *   0x17dc  leaq  __ZN17OZChannel_Factory13_instanceOnceE(%rip),%rax
-   *   0x17e3  movq  (%rax),%rax                                    ; load onceFlag
-   *   0x17e6  cmpq  $-0x1,%rax                                     ; already ran?
-   *   0x17ea  je    0x1811                                         ; yes -> return
-   *   0x17ec  leaq  -0x1(%rbp),%rax                                ; build tuple<lambda&&>
-   *   0x17f0  leaq  -0x18(%rbp),%rcx                               ;   on stack (empty lambda,
-   *   0x17f4  movq  %rax,(%rcx)                                    ;   so context is just a
-   *   0x17f7  leaq  -0x10(%rbp),%rsi                               ;   dummy addr chain).
-   *   0x17fb  movq  %rcx,(%rsi)
-   *   0x17fe  leaq  __ZN17OZChannel_Factory13_instanceOnceE(%rip),%rdi ; &onceFlag
-   *   0x1805  leaq  __ZNSt3__117__call_once_proxy...(%rip),%rdx    ; &proxy fn
-   *   0x180c  callq __ZNSt3__111__call_onceERVmPvPFvS2_E           ; std::call_once
-   *   0x1811  leaq  __ZN17OZChannel_Factory9_instanceE(%rip),%rax
-   *   0x1818  movq  (%rax),%rax                                    ; load _instance
-   *   0x181b  addq  $0x20,%rsp ; popq %rbp ; retq                  ; epilog, return
-   *
-   * The passed-`ctx` (three-deep pointer chain on the caller frame) is the
-   * standard libc++ `tuple<lambda&&>` marshalling for an empty capture-less
-   * lambda; the __call_once_proxy @0x3148 dereferences it to reach the
-   * lambda-object address and then jmps to __invoke @0x3158. __invoke
-   * does the real construction:
-   *
-   *   0x3158  push frame ; movl $0x88,%edi ; callq __Znwm
-   *   0x3169  movq %rax,%rbx ; movq %rax,%rdi
-   *   0x316f  callq __ZN17OZChannel_FactoryC2Ev
-   *   0x3174  leaq _instance(%rip),%rax ; movq %rbx,(%rax)
-   *   0x317e  pop frame ; retq
-   *
-   * i.e. `_instance = new OZChannel_Factory()`. We model the whole
-   * once-guarded sequence directly here, because the libc++ __call_once
-   * boundary is an out-of-scope extern (see StdCallOnce_stub above): if a
-   * caller reaches `getInstance` before the ctor unit is filled in, the
-   * frontier stub inside the ctor will fire and cite its own @0x3196.
-   */
-  public static getInstance(): OZChannel_Factory {
-    // 0x17dc-0x17ea: load onceFlag; if already-ran (== -1 sentinel), skip.
-    if (OZChannel_Factory._instanceOnce !== 1) {
-      // 0x17ec-0x180c: portable equivalent of the libc++ __call_once path.
-      // In the binary this is a real call to std::__1::__call_once via the
-      // proxy at @0x3148 → __invoke @0x3158 → operator new(0x88) → ctor.
-      // JS is single-threaded, so the "call_once" atomicity guarantee
-      // collapses to a plain flag-guarded init here.
-      //
-      // The equivalent of the __invoke thunk @0x3158 (operator new + ctor):
-      OZChannel_Factory._instance = new OZChannel_Factory();
-      // After __invoke returns, the once-flag transitions to the "already
-      // ran" sentinel (-1 in libc++, 1 in our model).
-      OZChannel_Factory._instanceOnce = 1;
+  static getInstance(): OZChannel_Factory | null {
+    // ------------------------------------------------------------
+    // @0x17d4..0x17d8 — prologue + 0x20-byte local frame.
+    // (No TS-visible effect.)
+    // @0x17dc..0x17e3 — rax = _instanceOnce.
+    // @0x17e6..0x17ea — if (_instanceOnce == -1) goto fast_path (0x1811).
+    // ------------------------------------------------------------
+    if (_instanceOnce !== -1n) {
+      // ------------------------------------------------------------
+      // @0x17ec..0x17fb — set up libc++ tuple<lambda&&> on the stack.
+      // (ABI-level, no TS-visible effect — the proxy just needs a
+      // stable void* to dispatch through; we pass a null placeholder.)
+      // @0x17fe — rdi = &_instanceOnce.
+      // @0x1805 — rdx = &__call_once_proxy<...lambda...> (@ProChannel 0x3148).
+      // @0x180c — callq std::__call_once (libc++ stub @0xacdc8).
+      // ------------------------------------------------------------
+      std_call_once(
+        {
+          get: (): bigint => _instanceOnce, // (mirrors `movq (%rax),%rax` @0x17e3 read-side)
+          set: (v: bigint): void => {
+            _instanceOnce = v;
+          },
+        },
+        null, // ABI void* — the real disasm passes &tuple; our proxy ignores it.
+        __call_once_proxy_getInstance_lambda,
+      );
     }
-    // 0x1811-0x1820: load and return _instance.
-    return OZChannel_Factory._instance!;
+    // ------------------------------------------------------------
+    // @0x1811..0x1818 — rax = _instance.
+    // @0x181b..0x1820 — epilogue + retq.
+    // ------------------------------------------------------------
+    return _instance;
   }
 }
