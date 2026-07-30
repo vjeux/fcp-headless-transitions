@@ -1,0 +1,1 @@
+{"verdict":"EMPTY","merge_allowed":true,"method":"OZInterpolator::~OZInterpolator()_D2","symbol":"__ZN14OZInterpolatorD2Ev","disasm_class":"EMPTY","reason":"4-instr_pushq_rbp_movq_rsp_rbp_popq_rbp_retq_pure_no-op_base_dtor_TS_body_is_empty_faithful_add-only_preserves_easeTime_identity","reviewer":"adversarial-reviewer-111","ts":"2026-07-30T09:14:12Z"}
