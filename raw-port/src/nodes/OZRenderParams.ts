@@ -156,6 +156,55 @@ export class OZRenderParams {
   reducedResolutionMediaAt1e6: number = 0;
 
   /**
+   * @Ozone offset +0x144 — a 4-byte integer written by
+   * `setWidth(long)` @0x2707a4 via `movl %esi, 0x144(%rdi)`. The
+   * `movl` (32-bit store) with `%esi` as the source proves the ABI
+   * argument (a C++ `long`, which is 8 bytes on x86_64 macOS) is
+   * TRUNCATED to its low 32 bits before being written. The class slot
+   * is therefore a 4-byte integer (uint32/int32) — the setter narrows.
+   * Modelled as `number` here (JS Number covers int32 exactly).
+   */
+  widthAt144: number = 0;
+
+  /**
+   * @Ozone offset +0x148 — a 4-byte integer written by
+   * `setHeight(long)` @0x2707c4 via `movl %esi, 0x148(%rdi)`. Same
+   * codegen shape as `setWidth` (32-bit truncating store of the `long`
+   * argument), directly adjacent in the struct. Modelled as `number`.
+   */
+  heightAt148: number = 0;
+
+  /**
+   * @Ozone offset +0x1d8 — a 4-byte integer written by
+   * `setTextRenderQuality(OZTextQuality)` @0x2717b4 via
+   * `movl %esi, 0x1d8(%rdi)`. The `movl` (32-bit store) with `%esi` as
+   * the source means the incoming enum (`OZTextQuality`, sizeof 4 in
+   * this ABI as evidenced by the `movl` width) is copied verbatim.
+   * This is the "static" text-render-quality slot; the sibling
+   * `setTextRenderQualityDynamic` @0x2717e0 writes only to +0x1dc.
+   * `setTextRenderQuality` writes BOTH slots in one shot — @0x2717b4
+   * stamps +0x1d8, then @0x2717ba stamps +0x1dc — so a static update
+   * always refreshes the dynamic slot too (belt-and-suspenders parity
+   * with the resolution pair at +0x1b0/+0x1c0).
+   */
+  textRenderQualityAt1d8: number = 0;
+
+  /**
+   * @Ozone offset +0x1dc — a 4-byte integer written by BOTH
+   * `setTextRenderQuality(OZTextQuality)` @0x2717ba
+   * (`movl %esi, 0x1dc(%rdi)`) AND
+   * `setTextRenderQualityDynamic(OZTextQuality)` @0x2717e4
+   * (`movl %esi, 0x1dc(%rdi)`). This is the "dynamic" slot, kept in
+   * lockstep with +0x1d8 whenever the static setter runs. Sizeof 4
+   * (from the `movl`). Note: the sibling `setTextRenderQualityDynamic`
+   * lives in a separate not-yet-merged port branch; the field is
+   * declared here where its FIRST writer (`setTextRenderQuality`)
+   * lands. Additive-only: if the sibling branch later lands, its
+   * port will refer to this same slot.
+   */
+  textRenderQualityDynamicAt1dc: number = 0;
+
+  /**
    * @Ozone offset +0x1a8 — a one-byte flag/mode discriminator, read
    * @0x27173e by `setResolutionDynamic` via `cmpb $0x1, 0x1a8(%rdi)`.
    * When this byte holds the value `1`, `setResolutionDynamic` fans the
@@ -423,5 +472,176 @@ export class OZRenderParams {
     // @0x271974  movb %sil,0x1e6(%rdi)
     //   C++ `bool` → 1 byte: true == 0x01, false == 0x00.
     this.reducedResolutionMediaAt1e6 = reduced ? 1 : 0;
+  }
+
+  /**
+   * `OZRenderParams::setWidth(long)`
+   *   — @Ozone 0x2707a0
+   *   — __ZN14OZRenderParams8setWidthEl
+   *
+   * Faithful line-for-line transcription of the 10-line disassembly:
+   *   0x2707a0  pushq  %rbp                        ; frame prologue
+   *   0x2707a1  movq   %rsp, %rbp
+   *   0x2707a4  movl   %esi, 0x144(%rdi)            ; this->+0x144 = (int32) arg
+   *   0x2707aa  xorps  %xmm0, %xmm0                 ; xmm0 = 0 (16 zero bytes)
+   *   0x2707ad  movups %xmm0, 0x188(%rdi)           ; this->+0x188 = (0, 0)
+   *   0x2707b4  movups %xmm0, 0x198(%rdi)           ; this->+0x198 = (0, 0)
+   *   0x2707bb  popq   %rbp                        ; frame epilogue
+   *   0x2707bc  retq
+   *   0x2707bd  nopl   (%rax)                       ; alignment padding
+   *
+   * SysV/AAPCS puts scalar arg2 in `%rsi`; the argument type is C++
+   * `long` (8 bytes on x86_64 macOS), so the full argument occupies
+   * `%rsi`. The write is `movl %esi, ...` — a 32-bit store — so the
+   * upper 32 bits of the argument are DROPPED before the store. The
+   * class slot at +0x144 is therefore a 4-byte int (int32/uint32);
+   * a caller passing a value > 2^31-1 will see it truncated. We
+   * model that faithfully with a bitwise `| 0` on the JS side, which
+   * matches the machine's low-32-bit truncation for values inside
+   * the JS safe-integer range (JS Number covers int32 exactly).
+   *
+   * The two `movups %xmm0, ...` writes zero the paired resolution
+   * offset slots at +0x188 and +0x198 — the SAME two slots that
+   * `setResolution` and `setResolutionDynamic` (when flagByte==1) zero
+   * on every resolution update. Interpretation: `setWidth` is treated
+   * as a resolution mutation and invalidates the offset/origin cache
+   * that trails the "primary" resolution write. Note this setter does
+   * NOT touch the three resolution cache slots (+0x18, +0x1b0, +0x1c0)
+   * — only the two zero-cache slots. The width component alone is not
+   * enough to rebuild those.
+   *
+   * Zero in-scope callees, zero externs, no indirect calls — pure
+   * field writes.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZRenderParams8setWidthEl.s (10 lines)
+   */
+  setWidth(width: number): void {
+    // @0x2707a4  movl %esi,0x144(%rdi)
+    //   `movl` truncates the C++ `long` arg to its low 32 bits before
+    //   storing. `| 0` forces JS Number to int32 to mirror that.
+    this.widthAt144 = width | 0;
+
+    // @0x2707aa  xorps  %xmm0,%xmm0        ; xmm0 = 0
+    // @0x2707ad  movups %xmm0,0x188(%rdi)  ; this->+0x188 = (0, 0)
+    this.zeroedAt188 = { x: 0, y: 0 };
+
+    // @0x2707b4  movups %xmm0,0x198(%rdi)  ; this->+0x198 = (0, 0)
+    this.zeroedAt198 = { x: 0, y: 0 };
+
+    // @0x2707bb-0x2707bc — epilogue + retq.
+  }
+
+  /**
+   * `OZRenderParams::setHeight(long)`
+   *   — @Ozone 0x2707c0
+   *   — __ZN14OZRenderParams9setHeightEl
+   *
+   * Faithful line-for-line transcription of the 10-line disassembly:
+   *   0x2707c0  pushq  %rbp                        ; frame prologue
+   *   0x2707c1  movq   %rsp, %rbp
+   *   0x2707c4  movl   %esi, 0x148(%rdi)            ; this->+0x148 = (int32) arg
+   *   0x2707ca  xorps  %xmm0, %xmm0                 ; xmm0 = 0
+   *   0x2707cd  movups %xmm0, 0x188(%rdi)           ; this->+0x188 = (0, 0)
+   *   0x2707d4  movups %xmm0, 0x198(%rdi)           ; this->+0x198 = (0, 0)
+   *   0x2707db  popq   %rbp                        ; frame epilogue
+   *   0x2707dc  retq
+   *   0x2707dd  nopl   (%rax)                       ; alignment padding
+   *
+   * Identical codegen shape to `setWidth` @0x2707a0, only the target
+   * offset differs (+0x148 instead of +0x144). The class slots +0x144
+   * (width) and +0x148 (height) are directly adjacent, which strongly
+   * suggests they are the pair (int32 width, int32 height) that
+   * defines a raw pixel resolution — kept in lockstep with the double-
+   * precision resolution vectors at +0x18/+0x1b0/+0x1c0 that
+   * `setResolution` writes. The `movl` (32-bit store) proves the slot
+   * is a 4-byte int; the `long` argument is truncated to low 32 bits.
+   *
+   * The two `movups` writes zero the same offset-cache pair at
+   * +0x188/+0x198, matching the resolution-mutation invalidation
+   * pattern used by `setWidth`, `setResolution`, and
+   * `setResolutionDynamic` (when flagByte==1).
+   *
+   * Zero in-scope callees, zero externs, no indirect calls — pure
+   * field writes.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZRenderParams9setHeightEl.s (10 lines)
+   */
+  setHeight(height: number): void {
+    // @0x2707c4  movl %esi,0x148(%rdi)
+    //   `movl` truncates the C++ `long` arg to its low 32 bits before
+    //   storing. `| 0` forces JS Number to int32 to mirror that.
+    this.heightAt148 = height | 0;
+
+    // @0x2707ca  xorps  %xmm0,%xmm0        ; xmm0 = 0
+    // @0x2707cd  movups %xmm0,0x188(%rdi)  ; this->+0x188 = (0, 0)
+    this.zeroedAt188 = { x: 0, y: 0 };
+
+    // @0x2707d4  movups %xmm0,0x198(%rdi)  ; this->+0x198 = (0, 0)
+    this.zeroedAt198 = { x: 0, y: 0 };
+
+    // @0x2707db-0x2707dc — epilogue + retq.
+  }
+
+  /**
+   * `OZRenderParams::setTextRenderQuality(OZTextQuality)`
+   *   — @Ozone 0x2717b0
+   *   — __ZN14OZRenderParams20setTextRenderQualityE13OZTextQuality
+   *
+   * Faithful line-for-line transcription of the 11-line disassembly:
+   *   0x2717b0  pushq  %rbp                        ; frame prologue
+   *   0x2717b1  movq   %rsp, %rbp
+   *   0x2717b4  movl   %esi, 0x1d8(%rdi)            ; this->+0x1d8 = (int32) arg
+   *   0x2717ba  movl   %esi, 0x1dc(%rdi)            ; this->+0x1dc = (int32) arg
+   *   0x2717c0  xorps  %xmm0, %xmm0                 ; xmm0 = 0
+   *   0x2717c3  movups %xmm0, 0x188(%rdi)           ; this->+0x188 = (0, 0)
+   *   0x2717ca  movups %xmm0, 0x198(%rdi)           ; this->+0x198 = (0, 0)
+   *   0x2717d1  popq   %rbp                        ; frame epilogue
+   *   0x2717d2  retq
+   *   0x2717d3  nopw   %cs:(%rax,%rax)               ; alignment padding
+   *
+   * Writes the incoming `OZTextQuality` enum (4 bytes, per the `movl`
+   * store width) into BOTH the static slot at +0x1d8 AND the dynamic
+   * slot at +0x1dc — the sibling `setTextRenderQualityDynamic` writes
+   * only +0x1dc, so the "static" setter is a superset that always
+   * refreshes the dynamic slot too (keeping the two in lockstep, the
+   * same belt-and-suspenders pattern used for the resolution pair at
+   * +0x1b0/+0x1c0). SysV/AAPCS puts scalar arg2 in `%rsi`; the enum
+   * fits in the low 32 bits (`%esi`), which is what the `movl` stores.
+   *
+   * Then the same +0x188/+0x198 offset-cache invalidation pair is
+   * zeroed — every "resolution-family" mutation on this class does
+   * this (setResolution, setResolutionDynamic-when-mode==1, setWidth,
+   * setHeight, and now setTextRenderQuality). That's consistent with
+   * +0x188/+0x198 being derived cache values that any change to the
+   * output-space parameters (resolution OR text quality, which may
+   * affect subpixel sampling) must invalidate.
+   *
+   * Zero in-scope callees, zero externs, no indirect calls — pure
+   * field writes.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZRenderParams20setTextRenderQualityE13OZTextQuality.s
+   *   (11 lines)
+   */
+  setTextRenderQuality(quality: number): void {
+    // @0x2717b4  movl %esi,0x1d8(%rdi)
+    //   `movl` = 32-bit store; enum truncated/copied verbatim to +0x1d8.
+    this.textRenderQualityAt1d8 = quality | 0;
+
+    // @0x2717ba  movl %esi,0x1dc(%rdi)
+    //   SAME source (%esi), different destination — the dynamic slot
+    //   is refreshed with the same value as the static slot.
+    this.textRenderQualityDynamicAt1dc = quality | 0;
+
+    // @0x2717c0  xorps  %xmm0,%xmm0        ; xmm0 = 0
+    // @0x2717c3  movups %xmm0,0x188(%rdi)  ; this->+0x188 = (0, 0)
+    this.zeroedAt188 = { x: 0, y: 0 };
+
+    // @0x2717ca  movups %xmm0,0x198(%rdi)  ; this->+0x198 = (0, 0)
+    this.zeroedAt198 = { x: 0, y: 0 };
+
+    // @0x2717d1-0x2717d2 — epilogue + retq.
   }
 }
