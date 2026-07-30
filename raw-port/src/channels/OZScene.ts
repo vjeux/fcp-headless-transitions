@@ -116,6 +116,8 @@
 //  Opaque handles for the frontier types referenced by decoded methods.
 // -----------------------------------------------------------------------------
 
+import type { CMTime } from "../infra/CMTime.js";
+
 /** OZDocument opaque — see OZDocument.ts for the landed frontier port. */
 export interface OZDocumentHandle {
   readonly __ozDocument: true;
@@ -217,6 +219,24 @@ export class OZScene {
    * this slot.
    */
   timeRange: PCTimeRangeHandle | null = null;
+
+  /**
+   * +0x3b8..+0x3cf — currentTime : CMTime (24 bytes, packed).
+   *
+   * Layout is the CoreMedia CMTime shape (see raw-port/src/infra/CMTime.ts):
+   *   +0x3b8  int64  value        \
+   *   +0x3c0  int32  timescale     > read by getCurrentTime as one 16-byte block
+   *   +0x3c4  uint32 flags        /   via `movups 0x3b8(%rsi),%xmm0`
+   *   +0x3c8  int64  epoch          — read as an 8-byte tail via `movq 0x3c8(%rsi),%rcx`
+   *
+   * The 24-byte total matches CMTime exactly (16 low bytes movups + 8-byte
+   * epoch tail == sizeof(CMTime)). See disasm addresses cited in
+   * getCurrentTime() below. The setter for this slot lives in another
+   * OZScene method (setCurrentTime or a broadcast from the playhead
+   * subsystem) and is FRONTIER — not decoded here. We only decode what
+   * the reader touches; per Rule 3 we don't guess where else it's written.
+   */
+  currentTime: CMTime = { value: 0n, timescale: 0, flags: 0, epoch: 0n };
 
   /**
    * +0x4b0 — playRangePrimary : PCTimeRange (0x30 bytes).
@@ -366,6 +386,45 @@ export class OZScene {
       return this.playRangePrimary;
     }
     return this.playRangeSecondary;
+  }
+
+  /**
+   * OZScene::getCurrentTime() const  @0x4fba0
+   *   __ZNK7OZScene14getCurrentTimeEv
+   *
+   *   0x4fba0: pushq  %rbp
+   *   0x4fba1: movq   %rsp,%rbp
+   *   0x4fba4: movq   %rdi,%rax                                            # sret ptr passthrough
+   *   0x4fba7: movq   0x3c8(%rsi),%rcx                                     # rcx = this->currentTime.epoch (8 B @+0x3c8)
+   *   0x4fbae: movq   %rcx, 0x10(%rdi)                                     # out->epoch = rcx
+   *   0x4fbb2: movups 0x3b8(%rsi),%xmm0                                    # xmm0 = this->{value, timescale, flags} (16 B @+0x3b8)
+   *   0x4fbb9: movups %xmm0, (%rdi)                                        # out->{value, timescale, flags} = xmm0
+   *   0x4fbbc: popq %rbp ; retq
+   *   0x4fbbe: nop
+   *
+   * A pure by-value CMTime return: the SysV ABI passes a hidden "sret"
+   * pointer to the return-value slot in `%rdi`, so `%rsi` holds `this`.
+   * The function copies 24 bytes (16 + 8) from OZScene+0x3b8 into the
+   * sret slot in a specific order (epoch first, then the value/timescale/
+   * flags block). The `movq %rdi,%rax` at 0x4fba4 returns the sret pointer
+   * back to the caller as the ABI requires (rax = sret ptr).
+   *
+   * We can't observe the write order in JS (we return one struct), but
+   * we preserve the source order in the field expression and cite the
+   * addresses next to each copy.
+   *
+   * ZERO in-scope callees, ZERO externs. Pure field reads.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK7OZScene14getCurrentTimeEv.s (11 lines)
+   */
+  getCurrentTime(): CMTime {
+    // @0x4fbb2..0x4fbb9  movups 0x3b8(%rsi),%xmm0 ; movups %xmm0,(%rdi)
+    //   Copies the 16-byte {value, timescale, flags} block from +0x3b8.
+    // @0x4fba7..0x4fbae  movq 0x3c8(%rsi),%rcx ; movq %rcx,0x10(%rdi)
+    //   Copies the 8-byte epoch tail from +0x3c8.
+    const t = this.currentTime;
+    return { value: t.value, timescale: t.timescale, flags: t.flags, epoch: t.epoch };
   }
 
   /**
