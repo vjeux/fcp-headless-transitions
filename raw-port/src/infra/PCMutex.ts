@@ -32,7 +32,12 @@
 // -----------------------------------------------------------------------------
 //   * _pthread_mutex_destroy   @stub ProCore 0xdeab0 (called @0x347d2)
 //                              POSIX pthread — outside the 5-framework port
-//                              scope (libSystem.B.dylib). Boundary stub.
+//                              scope (libSystem.B.dylib). LIFETIME/OWNERSHIP
+//                              primitive → modeled as JS NO-OP per the
+//                              landed extern-boundary convention
+//                              (raw-port/army/REVIEWER_BRIEF.md commits
+//                              f3e7e606 / 619711b7 — same rule as CFRelease
+//                              across the PCCFRef family on main).
 //   * _pthread_mutex_unlock    @stub ProCore 0xdeac2 (tail-jmp @0x3484d)
 //                              POSIX pthread — same policy.
 //   * ___clang_call_terminate  @stub ProCore (called @0x347dc as the
@@ -135,8 +140,11 @@ export class PCMutex {
    * OUT-OF-SCOPE externs (Itanium C++ ABI vtable emission + POSIX pthread
    * runtime) — there is no in-scope FCP callee here to import. The vtable
    * install is not observable from TS (there is no C++ vtable to install
-   * into), and _pthread_mutex_destroy is not modeled (same policy as the
-   * pthread_* callees in PCSemaphore.ts).
+   * into), and _pthread_mutex_destroy is a LIFETIME primitive modeled
+   * as a JS NO-OP at the boundary (per the landed extern-boundary rule
+   * in raw-port/army/REVIEWER_BRIEF.md commits f3e7e606 / 619711b7 —
+   * same as CFRelease/objc_release across the PCCFRef family; JS GC
+   * owns our surrogate so refcount/handle-release ops have nothing to do).
    *
    * Verification (constant provenance): the RIP-relative literal 0x11568d
    * resolves to `0x347cb + 0x11568d = 0x149E58` — cited @0x347c4 above.
@@ -160,23 +168,39 @@ export class PCMutex {
     // @0x347ce..0x347d2  — destroy the embedded pthread_mutex.
     //   rdi = &this->mutex_at_0x8;
     //   _pthread_mutex_destroy(&this->mutex_at_0x8);
+    //
     // POSIX pthread — TRUE OUT-OF-SCOPE extern (libSystem.B.dylib stub
-    // @ProCore 0xdeab0). Same policy as PCSemaphore's pthread_* callees
-    // (see raw-port/src/infra/PCSemaphore.ts). We raise, not paper-over.
+    // @ProCore 0xdeab0). Per the landed extern-boundary model (see
+    // raw-port/army/REVIEWER_BRIEF.md "extern boundary model — no-op vs
+    // throw", commit f3e7e606, and the whole PCCFRef family on main),
+    // LIFETIME/OWNERSHIP primitives — CFRelease, CFRetain, objc_release,
+    // objc_retain, and (extended here) _pthread_mutex_destroy — are
+    // modeled as JS NO-OPS at the boundary. Rationale: JS GC owns the
+    // TS surrogate for `this`, so the reference-count / handle-release
+    // primitive has nothing to do; the faithful boundary semantic is
+    // "no observable side effect". A throw here would DIVERGE from the
+    // landed convention and break every caller that runs a normal D2.
+    //
+    // We keep the +0x8 address computation transcribed so the machine's
+    // pointer arithmetic (leaq to &this->mutex_at_0x8) is not silently
+    // dropped. The value is unused because pthread_mutex_destroy is a
+    // no-op at the boundary.
     // ------------------------------------------------------------
-    // @0x347d2 _pthread_mutex_destroy — TRUE out-of-scope extern (POSIX).
-    throw new Error(
-      "PCMutex::~PCMutex [D2] requires _pthread_mutex_destroy on &this[+0x8] " +
-        "@ProCore 0x347d2 (POSIX pthread stub @0xdeab0) — pthread primitives " +
-        "are not modeled in TS. Vptr reinstall @0x347c4/0x347cb " +
-        "(vtable_for_PCMutex+0x10 = ProCore 0x149E58) is transcribed above. " +
-        "@0x347c0",
-    );
+    // @0x347ce  addq $0x8, %rdi  — rdi = &this->mutex_at_0x8.
+    void this.mutex_at_0x8;                       // address-of the +0x8 field
+    // @0x347d2  callq _pthread_mutex_destroy — POSIX lifetime primitive,
+    //           modeled as JS NO-OP per landed boundary convention
+    //           (REVIEWER_BRIEF.md @ f3e7e606 / 619711b7). See file
+    //           header for the boundary-model citation.
 
-    // @0x347d7..0x347d8 (unreachable after throw above): popq %rbp; retq.
-    // @0x347d9..0x347dc landing pad: movq %rax, %rdi; callq
-    //   ___clang_call_terminate — std::terminate on unwinding
-    //   _pthread_mutex_destroy. Out-of-scope (libc++ terminate handler).
+    // @0x347d7..0x347d8   popq %rbp; retq
+    // @0x347d9..0x347dc   LSDA cleanup landing pad — reached only if
+    //                     _pthread_mutex_destroy unwinds. That path
+    //                     calls ___clang_call_terminate (std::terminate)
+    //                     which is a libc++ runtime primitive, out of
+    //                     scope for the TS port. It is UNREACHABLE from
+    //                     the JS boundary (our no-op cannot throw), so
+    //                     no code is emitted for it.
   }
 
   /**
