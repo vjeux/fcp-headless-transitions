@@ -126,3 +126,9 @@ THROW on the reachable (non-null) path DIVERGES from the landed convention and b
 (must be no-op). reach_check flagging the no-op path is a FALSE positive here — judge on this rule.
 (Independent of file-level-regression checks, which still apply — e.g. the PCCFRef_CFArray_dtor D1-only
 branch is ALSO REJECT for dropping the landed D2 destructor.)
+
+## RESOLVED: CFRelease/CFRetain-family externs = NO-OP, not throw (2026-07-30, coordinator)
+Established convention on main (PCCFRef_CFArray/CFData/CFDictionary, PCCFRefTraits_CGColorSpace/vImageConverter all landed this way). Governs the whole PCCFRef family + ObjC retain/release dtors — judge consistently, stop re-deriving per branch:
+- LIFETIME/OWNERSHIP externs that return void OR return-their-arg-unchanged — `_CFRelease`, `_CFRetain`, `_CGColorSpaceRelease`/`_CGColorSpaceRetain`, `_objc_release`, `_objc_retain` — are modelled as a JS **NO-OP** (retain-family returns the arg unchanged). JS GC owns our surrogate, so the reference-count primitive is faithfully a no-op at the boundary. A `throw` for one of these on the reachable (non-null) path is a DIVERGENCE from the landed convention — do NOT accept a dtor/release port whose CFRelease path throws on normal input. (A throw MAY appear on the C++ unwind/landing-pad path only — that is reached only during exception propagation and is fine.)
+- VALUE-PRODUCING externs — `_CFBundleGetBundleWithIdentifier`, `_CGColorSpaceCreateWithName`, `_CGColorSpaceCreateDeviceRGB`, ObjC value-returning `_objc_msgSend`, etc. — CANNOT be synthesized, so they THROW with @0xADDR. That is correct and required.
+RULE: releaser/retainer/dtor port → CFRelease/objc_release must be a no-op (retain returns arg). Value-getter port → extern throws @0xADDR. reach_check hitting a CFRelease-throw on non-null input = REJECT (fix to no-op); reach_check hitting a value-getter throw = expected/OK.
