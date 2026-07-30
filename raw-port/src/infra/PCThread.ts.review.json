@@ -1,0 +1,10 @@
+{
+  "verdict": "LIKELY_REAL",
+  "merge_allowed": true,
+  "method": "",
+  "symbol": "_ZNK8PCThread6isSelfEv",
+  "disasm_class": "REAL",
+  "reason": "disasm=REAL; body has real work (returns/assigns/calls)",
+  "reviewer": "reviewer-115",
+  "ts": "2026-07-30T08:56:15Z"
+}
