@@ -7,6 +7,8 @@
 // Source disassembly (both methods live in the same 0xa1d?? cluster):
 //   raw-port/re/disasm/Helium.__ZN13HGFormatUtils13bytesPerPixelE8HGFormat.s  @0xa1d60
 //   raw-port/re/disasm/Helium.__ZN13HGFormatUtils12rowBytesHintE8HGFormatj.s  @0xa1d80
+//   raw-port/re/disasm/Helium.__ZN13HGFormatUtils21collapseRectForFormatERK6HGRect8HGFormat.s
+//                                                                             @0xa22f0
 //
 // Both methods index the anonymous-namespace data table
 //   (anonymous namespace)::formatInfos                                       @0xa0ba40
@@ -16,6 +18,8 @@
 // short-circuit to bpp = 0.  The full table body was read from the binary
 // via macOS __DATA_CONST/__const at file offset 10533440 (see FORMAT_INFOS
 // annotation below) — every bpp entry is transcribed verbatim.
+
+import type { HGRect } from "./HGRect";
 
 // ---------------------------------------------------------------------------
 // (anonymous namespace)::formatInfos[fmt].bytesPerPixel — the u32 at +0x10
@@ -184,4 +188,162 @@ export function HGFormatUtils_rowBytesHint(fmt: number, width: number): number {
   const plus = (bw + 0xff) >>> 0;
   // @Helium 0xa1deb: andl $0xffffff00,%eax  — 256-byte align.
   return (plus & 0xffffff00) >>> 0;
+}
+
+// ---------------------------------------------------------------------------
+// HGFormatUtils::collapseRectForFormat(HGRect const&, HGFormat) @Helium 0xa22f0
+// ---------------------------------------------------------------------------
+//
+// Static free function that returns an HGRect (by value in %rax:%rdx —
+// {x|y<<32, right|bottom<<32}) with the horizontal extents (x, right)
+// scaled to match subsampled formats. The disassembly's control flow:
+//
+//   @0xa2305  leal -0xe(%rsi), %edi   ; edi = fmt - 14
+//   @0xa2308  cmpl $0x3,  %edi
+//   @0xa230b  jae  0xa2340             ; if (fmt-14) u>= 3  (i.e. fmt not in {14,15,16})
+//                                       ; -> alt-path (format 31, or unchanged)
+//
+//   Fall-through (fmt in {14,15,16}):
+//     Halve horizontal dims by 0.5:
+//       @0xa230d  cvtsi2ss %edx,%xmm0     ; xmm0 = (float)right
+//       @0xa2311  movss    RIP+0x3259af,%xmm1  ; xmm1 = 0.5f  (@Helium 0x3c7cc8)
+//       @0xa2319  mulss    %xmm1,%xmm0     ; xmm0 = right * 0.5
+//       @0xa231d  roundss  $0xa,xmm0,xmm0  ; mode 0xa = ceil + suppress -> ceil(right*0.5)
+//       @0xa2323  cvttss2si xmm0,%esi      ; esi = (i32)ceil(right*0.5)
+//       @0xa2327  andq     %rax,%rdx       ; rdx &= 0xFFFFFFFF00000000 (clear low32)
+//       @0xa232a  orq      %rsi,%rdx       ; rdx |= esi -> right' = ceil(right*0.5)
+//       @0xa232d  xorps    %xmm0,%xmm0     ; zero xmm0
+//       @0xa2330  cvtsi2ss %ecx,%xmm0      ; xmm0 = (float)x
+//       @0xa2334  mulss    %xmm1,%xmm0     ; xmm0 = x * 0.5
+//       @0xa2338  roundss  $0x9,xmm0,xmm0  ; mode 0x9 = floor + suppress -> floor(x*0.5)
+//       @0xa233e  jmp      0xa2386         ; -> tail (cvttss2si + write x')
+//
+//   Alt-path @0xa2340 (fmt not in {14,15,16}):
+//     @0xa2340  cmpl $0x1f, %esi         ; fmt == 31?
+//     @0xa2343  jne  0xa2394             ; if not, jump to "return unchanged"
+//
+//     Fmt == 31 branch:
+//       @0xa2345  cvtsi2ss %edx,%xmm0     ; xmm0 = (float)right
+//       @0xa2349  movss    RIP+0x325973,%xmm1  ; xmm1 = 6.0f  (@Helium 0x3c7cc4)
+//       @0xa2351  divss    %xmm1,%xmm0     ; xmm0 = right / 6
+//       @0xa2355  roundss  $0xa,xmm0,xmm0  ; ceil(right/6)
+//       @0xa235b  movss    RIP+0x327f89,%xmm2  ; xmm2 = 4.0f  (@Helium 0x3ca2ec)
+//       @0xa2363  mulss    %xmm2,%xmm0     ; xmm0 = ceil(right/6) * 4
+//       @0xa2367  cvttss2si xmm0,%esi      ; esi = i32 result
+//       @0xa236b  andq     %rax,%rdx       ; clear low32 of rdx
+//       @0xa236e  orq      %rsi,%rdx       ; rdx |= esi -> right' = ceil(right/6)*4
+//       @0xa2371  xorps    %xmm0,%xmm0
+//       @0xa2374  cvtsi2ss %ecx,%xmm0      ; xmm0 = (float)x
+//       @0xa2378  divss    %xmm1,%xmm0     ; xmm0 = x/6
+//       @0xa237c  roundss  $0x9,xmm0,xmm0  ; floor(x/6)
+//       @0xa2382  mulss    %xmm2,%xmm0     ; xmm0 = floor(x/6)*4
+//                                          ; falls through to the common tail
+//
+//   Common tail @0xa2386:
+//     @0xa2386  cvttss2si xmm0,%esi        ; esi = new x
+//     @0xa238a  andq     %rax,%rcx         ; rcx &= 0xFFFFFFFF00000000 (clear low32 = wipe x)
+//     @0xa238d  movl     %esi,%eax         ; eax = new x (upper cleared)
+//     @0xa238f  orq      %rcx,%rax         ; rax = new_x | (y<<32)
+//     @0xa2392  popq/retq                  ; return (rax, rdx)
+//
+//   "Return unchanged" tail @0xa2394 (fmt not in {14,15,16, 31}):
+//     @0xa2394  movl %ecx,%esi             ; esi = x (upper cleared by movl)
+//     @0xa2396  jmp  0xa238a               ; join the common tail — the effect is
+//                                          ; rax = x | y<<32 (unchanged) and rdx unchanged.
+//
+// Constants (verified from Helium.x86_64 as little-endian float32):
+//   @Helium 0x3c7cc8  = 0x3f000000  = 0.5f      (used for the {14,15,16} branch)
+//   @Helium 0x3c7cc4  = 0x40c00000  = 6.0f      (used for the fmt==31 branch)
+//   @Helium 0x3ca2ec  = 0x40800000  = 4.0f      (used for the fmt==31 branch)
+//
+// Semantic summary — the two active branches scale HORIZONTAL extents to
+// match how the format subsamples chroma (both are chroma-plane-only rects
+// for YUV/planar formats): the {14,15,16} branch halves x/right (2:1 sub-
+// sampled), and the fmt==31 branch produces `x' = floor(x/6)*4`, i.e. a
+// 6:4 = 3:2 subsampling in the chroma plane (a v210-style 10-bit packing).
+// All OTHER formats return the rect unchanged. Callee-preserved fields
+// (`y`, `bottom`) are never touched — the mask
+// `0xFFFFFFFF00000000` at @0xa22f4 preserves them across the `andq/orq`
+// rewrites of the paired qwords.
+//
+// Note the machine's `cvttss2si` toward zero on ALREADY-integer floats
+// (post `roundss`) is identity for the {14,15,16} branch — the ceil/floor
+// results are exact integers before the truncate. Same for fmt==31: the
+// `mulss %xmm2` at @0xa2363/@0xa2382 keeps the result an exact integer
+// multiple of 4, so `cvttss2si` is again identity. We mirror the machine
+// with `| 0` on the final float result at the JS boundary — the cast
+// preserves the exact int32 the disasm emits.
+export function HGFormatUtils_collapseRectForFormat(
+  rect: HGRect,
+  fmt: number,
+): HGRect {
+  // @0xa22f4 movabsq $-0x100000000, %rax   ; rax = 0xFFFFFFFF00000000
+  //   The mask is used to CLEAR the low-32 half of each paired qword
+  //   (x from x|y<<32, right from right|bottom<<32) while KEEPING y
+  //   and bottom untouched. In JS we operate on named fields directly
+  //   so we don't need the mask machinery, but we honor it in comments.
+
+  // @0xa22fe movq (%rdi),%rcx           ; rcx = x | y<<32  (lo qword of *rect)
+  // @0xa2301 movq 0x8(%rdi),%rdx        ; rdx = right | bottom<<32 (hi qword)
+  // @0xa2305 leal -0xe(%rsi),%edi ; @0xa2308 cmpl $0x3,%edi ; @0xa230b jae 0xa2340
+  //   `fmt - 14` compared unsigned to 3 -> the "in {14,15,16}" test.
+  const fmt32 = fmt | 0;
+  // int32-narrow each input field once so the low32 masks below are exact.
+  const xIn = rect.x | 0;
+  const yIn = rect.y | 0;
+  const rIn = rect.right | 0;
+  const bIn = rect.bottom | 0;
+
+  const delta = (fmt32 - 14) >>> 0; // matches `leal -0xe(%rsi),%edi`
+  if (delta < 3) {
+    // Fall-through branch (@0xa230d..@0xa233e): halve horizontal extents by 0.5.
+    // Every arithmetic step is single-precision (`mulss`, `roundss`, `cvttss2si`).
+    // We wrap in Math.fround so the JS math sees the same float32 rounding.
+    // @0xa2311 xmm1 = 0.5f    (@Helium 0x3c7cc8)
+    const K = Math.fround(0.5);
+    // @0xa230d cvtsi2ss %edx,%xmm0 ; @0xa2319 mulss %xmm1,%xmm0
+    // @0xa231d roundss $0xa (ceil) ; @0xa2323 cvttss2si -> esi
+    const newRight = Math.ceil(Math.fround(Math.fround(rIn) * K)) | 0;
+    // @0xa232d..@0xa233e: same shape for x, but with roundss $0x9 (floor).
+    const newX = Math.floor(Math.fround(Math.fround(xIn) * K)) | 0;
+    return { x: newX, y: yIn, right: newRight, bottom: bIn };
+  }
+
+  // @0xa2340 cmpl $0x1f,%esi ; @0xa2343 jne 0xa2394
+  //   The `jne` "return unchanged" arm sets esi = ecx (x, lo32) then joins the
+  //   common tail — which stores esi back as the new x and leaves y/right/bottom
+  //   unchanged. Net effect: rect is identical to input.
+  if (fmt32 !== 31) {
+    // @0xa2394 movl %ecx,%esi ; @0xa2396 jmp 0xa238a
+    //   The common tail writes esi (=x, upper zero-cleared) into rax and joins
+    //   rcx=y<<32 back. Since we already truncated all four fields with `| 0`,
+    //   the outcome is bit-exact with the machine's return.
+    return { x: xIn, y: yIn, right: rIn, bottom: bIn };
+  }
+
+  // Fmt == 31 branch (@0xa2345..@0xa2382): right' = ceil(right/6)*4,
+  //                                           x'  = floor(x/6)*4.
+  // @0xa2349 xmm1 = 6.0f  (@Helium 0x3c7cc4)
+  const K1 = Math.fround(6.0);
+  // @0xa235b xmm2 = 4.0f  (@Helium 0x3ca2ec)
+  const K2 = Math.fround(4.0);
+
+  // @0xa2345 cvtsi2ss %edx,%xmm0 ; @0xa2351 divss %xmm1,%xmm0
+  // @0xa2355 roundss $0xa (ceil) ; @0xa2363 mulss %xmm2,%xmm0
+  // @0xa2367 cvttss2si -> esi ; @0xa236e orq -> rdx.low = esi
+  const newRight31 =
+    Math.fround(
+      Math.ceil(Math.fround(Math.fround(rIn) / K1)) * K2,
+    ) | 0;
+
+  // @0xa2371..@0xa2382: same for x, but with roundss $0x9 (floor).
+  // @0xa2374 cvtsi2ss %ecx,%xmm0 ; @0xa2378 divss %xmm1,%xmm0
+  // @0xa237c roundss $0x9 (floor); @0xa2382 mulss %xmm2,%xmm0
+  const newX31 =
+    Math.fround(
+      Math.floor(Math.fround(Math.fround(xIn) / K1)) * K2,
+    ) | 0;
+
+  // @0xa2386 cvttss2si (already an integer post-mulss with 4.0) ; @0xa238a-@0xa2392 pack.
+  return { x: newX31, y: yIn, right: newRight31, bottom: bIn };
 }
