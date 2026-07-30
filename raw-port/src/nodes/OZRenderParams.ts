@@ -127,6 +127,28 @@ export class OZRenderParams {
   flagByteAt1a8: number = 0;
 
   /**
+   * @Ozone offset +0x1e0 — a one-byte "do high-quality resampling" flag
+   * written by `setDoHighQualityResampling(bool)` @0x271824 as `movb %sil,0x1e0(%rdi)`
+   * (the incoming bool argument's low byte). Modelled as `number` (0..255)
+   * because the setter is a byte-level `movb`; JS booleans would lose the
+   * exact bit pattern the machine passes to a caller that reads the raw
+   * byte back (e.g. via a member load through a `char` pointer).
+   */
+  doHighQualityResamplingAt1e0: number = 0;
+
+  /**
+   * @Ozone offset +0x1e1 — a SECOND one-byte flag written to the SAME
+   * value as `+0x1e0` by `setDoHighQualityResampling(bool)` @0x27182b
+   * (`movb %sil,0x1e1(%rdi)`). The compiler emitted two separate byte
+   * stores, not a single 16-bit store, so the two slots are semantically
+   * distinct fields the class happens to keep in lock-step through this
+   * setter. Some other (not-yet-ported) writer may set them independently;
+   * until that writer is decoded we leave both slots exposed and named by
+   * offset. Modelled as `number` (0..255) for the same reason as +0x1e0.
+   */
+  doHighQualityResamplingMirrorAt1e1: number = 0;
+
+  /**
    * `OZRenderParams::setResolution(PCVector2<double> const&)`
    *   — @Ozone 0x2716f0
    *   — __ZN14OZRenderParams13setResolutionERK9PCVector2IdE
@@ -277,5 +299,76 @@ export class OZRenderParams {
     }
 
     // @0x271763-0x271764 — epilogue + retq.
+  }
+
+  /**
+   * `OZRenderParams::setDoHighQualityResampling(bool)`
+   *   — @Ozone 0x271820
+   *   — __ZN14OZRenderParams26setDoHighQualityResamplingEb
+   *
+   * Faithful line-for-line transcription of the 10-line disassembly at
+   * raw-port/re/disasm/__ZN14OZRenderParams26setDoHighQualityResamplingEb.s:
+   *
+   *   0x271820  pushq  %rbp
+   *   0x271821  movq   %rsp, %rbp
+   *   0x271824  movb   %sil, 0x1e0(%rdi)          ; this->+0x1e0 = arg
+   *   0x27182b  movb   %sil, 0x1e1(%rdi)          ; this->+0x1e1 = arg
+   *   0x271832  xorps  %xmm0, %xmm0               ; xmm0 = 0 (16 bytes)
+   *   0x271835  movups %xmm0, 0x188(%rdi)         ; this->+0x188 = (0, 0)
+   *   0x27183c  movups %xmm0, 0x198(%rdi)         ; this->+0x198 = (0, 0)
+   *   0x271843  popq   %rbp
+   *   0x271844  retq
+   *
+   * The setter has FOUR observable effects, in this order:
+   *   1. Write the argument byte to the "primary" HQR flag at +0x1e0.
+   *   2. Write the same argument byte to the "mirror" HQR flag at +0x1e1.
+   *   3. Zero the 16-byte slot at +0x188 (zeroedAt188 in this file).
+   *   4. Zero the 16-byte slot at +0x198 (zeroedAt198 in this file).
+   *
+   * The zeroing of +0x188 / +0x198 is the SAME state-reset side-effect
+   * `setResolution` performs when a new resolution is installed — these
+   * two slots hold some derived caching that must be invalidated when
+   * the resampling policy changes (and, by symmetry, when the resolution
+   * itself changes). We do not invent names for what those slots hold;
+   * they retain the offset-named field they had before.
+   *
+   * ABI: SysV x86_64. `bool` args are passed in the low byte of the
+   * next integer register — `%sil` is the low byte of `%rsi`, which is
+   * the 2nd integer arg (1st is `this` in `%rdi`). The C++ boolean
+   * true/false representation is 1/0; we mask the input to the low byte
+   * with `& 0xff` so any wider caller (e.g. a bug that passes 0x100) is
+   * modelled EXACTLY as the machine sees it — `movb` truncates to 8 bits.
+   *
+   * Zero in-scope callees; no imports needed.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZRenderParams26setDoHighQualityResamplingEb.s
+   */
+  setDoHighQualityResampling(doHighQualityResampling: boolean | number): void {
+    // Faithful `movb %sil` model: capture only the low 8 bits of the
+    // argument (a `bool` in C++ is stored as a single byte 0 or 1, but
+    // a rogue caller could pass any int8; the machine truncates). If
+    // the input is a JS boolean, convert to 0/1 as C++ does.
+    const sil =
+      typeof doHighQualityResampling === "boolean"
+        ? (doHighQualityResampling ? 1 : 0)
+        : (doHighQualityResampling & 0xff);
+
+    // @0x271824  movb %sil, 0x1e0(%rdi)
+    this.doHighQualityResamplingAt1e0 = sil;
+    // @0x27182b  movb %sil, 0x1e1(%rdi)
+    this.doHighQualityResamplingMirrorAt1e1 = sil;
+
+    // @0x271832  xorps %xmm0, %xmm0            ; xmm0 = 0
+    // @0x271835  movups %xmm0, 0x188(%rdi)     ; this->+0x188 = (0, 0)
+    // Note: this WRITE ORDER (0x188 before 0x198) matches
+    // setResolutionDynamic's order and REVERSES setResolution's order.
+    // Since both are zero-writes the observable state is identical, but
+    // we mirror the disasm's instruction sequence per Rule 1.
+    this.zeroedAt188 = { x: 0, y: 0 };
+    // @0x27183c  movups %xmm0, 0x198(%rdi)     ; this->+0x198 = (0, 0)
+    this.zeroedAt198 = { x: 0, y: 0 };
+
+    // @0x271843-0x271844 — epilogue + retq.
   }
 }
