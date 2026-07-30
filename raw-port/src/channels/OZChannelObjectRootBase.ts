@@ -9,6 +9,7 @@
 //   raw-port/re/disasm/OZChannelObjectRootBase.getTimeExtentForChannel.s
 //   raw-port/re/disasm/OZChannelObjectRootBase.didBeginRecording.s
 //   raw-port/re/disasm/OZChannelObjectRootBase.didEndRecording.s
+//   raw-port/re/disasm/ProChannel.__ZNK23OZChannelObjectRootBase13getTimeOffsetEv.s
 //
 // STRUCT LAYOUT (recovered from getTimeExtent @0x2137d0 — copies 48 bytes from this+0x98 into
 // the sret, so a PCTimeRange sits at +0x98):
@@ -39,6 +40,15 @@ export interface OZChannelWithTimeExtentVTable extends OZChannelBase {
 }
 
 export class OZChannelObjectRootBase {
+  /**
+   * CMTime member at instance offset +0x80..+0x97 (24 bytes). Concrete subclasses populate
+   * this; the base class only exposes a copy via getTimeOffset(). Offset recovered from
+   * @ProChannel 0x72480 (`getTimeOffset`):
+   *   0x72487  movq  0x90(%rsi), %rcx    ; timeOffset.epoch  at this+0x90
+   *   0x72492  movups 0x80(%rsi), %xmm0  ; timeOffset.value+timescale+flags at this+0x80..0x8F
+   */
+  timeOffset!: CMTime;
+
   /**
    * PCTimeRange member at instance offset +0x98..+0xcf (48 bytes). Concrete subclasses populate
    * this; the base class only exposes a copy via getTimeExtent().
@@ -142,5 +152,32 @@ export class OZChannelObjectRootBase {
    */
   didEndRecording(_channel: OZChannelBase, _time: Readonly<CMTime>): void {
     // no-op — see @0x213840 (empty prologue/epilogue only).
+  }
+
+  /**
+   * OZChannelObjectRootBase::getTimeOffset() const  →  CMTime (by value, sret)
+   * @ProChannel 0x0000000000072480  (__ZNK23OZChannelObjectRootBase13getTimeOffsetEv)
+   *
+   * DECODE (raw-port/re/disasm/ProChannel.__ZNK23OZChannelObjectRootBase13getTimeOffsetEv.s):
+   *   0x072480-0x072481  frame setup (push rbp / mov rsp,rbp)
+   *   0x072484           movq %rdi, %rax                    (return sret ptr in %rax)
+   *   0x072487           movq  0x90(%rsi), %rcx             (load this->timeOffset.epoch)
+   *   0x07248e           movq  %rcx, 0x10(%rdi)             (store into sret+0x10)
+   *   0x072492           movups 0x80(%rsi), %xmm0           (load value+timescale/flags, 16 B)
+   *   0x072499           movups %xmm0, (%rdi)               (store to sret+0x00)
+   *   0x07249c-0x07249d  epilogue + ret
+   *
+   * Pure 24-byte field copy from this->timeOffset — no allocation, no CMTime helper calls, no
+   * validation. Just returns a snapshot of the stored CMTime. Analogous to the
+   * getTimeExtent() @Ozone 0x2137d0 pattern above (both are sret-by-value struct copies of a
+   * time-typed member); this variant copies a single 24-byte CMTime instead of a 48-byte
+   * PCTimeRange.
+   */
+  getTimeOffset(): CMTime {
+    // Deep-copy the CMTime to mirror the C++ by-value return (asm does an explicit 24-byte
+    // copy, so the caller cannot alias into our storage). Field-for-field construction —
+    // the movups+movq pair reads all four fields (value/timescale/flags/epoch) from +0x80.
+    const t = this.timeOffset;
+    return { value: t.value, timescale: t.timescale, flags: t.flags, epoch: t.epoch };
   }
 }
