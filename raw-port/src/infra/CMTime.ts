@@ -324,3 +324,122 @@ export function PC_CMTimeSaferSubtract(a: CMTime, b: CMTime): CMTime {
 export function CMTimeMul_double(t: CMTime, m: number): CMTime {
   return CMTimeMultiplyByFloat64(t, m);
 }
+
+/**
+ * operator/(CMTime const& a, CMTime const& b) — rational-time division.
+ * @ProCore 0x582a8  (__ZdvRK6CMTimeS1_ — "operator/(CMTime const&, CMTime const&)")
+ *
+ * DECODE (raw-port/re/disasm/ProCore.__ZdvRK6CMTimeS1_.s — 22-line body):
+ *
+ *   0x582a8  pushq  %rbp                           ; prologue
+ *   0x582a9  movq   %rsp, %rbp
+ *   0x582ac  pushq  %rbx
+ *   0x582ad  subq   $0x38, %rsp                    ; 56B of stack (locals + outgoing args)
+ *   0x582b1  movq   %rdi, %rbx                     ; spill NRVO out ptr (arg1: CMTime* dst)
+ *
+ *   ; --- load lhs (`a` via %rsi = arg2) into two spill slots ---
+ *   0x582b4  movq   0x10(%rsi), %rax               ; rax = a.epoch  (i64 @+0x10)
+ *   0x582b8  movq   %rax, -0x10(%rbp)              ; spill epoch to -0x10
+ *   0x582bc  movups (%rsi), %xmm0                  ; xmm0 = a[0..15] = value|timescale|flags
+ *   0x582bf  movaps %xmm0, -0x20(%rbp)             ; spill first 16B to -0x20
+ *
+ *   ; --- load rhs (`b` via %rdx = arg3) into two arg registers ---
+ *   0x582c3  movslq 0x8(%rdx), %rsi                ; rsi = (i64)b.timescale (sign-ext i32→i64)
+ *   0x582c7  movq   (%rdx), %rdx                   ; rdx = b.value (i64 @+0x00)
+ *
+ *   ; --- build the outgoing 24-byte lhs-by-value in the callq's stack area ---
+ *   0x582ca  movq   -0x10(%rbp), %rax              ; rax = spilled epoch
+ *   0x582ce  movq   %rax, 0x10(%rsp)               ; outgoing +16 = a.epoch
+ *   0x582d3  movaps -0x20(%rbp), %xmm0             ; xmm0 = spilled first 16B
+ *   0x582d7  movups %xmm0, (%rsp)                  ; outgoing +0..+15 = a.value|timescale|flags
+ *
+ *   0x582db  callq  _PC_CMTimeMultiply64Divide64   ; extern boundary (see below)
+ *
+ *   0x582e0  movq   %rbx, %rax                     ; return the NRVO ptr (%rax = out param)
+ *   0x582e3  addq   $0x38, %rsp
+ *   0x582e7  popq   %rbx
+ *   0x582e8  popq   %rbp
+ *   0x582e9  retq
+ *
+ * SEMANTICS: this operator/ is a THIN WRAPPER around ProCore's own
+ * `_PC_CMTimeMultiply64Divide64` helper — the SAME shape as `operator*(CMTime,
+ * double)` (CMTimeMul_double) above, which likewise defers all math to
+ * CoreMedia's `_CMTimeMultiplyByFloat64`. The wrapper's job is just to
+ * marshall arguments:
+ *   - hidden NRVO out ptr (arg1) in %rdi/%rbx,
+ *   - lhs by value (24 bytes: value|timescale|flags|epoch) at [%rsp, %rsp+0x18),
+ *   - rhs.value  (i64) in %rdx (the callee's 3rd arg-register),
+ *   - rhs.timescale sign-extended to i64 in %rsi (the callee's 2nd arg-register).
+ *
+ * The math inside `_PC_CMTimeMultiply64Divide64` is NOT decoded in this file —
+ * it is a ProCore free function whose ledger status is "not a port target"
+ * (`depgraph.py deps __ZdvRK6CMTimeS1_` returns empty; the helper is not
+ * enumerated in any framework ledger). That makes it an EXTERN BOUNDARY for
+ * this port's purposes: we call it through the throwing helper below, which
+ * cites its addr and signature so a follow-up worker (or a host that binds it
+ * to real CoreMedia semantics) can wire it in without touching this file.
+ *
+ * ── The intended semantics (documented from the caller's viewpoint) ────────
+ *   a / b (as rational times) reduces to
+ *       CMTimeMake(a.value * b.timescale, a.timescale * b.value)
+ *   with 64-bit intermediate math and saturation on overflow — this is the
+ *   standard CMTime "divide by CMTime" idiom that CoreMedia doesn't publish
+ *   directly (there's no public `CMTimeDivide(CMTime,CMTime)` API), so
+ *   ProCore rolls its own via the Multiply64Divide64 helper. Because the
+ *   helper is opaque here we do NOT fabricate its body — the boundary throw
+ *   fires until a host binds it.
+ *
+ * Zero in-scope callees; one out-of-scope extern
+ * (`_PC_CMTimeMultiply64Divide64`); no indirect calls. NRVO is the standard
+ * result convention (caller allocates, callee writes through the first-arg
+ * pointer).
+ */
+function pc_cmtime_multiply64_divide64_stub(
+  _out: CMTime,                                    // rdi = NRVO out ptr
+  _b_timescale_i64: bigint,                         // rsi = (i64)b.timescale (sign-ext)
+  _b_value: bigint,                                 // rdx = b.value  (i64)
+  _a_by_value: CMTime,                              // stack[0..23] = a (value|timescale|flags|epoch)
+): void {
+  // _PC_CMTimeMultiply64Divide64 callq @ ProCore 0x582db — not in any framework
+  // ledger; treated as an out-of-scope extern boundary until a host binds it.
+  throw new Error(
+    "CMTime operator/ — _PC_CMTimeMultiply64Divide64 @ProCore 0x582db not in " +
+      "ledger (unported ProCore helper); host must inject the CMTime÷CMTime math.",
+  );
+}
+
+/**
+ * `CMTimeDiv_CMTime(a, b)` — the exported TS entry-point corresponding to
+ * FCP's `operator/(CMTime const&, CMTime const&)` at @ProCore 0x582a8. Naming
+ * follows the sibling `CMTimeMul_double` (which corresponds to the `operator*
+ * (CMTime const&, double)` at 0x58142) — the exported symbol name matches the
+ * argument shape rather than using the raw C++ mangled operator, so callers
+ * can discover both wrappers by grep-ing for `CMTime*_*`.
+ *
+ * @0xADDR ProCore 0x582a8  (__ZdvRK6CMTimeS1_)
+ */
+export function CMTimeDiv_CMTime(a: CMTime, b: CMTime): CMTime {
+  // The disasm allocates the result on the caller's frame (NRVO); we model
+  // that with a fresh JS object here — same observable behaviour.
+  const out: CMTime = { value: 0n, timescale: 0, flags: 0, epoch: 0n };
+
+  // @0x582c3  movslq 0x8(%rdx), %rsi  — b.timescale (i32) sign-extended to i64.
+  //   b.timescale is stored as `number` (i32) in the CMTime TS interface; we
+  //   sign-extend via `BigInt(x | 0)` which preserves the negative case (the
+  //   `| 0` first coerces to a signed 32-bit int, then BigInt widens to i64).
+  const b_timescale_i64: bigint = BigInt(b.timescale | 0);
+
+  // @0x582c7  movq (%rdx), %rdx      — b.value (i64).
+  const b_value: bigint = b.value;
+
+  // @0x582ca..0x582d7 — copy a's 24 bytes onto the outgoing stack (value|
+  //   timescale|flags at 0..15, epoch at 16..23). Modelled here by passing
+  //   `a` by reference to the stub — the callee treats it as read-only, so
+  //   the observable effect is identical.
+
+  // @0x582db  callq _PC_CMTimeMultiply64Divide64  — extern boundary throw.
+  pc_cmtime_multiply64_divide64_stub(out, b_timescale_i64, b_value, a);
+
+  // @0x582e0..0x582e9  — return NRVO ptr in %rax. TS returns the object.
+  return out;
+}
