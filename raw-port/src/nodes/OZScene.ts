@@ -256,3 +256,59 @@ export function OZScene_begin(
   // SysV: %rax already holds the sret out-ptr (set at @0x63764).
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// OZScene::setActiveLayer(OZGroup*) @Ozone 0x50b40
+// ---------------------------------------------------------------------------
+//
+// Faithful transcription (7-line disasm, one meaningful store):
+//
+//   0x50b40  pushq %rbp
+//   0x50b41  movq  %rsp, %rbp
+//   0x50b44  movq  %rsi, 0x3f0(%rdi)     ; this->activeLayer_at0x3F0 = layer
+//   0x50b4b  popq  %rbp
+//   0x50b4c  retq
+//   0x50b4d  nopl  (%rax)                ; alignment
+//
+// SysV: %rdi = this (OZScene*), %rsi = layer (OZGroup*). The function is a
+// pure single-slot setter — no null check, no validation, no reference-count
+// bump: the binary just writes the pointer. There is NO in-scope callee, and
+// NO out-of-scope extern either — 3 stack management ops and one movq.
+//
+// Runtime layout extension: this method proves OZScene has a slot at +0x3F0
+// holding a pointer to an OZGroup ("the active layer"). This is a NEW field
+// distinct from the +0x3D0/+0x3D8 childList slots that OZScene_begin/end
+// already recovered — the class's layout is deliberately grown as new peers
+// land. We add the field to OZSceneRuntime as `activeLayer_at0x3F0`, typed
+// as `OZGroupRef | null` (opaque handle — begin()/end() don't touch it and
+// this setter never dereferences it, so we don't need OZGroup's layout yet).
+
+/**
+ * An opaque OZGroup* stored at OZScene+0x3F0. setActiveLayer() writes the
+ * pointer verbatim; no field of the pointee is read here, so we don't need
+ * an OZGroup layout yet. Peers that read (`getActiveLayer`) or dereference
+ * (any group-walking peer) will refine this into a concrete OZGroup type.
+ */
+export interface OZGroupRef {
+  readonly __ozGroupRefBrand: unique symbol;
+}
+
+/**
+ * OZScene::setActiveLayer(OZGroup*) @Ozone 0x50b40
+ *   __ZN7OZScene14setActiveLayerEP7OZGroup
+ *
+ * Single-slot setter: `this->activeLayer_at0x3F0 = layer`. No validation, no
+ * retain/release, no null check — the binary is literally three stack ops
+ * and one `movq %rsi, 0x3f0(%rdi)`. Layer may legitimately be null (nothing
+ * in the body forbids it), matching the standard "clear the active layer"
+ * caller pattern.
+ *
+ * ZERO callees (in-scope or extern) — this is pure state mutation.
+ */
+export function OZScene_setActiveLayer(
+  self: OZSceneRuntime & { activeLayer_at0x3F0: OZGroupRef | null },
+  layer: OZGroupRef | null,
+): void {
+  // @0x50b44  movq %rsi, 0x3f0(%rdi)   — the entire body.
+  self.activeLayer_at0x3F0 = layer;
+}
