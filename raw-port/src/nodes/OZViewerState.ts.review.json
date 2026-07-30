@@ -1,0 +1,10 @@
+{
+  "verdict": "LIKELY_REAL",
+  "merge_allowed": true,
+  "method": "",
+  "symbol": "_ZN13OZViewerState13getResolutionEv",
+  "disasm_class": "REAL",
+  "reason": "disasm=REAL; body has real work (returns/assigns/calls)",
+  "reviewer": "reviewer-115",
+  "ts": "2026-07-30T09:09:29Z"
+}
