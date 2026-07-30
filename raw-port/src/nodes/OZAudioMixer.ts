@@ -3,11 +3,12 @@
 // Source: /Applications/Final Cut Pro.app/Contents/Frameworks/Ozone.framework/
 //         Versions/A/Ozone (macOS FCP, x86_64 slice)
 //
-// This ledger unit ports TWO ledger entries in one class file (per porting
+// This ledger unit ports THREE ledger entries in one class file (per porting
 // spec Rule 6, one class per file):
 //
 //   * OZAudioMixer::isScrubbing()  @Ozone 0x21c640   pure state query
 //   * OZAudioMixer::initMixer()    @Ozone 0x2182d0   mixer-lifecycle init
+//   * OZAudioMixer::isPlaying()    @Ozone 0x21bc20   pure state query
 //
 // Every callee is a boundary extern in the ST* audio-transport family
 // (STMixer* / STTransport* / NewSTTransport*NotifierUPP) — Apple/host audio
@@ -194,6 +195,7 @@
 // -----------------------------------------------------------------------------
 //   * __ZN12OZAudioMixer11isScrubbingEv   OZAudioMixer::isScrubbing()  @0x21c640
 //   * __ZN12OZAudioMixer9initMixerEv      OZAudioMixer::initMixer()    @0x2182d0
+//   * __ZN12OZAudioMixer9isPlayingEv      OZAudioMixer::isPlaying()    @0x21bc20
 
 /** Opaque STMixer* handle (Apple ST audio-transport subsystem). Not
  *  modelled — ST is out-of-scope, same policy as pthread/CoreMedia
@@ -413,5 +415,121 @@ export class OZAudioMixer {
 
     // Unreachable after throw — the rest of the disasm structure is
     // preserved in the header comment above for a future porter.
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // OZAudioMixer::isPlaying()
+  //
+  // Disassembly source:
+  //   raw-port/re/disasm/__ZN12OZAudioMixer9isPlayingEv.s
+  //
+  // FULL DISASM (Ozone slice, 26 lines, @0x21bc20..@0x21bc65):
+  //
+  //   0x21bc20  pushq  %rbp                        ; frame prologue
+  //   0x21bc21  movq   %rsp, %rbp
+  //   0x21bc24  subq   $0x10, %rsp                 ; 16-byte local frame
+  //   0x21bc28  movb   $0x0, -0x1(%rbp)            ; out-byte = 0 (default false)
+  //   0x21bc2c  movq   0x10(%rdi), %rdi            ; rdi = this->STMixer_at_0x10
+  //   0x21bc30  leaq   -0x10(%rbp), %rsi           ; rsi = &transportOut
+  //   0x21bc34  callq  _STMixerGetTransport        ; @stub 0x6dcf84  (ST audio extern)
+  //   0x21bc39  testl  %eax, %eax                  ; err ?
+  //   0x21bc3b  je     0x21bc45                    ;   no -> IsPlaying
+  //   0x21bc3d  xorl   %eax, %eax                  ; err path: return 0
+  //   0x21bc3f  addq   $0x10, %rsp
+  //   0x21bc43  popq   %rbp
+  //   0x21bc44  retq
+  //   0x21bc45  movq   -0x10(%rbp), %rdi           ; rdi = transportOut
+  //   0x21bc49  leaq   -0x1(%rbp), %rsi            ; rsi = &out-byte
+  //   0x21bc4d  callq  _STTransportIsPlaying       ; @stub 0x6dd01a  (ST audio extern)
+  //   0x21bc52  testl  %eax, %eax                  ; err ?
+  //   0x21bc54  sete   %cl                         ; cl = (err == 0)
+  //   0x21bc57  cmpb   $0x0, -0x1(%rbp)            ; out-byte == 0 ?
+  //   0x21bc5b  setne  %al                         ; al = (out-byte != 0)
+  //   0x21bc5e  andb   %cl, %al                    ; return err==0 && out-byte!=0
+  //   0x21bc60  addq   $0x10, %rsp
+  //   0x21bc64  popq   %rbp
+  //   0x21bc65  retq
+  //
+  // Semantics: exactly the trailing half of `isScrubbing` without the
+  // `startedPlayback_at_0xdc == 1` gate. Returns true iff (a) the
+  // STMixer's transport is reachable via `_STMixerGetTransport`, AND
+  // (b) `_STTransportIsPlaying` succeeds (err==0), AND (c) the out-bool
+  // it writes is non-zero. Any earlier failure returns false.
+  //
+  // FRONTIER CALLEES (both TRUE OUT-OF-SCOPE ST audio externs, exactly
+  // the same pair used by isScrubbing):
+  //   * _STMixerGetTransport    @Ozone stub 0x6dcf84 (called @0x21bc34)
+  //   * _STTransportIsPlaying   @Ozone stub 0x6dd01a (called @0x21bc4d)
+  //
+  // Both are the ST* Sound-Transport C API (Apple host-audio subsystem),
+  // outside the 5-framework port scope, SAME boundary policy as
+  // isScrubbing/initMixer above (raise at the first ST call rather
+  // than paper over).
+  //
+  // Anti-cheat: the disasm has REAL WORK before the ST boundary — an
+  // out-byte initialisation (`movb $0x0, -0x1(%rbp)`) and a load of
+  // `this->STMixer_at_0x10` (`movq 0x10(%rdi), %rdi`). Both are
+  // in-scope operations that must run. We model the STMixer read
+  // observably (void this.STMixer_at_0x10) exactly the way isScrubbing
+  // does, then raise at the ST call site.
+  // ═════════════════════════════════════════════════════════════════════════
+  /**
+   * `OZAudioMixer::isPlaying()` — @Ozone 0x21bc20
+   * (__ZN12OZAudioMixer9isPlayingEv).
+   *
+   * Returns `true` iff (a) `STMixerGetTransport(this->STMixer_at_0x10,
+   * &transport) == 0`, AND (b) `STTransportIsPlaying(transport, &out)
+   * == 0`, AND (c) the out-bool is non-zero. Any earlier failure
+   * returns false. Unlike `isScrubbing`, there is no
+   * `startedPlayback_at_0xdc` pre-gate — this method calls the ST APIs
+   * unconditionally.
+   *
+   * Both ST calls are TRUE out-of-scope externs (Apple ST audio API —
+   * outside the 5-framework port scope, same policy as pthread/
+   * CoreMedia externs). We faithfully transcribe the control flow and
+   * raise at the first boundary call rather than paper over it.
+   */
+  isPlaying(): boolean {
+    // ------------------------------------------------------------
+    // @0x21bc24-0x21bc28  frame + stack out-byte init to 0.
+    //   (JS has no stack out-params; we track the "default false"
+    //    invariant in the throw-path below.)
+    // @0x21bc2c  movq 0x10(%rdi), %rdi   : rdi = this->STMixer_at_0x10
+    // @0x21bc30  leaq -0x10(%rbp), %rsi  : rsi = &transport_out
+    // @0x21bc34  callq _STMixerGetTransport
+    //   TRUE out-of-scope ST audio boundary — SAME extern used by
+    //   isScrubbing @0x21c65d. Policy: raise, don't paper over.
+    // ------------------------------------------------------------
+    // Materialise the read of `this->STMixer_at_0x10` so the port
+    // observably references it — matches the disasm's `movq
+    // 0x10(%rdi), %rdi`, and mirrors how isScrubbing handles the
+    // same field.
+    void this.STMixer_at_0x10;
+
+    // @0x21bc34 _STMixerGetTransport — TRUE out-of-scope extern.
+    throw new Error(
+      "OZAudioMixer::isPlaying() requires _STMixerGetTransport on " +
+        "this->STMixer_at_0x10 @Ozone 0x21bc34 (ST audio-transport stub " +
+        "@0x6dcf84) — ST* is not modelled in TS (Apple Sound-Transport " +
+        "API, same boundary policy as CoreMedia/pthread externs; see " +
+        "isScrubbing @0x21c65d, initMixer @0x2182e9). After a successful " +
+        "STMixerGetTransport the disasm calls _STTransportIsPlaying " +
+        "@0x21bc4d (stub @0x6dd01a) and ANDs err==0 with the out-bool " +
+        "(matches isScrubbing's trailing half exactly, but WITHOUT the " +
+        "startedPlayback_at_0xdc pre-gate). @0x21bc20",
+    );
+
+    // Unreachable — kept as documentation of the disasm's post-throw
+    // structure so a future porter can wire the boundary if ST ever
+    // enters scope:
+    //   @0x21bc39 testl %eax, %eax ; @0x21bc3b je 0x21bc45  : err ? no -> continue
+    //   @0x21bc3d xorl %eax, %eax  ; @0x21bc44 retq         : err -> return false
+    //   @0x21bc45..@0x21bc65:
+    //     movq -0x10(%rbp), %rdi        : rdi = transport
+    //     leaq -0x1(%rbp), %rsi         : rsi = &out_byte
+    //     callq _STTransportIsPlaying   : @stub 0x6dd01a  (out-of-scope)
+    //     testl %eax, %eax ; sete %cl   : cl = (err == 0)
+    //     cmpb $0x0, -0x1(%rbp) ; setne %al : al = (out_byte != 0)
+    //     andb %cl, %al                 : return err==0 && out_byte!=0
   }
 }
