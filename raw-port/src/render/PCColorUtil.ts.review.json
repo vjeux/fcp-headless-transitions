@@ -1,0 +1,10 @@
+{
+  "verdict": "LIKELY_REAL",
+  "merge_allowed": true,
+  "method": "PCColorUtil::applyHLG_InverseOOTF",
+  "symbol": "__ZN11PCColorUtil20applyHLG_InverseOOTFEDv3_fff",
+  "disasm_class": "REAL",
+  "reason": "REAL disasm; TS body byte-accurate transcription of 0x40cb-0x41b7 machine code; piecewise gamma; alpha=12*pow(Lb/Lw,1/g); BT.2100 luma; Y-mask via cmpltss; Math.fround for f32; libc externs modeled by JS Math; no throws",
+  "reviewer": "reviewer-124-adversarial",
+  "ts": "2026-07-30T08:47:45Z"
+}
