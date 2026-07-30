@@ -109,6 +109,19 @@ export class OZRenderParams {
   blendingGamma: number = 0;
 
   /**
+   * @Ozone offset +0x108 — a one-byte flag written by `setIsPlaying(bool)`
+   * @0x271184 via `movb %sil,0x108(%rdi)`. The single-byte width (`movb`)
+   * confirms the field is a `bool` / uint8 (C++ `bool` is one byte in the
+   * Itanium/AAPCS ABIs used by clang on macOS). Preserved as `number`
+   * (0..255) here so the exact bit-width the machine writes is legible.
+   *
+   * We don't invent a name for the state this byte controls beyond "is
+   * playing" — the setter tells us its role, so the field name mirrors
+   * it directly.
+   */
+  isPlayingAt108: number = 0;
+
+  /**
    * @Ozone offset +0x1a8 — a one-byte flag/mode discriminator, read
    * @0x27173e by `setResolutionDynamic` via `cmpb $0x1, 0x1a8(%rdi)`.
    * When this byte holds the value `1`, `setResolutionDynamic` fans the
@@ -277,5 +290,35 @@ export class OZRenderParams {
     }
 
     // @0x271763-0x271764 — epilogue + retq.
+  }
+
+  /**
+   * `OZRenderParams::setIsPlaying(bool)`
+   *   — @Ozone 0x271180
+   *   — __ZN14OZRenderParams12setIsPlayingEb
+   *
+   * Faithful line-for-line transcription of the 7-line disassembly:
+   *   0x271180  pushq  %rbp                        ; frame prologue
+   *   0x271181  movq   %rsp, %rbp
+   *   0x271184  movb   %sil, 0x108(%rdi)            ; this->+0x108 = arg (bool, 1 byte)
+   *   0x27118b  popq   %rbp                        ; frame epilogue
+   *   0x27118c  retq
+   *
+   * Single-instruction body: store the incoming C++ `bool` argument
+   * (SysV/AAPCS puts scalar arg2 in `%rsi`, and `bool` occupies the
+   * low byte `%sil`) into the class slot at +0x108. Boolean semantics
+   * on x86_64 are zero-extended in the caller, so the observable state
+   * of the byte is 0 or 1.
+   *
+   * Zero in-scope callees, zero externs, no indirect calls — pure
+   * field write.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZRenderParams12setIsPlayingEb.s (7 lines)
+   */
+  setIsPlaying(isPlaying: boolean): void {
+    // @0x271184  movb %sil,0x108(%rdi)
+    //   C++ `bool` → 1 byte: true == 0x01, false == 0x00.
+    this.isPlayingAt108 = isPlaying ? 1 : 0;
   }
 }
