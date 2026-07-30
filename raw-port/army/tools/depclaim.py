@@ -103,4 +103,5 @@ if __name__=="__main__":
     elif a[0]=="done": cmd_done(a[1])
     elif a[0]=="fail": cmd_fail(a[1]," ".join(a[2:]))
     elif a[0]=="reap": cmd_reap(int(a[1]) if len(a)>1 else 90)
+    elif a[0]=="refresh_inflight": cmd_refresh_inflight()
     else: cmd_claims()
