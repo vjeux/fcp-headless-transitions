@@ -132,3 +132,24 @@ Established convention on main (PCCFRef_CFArray/CFData/CFDictionary, PCCFRefTrai
 - LIFETIME/OWNERSHIP externs that return void OR return-their-arg-unchanged — `_CFRelease`, `_CFRetain`, `_CGColorSpaceRelease`/`_CGColorSpaceRetain`, `_objc_release`, `_objc_retain` — are modelled as a JS **NO-OP** (retain-family returns the arg unchanged). JS GC owns our surrogate, so the reference-count primitive is faithfully a no-op at the boundary. A `throw` for one of these on the reachable (non-null) path is a DIVERGENCE from the landed convention — do NOT accept a dtor/release port whose CFRelease path throws on normal input. (A throw MAY appear on the C++ unwind/landing-pad path only — that is reached only during exception propagation and is fine.)
 - VALUE-PRODUCING externs — `_CFBundleGetBundleWithIdentifier`, `_CGColorSpaceCreateWithName`, `_CGColorSpaceCreateDeviceRGB`, ObjC value-returning `_objc_msgSend`, etc. — CANNOT be synthesized, so they THROW with @0xADDR. That is correct and required.
 RULE: releaser/retainer/dtor port → CFRelease/objc_release must be a no-op (retain returns arg). Value-getter port → extern throws @0xADDR. reach_check hitting a CFRelease-throw on non-null input = REJECT (fix to no-op); reach_check hitting a value-getter throw = expected/OK.
+
+## RESOLVED: per-method ledger units — honest partial class files are NOT Pattern-C/skeleton (2026-07-30, coordinator)
+VERIFIED from the ledger structure: units are keyed PER-METHOD. A class like `HGConvolutionShader` is a
+container whose children are individual method units (`compile@0x1654e0`, `RenderTile@0x1663c0`,
+`GetDOD@0x1653d0`, `addRound@0x165080`, ...), each with its OWN `status`. depclaim dispenses/marks-done
+per method, and reconcile counts `ported` per method — NOT per class.
+CONSEQUENCE — stop rejecting honest partial class files:
+- A branch that ships the CLAIMED method's REAL body in the shared class `.ts`, while the class's OTHER
+  (un-claimed, still-`todo`) methods appear as `@0xADDR`-cited throw-stubs, is HONEST FILE SCAFFOLDING.
+  The stubbed siblings are their own separate `todo` units — they are NOT counted ported, so this is
+  NOT skeleton/count-inflation (Pattern D) and NOT Pattern C.
+- PATTERN C (still REJECT) = the CLAIMED unit's OWN real-disasm body is shipped as a throw/no-op
+  ("I decoded it but punt"). Judge the CLAIMED method(s) only: its body must be a faithful transcription.
+- PATTERN D (still REJECT) = a class asserted fully done while most methods throw — impossible under
+  per-method status, but still reject any sidecar that CLAIMS coverage of throw-stubbed siblings as ported.
+- ADD-ONLY guard still applies: the branch must NOT overwrite/regress a sibling method that ALREADY
+  landed with a real body (turning a landed real `compile` back into a throw) — that is a file-level
+  regression, REJECT (caught by the 3-dot `-`-side check).
+RULE: review the branch's CLAIMED method body(ies) for faithful transcription + ADD-only (no sibling
+regression). Do NOT reject solely because OTHER un-claimed methods in the same class file are cited
+throw-stubs — that is the expected incremental-per-method workflow.
