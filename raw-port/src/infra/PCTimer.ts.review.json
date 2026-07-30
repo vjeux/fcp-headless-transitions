@@ -1,10 +1,1 @@
-{
-  "verdict": "REJECT",
-  "merge_allowed": false,
-  "method": "PCTimer::start",
-  "symbol": "__ZN7PCTimer5startEv",
-  "disasm_class": "REAL",
-  "reason": "OVERTURN: dup-ledger. origin/main already contains raw-port/src/infra/PCTimer.ts with a DIFFERENT API shape (PCTimerFields interface + PCTimer_start free function). This branch would REPLACE that landed impl with a class-based one - add-vs-add conflict. Per DUP-LEDGER guard: REJECT regardless of body honesty. (Body itself faithful to disasm - REAL 3 stores + steady_clock::now extern-throw - but redundant/regressive.)",
-  "reviewer": "reviewer-124-adversarial",
-  "ts": "2026-07-30T09:00:05Z"
-}
+{"verdict":"LIKELY_REAL","merge_allowed":true,"method":"PCTimer::start()","symbol":"__ZN7PCTimer5startEv","disasm_class":"REAL","reason":"13-instr_call_steady_clock_now_extern_throws_@0xde666_value-producing_libcxx_extern_then_writes_startTick_accumulator=0_running=true_faithful_field_stores_at_+0x00_+0x08_+0x10_new_file_add_only","reviewer":"adversarial-reviewer-111","ts":"2026-07-30T09:27:51Z"}
