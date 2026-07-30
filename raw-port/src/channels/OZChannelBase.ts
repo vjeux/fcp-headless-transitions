@@ -822,4 +822,179 @@ export class OZChannelBase {
     //   return NULL.
     return null;
   }
+
+  /**
+   * OZChannelBase::getPath(OZChannelBase const* endCh) const.
+   * @0x000000000004a64e..0x000000000004a813  (ProChannel.framework)
+   *
+   * Signature (Itanium sret ABI, mangled `__ZNK13OZChannelBase7getPathEPKS_`):
+   *   void getPath(std::string* sret     [rdi],
+   *                OZChannelBase* self   [rsi],
+   *                OZChannelBase* endCh  [rdx]) const;
+   * The sret string is constructed in-place in the caller's stack slot; the
+   * disasm initialises `*rdi` to an empty SSO basic_string @0x4a678-0x4a691.
+   *
+   * Semantics recovered from the disasm:
+   *
+   *   accum = ""                                        // @0x4a691 assign("")
+   *   if (self != endCh) {
+   *     cur = self
+   *     do {
+   *       // @0x4a6af  ecx = cur->id  (u32 at +0x18 -> `this.id`)
+   *       // @0x4a6c4  snprintf(local, 32, "%u", cur->id)
+   *       // @0x4a6c9..0x4a6e4  If accum is non-empty, append '/' at local[strlen].
+   *       //   The SSO check reads *rbx (accum) low byte: if bit0 set (long-form)
+   *       //   read size at +0x8; if the low byte itself is non-zero (short-form)
+   *       //   short-form size is non-zero. Either way "accum is non-empty".
+   *       // @0x4a716  accum = local + accum   (temp.assign(local); temp.append(accum); accum = temp)
+   *       // @0x4a721  cur = cur->parent  (movq 0x30(%r14), %r14)
+   *     } while (cur != endCh)
+   *     // @0x4a72a  testq %r15,%r15 ; je 4a7b8
+   *     if (endCh != NULL) {
+   *       // @0x4a733  movw $0x2e, -0x50(%rbp)   — buffer becomes "."  (0x2e = '.', high byte 0)
+   *       // @0x4a739  jmp 0x4a75b               — reuse finalise (append '/' if accum non-empty, prepend)
+   *       accum = "." + ('/' if accum non-empty else '') + accum
+   *     }
+   *   } else {
+   *     // @0x4a73b  self == endCh at entry
+   *     if (endCh != NULL) {
+   *       // @0x4a740  snprintf(local, 32, "%u", endCh->id)
+   *       // @0x4a75b..0x4a7b3  same finalise (append '/' if accum non-empty, prepend)
+   *       accum = "<endCh.id>" + ('/' if accum non-empty else '') + accum
+   *     }
+   *     // both null OR endCh==NULL: accum stays ""
+   *   }
+   *
+   * Walk direction: startCh -> startCh->parent -> ... -> endCh (via +0x30).
+   * Each step PREPENDS the current node's id to the accumulator, so the
+   * returned path reads highest-ancestor-first / deepest-leaf-last, with
+   * a trailing '/' after every id and (when the walk actually reached a
+   * non-null endCh) a leading "./".
+   *
+   * Examples (for a chain  A -> B -> C = endCh, A being `self`):
+   *   getPath(&C) starting from A:  "./C/B/A/"
+   *   getPath(NULL) starting from A: "A/" once A->parent hits NULL — but note
+   *     the disasm stops the loop only when cur == endCh, so with endCh=NULL
+   *     the loop keeps walking parents; if the chain ever hits NULL BEFORE
+   *     matching endCh the native code would segfault dereferencing +0x18/+0x30.
+   *     Callers therefore only pass endCh that is guaranteed to lie on the
+   *     parent chain of `self` (or equal to `self`). We faithfully mirror
+   *     that: no NULL-parent guard is emitted — the loop is `do-while`.
+   *   getPath(self=endCh, endCh=&C non-null):  "C/"    (single-id, no leading ".")
+   *   getPath(self=NULL, endCh=NULL):          ""
+   *
+   * Return: the sret string is returned by-value in the caller's slot. In
+   * TS we return a plain `string` (the sret ABI is not observable at the
+   * TS level; @0x4a7d7 `movq %rbx, %rax` returns the sret pointer to
+   * satisfy the ABI, which callers use as-is).
+   *
+   * Call graph: the only callees are pure libc/libc++ boundary externs —
+   *   __ZNSt3__112basic_stringIcNS_11char_traitsIcEENS_9allocatorIcEEE6assignEPKc  (assign(char*))
+   *   __ZNSt3__112basic_stringIcNS_11char_traitsIcEENS_9allocatorIcEEE6appendEPKcm (append(char*,size))
+   *   __ZNSt3__112basic_stringIcNS_11char_traitsIcEENS_9allocatorIcEEEaSERKS5_    (operator=)
+   *   _snprintf, _strlen, __ZdlPv (operator delete),
+   *   __stack_chk_guard, __Unwind_Resume.
+   * All out-of-scope (libc / libc++ runtime). No in-scope FCP callees.
+   */
+  getPath(endCh: OZChannelBase | null): string {
+    // @0x4a678..0x4a691 — *sret = std::string("")  (init empty SSO, then assign "").
+    let accum = "";
+
+    // @0x4a696  cmpq %r15, %r14 ; @0x4a699  je 0x4a73b
+    //   dst-src (AT&T): flags on r14-r15. je taken iff r14 == r15, i.e. self == endCh.
+    //   "not equal" -> fall through into the walk.
+    if ((this as OZChannelBase) !== (endCh as OZChannelBase | null)) {
+      // NON-TRIVIAL WALK PATH.
+      // @0x4a6a7-0x4a6ab  r13 = &local[0]  (32-byte buffer at -0x50(%rbp))
+      //                   r12 = &temp      (temp basic_string at -0x70(%rbp))
+      let cur: OZChannelBase | null = this as OZChannelBase;
+
+      // do { ... } while (cur != endCh)  — mirrors backedge @0x4a728.
+      // The disasm has NO NULL-parent check inside the loop; the caller is
+      // required to pass an endCh that lies on this's parent chain. We
+      // faithfully reproduce the same fault mode: if `cur` becomes null we
+      // would deref +0x18/+0x30. In TS we let the `null.id` access throw.
+      do {
+        // @0x4a6af  movl 0x18(%r14), %ecx        — ecx = cur->id (u32).
+        // @0x4a6b3  movl $0x20, %esi             — buffer size = 32.
+        // @0x4a6bb  leaq "%u"(%rip), %rdx
+        // @0x4a6c2  xorl %eax, %eax              — al = 0 (no vararg SSE args).
+        // @0x4a6c4  callq _snprintf              — local = "%u" % cur->id.
+        // TS: `cur!.id >>> 0` reproduces the u32 read at +0x18. Formatting
+        // with base-10 %u matches _snprintf's semantics.
+        let local = ((cur as OZChannelBase).id >>> 0).toString();
+
+        // @0x4a6c9..0x4a6e4 — if (accum is non-empty) local += "/"
+        //   The SSO probe on *rbx checks the low byte and, if bit0 (long-form
+        //   flag) is set, checks size at +0x8. In our TS model `accum` is
+        //   a plain JS string, so "non-empty" is simply `accum.length > 0`.
+        //   @0x4a6df  callq _strlen — locates the end of the local buffer
+        //   @0x4a6e4  movw $0x2f, -0x50(%rbp,%rax) — writes '/' + '\0'.
+        if (accum.length > 0) {
+          local = local + "/";
+        }
+
+        // @0x4a6eb..0x4a6f1  temp.assign(local)
+        //   (uses the libc++ char*-overload).
+        // @0x4a6f6..0x4a70e  compute rsi/rdx = accum's data/size (SSO-aware).
+        // @0x4a711  temp.append(accum_data, accum_size)
+        // @0x4a71c  *this = temp                (operator= copy)
+        //   Net effect: accum = local + accum   (prepend the current id-token).
+        accum = local + accum;
+
+        // @0x4a721  movq 0x30(%r14), %r14   — cur = cur->parent.
+        cur = ((cur as OZChannelBase).__parent_folder_at_0x30 as
+          | OZChannelBase
+          | null);
+
+        // @0x4a725  cmpq %r15, %r14 ; @0x4a728  jne 0x4a6af  — loop while cur != endCh.
+      } while (cur !== endCh);
+
+      // @0x4a72a  testq %r15, %r15 ; @0x4a72d  je 0x4a7b8   — if endCh==NULL skip finalise.
+      if (endCh !== null) {
+        // @0x4a733  movw $0x2e, -0x50(%rbp)  — buffer becomes ".\0" (0x2e = '.', high byte 0).
+        // @0x4a739  jmp 0x4a75b              — fall into the shared finalise block.
+        let local = ".";
+        // @0x4a75b..0x4a777  if (accum non-empty) local += "/"   (SSO probe + strlen + '/' write).
+        if (accum.length > 0) {
+          local = local + "/";
+        }
+        // @0x4a77e..0x4a7b3  same three-step: temp.assign(local); temp.append(accum); *this = temp.
+        accum = local + accum;
+      }
+    } else {
+      // @0x4a73b  je 0x4a73b — trivial path: self == endCh.
+      // @0x4a73e  testq %r15, %r15 ; @0x4a73e je 0x4a7b8  — if endCh==NULL return "".
+      if (endCh !== null) {
+        // @0x4a740  movl 0x18(%r14), %ecx        — ecx = endCh->id.
+        // @0x4a744  leaq "%u"(%rip), %rdx
+        // @0x4a74f  movl $0x20, %esi
+        // @0x4a754  xorl %eax, %eax
+        // @0x4a756  callq _snprintf              — local = "%u" % endCh->id.
+        // NOTE: self == endCh here, so endCh->id == this.id; we still read
+        // it through endCh to match the disasm's register choice (r14 = endCh
+        // in this branch — the callee-saves loaded r14 = rsi at 0x4a662; when
+        // self==endCh, r14 == r15, and the code reads 0x18(%r14)).
+        let local = ((endCh as OZChannelBase).id >>> 0).toString();
+
+        // @0x4a75b..0x4a777  slash-if-nonempty branch. `accum` is "" here
+        // (we skipped the walk), so this is always false and no '/' is added.
+        // Faithfully model the branch anyway.
+        if (accum.length > 0) {
+          local = local + "/";
+        }
+        // @0x4a77e..0x4a7b3  temp.assign(local); temp.append(accum=""); *this = temp.
+        accum = local + accum;
+      }
+      // If endCh == NULL, jmp 0x4a7b8 leaves accum as "".
+    }
+
+    // @0x4a7b8..0x4a7c2  cleanup: if temp is long-form, `operator delete` its heap buffer.
+    //   Not modelled — GC handles it in TS.
+    // @0x4a7c7..0x4a7d5  __stack_chk_guard verification (canary). Compiler-inserted
+    //   security hardening; not observable at the language level.
+    // @0x4a7d7  movq %rbx, %rax — sret return: *rdi (== self here in the ABI sense);
+    //   in TS we just return the string value.
+    return accum;
+  }
 }
