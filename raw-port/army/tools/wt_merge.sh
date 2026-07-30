@@ -34,7 +34,10 @@ CHANGED="$(git diff --name-only origin/main...$BR -- 'raw-port/src/**/*.ts' | se
 echo "== gating $BR changed files: =="; echo "$CHANGED" | sed 's/^/  /'
 if [ -n "$CHANGED" ]; then
   # gate runs against the BRANCH content in a throwaway gate-worktree so tsc sees its files.
-  GW="$REPO/raw-port/army/worktrees/.gate-$TAG"
+  # PID suffix ($$) makes the gate-worktree unique per reviewer process: two concurrent reviewers
+  # gating the SAME branch/TAG no longer collide on `fatal: '.gate-<TAG>' already exists`, and the
+  # stale-removal below can no longer nuke another reviewer's in-flight gate-worktree.
+  GW="$REPO/raw-port/army/worktrees/.gate-$TAG.$$"
   git worktree remove --force "$GW" 2>/dev/null || true   # clear any stale gate-worktree
   git worktree add -q --force "$GW" "$BR"
   ln -sfn "$REPO/engine/node_modules"    "$GW/engine/node_modules"    2>/dev/null || true
