@@ -169,3 +169,21 @@ export class HGLC {
 export function __resetHGLCContextsForTests(): void {
   __ZZN4HGLC11getContextsEvE8contexts = null;
 }
+
+/**
+ * Read-only access to the raw `HGLC::getContexts()::contexts` static
+ * cell (@Helium 0xade380). NOT exported as a public API — used
+ * exclusively by `HGLogger::getLevel(char const*)` @Helium 0x1ad8e0,
+ * whose disasm reads the cell DIRECTLY at @0x1ad8fd (rather than going
+ * through getContexts()) so that it can perform its OWN lazy-init if
+ * the cell is still null. Exposing an accessor here keeps HGLC.ts as
+ * the single writer of the cell (HGLogger.ts delegates to
+ * `HGLC.getContexts()` for the ALLOC path @0x1ad95c-0x1ad97b) while
+ * letting HGLogger.ts faithfully model getLevel's null-check branch.
+ *
+ * The `__get` prefix signals "port-internal boundary accessor, not FCP-
+ * public" — mirrors the `__resetHGLCContextsForTests` pattern above.
+ */
+export function __getHGLCContextsCell(): HGLCContexts | null {
+  return __ZZN4HGLC11getContextsEvE8contexts;
+}
