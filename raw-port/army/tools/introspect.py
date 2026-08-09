@@ -53,7 +53,7 @@ def analyze():
         rows=real_rows; basis="ported_real"
     else:
         rows=allrows; basis="fn_cited(PROXY,~6x high)"
-    out={"ts":now.isoformat(),"n_points":len(rows),"basis":basis}
+    out={"ts":now.isoformat(),"n_points":len(rows),"n_ground_truth":len(real_rows),"basis":basis}
     if len(rows)<2:
         # Not enough history to judge a trend. Stay hourly, gather data.
         out.update({"verdict":"BOOTSTRAP","reason":"fewer than 2 datapoints — need history to assess trend",
@@ -97,11 +97,15 @@ def analyze():
     recent_rate = statistics.mean(slopes) if slopes else fn_per_h
 
     total = 126668
-    remaining = total - fL
-    eta_days = (remaining/ (recent_rate*24)) if recent_rate>0 else None
-    # metric is now ledger ported (ground truth) when available; %complete/ETA are meaningful.
-    # A mixed series (old fn_cited rows + new ported_real rows) will show a one-time discontinuity;
-    # the 'metric' field flags which basis the latest point used.
+    # Coverage %/ETA/remaining are ONLY meaningful on the ground-truth (ported_real) basis. On the
+    # fn_cited proxy basis these are ~6x wrong, so we DO NOT report them — the proxy is used only for
+    # a rough RATE trend to drive cadence, never as a coverage figure.
+    if basis=="ported_real":
+        remaining = total - fL
+        eta_days = (remaining/ (recent_rate*24)) if recent_rate>0 else None
+        pct = round(100.0*fL/total,2)
+    else:
+        remaining = None; eta_days = None; pct = None
 
     # ---- verdict + cadence logic -------------------------------------------------------
     # thresholds are deliberately simple + explainable.
@@ -136,9 +140,9 @@ def analyze():
             "recent_rate_per_hour":round(recent_rate,2),
             "merges_now":int(_num(last,'merges')),"merge_delta":int(d_merge),"merge_per_hour":round(merge_per_h,2),
             "ported_ts_delta":int(d_ts),
-            "remaining_functions":int(remaining),
+            "remaining_functions": (int(remaining) if remaining is not None else None),
             "eta_days_at_recent_rate": round(eta_days,1) if eta_days else None,
-            "pct_complete":round(100.0*fL/total,2),
+            "pct_complete": pct,
         },
     })
     return out
@@ -146,9 +150,9 @@ def analyze():
 def _append_ilog(a):
     new=not os.path.exists(ILOG)
     with open(ILOG,"a") as f:
-        if new: f.write("utc_time,verdict,recommend_interval_min,fn_cited,fn_per_hour,recent_rate,merges,remaining,eta_days\n")
+        if new: f.write("utc_time,verdict,recommend_interval_min,basis,ported,fn_per_hour,recent_rate,merges,remaining,eta_days\n")
         s=a.get("signals",{})
-        f.write(f"{a['ts']},{a['verdict']},{a['recommend_interval_min']},{s.get('ported_now','')},"
+        f.write(f"{a['ts']},{a['verdict']},{a['recommend_interval_min']},{a.get('basis','')},{(s.get('ported_now','') if a.get('basis')=='ported_real' else '')},"
                 f"{s.get('fn_per_hour','')},{s.get('recent_rate_per_hour','')},{s.get('merges_now','')},"
                 f"{s.get('remaining_functions','')},{s.get('eta_days_at_recent_rate','')}\n")
 
@@ -164,7 +168,10 @@ if __name__=="__main__":
     print(f"  verdict         : {a['verdict']}  ({a['reason']})")
     print(f"  next interval   : {a['recommend_interval_min']} min")
     if s:
-        print(f"  coverage        : {s['ported_now']:,} ported = {s['pct_complete']}% of 126,668  ({s['remaining_functions']:,} remaining)  [{s['metric']}]")
+        if s.get('pct_complete') is not None:
+            print(f"  coverage        : {s['ported_now']:,} ported = {s['pct_complete']}% of 126,668  ({s['remaining_functions']:,} remaining)  [ground truth]")
+        else:
+            print(f"  coverage        : (not reported — only {a.get('n_ground_truth',0)} ground-truth datapoint(s); need >=2. rate trend uses {s['metric']})")
         print(f"  recent rate     : {s['recent_rate_per_hour']} fn/h  (lifetime {s['fn_per_hour_lifetime']} fn/h)")
         print(f"  merges          : {s['merges_now']:,} (+{s['merge_delta']} since last, {s['merge_per_hour']}/h)")
         print(f"  ETA (naive)     : {s['eta_days_at_recent_rate']} days at recent rate")

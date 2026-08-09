@@ -133,7 +133,7 @@ def snapshot():
     print(f"  port/ merges     : {merges}")
     print(f"  ported .ts files : {len(ts)}")
     print(f"  total src lines  : {lines:,}")
-    print(f"  distinct @0xADDR : {len(addrs):,}  (of ~{ledtot:,} ledger fns = {100.0*len(addrs)/max(ledtot,1):.2f}% cited)")
+    print(f"  distinct @0xADDR : {len(addrs):,}  (raw citation tokens — NOT coverage; ~35 per fn: entry+consts+offsets+instr sites. Real coverage = ledger `ported` below.)")
     # --- ledger-truth 3-way split: real ports vs throw-stubs vs todo (via stubscan classifier) ---
     real=stubn=todon=0
     for lf in (os.listdir(ldir) if os.path.isdir(ldir) else []):
