@@ -5247,3 +5247,9 @@
 {"op": "claim", "head": "__ZN15OZSceneNodeFile16setIsFileMissingEb", "members": ["__ZN15OZSceneNodeFile16setIsFileMissingEb"], "ts": 1786299910.5470788}
 {"op": "claim", "head": "__ZNK15OZSceneSettings19getDisplayFrameRateEv", "members": ["__ZNK15OZSceneSettings19getDisplayFrameRateEv"], "ts": 1786299910.923794}
 {"op": "claim", "head": "__ZN10HGRenderer19SetExternalResourceEPv", "members": ["__ZN10HGRenderer19SetExternalResourceEPv"], "ts": 1786299911.304224}
+{"op": "claim", "head": "__ZN14PCEvictionHeapINSt3__114__map_iteratorINS0_15__tree_iteratorINS0_12__value_typeINS0_5tupleIJ7PCCFRefIP12CGColorSpaceEN11PCColorUtil11AlphaFormatES8_SA_EEEN11PCCacheImplISB_S5_IP15vImageConverterE8PCNoLockNS0_4lessISB_EEE4DataEEEPNS0_11__tree_nodeISL_PvEElEEEEE6bubbleERKSR_", "members": ["__ZN14PCEvictionHeapINSt3__114__map_iteratorINS0_15__tree_iteratorINS0_12__value_typeINS0_5tupleIJ7PCCFRefIP12CGColorSpaceEN11PCColorUtil11AlphaFormatES8_SA_EEEN11PCCacheImplISB_S5_IP15vImageConverterE8PCNoLockNS0_4lessISB_EEE4DataEEEPNS0_11__tree_nodeISL_PvEElEEEEE6bubbleERKSR_"], "ts": 1786300050.5655098}
+{"op": "claim", "head": "__ZN11PCColorUtil30applyInverseToneMap_LinearGainEDv3_ff", "members": ["__ZN11PCColorUtil30applyInverseToneMap_LinearGainEDv3_ff"], "ts": 1786300085.5225668}
+{"op": "claim", "head": "__Z14doToneMap_OSFADv3_f", "members": ["__Z14doToneMap_OSFADv3_f"], "ts": 1786300085.96415}
+{"op": "claim", "head": "__ZNK18HGGPUComputeDevice18GetGLVirtualScreenEv", "members": ["__ZNK18HGGPUComputeDevice18GetGLVirtualScreenEv"], "ts": 1786300086.3974552}
+{"op": "claim", "head": "__ZN13HGFormatUtils11metalFormatE8HGFormat", "members": ["__ZN13HGFormatUtils11metalFormatE8HGFormat"], "ts": 1786300086.8332858}
+{"op": "claim", "head": "__ZN14HGGLContextPtrC1EPv", "members": ["__ZN14HGGLContextPtrC1EPv"], "ts": 1786300087.269658}
