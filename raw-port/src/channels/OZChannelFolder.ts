@@ -190,6 +190,49 @@ export class OZChannelFolder extends OZChannelBase {
     for (const c of e.children) node.parseElement(s, c);
     this.push_back(node);                                                                        // 0x66819
   }
+
+  /**
+   * @ProChannel offset +0x78 — a `uint32_t` fold-flags word on
+   * OZChannelFolder. Read @0x66072 via `testl %esi, 0x78(%rdi)` inside
+   * `testFoldFlag`. This is the bitmask storage the folder tests against
+   * a caller-supplied mask; the writer for this slot lives in a
+   * different (not-yet-ported) OZChannelFolder method, so this port only
+   * models the field the getter reads (zero-initialised, per Rule 5 — no
+   * fabricated writer).
+   */
+  foldFlags_at_0x78: number = 0;
+
+  /**
+   * `OZChannelFolder::testFoldFlag(unsigned int) const` — @ProChannel 0x6606e
+   * (__ZNK15OZChannelFolder12testFoldFlagEj).
+   *
+   * Faithful line-for-line transcription of the 7-line disassembly:
+   *
+   *   __ZNK15OZChannelFolder12testFoldFlagEj:
+   *     0x6606e  pushq  %rbp
+   *     0x6606f  movq   %rsp, %rbp
+   *     0x66072  testl  %esi, 0x78(%rdi)   ; ZF = ((this->foldFlags_at_0x78 & mask) == 0)
+   *     0x66075  setne  %al                ; al = ((flags & mask) != 0)
+   *     0x66078  popq   %rbp
+   *     0x66079  retq
+   *
+   * `testl %esi, 0x78(%rdi)` computes the 32-bit AND of the caller's
+   * `mask` (%esi, the `unsigned int` parameter) with the fold-flags word
+   * at this+0x78 and sets ZF from the result. `setne %al` returns 1 iff
+   * the AND is non-zero — i.e. "is ANY bit of `mask` set in the folder's
+   * flags". No branch, no callq, no external stubs, no indirect calls.
+   * `depgraph.py deps` reports 0 callees of every kind.
+   *
+   * The `const` qualifier matches the `__ZNK...` mangling; the single
+   * observed access is a read, so the body performs no writes. The AND is
+   * masked to 32 bits with `>>> 0` to mirror the `testl` operand width
+   * exactly (Rule 4 — respect the machine's unsigned 32-bit width).
+   */
+  testFoldFlag(mask: number): boolean {
+    // @0x66072  testl %esi, 0x78(%rdi)   — 32-bit AND (this->foldFlags_at_0x78 & mask)
+    // @0x66075  setne %al                — result != 0
+    return ((this.foldFlags_at_0x78 & mask) >>> 0) !== 0;
+  }
 }
 
 // --- Channel-tree builder (module function) -------------------------------------------------
