@@ -178,15 +178,24 @@ def cmd_seed():
     import subprocess as sp
     def go():
         claimed=_claimed_set()
-        # collect refs: main + all pushed port branches
-        refs=["origin/main"]
+        # main: one full grep (the bulk of already-merged symbols)
+        found=set()
+        g=sp.run(["git","-C",CANON,"grep","-hoE","__Z[A-Za-z0-9_$.]+","origin/main","--","raw-port/src"],
+                 capture_output=True,text=True)
+        for tok in g.stdout.split():
+            if tok.startswith("__Z"): found.add(tok)
+        # each pushed port branch: grep ONLY the files that differ from main (branches are tiny
+        # diffs, usually 1 file) — 100x faster than full-tree grep per branch, so this stays fast
+        # even under heavy swarm load.
         r=sp.run(["git","-C",CANON,"for-each-ref","--format=%(refname:short)","refs/remotes/origin/port/*"],
                  capture_output=True,text=True)
-        refs+= [x for x in r.stdout.split() if x]
-        # grep every mangled symbol out of the src TS across all refs, in one pass per ref
-        found=set()
+        refs=[x for x in r.stdout.split() if x]
         for ref in refs:
-            g=sp.run(["git","-C",CANON,"grep","-hoE","__Z[A-Za-z0-9_$.]+",ref,"--","raw-port/src"],
+            d=sp.run(["git","-C",CANON,"diff","--name-only",f"origin/main...{ref}","--","raw-port/src"],
+                     capture_output=True,text=True)
+            files=[x for x in d.stdout.split() if x]
+            if not files: continue
+            g=sp.run(["git","-C",CANON,"grep","-hoE","__Z[A-Za-z0-9_$.]+",ref,"--",*files],
                      capture_output=True,text=True)
             for tok in g.stdout.split():
                 if tok.startswith("__Z"): found.add(tok)
