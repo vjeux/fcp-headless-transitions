@@ -196,6 +196,7 @@
 //   * __ZN12OZAudioMixer11isScrubbingEv   OZAudioMixer::isScrubbing()  @0x21c640
 //   * __ZN12OZAudioMixer9initMixerEv      OZAudioMixer::initMixer()    @0x2182d0
 //   * __ZN12OZAudioMixer9isPlayingEv      OZAudioMixer::isPlaying()    @0x21bc20
+//   * __ZN12OZAudioMixer4stopEbb          OZAudioMixer::stop(bool,bool) @0x21c150
 
 /** Opaque STMixer* handle (Apple ST audio-transport subsystem). Not
  *  modelled — ST is out-of-scope, same policy as pthread/CoreMedia
@@ -249,6 +250,34 @@ export class OZAudioMixer {
    *  passes in initMixer gate on `cmpb $0x1, 0x159(%rbx)` (@0x218321,
    *  @0x21836f). */
   notifiersEnabled_at_0x159 = false;
+
+  /** (this+0x50) — an STScheduledCallbackUPP handle (opaque). Disposed by
+   *  `stop()` @0x21c1fc via `_DisposeSTScheduledCallbackUPP` and then
+   *  nulled (@0x21c201). Null when no scheduled callback is installed. */
+  scheduledCallbackUPP_at_0x50: STNotifierUPP | null = null;
+
+  /** (this+0x88) — a __CFRunLoopTimer* (opaque CoreFoundation handle).
+   *  `stop()` @0x21c184..0x21c1a1 invalidates it (`_CFRunLoopTimerInvalidate`),
+   *  releases it (`_CFRelease`), then nulls the slot when non-null. Null
+   *  when no timer is installed. */
+  runLoopTimer_at_0x88: object | null = null;
+
+  /** (this+0x90) — a second __CFRunLoopTimer* (opaque). Same invalidate+
+   *  release+null treatment by `stop()` @0x21c1ac..0x21c1c9 as the +0x88
+   *  timer. Null when unset. */
+  runLoopTimer_at_0x90: object | null = null;
+
+  /** (this+0xa1) — a one-byte flag set to 1 by `stop()` @0x21c17d
+   *  (`movb $0x1, 0xa1(%rbx)`) ONLY when the first bool argument (`a`) is
+   *  non-zero. 1-byte store => bool/uint8; preserved as `number` (0..255).
+   *  Reader lives elsewhere. */
+  flagByte_at_0xa1 = 0;
+
+  /** (this+0xd4) — a one-byte flag written UNCONDITIONALLY at the top of
+   *  `stop()` @0x21c161 (`movb %dl, 0xd4(%rdi)`) from the SECOND bool
+   *  argument (`b`, in %dl). 1-byte store => bool/uint8; preserved as
+   *  `number` (0..255). Reader lives elsewhere. */
+  flagByte_at_0xd4 = 0;
 
   // ═════════════════════════════════════════════════════════════════════════
   // OZAudioMixer::isScrubbing()
@@ -531,5 +560,140 @@ export class OZAudioMixer {
     //     testl %eax, %eax ; sete %cl   : cl = (err == 0)
     //     cmpb $0x0, -0x1(%rbp) ; setne %al : al = (out_byte != 0)
     //     andb %cl, %al                 : return err==0 && out_byte!=0
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // OZAudioMixer::stop(bool, bool)
+  //
+  // Disassembly source:
+  //   raw-port/re/disasm/__ZN12OZAudioMixer4stopEbb.s
+  //
+  // FULL DISASM (Ozone slice, @0x21c150..0x21c209):
+  //   0x21c150  pushq  %rbp
+  //   0x21c151  movq   %rsp, %rbp
+  //   0x21c154  pushq  %r14
+  //   0x21c156  pushq  %rbx
+  //   0x21c157  subq   $0x10, %rsp
+  //   0x21c15b  movl   %esi, %r14d                  ; r14d = arg0 `a` (bool, %esi)
+  //   0x21c15e  movq   %rdi, %rbx                   ; rbx  = this
+  //   0x21c161  movb   %dl, 0xd4(%rdi)              ; this->flagByte_at_0xd4 = arg1 `b` (%dl)
+  //   0x21c167  movq   0x10(%rdi), %rdi             ; rdi = this->STMixer_at_0x10
+  //   0x21c16b  leaq   -0x18(%rbp), %rsi            ; rsi = &transport_out
+  //   0x21c16f  callq  _STMixerGetTransport         ; @stub 0x6dcf84 (ST audio extern)
+  //   0x21c174  testl  %eax, %eax                   ; err ?
+  //   0x21c176  jne    0x21c1e1                     ;   err -> return 0 (fail path)
+  //   0x21c178  testb  %r14b, %r14b                 ; `a` != 0 ?
+  //   0x21c17b  je     0x21c184                     ;   no -> skip the +0xa1 flag set
+  //   0x21c17d  movb   $0x1, 0xa1(%rbx)             ; this->flagByte_at_0xa1 = 1
+  //   0x21c184  movq   0x88(%rbx), %rdi             ; rdi = this->runLoopTimer_at_0x88
+  //   0x21c18b  testq  %rdi, %rdi ; je 0x21c1ac     ;   null -> skip invalidate/release
+  //   0x21c190  callq  _CFRunLoopTimerInvalidate    ; @stub 0x6dc852 (CoreFoundation extern)
+  //   0x21c195  movq   0x88(%rbx), %rdi             ; reload
+  //   0x21c19c  callq  _CFRelease                   ; @stub 0x6dc810 (CoreFoundation extern)
+  //   0x21c1a1  movq   $0x0, 0x88(%rbx)             ; this->runLoopTimer_at_0x88 = null
+  //   0x21c1ac  movq   0x90(%rbx), %rdi             ; rdi = this->runLoopTimer_at_0x90
+  //   0x21c1b3  testq  %rdi, %rdi ; je 0x21c1d4     ;   null -> skip invalidate/release
+  //   0x21c1b8  callq  _CFRunLoopTimerInvalidate    ; @stub 0x6dc852 (CoreFoundation extern)
+  //   0x21c1bd  movq   0x90(%rbx), %rdi             ; reload
+  //   0x21c1c4  callq  _CFRelease                   ; @stub 0x6dc810 (CoreFoundation extern)
+  //   0x21c1c9  movq   $0x0, 0x90(%rbx)             ; this->runLoopTimer_at_0x90 = null
+  //   0x21c1d4  movq   -0x18(%rbp), %rdi            ; rdi = transport (out-param from above)
+  //   0x21c1d8  callq  _STTransportStop             ; @stub 0x6dd03e (ST audio extern)
+  //   0x21c1dd  testl  %eax, %eax                   ; err ?
+  //   0x21c1df  je     0x21c1f0                     ;   ok  -> success path
+  //   0x21c1e1  xorl   %r14d, %r14d                 ; fail path: return-value = 0
+  //   0x21c1e4  movl   %r14d, %eax                  ; eax = r14d
+  //   0x21c1e7  addq   $0x10, %rsp ; popq %rbx ; popq %r14 ; popq %rbp ; retq
+  //   0x21c1f0  movq   0x50(%rbx), %rdi             ; rdi = this->scheduledCallbackUPP_at_0x50
+  //   0x21c1f4  movb   $0x1, %r14b                  ; return-value = 1 (success)
+  //   0x21c1f7  testq  %rdi, %rdi ; je 0x21c1e4     ;   null -> return 1
+  //   0x21c1fc  callq  _DisposeSTScheduledCallbackUPP ; @stub 0x6dcb7c (ST audio extern)
+  //   0x21c201  movq   $0x0, 0x50(%rbx)             ; this->scheduledCallbackUPP_at_0x50 = null
+  //   0x21c209  jmp    0x21c1e4                     ; return 1
+  //
+  // SEMANTICS: write the `b` flag to +0xd4, fetch the STMixer's transport,
+  // and (on success) tear down any installed CFRunLoopTimers (+0x88, +0x90)
+  // and scheduled-callback UPP (+0x50), calling STTransportStop in between.
+  // Returns true iff BOTH STMixerGetTransport AND STTransportStop succeed
+  // (err==0); any ST failure returns false.
+  //
+  // FRONTIER CALLEES — ALL TRUE OUT-OF-SCOPE EXTERNS:
+  //   * _STMixerGetTransport          @Ozone stub 0x6dcf84 (@0x21c16f)             — ST audio
+  //   * _CFRunLoopTimerInvalidate     @Ozone stub 0x6dc852 (@0x21c190,@0x21c1b8)   — CoreFoundation
+  //   * _CFRelease                    @Ozone stub 0x6dc810 (@0x21c19c,@0x21c1c4)   — CoreFoundation
+  //   * _STTransportStop              @Ozone stub 0x6dd03e (@0x21c1d8)             — ST audio
+  //   * _DisposeSTScheduledCallbackUPP@Ozone stub 0x6dcb7c (@0x21c1fc)             — ST audio
+  //
+  // ST* is Apple's Sound-Transport C API and CF* is CoreFoundation — both
+  // outside the 5-framework FCP port scope, SAME boundary policy as the ST
+  // calls in isScrubbing/isPlaying/initMixer above. `_STMixerGetTransport`
+  // is a VALUE-PRODUCING extern (its err code AND the transport out-param
+  // drive the entire rest of the function), so — exactly as isPlaying does
+  // @0x21bc34 — we raise at that first boundary call rather than fabricate a
+  // transport handle. The pre-extern REAL WORK (`movb %dl,0xd4` @0x21c161)
+  // runs first, faithfully.
+  // ═════════════════════════════════════════════════════════════════════════
+  /**
+   * `OZAudioMixer::stop(bool a, bool b)` — @Ozone 0x21c150
+   * (__ZN12OZAudioMixer4stopEbb).
+   *
+   * Stores `b` into the +0xd4 flag, fetches the mixer's transport, and on
+   * success tears down the two CFRunLoopTimers (+0x88, +0x90) and the
+   * scheduled-callback UPP (+0x50) around a `STTransportStop` call, also
+   * setting the +0xa1 flag when `a` is true. Returns true iff both
+   * `STMixerGetTransport` and `STTransportStop` succeed.
+   *
+   * Every callee is a TRUE out-of-scope extern (Apple ST audio + Core-
+   * Foundation). `_STMixerGetTransport` is value-producing (err + out-
+   * param gate everything downstream), so we perform the pre-extern real
+   * work (@0x21c161) and then raise at the first boundary call — the
+   * identical discipline used by isScrubbing / isPlaying / initMixer.
+   *
+   * @param a  first bool (SysV %esi) — gates the +0xa1 flag set.
+   * @param b  second bool (SysV %dl) — stored to +0xd4 unconditionally.
+   * @returns  true iff the transport was fetched AND stopped without error.
+   */
+  stop(a: boolean, b: boolean): boolean {
+    // @0x21c15b  movl %esi,%r14d          : capture arg0 `a` (used @0x21c178
+    //   to gate the +0xa1 flag). Referenced so the port threads it like the
+    //   machine keeps it live across the extern in r14.
+    void a;
+    // @0x21c161  movb %dl, 0xd4(%rdi)     : this->flagByte_at_0xd4 = `b`.
+    //   REAL WORK executed BEFORE the extern — a 1-byte store of the second
+    //   bool argument. C++ `bool` → 1 byte: true==1, false==0.
+    this.flagByte_at_0xd4 = b ? 1 : 0;
+
+    // @0x21c167  movq 0x10(%rdi),%rdi      : rdi = this->STMixer_at_0x10
+    // @0x21c16b  leaq -0x18(%rbp),%rsi     : rsi = &transport_out
+    // @0x21c16f  callq _STMixerGetTransport
+    //   TRUE out-of-scope, VALUE-PRODUCING extern (Apple ST audio). Its
+    //   error code (@0x21c174 testl/jne) and the transport out-param
+    //   (@0x21c1d4, handed to STTransportStop) drive the entire rest of the
+    //   function — we cannot honestly synthesise either. Raise at the
+    //   boundary, mirroring isPlaying @0x21bc34.
+    // Materialise the STMixer read so the port observably references it
+    // (matches `movq 0x10(%rdi),%rdi`), exactly as the sibling methods do.
+    void this.STMixer_at_0x10;
+
+    throw new Error(
+      "OZAudioMixer::stop(bool,bool) requires _STMixerGetTransport on " +
+        "this->STMixer_at_0x10 @Ozone 0x21c16f (ST audio-transport stub " +
+        "@0x6dcf84) — ST* is not modelled in TS (Apple Sound-Transport API, " +
+        "same boundary policy as isScrubbing @0x21c65d / isPlaying @0x21bc34 / " +
+        "initMixer @0x2182e9). On success (err==0), the disasm: sets " +
+        "flagByte_at_0xa1=1 when `a` (@0x21c17d); invalidates+releases+nulls " +
+        "the two __CFRunLoopTimers at +0x88 (@0x21c190/0x21c19c, CoreFoundation " +
+        "stubs 0x6dc852/0x6dc810) and +0x90 (@0x21c1b8/0x21c1c4); calls " +
+        "_STTransportStop @0x21c1d8 (stub 0x6dd03e) on the transport; and — if " +
+        "that succeeds — disposes the scheduled-callback UPP at +0x50 via " +
+        "_DisposeSTScheduledCallbackUPP @0x21c1fc (stub 0x6dcb7c) and nulls it, " +
+        "returning true. Any ST error returns false. The pre-extern store " +
+        "`this.flagByte_at_0xd4 = b` @0x21c161 has already run. @0x21c150",
+    );
+
+    // Unreachable after the throw — the disasm's post-boundary structure is
+    // preserved in the header comment above for a future porter who wires the
+    // ST/CF boundary: err? -> return false; else set +0xa1 (if a), tear down
+    // +0x88/+0x90 timers, STTransportStop, then dispose +0x50 UPP, return true.
   }
 }

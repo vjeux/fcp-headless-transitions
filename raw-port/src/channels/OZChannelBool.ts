@@ -278,4 +278,104 @@ export class OZChannelBool {
     // Step 9 — @0x0e0d0c: retq rbx.
     return rbx;
   }
+
+  /**
+   * `OZChannelBool::createOZChannelBoolInfo()` @ProChannel 0x5255c.
+   *   __ZN13OZChannelBool23createOZChannelBoolInfoEv
+   *
+   * Source disassembly (19 lines):
+   *   raw-port/re/disasm/ProChannel.__ZN13OZChannelBool23createOZChannelBoolInfoEv.s
+   *
+   * Faithful transcription (standard std::call_once singleton bootstrap —
+   * the SAME idiom as OZChannelUint32::createOZChannelUint32Info @ProChannel
+   * 0x42ec):
+   *   @0x5255c: movq  _OZChannelBoolInfo_once(%rip),%rax   ; load the once-flag word.
+   *   @0x52563-67: cmpq $-0x1,%rax ; je 0x5259b            ; FAST PATH: already run
+   *                                                          (sentinel -1) -> skip call_once,
+   *                                                          fall straight to the load+return.
+   *   @0x52569-8a: build the std::call_once arg triple on the stack —
+   *                  @0x52571 leaq -0x1(%rbp),%rax         ; &lambda-capture byte
+   *                  @0x52575-80 wire two nested pointers   ; tuple<lambda&&> shim
+   *                  @0x52583 leaq _OZChannelBoolInfo_once(%rip),%rdi   ; &once-flag
+   *                  @0x5258a leaq __call_once_proxy<...lambda...>(%rip),%rdx ; proxy fn ptr
+   *   @0x52591: callq __ZNSt3__111__call_onceERVmPvPFvS2_E ; std::__1::__call_once
+   *                                                          (@stub 0xacdc8). The ALLOCATION of
+   *                                                          the OZChannelBoolInfo singleton
+   *                                                          happens INSIDE __call_once_proxy —
+   *                                                          NOT in this frame (there is no
+   *                                                          in-frame __Znwm); it is a SEPARATE
+   *                                                          ledger unit (the proxy/lambda body,
+   *                                                          not symbol-visible in this slice).
+   *   @0x5259b-a2: movq _OZChannelBoolInfo(%rip),%rax ; retq
+   *                                                          ; return the (now-published) global.
+   *                Note: UNLIKE the Uint32 twin (which does an extra `movq (%rax),%rax` deref),
+   *                this method returns the `_OZChannelBoolInfo` global value DIRECTLY — a single
+   *                movq load, no deref (@0x5259b) — so the returned pointer IS the global's
+   *                stored value.
+   *
+   * ANTI-CHEAT boundary model: the `cmpq $-0x1` sentinel + the single
+   * `callq __call_once@0xacdc8` are the canonical call_once getInstance shape.
+   * We do NOT fabricate `new OZChannelBoolInfo()` here — the machine performs
+   * no allocation in this frame; it delegates to __call_once_proxy (its own
+   * ledger unit). std::__1::__call_once is a TRUE out-of-scope extern (libc++,
+   * @stub 0xacdc8) and the proxy/lambda body is not decoded on this side, so
+   * the singleton getter is surfaced as a throwing boundary stub. The
+   * once-flag sentinel is modelled as the bigint -1n per the anti-cheat spec.
+   */
+  static createOZChannelBoolInfo(): OZChannelBoolInfoPtr {
+    // @ProChannel 0x5255c-67: read the once-flag; -1n sentinel == "already run".
+    if (_OZChannelBoolInfo_once !== -1n) {
+      // @ProChannel 0x52569-91: NOT-yet-run -> std::call_once(&once, &__call_once_proxy<lambda>).
+      // The proxy allocates + publishes _OZChannelBoolInfo; that body is a
+      // separate (not-yet-transcribed) ledger unit — surfaced as a loud
+      // boundary gap @ProChannel 0x52591 (Rule 3: raise at the undecoded callee).
+      _OZChannelBoolInfo_call_once_body();
+    }
+    // @ProChannel 0x5259b-a2: movq _OZChannelBoolInfo(%rip),%rax ; retq  — direct load, no deref.
+    return _OZChannelBoolInfo;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// std::call_once-guarded singleton state for createOZChannelBoolInfo().
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Return type of the OZChannelBoolInfo singleton pointer (ProChannel
+ *  `__ZN13OZChannelBool18_OZChannelBoolInfoE` @0x5259b). Opaque handle —
+ *  the concrete OZChannelBoolInfo shape lives in
+ *  raw-port/src/channels/OZChannelBoolInfo.ts. */
+export type OZChannelBoolInfoPtr = object | null | undefined;
+
+/** `OZChannelBool::createOZChannelBoolInfo()::_OZChannelBoolInfo_once`
+ *  @ProChannel `__ZZN13OZChannelBool23createOZChannelBoolInfoEvE23_OZChannelBoolInfo_once`
+ *  (loaded @0x5255c). libc++ std::once_flag control word. Its "already-run"
+ *  sentinel is the all-ones qword compared at @0x52563 (`cmpq $-0x1,%rax`),
+ *  modelled as the bigint -1n. Initialised here to 0n (never-run) — the real
+ *  transition to -1n happens inside std::__1::__call_once. */
+let _OZChannelBoolInfo_once: bigint = 0n;
+
+/** `OZChannelBool::_OZChannelBoolInfo`
+ *  @ProChannel `__ZN13OZChannelBool18_OZChannelBoolInfoE` (loaded @0x5259b).
+ *  The process-wide OZChannelBoolInfo singleton pointer, published by the
+ *  __call_once proxy. `null` until the (not-yet-transcribed) proxy runs. */
+let _OZChannelBoolInfo: OZChannelBoolInfoPtr = null;
+
+/**
+ * The `std::__1::__call_once` proxy body invoked from createOZChannelBoolInfo
+ * @ProChannel 0x52591 through
+ *   __ZNSt3__117__call_once_proxyB9nqe210106INS_5tupleIJOZN13OZChannelBool23createOZChannelBoolInfoEvEUlvE_EEEEEvPv
+ * (the fn pointer loaded @0x5258a). This is where the OZChannelBoolInfo
+ * singleton is actually ALLOCATED and stored into `_OZChannelBoolInfo`.
+ * The proxy/lambda body is not symbol-visible in this framework slice and is
+ * a SEPARATE ledger unit — NOT yet transcribed. Per Rule 3 it raises a loud
+ * gap @ProChannel 0x52591 rather than fabricating an allocation.
+ */
+function _OZChannelBoolInfo_call_once_body(): void {
+  throw new Error(
+    "OZChannelBool::createOZChannelBoolInfo()::lambda @ProChannel U-extern " +
+      "(bound via __ZNSt3__117__call_once_proxyB9nqe210106INS_5tupleIJOZN13OZChannelBool23createOZChannelBoolInfoEvEUlvE_EEEEEvPv" +
+      " — lambda body not symbol-visible; not yet transcribed). Invoked by " +
+      "std::__1::__call_once @ProChannel 0x52591 (libc++ stub @0xacdc8); it " +
+      "allocates + publishes _OZChannelBoolInfo (__ZN13OZChannelBool18_OZChannelBoolInfoE).",
+  );
 }
