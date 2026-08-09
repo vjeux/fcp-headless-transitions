@@ -572,11 +572,134 @@ function PCColorSpaceCache_nsDefaultSpace_stub(): unknown {
  * hit-testers as a global. Not yet transcribed. The addresses below are
  * the ProChannel `getInstance()` symbol addresses.
  */
-function OZChannelColorNoAlpha_blackImpl_getInstance_stub(): unknown {
+// ─────────────────────────────────────────────────────────────────────────────
+// OZChannelColorNoAlpha::OZChannelColorNoAlpha_blackImpl::getInstance()
+//   @ProChannel 0x5723c
+//   (__ZN21OZChannelColorNoAlpha31OZChannelColorNoAlpha_blackImpl11getInstanceEv)
+//
+// Disassembly source:
+//   raw-port/re/disasm/ProChannel.__ZN21OZChannelColorNoAlpha31OZChannelColorNoAlpha_blackImpl11getInstanceEv.s
+//
+// FULL DISASM:
+//   0x5723c  movq  _..._blackImpl_once(%rip), %rax   ; rax = once-flag word
+//   0x57243  cmpq  $-0x1, %rax                       ; sub: rax - (-1)
+//   0x57247  je    0x5727b                           ;   je => flag == -1 (done)
+//                                                    ;   => fast-path to return
+//   0x57249  pushq %rbp ; movq %rsp,%rbp ; subq $0x20,%rsp   ; frame + tuple stack
+//   0x57251  leaq  -0x1(%rbp), %rax                  ; \ ABI tuple<lambda&&> setup
+//   0x57255  leaq  -0x18(%rbp), %rcx                 ; |  (stack scratch; no
+//   0x57259  movq  %rax, (%rcx)                      ; |   TS-visible state)
+//   0x5725c  leaq  -0x10(%rbp), %rsi                 ; |
+//   0x57260  movq  %rcx, (%rsi)                      ; /
+//   0x57263  leaq  _..._blackImpl_once(%rip), %rdi   ; rdi = &once-flag
+//   0x5726a  leaq  __call_once_proxy<...lambda...>(%rip), %rdx ; rdx = proxy fn ptr
+//   0x57271  callq 0xacdc8                           ; std::__call_once(flag,arg,proxy)
+//   0x57276  addq  $0x20,%rsp ; popq %rbp
+//   0x5727b  movq  _..._black(%rip), %rax            ; rax = _OZChannelColorNoAlpha_black
+//   0x57282  retq                                    ; return the static instance ptr
+//
+// AT&T: `cmpq $-0x1, %rax` computes `rax - (-1)`; `je` iff rax == -1 (the
+// libc++ once_flag "init complete" sentinel = ~0UL = -1). This is the exact
+// Style-B call_once singleton peer of OZChannelColorNoAlpha_Factory::getInstance.
+//
+// PROCESS-GLOBAL STORAGE (BSS symbols read/dispatched here):
+//   * __ZZN21OZChannelColorNoAlpha31OZChannelColorNoAlpha_blackImpl11getInstanceEvE36OZChannelColorNoAlpha_blackImpl_once
+//       — the std::once_flag word.  0n = not started, -1n = init done.
+//         Read @0x5723c, compared to -1 @0x57243.
+//   * __ZN21OZChannelColorNoAlpha31OZChannelColorNoAlpha_blackImpl28_OZChannelColorNoAlpha_blackE
+//       — the singleton `OZChannelColorNoAlpha*`.  Read @0x5727b.  WRITTEN by
+//         the __call_once_proxy lambda (a SEPARATE ledger entry — the
+//         allocation happens INSIDE __call_once_proxy, NOT in this frame).
+//
+// FRONTIER CALLEES (all TRUE OUT-OF-SCOPE externs / SEPARATE ledger units):
+//   * __ZNSt3__111__call_onceERVmPvPFvS2_E — libc++ std::__call_once, called
+//       @0x57271 via ProChannel stub 0xacdc8. TRUE out-of-scope extern.
+//   * __ZNSt3__117__call_once_proxy<...lambda...> — libc++ template
+//       instantiation; PASSED AS DATA to __call_once (not called here). Its
+//       lambda body allocates+constructs the singleton and stores it into
+//       `_black` — a SEPARATE ledger entry, modelled as a throwing boundary.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** @ProChannel BSS
+ *  `__ZZN21OZChannelColorNoAlpha31OZChannelColorNoAlpha_blackImpl11getInstanceEvE36OZChannelColorNoAlpha_blackImpl_once`.
+ *  libc++ std::once_flag word for _blackImpl::getInstance. 0n = not started;
+ *  -1n = init complete. Read @0x5723c; compared to -1 @0x57243. */
+let _blackImpl_once: bigint = 0n; // @ProChannel BSS, read @0x5723c
+
+/** @ProChannel BSS
+ *  `__ZN21OZChannelColorNoAlpha31OZChannelColorNoAlpha_blackImpl28_OZChannelColorNoAlpha_blackE`.
+ *  The `black` prototype singleton pointer. Read @0x5727b. Written by the
+ *  __call_once_proxy lambda (SEPARATE ledger entry — allocation is inside
+ *  the proxy, never in this frame). */
+let _OZChannelColorNoAlpha_black: OZChannelColorNoAlpha | null = null; // @ProChannel BSS 0x5727b
+
+/**
+ * `std::__1::__call_once(flag&, void* arg, void(*)(void*))` — libc++
+ * out-of-scope extern (called @0x57271 via ProChannel stub 0xacdc8).
+ * Single-threaded model of the "run initializer at most once" contract:
+ * if the flag is already the -1 sentinel, no-op; otherwise run proxy(arg)
+ * and on success stamp the flag -1. (Mirrors libc++ writing ~0UL on
+ * completion; if proxy throws, the flag stays 0.) */
+function __blackImpl_std_call_once(
+  once: { get(): bigint; set(v: bigint): void },
+  arg: unknown,
+  proxy: (arg: unknown) => void,
+): void {
+  if (once.get() === -1n) return; // (mirrors 0x57243/0x57247 fast-path)
+  proxy(arg);
+  once.set(-1n);
+}
+
+/**
+ * `__ZNSt3__117__call_once_proxy<...OZChannelColorNoAlpha_blackImpl::getInstance()::lambda...>`
+ * — libc++ template instantiation. Its lambda body allocates a fresh
+ * prototype via operator new (__Znwm) and constructs the `black`
+ * OZChannelColorNoAlpha, storing the pointer into `_OZChannelColorNoAlpha_black`.
+ * That allocation+construction is a SEPARATE ledger entry (it lives INSIDE
+ * __call_once_proxy, not in getInstance's frame — per the anti-cheat
+ * boundary rule we do NOT fabricate `new` here). Raising at the boundary
+ * faithfully reflects the still-undecoded deferred work. */
+function __blackImpl_call_once_proxy_lambda(_arg: unknown): void {
   throw new Error(
     "OZChannelColorNoAlpha::OZChannelColorNoAlpha_blackImpl::getInstance() " +
-      "@ProChannel 0x5723c — not yet transcribed",
+      "__call_once init lambda not yet transcribed — the lambda body (inside " +
+      "__call_once_proxy, a SEPARATE ledger entry) allocates a " +
+      "OZChannelColorNoAlpha via operator new (__Znwm) and stores it into " +
+      "_OZChannelColorNoAlpha_black. Dispatched from std::__call_once at " +
+      "ProChannel 0x57271.",
   );
+}
+
+/**
+ * `OZChannelColorNoAlpha::OZChannelColorNoAlpha_blackImpl::getInstance()` —
+ * @ProChannel 0x5723c
+ * (__ZN21OZChannelColorNoAlpha31OZChannelColorNoAlpha_blackImpl11getInstanceEv).
+ *
+ * Faithful transcription of the call_once-guarded singleton accessor (see
+ * the FULL DISASM block above): if the once-flag is the -1 sentinel, skip
+ * straight to returning the static `_OZChannelColorNoAlpha_black`; otherwise
+ * dispatch std::__call_once (extern) with the init proxy, then return the
+ * static pointer. Returns the `black` prototype (or null until the proxy
+ * lambda — a separate ledger entry — is transcribed).
+ */
+function OZChannelColorNoAlpha_blackImpl_getInstance_stub(): unknown {
+  // @0x5723c movq once(%rip),%rax ; @0x57243 cmpq $-0x1,%rax ; @0x57247 je 0x5727b.
+  if (_blackImpl_once !== -1n) {
+    // @0x57249..0x5726a ABI tuple<lambda&&> setup (no TS-visible state).
+    // @0x57271 callq std::__call_once (libc++ stub 0xacdc8).
+    __blackImpl_std_call_once(
+      {
+        get: (): bigint => _blackImpl_once,
+        set: (v: bigint): void => {
+          _blackImpl_once = v;
+        },
+      },
+      null, // ABI void* (real disasm passes &tuple; proxy ignores it).
+      __blackImpl_call_once_proxy_lambda,
+    );
+  }
+  // @0x5727b movq _black(%rip),%rax ; @0x57282 retq.
+  return _OZChannelColorNoAlpha_black;
 }
 function OZChannelColorNoAlpha_whiteImpl_getInstance_stub(): unknown {
   throw new Error(
