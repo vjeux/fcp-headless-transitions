@@ -254,4 +254,123 @@ export class OZChannelPercent {
 
     return self;
   }
+
+  // ===========================================================================
+  // OZChannelPercent::createOZChannelPercent0Impl() — @ProChannel 0xab4b4
+  // (__ZN16OZChannelPercent27createOZChannelPercent0ImplEv)
+  //
+  // FULL DISASM
+  // (raw-port/re/disasm/ProChannel.__ZN16OZChannelPercent27createOZChannelPercent0ImplEv.s):
+  //   0xab4b4  movq  _OZChannelPercent0Impl_once(%rip), %rax
+  //   0xab4bb  cmpq  $-0x1, %rax                  ; libc++ complete sentinel
+  //   0xab4bf  je    0xab4f3                       ; fast path -> return
+  //   0xab4c1  pushq %rbp / movq %rsp,%rbp
+  //   0xab4c5  subq  $0x20, %rsp                   ; tuple<lambda&&> frame
+  //   0xab4c9  leaq  -0x1(%rbp), %rax              ; &captureless-lambda slot
+  //   0xab4cd  leaq  -0x18(%rbp), %rcx / movq %rax,(%rcx)  ; tuple.head=&lambda
+  //   0xab4d4  leaq  -0x10(%rbp), %rsi / movq %rcx,(%rsi)  ; *arg=&tuple
+  //   0xab4db  leaq  _OZChannelPercent0Impl_once(%rip), %rdi ; arg0=&once
+  //   0xab4e2  leaq  __call_once_proxy<...>(%rip), %rdx      ; arg2=&proxy
+  //   0xab4e9  callq std::__call_once               ; libc++ stub @0xacdc8
+  //   0xab4ee  addq  $0x20,%rsp / popq %rbp
+  //   0xab4f3  movq  _OZChannelPercent0Impl(%rip), %rax     ; return the singleton
+  //   0xab4fa  retq
+  //
+  // Standard libc++ std::call_once singleton (same __call_once function + tuple
+  // ABI as createOZChannelPercentCurve's spline-state init; sentinel -1n). The
+  // allocation/ctor that produces _OZChannelPercent0Impl lives INSIDE the init
+  // lambda (dispatched by the proxy) — a SEPARATE ledger unit — so no `new` is
+  // fabricated here. BSS slots + proxy stub follow the class below.
+  // ===========================================================================
+
+  /**
+   * `OZChannelPercent::createOZChannelPercent0Impl()` — @ProChannel 0xab4b4.
+   * Faithful transcription of the disassembly above:
+   *   1. Read _OZChannelPercent0Impl_once; if == -1n (complete), skip to 3.
+   *   2. Set up the libc++ tuple<lambda&&> ABI slots and call
+   *      std::__call_once(&once, arg, &proxy); the proxy dispatches the init
+   *      lambda that allocates/constructs the singleton and writes it into
+   *      _OZChannelPercent0Impl.
+   *   3. Return _OZChannelPercent0Impl.
+   * The @0xab4c9..0xab4d8 tuple + captureless-lambda dance is a libc++-ABI
+   * artefact (a stable void* for the proxy to dispatch through); in the
+   * single-threaded JS model the proxy is invoked directly so the intermediate
+   * slots have no observable effect (documented for provenance only).
+   */
+  static createOZChannelPercent0Impl(): unknown {
+    // @0xab4b4..0xab4bf — if (_OZChannelPercent0Impl_once == -1) goto return.
+    if (_OZChannelPercent0Impl_once !== -1n) {
+      // @0xab4c1..0xab4e9 — libc++ tuple ABI setup + callq std::__call_once.
+      std_call_once_percent0Impl(
+        {
+          get: (): bigint => _OZChannelPercent0Impl_once, // movq _once(%rip),%rax @0xab4b4
+          set: (v: bigint): void => {
+            _OZChannelPercent0Impl_once = v;
+          },
+        },
+        null, // ABI void* — real disasm passes &tuple; our proxy ignores it.
+        __call_once_proxy_createOZChannelPercent0Impl_lambda, // @0xab4e2 rdx=&proxy
+      );
+    }
+    // @0xab4f3..0xab4fa — rax = _OZChannelPercent0Impl; retq.
+    return _OZChannelPercent0Impl;
+  }
+}
+
+// ===========================================================================
+// Process-global BSS slots for createOZChannelPercent0Impl() — one 8-byte
+// word each. TS has no linker, so model as module-scope `let`s. BSS is
+// zero-filled at load: _once = 0n, _value = null.
+// ===========================================================================
+
+/** @ProChannel BSS
+ *  `__ZZN16OZChannelPercent27createOZChannelPercent0ImplEvE27_OZChannelPercent0Impl_once`
+ *  libc++ std::once_flag word. 0n = not started; -1n = completed. Compared to
+ *  $-1 @0xab4bb as the fast-path check. */
+let _OZChannelPercent0Impl_once: bigint = 0n; // @ProChannel BSS 0xab4b4 read-site
+
+/** @ProChannel BSS
+ *  `__ZN16OZChannelPercent22_OZChannelPercent0ImplE`
+ *  Singleton Impl pointer. Read @0xab4f3 (return). Written by the
+ *  __call_once_proxy lambda (SEPARATE ledger unit). */
+let _OZChannelPercent0Impl: unknown = null; // @ProChannel BSS 0xab4f3
+
+/**
+ * `std::__1::__call_once(flag&, void* arg, void(*)(void*))` — libc++.
+ * Called from createOZChannelPercent0Impl @0xab4e9 via ProChannel stub
+ * 0xacdc8. TRUE out-of-scope extern (libc++ runtime). Single-threaded JS
+ * model: on first call with a non-complete flag invoke proxy(arg); on
+ * success write -1n; on subsequent calls no-op. If the proxy throws, the
+ * flag stays 0n and future calls retry — matching libc++'s ~0UL-on-success
+ * semantics.
+ */
+function std_call_once_percent0Impl(
+  once: { get(): bigint; set(v: bigint): void },
+  arg: unknown,
+  proxy: (arg: unknown) => void,
+): void {
+  if (once.get() === -1n) return; // libc++ fast-path (mirrors 0xab4bb)
+  proxy(arg);
+  once.set(-1n);
+}
+
+/**
+ * `__ZNSt3__117__call_once_proxy<...OZChannelPercent::createOZChannelPercent0Impl()::lambda...>`
+ * — libc++ template instantiation. NOT called directly — PASSED AS A DATA
+ * REFERENCE (leaq @0xab4e2) to __call_once, which dispatches through it. Its
+ * body dispatches into the createOZChannelPercent0Impl lambda, which allocates
+ * a fresh OZChannelPercent0Impl via `operator new`, initialises it, and stores
+ * the result into `_OZChannelPercent0Impl`. SEPARATE ledger entry — raises
+ * with the exact call-site @0xADDR so downstream code cannot silently rely on
+ * an un-ported singleton.
+ */
+function __call_once_proxy_createOZChannelPercent0Impl_lambda(_arg: unknown): void {
+  throw new Error(
+    "OZChannelPercent::createOZChannelPercent0Impl() __call_once init lambda " +
+      "not yet transcribed — the lambda body allocates via operator new " +
+      "(__Znwm ProChannel stub) and initialises the OZChannelPercent0Impl " +
+      "(SEPARATE ledger entry, status: todo) then stores the result into " +
+      "_OZChannelPercent0Impl. The proxy is invoked from std::__call_once at " +
+      "ProChannel 0xab4e9.",
+  );
 }
