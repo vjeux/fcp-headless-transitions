@@ -1,55 +1,40 @@
-// PCAtomBox.ts — ProCore.framework QuickTime/ISO-BMFF atom ("box") descriptor.
+// PCAtomBox — ProCore's QuickTime/ISO-BMFF "atom box" descriptor (type, offset,
+// size, payload, parent/child links) used when parsing container files.
 //
-// This file ports ONLY `PCAtomBox::getHeaderSize()`. PCAtomBox describes one atom/box
-// parsed out of a media container: its file offset, its total size, and the file offset
-// where its payload (data) begins. The header size is the byte span between the box's
-// declared total-size field and where its data starts.
+// Faithful port of the ProCore x86_64 disassembly. Every method cites its
+// @ProCore addr. Framework: ProCore (thin slice extracted from
+// Final Cut Pro.app/Contents/Frameworks/ProCore.framework/.../ProCore).
 //
-// Verbatim from FCP's ProCore framework:
-//   /Applications/Final Cut Pro.app/Contents/Frameworks/ProCore.framework/Versions/A/ProCore
+// Provenance (raw-port/re/disasm/ProCore.PCAtomBox.*.s):
+//   getOffset()  @0x008b54  (__ZN9PCAtomBox9getOffsetEv)
 //
-// Decode evidence:
-//   re/disasm/ProCore.__ZN9PCAtomBox13getHeaderSizeEv.s  @0x8b90  getHeaderSize()  (THIS unit)
-//   re/disasm/ProCore.__ZN9PCAtomBox9getOffsetEv.s       @0x8b54  getOffset()  -> movq (%rdi)      (+0x00 layout evidence)
-//   re/disasm/ProCore.__ZN9PCAtomBox7getSizeEv.s         @0x8b68  getSize()    -> movq 0x8(%rdi)    (+0x08 layout evidence)
+// ── Decoded struct layout (only the fields this unit touches are pinned here;
+//    the remaining fields are added by their own ledger units) ──────────────
 //
-// -- STRUCT LAYOUT (partial, from the accessor disasms above) -------------
-//   offset  size  field       source
-//   ------  ----  ----------  -----------------------------------------------
-//   +0x00   0x08  offset      getOffset() @0x8b58 movq (%rdi),%rax     (box file offset)
-//   +0x08   0x08  size        getSize()   @0x8b6c movq 0x8(%rdi),%rax  (total box size / end pos)
-//   +0x10   0x08  dataStart   getHeaderSize() @0x8b98 subq 0x10(%rdi)  (payload start position)
-//
-//   These are 64-bit file quantities (movq). Container files can exceed 2^53 bytes,
-//   so per PORTING_SPEC Rule 4 they are modelled as bigint.
+//   +0x00  u64   offset   // byte offset of this atom within its container file.
+//                         // Read by getOffset @0x008b58 (`movq (%rdi),%rax`), written
+//                         // by setOffset(unsigned long long) — a full 64-bit value,
+//                         // so it is modelled as a bigint (a large file offset can
+//                         // exceed 2^53). See PORTING_SPEC Rule 4.
 
 export class PCAtomBox {
-  // +0x00: box file offset (returned by getOffset()).
-  offset: bigint = 0n; // field @+0x00
-  // +0x08: total box size / end position (returned by getSize()).
-  size: bigint = 0n; // field @+0x08
-  // +0x10: file position where the box payload (data) begins.
-  dataStart: bigint = 0n; // field @+0x10
+  // +0x00  u64 file offset of this atom (see setOffset(unsigned long long)).
+  offset: bigint = 0n;
 
   /**
-   * PCAtomBox::getHeaderSize()
-   * @0x8b90 ProCore
+   * PCAtomBox::getOffset()
+   * @0xADDR ProCore 0x0000000000008b54  (__ZN9PCAtomBox9getOffsetEv)
    *
-   * Disasm (7 lines):
-   *   0x8b90  pushq %rbp
-   *   0x8b91  movq  %rsp, %rbp
-   *   0x8b94  movq  0x8(%rdi), %rax    ## rax = this->size (+0x08)
-   *   0x8b98  subq  0x10(%rdi), %rax   ## rax -= this->dataStart (+0x10)
-   *   0x8b9c  popq  %rbp
-   *   0x8b9d  retq
+   * DECODE (raw-port/re/disasm/ProCore.__ZN9PCAtomBox9getOffsetEv.s):
+   *   0x008b54  pushq %rbp ; movq %rsp,%rbp        ; frame
+   *   0x008b58  movq (%rdi), %rax                  ; rax = *(u64*)(this+0x00) = offset
+   *   0x008b5b  popq %rbp ; retq                   ; return offset
    *
-   * Returns `this->size - this->dataStart`: the number of header bytes preceding
-   * the box payload. 64-bit two's-complement subtraction (`subq`).
+   * A plain 64-bit field accessor: returns the atom's byte offset. Zero callees,
+   * no externs. The return is a full unsigned long long, kept as bigint.
    */
-  getHeaderSize(): bigint {
-    // @0x8b94  rax = this->size (+0x08)
-    // @0x8b98  rax -= this->dataStart (+0x10)  — 64-bit subq
-    return BigInt.asIntN(64, this.size - this.dataStart);
+  getOffset(): bigint {
+    // @0x008b58 — movq (%rdi),%rax : load the u64 offset at +0x00.
+    return this.offset;
   }
 }
-
