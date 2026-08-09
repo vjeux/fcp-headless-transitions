@@ -13,6 +13,9 @@
 //                                  //    an 8B movq for epoch — see 0xda189e / 0xda186b et al.)
 //   +0x18  frameDurSeconds  float  // f32: CMTimeGetSeconds(frameDur) truncated to single precision
 //   +0x1c  frameRate        float  // f32: 1.0f / frameDurSeconds
+//   +0x1b60 failedPreroll  i32(atomic)  // one-shot latch set to 1 by setFailedPreroll(true); the
+//                                       // xchgl store is a std::atomic<int>/std::atomic<bool> seq-cst
+//                                       // exchange whose old value is discarded (a set-only flag).
 
 import type { CMTime } from "../infra/CMTime.js";
 import {
@@ -28,6 +31,9 @@ export class FFPlayerHealthMeter {
   frameDurSeconds = 0;
   // +0x1c  frame rate = 1/frameDurSeconds (single precision).
   frameRate = 0;
+  // +0x1b60  one-shot "failed preroll" latch. Set to 1 by setFailedPreroll(true) via an atomic
+  //          exchange (xchgl) whose old value is discarded; never cleared by that method.
+  failedPreroll = 0;
 
   /**
    * FFPlayerHealthMeter::setFrameDur(CMTime dur)
@@ -88,5 +94,32 @@ export class FFPlayerHealthMeter {
     //   @const 1.0f @ Flexo __TEXT __const 0x156ccd0.
     const rate = Math.fround(Math.fround(1.0) / secF32);
     this.frameRate = rate;
+  }
+
+  /**
+   * FFPlayerHealthMeter::setFailedPreroll(bool)
+   * @0xADDR Flexo 0x0000000000da37d0  (__ZN19FFPlayerHealthMeter16setFailedPrerollEb)
+   *
+   * DECODE (raw-port/re/disasm/Flexo.__ZN19FFPlayerHealthMeter16setFailedPrerollEb.s):
+   *
+   *   0xda37d0  pushq %rbp ; movq %rsp,%rbp        ; prologue
+   *   0xda37d4  testl %esi,%esi                    ; test the bool argument (arg1 = %esi = b)
+   *   0xda37d6  je    0xda37e3                      ; if (b == 0) skip the store — pure no-op
+   *   0xda37d8  movl  $0x1, %eax                    ; eax = 1
+   *   0xda37dd  xchgl %eax, 0x1b60(%rdi)            ; ATOMIC exchange: this->failedPreroll = 1
+   *                                                 ;   (old value loaded into eax, then DISCARDED —
+   *                                                 ;    an `xchg` on memory carries an implicit LOCK
+   *                                                 ;    prefix, i.e. a seq-cst std::atomic store.)
+   *   0xda37e3  popq %rbp ; retq                    ; epilogue
+   *
+   * Semantics: a set-only latch. `setFailedPreroll(true)` stores 1 into the +0x1b60 flag atomically
+   * (and ignores the prior value); `setFailedPreroll(false)` does nothing at all. There is no path
+   * that clears the flag here. Zero in-scope callees; no externs. Pure field write.
+   */
+  setFailedPreroll(b: boolean): void {
+    // @0xda37d4..0xda37d6  testl %esi,%esi ; je — false is a no-op (the store is skipped entirely).
+    if (!b) return;
+    // @0xda37d8..0xda37dd  movl $1 ; xchgl %eax,0x1b60(%rdi) — atomic set-to-1, old value discarded.
+    this.failedPreroll = 1;
   }
 }
