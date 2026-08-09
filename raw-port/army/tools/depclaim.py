@@ -80,10 +80,17 @@ def _append(rec):
         f.flush(); os.fsync(f.fileno())
 
 def _is_stl(sym):
-    """libc++ template instantiations (std::__1::…) are compiler-emitted boilerplate the swarm
-    defers indefinitely. With an append-only queue there is no 'defer', so skip them at dispatch
-    so they never clog the head of the ready list. Matches the mangled prefix for std::__1."""
-    return sym.startswith("__ZNSt") or sym.startswith("__ZNKSt") or sym.startswith("__ZSt")
+    """libc++ template instantiations are compiler-emitted boilerplate the swarm defers
+    indefinitely. With an append-only queue there is no 'defer', so skip them at dispatch so they
+    never clog the head of the ready list. Two cases:
+      1. the symbol IS a std::__1 method   -> mangled starts __ZNSt / __ZNKSt / __ZSt
+      2. the symbol is a normal class but is PARAMETERIZED by std::__1 containers (e.g.
+         PCEvictionHeap<std::__1::__map_iterator<...>>::bubble) -> the mangled embeds `NSt3__1`
+         or `St3__1`. These are just as un-portable by a solo worker.
+    """
+    if sym.startswith("__ZNSt") or sym.startswith("__ZNKSt") or sym.startswith("__ZSt"):
+        return True
+    return ("NSt3__1" in sym) or ("St3__1" in sym)
 
 def cmd_next(maxscc=8, allow_stl=False):
     def go():
