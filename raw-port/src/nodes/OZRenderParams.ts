@@ -205,6 +205,29 @@ export class OZRenderParams {
   textRenderQualityDynamicAt1dc: number = 0;
 
   /**
+   * @Ozone offset +0x120 — the "destination device" subobject, whose
+   * ADDRESS (`&this->+0x120`) is returned by `getDestinationDevice()`
+   * @0x2719d0 via `leaq 0x120(%rdi), %rax`. The getter hands back a
+   * pointer INTO the OZRenderParams instance (an embedded/by-value
+   * member, not a heap pointer that is loaded and returned) — the
+   * `leaq` (load effective address, no memory dereference) proves the
+   * member lives inline at +0x120 rather than being a pointer stored
+   * there. Callers receive a reference to this in-place device object
+   * and read/mutate it directly.
+   *
+   * The concrete type of this device object (its own field layout) is
+   * NOT decoded here — no method that reads its internals has been
+   * ported yet — so it is modelled as an OPAQUE by-value struct. We do
+   * NOT invent its fields (Rule 5: model structs, not magic numbers —
+   * and don't fabricate members we haven't read). Its shape will be
+   * filled in when a method that touches `+0x120.*` is ported. Kept as
+   * a stable object instance so the getter can return the SAME
+   * reference every call (matching the `leaq`-into-self semantics: the
+   * address is fixed for the lifetime of the OZRenderParams).
+   */
+  destinationDeviceAt120: object = {};
+
+  /**
    * @Ozone offset +0x1a8 — a one-byte flag/mode discriminator, read
    * @0x27173e by `setResolutionDynamic` via `cmpb $0x1, 0x1a8(%rdi)`.
    * When this byte holds the value `1`, `setResolutionDynamic` fans the
@@ -643,5 +666,36 @@ export class OZRenderParams {
     this.zeroedAt198 = { x: 0, y: 0 };
 
     // @0x2717d1-0x2717d2 — epilogue + retq.
+  }
+
+  /**
+   * `OZRenderParams::getDestinationDevice() const`
+   *   — @Ozone 0x2719d0
+   *   — __ZNK14OZRenderParams20getDestinationDeviceEv
+   *
+   * Faithful line-for-line transcription of the 6-line disassembly:
+   *   0x2719d0  pushq  %rbp                    ; frame prologue
+   *   0x2719d1  movq   %rsp, %rbp
+   *   0x2719d4  leaq   0x120(%rdi), %rax        ; rax = &this->+0x120
+   *   0x2719db  popq   %rbp                    ; frame epilogue
+   *   0x2719dc  retq
+   *   0x2719dd  nopl   (%rax)                  ; alignment padding
+   *
+   * A pure address-of accessor: it returns `&this->destinationDeviceAt120`,
+   * i.e. a pointer to the inline device subobject embedded at offset
+   * +0x120 within this OZRenderParams. The `leaq` computes an EFFECTIVE
+   * ADDRESS with NO memory load — so the returned pointer is the address
+   * of the member itself, not a pointer VALUE stored at +0x120. In TS
+   * we return the same object reference (JS object identity is the
+   * closest analogue to "the address of the embedded member", which is
+   * fixed for the object's lifetime). No externs, no in-scope callees,
+   * no indirect calls.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams20getDestinationDeviceEv.s (6 lines)
+   */
+  getDestinationDevice(): object {
+    // @0x2719d4  leaq 0x120(%rdi),%rax  →  return &this->+0x120
+    return this.destinationDeviceAt120;
   }
 }
