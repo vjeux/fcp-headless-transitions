@@ -58,6 +58,17 @@ if [ -n "$CHANGED" ]; then
     $(git diff --name-only origin/main...$BR -- 'raw-port/src/**/*.ts') || REG=$?
   [ "$REG" = 2 ] && { echo "REGRESSION GATE FAILED for $BR — branch drops landed symbols; rebase onto origin/main. NOT merging"; exit 6; }
 
+  # --- DUP-LEDGER GATE (branch must ADD at least one new symbol) --------------------------------
+  # regression_check catches DROPS but PASSES a branch that only RE-PORTS an already-landed symbol
+  # (same symbol set, cosmetically-different body) or REWRITES a landed body — both add ZERO new
+  # coverage and violate ADD-only. Reviewers kept mis-ACCEPTing these (convertFromS15Fixed16,
+  # applyHLG, PCMutex, OZChannel_Factory, PCCFRef_CFString_dtor were all caught by HAND). dup_check
+  # blocks them mechanically: exit 5 iff every changed pre-existing file adds 0 new cited symbols.
+  # A genuine new method (>=1 new symbol) or a whole-new-file passes. Same block-not-corrupt bias.
+  DUP=0; python3 "$REPO/raw-port/army/tools/dup_check.py" origin/main "$BR" \
+    $(git diff --name-only origin/main...$BR -- 'raw-port/src/**/*.ts') || DUP=$?
+  [ "$DUP" = 5 ] && { echo "DUP-LEDGER GATE FAILED for $BR — adds no new symbol (already ported on main). NOT merging"; exit 7; }
+
   # --- REVIEWER SIGN-OFF GATE (worker cannot self-merge a real body) ---------------------------
   # G5 (in gate.sh) blocks the mechanical cheat (REAL disasm + throw-only body). The adversarial
   # reviewer (REVIEWER_BRIEF.md) covers what G5 can't: a throw-free body that is WRONG. Before merge,
