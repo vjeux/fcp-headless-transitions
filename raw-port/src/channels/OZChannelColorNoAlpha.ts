@@ -608,10 +608,92 @@ function OZChannelColorNoAlpha_greenSample2Impl_getInstance_stub(): unknown {
       "@ProChannel (getInstance singleton) — not yet transcribed",
   );
 }
+/**
+ * `OZChannelColorNoAlpha::OZChannelColorNoAlpha_blueSample1Impl::getInstance()`
+ *   __ZN21OZChannelColorNoAlpha37OZChannelColorNoAlpha_blueSample1Impl11getInstanceEv
+ *   @ProChannel 0x57ef0
+ *
+ * Source disassembly (19 lines):
+ *   raw-port/re/disasm/ProChannel.__ZN21OZChannelColorNoAlpha37OZChannelColorNoAlpha_blueSample1Impl11getInstanceEv.s
+ *
+ * Faithful transcription — the canonical std::call_once singleton bootstrap
+ * (identical shape to OZChannelBool::createOZChannelBoolInfo @0x5255c and the
+ * OZChannelUint32 twins):
+ *   @0x57ef0: movq  _blueSample1_once(%rip),%rax          ; load once-flag word.
+ *   @0x57ef7-fb: cmpq $-0x1,%rax ; je 0x57f2f             ; FAST PATH: sentinel -1
+ *                                                           ("already run") -> skip call_once,
+ *                                                           fall to the load+return.
+ *   @0x57efd-f17: build the std::call_once arg triple on the stack
+ *                   @0x57f05 leaq -0x1(%rbp),%rax          ; &lambda-capture byte
+ *                   @0x57f09-10 wire two nested pointers    ; tuple<lambda&&> shim
+ *                   @0x57f17 leaq _blueSample1_once(%rip),%rdi   ; &once-flag
+ *                   @0x57f1e leaq __call_once_proxy<...lambda...>(%rip),%rdx ; proxy fn ptr
+ *   @0x57f25: callq __ZNSt3__111__call_onceERVmPvPFvS2_E  ; std::__1::__call_once
+ *                                                           (@stub 0xacdc8). The ALLOCATION of
+ *                                                           the blueSample1 singleton happens
+ *                                                           INSIDE __call_once_proxy — NOT in
+ *                                                           this frame (no in-frame __Znwm); it
+ *                                                           is a SEPARATE ledger unit (the
+ *                                                           proxy/lambda body).
+ *   @0x57f2f: movq  _OZChannelColorNoAlpha_blueSample1(%rip),%rax ; retq
+ *                                                           ; return the (now-published) global
+ *                                                           DIRECTLY — single movq load, NO deref.
+ *
+ * ANTI-CHEAT boundary model: `cmpq $-0x1` sentinel + one
+ * `callq __call_once@0xacdc8`; the allocation lives in __call_once_proxy (its
+ * own ledger unit). We do NOT fabricate `new blueSample1Impl()` — the machine
+ * performs no allocation in this frame. std::__1::__call_once is a TRUE
+ * out-of-scope extern (libc++). The once-flag sentinel is modelled as the
+ * bigint -1n per the anti-cheat spec.
+ *
+ * NAME NOTE: kept the historical `_stub` symbol name because the call site
+ * (`selectBluePrototype` @0x54fa8, line below) already binds it; the body is
+ * now the faithful getInstance transcription (no longer a placeholder throw).
+ */
 function OZChannelColorNoAlpha_blueSample1Impl_getInstance_stub(): unknown {
+  // @ProChannel 0x57ef0-fb: read the once-flag; -1n sentinel == "already run".
+  if (_OZChannelColorNoAlpha_blueSample1_once !== -1n) {
+    // @ProChannel 0x57efd-f25: NOT-yet-run -> std::call_once(&once, &__call_once_proxy<lambda>).
+    // The proxy allocates + publishes _OZChannelColorNoAlpha_blueSample1; that
+    // body is a separate (not-yet-transcribed) ledger unit — surfaced as a loud
+    // boundary gap @ProChannel 0x57f25 (Rule 3: raise at the undecoded callee).
+    _OZChannelColorNoAlpha_blueSample1_call_once_body();
+  }
+  // @ProChannel 0x57f2f: movq _OZChannelColorNoAlpha_blueSample1(%rip),%rax ; retq — direct load.
+  return _OZChannelColorNoAlpha_blueSample1;
+}
+
+/** `..._blueSample1Impl::getInstance()::OZChannelColorNoAlpha_blueSample1Impl_once`
+ *  @ProChannel `__ZZN21OZChannelColorNoAlpha37OZChannelColorNoAlpha_blueSample1Impl11getInstanceEvE42OZChannelColorNoAlpha_blueSample1Impl_once`
+ *  (loaded @0x57ef0). libc++ std::once_flag control word. Its "already-run"
+ *  sentinel is the all-ones qword compared at @0x57ef7 (`cmpq $-0x1,%rax`),
+ *  modelled as -1n. Initialised to 0n (never-run); the transition to -1n
+ *  happens inside std::__1::__call_once. */
+let _OZChannelColorNoAlpha_blueSample1_once: bigint = 0n;
+
+/** `..._blueSample1Impl::_OZChannelColorNoAlpha_blueSample1`
+ *  @ProChannel `__ZN21OZChannelColorNoAlpha37OZChannelColorNoAlpha_blueSample1Impl34_OZChannelColorNoAlpha_blueSample1E`
+ *  (loaded @0x57f2f). The process-wide singleton pointer published by the
+ *  __call_once proxy. `null` until the (not-yet-transcribed) proxy runs. */
+let _OZChannelColorNoAlpha_blueSample1: unknown = null;
+
+/**
+ * The `std::__1::__call_once` proxy body invoked from
+ * blueSample1Impl::getInstance() @ProChannel 0x57f25 through
+ *   __ZNSt3__117__call_once_proxyB9nqe210106INS_5tupleIJOZN21OZChannelColorNoAlpha37OZChannelColorNoAlpha_blueSample1Impl11getInstanceEvEUlvE_EEEEEvPv
+ * (the fn pointer loaded @0x57f1e). This is where the blueSample1 singleton is
+ * actually ALLOCATED and stored into _OZChannelColorNoAlpha_blueSample1. The
+ * proxy/lambda body is not symbol-visible in this framework slice and is a
+ * SEPARATE ledger unit — NOT yet transcribed. Per Rule 3 it raises a loud gap
+ * @ProChannel 0x57f25 rather than fabricating an allocation.
+ */
+function _OZChannelColorNoAlpha_blueSample1_call_once_body(): void {
   throw new Error(
-    "OZChannelColorNoAlpha::OZChannelColorNoAlpha_blueSample1Impl::getInstance() " +
-      "@ProChannel (getInstance singleton) — not yet transcribed",
+    "OZChannelColorNoAlpha::OZChannelColorNoAlpha_blueSample1Impl::getInstance()::lambda " +
+      "@ProChannel U-extern (bound via __call_once_proxy — lambda body not " +
+      "symbol-visible; not yet transcribed). Invoked by std::__1::__call_once " +
+      "@ProChannel 0x57f25 (libc++ stub @0xacdc8); it allocates + publishes " +
+      "_OZChannelColorNoAlpha_blueSample1.",
   );
 }
 function OZChannelColorNoAlpha_blueSample2Impl_getInstance_stub(): unknown {
