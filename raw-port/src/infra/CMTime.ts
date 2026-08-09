@@ -156,6 +156,36 @@ export function CMTimeMultiplyByFloat64(t: CMTime, multiplier: number): CMTime {
   return { value: rounded_bi, timescale: t.timescale, flags, epoch: t.epoch };
 }
 
+/**
+ * CMTimeMultiply(time, multiplier) — CMTime scaled by a 32-bit integer.
+ * @CoreMedia public API — CMTime.h:
+ *   `CMTime CMTimeMultiply(CMTime time, int32_t multiplier)`.
+ * Called from ProCore's `operator*(unsigned int, CMTime const&)` via __stubs at 0xde3d2
+ * (referenced by __ZmljRK6CMTime at 0x58299).
+ * Per Apple docs: computes value' = time.value * multiplier, preserving timescale, epoch, and
+ * validity flags. Unlike CMTimeMultiplyByFloat64 there is no fractional rounding — an integer
+ * multiply — but the result may saturate/round on int64 overflow (HasBeenRounded), which Apple's
+ * implementation guards against. Invalid/indefinite times propagate as-is (Apple's contract).
+ *
+ * This is a CoreMedia BOUNDARY model — the concrete implementation lives in the dyld shared cache
+ * and is outside the 5-framework port scope. The observable int64 value semantics are modelled
+ * here per the public contract (matching how CMTimeMultiplyByFloat64 above is modelled).
+ */
+export function CMTimeMultiply(time: CMTime, multiplier: number): CMTime {
+  if ((time.flags & kCMTimeFlags_Valid) === 0) {
+    // Invalid / indefinite times propagate unchanged (Apple's contract).
+    return { value: time.value, timescale: time.timescale, flags: time.flags, epoch: time.epoch };
+  }
+  // int32 multiplier * int64 value — exact int64 arithmetic (bigint), no fractional rounding.
+  const m: bigint = BigInt(multiplier | 0);
+  return {
+    value: time.value * m,
+    timescale: time.timescale,
+    flags: kCMTimeFlags_Valid,
+    epoch: time.epoch,
+  };
+}
+
 // ── kCMTimeRoundingMethod (CoreMedia CMTime.h enum) ────────────────────────────
 // @const CoreMedia CMTime.h  (public API — CMTimeRoundingMethod enum values).
 // Used as the 3rd arg to CMTimeConvertScale to pick the rounding used when the
@@ -440,6 +470,87 @@ export function PC_CMTimeSaferSubtract(a: CMTime, b: CMTime): CMTime {
  */
 export function CMTimeMul_double(t: CMTime, m: number): CMTime {
   return CMTimeMultiplyByFloat64(t, m);
+}
+
+/**
+ * operator*(unsigned int mult, CMTime const& time) — CMTime scaled by an unsigned int.
+ * @ProCore 0x5826d  (__ZmljRK6CMTime — "operator*(unsigned int, CMTime const&)")
+ *
+ * DECODE (raw-port/re/disasm/ProCore.__ZmljRK6CMTime.s — 20-line body):
+ *
+ *   0x5826d  pushq  %rbp ; movq %rsp,%rbp          ; prologue
+ *   0x58271  pushq  %rbx ; subq $0x38,%rsp         ; 56B stack for outgoing arg + spill
+ *   0x58276  movq   %rdi, %rbx                     ; spill NRVO/sret out ptr (arg1: CMTime* dst = %rdi)
+ *
+ *   ; --- copy `time` (arg3: CMTime const& in %rdx) into two spill slots ---
+ *   0x58279  movq   0x10(%rdx), %rax               ; rax = time.epoch  (i64 @+0x10)
+ *   0x5827d  movq   %rax, -0x10(%rbp)              ; spill epoch to -0x10
+ *   0x58281  movups (%rdx), %xmm0                  ; xmm0 = time[0..15] = value|timescale|flags
+ *   0x58284  movaps %xmm0, -0x20(%rbp)             ; spill first 16B to -0x20
+ *
+ *   ; --- marshal the 24-byte `time` BY VALUE into the callq's stack area ---
+ *   0x58288  movq   -0x10(%rbp), %rax              ; rax = spilled epoch
+ *   0x5828c  movq   %rax, 0x10(%rsp)               ; outgoing +16 = time.epoch
+ *   0x58291  movaps -0x20(%rbp), %xmm0             ; xmm0 = spilled first 16B
+ *   0x58295  movups %xmm0, (%rsp)                  ; outgoing +0  = value|timescale|flags
+ *                                                  ;   (sret dst stays in %rdi=%rbx; the `mult`
+ *                                                  ;    integer arg stays LIVE in %esi and is
+ *                                                  ;    passed through unchanged as arg2)
+ *   0x58299  callq  _CMTimeMultiply (__stubs 0xde3d2) ; dst = CMTimeMultiply(time, mult)
+ *   0x5829e  movq   %rbx, %rax                     ; return the NRVO out ptr
+ *   0x582a1..0x582a7  addq $0x38,%rsp ; popq %rbx ; popq %rbp ; retq   ; epilogue
+ *
+ * A THIN WRAPPER — nothing but marshalling `time` by value and forwarding the unsigned `mult` to
+ * CoreMedia's `_CMTimeMultiply`. No sign flip, no argument mutation. `_CMTimeMultiply` is modelled
+ * above as a CoreMedia public-API boundary function.
+ */
+export function CMTimeMul_uint(mult: number, time: CMTime): CMTime {
+  // @0x58299  callq _CMTimeMultiply(time, mult) — sret result returned by value.
+  return CMTimeMultiply(time, mult);
+}
+
+/**
+ * operator*(unsigned int mult, CMTime const& time) — CMTime scaled by an integer.
+ * @ProCore 0x5826d  (__ZmljRK6CMTime — "operator*(unsigned int, CMTime const&)")
+ *
+ * DECODE (raw-port/re/disasm/ProCore.__ZmljRK6CMTime.s — 20-line body):
+ *
+ *   0x5826d  pushq  %rbp                            ; prologue
+ *   0x5826e  movq   %rsp, %rbp
+ *   0x58271  pushq  %rbx
+ *   0x58272  subq   $0x38, %rsp                     ; 56B stack (spill + outgoing args)
+ *   0x58276  movq   %rdi, %rbx                      ; spill NRVO out ptr (arg1: CMTime* dst = sret)
+ *
+ *   ; --- load `time` (%rdx = arg3, CMTime const&) into two spill slots ---
+ *   0x58279  movq   0x10(%rdx), %rax                ; rax = time.epoch (i64 @+0x10)
+ *   0x5827d  movq   %rax, -0x10(%rbp)               ; spill epoch to -0x10
+ *   0x58281  movups (%rdx), %xmm0                   ; xmm0 = time[0..15] = value|timescale|flags
+ *   0x58284  movaps %xmm0, -0x20(%rbp)              ; spill first 16B to -0x20
+ *
+ *   ; --- rebuild the 24-byte `time`-by-value in the callq's stack arg area ---
+ *   0x58288  movq   -0x10(%rbp), %rax               ; rax = spilled epoch
+ *   0x5828c  movq   %rax, 0x10(%rsp)                ; outgoing +16 = time.epoch
+ *   0x58291  movaps -0x20(%rbp), %xmm0              ; xmm0 = spilled first 16B
+ *   0x58295  movups %xmm0, (%rsp)                   ; outgoing +0..15 = value|timescale|flags
+ *
+ *   0x58299  callq  0xde3d2  (__stubs -> _CMTimeMultiply)   ; CMTimeMultiply(time, multiplier)
+ *                                                           ;   arg1 sret = %rdi (untouched = dst),
+ *                                                           ;   the CMTime `time` passed on the stack,
+ *                                                           ;   the int multiplier stays in %esi (arg2
+ *                                                           ;   = the original `unsigned int mult`,
+ *                                                           ;   never moved between entry and call).
+ *   0x5829e  movq   %rbx, %rax                      ; return the NRVO out ptr in %rax
+ *   0x582a1..0x582a7  epilogue + retq
+ *
+ * A THIN WRAPPER: `operator*(unsigned int mult, CMTime const& time) => CMTimeMultiply(time, mult)`.
+ * The only callee is the CoreMedia extern `_CMTimeMultiply` (boundary, modelled above). No sign
+ * flip, no argument mutation. `mult` is an `unsigned int` in the C++ signature; the machine passes
+ * it straight through as CMTimeMultiply's int32 multiplier (%esi).
+ */
+export function CMTimeMul_uint(mult: number, time: CMTime): CMTime {
+  // @0x58299  callq _CMTimeMultiply — the CMTime is copied by value, `mult` passed as the int32
+  //   multiplier (arg register %esi, untouched between entry and the call).
+  return CMTimeMultiply(time, mult);
 }
 
 /**
