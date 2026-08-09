@@ -31,7 +31,15 @@ if [ "$MODE" = "done" ]; then
   OTIP="$(git rev-parse -q --verify "origin/$BR" 2>/dev/null || echo none)"
   if { [ "$OTIP" != none ] && [ "$TIP" = "$OTIP" ]; } || git merge-base --is-ancestor "$TIP" origin/main 2>/dev/null; then
     git worktree remove --force "$WT" 2>/dev/null && echo "REAPED $TAG (clean + on origin; commit is the durable artifact)"
-    git worktree prune 2>/dev/null || true
+    # `git worktree prune` (unscoped) scans the SHARED registry and reaps ANY worktree whose dir it
+    # can't stat right now — under a mass wave that includes a PEER worktree still mid-`worktree add`
+    # (dir exists but admin entry not fully written) or mid-commit, silently destroying its checkout
+    # + un-pushed edits (observed: dep-worker-103/105 lost fully-decoded work incl. the OZAudioMixer
+    # downmix matrix). `git worktree remove` above already cleaned THIS worker's own admin entry, so
+    # the prune is only opportunistic housekeeping for genuinely-abandoned (crashed) worktrees.
+    # Scope it with --expire so it can NEVER reap a worktree touched within the last hour — a live
+    # peer's seconds-old worktree is safe; only truly-stale crash leftovers get collected.
+    git worktree prune --expire=1.hour.ago 2>/dev/null || true
   else
     echo "KEEP $TAG: local commits not on origin — push, then rerun: wt_setup.sh done $TAG"
   fi
