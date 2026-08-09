@@ -13,6 +13,8 @@
 //                                  //    an 8B movq for epoch — see 0xda189e / 0xda186b et al.)
 //   +0x18  frameDurSeconds  float  // f32: CMTimeGetSeconds(frameDur) truncated to single precision
 //   +0x1c  frameRate        float  // f32: 1.0f / frameDurSeconds
+//   +0x1b38 graphBuildDenom float  // f32 denominator read by GetGraphBuildPercent (>0 gate)
+//   +0x1b5c graphBuildCount i32    // int32 sample count read by GetGraphBuildPercent (cvtsi2sdl)
 //   +0x1b60 failedPreroll  i32(atomic)  // one-shot latch set to 1 by setFailedPreroll(true); the
 //                                       // xchgl store is a std::atomic<int>/std::atomic<bool> seq-cst
 //                                       // exchange whose old value is discarded (a set-only flag).
@@ -31,6 +33,11 @@ export class FFPlayerHealthMeter {
   frameDurSeconds = 0;
   // +0x1c  frame rate = 1/frameDurSeconds (single precision).
   frameRate = 0;
+  // +0x1b38  denominator for the graph-build percentage (single precision). GetGraphBuildPercent
+  //          only divides by it when it is > 0.
+  graphBuildDenom = 0;
+  // +0x1b5c  sample count for the graph-build percentage (int32), widened to double before scaling.
+  graphBuildCount = 0;
   // +0x1b60  one-shot "failed preroll" latch. Set to 1 by setFailedPreroll(true) via an atomic
   //          exchange (xchgl) whose old value is discarded; never cleared by that method.
   failedPreroll = 0;
@@ -121,5 +128,75 @@ export class FFPlayerHealthMeter {
     if (!b) return;
     // @0xda37d8..0xda37dd  movl $1 ; xchgl %eax,0x1b60(%rdi) — atomic set-to-1, old value discarded.
     this.failedPreroll = 1;
+  }
+
+  /**
+   * FFPlayerHealthMeter::GetGraphBuildPercent() -> float
+   * @0xADDR Flexo 0x0000000000da3860  (__ZN19FFPlayerHealthMeter20GetGraphBuildPercentEv)
+   *
+   * DECODE (otool -tvV address slice 0xda3860..0xda38c0; disasm at
+   *   raw-port/re/disasm/Flexo.__ZN19FFPlayerHealthMeter20GetGraphBuildPercentEv.s):
+   *
+   *   0xda3864  movss 0x1b38(%rdi),%xmm1          ; xmm1 = this->graphBuildDenom (f32)
+   *   0xda386c  xorps %xmm0,%xmm0                 ; xmm0 = 0.0f
+   *   0xda386f  ucomiss %xmm0,%xmm1               ; compare xmm1 - 0  (AT&T: dst=xmm1, src=xmm0)
+   *   0xda3872  jbe 0xda38aa                      ; if (xmm1 <= 0) -> degenerate branch
+   *   ; --- main path: graphBuildDenom > 0 ---
+   *   0xda3874  xorps %xmm0,%xmm0
+   *   0xda3877  cvtsi2sdl 0x1b5c(%rdi),%xmm0      ; xmm0 = (double)(int32)this->graphBuildCount
+   *   0xda387f  mulsd 0x156e268(%rip),%xmm0       ; xmm0 *= 0.05        (@const Flexo 0x156e268)
+   *   0xda3887  addsd 0x156f820(%rip),%xmm0       ; xmm0 += 0.95        (@const Flexo 0x156f820)
+   *   0xda388f  cvtsd2ss %xmm0,%xmm0              ; xmm0 = (float)xmm0
+   *   0xda3893  divss %xmm1,%xmm0                 ; xmm0 /= graphBuildDenom   (dst/src = xmm0/xmm1)
+   *   0xda3897  movss 0x1c(%rdi),%xmm1            ; xmm1 = this->frameRate (f32)
+   *   0xda389c  mulss 0x156f0d0(%rip),%xmm0       ; xmm0 *= 100.0f      (@const Flexo 0x156f0d0)
+   *   0xda38a4  divss %xmm1,%xmm0                 ; xmm0 /= frameRate
+   *   0xda38a9  retq                              ; return xmm0
+   *   ; --- degenerate branch: graphBuildDenom <= 0 (0xda38aa) ---
+   *   0xda38aa  movss 0x1c(%rdi),%xmm1            ; xmm1 = this->frameRate (f32)
+   *   0xda38af  movaps %xmm1,%xmm0                ; xmm0 = frameRate
+   *   0xda38b2  mulss 0x156f0d0(%rip),%xmm0       ; xmm0 = frameRate * 100.0f (same 100.0 const)
+   *   0xda38ba  divss %xmm1,%xmm0                 ; xmm0 /= frameRate  => 100.0f (NaN if frameRate 0)
+   *   0xda38bf  retq                              ; return xmm0
+   *
+   * All arithmetic is transcribed at the machine's widths: the count is widened i32->f64
+   * (cvtsi2sdl), the *0.05 + 0.95 happens in DOUBLE, then the result is narrowed to f32 (cvtsd2ss)
+   * before the two single-precision divides/multiply. Math.fround marks every f32 rounding point.
+   * The degenerate branch computes frameRate*100/frameRate, i.e. 100.0f (and NaN if frameRate==0,
+   * faithfully — the binary does the divide unconditionally).
+   *
+   * @const Flexo __TEXT,__const 0x156e268 = 0.05  (f64)
+   * @const Flexo __TEXT,__const 0x156f820 = 0.95  (f64)
+   * @const Flexo __TEXT,__const 0x156f0d0 = 100.0 (f32, shared by both branches)
+   *
+   * Zero in-scope callees; no externs. Pure field arithmetic.
+   */
+  GetGraphBuildPercent(): number {
+    // @0xda3864  denom = this->graphBuildDenom (f32).
+    const denom = Math.fround(this.graphBuildDenom);
+    // @0xda386f..0xda3872  ucomiss vs 0 ; jbe -> take the degenerate branch when denom <= 0.
+    if (denom > 0) {
+      // @0xda3877  (double)(int32)graphBuildCount.
+      const count = this.graphBuildCount | 0;
+      // @0xda387f..0xda3887  count*0.05 + 0.95 in DOUBLE precision.
+      const d = count * 0.05 + 0.95; // @const 0.05 @0x156e268, 0.95 @0x156f820
+      // @0xda388f  cvtsd2ss — narrow to f32.
+      let r = Math.fround(d);
+      // @0xda3893  divss by denom (f32).
+      r = Math.fround(r / denom);
+      // @0xda3897  frameRate (f32).
+      const frameRate = Math.fround(this.frameRate);
+      // @0xda389c  *100.0f  (@const 100.0 @0x156f0d0).
+      r = Math.fround(r * Math.fround(100.0));
+      // @0xda38a4  /frameRate (f32).
+      r = Math.fround(r / frameRate);
+      return r;
+    }
+    // @0xda38aa..0xda38bf  degenerate: frameRate*100.0f/frameRate  (== 100.0f, or NaN if 0).
+    const frameRate = Math.fround(this.frameRate);
+    let r = frameRate;                             // @0xda38af  movaps
+    r = Math.fround(r * Math.fround(100.0));        // @0xda38b2  mulss 100.0f (@0x156f0d0)
+    r = Math.fround(r / frameRate);                 // @0xda38ba  divss
+    return r;
   }
 }
