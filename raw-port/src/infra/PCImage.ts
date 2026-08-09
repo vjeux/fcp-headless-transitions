@@ -12,6 +12,15 @@
 // -----------------------------------------------------------------------------
 //   * __ZN7PCImage26setGuaranteeMemoryCallbackEPFbjE
 //       — PCImage::setGuaranteeMemoryCallback(bool (*)(uint32_t))  @ProCore 0x4ae6e
+//   * __ZN7PCImage18setIsPremultipliedEb
+//       — PCImage::setIsPremultiplied(bool)  @ProCore 0x4af6c
+//   * __ZN7PCImage18setIsPremultipliedEb
+//       — PCImage::setIsPremultiplied(bool)  @ProCore 0x4af6c
+//
+// INSTANCE LAYOUT (recovered from accessor disasm)
+//   this+0x38 : bool _isPremultiplied — a 1-byte flag written by
+//     setIsPremultiplied via `movb %sil, 0x38(%rdi)`. Modelled below as the
+//     instance field `_isPremultiplied`.
 //
 // STATIC DATA REFERENCED
 //   __ZN7PCImage16_guaranteeMemoryE  = "PCImage::_guaranteeMemory" — the
@@ -80,5 +89,35 @@ export class PCImage {
   static setGuaranteeMemoryCallback(fn: PCImage_GuaranteeMemoryCallback): void {
     // @0x4ae72 movq %rdi, __ZN7PCImage16_guaranteeMemoryE(%rip)
     PCImage__guaranteeMemory = fn;
+  }
+
+  /**
+   * `this+0x38` — the premultiplied-alpha flag. A 1-byte instance field
+   * written by `setIsPremultiplied` (`movb %sil, 0x38(%rdi)`). Initialised
+   * to `false` here; the true reset value is established by PCImage's ctor
+   * (a separate ledger unit) — we start it `false` so the field exists and
+   * is typed. Recovered offset: 0x38.
+   */
+  private _isPremultiplied: boolean = false;
+
+  /**
+   * `PCImage::setIsPremultiplied(bool)` — @ProCore 0x4af6c
+   *   __ZN7PCImage18setIsPremultipliedEb
+   *
+   * Faithful transcription of the 6-instruction body:
+   *
+   *   0x4af6c  pushq  %rbp
+   *   0x4af6d  movq   %rsp, %rbp
+   *   0x4af70  movb   %sil, 0x38(%rdi)
+   *   0x4af74  popq   %rbp
+   *   0x4af75  retq
+   *
+   * Pure instance setter: `%rdi` is the implicit `this`, `%sil` is the low
+   * byte of arg 1 (`%rsi` — the `bool` value). The single store writes that
+   * byte into `this+0x38`. No branches, no callees, no externs.
+   */
+  setIsPremultiplied(value: boolean): void {
+    // @0x4af70 movb %sil, 0x38(%rdi)
+    this._isPremultiplied = value;
   }
 }
