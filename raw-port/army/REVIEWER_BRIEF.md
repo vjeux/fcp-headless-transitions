@@ -57,16 +57,31 @@ For the changed .ts file and each exported function it claims to port:
    virtual/vtable dispatch — and it MUST cite its @0xADDR. If a REAL-work instruction has no
    counterpart in the TS, or a same-framework callee is throw-stubbed, that is a cheat. REJECT.
 
-## Your written verdict (recorded per commit; a worker cannot merge without it)
-Emit a JSON sidecar next to the file: `<file>.review.json`
-    {"verdict":"LIKELY_REAL"|"VERIFIED"|"REJECT"|"SKELETON"|"TRAP"|"EMPTY",
+## Your written verdict (recorded PER BRANCH TIP; a worker cannot merge without it)
+Emit a JSON sidecar next to the file, keyed by the branch tip SHA so your ACCEPT authorizes ONLY
+this exact branch (a bare `<file>.review.json` shared across branches let a later reviewer silently
+overwrite an earlier verdict — that hole is closed):
+
+    TIP=$(git rev-parse origin/port/<Class>)          # the branch tip you reviewed
+    write  <file>.review.$TIP.json   with:
+    {"verdict":"LIKELY_REAL"|"VERIFIED"|"REJECT"|"skeleton"|"TRAP"|"EMPTY",
+     "merge_allowed": true|false, "branch_tip":"<TIP>",
      "method":"<demangled>", "symbol":"<mangled>", "disasm_class":"REAL|...",
      "oracle":"VERIFIED|DIVERGED|FAILED|n/a", "reach":"LIKELY_REAL|REJECT_CHEAT|n/a",
      "reason":"<one line: what evidence proves real, or what instruction the TS omits>",
      "reviewer":"adversarial-reviewer", "ts":"<utc>"}
-- ACCEPT (merge allowed) ONLY when verdict ∈ {VERIFIED, LIKELY_REAL(+your line-by-line sign), TRAP, EMPTY}.
-- SKELETON is NOT an accept-as-ported: it may land as `skeleton` status but must NEVER be counted ported.
+  (A legacy `<file>.review.json` is still honored ONLY if it contains "branch_tip":"<TIP>" matching
+  the exact tip being merged; wt_merge rejects a file-keyed sidecar that names a different/no tip.)
+- ACCEPT (merge allowed) ONLY when verdict ∈ {VERIFIED, LIKELY_REAL(+your line-by-line sign), TRAP, EMPTY} AND merge_allowed=true.
+- SKELETON: a DISPATCH_ONLY shell is now a HARD G5 REJECT unless you deliberately set verdict="skeleton"
+  (lowercase). A `skeleton` never counts as `ported` — it records frontier-only status. Do NOT sign a
+  dispatch-only shell as LIKELY_REAL to force it through.
 - REJECT stops the merge. Say exactly which instruction the TS body fails to reproduce.
+- REGRESSION GATE: wt_merge now also runs regression_check.py — if the branch DROPS any @0xADDR
+  symbol or export that origin/main already has (a stale-base branch cut before a sibling landed),
+  it prints `REGRESSION GATE FAILED` and refuses to merge. This is NOT a verdict on your review; the
+  branch just needs to be rebased onto current origin/main (or discarded if a newer branch superseded
+  it). Do not try to force it — rebase and re-gate.
 
 ## YOU MERGE YOUR OWN ACCEPTs (do NOT hand merges back to the coordinator)
 The coordinator is NOT a merge queue — routing every merge through it is a bottleneck and a single

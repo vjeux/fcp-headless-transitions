@@ -234,8 +234,25 @@ def check_file(path):
                         f"port throws incompleteness on {verdict['reach'].get('incompleteHits')} "
                         f"reachable inputs. Transcribe the real instructions; don't stub the body.")
         elif v == "SKELETON":
-            flags.append(f"{path}: {name}: DISPATCH_ONLY (7385eb01 shape) — mark `skeleton`, "
-                         f"NEVER `ported`. Real work is the callees; not an implementable leaf.")
+            # DISPATCH_ONLY (7385eb01 shape): the body is a pure vtable/indirect dispatch shell — the
+            # real work IS the callee, so this is NOT an implementable leaf and must NEVER count as
+            # `ported` (that is a FALSE completion that lies about coverage). Previously this was only
+            # a FLAG, so PCBitmap_getBytesPerRow landed on main counted as ported. Now it is a HARD
+            # REJECT unless a sidecar EXPLICITLY marks the verdict "skeleton" (an honest, deliberate
+            # skeleton that the ledger will record as `skeleton`, never `ported`).
+            rev = path + ".review.json"
+            marked_skeleton = False
+            if os.path.exists(rev):
+                try: marked_skeleton = json.load(open(rev)).get("verdict") == "skeleton"
+                except Exception: marked_skeleton = False
+            if marked_skeleton:
+                flags.append(f"{path}: {name}: DISPATCH_ONLY accepted as explicit `skeleton` "
+                             f"(sidecar verdict=skeleton) — must be recorded `skeleton`, NEVER `ported`.")
+            else:
+                errs.append(f"{path}: G5 SKELETON — {name}: DISPATCH_ONLY (7385eb01 shape), a pure "
+                            f"dispatch shell whose real work is the callee. Counting it `ported` is a "
+                            f"false completion. If this is a deliberate frontier skeleton, the sidecar "
+                            f"must set verdict=\"skeleton\"; otherwise port the concrete callee instead.")
         elif v == "REVIEW_NEEDED":
             rev = path + ".review.json"
             signed = os.path.exists(rev) and json.load(open(rev)).get("verdict") == "LIKELY_REAL"

@@ -48,6 +48,16 @@ if [ -n "$CHANGED" ]; then
   git worktree remove --force "$GW" 2>/dev/null || true
   [ "$RC" = 0 ] || { echo "GATE FAILED for $BR — NOT merging"; exit 2; }
 
+  # --- STALE-BASE REGRESSION GATE (branch must not DROP a landed symbol) -----------------------
+  # wt_merge merges with a 3-way merge-tree; a branch cut BEFORE a file landed treats that file as
+  # a fresh "add" and can SILENTLY replace a richer landed file with a stubbier one (no conflict).
+  # regression_check compares cited @0xADDR mangled symbols + exported TS identifiers between the
+  # branch's version and origin/main's version of each changed file; if the branch drops any symbol
+  # main has, it's a net-negative to the port -> REJECT. Fix = rebase the branch onto current main.
+  REG=0; python3 "$REPO/raw-port/army/tools/regression_check.py" origin/main "$BR" \
+    $(git diff --name-only origin/main...$BR -- 'raw-port/src/**/*.ts') || REG=$?
+  [ "$REG" = 2 ] && { echo "REGRESSION GATE FAILED for $BR — branch drops landed symbols; rebase onto origin/main. NOT merging"; exit 6; }
+
   # --- REVIEWER SIGN-OFF GATE (worker cannot self-merge a real body) ---------------------------
   # G5 (in gate.sh) blocks the mechanical cheat (REAL disasm + throw-only body). The adversarial
   # reviewer (REVIEWER_BRIEF.md) covers what G5 can't: a throw-free body that is WRONG. Before merge,
@@ -56,17 +66,37 @@ if [ -n "$CHANGED" ]; then
   # Escape hatch for the closely-watched pilot: WT_MERGE_SKIP_REVIEW=1 (logged, must be justified).
   if [ "${WT_MERGE_SKIP_REVIEW:-0}" != "1" ]; then
     REVIEW_FAIL=0
+    BR_TIP_SHA="$(git rev-parse "$BR")"
     for f in $CHANGED; do
       case "$f" in *.ts) ;; *) continue ;; esac
-      rev="${f}.review.json"
-      if [ ! -f "$rev" ]; then
-        echo "  REVIEW MISSING: $rev — reviewer (REVIEWER_BRIEF.md) must sign off before merge"; REVIEW_FAIL=1; continue
+      # PER-BRANCH SIDECAR (#2): the verdict must be bound to THIS branch tip, not just the file.
+      # Old scheme was <file>.review.json keyed only by file -> two branches touching the same file
+      # shared one sidecar and a later reviewer silently overwrote an earlier verdict, so an ACCEPT
+      # for branch A could authorize merging branch B. Now the reviewer writes
+      # <file>.review.<branchTipSha>.json; wt_merge only honors the sidecar matching the exact tip it
+      # is about to merge. A legacy <file>.review.json is accepted ONLY if it records this branch's
+      # tip in a "branch_tip" field (back-compat) — a bare file-keyed sidecar no longer authorizes.
+      rev="${f}.review.${BR_TIP_SHA}.json"
+      legacy="${f}.review.json"
+      use=""
+      if [ -f "$rev" ]; then use="$rev"
+      elif [ -f "$legacy" ]; then use="$legacy"; fi
+      if [ -z "$use" ]; then
+        echo "  REVIEW MISSING: ${f}.review.${BR_TIP_SHA}.json — reviewer must sign off THIS branch tip"; REVIEW_FAIL=1; continue
       fi
-      ok=$(python3 -c "import json,sys;d=json.load(open('$rev'));print('1' if (d.get('merge_allowed') is True and d.get('verdict') in ('VERIFIED','LIKELY_REAL','TRAP','EMPTY')) else '0')" 2>/dev/null)
+      ok=$(python3 -c "
+import json,sys
+d=json.load(open('$use'))
+tip='$BR_TIP_SHA'
+verdict_ok = d.get('merge_allowed') is True and d.get('verdict') in ('VERIFIED','LIKELY_REAL','TRAP','EMPTY')
+# per-branch binding: sidecar filename carries the sha (rev path) OR sidecar records branch_tip==tip
+bound = ('$use'.endswith('.review.'+tip+'.json')) or (d.get('branch_tip')==tip)
+print('1' if (verdict_ok and bound) else '0')
+" 2>/dev/null)
       if [ "$ok" != "1" ]; then
-        echo "  REVIEW REJECTED/INVALID: $rev (verdict must be VERIFIED/LIKELY_REAL/TRAP/EMPTY + merge_allowed=true)"; REVIEW_FAIL=1
+        echo "  REVIEW REJECTED/INVALID/UNBOUND: $use (need verdict∈{VERIFIED,LIKELY_REAL,TRAP,EMPTY}, merge_allowed=true, AND bound to tip $BR_TIP_SHA)"; REVIEW_FAIL=1
       else
-        echo "  review OK: $(basename "$f")"
+        echo "  review OK: $(basename "$f") @ ${BR_TIP_SHA:0:8}"
       fi
     done
     [ "$REVIEW_FAIL" = 0 ] || { echo "REVIEWER GATE FAILED for $BR — NOT merging (set WT_MERGE_SKIP_REVIEW=1 to bypass in a watched pilot)"; exit 3; }
