@@ -157,6 +157,23 @@ def snapshot():
     for k,v in by_layer.most_common():
         print(f"     {k:<12} {v:>5}")
 
+def _ledger_ported_count():
+    """GROUND-TRUTH coverage: count ledger units with status=='ported'. This is the number that
+    matters (a genuine ported body), NOT the @0xADDR token count (fn_cited), which over-counts ~6x
+    because one function cites ~35 addresses (its entry + every constant/field-offset/instr site).
+    Reflects the last mark_ported reconcile; run mark_ported first for a fresh value."""
+    ldir=os.path.join(ROOT,"raw-port/army/ledger")
+    p=0
+    for lf in (os.listdir(ldir) if os.path.isdir(ldir) else []):
+        if not lf.endswith(".ledger.json") or lf.startswith("shaders"): continue
+        try: led=json.load(open(os.path.join(ldir,lf)))
+        except Exception: continue
+        for ms in led.values():
+            if isinstance(ms,dict):
+                for v in ms.values():
+                    if isinstance(v,dict) and v.get("status")=="ported": p+=1
+    return p
+
 def cmd_log():
     """Append one timestamped row to progress_log.csv for a persistent forward record."""
     files=git("ls-tree","-r","--name-only",REF,"--",SRC).splitlines()
@@ -171,12 +188,13 @@ def cmd_log():
             blob=git("show", f"{REF}:{f}")
         lines+=blob.count("\n")
         for a in re.findall(r"@0x([0-9a-fA-F]+)", blob): addrs.add(a.lower())
+    ported_real=_ledger_ported_count()
     head=git("log",REF,"-1","--pretty=format:%H")[:12]
-    row=f"{datetime.datetime.now(datetime.timezone.utc).isoformat()},{head},{merges},{len(ts)},{lines},{len(addrs)}"
+    row=f"{datetime.datetime.now(datetime.timezone.utc).isoformat()},{head},{merges},{len(ts)},{lines},{len(addrs)},{ported_real}"
     p=os.path.join(ROOT,"raw-port/army/progress_log.csv")
     new=not os.path.exists(p)
     with open(p,"a") as fh:
-        if new: fh.write("utc_time,head,merges,ported_ts,src_lines,fn_cited\n")
+        if new: fh.write("utc_time,head,merges,ported_ts,src_lines,fn_cited,ported_real\n")
         fh.write(row+"\n")
     print("logged:",row)
     print("-> raw-port/army/progress_log.csv")

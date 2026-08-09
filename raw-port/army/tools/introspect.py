@@ -44,9 +44,16 @@ def _num(r,k):
     except Exception: return 0.0
 
 def analyze():
-    rows=_rows()
+    allrows=_rows()
     now=datetime.datetime.now(datetime.timezone.utc)
-    out={"ts":now.isoformat(),"n_points":len(rows)}
+    # Prefer the GROUND-TRUTH series: rows that carry ported_real. Fall back to the full series
+    # (fn_cited proxy) only if fewer than 2 ground-truth rows exist yet, and flag it loudly.
+    real_rows=[r for r in allrows if (r.get("ported_real") not in (None,""))]
+    if len(real_rows)>=2:
+        rows=real_rows; basis="ported_real"
+    else:
+        rows=allrows; basis="fn_cited(PROXY,~6x high)"
+    out={"ts":now.isoformat(),"n_points":len(rows),"basis":basis}
     if len(rows)<2:
         # Not enough history to judge a trend. Stay hourly, gather data.
         out.update({"verdict":"BOOTSTRAP","reason":"fewer than 2 datapoints — need history to assess trend",
@@ -57,15 +64,24 @@ def analyze():
     t_last, t_prev = _dt(last["utc_time"]), _dt(prev["utc_time"])
     dt_h = max((t_last-t_prev).total_seconds()/3600.0, 1e-6) if (t_last and t_prev) else 1.0
 
-    # primary progress signal = distinct @0xADDR functions cited (function-level coverage) + merges
-    d_fn   = _num(last,"fn_cited") - _num(prev,"fn_cited")
+    # PRIMARY progress signal = ledger status=ported (GROUND TRUTH — a genuine ported body).
+    # NOT fn_cited (@0xADDR token count), which over-counts ~6x: one function cites ~35 addresses
+    # (its entry + every constant/field-offset/instruction site). Old log rows may lack ported_real;
+    # fall back to fn_cited ONLY then, and flag it, so a mixed series doesn't silently mislead.
+    def prog(r):
+        if basis=="ported_real": return _num(r,"ported_real"), True
+        return _num(r,"fn_cited"), False
+    pL, real_last = prog(last)
+    pP, _         = prog(prev)
+    metric = basis
+    d_fn   = pL - pP
     d_merge= _num(last,"merges")   - _num(prev,"merges")
     d_ts   = _num(last,"ported_ts")- _num(prev,"ported_ts")
     fn_per_h    = d_fn/dt_h
     merge_per_h = d_merge/dt_h
 
     # longer-baseline rate (first->last) to detect a plateau vs a blip
-    f0,fL = _num(rows[0],"fn_cited"), _num(last,"fn_cited")
+    f0 = prog(rows[0])[0]; fL = pL
     t0 = _dt(rows[0]["utc_time"])
     span_h = max((t_last-t0).total_seconds()/3600.0,1e-6) if (t0 and t_last) else 1.0
     fn_per_h_life = (fL-f0)/span_h
@@ -77,16 +93,15 @@ def analyze():
         ta,tb=_dt(a["utc_time"]),_dt(b["utc_time"])
         if ta and tb:
             h=max((tb-ta).total_seconds()/3600.0,1e-6)
-            slopes.append((_num(b,"fn_cited")-_num(a,"fn_cited"))/h)
+            slopes.append((prog(b)[0]-prog(a)[0])/h)
     recent_rate = statistics.mean(slopes) if slopes else fn_per_h
 
     total = 126668
     remaining = total - fL
     eta_days = (remaining/ (recent_rate*24)) if recent_rate>0 else None
-    # NOTE: fn_cited counts DISTINCT @0xADDR tokens across ported .ts — a coverage PROXY that
-    # over-counts vs the ledger's strict `ported` status (a file can cite an addr in a comment).
-    # It is used here for TREND/cadence only (deltas are meaningful even if the absolute is loose).
-    # For ground-truth coverage use progress_tracker snapshot's ledger status=ported count.
+    # metric is now ledger ported (ground truth) when available; %complete/ETA are meaningful.
+    # A mixed series (old fn_cited rows + new ported_real rows) will show a one-time discontinuity;
+    # the 'metric' field flags which basis the latest point used.
 
     # ---- verdict + cadence logic -------------------------------------------------------
     # thresholds are deliberately simple + explainable.
@@ -113,8 +128,9 @@ def analyze():
         "reason":"; ".join(reason),
         "recommend_interval_min":interval,
         "signals":{
+            "metric":metric,
             "dt_hours":round(dt_h,2),
-            "fn_cited_now":int(fL),
+            "ported_now":int(fL),
             "fn_delta":int(d_fn),"fn_per_hour":round(fn_per_h,2),
             "fn_per_hour_lifetime":round(fn_per_h_life,2),
             "recent_rate_per_hour":round(recent_rate,2),
@@ -132,7 +148,7 @@ def _append_ilog(a):
     with open(ILOG,"a") as f:
         if new: f.write("utc_time,verdict,recommend_interval_min,fn_cited,fn_per_hour,recent_rate,merges,remaining,eta_days\n")
         s=a.get("signals",{})
-        f.write(f"{a['ts']},{a['verdict']},{a['recommend_interval_min']},{s.get('fn_cited_now','')},"
+        f.write(f"{a['ts']},{a['verdict']},{a['recommend_interval_min']},{s.get('ported_now','')},"
                 f"{s.get('fn_per_hour','')},{s.get('recent_rate_per_hour','')},{s.get('merges_now','')},"
                 f"{s.get('remaining_functions','')},{s.get('eta_days_at_recent_rate','')}\n")
 
@@ -148,7 +164,7 @@ if __name__=="__main__":
     print(f"  verdict         : {a['verdict']}  ({a['reason']})")
     print(f"  next interval   : {a['recommend_interval_min']} min")
     if s:
-        print(f"  coverage        : {s['fn_cited_now']:,} fns cited = {s['pct_complete']}%  ({s['remaining_functions']:,} remaining)")
+        print(f"  coverage        : {s['ported_now']:,} ported = {s['pct_complete']}% of 126,668  ({s['remaining_functions']:,} remaining)  [{s['metric']}]")
         print(f"  recent rate     : {s['recent_rate_per_hour']} fn/h  (lifetime {s['fn_per_hour_lifetime']} fn/h)")
         print(f"  merges          : {s['merges_now']:,} (+{s['merge_delta']} since last, {s['merge_per_hour']}/h)")
         print(f"  ETA (naive)     : {s['eta_days_at_recent_rate']} days at recent rate")
