@@ -51,3 +51,4 @@ raw-port/army/worktrees/
 raw-port/re/disasm/
 raw-port/army/depgraph/*.lock
 raw-port/army/introspect_log.csv
+raw-port/army/depgraph/inflight_branch_syms.txt

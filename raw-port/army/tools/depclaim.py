@@ -79,6 +79,25 @@ def _append(rec):
         f.write(json.dumps(rec) + "\n")
         f.flush(); os.fsync(f.fileno())
 
+INFLIGHT = os.path.join(CANON,"raw-port","army","depgraph","inflight_branch_syms.txt")
+
+def _inflight_set():
+    """Symbols that already have a pushed origin/port/* branch (or are on origin/main). A symbol
+    here must NEVER be dispensed — it needs MERGING/REBASING, not re-porting. This is the durable
+    guard against seed-drift: even if claims.jsonl has a stale `reopen` for such a symbol (as
+    happened when orphan-reopen wrongly reopened branch-backed symbols), cmd_next still skips it.
+    Populated as a side-effect of `depclaim.py seed`. Fail-open: missing/empty cache => empty set
+    => at worst a worker collides once and refuses to ship a dup (the merge/push then rejects)."""
+    s = set()
+    if os.path.exists(INFLIGHT):
+        try:
+            with open(INFLIGHT, errors="replace") as f:
+                for line in f:
+                    t = line.strip()
+                    if t: s.add(t)
+        except Exception: pass
+    return s
+
 def _is_stl(sym):
     """libc++ template instantiations are compiler-emitted boilerplate the swarm defers
     indefinitely. With an append-only queue there is no 'defer', so skip them at dispatch so they
@@ -95,12 +114,16 @@ def _is_stl(sym):
 def cmd_next(maxscc=8, allow_stl=False):
     def go():
         claimed = _claimed_set()
+        inflight = _inflight_set()      # symbols with a pushed branch / on main — never re-hand
         rows = depgraph.ready_scc(N=6000)          # dependency-ready SCC units (deps ported, 0 indirect)
         for sz, ne, i, comp in rows:
             if sz > maxscc: continue               # don't hand a solo worker a giant cycle
             head = comp[0]
             # skip if ANY member is already claimed (append-only: never re-hand)
             if any(m in claimed for m in comp): continue
+            # skip if ANY member already has a pushed origin/port/* branch (needs merge/rebase, not
+            # re-port) — the durable guard against claims.jsonl reopen-drift.
+            if any(m in inflight for m in comp): continue
             # skip libc++ template boilerplate unless explicitly asked (they'd clog forever)
             if not allow_stl and any(_is_stl(m) for m in comp): continue
             rec = {"op":"claim","head":head,"members":comp,"ts":time.time()}
@@ -170,8 +193,20 @@ def cmd_seed():
         new=[m for m in found if m not in claimed]
         for m in new:
             _append({"op":"claim","head":m,"members":[m],"ts":time.time(),"src":"seed"})
+        # ALSO write the durable inflight cache: EVERY symbol found on main/a branch tip (not just
+        # the newly-appended ones). cmd_next unions this into its skip-set, so a symbol with a
+        # pushed branch is never re-dispensed even if claims.jsonl has a stale reopen for it.
+        try:
+            tmp = INFLIGHT + ".tmp"
+            with open(tmp, "w") as f:
+                for m in sorted(found): f.write(m + "\n")
+            os.replace(tmp, INFLIGHT)
+            wrote = len(found)
+        except Exception as e:
+            wrote = -1
         print(f"seed: scanned {len(refs)} refs, found {len(found)} cited symbols, "
-              f"appended {len(new)} new claims (skipped {len(found)-len(new)} already claimed)")
+              f"appended {len(new)} new claims (skipped {len(found)-len(new)} already claimed); "
+              f"inflight cache <- {wrote} symbols")
     return _locked(go)
 
 if __name__ == "__main__":
