@@ -49,3 +49,4 @@ raw-port/army/worktrees/
 
 # regenerable disasm scratch — never commit (244MB GH001 incident 2026-07-30)
 raw-port/re/disasm/
+raw-port/army/depgraph/*.lock

@@ -11,6 +11,13 @@ Prints `CLAIMED_UNIT` then one or more TSV rows `<FW>\t<Class>\t<mangled>\t<dema
 function. If MULTIPLE rows, it's a dependency CYCLE (mutual recursion) — port them together in one
 branch (they call each other; neither can be done alone).
 
+The queue is APPEND-ONLY: the instant `next` hands you a unit it is recorded as claimed forever and
+will NEVER be handed to anyone else — so you can never collide with another worker, and you never
+need to release, defer, or mark-done a claim. If you cannot complete a claimed unit, just STOP and
+claim the next one; the abandoned unit is simply skipped (a coordinator can `depclaim.py reopen
+<sym>` in the rare case it must be retried). libc++ template instantiations (`std::__1::…`) and
+already-built symbols are filtered out automatically — every unit you get is real, fresh FCP work.
+
 ## The only legitimate throw
 A throw is allowed ONLY for a TRUE OUT-OF-SCOPE extern — libc (`operator new`/`delete`,
 `_Unwind_Resume`), ObjC runtime (`_objc_*`), CoreFoundation/Foundation, pthread, Metal/CoreVideo/
@@ -23,7 +30,7 @@ stubs by policy (like the CGColorSpace externs already in-tree). Each such throw
   - Indirect/virtual calls (`callq *off(reg)`): you will NOT be handed a function that still has
     unresolved indirect calls (those are held in the `virtual-blocked` tier until tools/vtable.py
     pins the slot to a concrete method, which then becomes a normal dependency). If your disasm has
-    one anyway, `depclaim.py fail <sym> "indirect unresolved"` — do not stub it.
+    one anyway, just STOP on that unit and claim the next — do not stub it (the queue won't re-hand it).
 
 ## Port
 1. `python3 raw-port/army/tools/depgraph.py deps <mangled>` — confirm every dep is `ported`.
@@ -34,8 +41,10 @@ stubs by policy (like the CGColorSpace externs already in-tree). Each such throw
 5. `bash raw-port/army/gate/gate.sh raw-port/src/<layer>/<Class>.ts` MUST print GATE: PASS. G5
    re-derives your disasm and REJECTS a throw where the machine does real work.
 6. `bash raw-port/army/tools/wt_merge.sh <Class>` (reviewer sign-off gates the merge — REVIEWER_BRIEF.md).
-7. `python3 raw-port/army/tools/mark_ported.py` then `python3 raw-port/army/tools/depclaim.py done <mangled>`.
-   Marking it ported UNLOCKS its callers as new ready units — the wavefront advances.
+7. `python3 raw-port/army/tools/mark_ported.py` — flips your merged symbol to `ported`, which
+   UNLOCKS its callers as new ready units (the wavefront advances). No `depclaim.py done` needed:
+   the claim was already recorded permanently at dispatch. `mark_ported` is what the queue reads
+   for dependency-readiness, so run it after your merge lands.
 
 Do 4-8 units, then STOP. Report per unit: FW, class, mangled, addr, deps (proof they were ported),
 commit/merge hashes, GATE result.
