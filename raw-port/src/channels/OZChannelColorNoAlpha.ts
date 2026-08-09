@@ -591,10 +591,136 @@ function OZChannelColorNoAlpha_redSample1Impl_getInstance_stub(): unknown {
   );
 }
 function OZChannelColorNoAlpha_redSample2Impl_getInstance_stub(): unknown {
+  return OZChannelColorNoAlpha_redSample2Impl_getInstance();
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// `OZChannelColorNoAlpha::OZChannelColorNoAlpha_redSample2Impl::getInstance()`
+// — ProChannel @0x000577a8
+// (__ZN21OZChannelColorNoAlpha36OZChannelColorNoAlpha_redSample2Impl11getInstanceEv)
+//
+// Standard libc++ `std::call_once`-guarded singleton accessor. FULL DISASM
+// (raw-port/re/disasm/ProChannel.__ZN21OZChannelColorNoAlpha36OZChannelColorNoAlpha_redSample2Impl11getInstanceEv.s):
+//
+//   0x577a8  movq  _redSample2Once(%rip), %rax  ; rax = once_flag
+//   0x577af  cmpq  $-0x1, %rax                  ; libc++ "init complete" sentinel
+//   0x577b3  je    0x577e7                       ; fast path: skip call_once
+//   0x577b5  pushq %rbp / movq %rsp,%rbp
+//   0x577b9  subq  $0x20, %rsp                   ; 0x20-byte tuple<lambda&&> frame
+//   0x577bd  leaq  -0x1(%rbp), %rax              ; &captureless-lambda 1-byte slot
+//   0x577c1  leaq  -0x18(%rbp), %rcx             ; &tuple slot
+//   0x577c5  movq  %rax, (%rcx)                  ; tuple.head = &lambda-slot
+//   0x577c8  leaq  -0x10(%rbp), %rsi             ; &void* arg
+//   0x577cc  movq  %rcx, (%rsi)                  ; *arg = &tuple
+//   0x577cf  leaq  _redSample2Once(%rip), %rdi   ; arg0 = &once_flag
+//   0x577d6  leaq  __call_once_proxy<...>(%rip), %rdx ; arg2 = proxy fn ptr
+//   0x577dd  callq std::__call_once               ; libc++ stub @0xacdc8
+//   0x577e2  addq  $0x20, %rsp / popq %rbp
+//   0x577e7  movq  _OZChannelColorNoAlpha_redSample2(%rip), %rax ; return the singleton
+//   0x577ee  retq
+//
+// PROCESS-GLOBAL STORAGE (BSS words, modelled as module `let`s — TS has no
+// linker; BSS is zero-filled at load):
+//   * once flag  __ZZN21OZChannelColorNoAlpha36OZChannelColorNoAlpha_redSample2Impl11getInstanceEvE41OZChannelColorNoAlpha_redSample2Impl_once
+//     — libc++ once_flag. 0n = not started; -1n (~0UL) = completed.
+//     getInstance compares to $-1 @0x577af.
+//   * value      __ZN21OZChannelColorNoAlpha36OZChannelColorNoAlpha_redSample2Impl33_OZChannelColorNoAlpha_redSample2E
+//     — the singleton pointer. Read @0x577e7 (return value). WRITTEN by the
+//     call_once init lambda (a SEPARATE ledger unit — see proxy below).
+// ═════════════════════════════════════════════════════════════════════════
+
+/** @ProChannel BSS
+ *  `__ZZN21OZChannelColorNoAlpha36OZChannelColorNoAlpha_redSample2Impl11getInstanceEvE41OZChannelColorNoAlpha_redSample2Impl_once`.
+ *  libc++ std::once_flag word. 0n = not started; -1n = completed.
+ *  Compared to $-1 @ProChannel 0x577af. */
+let _redSample2Once: bigint = 0n; // @ProChannel BSS 0x577a8 read-site
+
+/** @ProChannel BSS
+ *  `__ZN21OZChannelColorNoAlpha36OZChannelColorNoAlpha_redSample2Impl33_OZChannelColorNoAlpha_redSample2E`.
+ *  The singleton `OZChannelColorNoAlpha*`. Read @0x577e7 (return value);
+ *  written by the __call_once init lambda (separate ledger unit). */
+let _OZChannelColorNoAlpha_redSample2: unknown = null; // @ProChannel BSS 0x577e7
+
+/**
+ * `std::__1::__call_once(flag&, void* arg, void(*)(void*))` — libc++
+ * (libc++.dylib), called via ProChannel stub 0xacdc8 from getInstance
+ * @0x577dd. TRUE out-of-scope extern (libc++ runtime). Modelled at the JS
+ * single-threaded level: on first call with a non-complete once_flag, run
+ * the proxy(arg); IF it completes without throwing, write -1n (libc++'s
+ * ~0UL "init complete"); on subsequent calls no-op. If the proxy throws,
+ * the flag stays 0n and future calls retry — exactly like the real runtime.
+ * This is the minimum behaviour getInstance's @0x577af `cmp $-1` relies on. */
+function _redSample2_std_call_once(
+  once: { get(): bigint; set(v: bigint): void },
+  arg: unknown,
+  proxy: (arg: unknown) => void,
+): void {
+  if (once.get() === -1n) return; // libc++ fast path (mirrors 0x577af)
+  proxy(arg); // single-threaded: run initializer directly
+  once.set(-1n); // mark ~0UL on success
+}
+
+/**
+ * `__ZNSt3__117__call_once_proxy<...redSample2Impl::getInstance()::'lambda'()>`
+ * — libc++ template instantiation (ProChannel 0x577ef). Its body is
+ * `movq (%rdi),%rax ; movq (%rax),%rdi ; jmp __invoke<lambda>` @0x577f3..0x577fa
+ * (raw-port/re/disasm/ProChannel.__ZNSt3__117__call_once_proxyB9nqe210106INS_5tupleIJOZN21OZChannelColorNoAlpha36OZChannelColorNoAlpha_redSample2Impl11getInstanceEvEUlvE_EEEEEvPv.s):
+ * it unpacks the tuple's `void*` and tail-calls
+ * `__ZNSt3__18__invokeB9nqe210106I...getInstance()::'lambda'()...E` which runs
+ * the actual init lambda. THE ALLOCATION + CTOR that produce
+ * `_OZChannelColorNoAlpha_redSample2` live INSIDE that lambda (a SEPARATE
+ * ledger unit) — not in getInstance's frame, so we do NOT fabricate a `new`
+ * here. Until that lambda is ported, the proxy stub raises citing the exact
+ * dispatch site @0x577fa. */
+function __call_once_proxy_redSample2_lambda(_arg: unknown): void {
   throw new Error(
     "OZChannelColorNoAlpha::OZChannelColorNoAlpha_redSample2Impl::getInstance() " +
-      "@ProChannel (getInstance singleton) — not yet transcribed",
+      "__call_once init lambda not yet transcribed — the proxy @ProChannel " +
+      "0x577ef unpacks the tuple @0x577f3 and tail-jumps @0x577fa to " +
+      "std::__invoke<...redSample2Impl::getInstance()::'lambda'()>, whose body " +
+      "allocates + constructs the singleton and stores it into " +
+      "_OZChannelColorNoAlpha_redSample2 (@ProChannel BSS, read by getInstance " +
+      "@0x577e7). That lambda/__invoke is a SEPARATE ledger unit; it is invoked " +
+      "from std::__call_once at ProChannel 0x577dd.",
   );
+}
+
+/**
+ * `OZChannelColorNoAlpha::OZChannelColorNoAlpha_redSample2Impl::getInstance()`
+ * — @ProChannel 0x000577a8. Faithful line-for-line transcription of the
+ * disassembly quoted above.
+ *
+ *   1. Read _redSample2Once; if == -1n (libc++ complete sentinel), skip to 3.
+ *   2. Set up the libc++ tuple<lambda&&> ABI slots and call
+ *      std::__call_once(&once, arg, &proxy). The proxy dispatches the init
+ *      lambda which allocates/constructs the singleton and writes it into
+ *      _OZChannelColorNoAlpha_redSample2.
+ *   3. Return _OZChannelColorNoAlpha_redSample2 (the singleton, or its
+ *      current value if init raised and never wrote).
+ *
+ * The @0x577bd..0x577cc stack tuple + captureless-lambda dance is a
+ * libc++-ABI artefact (a stable void* for the proxy to dispatch through);
+ * in the single-threaded JS model the proxy is called directly, so the
+ * intermediate slots have no observable effect and are documented for
+ * provenance only.
+ */
+function OZChannelColorNoAlpha_redSample2Impl_getInstance(): unknown {
+  // @0x577a8..0x577b3 — if (_redSample2Once == -1) goto return (0x577e7).
+  if (_redSample2Once !== -1n) {
+    // @0x577b5..0x577dd — libc++ tuple ABI setup + callq std::__call_once.
+    _redSample2_std_call_once(
+      {
+        get: (): bigint => _redSample2Once, // mirrors 0x577a8 read
+        set: (v: bigint): void => {
+          _redSample2Once = v;
+        },
+      },
+      null, // ABI void* — real disasm passes &tuple; our proxy ignores it.
+      __call_once_proxy_redSample2_lambda, // @0x577d6 rdx = &proxy
+    );
+  }
+  // @0x577e7..0x577ee — rax = _OZChannelColorNoAlpha_redSample2; retq.
+  return _OZChannelColorNoAlpha_redSample2;
 }
 function OZChannelColorNoAlpha_greenSample1Impl_getInstance_stub(): unknown {
   throw new Error(
