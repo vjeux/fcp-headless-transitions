@@ -113,6 +113,25 @@ export interface OZObserverRecord {
    *  AND-NOT at `unignoreObserverOnce` 0x4bf41
    *  (`andl (~edx), 0x28(%rax)`). */
   flags_at_0x28: number;
+  /** (record+0x00) — PREV pointer of the circular doubly-linked list.
+   *  Recovered from `addObjCObserver` (@Ozone 0x4bae2 `movq (%r12), %rcx`
+   *  reads the insertion node's prev; @0x4baea `movq %rcx, (%rax)` writes
+   *  the new node's prev; @0x4bb1c `movq (%rbx), %rcx` reads the sentinel's
+   *  prev = tail on the append path).  Points at the previous record, or
+   *  at the manager sentinel when this record is the list head. */
+  prev_at_0x0: OZObserverRecord | OZNotificationManager;
+  /** (record+0x18) — the observer's `long` tag / priority key.  Set on
+   *  insert (@0x4bacf / 0x4bb05 `movq %r14, 0x18(%rax)`) and used as the
+   *  sort key in `addObjCObserver`'s walk (@0x4baba
+   *  `cmpq 0x18(%r12), %r14 ; jle` keeps advancing while `tag <=
+   *  node.tag`, so records are ordered by DESCENDING tag with the new
+   *  node inserted before the first node with a strictly smaller tag). */
+  tag_at_0x18: bigint;
+  /** (record+0x20) — a `long` initialised to 1 on insert
+   *  (@0x4bad3 / 0x4bb09 `movq $0x1, 0x20(%rax)`).  Likely a refcount /
+   *  "once" bookkeeping word; only its initial value is exercised by
+   *  `addObjCObserver`, so only that is modelled here. */
+  field_at_0x20: bigint;
 }
 
 /**
@@ -133,6 +152,23 @@ export class OZNotificationManager {
    *  `first = this->next_at_0x8`.  The list is circular: when `next`
    *  points back to `this`, the walk ends. */
   next_at_0x8: OZObserverRecord | OZNotificationManager = this;
+
+  /** (this+0x00) — PREV pointer of the circular list.  On the append path
+   *  of `addObjCObserver` (@0x4bb1c `movq (%rbx), %rcx`) this is read as
+   *  the list TAIL, and @0x4bb26 `movq %rax, (%rbx)` writes it.  Circular:
+   *  starts pointing at the manager itself (empty list). */
+  prev_at_0x0: OZObserverRecord | OZNotificationManager = this;
+
+  /** (this+0x10) — observer count.  Bumped once per successful insert
+   *  (@0x4bb29 `incq 0x10(%rbx)`). */
+  count_at_0x10 = 0n;
+
+  /** (this+0x70) — pointer to an owner object whose `+0xa0` slot holds an
+   *  Objective-C object that is `_objc_retain`-ed on every insert
+   *  (@0x4bb2d `movq 0x70(%rbx), %rax` ; @0x4bb31 `movq 0xa0(%rax), %rdi`
+   *  ; @0x4bb45 `jmpq *_objc_retain`).  Only the load chain is modelled;
+   *  the retained object itself is an out-of-scope ObjC extern. */
+  owner_at_0x70: { objcObject_at_0xa0: object | null } | null = null;
 
   // ═════════════════════════════════════════════════════════════════════════
   // OZNotificationManager::ignoreObserverOnce(void* observer, unsigned int mask)
@@ -392,5 +428,161 @@ export class OZNotificationManager {
     // @0x4beb8 cmpq %rdi, %rcx ; @0x4bebb setne %al : al = (rcx != this)
     // @0x4bebe retq
     return rcx !== this;
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // OZNotificationManager::addObjCObserver(void* observer, long tag)
+  //
+  // Disassembly source:
+  //   raw-port/re/disasm/__ZN21OZNotificationManager15addObjCObserverEPvl.s
+  //
+  // FULL DISASM (@Ozone 0x4ba90..0x4bb53):
+  //   0x4ba90  pushq %rbp ; movq %rsp,%rbp ; pushq r15/r14/r12/rbx (frame)
+  //   0x4ba9b  movq %rdx, %r14              ; r14 = tag  (arg2, long)
+  //   0x4ba9e  movq %rsi, %r15              ; r15 = observer (arg1, void*)
+  //   0x4baa1  movq %rdi, %rbx              ; rbx = this
+  //   0x4baa4  movq %rdi, %r12              ; r12 = this (walk cursor)
+  //   -- walk to find insertion point (ordered by DESCENDING tag) --
+  //   0x4bab0  movq 0x8(%r12), %r12         ; r12 = r12->next
+  //   0x4bab5  cmpq %rbx, %r12              ; sub: r12 - this
+  //   0x4bab8  je   0x4baf7                 ;   je => cursor cycled back to
+  //                                         ;   sentinel => APPEND-AT-TAIL path
+  //   0x4baba  cmpq 0x18(%r12), %r14        ; sub: r14 - [r12+0x18] = tag - node.tag
+  //   0x4babf  jle  0x4bab0                 ;   jle (signed <=0) => tag <= node.tag
+  //                                         ;   => keep walking
+  //   -- INSERT-BEFORE r12 (found node with node.tag < tag) --
+  //   0x4bac1  movl $0x30,%edi ; callq __Znwm   ; rax = new node (0x30 bytes)
+  //   0x4bacb  movq %r15, 0x10(%rax)        ; new.observer = observer
+  //   0x4bacf  movq %r14, 0x18(%rax)        ; new.tag = tag
+  //   0x4bad3  movq $0x1, 0x20(%rax)        ; new.field20 = 1
+  //   0x4badb  movl $0x0, 0x28(%rax)        ; new.flags = 0
+  //   0x4bae2  movq (%r12), %rcx            ; rcx = r12->prev
+  //   0x4bae6  movq %rax, 0x8(%rcx)         ; r12.prev->next = new
+  //   0x4baea  movq %rcx, (%rax)            ; new.prev = r12.prev
+  //   0x4baed  movq %rax, (%r12)            ; r12.prev = new
+  //   0x4baf1  movq %r12, 0x8(%rax)         ; new.next = r12
+  //   0x4baf5  jmp  0x4bb29                 ; -> common tail
+  //   -- APPEND-AT-TAIL (insert before sentinel = at list end) --
+  //   0x4baf7  movl $0x30,%edi ; callq __Znwm   ; rax = new node
+  //   0x4bb01  movq %r15, 0x10(%rax)        ; new.observer = observer
+  //   0x4bb05  movq %r14, 0x18(%rax)        ; new.tag = tag
+  //   0x4bb09  movq $0x1, 0x20(%rax)        ; new.field20 = 1
+  //   0x4bb11  movl $0x0, 0x28(%rax)        ; new.flags = 0
+  //   0x4bb18  movq %rbx, 0x8(%rax)         ; new.next = this (sentinel)
+  //   0x4bb1c  movq (%rbx), %rcx            ; rcx = this->prev  (= tail)
+  //   0x4bb1f  movq %rcx, (%rax)            ; new.prev = tail
+  //   0x4bb22  movq %rax, 0x8(%rcx)         ; tail->next = new
+  //   0x4bb26  movq %rax, (%rbx)            ; this->prev = new
+  //   -- common tail --
+  //   0x4bb29  incq 0x10(%rbx)             ; this->count += 1
+  //   0x4bb2d  movq 0x70(%rbx), %rax        ; rax = this->owner (+0x70)
+  //   0x4bb31  movq 0xa0(%rax), %rdi        ; rdi = owner->objcObject (+0xa0)
+  //   0x4bb38  testq %rdi,%rdi ; je 0x4bb4b ; skip retain if NULL
+  //   0x4bb45  jmpq *_objc_retain          ; tail-call _objc_retain(rdi)
+  //   0x4bb53  retq
+  //
+  // AT&T decode notes (dst - src):
+  //   `cmpq %rbx, %r12`     => r12 - this ; je iff r12 == this (sentinel).
+  //   `cmpq 0x18(%r12),%r14`=> tag - node.tag ; jle (signed) iff tag <= node.tag,
+  //     so the walk ADVANCES while `tag <= node.tag`, stopping at the first
+  //     node whose tag is strictly LESS than `tag` — the list is kept sorted
+  //     by descending tag and the new node is spliced just before that node.
+  //   Both branches do an IDENTICAL circular doubly-linked-list splice
+  //   (`prev->next = new ; new.prev = prev ; new.next = cur ; cur.prev = new`);
+  //   they differ only in whether `cur` is the found record (insert-before)
+  //   or the sentinel `this` (append-at-tail).  A single splice against the
+  //   chosen `cur` covers both, but we mirror the two machine branches.
+  //
+  // OUT-OF-SCOPE EXTERNS (modelled at the boundary, per PORTING_SPEC Rule 3):
+  //   * __Znwm  (operator new, libc++)                   @0x4bac6 / 0x4bafc
+  //   * _objc_retain (ObjC runtime)                       @0x4bb45
+  //   Neither is an in-scope FCP callee.  The node allocation is a direct
+  //   in-frame `__Znwm` (NOT a call_once boundary), so it is a legitimate
+  //   allocation extern — we materialise the record as a plain object and
+  //   retain the owner's ObjC object through the extern stub below.
+  //
+  // FRONTIER CALLEES: none in-scope.
+  // ═════════════════════════════════════════════════════════════════════════
+  /**
+   * `OZNotificationManager::addObjCObserver(void*, long)` —
+   * @Ozone 0x4ba90 (__ZN21OZNotificationManager15addObjCObserverEPvl).
+   *
+   * Insert a new observer record into the circular doubly-linked list,
+   * keeping it ordered by DESCENDING `tag`: the new node is spliced
+   * immediately before the first existing record whose tag is strictly
+   * smaller than `tag` (or at the tail, before the sentinel, if none is).
+   * The record's flags start 0 and its `+0x20` word starts 1.  Bumps the
+   * manager's observer count and, if the owner (`+0x70`) holds a non-null
+   * ObjC object (`+0xa0`), `_objc_retain`s it (out-of-scope ObjC extern).
+   */
+  addObjCObserver(observer: object | null, tag: bigint): void {
+    // @0x4baa1/0x4baa4 rbx = r12 = this.
+    // @0x4bab0.. walk: r12 = r12->next until either r12 == this (sentinel)
+    // or tag > node.tag (found strictly-smaller node ⇒ insert before it).
+    let cur: OZObserverRecord | OZNotificationManager = this;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      // @0x4bab0 movq 0x8(%r12), %r12 : advance.
+      cur = (cur as { next_at_0x8: OZObserverRecord | OZNotificationManager }).next_at_0x8;
+      // @0x4bab5 cmpq %rbx,%r12 ; @0x4bab8 je APPEND : cycled back to sentinel.
+      if (cur === this) break; // -> append-at-tail branch (cur === this)
+      // @0x4baba cmpq 0x18(%r12),%r14 (tag - node.tag) ; @0x4babf jle => tag<=node.tag => keep walking.
+      const node = cur as OZObserverRecord;
+      if (tag <= node.tag_at_0x18) continue;
+      // tag > node.tag : stop. Insert BEFORE `cur` (branch @0x4bac1).
+      break;
+    }
+
+    // @0x4bac6 / 0x4bafc callq __Znwm : allocate a 0x30-byte record.
+    // Field init is IDENTICAL on both branches (@0x4bacb.. / 0x4bb01..).
+    const rec: OZObserverRecord = {
+      observer_at_0x10: observer, // @0x4bacb/0x4bb01 movq %r15, 0x10(%rax)
+      tag_at_0x18: tag, // @0x4bacf/0x4bb05 movq %r14, 0x18(%rax)
+      field_at_0x20: 1n, // @0x4bad3/0x4bb09 movq $0x1, 0x20(%rax)
+      flags_at_0x28: 0, // @0x4badb/0x4bb11 movl $0x0, 0x28(%rax)
+      // links filled by the splice below.
+      prev_at_0x0: this,
+      next_at_0x8: this,
+    };
+
+    // Splice `rec` immediately before `cur`:
+    //   insert-before branch (@0x4bae2..0x4baf1) with cur = found node, and
+    //   append-at-tail branch (@0x4bb18..0x4bb26) with cur = this sentinel,
+    //   are the SAME operation against `cur`.
+    // @0x4bae2/0x4bb1c  prev = cur->prev.
+    const prev = cur.prev_at_0x0;
+    // @0x4bae6/0x4bb22  prev->next = rec.
+    prev.next_at_0x8 = rec;
+    // @0x4baea/0x4bb1f  rec.prev = prev.
+    rec.prev_at_0x0 = prev;
+    // @0x4baf1/0x4bb18  rec.next = cur.
+    rec.next_at_0x8 = cur;
+    // @0x4baed/0x4bb26  cur.prev = rec.
+    cur.prev_at_0x0 = rec;
+
+    // @0x4bb29 incq 0x10(%rbx) : this->count += 1.
+    this.count_at_0x10 += 1n;
+
+    // @0x4bb2d movq 0x70(%rbx), %rax : rax = this->owner.
+    // @0x4bb31 movq 0xa0(%rax), %rdi : rdi = owner->objcObject.
+    const objcObject = this.owner_at_0x70?.objcObject_at_0xa0 ?? null;
+    // @0x4bb38 testq %rdi,%rdi ; je 0x4bb4b : skip retain if NULL.
+    if (objcObject !== null) {
+      // @0x4bb45 jmpq *_objc_retain : tail-call the ObjC-runtime extern.
+      OZNotificationManager.objc_retain(objcObject);
+    }
+    // @0x4bb53 retq
+  }
+
+  /**
+   * Out-of-scope ObjC-runtime extern boundary for `_objc_retain`
+   * (@Ozone 0x4bb45, `jmpq *_objc_retain`).  The Objective-C reference
+   * count is not modelled by the value port; a faithful transcription
+   * only needs to record that the retain happens here.  Marked as a
+   * boundary per PORTING_SPEC Rule 3 (out-of-scope extern, cites addr).
+   */
+  private static objc_retain(_obj: object): void {
+    // _objc_retain @0x4bb45 — ObjC runtime extern, no in-frame side effect
+    // to model beyond the refcount, which is outside the port scope.
   }
 }
