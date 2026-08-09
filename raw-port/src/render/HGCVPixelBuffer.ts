@@ -10,10 +10,16 @@
 //     __ZNK15HGCVPixelBuffer3ptrEm
 //   * HGCVPixelBuffer::lock(bool) const            @Helium 0x1e06f0
 //     __ZNK15HGCVPixelBuffer4lockEb
+//   * HGCVPixelBuffer::unlock(bool) const          @Helium 0x1e0710
+//     __ZNK15HGCVPixelBuffer6unlockEb
+//   * HGCVPixelBuffer::rowBytes(unsigned long) const  @Helium 0x1e0690
+//     __ZNK15HGCVPixelBuffer8rowBytesEm
 //
 // re/disasm:
 //   raw-port/re/disasm/Helium.__ZNK15HGCVPixelBuffer3ptrEm.s
 //   raw-port/re/disasm/Helium.__ZNK15HGCVPixelBuffer4lockEb.s
+//   raw-port/re/disasm/Helium.__ZNK15HGCVPixelBuffer6unlockEb.s
+//   raw-port/re/disasm/Helium.__ZNK15HGCVPixelBuffer8rowBytesEm.s
 //
 // -----------------------------------------------------------------------------
 // FRONTIER CALLEES — all TRUE OUT-OF-SCOPE CoreVideo externs
@@ -31,6 +37,9 @@
 //   _CVPixelBufferGetBaseAddressOfPlane Helium symbol stub @0x3c4d36
 //   _CVPixelBufferGetBaseAddress       Helium symbol stub @0x3c4d30
 //   _CVPixelBufferLockBaseAddress      Helium symbol stub @0x3c4d7e
+//   _CVPixelBufferUnlockBaseAddress    Helium symbol stub @0x3c4d90
+//   _CVPixelBufferGetBytesPerRowOfPlane Helium symbol stub @0x3c4d42
+//   _CVPixelBufferGetBytesPerRow       Helium symbol stub @0x3c4d3c
 
 /**
  * `CVPixelBufferRef` — Apple CoreVideo opaque handle (`__CVBuffer*`). Out of
@@ -86,6 +95,50 @@ function CVPixelBufferLockBaseAddress(
   throw new Error(
     "CVPixelBufferLockBaseAddress — CoreVideo extern, out-of-scope; entered " +
       "via Helium symbol stub @0x3c4d7e (called @Helium 0x1e06fa). Not transcribed.",
+  );
+}
+
+/**
+ * `CVPixelBufferUnlockBaseAddress(CVPixelBufferRef, CVPixelBufferLockFlags)` —
+ * CoreVideo extern, entered via Helium symbol stub @0x3c4d90 (called
+ * @Helium 0x1e071a by `unlock`). Returns a `CVReturn` (0 == kCVReturnSuccess).
+ */
+function CVPixelBufferUnlockBaseAddress(
+  _buf: CVPixelBufferRef,
+  _lockFlags: number,
+): number {
+  throw new Error(
+    "CVPixelBufferUnlockBaseAddress — CoreVideo extern, out-of-scope; entered " +
+      "via Helium symbol stub @0x3c4d90 (called @Helium 0x1e071a). Not transcribed.",
+  );
+}
+
+/**
+ * `CVPixelBufferGetBytesPerRowOfPlane(CVPixelBufferRef, size_t)` — CoreVideo
+ * extern, entered via Helium symbol stub @0x3c4d42 (tail-jumped @Helium
+ * 0x1e06b6 by `rowBytes`). Returns `size_t`.
+ */
+function CVPixelBufferGetBytesPerRowOfPlane(
+  _buf: CVPixelBufferRef,
+  _planeIndex: bigint,
+): bigint {
+  throw new Error(
+    "CVPixelBufferGetBytesPerRowOfPlane — CoreVideo extern, out-of-scope; " +
+      "entered via Helium symbol stub @0x3c4d42 (tail-jmp @Helium 0x1e06b6). " +
+      "Not transcribed.",
+  );
+}
+
+/**
+ * `CVPixelBufferGetBytesPerRow(CVPixelBufferRef)` — CoreVideo extern, entered
+ * via Helium symbol stub @0x3c4d3c (tail-jumped @Helium 0x1e06bf by
+ * `rowBytes`). Returns `size_t`.
+ */
+function CVPixelBufferGetBytesPerRow(_buf: CVPixelBufferRef): bigint {
+  throw new Error(
+    "CVPixelBufferGetBytesPerRow — CoreVideo extern, out-of-scope; entered " +
+      "via Helium symbol stub @0x3c4d3c (tail-jmp @Helium 0x1e06bf). " +
+      "Not transcribed.",
   );
 }
 
@@ -182,5 +235,90 @@ export class HGCVPixelBuffer {
     const cvReturn = CVPixelBufferLockBaseAddress(cvbuf, flags);
     // @0x1e06ff-0x1e0701: testl %eax,%eax ; sete %al -> (CVReturn == 0)
     return cvReturn === 0;
+  }
+
+  /**
+   * `HGCVPixelBuffer::unlock(bool lockFlags) const` — @Helium 0x1e0710
+   * (__ZNK15HGCVPixelBuffer6unlockEb).
+   *
+   * The mirror of `lock` @0x1e06f0. Faithful transcription:
+   *
+   *   0x1e0714  movq 0x18(%rdi), %rdi        ; rdi = this->cvBuffer_at_0x18
+   *   0x1e0718  movl %esi, %esi              ; rsi = (u32)lockFlags (zero-extend)
+   *   0x1e071a  callq _CVPixelBufferUnlockBaseAddress  ; eax = CVReturn
+   *   0x1e071f  testl %eax, %eax             ; CVReturn == 0 ?
+   *   0x1e0721  sete  %al                    ; return (CVReturn == kCVReturnSuccess)
+   *
+   * The sole callee is a CoreVideo extern (out of scope, boundary stub); the
+   * FCP method body itself is fully transcribed.
+   *
+   * (Content re-applied verbatim from the sibling worker commit 4a5a599e
+   * during a union-rebase onto current main, so that landing `rowBytes` does
+   * not drop it — the branch previously carried this method in a file that
+   * had been rewritten without main's `ptr`/`lock`.)
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Helium.__ZNK15HGCVPixelBuffer6unlockEb.s
+   */
+  unlock(lockFlags: boolean): boolean {
+    // @0x1e0714: rdi = this->cvBuffer_at_0x18
+    const cvbuf = this.cvBuffer_at_0x18!;
+    // @0x1e0718: rsi = (u32)lockFlags  (movl zero-extends the bool arg to 32b)
+    const flags = (lockFlags ? 1 : 0) >>> 0;
+    // @0x1e071a: eax = CVPixelBufferUnlockBaseAddress(cvbuf, flags)
+    const cvReturn = CVPixelBufferUnlockBaseAddress(cvbuf, flags);
+    // @0x1e071f-0x1e0721: testl %eax,%eax ; sete %al -> (CVReturn == 0)
+    return (cvReturn | 0) === 0;
+  }
+
+  /**
+   * `HGCVPixelBuffer::rowBytes(unsigned long planeIndex) const` —
+   * @Helium 0x1e0690 (__ZNK15HGCVPixelBuffer8rowBytesEm).
+   *
+   * Structurally identical to `ptr` @0x1e0730: ask CoreVideo whether the
+   * buffer is planar, then forward to the per-plane or the whole-buffer
+   * accessor. Faithful transcription of every instruction:
+   *
+   *   0x1e0697  movq %rsi, %rbx              ; rbx = planeIndex (arg1)
+   *   0x1e069a  movq %rdi, %r14              ; r14 = this
+   *   0x1e069d  movq 0x18(%rdi), %rdi        ; rdi = this->cvBuffer_at_0x18
+   *   0x1e06a1  callq _CVPixelBufferGetPlaneCount     ; rax = plane count
+   *   0x1e06a6  movq 0x18(%r14), %rdi        ; rdi = this->cvBuffer_at_0x18 (reload)
+   *   0x1e06aa  testq %rax, %rax             ; planeCount == 0 ?
+   *   0x1e06ad  je   0x1e06bb                ; planeCount == 0 -> GetBytesPerRow
+   *   0x1e06af  movq %rbx, %rsi              ; rsi = planeIndex
+   *   0x1e06b6  jmp  _CVPixelBufferGetBytesPerRowOfPlane  ; tail call (planar)
+   *   0x1e06bf  jmp  _CVPixelBufferGetBytesPerRow          ; tail call (non-planar)
+   *
+   * Both exits are TAIL JUMPS (`jmp`, after the epilogue pops) — the CoreVideo
+   * result is returned unchanged, with no post-processing, no clamp and no
+   * error check. Note the `movq 0x18(%r14)` @0x1e06a6 RELOADS the buffer
+   * pointer after the first CoreVideo call; that reload is mirrored here
+   * rather than reusing the first read.
+   *
+   * `planeIndex` is `unsigned long` (u64) and the return is `size_t` (u64), so
+   * both stay bigint per Rule 4 — a row-byte count is bounded in practice, but
+   * the ABI width is 64-bit and the value is passed straight through.
+   *
+   * Every callee is a CoreVideo extern (out of scope, boundary stubs above);
+   * the FCP method body itself is fully transcribed.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Helium.__ZNK15HGCVPixelBuffer8rowBytesEm.s
+   */
+  rowBytes(planeIndex: bigint): bigint {
+    // @0x1e069d: rdi = this->cvBuffer_at_0x18 (the __CVBuffer*)
+    const cvbuf = this.cvBuffer_at_0x18!;
+    // @0x1e06a1: rax = CVPixelBufferGetPlaneCount(cvbuf)
+    const planeCount = CVPixelBufferGetPlaneCount(cvbuf);
+    // @0x1e06a6: reload this->cvBuffer_at_0x18 (the machine re-reads +0x18).
+    const cvbufReloaded = this.cvBuffer_at_0x18!;
+    // @0x1e06aa-0x1e06ad: testq %rax,%rax ; je -> non-planar path
+    if (planeCount !== 0) {
+      // @0x1e06af-0x1e06b6: planar -> tail call GetBytesPerRowOfPlane(buf, idx)
+      return CVPixelBufferGetBytesPerRowOfPlane(cvbufReloaded, planeIndex);
+    }
+    // @0x1e06bf: non-planar -> tail call GetBytesPerRow(buf)
+    return CVPixelBufferGetBytesPerRow(cvbufReloaded);
   }
 }
