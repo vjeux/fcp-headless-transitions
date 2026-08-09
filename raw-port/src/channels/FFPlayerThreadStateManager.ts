@@ -30,8 +30,16 @@
  *                           treats state >= 0x64 (100) as "shutdown has been requested".
  */
 export interface FFPlayerThreadStateManager {
-  /** +0x90 int32 lifecycle state (read at @0xdbb524). */
+  /** +0x90 int32 lifecycle state (read at @0xdbb524; swapped at @0xdbb4fa). */
   state: number;
+  /**
+   * +0x40 — embedded pthread_cond_t broadcast on every state change.
+   * setStateInternal() (@0xdbb4b0) hands its address (self+0x40) to
+   * `_pthread_cond_broadcast` at @0xdbb50c. Opaque bytes from this port's POV;
+   * OPTIONAL because hasShutdownBeenRequested() does not touch it. Recovered
+   * from the `addq $0x40,%rdi` @0xdbb500.
+   */
+  cond?: unknown;
 }
 
 /**
