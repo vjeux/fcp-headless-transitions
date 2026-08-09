@@ -102,10 +102,16 @@ Rules for reviewer-driven merge:
 - NEVER set WT_MERGE_SKIP_REVIEW.
 - If wt_merge prints `GATE FAILED` (hardened G5 rejected the body), your ACCEPT was WRONG — flip the
   sidecar to CHEAT/merge_allowed=false and move on. This is the safety net catching a bad sign-off.
+- If wt_merge prints `REGRESSION GATE FAILED` (branch DROPS a symbol origin/main already has — a
+  stale-base branch cut before a sibling landed), that is NOT a verdict on your review: the branch
+  just needs a rebase onto current origin/main (or is superseded by a newer branch). Do not force
+  it; skip and note "needs rebase".
 - If wt_merge prints `MERGE CONFLICT` or `PUSH FAILED`, it already re-pulls+retries; if it still
   fails, the main tree is dirty — report it and skip that branch (do not force).
-- After a successful merge, wt_merge advances origin/main. Then mark the unit done so callers unlock:
-  `python3 raw-port/army/tools/depclaim.py done <mangled>`  (only for branches that actually LANDED).
+- After a successful merge, wt_merge advances origin/main. Then run
+  `python3 raw-port/army/tools/mark_ported.py` to flip the merged symbol to `ported` so its callers
+  unlock as new ready units. (There is NO `depclaim.py done` — the append-only claim was already
+  recorded at dispatch; the queue never re-hands a claimed unit.)
 - Report which branches you MERGED (with before->after main hashes) vs REJECTED.
 
 ## The gate runs your tools too — but you go further
