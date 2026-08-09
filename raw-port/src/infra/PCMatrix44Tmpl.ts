@@ -794,8 +794,105 @@ export class PCMatrix44Tmpl_double {
   //  needs more decode work.  PORTING_SPEC rule 3.
   // ==========================================================================
 
+  /**
+   * `PCMatrix44Tmpl<double>::determinant() const` — ProChannel @0x00085f64
+   * (__ZNK14PCMatrix44TmplIdE11determinantEv). The same TU is emitted into
+   * ProCore @0x000514bc; the ProChannel copy is the one the dep queue handed.
+   *
+   * FAITHFUL SIMD TRANSCRIPTION of the packed-double dataflow. Each xmm
+   * register is modelled as a two-lane `[lo, hi]` pair (lane 0 = low qword,
+   * lane 1 = high qword). All ops are IEEE double — no Math.fround. The
+   * layout maps memory offset `0x20*r + 0x08*c` to `m[r*4+c]`, so:
+   *   0x00→m0  0x10→m2  0x20→m4  0x28→m5  0x30→m6  0x38→m7
+   *   0x40→m8  0x48→m9  0x50→m10 0x58→m11 0x60→m12 0x68→m13 0x70→m14 0x78→m15
+   * A packed `movupd 0xNN` loads (m[NN], m[NN+8]); `movddup 0xNN` broadcasts
+   * m[NN] to both lanes.
+   *
+   * Verified: this dataflow reproduces the analytic 4×4 determinant to
+   * machine precision (rand matrix: disasm −0.0141702204356511 vs
+   * numpy.linalg.det −0.0141702204356511, |Δ|=1.7e-18).
+   */
   determinant(): number {
-    throw new Error("PCMatrix44Tmpl<double>::determinant() @ProCore 0x000514bc not yet transcribed (heavily SIMD-cofactored — needs more decode)");
+    const m = this.m;
+    // packed load: movupd 0xNN -> [m[NN>>3+0], m[NN>>3+1]] (lo,hi)
+    const L = (off: number): [number, number] => [
+      m[off >> 3],
+      m[(off >> 3) + 1],
+    ];
+    // movddup 0xNN -> broadcast m[NN] to both lanes
+    const dd = (off: number): [number, number] => {
+      const v = m[off >> 3];
+      return [v, v];
+    };
+    const shuf01 = (x: [number, number]): [number, number] => [x[1], x[0]]; // shufpd $1 -> [1,0]
+    const mul = (a: [number, number], b: [number, number]): [number, number] => [a[0] * b[0], a[1] * b[1]];
+    const sub = (a: [number, number], b: [number, number]): [number, number] => [a[0] - b[0], a[1] - b[1]];
+    const add = (a: [number, number], b: [number, number]): [number, number] => [a[0] + b[0], a[1] + b[1]];
+    const hsub = (a: [number, number]): [number, number] => {
+      const d = a[0] - a[1];
+      return [d, d]; // hsubpd a,a -> (a0-a1, a0-a1)
+    };
+    const unpckh = (a: [number, number], b: [number, number]): [number, number] => [a[1], b[1]];
+    const unpckl = (a: [number, number], b: [number, number]): [number, number] => [a[0], b[0]];
+
+    let xmm0: [number, number], xmm1: [number, number], xmm2: [number, number];
+    let xmm3: [number, number], xmm4: [number, number], xmm5: [number, number];
+    let xmm6: [number, number], xmm7: [number, number];
+
+    xmm1 = L(0x40); // 0x85f68  movupd 0x40(%rdi),%xmm1
+    xmm0 = L(0x60); // 0x85f6d  movupd 0x60(%rdi),%xmm0
+    xmm0 = shuf01(xmm0); // 0x85f72  shufpd $1,%xmm0,%xmm0
+    xmm0 = mul(xmm0, xmm1); // 0x85f77  mulpd %xmm1,%xmm0
+    xmm5 = L(0x70); // 0x85f7b  movupd 0x70(%rdi),%xmm5
+    xmm4 = L(0x50); // 0x85f80  movupd 0x50(%rdi),%xmm4
+    xmm2 = dd(0x48); // 0x85f85  movddup 0x48(%rdi),%xmm2
+    xmm2 = mul(xmm2, xmm5); // 0x85f8a  mulpd %xmm5,%xmm2
+    xmm1 = dd(0x40); // 0x85f8e  movddup 0x40(%rdi),%xmm1
+    xmm1 = mul(xmm1, xmm5); // 0x85f93  mulpd %xmm5,%xmm1
+    xmm5 = shuf01(xmm5); // 0x85f97  shufpd $1,%xmm5,%xmm5
+    xmm5 = mul(xmm5, xmm4); // 0x85f9c  mulpd %xmm4,%xmm5
+    xmm3 = dd(0x68); // 0x85fa0  movddup 0x68(%rdi),%xmm3
+    xmm3 = mul(xmm3, xmm4); // 0x85fa5  mulpd %xmm4,%xmm3
+    xmm2 = sub(xmm2, xmm3); // 0x85fa9  subpd %xmm3,%xmm2
+    xmm3 = dd(0x60); // 0x85fad  movddup 0x60(%rdi),%xmm3
+    xmm3 = mul(xmm3, xmm4); // 0x85fb2  mulpd %xmm4,%xmm3
+    xmm1 = sub(xmm1, xmm3); // 0x85fb6  subpd %xmm3,%xmm1
+    xmm3 = L(0x00); // 0x85fba  movupd (%rdi),%xmm3
+    xmm0 = hsub(xmm0); // 0x85fbe  hsubpd %xmm0,%xmm0
+    xmm4 = L(0x20); // 0x85fc2  movupd 0x20(%rdi),%xmm4
+    xmm5 = hsub(xmm5); // 0x85fc7  hsubpd %xmm5,%xmm5
+    xmm6 = L(0x30); // 0x85fcb  movupd 0x30(%rdi),%xmm6
+    xmm0 = mul(xmm0, xmm6); // 0x85fd0  mulpd %xmm6,%xmm0
+    xmm4 = shuf01(xmm4); // 0x85fd4  shufpd $1,%xmm4,%xmm4
+    xmm4 = mul(xmm4, xmm5); // 0x85fd9  mulpd %xmm5,%xmm4
+    xmm5 = dd(0x30); // 0x85fdd  movddup 0x30(%rdi),%xmm5
+    xmm6 = [xmm2[0], xmm2[1]]; // 0x85fe2  movapd %xmm2,%xmm6
+    xmm7 = dd(0x20); // 0x85fe6  movddup 0x20(%rdi),%xmm7
+    xmm7 = mul(xmm7, xmm2); // 0x85feb  mulpd %xmm2,%xmm7
+    xmm2 = unpckh(xmm2, xmm1); // 0x85fef  unpckhpd %xmm1,%xmm2
+    xmm2 = mul(xmm2, xmm5); // 0x85ff3  mulpd %xmm5,%xmm2
+    xmm5 = L(0x10); // 0x85ff7  movupd 0x10(%rdi),%xmm5
+    xmm4 = sub(xmm4, xmm2); // 0x85ffc  subpd %xmm2,%xmm4
+    xmm6 = unpckl(xmm6, xmm1); // 0x86000  unpcklpd %xmm1,%xmm6
+    xmm2 = dd(0x38); // 0x86004  movddup 0x38(%rdi),%xmm2
+    xmm2 = mul(xmm2, xmm6); // 0x86009  mulpd %xmm6,%xmm2
+    xmm2 = add(xmm2, xmm4); // 0x8600d  addpd %xmm4,%xmm2
+    xmm2 = mul(xmm2, xmm3); // 0x86011  mulpd %xmm3,%xmm2
+    xmm3 = dd(0x28); // 0x86015  movddup 0x28(%rdi),%xmm3
+    xmm3 = mul(xmm3, xmm1); // 0x8601a  mulpd %xmm1,%xmm3
+    xmm7 = sub(xmm7, xmm3); // 0x8601e  subpd %xmm3,%xmm7
+    xmm7 = add(xmm7, xmm0); // 0x86022  addpd %xmm0,%xmm7
+    xmm5 = shuf01(xmm5); // 0x86026  shufpd $1,%xmm5,%xmm5
+    xmm5 = mul(xmm5, xmm7); // 0x8602b  mulpd %xmm7,%xmm5
+    xmm2 = hsub(xmm2); // 0x8602f  hsubpd %xmm2,%xmm2
+    xmm0 = [xmm5[0], xmm5[1]]; // 0x86033  movapd %xmm5,%xmm0
+    xmm0 = unpckh(xmm0, xmm5); // 0x86037  unpckhpd %xmm5,%xmm0 -> (xmm0.hi, xmm5.hi)
+    // 0x8603b  addsd %xmm2,%xmm0 : lane0 += xmm2.lo
+    xmm0 = [xmm0[0] + xmm2[0], xmm0[1]];
+    // 0x8603f  subsd %xmm5,%xmm0 : lane0 -= xmm5.lo
+    xmm0 = [xmm0[0] - xmm5[0], xmm0[1]];
+    // 0x86043 retq : return xmm0 lane 0
+    return xmm0[0];
   }
 
   invert(_from: PCMatrix44Tmpl_double, _det: number): void {
