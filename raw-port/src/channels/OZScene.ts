@@ -161,6 +161,58 @@ export interface OZChannelFolderHandle {
   readonly __ozChannelFolder: true;
 }
 
+/**
+ * Address-of the OZScene+0x3d0 sentinel slot (the "all selected" collection
+ * end anchor). Identity-stable per OZScene. Returned by end_all_sel() @0x50cc0.
+ */
+export interface OZSceneAllSelSentinelHandle {
+  readonly __ozAllSelSentinel: true;
+}
+
+/** Companion pointer stored at OZScene+0x3d8 (opaque). */
+export interface OZSceneAllSelNodeHandle {
+  readonly __ozAllSelNode: true;
+}
+
+/**
+ * The iterator/range object returned by OZScene::end_all_sel() @0x50cc0.
+ *
+ * The function zero-fills most of the return record and stores a few fields
+ * (byte offsets from the sret pointer `%rdi`):
+ *   +0x00  node    = &this->allSelSentinel      (movq %rsi)          @0x50ceb
+ *   +0x08  aux     = *(this+0x3d8)  (companion)  (movq %rcx)          @0x50cee
+ *   +0x10  nodeAlt = &this->allSelSentinel  (same address again)      @0x50cf2
+ *   +0x18  16 bytes zeroed  (xorps %xmm0 ; movups %xmm0)              @0x50ce0
+ *   +0x28  u32 = 0                                                    @0x50cf6
+ *   +0x30  16 bytes zeroed                                            @0x50cdc
+ *   +0x40  16 bytes zeroed                                            @0x50cd8
+ *   +0x50  f32 = 1.0  (movl $0x3f800000)                             @0x50ce4
+ *
+ * This shape (a node pointer repeated at +0x00/+0x10, a companion at +0x08, a
+ * trailing float 1.0 and several zeroed vector slots) is a past-the-end
+ * iterator bundled with a zeroed cursor/blend state; the +0x50 = 1.0f reads as
+ * a normalized fraction/weight default. Each field carries its documented
+ * offset per Rule 5.
+ */
+export interface OZSceneAllSelIterator {
+  /** +0x00 — &OZScene::allSelSentinel (past-the-end node). */
+  node: OZSceneAllSelSentinelHandle;
+  /** +0x08 — companion pointer copied from OZScene+0x3d8. */
+  aux: OZSceneAllSelNodeHandle | null;
+  /** +0x10 — same sentinel address as `node` (duplicated by the ctor). */
+  nodeAlt: OZSceneAllSelSentinelHandle;
+  /** +0x18 — 16 bytes, zero-initialized. */
+  zero18: [number, number, number, number];
+  /** +0x28 — u32, zero-initialized. */
+  u28: number;
+  /** +0x30 — 16 bytes, zero-initialized. */
+  zero30: [number, number, number, number];
+  /** +0x40 — 16 bytes, zero-initialized. */
+  zero40: [number, number, number, number];
+  /** +0x50 — f32 = 1.0 (0x3f800000 == Math.fround(1.0)). */
+  f50: number;
+}
+
 // -----------------------------------------------------------------------------
 //  OZScene class
 // -----------------------------------------------------------------------------
@@ -237,6 +289,25 @@ export class OZScene {
    * the reader touches; per Rule 3 we don't guess where else it's written.
    */
   currentTime: CMTime = { value: 0n, timescale: 0, flags: 0, epoch: 0n };
+
+  /**
+   * +0x3d0..+0x3df — allSelSentinel : the internal sentinel node of the
+   * scene's "all selected" collection. `end_all_sel()` @0x50cc0 takes the
+   * ADDRESS of this slot (`addq $0x3d0,%rsi`) as the past-the-end iterator
+   * anchor and reads a paired qword at +0x3d8 (`movq 0x3d8(%rsi),%rcx`):
+   *   +0x3d0  qword  — sentinel/head-node pointer (address-of returned as the
+   *                    iterator's `node` at result+0x00 and result+0x10).
+   *   +0x3d8  qword  — companion pointer copied into the iterator at result+0x08.
+   *
+   * Modelled as an opaque address-of-slot handle (identity-stable so a real
+   * end() iterator compares equal across calls) plus a nullable companion
+   * pointer handle. Both are FRONTIER for their producers (the selection
+   * subsystem that populates the collection is not decoded); end_all_sel only
+   * READS them, per Rule 3.
+   */
+  allSelSentinel: OZSceneAllSelSentinelHandle = { __ozAllSelSentinel: true };
+  /** +0x3d8 companion qword (see allSelSentinel doc). Opaque pointer handle. */
+  allSelSentinelCompanion: OZSceneAllSelNodeHandle | null = null;
 
   /**
    * +0x4b0 — playRangePrimary : PCTimeRange (0x30 bytes).
@@ -568,6 +639,59 @@ export class OZScene {
     if (raw === null) return null;
     // @0x4f9b5-@0x4f9cc: dynamic_cast frontier.
     return OZScene._dynamicCastToSceneNode(raw);
+  }
+
+  /**
+   * OZScene::end_all_sel()  @Ozone 0x50cc0
+   *   __ZN7OZScene11end_all_selEv
+   *
+   *   0x50cc0: pushq  %rbp
+   *   0x50cc1: movq   %rsp,%rbp
+   *   0x50cc4: movq   %rdi,%rax                    # sret ptr passthrough (rax = ret slot)
+   *   0x50cc7: movq   0x3d8(%rsi),%rcx             # rcx = *(this+0x3d8)  (companion qword)
+   *   0x50cce: addq   $0x3d0,%rsi                  # rsi = &this+0x3d0    (sentinel node addr)
+   *   0x50cd5: xorps  %xmm0,%xmm0                  # xmm0 = 0
+   *   0x50cd8: movups %xmm0,0x40(%rdi)             # ret[+0x40..+0x4f] = 0
+   *   0x50cdc: movups %xmm0,0x30(%rdi)             # ret[+0x30..+0x3f] = 0
+   *   0x50ce0: movups %xmm0,0x18(%rdi)             # ret[+0x18..+0x27] = 0
+   *   0x50ce4: movl   $0x3f800000,0x50(%rdi)       # ret[+0x50] = 1.0f
+   *   0x50ceb: movq   %rsi,(%rdi)                  # ret[+0x00] = &this+0x3d0
+   *   0x50cee: movq   %rcx,0x8(%rdi)               # ret[+0x08] = *(this+0x3d8)
+   *   0x50cf2: movq   %rsi,0x10(%rdi)              # ret[+0x10] = &this+0x3d0
+   *   0x50cf6: movl   $0x0,0x28(%rdi)              # ret[+0x28] = 0 (u32)
+   *   0x50cfd: popq %rbp ; retq
+   *
+   * A struct-returning function: the SysV ABI passes the return-value slot in
+   * `%rdi` (sret) so `%rsi` holds `this`. It builds the "past-the-end" iterator
+   * of the scene's all-selected collection — both node slots (+0x00, +0x10) get
+   * the ADDRESS of the collection's embedded sentinel (this+0x3d0), +0x08 gets
+   * the companion pointer read from this+0x3d8, the cursor/accumulator regions
+   * (+0x18, +0x28, +0x30, +0x40) are zeroed, and a normalized weight/fraction
+   * default of 1.0f is written at +0x50.
+   *
+   * ZERO in-scope callees, ZERO externs — pure field reads + immediate stores
+   * (`python3 raw-port/army/tools/depgraph.py deps __ZN7OZScene11end_all_selEv`
+   * returns empty). Constant: 0x3f800000 == Math.fround(1.0).
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN7OZScene11end_all_selEv.s (18 lines)
+   */
+  end_all_sel(): OZSceneAllSelIterator {
+    // @0x50cc7  movq 0x3d8(%rsi),%rcx — companion qword read first (matches
+    //           the machine's load order).
+    const companion = this.allSelSentinelCompanion;
+    // @0x50cce  addq $0x3d0,%rsi — address-of the sentinel slot.
+    const sentinel = this.allSelSentinel;
+    return {
+      node: sentinel, // @0x50ceb  movq %rsi,(%rdi)      ret[+0x00]
+      aux: companion, // @0x50cee  movq %rcx,0x8(%rdi)   ret[+0x08]
+      nodeAlt: sentinel, // @0x50cf2 movq %rsi,0x10(%rdi) ret[+0x10]
+      zero18: [0, 0, 0, 0], // @0x50ce0  movups %xmm0,0x18(%rdi)
+      u28: 0, // @0x50cf6  movl $0x0,0x28(%rdi)
+      zero30: [0, 0, 0, 0], // @0x50cdc  movups %xmm0,0x30(%rdi)
+      zero40: [0, 0, 0, 0], // @0x50cd8  movups %xmm0,0x40(%rdi)
+      f50: Math.fround(1.0), // @0x50ce4  movl $0x3f800000,0x50(%rdi)
+    };
   }
 
   // ==========================================================================
