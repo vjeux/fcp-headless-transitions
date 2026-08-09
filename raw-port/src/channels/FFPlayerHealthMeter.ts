@@ -1,0 +1,92 @@
+// FFPlayerHealthMeter.ts — one method of Flexo's FFPlayerHealthMeter, faithfully transcribed
+// from the FCP Flexo framework binary at
+//   /Applications/Final Cut Pro.app/Contents/Frameworks/Flexo.framework/Versions/A/Flexo
+// Source disassembly: raw-port/re/disasm/Flexo.__ZN19FFPlayerHealthMeter11setFrameDurE6CMTime.s
+//
+// Only `setFrameDur(CMTime)` is ported here (the sole unit dispatched from the dependency
+// queue). Other FFPlayerHealthMeter methods are added by their own ledger units.
+//
+// STRUCT LAYOUT (recovered from setFrameDur's field reads/writes on `this` = %rbx):
+//   +0x00  frameDur       CMTime   // 24 bytes: value(i64)@+0x00, timescale(i32)@+0x08,
+//                                  //           flags(u32)@+0x0c, epoch(i64)@+0x10
+//                                  //   (stored/read as a 16B movups [value|timescale|flags] plus
+//                                  //    an 8B movq for epoch — see 0xda189e / 0xda186b et al.)
+//   +0x18  frameDurSeconds  float  // f32: CMTimeGetSeconds(frameDur) truncated to single precision
+//   +0x1c  frameRate        float  // f32: 1.0f / frameDurSeconds
+
+import type { CMTime } from "../infra/CMTime.js";
+import {
+  CMTimeMake,
+  CMTimeCompare,
+  CMTimeGetSeconds,
+} from "../infra/CMTime.js";
+
+export class FFPlayerHealthMeter {
+  // +0x00  the current frame duration (rational time).
+  frameDur: CMTime = { value: 0n, timescale: 0, flags: 0, epoch: 0n };
+  // +0x18  frame duration in seconds (single precision).
+  frameDurSeconds = 0;
+  // +0x1c  frame rate = 1/frameDurSeconds (single precision).
+  frameRate = 0;
+
+  /**
+   * FFPlayerHealthMeter::setFrameDur(CMTime dur)
+   * @0xADDR Flexo 0x0000000000da1820  (__ZN19FFPlayerHealthMeter11setFrameDurE6CMTime)
+   *
+   * DECODE (raw-port/re/disasm/Flexo.__ZN19FFPlayerHealthMeter11setFrameDurE6CMTime.s):
+   *
+   *   0xda182c-0xda183a  leaq -0x20(%rbp),%rdi ; movl $1,%esi ; movl $0x3e8,%edx
+   *   0xda183a           callq _CMTimeMake                 ; local = CMTimeMake(1, 1000)
+   *   0xda183f-0xda1862  (marshal CMTimeMake result as arg1, `dur` as arg2)
+   *   0xda1862           callq _CMTimeCompare              ; CMTimeCompare(CMTimeMake(1,1000), dur)
+   *                                                        ;   -> %eax DISCARDED (no test/branch
+   *                                                        ;      follows; compiled-out assert/artifact)
+   *   0xda1867-0xda1889  (marshal this->frameDur as arg1, `dur` as arg2)
+   *   0xda1889           callq _CMTimeCompare              ; cmp = CMTimeCompare(this->frameDur, dur)
+   *   0xda188e-0xda1890  testl %eax,%eax ; je 0xda18d3     ; if (cmp == 0, i.e. equal) return
+   *
+   *   ; --- not equal: adopt the new duration and recompute the derived floats ---
+   *   0xda1892-0xda18a1  (rax=&dur) this->frameDur = dur   ; movq epoch to 0x10(%rbx),
+   *                                                        ;   movups [value|ts|flags] to (%rbx)
+   *   0xda18a4-0xda18b4  (marshal dur by value) callq _CMTimeGetSeconds  ; xmm0 = seconds (f64)
+   *   0xda18b9           cvtsd2ss %xmm0,%xmm0              ; secF32 = (float)seconds
+   *   0xda18bd           movss %xmm0, 0x18(%rbx)           ; this->frameDurSeconds = secF32
+   *   0xda18c2           movss 0x156ccd0(%rip),%xmm1       ; xmm1 = 1.0f   (@Flexo __TEXT __const 0x156ccd0)
+   *   0xda18ca           divss %xmm0,%xmm1                 ; rate = 1.0f / secF32   (single precision)
+   *   0xda18ce           movss %xmm1, 0x1c(%rbx)           ; this->frameRate = rate
+   *   0xda18d3           retq
+   *
+   * The `dur` argument is passed BY VALUE (a 24-byte CMTime). The first CMTimeCompare's result is
+   * genuinely unused by the machine — we call it faithfully (it is a CoreMedia boundary function)
+   * but do not branch on it.
+   *
+   * Zero in-scope callees. The three callees (_CMTimeMake / _CMTimeCompare / _CMTimeGetSeconds) are
+   * CoreMedia public-API boundary functions, modelled in ../infra/CMTime.ts.
+   */
+  setFrameDur(dur: CMTime): void {
+    // @0xda182c..0xda183a  local = CMTimeMake(1, 1000).
+    const probe = CMTimeMake(1, 1000);
+    // @0xda1862  CMTimeCompare(CMTimeMake(1,1000), dur) — result discarded by the machine.
+    CMTimeCompare(probe, dur);
+
+    // @0xda1889  cmp = CMTimeCompare(this->frameDur, dur).
+    const cmp = CMTimeCompare(this.frameDur, dur);
+    // @0xda1890  je 0xda18d3 — if the durations are equal, leave everything untouched.
+    if (cmp === 0) return;
+
+    // @0xda1892..0xda18a1  this->frameDur = dur  (adopt the new duration).
+    this.frameDur = { value: dur.value, timescale: dur.timescale, flags: dur.flags, epoch: dur.epoch };
+
+    // @0xda18b4  seconds = CMTimeGetSeconds(dur)  (f64).
+    const seconds = CMTimeGetSeconds(dur);
+    // @0xda18b9  cvtsd2ss — truncate to single precision.
+    const secF32 = Math.fround(seconds);
+    // @0xda18bd  this->frameDurSeconds = secF32.
+    this.frameDurSeconds = secF32;
+
+    // @0xda18c2..0xda18ce  rate = 1.0f / secF32  (single precision divss).
+    //   @const 1.0f @ Flexo __TEXT __const 0x156ccd0.
+    const rate = Math.fround(Math.fround(1.0) / secF32);
+    this.frameRate = rate;
+  }
+}
