@@ -282,3 +282,123 @@ export function HGFormatUtils_metalFormat(fmt: number): number {
   }
   return FORMAT_INFOS_METAL_FORMAT[s]!;
 }
+// ---------------------------------------------------------------------------
+// HGFormatUtils::toHGGLContextID(HGFormat fmt)                 @Helium 0xa1bf0
+//
+// Disasm (13 lines):
+//   0xa1bf0  pushq   %rbp
+//   0xa1bf1  movq    %rsp, %rbp
+//   0xa1bf4  leal    -0x1(%rdi), %eax     ; eax = fmt - 1
+//   0xa1bf7  cmpl    $0x23, %eax          ; (fmt-1) vs 0x23 (35), UNSIGNED (setb)
+//   0xa1bfa  setb    %al                  ; al = (u32)(fmt-1) < 35      (CF=1)
+//   0xa1bfd  andl    $-0x2, %edi          ; edi = fmt & 0xFFFFFFFE  (clear low bit)
+//   0xa1c00  cmpl    $0x22, %edi          ; (fmt & ~1) vs 0x22 (34)
+//   0xa1c03  setne   %cl                  ; cl = (fmt & ~1) != 34       (ZF=0)
+//   0xa1c06  andb    %al, %cl             ; cl = al & cl
+//   0xa1c08  movzbl  %cl, %eax            ; return (u8) cl  (0 or 1)
+//   0xa1c0b  popq    %rbp
+//   0xa1c0c  retq
+//
+// Pure integer arithmetic — zero callees, zero externs, zero indirect calls
+// (confirmed: raw-port/army/tools/depgraph.py deps prints nothing; the
+// disasm has no `callq`).  Two predicates AND-ed:
+//   A = (u32)(fmt - 1) < 35  — i.e. fmt in the UNSIGNED window [1, 35].
+//       (`setb`/CF is the unsigned test: (fmt-1) - 35 borrows iff
+//        (fmt-1) < 35 as unsigned; fmt==0 wraps to 0xFFFFFFFF and fails.)
+//   B = (fmt & ~1) != 34     — masking the low bit collapses {34,35} onto 34,
+//       so B excludes BOTH fmt==34 and fmt==35.
+// Net accepted set: fmt in [1, 33].  We transcribe the EXACT two-predicate
+// machine form (not the folded [1,33]) so the port mirrors the instructions.
+// Returns a 0/1 int to match the `movzbl %cl,%eax` byte-to-int result.
+//
+// Source disassembly:
+//   raw-port/re/disasm/Helium.__ZN13HGFormatUtils15toHGGLContextIDE8HGFormat.s
+export function HGFormatUtils_toHGGLContextID(fmt: number): number {
+  // @Helium 0xa1bf4-0xa1bfa: al = (u32)(fmt-1) < 0x23
+  //   `>>> 0` gives the unsigned 32-bit view the `setb` (CF) test uses; a
+  //   fmt of 0 becomes 0xFFFFFFFF here and correctly fails the bound.
+  const a: boolean = (((fmt | 0) - 1) >>> 0) < 0x23;
+  // @Helium 0xa1bfd-0xa1c03: cl = (fmt & ~1) != 0x22
+  const b: boolean = ((fmt | 0) & 0xfffffffe) !== 0x22;
+  // @Helium 0xa1c06-0xa1c08: cl = al & cl ; movzbl -> 0/1
+  return a && b ? 1 : 0;
+}
+
+// ---------------------------------------------------------------------------
+// HGFormatUtils::textureSizeBytes(unsigned int width,          @Helium 0xa1e20
+//                                 unsigned int height,
+//                                 HGFormat fmt)
+//
+// Disasm (16 lines):
+//   0xa1e20  pushq   %rbp
+//   0xa1e21  movq    %rsp, %rbp
+//   0xa1e24  cmpl    $0x2b, %edx          ; fmt vs 0x2b (43), SIGNED (jle)
+//   0xa1e27  jle     0xa1e2d              ; fmt <= 43 -> lookup; else bpp = 0
+//   0xa1e29  xorl    %ecx, %ecx           ; bpp = 0
+//   0xa1e2b  jmp     0xa1e3e
+//   0xa1e2d  movl    %edx, %eax           ; rax = fmt (zero-extended u32)
+//   0xa1e2f  shlq    $0x5, %rax           ; rax = fmt * 32  (32-byte stride)
+//   0xa1e33  leaq    formatInfosE(%rip), %rcx  ; &formatInfos[0]
+//   0xa1e3a  movl    0x10(%rax,%rcx), %ecx     ; bpp = *(u32*)(&formatInfos[fmt]+0x10)
+//   0xa1e3e  movl    %edi, %edx           ; rdx = width  (zero-extended u32)
+//   0xa1e40  movl    %esi, %eax           ; rax = height (zero-extended u32)
+//   0xa1e42  imulq   %rdx, %rax           ; rax = height * width       (64-bit)
+//   0xa1e46  imulq   %rcx, %rax           ; rax = (height*width) * bpp (64-bit)
+//   0xa1e4a  popq    %rbp
+//   0xa1e4b  retq
+//
+// Returns width * height * bytesPerPixel[fmt] as an UNSIGNED 64-bit product
+// (three `movl`s zero-extend the 32-bit operands into the 64-bit regs; both
+// `imulq`s keep the full 64-bit low result).  Texture byte counts can exceed
+// 2^53 for pathologically large dimensions, so we compute in BigInt and
+// truncate to 64 bits with BigInt.asUintN(64, ...) to match imulq exactly,
+// returning a bigint (Rule 4: int64 -> bigint).
+//
+// The bpp datum is the SAME +0x10 u32 column of `formatInfos` that
+// HGFormatUtils_bytesPerPixel / _rowBytesHint read — decoded verbatim into
+// FORMAT_INFOS_BPP above.  Zero callees / externs / indirect calls
+// (`formatInfos` is a static data table, not a function).
+//
+// Guard: the machine uses a SIGNED `jle $0x2b` — so fmt <= 43 (INCLUDING
+// negative fmt) takes the lookup arm, then indexes with `movl %edx,%eax`
+// which zero-extends fmt to an UNSIGNED u32.  For fmt in [0, 43] this is
+// FORMAT_INFOS_BPP[fmt].  A NEGATIVE fmt passes `jle` yet the u32 index is
+// far past the 44-entry table — C++ UB; per Rule 3 we throw rather than
+// fabricate.  fmt > 43 short-circuits to bpp = 0 (product = 0).
+//
+// Source disassembly:
+//   raw-port/re/disasm/Helium.__ZN13HGFormatUtils16textureSizeBytesEjj8HGFormat.s
+export function HGFormatUtils_textureSizeBytes(
+  width: number,
+  height: number,
+  fmt: number,
+): bigint {
+  // @Helium 0xa1e24-0xa1e2b: SIGNED `cmpl $0x2b,%edx ; jle` selects lookup.
+  let bpp = 0;
+  const s = fmt | 0;
+  if (s <= 0x2b) {
+    // @Helium 0xa1e2d: `movl %edx,%eax` zero-extends fmt to u32 for indexing.
+    const idx = s >>> 0;
+    if (idx > 0x2b) {
+      // Negative fmt passes the signed `jle` but the u32 index is OOB — the
+      // machine would read past formatInfos (C++ undefined behaviour). Do
+      // not approximate. @Helium 0xa1e3a
+      throw new Error(
+        "HGFormatUtils::textureSizeBytes(fmt=" +
+          String(fmt) +
+          ") — negative fmt passes the signed `jle $0x2b` but yields the " +
+          "unsigned index " +
+          String(idx) +
+          ", reading past the 44-entry formatInfos table (C++ UB). @Helium 0xa1e3a",
+      );
+    }
+    // @Helium 0xa1e2f-0xa1e3a: bpp = *(u32*)(&formatInfos[fmt] + 0x10)
+    bpp = FORMAT_INFOS_BPP[idx]!;
+  }
+  // @Helium 0xa1e3e-0xa1e42: rax = (u64)height * (u64)width
+  const w = BigInt((width | 0) >>> 0);
+  const h = BigInt((height | 0) >>> 0);
+  const hw = BigInt.asUintN(64, h * w);
+  // @Helium 0xa1e46: imulq %rcx,%rax — rax = (height*width) * bpp (mod 2^64).
+  return BigInt.asUintN(64, hw * BigInt(bpp));
+}
