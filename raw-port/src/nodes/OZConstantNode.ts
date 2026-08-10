@@ -15,6 +15,7 @@
 //   0x029b6a  T  OZConstantNode::setValue(CMTime const&, double, bool)
 //   0x029c30  T  OZConstantNode::reset()
 //   0x0299ce  T  OZConstantNode::solveNode(OZCurveNodeParam&)
+//   0x0299c2  T  OZConstantNode::solveNode(CMTime const&, double, double)
 //   0x0299fa  T  OZConstantNode::getUForValue(double, std::vector<CMTime>&, PCTimeRange&,
 //                                             CMTime&, unsigned int)
 //   0x029b26  T  OZConstantNode::getNeededRange(OZCurveNodeParam*)
@@ -344,6 +345,62 @@ export function OZConstantNode_solveNode(self: OZConstantNode, param: OZCurveNod
   for (let i = 0; i < n; i++) {
     buf[i] = v; // @0x0299eb movsd %xmm0, (%rcx,%rdx,8)
   }
+}
+
+/**
+ * `OZConstantNode::solveNode(CMTime const&, double, double)`  @ProChannel 0x0299c2
+ *   — `__ZN14OZConstantNode9solveNodeERK6CMTimedd`
+ *
+ * The SECOND `solveNode` overload — the scalar, point-sample form. It is a
+ * distinct symbol from the buffer-filling `solveNode(OZCurveNodeParam&)`
+ * @0x0299ce ported directly above; the two bodies are adjacent in the binary
+ * (this one ends at 0x0299cc, the other begins at 0x0299ce).
+ *
+ * Full disasm (7 lines, @0x0299c2..@0x0299cd; see raw-port/re/disasm/
+ * ProChannel.__ZN14OZConstantNode9solveNodeERK6CMTimedd.s):
+ *
+ *   0x0299c2  pushq  %rbp                    ; frame prologue
+ *   0x0299c3  movq   %rsp, %rbp
+ *   0x0299c6  movsd  0x8(%rdi), %xmm0        ; return value = *(double*)(this+0x08)
+ *   0x0299cb  popq   %rbp                    ; frame epilogue
+ *   0x0299cc  retq
+ *   0x0299cd  nop                            ; alignment padding
+ *
+ * ARGUMENTS (System V AMD64, non-static member fn):
+ *   %rdi  = this
+ *   %rsi  = CMTime const&   — IGNORED: %rsi is never read.
+ *   %xmm0 = double          — IGNORED, and in fact CLOBBERED by the `movsd`
+ *                             @0x0299c6 that loads the return value into it.
+ *   %xmm1 = double          — IGNORED: %xmm1 is never read.
+ *
+ * The only memory access in the whole body is that single `movsd 0x8(%rdi)`,
+ * which reads `value` @+0x08 — the same field getMaxValue @0x0299aa,
+ * getMinValue @0x0299b6 and getInitialValue @0x029b9a return, and the same
+ * field the OZCurveNodeParam& overload broadcasts into `param.buf_b`. That is
+ * exactly what a constant node means: evaluating it at ANY time, with ANY pair
+ * of extra scalar arguments, yields the stored constant.
+ *
+ * RETURN TYPE is `double`: the mangling `...ERK6CMTimedd` does not encode a
+ * return type, but the body's sole effect is to materialise a double in %xmm0
+ * — the SysV floating-point return register — immediately before `retq`.
+ *
+ * FRONTIER CALLEES: NONE. Zero `callq`, zero `jmp`, no extern, no in-scope
+ * callee, no indirect/virtual call.
+ *
+ * @0x0299c2
+ */
+export function OZConstantNode_solveNode_atTime(
+  self: OZConstantNode,
+  _t: CMTime,
+  _a: number,
+  _b: number,
+): number {
+  // @0x0299c2..0x0299c3  frame prologue (no TS-visible effect).
+  // @0x0299c6  movsd 0x8(%rdi), %xmm0  — load `value` @+0x08 into the return reg.
+  //            %rsi / the incoming %xmm0 / %xmm1 are never read; %xmm0 is
+  //            overwritten here by the loaded field.
+  // @0x0299cb..0x0299cc  frame epilogue + retq.
+  return self.value;
 }
 
 /**
