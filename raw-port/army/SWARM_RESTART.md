@@ -16,7 +16,7 @@ See PR_FLOW.md "Dispatch model (Model B)" for the authoritative description.
   release → STOP. Brief = REVIEWER_BRIEF.md.
 - **`swarm-introspection`** — reports on burn-down and self-adjusts its own cadence; never spawns.
 
-Concurrency is bounded by (#worker + #reviewer slots) ∩ the 8-lease warm pool + the per-slot
+Concurrency is bounded by (#worker + #reviewer slots) ∩ the warm pool (WT_POOL_SIZE leases) + the per-slot
 single-flight lock. To scale, enable MORE cron slots (a human decision) — never raise a spawn count,
 because nothing spawns.
 

@@ -10,7 +10,7 @@
 # ~2,579, and NO per-unit add/remove churn — so Defender has ~2,500x fewer writes to scan.
 #
 # USAGE:
-#   wt_pool.sh init [N]            -> pre-create N warm worktrees (default WT_POOL_SIZE or 8).
+#   wt_pool.sh init [N]            -> pre-create N warm worktrees (default WT_POOL_SIZE or 16).
 #   wt_pool.sh acquire <Class>     -> lease a warm wt, reset to origin/main, cut branch port/<Class>.
 #                                     Prints the wt path on stdout (all logs go to stderr). WORKERS.
 #   wt_pool.sh acquire-at <SHA>    -> lease a warm wt, detached-checkout at <SHA> (a PR head).
@@ -26,7 +26,7 @@
 set -uo pipefail
 CANON="$HOME/random/final-cut-pro-transitions"
 POOL="$HOME/.fct-pool"; WTDIR="$POOL/wt"; LEASES="$POOL/leases"
-NPOOL="${WT_POOL_SIZE:-8}"; WAIT="${WT_POOL_WAIT:-120}"
+NPOOL="${WT_POOL_SIZE:-16}"; WAIT="${WT_POOL_WAIT:-120}"
 mkdir -p "$WTDIR" "$LEASES"
 touch "$POOL/.metadata_never_index" 2>/dev/null
 
