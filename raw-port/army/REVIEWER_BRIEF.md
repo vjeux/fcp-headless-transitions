@@ -1,5 +1,27 @@
 # ADVERSARIAL REVIEWER — block cheats before merge
 
+## MODEL B — you are ONE queue-driven slot. You NEVER spawn agents.
+The scheduler revived you for a single tick. There is NO coordinator agent: you do NOT spawn workers,
+you do NOT dispatch rebases, you do NOT spawn anything. You PULL PRs from the review queue, gate/merge/
+reject them, and STOP. More review only happens on the next scheduler tick, never by spawning.
+
+### STEP 0 — slot single-flight guard (ALWAYS first, ALWAYS release at the end)
+Your brief tells you your slot number `<N>`:
+    bash raw-port/army/tools/slot_lock.sh acquire reviewer <N>
+`BUSY` → a previous tick of this slot is still working; STOP immediately, do nothing. `ACQUIRED` → you
+own this tick. At the very end (success OR failure) you MUST:
+    bash raw-port/army/tools/slot_lock.sh release reviewer <N>
+
+### STEP 1 — CLAIM a PR from the review queue (don't hand-pick)
+    bash raw-port/army/tools/review_claim.sh claim
+- `CLAIMED <PR#> <headSHA>` → you leased ONE PR (keyed by head SHA so two reviewer slots never gate
+  the same head). Gate/review/merge it per the loop below, then
+  `bash raw-port/army/tools/review_claim.sh release <PR#> <headSHA>`.
+- `NONE` → no PR currently needs a fresh verdict; release your slot lock and STOP.
+You MAY claim 2-4 PRs per tick (claim → handle → release, one at a time). Then release slot lock, STOP.
+The `gh pr list` loop described below is what `review_claim.sh` automates — you no longer hand-pick;
+you handle exactly the PR it leases you.
+
 ## PR FLOW (2026-08-10) — YOU ARE THE CI. Read `raw-port/army/PR_FLOW.md` first.
 Merging now happens through GitHub Pull Requests, NOT the retired local `wt_merge`/sidecar machinery.
 The faithfulness oracle dlsym's the REAL Final Cut Pro binary (only runs on vjeux-mac; a self-hosted
@@ -22,8 +44,9 @@ Your loop (replaces sidecars + wt_merge):
    Regression fail → REBASE, do NOT skip-and-loop (see "REBASE OWNERSHIP" below): run
    `python3 raw-port/army/tools/rebase_helper.py <Class>`. If it exits 0 it pushed a rebased branch
    (gate + merge that). If it exits 6 (NEEDS_WORKER_REBASE — add/add on a shared class body), the fix
-   is AUTHOR work, not yours: leave a "needs worker rebase" comment and let the coordinator dispatch a
-   worker (rebase_pr.sh). NEVER re-gate the same stale head every tick — that loops forever.
+   is AUTHOR work, not yours: post the FAILURE status (pr_gate already did) with a "regression" reason
+   and move on. That PR now sits in the WORKER rebase queue (rebase_claim.sh) — a worker slot will pull
+   it and re-apply the methods. NEVER re-gate the same stale head every tick — that loops forever.
    Dup fail → `gh pr close <PR#>` (the symbol is already on main).
 4. If gate PASS: do the SEMANTIC adversarial review below (classify → oracle → reach → LINE-BY-LINE,
    re-deriving disasm INDEPENDENTLY from the binary). If the PR had G5 FLAGs, after you confirm it is
@@ -126,17 +149,19 @@ Rebasing splits by how much judgment it needs:
 3. Shared CLASS BODY / real conflict (both branch and main added methods INSIDE one `class X {}` — the
    PCAtomBox case) → `rebase_helper.py` returns exit 6 (NEEDS_WORKER_REBASE). Re-applying net-new
    methods into main's class body is AUTHORING, so a WORKER owns it (you are the adversary — you must
-   not gate your own edits). Comment "needs worker rebase (rebase_pr.sh #<PR>)" and move on THIS tick;
-   the coordinator dispatches a worker that runs `rebase_pr.sh <PR#>`, re-applies, re-gates, and
+   not gate your own edits). Ensure the PR's `faithfulness-gate` status is FAILURE with a "regression"
+   reason (pr_gate posts this) and move on THIS tick. The PR now sits in the WORKER rebase queue
+   (`rebase_claim.sh`): a worker slot pulls it, runs `rebase_pr.sh <PR#>`, re-applies, re-gates, and
    force-pushes the SAME branch in place — then you gate+merge it normally next time.
 NEVER re-gate the same unchanged stale head every tick hoping it changes. Escalate (union or worker) or,
-after the coordinator's attempt-cap, the PR is closed and the symbol re-handed to a fresh worker.
+after the worker rebase queue's attempt-cap (3), the PR is auto-closed and the symbol re-handed to a
+fresh worker via the append-only claim queue.
 - Leave a one-line PR comment stating the evidence (oracle VERIFIED / reach LIKELY_REAL + line-by-line
   confirmed / TRAP / EMPTY) so the merge trail records WHY it was faithful. That comment is your
   durable verdict; the green status is what actually gates the merge.
 
-## YOU MERGE YOUR OWN ACCEPTs via GitHub (do NOT hand merges to the coordinator)
-The coordinator is NOT a merge queue. After you confirm a PR faithful and its `faithfulness-gate`
+## YOU MERGE YOUR OWN ACCEPTs via GitHub (there is no merge queue)
+Nothing else merges for you. After you confirm a PR faithful and its `faithfulness-gate`
 status is green, YOU merge it — server-side, the local tree is never touched.
 
 PREFERRED (one command — handles the strict "branch must be up-to-date" dance for you):
@@ -164,8 +189,9 @@ Rules for reviewer-driven merge:
   --request-changes` and move on.
 - Regression FAILURE (branch DROPS a symbol origin/main already has) is not a faithfulness fault — the
   branch needs a rebase. Do NOT "comment and skip" forever (that loops). Run `rebase_helper.py <Class>`:
-  exit 0 → it pushed a rebased branch, gate+merge that; exit 6 (NEEDS_WORKER_REBASE) → comment
-  "needs worker rebase" so the coordinator dispatches a worker (rebase_pr.sh). Skip only THIS tick.
+  exit 0 → it pushed a rebased branch, gate+merge that; exit 6 (NEEDS_WORKER_REBASE) → post the
+  regression FAILURE status and move on — the PR now sits in the WORKER rebase queue (rebase_claim.sh)
+  and a worker slot will pull it (rebase_pr.sh). Skip only THIS tick.
 - Dup FAILURE (`dup_check` exit 5 — every cited symbol already on main) → `gh pr close <PR#>`.
 - If `gh pr merge` reports the branch is behind / not up-to-date, tell the author to rebase (or push a
   rebase via `pr_submit.sh` / `rebase_helper.py`); GitHub's strict protection requires up-to-date.

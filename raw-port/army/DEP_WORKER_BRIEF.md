@@ -1,87 +1,83 @@
-# DEP WORKER — port ONE ready unit from the strict dependency queue
+# DEP WORKER — one queue-driven slot (Model B: you NEVER spawn agents)
 
-You are handed a function (or a small cycle) whose EVERY in-scope callee is ALREADY PORTED. This is
-the whole point of the dependency queue: there is NO unresolved internal dependency, so you have NO
-excuse to write a throw for one. If your disasm shows a call to another FCP function, that function
-is already ported — you IMPORT it and CALL it. A throw-stub for an in-scope callee is a REJECTED cheat.
+You are ONE worker slot. The scheduler revived you for a single tick. **You do NOT spawn sub-agents,
+you do NOT dispatch other workers, you do NOT coordinate — you PULL work from a queue, do it, STOP.**
+There is no coordinator agent anymore: concurrency is bounded by a fixed set of cron slots + the warm
+worktree pool, so the only way more work happens is more scheduler ticks, never more agents.
 
-## Claim
-    cd <repo> && python3 raw-port/army/tools/depclaim.py next
-Prints `CLAIMED_UNIT` then one or more TSV rows `<FW>\t<Class>\t<mangled>\t<demangled>`. Usually ONE
-function. If MULTIPLE rows, it's a dependency CYCLE (mutual recursion) — port them together in one
-branch (they call each other; neither can be done alone).
+Every in-scope callee of anything the queue hands you is ALREADY PORTED — so you have NO excuse to
+write a throw for an internal dependency. A throw-stub for an in-scope callee is a REJECTED cheat.
 
-The queue is APPEND-ONLY: the instant `next` hands you a unit it is recorded as claimed forever and
-will NEVER be handed to anyone else — so you can never collide with another worker, and you never
-need to release, defer, or mark-done a claim. If you cannot complete a claimed unit, just STOP and
-claim the next one; the abandoned unit is simply skipped (a coordinator can `depclaim.py reopen
-<sym>` in the rare case it must be retried). libc++ template instantiations (`std::__1::…`) and
-already-built symbols are filtered out automatically — every unit you get is real, fresh FCP work.
+## STEP 0 — slot single-flight guard (ALWAYS first, ALWAYS release at the end)
+Your brief tells you your slot number `<N>`. Take the slot lock so a slow tick can't double-run:
+    bash raw-port/army/tools/slot_lock.sh acquire worker <N>
+If it prints `BUSY`, a previous tick of THIS slot is still working — **STOP immediately, report
+"slot busy", do nothing else.** If it prints `ACQUIRED`, you own this tick. At the very end (success
+OR failure) you MUST run:
+    bash raw-port/army/tools/slot_lock.sh release worker <N>
 
-## The only legitimate throw
+## STEP 1 — REBASE QUEUE FIRST (pull, don't dispatch)
+Before porting, check the rebase queue — regression-stuck PRs that need a worker to re-apply methods:
+    bash raw-port/army/tools/rebase_claim.sh claim
+- Prints `CLAIMED <PR#> <branch>` → you leased ONE rebase task. Go to REBASE-TASK MODE below, do that
+  ONE PR, `rebase_claim.sh release <PR#>`, release your slot lock, STOP. (One rebase per tick.)
+- Prints `NONE` → nothing to rebase; fall through to STEP 2 (port units).
+The claim is atomic + attempt-capped (3): two worker slots can't grab the same PR, and a PR past the
+cap is auto-closed and its symbol re-queued to the append-only claim queue.
+
+## STEP 2 — PORT UNITS (append-only claim queue)
+    python3 raw-port/army/tools/depclaim.py next
+Prints `CLAIMED_UNIT` then TSV rows `<FW>\t<Class>\t<mangled>\t<demangled>`. Usually ONE function;
+multiple rows = a dependency CYCLE (mutual recursion) — port them together in one branch. The instant
+`next` hands you a unit it is claimed FOREVER (append-only) — you can never collide, and you never
+release/defer/mark-done. If you can't finish a unit, just STOP it and claim the next. STL templates
+and already-built symbols are auto-filtered. `NO_READY_UNIT` = queue drained, STOP.
+
+### The only legitimate throw
 A throw is allowed ONLY for a TRUE OUT-OF-SCOPE extern — libc (`operator new`/`delete`,
 `_Unwind_Resume`), ObjC runtime (`_objc_*`), CoreFoundation/Foundation, pthread, Metal/CoreVideo/
-CoreGraphics/AVFoundation. These are outside the 5-framework port scope and are modelled as boundary
-stubs by policy (like the CGColorSpace externs already in-tree). Each such throw cites its @0xADDR.
-  - An in-scope callee (any `__ZN...` that is in ProCore/ProChannel/Helium/Ozone/Flexo and thus in a
-    ledger) is NOT allowed to be a throw. `depclaim` only gave you this function because every one of
-    those is already ported. Run `python3 raw-port/army/tools/depgraph.py deps <mangled>` to see them
-    all with status `ported` — import and call them.
-  - Indirect/virtual calls (`callq *off(reg)`): you will NOT be handed a function that still has
-    unresolved indirect calls (those are held in the `virtual-blocked` tier until tools/vtable.py
-    pins the slot to a concrete method, which then becomes a normal dependency). If your disasm has
-    one anyway, just STOP on that unit and claim the next — do not stub it (the queue won't re-hand it).
+CoreGraphics/AVFoundation — each citing @0xADDR. Any in-scope `__ZN...` in ProCore/ProChannel/Helium/
+Ozone/Flexo is ALREADY PORTED: `python3 raw-port/army/tools/depgraph.py deps <mangled>` shows them all
+`ported` — import and CALL them. An indirect/virtual call (`callq *off(reg)`) you shouldn't be handed;
+if you see one, STOP that unit and claim the next — do NOT stub it.
 
-## Port (PR FLOW — 2026-08-10; the old local wt_merge/wt_setup tools were DELETED)
-Read `raw-port/army/PR_FLOW.md` once. Merging happens through GitHub Pull Requests. The old local
-merge tools (`wt_merge.sh`, `wt_setup.sh`) no longer exist. You OPEN A PR and STOP — a reviewer runs
-the gate (as GitHub CI) and merges.
-
+### Port loop
 1. `python3 raw-port/army/tools/depgraph.py deps <mangled>` — confirm every dep is `ported`.
 2. `bash raw-port/tools/disasm.sh --sym <mangled> <FW>` — get the exact body.
-3. Work in a WARM POOL worktree, NEVER the canonical tree. Do NOT `git worktree add` per unit (that
-   materializes ~2,579 files and triggers the corp Defender scan-storm that pegged the box). Lease a
-   pre-materialized pool worktree — it comes reset to origin/main with a branch `port/<Class>` cut and
-   node_modules already symlinked:
-       WT=$(bash raw-port/army/tools/wt_pool.sh acquire <Class>)   # prints the worktree path
+3. Lease a WARM POOL worktree (NEVER the canonical tree; NEVER `git worktree add` per unit — that
+   materializes ~2,579 files and triggers the corp-Defender scan storm):
+       WT=$(bash raw-port/army/tools/wt_pool.sh acquire <Class>)
        cd "$WT"
-   (acquire block-waits for a free slot; the pool + its warm tsgo cache are reused across units.)
-4. Write the REAL body into raw-port/src/<layer>/<Class>.ts (edit tool). Import the ported callees
-   from their real files and CALL them. Transcribe every instruction; @0xADDR on the fn + each const.
-   ADD-ONLY when extending an existing class file: `git show origin/main:<path>` first and EXTEND it —
-   never delete/replace a landed sibling method (a file-level regression is rejected by the PR gate).
-5. `bash raw-port/army/gate/gate.sh raw-port/src/<layer>/<Class>.ts` MUST print GATE: PASS. This is a
-   fast local pre-check to save a review round-trip; the reviewer re-runs the authoritative gate.
-   G5 re-derives your disasm and REJECTS a throw where the machine does real work.
-6. Commit to your branch, then open the PR and STOP:
+4. Write the REAL body into raw-port/src/<layer>/<Class>.ts (edit tool). Import ported callees and
+   CALL them. Every instruction transcribed; @0xADDR on the fn + each const; Math.fround for f32.
+   ADD-ONLY when extending a class file: `git show origin/main:<path>` first and EXTEND — never
+   delete/replace a landed sibling method (file-level regression = rejected by the PR gate).
+5. `bash raw-port/army/gate/gate.sh $(pwd)/raw-port/src/<layer>/<Class>.ts` MUST print GATE: PASS
+   (fast local pre-check; the reviewer re-runs the authoritative gate).
+6. Commit, then open the PR and STOP porting this unit:
        bash raw-port/army/tools/pr_submit.sh <Class>
-   `pr_submit.sh` rebases onto origin/main, pushes `port/<Class>` (force-with-lease), and opens a PR
-   titled `port: <Class>`. That's it — DO NOT merge, DO NOT set any skip-review flag. The reviewer
-   runs `pr_gate.sh <PR#>` (posts the required `faithfulness-gate` commit status) and, if faithful,
-   merges the PR server-side via GitHub. Branch protection (strict/up-to-date, linear, enforce_admins)
-   guarantees nothing lands without a green gate. `mark_ported.py` is run post-merge by the reviewer.
-   Then FREE the pool worktree for the next unit: `bash raw-port/army/tools/wt_pool.sh release "$WT"`.
-7. If a dep turns out unported, or an indirect/virtual call is unresolved, STOP that unit and claim
-   the next (do NOT stub it; the append-only queue won't re-hand it).
+   Then free the slot: `bash raw-port/army/tools/wt_pool.sh release "$WT"`. DO NOT merge, DO NOT set
+   any skip-review flag. A reviewer slot runs pr_gate.sh (posts `faithfulness-gate`) and merges.
+7. If a dep is unported or an indirect/virtual call is unresolved, release the worktree, STOP that
+   unit, claim the next (do NOT stub it).
 
-Do 4-8 units, then STOP. Report per unit: FW, class, mangled, addr, deps (proof they were ported),
-branch + PR number/URL, local GATE result.
+Do 4-8 units, then release your slot lock (STEP 0) and STOP. **Never call spawn_agent.** Report per
+unit: FW, class, mangled, addr, ported deps imported, branch, PR#/URL, local GATE.
 
-## REBASE-TASK MODE (when the coordinator dispatches you to rebase a specific PR, not to port)
-If your brief says "rebase PR #N" instead of "port units", you are fixing a stale-base PR whose
-shared CLASS BODY conflicts with main (rebase_helper couldn't union it — that's why it came to you, a
-worker: re-applying methods into a class body is AUTHOR work). Do EXACTLY this ONE PR, then STOP:
-1. `bash raw-port/army/tools/rebase_pr.sh <PR#>` — it tries the mechanical paths first; for a
-   shared-class conflict it prints `REBASE_MANUAL` and PREPARES a pool worktree $WT starting from
-   CURRENT origin/main, plus the branch's version of each conflicting file at /tmp/rebase_pr_<PR>_theirs/.
-   (If it prints REBASE_CLEAN or REBASE_UNION, it already force-pushed — you are DONE, just report.)
-2. For each conflicting file: open `$WT/<file>` (= main's CURRENT class, with main's methods intact)
-   and `/tmp/rebase_pr_<PR>_theirs/<file>` (= the branch's version). With the edit tool, ADD ONLY the
-   branch's net-new methods (the ones NOT already on main) into main's class body. NEVER delete main's
-   methods (that would just re-create the regression). Keep every @0xADDR provenance line.
+## REBASE-TASK MODE (only when STEP 1 handed you `CLAIMED <PR#> <branch>`)
+You are fixing a stale-base PR whose shared CLASS BODY conflicts with main (rebase_helper couldn't
+union it — re-applying methods into a class body is AUTHOR work). Do EXACTLY this ONE PR:
+1. `bash raw-port/army/tools/rebase_pr.sh <PR#>` — tries mechanical paths first; for a shared-class
+   conflict it prints `REBASE_MANUAL` and prepares a pool worktree $WT from CURRENT origin/main + the
+   branch's version of each conflicting file at /tmp/rebase_pr_<PR>_theirs/. (REBASE_CLEAN /
+   REBASE_UNION = it already force-pushed → you're DONE, skip to step 6.)
+2. For each conflicting file: open `$WT/<file>` (main's CURRENT class, methods intact) and
+   `/tmp/rebase_pr_<PR>_theirs/<file>` (the branch's version). With the edit tool, ADD ONLY the
+   branch's net-new methods into main's class body. NEVER delete main's methods. Keep every @0xADDR.
 3. `bash raw-port/army/gate/gate.sh <file>` in $WT — must print GATE: PASS.
 4. `git -C "$WT" add -A && git -C "$WT" commit -q -m "rebase <branch> onto origin/main (re-apply net-new methods)"`
-5. `git -C "$WT" push -f origin "HEAD:<branch>"` — force-pushes the SAME branch, so PR #N updates IN
+5. `git -C "$WT" push -f origin "HEAD:<branch>"` — force-pushes the SAME branch; PR #N updates IN
    PLACE (do NOT open a new PR). Then `bash raw-port/army/tools/wt_pool.sh release "$WT"`.
-6. STOP. The reviewer re-gates PR #N (now rebased) and merges it. Report: PR#, files reconciled,
-   net-new methods you re-applied, gate result, force-push confirmation.
+6. `bash raw-port/army/tools/rebase_claim.sh release <PR#>`, release your slot lock, STOP. The reviewer
+   re-gates PR #N and merges it. Report: PR#, files reconciled, net-new methods re-applied, gate result,
+   force-push confirmation.

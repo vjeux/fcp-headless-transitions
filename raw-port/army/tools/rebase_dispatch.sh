@@ -1,4 +1,10 @@
 #!/bin/bash
+# rebase_dispatch.sh — ⚠️ RETIRED (2026-08-10, Model B). This was the PUSH-dispatch tool: the
+# coordinator ran it once per tick to find regression-stuck PRs and then SPAWNED a worker to rebase
+# each. Model B removed all agent-spawning — workers now PULL rebase tasks themselves via
+# `rebase_claim.sh claim` (atomic lease + the same per-PR attempt cap 3 + same auto-close-past-cap).
+# Kept only for reference; not wired into any cron. Use rebase_claim.sh instead.
+#
 # rebase_dispatch.sh [--apply] — coordinator helper: find PRs stuck on a REGRESSION faithfulness-gate
 # FAILURE and decide what to do, with a per-PR attempt cap so nothing loops forever.
 #

@@ -1,4 +1,39 @@
-# SWARM RESTART — reviewer-gated, small, closely-watched (2026-07-29)
+# SWARM RESTART
+
+## ⚠️ CURRENT MODEL (2026-08-10) — QUEUE-DRIVEN CRON SLOTS, NO AGENT SPAWNS AGENTS (Model B)
+The single coordinator agent that spawned workers/reviewers/rebase-workers is RETIRED. Nothing in the
+swarm calls `spawn_agent`. The scheduler (cron) is the ONLY thing that creates a session, so the agent
+population is structurally bounded and can never explode. See PR_FLOW.md "Dispatch model (Model B)".
+
+### The cron slots (all created DISABLED; re-enable is an explicit human decision)
+- `swarm-maint` — SCRIPT cron, `raw-port/army/tools/swarm_maint.sh`. Every ~10 min: ledger guard,
+  warm-pool init/gc, clean canonical tree (only if no gate/submit proc live), periodic `depclaim seed`,
+  `depgraph reconcile`, one snapshot line. NO agent, NO spawn, NO merge.
+- `swarm-worker-1..4` — PROMPT crons. Each tick: `slot_lock.sh acquire worker <N>` (exit if BUSY) →
+  pull ONE rebase task (`rebase_claim.sh claim`) or 4-8 port units (`depclaim.py next`) → open PRs →
+  release slot lock → STOP. Brief = DEP_WORKER_BRIEF.md.
+- `swarm-reviewer-1..4` — PROMPT crons. Each tick: `slot_lock.sh acquire reviewer <N>` →
+  `review_claim.sh claim` (leases a PR by head SHA) → gate/review/merge/reject → release → STOP.
+  Brief = REVIEWER_BRIEF.md.
+- `swarm-introspection` (0a25dca7) — unchanged; it only reports, never spawns.
+
+### TO RESTART (Model B)
+1. Confirm preconditions below still hold (prove_all.py PASS, gate G5 armed).
+2. `bash raw-port/army/tools/swarm_maint.sh` once by hand — confirm it prints a healthy snapshot
+   (freeGB, ready>0, openPRs, pool). Fix any FATAL (usually a missing ledger) before enabling crons.
+3. Enable `swarm-maint` first, watch one tick.
+4. Enable a FEW slots (e.g. 2 worker + 2 reviewer), watch load + merge rate + reviewer REJECT rate for
+   1-2 ticks. Concurrency is capped by #slots + the 8-lease warm pool — to scale, enable MORE slots
+   (never raise spawn counts, because nothing spawns). Hold if load spikes or REJECT rate climbs.
+5. The OLD coordinator cron `d82b4a68` stays DISABLED permanently (kept only for rollback reference).
+
+The historical anti-cheat rationale and status-accounting rules below are UNCHANGED and still govern.
+The only thing that changed is dispatch: pull-from-queue cron slots instead of a coordinator that
+spawned agents.
+
+---
+
+# SWARM RESTART — reviewer-gated, small, closely-watched (2026-07-29) [HISTORICAL — dispatch superseded by Model B above]
 
 The swarm was HALTED after the 7385eb01 cheat. It restarts ONLY now that the verifier demonstrably
 blocks cheating (verifier/STEP4_PROOF.md + STEP5_REVIEWER_PILOT.md, prove_all.py PASS). Restart is
@@ -89,9 +124,11 @@ The coordinator cron (d82b4a68) was rewritten and the old system deleted:
   coordinator_scan.py, demote_stub_bodies.py, army/graph/, army/swarm/, LEAF_BRIEF.md, wave_manifest.
 - HONEST LEDGER: ported 7700, skeleton 217, stub 1524 (throw-shells + DISPATCH_ONLY never counted ported).
 
-TO RESTART: set cron d82b4a68 enabled=true. It will spawn ≤3 dep-workers + reviewers per 10-min tick,
-each doing dependency-ready work with a mandatory reviewer merge gate. Watch the first 1-2 ticks:
-confirm workers import+call real deps (no internal throws) and the ready-count grows as they merge.
+TO RESTART: **[SUPERSEDED by Model B — do NOT re-enable d82b4a68; it spawned agents.]** Historically
+this said "set cron d82b4a68 enabled=true" to spawn ≤3 dep-workers + reviewers per tick. Under Model B,
+restart by enabling the `swarm-maint` + `swarm-worker-*` + `swarm-reviewer-*` crons instead (see the
+top of this file). Watch the first 1-2 ticks the same way: confirm workers import+call real deps (no
+internal throws) and the ready-count grows as PRs merge.
 
 ## Phase-C sign-off (2026-07-29) — WIDENED to 6 workers + 2 reviewers
 Phase B is signed off. Evidence the reviewer catches every injected cheat:

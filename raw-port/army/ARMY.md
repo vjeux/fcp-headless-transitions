@@ -70,12 +70,20 @@ Two levels, both required before a unit is "verified":
   same one that VERIFIED the colour-transfer nodes. A unit that can't be oracle-checked yet is
   marked "ported" (not "verified") and flagged for the oracle backlog.
 
-## 6. Coordinator (the "general")
-A parent agent (or the scheduled loop) that: refreshes the ledger + frontier, topologically orders
-ready units, spawns N sub-agents each assigned a disjoint set of classes from the frontier, collects
-their commits, re-runs mark_ported + the oracle gate, and re-computes the frontier. Loops until the
-render closure is fully ported + verified. Batch size tuned to keep each sub-agent under its context
-budget (≈1 class or a few tiny classes per sub-agent).
+## 6. Dispatch — QUEUE-DRIVEN CRON SLOTS (Model B, 2026-08-10; no agent spawns agents)
+There is NO "general" agent that spawns sub-agents. That design (a parent agent spawning N children
+per tick) was retired because an agent that spawns agents can explode the population on the box. The
+scheduler (cron) is now the ONLY thing that creates a session. See PR_FLOW.md "Dispatch model" and
+SWARM_RESTART.md for the authoritative description. In brief:
+- A SCRIPT cron (`swarm_maint.sh`) refreshes the ledger, warm pool, and (via `depgraph reconcile` +
+  `depclaim seed`) the frontier/queue — the plumbing the old coordinator did in-agent.
+- Fixed `swarm-worker-N` / `swarm-reviewer-N` PROMPT crons each PULL from disk-backed queues
+  (`depclaim.py next` for ports, `rebase_claim.sh` for rebases, `review_claim.sh` for reviews), do a
+  bounded batch, and STOP. Each is a single self-scheduled slot guarded by `slot_lock.sh`.
+- Concurrency is bounded by (#worker + #reviewer slots) ∩ the 8-lease warm pool — to scale you enable
+  MORE cron slots (a human decision), never have an agent spawn more agents.
+- mark_ported + the oracle gate run inside the reviewer's per-PR flow; the frontier re-computes on the
+  next `swarm_maint` tick. The loop continues purely by scheduler ticks until the closure is ported.
 
 ## 7. Layers (directory layout under src/)
   infra/     PC* : PCSerializerReadStream, PCStreamElement, PCString, CMTime, PCColor, PCMatrix44 ...
