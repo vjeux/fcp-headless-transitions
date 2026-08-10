@@ -62,3 +62,7 @@ raw-port/army/introspect_log.csv
 *.review.json
 *.review.*.json
 raw-port/raw-port/
+-e 
+# incremental typecheck cache (per-worktree, rederivable)
+raw-port/.gate.tsbuildinfo
+**/.gate.tsbuildinfo

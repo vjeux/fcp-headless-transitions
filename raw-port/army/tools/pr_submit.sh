@@ -1,7 +1,7 @@
 #!/bin/bash
 # pr_submit.sh <Class> — worker-side: push the current worktree's port branch and open a PR.
-# Replaces the old `git push` + `wt_setup.sh done`. Run from inside the worker's ISOLATED worktree
-# (cwd = the worktree for branch port/<Class>). Idempotent: if a PR already exists it just prints it.
+# Run from inside the worker's leased WARM POOL worktree (cwd = the worktree for branch
+# port/<Class>). Idempotent: if a PR already exists it just prints it.
 set -uo pipefail
 CLASS="${1:?usage: pr_submit.sh <Class>}"
 REPO_SLUG="vjeux/fcp-headless-transitions"

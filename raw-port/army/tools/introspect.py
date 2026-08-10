@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """introspect.py — periodic DEEP-INTROSPECTION brain for the raw-port swarm.
 
-Purpose (per vjeux 2026-08-09): the swarm has plenty of TACTICAL loops (coordinator spawns,
-workers port, reviewers merge) but NOTHING that stands back and asks "is this actually working,
+Purpose (per vjeux 2026-08-09): the swarm has plenty of TACTICAL loops (workers port,
+reviewers merge) but NOTHING that stands back and asks "is this actually working,
 and should we change the approach?" Every strategic re-evaluation so far happened only because a
 human asked. This closes that gap: an evidence-first monitor that watches the burn-down and
 SELF-ADJUSTS its own cadence — runs often when things are changing/wrong, backs off when steady.

@@ -30,7 +30,12 @@ echo "== G1 provenance =="
 python3 "$ROOT/army/gate/provenance_gate.py" "$@" || FAIL=1
 
 echo "== G2 typecheck =="
-( cd "$REPO" && engine/node_modules/.bin/tsgo --noEmit -p raw-port/tsconfig.json ) || { echo "  tsgo FAILED"; FAIL=1; }
+# Incremental typecheck: keep a per-worktree .tsbuildinfo so a warm pool worktree re-checks only the
+# changed file + its dependents (~1.2s cold -> ~0.2s warm) instead of the whole 1,478-file project.
+# Cache lives at raw-port/.gate.tsbuildinfo (gitignored). --incremental degrades gracefully to a full
+# check when the cache is cold/absent, so this is safe in a fresh checkout too.
+( cd "$REPO/raw-port" && node_modules/.bin/tsgo --noEmit --incremental \
+    --tsBuildInfoFile .gate.tsbuildinfo -p tsconfig.json ) || { echo "  tsgo FAILED"; FAIL=1; }
 
 echo "== G4 oracle (bit-exact vs live FCP for touched parity nodes) =="
 # Map changed .ts -> parity node ids via army/gate/oracle_map.json (class -> [node ids]).

@@ -54,6 +54,10 @@
 //       — OZRenderParams::setDo3DIntersectionAntialiasingDynamic(bool) @Ozone 0x271930
 //         (raw-port/re/disasm/
 //           __ZN14OZRenderParams38setDo3DIntersectionAntialiasingDynamicEb.s — 10 lines)
+//   * __ZNK14OZRenderParams20getDestinationDeviceEv
+//       — OZRenderParams::getDestinationDevice() const @Ozone 0x2719d0
+//         (raw-port/re/disasm/
+//           __ZNK14OZRenderParams20getDestinationDeviceEv.s — 7 lines)
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (raw-port/re/disasm/
@@ -177,6 +181,20 @@ export class OZRenderParams {
    * argument), directly adjacent in the struct. Modelled as `number`.
    */
   heightAt148: number = 0;
+
+  /**
+   * @Ozone offset +0x120 — an EMBEDDED "destination device" sub-object (not a
+   * pointer field: the getter returns its ADDRESS via `leaq 0x120(%rdi),%rax`,
+   * so the device data lives inline at this+0x120). Read by
+   * `getDestinationDevice() const` @0x2719d4. The device sub-object's own
+   * layout is not decoded in this unit (no method here reads through the
+   * returned pointer), so it is modeled as an OPAQUE object slot — future
+   * ports of methods that touch its fields will refine the type. Modeled as a
+   * stable object identity so `getDestinationDevice()` can hand back a
+   * reference to the SAME embedded object, mirroring `leaq &this[+0x120]`
+   * (a pointer to the inline field, NOT a fresh copy).
+   */
+  destinationDeviceAt120: object = {}; // @Ozone OZRenderParams@+0x120 (embedded device sub-object)
 
   /**
    * @Ozone offset +0x1d8 — a 4-byte integer written by
@@ -1052,5 +1070,45 @@ export class OZRenderParams {
     this.zeroedAt198 = { x: 0, y: 0 };
 
     // @0x271923-0x271924 — epilogue + retq.
+  }
+
+  /**
+   * `OZRenderParams::getDestinationDevice() const`
+   *   — @Ozone 0x2719d0
+   *   — __ZNK14OZRenderParams20getDestinationDeviceEv
+   *
+   * Faithful line-for-line transcription of the 7-line disassembly:
+   *   0x2719d0  pushq  %rbp                        ; frame prologue
+   *   0x2719d1  movq   %rsp, %rbp
+   *   0x2719d4  leaq   0x120(%rdi), %rax            ; rax = &this[+0x120] (address of the
+   *                                                ;   embedded destination-device sub-object)
+   *   0x2719db  popq   %rbp                        ; frame epilogue
+   *   0x2719dc  retq                              ; return rax
+   *   0x2719dd  nopl   (%rax)                       ; alignment padding (not executed)
+   *
+   * SEMANTICS:
+   *   Returns a POINTER to the destination-device sub-object embedded inline
+   *   at this+0x120. The `leaq` (load-effective-address, NOT a load) proves
+   *   the device is stored inline in OZRenderParams — the method hands back
+   *   its address, not a dereferenced value and not a heap pointer read from
+   *   the field. Callers get a mutable reference into `this`.
+   *
+   *   In TS this is modeled by returning the SAME `destinationDeviceAt120`
+   *   object identity (a reference to the embedded field), which reproduces
+   *   the `&this[+0x120]` semantics — mutations through the returned reference
+   *   are visible on `this`, exactly as a pointer into the object would be.
+   *   No copy is made (a `leaq` copies no data).
+   *
+   * Zero in-scope callees, zero externs, no indirect calls — pure address-of
+   * a field.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams20getDestinationDeviceEv.s (7 lines)
+   */
+  getDestinationDevice(this: OZRenderParams): object {
+    // @0x2719d4  leaq 0x120(%rdi),%rax ; @0x2719dc retq
+    //   Return the ADDRESS of the embedded device sub-object — i.e. a
+    //   reference to this.destinationDeviceAt120 (no dereference, no copy).
+    return this.destinationDeviceAt120;
   }
 }
