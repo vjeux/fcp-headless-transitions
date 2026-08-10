@@ -266,6 +266,29 @@ export class OZScene {
   rawWorkingGamutCache: PCWorkingGamutValue = 0;
 
   /**
+   * +0xd0 — toneMappingMode : u32 (an enum code).
+   *
+   * The one and only slot `getToneMappingMode() const` @Ozone 0x81e90 reads,
+   * via `movl 0xd0(%rdi), %eax` @0x81e94 — a 32-bit load returned directly
+   * in `%eax`. That instruction fixes the WIDTH (4 bytes) and the OFFSET; it
+   * does not reveal the enumerator set, so no enum type is invented here and
+   * the value is modelled as a plain `number` holding the raw 32 bits.
+   *
+   * `movl` into a full 32-bit register is width-exact and sign-agnostic (the
+   * upper 32 bits of `%rax` are zeroed by the 32-bit write), so the returned
+   * value is the unsigned 32-bit word; the getter below preserves that with
+   * `>>> 0`. The setter for this slot is a separate ledger unit and is NOT
+   * decoded here — nothing about who writes it is claimed.
+   *
+   * Note this sits immediately after `rawWorkingGamutCache` (+0xc8, u32) and
+   * its own 4 bytes of padding/neighbour at +0xcc, which is consistent with
+   * a run of small colour-pipeline settings caches on the scene object; that
+   * adjacency is an observation, not a decode of +0xcc (which stays
+   * undocumented — Rule 5).
+   */
+  toneMappingMode_at_0xd0: number = 0;
+
+  /**
    * +0x480 — timeRange : PCTimeRange (0x30 bytes).
    * Modelled as a nullable handle; setTimeRange copies bytes from src into
    * this slot.
@@ -957,5 +980,91 @@ export class OZScene {
     console.error(
       "OZScene::setTimeRange range is not numeric, setting num frames to 1.",
     );
+  }
+
+  /**
+   * `OZScene::getToneMappingMode() const`
+   *   — @Ozone 0x81e90
+   *   — __ZNK7OZScene18getToneMappingModeEv
+   *
+   * Faithful line-for-line transcription of the 5-instruction body — a
+   * single 32-bit field read, no branch, no callee:
+   *
+   *   0x81e90  pushq %rbp                    ; frame prologue
+   *   0x81e91  movq  %rsp, %rbp
+   *   0x81e94  movl  0xd0(%rdi), %eax        ; eax = *(u32*)(this + 0xd0)
+   *   0x81e9a  popq  %rbp                    ; frame epilogue
+   *   0x81e9b  retq                          ; return eax
+   *   0x81e9c  nopl  (%rax)                  ; alignment padding
+   *
+   * System-V x86_64: `%rdi` = `this` (the method is `const`, so nothing is
+   * written), `%eax` is the return register. `movl` is the 32-bit form, so
+   * exactly 4 bytes are read and the write to `%eax` zeroes the upper half
+   * of `%rax` — the result is the unsigned 32-bit word at +0xd0, which
+   * `>>> 0` reproduces.
+   *
+   * The return type is an enum code in C++ (the name says "mode"), but the
+   * disassembly shows only a raw 32-bit load, so this port returns `number`
+   * rather than inventing an enumerator set.
+   *
+   * Zero in-scope callees, zero externs, no indirect or virtual calls.
+   * Confirmed via `depgraph.py deps __ZNK7OZScene18getToneMappingModeEv`
+   * (no dependency rows).
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK7OZScene18getToneMappingModeEv.s (7 lines)
+   */
+  getToneMappingMode(): number {
+    // @0x81e90..0x81e91 — prologue (no TS-visible effect).
+    // @0x81e94           — movl 0xd0(%rdi), %eax: read the u32 at +0xd0.
+    // @0x81e9a..0x81e9b — epilogue + retq (return eax).
+    return this.toneMappingMode_at_0xd0 >>> 0;
+  }
+
+  /**
+   * `OZScene::setToneMappingMode(PCToneMappingMode)`
+   *   — @Ozone 0x81ea0
+   *   — __ZN7OZScene18setToneMappingModeE17PCToneMappingMode
+   *
+   * Faithful line-for-line transcription of the 5-instruction body — the
+   * exact mirror of `getToneMappingMode()` @0x81e90: one 32-bit store, no
+   * branch, no read-back, no callee:
+   *
+   *   0x81ea0  pushq %rbp                    ; frame prologue
+   *   0x81ea1  movq  %rsp, %rbp
+   *   0x81ea4  movl  %esi, 0xd0(%rdi)        ; *(u32*)(this + 0xd0) = (u32)mode
+   *   0x81eaa  popq  %rbp                    ; frame epilogue
+   *   0x81eab  retq                          ; void
+   *   0x81eac  nopl  (%rax)                  ; alignment padding
+   *
+   * System-V x86_64: `%rdi` = `this`, `%esi` = the `PCToneMappingMode`
+   * argument (a 32-bit enum passed in the low half of the second integer
+   * register). `movl` stores exactly those 4 bytes at +0xd0 — the same slot
+   * the getter reads @0x81e94 — with no masking, no range check and no
+   * normalisation, so the port stores the raw 32 bits via `>>> 0`.
+   *
+   * The parameter is typed `number`, not an enum: `PCToneMappingMode` has no
+   * transcribed definition anywhere in the port yet (its enumerators are not
+   * observable from this instruction), and the machine copies whatever 32
+   * bits arrive. Typing it as a TS enum would assert a value set this unit
+   * has no evidence for.
+   *
+   * Returns void — %rax is never written before `retq`.
+   *
+   * Zero in-scope callees, zero externs, no indirect or virtual calls.
+   * Confirmed via `depgraph.py deps
+   * __ZN7OZScene18setToneMappingModeE17PCToneMappingMode` (no dependency
+   * rows).
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN7OZScene18setToneMappingModeE17PCToneMappingMode.s
+   *   (7 lines)
+   */
+  setToneMappingMode(mode: number): void {
+    // @0x81ea0..0x81ea1 — prologue (no TS-visible effect).
+    // @0x81ea4           — movl %esi, 0xd0(%rdi): store the 32-bit argument
+    //                      into the u32 field at +0xd0.
+    this.toneMappingMode_at_0xd0 = mode >>> 0;
+    // @0x81eaa..0x81eab — epilogue + retq (no return value).
   }
 }
