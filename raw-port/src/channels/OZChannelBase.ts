@@ -1142,4 +1142,160 @@ export class OZChannelBase {
     sIDGenerator = (sIDGenerator + 1) | 0;
     return old;
   }
+
+  /** @ProChannel OZChannelBase layout offset +0x38 (u64 flag word).
+   *  Read @0x4b97e as `movq 0x38(%rdi), %rcx ; andl $0x4, %ecx` (bit 2 = "locally locked").
+   *  Also read/written by sibling methods:
+   *    - setChildSolo @0x4bb42..0x4bb6c uses `btl $0x13, %eax` (bit 0x13 = 19) and
+   *      `orq $0x100000, %rax` (bit 20).
+   *    - isSolo(bool) also reads +0x38.
+   *  The full bit assignment is subclass-defined and not yet fully decoded here — we
+   *  model the whole 64-bit word and mask each bit at its read-site to preserve the
+   *  disasm's arithmetic exactly. Ctor that populates this field is a separate ledger
+   *  unit; default 0n matches a zero-initialised heap allocation. */
+  private __flags_at_0x38: bigint = 0n;
+
+  /**
+   * OZChannelBase::isLocked(bool) const — @ProChannel 0x4b976.
+   * (__ZNK13OZChannelBase8isLockedEb — the `Eb` suffix is the `bool` param.)
+   *
+   * Faithful transcription of the 20-instruction body at
+   * raw-port/re/disasm/ProChannel.__ZNK13OZChannelBase8isLockedEb.s
+   *
+   *   0x4b976  pushq  %rbp
+   *   0x4b977  movq   %rsp, %rbp
+   *   0x4b97a  xorb   $0x1, %sil                  ; sil = !arg    (invert the bool)
+   *
+   *   Loop head at 0x4b97e:
+   *   0x4b97e  movq   0x38(%rdi), %rcx            ; rcx = *(this + 0x38)  = flags u64
+   *   0x4b982  andl   $0x4, %ecx                  ; rcx &= 0x4              (isolate bit 2)
+   *   0x4b985  movl   %ecx, %eax                  ; eax = rcx (bit-2 value 0 or 4)
+   *   0x4b987  shrl   $0x2, %eax                  ; eax >>= 2               -> eax = 0 or 1
+   *   0x4b98a  testb  $0x1, %sil                  ; ZF = ((!arg) & 1)==0
+   *   0x4b98e  jne    0x4b9a5                     ; if (!arg), return eax    (local-only path)
+   *   0x4b990  testq  %rcx, %rcx                  ; ZF = (rcx == 0)
+   *   0x4b993  jne    0x4b9a5                     ; if (bit 2 set on this), return eax=1
+   *   0x4b995  movq   0x30(%rdi), %rdi            ; rdi = *(this + 0x30) = parent
+   *   0x4b999  xorl   %esi, %esi                  ; sil = 0  (so !arg==0 in the loop: never
+   *                                               ;           re-take the "local-only" jne)
+   *   0x4b99b  movl   $0x0, %eax                  ; eax = 0  (default if walk terminates
+   *                                               ;           without finding bit 2)
+   *   0x4b9a0  testq  %rdi, %rdi                  ; ZF = (parent == NULL)
+   *   0x4b9a3  jne    0x4b97e                     ; if (parent != NULL), loop
+   *
+   *   Return trampoline at 0x4b9a5:
+   *   0x4b9a5  popq   %rbp
+   *   0x4b9a6  retq                               ; return eax (u8 bool)
+   *
+   * ALGORITHM decoded:
+   *   Two arguments are conveyed on entry via the ABI:
+   *     - `%rdi` = this
+   *     - `%sil` = the user-passed `bool` (call it `arg`)
+   *   The first thing the function does is FLIP sil: sil ^= 1. Downstream the
+   *   check `testb $0x1, %sil ; jne` fires when sil == 1, i.e. when the ORIGINAL
+   *   argument was `false`. So the effective control flow is:
+   *
+   *     bool isLocked(bool checkAncestors) {
+   *       OZChannelBase* cur = this;
+   *       for (;;) {
+   *         uint64_t rcx = cur->flags & 0x4;   // bit 2 of flags@+0x38
+   *         uint32_t eax = uint32_t(rcx) >> 2; // eax == 1 iff bit 2 set
+   *         if (!checkAncestors) return eax != 0; // local-only exit  (sil==1 branch)
+   *         if (rcx != 0)         return eax != 0; // this-node locked -> true
+   *         cur = cur->parent;                     // walk up the chain
+   *         if (cur == nullptr) return false;       // ran off the top -> false
+   *         checkAncestors = false; // note: the xorl %esi,%esi at 0x4b999 sets sil=0
+   *                                 // which xor'd earlier stays 0 in loop — but the
+   *                                 // *value* the branch uses is sil DIRECT, and the
+   *                                 // loop back-edge lands at 0x4b97e AFTER the xor at
+   *                                 // 0x4b97a — so sil stays 0 for all iterations,
+   *                                 // making the "local-only" branch NEVER fire after
+   *                                 // iteration 1. The disasm keeps eax=0 pre-loaded at
+   *                                 // 0x4b99b, which becomes the return value on the
+   *                                 // NULL-parent bail (rdi==0 -> jne not taken ->
+   *                                 // fall through to popq/retq with eax=0).
+   *       }
+   *     }
+   *
+   *   Concretely: `isLocked(true)` walks the parent chain (starting at `this`)
+   *   and returns true if ANY node in the chain has bit 2 of its +0x38 flags
+   *   set; false if the chain terminates without such a node. `isLocked(false)`
+   *   short-circuits after the first iteration, returning only the LOCAL bit.
+   *
+   *   The `bool` parameter is thus best read as `checkAncestors` (true) vs.
+   *   `localOnly` (false) — a common override pattern in scene-graph code
+   *   where a caller might want "is my subtree contribution locked" vs. "am I,
+   *   as this node in isolation, locked".
+   *
+   * FRONTIER: no external callees. Pure bit test + pointer walk. Uses the
+   *   +0x38 flags field (introduced in this port here) and the +0x30 parent
+   *   pointer (already established via `__parent_folder_at_0x30` above).
+   *
+   * PROVENANCE:
+   *   flags-word offset 0x38 — @0x4b97e (movq 0x38(%rdi), %rcx)
+   *   locked-bit mask 0x4    — @0x4b982 (andl $0x4, %ecx)
+   *   parent offset 0x30     — @0x4b995 (movq 0x30(%rdi), %rdi)
+   *   All read from
+   *   raw-port/re/disasm/ProChannel.__ZNK13OZChannelBase8isLockedEb.s.
+   */
+  isLocked(checkAncestors: boolean): boolean {
+    // @0x4b97a  xorb $0x1, %sil  — flip the arg bit so the branch tests !arg.
+    //   In TS we don't need the physical XOR: the meaning is that
+    //   `sil==1 after xor` iff `arg==false`; use `checkAncestors` directly.
+    // Loop mirrors the x86 back-edge at 0x4b9a3.
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    let cur: OZChannelBase | null = this;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      // @0x4b97e  movq 0x38(%rdi), %rcx  — load the flag word.
+      const flags: bigint = (cur as OZChannelBase).__flags_at_0x38;
+      // @0x4b982  andl $0x4, %ecx  — mask bit 2. Note: `andl` operates on the
+      //   low 32 bits; but bit 2 lives in the low 32 anyway, so a `Number` &
+      //   is faithful. Match the width exactly by narrowing to u32 first.
+      const rcx: number = Number(flags & 0xffffffffn) & 0x4;
+      // @0x4b985..0x4b987  movl %ecx,%eax ; shrl $0x2,%eax  — eax = rcx>>2
+      //   -> 0 or 1.
+      const eax: number = rcx >>> 2;
+      // @0x4b98a..0x4b98e  testb $0x1,%sil ; jne 0x4b9a5
+      //   sil==1 (i.e. !arg == true, i.e. checkAncestors==false) on the very
+      //   first iteration only; the loop back-edge lands after `xorl %esi,%esi`
+      //   pre-zeros sil so this branch never fires on subsequent iterations.
+      //   In TS we express this as: on the FIRST pass we honour the user's
+      //   `checkAncestors`; on subsequent passes we behave as if
+      //   `checkAncestors==true` (which is the "no local-only exit" path).
+      if (!checkAncestors) {
+        // @0x4b9a5..0x4b9a6  return eax
+        return eax !== 0;
+      }
+      // @0x4b990..0x4b993  testq %rcx,%rcx ; jne 0x4b9a5  — if bit 2 set on
+      //   this node, exit with eax==1.
+      if (rcx !== 0) {
+        return eax !== 0;
+      }
+      // @0x4b995  movq 0x30(%rdi), %rdi  — cur = cur->parent.
+      //   The +0x30 field is typed `unknown | null` in this class body (see
+      //   __parent_folder_at_0x30 above) because the general parent is an
+      //   OZChannelFolder that may not itself be an OZChannelBase. In the
+      //   binary, however, this method blindly dereferences the +0x38 flag
+      //   word on whatever it finds there — the runtime relies on the
+      //   invariant that a parent chain of OZChannelBase-derived nodes is
+      //   uniform in that offset (both OZChannelBase and OZChannelFolder
+      //   share the layout prefix). We narrow to OZChannelBase for the
+      //   flags-read purposes only; the runtime object identity is
+      //   irrelevant so long as +0x38 is consistent.
+      const parent = (cur as OZChannelBase).__parent_folder_at_0x30 as
+        | OZChannelBase
+        | null;
+      // @0x4b999  xorl %esi,%esi  — sil = 0 (so `!arg` becomes 0; the top-of-
+      //   loop "local-only" jne never fires again).  Modelled implicitly by
+      //   the next iteration going through the `checkAncestors==true` path.
+      // @0x4b99b  movl $0x0, %eax — pre-load eax=0 as the return on bail.
+      // @0x4b9a0..0x4b9a3  testq %rdi,%rdi ; jne 0x4b97e  — loop iff parent!=NULL.
+      if (parent === null) {
+        // Fall-through to popq/retq with eax==0 -> return false.
+        return false;
+      }
+      cur = parent;
+    }
+  }
 }
