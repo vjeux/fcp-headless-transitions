@@ -62,6 +62,10 @@
 //       — OZRenderParams::getOutputColorDescription() const @Ozone 0x271510
 //         (raw-port/re/disasm/
 //           __ZNK14OZRenderParams25getOutputColorDescriptionEv.s — 15 lines)
+//   * __ZNK14OZRenderParams15getRenderDeviceEv
+//       — OZRenderParams::getRenderDevice() const @Ozone 0x271a40
+//         (raw-port/re/disasm/
+//           __ZNK14OZRenderParams15getRenderDeviceEv.s — 6 lines)
 //   * __ZNK14OZRenderParams20getDestinationDeviceEv
 //       — OZRenderParams::getDestinationDevice() const @Ozone 0x2719d0
 //         (raw-port/re/disasm/
@@ -313,6 +317,25 @@ export class OZRenderParams {
    * (a pointer to the inline field, NOT a fresh copy).
    */
   destinationDeviceAt120: object = {}; // @Ozone OZRenderParams@+0x120 (embedded device sub-object)
+
+  /**
+   * @Ozone offset +0x130 — an EMBEDDED "render device" sub-object, the twin of
+   * `destinationDeviceAt120` above and 0x10 bytes past it.
+   *
+   * Proven embedded (not a pointer field) by its getter
+   * `getRenderDevice() const` @0x271a44, which returns its ADDRESS with
+   * `leaq 0x130(%rdi), %rax` — a load-effective-address, never a load through
+   * the slot. The two devices are distinct: `getDestinationDevice()` @0x2719d4
+   * hands back `&this[+0x120]` while this one hands back `&this[+0x130]`, so a
+   * render params object carries BOTH a device it renders ON and a device it
+   * delivers TO, and they are separate 0x10-byte slots.
+   *
+   * The sub-object's own layout is not decoded by this unit (no ported method
+   * reads through the returned pointer), so it is modelled as an OPAQUE object
+   * slot with a stable identity — exactly like +0x120 — so the getter can hand
+   * back a reference to the SAME embedded object rather than a fresh copy.
+   */
+  renderDeviceAt130: object = {}; // @Ozone OZRenderParams@+0x130 (embedded device sub-object)
 
   /**
    * @Ozone offset +0x1d8 — a 4-byte integer written by
@@ -1247,6 +1270,51 @@ export class OZRenderParams {
     //   Return the ADDRESS of the embedded device sub-object — i.e. a
     //   reference to this.destinationDeviceAt120 (no dereference, no copy).
     return this.destinationDeviceAt120;
+  }
+
+  /**
+   * `OZRenderParams::getRenderDevice() const`
+   *   — @Ozone 0x271a40
+   *   — __ZNK14OZRenderParams15getRenderDeviceEv
+   *
+   * FULL DISASM (6 lines — raw-port/re/disasm/
+   * __ZNK14OZRenderParams15getRenderDeviceEv.s):
+   *
+   *   0x271a40  pushq  %rbp                        ; frame prologue
+   *   0x271a41  movq   %rsp, %rbp
+   *   0x271a44  leaq   0x130(%rdi), %rax           ; rax = &this[+0x130] (address of the
+   *                                                ;   embedded render-device sub-object)
+   *   0x271a4b  popq   %rbp                        ; frame epilogue
+   *   0x271a4c  retq                               ; return rax
+   *   0x271a4d  nopl   (%rax)                      ; alignment padding (not executed)
+   *
+   * SEMANTICS: the exact twin of `getDestinationDevice()` @0x2719d0 above —
+   * byte-identical instruction sequence, only the displacement differs
+   * (0x130 vs 0x120). It returns a POINTER to the render-device sub-object
+   * embedded inline at this+0x130. `leaq` is a load-EFFECTIVE-address, not a
+   * load: nothing is dereferenced, nothing is copied, and no reference count
+   * is touched, which is what proves the device lives inline in
+   * OZRenderParams rather than behind a pointer stored there.
+   *
+   * The two getters therefore expose two DISTINCT devices 0x10 bytes apart —
+   * this port must not alias them onto one field.
+   *
+   * In TS the `&this[+0x130]` semantics are reproduced by returning the SAME
+   * `renderDeviceAt130` object identity: mutations through the returned
+   * reference are visible on `this`, exactly as through a pointer into the
+   * object.
+   *
+   * Zero in-scope callees, zero externs, zero indirect calls — pure address-of
+   * a field.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams15getRenderDeviceEv.s (6 lines)
+   */
+  getRenderDevice(this: OZRenderParams): object {
+    // @0x271a44  leaq 0x130(%rdi),%rax ; @0x271a4c retq
+    //   Return the ADDRESS of the embedded render-device sub-object — i.e. a
+    //   reference to this.renderDeviceAt130 (no dereference, no copy).
+    return this.renderDeviceAt130;
   }
 
   /**
