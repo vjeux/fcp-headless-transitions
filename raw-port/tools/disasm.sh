@@ -29,7 +29,15 @@ if [ "${1:-}" = "--sym" ]; then
   mkdir -p "$(dirname "$OUT")"
   DIS="/tmp/${FW}_tV.txt"; THIN="/tmp/${FW}.x86_64"
   [ -s "$DIS" ] || otool -tV -arch x86_64 "$BIN" > "$DIS" 2>/dev/null
-  awk -v s="$SYM:" '$0==s{f=1;print;next} f&&/:$/{exit} f{print}' "$DIS" > "$OUT"
+  # INDEXED LOOKUP (symidx.py): seek straight to the symbol instead of linear-scanning the dump.
+  # These dumps are 9-220MB and this scan ran several times per ported unit (worker, G5 in gate.sh,
+  # reviewer re-derivation); under the corp MDM file-inspection stack one full Flexo scan measured
+  # 42s wall for 7.7s CPU, which pinned the box at load 119 with 31% CPU idle and capped the swarm
+  # at ~4 slots. The index is proven byte-identical to the awk below (tools/verify_symidx.py checks
+  # all ~45.8k symbol bodies), and falls back to the awk scan if anything is off.
+  if ! python3 "$ROOT/tools/symidx.py" slice "$FW" "$SYM" > "$OUT" 2>/dev/null; then
+    awk -v s="$SYM:" '$0==s{f=1;print;next} f&&/:$/{exit} f{print}' "$DIS" > "$OUT"
+  fi
   if [ ! -s "$OUT" ]; then
     OBJDUMP="$(command -v llvm-objdump || command -v objdump || echo /usr/bin/objdump)"
     [ -s "$THIN" ] || lipo "$BIN" -thin x86_64 -output "$THIN" 2>/dev/null || true
@@ -62,7 +70,10 @@ if [ "${NHIT:-0}" -gt 1 ]; then
   echo "note: '${CLS}::${METH}' matches ${NHIT} symbols (e.g. D0/D1/D2 variants demangle alike);" >&2
   echo "  grabbed the first ($SYM). For an EXACT variant use: disasm.sh --sym <mangled> ${FW}" >&2
 fi
-awk -v s="$SYM:" '$0==s{f=1;print;next} f&&/:$/{exit} f{print}' "$DIS" > "$OUT"
+# Indexed lookup (see the --sym branch above for why); identical bytes, with the awk scan as fallback.
+if ! python3 "$ROOT/tools/symidx.py" slice "$FW" "$SYM" > "$OUT" 2>/dev/null; then
+  awk -v s="$SYM:" '$0==s{f=1;print;next} f&&/:$/{exit} f{print}' "$DIS" > "$OUT"
+fi
 # GUARD + AUTO-ICF-FALLBACK: otool -tV sometimes emits NO label for a symbol (ICF identical-code-
 # folding, or a linear-sweep that decoded the prior region into this entry so the true start has no
 # line). The old code wrote a 0-line file and returned success — and a worker would GUESS the body.
