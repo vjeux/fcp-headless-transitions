@@ -636,3 +636,93 @@ export function HGFormatUtils_buildFormat(components: number, sel: number): numb
   // reads the same 32-bit slot. Only components in [1,4] are in-table.
   return (sub[(components | 0) - 1] as number) >>> 0;
 }
+// ---------------------------------------------------------------------------
+// (anonymous namespace)::s_HGGLFormatInfos  — @Helium __TEXT,__const 0x3cd400
+//   __ZN12_GLOBAL__N_117s_HGGLFormatInfosE   (x86_64 slice; arm64 slice at
+//   0x323af8, both confirmed by nm)
+//
+// A 44-entry static table (fmt 0..0x2b), each entry three consecutive u32s:
+//   +0x0  internalFormat  (GL internal format enum, e.g. 0x8058 = GL_RGBA8)
+//   +0x4  format          (GL pixel format enum, e.g. 0x1908 = GL_RGBA)
+//   +0x8  type            (GL pixel type enum,  e.g. 0x1401 = GL_UNSIGNED_BYTE)
+// read respectively by toGLInternalFormat/toGLFormat/toGLType. The 528-byte
+// table extent (44*12) is bounded by the next static symbol
+// (__ZZN13HGFormatUtils11buildFormat...UInt8Formats @0x3cd610).
+//
+// This unit ports ONLY the +0x0 (internalFormat) column that
+// toGLInternalFormat reads. The other two columns are read by
+// toGLFormat/toGLType (separate ledger entries) and are NOT decoded here
+// per Rule 6 (one symbol per file/method) — we transcribe verbatim only the
+// column this method touches. Values are the raw GL enum u32s read directly
+// from the binary at file offset (slice+0x3cd400 + fmt*12 + 0x0).
+const S_HGGLFORMATINFOS_INTERNAL_FORMAT: readonly number[] = Object.freeze([
+  //          fmt : internalFormat  (raw GL enum u32 @+0x0 of each 12-byte entry)
+  /*  0 */ 0x8058, /*  1 */ 0x8229, /*  2 */ 0x803c, /*  3 */ 0x822a,
+  /*  4 */ 0x822a, /*  5 */ 0x822d, /*  6 */ 0x822d, /*  7 */ 0x822e,
+  /*  8 */ 0x822e, /*  9 */ 0x822e, /* 10 */ 0x822b, /* 11 */ 0x822c,
+  /* 12 */ 0x822f, /* 13 */ 0x8230, /* 14 */ 0x8058, /* 15 */ 0x8058,
+  /* 16 */ 0x805b, /* 17 */ 0x8051, /* 18 */ 0x8051, /* 19 */ 0x8054,
+  /* 20 */ 0x881b, /* 21 */ 0x8815, /* 22 */ 0x8058, /* 23 */ 0x8058,
+  /* 24 */ 0x8058, /* 25 */ 0x805b, /* 26 */ 0x805b, /* 27 */ 0x881a,
+  /* 28 */ 0x8814, /* 29 */ 0x8814, /* 30 */ 0x805b, /* 31 */ 0x8059,
+  /* 32 */ 0x8058, /* 33 */ 0x805b, /* 34 */ 0x822a, /* 35 */ 0x822c,
+  /* 36 */ 0x8058, /* 37 */ 0x8058, /* 38 */ 0x8058, /* 39 */ 0x8058,
+  /* 40 */ 0x8058, /* 41 */ 0x8058, /* 42 */ 0x8058, /* 43 */ 0x8058,
+]);
+
+// ---------------------------------------------------------------------------
+// HGFormatUtils::toGLInternalFormat(HGFormat fmt, bool)        @Helium 0xa1c10
+//   __ZN13HGFormatUtils18toGLInternalFormatE8HGFormatb
+//
+// Disasm (10 lines, x86_64 slice):
+//   0xa1c10  pushq   %rbp
+//   0xa1c11  movq    %rsp, %rbp
+//   0xa1c14  movl    %edi, %eax                        ; rax = fmt (zero-ext low 32b)
+//   0xa1c16  leaq    (%rax,%rax,2), %rax               ; rax = fmt * 3
+//   0xa1c1a  leaq    s_HGGLFormatInfos(%rip), %rcx     ; rcx = &s_HGGLFormatInfos[0]
+//   0xa1c21  movl    (%rcx,%rax,4), %eax               ; rax = *(u32*)(&table + (fmt*3)*4)
+//                                                      ;      = *(u32*)(&table + fmt*12 + 0)
+//                                                      ;      = table[fmt].internalFormat
+//   0xa1c24  popq    %rbp
+//   0xa1c25  retq
+//   0xa1c26  nopw    %cs:(%rax,%rax)                   ; padding
+//   (arm64 slice @0x9b1a8 is identical: w8=fmt*0xc; ldr w0,[table,x8])
+//
+// SEMANTICS: index the s_HGGLFormatInfos table by `fmt` and return the +0x0
+// (internalFormat) u32 field of that entry. `fmt*3` scaled by the 4-byte
+// `movl` operand size == `fmt*12` byte stride == one 3-u32 entry; the +0x0
+// column selected is `internalFormat`. The `bool` second argument is
+// IGNORED by this overload (it exists only to distinguish the two-arg
+// signature; %esi is never read). `movl %edi,%eax` treats fmt as an
+// UNSIGNED 32-bit index.
+//
+// NO bounds check in the disasm (like `metalFormat`, unlike `bytesPerPixel`).
+// A `fmt` outside [0, 43] would read past the 44-entry table (C++ UB); per
+// Rule 3 we throw citing @0xADDR rather than fabricate a value — callers
+// must clamp fmt to a valid HGFormat first.
+//
+// Zero in-scope callees, zero externs, zero indirect calls — pure table
+// lookup (depgraph.py deps prints nothing; no `callq` in the disasm).
+//
+// Source disassembly:
+//   raw-port/re/disasm/Helium.__ZN13HGFormatUtils18toGLInternalFormatE8HGFormatb.s (10 lines)
+export function HGFormatUtils_toGLInternalFormat(fmt: number, _flag: boolean): number {
+  // @Helium 0xa1c14: movl %edi,%eax — zero-extend fmt to an unsigned index.
+  //   The bool arg (%esi) is unused by this overload.
+  const s = (fmt | 0) >>> 0;
+  // @Helium 0xa1c16-0xa1c21: rax = *(u32*)(&s_HGGLFormatInfos + fmt*12 + 0x0)
+  //   NO bounds check in the disasm; raise for OOB rather than read past the
+  //   44-entry table (Rule 3 — throw on undecoded/UB, never approximate).
+  if (s > 0x2b) {
+    throw new Error(
+      "HGFormatUtils::toGLInternalFormat(fmt=" +
+        String(fmt) +
+        ") — fmt out of range [0, 0x2b]; disasm @Helium 0xa1c21 has NO bounds " +
+        "check and would read past the 44-entry s_HGGLFormatInfos table " +
+        "(&s_HGGLFormatInfos + fmt*12 + 0x0), yielding C++ undefined behaviour. " +
+        "Callers must clamp fmt to a valid HGFormat. @Helium 0xa1c10",
+    );
+  }
+  // Result is the u32 internalFormat column value, returned in %eax.
+  return S_HGGLFORMATINFOS_INTERNAL_FORMAT[s]! >>> 0;
+}
