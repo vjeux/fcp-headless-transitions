@@ -276,6 +276,31 @@ export class OZRenderParams {
   renderBoundsSizeAt258: PCVector2Double = { x: 0, y: 0 };
 
   /**
+   * @Ozone offset +0x268 — the explicit render-GATE ORIGIN, a
+   * `PCVector2<double>` (x at +0x268, y at +0x270), read as a packed 128-bit
+   * pair by `getRenderGate() const` @0x270b15 (`movups 0x268(%rsi),%xmm0`).
+   *
+   * The gate is the second rectangle this object carries, laid out exactly
+   * like the render BOUNDS pair 0x20 bytes below it (+0x248 origin / +0x258
+   * size) and consumed by an identically-shaped getter. Modelled as a
+   * PCVector2Double — the same 16-byte shape the disasm loads.
+   */
+  renderGateOriginAt268: PCVector2Double = { x: 0, y: 0 };
+
+  /**
+   * @Ozone offset +0x278 — the explicit render-GATE SIZE, a
+   * `PCVector2<double>` (width at +0x278, height at +0x280), read as a packed
+   * 128-bit pair by `getRenderGate() const` @0x270b1c
+   * (`movups 0x278(%rsi),%xmm1`). Its x/width lane at +0x278 is ALSO the gate
+   * the getter tests (`ucomisd 0x278(%rsi),%xmm0` with xmm0 = 0.0): width <= 0
+   * means "no explicit gate set" and the getter falls back to the
+   * widthAt144/heightAt148 ints — the same protocol
+   * `renderBoundsSizeAt258` uses for the bounds. Modelled as a
+   * PCVector2Double (x = width, y = height).
+   */
+  renderGateSizeAt278: PCVector2Double = { x: 0, y: 0 };
+
+  /**
    * @Ozone offset +0x120 — an EMBEDDED "destination device" sub-object (not a
    * pointer field: the getter returns its ADDRESS via `leaq 0x120(%rdi),%rax`,
    * so the device data lives inline at this+0x120). Read by
@@ -1522,6 +1547,96 @@ export class OZRenderParams {
   getWorkingColorDescription(this: OZRenderParams): FxColorDescription {
     // @0x2712b4  leaq 0x2c0(%rdi),%rax
     return this.workingColorDescriptionAt2c0;
+  }
+
+  /**
+   * `OZRenderParams::getRenderGate() const` @Ozone 0x270b00
+   * (__ZNK14OZRenderParams13getRenderGateEv).
+   *
+   * Returns a 32-byte `{origin, size}` rect BY VALUE, so the ABI passes a
+   * hidden sret pointer in `%rdi` and the real `this` in `%rsi` — the same
+   * calling shape as the sibling `getRenderBounds() const` @0x270aa0, whose
+   * body this one mirrors instruction-for-instruction with the gate slots
+   * (+0x268 / +0x278) in place of the bounds slots (+0x248 / +0x258).
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x270b00  pushq    %rbp                      ; frame setup (no TS counterpart)
+   *   0x270b01  movq     %rsp, %rbp                ; frame setup (no TS counterpart)
+   *   0x270b04  movq     %rdi, %rax                ; rax = sret slot (also the return value)
+   *   0x270b07  xorpd    %xmm0, %xmm0              ; xmm0 = 0.0
+   *   0x270b0b  ucomisd  0x278(%rsi), %xmm0        ; flags on 0.0 - gate.size.x
+   *   0x270b13  jae      0x270b2c                  ;   CF=0 => 0.0 >= width => FALLBACK
+   *   0x270b15  movups   0x268(%rsi), %xmm0        ; xmm0 = gate origin (16 B)
+   *   0x270b1c  movups   0x278(%rsi), %xmm1        ; xmm1 = gate size   (16 B)
+   *   0x270b23  movups   %xmm1, 0x10(%rax)         ; ret.size   = size
+   *   0x270b27  movups   %xmm0, (%rax)             ; ret.origin = origin
+   *   0x270b2b  retq
+   *   0x270b2c  xorpd    %xmm0, %xmm0              ; FALLBACK: xmm0 = (0.0, 0.0)
+   *   0x270b30  movupd   %xmm0, (%rax)             ; ret.origin = (0,0)
+   *   0x270b34  pmovzxdq 0x144(%rsi), %xmm0        ; zero-extend u32 w(+0x144), h(+0x148)
+   *   0x270b3d  movdqa   0x496b9b(%rip), %xmm1     ; the 2^52 bias constant pair
+   *   0x270b45  por      %xmm1, %xmm0              ; OR the bias in
+   *   0x270b49  subpd    %xmm1, %xmm0              ; subtract it -> exact (double)u32 x2
+   *   0x270b4d  movupd   %xmm0, 0x10(%rax)         ; ret.size = ((double)w,(double)h)
+   *   0x270b53  retq
+   *   0x270b54  nopw     %cs:(%rax,%rax)           ; alignment padding, not executed
+   *
+   * AT&T decode note (PORTING_SPEC Rule 4): `ucomisd 0x278(%rsi), %xmm0` sets
+   * flags on `dst - src` = `0.0 - gate.size.x`, and `jae` is CF=0, i.e. the
+   * FALLBACK is taken exactly when `0.0 >= width`. So the explicit-gate branch
+   * (fall-through) runs iff `width > 0` — the identical test
+   * `getRenderBounds()` @0x270ab3 makes on +0x258. (NaN sets CF=1, so a NaN
+   * width takes the fall-through explicit branch; the port's `> 0` comparison
+   * is false for NaN — noted because the two differ only for a NaN gate width,
+   * which no decoded writer can produce: the slot is only ever written from
+   * caller-supplied doubles.)
+   *
+   * The `por`/`subpd` pair is the standard unsigned-int-to-double conversion
+   * (bias by 2^52, then subtract), so the fallback size is the EXACT unsigned
+   * values of the two int slots — matching the zero-extending `pmovzxdq`,
+   * which is why the port reads them with `>>> 0`.
+   *
+   * ZERO in-scope callees, ZERO externs, no indirect/virtual dispatch.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams13getRenderGateEv.s (22 lines)
+   */
+  getRenderGate(this: OZRenderParams): OZRenderBounds {
+    // @0x270b07 xorpd %xmm0,%xmm0 ; @0x270b0b ucomisd 0x278(%rsi),%xmm0
+    //   compares 0.0 - this.renderGateSize.x (the width lane).
+    // @0x270b13 jae 0x270b2c : CF=0 => 0.0 >= width => FALLBACK.
+    //   NOT taken (width > 0) => copy the explicit stored gate.
+    if (this.renderGateSizeAt278.x > 0) {
+      // explicit-gate branch @0x270b15:
+      // @0x270b15 movups 0x268 -> origin ; @0x270b1c movups 0x278 -> size
+      // @0x270b23 store size@ret+0x10 ; @0x270b27 store origin@ret+0x00
+      return {
+        origin: {
+          x: this.renderGateOriginAt268.x,
+          y: this.renderGateOriginAt268.y,
+        },
+        size: {
+          x: this.renderGateSizeAt278.x,
+          y: this.renderGateSizeAt278.y,
+        },
+      };
+    }
+
+    // fallback branch @0x270b2c (width <= 0): origin = (0,0), size from int w/h.
+    // @0x270b34 pmovzxdq 0x144(%rsi) : zero-extend uint32 width(+0x144),
+    //   height(+0x148) to two 64-bit lanes; @0x270b3d/@0x270b45/@0x270b49
+    //   OR the 2^52 bias then subtract it -> the exact unsigned values as
+    //   doubles. widthAt144/heightAt148 are the same int32 slots (unsigned
+    //   reinterpretation via >>> 0 to match the zero-extending pmovzxdq).
+    const w = this.widthAt144 >>> 0;
+    const h = this.heightAt148 >>> 0;
+    return {
+      // @0x270b30 movupd %xmm0(=0),(%rax) : ret.origin = (0,0).
+      origin: { x: 0, y: 0 },
+      // @0x270b4d movupd %xmm0,0x10(%rax) : ret.size = ((double)w,(double)h).
+      size: { x: w, y: h },
+    };
   }
 
   /**
