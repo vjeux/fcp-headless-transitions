@@ -32,19 +32,36 @@ stubs by policy (like the CGColorSpace externs already in-tree). Each such throw
     pins the slot to a concrete method, which then becomes a normal dependency). If your disasm has
     one anyway, just STOP on that unit and claim the next — do not stub it (the queue won't re-hand it).
 
-## Port
+## Port (PR FLOW — 2026-08-10; supersedes wt_merge/wt_setup-done)
+Read `raw-port/army/PR_FLOW.md` once. Merging now happens through GitHub Pull Requests, NOT the old
+local `wt_merge`. You OPEN A PR and STOP — a reviewer runs the gate (as GitHub CI) and merges.
+
 1. `python3 raw-port/army/tools/depgraph.py deps <mangled>` — confirm every dep is `ported`.
 2. `bash raw-port/tools/disasm.sh --sym <mangled> <FW>` — get the exact body.
-3. `bash raw-port/army/tools/wt_setup.sh <Class>`; commit fast after first edit.
+3. Work in an ISOLATED checkout, NEVER the canonical tree (the shared `.git` contention is what
+   wedged worktree-add under load). Prefer a private clone or a /tmp worktree:
+       git -C ~/random/final-cut-pro-transitions worktree add -b port/<Class> /tmp/port_<Class> origin/main
+       cd /tmp/port_<Class>
+   Symlink the node_modules so the gate's tsgo works:
+       for d in engine/node_modules raw-port/node_modules venv; do ln -sfn ~/random/final-cut-pro-transitions/$d $d; done
+   (You may still use `wt_setup.sh <Class>` to create the worktree+symlinks, but its `done` teardown-
+   merge role is RETIRED — do NOT run `wt_setup.sh done`.)
 4. Write the REAL body into raw-port/src/<layer>/<Class>.ts (edit tool). Import the ported callees
    from their real files and CALL them. Transcribe every instruction; @0xADDR on the fn + each const.
-5. `bash raw-port/army/gate/gate.sh raw-port/src/<layer>/<Class>.ts` MUST print GATE: PASS. G5
-   re-derives your disasm and REJECTS a throw where the machine does real work.
-6. `bash raw-port/army/tools/wt_merge.sh <Class>` (reviewer sign-off gates the merge — REVIEWER_BRIEF.md).
-7. `python3 raw-port/army/tools/mark_ported.py` — flips your merged symbol to `ported`, which
-   UNLOCKS its callers as new ready units (the wavefront advances). No `depclaim.py done` needed:
-   the claim was already recorded permanently at dispatch. `mark_ported` is what the queue reads
-   for dependency-readiness, so run it after your merge lands.
+   ADD-ONLY when extending an existing class file: `git show origin/main:<path>` first and EXTEND it —
+   never delete/replace a landed sibling method (a file-level regression is rejected by the PR gate).
+5. `bash raw-port/army/gate/gate.sh raw-port/src/<layer>/<Class>.ts` MUST print GATE: PASS. This is a
+   fast local pre-check to save a review round-trip; the reviewer re-runs the authoritative gate.
+   G5 re-derives your disasm and REJECTS a throw where the machine does real work.
+6. Commit to your branch, then open the PR and STOP:
+       bash raw-port/army/tools/pr_submit.sh <Class>
+   `pr_submit.sh` rebases onto origin/main, pushes `port/<Class>` (force-with-lease), and opens a PR
+   titled `port: <Class>`. That's it — DO NOT merge, DO NOT set any skip-review flag. The reviewer
+   runs `pr_gate.sh <PR#>` (posts the required `faithfulness-gate` commit status) and, if faithful,
+   merges the PR server-side via GitHub. Branch protection (strict/up-to-date, linear, enforce_admins)
+   guarantees nothing lands without a green gate. `mark_ported.py` is run post-merge by the reviewer.
+7. If a dep turns out unported, or an indirect/virtual call is unresolved, STOP that unit and claim
+   the next (do NOT stub it; the append-only queue won't re-hand it).
 
 Do 4-8 units, then STOP. Report per unit: FW, class, mangled, addr, deps (proof they were ported),
-commit/merge hashes, GATE result.
+branch + PR number/URL, local GATE result.

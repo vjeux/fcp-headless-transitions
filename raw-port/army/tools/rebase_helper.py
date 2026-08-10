@@ -31,6 +31,11 @@ import sys, os, re, subprocess, tempfile, shutil
 
 MANGLED = re.compile(r'__Z[A-Za-z0-9_$.]+')
 EXPORT  = re.compile(r'^\s*export\s+(?:default\s+)?(?:async\s+)?(?:function|class|const|let|var|interface|type|enum)\s+([A-Za-z_$][A-Za-z0-9_$]*)', re.M)
+# libc++ / STL boundary externs (std::__1::…) are SHARED references, not port symbols. Two branches
+# that both use call_once BOTH cite __ZNSt3__1…__call_once[_proxy] — that is NOT an overlapping edit,
+# it is the same extern boundary. Excluding them from the OVERLAP check (only) prevents a false
+# "branch AND main both add" BAIL. They are still counted for drop/dup checks below.
+STL = re.compile(r'^__ZN?St3__1|__call_once')
 
 def run(args, cwd=None, timeout=180):
     return subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=timeout)
@@ -81,7 +86,9 @@ def main(argv):
             continue
         br_adds   = syms(br_t)   - syms(base_t)
         main_adds = syms(main_t) - syms(base_t)
-        overlap = br_adds & main_adds
+        # ignore shared libc++/STL boundary externs (std::__1, __call_once) — both files legitimately
+        # cite the same extern; it is not a semantic edit collision.
+        overlap = {s for s in (br_adds & main_adds) if not STL.match(s)}
         if overlap:
             print(f"BAIL: {f} — branch AND main both add {sorted(overlap)[:4]} (needs human semantic merge)", file=sys.stderr)
             return 4
