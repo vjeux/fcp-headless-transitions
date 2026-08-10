@@ -38,7 +38,7 @@ WT="$(bash "$CANON/raw-port/army/tools/wt_pool.sh" acquire-at "$HEAD_SHA")"
 cleanup () { bash "$CANON/raw-port/army/tools/wt_pool.sh" release "$WT" >/dev/null 2>&1; }
 trap cleanup EXIT
 cd "$WT"
-for d in engine/node_modules raw-port/node_modules venv; do ln -sfn "$CANON/$d" "$d" 2>/dev/null || true; done
+for d in raw-port/node_modules venv; do ln -sfn "$CANON/$d" "$d" 2>/dev/null || true; done
 # TRUSTED gate tools from origin/main (never trust the PR's own gate)
 T="/tmp/prgate_tools_$$"; rm -rf "$T"; mkdir -p "$T"
 git --git-dir="$CANON/.git" archive origin/main raw-port/army/gate raw-port/army/tools | tar -x -C "$T" 2>/dev/null
