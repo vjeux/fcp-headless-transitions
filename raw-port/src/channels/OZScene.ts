@@ -799,6 +799,98 @@ export class OZScene {
   }
 
   /**
+   * Frontier: `__dynamic_cast(node, &__ZTI11OZSceneNode, &__ZTI<Target>, 0)` — the
+   * Itanium C++ ABI RTTI helper `___dynamic_cast`, called via @Ozone symbol stub
+   * 0x6dfd0e FIVE times by isRootNode (@0x52906/0x52926/0x52943/0x52960/0x5297d).
+   * Returns non-null iff `node` is-a `<Target>`. Provided by libc++abi and NOT
+   * transcribed here (out-of-scope C++ runtime extern); a faithful port delegates to
+   * whatever RTTI/lineage mechanism the surrogate stands up. Mirrors the peer
+   * ozSGOnodeValidator's `cxx_dynamic_cast_stub`. The exact target typeinfo is cited so
+   * the frontier gap stays visible.
+   */
+  private static _dynamicCastSceneNodeTo(
+    _node: OZSceneNodeHandle,
+    _dstTypeInfoName: string,
+  ): OZSceneNodeHandle | null {
+    throw new Error(
+      "OZScene::isRootNode __dynamic_cast @Ozone stub 0x6dfd0e (___dynamic_cast — " +
+        "libc++abi RTTI helper, not yet transcribed) — src=__ZTI11OZSceneNode, dst=" +
+        _dstTypeInfoName +
+        " (call sites @0x52906 -> OZProjectNode, @0x52926 -> OZGroup, @0x52943 -> " +
+        "OZCamera, @0x52960 -> OZLight, @0x5297d -> OZRig)",
+    );
+  }
+
+  /**
+   * OZScene::isRootNode(OZSceneNode*)  @Ozone 0x528e0
+   *   (__ZN7OZScene10isRootNodeEP11OZSceneNode)
+   *
+   * Predicate: returns true iff `node` is non-null AND dynamic_casts successfully to
+   * ONE of the five "root-eligible" scene-node subclasses — OZProjectNode, OZGroup,
+   * OZCamera, OZLight, or OZRig. A null node returns false; otherwise the first
+   * successful cast short-circuits to true, and the final cast's success feeds the
+   * `setne` result.
+   *
+   * DECODE (raw-port/re/disasm/__ZN7OZScene10isRootNodeEP11OZSceneNode.s):
+   *   0x528e0  pushq %rbp ; movq %rsp,%rbp ; pushq %r14 ; pushq %rbx    ; frame
+   *   0x528e7  testq %rsi,%rsi ; je 0x5298b                             ; node==null -> r14=0
+   *   0x528f0  movq  %rsi,%rbx                                          ; rbx = node
+   *   ;; Check #1 — is-a OZProjectNode?
+   *   0x528f3  leaq __ZTI11OZSceneNode(%rip),%rsi                       ; src typeinfo
+   *   0x528fa  leaq __ZTI13OZProjectNode(%rip),%rdx                     ; dst typeinfo
+   *   0x52901  movq %rbx,%rdi ; 0x52904 xorl %ecx,%ecx (hint=0)
+   *   0x52906  callq ___dynamic_cast
+   *   0x5290b  movb $0x1,%r14b                                          ; presume true
+   *   0x5290e  testq %rax,%rax ; jne 0x5298e                            ; is-a -> return 1
+   *   ;; Check #2 — is-a OZGroup?
+   *   0x52913  leaq __ZTI11OZSceneNode ; 0x5291a leaq __ZTI7OZGroup ; movq %rbx,%rdi ; hint=0
+   *   0x52926  callq ___dynamic_cast ; 0x5292b testq ; jne 0x5298e      ; is-a -> return 1
+   *   ;; Check #3 — is-a OZCamera?
+   *   0x52930  leaq __ZTI11OZSceneNode ; 0x52937 leaq __ZTI8OZCamera ; movq %rbx,%rdi ; hint=0
+   *   0x52943  callq ___dynamic_cast ; 0x52948 testq ; jne 0x5298e      ; is-a -> return 1
+   *   ;; Check #4 — is-a OZLight?
+   *   0x5294d  leaq __ZTI11OZSceneNode ; 0x52954 leaq __ZTI7OZLight ; movq %rbx,%rdi ; hint=0
+   *   0x52960  callq ___dynamic_cast ; 0x52965 testq ; jne 0x5298e      ; is-a -> return 1
+   *   ;; Check #5 — is-a OZRig?  (final; result feeds setne)
+   *   0x5296a  leaq __ZTI11OZSceneNode ; 0x52971 leaq __ZTI5OZRig ; movq %rbx,%rdi ; hint=0
+   *   0x5297d  callq ___dynamic_cast
+   *   0x52982  testq %rax,%rax ; 0x52985 setne %r14b                    ; r14b = (rax != 0)
+   *   0x52989  jmp 0x5298e
+   *   0x5298b  xorl %r14d,%r14d                                          ; null-node path -> 0
+   *   0x5298e  movl %r14d,%eax ; pop ; retq                              ; return r14b
+   *
+   * The ONLY callee is `___dynamic_cast` (libc++abi RTTI extern) — every cast goes
+   * through the frontier helper above. No in-scope callees.
+   */
+  isRootNode(node: OZSceneNodeHandle | null): boolean {
+    // @0x528e7 testq %rsi,%rsi ; je -> a null node is never a root node.
+    if (node === null || node === undefined) {
+      // @0x5298b xorl %r14d,%r14d -> return false.
+      return false;
+    }
+    // @0x528f3..0x5290e Check #1: is-a OZProjectNode (dst typeinfo __ZTI13OZProjectNode).
+    //   `movb $0x1,%r14b` presumes true; a non-null cast returns immediately.
+    if (OZScene._dynamicCastSceneNodeTo(node, "__ZTI13OZProjectNode") !== null) {
+      return true; // @0x5290e jne 0x5298e (r14b == 1)
+    }
+    // @0x52913..0x5292e Check #2: is-a OZGroup (__ZTI7OZGroup).
+    if (OZScene._dynamicCastSceneNodeTo(node, "__ZTI7OZGroup") !== null) {
+      return true; // @0x5292e jne 0x5298e
+    }
+    // @0x52930..0x5294b Check #3: is-a OZCamera (__ZTI8OZCamera).
+    if (OZScene._dynamicCastSceneNodeTo(node, "__ZTI8OZCamera") !== null) {
+      return true; // @0x5294b jne 0x5298e
+    }
+    // @0x5294d..0x52968 Check #4: is-a OZLight (__ZTI7OZLight).
+    if (OZScene._dynamicCastSceneNodeTo(node, "__ZTI7OZLight") !== null) {
+      return true; // @0x52968 jne 0x5298e
+    }
+    // @0x5296a..0x52985 Check #5 (final): is-a OZRig (__ZTI5OZRig). `setne %r14b`
+    //   sets the result to (cast != null).
+    return OZScene._dynamicCastSceneNodeTo(node, "__ZTI5OZRig") !== null;
+  }
+
+  /**
    * Frontier: mirror of the CMTime validity check at setTimeRange @0x4fa66-@0x4fa6f.
    * The check is `(src[+0x24] & 0x1d) == 1` — bit 0 = "Valid", bit 2/3/4 mask
    * ensures no "positive-infinity/negative-infinity/indefinite" flags are set.
