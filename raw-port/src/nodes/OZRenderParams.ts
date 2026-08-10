@@ -1818,6 +1818,41 @@ export class OZRenderParams {
   }
 
   /**
+   * `OZRenderParams::wantsHLGToPQPostProcessingStep() const` @Ozone 0x271480
+   * (__ZNK14OZRenderParams30wantsHLGToPQPostProcessingStepEv).
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x271480  pushq  %rbp                    ; frame setup (no TS counterpart)
+   *   0x271481  movq   %rsp, %rbp              ; frame setup (no TS counterpart)
+   *   0x271484  movzbl 0x30c(%rdi), %eax       ; return (u8) this->+0x30c
+   *   0x27148b  popq   %rbp                    ; frame teardown (no TS counterpart)
+   *   0x27148c  retq                           ; return al as bool
+   *   0x27148d  nopl   (%rax)                  ; alignment padding, not executed
+   *
+   * The exact inverse of the landed `setWantsHLGToPQPostProcessingStep(bool)`
+   * @0x271474 (`movb %sil, 0x30c(%rdi)`) on the same one-byte slot: a plain
+   * ZERO-EXTENDING byte load with no mask, no comparison and no lock.
+   *
+   * `movzbl` returns the RAW 0..255 byte, not a normalised 0/1 — a `bool`-typed
+   * caller reads only `%al`, so the port returns the masked byte exactly like
+   * the sibling byte getters `getDoShapeAntialiasing()` @0x2718eb and
+   * `getDoHighQualityResampling()` @0x27187b do, rather than coercing to a
+   * TypeScript boolean (which would erase the distinction between a stored 1
+   * and a stored 2).
+   *
+   * ZERO in-scope callees, ZERO externs, no indirect/virtual dispatch — a pure
+   * field read.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams30wantsHLGToPQPostProcessingStepEv.s (6 lines)
+   */
+  wantsHLGToPQPostProcessingStep(this: OZRenderParams): number {
+    // @0x271484  movzbl 0x30c(%rdi),%eax — zero-extending single-byte load.
+    return this.wantsHLGToPQPostProcessingStepAt30c & 0xff;
+  }
+
+  /**
    * `OZRenderParams::disableDynamic()`
    *   — @Ozone 0x2716b0
    *   — __ZN14OZRenderParams14disableDynamicEv
@@ -1992,5 +2027,63 @@ export class OZRenderParams {
     //   non-NULL -> the OUTPUT description; NULL -> keep the WORKING fallback.
     // @0x271537  movq %rbx,%rax — return the selected address.
     return colorSpace !== null ? output : working;
+  }
+
+  /**
+   * `OZRenderParams::getOutputColorSpace() const` @Ozone 0x271590
+   * (__ZNK14OZRenderParams19getOutputColorSpaceEv).
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x271590  pushq   %rbp                     ; frame setup (no TS counterpart)
+   *   0x271591  movq    %rsp, %rbp               ; frame setup (no TS counterpart)
+   *   0x271594  pushq   %r14 / 0x271596 pushq %rbx ; callee-saved (no TS counterpart)
+   *   0x271597  movq    %rdi, %rbx               ; rbx = this
+   *   0x27159a  leaq    0x2e8(%rdi), %r14        ; r14 = &this->outputColorDescription
+   *   0x2715a1  movq    %r14, %rdi
+   *   0x2715a4  callq   FxColorDescription::getCGColorSpace()  ; stub 0x6df666
+   *   0x2715a9  addq    $0x2c0, %rbx             ; rbx = &this->workingColorDescription
+   *   0x2715b0  testq   %rax, %rax               ; the returned CGColorSpaceRef
+   *   0x2715b3  cmovneq %r14, %rbx               ; non-NULL -> select OUTPUT
+   *   0x2715b7  movq    %rbx, %rdi               ; the selected description
+   *   0x2715ba  popq %rbx / popq %r14 / popq %rbp ; epilogue before the tail jump
+   *   0x2715be  jmp     FxColorDescription::getCGColorSpace()  ; TAIL CALL, stub 0x6df666
+   *   0x2715c3  nopw    %cs:(%rax,%rax)          ; alignment padding, not executed
+   *
+   * This is `getOutputColorDescription()` @0x271510 — the identical
+   * `leaq 0x2e8` / call / `addq $0x2c0` / `testq` / `cmovneq` selection — with
+   * one extra step: instead of returning the chosen description, it TAIL-CALLS
+   * `getCGColorSpace()` on it. So the extern is called TWICE on a non-NULL
+   * output (once to test @0x2715a4, once to produce the result @0x2715be), and
+   * the port calls it twice too rather than caching the first result: the
+   * second call is a real instruction with its own observable behaviour, and
+   * collapsing it would be a rewrite.
+   *
+   * Note the `addq $0x2c0, %rbx` @0x2715a9 runs UNCONDITIONALLY (it is the
+   * fallback address, computed before the test); `cmovneq` then overwrites it
+   * when the output description has a colour space. Both are side-effect free.
+   *
+   * FRONTIER CALLEE: `FxColorDescription::getCGColorSpace() const` — the same
+   * TRUE out-of-scope ProAppsFxSupport extern the boundary stub above models;
+   * it is the ONLY callee, with no in-scope call, no indirect and no virtual
+   * dispatch in the body.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams19getOutputColorSpaceEv.s (16 lines)
+   */
+  getOutputColorSpace(this: OZRenderParams): CGColorSpaceRef | null {
+    // @0x27159a  leaq 0x2e8(%rdi),%r14 — &this->outputColorDescription.
+    const output = this.outputColorDescriptionAt2e8;
+    // @0x2715a1-0x2715a4  callq FxColorDescription::getCGColorSpace(output).
+    const outputColorSpace = FxColorDescription_getCGColorSpace(output);
+    // @0x2715a9  addq $0x2c0,%rbx — &this->workingColorDescription, formed
+    //            unconditionally as the fallback (no side effect).
+    const working = this.workingColorDescriptionAt2c0;
+    // @0x2715b0-0x2715b3  testq %rax,%rax ; cmovneq %r14,%rbx
+    //   non-NULL -> the OUTPUT description; NULL -> keep the WORKING fallback.
+    const selected = outputColorSpace !== null ? output : working;
+    // @0x2715be  jmp FxColorDescription::getCGColorSpace(selected) — TAIL CALL;
+    //   its return value IS this function's return value.
+    return FxColorDescription_getCGColorSpace(selected);
   }
 }

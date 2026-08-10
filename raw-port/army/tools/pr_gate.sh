@@ -53,9 +53,29 @@ CHANGED=$(git diff --name-only origin/main...HEAD -- 'raw-port/src/**/*.ts' | tr
 if [ -z "$CHANGED" ]; then post_status success "no raw-port/src ports to gate (infra/tooling PR)"; echo "PR_GATE: PASS (no src changes) (#$PR)"; exit 0; fi
 echo "changed: $CHANGED"
 
+# ABSOLUTIZE before handing paths to gate.sh. `git diff --name-only` emits repo-RELATIVE paths, and
+# with a relative path G5's reach_check builds a file:// URL that node rejects on macOS
+# ("File URL host must be 'localhost' or empty"), so the fuzz returns hits=None -> REVIEW_NEEDED,
+# which pr_gate counts as a CHEAT. Reviewer-01 proved it in a controlled test: same worktree, same
+# content, same disasm — relative = REJECT, absolute = PASS with 0 cheats / 0 flags.
+#
+# This was not a nuisance, it was corrosive in two ways:
+#   * SELF-INFLICTED AND PERMANENT — the verdict flips only once the symbol's .s exists in the leased
+#     worktree, so performing the REQUIRED reviewer re-derivation is exactly what broke the gate for
+#     that PR, and wt_pool cleans without -x so it never cleared. #181 gated PASS and REJECT
+#     alternately within minutes.
+#   * PROGRESSIVE — #214 was rejected for 3 "cheats", two of them methods ALREADY LANDED on main. As
+#     disasm coverage grows, previously-mergeable files become unmergeable.
+# Corollary worth remembering: the gate was passing PRs largely when it could NOT see the disassembly.
+CHANGED_ABS=""
+for f in $CHANGED; do
+  case "$f" in /*) CHANGED_ABS="$CHANGED_ABS $f" ;; *) CHANGED_ABS="$CHANGED_ABS $PWD/$f" ;; esac
+done
+CHANGED_ABS="${CHANGED_ABS# }"
+
 FAIL=0; REASON=""
 GLOG=/tmp/prgate_gatelog_$$
-bash raw-port/army/gate/gate.sh $CHANGED 2>&1 | tee "$GLOG"
+bash raw-port/army/gate/gate.sh $CHANGED_ABS 2>&1 | tee "$GLOG"
 grep -q "GATE: PASS" "$GLOG" || { FAIL=1; REASON="G0-G5 gate reject"; }
 # G5 flags (blind-spot: NO-DISASM / dispatch-only) — a green status is NOT allowed while flags stand,
 # unless a reviewer has re-derived and passes --reviewed.
