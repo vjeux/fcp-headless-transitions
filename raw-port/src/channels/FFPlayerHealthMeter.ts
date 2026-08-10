@@ -1503,4 +1503,77 @@ export class FFPlayerHealthMeter {
     // @0xda3924  movss 0x1b58(%rdi),%xmm0 : return (f32) this->avgFrameNum2.
     return Math.fround(this.avgFrameNum2);
   }
+
+  /**
+   * FFPlayerHealthMeter::GetGraphBuildDictatedFPS()
+   * @0xADDR Flexo 0x0000000000da37f0  (__ZN19FFPlayerHealthMeter24GetGraphBuildDictatedFPSEv)
+   *
+   * Returns a float32 "dictated FPS" derived from the weighted-delta Helium
+   * secondary metric and the configured GPU count. Reads three fields on `this`:
+   *   +0x1b38  heliumSecondary (f32) — the weighted (heliumC-heliumD) windowed
+   *                                    average produced by calcHeliumAverage;
+   *                                    used as the denominator (must be > 0).
+   *   +0x1b5c  numGPUs         (int32, SIGNED) — GPU count (set by setNumGPUs).
+   *   +0x1c    frameRate       (f32) — fallback value returned when the Helium
+   *                                    secondary denominator is non-positive.
+   *
+   * FULL DISASM (raw-port/re/disasm/Flexo.__ZN19FFPlayerHealthMeter24GetGraphBuildDictatedFPSEv.s — 18 lines):
+   *   0xda37f0  movss   0x1b38(%rdi),%xmm1        ; xmm1 = heliumSecondary (f32)
+   *   0xda37f8  xorps   %xmm0,%xmm0               ; xmm0 = 0.0f
+   *   0xda37fb  ucomiss %xmm0,%xmm1               ; flags on (heliumSecondary - 0.0)
+   *   0xda37fe  jbe     0xda3829                  ; if (heliumSecondary <= 0) -> fallback
+   *   ; --- main branch (heliumSecondary > 0) ---
+   *   0xda3800  pushq   %rbp                      ; frame prologue
+   *   0xda3801  movq    %rsp,%rbp
+   *   0xda3804  xorps   %xmm0,%xmm0
+   *   0xda3807  cvtsi2sdl 0x1b5c(%rdi),%xmm0      ; xmm0 = (double)(int32) numGPUs  (SIGNED)
+   *   0xda380f  mulsd   0x7caa51(%rip),%xmm0      ; xmm0 *= 0.001  (@Flexo __const 0x1570268, f64 = 0.001)
+   *   0xda3817  addsd   0x7cc001(%rip),%xmm0      ; xmm0 += 0.95   (@Flexo __const 0x156f820, f64 = 0.95)
+   *   0xda381f  cvtsd2ss %xmm0,%xmm0              ; xmm0 = (float)(numGPUs*0.001 + 0.95)
+   *   0xda3823  divss   %xmm1,%xmm0               ; xmm0 = that / heliumSecondary
+   *   0xda3827  popq    %rbp
+   *   0xda3828  retq                              ; return xmm0
+   *   ; --- fallback branch (heliumSecondary <= 0), 0xda3829 ---
+   *   0xda3829  movss   0x1c(%rdi),%xmm0          ; xmm0 = frameRate (f32)
+   *   0xda382e  retq                              ; return xmm0
+   *
+   * SEMANTICS: when the Helium secondary metric is positive, the dictated FPS is
+   * `(float)((double)numGPUs * 0.001 + 0.95) / heliumSecondary`; otherwise it
+   * degenerates to the stored `frameRate` (+0x1c).
+   *
+   * `ucomiss %xmm0,%xmm1` sets flags on `heliumSecondary - 0.0`; `jbe` (CF|ZF) is
+   * taken iff `heliumSecondary <= 0.0` — the fallback path. A NaN denominator
+   * also takes `jbe` (NaN sets CF=ZF), so the port guards with `!(x > 0)`.
+   *
+   * NUMERICS: the intermediate `numGPUs*0.001 + 0.95` is computed in DOUBLE
+   * precision (`cvtsi2sdl`/`mulsd`/`addsd`, both constants are IEEE-754 f64 read
+   * from Flexo __TEXT __const), then narrowed to f32 (`cvtsd2ss`) before the f32
+   * division (`divss`). So the additions/multiply stay double; only the narrow
+   * and the final divide are single-precision (Math.fround).
+   *
+   * In-scope callees: NONE. No externs, no indirect calls — pure field reads +
+   * arithmetic.
+   */
+  GetGraphBuildDictatedFPS(): number {
+    // @0xda37f0  movss 0x1b38(%rdi),%xmm1 : heliumSecondary (f32).
+    const heliumSecondary = Math.fround(this.heliumSecondary);
+
+    // @0xda37fb..0xda37fe  ucomiss %xmm0(0),%xmm1 ; jbe 0xda3829 :
+    //   fallback iff (heliumSecondary <= 0.0) — NaN also falls here (!(x>0)).
+    if (!(heliumSecondary > 0)) {
+      // @0xda3829  movss 0x1c(%rdi),%xmm0 : return frameRate (f32).
+      return Math.fround(this.frameRate);
+    }
+
+    // --- main branch (heliumSecondary > 0) @0xda3800 ---
+    // @0xda3807  cvtsi2sdl 0x1b5c(%rdi),%xmm0 : SIGNED int32 numGPUs -> double.
+    const gpuD = this.numGPUs | 0;
+    // @0xda380f  mulsd 0.001 ; @0xda3817 addsd 0.95 — DOUBLE precision.
+    //   0.001 @Flexo __const 0x1570268 (f64); 0.95 @Flexo __const 0x156f820 (f64).
+    const num = gpuD * 0.001 + 0.95;
+    // @0xda381f  cvtsd2ss %xmm0,%xmm0 : narrow to f32.
+    const numF = Math.fround(num);
+    // @0xda3823  divss %xmm1,%xmm0 : f32 divide by heliumSecondary.
+    return Math.fround(numF / heliumSecondary);
+  }
 }
