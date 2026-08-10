@@ -45,6 +45,10 @@
 //   * __ZNK13OZViewerState10isSnappingEv
 //       — OZViewerState::isSnapping() const @Ozone 0x36e670
 //         (raw-port/re/disasm/__ZNK13OZViewerState10isSnappingEv.s — 8 lines)
+//   * __ZN13OZViewerState15setMirroringHMDEb
+//       — OZViewerState::setMirroringHMD(bool) @Ozone 0x36e5a0
+//         (raw-port/re/disasm/__ZN13OZViewerState15setMirroringHMDEb.s — 7 lines)
+//         one `movb %sil, 0x102(%rdi)` — u8 flag field @+0x102.
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (raw-port/re/disasm/__ZNK13OZViewerState10isSnappingEv.s)
@@ -118,6 +122,33 @@ export class OZViewerState {
   snappingFlags: number = 0; // u8 packed-bitfield @+0x3a
 
   /**
+   * @Ozone +0x34 (8-byte qword) — copied wholesale by
+   * `cloneSettings(OZViewerState const&)` @0x36dfc4 via a single
+   * `movq 0x34(%rsi),%rax ; movq %rax,0x34(%rdi)`. The `movq` copies the
+   * raw 8 bytes with no interpretation, so we preserve them as an opaque
+   * `bigint` (u64) to keep every bit exact. The internal semantics of this
+   * slot (whether it is a double, a pair of u32s, or a pointer) are OUT OF
+   * SCOPE until a method that READS a typed view of it is ported.
+   */
+  settingsQwordAt34: bigint = 0n; // opaque u64 @+0x34
+
+  /**
+   * @Ozone +0x3c (u8) — copied by `cloneSettings` @0x36dfcc via
+   * `movzbl 0x3c(%rsi),%eax ; movb %al,0x3c(%rdi)` (byte load, byte store).
+   * A single settings byte; its bit semantics are OUT OF SCOPE until a
+   * reader is ported. Modelled as a `number` in [0, 255].
+   */
+  settingsByteAt3c: number = 0; // u8 @+0x3c
+
+  /**
+   * @Ozone +0x3d (u8) — copied by `cloneSettings` @0x36dfd3 via
+   * `movzbl 0x3d(%rsi),%eax ; movb %al,0x3d(%rdi)`, directly adjacent to
+   * +0x3c. A second settings byte kept in the same clone set. Modelled as
+   * a `number` in [0, 255].
+   */
+  settingsByteAt3d: number = 0; // u8 @+0x3d
+
+  /**
    * @Ozone +0x38 (u32, packed display-flags word) — the 32-bit word read by
    * `isDisplay3DGrid()` @0x36e684 via `movl 0x38(%rdi), %eax`. That accessor
    * consumes only the two bits in mask 0xA000 (bit 13 = 0x2000, bit 15 =
@@ -126,6 +157,26 @@ export class OZViewerState {
    * ported). Modelled as a `number` interpreted as an unsigned 32-bit word.
    */
   displayFlags_at_0x38: number = 0; // u32 packed-bitfield @+0x38
+
+  /**
+   * @Ozone +0x102 (u8) — the "mirroring HMD" flag byte written by
+   * `setMirroringHMD(bool)` @0x36e5a4 via `movb %sil, 0x102(%rdi)`.
+   *
+   * The store is a plain 8-bit `movb` of the argument register's low byte
+   * (`%sil` = low byte of `%rsi`, the second System-V integer argument):
+   * the setter neither masks the value to 0/1 nor reads the field back, so
+   * this unit learns only that ONE byte lives at +0x102 and that it holds
+   * whatever byte the caller supplied. Modelled as a `number` in [0, 255]
+   * rather than a `boolean` so that fidelity is preserved — a C++ `bool`
+   * argument is 0 or 1 by ABI, but the instruction copies the byte
+   * verbatim, and the getter that reads it back is a separate ledger unit
+   * which may or may not mask it.
+   *
+   * This also pushes the known lower bound on `sizeof(OZViewerState)` to
+   * >= 0x103; the bytes between +0x3e and +0x102 remain UNDECODED and no
+   * field is invented for them (Rule 5).
+   */
+  mirroringHMD_at_0x102: number = 0; // u8 flag @+0x102
 
   /**
    * `OZViewerState::getDynamicResolution()` @Ozone 0x36e2d0
@@ -360,5 +411,133 @@ export class OZViewerState {
     // (flags & 0xC000) === 0xC000  ⇔  (~flags & 0xC000) === 0.
     const MASK_0xC000 = 0xc000; // @0x36e6a9 imm — bits 0x4000 | 0x8000
     return (this.displayFlags_at_0x38 & MASK_0xC000) === MASK_0xC000;
+  }
+
+  /**
+   * `OZViewerState::cloneSettings(OZViewerState const&)` @Ozone 0x36dfc0
+   *   — __ZN13OZViewerState13cloneSettingsERKS_
+   *
+   * Faithful line-for-line transcription of the 12-line disassembly. `%rdi`
+   * is `this` (the destination), `%rsi` is the `OZViewerState const&` source.
+   * The body copies THREE adjacent settings slots from src into this:
+   *   0x36dfc0  pushq  %rbp
+   *   0x36dfc1  movq   %rsp, %rbp
+   *   0x36dfc4  movq   0x34(%rsi), %rax     ; rax = src->+0x34 (8-byte qword)
+   *   0x36dfc8  movq   %rax, 0x34(%rdi)     ; this->+0x34 = rax
+   *   0x36dfcc  movzbl 0x3c(%rsi), %eax     ; eax = (u8) src->+0x3c
+   *   0x36dfd0  movb   %al, 0x3c(%rdi)      ; this->+0x3c = al
+   *   0x36dfd3  movzbl 0x3d(%rsi), %eax     ; eax = (u8) src->+0x3d
+   *   0x36dfd7  movb   %al, 0x3d(%rdi)      ; this->+0x3d = al
+   *   0x36dfda  popq   %rbp
+   *   0x36dfdb  retq
+   *   0x36dfdc  nopl   (%rax)               ; padding
+   *
+   * SEMANTICS: copy the "settings" sub-state (one 8-byte qword at +0x34 and
+   * two adjacent bytes at +0x3c, +0x3d) from another OZViewerState into this
+   * one. No return value; a pure field-to-field copy — no branches, no
+   * callees, no externs.
+   *
+   * Note the qword at +0x34 (bytes +0x34..+0x3b) and the bytes at +0x3c/+0x3d
+   * are contiguous but copied with distinct widths (one movq, two byte
+   * moves), so they are modelled as three separate fields to match exactly
+   * what the machine touches.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN13OZViewerState13cloneSettingsERKS_.s (12 lines)
+   */
+  cloneSettings(src: OZViewerState): void {
+    // @0x36dfc4..0x36dfc8  movq 0x34(%rsi),%rax ; movq %rax,0x34(%rdi)
+    //   Copy the raw 8-byte qword at +0x34. BigInt.asUintN(64,...) preserves
+    //   the exact 64-bit pattern the movq moves.
+    this.settingsQwordAt34 = BigInt.asUintN(64, src.settingsQwordAt34);
+    // @0x36dfcc..0x36dfd0  movzbl 0x3c(%rsi),%eax ; movb %al,0x3c(%rdi)
+    //   Copy the u8 at +0x3c (byte width preserved with & 0xff).
+    this.settingsByteAt3c = src.settingsByteAt3c & 0xff;
+    // @0x36dfd3..0x36dfd7  movzbl 0x3d(%rsi),%eax ; movb %al,0x3d(%rdi)
+    //   Copy the u8 at +0x3d.
+    this.settingsByteAt3d = src.settingsByteAt3d & 0xff;
+  }
+
+  /**
+   * `OZViewerState::setMirroringHMD(bool)` @Ozone 0x36e5a0
+   *   — __ZN13OZViewerState15setMirroringHMDEb
+   *
+   * Faithful line-for-line transcription of the 6-instruction body — a
+   * single-byte store, no read-back, no branch, no return value:
+   *
+   *   0x36e5a0  pushq  %rbp                     ; frame prologue
+   *   0x36e5a1  movq   %rsp, %rbp
+   *   0x36e5a4  movb   %sil, 0x102(%rdi)        ; *(u8*)(this + 0x102) = (u8)arg
+   *   0x36e5ab  popq   %rbp                     ; frame epilogue
+   *   0x36e5ac  retq                            ; void
+   *   0x36e5ad  nopl   (%rax)                   ; alignment padding
+   *
+   * System-V x86_64: `%rdi` = `this`, `%rsi` = the `bool` argument, and
+   * `%sil` is `%rsi`'s low byte. The `movb` writes exactly that byte to
+   * +0x102 — it is NOT masked to 0/1 and NOT sign/zero-extended, so the
+   * port stores `arg & 0xff` (the byte the machine copies) rather than
+   * normalising to a boolean.
+   *
+   * The parameter is typed `number` for the same reason: the mangled name
+   * says `b` (C++ `bool`, so callers pass 0 or 1), but the instruction
+   * copies whatever 8 bits arrive, and typing it `boolean` would silently
+   * normalise any other byte a caller could produce.
+   *
+   * Returns void — %rax is never written before `retq`.
+   *
+   * Zero in-scope callees, zero externs, no indirect calls — one store.
+   * Confirmed via `depgraph.py deps __ZN13OZViewerState15setMirroringHMDEb`
+   * (no dependencies reported).
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN13OZViewerState15setMirroringHMDEb.s (7 lines)
+   */
+  setMirroringHMD(mirroringHMD: number): void {
+    // @0x36e5a0..0x36e5a1 — prologue (no TS-visible effect).
+    // @0x36e5a4           — movb %sil, 0x102(%rdi): store the argument's
+    //                       low byte into the u8 field at +0x102.
+    this.mirroringHMD_at_0x102 = mirroringHMD & 0xff;
+    // @0x36e5ab..0x36e5ac — epilogue + retq (no return value).
+  }
+
+  /**
+   * `OZViewerState::setResolutionMode(OZResolution mode)` @Ozone 0x36e260
+   *   — __ZN13OZViewerState17setResolutionModeE12OZResolution
+   *
+   * The setter for the SAME +0x20 field `getResolution()` @0x36e2e7 reads.
+   * A single 32-bit store; no clamping, no validation, no other field
+   * touched, returns void.
+   *
+   * FULL DISASM (4 real insns @0x36e260..0x36e268; 0x36e269 is padding):
+   *   0x36e260  pushq %rbp
+   *   0x36e261  movq  %rsp, %rbp
+   *   0x36e264  movl  %esi, 0x20(%rdi)   ; this->resolutionMode = mode
+   *   0x36e267  popq  %rbp
+   *   0x36e268  retq
+   *   0x36e269  nopl  (%rax)             ; padding, not code
+   *
+   * That the destination is exactly the field `getResolution()` consumes is
+   * what fixes the meaning of the argument: `getResolution()` @0x36e2ec
+   * compares that same u32 against 1 and 2 to pick 0.5f / 0.25f, defaulting
+   * to 1.0f — so `OZResolution` values 1 and 2 are half- and
+   * quarter-resolution and anything else is full-resolution. This method
+   * invents no policy of its own; it just writes the word.
+   *
+   * `movl` is a 32-bit store, so the argument is truncated to 32 bits —
+   * mirrored with `| 0`, matching the 32-bit `movl 0x20(%rsi), %esi` load on
+   * the getter side.
+   *
+   * Zero in-scope callees, zero externs, zero indirect calls — one store.
+   * (`depgraph.py deps __ZN13OZViewerState17setResolutionModeE12OZResolution`
+   * prints nothing; there is no `callq` in the body.)
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN13OZViewerState17setResolutionModeE12OZResolution.s
+   */
+  setResolutionMode(mode: number): void {
+    // @0x36e260..0x36e261 — prologue (no TS-visible effect).
+    // @0x36e264           — movl %esi, 0x20(%rdi): 32-bit store of the arg.
+    this.resolutionMode = mode | 0;
+    // @0x36e267..0x36e268 — epilogue + retq (void).
   }
 }
