@@ -1,7 +1,8 @@
-// OZSceneCamera — Ozone per-scene camera object. This file ports ONLY
-// the C1 ctor at @Ozone 0x4455b0; other methods (D1/D0, virtuals, etc.)
-// are separate ledger entries and will be added to this file when
-// their own units are claimed.
+// OZSceneCamera — Ozone per-scene camera object. Methods ported here so far:
+// the C1 ctor @Ozone 0x4455b0, getNodeID() @0x444390 and setTime(CMTime)
+// @0x4455f0 (raw-port/re/disasm/__ZN13OZSceneCamera7setTimeE6CMTime.s); other
+// methods (D1/D0, virtuals, etc.) are separate ledger entries and will be added
+// to this file when their own units are claimed.
 //
 // Provenance: /Applications/Final Cut Pro.app/Contents/Frameworks/
 //             Ozone.framework/Versions/A/Ozone (x86_64 slice; unadjusted
@@ -88,6 +89,7 @@
 //   0x4455dd  retq
 
 import type { OZScene } from "./OZScene.js";
+import type { CMTime } from "../infra/CMTime.js";
 
 // ═════════════════════════════════════════════════════════════════════════
 // vtable address constants (DATA references — resolved at load by the
@@ -144,6 +146,29 @@ export class OZSceneCamera {
    *  a lazily-populated pointer (owned buffer / child object) that a
    *  later setter assigns. NULL is the ctor's initial value. */
   fieldAt38: unknown = null; // @Ozone C1 stores $0 @0x4455b4
+
+  /**
+   * +0x18..+0x2f — an embedded 24-byte `CMTime`, written whole by
+   * `setTime(CMTime)` @Ozone 0x4455f0:
+   *
+   *   +0x18  int64  value      \ the 16 bytes copied by the
+   *   +0x20  int32  timescale  / `movaps 0x10(%rbp),%xmm0` @0x4455fc ->
+   *   +0x24  uint32 flags      \ `movups %xmm0, 0x18(%rdi)` @0x445600 pair
+   *   +0x28  int64  epoch      -- the third eightbyte, moved separately by
+   *                               `movq 0x20(%rbp),%rax` @0x4455f4 ->
+   *                               `movq %rax, 0x28(%rdi)` @0x4455f8
+   *
+   * That 16 + 8 split is exactly CMTime's SysV MEMORY-class layout (a 24-byte
+   * struct: value/timescale/flags/epoch), which is what identifies the field
+   * as a CMTime rather than three unrelated slots. The C1 ctor @0x4455b0 does
+   * NOT initialise it (it writes +0x00/+0x08/+0x10/+0x14/+0x30/+0x38 only), so
+   * a freshly constructed camera holds whatever the allocation left here; the
+   * port starts it at CMTime zero-bits — value 0, timescale 0, flags 0,
+   * epoch 0 — i.e. an INVALID CMTime (kCMTimeFlags_Valid clear), which is the
+   * honest model of "never set" and is distinct from `kCMTimeZero`
+   * (timescale 1, Valid).
+   */
+  timeAt18: CMTime = { value: 0n, timescale: 0, flags: 0, epoch: 0n };
 
   /**
    * `OZSceneCamera::OZSceneCamera(OZScene*, uint32_t)` — @Ozone 0x4455b0
@@ -218,5 +243,55 @@ export class OZSceneCamera {
   getNodeID(): number {
     // @0x444394  movl 0x10(%rdi), %eax  — u32 zero-extended into return reg.
     return this.index >>> 0;
+  }
+
+  /**
+   * `OZSceneCamera::setTime(CMTime)` — @Ozone 0x4455f0
+   * (__ZN13OZSceneCamera7setTimeE6CMTime).
+   *
+   * Full transcription — every instruction, in order
+   * (raw-port/re/disasm/__ZN13OZSceneCamera7setTimeE6CMTime.s):
+   *
+   *   0x4455f0  pushq  %rbp                   ; frame setup (no TS counterpart)
+   *   0x4455f1  movq   %rsp, %rbp             ; frame setup (no TS counterpart)
+   *   0x4455f4  movq   0x20(%rbp), %rax       ; rax = arg.epoch   (3rd eightbyte)
+   *   0x4455f8  movq   %rax, 0x28(%rdi)       ; this->time.epoch = arg.epoch
+   *   0x4455fc  movaps 0x10(%rbp), %xmm0      ; xmm0 = arg.value|timescale|flags
+   *   0x445600  movups %xmm0, 0x18(%rdi)      ; this->time.{value,timescale,flags} = ...
+   *   0x445604  popq   %rbp                   ; frame teardown (no TS counterpart)
+   *   0x445605  retq                          ; void return
+   *   0x445606  nopw   %cs:(%rax,%rax)        ; alignment padding, not executed
+   *
+   * The `CMTime` argument is 24 bytes, so SysV classifies it MEMORY and passes
+   * it ON THE STACK, not in registers: `0x10(%rbp)` is the first eightbyte of
+   * the argument (the frame stores `%rbp` at 0x00 and the return address at
+   * 0x08), and `0x20(%rbp)` is its third. That is why the copy is split into a
+   * 16-byte SSE move plus one 8-byte GPR move — a single memcpy of the whole
+   * struct, not three field-by-field assignments with semantics of their own.
+   *
+   * Note the machine copies the trailing epoch FIRST (@0x4455f4/@0x4455f8) and
+   * the leading 16 bytes second (@0x4455fc/@0x445600); the order is
+   * unobservable here (disjoint destination slots, no aliasing possible with a
+   * by-value stack argument) but is transcribed in that order anyway.
+   *
+   * The load is `movaps` — the ALIGNED form — which tells us the caller's
+   * 24-byte argument slot is 16-byte aligned, and the store is `movups`
+   * because `this+0x18` need not be. No conversion, no validation of the
+   * flags, no timescale normalisation: a verbatim struct copy.
+   *
+   * ZERO in-scope callees, ZERO externs, no indirect/virtual dispatch.
+   *
+   * @param time the by-value `CMTime` argument (stack slots `0x10(%rbp)` and
+   *             `0x20(%rbp)`).
+   */
+  setTime(time: CMTime): void {
+    // @0x4455f4/@0x4455f8 — movq 0x20(%rbp),%rax ; movq %rax,0x28(%rdi)
+    this.timeAt18.epoch = time.epoch;
+    // @0x4455fc/@0x445600 — movaps 0x10(%rbp),%xmm0 ; movups %xmm0,0x18(%rdi)
+    //   one 16-byte move of value (+0x18) plus timescale (+0x20) and
+    //   flags (+0x24).
+    this.timeAt18.value = time.value;
+    this.timeAt18.timescale = time.timescale | 0;
+    this.timeAt18.flags = time.flags >>> 0;
   }
 }
