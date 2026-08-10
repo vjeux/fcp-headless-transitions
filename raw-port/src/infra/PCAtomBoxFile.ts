@@ -9,12 +9,15 @@
 //   /Applications/Final Cut Pro.app/Contents/Frameworks/ProCore.framework/Versions/A/ProCore
 //
 // Source disasm: raw-port/re/disasm/ProCore.__ZN13PCAtomBoxFile11isValidTypeEj.s (27 lines)
+//                raw-port/re/disasm/ProCore.__ZN13PCAtomBoxFile12getErrorCodeEv.s (39 lines)
 //
 // -----------------------------------------------------------------------------
-// SYMBOL PORTED
+// SYMBOLS PORTED
 // -----------------------------------------------------------------------------
 //   * __ZN13PCAtomBoxFile11isValidTypeEj
 //       -- PCAtomBoxFile::isValidType(unsigned int)  @ProCore 0x254ea
+//   * __ZN13PCAtomBoxFile12getErrorCodeEv
+//       -- PCAtomBoxFile::getErrorCode()             @ProCore 0x24f96
 //
 // No callees: a pure integer switch over the 32-bit FourCC. `unsigned int` is a
 // 32-bit value that fits in a JS number, so a plain number models it (the compares
@@ -123,4 +126,92 @@ export function PCAtomBoxFile_isValidType(type: number): boolean {
   }
   // @0x25510 xorl %eax,%eax -> false
   return false;
+}
+
+// =============================================================================
+// PCAtomBoxFile::getErrorCode()  @ProCore 0x24f96  __ZN13PCAtomBoxFile12getErrorCodeEv
+// =============================================================================
+// Reads the current POSIX `errno` (via libc `___error` @0x24f9a — an OUT-OF-SCOPE
+// libc extern, modelled as a boundary below) and maps it to PCAtomBoxFile's own
+// negative error-code enum. The `switch (errno)` translation IS the real work and
+// is transcribed faithfully; only the errno SOURCE is a boundary.
+
+let __posix_errno = 0;
+
+/** Boundary: emulates the `movl (%rax),%ecx` load of `*___error()` @ProCore 0x24f9f.
+ *  Darwin's per-thread errno accessor is libc, outside the 5-framework port scope.
+ *  Returns the current process errno (default 0 = no error). A real libc-backed
+ *  runtime would replace this with the actual `*___error()` read. */
+export function __PCAtomBoxFile_readErrno(): number {
+  return __posix_errno | 0;
+}
+
+/** Test/runtime hook: set the errno the libc boundary reports before getErrorCode().
+ *  Not part of the FCP binary; stands in for the OS setting `errno`. */
+export function __PCAtomBoxFile_setErrno(e: number): void {
+  __posix_errno = e | 0;
+}
+
+/**
+ * PCAtomBoxFile::getErrorCode() @ProCore 0x24f96  (__ZN13PCAtomBoxFile12getErrorCodeEv)
+ *
+ * Disasm:
+ *   0x24f9a  callq ___error            ; %rax = &errno   (libc boundary)
+ *   0x24f9f  movl  (%rax), %ecx         ; ecx = errno
+ *   0x24fa1  cmpl  $0xf, %ecx ; jg A    ; errno > 15 -> block A
+ *   0x24fa6  cmpl  $0x4, %ecx ; jg B    ; 4 < errno <= 15 -> block B
+ *   -- LOW block (errno <= 4):
+ *   0x24fab  cmpl  $0x1 ; je -> -4      ; errno == 1  (EPERM)  -> 0xfffffffc
+ *   0x24fb0  movl  $0xfffffffe,%eax     ; preset -2
+ *   0x24fb5  cmpl  $0x2 ; jne -> -1     ; errno != 2 -> 0xffffffff (default)
+ *   0x24fba  jmp ret                    ; errno == 2  (ENOENT) -> -2
+ *   -- block A (errno > 15) @0x24fbc:
+ *   0x24fbc  leal -0x1b(%rcx),%eax ; cmpl $0x2,%eax ; jb -> -3   ; errno in {27,28} -> 0xfffffffd
+ *   0x24fc4  cmpl $0x10 ; je -> -6      ; errno == 16 (EBUSY)  -> 0xfffffffa
+ *   0x24fc9  cmpl $0x1e ; jne -> -1     ; errno != 30 -> default
+ *   0x24fce  movl $0xfffffff9,%eax      ; errno == 30 (EROFS) -> -7
+ *   -- block B (5..15) @0x24fd5:
+ *   0x24fd5  cmpl $0x5 ; je -> -5       ; errno == 5  (EIO)    -> 0xfffffffb
+ *   0x24fda  cmpl $0xd ; jne -> -1      ; errno != 13 -> default
+ *            (errno == 13 EACCES falls to the shared -4 target @0x24fdf) -> 0xfffffffc
+ *   -- shared targets @0x24fdf..0x24ffb: -4 / -3 / -5 / -6 / -1
+ *
+ * Returns a signed 32-bit int (the negative PCAtomBoxFile error enum).
+ */
+export function PCAtomBoxFile_getErrorCode(): number {
+  // @0x24f9a callq ___error ; @0x24f9f movl (%rax),%ecx  (libc boundary read)
+  const ecx = __PCAtomBoxFile_readErrno() | 0;
+
+  // @0x24fa1 cmpl $0xf,%ecx ; jg -> block A  (signed compare)
+  if (ecx > 0xf) {
+    // block A @0x24fbc
+    // @0x24fbc leal -0x1b(%rcx),%eax ; cmpl $0x2,%eax ; jb -3   ((errno-27) unsigned < 2)
+    const eax = (ecx - 0x1b) >>> 0;
+    if (eax < 2) return -3 | 0; // 0xfffffffd (errno 27/28: EFBIG/ENOSPC)
+    // @0x24fc4 cmpl $0x10 ; je -6
+    if (ecx === 0x10) return -6 | 0; // 0xfffffffa (errno 16 EBUSY)
+    // @0x24fc9 cmpl $0x1e ; jne default
+    if (ecx !== 0x1e) return -1 | 0; // 0xffffffff
+    // @0x24fce errno == 30 (EROFS)
+    return -7 | 0; // 0xfffffff9
+  }
+
+  // @0x24fa6 cmpl $0x4,%ecx ; jg -> block B  (signed compare)
+  if (ecx > 0x4) {
+    // block B @0x24fd5 (errno in 5..15)
+    // @0x24fd5 cmpl $0x5 ; je -5
+    if (ecx === 0x5) return -5 | 0; // 0xfffffffb (errno 5 EIO)
+    // @0x24fda cmpl $0xd ; jne default
+    if (ecx !== 0xd) return -1 | 0; // 0xffffffff
+    // errno == 13 (EACCES) -> shared -4 target @0x24fdf
+    return -4 | 0; // 0xfffffffc
+  }
+
+  // LOW block (errno <= 4)
+  // @0x24fab cmpl $0x1 ; je -4
+  if (ecx === 0x1) return -4 | 0; // 0xfffffffc (errno 1 EPERM)
+  // @0x24fb0 movl $0xfffffffe,%eax (preset -2) ; @0x24fb5 cmpl $0x2 ; jne default
+  if (ecx !== 0x2) return -1 | 0; // 0xffffffff
+  // errno == 2 (ENOENT) -> -2
+  return -2 | 0; // 0xfffffffe
 }
