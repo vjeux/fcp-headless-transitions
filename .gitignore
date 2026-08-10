@@ -52,3 +52,13 @@ raw-port/re/disasm/
 raw-port/army/depgraph/*.lock
 raw-port/army/introspect_log.csv
 raw-port/army/depgraph/inflight_branch_syms.txt
+
+# --- swarm runtime state (untracked 2026-08-10; rederivable/append-only; keep out of tree) ---
+raw-port/army/depgraph/claims.jsonl
+raw-port/army/depgraph/claims.jsonl.lock
+raw-port/army/ledger/*.ledger.json
+raw-port/army/progress_log.csv
+raw-port/army/introspect_log.csv
+*.review.json
+*.review.*.json
+raw-port/raw-port/

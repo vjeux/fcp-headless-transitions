@@ -201,6 +201,18 @@ function pthread_mutex_unlock_HGLC_ctxsLock_stub(): void {
 // -----------------------------------------------------------------------------
 
 /**
+ * Module-scope Helium `static int HGLogger::_indent`
+ *   — symbol `__ZN8HGLogger7_indentE`, zero-initialized (BSS).
+ *
+ * Shared nesting-depth counter mutated by `HGLogger::indent(int)`
+ * @0x1ad855 (`lock addl %edi, __ZN8HGLogger7_indentE(%rip)`). Exposed as
+ * a mutable holder so the atomic add is observable process-wide, exactly
+ * like the C++ static. Any future logger method that reads the current
+ * indent depth imports this cell.
+ */
+export const HGLogger__indent: { value: number } = { value: 0 };
+
+/**
  * `class HGLogger` — Helium namespace container for logger-level queries.
  * Static-only in the observed disasm; no ctor or instance data is
  * referenced. Extendable — future methods (setLevel, log, etc.) belong
@@ -378,6 +390,37 @@ export class HGLogger {
     // @0x1ad989  movl %ebx, %eax  ; return int
     // @0x1ad98b..0x1ad999          epilogue + retq
     return ebx;
+  }
+
+  /**
+   * `HGLogger::indent(int delta)`
+   *   — @Helium 0x1ad850
+   *   — __ZN8HGLogger6indentEi
+   *
+   * Atomically adds `delta` to the module-scope static `HGLogger::_indent`
+   * (a shared indentation-depth counter used to prefix nested log lines).
+   * Verbatim (6-line) transcription:
+   *
+   *   0x1ad850  pushq %rbp
+   *   0x1ad851  movq  %rsp,%rbp
+   *   0x1ad854  lock
+   *   0x1ad855  addl  %edi, __ZN8HGLogger7_indentE(%rip)   ; _indent += delta
+   *   0x1ad85b  popq  %rbp
+   *   0x1ad85c  retq
+   *
+   * `__ZN8HGLogger7_indentE` is a Helium module-scope `static int
+   * HGLogger::_indent`, zero-initialized (BSS). The `lock addl` is an
+   * atomic read-modify-write; in the single-threaded JS port the add is
+   * inherently atomic, so we model it as a plain 32-bit add on the shared
+   * holder. Returns void (no result register set).
+   *
+   * DEPENDENCIES: zero in-scope callees; touches only the static counter.
+   */
+  static indent(delta: number): void {
+    // @0x1ad855  lock addl %edi, __ZN8HGLogger7_indentE(%rip)
+    //   32-bit two's-complement add on the static int, matching the
+    //   machine's `addl` width.
+    HGLogger__indent.value = ((HGLogger__indent.value | 0) + (delta | 0)) | 0;
   }
 }
 
