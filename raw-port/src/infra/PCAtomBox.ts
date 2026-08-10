@@ -199,4 +199,24 @@ export class PCAtomBox {
     // @0x008ff3/0x008ff5 loop exhausted (rax already 0) -> return null
     return null;
   }
+
+  /**
+   * PCAtomBox::setSize(unsigned long long)
+   * @0xADDR ProCore 0x0000000000008b72  (__ZN9PCAtomBox7setSizeEy)
+   *
+   * DECODE (raw-port/re/disasm/ProCore.__ZN9PCAtomBox7setSizeEy.s):
+   *   0x008b72  pushq %rbp ; movq %rsp,%rbp        ; frame
+   *   0x008b76  movq  %rsi, 0x8(%rdi)              ; *(u64*)(this+0x08) = arg
+   *   0x008b7a  popq %rbp ; retq                   ; void
+   *
+   * The 64-bit companion setter to getSize (@0x008b68, read @0x008b94 by
+   * getHeaderSize): stores the full unsigned long long argument (%rsi) into the
+   * atom's total-box-size field at +0x08. Zero callees, no externs. Kept as
+   * bigint per PORTING_SPEC Rule 4 (a box size is a 64-bit file quantity that
+   * can exceed 2^53), and masked to a u64 to mirror the machine's `movq` store.
+   */
+  setSize(value: bigint): void {
+    // @0x008b76 — movq %rsi,0x8(%rdi) : store the u64 size at +0x08.
+    this.size = BigInt.asUintN(64, value);
+  }
 }
