@@ -8,9 +8,12 @@
 // -----------------------------------------------------------------------------
 //   * HGGPURenderer::GetMetalContext()           @Helium 0xa560
 //     __ZN13HGGPURenderer15GetMetalContextEv
+//   * HGGPURenderer::GetGLState() const          @Helium 0x12070
+//     __ZNK13HGGPURenderer10GetGLStateEv
 //
 // re/disasm:
 //   raw-port/re/disasm/Helium.__ZN13HGGPURenderer15GetMetalContextEv.s
+//   raw-port/re/disasm/Helium.__ZNK13HGGPURenderer10GetGLStateEv.s
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (7 lines, @0xa560..@0xa56c)
@@ -23,18 +26,34 @@
 //     0xa56c  retq
 //
 // -----------------------------------------------------------------------------
-// OBJECT LAYOUT (recovered from this method only)
+// FULL DISASM (7 lines, @0x12070..@0x1207c)
 // -----------------------------------------------------------------------------
-//   +0x458  HGMetalContext*  metalContext   ; the sole field this method touches.
+//   __ZNK13HGGPURenderer10GetGLStateEv:
+//     0x12070  pushq  %rbp                    ; frame prologue
+//     0x12071  movq   %rsp, %rbp
+//     0x12074  movq   0x490(%rdi), %rax       ; rax = this[+0x490]
+//     0x1207b  popq   %rbp                    ; frame epilogue
+//     0x1207c  retq
+//     0x1207d  nopl   (%rax)                  ; alignment padding (not code)
+//
+// -----------------------------------------------------------------------------
+// OBJECT LAYOUT (recovered from the ported methods only)
+// -----------------------------------------------------------------------------
+//   +0x458  HGMetalContext*  metalContext   ; touched only by GetMetalContext.
 //     Read @0xa564 (`movq 0x458(%rdi), %rax`). We do NOT invent adjacent
 //     fields — one method, one field, one offset. Other HGGPURenderer
 //     methods will add their own fields as they are ported.
+//   +0x490  HGGLState*       glState        ; touched only by GetGLState.
+//     Read @0x12074 (`movq 0x490(%rdi), %rax`). 8-byte load => pointer-sized.
+//     Nothing between +0x458 and +0x490 is decoded by either method, so the
+//     0x38 bytes in that span stay UNMODELLED (Rule 5 — no fabricated fields).
 //
 // -----------------------------------------------------------------------------
 // FRONTIER CALLEES
 // -----------------------------------------------------------------------------
-// Zero. This is a pure inline getter — no callees at all (no in-scope, no
-// externs, no indirect calls). `depgraph.py why` confirms: 0 in-scope deps,
+// Zero, for BOTH methods. Each is a pure inline getter — no callees at all (no
+// in-scope, no externs, no indirect calls). `depgraph.py deps` on
+// __ZNK13HGGPURenderer10GetGLStateEv likewise lists nothing: 0 in-scope deps,
 // 0 indirect, 0 out-of-scope externs; READY.
 
 /**
@@ -51,6 +70,31 @@
  */
 export interface HGMetalContext {
   readonly __hgMetalContext: unique symbol;
+}
+
+/**
+ * `HGGLState` — opaque handle to Helium's OpenGL state object, the thing
+ * `HGGPURenderer::GetGLState() const` @Helium 0x12070 hands back from
+ * this[+0x490].
+ *
+ * PROVENANCE OF THE TYPE NAME: the disassembly itself proves only that the
+ * slot is an 8-byte pointer-sized word (`movq 0x490(%rdi), %rax` @0x12074) —
+ * a load has no type. The name comes from the method's own mangled symbol
+ * (`__ZNK13HGGPURenderer10GetGLStateEv` → `GetGLState`) plus the fact that
+ * `HGGLState` is a real, separately-mangled Helium class observed in the
+ * binary's call graph (e.g. `__ZN9HGGLStateC1Ev` / `__ZN9HGGLStateD1Ev`
+ * called from HGTransform's ctor @Helium 0x8d1d / 0xa2d8, and the nested
+ * `__ZN9HGGLState22SetCurrentContextGuardC1EPS_14HGGLContextPtr` @0xaef7).
+ * The Itanium mangling of GetGLState encodes no return type, so this is a
+ * NAMED OPAQUE HANDLE, not a decoded struct — no fields are modelled and
+ * none may be invented until HGGLState gets its own ledger unit.
+ *
+ * Branded like `HGMetalContext` above so the two opaque pointers can't be
+ * interchanged at the type level; no observable runtime shape (the machine
+ * just moves an 8-byte pointer).
+ */
+export interface HGGLState {
+  readonly __hgGLState: unique symbol;
 }
 
 /**
@@ -96,5 +140,54 @@ export class HGGPURenderer {
     // @0xa564  movq 0x458(%rdi), %rax
     //   rax = this->metalContext_at_0x458
     return this.metalContext_at_0x458;
+  }
+
+  /**
+   * @Helium offset +0x490 — the `HGGLState*` this renderer owns. Read by
+   * `GetGLState() const` @0x12074 via `movq 0x490(%rdi), %rax`.
+   *
+   * The load is 8-byte-wide, so the field is pointer-sized — a heap
+   * reference to an opaque HGGLState instance (nullable before the
+   * renderer builds its GL state). The writer for this slot lives in a
+   * different (not-yet-ported) HGGPURenderer method — most likely the
+   * ctor `__ZN13HGGPURendererC1E14HGGLContextPtrb`, which is OUT OF SCOPE
+   * for this ledger unit — so nothing here initializes it beyond the
+   * null default.
+   */
+  glState_at_0x490: HGGLState | null = null;
+
+  /**
+   * `HGGPURenderer::GetGLState() const` — @Helium 0x12070
+   * (__ZNK13HGGPURenderer10GetGLStateEv).
+   *
+   * Faithful line-for-line transcription of the 7-line disassembly quoted
+   * in the file header. Pure inline getter — returns the `HGGLState*`
+   * stored at this[+0x490]:
+   *
+   *   0x12070  pushq %rbp                ; prologue — no semantic content
+   *   0x12071  movq  %rsp, %rbp
+   *   0x12074  movq  0x490(%rdi), %rax   ; THE one real instruction
+   *   0x1207b  popq  %rbp                ; epilogue
+   *   0x1207c  retq                      ; return rax
+   *
+   * No in-scope callees. No externs. No indirect calls. No branches, no
+   * arithmetic, no flag-setting instruction — the whole body is one load
+   * and a return, so there is nothing else to transcribe.
+   *
+   * As with `GetMetalContext`, there is deliberately NO defensive null
+   * check: the machine reads the raw 8-byte word and returns it verbatim,
+   * so a null slot yields null and a C++ caller that dereferences without
+   * checking crashes exactly as the FCP binary would.
+   *
+   * NB on the mangling: this symbol is `__ZNK...` (K = const-qualified
+   * `this`), unlike GetMetalContext's `__ZN...`. The const only constrains
+   * the C++ type system; the emitted code is the same single load, and TS
+   * has no const-member qualifier to mirror, so the distinction is
+   * recorded here rather than in the signature.
+   */
+  GetGLState(): HGGLState | null {
+    // @0x12074  movq 0x490(%rdi), %rax
+    //   rax = this->glState_at_0x490
+    return this.glState_at_0x490;
   }
 }
