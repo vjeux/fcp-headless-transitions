@@ -251,6 +251,13 @@ export class HGRenderer {
   lastError = 0;
   /** @+0x430 — u32 mxcsr-like float-env word classified by GetParameter #34. */
   floatEnvRaw = 0x1f80;
+  /**
+   * @+0x448 — opaque `void*` external-resource pointer written verbatim by
+   * `HGRenderer::SetExternalResource(void*)` (@Helium 0xef404 `movq %rsi,
+   * 0x448(%rdi)`). The renderer treats it as an untyped handle; no ported
+   * method reads it yet, so it is modeled as an opaque value (null default).
+   */
+  externalResource448: unknown = null;
 
   /**
    * u32-keyed parameter block at 0x240..0x2b0 + 0x340. Modeled as a
@@ -964,5 +971,29 @@ export class HGRenderer {
         // @0xea394/@0xea43e — p out of range or unassigned arm.
         return 0;
     }
+  }
+
+  /**
+   * `HGRenderer::SetExternalResource(void*)` — Helium @0x000ef400.
+   *
+   * Stores the opaque `void*` argument verbatim into the field at
+   * `this + 0x448`. Full transcription (6 lines):
+   *
+   *   0xef400  pushq   %rbp
+   *   0xef401  movq    %rsp, %rbp
+   *   0xef404  movq    %rsi, 0x448(%rdi)   ; this->externalResource448 = arg
+   *   0xef40b  popq    %rbp
+   *   0xef40c  retq
+   *
+   * Zero callees, zero externs, zero indirect calls — a pure pointer store.
+   * The pointer is untyped in the binary (`void*`), so it is stored as an
+   * opaque value here (see the +0x448 field declaration above).
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Helium.__ZN10HGRenderer19SetExternalResourceEPv.s
+   */
+  SetExternalResource(resource: unknown): void {
+    // @Helium 0xef404: movq %rsi, 0x448(%rdi)
+    this.externalResource448 = resource;
   }
 }
