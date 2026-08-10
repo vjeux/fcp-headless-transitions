@@ -156,8 +156,13 @@ NEVER re-gate the same unchanged stale head every tick hoping it changes. Escala
 after the worker rebase queue's attempt-cap (3), the PR is auto-closed and the symbol re-handed to a
 fresh worker via the append-only claim queue.
 - Leave a one-line PR comment stating the evidence (oracle VERIFIED / reach LIKELY_REAL + line-by-line
-  confirmed / TRAP / EMPTY) so the merge trail records WHY it was faithful. That comment is your
-  durable verdict; the green status is what actually gates the merge.
+  confirmed / TRAP / EMPTY) so the merge trail records WHY it was faithful. **Post it with
+  `bash raw-port/army/tools/pr_comment_once.sh <PR#> "<evidence>"` — NEVER `gh pr comment` directly, and
+  post the evidence comment EXACTLY ONCE per PR. Do NOT reword-and-re-post it, and do NOT post a second
+  "UPDATE" narration if main advanced under you (that is the expected stale-base race — the gate status
+  reflects it; just leave the PR for the rebase queue and move on).** `pr_comment_once.sh` is idempotent
+  (it stamps a hidden marker and refuses a duplicate), so a repeat call is a safe no-op. That comment is
+  your durable prose note; the green status is what actually gates the merge.
 
 ## YOU MERGE YOUR OWN ACCEPTs via GitHub (there is no merge queue)
 Nothing else merges for you. After you confirm a PR faithful and its `faithfulness-gate`
