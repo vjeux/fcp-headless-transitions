@@ -8,6 +8,7 @@
 // Symbols transcribed in THIS file (Helium, x86_64 slice; VAs are the
 // unadjusted VM addresses printed by `otool -tV`):
 //
+//   0x00031280  HGRenderContext::IsCPU() const                         (FULL)
 //   0x00031290  HGRenderContext::IsGPU() const                         (FULL)
 //   0x00031450  HGRenderContext::SetWorkMode(HGRenderContext::WorkMode) (FULL)
 //   0x00031470  HGRenderContext::GetComputeDevice()                    (FULL)
@@ -150,6 +151,42 @@ export class HGRenderContext {
    * `GetWorkMode()` @0x31494 (`movl 0x28(%rdi), %eax`).
    */
   workMode: number = 2;
+
+  /**
+   * `HGRenderContext::IsCPU() const` — Helium @0x00031280
+   * (mangled `__ZNK15HGRenderContext5IsCPUEv`).
+   *
+   * Full transcription (5 instructions + padding):
+   *
+   *   0x31280  pushq   %rbp
+   *   0x31281  movq    %rsp, %rbp
+   *   0x31284  cmpl    $0x0, 0x24(%rdi)   ; flags on (this->type - 0)
+   *   0x31288  sete    %al                ; al = (ZF == 1) = (type == 0)
+   *   0x3128b  popq    %rbp
+   *   0x3128c  retq                       ; return al as bool
+   *   0x3128d  nopl    (%rax)             ; alignment padding, not code
+   *
+   * AT&T decode note (PORTING_SPEC Rule 4): `cmpl $0x0, 0x24(%rdi)` computes
+   * `dst - src` = `type - 0`, and `sete` is the ZF=1 condition — an exact
+   * EQUALITY test against the CPU code 0. The compiler kept the explicit
+   * `cmpl $0x0` (not the shorter `testl %eax,%eax` form), so the body is the
+   * same shape as the IsGPU @0x31294 / IsGL @0x312a4 siblings with a
+   * different immediate. `sete` writes the low byte only = SysV `bool`.
+   *
+   * Reads the same `+0x24 type` slot declared above, whose default of 0 comes
+   * from the ctor's 8-byte store @0x3109a — so a default-constructed context
+   * answers `true` here and `false` to `IsGPU()`.
+   *
+   * Zero callees, zero externs, zero indirect calls.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Helium.__ZNK15HGRenderContext5IsCPUEv.s
+   */
+  IsCPU(): boolean {
+    // @Helium 0x31284: cmpl $0x0, 0x24(%rdi)
+    // @Helium 0x31288: sete %al
+    return (this.type | 0) === 0;
+  }
 
   /**
    * `HGRenderContext::IsGPU() const` — Helium @0x00031290
