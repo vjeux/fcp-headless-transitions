@@ -115,7 +115,7 @@ def cmd_next(maxscc=8, allow_stl=False):
     def go():
         claimed = _claimed_set()
         inflight = _inflight_set()      # symbols with a pushed branch / on main — never re-hand
-        rows = depgraph.ready_scc(N=6000)          # dependency-ready SCC units (deps ported, 0 indirect)
+        rows = depgraph.ready_scc(N=6000, quiet=True)   # dependency-ready SCC units (deps ported, 0 indirect); quiet: no backlog dump before CLAIMED_UNIT
         for sz, ne, i, comp in rows:
             if sz > maxscc: continue               # don't hand a solo worker a giant cycle
             head = comp[0]
