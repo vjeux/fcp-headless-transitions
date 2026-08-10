@@ -49,6 +49,33 @@ function dynamic_cast_to_OZChannelObjectRootBase_stub(
   );
 }
 
+/**
+ * Module-scope static counter, mangled as `__ZL12sIDGenerator` in
+ * ProChannel (Itanium `_ZL...` = file-local static, hidden linkage).
+ * Backing store for `OZChannelBase::getNextUniqueID()` @ProChannel
+ * 0x49c10; the setter is the sole reader/writer:
+ *   @0x49c14  movl   $0x1, %eax          ; increment = 1
+ *   @0x49c19  lock                        ; atomic prefix
+ *   @0x49c1a  xaddl  %eax, __ZL12sIDGenerator(%rip)
+ *                                         ; %eax = *sIDGenerator (OLD),
+ *                                         ; *sIDGenerator += 1 (NEW)
+ *
+ * `xaddl` on a 32-bit memory operand: the class slot is int32/uint32.
+ * The `lock` prefix makes the read-modify-write atomic across threads,
+ * which matters because getNextUniqueID is the process-wide ID minter
+ * for OZChannelBase instances (see `setID` @0x4a67c and the `id`
+ * attribute on OZChannelBaseScope 0x6f). We model the concurrency
+ * aspect faithfully: JavaScript's single-threaded event loop makes
+ * the increment atomic for free within one agent/isolate; cross-
+ * process/cross-worker uniqueness would need external coordination
+ * (out of scope for this port).
+ *
+ * Initial value: 0 (Mach-O `__DATA` zero-fill for unset statics; the
+ * FCP binary has no explicit initializer, so it starts at 0 like any
+ * `static int` in C++).
+ */
+let sIDGenerator: number = 0;  // @ProChannel __ZL12sIDGenerator
+
 export class OZChannelBase {
   id = 0;
   name = "";
@@ -1042,5 +1069,77 @@ export class OZChannelBase {
     // @0x4b93b  orq %rax, %rsi / @0x4b93e movq %rsi, 0x38(%rdi)
     this.__flags_word_at_0x38 = cleared | bit6;
     // @0x4b942/0x4b943 — epilogue + void return.
+  }
+  /**
+   * `OZChannelBase::getNextUniqueID()`
+   *   — @ProChannel 0x49c10
+   *   — __ZN13OZChannelBase15getNextUniqueIDEv
+   *
+   * Faithful line-for-line transcription of the 9-line disassembly:
+   *   0x49c10  pushq  %rbp                        ; frame prologue
+   *   0x49c11  movq   %rsp, %rbp
+   *   0x49c14  movl   $0x1, %eax                    ; %eax = 1 (the addend)
+   *   0x49c19  lock                                ; atomic prefix
+   *   0x49c1a  xaddl  %eax, __ZL12sIDGenerator(%rip)
+   *                                               ; atomic exchange-and-add:
+   *                                               ; %eax = *sIDGenerator (OLD)
+   *                                               ; *sIDGenerator += 1 (NEW)
+   *   0x49c21  popq   %rbp                        ; frame epilogue
+   *   0x49c22  retq                                ; return %eax (the OLD value)
+   *   0x49c23  nop                                 ; alignment padding
+   *
+   * The `xadd` instruction is the classic post-increment fetch: it
+   * returns the value that WAS in memory BEFORE the addition, while
+   * writing the new (incremented) value back. The `lock` prefix makes
+   * the read-modify-write atomic across all CPU cores — important
+   * because this counter is the process-wide unique-ID source for
+   * OZChannelBase objects, and channel objects can be created from
+   * multiple threads in FCP (parser threads, render threads).
+   *
+   * The `%rdi` (this) register is NEVER read — despite the C++
+   * name-mangling declaring this as a non-static member function
+   * (`__ZN13OZChannelBase15getNextUniqueIDEv`, no trailing `k`/`v0`
+   * static marker), the body touches no member of `*this`. It is
+   * effectively a static, and could be called with `nullptr` as its
+   * receiver; the compiler simply hasn't hoisted the qualifier. This
+   * matches the C++ source's likely shape:
+   *   unsigned OZChannelBase::getNextUniqueID() {
+   *     static std::atomic<uint32_t> sIDGenerator{0};
+   *     return sIDGenerator.fetch_add(1);
+   *   }
+   * (or a hand-written `__sync_fetch_and_add` equivalent).
+   *
+   * Return width: `xaddl` operates on a 32-bit slot; the returned
+   * `%eax` holds the OLD 32-bit value. Modelled here as `number`
+   * (JS covers uint32 exactly).
+   *
+   * Zero in-scope callees, zero externs, no indirect calls — a pure
+   * atomic RMW on a module-scope counter.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/ProChannel.__ZN13OZChannelBase15getNextUniqueIDEv.s
+   *   (9 lines)
+   */
+  getNextUniqueID(): number {
+    // @0x49c14  movl $0x1,%eax          ; increment = 1
+    // @0x49c19-0x49c1a  lock xaddl %eax,__ZL12sIDGenerator(%rip)
+    //   The atomic exchange-and-add semantics on a 32-bit slot: the
+    //   returned value is the OLD contents of sIDGenerator; the new
+    //   contents are old+1. In a single-threaded JS runtime the
+    //   read+write can be expressed as a simple post-increment on the
+    //   `let` binding without a mutex (the event loop guarantees no
+    //   other synchronous mutation observes the intermediate state).
+    //
+    //   The `| 0` at the store site keeps sIDGenerator inside int32
+    //   width: an FCP session that mints > 2^31 unique IDs would see
+    //   the counter wrap back through negative-int32 space (matching
+    //   the `xaddl` overflow behaviour); a session that mints > 2^32
+    //   would then wrap around to 0 (matching the native uint32 wrap).
+    //   In practice FCP sessions mint tens of thousands of IDs, well
+    //   inside the safe range — but the width is preserved for
+    //   faithfulness.
+    const old = sIDGenerator;
+    sIDGenerator = (sIDGenerator + 1) | 0;
+    return old;
   }
 }
