@@ -26,6 +26,10 @@
 //                    mangled: __ZN13HGRenderQueue24SetDebugQueueVerboseMaskEj
 //                    DECODE:  raw-port/re/disasm/Helium.__ZN13HGRenderQueue24SetDebugQueueVerboseMaskEj.s
 //
+//   @Helium 0x62600  HGRenderQueue::SetSerializeCustomRenderJobsFlag(bool) (FULL)
+//                    mangled: __ZN13HGRenderQueue32SetSerializeCustomRenderJobsFlagEb
+//                    DECODE:  raw-port/re/disasm/Helium.__ZN13HGRenderQueue32SetSerializeCustomRenderJobsFlagEb.s
+//
 // Every other member of the class (the ctors @0x60ba0 / @0x61480, the dtors
 // @0x61490 / @0x61c60 / @0x61c70, CreateRenderContextForComputeDevice @0x61c90,
 // AddRenderContext @0x61e00, SetRunMode @0x62560, SetPreferredResource @0x625a0,
@@ -291,5 +295,62 @@ export class HGRenderQueue {
     this.serializeRenders49 = serialize;
     // @Helium 0x625e8: movb %sil, 0x48(%rdi)
     this.serializeRenders48 = serialize;
+  }
+
+  /**
+   * `+0x4b  bool serializeCustomRenderJobs` — fourth byte of the flag quartet
+   * the ctor initializes with the single `movl $0x10101, 0x48(%rbx)`
+   * @Helium 0x60c06: that store lands 0x01 in +0x48/+0x49/+0x4a and **0x00**
+   * in +0x4b, so this flag defaults to `false` (unlike its three neighbours).
+   * The next ctor writes — `movw $0x0, 0x4c` @0x60c0d — bound the quartet.
+   *
+   * It is a real, independently addressed slot, not a duplicate of +0x48/+0x49:
+   *   * the only writer inside the class is
+   *     {@link HGRenderQueue.SetSerializeCustomRenderJobsFlag} @Helium 0x62604
+   *     (`movb %sil, 0x4b(%rdi)`);
+   *   * the only reader is `GetRenderJobFromQueue` @Helium 0x691c6
+   *     (`cmpb $0x1, 0x4b(%r14)` — an explicit compare against 1, i.e. the
+   *     slot is consumed as a C++ `bool`);
+   *   * `CreateRenderQueue` @Helium 0x6c855/0x6c85b copies it across from the
+   *     matching byte of the HGRenderQueueSetupProperties argument
+   *     (`movzbl 0x4b(%r12), %eax` then `movb %al, 0x4b(%r13)`) — and that
+   *     properties object zeroes the same slot from its own
+   *     `movl $0x10101, 0x48(%rbx)` @Helium 0x71178.
+   */
+  serializeCustomRenderJobs = false;
+
+  /**
+   * `HGRenderQueue::SetSerializeCustomRenderJobsFlag(bool)` — Helium @0x00062600
+   * (mangled `__ZN13HGRenderQueue32SetSerializeCustomRenderJobsFlagEb`).
+   *
+   * Full transcription — every instruction of the function, in order
+   * (raw-port/re/disasm/Helium.__ZN13HGRenderQueue32SetSerializeCustomRenderJobsFlagEb.s):
+   *
+   *   0x62600  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x62601  movq  %rsp, %rbp           ; frame setup (no TS counterpart)
+   *   0x62604  movb  %sil, 0x4b(%rdi)     ; this->serializeCustomRenderJobs = arg
+   *   0x62608  popq  %rbp                 ; frame teardown (no TS counterpart)
+   *   0x62609  retq                       ; void return
+   *   0x6260a  nopw  (%rax,%rax)          ; alignment padding, not executed
+   *
+   * ONE byte store — note the contrast with its immediate neighbour
+   * `SetSerializeRendersFlag` @0x625e0 just above, which stores the same
+   * argument TWICE (+0x49 then +0x48). This one touches only +0x4b, and the
+   * port must not mirror it into any sibling flag.
+   *
+   * `%sil` is the low byte of the second integer argument register, i.e. the
+   * `bool` parameter under the SysV AMD64 ABI, and `movb` writes exactly that
+   * one byte — +0x48/+0x49/+0x4a are left untouched.
+   *
+   * Like the other setters in this file and unlike `SetRunMode` @0x62560
+   * (which brackets its store with `HGSynchronizable::Lock()`/`Unlock()` on
+   * the synchronizable at +0x150), it takes NO lock. No callees, no externs,
+   * no indirect calls, no validation, no return value.
+   *
+   * @param serialize the new serialize-custom-render-jobs flag (`%sil`).
+   */
+  SetSerializeCustomRenderJobsFlag(serialize: boolean): void {
+    // @Helium 0x62604: movb %sil, 0x4b(%rdi)
+    this.serializeCustomRenderJobs = serialize;
   }
 }
