@@ -1230,4 +1230,43 @@ export class OZRenderParams {
       size: { x: w, y: h },
     };
   }
+
+  /**
+   * OZRenderParams::getRenderQuality() const  @Ozone 0x270780
+   *   __ZNK14OZRenderParams16getRenderQualityEv
+   *
+   *   0x270780  pushq  %rbp
+   *   0x270781  movq   %rsp, %rbp
+   *   0x270784  movzbl 0x1a8(%rdi), %eax                 ; eax = (u8) this->+0x1a8 (mode-byte index)
+   *   0x27078b  movl   0x1d0(%rdi,%rax,4), %eax          ; eax = (u32) this->[0x1d0 + idx*4]
+   *   0x270792  popq   %rbp
+   *   0x270793  retq
+   *   0x270794  nopw   %cs:(%rax,%rax)                    ; padding
+   *
+   * SEMANTICS: the render-quality slots at +0x1d0 form a small u32 array
+   * indexed by the one-byte mode discriminator at +0x1a8 (the same latch
+   * `setResolutionDynamic` gates on @0x27173e and that `getDoShapeAntialiasing`
+   * @0x2718eb indexes with — a 0/1 "static vs dynamic" selector). idx*4:
+   *   idx 0 -> +0x1d0  (renderQualityAt1d0, the static/author quality)
+   *   idx 1 -> +0x1d4  (renderQualityDynamicAt1d4, the applied/dynamic quality)
+   * `setRenderQuality(OZQuality)` @0x271774 writes BOTH slots, confirming
+   * the pair. The result is zero-extended from a 32-bit load (u32).
+   *
+   * ZERO in-scope callees, ZERO externs. Pure indexed field read.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams16getRenderQualityEv.s (8 lines)
+   */
+  getRenderQuality(this: OZRenderParams): number {
+    // @0x270784  movzbl 0x1a8(%rdi),%eax
+    //   Zero-extended byte load of the mode-byte -> array index.
+    const idx = this.flagByteAt1a8 & 0xff;
+    // @0x27078b  movl 0x1d0(%rdi,%rax,4),%eax
+    //   Indexed u32 load from the quality array based at +0x1d0. The two
+    //   modelled slots are +0x1d0 (idx 0) and +0x1d4 (idx 1); reproduce
+    //   the machine's `base + idx*4` selection over them.
+    const quality = idx === 0 ? this.renderQualityAt1d0 : this.renderQualityDynamicAt1d4;
+    // Result is a zero-extended 32-bit value (movzbl index; movl u32 result).
+    return quality >>> 0;
+  }
 }
