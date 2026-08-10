@@ -742,3 +742,121 @@ export function OZScene_end_all(
   // SysV: %rax already holds the sret out-ptr (set @0x4f164).
   return out;
 }
+
+
+// ---------------------------------------------------------------------------
+// OZScene::begin_all() @Ozone 0x4f120
+//   __ZN7OZScene9begin_allEv
+//   DECODE: raw-port/re/disasm/__ZN7OZScene9begin_allEv.s
+// ---------------------------------------------------------------------------
+
+/**
+ * `OZScene::begin_all()`
+ * @0x000000000004f120  Ozone   mangled: __ZN7OZScene9begin_allEv
+ *
+ * The BEGIN endpoint of the "all descendants" iterator family whose END
+ * endpoint (`end_all()` @0x4f160) is ported directly above; both build the
+ * same {@link OZSceneAllIterator} sret struct, which is reused unchanged here.
+ *
+ * ABI: sret struct-return — the destination slot arrives in `%rdi`, the
+ * receiver (`this`) in `%rsi`, and the sret pointer is handed back in `%rax`
+ * (`movq %rdi, %rax` @0x4f124).
+ *
+ * FULL DISASM (16 lines — every instruction, in order,
+ * raw-port/re/disasm/__ZN7OZScene9begin_allEv.s):
+ *
+ *   0x4f120  pushq  %rbp                        ; prologue
+ *   0x4f121  movq   %rsp, %rbp
+ *   0x4f124  movq   %rdi, %rax                  ; return value = the sret slot
+ *   0x4f127  movq   0x3d8(%rsi), %rcx           ; rcx = *(this+0x3D8) = first child
+ *   0x4f12e  addq   $0x3d0, %rsi                ; rsi = this+0x3D0 = &sentinel
+ *   0x4f135  xorps  %xmm0, %xmm0                ; xmm0 = 0
+ *   0x4f138  movups %xmm0, 0x40(%rdi)           ; dst[0x40..0x4F] = 0
+ *   0x4f13c  movups %xmm0, 0x30(%rdi)           ; dst[0x30..0x3F] = 0
+ *   0x4f140  movups %xmm0, 0x18(%rdi)           ; dst[0x18..0x27] = 0
+ *   0x4f144  movl   $0x3f800000, 0x50(%rdi)     ; dst[0x50] = fp32 1.0
+ *   0x4f14b  movq   %rcx, (%rdi)                ; dst[0x00] = FIRST CHILD
+ *   0x4f14e  movq   %rcx, 0x8(%rdi)             ; dst[0x08] = first-child snapshot
+ *   0x4f152  movq   %rsi, 0x10(%rdi)            ; dst[0x10] = &sentinel
+ *   0x4f156  movl   $0x0, 0x28(%rdi)            ; dst[0x28] = 0  (DWORD)
+ *   0x4f15d  popq   %rbp
+ *   0x4f15e  retq
+ *   0x4f15f  nop                                ; alignment padding, not executed
+ *
+ * It is byte-identical to `end_all()` @0x4f160 except for ONE instruction:
+ *   begin_all @0x4f14b  `movq %rcx, (%rdi)`   -> cur = the FIRST CHILD
+ *   end_all   @0x4f18b  `movq %rsi, (%rdi)`   -> cur = the SENTINEL
+ * Everything else — the capture order (`rcx` read @0x4f127 BEFORE `%rsi` is
+ * rewritten @0x4f12e), the three `movups` zero runs, the fp32 1.0 at +0x50,
+ * the +0x08 snapshot, the +0x10 sentinel and the DWORD zero at +0x28 — matches
+ * instruction for instruction at the corresponding addresses. That is exactly
+ * the begin/end relationship the direct-children pair `begin()` @0x63760 /
+ * `end()` @0x637a0 has on the smaller iterator.
+ *
+ * Neither pointer is dereferenced: the body is pure pointer arithmetic plus a
+ * fixed byte-shape build, so it has ZERO callees, zero externs, zero indirect
+ * calls and no branches.
+ *
+ * @param self the receiver (`%rsi`).
+ * @param out  the caller-provided sret slot (`%rdi`).
+ * @returns `out` — the value `%rax` carries back.
+ */
+export function OZScene_begin_all(
+  self: OZSceneRuntime,
+  out: OZSceneAllIterator,
+): OZSceneAllIterator {
+  // The three 16-byte zero runs are caller-owned storage in the C++ sret slot;
+  // if they are not sized right the movups-simulation below would silently
+  // truncate, so refuse loudly (same guard style as OZScene_end_all above).
+  if (!(out.zeroBlock_at0x18 instanceof Uint8Array) || out.zeroBlock_at0x18.length !== 16) {
+    throw new Error(
+      "OZScene_begin_all: out.zeroBlock_at0x18 must be a 16-byte Uint8Array " +
+        "(sret iterator slot @0x18..0x27). @0x4f140 stores 16 bytes here.",
+    );
+  }
+  if (!(out.zeroBlock_at0x30 instanceof Uint8Array) || out.zeroBlock_at0x30.length !== 16) {
+    throw new Error(
+      "OZScene_begin_all: out.zeroBlock_at0x30 must be a 16-byte Uint8Array " +
+        "(sret iterator slot @0x30..0x3F). @0x4f13c stores 16 bytes here.",
+    );
+  }
+  if (!(out.zeroBlock_at0x40 instanceof Uint8Array) || out.zeroBlock_at0x40.length !== 16) {
+    throw new Error(
+      "OZScene_begin_all: out.zeroBlock_at0x40 must be a 16-byte Uint8Array " +
+        "(sret iterator slot @0x40..0x4F). @0x4f138 stores 16 bytes here.",
+    );
+  }
+
+  // @0x4f127  rcx = *(this + 0x3D8) = firstChildPtr_at0x3D8 (captured FIRST,
+  //           before %rsi is rewritten).
+  const rcx: OZSceneChildListNode = self.firstChildPtr_at0x3D8;
+  // @0x4f12e  rsi = this + 0x3D0 = &childListSentinel_at0x3D0. (No pointer
+  //           arithmetic in TS — the referenced node stands in for the
+  //           address; peers compare sentinel-ness by identity.)
+  const rsi_plus_3d0: OZSceneChildListNode = self.childListSentinel_at0x3D0;
+
+  // Stores, in binary order:
+  //   @0x4f135: xorps %xmm0, %xmm0        (xmm0 = 0)
+  //   @0x4f138: movups %xmm0, 0x40(%rdi)
+  out.zeroBlock_at0x40.fill(0);
+  //   @0x4f13c: movups %xmm0, 0x30(%rdi)
+  out.zeroBlock_at0x30.fill(0);
+  //   @0x4f140: movups %xmm0, 0x18(%rdi)
+  out.zeroBlock_at0x18.fill(0);
+  //   @0x4f144: movl $0x3f800000, 0x50(%rdi) — 0x3F800000 IS the IEEE-754
+  //   fp32 encoding of 1.0, stored 32-bit wide, so fround it.
+  out.weight_at0x50 = Math.fround(1.0);
+  //   @0x4f14b: movq %rcx, (%rdi)  — THE distinguishing store: begin_all's
+  //   cursor starts at the FIRST CHILD (end_all @0x4f18b stores the sentinel).
+  out.cur_at0x00 = rcx;
+  //   @0x4f14e: movq %rcx, 0x8(%rdi)
+  out.firstChildAtSnapshot_at0x08 = rcx;
+  //   @0x4f152: movq %rsi, 0x10(%rdi)
+  out.endSentinel_at0x10 = rsi_plus_3d0;
+  //   @0x4f156: movl $0x0, 0x28(%rdi)  — DWORD-wide zero (the child iterator's
+  //   corresponding flag is a single movb; this family uses movl).
+  out.flag_at0x28 = 0;
+
+  // SysV: %rax already holds the sret out-ptr (set @0x4f124).
+  return out;
+}
