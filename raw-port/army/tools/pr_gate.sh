@@ -43,7 +43,7 @@ cp -R "$T/raw-port/army/gate" raw-port/army/ 2>/dev/null; cp -R "$T/raw-port/arm
 
 git fetch -q origin main 2>&1 | tail -1
 CHANGED=$(git diff --name-only origin/main...HEAD -- 'raw-port/src/**/*.ts' | tr '\n' ' ')
-[ -z "$CHANGED" ] && { post_status failure "no src changes to gate"; echo "no changes"; exit 1; }
+if [ -z "$CHANGED" ]; then post_status success "no raw-port/src ports to gate (infra/tooling PR)"; echo "PR_GATE: PASS (no src changes) (#$PR)"; exit 0; fi
 echo "changed: $CHANGED"
 
 FAIL=0; REASON=""

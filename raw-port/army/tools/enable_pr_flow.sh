@@ -27,5 +27,7 @@ gh api -X PUT "repos/$REPO_SLUG/branches/main/protection" --input - <<'JSON'
   "allow_deletions": false
 }
 JSON
+gh api -X POST "repos/$REPO_SLUG/branches/main/protection/enforce_admins" >/dev/null 2>&1 || true
+echo "enforce_admins: $(gh api repos/$REPO_SLUG/branches/main/protection/enforce_admins --jq .enabled)"
 echo "=== verify ==="
 gh api "repos/$REPO_SLUG/branches/main/protection" --jq '{strict:.required_status_checks.strict, contexts:.required_status_checks.contexts, linear:.required_linear_history.enabled, force:.allow_force_pushes.enabled}'
