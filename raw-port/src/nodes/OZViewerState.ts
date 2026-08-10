@@ -499,4 +499,45 @@ export class OZViewerState {
     this.mirroringHMD_at_0x102 = mirroringHMD & 0xff;
     // @0x36e5ab..0x36e5ac — epilogue + retq (no return value).
   }
+
+  /**
+   * `OZViewerState::setResolutionMode(OZResolution mode)` @Ozone 0x36e260
+   *   — __ZN13OZViewerState17setResolutionModeE12OZResolution
+   *
+   * The setter for the SAME +0x20 field `getResolution()` @0x36e2e7 reads.
+   * A single 32-bit store; no clamping, no validation, no other field
+   * touched, returns void.
+   *
+   * FULL DISASM (4 real insns @0x36e260..0x36e268; 0x36e269 is padding):
+   *   0x36e260  pushq %rbp
+   *   0x36e261  movq  %rsp, %rbp
+   *   0x36e264  movl  %esi, 0x20(%rdi)   ; this->resolutionMode = mode
+   *   0x36e267  popq  %rbp
+   *   0x36e268  retq
+   *   0x36e269  nopl  (%rax)             ; padding, not code
+   *
+   * That the destination is exactly the field `getResolution()` consumes is
+   * what fixes the meaning of the argument: `getResolution()` @0x36e2ec
+   * compares that same u32 against 1 and 2 to pick 0.5f / 0.25f, defaulting
+   * to 1.0f — so `OZResolution` values 1 and 2 are half- and
+   * quarter-resolution and anything else is full-resolution. This method
+   * invents no policy of its own; it just writes the word.
+   *
+   * `movl` is a 32-bit store, so the argument is truncated to 32 bits —
+   * mirrored with `| 0`, matching the 32-bit `movl 0x20(%rsi), %esi` load on
+   * the getter side.
+   *
+   * Zero in-scope callees, zero externs, zero indirect calls — one store.
+   * (`depgraph.py deps __ZN13OZViewerState17setResolutionModeE12OZResolution`
+   * prints nothing; there is no `callq` in the body.)
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN13OZViewerState17setResolutionModeE12OZResolution.s
+   */
+  setResolutionMode(mode: number): void {
+    // @0x36e260..0x36e261 — prologue (no TS-visible effect).
+    // @0x36e264           — movl %esi, 0x20(%rdi): 32-bit store of the arg.
+    this.resolutionMode = mode | 0;
+    // @0x36e267..0x36e268 — epilogue + retq (void).
+  }
 }
