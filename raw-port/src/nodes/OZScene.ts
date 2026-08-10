@@ -48,6 +48,26 @@ export class OZScene {
       default: break;
     }
   }
+
+  /**
+   * `OZScene::updateInvalidFreezeNodeIDs()` — @Ozone 0x311ce0
+   *
+   * Full disassembly (re/disasm/__ZN7OZScene26updateInvalidFreezeNodeIDsEv.s):
+   *   0x311ce0  pushq %rbp                 ; frame prologue
+   *   0x311ce1  movq  %rsp, %rbp
+   *   0x311ce4  popq  %rbp                 ; frame epilogue
+   *   0x311ce5  retq                       ; return void
+   *   0x311ce6  nopw  %cs:(%rax,%rax)      ; alignment padding (not executed)
+   *
+   * A REAL no-op in the shipping binary: it establishes and tears down a
+   * stack frame and returns immediately, never touching `this` (rdi is
+   * untouched) and calling nothing. Transcribed faithfully as an empty
+   * body. Kept as a distinct method to preserve the FCP class boundary —
+   * this WAS a method on OZScene, even though its body compiled to nothing.
+   */
+  updateInvalidFreezeNodeIDs(): void {
+    // no-op (@Ozone 0x311ce0 — push rbp; mov rbp,rsp; pop rbp; ret)
+  }
 }
 
 // =============================================================================

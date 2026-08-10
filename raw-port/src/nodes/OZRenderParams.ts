@@ -96,6 +96,21 @@ export interface PCVector2Double {
 }
 
 /**
+ * The by-value struct `OZRenderParams::getRenderBounds()` returns — a rect of
+ * two `PCVector2<double>`: an `origin` (x,y) stored at the sret's +0x00 and a
+ * `size` (width,height) stored at +0x10 (matching the two `movups`/`movupd`
+ * stores in the disasm). Not an FCP-named class, but the exact 32-byte struct
+ * layout the ABI returns; modelled as a plain shape so callers read the same
+ * two vectors the machine writes.
+ */
+export interface OZRenderBounds {
+  /** sret +0x00 — origin corner (x,y). */
+  origin: PCVector2Double;
+  /** sret +0x10 — size (width,height). */
+  size: PCVector2Double;
+}
+
+/**
  * `OZRenderParams` — the render-params bag. Only the fields touched by
  * `setResolution` are decoded at this layer; the rest of the object is
  * OPAQUE (undecoded) and is intentionally NOT modelled here — future
@@ -181,6 +196,28 @@ export class OZRenderParams {
    * argument), directly adjacent in the struct. Modelled as `number`.
    */
   heightAt148: number = 0;
+
+  /**
+   * @Ozone offset +0x248 — the explicit render-bounds ORIGIN, a
+   * `PCVector2<double>` (x at +0x248, y at +0x250) read as a packed 128-bit
+   * pair by `getRenderBounds() const` @0x270ab5 (`movups 0x248(%rsi),%xmm0`).
+   * Together with the size at +0x258 this forms the caller-set render
+   * rectangle; when the size at +0x258 is <= 0 the getter ignores these and
+   * synthesises bounds from widthAt144/heightAt148 instead. Modelled as a
+   * PCVector2Double (the same 16-byte shape the disasm loads).
+   */
+  renderBoundsOriginAt248: PCVector2Double = { x: 0, y: 0 };
+
+  /**
+   * @Ozone offset +0x258 — the explicit render-bounds SIZE, a
+   * `PCVector2<double>` (width at +0x258, height at +0x260) read as a packed
+   * 128-bit pair by `getRenderBounds() const` @0x270abc
+   * (`movups 0x258(%rsi),%xmm1`). Its x/width lane at +0x258 is ALSO the gate
+   * the getter tests (`ucomisd 0x258(%rsi),%xmm0` with xmm0=0): width <= 0
+   * means "no explicit bounds set" and the getter falls back to the
+   * width/height ints. Modelled as a PCVector2Double (x=width, y=height).
+   */
+  renderBoundsSizeAt258: PCVector2Double = { x: 0, y: 0 };
 
   /**
    * @Ozone offset +0x120 — an EMBEDDED "destination device" sub-object (not a
@@ -1110,5 +1147,126 @@ export class OZRenderParams {
     //   Return the ADDRESS of the embedded device sub-object — i.e. a
     //   reference to this.destinationDeviceAt120 (no dereference, no copy).
     return this.destinationDeviceAt120;
+  }
+
+  /**
+   * `OZRenderParams::getRenderBounds() const` @Ozone 0x270aa0
+   * (__ZNK14OZRenderParams15getRenderBoundsEv).
+   *
+   * Returns the render rectangle as a by-value struct: an origin
+   * `(x, y)` at ret+0x00 and a size `(width, height)` at ret+0x10 (32-byte
+   * sret; the C++ ABI passes the return slot in %rdi and `this` in %rsi).
+   *
+   * If an EXPLICIT render bounds has been set (its width lane at this+0x258
+   * is > 0), the getter copies the stored origin (+0x248) and size (+0x258)
+   * verbatim. Otherwise (width <= 0, i.e. "unset") it synthesises bounds at
+   * origin (0,0) with size taken from the integer width/height fields
+   * (+0x144 / +0x148), converting the two uint32s to doubles via the classic
+   * 2^52-bias trick (`pmovzxdq` zero-extend, `por` the bias, `subpd` it back).
+   *
+   * Faithful transcription of the 23-line disasm:
+   *   0x270aa4  movq %rdi,%rax                 ; rax = &ret (sret)
+   *   0x270aa7  xorpd %xmm0,%xmm0              ; xmm0 = 0.0
+   *   0x270aab  ucomisd 0x258(%rsi),%xmm0      ; sub: 0.0 - this[0x258] (width)
+   *   0x270ab3  jae 0x270acc                    ; CF=0 => 0.0 >= width => width<=0 => FALLBACK
+   *   -- explicit-bounds branch (width > 0): --
+   *   0x270ab5  movups 0x248(%rsi),%xmm0       ; xmm0 = origin (x,y)
+   *   0x270abc  movups 0x258(%rsi),%xmm1       ; xmm1 = size (w,h)
+   *   0x270ac3  movups %xmm1,0x10(%rax)        ; ret.size = size
+   *   0x270ac7  movups %xmm0,(%rax)            ; ret.origin = origin
+   *   0x270aca  retq
+   *   -- fallback branch (width <= 0) @0x270acc: --
+   *   0x270acc  xorpd %xmm0,%xmm0             ; xmm0 = 0
+   *   0x270ad0  movupd %xmm0,(%rax)           ; ret.origin = (0,0)
+   *   0x270ad4  pmovzxdq 0x144(%rsi),%xmm0    ; xmm0 = zext(uint32 w@0x144, uint32 h@0x148)
+   *   0x270add  movdqa 0x7076e0(%rip),%xmm1   ; xmm1 = {2^52, 2^52} (0x4330000000000000 x2)
+   *   0x270ae5  por %xmm1,%xmm0              ; OR the 2^52 bias into each lane
+   *   0x270ae9  subpd %xmm1,%xmm0           ; subtract 2^52 -> exact uint32 as double
+   *   0x270aed  movupd %xmm0,0x10(%rax)     ; ret.size = ((double)w,(double)h)
+   *   0x270af2  retq
+   *
+   * The 2^52 constant at 0x7076e0 was read from Ozone's __TEXT,__const:
+   *   00 00 00 00 00 00 30 43  (x2) = double 0x4330000000000000 = 4503599627370496.0.
+   *
+   * Zero in-scope callees, zero externs, no indirect calls — pure field
+   * copy / integer-to-double conversion.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams15getRenderBoundsEv.s (23 lines)
+   */
+  getRenderBounds(this: OZRenderParams): OZRenderBounds {
+    // @0x270aa7 xorpd %xmm0,%xmm0 ; @0x270aab ucomisd 0x258(%rsi),%xmm0
+    //   compares 0.0 - this.renderBoundsSize.x (the width lane).
+    // @0x270ab3 jae 0x270acc : CF=0 => 0.0 >= width => width <= 0 => FALLBACK.
+    //   NOT taken (width > 0) => copy the explicit stored bounds.
+    if (this.renderBoundsSizeAt258.x > 0) {
+      // explicit-bounds branch @0x270ab5:
+      // @0x270ab5 movups 0x248 -> origin ; @0x270abc movups 0x258 -> size
+      // @0x270ac3 store size@ret+0x10 ; @0x270ac7 store origin@ret+0x00
+      return {
+        origin: {
+          x: this.renderBoundsOriginAt248.x,
+          y: this.renderBoundsOriginAt248.y,
+        },
+        size: {
+          x: this.renderBoundsSizeAt258.x,
+          y: this.renderBoundsSizeAt258.y,
+        },
+      };
+    }
+
+    // fallback branch @0x270acc (width <= 0): origin = (0,0), size from int w/h.
+    // @0x270ad4 pmovzxdq 0x144(%rsi) : zero-extend uint32 width(+0x144),
+    //   height(+0x148) to two 64-bit lanes; @0x270add/@0x270ae5/@0x270ae9
+    //   OR the 2^52 bias then subtract it -> the exact unsigned values as
+    //   doubles. widthAt144/heightAt148 are the same int32 slots (unsigned
+    //   reinterpretation via >>> 0 to match the zero-extending pmovzxdq).
+    const w = this.widthAt144 >>> 0;
+    const h = this.heightAt148 >>> 0;
+    return {
+      // @0x270ad0 movupd %xmm0(=0),(%rax) : ret.origin = (0,0).
+      origin: { x: 0, y: 0 },
+      // @0x270aed movupd %xmm0,0x10(%rax) : ret.size = ((double)w,(double)h).
+      size: { x: w, y: h },
+    };
+  }
+
+  /**
+   * OZRenderParams::getRenderQuality() const  @Ozone 0x270780
+   *   __ZNK14OZRenderParams16getRenderQualityEv
+   *
+   *   0x270780  pushq  %rbp
+   *   0x270781  movq   %rsp, %rbp
+   *   0x270784  movzbl 0x1a8(%rdi), %eax                 ; eax = (u8) this->+0x1a8 (mode-byte index)
+   *   0x27078b  movl   0x1d0(%rdi,%rax,4), %eax          ; eax = (u32) this->[0x1d0 + idx*4]
+   *   0x270792  popq   %rbp
+   *   0x270793  retq
+   *   0x270794  nopw   %cs:(%rax,%rax)                    ; padding
+   *
+   * SEMANTICS: the render-quality slots at +0x1d0 form a small u32 array
+   * indexed by the one-byte mode discriminator at +0x1a8 (the same latch
+   * `setResolutionDynamic` gates on @0x27173e and that `getDoShapeAntialiasing`
+   * @0x2718eb indexes with — a 0/1 "static vs dynamic" selector). idx*4:
+   *   idx 0 -> +0x1d0  (renderQualityAt1d0, the static/author quality)
+   *   idx 1 -> +0x1d4  (renderQualityDynamicAt1d4, the applied/dynamic quality)
+   * `setRenderQuality(OZQuality)` @0x271774 writes BOTH slots, confirming
+   * the pair. The result is zero-extended from a 32-bit load (u32).
+   *
+   * ZERO in-scope callees, ZERO externs. Pure indexed field read.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams16getRenderQualityEv.s (8 lines)
+   */
+  getRenderQuality(this: OZRenderParams): number {
+    // @0x270784  movzbl 0x1a8(%rdi),%eax
+    //   Zero-extended byte load of the mode-byte -> array index.
+    const idx = this.flagByteAt1a8 & 0xff;
+    // @0x27078b  movl 0x1d0(%rdi,%rax,4),%eax
+    //   Indexed u32 load from the quality array based at +0x1d0. The two
+    //   modelled slots are +0x1d0 (idx 0) and +0x1d4 (idx 1); reproduce
+    //   the machine's `base + idx*4` selection over them.
+    const quality = idx === 0 ? this.renderQualityAt1d0 : this.renderQualityDynamicAt1d4;
+    // Result is a zero-extended 32-bit value (movzbl index; movl u32 result).
+    return quality >>> 0;
   }
 }
