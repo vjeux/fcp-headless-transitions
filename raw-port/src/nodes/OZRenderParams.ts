@@ -1275,6 +1275,57 @@ export class OZRenderParams {
   }
 
   /**
+   * OZRenderParams::getTextRenderQuality() const  @Ozone 0x271800
+   *   __ZNK14OZRenderParams20getTextRenderQualityEv
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x271800  pushq  %rbp                            ; frame setup (no TS counterpart)
+   *   0x271801  movq   %rsp, %rbp                      ; frame setup (no TS counterpart)
+   *   0x271804  movzbl 0x1a8(%rdi), %eax               ; eax = (u8) this->+0x1a8 (mode-byte index)
+   *   0x27180b  movl   0x1d8(%rdi,%rax,4), %eax        ; eax = (u32) this->[0x1d8 + idx*4]
+   *   0x271812  popq   %rbp                            ; frame teardown (no TS counterpart)
+   *   0x271813  retq                                   ; return eax
+   *   0x271814  nopw   %cs:(%rax,%rax)                 ; alignment padding, not executed
+   *
+   * SEMANTICS: byte-for-byte the same shape as the sibling
+   * `getRenderQuality()` @0x270780 — same `movzbl 0x1a8` mode-byte index, same
+   * `base + idx*4` indexed u32 load — only the array BASE differs
+   * (+0x1d8 here vs +0x1d0 there). The two text-quality slots it selects
+   * between are already modelled on this class:
+   *   idx 0 -> +0x1d8  (textRenderQualityAt1d8, the static/author quality)
+   *   idx 1 -> +0x1dc  (textRenderQualityDynamicAt1dc, the applied/dynamic one)
+   * and that pairing is exactly what `setTextRenderQuality(OZTextQuality)`
+   * writes in one shot (@0x2717b4 stamps +0x1d8, @0x2717ba stamps +0x1dc),
+   * while `setTextRenderQualityDynamic` @0x2717e4 writes only +0x1dc.
+   *
+   * The index is a ZERO-extended byte (`movzbl`), so the raw 0..255 value of
+   * the mode byte is what scales by 4 — not a boolean. Only indices 0 and 1
+   * have modelled slots (the two the setters write); the machine would read
+   * further into the object for any other byte value, which no decoded writer
+   * ever produces, so the port reproduces the two-slot selection exactly as
+   * `getRenderQuality()` @0x270780 does.
+   *
+   * ZERO in-scope callees, ZERO externs, no indirect/virtual dispatch — a pure
+   * indexed field read.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams20getTextRenderQualityEv.s (7 lines)
+   */
+  getTextRenderQuality(this: OZRenderParams): number {
+    // @0x271804  movzbl 0x1a8(%rdi),%eax
+    //   Zero-extended byte load of the mode-byte -> array index.
+    const idx = this.flagByteAt1a8 & 0xff;
+    // @0x27180b  movl 0x1d8(%rdi,%rax,4),%eax
+    //   Indexed u32 load from the text-quality array based at +0x1d8; the two
+    //   modelled slots are +0x1d8 (idx 0) and +0x1dc (idx 1).
+    const quality =
+      idx === 0 ? this.textRenderQualityAt1d8 : this.textRenderQualityDynamicAt1dc;
+    // Result is a zero-extended 32-bit value (movzbl index; movl u32 result).
+    return quality >>> 0;
+  }
+
+  /**
    * `OZRenderParams::disableDynamic()`
    *   — @Ozone 0x2716b0
    *   — __ZN14OZRenderParams14disableDynamicEv
