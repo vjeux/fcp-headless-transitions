@@ -241,4 +241,24 @@ export class PCAtomBox {
     // @0x008bb6 — movq 0x20(%rdi),%rax : load the parent pointer at +0x20.
     return this.parent;
   }
+
+  /**
+   * PCAtomBox::getSize()
+   * @0xADDR ProCore 0x0000000000008b68  (__ZN9PCAtomBox7getSizeEv)
+   *
+   * DECODE (raw-port/re/disasm/ProCore.__ZN9PCAtomBox7getSizeEv.s):
+   *   0x008b68  pushq %rbp ; movq %rsp,%rbp        ; frame
+   *   0x008b6c  movq 0x8(%rdi), %rax               ; rax = *(u64*)(this+0x08) = size
+   *   0x008b70  popq %rbp ; retq                   ; return size
+   *
+   * A plain 64-bit field accessor: returns the atom's total box size. This is the
+   * exact companion getter to setSize(unsigned long long) @0x008b72 (`movq %rsi,0x8(%rdi)`),
+   * reading the same +0x08 field that getHeaderSize @0x008b94 reads. Zero callees,
+   * no externs. The return is a full unsigned long long, kept as bigint (PORTING_SPEC
+   * Rule 4 — a box size is a 64-bit file quantity that can exceed 2^53).
+   */
+  getSize(): bigint {
+    // @0x008b6c — movq 0x8(%rdi),%rax : load the u64 size at +0x08.
+    return this.size;
+  }
 }
