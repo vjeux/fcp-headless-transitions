@@ -475,3 +475,102 @@ export function OZScene_getDependantNodes(
   //                                   the JAE at 0x58ded didn't fire).
   return map.get(key32) ?? null;
 }
+
+
+// ---------------------------------------------------------------------------
+// OZScene::setNeedsDesperationMode(bool) @Ozone 0x7ec30
+//   __ZN7OZScene23setNeedsDesperationModeEb
+//   DECODE: raw-port/re/disasm/__ZN7OZScene23setNeedsDesperationModeEb.s
+// ---------------------------------------------------------------------------
+
+/**
+ * The single slot this unit touches.
+ *
+ * `+0x660  std::atomic<bool> needsDesperationMode` — the "renderer had to fall
+ * back to the low-memory / low-quality path for this scene" latch that
+ * GLRenderer's desperation machinery (`GLRenderer::enterDesperationMode(OZScene*)`
+ * @Ozone 0x239000, `GLRenderer::leaveDesperationMode(OZScene*)` @0x2390f0,
+ * `GLRenderer::inDesperationMode()` @0x235460) drives.
+ *
+ * Grounding — every `0x660(<this>)` access on an OZScene in the Ozone slice:
+ *   OZScene::OZScene(OZDocument*)            @0x4cf21 `movb $0x0, 0x660(%r13)`
+ *                                             (default = false)
+ *   OZScene::OZScene(OZScene const&,
+ *                    OZDocument*)            @0x4da85 `movzbl 0x660(%r13),%eax`
+ *                                             @0x4da8d `movb %al, 0x660(%r12)`
+ *                                             (copy ctor propagates the byte)
+ *   OZScene::setNeedsDesperationMode(bool)   @0x7ec36 `xchgb %al, 0x660(%rdi)`
+ *   OZScene::inDesperationMode() const       @0x7ec44 `movzbl 0x660(%rdi),%eax`
+ * One byte wide (`movb`/`movzbl`/`xchgb` throughout). Modelled as `number`
+ * (0..255) rather than `boolean` so the exact stored byte — which the setter
+ * below can leave as any value the caller passed — stays observable, exactly
+ * as `inDesperationMode()`'s `movzbl` would see it.
+ */
+export interface OZSceneDesperationField {
+  /** `+0x660` — the atomic desperation-mode byte (see the interface doc). */
+  needsDesperationMode_at0x660: number;
+}
+
+/**
+ * `OZScene::setNeedsDesperationMode(bool)` — @Ozone 0x0007ec30
+ * (mangled `__ZN7OZScene23setNeedsDesperationModeEb`).
+ *
+ * FULL DISASM (7 lines — every instruction, in order):
+ *
+ *   0x7ec30  pushq %rbp                 ; prologue
+ *   0x7ec31  movq  %rsp, %rbp
+ *   0x7ec34  movl  %esi, %eax           ; eax = the bool argument
+ *   0x7ec36  xchgb %al, 0x660(%rdi)     ; ATOMIC swap: al <-> this[+0x660]
+ *   0x7ec3c  andb  $0x1, %al            ; al = OLD byte & 1
+ *   0x7ec3e  popq  %rbp
+ *   0x7ec3f  retq                       ; return that old value
+ *
+ * This is `std::atomic<bool>::exchange`, not a plain store:
+ *
+ *  * `xchg` with a MEMORY operand is implicitly LOCKed on x86 (no `lock`
+ *    prefix is emitted or needed), i.e. the read-modify-write is atomic and
+ *    carries full sequential-consistency fencing. A plain `movb` — what the
+ *    sibling one-line setters in this file compile to — would NOT.
+ *  * The instruction is a SWAP: the argument byte goes into +0x660 and the
+ *    PREVIOUS byte comes back in `%al`.
+ *  * `andb $0x1, %al` @0x7ec3c then narrows that old byte to its low bit and
+ *    leaves it in the return register, so despite the `set…` name the function
+ *    RETURNS the previous flag (`bool`). The mask is the C++ `bool` narrowing
+ *    libc++ applies to a loaded `atomic<bool>` — note it applies ONLY to the
+ *    returned value; the byte actually STORED is the caller's argument
+ *    unmasked, since `%al` was written from `%esi` @0x7ec34 before the swap.
+ *
+ * The port therefore mirrors both halves: it stores the caller's byte verbatim
+ * and returns `old & 1`. Callers that want the classic "did I flip it?" idiom
+ * get exactly what the binary gives them.
+ *
+ * ZERO in-scope callees, zero externs, zero indirect calls, no branches. The
+ * atomicity has no JS counterpart (single-threaded), so the swap is expressed
+ * as a read-then-write pair in the order the instruction performs them.
+ *
+ * @param self the `OZScene` — `this` (%rdi).
+ * @param needsDesperationMode the new flag — `%sil`/`%esi` (arg 1).
+ * @returns the PREVIOUS flag, masked to its low bit (`andb $0x1` @0x7ec3c).
+ */
+export function OZScene_setNeedsDesperationMode(
+  self: OZSceneDesperationField,
+  needsDesperationMode: boolean | number,
+): boolean {
+  // @0x7ec34  movl %esi, %eax — the argument byte, as the machine sees it.
+  const incoming =
+    typeof needsDesperationMode === "boolean"
+      ? needsDesperationMode
+        ? 1
+        : 0
+      : needsDesperationMode & 0xff;
+
+  // @0x7ec36  xchgb %al, 0x660(%rdi) — atomic swap: read the old byte out and
+  // write the incoming byte in, in one indivisible step.
+  const old = self.needsDesperationMode_at0x660 & 0xff;
+  self.needsDesperationMode_at0x660 = incoming;
+
+  // @0x7ec3c  andb $0x1, %al — the RETURNED old value is masked to its low bit
+  // (the stored byte above is NOT masked).
+  // @0x7ec3f  retq
+  return (old & 0x1) !== 0;
+}
