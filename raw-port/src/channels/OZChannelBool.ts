@@ -213,8 +213,69 @@ interface OZCurveBool {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// call_once singleton state + boundary for createOZChannelBoolFalseImpl.
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * `OZChannelBool::createOZChannelBoolFalseImpl()::_OZChannelBoolFalseImpl_once`
+ *   @ProChannel data symbol
+ *   `__ZZN13OZChannelBool28createOZChannelBoolFalseImplEvE28_OZChannelBoolFalseImpl_once`
+ *   (rip-relative load @0x525ec).
+ *
+ * The libc++ `std::once_flag` guard word. Its "already run" fast-path sentinel
+ * is the value `-1` (the machine tests `cmpq $-0x1,%rax ; je …` @0x525f3 — see
+ * the identical pattern in createOZChannelBoolCurve). We model it as a bigint
+ * initialized to 0 (the libc++ "not yet run" state); after the boundary
+ * `__call_once` completes it becomes the -1n sentinel. We NEVER short-circuit
+ * this into a fabricated `new OZChannelBool()` — the allocation lives INSIDE
+ * `__call_once_proxy` (a separate ledger unit), never in this frame.
+ */
+let _OZChannelBoolFalseImpl_once: bigint = 0n;
+
+/**
+ * `OZChannelBool::_OZChannelBoolFalseImpl`
+ *   @ProChannel data symbol `__ZN13OZChannelBool23_OZChannelBoolFalseImplE`
+ *   (rip-relative load @0x5262b).
+ *
+ * The static singleton pointer returned by createOZChannelBoolFalseImpl. It is
+ * populated (allocated + constructed) by the `__call_once` lambda body inside
+ * `__call_once_proxy`; before that runs it is null. Opaque `OZChannelBool*`.
+ */
+let _OZChannelBoolFalseImpl: object | null = null;
+
+/**
+ * Boundary: libc++ `std::__1::__call_once(unsigned long&, void*, void(*)(void*))`
+ *   @ProChannel symbol stub `__ZNSt3__111__call_onceERVmPvPFvS2_E` @0xacdc8
+ *   (called @0x52621).
+ *
+ * This is the OUT-OF-SCOPE libc++ extern permitted by the porting spec: it runs
+ * the once-guarded initializer (the `__call_once_proxy` thunk `fn` over the
+ * captured tuple `arg`) exactly once, flipping `*flag` to the -1 "done"
+ * sentinel. The proxy — which is the frame that actually calls `operator new` +
+ * the OZChannelBool ctor to fill `_OZChannelBoolFalseImpl` — is a SEPARATE
+ * ledger unit `__ZNSt3__117__call_once_proxy…OZChannelBool…createOZChannelBoolFalseImpl…`
+ * (staged @0x5261a). We model the boundary as a throwing stub so the loud gap
+ * is filed; NEVER fabricate the allocation here.
+ */
+function std__call_once(
+  _flag: { value: bigint },
+  _arg: unknown,
+  _fn: (arg: unknown) => void,
+): void {
+  throw new Error(
+    "std::__1::__call_once(unsigned long&, void*, void(*)(void*)) @ProChannel " +
+      "symbol stub __ZNSt3__111__call_onceERVmPvPFvS2_E @0xacdc8 (out-of-scope libc++ extern) " +
+      "— invoked by OZChannelBool::createOZChannelBoolFalseImpl @ProChannel 0x52621; the " +
+      "singleton allocation lives in the __call_once_proxy tuple thunk staged @0x5261a " +
+      "(__ZNSt3__117__call_once_proxyB9nqe210106<…OZChannelBool::createOZChannelBoolFalseImpl()::lambda…>), " +
+      "a SEPARATE ledger unit — do NOT fabricate `new OZChannelBool()` in this frame.",
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // The class itself.
 // ─────────────────────────────────────────────────────────────────────────
+
 
 /**
  * `OZChannelBool` — a boolean-valued channel. Its full method surface
@@ -277,5 +338,74 @@ export class OZChannelBool {
     }
     // Step 9 — @0x0e0d0c: retq rbx.
     return rbx;
+  }
+
+  /**
+   * `OZChannelBool::createOZChannelBoolFalseImpl()` @ProChannel 0x000525ec.
+   *   __ZN13OZChannelBool28createOZChannelBoolFalseImplEv
+   *
+   *   0x525ec: movq  _..._OZChannelBoolFalseImpl_once(%rip),%rax   # rax = guard word
+   *   0x525f3: cmpq  $-0x1,%rax                                    # guard == -1 (already run)?
+   *   0x525f7: je    0x5262b                                       # yes → skip to singleton load
+   *   0x525f9: pushq %rbp ; movq %rsp,%rbp ; subq $0x20,%rsp       # slow-path frame
+   *   0x52601: leaq  -0x1(%rbp),%rax                               # &lambda-capture (empty tuple slot)
+   *   0x52605: leaq  -0x18(%rbp),%rcx
+   *   0x52609: movq  %rax,(%rcx)                                   # tuple[0] = &capture
+   *   0x5260c: leaq  -0x10(%rbp),%rsi
+   *   0x52610: movq  %rcx,(%rsi)                                   # proxyArg = &tuple
+   *   0x52613: leaq  _..._OZChannelBoolFalseImpl_once(%rip),%rdi   # arg0 = &guard
+   *   0x5261a: leaq  __call_once_proxy<...FalseImpl...lambda>(%rip),%rdx  # arg2 = proxy fn
+   *   0x52621: callq 0xacdc8  (__ZNSt3__111__call_onceERVmPvPFvS2_E)     # std::__call_once(&guard, proxyArg, proxy)
+   *   0x52626: addq  $0x20,%rsp ; popq %rbp
+   *   0x5262b: movq  __ZN13OZChannelBool23_OZChannelBoolFalseImplE(%rip),%rax  # rax = singleton ptr
+   *   0x52632: retq                                                # return _OZChannelBoolFalseImpl
+   *
+   * The canonical libc++ `call_once` singleton getter (`static local T*`
+   * pattern). The fast path (`cmpq $-0x1,%rax ; je`) tests the once-guard
+   * sentinel `-1`; if already initialized it jumps straight to loading the
+   * `_OZChannelBoolFalseImpl` static and returns it. Otherwise it stages the
+   * empty lambda-capture tuple on the stack and calls libc++
+   * `std::__call_once` @0xacdc8, whose proxy (`__call_once_proxy<…lambda>`,
+   * a SEPARATE ledger unit staged @0x5261a) performs the allocation +
+   * construction and stores the result into `_OZChannelBoolFalseImpl`, then
+   * flips the guard to -1.
+   *
+   * ANTI-CHEAT boundary: the ONLY throw here is the true out-of-scope libc++
+   * extern `std::__call_once` (@0xacdc8). We do NOT fabricate `new
+   * OZChannelBool()` — the allocation lives inside `__call_once_proxy`, which
+   * is its own ledger unit. On the fast path (guard already -1) we return the
+   * already-built singleton with NO throw, exactly as the machine does.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/ProChannel.__ZN13OZChannelBool28createOZChannelBoolFalseImplEv.s (20 lines)
+   */
+  static createOZChannelBoolFalseImpl(): object | null {
+    // @0x525ec/@0x525f3: load guard, compare to the -1 "already run" sentinel.
+    if (_OZChannelBoolFalseImpl_once !== -1n) {
+      // @0x525f9-@0x52626: slow path — stage the empty-capture tuple and hand
+      // it to libc++ std::__call_once. The proxy (separate ledger unit) does
+      // the allocation + assigns _OZChannelBoolFalseImpl and sets guard to -1.
+      // @0x52613: leaq _..._once(%rip),%rdi — the guard is passed by reference
+      // (`unsigned long&`). We box it as { value } so __call_once can flip it
+      // to the -1 sentinel; write it back to the module static afterward.
+      const guardRef = { value: _OZChannelBoolFalseImpl_once };
+      // @0x52601-@0x52610: the on-stack tuple/capture pointers. The capture is
+      // empty (the lambda has no state); we model the proxy argument as an
+      // opaque handle to the tuple.
+      const proxyArg: unknown = { __callOnceTuple: true };
+      const proxy = (_arg: unknown): void => {
+        // @0x5261a proxy target: __call_once_proxy<…createOZChannelBoolFalseImpl()::lambda>
+        // — SEPARATE ledger unit; the singleton allocation lives there.
+        throw new Error(
+          "__call_once_proxy<...OZChannelBool::createOZChannelBoolFalseImpl()::lambda> " +
+            "@ProChannel 0x5261a (SEPARATE ledger unit, not transcribed) — do NOT " +
+            "fabricate `new OZChannelBool()` in this frame.",
+        );
+      };
+      // @0x52621: callq 0xacdc8 — the one legitimate out-of-scope libc++ extern.
+      std__call_once(guardRef, proxyArg, proxy);
+    }
+    // @0x5262b-@0x52632: load and return the (now-initialized) singleton.
+    return _OZChannelBoolFalseImpl;
   }
 }

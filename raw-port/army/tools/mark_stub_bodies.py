@@ -72,7 +72,13 @@ def main():
                 if ((cppcls,leaf) in throwset) or ((cls,leaf) in throwset):
                     v["status"]="stub"; changed=True; flipped+=1
                     if len(samp)<12: samp.append(f"{fw} {cls}::{leaf}")
-        if changed and apply: json.dump(led,open(lp,"w"))
+        if changed and apply:
+            # ATOMIC write-temp+os.replace (see mark_ported.py): bare json.dump(open(lp,"w"))
+            # truncates then streams, so a concurrent `depgraph.py deps` reader gets a partial
+            # file -> JSONDecodeError. os.replace is atomic on POSIX.
+            _tmp=f"{lp}.tmp.{os.getpid()}"
+            with open(_tmp,"w") as _f: json.dump(led,_f)
+            os.replace(_tmp,lp)
     print(f"  ported -> stub: {flipped}")
     for s in samp: print("   ",s)
     print(f"  {'APPLIED' if apply else 'DRY-RUN (use --apply)'}")

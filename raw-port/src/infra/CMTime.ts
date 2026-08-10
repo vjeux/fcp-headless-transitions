@@ -443,6 +443,56 @@ export function CMTimeMul_double(t: CMTime, m: number): CMTime {
 }
 
 /**
+ * operator*(double m, CMTime const& t) — the COMMUTED overload: a double on the
+ * left, a CMTime on the right (the mirror of `CMTimeMul_double` above, which is
+ * `operator*(CMTime const&, double)`).
+ * @ProCore 0x5817d  (__ZmldRK6CMTime — "operator*(double, CMTime const&)")
+ *
+ * DECODE (raw-port/re/disasm/ProCore.__ZmldRK6CMTime.s — 20-line body):
+ *   0x5817d  pushq  %rbp                           ; prologue
+ *   0x5817e  movq   %rsp, %rbp
+ *   0x58181  pushq  %rbx
+ *   0x58182  subq   $0x38, %rsp                    ; 56B stack (locals + outgoing CMTime arg)
+ *   0x58186  movq   %rdi, %rbx                     ; spill the NRVO out-ptr (hidden 1st arg: CMTime* dst)
+ *   ; --- copy the CMTime `t` (arg via %rsi) onto the frame as the outgoing arg ---
+ *   0x58189  movq   0x10(%rsi), %rax               ; rax = t.epoch  (i64 @+0x10)
+ *   0x5818d  movq   %rax, -0x10(%rbp)              ; spill epoch to -0x10
+ *   0x58191  movups (%rsi), %xmm1                  ; xmm1 = t[0..15] = value|timescale|flags
+ *   0x58194  movaps %xmm1, -0x20(%rbp)             ; spill the 16-byte head to -0x20
+ *   0x58198  movq   -0x10(%rbp), %rax              ; reload epoch
+ *   0x5819c  movq   %rax, 0x10(%rsp)               ; -> outgoing arg +0x10 (epoch)
+ *   0x581a1  movaps -0x20(%rbp), %xmm1             ; reload head
+ *   0x581a5  movups %xmm1, (%rsp)                  ; -> outgoing arg +0x00 (value|timescale|flags)
+ *   0x581a9  callq  __stubs 0xde3d8                ; _CMTimeMultiplyByFloat64(time=t, multiplier=xmm0)
+ *   0x581ae  movq   %rbx, %rax                     ; return the NRVO out-ptr
+ *   0x581b1  addq   $0x38, %rsp
+ *   0x581b5  popq   %rbx
+ *   0x581b6  popq   %rbp
+ *   0x581b7  retq
+ *
+ * SEMANTICS: byte-identical to `CMTimeMul_double`, only the operand ORDER at the
+ * source level differs. The `double` multiplier `m` was passed in %xmm0 by the
+ * caller and is NEVER touched here — it flows straight into
+ * `_CMTimeMultiplyByFloat64`'s `Float64 multiplier` (the 2nd, xmm0, argument),
+ * while the CMTime `t` is copied to the stack as the by-value `time` argument.
+ * There is NO sign flip and NO commutativity fix-up: the ProCore compiler simply
+ * emitted a second thin wrapper so that `m * t` and `t * m` both resolve. So
+ * this delegates to the SAME `CMTimeMultiplyByFloat64(t, m)` as the sibling
+ * (multiplication of a rational time by a scalar is commutative).
+ *
+ * The `_CMTimeMultiplyByFloat64` call is CoreMedia (already modelled above as
+ * `CMTimeMultiplyByFloat64`); this wrapper adds no arithmetic of its own beyond
+ * the argument marshalling the disasm performs.
+ *
+ * @param m the scalar multiplier (was in %xmm0).
+ * @param t the CMTime operand (was the %rsi reference).
+ */
+export function CMTimeMul_doubleCMTime(m: number, t: CMTime): CMTime {
+  // 0x58189-0x581a5: marshal `t` by value; 0x581a9: _CMTimeMultiplyByFloat64(t, m).
+  return CMTimeMultiplyByFloat64(t, m);
+}
+
+/**
  * operator/(CMTime const& a, CMTime const& b) — rational-time division.
  * @ProCore 0x582a8  (__ZdvRK6CMTimeS1_ — "operator/(CMTime const&, CMTime const&)")
  *

@@ -117,6 +117,14 @@ for fw in ["ProChannel","ProCore","Ozone","Flexo","Helium"]:
             elif want=="skeleton": skel+=1
             elif want=="stub": stub+=1
             else: todo+=1
-    json.dump(led,open(lp,"w"))
+    # ATOMIC WRITE (write-temp + os.replace): a bare json.dump(open(lp,"w")) truncates lp
+    # immediately then streams, so a CONCURRENT reader (workers running `depgraph.py deps`,
+    # which loads these ledgers) sees a half-written/empty file -> JSONDecodeError. All 4
+    # dep-workers this session hit exactly that race. os.replace is atomic on POSIX, so a
+    # reader always sees either the old complete file or the new complete file, never a partial.
+    _tmp = f"{lp}.tmp.{os.getpid()}"
+    with open(_tmp, "w") as _f:
+        json.dump(led, _f)
+    os.replace(_tmp, lp)
 print(f"ported {port}/{tot}  skeleton {skel}  stub {stub}  todo {todo}  (status changed on {changed} units)")
 

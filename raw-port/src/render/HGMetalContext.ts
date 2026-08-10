@@ -8,9 +8,12 @@
 // -----------------------------------------------------------------------------
 //   * HGMetalContext::bufferInfiniPool() const     @Helium 0x1d34e0
 //     __ZNK14HGMetalContext16bufferInfiniPoolEv
+//   * HGMetalContext::deviceInfo() const            @Helium 0x1d2fb0
+//     __ZNK14HGMetalContext10deviceInfoEv
 //
 // re/disasm:
 //   raw-port/re/disasm/Helium.__ZNK14HGMetalContext16bufferInfiniPoolEv.s
+//   raw-port/re/disasm/Helium.__ZNK14HGMetalContext10deviceInfoEv.s
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (12 lines, @0x1d34e0..@0x1d34f7)
@@ -73,6 +76,18 @@ export interface HGBufferInfiniPool {
 }
 
 /**
+ * `HGMetalDeviceInfo` — opaque handle for the return value of
+ * `HGMetalContext::deviceInfo()`. The getter is a single 8-byte load of
+ * the pointer stored at HGMetalContext+0x10, so this port only needs the
+ * value to be an opaque pointer type. The concrete Metal device-info
+ * struct lives in a different (not-yet-ported) ledger unit; every
+ * downstream user treats the value as an opaque pointer.
+ */
+export interface HGMetalDeviceInfo {
+  readonly __hgMetalDeviceInfo: unique symbol;
+}
+
+/**
  * `HGMetalContext` — Helium's Metal-backed render context. Only the
  * fields touched by `bufferInfiniPool` are decoded here (offsets
  * +0x18, +0x40 through the wrapper, and the flag at +0x68); every
@@ -106,6 +121,17 @@ export class HGMetalContext {
    * everywhere else in the port (compare, don't coerce to truthy).
    */
   isBufferInfiniPoolEnabled_at_0x68: number = 0;
+
+  /**
+   * @Helium offset +0x10 — the `HGMetalDeviceInfo*` this context holds.
+   * Read @0x1d2fb4 via `movq 0x10(%rdi), %rax` inside `deviceInfo`. An
+   * 8-byte-wide load, so the field is pointer-sized — a heap reference
+   * to an opaque device-info instance (nullable before it is set). The
+   * writer for this slot lives in a different (not-yet-ported)
+   * HGMetalContext method; its identity is OUT OF SCOPE for this ledger
+   * unit.
+   */
+  deviceInfo_at_0x10: HGMetalDeviceInfo | null = null;
 
   /**
    * `HGMetalContext::bufferInfiniPool() const` — @Helium 0x1d34e0
@@ -151,5 +177,36 @@ export class HGMetalContext {
     // @0x1d34f2  popq %rbp
     // @0x1d34f3  retq
     return wrapper!.poolAt0x40;
+  }
+
+  /**
+   * `HGMetalContext::deviceInfo() const` — @Helium 0x1d2fb0
+   * (__ZNK14HGMetalContext10deviceInfoEv).
+   *
+   * Faithful line-for-line transcription of the 7-line disassembly:
+   *
+   *   __ZNK14HGMetalContext10deviceInfoEv:
+   *     0x1d2fb0  pushq %rbp
+   *     0x1d2fb1  movq  %rsp, %rbp
+   *     0x1d2fb4  movq  0x10(%rdi), %rax    ; rax = this->deviceInfo_at_0x10
+   *     0x1d2fb8  popq  %rbp
+   *     0x1d2fb9  retq
+   *     0x1d2fba  nopw  (%rax,%rax)         ; alignment padding
+   *
+   * Pure straight-line accessor: a single 8-byte load of the pointer at
+   * HGMetalContext+0x10, returned directly. No branch, no callq, no
+   * external symbol stubs, no indirect calls. `depgraph.py deps` for
+   * __ZNK14HGMetalContext10deviceInfoEv reports 0 in-scope callees,
+   * 0 externs, 0 indirect.
+   *
+   * The `const` qualifier in the C++ signature matches the `__ZNK...`
+   * mangling; the single observed access is a read, so the method body
+   * performs no writes.
+   */
+  deviceInfo(): HGMetalDeviceInfo | null {
+    // @0x1d2fb4  movq 0x10(%rdi), %rax          ; rax = this->deviceInfo_at_0x10
+    // @0x1d2fb8  popq %rbp
+    // @0x1d2fb9  retq
+    return this.deviceInfo_at_0x10;
   }
 }

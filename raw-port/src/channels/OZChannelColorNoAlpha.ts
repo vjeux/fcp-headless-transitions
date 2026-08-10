@@ -565,6 +565,41 @@ function PCColorSpaceCache_nsDefaultSpace_stub(): unknown {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// call_once boundary + singleton state for the greenSample{1,2}Impl getInstance
+// transcriptions below. The libc++ std::__call_once is the one legitimate
+// out-of-scope extern; each nested singleton has its own ProChannel once-guard
+// and singleton pointer (loaded rip-relatively by its getInstance body).
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * `std::__call_once(unsigned long volatile&, void*, void (*)(void*))`
+ *   @ProChannel U-extern __ZNSt3__111__call_onceERVmPvPFvS2_E — libc++ runtime
+ *   symbol stub @0xacdc8. Runs the proxy once and flips the guard to -1. The
+ *   construction happens inside the per-singleton `__call_once_proxy<…lambda>`
+ *   (SEPARATE ledger unit), never fabricated in-frame.
+ */
+function OZChannelColorNoAlpha_stdCallOnce(
+  _flag: { value: bigint },
+  _arg: unknown,
+  _fn: (arg: unknown) => void,
+): void {
+  throw new Error(
+    "std::__call_once @ProChannel U-extern __ZNSt3__111__call_onceERVmPvPFvS2_E " +
+      "(libc++ runtime, symbol stub @0xacdc8) — the singleton is built inside the " +
+      "per-getInstance __call_once_proxy (SEPARATE ledger unit); no in-frame allocation is fabricated.",
+  );
+}
+
+/** greenSample1Impl once-guard (@0x57b4c) — libc++ guard; -1 == already-run. */
+let _greenSample1Impl_once: bigint = 0n;
+/** greenSample1Impl singleton pointer (@0x57b8b) — built inside the proxy. */
+let _greenSample1Impl_instance: object | null = null;
+/** greenSample2Impl once-guard (@0x57d1e) — libc++ guard; -1 == already-run. */
+let _greenSample2Impl_once: bigint = 0n;
+/** greenSample2Impl singleton pointer (@0x57d5d) — built inside the proxy. */
+let _greenSample2Impl_instance: object | null = null;
+
 /**
  * Singleton prototype accessors (all lazy `std::call_once`-backed
  * `getInstance()` functions). Each returns a preconfigured
@@ -596,18 +631,106 @@ function OZChannelColorNoAlpha_redSample2Impl_getInstance_stub(): unknown {
       "@ProChannel (getInstance singleton) — not yet transcribed",
   );
 }
+/**
+ * `OZChannelColorNoAlpha::OZChannelColorNoAlpha_greenSample1Impl::getInstance()`
+ *   @ProChannel 0x00057b4c
+ *   __ZN21OZChannelColorNoAlpha38OZChannelColorNoAlpha_greenSample1Impl11getInstanceEv
+ *
+ *   0x57b4c: movq  _..._greenSample1Impl_once(%rip),%rax  # rax = guard word
+ *   0x57b53: cmpq  $-0x1,%rax                             # guard == -1 (already run)?
+ *   0x57b57: je    0x57b8b                                # yes → load singleton
+ *   0x57b59: pushq %rbp ; movq %rsp,%rbp ; subq $0x20,%rsp
+ *   0x57b61: leaq  -0x1(%rbp),%rax ; leaq -0x18(%rbp),%rcx ; movq %rax,(%rcx)   # tuple[0]=&capture
+ *   0x57b6c: leaq  -0x10(%rbp),%rsi ; movq %rcx,(%rsi)                          # proxyArg=&tuple
+ *   0x57b73: leaq  _..._greenSample1Impl_once(%rip),%rdi                        # arg0=&guard
+ *   0x57b7a: leaq  __call_once_proxy<...greenSample1Impl...lambda>(%rip),%rdx   # arg2=proxy
+ *   0x57b81: callq 0xacdc8  (__ZNSt3__111__call_onceERVmPvPFvS2_E)             # std::__call_once
+ *   0x57b86: addq  $0x20,%rsp ; popq %rbp
+ *   0x57b8b: movq  _..._greenSample1E(%rip),%rax          # rax = singleton ptr
+ *   0x57b92: retq                                         # return _..._greenSample1
+ *
+ * Canonical libc++ call_once static-local singleton getter. Fast path
+ * (guard == -1) loads and returns the built singleton with NO throw. Slow path
+ * calls std::__call_once (the one out-of-scope libc++ extern @0xacdc8); the
+ * allocation lives inside __call_once_proxy (SEPARATE ledger unit @0x57b7a),
+ * never fabricated in-frame.
+ *
+ * Source disassembly:
+ *   raw-port/re/disasm/ProChannel.__ZN21OZChannelColorNoAlpha38OZChannelColorNoAlpha_greenSample1Impl11getInstanceEv.s (19 lines)
+ */
+function OZChannelColorNoAlpha_greenSample1Impl_getInstance(): object | null {
+  // @0x57b4c/@0x57b53: guard vs -1 sentinel.
+  if (_greenSample1Impl_once !== -1n) {
+    // @0x57b59-@0x57b86: slow path — stage empty-capture tuple + std::__call_once.
+    const flagRef = { value: _greenSample1Impl_once };
+    const proxyArg: unknown = { __callOnceTuple: true };
+    const proxy = (_arg: unknown): void => {
+      // @0x57b7a proxy target — SEPARATE ledger unit; allocation lives there.
+      throw new Error(
+        "__call_once_proxy<...OZChannelColorNoAlpha_greenSample1Impl::getInstance()::lambda> " +
+          "@ProChannel 0x57b7a (SEPARATE ledger unit, not transcribed) — the singleton " +
+          "allocation lives there, not in this frame.",
+      );
+    };
+    OZChannelColorNoAlpha_stdCallOnce(flagRef, proxyArg, proxy); // @0x57b81 callq 0xacdc8
+  }
+  // @0x57b8b-@0x57b92: load and return the (now-initialized) singleton.
+  return _greenSample1Impl_instance;
+}
+
+/** Back-compat alias: pre-existing demand name used by selectGreenPrototype. */
 function OZChannelColorNoAlpha_greenSample1Impl_getInstance_stub(): unknown {
-  throw new Error(
-    "OZChannelColorNoAlpha::OZChannelColorNoAlpha_greenSample1Impl::getInstance() " +
-      "@ProChannel (getInstance singleton) — not yet transcribed",
-  );
+  return OZChannelColorNoAlpha_greenSample1Impl_getInstance();
 }
+
+/**
+ * `OZChannelColorNoAlpha::OZChannelColorNoAlpha_greenSample2Impl::getInstance()`
+ *   @ProChannel 0x00057d1e
+ *   __ZN21OZChannelColorNoAlpha38OZChannelColorNoAlpha_greenSample2Impl11getInstanceEv
+ *
+ *   0x57d1e: movq  _..._greenSample2Impl_once(%rip),%rax  # rax = guard word
+ *   0x57d25: cmpq  $-0x1,%rax                             # guard == -1 (already run)?
+ *   0x57d..: je    0x57d5d                                # yes → load singleton
+ *   0x57d45: leaq  _..._greenSample2Impl_once(%rip),%rdi                        # arg0=&guard
+ *   0x57d4c: leaq  __call_once_proxy<...greenSample2Impl...lambda>(%rip),%rdx   # arg2=proxy
+ *   0x57d53: callq 0xacdc8  (__ZNSt3__111__call_onceERVmPvPFvS2_E)             # std::__call_once
+ *   0x57d5d: movq  _..._greenSample2E(%rip),%rax          # rax = singleton ptr
+ *   0x57d..: retq                                         # return _..._greenSample2
+ *
+ * Identical libc++ call_once static-local singleton getter to greenSample1Impl
+ * (same instruction shape, different once-guard/singleton statics). Fast path
+ * returns the built singleton with NO throw; slow path defers to
+ * std::__call_once @0xacdc8 whose proxy (SEPARATE ledger unit @0x57d4c) builds
+ * the singleton. No in-frame allocation.
+ *
+ * Source disassembly:
+ *   raw-port/re/disasm/ProChannel.__ZN21OZChannelColorNoAlpha38OZChannelColorNoAlpha_greenSample2Impl11getInstanceEv.s (19 lines)
+ */
+function OZChannelColorNoAlpha_greenSample2Impl_getInstance(): object | null {
+  // @0x57d1e/@0x57d25: guard vs -1 sentinel.
+  if (_greenSample2Impl_once !== -1n) {
+    // slow path — stage empty-capture tuple + std::__call_once.
+    const flagRef = { value: _greenSample2Impl_once };
+    const proxyArg: unknown = { __callOnceTuple: true };
+    const proxy = (_arg: unknown): void => {
+      // @0x57d4c proxy target — SEPARATE ledger unit; allocation lives there.
+      throw new Error(
+        "__call_once_proxy<...OZChannelColorNoAlpha_greenSample2Impl::getInstance()::lambda> " +
+          "@ProChannel 0x57d4c (SEPARATE ledger unit, not transcribed) — the singleton " +
+          "allocation lives there, not in this frame.",
+      );
+    };
+    OZChannelColorNoAlpha_stdCallOnce(flagRef, proxyArg, proxy); // @0x57d53 callq 0xacdc8
+  }
+  // @0x57d5d: load and return the (now-initialized) singleton.
+  return _greenSample2Impl_instance;
+}
+
+/** Back-compat alias: pre-existing demand name used by selectGreenPrototype. */
 function OZChannelColorNoAlpha_greenSample2Impl_getInstance_stub(): unknown {
-  throw new Error(
-    "OZChannelColorNoAlpha::OZChannelColorNoAlpha_greenSample2Impl::getInstance() " +
-      "@ProChannel (getInstance singleton) — not yet transcribed",
-  );
+  return OZChannelColorNoAlpha_greenSample2Impl_getInstance();
 }
+
 function OZChannelColorNoAlpha_blueSample1Impl_getInstance_stub(): unknown {
   throw new Error(
     "OZChannelColorNoAlpha::OZChannelColorNoAlpha_blueSample1Impl::getInstance() " +

@@ -65,7 +65,12 @@ def main():
         for addr,cls,methkey,full in objc:
             st=_status(addr)
             ledger.setdefault(cls,{})[f"{methkey}@0x{addr}"]={"addr":"0x"+addr,"mangled":full,"demangled":full,"status":st,"kind":"objc"}
-        json.dump(ledger,open(os.path.join(LED,f"{fw}.ledger.json"),"w"))
+        _lp=os.path.join(LED,f"{fw}.ledger.json")
+        # ATOMIC write-temp+os.replace: concurrent workers read these ledgers via depgraph.py;
+        # a bare json.dump(open(,"w")) truncates+streams -> partial-read JSONDecodeError.
+        _tmp=f"{_lp}.tmp.{os.getpid()}"
+        with open(_tmp,"w") as _f: json.dump(ledger,_f)
+        os.replace(_tmp,_lp)
         nfns=len(mang)+len(objc)
         nport=sum(1 for c in ledger.values() for u in c.values() if u["status"]=="ported")
         nstub=sum(1 for c in ledger.values() for u in c.values() if u["status"]=="stub")

@@ -249,3 +249,51 @@ export function PCNCLCCode_operator_lt(lhs: PCNCLCCode, rhs: PCNCLCCode): boolea
   const rm = rhs.matrix | 0;
   return lm < rm;
 }
+
+/**
+ * `operator==(PCNCLCCode const& lhs, PCNCLCCode const& rhs)` — free ADL equality
+ * comparator that libc++ picks up for `std::equal_to<PCNCLCCode>` (used e.g. by the
+ * hash-based caches ProCore keys by NCLC triple).
+ *
+ * Symbol: __ZeqRK10PCNCLCCodeS1_   @ProCore 0xc2286
+ * Disasm: raw-port/re/disasm/ProCore.__ZeqRK10PCNCLCCodeS1_.s (10 instructions).
+ *
+ * Byte-exact transcription:
+ *
+ *   0xc2286  pushq %rbp
+ *   0xc2287  movq  %rsp, %rbp
+ *   0xc228a  movq  (%rdi), %rax             ; rax = *(u64*)(lhs)   → lo=lhs.primaries, hi=lhs.transfer
+ *   0xc228d  xorq  (%rsi), %rax             ; rax ^= *(u64*)(rhs)  → zero iff both u32s match
+ *   0xc2290  movl  0x8(%rdi), %ecx          ; ecx = lhs.matrix     (+0x08)
+ *   0xc2293  xorl  0x8(%rsi), %ecx          ; ecx ^= rhs.matrix    → zero iff matrix matches
+ *   0xc2296  orq   %rax, %rcx               ; rcx = rax | rcx      → zero iff ALL three fields match
+ *   0xc2299  sete  %al                      ; al = (rcx == 0)
+ *   0xc229c  popq  %rbp
+ *   0xc229d  retq
+ *
+ * The codegen exploits the packed 12-byte layout: primaries at +0x00 and transfer at +0x04
+ * are read as ONE 8-byte load, XOR'd against the other side; the low u32 of the XOR reflects
+ * primaries-difference, the high u32 reflects transfer-difference; either being non-zero makes
+ * the qword non-zero. The matrix field at +0x08 is compared with a separate 4-byte XOR, then
+ * OR'd in — the final `sete` returns true iff every bit is zero, i.e. every field is equal.
+ *
+ * Because XOR is bit-exact regardless of signed/unsigned interpretation, the resulting boolean
+ * is `lhs.primaries == rhs.primaries && lhs.transfer == rhs.transfer && lhs.matrix == rhs.matrix`
+ * for any u32 (or i32) input. NO callees, no in-scope deps, no externs.
+ */
+export function PCNCLCCode_operator_eq(lhs: PCNCLCCode, rhs: PCNCLCCode): boolean {
+  // @0xc228a movq (%rdi), %rax        ; low u32=primaries, high u32=transfer.
+  // @0xc228d xorq (%rsi), %rax        ; rax = 0 iff BOTH primaries and transfer match.
+  //   Faithful decomposition: JS doesn't have real 64-bit ints in a Number, but the two
+  //   halves of the qword XOR correspond exactly to XOR'ing each u32 field.
+  const primariesDiff = (lhs.primaries ^ rhs.primaries) | 0;    // low half of qword XOR
+  const transferDiff  = (lhs.transfer  ^ rhs.transfer)  | 0;    // high half of qword XOR
+
+  // @0xc2290 movl 0x8(%rdi), %ecx
+  // @0xc2293 xorl 0x8(%rsi), %ecx     ; ecx = 0 iff matrix matches.
+  const matrixDiff = (lhs.matrix ^ rhs.matrix) | 0;
+
+  // @0xc2296 orq %rax, %rcx           ; combined = 0 iff ALL three field-diffs are 0.
+  // @0xc2299 sete %al                 ; true iff combined == 0.
+  return (primariesDiff | transferDiff | matrixDiff) === 0;
+}
