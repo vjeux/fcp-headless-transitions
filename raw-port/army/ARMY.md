@@ -24,9 +24,10 @@ boundary. Every function gets a faithful, gate-passing, @0xADDR-cited TS port.
   - `army/ledger/CLASSES.tsv` enumerates ALL classes (7,232 class leaves seeded so far); the shader
     ledger enumerates all metallib functions. These are the real denominators. "Done" = every leaf
     in every framework ledger is status=ported (and ideally verified).
-  - `army/tools/frontier.py` still computes the reachable frontier for prioritization, but claim.py
-    hands out ALL leaves, not just reachable ones. A leaf being "not reachable from the 65" is NOT a
-    reason to skip it — it just means it's lower priority than reachable work, port it later.
+  - `depgraph.py` computes dependency-readiness for prioritization, but `depclaim.py next`
+    hands out ALL ready leaves, not just those reachable from the 65. A leaf being "not reachable
+    from the 65" is NOT a reason to skip it — it just means it's lower priority than reachable work,
+    port it later.
 
 CORRECTION LOG: earlier revisions of this file said "we do NOT port them all / never port dead code."
 That was WRONG and contradicted the stated goal. The entire engine is in scope. (Fixed 2026-07-28.)
@@ -42,12 +43,13 @@ scanning src/ for `@0xADDR` citations (idempotent; run after every batch).
 ## 3. Partitioning (collision-free parallelism)
 Unit of assignment = ONE C++ CLASS = ONE TypeScript file `src/<layer>/<Class>.ts` (mirrors FCP's
 class hierarchy, one class per file — already the convention: OZChannel.ts, OZScene.ts, ...).
-- Agents claim a class by writing `army/claims/<FW>.<Class>.claim` (contains agent id + UTC ts).
-  A claim file is an advisory lock; the coordinator rejects double-claims.
+- Workers claim a unit via `depclaim.py next` (append-only claim ledger, `depgraph/claims.jsonl`).
+  A claim, once handed out, is permanent — the queue never re-hands it, so two workers can't collide.
 - Classes are independent files -> no merge conflicts. Cross-class refs go through imports only.
 - Base classes are decoded FIRST (an agent porting OZImageElement needs OZElement/OZTransformNode/
-  OZSceneNode already ported or stubbed-with-throw). The coordinator topologically orders by
-  inheritance depth (from the base-call trace in each parseBegin) and by the frontier BFS.
+  OZSceneNode already ported or stubbed-with-throw). `depgraph.py` topologically orders by
+  dependency-readiness (every in-scope callee ported, 0 unresolved indirect) so `depclaim.py next`
+  only ever hands out a unit whose deps are ready.
 
 ## 4. Per-unit agent recipe (what each agent runs)
 1. Claim the class (write claim file). Read army/PORTING_SPEC.md.
@@ -70,12 +72,20 @@ Two levels, both required before a unit is "verified":
   same one that VERIFIED the colour-transfer nodes. A unit that can't be oracle-checked yet is
   marked "ported" (not "verified") and flagged for the oracle backlog.
 
-## 6. Coordinator (the "general")
-A parent agent (or the scheduled loop) that: refreshes the ledger + frontier, topologically orders
-ready units, spawns N sub-agents each assigned a disjoint set of classes from the frontier, collects
-their commits, re-runs mark_ported + the oracle gate, and re-computes the frontier. Loops until the
-render closure is fully ported + verified. Batch size tuned to keep each sub-agent under its context
-budget (≈1 class or a few tiny classes per sub-agent).
+## 6. Dispatch — QUEUE-DRIVEN CRON SLOTS (Model B, 2026-08-10; no agent spawns agents)
+There is NO "general" agent that spawns sub-agents. That design (a parent agent spawning N children
+per tick) was retired because an agent that spawns agents can explode the population on the box. The
+scheduler (cron) is now the ONLY thing that creates a session. See PR_FLOW.md "Dispatch model" and
+SWARM_RESTART.md for the authoritative description. In brief:
+- A SCRIPT cron (`swarm_maint.sh`) refreshes the ledger, warm pool, and (via `depgraph reconcile` +
+  `depclaim seed`) the frontier/queue — the headless plumbing, no agent involved.
+- Fixed `swarm-worker-N` / `swarm-reviewer-N` PROMPT crons each PULL from disk-backed queues
+  (`depclaim.py next` for ports, `rebase_claim.sh` for rebases, `review_claim.sh` for reviews), do a
+  bounded batch, and STOP. Each is a single self-scheduled slot guarded by `slot_lock.sh`.
+- Concurrency is bounded by (#worker + #reviewer slots) ∩ the 8-lease warm pool — to scale you enable
+  MORE cron slots (a human decision), never have an agent spawn more agents.
+- mark_ported + the oracle gate run inside the reviewer's per-PR flow; the frontier re-computes on the
+  next `swarm_maint` tick. The loop continues purely by scheduler ticks until the closure is ported.
 
 ## 7. Layers (directory layout under src/)
   infra/     PC* : PCSerializerReadStream, PCStreamElement, PCString, CMTime, PCColor, PCMatrix44 ...
@@ -91,28 +101,17 @@ budget (≈1 class or a few tiny classes per sub-agent).
   M4 Render/compositor    — the pixel pipeline (largest; Flexo-heavy).
   M5 Full parity          — every reachable unit oracle-verified against dlsym FCP.
 
-## 9. ANTI-SHORTCUT: method-level chunking for big classes (2026-07-28)
-A class with >24 methods is NEVER handed to one agent whole — that forces stub-to-finish shortcuts
-(no one can faithfully transcribe 1,471 methods in one context). claim.py splits it into 20-method
-CHUNKS, each its own claimable unit.
-WORKER FLOW for a chunk (claim.py next prints "...\tCHUNK=<k>"):
-  1. `python3 raw-port/army/tools/claim.py chunk <FW> <Class> <k>` → prints the EXACT ≤20 methods
-     (index, @0xADDR, kind, demangled) you must port, and the target file src/<layer>/<Class>.m<k>.ts.
-  2. Port ONLY those methods into <Class>.m<k>.ts (one file per chunk — distinct files never conflict
-     on merge). Each method fully decoded + @0xADDR cited; gate as usual. Undecoded callee → throw-stub
-     citing its addr (that's the frontier signal, NOT a shortcut).
-  3. EXPORT CONVENTION (so the auto-assembler can wire parts): each <Class>.m<k>.ts exports
-       export const <Class>_m<k>_methods = { "<methodKeyFromClaimChunk>": (self, ...args) => { /* @0xADDR body */ }, ... };
-     (per-class name so the auto-assembler can import it: <Class>_m<k>_methods. Keys are the exact
-      demangled/selector strings printed by `claim.py chunk`.)
-     using the EXACT method key strings printed by `claim.py chunk` (the demangled '-[Class sel]' or
-     C++ 'Class::meth' form). ctor/dtor/layout go in chunk 0 (or the whole-class base pass).
-  4. ASSEMBLY IS AUTOMATED: after chunks land, `python3 raw-port/army/tools/assemble_class.py <FW> <Class>`
-     generates <Class>.ts importing every present chunk and merging their maps into <Class>_METHODS
-     (what H1 objc_msgSend / C++ dispatch reads). It reports MISSING chunk indices. Idempotent — re-run
-     as more chunks land. You do NOT hand-write <Class>.ts. Land your .m<k>.ts, gate it, merge it; the
-     assembler stitches. Partial (some chunks missing) is fine — <Class>_METHODS just has fewer entries.
-  4. `claim.py done <FW> <Class> <k>` (chunk index as 4th arg). fail/release also take the chunk index.
-DEDUP: a chunk is skipped once <Class>.m<k>.ts exists on disk. Big-class chunks sort AFTER whole small
-classes (tier 3) so quick wins still drain first, but the heavies now MAKE PROGRESS instead of bouncing.
-The point: an agent is only ever asked for ≤20 named methods — bounded, gate-checked, no shortcut pressure.
+## 9. ANTI-SHORTCUT: per-method units for big classes
+A class with many methods is NEVER handed to one agent whole — that forces stub-to-finish shortcuts
+(no one can faithfully transcribe 1,471 methods in one context). The ledger is keyed PER METHOD:
+each method (`Class::method@0xADDR`) is its OWN claimable unit with its own status, dispensed
+independently by `depclaim.py next`. A worker ports ONE method (or a small mutual-recursion cycle)
+into the shared `src/<layer>/<Class>.ts` and opens a PR.
+- ADD-ONLY into the class file: `git show origin/main:<path>` first and EXTEND it — never
+  delete/replace a sibling method that already landed (a file-level regression is rejected by the PR
+  gate's regression_check). Un-claimed siblings may appear as @0xADDR-cited throw-stubs (honest file
+  scaffolding — they are their own separate `todo` units, never counted `ported`).
+- The class file grows incrementally as methods land; `depgraph.py`/`mark_ported.py` count `ported`
+  per method, not per class. Partial coverage is fine and expected.
+The point: an agent is only ever asked for ONE named method — bounded, gate-checked, no shortcut
+pressure — and the shared class file accretes real bodies method by method.

@@ -28,6 +28,46 @@ export class FFPlayerHealthMeter {
   liveEditAllowanceLimit1 = 0;
   // +0x1b44  second live-edit allowance limit in seconds (f32).
   liveEditAllowanceLimit2 = 0;
+  // +0x1b60  failed-preroll latch (u32, accessed atomically). Set to 1 by
+  //          setFailedPreroll(true) via an `xchgl` (atomic store); never
+  //          cleared by that setter — a one-way "preroll failed" flag.
+  failedPreroll = 0;
+
+  /**
+   * FFPlayerHealthMeter::setFailedPreroll(bool)
+   * @0xADDR Flexo 0x0000000000da37d0  (__ZN19FFPlayerHealthMeter16setFailedPrerollEb)
+   *
+   * One-way latch: when called with `true`, atomically stores 1 into the
+   * `failedPreroll` word at this+0x1b60. When called with `false`, it is a
+   * no-op — the flag is NEVER cleared here (some other method resets it).
+   *
+   * FULL DISASM (raw-port/re/disasm/Flexo.__ZN19FFPlayerHealthMeter16setFailedPrerollEb.s — 9 lines):
+   *   0xda37d0  pushq %rbp ; movq %rsp,%rbp
+   *   0xda37d4  testl %esi, %esi              ; arg (bool) == 0 ?
+   *   0xda37d6  je    0xda37e3                ;   if false -> return (no store)
+   *   0xda37d8  movl  $0x1, %eax              ; eax = 1
+   *   0xda37dd  xchgl %eax, 0x1b60(%rdi)      ; ATOMIC: swap this->failedPreroll <- 1
+   *                                           ;   (xchg with a memory operand has an
+   *                                           ;    implicit LOCK; old value into eax,
+   *                                           ;    discarded)
+   *   0xda37e3  popq  %rbp ; retq             ; return (void)
+   *
+   * In-scope callees: NONE. No externs. Pure atomic field store gated on the
+   * boolean argument. The `xchgl`'s implicit LOCK makes the write atomic; in a
+   * single-threaded JS realm a plain assignment is the faithful equivalent
+   * (the old value the machine loads into eax is discarded).
+   *
+   * @param failed when true, latch failedPreroll = 1; when false, no-op.
+   */
+  setFailedPreroll(failed: boolean): void {
+    // @0xda37d4 testl %esi,%esi ; @0xda37d6 je 0xda37e3 : if !failed, return.
+    if (!failed) {
+      return;
+    }
+    // @0xda37d8 movl $0x1,%eax ; @0xda37dd xchgl %eax,0x1b60(%rdi) :
+    //   atomically store 1 into this->failedPreroll (old value discarded).
+    this.failedPreroll = 1;
+  }
 
   /**
    * FFPlayerHealthMeter::getLiveEditFrameGenerationAllowance(double)

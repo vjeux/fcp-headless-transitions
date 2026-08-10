@@ -8,7 +8,7 @@ land a shortcut; the only way forward is to do the transcription properly.
 G1 PROVENANCE (provenance_gate.py): every exporting file cites its source `@0xADDR`; ungrounded
    files may not invent hex/magic numbers; banned shortcut LANGUAGE (approximate/roughly/guess/
    heuristic/hack/fudge) and CODE (Math.random, swallowed catch, Date.now-as-value); a throwing
-   "not yet transcribed" stub MUST cite the addr it's deferring (so frontier.py can see the gap).
+   "not yet transcribed" stub MUST cite the addr it's deferring (so depgraph.py can see the gap).
 G2 TYPECHECK: tsc --noEmit clean.
 (No .motr-parse gate: leaf math classes aren't in parseScene's import graph, so re-parsing
    after e.g. a PCMath change is a provable no-op; tsc already catches import-graph breakage. The

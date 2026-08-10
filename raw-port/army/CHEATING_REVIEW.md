@@ -50,10 +50,11 @@ This is enforced two ways:
      is rewarded for CATCHING cheats, not for passing them.
 
 ## Dispenser fix
-leafq must NOT hand out a function whose body is dominated by calls to unported internal symbols or
-whose only content is virtual dispatch — those cannot be REALLY implemented yet, so serving them
-only invites a stub. A function is "implementable" only if its REAL WORK (arith/mov/cmp/simd) can be
-transcribed now; its callees being ported is necessary but not sufficient.
+The dispenser (`depgraph.py` readiness + `depclaim.py next`) must NOT hand out a function whose body
+is dominated by calls to unported internal symbols or whose only content is virtual dispatch — those
+cannot be REALLY implemented yet, so serving them only invites a stub. A function is "implementable"
+only if its REAL WORK (arith/mov/cmp/simd) can be transcribed now; its callees being ported is
+necessary but not sufficient.
 
 ## Why a static "impl_ratio" regex gate is NOT enough (tested 2026-07-29)
 Built a first-cut impl_gate.py that counts disasm real-work vs TS real-work. It FALSE-ACCEPTED the
