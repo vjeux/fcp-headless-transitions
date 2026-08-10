@@ -27,8 +27,8 @@ Usage: rebase_helper.py <Class>
   exit 4 = BAIL: overlapping symbol edits, needs human
   exit 5 = BAIL: union result still regresses or dups or fails gate
   exit 6 = NEEDS_WORKER_REBASE: add/add on a shared class body — not mechanically unionable;
-           the coordinator must dispatch a WORKER to re-apply the branch's net-new methods
-           onto main's current class (rebase_pr.sh <PR#>). NOT a failure — an escalation.
+           a WORKER must re-apply the branch's net-new methods onto main's current class
+           (rebase_pr.sh <PR#>, pulled from the rebase queue via rebase_claim.sh). NOT a failure — an escalation.
   exit 1 = usage / setup error
 """
 import sys, os, re, subprocess, tempfile, shutil
@@ -89,8 +89,8 @@ def main(argv):
             # shared `class X { ... }` body (the PCAtomBox case), a text union is unsafe — it would
             # duplicate the class declaration + any shared method. That is AUTHOR work: a worker must
             # re-apply the branch's net-new methods onto main's current class body. Signal that
-            # cleanly with exit 6 (NEEDS_WORKER_REBASE) so the coordinator dispatches a worker rebase
-            # instead of looping. Only a file of DISJOINT TOP-LEVEL exports (no shared class body) is
+            # cleanly with exit 6 (NEEDS_WORKER_REBASE) so a worker slot pulls the rebase from the
+            # rebase queue (rebase_claim.sh) instead of looping. Only a file of DISJOINT TOP-LEVEL exports (no shared class body) is
             # union-safe here; detect the shared-class-body case and escalate.
             def _class_bodies(t):
                 import re as _r
