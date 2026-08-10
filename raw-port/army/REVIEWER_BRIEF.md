@@ -116,10 +116,23 @@ protection makes it the required check). Keep your judgment classification the s
 
 ## YOU MERGE YOUR OWN ACCEPTs via GitHub (do NOT hand merges to the coordinator)
 The coordinator is NOT a merge queue. After you confirm a PR faithful and its `faithfulness-gate`
-status is green, YOU merge it — server-side, one command, the local tree is never touched:
+status is green, YOU merge it — server-side, the local tree is never touched.
 
-    gh pr merge <PR#> --repo vjeux/fcp-headless-transitions --squash --auto --delete-branch
-    python3 raw-port/army/tools/mark_ported.py     # after it lands: unlock the callers
+PREFERRED (one command — handles the strict "branch must be up-to-date" dance for you):
+
+    bash raw-port/army/tools/pr_land.sh <PR#>            # (add --reviewed if it had G5 flags)
+    python3 raw-port/army/tools/mark_ported.py           # after it lands: unlock the callers
+
+`pr_land.sh` loops: if the PR is BEHIND (main advanced under the swarm — the #1 friction) it triggers
+update-branch, waits for the new head SHA, re-runs pr_gate.sh to post `faithfulness-gate` on THAT sha,
+then `gh pr merge --squash --auto`. It bounds itself to 6 rounds and prints REBASE-RACE if main keeps
+outrunning it (retry later). It NEVER force-merges — only merges a green, mergeable PR. Run it only for
+a PR you have ALREADY semantically verified this run (it does not do your line-by-line for you).
+
+MANUAL equivalent (if you prefer, or pr_land prints REBASE-RACE): post green via `pr_gate.sh <PR#>`
+(or `--reviewed`), then `gh pr merge <PR#> --repo vjeux/fcp-headless-transitions --squash --auto --delete-branch`.
+If it reports BEHIND: `gh api -X PUT repos/vjeux/fcp-headless-transitions/pulls/<PR#>/update-branch`,
+wait for the new head SHA, re-run `pr_gate.sh <PR#>` on it, then merge.
 
 Rules for reviewer-driven merge:
 - Merge ONLY PRs you personally verified this run (verdict ∈ {VERIFIED,LIKELY_REAL,TRAP,EMPTY}).
