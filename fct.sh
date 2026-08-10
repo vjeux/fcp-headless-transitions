@@ -1,3 +1,0 @@
-#!/bin/bash
-# fct — single entrypoint. Usage: ./fct.sh <gen|read|cmp|montage> ...
-cd "$(dirname "$0")" && exec python3 fct/cli.py "$@"
