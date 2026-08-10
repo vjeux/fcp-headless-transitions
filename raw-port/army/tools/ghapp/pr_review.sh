@@ -45,7 +45,18 @@ HEAD_SHA=$("$ROOT/gh_as.sh" reviewer pr view "$PR" --repo "$SLUG" --json headRef
 [ -n "$HEAD_SHA" ] || { echo "pr_review: cannot read head SHA for PR #$PR" >&2; exit 4; }
 
 # --- idempotence: has THIS reviewer identity already ruled on THIS head? ----------------------
-ME=$("$ROOT/gh_as.sh" reviewer api user --jq '.login' 2>/dev/null || echo "")
+# NOTE: a GitHub App installation token CANNOT call /user — apps are not users, and that request
+# 403s with "Resource not accessible by integration". The reviewer's identity in the reviews list is
+# the app's bot login, which is "<app-slug>[bot]" (e.g. "vjeux-reviewer[bot]"). Read the slug from
+# the role config rather than asking the API who we are.
+CFG="${FCT_STATE_DIR:-$HOME/.fct-pool}/ghapp/reviewer.json"
+ME=""
+if [ -f "$CFG" ]; then
+  SLUG_APP=$(python3 -c "import json;print(json.load(open('$CFG')).get('slug',''))" 2>/dev/null)
+  [ -n "$SLUG_APP" ] && ME="${SLUG_APP}[bot]"
+fi
+# Fall back to the operator login when the app is not configured (pre-setup behavior).
+[ -n "$ME" ] || ME=$(gh api user --jq '.login' 2>/dev/null || echo "")
 if [ -n "$ME" ]; then
   PRIOR=$("$ROOT/gh_as.sh" reviewer api "repos/$SLUG/pulls/$PR/reviews" --paginate 2>/dev/null \
     | python3 -c "
