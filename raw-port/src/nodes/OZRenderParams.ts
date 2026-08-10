@@ -1640,6 +1640,43 @@ export class OZRenderParams {
   }
 
   /**
+   * `OZRenderParams::getBlendingGamma() const` @Ozone 0x271620
+   * (__ZNK14OZRenderParams16getBlendingGammaEv).
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x271620  pushq %rbp                  ; frame setup (no TS counterpart)
+   *   0x271621  movq  %rsp, %rbp            ; frame setup (no TS counterpart)
+   *   0x271624  movss 0x2e0(%rdi), %xmm0    ; return (float) this->blendingGamma
+   *   0x27162c  popq  %rbp                  ; frame teardown (no TS counterpart)
+   *   0x27162d  retq                        ; return in %xmm0 (float ABI slot)
+   *   0x27162e  nop                         ; alignment padding, not executed
+   *
+   * `movss` is a SINGLE-precision (32-bit) load into the low lane of %xmm0,
+   * which is the SysV return register for a `float` — so this is a `float`
+   * getter, not a `double` one, and the exact inverse of the landed
+   * `setBlendingGamma(float)` @0x271614, whose `movss %xmm0, 0x2e0(%rdi)` is
+   * the matching 32-bit store on the same slot.
+   *
+   * Per PORTING_SPEC Rule 4 the value is wrapped in `Math.fround`: the field
+   * holds an IEEE-754 binary32, and the setter's port already rounds on write,
+   * so the round-trip is a no-op for anything written through it — the fround
+   * here keeps the read faithful even if the slot is populated directly (e.g.
+   * by a future ctor or copy-ctor port) with a value that is not yet
+   * representable in single precision.
+   *
+   * No mask, no clamp, no validation, no lock. ZERO in-scope callees, ZERO
+   * externs, no indirect/virtual dispatch — a pure field read.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams16getBlendingGammaEv.s (6 lines)
+   */
+  getBlendingGamma(this: OZRenderParams): number {
+    // @0x271624  movss 0x2e0(%rdi),%xmm0 — 32-bit single-precision load.
+    return Math.fround(this.blendingGamma);
+  }
+
+  /**
    * `OZRenderParams::disableDynamic()`
    *   — @Ozone 0x2716b0
    *   — __ZN14OZRenderParams14disableDynamicEv
