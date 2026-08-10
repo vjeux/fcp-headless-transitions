@@ -158,6 +158,19 @@ export class OZViewerState {
   dynamicResolution: number = 0; // u8 field @+0x24
 
   /**
+   * @Ozone +0x58 (u8) — the "render full view" flag, written by
+   * `setRenderFullView(bool)` @0x36e554 via `movb %sil, 0x58(%rdi)`.
+   *
+   * The single-BYTE store (`movb` of `%sil`, the low byte of the second
+   * integer argument register) is what fixes both the offset and the width:
+   * this is a C++ `bool`, one byte, and nothing adjacent is touched. Modelled
+   * as a `number` in [0, 255] so the exact byte the machine writes stays
+   * legible; no reader of this slot is ported yet, so nothing here interprets
+   * it further.
+   */
+  renderFullViewAt58: number = 0; // u8 field @+0x58
+
+  /**
    * @Ozone +0x20 (u32) — the resolution-mode discriminator read by
    * `getResolution()` @0x36e2e7 via `movl 0x20(%rsi), %esi`. A 32-bit
    * load whose value is compared against 1 and 2 to choose a resolution
@@ -645,5 +658,41 @@ export class OZViewerState {
       x: this.fullscreenViewOffsetX_at_0x104,
       y: this.fullscreenViewOffsetY_at_0x108,
     };
+  }
+
+  /**
+   * `OZViewerState::setRenderFullView(bool)` — @Ozone 0x36e550
+   * (__ZN13OZViewerState17setRenderFullViewEb).
+   *
+   * Full transcription — every instruction, in order
+   * (raw-port/re/disasm/__ZN13OZViewerState17setRenderFullViewEb.s):
+   *
+   *   0x36e550  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x36e551  movq  %rsp, %rbp           ; frame setup (no TS counterpart)
+   *   0x36e554  movb  %sil, 0x58(%rdi)     ; this->renderFullViewAt58 = arg
+   *   0x36e558  popq  %rbp                 ; frame teardown (no TS counterpart)
+   *   0x36e559  retq                       ; void return
+   *   0x36e55a  nopw  (%rax,%rax)          ; alignment padding, not executed
+   *
+   * A plain unsynchronized single-BYTE store and nothing else: no lock, no
+   * callees, no externs, no indirect/virtual dispatch, no validation of the
+   * incoming value, no return value, and no notification of any observer.
+   * `%sil` is the low byte of the second integer argument register — the
+   * `bool` parameter under the SysV AMD64 ABI — and `movb` writes exactly that
+   * one byte, leaving +0x59 and everything else untouched.
+   *
+   * The port stores 0/1 for a JS boolean, or the caller's raw low byte if a
+   * number is passed, mirroring what the register actually holds.
+   *
+   * @param renderFullView the new flag (`%sil`).
+   */
+  setRenderFullView(renderFullView: boolean | number): void {
+    // @0x36e554  movb %sil, 0x58(%rdi) — one byte, verbatim.
+    this.renderFullViewAt58 =
+      typeof renderFullView === "boolean"
+        ? renderFullView
+          ? 1
+          : 0
+        : renderFullView & 0xff;
   }
 }
