@@ -1,98 +1,152 @@
 // raw-port/src/render/HGRenderContext.ts
 //
-// FCP `HGRenderContext` — Helium's per-compute-device render context (the object an
-// HGRenderQueue hands to each HGRenderExecUnit; created by
-// HGRenderQueue::CreateRenderContextForComputeDevice @Helium 0x61c90).
+// FCP `HGRenderContext` — Helium's per-render execution context: it owns the
+// compute device the render runs on, the `HGRenderer*` that drives the graph,
+// the work-mode/state words, and the render-time statistics block. Derives
+// from `HGObject` (ctor @0x31020 `callq HGObject::HGObject()`).
 //
-// Framework binary: /Applications/Final Cut Pro.app/Contents/Frameworks/Helium.framework/
-//                   Versions/A/Helium (macOS FCP, x86_64 slice; VA == offset in the thin slice).
+// Symbols transcribed in THIS file (Helium, x86_64 slice; VAs are the
+// unadjusted VM addresses printed by `otool -tV`):
 //
-// THIS FILE PORTS ONE METHOD (one C++ method = one exported function citing its @0xADDR):
+//   0x00031470  HGRenderContext::GetComputeDevice()                    (FULL)
 //
-//   @Helium 0x31290  HGRenderContext::IsGPU() const
-//                    mangled: __ZNK15HGRenderContext5IsGPUEv
-//                    DECODE:  raw-port/re/disasm/Helium.__ZNK15HGRenderContext5IsGPUEv.s
+// STRUCT LAYOUT — every offset below is cited to the exact instruction it was
+// recovered from. The primary evidence is the constructor
+// `HGRenderContext::HGRenderContext(HGRenderer*)` @0x31010
+// (raw-port/re/disasm/Helium.__ZN15HGRenderContextC2EP10HGRenderer.s) plus the
+// one-line accessors that read each field.
 //
-// The class's other exported members (Lock @0x311f0, Unlock @0x31240, IsCPU @0x31280,
-// IsGL @0x312a0, PauseRendering @0x312b0, RestartRendering @0x312e0,
-// SetIntermediateBufferFormat @0x31300, SetDefaultFilteringMode @0x31370,
-// SetRenderGraphDumpLevel @0x313e0, SetWorkMode @0x31450, GetType @0x31460,
-// GetComputeDevice @0x31470, GetComputeDeviceIndex @0x31480, GetWorkMode @0x31490,
-// GetState @0x314a0, GetRenderer @0x314b0, GetIntermediateBufferFormat @0x314c0,
-// GetDefaultFilteringMode @0x314d0, PushRenderTime @0x314e0, SetRenderStatsFlag @0x31630,
-// SetRenderStatsWarmup @0x31640, SetRenderStatsMaxVals @0x31650, GetRenderStats @0x31660,
-// DumpHistogram @0x31950, ClearStats @0x31d60, the ctors @0x30ef0 / @0x31010 and the dtors
-// @0x31150 / @0x3c1580 / @0x3c1590) are NOT ported here — this file is ADD-ONLY and each of
-// those methods lands as its own exported function when its unit is claimed.
+//   HGRenderContext {
+//     +0x000  vptr                       [ctor @0x3102c movq %rax,(%rbx)]
+//     +0x008  ...HGObject base fields    [ctor @0x31020 HGObject::HGObject()]
+//     +0x010  HGComputeDevice*  computeDevice.__ptr_
+//                                        [ctor @0x31032 movups %xmm0,0x10(%rbx)
+//                                         zero-inits the 16 bytes at +0x10;
+//                                         GetComputeDeviceIndex @0x31484
+//                                         `movq 0x10(%rdi),%rax` dereferences it;
+//                                         GetComputeDevice @0x31474 takes its
+//                                         ADDRESS: `leaq 0x10(%rdi),%rax`]
+//     +0x018  __shared_weak_count* computeDevice.__cntrl_
+//                                        [ctor @0x310a5 `movq 0x18(%rbx),%r14`
+//                                         then the standard shared_ptr release
+//                                         sequence: @0x310ba `lock xaddq $-1,
+//                                         0x8(%r14)`, @0x310ca `callq *0x10(%rax)`
+//                                         (__on_zero_shared), @0x310d0 `callq
+//                                         __ZNSt3__119__shared_weak_count14__release_weakEv`]
+//                                        => +0x10 is a std::shared_ptr<HGComputeDevice>
+//                                           (2 words: object ptr + control block).
+//     +0x020  u64   state                [GetState @0x314a4 movl 0x20(%rdi),%eax;
+//                                         ctor @0x3109a movq $0x1,0x20(%rbx)]
+//     +0x024  u32   type                 [GetType @0x31464 movl 0x24(%rdi),%eax]
+//     +0x028  u32   workMode             [GetWorkMode @0x31494 movl 0x28(%rdi),%eax;
+//                                         ctor @0x31093 movl $0x2,0x28(%rbx)]
+//     +0x030  u64                        [ctor @0x310d5 movq $0x0,0x30(%rbx)]
+//     +0x038  HGSynchronizable*          [ctor @0x31077 __Znwm(0x88) ->
+//                                         HGSynchronizable::HGSynchronizable()
+//                                         @0x31082, stored @0x31087]
+//     +0x040  u64                        [ctor @0x3108b movq $0x0,0x40(%rbx)]
+//     +0x048  HGRenderer* renderer       [ctor @0x31045 movq %r14,0x48(%rbx);
+//                                         GetRenderer @0x314b4 movq 0x48(%rdi),%rax]
+//     +0x050  u32                        [ctor @0x3105a — renderer vtable *0x80
+//                                         (GetParameter) with selector 0x13]
+//     +0x054  u32                        [ctor @0x3106f — same vtable call with
+//                                         selector 0x17]
+//     +0x058  u32                        [ctor @0x310dd movl $0x0,0x58(%rbx)]
+//     +0x05c  bool                       [ctor @0x310e4 movb $0x1,0x5c(%rbx)]
+//     +0x060  u64                        [ctor @0x310e8 movq $0x5,0x60(%rbx)]
+//     +0x068  u64                        [ctor @0x310f0 movq $0x186a0,0x68(%rbx)]
+//     +0x070  16 bytes zeroed            [ctor @0x31036 movups %xmm0,0x70(%rbx)]
+//     +0x080  u64                        [ctor @0x3103a movq $0x0,0x80(%rbx)]
+//   }
 //
-// ── FIELD-LAYOUT EVIDENCE USED BY THIS METHOD ───────────────────────────────────────────
-//   +0x24  int32  contextType   — the device-class discriminator. It is the ONLY field this
-//                                 method touches (`cmpl $0x1, 0x24(%rdi)` @Helium 0x31294).
+// HGComputeDevice itself is NOT ported yet — the only field of it with a
+// decoded reader on this class is +0x40 (the device index, read by
+// `GetComputeDeviceIndex` @0x31488 `movl 0x40(%rax),%eax`), and that method is
+// not part of this unit. It is therefore modeled as an opaque handle with the
+// one decoded field, exactly like `HGLimitsPtr` in HGRenderer.ts.
 //
-//   The three sibling predicates prove the encoding of that field exhaustively; all three are
-//   the identical `cmpl $<k>, 0x24(%rdi) ; sete %al` shape, differing only in the immediate:
-//     HGRenderContext::IsCPU() const @Helium 0x31280 → `cmpl $0x0, 0x24(%rdi)` @0x31284  ⇒ 0 = CPU
-//     HGRenderContext::IsGPU() const @Helium 0x31290 → `cmpl $0x1, 0x24(%rdi)` @0x31294  ⇒ 1 = GPU
-//     HGRenderContext::IsGL()  const @Helium 0x312a0 → `cmpl $0x2, 0x24(%rdi)` @0x312a4  ⇒ 2 = GL
-//   and HGRenderContext::GetType() @Helium 0x31460 returns that same slot verbatim
-//   (`movl 0x24(%rdi), %eax` @0x31464) as a 32-bit value — i.e. +0x24 is a plain int enum, and
-//   IsGPU is an EQUALITY test against the GPU code, not a bit test.
-//
-//   Default value: the default ctor HGRenderContext::HGRenderContext() @Helium 0x30ef0 stores
-//   `movq $0x1, 0x20(%rbx)` @0x30f48 — an 8-byte store covering BOTH the u32 at +0x20 (the
-//   `state` slot returned by GetState @0x314a4) and the u32 at +0x24, leaving
-//   state = 1 and contextType = 0 (= CPU) on a freshly constructed context. That store is what
-//   fixes +0x24 as a 32-bit field at that exact offset (the next field written is +0x28,
-//   `movl $0x2, 0x28(%rbx)` @0x30f50).
-//
-// NUMERICS: the compare is a 32-bit integer compare (`cmpl`) against the immediate 1; no
-// floating point, no widening. `sete %al` writes the low byte only, which is exactly a C++
-// `bool` return under the SysV ABI — so the TS return type is `boolean`.
+// Per PORTING_SPEC.md Rules 2, 5, 6: every offset is cited @0xADDR, no magic
+// numbers, one FCP class per file.
 
 /**
- * The subset of the `HGRenderContext` object layout that
- * {@link hgRenderContext_IsGPU} reads. Modelled as an explicit fields record (rather than a
- * class) because only one method of the class is transcribed so far: the remaining ~0x88 bytes
- * of the object (see the ctor @Helium 0x30ef0, whose last write is
- * `movq $0x186a0, 0x68(%rbx)` @0x30fbb, over an `operator new` of a 0x88-byte
- * HGSynchronizable at +0x38) are not decoded by this unit and are deliberately not invented
- * here. Sibling methods extend this record as they land.
+ * Opaque handle to `HGComputeDevice` — the Metal/CPU compute device a render
+ * context executes on. Not yet ported; the only field with a decoded reader
+ * reachable from HGRenderContext is +0x40.
  */
-export interface HGRenderContextTypeField {
-  /**
-   * `+0x24  int32 contextType` — device-class discriminator.
-   *   0 = CPU (HGRenderContext::IsCPU @Helium 0x31284)
-   *   1 = GPU (HGRenderContext::IsGPU @Helium 0x31294)
-   *   2 = GL  (HGRenderContext::IsGL  @Helium 0x312a4)
-   * Returned verbatim by HGRenderContext::GetType() @Helium 0x31464.
-   */
-  contextType: number;
+export interface HGComputeDevicePtr {
+  readonly __brand: "HGComputeDevice";
+  /** @Helium HGComputeDevice +0x40 — u32 device index, read by
+   *  `HGRenderContext::GetComputeDeviceIndex()` @0x31488
+   *  (`movl 0x40(%rax),%eax`, where %rax = *(this+0x10)). */
+  deviceIndex: number;
 }
 
 /**
- * `HGRenderContext::IsGPU() const` @Helium 0x31290
- * (mangled `__ZNK15HGRenderContext5IsGPUEv`).
+ * `std::shared_ptr<HGComputeDevice>` as laid out at HGRenderContext +0x10.
  *
- * Full body — every instruction of the function, in order
- * (raw-port/re/disasm/Helium.__ZNK15HGRenderContext5IsGPUEv.s):
+ * The two words are pinned by the constructor's zero-init
+ * (@0x31032 `movups %xmm0, 0x10(%rbx)` — 16 bytes) and by the release
+ * sequence it runs on the old value: @0x310a5 `movq 0x18(%rbx),%r14`
+ * (the control block), @0x310ba `lock xaddq $-1, 0x8(%r14)` (decrement the
+ * strong count at __shared_weak_count+0x8), @0x310ca `callq *0x10(%rax)`
+ * (__on_zero_shared) and @0x310d0 `__shared_weak_count::__release_weak()`.
  *
- *   0x31290  pushq %rbp                   ; frame setup (no TS counterpart)
- *   0x31291  movq  %rsp, %rbp             ; frame setup (no TS counterpart)
- *   0x31294  cmpl  $0x1, 0x24(%rdi)       ; flags on (this->contextType - 1)
- *   0x31298  sete  %al                    ; al = (ZF == 1) = (contextType == 1)
- *   0x3129b  popq  %rbp                   ; frame teardown (no TS counterpart)
- *   0x3129c  retq                         ; return al as bool
- *   0x3129d  nopl  (%rax)                 ; inter-function alignment padding, not executed
- *
- * AT&T decode note (PORTING_SPEC Rule 4 cheat-sheet): `cmpl $0x1, 0x24(%rdi)` computes
- * `dst - src` = `contextType - 1`, and `sete` is the ZF=1 condition, i.e. exactly
- * `contextType == 1`. There is no `ja/jb` ordering involved, so no signedness question arises.
- *
- * @param self the receiver (`%rdi`); only `+0x24` is read.
- * @returns `true` iff this context's type code is 1 (GPU).
+ * Modeled as an object so that a JS reference to it IS the `&(this+0x10)`
+ * that `GetComputeDevice` returns.
  */
-export function hgRenderContext_IsGPU(self: HGRenderContextTypeField): boolean {
-  // @Helium 0x31294: cmpl $0x1, 0x24(%rdi)
-  // @Helium 0x31298: sete %al
-  return (self.contextType | 0) === 1;
+export interface HGComputeDeviceSharedPtr {
+  /** @+0x10 — `__ptr_`: the HGComputeDevice object pointer (null when the
+   *  ctor's `movups %xmm0` zero-init @0x31032 is the last write). */
+  ptr: HGComputeDevicePtr | null;
+  /** @+0x18 — `__cntrl_`: the std::__shared_weak_count control block. Only
+   *  its identity and its strong count at +0x08 (@0x310ba) are observed by
+   *  decoded code, so it is held opaquely. */
+  cntrl: unknown;
+}
+
+export class HGRenderContext {
+  /**
+   * @+0x10 — `std::shared_ptr<HGComputeDevice> computeDevice`.
+   *
+   * Zero-initialized by the ctor @0x31032 (`movups %xmm0, 0x10(%rbx)`), which
+   * is why both words default to null here. The whole 16-byte member is one
+   * sub-object; `GetComputeDevice` @0x31474 returns its ADDRESS, so this
+   * object identity is the returned reference.
+   */
+  computeDevice: HGComputeDeviceSharedPtr = { ptr: null, cntrl: null };
+
+  /**
+   * `HGRenderContext::GetComputeDevice()` — Helium @0x00031470.
+   *
+   * Returns a REFERENCE to the `std::shared_ptr<HGComputeDevice>` member at
+   * `this + 0x10` — the function computes an address, it does not load
+   * through it. Full transcription (5 instructions + padding):
+   *
+   *   0x31470  pushq   %rbp
+   *   0x31471  movq    %rsp, %rbp
+   *   0x31474  leaq    0x10(%rdi), %rax    ; return &this->computeDevice
+   *   0x31478  popq    %rbp
+   *   0x31479  retq
+   *   0x3147a  nopw    (%rax,%rax)         ; alignment padding, not code
+   *
+   * `leaq` (load EFFECTIVE address), not `movq (%rdi)` — contrast the sibling
+   * `GetComputeDeviceIndex` @0x31484 which DOES dereference
+   * (`movq 0x10(%rdi),%rax ; movl 0x40(%rax),%eax`). The C++ signature is
+   * therefore `std::shared_ptr<HGComputeDevice>& GetComputeDevice()`: the
+   * caller receives the member itself, not a copy (no retain is performed —
+   * there is no `lock xaddq` on the control block anywhere in this body).
+   *
+   * The faithful JS equivalent of returning `&member` is returning the member
+   * object, since a JS object value IS a reference: mutations the caller makes
+   * through the result are visible on `this`, exactly as in the binary.
+   *
+   * Zero callees, zero externs, zero indirect calls, no null check.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Helium.__ZN15HGRenderContext16GetComputeDeviceEv.s
+   */
+  GetComputeDevice(): HGComputeDeviceSharedPtr {
+    // @Helium 0x31474: leaq 0x10(%rdi), %rax
+    return this.computeDevice;
+  }
 }
