@@ -115,7 +115,7 @@ def cmd_next(maxscc=8, allow_stl=False):
     def go():
         claimed = _claimed_set()
         inflight = _inflight_set()      # symbols with a pushed branch / on main — never re-hand
-        rows = depgraph.ready_scc(N=6000)          # dependency-ready SCC units (deps ported, 0 indirect)
+        rows = depgraph.ready_scc(N=6000, quiet=True)   # dependency-ready SCC units (deps ported, 0 indirect); quiet: no backlog dump before CLAIMED_UNIT
         for sz, ne, i, comp in rows:
             if sz > maxscc: continue               # don't hand a solo worker a giant cycle
             head = comp[0]
@@ -145,7 +145,7 @@ def cmd_claimed(sym):
     return _locked(go)
 
 def cmd_reopen(sym):
-    """EXPLICIT re-open: append a reopen record so <sym> can be handed out again. Rare; coordinator/human only."""
+    """EXPLICIT re-open: append a reopen record so <sym> can be handed out again. Rare; human/maint only."""
     def go():
         _append({"op":"reopen","head":sym,"members":[sym],"ts":time.time()})
         print("reopened", sym)
@@ -174,7 +174,7 @@ def cmd_seed():
     origin/main OR any pushed origin/port/* branch tip — and record it as claimed. This makes
     the append-only queue reflect work done OUTSIDE depclaim (direct commits, older waves), so
     `next` never re-hands a symbol that is already built somewhere. Idempotent: only appends
-    symbols not already claimed. Run occasionally from the coordinator (git-grep is ~30-90s)."""
+    symbols not already claimed. Run occasionally from swarm_maint (git-grep is ~30-90s)."""
     import subprocess as sp
     def go():
         claimed=_claimed_set()

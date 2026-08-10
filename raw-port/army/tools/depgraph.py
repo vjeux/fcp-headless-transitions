@@ -253,10 +253,11 @@ def _load_sccs():
     if not os.path.exists(p): return build_sccs()
     return json.load(open(p))
 
-def ready_scc(N=40):
+def ready_scc(N=40, quiet=False):
     """Next SCC-units whose EVERY external (non-self) in-scope dep is ported and no unresolved
     indirect calls inside the unit. A unit of size 1 = a normal ready function; size>1 = a cycle
-    ported atomically. This NEVER dispenses a function with an unresolved dependency."""
+    ported atomically. This NEVER dispenses a function with an unresolved dependency.
+    quiet=True suppresses the human backlog dump (used when called as a library, e.g. depclaim.next)."""
     g=_load(); status,known=_status_map(); sd=_load_sccs()
     comp_of=sd["comp_of"]; sccs=sd["sccs"]
     rows=[]
@@ -278,11 +279,12 @@ def ready_scc(N=40):
         if indirect>0: continue        # unresolved virtual calls inside the unit -> held
         rows.append((len(comp), len(ext_deps), i, comp))
     rows.sort()
-    print(f"# {len(rows)} SCC-UNITS ready (all external deps ported, 0 indirect). top {min(N,len(rows))}:")
-    for sz,ne,i,comp in rows[:N]:
-        tag="fn" if sz==1 else f"CYCLE x{sz}"
-        head=known.get(comp[0],(None,None,None,comp[0]))
-        print(f"  [{tag}, {ne} ext-deps] {head[0]}\t{head[1]}\t{head[3][:60]}")
+    if not quiet:
+        print(f"# {len(rows)} SCC-UNITS ready (all external deps ported, 0 indirect). top {min(N,len(rows))}:")
+        for sz,ne,i,comp in rows[:N]:
+            tag="fn" if sz==1 else f"CYCLE x{sz}"
+            head=known.get(comp[0],(None,None,None,comp[0]))
+            print(f"  [{tag}, {ne} ext-deps] {head[0]}\t{head[1]}\t{head[3][:60]}")
     return rows
 
 
