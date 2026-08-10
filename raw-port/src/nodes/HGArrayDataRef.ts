@@ -145,4 +145,55 @@ export class HGArrayDataRef {
     // @0xdc922 *this = obj
     this.ptr = obj;
   }
+
+  /**
+   * HGArrayDataRef::~HGArrayDataRef()  (D2 base object destructor) @Helium 0xdc980.
+   *
+   * Releases the handle's reference to its HGArrayData: atomically decrement the
+   * pointee's refcount and, when it reaches zero, free the (stride*count) data
+   * buffer and then the 24-byte HGArrayData struct itself. A null handle is a no-op.
+   * This is exactly the release half of `allocate`'s old-pointer path, in isolation.
+   *
+   *   0xdc986  movq  (%rdi),%rbx                 ; rbx = *this  (the HGArrayData*)
+   *   0xdc989  testq %rbx,%rbx; je 0xdc9af       ; if ptr == null -> return
+   *   0xdc98e  lock decl (%rbx)                  ; --ptr->refcount   (atomic)
+   *   0xdc991  jne   0xdc9af                     ; if refcount != 0 -> return (still shared)
+   *   0xdc993  movq  0x10(%rbx),%rdi             ; rdi = ptr->data  (+0x10)
+   *   0xdc997  testq %rdi,%rdi; je 0xdc9a1       ; if data == null -> skip delete[]
+   *   0xdc99c  callq __ZdaPv                     ; operator delete[](ptr->data)
+   *   0xdc9a1  movq  %rbx,%rdi                   ; rdi = ptr (the 24-byte struct)
+   *   0xdc9aa  jmp   __ZdlPv                     ; tail-call operator delete(ptr)
+   *   0xdc9af  <return>                          ; popq/popq/retq
+   *
+   * EXTERNS (out-of-scope libc, cited per PORTING_SPEC Rule 3):
+   *   0xdc99c  __ZdaPv  operator delete[](void*)  — freeing the data buffer
+   *   0xdc9aa  __ZdlPv  operator delete(void*)     — freeing the 24-byte struct
+   * Both are the C++ deallocator; in TS the JS garbage collector reclaims the
+   * objects once we drop the references, so they are documented no-ops (matching
+   * the sibling convention in HRasterizerTexture.ts and the release path inside
+   * allocate() above, which also just nulls the references).
+   */
+  public dtor_D2(): void {
+    // @0xdc986 rbx = *this
+    const ptr = this.ptr;
+    // @0xdc989 testq/je — null handle is a no-op.
+    if (ptr === null) {
+      return; // @0xdc9af popq/popq/retq
+    }
+    // @0xdc98e lock decl (%rbx) — atomic pre-decrement of the refcount.
+    ptr.refcount = (ptr.refcount - 1) | 0;
+    // @0xdc991 jne 0xdc9af — still referenced elsewhere: return.
+    if (ptr.refcount !== 0) {
+      return;
+    }
+    // @0xdc993..0xdc99c — refcount hit zero: free the data buffer (operator
+    // delete[]) if present. JS GC no-op: drop the reference.
+    if (ptr.data !== null) {
+      // @0xdc99c callq __ZdaPv (operator delete[](ptr->data)).
+      ptr.data = null;
+    }
+    // @0xdc9a1..0xdc9aa — tail-call operator delete(ptr) on the 24-byte struct.
+    // JS GC no-op: drop the handle's reference so the struct is reclaimable.
+    this.ptr = null;
+  }
 }
