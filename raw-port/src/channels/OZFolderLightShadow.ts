@@ -22,14 +22,17 @@
 //   * OZFolderLightShadow::color() const              @Ozone 0x4f2830
 //     __ZNK19OZFolderLightShadow5colorEv
 //     DECODE: raw-port/re/disasm/__ZNK19OZFolderLightShadow5colorEv.s
+//   * OZFolderLightShadow::softness() const           @Ozone 0x4f27f0
+//     __ZNK19OZFolderLightShadow8softnessEv
+//     DECODE: raw-port/re/disasm/__ZNK19OZFolderLightShadow8softnessEv.s
 //
 // Everything else on the class is NOT ported here — this file is ADD-ONLY and
 // each member lands as its own unit: the four ctors (@0x4f19c0, @0x4f1d20,
 // @0x4f1fd0, @0x4f20f0 and their C1 aliases), the dtors (@0x4f23a0 / @0x4f2460
 // / @0x4f25f0), initChannels @0x4f1c70, update @0x4f2790, the two hasShadows
-// overloads @0x4f27a0 / @0x4f27b0, the NON-const opacity twin @0x4f27e0, softness
-// @0x4f27f0 / @0x4f2800, the NON-const uniformSoftness twin @0x4f2820, and the
-// NON-const color twin @0x4f2840.
+// overloads @0x4f27a0 / @0x4f27b0, the NON-const opacity twin @0x4f27e0, the
+// NON-const softness twin @0x4f2800, the NON-const uniformSoftness twin
+// @0x4f2820, and the NON-const color twin @0x4f2840.
 //
 // -----------------------------------------------------------------------------
 // STRUCT LAYOUT — the embedded channel sub-objects, each cited to the
@@ -49,7 +52,17 @@
 //                                initChannels @0x4f1cac passes it to
 //                                `OZChannel::setMax(double)` @0x4f1cbb;
 //                                `opacity() const` @0x4f27d4 returns its address]
-//   +0x118  softness channel    [ctor @0x4f1a6a `leaq 0x118(%rbx),%r15`;
+//   +0x118  softness channel    [ctor @0x4f1a6a `leaq 0x118(%rbx),%r15` ->
+//           (OZChannelDouble)      @0x4f1a91 `callq OZChannelDouble::
+//                                  OZChannelDouble(double, PCString const&,
+//                                  OZChannelFolder*, unsigned, unsigned,
+//                                  OZChannelImpl*, OZChannelInfo*)` — which
+//                                pins this sub-object's TYPE: initial value
+//                                +0.0 (`xorps %xmm0,%xmm0` @0x4f1a7d), parent
+//                                folder `this` (@0x4f1a83 `movq %rbx,%rdx`),
+//                                then 2 (@0x4f1a86 `movl $0x2,%ecx`), 0, 0 and
+//                                a NULL trailing pointer pushed @0x4f1a71
+//                                (`movq $0x0,(%rsp)`);
 //                                initChannels @0x4f1c7a passes it to
 //                                `OZChannel::setMin` @0x4f1c87, `setMax`
 //                                @0x4f1c97 and `setSliderMax` @0x4f1ca7;
@@ -97,6 +110,7 @@
 import { OZChannelBool } from "./OZChannelBool";
 import { OZChannelPercent } from "./OZChannelPercent";
 import { OZChannelColorNoAlpha } from "./OZChannelColorNoAlpha";
+import { OZChannelDouble } from "./OZChannelDouble";
 
 export class OZFolderLightShadow {
   /**
@@ -270,5 +284,66 @@ export class OZFolderLightShadow {
   color(): OZChannelColorNoAlpha {
     // @Ozone 0x4f2834: leaq 0x248(%rdi), %rax
     return this.colorAt248;
+  }
+
+  /**
+   * `+0x118  OZChannelDouble softness` — the shadow's softness parameter, an
+   * EMBEDDED (by-value) channel sub-object.
+   *
+   * Constructed in place by the ctor: `leaq 0x118(%rbx), %r15` @Ozone 0x4f1a6a
+   * hands the member's ADDRESS to
+   * `OZChannelDouble::OZChannelDouble(double, PCString const&,
+   * OZChannelFolder*, unsigned, unsigned, OZChannelImpl*, OZChannelInfo*)`
+   * @0x4f1a91 — a sub-object ctor call, not a pointer store. Initial value
+   * +0.0 (`xorps %xmm0,%xmm0` @0x4f1a7d); parent folder = `this` (@0x4f1a83);
+   * then 2 (@0x4f1a86), 0, 0 and a NULL trailing pointer pushed @0x4f1a71.
+   *
+   * `initChannels()` @0x4f1c70 then configures THIS channel's range through
+   * the same address: `OZChannel::setMin` @0x4f1c87, `setMax` @0x4f1c97 and
+   * `setSliderMax` @0x4f1ca7 (all on the pointer taken @0x4f1c7a).
+   *
+   * Modelled as a live `OZChannelDouble` so a JS reference to it IS the
+   * `&(this+0x118)` address {@link OZFolderLightShadow.softness} returns.
+   */
+  softnessAt118: OZChannelDouble = new OZChannelDouble();
+
+  /**
+   * `OZFolderLightShadow::softness() const` — Ozone @0x004f27f0
+   * (mangled `__ZNK19OZFolderLightShadow8softnessEv`).
+   *
+   * Full transcription — every instruction of the function, in order
+   * (raw-port/re/disasm/__ZNK19OZFolderLightShadow8softnessEv.s):
+   *
+   *   0x4f27f0  pushq %rbp                  ; frame setup (no TS counterpart)
+   *   0x4f27f1  movq  %rsp, %rbp            ; frame setup (no TS counterpart)
+   *   0x4f27f4  leaq  0x118(%rdi), %rax     ; return &this->softness
+   *   0x4f27fb  popq  %rbp                  ; frame teardown (no TS counterpart)
+   *   0x4f27fc  retq                        ; return that address
+   *   0x4f27fd  nopl  (%rax)                ; alignment padding, not executed
+   *
+   * A fourth member of this class's one-`leaq` accessor family, identical to
+   * `opacity() const` @0x4f27d4 (+0x80), `uniformSoftness() const` @0x4f2814
+   * (+0x1b0) and `color() const` @0x4f2834 (+0x248) apart from the
+   * displacement. `leaq` computes an EFFECTIVE ADDRESS: nothing is loaded,
+   * nothing is copied, no reference count is touched — the C++ signature is
+   * `OZChannelDouble const& softness() const` and the embedded channel itself
+   * is handed back. (A pointer FIELD would have compiled to
+   * `movq 0x118(%rdi), %rax`.)
+   *
+   * The NON-const twin `softness()` @0x4f2800 is byte-identical on the same
+   * +0x118 slot and is a separate ledger entry; TypeScript has no
+   * const-overload, so it is deliberately not duplicated here.
+   *
+   * Returning the member object is the faithful rendering of `&member`: a JS
+   * object value is already a reference, so mutations the caller makes through
+   * the result are visible on `this`, exactly as in the binary.
+   *
+   * Zero callees, zero externs, zero indirect calls, no null check.
+   *
+   * @returns the embedded softness channel at `this + 0x118`.
+   */
+  softness(): OZChannelDouble {
+    // @Ozone 0x4f27f4: leaq 0x118(%rdi), %rax
+    return this.softnessAt118;
   }
 }
