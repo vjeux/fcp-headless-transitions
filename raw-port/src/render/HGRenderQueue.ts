@@ -15,6 +15,10 @@
 //                    mangled: __ZN13HGRenderQueue16SetOpenGLSupportEb
 //                    DECODE:  raw-port/re/disasm/Helium.__ZN13HGRenderQueue16SetOpenGLSupportEb.s
 //
+//   @Helium 0x627f0  HGRenderQueue::SetMTLRenderSyncLevel(int)            (FULL)
+//                    mangled: __ZN13HGRenderQueue21SetMTLRenderSyncLevelEi
+//                    DECODE:  raw-port/re/disasm/Helium.__ZN13HGRenderQueue21SetMTLRenderSyncLevelEi.s
+//
 // Every other member of the class (the ctors @0x60ba0 / @0x61480, the dtors
 // @0x61490 / @0x61c60 / @0x61c70, CreateRenderContextForComputeDevice @0x61c90,
 // AddRenderContext @0x61e00, SetRunMode @0x62560, SetPreferredResource @0x625a0,
@@ -70,6 +74,56 @@ export class HGRenderQueue {
    * {@link HGRenderQueue.SetOpenGLSupport} @Helium 0x62614.
    */
   openGLSupport = true;
+
+  /**
+   * `+0x3c  int32 mtlRenderSyncLevel` — the Metal render synchronization level.
+   *
+   * Defaults to **-1**: the default ctor loads the 64-bit immediate
+   * `movabsq $-0x100000000, %rax` @Helium 0x60beb (= 0xFFFFFFFF_00000000) and
+   * stores it as one 8-byte write `movq %rax, 0x38(%rbx)` @Helium 0x60bf5 —
+   * so the u32 at +0x38 becomes 0 and the i32 at +0x3c becomes 0xffffffff,
+   * i.e. -1 signed. (The next field the ctor writes is the byte at +0x40
+   * @0x60bf9, which bounds this slot.)
+   *
+   * The factory `CreateRenderQueue(HGRenderQueueSetupProperties*, bool)` then
+   * overwrites it with 1 (`movl $0x1, 0x3c(%rax)` @Helium 0x6ccf4) — but only
+   * when its setup count is strictly greater than 1, per the unsigned guard
+   * `cmpq $0x1, -0xb8(%rbp)` @0x6cce6 / `jbe 0x6ccfb` @0x6ccee.
+   *
+   * Written by {@link HGRenderQueue.SetMTLRenderSyncLevel} @Helium 0x627f4.
+   */
+  mtlRenderSyncLevel = -1;
+
+  /**
+   * `HGRenderQueue::SetMTLRenderSyncLevel(int)` — Helium @0x000627f0
+   * (mangled `__ZN13HGRenderQueue21SetMTLRenderSyncLevelEi`).
+   *
+   * Full transcription — every instruction of the function, in order
+   * (raw-port/re/disasm/Helium.__ZN13HGRenderQueue21SetMTLRenderSyncLevelEi.s):
+   *
+   *   0x627f0  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x627f1  movq  %rsp, %rbp           ; frame setup (no TS counterpart)
+   *   0x627f4  movl  %esi, 0x3c(%rdi)     ; this->mtlRenderSyncLevel = level
+   *   0x627f7  popq  %rbp                 ; frame teardown (no TS counterpart)
+   *   0x627f8  retq                       ; void return
+   *   0x627f9  nopl  (%rax)               ; alignment padding, not executed
+   *
+   * The whole method is that one `movl`: the `int` argument arrives in `%esi`
+   * (the second integer argument register, i.e. the first after `this`) and is
+   * stored verbatim to +0x3c. Exactly like the sibling `SetOpenGLSupport`
+   * above, it takes NO lock (contrast `SetRunMode` @0x62560, which brackets
+   * its store with `HGSynchronizable::Lock()`/`Unlock()` on +0x150), makes no
+   * call, performs no validation or clamping, and returns nothing.
+   *
+   * `| 0` reproduces the 32-bit signed width of the `movl` store (`i` in the
+   * mangled name = `int`), matching the -1 the ctor leaves in the same slot.
+   *
+   * @param level the new Metal render sync level (`%esi`).
+   */
+  SetMTLRenderSyncLevel(level: number): void {
+    // @Helium 0x627f4: movl %esi, 0x3c(%rdi)
+    this.mtlRenderSyncLevel = level | 0;
+  }
 
   /**
    * `HGRenderQueue::SetOpenGLSupport(bool)` — Helium @0x00062610
