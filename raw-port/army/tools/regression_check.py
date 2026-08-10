@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """regression_check.py — block stale-base FILE-LEVEL REGRESSIONS at merge time.
 
-THE PROBLEM: wt_merge uses a 3-way `git merge-tree`. A branch cut BEFORE a file landed treats
+THE PROBLEM: a squash/3-way merge of a stale-base branch (historically the deleted wt_merge's
+`git merge-tree`; now GitHub's PR merge, screened by pr_gate.sh before the required status goes
+green). A branch cut BEFORE a file landed treats
 that file as a fresh "add"; if the branch's version is older/shorter than what is now on
 origin/main, merge-tree merges it as an add with NO conflict — silently REPLACING a richer
 landed file with a stubbier one. Reviewers caught these by hand (OZChannelBase dropping 5
