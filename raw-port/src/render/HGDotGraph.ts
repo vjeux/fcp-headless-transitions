@@ -309,6 +309,25 @@ export class HGDotGraph {
     this.rankBuf = std_string_append(this.rankBuf, " ");
     // @0x8f044..0x8f05c canary check (no-op in JS) then return (void).
   }
+
+  /**
+   * HGDotGraph::on() const
+   * @0x8dea0 Helium  (mangled __ZNK10HGDotGraph2onEv)
+   *
+   * Disasm (raw-port/re/disasm/Helium.__ZNK10HGDotGraph2onEv.s):
+   *   0x8dea0  pushq %rbp ; movq %rsp,%rbp     ## frame
+   *   0x8dea4  movzbl 0x38(%rdi), %eax         ## eax = (u8)this->enabled  (zero-extend byte +0x38)
+   *   0x8dea8  popq %rbp ; retq                ## return enabled
+   *
+   * The const getter for the emission-enabled flag: returns the zero-extended
+   * byte at +0x38 (the same `enabled` field that enable(bool) @0x8de94 writes
+   * and begin/beginRank/endRank gate on). Zero callees, no externs. Modelled as
+   * the boolean field; the `movzbl` returns 0 or 1, matching a JS boolean.
+   */
+  on(): boolean {
+    // @0x8dea4  movzbl 0x38(%rdi),%eax : return the enabled flag byte at +0x38.
+    return this.enabled;
+  }
 }
 
 // -----------------------------------------------------------------------------
