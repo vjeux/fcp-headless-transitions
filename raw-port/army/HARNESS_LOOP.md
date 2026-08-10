@@ -131,11 +131,12 @@ Full rules: read `REVIEWER_BRIEF.md` + `PR_FLOW.md` (honor the RESOLVED cheat ru
             re-derive disasm INDEPENDENTLY from the binary (disasm.sh --sym <mangled> <FW>, NOT the
             committed .s), classify + reach + LINE-BY-LINE; oracle where callable.
             if genuinely faithful:
+                ghapp/pr_review.sh <PR#> approve "<one-line evidence>"   # REAL GitHub approval
                 pr_land.sh <PR#>             # handles behind/update-branch -> merge server-side
                 pr_comment_once.sh <PR#> "<one-line evidence>"   # idempotent; ONE comment, no re-post
                 mark_ported.py
             else:
-                gh pr review <PR#> --request-changes -b "<exactly which instruction the TS omits>"
+                ghapp/pr_review.sh <PR#> request-changes "<exactly which instruction the TS omits>"
       review_claim.sh release <PR#> <headSHA>
       # keep looping
     on shutdown: slot_lock.sh release reviewer N
