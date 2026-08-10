@@ -305,6 +305,43 @@ export class OZRenderParams {
   renderGateSizeAt278: PCVector2Double = { x: 0, y: 0 };
 
   /**
+   * @Ozone offset +0x288 — the explicit REGION-OF-INTEREST rect: four packed
+   * 32-bit integers, read as one 128-bit blob by `getROI() const` @0x270dfd
+   * (`movdqu 0x288(%r14), %xmm0`), which is what bounds the field to 16 bytes:
+   *
+   *   +0x288  int32  dword288
+   *   +0x28c  int32  dword28c
+   *   +0x290  int32  width290   <- the "is a ROI set?" gate
+   *   +0x294  int32  dword294
+   *
+   * Only the third lane has a decoded READER of its own, and two independent
+   * methods agree on it: `hasROI() const` @0x270dd4
+   * (`cmpl $0x0, 0x290(%rdi)` + `setg`) and `getROI() const` @0x270df4
+   * (`cmpl $0x0, 0x290(%rsi)` + `jle`) both treat `+0x290 > 0` as "an explicit
+   * ROI exists"; when it is <= 0, `getROI` ignores this rect entirely and
+   * synthesises one (via `getPixelTransform()` @0x270e15 and the render-bounds
+   * slots at +0x248/+0x258). That is the same "extent lane <= 0 means unset"
+   * protocol the double-precision bounds (+0x258) and gate (+0x278) pairs use,
+   * which is why the lane is named for the extent it gates; the other three
+   * lanes have no decoded reader yet, so they keep offset names rather than
+   * invented ones.
+   *
+   * The compare is `cmpl`/`setg` — a SIGNED 32-bit test — so these are int32
+   * lanes, not unsigned.
+   */
+  roiAt288: {
+    /** +0x288 — int32, no decoded reader yet (part of the 16-byte movdqu). */
+    dword288: number;
+    /** +0x28c — int32, no decoded reader yet. */
+    dword28c: number;
+    /** +0x290 — int32 extent lane; `> 0` means an explicit ROI is set
+     *  (hasROI @0x270dd4 `setg`, getROI @0x270dfb `jle`). */
+    width290: number;
+    /** +0x294 — int32, no decoded reader yet. */
+    dword294: number;
+  } = { dword288: 0, dword28c: 0, width290: 0, dword294: 0 };
+
+  /**
    * @Ozone offset +0x120 — an EMBEDDED "destination device" sub-object (not a
    * pointer field: the getter returns its ADDRESS via `leaq 0x120(%rdi),%rax`,
    * so the device data lives inline at this+0x120). Read by
@@ -1742,6 +1779,42 @@ export class OZRenderParams {
   getBlendingGamma(this: OZRenderParams): number {
     // @0x271624  movss 0x2e0(%rdi),%xmm0 — 32-bit single-precision load.
     return Math.fround(this.blendingGamma);
+  }
+
+  /**
+   * `OZRenderParams::hasROI() const` @Ozone 0x270dd0
+   * (__ZNK14OZRenderParams6hasROIEv).
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x270dd0  pushq %rbp                   ; frame setup (no TS counterpart)
+   *   0x270dd1  movq  %rsp, %rbp             ; frame setup (no TS counterpart)
+   *   0x270dd4  cmpl  $0x0, 0x290(%rdi)      ; flags on (int32 @+0x290) - 0
+   *   0x270ddb  setg  %al                    ; al = SIGNED greater-than
+   *   0x270dde  popq  %rbp                   ; frame teardown (no TS counterpart)
+   *   0x270ddf  retq                         ; return al as bool
+   *
+   * AT&T decode note (PORTING_SPEC Rule 4): `cmpl $0x0, 0x290(%rdi)` computes
+   * `dst - src` = `roi.width290 - 0`, and `setg` is the SIGNED
+   * greater-than condition (ZF=0 and SF==OF) — NOT `seta`/unsigned and NOT a
+   * `!= 0` test. So a NEGATIVE extent reports `false`, exactly like zero; the
+   * port must use `> 0` on a signed int32, not a truthiness check.
+   *
+   * The sibling `getROI() const` @0x270df4 gates on the same slot with the
+   * complementary signed branch (`cmpl $0x0, 0x290(%rsi)` + `jle` @0x270dfb ->
+   * synthesise a ROI instead of returning the stored rect), which confirms
+   * both the offset and the signedness.
+   *
+   * ZERO in-scope callees, ZERO externs, no indirect/virtual dispatch — a pure
+   * field compare.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams6hasROIEv.s (6 lines)
+   */
+  hasROI(this: OZRenderParams): boolean {
+    // @0x270dd4 cmpl $0x0,0x290(%rdi) ; @0x270ddb setg %al
+    //   signed 32-bit: (roi.width290 | 0) > 0.
+    return (this.roiAt288.width290 | 0) > 0;
   }
 
   /**
