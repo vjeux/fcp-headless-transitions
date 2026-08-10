@@ -16,14 +16,17 @@
 //   * OZFolderLightShadow::uniformSoftness() const   @Ozone 0x4f2810
 //     __ZNK19OZFolderLightShadow15uniformSoftnessEv
 //     DECODE: raw-port/re/disasm/__ZNK19OZFolderLightShadow15uniformSoftnessEv.s
+//   * OZFolderLightShadow::color() const              @Ozone 0x4f2830
+//     __ZNK19OZFolderLightShadow5colorEv
+//     DECODE: raw-port/re/disasm/__ZNK19OZFolderLightShadow5colorEv.s
 //
 // Everything else on the class is NOT ported here — this file is ADD-ONLY and
 // each member lands as its own unit: the four ctors (@0x4f19c0, @0x4f1d20,
 // @0x4f1fd0, @0x4f20f0 and their C1 aliases), the dtors (@0x4f23a0 / @0x4f2460
 // / @0x4f25f0), initChannels @0x4f1c70, update @0x4f2790, the two hasShadows
 // overloads @0x4f27a0 / @0x4f27b0, opacity @0x4f27d0 / @0x4f27e0, softness
-// @0x4f27f0 / @0x4f2800, the NON-const uniformSoftness twin @0x4f2820, and
-// color @0x4f2830 / @0x4f2840.
+// @0x4f27f0 / @0x4f2800, the NON-const uniformSoftness twin @0x4f2820, and the
+// NON-const color twin @0x4f2840.
 //
 // -----------------------------------------------------------------------------
 // STRUCT LAYOUT — the embedded channel sub-objects, each cited to the
@@ -58,7 +61,25 @@
 //                                xmm0 = 0). Returned by BOTH
 //                                `uniformSoftness() const` @0x4f2814 and the
 //                                non-const twin @0x4f2824.]
-//   +0x248  color channel       [ctor @0x4f1b07 `leaq 0x248(%rbx),%r13`;
+//   +0x248  color channel       [ctor @0x4f1b07 `leaq 0x248(%rbx),%r13` ->
+//           (OZChannelColorNoAlpha) @0x4f1b2f `callq OZChannelColorNoAlpha::
+//                                  OZChannelColorNoAlpha(double, double, double,
+//                                  PCString const&, OZChannelFolder*, unsigned,
+//                                  unsigned, unsigned)` — which pins this
+//                                sub-object's TYPE. The three doubles are all
+//                                +0.0 (`xorps %xmm0/%xmm1/%xmm2` @0x4f1b12..
+//                                0x4f1b18 — an initial BLACK colour), the
+//                                PCString is the one built @0x4f1b0e, the parent
+//                                folder is `this` (@0x4f1b1e `movq %rbx,%rdx`),
+//                                then 5 (@0x4f1b21 `movl $0x5,%ecx`), 0
+//                                (@0x4f1b26 `xorl %r8d,%r8d`) and 5 (@0x4f1b29
+//                                `movl $0x5,%r9d`). The sibling ctor
+//                                `(OZFactory*, PCString const&, unsigned)`
+//                                @0x4f1d20 builds the SAME sub-object with the
+//                                SAME arguments (@0x4f1e63 leaq / @0x4f1e8b
+//                                callq), and the dtors tear it down through the
+//                                same address (@0x4f23bf / @0x4f247f / @0x4f260f
+//                                `leaq 0x248(%rdi),%r14`).
 //                                `color() const` @0x4f2834 returns its address]
 //
 // FRONTIER CALLEES: none for this unit — `uniformSoftness() const` is a leaf
@@ -67,6 +88,7 @@
 // Per PORTING_SPEC.md Rules 1, 2, 5, 6.
 
 import { OZChannelBool } from "./OZChannelBool";
+import { OZChannelColorNoAlpha } from "./OZChannelColorNoAlpha";
 
 export class OZFolderLightShadow {
   /**
@@ -128,5 +150,66 @@ export class OZFolderLightShadow {
   uniformSoftness(): OZChannelBool {
     // @Ozone 0x4f2814: leaq 0x1b0(%rdi), %rax
     return this.uniformSoftnessAt1b0;
+  }
+
+  /**
+   * `+0x248  OZChannelColorNoAlpha color` — the shadow's colour parameter, an
+   * EMBEDDED (by-value) channel sub-object.
+   *
+   * Constructed in place by every ctor: `leaq 0x248(%rbx), %r13` @Ozone
+   * 0x4f1b07 hands the member's ADDRESS to
+   * `OZChannelColorNoAlpha::OZChannelColorNoAlpha(double, double, double,
+   * PCString const&, OZChannelFolder*, unsigned, unsigned, unsigned)`
+   * @0x4f1b2f (the `(OZFactory*, PCString const&, unsigned)` ctor repeats it
+   * verbatim @0x4f1e63/@0x4f1e8b) — a sub-object ctor call, not a pointer
+   * store, which is what makes this an inline member rather than a pointer
+   * field. The three colour doubles are zeroed immediately before the call
+   * (`xorps %xmm0,%xmm0` @0x4f1b12, `%xmm1` @0x4f1b15, `%xmm2` @0x4f1b18), so
+   * a freshly constructed shadow folder starts BLACK.
+   *
+   * Modelled as a live `OZChannelColorNoAlpha` so a JS reference to it IS the
+   * `&(this+0x248)` address {@link OZFolderLightShadow.color} returns.
+   */
+  colorAt248: OZChannelColorNoAlpha = new OZChannelColorNoAlpha();
+
+  /**
+   * `OZFolderLightShadow::color() const` — Ozone @0x004f2830
+   * (mangled `__ZNK19OZFolderLightShadow5colorEv`).
+   *
+   * Full transcription — every instruction of the function, in order
+   * (raw-port/re/disasm/__ZNK19OZFolderLightShadow5colorEv.s):
+   *
+   *   0x4f2830  pushq %rbp                  ; frame setup (no TS counterpart)
+   *   0x4f2831  movq  %rsp, %rbp            ; frame setup (no TS counterpart)
+   *   0x4f2834  leaq  0x248(%rdi), %rax     ; return &this->color
+   *   0x4f283b  popq  %rbp                  ; frame teardown (no TS counterpart)
+   *   0x4f283c  retq                        ; return that address
+   *   0x4f283d  nopl  (%rax)                ; alignment padding, not executed
+   *
+   * The same one-`leaq` shape as its three siblings on this class — `opacity()
+   * const` @0x4f27d4 (+0x80), `softness() const` @0x4f27f4 (+0x118) and
+   * `uniformSoftness() const` @0x4f2814 (+0x1b0) — differing only in the
+   * displacement. `leaq` computes an EFFECTIVE ADDRESS: nothing is loaded,
+   * nothing is copied and no reference count is touched, so the C++ signature
+   * is `OZChannelColorNoAlpha const& color() const` and the embedded channel
+   * itself is handed back. (A pointer FIELD would have compiled to
+   * `movq 0x248(%rdi), %rax` instead.)
+   *
+   * There is also a NON-const `color()` @0x4f2840 — a byte-identical twin on
+   * the same +0x248 slot and a separate ledger entry; TypeScript has no
+   * const-overload, so porting it here would be a duplicate rather than a
+   * second method.
+   *
+   * Returning the member object is the faithful rendering of `&member`,
+   * because a JS object value is already a reference: mutations the caller
+   * makes through the result are visible on `this`, exactly as in the binary.
+   *
+   * Zero callees, zero externs, zero indirect calls, no null check.
+   *
+   * @returns the embedded colour channel at `this + 0x248`.
+   */
+  color(): OZChannelColorNoAlpha {
+    // @Ozone 0x4f2834: leaq 0x248(%rdi), %rax
+    return this.colorAt248;
   }
 }
