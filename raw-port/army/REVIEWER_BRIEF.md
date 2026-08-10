@@ -1,15 +1,16 @@
 # ADVERSARIAL REVIEWER — block cheats before merge
 
-## MODEL B — you are ONE queue-driven slot. You NEVER spawn agents.
-The scheduler revived you for a single tick. There is NO coordinator agent: you do NOT spawn workers,
-you do NOT dispatch rebases, you do NOT spawn anything. You PULL PRs from the review queue, gate/merge/
-reject them, and STOP. More review only happens on the next scheduler tick, never by spawning.
+## MODEL B — you are ONE queue-driven slot in a SELF-CONTINUING loop. You NEVER spawn agents.
+There is NO coordinator agent: you do NOT spawn workers, you do NOT dispatch rebases, you do NOT spawn
+anything. You PULL PRs from the review queue, gate/merge/reject them, and immediately PULL THE NEXT,
+looping until the queue is empty. The ONLY thing that creates a new agent is the harness restarting a
+dead slot — never an agent itself. See HARNESS_LOOP.md for the full loop spec.
 
 ### STEP 0 — slot single-flight guard (ALWAYS first, ALWAYS release at the end)
 Your brief tells you your slot number `<N>`:
     bash raw-port/army/tools/slot_lock.sh acquire reviewer <N>
-`BUSY` → a previous tick of this slot is still working; STOP immediately, do nothing. `ACQUIRED` → you
-own this tick. At the very end (success OR failure) you MUST:
+`BUSY` → a previous run of this slot is still working; exit immediately, do nothing. `ACQUIRED` → you
+own this slot. Release the lock ONLY on shutdown (not after each PR):
     bash raw-port/army/tools/slot_lock.sh release reviewer <N>
 
 ### STEP 1 — CLAIM a PR from the review queue (don't hand-pick)
@@ -17,9 +18,11 @@ own this tick. At the very end (success OR failure) you MUST:
 - `CLAIMED <PR#> <headSHA>` → you leased ONE PR (keyed by head SHA so two reviewer slots never gate
   the same head). Gate/review/merge it per the loop below, then
   `bash raw-port/army/tools/review_claim.sh release <PR#> <headSHA>`.
-- `NONE` → no PR currently needs a fresh verdict; release your slot lock and STOP.
-You MAY claim 2-4 PRs per tick (claim → handle → release, one at a time). Then release slot lock, STOP.
-The `gh pr list` loop described below is what `review_claim.sh` automates — you no longer hand-pick;
+- `NONE` → no PR currently needs a fresh verdict; sleep ~60s and re-claim (or exit for the harness to
+  restart you). Do NOT hold the slot idle-spinning.
+After handling a PR (release its review lease), immediately claim the next — loop until the queue is
+empty. There is no per-batch cap. The `gh pr list` loop described below is what `review_claim.sh`
+automates — you no longer hand-pick;
 you handle exactly the PR it leases you.
 
 ## PR FLOW — YOU ARE THE CI. Read `raw-port/army/PR_FLOW.md` first.
