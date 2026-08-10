@@ -8,6 +8,7 @@
 //   raw-port/re/disasm/Helium._HGRectMake4f.s        @0x107d50
 //   raw-port/re/disasm/Helium._HGRectIsNull.s        @0x107b20
 //   raw-port/re/disasm/Helium.__ZNK6HGRect6IsNullEv.s @0x1074a0 (class-member twin)
+//   raw-port/re/disasm/Helium.__ZNK6HGRect7IsEqualES_.s @0x107410 (class-member twin)
 //   raw-port/re/disasm/Helium._HGRectContainsRect.s  @0x107b60
 //   raw-port/re/disasm/Helium._HGRectExcludesRect.s  @0x107ba0
 //   raw-port/re/disasm/Helium._HGRectGrow.s          @0x107960
@@ -302,6 +303,74 @@ export function HGRect__IsZero(self: HGRect): boolean {
   // @0x1074e1..0x1074e5 — cmpl $0, 0xc(%rdi) ; sete %al  -> al = (bottom==0).
   return (self.bottom | 0) === 0;
   // @0x1074e8..0x1074e9 — epilogue + retq.
+}
+
+// ---------------------------------------------------------------------------
+// HGRect::IsEqual(HGRect) const @Helium 0x107410 (__ZNK6HGRect7IsEqualES_)
+//
+// The CLASS-MEMBER twin of the free `HGRectIsEqual` @0x107a80 above. Same
+// predicate, DIFFERENT machine code — and a different symbol, so it gets its
+// own exported function (one C++ method = one exported function, Rule 6):
+// the free function XORs both packed qwords and tests the OR, while the member
+// does four separate 32-bit compares with an early-out. Both are transcribed
+// as written.
+//
+// The by-value `HGRect` argument (16 bytes, two eightbytes) arrives in the SysV
+// INTEGER class registers: %rsi = {x, y} (x in the low 32 bits, y in the high
+// 32) and %rdx = {right, bottom}. That is what the two `shrq $0x20` shifts are
+// for — they move the HIGH field of each eightbyte down into the low half so a
+// 32-bit `cmpl` can see it.
+//
+//   0x107414  cmpl %esi, (%rdi)        ; this.x      - other.x
+//   0x107416  jne  0x107432            ;   != -> return false
+//   0x107418  shrq $0x20, %rsi         ; %esi = other.y
+//   0x10741c  cmpl %esi, 0x4(%rdi)     ; this.y      - other.y
+//   0x10741f  jne  0x107432            ;   != -> return false
+//   0x107421  cmpl %edx, 0x8(%rdi)     ; this.right  - other.right
+//   0x107424  jne  0x107432            ;   != -> return false
+//   0x107426  shrq $0x20, %rdx         ; %edx = other.bottom
+//   0x10742a  cmpl %edx, 0xc(%rdi)     ; this.bottom - other.bottom
+//   0x10742d  sete %al                 ; return (== )
+//   0x107432  xorl %eax, %eax          ; the shared "return false" tail
+//
+// AT&T note (PORTING_SPEC Rule 4): `cmpl %esi, (%rdi)` computes `dst - src` =
+// `this.x - other.x`; `jne`/`sete` are the ZF conditions, so every test is a
+// plain 32-bit EQUALITY — no signed/unsigned ordering is involved and the
+// field order tested is x, y, right, bottom.
+//
+// FRONTIER CALLEES: none — leaf function (no calls, no in-scope deps).
+// ---------------------------------------------------------------------------
+
+/** `HGRect::IsEqual(HGRect) const` — @Helium 0x107410 (__ZNK6HGRect7IsEqualES_).
+ *
+ * Class-member predicate. Because our `HGRect` is modelled as a plain TS
+ * interface (not a class — see the type declaration above), the native `this`
+ * pointer is passed as the explicit first parameter, exactly like
+ * {@link HGRect__IsNull} and {@link HGRect__IsZero}.
+ *
+ * @param self  the `HGRect` — `this` (%rdi) in the native method.
+ * @param other the by-value `HGRect` argument (%rsi = {x,y}, %rdx = {right,bottom}).
+ */
+export function HGRect__IsEqual(self: HGRect, other: HGRect): boolean {
+  // @0x107414..0x107416 — cmpl %esi, (%rdi) ; jne : this.x != other.x -> false.
+  if ((self.x | 0) !== (other.x | 0)) {
+    // @0x107432 — xorl %eax,%eax ; popq ; retq.
+    return false;
+  }
+  // @0x107418..0x10741f — shrq $0x20,%rsi (other.y) ; cmpl %esi,0x4(%rdi) ; jne.
+  if ((self.y | 0) !== (other.y | 0)) {
+    // @0x107432 — shared false tail.
+    return false;
+  }
+  // @0x107421..0x107424 — cmpl %edx, 0x8(%rdi) ; jne : right mismatch -> false.
+  if ((self.right | 0) !== (other.right | 0)) {
+    // @0x107432 — shared false tail.
+    return false;
+  }
+  // @0x107426..0x10742d — shrq $0x20,%rdx (other.bottom) ; cmpl %edx,0xc(%rdi) ;
+  //                        sete %al -> the result is this last equality.
+  return (self.bottom | 0) === (other.bottom | 0);
+  // @0x107430..0x107431 — epilogue + retq.
 }
 
 // ---------------------------------------------------------------------------
