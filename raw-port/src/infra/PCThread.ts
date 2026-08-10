@@ -136,6 +136,28 @@ function pthread_equal_stub(_t1: unknown, _t2: unknown): number {
 }
 
 /**
+ * `pthread_join(pthread_t, void**)` — POSIX join: block until the target
+ * thread terminates, optionally receiving its return value. Called via
+ * ProCore's imported stub at @0xdeaaa from `PCThread::wait` @0x34b5c.
+ * TRUE out-of-scope extern (libpthread/libSystem — not one of the five FCP
+ * frameworks), same policy as `pthread_self_stub` / `pthread_equal_stub`.
+ *
+ * The FCP caller passes a stack slot pre-zeroed to null as the `void**`
+ * retval-out (it discards the thread's return value), and `this->threadId`
+ * (+0x00) as the pthread_t to join.
+ *
+ * In this port there is no libpthread runtime, so a faithful raise is the
+ * correct behaviour: any caller reaching this point would depend on a real
+ * thread that only a JS-side pthread implementation could join.
+ */
+function pthread_join_stub(_thread: unknown, _retval: unknown): number {
+  throw new Error(
+    "pthread_join() @ProCore imported stub 0xdeaaa (libpthread/libSystem — " +
+      "TRUE out-of-scope extern; not yet transcribed)",
+  );
+}
+
+/**
  * `PCThread` — ProCore's POSIX-thread wrapper (partial port).
  *
  * Currently transcribed:
@@ -253,5 +275,61 @@ export class PCThread {
     //
     // @0x34bac–0x34bb2: epilogue + retq (return value in %al).
     return eq !== 0;
+  }
+
+  /**
+   * `PCThread::wait()` @ProCore 0x34b46
+   * (__ZN8PCThread4waitEv).
+   *
+   * Blocks until the wrapped thread terminates by joining it. The thread's
+   * exit value is discarded: the caller allocates a `void*` slot on the
+   * stack, zero-initialises it, and passes its address as pthread_join's
+   * `void**` out-param, ignoring whatever is written back.
+   *
+   * Faithful line-for-line transcription of the 12-line disasm:
+   *
+   *   sub  $0x10,%rsp                 ; reserve stack (retval slot)
+   *   lea  -0x8(%rbp),%rsi            ; rsi = &retvalSlot
+   *   movq $0x0,(%rsi)                ; retvalSlot = null
+   *   movq (%rdi),%rdi               ; rdi = *(this+0) = this->threadId
+   *   callq 0xdeaaa                  ; pthread_join(this->threadId, &retvalSlot)
+   *   ret                             ; (return value discarded)
+   *
+   * Returns void. The only callee is the POSIX `pthread_join` extern (stub).
+   */
+  wait(): void {
+    // @0x34b4e leaq -0x8(%rbp),%rsi ; @0x34b52 movq $0x0,(%rsi)
+    //   retvalSlot = null (a void* out-param, pre-zeroed; result discarded).
+    const retvalSlot: unknown = null;
+
+    // @0x34b59 movq (%rdi),%rdi : rdi = *(this+0) = this->threadId.
+    const tid = this.threadId;
+
+    // @0x34b5c callq 0xdeaaa : pthread_join(this->threadId, &retvalSlot).
+    //   TRUE out-of-scope extern (POSIX/libpthread). Stub raises.
+    //   Return value (int status) is not stored by the caller.
+    pthread_join_stub(tid, retvalSlot);
+
+    // @0x34b61–0x34b66: epilogue + retq. (No return value.)
+  }
+
+  /**
+   * `PCThread::~PCThread()` (D1 complete object destructor) — @ProCore 0x34b32
+   *
+   * Full disassembly (re/disasm/ProCore.__ZN8PCThreadD1Ev.s):
+   *   0x34b32  pushq %rbp             ; frame prologue
+   *   0x34b33  movq  %rsp, %rbp
+   *   0x34b36  popq  %rbp             ; frame epilogue
+   *   0x34b37  retq                   ; return
+   *
+   * A REAL trivial destructor: PCThread holds only a `pthread_t threadId`
+   * (a POD scalar at +0x00), so there is no member/base teardown to run.
+   * The compiler emitted only the frame prologue/epilogue. Transcribed
+   * faithfully as an empty body — it never touches `this` and calls
+   * nothing (no `operator delete`, no base dtor).
+   */
+  destructor_D1(): void {
+    // no-op (@ProCore 0x34b32 — push rbp; mov rbp,rsp; pop rbp; ret)
+    // Trivial dtor: only member is the POD `threadId` at +0x00 (no teardown).
   }
 }
