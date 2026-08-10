@@ -98,3 +98,62 @@ export function HGString_data(self: HGStringInstance): HGStringBuf | null {
   // 0xb3324  movq (%rdi), %rax
   return self.buf;
 }
+
+// ###########################################################################
+// UNIT: HGString::length() const                                @Helium 0xb3330
+//   __ZNK8HGString6lengthEv
+//
+// re/disasm: raw-port/re/disasm/Helium.__ZNK8HGString6lengthEv.s (7 lines)
+//
+// FULL DISASM (5 real insns @0xb3330..0xb3339; 0xb333a is alignment padding):
+//   0xb3330  pushq %rbp
+//   0xb3331  movq  %rsp, %rbp
+//   0xb3334  movq  0x8(%rdi), %rax     ; return this->length   (+0x08)
+//   0xb3338  popq  %rbp
+//   0xb3339  retq
+//   0xb333a  nopw  (%rax,%rax)         ; padding, not code
+//
+// A bare 64-bit load of the +0x08 field — the exact counterpart of `data()`
+// @0xb3320 one slot above, which loads +0x00 the same way. No callq, no
+// indirect branch, no other field touched.
+//
+// THAT +0x08 IS A LENGTH (not an end pointer, not a capacity) is pinned by
+// three independent sites, all already cited in the CLASS SHAPE block above:
+//   @0xb83e7  _flags(int):  `addq 0x8(%rdi), %rax` where %rax is the +0x00
+//             buffer — forming `buf + length`, which only type-checks if
+//             +0x08 is an offset.
+//   @0xb8493/@0xb8497  c_str(): `movq 0x8(%rdi), %rcx ; cmpb $0x0, (%rax,%rcx)`
+//             — indexes the buffer BY this field to test for the NUL
+//             terminator, i.e. it is the index one past the last character.
+//   @0xb9184  reset(): `movq $0x0, 0x8(%rdi)` — resetting the string zeroes
+//             exactly this field and nothing else, so it is the live count.
+//
+// NUMERIC WIDTH — the load is `movq`, a full 64-bit `size_t`. Per PORTING_SPEC
+// Rule 4 a u64 becomes `bigint` only "where the value can exceed 2^53"; this
+// one cannot: it is a byte count into an in-memory shader-source buffer, and
+// the sibling sites above use it as a plain `Uint8Array` index. It is
+// therefore modelled as `number`, consistent with the `length: number` field
+// the already-landed `data()` unit declared on HGStringInstance.
+//
+// FRONTIER CALLEES: zero. `depgraph.py deps __ZNK8HGString6lengthEv` reports
+// nothing (0 in-scope callees, 0 externs, 0 indirect). Integer only.
+// ###########################################################################
+
+/**
+ * HGString::length() const  —  Helium @0xb3330 (__ZNK8HGString6lengthEv).
+ *
+ * Faithful transcription of the 7-line disassembly quoted above: a single
+ * `movq 0x8(%rdi), %rax`. Returns the live character count of the builder —
+ * the same field `c_str()` @0xb8493 uses to index `buf` when it checks for
+ * the NUL terminator, and the one `reset()` @0xb9184 zeroes.
+ *
+ * No NUL check, no `str_close()`, no involvement of `buf` (+0x00) or the
+ * `pending` field (+0x10) — unlike `c_str()` @0xb8480, which reads all three.
+ *
+ * @param self the HGString (%rdi).
+ * @returns the `size_t length` field at +0x08.
+ */
+export function HGString_length(self: HGStringInstance): number {
+  // 0xb3334  movq 0x8(%rdi), %rax
+  return self.length;
+}
