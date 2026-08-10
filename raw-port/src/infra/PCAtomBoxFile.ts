@@ -250,4 +250,78 @@ export class PCAtomBoxFile {
     // @0x24dfe movq %rdi,%rax : the top atom box is at +0x00, i.e. `this` itself.
     return this;
   }
+
+  // ===========================================================================
+  // PCAtomBoxFile::closeOutputFile()  @ProCore 0x24d64
+  //   __ZN13PCAtomBoxFile15closeOutputFileEv
+  // ===========================================================================
+  // Tears down the file's OUTPUT side: if a stdio output stream handle is open
+  // (FILE* at +0x50) it is `fclose`d and the field nulled; if an output
+  // scratch buffer was heap-allocated with `operator new[]` (pointer at +0x58)
+  // it is released with `operator delete[]` and the field nulled. Both callees
+  // are TRUE OUT-OF-SCOPE externs — libc `_fclose` (@0xde864, the stdio stub)
+  // and the C++ runtime `operator delete[]` (__ZdaPv @0xde6ba). Neither lives
+  // in the 5-framework port scope, so each is modelled as a boundary below; the
+  // REAL WORK — the two null-guarded release-then-null sequences — is
+  // transcribed verbatim.
+  //
+  // Source disasm: raw-port/re/disasm/ProCore.__ZN13PCAtomBoxFile15closeOutputFileEv.s (20 lines)
+  //
+  // FULL DISASM (@ProCore 0x24d64):
+  //   0x24d64  pushq %rbp ; movq %rsp,%rbp ; pushq %rbx ; pushq %rax  ; frame
+  //   0x24d6a  movq  %rdi, %rbx                 ; rbx = this
+  //   0x24d6d  movq  0x50(%rdi), %rdi           ; rdi = this->outputFile (FILE*)
+  //   0x24d71  testq %rdi, %rdi                 ; if (outputFile == null)
+  //   0x24d74  je    0x24d83                     ;   skip fclose
+  //   0x24d76  callq _fclose                     ; fclose(outputFile)          (libc extern)
+  //   0x24d7b  movq  $0x0, 0x50(%rbx)            ; this->outputFile = null
+  //   0x24d83  movq  0x58(%rbx), %rdi            ; rdi = this->outputBuffer (new[]'d ptr)
+  //   0x24d87  testq %rdi, %rdi                 ; if (outputBuffer == null)
+  //   0x24d8a  je    0x24d99                     ;   skip delete[]
+  //   0x24d8c  callq __ZdaPv                      ; operator delete[](outputBuffer) (C++ rt extern)
+  //   0x24d91  movq  $0x0, 0x58(%rbx)            ; this->outputBuffer = null
+  //   0x24d99  addq $0x8,%rsp ; popq %rbx ; popq %rbp ; retq            ; return void
+
+  /** Boundary: libc `fclose` — stdio stub called @ProCore 0x24d76 (_fclose @0xde864).
+   *  Out-of-scope OS/libc; a real runtime replaces this with the actual fclose.
+   *  Returns the FILE* handle to null so the field can be cleared. */
+  private __fclose(_file: object | null): void {
+    throw new Error("_fclose @0xde864 (libc extern) not modelled in port scope");
+  }
+
+  /** Boundary: C++ runtime `operator delete[]` — __ZdaPv called @ProCore 0x24d8c
+   *  (@0xde6ba). Out-of-scope C++ runtime; a real runtime frees the array here. */
+  private __operatorDeleteArray(_ptr: object | null): void {
+    throw new Error("operator delete[] __ZdaPv @0xde6ba (C++ runtime extern) not modelled in port scope");
+  }
+
+  /**
+   * PCAtomBoxFile::closeOutputFile()
+   * @0x24d64 ProCore  (__ZN13PCAtomBoxFile15closeOutputFileEv)
+   *
+   * Closes the output FILE* (+0x50) and frees the output buffer (+0x58), nulling
+   * each field, both under a null-guard. Returns void.
+   */
+  closeOutputFile(): void {
+    // @0x24d6d movq 0x50(%rdi),%rdi ; @0x24d71 testq %rdi,%rdi ; @0x24d74 je -> skip
+    if (this.outputFile !== null) {
+      // @0x24d76 callq _fclose  (libc boundary)
+      this.__fclose(this.outputFile);
+      // @0x24d7b movq $0x0,0x50(%rbx) : this->outputFile = null
+      this.outputFile = null;
+    }
+    // @0x24d83 movq 0x58(%rbx),%rdi ; @0x24d87 testq %rdi,%rdi ; @0x24d8a je -> skip
+    if (this.outputBuffer !== null) {
+      // @0x24d8c callq __ZdaPv  (operator delete[] boundary)
+      this.__operatorDeleteArray(this.outputBuffer);
+      // @0x24d91 movq $0x0,0x58(%rbx) : this->outputBuffer = null
+      this.outputBuffer = null;
+    }
+    // @0x24d99 return void
+  }
+
+  /** Output stdio stream handle at struct +0x50 (FILE*); null when not open. */
+  outputFile: object | null = null;
+  /** Output scratch buffer at struct +0x58 (operator new[]'d); null when unset. */
+  outputBuffer: object | null = null;
 }
