@@ -7,7 +7,7 @@
 # the base ledger from the LAST git commit that tracked it (dynamic — not hardcoded to a17ba69f^),
 # then reconciles status against current origin/main src. Idempotent: if all 6 exist, does nothing.
 #
-# Run at coordinator STEP 0 before any depgraph stats/dispatch. The restored files stay gitignored
+# Run at the start of swarm_maint before any depgraph stats. The restored files stay gitignored
 # (never dirties the tree). Exit 0 = ledgers present (restored or already there); exit 1 = could not
 # restore (report to vjeux — swarm must not run without a ledger).
 set -uo pipefail
