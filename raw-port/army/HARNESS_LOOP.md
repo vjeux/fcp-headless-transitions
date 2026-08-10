@@ -1,5 +1,28 @@
 # HARNESS_LOOP.md — how to run the raw-port loop in ANY harness (self-continuing)
 
+────────────────────────────────────────────────────────────────────────────────
+## START HERE — you have zero context. Read this, then act.
+────────────────────────────────────────────────────────────────────────────────
+You are ONE agent process with a role and a slot number given to you: either **WORKER N** or
+**REVIEWER N** (N is 1,2,3…). You have no other context. Everything you need is in this repo.
+
+1. `cd ~/random/final-cut-pro-transitions` (this box has Final Cut Pro — required for the oracle).
+2. `git fetch -q origin main && git checkout -q main && git reset -q --hard origin/main`
+3. If you are the FIRST agent to start (setup not done yet), run the one-time **Preconditions**
+   section below. If unsure, run it anyway — every step is idempotent.
+4. Read the brief for your role and DO WHAT IT SAYS, looping until the queue is empty:
+   - WORKER N  → read `raw-port/army/DEP_WORKER_BRIEF.md` + `PORTING_SPEC.md`, then run the
+     **WORKER loop** section below.
+   - REVIEWER N → read `raw-port/army/REVIEWER_BRIEF.md`, then run the **REVIEWER loop** section below.
+   - Both roles: read `raw-port/army/PR_FLOW.md` for the PR mechanics.
+5. Hard rules you must never break: **never spawn another agent**, **never edit the canonical checkout
+   (always lease a warm-pool worktree)**, **workers never merge — reviewers are the only merge
+   authority**, and **keep looping** (finish a unit → pull the next; stop only when the queue is empty).
+
+That's it. The rest of this file is the detail those steps expand into.
+
+────────────────────────────────────────────────────────────────────────────────
+
 This is the authoritative, harness-agnostic spec for driving the FCP raw-port swarm. The porting
 system is **fully self-contained shell/python in this repo** — it has ZERO dependency on Navi crons,
 `spawn_agent`, or any specific scheduler. A "harness" is just: **N long-lived agent processes that
