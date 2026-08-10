@@ -45,6 +45,10 @@
 //   * __ZNK13OZViewerState10isSnappingEv
 //       — OZViewerState::isSnapping() const @Ozone 0x36e670
 //         (raw-port/re/disasm/__ZNK13OZViewerState10isSnappingEv.s — 8 lines)
+//   * __ZN13OZViewerState15setMirroringHMDEb
+//       — OZViewerState::setMirroringHMD(bool) @Ozone 0x36e5a0
+//         (raw-port/re/disasm/__ZN13OZViewerState15setMirroringHMDEb.s — 7 lines)
+//         one `movb %sil, 0x102(%rdi)` — u8 flag field @+0x102.
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (raw-port/re/disasm/__ZNK13OZViewerState10isSnappingEv.s)
@@ -153,6 +157,26 @@ export class OZViewerState {
    * ported). Modelled as a `number` interpreted as an unsigned 32-bit word.
    */
   displayFlags_at_0x38: number = 0; // u32 packed-bitfield @+0x38
+
+  /**
+   * @Ozone +0x102 (u8) — the "mirroring HMD" flag byte written by
+   * `setMirroringHMD(bool)` @0x36e5a4 via `movb %sil, 0x102(%rdi)`.
+   *
+   * The store is a plain 8-bit `movb` of the argument register's low byte
+   * (`%sil` = low byte of `%rsi`, the second System-V integer argument):
+   * the setter neither masks the value to 0/1 nor reads the field back, so
+   * this unit learns only that ONE byte lives at +0x102 and that it holds
+   * whatever byte the caller supplied. Modelled as a `number` in [0, 255]
+   * rather than a `boolean` so that fidelity is preserved — a C++ `bool`
+   * argument is 0 or 1 by ABI, but the instruction copies the byte
+   * verbatim, and the getter that reads it back is a separate ledger unit
+   * which may or may not mask it.
+   *
+   * This also pushes the known lower bound on `sizeof(OZViewerState)` to
+   * >= 0x103; the bytes between +0x3e and +0x102 remain UNDECODED and no
+   * field is invented for them (Rule 5).
+   */
+  mirroringHMD_at_0x102: number = 0; // u8 flag @+0x102
 
   /**
    * `OZViewerState::getDynamicResolution()` @Ozone 0x36e2d0
@@ -432,5 +456,47 @@ export class OZViewerState {
     // @0x36dfd3..0x36dfd7  movzbl 0x3d(%rsi),%eax ; movb %al,0x3d(%rdi)
     //   Copy the u8 at +0x3d.
     this.settingsByteAt3d = src.settingsByteAt3d & 0xff;
+  }
+
+  /**
+   * `OZViewerState::setMirroringHMD(bool)` @Ozone 0x36e5a0
+   *   — __ZN13OZViewerState15setMirroringHMDEb
+   *
+   * Faithful line-for-line transcription of the 6-instruction body — a
+   * single-byte store, no read-back, no branch, no return value:
+   *
+   *   0x36e5a0  pushq  %rbp                     ; frame prologue
+   *   0x36e5a1  movq   %rsp, %rbp
+   *   0x36e5a4  movb   %sil, 0x102(%rdi)        ; *(u8*)(this + 0x102) = (u8)arg
+   *   0x36e5ab  popq   %rbp                     ; frame epilogue
+   *   0x36e5ac  retq                            ; void
+   *   0x36e5ad  nopl   (%rax)                   ; alignment padding
+   *
+   * System-V x86_64: `%rdi` = `this`, `%rsi` = the `bool` argument, and
+   * `%sil` is `%rsi`'s low byte. The `movb` writes exactly that byte to
+   * +0x102 — it is NOT masked to 0/1 and NOT sign/zero-extended, so the
+   * port stores `arg & 0xff` (the byte the machine copies) rather than
+   * normalising to a boolean.
+   *
+   * The parameter is typed `number` for the same reason: the mangled name
+   * says `b` (C++ `bool`, so callers pass 0 or 1), but the instruction
+   * copies whatever 8 bits arrive, and typing it `boolean` would silently
+   * normalise any other byte a caller could produce.
+   *
+   * Returns void — %rax is never written before `retq`.
+   *
+   * Zero in-scope callees, zero externs, no indirect calls — one store.
+   * Confirmed via `depgraph.py deps __ZN13OZViewerState15setMirroringHMDEb`
+   * (no dependencies reported).
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN13OZViewerState15setMirroringHMDEb.s (7 lines)
+   */
+  setMirroringHMD(mirroringHMD: number): void {
+    // @0x36e5a0..0x36e5a1 — prologue (no TS-visible effect).
+    // @0x36e5a4           — movb %sil, 0x102(%rdi): store the argument's
+    //                       low byte into the u8 field at +0x102.
+    this.mirroringHMD_at_0x102 = mirroringHMD & 0xff;
+    // @0x36e5ab..0x36e5ac — epilogue + retq (no return value).
   }
 }
