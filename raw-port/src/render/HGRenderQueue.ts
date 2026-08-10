@@ -19,6 +19,10 @@
 //                    mangled: __ZN13HGRenderQueue21SetMTLRenderSyncLevelEi
 //                    DECODE:  raw-port/re/disasm/Helium.__ZN13HGRenderQueue21SetMTLRenderSyncLevelEi.s
 //
+//   @Helium 0x62620  HGRenderQueue::SetDebugQueueVerboseMask(unsigned int) (FULL)
+//                    mangled: __ZN13HGRenderQueue24SetDebugQueueVerboseMaskEj
+//                    DECODE:  raw-port/re/disasm/Helium.__ZN13HGRenderQueue24SetDebugQueueVerboseMaskEj.s
+//
 // Every other member of the class (the ctors @0x60ba0 / @0x61480, the dtors
 // @0x61490 / @0x61c60 / @0x61c70, CreateRenderContextForComputeDevice @0x61c90,
 // AddRenderContext @0x61e00, SetRunMode @0x62560, SetPreferredResource @0x625a0,
@@ -93,6 +97,70 @@ export class HGRenderQueue {
    * Written by {@link HGRenderQueue.SetMTLRenderSyncLevel} @Helium 0x627f4.
    */
   mtlRenderSyncLevel = -1;
+
+  /**
+   * `+0x44  uint32 debugQueueVerboseMask` — the queue's debug-logging bitmask.
+   *
+   * It is a BITMASK, not a level: the queue's hot paths test individual bits
+   * of this exact slot —
+   *   `testb $0x1,  0x44(%r15)` @Helium 0x68517  (GetRenderJob)
+   *   `testb $0x2,  0x44(%rbx)` @Helium 0x675a1  (NotifyIdleRenderUnits)
+   *   `testb $0x2,  0x44(%r15)` @Helium 0x68696  (GetRenderJob)
+   *   `testb $0x10, 0x44(%r14)` @Helium 0x68fa7, 0x69211, 0x69281, 0x693cf,
+   *                             0x69473                (GetRenderJobFromQueue)
+   *   `testb $0x40, 0x44(%r14)` @Helium 0x6923c        (GetRenderJobFromQueue)
+   * plus whole-word "any logging at all?" checks
+   *   `cmpl $0x0, 0x44(%r14)` @Helium 0x68a0c, `cmpl $0x0, 0x44(%rbx)`
+   *   @Helium 0x69bad (EnqueueUserJob) and @Helium 0x6b435 / 0x6b4e8
+   *   (GetUserJobFromQueue), and a full read `movl 0x44(%rbx), %eax`
+   *   @Helium 0x6b7dd (EnqueueGPUReadbackJob).
+   * Read back verbatim by `GetDebugQueueVerboseMask()` @Helium 0x62634
+   * (`movl 0x44(%rdi), %eax`).
+   *
+   * Initial value 0: the ctor seeds the slot from the file-static
+   * `sHeliumRenderQueueDefaultLogging` (`movl <sym>(%rip), %eax` @Helium
+   * 0x60bfd then `movl %eax, 0x44(%rbx)` @Helium 0x60c03; repeated on the
+   * second path @Helium 0x60f73/0x60f79). That symbol is
+   * `__ZL32sHeliumRenderQueueDefaultLogging` @Helium 0xadcef8, an `nm`-class
+   * `b` (__DATA __bss) symbol — i.e. ZERO at image load. The only writer is
+   * the ctor's dispatch_once block `____ZN13HGRenderQueueC2Ev_block_invoke`
+   * @Helium 0x613bd, which is a separate unit and is not transcribed here; so
+   * this port models the load-time value and does not invent a configured one.
+   *
+   * Written by {@link HGRenderQueue.SetDebugQueueVerboseMask} @Helium 0x62624.
+   */
+  debugQueueVerboseMask = 0;
+
+  /**
+   * `HGRenderQueue::SetDebugQueueVerboseMask(unsigned int)` — Helium @0x00062620
+   * (mangled `__ZN13HGRenderQueue24SetDebugQueueVerboseMaskEj`).
+   *
+   * Full transcription — every instruction of the function, in order
+   * (raw-port/re/disasm/Helium.__ZN13HGRenderQueue24SetDebugQueueVerboseMaskEj.s):
+   *
+   *   0x62620  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x62621  movq  %rsp, %rbp           ; frame setup (no TS counterpart)
+   *   0x62624  movl  %esi, 0x44(%rdi)     ; this->debugQueueVerboseMask = mask
+   *   0x62627  popq  %rbp                 ; frame teardown (no TS counterpart)
+   *   0x62628  retq                       ; void return
+   *   0x62629  nopl  (%rax)               ; alignment padding, not executed
+   *
+   * One `movl`, nothing else: the `unsigned int` argument arrives in `%esi`
+   * and is stored verbatim. Like its two siblings above it takes NO lock
+   * (contrast `SetRunMode` @0x62560), calls nothing, validates nothing, masks
+   * nothing (any bit pattern is accepted, including bits no reader tests) and
+   * returns nothing.
+   *
+   * `>>> 0` reproduces the UNSIGNED 32-bit width of the store — the mangled
+   * `j` is `unsigned int`, and every consumer reads the slot with `movl` /
+   * `testb` / `cmpl`, never sign-extending it.
+   *
+   * @param mask the new debug-verbose bitmask (`%esi`).
+   */
+  SetDebugQueueVerboseMask(mask: number): void {
+    // @Helium 0x62624: movl %esi, 0x44(%rdi)
+    this.debugQueueVerboseMask = mask >>> 0;
+  }
 
   /**
    * `HGRenderQueue::SetMTLRenderSyncLevel(int)` — Helium @0x000627f0
