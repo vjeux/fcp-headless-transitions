@@ -1,8 +1,8 @@
 #!/bin/bash
 # pr_gate.sh <PR#> [--reviewed] — PR-flow faithfulness gate, run by the ADVERSARIAL REVIEWER on
-# vjeux-mac (has Final Cut Pro; the dlsym oracle needs it). Replaces wt_merge.sh + sidecars.
+# vjeux-mac (has Final Cut Pro; the dlsym oracle needs it). It IS the CI for main.
 #
-# TWO-PHASE (mirrors the old gate=mechanical / reviewer=semantic split):
+# TWO-PHASE (mechanical gate, then semantic reviewer sign-off):
 #   PHASE 1 (default): run gate.sh G0-G5 + regression_check + dup_check in an ISOLATED worktree
 #     (gate TOOLS taken from origin/main so a PR can't ship its own gate). Post commit status:
 #       - hard fail (G0-G5 reject / regression exit2 / dup exit5) -> status FAILURE.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""g5_impl_gate.py — the SEMANTIC-completeness gate (G5). Replaces the gameable regex impl_gate.py.
+"""g5_impl_gate.py — the SEMANTIC-completeness gate (G5).
 
 For each `export function NAME(params): ret` in a changed .ts file that carries an @<FW> 0xADDR
 provenance, G5:
@@ -10,13 +10,14 @@ provenance, G5:
   4. maps the verdict to a gate decision:
 
        ACCEPT_AS_TRAP / ACCEPT_AS_EMPTY / LIKELY_REAL  -> PASS (real or faithfully-trivial)
-       SKELETON (DISPATCH_ONLY)                        -> PASS BUT FLAG: must be marked `skeleton`,
-                                                          NEVER counted `ported` (dispenser will not
-                                                          hand these out as leaves post-fix)
+       SKELETON (DISPATCH_ONLY)                        -> REJECT (exit 2). A pure dispatch shell is a
+                                                          false completion; port the concrete callee.
        REJECT_CHEAT (REAL disasm + reachable throw)    -> REJECT (exit 2). The class-C/D cheat.
-       REVIEW_NEEDED (REAL, fuzz unavailable)          -> REJECT unless a reviewer sign-off sidecar
-                                                          (<file>.review.json {verdict:"LIKELY_REAL"})
-                                                          exists — forces the adversarial reviewer.
+       REVIEW_NEEDED (REAL, fuzz unavailable)          -> REJECT: the adversarial reviewer must
+                                                          re-derive from the binary and sign off
+                                                          (pr_gate.sh <PR#> --reviewed).
+       NO-DISASM for cited provenance                 -> FLAG: reviewer re-derives and clears it
+                                                          via pr_gate.sh <PR#> --reviewed.
 
 This is NOT gameable by adding a token `if`/`return`: the verdict comes from CALLING the port
 (reach fuzz) or CALLING the real FCP symbol (oracle, Layer 1 via gate.sh G4). A throw on any reached
@@ -201,17 +202,9 @@ def check_file(path):
             # time — hard-blocking would false-reject honest work. Instead FLAG loudly; the real
             # backstop is merge time, where the reviewer re-derives from the binary (find_disasm now
             # resolves the dotted <FW>.<Class>.<method>.s form, closing the blind spot that let
-            # OZChannelBase::parseElement's empty body land). A reviewer sidecar clears the flag.
-            rev = path + ".review.json"
-            signed = False
-            if os.path.exists(rev):
-                try:
-                    rv = json.load(open(rev))
-                    signed = rv.get("merge_allowed") is True and rv.get("verdict") in (
-                        "VERIFIED", "LIKELY_REAL", "TRAP", "EMPTY")
-                except Exception:
-                    signed = False
-            if fwm and not signed:
+            # OZChannelBase::parseElement's empty body land). The reviewer clears this flag by
+            # re-running `pr_gate.sh <PR#> --reviewed` after re-deriving the disasm.
+            if fwm:
                 flags.append(f"{path}: {name}: NO-DISASM for @{fwm.group(1)} 0x{fwm.group(2)} "
                              f"provenance — reviewer MUST re-derive from the binary and verify the "
                              f"body matches (blind-spot guard; empty-body-for-REAL-work is a cheat).")
@@ -236,29 +229,15 @@ def check_file(path):
         elif v == "SKELETON":
             # DISPATCH_ONLY (7385eb01 shape): the body is a pure vtable/indirect dispatch shell — the
             # real work IS the callee, so this is NOT an implementable leaf and must NEVER count as
-            # `ported` (that is a FALSE completion that lies about coverage). Previously this was only
-            # a FLAG, so PCBitmap_getBytesPerRow landed on main counted as ported. Now it is a HARD
-            # REJECT unless a sidecar EXPLICITLY marks the verdict "skeleton" (an honest, deliberate
-            # skeleton that the ledger will record as `skeleton`, never `ported`).
-            rev = path + ".review.json"
-            marked_skeleton = False
-            if os.path.exists(rev):
-                try: marked_skeleton = json.load(open(rev)).get("verdict") == "skeleton"
-                except Exception: marked_skeleton = False
-            if marked_skeleton:
-                flags.append(f"{path}: {name}: DISPATCH_ONLY accepted as explicit `skeleton` "
-                             f"(sidecar verdict=skeleton) — must be recorded `skeleton`, NEVER `ported`.")
-            else:
-                errs.append(f"{path}: G5 SKELETON — {name}: DISPATCH_ONLY (7385eb01 shape), a pure "
-                            f"dispatch shell whose real work is the callee. Counting it `ported` is a "
-                            f"false completion. If this is a deliberate frontier skeleton, the sidecar "
-                            f"must set verdict=\"skeleton\"; otherwise port the concrete callee instead.")
+            # `ported` (that is a FALSE completion that lies about coverage). It is a HARD REJECT:
+            # the concrete callee must be ported instead.
+            errs.append(f"{path}: G5 SKELETON — {name}: DISPATCH_ONLY (7385eb01 shape), a pure "
+                        f"dispatch shell whose real work is the callee. Counting it `ported` is a "
+                        f"false completion — port the concrete callee instead.")
         elif v == "REVIEW_NEEDED":
-            rev = path + ".review.json"
-            signed = os.path.exists(rev) and json.load(open(rev)).get("verdict") == "LIKELY_REAL"
-            if not signed:
-                errs.append(f"{path}: G5 REVIEW_NEEDED — {name}: REAL disasm but not callable in "
-                            f"isolation; needs adversarial-reviewer sign-off ({os.path.basename(rev)}).")
+            errs.append(f"{path}: G5 REVIEW_NEEDED — {name}: REAL disasm but not callable in "
+                        f"isolation; the adversarial reviewer must re-derive from the binary and "
+                        f"sign off (pr_gate.sh <PR#> --reviewed) before this can land.")
         elif v == "REJECT_INCOMPLETE_EMPTY":
             errs.append(f"{path}: G5 — {name}: EMPTY disasm but port throws incompleteness on a "
                         f"reachable input (a no-op must not throw).")
