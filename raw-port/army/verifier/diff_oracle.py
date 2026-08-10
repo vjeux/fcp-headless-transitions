@@ -23,14 +23,14 @@ REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")
 sys.path.insert(0, REPO)
 from fct.parity import oracle
 
-ENGINE = os.path.join(REPO, "engine")
+RAWPORT = os.path.join(REPO, "raw-port")
 WORKER = os.path.join(REPO, "raw-port", "army", "verifier", "generic_worker.ts")
 
 
 class GenericTSWorker:
     def __init__(self):
         self.proc = subprocess.Popen(
-            ["node_modules/.bin/tsx", WORKER], cwd=ENGINE,
+            ["node_modules/.bin/tsx", WORKER], cwd=RAWPORT,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             text=True, bufsize=1, start_new_session=True)
         line = self.proc.stdout.readline()

@@ -1,0 +1,16 @@
+{
+  "name": "fcp-raw-port",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Faithful TypeScript raw-port of Final Cut Pro's engine (function-by-function, @0xADDR-cited). Typecheck-only; the gate runs tsgo -p tsconfig.json.",
+  "private": true,
+  "devDependencies": {
+    "@typescript/native-preview": "^7.0.0-dev.20260707.2",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.23.0",
+    "esbuild": "~0.28.0"
+  },
+  "dependencies": {
+    "@xmldom/xmldom": "^0.9.10"
+  }
+}

@@ -11,8 +11,8 @@ with objective, executable signals a worker cannot fake without real transcripti
 
 ### LAYER 1 — executable differential oracle (Tier-1: callable pure fns)  [STRONGEST]
 - `generic_worker.ts` — universal dynamic-import TS evaluator: {modulePath, exportName, args,
-  argKinds} -> imports the ACTUAL ported fn and calls it. No per-symbol hand-coupling (unlike
-  engine/test/_parity_worker.ts's 6-entry table), so it scales to thousands of exported symbols.
+  argKinds} -> imports the ACTUAL ported fn and calls it. No per-symbol hand-coupling, so it scales
+  to thousands of exported symbols. Runs via tsx from raw-port/node_modules (raw-port is standalone).
 - `diff_oracle.py` — calls the REAL FCP symbol via dlsym (fct.parity.oracle) AND the TS port via
   the generic worker on N fuzzed inputs; verdict VERIFIED / DIVERGED / FAILED / NO_ORACLE.
 - `prove.py` — proof: real VERIFIES (abs 0 vs live FCP), throw-shell FAILS, wrong/noop DIVERGE.

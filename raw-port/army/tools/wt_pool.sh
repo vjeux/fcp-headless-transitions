@@ -34,7 +34,7 @@ log () { echo "$@" >&2; }   # never pollute stdout (callers read the wt path fro
 
 link_deps () {
   local wt="$1"
-  for d in engine/node_modules raw-port/node_modules venv; do
+  for d in raw-port/node_modules venv; do
     [ -e "$CANON/$d" ] && ln -sfn "$CANON/$d" "$wt/$d" 2>/dev/null
   done
 }
