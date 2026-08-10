@@ -294,4 +294,63 @@ export class OZSceneCamera {
     this.timeAt18.timescale = time.timescale | 0;
     this.timeAt18.flags = time.flags >>> 0;
   }
+
+  /**
+   * `OZSceneCamera::setShouldUseSceneTime(bool)` — @Ozone 0x4455e0
+   *   __ZN13OZSceneCamera21setShouldUseSceneTimeEb
+   *
+   * FULL DISASM (6 lines — raw-port/re/disasm/
+   * __ZN13OZSceneCamera21setShouldUseSceneTimeEb.s):
+   *
+   *   0x4455e0  pushq %rbp                 ; prologue
+   *   0x4455e1  movq  %rsp, %rbp
+   *   0x4455e4  movb  %sil, 0x14(%rdi)     ; this->(field@+0x14) = arg (BYTE)
+   *   0x4455e8  popq  %rbp                 ; epilogue
+   *   0x4455e9  retq                       ; void
+   *   0x4455ea  nopw  (%rax,%rax)          ; alignment padding, not executed
+   *
+   * The entire body is one byte store. `%sil` is the low byte of the second
+   * integer argument register, i.e. the C++ `bool` under the SysV AMD64 ABI,
+   * and `movb` writes exactly that one byte — no validation, no clamp, no
+   * callee, no return value.
+   *
+   * FIELD IDENTITY: +0x14 is the slot this file already models as
+   * `activeFlag` (initialised to 1 by the C1/C2 ctors @0x4455d8 / @0x445966
+   * `movb $0x1, 0x14(%rdi)`). THIS setter is what names it: the field is the
+   * camera's "should use scene time" flag. Its readers all test it as a
+   * `bool` against 1 —
+   *   getParentTransform  @0x445d11 `cmpb $0x1, 0x14(%r14)`
+   *   getTranslation      @0x445e77 `cmpb $0x1, 0x14(%r14)`
+   *   getPivot            @0x445fb7 `cmpb $0x1, 0x14(%r14)`
+   *   setPivot            @0x446106 `cmpb $0x1, 0x14(%r15)`
+   *   setTranslation      @0x4462d2 `cmpb $0x1, 0x14(%rbx)`
+   *   getRotation         @0x4463a5 `cmpb $0x1, 0x14(%r14)`
+   *   setRotation         @0x446459 `cmpb $0x1, 0x14(%r15)`
+   *   setEulerRotation    @0x446776 `cmpb $0x1, 0x14(%r15)`
+   *   getScale            @0x446d5f `cmpb $0x1, 0x14(%rbx)`
+   * — i.e. every transform accessor branches on it (scene time vs. the local
+   * `timeAt18` the sibling `setTime(CMTime)` @0x4455f0 writes). The landed
+   * field name `activeFlag` is left untouched here (ADD-ONLY); this doc block
+   * records the true meaning the setter reveals, and a rename belongs to
+   * whoever ports one of the readers above.
+   *
+   * The store is a raw `movb`, so the port masks to the low 8 bits rather than
+   * coercing to 0/1 — a caller handing over a wider integer gets truncated by
+   * the machine exactly this way, and the readers' `cmpb $0x1` would then see
+   * that byte, not a normalised boolean.
+   *
+   * Zero in-scope callees, zero externs, zero indirect calls, no branches.
+   *
+   * @param shouldUseSceneTime the new flag — `%sil` (arg 1).
+   */
+  setShouldUseSceneTime(shouldUseSceneTime: boolean | number): void {
+    // @0x4455e4  movb %sil, 0x14(%rdi)
+    this.activeFlag =
+      typeof shouldUseSceneTime === "boolean"
+        ? shouldUseSceneTime
+          ? 1
+          : 0
+        : shouldUseSceneTime & 0xff;
+    // @0x4455e8..0x4455e9 — epilogue, void return.
+  }
 }
