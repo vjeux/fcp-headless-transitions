@@ -12,11 +12,14 @@
 //     __ZNK14HGMetalContext10deviceInfoEv
 //   * HGMetalContext::texturePool() const           @Helium 0x1d34c0
 //     __ZNK14HGMetalContext11texturePoolEv
+//   * HGMetalContext::textureInfiniPool() const     @Helium 0x1d3500
+//     __ZNK14HGMetalContext17textureInfiniPoolEv
 //
 // re/disasm:
 //   raw-port/re/disasm/Helium.__ZNK14HGMetalContext16bufferInfiniPoolEv.s
 //   raw-port/re/disasm/Helium.__ZNK14HGMetalContext10deviceInfoEv.s
 //   raw-port/re/disasm/Helium.__ZNK14HGMetalContext11texturePoolEv.s
+//   raw-port/re/disasm/Helium.__ZNK14HGMetalContext17textureInfiniPoolEv.s
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (12 lines, @0x1d34e0..@0x1d34f7)
@@ -64,6 +67,39 @@
 // with two operands changed: the gating flag moves from +0x68 to +0x67, and the
 // payload slot inside the SAME +0x18 wrapper moves from +0x40 to +0x38. Zero
 // callees as well — no callq, no extern stubs, no indirect calls.
+//
+// -----------------------------------------------------------------------------
+// FULL DISASM (12 lines, @0x1d3500..@0x1d3517)
+// -----------------------------------------------------------------------------
+//   __ZNK14HGMetalContext17textureInfiniPoolEv:
+//     0x1d3500  cmpb   $0x1, 0x69(%rdi)          ; flag byte at this[+0x69] == 1?
+//     0x1d3504  jne    0x1d3514                  ; no -> return nullptr branch
+//     0x1d3506  pushq  %rbp                      ; frame prologue (only on taken path)
+//     0x1d3507  movq   %rsp, %rbp
+//     0x1d350a  movq   0x18(%rdi), %rax          ; rax = this[+0x18]  (wrapper ptr)
+//     0x1d350e  movq   0x48(%rax), %rax          ; rax = wrapper[+0x48]  (tex infinipool ptr)
+//     0x1d3512  popq   %rbp
+//     0x1d3513  retq
+//     0x1d3514  xorl   %eax, %eax                ; else return NULL
+//     0x1d3516  retq
+//     0x1d3517  nopw   (%rax,%rax)               ; alignment padding
+//
+// textureInfiniPool @0x1d3500 is the immediate text-section successor of
+// bufferInfiniPool @0x1d34e0 and completes a three-member accessor family that
+// is instruction-for-instruction identical apart from two operands. Laid side
+// by side the two strides are exactly parallel — one byte per flag, eight bytes
+// per payload slot:
+//
+//     accessor            flag byte   wrapper slot   addr
+//     texturePool         +0x67       +0x38          0x1d34c0
+//     bufferInfiniPool    +0x68       +0x40          0x1d34e0
+//     textureInfiniPool   +0x69       +0x48          0x1d3500
+//
+// All three dereference the SAME wrapper pointer at HGMetalContext+0x18, so the
+// wrapper carries at least three consecutive pool pointers at +0x38/+0x40/+0x48
+// and the context carries three consecutive gating bytes at +0x67/+0x68/+0x69.
+// Zero callees here as well — no callq, no extern stubs, no indirect calls;
+// depgraph.py reports `deps: []`, `n_extern_oos: 0`, `indirect: 0` for this node.
 
 /**
  * `HGMetalBufferWrapperInfinipool` — opaque wrapper type declared inline
@@ -95,6 +131,15 @@ export interface HGMetalBufferWrapperInfinipool {
    * (not-yet-ported) method.
    */
   readonly texturePoolAt0x38: HGTexturePool | null;
+  /**
+   * @Helium offset +0x48 — the `HGTextureInfiniPool*` payload the SAME wrapper
+   * exposes to `textureInfiniPool`. Read @0x1d350e via
+   * `movq 0x48(%rax), %rax` when the wrapper pointer at HGMetalContext+0x18
+   * is dereferenced. Marked `readonly` for the same reason as the two slots
+   * above: this port only observes the load; the writer lives in a different
+   * (not-yet-ported) method.
+   */
+  readonly textureInfiniPoolAt0x48: HGTextureInfiniPool | null;
 }
 
 /**
@@ -119,6 +164,20 @@ export interface HGBufferInfiniPool {
  */
 export interface HGTexturePool {
   readonly __hgTexturePool: unique symbol;
+}
+
+/**
+ * `HGTextureInfiniPool` — opaque handle for the return value of
+ * `HGMetalContext::textureInfiniPool()`. Not modelled here (the concrete type
+ * lives elsewhere in the Metal-texture subsystem, currently `todo`). The port
+ * declares an opaque handle so the getter has a legible return type; every
+ * downstream user treats the value as an opaque pointer, exactly as the disasm
+ * does (one 8-byte load, returned in %rax untouched). It is a distinct brand
+ * from `HGTexturePool` because the two come out of different wrapper slots
+ * (+0x38 vs +0x48) behind different gating flags (+0x67 vs +0x69).
+ */
+export interface HGTextureInfiniPool {
+  readonly __hgTextureInfiniPool: unique symbol;
 }
 
 /**
@@ -180,6 +239,19 @@ export class HGMetalContext {
    * exactly — compare, don't coerce to truthy.
    */
   isTexturePoolEnabled_at_0x67: number = 0;
+
+  /**
+   * @Helium offset +0x69 — a `uint8_t` flag that gates access to the
+   * wrapper at +0x18 for the TEXTURE INFINIPOOL (the byte immediately above
+   * the buffer-infinipool flag at +0x68). Read @0x1d3500 via
+   * `cmpb $0x1, 0x69(%rdi)` inside `textureInfiniPool`. When the byte equals
+   * 1 the wrapper is live and the texture infinipool is returned; any other
+   * value (including 0) makes the getter return `null`.
+   *
+   * The `cmpb` is a strict `== 1` check (not `!= 0`), so we mirror it
+   * exactly — compare, don't coerce to truthy.
+   */
+  isTextureInfiniPoolEnabled_at_0x69: number = 0;
 
   /**
    * @Helium offset +0x10 — the `HGMetalDeviceInfo*` this context holds.
@@ -313,5 +385,51 @@ export class HGMetalContext {
     // @0x1d34d2  popq %rbp
     // @0x1d34d3  retq
     return wrapper!.texturePoolAt0x38;
+  }
+
+  /**
+   * `HGMetalContext::textureInfiniPool() const` — @Helium 0x1d3500
+   * (__ZNK14HGMetalContext17textureInfiniPoolEv).
+   *
+   * Faithful line-for-line transcription of the 12-line disassembly quoted
+   * in the file header. Two-path getter:
+   *
+   *   * If the byte flag at this[+0x69] equals 1, load `this[+0x18]` (the
+   *     wrapper pointer), then load `wrapper[+0x48]` (the texture-infinipool
+   *     pointer) and return it.
+   *   * Otherwise return null (`xorl %eax, %eax; retq` @0x1d3514).
+   *
+   * No in-scope callees. No externs. No indirect calls — `depgraph.py` reports
+   * `deps: []`, `n_extern_oos: 0`, `indirect: 0` for
+   * __ZNK14HGMetalContext17textureInfiniPoolEv.
+   *
+   * Same compiler-emitted hot/cold split as its two siblings: the cold null
+   * path at @0x1d3514 has no frame prologue/epilogue, and the hot path
+   * pushes/pops %rbp only when it loads through the wrapper. Both paths reach
+   * the same return-value contract, so the TS mirror is a single conditional.
+   *
+   * The `const` qualifier in the C++ signature matches the `__ZNK...`
+   * mangling; every observed access is a read, so the body performs no
+   * writes.
+   */
+  textureInfiniPool(): HGTextureInfiniPool | null {
+    // @0x1d3500  cmpb $0x1, 0x69(%rdi)          ; flag == 1?
+    // @0x1d3504  jne  0x1d3514                  ; not equal -> return null
+    if (this.isTextureInfiniPoolEnabled_at_0x69 !== 1) {
+      // @0x1d3514  xorl %eax, %eax
+      // @0x1d3516  retq
+      return null;
+    }
+    // @0x1d350a  movq 0x18(%rdi), %rax          ; rax = this->bufferWrapper_at_0x18
+    const wrapper = this.bufferWrapper_at_0x18;
+    // If the wrapper pointer is null while the flag is 1, the machine still
+    // executes `movq 0x48(%rax), %rax` — a null-deref crash. We do NOT insert
+    // a defensive null check because the disasm doesn't @0x1d350a (Rule 1:
+    // transcribe, don't reimplement). The TS mirror faults on the field
+    // access exactly as the FCP binary would.
+    // @0x1d350e  movq 0x48(%rax), %rax          ; rax = wrapper->textureInfiniPoolAt0x48
+    // @0x1d3512  popq %rbp
+    // @0x1d3513  retq
+    return wrapper!.textureInfiniPoolAt0x48;
   }
 }
