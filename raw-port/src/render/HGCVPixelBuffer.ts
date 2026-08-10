@@ -16,6 +16,8 @@
 //     __ZNK15HGCVPixelBuffer8rowBytesEm
 //   * HGCVPixelBuffer::w(unsigned long) const       @Helium 0x1e05d0
 //     __ZNK15HGCVPixelBuffer1wEm
+//   * HGCVPixelBuffer::h(unsigned long) const       @Helium 0x1e0630
+//     __ZNK15HGCVPixelBuffer1hEm
 //
 // re/disasm:
 //   raw-port/re/disasm/Helium.__ZNK15HGCVPixelBuffer3ptrEm.s
@@ -23,6 +25,7 @@
 //   raw-port/re/disasm/Helium.__ZNK15HGCVPixelBuffer6unlockEb.s
 //   raw-port/re/disasm/Helium.__ZNK15HGCVPixelBuffer8rowBytesEm.s
 //   raw-port/re/disasm/Helium.__ZNK15HGCVPixelBuffer1wEm.s
+//   raw-port/re/disasm/Helium.__ZNK15HGCVPixelBuffer1hEm.s
 //
 // -----------------------------------------------------------------------------
 // FRONTIER CALLEES — all TRUE OUT-OF-SCOPE CoreVideo externs
@@ -46,6 +49,8 @@
 //   _CVPixelBufferGetPixelFormatType   Helium symbol stub @0x3c4d60
 //   _CVPixelBufferGetWidth             Helium symbol stub @0x3c4d6c
 //   _CVPixelBufferGetWidthOfPlane      Helium symbol stub @0x3c4d72
+//   _CVPixelBufferGetHeight            Helium symbol stub @0x3c4d4e
+//   _CVPixelBufferGetHeightOfPlane     Helium symbol stub @0x3c4d54
 
 /**
  * `CVPixelBufferRef` — Apple CoreVideo opaque handle (`__CVBuffer*`). Out of
@@ -150,7 +155,8 @@ function CVPixelBufferGetBytesPerRow(_buf: CVPixelBufferRef): bigint {
 
 /**
  * `CVPixelBufferGetPixelFormatType(CVPixelBufferRef)` — CoreVideo extern,
- * entered via Helium symbol stub @0x3c4d60 (called @Helium 0x1e05ef by `w`).
+ * entered via Helium symbol stub @0x3c4d60 (called @Helium 0x1e05ef by `w`,
+ * and @Helium 0x1e064f by `h`).
  * Returns an `OSType` FourCC as a 32-bit value.
  */
 function CVPixelBufferGetPixelFormatType(_buf: CVPixelBufferRef): number {
@@ -186,6 +192,35 @@ function CVPixelBufferGetWidthOfPlane(
   throw new Error(
     "CVPixelBufferGetWidthOfPlane — CoreVideo extern, out-of-scope; entered " +
       "via Helium symbol stub @0x3c4d72 (tail-jmp @Helium 0x1e061c). " +
+      "Not transcribed.",
+  );
+}
+
+/**
+ * `CVPixelBufferGetHeight(CVPixelBufferRef)` — CoreVideo extern, entered via
+ * Helium symbol stub @0x3c4d4e (called @Helium 0x1e065f, tail-jumped
+ * @Helium 0x1e0670 by `h`). Returns `size_t`.
+ */
+function CVPixelBufferGetHeight(_buf: CVPixelBufferRef): bigint {
+  throw new Error(
+    "CVPixelBufferGetHeight — CoreVideo extern, out-of-scope; entered via " +
+      "Helium symbol stub @0x3c4d4e (@Helium 0x1e065f / tail-jmp 0x1e0670). " +
+      "Not transcribed.",
+  );
+}
+
+/**
+ * `CVPixelBufferGetHeightOfPlane(CVPixelBufferRef, size_t)` — CoreVideo extern,
+ * entered via Helium symbol stub @0x3c4d54 (tail-jumped @Helium 0x1e067c by
+ * `h`). Returns `size_t`.
+ */
+function CVPixelBufferGetHeightOfPlane(
+  _buf: CVPixelBufferRef,
+  _planeIndex: bigint,
+): bigint {
+  throw new Error(
+    "CVPixelBufferGetHeightOfPlane — CoreVideo extern, out-of-scope; entered " +
+      "via Helium symbol stub @0x3c4d54 (tail-jmp @Helium 0x1e067c). " +
       "Not transcribed.",
   );
 }
@@ -446,5 +481,85 @@ export class HGCVPixelBuffer {
     }
     // @0x1e0615-0x1e061c: tail call GetWidthOfPlane(buf, planeIndex).
     return CVPixelBufferGetWidthOfPlane(cvbufReloaded2, planeIndex);
+  }
+
+  /**
+   * `HGCVPixelBuffer::h(unsigned long planeIndex) const` — @Helium 0x1e0630
+   * (__ZNK15HGCVPixelBuffer1hEm) — the wrapper's HEIGHT accessor.
+   *
+   * The exact mirror of `w` @0x1e05d0 above (same planar probe, same
+   * pixel-format special case, same three exits), against the CoreVideo height
+   * entry points instead of the width ones. Every instruction:
+   *
+   *   0x1e0637  movq %rsi, %rbx              ; rbx = planeIndex (arg1)
+   *   0x1e063a  movq %rdi, %r14              ; r14 = this
+   *   0x1e063d  movq 0x18(%rdi), %rdi        ; rdi = this->cvBuffer_at_0x18
+   *   0x1e0641  callq _CVPixelBufferGetPlaneCount      ; rax = plane count
+   *   0x1e0646  movq 0x18(%r14), %rdi        ; rdi = cvBuffer_at_0x18 (reload)
+   *   0x1e064a  testq %rax, %rax             ; planeCount == 0 ?
+   *   0x1e064d  je   0x1e066c                ;   -> non-planar arm
+   *   0x1e064f  callq _CVPixelBufferGetPixelFormatType ; eax = OSType FourCC
+   *   0x1e0654  movq 0x18(%r14), %rdi        ; rdi = cvBuffer_at_0x18 (reload #2)
+   *   0x1e0658  cmpl $0x62313671, %eax       ; FourCC == 0x62313671 ?
+   *   0x1e065d  jne  0x1e0675                ;   -> per-plane arm
+   *   0x1e065f  callq _CVPixelBufferGetHeight ; rax = full-buffer height
+   *   0x1e0664  shrq %rax                    ; rax >>= 1  (UNSIGNED, by one)
+   *   0x1e066b  retq                         ; return height/2
+   *   0x1e0670  jmp  _CVPixelBufferGetHeight             ; non-planar tail call
+   *   0x1e0675  movq %rbx, %rsi
+   *   0x1e067c  jmp  _CVPixelBufferGetHeightOfPlane(buf, planeIndex) ; tail call
+   *   0x1e0681  nopw %cs:(%rax,%rax)         ; alignment padding, not code
+   *
+   * THREE exits:
+   *   • planeCount == 0 (non-planar)              -> GetHeight(buf)
+   *   • planar AND format == 0x62313671           -> GetHeight(buf) >> 1
+   *   • planar AND any other format               -> GetHeightOfPlane(buf, i)
+   *
+   * `cmpl $0x62313671, %eax` @0x1e0658 is a 32-bit EQUALITY test against an
+   * `OSType` FourCC literal — the SAME constant `w` compares against @0x1e05f8;
+   * its four bytes, most-significant first, are 0x62 0x31 0x36 0x71 =
+   * `'b' '1' '6' 'q'`. Transcribed as the raw immediate the instruction
+   * encodes; no Apple constant name is asserted, none is visible in the binary.
+   *
+   * `shrq %rax` with no count operand is a shift by ONE and is the UNSIGNED
+   * (logical) shift, so the halving is `height >> 1n` on the u64 `size_t` —
+   * not an arithmetic shift and not a divide-with-rounding.
+   *
+   * Both `movq 0x18(%r14)` reloads (@0x1e0646 and @0x1e0654) are mirrored: the
+   * machine re-reads the buffer pointer after EACH CoreVideo call.
+   *
+   * `planeIndex` is `unsigned long` (u64) and the results are `size_t` (u64),
+   * so both stay bigint per Rule 4. Every callee is a CoreVideo extern (out of
+   * scope, boundary stubs above); the FCP method body is fully transcribed —
+   * no in-scope callee and no indirect call appears in it.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Helium.__ZNK15HGCVPixelBuffer1hEm.s
+   */
+  h(planeIndex: bigint): bigint {
+    // @0x1e063d: rdi = this->cvBuffer_at_0x18 (the __CVBuffer*)
+    const cvbuf = this.cvBuffer_at_0x18!;
+    // @0x1e0641: rax = CVPixelBufferGetPlaneCount(cvbuf)
+    const planeCount = CVPixelBufferGetPlaneCount(cvbuf);
+    // @0x1e0646: reload this->cvBuffer_at_0x18.
+    const cvbufReloaded = this.cvBuffer_at_0x18!;
+    // @0x1e064a-0x1e064d: testq %rax,%rax ; je -> non-planar arm.
+    if (planeCount === 0) {
+      // @0x1e0670: tail call GetHeight(buf).
+      return CVPixelBufferGetHeight(cvbufReloaded);
+    }
+    // @0x1e064f: eax = CVPixelBufferGetPixelFormatType(buf).
+    const pixelFormat = CVPixelBufferGetPixelFormatType(cvbufReloaded);
+    // @0x1e0654: reload this->cvBuffer_at_0x18 (second reload).
+    const cvbufReloaded2 = this.cvBuffer_at_0x18!;
+    // @0x1e0658-0x1e065d: cmpl $0x62313671,%eax ; jne -> per-plane arm.
+    if ((pixelFormat >>> 0) === 0x62313671) {
+      // @0x1e065f: rax = GetHeight(buf).
+      const fullHeight = CVPixelBufferGetHeight(cvbufReloaded2);
+      // @0x1e0664: shrq %rax — logical shift right by one (halve, u64).
+      return fullHeight >> 1n;
+    }
+    // @0x1e0675-0x1e067c: tail call GetHeightOfPlane(buf, planeIndex).
+    return CVPixelBufferGetHeightOfPlane(cvbufReloaded2, planeIndex);
   }
 }
