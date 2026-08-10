@@ -1453,4 +1453,29 @@ export class FFPlayerHealthMeter {
     // @0xda45e4  movl %esi,0x1b5c(%rdi)
     this.numGPUs = numGPUs | 0;
   }
+
+  /**
+   * FFPlayerHealthMeter::GetReadAheadLevelForDisplay()
+   * @0xADDR Flexo 0x0000000000da3910  (__ZN19FFPlayerHealthMeter27GetReadAheadLevelForDisplayEv)
+   *
+   * Trivial single-precision field getter. Returns `this->meanFrameNum`
+   * (the field at +0x1b50, which calcDiskHealth writes at @0xda26e6 as the
+   * per-window mean frame number) as a float32.
+   *
+   * FULL DISASM (raw-port/re/disasm/Flexo.__ZN19FFPlayerHealthMeter27GetReadAheadLevelForDisplayEv.s — 7 lines):
+   *   0xda3910  pushq  %rbp                    ; frame prologue
+   *   0xda3911  movq   %rsp, %rbp
+   *   0xda3914  movss  0x1b50(%rdi), %xmm0      ; xmm0 = (f32) this->meanFrameNum
+   *   0xda391c  popq   %rbp                     ; frame epilogue
+   *   0xda391d  retq                            ; return xmm0
+   *   0xda391e  nop                             ; alignment padding (not executed)
+   *
+   * The `movss` is a single-precision load, so the returned value is wrapped
+   * in Math.fround to preserve f32 semantics. Zero in-scope callees, zero
+   * externs, no indirect calls — pure field read.
+   */
+  GetReadAheadLevelForDisplay(): number {
+    // @0xda3914  movss 0x1b50(%rdi),%xmm0 : return (f32) this->meanFrameNum.
+    return Math.fround(this.meanFrameNum);
+  }
 }
