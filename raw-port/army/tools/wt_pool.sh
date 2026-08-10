@@ -77,14 +77,27 @@ cmd_init () {
   log "wt_pool: $n warm worktrees under $WTDIR"
 }
 
-cmd_acquire () { # <Class> — worker: cut branch port/<Class> at origin/main
+cmd_acquire () { # <Class> — worker: cut/extend branch port/<Class>
   local cls="${1:?usage: wt_pool.sh acquire <Class>}"
   git -C "$CANON" fetch -q origin main 2>/dev/null || true
   local slot; slot="$(claim_slot "port/$cls")" || return 3
   local wt; wt="$(make_wt "$slot")"
-  log "wt_pool: leased slot $slot -> $wt (port/$cls)"
   reset_clean "$wt"
-  git -C "$wt" checkout -q -B "port/$cls" origin/main 2>/dev/null
+  # SAME-CLASS STACKING: if origin/port/<Class> already exists AND is ahead of origin/main (an open
+  # PR for this class that hasn't merged yet), base the new work ON THAT BRANCH so a second method for
+  # the same class STACKS additively instead of a fresh main-based branch that force-push would clobber
+  # (the FFPlayerHealthMeter collision, 2026-08-10). Otherwise cut fresh from origin/main.
+  git -C "$CANON" fetch -q origin "refs/heads/port/$cls:refs/remotes/origin/port/$cls" 2>/dev/null || true
+  local base="origin/main"
+  if git -C "$wt" rev-parse --verify -q "origin/port/$cls" >/dev/null 2>&1; then
+    # only reuse it if it's strictly ahead of main (has un-merged commits) — else a stale merged branch
+    if [ -n "$(git -C "$wt" rev-list -n1 "origin/main..origin/port/$cls" 2>/dev/null)" ]; then
+      base="origin/port/$cls"
+      log "wt_pool: port/$cls already open + ahead of main -> STACKING on it (base=$base)"
+    fi
+  fi
+  log "wt_pool: leased slot $slot -> $wt (port/$cls, base ${base#origin/})"
+  git -C "$wt" checkout -q -B "port/$cls" "$base" 2>/dev/null
   link_deps "$wt"
   echo "$wt"
 }
