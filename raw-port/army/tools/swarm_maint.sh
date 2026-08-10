@@ -18,7 +18,7 @@ if ! bash "$T/ensure_ledger.sh" >/tmp/swarm_maint_ledger.log 2>&1; then
 fi
 
 # (1) WARM POOL — idempotent init + refresh idle worktrees to origin/main
-bash "$T/wt_pool.sh" init "${WT_POOL_SIZE:-8}" >/dev/null 2>&1 || true
+bash "$T/wt_pool.sh" init "${WT_POOL_SIZE:-16}" >/dev/null 2>&1 || true
 bash "$T/wt_pool.sh" gc >/dev/null 2>&1 || true
 
 # (2) CLEAN TREE — PR flow never dirties the canonical tree; if it's dirty AND no worker/reviewer/gate
@@ -48,4 +48,4 @@ LOAD1=$(uptime | sed 's/.*averages: //' | awk '{print $1}')
 # depclaim.py next directly, so this line is informational only). Give it room, mark ? on timeout.
 READY=$(timeout 150 python3 "$T/depgraph.py" stats 2>/dev/null | grep "READY NOW" | grep -oE '[0-9]+' | head -1)
 BACKLOG=$(gh pr list --repo vjeux/fcp-headless-transitions --state open --limit 100 --json number --jq 'length' 2>/dev/null)
-echo "swarm_maint: freeGB=$FREEGB load1=$LOAD1 ready=${READY:-timeout} openPRs=${BACKLOG:-?} pool=$(bash "$T/wt_pool.sh" status 2>&1 | grep -c LEASED)/${WT_POOL_SIZE:-8} leased"
+echo "swarm_maint: freeGB=$FREEGB load1=$LOAD1 ready=${READY:-timeout} openPRs=${BACKLOG:-?} pool=$(bash "$T/wt_pool.sh" status 2>&1 | grep -c LEASED)/${WT_POOL_SIZE:-16} leased"

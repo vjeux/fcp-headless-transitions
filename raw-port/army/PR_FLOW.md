@@ -71,7 +71,7 @@ Three kinds of cron:
 
 Why this can't explode: a worker/reviewer tick does bounded work and stops; the only way more work
 starts is the next cron tick. Max in-flight = (#worker slots + #reviewer slots), further gated by the
-8-lease warm pool and the per-slot single-flight lock. Raising throughput = add cron slots (a human
+warm pool (WT_POOL_SIZE leases) and the per-slot single-flight lock. Raising throughput = add cron slots (a human
 decision), never an agent spawning more agents.
 
 ### The three queues (all atomic, all disk-backed under $FCT_STATE_DIR / claims.jsonl)
