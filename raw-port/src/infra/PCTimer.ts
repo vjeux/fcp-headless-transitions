@@ -99,6 +99,21 @@ export interface PCTimerFields {
    * `start()`.
    */
   paused_at_0x11?: number;
+  /**
+   * +0x14 — u32 field cleared to 0 by `reset()` (`movl $0x0, 0x14(%rdi)`
+   * @0x15724). Its role is not yet observable (no reader ported), so it is
+   * modeled as an optional u32 that defaults to 0. Distinct 4-byte slot from
+   * the running/paused bytes at +0x10/+0x11 (the `movw` there clears only 2
+   * bytes; +0x12/+0x13 remain unmapped padding).
+   */
+  field_at_0x14?: number;
+  /**
+   * +0x18 — u64 field cleared to 0 by `reset()` (`movq %rax, 0x18(%rdi)` with
+   * %rax=0 @0x1572b). Likely a second cumulative-tick / bookkeeping slot; no
+   * reader is ported yet, so it is modeled as an optional u64 (bigint)
+   * defaulting to 0.
+   */
+  field_at_0x18?: bigint;
 }
 
 /**
@@ -222,4 +237,49 @@ export function PCTimer_getSeconds(self: PCTimerFields): number {
   // @0x15837  divsd 0x10dd19(%rip), %xmm0  -> xmm0 /= 1e9
   // @0x15843  retq                          -> return xmm0
   return ticksAsDouble / NANOSECONDS_PER_SECOND_at_0x123558;
+}
+
+/**
+ * `PCTimer::reset()`   @ProCore 0x15714
+ *
+ * Faithful line-for-line transcription of the 11-line disassembly
+ * (raw-port/re/disasm/ProCore.__ZN7PCTimer5resetEv.s):
+ *   0x15714  pushq %rbp                                ; frame prologue
+ *   0x15715  movq  %rsp, %rbp
+ *   0x15718  movw  $0x0, 0x10(%rdi)                    ; u16 @+0x10 = 0
+ *                                                      ;   clears running(+0x10)
+ *                                                      ;   AND paused(+0x11) together
+ *   0x1571e  xorl  %eax, %eax                          ; rax = 0
+ *   0x15720  movq  %rax, 0x8(%rdi)                     ; u64 @+0x08 = 0 (elapsedTicks)
+ *   0x15724  movl  $0x0, 0x14(%rdi)                    ; u32 @+0x14 = 0
+ *   0x1572b  movq  %rax, 0x18(%rdi)                    ; u64 @+0x18 = 0
+ *   0x1572f  popq  %rbp
+ *   0x15730  retq
+ *
+ * SEMANTICS: reset the timer to a fresh, stopped, non-accumulating state:
+ * clear the running + paused flag bytes (the single 16-bit store at +0x10
+ * covers both), clear the accumulated-elapsed tick slot (+0x08), and clear
+ * the two auxiliary slots (+0x14 u32, +0x18 u64). Note it deliberately does
+ * NOT touch `startTick` (+0x00) — a `reset()`-then-`getSeconds()` reads
+ * `elapsedTicks`=0 on the not-running path, so the stale startTick is never
+ * observed. No return value, no callees, no externs.
+ */
+export function PCTimer_reset(self: PCTimerFields): void {
+  // @0x15718  movw $0x0, 0x10(%rdi)
+  //   16-bit clear covers BOTH the running byte (+0x10) and the paused byte
+  //   (+0x11) in one store.
+  self.running_at_0x10 = 0;
+  self.paused_at_0x11 = 0;
+
+  // @0x15720  movq %rax, 0x8(%rdi)  (rax = 0 from the xorl @0x1571e)
+  //   Clear the cumulative-elapsed slot (u64).
+  self.elapsedTicks_at_0x08 = 0n;
+
+  // @0x15724  movl $0x0, 0x14(%rdi)
+  //   Clear the u32 auxiliary slot.
+  self.field_at_0x14 = 0;
+
+  // @0x1572b  movq %rax, 0x18(%rdi)
+  //   Clear the u64 auxiliary slot.
+  self.field_at_0x18 = 0n;
 }

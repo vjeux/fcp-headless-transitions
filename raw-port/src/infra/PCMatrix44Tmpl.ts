@@ -57,6 +57,7 @@
  *   0x000188c4  transform<double>(PCVector3 const&, PCVector3&)
  *   0x00017520  transform<double>(PCVector4 const&, PCVector4&)
  *   0x00050dfa  transform<double>(PCVector2 const&, PCVector4&) — Vec2→Vec4
+ *   0x0005b080  transform<double>(PCVector3&) — IN-PLACE single-arg (@Ozone)
  *                                                                (no divide)
  *   0x0004ef7e  isIdentity()
  *   0x0004f378  leftTranslate(tx, ty, tz)
@@ -315,6 +316,86 @@ export class PCMatrix44Tmpl_double {
     // out.z = (m20*x + m21*y + m22*z + m23) / w
     out.z = (m[8] * x + m[9] * y + m[10] * z + m[11]) / w;
     return out;
+  }
+
+  // ==========================================================================
+  //  transform<Vector3>  IN-PLACE (single arg)  @Ozone 0x5b080
+  // ==========================================================================
+  /**
+   * `PCVector3<double>& PCMatrix44Tmpl<double>::transform<double>(
+   *      PCVector3<double>& v) const`
+   *
+   * @Ozone 0x5b080  (mangled __ZNK14PCMatrix44TmplIdE9transformIdEER9PCVector3IT_ES5_;
+   *                  see raw-port/re/disasm/__ZNK14PCMatrix44TmplIdE9transformIdEER9PCVector3IT_ES5_.s).
+   *
+   * The SINGLE-ARGUMENT, IN-PLACE overload: reads (x,y,z) from `v`, treats it
+   * as the homogeneous point (x,y,z,1), computes the perspective-divided
+   * transform, and writes the result back into the SAME `v` (returning it).
+   * Distinct from transformVec3 @0x188c4 (which has separate in/out refs).
+   *
+   * The machine loads x,y,z into registers (xmm2/xmm1/xmm0) at the top before
+   * any store, so the in-place write of v.x cannot clobber the z read.
+   *
+   * Full instruction transcription (double precision throughout — every op is
+   * movsd/mulsd/addsd/divsd, so NO Math.fround; the value is f64):
+   *   0x5b084  movq   %rsi, %rax                 ; return value = &v
+   *   0x5b087  movsd  (%rsi), %xmm2              ; x = v.x        (+0x00)
+   *   0x5b08b  movsd  0x8(%rsi), %xmm1           ; y = v.y        (+0x08)
+   *   0x5b090  movsd  0x10(%rsi), %xmm0          ; z = v.z        (+0x10)
+   *   ; --- w = m30*x + m31*y + m32*z + m33  (row 3, the perspective row) ---
+   *   0x5b095  movsd  0x60(%rdi), %xmm3 ; mulsd %xmm2 -> m[12]*x   (m30 @0x60)
+   *   0x5b09e  movsd  0x68(%rdi), %xmm4 ; mulsd %xmm1 -> m[13]*y   (m31 @0x68)
+   *   0x5b0a7  addsd  %xmm3, %xmm4
+   *   0x5b0ab  movsd  0x70(%rdi), %xmm3 ; mulsd %xmm0 -> m[14]*z   (m32 @0x70)
+   *   0x5b0b4  addsd  %xmm4, %xmm3
+   *   0x5b0b8  addsd  0x78(%rdi), %xmm3            ; + m[15]        (m33 @0x78)
+   *                                               ; xmm3 = w (kept for all divides)
+   *   ; --- v.x = (m00*x + m01*y + m02*z + m03) / w ---
+   *   0x5b0bd  movsd  (%rdi), %xmm4    ; mulsd %xmm2 -> m[0]*x     (m00 @0x00)
+   *   0x5b0c5  movsd  0x8(%rdi), %xmm5 ; mulsd %xmm1 -> m[1]*y     (m01 @0x08)
+   *   0x5b0ce  addsd  %xmm4, %xmm5
+   *   0x5b0d2  movsd  0x10(%rdi), %xmm4; mulsd %xmm0 -> m[2]*z     (m02 @0x10)
+   *   0x5b0db  addsd  %xmm5, %xmm4
+   *   0x5b0df  addsd  0x18(%rdi), %xmm4           ; + m[3]         (m03 @0x18)
+   *   0x5b0e4  divsd  %xmm3, %xmm4                ; / w
+   *   0x5b0e8  movsd  %xmm4, (%rsi)               ; v.x = ...      (+0x00)
+   *   ; --- v.y = (m10*x + m11*y + m12*z + m13) / w ---
+   *   0x5b0ec  movsd  0x20(%rdi), %xmm4; mulsd %xmm2 -> m[4]*x     (m10 @0x20)
+   *   0x5b0f5  movsd  0x28(%rdi), %xmm5; mulsd %xmm1 -> m[5]*y     (m11 @0x28)
+   *   0x5b0fe  addsd  %xmm4, %xmm5
+   *   0x5b102  movsd  0x30(%rdi), %xmm4; mulsd %xmm0 -> m[6]*z     (m12 @0x30)
+   *   0x5b10b  addsd  %xmm5, %xmm4
+   *   0x5b10f  addsd  0x38(%rdi), %xmm4           ; + m[7]         (m13 @0x38)
+   *   0x5b114  divsd  %xmm3, %xmm4                ; / w
+   *   0x5b118  movsd  %xmm4, 0x8(%rsi)            ; v.y = ...      (+0x08)
+   *   ; --- v.z = (m20*x + m21*y + m22*z + m23) / w ---
+   *   0x5b11d  mulsd  0x40(%rdi), %xmm2 -> m[8]*x                  (m20 @0x40)
+   *   0x5b122  mulsd  0x48(%rdi), %xmm1 -> m[9]*y                  (m21 @0x48)
+   *   0x5b127  mulsd  0x50(%rdi), %xmm0 -> m[10]*z                 (m22 @0x50)
+   *   0x5b12c  addsd  %xmm2, %xmm1
+   *   0x5b130  addsd  %xmm1, %xmm0
+   *   0x5b134  addsd  0x58(%rdi), %xmm0           ; + m[11]        (m23 @0x58)
+   *   0x5b139  divsd  %xmm3, %xmm0                ; / w
+   *   0x5b13d  movsd  %xmm0, 0x10(%rsi)           ; v.z = ...      (+0x10)
+   *   0x5b143  retq                               ; return &v (in %rax)
+   */
+  transformVec3InPlace(v: PCVector3Double): PCVector3Double {
+    const m = this.m;
+    // Read x,y,z first (registers xmm2/xmm1/xmm0) BEFORE any store, exactly as
+    // the machine does @0x5b087–0x5b090 — so writing v.x can't clobber z.
+    const x = v.x;
+    const y = v.y;
+    const z = v.z;
+    // w = m30*x + m31*y + m32*z + m33   (row 3 · (x,y,z,1))  @0x5b095–0x5b0b8
+    const w = m[12] * x + m[13] * y + m[14] * z + m[15];
+    // v.x = (m00*x + m01*y + m02*z + m03) / w   @0x5b0bd–0x5b0e8
+    v.x = (m[0] * x + m[1] * y + m[2] * z + m[3]) / w;
+    // v.y = (m10*x + m11*y + m12*z + m13) / w   @0x5b0ec–0x5b118
+    v.y = (m[4] * x + m[5] * y + m[6] * z + m[7]) / w;
+    // v.z = (m20*x + m21*y + m22*z + m23) / w   @0x5b11d–0x5b13d
+    v.z = (m[8] * x + m[9] * y + m[10] * z + m[11]) / w;
+    // return &v  @0x5b084 (rax = rsi) / @0x5b143
+    return v;
   }
 
   // ==========================================================================
