@@ -245,6 +245,70 @@ export class HGDotGraph {
     // @0x8f0b1 / @0x8f0bb  jmp fputs(data, FILE*)
     libSystem_fputs(this.rankBuf, this.outputFile);
   }
+
+  /**
+   * HGDotGraph::rank(void const*)
+   * @0x8efe0 Helium  (mangled __ZN10HGDotGraph4rankEPKv)
+   *
+   * Disasm (raw-port/re/disasm/Helium.__ZN10HGDotGraph4rankEPKv.s — 39 lines):
+   *   0x8efe0  pushq %rbp ; movq %rsp,%rbp ; pushq %r14 ; pushq %rbx ; subq $0x30,%rsp
+   *   0x8efeb  movq ___stack_chk_guard(%rip),%rax ; movq (%rax),%rax ; movq %rax,-0x18(%rbp)
+   *                                          ## load stack canary (libc hardening)
+   *   0x8eff9  cmpb $0x1, 0x38(%rdi)         ## enabled == true ?
+   *   0x8effd  jne  0x8f044                  ##   no  -> skip to canary-check/return
+   *   0x8efff  cmpq $0x0, 0x30(%rdi)         ## rankListPtr (+0x30) == 0 ?
+   *   0x8f004  je   0x8f044                  ##   yes -> skip
+   *   ; --- do the work (enabled && rank list live) ---
+   *   0x8f006  movq %rsi,%rcx               ## rcx = ptr (the void const* argument = %rsi)
+   *   0x8f009  leaq "_%p"(%rip),%rdx         ## rdx = format "_%p"  (literal pool)
+   *   0x8f010  leaq -0x40(%rbp),%rbx         ## rbx = &stack buffer (32 bytes)
+   *   0x8f014  movl $0x20,%esi              ## esi = 32  (snprintf size)
+   *   0x8f019  movq %rdi,%r14               ## r14 = this
+   *   0x8f01c  movq %rbx,%rdi               ## rdi = &stack buffer
+   *   0x8f01f  xorl %eax,%eax              ## al = 0 (variadic FP-count)
+   *   0x8f021  callq _snprintf             ## snprintf(buf, 32, "_%p", ptr)
+   *   0x8f026  addq $0x40,%r14             ## r14 = &this->rankBuf  (std::string @ +0x40)
+   *   0x8f02a  movq %r14,%rdi ; movq %rbx,%rsi
+   *   0x8f030  callq std::string::append(const char*)  ## rankBuf.append(buf)
+   *   0x8f035  leaq " "(%rip),%rsi          ## rsi = " "  (single-space literal)
+   *   0x8f03c  movq %r14,%rdi
+   *   0x8f03f  callq std::string::append(const char*)  ## rankBuf.append(" ")
+   *   0x8f044  movq ___stack_chk_guard(%rip),%rax ; movq (%rax),%rax
+   *   0x8f04e  cmpq -0x18(%rbp),%rax ; jne 0x8f05d  ## canary check
+   *   0x8f054  addq $0x30,%rsp ; popq %rbx ; popq %r14 ; popq %rbp ; retq
+   *   0x8f05d  callq ___stack_chk_fail      ## corruption -> hardened abort
+   *
+   * Appends the DOT node id for `ptr` to the pending rank line: when emission is
+   * `enabled` (+0x38 == 1) AND a rank list is live (+0x30 != 0), it formats the
+   * pointer with `snprintf(buf, 32, "_%p", ptr)` (an id like "_0x600001234000")
+   * and appends `buf` then a `" "` separator to the rank-line std::string at
+   * +0x40 (the same buffer beginRank() assigns and endRank() flushes). Both
+   * appends are libc++ std::basic_string::append(const char*) — the out-of-scope
+   * STL boundary already modelled by `std_string_append` (string concat). The
+   * `snprintf` "_%p" formatting is a libc extern, modelled by `snprintf_p` below.
+   *
+   * The `___stack_chk_guard`/`___stack_chk_fail` pair protects the 32-byte native
+   * `snprintf` stack buffer; JS has no such buffer so the canary is a no-op
+   * citation (there is nothing to corrupt).
+   *
+   * @param ptr the node's `void const*` identity (its address). Modelled as a
+   *   bigint/number address purely for the "_%p" formatting; its value is never
+   *   dereferenced.
+   */
+  rank(ptr: bigint | number): void {
+    // @0x8eff9 cmpb $0x1,0x38 ; jne 0x8f044  -- only when emission is enabled.
+    if (this.enabled !== true) return;
+    // @0x8efff cmpq $0x0,0x30 ; je 0x8f044   -- only when a rank list is live.
+    if (this.rankListPtr === 0 || this.rankListPtr === 0n) return;
+
+    // @0x8f009 fmt = "_%p" ; @0x8f014 size = 0x20 ; @0x8f021 snprintf(buf, 32, "_%p", ptr).
+    const buf = snprintf_p(ptr);
+    // @0x8f026 r14 = &this->rankBuf ; @0x8f030 rankBuf.append(buf).
+    this.rankBuf = std_string_append(this.rankBuf, buf);
+    // @0x8f035 rsi = " " ; @0x8f03f rankBuf.append(" ").
+    this.rankBuf = std_string_append(this.rankBuf, " ");
+    // @0x8f044..0x8f05c canary check (no-op in JS) then return (void).
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -262,6 +326,23 @@ export class HGDotGraph {
 function std_string_append(self: string, s: string): string {
   // @0x8f094 append(const char*): appends the C string, returns *this.
   return self + s;
+}
+
+/**
+ * `snprintf(buf, 32, "_%p", ptr)` — libSystem/libc (out-of-scope formatting
+ * boundary). Called by rank() @0x8f021 via the Helium symbol-stub at 0x3c55e8.
+ * Produces the DOT node id: a leading `_` followed by the `%p` rendering of the
+ * pointer. On macOS/Darwin `%p` prints `0x` + lowercase hex of the address (a
+ * null pointer prints `0x0`). Modelled faithfully as that string; the address
+ * is never dereferenced. The 32-byte size cap is documented for fidelity — a
+ * 64-bit `_0x...` id is at most 15 chars so truncation never triggers here.
+ */
+function snprintf_p(ptr: bigint | number): string {
+  // @0x8f009 "_%p" ; @0x8f021 snprintf(buf, 0x20, "_%p", ptr).
+  const addr = typeof ptr === "bigint" ? ptr : BigInt(ptr >>> 0);
+  const s = "_0x" + addr.toString(16);
+  // @0x8f014 size = 0x20 (32): snprintf truncates to 31 chars + NUL.
+  return s.length > 31 ? s.substring(0, 31) : s;
 }
 
 /**
