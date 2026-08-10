@@ -333,6 +333,25 @@ export class OZRenderParams {
    * We don't decode the +0x1e2 static slot here (its setter isn't in this
    * unit); we only add the dynamic slot the ported setter writes.
    */
+  /**
+   * @Ozone offset +0x1e2 — the STATIC half of the do-shape-antialiasing pair,
+   * the byte immediately below `doShapeAntialiasingDynamicAt1e3`.
+   *
+   * Grounded by `getDoShapeAntialiasing() const` @0x2718eb
+   * (`movzbl 0x1e2(%rdi,%rax), %eax`): that indexed BYTE load uses the +0x1a8
+   * mode-byte as a scale-1 index, so index 0 selects this slot and index 1
+   * selects +0x1e3 — exactly the static/dynamic pairing the sibling flags use
+   * (+0x1d0/+0x1d4 for render quality, +0x1d8/+0x1dc for text quality,
+   * +0x1e0/+0x1e1 for high-quality resampling).
+   *
+   * Single-byte width (the load is `movzbl`, and its partner at +0x1e3 is
+   * written with `movb` @0x2718c4), i.e. a C++ `bool`. Preserved as `number`
+   * (0..255) so the exact bit-width the machine reads stays legible. Its
+   * writer (`setDoShapeAntialiasing(bool)`) is a separate unit and is NOT
+   * ported here.
+   */
+  doShapeAntialiasingAt1e2: number = 0;
+
   doShapeAntialiasingDynamicAt1e3: number = 0;
 
   /**
@@ -1323,6 +1342,50 @@ export class OZRenderParams {
       idx === 0 ? this.textRenderQualityAt1d8 : this.textRenderQualityDynamicAt1dc;
     // Result is a zero-extended 32-bit value (movzbl index; movl u32 result).
     return quality >>> 0;
+  }
+
+  /**
+   * OZRenderParams::getDoShapeAntialiasing() const  @Ozone 0x2718e0
+   *   __ZNK14OZRenderParams22getDoShapeAntialiasingEv
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x2718e0  pushq  %rbp                        ; frame setup (no TS counterpart)
+   *   0x2718e1  movq   %rsp, %rbp                  ; frame setup (no TS counterpart)
+   *   0x2718e4  movzbl 0x1a8(%rdi), %eax           ; idx = (u8) this->+0x1a8 (mode-byte)
+   *   0x2718eb  movzbl 0x1e2(%rdi,%rax), %eax      ; eax = (u8) this->[0x1e2 + idx]
+   *   0x2718f3  popq   %rbp                        ; frame teardown (no TS counterpart)
+   *   0x2718f4  retq                               ; return al (C++ bool)
+   *   0x2718f5  nopw   %cs:(%rax,%rax)             ; alignment padding, not executed
+   *
+   * The same mode-byte-indexed accessor pattern as `getRenderQuality()`
+   * @0x270780 and `getTextRenderQuality()` @0x271800 — but over a BYTE array,
+   * so the addressing mode is `(%rdi,%rax)` with an implicit scale of ONE,
+   * not `(%rdi,%rax,4)`. The two slots it selects between are therefore
+   * adjacent bytes:
+   *   idx 0 -> +0x1e2  (doShapeAntialiasingAt1e2, the static flag)
+   *   idx 1 -> +0x1e3  (doShapeAntialiasingDynamicAt1e3, written by
+   *                     `setDoShapeAntialiasingDynamic(bool)` @0x2718c4)
+   *
+   * Both loads are `movzbl` — ZERO-extending byte loads — so the returned
+   * value is the raw 0..255 byte, not a boolean coercion; a `bool`-typed
+   * caller reads only `%al`. The port returns the masked byte for the same
+   * reason the sibling getters return the raw u32.
+   *
+   * ZERO in-scope callees, ZERO externs, no indirect/virtual dispatch — a pure
+   * indexed field read.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams22getDoShapeAntialiasingEv.s (7 lines)
+   */
+  getDoShapeAntialiasing(this: OZRenderParams): number {
+    // @0x2718e4  movzbl 0x1a8(%rdi),%eax — mode-byte -> scale-1 array index.
+    const idx = this.flagByteAt1a8 & 0xff;
+    // @0x2718eb  movzbl 0x1e2(%rdi,%rax),%eax — byte load at 0x1e2 + idx.
+    const flag =
+      idx === 0 ? this.doShapeAntialiasingAt1e2 : this.doShapeAntialiasingDynamicAt1e3;
+    // The load zero-extends a single byte into eax.
+    return flag & 0xff;
   }
 
   /**
