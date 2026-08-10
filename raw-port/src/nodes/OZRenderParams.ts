@@ -58,6 +58,10 @@
 //       — OZRenderParams::disableDynamic() @Ozone 0x2716b0
 //         (raw-port/re/disasm/
 //           __ZN14OZRenderParams14disableDynamicEv.s — 13 lines)
+//   * __ZNK14OZRenderParams25getOutputColorDescriptionEv
+//       — OZRenderParams::getOutputColorDescription() const @Ozone 0x271510
+//         (raw-port/re/disasm/
+//           __ZNK14OZRenderParams25getOutputColorDescriptionEv.s — 15 lines)
 //   * __ZNK14OZRenderParams20getDestinationDeviceEv
 //       — OZRenderParams::getDestinationDevice() const @Ozone 0x2719d0
 //         (raw-port/re/disasm/
@@ -115,6 +119,53 @@ export interface OZRenderBounds {
 }
 
 /**
+ * `FxColorDescription` — the ProApps colour-description value type FCP threads
+ * through its render path. It is NOT one of the five in-scope frameworks: the
+ * symbol `FxColorDescription::getCGColorSpace() const` is `(undefined) external
+ * … (from ProAppsFxSupport)` in Ozone's two-level-namespace bind table (verified
+ * with `nm -m -arch x86_64 Ozone`), so the whole class is out of port scope and
+ * is modelled here as an opaque brand — never synthesised, never dereferenced.
+ *
+ * OZRenderParams embeds TWO of them, back to back:
+ *   +0x2c0  the WORKING colour description
+ *   +0x2e8  the OUTPUT colour description
+ * (so `sizeof(FxColorDescription)` is 0x28 — the gap between the two slots).
+ */
+export interface FxColorDescription {
+  readonly __fxColorDescription: unique symbol;
+}
+
+/**
+ * `CGColorSpaceRef` — CoreGraphics opaque handle. Out of port scope; only its
+ * NULL-ness is ever observed by the ported code below.
+ */
+export type CGColorSpaceRef = { readonly __cgColorSpaceRef: unique symbol };
+
+/**
+ * `FxColorDescription::getCGColorSpace() const` — TRUE OUT-OF-SCOPE extern.
+ *
+ * Entered through the Ozone symbol stub @0x6df666, called from
+ * `OZRenderParams::getOutputColorDescription()` @Ozone 0x271524. The
+ * implementation lives in **ProAppsFxSupport**, not in any of the five in-scope
+ * frameworks (ProCore/ProChannel/Helium/Ozone/Flexo) — `nm` reports it `U` in
+ * Ozone and it is defined in none of the other four — so there is no FCP
+ * function body in scope to transcribe. Per PORTING_SPEC Rule 3 it is a
+ * boundary stub that throws, citing the address it is deferring.
+ *
+ * Returns a `CGColorSpaceRef`, possibly NULL — the null-ness is the only thing
+ * the caller below inspects (`testq %rax, %rax` @0x271530).
+ */
+function FxColorDescription_getCGColorSpace(
+  _desc: FxColorDescription,
+): CGColorSpaceRef | null {
+  throw new Error(
+    "FxColorDescription::getCGColorSpace() const — ProAppsFxSupport extern, " +
+      "out-of-scope; entered via Ozone symbol stub @0x6df666 " +
+      "(called @Ozone 0x271524). Not transcribed.",
+  );
+}
+
+/**
  * `OZRenderParams` — the render-params bag. Only the fields touched by
  * `setResolution` are decoded at this layer; the rest of the object is
  * OPAQUE (undecoded) and is intentionally NOT modelled here — future
@@ -127,6 +178,7 @@ export interface OZRenderBounds {
 export class OZRenderParams {
   /** @Ozone offset +0x018 — written by setResolution @0x27170b. */
   resolutionAt18: PCVector2Double = { x: 0, y: 0 };
+
 
   /** @Ozone offset +0x188 — zeroed by setResolution @0x271719. */
   zeroedAt188: PCVector2Double = { x: 0, y: 0 };
@@ -333,6 +385,25 @@ export class OZRenderParams {
    * We don't decode the +0x1e2 static slot here (its setter isn't in this
    * unit); we only add the dynamic slot the ported setter writes.
    */
+  /**
+   * @Ozone offset +0x1e2 — the STATIC half of the do-shape-antialiasing pair,
+   * the byte immediately below `doShapeAntialiasingDynamicAt1e3`.
+   *
+   * Grounded by `getDoShapeAntialiasing() const` @0x2718eb
+   * (`movzbl 0x1e2(%rdi,%rax), %eax`): that indexed BYTE load uses the +0x1a8
+   * mode-byte as a scale-1 index, so index 0 selects this slot and index 1
+   * selects +0x1e3 — exactly the static/dynamic pairing the sibling flags use
+   * (+0x1d0/+0x1d4 for render quality, +0x1d8/+0x1dc for text quality,
+   * +0x1e0/+0x1e1 for high-quality resampling).
+   *
+   * Single-byte width (the load is `movzbl`, and its partner at +0x1e3 is
+   * written with `movb` @0x2718c4), i.e. a C++ `bool`. Preserved as `number`
+   * (0..255) so the exact bit-width the machine reads stays legible. Its
+   * writer (`setDoShapeAntialiasing(bool)`) is a separate unit and is NOT
+   * ported here.
+   */
+  doShapeAntialiasingAt1e2: number = 0;
+
   doShapeAntialiasingDynamicAt1e3: number = 0;
 
   /**
@@ -1275,6 +1346,185 @@ export class OZRenderParams {
   }
 
   /**
+   * OZRenderParams::getTextRenderQuality() const  @Ozone 0x271800
+   *   __ZNK14OZRenderParams20getTextRenderQualityEv
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x271800  pushq  %rbp                            ; frame setup (no TS counterpart)
+   *   0x271801  movq   %rsp, %rbp                      ; frame setup (no TS counterpart)
+   *   0x271804  movzbl 0x1a8(%rdi), %eax               ; eax = (u8) this->+0x1a8 (mode-byte index)
+   *   0x27180b  movl   0x1d8(%rdi,%rax,4), %eax        ; eax = (u32) this->[0x1d8 + idx*4]
+   *   0x271812  popq   %rbp                            ; frame teardown (no TS counterpart)
+   *   0x271813  retq                                   ; return eax
+   *   0x271814  nopw   %cs:(%rax,%rax)                 ; alignment padding, not executed
+   *
+   * SEMANTICS: byte-for-byte the same shape as the sibling
+   * `getRenderQuality()` @0x270780 — same `movzbl 0x1a8` mode-byte index, same
+   * `base + idx*4` indexed u32 load — only the array BASE differs
+   * (+0x1d8 here vs +0x1d0 there). The two text-quality slots it selects
+   * between are already modelled on this class:
+   *   idx 0 -> +0x1d8  (textRenderQualityAt1d8, the static/author quality)
+   *   idx 1 -> +0x1dc  (textRenderQualityDynamicAt1dc, the applied/dynamic one)
+   * and that pairing is exactly what `setTextRenderQuality(OZTextQuality)`
+   * writes in one shot (@0x2717b4 stamps +0x1d8, @0x2717ba stamps +0x1dc),
+   * while `setTextRenderQualityDynamic` @0x2717e4 writes only +0x1dc.
+   *
+   * The index is a ZERO-extended byte (`movzbl`), so the raw 0..255 value of
+   * the mode byte is what scales by 4 — not a boolean. Only indices 0 and 1
+   * have modelled slots (the two the setters write); the machine would read
+   * further into the object for any other byte value, which no decoded writer
+   * ever produces, so the port reproduces the two-slot selection exactly as
+   * `getRenderQuality()` @0x270780 does.
+   *
+   * ZERO in-scope callees, ZERO externs, no indirect/virtual dispatch — a pure
+   * indexed field read.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams20getTextRenderQualityEv.s (7 lines)
+   */
+  getTextRenderQuality(this: OZRenderParams): number {
+    // @0x271804  movzbl 0x1a8(%rdi),%eax
+    //   Zero-extended byte load of the mode-byte -> array index.
+    const idx = this.flagByteAt1a8 & 0xff;
+    // @0x27180b  movl 0x1d8(%rdi,%rax,4),%eax
+    //   Indexed u32 load from the text-quality array based at +0x1d8; the two
+    //   modelled slots are +0x1d8 (idx 0) and +0x1dc (idx 1).
+    const quality =
+      idx === 0 ? this.textRenderQualityAt1d8 : this.textRenderQualityDynamicAt1dc;
+    // Result is a zero-extended 32-bit value (movzbl index; movl u32 result).
+    return quality >>> 0;
+  }
+
+  /**
+   * OZRenderParams::getDoShapeAntialiasing() const  @Ozone 0x2718e0
+   *   __ZNK14OZRenderParams22getDoShapeAntialiasingEv
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x2718e0  pushq  %rbp                        ; frame setup (no TS counterpart)
+   *   0x2718e1  movq   %rsp, %rbp                  ; frame setup (no TS counterpart)
+   *   0x2718e4  movzbl 0x1a8(%rdi), %eax           ; idx = (u8) this->+0x1a8 (mode-byte)
+   *   0x2718eb  movzbl 0x1e2(%rdi,%rax), %eax      ; eax = (u8) this->[0x1e2 + idx]
+   *   0x2718f3  popq   %rbp                        ; frame teardown (no TS counterpart)
+   *   0x2718f4  retq                               ; return al (C++ bool)
+   *   0x2718f5  nopw   %cs:(%rax,%rax)             ; alignment padding, not executed
+   *
+   * The same mode-byte-indexed accessor pattern as `getRenderQuality()`
+   * @0x270780 and `getTextRenderQuality()` @0x271800 — but over a BYTE array,
+   * so the addressing mode is `(%rdi,%rax)` with an implicit scale of ONE,
+   * not `(%rdi,%rax,4)`. The two slots it selects between are therefore
+   * adjacent bytes:
+   *   idx 0 -> +0x1e2  (doShapeAntialiasingAt1e2, the static flag)
+   *   idx 1 -> +0x1e3  (doShapeAntialiasingDynamicAt1e3, written by
+   *                     `setDoShapeAntialiasingDynamic(bool)` @0x2718c4)
+   *
+   * Both loads are `movzbl` — ZERO-extending byte loads — so the returned
+   * value is the raw 0..255 byte, not a boolean coercion; a `bool`-typed
+   * caller reads only `%al`. The port returns the masked byte for the same
+   * reason the sibling getters return the raw u32.
+   *
+   * ZERO in-scope callees, ZERO externs, no indirect/virtual dispatch — a pure
+   * indexed field read.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams22getDoShapeAntialiasingEv.s (7 lines)
+   */
+  getDoShapeAntialiasing(this: OZRenderParams): number {
+    // @0x2718e4  movzbl 0x1a8(%rdi),%eax — mode-byte -> scale-1 array index.
+    const idx = this.flagByteAt1a8 & 0xff;
+    // @0x2718eb  movzbl 0x1e2(%rdi,%rax),%eax — byte load at 0x1e2 + idx.
+    const flag =
+      idx === 0 ? this.doShapeAntialiasingAt1e2 : this.doShapeAntialiasingDynamicAt1e3;
+    // The load zero-extends a single byte into eax.
+    return flag & 0xff;
+  }
+
+  /**
+   * OZRenderParams::getDoHighQualityResampling() const  @Ozone 0x271870
+   *   __ZNK14OZRenderParams26getDoHighQualityResamplingEv
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x271870  pushq  %rbp                        ; frame setup (no TS counterpart)
+   *   0x271871  movq   %rsp, %rbp                  ; frame setup (no TS counterpart)
+   *   0x271874  movzbl 0x1a8(%rdi), %eax           ; idx = (u8) this->+0x1a8 (mode-byte)
+   *   0x27187b  movzbl 0x1e0(%rdi,%rax), %eax      ; eax = (u8) this->[0x1e0 + idx]
+   *   0x271883  popq   %rbp                        ; frame teardown (no TS counterpart)
+   *   0x271884  retq                               ; return al (C++ bool)
+   *   0x271885  nopw   %cs:(%rax,%rax)             ; alignment padding, not executed
+   *
+   * The byte-array twin of `getDoShapeAntialiasing()` @0x2718e0 — identical
+   * instruction sequence, scale-ONE indexing `(%rdi,%rax)`, only the base
+   * differs (+0x1e0 vs +0x1e2). It therefore selects between the two slots
+   * `setDoHighQualityResampling(bool)` @0x271824/@0x27182b writes together:
+   *   idx 0 -> +0x1e0  (doHighQualityResamplingAt1e0, the static flag)
+   *   idx 1 -> +0x1e1  (doHighQualityResamplingDynamicAt1e1, also written
+   *                     alone by `setDoHighQualityResamplingDynamic`)
+   * No new field is needed — both slots are already modelled by that setter's
+   * landed port.
+   *
+   * `movzbl` on both loads: the index is the raw 0..255 mode byte and the
+   * result is the raw zero-extended flag byte, not a boolean coercion (a
+   * `bool`-typed caller reads only `%al`).
+   *
+   * ZERO in-scope callees, ZERO externs, no indirect/virtual dispatch — a pure
+   * indexed field read.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams26getDoHighQualityResamplingEv.s (7 lines)
+   */
+  getDoHighQualityResampling(this: OZRenderParams): number {
+    // @0x271874  movzbl 0x1a8(%rdi),%eax — mode-byte -> scale-1 array index.
+    const idx = this.flagByteAt1a8 & 0xff;
+    // @0x27187b  movzbl 0x1e0(%rdi,%rax),%eax — byte load at 0x1e0 + idx.
+    const flag =
+      idx === 0
+        ? this.doHighQualityResamplingAt1e0
+        : this.doHighQualityResamplingDynamicAt1e1;
+    // The load zero-extends a single byte into eax.
+    return flag & 0xff;
+  }
+
+  /**
+   * OZRenderParams::getWorkingColorDescription() const  @Ozone 0x2712b0
+   *   __ZNK14OZRenderParams26getWorkingColorDescriptionEv
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x2712b0  pushq %rbp                  ; frame setup (no TS counterpart)
+   *   0x2712b1  movq  %rsp, %rbp            ; frame setup (no TS counterpart)
+   *   0x2712b4  leaq  0x2c0(%rdi), %rax     ; return &this->workingColorDescription
+   *   0x2712bb  popq  %rbp                  ; frame teardown (no TS counterpart)
+   *   0x2712bc  retq                        ; return that address
+   *   0x2712bd  nopl  (%rax)                ; alignment padding, not executed
+   *
+   * `leaq` computes an EFFECTIVE ADDRESS — nothing is loaded and nothing is
+   * copied. The C++ signature is therefore
+   * `FxColorDescription const& getWorkingColorDescription() const`: the caller
+   * receives the embedded sub-object itself, not a copy (a by-value return of
+   * a refcounted FxColorDescription would have to call
+   * `PCCFRefTraits<CGColorSpace*>::retain`, as `setWorkingColorDescription`
+   * @0x271279 does — this body calls nothing at all).
+   *
+   * The faithful TS equivalent of returning `&member` is returning the member
+   * object, because a JS object value is already a reference: mutations the
+   * caller makes through the result are visible on `this`, exactly as in the
+   * binary. (Same modelling as `getDestinationDevice()`'s `leaq &this[+0x120]`
+   * on this class.)
+   *
+   * ZERO in-scope callees, ZERO externs, no indirect/virtual dispatch, no null
+   * check — a pure address computation.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams26getWorkingColorDescriptionEv.s (6 lines)
+   */
+  getWorkingColorDescription(this: OZRenderParams): FxColorDescription {
+    // @0x2712b4  leaq 0x2c0(%rdi),%rax
+    return this.workingColorDescriptionAt2c0;
+  }
+
+  /**
    * `OZRenderParams::disableDynamic()`
    *   — @Ozone 0x2716b0
    *   — __ZN14OZRenderParams14disableDynamicEv
@@ -1345,5 +1595,109 @@ export class OZRenderParams {
     // @0x2716d9  movb $0x0,0x1a8(%rdi)      (single-byte store — clears the latch)
     this.flagByteAt1a8 = 0;
     // @0x2716e0-0x2716e1 — epilogue, void return.
+  }
+
+  /**
+   * @Ozone offset +0x2c0 — the embedded WORKING `FxColorDescription`.
+   *
+   * Proven a sub-object (not a pointer) by `getWorkingColorDescription()`
+   * @0x2712b4, which returns its ADDRESS (`leaq 0x2c0(%rdi), %rax`), and by the
+   * default ctor @0x270161 (`leaq 0x2c0(%rbx), %r13` — it constructs in place).
+   * `getOutputColorDescription()` @0x271529 returns this same address as its
+   * FALLBACK. Held as an opaque out-of-scope value (see {@link FxColorDescription});
+   * the object identity IS the `&this->workingColorDescription` the machine returns.
+   *
+   * Further address evidence for this same slot, from the two other methods
+   * that touch it (added with the `getWorkingColorDescription` port):
+   *   • `getWorkingColorSpace() const` @0x271424 does `addq $0x2c0, %rdi` and
+   *     TAIL-JUMPS `FxColorDescription::getCGColorSpace() const` @0x27142c —
+   *     i.e. `this+0x2c0` is passed as the `FxColorDescription*` receiver.
+   *   • `setWorkingColorDescription(FxColorDescription const&)` @0x271240
+   *     writes the sub-object's four slots based here:
+   *        +0x2c0 <- src+0x00  CGColorSpace* (old value released via
+   *                  PCCFRefTraits<CGColorSpace*>::release @0x271264, new one
+   *                  retained @0x271279, guarded by the identity compare
+   *                  @0x271257 and the null checks @0x27125f / @0x271273)
+   *        +0x2d0 <- src+0x10  u32  (@0x27127e/@0x271282 movl)
+   *        +0x2c8 <- src+0x08  u64  (@0x271288/@0x27128c movq)
+   *        +0x2d8 <- src+0x18  u8   (@0x271293/@0x271298 movzbl/movb)
+   *     — the same four fields, in the same +0x10-before-+0x08 order, that
+   *     `FxColorDescription::operator=` uses, which independently confirms
+   *     both the type and the 0x28-byte size inferred from the +0x2e8 gap.
+   */
+  workingColorDescriptionAt2c0: FxColorDescription = {} as FxColorDescription;
+
+  /**
+   * @Ozone offset +0x2e8 — the embedded OUTPUT `FxColorDescription`.
+   *
+   * Also a sub-object: the default ctor takes its address @0x27019a
+   * (`leaq 0x2e8(%rbx), %rax`) and zeroes its first word @0x2701a5
+   * (`movq $0x0, 0x2e8(%rbx)`), and `getOutputColorDescription()` @0x27151a
+   * takes `leaq 0x2e8(%rdi), %r14` to call a method ON it. The 0x28-byte gap
+   * to +0x2c0 is `sizeof(FxColorDescription)`.
+   */
+  outputColorDescriptionAt2e8: FxColorDescription = {} as FxColorDescription;
+
+  /**
+   * `OZRenderParams::getOutputColorDescription() const`
+   *   — @Ozone 0x271510
+   *   — __ZNK14OZRenderParams25getOutputColorDescriptionEv
+   *
+   * FULL DISASM (15 lines — raw-port/re/disasm/
+   * __ZNK14OZRenderParams25getOutputColorDescriptionEv.s):
+   *
+   *   0x271510  pushq  %rbp                         ; prologue
+   *   0x271511  movq   %rsp, %rbp
+   *   0x271514  pushq  %r14
+   *   0x271516  pushq  %rbx
+   *   0x271517  movq   %rdi, %rbx                   ; rbx = this
+   *   0x27151a  leaq   0x2e8(%rdi), %r14            ; r14 = &this->output   (+0x2e8)
+   *   0x271521  movq   %r14, %rdi
+   *   0x271524  callq  FxColorDescription::getCGColorSpace() const ; stub 0x6df666
+   *   0x271529  addq   $0x2c0, %rbx                 ; rbx = &this->working  (+0x2c0)
+   *   0x271530  testq  %rax, %rax                   ; colour space == NULL ?
+   *   0x271533  cmovneq %r14, %rbx                  ; NON-null -> rbx = &output
+   *   0x271537  movq   %rbx, %rax                   ; return that address
+   *   0x27153a  popq %rbx ; popq %r14 ; popq %rbp
+   *   0x27153e  retq
+   *   0x27153f  nop                                 ; alignment padding, not code
+   *
+   * SEMANTICS: a colour-description SELECTOR with a fallback. It asks the
+   * OUTPUT description (+0x2e8) for its CGColorSpace; if that is non-NULL the
+   * output description is returned, otherwise it falls back to the WORKING
+   * description (+0x2c0). Both returns are ADDRESSES of embedded sub-objects
+   * (`leaq`/`addq`, never a load), i.e. the C++ signature returns
+   * `FxColorDescription const&` — so the TS returns the field objects
+   * themselves, whose identity is the reference.
+   *
+   * Note the branchless shape: the machine computes the FALLBACK address
+   * unconditionally @0x271529 and then `cmovne`s the output address over it
+   * @0x271533 — both addresses are always formed, only the selection is
+   * conditional. Since forming an address has no side effect, the `if/else`
+   * below is exactly equivalent; the ordering is preserved in the comments.
+   *
+   * `testq %rax,%rax ; cmovneq` is a NULL test on the returned pointer (ZF), not
+   * an ordered compare — no signed/unsigned question arises.
+   *
+   * FRONTIER CALLEE: `FxColorDescription::getCGColorSpace() const` is a TRUE
+   * out-of-scope extern (ProAppsFxSupport — see the boundary stub above); it is
+   * the only call in the body, and there is no in-scope callee, no indirect and
+   * no virtual dispatch anywhere in it.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams25getOutputColorDescriptionEv.s
+   */
+  getOutputColorDescription(this: OZRenderParams): FxColorDescription {
+    // @0x27151a  leaq 0x2e8(%rdi),%r14 — &this->outputColorDescription.
+    const output = this.outputColorDescriptionAt2e8;
+    // @0x271529  addq $0x2c0,%rbx — &this->workingColorDescription, formed
+    //            unconditionally as the fallback (no side effect).
+    const working = this.workingColorDescriptionAt2c0;
+    // @0x271521-0x271524  callq FxColorDescription::getCGColorSpace(output)
+    const colorSpace = FxColorDescription_getCGColorSpace(output);
+    // @0x271530-0x271533  testq %rax,%rax ; cmovneq %r14,%rbx
+    //   non-NULL -> the OUTPUT description; NULL -> keep the WORKING fallback.
+    // @0x271537  movq %rbx,%rax — return the selected address.
+    return colorSpace !== null ? output : working;
   }
 }
