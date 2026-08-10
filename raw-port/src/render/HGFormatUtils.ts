@@ -1,5 +1,7 @@
 // HGFormatUtils.ts — Helium's format-descriptor helpers.
 //
+import type { HGRect } from "./HGRect";
+//
 // FAITHFUL x86_64 transcription from:
 //   /Applications/Final Cut Pro.app/Contents/Frameworks/Helium.framework/
 //     Versions/A/Helium
@@ -401,4 +403,131 @@ export function HGFormatUtils_textureSizeBytes(
   const hw = BigInt.asUintN(64, h * w);
   // @Helium 0xa1e46: imulq %rcx,%rax — rax = (height*width) * bpp (mod 2^64).
   return BigInt.asUintN(64, hw * BigInt(bpp));
+}
+
+// ---------------------------------------------------------------------------
+// HGFormatUtils::collapseRectForFormat(HGRect const& r, HGFormat fmt)
+//                                                              @Helium 0xa22f0
+//
+// Source disassembly (46 lines):
+//   raw-port/re/disasm/Helium.__ZN13HGFormatUtils21collapseRectForFormatERK6HGRect8HGFormat.s
+//
+// Full transcription:
+//   0xa22f0  pushq   %rbp
+//   0xa22f1  movq    %rsp, %rbp
+//   0xa22f4  movabsq $-0x100000000, %rax        ; rax = 0xFFFFFFFF00000000 (hi-32 mask)
+//   0xa22fe  movq    (%rdi), %rcx               ; rcx = *(r+0x0) = x | (y<<32)
+//   0xa2301  movq    0x8(%rdi), %rdx            ; rdx = *(r+0x8) = right | (bottom<<32)
+//   0xa2305  leal    -0xe(%rsi), %edi           ; edi = fmt - 14
+//   0xa2308  cmpl    $0x3, %edi                 ; (fmt-14) vs 3
+//   0xa230b  jae     0xa2340                    ; UNSIGNED >= 3 -> not in {14,15,16}
+//   ----- ARM A: fmt in {14,15,16} — halve the horizontal corners -----
+//   0xa230d  cvtsi2ss %edx, %xmm0              ; xmm0 = (float)(int)right   (edx = rdx low32)
+//   0xa2311  movss   0x3259af(%rip), %xmm1     ; xmm1 = 0.5f   @0x3c7cc8
+//   0xa2319  mulss   %xmm1, %xmm0              ; xmm0 = right * 0.5
+//   0xa231d  roundss $0xa, %xmm0, %xmm0        ; imm 0xa = round toward +INF (ceil)
+//   0xa2323  cvttss2si %xmm0, %esi             ; esi = trunc(ceil(right*0.5))
+//   0xa2327  andq    %rax, %rdx                ; clear rdx low32 (keep bottom in hi32)
+//   0xa232a  orq     %rsi, %rdx                ; rdx.low32 = new right
+//   0xa232d  xorps   %xmm0, %xmm0
+//   0xa2330  cvtsi2ss %ecx, %xmm0              ; xmm0 = (float)(int)x       (ecx = rcx low32)
+//   0xa2334  mulss   %xmm1, %xmm0              ; xmm0 = x * 0.5
+//   0xa2338  roundss $0x9, %xmm0, %xmm0        ; imm 0x9 = round toward -INF (floor)
+//   0xa233e  jmp     0xa2386
+//   ----- ARM dispatch for fmt-14 >= 3 -----
+//   0xa2340  cmpl    $0x1f, %esi                ; fmt vs 31 (esi still = fmt)
+//   0xa2343  jne     0xa2394                    ; not 31 -> passthrough
+//   ----- ARM B: fmt == 31 — ceil/floor(corner/6)*4 -----
+//   0xa2345  cvtsi2ss %edx, %xmm0             ; xmm0 = (float)(int)right
+//   0xa2349  movss   0x325973(%rip), %xmm1     ; xmm1 = 6.0f   @0x3c7cc4
+//   0xa2351  divss   %xmm1, %xmm0             ; xmm0 = right / 6.0
+//   0xa2355  roundss $0xa, %xmm0, %xmm0        ; ceil
+//   0xa235b  movss   0x327f89(%rip), %xmm2     ; xmm2 = 4.0f   @0x3ca2ec
+//   0xa2363  mulss   %xmm2, %xmm0             ; xmm0 = ceil(right/6) * 4
+//   0xa2367  cvttss2si %xmm0, %esi            ; esi = trunc(...)
+//   0xa236b  andq    %rax, %rdx               ; clear rdx low32
+//   0xa236e  orq     %rsi, %rdx               ; rdx.low32 = new right
+//   0xa2371  xorps   %xmm0, %xmm0
+//   0xa2374  cvtsi2ss %ecx, %xmm0             ; xmm0 = (float)(int)x
+//   0xa2378  divss   %xmm1, %xmm0             ; xmm0 = x / 6.0
+//   0xa237c  roundss $0x9, %xmm0, %xmm0        ; floor
+//   0xa2382  mulss   %xmm2, %xmm0             ; xmm0 = floor(x/6) * 4
+//   ----- common tail (both ARM A and ARM B fall here) -----
+//   0xa2386  cvttss2si %xmm0, %esi            ; esi = trunc(new x)
+//   0xa238a  andq    %rax, %rcx               ; clear rcx low32 (keep y in hi32)
+//   0xa238d  movl    %esi, %eax               ; eax = new x (zero-extends into rax low32)
+//   0xa238f  orq     %rcx, %rax               ; rax.low32 = new x
+//   0xa2392  popq    %rbp
+//   0xa2393  retq                             ; return rax=(x|y<<32), rdx=(right|bottom<<32)
+//   ----- ARM C: passthrough (fmt not in {14,15,16,31}) -----
+//   0xa2394  movl    %ecx, %esi               ; esi = x (unchanged)
+//   0xa2396  jmp     0xa238a                  ; -> tail rebuilds rax with unchanged x
+//
+// Semantics — the rect's corners are collapsed to the chroma/packing grid of
+// the pixel format, LEAVING y and bottom untouched (only the horizontal x /
+// right corners are rewritten):
+//   fmt in {14,15,16}: x = floor(x * 0.5),   right = ceil(right * 0.5)
+//   fmt == 31 (0x1f):  x = trunc(floor(x/6) * 4), right = trunc(ceil(right/6) * 4)
+//   otherwise:         rect returned unchanged.
+//
+// The `roundss` uses single-precision ops throughout (cvtsi2ss/mulss/divss),
+// so every float step is wrapped in Math.fround; the final cvttss2si is a
+// truncation toward zero (| 0) of the single-precision rounded product.
+//
+// Constants (single-precision float32, read via resolve.py ripconst):
+//   @0x3c7cc8  0.5f   (movss @0xa2311)
+//   @0x3c7cc4  6.0f   (movss @0xa2349)
+//   @0x3ca2ec  4.0f   (movss @0xa235b)
+//
+// Zero in-scope callees, zero externs, zero indirect calls — pure arithmetic
+// on the HGRect struct (defined in HGRect.ts). x/y/right/bottom are the four
+// int32 fields at +0x0/+0x4/+0x8/+0xc.
+export function HGFormatUtils_collapseRectForFormat(
+  r: HGRect,
+  fmt: number,
+): HGRect {
+  // @Helium 0xa22fe-0xa2301: load the four int32 corners.
+  const x = r.x | 0; // rcx low32
+  const y = r.y | 0; // rcx high32 (passthrough)
+  const right = r.right | 0; // rdx low32
+  const bottom = r.bottom | 0; // rdx high32 (passthrough)
+
+  // @Helium 0xa2305-0xa230b: (fmt-14) UNSIGNED < 3 selects ARM A.
+  const s = fmt | 0;
+  const off = (s - 14) >>> 0; // leal -0xe(%rsi); unsigned compare below
+
+  let newX = x;
+  let newRight = right;
+
+  if (off < 3) {
+    // @Helium 0xa230d-0xa233e: ARM A — halve horizontal corners (fmt in {14,15,16}).
+    // right = trunc(ceil(right * 0.5f))    @0xa230d-0xa232a
+    newRight =
+      Math.trunc(Math.ceil(Math.fround(Math.fround(right) * Math.fround(0.5)))) | 0;
+    // x = trunc(floor(x * 0.5f))           @0xa2330-0xa2386
+    newX =
+      Math.trunc(Math.floor(Math.fround(Math.fround(x) * Math.fround(0.5)))) | 0;
+  } else if (s === 0x1f) {
+    // @Helium 0xa2345-0xa2382: ARM B — fmt == 31.
+    // right = trunc(ceil(right / 6.0f) * 4.0f)
+    newRight =
+      Math.trunc(
+        Math.fround(
+          Math.ceil(Math.fround(Math.fround(right) / Math.fround(6.0))) *
+            Math.fround(4.0),
+        ),
+      ) | 0;
+    // x = trunc(floor(x / 6.0f) * 4.0f)
+    newX =
+      Math.trunc(
+        Math.fround(
+          Math.floor(Math.fround(Math.fround(x) / Math.fround(6.0))) *
+            Math.fround(4.0),
+        ),
+      ) | 0;
+  }
+  // @Helium 0xa2394 (ARM C): otherwise newX = x, newRight = right (unchanged).
+
+  // @Helium 0xa238a-0xa238f: rebuild rax = newX | (y<<32); rdx = newRight | (bottom<<32).
+  return { x: newX, y: y, right: newRight, bottom: bottom };
 }
