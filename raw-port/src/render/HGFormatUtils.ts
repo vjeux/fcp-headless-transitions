@@ -531,3 +531,108 @@ export function HGFormatUtils_collapseRectForFormat(
   // @Helium 0xa238a-0xa238f: rebuild rax = newX | (y<<32); rdx = newRight | (bottom<<32).
   return { x: newX, y: y, right: newRight, bottom: bottom };
 }
+
+// ---------------------------------------------------------------------------
+// HGFormatUtils::buildFormat(HGFormatComponents, unsigned int)     @Helium 0xa26e0
+//   — __ZN13HGFormatUtils11buildFormatE18HGFormatComponentsj
+//
+// Composes an HGFormat enum value from a component-layout selector
+// (HGFormatComponents `components` in %edi, 1-based) and a bit-depth/packing
+// selector (`sel` in %esi). It is a validity-gated 2-level table lookup.
+//
+// Disasm (18 real insns):
+//   0xa26e0  movl    %esi, %ecx                 ; ecx = sel
+//   0xa26e2  decl    %ecx                       ; ecx = sel - 1
+//   0xa26e4  cmpl    $0x8, %ecx                 ; (sel-1) vs 8  (unsigned)
+//   0xa26e7  setb    %al                        ; al = ((sel-1) < 8)  [unsigned]
+//   0xa26ea  movb    $-0x75, %dl                ; dl = 0x8B (validity bitmask)
+//   0xa26ec  shrb    %cl, %dl                   ; dl >>= (sel-1)      [byte shift]
+//   0xa26ee  andb    %al, %dl                   ; dl &= al
+//   0xa26f0  xorl    %eax, %eax                 ; result = 0
+//   0xa26f2  cmpb    $0x1, %dl
+//   0xa26f5  jne     0xa2710                    ; if (dl != 1) return 0
+//   0xa26f7  pushq   %rbp
+//   0xa26f8  movq    %rsp, %rbp
+//   0xa26fb  movl    %ecx, %eax                 ; eax = sel - 1  (outer index)
+//   0xa26fd  leaq    0x9698bc(%rip), %rcx       ; rcx = &OUTER_TABLE[0]  @0xa0bfc0
+//   0xa2704  movq    (%rcx,%rax,8), %rax        ; rax = OUTER_TABLE[sel-1]  (ptr)
+//   0xa2708  movslq  %edi, %rcx                 ; rcx = (i64)components
+//   0xa270b  movl    -0x4(%rax,%rcx,4), %eax    ; eax = subarray[components - 1] (u32)
+//   0xa270f  popq    %rbp
+//   0xa2710  retq                               ; return eax
+//   0xa2711  nopw    %cs:(%rax,%rax)
+//
+// VALIDITY GATE
+//   `dl = (0x8B >> (sel-1)) & ((sel-1) < 8)`. 0x8B = 0b1000_1011, so the
+//   valid `sel-1` positions are the SET bits: {0, 1, 3, 7} — i.e.
+//   sel in {1, 2, 4, 8}. Any other sel returns 0.
+//
+// OUTER_TABLE  @Helium 0xa0bfc0 (__DATA_CONST __const, 8 x u64 pointers).
+//   Read directly from the binary (file offset 10534848):
+//     [0] -> 0x3cd610   [1] -> 0x3cd620   [2] -> 0  (null)
+//     [3] -> 0x3cd630   [4] -> 0  (null)  [5] -> 0  (null)
+//     [6] -> 0  (null)  [7] -> 0x3cd640
+//   The null slots are exactly the CLEAR bits of 0x8B, so the validity gate
+//   guarantees the dereferenced pointer is always non-null.
+//
+// The four non-null sub-arrays live in __TEXT __const (addr 0x3c7b80) as
+// contiguous 4-entry u32 rows (each row is 16 bytes; consecutive rows are
+// 0x10 apart at 0x3cd610/0x3cd620/0x3cd630/0x3cd640). Each is indexed by
+// `components - 1` (the `-0x4` byte offset with a 4-byte stride ⇒ 1-based).
+// Values read verbatim from the binary:
+//
+//   sel (bit)      components:  1    2    3    4
+//   ----------------------------------------------
+//   sel=1 (slot0)              1   10   17   24
+//   sel=2 (slot1)              3   11   19   25
+//   sel=4 (slot3)              5   12   20   27
+//   sel=8 (slot7)              7   13   21   28
+//
+// Every value is an HGFormat enum ordinal (consistent with the 0..0x2b range
+// of the formatInfos table above).
+const BUILD_FORMAT_TABLE: Readonly<Record<number, readonly number[]>> = Object.freeze({
+  // key = (sel - 1) outer index (the set bits of the 0x8B validity mask);
+  // value = the 4-entry sub-array indexed by (components - 1).
+  0: Object.freeze([1, 10, 17, 24]),   // OUTER_TABLE[0] @0x3cd610  (sel = 1)
+  1: Object.freeze([3, 11, 19, 25]),   // OUTER_TABLE[1] @0x3cd620  (sel = 2)
+  3: Object.freeze([5, 12, 20, 27]),   // OUTER_TABLE[3] @0x3cd630  (sel = 4)
+  7: Object.freeze([7, 13, 21, 28]),   // OUTER_TABLE[7] @0x3cd640  (sel = 8)
+});
+
+/**
+ * `HGFormatUtils::buildFormat(HGFormatComponents components, unsigned int sel)`
+ *   — @Helium 0xa26e0.
+ *
+ * Faithful transcription. Returns an HGFormat enum value composed from the
+ * component-layout `components` (1-based, in %edi) and the bit-depth/packing
+ * selector `sel` (in %esi), via the validity-gated 2-level table lookup
+ * documented above. Returns 0 for any invalid `sel` (i.e. `sel` not in {1,2,4,8}).
+ *
+ * No in-scope callees, no externs — pure arithmetic + a data-table read whose
+ * bytes are transcribed verbatim from the binary.
+ */
+export function HGFormatUtils_buildFormat(components: number, sel: number): number {
+  // @0xa26e0-0xa26e2: ecx = sel - 1.
+  const cl = (sel - 1) & 0xffffffff;
+  // @0xa26e4-0xa26e7: al = ((sel-1) < 8)  [unsigned].
+  const below8 = (cl >>> 0) < 8 ? 1 : 0;
+  // @0xa26ea-0xa26ee: dl = ((0x8B >> (sel-1)) & 1) & al   (byte-domain shift).
+  // The byte shift uses the low 3 bits of cl as the count (shrb %cl uses cl&7
+  // for an 8-bit operand); below8 already forces the out-of-range case to 0.
+  const maskBit = below8 !== 0 ? ((0x8b >> (cl & 7)) & 1) : 0;
+  const dl = maskBit & below8;
+  // @0xa26f0-0xa26f5: if (dl != 1) return 0.
+  if (dl !== 1) {
+    // @0xa2710 retq with eax = 0.
+    return 0;
+  }
+  // @0xa26fb: outer index = sel - 1 (guaranteed in {0,1,3,7} by the gate).
+  const outerIdx = cl >>> 0;
+  // @0xa26fd-0xa2704: rax = OUTER_TABLE[sel-1] (a non-null sub-array pointer).
+  const sub = BUILD_FORMAT_TABLE[outerIdx];
+  // @0xa2708-0xa270b: eax = sub[components - 1]  (movslq sign-extends %edi;
+  // the -0x4 byte offset with a 4-byte stride is a 1-based index).
+  // The binary performs no bounds check on `components`; a faithful port
+  // reads the same 32-bit slot. Only components in [1,4] are in-table.
+  return (sub[(components | 0) - 1] as number) >>> 0;
+}
