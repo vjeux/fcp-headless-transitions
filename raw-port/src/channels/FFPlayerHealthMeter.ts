@@ -19,11 +19,28 @@
 // fixed timescale of 10000 (0x2710): a seconds value `s` becomes CMTimeMake(trunc(s*10000), 10000).
 
 import type { CMTime } from "../infra/CMTime.js";
-import { CMTimeMake, CMTimeAdd, CMTimeSubtract, kCMTimeZero } from "../infra/CMTime.js";
+import {
+  CMTimeMake,
+  CMTimeAdd,
+  CMTimeSubtract,
+  CMTimeCompare,
+  CMTimeGetSeconds,
+  kCMTimeZero,
+} from "../infra/CMTime.js";
 
 export class FFPlayerHealthMeter {
-  // +0x18  frame duration in seconds (single precision) — read by this method.
+  // +0x00  current frame duration as a CMTime (24-byte struct) — written by
+  //        setFrameDur; the first field of the object. (Recovered from
+  //        setFrameDur @Flexo 0xda1820: `this+0x0` is the target of the
+  //        24-byte struct copy and the source of the second CMTimeCompare.)
+  frameDur: CMTime = { ...kCMTimeZero };
+  // +0x18  frame duration in seconds (single precision) — read by
+  //        getLiveEditFrameGenerationAllowance, written by setFrameDur.
   frameDurSeconds = 0;
+  // +0x1c  frame rate = 1.0f / frameDurSeconds (single precision) — written
+  //        by setFrameDur (@Flexo 0xda18c2..0xda18ce). Immediately follows
+  //        frameDurSeconds in the object.
+  frameRate = 0;
   // +0x1b10  first live-edit per-frame allowance limit in seconds (f32).
   liveEditAllowanceLimit1 = 0;
   // +0x1b44  second live-edit allowance limit in seconds (f32).
@@ -70,6 +87,90 @@ export class FFPlayerHealthMeter {
   }
   // +0x1b5c  number of GPUs (int32) — written by setNumGPUs(int) @Flexo 0xda45e0.
   numGPUs = 0;
+
+  /**
+   * FFPlayerHealthMeter::setFrameDur(CMTime)
+   * @0xADDR Flexo 0x0000000000da1820  (__ZN19FFPlayerHealthMeter11setFrameDurE6CMTime)
+   *
+   * Stores a new frame-duration CMTime on `this` and, if it differs from the
+   * currently-stored duration, updates the cached `frameDurSeconds` (f32) and
+   * `frameRate` (= 1.0f / seconds, f32).
+   *
+   * DECODE (raw-port/re/disasm/Flexo.__ZN19FFPlayerHealthMeter11setFrameDurE6CMTime.s — 50 lines):
+   *
+   *   ; --- build a local CMTime = CMTimeMake(1, 1000) = 1ms ---
+   *   0xda182c  leaq -0x20(%rbp),%rdi                        ; sret = &localOneMs
+   *   0xda1830  movl $0x1,%esi                               ; value = 1
+   *   0xda1835  movl $0x3e8,%edx                             ; timescale = 1000 (0x3E8)
+   *   0xda183a  callq _CMTimeMake                            ; localOneMs = CMTimeMake(1, 1000)
+   *
+   *   ; --- first CMTimeCompare(param, localOneMs) — RESULT UNUSED ---
+   *   0xda183f-0xda185e  stack: arg1 = param CMTime (from 0x10(%rbp)/0x20(%rbp)) @ (%rsp);
+   *                              arg2 = localOneMs (from -0x20(%rbp)/-0x10(%rbp)) @ 0x18(%rsp)
+   *   0xda1862  callq _CMTimeCompare                         ; eax = compare(param, 1ms) — NOT READ
+   *
+   *   ; --- second CMTimeCompare(param, this->frameDur@0x0) — gates the update ---
+   *   0xda1867-0xda1885  stack: arg1 = param CMTime @ (%rsp);
+   *                              arg2 = this->frameDur (from 0x10(%rbx)/(%rbx)) @ 0x18(%rsp)
+   *   0xda1889  callq _CMTimeCompare
+   *   0xda188e  testl %eax,%eax ; je 0xda18d3                ; if (param == this->frameDur) return
+   *
+   *   ; --- update block (0xda1892): param differs from stored frameDur ---
+   *   0xda1892  leaq 0x10(%rbp),%rax                         ; rax = &param CMTime
+   *   0xda1896-0xda18a1  this->frameDur = param              ; 24-byte struct copy to this+0x0
+   *                        (movq param+0x10 -> this+0x10 ; movups param[0..15] -> this[0..15])
+   *   0xda18a4-0xda18b0  stack: arg = param CMTime @ (%rsp)
+   *   0xda18b4  callq _CMTimeGetSeconds                      ; xmm0 = (double)seconds(param)
+   *   0xda18b9  cvtsd2ss %xmm0,%xmm0                         ; s = (float)seconds
+   *   0xda18bd  movss %xmm0,0x18(%rbx)                       ; this->frameDurSeconds = s
+   *   0xda18c2  movss 1.0f(%rip),%xmm1                       ; xmm1 = 1.0f  (@Flexo __const 0x156ccd0)
+   *   0xda18ca  divss %xmm0,%xmm1                            ; xmm1 = 1.0f / s
+   *   0xda18ce  movss %xmm1,0x1c(%rbx)                       ; this->frameRate = 1.0f / s
+   *   0xda18d3  ...retq                                      ; return (void)
+   *
+   * In-scope callees: NONE. The four callees (_CMTimeMake / _CMTimeCompare (x2) /
+   * _CMTimeGetSeconds) are CoreMedia public-API boundary functions, modelled in
+   * ../infra/CMTime.ts (imported and called here — no re-stub).
+   *
+   * @param frameDur the new frame duration (CMTime passed by value — the caller's
+   *        24-byte struct at 0x10(%rbp)).
+   */
+  setFrameDur(frameDur: CMTime): void {
+    // @0xda182c..0xda183a  localOneMs = CMTimeMake(1, 1000)  (value=1, timescale=0x3E8=1000).
+    const localOneMs = CMTimeMake(1, 1000);
+
+    // @0xda183f..0xda1862  first CMTimeCompare(param, localOneMs). The machine
+    //   emits this call but never reads its result (eax is overwritten at
+    //   0xda1867 before use). Transcribed faithfully as a call whose return is
+    //   discarded — do not drop it (it is real work the binary performs).
+    void CMTimeCompare(frameDur, localOneMs);
+
+    // @0xda1867..0xda1890  second CMTimeCompare(param, this->frameDur);
+    //   testl %eax,%eax ; je return  →  if equal (compare == 0), no-op return.
+    if (CMTimeCompare(frameDur, this.frameDur) === 0) {
+      // @0xda1890 je 0xda18d3 : param equals the stored frameDur — return.
+      return;
+    }
+
+    // @0xda1892..0xda18a1  this->frameDur = param  (24-byte struct copy to this+0x0).
+    this.frameDur = {
+      value: frameDur.value,
+      timescale: frameDur.timescale,
+      flags: frameDur.flags,
+      epoch: frameDur.epoch,
+    };
+
+    // @0xda18b4  s_double = CMTimeGetSeconds(param).
+    const sDouble = CMTimeGetSeconds(frameDur);
+    // @0xda18b9  cvtsd2ss : s = (float)s_double.
+    const s = Math.fround(sDouble);
+    // @0xda18bd  this->frameDurSeconds = s.
+    this.frameDurSeconds = s;
+    // @0xda18c2..0xda18ce  this->frameRate = (float)(1.0f / s).
+    //   1.0f is the __const @Flexo 0x156ccd0 (bytes 00 00 80 3f = 1.0f);
+    //   divss is single-precision, so wrap the quotient in Math.fround.
+    this.frameRate = Math.fround(Math.fround(1.0) / s);
+  }
 
   /**
    * FFPlayerHealthMeter::getLiveEditFrameGenerationAllowance(double)
