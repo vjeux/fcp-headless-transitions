@@ -47,6 +47,7 @@
 // Symbols ported here (mangled → address)
 // -----------------------------------------------------------------------------
 //   * __ZN19PCConditionVariable6signalEv   PCConditionVariable::signal()  @0x3431c
+//   * __ZN19PCConditionVariableC1Ev         PCConditionVariable::PCConditionVariable()  [C1]  @0x34274
 //
 
 /** Opaque pthread_cond_t handle. Not modeled here — pthread primitives are
@@ -72,6 +73,67 @@ export class PCConditionVariable {
    * Opaque here; POSIX primitive.
    */
   cond_at_0x0: PthreadCond | null = null;
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // PCConditionVariable::PCConditionVariable()  [C1 complete ctor]
+  //
+  // Disassembly source:
+  //   raw-port/re/disasm/ProCore.__ZN19PCConditionVariableC1Ev.s
+  //
+  // FULL DISASM
+  //   0x34274  pushq  %rbp                              ; frame prologue
+  //   0x34275  movq   %rsp, %rbp
+  //   0x34278  xorl   %esi, %esi                        ; arg2 = nullptr (attr)
+  //   0x3427a  popq   %rbp                              ; frame epilogue
+  //   0x3427b  jmp    _pthread_cond_init                ; TAIL-CALL
+  //                                                    ;   (POSIX stub
+  //                                                    ;    @ProCore 0xdea80)
+  //
+  // The ctor zeroes %esi (the 2nd argument — the pthread_condattr_t*) so the
+  // effective call is `_pthread_cond_init(this, nullptr)`.  %rdi still holds
+  // `this` untouched (no `addq` before the tail-jmp), so the pthread_cond_t is
+  // at this+0x0 — consistent with signal()'s untouched-%rdi tail-jmp to
+  // _pthread_cond_signal.  Semantically:
+  //     return _pthread_cond_init(this, nullptr);
+  // The compiler chose a straight tail-jmp because after zeroing %esi both
+  // argument registers already hold exactly what pthread_cond_init needs.
+  //
+  // FRONTIER CALLEES (one, TRUE OUT-OF-SCOPE extern)
+  //   * _pthread_cond_init @ProCore stub 0xdea80 — POSIX pthread primitive
+  //     (libSystem.B.dylib), OUTSIDE the 5-framework port scope.  Same policy
+  //     as signal()'s _pthread_cond_signal and every other pthread callee in
+  //     this port (see PCSemaphore.ts, PCMutex.ts): we raise, not paper-over.
+  // ═════════════════════════════════════════════════════════════════════════
+  /**
+   * `PCConditionVariable::PCConditionVariable()` — @ProCore 0x34274
+   * (__ZN19PCConditionVariableC1Ev).
+   *
+   * Faithful transcription of the disassembly above.  The entire body is: a
+   * frame prologue, `xorl %esi,%esi` (attr = nullptr), an immediate epilogue,
+   * and a tail-jmp to `_pthread_cond_init` with `this` untouched in %rdi.
+   * Since pthread is a TRUE out-of-scope extern (POSIX primitive; not modeled
+   * in the TS port), we raise rather than paper over the boundary — identical
+   * policy to signal()'s _pthread_cond_signal tail-jmp.
+   */
+  constructor() {
+    // @0x34274..0x34275 — frame prologue (transcribed as JS scope entry).
+    // @0x34278 — xorl %esi,%esi: 2nd arg (pthread_condattr_t*) = nullptr.
+    // No offset adjustment on %rdi; the pthread_cond_t is at this+0x0 (same
+    // as signal()'s untouched-%rdi tail-jmp).  %rdi already holds the correct
+    // 1st argument for the tail-jmp.
+    void this.cond_at_0x0;
+    // @0x3427a..0x3427b — popq %rbp; jmp _pthread_cond_init (tail-call) with
+    // args (this, nullptr).  POSIX pthread — TRUE out-of-scope extern
+    // (libSystem.B.dylib stub @ProCore 0xdea80).  We raise, not paper-over.
+    // Same policy as signal()'s _pthread_cond_signal and the pthread_* callees
+    // in PCSemaphore.ts / PCMutex.ts.
+    throw new Error(
+      "PCConditionVariable::PCConditionVariable() requires _pthread_cond_init(this, nullptr) " +
+        "@ProCore 0x3427b (POSIX pthread stub @0xdea80) — pthread primitives " +
+        "are not modeled in TS. " +
+        "@0x34274",
+    );
+  }
 
   // ═════════════════════════════════════════════════════════════════════════
   // PCConditionVariable::signal()
