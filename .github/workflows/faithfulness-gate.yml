@@ -1,0 +1,79 @@
+name: faithfulness-gate
+
+# The FCP raw-port faithfulness gate, as a required PR check. Runs on a SELF-HOSTED runner
+# on vjeux-mac because the anti-cheat oracle (fct/parity) dlsym's the REAL Final Cut Pro
+# binary — impossible on GitHub cloud runners. Wraps the EXISTING gate.sh + regression_check
+# + dup_check unchanged (see raw-port/army/gate/gate.sh). Red check == not mergeable.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'raw-port/src/**'
+      - 'raw-port/army/gate/**'
+      - 'raw-port/army/tools/regression_check.py'
+      - 'raw-port/army/tools/dup_check.py'
+  workflow_dispatch: {}
+
+concurrency:
+  group: fcp-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: [self-hosted, fcp-mac]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout PR head (full history for merge-base)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute changed .ts files vs main
+        id: changed
+        run: |
+          git fetch -q origin main
+          CHANGED=$(git diff --name-only origin/main...HEAD -- 'raw-port/src/**/*.ts' | tr '\n' ' ')
+          echo "files=$CHANGED" >> "$GITHUB_OUTPUT"
+          echo "Changed .ts files: $CHANGED"
+          if [ -z "$CHANGED" ]; then echo "No raw-port/src/*.ts changes — nothing to gate."; fi
+
+      - name: Link runtime deps (tsgo / oracle venv / tsx) from the reference checkout
+        run: |
+          REF="$HOME/random/final-cut-pro-transitions"
+          ln -sfn "$REF/engine/node_modules"   engine/node_modules   2>/dev/null || true
+          ln -sfn "$REF/raw-port/node_modules" raw-port/node_modules 2>/dev/null || true
+          ln -sfn "$REF/venv"                  venv                  2>/dev/null || true
+          test -x engine/node_modules/.bin/tsgo && echo "tsgo linked" || echo "WARN: tsgo missing"
+
+      - name: G0-G5 faithfulness gate (gate.sh)
+        if: steps.changed.outputs.files != ''
+        run: bash raw-port/army/gate/gate.sh ${{ steps.changed.outputs.files }}
+
+      - name: Stale-base regression gate (must not drop a landed @0xADDR symbol)
+        if: steps.changed.outputs.files != ''
+        run: |
+          set +e
+          python3 raw-port/army/tools/regression_check.py origin/main HEAD ${{ steps.changed.outputs.files }}
+          rc=$?
+          if [ "$rc" = "2" ]; then
+            echo "::error::REGRESSION GATE FAILED — branch drops a landed symbol; rebase onto origin/main."
+            exit 6
+          fi
+          exit 0
+
+      - name: Dup-ledger gate (must add >=1 genuinely-new symbol)
+        if: steps.changed.outputs.files != ''
+        run: |
+          set +e
+          python3 raw-port/army/tools/dup_check.py origin/main HEAD ${{ steps.changed.outputs.files }}
+          rc=$?
+          if [ "$rc" = "5" ]; then
+            echo "::error::DUP-LEDGER GATE FAILED — every cited symbol already exists on main (re-port)."
+            exit 7
+          fi
+          exit 0
+
+      - name: Gate summary
+        if: always()
+        run: echo "faithfulness-gate finished for PR #${{ github.event.pull_request.number }}"
