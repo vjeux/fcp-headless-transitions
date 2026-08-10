@@ -329,3 +329,165 @@ export class TextureInfo {
     this.f39 = 0;
   }
 }
+
+// -----------------------------------------------------------------------------
+// HGTextureManager::PostTextureDeleteEventList — the deferred texture-delete
+// queue nested inside HGTextureManager.
+// -----------------------------------------------------------------------------
+// SYMBOL PORTED HERE
+//   HGTextureManager::PostTextureDeleteEventList::popEvent()  @Helium 0x48090
+//   __ZN16HGTextureManager26PostTextureDeleteEventList8popEventEv
+//   re/disasm: raw-port/re/disasm/
+//     Helium.__ZN16HGTextureManager26PostTextureDeleteEventList8popEventEv.s
+//
+// FULL DISASM (9 lines, @0x48090..@0x480a6)
+//   __ZN16HGTextureManager26PostTextureDeleteEventList8popEventEv:
+//     0x48090  pushq %rbp
+//     0x48091  movq  %rsp, %rbp
+//     0x48094  movq  0x48(%rdi), %rcx        ; rcx = this->__end_   (+0x48)
+//     0x48098  movq  -0x8(%rcx), %rax        ; rax = rcx[-1]        (the last void*)
+//     0x4809c  addq  $-0x8, %rcx             ; rcx -= one 8-byte element
+//     0x480a0  movq  %rcx, 0x48(%rdi)        ; this->__end_ = rcx
+//     0x480a4  popq  %rbp
+//     0x480a5  retq
+//     0x480a6  nopw  %cs:(%rax,%rax)         ; alignment padding
+//
+// LAYOUT — recovered from the sibling methods, NOT guessed:
+//   +0x00  pthread_mutex_t (0x40 bytes)
+//          The constructor @0x47f50 calls `_pthread_mutex_init(%rdi, 0)` @0x47f72
+//          with %rdi still holding `this`, so the mutex sits at offset 0 and the
+//          next member starts at +0x40 — i.e. it occupies exactly 0x40 bytes,
+//          which is sizeof(pthread_mutex_t) on macOS x86_64.
+//   +0x40  void** __begin_
+//   +0x48  void** __end_
+//   +0x50  void** __end_cap_
+//          The classic libc++ `std::vector<void*>` triple:
+//            * ctor @0x47f64 `movups %xmm0, 0x40(%rdi)` zeroes +0x40/+0x48 and
+//              @0x47f68 `movq $0x0, 0x50(%rdi)` zeroes +0x50 — three null pointers.
+//            * `hasEvent()` @0x48070 is `__begin_ != __end_`
+//              (`movq 0x40(%rdi),%rax ; cmpq 0x48(%rdi),%rax ; setne %al`).
+//            * `addEvent(void*)` @0x42b20 is push_back: compare __end_ (+0x48)
+//              against __end_cap_ (+0x50) @0x42b3c, store on the fast path, else
+//              grow via `__Znwm` @0x42bb1 with libc++'s exact
+//              `max(2*capacity, size+1)` / `0x1fffffffffffffff` overflow guard.
+//            * the ctor's unwind path @0x47f85 `operator delete`s the block at
+//              (%r15) = +0x40 — i.e. __begin_ owns the allocation.
+//
+// FRONTIER CALLEES: none. popEvent has no `callq` at all — two loads, one store,
+// one pointer decrement. No externs, no indirect/virtual call.
+
+/**
+ * The element type of `PostTextureDeleteEventList`'s vector: the `void*` that
+ * `addEvent(void*)` (`__ZN16HGTextureManager26PostTextureDeleteEventList8addEventEPv`
+ * @Helium 0x42b20) stores verbatim @0x42b41 (`movq %rsi, (%r14)`) and that
+ * `popEvent` hands back untouched in %rax @0x48098.
+ *
+ * The binary never dereferences it anywhere in this class, so the port keeps it
+ * opaque rather than inventing a shape for it.
+ */
+export type PostTextureDeleteEvent = unknown;
+
+/**
+ * `pthread_mutex_t` at `PostTextureDeleteEventList+0x00` — an out-of-scope
+ * libSystem type. `lock()` @Helium 0x42b10 and `unlock()` @Helium 0x42c30 are
+ * its only users, and both are separate ledger units; `popEvent` never touches
+ * it. Modelled as an opaque handle so the 0x40-byte member the constructor
+ * initialises (`_pthread_mutex_init` @stub 0x3c5564, called @0x47f72) is
+ * represented rather than silently dropped from the layout.
+ */
+export interface PthreadMutexT {
+  readonly __pthreadMutexT: unique symbol;
+}
+
+/**
+ * `HGTextureManager::PostTextureDeleteEventList` — a mutex-guarded LIFO of
+ * `void*` delete events, held as a libc++ `std::vector<void*>` at +0x40.
+ *
+ * Only `popEvent()` is transcribed in this ledger unit; `lock`, `unlock`,
+ * `addEvent`, `hasEvent`, the constructors and the destructors are their own
+ * units. The member layout above is nonetheless pinned by those siblings'
+ * disassembly (see the LAYOUT block), so no offset here is a guess.
+ *
+ * @Helium 0x47f50 (`__ZN16HGTextureManager26PostTextureDeleteEventListC2Ev`,
+ * the constructor the layout is recovered from)
+ */
+export class PostTextureDeleteEventList {
+  /**
+   * @Helium offset +0x00 — the `pthread_mutex_t` guarding the vector, zero-arg
+   * initialised @0x47f72 by `_pthread_mutex_init(this, nullptr)`. Untouched by
+   * `popEvent`; `null` models the pre-`pthread_mutex_init` state.
+   */
+  mutex_at_0x00: PthreadMutexT | null = null;
+
+  /**
+   * The heap block that `__begin_`/`__end_`/`__end_cap_` point into, one entry
+   * per 8-byte `void*` slot. In the binary this is the single allocation made by
+   * `operator new` @0x42bb1 inside `addEvent`'s grow path and freed by
+   * `operator delete` (the ctor's unwind path @0x47f91 and the destructor
+   * @0x47ff0); the three members below are byte offsets into it, exactly as the
+   * machine holds byte pointers into it.
+   *
+   * @Helium 0x42bb1 (the `__Znwm` that creates the block)
+   */
+  storage: Array<PostTextureDeleteEvent> = [];
+
+  /**
+   * @Helium offset +0x40 — libc++ `__begin_`, as a BYTE offset into `storage`.
+   * Zeroed by the constructor @0x47f64 (`movups %xmm0, 0x40(%rdi)`), compared
+   * against `__end_` by `hasEvent` @0x48074. `popEvent` never reads it.
+   */
+  begin_at_0x40 = 0;
+
+  /**
+   * @Helium offset +0x48 — libc++ `__end_` (one past the last live element), as
+   * a BYTE offset into `storage`. Zeroed by the constructor @0x47f64, advanced
+   * by 8 per `addEvent` @0x42b44, and decremented by 8 by `popEvent` @0x4809c.
+   * This is the only field `popEvent` writes.
+   */
+  end_at_0x48 = 0;
+
+  /**
+   * @Helium offset +0x50 — libc++ `__end_cap_` (one past the last allocated
+   * slot), as a BYTE offset into `storage`. Zeroed by the constructor @0x47f68
+   * (`movq $0x0, 0x50(%rdi)`) and read by `addEvent`'s capacity check @0x42b38.
+   * `popEvent` never touches it — a pop does not shrink the allocation.
+   */
+  endCap_at_0x50 = 0;
+
+  /**
+   * `HGTextureManager::PostTextureDeleteEventList::popEvent()` — @Helium 0x48090
+   * (`__ZN16HGTextureManager26PostTextureDeleteEventList8popEventEv`).
+   *
+   * Faithful line-for-line transcription of the 9-line disassembly quoted above:
+   * read `__end_`, load the element just below it, move `__end_` down by one
+   * 8-byte slot, and return that element. This is `back()` followed by
+   * `pop_back()` fused into one function — legal for `void*` because the element
+   * type is trivially destructible, so libc++ emits no destructor call and the
+   * whole body is two loads, a subtraction and a store.
+   *
+   * NOT thread-safe on its own: the function contains no `callq`, so it never
+   * takes the `pthread_mutex_t` at +0x00. Callers are expected to bracket it
+   * with `lock()` @0x42b10 / `unlock()` @0x42c30 themselves.
+   *
+   * NOT bounds-checked: on an empty list (`__begin_ == __end_`) the machine
+   * still executes `movq -0x8(%rcx), %rax` and reads the 8 bytes below the
+   * buffer, then leaves `__end_` one slot below `__begin_`. We do NOT insert a
+   * guard the disasm doesn't have (PORTING_SPEC Rule 1); the TS mirror reads the
+   * out-of-range index exactly as the binary reads out-of-range memory.
+   *
+   * @0xADDR Helium 0x48090
+   */
+  popEvent(): PostTextureDeleteEvent {
+    // @0x48094  movq 0x48(%rdi), %rcx      ; rcx = this->__end_
+    let rcx = this.end_at_0x48;
+    // @0x48098  movq -0x8(%rcx), %rax      ; rax = *(void**)(rcx - 8)
+    const rax = this.storage[(rcx - 0x8) >> 3];
+    // @0x4809c  addq $-0x8, %rcx           ; rcx -= 8 (one element)
+    rcx = rcx + -0x8;
+    // @0x480a0  movq %rcx, 0x48(%rdi)      ; this->__end_ = rcx
+    this.end_at_0x48 = rcx;
+    // @0x480a4  popq %rbp
+    // @0x480a5  retq                       ; return rax
+    return rax;
+  }
+}

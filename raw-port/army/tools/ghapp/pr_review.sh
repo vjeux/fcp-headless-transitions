@@ -1,0 +1,89 @@
+#!/bin/bash
+# pr_review.sh <PR#> <approve|request-changes|comment> "<body>" — submit a REAL GitHub review verdict
+# as the REVIEWER app.
+#
+# WHY THIS REPLACES THE COMMENT WORKAROUND
+# ----------------------------------------
+# When the swarm ran as a single identity, reviewers physically could not use GitHub's review system:
+# GitHub rejects a review on your own PR ("Can not approve your own pull request"), and every PR was
+# authored by the same account doing the reviewing. So an ACCEPT was "merge it and leave a comment",
+# and a REJECT was a red `faithfulness-gate` status plus a comment — reviewer-06 hit exactly this on
+# PR #154, where a genuine oracle-proven divergence could only be recorded as a status + prose.
+#
+# Consequences of that workaround, all fixed here:
+#   * REQUEST_CHANGES never blocked anything; a rejected PR looked mergeable to the next actor.
+#   * "reviewed" was not machine-readable — no way to require review in branch protection.
+#   * The GitHub UI showed no reviewer, so a human auditing the repo saw unreviewed merges.
+#
+# With the worker app authoring PRs and the reviewer app judging them, author != reviewer, so the
+# real verdicts work and `required_pull_request_reviews` can enforce them SERVER-SIDE.
+#
+# IDEMPOTENT: a reviewer loop may re-verify the same head. This refuses to submit a second review of
+# the same (PR, head SHA, verdict) — the head SHA is the key, so a NEW push does get a fresh verdict.
+#
+# EXIT: 0 submitted (or already present), 2 usage, 3 self-review refused (apps not set up — the
+# caller should fall back to the status+comment path), 4 API error.
+set -uo pipefail
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+SLUG="${FCT_REPO:-vjeux/fcp-headless-transitions}"
+
+PR="${1:?usage: pr_review.sh <PR#> <approve|request-changes|comment> \"<body>\"}"
+VERDICT="${2:?usage: pr_review.sh <PR#> <approve|request-changes|comment> \"<body>\"}"
+shift 2
+BODY="${*:-}"
+
+case "$VERDICT" in
+  approve)          EVENT="APPROVE" ;;
+  request-changes)  EVENT="REQUEST_CHANGES" ;;
+  comment)          EVENT="COMMENT" ;;
+  *) echo "pr_review: verdict must be approve|request-changes|comment" >&2; exit 2 ;;
+esac
+[ "$EVENT" = "APPROVE" ] || [ -n "$BODY" ] || {
+  echo "pr_review: a $EVENT verdict REQUIRES a body naming exactly what is wrong" >&2; exit 2; }
+
+HEAD_SHA=$("$ROOT/gh_as.sh" reviewer pr view "$PR" --repo "$SLUG" --json headRefOid --jq .headRefOid 2>/dev/null)
+[ -n "$HEAD_SHA" ] || { echo "pr_review: cannot read head SHA for PR #$PR" >&2; exit 4; }
+
+# --- idempotence: has THIS reviewer identity already ruled on THIS head? ----------------------
+ME=$("$ROOT/gh_as.sh" reviewer api user --jq '.login' 2>/dev/null || echo "")
+if [ -n "$ME" ]; then
+  PRIOR=$("$ROOT/gh_as.sh" reviewer api "repos/$SLUG/pulls/$PR/reviews" --paginate 2>/dev/null \
+    | python3 -c "
+import json,sys
+try: rs=json.load(sys.stdin)
+except Exception: raise SystemExit
+for r in rs:
+    if (r.get('user') or {}).get('login')=='$ME' and r.get('commit_id')=='$HEAD_SHA' \
+       and r.get('state') in ('APPROVED','CHANGES_REQUESTED'):
+        print(r['state']); break
+" 2>/dev/null)
+  if [ -n "$PRIOR" ]; then
+    echo "pr_review: PR #$PR @ ${HEAD_SHA:0:8} already has $PRIOR from $ME — not re-reviewing"
+    exit 0
+  fi
+fi
+
+# --- submit -----------------------------------------------------------------------------------
+resp=$(python3 -c "
+import json,sys
+print(json.dumps({'commit_id':'$HEAD_SHA','event':'$EVENT','body':sys.argv[1]}))
+" "$BODY" | "$ROOT/gh_as.sh" reviewer api -X POST "repos/$SLUG/pulls/$PR/reviews" --input - 2>&1)
+
+if printf '%s' "$resp" | grep -q '"state"'; then
+  state=$(printf '%s' "$resp" | python3 -c "import json,sys;print(json.load(sys.stdin).get('state',''))" 2>/dev/null)
+  echo "pr_review: PR #$PR @ ${HEAD_SHA:0:8} -> $state (as ${ME:-app})"
+  exit 0
+fi
+
+if printf '%s' "$resp" | grep -qiE 'own pull request|not approve your own'; then
+  cat >&2 <<EOF
+pr_review: REFUSED — GitHub says this identity authored PR #$PR, so it cannot review it.
+  This is the exact limitation the two GitHub Apps exist to remove. Either the reviewer app is not
+  configured (run: python3 raw-port/army/tools/ghapp/setup_apps.py) or this PR was authored by the
+  reviewer identity rather than the worker app. Falling back to status+comment is the caller's job.
+EOF
+  exit 3
+fi
+
+echo "pr_review: API error on PR #$PR: $(printf '%s' "$resp" | head -c 400)" >&2
+exit 4
