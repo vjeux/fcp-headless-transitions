@@ -1389,6 +1389,52 @@ export class OZRenderParams {
   }
 
   /**
+   * OZRenderParams::getDoHighQualityResampling() const  @Ozone 0x271870
+   *   __ZNK14OZRenderParams26getDoHighQualityResamplingEv
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x271870  pushq  %rbp                        ; frame setup (no TS counterpart)
+   *   0x271871  movq   %rsp, %rbp                  ; frame setup (no TS counterpart)
+   *   0x271874  movzbl 0x1a8(%rdi), %eax           ; idx = (u8) this->+0x1a8 (mode-byte)
+   *   0x27187b  movzbl 0x1e0(%rdi,%rax), %eax      ; eax = (u8) this->[0x1e0 + idx]
+   *   0x271883  popq   %rbp                        ; frame teardown (no TS counterpart)
+   *   0x271884  retq                               ; return al (C++ bool)
+   *   0x271885  nopw   %cs:(%rax,%rax)             ; alignment padding, not executed
+   *
+   * The byte-array twin of `getDoShapeAntialiasing()` @0x2718e0 — identical
+   * instruction sequence, scale-ONE indexing `(%rdi,%rax)`, only the base
+   * differs (+0x1e0 vs +0x1e2). It therefore selects between the two slots
+   * `setDoHighQualityResampling(bool)` @0x271824/@0x27182b writes together:
+   *   idx 0 -> +0x1e0  (doHighQualityResamplingAt1e0, the static flag)
+   *   idx 1 -> +0x1e1  (doHighQualityResamplingDynamicAt1e1, also written
+   *                     alone by `setDoHighQualityResamplingDynamic`)
+   * No new field is needed — both slots are already modelled by that setter's
+   * landed port.
+   *
+   * `movzbl` on both loads: the index is the raw 0..255 mode byte and the
+   * result is the raw zero-extended flag byte, not a boolean coercion (a
+   * `bool`-typed caller reads only `%al`).
+   *
+   * ZERO in-scope callees, ZERO externs, no indirect/virtual dispatch — a pure
+   * indexed field read.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams26getDoHighQualityResamplingEv.s (7 lines)
+   */
+  getDoHighQualityResampling(this: OZRenderParams): number {
+    // @0x271874  movzbl 0x1a8(%rdi),%eax — mode-byte -> scale-1 array index.
+    const idx = this.flagByteAt1a8 & 0xff;
+    // @0x27187b  movzbl 0x1e0(%rdi,%rax),%eax — byte load at 0x1e0 + idx.
+    const flag =
+      idx === 0
+        ? this.doHighQualityResamplingAt1e0
+        : this.doHighQualityResamplingDynamicAt1e1;
+    // The load zero-extends a single byte into eax.
+    return flag & 0xff;
+  }
+
+  /**
    * `OZRenderParams::disableDynamic()`
    *   — @Ozone 0x2716b0
    *   — __ZN14OZRenderParams14disableDynamicEv
