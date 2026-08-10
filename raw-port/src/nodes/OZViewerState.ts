@@ -20,7 +20,8 @@
 //                                    ; into a 32-bit return value in %eax.
 //   +0x38  displayFlags      : u32   ; movl 0x38(%rdi), %eax    @0x36e684
 //                                    ; packed display-flags word; isDisplay3DGrid
-//                                    ; tests mask 0xA000 (bits 0x2000|0x8000).
+//                                    ; tests mask 0xA000 (bits 0x2000|0x8000),
+//                                    ; isDisplaySlivers tests 0xC000 (0x4000|0x8000).
 //
 // Layout is deliberately UNDER-specified here: we only claim the offset
 // we actually read; other slots will be documented as their own methods
@@ -319,5 +320,45 @@ export class OZViewerState {
     // (flags & 0xA000) === 0xA000  ⇔  (~flags & 0xA000) === 0.
     const MASK_0xA000 = 0xa000; // @0x36e689 imm — bits 0x2000 | 0x8000
     return (this.displayFlags_at_0x38 & MASK_0xA000) === MASK_0xA000;
+  }
+
+  /**
+   * `OZViewerState::isDisplaySlivers() const` @Ozone 0x36e6a0
+   *   — __ZNK13OZViewerState16isDisplaySliversEv
+   *
+   * Faithful transcription of the body: load the u32 display-flags word at
+   * +0x38, invert it, then test it against the 2-bit mask 0xC000 and set the
+   * boolean from ZF. Structurally identical to isDisplay3DGrid() but with a
+   * different mask (0xC000 = 0x4000 | 0x8000).
+   *
+   *   0x36e6a0  pushq  %rbp
+   *   0x36e6a1  movq   %rsp, %rbp
+   *   0x36e6a4  movl   0x38(%rdi), %eax     ; eax = *(u32*)(this + 0x38)
+   *   0x36e6a7  notl   %eax                 ; eax = ~flags
+   *   0x36e6a9  testl  $0xc000, %eax        ; ZF = ((~flags & 0xC000) == 0)
+   *   0x36e6ae  sete   %al                  ; al = ZF
+   *   0x36e6b1  popq   %rbp
+   *   0x36e6b2  retq                        ; return al
+   *
+   * `testl $0xc000, ~flags` sets ZF iff `(~flags & 0xC000) == 0`, i.e. iff
+   * BOTH bits of the mask 0xC000 (0x4000 and 0x8000) are SET in `flags`.
+   * `sete %al` returns true exactly in that case. Equivalent boolean:
+   *   `(flags & 0xC000) === 0xC000`.
+   *
+   * Zero in-scope callees, zero externs — one word-load, one mask-test.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK13OZViewerState16isDisplaySliversEv.s (10 lines)
+   */
+  isDisplaySlivers(): boolean {
+    // @0x36e6a0..0x36e6a1 — prologue (no TS-visible effect).
+    // @0x36e6a4           — movl 0x38(%rdi), %eax: read the u32 at +0x38.
+    // @0x36e6a7           — notl %eax: eax = ~flags.
+    // @0x36e6a9           — testl $0xc000, %eax: ZF = ((~flags & 0xC000)==0).
+    // @0x36e6ae           — sete %al: al = ZF, i.e. both mask bits set in flags.
+    // @0x36e6b1..0x36e6b2 — epilogue + retq (return al as a bool).
+    // (flags & 0xC000) === 0xC000  ⇔  (~flags & 0xC000) === 0.
+    const MASK_0xC000 = 0xc000; // @0x36e6a9 imm — bits 0x4000 | 0x8000
+    return (this.displayFlags_at_0x38 & MASK_0xC000) === MASK_0xC000;
   }
 }
