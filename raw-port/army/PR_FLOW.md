@@ -53,6 +53,22 @@ Branch protection "require branches up to date" forces every PR to be rebased on
 it can merge — GitHub shows "update branch". `pr_submit.sh` already rebases on submit; `rebase_helper.py`
 handles the shared-file union-rebase for the setter-family branches.
 
+## Rebase ownership (2026-08-10) — three kinds, three owners; nothing loops
+Rebasing splits by how much judgment it needs, so it has three owners:
+1. BEHIND / up-to-date only (fast-forwardable) → `pr_land.sh` does it at merge time via GitHub
+   `update-branch`. Mechanical, reviewer-side. `pr_submit.sh` also rebases every PR on submit.
+2. Shared file, DISJOINT top-level exports → `rebase_helper.py <Class>` unions them mechanically
+   (empty-base diff3), gates, pushes. Exit 0 = done (reviewer gate+merges). Safe for the reviewer.
+3. Shared CLASS BODY / real conflict (both branch and main added methods inside one `class X {}`) →
+   `rebase_helper.py` returns exit 6 NEEDS_WORKER_REBASE. Re-applying net-new methods into main's
+   class body is AUTHORING, so a WORKER owns it (the reviewer is the adversary and must not gate its
+   own edits). The coordinator's STEP 4.5 runs `rebase_dispatch.sh --apply` (per-PR attempt cap 3) and
+   dispatches a worker that runs `rebase_pr.sh <PR#>` — it prepares a pool worktree from CURRENT main +
+   the branch's version, the worker re-applies the net-new methods, re-gates, and force-pushes the SAME
+   branch in place. After the cap the PR is closed and the symbol is re-handed to a fresh worker.
+The reviewer NEVER re-gates the same stale head every tick — it escalates (union or worker) or skips
+just that tick. This is what stops #12/#14-style PRs from looping forever.
+
 ## Migration of the 399 pre-existing port/* branches
 `raw-port/army/tools/migrate_branches_to_prs.py` (dry-run default; `--apply` to execute):
 MERGED/DUP/EMPTY → delete branch; STALE → rebase_helper then re-triage; CLEAN → open PR.
