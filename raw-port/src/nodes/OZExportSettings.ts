@@ -26,6 +26,8 @@
 //   OZExportSettings::OZExportSettings(OZExportSettings const&) @Ozone 0x33dfe0
 //   OZExportSettings::getRenderQuality() const                  @Ozone 0x33e160
 //     disasm: raw-port/re/disasm/__ZNK16OZExportSettings16getRenderQualityEv.s
+//   OZExportSettings::setRenderQuality(OZExportQuality)         @Ozone 0x33e1a0
+//     disasm: raw-port/re/disasm/__ZN16OZExportSettings16setRenderQualityE15OZExportQuality.s
 
 export interface OZExportSettings_Fields {
   // +0x00 vtable ptr — modelled as a constant identity string here.
@@ -240,4 +242,105 @@ export function OZExportSettings_getRenderQuality(
   }
   // @0x33e194 — retq with %eax still holding q from @0x33e16f.
   return q;
+}
+
+/**
+ * OZExportSettings::setRenderQuality(OZExportQuality)
+ * @0x000000000033e1a0  Ozone
+ * (mangled: __ZN16OZExportSettings16setRenderQualityE15OZExportQuality)
+ *
+ * The writer counterpart of `OZExportSettings_getRenderQuality` @0x33e160
+ * above: it stamps the requested quality code into the two 32-bit halves of
+ * the +0x24 qword and then re-derives the three cached predicate bytes at
+ * +0x2c/+0x2d/+0x2e that the getter cross-checks.
+ *
+ * FULL DISASM (13 lines — raw-port/re/disasm/
+ * __ZN16OZExportSettings16setRenderQualityE15OZExportQuality.s):
+ *
+ *   0x33e1a0  pushq %rbp                   ; prologue
+ *   0x33e1a1  movq  %rsp, %rbp
+ *   0x33e1a4  movl  %esi, 0x24(%rdi)       ; this[+0x24] = q      (32-bit)
+ *   0x33e1a7  cmpl  $0x8, %esi             ; q == 8 ?
+ *   0x33e1aa  je    0x33e1c1               ; YES -> return, leaving +0x28 and
+ *                                          ;        the three bytes UNTOUCHED
+ *   0x33e1ac  movl  %esi, 0x28(%rdi)       ; this[+0x28] = q      (32-bit)
+ *   0x33e1af  cmpl  $0x2, %esi             ; flags on (q - 2)
+ *   0x33e1b2  setge 0x2d(%rdi)             ; this[+0x2d] = (q >= 2)  SIGNED
+ *   0x33e1b6  cmpl  $0x6, %esi             ; flags on (q - 6)
+ *   0x33e1b9  setge 0x2c(%rdi)             ; this[+0x2c] = (q >= 6)  SIGNED
+ *   0x33e1bd  setge 0x2e(%rdi)             ; this[+0x2e] = (q >= 6)  — SAME
+ *                                          ;   flags, NOT recomputed
+ *   0x33e1c1  popq  %rbp                   ; shared epilogue
+ *   0x33e1c2  retq                         ; void
+ *   0x33e1c3  nopw  %cs:(%rax,%rax)        ; alignment padding, not code
+ *
+ * Three details a paraphrase would lose, all transcribed literally below:
+ *
+ *  1. **`q == 8` is an early-out that still writes +0x24.** The store at
+ *     @0x33e1a4 happens BEFORE the compare, so quality code 8 lands in the
+ *     low half while +0x28 and the three predicate bytes keep their previous
+ *     values. (8 is also the "inconsistent" sentinel the getter returns at
+ *     @0x33e18f, so this is the binary's way of parking that code without
+ *     disturbing the derived state.)
+ *  2. **The last two `setge`s share ONE compare.** @0x33e1bd has no `cmpl`
+ *     of its own — it reuses the flags from `cmpl $0x6` @0x33e1b6, so +0x2c
+ *     and +0x2e are written the SAME value, not two independently derived
+ *     predicates. The port computes `q >= 6` once and stores it twice.
+ *  3. **`setge` is the SIGNED condition** (SF == OF), and `cmpl` computes
+ *     `dst - src` = `q - 2` / `q - 6` (PORTING_SPEC Rule 4 cheat-sheet), so
+ *     these are `q >= 2` and `q >= 6` over the SIGNED 32-bit enum value — a
+ *     negative code makes both false. The port therefore compares the
+ *     sign-extended `q | 0`, not a `>>> 0` unsigned reading.
+ *
+ * FIELD MAPPING to the interface above: exactly as
+ * `OZExportSettings_getRenderQuality` documents, +0x24 and +0x28 are the
+ * little-endian LOW and HIGH 32-bit halves of the single 8-byte slot the copy
+ * ctor @0x33dfe0 moves with one `movq 0x24(%rsi),%rax` — modelled by the
+ * existing `field0x24: bigint`. This unit writes those halves in place and
+ * invents no new field, so the interface is unchanged.
+ *
+ * Cross-check against the getter (an observation, not an added behaviour):
+ * the getter requires `+0x2c == (q == 6)` @0x33e172-0x33e17e, whereas this
+ * setter stores `q >= 6`. The two agree for every code `q <= 6`; for `q > 6`
+ * the getter sees a mismatch and reports its 8 sentinel. Nothing here
+ * "corrects" that — the instruction stream is reproduced as-is.
+ *
+ * FRONTIER CALLEES: none — leaf function (no calls, no externs, no indirect
+ * or virtual dispatch, no allocation).
+ *
+ * @param self    the `OZExportSettings` — `this` (%rdi) in the native method.
+ * @param quality the `OZExportQuality` enum code — `%esi` (signed 32-bit).
+ */
+export function OZExportSettings_setRenderQuality(
+  self: OZExportSettings_Fields,
+  quality: number,
+): void {
+  // %esi holds the enum as a 32-bit value; `| 0` reproduces that width.
+  const q = quality | 0;
+
+  // @0x33e1a4 — movl %esi, 0x24(%rdi): write the LOW half of the +0x24 qword,
+  // leaving the high half (+0x28) byte-for-byte as it was.
+  self.field0x24 =
+    (self.field0x24 & 0xffffffff00000000n) | BigInt(q >>> 0);
+
+  // @0x33e1a7/@0x33e1aa — cmpl $0x8, %esi ; je 0x33e1c1 (shared epilogue).
+  if (q === 0x8) {
+    return;
+  }
+
+  // @0x33e1ac — movl %esi, 0x28(%rdi): write the HIGH half of the same qword.
+  self.field0x24 =
+    (self.field0x24 & 0xffffffffn) | (BigInt(q >>> 0) << 32n);
+
+  // @0x33e1af/@0x33e1b2 — cmpl $0x2, %esi ; setge 0x2d(%rdi)  (signed >=).
+  self.field0x2d = q >= 2 ? 1 : 0;
+
+  // @0x33e1b6 — cmpl $0x6, %esi: the ONE compare feeding both setges below.
+  const qGE6 = q >= 6 ? 1 : 0;
+  // @0x33e1b9 — setge 0x2c(%rdi).
+  self.field0x2c = qGE6;
+  // @0x33e1bd — setge 0x2e(%rdi): reuses the @0x33e1b6 flags, same value.
+  self.field0x2e = qGE6;
+
+  // @0x33e1c1/@0x33e1c2 — epilogue, void return.
 }
