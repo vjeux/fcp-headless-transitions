@@ -12,6 +12,7 @@
 //   0x00031290  HGRenderContext::IsGPU() const                         (FULL)
 //   0x00031450  HGRenderContext::SetWorkMode(HGRenderContext::WorkMode) (FULL)
 //   0x00031470  HGRenderContext::GetComputeDevice()                    (FULL)
+//   0x00031490  HGRenderContext::GetWorkMode()                         (FULL)
 //
 // STRUCT LAYOUT — every offset below is cited to the exact instruction it was
 // recovered from. The primary evidence is the constructor
@@ -246,6 +247,38 @@ export class HGRenderContext {
   SetWorkMode(mode: number): void {
     // @Helium 0x31454: movl %esi, 0x28(%rdi)
     this.workMode = mode | 0;
+  }
+
+  /**
+   * `HGRenderContext::GetWorkMode()` — Helium @0x00031490
+   * (mangled `__ZN15HGRenderContext11GetWorkModeEv`).
+   *
+   * Full transcription (5 instructions + padding):
+   *
+   *   0x31490  pushq   %rbp
+   *   0x31491  movq    %rsp, %rbp
+   *   0x31494  movl    0x28(%rdi), %eax   ; return this->workMode  (32-bit load)
+   *   0x31497  popq    %rbp
+   *   0x31498  retq
+   *   0x31499  nopl    (%rax)             ; alignment padding, not code
+   *
+   * The exact inverse of `SetWorkMode` @0x31454 (`movl %esi, 0x28(%rdi)`) on
+   * the same slot: a bare 32-bit load, no masking, no clamping, no validation
+   * against the WorkMode enum range, no lock (contrast `Lock()` @0x311f0).
+   * `movl` zero-extends into %rax, but the ABI return here is the 32-bit
+   * `%eax` — the enum is an `int`-sized value, so the `| 0` keeps the port at
+   * the same 32-bit width the instruction operates on and returns the field
+   * verbatim, including the ctor default of 2 (@0x31093 `movl $0x2,
+   * 0x28(%rbx)`; the no-arg ctor writes the same literal @0x30f50).
+   *
+   * Zero callees, zero externs, zero indirect calls.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Helium.__ZN15HGRenderContext11GetWorkModeEv.s
+   */
+  GetWorkMode(): number {
+    // @Helium 0x31494: movl 0x28(%rdi), %eax
+    return this.workMode | 0;
   }
 
   /**
