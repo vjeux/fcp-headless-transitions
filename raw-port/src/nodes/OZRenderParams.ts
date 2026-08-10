@@ -58,6 +58,10 @@
 //       — OZRenderParams::disableDynamic() @Ozone 0x2716b0
 //         (raw-port/re/disasm/
 //           __ZN14OZRenderParams14disableDynamicEv.s — 13 lines)
+//   * __ZNK14OZRenderParams25getOutputColorDescriptionEv
+//       — OZRenderParams::getOutputColorDescription() const @Ozone 0x271510
+//         (raw-port/re/disasm/
+//           __ZNK14OZRenderParams25getOutputColorDescriptionEv.s — 15 lines)
 //   * __ZNK14OZRenderParams20getDestinationDeviceEv
 //       — OZRenderParams::getDestinationDevice() const @Ozone 0x2719d0
 //         (raw-port/re/disasm/
@@ -112,6 +116,53 @@ export interface OZRenderBounds {
   origin: PCVector2Double;
   /** sret +0x10 — size (width,height). */
   size: PCVector2Double;
+}
+
+/**
+ * `FxColorDescription` — the ProApps colour-description value type FCP threads
+ * through its render path. It is NOT one of the five in-scope frameworks: the
+ * symbol `FxColorDescription::getCGColorSpace() const` is `(undefined) external
+ * … (from ProAppsFxSupport)` in Ozone's two-level-namespace bind table (verified
+ * with `nm -m -arch x86_64 Ozone`), so the whole class is out of port scope and
+ * is modelled here as an opaque brand — never synthesised, never dereferenced.
+ *
+ * OZRenderParams embeds TWO of them, back to back:
+ *   +0x2c0  the WORKING colour description
+ *   +0x2e8  the OUTPUT colour description
+ * (so `sizeof(FxColorDescription)` is 0x28 — the gap between the two slots).
+ */
+export interface FxColorDescription {
+  readonly __fxColorDescription: unique symbol;
+}
+
+/**
+ * `CGColorSpaceRef` — CoreGraphics opaque handle. Out of port scope; only its
+ * NULL-ness is ever observed by the ported code below.
+ */
+export type CGColorSpaceRef = { readonly __cgColorSpaceRef: unique symbol };
+
+/**
+ * `FxColorDescription::getCGColorSpace() const` — TRUE OUT-OF-SCOPE extern.
+ *
+ * Entered through the Ozone symbol stub @0x6df666, called from
+ * `OZRenderParams::getOutputColorDescription()` @Ozone 0x271524. The
+ * implementation lives in **ProAppsFxSupport**, not in any of the five in-scope
+ * frameworks (ProCore/ProChannel/Helium/Ozone/Flexo) — `nm` reports it `U` in
+ * Ozone and it is defined in none of the other four — so there is no FCP
+ * function body in scope to transcribe. Per PORTING_SPEC Rule 3 it is a
+ * boundary stub that throws, citing the address it is deferring.
+ *
+ * Returns a `CGColorSpaceRef`, possibly NULL — the null-ness is the only thing
+ * the caller below inspects (`testq %rax, %rax` @0x271530).
+ */
+function FxColorDescription_getCGColorSpace(
+  _desc: FxColorDescription,
+): CGColorSpaceRef | null {
+  throw new Error(
+    "FxColorDescription::getCGColorSpace() const — ProAppsFxSupport extern, " +
+      "out-of-scope; entered via Ozone symbol stub @0x6df666 " +
+      "(called @Ozone 0x271524). Not transcribed.",
+  );
 }
 
 /**
@@ -1505,5 +1556,91 @@ export class OZRenderParams {
     // @0x2716d9  movb $0x0,0x1a8(%rdi)      (single-byte store — clears the latch)
     this.flagByteAt1a8 = 0;
     // @0x2716e0-0x2716e1 — epilogue, void return.
+  }
+
+  /**
+   * @Ozone offset +0x2c0 — the embedded WORKING `FxColorDescription`.
+   *
+   * Proven a sub-object (not a pointer) by `getWorkingColorDescription()`
+   * @0x2712b4, which returns its ADDRESS (`leaq 0x2c0(%rdi), %rax`), and by the
+   * default ctor @0x270161 (`leaq 0x2c0(%rbx), %r13` — it constructs in place).
+   * `getOutputColorDescription()` @0x271529 returns this same address as its
+   * FALLBACK. Held as an opaque out-of-scope value (see {@link FxColorDescription});
+   * the object identity IS the `&this->workingColorDescription` the machine returns.
+   */
+  workingColorDescriptionAt2c0: FxColorDescription = {} as FxColorDescription;
+
+  /**
+   * @Ozone offset +0x2e8 — the embedded OUTPUT `FxColorDescription`.
+   *
+   * Also a sub-object: the default ctor takes its address @0x27019a
+   * (`leaq 0x2e8(%rbx), %rax`) and zeroes its first word @0x2701a5
+   * (`movq $0x0, 0x2e8(%rbx)`), and `getOutputColorDescription()` @0x27151a
+   * takes `leaq 0x2e8(%rdi), %r14` to call a method ON it. The 0x28-byte gap
+   * to +0x2c0 is `sizeof(FxColorDescription)`.
+   */
+  outputColorDescriptionAt2e8: FxColorDescription = {} as FxColorDescription;
+
+  /**
+   * `OZRenderParams::getOutputColorDescription() const`
+   *   — @Ozone 0x271510
+   *   — __ZNK14OZRenderParams25getOutputColorDescriptionEv
+   *
+   * FULL DISASM (15 lines — raw-port/re/disasm/
+   * __ZNK14OZRenderParams25getOutputColorDescriptionEv.s):
+   *
+   *   0x271510  pushq  %rbp                         ; prologue
+   *   0x271511  movq   %rsp, %rbp
+   *   0x271514  pushq  %r14
+   *   0x271516  pushq  %rbx
+   *   0x271517  movq   %rdi, %rbx                   ; rbx = this
+   *   0x27151a  leaq   0x2e8(%rdi), %r14            ; r14 = &this->output   (+0x2e8)
+   *   0x271521  movq   %r14, %rdi
+   *   0x271524  callq  FxColorDescription::getCGColorSpace() const ; stub 0x6df666
+   *   0x271529  addq   $0x2c0, %rbx                 ; rbx = &this->working  (+0x2c0)
+   *   0x271530  testq  %rax, %rax                   ; colour space == NULL ?
+   *   0x271533  cmovneq %r14, %rbx                  ; NON-null -> rbx = &output
+   *   0x271537  movq   %rbx, %rax                   ; return that address
+   *   0x27153a  popq %rbx ; popq %r14 ; popq %rbp
+   *   0x27153e  retq
+   *   0x27153f  nop                                 ; alignment padding, not code
+   *
+   * SEMANTICS: a colour-description SELECTOR with a fallback. It asks the
+   * OUTPUT description (+0x2e8) for its CGColorSpace; if that is non-NULL the
+   * output description is returned, otherwise it falls back to the WORKING
+   * description (+0x2c0). Both returns are ADDRESSES of embedded sub-objects
+   * (`leaq`/`addq`, never a load), i.e. the C++ signature returns
+   * `FxColorDescription const&` — so the TS returns the field objects
+   * themselves, whose identity is the reference.
+   *
+   * Note the branchless shape: the machine computes the FALLBACK address
+   * unconditionally @0x271529 and then `cmovne`s the output address over it
+   * @0x271533 — both addresses are always formed, only the selection is
+   * conditional. Since forming an address has no side effect, the `if/else`
+   * below is exactly equivalent; the ordering is preserved in the comments.
+   *
+   * `testq %rax,%rax ; cmovneq` is a NULL test on the returned pointer (ZF), not
+   * an ordered compare — no signed/unsigned question arises.
+   *
+   * FRONTIER CALLEE: `FxColorDescription::getCGColorSpace() const` is a TRUE
+   * out-of-scope extern (ProAppsFxSupport — see the boundary stub above); it is
+   * the only call in the body, and there is no in-scope callee, no indirect and
+   * no virtual dispatch anywhere in it.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams25getOutputColorDescriptionEv.s
+   */
+  getOutputColorDescription(this: OZRenderParams): FxColorDescription {
+    // @0x27151a  leaq 0x2e8(%rdi),%r14 — &this->outputColorDescription.
+    const output = this.outputColorDescriptionAt2e8;
+    // @0x271529  addq $0x2c0,%rbx — &this->workingColorDescription, formed
+    //            unconditionally as the fallback (no side effect).
+    const working = this.workingColorDescriptionAt2c0;
+    // @0x271521-0x271524  callq FxColorDescription::getCGColorSpace(output)
+    const colorSpace = FxColorDescription_getCGColorSpace(output);
+    // @0x271530-0x271533  testq %rax,%rax ; cmovneq %r14,%rbx
+    //   non-NULL -> the OUTPUT description; NULL -> keep the WORKING fallback.
+    // @0x271537  movq %rbx,%rax — return the selected address.
+    return colorSpace !== null ? output : working;
   }
 }
