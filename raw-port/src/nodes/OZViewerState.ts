@@ -44,6 +44,10 @@
 //         (raw-port/re/disasm/__ZN13OZViewerState13getResolutionEv.s — 23 lines)
 //   * __ZNK13OZViewerState10isSnappingEv
 //       — OZViewerState::isSnapping() const @Ozone 0x36e670
+//   * __ZN13OZViewerState23getFullscreenViewOffsetEv
+//       — OZViewerState::getFullscreenViewOffset() @Ozone 0x36e650
+//         (raw-port/re/disasm/__ZN13OZViewerState23getFullscreenViewOffsetEv.s
+//          — 8 lines)
 //         (raw-port/re/disasm/__ZNK13OZViewerState10isSnappingEv.s — 8 lines)
 //   * __ZN13OZViewerState15setMirroringHMDEb
 //       — OZViewerState::setMirroringHMD(bool) @Ozone 0x36e5a0
@@ -80,6 +84,57 @@
 //   0x36e2d8  popq    %rbp                       ; frame epilogue
 //   0x36e2d9  retq
 //   0x36e2da  nopw    (%rax,%rax)                ; padding — no effect
+
+// -----------------------------------------------------------------------------
+// FULL DISASM (raw-port/re/disasm/__ZN13OZViewerState23getFullscreenViewOffsetEv.s)
+// -----------------------------------------------------------------------------
+//   0x36e650  pushq   %rbp                       ; frame prologue
+//   0x36e651  movq    %rsp, %rbp
+//   0x36e654  movq    %rdi, %rax                 ; return the sret pointer in %rax
+//                                                ; (System-V: a MEMORY-class return
+//                                                ;  makes %rdi the hidden out-param
+//                                                ;  and %rsi the real `this`)
+//   0x36e657  movq    0x104(%rsi), %rcx          ; rcx = *(u64*)(this + 0x104)
+//                                                ; ONE unaligned 8-byte read covering
+//                                                ; both int32 lanes at +0x104/+0x108
+//   0x36e65e  movq    %rcx, (%rdi)               ; store those 8 bytes into the
+//                                                ; caller's return slot
+//   0x36e661  popq    %rbp                       ; frame epilogue
+//   0x36e662  retq
+//   0x36e663  nopw    %cs:(%rax,%rax)            ; padding — no effect
+//
+// The hidden-sret calling convention is what identifies the return type as a
+// BY-VALUE class rather than a plain 8-byte scalar: an 8-byte POD would come
+// back in %rax directly. The type itself is named by the matching setter,
+// `OZViewerState::setFullscreenViewOffset(PCVector2<int> const&)`
+// (__ZN13OZViewerState23setFullscreenViewOffsetERK9PCVector2IiE) @Ozone 0x36e230,
+// whose body is the exact mirror image of this getter:
+//   0x36e234  movq (%rsi), %rax        ; read the 8 bytes of the PCVector2<int>
+//   0x36e237  movq %rax, 0x104(%rdi)   ; write them to this + 0x104
+// so `PCVector2<int>` is 8 bytes and lives at OZViewerState+0x104.
+
+/**
+ * `PCVector2<int>` — the 8-byte, two-lane integer vector that
+ * `getFullscreenViewOffset()` returns and
+ * `setFullscreenViewOffset(PCVector2<int> const&)` @Ozone 0x36e230 accepts.
+ *
+ * Both accessors move the whole thing as a single `movq`, so the only facts the
+ * binary pins here are: 8 bytes total, and the class is non-trivial enough for
+ * the System-V ABI to give it MEMORY class (hence the sret pointer in %rdi).
+ * The two `int` lanes at +0x00 and +0x04 come from the `PCVector2IiE`
+ * mangling — `I i E` is the template argument `int`.
+ *
+ * `PCVector2` itself is a ProCore template with its own (not-yet-ported) ledger
+ * entries; this interface models only the storage the Ozone accessors touch.
+ *
+ * @0xADDR Ozone 0x36e657 (the 8-byte read) / 0x36e237 (the mirroring write)
+ */
+export interface PCVector2Int {
+  /** +0x00 (int32) — lane 0, the low half of the `movq` @Ozone 0x36e657. */
+  x: number;
+  /** +0x04 (int32) — lane 1, the high half of the same `movq`. */
+  y: number;
+}
 
 // ═════════════════════════════════════════════════════════════════════════
 // The class
@@ -539,5 +594,56 @@ export class OZViewerState {
     // @0x36e264           — movl %esi, 0x20(%rdi): 32-bit store of the arg.
     this.resolutionMode = mode | 0;
     // @0x36e267..0x36e268 — epilogue + retq (void).
+  }
+
+  /**
+   * @Ozone +0x104 (int32) — lane 0 of the `PCVector2<int>` fullscreen view
+   * offset. Read by `getFullscreenViewOffset()` @0x36e657 and written by
+   * `setFullscreenViewOffset()` @0x36e237; both do it with a single unaligned
+   * 8-byte `movq` spanning this field and the one at +0x108. Note the offset is
+   * NOT 8-byte aligned (0x104 = 260), which is exactly what you expect from two
+   * `int`s packed at +0x104/+0x108 rather than one 64-bit member.
+   */
+  fullscreenViewOffsetX_at_0x104: number = 0; // int32 @+0x104
+
+  /**
+   * @Ozone +0x108 (int32) — lane 1 of the same `PCVector2<int>`. Covered by the
+   * upper half of the `movq 0x104(%rsi), %rcx` @0x36e657.
+   */
+  fullscreenViewOffsetY_at_0x108: number = 0; // int32 @+0x108
+
+  /**
+   * `OZViewerState::getFullscreenViewOffset()` — @Ozone 0x36e650
+   * (`__ZN13OZViewerState23getFullscreenViewOffsetEv`).
+   *
+   * Faithful line-for-line transcription of the 8-line disassembly quoted in
+   * the file header: copy the 8 bytes at `this + 0x104` into the caller's
+   * return slot and hand that slot back.
+   *
+   * The C++ signature returns `PCVector2<int>` BY VALUE, which the System-V ABI
+   * classifies as MEMORY — so the machine receives the destination in %rdi and
+   * the real `this` in %rsi, copies 8 bytes, and returns the destination
+   * pointer in %rax (`movq %rdi, %rax` @0x36e654). In TypeScript the caller does
+   * not pass storage, so the port returns a fresh object holding the same two
+   * lanes; that is the same value contract, with the ABI's out-param mechanics
+   * left to the ABI.
+   *
+   * Zero in-scope callees, zero externs, no branches — one 8-byte load, one
+   * 8-byte store.
+   *
+   * @0xADDR Ozone 0x36e650
+   */
+  getFullscreenViewOffset(): PCVector2Int {
+    // @0x36e650..0x36e651 — prologue (no TS-visible effect).
+    // @0x36e654           — movq %rdi, %rax: the sret slot is also the return
+    //                       value; in TS that slot is the object we build below.
+    // @0x36e657           — movq 0x104(%rsi), %rcx: ONE 8-byte read of both
+    //                       int32 lanes at +0x104 and +0x108.
+    // @0x36e65e           — movq %rcx, (%rdi): store both lanes into the slot.
+    // @0x36e661..0x36e662 — epilogue + retq.
+    return {
+      x: this.fullscreenViewOffsetX_at_0x104,
+      y: this.fullscreenViewOffsetY_at_0x108,
+    };
   }
 }
