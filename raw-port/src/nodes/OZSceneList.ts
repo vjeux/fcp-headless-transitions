@@ -14,6 +14,9 @@
 //   * OZSceneList::getIterationMutex()   @Ozone 0x81820
 //     __ZN11OZSceneList17getIterationMutexEv
 //     DECODE: raw-port/re/disasm/__ZN11OZSceneList17getIterationMutexEv.s
+//   * OZSceneList::begin()               @Ozone 0x81800
+//     __ZN11OZSceneList5beginEv
+//     DECODE: raw-port/re/disasm/__ZN11OZSceneList5beginEv.s
 //   * OZSceneList::end()                 @Ozone 0x81810
 //     __ZN11OZSceneList3endEv
 //     DECODE: raw-port/re/disasm/__ZN11OZSceneList3endEv.s
@@ -94,6 +97,19 @@ export interface OZSceneListTreeEndNode {
   left: unknown | null;
 }
 
+/**
+ * A `std::set<PCHash128>::iterator` — in the Itanium ABI a bare `__tree` node
+ * pointer, which is either a real element node or the container's embedded end
+ * node ({@link OZSceneListTreeEndNode}). `begin()` @Ozone 0x81804 returns one
+ * verbatim out of the `__begin_node_` slot. Element-node internals are not
+ * dereferenced by any ported method (only
+ * `std::__tree<PCHash128, …>::destroy` @0x81736 walks them, and that is an STL
+ * template outside this port), so that arm stays an opaque brand.
+ */
+export type OZSceneListIterator =
+  | OZSceneListTreeEndNode
+  | { readonly __ozSceneListTreeNode: unique symbol };
+
 export class OZSceneList {
   /**
    * `+0x08  PCMutex iterationMutex` — the lock callers hold while walking the
@@ -152,6 +168,56 @@ export class OZSceneList {
    * {@link OZSceneList.end} returns that same address.
    */
   treeEndNodeAt58: OZSceneListTreeEndNode = { left: null };
+
+  /**
+   * `+0x50  __tree __begin_node_` — the cached FIRST node of the scene set.
+   *
+   * The ctor computes the end node's address and stores it here:
+   *   @Ozone 0x816e4  `leaq 0x58(%rbx), %rax`
+   *   @Ozone 0x816ef  `movq %rax, 0x50(%rbx)`
+   * i.e. libc++'s empty-tree invariant `__begin_node_ == __end_node()`, which
+   * is reproduced by initializing this field to the very same
+   * {@link OZSceneList.treeEndNodeAt58} object (so `begin() === end()` on a
+   * fresh list without special-casing emptiness). The dtor passes `this+0x50`
+   * to `std::__tree<PCHash128, …>::destroy` @0x81736.
+   */
+  treeBeginNodeAt50: OZSceneListIterator = this.treeEndNodeAt58;
+
+  /**
+   * `OZSceneList::begin()` — Ozone @0x00081800
+   * (mangled `__ZN11OZSceneList5beginEv`).
+   *
+   * Full transcription — every instruction of the function, in order
+   * (raw-port/re/disasm/__ZN11OZSceneList5beginEv.s):
+   *
+   *   0x81800  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x81801  movq  %rsp, %rbp           ; frame setup (no TS counterpart)
+   *   0x81804  movq  0x50(%rdi), %rax     ; return this->__begin_node_  (LOAD)
+   *   0x81808  popq  %rbp                 ; frame teardown (no TS counterpart)
+   *   0x81809  retq                       ; return that pointer
+   *   0x8180a  nopw  (%rax,%rax)          ; alignment padding, not executed
+   *
+   * `movq 0x50(%rdi)` DEREFERENCES the slot — it returns the stored pointer,
+   * not the address of the field. Both siblings on this class do the opposite:
+   * `end()` @0x81814 (`leaq 0x58(%rdi), %rax`) and `getIterationMutex()`
+   * @0x81824 (`leaq 0x8(%rdi), %rax`) hand back member ADDRESSES. Confusing
+   * the two would produce an iterator onto the wrong object, so the
+   * distinction is spelled out here.
+   *
+   * On an empty list the slot still holds `&this->__end_node_` (ctor
+   * @0x816e4/@0x816ef), so this returns the same object `end()` does.
+   *
+   * No lock is taken: callers hold {@link OZSceneList.getIterationMutex}
+   * themselves while iterating.
+   *
+   * Zero callees, zero externs, zero indirect calls, no null check.
+   *
+   * @returns the `__begin_node_` pointer stored at `this + 0x50`.
+   */
+  begin(): OZSceneListIterator {
+    // @Ozone 0x81804: movq 0x50(%rdi), %rax
+    return this.treeBeginNodeAt50;
+  }
 
   /**
    * `OZSceneList::end()` — Ozone @0x00081810
