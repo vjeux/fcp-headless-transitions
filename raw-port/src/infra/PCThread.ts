@@ -312,4 +312,24 @@ export class PCThread {
 
     // @0x34b61–0x34b66: epilogue + retq. (No return value.)
   }
+
+  /**
+   * `PCThread::~PCThread()` (D1 complete object destructor) — @ProCore 0x34b32
+   *
+   * Full disassembly (re/disasm/ProCore.__ZN8PCThreadD1Ev.s):
+   *   0x34b32  pushq %rbp             ; frame prologue
+   *   0x34b33  movq  %rsp, %rbp
+   *   0x34b36  popq  %rbp             ; frame epilogue
+   *   0x34b37  retq                   ; return
+   *
+   * A REAL trivial destructor: PCThread holds only a `pthread_t threadId`
+   * (a POD scalar at +0x00), so there is no member/base teardown to run.
+   * The compiler emitted only the frame prologue/epilogue. Transcribed
+   * faithfully as an empty body — it never touches `this` and calls
+   * nothing (no `operator delete`, no base dtor).
+   */
+  destructor_D1(): void {
+    // no-op (@ProCore 0x34b32 — push rbp; mov rbp,rsp; pop rbp; ret)
+    // Trivial dtor: only member is the POD `threadId` at +0x00 (no teardown).
+  }
 }
