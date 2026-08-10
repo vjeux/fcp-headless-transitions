@@ -1111,4 +1111,82 @@ export class OZRenderParams {
     //   reference to this.destinationDeviceAt120 (no dereference, no copy).
     return this.destinationDeviceAt120;
   }
+
+  /**
+   * @Ozone offset +0x1e2 — one-byte flag written by
+   * `setDoShapeAntialiasing(bool)` @0x271894 via
+   * `movb %sil, 0x1e2(%rdi)`. First of a two-byte-flag PAIR (the setter
+   * writes the SAME bool to both +0x1e2 and +0x1e3 in immediate
+   * succession — see `doShapeAntialiasingAt1e3` for the sibling). We
+   * do not yet know which of the two bytes each reader consults;
+   * modelled as separate fields so both writes are honoured.
+   *
+   * The single-byte width (`movb`) confirms these are C++ `bool` /
+   * uint8 slots (bool is 1 byte in the Itanium/AAPCS ABIs used by
+   * clang on macOS). Preserved as `number` (0..255) so the byte-width
+   * the machine writes is legible.
+   */
+  doShapeAntialiasingAt1e2: number = 0;
+
+  /**
+   * @Ozone offset +0x1e3 — one-byte flag written by
+   * `setDoShapeAntialiasing(bool)` @0x27189b via
+   * `movb %sil, 0x1e3(%rdi)`. Second of the two-byte-flag pair (see
+   * `doShapeAntialiasingAt1e2` above). Same value as +0x1e2 after
+   * every call to the setter.
+   */
+  doShapeAntialiasingAt1e3: number = 0;
+
+  /**
+   * `OZRenderParams::setDoShapeAntialiasing(bool)`
+   *   — @Ozone 0x271890
+   *   — __ZN14OZRenderParams22setDoShapeAntialiasingEb
+   *
+   * Faithful line-for-line transcription of the 11-line disassembly:
+   *   0x271890  pushq  %rbp                        ; frame prologue
+   *   0x271891  movq   %rsp, %rbp
+   *   0x271894  movb   %sil, 0x1e2(%rdi)            ; this->+0x1e2 = arg (bool, 1 byte)
+   *   0x27189b  movb   %sil, 0x1e3(%rdi)            ; this->+0x1e3 = arg (bool, 1 byte)
+   *   0x2718a2  xorps  %xmm0, %xmm0                 ; xmm0 = 0
+   *   0x2718a5  movups %xmm0, 0x188(%rdi)           ; this[+0x188] = (0, 0) — 16 bytes zero
+   *   0x2718ac  movups %xmm0, 0x198(%rdi)           ; this[+0x198] = (0, 0) — 16 bytes zero
+   *   0x2718b3  popq   %rbp                        ; frame epilogue
+   *   0x2718b4  retq
+   *   0x2718b5  nopw   %cs:(%rax,%rax)              ; padding
+   *
+   * SEMANTICS:
+   *   Writes the incoming C++ `bool` argument to BOTH byte slots at
+   *   +0x1e2 and +0x1e3 (a paired-flag field — probably a "requested"
+   *   and "effective" pair, or a low-nybble/high-nybble split; the
+   *   disasm alone doesn't tell us which reader consults which byte,
+   *   so we preserve both writes verbatim). Then zeroes the two
+   *   `PCVector2<double>` slots at +0x188 and +0x198 — exactly the
+   *   same pair that `setResolution` clears when a fresh resolution
+   *   arrives. That fan-out ("changing the shape-antialiasing mode
+   *   invalidates the cached +0x188/+0x198 sub-region vectors") is
+   *   consistent with the pattern seen in `setResolution` and
+   *   `setResolutionDynamic`.
+   *
+   * DEPENDENCIES: none in-scope, no externs, no indirect calls — a
+   * pure field-write with a pair of 16-byte zeroing stores.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZRenderParams22setDoShapeAntialiasingEb.s (11 lines)
+   */
+  setDoShapeAntialiasing(doAA: boolean): void {
+    // @0x271894  movb %sil,0x1e2(%rdi)
+    //   C++ `bool` → 1 byte: true == 0x01, false == 0x00.
+    this.doShapeAntialiasingAt1e2 = doAA ? 1 : 0;
+    // @0x27189b  movb %sil,0x1e3(%rdi) — SAME byte written to the
+    // sibling slot immediately after (compiler didn't collapse the
+    // pair; a faithful port preserves both writes).
+    this.doShapeAntialiasingAt1e3 = doAA ? 1 : 0;
+    // @0x2718a2/@0x2718a5  xorps %xmm0,%xmm0 ; movups %xmm0,0x188(%rdi)
+    //   this[+0x188] = (0, 0) — same zeroing pattern as setResolution.
+    this.zeroedAt188 = { x: 0, y: 0 };
+    // @0x2718ac  movups %xmm0,0x198(%rdi) — this[+0x198] = (0, 0).
+    //   The disasm writes +0x188 BEFORE +0x198 (source-order matches
+    //   the compiler's chosen ordering; both stores reuse xmm0=0).
+    this.zeroedAt198 = { x: 0, y: 0 };
+  }
 }
