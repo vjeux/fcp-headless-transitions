@@ -8,6 +8,8 @@
 // Provenance (raw-port/re/disasm/ProCore.PCAtomBox.*.s):
 //   getOffset()  @0x008b54  (__ZN9PCAtomBox9getOffsetEv)
 //   setOffset(unsigned long long)  @0x008b5e  (__ZN9PCAtomBox9setOffsetEy)
+//   getHeaderSize()  @0x008b90  (__ZN9PCAtomBox13getHeaderSizeEv)
+//   setPayloadSize(unsigned long long)  @0x008b86  (__ZN9PCAtomBox14setPayloadSizeEy)
 //   findFirstChild(int, unsigned int)  @0x008f8a  (__ZN9PCAtomBox14findFirstChildEij)
 //
 // ── Decoded struct layout (only the fields this unit touches are pinned here;
@@ -18,6 +20,11 @@
 //                                   // by setOffset(unsigned long long) — a full 64-bit value,
 //                                   // so it is modelled as a bigint (a large file offset can
 //                                   // exceed 2^53). See PORTING_SPEC Rule 4.
+//   +0x08  u64          size        // total box size. Read by getHeaderSize @0x008b94
+//                                   // (`movq 0x8(%rdi),%rax`). 64-bit -> bigint (Rule 4).
+//   +0x10  u64          payloadSize // box payload size. Written by setPayloadSize @0x008b8a
+//                                   // (`movq %rsi,0x10(%rdi)`), read by getHeaderSize @0x008b98
+//                                   // (`subq 0x10(%rdi),%rax`). 64-bit -> bigint (Rule 4).
 //   +0x08  void*        validity    // non-null guard read by findFirstChild @0x008fab
 //                                   // (`cmpq $0,0x8(%rdi); je return-null`). Modelled as a
 //                                   // boolean/opaque presence flag; when falsy findFirstChild
@@ -31,6 +38,15 @@
 export class PCAtomBox {
   // +0x00  u64 file offset of this atom (see setOffset(unsigned long long)).
   offset: bigint = 0n;
+
+  // +0x08  u64 total box size (see getSize @0x008b68, read by getHeaderSize @0x008b94).
+  //        A 64-bit file quantity; container files can exceed 2^53 bytes, so per
+  //        PORTING_SPEC Rule 4 it is modelled as bigint.
+  size: bigint = 0n;
+
+  // +0x10  u64 box payload size (written by setPayloadSize @0x008b86, read by
+  //        getHeaderSize @0x008b98). 64-bit file quantity -> bigint (Rule 4).
+  payloadSize: bigint = 0n;
 
   // +0x08  non-null validity/parent guard read by findFirstChild @0x008fab. Modelled as
   //        a presence flag; findFirstChild returns null early when it is falsy.
@@ -77,6 +93,41 @@ export class PCAtomBox {
   setOffset(value: bigint): void {
     // @0x008b62 — movq %rsi,(%rdi) : store the u64 offset at +0x00.
     this.offset = BigInt.asUintN(64, value);
+  }
+
+  /**
+   * PCAtomBox::getHeaderSize()
+   * @0xADDR ProCore 0x0000000000008b90  (__ZN9PCAtomBox13getHeaderSizeEv)
+   *
+   * DECODE (raw-port/re/disasm/ProCore.__ZN9PCAtomBox13getHeaderSizeEv.s):
+   *   0x008b90  pushq %rbp ; movq %rsp,%rbp        ; frame
+   *   0x008b94  movq  0x8(%rdi), %rax              ; rax = this->size (+0x08)
+   *   0x008b98  subq  0x10(%rdi), %rax             ; rax -= this->payloadSize (+0x10)
+   *   0x008b9c  popq %rbp ; retq                   ; return size - payloadSize
+   *
+   * Returns `this->size - this->payloadSize`: the number of header bytes that
+   * precede the box payload. 64-bit two's-complement subtraction (`subq`).
+   */
+  getHeaderSize(): bigint {
+    // @0x008b94 rax = this->size (+0x08) ; @0x008b98 rax -= payloadSize (+0x10).
+    return BigInt.asIntN(64, this.size - this.payloadSize);
+  }
+
+  /**
+   * PCAtomBox::setPayloadSize(unsigned long long size)
+   * @0xADDR ProCore 0x0000000000008b86  (__ZN9PCAtomBox14setPayloadSizeEy)
+   *
+   * DECODE (raw-port/re/disasm/ProCore.__ZN9PCAtomBox14setPayloadSizeEy.s):
+   *   0x008b86  pushq %rbp ; movq %rsp,%rbp        ; frame
+   *   0x008b8a  movq %rsi, 0x10(%rdi)              ; *(u64*)(this+0x10) = size
+   *   0x008b8e  popq %rbp ; retq                   ; return void
+   *
+   * A plain 64-bit field store: writes the payload size. Zero callees, no
+   * externs. The argument is a full unsigned long long, kept as bigint.
+   */
+  setPayloadSize(size: bigint): void {
+    // @0x008b8a — movq %rsi,0x10(%rdi) : store the u64 payloadSize at +0x10.
+    this.payloadSize = size;
   }
 
   /**
