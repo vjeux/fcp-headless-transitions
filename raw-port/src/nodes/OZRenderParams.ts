@@ -98,8 +98,6 @@
  * the type of `setResolution`'s stack argument (rsi = pointer to a 16-
  * byte struct).
  */
-import { FxColorDescription } from "../channels/FxColorDescription";
-
 export interface PCVector2Double {
   x: number;
   y: number;
@@ -181,38 +179,6 @@ export class OZRenderParams {
   /** @Ozone offset +0x018 — written by setResolution @0x27170b. */
   resolutionAt18: PCVector2Double = { x: 0, y: 0 };
 
-  /**
-   * @Ozone offset +0x2c0 — an EMBEDDED (by-value, not pointer)
-   * `FxColorDescription` sub-object: the params' WORKING color description.
-   *
-   * Three independent decodes pin it:
-   *   • `getWorkingColorDescription() const` @0x2712b4 takes its ADDRESS —
-   *     `leaq 0x2c0(%rdi), %rax` — i.e. returns a reference to the member.
-   *   • `getWorkingColorSpace() const` @0x271424 does `addq $0x2c0, %rdi`
-   *     and TAIL-JUMPS `FxColorDescription::getCGColorSpace() const`
-   *     @0x27142c, which is what proves the sub-object's TYPE: `this+0x2c0`
-   *     is passed as an `FxColorDescription*`.
-   *   • `setWorkingColorDescription(FxColorDescription const&)` @0x271240
-   *     writes the four FxColorDescription slots at exactly the offsets that
-   *     type declares, based at +0x2c0:
-   *        +0x2c0 <- src+0x00  CGColorSpace* (with
-   *                  PCCFRefTraits<CGColorSpace*>::release @0x271264 on the
-   *                  old value and ::retain @0x271279 on the new one, guarded
-   *                  by the identity check @0x271257 and the null checks
-   *                  @0x27125f / @0x271273)
-   *        +0x2d0 <- src+0x10  u32   (@0x27127e/@0x271282 movl)
-   *        +0x2c8 <- src+0x08  u64   (@0x271288/@0x27128c movq)
-   *        +0x2d8 <- src+0x18  u8    (@0x271293/@0x271298 movzbl/movb)
-   *     which is the same field set — and even the same +0x10-before-+0x08
-   *     store ordering — as `FxColorDescription::operator=` @0xd0266.
-   *
-   * Modelled as a live `FxColorDescription` instance so that a JS reference to
-   * it IS the `&(this+0x2c0)` the getter returns. Constructed with no
-   * retain/release callbacks (the CoreGraphics refcount hooks are injected by
-   * whoever owns the CGColorSpace lifetime; no decoded OZRenderParams method
-   * ported so far installs them).
-   */
-  workingColorDescriptionAt2c0: FxColorDescription = new FxColorDescription();
 
   /** @Ozone offset +0x188 — zeroed by setResolution @0x271719. */
   zeroedAt188: PCVector2Double = { x: 0, y: 0 };
@@ -1640,6 +1606,24 @@ export class OZRenderParams {
    * `getOutputColorDescription()` @0x271529 returns this same address as its
    * FALLBACK. Held as an opaque out-of-scope value (see {@link FxColorDescription});
    * the object identity IS the `&this->workingColorDescription` the machine returns.
+   *
+   * Further address evidence for this same slot, from the two other methods
+   * that touch it (added with the `getWorkingColorDescription` port):
+   *   • `getWorkingColorSpace() const` @0x271424 does `addq $0x2c0, %rdi` and
+   *     TAIL-JUMPS `FxColorDescription::getCGColorSpace() const` @0x27142c —
+   *     i.e. `this+0x2c0` is passed as the `FxColorDescription*` receiver.
+   *   • `setWorkingColorDescription(FxColorDescription const&)` @0x271240
+   *     writes the sub-object's four slots based here:
+   *        +0x2c0 <- src+0x00  CGColorSpace* (old value released via
+   *                  PCCFRefTraits<CGColorSpace*>::release @0x271264, new one
+   *                  retained @0x271279, guarded by the identity compare
+   *                  @0x271257 and the null checks @0x27125f / @0x271273)
+   *        +0x2d0 <- src+0x10  u32  (@0x27127e/@0x271282 movl)
+   *        +0x2c8 <- src+0x08  u64  (@0x271288/@0x27128c movq)
+   *        +0x2d8 <- src+0x18  u8   (@0x271293/@0x271298 movzbl/movb)
+   *     — the same four fields, in the same +0x10-before-+0x08 order, that
+   *     `FxColorDescription::operator=` uses, which independently confirms
+   *     both the type and the 0x28-byte size inferred from the +0x2e8 gap.
    */
   workingColorDescriptionAt2c0: FxColorDescription = {} as FxColorDescription;
 
