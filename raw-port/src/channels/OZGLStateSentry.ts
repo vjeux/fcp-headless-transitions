@@ -10,10 +10,15 @@
 //     __ZN15OZGLStateSentryC2Ev
 //     re/disasm: raw-port/re/disasm/__ZN15OZGLStateSentryC2Ev.s  (64 lines)
 //
+//   * OZGLStateSentry::restoreInitialState() const              @Ozone 0x5cda00
+//     __ZNK15OZGLStateSentry19restoreInitialStateEv
+//     re/disasm: raw-port/re/disasm/__ZNK15OZGLStateSentry19restoreInitialStateEv.s
+//     (83 lines) — ADDED in a later commit on this branch; the ctor above is
+//     untouched by it (one method, one exported function, ADD-only).
+//
 // Sibling symbols of the same class (`nm -arch x86_64 -n Ozone`) are SEPARATE
 // ledger units and are deliberately NOT written here:
 //   0x5cd9d0 C1                      0x5cd9e0 D2       0x5cdb70 D1   0x5cdb90 D0
-//   0x5cda00 restoreInitialState() const
 //   0x5cdbc0 restoreInitialViewport() const
 //   0x5cdbe0 restoreInitialTransformation() const
 //
@@ -190,6 +195,18 @@ const GL_STENCIL_BITS = 0x0d57;
 /** GL_MATRIX_MODE — `movl $0xba0, %edi` @0x5cd9ae (tail glGetIntegerv -> +0xbc). */
 const GL_MATRIX_MODE = 0x0ba0;
 
+// ---- added for restoreInitialState() @0x5cda00 -----------------------------
+// The restore path selects a matrix stack before each glLoadMatrixf. These two
+// immediates appear only in that method; the six cap enums it toggles
+// (GL_DEPTH_TEST / GL_LIGHTING / GL_LINE_SMOOTH / GL_BLEND / GL_DITHER /
+// GL_NORMALIZE) are already declared above from the ctor's own immediates and
+// carry the identical values there — 0xb71/0xb50/0xb20/0xbe2/0xbd0/0xba1 — so
+// they are REUSED rather than redeclared.
+/** GL_PROJECTION — `movl $0x1701, %edi` @0x5cda1a (glMatrixMode arg). */
+const GL_PROJECTION = 0x1701;
+/** GL_MODELVIEW — `movl $0x1700, %edi` @0x5cda2d (glMatrixMode arg). */
+const GL_MODELVIEW = 0x1700;
+
 /**
  * The vptr this ctor installs: `leaq 0x2b4a08(%rip), %rax` @0x5cd899 with
  * RIP-after = 0x5cd8a0, so 0x5cd8a0 + 0x2b4a08 = 0x8822a8. That is
@@ -222,6 +239,32 @@ export interface OZGLStateSentryGL {
   glGetBooleanv(pname: number, out: Uint8Array, offset: number): void;
   /** `_glIsEnabled` @stub Ozone 0x6dff00 — GLboolean returned in %al. */
   glIsEnabled(pname: number): number;
+
+  // ---- restore-side entry points, reached only by restoreInitialState()
+  // @0x5cda00. Nine more TRUE out-of-scope OpenGL.framework stubs; depgraph.py
+  // reports `n_extern_oos: 9` for that node (and `deps: []`, `indirect: 0`).
+  /** `_glViewport(GLint x, GLint y, GLsizei w, GLsizei h)` @stub Ozone 0x6dff5a. */
+  glViewport(x: number, y: number, width: number, height: number): void;
+  /** `_glMatrixMode(GLenum mode)` @stub Ozone 0x6dff18. */
+  glMatrixMode(mode: number): void;
+  /** `_glLoadMatrixf(const GLfloat* m)` @stub Ozone 0x6dff12. The disasm passes
+   *  an INTERIOR pointer into the object (`leaq 0x18(%rbx)` / `leaq 0x58(%rbx)`),
+   *  so the offset is part of the call, not of the array. */
+  glLoadMatrixf(m: Float32Array, offset: number): void;
+  /** `_glEnable(GLenum cap)` @stub Ozone 0x6dfec4. */
+  glEnable(cap: number): void;
+  /** `_glDisable(GLenum cap)` @stub Ozone 0x6dfebe. */
+  glDisable(cap: number): void;
+  /** `_glDepthMask(GLboolean flag)` @stub Ozone 0x6dfeb8 — fed through a
+   *  `movzbl`, so the argument is an unsigned byte. */
+  glDepthMask(flag: number): void;
+  /** `_glLineWidth(GLfloat width)` @stub Ozone 0x6dff06. */
+  glLineWidth(width: number): void;
+  /** `_glBlendFuncSeparate(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha,
+   *  GLenum dstAlpha)` @stub Ozone 0x6dfe9a. */
+  glBlendFuncSeparate(srcRGB: number, dstRGB: number, srcAlpha: number, dstAlpha: number): void;
+  /** `_glStencilMask(GLuint mask)` @stub Ozone 0x6dff42. */
+  glStencilMask(mask: number): void;
 }
 
 let g_gl: OZGLStateSentryGL | null = null;
@@ -464,4 +507,161 @@ export function OZGLStateSentry_C2(
   self.matrixMode = iBuf[0];
 
   return self;
+}
+
+/**
+ * `OZGLStateSentry::restoreInitialState() const` — @Ozone 0x5cda00
+ * (`__ZNK15OZGLStateSentry19restoreInitialStateEv`).
+ *
+ * The mirror image of the C2 ctor above: it pushes the eighteen-field snapshot
+ * back through the driver. Faithful line-for-line transcription of the 83-line
+ * body (raw-port/re/disasm/__ZNK15OZGLStateSentry19restoreInitialStateEv.s),
+ * which issues its driver calls in this exact order:
+ *
+ *   @0x5cda09..0x5cda15  glViewport(+0x08, +0x0c, +0x10, +0x14)
+ *   @0x5cda1a  glMatrixMode(GL_PROJECTION = 0x1701)
+ *   @0x5cda28  glLoadMatrixf(this + 0x18)          (projMatrix)
+ *   @0x5cda2d  glMatrixMode(GL_MODELVIEW = 0x1700)
+ *   @0x5cda3b  glLoadMatrixf(this + 0x58)          (modelviewMatrix)
+ *   @0x5cda40  if (+0x98) glEnable(GL_DEPTH_TEST)  else glDisable(...)
+ *   @0x5cda53  if (+0xa4) glEnable(GL_LIGHTING)    else glDisable(...)
+ *   @0x5cda66  if (+0xa5) glEnable(GL_LINE_SMOOTH) else glDisable(...)
+ *   @0x5cda79  if (+0x9a) glEnable(GL_BLEND)       else glDisable(...)
+ *   @0x5cda8c  if (+0x9b) glEnable(GL_DITHER)      else glDisable(...)
+ *   @0x5cda9f  if (+0x9c) glEnable(GL_NORMALIZE)   else glDisable(...)
+ *   @0x5cdb1d  glDepthMask(movzbl +0x99)
+ *   @0x5cdb29  glLineWidth((float)(int)+0xa0)      (cvtsi2ssl)
+ *   @0x5cdb4e  glBlendFuncSeparate(+0xa8, +0xb0, +0xac, +0xb4)
+ *   @0x5cdb59  glStencilMask(+0xb8)
+ *   @0x5cdb6a  glMatrixMode(+0xbc)                 (TAIL jmp)
+ *
+ * Every offset it touches is one the ctor above already wrote, and the OBJECT
+ * LAYOUT block in the file header covers all of them — this method reveals no
+ * new field. (It does put the +0xb8 slot the ctor filled from GL_STENCIL_BITS
+ * into `glStencilMask`, and the +0xa0 slot the ctor filled from GL_LINE_WIDTH
+ * into `glLineWidth`; the field names stay as the ctor named them.)
+ *
+ * CONTROL FLOW of the six cap toggles — clang tail-duplicated the chain into a
+ * contiguous "all enabled" run (@0x5cda49..0x5cdab2) and a contiguous "all
+ * disabled" run (@0x5cdab4..0x5cdb13) which jump into each other after every
+ * test, so at run time the two runs interleave. Reading every cross edge:
+ *
+ *   @0x5cda47  je  0x5cdab4  ; depthTest  == 0 -> disable arm
+ *   @0x5cdac5  jne 0x5cda5c  ; lighting   != 0 -> back to the enable arm
+ *   @0x5cda5a  je  0x5cdac7  ; lighting   == 0 -> disable arm
+ *   @0x5cdad8  jne 0x5cda6f  ; lineSmooth != 0 -> back to the enable arm
+ *   @0x5cda6d  je  0x5cdada  ; lineSmooth == 0 -> disable arm
+ *   @0x5cdaeb  jne 0x5cda82  ; blend      != 0 -> back to the enable arm
+ *   @0x5cda80  je  0x5cdaed  ; blend      == 0 -> disable arm
+ *   @0x5cdafe  jne 0x5cda95  ; dither     != 0 -> back to the enable arm
+ *   @0x5cda93  je  0x5cdb00  ; dither     == 0 -> disable arm
+ *   @0x5cdb11  jne 0x5cdaa8  ; normalize  != 0 -> back to the enable arm
+ *   @0x5cdaa6  je  0x5cdb13  ; normalize  == 0 -> disable arm
+ *   @0x5cdab2  jmp 0x5cdb1d  ; the enable arm rejoins the tail
+ *   @0x5cdb13..0x5cdb18 glDisable(GL_NORMALIZE), then FALLS THROUGH to 0x5cdb1d
+ *
+ * Every cross edge lands on the test for the NEXT cap in the same order and
+ * both arms rejoin at 0x5cdb1d, so the six toggles are independent: for each
+ * cap, `flag != 0 ? glEnable(cap) : glDisable(cap)`. Each test is a
+ * `cmpb $0x0` + `je` pair — a "not equal to zero" test, not the strict
+ * `cmpb $0x1` byte compare used elsewhere in the port — so it is transcribed
+ * as `!== 0`.
+ *
+ * NINE frontier callees, all TRUE out-of-scope OpenGL externs reached through
+ * __TEXT stubs (listed on `OZGLStateSentryGL` above). No in-scope callee, no
+ * indirect/virtual call: `depgraph.py` reports `deps: []`, `n_extern_oos: 9`,
+ * `indirect: 0`. Note this method never dispatches through the vptr the ctor
+ * installed, even though it is itself reachable from the class's virtual dtors.
+ *
+ * The `const` qualifier in the C++ signature matches the `__ZNK...` mangling —
+ * every field access below is a read and the body writes nothing.
+ *
+ * @param self  `%rdi` — the snapshot to push back (see `OZGLStateSentry_C2`).
+ *
+ * @0xADDR Ozone 0x5cda00
+ */
+export function OZGLStateSentry_restoreInitialState(
+  self: OZGLStateSentryState,
+): void {
+  const gl = g_gl;
+  if (gl === null) {
+    // No driver attached: the calls below reach nothing, exactly as in the
+    // ctor's own no-driver path. The method itself has no branch here.
+    return;
+  }
+
+  // @0x5cda09  movl 0x8(%rdi), %edi    ; x        = viewport[0]
+  // @0x5cda0c  movl 0xc(%rbx), %esi    ; y        = viewport[1]
+  // @0x5cda0f  movl 0x10(%rbx), %edx   ; width    = viewport[2]
+  // @0x5cda12  movl 0x14(%rbx), %ecx   ; height   = viewport[3]
+  // @0x5cda15  callq _glViewport
+  //   The four GLints are the +0x08..+0x17 block the ctor filled with one
+  //   glGetIntegerv(GL_VIEWPORT) @0x5cd8ac, read back element by element.
+  gl.glViewport(
+    self.viewport[0] | 0,
+    self.viewport[1] | 0,
+    self.viewport[2] | 0,
+    self.viewport[3] | 0,
+  );
+
+  // @0x5cda1a  movl $0x1701, %edi  /  @0x5cda1f  callq _glMatrixMode
+  gl.glMatrixMode(GL_PROJECTION);
+  // @0x5cda24  leaq 0x18(%rbx), %rdi  /  @0x5cda28  callq _glLoadMatrixf
+  gl.glLoadMatrixf(self.projMatrix, 0);
+  // @0x5cda2d  movl $0x1700, %edi  /  @0x5cda32  callq _glMatrixMode
+  gl.glMatrixMode(GL_MODELVIEW);
+  // @0x5cda37  leaq 0x58(%rbx), %rdi  /  @0x5cda3b  callq _glLoadMatrixf
+  gl.glLoadMatrixf(self.modelviewMatrix, 0);
+
+  // @0x5cda40  cmpb $0x0, 0x98(%rbx)  /  @0x5cda47  je 0x5cdab4
+  if (self.depthTest !== 0) gl.glEnable(GL_DEPTH_TEST); // @0x5cda49
+  else gl.glDisable(GL_DEPTH_TEST); // @0x5cdab4
+  // @0x5cda53  cmpb $0x0, 0xa4(%rbx)  /  @0x5cda5a  je 0x5cdac7
+  if (self.lighting !== 0) gl.glEnable(GL_LIGHTING); // @0x5cda5c
+  else gl.glDisable(GL_LIGHTING); // @0x5cdac7
+  // @0x5cda66  cmpb $0x0, 0xa5(%rbx)  /  @0x5cda6d  je 0x5cdada
+  if (self.lineSmooth !== 0) gl.glEnable(GL_LINE_SMOOTH); // @0x5cda6f
+  else gl.glDisable(GL_LINE_SMOOTH); // @0x5cdada
+  // @0x5cda79  cmpb $0x0, 0x9a(%rbx)  /  @0x5cda80  je 0x5cdaed
+  if (self.blendEnabled !== 0) gl.glEnable(GL_BLEND); // @0x5cda82
+  else gl.glDisable(GL_BLEND); // @0x5cdaed
+  // @0x5cda8c  cmpb $0x0, 0x9b(%rbx)  /  @0x5cda93  je 0x5cdb00
+  if (self.ditherEnabled !== 0) gl.glEnable(GL_DITHER); // @0x5cda95
+  else gl.glDisable(GL_DITHER); // @0x5cdb00
+  // @0x5cda9f  cmpb $0x0, 0x9c(%rbx)  /  @0x5cdaa6  je 0x5cdb13
+  if (self.normalizeEnabled !== 0) gl.glEnable(GL_NORMALIZE); // @0x5cdaa8
+  else gl.glDisable(GL_NORMALIZE); // @0x5cdb13
+  // @0x5cdab2  jmp 0x5cdb1d (enable arm) / fall-through from 0x5cdb18 (disable arm)
+
+  // @0x5cdb1d  movzbl 0x99(%rbx), %edi  /  @0x5cdb24  callq _glDepthMask
+  //   `movzbl` zero-extends, so the driver sees the raw unsigned byte.
+  gl.glDepthMask(self.depthWriteMask & 0xff);
+  // @0x5cdb29  cvtsi2ssl 0xa0(%rbx), %xmm0  /  @0x5cdb31  callq _glLineWidth
+  //   Signed int32 -> float32 conversion; Math.fround pins the single
+  //   precision the `ss` form produces. (The ctor snapshotted this slot with
+  //   glGetIntegerv @0x5cd92b, so the round trip really is int -> float.)
+  gl.glLineWidth(Math.fround(self.lineWidth | 0));
+
+  // @0x5cdb36  movl 0xb0(%rbx), %esi   ; dstRGB   loaded FIRST
+  // @0x5cdb3c  movl 0xa8(%rbx), %edi   ; srcRGB
+  // @0x5cdb42  movl 0xac(%rbx), %edx   ; srcAlpha
+  // @0x5cdb48  movl 0xb4(%rbx), %ecx   ; dstAlpha
+  // @0x5cdb4e  callq _glBlendFuncSeparate
+  //   The factors sit in memory as (srcRGB, srcAlpha, dstRGB, dstAlpha) — the
+  //   order the ctor's four glGetIntegerv calls wrote them in — but
+  //   glBlendFuncSeparate takes (srcRGB, dstRGB, srcAlpha, dstAlpha), which is
+  //   why the disasm loads +0xb0 into %esi before +0xac into %edx.
+  gl.glBlendFuncSeparate(
+    self.blendSrcRGB | 0,
+    self.blendDstRGB | 0,
+    self.blendSrcAlpha | 0,
+    self.blendDstAlpha | 0,
+  );
+
+  // @0x5cdb53  movl 0xb8(%rbx), %edi  /  @0x5cdb59  callq _glStencilMask
+  gl.glStencilMask(self.stencilBits | 0);
+  // @0x5cdb5e  movl 0xbc(%rbx), %edi
+  // @0x5cdb64..0x5cdb69  epilogue (addq $0x8,%rsp; popq %rbx; popq %rbp)
+  // @0x5cdb6a  jmp _glMatrixMode      ; TAIL CALL — the last driver call
+  gl.glMatrixMode(self.matrixMode | 0);
 }
