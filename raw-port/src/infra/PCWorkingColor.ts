@@ -15,6 +15,23 @@
 // SYMBOL EXPOSED (nm -a Ozone):
 //   __ZN14PCWorkingColorD1Ev  ->  PCWorkingColor::~PCWorkingColor()   @0x75200
 //
+// -----------------------------------------------------------------------------
+// ADDED LATER — the copy-assignment operator, transcribed from ProCore
+// -----------------------------------------------------------------------------
+// The note above ("the ctor, copy, and assignment operators are all U-externs
+// ... not disassemblable from this framework") is exactly right about OZONE: the
+// class is ProCore-owned (the `PC` prefix), and Ozone merely IMPORTS it. The
+// definition lives in the ProCore binary, where it IS disassemblable:
+//
+//   * PCWorkingColor::operator=(PCWorkingColor const&)   @ProCore 0x7a8a6
+//     __ZN14PCWorkingColoraSERKS_
+//     re/disasm: raw-port/re/disasm/ProCore.__ZN14PCWorkingColoraSERKS_.s (9 lines)
+//     Source binary for THIS method:
+//       /Applications/Final Cut Pro.app/Contents/Frameworks/ProCore.framework/
+//       Versions/A/ProCore  (x86_64 slice)
+//
+// That method is ADDED below; the destructor port above is untouched by it.
+//
 // CONSUMERS visible in the Ozone symbol table:
 //   OZPreferenceManager::getGroundPlaneColor1(PCWorkingColor&)
 //     __ZN19OZPreferenceManager20getGroundPlaneColor1ER14PCWorkingColor
@@ -172,5 +189,60 @@ export class PCWorkingColor {
     if (false as boolean) {
       clang_call_terminate_stub(undefined);
     }
+  }
+
+  /**
+   * `PCWorkingColor::operator=(PCWorkingColor const&)` — @ProCore 0x7a8a6
+   * (`__ZN14PCWorkingColoraSERKS_`).
+   *
+   * DISASM (raw-port/re/disasm/ProCore.__ZN14PCWorkingColoraSERKS_.s, 9 lines):
+   *
+   *   0x7a8a6  pushq  %rbp                    ; frame prologue
+   *   0x7a8a7  movq   %rsp, %rbp
+   *   0x7a8aa  movq   %rdi, %rax              ; return value = this
+   *   0x7a8ad  movups (%rsi), %xmm0           ; load 16 bytes from `other`+0x00
+   *   0x7a8b0  movups %xmm0, (%rdi)           ; store 16 bytes to `this`+0x00
+   *   0x7a8b3  popq   %rbp                    ; frame epilogue
+   *   0x7a8b4  retq                           ; return %rax (== this)
+   *   0x7a8b5  nop                            ; alignment padding
+   *
+   * The ENTIRE body is one unaligned 16-byte SSE load/store pair. Everything
+   * that matters about it is what it does NOT do:
+   *
+   *   * It copies EXACTLY the +0x00..+0x0f range — the opaque payload block the
+   *     dtor above never reads. The `movups` displacement is 0 on both sides and
+   *     the register is a full `%xmm`, so the width is 16 bytes, no more.
+   *   * It does NOT touch +0x10. There is no second load/store, no retain, no
+   *     release, and no null check anywhere in the nine lines — so whatever the
+   *     +0x10 slot holds in the assigned-to object is left exactly as it was.
+   *     (Recorded as an OBSERVATION for whoever reconciles this class's layout
+   *     against the Ozone-side dtor at 0x75200, which does release a handle at
+   *     +0x10. This unit transcribes only what ProCore 0x7a8a6 executes and
+   *     asserts nothing about that reconciliation.)
+   *   * There is no self-assignment guard and no branch of any kind: `this ==
+   *     &other` simply copies the block onto itself.
+   *
+   * `depgraph.py` confirms the shape: `deps: []`, `n_extern_oos: 0`,
+   * `indirect: 0` — no callq, no symbol stub, no virtual dispatch. A trivially
+   * copyable 16-byte assignment.
+   *
+   * MODELLING NOTE: the machine copies 16 raw bytes. This file already models
+   * that whole range as the single opaque `payload_0x00` slot (the dtor could
+   * not decompose it), so the faithful mirror of the one `movups` pair is to
+   * transfer that slot as one unit — the same block, moved whole. When a ctor
+   * or accessor eventually names the individual fields in +0x00..+0x0f, this
+   * assignment keeps copying all of them, because it copies the block.
+   *
+   * @param other  `%rsi` — the source object, taken by const reference.
+   * @returns      `%rax` — `this`, per the C++ assignment-operator convention.
+   */
+  assign(other: PCWorkingColor): PCWorkingColor {
+    // @0x7a8ad  movups (%rsi), %xmm0   ; xmm0 = other[+0x00 .. +0x0f]
+    // @0x7a8b0  movups %xmm0, (%rdi)   ; this[+0x00 .. +0x0f] = xmm0
+    this.payload_0x00 = other.payload_0x00;
+    // NOTE: no store to +0x10 — `this.cs_0x10` is deliberately left untouched,
+    // because the disasm contains no second move (see the doc comment above).
+    // @0x7a8aa / @0x7a8b4  movq %rdi, %rax ; retq   — return this.
+    return this;
   }
 }
