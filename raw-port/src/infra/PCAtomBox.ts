@@ -7,6 +7,7 @@
 //
 // Provenance (raw-port/re/disasm/ProCore.PCAtomBox.*.s):
 //   getOffset()  @0x008b54  (__ZN9PCAtomBox9getOffsetEv)
+//   setOffset(unsigned long long)  @0x008b5e  (__ZN9PCAtomBox9setOffsetEy)
 //
 // ── Decoded struct layout (only the fields this unit touches are pinned here;
 //    the remaining fields are added by their own ledger units) ──────────────
@@ -36,5 +37,24 @@ export class PCAtomBox {
   getOffset(): bigint {
     // @0x008b58 — movq (%rdi),%rax : load the u64 offset at +0x00.
     return this.offset;
+  }
+
+  /**
+   * PCAtomBox::setOffset(unsigned long long)
+   * @0xADDR ProCore 0x0000000000008b5e  (__ZN9PCAtomBox9setOffsetEy)
+   *
+   * DECODE (raw-port/re/disasm/ProCore.__ZN9PCAtomBox9setOffsetEy.s):
+   *   0x008b5e  pushq %rbp ; movq %rsp,%rbp        ; frame
+   *   0x008b62  movq %rsi, (%rdi)                  ; *(u64*)(this+0x00) = arg
+   *   0x008b65  popq %rbp ; retq                   ; void
+   *
+   * The 64-bit companion setter to getOffset(): stores the full unsigned long
+   * long argument (%rsi) into the atom's byte-offset field at +0x00. Zero
+   * callees, no externs. Kept as bigint per PORTING_SPEC Rule 4 (a file offset
+   * can exceed 2^53).
+   */
+  setOffset(value: bigint): void {
+    // @0x008b62 — movq %rsi,(%rdi) : store the u64 offset at +0x00.
+    this.offset = BigInt.asUintN(64, value);
   }
 }
