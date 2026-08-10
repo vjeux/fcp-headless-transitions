@@ -1020,4 +1020,51 @@ export class OZScene {
     // @0x81e9a..0x81e9b — epilogue + retq (return eax).
     return this.toneMappingMode_at_0xd0 >>> 0;
   }
+
+  /**
+   * `OZScene::setToneMappingMode(PCToneMappingMode)`
+   *   — @Ozone 0x81ea0
+   *   — __ZN7OZScene18setToneMappingModeE17PCToneMappingMode
+   *
+   * Faithful line-for-line transcription of the 5-instruction body — the
+   * exact mirror of `getToneMappingMode()` @0x81e90: one 32-bit store, no
+   * branch, no read-back, no callee:
+   *
+   *   0x81ea0  pushq %rbp                    ; frame prologue
+   *   0x81ea1  movq  %rsp, %rbp
+   *   0x81ea4  movl  %esi, 0xd0(%rdi)        ; *(u32*)(this + 0xd0) = (u32)mode
+   *   0x81eaa  popq  %rbp                    ; frame epilogue
+   *   0x81eab  retq                          ; void
+   *   0x81eac  nopl  (%rax)                  ; alignment padding
+   *
+   * System-V x86_64: `%rdi` = `this`, `%esi` = the `PCToneMappingMode`
+   * argument (a 32-bit enum passed in the low half of the second integer
+   * register). `movl` stores exactly those 4 bytes at +0xd0 — the same slot
+   * the getter reads @0x81e94 — with no masking, no range check and no
+   * normalisation, so the port stores the raw 32 bits via `>>> 0`.
+   *
+   * The parameter is typed `number`, not an enum: `PCToneMappingMode` has no
+   * transcribed definition anywhere in the port yet (its enumerators are not
+   * observable from this instruction), and the machine copies whatever 32
+   * bits arrive. Typing it as a TS enum would assert a value set this unit
+   * has no evidence for.
+   *
+   * Returns void — %rax is never written before `retq`.
+   *
+   * Zero in-scope callees, zero externs, no indirect or virtual calls.
+   * Confirmed via `depgraph.py deps
+   * __ZN7OZScene18setToneMappingModeE17PCToneMappingMode` (no dependency
+   * rows).
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN7OZScene18setToneMappingModeE17PCToneMappingMode.s
+   *   (7 lines)
+   */
+  setToneMappingMode(mode: number): void {
+    // @0x81ea0..0x81ea1 — prologue (no TS-visible effect).
+    // @0x81ea4           — movl %esi, 0xd0(%rdi): store the 32-bit argument
+    //                      into the u32 field at +0xd0.
+    this.toneMappingMode_at_0xd0 = mode >>> 0;
+    // @0x81eaa..0x81eab — epilogue + retq (no return value).
+  }
 }
