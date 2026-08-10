@@ -135,7 +135,7 @@ Full rules: read `REVIEWER_BRIEF.md` + `PR_FLOW.md` (honor the RESOLVED cheat ru
                 pr_comment_once.sh <PR#> "<one-line evidence>"   # idempotent; ONE comment, no re-post
                 mark_ported.py
             else:
-                gh pr review <PR#> --request-changes -b "<exactly which instruction the TS omits>"
+                ghapp/pr_review.sh <PR#> request-changes "<exactly which instruction the TS omits>"
       review_claim.sh release <PR#> <headSHA>
       # keep looping
     on shutdown: slot_lock.sh release reviewer N

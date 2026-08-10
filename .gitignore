@@ -66,3 +66,7 @@ raw-port/raw-port/
 # incremental typecheck cache (per-worktree, rederivable)
 raw-port/.gate.tsbuildinfo
 **/.gate.tsbuildinfo
+
+# GitHub App private keys — real keys live in ~/.fct-pool/ghapp/ (outside the repo);
+# this is a defensive guard so one can never be committed by accident.
+*.pem
