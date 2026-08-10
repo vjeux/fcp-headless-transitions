@@ -652,6 +652,84 @@ export class HGNode extends HGObject {
     this.ClearBits(0xffff);
   }
 
+  // ---------------------------------------------------------------------------
+  // UNIT: HGNode::SupportsGLSL() const                         @Helium 0x1221a0
+  //   __ZNK6HGNode12SupportsGLSLEv
+  //
+  // re/disasm: raw-port/re/disasm/Helium.__ZNK6HGNode12SupportsGLSLEv.s (9 lines)
+  //
+  // FULL DISASM (6 real insns @0x1221a0..0x1221ad; 0x1221ae is padding):
+  //   0x1221a0  pushq  %rbp
+  //   0x1221a1  movq   %rsp, %rbp
+  //   0x1221a4  movzbl 0x11(%rdi), %eax   ; al = *(u8*)(this + 0x11)
+  //   0x1221a8  andb   $0x2, %al          ; al &= 0x02
+  //   0x1221aa  shrb   %al                ; al >>= 1   (implicit count 1)
+  //   0x1221ac  popq   %rbp
+  //   0x1221ad  retq
+  //   0x1221ae  nop                       ; padding, not code
+  //
+  // WHICH BIT — the load is of the BYTE at +0x11, which is byte 1 of the u32
+  // `renderPageStrategy` at +0x10 (see the STRUCT LAYOUT block at the top of
+  // this file). So `(*(u8*)(this+0x11)) & 0x02` selects bit 9 of that u32,
+  // i.e. the 0x200 bit — EXACTLY the value the constructor stores there:
+  //   @0x11bc3b  movl $0x200, 0x10(%rbx)   (HGNode::HGNode, already ported
+  //                                          above as renderPageStrategy = 0x200)
+  //   @0x11baa4  movl $0x200, 0x10(%rdi)   (HGNode::Init, likewise)
+  // So a default-constructed HGNode reports SupportsGLSL() == 1, which is the
+  // strongest available confirmation that +0x10 is a capability bitfield and
+  // that bit 9 is the GLSL capability.
+  //
+  // The two IMMEDIATELY ADJACENT accessors are the same six instructions on
+  // the same byte with the next two bits, which pins the bit assignment:
+  //   @0x1221b4/0x1221b8/0x1221ba  SupportsMetal: (u8@+0x11 & 0x04) >> 2
+  //                                               -> bit 10 of +0x10 (0x400)
+  //   @0x1221c4/0x1221c8/0x1221ca  SupportsSWAIR: (u8@+0x11 & 0x08) >> 3
+  //                                               -> bit 11 of +0x10 (0x800)
+  // Both are separate ledger units and are NOT ported here — cited only as
+  // the evidence for the bit numbering.
+  //
+  // RETURN TYPE — there is no `sete`; the machine narrows with `andb` then
+  // `shrb`, leaving the SHIFTED BIT in %al. Following the convention this
+  // port already uses (a `sete`-terminated predicate becomes `boolean`, e.g.
+  // HGLimits::isfragment @0xa7973; an and/shift/cmov-terminated one stays an
+  // integer, e.g. HGFormatUtils::toHGGLContextID @0xa1c08), this returns a
+  // `number` that is 0 or 1.
+  //
+  // FRONTIER CALLEES: zero. One byte load, one mask, one shift —
+  // `depgraph.py deps __ZNK6HGNode12SupportsGLSLEv` reports nothing (0
+  // in-scope callees, 0 externs, 0 indirect). Integer only.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * `HGNode::SupportsGLSL() const` — @Helium 0x1221a0
+   * (__ZNK6HGNode12SupportsGLSLEv).
+   *
+   * Returns bit 1 of the byte at +0x11 — i.e. the 0x200 bit of the
+   * `renderPageStrategy` u32 at +0x10 — as a 0/1 integer. Both the
+   * constructor @0x11bc3b and `Init` @0x11baa4 store 0x200 there, so this
+   * reports 1 on a freshly constructed node.
+   *
+   * Faithful transcription:
+   *   0x1221a4  movzbl 0x11(%rdi), %eax
+   *   0x1221a8  andb   $0x2, %al
+   *   0x1221aa  shrb   %al
+   *
+   * No callees, no externs, no indirect calls; the `const` qualifier matches
+   * the `__ZNK...` mangling and the body only reads.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Helium.__ZNK6HGNode12SupportsGLSLEv.s
+   */
+  SupportsGLSL(): number {
+    // @Helium 0x1221a4: movzbl 0x11(%rdi), %eax — the BYTE at +0x11 is byte 1
+    //   of the u32 modelled here as renderPageStrategy (+0x10).
+    const byteAt0x11 = ((this.renderPageStrategy >>> 8) & 0xff) >>> 0;
+    // @Helium 0x1221a8: andb $0x2, %al
+    const masked = byteAt0x11 & 0x2;
+    // @Helium 0x1221aa: shrb %al  (implicit shift count of 1)
+    return masked >>> 1;
+  }
+
   // NOTE: the vtable slot *0x78 for HGNode is HGNode::SetInput @0x11c5f0,
   // and *0x80 is HGNode::GetInput @0x11c8b0. Subclasses that inherit
   // HGNode's default behavior get exactly the methods above.
