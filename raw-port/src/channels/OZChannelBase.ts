@@ -1298,4 +1298,45 @@ export class OZChannelBase {
       cur = parent;
     }
   }
+
+  /** @ProChannel OZChannelBase layout offset 0x3a (read @0x4bb72).
+   *  Packed flag byte containing at least the `isSolo` flag at bit 2 (mask 0x4).
+   *  The ctor that clears/initialises this byte is a separate ledger unit — we model
+   *  the field as a plain u8 (0..255) so the bit-3 shift/and in isSolo has a well-typed
+   *  source, and default to 0 (not-solo, matching a zero-initialised C++ struct).
+   *  Other bits in this byte are unused by isSolo and remain unnamed until the setter
+   *  is decoded.  */
+  private __flags_byte_at_0x3a: number = 0;
+
+  /**
+   * OZChannelBase::isSolo() const.
+   * @ProChannel 0x4bb6e..0x4bb7b  (__ZNK13OZChannelBase6isSoloEv)
+   *
+   * Disasm (raw-port/re/disasm/ProChannel.__ZNK13OZChannelBase6isSoloEv.s):
+   *   0x4bb6e  pushq  %rbp                    ; prologue
+   *   0x4bb6f  movq   %rsp, %rbp              ; prologue
+   *   0x4bb72  movb   0x3a(%rdi), %al         ; al = *(u8*)(this + 0x3a)
+   *   0x4bb75  andb   $0x4, %al               ; al &= 0x04       (mask bit 2)
+   *   0x4bb77  shrb   $0x2, %al               ; al >>= 2         (shift to bit 0)
+   *   0x4bb7a  popq   %rbp                    ; epilogue
+   *   0x4bb7b  retq                           ; return %al (0 or 1) — as bool
+   *
+   * Semantics: read the packed flag byte at layout offset 0x3a, extract bit 2, and
+   * return it as a boolean.  The mask-then-shift idiom is the compiler's way of
+   * lowering `return (flags & 0x4) ? true : false;` — the result is 0 or 1, which
+   * the C++ ABI treats as bool.
+   *
+   * Note (0-vs-1 vs true/false): the machine returns a byte in %al holding exactly
+   * 0 or 1; the C++ bool ABI leaves upper bits unspecified, so callers zero-extend
+   * on their own.  We return a TS boolean directly — the value is derivable by
+   * `((flags & 0x4) >> 2) !== 0`, which is bit-identical to the disasm's output.
+   */
+  isSolo(): boolean {
+    // @0x4bb72  movb  0x3a(%rdi), %al   — read the packed flag byte.
+    const flags = this.__flags_byte_at_0x3a & 0xff;
+    // @0x4bb75  andb  $0x4, %al         — mask bit 2 (0x04).
+    // @0x4bb77  shrb  $0x2, %al         — shift down to bit 0.
+    // Combined: the low bit of the result is `(flags >> 2) & 1`.
+    return ((flags & 0x04) >>> 2) !== 0;
+  }
 }
