@@ -38,6 +38,24 @@
 //   * __ZN13OZViewerState13getResolutionEv
 //       — OZViewerState::getResolution() @Ozone 0x36e2e0
 //         (raw-port/re/disasm/__ZN13OZViewerState13getResolutionEv.s — 23 lines)
+//   * __ZNK13OZViewerState10isSnappingEv
+//       — OZViewerState::isSnapping() const @Ozone 0x36e670
+//         (raw-port/re/disasm/__ZNK13OZViewerState10isSnappingEv.s — 8 lines)
+//
+// -----------------------------------------------------------------------------
+// FULL DISASM (raw-port/re/disasm/__ZNK13OZViewerState10isSnappingEv.s)
+// -----------------------------------------------------------------------------
+//   0x36e670  pushq   %rbp                       ; frame prologue
+//   0x36e671  movq    %rsp, %rbp
+//   0x36e674  movzbl  0x3a(%rdi), %eax           ; eax = *(u8*)(this + 0x3a)
+//                                                ; zero-extend the byte at +0x3a
+//   0x36e678  andb    $0x1, %al                  ; al &= 1 — isolate bit 0
+//                                                ; (packed-bitfield read; the
+//                                                ;  "snapping" flag is bit 0 of
+//                                                ;  the byte at +0x3a)
+//   0x36e67a  popq    %rbp                       ; frame epilogue
+//   0x36e67b  retq                               ; return al (bool)
+//   0x36e67c  nopl    (%rax)                     ; padding — no effect
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (raw-port/re/disasm/__ZN13OZViewerState20getDynamicResolutionEv.s)
@@ -84,6 +102,16 @@ export class OZViewerState {
    * `number` (int32-clamped at truncation points via `| 0`).
    */
   resolutionMode: number = 0; // int32 field @+0x20
+
+  /**
+   * @Ozone +0x3a (u8, packed bitfield) — the byte read by `isSnapping()`
+   * @0x36e674 via `movzbl 0x3a(%rdi), %eax`. Only bit 0 is consumed by
+   * that accessor (`andb $0x1, %al` @0x36e678); the remaining 7 bits hold
+   * other packed flags that are OUT OF SCOPE for this file (documented as
+   * the methods that read them are ported). Modelled as a `number` in
+   * [0, 255].
+   */
+  snappingFlags: number = 0; // u8 packed-bitfield @+0x3a
 
   /**
    * `OZViewerState::getDynamicResolution()` @Ozone 0x36e2d0
@@ -209,5 +237,35 @@ export class OZViewerState {
     // @0x36e305..0x36e309  movss %xmm0, (%rax); movss %xmm0, 0x4(%rax)
     //   out->x = out->y = scalar (both 32-bit stores).
     return { x: s, y: s };
+  }
+
+  /**
+   * `OZViewerState::isSnapping() const` @Ozone 0x36e670
+   *   — __ZNK13OZViewerState10isSnappingEv
+   *
+   * Faithful transcription of the 5-instruction body: a packed-bitfield
+   * read. Loads the u8 at +0x3a (`movzbl 0x3a(%rdi), %eax`, zero-extended
+   * to 32 bits), then masks bit 0 (`andb $0x1, %al`), and returns that
+   * single bit as the boolean result. `this` is %rdi (System-V ABI);
+   * %al/%eax is the return register.
+   *
+   *   0x36e670  pushq  %rbp
+   *   0x36e671  movq   %rsp, %rbp
+   *   0x36e674  movzbl 0x3a(%rdi), %eax    ; eax = *(u8*)(this + 0x3a)
+   *   0x36e678  andb   $0x1, %al           ; al &= 1 — isolate bit 0
+   *   0x36e67a  popq   %rbp
+   *   0x36e67b  retq                       ; return al
+   *
+   * Zero in-scope callees, zero externs — one byte-load, one mask.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK13OZViewerState10isSnappingEv.s (8 lines)
+   */
+  isSnapping(): boolean {
+    // @0x36e670..0x36e671 — prologue (no TS-visible effect).
+    // @0x36e674           — movzbl 0x3a(%rdi), %eax: read the u8 at +0x3a.
+    // @0x36e678           — andb $0x1, %al: isolate bit 0 of that byte.
+    // @0x36e67a..0x36e67b — epilogue + retq (return al as a bool).
+    return (this.snappingFlags & 0x1) !== 0;
   }
 }
