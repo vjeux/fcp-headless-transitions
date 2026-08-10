@@ -85,9 +85,12 @@ def manifest(role):
         "public": False,
         "default_permissions": PERMS[role],
         "default_events": [],
-        # No webhook: the swarm polls its own disk-backed queues, so an inbound hook is dead weight
-        # (and a laptop cannot receive one anyway).
-        "hook_attributes": {"url": f"{base}/unused", "active": False},
+        # NO hook_attributes. The swarm polls its own disk-backed queues, so an inbound webhook is
+        # dead weight — and GitHub VALIDATES the hook URL against the public internet even when
+        # "active": false is set, so a localhost hook is rejected outright:
+        #     "Hook url is not supported because it isn't reachable over the public Internet"
+        # Omitting the key entirely creates the app with webhooks off, which is what we want.
+        # (redirect_url may be localhost — that one is only followed by YOUR browser, not by GitHub.)
     }
 
 
