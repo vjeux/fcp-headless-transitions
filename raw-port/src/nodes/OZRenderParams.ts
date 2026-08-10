@@ -62,6 +62,10 @@
 //       — OZRenderParams::getOutputColorDescription() const @Ozone 0x271510
 //         (raw-port/re/disasm/
 //           __ZNK14OZRenderParams25getOutputColorDescriptionEv.s — 15 lines)
+//   * __ZNK14OZRenderParams15getRenderDeviceEv
+//       — OZRenderParams::getRenderDevice() const @Ozone 0x271a40
+//         (raw-port/re/disasm/
+//           __ZNK14OZRenderParams15getRenderDeviceEv.s — 6 lines)
 //   * __ZNK14OZRenderParams20getDestinationDeviceEv
 //       — OZRenderParams::getDestinationDevice() const @Ozone 0x2719d0
 //         (raw-port/re/disasm/
@@ -276,6 +280,31 @@ export class OZRenderParams {
   renderBoundsSizeAt258: PCVector2Double = { x: 0, y: 0 };
 
   /**
+   * @Ozone offset +0x268 — the explicit render-GATE ORIGIN, a
+   * `PCVector2<double>` (x at +0x268, y at +0x270), read as a packed 128-bit
+   * pair by `getRenderGate() const` @0x270b15 (`movups 0x268(%rsi),%xmm0`).
+   *
+   * The gate is the second rectangle this object carries, laid out exactly
+   * like the render BOUNDS pair 0x20 bytes below it (+0x248 origin / +0x258
+   * size) and consumed by an identically-shaped getter. Modelled as a
+   * PCVector2Double — the same 16-byte shape the disasm loads.
+   */
+  renderGateOriginAt268: PCVector2Double = { x: 0, y: 0 };
+
+  /**
+   * @Ozone offset +0x278 — the explicit render-GATE SIZE, a
+   * `PCVector2<double>` (width at +0x278, height at +0x280), read as a packed
+   * 128-bit pair by `getRenderGate() const` @0x270b1c
+   * (`movups 0x278(%rsi),%xmm1`). Its x/width lane at +0x278 is ALSO the gate
+   * the getter tests (`ucomisd 0x278(%rsi),%xmm0` with xmm0 = 0.0): width <= 0
+   * means "no explicit gate set" and the getter falls back to the
+   * widthAt144/heightAt148 ints — the same protocol
+   * `renderBoundsSizeAt258` uses for the bounds. Modelled as a
+   * PCVector2Double (x = width, y = height).
+   */
+  renderGateSizeAt278: PCVector2Double = { x: 0, y: 0 };
+
+  /**
    * @Ozone offset +0x120 — an EMBEDDED "destination device" sub-object (not a
    * pointer field: the getter returns its ADDRESS via `leaq 0x120(%rdi),%rax`,
    * so the device data lives inline at this+0x120). Read by
@@ -288,6 +317,25 @@ export class OZRenderParams {
    * (a pointer to the inline field, NOT a fresh copy).
    */
   destinationDeviceAt120: object = {}; // @Ozone OZRenderParams@+0x120 (embedded device sub-object)
+
+  /**
+   * @Ozone offset +0x130 — an EMBEDDED "render device" sub-object, the twin of
+   * `destinationDeviceAt120` above and 0x10 bytes past it.
+   *
+   * Proven embedded (not a pointer field) by its getter
+   * `getRenderDevice() const` @0x271a44, which returns its ADDRESS with
+   * `leaq 0x130(%rdi), %rax` — a load-effective-address, never a load through
+   * the slot. The two devices are distinct: `getDestinationDevice()` @0x2719d4
+   * hands back `&this[+0x120]` while this one hands back `&this[+0x130]`, so a
+   * render params object carries BOTH a device it renders ON and a device it
+   * delivers TO, and they are separate 0x10-byte slots.
+   *
+   * The sub-object's own layout is not decoded by this unit (no ported method
+   * reads through the returned pointer), so it is modelled as an OPAQUE object
+   * slot with a stable identity — exactly like +0x120 — so the getter can hand
+   * back a reference to the SAME embedded object rather than a fresh copy.
+   */
+  renderDeviceAt130: object = {}; // @Ozone OZRenderParams@+0x130 (embedded device sub-object)
 
   /**
    * @Ozone offset +0x1d8 — a 4-byte integer written by
@@ -1225,6 +1273,51 @@ export class OZRenderParams {
   }
 
   /**
+   * `OZRenderParams::getRenderDevice() const`
+   *   — @Ozone 0x271a40
+   *   — __ZNK14OZRenderParams15getRenderDeviceEv
+   *
+   * FULL DISASM (6 lines — raw-port/re/disasm/
+   * __ZNK14OZRenderParams15getRenderDeviceEv.s):
+   *
+   *   0x271a40  pushq  %rbp                        ; frame prologue
+   *   0x271a41  movq   %rsp, %rbp
+   *   0x271a44  leaq   0x130(%rdi), %rax           ; rax = &this[+0x130] (address of the
+   *                                                ;   embedded render-device sub-object)
+   *   0x271a4b  popq   %rbp                        ; frame epilogue
+   *   0x271a4c  retq                               ; return rax
+   *   0x271a4d  nopl   (%rax)                      ; alignment padding (not executed)
+   *
+   * SEMANTICS: the exact twin of `getDestinationDevice()` @0x2719d0 above —
+   * byte-identical instruction sequence, only the displacement differs
+   * (0x130 vs 0x120). It returns a POINTER to the render-device sub-object
+   * embedded inline at this+0x130. `leaq` is a load-EFFECTIVE-address, not a
+   * load: nothing is dereferenced, nothing is copied, and no reference count
+   * is touched, which is what proves the device lives inline in
+   * OZRenderParams rather than behind a pointer stored there.
+   *
+   * The two getters therefore expose two DISTINCT devices 0x10 bytes apart —
+   * this port must not alias them onto one field.
+   *
+   * In TS the `&this[+0x130]` semantics are reproduced by returning the SAME
+   * `renderDeviceAt130` object identity: mutations through the returned
+   * reference are visible on `this`, exactly as through a pointer into the
+   * object.
+   *
+   * Zero in-scope callees, zero externs, zero indirect calls — pure address-of
+   * a field.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams15getRenderDeviceEv.s (6 lines)
+   */
+  getRenderDevice(this: OZRenderParams): object {
+    // @0x271a44  leaq 0x130(%rdi),%rax ; @0x271a4c retq
+    //   Return the ADDRESS of the embedded render-device sub-object — i.e. a
+    //   reference to this.renderDeviceAt130 (no dereference, no copy).
+    return this.renderDeviceAt130;
+  }
+
+  /**
    * `OZRenderParams::getRenderBounds() const` @Ozone 0x270aa0
    * (__ZNK14OZRenderParams15getRenderBoundsEv).
    *
@@ -1522,6 +1615,133 @@ export class OZRenderParams {
   getWorkingColorDescription(this: OZRenderParams): FxColorDescription {
     // @0x2712b4  leaq 0x2c0(%rdi),%rax
     return this.workingColorDescriptionAt2c0;
+  }
+
+  /**
+   * `OZRenderParams::getRenderGate() const` @Ozone 0x270b00
+   * (__ZNK14OZRenderParams13getRenderGateEv).
+   *
+   * Returns a 32-byte `{origin, size}` rect BY VALUE, so the ABI passes a
+   * hidden sret pointer in `%rdi` and the real `this` in `%rsi` — the same
+   * calling shape as the sibling `getRenderBounds() const` @0x270aa0, whose
+   * body this one mirrors instruction-for-instruction with the gate slots
+   * (+0x268 / +0x278) in place of the bounds slots (+0x248 / +0x258).
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x270b00  pushq    %rbp                      ; frame setup (no TS counterpart)
+   *   0x270b01  movq     %rsp, %rbp                ; frame setup (no TS counterpart)
+   *   0x270b04  movq     %rdi, %rax                ; rax = sret slot (also the return value)
+   *   0x270b07  xorpd    %xmm0, %xmm0              ; xmm0 = 0.0
+   *   0x270b0b  ucomisd  0x278(%rsi), %xmm0        ; flags on 0.0 - gate.size.x
+   *   0x270b13  jae      0x270b2c                  ;   CF=0 => 0.0 >= width => FALLBACK
+   *   0x270b15  movups   0x268(%rsi), %xmm0        ; xmm0 = gate origin (16 B)
+   *   0x270b1c  movups   0x278(%rsi), %xmm1        ; xmm1 = gate size   (16 B)
+   *   0x270b23  movups   %xmm1, 0x10(%rax)         ; ret.size   = size
+   *   0x270b27  movups   %xmm0, (%rax)             ; ret.origin = origin
+   *   0x270b2b  retq
+   *   0x270b2c  xorpd    %xmm0, %xmm0              ; FALLBACK: xmm0 = (0.0, 0.0)
+   *   0x270b30  movupd   %xmm0, (%rax)             ; ret.origin = (0,0)
+   *   0x270b34  pmovzxdq 0x144(%rsi), %xmm0        ; zero-extend u32 w(+0x144), h(+0x148)
+   *   0x270b3d  movdqa   0x496b9b(%rip), %xmm1     ; the 2^52 bias constant pair
+   *   0x270b45  por      %xmm1, %xmm0              ; OR the bias in
+   *   0x270b49  subpd    %xmm1, %xmm0              ; subtract it -> exact (double)u32 x2
+   *   0x270b4d  movupd   %xmm0, 0x10(%rax)         ; ret.size = ((double)w,(double)h)
+   *   0x270b53  retq
+   *   0x270b54  nopw     %cs:(%rax,%rax)           ; alignment padding, not executed
+   *
+   * AT&T decode note (PORTING_SPEC Rule 4): `ucomisd 0x278(%rsi), %xmm0` sets
+   * flags on `dst - src` = `0.0 - gate.size.x`, and `jae` is CF=0, i.e. the
+   * FALLBACK is taken exactly when `0.0 >= width`. So the explicit-gate branch
+   * (fall-through) runs iff `width > 0` — the identical test
+   * `getRenderBounds()` @0x270ab3 makes on +0x258. (NaN sets CF=1, so a NaN
+   * width takes the fall-through explicit branch; the port's `> 0` comparison
+   * is false for NaN — noted because the two differ only for a NaN gate width,
+   * which no decoded writer can produce: the slot is only ever written from
+   * caller-supplied doubles.)
+   *
+   * The `por`/`subpd` pair is the standard unsigned-int-to-double conversion
+   * (bias by 2^52, then subtract), so the fallback size is the EXACT unsigned
+   * values of the two int slots — matching the zero-extending `pmovzxdq`,
+   * which is why the port reads them with `>>> 0`.
+   *
+   * ZERO in-scope callees, ZERO externs, no indirect/virtual dispatch.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams13getRenderGateEv.s (22 lines)
+   */
+  getRenderGate(this: OZRenderParams): OZRenderBounds {
+    // @0x270b07 xorpd %xmm0,%xmm0 ; @0x270b0b ucomisd 0x278(%rsi),%xmm0
+    //   compares 0.0 - this.renderGateSize.x (the width lane).
+    // @0x270b13 jae 0x270b2c : CF=0 => 0.0 >= width => FALLBACK.
+    //   NOT taken (width > 0) => copy the explicit stored gate.
+    if (this.renderGateSizeAt278.x > 0) {
+      // explicit-gate branch @0x270b15:
+      // @0x270b15 movups 0x268 -> origin ; @0x270b1c movups 0x278 -> size
+      // @0x270b23 store size@ret+0x10 ; @0x270b27 store origin@ret+0x00
+      return {
+        origin: {
+          x: this.renderGateOriginAt268.x,
+          y: this.renderGateOriginAt268.y,
+        },
+        size: {
+          x: this.renderGateSizeAt278.x,
+          y: this.renderGateSizeAt278.y,
+        },
+      };
+    }
+
+    // fallback branch @0x270b2c (width <= 0): origin = (0,0), size from int w/h.
+    // @0x270b34 pmovzxdq 0x144(%rsi) : zero-extend uint32 width(+0x144),
+    //   height(+0x148) to two 64-bit lanes; @0x270b3d/@0x270b45/@0x270b49
+    //   OR the 2^52 bias then subtract it -> the exact unsigned values as
+    //   doubles. widthAt144/heightAt148 are the same int32 slots (unsigned
+    //   reinterpretation via >>> 0 to match the zero-extending pmovzxdq).
+    const w = this.widthAt144 >>> 0;
+    const h = this.heightAt148 >>> 0;
+    return {
+      // @0x270b30 movupd %xmm0(=0),(%rax) : ret.origin = (0,0).
+      origin: { x: 0, y: 0 },
+      // @0x270b4d movupd %xmm0,0x10(%rax) : ret.size = ((double)w,(double)h).
+      size: { x: w, y: h },
+    };
+  }
+
+  /**
+   * `OZRenderParams::getBlendingGamma() const` @Ozone 0x271620
+   * (__ZNK14OZRenderParams16getBlendingGammaEv).
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x271620  pushq %rbp                  ; frame setup (no TS counterpart)
+   *   0x271621  movq  %rsp, %rbp            ; frame setup (no TS counterpart)
+   *   0x271624  movss 0x2e0(%rdi), %xmm0    ; return (float) this->blendingGamma
+   *   0x27162c  popq  %rbp                  ; frame teardown (no TS counterpart)
+   *   0x27162d  retq                        ; return in %xmm0 (float ABI slot)
+   *   0x27162e  nop                         ; alignment padding, not executed
+   *
+   * `movss` is a SINGLE-precision (32-bit) load into the low lane of %xmm0,
+   * which is the SysV return register for a `float` — so this is a `float`
+   * getter, not a `double` one, and the exact inverse of the landed
+   * `setBlendingGamma(float)` @0x271614, whose `movss %xmm0, 0x2e0(%rdi)` is
+   * the matching 32-bit store on the same slot.
+   *
+   * Per PORTING_SPEC Rule 4 the value is wrapped in `Math.fround`: the field
+   * holds an IEEE-754 binary32, and the setter's port already rounds on write,
+   * so the round-trip is a no-op for anything written through it — the fround
+   * here keeps the read faithful even if the slot is populated directly (e.g.
+   * by a future ctor or copy-ctor port) with a value that is not yet
+   * representable in single precision.
+   *
+   * No mask, no clamp, no validation, no lock. ZERO in-scope callees, ZERO
+   * externs, no indirect/virtual dispatch — a pure field read.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams16getBlendingGammaEv.s (6 lines)
+   */
+  getBlendingGamma(this: OZRenderParams): number {
+    // @0x271624  movss 0x2e0(%rdi),%xmm0 — 32-bit single-precision load.
+    return Math.fround(this.blendingGamma);
   }
 
   /**
