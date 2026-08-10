@@ -26,15 +26,15 @@ IS the CI**: it runs the gate locally and posts the verdict as a GitHub commit s
    no in-scope throw-stubs, call_once sentinel, ADD-only, one-symbol-one-file).
 5. `raw-port/army/tools/pr_submit.sh <Class>` — rebases onto origin/main, pushes port/<Class>,
    opens a PR. Then `wt_pool.sh release "$WT"` to free the slot. (A fast local `gate.sh` pre-check is
-   encouraged; the reviewer runs the authoritative gate.) Do 4-8 units, release the slot lock, STOP.
-   **Never call spawn_agent.**
+   encouraged; the reviewer runs the authoritative gate.) Then LOOP — claim the next unit; do not stop
+   until the queue is empty. **Never call spawn_agent.**
 
-## Reviewer flow (reviewer cron slot — full brief in REVIEWER_BRIEF.md)
-0. `slot_lock.sh acquire reviewer <N>` — single-flight this slot; exit if BUSY. Release at the end.
+## Reviewer flow (reviewer slot — full brief in REVIEWER_BRIEF.md)
+0. `slot_lock.sh acquire reviewer <N>` — single-flight this slot; exit if BUSY. Release only on shutdown.
 1. `review_claim.sh claim` → leases ONE PR (`CLAIMED <PR#> <sha>`, keyed by head SHA so two reviewer
    slots never gate the same head) or `NONE`. Handle exactly that PR, then
-   `review_claim.sh release <PR#> <sha>`. May claim 2-4 PRs per tick (claim→handle→release, serially).
-   Release the slot lock and STOP at the end. **Never call spawn_agent.**
+   `review_claim.sh release <PR#> <sha>`, and LOOP to claim the next. No per-batch cap — stop only when
+   the queue is empty (sleep-poll or exit for the harness to restart). **Never call spawn_agent.**
 2. `raw-port/army/tools/pr_gate.sh <PR#>` — leases a WARM POOL worktree (`wt_pool.sh acquire-at <head-sha>`)
    and runs gate.sh G0-G5 + regression_check + dup_check in it, with the GATE TOOLS TAKEN FROM
    origin/main (a PR can't ship its own gate), posts commit status `faithfulness-gate` = success/failure,
@@ -52,27 +52,27 @@ IS the CI**: it runs the gate locally and posts the verdict as a GitHub commit s
    verified. Do NOT merge a PR whose faithfulness-gate status is not success.
 5. After merge, `mark_ported.py` (updates the ledger — now in $FCT_STATE_DIR, untracked).
 
-## Dispatch model — QUEUE-DRIVEN, no agent ever spawns an agent
-There is **no coordinator agent** and **no `spawn_agent` anywhere in the swarm**. Concurrency is
-bounded structurally by a fixed set of self-scheduled cron slots + the warm worktree pool. The
-scheduler (cron) is the ONLY thing that ever creates a session — so the agent population can never
-explode, because agents don't reproduce.
+## Dispatch model — SELF-CONTINUING QUEUE-DRIVEN LOOP, no agent ever spawns an agent
+There is **no coordinator agent** and **no `spawn_agent` anywhere in the swarm**. The harness starts a
+fixed set of long-lived agent processes (workers + reviewers), each owning one slot. Each agent runs a
+SELF-CONTINUING loop: pull work → do it → immediately pull the next → repeat until the queue drains.
+The agent population can never explode because agents don't reproduce — the ONLY thing that creates a
+new agent is the harness restarting a dead slot. See **HARNESS_LOOP.md** for the authoritative,
+harness-agnostic loop spec (works under any scheduler, not just Navi crons).
 
-Three kinds of cron:
-- **`swarm-maint`** — a SCRIPT cron (no agent): `raw-port/army/tools/swarm_maint.sh`. Every tick it
-  does all the non-judgement plumbing headlessly: ledger guard, warm-pool
+Roles:
+- **maint** — a plain SCRIPT (no agent): `raw-port/army/tools/swarm_maint.sh` — ledger guard, warm-pool
   init/gc, clean the canonical tree (only if no gate/submit proc is live), periodic `depclaim.py seed`,
-  `depgraph.py reconcile`, and a one-line snapshot. It NEVER spawns and NEVER merges.
-- **`swarm-worker-1..4`** — PROMPT crons, each a fixed slot. Every tick: take its slot lock
-  (`slot_lock.sh acquire worker <N>`; exit if BUSY), pull ONE rebase task (`rebase_claim.sh claim`) or
-  else a batch of 4-8 port units (`depclaim.py next`), open PRs, release the slot lock, STOP.
-- **`swarm-reviewer-1..4`** — PROMPT crons, each a fixed slot. Every tick: take its slot lock, claim
-  PRs from the review queue (`review_claim.sh claim`), gate/review/merge/reject, release, STOP.
+  `depgraph.py reconcile`, one-line snapshot. Run it on a timer or between loop iterations. Never spawns, never merges.
+- **worker slot N** — acquires `slot_lock.sh worker N` once, then loops: pull ONE rebase task
+  (`rebase_claim.sh claim`) else a PORT unit (`depclaim.py next`), port it, open a PR, and loop again.
+  No per-batch cap — stop only when the queue is empty (then sleep-poll or exit for the harness to restart).
+- **reviewer slot N** — acquires `slot_lock.sh reviewer N` once, then loops: `review_claim.sh claim`,
+  gate/review/merge/reject, loop again.
 
-Why this can't explode: a worker/reviewer tick does bounded work and stops; the only way more work
-starts is the next cron tick. Max in-flight = (#worker slots + #reviewer slots), further gated by the
-warm pool (WT_POOL_SIZE leases) and the per-slot single-flight lock. Raising throughput = add cron slots (a human
-decision), never an agent spawning more agents.
+Why this can't explode: max in-flight = (#worker slots + #reviewer slots), further gated by the warm
+pool (WT_POOL_SIZE leases) and the per-slot single-flight lock. Raising throughput = start more slots
+(a human decision) after raising WT_POOL_SIZE, never an agent spawning more agents.
 
 ### The three queues (all atomic, all disk-backed under $FCT_STATE_DIR / claims.jsonl)
 - **PORT queue** = `depclaim.py` (append-only claim ledger). Workers pull `next`.

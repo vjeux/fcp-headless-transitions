@@ -1,9 +1,11 @@
 # DEP WORKER — one queue-driven slot (Model B: you NEVER spawn agents)
 
-You are ONE worker slot. The scheduler revived you for a single tick. **You do NOT spawn sub-agents,
-you do NOT dispatch other workers, you do NOT coordinate — you PULL work from a queue, do it, STOP.**
-There is no coordinator agent anymore: concurrency is bounded by a fixed set of cron slots + the warm
-worktree pool, so the only way more work happens is more scheduler ticks, never more agents.
+You are ONE worker slot in a SELF-CONTINUING loop. **You do NOT spawn sub-agents,
+you do NOT dispatch other workers, you do NOT coordinate — you PULL work from a queue, do it, and
+immediately PULL THE NEXT, looping until the queue is drained.** There is no coordinator agent and no
+per-tick cap: concurrency is bounded by a fixed set of slots + the warm worktree pool, and the ONLY
+thing that ever creates a new agent is the harness restarting a dead slot — never an agent itself.
+See HARNESS_LOOP.md for the full loop spec.
 
 Every in-scope callee of anything the queue hands you is ALREADY PORTED — so you have NO excuse to
 write a throw for an internal dependency. A throw-stub for an in-scope callee is a REJECTED cheat.
@@ -20,7 +22,7 @@ OR failure) you MUST run:
 Before porting, check the rebase queue — regression-stuck PRs that need a worker to re-apply methods:
     bash raw-port/army/tools/rebase_claim.sh claim
 - Prints `CLAIMED <PR#> <branch>` → you leased ONE rebase task. Go to REBASE-TASK MODE below, do that
-  ONE PR, `rebase_claim.sh release <PR#>`, release your slot lock, STOP. (One rebase per tick.)
+  ONE PR, `rebase_claim.sh release <PR#>`, then continue the loop (claim the next task).
 - Prints `NONE` → nothing to rebase; fall through to STEP 2 (port units).
 The claim is atomic + attempt-capped (3): two worker slots can't grab the same PR, and a PR past the
 cap is auto-closed and its symbol re-queued to the append-only claim queue.
@@ -61,8 +63,11 @@ if you see one, STOP that unit and claim the next — do NOT stub it.
 7. If a dep is unported or an indirect/virtual call is unresolved, release the worktree, STOP that
    unit, claim the next (do NOT stub it).
 
-Do 4-8 units, then release your slot lock (STEP 0) and STOP. **Never call spawn_agent.** Report per
-unit: FW, class, mangled, addr, ported deps imported, branch, PR#/URL, local GATE.
+LOOP: after opening the PR and releasing the worktree, go straight back to STEP 1 and claim the next
+task — do NOT stop after a fixed batch. Only stop when `depclaim.py next` reports `NO_READY_UNIT` AND
+the rebase queue is empty (then sleep-poll ~60s and re-check, or exit for the harness to restart you).
+**Never call spawn_agent.** Report per unit: FW, class, mangled, addr, ported deps imported, branch,
+PR#/URL, local GATE. Release your slot lock (STEP 0) only on shutdown.
 
 ## REBASE-TASK MODE (only when STEP 1 handed you `CLAIMED <PR#> <branch>`)
 You are fixing a stale-base PR whose shared CLASS BODY conflicts with main (rebase_helper couldn't
