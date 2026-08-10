@@ -28,6 +28,8 @@
 // -----------------------------------------------------------------------------
 //   * __ZN8HGBitmap10GetStorageEv
 //       — HGBitmap::GetStorage() @Helium 0x1e5d00
+//   * __ZNK8HGBitmap13GetEdgePolicyEv
+//       — HGBitmap::GetEdgePolicy() const @Helium 0x1e5d10
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (raw-port/re/disasm/Helium.__ZN8HGBitmap10GetStorageEv.s)
@@ -245,6 +247,66 @@ export class HGBitmap {
     // @0x1e5cb1  movq %rcx, %rax          ; return rcx
     return rowsTerm + colsTerm;
   }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // NEW FIELD added for GetEdgePolicy() const @Helium 0x1e5d10
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /** @Helium offset +0x60 — the start of an embedded SUBOBJECT whose address
+   *  (not contents) is handed back by `GetEdgePolicy() const` @0x1e5d14 via
+   *  `leaq 0x60(%rdi), %rax`.
+   *
+   *  The instruction is a `leaq`, NOT a `movq`: the machine never
+   *  dereferences +0x60 here, so this unit learns only that an object
+   *  BEGINS at +0x60 and that callers receive a pointer/reference into the
+   *  bitmap itself. Its interior (width? mode enum? clamp/wrap/mirror
+   *  descriptor?) is UNDECODED — per Rule 5 no field of it is invented.
+   *
+   *  Modelled as an owned, always-present record so the reference the
+   *  getter returns has the same two properties the `leaq` guarantees:
+   *  it is never null (it is `this + 0x60`, an interior address), and it is
+   *  IDENTICAL across calls on the same bitmap (`===` mirrors pointer
+   *  equality). Peer methods that read inside the policy will add typed
+   *  fields at their own @0xADDRs when they are ported. */
+  readonly edgePolicyAt60: Record<string, unknown> = {};
+
+  /**
+   * `HGBitmap::GetEdgePolicy() const`
+   *   — @Helium 0x1e5d10
+   *   — __ZNK8HGBitmap13GetEdgePolicyEv
+   *
+   * Faithful line-for-line transcription of the 6-instruction disassembly:
+   *   0x1e5d10  pushq  %rbp                        ; frame prologue
+   *   0x1e5d11  movq   %rsp, %rbp
+   *   0x1e5d14  leaq   0x60(%rdi), %rax             ; rax = this + 0x60
+   *   0x1e5d18  popq   %rbp                        ; frame epilogue
+   *   0x1e5d19  retq                                ; return %rax
+   *   0x1e5d1a  nopw   (%rax,%rax)                  ; alignment padding
+   *
+   * Single-instruction body: form the INTERIOR ADDRESS of the subobject
+   * embedded at offset +0x60 of `this` and return it. Note the contrast
+   * with the sibling `GetStorage()` @0x1e5d00, which is a `movq` (a LOAD
+   * of a stored pointer at +0x78); here the `leaq` computes an address
+   * without touching memory, which is the C++ codegen for returning a
+   * reference/pointer to an embedded member rather than a stored handle.
+   * Consequently the result can never be null and never varies for a
+   * given bitmap.
+   *
+   * Zero in-scope callees, zero externs, no indirect calls — pure address
+   * arithmetic. Confirmed via `depgraph.py deps
+   * __ZNK8HGBitmap13GetEdgePolicyEv` (no dependencies reported).
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Helium.__ZNK8HGBitmap13GetEdgePolicyEv.s (7 lines)
+   */
+  GetEdgePolicy(): Record<string, unknown> {
+    // @0x1e5d14  leaq 0x60(%rdi), %rax
+    //   Return the address of the embedded subobject at this[+0x60]. In the
+    //   JS mirror an object reference IS the address, so handing back the
+    //   owned record reproduces both the non-nullness and the pointer
+    //   identity of `this + 0x60`.
+    return this.edgePolicyAt60;
+  }
 }
 
 /**
@@ -253,4 +315,14 @@ export class HGBitmap {
  */
 export function __ZN8HGBitmap10GetStorageEv(self: HGBitmap): unknown {
   return self.GetStorage();
+}
+
+/**
+ * Alias export: mangled symbol name.
+ * @0x1e5d10 Helium  __ZNK8HGBitmap13GetEdgePolicyEv
+ */
+export function __ZNK8HGBitmap13GetEdgePolicyEv(
+  self: HGBitmap,
+): Record<string, unknown> {
+  return self.GetEdgePolicy();
 }
